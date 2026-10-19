@@ -37,7 +37,7 @@ static void SZFLine(NSBezierPath *path, CGFloat x1, CGFloat y1, CGFloat x2, CGFl
 }
 
 // The second figure's head in the 16-unit box, shared by the drawing and SZFriendsPeopleIconSecondHeadRect.
-static const CGFloat SZFSecondHeadX = 11.2, SZFSecondHeadY = 5, SZFSecondHeadR = 2, SZFPeopleStroke = 1.3;
+static const CGFloat SZFSecondHeadX = 11.2, SZFSecondHeadY = 5, SZFSecondHeadR = 2, SZFPeopleStroke = 1.2;
 
 void SZFriendsDrawPeopleIcon(NSRect rect, NSColor *color) {
     SZFIconBox(rect, 16, ^{

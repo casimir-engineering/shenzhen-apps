@@ -41,6 +41,20 @@ static void SZFZero(NSData *data) {
     return identity;
 }
 
+- (nullable SZFriendsIdentity *)loadExistingWithError:(NSError **)error {
+    NSError *readError = nil;
+    NSData *secret = [_keyStore secretNamed:SZFriendsIdentitySecretName error:&readError];
+    if (secret == nil) {
+        if (error) *error = SZFriendsIdentityMakeError(SZFriendsIdentityErrorUnavailable,
+            readError ? @"The Friends identity exists but cannot be read." : @"The Friends identity is missing.",
+            readError);
+        return nil;
+    }
+    SZFriendsIdentity *identity = [SZFriendsIdentity identityFromSecret:secret error:error];
+    SZFZero(secret);
+    return identity;
+}
+
 - (nullable SZFriendsIdentity *)resetIdentityWithError:(NSError **)error {
     if (![_keyStore deleteSecretNamed:SZFriendsIdentitySecretName error:error]) return nil;
     return [self createWithError:error];

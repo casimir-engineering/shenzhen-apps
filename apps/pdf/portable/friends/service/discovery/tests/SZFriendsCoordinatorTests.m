@@ -157,6 +157,33 @@ static void TestIndependence(void) {
     CHECK(notAsked == 1, "stopping reports Not asked once per method: %@", delegate.states);
 }
 
+// Opening Friends again, or Try Again, restarts a method that failed and leaves alone one that is off, refused or
+// missing on this computer: those change when the system says so.
+static void TestActivateRetriesFailures(void) {
+    SZFriendsAdapterState states[] = {SZFriendsAdapterStateUnavailable, SZFriendsAdapterStateDenied,
+                                      SZFriendsAdapterStateRadioOff, SZFriendsAdapterStateUnsupported,
+                                      SZFriendsAdapterStateWorking};
+    for (size_t i = 0; i < sizeof states / sizeof states[0]; i++) {
+        dispatch_queue_t queue = dispatch_queue_create("test.discovery", DISPATCH_QUEUE_SERIAL);
+        SZFTestAdapter *network = [[SZFTestAdapter alloc] initWithMethod:SZFriendsDiscoveryMethodNetwork];
+        SZFTestAdapter *bluetooth = [[SZFTestAdapter alloc] initWithMethod:SZFriendsDiscoveryMethodBluetooth];
+        bluetooth.stateOnStart = states[i];
+        SZFTestCoordinatorDelegate *delegate = [SZFTestCoordinatorDelegate new];
+        SZFriendsDiscoveryCoordinator *coordinator = MakeCoordinator(network, bluetooth, queue, delegate);
+        [coordinator activate];
+        CHECK(network.startCount == 1 && bluetooth.startCount == 1);
+        bluetooth.stateOnStart = SZFriendsAdapterStateWorking;
+        [coordinator activate];
+        BOOL retried = states[i] == SZFriendsAdapterStateUnavailable;
+        CHECK(bluetooth.startCount == (retried ? 2u : 1u) && bluetooth.stopCount == (retried ? 1u : 0u),
+              "state %ld: %lu starts", (long)states[i], (unsigned long)bluetooth.startCount);
+        CHECK(network.startCount == 1 && network.stopCount == 0, "a working method is left running");
+        if (retried) {
+            CHECK([coordinator stateOfMethod:SZFriendsDiscoveryMethodBluetooth] == SZFriendsAdapterStateWorking);
+        }
+    }
+}
+
 static void TestWakeRefreshAndAccept(void) {
     dispatch_queue_t queue = dispatch_queue_create("test.discovery", DISPATCH_QUEUE_SERIAL);
     SZFTestAdapter *network = [[SZFTestAdapter alloc] initWithMethod:SZFriendsDiscoveryMethodNetwork];
@@ -295,6 +322,7 @@ static void TestDialing(void) {
 void SZFriendsRunCoordinatorTests(void) {
     TestLaunch();
     TestIndependence();
+    TestActivateRetriesFailures();
     TestWakeRefreshAndAccept();
     TestDialing();
 }

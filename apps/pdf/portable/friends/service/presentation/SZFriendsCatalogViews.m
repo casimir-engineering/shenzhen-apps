@@ -127,6 +127,25 @@ static NSDictionary<NSString *, NSString *> *NearbyEntries(void) {
         @"method.bluetooth.denied" : @"Bluetooth access is off for {app}",
         @"method.bluetooth.radio_off" : @"Bluetooth is off",
         @"method.bluetooth.unavailable" : @"Bluetooth isn’t working right now",
+        @"method.network.unsupported" : @"Can’t look on your network on this computer",
+        @"method.bluetooth.unsupported" : @"This computer has no Bluetooth Friends can use",
+        // Without an identity nothing runs, and the list's banner says how to start again.
+        @"method.identity_unavailable" : @"Starts once you reset Friends",
+        @"visibility.unavailable.failed" : @"People nearby can’t see you while Nearby isn’t working.",
+        @"visibility.unavailable.identity" : @"Reset Friends to be visible to people nearby.",
+        // Nothing asked for access yet: Allow starts Nearby, and the system asks the first time.
+        @"alert.not_asked.title" : @"Find people near you",
+        @"alert.not_asked.body" : @"Click Allow to start looking. The first time, you’re asked whether {app} may use "
+                                  @"your local network and Bluetooth.",
+        @"nearby.allow" : @"Allow",
+        @"nearby.try_again" : @"Try Again",
+        @"note.bluetooth_unsupported" : @"This computer has no Bluetooth Friends can use. People nearby without "
+                                        @"Wi-Fi won’t appear.",
+        @"note.bluetooth_unsupported.under_card" : @"This computer has no Bluetooth Friends can use either.",
+        @"note.bluetooth_not_asked" : @"Bluetooth hasn’t started yet.",
+        @"nearby.empty.not_asked.title" : @"Nearby hasn’t started yet",
+        @"nearby.empty.unavailable.body.failed" : @"People nearby won’t appear until it works again.",
+        @"nearby.empty.unavailable.body.identity" : @"Reset Friends to find people nearby on this computer.",
         @"alert.network_denied.title" : @"{app} can’t find people on your network",
         @"alert.network_denied.body" : @"Turn on Local Network for {app} in System Settings › Privacy & Security. "
                                        @"Until then, people on your Wi-Fi won’t appear.",
@@ -255,6 +274,26 @@ static NSDictionary<NSString *, NSString *> *PeopleAndSettingsEntries(void) {
                                                      @"them there.",
         @"settings.history.confirm.button" : @"Delete History",
         @"settings.reset.label" : @"Start over",
+        // Settings' Nearby line: whether Friends can find people nearby, and what fixes it when it cannot.
+        @"settings.nearby.label" : @"Nearby",
+        @"settings.nearby.note.identity" : @"Nearby starts once you reset Friends.",
+        @"settings.nearby.note.not_asked" : @"Allow {app} to find people nearby. The first time, you’re asked "
+                                            @"whether it may use your local network and Bluetooth.",
+        @"settings.nearby.note.denied" : @"Local Network and Bluetooth access are off for {app}, so nobody nearby "
+                                         @"appears. Turn them on in System Settings › Privacy & Security.",
+        @"settings.nearby.note.network_denied" : @"Local Network access is off for {app}, so people on your Wi-Fi "
+                                                 @"won’t appear. Turn it on in System Settings › Privacy & Security.",
+        @"settings.nearby.note.bluetooth_denied" : @"Bluetooth access is off for {app}, so people nearby without "
+                                                   @"Wi-Fi won’t appear. Turn it on in System Settings › Privacy & "
+                                                   @"Security.",
+        @"settings.nearby.note.wifi_off" : @"Wi-Fi is off. Turn it on to find people on your network and close by.",
+        @"settings.nearby.note.radios_off" : @"Wi-Fi and Bluetooth are off. Turn on Wi-Fi to find people on your "
+                                             @"network and close by, or Bluetooth to find people nearby without Wi-Fi.",
+        @"settings.nearby.note.bluetooth_off" : @"Bluetooth is off. People nearby without Wi-Fi won’t appear.",
+        @"settings.nearby.note.failed" : @"Nearby isn’t working right now.",
+        @"settings.nearby.note.unsupported" : @"{app} finds people nearby on your network. This computer has no "
+                                              @"Bluetooth Friends can use.",
+        @"settings.nearby.note.ready" : @"{app} can find people nearby on your network and over Bluetooth.",
         @"settings.reset.note" : @"You get a new ID, and every friend has to add you again.",
         @"settings.reset.action" : @"Reset Friends…",
         @"settings.reset.confirm.title" : @"Reset Friends?",

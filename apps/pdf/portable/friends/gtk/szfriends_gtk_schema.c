@@ -346,11 +346,15 @@ static const SZFriendsGtkField settings_confirmed_fields[] = {STR(T, label), STR
                                                               OBJ(T, confirm, confirm)};
 #undef T
 TYPE(static, settings_confirmed, NULL, SZFriendsGtkSettingsConfirmed);
+#define T SZFriendsGtkSettingsNearby
+static const SZFriendsGtkField settings_nearby_fields[] = {STR(T, label), STR(T, note), OBJN(T, action, action)};
+#undef T
+TYPE(static, settings_nearby, NULL, SZFriendsGtkSettingsNearby);
 #define T SZFriendsGtkSettingsSnapshot
 static const SZFriendsGtkField szfriends_gtk_type_settings_snapshot_fields[] = {
     OBJ(T, name, settings_name), OBJ(T, id, settings_id), OBJ(T, received, settings_received),
     OBJ(T, auto_accept, settings_auto_accept), OBJ(T, history, settings_confirmed),
-    OBJ(T, reset, settings_confirmed)};
+    OBJ(T, reset, settings_confirmed), OBJN(T, nearby, settings_nearby)};
 #undef T
 TYPE(, szfriends_gtk_type_settings_snapshot, "snapshot.settings", SZFriendsGtkSettingsSnapshot);
 #define T SZFriendsGtkMessageEntry

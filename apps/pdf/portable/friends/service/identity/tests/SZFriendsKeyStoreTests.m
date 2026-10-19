@@ -20,6 +20,9 @@
 @property(nonatomic) Boolean interactionAllowed;
 @property(nonatomic) BOOL itemCallWhileInteractive;
 @property(nonatomic) OSStatus copyStatus;      // forced result of copyMatching when not errSecSuccess
+// Accounts made by a helper with another code signature: their secret is refused (errSecAuthFailed, as the real
+// keychain answers an ad-hoc item read by a Developer ID helper), but they can be found by reference and deleted.
+@property(nonatomic) NSMutableSet<NSString *> *foreign;
 @property(nonatomic) OSStatus getSwitchStatus; // forced result of getUserInteractionAllowed
 @end
 
@@ -29,6 +32,7 @@
         _items = [NSMutableDictionary dictionary];
         _calls = [NSMutableArray array];
         _queries = [NSMutableArray array];
+        _foreign = [NSMutableSet set];
         _interactionAllowed = true;
         _copyStatus = errSecSuccess;
         _getSwitchStatus = errSecSuccess;
@@ -43,9 +47,24 @@
 - (OSStatus)copyMatching:(NSDictionary *)query result:(id _Nullable __autoreleasing *)result {
     [self noteItemCall:@"copy" query:query];
     if (_copyStatus != errSecSuccess) return _copyStatus;
-    NSData *data = _items[query[(__bridge id)kSecAttrAccount]];
+    NSString *account = query[(__bridge id)kSecAttrAccount];
+    NSData *data = _items[account];
     if (data == nil) return errSecItemNotFound;
+    if ([query[(__bridge id)kSecReturnRef] isEqual:@YES]) {
+        // A reference reads nothing secret, so a foreign item is found too; the match limit is all.
+        *result = @[ [@"ref:" stringByAppendingString:account] ];
+        return errSecSuccess;
+    }
+    if ([_foreign containsObject:account]) return errSecAuthFailed;
     *result = [data copy];
+    return errSecSuccess;
+}
+- (OSStatus)deleteItem:(id)item {
+    [self noteItemCall:@"delete" query:@{@"item" : item}];
+    NSString *account = [item hasPrefix:@"ref:"] ? [item substringFromIndex:4] : nil;
+    if (account == nil || _items[account] == nil) return errSecItemNotFound;
+    [_items removeObjectForKey:account];
+    [_foreign removeObject:account];
     return errSecSuccess;
 }
 - (OSStatus)add:(NSDictionary *)attributes {
@@ -53,13 +72,6 @@
     NSString *account = attributes[(__bridge id)kSecAttrAccount];
     if (_items[account] != nil) return errSecDuplicateItem;
     _items[account] = [attributes[(__bridge id)kSecValueData] copy]; // SecItemAdd copies; callers zero theirs
-    return errSecSuccess;
-}
-- (OSStatus)deleteMatching:(NSDictionary *)query {
-    [self noteItemCall:@"delete" query:query];
-    NSString *account = query[(__bridge id)kSecAttrAccount];
-    if (_items[account] == nil) return errSecItemNotFound;
-    [_items removeObjectForKey:account];
     return errSecSuccess;
 }
 - (OSStatus)getUserInteractionAllowed:(Boolean *)allowed {
@@ -259,11 +271,40 @@ static void TestKeychainStore(void) {
     fake.getSwitchStatus = errSecSuccess;
 
     SZFExpect([store deleteSecretNamed:@"identity" error:&error], @"delete: %@", error);
-    ExpectNoninteractiveQuery(fake.queries.lastObject, @"delete");
+    NSDictionary *found = fake.queries[fake.queries.count - 2];
+    ExpectNoninteractiveQuery(found, @"delete's lookup");
+    SZFExpect([found[(__bridge id)kSecReturnRef] isEqual:@YES] &&
+                  [found[(__bridge id)kSecMatchLimit] isEqual:(__bridge id)kSecMatchLimitAll],
+              @"delete finds every item of the name by reference: %@", found);
+    NSArray *itemCalls = [fake.calls filteredArrayUsingPredicate:
+        [NSPredicate predicateWithFormat:@"SELF == 'copy' OR SELF == 'delete'"]];
+    SZFExpect([itemCalls.lastObject isEqual:@"delete"] &&
+                  [fake.queries.lastObject[@"item"] isEqual:@"ref:identity"],
+              @"then deletes through the reference: %@", fake.calls);
     SZFExpect(fake.items[@"identity"] == nil, @"deleted");
     SZFExpect([store deleteSecretNamed:@"identity" error:&error], @"deleting nothing succeeds");
     error = nil;
     SZFExpect(![store storeSecret:secret named:@"../x" error:&error] && error != nil, @"bad name refused");
+
+    // An identity another signature made (an ad-hoc build before this Developer ID one): unreadable, so the
+    // manager reports it unavailable and makes nothing; Reset Friends removes it and the new one reads back.
+    fake.items[@"identity"] = [@"old" dataUsingEncoding:NSUTF8StringEncoding];
+    [fake.foreign addObject:@"identity"];
+    SZFriendsIdentityManager *manager = [[SZFriendsIdentityManager alloc] initWithKeyStore:store];
+    SZFriendsIdentityState state = SZFriendsIdentityStateReady;
+    error = nil;
+    SZFExpect([manager loadOrCreateWithState:&state error:&error] == nil && state == SZFriendsIdentityStateUnavailable &&
+                  error.code == SZFriendsIdentityErrorUnavailable, @"foreign identity unavailable: %@", error);
+    SZFExpect([fake.items[@"identity"] isEqualToData:[@"old" dataUsingEncoding:NSUTF8StringEncoding]],
+              @"an unreadable identity is left alone until Reset");
+    SZFExpect([manager loadExistingWithError:&error] == nil && error.code == SZFriendsIdentityErrorUnavailable,
+              @"reading again still refuses it and creates nothing: %@", error);
+    error = nil;
+    SZFriendsIdentity *reset = [manager resetIdentityWithError:&error];
+    SZFExpect(reset != nil, @"Reset replaces an identity another signature made: %@", error);
+    SZFExpect(![fake.foreign containsObject:@"identity"] && fake.items[@"identity"].length > 0, @"a new item, ours");
+    SZFExpect([[manager loadExistingWithError:&error].publicKey isEqualToData:reset.publicKey],
+              @"the new identity reads back: %@", error);
 }
 
 int main(void) {

@@ -27,6 +27,12 @@
 @interface SZFriendsSettingsSection () <NSTextFieldDelegate>
 @end
 
+// Rows in order; `nearby` shows only when the helper sends it (PROTOCOL.md § settings).
+static NSArray<NSString *> *SZFSettingsRows(void) {
+    return @[ @"name", @"id", @"received", @"auto_accept", @"nearby", @"history", @"reset" ];
+}
+static const NSUInteger SZFSettingsRowCount = 7, SZFSettingsAutoAcceptRow = 3, SZFSettingsNearbyRow = 4;
+
 @implementation SZFriendsSettingsSection {
     SZFriendsSettingsView *_view;
     NSString *_token;
@@ -38,6 +44,7 @@
     SZFriendsButton *_changeButton;
     SZFriendsButton *_historyButton;
     SZFriendsButton *_resetButton;
+    SZFriendsButton *_nearbyButton;
     BOOL _showingFriends;
     NSMutableArray<NSView *> *_friendViews;
     NSMutableArray<NSSwitch *> *_switches;
@@ -56,7 +63,7 @@
     _view.identifier = SZFriendsIdentifierSettings; // the host's assistant skips it (SZFriendsUI.h)
     _view.measure = ^CGFloat(CGFloat width, BOOL apply) { return [weakSelf layoutForWidth:width apply:apply]; };
     _labels = [NSMutableArray array];
-    for (NSUInteger i = 0; i < 12; i++) {
+    for (NSUInteger i = 0; i < 2 * SZFSettingsRowCount; i++) {
         BOOL title = i % 2 == 0;
         NSFont *font = title ? SZFriendsSemibold(appearance.bodyFont) : appearance.secondaryFont;
         NSColor *color = title ? appearance.primaryTextColor : appearance.secondaryTextColor;
@@ -79,6 +86,10 @@
     _historyButton = [self button:^{ [weakSelf runConfirmed:@"delete_history" section:@"history"]; }];
     _resetButton = [self button:^{ [weakSelf runConfirmed:@"reset_friends" section:@"reset"]; }];
     _resetButton.style = SZFriendsButtonStyleSecondary;
+    // Allow, Open Privacy Settings, a radio's settings or Try Again: whatever the helper's Nearby line offers.
+    _nearbyButton = [self button:^{
+        [weakSelf.context performAction:SZFDict(SZFDict(weakSelf.data, @"nearby"), @"action") ids:nil done:nil];
+    }];
     for (NSView *view in @[ _nameField, _idValue ]) [_view addSubview:view];
     _friendViews = [NSMutableArray array];
     _switches = [NSMutableArray array];
@@ -125,6 +136,10 @@
     return @[ _copyButton, _receivedButton, _changeButton, _historyButton, _resetButton ];
 }
 
+- (SZFriendsButton *)nearbyButton {
+    return _nearbyButton;
+}
+
 - (NSArray<NSSwitch *> *)autoAcceptSwitches {
     return [_switches copy];
 }
@@ -149,7 +164,7 @@
 
 - (void)applySnapshot:(NSDictionary *)data {
     _data = [data copy];
-    NSArray *sections = @[ @"name", @"id", @"received", @"auto_accept", @"history", @"reset" ];
+    NSArray *sections = SZFSettingsRows();
     for (NSUInteger i = 0; i < sections.count; i++) {
         NSDictionary *section = SZFDict(data, sections[i]);
         _labels[2 * i].stringValue = SZFStr(section, @"label") ?: @"";
@@ -168,6 +183,11 @@
     _changeButton.title = SZFStr(SZFDict(data, @"auto_accept"), @"action_label") ?: @"";
     _historyButton.title = SZFStr(SZFDict(data, @"history"), @"action_label") ?: @"";
     _resetButton.title = SZFStr(SZFDict(data, @"reset"), @"action_label") ?: @"";
+    NSDictionary *nearbyAction = SZFDict(SZFDict(data, @"nearby"), @"action");
+    _nearbyButton.title = SZFStr(nearbyAction, @"label") ?: @"";
+    _nearbyButton.hidden = ![SZFriendsContext knowsAction:SZFStr(nearbyAction, @"action")];
+    BOOL nearbyRow = SZFDict(data, @"nearby") != nil;
+    _labels[2 * SZFSettingsNearbyRow].hidden = _labels[2 * SZFSettingsNearbyRow + 1].hidden = !nearbyRow;
     [self rebuildFriends];
     [_view invalidateIntrinsicContentSize];
     [_view setNeedsLayout:YES];
@@ -269,7 +289,7 @@
 
 - (CGFloat)layoutForWidth:(CGFloat)width apply:(BOOL)apply {
     NSArray<NSView *> *controls =
-        @[ _nameField, _idValue, _receivedButton, _changeButton, _historyButton, _resetButton ];
+        @[ _nameField, _idValue, _receivedButton, _changeButton, _nearbyButton, _historyButton, _resetButton ];
     CGFloat y = 0;
     CGFloat statusHeight = SZFriendsFieldHeight(_statusLabel, width);
     if (apply) {
@@ -277,9 +297,12 @@
         _statusLabel.hidden = statusHeight == 0;
     }
     if (statusHeight) y += statusHeight + 12;
-    for (NSUInteger row = 0; row < 6; row++) {
+    BOOL nearbyRow = SZFDict(_data, @"nearby") != nil;
+    for (NSUInteger row = 0; row < SZFSettingsRowCount; row++) {
+        if (row == SZFSettingsNearbyRow && !nearbyRow) continue;
         NSView *control = controls[row];
-        CGFloat controlWidth = [self controlWidthForRow:row control:control];
+        // A Nearby line with nothing to fix has no button, and its words take the whole width.
+        CGFloat controlWidth = control.hidden ? 0 : [self controlWidthForRow:row control:control];
         CGFloat copyWidth = row == 1 ? MAX(70, [_copyButton fittingWidth]) + 12 : 0;
         CGFloat textWidth = MAX(120, width - controlWidth - copyWidth - 16);
         NSTextField *label = _labels[2 * row], *note = _labels[2 * row + 1];
@@ -298,7 +321,7 @@
             }
         }
         y += rowHeight + 16;
-        if (row != 3 || !_showingFriends) continue;
+        if (row != SZFSettingsAutoAcceptRow || !_showingFriends) continue;
         for (NSUInteger i = 0; i < _switches.count; i++) {
             if (apply) {
                 NSView *toggle = _friendViews[3 * i + 2];

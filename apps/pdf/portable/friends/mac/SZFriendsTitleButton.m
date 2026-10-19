@@ -20,7 +20,7 @@
     self.style = SZFriendsButtonStylePlain;
     self.title = @"";
     self.icon = ^(NSRect rect, NSColor *color) { SZFriendsDrawPeopleIcon(rect, color); };
-    self.iconSize = NSMakeSize(17, 17);
+    self.iconSize = NSMakeSize(16, 16); // the title bar's other icons' 16 pt slot (Search, the reader's Groups)
     self.accessibilityLabel = [context string:@"button_label"];
     self.identifier = SZFriendsIdentifierTitleButton; // the host's assistant skips it (SZFriendsUI.h)
     [self registerForDraggedTypes:[SZFriendsDrops draggedTypesForHost:context.host]];

@@ -9,7 +9,7 @@ NAMES(actions, NULL, "accept_request", "decline_request", "cancel_request", "blo
       "retry_item", "mark_verified", "accept_key_change", "dismiss_banner", "start_visibility", "stop_visibility",
       "reset_friends", "delete_history", "open_file", "show_file", "open_settings", "add_from_link", "receive_link",
       "reset_friend_link", "revoke_link", "revoke_device", "fetch_from_device", "join_profile", "cancel_join",
-      "approve_join", "deny_join");
+      "approve_join", "deny_join", "activate");
 NAMES(styles, NULL, "primary", "secondary", "link", "destructive");
 NAMES(settings_targets, NULL, "local_network_privacy", "bluetooth_privacy", "bluetooth", "wifi");
 NAMES(empty_kinds, NULL, "searching", "nobody", "unavailable", "no_match");

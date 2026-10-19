@@ -204,7 +204,11 @@
     if (self.shown) return;
     NSSize size = [self dropdownSize];
     SZFriendsDropdownContent *content = self.content;
-    content.frame = NSMakeRect(0, 0, size.width, size.height);
+    // The size only: the popover places its content view inside its own frame (13 pt in on macOS 26, clear of the
+    // glass edge and arrow), and keeps the view between openings. Setting the origin here moved a reopened
+    // dropdown's content down and left of that place, cropping its left and bottom edges (the owner's report of
+    // 2026-10-20: search field against the left edge, footer cut off).
+    [content setFrameSize:size];
     [_presenter presentView:content size:size fromButton:self.button];
     _button.selectedLook = YES;
     // The person opened Friends: the helper may start Nearby now, which is the only time it may prompt.

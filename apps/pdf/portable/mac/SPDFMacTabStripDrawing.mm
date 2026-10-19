@@ -1,3 +1,4 @@
+#import "SPDFMacChromeColors.h"
 #import "SPDFMacIconGeometry.h"
 #import "SPDFMacTabStripViewPrivate.h"
 #import "SPDFMacTabTitleDrawing.h"
@@ -158,7 +159,9 @@
     NSRect overflowRect = [self overflowRect];
     if (!NSIsEmptyRect(overflowRect)) {
         NSImage* icon = [NSImage imageWithSystemSymbolName:@"square.3.layers.3d" accessibilityDescription:@"All Groups"];
-        icon = [icon imageWithSymbolConfiguration:[NSImageSymbolConfiguration configurationWithPaletteColors:@[NSColor.labelColor]]];
+        // The title bar's icon colour, as Search and Friends beside it use: labelColor is translucent and read as a
+        // lighter grey next to them.
+        icon = [icon imageWithSymbolConfiguration:[NSImageSymbolConfiguration configurationWithPaletteColors:@[SPDFChromeIconColor(YES)]]];
         SPDFDrawVectorIcon(icon,NSInsetRect(overflowRect,6,6),YES);
     }
 

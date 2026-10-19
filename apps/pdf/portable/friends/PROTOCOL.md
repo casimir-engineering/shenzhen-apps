@@ -259,7 +259,7 @@ composer on the reply already shows the sent message. Field types are in § Sche
 | Intent | Fields | Effect |
 |---|---|---|
 | `ping` | — | Liveness check; empty result |
-| `activate` | — | The person opened Friends: start Nearby (may prompt for permission the first time) |
+| `activate` | — | The person opened Friends, or pressed Allow or Try Again: start Nearby (may prompt for permission the first time), restart a failing method, and read an identity that was unavailable again |
 | `subscribe` | `view`, `params?` | Start receiving a view's snapshots; result `subscription`. Views: `badge`, `list`, `nearby`, `details` (`params.conversation_id`), `profile`, `settings`, `message_status` (`params.message_ids`), `join` (§ Joining) |
 | `unsubscribe` | `subscription` | Stop |
 | `set_filter` | `subscription`, `query` | Filter a `list` or `nearby` subscription by names and IDs; `""` clears. U+2011 in the query matches `-` |
@@ -532,7 +532,12 @@ The Nearby tab: the visibility action, then people as each method reports them.
   extend the deadline.
 - `methods[]` has one entry per discovery method, `network` (LAN and peer-to-peer Wi-Fi) and `bluetooth`, each
   with its own state. Each unavailable method is distinguished: Local Network access denied, Wi-Fi off,
-  Bluetooth access denied, Bluetooth off.
+  Bluetooth access denied, Bluetooth off, failing, and (state `unavailable`, its own label) no Bluetooth on this
+  computer. While the identity is unavailable (the list's `identity_unavailable` banner) nothing runs: both methods
+  are `not_asked` and say they start once Friends is reset, visibility is `unavailable` and says the same, and there
+  is no `alert` or `note`, because nothing was refused.
+- Buttons that start or retry Nearby send `activate` (§ Intents), the same intent a view sends when Friends opens:
+  Allow on the card shown while nothing has asked for access yet, and Try Again beside a method that is failing.
 - `alert` is the one prominent card, used when the method most people rely on is unavailable (Local Network
   denied, Wi-Fi off, or the network failing); with Wi-Fi and Bluetooth both off it names both. `note` is one quiet
   line when a method is unavailable but others work: "Bluetooth is off. People nearby without Wi-Fi won’t appear."
@@ -644,6 +649,12 @@ The Friends section of the host's Settings while Friends is on: name, ID, receiv
 acceptance summary and its per-friend switches, Delete history and Reset Friends with their confirmations. The
 **Enable Shenzhen Friends** checkbox and the disclosure text belong to the host adapter, because they show while
 Friends is off and no helper runs.
+
+- `nearby`, when the helper adds it, says whether Nearby has the access and radios it needs (`note`) and carries the
+  one button that fixes it when it has not: `activate` labelled Allow while nothing has asked for access yet (the
+  system asks the first time), `open_settings` to the Privacy pane of the method that was refused, or to the Wi-Fi or
+  Bluetooth settings while a radio is off, and `activate` labelled Try Again while a method is failing. `null` action
+  when nothing needs doing. A view that does not know `nearby` shows nothing for it.
 
 ### `message_status`
 
@@ -1460,7 +1471,7 @@ label: string|null
 ```
 
 ```schema type.action
-action: enum(accept_request,decline_request,cancel_request,block,unblock,remove_friend,send_request,add_from_mention,accept_offer,decline_offer,cancel_transfer,cancel_message,retry_item,mark_verified,accept_key_change,dismiss_banner,start_visibility,stop_visibility,reset_friends,delete_history,open_file,show_file,open_settings,add_from_link,receive_link,reset_friend_link,revoke_link,revoke_device,fetch_from_device,join_profile,cancel_join,approve_join,deny_join)
+action: enum(accept_request,decline_request,cancel_request,block,unblock,remove_friend,send_request,add_from_mention,accept_offer,decline_offer,cancel_transfer,cancel_message,retry_item,mark_verified,accept_key_change,dismiss_banner,start_visibility,stop_visibility,activate,reset_friends,delete_history,open_file,show_file,open_settings,add_from_link,receive_link,reset_friend_link,revoke_link,revoke_device,fetch_from_device,join_profile,cancel_join,approve_join,deny_join)
 label: string
 style: enum(primary,secondary,link,destructive)
 note?: string|null
@@ -1916,6 +1927,10 @@ data.reset.label: string
 data.reset.note: string
 data.reset.action_label: string
 data.reset.confirm: @confirm
+data.nearby?: object|null         # the helper's Nearby line; absent from a helper without one
+data.nearby.label: string         # "Nearby"
+data.nearby.note: string
+data.nearby.action: @action|null  # activate (Allow, Try Again) or open_settings
 ```
 
 ```schema snapshot.message_status

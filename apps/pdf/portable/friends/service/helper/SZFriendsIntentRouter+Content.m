@@ -1,4 +1,4 @@
-// Intents about content: messages, files and their transfers, retries, local search, deleting and resetting.
+// Intents about content: messages, files and their transfers, retries, local search and deleting history.
 
 #import "service/helper/SZFriendsIntentRouter.h"
 
@@ -464,35 +464,6 @@ static const NSUInteger SZFriendsSearchLimitMax = 50;
     }
     [self.services.nearby historyDeleted];
     [self succeed:reply result:nil];
-}
-
-- (void)intent_reset_friends:(NSDictionary *)intent connection:(SZFriendsIPCConnection *)connection
-                       reply:(SZFriendsIntentReply)reply {
-    if (![intent[@"confirm"] isEqual:@"reset"]) {
-        [self fail:reply code:@"invalid_field" details:@{@"field" : @"confirm"} connection:connection];
-        return;
-    }
-    SZFriendsHelperCheckIn *checkIn = self.services.checkIn;
-    // Off the air while the host releases the old identity and the reset runs, and until it has succeeded.
-    [self.services.nearby suspendForReset];
-    __weak SZFriendsIntentRouter *weakSelf = self;
-    void (^reset)(void) = ^{
-        SZFriendsIntentRouter *strongSelf = weakSelf;
-        if (strongSelf == nil) return;
-        if (![strongSelf.services resetFriendsWithError:NULL]) {
-            [strongSelf fail:reply code:@"internal" details:nil connection:connection];
-            return;
-        }
-        // Nothing of the old identity stays on the air; the host meets the new one.
-        [strongSelf.services.nearby identityDidReset];
-        [strongSelf.services.checkIn start];
-        reply(@{}, nil, nil, nil);
-        // Every view now shows someone who no longer exists: all clients reconnect and subscribe again.
-        if (strongSelf.onReset) strongSelf.onReset();
-    };
-    // The host forgets the old identity and frees its ID first (ADR 0005 step 6), best effort and bounded.
-    if (checkIn != nil) [checkIn releaseIdentityWithCompletion:reset];
-    else reset();
 }
 
 @end

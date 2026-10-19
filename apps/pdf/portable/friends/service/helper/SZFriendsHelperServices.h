@@ -76,6 +76,9 @@ NS_ASSUME_NONNULL_BEGIN
 - (BOOL)expireOutgoingRequests;
 // A fresh Friends ID for the current collision count (ADR 0006); nil without a word list.
 - (nullable NSString *)drawFriendsID;
+// While the identity is unavailable: reads it again, never creating one (a keychain that was still locked at start
+// opens later). YES when there is an identity now. The helper then starts Nearby and the check-in for it.
+- (BOOL)retryIdentity;
 // Reset Friends: a new identity and ID; friends, history and pictures deleted; received files kept.
 - (BOOL)resetFriendsWithError:(NSError **)error;
 

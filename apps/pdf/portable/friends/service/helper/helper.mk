@@ -45,7 +45,8 @@ FRIENDS_HELPER_CORE_NAMES := SZFriendsStatePaths SZFriendsInstanceLock SZFriends
 FRIENDS_HELPER_DISPATCH_NAMES := SZFriendsHelperServices SZFriendsHelperFacts SZFriendsSubscriptions \
 	SZFriendsIntentRouter SZFriendsIntentRouter+Profile SZFriendsIntentRouter+People SZFriendsIntentRouter+Content \
 	SZFriendsIntentRouter+Cancel SZFriendsIntentRouter+Mentions SZFriendsIntentRouter+Links SZFriendsHelperLinks \
-	SZFriendsIntentRouter+Join SZFriendsIntentRouter+Devices SZFriendsHostCheckIn SZFriendsHelperMain
+	SZFriendsIntentRouter+Join SZFriendsIntentRouter+Devices SZFriendsIntentRouter+Reset SZFriendsHostCheckIn \
+	SZFriendsHelperMain
 # Nearby orchestration (nearby/): discovery, sessions, delivery and transfers wired together for the helper.
 FRIENDS_HELPER_NEARBY_SRCS := $(sort $(wildcard $(FRIENDS_HELPER_DIR)/nearby/*.m))
 FRIENDS_HELPER_NEARBY_OBJS := $(patsubst $(FRIENDS_HELPER_DIR)/nearby/%.m,$(FRIENDS_HELPER_BUILD)/obj/nearby/%.o,\

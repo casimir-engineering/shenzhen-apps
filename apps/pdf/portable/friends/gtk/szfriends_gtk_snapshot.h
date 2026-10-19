@@ -52,7 +52,9 @@ typedef enum {
     SZFRIENDS_GTK_ACTION_ADD_FROM_LINK, SZFRIENDS_GTK_ACTION_RECEIVE_LINK, SZFRIENDS_GTK_ACTION_RESET_FRIEND_LINK,
     SZFRIENDS_GTK_ACTION_REVOKE_LINK, /* Several computers (PROTOCOL.md § Devices, § Joining): */
     SZFRIENDS_GTK_ACTION_REVOKE_DEVICE, SZFRIENDS_GTK_ACTION_FETCH_FROM_DEVICE, SZFRIENDS_GTK_ACTION_JOIN_PROFILE,
-    SZFRIENDS_GTK_ACTION_CANCEL_JOIN, SZFRIENDS_GTK_ACTION_APPROVE_JOIN, SZFRIENDS_GTK_ACTION_DENY_JOIN
+    SZFRIENDS_GTK_ACTION_CANCEL_JOIN, SZFRIENDS_GTK_ACTION_APPROVE_JOIN, SZFRIENDS_GTK_ACTION_DENY_JOIN,
+    /* Nearby's Allow and Try Again (PROTOCOL.md § nearby) */
+    SZFRIENDS_GTK_ACTION_ACTIVATE
 } SZFriendsGtkActionKind;
 typedef enum {
     SZFRIENDS_GTK_STYLE_UNKNOWN, SZFRIENDS_GTK_STYLE_PRIMARY, SZFRIENDS_GTK_STYLE_SECONDARY, SZFRIENDS_GTK_STYLE_LINK,
@@ -381,6 +383,9 @@ typedef struct { SZFriendsGtkPresence present; char *label, *note, *action_label
                  gsize n_friends; } SZFriendsGtkSettingsAutoAccept;
 typedef struct { SZFriendsGtkPresence present; char *label, *note, *action_label;
                  SZFriendsGtkConfirm confirm; } SZFriendsGtkSettingsConfirmed;
+/* The helper's Nearby line (PROTOCOL.md § settings): what Nearby can do, and the one button that fixes it. */
+typedef struct { SZFriendsGtkPresence present; char *label, *note;
+                 SZFriendsGtkAction *action; } SZFriendsGtkSettingsNearby;
 typedef struct {
     SZFriendsGtkPresence present;
     SZFriendsGtkSettingsName name;
@@ -388,6 +393,7 @@ typedef struct {
     SZFriendsGtkSettingsReceived received;
     SZFriendsGtkSettingsAutoAccept auto_accept;
     SZFriendsGtkSettingsConfirmed history, reset;
+    SZFriendsGtkSettingsNearby *nearby; /* NULL without `nearby` */
 } SZFriendsGtkSettingsSnapshot;
 
 typedef struct { SZFriendsGtkPresence present; char *message_id;

@@ -86,9 +86,22 @@ static const NSTimeInterval kRefreshMinimumInterval = 10;
 }
 
 - (void)activate {
+    BOOL restarted = NO;
     for (id<SZFriendsDiscoveryAdapter> adapter in _adapters) {
-        if (![_started containsObject:@(adapter.method)]) [self startAdapter:adapter];
+        if (![_started containsObject:@(adapter.method)]) {
+            [self startAdapter:adapter];
+        } else if (adapter.state == SZFriendsAdapterStateUnavailable) {
+            // A method that failed is tried again when the person opens Friends or presses Try Again (the same
+            // intent); one that is off, refused or missing waits for the system to say it changed.
+            _restarting = YES;
+            [adapter stop];
+            _restarting = NO;
+            [self loseEndpointsOfMethod:adapter.method];
+            [self startAdapter:adapter];
+            restarted = YES;
+        }
     }
+    if (restarted) [self changed];
 }
 
 - (void)startAdapter:(id<SZFriendsDiscoveryAdapter>)adapter {

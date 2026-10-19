@@ -91,6 +91,8 @@ NS_ASSUME_NONNULL_BEGIN
 @interface SZFriendsSettingsSection ()
 @property(nonatomic, strong, readonly) SZFriendsContext *context;
 @property(nonatomic, copy, readonly) NSArray<SZFriendsButton *> *buttons;  // Copy, Show in Finder, Change…, …
+// The Nearby line's one button (Allow, Open Privacy Settings, Try Again); hidden without one.
+@property(nonatomic, strong, readonly) SZFriendsButton *nearbyButton;
 @property(nonatomic, copy, readonly) NSArray<NSSwitch *> *autoAcceptSwitches;
 @property(nonatomic, strong, readonly) NSTextField *nameField;
 @property(nonatomic, readonly) BOOL holdsSubscription;

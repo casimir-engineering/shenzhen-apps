@@ -84,7 +84,9 @@ typedef NS_ENUM(NSInteger, SZFriendsAdapterState) {
     SZFriendsAdapterStateWorking = 2,   // browsing/scanning and listening/advertising
     SZFriendsAdapterStateDenied = 3,    // Local Network or Bluetooth access denied (or restricted)
     SZFriendsAdapterStateRadioOff = 4,  // Wi-Fi off (Network) or Bluetooth off
-    SZFriendsAdapterStateUnavailable = 5, // no hardware, or failing; detail in the adapter's log only
+    SZFriendsAdapterStateUnavailable = 5, // failing; detail in the adapter's log only
+    SZFriendsAdapterStateUnsupported = 6, // this computer has no radio the method can use (Bluetooth LE missing);
+                                          // PROTOCOL.md's method state stays `unavailable`, its words say which
 };
 
 // Permission as an adapter can read it without prompting.

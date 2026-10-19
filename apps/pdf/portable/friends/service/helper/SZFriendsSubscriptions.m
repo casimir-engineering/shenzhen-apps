@@ -121,7 +121,11 @@ static const CFTimeInterval SZFriendsSnapshotInterval = 0.1;
     if ([view isEqualToString:@"profile"]) {
         return [builder profileWithFacts:[pass profileWithLinks] waitingElsewhere:[pass waitingCountExcluding:nil]];
     }
-    if ([view isEqualToString:@"settings"]) return [builder settingsWithProfile:pass.profile people:pass.people];
+    if ([view isEqualToString:@"settings"]) {
+        NSMutableDictionary *settings = [[builder settingsWithProfile:pass.profile people:pass.people] mutableCopy];
+        settings[@"nearby"] = [builder nearbyAccessWithFacts:pass.nearby profile:pass.profile];
+        return settings;
+    }
     if ([view isEqualToString:@"message_status"]) {
         NSMutableDictionary<NSString *, SZFriendsPersonFacts *> *people = [NSMutableDictionary dictionary];
         for (SZFriendsPersonFacts *person in pass.people) people[person.conversationID] = person;

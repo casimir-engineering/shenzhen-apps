@@ -12,9 +12,111 @@ static NSDictionary *NearbyData(SZFriendsNearbyFacts *facts, NSString *query, NS
     return data;
 }
 
+static NSString *Said(NSDictionary *data) {
+    NSMutableArray *parts = [NSMutableArray array];
+    for (id value in @[ data[@"visibility"][@"body"] ?: @"", data[@"alert"], data[@"note"], data[@"empty"] ]) {
+        if ([value isKindOfClass:NSString.class]) [parts addObject:value];
+        if ([value isKindOfClass:NSDictionary.class])
+            for (NSString *key in @[ @"title", @"body", @"text" ])
+                if ([value[key] isKindOfClass:NSString.class]) [parts addObject:value[key]];
+    }
+    for (NSDictionary *method in data[@"methods"]) [parts addObject:method[@"label"]];
+    return [parts componentsJoinedByString:@" | "];
+}
+
+// Allow while nothing has asked for access; Open Privacy Settings for a refusal; Try Again for a failure; and, with
+// no identity, nothing about access or radios at all, since nothing ran (the owner's report of 2026-10-20: Bluetooth
+// on, nothing refused, and the tab said to allow access in System Settings and that Bluetooth was not working).
+static void TestNearbyAsksAndRetries(void) {
+    SZFriendsNearbyFacts *facts = [[SZFriendsNearbyFacts alloc] init];
+    facts.networkState = facts.bluetoothState = SZFriendsAdapterStateNotAsked;
+    NSDictionary *data = NearbyData(facts, @"", nil);
+    SZPExpect([data[@"alert"][@"action"][@"action"] isEqual:@"activate"] &&
+                  [data[@"alert"][@"action"][@"label"] isEqual:@"Allow"] && data[@"note"] == [NSNull null],
+              @"not asked: one card with Allow: %@ %@", data[@"alert"], data[@"note"]);
+    SZPExpect(![data[@"empty"][@"title"] containsString:@"Looking"], @"not asked is not looking: %@", data[@"empty"]);
+    facts.networkState = SZFriendsAdapterStateWorking;
+    data = NearbyData(facts, @"", nil);
+    SZPExpect(data[@"alert"] == [NSNull null] && [data[@"note"][@"action"][@"action"] isEqual:@"activate"],
+              @"Bluetooth not asked: a quiet line with Allow: %@", data[@"note"]);
+
+    facts.networkState = facts.bluetoothState = SZFriendsAdapterStateDenied;
+    data = NearbyData(facts, @"", nil);
+    SZPExpect([data[@"visibility"][@"action"][@"settings_target"] isEqual:@"local_network_privacy"],
+              @"both refused: visibility opens the Local Network pane: %@", data[@"visibility"]);
+    facts.networkState = SZFriendsAdapterStateUnavailable;
+    data = NearbyData(facts, @"", nil);
+    SZPExpect([data[@"visibility"][@"action"][@"settings_target"] isEqual:@"bluetooth_privacy"],
+              @"Bluetooth refused, network failing: the Bluetooth pane: %@", data[@"visibility"]);
+    SZPExpect([data[@"alert"][@"action"][@"action"] isEqual:@"activate"], @"failing network: Try Again");
+    facts.bluetoothState = SZFriendsAdapterStateUnavailable;
+    data = NearbyData(facts, @"", nil);
+    SZPExpect(![Said(data) containsString:@"System Settings"] &&
+                  [data[@"visibility"][@"action"][@"action"] isEqual:@"activate"],
+              @"both failing: no permission words, Try Again: %@", Said(data));
+    facts.networkState = SZFriendsAdapterStateWorking;
+    facts.bluetoothState = SZFriendsAdapterStateUnsupported;
+    data = NearbyData(facts, @"", nil);
+    SZPExpect([data[@"note"][@"text"] containsString:@"no Bluetooth"] && data[@"note"][@"action"] == [NSNull null] &&
+                  [data[@"methods"][1][@"state"] isEqual:@"unavailable"],
+              @"no Bluetooth on this computer is said as such: %@", data[@"note"]);
+
+    SZFriendsProfileFacts *profile = SZPProfileRaph();
+    profile.identityState = SZFriendsIdentityFactsStateUnavailable;
+    facts.networkState = facts.bluetoothState = SZFriendsAdapterStateUnavailable;
+    data = [SZPBuilder(SZPAudience()) nearbyWithFacts:facts profile:profile query:@"" now:SZPNow()];
+    SZPValidateSnapshot(data, @"nearby", @"nearby without an identity");
+    SZPExpect(data[@"alert"] == [NSNull null] && data[@"note"] == [NSNull null] &&
+                  [data[@"methods"][0][@"state"] isEqual:@"not_asked"],
+              @"no identity: no card, no line: %@", data);
+    SZPExpect([Said(data) containsString:@"Reset Friends"] && ![Said(data) containsString:@"System Settings"] &&
+                  ![Said(data) containsString:@"Bluetooth"] && ![Said(data) containsString:@"network"],
+              @"no identity: says reset, nothing about access or radios: %@", Said(data));
+}
+
+// Settings' Nearby line for each case, with the button that fixes it.
+static void TestSettingsNearby(void) {
+    SZFriendsSnapshotBuilder *builder = SZPBuilder(SZPAudience());
+    SZFriendsProfileFacts *profile = SZPProfileRaph();
+    struct {
+        SZFriendsAdapterState network, bluetooth;
+        NSString *action, *target, *words;
+    } cases[] = {
+        {SZFriendsAdapterStateNotAsked, SZFriendsAdapterStateNotAsked, @"activate", nil, @"you’re asked"},
+        {SZFriendsAdapterStateDenied, SZFriendsAdapterStateWorking, @"open_settings", @"local_network_privacy",
+         @"Local Network access is off"},
+        {SZFriendsAdapterStateWorking, SZFriendsAdapterStateDenied, @"open_settings", @"bluetooth_privacy",
+         @"Bluetooth access is off"},
+        {SZFriendsAdapterStateRadioOff, SZFriendsAdapterStateWorking, @"open_settings", @"wifi", @"Wi-Fi is off"},
+        {SZFriendsAdapterStateWorking, SZFriendsAdapterStateRadioOff, @"open_settings", @"bluetooth",
+         @"Bluetooth is off"},
+        {SZFriendsAdapterStateUnavailable, SZFriendsAdapterStateWorking, @"activate", nil, @"isn’t working"},
+        {SZFriendsAdapterStateWorking, SZFriendsAdapterStateUnsupported, nil, nil, @"no Bluetooth"},
+        {SZFriendsAdapterStateWorking, SZFriendsAdapterStateWorking, nil, nil, @"can find people nearby"},
+    };
+    for (size_t i = 0; i < sizeof cases / sizeof cases[0]; i++) {
+        SZFriendsNearbyFacts *facts = [[SZFriendsNearbyFacts alloc] init];
+        facts.networkState = cases[i].network;
+        facts.bluetoothState = cases[i].bluetooth;
+        NSMutableDictionary *settings = [[builder settingsWithProfile:profile people:@[]] mutableCopy];
+        settings[@"nearby"] = [builder nearbyAccessWithFacts:facts profile:profile];
+        SZPValidateSnapshot(settings, @"settings", [NSString stringWithFormat:@"settings nearby %zu", i]);
+        NSDictionary *nearby = settings[@"nearby"];
+        id action = nearby[@"action"];
+        SZPExpect(cases[i].action ? [action[@"action"] isEqual:cases[i].action] : action == [NSNull null],
+                  @"case %zu action: %@", i, action);
+        if (cases[i].target) SZPExpect([action[@"settings_target"] isEqual:cases[i].target], @"case %zu: %@", i, action);
+        SZPExpect([nearby[@"note"] containsString:cases[i].words], @"case %zu note: %@", i, nearby[@"note"]);
+    }
+    profile.identityState = SZFriendsIdentityFactsStateUnavailable;
+    NSDictionary *nearby = [builder nearbyAccessWithFacts:[[SZFriendsNearbyFacts alloc] init] profile:profile];
+    SZPExpect([nearby[@"note"] containsString:@"reset Friends"] && nearby[@"action"] == [NSNull null],
+              @"no identity: %@", nearby);
+}
+
 static void TestNearbyStates(void) {
-    for (NSInteger network = SZFriendsAdapterStateNotAsked; network <= SZFriendsAdapterStateUnavailable; network++) {
-        for (NSInteger bluetooth = SZFriendsAdapterStateNotAsked; bluetooth <= SZFriendsAdapterStateUnavailable;
+    for (NSInteger network = SZFriendsAdapterStateNotAsked; network <= SZFriendsAdapterStateUnsupported; network++) {
+        for (NSInteger bluetooth = SZFriendsAdapterStateNotAsked; bluetooth <= SZFriendsAdapterStateUnsupported;
              bluetooth++) {
             SZFriendsNearbyFacts *facts = [[SZFriendsNearbyFacts alloc] init];
             facts.networkState = network;
@@ -44,7 +146,9 @@ static void TestNearbyStates(void) {
     }
     SZFriendsNearbyFacts *facts = [[SZFriendsNearbyFacts alloc] init];
     facts.networkState = SZFriendsAdapterStateStarting;
+    facts.bluetoothState = SZFriendsAdapterStateStarting;
     SZPExpect([NearbyData(facts, @"", nil)[@"empty"][@"kind"] isEqual:@"searching"], @"starting: searching");
+    TestNearbyAsksAndRetries();
     facts.networkState = facts.bluetoothState = SZFriendsAdapterStateWorking;
     SZPExpect([NearbyData(facts, @"", nil)[@"empty"][@"kind"] isEqual:@"nobody"], @"working, nobody visible");
     facts.bluetoothState = SZFriendsAdapterStateDenied;
@@ -196,6 +300,7 @@ static void TestSearch(void) {
 
 void SZPRunPeopleEdgeTests(void) {
     TestNearbyStates();
+    TestSettingsNearby();
     TestDetails();
     TestProfileAndSettings();
     TestSearch();

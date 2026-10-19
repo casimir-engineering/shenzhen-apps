@@ -253,9 +253,14 @@ static const NSUInteger SZFriendsMessageStatusMax = 16;
 
 - (void)intent_activate:(NSDictionary *)intent connection:(SZFriendsIPCConnection *)connection
                   reply:(SZFriendsIntentReply)reply {
+    // An identity that could not be read at start (a keychain still locked, say) is read again when the person opens
+    // Friends; when it works, Nearby and the check-in start, and every client reconnects to see the helper whole.
+    BOOL recovered = self.services.identity == nil && [self.services retryIdentity];
+    if (recovered && self.onIdentityAvailable) self.onIdentityAvailable();
     // The person opened Friends: Nearby starts, which may show the permission prompts the first time (ADR 0004).
     [self.services.nearby activate];
     reply(@{}, nil, nil, nil);
+    if (recovered && self.onReset) self.onReset();
 }
 
 - (void)intent_disable:(NSDictionary *)intent connection:(SZFriendsIPCConnection *)connection

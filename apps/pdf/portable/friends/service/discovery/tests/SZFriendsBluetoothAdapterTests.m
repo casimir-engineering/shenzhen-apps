@@ -113,7 +113,7 @@ static void TestLifecycleAndAdvertising(void) {
     [radio.delegate radioDidUpdatePower:SZFriendsRadioPowerUnauthorized];
     CHECK(adapter.state == SZFriendsAdapterStateDenied);
     [radio.delegate radioDidUpdatePower:SZFriendsRadioPowerUnsupported];
-    CHECK(adapter.state == SZFriendsAdapterStateUnavailable);
+    CHECK(adapter.state == SZFriendsAdapterStateUnsupported);
     [radio.delegate radioDidUpdatePower:SZFriendsRadioPowerOn];
     CHECK(adapter.state == SZFriendsAdapterStateWorking && radio.publishRequests.count == 4, "republished on power on");
     CHECK([delegate.states containsObject:@(SZFriendsAdapterStateRadioOff)]);

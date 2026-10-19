@@ -2,8 +2,12 @@
 //
 // Why the legacy (file-based) login keychain rather than the data-protection keychain: its access control list
 // names the creating executable, which is the "only the helper reads it" property the brief asks for, and it works
-// for a Developer ID helper without a provisioning profile. The cost is the ACL's known behaviour: a rebuild with a
-// different signature loses access, which the identity manager turns into "identity unavailable", never a new key.
+// for a Developer ID helper without a provisioning profile. The item's access control names the helper by its
+// designated requirement (identifier com.intuition.shenzhenfriends and the team), so every Developer ID helper of
+// the team reads it, whichever app's copy made it and whatever build it was: the three apps' helpers must keep that
+// identifier and team. A helper signed another way (ad hoc, another identifier or team) cannot read it, which the
+// identity manager turns into "identity unavailable", never a new key; Reset Friends then removes it through its item
+// reference, the one delete the file-based keychain allows across signatures (SZFriendsKeychainCalls.h).
 
 #import "service/identity/SZFriendsKeychainCalls.h"
 #import "service/identity/SZFriendsIdentityInternal.h"
@@ -32,8 +36,8 @@ NSString *const SZFriendsKeychainService = @"Shenzhen Friends";
     return SecItemAdd((__bridge CFDictionaryRef)attributes, NULL);
 }
 
-- (OSStatus)deleteMatching:(NSDictionary *)query {
-    return SecItemDelete((__bridge CFDictionaryRef)query);
+- (OSStatus)deleteItem:(id)item {
+    return SecKeychainItemDelete((__bridge SecKeychainItemRef)item);
 }
 
 - (OSStatus)getUserInteractionAllowed:(Boolean *)allowed {
@@ -145,8 +149,22 @@ static NSError *SZFStatusError(OSStatus status) {
         if (error) *error = SZFriendsIdentityMakeError(SZFriendsIdentityErrorStoreFailed, @"Invalid key name.", nil);
         return NO;
     }
+    // Every item of this name, by reference: finding one needs no access to its secret, and deleting it through
+    // the reference works for an item a differently signed helper made (SZFriendsKeychainCalls.h).
     NSMutableDictionary *query = [self queryForName:name];
-    OSStatus status = [self withoutInteraction:^OSStatus { return [self->_calls deleteMatching:query]; }];
+    query[(__bridge id)kSecReturnRef] = @YES;
+    query[(__bridge id)kSecMatchLimit] = (__bridge id)kSecMatchLimitAll;
+    OSStatus status = [self withoutInteraction:^OSStatus {
+        id found = nil;
+        OSStatus copied = [self->_calls copyMatching:query result:&found];
+        if (copied != errSecSuccess) return copied;
+        NSArray *items = [found isKindOfClass:[NSArray class]] ? found : (found ? @[ found ] : @[]);
+        for (id item in items) {
+            OSStatus deleted = [self->_calls deleteItem:item];
+            if (deleted != errSecSuccess && deleted != errSecItemNotFound) return deleted;
+        }
+        return errSecSuccess;
+    }];
     if (status == errSecSuccess || status == errSecItemNotFound) return YES;
     if (error) *error = SZFriendsIdentityMakeError(SZFriendsIdentityErrorStoreFailed,
         @"The Friends key could not be removed from the keychain.", SZFStatusError(status));

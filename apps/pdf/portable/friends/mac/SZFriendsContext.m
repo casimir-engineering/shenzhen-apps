@@ -34,6 +34,8 @@ static NSDictionary<NSString *, NSString *> *SZFActionIDs(void) {
             // own link_id, and Reset link needs nothing else.
             @"add_from_link" : @"", @"receive_link" : @"", @"revoke_link" : @"", @"reset_friend_link" : @"",
             @"start_visibility" : @"", @"stop_visibility" : @"", @"reset_friends" : @"",
+            // Nearby's Allow and Try Again: the intent Friends sends when it opens (PROTOCOL.md § nearby).
+            @"activate" : @"",
             // Several computers (PROTOCOL.md § Devices, § Joining): a file another computer holds is fetched by its
             // transfer_id; a device row's Remove, a join row's Approve and Deny, and Start again carry their own id.
             @"fetch_from_device" : @"transfer_id", @"revoke_device" : @"", @"approve_join" : @"", @"deny_join" : @"",

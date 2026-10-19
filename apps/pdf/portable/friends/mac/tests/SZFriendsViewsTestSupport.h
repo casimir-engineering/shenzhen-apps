@@ -222,5 +222,6 @@ void SZFTestFriendLinks(void);
 void SZFTestRouteIcons(void);
 void SZFTestOnlineStates(void);
 void SZFTestDevices(void);
+void SZFTestPopoverLayout(void);
 
 NS_ASSUME_NONNULL_END

@@ -6,7 +6,7 @@
 use serde_json::{json, Value};
 
 use super::facts::NEARBY_SEARCHING_SECONDS;
-use super::facts::{AdapterState, NearbyFacts, NearbyPersonFacts, ProfileFacts, Relation, RouteMethod};
+use super::facts::{AdapterState, IdentityState, NearbyFacts, NearbyPersonFacts, ProfileFacts, Relation, RouteMethod};
 use super::text::{non_empty_trimmed, trim};
 use super::time::rfc3339;
 use super::SnapshotBuilder;
@@ -46,14 +46,23 @@ impl SnapshotBuilder {
         }
         let bluetooth = if nearby.bluetooth_absent { nearby.network_state } else { nearby.bluetooth_state };
         let states = [nearby.network_state, bluetooth];
-        let starting = states.iter().any(|s| matches!(s, AdapterState::Starting | AdapterState::NotAsked));
+        let starting = states.contains(&AdapterState::Starting);
+        let not_asked = states.contains(&AdapterState::NotAsked);
         let working = states.contains(&AdapterState::Working);
+        if !working && !starting && not_asked {
+            // Nothing has started, so "looking" would be untrue; the card above has the Allow button.
+            return self.empty(Some("unavailable"), s.text("nearby.empty.not_asked.title"), None);
+        }
         if !working && !starting {
             // A card above already says what to turn on or allow.
             let body = (!alert).then(|| {
-                let radio = states.contains(&AdapterState::RadioOff);
-                let key =
-                    if radio { "nearby.empty.unavailable.body.radio" } else { "nearby.empty.unavailable.body.access" };
+                let key = if states.contains(&AdapterState::RadioOff) {
+                    "nearby.empty.unavailable.body.radio"
+                } else if states.contains(&AdapterState::Denied) {
+                    "nearby.empty.unavailable.body.access"
+                } else {
+                    "nearby.empty.unavailable.body.failed"
+                };
                 s.text_with(key, &app)
             });
             return self.empty(Some("unavailable"), s.text("nearby.empty.unavailable.title"), body);
@@ -91,15 +100,28 @@ impl SnapshotBuilder {
             });
         }
         if !can_advertise {
-            let radio = [nearby.network_state, nearby.bluetooth_state].contains(&AdapterState::RadioOff);
-            let key = match (radio, nearby.phone) {
-                (true, _) => "visibility.unavailable.radio",
-                (false, false) => "visibility.unavailable.access",
-                (false, true) => "visibility.unavailable.access.phone",
+            // Each cause in its own words, with what fixes it; never "allow" for something nobody refused.
+            let states = [nearby.network_state, bluetooth];
+            let radio = states.contains(&AdapterState::RadioOff);
+            let network_denied = nearby.network_state == AdapterState::Denied;
+            let denied = states.contains(&AdapterState::Denied);
+            let key = match (radio, denied, nearby.phone) {
+                (true, _, _) => "visibility.unavailable.radio",
+                (false, true, false) => "visibility.unavailable.access",
+                (false, true, true) => "visibility.unavailable.access.phone",
+                (false, false, _) => "visibility.unavailable.failed",
+            };
+            let action = if radio {
+                Value::Null
+            } else if denied {
+                let target = if network_denied { "local_network_privacy" } else { "bluetooth_privacy" };
+                self.settings_action(target, "settings_link.privacy", "secondary")
+            } else {
+                Value::Object(self.action("activate", s.text("nearby.try_again"), "secondary"))
             };
             return json!({
                 "state": "unavailable", "title": null, "body": s.text_with(key, &app), "remaining_label": null,
-                "remaining_accessibility_label": null, "deadline": null, "action": null,
+                "remaining_accessibility_label": null, "deadline": null, "action": action,
             });
         }
         json!({
@@ -139,7 +161,13 @@ impl SnapshotBuilder {
             AdapterState::Unavailable => json!({
                 "title": s.text_with("alert.network_unavailable.title", &app),
                 "body": s.text("alert.network_unavailable.body"),
-                "action": null,
+                "action": self.action("activate", s.text("nearby.try_again"), "secondary"),
+            }),
+            // Nothing has asked for access yet: Allow starts Nearby, which is when the system asks, the first time.
+            AdapterState::NotAsked => json!({
+                "title": s.text("alert.not_asked.title"),
+                "body": s.text_with(if nearby.phone { "alert.not_asked.body.phone" } else { "alert.not_asked.body" }, &app),
+                "action": self.action("activate", s.text("nearby.allow"), "primary"),
             }),
             _ => Value::Null,
         }
@@ -162,7 +190,8 @@ impl SnapshotBuilder {
             if nearby.bluetooth_state == AdapterState::Working {
                 return json!({"text": s.text("note.still_bluetooth"), "action": null});
             }
-            if nearby.network_state == AdapterState::RadioOff && nearby.bluetooth_state == AdapterState::RadioOff {
+            let both = |state| nearby.network_state == state && nearby.bluetooth_state == state;
+            if both(AdapterState::RadioOff) || both(AdapterState::NotAsked) {
                 return Value::Null;
             }
         } else if broken(nearby.network_state) {
@@ -179,9 +208,14 @@ impl SnapshotBuilder {
                 "text": s.text_with(&format!("note.bluetooth_denied{suffix}"), &app),
                 "action": self.settings_action("bluetooth_privacy", "settings_link.privacy", "link"),
             }),
-            AdapterState::Unavailable => {
-                json!({"text": s.text(&format!("note.bluetooth_unavailable{suffix}")), "action": null})
-            }
+            AdapterState::Unavailable => json!({
+                "text": s.text(&format!("note.bluetooth_unavailable{suffix}")),
+                "action": self.action("activate", s.text("nearby.try_again"), "link"),
+            }),
+            AdapterState::NotAsked => json!({
+                "text": s.text("note.bluetooth_not_asked"),
+                "action": self.action("activate", s.text("nearby.allow"), "link"),
+            }),
             _ => Value::Null,
         }
     }
@@ -240,6 +274,9 @@ impl SnapshotBuilder {
 
     /// The nearby view.
     pub fn nearby(&self, nearby: &NearbyFacts, profile: &ProfileFacts, query: &str, now: f64) -> Value {
+        if profile.identity_state == IdentityState::Unavailable {
+            return self.nearby_without_identity(nearby, profile, query);
+        }
         let s = &self.strings;
         let app = [("app", self.audience().app_name.as_str())];
         let alert = self.alert(nearby);
@@ -289,6 +326,36 @@ impl SnapshotBuilder {
             "status": status,
             "people": people,
             "empty": empty,
+            "footer": self.footer(profile),
+        })
+    }
+
+    /// Without an identity nothing runs: no method was asked for anything, so the tab says what the list's banner
+    /// says, reset Friends, and never asks for Local Network or Bluetooth access nobody refused.
+    fn nearby_without_identity(&self, nearby: &NearbyFacts, profile: &ProfileFacts, query: &str) -> Value {
+        let s = &self.strings;
+        let method = |name: &str| json!({"method": name, "state": "not_asked", "label": s.text("method.identity_unavailable")});
+        let methods = if nearby.bluetooth_absent {
+            json!([method("network")])
+        } else {
+            json!([method("network"), method("bluetooth")])
+        };
+        json!({
+            "query": query,
+            "visibility": {
+                "state": "unavailable", "title": null, "body": s.text("visibility.unavailable.identity"),
+                "remaining_label": null, "remaining_accessibility_label": null, "deadline": null, "action": null,
+            },
+            "methods": methods,
+            "alert": null,
+            "note": null,
+            "status": null,
+            "people": [],
+            "empty": self.empty(
+                Some("unavailable"),
+                s.text("nearby.empty.unavailable.title"),
+                Some(s.text("nearby.empty.unavailable.body.identity")),
+            ),
             "footer": self.footer(profile),
         })
     }

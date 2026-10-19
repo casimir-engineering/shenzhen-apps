@@ -77,6 +77,8 @@
                                                             pinnedKeys:_checkInSetup.pinnedKeys];
 }
 
+static NSString *SZFriendsIdentityProblem(NSError *error);
+
 - (void)openIdentity {
     // The file key store whenever SZFRIENDS_STATE_DIR is set, so tests and probes cannot reach the Keychain.
     id<SZFriendsKeyStore> keyStore = SZFriendsDefaultKeyStore(self.paths.stateDirectory, _environment);
@@ -87,7 +89,30 @@
     // Never regenerated here: an unreadable key is shown as unavailable with an explicit reset, because every
     // friend would see a silent new key as a key change (brief § Identity and keys).
     _identityState = _identity != nil ? state : SZFriendsIdentityStateUnavailable;
-    if (_identity == nil) SZFriendsHelperLog(@"identity unavailable: %@", error.localizedDescription ?: @"no detail");
+    if (_identity == nil) SZFriendsHelperLog(@"identity unavailable: %@", SZFriendsIdentityProblem(error));
+}
+
+// The description and the store's own status (an OSStatus from the Keychain), so helper.log says which refusal it was.
+static NSString *SZFriendsIdentityProblem(NSError *error) {
+    NSMutableArray<NSString *> *parts = [NSMutableArray array];
+    for (NSError *e = error; e != nil && parts.count < 4; e = e.userInfo[NSUnderlyingErrorKey]) {
+        [parts addObject:[e.domain isEqualToString:SZFriendsIdentityErrorDomain]
+                             ? e.localizedDescription
+                             : [NSString stringWithFormat:@"%@ %ld", e.domain, (long)e.code]];
+    }
+    return parts.count ? [parts componentsJoinedByString:@" / "] : @"no detail";
+}
+
+- (BOOL)retryIdentity {
+    if (_identity != nil) return YES;
+    if (_identityManager == nil) return NO;
+    NSError *error = nil;
+    SZFriendsIdentity *identity = [_identityManager loadExistingWithError:&error];
+    if (identity == nil) return NO;
+    _identity = identity;
+    _identityState = SZFriendsIdentityStateReady;
+    SZFriendsHelperLog(@"identity available again");
+    return YES;
 }
 
 - (void)openStore {

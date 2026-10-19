@@ -43,7 +43,8 @@ NS_ASSUME_NONNULL_BEGIN
 // Launch, before any `activate`: starts each adapter SZFriendsStartAdapterAtLaunch allows from its own
 // permission read. One whose permission reads Denied is reported Denied and not started; the others still start.
 - (void)startAtLaunchWithNearbyPermissionsRequested:(BOOL)nearbyPermissionsRequested;
-// The person opened Friends (`activate`): starts every adapter not yet running. This is what may prompt.
+// The person opened Friends or pressed Allow or Try Again (`activate`): starts every adapter not yet running, and
+// restarts one that reported Unavailable. This is what may prompt.
 - (void)activate;
 // After a wake: restarts running adapters so they look again at once. Check the visibility deadline and
 // re-advertise before calling this, so an expired public entry is never put back on the air.

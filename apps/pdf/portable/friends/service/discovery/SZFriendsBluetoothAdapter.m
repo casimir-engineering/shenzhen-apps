@@ -166,7 +166,7 @@ static NSString *const kPublicSuffix = @"/public";
         [self forgetRadioSide];
         self.state = power == SZFriendsRadioPowerOff          ? SZFriendsAdapterStateRadioOff
                      : power == SZFriendsRadioPowerUnauthorized ? SZFriendsAdapterStateDenied
-                                                                : SZFriendsAdapterStateUnavailable;
+                                                                : SZFriendsAdapterStateUnsupported;
         break;
     case SZFriendsRadioPowerUnknown:
         self.state = SZFriendsAdapterStateStarting;

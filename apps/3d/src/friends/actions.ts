@@ -64,6 +64,8 @@ export function actionIntent(
     case "stop_visibility":
     case "reset_friend_link":
     case "cancel_join":
+    // Nearby's Allow and Try Again: the intent Friends sends when it opens (PROTOCOL.md § nearby).
+    case "activate":
       return { type: action.action, fields: {} };
     case "reset_friends":
       return { type: action.action, fields: { confirm: "reset" } };

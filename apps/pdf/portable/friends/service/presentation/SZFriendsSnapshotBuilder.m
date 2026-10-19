@@ -455,6 +455,11 @@ static const NSInteger SZFriendsBlockArmSeconds = 4;
     return data;
 }
 
+- (NSDictionary<NSString *, id> *)nearbyAccessWithFacts:(SZFriendsNearbyFacts *)nearby
+                                                profile:(SZFriendsProfileFacts *)profile {
+    return [self buildNearbyAccessWithFacts:nearby profile:profile];
+}
+
 - (NSDictionary<NSString *, id> *)settingsWithProfile:(SZFriendsProfileFacts *)profile
                                                people:(NSArray<SZFriendsPersonFacts *> *)people {
     return [self buildSettingsWithProfile:profile people:people];

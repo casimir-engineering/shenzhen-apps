@@ -32,6 +32,8 @@ BOOL SZFHTestListRowsDescribeNewestItem(SZFHHarness *harness);
 BOOL SZFHTestJoinIntents(SZFHHarness *harness);
 BOOL SZFHTestDevicesIntents(SZFHHarness *harness);
 BOOL SZFHTestYouIntents(SZFHHarness *harness);
+BOOL SZFHTestResetUnreadableIdentity(SZFHHarness *harness);
+BOOL SZFHTestIdentityReadableAgain(SZFHHarness *harness);
 int SZFHHelloClientMain(const char *socket, const char *build);
 
 static NSString *SZFHFixtures;
@@ -228,6 +230,8 @@ int main(int argc, const char *argv[]) {
             {"joining: the view and its intents", SZFHTestJoinIntents},
             {"computers: the profile's list and its intents", SZFHTestDevicesIntents},
             {"You: a message to yourself through the helper", SZFHTestYouIntents},
+            {"Reset Friends from an identity it cannot read", SZFHTestResetUnreadableIdentity},
+            {"an identity readable again starts what needs it", SZFHTestIdentityReadableAgain},
         };
         int failed = 0;
         for (size_t i = 0; i < sizeof(tests) / sizeof(tests[0]); i++) {

@@ -35,3 +35,17 @@ friends-views-check: $(FRIENDS_VIEWS_LIB_OBJS) $$(FRIENDS_AVATARS_SET_OBJS) $$(F
 		$(FRIENDS_VIEWS_LIB_OBJS) $(FRIENDS_AVATARS_SET_OBJS) $(FRIENDS_FAKE_HELPER_LINK) $(FRIENDS_VIEWS_LIBS) \
 		-o "$(FRIENDS_VIEWS_TEST)"
 	"$(FRIENDS_VIEWS_TEST)" friends/fixtures friends/avatars/animals/manifest.json "$(FRIENDS_VIEWS_RENDERS)"
+
+# By hand, not in the suite: the dropdown in a real NSPopover, which needs a window on screen for about a second
+# (tools/popover-probe.m). friends-views-check checks the same placement with a stand-in for the popover's frame.
+FRIENDS_VIEWS_POPOVER_PROBE := $(FRIENDS_VIEWS_BUILD)/popover-probe
+.PHONY: friends-views-popover-probe
+friends-views-popover-probe: $(FRIENDS_VIEWS_LIB_OBJS) $$(FRIENDS_AVATARS_SET_OBJS) $$(FRIENDS_FAKE_HELPER_LIB) \
+		$$(FRIENDS_CLIENT_OBJS) $(FRIENDS_CJSON_OBJ)
+	@mkdir -p "$(FRIENDS_VIEWS_RENDERS)"
+	@rm -f "$(FRIENDS_VIEWS_POPOVER_PROBE)"
+	clang $(PORTABLE_TEST_OPTFLAGS) $(FRIENDS_OBJC_FLAGS) -Ifriends/mac/tests friends/mac/tools/popover-probe.m \
+		$(filter-out %/SZFriendsViewsTests.m,$(filter friends/mac/tests/SZFriendsViewsTest%.m,$(FRIENDS_VIEWS_TEST_SRCS))) \
+		$(FRIENDS_VIEWS_LIB_OBJS) $(FRIENDS_AVATARS_SET_OBJS) $(FRIENDS_FAKE_HELPER_LINK) $(FRIENDS_VIEWS_LIBS) \
+		-o "$(FRIENDS_VIEWS_POPOVER_PROBE)"
+	"$(FRIENDS_VIEWS_POPOVER_PROBE)" friends/fixtures friends/avatars/animals/manifest.json "$(FRIENDS_VIEWS_RENDERS)"

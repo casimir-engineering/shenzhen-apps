@@ -155,6 +155,8 @@ typedef NS_ENUM(NSInteger, SZFriendsShownRoute) {
 @end
 
 @interface SZFriendsSnapshotBuilder (SZFriendsNearby)
+- (NSDictionary<NSString *, id> *)buildNearbyAccessWithFacts:(SZFriendsNearbyFacts *)nearby
+                                                     profile:(SZFriendsProfileFacts *)profile;
 - (NSDictionary<NSString *, id> *)buildNearbyWithFacts:(SZFriendsNearbyFacts *)nearby
                                               profile:(SZFriendsProfileFacts *)profile
                                                 query:(NSString *)query

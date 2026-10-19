@@ -205,6 +205,7 @@ int main(int argc, const char *argv[]) {
         SZFTestOnlineStates();
         SZFTestFriendLinks();
         SZFTestDevices();
+        SZFTestPopoverLayout();
         SZFTestDropdownSession([state stringByAppendingPathComponent:@"session"]);
         SZFTestDrops([state stringByAppendingPathComponent:@"drops"]);
         SZFTestSettingsAndServices([state stringByAppendingPathComponent:@"settings"]);

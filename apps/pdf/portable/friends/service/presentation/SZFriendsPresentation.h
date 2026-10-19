@@ -349,6 +349,10 @@ typedef NS_ENUM(NSInteger, SZFriendsUpdateNeed) {
                                                now:(NSDate *)now;
 - (NSDictionary<NSString *, id> *)profileWithFacts:(SZFriendsProfileFacts *)profile
                                   waitingElsewhere:(NSInteger)waitingElsewhere;
+// Settings' optional `nearby` line (PROTOCOL.md § settings): whether Nearby has the access and radios it needs, with
+// the button that fixes it. The helper adds it to `settings`; a builder used without Nearby facts leaves it out.
+- (NSDictionary<NSString *, id> *)nearbyAccessWithFacts:(SZFriendsNearbyFacts *)nearby
+                                                profile:(SZFriendsProfileFacts *)profile;
 - (NSDictionary<NSString *, id> *)settingsWithProfile:(SZFriendsProfileFacts *)profile
                                                people:(NSArray<SZFriendsPersonFacts *> *)people;
 // A message_status snapshot's data: each of `messages` that is an outgoing message with a delivery record, in the

@@ -98,6 +98,42 @@ pub(super) const PEOPLE_AND_SETTINGS: &[(&str, &str)] = &[
     ),
     ("settings.history.confirm.button", "Delete History"),
     ("settings.reset.label", "Start over"),
+    // Settings' Nearby line: whether Friends can find people nearby, and what fixes it when it cannot.
+    ("settings.nearby.label", "Nearby"),
+    ("settings.nearby.note.identity", "Nearby starts once you reset Friends."),
+    (
+        "settings.nearby.note.not_asked",
+        "Allow {app} to find people nearby. The first time, you’re asked whether it may use your local network and \
+         Bluetooth.",
+    ),
+    (
+        "settings.nearby.note.denied",
+        "Local Network and Bluetooth access are off for {app}, so nobody nearby appears. Turn them on in System \
+         Settings › Privacy & Security.",
+    ),
+    (
+        "settings.nearby.note.network_denied",
+        "Local Network access is off for {app}, so people on your Wi-Fi won’t appear. Turn it on in System Settings \
+         › Privacy & Security.",
+    ),
+    (
+        "settings.nearby.note.bluetooth_denied",
+        "Bluetooth access is off for {app}, so people nearby without Wi-Fi won’t appear. Turn it on in System \
+         Settings › Privacy & Security.",
+    ),
+    ("settings.nearby.note.wifi_off", "Wi-Fi is off. Turn it on to find people on your network and close by."),
+    (
+        "settings.nearby.note.radios_off",
+        "Wi-Fi and Bluetooth are off. Turn on Wi-Fi to find people on your network and close by, or Bluetooth to find \
+         people nearby without Wi-Fi.",
+    ),
+    ("settings.nearby.note.bluetooth_off", "Bluetooth is off. People nearby without Wi-Fi won’t appear."),
+    ("settings.nearby.note.failed", "Nearby isn’t working right now."),
+    (
+        "settings.nearby.note.unsupported",
+        "{app} finds people nearby on your network. This computer has no Bluetooth Friends can use.",
+    ),
+    ("settings.nearby.note.ready", "{app} can find people nearby on your network and over Bluetooth."),
     ("settings.reset.note", "You get a new ID, and every friend has to add you again."),
     ("settings.reset.action", "Reset Friends…"),
     ("settings.reset.confirm.title", "Reset Friends?"),

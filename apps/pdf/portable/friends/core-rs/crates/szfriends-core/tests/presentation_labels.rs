@@ -104,6 +104,7 @@ fn the_catalog_is_the_helpers() {
         "visibility.unavailable.firewall",
         "visibility.unavailable.access.phone",
         "alert.network_denied.body.phone",
+        "alert.not_asked.body.phone",
         "id.nearby",
     ];
     for key in rust.keys().filter(|key| !objc.contains_key(*key) && !PORTABLE_ONLY.contains(&key.as_str())) {

@@ -10,13 +10,18 @@ NS_ASSUME_NONNULL_BEGIN
 @protocol SZFriendsKeychainCalls <NSObject>
 - (OSStatus)copyMatching:(NSDictionary *)query result:(id _Nullable __autoreleasing *_Nonnull)result;
 - (OSStatus)add:(NSDictionary *)attributes;
-- (OSStatus)deleteMatching:(NSDictionary *)query;
+// SecKeychainItemDelete of one item that copyMatching returned as a reference (kSecReturnRef). WHY not
+// SecItemDelete: on the file-based keychain it refuses (errSecInvalidOwnerEdit) an item that a helper with another
+// code signature created, an earlier build or a differently signed copy, so Reset Friends could never replace an
+// identity it cannot read. Deleting through the item reference succeeds and asks nothing
+// (tools/keychain-signature-probe.sh shows both, on a temporary keychain).
+- (OSStatus)deleteItem:(id)item;
 // The legacy keychain's process-wide user-interaction switch (SecKeychainGet/SetUserInteractionAllowed).
 - (OSStatus)getUserInteractionAllowed:(Boolean *)allowed;
 - (OSStatus)setUserInteractionAllowed:(Boolean)allowed;
 @end
 
-// SecItemCopyMatching, SecItemAdd, SecItemDelete and the interaction switch, unchanged.
+// SecItemCopyMatching, SecItemAdd, SecKeychainItemDelete and the interaction switch, unchanged.
 @interface SZFriendsSystemKeychainCalls : NSObject <SZFriendsKeychainCalls>
 @end
 

@@ -135,12 +135,13 @@ int SZFriendsHelperMain(int argc, const char *_Nonnull argv[_Nonnull]) {
         };
         server.onConnectionsChanged = ^(SZFriendsIPCConnection *closed) { [weakLifecycle connectionsChanged:closed]; };
         // Nearby and the host check-in exist only with an identity and a store: an identity-unavailable helper
-        // shows its reset path and contacts nobody.
-        SZFriendsNearbyService *nearby = nil;
-        if (services.store != nil && services.identity != nil) {
-            nearby = [[SZFriendsNearbyService alloc] initWithServices:services
-                                                             adapters:SZFriendsHelperMakeAdapters(queue, environment)
-                                                                queue:queue];
+        // shows its reset path and contacts nobody, until Reset Friends makes a new identity or a read works again.
+        BOOL (^makeNearby)(void) = ^BOOL {
+            if (services.nearby != nil || services.store == nil || services.identity == nil) return NO;
+            SZFriendsNearbyService *nearby =
+                [[SZFriendsNearbyService alloc] initWithServices:services
+                                                        adapters:SZFriendsHelperMakeAdapters(queue, environment)
+                                                           queue:queue];
             nearby.onChange = ^{ [publisher publishAllCoalesced]; };
             services.nearby = nearby;
             if (services.checkInSetup != nil && services.hostListCache != nil) {
@@ -150,16 +151,24 @@ int SZFriendsHelperMain(int argc, const char *_Nonnull argv[_Nonnull]) {
                                                                               queue:queue];
                 services.checkIn.onChange = ^{ [publisher publishAllCoalesced]; };
             }
-        }
+            return YES;
+        };
+        makeNearby();
+        // Started as at launch; the router activates it, since the person is in Friends when this happens.
+        router.onIdentityAvailable = ^{
+            if (!makeNearby()) return;
+            [services.nearby startAtLaunch];
+            [services.checkIn start];
+        };
         server.onHandoverRequested = ^(NSDictionary *embedded) {
             // No new chunk starts; what is in flight drains, and the successor resumes from the durable offsets.
-            [nearby beginHandover];
+            [services.nearby beginHandover];
             [weakLifecycle requestHandoverWithSuccessor:embedded];
         };
         router.onDisable = ^(SZFriendsIPCConnection *connection) { [weakLifecycle connectionSentDisable:connection]; };
         router.onReset = ^{ [weakServer broadcastGoodbyeWithReason:@"reset" successor:nil]; };
         // A handover waits (5 s at most) while a chunk is unacknowledged or received bytes are not yet durable.
-        lifecycle.workInFlight = ^BOOL { return nearby.workInFlight; };
+        lifecycle.workInFlight = ^BOOL { return services.nearby.workInFlight; };
         lifecycle.onExit = ^(SZFriendsExitReason reason) {
             SZFriendsHelperLog(@"exiting (reason %ld)", (long)reason);
             [services.checkIn stop];
@@ -172,6 +181,7 @@ int SZFriendsHelperMain(int argc, const char *_Nonnull argv[_Nonnull]) {
                 exit(0);
             };
             // Progress durable and CLOSE on every session, so friends resume from where we stopped (ADR 0002).
+            SZFriendsNearbyService *nearby = services.nearby;
             if (nearby != nil) [nearby shutdownWithCompletion:finish];
             else finish();
         };
@@ -184,7 +194,7 @@ int SZFriendsHelperMain(int argc, const char *_Nonnull argv[_Nonnull]) {
         SZFriendsHelperRoots = @[ lock, services, server, publisher, router, lifecycle ];
         SZFriendsHelperLog(@"serving build %llu", SZFriendsHelperBuildNumber());
         [lifecycle start];
-        [nearby startAtLaunch];
+        [services.nearby startAtLaunch];
         [services.checkIn start];
         [publisher publishAllCoalesced]; // arms the visibility and midnight timers
     }

@@ -21,8 +21,12 @@ NS_ASSUME_NONNULL_BEGIN
 
 // A client sent `disable`; the lifecycle decides whether the helper exits.
 @property(nonatomic, copy, nullable) void (^onDisable)(SZFriendsIPCConnection *connection);
-// Reset Friends finished; every client must reconnect and subscribe again (goodbye `reset`).
+// Reset Friends finished, or the identity became readable again; every client must reconnect and subscribe again
+// (goodbye `reset`), so each gets the capabilities and views of a helper that has an identity now.
 @property(nonatomic, copy, nullable) void (^onReset)(void);
+// An identity exists now where there was none (Reset Friends, or SZFriendsHelperServices -retryIdentity): the helper
+// creates and starts Nearby and the host check-in, which an identity-unavailable helper never had.
+@property(nonatomic, copy, nullable) void (^onIdentityAvailable)(void);
 @end
 
 // Shared by the handler categories.

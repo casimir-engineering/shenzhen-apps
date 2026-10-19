@@ -150,6 +150,11 @@ typedef NS_ENUM(NSInteger, SZFriendsIdentityState) {
 - (nullable SZFriendsIdentity *)loadOrCreateWithState:(SZFriendsIdentityState *_Nullable)state
                                                 error:(NSError **)error;
 
+// Reads the identity again after it was unavailable, and never creates one: an identity that is now missing is still
+// unavailable, because the friends and history kept for the old one would otherwise meet a silent new key. Nil with
+// the same errors as above while it still cannot be read (the keychain still locked, say).
+- (nullable SZFriendsIdentity *)loadExistingWithError:(NSError **)error;
+
 // Explicit reset: deletes the old secret and creates a new identity. Only the user's Reset Friends calls it.
 // When the delete fails nothing is created.
 - (nullable SZFriendsIdentity *)resetIdentityWithError:(NSError **)error;
