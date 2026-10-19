@@ -1,0 +1,203 @@
+name: Test and package
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+env:
+  # These jobs package Tauri; the optional Chromium Mac shell is built separately.
+  ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+jobs:
+  web:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: node --test electron/*.test.cjs
+      - run: npm run test:cad
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+      - name: Verify GPU rendering paths and measurement geometry
+        shell: bash
+        run: |
+          npm run dev -- --port 1430 --strictPort > viewer-test-server.log 2>&1 &
+          VIEWER_TEST_PID=$!
+          trap 'kill "$VIEWER_TEST_PID"' EXIT
+          for attempt in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:1430/tests/perf/viewer-correctness.html > /dev/null; then break; fi
+            sleep 1
+          done
+          PERF_BASE_URL=http://127.0.0.1:1430 node scripts/perf/check-viewer-correctness.mjs --software
+          PERF_BASE_URL=http://127.0.0.1:1430 node tests/render-styles-browser.mjs --software
+      - uses: actions/upload-artifact@v4
+        with:
+          name: shenzhen-3d-web
+          path: dist/
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: web-test-results
+          path: test-results/
+  desktop:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-14
+            name: macos-universal
+            args: --target universal-apple-darwin --bundles app,dmg
+          - os: windows-2022
+            name: windows-x64
+            args: --bundles nsis,msi
+          - os: ubuntu-24.04
+            name: linux-x64
+            args: --bundles deb,rpm,appimage
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+      - name: Universal macOS targets
+        if: runner.os == 'macOS'
+        run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
+      - name: Linux prerequisites
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev librsvg2-dev libayatana-appindicator3-dev patchelf rpm xvfb
+      - run: npm ci
+      - run: node scripts/platform-build.mjs desktop ${{ matrix.args }}
+      - name: Linux startup smoke test
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set +e
+          xvfb-run -a timeout 15s src-tauri/target/release/shenzhen-3d > native-startup.log 2>&1
+          result=$?
+          cat native-startup.log
+          # timeout means the app stayed alive for the full startup interval.
+          test "$result" -eq 124
+      - name: Windows startup smoke test
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $app = Start-Process -FilePath 'src-tauri/target/release/shenzhen-3d.exe' -PassThru -RedirectStandardOutput native-stdout.log -RedirectStandardError native-stderr.log
+          Start-Sleep -Seconds 15
+          if ($app.HasExited) {
+            Get-Content native-stdout.log, native-stderr.log -ErrorAction SilentlyContinue
+            throw "Viewer exited during startup (exit code $($app.ExitCode))"
+          }
+          Stop-Process -Id $app.Id
+      - name: Retain native startup logs
+        if: always() && runner.os != 'macOS'
+        uses: actions/upload-artifact@v4
+        with:
+          name: startup-${{ matrix.name }}
+          path: native-*.log
+          if-no-files-found: ignore
+      - uses: actions/upload-artifact@v4
+        with:
+          name: shenzhen-3d-${{ matrix.name }}
+          path: |
+            src-tauri/target/**/release/bundle/**/*.dmg
+            src-tauri/target/**/release/bundle/**/*.exe
+            src-tauri/target/**/release/bundle/**/*.msi
+            src-tauri/target/**/release/bundle/**/*.deb
+            src-tauri/target/**/release/bundle/**/*.rpm
+            src-tauri/target/**/release/bundle/**/*.AppImage
+  android:
+    # Each ABI has its own runner: retaining debug + release static archives for
+    # all four ABIs exhausted the hosted runner's disk during release linking.
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: aarch64
+            rust_target: aarch64-linux-android
+          - target: armv7
+            rust_target: armv7-linux-androideabi
+          - target: x86_64
+            rust_target: x86_64-linux-android
+          - target: i686
+            rust_target: i686-linux-android
+    runs-on: ubuntu-24.04
+    env:
+      CARGO_PROFILE_DEV_DEBUG: "0"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+      - run: sdkmanager 'platforms;android-36' 'build-tools;36.0.0' 'ndk;28.2.13676358'
+      - run: echo "NDK_HOME=$ANDROID_HOME/ndk/28.2.13676358" >> "$GITHUB_ENV"
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust_target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+          key: android-${{ matrix.target }}
+      - run: npm ci
+      - name: Build installable development APK
+        run: node scripts/platform-build.mjs android --debug --apk --target ${{ matrix.target }} --ci
+      - name: Build release APK and Play bundle
+        run: node scripts/platform-build.mjs android --apk --aab --target ${{ matrix.target }} --ci
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: shenzhen-3d-android-${{ matrix.target }}
+          if-no-files-found: warn
+          path: |
+            src-tauri/gen/android/app/build/outputs/apk/**/*.apk
+            src-tauri/gen/android/app/build/outputs/bundle/**/*.aab
+  ios:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios,aarch64-apple-ios-sim
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+      - run: npm ci
+      - name: Apple build prerequisites
+        run: brew install xcodegen cocoapods
+      - name: Build simulator app
+        run: node scripts/platform-build.mjs ios --target aarch64-sim --no-sign --ci
+      - name: Archive iPhone and iPad app
+        run: node scripts/platform-build.mjs ios --target aarch64 --no-sign --archive-only --ci
+      - name: Preserve Apple package permissions
+        run: find src-tauri/gen/apple/build -type d \( -name '*.app' -o -name '*.xcarchive' \) -prune -print0 | tar --null -T - -czf shenzhen-3d-ios.tar.gz
+      - uses: actions/upload-artifact@v4
+        with:
+          name: shenzhen-3d-ios
+          path: shenzhen-3d-ios.tar.gz

@@ -1,0 +1,31 @@
+{
+  "type": "snapshot",
+  "subscription": "s_9",
+  "view": "message_status",
+  "rev": 2,
+  "data": {
+    "messages": [
+      {
+        "message_id": "m_c4d27a19",
+        "status": {
+          "state": "queued",
+          "label": "Sends when Priya is nearby"
+        }
+      },
+      {
+        "message_id": "m_7a3e5b21",
+        "status": {
+          "state": "cancelled",
+          "label": "Cancelled"
+        }
+      },
+      {
+        "message_id": "m_5f2a90c1",
+        "status": {
+          "state": "delivered",
+          "label": "Delivered"
+        }
+      }
+    ]
+  }
+}

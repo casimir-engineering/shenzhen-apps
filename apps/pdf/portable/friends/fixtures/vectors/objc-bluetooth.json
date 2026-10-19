@@ -1,0 +1,124 @@
+{
+  "decode" : [
+    {
+      "accepted" : 1,
+      "decoded" : {
+        "callback_tags" : [
+          "ab169229320b0772"
+        ],
+        "hidden_psm" : 131,
+        "name" : "as encoded",
+        "public_psm" : 0,
+        "tag" : "6c44910d0b5cdc35",
+        "value" : "01016c44910d0b5cdc350083000001ab169229320b0772"
+      },
+      "name" : "as encoded",
+      "value" : "01016c44910d0b5cdc350083000001ab169229320b0772"
+    },
+    {
+      "accepted" : 1,
+      "decoded" : {
+        "callback_tags" : [
+          "ab169229320b0772"
+        ],
+        "hidden_psm" : 131,
+        "name" : "longer",
+        "public_psm" : 0,
+        "tag" : "6c44910d0b5cdc35",
+        "value" : "01016c44910d0b5cdc350083000001ab169229320b0772"
+      },
+      "name" : "longer",
+      "value" : "01016c44910d0b5cdc350083000001ab169229320b0772070707"
+    },
+    {
+      "accepted" : 0,
+      "name" : "version 2",
+      "value" : "02016c44910d0b5cdc350083000001ab169229320b0772"
+    },
+    {
+      "accepted" : 0,
+      "name" : "short",
+      "value" : "01016c44910d0b5cdc3500830000"
+    },
+    {
+      "accepted" : 0,
+      "name" : "claims two tags",
+      "value" : "01016c44910d0b5cdc350083000002ab169229320b0772"
+    },
+    {
+      "accepted" : 0,
+      "name" : "claims five tags",
+      "value" : "01016c44910d0b5cdc350083000005ab169229320b07720000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "accepted" : 1,
+      "decoded" : {
+        "callback_tags" : [
+          "ab169229320b0772"
+        ],
+        "hidden_psm" : 131,
+        "name" : "flag off",
+        "public_psm" : 0,
+        "tag" : null,
+        "value" : "010000000000000000000083000001ab169229320b0772"
+      },
+      "name" : "flag off",
+      "value" : "01006c44910d0b5cdc350083000001ab169229320b0772"
+    }
+  ],
+  "encode" : [
+    {
+      "callback_tags" : [
+        "ab169229320b0772",
+        "a800ff65aba3dafd",
+        "2a66608d0c539019",
+        "358e92676d90c8d1"
+      ],
+      "hidden_psm" : 129,
+      "name" : "hidden, tag and slots",
+      "public_psm" : 0,
+      "tag" : "6c44910d0b5cdc35",
+      "value" : "01016c44910d0b5cdc350081000004ab169229320b0772a800ff65aba3dafd2a66608d0c539019358e92676d90c8d1"
+    },
+    {
+      "callback_tags" : [
+
+      ],
+      "hidden_psm" : 0,
+      "name" : "no tag yet",
+      "public_psm" : 0,
+      "tag" : null,
+      "value" : "010000000000000000000000000000"
+    },
+    {
+      "callback_tags" : [
+
+      ],
+      "hidden_psm" : 0,
+      "name" : "public only",
+      "public_psm" : 4341,
+      "tag" : null,
+      "value" : "01000000000000000000000010f500"
+    },
+    {
+      "callback_tags" : [
+        "ab169229320b0772",
+        "a800ff65aba3dafd",
+        "2a66608d0c539019",
+        "358e92676d90c8d1"
+      ],
+      "hidden_psm" : 65535,
+      "name" : "five slots keep four",
+      "public_psm" : 257,
+      "tag" : "6c44910d0b5cdc35",
+      "value" : "01016c44910d0b5cdc35ffff010104ab169229320b0772a800ff65aba3dafd2a66608d0c539019358e92676d90c8d1"
+    }
+  ],
+  "source" : "Exported by portable/friends/core-rs/tools/objc-vectors from the Objective-C helper's own code. Regenerate with `make friends-vectors-export`; do not edit by hand.",
+  "uuids" : {
+    "presence_characteristic" : "9F2BC83C-9A97-49C4-9F30-19D368A135BA",
+    "public" : "C8B26601-A773-4E6D-BC10-BA6F596D92C1",
+    "public_characteristic" : "E66577A2-9C37-4D7B-876E-03127666B7DA",
+    "service" : "22FB96F7-C35A-45B5-9673-1CAC64EC8E75"
+  }
+}

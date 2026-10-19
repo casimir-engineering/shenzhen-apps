@@ -1,0 +1,15 @@
+# Stands in for tauri-plugin-szfriends while this checkout has none (../../.cargo/config.toml): builds without the
+# `friends` feature never compile it.
+[package]
+name = "tauri-plugin-szfriends"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Placeholder: run scripts/friends/setup-tauri-friends.mjs to build Shenzhen Friends into the Tauri app"
+
+[lib]
+path = "src/lib.rs"
+
+[features]
+test-homes = []
+online = []

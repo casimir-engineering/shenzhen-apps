@@ -1,0 +1,54 @@
+Recorded source and rebuild information — 16 October 2026
+
+Shenzhen 3D: use the exact source snapshot supplied with the preview
+binary, package-lock.json, vendor/occt/REVISION and Cargo.lock. npm ci and
+npm run build reproduce the frontend build process. docs/BUILDING.md and
+docs/PLATFORMS.md describe native packaging. Providing recipient access
+to matching source is a distribution action, not an asset-copy operation.
+
+occt-js bridge:
+https://github.com/tx-code/occt-js/tree/ad8ffb6007eb3fd25179232f291b626d6e78a195
+Archive: https://github.com/tx-code/occt-js/archive/ad8ffb6007eb3fd25179232f291b626d6e78a195.tar.gz
+Follow README.md at this revision. It specifies Emscripten SDK 3.1.69,
+CMake 3.20+ and tools/build_wasm.sh. Fetch required submodule/dependency
+sources when cloning. CMakeLists.txt builds its occt tree and bridge.
+To replace the library, replace the compatible vendor/occt runtime
+.mjs/.cjs/.wasm files and type declarations, update REVISION and notices,
+then rebuild the viewer's frontend/native package. Preserve notices and
+identify modifications. The recorded runtime hashes identify shipped
+artifacts; these instructions do not certify a reproducible binary match.
+
+OCCT baseline: tag V7_9_3 resolves to
+a016080bf6738d6aeae020badee4e888ad1540a5.
+https://github.com/Open-Cascade-SAS/OCCT/tree/a016080bf6738d6aeae020badee4e888ad1540a5
+https://github.com/Open-Cascade-SAS/OCCT/archive/a016080bf6738d6aeae020badee4e888ad1540a5.tar.gz
+The vendor notice identifies OCCT 7.9.3. Check the bridge's included OCCT
+tree/changes against this baseline when assembling matching source;
+the baseline does not replace bridge changes or build inputs.
+
+LibreDWG Web: @mlightcad/libredwg-web 0.8.0.
+https://registry.npmjs.org/@mlightcad/libredwg-web/-/libredwg-web-0.8.0.tgz
+Tag v0.8.0 resolves to d0b7c53d55a923f323256d19a310af7bc0137245.
+https://github.com/mlightcad/libredwg-web/tree/d0b7c53d55a923f323256d19a310af7bc0137245
+https://github.com/mlightcad/libredwg-web/archive/d0b7c53d55a923f323256d19a310af7bc0137245.tar.gz
+Read package.json/source build scripts for configure/emcc flags and JS
+bindings. The npm publication exposes no gitHead. This is release-tag
+provenance, not a verified bit-for-bit source/WASM match. Resolve the
+compiler/dependency inputs and matching source before treating this as a
+complete corresponding-source bundle.
+
+Draco binary provenance: three@0.186.1 examples/jsm/libs/draco/gltf.
+Three.js npm gitHead is 9b4a2ac29c63ccb43fd51c5661f2f873ac2c39b8 (r186).
+https://github.com/mrdoob/three.js/tree/9b4a2ac29c63ccb43fd51c5661f2f873ac2c39b8/examples/jsm/libs/draco
+Draco source: https://github.com/google/draco
+The bundled README does not identify the exact decoder build revision;
+no decoder version is inferred from the license-text snapshot.
+
+Meshopt decoder header identifies meshoptimizer 1.1, built with
+clang 22.1.0-wasi-sdk. Source tag v1.1 resolves to:
+https://github.com/zeux/meshoptimizer/tree/dc9d09ed83e1004aef47a1c3c597e0ec64848a37
+Runtime artifact hashes are recorded in npm-inventory.json.
+
+These notes document known sources and replacement steps. They are not
+a written offer, a product-code license, compatibility clearance or a
+replacement for the applicable licenses.

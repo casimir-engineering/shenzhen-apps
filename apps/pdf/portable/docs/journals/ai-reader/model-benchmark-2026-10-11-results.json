@@ -1,0 +1,1744 @@
+{
+  "date": "2026-10-11",
+  "baseCommit": "00eb3bebe",
+  "distinctTests": 5,
+  "repeats": 2,
+  "totalRuns": 60,
+  "recordedCostUSD": 0.08926734979999999,
+  "missingUsageResponses": 2,
+  "models": [
+    {
+      "model": "deepseek/deepseek-v4.1-flash",
+      "runs": 10,
+      "passed": 8,
+      "switchPassed": 0,
+      "medianSeconds": 6.207263469696045,
+      "maxSeconds": 44.07432806491852,
+      "recordedCostUSD": 0.01240029,
+      "missingUsageResponses": 0,
+      "cards": 2,
+      "providerFailures": 0,
+      "literalRubricPassed": 8
+    },
+    {
+      "model": "anthropic/claude-haiku-5.5",
+      "runs": 10,
+      "passed": 8,
+      "switchPassed": 0,
+      "medianSeconds": 5.986554503440857,
+      "maxSeconds": 12.050175070762634,
+      "recordedCostUSD": 0.0333669,
+      "missingUsageResponses": 0,
+      "cards": 0,
+      "providerFailures": 0,
+      "literalRubricPassed": 6
+    },
+    {
+      "model": "openai/gpt-6-luna",
+      "runs": 10,
+      "passed": 8,
+      "switchPassed": 0,
+      "medianSeconds": 23.058087527751923,
+      "maxSeconds": 74.02664697170258,
+      "recordedCostUSD": 0.01368421,
+      "missingUsageResponses": 0,
+      "cards": 2,
+      "providerFailures": 0,
+      "literalRubricPassed": 6
+    },
+    {
+      "model": "xiaomi/mimo-v2.6-flash",
+      "runs": 10,
+      "passed": 6,
+      "switchPassed": 0,
+      "medianSeconds": 41.34621798992157,
+      "maxSeconds": 145.0260270833969,
+      "recordedCostUSD": 0.0169886798,
+      "missingUsageResponses": 1,
+      "cards": 6,
+      "providerFailures": 1,
+      "literalRubricPassed": 6
+    },
+    {
+      "model": "z-ai/glm-5.3-flash",
+      "runs": 10,
+      "passed": 8,
+      "switchPassed": 0,
+      "medianSeconds": 7.549437940120697,
+      "maxSeconds": 10.051424026489258,
+      "recordedCostUSD": 0.00803813,
+      "missingUsageResponses": 1,
+      "cards": 5,
+      "providerFailures": 1,
+      "literalRubricPassed": 8
+    },
+    {
+      "model": "google/gemini-2.5-flash-lite",
+      "runs": 10,
+      "passed": 0,
+      "switchPassed": 0,
+      "medianSeconds": 2.3559510111808777,
+      "maxSeconds": 4.969252943992615,
+      "recordedCostUSD": 0.004789140000000001,
+      "missingUsageResponses": 0,
+      "cards": 0,
+      "providerFailures": 0,
+      "literalRubricPassed": 0
+    }
+  ],
+  "runs": [
+    {
+      "model": "deepseek/deepseek-v4.1-flash",
+      "test": "switch_full_travel",
+      "repeat": 1,
+      "elapsedSeconds": 44.07432806491852,
+      "recordedCostUSD": 0.005650102,
+      "requests": 7,
+      "missingUsageResponses": 0,
+      "providerFailure": false,
+      "providers": [
+        "InferenceNet"
+      ],
+      "grade": {
+        "id": "B057",
+        "test": "switch_full_travel",
+        "correctness": 0,
+        "citationValidity": true,
+        "sourceAdequacy": false,
+        "unsupportedClaims": [
+          "Substitutes1.8mm per-step maximum for full travel.",
+          "Claims drawing only supplies tipwidth/body dimensions, omitting actual3.1mm travel and1.3mm handlewidth."
+        ],
+        "pass": false,
+        "wordCount": 92,
+        "cardUsed": false,
+        "cardAppropriate": true,
+        "reason": "Rendered page1/page3 and multiplecrops, yet ignored full-stroke dimension and answered the related table quantity. Interpretation failure despite visual retrieval."
+      },
+      "literalRubricPass": false
+    },
+    {
+      "model": "anthropic/claude-haiku-5.5",
+      "test": "switch_full_travel",
+      "repeat": 1,
+      "elapsedSeconds": 12.050175070762634,
+      "recordedCostUSD": 0.0061614,
+      "requests": 5,
+      "missingUsageResponses": 0,
+      "providerFailure": false,
+      "providers": [
+        "Google"
+      ],
+      "grade": {
+        "id": "B009",
+        "test": "switch_full_travel",
+        "correctness": 0,
+        "citationValidity": true,
+        "sourceAdequacy": false,
+        "unsupportedClaims": [
+          "Substitutes1.8mm per-step maximum for full travel.",
+          "Falsely says the datasheet has no dimensional drawing."
+        ],
+        "pass": false,
+        "wordCount": 61,
+        "cardUsed": false,
+        "cardAppropriate": true,
+        "reason": "Read allpage text and rendered onlypage3; did not inspect page1 drawing and falsely inferred its absence."
+      },
+      "literalRubricPass": false
+    },
+    {
+      "model": "openai/gpt-6-luna",
+      "test": "switch_full_travel",
+      "repeat": 1,
+      "elapsedSeconds": 74.02664697170258,
+      "recordedCostUSD": 0.004707125,
+      "requests": 13,
+      "missingUsageResponses": 0,
+      "providerFailure": false,
+      "providers": [
+        "Azure"
+      ],
+      "grade": {
+        "id": "B008",
+        "test": "switch_full_travel",
+        "correctness": 0,
+        "citationValidity": true,
+        "sourceAdequacy": false,
+        "unsupportedClaims": [
+          "Substitutes1.8mm per-step maximum for3.1mm full travel."
+        ],
+        "pass": false,
+        "wordCount": 35,
+        "cardUsed": false,
+        "cardAppropriate": true,
+        "reason": "Empty optional revision caused several tool errors, but recovered and inspected page1 andpage3 images; final answer still misinterpreted per-step travel."
+      },
+      "literalRubricPass": false
+    },
+    {
+      "model": "xiaomi/mimo-v2.6-flash",
+      "test": "switch_full_travel",
+      "repeat": 1,
+      "elapsedSeconds": 145.0260270833969,
+      "recordedCostUSD": 0.004047225,
+      "requests": 4,
+      "missingUsageResponses": 0,
+      "providerFailure": false,
+      "providers": [
+        "Venice"
+      ],
+      "grade": {
+        "id": "B035",
+        "test": "switch_full_travel",
+        "correctness": 0,
+        "citationValidity": true,
+        "sourceAdequacy": false,
+        "unsupportedClaims": [
+          "Substitutes1.8mm single-step maximum for full3.1mm travel.",
+          "Derives3.5mm slot length from wrong travel and wrong-direction1.7mm width rather than3.1+1.3mm geometry."
+        ],
+        "pass": false,
+        "wordCount": 127,
+        "cardUsed": true,
+        "cardAppropriate": false,
+        "reason": "Successful page1 visual retrieval and crops, but wrong dimension interpretation persists in both prose and card; extra slot calculation compounds error."
+      },
+      "literalRubricPass": false
+    },
+    {
+      "model": "z-ai/glm-5.3-flash",
+      "test": "switch_full_travel",
+      "repeat": 1,
+      "elapsedSeconds": 3.431320071220398,
+      "recordedCostUSD": 0.0007756,
+      "requests": 2,
+      "missingUsageResponses": 1,
+      "providerFailure": true,
+      "providers": [
+        "Together",
+        "unknown"
+      ],
+      "grade": {
+        "id": "B022",
+        "test": "switch_full_travel",
+        "correctness": 0,
+        "citationValidity": false,
+        "sourceAdequacy": false,
+        "unsupportedClaims": [],
+        "pass": false,
+        "wordCount": 0,
+        "cardUsed": false,
+        "cardAppropriate": true,
+        "reason": "Provider invalid-response-format error after reading text; no final answer. Technical failure counted, not omitted."
+      },
+      "literalRubricPass": false
+    },
+    {
+      "model": "google/gemini-2.5-flash-lite",
+      "test": "switch_full_travel",
+      "repeat": 2,
+      "elapsedSeconds": 1.1020230054855347,
+      "recordedCostUSD": 0.0002846,
+      "requests": 1,
+      "missingUsageResponses": 0,
+      "providerFailure": false,
+      "providers": [
+        "Google"
+      ],
+      "grade": {
+        "id": "B054",
+        "test": "switch_full_travel",
+        "correctness": 0,
+        "citationValidity": false,
+        "sourceAdequacy": false,
+        "unsupportedClaims": [],
+        "pass": false,
+        "wordCount": 19,
+        "cardUsed": false,
+        "cardAppropriate": true,
+        "reason": "No tools used or answer provided; asks for document title despite active-document context supplied. Unnecessary clarification fails this task."
+      },
+      "literalRubricPass": false
+    },
+    {
+      "model": "z-ai/glm-5.3-flash",
+      "test": "switch_full_travel",
+      "repeat": 2,
+      "elapsedSeconds": 7.91603696346283,
+      "recordedCostUSD": 0.00191486,
+      "requests": 3,
+      "missingUsageResponses": 0,
+      "providerFailure": false,
+      "providers": [
+        "Together"
+      ],
+      "grade": {
+        "id": "B032",
+        "test": "switch_full_travel",
+        "correctness": 0,
+        "citationValidity": true,
+        "sourceAdequacy": false,
+        "unsupportedClaims": [
+          "Card gives1.8mm as maximum actuator travel instead of3.1mm full travel."
+        ],
+        "pass": false,
+        "wordCount": 12,
+        "cardUsed": true,
+        "cardAppropriate": false,
+        "reason": "Reads only specification pages3–4 and never retrieves the page1 drawing; wrong scalar is presented as a card."
+      },
+      "literalRubricPass": false
+    },
+    {
+      "model": "xiaomi/mimo-v2.6-flash",
+      "test": "switch_full_travel",
+      "repeat": 2,
+      "elapsedSeconds": 67.32391107082367,
+      "recordedCostUSD": 0.0022884100000000003,
+      "requests": 4,
+      "missingUsageResponses": 0,
+      "providerFailure": false,
+      "providers": [
+        "Venice"
+      ],
+      "grade": {
+        "id": "B016",
+        "test": "switch_full_travel",
+        "correctness": 0,
+        "citationValidity": true,
+        "sourceAdequacy": false,
+        "unsupportedClaims": [
+          "Calls1.8mm maximum actuator travel.",
+          "Falsely says the four-page document contains no outline drawing."
+        ],
+        "pass": false,
+        "wordCount": 78,
+        "cardUsed": true,
+        "cardAppropriate": false,
+        "reason": "Retrieved text only, then displayed a card for the wrong per-step quantity; long accompanying prose repeats unsupported absence claim."
+      },
+      "literalRubricPass": false
+    },
+    {
+      "model": "openai/gpt-6-luna",
+      "test": "switch_full_travel",
+      "repeat": 2,
+      "elapsedSeconds": 63.24832797050476,
+      "recordedCostUSD": 0.002252595,
+      "requests": 13,
+      "missingUsageResponses": 0,
+      "providerFailure": false,
+      "providers": [
+        "Azure"
+      ],
+      "grade": {
+        "id": "B023",
+        "test": "switch_full_travel",
+        "correctness": 0,
+        "citationValidity": false,
+        "sourceAdequacy": false,
+        "unsupportedClaims": [
+          "Substitutes1.8mm per-step maximum for full actuator travel."
+        ],
+        "pass": false,
+        "wordCount": 32,
+        "cardUsed": false,
+        "cardAppropriate": true,
+        "reason": "Repeated empty/invented revisions prevented page reads/renders; relied on cached summary and limited search. Final answer is incorrect and uncited. Primarily retrieval/tool compatibility failure before interpretation."
+      },
+      "literalRubricPass": false
+    },
+    {
+      "model": "anthropic/claude-haiku-5.5",
+      "test": "switch_full_travel",
+      "repeat": 2,
+      "elapsedSeconds": 6.018432021141052,
+      "recordedCostUSD": 0.0030613,
+      "requests": 3,
+      "missingUsageResponses": 0,
+      "providerFailure": false,
+      "providers": [
+        "Google"
+      ],
+      "grade": {
+        "id": "B012",
+        "test": "switch_full_travel",
+        "correctness": 0,
+        "citationValidity": true,
+        "sourceAdequacy": false,
+        "unsupportedClaims": [
+          "Treats1.8mm per-step maximum as sufficient movement allowance for the case hole."
+        ],
+        "pass": false,
+        "wordCount": 81,
+        "cardUsed": false,
+        "cardAppropriate": true,
+        "reason": "Read pages1–3 as text only; never retrieved drawing pixels. Caveat does not correct the wrong movement figure."
+      },
+      "literalRubricPass": false
+    },
+    {
+      "model": "deepseek/deepseek-v4.1-flash",
+      "test": "switch_full_travel",
+      "repeat": 2,
+      "elapsedSeconds": 11.337893962860107,
+      "recordedCostUSD": 0.001090975,
+      "requests": 4,
+      "missingUsageResponses": 0,
+      "providerFailure": false,
+      "providers": [
+        "InferenceNet"
+      ],
+      "grade": {
+        "id": "B017",
+        "test": "switch_full_travel",
+        "correctness": 0,
+        "citationValidity": true,
+        "sourceAdequacy": false,
+        "unsupportedClaims": [
+          "Answers1.8mm closure travel instead of full travel."
+        ],
+        "pass": false,
+        "wordCount": 17,
+        "cardUsed": true,
+        "cardAppropriate": false,
+        "reason": "No drawing render. First card rejected for oversized label; retry validly displayed a card, but wrong quantity remains."
+      },
+      "literalRubricPass": false
+    },
+    {
+      "model": "deepseek/deepseek-v4.1-flash",
+      "test": "clinic_visit_conditions",
+      "repeat": 2,
+      "elapsedSeconds": 3.3240150213241577,
+      "recordedCostUSD": 0.000544544,
+      "requests": 2,
+      "missingUsageResponses": 0,
+      "providerFailure": false,
+      "providers": [
+        "InferenceNet"
+      ],
+      "grade": {
+        "id": "B060",
+        "test": "clinic_visit_conditions",
+        "correctness": 2,
+        "citationValidity": true,
+        "sourceAdequacy": true,
+        "unsupportedClaims": [],
+        "pass": true,
+        "wordCount": 14,
+        "cardUsed": false,
+        "cardAppropriate": true,
+        "reason": "Correct Saturday hours and booking prerequisite, concise two-sentence answer, complete source read and exactcitation."
+      },
+      "literalRubricPass": true
+    },
+    {
+      "model": "google/gemini-2.5-flash-lite",
+      "test": "clinic_visit_conditions",
+      "repeat": 2,
+      "elapsedSeconds": 2.2332180738449097,
+      "recordedCostUSD": 0.0006003,
+      "requests": 2,
+      "missingUsageResponses": 0,
+      "providerFailure": false,
+      "providers": [
+        "Google"
+      ],
+      "grade": {
+        "id": "B025",
+        "test": "clinic_visit_conditions",
+        "correctness": 0,
+        "citationValidity": false,
+        "sourceAdequacy": false,
+        "unsupportedClaims": [
+          "Falsely reports no Saturday-hours information in a document that states it."
+        ],
+        "pass": false,
+        "wordCount": 16,
+        "cardUsed": false,
+        "cardAppropriate": true,
+        "reason": "Only one literal search for Saturday hours returned no matches; stopped without reading the one-page document."
+      },
+      "literalRubricPass": false
+    },
+    {
+      "model": "z-ai/glm-5.3-flash",
+      "test": "clinic_visit_conditions",
+      "repeat": 2,
+      "elapsedSeconds": 3.8489770889282227,
+      "recordedCostUSD": 0.00100833,
+      "requests": 2,
+      "missingUsageResponses": 0,
+      "providerFailure": false,
+      "providers": [
+        "Together"
+      ],
+      "grade": {
+        "id": "B034",
+        "test": "clinic_visit_conditions",
+        "correctness": 2,
+        "citationValidity": true,
+        "sourceAdequacy": true,
+        "unsupportedClaims": [],
+        "pass": true,
+        "wordCount": 27,
+        "cardUsed": false,
+        "cardAppropriate": true,
+        "reason": "Correct Saturday hours and booking condition; distinguishes visiting from phone hours, with exact page1 citation."
+      },
+      "literalRubricPass": true
+    },
+    {
+      "model": "xiaomi/mimo-v2.6-flash",
+      "test": "clinic_visit_conditions",
+      "repeat": 2,
+      "elapsedSeconds": 8.36403203010559,
+      "recordedCostUSD": 0.00084406,
+      "requests": 2,
+      "missingUsageResponses": 0,
+      "providerFailure": false,
+      "providers": [
+        "Novita"
+      ],
+      "grade": {
+        "id": "B031",
+        "test": "clinic_visit_conditions",
+        "correctness": 2,
+        "citationValidity": true,
+        "sourceAdequacy": true,
+        "unsupportedClaims": [],
+        "pass": true,
+        "wordCount": 21,
+        "cardUsed": false,
+        "cardAppropriate": true,
+        "reason": "Correct09:00–13:30 and required booking, supported by a complete page1 read and exact citation; concise prose appropriate for condition."
+      },
+      "literalRubricPass": true
+    },
+    {
+      "model": "openai/gpt-6-luna",
+      "test": "clinic_visit_conditions",
+      "repeat": 2,
+      "elapsedSeconds": 31.254929900169373,
+      "recordedCostUSD": 0.001214925,
+      "requests": 8,
+      "missingUsageResponses": 0,
+      "providerFailure": false,
+      "providers": [
+        "Azure"
+      ],
+      "grade": {
+        "id": "B020",
+        "test": "clinic_visit_conditions",
+        "correctness": 2,
+        "citationValidity": true,
+        "sourceAdequacy": true,
+        "unsupportedClaims": [],
+        "pass": true,
+        "wordCount": 21,
+        "cardUsed": false,
+        "cardAppropriate": true,
+        "reason": "Recovered from empty-revision read/render errors via exact searches; retrieved both hours and booking prerequisite, answered correctly with valid citation."
+      },
+      "literalRubricPass": true
+    },
+    {
+      "model": "anthropic/claude-haiku-5.5",
+      "test": "clinic_visit_conditions",
+      "repeat": 2,
+      "elapsedSeconds": 4.052294015884399,
+      "recordedCostUSD": 0.0016533,
+      "requests": 2,
+      "missingUsageResponses": 0,
+      "providerFailure": false,
+      "providers": [
+        "Google"
+      ],
+      "grade": {
+        "id": "B049",
+        "test": "clinic_visit_conditions",
+        "correctness": 2,
+        "citationValidity": true,
+        "sourceAdequacy": true,
+        "unsupportedClaims": [],
+        "pass": true,
+        "wordCount": 21,
+        "cardUsed": false,
+        "cardAppropriate": true,
+        "reason": "Correct Saturday interval and appointment prerequisite with exact citation and complete page read."
+      },
+      "literalRubricPass": true
+    },
+    {
+      "model": "anthropic/claude-haiku-5.5",
+      "test": "visual_chart_comparison",
+      "repeat": 2,
+      "elapsedSeconds": 6.161164045333862,
+      "recordedCostUSD": 0.0029233999999999996,
+      "requests": 3,
+      "missingUsageResponses": 0,
+      "providerFailure": false,
+      "providers": [
+        "Google"
+      ],
+      "grade": {
+        "id": "B027",
+        "test": "visual_chart_comparison",
+        "correctness": 2,
+        "citationValidity": true,
+        "sourceAdequacy": true,
+        "unsupportedClaims": [],
+        "pass": true,
+        "wordCount": 29,
+        "cardUsed": false,
+        "cardAppropriate": true,
+        "reason": "Rendered the chart and correctly identifies Orchid; correctly avoids unsupported numeric values. Concise prose; a card would also fit."
+      },
+      "literalRubricPass": true
+    },
+    {
+      "model": "deepseek/deepseek-v4.1-flash",
+      "test": "visual_chart_comparison",
+      "repeat": 2,
+      "elapsedSeconds": 6.548243999481201,
+      "recordedCostUSD": 0.000868157,
+      "requests": 3,
+      "missingUsageResponses": 0,
+      "providerFailure": false,
+      "providers": [
+        "InferenceNet"
+      ],
+      "grade": {
+        "id": "B033",
+        "test": "visual_chart_comparison",
+        "correctness": 2,
+        "citationValidity": true,
+        "sourceAdequacy": true,
+        "unsupportedClaims": [],
+        "pass": true,
+        "wordCount": 55,
+        "cardUsed": true,
+        "cardAppropriate": true,
+        "reason": "Rendered chart, correctly ranks Orchid highest, uses exact evidence citation and appropriate card; accompanying explanation is correct but repeats the card."
+      },
+      "literalRubricPass": true
+    },
+    {
+      "model": "google/gemini-2.5-flash-lite",
+      "test": "visual_chart_comparison",
+      "repeat": 2,
+      "elapsedSeconds": 3.2921769618988037,
+      "recordedCostUSD": 0.0006019,
+      "requests": 2,
+      "missingUsageResponses": 0,
+      "providerFailure": false,
+      "providers": [
+        "Google"
+      ],
+      "grade": {
+        "id": "B048",
+        "test": "visual_chart_comparison",
+        "correctness": 0,
+        "citationValidity": false,
+        "sourceAdequacy": false,
+        "unsupportedClaims": [
+          "Falsely claims chart document lacks information about the highest-output project."
+        ],
+        "pass": false,
+        "wordCount": 21,
+        "cardUsed": false,
+        "cardAppropriate": true,
+        "reason": "One phrase search returned no matches; no page read or visual retrieval before false absence conclusion."
+      },
+      "literalRubricPass": false
+    },
+    {
+      "model": "z-ai/glm-5.3-flash",
+      "test": "visual_chart_comparison",
+      "repeat": 2,
+      "elapsedSeconds": 9.02207601070404,
+      "recordedCostUSD": 0.00092496,
+      "requests": 3,
+      "missingUsageResponses": 0,
+      "providerFailure": false,
+      "providers": [
+        "InferenceNet"
+      ],
+      "grade": {
+        "id": "B055",
+        "test": "visual_chart_comparison",
+        "correctness": 2,
+        "citationValidity": true,
+        "sourceAdequacy": true,
+        "unsupportedClaims": [],
+        "pass": true,
+        "wordCount": 8,
+        "cardUsed": true,
+        "cardAppropriate": true,
+        "reason": "Rendered chart, correctly answered Orchid in a concise card with exact source citation."
+      },
+      "literalRubricPass": true
+    },
+    {
+      "model": "xiaomi/mimo-v2.6-flash",
+      "test": "visual_chart_comparison",
+      "repeat": 2,
+      "elapsedSeconds": 33.26251292228699,
+      "recordedCostUSD": 0.0017102999999999999,
+      "requests": 3,
+      "missingUsageResponses": 0,
+      "providerFailure": false,
+      "providers": [
+        "Venice"
+      ],
+      "grade": {
+        "id": "B058",
+        "test": "visual_chart_comparison",
+        "correctness": 2,
+        "citationValidity": true,
+        "sourceAdequacy": true,
+        "unsupportedClaims": [],
+        "pass": true,
+        "wordCount": 47,
+        "cardUsed": true,
+        "cardAppropriate": true,
+        "reason": "Successful chart rendering and correct Orchid answer/card with exact evidence; correct accompanying prose repeats the conclusion."
+      },
+      "literalRubricPass": true
+    },
+    {
+      "model": "openai/gpt-6-luna",
+      "test": "visual_chart_comparison",
+      "repeat": 2,
+      "elapsedSeconds": 24.757853031158447,
+      "recordedCostUSD": 0.001259505,
+      "requests": 7,
+      "missingUsageResponses": 0,
+      "providerFailure": false,
+      "providers": [
+        "Azure"
+      ],
+      "grade": {
+        "id": "B052",
+        "test": "visual_chart_comparison",
+        "correctness": 2,
+        "citationValidity": true,
+        "sourceAdequacy": true,
+        "unsupportedClaims": [],
+        "pass": true,
+        "wordCount": 8,
+        "cardUsed": true,
+        "cardAppropriate": true,
+        "reason": "Recovered from empty revision via search, then successfully rendered chart; correct Orchid card and exact evidence citation."
+      },
+      "literalRubricPass": true
+    },
+    {
+      "model": "openai/gpt-6-luna",
+      "test": "cross_document_service_plans",
+      "repeat": 2,
+      "elapsedSeconds": 15.058879017829895,
+      "recordedCostUSD": 0.00109926,
+      "requests": 5,
+      "missingUsageResponses": 0,
+      "providerFailure": false,
+      "providers": [
+        "Azure"
+      ],
+      "grade": {
+        "id": "B044",
+        "test": "cross_document_service_plans",
+        "correctness": 2,
+        "citationValidity": true,
+        "sourceAdequacy": true,
+        "unsupportedClaims": [],
+        "pass": true,
+        "wordCount": 38,
+        "cardUsed": false,
+        "cardAppropriate": true,
+        "reason": "Recovered from empty-revision error using source searches. Retrieved snippets from both policies support24versus18months and repairs exclusion; both exact citations supplied."
+      },
+      "literalRubricPass": true
+    },
+    {
+      "model": "anthropic/claude-haiku-5.5",
+      "test": "cross_document_service_plans",
+      "repeat": 2,
+      "elapsedSeconds": 9.699254035949707,
+      "recordedCostUSD": 0.0047393999999999995,
+      "requests": 5,
+      "missingUsageResponses": 0,
+      "providerFailure": false,
+      "providers": [
+        "Google"
+      ],
+      "grade": {
+        "id": "B056",
+        "test": "cross_document_service_plans",
+        "correctness": 2,
+        "citationValidity": true,
+        "sourceAdequacy": true,
+        "unsupportedClaims": [],
+        "pass": true,
+        "wordCount": 57,
+        "cardUsed": false,
+        "cardAppropriate": true,
+        "reason": "Read both policies after one irrelevant Collection request failed; comparison24versus18months and repairs exclusion correct, both citations valid. Prose is appropriate though adds redundant detail."
+      },
+      "literalRubricPass": true
+    },
+    {
+      "model": "deepseek/deepseek-v4.1-flash",
+      "test": "cross_document_service_plans",
+      "repeat": 2,
+      "elapsedSeconds": 11.421378016471863,
+      "recordedCostUSD": 0.001514778,
+      "requests": 4,
+      "missingUsageResponses": 0,
+      "providerFailure": false,
+      "providers": [
+        "DigitalOcean"
+      ],
+      "grade": {
+        "id": "B030",
+        "test": "cross_document_service_plans",
+        "correctness": 2,
+        "citationValidity": true,
+        "sourceAdequacy": true,
+        "unsupportedClaims": [],
+        "pass": true,
+        "wordCount": 52,
+        "cardUsed": false,
+        "cardAppropriate": true,
+        "reason": "Read both documents and correctly compared duration and repair coverage, with valid source citations."
+      },
+      "literalRubricPass": true
+    },
+    {
+      "model": "google/gemini-2.5-flash-lite",
+      "test": "cross_document_service_plans",
+      "repeat": 2,
+      "elapsedSeconds": 4.969252943992615,
+      "recordedCostUSD": 0.0008887799999999999,
+      "requests": 3,
+      "missingUsageResponses": 0,
+      "providerFailure": false,
+      "providers": [
+        "Google"
+      ],
+      "grade": {
+        "id": "B037",
+        "test": "cross_document_service_plans",
+        "correctness": 1,
+        "citationValidity": true,
+        "sourceAdequacy": false,
+        "unsupportedClaims": [],
+        "pass": false,
+        "wordCount": 28,
+        "cardUsed": false,
+        "cardAppropriate": true,
+        "reason": "Correctly reports the first plan18months and repairs, but searches only the active document and fails to discover/read the open second plan; requested comparison unanswered."
+      },
+      "literalRubricPass": false
+    },
+    {
+      "model": "z-ai/glm-5.3-flash",
+      "test": "cross_document_service_plans",
+      "repeat": 2,
+      "elapsedSeconds": 5.039692997932434,
+      "recordedCostUSD": 0.0003668,
+      "requests": 2,
+      "missingUsageResponses": 0,
+      "providerFailure": false,
+      "providers": [
+        "InferenceNet"
+      ],
+      "grade": {
+        "id": "B004",
+        "test": "cross_document_service_plans",
+        "correctness": 2,
+        "citationValidity": true,
+        "sourceAdequacy": true,
+        "unsupportedClaims": [],
+        "pass": true,
+        "wordCount": 49,
+        "cardUsed": false,
+        "cardAppropriate": true,
+        "reason": "Both source search snippets retrieved; correct24versus18month comparison and repairs exclusion with exact citations for both."
+      },
+      "literalRubricPass": true
+    },
+    {
+      "model": "xiaomi/mimo-v2.6-flash",
+      "test": "cross_document_service_plans",
+      "repeat": 2,
+      "elapsedSeconds": 56.97806990146637,
+      "recordedCostUSD": 0.0015072848,
+      "requests": 9,
+      "missingUsageResponses": 0,
+      "providerFailure": false,
+      "providers": [
+        "Novita"
+      ],
+      "grade": {
+        "id": "B021",
+        "test": "cross_document_service_plans",
+        "correctness": 2,
+        "citationValidity": false,
+        "sourceAdequacy": true,
+        "unsupportedClaims": [],
+        "pass": false,
+        "wordCount": 30,
+        "cardUsed": false,
+        "cardAppropriate": true,
+        "reason": "Correct comparison after reading both documents, but repeatedly corrupts citation revision. Card attempts are rejected and the final prose still contains an invalid evidence link."
+      },
+      "literalRubricPass": false
+    },
+    {
+      "model": "xiaomi/mimo-v2.6-flash",
+      "test": "absent_renewal_price",
+      "repeat": 2,
+      "elapsedSeconds": 12.965511083602905,
+      "recordedCostUSD": 0.001257255,
+      "requests": 3,
+      "missingUsageResponses": 0,
+      "providerFailure": false,
+      "providers": [
+        "Venice"
+      ],
+      "grade": {
+        "id": "B039",
+        "test": "absent_renewal_price",
+        "correctness": 2,
+        "citationValidity": true,
+        "sourceAdequacy": true,
+        "unsupportedClaims": [],
+        "pass": true,
+        "wordCount": 40,
+        "cardUsed": false,
+        "cardAppropriate": true,
+        "reason": "Correctly reports that renewal price is absent after full-page reading; valid citation and accurate but unnecessary extra detail."
+      },
+      "literalRubricPass": true
+    },
+    {
+      "model": "openai/gpt-6-luna",
+      "test": "absent_renewal_price",
+      "repeat": 2,
+      "elapsedSeconds": 5.061961054801941,
+      "recordedCostUSD": 0.00019615,
+      "requests": 2,
+      "missingUsageResponses": 0,
+      "providerFailure": false,
+      "providers": [
+        "Azure"
+      ],
+      "grade": {
+        "id": "B050",
+        "test": "absent_renewal_price",
+        "correctness": 2,
+        "citationValidity": true,
+        "sourceAdequacy": true,
+        "unsupportedClaims": [],
+        "pass": true,
+        "wordCount": 12,
+        "cardUsed": false,
+        "cardAppropriate": true,
+        "reason": "Correctly cites the successful renewal search result that explicitly says no renewal price is stated."
+      },
+      "literalRubricPass": false
+    },
+    {
+      "model": "anthropic/claude-haiku-5.5",
+      "test": "absent_renewal_price",
+      "repeat": 2,
+      "elapsedSeconds": 3.893088936805725,
+      "recordedCostUSD": 0.0017478,
+      "requests": 2,
+      "missingUsageResponses": 0,
+      "providerFailure": false,
+      "providers": [
+        "Google"
+      ],
+      "grade": {
+        "id": "B046",
+        "test": "absent_renewal_price",
+        "correctness": 2,
+        "citationValidity": true,
+        "sourceAdequacy": true,
+        "unsupportedClaims": [],
+        "pass": true,
+        "wordCount": 32,
+        "cardUsed": false,
+        "cardAppropriate": true,
+        "reason": "Correctly cites a successful search result explicitly stating that renewal price is not supplied; this is direct evidence, not an inference from a failed search."
+      },
+      "literalRubricPass": false
+    },
+    {
+      "model": "deepseek/deepseek-v4.1-flash",
+      "test": "absent_renewal_price",
+      "repeat": 2,
+      "elapsedSeconds": 5.866282939910889,
+      "recordedCostUSD": 0.000710437,
+      "requests": 3,
+      "missingUsageResponses": 0,
+      "providerFailure": false,
+      "providers": [
+        "InferenceNet"
+      ],
+      "grade": {
+        "id": "B026",
+        "test": "absent_renewal_price",
+        "correctness": 2,
+        "citationValidity": true,
+        "sourceAdequacy": true,
+        "unsupportedClaims": [],
+        "pass": true,
+        "wordCount": 21,
+        "cardUsed": false,
+        "cardAppropriate": true,
+        "reason": "Read the full page and correctly reports that renewal price is not stated with a valid citation."
+      },
+      "literalRubricPass": true
+    },
+    {
+      "model": "google/gemini-2.5-flash-lite",
+      "test": "absent_renewal_price",
+      "repeat": 2,
+      "elapsedSeconds": 1.2494990825653076,
+      "recordedCostUSD": 0.0002848,
+      "requests": 1,
+      "missingUsageResponses": 0,
+      "providerFailure": false,
+      "providers": [
+        "Google"
+      ],
+      "grade": {
+        "id": "B053",
+        "test": "absent_renewal_price",
+        "correctness": 0,
+        "citationValidity": false,
+        "sourceAdequacy": false,
+        "unsupportedClaims": [],
+        "pass": false,
+        "wordCount": 21,
+        "cardUsed": false,
+        "cardAppropriate": true,
+        "reason": "Does not use available document context or tools and asks the user to identify the document; no substantive answer or citation."
+      },
+      "literalRubricPass": false
+    },
+    {
+      "model": "z-ai/glm-5.3-flash",
+      "test": "absent_renewal_price",
+      "repeat": 2,
+      "elapsedSeconds": 7.1828389167785645,
+      "recordedCostUSD": 0.00068424,
+      "requests": 3,
+      "missingUsageResponses": 0,
+      "providerFailure": false,
+      "providers": [
+        "InferenceNet"
+      ],
+      "grade": {
+        "id": "B005",
+        "test": "absent_renewal_price",
+        "correctness": 2,
+        "citationValidity": true,
+        "sourceAdequacy": true,
+        "unsupportedClaims": [],
+        "pass": true,
+        "wordCount": 33,
+        "cardUsed": false,
+        "cardAppropriate": true,
+        "reason": "Correctly reports the explicitly unstated renewal price after reading the source; valid citation."
+      },
+      "literalRubricPass": true
+    },
+    {
+      "model": "google/gemini-2.5-flash-lite",
+      "test": "switch_full_travel",
+      "repeat": 1,
+      "elapsedSeconds": 2.3529000282287598,
+      "recordedCostUSD": 0.00038073,
+      "requests": 2,
+      "missingUsageResponses": 0,
+      "providerFailure": false,
+      "providers": [
+        "Google"
+      ],
+      "grade": {
+        "id": "B006",
+        "test": "switch_full_travel",
+        "correctness": 0,
+        "citationValidity": false,
+        "sourceAdequacy": false,
+        "unsupportedClaims": [],
+        "pass": false,
+        "wordCount": 18,
+        "cardUsed": false,
+        "cardAppropriate": true,
+        "reason": "Stopped after one exact-phrase search with no matches, without reading or rendering available pages; no usable answer."
+      },
+      "literalRubricPass": false
+    },
+    {
+      "model": "anthropic/claude-haiku-5.5",
+      "test": "clinic_visit_conditions",
+      "repeat": 1,
+      "elapsedSeconds": 3.111272931098938,
+      "recordedCostUSD": 0.0016538,
+      "requests": 2,
+      "missingUsageResponses": 0,
+      "providerFailure": false,
+      "providers": [
+        "Google"
+      ],
+      "grade": {
+        "id": "B040",
+        "test": "clinic_visit_conditions",
+        "correctness": 2,
+        "citationValidity": true,
+        "sourceAdequacy": true,
+        "unsupportedClaims": [],
+        "pass": true,
+        "wordCount": 21,
+        "cardUsed": false,
+        "cardAppropriate": true,
+        "reason": "Correct hours and booking condition with exact citation after complete page read; concise prose appropriate."
+      },
+      "literalRubricPass": true
+    },
+    {
+      "model": "openai/gpt-6-luna",
+      "test": "clinic_visit_conditions",
+      "repeat": 1,
+      "elapsedSeconds": 21.358322024345398,
+      "recordedCostUSD": 0.000578215,
+      "requests": 6,
+      "missingUsageResponses": 0,
+      "providerFailure": false,
+      "providers": [
+        "Azure"
+      ],
+      "grade": {
+        "id": "B047",
+        "test": "clinic_visit_conditions",
+        "correctness": 2,
+        "citationValidity": true,
+        "sourceAdequacy": true,
+        "unsupportedClaims": [],
+        "pass": true,
+        "wordCount": 19,
+        "cardUsed": false,
+        "cardAppropriate": true,
+        "reason": "Recovered from repeated empty-revision errors through a Saturday search whose snippet contains both required facts; correct concise answer and exact citation."
+      },
+      "literalRubricPass": true
+    },
+    {
+      "model": "xiaomi/mimo-v2.6-flash",
+      "test": "clinic_visit_conditions",
+      "repeat": 1,
+      "elapsedSeconds": 23.6512850522995,
+      "recordedCostUSD": 0.000256525,
+      "requests": 2,
+      "missingUsageResponses": 0,
+      "providerFailure": false,
+      "providers": [
+        "Venice"
+      ],
+      "grade": {
+        "id": "B038",
+        "test": "clinic_visit_conditions",
+        "correctness": 2,
+        "citationValidity": true,
+        "sourceAdequacy": true,
+        "unsupportedClaims": [],
+        "pass": true,
+        "wordCount": 12,
+        "cardUsed": true,
+        "cardAppropriate": true,
+        "reason": "Card correctly retains hours and appointment prerequisite, with valid evidence. Repeats booking in both label and value but not misleading."
+      },
+      "literalRubricPass": true
+    },
+    {
+      "model": "z-ai/glm-5.3-flash",
+      "test": "clinic_visit_conditions",
+      "repeat": 1,
+      "elapsedSeconds": 3.261806011199951,
+      "recordedCostUSD": 0.00046986,
+      "requests": 2,
+      "missingUsageResponses": 0,
+      "providerFailure": false,
+      "providers": [
+        "Together"
+      ],
+      "grade": {
+        "id": "B001",
+        "test": "clinic_visit_conditions",
+        "correctness": 2,
+        "citationValidity": true,
+        "sourceAdequacy": true,
+        "unsupportedClaims": [],
+        "pass": true,
+        "wordCount": 10,
+        "cardUsed": true,
+        "cardAppropriate": true,
+        "reason": "Correct conditional card includes Saturday09:00–13:30 and booking prerequisite in label; source read and citation valid."
+      },
+      "literalRubricPass": true
+    },
+    {
+      "model": "google/gemini-2.5-flash-lite",
+      "test": "clinic_visit_conditions",
+      "repeat": 1,
+      "elapsedSeconds": 2.3590019941329956,
+      "recordedCostUSD": 0.00039805,
+      "requests": 2,
+      "missingUsageResponses": 0,
+      "providerFailure": false,
+      "providers": [
+        "Google"
+      ],
+      "grade": {
+        "id": "B029",
+        "test": "clinic_visit_conditions",
+        "correctness": 2,
+        "citationValidity": false,
+        "sourceAdequacy": true,
+        "unsupportedClaims": [],
+        "pass": false,
+        "wordCount": 18,
+        "cardUsed": false,
+        "cardAppropriate": true,
+        "reason": "Factual answer and prerequisite correct after full page read, but omits the required source citation; fails sourced-answer criterion."
+      },
+      "literalRubricPass": false
+    },
+    {
+      "model": "deepseek/deepseek-v4.1-flash",
+      "test": "clinic_visit_conditions",
+      "repeat": 1,
+      "elapsedSeconds": 3.1444979906082153,
+      "recordedCostUSD": 0.00023203200000000002,
+      "requests": 2,
+      "missingUsageResponses": 0,
+      "providerFailure": false,
+      "providers": [
+        "InferenceNet"
+      ],
+      "grade": {
+        "id": "B007",
+        "test": "clinic_visit_conditions",
+        "correctness": 2,
+        "citationValidity": true,
+        "sourceAdequacy": true,
+        "unsupportedClaims": [],
+        "pass": true,
+        "wordCount": 32,
+        "cardUsed": false,
+        "cardAppropriate": true,
+        "reason": "Correct hours and required booking, complete source read and exact citation. Optional phone-hours note is accurate."
+      },
+      "literalRubricPass": true
+    },
+    {
+      "model": "openai/gpt-6-luna",
+      "test": "visual_chart_comparison",
+      "repeat": 1,
+      "elapsedSeconds": 32.71185004711151,
+      "recordedCostUSD": 0.0012405850000000002,
+      "requests": 10,
+      "missingUsageResponses": 0,
+      "providerFailure": false,
+      "providers": [
+        "Azure"
+      ],
+      "grade": {
+        "id": "B002",
+        "test": "visual_chart_comparison",
+        "correctness": 2,
+        "citationValidity": true,
+        "sourceAdequacy": true,
+        "unsupportedClaims": [],
+        "pass": true,
+        "wordCount": 8,
+        "cardUsed": true,
+        "cardAppropriate": true,
+        "reason": "Recovered empty-revision tool errors, then rendered the chart and presented Orchid in a valid evidence-linked card."
+      },
+      "literalRubricPass": true
+    },
+    {
+      "model": "xiaomi/mimo-v2.6-flash",
+      "test": "visual_chart_comparison",
+      "repeat": 1,
+      "elapsedSeconds": 53.42600405216217,
+      "recordedCostUSD": 0.0029251699999999995,
+      "requests": 6,
+      "missingUsageResponses": 0,
+      "providerFailure": false,
+      "providers": [
+        "Venice"
+      ],
+      "grade": {
+        "id": "B045",
+        "test": "visual_chart_comparison",
+        "correctness": 2,
+        "citationValidity": true,
+        "sourceAdequacy": true,
+        "unsupportedClaims": [],
+        "pass": true,
+        "wordCount": 6,
+        "cardUsed": true,
+        "cardAppropriate": true,
+        "reason": "Rendered the chart and correctly identifies Orchid. Recovered two malformed-citation card errors; the final card uses valid retrieved evidence."
+      },
+      "literalRubricPass": true
+    },
+    {
+      "model": "z-ai/glm-5.3-flash",
+      "test": "visual_chart_comparison",
+      "repeat": 1,
+      "elapsedSeconds": 8.408576965332031,
+      "recordedCostUSD": 0.0007580600000000001,
+      "requests": 3,
+      "missingUsageResponses": 0,
+      "providerFailure": false,
+      "providers": [
+        "InferenceNet"
+      ],
+      "grade": {
+        "id": "B019",
+        "test": "visual_chart_comparison",
+        "correctness": 2,
+        "citationValidity": true,
+        "sourceAdequacy": true,
+        "unsupportedClaims": [],
+        "pass": true,
+        "wordCount": 41,
+        "cardUsed": true,
+        "cardAppropriate": true,
+        "reason": "Correct chart comparison after rendering; valid card and citation, though prose repeats the card."
+      },
+      "literalRubricPass": true
+    },
+    {
+      "model": "google/gemini-2.5-flash-lite",
+      "test": "visual_chart_comparison",
+      "repeat": 1,
+      "elapsedSeconds": 3.5176379680633545,
+      "recordedCostUSD": 0.00045644,
+      "requests": 2,
+      "missingUsageResponses": 0,
+      "providerFailure": false,
+      "providers": [
+        "Google"
+      ],
+      "grade": {
+        "id": "B042",
+        "test": "visual_chart_comparison",
+        "correctness": 0,
+        "citationValidity": false,
+        "sourceAdequacy": false,
+        "unsupportedClaims": [
+          "Falsely claims the available tools cannot support a comparison of the chart projects."
+        ],
+        "pass": false,
+        "wordCount": 28,
+        "cardUsed": false,
+        "cardAppropriate": true,
+        "reason": "Gives up after one unsuccessful phrase search, without rendering the chart; no answer or citation."
+      },
+      "literalRubricPass": false
+    },
+    {
+      "model": "deepseek/deepseek-v4.1-flash",
+      "test": "visual_chart_comparison",
+      "repeat": 1,
+      "elapsedSeconds": 5.061762094497681,
+      "recordedCostUSD": 0.00045392399999999997,
+      "requests": 3,
+      "missingUsageResponses": 0,
+      "providerFailure": false,
+      "providers": [
+        "InferenceNet"
+      ],
+      "grade": {
+        "id": "B036",
+        "test": "visual_chart_comparison",
+        "correctness": 2,
+        "citationValidity": true,
+        "sourceAdequacy": true,
+        "unsupportedClaims": [],
+        "pass": true,
+        "wordCount": 43,
+        "cardUsed": false,
+        "cardAppropriate": true,
+        "reason": "Rendered the chart and correctly names Orchid, distinguishing visual ranking from unsupported numerical values; valid citation."
+      },
+      "literalRubricPass": true
+    },
+    {
+      "model": "anthropic/claude-haiku-5.5",
+      "test": "visual_chart_comparison",
+      "repeat": 1,
+      "elapsedSeconds": 5.954676985740662,
+      "recordedCostUSD": 0.002934,
+      "requests": 3,
+      "missingUsageResponses": 0,
+      "providerFailure": false,
+      "providers": [
+        "Google"
+      ],
+      "grade": {
+        "id": "B014",
+        "test": "visual_chart_comparison",
+        "correctness": 2,
+        "citationValidity": true,
+        "sourceAdequacy": true,
+        "unsupportedClaims": [],
+        "pass": true,
+        "wordCount": 31,
+        "cardUsed": false,
+        "cardAppropriate": true,
+        "reason": "Rendered the chart and correctly identifies Orchid from bar heights without inventing numerical values; valid citation."
+      },
+      "literalRubricPass": true
+    },
+    {
+      "model": "xiaomi/mimo-v2.6-flash",
+      "test": "cross_document_service_plans",
+      "repeat": 1,
+      "elapsedSeconds": 49.42992305755615,
+      "recordedCostUSD": 0.00089502,
+      "requests": 3,
+      "missingUsageResponses": 1,
+      "providerFailure": true,
+      "providers": [
+        "Novita",
+        "unknown"
+      ],
+      "grade": {
+        "id": "B043",
+        "test": "cross_document_service_plans",
+        "correctness": 0,
+        "citationValidity": false,
+        "sourceAdequacy": false,
+        "unsupportedClaims": [],
+        "pass": false,
+        "wordCount": 0,
+        "cardUsed": false,
+        "cardAppropriate": true,
+        "reason": "Provider invalid-response-format failure after repeated searches confined to the first document; no usable final answer."
+      },
+      "literalRubricPass": false
+    },
+    {
+      "model": "z-ai/glm-5.3-flash",
+      "test": "cross_document_service_plans",
+      "repeat": 1,
+      "elapsedSeconds": 9.055032014846802,
+      "recordedCostUSD": 0.0005993,
+      "requests": 3,
+      "missingUsageResponses": 0,
+      "providerFailure": false,
+      "providers": [
+        "InferenceNet"
+      ],
+      "grade": {
+        "id": "B051",
+        "test": "cross_document_service_plans",
+        "correctness": 2,
+        "citationValidity": true,
+        "sourceAdequacy": true,
+        "unsupportedClaims": [],
+        "pass": true,
+        "wordCount": 72,
+        "cardUsed": false,
+        "cardAppropriate": true,
+        "reason": "Reads both documents and correctly compares duration and repairs with valid citations; extra coverage details are supported."
+      },
+      "literalRubricPass": true
+    },
+    {
+      "model": "google/gemini-2.5-flash-lite",
+      "test": "cross_document_service_plans",
+      "repeat": 1,
+      "elapsedSeconds": 2.8737080097198486,
+      "recordedCostUSD": 0.00052439,
+      "requests": 2,
+      "missingUsageResponses": 0,
+      "providerFailure": false,
+      "providers": [
+        "Google"
+      ],
+      "grade": {
+        "id": "B024",
+        "test": "cross_document_service_plans",
+        "correctness": 1,
+        "citationValidity": true,
+        "sourceAdequacy": false,
+        "unsupportedClaims": [],
+        "pass": false,
+        "wordCount": 33,
+        "cardUsed": false,
+        "cardAppropriate": true,
+        "reason": "Accurately describes the Service plan but searches only that document and never retrieves the available Extended advisory plan; incomplete comparison."
+      },
+      "literalRubricPass": false
+    },
+    {
+      "model": "deepseek/deepseek-v4.1-flash",
+      "test": "cross_document_service_plans",
+      "repeat": 1,
+      "elapsedSeconds": 9.751785039901733,
+      "recordedCostUSD": 0.001021566,
+      "requests": 4,
+      "missingUsageResponses": 0,
+      "providerFailure": false,
+      "providers": [
+        "DigitalOcean"
+      ],
+      "grade": {
+        "id": "B041",
+        "test": "cross_document_service_plans",
+        "correctness": 2,
+        "citationValidity": true,
+        "sourceAdequacy": true,
+        "unsupportedClaims": [],
+        "pass": true,
+        "wordCount": 67,
+        "cardUsed": false,
+        "cardAppropriate": true,
+        "reason": "Reads both documents and correctly compares duration and repairs, with valid citations covering both sources."
+      },
+      "literalRubricPass": true
+    },
+    {
+      "model": "anthropic/claude-haiku-5.5",
+      "test": "cross_document_service_plans",
+      "repeat": 1,
+      "elapsedSeconds": 9.434617042541504,
+      "recordedCostUSD": 0.0057509,
+      "requests": 6,
+      "missingUsageResponses": 0,
+      "providerFailure": false,
+      "providers": [
+        "Google"
+      ],
+      "grade": {
+        "id": "B011",
+        "test": "cross_document_service_plans",
+        "correctness": 2,
+        "citationValidity": true,
+        "sourceAdequacy": true,
+        "unsupportedClaims": [],
+        "pass": true,
+        "wordCount": 54,
+        "cardUsed": false,
+        "cardAppropriate": true,
+        "reason": "Reads both documents and correctly compares 24 versus 18 months and the exclusion of repairs from the longer plan; both citations valid."
+      },
+      "literalRubricPass": true
+    },
+    {
+      "model": "openai/gpt-6-luna",
+      "test": "cross_document_service_plans",
+      "repeat": 1,
+      "elapsedSeconds": 14.5072660446167,
+      "recordedCostUSD": 0.00066495,
+      "requests": 5,
+      "missingUsageResponses": 0,
+      "providerFailure": false,
+      "providers": [
+        "Azure"
+      ],
+      "grade": {
+        "id": "B015",
+        "test": "cross_document_service_plans",
+        "correctness": 2,
+        "citationValidity": true,
+        "sourceAdequacy": true,
+        "unsupportedClaims": [],
+        "pass": true,
+        "wordCount": 41,
+        "cardUsed": false,
+        "cardAppropriate": true,
+        "reason": "Recovered an empty-revision read error; successful searches retrieve both short documents, supporting the correct duration and repairs comparison with valid citations."
+      },
+      "literalRubricPass": true
+    },
+    {
+      "model": "z-ai/glm-5.3-flash",
+      "test": "absent_renewal_price",
+      "repeat": 1,
+      "elapsedSeconds": 10.051424026489258,
+      "recordedCostUSD": 0.00053612,
+      "requests": 3,
+      "missingUsageResponses": 0,
+      "providerFailure": false,
+      "providers": [
+        "InferenceNet"
+      ],
+      "grade": {
+        "id": "B003",
+        "test": "absent_renewal_price",
+        "correctness": 2,
+        "citationValidity": true,
+        "sourceAdequacy": true,
+        "unsupportedClaims": [],
+        "pass": true,
+        "wordCount": 36,
+        "cardUsed": true,
+        "cardAppropriate": true,
+        "reason": "Correctly reports the explicit absence of renewal price after full-page reading; valid prose and card, with redundant extra policy details."
+      },
+      "literalRubricPass": true
+    },
+    {
+      "model": "google/gemini-2.5-flash-lite",
+      "test": "absent_renewal_price",
+      "repeat": 1,
+      "elapsedSeconds": 2.1539499759674072,
+      "recordedCostUSD": 0.00036915,
+      "requests": 2,
+      "missingUsageResponses": 0,
+      "providerFailure": false,
+      "providers": [
+        "Google"
+      ],
+      "grade": {
+        "id": "B018",
+        "test": "absent_renewal_price",
+        "correctness": 2,
+        "citationValidity": false,
+        "sourceAdequacy": false,
+        "unsupportedClaims": [],
+        "pass": false,
+        "wordCount": 13,
+        "cardUsed": false,
+        "cardAppropriate": true,
+        "reason": "The answer happens to match the absent price, but relies solely on a failed exact-phrase search and provides no citation; evidence requirement fails."
+      },
+      "literalRubricPass": false
+    },
+    {
+      "model": "deepseek/deepseek-v4.1-flash",
+      "test": "absent_renewal_price",
+      "repeat": 1,
+      "elapsedSeconds": 5.011849999427795,
+      "recordedCostUSD": 0.00031377499999999997,
+      "requests": 2,
+      "missingUsageResponses": 0,
+      "providerFailure": false,
+      "providers": [
+        "InferenceNet"
+      ],
+      "grade": {
+        "id": "B028",
+        "test": "absent_renewal_price",
+        "correctness": 2,
+        "citationValidity": true,
+        "sourceAdequacy": true,
+        "unsupportedClaims": [],
+        "pass": true,
+        "wordCount": 47,
+        "cardUsed": false,
+        "cardAppropriate": true,
+        "reason": "Reads the full page and correctly reports the explicitly missing renewal price with a valid citation; extra warranty detail unnecessary but supported."
+      },
+      "literalRubricPass": true
+    },
+    {
+      "model": "anthropic/claude-haiku-5.5",
+      "test": "absent_renewal_price",
+      "repeat": 1,
+      "elapsedSeconds": 5.042883992195129,
+      "recordedCostUSD": 0.0027416,
+      "requests": 3,
+      "missingUsageResponses": 0,
+      "providerFailure": false,
+      "providers": [
+        "Google"
+      ],
+      "grade": {
+        "id": "B059",
+        "test": "absent_renewal_price",
+        "correctness": 2,
+        "citationValidity": true,
+        "sourceAdequacy": true,
+        "unsupportedClaims": [],
+        "pass": true,
+        "wordCount": 25,
+        "cardUsed": false,
+        "cardAppropriate": true,
+        "reason": "Successful searches retrieve the explicit absence statement, quoted accurately with a valid citation; additional searches are unnecessary."
+      },
+      "literalRubricPass": false
+    },
+    {
+      "model": "openai/gpt-6-luna",
+      "test": "absent_renewal_price",
+      "repeat": 1,
+      "elapsedSeconds": 14.339572072029114,
+      "recordedCostUSD": 0.0004709,
+      "requests": 5,
+      "missingUsageResponses": 0,
+      "providerFailure": false,
+      "providers": [
+        "Azure"
+      ],
+      "grade": {
+        "id": "B010",
+        "test": "absent_renewal_price",
+        "correctness": 2,
+        "citationValidity": true,
+        "sourceAdequacy": true,
+        "unsupportedClaims": [],
+        "pass": true,
+        "wordCount": 11,
+        "cardUsed": false,
+        "cardAppropriate": true,
+        "reason": "Recovered the empty-revision read error and correctly cites a successful search result explicitly stating the price is absent."
+      },
+      "literalRubricPass": false
+    },
+    {
+      "model": "xiaomi/mimo-v2.6-flash",
+      "test": "absent_renewal_price",
+      "repeat": 1,
+      "elapsedSeconds": 28.75311803817749,
+      "recordedCostUSD": 0.00125743,
+      "requests": 3,
+      "missingUsageResponses": 0,
+      "providerFailure": false,
+      "providers": [
+        "Venice"
+      ],
+      "grade": {
+        "id": "B013",
+        "test": "absent_renewal_price",
+        "correctness": 2,
+        "citationValidity": true,
+        "sourceAdequacy": true,
+        "unsupportedClaims": [],
+        "pass": true,
+        "wordCount": 9,
+        "cardUsed": true,
+        "cardAppropriate": true,
+        "reason": "Reads the full policy and correctly presents the explicit absence of renewal price in a concise evidence-linked card."
+      },
+      "literalRubricPass": true
+    }
+  ],
+  "gradingClarification": "The frozen absent-price rubric requested a whole-page read. The blinded grader accepted a retrieved excerpt explicitly stating that the price is not provided, while rejecting failed-search-only inference. This yields 38 supported-answer passes. Applying the literal whole-page requirement instead gives34 passes: Haiku and Luna each lose both absent-price passes. Both counts are retained; the model recommendation is unchanged.",
+  "supportedAnswerPasses": 38,
+  "literalRubricPasses": 34
+}

@@ -1,0 +1,17 @@
+# Shenzhen Friends in Shenzhen 3D: the shenzhen-pdf commit its helper, client library and fixtures are built from.
+# scripts/friends/setup-friends.sh fetches and builds it; electron/package-mac.mjs embeds the result.
+#
+# helper_build_number is that commit's own helper build number, YYMMDDBB from the MAC_VERSION and MAC_BUILD in its
+# portable/Makefile, never Shenzhen 3D's version: every app hosting Friends shares one helper per Mac user, and the
+# running one hands over to an embedded helper with a higher number (PROTOCOL.md § Lifecycle), so the number has to
+# say which Friends code it is. setup-friends.sh refuses a number that disagrees with the commit.
+#
+# To move the pin: change commit and helper_build_number together, remove friends-src/, run
+# scripts/friends/setup-friends.sh, then scripts/friends/setup-friends.sh --sync-fixtures.
+#
+# core_commit is the shenzhen-pdf commit the Tauri builds' tauri-plugin-szfriends and Rust helper come from, now the
+# same friends/m1 commit as above; scripts/friends/setup-tauri-friends.mjs fetches and builds it.
+url=https://github.com/casimir-engineering/shenzhen-pdf.git
+commit=f807fc6cd590bc378da99d99df68763d3cc2b1c7
+helper_build_number=26101101
+core_commit=f807fc6cd590bc378da99d99df68763d3cc2b1c7

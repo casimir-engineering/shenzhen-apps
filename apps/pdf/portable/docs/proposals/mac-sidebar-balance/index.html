@@ -1,0 +1,338 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>A quieter sidebar · Shenzhen PDF</title>
+    <link rel="stylesheet" href="gallery.css" />
+  </head>
+  <body>
+    <header class="mast">
+      <a class="wordmark" href="#top"
+        >SHENZHEN PDF <span>/ MAC DESIGN STUDY</span></a
+      >
+      <nav aria-label="Page sections">
+        <a href="#before-after">Before & after</a
+        ><a href="#native">Native views</a
+        ><a href="#directions">Alternatives</a>
+      </nav>
+    </header>
+    <main id="top">
+      <section class="intro">
+        <p class="eyebrow">SIDEBAR BALANCE · 24 SEPTEMBER 2026</p>
+        <h1>Less chrome.<br />More useful content.</h1>
+        <p class="lede">
+          Keep the vertical icon-and-text tabs. Make their hierarchy quieter,
+          return space to the lists, and give every panel a clear rhythm.
+        </p>
+        <div class="intro-links">
+          <a class="button" href="#before-after"
+            >See the change <span>↓</span></a
+          ><a href="design.md">Read the design rationale ↗</a>
+        </div>
+        <div class="facts">
+          <p>
+            <strong>26pt</strong
+            ><span>Navigation targets, with equal text contrast</span>
+          </p>
+          <p>
+            <strong>2 complete groups</strong
+            ><span>Visible in the real 176 × 296pt minimum fixture</span>
+          </p>
+          <p>
+            <strong>All functions retained</strong
+            ><span>Including group visibility and History actions</span>
+          </p>
+        </div>
+      </section>
+      <section id="before-after" class="section">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">01 / PRODUCTION CONTROLS</p>
+            <h2>The difference is the space.</h2>
+          </div>
+          <p>
+            These images render AppKit production views in hidden test windows.
+            They are not captures of the running reader.
+          </p>
+        </div>
+        <div class="comparison-pair">
+          <div class="pair-copy">
+            <span class="pill">MATCHED SIZE · 220 × 340pt</span>
+            <h3>Groups gets the room back.</h3>
+            <p>
+              The old layout spends most of a short sidebar on navigation,
+              counts, search and help. The revised layout shows two groups and a
+              document before scrolling.
+            </p>
+            <ul>
+              <li>Neutral mode selection; accent for the current document.</li>
+              <li>Search above the list; counts and contextual help below.</li>
+              <li>36pt group rows and 26pt documents.</li>
+            </ul>
+          </div>
+          <figure>
+            <figcaption>
+              <b>Before</b><span>Existing native fixture</span>
+            </figcaption>
+            <a href="baseline/groups-pdf-short.png"
+              ><img
+                src="baseline/groups-pdf-short.png"
+                width="220"
+                height="340"
+                alt="Before: five vertical modes, a large Group Management selection and only General visible under the search field"
+            /></a>
+          </figure>
+          <figure>
+            <figcaption>
+              <b>After</b><span>Current production views</span>
+            </figcaption>
+            <a href="native/groups-pdf-short.png"
+              ><img
+                src="native/groups-pdf-short.png"
+                width="220"
+                height="340"
+                alt="After: compact vertical modes, search, General and Research, and a document visible in the same sidebar height"
+            /></a>
+          </figure>
+        </div>
+        <div id="history" class="comparison-pair">
+          <div class="pair-copy">
+            <span class="pill">SHORT HISTORY · SIZES SHOWN</span>
+            <h3>Saved versions come first.</h3>
+            <p>
+              History no longer repeats its title or puts recovery prose and a
+              tower of actions ahead of the revisions. The missing-original
+              state stays explicit.
+            </p>
+            <p class="small">
+              This pair is not a matched-width comparison: the before fixture is
+              220 × 300pt; the after fixture is the genuine 176 × 296pt minimum.
+              Recovery and secondary actions remain reachable by scrolling.
+            </p>
+          </div>
+          <figure>
+            <figcaption>
+              <b>Before</b
+              ><span>220 × 300pt · no version initially visible</span>
+            </figcaption>
+            <a href="baseline/history-short-window.png"
+              ><img
+                src="baseline/history-short-window.png"
+                width="220"
+                height="300"
+                alt="Before: the short History panel shows navigation, Version History heading, filename, missing-source prose and part of a recovery button, but no saved revision"
+            /></a>
+          </figure>
+          <figure>
+            <figcaption>
+              <b>After</b><span>176 × 296pt · a saved version is visible</span>
+            </figcaption>
+            <a href="native/history-short.png"
+              ><img
+                src="native/history-short.png"
+                width="176"
+                height="296"
+                alt="After: the minimum-width History panel shows the filename, missing-original status and the Latest saved version"
+            /></a>
+          </figure>
+        </div>
+      </section>
+      <section id="native" class="section">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">02 / NATIVE EVIDENCE</p>
+            <h2>Light, dark, and genuinely narrow.</h2>
+          </div>
+          <p>
+            Click any image to inspect its full-resolution render. Images use
+            their point dimensions below; the source PNGs are Retina.
+          </p>
+        </div>
+        <div class="native-grid">
+          <figure>
+            <figcaption>
+              <b>Groups · light</b><span>220 × 640pt · four modes</span>
+            </figcaption>
+            <a href="native/groups-narrow.png"
+              ><img
+                src="native/groups-narrow.png"
+                width="220"
+                height="640"
+                loading="lazy"
+                alt="Revised Groups panel in light appearance with General, Research and four other groups"
+            /></a>
+          </figure>
+          <figure>
+            <figcaption>
+              <b>Groups · dark</b><span>240 × 640pt · five modes</span>
+            </figcaption>
+            <a href="native/groups-default-dark.png"
+              ><img
+                src="native/groups-default-dark.png"
+                width="240"
+                height="640"
+                loading="lazy"
+                alt="Revised Groups panel at default width in dark appearance"
+            /></a>
+          </figure>
+          <figure>
+            <figcaption>
+              <b>History · dark</b><span>240 × 620pt · missing original</span>
+            </figcaption>
+            <a href="native/history-dark.png"
+              ><img
+                src="native/history-dark.png"
+                width="240"
+                height="620"
+                loading="lazy"
+                alt="Native dark History with visible revisions, explicit recovery links, primary comparison, Keep and Actions"
+            /></a>
+          </figure>
+        </div>
+        <div class="edge-grid">
+          <figure>
+            <figcaption>
+              <b>Groups · minimum</b
+              ><span>176 × 296pt · 81pt list viewport</span>
+            </figcaption>
+            <a href="native/groups-minimum.png"
+              ><img
+                src="native/groups-minimum.png"
+                width="176"
+                height="296"
+                loading="lazy"
+                alt="True minimum-width Groups panel with two complete group rows"
+            /></a>
+          </figure>
+          <figure>
+            <figcaption>
+              <b>Hidden and active</b
+              ><span>176pt wide · state remains explicit</span>
+            </figcaption>
+            <a href="native/groups-minimum-hidden-active.png"
+              ><img
+                class="edge-tall"
+                src="native/groups-minimum-hidden-active.png"
+                width="176"
+                height="640"
+                loading="lazy"
+                alt="Research shows its document count beside the title, and Hidden and Active as a fully readable second line"
+            /></a>
+          </figure>
+          <figure>
+            <figcaption>
+              <b>History · actions</b
+              ><span>176 × 296pt · scrolled to actions</span>
+            </figcaption>
+            <a href="native/history-actions-minimum.png"
+              ><img
+                src="native/history-actions-minimum.png"
+                width="176"
+                height="296"
+                loading="lazy"
+                alt="Minimum History panel scrolled to reach recovery and version actions"
+            /></a>
+          </figure>
+          <figure>
+            <figcaption>
+              <b>History · no saved versions</b
+              ><span>240 × 620pt · empty state</span>
+            </figcaption>
+            <a href="native/history-empty.png"
+              ><img
+                class="edge-tall"
+                src="native/history-empty.png"
+                width="240"
+                height="620"
+                loading="lazy"
+                alt="Native History empty state with no saved versions"
+            /></a>
+          </figure>
+        </div>
+        <p class="evidence-note">
+          <strong>What this establishes:</strong> production-view geometry, real
+          176pt width, readable states and tested action routing. It does not
+          establish live VoiceOver speech, trackpad feel, or a screenshot of the
+          whole running reader.
+        </p>
+      </section>
+      <section id="directions" class="section">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">03 / WHOLE-READER ILLUSTRATIONS</p>
+            <h2>Why the stacked layout wins.</h2>
+          </div>
+          <p>
+            The following comparison is CSS illustration, not native-render
+            evidence. Its purpose is to compare sidebar and page proportions.
+          </p>
+        </div>
+        <a
+          class="whole-illustration"
+          href="comparison.html?layout=a&mode=groups&width=240"
+          ><span class="illustration-label">CSS WHOLE-READER ILLUSTRATION</span
+          ><img
+            src="evidence/proposal-a-groups-light.png"
+            loading="lazy"
+            alt="Illustrated full reader showing compact stacked sidebar beside the document page"
+          /><span class="illustration-link"
+            >Explore the whole-reader comparison ↗</span
+          ></a
+        >
+        <div class="direction-grid">
+          <a href="comparison.html?layout=a&mode=groups&width=240"
+            ><span class="direction-letter">A</span
+            ><strong>Quiet stacked navigation</strong>
+            <p>
+              Recommended. Keeps the reader width and the familiar vertical
+              modes.
+            </p></a
+          ><a href="comparison.html?layout=b&mode=groups&width=240"
+            ><span class="direction-letter">B</span
+            ><strong>Two-column workspace</strong>
+            <p>
+              340pt sidebar. More task height, but 100pt less space for the
+              page.
+            </p></a
+          ><a href="comparison.html?layout=c&mode=groups&width=240"
+            ><span class="direction-letter">C</span
+            ><strong>Modes at the bottom</strong>
+            <p>
+              Content starts higher. No space is recovered, and modes move away
+              from their context.
+            </p></a
+          >
+        </div>
+        <p class="evidence-note">
+          The early CSS History scene is retired. It reserved too much fixed
+          action space at minimum height and is not representative of the
+          implemented design. Use the native History renders above.
+        </p>
+      </section>
+      <section class="closing">
+        <div>
+          <p class="eyebrow">REVIEW TRAIL</p>
+          <h2>Design, evidence, then review.</h2>
+          <p>
+            The rationale records the constraints and preserved behavior.
+            Independent review notes remain separate from the images; prior
+            component grades do not validate this redesign.
+          </p>
+        </div>
+        <div class="doc-links">
+            <a href="reviews/03-native-final.md">Final native review <span>↗</span></a>
+          <a href="journal.md">Implementation journal ↗</a><a href="design.md">Design rationale <span>↗</span></a
+          ><a href="reviews/01-baseline.md"
+            >Independent baseline <span>↗</span></a
+          ><a href="reviews/02-proposal.md">Proposal review <span>↗</span></a
+          ><a href="presentation-notes.md">Evidence and scope <span>↗</span></a>
+        </div>
+      </section>
+    </main>
+    <footer>
+      Shenzhen PDF · Sidebar balance study · Native views rendered headlessly;
+      the user's app was not launched, quit, or captured.
+    </footer>
+  </body>
+</html>

@@ -1,0 +1,14 @@
+[Desktop Entry]
+Type=Application
+Name=ShenzhenPDF
+GenericName=PDF Reader
+Comment=Fast, tabbed PDF reader with on-device OCR and offline translation
+Exec=shenzhenpdf %F
+TryExec=shenzhenpdf
+Icon=shenzhenpdf
+Terminal=false
+Categories=Office;Viewer;Graphics;
+MimeType=application/pdf;application/oxps;application/vnd.ms-xpsdocument;application/epub+zip;application/x-mobipocket-ebook;application/x-cbz;application/x-cbr;application/x-fictionbook+xml;image/jpeg;image/png;
+StartupNotify=true
+StartupWMClass=com.intuition.shenzhenpdf
+SingleMainWindow=false

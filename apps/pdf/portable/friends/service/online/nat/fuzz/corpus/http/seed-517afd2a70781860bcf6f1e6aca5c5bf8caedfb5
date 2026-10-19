@@ -1,0 +1,5 @@
+HTTP/1.1 200 OK
+Content-Type: text/xml
+Content-Length: 185
+
+<?xml version="1.0"?><s:Envelope><s:Body><u:GetExternalIPAddressResponse><NewExternalIPAddress>203.0.113.20</NewExternalIPAddress></u:GetExternalIPAddressResponse></s:Body></s:Envelope>

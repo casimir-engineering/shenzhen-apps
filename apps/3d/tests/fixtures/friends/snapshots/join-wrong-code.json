@@ -1,0 +1,27 @@
+{
+  "type": "snapshot",
+  "subscription": "s_9",
+  "view": "join",
+  "rev": 1,
+  "data": {
+    "actions": [
+      {
+        "action": "cancel_join",
+        "label": "Cancel",
+        "style": "secondary"
+      }
+    ],
+    "code_field": {
+      "button": "Join",
+      "enabled": true,
+      "length": 8,
+      "placeholder": "8-digit code"
+    },
+    "error": "That code didn’t match. Check the code on your other computer and type it again.",
+    "friends_id": "cottage-violet",
+    "id_field": null,
+    "message": "On a computer that uses cottage‑violet, open Friends in ShenzhenPDF, Shenzhen Files or Shenzhen 3D and choose Approve. Then type the code it shows.",
+    "state": "wrong_code",
+    "title": "Approve this computer"
+  }
+}

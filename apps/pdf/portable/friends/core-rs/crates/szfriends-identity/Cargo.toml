@@ -1,0 +1,29 @@
+[package]
+name = "szfriends-identity"
+description = "Shenzhen Friends identity: keys, certificates, signatures, Friends IDs and key stores (ADR 0001, 0006)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+szfriends-wire.workspace = true
+szfriends-crypto.workspace = true
+curve25519-dalek.workspace = true
+ed25519-dalek.workspace = true
+sha2.workspace = true
+subtle.workspace = true
+zeroize.workspace = true
+unicode-normalization.workspace = true
+unicode-segmentation = "1.12"
+
+[target.'cfg(unix)'.dependencies]
+rustix = { version = "1", default-features = false, features = ["std", "fs", "process"] }
+
+[dev-dependencies]
+hex.workspace = true
+szfriends-vectors.workspace = true
+serde_json.workspace = true
+
+[lints]
+workspace = true

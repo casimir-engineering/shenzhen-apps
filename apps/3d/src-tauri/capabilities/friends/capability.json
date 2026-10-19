@@ -1,0 +1,6 @@
+{
+  "identifier": "friends",
+  "description": "Shenzhen Friends for the main window only; no other window, frame or remote page may call it",
+  "windows": ["main"],
+  "permissions": ["szfriends:default"]
+}

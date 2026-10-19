@@ -1,0 +1,14 @@
+src/nautilus-macos-bridge.h
+src/nautilus-macos-fda.m
+src/nautilus-macos-fileicon.m
+src/nautilus-macos-menu.m
+src/nautilus-macos-openwith.m
+src/nautilus-macos-savepanel-handoff.m
+src/nautilus-macos-previewer.m
+src/nautilus-macos-spotlight.m
+src/nautilus-macos-terminal.m
+src/nautilus-macos-thumbnailer.m
+src/nautilus-macos-trash.m
+src/nautilus-search-engine-spotlight.c
+src/nautilus-search-engine-spotlight.h
+src/nautilus-thumbnails-macos.c

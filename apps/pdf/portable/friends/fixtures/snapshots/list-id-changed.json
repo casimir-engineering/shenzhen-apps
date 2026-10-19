@@ -1,0 +1,43 @@
+{
+  "type": "snapshot",
+  "subscription": "s_11",
+  "view": "list",
+  "rev": 1,
+  "data": {
+    "query": "",
+    "banner": {
+      "kind": "id_changed",
+      "text": "Your ID changed to walnut‑garden because walnut‑valley was taken.",
+      "action": {
+        "action": "dismiss_banner",
+        "label": "OK",
+        "style": "link"
+      }
+    },
+    "name_prompt": {
+      "title": "Choose the name friends see",
+      "placeholder": "Your name",
+      "note": "Until you choose one, friends see your ID, walnut‑garden."
+    },
+    "rows": [],
+    "empty": {
+      "title": "No friends yet",
+      "body": "Make yourself visible in Nearby so people around you can find you, or add someone by their ID."
+    },
+    "footer": {
+      "avatar": {
+        "kind": "animal",
+        "set": 1,
+        "index": 10,
+        "initials": "WG",
+        "color": "#5a5a66"
+      },
+      "name": null,
+      "name_placeholder": "Choose your name",
+      "id_label": "ID walnut‑garden",
+      "id_note": null,
+      "friends_id": "walnut-garden",
+      "add_label": "Add by ID"
+    }
+  }
+}

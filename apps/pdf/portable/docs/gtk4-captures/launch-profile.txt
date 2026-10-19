@@ -1,0 +1,27 @@
+SPDF-LAUNCH      0.0ms main
+SPDF-LAUNCH      4.4ms startup-begin
+SPDF-LAUNCH    575.0ms state-load-begin
+SPDF-LAUNCH    575.0ms state: load begin
+SPDF-LAUNCH    575.1ms state: settings+session loaded
+SPDF-LAUNCH    575.1ms state-load-end
+SPDF-LAUNCH    575.1ms resident-hold
+SPDF-LAUNCH    575.1ms startup-end
+SPDF-LAUNCH    575.2ms command-line
+SPDF-LAUNCH    576.4ms win-init-begin
+SPDF-LAUNCH    576.7ms win-actions+tabview
+SPDF-LAUNCH    578.0ms win-tabbar
+SPDF-LAUNCH    581.0ms win-header
+SPDF-LAUNCH    581.8ms win-searchbar
+SPDF-LAUNCH    583.4ms win-sidebar
+SPDF-LAUNCH    585.9ms win-init-end
+SPDF-LAUNCH    586.2ms tab-open-begin
+SPDF-LAUNCH    586.2ms tab-watcher-resolved
+SPDF-LAUNCH    587.1ms doc-open
+SPDF-LAUNCH    587.1ms tab-render-svc
+SPDF-LAUNCH    587.3ms tab-view-built
+SPDF-LAUNCH    600.3ms tab-page-appended
+SPDF-LAUNCH    600.4ms tab-open-end
+SPDF-LAUNCH    600.5ms present-begin
+SPDF-LAUNCH    768.9ms first-window-present
+SPDF-LAUNCH    795.1ms first-render-done
+SPDF-LAUNCH    955.9ms first-snapshot

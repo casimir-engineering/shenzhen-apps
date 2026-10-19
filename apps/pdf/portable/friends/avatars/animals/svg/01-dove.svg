@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <!-- Dove: plump, blissful, carrying a sprig it is very proud of. -->
+  <clipPath id="c"><circle cx="32" cy="32" r="32"/></clipPath>
+  <circle id="bg" cx="32" cy="32" r="32" fill="#2f6474"/>
+  <g clip-path="url(#c)">
+    <ellipse cx="32" cy="63" rx="24" ry="19" fill="#ffffff"/>
+    <ellipse cx="12" cy="58" rx="7" ry="12" transform="rotate(-20 12 58)" fill="#d6dce6"/>
+    <ellipse cx="52" cy="58" rx="7" ry="12" transform="rotate(20 52 58)" fill="#d6dce6"/>
+    <circle cx="30" cy="31" r="15.5" fill="#ffffff"/>
+    <path d="M20.5 28 Q23.5 24.5 26.5 28 M33.5 28 Q36.5 24.5 39.5 28" fill="none" stroke="#2b2233" stroke-width="2.2"
+          stroke-linecap="round"/>
+    <ellipse cx="20.5" cy="33.5" rx="3.2" ry="2" fill="#ff8fa3" opacity="0.7"/>
+    <ellipse cx="39.5" cy="33.5" rx="3.2" ry="2" fill="#ff8fa3" opacity="0.7"/>
+    <path d="M33 36 Q46 38 58 32" fill="none" stroke="#8a5a34" stroke-width="1.6" stroke-linecap="round"/>
+    <ellipse cx="48" cy="40.5" rx="4.4" ry="2.2" transform="rotate(25 48 40.5)" fill="#a8e07a"/>
+    <ellipse cx="51.5" cy="32" rx="4.4" ry="2.2" transform="rotate(-30 51.5 32)" fill="#8fd16a"/>
+    <ellipse cx="58" cy="37" rx="4" ry="2" transform="rotate(30 58 37)" fill="#a8e07a"/>
+    <path d="M25.8 31.8 Q30 29.4 34.2 31.8 L30 38.6 Z" fill="#e8848f"/>
+  </g>
+</svg>

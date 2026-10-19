@@ -1,0 +1,8 @@
+OFF
+# a 10 by 20 mm panel, polygon triangulation required
+4 1 0
+0 0 0
+10 0 0
+10 20 0
+0 20 0
+4 0 1 2 3

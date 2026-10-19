@@ -1,0 +1,120 @@
+{
+  "type": "snapshot",
+  "subscription": "s_4",
+  "view": "conversation",
+  "rev": 3,
+  "data": {
+    "conversation_id": "you",
+    "header": {
+      "title": "You",
+      "subtitle": "On all your computers",
+      "route": {
+        "kind": "none",
+        "method": null,
+        "label": null
+      },
+      "avatar": {
+        "kind": "animal",
+        "set": 1,
+        "index": 0,
+        "initials": "R",
+        "color": "#5a4a7a"
+      },
+      "details_available": false,
+      "accessibility_label": "You, on all your computers"
+    },
+    "back": {
+      "badge_count": 2,
+      "badge_label": "2",
+      "accessibility_label": "Back to Friends, 2 waiting"
+    },
+    "search_placeholder": "Search this conversation",
+    "has_earlier": false,
+    "highlight_item_id": null,
+    "request": null,
+    "items": [
+      {
+        "kind": "day",
+        "item_id": "d_20261012",
+        "label": "Today",
+        "highlighted": false,
+        "accessibility_label": "Today"
+      },
+      {
+        "kind": "message",
+        "item_id": "m_0c7d31e8",
+        "direction": "out",
+        "text": "Pages to check: 3–5 and 9.",
+        "text_format": "markdown",
+        "segments": [
+          {
+            "text": "Pages to check: 3–5 and 9."
+          }
+        ],
+        "time_label": "14:58",
+        "status": {
+          "state": "delivered",
+          "label": "On all your computers"
+        },
+        "assistant_label": null,
+        "actions": [],
+        "highlighted": false,
+        "accessibility_label": "You, 14:58, on all your computers: Pages to check: 3–5 and 9."
+      },
+      {
+        "kind": "transfer",
+        "item_id": "t_6a2e9f14",
+        "transfer_id": "t_6a2e9f14",
+        "direction": "out",
+        "file": {
+          "name": "Bracket drawing rev C.pdf",
+          "kind_label": "PDF",
+          "size_label": "41.2 MB",
+          "size_bytes": 41203776,
+          "path": null,
+          "type_identifier": "com.adobe.pdf",
+          "extension": "pdf"
+        },
+        "meta_label": "PDF · 41.2 MB",
+        "state": "sending",
+        "status_label": "Copying to your other computers · 40%",
+        "route_note": null,
+        "progress": {
+          "fraction": 0.4,
+          "determinate": true,
+          "accessibility_label": "Copying, 40 percent"
+        },
+        "thumbnail": null,
+        "actions": [
+          {
+            "action": "cancel_transfer",
+            "label": "Cancel",
+            "style": "link"
+          }
+        ],
+        "assistant_label": null,
+        "time_label": "15:02",
+        "highlighted": false,
+        "accessibility_label": "You are copying Bracket drawing rev C.pdf, PDF, 41.2 MB, to your other computers, 40 percent"
+      }
+    ],
+    "composer": {
+      "visible": true,
+      "enabled": true,
+      "placeholder": "Message yourself",
+      "hint": [
+        {
+          "text": "#",
+          "emphasis": true
+        },
+        {
+          "text": " Attach · or drop files"
+        }
+      ],
+      "send_label": "Send",
+      "note": "What you send here reaches your other computers when ShenzhenPDF, Shenzhen Files or Shenzhen 3D is open on them.",
+      "accepts_drops": true,
+      "max_text_bytes": 32768
+    }
+  }
+}

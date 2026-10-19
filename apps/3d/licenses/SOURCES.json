@@ -1,0 +1,38 @@
+{
+  "components": [
+    {
+      "name": "occt-js vendored bridge",
+      "revision": "ad8ffb6007eb3fd25179232f291b626d6e78a195",
+      "source": "https://github.com/tx-code/occt-js/tree/ad8ffb6007eb3fd25179232f291b626d6e78a195"
+    },
+    {
+      "name": "OCCT baseline",
+      "version": "7.9.3",
+      "revision": "a016080bf6738d6aeae020badee4e888ad1540a5",
+      "source": "https://github.com/Open-Cascade-SAS/OCCT/tree/a016080bf6738d6aeae020badee4e888ad1540a5"
+    },
+    {
+      "name": "@mlightcad/libredwg-web",
+      "version": "0.8.0",
+      "releaseTagRevision": "d0b7c53d55a923f323256d19a310af7bc0137245",
+      "source": "https://github.com/mlightcad/libredwg-web/tree/d0b7c53d55a923f323256d19a310af7bc0137245",
+      "provenanceLimit": "npm publication has no gitHead; release-tag source/WASM correspondence not independently verified"
+    },
+    {
+      "name": "three and bundled Draco artifacts",
+      "version": "0.186.1",
+      "revision": "9b4a2ac29c63ccb43fd51c5661f2f873ac2c39b8",
+      "source": "https://github.com/mrdoob/three.js/tree/9b4a2ac29c63ccb43fd51c5661f2f873ac2c39b8",
+      "decoderSource": "https://github.com/google/draco",
+      "provenanceLimit": "Exact Draco compiler/source build revision not declared by the bundled README"
+    },
+    {
+      "name": "meshoptimizer decoder and navigation simplifier",
+      "version": "1.1",
+      "revision": "dc9d09ed83e1004aef47a1c3c597e0ec64848a37",
+      "source": "https://github.com/zeux/meshoptimizer/tree/dc9d09ed83e1004aef47a1c3c597e0ec64848a37"
+    }
+  ],
+  "instructions": "SOURCE-INSTRUCTIONS.txt",
+  "licenseProvenance": "LICENSE-SOURCES.json"
+}

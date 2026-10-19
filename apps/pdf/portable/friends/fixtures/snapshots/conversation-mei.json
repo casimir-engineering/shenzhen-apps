@@ -1,0 +1,192 @@
+{
+  "type": "snapshot",
+  "subscription": "s_4",
+  "view": "conversation",
+  "rev": 9,
+  "data": {
+    "conversation_id": "c_mei",
+    "header": {
+      "title": "Mei Lin",
+      "subtitle": "Nearby, on your network",
+      "route": {
+        "kind": "local",
+        "method": "lan",
+        "label": "Nearby, on your network"
+      },
+      "avatar": {
+        "kind": "animal",
+        "set": 1,
+        "index": 7,
+        "initials": "ML",
+        "color": "#3f6b4f"
+      },
+      "details_available": true,
+      "accessibility_label": "Mei Lin, nearby, on your network, show details"
+    },
+    "back": {
+      "badge_count": 2,
+      "badge_label": "2",
+      "accessibility_label": "Back to Friends, 2 waiting"
+    },
+    "search_placeholder": "Search this conversation",
+    "has_earlier": false,
+    "items": [
+      {
+        "kind": "day",
+        "item_id": "d_20261012",
+        "label": "Today",
+        "highlighted": false,
+        "accessibility_label": "Today"
+      },
+      {
+        "kind": "message",
+        "item_id": "m_5f2a90c1",
+        "direction": "out",
+        "text": "Here it is. Pages 3–5 changed.",
+        "text_format": "markdown",
+        "segments": [
+          {
+            "text": "Here it is. Pages 3–5 changed."
+          }
+        ],
+        "time_label": "09:14",
+        "status": {
+          "state": "delivered",
+          "label": "Delivered"
+        },
+        "assistant_label": "Via the assistant",
+        "actions": [],
+        "highlighted": false,
+        "accessibility_label": "You, 09:14, via the assistant, delivered: Here it is. Pages 3–5 changed."
+      },
+      {
+        "kind": "transfer",
+        "item_id": "t_91c4e2a7",
+        "transfer_id": "t_91c4e2a7",
+        "direction": "out",
+        "file": {
+          "name": "Supplier contract v3.pdf",
+          "kind_label": "PDF",
+          "size_label": "2.4 MB",
+          "size_bytes": 2431029,
+          "path": null,
+          "type_identifier": "com.adobe.pdf",
+          "extension": "pdf"
+        },
+        "meta_label": "PDF · 2.4 MB",
+        "state": "delivered",
+        "status_label": "Delivered to Mei",
+        "route_note": null,
+        "progress": null,
+        "thumbnail": {
+          "path": "/Users/raph/Library/Application Support/Shenzhen Friends/thumbnails/a9c4e1f07b3d42d8915e6f0a2c7b8d14.png",
+          "width": 136,
+          "height": 192,
+          "source": "local"
+        },
+        "actions": [],
+        "assistant_label": "Via the assistant",
+        "time_label": "09:14",
+        "highlighted": false,
+        "accessibility_label": "You sent Supplier contract v3.pdf, PDF, 2.4 MB, via the assistant, delivered to Mei"
+      },
+      {
+        "kind": "message",
+        "item_id": "m_77d0b3e4",
+        "direction": "in",
+        "text": "Thanks. Here is my markup of the bracket drawing.",
+        "text_format": "markdown",
+        "segments": [
+          {
+            "text": "Thanks. Here is my markup of the bracket drawing."
+          }
+        ],
+        "time_label": "09:20",
+        "status": null,
+        "assistant_label": null,
+        "actions": [],
+        "highlighted": false,
+        "accessibility_label": "Mei Lin, 09:20: Thanks. Here is my markup of the bracket drawing."
+      },
+      {
+        "kind": "transfer",
+        "item_id": "t_3e8b5d10",
+        "transfer_id": "t_3e8b5d10",
+        "direction": "in",
+        "file": {
+          "name": "Bracket drawing rev B.pdf",
+          "kind_label": "PDF",
+          "size_label": "18.6 MB",
+          "size_bytes": 18604277,
+          "path": null,
+          "type_identifier": "com.adobe.pdf",
+          "extension": "pdf"
+        },
+        "meta_label": "PDF · 18.6 MB · accepted automatically",
+        "state": "receiving",
+        "status_label": "Receiving · 62% · about 20 s left",
+        "route_note": null,
+        "progress": {
+          "fraction": 0.62,
+          "determinate": true,
+          "accessibility_label": "Receiving, 62 percent"
+        },
+        "thumbnail": {
+          "path": "/Users/raph/Library/Application Support/Shenzhen Friends/thumbnails/5e0c2a9b71d84f36b2a1c09e8d7f4b63.png",
+          "width": 192,
+          "height": 136,
+          "source": "sender"
+        },
+        "actions": [
+          {
+            "action": "cancel_transfer",
+            "label": "Cancel",
+            "style": "link"
+          }
+        ],
+        "assistant_label": null,
+        "time_label": "09:21",
+        "highlighted": false,
+        "accessibility_label": "Mei Lin is sending Bracket drawing rev B.pdf, PDF, 18.6 MB, accepted automatically, 62 percent received, about 20 seconds left"
+      },
+      {
+        "kind": "message",
+        "item_id": "m_a4109f52",
+        "direction": "in",
+        "text": "Can you check pages 3–5 before Friday?",
+        "text_format": "markdown",
+        "segments": [
+          {
+            "text": "Can you check pages 3–5 before Friday?"
+          }
+        ],
+        "time_label": "14:32",
+        "status": null,
+        "assistant_label": null,
+        "actions": [],
+        "highlighted": false,
+        "accessibility_label": "Mei Lin, 14:32: Can you check pages 3–5 before Friday?"
+      }
+    ],
+    "highlight_item_id": null,
+    "request": null,
+    "composer": {
+      "visible": true,
+      "enabled": true,
+      "placeholder": "Message Mei",
+      "hint": [
+        {
+          "text": "#",
+          "emphasis": true
+        },
+        {
+          "text": " Attach · or drop files"
+        }
+      ],
+      "send_label": "Send",
+      "note": null,
+      "accepts_drops": true,
+      "max_text_bytes": 32768
+    }
+  }
+}

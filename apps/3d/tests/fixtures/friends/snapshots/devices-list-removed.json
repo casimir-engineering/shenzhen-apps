@@ -1,0 +1,76 @@
+{
+  "type": "snapshot",
+  "subscription": "s_2",
+  "view": "list",
+  "rev": 60,
+  "data": {
+    "banner": null,
+    "empty": null,
+    "footer": {
+      "avatar": {
+        "kind": "animal",
+        "set": 1,
+        "index": 0,
+        "initials": "R",
+        "color": "#5a4a7a"
+      },
+      "name": "Raph",
+      "name_placeholder": "Choose your name",
+      "id_label": "ID cottage‑violet",
+      "id_note": "Your ID works nearby now. If it’s already taken, you’ll get a new one the next time ShenzhenPDF reaches the Friends server.",
+      "friends_id": "cottage-violet",
+      "add_label": "Add by ID"
+    },
+    "join_requests": [],
+    "name_prompt": null,
+    "query": "",
+    "removed": {
+      "title": "This computer was removed from your profile",
+      "body": "Another of your computers removed it, so it no longer sends or receives messages. Your chats here stay readable. To use Friends here again, start over, then choose Use my existing profile.",
+      "action": {
+        "action": "reset_friends",
+        "label": "Start Over…",
+        "style": "primary",
+        "confirm": {
+          "title": "Start over on this computer?",
+          "body": "This deletes the chats on this computer. Your other computers keep theirs. Files you received stay in Received files.",
+          "confirm_label": "Start Over",
+          "cancel_label": "Cancel",
+          "destructive": true
+        }
+      }
+    },
+    "rows": [
+      {
+        "conversation_id": "c_mei",
+        "avatar": {
+          "kind": "animal",
+          "set": 1,
+          "index": 7,
+          "initials": "ML",
+          "color": "#3f6b4f"
+        },
+        "title": "Mei Lin",
+        "subtitle": "Can you check pages 3–5 before Friday?",
+        "time_label": "14:32",
+        "route": {
+          "kind": "none",
+          "label": null,
+          "method": null
+        },
+        "unread": true,
+        "waiting": null,
+        "blocked": false,
+        "id_confirmed": false,
+        "id_confirmed_label": null,
+        "style": "normal",
+        "drop_label": null,
+        "drop_refusal": "This computer can’t send anymore",
+        "accessibility_label": "Mei Lin, unread, Can you check pages 3–5 before Friday?, 14:32",
+        "actions": [],
+        "kind": "person"
+      }
+    ],
+    "state": "device_removed"
+  }
+}

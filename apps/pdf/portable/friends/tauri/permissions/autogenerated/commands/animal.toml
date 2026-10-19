@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-animal"
+description = "Enables the animal command without any pre-configured scope."
+commands.allow = ["animal"]
+
+[[permission]]
+identifier = "deny-animal"
+description = "Denies the animal command without any pre-configured scope."
+commands.deny = ["animal"]

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Shenzhen Friends GTK views: compiled into libszfriends_gtk.a by gtk/gtk.mk (glib-compile-resources). The icon
+     sits under icons/scalable/actions/ so the icon theme finds it by name from the resource path. -->
+<gresources>
+  <gresource prefix="/com/intuition/shenzhenfriends/gtk">
+    <file alias="icons/scalable/actions/szfriends-people-symbolic.svg">icons/szfriends-people-symbolic.svg</file>
+    <file>szfriends_gtk.css</file>
+  </gresource>
+</gresources>

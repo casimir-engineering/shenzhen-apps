@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <!-- Panda: mid-snack, bamboo in hand, in no hurry at all. -->
+  <clipPath id="c"><circle cx="32" cy="32" r="32"/></clipPath>
+  <circle id="bg" cx="32" cy="32" r="32" fill="#7a5a34"/>
+  <g clip-path="url(#c)">
+    <ellipse cx="32" cy="73" rx="27" ry="16" fill="#2b2233"/>
+    <ellipse cx="32" cy="73" rx="14" ry="12" fill="#ffffff"/>
+    <circle cx="16" cy="17" r="7" fill="#2b2233"/>
+    <circle cx="48" cy="17" r="7" fill="#2b2233"/>
+    <ellipse cx="32" cy="33" rx="19.5" ry="17.5" fill="#ffffff"/>
+    <ellipse cx="23.5" cy="30" rx="5" ry="6.2" transform="rotate(30 23.5 30)" fill="#2b2233"/>
+    <ellipse cx="40.5" cy="30" rx="5" ry="6.2" transform="rotate(-30 40.5 30)" fill="#2b2233"/>
+    <circle cx="24.5" cy="29.5" r="2.4" fill="#ffffff"/>
+    <circle cx="39.5" cy="29.5" r="2.4" fill="#ffffff"/>
+    <circle cx="24.9" cy="29.9" r="1.4" fill="#2b2233"/>
+    <circle cx="39.9" cy="29.9" r="1.4" fill="#2b2233"/>
+    <ellipse cx="32" cy="37" rx="3.2" ry="2.3" fill="#2b2233"/>
+    <path d="M28.5 41 Q32 44 35.5 41" fill="none" stroke="#2b2233" stroke-width="1.8" stroke-linecap="round"/>
+    <ellipse cx="22" cy="39.5" rx="3" ry="1.9" fill="#ff8fa3" opacity="0.7"/>
+    <ellipse cx="42" cy="39.5" rx="3" ry="1.9" fill="#ff8fa3" opacity="0.7"/>
+    <path d="M36 42 L58 55" stroke="#7fc95a" stroke-width="3.4" stroke-linecap="round"/>
+    <path d="M51.4 50.6 L53 51.6" stroke="#4f9a3f" stroke-width="3.6"/>
+    <ellipse cx="55" cy="48" rx="4.4" ry="1.9" transform="rotate(-35 55 48)" fill="#a8e07a"/>
+    <ellipse cx="44.5" cy="47.5" rx="4.8" ry="4.2" fill="#2b2233"/>
+  </g>
+</svg>

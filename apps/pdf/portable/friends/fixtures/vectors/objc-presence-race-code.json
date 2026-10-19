@@ -1,0 +1,1846 @@
+{
+  "comparison_codes" : [
+    {
+      "code" : "232197",
+      "commitment" : "4d9aeedcc6487792ded1b0e1424ba58361d24ab7e17835a33dd9b2c3e1756a53",
+      "handshake_hash" : "cfb8dcffbb2aaf5285d693a67caa4d2a90526def0e1cfe279a7f6561a4b0282c45cf62b25f90ec8103e4f1948ec162cef7ffa857745344f85da703cfedc4fb96",
+      "initiator_nonce" : "309a14801afec513857fb54d41bc0c965eac4ac2af3905dc0fafd2228934d6b7",
+      "responder_nonce" : "0204e255c9809c2c2c2dc5571db0fe54e14acdb15e7dc1fc3c09355a4b08d88a"
+    },
+    {
+      "code" : "525974",
+      "commitment" : "6e62b822b14b6409158d9a7e69623571948a2373446b12724c8622f31180e051",
+      "handshake_hash" : "1e8654aac5db6542d4dcd391fd4fd0ee46e3a73fc74c7eeff132f0b247426c500fdbf95e0f3e25e7986a009339fc92a6efd7c4f2ca0e1f7c695ce3eac40fca10",
+      "initiator_nonce" : "d54f55fbd3aad47eaef9c4e086f269bba8c66b42ad35f9c5885878ff38ace42d",
+      "responder_nonce" : "fa80fb80104805a7e1360c2180d7b62c1d48e861e27230d899c50604f90f9858"
+    },
+    {
+      "code" : "416807",
+      "commitment" : "4defc7779e9935cd072bcc8926c95ca4f7a49998b837b532b05be3c2222b2e53",
+      "handshake_hash" : "25ee29d6afefadd02a29f8b8bb921d76cd81ba31dd466d56d063cf262127892a7afbeb367211bcbad7d03cf62afc680a9cb99e68748d9881e7019136f074b17d",
+      "initiator_nonce" : "d08076f261c214113c567d3a8ae938ef6d54bad616345d2384ea94d6d300ff38",
+      "responder_nonce" : "9fc0f072b33cb6f461e73e638ab5825baa0aeafe9c2a70d3bef4fba96917851c"
+    }
+  ],
+  "presence" : {
+    "secret" : "931de9a128f74b39542996efccfd78d85d920c350910b83c2fd69b2411b16ce4",
+    "tags" : [
+      {
+        "tag" : "5165bd99d2df01d1",
+        "window" : 0
+      },
+      {
+        "tag" : "0401fff7c6077a2c",
+        "window" : 1
+      },
+      {
+        "tag" : "5acfc1e3214a6ed2",
+        "window" : 2177777
+      },
+      {
+        "tag" : "b1f2a1a29cabb98f",
+        "window" : -1
+      },
+      {
+        "tag" : "dc5d1f5e68ae54fc",
+        "window" : 9223372036854775807
+      }
+    ],
+    "windows" : [
+      {
+        "unix_seconds" : 0,
+        "window" : 0
+      },
+      {
+        "unix_seconds" : 899,
+        "window" : 0
+      },
+      {
+        "unix_seconds" : 900,
+        "window" : 1
+      },
+      {
+        "unix_seconds" : 1960000000.5,
+        "window" : 2177777
+      },
+      {
+        "unix_seconds" : -1,
+        "window" : -1
+      }
+    ]
+  },
+  "session_race" : {
+    "cases" : [
+      {
+        "a_wins" : false,
+        "key_a" : 0,
+        "key_b" : 0,
+        "route_a" : 0,
+        "route_b" : 1
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 0,
+        "key_b" : 1,
+        "route_a" : 0,
+        "route_b" : 1
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 0,
+        "key_b" : 2,
+        "route_a" : 0,
+        "route_b" : 1
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 1,
+        "key_b" : 0,
+        "route_a" : 0,
+        "route_b" : 1
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 1,
+        "key_b" : 1,
+        "route_a" : 0,
+        "route_b" : 1
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 1,
+        "key_b" : 2,
+        "route_a" : 0,
+        "route_b" : 1
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 2,
+        "key_b" : 0,
+        "route_a" : 0,
+        "route_b" : 1
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 2,
+        "key_b" : 1,
+        "route_a" : 0,
+        "route_b" : 1
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 2,
+        "key_b" : 2,
+        "route_a" : 0,
+        "route_b" : 1
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 0,
+        "key_b" : 0,
+        "route_a" : 0,
+        "route_b" : 3
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 0,
+        "key_b" : 1,
+        "route_a" : 0,
+        "route_b" : 3
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 0,
+        "key_b" : 2,
+        "route_a" : 0,
+        "route_b" : 3
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 1,
+        "key_b" : 0,
+        "route_a" : 0,
+        "route_b" : 3
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 1,
+        "key_b" : 1,
+        "route_a" : 0,
+        "route_b" : 3
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 1,
+        "key_b" : 2,
+        "route_a" : 0,
+        "route_b" : 3
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 2,
+        "key_b" : 0,
+        "route_a" : 0,
+        "route_b" : 3
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 2,
+        "key_b" : 1,
+        "route_a" : 0,
+        "route_b" : 3
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 2,
+        "key_b" : 2,
+        "route_a" : 0,
+        "route_b" : 3
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 0,
+        "key_b" : 0,
+        "route_a" : 0,
+        "route_b" : 4
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 0,
+        "key_b" : 1,
+        "route_a" : 0,
+        "route_b" : 4
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 0,
+        "key_b" : 2,
+        "route_a" : 0,
+        "route_b" : 4
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 1,
+        "key_b" : 0,
+        "route_a" : 0,
+        "route_b" : 4
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 1,
+        "key_b" : 1,
+        "route_a" : 0,
+        "route_b" : 4
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 1,
+        "key_b" : 2,
+        "route_a" : 0,
+        "route_b" : 4
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 2,
+        "key_b" : 0,
+        "route_a" : 0,
+        "route_b" : 4
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 2,
+        "key_b" : 1,
+        "route_a" : 0,
+        "route_b" : 4
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 2,
+        "key_b" : 2,
+        "route_a" : 0,
+        "route_b" : 4
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 0,
+        "key_b" : 0,
+        "route_a" : 0,
+        "route_b" : 5
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 0,
+        "key_b" : 1,
+        "route_a" : 0,
+        "route_b" : 5
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 0,
+        "key_b" : 2,
+        "route_a" : 0,
+        "route_b" : 5
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 1,
+        "key_b" : 0,
+        "route_a" : 0,
+        "route_b" : 5
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 1,
+        "key_b" : 1,
+        "route_a" : 0,
+        "route_b" : 5
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 1,
+        "key_b" : 2,
+        "route_a" : 0,
+        "route_b" : 5
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 2,
+        "key_b" : 0,
+        "route_a" : 0,
+        "route_b" : 5
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 2,
+        "key_b" : 1,
+        "route_a" : 0,
+        "route_b" : 5
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 2,
+        "key_b" : 2,
+        "route_a" : 0,
+        "route_b" : 5
+      },
+      {
+        "a_wins" : true,
+        "key_a" : 0,
+        "key_b" : 0,
+        "route_a" : 1,
+        "route_b" : 1
+      },
+      {
+        "a_wins" : true,
+        "key_a" : 0,
+        "key_b" : 1,
+        "route_a" : 1,
+        "route_b" : 1
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 0,
+        "key_b" : 2,
+        "route_a" : 1,
+        "route_b" : 1
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 1,
+        "key_b" : 0,
+        "route_a" : 1,
+        "route_b" : 1
+      },
+      {
+        "a_wins" : true,
+        "key_a" : 1,
+        "key_b" : 1,
+        "route_a" : 1,
+        "route_b" : 1
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 1,
+        "key_b" : 2,
+        "route_a" : 1,
+        "route_b" : 1
+      },
+      {
+        "a_wins" : true,
+        "key_a" : 2,
+        "key_b" : 0,
+        "route_a" : 1,
+        "route_b" : 1
+      },
+      {
+        "a_wins" : true,
+        "key_a" : 2,
+        "key_b" : 1,
+        "route_a" : 1,
+        "route_b" : 1
+      },
+      {
+        "a_wins" : true,
+        "key_a" : 2,
+        "key_b" : 2,
+        "route_a" : 1,
+        "route_b" : 1
+      },
+      {
+        "a_wins" : true,
+        "key_a" : 0,
+        "key_b" : 0,
+        "route_a" : 1,
+        "route_b" : 3
+      },
+      {
+        "a_wins" : true,
+        "key_a" : 0,
+        "key_b" : 1,
+        "route_a" : 1,
+        "route_b" : 3
+      },
+      {
+        "a_wins" : true,
+        "key_a" : 0,
+        "key_b" : 2,
+        "route_a" : 1,
+        "route_b" : 3
+      },
+      {
+        "a_wins" : true,
+        "key_a" : 1,
+        "key_b" : 0,
+        "route_a" : 1,
+        "route_b" : 3
+      },
+      {
+        "a_wins" : true,
+        "key_a" : 1,
+        "key_b" : 1,
+        "route_a" : 1,
+        "route_b" : 3
+      },
+      {
+        "a_wins" : true,
+        "key_a" : 1,
+        "key_b" : 2,
+        "route_a" : 1,
+        "route_b" : 3
+      },
+      {
+        "a_wins" : true,
+        "key_a" : 2,
+        "key_b" : 0,
+        "route_a" : 1,
+        "route_b" : 3
+      },
+      {
+        "a_wins" : true,
+        "key_a" : 2,
+        "key_b" : 1,
+        "route_a" : 1,
+        "route_b" : 3
+      },
+      {
+        "a_wins" : true,
+        "key_a" : 2,
+        "key_b" : 2,
+        "route_a" : 1,
+        "route_b" : 3
+      },
+      {
+        "a_wins" : true,
+        "key_a" : 0,
+        "key_b" : 0,
+        "route_a" : 1,
+        "route_b" : 4
+      },
+      {
+        "a_wins" : true,
+        "key_a" : 0,
+        "key_b" : 1,
+        "route_a" : 1,
+        "route_b" : 4
+      },
+      {
+        "a_wins" : true,
+        "key_a" : 0,
+        "key_b" : 2,
+        "route_a" : 1,
+        "route_b" : 4
+      },
+      {
+        "a_wins" : true,
+        "key_a" : 1,
+        "key_b" : 0,
+        "route_a" : 1,
+        "route_b" : 4
+      },
+      {
+        "a_wins" : true,
+        "key_a" : 1,
+        "key_b" : 1,
+        "route_a" : 1,
+        "route_b" : 4
+      },
+      {
+        "a_wins" : true,
+        "key_a" : 1,
+        "key_b" : 2,
+        "route_a" : 1,
+        "route_b" : 4
+      },
+      {
+        "a_wins" : true,
+        "key_a" : 2,
+        "key_b" : 0,
+        "route_a" : 1,
+        "route_b" : 4
+      },
+      {
+        "a_wins" : true,
+        "key_a" : 2,
+        "key_b" : 1,
+        "route_a" : 1,
+        "route_b" : 4
+      },
+      {
+        "a_wins" : true,
+        "key_a" : 2,
+        "key_b" : 2,
+        "route_a" : 1,
+        "route_b" : 4
+      },
+      {
+        "a_wins" : true,
+        "key_a" : 0,
+        "key_b" : 0,
+        "route_a" : 1,
+        "route_b" : 5
+      },
+      {
+        "a_wins" : true,
+        "key_a" : 0,
+        "key_b" : 1,
+        "route_a" : 1,
+        "route_b" : 5
+      },
+      {
+        "a_wins" : true,
+        "key_a" : 0,
+        "key_b" : 2,
+        "route_a" : 1,
+        "route_b" : 5
+      },
+      {
+        "a_wins" : true,
+        "key_a" : 1,
+        "key_b" : 0,
+        "route_a" : 1,
+        "route_b" : 5
+      },
+      {
+        "a_wins" : true,
+        "key_a" : 1,
+        "key_b" : 1,
+        "route_a" : 1,
+        "route_b" : 5
+      },
+      {
+        "a_wins" : true,
+        "key_a" : 1,
+        "key_b" : 2,
+        "route_a" : 1,
+        "route_b" : 5
+      },
+      {
+        "a_wins" : true,
+        "key_a" : 2,
+        "key_b" : 0,
+        "route_a" : 1,
+        "route_b" : 5
+      },
+      {
+        "a_wins" : true,
+        "key_a" : 2,
+        "key_b" : 1,
+        "route_a" : 1,
+        "route_b" : 5
+      },
+      {
+        "a_wins" : true,
+        "key_a" : 2,
+        "key_b" : 2,
+        "route_a" : 1,
+        "route_b" : 5
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 0,
+        "key_b" : 0,
+        "route_a" : 2,
+        "route_b" : 1
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 0,
+        "key_b" : 1,
+        "route_a" : 2,
+        "route_b" : 1
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 0,
+        "key_b" : 2,
+        "route_a" : 2,
+        "route_b" : 1
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 1,
+        "key_b" : 0,
+        "route_a" : 2,
+        "route_b" : 1
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 1,
+        "key_b" : 1,
+        "route_a" : 2,
+        "route_b" : 1
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 1,
+        "key_b" : 2,
+        "route_a" : 2,
+        "route_b" : 1
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 2,
+        "key_b" : 0,
+        "route_a" : 2,
+        "route_b" : 1
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 2,
+        "key_b" : 1,
+        "route_a" : 2,
+        "route_b" : 1
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 2,
+        "key_b" : 2,
+        "route_a" : 2,
+        "route_b" : 1
+      },
+      {
+        "a_wins" : true,
+        "key_a" : 0,
+        "key_b" : 0,
+        "route_a" : 2,
+        "route_b" : 3
+      },
+      {
+        "a_wins" : true,
+        "key_a" : 0,
+        "key_b" : 1,
+        "route_a" : 2,
+        "route_b" : 3
+      },
+      {
+        "a_wins" : true,
+        "key_a" : 0,
+        "key_b" : 2,
+        "route_a" : 2,
+        "route_b" : 3
+      },
+      {
+        "a_wins" : true,
+        "key_a" : 1,
+        "key_b" : 0,
+        "route_a" : 2,
+        "route_b" : 3
+      },
+      {
+        "a_wins" : true,
+        "key_a" : 1,
+        "key_b" : 1,
+        "route_a" : 2,
+        "route_b" : 3
+      },
+      {
+        "a_wins" : true,
+        "key_a" : 1,
+        "key_b" : 2,
+        "route_a" : 2,
+        "route_b" : 3
+      },
+      {
+        "a_wins" : true,
+        "key_a" : 2,
+        "key_b" : 0,
+        "route_a" : 2,
+        "route_b" : 3
+      },
+      {
+        "a_wins" : true,
+        "key_a" : 2,
+        "key_b" : 1,
+        "route_a" : 2,
+        "route_b" : 3
+      },
+      {
+        "a_wins" : true,
+        "key_a" : 2,
+        "key_b" : 2,
+        "route_a" : 2,
+        "route_b" : 3
+      },
+      {
+        "a_wins" : true,
+        "key_a" : 0,
+        "key_b" : 0,
+        "route_a" : 2,
+        "route_b" : 4
+      },
+      {
+        "a_wins" : true,
+        "key_a" : 0,
+        "key_b" : 1,
+        "route_a" : 2,
+        "route_b" : 4
+      },
+      {
+        "a_wins" : true,
+        "key_a" : 0,
+        "key_b" : 2,
+        "route_a" : 2,
+        "route_b" : 4
+      },
+      {
+        "a_wins" : true,
+        "key_a" : 1,
+        "key_b" : 0,
+        "route_a" : 2,
+        "route_b" : 4
+      },
+      {
+        "a_wins" : true,
+        "key_a" : 1,
+        "key_b" : 1,
+        "route_a" : 2,
+        "route_b" : 4
+      },
+      {
+        "a_wins" : true,
+        "key_a" : 1,
+        "key_b" : 2,
+        "route_a" : 2,
+        "route_b" : 4
+      },
+      {
+        "a_wins" : true,
+        "key_a" : 2,
+        "key_b" : 0,
+        "route_a" : 2,
+        "route_b" : 4
+      },
+      {
+        "a_wins" : true,
+        "key_a" : 2,
+        "key_b" : 1,
+        "route_a" : 2,
+        "route_b" : 4
+      },
+      {
+        "a_wins" : true,
+        "key_a" : 2,
+        "key_b" : 2,
+        "route_a" : 2,
+        "route_b" : 4
+      },
+      {
+        "a_wins" : true,
+        "key_a" : 0,
+        "key_b" : 0,
+        "route_a" : 2,
+        "route_b" : 5
+      },
+      {
+        "a_wins" : true,
+        "key_a" : 0,
+        "key_b" : 1,
+        "route_a" : 2,
+        "route_b" : 5
+      },
+      {
+        "a_wins" : true,
+        "key_a" : 0,
+        "key_b" : 2,
+        "route_a" : 2,
+        "route_b" : 5
+      },
+      {
+        "a_wins" : true,
+        "key_a" : 1,
+        "key_b" : 0,
+        "route_a" : 2,
+        "route_b" : 5
+      },
+      {
+        "a_wins" : true,
+        "key_a" : 1,
+        "key_b" : 1,
+        "route_a" : 2,
+        "route_b" : 5
+      },
+      {
+        "a_wins" : true,
+        "key_a" : 1,
+        "key_b" : 2,
+        "route_a" : 2,
+        "route_b" : 5
+      },
+      {
+        "a_wins" : true,
+        "key_a" : 2,
+        "key_b" : 0,
+        "route_a" : 2,
+        "route_b" : 5
+      },
+      {
+        "a_wins" : true,
+        "key_a" : 2,
+        "key_b" : 1,
+        "route_a" : 2,
+        "route_b" : 5
+      },
+      {
+        "a_wins" : true,
+        "key_a" : 2,
+        "key_b" : 2,
+        "route_a" : 2,
+        "route_b" : 5
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 0,
+        "key_b" : 0,
+        "route_a" : 3,
+        "route_b" : 1
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 0,
+        "key_b" : 1,
+        "route_a" : 3,
+        "route_b" : 1
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 0,
+        "key_b" : 2,
+        "route_a" : 3,
+        "route_b" : 1
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 1,
+        "key_b" : 0,
+        "route_a" : 3,
+        "route_b" : 1
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 1,
+        "key_b" : 1,
+        "route_a" : 3,
+        "route_b" : 1
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 1,
+        "key_b" : 2,
+        "route_a" : 3,
+        "route_b" : 1
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 2,
+        "key_b" : 0,
+        "route_a" : 3,
+        "route_b" : 1
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 2,
+        "key_b" : 1,
+        "route_a" : 3,
+        "route_b" : 1
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 2,
+        "key_b" : 2,
+        "route_a" : 3,
+        "route_b" : 1
+      },
+      {
+        "a_wins" : true,
+        "key_a" : 0,
+        "key_b" : 0,
+        "route_a" : 3,
+        "route_b" : 3
+      },
+      {
+        "a_wins" : true,
+        "key_a" : 0,
+        "key_b" : 1,
+        "route_a" : 3,
+        "route_b" : 3
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 0,
+        "key_b" : 2,
+        "route_a" : 3,
+        "route_b" : 3
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 1,
+        "key_b" : 0,
+        "route_a" : 3,
+        "route_b" : 3
+      },
+      {
+        "a_wins" : true,
+        "key_a" : 1,
+        "key_b" : 1,
+        "route_a" : 3,
+        "route_b" : 3
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 1,
+        "key_b" : 2,
+        "route_a" : 3,
+        "route_b" : 3
+      },
+      {
+        "a_wins" : true,
+        "key_a" : 2,
+        "key_b" : 0,
+        "route_a" : 3,
+        "route_b" : 3
+      },
+      {
+        "a_wins" : true,
+        "key_a" : 2,
+        "key_b" : 1,
+        "route_a" : 3,
+        "route_b" : 3
+      },
+      {
+        "a_wins" : true,
+        "key_a" : 2,
+        "key_b" : 2,
+        "route_a" : 3,
+        "route_b" : 3
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 0,
+        "key_b" : 0,
+        "route_a" : 3,
+        "route_b" : 4
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 0,
+        "key_b" : 1,
+        "route_a" : 3,
+        "route_b" : 4
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 0,
+        "key_b" : 2,
+        "route_a" : 3,
+        "route_b" : 4
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 1,
+        "key_b" : 0,
+        "route_a" : 3,
+        "route_b" : 4
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 1,
+        "key_b" : 1,
+        "route_a" : 3,
+        "route_b" : 4
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 1,
+        "key_b" : 2,
+        "route_a" : 3,
+        "route_b" : 4
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 2,
+        "key_b" : 0,
+        "route_a" : 3,
+        "route_b" : 4
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 2,
+        "key_b" : 1,
+        "route_a" : 3,
+        "route_b" : 4
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 2,
+        "key_b" : 2,
+        "route_a" : 3,
+        "route_b" : 4
+      },
+      {
+        "a_wins" : true,
+        "key_a" : 0,
+        "key_b" : 0,
+        "route_a" : 3,
+        "route_b" : 5
+      },
+      {
+        "a_wins" : true,
+        "key_a" : 0,
+        "key_b" : 1,
+        "route_a" : 3,
+        "route_b" : 5
+      },
+      {
+        "a_wins" : true,
+        "key_a" : 0,
+        "key_b" : 2,
+        "route_a" : 3,
+        "route_b" : 5
+      },
+      {
+        "a_wins" : true,
+        "key_a" : 1,
+        "key_b" : 0,
+        "route_a" : 3,
+        "route_b" : 5
+      },
+      {
+        "a_wins" : true,
+        "key_a" : 1,
+        "key_b" : 1,
+        "route_a" : 3,
+        "route_b" : 5
+      },
+      {
+        "a_wins" : true,
+        "key_a" : 1,
+        "key_b" : 2,
+        "route_a" : 3,
+        "route_b" : 5
+      },
+      {
+        "a_wins" : true,
+        "key_a" : 2,
+        "key_b" : 0,
+        "route_a" : 3,
+        "route_b" : 5
+      },
+      {
+        "a_wins" : true,
+        "key_a" : 2,
+        "key_b" : 1,
+        "route_a" : 3,
+        "route_b" : 5
+      },
+      {
+        "a_wins" : true,
+        "key_a" : 2,
+        "key_b" : 2,
+        "route_a" : 3,
+        "route_b" : 5
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 0,
+        "key_b" : 0,
+        "route_a" : 4,
+        "route_b" : 1
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 0,
+        "key_b" : 1,
+        "route_a" : 4,
+        "route_b" : 1
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 0,
+        "key_b" : 2,
+        "route_a" : 4,
+        "route_b" : 1
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 1,
+        "key_b" : 0,
+        "route_a" : 4,
+        "route_b" : 1
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 1,
+        "key_b" : 1,
+        "route_a" : 4,
+        "route_b" : 1
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 1,
+        "key_b" : 2,
+        "route_a" : 4,
+        "route_b" : 1
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 2,
+        "key_b" : 0,
+        "route_a" : 4,
+        "route_b" : 1
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 2,
+        "key_b" : 1,
+        "route_a" : 4,
+        "route_b" : 1
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 2,
+        "key_b" : 2,
+        "route_a" : 4,
+        "route_b" : 1
+      },
+      {
+        "a_wins" : true,
+        "key_a" : 0,
+        "key_b" : 0,
+        "route_a" : 4,
+        "route_b" : 3
+      },
+      {
+        "a_wins" : true,
+        "key_a" : 0,
+        "key_b" : 1,
+        "route_a" : 4,
+        "route_b" : 3
+      },
+      {
+        "a_wins" : true,
+        "key_a" : 0,
+        "key_b" : 2,
+        "route_a" : 4,
+        "route_b" : 3
+      },
+      {
+        "a_wins" : true,
+        "key_a" : 1,
+        "key_b" : 0,
+        "route_a" : 4,
+        "route_b" : 3
+      },
+      {
+        "a_wins" : true,
+        "key_a" : 1,
+        "key_b" : 1,
+        "route_a" : 4,
+        "route_b" : 3
+      },
+      {
+        "a_wins" : true,
+        "key_a" : 1,
+        "key_b" : 2,
+        "route_a" : 4,
+        "route_b" : 3
+      },
+      {
+        "a_wins" : true,
+        "key_a" : 2,
+        "key_b" : 0,
+        "route_a" : 4,
+        "route_b" : 3
+      },
+      {
+        "a_wins" : true,
+        "key_a" : 2,
+        "key_b" : 1,
+        "route_a" : 4,
+        "route_b" : 3
+      },
+      {
+        "a_wins" : true,
+        "key_a" : 2,
+        "key_b" : 2,
+        "route_a" : 4,
+        "route_b" : 3
+      },
+      {
+        "a_wins" : true,
+        "key_a" : 0,
+        "key_b" : 0,
+        "route_a" : 4,
+        "route_b" : 4
+      },
+      {
+        "a_wins" : true,
+        "key_a" : 0,
+        "key_b" : 1,
+        "route_a" : 4,
+        "route_b" : 4
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 0,
+        "key_b" : 2,
+        "route_a" : 4,
+        "route_b" : 4
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 1,
+        "key_b" : 0,
+        "route_a" : 4,
+        "route_b" : 4
+      },
+      {
+        "a_wins" : true,
+        "key_a" : 1,
+        "key_b" : 1,
+        "route_a" : 4,
+        "route_b" : 4
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 1,
+        "key_b" : 2,
+        "route_a" : 4,
+        "route_b" : 4
+      },
+      {
+        "a_wins" : true,
+        "key_a" : 2,
+        "key_b" : 0,
+        "route_a" : 4,
+        "route_b" : 4
+      },
+      {
+        "a_wins" : true,
+        "key_a" : 2,
+        "key_b" : 1,
+        "route_a" : 4,
+        "route_b" : 4
+      },
+      {
+        "a_wins" : true,
+        "key_a" : 2,
+        "key_b" : 2,
+        "route_a" : 4,
+        "route_b" : 4
+      },
+      {
+        "a_wins" : true,
+        "key_a" : 0,
+        "key_b" : 0,
+        "route_a" : 4,
+        "route_b" : 5
+      },
+      {
+        "a_wins" : true,
+        "key_a" : 0,
+        "key_b" : 1,
+        "route_a" : 4,
+        "route_b" : 5
+      },
+      {
+        "a_wins" : true,
+        "key_a" : 0,
+        "key_b" : 2,
+        "route_a" : 4,
+        "route_b" : 5
+      },
+      {
+        "a_wins" : true,
+        "key_a" : 1,
+        "key_b" : 0,
+        "route_a" : 4,
+        "route_b" : 5
+      },
+      {
+        "a_wins" : true,
+        "key_a" : 1,
+        "key_b" : 1,
+        "route_a" : 4,
+        "route_b" : 5
+      },
+      {
+        "a_wins" : true,
+        "key_a" : 1,
+        "key_b" : 2,
+        "route_a" : 4,
+        "route_b" : 5
+      },
+      {
+        "a_wins" : true,
+        "key_a" : 2,
+        "key_b" : 0,
+        "route_a" : 4,
+        "route_b" : 5
+      },
+      {
+        "a_wins" : true,
+        "key_a" : 2,
+        "key_b" : 1,
+        "route_a" : 4,
+        "route_b" : 5
+      },
+      {
+        "a_wins" : true,
+        "key_a" : 2,
+        "key_b" : 2,
+        "route_a" : 4,
+        "route_b" : 5
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 0,
+        "key_b" : 0,
+        "route_a" : 5,
+        "route_b" : 1
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 0,
+        "key_b" : 1,
+        "route_a" : 5,
+        "route_b" : 1
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 0,
+        "key_b" : 2,
+        "route_a" : 5,
+        "route_b" : 1
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 1,
+        "key_b" : 0,
+        "route_a" : 5,
+        "route_b" : 1
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 1,
+        "key_b" : 1,
+        "route_a" : 5,
+        "route_b" : 1
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 1,
+        "key_b" : 2,
+        "route_a" : 5,
+        "route_b" : 1
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 2,
+        "key_b" : 0,
+        "route_a" : 5,
+        "route_b" : 1
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 2,
+        "key_b" : 1,
+        "route_a" : 5,
+        "route_b" : 1
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 2,
+        "key_b" : 2,
+        "route_a" : 5,
+        "route_b" : 1
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 0,
+        "key_b" : 0,
+        "route_a" : 5,
+        "route_b" : 3
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 0,
+        "key_b" : 1,
+        "route_a" : 5,
+        "route_b" : 3
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 0,
+        "key_b" : 2,
+        "route_a" : 5,
+        "route_b" : 3
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 1,
+        "key_b" : 0,
+        "route_a" : 5,
+        "route_b" : 3
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 1,
+        "key_b" : 1,
+        "route_a" : 5,
+        "route_b" : 3
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 1,
+        "key_b" : 2,
+        "route_a" : 5,
+        "route_b" : 3
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 2,
+        "key_b" : 0,
+        "route_a" : 5,
+        "route_b" : 3
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 2,
+        "key_b" : 1,
+        "route_a" : 5,
+        "route_b" : 3
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 2,
+        "key_b" : 2,
+        "route_a" : 5,
+        "route_b" : 3
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 0,
+        "key_b" : 0,
+        "route_a" : 5,
+        "route_b" : 4
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 0,
+        "key_b" : 1,
+        "route_a" : 5,
+        "route_b" : 4
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 0,
+        "key_b" : 2,
+        "route_a" : 5,
+        "route_b" : 4
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 1,
+        "key_b" : 0,
+        "route_a" : 5,
+        "route_b" : 4
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 1,
+        "key_b" : 1,
+        "route_a" : 5,
+        "route_b" : 4
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 1,
+        "key_b" : 2,
+        "route_a" : 5,
+        "route_b" : 4
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 2,
+        "key_b" : 0,
+        "route_a" : 5,
+        "route_b" : 4
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 2,
+        "key_b" : 1,
+        "route_a" : 5,
+        "route_b" : 4
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 2,
+        "key_b" : 2,
+        "route_a" : 5,
+        "route_b" : 4
+      },
+      {
+        "a_wins" : true,
+        "key_a" : 0,
+        "key_b" : 0,
+        "route_a" : 5,
+        "route_b" : 5
+      },
+      {
+        "a_wins" : true,
+        "key_a" : 0,
+        "key_b" : 1,
+        "route_a" : 5,
+        "route_b" : 5
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 0,
+        "key_b" : 2,
+        "route_a" : 5,
+        "route_b" : 5
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 1,
+        "key_b" : 0,
+        "route_a" : 5,
+        "route_b" : 5
+      },
+      {
+        "a_wins" : true,
+        "key_a" : 1,
+        "key_b" : 1,
+        "route_a" : 5,
+        "route_b" : 5
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 1,
+        "key_b" : 2,
+        "route_a" : 5,
+        "route_b" : 5
+      },
+      {
+        "a_wins" : true,
+        "key_a" : 2,
+        "key_b" : 0,
+        "route_a" : 5,
+        "route_b" : 5
+      },
+      {
+        "a_wins" : true,
+        "key_a" : 2,
+        "key_b" : 1,
+        "route_a" : 5,
+        "route_b" : 5
+      },
+      {
+        "a_wins" : true,
+        "key_a" : 2,
+        "key_b" : 2,
+        "route_a" : 5,
+        "route_b" : 5
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 0,
+        "key_b" : 0,
+        "route_a" : 9,
+        "route_b" : 1
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 0,
+        "key_b" : 1,
+        "route_a" : 9,
+        "route_b" : 1
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 0,
+        "key_b" : 2,
+        "route_a" : 9,
+        "route_b" : 1
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 1,
+        "key_b" : 0,
+        "route_a" : 9,
+        "route_b" : 1
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 1,
+        "key_b" : 1,
+        "route_a" : 9,
+        "route_b" : 1
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 1,
+        "key_b" : 2,
+        "route_a" : 9,
+        "route_b" : 1
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 2,
+        "key_b" : 0,
+        "route_a" : 9,
+        "route_b" : 1
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 2,
+        "key_b" : 1,
+        "route_a" : 9,
+        "route_b" : 1
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 2,
+        "key_b" : 2,
+        "route_a" : 9,
+        "route_b" : 1
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 0,
+        "key_b" : 0,
+        "route_a" : 9,
+        "route_b" : 3
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 0,
+        "key_b" : 1,
+        "route_a" : 9,
+        "route_b" : 3
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 0,
+        "key_b" : 2,
+        "route_a" : 9,
+        "route_b" : 3
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 1,
+        "key_b" : 0,
+        "route_a" : 9,
+        "route_b" : 3
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 1,
+        "key_b" : 1,
+        "route_a" : 9,
+        "route_b" : 3
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 1,
+        "key_b" : 2,
+        "route_a" : 9,
+        "route_b" : 3
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 2,
+        "key_b" : 0,
+        "route_a" : 9,
+        "route_b" : 3
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 2,
+        "key_b" : 1,
+        "route_a" : 9,
+        "route_b" : 3
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 2,
+        "key_b" : 2,
+        "route_a" : 9,
+        "route_b" : 3
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 0,
+        "key_b" : 0,
+        "route_a" : 9,
+        "route_b" : 4
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 0,
+        "key_b" : 1,
+        "route_a" : 9,
+        "route_b" : 4
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 0,
+        "key_b" : 2,
+        "route_a" : 9,
+        "route_b" : 4
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 1,
+        "key_b" : 0,
+        "route_a" : 9,
+        "route_b" : 4
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 1,
+        "key_b" : 1,
+        "route_a" : 9,
+        "route_b" : 4
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 1,
+        "key_b" : 2,
+        "route_a" : 9,
+        "route_b" : 4
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 2,
+        "key_b" : 0,
+        "route_a" : 9,
+        "route_b" : 4
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 2,
+        "key_b" : 1,
+        "route_a" : 9,
+        "route_b" : 4
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 2,
+        "key_b" : 2,
+        "route_a" : 9,
+        "route_b" : 4
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 0,
+        "key_b" : 0,
+        "route_a" : 9,
+        "route_b" : 5
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 0,
+        "key_b" : 1,
+        "route_a" : 9,
+        "route_b" : 5
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 0,
+        "key_b" : 2,
+        "route_a" : 9,
+        "route_b" : 5
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 1,
+        "key_b" : 0,
+        "route_a" : 9,
+        "route_b" : 5
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 1,
+        "key_b" : 1,
+        "route_a" : 9,
+        "route_b" : 5
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 1,
+        "key_b" : 2,
+        "route_a" : 9,
+        "route_b" : 5
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 2,
+        "key_b" : 0,
+        "route_a" : 9,
+        "route_b" : 5
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 2,
+        "key_b" : 1,
+        "route_a" : 9,
+        "route_b" : 5
+      },
+      {
+        "a_wins" : false,
+        "key_a" : 2,
+        "key_b" : 2,
+        "route_a" : 9,
+        "route_b" : 5
+      }
+    ],
+    "keys" : [
+      "0c853813d5a4273d46db49410f9076deb7be404a3d3462428858694d3e26d339",
+      "8c853813d5a4273d46db49410f9076deb7be404a3d3462428858694d3e26d339",
+      "0c853813d5a4273d46db49410f9076de"
+    ]
+  },
+  "source" : "Exported by portable/friends/core-rs/tools/objc-vectors from the Objective-C helper's own code. Regenerate with `make friends-vectors-export`; do not edit by hand."
+}

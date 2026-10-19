@@ -1,0 +1,29 @@
+[package]
+name = "szfriends-embedded-size"
+description = "Not shipped: the Friends service linked the way a phone app links it, so its whole size can be measured"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+# An Android app loads one shared library; an iOS app links a static library into its executable.
+[lib]
+crate-type = ["cdylib", "staticlib"]
+
+[features]
+default = ["online"]
+# Friends over the Internet, as the Tauri plugin's own `online` feature turns it on for phones.
+online = ["szfriends-helper/online"]
+
+[dependencies]
+szfriends-contract.workspace = true
+szfriends-helper = { path = "../../crates/szfriends-helper", default-features = false }
+serde_json.workspace = true
+
+# Not the workspace lints: the one exported function needs `#[no_mangle]`, which `forbid(unsafe_code)` cannot allow.
+[lints.rust]
+unsafe_code = "deny"
+missing_debug_implementations = "warn"
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }

@@ -1,0 +1,41 @@
+# What scripts/friends/phones-link.mjs opens Friends links with on an iOS simulator (xcodegen, then xcodebuild in the
+# run's temporary directory). `simctl openurl` cannot: the system first asks "Open in Shenzhen 3D?", and nobody
+# answers in a test. XCUIApplication's openURL hands the link to Shenzhen 3D through the system without asking, the
+# way a tap on a link the person already chose to open does. The UI test needs an app of its own to run beside:
+# Host, which does nothing.
+name: SZFLinkOpen
+options:
+  bundleIdPrefix: com.shenzhen3d.test
+  deploymentTarget:
+    iOS: "16.4"
+settings:
+  base:
+    CODE_SIGN_IDENTITY: "-"
+    CODE_SIGN_STYLE: Manual
+    GENERATE_INFOPLIST_FILE: true
+targets:
+  Host:
+    type: application
+    platform: iOS
+    sources: [Host]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.shenzhen3d.test.link-open-host
+        INFOPLIST_KEY_UILaunchScreen_Generation: true
+  LinkOpen:
+    type: bundle.ui-testing
+    platform: iOS
+    sources: [Tests]
+    dependencies:
+      - target: Host
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.shenzhen3d.test.link-open
+        TEST_TARGET_NAME: Host
+schemes:
+  LinkOpen:
+    build:
+      targets:
+        LinkOpen: [test]
+    test:
+      targets: [LinkOpen]

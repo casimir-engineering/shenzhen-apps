@@ -1,0 +1,140 @@
+name: Release Shenzhen 3D
+# Packages, signs and notarizes the Shenzhen 3D Mac app at a 3d/<release> tag of this repository, once per release
+# owner, and publishes the GitHub release <release> on that owner's shenzhen-3D, where installed apps look for
+# updates: casimir-engineering, and the owner in the SHENZHEN_3D_MIRROR_OWNER variable when it is set.
+# Started by hand only (docs/RELEASING.md).
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: The 3d/preview-<version> or 3d/v<version> tag to release
+        required: true
+        type: string
+      prerelease:
+        description: Publish as a prerelease
+        required: false
+        type: boolean
+        default: false
+permissions:
+  contents: read
+concurrency:
+  group: release-3d
+  cancel-in-progress: false
+jobs:
+  plan:
+    if: github.repository_owner == 'casimir-engineering'
+    runs-on: ubuntu-24.04
+    outputs:
+      owners: ${{ steps.owners.outputs.owners }}
+      release: ${{ steps.version.outputs.release }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refs/tags/${{ inputs.tag }}
+          fetch-depth: 0
+          persist-credentials: false
+      - id: version
+        name: The tag is the version in package.json
+        env:
+          TAG: ${{ inputs.tag }}
+        run: |
+          version=$(node -p 'require("./apps/3d/package.json").version')
+          case "$TAG" in
+            "3d/preview-$version"|"3d/v$version") echo "release=${TAG#3d/}" >> "$GITHUB_OUTPUT" ;;
+            *) echo "::error::$TAG is not 3d/preview-$version or 3d/v$version"; exit 1 ;;
+          esac
+      - name: Friends helper build number
+        run: tools/check-friends-number.sh
+      - id: owners
+        env:
+          MIRROR: ${{ vars.SHENZHEN_3D_MIRROR_OWNER }}
+        run: |
+          owners='["casimir-engineering"]'
+          if [ -n "$MIRROR" ]; then owners="[\"casimir-engineering\",\"$MIRROR\"]"; fi
+          echo "owners=$owners" >> "$GITHUB_OUTPUT"
+  release:
+    needs: plan
+    runs-on: macos-15
+    timeout-minutes: 240
+    strategy:
+      max-parallel: 1
+      matrix:
+        owner: ${{ fromJSON(needs.plan.outputs.owners) }}
+    defaults:
+      run:
+        working-directory: apps/3d
+    env:
+      OWNER: ${{ matrix.owner }}
+      RELEASE: ${{ needs.plan.outputs.release }}
+      OTHER_OWNERS: ${{ needs.plan.outputs.owners }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refs/tags/${{ inputs.tag }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: apps/3d/package-lock.json
+      - run: npm ci
+      - name: Friends, built from apps/pdf in this tree
+        run: scripts/friends/setup-friends.sh
+      - run: npm test && npm run build && npm run test:electron && npm run test:friends
+      - name: Signing
+        run: ../../tools/ci/mac-signing.sh >> "$GITHUB_ENV"
+        env:
+          MAC_CERTIFICATE_P12: ${{ secrets.MAC_CERTIFICATE_P12 }}
+          MAC_CERTIFICATE_PASSWORD: ${{ secrets.MAC_CERTIFICATE_PASSWORD }}
+          NOTARY_KEY_P8: ${{ secrets.NOTARY_KEY_P8 }}
+          NOTARY_KEY_ID: ${{ secrets.NOTARY_KEY_ID }}
+          NOTARY_ISSUER_ID: ${{ secrets.NOTARY_ISSUER_ID }}
+      - name: Signed package for ${{ matrix.owner }}
+        run: |
+          forbid=$(node -p 'JSON.parse(process.env.OTHER_OWNERS).filter((o) => o !== process.env.OWNER)
+            .map((o) => "--forbid-owner=" + o).join(" ")')
+          npm run package:electron:mac -- --release-owner="$OWNER" $forbid
+          echo "SIGNED=$(ls -d "$PWD"/artifacts/electron/*-"$OWNER"-* | tail -n 1)" >> "$GITHUB_ENV"
+      - name: Notarized ZIP and DMG
+        run: |
+          out="$PWD/artifacts/electron/$RELEASE-$OWNER-notarized-$(date -u +%Y%m%dT%H%M%S)"
+          mkdir "$out"
+          echo "NOTARIZED=$out" >> "$GITHUB_ENV"
+          submit() {
+            xcrun notarytool submit "$1" --keychain-profile "$NOTARY_PROFILE" --output-format json --wait |
+              node -e 'const r = JSON.parse(require("fs").readFileSync(0, "utf8"));
+                if (r.status !== "Accepted") { console.error(JSON.stringify(r)); process.exit(1) }
+                console.log(r.id)'
+          }
+          zip=$(ls "$SIGNED"/*-Apple-Silicon.zip)
+          node electron/notarize-finalize.mjs --original="$SIGNED" --output="$out" --profile="$NOTARY_PROFILE" \
+            --phase=package --zip-submission="$(submit "$zip")"
+          node electron/notarize-finalize.mjs --original="$SIGNED" --output="$out" --profile="$NOTARY_PROFILE" \
+            --phase=verify-zip
+          dmg=$(ls "$out"/*.dmg)
+          node electron/notarize-finalize.mjs --original="$SIGNED" --output="$out" --profile="$NOTARY_PROFILE" \
+            --phase=finalize --dmg-submission="$(submit "$dmg")"
+      - name: GitHub release on ${{ matrix.owner }}/shenzhen-3D
+        env:
+          GH_TOKEN: >-
+            ${{ matrix.owner == 'casimir-engineering' && secrets.SHENZHEN_RELEASE_TOKEN
+            || secrets.SHENZHEN_3D_MIRROR_TOKEN }}
+          PRERELEASE: ${{ inputs.prerelease }}
+        run: |
+          repo="$OWNER/shenzhen-3D"
+          notes="docs/MAC-${RELEASE#*-}.md"
+          [ -f "$notes" ] || notes="docs/MAC-${RELEASE#v}.md"
+          [ -f "$notes" ] || { echo "::error::no release notes docs/MAC-<version>.md"; exit 1; }
+          gh release create "$RELEASE" --repo "$repo" --title "Shenzhen 3D ${RELEASE#*-}" --notes-file "$notes" --draft
+          for file in "$NOTARIZED"/*.dmg "$NOTARIZED"/*.zip "$NOTARIZED"/*.blockmap "$NOTARIZED"/latest-mac.yml \
+              "$NOTARIZED"/build-info.json; do
+            if [ -f "$file" ]; then gh release upload "$RELEASE" "$file" --repo "$repo"; fi
+          done
+          for file in "$NOTARIZED"/*.dmg "$NOTARIZED"/*.zip "$NOTARIZED"/latest-mac.yml; do
+            want="sha256:$(shasum -a 256 "$file" | awk '{print $1}')"
+            got=$(gh release view "$RELEASE" --repo "$repo" --json assets \
+              --jq ".assets[] | select(.name == \"$(basename "$file")\") | .digest")
+            [ "$got" = "$want" ] || { echo "::error::$(basename "$file"): GitHub has $got, built $want"; exit 1; }
+          done
+          gh release edit "$RELEASE" --repo "$repo" --draft=false --prerelease="$PRERELEASE"

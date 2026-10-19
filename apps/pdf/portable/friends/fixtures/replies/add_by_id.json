@@ -1,0 +1,9 @@
+{
+  "type": "reply",
+  "re": "23",
+  "ok": true,
+  "result": {
+    "conversation_id": "c_willow",
+    "message": "Request sent to willow‑breeze. They’ll get it as soon as Friends reaches them, and you’ll be friends once they accept."
+  }
+}

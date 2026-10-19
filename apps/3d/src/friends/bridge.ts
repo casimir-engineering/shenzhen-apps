@@ -1,0 +1,69 @@
+// The Friends bridge: the Electron preload's in the Mac app (electron/preload.cjs), and tauri-plugin-szfriends' in a
+// Tauri build made with the `friends` feature (docs/FRIENDS.md § Tauri), the same methods either way. The web and
+// PWA builds, and Tauri builds without the feature, have no `window.shenzhenFriends`, so they show nothing of
+// Friends.
+import type { BadgeData, FriendsStatus, Reply, Snapshot } from "./protocol";
+
+export type FriendsEvent =
+  | { kind: "status"; status: FriendsStatus }
+  | { kind: "snapshot"; frame: Snapshot }
+  | { kind: "badge"; data: BadgeData | null }
+  | { kind: "link"; payload: string }
+  // File ▸ Copy Download Link in the app's menu, chosen while this window has a model open.
+  | { kind: "copy_download_link"; days: number };
+
+export type HelperImage = {
+  type: string;
+  width: number;
+  height: number;
+  bytes: Uint8Array;
+};
+export type Animal = { svg: string; color: string; name: string };
+export type AnimalList = {
+  set: number;
+  animals: { index: number; name: string; color: string }[];
+};
+export type PathKind = "file" | "folder" | "other" | "missing";
+
+export interface FriendsBridge {
+  join(): Promise<FriendsStatus>;
+  status(): Promise<FriendsStatus>;
+  subscribe(listener: (event: FriendsEvent) => void): () => void;
+  send(
+    type: string,
+    fields?: Record<string, unknown>,
+  ): Promise<{ reply: Reply; snapshot?: Snapshot }>;
+  setEnabled(enabled: boolean): Promise<FriendsStatus>;
+  image(
+    kind: "thumbnail" | "picture",
+    path: string,
+    width?: number,
+    height?: number,
+  ): Promise<HelperImage | null>;
+  animal(set: number, index: number): Promise<Animal | null>;
+  animals(): Promise<AnimalList | null>;
+  /** Dropped files' paths, all or none: Electron's at once, Tauri's once the system has reported the drop. */
+  pathsForFiles(
+    files: ArrayLike<File>,
+  ): (string | null)[] | Promise<(string | null)[]>;
+  /** Phones only: the most the panel stages of one dropped file, which comes without a path there. */
+  stagedDropLimit?: number;
+  classify(paths: string[]): Promise<PathKind[]>;
+  stage(name: string, bytes: Uint8Array): Promise<string>;
+  token(): Promise<string>;
+  openFile(path: string): Promise<boolean>;
+  showFile(path: string): Promise<boolean>;
+  openSettings(target: string): Promise<boolean>;
+  openURL(url: string): Promise<boolean>;
+  /** Whether this window has a model open, for File ▸ Copy Download Link. */
+  shareable(value: boolean): Promise<void>;
+}
+
+declare global {
+  interface Window {
+    shenzhenFriends?: FriendsBridge;
+  }
+}
+
+export const friendsBridge = (): FriendsBridge | undefined =>
+  typeof window === "undefined" ? undefined : window.shenzhenFriends;

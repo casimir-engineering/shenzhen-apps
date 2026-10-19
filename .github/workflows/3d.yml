@@ -1,0 +1,115 @@
+name: Shenzhen 3D
+# Friends is built from apps/pdf: its sources, the Makefile that builds it and the ext/ libraries it links.
+on:
+  push:
+    branches: [main]
+    paths: [
+      'apps/3d/**', 'apps/pdf/portable/friends/**', 'apps/pdf/portable/Makefile',
+      'apps/pdf/ext/cjson/**', 'apps/pdf/ext/libdatachannel/**', 'apps/pdf/ext/libjuice/**', 'apps/pdf/ext/libsodium/**',
+      'apps/pdf/ext/mbedtls/**', 'apps/pdf/ext/miniupnpc/**', 'apps/pdf/ext/plog/**', 'apps/pdf/ext/usrsctp/**',
+      '.github/workflows/3d.yml']
+  pull_request:
+    paths: [
+      'apps/3d/**', 'apps/pdf/portable/friends/**', 'apps/pdf/portable/Makefile',
+      'apps/pdf/ext/cjson/**', 'apps/pdf/ext/libdatachannel/**', 'apps/pdf/ext/libjuice/**', 'apps/pdf/ext/libsodium/**',
+      'apps/pdf/ext/mbedtls/**', 'apps/pdf/ext/miniupnpc/**', 'apps/pdf/ext/plog/**', 'apps/pdf/ext/usrsctp/**',
+      '.github/workflows/3d.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+env:
+  # These jobs test the web app and package Tauri; the Electron Mac shell is tested in the mac job.
+  ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+concurrency:
+  group: 3d-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+defaults:
+  run:
+    working-directory: apps/3d
+jobs:
+  web:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: apps/3d/package-lock.json
+      - run: npm ci
+      - run: npm test
+      - run: npm run test:cad
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: web-test-results
+          path: apps/3d/test-results/
+  mac:
+    runs-on: macos-15
+    timeout-minutes: 90
+    env:
+      ELECTRON_SKIP_BINARY_DOWNLOAD: ""
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: apps/3d/package-lock.json
+      - run: npm ci
+      # The Electron smoke tests load the built web app from dist/.
+      - run: npm run build
+      - run: npm run test:electron
+      - name: Friends, built from apps/pdf in this tree
+        run: scripts/friends/setup-friends.sh
+      - run: npm run test:friends
+  desktop:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-15
+            name: macos-universal
+            args: --target universal-apple-darwin --bundles app,dmg
+          - os: windows-2022
+            name: windows-x64
+            args: --bundles nsis,msi
+          - os: ubuntu-24.04
+            name: linux-x64
+            args: --bundles deb,rpm,appimage
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: apps/3d/package-lock.json
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/3d/src-tauri -> target
+      - name: Universal macOS targets
+        if: runner.os == 'macOS'
+        run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
+      - name: Linux prerequisites
+        if: runner.os == 'Linux'
+        run: >
+          sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file
+          libxdo-dev libssl-dev librsvg2-dev libayatana-appindicator3-dev patchelf rpm xvfb
+      - run: npm ci
+      - run: node scripts/platform-build.mjs desktop ${{ matrix.args }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: shenzhen-3d-${{ matrix.name }}
+          path: |
+            apps/3d/src-tauri/target/**/release/bundle/**/*.dmg
+            apps/3d/src-tauri/target/**/release/bundle/**/*.exe
+            apps/3d/src-tauri/target/**/release/bundle/**/*.msi
+            apps/3d/src-tauri/target/**/release/bundle/**/*.deb
+            apps/3d/src-tauri/target/**/release/bundle/**/*.rpm
+            apps/3d/src-tauri/target/**/release/bundle/**/*.AppImage
+          if-no-files-found: error

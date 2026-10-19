@@ -1,0 +1,11 @@
+{
+  "type": "reply",
+  "re": "14",
+  "ok": true,
+  "result": {
+    "transfer_ids": [
+      "t_4411cd3e",
+      "t_4412ef50"
+    ]
+  }
+}

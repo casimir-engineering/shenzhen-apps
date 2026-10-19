@@ -1,0 +1,238 @@
+<div id="sz-tab-options" aria-label="Three tab design alternatives">
+  <section aria-label="Index"><h3>1 · Index</h3><div class="sample" data-tab-design="index"></div></section>
+  <section aria-label="Group tray"><h3>2 · Group tray</h3><div class="sample" data-tab-design="tray"></div></section>
+  <section aria-label="Outline"><h3>3 · Outline</h3><div class="sample" data-tab-design="outline"></div></section>
+</div>
+<style>
+
+#sz-tab-options .sample {--sz-bg:light-dark(#f6f6f5,#232426);--sz-surface:light-dark(#fff,#292b2e);--sz-text:light-dark(#26282b,#eceef1);--sz-muted:light-dark(#61666d,#b3b7be);--sz-line:light-dark(#dddfdf,#414448);--sz-hover:light-dark(#e8ebed,#393d42);--sz-active:light-dark(#dbe5f0,#374b61);--sz-blue:light-dark(#286398,#a1c9ed);--sz-canvas:light-dark(#e8e9e9,#191b1e);--sz-page:light-dark(#fff,#292c31);--sz-page-text:light-dark(#252b32,#e4e7ec);--sz-purple:light-dark(#e8e3f2,#3d354d);--sz-purple-strong:light-dark(#c7badd,#6b587f);--sz-teal:light-dark(#dfeded,#2f4847);--sz-yellow:light-dark(#fae7a8,#655622);--sz-green:light-dark(#d7eadc,#284b36);--sz-red:light-dark(#f4dadd,#5b343c);color:var(--sz-text);font:13px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;width:100%;color-scheme:light dark}
+#sz-tab-options .sample * {box-sizing:border-box} #sz-tab-options .sample [hidden]{display:none!important} #sz-tab-options .sample button,#sz-tab-options .sample input,#sz-tab-options .sample select{font:inherit;color:inherit} #sz-tab-options .sample button{border:0;background:transparent;border-radius:6px;padding:6px 8px;display:inline-flex;align-items:center;gap:7px;min-height:30px;cursor:default;text-align:left} #sz-tab-options .sample button:hover{background:var(--sz-hover)} #sz-tab-options .sample button:disabled{opacity:.5} #sz-tab-options .sample button[aria-pressed=true],#sz-tab-options .sample button[aria-current=page]{background:var(--sz-active)} #sz-tab-options .sample svg {width:16px;height:16px;flex-shrink:0;stroke-width:1.6} #sz-tab-options .sample strong{font-weight:600} #sz-tab-options .sample kbd {font:11px -apple-system,sans-serif;color:var(--sz-muted)}
+#sz-tab-options .sample .sz-window{background:var(--sz-bg);border:1px solid var(--sz-line);border-radius:12px;overflow:hidden;position:relative;min-width:0}
+#sz-tab-options .sample .sz-titlebar{height:48px;display:flex;align-items:center;gap:8px;padding:0 12px;border-bottom:1px solid var(--sz-line)}
+#sz-tab-options .sample .sz-lights{display:flex;gap:7px;margin-right:6px;flex-shrink:0} #sz-tab-options .sample .sz-lights b{width:11px;height:11px;border-radius:50%;background:#ff625a;border:1px solid #dc524c} #sz-tab-options .sample .sz-lights b:nth-child(2){background:#ffbd44;border-color:#dca338} #sz-tab-options .sample .sz-lights b:nth-child(3){background:#00c84a;border-color:#00aa41} #sz-tab-options .sample .sz-prototype{color:var(--sz-muted);font-size:11px} #sz-tab-options .sample .sz-command{margin-left:auto;background:var(--sz-surface);border:1px solid var(--sz-line);width:auto;flex-shrink:0;color:var(--sz-muted);font-size:12px} #sz-tab-options .sample .sz-command kbd{margin-left:auto}
+#sz-tab-options .sample .sz-shell{display:flex;height:594px;min-height:0} #sz-tab-options .sample .sz-rail{width:102px;flex-shrink:0;display:flex;flex-direction:column;padding:12px 7px 7px;border-right:1px solid var(--sz-line);gap:3px} #sz-tab-options .sample .sz-rail button{width:100%;padding:9px 6px;gap:7px;font-size:12px;white-space:nowrap} #sz-tab-options .sample .sz-rail label{font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--sz-muted);padding:0 6px 7px} #sz-tab-options .sample .sz-rail .sz-doc-section{margin-top:20px} #sz-tab-options .sample .sz-rail .sz-rail-bottom{margin-top:auto} #sz-tab-options .sample .sz-main{flex:1;min-width:0;display:flex;flex-direction:column}
+#sz-tab-options .sample .sz-tabs{display:flex;align-items:center;gap:6px;padding:0;flex:1;min-height:0;min-width:0} #sz-tab-options .sample .sz-group-strip{display:flex;align-items:center;border:1px solid light-dark(#c5b6d7,#796488);border-radius:10px;background:var(--sz-purple);padding:2px;min-width:0;gap:2px;flex:1} #sz-tab-options .sample .sz-group-strip button{font-size:12px;min-height:27px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis} #sz-tab-options .sample .sz-group-strip .sz-tab{max-width:192px;justify-content:center;display:block;flex:1;min-width:0} #sz-tab-options .sample .sz-group-strip .sz-tab.selected{background:var(--sz-purple-strong);font-weight:600;box-shadow:inset 0 0 0 1px light-dark(#9480af,#a08cb6)} #sz-tab-options .sample .sz-group-collapsed{flex-shrink:0;font-size:12px;white-space:nowrap;border:1px solid var(--sz-line);background:var(--sz-surface);border-radius:10px} #sz-tab-options .sample .sz-tab-more{flex-shrink:0;margin-left:auto;font-size:11px;color:var(--sz-muted);white-space:nowrap}
+#sz-tab-options .sample .sz-readingbar{height:44px;display:flex;align-items:center;gap:9px;padding:5px 10px;border-bottom:1px solid var(--sz-line);background:var(--sz-surface);min-width:0} #sz-tab-options .sample .sz-panel-toggle{display:none} #sz-tab-options .sample .sz-page-controls{display:flex;align-items:center;gap:2px;white-space:nowrap} #sz-tab-options .sample .sz-page-controls label{font-size:12px;color:var(--sz-muted)} #sz-tab-options .sample .sz-page-number{width:29px;appearance:textfield;border:0;background:transparent;text-align:center;padding:3px} #sz-tab-options .sample .sz-page-number::-webkit-inner-spin-button{appearance:none} #sz-tab-options .sample .sz-zoom{border:0;border-left:1px solid var(--sz-line);padding:2px 8px;background:transparent;max-width:100px;font-size:12px} #sz-tab-options .sample .sz-toolbar-space{flex:1} #sz-tab-options .sample .sz-tools-trigger{font-size:12px} #sz-tab-options .sample .sz-tools-trigger svg:last-child{width:11px} #sz-tab-options .sample .sz-version-state{font-size:11px;background:var(--sz-yellow);border-radius:14px;max-width:210px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#sz-tab-options .sample .sz-content{display:flex;flex:1;min-height:0;position:relative} #sz-tab-options .sample .sz-pane{width:218px;flex-shrink:0;background:var(--sz-surface);border-right:1px solid var(--sz-line);display:flex;flex-direction:column;min-height:0} #sz-tab-options .sample .sz-pane-head{display:flex;align-items:center;gap:8px;padding:12px 12px 4px} #sz-tab-options .sample .sz-pane-head strong{font-size:13px} #sz-tab-options .sample .sz-pane-head button{margin-left:auto;padding:4px;min-height:24px} #sz-tab-options .sample .sz-pane-subtitle{font-size:11px;color:var(--sz-muted);padding:0 12px 10px;overflow-wrap:anywhere} #sz-tab-options .sample .sz-pane-filter{margin:0 10px 8px;border:1px solid var(--sz-line);border-radius:7px;background:var(--sz-bg);padding:6px 8px;display:flex;align-items:center;gap:6px} #sz-tab-options .sample .sz-pane-filter input{background:transparent;border:0;border-radius:5px;min-width:0;width:100%;font-size:12px;outline-offset:3px} #sz-tab-options .sample .sz-pane-filter:focus-within{outline:2px solid var(--sz-blue);outline-offset:1px} #sz-tab-options .sample .sz-list{flex:1;overflow:auto;padding:3px 7px 12px;min-height:0} #sz-tab-options .sample .sz-list button.sz-row{width:100%;border-radius:5px;justify-content:space-between;min-height:33px;font-size:12px;gap:8px} #sz-tab-options .sample .sz-row span:first-child{min-width:0;overflow:hidden;text-overflow:ellipsis} #sz-tab-options .sample .sz-row small{color:var(--sz-muted);font-size:11px;flex-shrink:0} #sz-tab-options .sample .sz-section-label{color:var(--sz-muted);font-size:10px;text-transform:uppercase;letter-spacing:.06em;padding:15px 8px 5px} #sz-tab-options .sample .sz-pane-foot{border-top:1px solid var(--sz-line);padding:8px 10px;font-size:11px;color:var(--sz-muted);display:flex;gap:8px;align-items:center;flex-wrap:wrap} #sz-tab-options .sample .sz-pane-foot button{font-size:12px} #sz-tab-options .sample .sz-primary{background:var(--sz-blue);color:light-dark(#fff,#182838)} #sz-tab-options .sample .sz-primary:hover{background:var(--sz-blue);filter:brightness(1.08)}
+#sz-tab-options .sample .sz-canvas{flex:1;background:var(--sz-canvas);overflow:auto;padding:26px 26px 38px;min-width:0;position:relative} #sz-tab-options .sample .sz-paper{background:var(--sz-page);color:var(--sz-page-text);max-width:560px;min-height:640px;margin:auto;padding:37px 37px 25px;box-shadow:0 2px 6px #00000012;font:12px/1.65 Georgia,serif} #sz-tab-options .sample .sz-paper .sz-running{font:9px/1.4 -apple-system,sans-serif;text-transform:uppercase;letter-spacing:.08em;color:var(--sz-muted);border-bottom:1px solid var(--sz-line);padding-bottom:12px;display:flex;justify-content:space-between;gap:12px} #sz-tab-options .sample .sz-paper h1{font:600 27px/1.2 -apple-system,sans-serif;margin:25px 0 12px;letter-spacing:-.7px} #sz-tab-options .sample .sz-paper h2{font:600 15px/1.3 -apple-system,sans-serif;margin:25px 0 9px} #sz-tab-options .sample .sz-paper p{margin:10px 0} #sz-tab-options .sample .sz-paper .sz-lead{color:var(--sz-muted);font:12px/1.6 -apple-system,sans-serif} #sz-tab-options .sample .sz-paper table{border-collapse:collapse;width:100%;margin:15px 0;font:11px/1.5 -apple-system,sans-serif} #sz-tab-options .sample .sz-paper th,#sz-tab-options .sample .sz-paper td{padding:8px 5px;border-bottom:1px solid var(--sz-line);text-align:left} #sz-tab-options .sample .sz-paper th{background:var(--sz-bg);font-weight:500} #sz-tab-options .sample .sz-diagram{display:flex;align-items:center;justify-content:space-between;gap:7px;margin:24px 0;font:11px/1.4 -apple-system,sans-serif} #sz-tab-options .sample .sz-diagram span{padding:12px 9px;border:1px solid var(--sz-line);border-radius:4px;background:var(--sz-bg);text-align:center} #sz-tab-options .sample mark{background:var(--sz-yellow);color:inherit;border-radius:2px;padding:0 2px} #sz-tab-options .sample .sz-status{min-height:25px;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:4px 12px;border-top:1px solid var(--sz-line);font-size:10px;color:var(--sz-muted)}
+#sz-tab-options .sample .sz-group-row{display:flex;align-items:center;gap:2px;margin-top:4px} #sz-tab-options .sample .sz-group-row .sz-group-name{flex:1;min-width:0;overflow:hidden;justify-content:space-between;font-size:12px;font-weight:600} #sz-tab-options .sample .sz-group-row button{padding:5px;min-height:31px} #sz-tab-options .sample .sz-group-row .sz-eye{color:var(--sz-muted)} #sz-tab-options .sample .sz-group-row small{font-size:11px;font-weight:400;color:var(--sz-muted)} #sz-tab-options .sample .sz-doc-row{padding-left:27px!important} #sz-tab-options .sample .sz-doc-row span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis} #sz-tab-options .sample .sz-hidden-label{font-size:10px;color:var(--sz-muted);padding-left:29px} #sz-tab-options .sample .sz-version-row{display:block!important;padding:10px!important;width:100%;margin-bottom:4px} #sz-tab-options .sample .sz-version-row>span{display:flex;justify-content:space-between;gap:6px;align-items:center} #sz-tab-options .sample .sz-version-row small{display:block;color:var(--sz-muted);font-size:11px;margin-top:4px} #sz-tab-options .sample .sz-pill{font-size:10px;border:1px solid var(--sz-line);background:var(--sz-bg);border-radius:10px;padding:1px 6px;white-space:nowrap} #sz-tab-options .sample .sz-results .sz-result{display:block;width:100%;padding:9px 8px;font-size:12px;line-height:1.5;margin-bottom:3px} #sz-tab-options .sample .sz-result small{display:block;font-size:10px;color:var(--sz-muted);margin-bottom:3px} #sz-tab-options .sample .sz-find-options{display:flex;align-items:center;gap:8px;padding:0 10px 10px;font-size:11px;color:var(--sz-muted)} #sz-tab-options .sample .sz-find-options label{display:flex;align-items:center;gap:3px} #sz-tab-options .sample .sz-find-options input{accent-color:var(--sz-blue)}
+#sz-tab-options .sample .sz-overlay{position:absolute;inset:48px 0 0;background:#00000022;z-index:10;display:flex;align-items:flex-start;justify-content:center;padding:26px} #sz-tab-options .sample .sz-dialog{background:var(--sz-surface);border:1px solid var(--sz-line);box-shadow:0 12px 38px #00000025;border-radius:12px;width:550px;max-width:100%;overflow:hidden;max-height:100%;display:flex;flex-direction:column} #sz-tab-options .sample .sz-dialog-head{display:flex;align-items:center;padding:12px 15px;border-bottom:1px solid var(--sz-line);gap:8px;flex-shrink:0} #sz-tab-options .sample .sz-dialog-head button:last-child{margin-left:auto} #sz-tab-options .sample .sz-dialog-content{padding:12px;overflow:auto} #sz-tab-options .sample .sz-dialog-head input{border:0;background:transparent;min-width:0;flex:1;padding:4px} #sz-tab-options .sample .sz-command-section{font-size:10px;letter-spacing:.05em;text-transform:uppercase;color:var(--sz-muted);padding:12px 8px 5px} #sz-tab-options .sample .sz-command-result{width:100%;justify-content:space-between} #sz-tab-options .sample .sz-command-result small{font-size:11px;color:var(--sz-muted)} #sz-tab-options .sample .sz-tools-menu{margin-left:auto;width:245px} #sz-tab-options .sample .sz-tools-menu button{width:100%} #sz-tab-options .sample .sz-collection-dialog{width:850px} #sz-tab-options .sample .sz-collection-layout{display:flex;min-height:0;min-width:0;flex:1;overflow:hidden} #sz-tab-options .sample .sz-collection-nav{width:125px;flex-shrink:0;background:var(--sz-bg);border-right:1px solid var(--sz-line);padding:10px 8px} #sz-tab-options .sample .sz-collection-nav button{width:100%;font-size:12px} #sz-tab-options .sample .sz-collection-body{padding:14px;flex:1;min-width:0;overflow:auto;max-height:470px} #sz-tab-options .sample .sz-collection-body .sz-pane-filter{margin:0 0 13px} #sz-tab-options .sample .sz-col-item{display:flex;gap:14px;padding:14px 0;border-bottom:1px solid var(--sz-line)} #sz-tab-options .sample .sz-thumb{width:65px;height:88px;background:var(--sz-page);border:1px solid var(--sz-line);padding:8px 5px;flex-shrink:0;font-size:6px;color:var(--sz-text)} #sz-tab-options .sample .sz-thumb b{font-size:7px} #sz-tab-options .sample .sz-thumb p{border-top:1px solid var(--sz-line);margin:5px 0;height:13px} #sz-tab-options .sample .sz-col-copy{flex:1;min-width:0;font-size:12px} #sz-tab-options .sample .sz-col-copy strong{display:block;margin-bottom:5px} #sz-tab-options .sample .sz-col-copy p{font-size:11px;color:var(--sz-muted);margin:5px 0} #sz-tab-options .sample .sz-col-copy button{font-size:11px;background:var(--sz-bg);margin:6px 4px 0 0} #sz-tab-options .sample .sz-comparing{display:flex;gap:14px} #sz-tab-options .sample .sz-comparing>section{flex:1;min-width:0} #sz-tab-options .sample .sz-comparing .sz-paper{padding:18px;min-height:450px} #sz-tab-options .sample .sz-compare-label{font-size:11px;color:var(--sz-muted);margin-bottom:10px;display:flex;justify-content:space-between} #sz-tab-options .sample .sz-removed{background:var(--sz-red);text-decoration:line-through} #sz-tab-options .sample .sz-added{background:var(--sz-green)} #sz-tab-options .sample .sz-compare-toolbar{display:flex;align-items:center;gap:8px;margin-bottom:15px;font-size:11px;flex-wrap:wrap} #sz-tab-options .sample .sz-compare-toolbar button{background:var(--sz-surface);font-size:11px} #sz-tab-options .sample .sz-announcement{position:absolute;bottom:33px;left:50%;transform:translateX(-50%);background:var(--sz-text);color:var(--sz-surface);padding:8px 12px;border-radius:7px;max-width:85%;font-size:12px;z-index:20;pointer-events:none} #sz-tab-options .sample .sz-announcement:empty{display:none}
+#sz-tab-options .sample.sz-compact .sz-rail{display:none} #sz-tab-options .sample.sz-compact .sz-panel-toggle{display:inline-flex;font-size:12px;border-right:1px solid var(--sz-line);border-radius:0;padding-right:12px} #sz-tab-options .sample .sz-chooser button{width:100%} #sz-tab-options .sample .sz-setting{padding:14px 0;border-bottom:1px solid var(--sz-line)} #sz-tab-options .sample .sz-setting label{display:flex;gap:10px;align-items:center} #sz-tab-options .sample .sz-setting p{font-size:11px;color:var(--sz-muted);overflow-wrap:anywhere}
+@container sz-reader (max-width:780px){#sz-tab-options .sample .sz-rail{width:92px;padding-left:4px;padding-right:4px}#sz-tab-options .sample .sz-pane{width:208px}#sz-tab-options .sample .sz-prototype{display:none}#sz-tab-options .sample .sz-tabs .sz-group-collapsed:not(:first-of-type){display:none}#sz-tab-options .sample .sz-paper{padding:25px}#sz-tab-options .sample .sz-canvas{padding:16px}#sz-tab-options .sample .sz-group-strip .sz-tab{max-width:165px}}
+#sz-tab-options .sample{container-type:inline-size;container-name:sz-reader}
+#sz-tab-options .sample .sz-revision-controls{display:flex;align-items:center;gap:8px;min-width:0}#sz-tab-options .sample .sz-return-latest{font-size:11px;white-space:nowrap}#sz-tab-options .sample .sz-compare-pane{height:380px;overflow:auto}#sz-tab-options .sample .sz-minimap{width:38px;flex-shrink:0;background:var(--sz-bg);border-left:1px solid var(--sz-line);padding:8px 5px;overflow:auto}#sz-tab-options .sample .sz-minimap button{width:26px;height:32px;min-height:32px;padding:0;justify-content:center;border:1px solid var(--sz-line);border-radius:2px;background:var(--sz-page);margin-bottom:5px;font-size:9px;color:var(--sz-muted)}#sz-tab-options .sample .sz-minimap button[aria-current=page]{outline:1px solid var(--sz-blue);background:var(--sz-active)}#sz-tab-options .sample .sz-minimap button.sz-map-hit{border-right:3px solid var(--sz-blue)}
+@container sz-reader (max-width:650px){#sz-tab-options .sample .sz-rail{display:none}#sz-tab-options .sample .sz-panel-toggle{display:inline-flex;font-size:12px}#sz-tab-options .sample .sz-pane{position:absolute;inset:0 auto 0 0;z-index:3;width:230px;box-shadow:8px 0 20px #00000020}#sz-tab-options .sample .sz-command{width:auto}#sz-tab-options .sample .sz-command span{display:none}#sz-tab-options .sample .sz-tabs .sz-group-collapsed{display:none}#sz-tab-options .sample .sz-titlebar{gap:8px}#sz-tab-options .sample .sz-source{max-width:65%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}#sz-tab-options .sample .sz-collection-nav{width:106px}#sz-tab-options .sample .sz-comparing{flex-direction:column}#sz-tab-options .sample .sz-mode-label{max-width:58px;overflow:hidden;text-overflow:ellipsis}#sz-tab-options .sample .sz-zoom{max-width:83px}#sz-tab-options .sample .sz-readingbar{gap:3px;padding:5px}#sz-tab-options .sample .sz-tools-trigger span{display:none}#sz-tab-options .sample .sz-readingbar{height:auto;min-height:44px;flex-wrap:wrap}#sz-tab-options .sample .sz-revision-controls{order:10;width:100%;justify-content:space-between;padding:2px 4px 4px}#sz-tab-options .sample .sz-version-state{max-width:none;flex-shrink:0}#sz-tab-options .sample .sz-collection-layout{flex-direction:column}#sz-tab-options .sample .sz-collection-nav{width:auto;display:flex;border-right:0;border-bottom:1px solid var(--sz-line)}#sz-tab-options .sample .sz-collection-nav button{width:auto}#sz-tab-options .sample .sz-col-item{gap:8px}#sz-tab-options .sample .sz-overlay{padding:12px}#sz-tab-options .sample .sz-group-strip .sz-tab{max-width:170px}#sz-tab-options .sample .sz-pane-head{padding-top:9px}}
+@container sz-reader (max-width:420px){#sz-tab-options .sample .sz-lights{gap:4px;margin:0}#sz-tab-options .sample .sz-titlebar{padding:0 9px}#sz-tab-options .sample .sz-command kbd{display:none}#sz-tab-options .sample .sz-readingbar{height:auto;min-height:44px;flex-wrap:wrap}#sz-tab-options .sample .sz-group-strip .sz-tab:not(.selected){display:none}#sz-tab-options .sample .sz-version-state{order:8;max-width:100%}#sz-tab-options .sample .sz-zoom{font-size:11px}#sz-tab-options .sample .sz-paper{padding:22px}#sz-tab-options .sample .sz-paper h1{font-size:23px}}
+/* Brave-style horizontal strip: individual tabs, compact group labels, shared underline. */
+#sz-tab-options .sample .sz-titlebar{height:44px;gap:6px;background:light-dark(#e8e8ec,#1e1f23);border-bottom:0;padding:0 10px}
+#sz-tab-options .sample .sz-lights{margin-right:10px}
+#sz-tab-options .sample .sz-tabs{align-items:center;gap:7px;height:100%;overflow:hidden}
+#sz-tab-options .sample .sz-browser-group{--group:light-dark(#8063ad,#ba9ae3);--group-label:light-dark(#e0d4ef,#4b3c5f);display:flex;align-items:center;gap:3px;position:relative;height:100%;min-width:0;flex:0 1 auto;padding:4px 0 6px}
+#sz-tab-options .sample .sz-browser-group[data-color=general]{--group:light-dark(#767b86,#aeb3bf);--group-label:light-dark(#d3d6dd,#42454d)}
+#sz-tab-options .sample .sz-browser-group[data-color=research]{--group:light-dark(#b8793b,#e2ae7b);--group-label:light-dark(#efddc8,#594632)}
+#sz-tab-options .sample .sz-browser-group[data-color=teal]{--group:light-dark(#398a80,#82c5ba);--group-label:light-dark(#cde8e2,#304e48)}
+#sz-tab-options .sample .sz-browser-group.is-expanded{flex:1 1 380px;max-width:550px}
+#sz-tab-options .sample .sz-browser-group.is-expanded::after{content:"";position:absolute;bottom:1px;left:2px;right:2px;height:2px;border-radius:2px;background:var(--group)}
+#sz-tab-options .sample .sz-browser-group.is-collapsed{flex-shrink:0}
+#sz-tab-options .sample .sz-group-label{min-height:23px;height:23px;max-width:100px;flex-shrink:0;border-radius:5px;background:var(--group-label);padding:2px 8px;font-size:11px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#sz-tab-options .sample .sz-group-label:hover{background:var(--group-label);filter:brightness(1.12)}
+#sz-tab-options .sample .sz-browser-tab{display:flex;align-items:center;position:relative;height:32px;min-width:0;flex:1 1 200px;max-width:220px;border-radius:8px;background:color-mix(in srgb,var(--group) 7%,transparent)}
+#sz-tab-options .sample .sz-browser-tab:not(.selected)::after{content:"";position:absolute;right:-2px;top:9px;height:14px;width:1px;background:var(--sz-line)}
+#sz-tab-options .sample .sz-browser-tab.selected{background:light-dark(#fff,#414249);box-shadow:0 1px 3px #00000020}
+#sz-tab-options .sample .sz-browser-tab.selected .sz-tab{font-weight:600}
+#sz-tab-options .sample .sz-browser-tab:hover{background:light-dark(#f4f4f7,#35363d)}
+#sz-tab-options .sample .sz-browser-tab.selected:hover{background:light-dark(#fff,#414249)}
+#sz-tab-options .sample .sz-browser-tab .sz-tab{flex:1;min-width:0;height:32px;padding:5px 7px;gap:7px;background:transparent;white-space:nowrap;font-size:12px}
+#sz-tab-options .sample .sz-tab span{min-width:0;overflow:hidden;text-overflow:ellipsis;text-align:left}
+#sz-tab-options .sample .sz-browser-tab .sz-tab svg{width:14px;height:14px;color:var(--group)}
+#sz-tab-options .sample .sz-tab-close{width:23px;height:23px;min-height:23px;padding:4px;flex-shrink:0;margin-right:4px;border-radius:5px}
+#sz-tab-options .sample .sz-tab-close svg{width:13px;height:13px}
+#sz-tab-options .sample .sz-tab-close:hover{background:light-dark(#dedfe5,#555760)}
+#sz-tab-options .sample .sz-group-overflow{font-size:11px;flex-shrink:0;padding:4px;min-height:25px}
+#sz-tab-options .sample .sz-new-tab,#sz-tab-options .sample .sz-tab-more{width:28px;min-height:28px;height:28px;flex-shrink:0;padding:6px;margin:0}
+#sz-tab-options .sample .sz-tab-drag-space{flex:1;min-width:5px}
+#sz-tab-options .sample .sz-command{width:28px;height:28px;min-height:28px;padding:6px;border:0;background:transparent}
+#sz-tab-options .sample .sz-command kbd{display:none}
+#sz-tab-options .sample .sz-overlay{top:44px}
+@container sz-reader (max-width:780px){#sz-tab-options .sample .sz-browser-group.is-collapsed:not(.is-current-group){display:none}#sz-tab-options .sample .sz-browser-group.is-expanded{flex-basis:260px}#sz-tab-options .sample .sz-tab-drag-space{display:none}}
+@container sz-reader (max-width:500px){#sz-tab-options .sample .sz-browser-tab:not(.selected){display:none}#sz-tab-options .sample .sz-browser-group.is-expanded:not(.is-current-group){display:none}#sz-tab-options .sample .sz-group-label{font-size:10px;max-width:66px;padding:2px 5px}#sz-tab-options .sample .sz-lights{margin-right:3px}#sz-tab-options .sample .sz-tabs{gap:3px}#sz-tab-options .sample .sz-new-tab{display:none}}
+@container sz-reader (max-width:360px){#sz-tab-options .sample .sz-browser-tab .sz-tab svg{display:none}#sz-tab-options .sample .sz-titlebar{gap:3px;padding:0 7px}#sz-tab-options .sample .sz-group-label{max-width:52px}#sz-tab-options .sample .sz-tab-close{margin-right:1px}}
+#sz-tab-options .sample .sz-readingbar:has(.sz-revision-controls:not([hidden])){height:auto;flex-wrap:wrap}
+#sz-tab-options .sample .sz-readingbar .sz-revision-controls{order:10;width:100%;justify-content:space-between}
+#sz-tab-options .sample .sz-readingbar .sz-version-state{order:0}
+/* One window grid owns the pane headers, reading controls and footer. */
+#sz-tab-options .sample{--sz-rail-width:104px;--sz-pane-width:232px;--sz-map-width:38px}
+#sz-tab-options .sample .sz-titlebar{display:grid;grid-template-columns:92px minmax(0,1fr) 32px;height:44px;gap:0;padding:0 12px}
+#sz-tab-options .sample .sz-lights{margin:0;gap:8px;padding-left:4px}
+#sz-tab-options .sample .sz-tabs{gap:8px}
+#sz-tab-options .sample .sz-browser-group{height:44px;padding:6px 0;gap:4px}
+#sz-tab-options .sample .sz-browser-group.is-expanded::after{bottom:2px}
+#sz-tab-options .sample .sz-group-label{height:24px;min-height:24px;font-size:12px;line-height:16px;padding:4px 8px}
+#sz-tab-options .sample .sz-browser-tab .sz-tab{height:32px;min-height:32px;line-height:16px;padding:8px;gap:8px}
+#sz-tab-options .sample .sz-browser-tab .sz-tab svg{width:16px;height:16px;display:block}
+#sz-tab-options .sample .sz-tab-close{height:24px;min-height:24px;width:24px;padding:5px;margin-right:4px}
+#sz-tab-options .sample .sz-tab-close svg{display:block;width:14px;height:14px}
+#sz-tab-options .sample .sz-command,#sz-tab-options .sample .sz-tab-more,#sz-tab-options .sample .sz-new-tab{height:32px;min-height:32px;width:32px;padding:8px;justify-content:center}
+#sz-tab-options .sample .sz-shell{display:grid;position:relative;grid-template-columns:var(--sz-rail-width) var(--sz-pane-width) minmax(0,1fr) var(--sz-map-width);grid-template-rows:auto minmax(0,1fr) 28px;gap:0}
+#sz-tab-options .sample .sz-main,#sz-tab-options .sample .sz-content{display:contents}
+#sz-tab-options .sample .sz-shell:has(.sz-pane[hidden]){--sz-pane-width:0px}
+#sz-tab-options .sample .sz-shell:has(.sz-minimap[hidden]){--sz-map-width:0px}
+#sz-tab-options .sample .sz-rail{grid-column:1;grid-row:1/3;width:auto;padding:0 8px 8px;gap:4px;min-height:0}
+#sz-tab-options .sample .sz-rail label{height:44px;min-height:44px;display:flex;align-items:center;padding:0 8px;font-size:10px;line-height:16px;margin:0}
+#sz-tab-options .sample .sz-rail button{height:36px;min-height:36px;padding:0 8px;gap:8px;font-size:12px;line-height:16px;flex-shrink:0}
+#sz-tab-options .sample .sz-rail .sz-doc-section{margin-top:12px;height:28px;min-height:28px}
+#sz-tab-options .sample .sz-pane{grid-column:2;grid-row:1/3;width:auto;position:static;box-shadow:none}
+#sz-tab-options .sample .sz-pane-head{height:44px;min-height:44px;padding:0 12px 0 16px;border-bottom:1px solid var(--sz-line);flex-shrink:0;gap:8px}
+#sz-tab-options .sample .sz-pane-head strong{font-size:13px;line-height:20px}
+#sz-tab-options .sample .sz-pane-head button{height:28px;min-height:28px;width:28px;padding:6px}
+#sz-tab-options .sample .sz-pane-subtitle{padding:12px 16px 8px;font-size:11px;line-height:16px}
+#sz-tab-options .sample .sz-pane-filter{height:32px;min-height:32px;margin:0 12px 8px;padding:0 8px;gap:8px}
+#sz-tab-options .sample .sz-pane-filter input{font-size:12px;line-height:16px;padding:0;height:24px}
+#sz-tab-options .sample .sz-list{padding:0 8px 12px}
+#sz-tab-options .sample .sz-list button.sz-row{height:36px;min-height:36px;padding:0 8px;font-size:12px;line-height:16px;gap:8px}
+#sz-tab-options .sample .sz-pane-foot{padding:8px 16px;line-height:16px}
+#sz-tab-options .sample .sz-readingbar{grid-column:3/5;grid-row:1;height:44px;min-height:44px;padding:6px 12px;gap:8px;flex-wrap:nowrap}
+#sz-tab-options .sample .sz-readingbar button{height:32px;min-height:32px;line-height:16px;padding:8px;gap:8px}
+#sz-tab-options .sample .sz-page-controls{height:32px;gap:0}
+#sz-tab-options .sample .sz-page-controls label{display:flex;align-items:center;height:32px;line-height:16px}
+#sz-tab-options .sample .sz-page-number{height:28px;width:30px;line-height:16px;padding:0}
+#sz-tab-options .sample .sz-zoom{height:28px;font-size:12px;line-height:16px;padding:0 8px}
+#sz-tab-options .sample .sz-canvas{grid-column:3;grid-row:2;padding:24px;min-height:0}
+#sz-tab-options .sample .sz-minimap{grid-column:4;grid-row:2;width:auto;min-height:0;padding:24px 5px 8px}
+#sz-tab-options .sample .sz-status{grid-column:1/-1;grid-row:3;height:28px;min-height:28px;padding:0 16px;line-height:16px}
+#sz-tab-options .sample.sz-compact .sz-shell{--sz-rail-width:0px}
+#sz-tab-options .sample.sz-compact .sz-readingbar .sz-panel-toggle{padding:8px;border:0;border-radius:6px}
+@container sz-reader (max-width:900px){#sz-tab-options .sample .sz-readingbar{padding-left:8px;padding-right:8px;gap:4px}#sz-tab-options .sample .sz-tools-trigger span{display:none}}
+@container sz-reader (max-width:780px){#sz-tab-options .sample{--sz-pane-width:216px}#sz-tab-options .sample .sz-rail{padding:0 8px 8px}#sz-tab-options .sample .sz-canvas{padding:16px}#sz-tab-options .sample .sz-minimap{padding-top:16px}}
+@container sz-reader (max-width:650px){#sz-tab-options .sample .sz-titlebar{grid-template-columns:64px minmax(0,1fr) 32px;padding:0 8px}#sz-tab-options .sample .sz-shell{--sz-rail-width:0px;--sz-pane-width:0px}#sz-tab-options .sample .sz-readingbar{grid-column:1/-1;height:auto;min-height:44px;flex-wrap:wrap;padding:6px 8px;gap:4px}#sz-tab-options .sample .sz-pane{position:absolute;grid-column:1/-1;grid-row:2/3;inset:0 auto 0 0;z-index:3;width:240px;max-width:calc(100% - 38px);box-shadow:8px 0 20px #00000020}#sz-tab-options .sample .sz-pane-head{height:44px;padding:0 12px 0 16px}#sz-tab-options .sample .sz-revision-controls{padding:0;width:100%;gap:4px}#sz-tab-options .sample .sz-readingbar .sz-version-state,#sz-tab-options .sample .sz-readingbar .sz-return-latest{font-size:10px;padding:6px;height:28px;min-height:28px}#sz-tab-options .sample .sz-readingbar .sz-panel-toggle{width:32px;padding:8px;flex-shrink:0}#sz-tab-options .sample .sz-mode-label{display:none}#sz-tab-options .sample .sz-readingbar .sz-tools-trigger{width:32px;padding:8px}#sz-tab-options .sample .sz-tools-trigger svg:last-child{display:none}#sz-tab-options .sample .sz-zoom{max-width:88px}#sz-tab-options .sample .sz-pane-subtitle{padding-top:12px}}
+@container sz-reader (max-width:420px){#sz-tab-options .sample .sz-titlebar{grid-template-columns:52px minmax(0,1fr) 28px;padding:0 6px}#sz-tab-options .sample .sz-lights{gap:5px;padding:0}#sz-tab-options .sample .sz-tabs{gap:4px}#sz-tab-options .sample .sz-group-label{max-width:52px;padding:4px;font-size:11px}#sz-tab-options .sample .sz-browser-tab .sz-tab svg{display:none}#sz-tab-options .sample .sz-command,#sz-tab-options .sample .sz-tab-more{width:28px;padding:6px}#sz-tab-options .sample .sz-tab-close{margin-right:0;width:20px;padding:3px}#sz-tab-options .sample .sz-zoom{max-width:82px}#sz-tab-options .sample .sz-readingbar{gap:2px;padding:6px}#sz-tab-options .sample .sz-status{padding:0 12px}}
+#sz-tab-options .sample .sz-readingbar:has(.sz-revision-controls:not([hidden])){height:auto;flex-wrap:wrap}
+/* Compact tab surfaces, unchanged type and inter-tab spacing. */
+#sz-tab-options .sample .sz-titlebar{padding-bottom:4px}
+#sz-tab-options .sample .sz-browser-group{height:40px;padding:6px 0;gap:4px}
+#sz-tab-options .sample .sz-browser-group.is-expanded::after{bottom:0}
+#sz-tab-options .sample .sz-browser-group.is-expanded .sz-group-label{margin-right:8px}
+#sz-tab-options .sample .sz-browser-tab{height:28px;border-radius:6px}
+#sz-tab-options .sample .sz-browser-tab .sz-tab{height:28px;min-height:28px;padding:6px 8px;font-size:12px;line-height:16px;gap:0}
+#sz-tab-options .sample .sz-browser-tab:not(.selected)::after{top:7px}
+/* Three tab-only alternatives. Append after the corrected Brave baseline.
+   All reuse the reader's palette and geometry; no changes below the title bar. */
+#sz-tab-options .sample:is([data-tab-design="index"],[data-tab-design="tray"],[data-tab-design="outline"]) .sz-browser-group {
+  height:40px; padding:6px 0; gap:4px;
+}
+#sz-tab-options .sample:is([data-tab-design="index"],[data-tab-design="tray"],[data-tab-design="outline"]) .sz-group-label {
+  margin-right:8px; color:var(--sz-text);
+}
+#sz-tab-options .sample:is([data-tab-design="index"],[data-tab-design="tray"],[data-tab-design="outline"]) .sz-browser-tab {
+  height:28px;
+}
+#sz-tab-options .sample:is([data-tab-design="index"],[data-tab-design="tray"],[data-tab-design="outline"]) .sz-browser-tab .sz-tab {
+  height:28px; min-height:28px; padding:6px 8px;
+  font-size:12px; line-height:16px; color:var(--sz-text); background:transparent;
+}
+#sz-tab-options .sample:is([data-tab-design="index"],[data-tab-design="tray"],[data-tab-design="outline"]) .sz-browser-tab .sz-tab svg {
+  display:none;
+}
+#sz-tab-options .sample:is([data-tab-design="index"],[data-tab-design="tray"],[data-tab-design="outline"]) .sz-browser-tab:not(.selected)::after {
+  content:none;
+}
+#sz-tab-options .sample:is([data-tab-design="index"],[data-tab-design="tray"],[data-tab-design="outline"]) .sz-tab-close {
+  width:24px; height:24px; min-height:24px; margin-right:4px;
+}
+
+/* 1. Index: a quiet continuous group rail, with the current document's
+   short underline sitting inside its own tab instead of a raised card. */
+#sz-tab-options .sample[data-tab-design="index"] .sz-browser-group.is-expanded::after {
+  bottom:0; height:1px; background:color-mix(in srgb,var(--group) 65%,transparent);
+}
+#sz-tab-options .sample[data-tab-design="index"] .sz-browser-tab {
+  border-radius:4px; background:color-mix(in srgb,var(--group) 5%,transparent);
+  box-shadow:none;
+}
+#sz-tab-options .sample[data-tab-design="index"] .sz-browser-tab:hover {
+  background:color-mix(in srgb,var(--group) 12%,transparent);
+}
+#sz-tab-options .sample[data-tab-design="index"] .sz-browser-tab.selected,
+#sz-tab-options .sample[data-tab-design="index"] .sz-browser-tab.selected:hover {
+  background:color-mix(in srgb,var(--group) 19%,var(--sz-surface));
+  box-shadow:inset 0 -2px 0 var(--group);
+}
+#sz-tab-options .sample[data-tab-design="index"] .sz-group-label {
+  border-radius:4px; background:color-mix(in srgb,var(--group) 15%,transparent);
+}
+
+/* 2. Tray: membership is one low-contrast rounded enclosure; selection is
+   a stronger same-hue surface. Inner 6px / outer 8px radii share 2px inset. */
+#sz-tab-options .sample[data-tab-design="tray"] .sz-browser-group.is-expanded::after {
+  content:none;
+}
+#sz-tab-options .sample[data-tab-design="tray"] .sz-browser-group.is-expanded::before {
+  content:""; position:absolute; inset:4px 0; border-radius:8px;
+  background:color-mix(in srgb,var(--group) 9%,transparent);
+  box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--group) 27%,transparent);
+  pointer-events:none;
+}
+#sz-tab-options .sample[data-tab-design="tray"] .sz-browser-group > * { position:relative; }
+#sz-tab-options .sample[data-tab-design="tray"] .sz-browser-tab {
+  border-radius:6px; background:color-mix(in srgb,var(--group) 9%,transparent);
+  box-shadow:none;
+}
+#sz-tab-options .sample[data-tab-design="tray"] .sz-browser-tab:hover {
+  background:color-mix(in srgb,var(--group) 17%,transparent);
+}
+#sz-tab-options .sample[data-tab-design="tray"] .sz-browser-tab.selected,
+#sz-tab-options .sample[data-tab-design="tray"] .sz-browser-tab.selected:hover {
+  background:color-mix(in srgb,var(--group) 34%,var(--sz-surface));
+  box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--group) 70%,transparent);
+}
+#sz-tab-options .sample[data-tab-design="tray"] .sz-group-label {
+  border-radius:5px; background:var(--group-label);
+}
+
+/* 3. Outline: one crisp selected perimeter instead of a raised surface;
+   a left group spine and shared baseline retain the membership signal. */
+#sz-tab-options .sample[data-tab-design="outline"] .sz-browser-group.is-expanded::after {
+  bottom:0; height:2px; background:color-mix(in srgb,var(--group) 45%,transparent);
+}
+#sz-tab-options .sample[data-tab-design="outline"] .sz-group-label {
+  border-radius:4px; background:transparent;
+  box-shadow:inset 3px 0 0 var(--group);
+}
+#sz-tab-options .sample[data-tab-design="outline"] .sz-browser-tab {
+  border-radius:6px; background:color-mix(in srgb,var(--group) 7%,transparent);
+  box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--sz-line) 65%,transparent);
+}
+#sz-tab-options .sample[data-tab-design="outline"] .sz-browser-tab:hover {
+  background:color-mix(in srgb,var(--group) 14%,transparent);
+}
+#sz-tab-options .sample[data-tab-design="outline"] .sz-browser-tab.selected,
+#sz-tab-options .sample[data-tab-design="outline"] .sz-browser-tab.selected:hover {
+  background:color-mix(in srgb,var(--group) 21%,var(--sz-surface));
+  box-shadow:inset 0 0 0 2px var(--group);
+}
+
+
+#sz-tab-options{color:light-dark(#26282b,#eceef1);font:13px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+#sz-tab-options section{margin:0 0 24px}
+#sz-tab-options h3{font:500 14px/20px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;margin:0 0 8px}
+#sz-tab-options .sample .sz-preview-tools{display:flex;align-items:center;height:40px;padding:0 16px;gap:16px;background:var(--sz-surface);font-size:12px;color:var(--sz-muted);border-top:1px solid var(--sz-line)}
+#sz-tab-options .sample .sz-titlebar{grid-template-columns:64px minmax(0,1fr) 0;padding-left:12px;padding-right:12px}
+#sz-tab-options .sample .sz-browser-group.is-expanded{max-width:none}
+#sz-tab-options .sample .sz-tab-drag-space{flex:0}
+#sz-tab-options .sample .sz-browser-tab{max-width:none}
+</style>
+<script>
+(()=>{
+  const root=document.getElementById('sz-tab-options');
+  const state={selected:{},collapsed:{},closed:{},...(window.openai?.widgetState?.privateContent||{})};
+  const icon=n=>`<i data-lucide="${n}" aria-hidden="true"></i>`;
+  function draw(){root.querySelectorAll('.sample').forEach(sample=>{
+    const id=sample.dataset.tabDesign, selected=state.selected[id]||0,collapsed=!!state.collapsed[id];
+    sample.innerHTML=`<div class="sz-window"><header class="sz-titlebar"><span class="sz-lights" aria-hidden="true"><b></b><b></b><b></b></span><div class="sz-tabs"><div class="sz-browser-group ${collapsed?'is-collapsed':'is-expanded'} is-current-group" data-color="hardware"><button class="sz-group-label" data-group="${id}" aria-expanded="${!collapsed}" aria-label="${collapsed?'Expand':'Collapse'} Hardware">Hardware</button>${collapsed?'':['Interface specification.pdf','Power review.md'].map((title,i)=>(state.closed[id]||[]).includes(i)?'':`<div class="sz-browser-tab ${selected===i?'selected':''}"><button class="sz-tab" data-option="${id}" data-index="${i}" aria-current="${selected===i?'page':'false'}"><span>${title}</span></button><button class="sz-tab-close" data-close="${id}" data-index="${i}" aria-label="Close ${title}">${icon('x')}</button></div>`).join('')}</div><div class="sz-browser-group is-collapsed" data-color="general"><span class="sz-group-label">General</span></div></div></header><div class="sz-preview-tools">${icon('panel-left')}<span class="sample-page">1 / 20</span><span>Fit width</span></div></div>`;
+  });if(window.lucide)lucide.createIcons({attrs:{width:16,height:16}});}
+  function save(){window.openai?.setWidgetState({modelContent:null,privateContent:state}).catch(()=>{});}
+  root.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;if(b.dataset.option){state.selected[b.dataset.option]=Number(b.dataset.index);}if(b.dataset.group){const id=b.dataset.group;state.collapsed[id]=!state.collapsed[id];if((state.closed[id]||[]).length===2)state.closed[id]=[];}if(b.dataset.close){const id=b.dataset.close,i=Number(b.dataset.index);state.closed[id]=[...(state.closed[id]||[]),i];state.selected[id]=i===0?1:0;if(state.closed[id].length===2)state.collapsed[id]=true;}draw();save();});
+  window.addEventListener('openai:set_globals',e=>{const v=e.detail?.globals?.widgetState?.privateContent;if(v){Object.assign(state,v);draw();}});
+  draw();
+})();
+</script>

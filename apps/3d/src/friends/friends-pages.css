@@ -1,0 +1,245 @@
+/* The other Friends pages (a request or a link's card, forms, the profile, computers, confirmations), the Friends
+   part of Settings, and the narrow and touch layouts, which come last so they override the rest. Imported after
+   friends-chat.css. */
+.szf-request,
+.szf-identity {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 20px 16px 10px;
+  text-align: center;
+}
+.szf-request p {
+  margin: 0;
+  color: var(--secondary);
+}
+.szf-code {
+  font: 600 20px var(--mono);
+  letter-spacing: 2px;
+  user-select: text;
+  margin: 6px 0;
+}
+.szf-form {
+  padding: 4px 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.szf-field,
+.szf-section {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.szf-field label {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.szf-field small,
+.szf-section small,
+.szf-section p {
+  color: var(--muted);
+  margin: 0;
+  line-height: 1.4;
+}
+.szf-label {
+  color: var(--secondary);
+  font-size: 11.5px;
+}
+.szf-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.szf-line > span {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.szf-id {
+  font-family: var(--mono);
+  user-select: text;
+}
+.szf-inline {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.szf-switch {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+.szf-switch > span {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.szf-switch small {
+  color: var(--muted);
+  line-height: 1.4;
+}
+.szf-switch.compact {
+  align-items: center;
+  margin-left: 8px;
+}
+.szf-switch input {
+  accent-color: var(--jade);
+  margin-top: 2px;
+}
+.szf-confirmed-line {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+  color: var(--jade);
+}
+.szf-animal-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 6px;
+  margin-top: 6px;
+}
+.szf-animal-grid button {
+  width: 48px;
+  height: 48px;
+  border-radius: 24px;
+  padding: 4px;
+}
+.szf-animal-grid button.selected {
+  outline: 2px solid var(--jade);
+}
+.szf-crop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.szf-crop-view {
+  position: relative;
+  overflow: hidden;
+  border-radius: 50%;
+  cursor: grab;
+  touch-action: none;
+  background: var(--inset);
+}
+.szf-crop-view img {
+  position: absolute;
+  max-width: none;
+  user-select: none;
+}
+.szf-device {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.szf-device-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+.szf-device-text small {
+  color: var(--muted);
+}
+.szf-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--muted);
+}
+.szf-dot.connected {
+  background: var(--jade);
+}
+.szf-confirm {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--bench), transparent 25%);
+  padding: 16px;
+}
+.szf-settings .szf-confirm {
+  position: fixed;
+  z-index: 200;
+}
+.szf-confirm-box {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px;
+  border-radius: 10px;
+  background: var(--raised);
+  border: 1px solid var(--line-strong);
+  max-width: 340px;
+}
+.szf-confirm-box p {
+  margin: 0;
+  color: var(--secondary);
+  line-height: 1.45;
+}
+.szf-confirm-box .szf-actions {
+  justify-content: flex-end;
+}
+.szf-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 8px 0 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+.szf-settings .szf-form {
+  padding: 0;
+}
+.szf-glyph {
+  flex-shrink: 0;
+}
+/* Phones and narrow windows: the panel is a sheet under the header, edge to edge, above the home indicator, with
+   text large enough to read at arm's length and to type in without iOS zooming the page (16px fields). */
+@media (max-width: 600px) {
+  .szf-panel {
+    position: fixed;
+    top: calc(env(safe-area-inset-top) + 60px);
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: auto;
+    height: auto;
+    border-radius: 14px 14px 0 0;
+    border-left: 0;
+    border-right: 0;
+    border-bottom: 0;
+    padding-bottom: env(safe-area-inset-bottom);
+    font-size: 14px;
+  }
+  .szf-panel input,
+  .szf-panel textarea,
+  .szf-editor {
+    font-size: 16px;
+  }
+  .szf-panel .szf-tabs button,
+  .szf-panel .szf-button {
+    min-height: 36px;
+  }
+  .szf-row {
+    min-height: 56px;
+  }
+}
+/* Touch: no hover to reveal anything, and no hover colour left behind after a tap. */
+@media (hover: none) {
+  .szf-panel button:not(:disabled):hover,
+  .szf-settings button:not(:disabled):hover {
+    background: inherit;
+  }
+  .szf-panel button:not(:disabled):active {
+    background: var(--raised);
+  }
+}
+.szf-inline .szf-button {
+  white-space: nowrap;
+  flex-shrink: 0;
+}

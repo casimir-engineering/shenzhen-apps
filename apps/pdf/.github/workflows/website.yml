@@ -1,0 +1,44 @@
+name: Reader website
+on:
+  push:
+    branches: [master]
+    paths: ['website/**', 'docs/images/portable/**', 'portable/Makefile', '.github/workflows/website.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: reader-website
+  cancel-in-progress: false
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Configure Pages
+        id: pages
+        uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5
+      - name: Build and check static pages
+        env:
+          SITE_BASE: ${{ steps.pages.outputs.base_url }}
+        run: |
+          python3 website/build.py --base "$SITE_BASE" --output _site
+          python3 website/check.py _site
+      - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3
+        with:
+          path: _site
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4
+      - name: Notify Bing through IndexNow
+        continue-on-error: true
+        env:
+          SITE_BASE: ${{ steps.pages.outputs.base_url }}
+        run: |
+          python3 website/submit-indexnow.py --base "$SITE_BASE"

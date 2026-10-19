@@ -1,0 +1,119 @@
+Project         Version    Date
+----------------------------------
+../mupdf        1.27.2
+  https://github.com/ArtifexSoftware/mupdf/releases/tag/1.27.2
+
+libarchive     3.8.6
+  https://github.com/libarchive/libarchive
+
+mujs           git         Oct 29, 2025
+  https://mujs.com/
+  https://github.com/ArtifexSoftware/mujs/commit/33c83d8553048fd7710a518821cdefa5818e1559
+
+bzip2           1.0.8      2019-07-21
+  https://www.sourceware.org/bzip2/
+
+CHMLib          0.40a      2009-07-02
+  https://github.com/jedwing/CHMLib
+
+freetype        2.13.3     2025-07-15
+  https://github.com/ArtifexSoftware/thirdparty-freetype2/tree/artifex
+
+gumbo           ???
+  https://github.com/ArtifexSoftware/thirdparty-gumbo-parser/tree/artifex
+
+harfbuzz        6.0.0 with patches
+  https://harfbuzz.org
+
+jbig2dec        0.18       2020-02-11
+  https://github.com/ArtifexSoftware/jbig2dec/commits/artifexc
+
+libjpeg-turbo   1.3.1      2014-04-20
+  https://github.com/libjpeg-turbo/libjpeg-turbo/tags
+
+libdjvu         master     2025-12-25
+  https://djvu.sourceforge.net/
+  https://github.com/barak/djvulibre
+
+libwebp         1.4.0   2024-04-12
+  https://github.com/webmproject/libwebp/releases/tag/v1.4.0
+
+lzma            9.22b      2011-04-19
+  https://www.7-zip.org/sdk.html
+
+lcms2           git        2.16
+
+MinHook         master     20201-01-1
+  https://github.com/TsudaKageyu/minhook
+
+openjpeg        2.5.4
+
+synctex         1.16       2011-06-14
+  https://itexmac.sourceforge.net/SyncTeX.html
+
+UnRAR           7.1.6
+  https://www.rarlab.com/rar_add.htm
+
+unarr           trunk
+  https://github.com/zeniko/unarr
+
+zlib            1.3.1
+  https://www.zlib.net/
+
+zlib-ng         2.0.6      2021-12-24
+  https://github.com/zlib-ng/zlib-ng
+  https://github.com/zlib-ng/zlib-ng/tree/2.0.x
+
+extract         trunk
+  https://github.com/ArtifexSoftware/extract
+
+windrawlib      trunk
+  https://github.com/mity/windrawlib
+
+dav1d           trunk      2022-05-28
+  https://code.videolan.org/videolan/dav1d
+
+libheif         trunk      2026-01-16
+  https://github.com/strukturag/libheif
+  https://github.com/strukturag/libheif/commit/62f1b8c76ed4d8305071fdacbe74ef9717bacac5
+
+darkmodelib     trunk      2026-01-16
+  https://github.com/ozone10/darkmodelib
+  https://github.com/ozone10/darkmodelib/commit/57cc10c819d17c47b6afd295b424153082144193
+
+libsodium       1.0.22     2026-04-09
+  https://download.libsodium.org/libsodium/releases/libsodium-1.0.22.tar.gz
+  sha256 adbdd8f16149e81ac6078a03aca6fc03b592b89ef7b5ed83841c086191be3349
+  minisign and GPG signatures verified; see ext/libsodium/README.shenzhen.md
+
+cJSON           1.7.19     2025-09-09
+  https://github.com/DaveGamble/cJSON/releases/tag/v1.7.19
+  https://github.com/DaveGamble/cJSON/archive/refs/tags/v1.7.19.tar.gz
+  sha256 7fa616e3046edfa7a28a32d5f9eacfd23f92900fe1f8ccd988c1662f30454562
+
+libdatachannel  0.24.6     2026-09-26
+  https://github.com/paullouisageneau/libdatachannel/releases/tag/v0.24.6
+  https://codeload.github.com/paullouisageneau/libdatachannel/tar.gz/refs/tags/v0.24.6
+  sha256 22a66aebebd8dae561d8e5181da96f2fcc203e067c5b2186c07b39af913464c0
+  Shenzhen Friends' online transport; see ext/libdatachannel/VENDORED.md
+
+libjuice        1.7.4      commit b89c792 (libdatachannel 0.24.6's submodule)
+  https://codeload.github.com/paullouisageneau/libjuice/tar.gz/b89c792e3612faf2f12cf35bcc56857313a06be3
+  sha256 713b22174e8cb2e06538fa9bac2650bda21b83c86f5128813ab4dcf8f5bea9ed
+
+usrsctp         0.9.5.0    commit fec583d (libdatachannel's fork, its submodule)
+  https://codeload.github.com/paullouisageneau/usrsctp/tar.gz/fec583d54493f879d2ae44a743423bf8a04371ab
+  sha256 e5c114afe73c9a0ec419fab5f5b3f63f3ce57b09b90d06ea85e63dca8aed3e7c
+
+plog            git        commit 94899e0 (libdatachannel 0.24.6's submodule)
+  https://codeload.github.com/SergiusTheBest/plog/tar.gz/94899e0b926ac1b0f4750bfbd495167b4a6ae9ef
+  sha256 92a08bce559b5f28aa88d3fd9071567414b9f43a83fe2a05a6dd14f1da536072
+
+Mbed TLS        3.6.7      3.6 LTS
+  https://github.com/Mbed-TLS/mbedtls/releases/download/mbedtls-3.6.7/mbedtls-3.6.7.tar.bz2
+  sha256 a7e8bcbec0e6f761b4af24f25677626b35f762f68eef79c08677a363212d11f6
+
+miniupnpc       2.3.3      2025-05-27 with a local patch to miniwget.c
+  http://miniupnp.free.fr/files/miniupnpc-2.3.3.tar.gz
+  sha256 d52a0afa614ad6c088cc9ddff1ae7d29c8c595ac5fdd321170a05f41e634bd1a
+  Shenzhen Friends' UPnP port mapping; see ext/miniupnpc/VENDORED.md

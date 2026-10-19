@@ -1,0 +1,85 @@
+# tauri-plugin-szfriends: Shenzhen Friends for Tauri apps (ADR 0015 § 4). It gives the app's main window
+# `window.shenzhenFriends`, the same bridge the Electron preload gives Shenzhen 3D's Mac app, so one React UI serves
+# both. Desktops speak PROTOCOL.md to the helper (client mode: the Rust helper on Windows and Linux, the Objective-C
+# helper on a Mac); phones run the core in the app's process (embedded mode) and pass the same JSON frames.
+#
+# Its own workspace, outside core-rs, so the core builds and tests without Tauri. Built by the host app.
+[workspace]
+
+[package]
+name = "tauri-plugin-szfriends"
+description = "Shenzhen Friends in Tauri apps: the helper on desktops, the core in the app on phones"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.85"
+publish = false
+license = "GPL-3.0-only"
+links = "tauri-plugin-szfriends"
+build = "build.rs"
+
+[lib]
+name = "tauri_plugin_szfriends"
+path = "src/lib.rs"
+
+[features]
+# Phones: Friends over the Internet in the app's own process (the host connection and the data-channel stack).
+online = ["szfriends-helper/online"]
+# Test builds of the app (Shenzhen 3D's friends-smoke): Config::state_dir is honoured in a release build too.
+test-homes = []
+
+[dependencies]
+tauri = { version = "2.12", default-features = false }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", default-features = false, features = ["sync", "time"] }
+szfriends-contract = { path = "../core-rs/crates/szfriends-contract" }
+szfriends-crypto = { path = "../core-rs/crates/szfriends-crypto" }
+# Without online: desktops reach the helper process, which has it; phones stay nearby only until online fits their
+# size budget (ADR 0015 § 12). An app opts its phones in with this crate's `online` feature.
+szfriends-helper = { path = "../core-rs/crates/szfriends-helper", default-features = false }
+szfriends-core = { path = "../core-rs/crates/szfriends-core" }
+szfriends-identity = { path = "../core-rs/crates/szfriends-identity" }
+zeroize = "1.8"
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+# Phones: the native plugin (iOS registers it through wry's webview), whose streams' bytes cross base64-encoded
+# (src/nearby.rs).
+[target.'cfg(any(target_os = "android", target_os = "ios"))'.dependencies]
+tauri = { version = "2.12", default-features = false, features = ["wry"] }
+base64 = "0.22"
+
+# Dropped files' paths from the system's webview (src/drops/): the crates and versions Tauri's wry runtime uses.
+[target.'cfg(windows)'.dependencies]
+tauri = { version = "2.12", default-features = false, features = ["wry"] }
+webview2-com = "0.39"
+windows-core = "0.62"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+tauri = { version = "2.12", default-features = false, features = ["wry"] }
+gtk = "0.18"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2-app-kit = { version = "0.3", default-features = false, features = [
+    "std",
+    "NSEvent",
+    "NSPasteboard",
+    "NSPasteboardItem",
+] }
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSArray", "NSString", "NSURL"] }
+
+[target.'cfg(target_os = "macos")'.dev-dependencies]
+objc2 = "0.6"
+
+[build-dependencies]
+tauri-plugin = { version = "2.7", features = ["build"] }
+
+[dev-dependencies]
+tauri = { version = "2.12", default-features = false, features = ["test"] }
+
+[lints.rust]
+missing_debug_implementations = "warn"
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }

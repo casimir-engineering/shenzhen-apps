@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <!-- Hedgehog: prickly on the outside, wearing the apple it found as a hat. -->
+  <clipPath id="c"><circle cx="32" cy="32" r="32"/></clipPath>
+  <circle id="bg" cx="32" cy="32" r="32" fill="#864a46"/>
+  <g clip-path="url(#c)">
+    <path d="M6 50 L4 40 L9 38 L5 29 L11 27 L9 18 L16 18 L16 9 L23 12 L26 4 L32 9 L38 4 L41 12 L48 9 L48 18
+             L55 18 L53 27 L59 29 L55 38 L60 40 L58 50 Z" fill="#a87c52"/>
+    <path d="M10 64 Q8 46 12 40 L52 40 Q56 46 54 64 Z" fill="#a87c52"/>
+    <path d="M9.5 25 L13.5 27.3 M19 15.5 L21.6 20 M32 12 V17.5 M45 15.5 L42.4 20 M54.5 25 L50.5 27.3"
+          stroke="#7f5a3a" stroke-width="1.8" stroke-linecap="round"/>
+    <path d="M12 44 Q12 22 32 22 Q52 22 52 44 Q48 56 32 57 Q16 56 12 44 Z" fill="#f6e3c4"/>
+    <ellipse cx="32" cy="72" rx="16" ry="14" fill="#f6e3c4"/>
+    <circle cx="40" cy="10" r="6" fill="#ef4b4b"/>
+    <path d="M40 4.5 Q40.5 2 42 1" fill="none" stroke="#7a5236" stroke-width="1.4" stroke-linecap="round"/>
+    <ellipse cx="44" cy="3.5" rx="2.8" ry="1.4" transform="rotate(-20 44 3.5)" fill="#8fd16a"/>
+    <ellipse cx="25" cy="37" rx="3" ry="3.6" fill="#2b2233"/>
+    <ellipse cx="39" cy="37" rx="3" ry="3.6" fill="#2b2233"/>
+    <circle cx="26.1" cy="35.6" r="1.2" fill="#ffffff"/>
+    <circle cx="40.1" cy="35.6" r="1.2" fill="#ffffff"/>
+    <ellipse cx="20" cy="43.5" rx="3" ry="1.9" fill="#ff8fa3" opacity="0.8"/>
+    <ellipse cx="44" cy="43.5" rx="3" ry="1.9" fill="#ff8fa3" opacity="0.8"/>
+    <ellipse cx="32" cy="43" rx="3" ry="2.3" fill="#2b2233"/>
+    <path d="M28.5 47 Q32 50 35.5 47" fill="none" stroke="#2b2233" stroke-width="1.7" stroke-linecap="round"/>
+  </g>
+</svg>

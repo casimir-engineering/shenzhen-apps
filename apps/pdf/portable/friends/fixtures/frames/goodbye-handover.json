@@ -1,0 +1,10 @@
+{
+  "type": "goodbye",
+  "reason": "handover",
+  "message": null,
+  "successor": {
+    "version": "26.10.20-1",
+    "build_number": 26102001
+  },
+  "error": null
+}

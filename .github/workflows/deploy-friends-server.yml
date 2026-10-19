@@ -1,0 +1,72 @@
+name: Deploy the Friends host
+# Deploys apps/pdf/portable/server/friends at a friends-server/<YY.M.D>-<N> tag of this repository to the main
+# Friends host, as apps/pdf/portable/server/friends/deploy/DEPLOY.md § 9 does by hand. Started by hand only, and the
+# deploy step waits for approval in the friends-host environment (docs/RELEASING.md).
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: The friends-server/<YY.M.D>-<N> tag to deploy
+        required: true
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: deploy-friends-server
+  cancel-in-progress: false
+jobs:
+  test:
+    if: github.repository_owner == 'casimir-engineering' && startsWith(inputs.tag, 'friends-server/')
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: apps/pdf/portable/server/friends
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refs/tags/${{ inputs.tag }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/pdf/portable/server/friends/package-lock.json
+      - run: npm ci
+      - run: npm test
+  deploy:
+    needs: test
+    runs-on: ubuntu-24.04
+    environment: friends-host
+    env:
+      TAG: ${{ inputs.tag }}
+      HOST: ${{ secrets.FRIENDS_HOST_ADDRESS }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refs/tags/${{ inputs.tag }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: SSH access
+        env:
+          KEY: ${{ secrets.FRIENDS_HOST_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.FRIENDS_HOST_KNOWN_HOSTS }}
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$KEY" > ~/.ssh/friends-host && chmod 600 ~/.ssh/friends-host
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+      - name: Copy the host at the tag and rebuild its stack
+        run: |
+          ssh_host() { ssh -i ~/.ssh/friends-host -o StrictHostKeyChecking=yes "root@$HOST" "$@"; }
+          git archive "$TAG:apps/pdf/portable/server/friends" |
+            ssh_host 'rm -rf /opt/stacks/friends/src/* && tar -x -C /opt/stacks/friends/src'
+          ssh_host 'cd /opt/stacks/friends && docker compose up -d --build'
+          sleep 10
+          ssh_host 'docker exec friends wget -q -O- http://127.0.0.1:8080/healthz'
+          # DEPLOY.md § 9: reload the ingress so it drops connections to the old container.
+          if [ -n "$INGRESS" ]; then
+            ssh_host "docker exec $INGRESS nginx -t && docker exec $INGRESS nginx -s reload"
+          else
+            echo "::warning::FRIENDS_INGRESS_CONTAINER is not set: reload the ingress by hand (DEPLOY.md § 9)"
+          fi
+        env:
+          INGRESS: ${{ vars.FRIENDS_INGRESS_CONTAINER }}

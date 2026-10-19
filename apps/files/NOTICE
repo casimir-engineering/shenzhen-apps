@@ -1,0 +1,6 @@
+Shenzhen Files.app combines this port of GNOME Files (Nautilus) with Shenzhen
+Friends, built from Shenzhen PDF (https://github.com/casimir-engineering/shenzhen-pdf),
+which is licensed under GPL-3.0. The combined app is distributed under the terms
+of the GNU General Public License version 3 (see LICENSE). The third-party
+notices of Shenzhen Friends (libsodium, cJSON, the EFF Large Wordlist for
+Passphrases) ship in the app as Contents/Resources/Friends/Acknowledgements.txt.

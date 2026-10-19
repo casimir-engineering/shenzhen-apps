@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <!-- Dog: floppy ears, tongue out, delighted that you exist. -->
+  <clipPath id="c"><circle cx="32" cy="32" r="32"/></clipPath>
+  <circle id="bg" cx="32" cy="32" r="32" fill="#2f6a62"/>
+  <g clip-path="url(#c)">
+    <ellipse cx="32" cy="74" rx="26" ry="16" fill="#f0d2a4"/>
+    <ellipse cx="32" cy="32" rx="17.5" ry="17" fill="#f0d2a4"/>
+    <ellipse cx="32" cy="41" rx="10" ry="8" fill="#fff4e0"/>
+    <path d="M18 17 Q8 16 9 30 Q10 40 16 41 Q20 40 19 32 Z" fill="#9a6440"/>
+    <path d="M46 17 Q56 16 55 30 Q54 40 48 41 Q44 40 45 32 Z" fill="#9a6440"/>
+    <ellipse cx="38.5" cy="25" rx="5.5" ry="5" fill="#d9a46a"/>
+    <ellipse cx="25" cy="29" rx="3" ry="3.6" fill="#2b2233"/>
+    <ellipse cx="39" cy="29" rx="3" ry="3.6" fill="#2b2233"/>
+    <circle cx="26.1" cy="27.6" r="1.2" fill="#ffffff"/>
+    <circle cx="40.1" cy="27.6" r="1.2" fill="#ffffff"/>
+    <ellipse cx="32" cy="37" rx="4.2" ry="3" fill="#2b2233"/>
+    <circle cx="30.6" cy="36" r="0.9" fill="#6a6074"/>
+    <path d="M27 42 Q29.5 44.5 32 42 Q34.5 44.5 37 42" fill="none" stroke="#2b2233" stroke-width="1.6"
+          stroke-linecap="round"/>
+    <path d="M29.4 43.2 Q29 50.5 32 50.5 Q35 50.5 34.6 43.2 Q32 44.6 29.4 43.2 Z" fill="#ff6f8a"/>
+    <path d="M32 44.4 V48" stroke="#e04a6a" stroke-width="0.9" stroke-linecap="round"/>
+  </g>
+</svg>

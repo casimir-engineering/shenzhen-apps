@@ -1,0 +1,219 @@
+{
+  "type": "snapshot",
+  "subscription": "s_10",
+  "view": "conversation",
+  "rev": 6,
+  "data": {
+    "conversation_id": "c_priya",
+    "header": {
+      "title": "Priya Raman",
+      "subtitle": "Couldn’t connect just now",
+      "route": {
+        "kind": "offline",
+        "method": null,
+        "label": "Couldn’t connect just now"
+      },
+      "avatar": {
+        "kind": "animal",
+        "set": 1,
+        "index": 9,
+        "initials": "PR",
+        "color": "#4f4f86"
+      },
+      "details_available": true,
+      "accessibility_label": "Priya Raman, couldn’t connect just now, show details"
+    },
+    "back": {
+      "badge_count": 2,
+      "badge_label": "2",
+      "accessibility_label": "Back to Friends, 2 waiting"
+    },
+    "search_placeholder": "Search this conversation",
+    "has_earlier": false,
+    "items": [
+      {
+        "kind": "day",
+        "item_id": "d_20260902",
+        "label": "2 Sep",
+        "highlighted": false,
+        "accessibility_label": "2 September"
+      },
+      {
+        "kind": "event",
+        "item_id": "e_3c90f1a2",
+        "text": "You are now friends",
+        "time_label": "16:20",
+        "highlighted": false,
+        "accessibility_label": "You are now friends, 2 September at 16:20"
+      },
+      {
+        "kind": "day",
+        "item_id": "d_20260904",
+        "label": "4 Sep",
+        "highlighted": false,
+        "accessibility_label": "4 September"
+      },
+      {
+        "kind": "message",
+        "item_id": "m_9b31c7e5",
+        "direction": "out",
+        "text": "Are you free for the site visit on Thursday?",
+        "text_format": "markdown",
+        "segments": [
+          {
+            "text": "Are you free for the site visit on Thursday?"
+          }
+        ],
+        "time_label": "10:15",
+        "status": {
+          "state": "failed",
+          "label": "Not delivered. Stopped trying after 30 days."
+        },
+        "assistant_label": null,
+        "actions": [
+          {
+            "action": "retry_item",
+            "label": "Try again",
+            "style": "link"
+          }
+        ],
+        "highlighted": false,
+        "accessibility_label": "You, 10:15: Are you free for the site visit on Thursday? Not delivered. Stopped trying after 30 days."
+      },
+      {
+        "kind": "day",
+        "item_id": "d_20261011",
+        "label": "Yesterday",
+        "highlighted": false,
+        "accessibility_label": "Yesterday"
+      },
+      {
+        "kind": "message",
+        "item_id": "m_7a3e5b21",
+        "direction": "out",
+        "text": "The new delivery dates are on page 5.",
+        "text_format": "markdown",
+        "segments": [
+          {
+            "text": "The new delivery dates are on page 5."
+          }
+        ],
+        "time_label": "17:40",
+        "status": {
+          "state": "cancelled",
+          "label": "Cancelled"
+        },
+        "assistant_label": "Via the assistant",
+        "actions": [],
+        "highlighted": false,
+        "accessibility_label": "You, 17:40, via the assistant: The new delivery dates are on page 5. Cancelled."
+      },
+      {
+        "kind": "message",
+        "item_id": "m_c4d27a19",
+        "direction": "out",
+        "text": "I've marked the new delivery dates on page 4.",
+        "text_format": "markdown",
+        "segments": [
+          {
+            "text": "I've marked the new delivery dates on page 4."
+          }
+        ],
+        "time_label": "17:58",
+        "status": {
+          "state": "queued",
+          "label": "Sends when Priya is online or nearby"
+        },
+        "assistant_label": null,
+        "actions": [
+          {
+            "action": "cancel_message",
+            "label": "Cancel",
+            "style": "link"
+          }
+        ],
+        "highlighted": false,
+        "accessibility_label": "You, 17:58: I've marked the new delivery dates on page 4. Sends when Priya is online or nearby."
+      },
+      {
+        "kind": "message",
+        "item_id": "m_0d1e2f30",
+        "direction": "out",
+        "text": "Here's the latest contract.",
+        "text_format": "markdown",
+        "segments": [
+          {
+            "text": "Here's the latest contract."
+          }
+        ],
+        "time_label": null,
+        "status": {
+          "state": "queued",
+          "label": "Sends when Priya is online or nearby"
+        },
+        "assistant_label": null,
+        "actions": [
+          {
+            "action": "cancel_message",
+            "label": "Cancel",
+            "style": "link"
+          }
+        ],
+        "highlighted": false,
+        "accessibility_label": "You, 18:02: Here's the latest contract. Sends when Priya is online or nearby."
+      },
+      {
+        "kind": "transfer",
+        "item_id": "t_6a2f90b8",
+        "transfer_id": "t_6a2f90b8",
+        "direction": "out",
+        "file": {
+          "name": "Supplier contract v3.pdf",
+          "kind_label": "PDF",
+          "size_label": "2.4 MB",
+          "size_bytes": 2431029,
+          "path": null,
+          "type_identifier": "com.adobe.pdf",
+          "extension": "pdf"
+        },
+        "meta_label": "PDF · 2.4 MB",
+        "state": "queued",
+        "status_label": "Sends when Priya is online or nearby",
+        "route_note": null,
+        "progress": null,
+        "thumbnail": null,
+        "actions": [
+          {
+            "action": "cancel_transfer",
+            "label": "Cancel",
+            "style": "link"
+          }
+        ],
+        "assistant_label": null,
+        "time_label": "18:02",
+        "highlighted": false,
+        "accessibility_label": "You are sending Supplier contract v3.pdf, PDF, 2.4 MB. Sends when Priya is online or nearby."
+      }
+    ],
+    "highlight_item_id": null,
+    "request": null,
+    "composer": {
+      "visible": true,
+      "enabled": true,
+      "placeholder": "Message Priya",
+      "hint": [
+        {
+          "text": "#",
+          "emphasis": true
+        },
+        {
+          "text": " Attach · or drop files"
+        }
+      ],
+      "send_label": "Send",
+      "note": "Couldn’t connect to Priya just now. Friends keeps trying, and sends what’s waiting as soon as it can.",
+      "accepts_drops": true,
+      "max_text_bytes": 32768
+    }
+  }
+}

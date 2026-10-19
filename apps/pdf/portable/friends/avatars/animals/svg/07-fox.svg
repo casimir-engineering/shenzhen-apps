@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <!-- Fox: one wink, one grin, and a plan you will hear about later. -->
+  <clipPath id="c"><circle cx="32" cy="32" r="32"/></clipPath>
+  <circle id="bg" cx="32" cy="32" r="32" fill="#3f6b4f"/>
+  <g clip-path="url(#c)">
+    <ellipse cx="32" cy="73" rx="25" ry="16" fill="#f28a3a"/>
+    <ellipse cx="32" cy="72" rx="11" ry="12" fill="#fff4e0"/>
+    <path d="M11 30 L13 5 L30 20 Z" fill="#f28a3a"/>
+    <path d="M53 30 L51 5 L34 20 Z" fill="#f28a3a"/>
+    <path d="M13 5 L12.2 15 L19.5 10.5 Z M51 5 L51.8 15 L44.5 10.5 Z" fill="#2b2233"/>
+    <path d="M15.5 23 L16 13 L24 19.5 Z M48.5 23 L48 13 L40 19.5 Z" fill="#ffd9c0"/>
+    <path d="M12 32 Q14 17 32 17 Q50 17 52 32 Q50 42 32 50 Q14 42 12 32 Z" fill="#f28a3a"/>
+    <path d="M12 32 Q20 33 26 38 Q29 41 32 41 Q35 41 38 38 Q44 33 52 32 Q50 42 32 50 Q14 42 12 32 Z"
+          fill="#fff4e0"/>
+    <ellipse cx="24.5" cy="29" rx="3" ry="3.6" fill="#2b2233"/>
+    <circle cx="25.6" cy="27.6" r="1.2" fill="#ffffff"/>
+    <path d="M36 29.5 Q39.5 26 43 29.5" fill="none" stroke="#2b2233" stroke-width="2.2" stroke-linecap="round"/>
+    <ellipse cx="32" cy="40.5" rx="3" ry="2.2" fill="#2b2233"/>
+    <path d="M28 44 Q32 47.5 37 43.5" fill="none" stroke="#2b2233" stroke-width="1.7" stroke-linecap="round"/>
+  </g>
+</svg>

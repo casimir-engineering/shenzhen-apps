@@ -1,0 +1,25 @@
+[package]
+name = "szfriends-datachannel-sys"
+description = "The helper's pinned WebRTC data channels: libdatachannel, libjuice, usrsctp, Mbed TLS, built with cc"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+links = "datachannel"
+build = "build.rs"
+
+[dependencies]
+
+[dev-dependencies]
+hex.workspace = true
+
+[build-dependencies]
+cc = { version = "1.2", features = ["parallel"] }
+
+# Not the workspace lints: this is the one crate allowed `unsafe` (the FFI), behind a safe interface (README).
+[lints.rust]
+unsafe_op_in_unsafe_fn = "deny"
+missing_debug_implementations = "warn"
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }

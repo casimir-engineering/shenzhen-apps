@@ -1,0 +1,74 @@
+# Shenzhen Friends portable core: the Rust implementation of the wire protocols and the view contract that the
+# Objective-C helper (portable/friends/service) speaks, for Windows, Linux, Android and iOS hosts. ADR 0015
+# (docs/adr/0015-portable-core.md) is the decision; portable/docs/plans/friends-portable-core.md the plan.
+#
+# Golden vectors exported from the Objective-C helper live in portable/friends/fixtures/vectors/; every crate's
+# tests read them, so the two implementations cannot drift apart unnoticed (core-rs.mk: friends-vectors-check,
+# friends-core-rs-check).
+
+[workspace]
+resolver = "2"
+members = ["crates/*", "tools/embedded-size", "tools/nat-peer"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.85"
+publish = false
+
+[workspace.dependencies]
+szfriends-wire = { path = "crates/szfriends-wire" }
+szfriends-crypto = { path = "crates/szfriends-crypto" }
+szfriends-identity = { path = "crates/szfriends-identity" }
+szfriends-contract = { path = "crates/szfriends-contract" }
+szfriends-core = { path = "crates/szfriends-core" }
+szfriends-vectors = { path = "crates/szfriends-vectors" }
+
+# One curve25519-dalek for snow, CPace and the identity keys (snow 0.10 pins the 4.x line). Not snow's "std": in 0.10
+# it enables ring, a second crypto library with its own C and assembly build for every target.
+snow = { version = "0.10", default-features = false, features = [
+    "default-resolver", "use-chacha20poly1305", "use-blake2", "use-curve25519", "use-getrandom",
+] }
+curve25519-dalek = { version = "4.1.3", default-features = false, features = [
+    "alloc", "zeroize", "precomputed-tables",
+] }
+ed25519-dalek = { version = "2.1", default-features = false, features = ["std", "zeroize"] }
+blake2 = "0.10"
+sha2 = "0.10"
+hmac = "0.12"
+subtle = "2.6"
+zeroize = "1.8"
+getrandom = "0.3"
+unicode-normalization = "0.1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+hex = "0.4"
+# ADR 0015 § 7: SQLite bundled on Windows, Linux and Android (FTS5 with trigram everywhere), the system library on iOS.
+rusqlite = { version = "0.40", default-features = false }
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+missing_debug_implementations = "warn"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+
+# Tests replay every byte of the helper's sessions through real cryptography: optimise the dependencies (curves,
+# ciphers, SQLite) even in debug builds, so the suites stay quick in the VMs and simulators.
+[profile.dev.package."*"]
+opt-level = 2
+
+[profile.release]
+opt-level = "s"
+lto = "thin"
+codegen-units = 1
+panic = "abort"
+strip = "symbols"
+
+# Phones (ADR 0015 § 12's 5 MB): the release profile made smaller, at the cost of speed a phone's radio never misses.
+# An app embedding the core sets the same in its own release profile for its phone builds (tools/embedded-size.sh
+# measures with it); szfriends-datachannel-sys compiles its C and C++ at -Oz on phones by itself.
+[profile.phone]
+inherits = "release"
+opt-level = "z"
+lto = "fat"

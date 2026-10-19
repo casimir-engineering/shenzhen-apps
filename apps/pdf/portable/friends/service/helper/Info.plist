@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- The Shenzhen Friends helper bundle. Its identifier is its own, distinct from every app that embeds it: the
+     reader's quit cascade and the updater's instance count match the reader's identifier, and neither may kill or
+     wait for the helper (ADR 0002). Both apps embed it under this identifier so its Keychain item reads without a
+     prompt. Version keys are set by helper.mk at build time. -->
+<plist version="1.0"><dict>
+<key>CFBundleIdentifier</key><string>com.intuition.shenzhenfriends</string>
+<key>CFBundleName</key><string>Shenzhen Friends</string>
+<key>CFBundleDisplayName</key><string>Shenzhen Friends</string>
+<key>CFBundleExecutable</key><string>Shenzhen Friends</string>
+<key>CFBundlePackageType</key><string>APPL</string>
+<key>CFBundleShortVersionString</key><string>0</string>
+<key>CFBundleVersion</key><string>0</string>
+<key>SZFriendsBuildNumber</key><integer>0</integer>
+<key>LSMinimumSystemVersion</key><string>12.0</string>
+<key>LSBackgroundOnly</key><true/>
+<key>NSLocalNetworkUsageDescription</key>
+<string>Friends uses your local network to find people near you and to send them messages and files directly.</string>
+<key>NSBonjourServices</key><array><string>_szfriends._tcp</string></array>
+<key>NSBluetoothAlwaysUsageDescription</key>
+<string>Friends uses Bluetooth to find people near you, and to reach them when Wi-Fi can't.</string>
+</dict></plist>

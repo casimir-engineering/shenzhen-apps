@@ -1,0 +1,180 @@
+// One profile on several computers built from facts (SZFriendsPresentationDevices.h): every devices-* fixture is what
+// the builder makes of the facts the mockups show, byte for byte as parsed JSON, and each built snapshot validates
+// against PROTOCOL.md. Without devices facts every view stays the one-computer view.
+
+#import "SZFriendsPresentationWorld.h"
+
+#import "service/presentation/SZFriendsPresentationDevices.h"
+#import "service/store/SZFriendsTransfers.h"
+
+static SZFriendsDeviceFacts *Computer(NSString *deviceID, NSString *name, NSString *system, BOOL thisComputer,
+                                      BOOL connected, NSString *_Nullable seen) {
+    SZFriendsDeviceFacts *device = [[SZFriendsDeviceFacts alloc] init];
+    device.deviceID = deviceID;
+    device.name = name;
+    device.system = system;
+    device.thisComputer = thisComputer;
+    device.connected = connected;
+    device.lastSeenAt = seen ? SZPHongKong(seen) : nil;
+    return device;
+}
+
+static SZFriendsDevicesFacts *FourComputers(void) {
+    SZFriendsDevicesFacts *facts = [[SZFriendsDevicesFacts alloc] init];
+    facts.now = SZPNow();
+    facts.computers = @[
+        Computer(@"d_1e9c4a70", @"Raph’s MacBook Pro", @"macOS 26.1", YES, YES, nil),
+        Computer(@"d_5b07e2c9", @"Raph’s Mac mini", @"macOS 15.7", NO, YES, @"2026-10-12 14:47"),
+        Computer(@"d_93f2d618", @"Studio workstation", @"Linux", NO, NO, @"2026-10-11 18:02"),
+        Computer(@"d_c0a47b3e", @"Raph’s MacBook Air", @"macOS 26.1", NO, NO, nil),
+    ];
+    return facts;
+}
+
+static SZFriendsPersonFacts *You(NSString *lastInteraction) {
+    SZFriendsProfileFacts *profile = SZPProfileRaph();
+    SZFriendsPersonFacts *you = [[SZFriendsPersonFacts alloc] init];
+    you.conversationID = @"you";
+    you.name = profile.name;
+    you.friendsID = profile.friendsID;
+    you.picture = profile.picture;
+    you.relation = SZFriendsPersonRelationFriend;
+    you.lastInteractionAt = SZPHongKong(lastInteraction);
+    return you;
+}
+
+static void TestProfileAndRows(void) {
+    SZFriendsSnapshotBuilder *builder = SZPBuilder(SZPAudience());
+    builder.devices = FourComputers();
+    SZPExpectFixture([builder profileWithFacts:SZPProfileRaph() waitingElsewhere:2], @"devices-profile.json",
+                     @"profile");
+    // Within the hour: minutes; this computer cannot remove itself; a removed computer offers nothing.
+    builder.devices.computers = @[ builder.devices.computers[0],
+                                   Computer(@"d_2", @"Office iMac", @"macOS 26.1", NO, NO, @"2026-10-12 14:40") ];
+    NSDictionary *rows = [builder devicesSectionWithFacts:builder.devices now:SZPNow()];
+    NSDictionary *office = rows[@"rows"][1];
+    SZPExpect([office[@"last_connected"] isEqual:@"7 min ago"] &&
+                  [office[@"accessibility_label"] isEqual:@"Office iMac, macOS 26.1, last connected 7 minutes ago"],
+              @"minutes: %@", office);
+    builder.devices.removed = YES;
+    rows = [builder devicesSectionWithFacts:builder.devices now:SZPNow()];
+    SZPExpect(rows[@"rows"][1][@"remove"] == NSNull.null && rows[@"rows"][0][@"rename"] == NSNull.null,
+              @"a removed computer removes and renames nothing");
+    builder.devices = nil;
+    SZPExpect([builder profileWithFacts:SZPProfileRaph() waitingElsewhere:2][@"devices"] == nil,
+              @"without the capability, no devices");
+}
+
+static void TestLists(void) {
+    SZFriendsSnapshotBuilder *builder = SZPBuilder(SZPAudience());
+    NSArray<SZFriendsPersonFacts *> *everyone = SZPPeople().allValues;
+    NSDate *now = SZPNow();
+    SZFriendsDevicesFacts *facts = FourComputers();
+    facts.you = You(@"2026-10-12 15:02");
+    facts.youPreview = SZPTransfer(@"t_6a2e9f14", YES, @"2026-10-12 15:02", @"Bracket drawing rev C.pdf", 41203776,
+                                   SZFriendsTransferStateSending);
+    builder.devices = facts;
+    NSArray<SZFriendsPersonFacts *> *meiOnly = @[ SZPPeople()[@"c_mei"] ];
+    NSMutableDictionary *list = [[builder listWithPeople:meiOnly previewItems:SZPPreviewItems()
+                                                 profile:SZPProfileRaph() query:@"" now:now] mutableCopy];
+    list[@"join_requests"] = @[];
+    SZPExpectFixture([builder listWithDevices:list people:meiOnly query:@"" now:now], @"devices-list.json", @"list");
+    NSDictionary *filtered = [builder listWithDevices:[builder listWithPeople:everyone previewItems:SZPPreviewItems()
+                                                                      profile:SZPProfileRaph() query:@"mei" now:now]
+                                               people:everyone query:@"mei" now:now];
+    SZPExpect(![[filtered[@"rows"] valueForKey:@"conversation_id"] containsObject:@"you"], @"You only matches You");
+
+    // Removed: the rows stay to read, no drops, no join rows.
+    SZFriendsPersonFacts *mei = SZPPeople()[@"c_mei"];
+    mei.routeKind = SZFriendsRouteKindNone;
+    mei.routeMethod = SZFriendsRouteMethodNone;
+    facts.you = nil;
+    facts.removed = YES;
+    NSMutableDictionary *removed = [[builder listWithPeople:@[ mei ] previewItems:SZPPreviewItems()
+                                                    profile:SZPProfileRaph() query:@"" now:now] mutableCopy];
+    removed[@"join_requests"] = @[ @{@"join_id" : @"x"} ];
+    SZPExpectFixture([builder listWithDevices:removed people:@[ mei ] query:@"" now:now], @"devices-list-removed.json",
+                     @"list");
+
+    // A new computer: no name yet, nobody in Friends, offered to join.
+    SZFriendsDevicesFacts *fresh = [[SZFriendsDevicesFacts alloc] init];
+    fresh.now = now;
+    fresh.joinOffered = YES;
+    builder.devices = fresh;
+    SZFriendsProfileFacts *unnamed = SZPProfileRaph();
+    unnamed.name = nil;
+    NSMutableDictionary *empty = [[builder listWithPeople:@[] previewItems:@{} profile:unnamed query:@"" now:now]
+        mutableCopy];
+    empty[@"join_requests"] = @[];
+    SZPExpectFixture([builder listWithDevices:empty people:@[] query:@"" now:now], @"devices-list-new-computer.json",
+                     @"list");
+}
+
+static void TestConversations(void) {
+    SZFriendsSnapshotBuilder *builder = SZPBuilder(SZPAudience());
+    NSDate *now = SZPNow();
+    SZFriendsDevicesFacts *facts = FourComputers();
+    facts.you = You(@"2026-10-12 15:02");
+    SZFriendsItemFacts *message = SZPMessage(@"m_0c7d31e8", YES, @"2026-10-12 14:58", @"Pages to check: 3–5 and 9.",
+                                             -1);
+    SZFriendsItemFacts *file = SZPTransfer(@"t_6a2e9f14", YES, @"2026-10-12 15:02", @"Bracket drawing rev C.pdf",
+                                           41203776, SZFriendsTransferStateQueued);
+    facts.youItemsEverywhere = [NSSet setWithObject:@"m_0c7d31e8"];
+    facts.youCopying = @{@"t_6a2e9f14" : @0.4};
+    builder.devices = facts;
+    SZPExpectFixture([builder conversationForPerson:facts.you items:@[ message, file ] hasEarlier:NO
+                                    highlightItemID:nil waitingElsewhere:2 now:now],
+                     @"devices-conversation-you.json", @"conversation");
+    // Once everything is everywhere, the composer says nothing more.
+    facts.youCopying = @{};
+    facts.youItemsEverywhere = [NSSet setWithObjects:@"m_0c7d31e8", @"t_6a2e9f14", nil];
+    NSDictionary *done = [builder conversationForPerson:facts.you items:@[ message, file ] hasEarlier:NO
+                                        highlightItemID:nil waitingElsewhere:2 now:now];
+    SZPExpect(done[@"composer"][@"note"] == NSNull.null, @"no note once on every computer");
+    SZPExpect([[done[@"items"] lastObject][@"status_label"] isEqual:@"On all your computers"], @"%@", done[@"items"]);
+
+    // Files on another computer.
+    NSArray *items = @[
+        SZPTransfer(@"t_c81f04d2", NO, @"2026-10-12 10:05", @"Factory audit photos.pdf", 312475648,
+                    SZFriendsTransferStateReceived),
+        SZPTransfer(@"t_4d9b7a35", NO, @"2026-10-12 10:07", @"Line 2 layout.pdf", 58402113,
+                    SZFriendsTransferStateReceived),
+        SZPTransfer(@"t_e27c6b90", NO, @"2026-10-12 10:12", @"Supplier quote.pdf", 96110592,
+                    SZFriendsTransferStateReceived),
+    ];
+    SZFriendsDeviceFileFacts *onMini = [[SZFriendsDeviceFileFacts alloc] init];
+    onMini.deviceName = @"Raph’s Mac mini";
+    SZFriendsDeviceFileFacts *copying = [[SZFriendsDeviceFileFacts alloc] init];
+    copying.deviceName = @"Raph’s Mac mini";
+    copying.fetching = YES;
+    copying.holderConnected = YES;
+    copying.fraction = 0.25;
+    SZFriendsDeviceFileFacts *away = [[SZFriendsDeviceFileFacts alloc] init];
+    away.deviceName = @"Studio workstation";
+    away.fetching = YES;
+    facts.files = @{@"t_c81f04d2" : onMini, @"t_4d9b7a35" : copying, @"t_e27c6b90" : away};
+    SZPExpectFixture([builder conversationForPerson:SZPPeople()[@"c_mei"] items:items hasEarlier:NO
+                                    highlightItemID:nil waitingElsewhere:2 now:now],
+                     @"devices-conversation-mei-files.json", @"conversation");
+}
+
+static void TestHistoryWords(void) {
+    SZFriendsSnapshotBuilder *builder = SZPBuilder(SZPAudience());
+    NSDictionary<NSString *, SZFriendsPersonFacts *> *people = SZPPeople();
+    builder.devices = FourComputers();
+    SZPExpectFixture([builder settingsWithProfile:SZPProfileRaph() people:people.allValues], @"devices-settings.json",
+                     @"settings");
+    SZPExpectFixture([builder detailsForPerson:people[@"c_mei"] waitingElsewhere:2 now:SZPNow()],
+                     @"devices-details-mei.json", @"details");
+    // One computer: the words of one computer.
+    builder.devices.computers = @[ builder.devices.computers[0] ];
+    SZPExpectFixture([builder settingsWithProfile:SZPProfileRaph() people:people.allValues], @"settings.json",
+                     @"settings");
+}
+
+void SZPRunDevicesBuildTests(void) {
+    TestProfileAndRows();
+    TestLists();
+    TestConversations();
+    TestHistoryWords();
+}

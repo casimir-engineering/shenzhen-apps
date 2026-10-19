@@ -1,0 +1,994 @@
+{
+  "date": "2026-10-15T20:17:39.781Z",
+  "hardware": {
+    "vendor": "apple",
+    "architecture": "metal-3",
+    "device": "",
+    "description": "",
+    "isFallbackAdapter": false
+  },
+  "model": "sample",
+  "states": [
+    {
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0
+    },
+    {
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.0037735849056603774
+    },
+    {
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.007547169811320755
+    },
+    {
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.011320754716981133
+    },
+    {
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.01509433962264151
+    },
+    {
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.01886792452830189
+    },
+    {
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.022641509433962266
+    },
+    {
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.026415094339622643
+    },
+    {
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.03018867924528302
+    },
+    {
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.033962264150943396
+    },
+    {
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.03773584905660378
+    },
+    {
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.041509433962264156
+    },
+    {
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.04528301886792453
+    },
+    {
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.04905660377358491
+    },
+    {
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.052830188679245285
+    },
+    {
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.05660377358490566
+    },
+    {
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.06037735849056604
+    },
+    {
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.06415094339622641
+    },
+    {
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.06792452830188679
+    },
+    {
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.07169811320754717
+    },
+    {
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.07547169811320756
+    },
+    {
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.07924528301886793
+    },
+    {
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.08301886792452831
+    },
+    {
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.08679245283018869
+    },
+    {
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.09056603773584906
+    },
+    {
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.09433962264150944
+    },
+    {
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.09811320754716982
+    },
+    {
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.1018867924528302
+    },
+    {
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.10566037735849057
+    },
+    {
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.10943396226415095
+    },
+    {
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.11320754716981132
+    },
+    {
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.1169811320754717
+    },
+    {
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.12075471698113208
+    },
+    {
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.12452830188679245
+    },
+    {
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.12830188679245283
+    },
+    {
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.1320754716981132
+    },
+    {
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.13584905660377358
+    },
+    {
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.13962264150943396
+    },
+    {
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.14339622641509434
+    },
+    {
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.1471698113207547
+    },
+    {
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.15094339622641512
+    },
+    {
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.1547169811320755
+    },
+    {
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.15849056603773587
+    },
+    {
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.16226415094339625
+    },
+    {
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.16603773584905662
+    },
+    {
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.169811320754717
+    },
+    {
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.17358490566037738
+    },
+    {
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.17735849056603775
+    },
+    {
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.18113207547169813
+    },
+    {
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.1849056603773585
+    },
+    {
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.18867924528301888
+    },
+    {
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.19245283018867926
+    },
+    {
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.19622641509433963
+    },
+    {
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.2
+    },
+    {
+      "type": "state",
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.05,
+      "estimatedBytes": 81610000
+    },
+    {
+      "type": "state",
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.10660377358490566
+    },
+    {
+      "type": "state",
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.11320754716981132
+    },
+    {
+      "type": "state",
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.11981132075471698
+    },
+    {
+      "type": "state",
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.12641509433962264
+    },
+    {
+      "type": "state",
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.1330188679245283
+    },
+    {
+      "type": "state",
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.13962264150943396
+    },
+    {
+      "type": "state",
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.14622641509433962
+    },
+    {
+      "type": "state",
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.15283018867924528
+    },
+    {
+      "type": "state",
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.15943396226415096
+    },
+    {
+      "type": "state",
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.16603773584905662
+    },
+    {
+      "type": "state",
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.17264150943396228
+    },
+    {
+      "type": "state",
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.1792452830188679
+    },
+    {
+      "type": "state",
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.1858490566037736
+    },
+    {
+      "type": "state",
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.19245283018867926
+    },
+    {
+      "type": "state",
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.19905660377358492
+    },
+    {
+      "type": "state",
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.20566037735849058
+    },
+    {
+      "type": "state",
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.21226415094339623
+    },
+    {
+      "type": "state",
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.2188679245283019
+    },
+    {
+      "type": "state",
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.22547169811320755
+    },
+    {
+      "type": "state",
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.2320754716981132
+    },
+    {
+      "type": "state",
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.23867924528301887
+    },
+    {
+      "type": "state",
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.24528301886792453
+    },
+    {
+      "type": "state",
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.2518867924528302
+    },
+    {
+      "type": "state",
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.2584905660377358
+    },
+    {
+      "type": "state",
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.2650943396226415
+    },
+    {
+      "type": "state",
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.27169811320754716
+    },
+    {
+      "type": "state",
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.2783018867924528
+    },
+    {
+      "type": "state",
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.2849056603773585
+    },
+    {
+      "type": "state",
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.29150943396226414
+    },
+    {
+      "type": "state",
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.29811320754716986
+    },
+    {
+      "type": "state",
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.30471698113207546
+    },
+    {
+      "type": "state",
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.3113207547169811
+    },
+    {
+      "type": "state",
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.3179245283018868
+    },
+    {
+      "type": "state",
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.32452830188679244
+    },
+    {
+      "type": "state",
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.3311320754716981
+    },
+    {
+      "type": "state",
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.3377358490566038
+    },
+    {
+      "type": "state",
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.3443396226415094
+    },
+    {
+      "type": "state",
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.3509433962264151
+    },
+    {
+      "type": "state",
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.35754716981132073
+    },
+    {
+      "type": "state",
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.36415094339622645
+    },
+    {
+      "type": "state",
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.37075471698113205
+    },
+    {
+      "type": "state",
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.37735849056603776
+    },
+    {
+      "type": "state",
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.38396226415094337
+    },
+    {
+      "type": "state",
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.3905660377358491
+    },
+    {
+      "type": "state",
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.3971698113207547
+    },
+    {
+      "type": "state",
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.4037735849056603
+    },
+    {
+      "type": "state",
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.410377358490566
+    },
+    {
+      "type": "state",
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.4169811320754716
+    },
+    {
+      "type": "state",
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.4235849056603773
+    },
+    {
+      "type": "state",
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.43018867924528303
+    },
+    {
+      "type": "state",
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.43679245283018864
+    },
+    {
+      "type": "state",
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.44339622641509435
+    },
+    {
+      "type": "state",
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.44999999999999996
+    },
+    {
+      "type": "state",
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.5
+    },
+    {
+      "type": "state",
+      "status": "rendering",
+      "samples": 0,
+      "target": 32,
+      "progress": 0,
+      "estimatedBytes": 81610000
+    },
+    {
+      "type": "state",
+      "status": "rendering",
+      "samples": 0,
+      "target": 32,
+      "progress": 0
+    },
+    {
+      "type": "state",
+      "status": "rendering",
+      "samples": 1,
+      "target": 32,
+      "progress": 0
+    },
+    {
+      "type": "state",
+      "status": "rendering",
+      "samples": 2,
+      "target": 32,
+      "progress": 0
+    },
+    {
+      "type": "state",
+      "status": "rendering",
+      "samples": 3,
+      "target": 32,
+      "progress": 0.03125
+    },
+    {
+      "type": "state",
+      "status": "rendering",
+      "samples": 4,
+      "target": 32,
+      "progress": 0.03125
+    },
+    {
+      "type": "state",
+      "status": "rendering",
+      "samples": 5,
+      "target": 32,
+      "progress": 0.03125
+    },
+    {
+      "type": "state",
+      "status": "rendering",
+      "samples": 6,
+      "target": 32,
+      "progress": 0.0625
+    },
+    {
+      "type": "state",
+      "status": "rendering",
+      "samples": 7,
+      "target": 32,
+      "progress": 0.09375
+    },
+    {
+      "type": "state",
+      "status": "rendering",
+      "samples": 8,
+      "target": 32,
+      "progress": 0.09375
+    },
+    {
+      "type": "state",
+      "status": "rendering",
+      "samples": 9,
+      "target": 32,
+      "progress": 0.125
+    },
+    {
+      "type": "state",
+      "status": "rendering",
+      "samples": 10,
+      "target": 32,
+      "progress": 0.125
+    },
+    {
+      "type": "state",
+      "status": "rendering",
+      "samples": 11,
+      "target": 32,
+      "progress": 0.125
+    },
+    {
+      "type": "state",
+      "status": "rendering",
+      "samples": 12,
+      "target": 32,
+      "progress": 0.15625
+    },
+    {
+      "type": "state",
+      "status": "rendering",
+      "samples": 13,
+      "target": 32,
+      "progress": 0.15625
+    },
+    {
+      "type": "state",
+      "status": "rendering",
+      "samples": 14,
+      "target": 32,
+      "progress": 0.1875
+    },
+    {
+      "type": "state",
+      "status": "rendering",
+      "samples": 15,
+      "target": 32,
+      "progress": 0.21875
+    },
+    {
+      "type": "state",
+      "status": "rendering",
+      "samples": 16,
+      "target": 32,
+      "progress": 0.21875
+    },
+    {
+      "type": "state",
+      "status": "rendering",
+      "samples": 17,
+      "target": 32,
+      "progress": 0.25
+    },
+    {
+      "type": "state",
+      "status": "rendering",
+      "samples": 18,
+      "target": 32,
+      "progress": 0.25
+    },
+    {
+      "type": "state",
+      "status": "rendering",
+      "samples": 19,
+      "target": 32,
+      "progress": 0.25
+    },
+    {
+      "type": "state",
+      "status": "rendering",
+      "samples": 20,
+      "target": 32,
+      "progress": 0.28125
+    },
+    {
+      "type": "state",
+      "status": "rendering",
+      "samples": 21,
+      "target": 32,
+      "progress": 0.28125
+    },
+    {
+      "type": "state",
+      "status": "rendering",
+      "samples": 22,
+      "target": 32,
+      "progress": 0.3125
+    },
+    {
+      "type": "state",
+      "status": "rendering",
+      "samples": 23,
+      "target": 32,
+      "progress": 0.3125
+    },
+    {
+      "type": "state",
+      "status": "rendering",
+      "samples": 24,
+      "target": 32,
+      "progress": 0.34375
+    },
+    {
+      "type": "state",
+      "status": "rendering",
+      "samples": 25,
+      "target": 32,
+      "progress": 0.375
+    },
+    {
+      "type": "state",
+      "status": "rendering",
+      "samples": 26,
+      "target": 32,
+      "progress": 0.375
+    },
+    {
+      "type": "state",
+      "status": "rendering",
+      "samples": 27,
+      "target": 32,
+      "progress": 0.40625
+    },
+    {
+      "type": "state",
+      "status": "rendering",
+      "samples": 28,
+      "target": 32,
+      "progress": 0.40625
+    },
+    {
+      "type": "state",
+      "status": "rendering",
+      "samples": 29,
+      "target": 32,
+      "progress": 0.4375
+    },
+    {
+      "type": "state",
+      "status": "rendering",
+      "samples": 30,
+      "target": 32,
+      "progress": 0.46875
+    },
+    {
+      "type": "state",
+      "status": "rendering",
+      "samples": 31,
+      "target": 32,
+      "progress": 0.46875
+    },
+    {
+      "type": "state",
+      "status": "ready",
+      "samples": 32,
+      "target": 32,
+      "progress": 1
+    }
+  ],
+  "scene": {
+    "instances": 3760,
+    "uniqueTriangles": 27547,
+    "geometryBytes": 4166928,
+    "textureBytes": 0,
+    "estimatedBytes": 5285136,
+    "materials": 76,
+    "geometryCount": 53
+  },
+  "colors": 543,
+  "immutable": true,
+  "navigationPauseResume": true,
+  "pngReadback": true,
+  "displayParity": {
+    "backgroundDisplayed": [
+      9,
+      16,
+      21,
+      255
+    ],
+    "backgroundExported": [
+      9,
+      16,
+      21,
+      255
+    ],
+    "meanChannelError": 0,
+    "maxChannelError": 0,
+    "channelsOver3": 0,
+    "totalChannels": 576000
+  },
+  "shaderErrors": []
+}

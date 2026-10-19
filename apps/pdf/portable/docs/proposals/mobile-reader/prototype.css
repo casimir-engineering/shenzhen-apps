@@ -1,0 +1,7 @@
+/* Styles are split by screen responsibility, below the 500-line source cap. */
+@import url("prototype-base.css");
+@import url("prototype-reader.css");
+@import url("prototype-organizer.css");
+@import url("prototype-sheets.css");
+@import url("prototype-wheel.css");
+@import url("prototype-adaptive.css");

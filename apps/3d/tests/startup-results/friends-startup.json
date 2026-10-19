@@ -1,0 +1,1101 @@
+{
+  "date": "2026-10-16T16:39:13.699Z",
+  "baseline": "main 62b6bd4 (0.1.9), frontend rebuilt with prepared assets, its own electron/",
+  "candidate": "friends-host 42e66a6 (pin 7e49dfb3a, Copy Download Link), final build",
+  "machine": {
+    "os": "26.5.1",
+    "cpu": "Apple M5 Max"
+  },
+  "method": {
+    "electron": "node electron/startup.mjs --baseline-electron=<main>/electron --runs=20: same Electron 44.7.2 shell and production app:// protocol, fresh profile per launch, alternating order per pair. friends-on: SHENZHEN_3D_FRIENDS_HELPER and a temporary SZFRIENDS_STATE_DIR set, so the candidate attaches to a real helper built from friends.lock. ci95 is 1.96 x SD / sqrt(pairs) of the paired differences.",
+    "browser": "node tests/startup-browser.mjs --expect-lazy, three rounds of 3 repetitions per build, interleaved main, friends, main, friends; medians over 9 runs, and means for paint timings.",
+    "attach": "The candidate's own electron/main.cjs launched 10 times with a helper built from friends.lock and a temporary SZFRIENDS_STATE_DIR (on) and 10 times without (off), alternating, each with a fresh profile and, for on, a helper that had exited, so every attach spawns it. Renderer: PerformanceObserver longtask and long-animation-frame entries from first contentful paint until 3 s after Friends reports ready (on) or 4.5 s after first paint (off). Main process: event-loop lag sampled every 5 ms over the same span. A calibration launch first checks that an 80 ms task in each process is seen."
+  },
+  "summary": {
+    "electron": {
+      "friends-on": {
+        "openReadyMs": {
+          "pairs": 20,
+          "baselineMedian": 311.6,
+          "candidateMedian": 312.4,
+          "pairedMeanDifference": 1.5,
+          "ci95": 5.4
+        },
+        "paintedWelcomeMs": {
+          "pairs": 20,
+          "baselineMedian": 324.9,
+          "candidateMedian": 322.5,
+          "pairedMeanDifference": 1.2,
+          "ci95": 6.5
+        }
+      },
+      "friends-off": {
+        "openReadyMs": {
+          "pairs": 20,
+          "baselineMedian": 306.5,
+          "candidateMedian": 309.3,
+          "pairedMeanDifference": 6.4,
+          "ci95": 9.8
+        },
+        "paintedWelcomeMs": {
+          "pairs": 20,
+          "baselineMedian": 322.5,
+          "candidateMedian": 316.7,
+          "pairedMeanDifference": 0.2,
+          "ci95": 10.8
+        }
+      }
+    },
+    "browser": {
+      "main": {
+        "runs": 9,
+        "coldShellPaintedMs": 64.3,
+        "coldFirstContentfulPaintMs": 84,
+        "criticalJavaScriptEncodedBytes": 92985,
+        "coldSampleClickMs": 59,
+        "warmShellPaintedMs": 27.3,
+        "warmSampleClickMs": 31.9,
+        "offlineShellPaintedMs": 19.3,
+        "coldFirstContentfulPaintMeanMs": 86.7,
+        "coldShellPaintedMeanMs": 66.9,
+        "builtIndex": [
+          {
+            "path": "/assets/index-9bFKZHMh.js",
+            "sha256": "6a5353457a2d259d7c41b2462019a69974f3626cb0c0377d69c795cce52c673a",
+            "rawBytes": 298655,
+            "gzipBytes": 91448
+          }
+        ]
+      },
+      "friends": {
+        "runs": 9,
+        "coldShellPaintedMs": 64,
+        "coldFirstContentfulPaintMs": 84,
+        "criticalJavaScriptEncodedBytes": 93332,
+        "coldSampleClickMs": 58.1,
+        "warmShellPaintedMs": 26.2,
+        "warmSampleClickMs": 32.1,
+        "offlineShellPaintedMs": 19.3,
+        "coldFirstContentfulPaintMeanMs": 83.6,
+        "coldShellPaintedMeanMs": 64.1,
+        "builtIndex": [
+          {
+            "path": "/assets/index-BhXyYUaP.js",
+            "sha256": "0b084857bcdb369b5aed7dc43dfdeffaebdb7488fdee755521664c282171f96c",
+            "rawBytes": 299779,
+            "gzipBytes": 91795
+          }
+        ]
+      }
+    },
+    "attach": {
+      "on": {
+        "runs": 10,
+        "rendererMaxLongTaskMs": {
+          "median": 0,
+          "max": 0
+        },
+        "rendererMaxLongAnimationFrameMs": {
+          "median": 0,
+          "max": 0
+        },
+        "mainMaxLagMs": {
+          "median": 8.5,
+          "max": 10.3
+        },
+        "friendsReadyMs": {
+          "median": 1132.7
+        }
+      },
+      "off": {
+        "runs": 10,
+        "rendererMaxLongTaskMs": {
+          "median": 0,
+          "max": 0
+        },
+        "rendererMaxLongAnimationFrameMs": {
+          "median": 0,
+          "max": 0
+        },
+        "mainMaxLagMs": {
+          "median": 5.1,
+          "max": 13.2
+        }
+      }
+    }
+  },
+  "electronRuns": {
+    "on": [
+      {
+        "variant": "baseline",
+        "run": 1,
+        "openReadyMs": 321.064417,
+        "paintedWelcomeMs": 324.884125,
+        "canvasCount": 0,
+        "usedJSHeapBytes": 4909141,
+        "domContentLoadedMs": 40.89999997615814
+      },
+      {
+        "variant": "candidate",
+        "run": 1,
+        "openReadyMs": 312.40145800000005,
+        "paintedWelcomeMs": 332.654125,
+        "canvasCount": 0,
+        "usedJSHeapBytes": 4957952,
+        "domContentLoadedMs": 41.799999952316284,
+        "firstContentfulPaintMs": 128
+      },
+      {
+        "variant": "candidate",
+        "run": 2,
+        "openReadyMs": 321.2243330000001,
+        "paintedWelcomeMs": 327.21966599999996,
+        "canvasCount": 0,
+        "usedJSHeapBytes": 4960508,
+        "domContentLoadedMs": 42.700000047683716
+      },
+      {
+        "variant": "baseline",
+        "run": 2,
+        "openReadyMs": 305.7906659999999,
+        "paintedWelcomeMs": 321.185291,
+        "canvasCount": 0,
+        "usedJSHeapBytes": 4931601,
+        "domContentLoadedMs": 42.299999952316284
+      },
+      {
+        "variant": "baseline",
+        "run": 3,
+        "openReadyMs": 311.59170900000004,
+        "paintedWelcomeMs": 329.5471249999998,
+        "canvasCount": 0,
+        "usedJSHeapBytes": 4946313,
+        "domContentLoadedMs": 42
+      },
+      {
+        "variant": "candidate",
+        "run": 3,
+        "openReadyMs": 327.7457080000004,
+        "paintedWelcomeMs": 339.893333,
+        "canvasCount": 0,
+        "usedJSHeapBytes": 4960404,
+        "domContentLoadedMs": 48.199999928474426
+      },
+      {
+        "variant": "candidate",
+        "run": 4,
+        "openReadyMs": 302.6497499999996,
+        "paintedWelcomeMs": 315.55575,
+        "canvasCount": 0,
+        "usedJSHeapBytes": 4961364,
+        "domContentLoadedMs": 41
+      },
+      {
+        "variant": "baseline",
+        "run": 4,
+        "openReadyMs": 307.6830409999998,
+        "paintedWelcomeMs": 320.44620799999984,
+        "canvasCount": 0,
+        "usedJSHeapBytes": 4942289,
+        "domContentLoadedMs": 44.60000002384186
+      },
+      {
+        "variant": "baseline",
+        "run": 5,
+        "openReadyMs": 288.90099999999984,
+        "paintedWelcomeMs": 293.186334,
+        "canvasCount": 0,
+        "usedJSHeapBytes": 4919261,
+        "domContentLoadedMs": 40
+      },
+      {
+        "variant": "candidate",
+        "run": 5,
+        "openReadyMs": 305.9634580000002,
+        "paintedWelcomeMs": 315.0752910000001,
+        "canvasCount": 0,
+        "usedJSHeapBytes": 4989328,
+        "domContentLoadedMs": 42.89999997615814
+      },
+      {
+        "variant": "candidate",
+        "run": 6,
+        "openReadyMs": 308.3112080000001,
+        "paintedWelcomeMs": 322.48720799999955,
+        "canvasCount": 0,
+        "usedJSHeapBytes": 4959096,
+        "domContentLoadedMs": 42.700000047683716
+      },
+      {
+        "variant": "baseline",
+        "run": 6,
+        "openReadyMs": 298.8553330000004,
+        "paintedWelcomeMs": 302.38995799999975,
+        "canvasCount": 0,
+        "usedJSHeapBytes": 4923245,
+        "domContentLoadedMs": 42.60000002384186
+      },
+      {
+        "variant": "baseline",
+        "run": 7,
+        "openReadyMs": 308.1072090000007,
+        "paintedWelcomeMs": 313.38800000000083,
+        "canvasCount": 0,
+        "usedJSHeapBytes": 4916049,
+        "domContentLoadedMs": 42
+      },
+      {
+        "variant": "candidate",
+        "run": 7,
+        "openReadyMs": 300.1678329999995,
+        "paintedWelcomeMs": 309.5759169999992,
+        "canvasCount": 0,
+        "usedJSHeapBytes": 4959904,
+        "domContentLoadedMs": 43.700000047683716
+      },
+      {
+        "variant": "candidate",
+        "run": 8,
+        "openReadyMs": 304.5485829999998,
+        "paintedWelcomeMs": 317.8938330000001,
+        "canvasCount": 0,
+        "usedJSHeapBytes": 4960360,
+        "domContentLoadedMs": 42.300000071525574
+      },
+      {
+        "variant": "baseline",
+        "run": 8,
+        "openReadyMs": 320.6843749999998,
+        "paintedWelcomeMs": 324.5725419999999,
+        "canvasCount": 0,
+        "usedJSHeapBytes": 4928165,
+        "domContentLoadedMs": 42.89999997615814
+      },
+      {
+        "variant": "baseline",
+        "run": 9,
+        "openReadyMs": 325.4165830000002,
+        "paintedWelcomeMs": 329.2104159999999,
+        "canvasCount": 0,
+        "usedJSHeapBytes": 4918565,
+        "domContentLoadedMs": 42.699999928474426
+      },
+      {
+        "variant": "candidate",
+        "run": 9,
+        "openReadyMs": 330.7704590000003,
+        "paintedWelcomeMs": 349.5342499999997,
+        "canvasCount": 0,
+        "usedJSHeapBytes": 4972604,
+        "domContentLoadedMs": 44.39999997615814,
+        "firstContentfulPaintMs": 136
+      },
+      {
+        "variant": "candidate",
+        "run": 10,
+        "openReadyMs": 326.59591700000055,
+        "paintedWelcomeMs": 345.4586670000008,
+        "canvasCount": 0,
+        "usedJSHeapBytes": 4960288,
+        "domContentLoadedMs": 43.299999952316284
+      },
+      {
+        "variant": "baseline",
+        "run": 10,
+        "openReadyMs": 322.8712919999998,
+        "paintedWelcomeMs": 339.3634999999995,
+        "canvasCount": 0,
+        "usedJSHeapBytes": 4916173,
+        "domContentLoadedMs": 42.199999928474426
+      },
+      {
+        "variant": "baseline",
+        "run": 11,
+        "openReadyMs": 312.4773329999989,
+        "paintedWelcomeMs": 327.3518750000003,
+        "canvasCount": 0,
+        "usedJSHeapBytes": 4945597,
+        "domContentLoadedMs": 42.5
+      },
+      {
+        "variant": "candidate",
+        "run": 11,
+        "openReadyMs": 311.08716599999934,
+        "paintedWelcomeMs": 316.36091599999963,
+        "canvasCount": 0,
+        "usedJSHeapBytes": 4959992,
+        "domContentLoadedMs": 42.700000047683716
+      },
+      {
+        "variant": "candidate",
+        "run": 12,
+        "openReadyMs": 318.19083300000057,
+        "paintedWelcomeMs": 326.487000000001,
+        "canvasCount": 0,
+        "usedJSHeapBytes": 4987884,
+        "domContentLoadedMs": 43.59999990463257
+      },
+      {
+        "variant": "baseline",
+        "run": 12,
+        "openReadyMs": 313.2518749999999,
+        "paintedWelcomeMs": 316.6442079999997,
+        "canvasCount": 0,
+        "usedJSHeapBytes": 4923161,
+        "domContentLoadedMs": 45.200000047683716
+      },
+      {
+        "variant": "baseline",
+        "run": 13,
+        "openReadyMs": 310.44558400000096,
+        "paintedWelcomeMs": 326.90412500000093,
+        "canvasCount": 0,
+        "usedJSHeapBytes": 4914181,
+        "domContentLoadedMs": 43.39999997615814
+      },
+      {
+        "variant": "candidate",
+        "run": 13,
+        "openReadyMs": 316.7342499999995,
+        "paintedWelcomeMs": 330.2067500000012,
+        "canvasCount": 0,
+        "usedJSHeapBytes": 4960380,
+        "domContentLoadedMs": 40.800000071525574
+      },
+      {
+        "variant": "candidate",
+        "run": 14,
+        "openReadyMs": 295.63958300000013,
+        "paintedWelcomeMs": 303.95237500000076,
+        "canvasCount": 0,
+        "usedJSHeapBytes": 4960168,
+        "domContentLoadedMs": 41.300000071525574
+      },
+      {
+        "variant": "baseline",
+        "run": 14,
+        "openReadyMs": 305.0192079999997,
+        "paintedWelcomeMs": 321.6705000000002,
+        "canvasCount": 0,
+        "usedJSHeapBytes": 4915465,
+        "domContentLoadedMs": 43.699999928474426
+      },
+      {
+        "variant": "baseline",
+        "run": 15,
+        "openReadyMs": 305.2946670000001,
+        "paintedWelcomeMs": 319.3348330000008,
+        "canvasCount": 0,
+        "usedJSHeapBytes": 4929841,
+        "domContentLoadedMs": 43.40000009536743
+      },
+      {
+        "variant": "candidate",
+        "run": 15,
+        "openReadyMs": 304.27912500000093,
+        "paintedWelcomeMs": 310.5045829999999,
+        "canvasCount": 0,
+        "usedJSHeapBytes": 4991976,
+        "domContentLoadedMs": 45.300000071525574
+      },
+      {
+        "variant": "candidate",
+        "run": 16,
+        "openReadyMs": 289.42041699999936,
+        "paintedWelcomeMs": 303.0372090000001,
+        "canvasCount": 0,
+        "usedJSHeapBytes": 4958184,
+        "domContentLoadedMs": 40.60000002384186
+      },
+      {
+        "variant": "baseline",
+        "run": 16,
+        "openReadyMs": 316.92675000000054,
+        "paintedWelcomeMs": 334.69137500000033,
+        "canvasCount": 0,
+        "usedJSHeapBytes": 4918241,
+        "domContentLoadedMs": 43.59999990463257
+      },
+      {
+        "variant": "baseline",
+        "run": 17,
+        "openReadyMs": 313.45354100000077,
+        "paintedWelcomeMs": 333.7200410000005,
+        "canvasCount": 0,
+        "usedJSHeapBytes": 4934241,
+        "domContentLoadedMs": 43.299999952316284
+      },
+      {
+        "variant": "candidate",
+        "run": 17,
+        "openReadyMs": 309.2113339999996,
+        "paintedWelcomeMs": 314.04191700000047,
+        "canvasCount": 0,
+        "usedJSHeapBytes": 4959716,
+        "domContentLoadedMs": 42.799999952316284
+      },
+      {
+        "variant": "candidate",
+        "run": 18,
+        "openReadyMs": 336.1936659999992,
+        "paintedWelcomeMs": 342.0256250000002,
+        "canvasCount": 0,
+        "usedJSHeapBytes": 4960008,
+        "domContentLoadedMs": 46.10000002384186
+      },
+      {
+        "variant": "baseline",
+        "run": 18,
+        "openReadyMs": 312.54112499999974,
+        "paintedWelcomeMs": 325.4839579999989,
+        "canvasCount": 0,
+        "usedJSHeapBytes": 4940393,
+        "domContentLoadedMs": 41.89999997615814
+      },
+      {
+        "variant": "baseline",
+        "run": 19,
+        "openReadyMs": 309.49866699999984,
+        "paintedWelcomeMs": 328.0498750000006,
+        "canvasCount": 0,
+        "usedJSHeapBytes": 4919433,
+        "domContentLoadedMs": 41.89999997615814
+      },
+      {
+        "variant": "candidate",
+        "run": 19,
+        "openReadyMs": 314.9069159999999,
+        "paintedWelcomeMs": 320.21766600000046,
+        "canvasCount": 0,
+        "usedJSHeapBytes": 4990752,
+        "domContentLoadedMs": 44.299999952316284
+      },
+      {
+        "variant": "candidate",
+        "run": 20,
+        "openReadyMs": 314.41449999999895,
+        "paintedWelcomeMs": 327.56633299999885,
+        "canvasCount": 0,
+        "usedJSHeapBytes": 4959100,
+        "domContentLoadedMs": 41.89999997615814
+      },
+      {
+        "variant": "baseline",
+        "run": 20,
+        "openReadyMs": 310.01458300000013,
+        "paintedWelcomeMs": 313.4544999999998,
+        "canvasCount": 0,
+        "usedJSHeapBytes": 4931649,
+        "domContentLoadedMs": 42
+      }
+    ],
+    "off": [
+      {
+        "variant": "baseline",
+        "run": 1,
+        "openReadyMs": 302.18891599999995,
+        "paintedWelcomeMs": 326.511041,
+        "canvasCount": 0,
+        "usedJSHeapBytes": 4943149,
+        "domContentLoadedMs": 43.799999952316284,
+        "firstContentfulPaintMs": 100
+      },
+      {
+        "variant": "candidate",
+        "run": 1,
+        "openReadyMs": 333.52216699999997,
+        "paintedWelcomeMs": 340.09775,
+        "canvasCount": 0,
+        "usedJSHeapBytes": 4965076,
+        "domContentLoadedMs": 43.89999997615814
+      },
+      {
+        "variant": "candidate",
+        "run": 2,
+        "openReadyMs": 337.25083399999994,
+        "paintedWelcomeMs": 342.50575000000003,
+        "canvasCount": 0,
+        "usedJSHeapBytes": 4965172,
+        "domContentLoadedMs": 46.299999952316284
+      },
+      {
+        "variant": "baseline",
+        "run": 2,
+        "openReadyMs": 301.9878329999999,
+        "paintedWelcomeMs": 313.2478330000001,
+        "canvasCount": 0,
+        "usedJSHeapBytes": 4929861,
+        "domContentLoadedMs": 44.60000002384186
+      },
+      {
+        "variant": "baseline",
+        "run": 3,
+        "openReadyMs": 309.25245799999993,
+        "paintedWelcomeMs": 326.05379200000016,
+        "canvasCount": 0,
+        "usedJSHeapBytes": 4922409,
+        "domContentLoadedMs": 43.700000047683716
+      },
+      {
+        "variant": "candidate",
+        "run": 3,
+        "openReadyMs": 305.4825000000001,
+        "paintedWelcomeMs": 313.5831250000001,
+        "canvasCount": 0,
+        "usedJSHeapBytes": 4964944,
+        "domContentLoadedMs": 44.299999952316284
+      },
+      {
+        "variant": "candidate",
+        "run": 4,
+        "openReadyMs": 343.64658299999974,
+        "paintedWelcomeMs": 362.51316700000007,
+        "canvasCount": 0,
+        "usedJSHeapBytes": 4969516,
+        "domContentLoadedMs": 49.90000009536743
+      },
+      {
+        "variant": "baseline",
+        "run": 4,
+        "openReadyMs": 293.5157079999999,
+        "paintedWelcomeMs": 298.7472079999998,
+        "canvasCount": 0,
+        "usedJSHeapBytes": 4925925,
+        "domContentLoadedMs": 40.699999928474426
+      },
+      {
+        "variant": "baseline",
+        "run": 5,
+        "openReadyMs": 301.3140410000001,
+        "paintedWelcomeMs": 318.2220830000001,
+        "canvasCount": 0,
+        "usedJSHeapBytes": 4961745,
+        "domContentLoadedMs": 40.10000002384186
+      },
+      {
+        "variant": "candidate",
+        "run": 5,
+        "openReadyMs": 307.6789170000002,
+        "paintedWelcomeMs": 311.66820800000005,
+        "canvasCount": 0,
+        "usedJSHeapBytes": 4960444,
+        "domContentLoadedMs": 41.700000047683716
+      },
+      {
+        "variant": "candidate",
+        "run": 6,
+        "openReadyMs": 339.63095799999974,
+        "paintedWelcomeMs": 347.545666,
+        "canvasCount": 0,
+        "usedJSHeapBytes": 4964904,
+        "domContentLoadedMs": 45.10000002384186
+      },
+      {
+        "variant": "baseline",
+        "run": 6,
+        "openReadyMs": 308.64066699999967,
+        "paintedWelcomeMs": 320.70016699999996,
+        "canvasCount": 0,
+        "usedJSHeapBytes": 4944069,
+        "domContentLoadedMs": 43.200000047683716
+      },
+      {
+        "variant": "baseline",
+        "run": 7,
+        "openReadyMs": 310.96879100000024,
+        "paintedWelcomeMs": 326.15016599999944,
+        "canvasCount": 0,
+        "usedJSHeapBytes": 4914821,
+        "domContentLoadedMs": 41.89999997615814
+      },
+      {
+        "variant": "candidate",
+        "run": 7,
+        "openReadyMs": 296.6507080000001,
+        "paintedWelcomeMs": 309.3635830000003,
+        "canvasCount": 0,
+        "usedJSHeapBytes": 4959628,
+        "domContentLoadedMs": 41
+      },
+      {
+        "variant": "candidate",
+        "run": 8,
+        "openReadyMs": 298.57087500000034,
+        "paintedWelcomeMs": 302.224416,
+        "canvasCount": 0,
+        "usedJSHeapBytes": 4948696,
+        "domContentLoadedMs": 41.5
+      },
+      {
+        "variant": "baseline",
+        "run": 8,
+        "openReadyMs": 293.2160409999997,
+        "paintedWelcomeMs": 310.3049579999997,
+        "canvasCount": 0,
+        "usedJSHeapBytes": 4927889,
+        "domContentLoadedMs": 40.699999928474426
+      },
+      {
+        "variant": "baseline",
+        "run": 9,
+        "openReadyMs": 294.9954170000001,
+        "paintedWelcomeMs": 317.49445900000046,
+        "canvasCount": 0,
+        "usedJSHeapBytes": 4936781,
+        "domContentLoadedMs": 44.39999997615814,
+        "firstContentfulPaintMs": 96
+      },
+      {
+        "variant": "candidate",
+        "run": 9,
+        "openReadyMs": 309.3450419999999,
+        "paintedWelcomeMs": 316.71349999999984,
+        "canvasCount": 0,
+        "usedJSHeapBytes": 4960540,
+        "domContentLoadedMs": 42.39999997615814
+      },
+      {
+        "variant": "candidate",
+        "run": 10,
+        "openReadyMs": 309.77383400000053,
+        "paintedWelcomeMs": 314.76637500000015,
+        "canvasCount": 0,
+        "usedJSHeapBytes": 4958536,
+        "domContentLoadedMs": 42.200000047683716
+      },
+      {
+        "variant": "baseline",
+        "run": 10,
+        "openReadyMs": 304.68316699999923,
+        "paintedWelcomeMs": 321.05245900000045,
+        "canvasCount": 0,
+        "usedJSHeapBytes": 4916585,
+        "domContentLoadedMs": 42.200000047683716
+      },
+      {
+        "variant": "baseline",
+        "run": 11,
+        "openReadyMs": 296.38641700000153,
+        "paintedWelcomeMs": 318.8477500000008,
+        "canvasCount": 0,
+        "usedJSHeapBytes": 4943733,
+        "domContentLoadedMs": 41.200000047683716,
+        "firstContentfulPaintMs": 96
+      },
+      {
+        "variant": "candidate",
+        "run": 11,
+        "openReadyMs": 324.8605000000007,
+        "paintedWelcomeMs": 336.7702499999996,
+        "canvasCount": 0,
+        "usedJSHeapBytes": 4974328,
+        "domContentLoadedMs": 45.200000047683716
+      },
+      {
+        "variant": "candidate",
+        "run": 12,
+        "openReadyMs": 298.75704100000075,
+        "paintedWelcomeMs": 312.0127909999992,
+        "canvasCount": 0,
+        "usedJSHeapBytes": 4959684,
+        "domContentLoadedMs": 41.10000002384186
+      },
+      {
+        "variant": "baseline",
+        "run": 12,
+        "openReadyMs": 319.3417079999999,
+        "paintedWelcomeMs": 325.286333,
+        "canvasCount": 0,
+        "usedJSHeapBytes": 4921921,
+        "domContentLoadedMs": 45.5
+      },
+      {
+        "variant": "baseline",
+        "run": 13,
+        "openReadyMs": 288.877708,
+        "paintedWelcomeMs": 292.841124999999,
+        "canvasCount": 0,
+        "usedJSHeapBytes": 4916389,
+        "domContentLoadedMs": 40.799999952316284
+      },
+      {
+        "variant": "candidate",
+        "run": 13,
+        "openReadyMs": 307.3506670000006,
+        "paintedWelcomeMs": 315.80766700000095,
+        "canvasCount": 0,
+        "usedJSHeapBytes": 4960148,
+        "domContentLoadedMs": 41.60000002384186
+      },
+      {
+        "variant": "candidate",
+        "run": 14,
+        "openReadyMs": 300.13487499999974,
+        "paintedWelcomeMs": 307.7418340000004,
+        "canvasCount": 0,
+        "usedJSHeapBytes": 4990460,
+        "domContentLoadedMs": 41.700000047683716
+      },
+      {
+        "variant": "baseline",
+        "run": 14,
+        "openReadyMs": 306.4823329999999,
+        "paintedWelcomeMs": 322.4588330000006,
+        "canvasCount": 0,
+        "usedJSHeapBytes": 4927893,
+        "domContentLoadedMs": 40.89999997615814
+      },
+      {
+        "variant": "baseline",
+        "run": 15,
+        "openReadyMs": 310.8350419999988,
+        "paintedWelcomeMs": 326.4376669999983,
+        "canvasCount": 0,
+        "usedJSHeapBytes": 4916429,
+        "domContentLoadedMs": 45.700000047683716
+      },
+      {
+        "variant": "candidate",
+        "run": 15,
+        "openReadyMs": 308.2966670000005,
+        "paintedWelcomeMs": 321.41499999999905,
+        "canvasCount": 0,
+        "usedJSHeapBytes": 4960112,
+        "domContentLoadedMs": 41
+      },
+      {
+        "variant": "candidate",
+        "run": 16,
+        "openReadyMs": 311.4934169999997,
+        "paintedWelcomeMs": 324.8204999999998,
+        "canvasCount": 0,
+        "usedJSHeapBytes": 4959164,
+        "domContentLoadedMs": 45.39999997615814
+      },
+      {
+        "variant": "baseline",
+        "run": 16,
+        "openReadyMs": 315.38987499999894,
+        "paintedWelcomeMs": 334.1854169999988,
+        "canvasCount": 0,
+        "usedJSHeapBytes": 4936969,
+        "domContentLoadedMs": 41.89999997615814,
+        "firstContentfulPaintMs": 124
+      },
+      {
+        "variant": "baseline",
+        "run": 17,
+        "openReadyMs": 344.06137500000114,
+        "paintedWelcomeMs": 357.37575000000106,
+        "canvasCount": 0,
+        "usedJSHeapBytes": 4915921,
+        "domContentLoadedMs": 47.699999928474426
+      },
+      {
+        "variant": "candidate",
+        "run": 17,
+        "openReadyMs": 319.24495899999965,
+        "paintedWelcomeMs": 331.1550419999985,
+        "canvasCount": 0,
+        "usedJSHeapBytes": 4972844,
+        "domContentLoadedMs": 44
+      },
+      {
+        "variant": "candidate",
+        "run": 18,
+        "openReadyMs": 332.6895420000001,
+        "paintedWelcomeMs": 340.30166700000154,
+        "canvasCount": 0,
+        "usedJSHeapBytes": 4963932,
+        "domContentLoadedMs": 47
+      },
+      {
+        "variant": "baseline",
+        "run": 18,
+        "openReadyMs": 306.02895799999897,
+        "paintedWelcomeMs": 319.5181249999987,
+        "canvasCount": 0,
+        "usedJSHeapBytes": 4914645,
+        "domContentLoadedMs": 42.799999952316284
+      },
+      {
+        "variant": "baseline",
+        "run": 19,
+        "openReadyMs": 318.08837499999936,
+        "paintedWelcomeMs": 333.7457089999989,
+        "canvasCount": 0,
+        "usedJSHeapBytes": 4930037,
+        "domContentLoadedMs": 44.5
+      },
+      {
+        "variant": "candidate",
+        "run": 19,
+        "openReadyMs": 298.9772499999999,
+        "paintedWelcomeMs": 302.78462500000023,
+        "canvasCount": 0,
+        "usedJSHeapBytes": 4974148,
+        "domContentLoadedMs": 41.39999997615814
+      },
+      {
+        "variant": "candidate",
+        "run": 20,
+        "openReadyMs": 300.01416600000084,
+        "paintedWelcomeMs": 303.4396250000027,
+        "canvasCount": 0,
+        "usedJSHeapBytes": 4967608,
+        "domContentLoadedMs": 45.300000071525574
+      },
+      {
+        "variant": "baseline",
+        "run": 20,
+        "openReadyMs": 328.7209580000017,
+        "paintedWelcomeMs": 343.7712500000016,
+        "canvasCount": 0,
+        "usedJSHeapBytes": 4927825,
+        "domContentLoadedMs": 46.299999952316284
+      }
+    ]
+  },
+  "attachRuns": [
+    {
+      "variant": "on",
+      "run": 1,
+      "fcpMs": 132,
+      "friendsReadyMs": 1445.5,
+      "rendererLongTasks": [],
+      "rendererMaxLongTaskMs": 0,
+      "rendererMaxLongAnimationFrameMs": 0,
+      "rendererMaxLoafBlockingMs": 0,
+      "mainMaxLagMs": 8.9,
+      "mainLagOver16Ms": []
+    },
+    {
+      "variant": "off",
+      "run": 1,
+      "fcpMs": 144,
+      "friendsReadyMs": null,
+      "rendererLongTasks": [],
+      "rendererMaxLongTaskMs": 0,
+      "rendererMaxLongAnimationFrameMs": 0,
+      "rendererMaxLoafBlockingMs": 0,
+      "mainMaxLagMs": 13.2,
+      "mainLagOver16Ms": []
+    },
+    {
+      "variant": "off",
+      "run": 2,
+      "fcpMs": 140,
+      "friendsReadyMs": null,
+      "rendererLongTasks": [],
+      "rendererMaxLongTaskMs": 0,
+      "rendererMaxLongAnimationFrameMs": 0,
+      "rendererMaxLoafBlockingMs": 0,
+      "mainMaxLagMs": 2.3,
+      "mainLagOver16Ms": []
+    },
+    {
+      "variant": "on",
+      "run": 2,
+      "fcpMs": 136,
+      "friendsReadyMs": 1141.4,
+      "rendererLongTasks": [],
+      "rendererMaxLongTaskMs": 0,
+      "rendererMaxLongAnimationFrameMs": 0,
+      "rendererMaxLoafBlockingMs": 0,
+      "mainMaxLagMs": 7.3,
+      "mainLagOver16Ms": []
+    },
+    {
+      "variant": "on",
+      "run": 3,
+      "fcpMs": 116,
+      "friendsReadyMs": 1128.5,
+      "rendererLongTasks": [],
+      "rendererMaxLongTaskMs": 0,
+      "rendererMaxLongAnimationFrameMs": 0,
+      "rendererMaxLoafBlockingMs": 0,
+      "mainMaxLagMs": 9.4,
+      "mainLagOver16Ms": []
+    },
+    {
+      "variant": "off",
+      "run": 3,
+      "fcpMs": 108,
+      "friendsReadyMs": null,
+      "rendererLongTasks": [],
+      "rendererMaxLongTaskMs": 0,
+      "rendererMaxLongAnimationFrameMs": 0,
+      "rendererMaxLoafBlockingMs": 0,
+      "mainMaxLagMs": 8.4,
+      "mainLagOver16Ms": []
+    },
+    {
+      "variant": "off",
+      "run": 4,
+      "fcpMs": 124,
+      "friendsReadyMs": null,
+      "rendererLongTasks": [],
+      "rendererMaxLongTaskMs": 0,
+      "rendererMaxLongAnimationFrameMs": 0,
+      "rendererMaxLoafBlockingMs": 0,
+      "mainMaxLagMs": 3.3,
+      "mainLagOver16Ms": []
+    },
+    {
+      "variant": "on",
+      "run": 4,
+      "fcpMs": 116,
+      "friendsReadyMs": 1127.6,
+      "rendererLongTasks": [],
+      "rendererMaxLongTaskMs": 0,
+      "rendererMaxLongAnimationFrameMs": 0,
+      "rendererMaxLoafBlockingMs": 0,
+      "mainMaxLagMs": 9.9,
+      "mainLagOver16Ms": []
+    },
+    {
+      "variant": "on",
+      "run": 5,
+      "fcpMs": 124,
+      "friendsReadyMs": 1132.7,
+      "rendererLongTasks": [],
+      "rendererMaxLongTaskMs": 0,
+      "rendererMaxLongAnimationFrameMs": 0,
+      "rendererMaxLoafBlockingMs": 0,
+      "mainMaxLagMs": 10.3,
+      "mainLagOver16Ms": []
+    },
+    {
+      "variant": "off",
+      "run": 5,
+      "fcpMs": 124,
+      "friendsReadyMs": null,
+      "rendererLongTasks": [],
+      "rendererMaxLongTaskMs": 0,
+      "rendererMaxLongAnimationFrameMs": 0,
+      "rendererMaxLoafBlockingMs": 0,
+      "mainMaxLagMs": 6.2,
+      "mainLagOver16Ms": []
+    },
+    {
+      "variant": "off",
+      "run": 6,
+      "fcpMs": 124,
+      "friendsReadyMs": null,
+      "rendererLongTasks": [],
+      "rendererMaxLongTaskMs": 0,
+      "rendererMaxLongAnimationFrameMs": 0,
+      "rendererMaxLoafBlockingMs": 0,
+      "mainMaxLagMs": 4.8,
+      "mainLagOver16Ms": []
+    },
+    {
+      "variant": "on",
+      "run": 6,
+      "fcpMs": 124,
+      "friendsReadyMs": 1127.3,
+      "rendererLongTasks": [],
+      "rendererMaxLongTaskMs": 0,
+      "rendererMaxLongAnimationFrameMs": 0,
+      "rendererMaxLoafBlockingMs": 0,
+      "mainMaxLagMs": 7.4,
+      "mainLagOver16Ms": []
+    },
+    {
+      "variant": "on",
+      "run": 7,
+      "fcpMs": 124,
+      "friendsReadyMs": 1132.8,
+      "rendererLongTasks": [],
+      "rendererMaxLongTaskMs": 0,
+      "rendererMaxLongAnimationFrameMs": 0,
+      "rendererMaxLoafBlockingMs": 0,
+      "mainMaxLagMs": 8.5,
+      "mainLagOver16Ms": []
+    },
+    {
+      "variant": "off",
+      "run": 7,
+      "fcpMs": 116,
+      "friendsReadyMs": null,
+      "rendererLongTasks": [],
+      "rendererMaxLongTaskMs": 0,
+      "rendererMaxLongAnimationFrameMs": 0,
+      "rendererMaxLoafBlockingMs": 0,
+      "mainMaxLagMs": 5.1,
+      "mainLagOver16Ms": []
+    },
+    {
+      "variant": "off",
+      "run": 8,
+      "fcpMs": 124,
+      "friendsReadyMs": null,
+      "rendererLongTasks": [],
+      "rendererMaxLongTaskMs": 0,
+      "rendererMaxLongAnimationFrameMs": 0,
+      "rendererMaxLoafBlockingMs": 0,
+      "mainMaxLagMs": 5,
+      "mainLagOver16Ms": []
+    },
+    {
+      "variant": "on",
+      "run": 8,
+      "fcpMs": 120,
+      "friendsReadyMs": 1132.5,
+      "rendererLongTasks": [],
+      "rendererMaxLongTaskMs": 0,
+      "rendererMaxLongAnimationFrameMs": 0,
+      "rendererMaxLoafBlockingMs": 0,
+      "mainMaxLagMs": 6.8,
+      "mainLagOver16Ms": []
+    },
+    {
+      "variant": "on",
+      "run": 9,
+      "fcpMs": 128,
+      "friendsReadyMs": 1138.7,
+      "rendererLongTasks": [],
+      "rendererMaxLongTaskMs": 0,
+      "rendererMaxLongAnimationFrameMs": 0,
+      "rendererMaxLoafBlockingMs": 0,
+      "mainMaxLagMs": 6.6,
+      "mainLagOver16Ms": []
+    },
+    {
+      "variant": "off",
+      "run": 9,
+      "fcpMs": 124,
+      "friendsReadyMs": null,
+      "rendererLongTasks": [],
+      "rendererMaxLongTaskMs": 0,
+      "rendererMaxLongAnimationFrameMs": 0,
+      "rendererMaxLoafBlockingMs": 0,
+      "mainMaxLagMs": 7.3,
+      "mainLagOver16Ms": []
+    },
+    {
+      "variant": "off",
+      "run": 10,
+      "fcpMs": 124,
+      "friendsReadyMs": null,
+      "rendererLongTasks": [],
+      "rendererMaxLongTaskMs": 0,
+      "rendererMaxLongAnimationFrameMs": 0,
+      "rendererMaxLoafBlockingMs": 0,
+      "mainMaxLagMs": 2.5,
+      "mainLagOver16Ms": []
+    },
+    {
+      "variant": "on",
+      "run": 10,
+      "fcpMs": 124,
+      "friendsReadyMs": 1130.9,
+      "rendererLongTasks": [],
+      "rendererMaxLongTaskMs": 0,
+      "rendererMaxLongAnimationFrameMs": 0,
+      "rendererMaxLoafBlockingMs": 0,
+      "mainMaxLagMs": 5.4,
+      "mainLagOver16Ms": []
+    }
+  ]
+}

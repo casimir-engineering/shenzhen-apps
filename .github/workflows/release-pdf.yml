@@ -1,0 +1,65 @@
+name: Release ShenzhenPDF
+# Builds, signs and notarizes ShenzhenPDF at a pdf/<version>-<build> tag of this repository and publishes the GitHub
+# release <version>-<build> on casimir-engineering/shenzhen-pdf, where installed apps look for updates.
+# Started by hand only (docs/RELEASING.md).
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: The pdf/<version>-<build> tag to release
+        required: true
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: release-pdf
+  cancel-in-progress: false
+defaults:
+  run:
+    working-directory: apps/pdf/portable
+jobs:
+  release:
+    if: github.repository_owner == 'casimir-engineering'
+    runs-on: macos-15
+    timeout-minutes: 180
+    env:
+      TAG: ${{ inputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refs/tags/${{ inputs.tag }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: The tag is the committed release
+        run: |
+          . release/release-common.sh
+          spdf_load_committed_release_metadata "$(cd .. && pwd)"
+          test "$TAG" = "pdf/$SPDF_RELEASE_TAG" || { echo "::error::$TAG is not pdf/$SPDF_RELEASE_TAG"; exit 1; }
+      - name: Friends helper build number
+        run: ../../../tools/check-friends-number.sh
+      - name: Release tests
+        run: |
+          brew install coturn
+          . release/release-common.sh
+          make -j"$(sysctl -n hw.ncpu)" test-binaries
+          make $(spdf_discover_test_targets Makefile)
+        env:
+          FRIENDS_TEST_COTURN: /opt/homebrew/bin/turnserver
+      - name: Signing
+        run: ../../../tools/ci/mac-signing.sh >> "$GITHUB_ENV"
+        env:
+          MAC_CERTIFICATE_P12: ${{ secrets.MAC_CERTIFICATE_P12 }}
+          MAC_CERTIFICATE_PASSWORD: ${{ secrets.MAC_CERTIFICATE_PASSWORD }}
+          NOTARY_KEY_P8: ${{ secrets.NOTARY_KEY_P8 }}
+          NOTARY_KEY_ID: ${{ secrets.NOTARY_KEY_ID }}
+          NOTARY_ISSUER_ID: ${{ secrets.NOTARY_ISSUER_ID }}
+      - name: Signed, notarized and verified DMG
+        run: ./build-mac-release.sh
+      - name: GitHub release on casimir-engineering/shenzhen-pdf
+        run: |
+          . release/release-common.sh
+          spdf_load_committed_release_metadata "$(cd .. && pwd)"
+          spdf_publish_github_release "$SPDF_RELEASE_GITHUB_REPOSITORY" "$SPDF_RELEASE_TAG" "$SPDF_RELEASE_NOTES" \
+            "../dist/$SPDF_RELEASE_ASSET_NAME"
+        env:
+          GH_TOKEN: ${{ secrets.SHENZHEN_RELEASE_TOKEN }}

@@ -1,0 +1,254 @@
+{
+  "type": "snapshot",
+  "subscription": "s_2",
+  "view": "list",
+  "rev": 42,
+  "data": {
+    "query": "",
+    "banner": null,
+    "name_prompt": null,
+    "rows": [
+      {
+        "conversation_id": "c_lena",
+        "avatar": {
+          "kind": "animal",
+          "set": 1,
+          "index": 3,
+          "initials": "LW",
+          "color": "#7a3f4f"
+        },
+        "title": "Lena Weber",
+        "subtitle": "Wants to be friends",
+        "time_label": "14:40",
+        "route": {
+          "kind": "local",
+          "method": "lan",
+          "label": "Nearby, on your network"
+        },
+        "unread": false,
+        "waiting": {
+          "kind": "request",
+          "label": "Waiting for you"
+        },
+        "blocked": false,
+        "id_confirmed": false,
+        "id_confirmed_label": null,
+        "style": "normal",
+        "drop_label": null,
+        "drop_refusal": "Lena isn’t your friend yet",
+        "accessibility_label": "Lena Weber, wants to be friends, 14:40, waiting for you",
+        "actions": [
+          {
+            "action": "accept_request",
+            "icon": "accept",
+            "label": "Accept Lena Weber’s request",
+            "arm": null
+          },
+          {
+            "action": "decline_request",
+            "icon": "decline",
+            "label": "Decline Lena Weber’s request",
+            "arm": null
+          },
+          {
+            "action": "block",
+            "icon": "block",
+            "label": "Block Lena Weber",
+            "arm": {
+              "label": "Block?",
+              "accessibility_label": "Click again to block Lena Weber",
+              "seconds": 4
+            }
+          }
+        ]
+      },
+      {
+        "conversation_id": "c_mei",
+        "avatar": {
+          "kind": "animal",
+          "set": 1,
+          "index": 7,
+          "initials": "ML",
+          "color": "#3f6b4f"
+        },
+        "title": "Mei Lin",
+        "subtitle": "Can you check pages 3–5 before Friday?",
+        "time_label": "14:32",
+        "route": {
+          "kind": "local",
+          "method": "lan",
+          "label": "Nearby, on your network"
+        },
+        "unread": true,
+        "waiting": null,
+        "blocked": false,
+        "id_confirmed": false,
+        "id_confirmed_label": null,
+        "style": "normal",
+        "drop_label": "Send to Mei",
+        "drop_refusal": null,
+        "accessibility_label": "Mei Lin, unread, Can you check pages 3–5 before Friday?, 14:32, nearby, on your network",
+        "actions": []
+      },
+      {
+        "conversation_id": "c_kenji",
+        "avatar": {
+          "kind": "animal",
+          "set": 1,
+          "index": 1,
+          "initials": "KS",
+          "color": "#2f6474"
+        },
+        "title": "Kenji Sato",
+        "subtitle": "Sent you Site photos.pdf",
+        "time_label": "13:10",
+        "route": {
+          "kind": "local",
+          "method": "bluetooth",
+          "label": "Nearby, over Bluetooth"
+        },
+        "unread": false,
+        "waiting": {
+          "kind": "offer",
+          "label": "Waiting for you"
+        },
+        "blocked": false,
+        "id_confirmed": false,
+        "id_confirmed_label": null,
+        "style": "normal",
+        "drop_label": "Send to Kenji",
+        "drop_refusal": null,
+        "accessibility_label": "Kenji Sato, sent you Site photos.pdf, 13:10, waiting for you",
+        "actions": []
+      },
+      {
+        "conversation_id": "c_daniel",
+        "avatar": {
+          "kind": "animal",
+          "set": 1,
+          "index": 5,
+          "initials": "DO",
+          "color": "#7a5a34"
+        },
+        "title": "Daniel Ortiz",
+        "subtitle": "Accepted automatically · Enclosure assembly guide.pdf",
+        "time_label": "11:05",
+        "route": {
+          "kind": "local",
+          "method": "p2p_wifi",
+          "label": "Nearby, over direct Wi-Fi"
+        },
+        "unread": false,
+        "waiting": null,
+        "blocked": false,
+        "id_confirmed": false,
+        "id_confirmed_label": null,
+        "style": "normal",
+        "drop_label": "Send to Daniel",
+        "drop_refusal": null,
+        "accessibility_label": "Daniel Ortiz, Enclosure assembly guide.pdf, accepted automatically, 11:05, nearby, over direct Wi-Fi",
+        "actions": []
+      },
+      {
+        "conversation_id": "c_priya",
+        "avatar": {
+          "kind": "animal",
+          "set": 1,
+          "index": 9,
+          "initials": "PR",
+          "color": "#4f4f86"
+        },
+        "title": "Priya Raman",
+        "subtitle": "Sends when Priya is nearby · Supplier contract v3.pdf",
+        "time_label": "Yesterday",
+        "route": {
+          "kind": "offline",
+          "method": null,
+          "label": "Not nearby right now"
+        },
+        "unread": false,
+        "waiting": null,
+        "blocked": false,
+        "id_confirmed": false,
+        "id_confirmed_label": null,
+        "style": "normal",
+        "drop_label": "Send to Priya",
+        "drop_refusal": null,
+        "accessibility_label": "Priya Raman, you sent Supplier contract v3.pdf, it sends when Priya is nearby, yesterday",
+        "actions": []
+      },
+      {
+        "conversation_id": "c_tulip",
+        "avatar": {
+          "kind": "animal",
+          "set": 1,
+          "index": 11,
+          "initials": "TC",
+          "color": "#6a4a6a"
+        },
+        "title": "tulip‑canyon",
+        "subtitle": "You are now friends",
+        "time_label": "3 Oct",
+        "route": {
+          "kind": "offline",
+          "method": null,
+          "label": "Not nearby right now"
+        },
+        "unread": false,
+        "waiting": null,
+        "blocked": false,
+        "id_confirmed": true,
+        "id_confirmed_label": "ID confirmed by the Friends server",
+        "style": "normal",
+        "drop_label": "Send to tulip‑canyon",
+        "drop_refusal": null,
+        "accessibility_label": "tulip‑canyon, you are now friends, 3 October, not nearby right now, ID confirmed",
+        "actions": []
+      },
+      {
+        "conversation_id": "c_jonas",
+        "avatar": {
+          "kind": "animal",
+          "set": 1,
+          "index": 4,
+          "initials": "JB",
+          "color": "#4a6a2f"
+        },
+        "title": "Jonas Berg",
+        "subtitle": "Blocked",
+        "time_label": "28 Sep",
+        "route": {
+          "kind": "none",
+          "method": null,
+          "label": null
+        },
+        "unread": false,
+        "waiting": null,
+        "blocked": true,
+        "id_confirmed": false,
+        "id_confirmed_label": null,
+        "style": "muted",
+        "drop_label": null,
+        "drop_refusal": "You blocked Jonas",
+        "accessibility_label": "Jonas Berg, blocked, 28 September",
+        "actions": []
+      }
+    ],
+    "empty": null,
+    "footer": {
+      "avatar": {
+        "kind": "animal",
+        "set": 1,
+        "index": 0,
+        "initials": "R",
+        "color": "#5a4a7a"
+      },
+      "name": "Raph",
+      "name_placeholder": "Choose your name",
+      "id_label": "ID cottage‑violet",
+      "id_note": "Your ID works nearby now. If it’s already taken, you’ll get a new one the next time ShenzhenPDF reaches the Friends server.",
+      "friends_id": "cottage-violet",
+      "add_label": "Add by ID"
+    }
+  }
+}

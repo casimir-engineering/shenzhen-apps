@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Shenzhen PDF
+GenericName=PDF Reader
+Comment=Fast native PDF reader
+Exec=ShenzhenPDF-gtk %U
+Icon=org.shenzhenpdf.ShenzhenPDF
+Terminal=false
+Categories=Office;Viewer;Graphics;
+MimeType=application/pdf;application/epub+zip;application/x-cbz;application/vnd.ms-xpsdocument;
+StartupNotify=true

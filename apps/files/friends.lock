@@ -1,0 +1,12 @@
+# Shenzhen Friends in Shenzhen Files: the shenzhen-pdf commit its helper (and, once they exist, its GTK views) are
+# built from. tools/setup-friends.sh fetches and builds it; package/make-app.sh embeds the result.
+#
+# helper_build_number is that commit's own helper build number, YYMMDDBB from the MAC_VERSION and MAC_BUILD in its
+# portable/Makefile, never Shenzhen Files' release date: both apps share one helper per Mac user and the running one
+# hands over to the embedded helper with the higher number (PROTOCOL.md § Lifecycle), so the number has to say which
+# Friends code it is. setup-friends.sh refuses a number that disagrees with the commit.
+#
+# To move the pin: change commit and helper_build_number together, remove friends-src/, run tools/setup-friends.sh.
+url=https://github.com/casimir-engineering/shenzhen-pdf.git
+commit=f807fc6cd590bc378da99d99df68763d3cc2b1c7
+helper_build_number=26101101

@@ -1,0 +1,7 @@
+# Output of portable/win/verify.sh and vm-build.sh: the native macOS reference
+# binary, its stdout, and the guest transcripts fetched back over prlctl.
+# All of it is regenerable by running portable/win/verify.sh.
+build/
+
+# Python bytecode from running the harness's comparators natively.
+tests/__pycache__/

@@ -1,0 +1,11 @@
+{
+  "$schema": "../../node_modules/@tauri-apps/cli/config.schema.json",
+  "bundle": {
+    "iOS": {
+      "infoPlist": "friends/ios/Info.plist"
+    }
+  },
+  "plugins": {
+    "deep-link": { "mobile": [{ "scheme": ["shenzhen3d"], "host": "friends", "appLink": false }] }
+  }
+}

@@ -1,0 +1,22 @@
+[package]
+name = "szfriends-interop"
+description = "Test-only: Rust and Objective-C Friends peers in sessions on loopback, and the scenarios between them"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+szfriends-core.workspace = true
+szfriends-contract.workspace = true
+szfriends-helper = { path = "../szfriends-helper" }
+szfriends-helper-sys = { path = "../szfriends-helper-sys" }
+szfriends-online = { path = "../szfriends-online" }
+serde_json.workspace = true
+hex.workspace = true
+blake2.workspace = true
+sha2.workspace = true
+rusqlite.workspace = true
+
+[lints]
+workspace = true

@@ -1,0 +1,12 @@
+# Shenzhen Friends in the Tauri builds (docs/FRIENDS.md § Tauri). The `friends` feature of src-tauri depends on
+# tauri-plugin-szfriends, which lives in the pinned shenzhen-pdf commit, not in this repository. Cargo resolves every
+# optional dependency even when its feature is off, so the dependency names a registry of its own, and this patch
+# answers it with a placeholder that never compiles: builds without Friends need nothing else. A Friends build
+# points the patch at the pinned plugin (scripts/friends/setup-tauri-friends.mjs prints the --config to pass;
+# scripts/platform-build.mjs --friends passes it). The registry's index is never fetched; it lives on loopback so a
+# missing patch fails instead of reaching a public registry.
+[registries.szfriends-pinned]
+index = "sparse+https://127.0.0.1:9/szfriends-pinned/"
+
+[patch.szfriends-pinned]
+tauri-plugin-szfriends = { path = "src-tauri/friends-placeholder" }

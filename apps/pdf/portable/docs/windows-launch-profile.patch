@@ -1,0 +1,207 @@
+windows-launch-profile.patch -- the launch track's changes to files other
+tracks own, for the coordinator to apply at integration (git apply from the
+repo root). Generated with `git diff` against 731606aae plus this track's
+commits; every hunk is measured in portable/docs/windows-launch-performance.md.
+
+  spdf_win_main.cpp   (windows track)  ONE LINE: spdf_win_gpu_prewarm_start(d2d)
+                      on the windowed path, right after the factories exist.
+                      Without it the prewarm in spdf_win_gpu_prewarm.cpp is
+                      inert and the launch is today's. Takes the file to
+                      exactly 500 lines.
+  spdf_win_tabs_app.h (windows track)  SPDF-LAUNCH marks around session
+                      restore, spdf_open and canvas creation.
+  spdf_win_window.cpp (windows track)  marks (hwnd-created, show/update-window,
+                      first-paint-begin/-hwnd-target/-scene-built/-paint-end)
+                      AND the two E2 hunks: build the scene before the target,
+                      paint the first frame before ShowWindow. Measured -30%
+                      to first page and no blank client. Takes the file to 521
+                      lines: the track must extract before applying (it was
+                      at 499).
+  spdf_win_canvas.cpp (search track)   marks (canvas-create-begin, page0
+                      measured, first-page-render-begin/-end WxH).
+
+The marks are free when SPDF_WIN_LAUNCH_PROFILE is unset (one load, one
+compare); see spdf_win_launch_profile.h.
+
+diff --git a/portable/win/src/spdf_win_canvas.cpp b/portable/win/src/spdf_win_canvas.cpp
+index 72f9d84ee..36bb9ad84 100644
+--- a/portable/win/src/spdf_win_canvas.cpp
++++ b/portable/win/src/spdf_win_canvas.cpp
+@@ -31,6 +31,7 @@
+  * later change, and wants a placeholder that does not flash.
+  */
+ #include "spdf_win_canvas_internal.h"
++#include "spdf_win_launch_profile.h" /* SPDF-LAUNCH markers; free when unset */
+ 
+ #include <math.h>
+ #include <stdio.h>
+@@ -161,11 +162,13 @@ spdf_win_canvas* spdf_win_canvas_create(spdf_document* doc, const char* path, un
+         free(canvas);
+         return NULL;
+     }
++    spdf_win_launch_mark("canvas-create-begin");
+     if (!spdf_page_size(doc, 0, &w, &h, err, err_len) || w <= 0.0f || h <= 0.0f) {
+         free(canvas->sizes);
+         free(canvas);
+         return NULL;
+     }
++    spdf_win_launch_mark("canvas-page0-measured");
+     for (int i = 0; i < canvas->page_count; ++i) {
+         canvas->sizes[i].width = w;
+         canvas->sizes[i].height = h;
+@@ -395,12 +398,18 @@ static const spdf_bitmap* ensure_page(spdf_win_canvas* canvas, int page) {
+     canvas->sync_renders++;
+     bitmap = (spdf_bitmap*)calloc(1, sizeof(*bitmap));
+     if (!bitmap) return NULL;
++    SPDF_WIN_LAUNCH_MARK_ONCE("first-page-render-begin");
+     if (!spdf_render_page_rgba_opts(canvas->doc, page, (float)render_zoom, canvas->render_flags, NULL, bitmap, err,
+                                     sizeof(err))) {
+         _snwprintf_s(canvas->status, _TRUNCATE, L"Could not render page %d: %hs", page + 1, err);
+         free(bitmap);
+         return NULL;
+     }
++    if (spdf_win_launch_enabled()) {
++        char tag[64];
++        _snprintf_s(tag, sizeof(tag), _TRUNCATE, "first-page-render-end %dx%d", bitmap->width, bitmap->height);
++        SPDF_WIN_LAUNCH_MARK_ONCE(tag);
++    }
+     if (!spdf_win_lru_insert(&canvas->cache, &key, bitmap, spdf_win_lru_bitmap_bytes(bitmap->width, bitmap->height)))
+         return NULL; /* insert destroyed it; a placeholder is drawn this frame */
+     return bitmap;
+diff --git a/portable/win/src/spdf_win_main.cpp b/portable/win/src/spdf_win_main.cpp
+index 8dee82eee..323ea0d8d 100644
+--- a/portable/win/src/spdf_win_main.cpp
++++ b/portable/win/src/spdf_win_main.cpp
+@@ -433,6 +433,7 @@ int main(void) {
+          * its render flags at construction. Windowed path only; the headless
+          * ones must not depend on a registry value. Both points are argued at
+          * spdf_win_system_prefers_dark() in spdf_win_window.h. */
++        spdf_win_gpu_prewarm_start(d2d); /* the GPU device is created while the session and the document open */
+         if (!theme_explicit && spdf_win_system_prefers_dark())
+             a.render_flags |= SPDF_RENDER_DARK_THEME | SPDF_RENDER_PRESERVE_IMAGES;
+ 
+diff --git a/portable/win/src/spdf_win_tabs_app.h b/portable/win/src/spdf_win_tabs_app.h
+index e8612169a..2586cc328 100644
+--- a/portable/win/src/spdf_win_tabs_app.h
++++ b/portable/win/src/spdf_win_tabs_app.h
+@@ -33,14 +33,19 @@
+ #define SPDF_WIN_TABS_APP_H
+ 
+ #include "spdf_win_canvas.h"
++#include "spdf_win_launch_profile.h" /* SPDF-LAUNCH markers; free when unset */
+ #include "spdf_win_session.h"
+ 
+ /* The model's document hooks. The core allows one spdf_document per thread and
+  * the canvas takes its own path for the render workers, so there is nothing to
+  * share here: open and close, and that is all. */
+ static void* tabs_app_open_document(void* user, const char* path, char* err, size_t err_len) {
++    void* doc;
+     (void)user;
+-    return spdf_open(path, err, err_len);
++    spdf_win_launch_mark("spdf-open-begin");
++    doc = spdf_open(path, err, err_len);
++    spdf_win_launch_mark("spdf-open-end");
++    return doc;
+ }
+ 
+ static void tabs_app_close_document(void* user, void* document) {
+@@ -75,6 +80,7 @@ static int spdf_win_tabs_app_show(spdf_win_tabs* tabs, spdf_win_canvas** canvas,
+     spdf_win_canvas_destroy(*canvas);
+     *canvas = doc ? spdf_win_canvas_create(doc, spdf_win_tabs_path(tabs, index), render_flags, err, sizeof(err))
+                   : NULL;
++    if (*canvas) spdf_win_launch_mark("canvas-created");
+     /* The restored page is applied on the first paint, not here: the canvas
+      * cannot place a page until it knows the viewport. */
+     *pending_page = *canvas ? spdf_win_tabs_view(tabs, index)->page : -1;
+@@ -91,8 +97,10 @@ static spdf_win_tabs* spdf_win_tabs_app_start(const char* utf8_path, char* windo
+     /* An UNREADABLE session leaves the model empty AND must not be saved over;
+      * spdf_win_session_save() refuses on its own, so there is nothing to do
+      * here but carry on with the launch document. */
++    spdf_win_launch_mark("session-restore-begin");
+     if (spdf_win_session_restore(tabs, NULL, window_id, id_len) != SPDF_WIN_SESSION_RESTORED)
+         spdf_win_session_new_window_id(window_id, id_len);
++    spdf_win_launch_mark_n("session-restored", spdf_win_tabs_count(tabs));
+     index = utf8_path ? spdf_win_tabs_index_of_path(tabs, utf8_path) : -1;
+     if (index < 0 && utf8_path) index = spdf_win_tabs_append(tabs, utf8_path, NULL);
+     if (index < 0) index = spdf_win_tabs_selected_index(tabs);
+diff --git a/portable/win/src/spdf_win_window.cpp b/portable/win/src/spdf_win_window.cpp
+index 7b3c56734..918ca580f 100644
+--- a/portable/win/src/spdf_win_window.cpp
++++ b/portable/win/src/spdf_win_window.cpp
+@@ -15,6 +15,7 @@
+  * an HWND knows (maximized, hovered button, held button), pushed to the model
+  * the chrome painter reads. See spdf_win_window_caption.h. */
+ #include "spdf_win_chrome_model.h"
++#include "spdf_win_launch_profile.h" /* SPDF-LAUNCH markers; free when unset */
+ 
+ #include <windowsx.h> /* GET_X_LPARAM / GET_Y_LPARAM */
+ #include <shellapi.h> /* DragAcceptFiles / DragQueryFileW / DragFinish */
+@@ -127,10 +128,7 @@ static void paint(spdf_win_window* window) {
+     UINT px_h = (UINT)(rc.bottom - rc.top);
+     if (px_w == 0 || px_h == 0) return;
+ 
+-    if (FAILED(ensure_target(window, px_w, px_h))) {
+-        discard_target(window);
+-        return;
+-    }
++    SPDF_WIN_LAUNCH_MARK_ONCE("first-paint-begin");
+ 
+     spdf_win_scene scene;
+     memset(&scene, 0, sizeof(scene));
+@@ -150,8 +148,22 @@ static void paint(spdf_win_window* window) {
+         scene.pages = NULL;
+         scene.page_count = 0;
+     }
++    SPDF_WIN_LAUNCH_MARK_ONCE("first-scene-built");
++
++    /* The target AFTER the scene, not before. The scene is where the page is
++     * rendered and the outline loaded; the target is where the GPU device is
++     * created -- on a worker since spdf_win_gpu_prewarm.cpp, but if that worker
++     * is still busy this call waits for it. Building the scene first puts the
++     * CPU work in that wait instead of after it. On every later frame the
++     * target exists and the order is immaterial. */
++    if (FAILED(ensure_target(window, px_w, px_h))) {
++        discard_target(window);
++        return;
++    }
++    SPDF_WIN_LAUNCH_MARK_ONCE("first-hwnd-target");
+ 
+     HRESULT hr = spdf_win_paint(window->d2d, window->target, &scene);
++    SPDF_WIN_LAUNCH_MARK_ONCE("first-paint-end");
+     if (hr == D2DERR_RECREATE_TARGET) {
+         /* The display changed, the GPU was reset, or the session was locked.
+          * Throw the target away and ask for another paint; the next one
+@@ -436,6 +448,7 @@ spdf_win_window* spdf_win_window_create(spdf_win_d2d* d2d, const wchar_t* title,
+     /* Now that there is an HWND we can ask which monitor it landed on. The
+      * frame was sized in 96-dpi units, so on a 2x display resize it once
+      * rather than leaving a half-size window. */
++    spdf_win_launch_mark("hwnd-created");
+     window->dpi = window_dpi(window->hwnd);
+     window->client_px_w = client_px_w;
+     window->client_px_h = client_px_h;
+@@ -455,8 +468,25 @@ spdf_win_window* spdf_win_window_create(spdf_win_d2d* d2d, const wchar_t* title,
+ 
+ void spdf_win_window_show(spdf_win_window* window) {
+     if (!window || !window->hwnd) return;
++    /* THE FIRST FRAME IS PAINTED BEFORE THE WINDOW IS SHOWN.
++     *
++     * Measured (portable/docs/windows-launch-performance.md): ShowWindow puts
++     * the frame on screen ~40 ms after process creation and the client area
++     * then stays BLANK until the first WM_PAINT completes -- 130-230 ms later
++     * on the baseline. A window that appears empty and fills in later reads as
++     * "loading"; one that appears complete reads as instant even when it
++     * appears a little later. So the target is created and the first frame
++     * presented while the window is still hidden -- the swap chain keeps it --
++     * and ShowWindow reveals a window that already has its page. UpdateWindow
++     * then repaints from warm caches (page bitmap and texture are both cached),
++     * which costs a few milliseconds and guarantees the shown surface is
++     * current even if the hidden present was discarded. */
++    paint(window);
++    spdf_win_launch_mark("pre-show-paint-done");
+     ShowWindow(window->hwnd, SW_SHOWNORMAL);
++    spdf_win_launch_mark("show-window-returned");
+     UpdateWindow(window->hwnd);
++    spdf_win_launch_mark("update-window-returned");
+ }
+ 
+ void spdf_win_window_invalidate(spdf_win_window* window) {

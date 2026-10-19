@@ -1,0 +1,11 @@
+{
+  "type": "snapshot",
+  "subscription": "s_1",
+  "view": "badge",
+  "rev": 3,
+  "data": {
+    "count": 2,
+    "label": "2",
+    "accessibility_label": "Friends, 2 waiting for you"
+  }
+}

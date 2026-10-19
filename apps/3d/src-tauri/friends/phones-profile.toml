@@ -1,0 +1,110 @@
+# Shenzhen Friends on phones: its crates built for size against ADR 0015 § 12 (opt-level "z", one codegen unit;
+# "s" for the ciphers and hashes, which carry every transferred byte), without changing how the viewer's own crates
+# are optimised. The online part (szfriends-online, the data channels' C and C++, which szfriends-datachannel-sys
+# compiles at -Oz for phones by itself) is built the same way. A cargo --config file, passed by
+# scripts/platform-build.mjs for Friends phone builds and by scripts/friends/phones-size.sh. The whole library is
+# linked with thin LTO in one codegen unit, so code the viewer and Friends share is not carried twice.
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+
+[profile.release.package.tauri-plugin-szfriends]
+opt-level = "z"
+codegen-units = 1
+
+[profile.release.package.szfriends-helper]
+opt-level = "z"
+codegen-units = 1
+
+[profile.release.package.szfriends-helper-sys]
+opt-level = "z"
+codegen-units = 1
+
+[profile.release.package.szfriends-core]
+opt-level = "z"
+codegen-units = 1
+
+[profile.release.package.szfriends-crypto]
+opt-level = "z"
+codegen-units = 1
+
+[profile.release.package.szfriends-wire]
+opt-level = "z"
+codegen-units = 1
+
+[profile.release.package.szfriends-identity]
+opt-level = "z"
+codegen-units = 1
+
+[profile.release.package.szfriends-contract]
+opt-level = "z"
+codegen-units = 1
+
+[profile.release.package.szfriends-online]
+opt-level = "z"
+codegen-units = 1
+
+[profile.release.package.szfriends-datachannel-sys]
+opt-level = "z"
+codegen-units = 1
+
+[profile.release.package.rusqlite]
+opt-level = "z"
+codegen-units = 1
+
+[profile.release.package.libsqlite3-sys]
+opt-level = "z"
+codegen-units = 1
+
+[profile.release.package.snow]
+opt-level = "s"
+codegen-units = 1
+
+[profile.release.package.curve25519-dalek]
+opt-level = "s"
+codegen-units = 1
+
+[profile.release.package.ed25519-dalek]
+opt-level = "s"
+codegen-units = 1
+
+[profile.release.package.chacha20poly1305]
+opt-level = "s"
+codegen-units = 1
+
+[profile.release.package.chacha20]
+opt-level = "s"
+codegen-units = 1
+
+[profile.release.package.poly1305]
+opt-level = "s"
+codegen-units = 1
+
+[profile.release.package.blake2]
+opt-level = "s"
+codegen-units = 1
+
+[profile.release.package.sha2]
+opt-level = "s"
+codegen-units = 1
+
+[profile.release.package.aes]
+opt-level = "s"
+codegen-units = 1
+
+[profile.release.package.aes-gcm]
+opt-level = "s"
+codegen-units = 1
+
+[profile.release.package.ghash]
+opt-level = "s"
+codegen-units = 1
+
+[profile.release.package.hmac]
+opt-level = "s"
+codegen-units = 1
+
+[profile.release.package.sha1]
+opt-level = "s"
+codegen-units = 1

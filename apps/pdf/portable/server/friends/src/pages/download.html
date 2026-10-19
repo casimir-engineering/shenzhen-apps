@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<meta name="referrer" content="no-referrer">
+<title>Shared file</title>
+<link rel="stylesheet" href="/links/links.css">
+<script src="/links/links.js" defer></script>
+</head>
+<body data-page="download" data-stun="{{stun}}" data-pdf-url="{{pdfUrl}}"
+    data-files-url="{{filesUrl}}" data-3d-url="{{threeDUrl}}">
+<main class="card">
+<h1 id="title">Shared file</h1>
+<p id="lead" class="lead" hidden></p>
+<div id="file" class="file" hidden>
+<img id="file-thumb" class="thumb" alt="" hidden>
+<div class="file-text">
+<p id="file-name" class="file-name" dir="auto"></p>
+<p id="file-size" class="file-size"></p>
+</div>
+</div>
+<div id="progress" class="progress" hidden>
+<progress id="progress-bar" max="1" value="0"></progress>
+<p id="progress-text"></p>
+</div>
+<div id="notes"></div>
+<div id="actions" class="actions"></div>
+<section id="about" class="about" hidden>
+<h2 id="about-heading"></h2>
+<p id="about-text"></p>
+<p id="about-links" class="links"></p>
+</section>
+<noscript><p class="note">This page needs JavaScript to receive the file.</p></noscript>
+</main>
+</body>
+</html>

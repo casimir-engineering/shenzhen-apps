@@ -1,0 +1,7 @@
+/target
+# Written by tauri-plugin's build script for phone builds: Tauri's own Kotlin and Swift libraries (ios/Package.swift
+# and android/settings.gradle name them).
+/.tauri
+/android/.tauri
+/android/build
+/ios/.build

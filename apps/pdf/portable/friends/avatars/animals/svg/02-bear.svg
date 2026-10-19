@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <!-- Bear: big, soft, and has just tasted something wonderful. -->
+  <clipPath id="c"><circle cx="32" cy="32" r="32"/></clipPath>
+  <circle id="bg" cx="32" cy="32" r="32" fill="#3f5f80"/>
+  <g clip-path="url(#c)">
+    <ellipse cx="32" cy="72" rx="26" ry="16" fill="#b9814f"/>
+    <circle cx="16.5" cy="17" r="7" fill="#b9814f"/>
+    <circle cx="47.5" cy="17" r="7" fill="#b9814f"/>
+    <circle cx="16.5" cy="17" r="3.8" fill="#e8b98a"/>
+    <circle cx="47.5" cy="17" r="3.8" fill="#e8b98a"/>
+    <ellipse cx="32" cy="33" rx="19" ry="17.5" fill="#b9814f"/>
+    <ellipse cx="32" cy="40" rx="9.5" ry="7.5" fill="#e8b98a"/>
+    <ellipse cx="24" cy="29" rx="3" ry="3.6" fill="#2b2233"/>
+    <ellipse cx="40" cy="29" rx="3" ry="3.6" fill="#2b2233"/>
+    <circle cx="25.1" cy="27.6" r="1.2" fill="#ffffff"/>
+    <circle cx="41.1" cy="27.6" r="1.2" fill="#ffffff"/>
+    <ellipse cx="32" cy="36.5" rx="3.6" ry="2.6" fill="#2b2233"/>
+    <path d="M28 41.5 Q32 44.5 36 41.5" fill="none" stroke="#2b2233" stroke-width="1.8" stroke-linecap="round"/>
+    <path d="M32.6 42.6 Q33 47.5 35.4 47.5 Q37.8 47.5 37.4 42.6 Z" fill="#ff6f8a"/>
+  </g>
+</svg>

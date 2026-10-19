@@ -1,0 +1,14 @@
+{
+  "type": "goodbye",
+  "reason": "protocol_error",
+  "message": null,
+  "successor": null,
+  "error": {
+    "code": "frame_too_large",
+    "message": null,
+    "retryable": false,
+    "details": {
+      "max_frame_bytes": 8388608
+    }
+  }
+}

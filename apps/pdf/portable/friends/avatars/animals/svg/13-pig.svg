@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <!-- Pig: very round, very pink, extremely pleased with itself. -->
+  <clipPath id="c"><circle cx="32" cy="32" r="32"/></clipPath>
+  <circle id="bg" cx="32" cy="32" r="32" fill="#4a5a7a"/>
+  <g clip-path="url(#c)">
+    <ellipse cx="32" cy="74" rx="26" ry="16" fill="#ffb3c1"/>
+    <path d="M13 22 L15 8 L26 15 Z M51 22 L49 8 L38 15 Z" fill="#ff9aae"/>
+    <path d="M16 18 L17 12 L22 15.5 Z M48 18 L47 12 L42 15.5 Z" fill="#e8768e"/>
+    <ellipse cx="32" cy="33" rx="19.5" ry="17.5" fill="#ffb3c1"/>
+    <path d="M22 29 Q24.5 26 27 29 M37 29 Q39.5 26 42 29" fill="none" stroke="#2b2233" stroke-width="2.2"
+          stroke-linecap="round"/>
+    <ellipse cx="19" cy="35" rx="3.4" ry="2.2" fill="#ff7a96" opacity="0.8"/>
+    <ellipse cx="45" cy="35" rx="3.4" ry="2.2" fill="#ff7a96" opacity="0.8"/>
+    <ellipse cx="32" cy="38" rx="8.5" ry="6" fill="#ff8fa6"/>
+    <ellipse cx="29" cy="38" rx="1.6" ry="2.4" fill="#b8506a"/>
+    <ellipse cx="35" cy="38" rx="1.6" ry="2.4" fill="#b8506a"/>
+    <path d="M28 46.5 Q32 49.5 36 46.5" fill="none" stroke="#2b2233" stroke-width="1.7" stroke-linecap="round"/>
+  </g>
+</svg>

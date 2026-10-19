@@ -1,0 +1,26 @@
+[package]
+name = "szfriends-crypto"
+description = "Shenzhen Friends cryptography: Noise, comparison codes, presence tags, CPace (ADR 0001, 0004, 0013)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+szfriends-wire.workspace = true
+snow.workspace = true
+curve25519-dalek.workspace = true
+blake2.workspace = true
+sha2.workspace = true
+hmac.workspace = true
+subtle.workspace = true
+zeroize.workspace = true
+getrandom.workspace = true
+
+[dev-dependencies]
+szfriends-vectors.workspace = true
+serde_json.workspace = true
+zeroize.workspace = true
+
+[lints]
+workspace = true

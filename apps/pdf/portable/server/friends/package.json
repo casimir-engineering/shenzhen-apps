@@ -1,0 +1,22 @@
+{
+  "name": "shenzhen-friends-host",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Shenzhen Friends host: check-in, Friends ID reservation, signed host list and admin statistics.",
+  "license": "UNLICENSED",
+  "type": "module",
+  "main": "src/main.js",
+  "bin": {
+    "friends-hostlist": "tools/friends-hostlist.js"
+  },
+  "engines": {
+    "node": ">=22.16.0"
+  },
+  "scripts": {
+    "start": "node --disable-warning=ExperimentalWarning src/main.js",
+    "test": "node --disable-warning=ExperimentalWarning --test --test-timeout=20000 test/*.test.js"
+  },
+  "dependencies": {
+    "ws": "8.22.0"
+  }
+}

@@ -1,0 +1,16 @@
+# Windows (MSVC): the C runtime linked statically (ADR 0015 § 12), so the helper and its tests import only system DLLs
+# and need no Visual C++ redistributable; cc builds the bundled SQLite and the data-channel stack with /MT to match.
+# A host app building the helper in its own workspace sets the same flag (the packaging wave's build configuration).
+[target.'cfg(all(windows, target_env = "msvc"))']
+rustflags = ["-C", "target-feature=+crt-static"]
+
+# The bundled SQLite as phones build it (phone.toml, which an app passes for its phone builds): the helper on Windows
+# and Linux and every suite here use the same one.
+[env]
+LIBSQLITE3_FLAGS = """\
+-USQLITE_ENABLE_FTS3 -USQLITE_ENABLE_FTS3_PARENTHESIS -USQLITE_ENABLE_RTREE -USQLITE_ENABLE_DBSTAT_VTAB \
+-USQLITE_ENABLE_STAT4 -USQLITE_SOUNDEX -USQLITE_ENABLE_COLUMN_METADATA -USQLITE_ENABLE_LOAD_EXTENSION \
+-USQLITE_ENABLE_MEMORY_MANAGEMENT -DSQLITE_OMIT_LOAD_EXTENSION -DSQLITE_OMIT_JSON -DSQLITE_OMIT_DEPRECATED \
+-DSQLITE_OMIT_SHARED_CACHE -DSQLITE_OMIT_PROGRESS_CALLBACK -DSQLITE_OMIT_COMPLETE -DSQLITE_OMIT_GET_TABLE \
+-DSQLITE_OMIT_TCL_VARIABLE -DSQLITE_OMIT_DECLTYPE -DSQLITE_DEFAULT_MEMSTATUS=0 -DSQLITE_MAX_EXPR_DEPTH=0 \
+-DSQLITE_LIKE_DOESNT_MATCH_BLOBS"""

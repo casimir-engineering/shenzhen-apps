@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <!-- Seal: balancing a ball on its nose, as one does. -->
+  <clipPath id="c"><circle cx="32" cy="32" r="32"/></clipPath>
+  <circle id="bg" cx="32" cy="32" r="32" fill="#4a4a6a"/>
+  <g clip-path="url(#c)">
+    <path d="M10 64 Q8 44 16 34 L48 34 Q56 44 54 64 Z" fill="#c3ccd8"/>
+    <ellipse cx="32" cy="36" rx="18" ry="16" fill="#c3ccd8"/>
+    <ellipse cx="32" cy="60" rx="12" ry="9" fill="#dde3eb"/>
+    <circle cx="32" cy="12" r="7" fill="#ef4b5a"/>
+    <path d="M25.2 10.5 Q32 14.5 38.8 10.5 L38.9 13.5 Q32 17.5 25.1 13.5 Z" fill="#ffffff"/>
+    <circle cx="29.2" cy="8.6" r="1.4" fill="#ffffff" opacity="0.85"/>
+    <ellipse cx="24" cy="33" rx="3.6" ry="4.2" fill="#2b2233"/>
+    <ellipse cx="40" cy="33" rx="3.6" ry="4.2" fill="#2b2233"/>
+    <circle cx="25.3" cy="31.4" r="1.4" fill="#ffffff"/>
+    <circle cx="41.3" cy="31.4" r="1.4" fill="#ffffff"/>
+    <ellipse cx="32" cy="39" rx="2.8" ry="2" fill="#2b2233"/>
+    <path d="M27.5 42 Q30 44.5 32 42 Q34 44.5 36.5 42" fill="none" stroke="#2b2233" stroke-width="1.5"
+          stroke-linecap="round"/>
+    <circle cx="27.5" cy="40.5" r="0.6" fill="#6a7484"/>
+    <circle cx="36.5" cy="40.5" r="0.6" fill="#6a7484"/>
+    <path d="M15 39 L24 40.5 M15 43.5 L24 42.5 M49 39 L40 40.5 M49 43.5 L40 42.5" stroke="#ffffff" stroke-width="1"
+          stroke-linecap="round"/>
+    <ellipse cx="19.5" cy="38" rx="2.8" ry="1.7" fill="#ff8fa3" opacity="0.6"/>
+    <ellipse cx="44.5" cy="38" rx="2.8" ry="1.7" fill="#ff8fa3" opacity="0.6"/>
+    <ellipse cx="12" cy="55" rx="4.5" ry="9" transform="rotate(30 12 55)" fill="#a9b4c4"/>
+    <ellipse cx="52" cy="55" rx="4.5" ry="9" transform="rotate(-30 52 55)" fill="#a9b4c4"/>
+  </g>
+</svg>

@@ -1,0 +1,424 @@
+/* The Friends dropdown: the panel, the list page with its rows, tabs and footer, buttons and Nearby. Colours are
+   the app's tokens, so the panel follows the dark and light themes. A conversation's styles are in
+   friends-chat.css, the other pages', Settings' and the narrow and touch layouts' in friends-pages.css, imported
+   after this file in that order. */
+.szf-panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: -8px;
+  z-index: 120;
+  width: min(400px, calc(100vw - 24px));
+  height: min(640px, calc(100dvh - 88px));
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  color: var(--ink);
+  border: 1px solid var(--line-strong);
+  border-radius: 12px;
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.32);
+  overflow: hidden;
+  font-size: 12.5px;
+  white-space: normal;
+}
+.szf-panel button:not(:disabled):hover,
+.szf-settings button:not(:disabled):hover {
+  background: var(--raised);
+}
+.szf-page,
+.szf-list-page {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+}
+.szf-scroll {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
+.szf-connection,
+.szf-notice {
+  padding: 8px 14px;
+  font-size: 12px;
+  color: var(--secondary);
+  background: var(--inset);
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  justify-content: flex-start;
+  white-space: normal;
+}
+.szf-notice {
+  color: var(--ink);
+  width: 100%;
+  border-radius: 0;
+}
+.szf-quiet {
+  color: var(--muted);
+  padding: 16px;
+  margin: 0;
+}
+.szf-search {
+  padding: 12px 12px 6px;
+}
+.szf-search input,
+.szf-conversation-search-open input,
+.szf-form input,
+.szf-name-prompt input,
+.szf-footer input {
+  width: 100%;
+  height: 30px;
+  border-radius: 6px;
+  border: 1px solid var(--line-strong);
+  background: var(--inset);
+  color: var(--ink);
+  padding: 0 10px;
+}
+.szf-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 2px 12px 8px;
+}
+.szf-tabs button {
+  flex: 1;
+  height: 28px;
+  border-radius: 6px;
+  color: var(--secondary);
+  font-weight: 550;
+}
+.szf-tabs button.active {
+  background: var(--jade-wash);
+  color: var(--jade);
+}
+.szf-outgoing {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 14px;
+  background: var(--jade-wash);
+  color: var(--jade);
+  font-weight: 600;
+  border-bottom: 1px solid var(--line);
+}
+.szf-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0 6px 8px;
+}
+.szf-row {
+  display: flex;
+  align-items: center;
+  border-radius: 8px;
+  position: relative;
+}
+.szf-row.drop-target {
+  background: var(--jade-wash);
+  outline: 1px dashed var(--jade);
+}
+.szf-row.drop-refused .szf-row-subtitle {
+  color: var(--error);
+}
+.szf-row.unavailable {
+  opacity: 0.45;
+}
+.szf-row-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+  padding: 8px;
+  border-radius: 8px;
+  text-align: left;
+  white-space: normal;
+}
+.szf-row-avatar {
+  position: relative;
+  flex-shrink: 0;
+}
+.szf-unread {
+  position: absolute;
+  left: -5px;
+  top: 50%;
+  width: 7px;
+  height: 7px;
+  margin-top: -3.5px;
+  border-radius: 50%;
+  background: var(--jade);
+}
+.szf-row-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+  gap: 2px;
+}
+.szf-row-title {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.szf-row.muted .szf-row-title {
+  color: var(--secondary);
+}
+.szf-row-subtitle {
+  color: var(--secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 11.5px;
+}
+.szf-row-subtitle.emphasis {
+  color: var(--ink);
+  font-weight: 550;
+}
+.szf-row-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  flex-shrink: 0;
+  color: var(--muted);
+  font-size: 11px;
+}
+.szf-waiting {
+  color: var(--jade);
+  font-weight: 600;
+  font-size: 10.5px;
+}
+.szf-row-actions {
+  display: flex;
+  gap: 2px;
+  padding-right: 6px;
+}
+.szf-row-action {
+  width: 26px;
+  height: 26px;
+  border-radius: 13px;
+  color: var(--secondary);
+  border: 1px solid var(--line-strong);
+}
+.szf-row-action.accept {
+  color: var(--jade);
+}
+.szf-row-action.armed {
+  width: auto;
+  padding: 0 10px;
+  background: var(--error);
+  color: var(--surface);
+  border-color: transparent;
+  font-weight: 650;
+}
+.szf-confirmed {
+  color: var(--jade);
+  display: inline-flex;
+}
+.szf-route {
+  display: inline-flex;
+  color: var(--secondary);
+}
+.szf-route.offline {
+  color: var(--muted);
+}
+.szf-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  overflow: hidden;
+  color: #fff;
+  font-weight: 650;
+  flex-shrink: 0;
+}
+.szf-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.szf-avatar.muted {
+  opacity: 0.45;
+}
+.szf-card,
+.szf-banner {
+  margin: 6px 12px 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--raised);
+}
+.szf-card p,
+.szf-banner p {
+  margin: 4px 0 8px;
+  color: var(--secondary);
+  line-height: 1.45;
+}
+.szf-alert {
+  border-color: color-mix(in srgb, var(--error), transparent 50%);
+}
+.szf-name-prompt label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.szf-name-prompt small {
+  display: block;
+  color: var(--muted);
+  margin-top: 6px;
+}
+.szf-empty {
+  padding: 28px 20px;
+  text-align: center;
+  color: var(--secondary);
+}
+.szf-empty p {
+  color: var(--muted);
+}
+.szf-footer {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-top: 1px solid var(--line);
+  background: var(--inset);
+}
+.szf-footer-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.szf-footer-text small {
+  color: var(--muted);
+  font-size: 10.5px;
+  line-height: 1.35;
+}
+.szf-footer-name {
+  justify-content: flex-start;
+  padding: 0;
+  font-weight: 650;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.szf-footer-name.placeholder {
+  color: var(--secondary);
+  font-weight: 500;
+}
+.szf-footer-id {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--secondary);
+  font-size: 11.5px;
+}
+.szf-copy {
+  height: 22px;
+  padding: 0 6px;
+  border-radius: 5px;
+  color: var(--secondary);
+  font-size: 11px;
+  gap: 4px;
+}
+.szf-button {
+  min-height: 28px;
+  padding: 4px 11px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 550;
+  border: 1px solid var(--line-strong);
+  white-space: normal;
+}
+.szf-panel .szf-button.primary,
+.szf-settings .szf-button.primary {
+  background: var(--jade);
+  color: var(--jade-ink);
+  border-color: transparent;
+}
+.szf-button.destructive {
+  color: var(--error);
+  border-color: color-mix(in srgb, var(--error), transparent 55%);
+}
+.szf-panel .szf-button.armed,
+.szf-settings .szf-button.armed,
+.szf-button.destructive.armed {
+  background: var(--error);
+  color: var(--surface);
+  border-color: transparent;
+}
+.szf-button.link {
+  border-color: transparent;
+  color: var(--jade);
+  padding-left: 4px;
+  padding-right: 4px;
+}
+.szf-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: flex-start;
+  margin-top: 6px;
+}
+.szf-action {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.szf-note {
+  color: var(--muted);
+  font-size: 10.5px;
+  max-width: 320px;
+}
+.szf-nearby {
+  padding-bottom: 8px;
+}
+.szf-countdown {
+  font: 600 18px var(--mono);
+  color: var(--jade);
+}
+.szf-methods {
+  list-style: none;
+  margin: 0 12px 6px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.szf-method {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--secondary);
+  font-size: 11.5px;
+}
+.szf-method.denied,
+.szf-method.radio_off,
+.szf-method.unavailable {
+  color: var(--muted);
+}
+.szf-method.working {
+  color: var(--jade);
+}
+.szf-quiet-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin: 2px 12px 8px;
+  color: var(--secondary);
+  font-size: 11.5px;
+}
+.szf-people-header {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 8px 14px 2px;
+}
+.szf-people-header small {
+  color: var(--muted);
+}

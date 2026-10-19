@@ -1,0 +1,496 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Reader controls wheel — interaction study</title><link rel="stylesheet" href="control-study.css"></head><body>
+<a class="skip" href="#experience">Skip to interactive prototype</a><header class="masthead"><a href="#top" class="brand">深 <span>SHENZHEN READER</span></a><nav aria-label="Study navigation"><a href="#references">Research</a><a href="#sequences">Sequences</a><a href="#experience">Try it</a><a href="#study-6">Gesture conflicts</a></nav></header>
+<main id="top"><section class="hero"><p class="kicker">INTERACTION STUDY / REVISED BRIEF</p><h1>Reader controls.<br><em>One continuous slide.</em></h1><p class="intro">Touch Tools. Move through a control family. Continue into its command. Release once. The document keeps its normal touch gestures; system edges stay with the OS.</p><div class="scope"><span>Current-document controls only</span><span>No document or group switching</span><span>No preliminary tap or hold</span></div><p class="honesty">Primary-source comparison, complete interaction sequences and a working browser model. Physical-device and participant testing remain explicit gates. Previous document-switcher review scores do not apply.</p><a class="primary" href="#experience">Try the gesture ↗</a></section>
+<section id="references"><div class="section-title"><p class="kicker">01 / RESEARCH, WITH BOUNDARIES</p><h2>Borrow the interaction.<br>Understand the conditions.</h2><p>Original diagrams below summarize documented paths. They are not captures of the comparable apps, and we did not claim hands-on testing of those apps.</p></div><div class="references"><article class="reference"><span class="ref-number">01</span><h3>Procreate</h3><p class="sequence">Touch → drag → lift</p><strong>Same-contact selection</strong><p>The touch fast path is documented; canvas-wide finger invocation does not transfer safely to a reader.</p><a href="https://help.procreate.com/procreate/handbook/interface-gestures/quickmenu" target="_blank" rel="noopener">Read the primary source ↗</a></article><article class="reference"><span class="ref-number">02</span><h3>Sketchbook Pro</h3><p class="sequence">Category origin → tool → lift</p><strong>Dedicated control origin</strong><p>A desktop pen/mouse precedent; useful protocol, different device and motor demands.</p><a href="https://help.sketchbook.com/docs/basic-ui-elements" target="_blank" rel="noopener">Read the primary source ↗</a></article><article class="reference"><span class="ref-number">03</span><h3>Concepts</h3><p class="sequence">Tap tool → parameter editor</p><strong>Separate tools and values</strong><p>A wheel-shaped interface, with no documented continuous release-to-select claim in this source.</p><a href="https://concepts.app/en/manual/workspace" target="_blank" rel="noopener">Read the primary source ↗</a></article><article class="reference"><span class="ref-number">04</span><h3>Samsung Air command</h3><p class="sequence">Pen trigger → command</p><strong>Input separation</strong><p>Hardware invocation protects content gestures, but cannot be our default finger interaction.</p><a href="https://www.samsung.com/us/support/answer/ANS10002892/" target="_blank" rel="noopener">Read the primary source ↗</a></article></div><p class="source-link"><a href="control-wheel-comparables.md">Full comparison, reader references and rejected alternatives ↗</a></p></section>
+<section id="sequences"><div class="section-title"><p class="kicker">02 / THE WHOLE INTERACTION</p><h2>From the first touch<br>to the resulting page.</h2><p>Each row uses the same reader, origin and command model. These are inspectable replay states; the live prototype below handles actual down/move/up input. One contact stays down across the middle frames.</p></div><section class="flow" id="flow-fit"><div class="flow-heading"><div><span class="kicker">A completed view action</span><h3>Fit width</h3></div><p>The document keeps its identity. Only the page fit changes.</p></div><ol class="storyboard"><li><span class="step">1</span><h4>Touch Tools</h4><div class="mini-phone"><iframe loading="lazy" title="Fit width: Touch Tools" src="command-wheel.html?flow=fit&frame=down" tabindex="-1"></iframe></div><a href="command-wheel.html?flow=fit&frame=down" target="_blank" rel="noopener">Inspect this state ↗</a></li><li><span class="step">2</span><h4>Slide through Zoom</h4><div class="mini-phone"><iframe loading="lazy" title="Fit width: Slide through Zoom" src="command-wheel.html?flow=fit&frame=family" tabindex="-1"></iframe></div><a href="command-wheel.html?flow=fit&frame=family" target="_blank" rel="noopener">Inspect this state ↗</a></li><li><span class="step">3</span><h4>Continue to Fit width</h4><div class="mini-phone"><iframe loading="lazy" title="Fit width: Continue to Fit width" src="command-wheel.html?flow=fit&frame=leaf" tabindex="-1"></iframe></div><a href="command-wheel.html?flow=fit&frame=leaf" target="_blank" rel="noopener">Inspect this state ↗</a></li><li><span class="step">4</span><h4>Release once</h4><div class="mini-phone"><iframe loading="lazy" title="Fit width: Release once" src="command-wheel.html?flow=fit&frame=commit" tabindex="-1"></iframe></div><a href="command-wheel.html?flow=fit&frame=commit" target="_blank" rel="noopener">Inspect this state ↗</a></li></ol></section><section class="flow" id="flow-night"><div class="flow-heading"><div><span class="kicker">A completed toggle</span><h3>Night mode</h3></div><p>The page stays still until release; the reading palette then changes.</p></div><ol class="storyboard"><li><span class="step">1</span><h4>Touch Tools</h4><div class="mini-phone"><iframe loading="lazy" title="Night mode: Touch Tools" src="command-wheel.html?flow=night&frame=down" tabindex="-1"></iframe></div><a href="command-wheel.html?flow=night&frame=down" target="_blank" rel="noopener">Inspect this state ↗</a></li><li><span class="step">2</span><h4>Slide through View</h4><div class="mini-phone"><iframe loading="lazy" title="Night mode: Slide through View" src="command-wheel.html?flow=night&frame=family" tabindex="-1"></iframe></div><a href="command-wheel.html?flow=night&frame=family" target="_blank" rel="noopener">Inspect this state ↗</a></li><li><span class="step">3</span><h4>Continue to Night</h4><div class="mini-phone"><iframe loading="lazy" title="Night mode: Continue to Night" src="command-wheel.html?flow=night&frame=leaf" tabindex="-1"></iframe></div><a href="command-wheel.html?flow=night&frame=leaf" target="_blank" rel="noopener">Inspect this state ↗</a></li><li><span class="step">4</span><h4>Release to apply</h4><div class="mini-phone"><iframe loading="lazy" title="Night mode: Release to apply" src="command-wheel.html?flow=night&frame=commit" tabindex="-1"></iframe></div><a href="command-wheel.html?flow=night&frame=commit" target="_blank" rel="noopener">Inspect this state ↗</a></li></ol></section><section class="flow" id="flow-find"><div class="flow-heading"><div><span class="kicker">A completed navigation action</span><h3>Next search match</h3></div><p>The active query stays “quiet”; release advances to its next occurrence.</p></div><ol class="storyboard"><li><span class="step">1</span><h4>Touch Tools</h4><div class="mini-phone"><iframe loading="lazy" title="Next search match: Touch Tools" src="command-wheel.html?flow=find&frame=down" tabindex="-1"></iframe></div><a href="command-wheel.html?flow=find&frame=down" target="_blank" rel="noopener">Inspect this state ↗</a></li><li><span class="step">2</span><h4>Slide through Find</h4><div class="mini-phone"><iframe loading="lazy" title="Next search match: Slide through Find" src="command-wheel.html?flow=find&frame=family" tabindex="-1"></iframe></div><a href="command-wheel.html?flow=find&frame=family" target="_blank" rel="noopener">Inspect this state ↗</a></li><li><span class="step">3</span><h4>Continue to Next match</h4><div class="mini-phone"><iframe loading="lazy" title="Next search match: Continue to Next match" src="command-wheel.html?flow=find&frame=leaf" tabindex="-1"></iframe></div><a href="command-wheel.html?flow=find&frame=leaf" target="_blank" rel="noopener">Inspect this state ↗</a></li><li><span class="step">4</span><h4>Release to advance</h4><div class="mini-phone"><iframe loading="lazy" title="Next search match: Release to advance" src="command-wheel.html?flow=find&frame=commit" tabindex="-1"></iframe></div><a href="command-wheel.html?flow=find&frame=commit" target="_blank" rel="noopener">Inspect this state ↗</a></li></ol></section><section class="flow" id="flow-cancel"><div class="flow-heading"><div><span class="kicker">No command, no document change</span><h3>Change your mind</h3></div><p>Return to the hub while still touching. The pending command is cancelled.</p></div><ol class="storyboard"><li><span class="step">1</span><h4>Touch Tools</h4><div class="mini-phone"><iframe loading="lazy" title="Change your mind: Touch Tools" src="command-wheel.html?flow=cancel&frame=down" tabindex="-1"></iframe></div><a href="command-wheel.html?flow=cancel&frame=down" target="_blank" rel="noopener">Inspect this state ↗</a></li><li><span class="step">2</span><h4>Choose a family</h4><div class="mini-phone"><iframe loading="lazy" title="Change your mind: Choose a family" src="command-wheel.html?flow=cancel&frame=family" tabindex="-1"></iframe></div><a href="command-wheel.html?flow=cancel&frame=family" target="_blank" rel="noopener">Inspect this state ↗</a></li><li><span class="step">3</span><h4>Preview a command</h4><div class="mini-phone"><iframe loading="lazy" title="Change your mind: Preview a command" src="command-wheel.html?flow=cancel&frame=leaf" tabindex="-1"></iframe></div><a href="command-wheel.html?flow=cancel&frame=leaf" target="_blank" rel="noopener">Inspect this state ↗</a></li><li><span class="step">4</span><h4>Return and cancel</h4><div class="mini-phone"><iframe loading="lazy" title="Change your mind: Return and cancel" src="command-wheel.html?flow=cancel&frame=cancel" tabindex="-1"></iframe></div><a href="command-wheel.html?flow=cancel&frame=cancel" target="_blank" rel="noopener">Inspect this state ↗</a></li></ol></section><section class="flow" id="flow-page"><div class="flow-heading"><div><span class="kicker">A continuous parameter candidate</span><h3>Scrub pages without lifting</h3></div><p>Continue through Page scrub into the rail. Preview a page and release once to go there.</p></div><ol class="storyboard"><li><span class="step">1</span><h4>Choose Navigate</h4><div class="mini-phone"><iframe loading="lazy" title="Scrub pages without lifting: Choose Navigate" src="command-wheel.html?flow=page&frame=family" tabindex="-1"></iframe></div><a href="command-wheel.html?flow=page&frame=family" target="_blank" rel="noopener">Inspect this state ↗</a></li><li><span class="step">2</span><h4>Preview Page scrub</h4><div class="mini-phone"><iframe loading="lazy" title="Scrub pages without lifting: Preview Page scrub" src="command-wheel.html?flow=page&frame=leaf" tabindex="-1"></iframe></div><a href="command-wheel.html?flow=page&frame=leaf" target="_blank" rel="noopener">Inspect this state ↗</a></li><li><span class="step">3</span><h4>Slide along the rail</h4><div class="mini-phone"><iframe loading="lazy" title="Scrub pages without lifting: Slide along the rail" src="command-wheel.html?flow=page&frame=parameter" tabindex="-1"></iframe></div><a href="command-wheel.html?flow=page&frame=parameter" target="_blank" rel="noopener">Inspect this state ↗</a></li><li><span class="step">4</span><h4>Release the page</h4><div class="mini-phone"><iframe loading="lazy" title="Scrub pages without lifting: Release the page" src="command-wheel.html?flow=page&frame=commit" tabindex="-1"></iframe></div><a href="command-wheel.html?flow=page&frame=commit" target="_blank" rel="noopener">Inspect this state ↗</a></li></ol></section><section class="flow" id="flow-zoom"><div class="flow-heading"><div><span class="kicker">A continuous parameter candidate</span><h3>Adjust without lifting</h3></div><p>Continue past Adjust into the value rail; preview a value and release to commit.</p></div><ol class="storyboard"><li><span class="step">1</span><h4>Choose Zoom</h4><div class="mini-phone"><iframe loading="lazy" title="Adjust without lifting: Choose Zoom" src="command-wheel.html?flow=zoom&frame=family" tabindex="-1"></iframe></div><a href="command-wheel.html?flow=zoom&frame=family" target="_blank" rel="noopener">Inspect this state ↗</a></li><li><span class="step">2</span><h4>Preview Adjust</h4><div class="mini-phone"><iframe loading="lazy" title="Adjust without lifting: Preview Adjust" src="command-wheel.html?flow=zoom&frame=leaf" tabindex="-1"></iframe></div><a href="command-wheel.html?flow=zoom&frame=leaf" target="_blank" rel="noopener">Inspect this state ↗</a></li><li><span class="step">3</span><h4>Continue into the rail</h4><div class="mini-phone"><iframe loading="lazy" title="Adjust without lifting: Continue into the rail" src="command-wheel.html?flow=zoom&frame=parameter" tabindex="-1"></iframe></div><a href="command-wheel.html?flow=zoom&frame=parameter" target="_blank" rel="noopener">Inspect this state ↗</a></li><li><span class="step">4</span><h4>Release the value</h4><div class="mini-phone"><iframe loading="lazy" title="Adjust without lifting: Release the value" src="command-wheel.html?flow=zoom&frame=commit" tabindex="-1"></iframe></div><a href="command-wheel.html?flow=zoom&frame=commit" target="_blank" rel="noopener">Inspect this state ↗</a></li></ol></section></section>
+<section id="experience"><div class="section-title"><p class="kicker">03 / INTERACTIVE MODEL</p><h2>Start on Tools.<br>Keep your finger down.</h2></div><div class="workbench"><aside><p class="lead">On a mouse: press Tools, keep the button down, move through Zoom, bend toward Fit width, then release.</p><ol class="instructions"><li>Nothing changes while you choose.</li><li>Return to the hub to cancel.</li><li>A drag starting on the page stays a page drag.</li><li>Controls opens the equivalent ordinary list.</li></ol><label class="scene-label" for="scenario">Inspect another state</label><select id="scenario"><option value="rest">Live reader</option><option value="edges">Page / system gesture zones</option><option value="large">200% controls list</option><option value="parameter">Exact-value editor alternative</option></select><p class="fine">The browser cannot certify Android Back, iPhone Home, native PDF gesture recognition or physical thumb reach. The study below specifies how to test those.</p><a href="command-wheel.html" target="_blank" rel="noopener">Open the full-size prototype ↗</a></aside><div class="live-stage"><div class="live-phone"><iframe id="live-prototype" title="Interactive reader control wheel" src="command-wheel.html"></iframe></div></div></div></section>
+<section class="ownership" id="ownership"><div><p class="kicker">04 / INPUT OWNERSHIP</p><h2>The starting point<br>decides the owner.</h2><p>A document scroll does not become a menu gesture when it crosses Tools. A screen-edge swipe does not become an app shortcut.</p></div><div class="ownership-diagram" role="img" aria-label="Three separate gesture origins: document content belongs to the reader, Tools belongs to the wheel, system edges belong to the operating system"><div class="os-zone">SYSTEM EDGES · OS navigation</div><div class="page-zone">DOCUMENT<br><small>Scroll · pinch · pan · select · links</small><span>Page down → page-owned until it ends</span></div><div class="tools-zone"><span>APP CHROME</span><b>Tools</b><span>Down here → command wheel</span></div><div class="os-zone">SYSTEM BOTTOM · Home / task switching</div></div></section>
+<section class="specification" id="specification"><div class="section-title"><p class="kicker">05 / DECISIONS & IMPLEMENTATION CONTRACT</p><h2>What must be true<br>before this ships.</h2></div><article>
+<p><strong>Touch Tools. Slide to a reader command. Release once.</strong></p>
+<p>Revised UX study · 24 September 2026. The earlier document-switching wheel was a misinterpretation of the brief. This design replaces it. Groups and document switching stay in the organizer; the wheel contains controls for the current document only. The earlier 9.57 scores do not validate this new design.</p>
+<h2 id="study-1">1. What this study establishes</h2>
+<p>This is comparative research from primary manuals, an interaction design, and a browser walkthrough with reproducible gesture scenarios. It is not a participant study or proof of Android/iPhone gesture compatibility. Below, <strong>documented</strong> describes a source; <strong>proposed</strong> describes our design; <strong>observed</strong> is reserved for recorded prototype checks. Native-engine and physical-thumb tests have their own acceptance gates.</p>
+<p>The deliverable includes competing trigger designs, the full control map, gesture ownership, success/cancel sequences, error states, Android/iPhone placement rules, an interactive prototype, and a real-device study protocol. A picture of an open wheel alone cannot establish whether the gesture works.</p>
+<h2 id="study-2">2. What existing interfaces teach us</h2>
+<p>The detailed <a href="control-wheel-comparables.md">comparative study</a> records each source, input device and evidence limitation. These are useful precedents for different parts of the problem:</p>
+<table>
+<thead>
+<tr>
+<th>Reference</th>
+<th>Documented sequence</th>
+<th>Borrow</th>
+<th>Do not copy blindly</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Procreate QuickMenu, iPad</td>
+<td>Configured Touch → keep contact → drag toward a function → lift to select</td>
+<td>One contact, release-to-select, stable positions</td>
+<td>Its canvas Touch shortcut can assume Pencil drawing; our page needs finger scrolling. <a href="https://help.procreate.com/procreate/handbook/interface-gestures/quickmenu">Handbook</a></td>
+</tr>
+<tr>
+<td>Sketchbook Pro Lagoon, desktop</td>
+<td>Press a category control → move to highlighted tool → release; expert flicks can precede visible icons</td>
+<td>A dedicated origin and a learnable directional path</td>
+<td>Desktop stylus/mouse evidence is not phone-thumb evidence. <a href="https://help.sketchbook.com/docs/basic-ui-elements">Manual</a></td>
+</tr>
+<tr>
+<td>Concepts Tool Wheel</td>
+<td>Tap an outer tool; inner settings expose parameters</td>
+<td>Separate tool selection from values; bounded tool inventory</td>
+<td>The manual does not establish same-contact release selection. <a href="https://concepts.app/en/manual/workspace">Workspace</a></td>
+</tr>
+<tr>
+<td>Samsung Air command</td>
+<td>Pen removal/hover-button or floating entry → choose a command</td>
+<td>Invocation separated from ordinary content input</td>
+<td>A pen-dependent or invoke-then-tap interaction does not meet our default finger brief. <a href="https://www.samsung.com/us/support/answer/ANS10002892/">Guide</a></td>
+</tr>
+<tr>
+<td>Acrobat / PDF Expert</td>
+<td>Page scrolling, zooming, text selection, page navigation and search already occupy touch input</td>
+<td>Preserve established reading gestures</td>
+<td>Do not repurpose page long-press, double-tap or pinch for the wheel. <a href="https://www.adobe.com/devnet-docs/acrobat/android/en/navigatesearch.html">Acrobat navigation</a>, <a href="https://pdfexpert.com/ios/how-to-view-pdf">PDF Expert reading</a></td>
+</tr>
+</tbody></table>
+<p>These references support a <strong>marking menu</strong>, not the assumption that every circular menu is a marking menu. Classic research describes hierarchical directional strokes and correction through inward motion. Its findings are not a phone performance guarantee. Google&#39;s M3 research also reports practical adoption problems for traditional marking menus; shape, learning and screen space need testing, not an automatic “radial is faster” claim. <a href="https://www.billbuxton.com/MMExpert.html">Kurtenbach &amp; Buxton</a>, <a href="https://research.google/pubs/m3-gesture-menu-design-and-experimental-analyses-of-marking-menus-for-touchscreen-mobile-interaction/">Google M3 research</a>.</p>
+<h2 id="study-3">3. Choose the origin before drawing the wheel</h2>
+<table>
+<thead>
+<tr>
+<th>Candidate</th>
+<th>Document conflict</th>
+<th>System conflict</th>
+<th>Decision</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Long-press anywhere on a page</td>
+<td>Competes with selection, links, annotations; adds a hold</td>
+<td>None inherently</td>
+<td>Reject</td>
+</tr>
+<tr>
+<td>Drag from a screen edge</td>
+<td>Competes with page turns/panning near edges</td>
+<td>Android Back/Home; iPhone navigation and Home</td>
+<td>Reject</td>
+</tr>
+<tr>
+<td>Two-finger gesture</td>
+<td>Competes with pinch/pan and accessibility</td>
+<td>Depends on platform/accessibility mode</td>
+<td>Reject as default</td>
+</tr>
+<tr>
+<td>Invisible page hot zone</td>
+<td>User cannot distinguish scroll from commands</td>
+<td>Can extend into edges</td>
+<td>Reject</td>
+</tr>
+<tr>
+<td>Floating puck over page text</td>
+<td>Explicit, but obscures content and steals that part of the page</td>
+<td>Avoidable with insets</td>
+<td>Keep only as a future tested option</td>
+</tr>
+<tr>
+<td><strong>Visible Tools origin in reserved reading chrome</strong></td>
+<td>Page viewport ends above its strip</td>
+<td>Insets keep the origin away from system areas</td>
+<td><strong>Prototype this</strong></td>
+</tr>
+</tbody></table>
+<p>Use a labeled, at least 48 dp/pt <strong>Tools</strong> origin in a small bottom control strip. It stays visible when secondary chrome hides, so there is no preliminary “show controls” tap. The reader reserves that strip; the last line/page can scroll above it. A separate standard <strong>Controls list</strong> button exposes the same commands for keyboard, switch access and screen readers. Tapping that button is an alternative, never a prerequisite for the continuous gesture.</p>
+<p>The tradeoff is explicit: a small amount of permanent chrome buys predictable gesture ownership. An invisible activation zone would save pixels by making ordinary document input ambiguous.</p>
+<h2 id="study-4">4. One contact, two directional stages</h2>
+<p>The selected candidate is an <strong>upward fan anchored to Tools</strong>, not a full circle moved above the thumb. A full bottom-origin circle wastes its lower half near system navigation. A relocated center adds a travel corridor before selection. Neither is needed here.</p>
+<ol>
+<li><strong>Down on Tools:</strong> show the six reader-control families immediately. No mandatory hold, first tap, haptic delay or timer unlock. The coordinate origin is the fixed center of the Tools control, not the exact down point within its hit target.</li>
+<li><strong>Slide through a family:</strong> crossing its gate locks the family. Only that family&#39;s commands expand across the entire upper fan. We do not squeeze several children into each tiny parent wedge.</li>
+<li><strong>Continue into a command:</strong> the same finger can bend toward a broad leaf target. A label above the thumb says the exact action and eligibility. Preview its selection; do not change the document yet.</li>
+<li><strong>Release over an enabled command:</strong> execute it once. The wheel disappears. A reversible view action shows the result immediately; the active document identity does not change.</li>
+</ol>
+<p>For a practiced user this is one continuous two-leg slide, not two separate swipes. There is no claim that every command is a straight-line flick. The novice follows labels along exactly the same route. The family/command layout is frozen for the contact; no recency ranking, reordering, mirrored layout change or capability refresh occurs under the finger.</p>
+<p><strong>Correction:</strong> retreat into the inner family zone to choose a different branch while keeping contact. <strong>Cancel:</strong> return to the origin after leaving it (terminal until lift, even if the finger moves outward again), release in a gap/outside the permitted fan, lose contact ownership, receive a system cancellation, rotate/change layout, background the app, or add another finger. A cancelled gesture makes no document change. No command fires merely because the finger crossed its tile.</p>
+<h3>Prototype geometry, not a proven ergonomic optimum</h3>
+<p>For a 360 CSS-pixel portrait fixture: origin at the center of the bottom Tools control; six 30° family directions over the upper semicircle; family lock radius 90; branch retreat radius 62; center cancellation radius 24; child band 108–160; up to eight child directions at 22.5° spacing. Use radius 134 for child labels. A 48-unit circular target can fit within this band/sector geometry, but thumb occlusion, font size and movement errors still need measurement.</p>
+<p>This is the canonical candidate; the comparative research&#39;s earlier four-child sketches are exploratory. Eight is a ceiling for full reader coverage, not a reason to fill every format with unavailable tools. Disabled slots retain their location and explain why. A finger starting at the edge of Tools must not shift the fan toward a screen edge. Hit testing follows the rendered, frozen geometry; round corners and shadows do not define hit regions.</p>
+<p>Family locking uses the <strong>first outward segment intersection</strong> with radius 90, rather than the latest event&#39;s endpoint. A sparse event can cross both family and child bands; it must evaluate both in the same update. A straight continuation intentionally selects the aligned child. Angles are partitioned into half-open sectors from left to right; an exact internal boundary belongs to its right-hand sector. There is no angular hysteresis in this candidate. A locked family stays locked while traversing children outside radius 62. An inward segment crossing that radius unlocks it; a later outward crossing of radius 90 on the same sparse segment can lock a different family. Thus a cross-fan correction that should retain its family must follow an arc outside the retreat zone, not cut through it. This prevents event frequency from choosing a different family, but boundary jitter and the cost of opposite-side corrections remain usability tests.</p>
+<p>Actual layout uses available safe width/height, not a hard-coded 20-pixel universal exclusion strip. The browser fixture switches explicitly to its readable Controls list below 360 CSS pixels width, with less than 245 pixels from content-header bottom to Tools center, or in its 200% text scenario. The rest-state notice says the continuous fan is unavailable, and Tools changes to List. This is a disclosed limitation, not the same gesture under another label. Native release cannot silently claim that a smaller fan is equally usable. Left/right preferences may choose a prevalidated layout at rest; they never mirror the wheel during a gesture.</p>
+<h2 id="study-5">5. Every reader control has a home</h2>
+<p>This is the proposed command inventory, grounded in the desktop reader&#39;s page, zoom, Find, comment and document menus. It is a route map, not a promise that every desktop operation is already implemented on mobile. No Open document, Switch document, Groups, Collection management, account, app settings or library search belongs here.</p>
+<table>
+<thead>
+<tr>
+<th>Family</th>
+<th>Stable command routes</th>
+<th>Result of release</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Navigate</strong></td>
+<td>Previous page, Next page, First page, Last page, Page entry/scrub, Contents, Page favorites, Return to prior location</td>
+<td>Direct page commands move immediately; outline/favorites/page entry opens the relevant reader control</td>
+</tr>
+<tr>
+<td><strong>Zoom</strong></td>
+<td>Fit width, Fit page, Fit height, Adjust zoom, Zoom in, Zoom out, 150%, Actual size</td>
+<td>Fits/presets/steps apply immediately; continue beyond Adjust for a same-contact value rail, or release on it for numeric entry; pinch stays available on the page</td>
+</tr>
+<tr>
+<td><strong>View</strong></td>
+<td>Continuous, Page-by-page, Rotate left, Rotate right, Night, Light, Focus, Keep awake</td>
+<td>Reversible view setting applies immediately; rotation changes viewing orientation, not source bytes</td>
+</tr>
+<tr>
+<td><strong>Find</strong></td>
+<td>Find text, Next match, Previous match, Regex, Match case, Copy selection, Translate selection, Search selected text on web</td>
+<td>Match navigation/toggles act immediately; Find focuses a query editor; external/translation actions are explicit and never background uploads</td>
+</tr>
+<tr>
+<td><strong>Notes</strong></td>
+<td>Favorite page, Add comment, Comments, Edit comment, Delete comment, Undo, Redo, Highlight</td>
+<td>Contextual comment actions require an eligible selection/comment. Destructive deletion opens confirmation; annotation tooling is a capability-gated later delivery</td>
+</tr>
+<tr>
+<td><strong>Document</strong></td>
+<td>History, Save a copy, Share, Print, Copy page image, Copy page PDF, OCR, Properties</td>
+<td>Opens the current document&#39;s relevant tool or system sheet. Never navigates to another document/group</td>
+</tr>
+</tbody></table>
+<p>PDF gets page/zoom/rotation semantics. EPUB and Markdown retain these family locations but use format-appropriate reading controls—e.g. text size/reflow options instead of unsupported PDF rotation/copy-page operations. Comments disappear from Markdown capability routes; absence does not shift targets during an active gesture. Read-only versions cannot acquire editing actions. OCR, annotation editing and full translation remain explicit implementation gates rather than fake working buttons.</p>
+<h3>Coverage and capability audit</h3>
+<p>The desktop inventory was checked against <code>portable/mac/ShenzhenPDFMac.mm</code> (page/zoom/view menus, Find, comments, favorites and file actions) and <code>portable/mac/SPDFMacContextMenuIntegration.mm</code> (selection, copy-page and document actions). The prototype&#39;s 48 slots are routes, not a claim that 48 native tools have shipped.</p>
+<ul>
+<li><strong>Find result count, overview, clear and return:</strong> belong to the Find editor/results control opened by Find text; next/previous have direct routes. Text selection remains standard page long-press; Copy selection acts on that selection.</li>
+<li><strong>Minimap / page overview:</strong> mobile page navigation is covered by Page scrub and Contents. A desktop minimap is not duplicated as a seventh family. <strong>Presentation / hide chrome:</strong> View → Focus controls reader chrome. It does not claim external-display presentation support.</li>
+<li><strong>Image colors:</strong> reader themes preserve image colors by default. Theme changes affect viewing, not exported source bytes; advanced per-image transformations are outside this mobile v1.</li>
+<li><strong>Favorites:</strong> Navigate → Favorites opens the location list; Notes → Favorite page toggles the current location. These are distinct list and mutation actions.</li>
+<li><strong>Typography:</strong> EPUB/Markdown use text size, line spacing and reflow controls in the Zoom/View families; PDF percentage/rotation slots become labeled format alternatives at rest. A per-format map must be frozen before native delivery. No changing slots during contact.</li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>Source condition</th>
+<th>Available routes</th>
+<th>Disabled / replaced routes</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Unlocked text PDF</td>
+<td>Page, fit, view, Find and selection; document tools according to permissions</td>
+<td>Annotation editing and OCR remain later implementation gates</td>
+</tr>
+<tr>
+<td>Scanned PDF</td>
+<td>Page, fit, view, save/share/print where permitted</td>
+<td>Text search/selection explain “No text layer”; OCR is a later gate, not a working browser button</td>
+</tr>
+<tr>
+<td>Password-locked PDF</td>
+<td>Unlock first through an ordinary secure prompt</td>
+<td>Reading controls disabled until unlock; no wheel workaround for access rights</td>
+</tr>
+<tr>
+<td>Read-only historical PDF</td>
+<td>Navigation, view, Find, History, permitted export/copy</td>
+<td>Add/edit/delete annotations unavailable; no source-writing action</td>
+</tr>
+<tr>
+<td>EPUB</td>
+<td>Chapters, semantic progress, reflow/typography, Find, favorites and document metadata/history</td>
+<td>PDF rotation/page-copy replaced or unavailable; no fabricated PDF page numbers</td>
+</tr>
+<tr>
+<td>Markdown</td>
+<td>Headings, semantic location, typography, Find, favorites and document metadata/history</td>
+<td>Comment actions absent; PDF-specific operations unavailable</td>
+</tr>
+</tbody></table>
+<p>The live browser fixture is an unlocked text PDF sample. It labels engine/system-sheet placeholders and does not simulate encrypted PDFs, real annotation storage or EPUB reflow. Disabled selection tools explain the missing selection; placeholder panels are visibly identified as prototype routes.</p>
+<p><strong>What “one slide” does and does not mean:</strong> Fit width, Night, Next match and other discrete commands complete on that release. Find opens its focused field; entering arbitrary text cannot be encoded by the same slide. A comment still needs content/placement, and a system share/print/save sheet still needs its destination. Those are the task&#39;s inputs, not extra taps to select the command. Parameter scrubbing is evaluated separately below; do not relabel a panel-opening gesture as a completed zoom adjustment.</p>
+<h3>Continuous values deserve a separate treatment</h3>
+<p>Keep native pinch as the primary continuous zoom gesture and the ordinary document scrubber as a page-navigation affordance. The prototype additionally models a same-contact <strong>outward continuation rail</strong> for Adjust zoom and Page scrub. Continue through the central command and outward across radius 172 without lifting. This locks the parameter; horizontal movement previews a value. Release commits that value once. Releasing over the ordinary command band instead opens numeric entry, explicitly a different route.</p>
+<p>The entry value is the current value, with no jump on entering the rail. From the entry x coordinate, movement toward either safe endpoint linearly maps the remaining distance to that value bound, quantized to 5% zoom or one page. The browser fixture uses 50–200% and pages 1–48; these are demonstration bounds, not mobile engine limits. The fixed rail endpoints are 20 CSS pixels from each fixture edge. Native endpoints must derive from actual safe bounds. Release is valid only inside those endpoints and within 44 units vertically of entry. Returning to the hub cancels; releasing outside the rail cancels. Values remain previews until release, so cancellation preserves zoom, page and location exactly. The prototype does not mutate the document while choosing.</p>
+<p>This is one contact with three movement phases, not a second tap. It adds motor complexity: device testing must compare it with pinch and the ordinary page scrubber before adopting it. The zoom anchor should be the viewport&#39;s current center; native testing must verify it preserves that document point. Numeric entry remains the precision alternative.</p>
+<h2 id="study-6">6. Gesture ownership: the page and the OS keep their gestures</h2>
+<p>Ownership is decided by the <strong>initial down</strong>, not by where the finger eventually moves. The wheel recognizer attaches only to Tools; it does not install a full-page long-press detector. The ordinary page renderer gets contacts that start on the page, without waiting for the wheel to fail.</p>
+<table>
+<thead>
+<tr>
+<th>Starting contact / event</th>
+<th>Owner and expected outcome</th>
+<th>Wheel rule</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Page drag / fling</td>
+<td>Scroll or pan the document, including crossing the bottom strip</td>
+<td>Never adopt the contact midway</td>
+</tr>
+<tr>
+<td>Page pinch / double-tap</td>
+<td>Renderer zoom behavior</td>
+<td>No wheel invocation or global preventDefault</td>
+</tr>
+<tr>
+<td>Text long-press / selection handles / links</td>
+<td>Renderer selection/link behavior</td>
+<td>No hold shortcut on content</td>
+</tr>
+<tr>
+<td>Android left/right edge swipe</td>
+<td>System Back / predictive Back</td>
+<td>No exclusion rectangles to make the wheel win</td>
+</tr>
+<tr>
+<td>Bottom system navigation area</td>
+<td>Home / task switching</td>
+<td>No launcher, slider endpoint or command target there</td>
+</tr>
+<tr>
+<td>iPhone edge navigation / Home</td>
+<td>Platform navigation recognizers and Home</td>
+<td>No system-gesture deferral to rescue the wheel</td>
+</tr>
+<tr>
+<td>Tools down → slide</td>
+<td>Wheel owns this contact through release/cancel</td>
+<td>Exactly one eligible command at most</td>
+</tr>
+<tr>
+<td>Second finger during Tools gesture</td>
+<td>Cancel safely; wait for fresh contacts</td>
+<td>Do not synthesize a half-started pinch into the renderer</td>
+</tr>
+<tr>
+<td>OS cancellation, rotation, interruption</td>
+<td>Roll back preview and dismiss</td>
+<td>Never commit on cancel/lost pointer capture</td>
+</tr>
+</tbody></table>
+<p>Android documents Back from either side edge and non-overridable mandatory gesture regions. Its layout guidance says interactive targets should avoid system insets. Use current window/system/mandatory gesture insets and display cutouts; re-evaluate at rest after rotation, navigation-mode changes, keyboard and multi-window changes. This reader should not request exclusion rectangles for its wheel. <a href="https://developer.android.com/develop/ui/views/touch-and-input/gestures/gesturenav">Android gesture compatibility</a>, <a href="https://developer.android.com/design/ui/mobile/guides/layout-and-content/edge-to-edge">edge-to-edge guidance</a>.</p>
+<p>Apple recommends custom gestures avoid system conflicts and retain standard alternatives. Safe-area layout provides a baseline for unobscured placement; it is not a universal map of every recognizer&#39;s activation area. Keep the launcher in app chrome, preserve the navigation controller&#39;s edge gesture, and honor cancellation. Do not enable preferred system-gesture deferral. <a href="https://developer.apple.com/design/human-interface-guidelines/gestures">Apple gestures</a>, <a href="https://developer.apple.com/documentation/uikit/uiview/safeareainsets">safeAreaInsets</a>.</p>
+<p>A browser cannot exercise Android predictive Back, iPhone Home, hardware touch arbitration or a native PDF surface. The prototype demonstrates pointer ownership and declared reserved zones, while those OS claims remain native acceptance tests.</p>
+<h2 id="study-7">7. Implement the interaction as a small contract</h2>
+<p>Use one pure state machine: <code>idle → families → commands → optional parameter → commit/cancel → idle</code>. Store the fixed control center, bounds, command capability snapshot, document/revision ID and contact ID at down. Layout changes cancel rather than move targets. A reducer returns a candidate command; only a valid up creates one command intent. Each intent has a generation token, and stale-document intents are rejected.</p>
+<p>Native adapters use the existing reader contracts for commands. Keep gesture tracking and highlighting off a busy JavaScript thread; do not message the PDF engine on every hover. A mode preview is separate from document mutation. Pointer capture belongs to the Tools-origin interaction, and loss of capture cancels. A release outside valid targets has no action. Page-origin contacts never acquire wheel capture. The visual overlay must not become a transparent full-screen hit target before invocation.</p>
+<p>The browser prototype and native state machine should run the same trace fixtures: down/move/up, sparse coalesced moves, center retreat, off-fan release, second finger, renderer generation change, rotation and interruption. A single final screenshot does not cover those transitions.</p>
+<h2 id="study-8">8. Validation plan and decision gates</h2>
+<p><strong>Recorded browser checks</strong> belong in the attached evidence log, with source hashes, viewport, exact path and observed result. Check fit-width, Night and Next match from one down/up; verify zero commands before release and exactly one after; cancel restores state; page-origin drags do not open Tools; unavailable controls stay inert. Inspect every command family, small portrait, landscape, both themes, long translations and 200% text/list mode. Distinguish a shown unavailable capability from an implemented action.</p>
+<p><strong>Native non-interference gate:</strong> on a current Android device with gesture navigation and three-button navigation, plus an iPhone with Home indicator, perform at least 30 trials per origin/gesture: page scroll crossing Tools, horizontal paging, zoomed pan, pinch, selection long-press/handles, links, left/right system edges where applicable, bottom Home/task switching, rotation and interruption. Include PDF/EPUB/Markdown native surfaces, keyboard open, TalkBack/VoiceOver and one low-memory device. Pass: no wheel activation from page/system origins, no lost document gestures, no action on cancellation, and OS navigation remains available. Thirty trials are a screening gate, not proof of zero field failures.</p>
+<p><strong>Formative usability study, not yet run:</strong> recruit 12 people covering both dominant hands, smaller/larger phones and mixed reader experience; run a separate accessibility session using the ordinary list with assistive technology users. Compare the proposed fan against a conventional toolbar/list, counterbalance order, and include first-use plus a short practiced block. Tasks: Fit width, Night, Next match, page jump, Find a phrase, inspect Contents, cancel a mistaken command and resume scrolling. Record completion time, wrong command, cancellation success, accidental activation, finger travel, reach/occlusion and participant explanation of the gesture.</p>
+<p>Advance the fan only if at least 90% of first-use tasks and 95% of practiced discrete-command tasks succeed, cancellation succeeds at least 95%, no system-navigation interception is observed, and practiced discrete commands are no slower than the toolbar baseline median. Report small-sample uncertainty and individual failures; do not hide an average that masks one-handed or accessibility failures. If the eight-child fan fails, split the command inventory more carefully or keep the conventional list as default; do not make targets smaller to force a wheel.</p>
+<p>The user should review the interaction route and command map, then a native spike should prove gesture ownership before this becomes the mobile app&#39;s navigation architecture. Previous scores do not apply; this revision is a researched, inspectable proposal with native and participant validation still outstanding.</p>
+</article></section>
+<section class="review" id="reviews"><p class="kicker">INDEPENDENT REVIEW / CORRECTED BRIEF</p><h2>Findings, not inherited grades.</h2><p>These reviews concern the reader-controls revision. Earlier scores for the rejected document-switcher design are historical.</p><details><summary>control wheel design 01</summary><h1>Independent adversarial review — controls-only marking menu</h1>
+<p>24 September 2026. New brief, new review. The previous document-switcher interpretation was rejected by the user; its scores do <strong>not</strong> validate this controls-only design. This is a review of the proposed protocol and desk study, before the new implementation and movement sequences are supplied. <strong>No implementation score is assigned.</strong></p>
+<p>Reviewed proposal: a dedicated 48dp Tools origin in reader chrome, immediate down → continuous slide → release, no preliminary tap or hold timer, page-origin gestures never adopted; six families Navigate / Zoom / View / Find / Notes / Document; family gate around 90dp, retreat below 62dp, origin cancellation below 24dp. The updated child hit band is <strong>108–160dp</strong>, up to eight children over the upper fan. The original 128–160dp proposal is superseded for this review.</p>
+<p>Also read <code>control-wheel-comparables.md</code> and the actual desktop control inventory in <code>docs/features.md</code>. Reader controls are actions affecting the current document; document lists, Groups, Collection and library/global search remain outside the wheel.</p>
+<h2>What is directionally sound</h2>
+<p>The dedicated origin is a strong answer to the page-gesture conflict. Requiring initial down inside it, with no later adoption of page contacts, gives pan, pinch, text selection and links a clean ownership rule. Showing categories immediately avoids recreating the rejected hold-to-open interaction. Replacing the family layer with a broad child fan is more plausible than cramming every command into nested narrow wedges. A conventional accessible command list is already correctly described as an equivalent route, not a prerequisite for ordinary one-contact use.</p>
+<p>The comparable study is appropriately cautious: it distinguishes a circular appearance from a continuous-contact protocol and does not claim that every referenced product implements the proposed cancellation rules. Its provisional geometry and family inventory now differ from the current proposal, however; those must not both appear canonical.</p>
+<h2>Blocker to declaring the new brief satisfied</h2>
+<h3>B1 — “All controls in one movement” needs an explicit completion contract</h3>
+<p>A completed Fit width action and opening a Find panel are not the same outcome. A page-number keyboard cannot be entered by a directional release; placing a comment on the document cannot be accomplished by releasing over a menu sector. Calling every leaf a “command” must not conceal this difference.</p>
+<p><strong>Required before the study claims success:</strong> inventory each leaf with its release result, using these concrete categories:</p>
+<table>
+<thead>
+<tr>
+<th>Action type</th>
+<th>What the continuous contact actually finishes</th>
+<th>What remains</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Discrete action: fit width, rotate, next match, theme preset</td>
+<td>Apply exactly that action on valid release</td>
+<td>Nothing beyond observing the result</td>
+</tr>
+<tr>
+<td>Parameter control: exact zoom, page number, font size</td>
+<td>Either select a value during this same contact, or open a specifically named editor</td>
+<td>State explicitly if a second interaction is required</td>
+</tr>
+<tr>
+<td>Text/placement action: Find query, text comment, highlight without a selection</td>
+<td>Open the appropriate input or placement mode on release</td>
+<td>Text entry, page selection/placement and confirmation are subsequent work</td>
+</tr>
+<tr>
+<td>Tool mode: select text, annotation tool</td>
+<td>Activate the named mode on release</td>
+<td>Tool use is a later page interaction, with a visible exit</td>
+</tr>
+</tbody></table>
+<p>Do not describe “opens Zoom…” as “sets zoom in one movement.” If the user expects continuous zoom adjustment or page scrubbing, those need their own same-contact parameter lane design, with pending value preview and release-to-commit. They cannot be silently relegated to a later roadmap while the study claims all controls satisfy the stronger interpretation. Explicitly delimit the unavoidable text/placement cases instead of promising impossible text entry by flick.</p>
+<h2>Major findings / decisions</h2>
+<h3>M1 — Family locking, child arming and correction are underspecified</h3>
+<p>Crossing radius 90 replaces one angular map with another only 18dp before the child band starts. A straight rapid stroke can cross both thresholds between two delivered events. A curved correction can also cross a newly mapped child before the user has understood the layer transition. The design needs to support expert speed without depending on a timer or accidentally committing whatever appears beneath the finger.</p>
+<p><strong>Specify:</strong> whether the first outward crossing locks a family; exact angular boundary/hysteresis rules; how coalesced or sparse movement samples determine that crossing; whether a straight continuation intentionally selects a child aligned with that family; and what release in each region does. Freeze branch, layout and enabled-command identities for the contact. A family release must cancel, not execute an arbitrary default child. After inward retreat below 62, remove the child candidate before reevaluating families. After origin cancellation, say whether the gesture is terminal until lift or can be rearmed; do not allow accidental later release to revive an old command.</p>
+<p>The next sequence must show a hard case such as far-left family → far-right child, then retreat → different family, while the same contact stays down. The ordinary straight-path demo alone does not test the remapping cost.</p>
+<h3>M2 — Origin choice and actual hit regions determine whether the fan fits</h3>
+<p>The updated geometry is arithmetically plausible. At a 134dp midpoint, a 22.5° child sector has about <strong>26.1dp perpendicular clearance to each angular edge</strong>; the 108–160dp band gives <strong>26dp radial clearance</strong>. A 48dp-diameter hit circle centered there can fit. This resolves the old 32dp-depth objection. It is not evidence of one-thumb accuracy or readable eight-item labels.</p>
+<p>The claimed 20dp side clearance in a 360dp viewport assumes a fixed, centered origin. If the menu instead uses the actual down coordinate anywhere inside a 48dp trigger, its center can shift roughly 24dp horizontally and clip an edge. A corner down also lies outside a 24dp-radius cancel circle measured from the control center.</p>
+<p><strong>Specify:</strong> fixed control-center versus contact-down origin; screen-coordinate transforms; dp/point units; allowed safe width; label and focus-preview bounds as well as hit bounds. Hit regions must follow displayed geometry. Do not shift the fan after down. If a smaller viewport, keyboard, landscape, large text or inset makes the layout impossible, name the alternative and its input sequence; silently shrinking targets or adding a preliminary tap breaks the contract. The separately accessible list remains valid, but should not disguise a broken ordinary-touch layout.</p>
+<h3>M3 — Prove command coverage with a finite inventory, not six attractive labels</h3>
+<p>Six families × eight children gives a capacity ceiling, not proof of completeness. The desktop reader has enough controls that omissions and vague catch-alls are likely. Use the following audit matrix; explicitly mark each operation supported now, deliberately later, inapplicable, or covered by another named command. This is a coverage check, not an instruction to ship every desktop feature on mobile.</p>
+<table>
+<thead>
+<tr>
+<th>Family</th>
+<th>Operations that need an explicit disposition</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Navigate</td>
+<td>Contents/outline, page entry/scrub, next/previous, first/last, return from link/search detour, bookmarks or locations</td>
+</tr>
+<tr>
+<td>Zoom</td>
+<td>In/out, fit width/page/height, actual size, custom percentage; define fit behavior versus PDF display density</td>
+</tr>
+<tr>
+<td>View</td>
+<td>Rotation both directions, continuous/page mode if supported, reading theme, preserve image colors, hide/show chrome, presentation; EPUB/Markdown typography alternatives</td>
+</tr>
+<tr>
+<td>Find</td>
+<td>New/edit current-document query, next/previous result, match overview/count, clear/return, supported search options; never global/library search</td>
+</tr>
+<tr>
+<td>Notes</td>
+<td>Copy selection/page text, selection mode, bookmarks if placed here, existing notes list, highlight/comment/edit/delete or their explicit later status; annotations require write/read-only capability</td>
+</tr>
+<tr>
+<td>Document</td>
+<td>Properties, save/export/share/print of this document, current-document history if included; no document switcher or organizer destinations</td>
+</tr>
+</tbody></table>
+<p>Avoid ambiguous overlap: for example, put Bookmarks in exactly one family, and distinguish page rotation from rotation lock and reader theme from exported colors. Keep family/leaf locations stable. Disabled commands should not cause the remaining actions to shift directions. A format/capability table is necessary for PDF scans, locked/read-only revisions, reflowable EPUB and Markdown. Do not put an unsupported Notes feature in the prototype as though it works merely to fill six families.</p>
+<h3>M4 — Native arbitration must match the clean start-origin rule</h3>
+<p>The proposal is good only if the native engine and menu implement it literally. A parent pan recognizer that waits for movement and then steals a page contact would reintroduce the conflict. A JS-only overlay that cannot claim the initiating Tools down consistently over a native reader surface would also fail the protocol.</p>
+<p><strong>Required contract:</strong> Tools owns its initial down through up/cancel; page-owned contacts stay page-owned even across Tools; a second contact during Tools cancels the menu without synthesizing a page pinch; pointer cancellation, lost ownership, app interruption, rotation/resize and document-generation change cancel pending action. Accept at most one terminal commit for the original pointer/generation. A stale or newly disabled command must not execute on another document after a source/open transition.</p>
+<p>Use current system insets, not a screenshot&#39;s home-bar estimate. Android says bottom home/quick-switch gestures cannot be opted out of like side Back gestures and provides mandatory gesture insets. Keep the Tools hit target wholly above that region; request no exclusion to rescue the design. Android also documents that late parent interception sends <code>ACTION_CANCEL</code> to the child, which is why late adoption is inappropriate here. <a href="https://developer.android.com/develop/ui/views/touch-and-input/gestures/gesturenav">Android gesture navigation</a>, <a href="https://developer.android.com/develop/ui/views/touch-and-input/gestures/viewgroup">Android touch interception</a>.</p>
+<p>The iPhone phase needs the same tested ownership policy against its actual recognizer hierarchy and safe regions. Merely citing UIKit or sharing React state does not certify it. No native OS gesture validation has been performed in this review.</p>
+<h2>Medium findings</h2>
+<h3>D1 — Continuous parameters need a distinct control grammar</h3>
+<p>If a same-contact numeric lane is chosen, define its coordinate system after leaf selection, gain, bounds, detents, displayed pending value, return/back route and commit/cancel behavior. Do not map family angle, child angle and numeric value simultaneously. Zoom should preserve a defined anchor; page scrubbing must specify whether release commits a previewed page or opens a page entry field. No live document mutation should occur while the user is merely choosing a family/leaf. A canceled value adjustment must restore the exact old value and position.</p>
+<h3>D2 — The alternative list needs an actual entry and semantic parity</h3>
+<p>The comparable study proposes the right alternative; now show its actual reachable control. A touch down/up on Tools currently cancels, so an ordinary button activation cannot be assumed to open that list. Expose a labeled standard Reader controls action for TalkBack, keyboard and switch access, or an explicit accessibility activation on Tools. Its items must invoke the same command IDs and checked/disabled states. The gesture route must remain immediate and require no preliminary tap. Verify label visibility outside the thumb, selection by more than color, and command feedback after release.</p>
+<p>Android recommends at least 48×48dp touch/focus targets, with semantics describing the action&#39;s result. The radial hit arithmetic above does not substitute for the accessible list or native testing. <a href="https://developer.android.com/guide/topics/ui/accessibility/apps">Android accessibility guidance</a>.</p>
+<h3>D3 — Maintain one canonical geometry and family map</h3>
+<p><code>control-wheel-comparables.md</code> currently illustrates four children at radius 164 and a category gate around 132, and gives a different family set. The current candidate is eight children, 108–160 hit band and gate 90. Both can be legitimate alternatives in a study, but only one may be labeled the actual prototype contract. Mark the other as rejected/alternative with its tradeoff. Similarly, the old document-switching sections of <code>spec.md</code> are not evidence for this corrected brief and must be superseded before a final proposal is presented.</p>
+<h2>Minimal evidence requested next</h2>
+<ol>
+<li>Actual down → family crossing → child selection → up frames, with one continuous pointer trace and unchanged reader state until release. Include immediate fast movement; no hold timer or preliminary tap.</li>
+<li>Difficult opposite-side child path, retreat to another family, origin cancel, outside release and interrupted/multitouch cancellation. Log zero or one committed command as appropriate.</li>
+<li>One discrete action, one toggle, one parameter path and one text/placement action, with their different completion boundaries labeled honestly.</li>
+<li>Page scroll crossing Tools, page pinch, text-selection long-press and OS-origin input: no menu activation or late takeover. Browser simulations prove the model only; native reader-surface arbitration remains a separate gate.</li>
+<li>Complete finite command map with stable positions/capabilities, plus 360dp, small-height, left/right-hand and large-text layout evidence. Show the equivalent list entry and focus behavior.</li>
+</ol>
+<p>The core proposal is worth prototyping. Its greatest risk is not the circle styling; it is quietly changing the meaning of a moving finger at the family transition, or declaring all controls complete when many leaves only open another interface. Resolve those explicitly before evaluating the new implementation.</p>
+</details><details><summary>control wheel design 02</summary><h1>Independent review — controls-only wheel implementation and study</h1>
+<p>24 September 2026. <strong>Design/prototype score: 9.35/10. Native implementation and participant usability: ungraded, not yet tested.</strong> The rejected document-switching wheel and its earlier scores provide no credit toward this assessment.</p>
+<p>The corrected proposal satisfies the central interaction brief in the inspected browser model: start directly on Tools, keep the same contact down, pass through a reader-control family, choose a command, and release once. There is no preliminary tap or hold timer. No document switcher, Group or Collection destination appears in the wheel. The optional parameter continuation can choose a zoom/page value during that same contact; releasing over the ordinary parameter leaf instead opens an explicitly separate numeric editor.</p>
+<h2>Scope and evidence</h2>
+<p>Reviewed <code>control-wheel-study.md</code>, the retired-alternative markings in <code>control-wheel-comparables.md</code>, the study wrapper, and <code>command-wheel-state.js</code>, <code>command-wheel-ui.js</code>, <code>command-wheel.js</code>, CSS and HTML. The live sample is an unlocked text PDF illustration. Its 48 slots are command routes, including visibly disclosed unavailable or placeholder operations; they are not 48 functioning native PDF tools.</p>
+<p>The child reviewer could not open an IAB browser (<code>Browser is not available: iab</code>). I independently inspected source, ran the reducer tests, reproduced the sparse-event regression, and inspected root-provided actual browser PNGs. Root&#39;s live interactions are attributed evidence, not interactions I performed. Inspected images include the final 360px family, Zoom, Notes and Document fans, 200% list, the scrolled 200% list, 320px narrow-layout fallback, the final 844×320 short landscape fallback, and the earlier parameter rail. The obsolete screenshots showing the trace obstruction and landscape failure are evidence of corrected defects, not the final appearance.</p>
+<p>The revised suite passes <strong>34 tests, exit 0</strong>, including source/ownership cancellation, second contact, off-fan release, frozen inventory, parameter preview/commit and layout availability. My separate reproduction feeds the identical cross-fan straight segment once and in 30 increments: both now select Document → Information and commit <code>info</code>. Tests prove this reducer&#39;s behavior, not native event delivery. Root also verified that Zoom in at 200% stays at 200%, Adjust starts at 200%, and the large list scrolls without horizontal overflow.</p>
+<h2>Corrections verified during this review</h2>
+<table>
+<thead>
+<tr>
+<th>Original finding</th>
+<th>Corrected behavior / evidence</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Major:</strong> a sparse segment missed the inward 62-unit retreat, while dense delivery of the same path switched families</td>
+<td>The reducer processes the inward crossing and subsequent outward 90-unit crossing. Sparse/dense parity passes independently. An arc outside the retreat band preserves the original family.</td>
+</tr>
+<tr>
+<td><strong>Medium:</strong> Zoom in could reduce 200% to 150%; Adjust reset to 100%</td>
+<td>Steps are relative and bounded. The editor starts with current numeric state and validates a number before applying it. Fit modes use the explicitly simulated numeric baseline; this is not native fit-scale verification.</td>
+</tr>
+<tr>
+<td><strong>Medium:</strong> short/narrow layouts still attempted the full fan</td>
+<td>Shared availability logic rejects width below 360 CSS pixels, insufficient vertical room, and the 200% text scenario. The notice explicitly says the continuous gesture is unavailable and exposes the list.</td>
+</tr>
+<tr>
+<td><strong>Medium:</strong> a 390px CSS minimum could defeat the short-height availability rule</td>
+<td>The minimum was removed. Root measured the actual phone at 320px high in an 844×320 viewport; the final screenshot shows the explanatory notice and reachable List above the system strip.</td>
+</tr>
+<tr>
+<td><strong>Medium:</strong> diagnostic/footer layering cut through the fan</td>
+<td>Final PNGs show unobstructed sectors and labels. The diagnostic strip is hidden while active without changing the control origin.</td>
+</tr>
+<tr>
+<td><strong>Medium:</strong> disabled hover had no reason; parameter continuation was undiscoverable</td>
+<td>Disabled candidates remain visible without committing and produce a reason. Adjust/Page expose a continuation caption and dashed gate.</td>
+</tr>
+<tr>
+<td><strong>Medium:</strong> the list&#39;s Tab trap included buttons hidden inside collapsed sections</td>
+<td>Final source filters non-rendered controls and closed-details descendants, including correct handling of initial dialog focus. Root live-checked Document summary → Tab → Close, and Close → Shift+Tab → Document, both within the dialog.</td>
+</tr>
+</tbody></table>
+<p>Root also found that the embedded Next-match replay used <code>scrollIntoView</code>, which could scroll the surrounding research page. The final source confines movement to <code>#reading.scrollTop</code> through <code>scrollReaderTo</code>; this correction is source-verified here. Root live-confirmed that closing the Controls sheet returns focus to Controls.</p>
+<h2>Remaining ranked findings</h2>
+<p><strong>Blocker: none in the inspected proposal/prototype scope. Major: none. Medium: none identified after these bounded corrections.</strong> This does not declare the unrun acceptance gates passed.</p>
+<p>The additional minor focus-return defect was corrected before this final snapshot: sheets preserve the connected external invoker and restore it, with Tools as fallback.</p>
+<p><strong>Minor — compact fan labels need explicit readability evidence before visual polish is called finished.</strong> The inspected English labels fit, with no collisions in the supplied 360px family and eight-leaf images. Initial family labels are about 10 CSS pixels and the entire menu is near the operating finger. The study already includes reach/occlusion and longer text in acceptance work; record those results rather than treating geometric 48-unit target containment as proof of readable labels. Do not shrink translated text to rescue this arrangement. This is an evidence limit, not a demonstrated clipping defect in the supplied English fixture.</p>
+<h2>Grounded score</h2>
+<p>These dimensions grade the <strong>reviewable design and browser prototype</strong>. Reliability here means input-state reliability; this task does not retest the separate Collection/storage proposal.</p>
+<table>
+<thead>
+<tr>
+<th>Dimension</th>
+<th align="right">Weight</th>
+<th align="right">Score</th>
+<th>Basis</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Product clarity and command coverage</td>
+<td align="right">25%</td>
+<td align="right">9.4</td>
+<td>Correct controls-only scope, finite map, honest completion boundaries and capability audit. EPUB/Markdown maps remain a named delivery gate.</td>
+</tr>
+<tr>
+<td>Geometry and technical feasibility</td>
+<td align="right">25%</td>
+<td align="right">9.2</td>
+<td>Fixed-center bounds, full-depth child band, disclosed fallback and parameter grammar are concrete. Usable physical reach and native ownership are not established by CSS geometry.</td>
+</tr>
+<tr>
+<td>Ease of implementation and AI-assisted development</td>
+<td align="right">20%</td>
+<td align="right">9.5</td>
+<td>Small pure reducer, explicit command IDs, frozen contact state and executable traces avoid an implicit custom UI framework. Native command/renderer integration is still work.</td>
+</tr>
+<tr>
+<td>Input reliability and cancellation</td>
+<td align="right">20%</td>
+<td align="right">9.4</td>
+<td>Commit-on-release, terminal hub cancellation, sparse crossings, ownership and interruption cases are inspectable and tested. Browser evidence cannot validate native generation arbitration.</td>
+</tr>
+<tr>
+<td>Accessibility and understandable feedback</td>
+<td align="right">10%</td>
+<td align="right">9.2</td>
+<td>Equivalent semantic list, disabled reasons, large-text disclosure, modal focus filtering and invoker restoration are present. Actual assistive-technology evaluation remains.</td>
+</tr>
+<tr>
+<td><strong>Weighted total</strong></td>
+<td align="right"><strong>100%</strong></td>
+<td align="right"><strong>9.35</strong></td>
+<td>A strong corrected prototype; not a justified 9.5+ validated interaction yet.</td>
+</tr>
+</tbody></table>
+<h2>Gates that remain outside this score</h2>
+<p>The study correctly leaves Android predictive Back/Home, three-button navigation, native reader scroll/pan/pinch/selection, interruption and actual safe-region layout to a native spike. Browser pointer capture cannot certify those. Android&#39;s own guidance distinguishes mandatory bottom gestures and explains child cancellation during parent interception: <a href="https://developer.android.com/develop/ui/views/touch-and-input/gestures/gesturenav">gesture navigation</a>, <a href="https://developer.android.com/develop/ui/views/touch-and-input/gestures/viewgroup">touch interception</a>.</p>
+<p>The proposed 12-participant, counterbalanced toolbar comparison has not run. Neither has the separate assistive-technology session. The fan&#39;s long cross-family paths, abrupt category-to-child remapping, small family labels and three-phase parameter rail are hypotheses to test there. Thirty native trials are a screening procedure, not proof of zero field failures. Nothing in the comparable-product research transfers its measured performance to this particular six-family/eight-child layout.</p>
+<p>Proceed to the bounded native ownership spike and participant study with this candidate. The remaining uncertainty should be resolved with device and participant evidence, not further score-driven cosmetic review rounds.</p>
+</details></section>
+<footer><a href="control-wheel-study.md">Study source</a><a href="architecture.html">Full mobile architecture</a><a href="journal.md">Design journal</a><a href="#top">Back to top ↑</a></footer></main><script src="control-study.js"></script></body></html>

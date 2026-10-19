@@ -1,0 +1,65 @@
+{
+  "type": "welcome",
+  "re": "1",
+  "protocol": {
+    "major": 1,
+    "minor": 0
+  },
+  "helper": {
+    "version": "26.10.12-1",
+    "build_number": 26101201,
+    "protocol": {
+      "major": 1,
+      "minor": 0
+    },
+    "pid": 5150
+  },
+  "handover": "none",
+  "capabilities": [
+    "nearby.network",
+    "nearby.bluetooth",
+    "host.checkin",
+    "messages.status",
+    "messages.cancel",
+    "mentions"
+  ],
+  "limits": {
+    "max_frame_bytes": 8388608,
+    "max_message_bytes": 32768,
+    "max_files_per_send": 100,
+    "max_subscriptions": 32
+  },
+  "strings": {
+    "button_label": "Friends",
+    "tab_friends": "Friends",
+    "tab_nearby": "Nearby",
+    "search_placeholder": "Search names and IDs",
+    "people_nearby": "People nearby",
+    "back": "Back",
+    "copy": "Copy",
+    "copied": "Copied",
+    "copy_your_id": "Copy your ID",
+    "edit_name": "Change the name friends see",
+    "conversation_search_placeholder": "Search this conversation",
+    "attach_keys": "↵ Attach · Esc Close",
+    "attach_note": "Attaching sends nothing yet",
+    "drop_hint": "Drop on a friend to send. Release on the Friends button to choose afterwards.",
+    "drop_folders_refused": "Folders can’t be sent yet",
+    "drop_not_a_file": "Links and special files can’t be sent. Drop the original file instead.",
+    "drop_send_one": "Send 1 file to…",
+    "drop_send_many": "Send {count} files to…",
+    "drop_send_file": "Send {name} to…",
+    "drop_send_file_and_more": "Send {name} and {count} more to…",
+    "animals_title": "Choose an animal",
+    "crop_title": "Crop your picture",
+    "crop_use": "Use Picture",
+    "cancel": "Cancel",
+    "loading": "Loading…",
+    "load_earlier": "Show earlier messages",
+    "link_open": "Open in Browser",
+    "link_open_email": "New Email",
+    "link_elsewhere": "Goes to {host}, not {shown}",
+    "queued_note": "Messages and files send when {first} is nearby with ShenzhenPDF, Shenzhen Files or Shenzhen 3D open.",
+    "show_all": "Show all"
+  }
+}

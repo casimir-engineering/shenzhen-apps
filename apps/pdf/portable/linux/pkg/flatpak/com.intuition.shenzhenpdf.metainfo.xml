@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- AppStream metainfo for the Flatpak build of Shenzhen PDF.
+     project_license: the repo's own COPYING is GPL-3.0, but the binary
+     statically links the vendored MuPDF (mupdf/COPYING, AGPL-3.0-only), so
+     the combined work is distributed under AGPL-3.0-only. -->
+<component type="desktop-application">
+  <id>com.intuition.shenzhenpdf</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>AGPL-3.0-only</project_license>
+  <name>Shenzhen PDF</name>
+  <summary>Fast tabbed PDF reader with on-device OCR</summary>
+  <description>
+    <p>
+      Shenzhen PDF is a fast, keyboard-friendly PDF and e-book reader. It opens
+      documents in tabs, restores your session across launches, and keeps the
+      first page on screen in a fraction of a second.
+    </p>
+    <p>Features include:</p>
+    <ul>
+      <li>Tabbed reading with session restore, recents and favorites</li>
+      <li>Instant search with regex support and a document minimap</li>
+      <li>On-device OCR for scanned documents — no cloud, no account</li>
+      <li>Offline translation of selected text</li>
+      <li>Outline sidebar, page thumbnails and a command palette</li>
+      <li>Comments and annotations, printing, and rotation that saves in place</li>
+      <li>Reads PDF, XPS, EPUB, MOBI, CBZ/CBR and FictionBook files</li>
+    </ul>
+  </description>
+  <developer id="io.github.casimir-engineering">
+    <name>Casimir Engineering</name>
+  </developer>
+  <launchable type="desktop-id">com.intuition.shenzhenpdf.desktop</launchable>
+  <content_rating type="oars-1.1"/>
+  <url type="homepage">https://github.com/casimir-engineering/shenzhen-pdf</url>
+  <url type="bugtracker">https://github.com/casimir-engineering/shenzhen-pdf/issues</url>
+  <screenshots>
+    <screenshot type="default">
+      <caption>Reading a document with the outline sidebar and tab bar</caption>
+      <image>https://raw.githubusercontent.com/casimir-engineering/shenzhen-pdf/master/portable/docs/gtk4-captures/00-launch.png</image>
+    </screenshot>
+  </screenshots>
+  <releases>
+    <release version="26.7.24" date="2026-07-24">
+      <description>
+        <p>Compact Mac-style sidebar pane switcher and row spacing, window close now exits the whole app with full session restore on relaunch, and state files are compatible with the macOS app.</p>
+      </description>
+    </release>
+    <release version="26.7.23" date="2026-07-23">
+      <description>
+        <p>UI parity fixes: always-visible tab row, document view clipping, minimap toggle, fit-height mode, fit-mode dropdown, page-step buttons, sidebar chapter/comment filtering, and reliable chapter navigation.</p>
+      </description>
+    </release>
+    <release version="26.7.17" date="2026-07-17">
+      <description>
+        <p>GTK4 Linux release with tabbed reading, search, OCR, offline translation, annotations and printing.</p>
+      </description>
+    </release>
+  </releases>
+</component>

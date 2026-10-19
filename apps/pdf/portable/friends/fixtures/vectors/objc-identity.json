@@ -1,0 +1,109 @@
+{
+  "identities" : [
+    {
+      "identity_hash" : "e4d1a26a9199ad1d79c9637ccc91b94f5e14acd3a2691c9d102616cb14208be4",
+      "name" : "alice",
+      "public_key" : "32f0dbb03c6c49445dfdf764824a1a933e2732acd7f807d46d087aeba5856344",
+      "secret_item" : "535a4649015fb1953609e85ed5aaf1f5f8164a7258931c4345b156573b1fbdde672fb00ca2609cd91db539f78916117fa187e88ff3330eb919c67bbb6f874394716837234932f0dbb03c6c49445dfdf764824a1a933e2732acd7f807d46d087aeba5856344649d0c1339f94a9597611c66bf15ac33d52f52ed9551cecb6e511fadbc7a9630",
+      "signing_seed" : "5fb1953609e85ed5aaf1f5f8164a7258931c4345b156573b1fbdde672fb00ca2",
+      "static_certificate" : "32f0dbb03c6c49445dfdf764824a1a933e2732acd7f807d46d087aeba5856344a2f9bd78c11c80132120e74072800e239c2ad7ae6d6f4d2ea3f1252ee2f2e71fd720b95d7ea4a04bcb159b9b9327a02b794449fcdfcdfb9ad4a211cdf1c75d01",
+      "static_private" : "609cd91db539f78916117fa187e88ff3330eb919c67bbb6f8743947168372349",
+      "static_public" : "649d0c1339f94a9597611c66bf15ac33d52f52ed9551cecb6e511fadbc7a9630"
+    },
+    {
+      "identity_hash" : "b45066de089244c1409d6c37daede30f630c522495914b1a8a86ffb6db692b9c",
+      "name" : "bob",
+      "public_key" : "ef29fc979d65b4bbb8b19c18861fe2fa8e9993b42e3df16b6b460765248a986c",
+      "secret_item" : "535a464901d5d80481d2f25cfb071bb477bd174be2d310ffe3346719048dbf8f07be06dffba078352c7328ec13e12fc8c38b48b5d002a6d655271696cff0fe99c0a3db7348ef29fc979d65b4bbb8b19c18861fe2fa8e9993b42e3df16b6b460765248a986c5a074393e1600c06bda45368bd1f739ecacc9fdfc5614a8f22076f955368b74f",
+      "signing_seed" : "d5d80481d2f25cfb071bb477bd174be2d310ffe3346719048dbf8f07be06dffb",
+      "static_certificate" : "ef29fc979d65b4bbb8b19c18861fe2fa8e9993b42e3df16b6b460765248a986cb11ac56065eadbd996e36c89b6335f5366db8db2a19f4e9aad9be5012157e2a0430cedf205ed9a7f6e7dc6eb77c5ba8669b6880d145ed6a4c56b37028e42fc03",
+      "static_private" : "a078352c7328ec13e12fc8c38b48b5d002a6d655271696cff0fe99c0a3db7348",
+      "static_public" : "5a074393e1600c06bda45368bd1f739ecacc9fdfc5614a8f22076f955368b74f"
+    },
+    {
+      "identity_hash" : "3984c331c62eb672a8cba9e25f113f921d654458d0092f371021f4f897a3e234",
+      "name" : "carol",
+      "public_key" : "844d34143db07ed25fa872e1bce5ffed5bfcee6d5ea05955e03135209e22bc3c",
+      "secret_item" : "535a464901708319f8c40d5f08d5b1d41c166df62997c207ac3f1b47e5b56a9eb4eb50ab1210a00f763bb15044bd8f203b76287b4bdf42aea0175aee320720990030ee695d844d34143db07ed25fa872e1bce5ffed5bfcee6d5ea05955e03135209e22bc3caae6bf76827fe65a8932c1d435683d493c985e28539e122b38709823dc7a0848",
+      "signing_seed" : "708319f8c40d5f08d5b1d41c166df62997c207ac3f1b47e5b56a9eb4eb50ab12",
+      "static_certificate" : "844d34143db07ed25fa872e1bce5ffed5bfcee6d5ea05955e03135209e22bc3c10697961ed7437e5195f28c471fc2aac5d5921caf420d2ea8a9de9c55e242b1d22540211a6e47c388675270137a6731b999269450d6989f0f755e92fe557d60c",
+      "static_private" : "10a00f763bb15044bd8f203b76287b4bdf42aea0175aee320720990030ee695d",
+      "static_public" : "aae6bf76827fe65a8932c1d435683d493c985e28539e122b38709823dc7a0848"
+    }
+  ],
+  "invite_proof" : {
+    "handshake_hash" : "aee8448a663c9f9ec3fbbf66c693ac42e699464b5581bb7eb09da6806a2b0eb57398b6a5925ff8f63253d7f7e3db355274d2cbf4573d8764f034d6c4d19c6a2b",
+    "invite_token" : "03247c9783f453bfa7a5e32a1089d648",
+    "proof" : "cbf46935ec65094d2be1fefd709e0ab339a11e6a7459c3a1ac9b193f2bcf7072"
+  },
+  "request_by_id" : {
+    "callback_secret" : "dd91fbb03b1a82dc198a3ae09d57ccd7bb89330c460892d411abad7c4b645ee7",
+    "frame" : "0711000b6d61706c652d6f7474657212001057e6e62ea1d80a6267114c46052ef142130020dd91fbb03b1a82dc198a3ae09d57ccd7bb89330c460892d411abad7c4b645ee714006032f0dbb03c6c49445dfdf764824a1a933e2732acd7f807d46d087aeba5856344a2f9bd78c11c80132120e74072800e239c2ad7ae6d6f4d2ea3f1252ee2f2e71fd720b95d7ea4a04bcb159b9b9327a02b794449fcdfcdfb9ad4a211cdf1c75d01150020649d0c1339f94a9597611c66bf15ac33d52f52ed9551cecb6e511fadbc7a9630160040ebc7542ec85b2fbdd324a979c7e93c62e4ad935eb2f6d1c3320f0345643d4fa048b38fa601a8f3017a176fcc9d9ea732f0d62cc56735419b33d2dff66d523d09",
+    "friends_id" : "maple-otter",
+    "handshake_hash" : "aee8448a663c9f9ec3fbbf66c693ac42e699464b5581bb7eb09da6806a2b0eb57398b6a5925ff8f63253d7f7e3db355274d2cbf4573d8764f034d6c4d19c6a2b",
+    "identity" : "alice",
+    "token" : "57e6e62ea1d80a6267114c46052ef142",
+    "verified_identity_key" : "32f0dbb03c6c49445dfdf764824a1a933e2732acd7f807d46d087aeba5856344"
+  },
+  "signature_domains" : [
+    "SZFriends static v1",
+    "SZFriends request v1",
+    "SZFriends checkin v1",
+    "SZFriends release v1",
+    "SZFriends link sender v1",
+    "SZFriends chain link v1",
+    "SZFriends device consent v1",
+    "SZFriends sync event v1"
+  ],
+  "signatures" : [
+    {
+      "domain" : "SZFriends static v1",
+      "identity" : "alice",
+      "message" : "ae882cde635f4b0fd2bdcf6d1aea6bf8e08f2c941d7918dbc6c07efa7f2f28436bb30863b0163f8f",
+      "signature" : "a117de442362e6ac22f200548a4e59ce18e468eb0291ff5bf8c1a253cda6f4e44909bc99138798792ee3bb55d64ff567444251670c1f04c86ac5820c4f229d04"
+    },
+    {
+      "domain" : "SZFriends request v1",
+      "identity" : "alice",
+      "message" : "080de3ae460a3d170b5feacfebe4e2b06f7539077f1b9875f176852f9f1d493b6acc6f2f836d75bd",
+      "signature" : "e7852c622af35c9be400400bd5dc924206c392bf7ad2525e908a0934a9dfc48af7fcbd0668e2ac3cc9b9bff1cbe84ff6a30c9dbce53421ff1e103544340aca08"
+    },
+    {
+      "domain" : "SZFriends checkin v1",
+      "identity" : "alice",
+      "message" : "4e82179de2cd0bb860e9d69211cecae5853377504285e7ef5aaf7180db7b78a4d7cf36515326240d",
+      "signature" : "572a1c78bcf87da58c6bdd7b9393e7d02b14560e39497cd575edca4c3baaaf30f8b53f77ce724446db39efb656c9e6abaf59f88b0c03e48053599dd57f53f809"
+    },
+    {
+      "domain" : "SZFriends release v1",
+      "identity" : "alice",
+      "message" : "7f68cc9c2e4aa0d94e7e2a1777413f72ef73b1c32ebb1655dcbe862ddbeb91570e8d258cb0dacd9c",
+      "signature" : "2769cd1593bd1c453e7a1a50057f0168bb076463b73756f768bdd6d582df4cfc991c0cf35fd183988dce1676338975697ac316ca397fd545f5f261947fdd3b06"
+    },
+    {
+      "domain" : "SZFriends link sender v1",
+      "identity" : "alice",
+      "message" : "71e04c5cd23feaed4bbf6dcfdcf873eb8894b06dd86d63a63658ca48350216671f1936a19ca47631",
+      "signature" : "39ebf32c4cc7998a7d7073360aee7efd0f73cdca4dfee6c9ad229c91591b26c79eab25a701274b4eb4dddf90781a5b2d4cc1d8709f3c52674f71cfb92c9c1604"
+    },
+    {
+      "domain" : "SZFriends chain link v1",
+      "identity" : "alice",
+      "message" : "486eb3cb2a0f9269b6d170e3ff414039ebcd3f9abaea1b2e1a416f0656da1ddba21af832b7f0a351",
+      "signature" : "bd0a66352ebdac6e5e80f4335bafeb183d876dc644a2f28124d07bd1201ba46c5ee1ef8d860346f0396164284de7a117e59be6d2bd28f450da1c5311142eb20f"
+    },
+    {
+      "domain" : "SZFriends device consent v1",
+      "identity" : "alice",
+      "message" : "02ee13052153aabe1bf1f42c105776e64a878e4a636259927012b26ad48ee2d804f80e971cec5390",
+      "signature" : "14938591b371d91a43916ade51874e448d43c08de425b4e8925419df3b54e2ee30720d0b2528fa8df36c51ad596430a4a660109561f26d852c34acebc4cee10b"
+    },
+    {
+      "domain" : "SZFriends sync event v1",
+      "identity" : "alice",
+      "message" : "0cf4cae754fe0082c6ac6520025056f79eb2786bbdc849300b0a0fe5bd935a3b2d0edbb3dca90a82",
+      "signature" : "60c2803bc5530529454c44166462c841b0998212fb5d21b810cb3f34ea8d20e8bca3f8bb23e5b5842d9b93637901be5644de04a2b5ca85670c6c85d3ed18850e"
+    }
+  ],
+  "source" : "Exported by portable/friends/core-rs/tools/objc-vectors from the Objective-C helper's own code. Regenerate with `make friends-vectors-export`; do not edit by hand."
+}

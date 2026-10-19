@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="500" viewBox="0 0 760 500">
+  <style>text{font-family:-apple-system,BlinkMacSystemFont,"Helvetica Neue",sans-serif}.mono{font-family:"SFMono-Regular",Menlo,monospace}</style>
+  <rect width="760" height="500" fill="#f3f6f6"/>
+  <path d="M0 0H760V172H0Z" fill="#151c20"/>
+  <g transform="translate(48 29)" fill="none" stroke="#74dfb7" stroke-width="1.6" stroke-linejoin="round">
+    <path d="M12 0 24 7v14l-12 7L0 21V7Z M0 7l12 7 12-7 M12 14v14"/>
+  </g>
+  <text x="84" y="50" fill="#edf2f3" font-size="23" font-weight="650" letter-spacing="-.7">shenzhen<tspan fill="#74dfb7" font-weight="450">3D</tspan></text>
+  <text x="48" y="104" fill="#edf2f3" font-size="30" font-weight="600" letter-spacing="-.8">Drag into Applications</text>
+  <g fill="none" stroke="#718990" stroke-opacity=".22" stroke-width="1">
+    <path d="m643 79 32-18 32 18v38l-32 18-32-18Z m0 0 32 18 32-18 M675 97v38"/>
+    <path d="M630 143h90 M635 139v8 M715 139v8"/>
+  </g>
+  <g fill="#6b8189" class="mono" font-size="10" letter-spacing="1.5">
+  </g>
+  <g stroke="#197655" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M330 280h94m-14-14 14 14-14 14" stroke-width="2.5"/>
+    <circle cx="320" cy="280" r="2.2" fill="#197655" stroke="none"/>
+  </g>
+  <path d="M48 404h664" stroke="#dce5e7"/>
+  <text x="712" y="463" text-anchor="end" fill="#6b8189" class="mono" font-size="10">APPLE SILICON · macOS 13+</text>
+</svg>

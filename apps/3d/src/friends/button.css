@@ -1,0 +1,66 @@
+/* The Friends header button and its badge, loaded with the button (the dropdown's styles are friends.css). */
+.friends-anchor {
+  position: relative;
+  display: inline-flex;
+}
+.friends-button {
+  position: relative;
+}
+.friends-button.drop-target {
+  background: var(--jade-wash);
+  color: var(--jade);
+  outline: 1px dashed var(--jade);
+}
+.friends-badge {
+  position: absolute;
+  top: 1px;
+  right: 0;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: var(--jade);
+  color: var(--jade-ink);
+  font-size: 9.5px;
+  font-weight: 650;
+  line-height: 15px;
+  text-align: center;
+  pointer-events: none;
+}
+/* Copy Download Link's expiry choice under its header button. */
+.friends-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 120;
+  display: flex;
+  flex-direction: column;
+  min-width: 170px;
+  padding: 4px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: 0 10px 30px rgb(0 0 0 / 22%);
+}
+.friends-menu-title {
+  padding: 6px 10px 4px;
+  color: var(--muted);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+.friends-menu button {
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  justify-content: flex-start;
+  text-align: left;
+  cursor: pointer;
+}
+.friends-menu button:hover,
+.friends-menu button:focus-visible {
+  background: var(--jade-wash);
+  color: var(--jade);
+}

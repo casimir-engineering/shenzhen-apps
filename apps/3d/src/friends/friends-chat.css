@@ -1,0 +1,367 @@
+/* A Friends page header and a conversation: its history, messages, transfers, the composer and the # and @
+   pickers. Imported after friends.css. */
+.szf-page-header {
+  display: grid;
+  grid-template-columns: 44px 1fr 44px;
+  align-items: center;
+  min-height: 48px;
+  border-bottom: 1px solid var(--line);
+  padding: 4px 6px;
+}
+.szf-back {
+  position: relative;
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  color: var(--secondary);
+}
+.szf-badge.small {
+  position: absolute;
+  top: -2px;
+  right: -4px;
+  min-width: 14px;
+  height: 14px;
+  padding: 0 3px;
+  border-radius: 7px;
+  background: var(--jade);
+  color: var(--jade-ink);
+  font-size: 9px;
+  font-weight: 650;
+  line-height: 14px;
+}
+.szf-page-title {
+  display: flex;
+  justify-content: center;
+  min-width: 0;
+  text-align: center;
+}
+.szf-header-button {
+  flex-direction: column;
+  gap: 1px;
+  padding: 3px 10px;
+  border-radius: 6px;
+  max-width: 100%;
+  white-space: normal;
+}
+.szf-header-subtitle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--secondary);
+  font-size: 11px;
+}
+.szf-conversation-search {
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--line);
+}
+.szf-search-button {
+  width: 100%;
+  justify-content: flex-start;
+  height: 26px;
+  padding: 0 10px;
+  border-radius: 6px;
+  color: var(--muted);
+  background: var(--inset);
+}
+.szf-search-results {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  max-height: 200px;
+  overflow: auto;
+}
+.szf-search-results button {
+  flex-direction: column;
+  align-items: flex-start;
+  width: 100%;
+  padding: 6px 8px;
+  border-radius: 6px;
+  white-space: normal;
+  text-align: left;
+}
+.szf-search-results small {
+  color: var(--muted);
+}
+.szf-match {
+  background: color-mix(in srgb, var(--jade), transparent 70%);
+  border-radius: 2px;
+}
+.szf-emphasis {
+  font-weight: 650;
+}
+.szf-history {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.szf-history.drop-target {
+  outline: 2px dashed var(--jade);
+  outline-offset: -6px;
+}
+.szf-earlier {
+  align-self: center;
+}
+.szf-day {
+  align-self: center;
+  color: var(--muted);
+  font-size: 11px;
+  padding: 6px 0 2px;
+}
+.szf-event {
+  align-self: center;
+  color: var(--secondary);
+  font-size: 11.5px;
+  display: flex;
+  gap: 6px;
+}
+.szf-event small,
+.szf-meta {
+  color: var(--muted);
+  font-size: 10.5px;
+}
+.szf-message,
+.szf-transfer {
+  display: flex;
+  flex-direction: column;
+  max-width: 82%;
+  gap: 3px;
+}
+.szf-message.out,
+.szf-transfer.out {
+  align-self: flex-end;
+  align-items: flex-end;
+}
+.szf-message.in,
+.szf-transfer.in {
+  align-self: flex-start;
+}
+.szf-bubble {
+  padding: 7px 11px;
+  border-radius: 12px;
+  background: var(--raised);
+  border: 1px solid var(--line);
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+.szf-message.out .szf-bubble {
+  background: var(--jade-wash);
+  border-color: color-mix(in srgb, var(--jade), transparent 70%);
+}
+.szf-message.highlighted .szf-bubble,
+.szf-transfer.highlighted .szf-transfer-body {
+  outline: 2px solid var(--jade);
+}
+.szf-meta {
+  display: flex;
+  gap: 6px;
+}
+.szf-status.failed {
+  color: var(--error);
+}
+.szf-link {
+  color: var(--jade);
+}
+.szf-mention {
+  display: inline;
+  padding: 0 3px;
+  border-radius: 4px;
+  color: var(--jade);
+  background: var(--jade-wash);
+  font: inherit;
+  font-weight: 600;
+  white-space: normal;
+}
+.szf-mention.you {
+  color: var(--ink);
+  background: color-mix(in srgb, var(--jade), transparent 65%);
+}
+.szf-mention:disabled {
+  opacity: 1;
+  cursor: default;
+}
+.szf-transfer-body {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: var(--raised);
+  border: 1px solid var(--line);
+}
+.szf-transfer-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.szf-transfer-text strong {
+  overflow-wrap: anywhere;
+}
+.szf-transfer-text small {
+  color: var(--muted);
+}
+.szf-thumbnail {
+  border-radius: 4px;
+  border: 1px solid var(--line);
+  flex-shrink: 0;
+}
+.szf-file-icon {
+  width: 40px;
+  height: 48px;
+  border-radius: 4px;
+  border: 1px solid var(--line-strong);
+  background: var(--inset);
+  color: var(--secondary);
+  display: inline-flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 6px;
+  font: 600 9px var(--mono);
+  flex-shrink: 0;
+}
+.szf-file-icon.small {
+  width: 26px;
+  height: 30px;
+  padding-bottom: 3px;
+  font-size: 7.5px;
+}
+.szf-progress {
+  width: 100%;
+  height: 4px;
+  accent-color: var(--jade);
+}
+.szf-popover {
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  bottom: 120px;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px;
+  border-radius: 10px;
+  background: var(--raised);
+  border: 1px solid var(--line-strong);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.3);
+}
+.szf-url {
+  font: 11px var(--mono);
+  color: var(--secondary);
+  overflow-wrap: anywhere;
+}
+.szf-composer {
+  border-top: 1px solid var(--line);
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  position: relative;
+}
+.szf-composer.drop-target {
+  background: var(--jade-wash);
+}
+.szf-composer-row {
+  display: flex;
+  gap: 6px;
+  align-items: flex-end;
+}
+.szf-editor {
+  flex: 1;
+  min-height: 30px;
+  max-height: 140px;
+  overflow-y: auto;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--line-strong);
+  background: var(--inset);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  outline: none;
+  line-height: 1.4;
+}
+.szf-editor:focus {
+  border-color: var(--jade);
+}
+.szf-editor:empty::before {
+  content: attr(data-placeholder);
+  color: var(--muted);
+}
+.szf-editor.disabled {
+  opacity: 0.5;
+}
+.szf-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 6px;
+  border-radius: 5px;
+  background: var(--jade-wash);
+  color: var(--jade);
+  font-weight: 600;
+}
+.szf-chip button {
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border-radius: 8px;
+}
+.szf-attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.szf-hint,
+.szf-composer-note,
+.szf-picker-hint {
+  color: var(--muted);
+  font-size: 10.5px;
+}
+.szf-refusal {
+  color: var(--error);
+  font-size: 11.5px;
+}
+.szf-picker {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: calc(100% + 4px);
+  max-height: 220px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  padding: 4px;
+  border-radius: 8px;
+  background: var(--raised);
+  border: 1px solid var(--line-strong);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.3);
+}
+.szf-picker button {
+  justify-content: flex-start;
+  gap: 8px;
+  padding: 5px 8px;
+  border-radius: 6px;
+  text-align: left;
+  white-space: normal;
+}
+.szf-picker button span {
+  display: flex;
+  flex-direction: column;
+}
+.szf-picker button small {
+  color: var(--muted);
+}
+.szf-picker button.selected {
+  background: var(--jade-wash);
+}
+.szf-picker-note {
+  color: var(--muted);
+  padding: 4px 8px 2px;
+  font-size: 10.5px;
+}

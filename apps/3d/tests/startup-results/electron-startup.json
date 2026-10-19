@@ -1,0 +1,127 @@
+{
+  "date": "2026-10-16T01:06:24.561Z",
+  "method": "Same production app protocol and Electron shell; fresh userData per launch; alternating paired order; Open enabled and two animation frames measured. Asset bytes and OS filesystem cache are warm across repetitions.",
+  "summary": {
+    "baseline": {
+      "runs": 5,
+      "medianOpenReadyMs": 321.16125000000056,
+      "medianPaintedWelcomeMs": 347.4009580000002,
+      "medianUsedJSHeapBytes": 7887135,
+      "initialCanvasCount": 1
+    },
+    "candidate": {
+      "runs": 5,
+      "medianOpenReadyMs": 264.1094999999998,
+      "medianPaintedWelcomeMs": 282.68212500000027,
+      "medianUsedJSHeapBytes": 4956483,
+      "initialCanvasCount": 0
+    }
+  },
+  "runs": [
+    {
+      "variant": "baseline",
+      "run": 1,
+      "openReadyMs": 501.525833,
+      "paintedWelcomeMs": 566.413583,
+      "canvasCount": 1,
+      "usedJSHeapBytes": 7642050,
+      "domContentLoadedMs": 83.10000002384186,
+      "firstContentfulPaintMs": 192,
+      "resourcePaths": []
+    },
+    {
+      "variant": "candidate",
+      "run": 1,
+      "openReadyMs": 274.6711250000001,
+      "paintedWelcomeMs": 294.66479200000003,
+      "canvasCount": 0,
+      "usedJSHeapBytes": 4968351,
+      "domContentLoadedMs": 39,
+      "resourcePaths": []
+    },
+    {
+      "variant": "candidate",
+      "run": 2,
+      "openReadyMs": 264.1094999999998,
+      "paintedWelcomeMs": 281.70787499999983,
+      "canvasCount": 0,
+      "usedJSHeapBytes": 4950739,
+      "domContentLoadedMs": 44.09999990463257,
+      "resourcePaths": []
+    },
+    {
+      "variant": "baseline",
+      "run": 2,
+      "openReadyMs": 279.15162499999997,
+      "paintedWelcomeMs": 322.4458340000001,
+      "canvasCount": 1,
+      "usedJSHeapBytes": 7738602,
+      "domContentLoadedMs": 56.199999928474426,
+      "firstContentfulPaintMs": 120,
+      "resourcePaths": []
+    },
+    {
+      "variant": "baseline",
+      "run": 3,
+      "openReadyMs": 312.8750420000001,
+      "paintedWelcomeMs": 323.65883399999984,
+      "canvasCount": 1,
+      "usedJSHeapBytes": 7906879,
+      "domContentLoadedMs": 53.5,
+      "firstContentfulPaintMs": 124,
+      "resourcePaths": []
+    },
+    {
+      "variant": "candidate",
+      "run": 3,
+      "openReadyMs": 254.51800000000003,
+      "paintedWelcomeMs": 282.68212500000027,
+      "canvasCount": 0,
+      "usedJSHeapBytes": 4951423,
+      "domContentLoadedMs": 43.89999997615814,
+      "resourcePaths": []
+    },
+    {
+      "variant": "candidate",
+      "run": 4,
+      "openReadyMs": 275.3670420000003,
+      "paintedWelcomeMs": 294.91991700000017,
+      "canvasCount": 0,
+      "usedJSHeapBytes": 4966395,
+      "domContentLoadedMs": 40,
+      "resourcePaths": []
+    },
+    {
+      "variant": "baseline",
+      "run": 4,
+      "openReadyMs": 335.81791599999997,
+      "paintedWelcomeMs": 347.4009580000002,
+      "canvasCount": 1,
+      "usedJSHeapBytes": 7936335,
+      "domContentLoadedMs": 57.60000002384186,
+      "firstContentfulPaintMs": 132,
+      "resourcePaths": []
+    },
+    {
+      "variant": "baseline",
+      "run": 5,
+      "openReadyMs": 321.16125000000056,
+      "paintedWelcomeMs": 347.5203750000005,
+      "canvasCount": 1,
+      "usedJSHeapBytes": 7887135,
+      "domContentLoadedMs": 55.89999997615814,
+      "firstContentfulPaintMs": 152,
+      "resourcePaths": []
+    },
+    {
+      "variant": "candidate",
+      "run": 5,
+      "openReadyMs": 261.41712499999994,
+      "paintedWelcomeMs": 281.24020800000017,
+      "canvasCount": 0,
+      "usedJSHeapBytes": 4956483,
+      "domContentLoadedMs": 41.60000002384186,
+      "resourcePaths": []
+    }
+  ]
+}

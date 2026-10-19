@@ -1,0 +1,123 @@
+{
+  "type": "snapshot",
+  "subscription": "s_9",
+  "view": "conversation",
+  "rev": 3,
+  "data": {
+    "conversation_id": "c_kenji",
+    "header": {
+      "title": "Kenji Sato",
+      "subtitle": "Nearby, over Bluetooth",
+      "route": {
+        "kind": "local",
+        "method": "bluetooth",
+        "label": "Nearby, over Bluetooth"
+      },
+      "avatar": {
+        "kind": "animal",
+        "set": 1,
+        "index": 1,
+        "initials": "KS",
+        "color": "#2f6474"
+      },
+      "details_available": true,
+      "accessibility_label": "Kenji Sato, nearby, over Bluetooth, show details"
+    },
+    "back": {
+      "badge_count": 1,
+      "badge_label": "1",
+      "accessibility_label": "Back to Friends, 1 more waiting"
+    },
+    "search_placeholder": "Search this conversation",
+    "has_earlier": true,
+    "items": [
+      {
+        "kind": "day",
+        "item_id": "d_20261012",
+        "label": "Today",
+        "highlighted": false,
+        "accessibility_label": "Today"
+      },
+      {
+        "kind": "message",
+        "item_id": "m_1b7e44d9",
+        "direction": "in",
+        "text": "Photos from this morning's site visit.",
+        "text_format": "markdown",
+        "segments": [
+          {
+            "text": "Photos from this morning's site visit."
+          }
+        ],
+        "time_label": "13:09",
+        "status": null,
+        "assistant_label": "Via Kenji’s assistant",
+        "actions": [],
+        "highlighted": false,
+        "accessibility_label": "Kenji Sato, 13:09, via Kenji’s assistant: Photos from this morning's site visit."
+      },
+      {
+        "kind": "transfer",
+        "item_id": "t_kenji_site",
+        "transfer_id": "t_kenji_site",
+        "direction": "in",
+        "file": {
+          "name": "Site photos.pdf",
+          "kind_label": "PDF",
+          "size_label": "42.3 MB",
+          "size_bytes": 42318806,
+          "path": null,
+          "type_identifier": "com.adobe.pdf",
+          "extension": "pdf"
+        },
+        "meta_label": "PDF · 42.3 MB",
+        "state": "waiting_for_you",
+        "status_label": "Waiting for you to accept",
+        "route_note": "Over Bluetooth, about 6 min",
+        "progress": null,
+        "thumbnail": {
+          "path": "/Users/raph/Library/Application Support/Shenzhen Friends/thumbnails/0f7d3b9e2c5a4168a4e0b7c91d26f835.png",
+          "width": 136,
+          "height": 192,
+          "source": "sender"
+        },
+        "actions": [
+          {
+            "action": "accept_offer",
+            "label": "Accept",
+            "style": "primary"
+          },
+          {
+            "action": "decline_offer",
+            "label": "Decline",
+            "style": "secondary"
+          }
+        ],
+        "assistant_label": null,
+        "time_label": "13:10",
+        "highlighted": false,
+        "accessibility_label": "Kenji Sato wants to send you Site photos.pdf, PDF, 42.3 MB, over Bluetooth, about 6 minutes"
+      }
+    ],
+    "highlight_item_id": null,
+    "request": null,
+    "composer": {
+      "visible": true,
+      "enabled": true,
+      "placeholder": "Message Kenji",
+      "hint": [
+        {
+          "text": "#",
+          "emphasis": true
+        },
+        {
+          "text": " Attach · or drop files"
+        }
+      ],
+      "send_label": "Send",
+      "note": null,
+      "accepts_drops": true,
+      "max_text_bytes": 32768
+    }
+  }
+}

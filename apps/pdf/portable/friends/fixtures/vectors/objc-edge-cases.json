@@ -1,0 +1,619 @@
+{
+  "ed25519" : [
+    {
+      "accepted" : true,
+      "domain" : "SZFriends request v1",
+      "message" : "3863378b83b2355b3304a5f8aa7e747be2c378c811400f18d9b50c8a8bed03c5",
+      "name" : "valid",
+      "public_key" : "ea5d0d8b3ab84991603554057ec8b7ae23d9be20ed4a75db2c75891da6b7fb1c",
+      "signature" : "4a3563fc0c531560ee7a161e9df1c94080e8c236baec796ce9f9b0ea193a2ee746c8b37e62616340064f151dbccb9dfc1715b0a0c5eb4ec8bef0117c82053801",
+      "why" : "the control case"
+    },
+    {
+      "accepted" : false,
+      "domain" : "SZFriends request v1",
+      "message" : "3863378b83b2355b3304a5f8aa7e747be2c378c811400f18d9b50c8a8bed03c5",
+      "name" : "S not canonical",
+      "public_key" : "ea5d0d8b3ab84991603554057ec8b7ae23d9be20ed4a75db2c75891da6b7fb1c",
+      "signature" : "4a3563fc0c531560ee7a161e9df1c94080e8c236baec796ce9f9b0ea193a2ee7339ca9db7cc47598dceb0cc09ac57c111815b0a0c5eb4ec8bef0117c82053811",
+      "why" : "S + L"
+    },
+    {
+      "accepted" : false,
+      "domain" : "SZFriends request v1",
+      "message" : "563e57edc94b761ba5edcc4ad5a6bf3efa67fa58a31e5d953dae1967998c4b0d",
+      "name" : "small-order key: identity",
+      "public_key" : "0100000000000000000000000000000000000000000000000000000000000000",
+      "signature" : "4a3563fc0c531560ee7a161e9df1c94080e8c236baec796ce9f9b0ea193a2ee75f96414bd0b53db65485572d562e218febd19b55ed0a9933d3f2500c2c25f607",
+      "why" : "the equation holds; refused for the key's order"
+    },
+    {
+      "accepted" : false,
+      "domain" : "SZFriends request v1",
+      "message" : "3863378b83b2355b3304a5f8aa7e747be2c378c811400f18d9b50c8a8bed03c5",
+      "name" : "small-order R: identity",
+      "public_key" : "ea5d0d8b3ab84991603554057ec8b7ae23d9be20ed4a75db2c75891da6b7fb1c",
+      "signature" : "01000000000000000000000000000000000000000000000000000000000000005048e40b87bf0b8364b744fef09c9d6a783b2f9965341d91d13769bb6a0a7e04",
+      "why" : "refused for R's order (the equation holds for 1)"
+    },
+    {
+      "accepted" : false,
+      "domain" : "SZFriends request v1",
+      "message" : "9b73fb913eec86c9cef2ef7aa15f45117c708ecd3fb46887f11d8f5a4529e192",
+      "name" : "small-order key: order 2",
+      "public_key" : "ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
+      "signature" : "4a3563fc0c531560ee7a161e9df1c94080e8c236baec796ce9f9b0ea193a2ee75f96414bd0b53db65485572d562e218febd19b55ed0a9933d3f2500c2c25f607",
+      "why" : "the equation holds; refused for the key's order"
+    },
+    {
+      "accepted" : false,
+      "domain" : "SZFriends request v1",
+      "message" : "3863378b83b2355b3304a5f8aa7e747be2c378c811400f18d9b50c8a8bed03c5",
+      "name" : "small-order R: order 2",
+      "public_key" : "ea5d0d8b3ab84991603554057ec8b7ae23d9be20ed4a75db2c75891da6b7fb1c",
+      "signature" : "ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f0fbac0fdc491ce93258420bfba5b4c2f9d8cd897d9ea914f7e875a1aee7c560c",
+      "why" : "refused for R's order (the equation holds for 1)"
+    },
+    {
+      "accepted" : false,
+      "domain" : "SZFriends request v1",
+      "message" : "d03548fe38ce5ea3e43f369fe3d7534f61392b41ce360f3090520acf0aea38ea",
+      "name" : "small-order key: order 4",
+      "public_key" : "0000000000000000000000000000000000000000000000000000000000000000",
+      "signature" : "4a3563fc0c531560ee7a161e9df1c94080e8c236baec796ce9f9b0ea193a2ee75f96414bd0b53db65485572d562e218febd19b55ed0a9933d3f2500c2c25f607",
+      "why" : "the equation holds; refused for the key's order"
+    },
+    {
+      "accepted" : false,
+      "domain" : "SZFriends request v1",
+      "message" : "3863378b83b2355b3304a5f8aa7e747be2c378c811400f18d9b50c8a8bed03c5",
+      "name" : "small-order R: order 4",
+      "public_key" : "ea5d0d8b3ab84991603554057ec8b7ae23d9be20ed4a75db2c75891da6b7fb1c",
+      "signature" : "0000000000000000000000000000000000000000000000000000000000000000835d46fdd286951ada6da62f23a3575f71f872872879847de1a3c3b3ebfcd901",
+      "why" : "refused for R's order (the equation holds for 1)"
+    },
+    {
+      "accepted" : false,
+      "domain" : "SZFriends request v1",
+      "message" : "9b73fb913eec86c9cef2ef7aa15f45117c708ecd3fb46887f11d8f5a4529e192",
+      "name" : "small-order key: order 4, x negative",
+      "public_key" : "0000000000000000000000000000000000000000000000000000000000000080",
+      "signature" : "4a3563fc0c531560ee7a161e9df1c94080e8c236baec796ce9f9b0ea193a2ee75f96414bd0b53db65485572d562e218febd19b55ed0a9933d3f2500c2c25f607",
+      "why" : "the equation holds; refused for the key's order"
+    },
+    {
+      "accepted" : false,
+      "domain" : "SZFriends request v1",
+      "message" : "3863378b83b2355b3304a5f8aa7e747be2c378c811400f18d9b50c8a8bed03c5",
+      "name" : "small-order R: order 4, x negative",
+      "public_key" : "ea5d0d8b3ab84991603554057ec8b7ae23d9be20ed4a75db2c75891da6b7fb1c",
+      "signature" : "0000000000000000000000000000000000000000000000000000000000000080581c4caa8c0c9d8c311ac3f2e7657309844715d5a1420a609d2ddec2516ecd0b",
+      "why" : "refused for R's order (the equation holds for 1)"
+    },
+    {
+      "accepted" : false,
+      "domain" : "SZFriends request v1",
+      "message" : "c4ed87a51aa5988f87e88700ce4b0e59ba15202d2898164537ea871cd47a1510",
+      "name" : "small-order key: order 8",
+      "public_key" : "26e8958fc2b227b045c3f489f2ef98f0d5dfac05d3c63339b13802886d53fc05",
+      "signature" : "4a3563fc0c531560ee7a161e9df1c94080e8c236baec796ce9f9b0ea193a2ee75f96414bd0b53db65485572d562e218febd19b55ed0a9933d3f2500c2c25f607",
+      "why" : "the equation holds; refused for the key's order"
+    },
+    {
+      "accepted" : false,
+      "domain" : "SZFriends request v1",
+      "message" : "3863378b83b2355b3304a5f8aa7e747be2c378c811400f18d9b50c8a8bed03c5",
+      "name" : "small-order R: order 8",
+      "public_key" : "ea5d0d8b3ab84991603554057ec8b7ae23d9be20ed4a75db2c75891da6b7fb1c",
+      "signature" : "26e8958fc2b227b045c3f489f2ef98f0d5dfac05d3c63339b13802886d53fc058ef6b37ec760eaca0b19b8d42758738f3b7c7b97918c49a68dbbb84251879602",
+      "why" : "refused for R's order (the equation holds for 1)"
+    },
+    {
+      "accepted" : false,
+      "domain" : "SZFriends request v1",
+      "message" : "c4ed87a51aa5988f87e88700ce4b0e59ba15202d2898164537ea871cd47a1510",
+      "name" : "small-order key: order 8, x negative",
+      "public_key" : "26e8958fc2b227b045c3f489f2ef98f0d5dfac05d3c63339b13802886d53fc85",
+      "signature" : "4a3563fc0c531560ee7a161e9df1c94080e8c236baec796ce9f9b0ea193a2ee75f96414bd0b53db65485572d562e218febd19b55ed0a9933d3f2500c2c25f607",
+      "why" : "the equation holds; refused for the key's order"
+    },
+    {
+      "accepted" : false,
+      "domain" : "SZFriends request v1",
+      "message" : "3863378b83b2355b3304a5f8aa7e747be2c378c811400f18d9b50c8a8bed03c5",
+      "name" : "small-order R: order 8, x negative",
+      "public_key" : "ea5d0d8b3ab84991603554057ec8b7ae23d9be20ed4a75db2c75891da6b7fb1c",
+      "signature" : "26e8958fc2b227b045c3f489f2ef98f0d5dfac05d3c63339b13802886d53fc857aa1775551bec7ea384a71d9964f23eb8acd6297657aa218c9767f105d61890f",
+      "why" : "refused for R's order (the equation holds for 1)"
+    },
+    {
+      "accepted" : false,
+      "domain" : "SZFriends request v1",
+      "message" : "b9e82526370eef6bd7019027fe557662de1c344680ab8bb8d6d2d34dc3e26d18",
+      "name" : "small-order key: order 8, other",
+      "public_key" : "c7176a703d4dd84fba3c0b760d10670f2a2053fa2c39ccc64ec7fd7792ac037a",
+      "signature" : "4a3563fc0c531560ee7a161e9df1c94080e8c236baec796ce9f9b0ea193a2ee75f96414bd0b53db65485572d562e218febd19b55ed0a9933d3f2500c2c25f607",
+      "why" : "the equation holds; refused for the key's order"
+    },
+    {
+      "accepted" : false,
+      "domain" : "SZFriends request v1",
+      "message" : "3863378b83b2355b3304a5f8aa7e747be2c378c811400f18d9b50c8a8bed03c5",
+      "name" : "small-order R: order 8, other",
+      "public_key" : "ea5d0d8b3ab84991603554057ec8b7ae23d9be20ed4a75db2c75891da6b7fb1c",
+      "signature" : "c7176a703d4dd84fba3c0b760d10670f2a2053fa2c39ccc64ec7fd7792ac037aa89582e644d37ae2eb7aed3d3f4dd3145b8ab6b9e4987ac663324bb4b97dc601",
+      "why" : "refused for R's order (the equation holds for 1)"
+    },
+    {
+      "accepted" : false,
+      "domain" : "SZFriends request v1",
+      "message" : "b9e82526370eef6bd7019027fe557662de1c344680ab8bb8d6d2d34dc3e26d18",
+      "name" : "small-order key: order 8, other, x negative",
+      "public_key" : "c7176a703d4dd84fba3c0b760d10670f2a2053fa2c39ccc64ec7fd7792ac03fa",
+      "signature" : "4a3563fc0c531560ee7a161e9df1c94080e8c236baec796ce9f9b0ea193a2ee75f96414bd0b53db65485572d562e218febd19b55ed0a9933d3f2500c2c25f607",
+      "why" : "the equation holds; refused for the key's order"
+    },
+    {
+      "accepted" : false,
+      "domain" : "SZFriends request v1",
+      "message" : "3863378b83b2355b3304a5f8aa7e747be2c378c811400f18d9b50c8a8bed03c5",
+      "name" : "small-order R: order 8, other, x negative",
+      "public_key" : "ea5d0d8b3ab84991603554057ec8b7ae23d9be20ed4a75db2c75891da6b7fb1c",
+      "signature" : "c7176a703d4dd84fba3c0b760d10670f2a2053fa2c39ccc64ec7fd7792ac03fa1ad57f1b5b624cad4d142a17087b37d724ffcb3b18801ab361d64a0c7a75900b",
+      "why" : "refused for R's order (the equation holds for 1)"
+    },
+    {
+      "accepted" : true,
+      "domain" : "SZFriends request v1",
+      "message" : "88d08c14d2561a8d724b4abdd5c6ad696ac27d7542525087a9abdd1d9a1d0339",
+      "name" : "mixed-order key, 8 divides h",
+      "public_key" : "1b6aa37ca38c969ec5f37eff6c7446c79a103a9399305a0be7da7203e9d4315d",
+      "signature" : "4a3563fc0c531560ee7a161e9df1c94080e8c236baec796ce9f9b0ea193a2ee775a37429c851ef5623f7023416e1351eab531331a00a187a589e5494e96be40e",
+      "why" : "cofactorless verification"
+    },
+    {
+      "accepted" : false,
+      "domain" : "SZFriends request v1",
+      "message" : "ad3a5ca146727ee774cfe13af5e21fae5c9282a74a1bf0a898538eeb7bce3a66",
+      "name" : "mixed-order key, 8 does not divide h",
+      "public_key" : "1b6aa37ca38c969ec5f37eff6c7446c79a103a9399305a0be7da7203e9d4315d",
+      "signature" : "4a3563fc0c531560ee7a161e9df1c94080e8c236baec796ce9f9b0ea193a2ee75b6a60515ecc6f8e3353dae5890d58732154334fd0929743ea33426b96d54003",
+      "why" : "cofactorless verification"
+    },
+    {
+      "accepted" : false,
+      "domain" : "SZFriends request v1",
+      "message" : "c38cf64df317072544242e33201b33ae7bfb53f19beca376d2270054faed74c0",
+      "name" : "mixed-order R",
+      "public_key" : "ea5d0d8b3ab84991603554057ec8b7ae23d9be20ed4a75db2c75891da6b7fb1c",
+      "signature" : "880ada8f50942255672f9a62769c55fb4e270a814c2d9a95239a150f4259b6acce978c1d27a441ad261dfe807e5935908f01c7ab124570fb8a79e5836529aa0a",
+      "why" : "R carries a torsion part the equation cannot produce"
+    },
+    {
+      "accepted" : false,
+      "domain" : "SZFriends request v1",
+      "message" : "3863378b83b2355b3304a5f8aa7e747be2c378c811400f18d9b50c8a8bed03c5",
+      "name" : "key y = p + 1",
+      "public_key" : "eeffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
+      "signature" : "4a3563fc0c531560ee7a161e9df1c94080e8c236baec796ce9f9b0ea193a2ee72538752e7d193c73442cc77f6cf6833b13db4278ceb45dd90a0eafe1e6d7da08",
+      "why" : "a non-canonical key encoding"
+    },
+    {
+      "accepted" : false,
+      "domain" : "SZFriends request v1",
+      "message" : "3863378b83b2355b3304a5f8aa7e747be2c378c811400f18d9b50c8a8bed03c5",
+      "name" : "key y = p + 1, x negative",
+      "public_key" : "eeffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "signature" : "4a3563fc0c531560ee7a161e9df1c94080e8c236baec796ce9f9b0ea193a2ee75f9870cd7a2344e93371be43b27809351fc1aad7b7316b548994ff65a572ee00",
+      "why" : "a non-canonical key encoding"
+    },
+    {
+      "accepted" : false,
+      "domain" : "SZFriends request v1",
+      "message" : "3863378b83b2355b3304a5f8aa7e747be2c378c811400f18d9b50c8a8bed03c5",
+      "name" : "key y = p + 2",
+      "public_key" : "efffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
+      "signature" : "4a3563fc0c531560ee7a161e9df1c94080e8c236baec796ce9f9b0ea193a2ee72336b684391968b5c75a73ecc71a1f5cf4402ab584a1e9db104ba08223afab01",
+      "why" : "a non-canonical key encoding"
+    },
+    {
+      "accepted" : false,
+      "domain" : "SZFriends request v1",
+      "message" : "3863378b83b2355b3304a5f8aa7e747be2c378c811400f18d9b50c8a8bed03c5",
+      "name" : "key y = p + 2, x negative",
+      "public_key" : "efffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "signature" : "4a3563fc0c531560ee7a161e9df1c94080e8c236baec796ce9f9b0ea193a2ee759be767dad167f20e12f2f5147567d1cfeeca2803942a8ba1cea3f59941a420e",
+      "why" : "a non-canonical key encoding"
+    },
+    {
+      "accepted" : false,
+      "domain" : "SZFriends request v1",
+      "message" : "3863378b83b2355b3304a5f8aa7e747be2c378c811400f18d9b50c8a8bed03c5",
+      "name" : "key y = p + 3",
+      "public_key" : "f0ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
+      "signature" : "4a3563fc0c531560ee7a161e9df1c94080e8c236baec796ce9f9b0ea193a2ee70bb8d942dedfb44c515b10ad93b31107d1685dbe2d03fe4d6d01d90a3233e304",
+      "why" : "a non-canonical key encoding"
+    },
+    {
+      "accepted" : false,
+      "domain" : "SZFriends request v1",
+      "message" : "3863378b83b2355b3304a5f8aa7e747be2c378c811400f18d9b50c8a8bed03c5",
+      "name" : "key y = p + 3, x negative",
+      "public_key" : "f0ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "signature" : "4a3563fc0c531560ee7a161e9df1c94080e8c236baec796ce9f9b0ea193a2ee72a54f2b8141f83a394bddf42a9a77cc973cb05f893ad75bdd44f2d130aaaaf01",
+      "why" : "a non-canonical key encoding"
+    },
+    {
+      "accepted" : false,
+      "domain" : "SZFriends request v1",
+      "message" : "3863378b83b2355b3304a5f8aa7e747be2c378c811400f18d9b50c8a8bed03c5",
+      "name" : "key y = p + 4",
+      "public_key" : "f1ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
+      "signature" : "4a3563fc0c531560ee7a161e9df1c94080e8c236baec796ce9f9b0ea193a2ee799fa51218bedc6e2c1b5e795b1f2b19d5e2e3187fa8ec4485d7ef4ffdcbe1109",
+      "why" : "a non-canonical key encoding"
+    },
+    {
+      "accepted" : false,
+      "domain" : "SZFriends request v1",
+      "message" : "3863378b83b2355b3304a5f8aa7e747be2c378c811400f18d9b50c8a8bed03c5",
+      "name" : "key y = p + 4, x negative",
+      "public_key" : "f1ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "signature" : "4a3563fc0c531560ee7a161e9df1c94080e8c236baec796ce9f9b0ea193a2ee70537b6fd6bc340ab75d9a07c65bb906149145baeb8584b696b45fe1ae8b5450f",
+      "why" : "a non-canonical key encoding"
+    },
+    {
+      "accepted" : false,
+      "domain" : "SZFriends request v1",
+      "message" : "3863378b83b2355b3304a5f8aa7e747be2c378c811400f18d9b50c8a8bed03c5",
+      "name" : "key y = p + 5",
+      "public_key" : "f2ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
+      "signature" : "4a3563fc0c531560ee7a161e9df1c94080e8c236baec796ce9f9b0ea193a2ee7ca9fddfbe06d0f54c52dd006f196abd0a29d44591d7f3bbbb65fb35535428f06",
+      "why" : "a non-canonical key encoding"
+    },
+    {
+      "accepted" : false,
+      "domain" : "SZFriends request v1",
+      "message" : "3863378b83b2355b3304a5f8aa7e747be2c378c811400f18d9b50c8a8bed03c5",
+      "name" : "key y = p + 5, x negative",
+      "public_key" : "f2ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "signature" : "4a3563fc0c531560ee7a161e9df1c94080e8c236baec796ce9f9b0ea193a2ee7a0bf77c083ba5069d1191074818749659a8ee87d7ad9fd1de55d971197ce590d",
+      "why" : "a non-canonical key encoding"
+    },
+    {
+      "accepted" : false,
+      "domain" : "SZFriends request v1",
+      "message" : "3863378b83b2355b3304a5f8aa7e747be2c378c811400f18d9b50c8a8bed03c5",
+      "name" : "key y = p + 6",
+      "public_key" : "f3ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
+      "signature" : "4a3563fc0c531560ee7a161e9df1c94080e8c236baec796ce9f9b0ea193a2ee73490801ec0d5a3c488b978287881ecbd582e8e8615982ca714ce91301086fc09",
+      "why" : "a non-canonical key encoding"
+    },
+    {
+      "accepted" : false,
+      "domain" : "SZFriends request v1",
+      "message" : "3863378b83b2355b3304a5f8aa7e747be2c378c811400f18d9b50c8a8bed03c5",
+      "name" : "key y = p + 6, x negative",
+      "public_key" : "f3ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "signature" : "4a3563fc0c531560ee7a161e9df1c94080e8c236baec796ce9f9b0ea193a2ee7347f70e317e98a369fd02a2f9b138cd49fd8f5c1cb773ebe34f1df9268a83206",
+      "why" : "a non-canonical key encoding"
+    },
+    {
+      "accepted" : false,
+      "domain" : "SZFriends request v1",
+      "message" : "3863378b83b2355b3304a5f8aa7e747be2c378c811400f18d9b50c8a8bed03c5",
+      "name" : "key y = p + 7",
+      "public_key" : "f4ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
+      "signature" : "4a3563fc0c531560ee7a161e9df1c94080e8c236baec796ce9f9b0ea193a2ee797db1a8984ac31197a170ff4b1a32ff4ebf96becc8fbbfe4eab7ad8a0aebf801",
+      "why" : "a non-canonical key encoding"
+    },
+    {
+      "accepted" : false,
+      "domain" : "SZFriends request v1",
+      "message" : "3863378b83b2355b3304a5f8aa7e747be2c378c811400f18d9b50c8a8bed03c5",
+      "name" : "key y = p + 7, x negative",
+      "public_key" : "f4ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "signature" : "4a3563fc0c531560ee7a161e9df1c94080e8c236baec796ce9f9b0ea193a2ee7de58fa01040ae53a06f268a6260d935da2c5c44c8db99d0a6667a8d76b04ca0a",
+      "why" : "a non-canonical key encoding"
+    },
+    {
+      "accepted" : false,
+      "domain" : "SZFriends request v1",
+      "message" : "3863378b83b2355b3304a5f8aa7e747be2c378c811400f18d9b50c8a8bed03c5",
+      "name" : "key y = p + 8",
+      "public_key" : "f5ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
+      "signature" : "4a3563fc0c531560ee7a161e9df1c94080e8c236baec796ce9f9b0ea193a2ee71e9048383874c4b6c8b1da5382e2bfe1b337da2ccd3d883c559d3ad1d6192e01",
+      "why" : "a non-canonical key encoding"
+    },
+    {
+      "accepted" : false,
+      "domain" : "SZFriends request v1",
+      "message" : "3863378b83b2355b3304a5f8aa7e747be2c378c811400f18d9b50c8a8bed03c5",
+      "name" : "key y = p + 8, x negative",
+      "public_key" : "f5ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "signature" : "4a3563fc0c531560ee7a161e9df1c94080e8c236baec796ce9f9b0ea193a2ee71ebad0faebe7902a9d3565444a62eafb3e3304c82fa1f9e11d28ecaeca18610f",
+      "why" : "a non-canonical key encoding"
+    },
+    {
+      "accepted" : false,
+      "domain" : "SZFriends request v1",
+      "message" : "3863378b83b2355b3304a5f8aa7e747be2c378c811400f18d9b50c8a8bed03c5",
+      "name" : "key y = p + 9",
+      "public_key" : "f6ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
+      "signature" : "4a3563fc0c531560ee7a161e9df1c94080e8c236baec796ce9f9b0ea193a2ee7e7f7bc32dfda1660426cbe4c5f0cf36937f2b38997cdcb1efb3ca3a07bc56d0a",
+      "why" : "a non-canonical key encoding"
+    },
+    {
+      "accepted" : false,
+      "domain" : "SZFriends request v1",
+      "message" : "3863378b83b2355b3304a5f8aa7e747be2c378c811400f18d9b50c8a8bed03c5",
+      "name" : "key y = p + 9, x negative",
+      "public_key" : "f6ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "signature" : "4a3563fc0c531560ee7a161e9df1c94080e8c236baec796ce9f9b0ea193a2ee7883cc39d355ec8e382af911fa843ab3c30cacab16bafe77574b4f03a0ca7c20b",
+      "why" : "a non-canonical key encoding"
+    },
+    {
+      "accepted" : false,
+      "domain" : "SZFriends request v1",
+      "message" : "3863378b83b2355b3304a5f8aa7e747be2c378c811400f18d9b50c8a8bed03c5",
+      "name" : "key y = p + 10",
+      "public_key" : "f7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
+      "signature" : "4a3563fc0c531560ee7a161e9df1c94080e8c236baec796ce9f9b0ea193a2ee70a0c15e1c8949e0eb4cae5d667e5860498456b4bd5c399feb77bfa3d3902f002",
+      "why" : "a non-canonical key encoding"
+    },
+    {
+      "accepted" : false,
+      "domain" : "SZFriends request v1",
+      "message" : "3863378b83b2355b3304a5f8aa7e747be2c378c811400f18d9b50c8a8bed03c5",
+      "name" : "key y = p + 10, x negative",
+      "public_key" : "f7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "signature" : "4a3563fc0c531560ee7a161e9df1c94080e8c236baec796ce9f9b0ea193a2ee731678dfbe5d9a544c743ec987cd08c7b8d58750d47896d9f3589504fb1880e09",
+      "why" : "a non-canonical key encoding"
+    },
+    {
+      "accepted" : false,
+      "domain" : "SZFriends request v1",
+      "message" : "3863378b83b2355b3304a5f8aa7e747be2c378c811400f18d9b50c8a8bed03c5",
+      "name" : "key y = p + 11",
+      "public_key" : "f8ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
+      "signature" : "4a3563fc0c531560ee7a161e9df1c94080e8c236baec796ce9f9b0ea193a2ee7e0186f3fdd0909b31bee16fa9fa250e37369893b1a70413df8d93ed753454c00",
+      "why" : "a non-canonical key encoding"
+    },
+    {
+      "accepted" : false,
+      "domain" : "SZFriends request v1",
+      "message" : "3863378b83b2355b3304a5f8aa7e747be2c378c811400f18d9b50c8a8bed03c5",
+      "name" : "key y = p + 11, x negative",
+      "public_key" : "f8ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "signature" : "4a3563fc0c531560ee7a161e9df1c94080e8c236baec796ce9f9b0ea193a2ee70c25ae6e70d4be5da77bb739c99892494f2e53dd0782ed580e1e5b9116862303",
+      "why" : "a non-canonical key encoding"
+    },
+    {
+      "accepted" : false,
+      "domain" : "SZFriends request v1",
+      "message" : "3863378b83b2355b3304a5f8aa7e747be2c378c811400f18d9b50c8a8bed03c5",
+      "name" : "key y = p + 12",
+      "public_key" : "f9ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
+      "signature" : "4a3563fc0c531560ee7a161e9df1c94080e8c236baec796ce9f9b0ea193a2ee7bd8868cb569845575bca9c02cf0f31aa9f88c4df82aed7661dcbf3ad0198ea0f",
+      "why" : "a non-canonical key encoding"
+    },
+    {
+      "accepted" : false,
+      "domain" : "SZFriends request v1",
+      "message" : "3863378b83b2355b3304a5f8aa7e747be2c378c811400f18d9b50c8a8bed03c5",
+      "name" : "key y = p + 12, x negative",
+      "public_key" : "f9ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "signature" : "4a3563fc0c531560ee7a161e9df1c94080e8c236baec796ce9f9b0ea193a2ee747bec93444f0fc3ff326065561752021828cf4a36b724c9f3359b606bfa12e08",
+      "why" : "a non-canonical key encoding"
+    },
+    {
+      "accepted" : false,
+      "domain" : "SZFriends request v1",
+      "message" : "3863378b83b2355b3304a5f8aa7e747be2c378c811400f18d9b50c8a8bed03c5",
+      "name" : "key y = p + 13",
+      "public_key" : "faffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
+      "signature" : "4a3563fc0c531560ee7a161e9df1c94080e8c236baec796ce9f9b0ea193a2ee74bd6ce3e4872eab180e0b51fb294ea082864e183b48f79498dfc8757d88ce605",
+      "why" : "a non-canonical key encoding"
+    },
+    {
+      "accepted" : false,
+      "domain" : "SZFriends request v1",
+      "message" : "3863378b83b2355b3304a5f8aa7e747be2c378c811400f18d9b50c8a8bed03c5",
+      "name" : "key y = p + 13, x negative",
+      "public_key" : "faffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "signature" : "4a3563fc0c531560ee7a161e9df1c94080e8c236baec796ce9f9b0ea193a2ee7aeaa6155e904f8647a848b9502e1e0236b9fae30e406351ca1a171bf5f2bd10d",
+      "why" : "a non-canonical key encoding"
+    },
+    {
+      "accepted" : false,
+      "domain" : "SZFriends request v1",
+      "message" : "3863378b83b2355b3304a5f8aa7e747be2c378c811400f18d9b50c8a8bed03c5",
+      "name" : "key y = p + 14",
+      "public_key" : "fbffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
+      "signature" : "4a3563fc0c531560ee7a161e9df1c94080e8c236baec796ce9f9b0ea193a2ee7c7137489addb8c51149b43dd0d4d8cfc55fcc08d4d5b5f7aaf194d6517220708",
+      "why" : "a non-canonical key encoding"
+    },
+    {
+      "accepted" : false,
+      "domain" : "SZFriends request v1",
+      "message" : "3863378b83b2355b3304a5f8aa7e747be2c378c811400f18d9b50c8a8bed03c5",
+      "name" : "key y = p + 14, x negative",
+      "public_key" : "fbffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "signature" : "4a3563fc0c531560ee7a161e9df1c94080e8c236baec796ce9f9b0ea193a2ee7357bfa54a432b317c64bfc98eece55533b45fc4e233b062c961d36ba42a10902",
+      "why" : "a non-canonical key encoding"
+    },
+    {
+      "accepted" : false,
+      "domain" : "SZFriends request v1",
+      "message" : "3863378b83b2355b3304a5f8aa7e747be2c378c811400f18d9b50c8a8bed03c5",
+      "name" : "key y = p + 15",
+      "public_key" : "fcffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
+      "signature" : "4a3563fc0c531560ee7a161e9df1c94080e8c236baec796ce9f9b0ea193a2ee72036854c5f01df25a38fc54a77b9cf2151d89946e5494809bb2d53f86bc67706",
+      "why" : "a non-canonical key encoding"
+    },
+    {
+      "accepted" : false,
+      "domain" : "SZFriends request v1",
+      "message" : "3863378b83b2355b3304a5f8aa7e747be2c378c811400f18d9b50c8a8bed03c5",
+      "name" : "key y = p + 15, x negative",
+      "public_key" : "fcffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "signature" : "4a3563fc0c531560ee7a161e9df1c94080e8c236baec796ce9f9b0ea193a2ee7cf3c3bda3edcb0282bf3ddee3ac7cc29f75f00c2a0fc5fb453e3504c8ab19804",
+      "why" : "a non-canonical key encoding"
+    },
+    {
+      "accepted" : false,
+      "domain" : "SZFriends request v1",
+      "message" : "3863378b83b2355b3304a5f8aa7e747be2c378c811400f18d9b50c8a8bed03c5",
+      "name" : "key y = p + 16",
+      "public_key" : "fdffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
+      "signature" : "4a3563fc0c531560ee7a161e9df1c94080e8c236baec796ce9f9b0ea193a2ee7a9eba279f74f8845be0c47d53971e93a836b7c306523c8d1f42bd28b00b8720d",
+      "why" : "a non-canonical key encoding"
+    },
+    {
+      "accepted" : false,
+      "domain" : "SZFriends request v1",
+      "message" : "3863378b83b2355b3304a5f8aa7e747be2c378c811400f18d9b50c8a8bed03c5",
+      "name" : "key y = p + 16, x negative",
+      "public_key" : "fdffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "signature" : "4a3563fc0c531560ee7a161e9df1c94080e8c236baec796ce9f9b0ea193a2ee75e553a7547d50852e3969224a4c9e289f94462396c1f458fef467b5f849e9703",
+      "why" : "a non-canonical key encoding"
+    },
+    {
+      "accepted" : false,
+      "domain" : "SZFriends request v1",
+      "message" : "3863378b83b2355b3304a5f8aa7e747be2c378c811400f18d9b50c8a8bed03c5",
+      "name" : "key y = p + 17",
+      "public_key" : "feffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
+      "signature" : "4a3563fc0c531560ee7a161e9df1c94080e8c236baec796ce9f9b0ea193a2ee7ba5669aada44488a92a28042d4b09f6e6aea92bf636796300dae5b187f22cf06",
+      "why" : "a non-canonical key encoding"
+    },
+    {
+      "accepted" : false,
+      "domain" : "SZFriends request v1",
+      "message" : "3863378b83b2355b3304a5f8aa7e747be2c378c811400f18d9b50c8a8bed03c5",
+      "name" : "key y = p + 17, x negative",
+      "public_key" : "feffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "signature" : "4a3563fc0c531560ee7a161e9df1c94080e8c236baec796ce9f9b0ea193a2ee7e7e67517d6a0014dd7305ca225d67881b18f4007d19bb1b6fbd929cf37df3603",
+      "why" : "a non-canonical key encoding"
+    },
+    {
+      "accepted" : false,
+      "domain" : "SZFriends request v1",
+      "message" : "3863378b83b2355b3304a5f8aa7e747be2c378c811400f18d9b50c8a8bed03c5",
+      "name" : "key y = p + 18",
+      "public_key" : "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
+      "signature" : "4a3563fc0c531560ee7a161e9df1c94080e8c236baec796ce9f9b0ea193a2ee72d588ac627d4369a005351d1a958f62a7d3a8700844d45b2cc86405b27b64405",
+      "why" : "a non-canonical key encoding"
+    },
+    {
+      "accepted" : false,
+      "domain" : "SZFriends request v1",
+      "message" : "3863378b83b2355b3304a5f8aa7e747be2c378c811400f18d9b50c8a8bed03c5",
+      "name" : "key y = p + 18, x negative",
+      "public_key" : "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "signature" : "4a3563fc0c531560ee7a161e9df1c94080e8c236baec796ce9f9b0ea193a2ee70e4d548251547a3b3d96b8ac466fa0943d8b2da15caf7fa812e9d259fe0a120a",
+      "why" : "a non-canonical key encoding"
+    },
+    {
+      "accepted" : false,
+      "domain" : "SZFriends request v1",
+      "message" : "3863378b83b2355b3304a5f8aa7e747be2c378c811400f18d9b50c8a8bed03c5",
+      "name" : "R is the identity with x negative",
+      "public_key" : "ea5d0d8b3ab84991603554057ec8b7ae23d9be20ed4a75db2c75891da6b7fb1c",
+      "signature" : "01000000000000000000000000000000000000000000000000000000000000809c08105e2cd2f7edce1e2a2e4f7358778a746d21f3c7b5da5523317eaf688400",
+      "why" : "a non-canonical encoding of a small-order R"
+    }
+  ],
+  "source" : "Exported by portable/friends/core-rs/tools/objc-vectors from the Objective-C helper's own code. Regenerate with `make friends-vectors-export`; do not edit by hand.",
+  "x25519" : [
+    {
+      "private_key" : "80c963e4d05c8ea51d8401408e5558d9e4865a13c0cfb366e5ba5e29c5153e46",
+      "public_key" : "0000000000000000000000000000000000000000000000000000000000000000",
+      "shared" : null
+    },
+    {
+      "private_key" : "80c963e4d05c8ea51d8401408e5558d9e4865a13c0cfb366e5ba5e29c5153e46",
+      "public_key" : "0000000000000000000000000000000000000000000000000000000000000080",
+      "shared" : null
+    },
+    {
+      "private_key" : "80c963e4d05c8ea51d8401408e5558d9e4865a13c0cfb366e5ba5e29c5153e46",
+      "public_key" : "0100000000000000000000000000000000000000000000000000000000000000",
+      "shared" : null
+    },
+    {
+      "private_key" : "80c963e4d05c8ea51d8401408e5558d9e4865a13c0cfb366e5ba5e29c5153e46",
+      "public_key" : "0100000000000000000000000000000000000000000000000000000000000080",
+      "shared" : null
+    },
+    {
+      "private_key" : "80c963e4d05c8ea51d8401408e5558d9e4865a13c0cfb366e5ba5e29c5153e46",
+      "public_key" : "e0eb7a7c3b41b8ae1656e3faf19fc46ada098deb9c32b1fd866205165f49b800",
+      "shared" : null
+    },
+    {
+      "private_key" : "80c963e4d05c8ea51d8401408e5558d9e4865a13c0cfb366e5ba5e29c5153e46",
+      "public_key" : "e0eb7a7c3b41b8ae1656e3faf19fc46ada098deb9c32b1fd866205165f49b880",
+      "shared" : null
+    },
+    {
+      "private_key" : "80c963e4d05c8ea51d8401408e5558d9e4865a13c0cfb366e5ba5e29c5153e46",
+      "public_key" : "5f9c95bca3508c24b1d0b1559c83ef5b04445cc4581c8e86d8224eddd09f1157",
+      "shared" : null
+    },
+    {
+      "private_key" : "80c963e4d05c8ea51d8401408e5558d9e4865a13c0cfb366e5ba5e29c5153e46",
+      "public_key" : "5f9c95bca3508c24b1d0b1559c83ef5b04445cc4581c8e86d8224eddd09f11d7",
+      "shared" : null
+    },
+    {
+      "private_key" : "80c963e4d05c8ea51d8401408e5558d9e4865a13c0cfb366e5ba5e29c5153e46",
+      "public_key" : "ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
+      "shared" : null
+    },
+    {
+      "private_key" : "80c963e4d05c8ea51d8401408e5558d9e4865a13c0cfb366e5ba5e29c5153e46",
+      "public_key" : "ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "shared" : null
+    },
+    {
+      "private_key" : "80c963e4d05c8ea51d8401408e5558d9e4865a13c0cfb366e5ba5e29c5153e46",
+      "public_key" : "edffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
+      "shared" : null
+    },
+    {
+      "private_key" : "80c963e4d05c8ea51d8401408e5558d9e4865a13c0cfb366e5ba5e29c5153e46",
+      "public_key" : "edffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "shared" : null
+    },
+    {
+      "private_key" : "80c963e4d05c8ea51d8401408e5558d9e4865a13c0cfb366e5ba5e29c5153e46",
+      "public_key" : "eeffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
+      "shared" : null
+    },
+    {
+      "private_key" : "80c963e4d05c8ea51d8401408e5558d9e4865a13c0cfb366e5ba5e29c5153e46",
+      "public_key" : "eeffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "shared" : null
+    },
+    {
+      "private_key" : "80c963e4d05c8ea51d8401408e5558d9e4865a13c0cfb366e5ba5e29c5153e46",
+      "public_key" : "0200000000000000000000000000000000000000000000000000000000000000",
+      "shared" : "5cc24d8d9517da652f300676b6193ae72a08ee38bf97ed3358f011cf9ed8713e"
+    },
+    {
+      "private_key" : "80c963e4d05c8ea51d8401408e5558d9e4865a13c0cfb366e5ba5e29c5153e46",
+      "public_key" : "0200000000000000000000000000000000000000000000000000000000000080",
+      "shared" : "5cc24d8d9517da652f300676b6193ae72a08ee38bf97ed3358f011cf9ed8713e"
+    },
+    {
+      "private_key" : "80c963e4d05c8ea51d8401408e5558d9e4865a13c0cfb366e5ba5e29c5153e46",
+      "public_key" : "0900000000000000000000000000000000000000000000000000000000000000",
+      "shared" : "0f29832af3cdbc0c53e203b7d2fe2349d31a1dd8b8ff34461fe326f481ade931"
+    },
+    {
+      "private_key" : "80c963e4d05c8ea51d8401408e5558d9e4865a13c0cfb366e5ba5e29c5153e46",
+      "public_key" : "0900000000000000000000000000000000000000000000000000000000000080",
+      "shared" : "0f29832af3cdbc0c53e203b7d2fe2349d31a1dd8b8ff34461fe326f481ade931"
+    }
+  ]
+}

@@ -1,0 +1,40 @@
+{
+  "type": "hello",
+  "id": "1",
+  "protocol": {
+    "major": 1,
+    "minor": 0,
+    "min_major": 1
+  },
+  "client": {
+    "app_id": "com.intuition.shenzhenpdf",
+    "app_name": "ShenzhenPDF",
+    "app_version": "26.10.12",
+    "toolkit": "appkit",
+    "reveal_in": "Finder",
+    "pid": 4242
+  },
+  "embedded_helper": {
+    "version": "26.10.12-1",
+    "build_number": 26101201,
+    "protocol": {
+      "major": 1,
+      "minor": 0
+    }
+  },
+  "capabilities": [
+    "attach.items",
+    "drop.files",
+    "drop.tabs",
+    "search.export"
+  ],
+  "open_formats": [
+    "pdf",
+    "epub",
+    "xps",
+    "cbz",
+    "md",
+    "markdown"
+  ],
+  "locale": "en-GB"
+}

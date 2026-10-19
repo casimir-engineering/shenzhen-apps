@@ -1,0 +1,591 @@
+{
+  "comment": "TEST VECTORS ONLY. Every key derives from a public seed; never pin one. Regenerate with node test/vectors/make-vectors.js --write after a deliberate change to a signed format.",
+  "test_public_keys": [
+    "X4HcjfXBGlMeaOPSbjKpDl-y5lq_oo4a7CnJ7MY6gIY",
+    "2TNHB6G09b3lvXKQjyaqzQYH1k09iuce97V4-aOsO0s",
+    "AD9P59a_13KlbYyjArbwiMcY2h-yYbnDKMxyaJwaY2w",
+    "7VdG8hVrgEFtXKEG7YHsiYog6j1B22YvjxAb2B9GHtA",
+    "X53nfNsRZyCFERtwV8UX-_ojEN8YaDlVOqHx104nKeA"
+  ],
+  "keys": {
+    "primary": {
+      "seed": "cdc933b584f5c25c67dadd00b4901eb3f13a174020553ab80ba6c7aa46f9d8fa",
+      "public_key": "X4HcjfXBGlMeaOPSbjKpDl-y5lq_oo4a7CnJ7MY6gIY"
+    },
+    "backup": {
+      "seed": "7d1c54cfa7dd59d873d74e4b6960440329a5c5e3db543b0b7c32776c17f4f743",
+      "public_key": "2TNHB6G09b3lvXKQjyaqzQYH1k09iuce97V4-aOsO0s"
+    },
+    "other": {
+      "seed": "32326c7047e004cae78cc6b6181813b9827a8a7f57d059e7a68d91dd9024b519",
+      "public_key": "AD9P59a_13KlbYyjArbwiMcY2h-yYbnDKMxyaJwaY2w"
+    },
+    "host": {
+      "seed": "b1430d8dfa05ba87a63d7600a84ae364f6ed8d2f6a5546a6cb940d6598397ee2",
+      "public_key": "7VdG8hVrgEFtXKEG7YHsiYog6j1B22YvjxAb2B9GHtA"
+    },
+    "identity": {
+      "seed": "faf69aa605910df2f33551751a8147d0e5e13be60086300066823169084ccf15",
+      "public_key": "X53nfNsRZyCFERtwV8UX-_ojEN8YaDlVOqHx104nKeA"
+    }
+  },
+  "pinned": [
+    "X4HcjfXBGlMeaOPSbjKpDl-y5lq_oo4a7CnJ7MY6gIY",
+    "2TNHB6G09b3lvXKQjyaqzQYH1k09iuce97V4-aOsO0s"
+  ],
+  "host_lists": [
+    {
+      "name": "signed by primary",
+      "valid": true,
+      "envelope": {
+        "payload": "eyJ2ZXJzaW9uIjozLCJpc3N1ZWRfYXQiOiIyMDI2LTEwLTEyVDA2OjAwOjAwWiIsIm5ld19pZF93b3JkcyI6MiwiaG9zdHMiOlt7ImlkIjoibWFpbi1oayIsInJvbGUiOiJib3RoIiwidXJscyI6WyJ3c3M6Ly9mcmllbmRzLmV4YW1wbGUudGVzdC92MSJdLCJ0dXJuX3VyaXMiOltdLCJyZWdpb24iOiJIb25nIEtvbmciLCJwcmlvcml0eSI6MSwicHVibGljX2tleSI6IjdWZEc4aFZyZ0VGdFhLRUc3WUhzaVlvZzZqMUIyMll2anhBYjJCOUdIdEEifSx7ImlkIjoiYWx0LXNnIiwicm9sZSI6InJlbmRlenZvdXMiLCJ1cmxzIjpbIndzczovL2FsdC5leGFtcGxlLnRlc3QvdjEiLCJ3czovLzEyNy4wLjAuMTo5L3YxIl0sInJlZ2lvbiI6IlNpbmdhcG9yZSIsInByaW9yaXR5IjoyLCJwdWJsaWNfa2V5IjoiQUQ5UDU5YV8xM0tsYll5akFyYndpTWNZMmgteVlibkRLTXh5YUp3YVkydyJ9XX0",
+        "sigs": [
+          {
+            "key": "primary",
+            "sig": "oZCGZawJq_X7uVWs3_1PMJKxzMYzI1RJV_A9GC1MBF4v_ZBDi97btaZYus8LC1FZAG6qa3TKPfBdDRiUjklUBw"
+          }
+        ]
+      },
+      "expected": {
+        "version": 3,
+        "new_id_words": 2,
+        "issued_at": "2026-10-12T06:00:00Z",
+        "hosts": [
+          {
+            "id": "main-hk",
+            "role": "both",
+            "urls": [
+              "wss://friends.example.test/v1"
+            ],
+            "region": "Hong Kong",
+            "priority": 1,
+            "public_key": "7VdG8hVrgEFtXKEG7YHsiYog6j1B22YvjxAb2B9GHtA"
+          },
+          {
+            "id": "alt-sg",
+            "role": "rendezvous",
+            "urls": [
+              "wss://alt.example.test/v1",
+              "ws://127.0.0.1:9/v1"
+            ],
+            "region": "Singapore",
+            "priority": 2,
+            "public_key": "AD9P59a_13KlbYyjArbwiMcY2h-yYbnDKMxyaJwaY2w"
+          }
+        ]
+      }
+    },
+    {
+      "name": "signed by backup",
+      "valid": true,
+      "envelope": {
+        "payload": "eyJ2ZXJzaW9uIjozLCJpc3N1ZWRfYXQiOiIyMDI2LTEwLTEyVDA2OjAwOjAwWiIsIm5ld19pZF93b3JkcyI6MiwiaG9zdHMiOlt7ImlkIjoibWFpbi1oayIsInJvbGUiOiJib3RoIiwidXJscyI6WyJ3c3M6Ly9mcmllbmRzLmV4YW1wbGUudGVzdC92MSJdLCJ0dXJuX3VyaXMiOltdLCJyZWdpb24iOiJIb25nIEtvbmciLCJwcmlvcml0eSI6MSwicHVibGljX2tleSI6IjdWZEc4aFZyZ0VGdFhLRUc3WUhzaVlvZzZqMUIyMll2anhBYjJCOUdIdEEifSx7ImlkIjoiYWx0LXNnIiwicm9sZSI6InJlbmRlenZvdXMiLCJ1cmxzIjpbIndzczovL2FsdC5leGFtcGxlLnRlc3QvdjEiLCJ3czovLzEyNy4wLjAuMTo5L3YxIl0sInJlZ2lvbiI6IlNpbmdhcG9yZSIsInByaW9yaXR5IjoyLCJwdWJsaWNfa2V5IjoiQUQ5UDU5YV8xM0tsYll5akFyYndpTWNZMmgteVlibkRLTXh5YUp3YVkydyJ9XX0",
+        "sigs": [
+          {
+            "key": "backup",
+            "sig": "KEycJhrNqRyoRhuWdNOsHZO9F_V5HBIyXzcRktLbJ1X5hHD_7qg7PH67C0EKSjMo2RibAETaiNLOUKAqO_8zAg"
+          }
+        ]
+      },
+      "expected": {
+        "version": 3,
+        "new_id_words": 2,
+        "issued_at": "2026-10-12T06:00:00Z",
+        "hosts": [
+          {
+            "id": "main-hk",
+            "role": "both",
+            "urls": [
+              "wss://friends.example.test/v1"
+            ],
+            "region": "Hong Kong",
+            "priority": 1,
+            "public_key": "7VdG8hVrgEFtXKEG7YHsiYog6j1B22YvjxAb2B9GHtA"
+          },
+          {
+            "id": "alt-sg",
+            "role": "rendezvous",
+            "urls": [
+              "wss://alt.example.test/v1",
+              "ws://127.0.0.1:9/v1"
+            ],
+            "region": "Singapore",
+            "priority": 2,
+            "public_key": "AD9P59a_13KlbYyjArbwiMcY2h-yYbnDKMxyaJwaY2w"
+          }
+        ]
+      }
+    },
+    {
+      "name": "signed by both",
+      "valid": true,
+      "envelope": {
+        "payload": "eyJ2ZXJzaW9uIjozLCJpc3N1ZWRfYXQiOiIyMDI2LTEwLTEyVDA2OjAwOjAwWiIsIm5ld19pZF93b3JkcyI6MiwiaG9zdHMiOlt7ImlkIjoibWFpbi1oayIsInJvbGUiOiJib3RoIiwidXJscyI6WyJ3c3M6Ly9mcmllbmRzLmV4YW1wbGUudGVzdC92MSJdLCJ0dXJuX3VyaXMiOltdLCJyZWdpb24iOiJIb25nIEtvbmciLCJwcmlvcml0eSI6MSwicHVibGljX2tleSI6IjdWZEc4aFZyZ0VGdFhLRUc3WUhzaVlvZzZqMUIyMll2anhBYjJCOUdIdEEifSx7ImlkIjoiYWx0LXNnIiwicm9sZSI6InJlbmRlenZvdXMiLCJ1cmxzIjpbIndzczovL2FsdC5leGFtcGxlLnRlc3QvdjEiLCJ3czovLzEyNy4wLjAuMTo5L3YxIl0sInJlZ2lvbiI6IlNpbmdhcG9yZSIsInByaW9yaXR5IjoyLCJwdWJsaWNfa2V5IjoiQUQ5UDU5YV8xM0tsYll5akFyYndpTWNZMmgteVlibkRLTXh5YUp3YVkydyJ9XX0",
+        "sigs": [
+          {
+            "key": "primary",
+            "sig": "oZCGZawJq_X7uVWs3_1PMJKxzMYzI1RJV_A9GC1MBF4v_ZBDi97btaZYus8LC1FZAG6qa3TKPfBdDRiUjklUBw"
+          },
+          {
+            "key": "backup",
+            "sig": "KEycJhrNqRyoRhuWdNOsHZO9F_V5HBIyXzcRktLbJ1X5hHD_7qg7PH67C0EKSjMo2RibAETaiNLOUKAqO_8zAg"
+          }
+        ]
+      },
+      "expected": {
+        "version": 3,
+        "new_id_words": 2,
+        "issued_at": "2026-10-12T06:00:00Z",
+        "hosts": [
+          {
+            "id": "main-hk",
+            "role": "both",
+            "urls": [
+              "wss://friends.example.test/v1"
+            ],
+            "region": "Hong Kong",
+            "priority": 1,
+            "public_key": "7VdG8hVrgEFtXKEG7YHsiYog6j1B22YvjxAb2B9GHtA"
+          },
+          {
+            "id": "alt-sg",
+            "role": "rendezvous",
+            "urls": [
+              "wss://alt.example.test/v1",
+              "ws://127.0.0.1:9/v1"
+            ],
+            "region": "Singapore",
+            "priority": 2,
+            "public_key": "AD9P59a_13KlbYyjArbwiMcY2h-yYbnDKMxyaJwaY2w"
+          }
+        ]
+      }
+    },
+    {
+      "name": "three words for new IDs",
+      "valid": true,
+      "envelope": {
+        "payload": "eyJ2ZXJzaW9uIjo0LCJpc3N1ZWRfYXQiOiIyMDI2LTEwLTEyVDA2OjAwOjAwWiIsIm5ld19pZF93b3JkcyI6MywiaG9zdHMiOlt7ImlkIjoibWFpbi1oayIsInJvbGUiOiJib3RoIiwidXJscyI6WyJ3c3M6Ly9mcmllbmRzLmV4YW1wbGUudGVzdC92MSJdLCJ0dXJuX3VyaXMiOltdLCJyZWdpb24iOiJIb25nIEtvbmciLCJwcmlvcml0eSI6MSwicHVibGljX2tleSI6IjdWZEc4aFZyZ0VGdFhLRUc3WUhzaVlvZzZqMUIyMll2anhBYjJCOUdIdEEifSx7ImlkIjoiYWx0LXNnIiwicm9sZSI6InJlbmRlenZvdXMiLCJ1cmxzIjpbIndzczovL2FsdC5leGFtcGxlLnRlc3QvdjEiLCJ3czovLzEyNy4wLjAuMTo5L3YxIl0sInJlZ2lvbiI6IlNpbmdhcG9yZSIsInByaW9yaXR5IjoyLCJwdWJsaWNfa2V5IjoiQUQ5UDU5YV8xM0tsYll5akFyYndpTWNZMmgteVlibkRLTXh5YUp3YVkydyJ9XX0",
+        "sigs": [
+          {
+            "key": "primary",
+            "sig": "gmxV51-rV9hL-RDbLw1bPlCE1wgQszQC9CLXc_cb8Rut-rN0BciSNM9c_xMCZ83VjPP4Yc_aqnpT3CfQ4zi6Dw"
+          }
+        ]
+      },
+      "expected": {
+        "version": 4,
+        "new_id_words": 3,
+        "issued_at": "2026-10-12T06:00:00Z",
+        "hosts": [
+          {
+            "id": "main-hk",
+            "role": "both",
+            "urls": [
+              "wss://friends.example.test/v1"
+            ],
+            "region": "Hong Kong",
+            "priority": 1,
+            "public_key": "7VdG8hVrgEFtXKEG7YHsiYog6j1B22YvjxAb2B9GHtA"
+          },
+          {
+            "id": "alt-sg",
+            "role": "rendezvous",
+            "urls": [
+              "wss://alt.example.test/v1",
+              "ws://127.0.0.1:9/v1"
+            ],
+            "region": "Singapore",
+            "priority": 2,
+            "public_key": "AD9P59a_13KlbYyjArbwiMcY2h-yYbnDKMxyaJwaY2w"
+          }
+        ]
+      }
+    },
+    {
+      "name": "signed by a key nobody pins",
+      "valid": false,
+      "envelope": {
+        "payload": "eyJ2ZXJzaW9uIjozLCJpc3N1ZWRfYXQiOiIyMDI2LTEwLTEyVDA2OjAwOjAwWiIsIm5ld19pZF93b3JkcyI6MiwiaG9zdHMiOlt7ImlkIjoibWFpbi1oayIsInJvbGUiOiJib3RoIiwidXJscyI6WyJ3c3M6Ly9mcmllbmRzLmV4YW1wbGUudGVzdC92MSJdLCJ0dXJuX3VyaXMiOltdLCJyZWdpb24iOiJIb25nIEtvbmciLCJwcmlvcml0eSI6MSwicHVibGljX2tleSI6IjdWZEc4aFZyZ0VGdFhLRUc3WUhzaVlvZzZqMUIyMll2anhBYjJCOUdIdEEifSx7ImlkIjoiYWx0LXNnIiwicm9sZSI6InJlbmRlenZvdXMiLCJ1cmxzIjpbIndzczovL2FsdC5leGFtcGxlLnRlc3QvdjEiLCJ3czovLzEyNy4wLjAuMTo5L3YxIl0sInJlZ2lvbiI6IlNpbmdhcG9yZSIsInByaW9yaXR5IjoyLCJwdWJsaWNfa2V5IjoiQUQ5UDU5YV8xM0tsYll5akFyYndpTWNZMmgteVlibkRLTXh5YUp3YVkydyJ9XX0",
+        "sigs": [
+          {
+            "key": "primary",
+            "sig": "TLghj2xHL59CC7HVTttTaToH8Yukx3Cd8svr0e9VUmzF1gUvxVZwDxR6IabS9j16cbFCW0u4HDHrZy6UJnu3BA"
+          }
+        ]
+      }
+    },
+    {
+      "name": "payload changed after signing",
+      "valid": false,
+      "envelope": {
+        "payload": "eyJ2ZXJzaW9uIjo5LCJpc3N1ZWRfYXQiOiIyMDI2LTEwLTEyVDA2OjAwOjAwWiIsIm5ld19pZF93b3JkcyI6MiwiaG9zdHMiOlt7ImlkIjoibWFpbi1oayIsInJvbGUiOiJib3RoIiwidXJscyI6WyJ3c3M6Ly9mcmllbmRzLmV4YW1wbGUudGVzdC92MSJdLCJ0dXJuX3VyaXMiOltdLCJyZWdpb24iOiJIb25nIEtvbmciLCJwcmlvcml0eSI6MSwicHVibGljX2tleSI6IjdWZEc4aFZyZ0VGdFhLRUc3WUhzaVlvZzZqMUIyMll2anhBYjJCOUdIdEEifSx7ImlkIjoiYWx0LXNnIiwicm9sZSI6InJlbmRlenZvdXMiLCJ1cmxzIjpbIndzczovL2FsdC5leGFtcGxlLnRlc3QvdjEiLCJ3czovLzEyNy4wLjAuMTo5L3YxIl0sInJlZ2lvbiI6IlNpbmdhcG9yZSIsInByaW9yaXR5IjoyLCJwdWJsaWNfa2V5IjoiQUQ5UDU5YV8xM0tsYll5akFyYndpTWNZMmgteVlibkRLTXh5YUp3YVkydyJ9XX0",
+        "sigs": [
+          {
+            "key": "primary",
+            "sig": "oZCGZawJq_X7uVWs3_1PMJKxzMYzI1RJV_A9GC1MBF4v_ZBDi97btaZYus8LC1FZAG6qa3TKPfBdDRiUjklUBw"
+          }
+        ]
+      }
+    },
+    {
+      "name": "signature missing",
+      "valid": false,
+      "envelope": {
+        "payload": "eyJ2ZXJzaW9uIjozLCJpc3N1ZWRfYXQiOiIyMDI2LTEwLTEyVDA2OjAwOjAwWiIsIm5ld19pZF93b3JkcyI6MiwiaG9zdHMiOlt7ImlkIjoibWFpbi1oayIsInJvbGUiOiJib3RoIiwidXJscyI6WyJ3c3M6Ly9mcmllbmRzLmV4YW1wbGUudGVzdC92MSJdLCJ0dXJuX3VyaXMiOltdLCJyZWdpb24iOiJIb25nIEtvbmciLCJwcmlvcml0eSI6MSwicHVibGljX2tleSI6IjdWZEc4aFZyZ0VGdFhLRUc3WUhzaVlvZzZqMUIyMll2anhBYjJCOUdIdEEifSx7ImlkIjoiYWx0LXNnIiwicm9sZSI6InJlbmRlenZvdXMiLCJ1cmxzIjpbIndzczovL2FsdC5leGFtcGxlLnRlc3QvdjEiLCJ3czovLzEyNy4wLjAuMTo5L3YxIl0sInJlZ2lvbiI6IlNpbmdhcG9yZSIsInByaW9yaXR5IjoyLCJwdWJsaWNfa2V5IjoiQUQ5UDU5YV8xM0tsYll5akFyYndpTWNZMmgteVlibkRLTXh5YUp3YVkydyJ9XX0",
+        "sigs": []
+      }
+    },
+    {
+      "name": "two hosts share the lowest priority",
+      "valid": false,
+      "envelope": {
+        "payload": "eyJ2ZXJzaW9uIjozLCJpc3N1ZWRfYXQiOiIyMDI2LTEwLTEyVDA2OjAwOjAwWiIsIm5ld19pZF93b3JkcyI6MiwiaG9zdHMiOlt7ImlkIjoibWFpbi1oayIsInJvbGUiOiJib3RoIiwidXJscyI6WyJ3c3M6Ly9mcmllbmRzLmV4YW1wbGUudGVzdC92MSJdLCJ0dXJuX3VyaXMiOltdLCJyZWdpb24iOiJIb25nIEtvbmciLCJwcmlvcml0eSI6MSwicHVibGljX2tleSI6IjdWZEc4aFZyZ0VGdFhLRUc3WUhzaVlvZzZqMUIyMll2anhBYjJCOUdIdEEifSx7ImlkIjoiYWx0LXNnIiwicm9sZSI6InJlbmRlenZvdXMiLCJ1cmxzIjpbIndzczovL2FsdC5leGFtcGxlLnRlc3QvdjEiLCJ3czovLzEyNy4wLjAuMTo5L3YxIl0sInJlZ2lvbiI6IlNpbmdhcG9yZSIsInByaW9yaXR5IjoxLCJwdWJsaWNfa2V5IjoiQUQ5UDU5YV8xM0tsYll5akFyYndpTWNZMmgteVlibkRLTXh5YUp3YVkydyJ9XX0",
+        "sigs": [
+          {
+            "key": "primary",
+            "sig": "Y8yaUm2AazXDvkJu9ejyEN6hT0QkHaNf44FvgQDsxPkOwDPm5-RLc4y1-dFRdAWQx1IwcDN6fxhrArTUF7bqBw"
+          }
+        ]
+      }
+    },
+    {
+      "name": "cleartext URL off loopback",
+      "valid": false,
+      "envelope": {
+        "payload": "eyJ2ZXJzaW9uIjozLCJpc3N1ZWRfYXQiOiIyMDI2LTEwLTEyVDA2OjAwOjAwWiIsIm5ld19pZF93b3JkcyI6MiwiaG9zdHMiOlt7ImlkIjoibWFpbi1oayIsInJvbGUiOiJib3RoIiwidXJscyI6WyJ3czovL2ZyaWVuZHMuZXhhbXBsZS50ZXN0L3YxIl0sInR1cm5fdXJpcyI6W10sInJlZ2lvbiI6IkhvbmcgS29uZyIsInByaW9yaXR5IjoxLCJwdWJsaWNfa2V5IjoiN1ZkRzhoVnJnRUZ0WEtFRzdZSHNpWW9nNmoxQjIyWXZqeEFiMkI5R0h0QSJ9XX0",
+        "sigs": [
+          {
+            "key": "primary",
+            "sig": "c3V7ZPbqkQHOuB73eeqAC8R5Jf8VVXPdD0Xk41Nry_3hql9ILdJorQCSvG8R71zIpnJO5GNaL7xr6_u3HaXzCA"
+          }
+        ]
+      }
+    },
+    {
+      "name": "new_id_words out of range",
+      "valid": false,
+      "envelope": {
+        "payload": "eyJ2ZXJzaW9uIjozLCJpc3N1ZWRfYXQiOiIyMDI2LTEwLTEyVDA2OjAwOjAwWiIsIm5ld19pZF93b3JkcyI6NCwiaG9zdHMiOlt7ImlkIjoibWFpbi1oayIsInJvbGUiOiJib3RoIiwidXJscyI6WyJ3c3M6Ly9mcmllbmRzLmV4YW1wbGUudGVzdC92MSJdLCJ0dXJuX3VyaXMiOltdLCJyZWdpb24iOiJIb25nIEtvbmciLCJwcmlvcml0eSI6MSwicHVibGljX2tleSI6IjdWZEc4aFZyZ0VGdFhLRUc3WUhzaVlvZzZqMUIyMll2anhBYjJCOUdIdEEifSx7ImlkIjoiYWx0LXNnIiwicm9sZSI6InJlbmRlenZvdXMiLCJ1cmxzIjpbIndzczovL2FsdC5leGFtcGxlLnRlc3QvdjEiLCJ3czovLzEyNy4wLjAuMTo5L3YxIl0sInJlZ2lvbiI6IlNpbmdhcG9yZSIsInByaW9yaXR5IjoyLCJwdWJsaWNfa2V5IjoiQUQ5UDU5YV8xM0tsYll5akFyYndpTWNZMmgteVlibkRLTXh5YUp3YVkydyJ9XX0",
+        "sigs": [
+          {
+            "key": "primary",
+            "sig": "PhM2jPDziK6Hr_bPj2-UFsD9mVE2wCM007zs9PHACNWw4sZh4g-wUAVhCW7CgzZWXZO-ZIlEnaRbCvsE2pL3Aw"
+          }
+        ]
+      }
+    },
+    {
+      "name": "host key of the wrong length",
+      "valid": false,
+      "envelope": {
+        "payload": "eyJ2ZXJzaW9uIjozLCJpc3N1ZWRfYXQiOiIyMDI2LTEwLTEyVDA2OjAwOjAwWiIsIm5ld19pZF93b3JkcyI6MiwiaG9zdHMiOlt7ImlkIjoibWFpbi1oayIsInJvbGUiOiJib3RoIiwidXJscyI6WyJ3c3M6Ly9mcmllbmRzLmV4YW1wbGUudGVzdC92MSJdLCJ0dXJuX3VyaXMiOltdLCJyZWdpb24iOiJIb25nIEtvbmciLCJwcmlvcml0eSI6MSwicHVibGljX2tleSI6IkFBQUEifV19",
+        "sigs": [
+          {
+            "key": "primary",
+            "sig": "Xt_vgx_RdJD_ZxIzMU9hBazts3FoEfh7dMyuXN-7eGpM5ScmyUFgu_iTtb-2aGVuq9r_5kAQrKCpoIf4cpFlBA"
+          }
+        ]
+      }
+    }
+  ],
+  "checkin": {
+    "host_id": "main-hk",
+    "challenge": "z14M-dxaX8OxM42EqB-1z2lrkl-ZQP0G9TdgcEFqhs8",
+    "identity_key": "X53nfNsRZyCFERtwV8UX-_ojEN8YaDlVOqHx104nKeA",
+    "friends_id": "maple-river",
+    "reserved": false,
+    "app_version": "26.10.12-1",
+    "protocol": 1,
+    "list_version": 3,
+    "signed_bytes_hex": "535a467269656e647320636865636b696e207631000000076d61696e2d686b00000020cf5e0cf9dc5a5fc3b1338d84a81fb5cf696b925f9940fd06f5376070416a86cf000000205f9de77cdb11672085111b7057c517fbfa2310df186839553aa1f1d74e2729e00000000b6d61706c652d726976657200000001300000000a32362e31302e31322d3100000001310000000133",
+    "sig": "ZCY5zMSc050aUMGlGAFrBowx-0yYCxI1zcb7M7EyVB75HDqW6CdvaQz_f0Is1APZ4tnq2aL6ImkKxo0mU8e6Aw"
+  },
+  "release": {
+    "host_id": "main-hk",
+    "challenge": "z14M-dxaX8OxM42EqB-1z2lrkl-ZQP0G9TdgcEFqhs8",
+    "identity_key": "X53nfNsRZyCFERtwV8UX-_ojEN8YaDlVOqHx104nKeA",
+    "friends_id": "maple-river",
+    "signed_bytes_hex": "535a467269656e64732072656c65617365207631000000076d61696e2d686b00000020cf5e0cf9dc5a5fc3b1338d84a81fb5cf696b925f9940fd06f5376070416a86cf000000205f9de77cdb11672085111b7057c517fbfa2310df186839553aa1f1d74e2729e00000000b6d61706c652d7269766572",
+    "sig": "fi2SY4Lp2RIh6nSa1xiuj-6k_H5C-aWvPWMtgFGMC1M2ZNYaVJKOda_33T3oIPFNszo_VAHwYI7q_Lgd-s6iBg"
+  },
+  "host_replies": {
+    "host_id": "main-hk",
+    "challenge": "z14M-dxaX8OxM42EqB-1z2lrkl-ZQP0G9TdgcEFqhs8",
+    "host_key": "7VdG8hVrgEFtXKEG7YHsiYog6j1B22YvjxAb2B9GHtA",
+    "replies": [
+      {
+        "name": "welcome with a newer list",
+        "requested": "maple-river",
+        "message": {
+          "type": "welcome",
+          "reservation": "reserved",
+          "friends_id": "maple-river",
+          "update_required": true,
+          "host_list": {
+            "payload": "eyJ2ZXJzaW9uIjozLCJpc3N1ZWRfYXQiOiIyMDI2LTEwLTEyVDA2OjAwOjAwWiIsIm5ld19pZF93b3JkcyI6MiwiaG9zdHMiOlt7ImlkIjoibWFpbi1oayIsInJvbGUiOiJib3RoIiwidXJscyI6WyJ3c3M6Ly9mcmllbmRzLmV4YW1wbGUudGVzdC92MSJdLCJ0dXJuX3VyaXMiOltdLCJyZWdpb24iOiJIb25nIEtvbmciLCJwcmlvcml0eSI6MSwicHVibGljX2tleSI6IjdWZEc4aFZyZ0VGdFhLRUc3WUhzaVlvZzZqMUIyMll2anhBYjJCOUdIdEEifSx7ImlkIjoiYWx0LXNnIiwicm9sZSI6InJlbmRlenZvdXMiLCJ1cmxzIjpbIndzczovL2FsdC5leGFtcGxlLnRlc3QvdjEiLCJ3czovLzEyNy4wLjAuMTo5L3YxIl0sInJlZ2lvbiI6IlNpbmdhcG9yZSIsInByaW9yaXR5IjoyLCJwdWJsaWNfa2V5IjoiQUQ5UDU5YV8xM0tsYll5akFyYndpTWNZMmgteVlibkRLTXh5YUp3YVkydyJ9XX0",
+            "sigs": [
+              {
+                "key": "primary",
+                "sig": "oZCGZawJq_X7uVWs3_1PMJKxzMYzI1RJV_A9GC1MBF4v_ZBDi97btaZYus8LC1FZAG6qa3TKPfBdDRiUjklUBw"
+              }
+            ]
+          },
+          "v": 1,
+          "host_sig": "pG8OaDgmnOr9oatnsnsk4tNceGhb7FW1E5h_Qqe4plJmu9uThnTKnuVQ808XTFtsv_x2lmkJhphOHH5RhmpcDw"
+        },
+        "body_hex": "0000000777656c636f6d650000000b6d61706c652d72697665720000000872657365727665640000000b6d61706c652d726976657200000001310000024f65794a325a584a7a61573975496a6f7a4c434a7063334e315a575266595851694f6949794d4449324c5445774c544579564441324f6a41774f6a417757694973496d356c643139705a46393362334a6b637949364d6977696147397a64484d694f6c7437496d6c6b496a6f69625746706269316f61794973496e4a76624755694f694a696233526f4969776964584a736379493657794a3363334d364c79396d636d6c6c626d527a4c6d563459573177624755756447567a644339324d534a644c434a3064584a755833567961584d694f6c74644c434a795a576470623234694f694a496232356e49457476626d63694c434a77636d6c76636d6c30655349364d5377696348566962476c6a5832746c65534936496a64575a45633461465a795a3056476446684c525563335755687a61566c765a7a5a714d5549794d6c6c32616e6842596a4a434f5564496445456966537837496d6c6b496a6f69595778304c584e6e49697769636d39735a534936496e4a6c626d526c656e5a7664584d694c434a31636d787a496a7062496e647a637a6f764c3246736443356c654746746347786c4c6e526c63335176646a45694c434a33637a6f764c7a45794e7934774c6a41754d546f354c335978496c3073496e4a6c5a326c7662694936496c4e70626d6468634739795a534973496e42796157397961585235496a6f794c434a7764574a7361574e6661325635496a6f695155513555445535595638784d307473596c6c35616b4679596e647054574e5a4d6d677465566c69626b524c545868355955703359566b7964794a39585830",
+        "signed_bytes_hex": "535a467269656e647320686f7374207265706c7920763100000020cf5e0cf9dc5a5fc3b1338d84a81fb5cf696b925f9940fd06f5376070416a86cf000000206bc41ff766f74edef52c4a80d9fbdb84d9d60360ec69d36cdaa343320f19ee42"
+      },
+      {
+        "name": "welcome, taken",
+        "requested": "maple-river",
+        "message": {
+          "type": "welcome",
+          "reservation": "taken",
+          "friends_id": null,
+          "update_required": false,
+          "host_list": null,
+          "v": 1,
+          "host_sig": "gAb-Nq1ChNA2Y5OR9HG1vLx0-ern_x_2m97zw40ad1vaRR16McQMsqKEFzytFmb4rxCoc2vxJlirIWFLSllxDw"
+        },
+        "body_hex": "0000000777656c636f6d650000000b6d61706c652d72697665720000000574616b656e00000000000000013000000000",
+        "signed_bytes_hex": "535a467269656e647320686f7374207265706c7920763100000020cf5e0cf9dc5a5fc3b1338d84a81fb5cf696b925f9940fd06f5376070416a86cf000000201712660fbd78dacd6609fcab9e5cb2431835573baf9c5777d5581662fa050290"
+      },
+      {
+        "name": "reserve_result after a collision",
+        "requested": "maple-harbor",
+        "message": {
+          "type": "reserve_result",
+          "reservation": "reserved",
+          "friends_id": "maple-harbor",
+          "v": 1,
+          "host_sig": "CmZP_3QRxjCmfu2Id621Cd39eyEAHjqL-mZHQetpJDIttX64cx7o9Q9WqS3WMQJCftqJn53ZMS_kXcERZC4gDg"
+        },
+        "body_hex": "0000000e726573657276655f726573756c740000000c6d61706c652d686172626f720000000872657365727665640000000c6d61706c652d686172626f72",
+        "signed_bytes_hex": "535a467269656e647320686f7374207265706c7920763100000020cf5e0cf9dc5a5fc3b1338d84a81fb5cf696b925f9940fd06f5376070416a86cf00000020514bd732701866727f25567658136a27f2b4979fcc1b3275d7042abf16825a76"
+      },
+      {
+        "name": "released",
+        "requested": null,
+        "message": {
+          "type": "released",
+          "released": true,
+          "v": 1,
+          "host_sig": "SGAC2-U0iHjDWptnrO-ZqCTBjxKo5cfUPGmELY47JBXBu4PNWrDpevwoQBFfClSRScgGoZYQNzJfJ9bV7AvQBQ"
+        },
+        "body_hex": "0000000872656c65617365640000000131",
+        "signed_bytes_hex": "535a467269656e647320686f7374207265706c7920763100000020cf5e0cf9dc5a5fc3b1338d84a81fb5cf696b925f9940fd06f5376070416a86cf0000002086db1e53c2d7e4c0e01c399403f1b6503c1efb8f0d8711e015dd1fcfa9417887"
+      }
+    ]
+  },
+  "attestations": {
+    "list": {
+      "payload": "eyJ2ZXJzaW9uIjozLCJpc3N1ZWRfYXQiOiIyMDI2LTEwLTEyVDA2OjAwOjAwWiIsIm5ld19pZF93b3JkcyI6MiwiaG9zdHMiOlt7ImlkIjoibWFpbi1oayIsInJvbGUiOiJib3RoIiwidXJscyI6WyJ3c3M6Ly9mcmllbmRzLmV4YW1wbGUudGVzdC92MSJdLCJ0dXJuX3VyaXMiOltdLCJyZWdpb24iOiJIb25nIEtvbmciLCJwcmlvcml0eSI6MSwicHVibGljX2tleSI6IjdWZEc4aFZyZ0VGdFhLRUc3WUhzaVlvZzZqMUIyMll2anhBYjJCOUdIdEEifSx7ImlkIjoiYWx0LXNnIiwicm9sZSI6InJlbmRlenZvdXMiLCJ1cmxzIjpbIndzczovL2FsdC5leGFtcGxlLnRlc3QvdjEiLCJ3czovLzEyNy4wLjAuMTo5L3YxIl0sInJlZ2lvbiI6IlNpbmdhcG9yZSIsInByaW9yaXR5IjoyLCJwdWJsaWNfa2V5IjoiQUQ5UDU5YV8xM0tsYll5akFyYndpTWNZMmgteVlibkRLTXh5YUp3YVkydyJ9XX0",
+      "sigs": [
+        {
+          "key": "primary",
+          "sig": "oZCGZawJq_X7uVWs3_1PMJKxzMYzI1RJV_A9GC1MBF4v_ZBDi97btaZYus8LC1FZAG6qa3TKPfBdDRiUjklUBw"
+        }
+      ]
+    },
+    "now": "2026-10-13T03:00:00Z",
+    "cases": [
+      {
+        "claim": {
+          "friends_id": "maple-river",
+          "identity_key": "X53nfNsRZyCFERtwV8UX-_ojEN8YaDlVOqHx104nKeA"
+        },
+        "name": "signed by the main host",
+        "attestation": {
+          "host_id": "main-hk",
+          "friends_id": "maple-river",
+          "identity_key": "X53nfNsRZyCFERtwV8UX-_ojEN8YaDlVOqHx104nKeA",
+          "day": "2026-10-12",
+          "sig": "0E1QdZMtd3D3sD0gh4orWOmi3Nc-T3KfL_dwRZ0kFxYBu1sT1z3pFO8jMkgz305SptB4oHUI5BrYdIm_dga0Cw"
+        },
+        "verdict": "valid",
+        "signed_bytes_hex": "535a467269656e6473206964206174746573746174696f6e207631000000076d61696e2d686b0000000b6d61706c652d7269766572000000205f9de77cdb11672085111b7057c517fbfa2310df186839553aa1f1d74e2729e00000000a323032362d31302d3132"
+      },
+      {
+        "claim": {
+          "friends_id": "maple-river",
+          "identity_key": "X53nfNsRZyCFERtwV8UX-_ojEN8YaDlVOqHx104nKeA"
+        },
+        "name": "signed by a replica",
+        "attestation": {
+          "host_id": "alt-sg",
+          "friends_id": "maple-river",
+          "identity_key": "X53nfNsRZyCFERtwV8UX-_ojEN8YaDlVOqHx104nKeA",
+          "day": "2026-10-13",
+          "sig": "_uQth29C2HeE3_08M9IdpG4V_-oY012QhSmkJ2VJ2KNxbqbWQxXUCvTawRwF97_tN1DFl-LjMlMYbmBgWtFNBg"
+        },
+        "verdict": "valid"
+      },
+      {
+        "claim": {
+          "friends_id": "maple-river",
+          "identity_key": "X53nfNsRZyCFERtwV8UX-_ojEN8YaDlVOqHx104nKeA"
+        },
+        "name": "thirty days old",
+        "attestation": {
+          "host_id": "main-hk",
+          "friends_id": "maple-river",
+          "identity_key": "X53nfNsRZyCFERtwV8UX-_ojEN8YaDlVOqHx104nKeA",
+          "day": "2026-09-13",
+          "sig": "Avb70C9oym2U4WPZ939FagKKFB4taECx8R9BdgOW6XBKBAoWs2OTmHO9Kob_MsDevbVx33OlP6M6UVJ4R1snAQ"
+        },
+        "verdict": "valid"
+      },
+      {
+        "claim": {
+          "friends_id": "maple-river",
+          "identity_key": "X53nfNsRZyCFERtwV8UX-_ojEN8YaDlVOqHx104nKeA"
+        },
+        "name": "thirty-one days old",
+        "attestation": {
+          "host_id": "main-hk",
+          "friends_id": "maple-river",
+          "identity_key": "X53nfNsRZyCFERtwV8UX-_ojEN8YaDlVOqHx104nKeA",
+          "day": "2026-09-12",
+          "sig": "wRZNNKB61zMdI-Ze5ptgYQNRlOyXGn1ybA2QBiq8S3SyYVdCbWMZeoAQ3sHlN6b1Wc8Z667skE-upx0Oi6UNCg"
+        },
+        "verdict": "expired"
+      },
+      {
+        "claim": {
+          "friends_id": "maple-river",
+          "identity_key": "X53nfNsRZyCFERtwV8UX-_ojEN8YaDlVOqHx104nKeA"
+        },
+        "name": "dated tomorrow",
+        "attestation": {
+          "host_id": "main-hk",
+          "friends_id": "maple-river",
+          "identity_key": "X53nfNsRZyCFERtwV8UX-_ojEN8YaDlVOqHx104nKeA",
+          "day": "2026-10-14",
+          "sig": "pY4K7YtANwXSsfuMPts7C36NoCfANX9Cg8NEt4jwWyVM0dO9gab0DRZAffQKI8YnbrYm0WKSX9dsj6LGXCaIBg"
+        },
+        "verdict": "valid"
+      },
+      {
+        "claim": {
+          "friends_id": "maple-river",
+          "identity_key": "X53nfNsRZyCFERtwV8UX-_ojEN8YaDlVOqHx104nKeA"
+        },
+        "name": "dated two days ahead",
+        "attestation": {
+          "host_id": "main-hk",
+          "friends_id": "maple-river",
+          "identity_key": "X53nfNsRZyCFERtwV8UX-_ojEN8YaDlVOqHx104nKeA",
+          "day": "2026-10-15",
+          "sig": "TICe2tZA9sgSc3jHbcBQAudBKX3MD7-czq3X-iTH8hijS5hU7FrVm5wib_WzRCn6mSeP5WoRpcrauifCfEQ3Cg"
+        },
+        "verdict": "expired"
+      },
+      {
+        "claim": {
+          "friends_id": "maple-harbor",
+          "identity_key": "X53nfNsRZyCFERtwV8UX-_ojEN8YaDlVOqHx104nKeA"
+        },
+        "name": "another ID claimed",
+        "attestation": {
+          "host_id": "main-hk",
+          "friends_id": "maple-river",
+          "identity_key": "X53nfNsRZyCFERtwV8UX-_ojEN8YaDlVOqHx104nKeA",
+          "day": "2026-10-12",
+          "sig": "0E1QdZMtd3D3sD0gh4orWOmi3Nc-T3KfL_dwRZ0kFxYBu1sT1z3pFO8jMkgz305SptB4oHUI5BrYdIm_dga0Cw"
+        },
+        "verdict": "wrong_holder"
+      },
+      {
+        "claim": {
+          "friends_id": "maple-river",
+          "identity_key": "AD9P59a_13KlbYyjArbwiMcY2h-yYbnDKMxyaJwaY2w"
+        },
+        "name": "another key claimed",
+        "attestation": {
+          "host_id": "main-hk",
+          "friends_id": "maple-river",
+          "identity_key": "X53nfNsRZyCFERtwV8UX-_ojEN8YaDlVOqHx104nKeA",
+          "day": "2026-10-12",
+          "sig": "0E1QdZMtd3D3sD0gh4orWOmi3Nc-T3KfL_dwRZ0kFxYBu1sT1z3pFO8jMkgz305SptB4oHUI5BrYdIm_dga0Cw"
+        },
+        "verdict": "wrong_holder"
+      },
+      {
+        "claim": {
+          "friends_id": "maple-river",
+          "identity_key": "X53nfNsRZyCFERtwV8UX-_ojEN8YaDlVOqHx104nKeA"
+        },
+        "name": "signed by a key the list does not give that host",
+        "attestation": {
+          "host_id": "main-hk",
+          "friends_id": "maple-river",
+          "identity_key": "X53nfNsRZyCFERtwV8UX-_ojEN8YaDlVOqHx104nKeA",
+          "day": "2026-10-12",
+          "sig": "0xe3tx7At3WlXliJCIX9vFTmjwBaw9ExNa-rxui7O7Mq1ZkqwraYtySZW54y2CAVZ4hrILBAJrZem-p5GyRpBg"
+        },
+        "verdict": "bad_signature"
+      },
+      {
+        "claim": {
+          "friends_id": "maple-harbor",
+          "identity_key": "X53nfNsRZyCFERtwV8UX-_ojEN8YaDlVOqHx104nKeA"
+        },
+        "name": "ID changed after signing",
+        "attestation": {
+          "host_id": "main-hk",
+          "friends_id": "maple-harbor",
+          "identity_key": "X53nfNsRZyCFERtwV8UX-_ojEN8YaDlVOqHx104nKeA",
+          "day": "2026-10-12",
+          "sig": "0E1QdZMtd3D3sD0gh4orWOmi3Nc-T3KfL_dwRZ0kFxYBu1sT1z3pFO8jMkgz305SptB4oHUI5BrYdIm_dga0Cw"
+        },
+        "verdict": "bad_signature"
+      },
+      {
+        "claim": {
+          "friends_id": "maple-river",
+          "identity_key": "X53nfNsRZyCFERtwV8UX-_ojEN8YaDlVOqHx104nKeA"
+        },
+        "name": "a host the list does not name",
+        "attestation": {
+          "host_id": "gone-host",
+          "friends_id": "maple-river",
+          "identity_key": "X53nfNsRZyCFERtwV8UX-_ojEN8YaDlVOqHx104nKeA",
+          "day": "2026-10-12",
+          "sig": "JP5QECtg0kj-r9nUpZ9ZdexkKHc6urQ7opoCteYv_mdR9LuP0Gqo0r1q0fcq8FQvv6ZONidUhauwFvrvd4aRCw"
+        },
+        "verdict": "unknown_host"
+      },
+      {
+        "claim": {
+          "friends_id": "maple-river",
+          "identity_key": "X53nfNsRZyCFERtwV8UX-_ojEN8YaDlVOqHx104nKeA"
+        },
+        "name": "not a calendar day",
+        "attestation": {
+          "host_id": "main-hk",
+          "friends_id": "maple-river",
+          "identity_key": "X53nfNsRZyCFERtwV8UX-_ojEN8YaDlVOqHx104nKeA",
+          "day": "2026-02-30",
+          "sig": "x3TPUSQp3PNEVgc_nov3T8z_4Qhz1UXKr785JQBx2XV-brQnYSi5KrjF2KogkwRXYDWWB7pYshD00Ri1PK6kBg"
+        },
+        "verdict": "malformed"
+      },
+      {
+        "claim": {
+          "friends_id": "maple-river",
+          "identity_key": "X53nfNsRZyCFERtwV8UX-_ojEN8YaDlVOqHx104nKeA"
+        },
+        "name": "signature missing",
+        "attestation": {
+          "host_id": "main-hk",
+          "friends_id": "maple-river",
+          "identity_key": "X53nfNsRZyCFERtwV8UX-_ojEN8YaDlVOqHx104nKeA",
+          "day": "2026-10-12"
+        },
+        "verdict": "malformed"
+      }
+    ]
+  }
+}

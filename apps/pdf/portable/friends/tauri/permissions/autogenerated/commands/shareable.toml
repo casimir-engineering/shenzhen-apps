@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-shareable"
+description = "Enables the shareable command without any pre-configured scope."
+commands.allow = ["shareable"]
+
+[[permission]]
+identifier = "deny-shareable"
+description = "Denies the shareable command without any pre-configured scope."
+commands.deny = ["shareable"]

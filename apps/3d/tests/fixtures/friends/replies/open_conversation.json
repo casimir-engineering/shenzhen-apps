@@ -1,0 +1,9 @@
+{
+  "type": "reply",
+  "re": "9",
+  "ok": true,
+  "result": {
+    "subscription": "s_4",
+    "conversation_id": "c_mei"
+  }
+}

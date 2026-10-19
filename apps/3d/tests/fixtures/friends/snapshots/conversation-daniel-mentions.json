@@ -1,0 +1,301 @@
+{
+  "type": "snapshot",
+  "subscription": "s_12",
+  "view": "conversation",
+  "rev": 1,
+  "data": {
+    "conversation_id": "c_daniel",
+    "header": {
+      "title": "Daniel Ortiz",
+      "subtitle": "Nearby, over direct Wi-Fi",
+      "route": {
+        "kind": "local",
+        "method": "p2p_wifi",
+        "label": "Nearby, over direct Wi-Fi"
+      },
+      "avatar": {
+        "kind": "animal",
+        "set": 1,
+        "index": 5,
+        "initials": "DO",
+        "color": "#7a5a34"
+      },
+      "details_available": true,
+      "accessibility_label": "Daniel Ortiz, nearby, over direct Wi-Fi, show details"
+    },
+    "back": {
+      "badge_count": 2,
+      "badge_label": "2",
+      "accessibility_label": "Back to Friends, 2 waiting"
+    },
+    "search_placeholder": "Search this conversation",
+    "has_earlier": false,
+    "items": [
+      {
+        "kind": "day",
+        "item_id": "d_20261012",
+        "label": "Today",
+        "highlighted": false,
+        "accessibility_label": "Today"
+      },
+      {
+        "kind": "message",
+        "item_id": "m_d0a1",
+        "direction": "in",
+        "text": "[@Mei Lin](szfriends:mention?ref=0) has the bracket drawing. Ask her for rev B.",
+        "text_format": "markdown",
+        "segments": [
+          {
+            "text": "@Mei Lin",
+            "mention": 0
+          },
+          {
+            "text": " has the bracket drawing. Ask her for rev B."
+          }
+        ],
+        "time_label": "10:40",
+        "status": null,
+        "assistant_label": null,
+        "actions": [],
+        "mentions": [
+          {
+            "url": "szfriends:mention?ref=0",
+            "kind": "friend",
+            "label": "@Mei Lin",
+            "tooltip": "Open your chat with Mei",
+            "conversation_id": "c_mei",
+            "card": null
+          }
+        ],
+        "highlighted": false,
+        "accessibility_label": "Daniel Ortiz, 10:40: @Mei Lin has the bracket drawing. Ask her for rev B."
+      },
+      {
+        "kind": "message",
+        "item_id": "m_d0a2",
+        "direction": "in",
+        "text": "[@Leo Park](szfriends:mention?ref=0) can review the enclosure too. [@Raph](szfriends:mention?ref=1) met him at the fair.",
+        "text_format": "markdown",
+        "segments": [
+          {
+            "text": "@Leo Park",
+            "mention": 0
+          },
+          {
+            "text": " can review the enclosure too. "
+          },
+          {
+            "text": "@Raph",
+            "mention": 1
+          },
+          {
+            "text": " met him at the fair."
+          }
+        ],
+        "time_label": null,
+        "status": null,
+        "assistant_label": null,
+        "actions": [],
+        "mentions": [
+          {
+            "url": "szfriends:mention?ref=0",
+            "kind": "stranger",
+            "label": "@Leo Park",
+            "tooltip": "Leo Park isn’t your friend yet",
+            "conversation_id": null,
+            "card": {
+              "title": "Leo Park",
+              "id_label": "Friends ID bonfire‑otter",
+              "status_label": null,
+              "conversation_id": null,
+              "actions": [
+                {
+                  "action": "add_from_mention",
+                  "label": "Add",
+                  "style": "primary",
+                  "friends_id": "bonfire-otter",
+                  "identity_key": "tN1JdICMMlIsgspydMWcnrWDAec9jXbspfRfygj7Q6o",
+                  "name": "Leo Park"
+                }
+              ]
+            }
+          },
+          {
+            "url": "szfriends:mention?ref=1",
+            "kind": "you",
+            "label": "@Raph",
+            "tooltip": null,
+            "conversation_id": null,
+            "card": null
+          }
+        ],
+        "highlighted": false,
+        "accessibility_label": "Daniel Ortiz, 10:41: @Leo Park can review the enclosure too. @Raph met him at the fair."
+      },
+      {
+        "kind": "message",
+        "item_id": "m_d0a3",
+        "direction": "in",
+        "text": "[@Lena](szfriends:mention?ref=0) and [@Jonas](szfriends:mention?ref=1) asked about it as well.",
+        "text_format": "markdown",
+        "segments": [
+          {
+            "text": "@Lena",
+            "mention": 0
+          },
+          {
+            "text": " and "
+          },
+          {
+            "text": "@Jonas",
+            "mention": 1
+          },
+          {
+            "text": " asked about it as well."
+          }
+        ],
+        "time_label": null,
+        "status": null,
+        "assistant_label": null,
+        "actions": [],
+        "mentions": [
+          {
+            "url": "szfriends:mention?ref=0",
+            "kind": "stranger",
+            "label": "@Lena",
+            "tooltip": "Lena wants to be friends",
+            "conversation_id": null,
+            "card": {
+              "title": "Lena",
+              "id_label": "Friends ID amber‑falcon",
+              "status_label": "Wants to be friends",
+              "conversation_id": "c_lena",
+              "actions": [
+                {
+                  "action": "accept_request",
+                  "label": "Accept",
+                  "style": "primary"
+                },
+                {
+                  "action": "decline_request",
+                  "label": "Decline",
+                  "style": "secondary"
+                },
+                {
+                  "action": "block",
+                  "label": "Block Lena",
+                  "style": "destructive",
+                  "arm": {
+                    "label": "Block?",
+                    "accessibility_label": "Click again to block Lena",
+                    "seconds": 4
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "url": "szfriends:mention?ref=1",
+            "kind": "stranger",
+            "label": "@Jonas",
+            "tooltip": "You blocked Jonas",
+            "conversation_id": null,
+            "card": {
+              "title": "Jonas",
+              "id_label": "Friends ID copper‑pebble",
+              "status_label": "Blocked",
+              "conversation_id": "c_jonas",
+              "actions": []
+            }
+          }
+        ],
+        "highlighted": false,
+        "accessibility_label": "Daniel Ortiz, 10:42: @Lena and @Jonas asked about it as well."
+      },
+      {
+        "kind": "message",
+        "item_id": "m_d0a4",
+        "direction": "in",
+        "text": "Or ask @Kenji.",
+        "text_format": "markdown",
+        "segments": [
+          {
+            "text": "Or ask @Kenji."
+          }
+        ],
+        "time_label": null,
+        "status": null,
+        "assistant_label": null,
+        "actions": [],
+        "highlighted": false,
+        "accessibility_label": "Daniel Ortiz, 10:43: Or ask @Kenji."
+      },
+      {
+        "kind": "message",
+        "item_id": "m_d0a5",
+        "direction": "out",
+        "text": "Thanks, I’ll ask [@Priya Raman](szfriends:mention?ref=0) too.",
+        "text_format": "markdown",
+        "segments": [
+          {
+            "text": "Thanks, I’ll ask "
+          },
+          {
+            "text": "@Priya Raman",
+            "mention": 0
+          },
+          {
+            "text": " too."
+          }
+        ],
+        "time_label": "10:50",
+        "status": {
+          "state": "delivered",
+          "label": "Delivered"
+        },
+        "assistant_label": null,
+        "actions": [],
+        "mentions": [
+          {
+            "url": "szfriends:mention?ref=0",
+            "kind": "friend",
+            "label": "@Priya Raman",
+            "tooltip": "Open your chat with Priya",
+            "conversation_id": "c_priya",
+            "card": null
+          }
+        ],
+        "highlighted": false,
+        "accessibility_label": "You, 10:50, delivered: Thanks, I’ll ask @Priya Raman too."
+      }
+    ],
+    "highlight_item_id": null,
+    "request": null,
+    "composer": {
+      "visible": true,
+      "enabled": true,
+      "placeholder": "Message Daniel",
+      "hint": [
+        {
+          "text": "#",
+          "emphasis": true
+        },
+        {
+          "text": " Attach · "
+        },
+        {
+          "text": "@",
+          "emphasis": true
+        },
+        {
+          "text": " Mention · or drop files"
+        }
+      ],
+      "send_label": "Send",
+      "note": null,
+      "accepts_drops": true,
+      "max_text_bytes": 32768,
+      "mention_note": "Daniel can click the name to open their chat with that person, or to add them if they aren’t friends yet."
+    }
+  }
+}

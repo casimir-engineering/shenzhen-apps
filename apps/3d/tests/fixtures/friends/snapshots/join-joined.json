@@ -1,0 +1,16 @@
+{
+  "type": "snapshot",
+  "subscription": "s_9",
+  "view": "join",
+  "rev": 1,
+  "data": {
+    "actions": [],
+    "code_field": null,
+    "error": null,
+    "friends_id": "cottage-violet",
+    "id_field": null,
+    "message": "Your friends and chats arrive from your other computers while they’re nearby or online.",
+    "state": "joined",
+    "title": "This computer now uses your profile"
+  }
+}

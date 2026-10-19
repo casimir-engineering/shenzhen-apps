@@ -1,0 +1,9 @@
+{
+  "type": "reply",
+  "re": "55",
+  "ok": true,
+  "result": {
+    "conversation_id": "c_leo",
+    "message": "Request sent to Leo Park. They get it as soon as Friends reaches them, and you’re friends as soon as it arrives."
+  }
+}

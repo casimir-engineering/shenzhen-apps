@@ -1,0 +1,51 @@
+From 46d27d6d0c850836c9b44a6a10deea67885ce532 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Rapha=C3=ABl=20Casimir?= <mail@raph.io>
+Date: Wed, 26 Aug 2026 22:01:07 +0800
+Subject: [PATCH] Prioritize copied files over Finder previews
+
+---
+ src/nautilus-files-view.c | 21 +++++++++++----------
+ 1 file changed, 11 insertions(+), 10 deletions(-)
+
+diff --git a/src/nautilus-files-view.c b/src/nautilus-files-view.c
+index dc65361..2e390ad 100644
+--- a/src/nautilus-files-view.c
++++ b/src/nautilus-files-view.c
+@@ -2782,16 +2782,6 @@ paste_files (NautilusFilesView *view,
+     view->selection_source = NAUTILUS_SELECTION_SOURCE_OP_START;
+     real_dest_uri = dest_uri != NULL ? dest_uri : nautilus_files_view_get_backing_uri (view);
+ 
+-    if (gdk_content_formats_contain_gtype (formats, GDK_TYPE_TEXTURE))
+-    {
+-        nautilus_file_operations_paste_image_from_clipboard (GTK_WIDGET (view),
+-                                                             NULL,
+-                                                             real_dest_uri,
+-                                                             copy_move_done_callback,
+-                                                             pre_copy_move (view));
+-        return;
+-    }
+-
+     data = g_new0 (PasteCallbackData, 1);
+     data->dest_uri = real_dest_uri;
+     data->as_link = as_link;
+@@ -2821,6 +2811,17 @@ paste_files (NautilusFilesView *view,
+                                         paste_value_received_callback,
+                                         g_steal_pointer (&data));
+     }
++    else if (gdk_content_formats_contain_gtype (formats, GDK_TYPE_TEXTURE))
++    {
++        /* Finder includes a rendered preview alongside a copied file URL.
++         * Treat textures as an image paste only when no file representation
++         * above is available, otherwise Cmd+C would paste the preview PNG. */
++        nautilus_file_operations_paste_image_from_clipboard (GTK_WIDGET (view),
++                                                             NULL,
++                                                             real_dest_uri,
++                                                             copy_move_done_callback,
++                                                             pre_copy_move (view));
++    }
+ }
+ 
+ static void
+-- 
+2.50.1 (Apple Git-155)
+

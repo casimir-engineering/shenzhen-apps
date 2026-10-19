@@ -1,0 +1,67 @@
+name: Assemble release ZIP delta
+run-name: Verify ZIP delta for ${{ inputs.tag }} (${{ inputs.target_sha256 }})
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        required: true
+        type: string
+      source_commit:
+        required: true
+        type: string
+      target_sha256:
+        required: true
+        type: string
+      target_size:
+        required: true
+        type: string
+      base_sha256:
+        required: true
+        type: string
+      base_size:
+        required: true
+        type: string
+      patch_sha256:
+        required: true
+        type: string
+      patch_size:
+        required: true
+        type: string
+permissions:
+  contents: write
+concurrency:
+  group: zip-delta-${{ github.repository }}-${{ inputs.tag }}
+  cancel-in-progress: false
+jobs:
+  assemble:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      RELEASE_TAG: ${{ inputs.tag }}
+      SOURCE_COMMIT: ${{ inputs.source_commit }}
+      TARGET_SHA: ${{ inputs.target_sha256 }}
+      TARGET_SIZE: ${{ inputs.target_size }}
+      BASE_SHA: ${{ inputs.base_sha256 }}
+      BASE_SIZE: ${{ inputs.base_size }}
+      PATCH_SHA: ${{ inputs.patch_sha256 }}
+      PATCH_SIZE: ${{ inputs.patch_size }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Authorize only this repository
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          fs.mkdirSync('artifacts/operator', { recursive: true });
+          fs.writeFileSync('artifacts/operator/release-upload.json', JSON.stringify({version: 1, repositories: [process.env.GH_REPO]}), {mode: 0o600, flag: 'wx'});
+          NODE
+      - name: Check installed delta decoder
+        run: zstd --version
+      - name: Reconstruct exact ZIP in held draft and remove verified patch
+        run: node scripts/assemble-release-zip-delta.mjs

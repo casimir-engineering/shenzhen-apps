@@ -1,0 +1,84 @@
+{
+  "type": "snapshot",
+  "subscription": "s_5",
+  "view": "conversation",
+  "rev": 1,
+  "data": {
+    "conversation_id": "c_lena",
+    "header": {
+      "title": "Lena Weber",
+      "subtitle": "Nearby, on your network",
+      "route": {
+        "kind": "local",
+        "method": "lan",
+        "label": "Nearby, on your network"
+      },
+      "avatar": {
+        "kind": "animal",
+        "set": 1,
+        "index": 3,
+        "initials": "LW",
+        "color": "#7a3f4f"
+      },
+      "details_available": false,
+      "accessibility_label": "Lena Weber, nearby, on your network"
+    },
+    "back": {
+      "badge_count": 1,
+      "badge_label": "1",
+      "accessibility_label": "Back to Friends, 1 more waiting"
+    },
+    "search_placeholder": "Search this conversation",
+    "has_earlier": false,
+    "items": [],
+    "highlight_item_id": null,
+    "request": {
+      "direction": "incoming",
+      "avatar": {
+        "kind": "animal",
+        "set": 1,
+        "index": 3,
+        "initials": "LW",
+        "color": "#7a3f4f"
+      },
+      "title": "Lena Weber wants to be friends",
+      "subtitle": "Found you nearby · today at 14:40 · ID amber‑falcon",
+      "code_prompt": "Before you accept, check that Lena’s screen shows the same code.",
+      "comparison_code": "418 270",
+      "comparison_code_accessibility_label": "Comparison code 4 1 8, 2 7 0",
+      "actions": [
+        {
+          "action": "accept_request",
+          "label": "Accept",
+          "style": "primary"
+        },
+        {
+          "action": "decline_request",
+          "label": "Decline",
+          "style": "secondary"
+        },
+        {
+          "action": "block",
+          "label": "Block Lena",
+          "style": "destructive",
+          "arm": {
+            "label": "Block?",
+            "accessibility_label": "Click again to block Lena",
+            "seconds": 4
+          }
+        }
+      ],
+      "footnote": "Once you accept, Lena can message you and send you files. You decide on each file unless you turn on automatic acceptance for Lena."
+    },
+    "composer": {
+      "visible": false,
+      "enabled": false,
+      "placeholder": "Message Lena",
+      "hint": [],
+      "send_label": "Send",
+      "note": null,
+      "accepts_drops": false,
+      "max_text_bytes": 32768
+    }
+  }
+}

@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <!-- Chicken: has just heard a noise, and the noise was its own sneeze. -->
+  <clipPath id="c"><circle cx="32" cy="32" r="32"/></clipPath>
+  <circle id="bg" cx="32" cy="32" r="32" fill="#3a6a4a"/>
+  <g clip-path="url(#c)">
+    <ellipse cx="32" cy="72" rx="26" ry="18" fill="#ffffff"/>
+    <path d="M24 17 Q22 8 28 8 Q29 3 34 5 Q38 2 40 7 Q45 8 41 15 Z" fill="#ef4b4b"/>
+    <ellipse cx="32" cy="34" rx="17" ry="18" fill="#ffffff"/>
+    <ellipse cx="11" cy="54" rx="5" ry="9" transform="rotate(35 11 54)" fill="#ffffff"/>
+    <ellipse cx="53" cy="54" rx="5" ry="9" transform="rotate(-35 53 54)" fill="#ffffff"/>
+    <circle cx="24.5" cy="30" r="4.6" fill="#ffffff" stroke="#2b2233" stroke-width="1.2"/>
+    <circle cx="39.5" cy="30" r="4.6" fill="#ffffff" stroke="#2b2233" stroke-width="1.2"/>
+    <circle cx="24.5" cy="30" r="1.8" fill="#2b2233"/>
+    <circle cx="39.5" cy="30" r="1.8" fill="#2b2233"/>
+    <path d="M26.5 37 Q32 33.5 37.5 37 L32 42.5 Z" fill="#ffc23f"/>
+    <path d="M28.5 41 Q32 43 35.5 41 Q35.5 48 32 48.5 Q28.5 48 28.5 41 Z" fill="#ef4b4b"/>
+    <ellipse cx="19.5" cy="38" rx="3" ry="1.9" fill="#ff8fa3" opacity="0.8"/>
+    <ellipse cx="44.5" cy="38" rx="3" ry="1.9" fill="#ff8fa3" opacity="0.8"/>
+    <ellipse cx="53" cy="17" rx="5" ry="2" transform="rotate(-35 53 17)" fill="#ffffff"/>
+    <path d="M50 19.5 L56 14.8" stroke="#d6dce6" stroke-width="0.8" stroke-linecap="round"/>
+  </g>
+</svg>

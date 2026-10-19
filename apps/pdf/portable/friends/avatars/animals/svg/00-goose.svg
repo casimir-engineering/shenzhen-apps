@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <!-- Goose: mid-honk, brows down, up to something. -->
+  <clipPath id="c"><circle cx="32" cy="32" r="32"/></clipPath>
+  <circle id="bg" cx="32" cy="32" r="32" fill="#5a4a7a"/>
+  <g clip-path="url(#c)">
+    <ellipse cx="32" cy="74" rx="28" ry="17" fill="#ffffff"/>
+    <path d="M22 64 C22 52 23 44 24 36 H40 C41 44 42 52 42 64 Z" fill="#ffffff"/>
+    <ellipse cx="32" cy="25" rx="14.5" ry="13.5" fill="#ffffff"/>
+    <ellipse cx="32" cy="37.5" rx="6.5" ry="5.5" fill="#6b2737"/>
+    <ellipse cx="32" cy="40.5" rx="4" ry="2.4" fill="#ff6f8a"/>
+    <path d="M23.5 36 Q32 49 40.5 36 Q36.5 42.5 32 42.5 Q27.5 42.5 23.5 36 Z" fill="#ef7d2d"/>
+    <path d="M21.5 30 Q32 24 42.5 30 Q40.5 35.5 32 35.5 Q23.5 35.5 21.5 30 Z" fill="#f7a23b"/>
+    <ellipse cx="25.5" cy="22" rx="3" ry="3.6" fill="#2b2233"/>
+    <ellipse cx="38.5" cy="22" rx="3" ry="3.6" fill="#2b2233"/>
+    <circle cx="26.6" cy="20.6" r="1.2" fill="#ffffff"/>
+    <circle cx="39.6" cy="20.6" r="1.2" fill="#ffffff"/>
+    <path d="M20.5 15.5 L28.5 18.5 M43.5 15.5 L35.5 18.5" stroke="#2b2233" stroke-width="2.4" stroke-linecap="round"/>
+  </g>
+</svg>

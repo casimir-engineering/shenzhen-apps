@@ -1,0 +1,45 @@
+{
+  "downloadedAt": "2026-10-16",
+  "files": [
+    {
+      "file": "GPL-3.0.txt",
+      "url": "https://raw.githubusercontent.com/mlightcad/libredwg-web/d0b7c53d55a923f323256d19a310af7bc0137245/COPYING",
+      "sha256": "8ceb4b9ee5adedde47b31e975c1d90c73ad27b6b165a1dcd80c7c545eb65b903"
+    },
+    {
+      "file": "LGPL-2.1.txt",
+      "url": "https://raw.githubusercontent.com/Open-Cascade-SAS/OCCT/a016080bf6738d6aeae020badee4e888ad1540a5/LICENSE_LGPL_21.txt",
+      "sha256": "e237fa56668030e928551ddd60f05df5fe957f75eab874bbd017e085ed722e7c"
+    },
+    {
+      "file": "OCCT-LGPL-EXCEPTION.txt",
+      "url": "https://raw.githubusercontent.com/Open-Cascade-SAS/OCCT/a016080bf6738d6aeae020badee4e888ad1540a5/OCCT_LGPL_EXCEPTION.txt",
+      "sha256": "04580a884ea6cea294402649ff7b5cbb167d47462d1340a4ed33e550db10a81b"
+    },
+    {
+      "file": "Draco-LICENSE.txt",
+      "url": "https://raw.githubusercontent.com/google/draco/13445d3b997f09b94ffc2552003e01c107fb8b09/LICENSE",
+      "sha256": "d3709b0fb4b8a94bbb1d02b8a2e484f258b0d9c5c5a01f940391f3fe662cd1a4"
+    },
+    {
+      "file": "Meshoptimizer-LICENSE.txt",
+      "url": "https://raw.githubusercontent.com/zeux/meshoptimizer/dc9d09ed83e1004aef47a1c3c597e0ec64848a37/LICENSE.md",
+      "sha256": "f03037ca7bad1e3eb7f4a63fa6084a8baabd5ba30d3c239a9a7f35705d873e26"
+    },
+    {
+      "file": "LibreDWG-AUTHORS.txt",
+      "url": "https://raw.githubusercontent.com/mlightcad/libredwg-web/d0b7c53d55a923f323256d19a310af7bc0137245/AUTHORS",
+      "sha256": "1807899e04a8d275b9525c4d4686ea7e737cd8624800944172ebfd76f906b6ed"
+    },
+    {
+      "file": "Tauri-plugins-LICENSE-MIT.txt",
+      "url": "https://raw.githubusercontent.com/tauri-apps/plugins-workspace/44293a5722efcaf27060504e63b17aeba721b40f/LICENSE_MIT",
+      "sha256": "89ff9689dcf9dd53968785d05a26f7898bb169dbfcada8d032b3e68cf0d55607"
+    },
+    {
+      "file": "Tauri-plugins-LICENSE-APACHE-2.0.txt",
+      "url": "https://raw.githubusercontent.com/tauri-apps/plugins-workspace/44293a5722efcaf27060504e63b17aeba721b40f/LICENSE_APACHE-2.0",
+      "sha256": "0cec06e0e55fbc3dc5cee4fca9b607f66cb8f4e4dbcf3b3c013594dd156732e9"
+    }
+  ]
+}

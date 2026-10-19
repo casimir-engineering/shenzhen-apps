@@ -1,0 +1,138 @@
+{
+  "type": "snapshot",
+  "subscription": "s_3",
+  "view": "nearby",
+  "rev": 17,
+  "data": {
+    "query": "",
+    "visibility": {
+      "state": "visible",
+      "title": "You’re visible to people nearby",
+      "body": "Anyone nearby can see your name and picture and send you a request.",
+      "remaining_label": "4:12",
+      "remaining_accessibility_label": "4 minutes 12 seconds left",
+      "deadline": "2026-10-12T06:52:00Z",
+      "action": {
+        "action": "stop_visibility",
+        "label": "Stop",
+        "style": "secondary"
+      }
+    },
+    "methods": [
+      {
+        "method": "network",
+        "state": "working",
+        "label": "Looking on your network and over Wi-Fi"
+      },
+      {
+        "method": "bluetooth",
+        "state": "radio_off",
+        "label": "Bluetooth is off"
+      }
+    ],
+    "alert": null,
+    "note": {
+      "text": "Bluetooth is off. People nearby without Wi-Fi won’t appear.",
+      "action": {
+        "action": "open_settings",
+        "label": "Open Bluetooth settings",
+        "style": "link",
+        "settings_target": "bluetooth"
+      }
+    },
+    "status": {
+      "kind": "searching",
+      "label": "Still looking"
+    },
+    "people": [
+      {
+        "nearby_id": null,
+        "conversation_id": "c_kenji",
+        "avatar": {
+          "kind": "animal",
+          "set": 1,
+          "index": 1,
+          "initials": "KS",
+          "color": "#2f6474"
+        },
+        "title": "Kenji Sato",
+        "subtitle": "On your network",
+        "status_label": "Friend",
+        "action": null,
+        "accessibility_label": "Kenji Sato, friend, on your network"
+      },
+      {
+        "nearby_id": "n_7c1e",
+        "conversation_id": null,
+        "avatar": {
+          "kind": "animal",
+          "set": 1,
+          "index": 3,
+          "initials": "LW",
+          "color": "#7a3f4f"
+        },
+        "title": "Lena Weber",
+        "subtitle": "Visible now",
+        "status_label": null,
+        "action": {
+          "action": "send_request",
+          "label": "Request",
+          "style": "primary"
+        },
+        "accessibility_label": "Lena Weber, visible now"
+      },
+      {
+        "nearby_id": "n_2b90",
+        "conversation_id": "c_tomas",
+        "avatar": {
+          "kind": "animal",
+          "set": 1,
+          "index": 4,
+          "initials": "TR",
+          "color": "#4a6a2f"
+        },
+        "title": "Tomás Rivera",
+        "subtitle": "Visible now",
+        "status_label": "Request sent",
+        "action": null,
+        "accessibility_label": "Tomás Rivera, request sent"
+      },
+      {
+        "nearby_id": "n_9d44",
+        "conversation_id": null,
+        "avatar": {
+          "kind": "animal",
+          "set": 1,
+          "index": 10,
+          "initials": "CL",
+          "color": "#5a5a66"
+        },
+        "title": "coral‑lagoon",
+        "subtitle": "No name set",
+        "status_label": null,
+        "action": {
+          "action": "send_request",
+          "label": "Request",
+          "style": "primary"
+        },
+        "accessibility_label": "coral‑lagoon, no name set"
+      }
+    ],
+    "empty": null,
+    "footer": {
+      "avatar": {
+        "kind": "animal",
+        "set": 1,
+        "index": 0,
+        "initials": "R",
+        "color": "#5a4a7a"
+      },
+      "name": "Raph",
+      "name_placeholder": "Choose your name",
+      "id_label": "ID cottage‑violet",
+      "id_note": "Your ID works nearby now. If it’s already taken, you’ll get a new one the next time ShenzhenPDF reaches the Friends server.",
+      "friends_id": "cottage-violet",
+      "add_label": "Add by ID"
+    }
+  }
+}

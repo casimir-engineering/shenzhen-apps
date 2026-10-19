@@ -1,0 +1,30 @@
+{
+  "type": "reply",
+  "re": "41",
+  "ok": true,
+  "result": {
+    "conversation_id": "c_mei",
+    "conversation_title": "Mei Lin",
+    "messages": [
+      {
+        "message_id": "m_5f2a90c1",
+        "sender_label": "You",
+        "sent_at": "2026-10-12T01:14:22Z",
+        "text": "Here it is. Pages 3–5 changed."
+      },
+      {
+        "message_id": "m_77d0b3e4",
+        "sender_label": "Mei Lin",
+        "sent_at": "2026-10-12T01:20:40Z",
+        "text": "Thanks. Here is my markup of the bracket drawing."
+      },
+      {
+        "message_id": "m_a4109f52",
+        "sender_label": "Mei Lin",
+        "sent_at": "2026-10-12T06:32:05Z",
+        "text": "Can you check pages 3–5 before Friday?"
+      }
+    ],
+    "truncated": false
+  }
+}

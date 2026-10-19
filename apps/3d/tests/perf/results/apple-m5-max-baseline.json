@@ -1,0 +1,576 @@
+{
+  "source": "baseline",
+  "sourceCommit": "7937fa8485643e8cc7021f620ace7f566dcb1f34",
+  "viewerSha256": "518674e8468810ab33ddc6cbdd46091365da14dd88ba7a38ac4e91169f5aa9de",
+  "hardware": {
+    "macOS": "26.5.1",
+    "cpu": "Apple M5 Max",
+    "memoryBytes": 68719476736
+  },
+  "recordedAt": "2026-10-15T19:07:50.253Z",
+  "commit": "c1f1bf73d34cf79b8e97bd78b56e59080e184488",
+  "browserVersion": "156.0.8078.4",
+  "launchArgs": [
+    "--use-gl=angle",
+    "--use-angle=metal",
+    "--disable-background-timer-throttling",
+    "--disable-renderer-backgrounding",
+    "--disable-backgrounding-occluded-windows"
+  ],
+  "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/156.0.0.0 Safari/537.36",
+  "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M5 Max, Unspecified Version)",
+  "vendor": "Google Inc. (Apple)",
+  "version": "WebGL 2.0 (OpenGL ES 3.0 Chromium)",
+  "timerQuerySupported": true,
+  "timerQueryEnabled": true,
+  "multiDrawSupported": true,
+  "viewport": {
+    "width": 1440,
+    "height": 900,
+    "dpr": 2,
+    "bufferWidth": 2880,
+    "bufferHeight": 1800
+  },
+  "idleRafIntervalMs": {
+    "count": 120,
+    "p50": 8.300000000000011,
+    "p95": 9.299999999999983,
+    "max": 9.400000000000091
+  },
+  "idleRafFps": 120.9270265858068,
+  "visibility": "visible",
+  "model": {
+    "importMs": 2410.600000023842,
+    "parts": 3760,
+    "uniqueGeometries": 53,
+    "uniqueTriangles": 27547,
+    "logicalTriangles": 982962
+  },
+  "cases": [
+    {
+      "copies": 1,
+      "unique": false,
+      "edges": false,
+      "parts": 3760,
+      "uniqueGeometries": 53,
+      "uniqueTriangles": 27547,
+      "logicalTriangles": 982962,
+      "setModelMs": 15.299999952316284,
+      "lodPreparation": {
+        "milliseconds": 0.10000002384185791,
+        "geometries": 0,
+        "originalInstancedTriangles": 0,
+        "lodInstancedTriangles": 0,
+        "maxRelativeError": 0
+      },
+      "warmupMs": 2000,
+      "durationMs": 8000,
+      "animationRafIntervalMs": {
+        "count": 960,
+        "p50": 8.300000000001091,
+        "p95": 9.200000000000728,
+        "max": 9.400000000001455
+      },
+      "observedAnimationRafFps": 120,
+      "renderIntervalMs": {
+        "count": 960,
+        "p50": 8.300000071525574,
+        "p95": 9.200000047683716,
+        "max": 9.5
+      },
+      "renderBufferWidth": {
+        "count": 961,
+        "p50": 2880,
+        "p95": 2880,
+        "max": 2880
+      },
+      "renderBufferHeight": {
+        "count": 961,
+        "p50": 1800,
+        "p95": 1800,
+        "max": 1800
+      },
+      "cpuViewerDrawMs": {
+        "count": 961,
+        "p50": 0.8999999761581421,
+        "p95": 1,
+        "max": 1.5
+      },
+      "cpuQueryPollMs": {
+        "count": 961,
+        "p50": 0,
+        "p95": 0,
+        "max": 0.10000002384185791
+      },
+      "cpuRenderMs": {
+        "count": 961,
+        "p50": 0.8999999761581421,
+        "p95": 1,
+        "max": 1.5
+      },
+      "gpuRenderMs": {
+        "count": 961,
+        "p50": 1.185624,
+        "p95": 1.399291,
+        "max": 1.90875
+      },
+      "observedRenderFps": 120,
+      "drawCalls": {
+        "count": 961,
+        "p50": 1600,
+        "p95": 1600,
+        "max": 1600
+      },
+      "submittedTriangles": {
+        "count": 961,
+        "p50": 982962,
+        "p95": 982962,
+        "max": 982962
+      },
+      "framesOver12_5ms": 0,
+      "framesOver25ms": 0,
+      "hover": {
+        "hits": 61,
+        "pickCpuMs": {
+          "count": 120,
+          "p50": 1,
+          "p95": 1.3000000715255737,
+          "max": 3.0999999046325684
+        },
+        "pointerDispatchCpuMs": {
+          "count": 120,
+          "p50": 1,
+          "p95": 1.3000000715255737,
+          "max": 3.399999976158142
+        },
+        "pointerToPickCompleteMs": {
+          "count": 120,
+          "p50": 1,
+          "p95": 1.3000000715255737,
+          "max": 3.299999952316284
+        },
+        "method": "60 projected part bounding-box centers plus 60 viewport-grid pointermove events, one per two rAF callbacks; latency includes scheduled pick delay"
+      }
+    },
+    {
+      "copies": 10,
+      "unique": false,
+      "edges": false,
+      "parts": 37600,
+      "uniqueGeometries": 53,
+      "uniqueTriangles": 27547,
+      "logicalTriangles": 9829620,
+      "setModelMs": 86.40000009536743,
+      "lodPreparation": {
+        "milliseconds": 0,
+        "geometries": 0,
+        "originalInstancedTriangles": 0,
+        "lodInstancedTriangles": 0,
+        "maxRelativeError": 0
+      },
+      "warmupMs": 2000,
+      "durationMs": 8000,
+      "animationRafIntervalMs": {
+        "count": 960,
+        "p50": 8.299999999999272,
+        "p95": 9.299999999999272,
+        "max": 9.5
+      },
+      "observedAnimationRafFps": 119.9985000187498,
+      "renderIntervalMs": {
+        "count": 960,
+        "p50": 8.300000071525574,
+        "p95": 9.299999952316284,
+        "max": 9.400000095367432
+      },
+      "renderBufferWidth": {
+        "count": 961,
+        "p50": 2880,
+        "p95": 2880,
+        "max": 2880
+      },
+      "renderBufferHeight": {
+        "count": 961,
+        "p50": 1800,
+        "p95": 1800,
+        "max": 1800
+      },
+      "cpuViewerDrawMs": {
+        "count": 961,
+        "p50": 0.8999999761581421,
+        "p95": 1,
+        "max": 1.2999999523162842
+      },
+      "cpuQueryPollMs": {
+        "count": 961,
+        "p50": 0,
+        "p95": 0.09999990463256836,
+        "max": 0.10000002384185791
+      },
+      "cpuRenderMs": {
+        "count": 961,
+        "p50": 0.8000000715255737,
+        "p95": 0.9000000953674316,
+        "max": 1.2999999523162842
+      },
+      "gpuRenderMs": {
+        "count": 961,
+        "p50": 3.901458,
+        "p95": 4.701958,
+        "max": 5.246541
+      },
+      "observedRenderFps": 120.00150001910787,
+      "drawCalls": {
+        "count": 961,
+        "p50": 1600,
+        "p95": 1600,
+        "max": 1600
+      },
+      "submittedTriangles": {
+        "count": 961,
+        "p50": 9829620,
+        "p95": 9829620,
+        "max": 9829620
+      },
+      "framesOver12_5ms": 0,
+      "framesOver25ms": 0,
+      "hover": {
+        "hits": 61,
+        "pickCpuMs": {
+          "count": 120,
+          "p50": 8.300000071525574,
+          "p95": 8.699999928474426,
+          "max": 9.600000023841858
+        },
+        "pointerDispatchCpuMs": {
+          "count": 120,
+          "p50": 8.399999976158142,
+          "p95": 8.700000047683716,
+          "max": 9.700000047683716
+        },
+        "pointerToPickCompleteMs": {
+          "count": 120,
+          "p50": 8.399999976158142,
+          "p95": 8.699999928474426,
+          "max": 9.600000023841858
+        },
+        "method": "60 projected part bounding-box centers plus 60 viewport-grid pointermove events, one per two rAF callbacks; latency includes scheduled pick delay"
+      }
+    },
+    {
+      "copies": 50,
+      "unique": false,
+      "edges": false,
+      "parts": 188000,
+      "uniqueGeometries": 53,
+      "uniqueTriangles": 27547,
+      "logicalTriangles": 49148100,
+      "setModelMs": 486.89999997615814,
+      "lodPreparation": {
+        "milliseconds": 0.10000002384185791,
+        "geometries": 0,
+        "originalInstancedTriangles": 0,
+        "lodInstancedTriangles": 0,
+        "maxRelativeError": 0
+      },
+      "warmupMs": 2000,
+      "durationMs": 8000,
+      "animationRafIntervalMs": {
+        "count": 959,
+        "p50": 8.30000000000291,
+        "p95": 9.299999999995634,
+        "max": 9.400000000001455
+      },
+      "observedAnimationRafFps": 119.99799794789666,
+      "renderIntervalMs": {
+        "count": 959,
+        "p50": 8.300000071525574,
+        "p95": 9.200000047683716,
+        "max": 9.400000095367432
+      },
+      "renderBufferWidth": {
+        "count": 960,
+        "p50": 2880,
+        "p95": 2880,
+        "max": 2880
+      },
+      "renderBufferHeight": {
+        "count": 960,
+        "p50": 1800,
+        "p95": 1800,
+        "max": 1800
+      },
+      "cpuViewerDrawMs": {
+        "count": 960,
+        "p50": 0.8999999761581421,
+        "p95": 1,
+        "max": 1.399999976158142
+      },
+      "cpuQueryPollMs": {
+        "count": 960,
+        "p50": 0,
+        "p95": 0.09999990463256836,
+        "max": 0.10000002384185791
+      },
+      "cpuRenderMs": {
+        "count": 960,
+        "p50": 0.8999999761581421,
+        "p95": 1,
+        "max": 1.399999976158142
+      },
+      "gpuRenderMs": {
+        "count": 960,
+        "p50": 5.205499,
+        "p95": 5.384249,
+        "max": 6.05325
+      },
+      "observedRenderFps": 120.01151309471459,
+      "drawCalls": {
+        "count": 960,
+        "p50": 1600,
+        "p95": 1600,
+        "max": 1600
+      },
+      "submittedTriangles": {
+        "count": 960,
+        "p50": 49148100,
+        "p95": 49148100,
+        "max": 49148100
+      },
+      "framesOver12_5ms": 0,
+      "framesOver25ms": 0,
+      "hover": {
+        "hits": 60,
+        "pickCpuMs": {
+          "count": 121,
+          "p50": 42.199999928474426,
+          "p95": 44.39999997615814,
+          "max": 46.10000002384186
+        },
+        "pointerDispatchCpuMs": {
+          "count": 120,
+          "p50": 42.200000047683716,
+          "p95": 44.39999997615814,
+          "max": 46.200000047683716
+        },
+        "pointerToPickCompleteMs": {
+          "count": 120,
+          "p50": 42.200000047683716,
+          "p95": 44.39999997615814,
+          "max": 46.200000047683716
+        },
+        "method": "60 projected part bounding-box centers plus 60 viewport-grid pointermove events, one per two rAF callbacks; latency includes scheduled pick delay"
+      }
+    },
+    {
+      "copies": 100,
+      "unique": false,
+      "edges": false,
+      "parts": 376000,
+      "uniqueGeometries": 53,
+      "uniqueTriangles": 27547,
+      "logicalTriangles": 98296200,
+      "setModelMs": 1021.8999999761581,
+      "lodPreparation": {
+        "milliseconds": 0.10000002384185791,
+        "geometries": 0,
+        "originalInstancedTriangles": 0,
+        "lodInstancedTriangles": 0,
+        "maxRelativeError": 0
+      },
+      "warmupMs": 2000,
+      "durationMs": 8000,
+      "animationRafIntervalMs": {
+        "count": 808,
+        "p50": 8.30000000000291,
+        "p95": 16.80000000000291,
+        "max": 17.700000000004366
+      },
+      "observedAnimationRafFps": 101.09477635283078,
+      "renderIntervalMs": {
+        "count": 808,
+        "p50": 9.799999952316284,
+        "p95": 10.899999976158142,
+        "max": 11.800000071525574
+      },
+      "renderBufferWidth": {
+        "count": 809,
+        "p50": 2880,
+        "p95": 2880,
+        "max": 2880
+      },
+      "renderBufferHeight": {
+        "count": 809,
+        "p50": 1800,
+        "p95": 1800,
+        "max": 1800
+      },
+      "cpuViewerDrawMs": {
+        "count": 809,
+        "p50": 0.8999999761581421,
+        "p95": 1,
+        "max": 1.1999999284744263
+      },
+      "cpuQueryPollMs": {
+        "count": 809,
+        "p50": 0,
+        "p95": 0.10000002384185791,
+        "max": 0.10000002384185791
+      },
+      "cpuRenderMs": {
+        "count": 809,
+        "p50": 0.8999999761581421,
+        "p95": 1,
+        "max": 1.1999999284744263
+      },
+      "gpuRenderMs": {
+        "count": 808,
+        "p50": 10.251124,
+        "p95": 10.458208,
+        "max": 10.739249
+      },
+      "observedRenderFps": 101.03030909242663,
+      "drawCalls": {
+        "count": 809,
+        "p50": 1600,
+        "p95": 1600,
+        "max": 1600
+      },
+      "submittedTriangles": {
+        "count": 809,
+        "p50": 98296200,
+        "p95": 98296200,
+        "max": 98296200
+      },
+      "framesOver12_5ms": 0,
+      "framesOver25ms": 0,
+      "hover": {
+        "hits": 60,
+        "pickCpuMs": {
+          "count": 120,
+          "p50": 87.90000009536743,
+          "p95": 92.39999997615814,
+          "max": 94.5
+        },
+        "pointerDispatchCpuMs": {
+          "count": 120,
+          "p50": 88,
+          "p95": 92.39999997615814,
+          "max": 94.5
+        },
+        "pointerToPickCompleteMs": {
+          "count": 120,
+          "p50": 88,
+          "p95": 92.39999997615814,
+          "max": 94.5
+        },
+        "method": "60 projected part bounding-box centers plus 60 viewport-grid pointermove events, one per two rAF callbacks; latency includes scheduled pick delay"
+      }
+    },
+    {
+      "copies": 10,
+      "unique": true,
+      "edges": false,
+      "parts": 37600,
+      "uniqueGeometries": 37600,
+      "uniqueTriangles": 9829620,
+      "logicalTriangles": 9829620,
+      "setModelMs": 993,
+      "lodPreparation": {
+        "milliseconds": 0,
+        "geometries": 0,
+        "originalInstancedTriangles": 0,
+        "lodInstancedTriangles": 0,
+        "maxRelativeError": 0
+      },
+      "warmupMs": 2000,
+      "durationMs": 8000,
+      "animationRafIntervalMs": {
+        "count": 15,
+        "p50": 537.6000000000058,
+        "p95": 554.1999999999971,
+        "max": 574.8999999999942
+      },
+      "observedAnimationRafFps": 1.9856766524139193,
+      "renderIntervalMs": {
+        "count": 15,
+        "p50": 541.5999999046326,
+        "p95": 550.1000000238419,
+        "max": 576.5999999046326
+      },
+      "renderBufferWidth": {
+        "count": 16,
+        "p50": 2880,
+        "p95": 2880,
+        "max": 2880
+      },
+      "renderBufferHeight": {
+        "count": 16,
+        "p50": 1800,
+        "p95": 1800,
+        "max": 1800
+      },
+      "cpuViewerDrawMs": {
+        "count": 16,
+        "p50": 541.3999999761581,
+        "p95": 559.2000000476837,
+        "max": 576.5
+      },
+      "cpuQueryPollMs": {
+        "count": 16,
+        "p50": 0,
+        "p95": 0,
+        "max": 0
+      },
+      "cpuRenderMs": {
+        "count": 16,
+        "p50": 541.3999999761581,
+        "p95": 559.1000000238419,
+        "max": 576.3999999761581
+      },
+      "gpuRenderMs": {
+        "count": 15,
+        "p50": 44.978999,
+        "p95": 47.990999,
+        "max": 48.231624
+      },
+      "observedRenderFps": 1.853430700247959,
+      "drawCalls": {
+        "count": 16,
+        "p50": 931891,
+        "p95": 931891,
+        "max": 931891
+      },
+      "submittedTriangles": {
+        "count": 16,
+        "p50": 9829620,
+        "p95": 9829620,
+        "max": 9829620
+      },
+      "framesOver12_5ms": 15,
+      "framesOver25ms": 15,
+      "hover": {
+        "hits": 60,
+        "pickCpuMs": {
+          "count": 120,
+          "p50": 4.200000047683716,
+          "p95": 5.5,
+          "max": 8.5
+        },
+        "pointerDispatchCpuMs": {
+          "count": 120,
+          "p50": 4.200000047683716,
+          "p95": 5.599999904632568,
+          "max": 8.600000023841858
+        },
+        "pointerToPickCompleteMs": {
+          "count": 120,
+          "p50": 4.200000047683716,
+          "p95": 5.599999904632568,
+          "max": 8.600000023841858
+        },
+        "method": "60 projected part bounding-box centers plus 60 viewport-grid pointermove events, one per two rAF callbacks; latency includes scheduled pick delay"
+      }
+    }
+  ]
+}

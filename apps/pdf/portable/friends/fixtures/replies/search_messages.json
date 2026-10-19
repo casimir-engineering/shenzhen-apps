@@ -1,0 +1,63 @@
+{
+  "type": "reply",
+  "re": "37",
+  "ok": true,
+  "result": {
+    "results": [
+      {
+        "conversation_id": "c_mei",
+        "message_id": "m_a4109f52",
+        "conversation_title": "Mei Lin",
+        "avatar": {
+          "kind": "animal",
+          "set": 1,
+          "index": 7,
+          "initials": "ML",
+          "color": "#3f6b4f"
+        },
+        "sender_label": "Mei Lin",
+        "time_label": "14:32",
+        "excerpt": [
+          {
+            "text": "Can you check "
+          },
+          {
+            "text": "pages",
+            "match": true
+          },
+          {
+            "text": " 3–5 before Friday?"
+          }
+        ]
+      },
+      {
+        "conversation_id": "c_mei",
+        "message_id": "m_5f2a90c1",
+        "conversation_title": "Mei Lin",
+        "avatar": {
+          "kind": "animal",
+          "set": 1,
+          "index": 7,
+          "initials": "ML",
+          "color": "#3f6b4f"
+        },
+        "sender_label": "You",
+        "time_label": "09:14",
+        "excerpt": [
+          {
+            "text": "Here it is. "
+          },
+          {
+            "text": "Pages",
+            "match": true
+          },
+          {
+            "text": " 3–5 changed."
+          }
+        ]
+      }
+    ],
+    "more": false,
+    "empty_label": null
+  }
+}

@@ -1,0 +1,80 @@
+# Flatpak manifest for Shenzhen PDF (GTK4 frontend).
+#
+# Local build (from the repo root; see README.md in this directory):
+#   flatpak run org.flatpak.Builder --user --install --force-clean \
+#       build-dir portable/linux/pkg/flatpak/com.intuition.shenzhenpdf.yml
+#
+# NOTE on the app id: com.intuition.shenzhenpdf is what the app already uses
+# (SPDF_APP_ID). Flathub requires proving control of the id's domain
+# (intuition.com) — see README.md for the recommended switch to
+# io.github.casimir_engineering.* before an actual Flathub submission.
+app-id: com.intuition.shenzhenpdf
+runtime: org.gnome.Platform
+runtime-version: '50'
+sdk: org.gnome.Sdk
+command: shenzhenpdf
+
+finish-args:
+  # Display: native Wayland with X11 fallback; ipc is required for X11.
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --share=ipc
+  # GPU acceleration for GTK4/GSK rendering.
+  - --device=dri
+  # Printing (spdf_print.c drives the GTK print dialog; direct CUPS access
+  # covers setups where the print portal is unavailable).
+  - --socket=cups
+  # Filesystem: the app is a plain file-opening app with no document portal
+  # integration yet — documents arrive via argv (file manager / CLI) and the
+  # GTK file chooser, and features like session restore, recents and the
+  # file-change watcher re-open paths directly. host:ro keeps all of that
+  # working read-only; xdg-download is writable for Save As / OCR output.
+  # Flathub frowns on host access — the proper fix is opening documents
+  # through the document portal (gtk_file_dialog already portals when
+  # sandboxed, but bare paths from argv/session do not), at which point
+  # these two lines can be dropped. Documented trade-off, revisit before
+  # the Flathub submission.
+  - --filesystem=host:ro
+  - --filesystem=xdg-download
+  # Deliberately NOT granted:
+  #   --share=network            (updater is disabled in the sandbox; OCR and
+  #                               translation are fully on-device)
+  #   --talk-name=org.freedesktop.FileManager1   (the app never calls it)
+
+modules:
+  - name: shenzhenpdf
+    buildsystem: simple
+    build-commands:
+      # Builds the vendored MuPDF static libs first (skipped when already
+      # present), then the GTK4 app. OpenSSL comes from the SDK via
+      # pkg-config (the GNOME/freedesktop SDK ships openssl.pc).
+      - make -C portable mupdf-libs
+      - make -C portable linux-gtk4
+      - install -Dm755 portable/build/ShenzhenPDF-gtk4 /app/bin/shenzhenpdf
+      # Flatpak export requires the desktop file to be named by the app id,
+      # and Icon= must equal the app id too.
+      - install -Dm644 portable/linux/pkg/shenzhenpdf.desktop /app/share/applications/com.intuition.shenzhenpdf.desktop
+      - sed -i 's/^Icon=.*/Icon=com.intuition.shenzhenpdf/' /app/share/applications/com.intuition.shenzhenpdf.desktop
+      - install -Dm644 gfx/ShenzhenPDF-16x16x32.png /app/share/icons/hicolor/16x16/apps/com.intuition.shenzhenpdf.png
+      - install -Dm644 gfx/ShenzhenPDF-32x32x32.png /app/share/icons/hicolor/32x32/apps/com.intuition.shenzhenpdf.png
+      - install -Dm644 gfx/ShenzhenPDF-48x48x32.png /app/share/icons/hicolor/48x48/apps/com.intuition.shenzhenpdf.png
+      - install -Dm644 gfx/ShenzhenPDF-128x128x32.png /app/share/icons/hicolor/128x128/apps/com.intuition.shenzhenpdf.png
+      - install -Dm644 gfx/ShenzhenPDF-256x256x32.png /app/share/icons/hicolor/256x256/apps/com.intuition.shenzhenpdf.png
+      - install -Dm644 portable/linux/pkg/flatpak/com.intuition.shenzhenpdf.metainfo.xml /app/share/metainfo/com.intuition.shenzhenpdf.metainfo.xml
+    sources:
+      # Local-build convenience: the whole repo tree is copied into the build
+      # sandbox. The Flathub submission variant MUST replace this with a
+      # pinned git (or archive) source, e.g.:
+      #   - type: git
+      #     url: https://github.com/casimir-engineering/shenzhen-pdf.git
+      #     tag: "26.7.17"
+      #     commit: <full sha>
+      - type: dir
+        path: ../../../..
+        skip:
+          # Never reuse host build artifacts inside the sandbox — MuPDF and
+          # the app must build against the SDK toolchain/libs.
+          - mupdf/build
+          - portable/build
+          - dist
+          - .claude

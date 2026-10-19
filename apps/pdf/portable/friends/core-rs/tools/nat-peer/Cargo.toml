@@ -1,0 +1,29 @@
+[package]
+name = "szfriends-nat-peer"
+description = "Not shipped: the Rust core as one host of the NAT emulator's punching matrix (tests/nat-emulator)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "szfnat-rust-peer"
+path = "src/main.rs"
+
+[dependencies]
+szfriends-online = { path = "../../crates/szfriends-online" }
+szfriends-identity.workspace = true
+szfriends-crypto.workspace = true
+szfriends-wire.workspace = true
+sha2.workspace = true
+hmac.workspace = true
+sha1 = { version = "0.10", default-features = false }
+serde_json.workspace = true
+
+# Not the workspace lints: the signalling arrives on descriptor 3, which only `from_raw_fd` can take.
+[lints.rust]
+unsafe_code = "deny"
+missing_debug_implementations = "warn"
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }

@@ -1,0 +1,122 @@
+# Shenzhen Friends host on meerkat, following the server's stack pattern: its own stack in /opt/stacks/friends,
+# on the shared external `edge` network (the nginx ingress reaches it by name), data in ./data. Online Friends adds
+# the second STUN port (3479/udp, public) and coturn's statistics port (6390/tcp, the server's loopback only), and the
+# `relay` service (coturn), started only with the relay profile (DEPLOY.md, "Online Friends").
+#
+#   /opt/stacks/friends/docker-compose.yml   this file
+#   /opt/stacks/friends/src/                 the package (git archive of portable/server/friends)
+#   /opt/stacks/friends/data/                SQLite, the signed list to start from, the dashboard socket (uid 10001)
+#   /opt/stacks/friends/.env                 secrets and the host's settings (DEPLOY.md lists them)
+#
+# Deploy only with the owner's approval; nothing here touches another stack.
+name: friends
+
+services:
+  friends:
+    build:
+      context: ./src
+      dockerfile: deploy/Dockerfile
+      target: runtime
+      args:
+        # node:22-alpine@sha256:<digest>, set in .env (DEPLOY.md, "Pin the Node image"). Compose stops here when it
+        # is missing, and the Dockerfile stops the build when it is not pinned by digest.
+        NODE_IMAGE: ${FRIENDS_NODE_IMAGE:?set FRIENDS_NODE_IMAGE in .env to node:22-alpine@sha256:<digest>}
+    image: friends-host:local
+    container_name: friends
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      FRIENDS_DATA_DIR: /data
+      FRIENDS_LISTEN_HOST: 0.0.0.0
+      FRIENDS_LISTEN_PORT: "8080"
+      FRIENDS_DASHBOARD_SOCKET: /data/dashboard.sock
+      # Online Friends (FRIENDS_M2, FRIENDS_RELAY and the TURN settings come from .env; both switches default to off).
+      # Inside the container the STUN and statistics ports listen on every interface; Docker publishes them below.
+      # The statistics port takes connections only from the edge network's gateway, which is where the port published
+      # on the server's loopback connects from; other containers on edge are turned away before they can sign in.
+      FRIENDS_STUN_LISTEN: 0.0.0.0
+      FRIENDS_STUN_PORTS: "3479"
+      FRIENDS_TURN_EVENTS_LISTEN: 0.0.0.0
+      FRIENDS_TURN_EVENTS_PORT: "6390"
+      FRIENDS_TURN_EVENTS_FROM: gateway
+      # coturn's command port, through which the service ends relayed sessions at FRIENDS_TURN_MAX_SESSION_S: coturn
+      # (on the server's network) listens on the edge network's gateway address, which this container reaches and
+      # nothing outside the server does. Nothing is published for it.
+      FRIENDS_TURN_CLI_IP: gateway
+      FRIENDS_TURN_CONF: /data/relay/turnserver.conf
+      # Sized to mem_limit: a checked-in connection holding an unfinished 7 KB message measured 41 KiB, over about
+      # 60 MiB for the process itself. Raise both together.
+      FRIENDS_MAX_CONNECTIONS: "1200"
+    volumes:
+      - ./data:/data
+    ports:
+      # The second STUN port, public: it tells apps whether their router maps each destination to a new port.
+      - "3479:3479/udp"
+      # coturn's per-allocation statistics, from the relay on the server's network; never public.
+      - "127.0.0.1:6390:6390/tcp"
+    networks:
+      - edge
+    user: "10001:10001"
+    # Nothing in the image is writable: /data (the volume) holds everything the service writes, and /tmp is a
+    # small tmpfs for anything Node or the health check puts there.
+    read_only: true
+    tmpfs:
+      - /tmp:size=8m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    # One Node process with a handful of threads; a cap stops anything that forks from exhausting the server.
+    pids_limit: 128
+    # The server is small and shared; the service idles well under this. Rendezvous records, open setups and guests
+    # add a little to each connection.
+    mem_limit: 160m
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # The relay (ADR 0010): coturn, the official image pinned by digest, used only when every direct way between two
+  # apps has failed, at 5 Mbit/s per session. Started only with the relay profile (COMPOSE_PROFILES=relay in .env)
+  # and FRIENDS_RELAY=on, because it runs on the configuration the friends service writes at every start.
+  relay:
+    image: ${FRIENDS_COTURN_IMAGE:?set FRIENDS_COTURN_IMAGE in .env to coturn/coturn:4.18.0-r0@sha256:<digest>}
+    container_name: friends-relay
+    profiles:
+      - relay
+    restart: unless-stopped
+    # Host networking: 256 relay ports would otherwise be 256 port mappings, and NAT between coturn and its peers.
+    # coturn listens only on the addresses its configuration names (FRIENDS_TURN_LISTEN_IPS).
+    network_mode: host
+    user: "10001:10001"
+    # Replaces the image's default command, which looks up the server's address on outside DNS services.
+    command: ["-c", "/etc/friends-relay/turnserver.conf"]
+    # The directory, not the file: the service replaces the file at every start, which a file mount would not see.
+    volumes:
+      - ./data/relay:/etc/friends-relay:ro
+    read_only: true
+    tmpfs:
+      - /var/tmp:size=1m,mode=1777
+    cap_drop:
+      - ALL
+    # The image's turnserver carries the net_bind_service file capability; the kernel refuses to start a program
+    # whose file capabilities fall outside the bounding set, so this one stays (the relay binds no port below 1024).
+    cap_add:
+      - NET_BIND_SERVICE
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 64
+    mem_limit: 256m
+    ulimits:
+      nofile: 65536
+    # coturn is configured to print nothing (it would name client addresses); this keeps anything it prints anyway.
+    logging:
+      driver: none
+    depends_on:
+      friends:
+        condition: service_healthy
+
+networks:
+  edge:
+    external: true

@@ -1,0 +1,233 @@
+# Hand review of the EFF Large Wordlist for Friends ID words, version 1 (ADR 0006 rules 6 to 9).
+#
+# Input to curate.py. Each line names a tier and the EFF words accepted at that tier; every EFF word not named here
+# was rejected by the review. Rule 2 keeps one word per five-letter prefix; where a prefix names two, the second is
+# an alternate that curate.py takes only when the first loses to rules 3 to 5.
+#   T1  simple concrete nouns and plain adjectives a beginner learner knows
+#   T2  simple, slightly less common
+#   T3  known to an intermediate learner
+#   T4  less common but neutral
+#   T5  neutral function words, verbs and abstract words
+#   T6  neutral but plain only to a fluent reader
+#   T7  acceptable under rules 7 to 9 but unusual, written best first: the list fills up inside this tier, so
+#       curate.py takes it strictly in the order written
+#   T8  below the bar of rules 6 and 7 (mildly negative, informal or technical): the last resort, taken in the
+#       order written after T7. Version 1 needs none of it since rule 2 moved to five letters (2026-10-12).
+# Rejected outright (rules 7 to 9): anything offensive, insulting when it labels a person, violent, frightening,
+# sexual, medical, religious, political or ethnic; bodies, age, weight and looks; drugs, alcohol, gambling, crime,
+# death, disasters, money and debt; computing, finance and science jargon, brands, proper nouns and abbreviations;
+# homophones and British/American spelling pairs.
+
+T1: acorn able active album alphabet animal anchor apple apricot apron art armchair attic amber backpack bagel
+T1: bakery balcony bamboo banana barbecue barn basket boat book bottle breeze brick bright broom brush bubble
+T1: bucket bunny
+T2: abacus abroad agile ahead aim alike almost aloe altitude always amaze amusing antelope anthill antler aqua
+T2: area arena aroma asleep atlas audience author avenue award badge baggage bagpipe baguette balance banjo
+T2: banner barge barista barley bath basil blank blend blouse bobcat bobsled bolt bonfire bonnet bonsai booth
+T2: bounce bronze brunch buddy buffalo bulb bulldog bunch bundle bunkbed bush buzz bring acrobat
+T3: ability absolute abstract accurate acre afar afloat ahoy ajar alfalfa alive almanac aloft alto ambition
+T3: amiable amid among amount ample anagram anew angular annex another antonym anvil arise around arrive aside
+T3: aspect aspire atop aqueduct avid avoid await awaken awhile awning aviator baking banister banter barrel
+T3: blazer bluish blissful blustery bobtail boil bonanza boss both boxcar briar brim brisket busload batch bauble
+T3: balmy balsamic bagful ascend bungee
+
+T1: cabbage cactus cake calm camera campfire canary candle canyon caramel carrot cartoon carnival celery chair
+T1: cheese chef chess chip cinnamon circle city clay clean clever clock clothes cloud clover coat coconut coffee
+T1: comic coral corner cotton couch crayon cucumber cupcake curtain daisy dance dawn dinner dish dolphin
+T1: doorbell drum duckling
+T2: cable canopy cape cardigan cargo catfish catnap cattle cedar cement champion chapter charcoal cheddar
+T2: chop cilantro cinema citrus clarinet class clip coach coaster cold collar comfy concert cone confetti copper
+T2: cork country cover cradle crane crate creative cricket crimson crispy crown crunchy crystal cube cuddle curry
+T2: curve custard cycle daffodil dairy daybreak daydream daylight daytime deck denim diary diving dock doodle draw
+T2: dreamy dress dumpling dusk
+T3: cabana caboose cage calamari calzone cane canteen capable capsule caption carport carve carwash cascade case
+T3: catchy caviar ceremony channel chase chatter chewy chief chirpy chitchat chive choice chomp choosy
+T3: chowder chunk chute clamp claw clerk cloak cobbler cobweb cod cogwheel coil coleslaw colt comma compost
+T3: console contest copilot copy corridor cosmic courier crawfish crepe crescent critter crop crouton crumpet
+T3: crust cufflink cursive cylinder daily dart dash dazzling decal decoy defrost delicate deluxe depth diagram
+T3: dial dig dill diner dinghy diploma dipper doily dove doze drapery drift driveway drizzle droplet dry duffel
+T3: duo dust duvet
+
+T1: eagle eggplant elephant friend fruit garden gift glass glove goldfish grape grass green
+T2: early easel echo elevator emerald engine envelope eraser espresso fable fabric falcon family fancy feast
+T2: fence ferry festival film finch five flight float flock foam food football fountain fox frame fresh fridge
+T2: frosty gallery game garage garlic gecko gem giant giggle glacier glider glitter glue goal golf good grain
+T2: grill
+T3: earmuff earthen eastward eclair eclipse edge editor eel eggshell elastic elf elk elm ember emblem emu encore
+T3: energy entree epic episode equator equinox errand escargot essay etching even everyday exact example
+T3: exciting explore fabulous fall fanfare fantasy faucet fedora feed fetch fiction fiddle fifteen figurine
+T3: filter finale flagpole flaxseed flint flip floral flying fog foil folk fondue fossil foyer fragrant freeway
+T3: freight frill fritter frolic front froth gala garment garnet gear generous geranium gerbil gesture giving
+T3: glade glance gleeful glimmer glisten glowworm gondola gong gopher gosling gown graceful granite gravel grid
+T3: groove ground grove guide gumball gumdrop gusty
+
+T1: happy ice jacket jelly juice kangaroo kitchen kite kitten koala ladybug lake lemon letter library lion
+T2: hammock hamster handbag harmony harvest hazelnut helmet helpful hug hut icing igloo iguana iron ivy jam
+T2: jasmine jazz jet jigsaw jolly juggle jump kettle kiwi ladder lagoon lantern laundry lavender lilac lily
+T2: little lizard lullaby lunchbox
+T3: habitat haiku half hamlet hamper hardwood harness harpist hatbox haven headlamp heap heat hedge herbal
+T3: herring hexagon hubcap huddle hula hull humid hummus hurdle hurray hush hydrant hyphen icy image
+T3: item jaybird jersey jester jingle jockey jogger jokester jot jovial joyous judo jukebox jumble juniper
+T3: karaoke kelp kennel kerchief kiln kilt kimono kindness king knapsack knoll ladle landmark language lapel
+T3: large lark lasso latch lather latitude laurel legend legume lens level lid limeade line liquid lively
+T3: lumber lunar lyrics
+
+T1: mango map mountain mouse movie museum mushroom music napkin nest oak ocean octopus olive onion otter oven owl
+T2: macaroni magazine magenta magical magnolia manatee marigold mascot mocha moonbeam mosaic mug mulberry mural
+T2: mustard nature nectar nutmeg oasis opal open oval oyster
+T3: machine magma mahogany majestic mammal mandolin manor mantis marathon marlin maroon mastiff matchbox mauve
+T3: molasses molehill mongoose monorail monument mop mossy motor motto mower mud mulch mule myth nacho nail name
+T3: nautical nearby nebula neon net nibble nickname nifty nimble nineteen ninth nugget number nursery nutshell
+T3: nylon oat oblong oboe ocelot oil oink onward opossum outdoors outfit outline overcoat
+
+T1: pancake panda paper parrot pasta pebble pencil plant pond pony popcorn puppy purple puzzle ribbon rice robin
+T1: rocket
+T2: paddle palace palm pantry papaya parade parcel parsley party path patio pecan pelican perfume petal photo
+T2: plastic platypus playful plaza poem polar poppy porridge postcard pretzel prize pyramid quiet quilt radish
+T2: raft raisin ranch ravioli relax reward rhyme ride ripple riverbed ruby rug
+T3: padlock pamphlet panorama paprika papyrus parka passport pavement pavilion pendant penpal perch petunia
+T3: phrase pleat plenty plug plywood pod poet pogo polka polo poncho poplar popular porthole possum pouch pounce
+T3: powdery power prance print prism proud prune pug pull purr pushcart putt quack quail quartet quintet radar
+T3: railway rake ramp ranger raven reach rebuild recess recital recliner record referee refill refresh reggae
+T3: region regular reheat relish remix remote repaint replica reptile resort respect retreat return reunion
+T3: revisit rewind ricotta rind rink rinse rise risotto roast robe rope rosy rotunda roundup routine rover royal
+T3: rudder runway rural rush rust
+
+T1: salad scooter sheep shell ship shirt silver smile snack snowman spoon spring starfish sugar swan
+T2: safari saffron salsa salt sandal sardine satin scarf scone sesame shampoo shape shiny shore shower shrimp
+T2: silk sketch skirt skyline sled sleep small smooth snorkel spinach sponge sprout squash squid stadium stamp
+T2: statue steam stove straw stream suitcase sushi syrup
+T3: saga sage salon sample sapling sash satchel sauna savanna scallop scenic scribble scroll scuba sculptor
+T3: sedan sepia seventy shack shadow shallot share shawl shed shimmer shuffle siesta sift silo simple singer sip
+T3: sixteen sizzle skating skiing skillet skipper skyward slate slider sliver smock snap snooze snuggle speak
+T3: sphere spider spiral splashy splendid sporty spotless spray spruce spyglass squeak stable stack stage
+T3: stallion staple stem stencil stew stick stilt stir stitch stool stride stroller strudel studio subway supper
+T3: surprise swimmer swirl swivel sycamore symphony
+
+T1: tiger train tree truck tulip turtle umbrella unicorn vanilla village walnut water winter zebra
+T2: taco tadpole tasty tidy tiny tractor travel tray treat triangle tricycle trombone trophy twig vacation valley
+T2: velvet violin waffle wagon walk walrus watch wheat willow wing wish wolf wool yarn
+T3: tabby tag tamale tapestry tapioca tassel thank thaw theme thicket thimble thirteen thousand thread thrill
+T3: tiara tidal tile tinfoil tinsel tiptop tissue trapeze trio tripod trout trowel truffle tug tumble turf turkey
+T3: tusk tutor tutu tweed twelve twenty twilight twine twirl unison universe unit unpack unzip unfold upbeat
+T3: uphill upright upstairs uptown upward urban utensil variety varnish vessel vest video visitor visor vista
+T3: voice volley vowel voyage wafer waltz wand wasabi wavy wharf wildlife wind wizard wok woof word wreath yam
+T3: yard yodel yoga zero zesty zippy
+T3: gravy quill sleeve stingray
+
+T4: abide abridge acclaim acquire affirm aflutter agenda aloha amenity amicably angler annotate anytime anywhere
+T4: anyhow anyone anymore anyplace anybody appear approve aptitude aptly ardently armband armful armoire armrest
+T4: arrange askew astonish astride astute attain attempt baton blinker blooming bobble bolster busily cancel
+T4: canister caring casing casually caterer catlike catwalk caution ceramics certify churn cinch citadel civil
+T4: claim clang clapping clatter clicker client clump clutch coherent condense conical convene corsage
+T4: crabmeat credible crevice crewmate crib crinkly croon crucial cubicle culinary curator
+T4: dangle darkroom daycare dayroom debate debrief decent decimal dedicate deduce deed deem deepen define deftly
+T4: degree delay delegate denote depict deserve designer destiny detail diameter diffuser diligent dilute dimmer
+T4: dining directed discover dismount display distance ditto doable document doing dollop domelike dominoes
+T4: dotted doubling dramatic drench dribble dried duly duplex durable dutiful dwelling dynamic earflap earshot
+T4: eatery edging eloquent elude elusive embark embody emit emotion emphasis emporium encircle enclose endless
+T4: enduring engraved enhance enjoying enrich ensure entire entwine envision epilogue estimate evident excavate
+T4: exclaim expand expert express extended feel fernlike finished flatware frozen galore gatherer gazing genre
+T4: gently gigantic giveaway gleaming goggles graduate grower heritage
+T4: ideally identify idiom illusion imitate immerse impart imply improve irrigate issue italics jaunt joining
+T4: joyfully jubilant junction keenly keep last left legible length life liftoff likewise limit linguini list
+T4: luminous manual marbles material monthly motion narrow navigate neatly next octagon outback outcome outer
+T4: outgoing outing outpost outshine outward
+T4: pardon pegboard pennant pep phonics plural pointed poise praising preamble precise predict preface prelude
+T4: premiere preset preview primary prior private probable process produce profound progress prologue promptly
+T4: prong punctual quality quench quickly quote random reappear reason rebound recall recreate recycled reflex
+T4: refocus regain regroup rejoin rekindle release reload rely remake remember rename renewal renovate reopen
+T4: repeated rephrase reprint reporter request rerun research reshape resident result retake rethink retold
+T4: reusable reveal reword rewrite riding ripening rising roaming robust runner safely same schedule second
+T4: sequel series service setting shopping sincere speed spelling spoken stand steering step storage subtitle
+T4: suburb suggest surface sweep swiftly
+T4: tactful take task thermal think tidings timing tinker tranquil trend trilogy trimming trusting
+T4: unify uniquely unlocked unroll unscrew untie untwist unwind unclip unfreeze upside valiant value venue verify
+T4: version vertical viewer vividly vocalist washtub waving whisking wisdom wise work woven writing
+T4: yearbook
+
+T5: afoot agreed although amigo antics blip borough botany boxlike bridged broaden browse bulgur carload
+T5: carmaker cassette cause chosen clad clause clinking coauthor coexist come cope crafter cusp dab daringly
+T5: datebook defog derived despite down dubbed duct during
+T5: each easing either elective eligible ellipse emcee enable encrust endnote engaged entail entering essence
+T5: esteemed evolve exert existing exit extras factual facing fade faster fender filler finer finlike flap
+T5: flashing flyable follow frequent from frying gaining gangway getting going grafted grazing grinning hangout
+T5: hatchery hence human husked jokingly justly kinfolk kinship legacy liking lining linked livable
+T5: living lukewarm
+T5: making maker manmade many mashed matter maybe modify modular moisten most movable move mowing much multiply
+T5: mutual myself naming napping never numeral nurture obtain omit onboard oncoming ongoing onlooker only onset
+T5: onshore onstage onto opt other outright outthink pacify paging panning pellet placidly pliable plus pouring
+T5: preplan proofing propose proven prowess purely pursuit raking ramble ranking reawake reattach reenter
+T5: reissue reorder reroute resample retype rigging roving
+T5: saved say scouting scrap selected seldom semisoft send shifting shout shrug shut siding sitting situated
+T5: sixfold sizable size skier skimming slab slang sliced slightly slip sloped slot smell spiffy splice spout
+T5: spry spud staff stays stellar stereo stopping stowing stuffed styling subfloor subgroup subject sublevel
+T5: subpanel subsoil such suction sudden suffix surely surround survey swapping sway synopsis taking tapping
+T5: that these those thus tiling tried tubular tucking twice tying uphold uplifted upon upper uproot upswing
+T5: uptake upturned upwind usable usage used usual utmost vantage varying vastly very vintage waking whenever
+T5: whoever widely width wobble wow yonder
+T5: chill onyx
+T5: effort amplify cautious cosmos grouped issuing motive muster possible reprise sharply sitter steadily stopper
+T5: sureness swimwear tumbling undone filled founder latticed nimbly rework thesis
+
+T6: unbaked unbutton uncoated uncurled undated undocked unearth unedited unending unfasten unfilled unglazed
+T6: unharmed unheated unhidden unhook unlaced unlined unmixed unmoved unopened unpeeled unpinned unplug unread
+T6: unripe unrushed unsalted unsealed unshaken unsliced unsnap unsoiled unspoken unstuck untagged unthawed
+T6: untold untried unturned unused unvaried unveiled unwashed unweave
+T6: aerobics annually avert canned capped closure colossal culture cupped curling declared decrease dugout
+T6: educator elated empathy employee ending evaluate evoke exchange exhale filing flyover gander gargle grab
+T6: gulp gurgle herald job kick lecturer levitate linoleum linseed lucid marshy mothball mystify object obliged
+T6: observer obvious omnivore paced parmesan plop pluck public reabsorb reaffirm rearview reemerge rehire
+T6: remnant reoccur rescuer ripcord roster rummage salvage scholar scrunch seltzer semester silent skydiver
+T6: slacks slogan slurp smartly stucco submerge surname swoop tarmac throng tint trade traffic treble truth
+T6: turbine umpire unafraid unbeaten unbiased unbolted unbroken undusted unflawed unless unmapped unneeded
+T6: unquote upcoming update upgrade usher vicinity victory vigorous waggle whiff whinny wick wispy wriggle zone
+T6: awoke drove grew shone swung gave had idly dimly vaguely acutely absently abruptly hastily drowsily
+T6: giddily hazily humbly lushly stiffly shakily shrewdly verbally vitally audacity density dimness ethics
+T6: fervor figment fraction friction heroism impulse morale obstacle opacity plethora rarity rigor
+T6: secrecy security urgency utopia babble baffle blurt boggle crave deflate defuse defy deplete detract deviate
+T6: diminish dislodge dissuade dwindle eject endorse expose flick floss gratify hesitate ignore impose jolt
+T6: maximize mumble negate nullify oppose stumble undergo protract rectify refute saturate sniff suspend swerve swipe
+T6: tighten tweak twiddle twitch wrangle
+T7: shield ultimate secluded gully geology geometry algebra ecology zoology subzero suds yield broiler coeditor
+T7: ultra crux tinwork eatable volumes outmatch obscure viable unguided thorn why goes acts effects ended halved
+T7: gauging unaired uncross unsmooth unvocal rare
+
+# Added on 2026-10-12, when ADR 0006 rule 2 moved from four letters to five: words that share their first four
+# letters with an accepted word (backyard and backpack, candy and candle), reviewed against the same rules.
+T1: candy
+T2: backyard cheer circus cocoa cottage doorknob doorstep doorway eleven lettuce playtime radio snowfall snowy
+T2: street student tropical violet
+T3: action anteater applause backdrop buckle bullfrog campsite campus canal caravan change charm collie comfort
+T3: crumb cyclist delivery equal florist footpath foothill garland granola greeting handmade headband helper macaw
+T3: marina moonlit panther parakeet pastel pasture playroom poster scoop sandbox shelter stardust starlit starry
+T3: study surfer unicycle wildcat
+T4: backrest company concrete cornmeal correct decade dingo edition entryway explain footrest footwear gallon
+T4: glimpse glowing gracious handrail hardhat humming karate landing launch magnify moonrise overpass parkway
+T4: parsnip partner passage pastime patience planner platter railing ravine reliable showcase sixth snowdrop
+T4: snowshoe speech squiggle starship stretch strength support thrive upstream verse vision willing
+T5: bakeshop bullseye chariot common constant corncob creamer crease daybed discuss duration fondness footnote
+T5: freehand freely gladly handsaw hardy headrest moonwalk outlast outsmart overall overlook overtime passerby
+T5: playpen pristine pushpin reassure reforest relative reminder reverse sandlot satisfy snowcap spinner spirited
+T5: squeeze strum supply trickle uncommon uncover upriver various
+T6: backspin bullpen bunkmate cattail cornhusk playset railcar shingle sublime
+
+# Moved down from T7 on 2026-10-12 once better words were available: negative (amiss, awry, atypical, excuse,
+# ditch), frightening (alarm) or technical (the rest).
+T8: amiss awry atypical excuse ditch alarm barcode battery bleach screen wiring operator segment cobalt aeration
+T8: drainage tubeless
+T8: oxygen helium ozone calcium carbon species spectrum trekker trifle tribute sessions hybrid mobility vendor
+T8: venture barterer climate faculty sector pledge rally rival virtuous palpable sinuous smitten subdued snazzy
+T8: snippet theorize unnamed unknown ungraded unranked unsigned unproven uneven ought okay monitor laptop online
+T8: badland bunt dragster driller getup gimmick hatless lagging gothic grunge gnarly
+T8: gooey doozy oops yeah yippee yummy cahoots quirk
+T8: hazy murky slush sludge rickety stony frayed tattered smudge scuff stained spill droop wilt gutter
+T8: argue disband disjoin elope flail gawk huff lurch shun sighing sputter clench
+T8: grumble irk scoff
+T8: cavalier clunky cryptic cushy edgy empty jarring lesser mundane peculiar rigid rimless scant staunch trivial
+T8: stoic posh impish chummy dandy darling feisty fidgety groggy
+T8: error excess gaffe gossip jinx jitters pang ruse spree ruckus swagger rants stupor blah bleep
+T8: deskwork porous purist pungent quadrant nutlike goatskin flypaper gizmo kudos pumice sediment silica litmus
+T8: halogen polygon kinetic occupant jargon osmosis
+T8: barstool batboy busboy heave lure zealous wince splotchy pout smirk
+T8: kooky flaky pesky hermit crier drudge guzzler

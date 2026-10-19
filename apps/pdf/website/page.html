@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="{{lang}}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{title}}</title>
+<meta name="description" content="{{description}}">
+<meta name="robots" content="index,follow,max-image-preview:large">
+<link rel="canonical" href="{{canonical}}">
+<link rel="alternate" hreflang="en" href="{{base}}">
+<link rel="alternate" hreflang="zh-CN" href="{{base}}zh/">
+<link rel="alternate" hreflang="x-default" href="{{base}}">
+<link rel="sitemap" type="application/xml" href="{{base}}sitemap.xml">
+<meta property="og:type" content="website">
+<meta property="og:title" content="{{title}}">
+<meta property="og:description" content="{{description}}">
+<meta property="og:url" content="{{canonical}}">
+<meta property="og:site_name" content="Shenzhen PDF Reader">
+<meta property="og:image" content="{{base}}assets/macos-ai-chat.webp">
+<meta property="og:image:alt" content="{{screenshot_alt}}">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="stylesheet" href="{{asset_prefix}}assets/style.css">
+<script type="application/ld+json">{{schema}}</script>
+</head>
+<body>
+<a class="skip" href="#main">{{skip}}</a>
+<div class="wrap">
+<header>
+<a class="brand" href="{{canonical}}" aria-label="Shenzhen PDF Reader">
+<svg viewBox="0 0 24 28" fill="none" aria-hidden="true"><path d="M5 2h9l6 6v16a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2Z" stroke="currentColor" stroke-width="1.6"/><path d="M14 2v7h6M7 15h9M7 19h7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+Shenzhen PDF Reader</a>
+<nav aria-label="{{navigation}}"><a href="#features">{{features_nav}}</a><a href="{{repo}}">GitHub</a><a href="{{alternate}}" lang="{{alternate_lang}}">{{language}}</a></nav>
+</header>
+<main id="main">
+<section class="hero">
+<div class="eyebrow">{{eyebrow}}</div>
+<h1>Shenzhen PDF Reader</h1>
+<p class="lede">{{lede}}</p>
+<div class="actions"><a class="button" href="{{download}}">{{download_label}} <span aria-hidden="true">↓</span></a><a href="{{repo}}/releases/latest">{{release_label}}</a></div>
+<p class="requirements">{{requirements}} · {{version}}</p>
+</section>
+<figure class="shot"><img src="{{asset_prefix}}assets/macos-ai-chat.webp" width="1600" height="879" alt="{{screenshot_alt}}" fetchpriority="high"><figcaption>{{caption}}</figcaption></figure>
+<section class="features" id="features" aria-label="{{features_nav}}">
+<article><h2>{{feature1_title}}</h2><p>{{feature1}}</p></article>
+<article><h2>{{feature2_title}}</h2><p>{{feature2}}</p></article>
+<article><h2>{{feature3_title}}</h2><p>{{feature3}}</p></article>
+</section>
+<p class="ai-notice">{{ai_notice}} <a href="{{repo}}/blob/master/portable/docs/document-assistant.md">{{assistant_guide}}</a> · <a href="{{repo}}/blob/master/portable/docs/journals/ai-reader/model-benchmark-2026-10-11.md">{{benchmark}}</a></p>
+<section class="section showcase"><h2>{{markdown_title}}</h2><p>{{markdown_text}}</p><img src="{{asset_prefix}}assets/macos-markdown.webp" width="1280" height="780" alt="{{markdown_alt}}" loading="lazy"></section>
+<section class="section showcase"><h2>{{search_title}}</h2><p>{{search_text}}</p><img src="{{asset_prefix}}assets/macos-main-window.webp" width="1280" height="780" alt="{{search_alt}}" loading="lazy"></section>
+<section class="section split"><div><div class="eyebrow">{{workspace_label}}</div><h2>{{workspace_title}}</h2><p>{{workspace}}</p><a href="{{repo}}/blob/master/docs/features.md">{{all_features}}</a></div><img src="{{asset_prefix}}assets/macos-groups.webp" width="1280" height="780" alt="{{groups_alt}}" loading="lazy"></section>
+<section class="section split"><div><h2>{{formats_title}}</h2><p>{{formats_description}}</p></div><div class="formats">PDF · EPUB · Markdown · TXT<br>PNG · JPEG · TIFF · WebP<br>{{code_formats}}</div></section>
+<section class="section faq"><h2>{{faq_title}}</h2>
+<details open><summary>{{q1}}</summary><p>{{a1}}</p></details>
+<details><summary>{{q2}}</summary><p>{{a2}}</p></details>
+<details><summary>{{q3}}</summary><p>{{a3}} <a href="{{repo}}/blob/master/portable/README.md">{{platform_guide}}</a></p></details>
+<details><summary>{{q4}}</summary><p>{{a4}} <a href="{{repo}}/blob/master/portable/docs/agent-interface.md">{{ai_guide}}</a></p></details>
+</section>
+<section class="download-section"><h2>{{ready}}</h2><p>{{download_info}}</p><a class="button" href="{{download}}">{{download_label}} <span aria-hidden="true">↓</span></a></section>
+</main>
+<footer><div class="footer-links"><a href="{{repo}}">{{source}}</a><a href="{{repo}}/issues">{{issues}}</a><a href="{{base}}sitemap.xml">Sitemap</a><a href="https://casimir.engineering/">Casimir Engineering</a></div><p>{{footer}}</p></footer>
+</div>
+</body>
+</html>

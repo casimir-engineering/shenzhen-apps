@@ -1,0 +1,726 @@
+diff --git a/meson.build b/meson.build
+index 61c6b0b..0862896 100644
+--- a/meson.build
++++ b/meson.build
+@@ -101,28 +101,42 @@ pkgconfig = import('pkgconfig')
+ ################
+ glib_ver = '>= 2.84.0'
+ 
++macos_port = get_option('macos_port')
++
+ libm = cc.find_library('m')
+ 
+-subproject('libgxdp',
+-  default_options: [
+-    'tests=false',
+-    'werror=false',
+-  ],
+-)
++if not macos_port
++  subproject('libgxdp',
++    default_options: [
++      'tests=false',
++      'werror=false',
++    ],
++  )
++endif
+ 
+ gio = dependency('gio-2.0', version: glib_ver)
+ gio_unix = dependency('gio-unix-2.0', version: glib_ver)
+ glib = dependency('glib-2.0', version: glib_ver)
+-glycin = dependency('glycin-2', version: '>= 2')
+-glycin_gtk4 = dependency('glycin-gtk4-2', version: '>= 2')
++if not macos_port
++  glycin = dependency('glycin-2', version: '>= 2')
++  glycin_gtk4 = dependency('glycin-gtk4-2', version: '>= 2')
++endif
+ gmodule = dependency('gmodule-no-export-2.0', version: glib_ver)
+ gnome_autoar = dependency('gnome-autoar-0', version: '>= 0.4.4')
+-gnome_desktop = dependency('gnome-desktop-4', version: '>= 43')
++if not macos_port
++  gnome_desktop = dependency('gnome-desktop-4', version: '>= 43')
++endif
+ gtk = dependency('gtk4', version: '>= 4.22.0')
+ libadwaita = dependency('libadwaita-1', version: '>= 1.8.alpha')
+-libgxdp = dependency('libgxdp')
+-libportal = dependency('libportal', version: '>= 0.7')
+-libportal_gtk4 = dependency('libportal-gtk4', version: '>= 0.5')
++if not macos_port
++  libgxdp = dependency('libgxdp')
++  libportal = dependency('libportal', version: '>= 0.7')
++  libportal_gtk4 = dependency('libportal-gtk4', version: '>= 0.5')
++else
++  # Provides gdesktop-enums.h, which otherwise arrives transitively through
++  # the gnome-desktop-4 pkg-config cflags.
++  gsettings_desktop_schemas = dependency('gsettings-desktop-schemas')
++endif
+ tinysparql = dependency('tinysparql-3.0', version: '>= 3.8')
+ icu_dep = dependency('icu-uc', version: '>=56')
+ icu_i18n_dep = dependency('icu-i18n', version: '>=56')
+diff --git a/meson_options.txt b/meson_options.txt
+index 54e9687..983d6cd 100644
+--- a/meson_options.txt
++++ b/meson_options.txt
+@@ -73,3 +73,10 @@ option(
+   value: '',
+   description: 'Build with specified application ID',
+ )
++
++option(
++  'macos_port',
++  type: 'boolean',
++  value: false,
++  description: 'Build for macOS: replaces glycin, gnome-desktop thumbnailing and the XDG portals with native fallbacks',
++)
+diff --git a/src/meson.build b/src/meson.build
+index c15e6ce..bdb6b82 100644
+--- a/src/meson.build
++++ b/src/meson.build
+@@ -46,12 +46,6 @@ libnautilus_sources = [
+     interface_prefix: 'org.gnome',
+     namespace: 'Nautilus'
+   ),
+-  gnome.gdbus_codegen(
+-    'xdg-desktop-portal-dbus',
+-    sources: desktop_portal_dbus_interfaces_files,
+-    interface_prefix: 'org.freedesktop.impl.portal.',
+-    namespace: 'XdpImpl',
+-  ),
+   'nautilus-app-chooser.c',
+   'nautilus-app-chooser.h',
+   'nautilus-app-chooser-widget.c',
+@@ -189,10 +183,6 @@ libnautilus_sources = [
+   'nautilus-operations-ui-manager.h',
+   'nautilus-pathbar.c',
+   'nautilus-pathbar.h',
+-  'nautilus-portal.c',
+-  'nautilus-portal.h',
+-  'nautilus-portal-request.c',
+-  'nautilus-portal-request.h',
+   'nautilus-preferences-dialog.c',
+   'nautilus-preferences-dialog.h',
+   'nautilus-previewer.c',
+@@ -257,7 +247,6 @@ libnautilus_sources = [
+   'nautilus-starred-directory.h',
+   'nautilus-tag-manager.c',
+   'nautilus-tag-manager.h',
+-  'nautilus-thumbnails.c',
+   'nautilus-thumbnails.h',
+   'nautilus-toolbar.c',
+   'nautilus-toolbar.h',
+@@ -289,26 +278,55 @@ libnautilus_sources = [
+   'nautilus-x-content-bar.h',
+ ]
+ 
++if macos_port
++  libnautilus_sources += [
++    'nautilus-thumbnails-macos.c',
++  ]
++else
++  libnautilus_sources += [
++    gnome.gdbus_codegen(
++      'xdg-desktop-portal-dbus',
++      sources: desktop_portal_dbus_interfaces_files,
++      interface_prefix: 'org.freedesktop.impl.portal.',
++      namespace: 'XdpImpl',
++    ),
++    'nautilus-portal.c',
++    'nautilus-portal.h',
++    'nautilus-portal-request.c',
++    'nautilus-portal-request.h',
++    'nautilus-thumbnails.c',
++  ]
++endif
++
+ nautilus_deps = [
+   cloudproviders,
+   config_h,
+   gio_unix,
+-  glycin,
+-  glycin_gtk4,
+   gmodule,
+   gnome_autoar,
+-  gnome_desktop,
+   icu_dep,
+   icu_i18n_dep,
+   libadwaita,
+-  libgxdp,
+-  libportal,
+-  libportal_gtk4,
+   nautilus_extension,
+   selinux,
+   tinysparql,
+ ]
+ 
++if macos_port
++  nautilus_deps += [
++    gsettings_desktop_schemas,
++  ]
++else
++  nautilus_deps += [
++    glycin,
++    glycin_gtk4,
++    gnome_desktop,
++    libgxdp,
++    libportal,
++    libportal_gtk4,
++  ]
++endif
++
+ libnautilus = static_library(
+   'nautilus',
+   libnautilus_sources,
+diff --git a/src/nautilus-application.c b/src/nautilus-application.c
+index 397cbf3..55e9ccd 100644
+--- a/src/nautilus-application.c
++++ b/src/nautilus-application.c
+@@ -35,8 +35,10 @@
+ #include <glib/gi18n.h>
+ #include <glib/gstdio.h>
+ #include <gtk/gtk.h>
++#ifndef __APPLE__
+ #include <gxdp.h>
+ #include <libportal/portal.h>
++#endif
+ #include <nautilus-extension.h>
+ #include <sys/stat.h>
+ #include <sys/types.h>
+@@ -56,7 +58,9 @@
+ #include "nautilus-global-preferences.h"
+ #include "nautilus-icon-info.h"
+ #include "nautilus-module.h"
++#ifndef __APPLE__
+ #include "nautilus-portal.h"
++#endif
+ #include "nautilus-preferences-dialog.h"
+ #include "nautilus-previewer.h"
+ #include "nautilus-progress-persistence-handler.h"
+@@ -76,7 +80,9 @@ struct _NautilusApplication
+     NautilusProgressPersistenceHandler *progress_handler;
+     NautilusDBusManager *dbus_manager;
+     NautilusFreedesktopDBus *fdb_manager;
++#ifndef __APPLE__
+     NautilusPortal *portal_implementation;
++#endif
+ 
+     NautilusBookmarkList *bookmark_list;
+ 
+@@ -1011,6 +1017,7 @@ nautilus_application_startup (GApplication *app)
+         nautilus_application_identify_to_portal (app);
+     }
+ 
++#ifndef __APPLE__
+     /* Initialize GDK display (for wayland-x11-interop protocol) before GTK does
+      * it during the chain-up. */
+     g_autoptr (GError) error = NULL;
+@@ -1027,6 +1034,7 @@ nautilus_application_startup (GApplication *app)
+         g_message ("Failed to initialize display server connection: %s",
+                    error->message);
+     }
++#endif
+ 
+     /* Chain up to the GtkApplication implementation early, so that gtk_init()
+      * is called for us.
+@@ -1090,11 +1098,13 @@ nautilus_application_dbus_register (GApplication     *app,
+         return FALSE;
+     }
+ 
++#ifndef __APPLE__
+     self->portal_implementation = nautilus_portal_new ();
+     if (!nautilus_portal_register (self->portal_implementation, connection, error))
+     {
+         return FALSE;
+     }
++#endif
+ 
+     self->search_provider = nautilus_shell_search_provider_new ();
+     if (!nautilus_shell_search_provider_register (self->search_provider, connection, error))
+@@ -1126,11 +1136,13 @@ nautilus_application_dbus_unregister (GApplication    *app,
+         g_clear_object (&self->fdb_manager);
+     }
+ 
++#ifndef __APPLE__
+     if (self->portal_implementation != NULL)
+     {
+         nautilus_portal_unregister (self->portal_implementation);
+         g_clear_object (&self->portal_implementation);
+     }
++#endif
+ 
+     if (self->search_provider)
+     {
+@@ -1317,6 +1329,10 @@ nautilus_application_search (NautilusApplication *self,
+ gboolean
+ nautilus_application_is_sandboxed (void)
+ {
++#ifdef __APPLE__
++    /* There is no Flatpak/portal sandbox on macOS. */
++    return FALSE;
++#else
+     static gboolean ret;
+ 
+     static gsize init = 0;
+@@ -1328,4 +1344,5 @@ nautilus_application_is_sandboxed (void)
+     }
+ 
+     return ret;
++#endif
+ }
+diff --git a/src/nautilus-file-utilities.c b/src/nautilus-file-utilities.c
+index b2f8996..f335648 100644
+--- a/src/nautilus-file-utilities.c
++++ b/src/nautilus-file-utilities.c
+@@ -41,7 +41,12 @@
+ #include <gio/gio.h>
+ #include <unistd.h>
+ #include <stdlib.h>
++#ifdef __APPLE__
++#include <sys/param.h>
++#include <sys/mount.h>
++#else
+ #include <sys/vfs.h>
++#endif
+ 
+ #define NAUTILUS_USER_DIRECTORY_NAME "nautilus"
+ #define DEFAULT_NAUTILUS_DIRECTORY_MODE (0755)
+@@ -1163,13 +1168,25 @@ nautilus_location_is_autofs_mountpoint (GFile *location)
+ 
+     g_autofree char *path = g_file_get_path (location);
+     struct statfs buf;
++#ifndef __APPLE__
+     gint fd;
++#endif
+ 
+     if (path == NULL)
+     {
+         return FALSE;
+     }
+ 
++#ifdef __APPLE__
++    /* There is no O_PATH on macOS; its statfs identifies filesystems by
++     * name instead of a magic number. */
++    if (statfs (path, &buf) < 0)
++    {
++        return FALSE;
++    }
++
++    return (g_strcmp0 (buf.f_fstypename, "autofs") == 0);
++#else
+     fd = g_open (path, O_PATH | O_NOFOLLOW, 0);
+     if (fd < 0)
+     {
+@@ -1185,6 +1202,7 @@ nautilus_location_is_autofs_mountpoint (GFile *location)
+     close (fd);
+ 
+     return (buf.f_type == AUTOFS_SUPER_MAGIC);
++#endif
+ }
+ 
+ gboolean
+diff --git a/src/nautilus-filename-utilities.c b/src/nautilus-filename-utilities.c
+index 0d6200f..f643c34 100644
+--- a/src/nautilus-filename-utilities.c
++++ b/src/nautilus-filename-utilities.c
+@@ -17,6 +17,27 @@ typedef gboolean (* AppendixParser) (const char *appendix,
+                                      size_t     *count);
+ typedef char * (* AppendixCreator) (size_t count);
+ 
++#ifdef __APPLE__
++/* memrchr() is a GNU extension not available in macOS libc. */
++static const void *
++memrchr (const void *s,
++         int         c,
++         size_t      n)
++{
++    const unsigned char *p = s;
++
++    for (size_t i = n; i > 0; i--)
++    {
++        if (p[i - 1] == (unsigned char) c)
++        {
++            return p + (i - 1);
++        }
++    }
++
++    return NULL;
++}
++#endif
++
+ /**
+  * parse_previous_name:
+  * @name: Name of the original file
+diff --git a/src/nautilus-files-view.c b/src/nautilus-files-view.c
+index dc65361..a5e9371 100644
+--- a/src/nautilus-files-view.c
++++ b/src/nautilus-files-view.c
+@@ -32,8 +32,10 @@
+ #include <glib/gstdio.h>
+ #include <gtk/gtk.h>
+ #include <gnome-autoar/gnome-autoar.h>
++#ifndef __APPLE__
+ #include <libportal/portal.h>
+ #include <libportal-gtk4/portal-gtk4.h>
++#endif
+ #include <nautilus-extension.h>
+ 
+ #include "nautilus-application.h"
+@@ -1423,6 +1425,7 @@ action_open_item_new_tab (GSimpleAction *action,
+                                         TRUE);
+ }
+ 
++#ifndef __APPLE__
+ static void
+ sandboxed_choose_program_callback (GObject      *source_object,
+                                    GAsyncResult *res,
+@@ -1477,6 +1480,7 @@ sandboxed_choose_program (GList     *files,
+                          sandboxed_choose_program_callback,
+                          g_steal_pointer (&files));
+ }
++#endif /* !__APPLE__ */
+ 
+ static void
+ app_choosen (AdwDialog *dialog,
+@@ -1509,11 +1513,13 @@ choose_program (NautilusFilesView *view,
+ 
+     parent_window = nautilus_files_view_get_containing_window (view);
+ 
++#ifndef __APPLE__
+     if (nautilus_application_is_sandboxed ())
+     {
+         sandboxed_choose_program (g_steal_pointer (&files), parent_window);
+         return;
+     }
++#endif
+ 
+     dialog = nautilus_app_chooser_new (files);
+     g_object_set_data_full (G_OBJECT (dialog),
+@@ -6270,6 +6276,23 @@ action_compress (GSimpleAction *action,
+     nautilus_files_view_compress_dialog_new (view);
+ }
+ 
++#ifdef __APPLE__
++static void
++real_send_email (GStrv              attachments,
++                 NautilusFilesView *view)
++{
++    /* There is no email portal on macOS. Hand a mailto: URI to the default
++     * mail client. mailto: cannot carry attachments, so the file paths are
++     * placed in the body for the user to attach manually. A native
++     * NSSharingService-based implementation is planned for a later phase. */
++    GtkWidget *toplevel = gtk_widget_get_ancestor (GTK_WIDGET (view), GTK_TYPE_WINDOW);
++    g_autofree char *attachment_list = (attachments != NULL) ? g_strjoinv ("\n", attachments) : g_strdup ("");
++    g_autofree char *body = g_uri_escape_string (attachment_list, NULL, FALSE);
++    g_autofree char *mailto_uri = g_strconcat ("mailto:?body=", body, NULL);
++
++    gtk_show_uri (GTK_WINDOW (toplevel), mailto_uri, GDK_CURRENT_TIME);
++}
++#else
+ static void
+ send_email_done (GObject      *source_object,
+                  GAsyncResult *res,
+@@ -6314,6 +6337,7 @@ real_send_email (GStrv              attachments,
+                               NULL, NULL, NULL, NULL, (const char * const *) attachments,
+                               XDP_EMAIL_FLAG_NONE, NULL, send_email_done, toplevel);
+ }
++#endif /* __APPLE__ */
+ 
+ static void
+ email_archive_ready (GFile    *new_file,
+@@ -6453,6 +6477,13 @@ can_set_wallpaper (NautilusFileList *selection)
+ {
+     NautilusFile *file;
+ 
++#ifdef __APPLE__
++    /* Setting the wallpaper needs the XDG wallpaper portal, which does not
++     * exist on macOS. Keep the action disabled so the menu item stays
++     * hidden ("hidden-when: action-disabled"). */
++    return FALSE;
++#endif
++
+     if (!list_len_is_one (selection))
+     {
+         return FALSE;
+@@ -6469,6 +6500,7 @@ can_set_wallpaper (NautilusFileList *selection)
+     return TRUE;
+ }
+ 
++#ifndef __APPLE__
+ static void
+ set_wallpaper_with_portal_cb (GObject      *source,
+                               GAsyncResult *result,
+@@ -6515,12 +6547,14 @@ set_wallpaper_with_portal (NautilusFile *file,
+                               NULL);
+     xdp_parent_free (parent);
+ }
++#endif /* !__APPLE__ */
+ 
+ static void
+ action_set_as_wallpaper (GSimpleAction *action,
+                          GVariant      *state,
+                          gpointer       user_data)
+ {
++#ifndef __APPLE__
+     g_autolist (NautilusFile) selection = NULL;
+ 
+     g_assert (NAUTILUS_IS_FILES_VIEW (user_data));
+@@ -6534,6 +6568,7 @@ action_set_as_wallpaper (GSimpleAction *action,
+ 
+         set_wallpaper_with_portal (file, user_data);
+     }
++#endif
+ }
+ 
+ static void
+diff --git a/src/nautilus-icon-info.c b/src/nautilus-icon-info.c
+index 278efb9..9e090b8 100644
+--- a/src/nautilus-icon-info.c
++++ b/src/nautilus-icon-info.c
+@@ -20,8 +20,10 @@
+ #include "nautilus-enums.h"
+ #include <nautilus-hash-queue.h>
+ 
++#ifndef __APPLE__
+ #include <glycin.h>
+ #include <glycin-gtk4.h>
++#endif
+ 
+ static GtkIconPaintable *
+ lookup_themed_icon (GIcon *icon,
+@@ -354,6 +356,34 @@ nautilus_icon_info_lookup (GIcon *icon,
+                                                                 NULL, NULL, NULL);
+         if (stream)
+         {
++#ifdef __APPLE__
++            /* No glycin on macOS; decode with gdk-pixbuf instead. */
++            g_autoptr (GdkPixbuf) pixbuf = gdk_pixbuf_new_from_stream_at_scale (stream,
++                                                                                size * scale,
++                                                                                size * scale,
++                                                                                TRUE,
++                                                                                NULL,
++                                                                                NULL);
++
++            if (pixbuf != NULL)
++            {
++                double iw = gdk_pixbuf_get_width (pixbuf);
++                double ih = gdk_pixbuf_get_height (pixbuf);
++
++                double scale_factor = MIN ((double) size / iw, (double) size / ih);
++
++                double width = iw * scale_factor;
++                double height = ih * scale_factor;
++
++                g_autoptr (GdkTexture) texture = gdk_texture_new_for_pixbuf (pixbuf);
++                g_autoptr (GtkSnapshot) snapshot = gtk_snapshot_new ();
++
++                gdk_paintable_snapshot (GDK_PAINTABLE (texture),
++                                        GDK_SNAPSHOT (snapshot),
++                                        width, height);
++                paintable = gtk_snapshot_to_paintable (snapshot, NULL);
++            }
++#else
+             g_autoptr (GlyLoader) loader = gly_loader_new_for_stream (stream);
+             g_autoptr (GlyImage) image = gly_loader_load (loader, NULL);
+ 
+@@ -384,6 +414,7 @@ nautilus_icon_info_lookup (GIcon *icon,
+                     paintable = gtk_snapshot_to_paintable (snapshot, NULL);
+                 }
+             }
++#endif
+         }
+ 
+         if (paintable == NULL)
+diff --git a/src/nautilus-main.c b/src/nautilus-main.c
+index 3ca374e..8c3c212 100644
+--- a/src/nautilus-main.c
++++ b/src/nautilus-main.c
+@@ -32,7 +32,9 @@
+ 
+ #include <glib/gi18n.h>
+ #include <gtk/gtk.h>
++#ifndef __APPLE__
+ #include <gio/gdesktopappinfo.h>
++#endif
+ 
+ #include <locale.h>
+ #ifdef HAVE_MALLOC_H
+diff --git a/src/nautilus-program-choosing.c b/src/nautilus-program-choosing.c
+index 544bf35..1c7fbd3 100644
+--- a/src/nautilus-program-choosing.c
++++ b/src/nautilus-program-choosing.c
+@@ -30,7 +30,9 @@
+ #include <gtk/gtk.h>
+ #include <glib/gi18n.h>
+ #include <gio/gio.h>
++#ifndef __APPLE__
+ #include <gio/gdesktopappinfo.h>
++#endif
+ #include <stdlib.h>
+ 
+ #include <gdk/gdk.h>
+diff --git a/src/nautilus-properties.c b/src/nautilus-properties.c
+index f9039cb..925c140 100644
+--- a/src/nautilus-properties.c
++++ b/src/nautilus-properties.c
+@@ -25,7 +25,9 @@
+ #include <gdk/gdkkeysyms.h>
+ #include <gio/gunixmounts.h>
+ #include <glib/gi18n.h>
++#ifndef __APPLE__
+ #include <glycin.h>
++#endif
+ #include <gtk/gtk.h>
+ #include <nautilus-extension.h>
+ #include <string.h>
+@@ -606,6 +608,101 @@ reset_icon (NautilusPropertiesWidget *self)
+     adw_toast_overlay_add_toast (self->toast_overlay, g_steal_pointer (&toast));
+ }
+ 
++#ifdef __APPLE__
++static void
++icon_loaded (GObject                  *source_object,
++             GAsyncResult             *result,
++             gpointer                  user_data)
++{
++    NautilusPropertiesWidget *self = user_data;
++    NautilusFile *file = get_file (self);
++    g_autoptr (GError) error = NULL;
++    g_autoptr (GFile) icon_location = g_steal_pointer (&self->icon_pending_location);
++    g_autoptr (GdkPixbuf) pixbuf = gdk_pixbuf_new_from_stream_finish (result, &error);
++
++    gtk_stack_set_visible_child (self->icon_stack, self->icon_overlay);
++
++    if (error != NULL || pixbuf == NULL || file == NULL || nautilus_file_is_gone (file))
++    {
++        if (error != NULL && error->code != G_IO_ERROR_CANCELLED)
++        {
++            nautilus_show_ok_dialog (_("Cannot Use This File"),
++                                     _("You can only use local images as custom icons."),
++                                     GTK_WIDGET (self));
++        }
++
++        return;
++    }
++    g_return_if_fail (icon_location != NULL);
++
++    /* Store path in file metadata */
++    g_autoptr (GFile) file_location = nautilus_file_get_location (file);
++    g_autofree char *path = g_file_get_relative_path (file_location, icon_location);
++
++    if (path == NULL)
++    {
++        path = g_file_get_uri (icon_location);
++    }
++
++    nautilus_file_set_metadata (file, NAUTILUS_METADATA_KEY_CUSTOM_ICON, NULL, path);
++}
++
++static void
++icon_stream_ready (GObject      *source_object,
++                   GAsyncResult *result,
++                   gpointer      user_data)
++{
++    NautilusPropertiesWidget *self = user_data;
++    g_autoptr (GError) error = NULL;
++    g_autoptr (GFileInputStream) stream = g_file_read_finish (G_FILE (source_object),
++                                                              result,
++                                                              &error);
++
++    if (stream == NULL)
++    {
++        gtk_stack_set_visible_child (self->icon_stack, self->icon_overlay);
++        g_clear_object (&self->icon_pending_location);
++
++        if (error->code != G_IO_ERROR_CANCELLED)
++        {
++            nautilus_show_ok_dialog (_("Cannot Use This File"),
++                                     _("You can only use local images as custom icons."),
++                                     GTK_WIDGET (self));
++        }
++
++        return;
++    }
++
++    /* Validate that the chosen file is a decodable image (glycin used to do
++     * this); gdk-pixbuf is the decoder available on macOS. */
++    gdk_pixbuf_new_from_stream_async (G_INPUT_STREAM (stream),
++                                      self->icon_cancellable,
++                                      icon_loaded,
++                                      self);
++}
++
++static void
++set_icon (NautilusPropertiesWidget *self,
++          GFile                    *location)
++{
++    g_return_if_fail (location != NULL);
++
++    if (self->icon_cancellable != NULL)
++    {
++        g_cancellable_cancel (self->icon_cancellable);
++        g_clear_object (&self->icon_cancellable);
++    }
++    self->icon_cancellable = g_cancellable_new ();
++    g_set_object (&self->icon_pending_location, location);
++
++    gtk_stack_set_visible_child_name (self->icon_stack, "loading");
++    g_file_read_async (location,
++                       G_PRIORITY_DEFAULT,
++                       self->icon_cancellable,
++                       icon_stream_ready,
++                       self);
++}
++#else
+ static void
+ icon_loaded (GlyLoader                *loader,
+              GAsyncResult             *result,
+@@ -666,6 +763,7 @@ set_icon (NautilusPropertiesWidget *self,
+     gtk_stack_set_visible_child_name (self->icon_stack, "loading");
+     gly_loader_load_async (loader, self->icon_cancellable, (GAsyncReadyCallback) icon_loaded, self);
+ }
++#endif /* __APPLE__ */
+ 
+ static void
+ nautilus_properties_widget_drag_drop_cb (GtkDropTarget *target,
+@@ -3955,13 +4053,42 @@ custom_icon_file_chooser_response_cb (GtkFileDialog            *dialog,
+     }
+ }
+ 
++#ifdef __APPLE__
++/* Replacement for gly_loader_get_mime_types(): the set of image types
++ * gdk-pixbuf can decode. */
++static GStrv
++get_loadable_image_mime_types (void)
++{
++    g_autoptr (GStrvBuilder) builder = g_strv_builder_new ();
++    GSList *format_list = gdk_pixbuf_get_formats ();
++
++    for (GSList *l = format_list; l != NULL; l = l->next)
++    {
++        g_auto (GStrv) types = gdk_pixbuf_format_get_mime_types (l->data);
++
++        for (gsize i = 0; types[i] != NULL; i++)
++        {
++            g_strv_builder_add (builder, types[i]);
++        }
++    }
++
++    g_slist_free (format_list);
++
++    return g_strv_builder_end (builder);
++}
++#endif
++
+ static void
+ select_image_button_callback (GtkWidget                *widget,
+                               NautilusPropertiesWidget *self)
+ {
+     g_autoptr (GtkFileDialog) dialog = gtk_file_dialog_new ();
+     g_autoptr (GtkFileFilter) filter = gtk_file_filter_new ();
++#ifdef __APPLE__
++    g_auto (GStrv) mime_types = get_loadable_image_mime_types ();
++#else
+     g_auto (GStrv) mime_types = gly_loader_get_mime_types ();
++#endif
+     NautilusFile *file = get_file (self);
+ 
+     gtk_file_dialog_set_title (dialog, _("Select Custom Icon"));

@@ -1,0 +1,11 @@
+{
+  "type": "reply",
+  "re": "23",
+  "ok": false,
+  "error": {
+    "code": "connection_lost",
+    "message": null,
+    "retryable": true,
+    "details": {}
+  }
+}

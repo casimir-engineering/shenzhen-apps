@@ -1,0 +1,28 @@
+{
+  "type": "snapshot",
+  "subscription": "s_9",
+  "view": "join",
+  "rev": 1,
+  "data": {
+    "actions": [
+      {
+        "action": "join_profile",
+        "friends_id": "cottage-violet",
+        "label": "Start again",
+        "style": "primary"
+      },
+      {
+        "action": "cancel_join",
+        "label": "Cancel",
+        "style": "secondary"
+      }
+    ],
+    "code_field": null,
+    "error": null,
+    "friends_id": "cottage-violet",
+    "id_field": null,
+    "message": "Your other computer chose Deny. Start again if you meant to approve it.",
+    "state": "denied",
+    "title": "This computer wasn’t approved"
+  }
+}

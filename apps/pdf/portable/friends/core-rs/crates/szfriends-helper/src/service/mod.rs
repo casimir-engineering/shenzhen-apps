@@ -1,0 +1,416 @@
+//! The Friends service behind the protocol server: identity, store, views, intents and sessions, joined on one
+//! thread as the Objective-C helper joins them on its queue (`service/helper/`). The presentation and the intents'
+//! field rules are `szfriends-core`'s; this is what acts on them.
+//!
+//! What it serves today, the first of the helper's areas to come over:
+//!
+//! - the badge, list, conversation, details, profile, settings and Nearby views, built from the store;
+//! - naming, messages and files to friends (offers, accepting, declining, cancelling, resuming), with the outbox's
+//!   delivery states, over IK sessions between friends;
+//! - nearby ([`nearby`], ADR 0004): discovery on the LAN, presence tags, the hidden and public listeners, friend
+//!   requests, Add by ID and visibility; in a test home only test networks (a directory of entries on loopback, or a
+//!   test service type), never the person's network;
+//! - online ([`online`]): friends over the Internet, only in a test home whose test host list names loopback hosts
+//!   (a person's own home would need the host's `wss://`, so messages for friends out of reach wait and say so). A
+//!   friend is reached direct on the same network, then peer to peer, then over Bluetooth, then through the relay
+//!   (`szfriends_core::wire::route::rank`): the session race keeps the best, and neither side dials a worse route;
+//! - one profile on several computers ([`devices`], ADR 0012 to 0014): Your computers, joining over nearby, and sync
+//!   with our other devices over the same nearby and online routes (`nearby/join.rs`, `nearby/own.rs`).
+//!
+//! - links ([`friend_links`], `links.rs`, `link_receive.rs`; PROTOCOL.md § Links): Add from a mention or a friend
+//!   link, download links made and served, and download links received through a guest connection to the host.
+//!
+//! Search answers `unavailable` until its area comes over.
+
+mod devices;
+mod facts;
+mod friend_links;
+mod intents;
+mod link;
+#[cfg(feature = "online")]
+mod link_open;
+#[cfg(feature = "online")]
+mod link_receive;
+#[cfg(feature = "online")]
+mod links;
+pub mod nearby;
+#[cfg(feature = "online")]
+mod online;
+#[cfg(not(feature = "online"))]
+#[path = "online_off.rs"]
+mod online;
+pub mod seed;
+mod sessions;
+mod transfers;
+mod views;
+
+use std::collections::HashMap;
+use std::path::Path;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::mpsc::{channel, Receiver, RecvTimeoutError, Sender};
+use std::sync::{Arc, Mutex};
+use std::time::Duration;
+
+use serde_json::{json, Value};
+use szfriends_contract::handshake::ClientInfo;
+use szfriends_core::identity::Identity;
+use szfriends_core::presentation::{Audience, Strings};
+use szfriends_core::store::Store;
+use szfriends_identity::keystore::{IdentityManager, KeyStore, StoreIdentity};
+
+use crate::events::SystemEvent;
+use crate::log;
+use crate::presentation::Presentation;
+use crate::server::{Connection, Reply};
+
+/// The test network a helper in a test home meets others on (a directory of entries on loopback).
+pub const ENV_TEST_LOOPBACK: &str = crate::nearby::ENV_TEST_NETWORK;
+pub use online::{BLOCK_DIRECT_FILE, ENV_TEST_HOST_KEYS, ENV_TEST_HOST_LIST};
+
+/// What the service announces in every welcome (PROTOCOL.md § Capabilities); `nearby.bluetooth` too where this
+/// helper has a Bluetooth adapter (not on Windows, nor on Linux without the `bluetooth` feature). `devices`: one
+/// profile on several computers, joined and synced over the same nearby and online routes friends use.
+const CAPABILITIES: &[&str] = &["nearby.network", "messages.status", "messages.cancel", "mentions", "devices"];
+
+fn capabilities(bluetooth: bool) -> Vec<String> {
+    let mut capabilities: Vec<String> = CAPABILITIES.iter().map(|c| (*c).to_owned()).collect();
+    if bluetooth {
+        capabilities.insert(1, "nearby.bluetooth".to_owned());
+    }
+    capabilities
+}
+
+pub(crate) enum Input {
+    Connected(Connection),
+    Intent(Connection, Value, Reply),
+    Disconnected(u64),
+    System(SystemEvent),
+    Nearby(crate::nearby::Event),
+    Link(link::LinkEvent),
+    #[cfg(feature = "online")]
+    Online(szfriends_online::OnlineEvent),
+    /// Work that finished off the service's thread, to be completed on it.
+    #[cfg_attr(not(feature = "online"), allow(dead_code))]
+    Deferred(Box<dyn FnOnce(&mut State) + Send>),
+    Shutdown(Sender<()>),
+}
+
+/// The service, shared by the protocol server's threads; all work happens on its own thread.
+pub struct Service {
+    input: Mutex<Sender<Input>>,
+    busy: Arc<AtomicBool>,
+    identity_key: Option<[u8; 32]>,
+    capabilities: Vec<String>,
+}
+
+impl std::fmt::Debug for Service {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Service").field("busy", &self.busy.load(Ordering::Relaxed)).finish()
+    }
+}
+
+/// Why the service could not start; the helper then serves the stub, which says nothing is there.
+#[derive(Debug)]
+pub enum StartError {
+    Identity(String),
+    Store(String),
+}
+
+impl std::fmt::Display for StartError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Identity(why) => write!(f, "identity: {why}"),
+            Self::Store(why) => write!(f, "store: {why}"),
+        }
+    }
+}
+
+/// The audience a connection's snapshots are worded for.
+pub(crate) fn audience(client: &ClientInfo, capabilities: &[String]) -> Audience {
+    Audience {
+        app_name: client.app_name.clone(),
+        reveal_in: client.reveal_in.clone(),
+        locale: client.locale.clone(),
+        capabilities: client.capabilities.clone(),
+        open_formats: client.open_formats.clone(),
+        helper_capabilities: capabilities.iter().cloned().collect(),
+        time_zone: local_time_zone(),
+    }
+}
+
+/// This computer's time zone, so a time reads as the clock here does ("Today at 14:40"), daylight saving
+/// included; UTC only where the system cannot say.
+pub(crate) fn local_time_zone() -> szfriends_core::presentation::time::TimeZone {
+    szfriends_core::presentation::time::TimeZone::from_fn(|instant| {
+        szfriends_helper_sys::local_time::utc_offset_at(instant.floor() as i64).unwrap_or(0)
+    })
+}
+
+impl Service {
+    /// Loads the identity for the store in `state_dir` (creating both on a first start), opens the store and starts
+    /// the service's thread.
+    pub fn start(state_dir: &Path, keys: Box<dyn KeyStore>) -> Result<Arc<Self>, StartError> {
+        std::fs::create_dir_all(state_dir).map_err(|e| StartError::Store(e.to_string()))?;
+        let recorded = Store::identity_of(state_dir).map_err(|e| StartError::Store(e.to_string()))?;
+        let manager = IdentityManager::new(Keys(keys));
+        let (identity, _) = manager.load_or_create(recorded).map_err(|e| StartError::Identity(format!("{e:?}")))?;
+        let mut store = Store::open(state_dir).map_err(|e| StartError::Store(e.to_string()))?;
+        if recorded == StoreIdentity::NoStore {
+            store.record_identity(&identity.public_key()).map_err(|e| StartError::Store(e.to_string()))?;
+        }
+        Ok(Self::run(identity, store))
+    }
+
+    fn run(identity: Identity, store: Store) -> Arc<Self> {
+        let (input, inbox) = channel();
+        let busy = Arc::new(AtomicBool::new(false));
+        let identity_key = Some(identity.public_key());
+        let state = State::new(identity, store, input.clone(), busy.clone());
+        let capabilities = state.capabilities.clone();
+        let spawned = std::thread::Builder::new().name("szfriends-service".into()).spawn(move || run(state, inbox));
+        if let Err(error) = spawned {
+            log!("no service thread: {error}");
+        }
+        Arc::new(Self { input: Mutex::new(input), busy, identity_key, capabilities })
+    }
+
+    fn send(&self, input: Input) {
+        let _ = self.input.lock().unwrap_or_else(|e| e.into_inner()).send(input);
+    }
+
+    /// This helper's identity key.
+    pub fn identity_key(&self) -> Option<[u8; 32]> {
+        self.identity_key
+    }
+}
+
+impl Presentation for Service {
+    fn welcome(&self, client: &ClientInfo) -> Value {
+        let strings = Strings::new(audience(client, &self.capabilities));
+        json!({"capabilities": self.capabilities, "strings": strings.static_strings()})
+    }
+
+    fn connected(&self, connection: &Connection) {
+        self.send(Input::Connected(connection.clone()));
+    }
+
+    fn intent(&self, connection: &Connection, intent: &Value, reply: Reply) {
+        self.send(Input::Intent(connection.clone(), intent.clone(), reply));
+    }
+
+    fn disconnected(&self, connection_id: u64) {
+        self.send(Input::Disconnected(connection_id));
+    }
+
+    fn system_event(&self, event: SystemEvent) {
+        self.send(Input::System(event));
+    }
+
+    fn work_in_flight(&self) -> bool {
+        self.busy.load(Ordering::SeqCst)
+    }
+
+    fn shutdown(&self) {
+        let (done, wait) = channel();
+        self.send(Input::Shutdown(done));
+        let _ = wait.recv_timeout(Duration::from_secs(2));
+    }
+}
+
+/// One client's subscriptions and wording.
+pub(crate) struct Client {
+    pub connection: Connection,
+    pub audience: Audience,
+    pub subscriptions: HashMap<String, views::Subscription>,
+}
+
+/// Everything the service's thread owns.
+pub(crate) struct State {
+    pub identity: Identity,
+    pub store: Store,
+    pub clients: HashMap<u64, Client>,
+    pub next_subscription: u64,
+    pub input: Sender<Input>,
+    pub busy: Arc<AtomicBool>,
+    pub sessions: sessions::Sessions,
+    pub nearby: nearby::Nearby,
+    pub online: Option<online::OnlineRoutes>,
+    /// The download links the online thread serves.
+    #[cfg(feature = "online")]
+    pub links: links::LinkShelf,
+    #[cfg(feature = "online")]
+    pub links_swept_at: f64,
+    /// Download links being received, by number.
+    #[cfg(feature = "online")]
+    pub link_receipts: HashMap<u64, link_receive::Receipt>,
+    #[cfg(feature = "online")]
+    pub next_receipt: u64,
+    /// What this helper announces.
+    pub capabilities: Vec<String>,
+    /// One profile on several computers: the join state and the sync engine.
+    pub devices: devices::DeviceArea,
+    /// Something changed since the views were last brought up to date.
+    pub dirty: bool,
+    /// Answered once the thread has closed the store (shutdown).
+    stopped: Option<Sender<()>>,
+}
+
+impl State {
+    fn new(identity: Identity, mut store: Store, input: Sender<Input>, busy: Arc<AtomicBool>) -> Self {
+        let test_home = std::env::var_os(crate::state::ENV_STATE_DIR).is_some();
+        let adapters = crate::nearby::adapters(store.state_dir(), test_home, nearby::sink(input.clone()));
+        let nearby = nearby::Nearby::new(adapters, store.visibility_deadline());
+        let mut capabilities = capabilities(nearby.has_adapter(szfriends_core::nearby::Method::Bluetooth));
+        #[cfg(feature = "online")]
+        let links = links::LinkShelf::default();
+        #[cfg(feature = "online")]
+        let online = online::OnlineRoutes::from_environment(
+            &identity,
+            &mut store,
+            input.clone(),
+            Box::new(links.clone()),
+            nearby.policy.clone(),
+        );
+        #[cfg(not(feature = "online"))]
+        let online = online::OnlineRoutes::from_environment(&identity, &mut store, input.clone());
+        let devices = devices::DeviceArea::new(&identity, store.state_dir().join("received"));
+        // Links are made for the Friends host's pages, so only a helper that checks in offers them.
+        if online.is_some() {
+            capabilities.push("links".to_owned());
+        }
+        Self {
+            identity,
+            store,
+            clients: HashMap::new(),
+            next_subscription: 0,
+            input,
+            busy,
+            sessions: sessions::Sessions::default(),
+            nearby,
+            online,
+            #[cfg(feature = "online")]
+            links,
+            #[cfg(feature = "online")]
+            links_swept_at: 0.0,
+            #[cfg(feature = "online")]
+            link_receipts: HashMap::new(),
+            #[cfg(feature = "online")]
+            next_receipt: 0,
+            capabilities,
+            devices,
+            dirty: false,
+            stopped: None,
+        }
+    }
+
+    /// Marks the views for an update after the current input.
+    pub fn changed(&mut self) {
+        self.dirty = true;
+    }
+
+    fn handle(&mut self, input: Input) -> bool {
+        match input {
+            Input::Connected(connection) => {
+                if let Some(client) = connection.client() {
+                    let audience = audience(&client, &self.capabilities);
+                    let id = connection.id();
+                    self.clients.insert(id, Client { connection, audience, subscriptions: HashMap::new() });
+                }
+            }
+            Input::Intent(connection, frame, reply) => self.intent(&connection, &frame, reply),
+            Input::Disconnected(id) => {
+                self.clients.remove(&id);
+            }
+            Input::System(event) => self.system_event(event),
+            Input::Nearby(event) => self.nearby_event(event),
+            Input::Link(event) => self.link_event(event),
+            #[cfg(feature = "online")]
+            Input::Online(event) => self.online_event(event),
+            Input::Deferred(work) => work(self),
+            Input::Shutdown(done) => {
+                drop(self.online.take());
+                let _ = self.store.flush_progress();
+                self.stop_nearby();
+                self.close_all_sessions();
+                self.stopped = Some(done);
+                return false;
+            }
+        }
+        true
+    }
+
+    fn system_event(&mut self, event: SystemEvent) {
+        match event {
+            // Before sleep, received bytes are made durable at a verified offset; sessions end with the network.
+            SystemEvent::Sleep => {
+                let _ = self.store.flush_progress();
+            }
+            SystemEvent::Wake | SystemEvent::NetworkChanged => {
+                if let Some(online) = &self.online {
+                    online.network_changed();
+                }
+                self.restart_nearby_after_wake();
+            }
+        }
+    }
+}
+
+fn run(mut state: State, inbox: Receiver<Input>) {
+    #[cfg(feature = "online")]
+    state.refresh_links();
+    state.start_nearby();
+    loop {
+        let wait = state.next_wakeup().min(Duration::from_millis(250));
+        match inbox.recv_timeout(wait) {
+            Ok(input) => {
+                if !state.handle(input) {
+                    break;
+                }
+            }
+            Err(RecvTimeoutError::Timeout) => state.tick(),
+            Err(RecvTimeoutError::Disconnected) => break,
+        }
+        state.service_sessions();
+        if state.dirty {
+            state.dirty = false;
+            state.schedule_sync_capture();
+            state.update_views();
+        }
+        let moving = state.sessions.moving();
+        state.busy.store(moving, Ordering::SeqCst);
+    }
+    // The store is closed before shutdown is answered, so whoever waited may reopen or remove it at once.
+    let stopped = state.stopped.take();
+    drop(state);
+    if let Some(done) = stopped {
+        let _ = done.send(());
+    }
+}
+
+/// The platform's key store, behind the generic manager.
+struct Keys(Box<dyn KeyStore>);
+
+impl KeyStore for Keys {
+    fn secret(&self, name: &str) -> Result<Option<zeroize::Zeroizing<Vec<u8>>>, szfriends_identity::IdentityError> {
+        self.0.secret(name)
+    }
+
+    fn store(&self, name: &str, secret: &[u8]) -> Result<(), szfriends_identity::IdentityError> {
+        self.0.store(name, secret)
+    }
+
+    fn delete(&self, name: &str) -> Result<(), szfriends_identity::IdentityError> {
+        self.0.delete(name)
+    }
+}
+
+pub(crate) fn hex(bytes: &[u8]) -> String {
+    bytes.iter().map(|b| format!("{b:02x}")).collect()
+}
+
+pub(crate) fn unhex(text: &str) -> Option<Vec<u8>> {
+    if text.len() % 2 != 0 {
+        return None;
+    }
+    (0..text.len()).step_by(2).map(|i| u8::from_str_radix(text.get(i..i + 2)?, 16).ok()).collect()
+}

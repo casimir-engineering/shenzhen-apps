@@ -1,0 +1,47 @@
+// Seams the two-helper harness sets before the helper starts. Internal to the helper.
+//
+// The production executable (main.m) never touches these, so every value keeps its default there: no extra
+// adapters, every ACK sent, no pacing, the real clock. The harness links the same helper objects with its own main
+// (portable/friends/tests/e2e/), which sets them from its environment before calling SZFriendsHelperMain. WHY not
+// environment variables read by the helper itself: a shipped helper must not change how it delivers because of
+// its environment.
+
+#import <Foundation/Foundation.h>
+
+#import "service/discovery/SZFriendsDiscovery.h"
+
+NS_ASSUME_NONNULL_BEGIN
+
+@interface SZFriendsHelperTestHooks : NSObject
+// Adapters added beside the ones SZFriendsHelperMakeAdapters picks (the harness's scripted slow Bluetooth).
+@property(class, nonatomic, copy, nullable) NSArray<id<SZFriendsDiscoveryAdapter>> * (^extraAdapters)
+    (dispatch_queue_t queue);
+// Commit received messages and files but never acknowledge them: the sender keeps them in flight and resends
+// after a reconnect, which is how the harness proves duplicates are suppressed.
+@property(class, nonatomic) BOOL withholdAcknowledgements;
+// Caps outgoing chunk bytes per second (0: no cap), so a transfer on loopback lasts long enough to be killed
+// part-way through.
+@property(class, nonatomic) double chunkBytesPerSecond;
+// Added to the wall clock the outbox expiry reads, so "30 days later" needs no waiting.
+@property(class, nonatomic) NSTimeInterval outboxClockOffset;
+// Replaces SZFriendsStrangerIdleTimeout (60 s) when above 0, so the harness sees an idle stranger's session end
+// within a scenario's budget.
+@property(class, nonatomic) NSTimeInterval strangerIdleTimeout;
+// Replaces SZFriendsStrangerSessionLife (3 minutes) when above 0, for the same reason.
+@property(class, nonatomic) NSTimeInterval strangerSessionLife;
+// The Friends ID a first start takes instead of a random draw, so two helpers can hold one unreserved ID (Add by ID
+// with two holders, and a collision at the host).
+@property(class, nonatomic, copy, nullable) NSString *initialFriendsID;
+@end
+
+// The adapters this helper runs. Production (no SZFRIENDS_STATE_DIR): Network.framework and CoreBluetooth. Under
+// SZFRIENDS_STATE_DIR (tests, probes, the harness) never a real radio and never a non-loopback interface: the
+// loopback network adapter for the Bonjour type in SZFRIENDS_TEST_SERVICE_TYPE when it is a valid test type
+// ("_" + 1 to 15 letters, digits or hyphens + "._tcp", never the production type), nothing otherwise; then
+// whatever SZFriendsHelperTestHooks.extraAdapters adds. Creating adapters creates no browser, listener or manager.
+NSArray<id<SZFriendsDiscoveryAdapter>> *SZFriendsHelperMakeAdapters(dispatch_queue_t queue,
+                                                                    NSDictionary<NSString *, NSString *> *env);
+// The rule for SZFRIENDS_TEST_SERVICE_TYPE, exposed for the unit tests.
+BOOL SZFriendsHelperTestServiceTypeIsValid(NSString *_Nullable serviceType);
+
+NS_ASSUME_NONNULL_END

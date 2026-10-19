@@ -1,0 +1,55 @@
+== File ==
+New Window | char=N mods=0
+New Tab | char=T mods=0
+New Folder | char=N mods=1
+Open | char=O mods=0
+Open in New Tab | char=missing value mods=8
+Open in New Window | char=missing value mods=8
+Get Info | char=I mods=0
+Rename… | char= mods=8
+Find | char=F mods=0
+Search Everywhere | char=F mods=1
+Close Tab | char=W mods=0
+Close Window | char=W mods=1
+== Edit ==
+Undo | char=missing value mods=8
+Redo | char=missing value mods=8
+Cut | char=missing value mods=8
+Copy | char=missing value mods=8
+Paste | char=missing value mods=8
+Select All | char=missing value mods=8
+Move to Trash | char= mods=0
+== View ==
+as Icons | char=1 mods=0
+as List | char=2 mods=0
+Sort By | char=missing value mods=8
+Show Hidden Files | char=. mods=1
+Zoom In | char== mods=0
+Zoom Out | char=- mods=0
+Actual Size | char=0 mods=0
+Reload | char=R mods=0
+Stop | char=missing value mods=8
+Show Sidebar | char= mods=8
+== Go ==
+Back | char=[ mods=0
+Forward | char=] mods=0
+Enclosing Folder | char=missing value mods=8
+Home | char=H mods=1
+Starred | char=missing value mods=8
+Enter Location… | char=G mods=1
+== Window ==
+Fill | char=F mods=28
+Center | char=C mods=28
+Move & Resize | char=missing value mods=0
+Full Screen Tile | char=missing value mods=0
+Remove Window from Set | char=missing value mods=0
+Move to Built-in Retina Display | char=missing value mods=0
+Minimize | char=M mods=0
+Zoom | char=missing value mods=8
+Restore Closed Tab | char=T mods=1
+Move Tab to New Window | char=missing value mods=8
+w1-qa | char=missing value mods=0
+== Help ==
+Keyboard Shortcuts | char=? mods=0
+Files Help | char= mods=8
+

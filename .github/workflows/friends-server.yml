@@ -1,0 +1,25 @@
+name: Friends host
+on:
+  push:
+    branches: [main]
+    paths: ['apps/pdf/portable/server/friends/**', '.github/workflows/friends-server.yml']
+  pull_request:
+    paths: ['apps/pdf/portable/server/friends/**', '.github/workflows/friends-server.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+defaults:
+  run:
+    working-directory: apps/pdf/portable/server/friends
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/pdf/portable/server/friends/package-lock.json
+      - run: npm ci
+      - run: npm test

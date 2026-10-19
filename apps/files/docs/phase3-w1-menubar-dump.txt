@@ -1,0 +1,189 @@
+Apple
+  About This Mac
+  System Information
+  ---
+  System Settings…
+  App Store
+  ---
+  Recent Items
+    Applications
+    Finder.app
+    Show “Finder.app” in Finder
+    Google Sheets.app
+    Show “Google Sheets.app” in Finder
+    KiCad.app
+    Show “KiCad.app” in Finder
+    Nautilus.app
+    Show “Nautilus.app” in Finder
+    Preview.app
+    Show “Preview.app” in Finder
+    Safari.app
+    Show “Safari.app” in Finder
+    ShenzhenPDF.app
+    Show “ShenzhenPDF.app” in Finder
+    System Settings.app
+    Show “System Settings.app” in Finder
+    Terminal.app
+    Show “Terminal.app” in Finder
+    TextEdit.app
+    Show “TextEdit.app” in Finder
+    ---
+    Documents
+    big-2400.pdf
+    Show “big-2400.pdf” in Finder
+    cap.command
+    Show “cap.command” in Finder
+    HANDOFF_2026-07-09_CJ2_HDMI_ECO.md
+    Show “HANDOFF_2026-07-09_CJ2_HDMI_ECO.md” in Finder
+    sample_icd.xlsx
+    Show “sample_icd.xlsx” in Finder
+    sample-audio.kicad_pro
+    Show “sample-audio.kicad_pro” in Finder
+    diagram0706.drawio
+    Show “diagram0706.drawio” in Finder
+    Sample40_DS_1.02.pdf
+    Show “Sample40_DS_1.02.pdf” in Finder
+    screenhunter-76-dec.-15-15.07.jpg
+    Show “screenhunter-76-dec.-15-15.07.jpg” in Finder
+    w2-test.pdf
+    Show “w2-test.pdf” in Finder
+    w2-test.txt
+    Show “w2-test.txt” in Finder
+    ---
+    Servers
+    ---
+    Clear Menu
+  ---
+  Force Quit…
+  Force Quit nautilus
+  ---
+  Sleep
+  Restart…
+  Restart
+  Shut Down…
+  Shut Down
+  ---
+  Lock Screen
+  Log Out Raphael…
+  Log Out Raphael
+  ---
+nautilus
+  About nautilus
+  ---
+  Settings…
+  ---
+  Services
+    Activity Monitor
+    Allocations & Leaks
+    File Activity
+    System Trace
+    Time Profile Active Application
+    Time Profile App Under Mouse
+    Time Profile Entire System
+    Toggle Instruments Recording
+    Services Settings…
+  ---
+  Hide nautilus
+  Hide Others
+  Show All
+  ---
+  Quit nautilus
+File
+  New Window
+  New Tab
+  New Folder
+  ---
+  Open
+  Open in New Tab
+  Open in New Window
+  ---
+  Get Info
+  Rename…
+  ---
+  Find
+  Search Everywhere
+  ---
+  Close Tab
+  Close Window
+Edit
+  Undo
+  Redo
+  ---
+  Cut
+  Copy
+  Paste
+  Select All
+  ---
+  Move to Trash
+View
+  as Icons
+  as List
+  ---
+  Sort By
+  ---
+  Show Hidden Files
+  ---
+  Zoom In
+  Zoom Out
+  Actual Size
+  ---
+  Reload
+  Stop
+  ---
+  Show Sidebar
+Go
+  Back
+  Forward
+  Enclosing Folder
+  ---
+  Home
+  Starred
+  ---
+  Enter Location…
+Window
+  Fill
+  Center
+  ---
+  Move & Resize
+    Halves
+    Left
+    Right
+    Top
+    Bottom
+    ---
+    Quarters
+    Top Left
+    Top Right
+    Bottom Left
+    Bottom Right
+    ---
+    Arrange
+    Left & Right
+    Left & Quarters
+    Right & Left
+    Right & Quarters
+    Top & Bottom
+    Top & Quarters
+    Bottom & Top
+    Bottom & Quarters
+    Quarters
+    ---
+    Return to Previous Size
+  Full Screen Tile
+    Left of Screen
+    Right of Screen
+  ---
+  Remove Window from Set
+  ---
+  Move to Built-in Retina Display
+  Minimize
+  Zoom
+  ---
+  Restore Closed Tab
+  Move Tab to New Window
+  ---
+  w1-qa
+Help
+  Keyboard Shortcuts
+  Files Help
+

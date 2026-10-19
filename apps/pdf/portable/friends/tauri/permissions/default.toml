@@ -1,0 +1,13 @@
+"$schema" = "schemas/schema.json"
+
+[default]
+description = """
+Everything the Friends panel needs: joining, status, intents to the Friends service, previews and pictures, the
+animal set, dropped and staged files, opening received files and links. Grant it to the app's main window only,
+in a capability with no remote URLs, so no other window, frame or page can reach Friends.
+"""
+permissions = [
+  "allow-join", "allow-status", "allow-send", "allow-set-enabled", "allow-image", "allow-animal", "allow-animals",
+  "allow-classify", "allow-stage", "allow-token", "allow-open-file", "allow-show-file", "allow-open-settings",
+  "allow-open-url", "allow-shareable", "allow-drop-paths", "allow-drag-over",
+]

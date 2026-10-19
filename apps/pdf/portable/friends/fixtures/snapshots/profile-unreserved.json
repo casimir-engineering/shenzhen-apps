@@ -1,0 +1,48 @@
+{
+  "type": "snapshot",
+  "subscription": "s_7",
+  "view": "profile",
+  "rev": 1,
+  "data": {
+    "title": "Your profile and ID",
+    "back": {
+      "badge_count": 2,
+      "badge_label": "2",
+      "accessibility_label": "Back to Friends, 2 waiting"
+    },
+    "name": {
+      "label": "Name friends see",
+      "value": "Raph",
+      "placeholder": "Your name",
+      "max_length": 40
+    },
+    "picture": {
+      "avatar": {
+        "kind": "animal",
+        "set": 1,
+        "index": 0,
+        "initials": "R",
+        "color": "#5a4a7a"
+      },
+      "choose_label": "Change picture…",
+      "own_picture_label": "Use your own picture…",
+      "animal_set": 1,
+      "selected_index": 0
+    },
+    "id": {
+      "label": "Your ID",
+      "friends_id": "cottage-violet",
+      "state": "unreserved",
+      "note": "Your ID works nearby now. If it’s already taken, you’ll get a new one the next time ShenzhenPDF reaches the Friends server.",
+      "copy_label": "Copy",
+      "qr_label": null,
+      "qr_payload": null
+    },
+    "add": {
+      "label": "Add someone by ID",
+      "placeholder": "Their ID",
+      "button_label": "Send request",
+      "hint": "Two words, like amber‑falcon."
+    }
+  }
+}

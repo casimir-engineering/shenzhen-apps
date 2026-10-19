@@ -1,0 +1,331 @@
+{
+  "date": "2026-10-15T20:17:16.288Z",
+  "hardware": {
+    "vendor": "apple",
+    "architecture": "metal-3",
+    "device": "",
+    "description": "",
+    "isFallbackAdapter": false
+  },
+  "model": "materials",
+  "states": [
+    {
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0
+    },
+    {
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.1
+    },
+    {
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.2
+    },
+    {
+      "type": "state",
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.05,
+      "estimatedBytes": 68020512
+    },
+    {
+      "type": "state",
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.275
+    },
+    {
+      "type": "state",
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.44999999999999996
+    },
+    {
+      "type": "state",
+      "status": "preparing",
+      "samples": 0,
+      "target": 32,
+      "progress": 0.5
+    },
+    {
+      "type": "state",
+      "status": "rendering",
+      "samples": 0,
+      "target": 32,
+      "progress": 0,
+      "estimatedBytes": 68020512
+    },
+    {
+      "type": "state",
+      "status": "rendering",
+      "samples": 0,
+      "target": 32,
+      "progress": 0
+    },
+    {
+      "type": "state",
+      "status": "rendering",
+      "samples": 1,
+      "target": 32,
+      "progress": 0
+    },
+    {
+      "type": "state",
+      "status": "rendering",
+      "samples": 2,
+      "target": 32,
+      "progress": 0
+    },
+    {
+      "type": "state",
+      "status": "rendering",
+      "samples": 3,
+      "target": 32,
+      "progress": 0
+    },
+    {
+      "type": "state",
+      "status": "rendering",
+      "samples": 4,
+      "target": 32,
+      "progress": 0
+    },
+    {
+      "type": "state",
+      "status": "rendering",
+      "samples": 5,
+      "target": 32,
+      "progress": 0.03125
+    },
+    {
+      "type": "state",
+      "status": "rendering",
+      "samples": 6,
+      "target": 32,
+      "progress": 0.03125
+    },
+    {
+      "type": "state",
+      "status": "rendering",
+      "samples": 7,
+      "target": 32,
+      "progress": 0.03125
+    },
+    {
+      "type": "state",
+      "status": "rendering",
+      "samples": 8,
+      "target": 32,
+      "progress": 0.03125
+    },
+    {
+      "type": "state",
+      "status": "rendering",
+      "samples": 9,
+      "target": 32,
+      "progress": 0.03125
+    },
+    {
+      "type": "state",
+      "status": "rendering",
+      "samples": 10,
+      "target": 32,
+      "progress": 0.0625
+    },
+    {
+      "type": "state",
+      "status": "rendering",
+      "samples": 11,
+      "target": 32,
+      "progress": 0.0625
+    },
+    {
+      "type": "state",
+      "status": "rendering",
+      "samples": 12,
+      "target": 32,
+      "progress": 0.0625
+    },
+    {
+      "type": "state",
+      "status": "rendering",
+      "samples": 13,
+      "target": 32,
+      "progress": 0.0625
+    },
+    {
+      "type": "state",
+      "status": "rendering",
+      "samples": 14,
+      "target": 32,
+      "progress": 0.0625
+    },
+    {
+      "type": "state",
+      "status": "rendering",
+      "samples": 15,
+      "target": 32,
+      "progress": 0.0625
+    },
+    {
+      "type": "state",
+      "status": "rendering",
+      "samples": 16,
+      "target": 32,
+      "progress": 0.0625
+    },
+    {
+      "type": "state",
+      "status": "rendering",
+      "samples": 17,
+      "target": 32,
+      "progress": 0.09375
+    },
+    {
+      "type": "state",
+      "status": "rendering",
+      "samples": 18,
+      "target": 32,
+      "progress": 0.09375
+    },
+    {
+      "type": "state",
+      "status": "rendering",
+      "samples": 19,
+      "target": 32,
+      "progress": 0.125
+    },
+    {
+      "type": "state",
+      "status": "rendering",
+      "samples": 20,
+      "target": 32,
+      "progress": 0.125
+    },
+    {
+      "type": "state",
+      "status": "rendering",
+      "samples": 21,
+      "target": 32,
+      "progress": 0.125
+    },
+    {
+      "type": "state",
+      "status": "rendering",
+      "samples": 22,
+      "target": 32,
+      "progress": 0.15625
+    },
+    {
+      "type": "state",
+      "status": "rendering",
+      "samples": 23,
+      "target": 32,
+      "progress": 0.15625
+    },
+    {
+      "type": "state",
+      "status": "rendering",
+      "samples": 24,
+      "target": 32,
+      "progress": 0.15625
+    },
+    {
+      "type": "state",
+      "status": "rendering",
+      "samples": 25,
+      "target": 32,
+      "progress": 0.15625
+    },
+    {
+      "type": "state",
+      "status": "rendering",
+      "samples": 26,
+      "target": 32,
+      "progress": 0.15625
+    },
+    {
+      "type": "state",
+      "status": "rendering",
+      "samples": 27,
+      "target": 32,
+      "progress": 0.15625
+    },
+    {
+      "type": "state",
+      "status": "rendering",
+      "samples": 28,
+      "target": 32,
+      "progress": 0.1875
+    },
+    {
+      "type": "state",
+      "status": "rendering",
+      "samples": 29,
+      "target": 32,
+      "progress": 0.1875
+    },
+    {
+      "type": "state",
+      "status": "rendering",
+      "samples": 30,
+      "target": 32,
+      "progress": 0.1875
+    },
+    {
+      "type": "state",
+      "status": "rendering",
+      "samples": 31,
+      "target": 32,
+      "progress": 0.3125
+    },
+    {
+      "type": "state",
+      "status": "ready",
+      "samples": 32,
+      "target": 32,
+      "progress": 1
+    }
+  ],
+  "scene": {
+    "instances": 3,
+    "uniqueTriangles": 1072,
+    "geometryBytes": 120288,
+    "textureBytes": 64,
+    "estimatedBytes": 125216,
+    "materials": 2,
+    "geometryCount": 2
+  },
+  "colors": 912,
+  "immutable": true,
+  "navigationPauseResume": true,
+  "pngReadback": true,
+  "displayParity": {
+    "backgroundDisplayed": [
+      9,
+      16,
+      21,
+      255
+    ],
+    "backgroundExported": [
+      9,
+      16,
+      21,
+      255
+    ],
+    "meanChannelError": 0,
+    "maxChannelError": 0,
+    "channelsOver3": 0,
+    "totalChannels": 196608
+  },
+  "shaderErrors": []
+}

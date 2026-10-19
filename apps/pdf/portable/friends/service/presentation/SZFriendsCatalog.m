@@ -1,0 +1,323 @@
+// Shenzhen Friends strings catalog, English, part one: chrome, time and size words, the list, conversations.
+// Part two (SZFriendsCatalogViews.m) holds Nearby, details, profile, Settings, search and error messages.
+//
+// Every string here is read by someone using Friends, not by us: say what happens to their message or file and
+// what they can do, never the mechanism ("Sends when Mei is nearby", not "Queued (no route)"). {name} marks a value
+// the code fills in; "<key>.one" / "<key>.other" are plural forms. A translation is a second table with the same
+// keys; languages without plural forms supply ".other" only. Apostrophes are typographic (’), like the host's own
+// text, since these lines show beside it (an AI chat card, a reply's message).
+
+#import "service/presentation/SZFriendsPresentationPrivate.h"
+
+
+static NSDictionary<NSString *, NSString *> *CoreEntries(void) {
+    return @{
+        // welcome.strings (PROTOCOL.md § Static strings)
+        @"static.button_label" : @"Friends",
+        @"static.tab_friends" : @"Friends",
+        @"static.tab_nearby" : @"Nearby",
+        @"static.search_placeholder" : @"Search names and IDs",
+        @"static.people_nearby" : @"People nearby",
+        @"static.back" : @"Back",
+        @"static.copy" : @"Copy",
+        @"static.copied" : @"Copied",
+        @"static.copy_your_id" : @"Copy your ID",
+        @"static.edit_name" : @"Change the name friends see",
+        @"static.conversation_search_placeholder" : @"Search this conversation",
+        @"static.attach_keys" : @"↵ Attach · Esc Close",
+        @"static.attach_note" : @"Attaching sends nothing yet",
+        @"static.drop_hint" : @"Drop on a friend to send. Release on the Friends button to choose afterwards.",
+        @"static.drop_folders_refused" : @"Folders can’t be sent yet",
+        // Over a target that takes files, while a symbolic link or a special file (a FIFO, socket or device) is
+        // dragged: the helper sends only a regular file it checked itself, so say what to drop instead.
+        @"static.drop_not_a_file" : @"Links and special files can’t be sent. Drop the original file instead.",
+        @"static.drop_send_one" : @"Send 1 file to…",
+        @"static.drop_send_many" : @"Send {count} files to…",
+        // The views fill {name} with the first file's name and {count} with how many follow it (PROTOCOL.md § Static
+        // strings), so the person sees which files are about to go before choosing whom to send them to.
+        @"static.drop_send_file" : @"Send {name} to…",
+        @"static.drop_send_file_and_more" : @"Send {name} and {count} more to…",
+        @"static.animals_title" : @"Choose an animal",
+        @"static.crop_title" : @"Crop your picture",
+        @"static.crop_use" : @"Use Picture",
+        @"static.cancel" : @"Cancel",
+        @"static.loading" : @"Loading…",
+        @"static.load_earlier" : @"Show earlier messages",
+        // The menu a click on a link in a friend's message opens. Views fill {host} with where the link really goes
+        // (a host, or an email address) and {shown} with the site its words show, so a link dressed as another site
+        // says so before anything opens.
+        @"static.link_open" : @"Open in Browser",
+        @"static.link_open_email" : @"New Email",
+        @"static.link_elsewhere" : @"Goes to {host}, not {shown}",
+        // When queued messages go: the conversation's composer note, and what a host says on its own surfaces (the
+        // Send card in ShenzhenPDF's AI chat), which fill {first} with the friend's name. {apps} is filled here.
+        @"static.queued_note" : @"Messages and files send when {first} is nearby with {apps} open.",
+        // The same, from a helper that reaches friends online as well (helper capability `online`).
+        @"static.queued_note.online" : @"Messages and files send when {first} is online or nearby with {apps} open.",
+        // The control under a long message the views show as plain text, cut short so the conversation stays quick
+        // to open; pressing it shows the rest of that message.
+        @"static.show_all" : @"Show all",
+        // Every app that runs Friends, for {apps}, which any catalog string may use. A message goes out while Friends
+        // runs on a computer of each person, which it does while any of these apps is open there, so the note names
+        // them all rather than the reading app's own name: a Shenzhen 3D reader's friend may have only ShenzhenPDF
+        // open, and the other way round (README.md § Hosting Friends in Shenzhen Files). An app that starts hosting
+        // Friends is added here, and every string that names the apps follows.
+        @"apps.with_friends" : @"ShenzhenPDF, Shenzhen Files or Shenzhen 3D",
+
+        // Time and dates
+        @"time.today" : @"Today",
+        @"time.today_lower" : @"today",
+        @"time.yesterday" : @"Yesterday",
+        @"time.yesterday_lower" : @"yesterday",
+        @"time.moment" : @"{day} at {time}",
+        @"time.on_day" : @"on {day}",
+        @"weekday.1" : @"Sunday",
+        @"weekday.2" : @"Monday",
+        @"weekday.3" : @"Tuesday",
+        @"weekday.4" : @"Wednesday",
+        @"weekday.5" : @"Thursday",
+        @"weekday.6" : @"Friday",
+        @"weekday.7" : @"Saturday",
+        @"month.short.1" : @"Jan", @"month.short.2" : @"Feb", @"month.short.3" : @"Mar", @"month.short.4" : @"Apr",
+        @"month.short.5" : @"May", @"month.short.6" : @"Jun", @"month.short.7" : @"Jul", @"month.short.8" : @"Aug",
+        @"month.short.9" : @"Sep", @"month.short.10" : @"Oct", @"month.short.11" : @"Nov", @"month.short.12" : @"Dec",
+        @"month.long.1" : @"January", @"month.long.2" : @"February", @"month.long.3" : @"March",
+        @"month.long.4" : @"April", @"month.long.5" : @"May", @"month.long.6" : @"June", @"month.long.7" : @"July",
+        @"month.long.8" : @"August", @"month.long.9" : @"September", @"month.long.10" : @"October",
+        @"month.long.11" : @"November", @"month.long.12" : @"December",
+        @"date.day_month" : @"{day} {month}",
+        @"date.day_month_year" : @"{day} {month} {year}",
+
+        // Durations, sizes, counts
+        @"duration.seconds" : @"about {n} s",
+        @"duration.minutes" : @"about {n} min",
+        @"duration.hours" : @"about {h} h",
+        @"duration.hours_minutes" : @"about {h} h {m} min",
+        @"duration.about" : @"about {duration}",
+        @"unit.second.one" : @"1 second",
+        @"unit.second.other" : @"{count} seconds",
+        @"unit.minute.one" : @"1 minute",
+        @"unit.minute.other" : @"{count} minutes",
+        @"unit.hour.one" : @"1 hour",
+        @"unit.hour.other" : @"{count} hours",
+        @"unit.pair" : @"{first} {second}",
+        @"countdown.left" : @"{duration} left",
+        @"size.bytes.one" : @"1 byte",
+        @"size.bytes.other" : @"{count} bytes",
+        @"size.kb" : @"{n} KB",
+        @"size.mb" : @"{n} MB",
+        @"size.gb" : @"{n} GB",
+        @"size.tb" : @"{n} TB",
+        @"badge.many" : @"99+",
+        @"badge.accessibility.one" : @"Friends, 1 waiting for you",
+        @"badge.accessibility.other" : @"Friends, {count} waiting for you",
+        @"list.join" : @"{head} and {last}",
+        @"list.separator" : @", ",
+        @"code.spoken" : @"Comparison code {code}",
+        @"person.unnamed" : @"Someone",
+
+        // Routes and estimates
+        @"route.lan" : @"Nearby, on your network",
+        @"route.p2p_wifi" : @"Nearby, over direct Wi-Fi",
+        @"route.bluetooth" : @"Nearby, over Bluetooth",
+        @"route.local" : @"Nearby",
+        @"route.online" : @"Online",
+        // A session straight to the friend's computer online, or through the relay when nothing direct works.
+        @"route.internet" : @"Online, direct",
+        @"route.relay" : @"Online, through the Friends relay",
+        @"route.offline" : @"Not nearby right now",
+        // From a helper that reaches friends online: no session, and nothing tried since (nothing waits to go).
+        @"route.offline.online" : @"Not connected right now",
+        // An online attempt is running; the header and the row's tooltip say so until it connects or fails.
+        @"route.connecting" : @"Connecting to {first}…",
+        // They answered, but every way failed, the relay included; things keep waiting (composer.note.unreachable).
+        @"route.unreachable" : @"Couldn’t connect just now",
+        @"estimate.bluetooth" : @"Over Bluetooth",
+        @"estimate.relay" : @"Through the Friends relay",
+        @"estimate.with_time" : @"{route}, {duration}",
+
+        // File kinds; anything else shows its extension in capitals
+        @"kind.file" : @"File", @"kind.pdf" : @"PDF", @"kind.epub" : @"EPUB", @"kind.xps" : @"XPS",
+        @"kind.cbz" : @"CBZ", @"kind.md" : @"Markdown", @"kind.markdown" : @"Markdown", @"kind.txt" : @"Text",
+        @"kind.png" : @"PNG image", @"kind.jpg" : @"JPEG image", @"kind.jpeg" : @"JPEG image",
+        @"kind.heic" : @"HEIC image", @"kind.gif" : @"GIF image", @"kind.zip" : @"ZIP archive",
+        @"kind.doc" : @"Word document", @"kind.docx" : @"Word document", @"kind.xlsx" : @"Excel spreadsheet",
+        @"kind.pptx" : @"PowerPoint presentation", @"kind.mov" : @"Video", @"kind.mp4" : @"Video",
+
+        // Back arrows, IDs, footer
+        @"back.friends" : @"Back to Friends",
+        @"back.friends.waiting.one" : @"Back to Friends, 1 waiting",
+        @"back.friends.waiting.other" : @"Back to Friends, {count} waiting",
+        @"back.friends.more_waiting.one" : @"Back to Friends, 1 more waiting",
+        @"back.friends.more_waiting.other" : @"Back to Friends, {count} more waiting",
+        @"back.conversation" : @"Back to the conversation with {first}",
+        // The arrow leads to the conversation, but the count is about the list: say where the waiting rows are.
+        @"back.conversation.waiting.one" : @"Back to the conversation with {first}, 1 waiting for you in Friends",
+        @"back.conversation.waiting.other" : @"Back to the conversation with {first}, {count} waiting for you in "
+                                             @"Friends",
+        @"back.conversation.more_waiting.one" : @"Back to the conversation with {first}, 1 more waiting for you in "
+                                                @"Friends",
+        @"back.conversation.more_waiting.other" : @"Back to the conversation with {first}, {count} more waiting for "
+                                                  @"you in Friends",
+        @"id.label" : @"ID {id}",
+        // Said from the reader's side: what {app} has to reach before the ID is settled, which Settings' disclosure
+        // already introduces as the Friends server.
+        @"id.unreserved" : @"Your ID works nearby now. If it’s already taken, you’ll get a new one the next time {app} "
+                           @"reaches the Friends server.",
+        @"id.confirmed" : @"ID confirmed by the Friends server",
+        @"id.reserved" : @"People can add you with it.",
+        @"id.changed" : @"Your ID changed because your old one was taken.",
+        @"id.unavailable" : @"Friends can’t open your identity on this computer, so nobody can reach you here. "
+                            @"Reset Friends in Settings to start again.",
+        @"footer.name_placeholder" : @"Choose your name",
+        @"footer.add" : @"Add by ID",
+        @"name.placeholder" : @"Your name",
+        @"name_prompt.title" : @"Choose the name friends see",
+        @"name_prompt.note" : @"Until you choose one, friends see your ID, {id}.",
+
+        // The list
+        @"list.waiting" : @"Waiting for you",
+        @"list.spoken.waiting" : @"waiting for you",
+        @"list.spoken.unread" : @"unread",
+        @"list.spoken.id_confirmed" : @"ID confirmed",
+        @"list.drop" : @"Send to {first}",
+        // What a row that refuses dragged files says under the pointer: why, from the person's side, so a faded row
+        // never leaves them guessing (wave-4 UX critique).
+        @"list.drop_refusal.request" : @"{first} isn’t your friend yet",
+        @"list.drop_refusal.removed" : @"{first} isn’t your friend",
+        @"list.drop_refusal.blocked" : @"You blocked {first}",
+        @"list.drop_refusal.key_change" : @"Review {first}’s new key first",
+        @"list.subtitle.request" : @"Wants to be friends",
+        @"list.subtitle.answer" : @"Answered your request for {id}",
+        @"list.subtitle.request_sent" : @"Request sent",
+        @"list.subtitle.key_change" : @"Key changed. Check it’s really {first}",
+        @"list.subtitle.offer" : @"Sent you {file}",
+        @"list.subtitle.offers.one" : @"Sent you a file",
+        @"list.subtitle.offers.other" : @"Sent you {count} files",
+        @"list.subtitle.blocked" : @"Blocked",
+        @"list.subtitle.removed" : @"No longer friends",
+        // A request row's own buttons: icons only, so these are their tooltips and accessible names.
+        @"list.action.accept" : @"Accept {title}’s request",
+        @"list.action.decline" : @"Decline {title}’s request",
+        @"list.action.block" : @"Block {title}",
+        @"list.action.block.armed" : @"Block?",
+        @"list.action.block.armed_spoken" : @"Click again to block {title}",
+        @"list.empty.title" : @"No friends yet",
+        @"list.empty.body" : @"Make yourself visible in Nearby so people around you can find you, or add someone by "
+                             @"their ID.",
+        @"search.no_match.title" : @"No one matches “{query}”",
+        @"search.no_match.body" : @"Search looks at names and IDs.",
+        @"banner.id_changed" : @"Your ID changed to {id} because {old} was taken.",
+        @"banner.ok" : @"OK",
+        @"banner.identity_unavailable" : @"Friends can’t open your identity on this computer, so nobody can reach "
+                                         @"you here until you reset Friends.",
+        @"banner.update_online" : @"Update {app} so Friends can go online. Friends nearby still work.",
+        @"banner.update_store" : @"Another app on this computer updated your Friends data. Update {app} to keep using "
+                                 @"Friends.",
+
+        // Previews in list rows
+        @"preview.you" : @"You: {text}",
+        @"preview.you_said" : @"you said {text}",
+        @"preview.you_sent" : @"you sent {text}",
+        @"preview.with_status" : @"{text} · {status}",
+        // A row's subtitle leads with its status, so the part that changes survives truncation in a narrow row.
+        @"preview.status_first" : @"{status} · {text}",
+        @"preview.with_status.spoken" : @"{text}, {status}",
+        @"preview.status.queued" : @"Sends when {first} is nearby",
+        @"preview.status.queued.spoken" : @"it sends when {first} is nearby",
+        @"preview.status.queued_online" : @"Sends when {first} is online or nearby",
+        @"preview.status.queued_online.spoken" : @"it sends when {first} is online or nearby",
+        @"preview.status.connecting" : @"Connecting to {first}…",
+        @"preview.status.connecting.spoken" : @"connecting to {first}",
+        @"preview.status.failed" : @"Not sent",
+        @"preview.status.failed.spoken" : @"it wasn’t sent",
+        @"preview.status.offered" : @"Waiting for {first} to accept",
+        @"preview.status.offered.spoken" : @"waiting for {first} to accept",
+        @"preview.status.sending" : @"Sending",
+        @"preview.status.sending.spoken" : @"still sending",
+        @"preview.status.receiving" : @"Receiving",
+        @"preview.status.receiving.spoken" : @"still arriving",
+        @"preview.status.declined_by_them" : @"{first} declined",
+        @"preview.status.declined_by_them.spoken" : @"{first} declined it",
+        @"preview.status.declined_by_you" : @"You declined",
+        @"preview.status.declined_by_you.spoken" : @"you declined it",
+        @"preview.status.cancelled" : @"Cancelled",
+        @"preview.status.cancelled.spoken" : @"cancelled",
+        @"preview.status.didnt_arrive" : @"Didn’t arrive",
+        @"preview.status.didnt_arrive.spoken" : @"it didn’t arrive",
+        @"preview.status.auto" : @"Accepted automatically",
+        @"preview.status.auto.spoken" : @"accepted automatically",
+        // Inside a transfer card's meta line and its spoken label, after the kind and size.
+        @"transfer.auto" : @"accepted automatically",
+
+        // Conversation events and messages
+        @"event.now_friends" : @"You are now friends",
+        @"event.verified" : @"You compared codes with {first}",
+        @"event.key_changed" : @"{first}’s key changed",
+        @"event.key_accepted" : @"You continued with {first}’s new key",
+        @"event.blocked" : @"You blocked {first}",
+        @"event.unblocked" : @"You unblocked {first}",
+        @"event.removed" : @"You’re no longer friends",
+        @"event.spoken" : @"{text}, {moment}",
+        @"message.status.queued" : @"Sends when {first} is nearby",
+        @"message.status.queued_online" : @"Sends when {first} is online or nearby",
+        @"message.status.connecting" : @"Connecting to {first}…",
+        @"message.status.sending" : @"Sending…",
+        @"message.status.delivered" : @"Delivered",
+        // The person withdrew it before it left (cancel_message); the friend never gets it.
+        @"message.status.cancelled" : @"Cancelled",
+        @"message.status.failed" : @"Not delivered",
+        // Failure keys from the store (SZFriendsOutbox.h); a key without words here shows the general line above.
+        @"message.status.failed.not_delivered_30_days" : @"Not delivered. Stopped trying after 30 days.",
+        @"message.status.failed.refused" : @"{first} couldn’t receive this",
+        // Remove and block withdraw everything still waiting to go, which the store records as refused; from the
+        // reader's side nothing refused it, they ended the friendship themselves.
+        @"message.status.failed.refused.removed" : @"Not sent because you removed {first}",
+        @"message.status.failed.refused.blocked" : @"Not sent because you blocked {first}",
+        @"message.status.failed.source_missing" : @"Not sent because an attachment is no longer available",
+        @"message.spoken.in" : @"{sender}, {time}: {text}",
+        @"message.spoken.out" : @"You, {time}, {status}: {text}",
+        @"message.spoken.out_sentence" : @"You, {time}: {text} {status}.",
+        @"message.spoken.out_plain" : @"You, {time}: {text}",
+        // A message or file the assistant sent for one of the two people (via_assistant). Each side reads it about
+        // its own view: "the assistant" is yours, a friend's is theirs, so nobody wonders whose assistant it was.
+        @"item.assistant.out" : @"Via the assistant",
+        @"item.assistant.in" : @"Via {first}’s assistant",
+        @"header.spoken.details" : @"{title}, show details",
+        @"header.spoken.route_details" : @"{title}, {route}, show details",
+        @"header.spoken.route" : @"{title}, {route}",
+
+        // Buttons
+        @"action.accept" : @"Accept",
+        @"action.decline" : @"Decline",
+        @"action.try_again" : @"Try again",
+        @"action.open" : @"Open",
+        @"action.show_in" : @"Show in {app}",
+        // Phones (the Rust core, `files.share` clients): received files go to the share sheet.
+        @"action.share" : @"Share…",
+        @"action.block" : @"Block {first}",
+        @"action.unblock" : @"Unblock {first}",
+        @"action.remove" : @"Remove friend",
+        @"action.remove.confirm.title" : @"Remove {first} as a friend?",
+        @"action.remove.confirm.body" : @"{first} isn’t told. Your conversation stays, and {first} can send you a "
+                                        @"new request. Anything still waiting to go to {first} won’t be "
+                                        @"sent.",
+        @"action.remove.confirm.button" : @"Remove Friend",
+        @"action.cancel_request" : @"Cancel request",
+    };
+}
+
+NSDictionary<NSString *, NSString *> *SZFriendsEnglishCatalog(void) {
+    static NSDictionary<NSString *, NSString *> *catalog;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+      NSMutableDictionary *merged = [CoreEntries() mutableCopy];
+      [merged addEntriesFromDictionary:SZFriendsEnglishCatalogViews()];
+      [merged addEntriesFromDictionary:SZFriendsEnglishCatalogMentions()];
+      [merged addEntriesFromDictionary:SZFriendsEnglishCatalogLinks()];
+      [merged addEntriesFromDictionary:SZFriendsEnglishCatalogJoin()];
+      [merged addEntriesFromDictionary:SZFriendsEnglishCatalogDevices()];
+      catalog = [merged copy];
+    });
+    return catalog;
+}

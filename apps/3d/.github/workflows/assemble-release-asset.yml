@@ -1,0 +1,61 @@
+name: Assemble release asset
+run-name: Assemble ${{ inputs.asset_name }} for ${{ inputs.tag }} (${{ inputs.sha256 }})
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing private release tag
+        required: true
+        type: string
+      asset_name:
+        description: Exact final asset basename
+        required: true
+        type: string
+      sha256:
+        description: Expected SHA-256 of the assembled asset
+        required: true
+        type: string
+      part_count:
+        description: Exact numbered part count (1 through 64)
+        required: true
+        type: string
+      expected_size:
+        description: Expected total bytes (optional)
+        required: false
+        type: string
+permissions:
+  contents: write
+concurrency:
+  group: assemble-${{ github.repository }}-${{ inputs.tag }}-${{ inputs.asset_name }}
+  cancel-in-progress: false
+jobs:
+  assemble:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      RELEASE_TAG: ${{ inputs.tag }}
+      ASSET_NAME: ${{ inputs.asset_name }}
+      EXPECTED_SHA: ${{ inputs.sha256 }}
+      PART_COUNT: ${{ inputs.part_count }}
+      EXPECTED_SIZE: ${{ inputs.expected_size }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Authorize only this workflow repository
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          fs.mkdirSync('artifacts/operator', { recursive: true });
+          fs.writeFileSync('artifacts/operator/release-upload.json', JSON.stringify({
+            version: 1, repositories: [process.env.GH_REPO],
+          }), { mode: 0o600, flag: 'wx' });
+          NODE
+      # Inputs are passed only through env, then strictly validated in Node.
+      - name: Verify exact parts, publish final asset, remove only its parts
+        run: node scripts/upload-release-asset.mjs --assemble

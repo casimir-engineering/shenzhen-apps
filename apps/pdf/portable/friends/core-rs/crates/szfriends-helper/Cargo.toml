@@ -1,0 +1,67 @@
+[package]
+name = "szfriends-helper"
+description = "Shenzhen Friends helper for Windows and Linux desktops: the core behind the client-protocol socket"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+build = "build.rs"
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "szfriends-helper"
+path = "src/main.rs"
+
+[features]
+# What the desktop helper ships with: online everywhere, and Bluetooth through BlueZ on Linux (the feature compiles
+# nothing elsewhere).
+default = ["online", "bluetooth"]
+# Friends over the Internet: the host connection and the data-channel stack (szfriends-online). Phone apps leave it
+# out until it fits their size budget (ADR 0015 § 12); without it the service is nearby only.
+online = ["dep:szfriends-online"]
+# Test tools in szfriends-helper-sys (the pipe test plan's forgeries); never in a shipped helper.
+testing = ["szfriends-helper-sys/testing"]
+# Bluetooth on Linux through BlueZ (bluer, over D-Bus). libdbus is built from the sources libdbus-sys carries and
+# linked statically, so a build needs no libdbus headers and the helper no particular libdbus at run time; it talks to
+# the system's bluetoothd over the system bus. Its hardware tests run only where there is a radio
+# (tests/bluez_hardware.rs). Phones and the Tauri plugin leave it out.
+bluetooth = ["dep:bluer", "dep:tokio", "dep:futures", "dep:dbus"]
+
+[dependencies]
+szfriends-core.workspace = true
+szfriends-contract.workspace = true
+szfriends-identity.workspace = true
+szfriends-crypto.workspace = true
+serde_json.workspace = true
+rusqlite.workspace = true
+sha2.workspace = true
+zeroize.workspace = true
+hex.workspace = true
+szfriends-helper-sys = { path = "../szfriends-helper-sys" }
+szfriends-online = { path = "../szfriends-online", optional = true }
+
+[target.'cfg(unix)'.dependencies]
+rustix = { version = "1", default-features = false, features = ["std", "fs", "process", "net"] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+signal-hook = { version = "0.3", default-features = false, features = ["iterator"] }
+# DNS-SD beside Avahi (ADR 0015 § 9); no async runtime.
+mdns-sd = { version = "0.20", default-features = false }
+bluer = { version = "0.17", optional = true, default-features = false, features = ["bluetoothd", "l2cap"] }
+dbus = { version = "0.9", optional = true, default-features = false, features = ["vendored"] }
+futures = { version = "0.3", optional = true, default-features = false, features = ["std"] }
+tokio = { version = "1", optional = true, default-features = false, features = ["rt", "sync", "io-util", "time"] }
+
+[dev-dependencies]
+# The online suite's local host (tests/online.rs).
+szfriends-interop = { path = "../szfriends-interop" }
+
+[lints]
+workspace = true
+
+# The Windows pipe test plan's tool (tests/vm/windows-pipe-plan.sh): squatters, a foreign owner, a client's verdict.
+[[example]]
+name = "pipe-probe"
+required-features = ["testing"]

@@ -1,0 +1,449 @@
+// The receiving side of a transfer: chunks into a private staging file, durable progress, digest verification,
+// publishing into received/, and crash recovery (ADR 0003 § Durable progress, § Crash recovery; ADR 0001 § Files).
+
+#import <fcntl.h>
+#import <sodium.h>
+#import <stdio.h>
+#import <sys/stat.h>
+#import <unistd.h>
+
+#import "service/store/SZFriendsStoreInternal.h"
+
+NS_ASSUME_NONNULL_BEGIN
+
+// ADR 0003: progress becomes durable every 4 MiB or every second, whichever comes first.
+static const uint64_t SZFriendsDurableBatchBytes = 4ULL << 20;
+static const NSTimeInterval SZFriendsDurableBatchInterval = 1.0;
+
+// One download in progress: its open staging file, running digest and how much of it is written versus durable.
+@interface SZFriendsReceiving : NSObject {
+@public
+    crypto_generichash_state hash;
+    int fd;
+    uint64_t written;
+    uint64_t durable;
+}
+@property(nonatomic, copy) NSString *partialPath;
+@property(nonatomic, copy) NSDate *lastCommit;
+@end
+
+@implementation SZFriendsReceiving
+- (instancetype)init {
+    if ((self = [super init])) fd = -1; // ivars start at 0, which is stdin
+    return self;
+}
+- (void)dealloc {
+    if (fd >= 0) close(fd);
+}
+@end
+
+static NSError *SZFriendsReceiveError(SZFriendsStoreError code, NSString *why) {
+    return SZFriendsStoreMakeError(code, why);
+}
+
+static BOOL SZFriendsHashPrefix(int fd, uint64_t length, crypto_generichash_state *state);
+
+// The file about to be published, read back through the descriptor that wrote it: still the file the staging path
+// names, a regular file of the offered size, hashing to the offered digest. The streamed digest only covers bytes as
+// they arrived; this is what makes a published file always match its verified digest, even if something else wrote
+// to the staging file meanwhile (security review: two transfers once shared one file and published a corrupted copy
+// as verified). It costs one read of the file on the store queue, once per received file.
+static BOOL SZFriendsStagedFileMatches(int fd, NSString *path, SZFriendsTransferRecord *record) {
+    struct stat opened, named;
+    if (record.contentDigest.length != 32 || fstat(fd, &opened) != 0 ||
+        lstat(path.fileSystemRepresentation, &named) != 0) {
+        return NO;
+    }
+    if (!S_ISREG(named.st_mode) || opened.st_dev != named.st_dev || opened.st_ino != named.st_ino ||
+        (uint64_t)opened.st_size != record.size) {
+        return NO;
+    }
+    crypto_generichash_state state;
+    crypto_generichash_init(&state, NULL, 0, 32);
+    if (!SZFriendsHashPrefix(fd, record.size, &state)) return NO;
+    uint8_t disk[32];
+    crypto_generichash_final(&state, disk, sizeof disk);
+    return sodium_memcmp(disk, record.contentDigest.bytes, 32) == 0;
+}
+
+static BOOL SZFriendsStagedFileMatchesAtPath(NSString *path, SZFriendsTransferRecord *record) {
+    int fd = open(path.fileSystemRepresentation, O_RDONLY | O_NOFOLLOW | O_CLOEXEC);
+    if (fd < 0) return NO;
+    BOOL matches = SZFriendsStagedFileMatches(fd, path, record);
+    close(fd);
+    return matches;
+}
+
+static BOOL SZFriendsHashPrefix(int fd, uint64_t length, crypto_generichash_state *state) {
+    uint8_t buffer[64 * 1024];
+    uint64_t offset = 0;
+    while (offset < length) {
+        size_t want = (size_t)MIN((uint64_t)sizeof buffer, length - offset);
+        ssize_t got = pread(fd, buffer, want, (off_t)offset);
+        if (got < 0 && errno == EINTR) continue;
+        if (got <= 0) return NO;
+        crypto_generichash_update(state, buffer, (unsigned long long)got);
+        offset += (uint64_t)got;
+    }
+    return YES;
+}
+
+@implementation SZFriendsTransferReceiver {
+    SZFriendsStore *_store;
+    NSString *_stateDirectory;
+    NSString *_receivedDirectory;
+    NSString *_partialDirectory;
+    NSMutableDictionary<NSString *, SZFriendsReceiving *> *_open; // touched only on the store queue
+}
+
+- (instancetype)initWithStore:(SZFriendsStore *)store stateDirectory:(NSString *)stateDirectory {
+    if ((self = [super init])) {
+        _store = store;
+        _stateDirectory = [stateDirectory copy];
+        _receivedDirectory = [stateDirectory stringByAppendingPathComponent:@"received"];
+        _partialDirectory = [_receivedDirectory stringByAppendingPathComponent:@".partial"];
+        _open = [NSMutableDictionary dictionary];
+        _clock = ^NSDate * { return [NSDate date]; };
+    }
+    return self;
+}
+
+- (void)forgetTransfer:(NSString *)transferID {
+    [_store performOnWriter:^(SZFriendsStoreDB *_Nullable db) {
+        (void)db;
+        [self->_open removeObjectForKey:transferID];
+    }];
+}
+
+// Reopens a download after a restart or a route change: bytes past the durable count were never confirmed, so they
+// are cut off, and the digest is rebuilt from the durable prefix once ("re-hashing the partial file once").
+- (nullable SZFriendsReceiving *)openIn:(SZFriendsStoreDB *)db
+                                 record:(SZFriendsTransferRecord *)record
+                                  error:(NSError **)error {
+    SZFriendsReceiving *receiving = _open[record.transferID];
+    if (receiving) return receiving;
+    NSString *partial = SZFriendsTransferRowPartialPath(db, record.transferID);
+    if (!partial) {
+        SZFriendsFail(error, SZFriendsReceiveError(SZFriendsStoreErrorInvalid, @"no staging file"));
+        return nil;
+    }
+    int fd = open(partial.fileSystemRepresentation, O_RDWR | O_NOFOLLOW | O_CLOEXEC);
+    if (fd < 0) {
+        SZFriendsFail(error, SZFriendsReceiveError(SZFriendsStoreErrorFileMissing, partial));
+        return nil;
+    }
+    receiving = [[SZFriendsReceiving alloc] init];
+    receiving->fd = fd;
+    receiving.partialPath = partial;
+    receiving.lastCommit = self.clock();
+    struct stat info;
+    uint64_t durable = record.verifiedBytes;
+    if (fstat(fd, &info) == 0 && (uint64_t)info.st_size < durable) durable = (uint64_t)info.st_size;
+    if (ftruncate(fd, (off_t)durable) != 0 || (durable != record.verifiedBytes &&
+        !SZFriendsTransferRowUpdate(db, record.transferID, @{@"verified_bytes" : @(durable)}, error))) {
+        SZFriendsFail(error, SZFriendsReceiveError(SZFriendsStoreErrorDatabase, @"cannot reset staging file"));
+        return nil;
+    }
+    crypto_generichash_init(&receiving->hash, NULL, 0, 32);
+    if (!SZFriendsHashPrefix(fd, durable, &receiving->hash)) {
+        SZFriendsFail(error, SZFriendsReceiveError(SZFriendsStoreErrorFileMissing, @"cannot read staging file"));
+        return nil;
+    }
+    receiving->written = durable;
+    receiving->durable = durable;
+    _open[record.transferID] = receiving;
+    return receiving;
+}
+
+// F_FULLFSYNC first, commit second: the database never claims a byte the disk could still lose (ADR 0003).
+- (BOOL)commit:(SZFriendsReceiving *)receiving transfer:(NSString *)transferID db:(SZFriendsStoreDB *)db
+         error:(NSError **)error {
+    if (receiving->durable == receiving->written) return YES;
+    if (fcntl(receiving->fd, F_FULLFSYNC) != 0 && fsync(receiving->fd) != 0) {
+        return SZFriendsFail(error, SZFriendsReceiveError(SZFriendsStoreErrorDatabase, @"fsync failed"));
+    }
+    uint64_t written = receiving->written;
+    BOOL ok = [db transaction:^BOOL(NSError **inner) {
+        return SZFriendsTransferRowUpdate(db, transferID, @{@"verified_bytes" : @(written)}, inner);
+    } error:error];
+    if (!ok) return NO;
+    receiving->durable = written;
+    receiving.lastCommit = self.clock();
+    return YES;
+}
+
+// The row must say Receiving, for this sender, on every chunk: a cancel, decline or Delete history in between ends
+// the download, and a chunk for anything else is unsolicited (ADR 0001: no CHUNK moves before acceptance). A chunk
+// naming no conversation is no friend's, so it is refused too: there is no unchecked form (security review).
+- (nullable SZFriendsTransferRecord *)receivingRecord:(SZFriendsStoreDB *)db
+                                           transferID:(NSString *)transferID
+                                         conversation:(NSString *)conversationID
+                                                error:(NSError **)error {
+    SZFriendsTransferRecord *record = SZFriendsTransferRowLoad(db, transferID);
+    BOOL live = record && !record.outgoing && record.state == SZFriendsTransferStateReceiving;
+    BOOL theirs = conversationID.length > 0 && [record.conversationID isEqualToString:conversationID];
+    if (!live || !theirs) {
+        // Only the owner's own stream may lose its open file: a stranger naming the id must not disturb it.
+        if (!live) [_open removeObjectForKey:transferID];
+        SZFriendsFail(error, SZFriendsReceiveError(SZFriendsStoreErrorInvalid, @"unsolicited chunk"));
+        return nil;
+    }
+    return record;
+}
+
+- (BOOL)onWriter:(BOOL (^)(SZFriendsStoreDB *db, NSError **error))body error:(NSError **)error {
+    __block BOOL ok = NO;
+    __block NSError *failure = nil;
+    [_store performOnWriter:^(SZFriendsStoreDB *_Nullable db) {
+        if (!db) {
+            failure = SZFriendsReceiveError(SZFriendsStoreErrorOpenFailed, @"the store is closed");
+            return;
+        }
+        NSError *inner = nil;
+        ok = body(db, &inner);
+        failure = inner;
+    }];
+    if (!ok && error) *error = failure;
+    return ok;
+}
+
+- (BOOL)appendChunk:(NSData *)bytes atOffset:(uint64_t)offset toTransfer:(NSString *)transferID
+   fromConversation:(NSString *)conversationID error:(NSError **)error {
+    return [self onWriter:^BOOL(SZFriendsStoreDB *db, NSError **inner) {
+        SZFriendsTransferRecord *record = [self receivingRecord:db transferID:transferID conversation:conversationID
+                                                          error:inner];
+        SZFriendsReceiving *receiving = record ? [self openIn:db record:record error:inner] : nil;
+        if (!receiving) return NO;
+        if (offset != receiving->written || bytes.length > record.size - receiving->written) {
+            return SZFriendsFail(inner, SZFriendsReceiveError(SZFriendsStoreErrorInvalid, @"chunk out of place"));
+        }
+        const uint8_t *data = bytes.bytes;
+        size_t done = 0;
+        while (done < bytes.length) {
+            ssize_t put = pwrite(receiving->fd, data + done, bytes.length - done, (off_t)(offset + done));
+            if (put < 0 && errno == EINTR) continue;
+            if (put <= 0) {
+                int number = errno;
+                ftruncate(receiving->fd, (off_t)receiving->written);
+                SZFriendsStoreError code = number == ENOSPC ? SZFriendsStoreErrorDiskFull : SZFriendsStoreErrorDatabase;
+                return SZFriendsFail(inner, SZFriendsReceiveError(code, @"cannot write the staging file"));
+            }
+            done += (size_t)put;
+        }
+        crypto_generichash_update(&receiving->hash, data, bytes.length);
+        receiving->written += bytes.length;
+        BOOL due = receiving->written - receiving->durable >= SZFriendsDurableBatchBytes ||
+                   [self.clock() timeIntervalSinceDate:receiving.lastCommit] >= SZFriendsDurableBatchInterval ||
+                   receiving->written == record.size;
+        return due ? [self commit:receiving transfer:transferID db:db error:inner] : YES;
+    } error:error];
+}
+
+- (BOOL)flushWithError:(NSError **)error {
+    return [self onWriter:^BOOL(SZFriendsStoreDB *db, NSError **inner) {
+        for (NSString *transferID in self->_open.allKeys) {
+            if (![self commit:self->_open[transferID] transfer:transferID db:db error:inner]) return NO;
+        }
+        return YES;
+    } error:error];
+}
+
+- (BOOL)markReceived:(NSString *)transferID at:(NSString *)finalPath size:(uint64_t)size db:(SZFriendsStoreDB *)db
+               error:(NSError **)error {
+    return [db transaction:^BOOL(NSError **inner) {
+        NSDictionary *values = @{
+            @"received_path" : finalPath, @"publishing" : @0, @"final_path" : [NSNull null],
+            @"partial_path" : [NSNull null], @"verified_bytes" : @(size)
+        };
+        return SZFriendsTransferRowUpdate(db, transferID, values, inner) &&
+               SZFriendsTransferRowApplyEvent(db, transferID, SZFriendsTransferEventVerified, nil, inner);
+    } error:error];
+}
+
+// Records the destination before the rename, so a crash between rename and commit is finished at the next start
+// instead of leaving a published file the store does not know (ADR 0003 § Crash recovery). RENAME_EXCL makes the
+// no-overwrite rule hold even if something appeared at the destination after it was chosen.
+- (BOOL)publish:(SZFriendsTransferRecord *)record from:(NSString *)partial db:(SZFriendsStoreDB *)db
+          error:(NSError **)error {
+    if (!SZFriendsEnsurePrivateDirectory(_receivedDirectory, error)) return NO;
+    SZFriendsSetQuarantine(partial, NULL);
+    for (int attempt = 0; attempt < 8; attempt++) {
+        NSString *final = SZFriendsUniqueDestination(_receivedDirectory, record.fileName);
+        BOOL recorded = [db transaction:^BOOL(NSError **inner) {
+            return SZFriendsTransferRowUpdate(db, record.transferID, @{@"final_path" : final, @"publishing" : @1},
+                                              inner);
+        } error:error];
+        if (!recorded) return NO;
+        SZFriendsStoreTestPoint("transfer.before_rename");
+        if (renamex_np(partial.fileSystemRepresentation, final.fileSystemRepresentation, RENAME_EXCL) != 0) {
+            if (errno == EEXIST) continue;
+            return SZFriendsFail(error, SZFriendsReceiveError(SZFriendsStoreErrorDatabase, @"cannot publish"));
+        }
+        int directory = open(_receivedDirectory.fileSystemRepresentation, O_RDONLY | O_CLOEXEC);
+        if (directory >= 0) {
+            fsync(directory); // the rename itself must survive a power cut before the row says Received
+            close(directory);
+        }
+        SZFriendsStoreTestPoint("transfer.after_rename");
+        return [self markReceived:record.transferID at:final size:record.size db:db error:error];
+    }
+    return SZFriendsFail(error, SZFriendsReceiveError(SZFriendsStoreErrorDatabase, @"no free destination name"));
+}
+
+- (BOOL)finishTransfer:(NSString *)transferID finalDigest:(NSData *)finalDigest
+      fromConversation:(NSString *)conversationID error:(NSError **)error {
+    __block BOOL mismatch = NO;
+    BOOL ok = [self onWriter:^BOOL(SZFriendsStoreDB *db, NSError **inner) {
+        SZFriendsTransferRecord *record = [self receivingRecord:db transferID:transferID conversation:conversationID
+                                                          error:inner];
+        SZFriendsReceiving *receiving = record ? [self openIn:db record:record error:inner] : nil;
+        if (!receiving) return NO;
+        if (receiving->written != record.size) {
+            return SZFriendsFail(inner, SZFriendsReceiveError(SZFriendsStoreErrorInvalid, @"file is incomplete"));
+        }
+        if (![self commit:receiving transfer:transferID db:db error:inner]) return NO;
+        crypto_generichash_state state = receiving->hash; // final() consumes the state; keep ours intact
+        uint8_t computed[32];
+        crypto_generichash_final(&state, computed, sizeof computed);
+        NSString *partial = receiving.partialPath;
+        BOOL matches = finalDigest.length == 32 && record.contentDigest.length == 32 &&
+                       sodium_memcmp(finalDigest.bytes, record.contentDigest.bytes, 32) == 0 &&
+                       sodium_memcmp(computed, record.contentDigest.bytes, 32) == 0 &&
+                       SZFriendsStagedFileMatches(receiving->fd, partial, record);
+        close(receiving->fd); // complete and durable; closed before it is renamed or deleted
+        receiving->fd = -1;
+        [self->_open removeObjectForKey:transferID];
+        if (matches) return [self publish:record from:partial db:db error:inner];
+        mismatch = YES;
+        return [self failMismatched:transferID partial:partial db:db error:inner];
+    } error:error];
+    if (ok && mismatch) {
+        return SZFriendsFail(error, SZFriendsReceiveError(SZFriendsStoreErrorDigestMismatch, @"digest mismatch"));
+    }
+    return ok;
+}
+
+// ADR 0001: a mismatch deletes the file and fails the transfer; Try again starts over from zero.
+- (BOOL)failMismatched:(NSString *)transferID partial:(NSString *)partial db:(SZFriendsStoreDB *)db
+                 error:(NSError **)error {
+    unlink(partial.fileSystemRepresentation);
+    return [db transaction:^BOOL(NSError **inner) {
+        NSDictionary *reset = @{@"verified_bytes" : @0, @"partial_path" : [NSNull null], @"publishing" : @0,
+                                @"final_path" : [NSNull null]};
+        return SZFriendsTransferRowUpdate(db, transferID, reset, inner) &&
+               SZFriendsTransferRowApplyEvent(db, transferID, SZFriendsTransferEventFailed,
+                                              SZFriendsTransferFailureDigestMismatch, inner);
+    } error:error];
+}
+
+- (BOOL)recoverWithError:(NSError **)error {
+    return [self onWriter:^BOOL(SZFriendsStoreDB *db, NSError **inner) {
+        return [self recoverPublishingIn:db error:inner] && [self recoverReceivingIn:db error:inner] &&
+               [self removeOrphansIn:db error:inner];
+    } error:error];
+}
+
+- (BOOL)recoverPublishingIn:(SZFriendsStoreDB *)db error:(NSError **)error {
+    NSMutableArray<NSArray *> *rows = [NSMutableArray array];
+    BOOL ok = [db run:@"SELECT transfer_id, partial_path, final_path, size FROM transfers WHERE publishing = 1"
+                binds:nil
+                  row:^(sqlite3_stmt *s) {
+                      [rows addObject:@[ SZFriendsColumnText(s, 0) ?: @"", SZFriendsSQL(SZFriendsColumnText(s, 1)),
+                                         SZFriendsSQL(SZFriendsColumnText(s, 2)), @(SZFriendsColumnInt(s, 3)) ]];
+                  }
+                error:error];
+    if (!ok) return NO;
+    for (NSArray *row in rows) {
+        NSString *transferID = row[0];
+        NSString *partial = [row[1] isKindOfClass:[NSString class]] ? row[1] : nil;
+        NSString *final = [row[2] isKindOfClass:[NSString class]] ? row[2] : nil;
+        uint64_t size = [row[3] unsignedLongLongValue];
+        struct stat info;
+        BOOL staged = partial && lstat(partial.fileSystemRepresentation, &info) == 0;
+        BOOL published = final && lstat(final.fileSystemRepresentation, &info) == 0;
+        SZFriendsTransferRecord *record = staged ? SZFriendsTransferRowLoad(db, transferID) : nil;
+        if (record && !SZFriendsStagedFileMatchesAtPath(partial, record)) {
+            // Changed on disk since it was verified: never published as if it were what the friend sent.
+            if (![self failMismatched:transferID partial:partial db:db error:error]) return NO;
+        } else if (record) {
+            if (![self publish:record from:partial db:db error:error]) return NO;
+        } else if (published) {
+            // Renamed before the crash, committed after it: the digest was verified before the rename.
+            if (![self markReceived:transferID at:final size:size db:db error:error]) return NO;
+        } else {
+            // Both gone (only a damaged disk does this): start the download again rather than claim the file.
+            NSString *fresh = SZFriendsCreateStagingFile(_partialDirectory, error);
+            if (!fresh) return NO;
+            NSDictionary *values = @{@"publishing" : @0, @"final_path" : [NSNull null], @"partial_path" : fresh,
+                                     @"verified_bytes" : @0};
+            if (![db transaction:^BOOL(NSError **inner) {
+                    return SZFriendsTransferRowUpdate(db, transferID, values, inner);
+                } error:error]) {
+                return NO;
+            }
+        }
+    }
+    return YES;
+}
+
+- (BOOL)recoverReceivingIn:(SZFriendsStoreDB *)db error:(NSError **)error {
+    NSArray<SZFriendsTransferRecord *> *receiving =
+        SZFriendsTransferRows(db, @"WHERE outgoing = 0 AND state = ?", @[ @(SZFriendsTransferStateReceiving) ]);
+    for (SZFriendsTransferRecord *record in receiving) {
+        NSString *partial = SZFriendsTransferRowPartialPath(db, record.transferID);
+        struct stat info;
+        if (!partial || lstat(partial.fileSystemRepresentation, &info) != 0) {
+            NSString *fresh = SZFriendsCreateStagingFile(_partialDirectory, error);
+            if (!fresh || ![db transaction:^BOOL(NSError **inner) {
+                    return SZFriendsTransferRowUpdate(db, record.transferID,
+                                                      @{@"partial_path" : fresh, @"verified_bytes" : @0}, inner);
+                } error:error]) {
+                return NO;
+            }
+            continue;
+        }
+        // Opening truncates past the durable count and corrects a count the disk no longer backs.
+        [_open removeObjectForKey:record.transferID];
+        BOOL opened = [db transaction:^BOOL(NSError **inner) {
+            return [self openIn:db record:record error:inner] != nil;
+        } error:error];
+        if (!opened) return NO;
+    }
+    return YES;
+}
+
+// Staging files no row references (a download cancelled mid-crash, a snapshot staged and never offered) hold
+// document bytes nobody will use; they go. Rows staged but never offered go with them.
+- (BOOL)removeOrphansIn:(SZFriendsStoreDB *)db error:(NSError **)error {
+    BOOL ok = [db transaction:^BOOL(NSError **inner) {
+        return [db run:@"DELETE FROM transfers WHERE outgoing = 1 AND state = 0 AND transfer_id NOT IN "
+                       @"(SELECT transfer_id FROM messages WHERE transfer_id IS NOT NULL) AND transfer_id NOT IN "
+                       @"(SELECT item_id FROM outbox WHERE item_id IS NOT NULL)"
+                 binds:nil
+                   row:nil
+                 error:inner];
+    } error:error];
+    if (!ok) return NO;
+    NSMutableSet<NSString *> *referenced = [NSMutableSet set];
+    ok = [db run:@"SELECT staged_path, partial_path FROM transfers" binds:nil row:^(sqlite3_stmt *s) {
+        for (int column = 0; column < 2; column++) {
+            NSString *path = SZFriendsColumnText(s, column);
+            if (path) [referenced addObject:path.stringByStandardizingPath];
+        }
+    } error:error];
+    if (!ok) return NO;
+    NSMutableArray<NSString *> *orphans = [NSMutableArray array];
+    NSString *outgoing = [_stateDirectory stringByAppendingPathComponent:@"outgoing"];
+    for (NSString *directory in @[ _partialDirectory, outgoing ]) {
+        for (NSString *name in [NSFileManager.defaultManager contentsOfDirectoryAtPath:directory error:NULL]) {
+            NSString *path = [directory stringByAppendingPathComponent:name];
+            if (![referenced containsObject:path.stringByStandardizingPath]) [orphans addObject:path];
+        }
+    }
+    SZFriendsRemovePrivateFiles(_stateDirectory, orphans);
+    return YES;
+}
+
+@end
+
+NS_ASSUME_NONNULL_END

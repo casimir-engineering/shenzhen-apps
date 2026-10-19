@@ -1,0 +1,95 @@
+{
+  "type": "snapshot",
+  "subscription": "s_6",
+  "view": "details",
+  "rev": 2,
+  "data": {
+    "conversation_id": "c_mei",
+    "title": "Mei Lin",
+    "back": {
+      "badge_count": 2,
+      "badge_label": "2",
+      "accessibility_label": "Back to the conversation with Mei, 2 waiting for you in Friends"
+    },
+    "avatar": {
+      "kind": "animal",
+      "set": 1,
+      "index": 7,
+      "initials": "ML",
+      "color": "#3f6b4f"
+    },
+    "route": {
+      "kind": "local",
+      "method": "lan",
+      "label": "Nearby, on your network"
+    },
+    "friends_id": "jasmine-street",
+    "id_label": "ID jasmine‑street",
+    "id_confirmed": false,
+    "id_confirmed_label": null,
+    "copy_id_accessibility_label": "Copy Mei’s ID",
+    "verification": {
+      "state": "verified",
+      "label": "Verified: you compared codes on 3 Oct",
+      "body": null,
+      "comparison_code": null,
+      "action": null
+    },
+    "auto_accept": {
+      "available": true,
+      "enabled": true,
+      "title": "Accept files from Mei automatically",
+      "body": "Files from Mei download without asking. They still go to Received files and never open by themselves."
+    },
+    "received": {
+      "label": "Received from Mei: 14 files",
+      "count": 14,
+      "action": {
+        "action": "show_file",
+        "label": "Show in Finder",
+        "style": "link",
+        "path": "/Users/raph/Library/Application Support/Shenzhen Friends/received"
+      }
+    },
+    "key_change": null,
+    "actions": [
+      {
+        "action": "delete_history",
+        "label": "Delete chat history…",
+        "style": "destructive",
+        "note": "Clears this chat on this computer. Mei stays your friend.",
+        "confirm": {
+          "title": "Delete your chat history with Mei?",
+          "body": "Your messages and file history with Mei are deleted from this computer, and anything still waiting to go to Mei won’t be sent. Mei stays your friend and keeps their own copy of the chat. Files you received stay in Received files.",
+          "confirm_label": "Delete History",
+          "cancel_label": "Cancel",
+          "destructive": true
+        }
+      },
+      {
+        "action": "remove_friend",
+        "label": "Remove friend",
+        "style": "destructive",
+        "note": "Keeps your conversation. Mei can send you a new request.",
+        "confirm": {
+          "title": "Remove Mei as a friend?",
+          "body": "Mei isn’t told. Your conversation stays, and Mei can send you a new request. Anything still waiting to go to Mei won’t be sent.",
+          "confirm_label": "Remove Friend",
+          "cancel_label": "Cancel",
+          "destructive": true
+        }
+      },
+      {
+        "action": "block",
+        "label": "Block Mei",
+        "style": "destructive",
+        "note": "Mei can’t reach you or send requests until you unblock.",
+        "arm": {
+          "label": "Block?",
+          "accessibility_label": "Click again to block Mei",
+          "seconds": 4
+        }
+      }
+    ]
+  }
+}

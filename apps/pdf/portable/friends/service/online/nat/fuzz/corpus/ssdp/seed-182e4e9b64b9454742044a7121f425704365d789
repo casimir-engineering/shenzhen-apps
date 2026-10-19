@@ -1,0 +1,4 @@
+HTTP/1.1 200 OK
+st:upnp:rootdevice
+location:http://[fe80::1]:49152/desc.xml
+usn:x

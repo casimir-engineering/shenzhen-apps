@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Auto Backup on Android 11 and earlier: the same exclusions as data_extraction_rules.xml. -->
+<full-backup-content>
+    <exclude domain="file" path="Friends/" />
+    <exclude domain="file" path="friends.json" />
+</full-backup-content>

@@ -1,0 +1,36 @@
+name: ShenzhenPDF
+on:
+  push:
+    branches: [main]
+    paths: ['apps/pdf/**', '!apps/pdf/portable/server/**', '.github/workflows/pdf.yml']
+  pull_request:
+    paths: ['apps/pdf/**', '!apps/pdf/portable/server/**', '.github/workflows/pdf.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: pdf-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+defaults:
+  run:
+    working-directory: apps/pdf/portable
+jobs:
+  mac:
+    runs-on: macos-15
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # the launch gate builds the previous pdf/ release
+      - name: Build tools for the Friends relay tests
+        run: brew install coturn
+      - run: make -j"$(sysctl -n hw.ncpu)" mac-app
+      - run: make -j"$(sysctl -n hw.ncpu)" test-binaries
+      - name: Release tests, as cut-release.sh runs them
+        run: |
+          . release/release-common.sh
+          make $(spdf_discover_test_targets Makefile | grep -v -x mac-launch-performance-tests)
+        env:
+          FRIENDS_TEST_COTURN: /opt/homebrew/bin/turnserver
+      - name: Launch performance against the previous release
+        run: make mac-launch-performance-tests LAUNCH_PERF_ROUNDS=3

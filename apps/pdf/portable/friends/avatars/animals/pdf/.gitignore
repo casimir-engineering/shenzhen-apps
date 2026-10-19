@@ -1,0 +1,3 @@
+# The repository ignores *.pdf (.gitignore at the root), but these PDFs are committed outputs: AppKit draws them
+# and the build never runs the converter (tools/regenerate-pdfs.sh). Re-include them here.
+!*.pdf

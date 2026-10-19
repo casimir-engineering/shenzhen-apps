@@ -1,0 +1,163 @@
+{
+  "type": "snapshot",
+  "subscription": "s_4",
+  "view": "conversation",
+  "rev": 12,
+  "data": {
+    "conversation_id": "c_mei",
+    "header": {
+      "title": "Mei Lin",
+      "subtitle": "Nearby, on your network",
+      "route": {
+        "kind": "local",
+        "method": "lan",
+        "label": "Nearby, on your network"
+      },
+      "avatar": {
+        "kind": "animal",
+        "set": 1,
+        "index": 7,
+        "initials": "ML",
+        "color": "#3f6b4f"
+      },
+      "details_available": true,
+      "accessibility_label": "Mei Lin, nearby, on your network, show details"
+    },
+    "back": {
+      "badge_count": 2,
+      "badge_label": "2",
+      "accessibility_label": "Back to Friends, 2 waiting"
+    },
+    "search_placeholder": "Search this conversation",
+    "has_earlier": false,
+    "items": [
+      {
+        "kind": "day",
+        "item_id": "d_20261012",
+        "label": "Today",
+        "highlighted": false,
+        "accessibility_label": "Today"
+      },
+      {
+        "kind": "transfer",
+        "item_id": "t_c81f04d2",
+        "transfer_id": "t_c81f04d2",
+        "direction": "in",
+        "file": {
+          "name": "Factory audit photos.pdf",
+          "kind_label": "PDF",
+          "size_label": "312 MB",
+          "size_bytes": 312475648,
+          "path": null,
+          "type_identifier": "com.adobe.pdf",
+          "extension": "pdf"
+        },
+        "meta_label": "PDF · 312 MB",
+        "state": "on_device",
+        "status_label": "On Raph’s Mac mini",
+        "route_note": null,
+        "progress": null,
+        "thumbnail": null,
+        "actions": [
+          {
+            "action": "fetch_from_device",
+            "label": "Get",
+            "style": "primary"
+          }
+        ],
+        "assistant_label": null,
+        "time_label": "10:05",
+        "highlighted": false,
+        "accessibility_label": "Mei Lin sent Factory audit photos.pdf, PDF, 312 MB, on Raph’s Mac mini"
+      },
+      {
+        "kind": "transfer",
+        "item_id": "t_4d9b7a35",
+        "transfer_id": "t_4d9b7a35",
+        "direction": "in",
+        "file": {
+          "name": "Line 2 layout.pdf",
+          "kind_label": "PDF",
+          "size_label": "58.4 MB",
+          "size_bytes": 58402113,
+          "path": null,
+          "type_identifier": "com.adobe.pdf",
+          "extension": "pdf"
+        },
+        "meta_label": "PDF · 58.4 MB",
+        "state": "fetching",
+        "status_label": "Copying from Raph’s Mac mini · 25%",
+        "route_note": null,
+        "progress": {
+          "fraction": 0.25,
+          "determinate": true,
+          "accessibility_label": "Copying, 25 percent"
+        },
+        "thumbnail": null,
+        "actions": [
+          {
+            "action": "cancel_transfer",
+            "label": "Cancel",
+            "style": "link"
+          }
+        ],
+        "assistant_label": null,
+        "time_label": "10:07",
+        "highlighted": false,
+        "accessibility_label": "Mei Lin sent Line 2 layout.pdf, PDF, 58.4 MB, copying from Raph’s Mac mini, 25 percent"
+      },
+      {
+        "kind": "transfer",
+        "item_id": "t_e27c6b90",
+        "transfer_id": "t_e27c6b90",
+        "direction": "in",
+        "file": {
+          "name": "Supplier quote.pdf",
+          "kind_label": "PDF",
+          "size_label": "96.1 MB",
+          "size_bytes": 96110592,
+          "path": null,
+          "type_identifier": "com.adobe.pdf",
+          "extension": "pdf"
+        },
+        "meta_label": "PDF · 96.1 MB",
+        "state": "fetching",
+        "status_label": "Copies when Studio workstation is nearby with ShenzhenPDF, Shenzhen Files or Shenzhen 3D open",
+        "route_note": null,
+        "progress": null,
+        "thumbnail": null,
+        "actions": [
+          {
+            "action": "cancel_transfer",
+            "label": "Cancel",
+            "style": "link"
+          }
+        ],
+        "assistant_label": null,
+        "time_label": "10:12",
+        "highlighted": false,
+        "accessibility_label": "Mei Lin sent Supplier quote.pdf, PDF, 96.1 MB, copies when Studio workstation is nearby with ShenzhenPDF, Shenzhen Files or Shenzhen 3D open"
+      }
+    ],
+    "highlight_item_id": null,
+    "request": null,
+    "composer": {
+      "visible": true,
+      "enabled": true,
+      "placeholder": "Message Mei",
+      "hint": [
+        {
+          "text": "#",
+          "emphasis": true
+        },
+        {
+          "text": " Attach · or drop files"
+        }
+      ],
+      "send_label": "Send",
+      "note": null,
+      "accepts_drops": true,
+      "max_text_bytes": 32768
+    }
+  }
+}

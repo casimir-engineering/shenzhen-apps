@@ -1,0 +1,150 @@
+.sheet-scrim {
+  position: absolute;
+  inset: 32px 0 0;
+  background: #162f285e;
+  z-index: 5;
+  display: flex;
+  align-items: flex-end;
+  backdrop-filter: blur(1.5px);
+}
+.sheet {
+  background: var(--paper);
+  width: 100%;
+  border-radius: 24px 24px 0 0;
+  padding: 11px 23px 22px;
+  max-height: 90%;
+  overflow: auto;
+  box-shadow: 0 -8px 50px #19332721;
+}
+.handle {
+  height: 4px;
+  width: 35px;
+  background: #c7cec1;
+  border-radius: 3px;
+  margin: 0 auto 16px;
+}
+.sheet-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.sheet-head h2 {
+  font-size: 21px;
+}
+.sheet .lead {
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.6;
+  margin: 8px 0 19px;
+}
+.sheet .secondary {
+  margin-top: 9px;
+}
+.sheet .caption {
+  margin: 12px 0;
+  text-align: center;
+}
+.sheet label {
+  display: block;
+  font-size: 12px;
+  margin: 15px 0 6px;
+}
+.sheet input {
+  height: 48px;
+  width: 100%;
+  border-radius: 10px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  padding: 10px;
+}
+.sheet .icon-btn {
+  margin-right: -10px;
+}
+.switch-list {
+  padding: 4px 0 12px;
+}
+.switch-item {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  text-align: left;
+  border-bottom: 1px solid var(--line);
+  padding: 11px 0;
+}
+.switch-item .thumb {
+  height: 51px;
+  width: 38px;
+}
+.switch-item strong {
+  font-size: 13px;
+  display: block;
+}
+.switch-item small {
+  font-size: 10px;
+}
+.switch-item.current .grow strong {
+  color: var(--accent);
+}
+.switch-item > .dot {
+  margin: 0 10px;
+}
+.consent-symbol {
+  height: 60px;
+  width: 60px;
+  border: 1px solid #b6c8b1;
+  border-radius: 19px;
+  background: #e1ebdd;
+  display: grid;
+  place-items: center;
+  margin: 6px 0 21px;
+}
+.consent-symbol svg {
+  height: 31px;
+  width: 31px;
+  color: var(--accent);
+}
+.consent h2 {
+  font-size: 27px;
+  line-height: 1.15;
+  letter-spacing: -0.8px;
+}
+.consent .lead {
+  margin-top: 14px;
+}
+.consent-detail {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 14px 0;
+  font-size: 12px;
+}
+.consent-detail svg {
+  width: 18px;
+  color: var(--accent);
+}
+.consent-detail small {
+  display: block;
+  font-size: 10px;
+  margin-top: 3px;
+}
+.budget-line {
+  margin: 20px 0 15px;
+  padding: 13px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+}
+.budget-line button {
+  font-size: 12px;
+  color: var(--accent);
+  min-height: 48px;
+}
+
+.sheet:focus,.wheel-panel:focus{outline:none}
+
+.search-snippet{font-size:12px;line-height:1.55;margin-top:7px;color:var(--muted)}

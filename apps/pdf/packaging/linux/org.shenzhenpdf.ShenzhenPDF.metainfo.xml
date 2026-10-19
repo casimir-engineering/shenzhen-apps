@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>org.shenzhenpdf.ShenzhenPDF</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-or-later</project_license>
+  <name>Shenzhen PDF</name>
+  <summary>Fast native PDF reader</summary>
+  <description>
+    <p>
+      Shenzhen PDF is a lightweight desktop PDF reader with native frontends,
+      fast rendering, search, tabs, side panels, OCR, translation, and readable
+      JSON settings.
+    </p>
+  </description>
+  <launchable type="desktop-id">org.shenzhenpdf.ShenzhenPDF.desktop</launchable>
+  <categories>
+    <category>Office</category>
+    <category>Viewer</category>
+    <category>Graphics</category>
+  </categories>
+  <provides>
+    <binary>ShenzhenPDF-gtk</binary>
+  </provides>
+  <content_rating type="oars-1.1"/>
+</component>

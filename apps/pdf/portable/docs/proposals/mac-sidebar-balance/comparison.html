@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+  <meta charset="utf-8" /><meta
+    name="viewport"
+    content="width=device-width,initial-scale=1"
+  /><title>Sidebar balance · Design comparison</title
+  ><link rel="stylesheet" href="comparison.css" />
+  <body>
+    <header class="study-head">
+      <div>
+        <p class="kicker">SHENZHEN PDF / MAC SIDEBAR</p>
+        <h1>Give the document the room.</h1>
+        <p>
+          A whole-reader comparison. These are layout studies, not screenshots
+          of the running app.
+        </p>
+      </div>
+      <a href="design.md">Design notes ↗</a>
+    </header>
+    <main>
+      <section class="choices" aria-label="Layout alternatives">
+        <button data-layout="a" aria-pressed="true">
+          <strong>A · Quiet stacked navigation</strong
+          ><span
+            >Recommended · one sidebar width; a compact, consistent content
+            area.</span
+          >
+        </button>
+        <button data-layout="b" aria-pressed="false">
+          <strong>B · Two-column workspace</strong
+          ><span
+            >340pt combined width · more height; less room for the page.</span
+          >
+        </button>
+        <button data-layout="c" aria-pressed="false">
+          <strong>C · Modes at the bottom</strong
+          ><span
+            >Content first · familiar mode access moves far from its
+            context.</span
+          >
+        </button>
+      </section>
+      <section class="controls" aria-label="Comparison settings">
+        <label
+          >Task
+          <select id="mode">
+            <option value="groups">Groups</option>
+            <option value="chapters">Chapters</option>
+            <option value="history">History · native evidence</option>
+            <option value="search">Search</option>
+            <option value="comments">Comments</option>
+          </select></label
+        ><label
+          >Appearance
+          <select id="theme">
+            <option value="light">Light</option>
+            <option value="dark">Dark</option>
+          </select></label
+        ><label
+          >Sidebar
+          <select id="width">
+            <option value="176">176pt minimum</option>
+            <option value="220">220pt narrow</option>
+            <option value="240" selected>240pt default</option>
+          </select></label
+        ><label
+          >Reader height
+          <select id="height">
+            <option value="700">700pt standard</option>
+            <option value="414">414pt · 340pt sidebar</option>
+            <option value="370">370pt · 296pt minimum sidebar</option>
+          </select></label
+        ><label
+          ><input id="pdf" type="checkbox" checked /> Five modes (PDF)</label
+        ><span id="measurement"></span>
+      </section>
+      <div class="canvas">
+        <section
+          id="reader"
+          class="reader"
+          aria-label="Whole-reader design mockup"
+        ></section>
+      </div>
+      <p id="rationale" class="rationale"></p>
+      <section class="legend">
+        <p>
+          <i class="quiet"></i><strong>Navigation</strong> is quiet and
+          persistent. A neutral selected mode means “which panel”.
+        </p>
+        <p>
+          <i class="accent"></i><strong>Content</strong> has the accent. The
+          current document, chapter or revision is what matters.
+        </p>
+        <p>
+          <strong>Prototype scope:</strong> selectors above work. App controls
+          below are visual references. No files, sessions or native reader state
+          are changed.
+        </p>
+      </section>
+    </main>
+    <script src="comparison.js"></script>
+  </body>
+</html>

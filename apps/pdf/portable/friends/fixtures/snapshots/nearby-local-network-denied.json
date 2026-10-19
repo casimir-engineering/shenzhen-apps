@@ -1,0 +1,83 @@
+{
+  "type": "snapshot",
+  "subscription": "s_3",
+  "view": "nearby",
+  "rev": 4,
+  "data": {
+    "query": "",
+    "visibility": {
+      "state": "hidden",
+      "title": null,
+      "body": "Friends you’ve added show up here on their own. Other people need to make themselves visible.",
+      "remaining_label": null,
+      "remaining_accessibility_label": null,
+      "deadline": null,
+      "action": {
+        "action": "start_visibility",
+        "label": "Make myself visible for 5 minutes",
+        "style": "primary"
+      }
+    },
+    "methods": [
+      {
+        "method": "network",
+        "state": "denied",
+        "label": "Local Network access is off for ShenzhenPDF"
+      },
+      {
+        "method": "bluetooth",
+        "state": "working",
+        "label": "Looking over Bluetooth"
+      }
+    ],
+    "alert": {
+      "title": "ShenzhenPDF can’t find people on your network",
+      "body": "Turn on Local Network for ShenzhenPDF in System Settings › Privacy & Security. Until then, people on your Wi-Fi won’t appear.",
+      "action": {
+        "action": "open_settings",
+        "label": "Open Privacy Settings",
+        "style": "secondary",
+        "settings_target": "local_network_privacy"
+      }
+    },
+    "note": {
+      "text": "Still looking over Bluetooth.",
+      "action": null
+    },
+    "status": null,
+    "people": [
+      {
+        "nearby_id": null,
+        "conversation_id": "c_kenji",
+        "avatar": {
+          "kind": "animal",
+          "set": 1,
+          "index": 1,
+          "initials": "KS",
+          "color": "#2f6474"
+        },
+        "title": "Kenji Sato",
+        "subtitle": "Over Bluetooth · messages fine, files slower",
+        "status_label": "Friend",
+        "action": null,
+        "accessibility_label": "Kenji Sato, friend, over Bluetooth, messages fine, files slower"
+      }
+    ],
+    "empty": null,
+    "footer": {
+      "avatar": {
+        "kind": "animal",
+        "set": 1,
+        "index": 0,
+        "initials": "R",
+        "color": "#5a4a7a"
+      },
+      "name": "Raph",
+      "name_placeholder": "Choose your name",
+      "id_label": "ID cottage‑violet",
+      "id_note": "Your ID works nearby now. If it’s already taken, you’ll get a new one the next time ShenzhenPDF reaches the Friends server.",
+      "friends_id": "cottage-violet",
+      "add_label": "Add by ID"
+    }
+  }
+}

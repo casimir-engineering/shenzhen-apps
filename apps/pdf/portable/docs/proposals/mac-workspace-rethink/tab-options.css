@@ -1,0 +1,95 @@
+/* Three tab-only alternatives. Append after the corrected Brave baseline.
+   All reuse the reader's palette and geometry; no changes below the title bar. */
+#sz-workspace:is([data-tab-design="index"],[data-tab-design="tray"],[data-tab-design="outline"]) .sz-browser-group {
+  height:40px; padding:6px 0; gap:4px;
+}
+#sz-workspace:is([data-tab-design="index"],[data-tab-design="tray"],[data-tab-design="outline"]) .sz-group-label {
+  margin-right:8px; color:var(--sz-text);
+}
+#sz-workspace:is([data-tab-design="index"],[data-tab-design="tray"],[data-tab-design="outline"]) .sz-browser-tab {
+  height:28px;
+}
+#sz-workspace:is([data-tab-design="index"],[data-tab-design="tray"],[data-tab-design="outline"]) .sz-browser-tab .sz-tab {
+  height:28px; min-height:28px; padding:6px 8px;
+  font-size:12px; line-height:16px; color:var(--sz-text); background:transparent;
+}
+#sz-workspace:is([data-tab-design="index"],[data-tab-design="tray"],[data-tab-design="outline"]) .sz-browser-tab .sz-tab svg {
+  display:none;
+}
+#sz-workspace:is([data-tab-design="index"],[data-tab-design="tray"],[data-tab-design="outline"]) .sz-browser-tab:not(.selected)::after {
+  content:none;
+}
+#sz-workspace:is([data-tab-design="index"],[data-tab-design="tray"],[data-tab-design="outline"]) .sz-tab-close {
+  width:24px; height:24px; min-height:24px; margin-right:4px;
+}
+
+/* 1. Index: a quiet continuous group rail, with the current document's
+   short underline sitting inside its own tab instead of a raised card. */
+#sz-workspace[data-tab-design="index"] .sz-browser-group.is-expanded::after {
+  bottom:0; height:1px; background:color-mix(in srgb,var(--group) 65%,transparent);
+}
+#sz-workspace[data-tab-design="index"] .sz-browser-tab {
+  border-radius:4px; background:color-mix(in srgb,var(--group) 5%,transparent);
+  box-shadow:none;
+}
+#sz-workspace[data-tab-design="index"] .sz-browser-tab:hover {
+  background:color-mix(in srgb,var(--group) 12%,transparent);
+}
+#sz-workspace[data-tab-design="index"] .sz-browser-tab.selected,
+#sz-workspace[data-tab-design="index"] .sz-browser-tab.selected:hover {
+  background:color-mix(in srgb,var(--group) 19%,var(--sz-surface));
+  box-shadow:inset 0 -2px 0 var(--group);
+}
+#sz-workspace[data-tab-design="index"] .sz-group-label {
+  border-radius:4px; background:color-mix(in srgb,var(--group) 15%,transparent);
+}
+
+/* 2. Tray: membership is one low-contrast rounded enclosure; selection is
+   a stronger same-hue surface. Inner 6px / outer 8px radii share 2px inset. */
+#sz-workspace[data-tab-design="tray"] .sz-browser-group.is-expanded::after {
+  content:none;
+}
+#sz-workspace[data-tab-design="tray"] .sz-browser-group.is-expanded::before {
+  content:""; position:absolute; inset:4px 0; border-radius:8px;
+  background:color-mix(in srgb,var(--group) 9%,transparent);
+  box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--group) 27%,transparent);
+  pointer-events:none;
+}
+#sz-workspace[data-tab-design="tray"] .sz-browser-group > * { position:relative; }
+#sz-workspace[data-tab-design="tray"] .sz-browser-tab {
+  border-radius:6px; background:color-mix(in srgb,var(--group) 9%,transparent);
+  box-shadow:none;
+}
+#sz-workspace[data-tab-design="tray"] .sz-browser-tab:hover {
+  background:color-mix(in srgb,var(--group) 17%,transparent);
+}
+#sz-workspace[data-tab-design="tray"] .sz-browser-tab.selected,
+#sz-workspace[data-tab-design="tray"] .sz-browser-tab.selected:hover {
+  background:color-mix(in srgb,var(--group) 34%,var(--sz-surface));
+  box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--group) 70%,transparent);
+}
+#sz-workspace[data-tab-design="tray"] .sz-group-label {
+  border-radius:5px; background:var(--group-label);
+}
+
+/* 3. Outline: one crisp selected perimeter instead of a raised surface;
+   a left group spine and shared baseline retain the membership signal. */
+#sz-workspace[data-tab-design="outline"] .sz-browser-group.is-expanded::after {
+  bottom:0; height:2px; background:color-mix(in srgb,var(--group) 45%,transparent);
+}
+#sz-workspace[data-tab-design="outline"] .sz-group-label {
+  border-radius:4px; background:transparent;
+  box-shadow:inset 3px 0 0 var(--group);
+}
+#sz-workspace[data-tab-design="outline"] .sz-browser-tab {
+  border-radius:6px; background:color-mix(in srgb,var(--group) 7%,transparent);
+  box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--sz-line) 65%,transparent);
+}
+#sz-workspace[data-tab-design="outline"] .sz-browser-tab:hover {
+  background:color-mix(in srgb,var(--group) 14%,transparent);
+}
+#sz-workspace[data-tab-design="outline"] .sz-browser-tab.selected,
+#sz-workspace[data-tab-design="outline"] .sz-browser-tab.selected:hover {
+  background:color-mix(in srgb,var(--group) 21%,var(--sz-surface));
+  box-shadow:inset 0 0 0 2px var(--group);
+}

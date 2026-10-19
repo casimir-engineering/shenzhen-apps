@@ -1,0 +1,31 @@
+{
+  "set": 1,
+  "count": 24,
+  "animals": [
+    {"index": 0, "name": "Goose", "color": "#5a4a7a", "svg": "svg/00-goose.svg", "pdf": "pdf/00-goose.pdf"},
+    {"index": 1, "name": "Dove", "color": "#2f6474", "svg": "svg/01-dove.svg", "pdf": "pdf/01-dove.pdf"},
+    {"index": 2, "name": "Bear", "color": "#3f5f80", "svg": "svg/02-bear.svg", "pdf": "pdf/02-bear.pdf"},
+    {"index": 3, "name": "Cat", "color": "#7a3f4f", "svg": "svg/03-cat.svg", "pdf": "pdf/03-cat.pdf"},
+    {"index": 4, "name": "Duck", "color": "#4a6a2f", "svg": "svg/04-duck.svg", "pdf": "pdf/04-duck.pdf"},
+    {"index": 5, "name": "Panda", "color": "#7a5a34", "svg": "svg/05-panda.svg", "pdf": "pdf/05-panda.pdf"},
+    {"index": 6, "name": "Penguin", "color": "#2f6a8a", "svg": "svg/06-penguin.svg", "pdf": "pdf/06-penguin.pdf"},
+    {"index": 7, "name": "Fox", "color": "#3f6b4f", "svg": "svg/07-fox.svg", "pdf": "pdf/07-fox.pdf"},
+    {"index": 8, "name": "Rabbit", "color": "#6a4a86", "svg": "svg/08-rabbit.svg", "pdf": "pdf/08-rabbit.pdf"},
+    {"index": 9, "name": "Owl", "color": "#4f4f86", "svg": "svg/09-owl.svg", "pdf": "pdf/09-owl.pdf"},
+    {"index": 10, "name": "Frog", "color": "#5a5a66", "svg": "svg/10-frog.svg", "pdf": "pdf/10-frog.pdf"},
+    {"index": 11, "name": "Cow", "color": "#6a4a6a", "svg": "svg/11-cow.svg", "pdf": "pdf/11-cow.pdf"},
+    {"index": 12, "name": "Dog", "color": "#2f6a62", "svg": "svg/12-dog.svg", "pdf": "pdf/12-dog.pdf"},
+    {"index": 13, "name": "Pig", "color": "#4a5a7a", "svg": "svg/13-pig.svg", "pdf": "pdf/13-pig.pdf"},
+    {"index": 14, "name": "Hedgehog", "color": "#864a46", "svg": "svg/14-hedgehog.svg", "pdf": "pdf/14-hedgehog.pdf"},
+    {"index": 15, "name": "Otter", "color": "#38607a", "svg": "svg/15-otter.svg", "pdf": "pdf/15-otter.pdf"},
+    {"index": 16, "name": "Sloth", "color": "#5a6a3a", "svg": "svg/16-sloth.svg", "pdf": "pdf/16-sloth.pdf"},
+    {"index": 17, "name": "Raccoon", "color": "#6a5a2a", "svg": "svg/17-raccoon.svg", "pdf": "pdf/17-raccoon.pdf"},
+    {"index": 18, "name": "Koala", "color": "#7a3f66", "svg": "svg/18-koala.svg", "pdf": "pdf/18-koala.pdf"},
+    {"index": 19, "name": "Chicken", "color": "#3a6a4a", "svg": "svg/19-chicken.svg", "pdf": "pdf/19-chicken.pdf"},
+    {"index": 20, "name": "Seal", "color": "#4a4a6a", "svg": "svg/20-seal.svg", "pdf": "pdf/20-seal.pdf"},
+    {"index": 21, "name": "Turtle", "color": "#80463a", "svg": "svg/21-turtle.svg", "pdf": "pdf/21-turtle.pdf"},
+    {"index": 22, "name": "Capybara", "color": "#2f5a7a", "svg": "svg/22-capybara.svg", "pdf": "pdf/22-capybara.pdf"},
+    {"index": 23, "name": "Sheep", "color": "#5f5a4a", "svg": "svg/23-sheep.svg", "pdf": "pdf/23-sheep.pdf"}
+
+  ]
+}

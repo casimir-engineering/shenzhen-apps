@@ -1,0 +1,41 @@
+{
+  "about": [
+    "Download link payloads (PROTOCOL.md § Links, the app's URL): d. then canonical unpadded base64url",
+    "of the version 0x01, the link id (16) and the secret (32), exactly 49 bytes. The sender's name travels",
+    "only in the sealed metadata. Read by the link page (server/friends/test/link-script.test.js), the",
+    "helper (SZFLinksWireTests.m) and ShenzhenPDF's URL check (mac/friends/tests)."
+  ],
+  "accepted": [
+    "d.AQABAgMEBQYHCAkKCwwNDg9kZWZnaGlqa2xtbm9wcXJzdHV2d3h5ent8fX5_gIGCgw"
+  ],
+  "refused": [
+    {
+      "payload": "d.AQABAgMEBQYHCAkKCwwNDg9kZWZnaGlqa2xtbm9wcXJzdHV2d3h5ent8fX5_gIGCgwNNZWk",
+      "why": "a sender's name after the secret"
+    },
+    {
+      "payload": "d.AQABAgMEBQYHCAkKCwwNDg9kZWZnaGlqa2xtbm9wcXJzdHV2d3h5ent8fX5_gIGCgwA",
+      "why": "50 bytes"
+    },
+    {
+      "payload": "d.AQABAgMEBQYHCAkKCwwNDg9kZWZnaGlqa2xtbm9wcXJzdHV2d3h5ent8fX5_gIGC",
+      "why": "48 bytes"
+    },
+    {
+      "payload": "d.AgABAgMEBQYHCAkKCwwNDg9kZWZnaGlqa2xtbm9wcXJzdHV2d3h5ent8fX5_gIGCgw",
+      "why": "version 2"
+    },
+    {
+      "payload": "d.AQABAgMEBQYHCAkKCwwNDg9kZWZnaGlqa2xtbm9wcXJzdHV2d3h5ent8fX5_gIGCgx",
+      "why": "unused trailing bits set"
+    },
+    {
+      "payload": "d.AQABAgMEBQYHCAkKCwwNDg9kZWZnaGlqa2xtbm9wcXJzdHV2d3h5ent8fX5_gIGCgw=",
+      "why": "padding"
+    },
+    {
+      "payload": "d.",
+      "why": "empty"
+    }
+  ]
+}

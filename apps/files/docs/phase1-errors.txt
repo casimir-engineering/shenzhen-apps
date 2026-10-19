@@ -1,0 +1,57 @@
+The Meson build system
+Version: 1.11.1
+Source dir: /Users/raph/Projects/nautilus-mac/nautilus
+Build dir: /Users/raph/Projects/nautilus-mac/build
+Build type: native build
+Project name: nautilus
+Project version: 51.beta
+C compiler for the host machine: cc (clang 21.0.0 "Apple clang version 21.0.0 (clang-2100.1.1.101)")
+C linker for the host machine: cc ld64 1267
+Host machine cpu family: aarch64
+Host machine cpu: aarch64
+Compiler for C supports arguments -Wduplicated-branches: NO 
+Compiler for C supports arguments -Wduplicated-cond: NO 
+Compiler for C supports arguments -Wlogical-op: NO 
+Compiler for C supports arguments -Werror=empty-body: YES 
+Compiler for C supports arguments -Werror=format=2: YES 
+Compiler for C supports arguments -Werror=implicit-function-declaration: YES 
+Compiler for C supports arguments -Werror=incompatible-pointer-types: YES 
+Compiler for C supports arguments -Werror=init-self: YES 
+Compiler for C supports arguments -Werror=missing-include-dirs: YES 
+Compiler for C supports arguments -Werror=missing-prototypes: YES 
+Compiler for C supports arguments -Werror=pointer-arith: YES 
+Compiler for C supports arguments -Werror=sequence-point: YES 
+Compiler for C supports arguments -Werror=shadow: YES 
+Compiler for C supports arguments -Werror=strict-prototypes: YES 
+Compiler for C supports arguments -Werror=undef: YES 
+Compiler for C supports arguments -Werror=uninitialized: YES 
+Compiler for C supports arguments -Wno-deprecated-declarations: YES 
+Compiler for C supports arguments -Wno-cast-function-type: YES 
+Compiler for C supports arguments -Wno-unused-parameter: YES 
+Compiler for C supports arguments -Wno-error=maybe-uninitialized: NO 
+Library m found: YES
+
+Executing subproject libgxdp 
+
+libgxdp| Project name: libgxdp
+libgxdp| Project version: 48.alpha
+libgxdp| C compiler for the host machine: cc (clang 21.0.0 "Apple clang version 21.0.0 (clang-2100.1.1.101)")
+libgxdp| C linker for the host machine: cc ld64 1267
+libgxdp| Found pkg-config: YES (/opt/homebrew/bin/pkg-config) 2.5.1
+libgxdp| Run-time dependency gtk4 found: YES 4.22.4
+libgxdp| Did not find CMake 'cmake'
+libgxdp| Found CMake: NO
+libgxdp| Run-time dependency gtk4-wayland found: NO  (tried pkg-config, framework and cmake)
+libgxdp| Run-time dependency gtk4-x11 found: NO  (tried pkg-config, framework and cmake)
+libgxdp| Configuring gxdp-config.h using configuration
+libgxdp| Build targets in project: 0
+libgxdp| Subproject libgxdp finished.
+
+Run-time dependency gio-2.0 found: YES 2.88.2
+Run-time dependency gio-unix-2.0 found: YES 2.88.2
+Run-time dependency glib-2.0 found: YES 2.88.2
+Run-time dependency glycin-2 found: NO  (tried pkg-config and framework)
+
+nautilus/meson.build:116:9: ERROR: Dependency "glycin-2" not found (tried pkg-config and framework)
+
+A full log can be found at /Users/raph/Projects/nautilus-mac/build/meson-logs/meson-log.txt

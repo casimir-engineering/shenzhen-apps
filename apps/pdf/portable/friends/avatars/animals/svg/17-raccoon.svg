@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <!-- Raccoon: masked, grinning, definitely not the one who opened the snacks. -->
+  <clipPath id="c"><circle cx="32" cy="32" r="32"/></clipPath>
+  <circle id="bg" cx="32" cy="32" r="32" fill="#6a5a2a"/>
+  <g clip-path="url(#c)">
+    <ellipse cx="32" cy="74" rx="26" ry="17" fill="#a7adb8"/>
+    <path d="M11 26 L13 8 L27 17 Z M53 26 L51 8 L37 17 Z" fill="#a7adb8"/>
+    <path d="M14.5 21 L15.5 12.5 L22.5 17 Z M49.5 21 L48.5 12.5 L41.5 17 Z" fill="#4a4652"/>
+    <path d="M12 33 Q12 17 32 17 Q52 17 52 33 Q50 46 32 49 Q14 46 12 33 Z" fill="#a7adb8"/>
+    <path d="M14 26 Q20 22 26 25 Q32 21 38 25 Q44 22 50 26 Q46 30 44 28 Q40 25 32 27 Q24 25 20 28 Q18 30 14 26 Z"
+          fill="#ffffff"/>
+    <path d="M12 33 Q15 25 22 27 Q28 29 32 33 Q36 29 42 27 Q49 25 52 33 Q48 39 42 38 Q36 37 32 34 Q28 37 22 38
+             Q16 39 12 33 Z" fill="#2b2233"/>
+    <path d="M22 40 Q27 37 32 39 Q37 37 42 40 Q40 47 32 49 Q24 47 22 40 Z" fill="#ffffff"/>
+    <circle cx="23" cy="32" r="2.6" fill="#ffffff"/>
+    <circle cx="41" cy="32" r="2.6" fill="#ffffff"/>
+    <circle cx="23.6" cy="32.4" r="1.5" fill="#2b2233"/>
+    <circle cx="41.6" cy="32.4" r="1.5" fill="#2b2233"/>
+    <ellipse cx="32" cy="40" rx="3" ry="2.2" fill="#2b2233"/>
+    <path d="M27.5 44 Q32 47.5 36.5 44" fill="none" stroke="#2b2233" stroke-width="1.6" stroke-linecap="round"/>
+    <path d="M33.2 45.4 L34.6 45.2 L34.2 47.2 Z" fill="#ffffff" stroke="#ffffff" stroke-width="0.6"
+          stroke-linejoin="round"/>
+  </g>
+</svg>

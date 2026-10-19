@@ -1,0 +1,5 @@
+# Each app keeps its own .gitignore under apps/<app>; these apply to the whole tree.
+.DS_Store
+.idea/
+# Worktrees made by coding assistants
+.claude/worktrees/

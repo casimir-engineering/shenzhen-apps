@@ -1,0 +1,22 @@
+{
+  "$schema": "../../node_modules/@tauri-apps/cli/config.schema.json",
+  "bundle": {
+    "externalBin": ["friends/bin/szfriends-helper"],
+    "resources": {
+      "friends/animals/": "friends/animals/",
+      "friends/Acknowledgements.txt": "friends/Acknowledgements.txt"
+    },
+    "windows": {
+      "nsis": {
+        "installerHooks": "friends/installer-hooks.nsh"
+      },
+      "wix": {
+        "fragmentPaths": ["friends/handover.wxs"],
+        "componentGroupRefs": ["SzfriendsHandover"]
+      }
+    }
+  },
+  "plugins": {
+    "deep-link": { "desktop": { "schemes": ["shenzhen3d"] } }
+  }
+}

@@ -1,0 +1,4 @@
+HTTP/1.0 500 Internal Server Error
+Server: x
+
+<?xml version="1.0"?><s:Envelope><s:Body><u:GetExternalIPAddressResponse><NewExternalIPAddress>203.0.113.20</NewExternalIPAddress></u:GetExternalIPAddressResponse></s:Body></s:Envelope>

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Shenzhen Friends in the MSI (docs/FRIENDS.md § Tauri, ADR 0015 § 14). The app runs the helper from a per-user
+     copy, never from the install folder, so this install replaces szfriends-helper.exe even while a helper runs.
+     After the files are in place the new helper asks a running older one to step aside through the protocol's
+     handover, as the installing user and unelevated, as the helper and the apps always run. Nothing is stopped by
+     name or process id; a failure changes nothing about the install. -->
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <Fragment>
+    <CustomAction Id="SzfriendsHandoverAction" Directory="INSTALLDIR"
+                  ExeCommand="&quot;[INSTALLDIR]szfriends-helper.exe&quot; --handover"
+                  Execute="deferred" Impersonate="yes" Return="ignore" />
+    <InstallExecuteSequence>
+      <Custom Action="SzfriendsHandoverAction" After="InstallFiles">NOT REMOVE</Custom>
+    </InstallExecuteSequence>
+    <ComponentGroup Id="SzfriendsHandover" />
+  </Fragment>
+</Wix>

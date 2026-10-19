@@ -1,0 +1,97 @@
+{
+  "type": "snapshot",
+  "subscription": "s_8",
+  "view": "profile",
+  "rev": 1,
+  "data": {
+    "title": "Your profile and ID",
+    "back": {
+      "badge_count": 2,
+      "badge_label": "2",
+      "accessibility_label": "Back to Friends, 2 waiting"
+    },
+    "name": {
+      "label": "Name friends see",
+      "value": "Raph",
+      "placeholder": "Your name",
+      "max_length": 40
+    },
+    "picture": {
+      "avatar": {
+        "kind": "animal",
+        "set": 1,
+        "index": 0,
+        "initials": "R",
+        "color": "#5a4a7a"
+      },
+      "choose_label": "Change picture…",
+      "own_picture_label": "Use your own picture…",
+      "animal_set": 1,
+      "selected_index": 0
+    },
+    "id": {
+      "label": "Your ID",
+      "friends_id": "cottage-violet",
+      "state": "unreserved",
+      "note": "Your ID works nearby now. If it’s already taken, you’ll get a new one the next time ShenzhenPDF reaches the Friends server.",
+      "copy_label": "Copy",
+      "qr_label": null,
+      "qr_payload": null
+    },
+    "add": {
+      "label": "Add someone by ID",
+      "placeholder": "Their ID",
+      "button_label": "Send request",
+      "hint": "Two words, like amber‑falcon."
+    },
+    "links": {
+      "title": "Your links",
+      "friend": {
+        "label": "Your friend link",
+        "url": "https://friends.example/f#AbTdSXSAjDJSLILKcnTFnJ61gwHnPY127KX0X8oI-0Oq",
+        "note": "Whoever opens it can add you without waiting for you to accept. Reset it if it reached someone it shouldn’t have.",
+        "copy_label": "Copy",
+        "reset": {
+          "action": "reset_friend_link",
+          "label": "Reset link",
+          "style": "secondary",
+          "confirm": {
+            "title": "Reset your friend link?",
+            "body": "The link you shared stops working. Friends you already have stay friends.",
+            "confirm_label": "Reset link",
+            "cancel_label": "Cancel",
+            "destructive": true
+          }
+        }
+      },
+      "downloads_label": "Download links",
+      "downloads_empty": null,
+      "downloads": [
+        {
+          "link_id": "EBESExQVFhcYGRobHB0eHw",
+          "file_name": "Site photos.pdf",
+          "downloads_label": "3 downloads",
+          "expires_label": "Expires in 6 days",
+          "revoke": {
+            "action": "revoke_link",
+            "label": "Revoke",
+            "style": "link",
+            "link_id": "EBESExQVFhcYGRobHB0eHw"
+          }
+        },
+        {
+          "link_id": "IiMkJSYnKCkqKywtLi8wMQ",
+          "file_name": "Supplier contract v3 with the long annex and the signed amendments.pdf",
+          "downloads_label": "No downloads yet",
+          "expires_label": "Expires tomorrow",
+          "revoke": {
+            "action": "revoke_link",
+            "label": "Revoke",
+            "style": "link",
+            "link_id": "IiMkJSYnKCkqKywtLi8wMQ"
+          }
+        }
+      ]
+    }
+  }
+}

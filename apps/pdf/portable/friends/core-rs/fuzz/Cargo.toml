@@ -1,0 +1,91 @@
+# cargo-fuzz targets for every decoder a peer or a client feeds (ADR 0001 § Verification, ADR 0015 § Verification):
+# frames and fields, handshake payloads, the length-prefixed stream and preamble, the secure channel itself fed
+# arbitrary bytes, the chunk flow, the client protocol's JSON lines, and device chains, join and sync messages.
+# Seeded with the helper's own libFuzzer corpus (service/thumbnails/fuzz/corpus/frame); run by
+# `make friends-core-rs-fuzz` (core-rs.mk). Its own workspace, outside the product's, so the fuzzer's nightly-only
+# flags never reach a product build.
+
+[package]
+name = "szfriends-fuzz"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+szfriends-wire = { path = "../crates/szfriends-wire" }
+szfriends-contract = { path = "../crates/szfriends-contract" }
+szfriends-identity = { path = "../crates/szfriends-identity" }
+szfriends-core = { path = "../crates/szfriends-core" }
+
+[workspace]
+members = ["."]
+
+[profile.release]
+debug = 1
+
+[[bin]]
+name = "frame"
+path = "fuzz_targets/frame.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "handshake_payload"
+path = "fuzz_targets/handshake_payload.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "stream"
+path = "fuzz_targets/stream.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "channel_responder"
+path = "fuzz_targets/channel_responder.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "chunk_flow"
+path = "fuzz_targets/chunk_flow.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "json_lines"
+path = "fuzz_targets/json_lines.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "device_chain"
+path = "fuzz_targets/device_chain.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "join_message"
+path = "fuzz_targets/join_message.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "sync_message"
+path = "fuzz_targets/sync_message.rs"
+test = false
+doc = false
+bench = false

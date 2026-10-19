@@ -1,0 +1,6 @@
+# Generated previews include the visualization runtime; the fragment is canonical.
+prototype.html
+tab-options-preview.html
+compact.html
+medium.html
+*-fixture.fragment.html

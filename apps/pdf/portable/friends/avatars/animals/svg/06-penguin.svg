@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <!-- Penguin: dressed for a gala nobody else was invited to. -->
+  <clipPath id="c"><circle cx="32" cy="32" r="32"/></clipPath>
+  <circle id="bg" cx="32" cy="32" r="32" fill="#2f6a8a"/>
+  <g clip-path="url(#c)">
+    <ellipse cx="32" cy="70" rx="25" ry="20" fill="#2b2233"/>
+    <ellipse cx="32" cy="72" rx="15" ry="16" fill="#ffffff"/>
+    <ellipse cx="32" cy="31" rx="18" ry="18.5" fill="#2b2233"/>
+    <path d="M32 26 Q27 19 22 22 Q15 26 18 35 Q21 45 32 47 Q43 45 46 35 Q49 26 42 22 Q37 19 32 26 Z" fill="#ffffff"/>
+    <ellipse cx="25.5" cy="30" rx="2.8" ry="3.4" fill="#2b2233"/>
+    <ellipse cx="38.5" cy="30" rx="2.8" ry="3.4" fill="#2b2233"/>
+    <circle cx="26.5" cy="28.7" r="1.1" fill="#ffffff"/>
+    <circle cx="39.5" cy="28.7" r="1.1" fill="#ffffff"/>
+    <ellipse cx="21.5" cy="36.5" rx="3" ry="1.9" fill="#ff8fa3" opacity="0.7"/>
+    <ellipse cx="42.5" cy="36.5" rx="3" ry="1.9" fill="#ff8fa3" opacity="0.7"/>
+    <path d="M27.5 35 Q32 33 36.5 35 L32 40.5 Z" fill="#f7a23b"/>
+    <path d="M32 54 L24.5 50 V58 Z M32 54 L39.5 50 V58 Z" fill="#ef4b5a"/>
+    <circle cx="32" cy="54" r="2.4" fill="#c73444"/>
+  </g>
+</svg>

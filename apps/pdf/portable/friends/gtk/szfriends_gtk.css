@@ -1,0 +1,78 @@
+/* Shenzhen Friends GTK views: colour tokens and the styles every view shares.
+ *
+ * Every colour the views use is a @szfriends_* token defined here, so a host matches its own chrome by redefining
+ * tokens in SZFriendsGtkHost.appearance_css, which loads after this file. Defaults follow libadwaita's named colours
+ * where it has one, so the views look native in a GNOME host such as Shenzhen Files, and the AppKit views' values
+ * (mac/SZFriendsHostValues.m) where it has none. The dark values apply through the provider's prefers-color-scheme,
+ * which follows AdwStyleManager:dark (szfriends_gtk_style.c). */
+
+@define-color szfriends_background @popover_bg_color;
+@define-color szfriends_text @popover_fg_color;
+@define-color szfriends_secondary_text alpha(@popover_fg_color, 0.7);
+@define-color szfriends_separator alpha(currentColor, 0.15);
+@define-color szfriends_field_background alpha(currentColor, 0.06);
+@define-color szfriends_accent @accent_color;
+@define-color szfriends_selection alpha(@accent_bg_color, 0.18);
+@define-color szfriends_hover alpha(currentColor, 0.07);
+@define-color szfriends_primary_button @accent_bg_color;
+@define-color szfriends_primary_button_text @accent_fg_color;
+@define-color szfriends_destructive @destructive_color;
+@define-color szfriends_success @success_color;
+@define-color szfriends_warning @warning_color;
+@define-color szfriends_outgoing_bubble #dbe7f5;
+@define-color szfriends_incoming_bubble #efeff1;
+@define-color szfriends_badge #d93a30;
+@define-color szfriends_badge_text #ffffff;
+@define-color szfriends_local_route #2e8540;
+@define-color szfriends_online_route #2a6fc0;
+@define-color szfriends_offline_route #7a808a;
+
+/* The dark incoming bubble sits on libadwaita's dark popover (#36363a), lighter than it so its edge shows: AppKit's
+ * #34343b drew at 1.0:1 there (conversation probe, wave 6b), this one at about 1.3:1. */
+@media (prefers-color-scheme: dark) {
+  @define-color szfriends_outgoing_bubble #2c3a55;
+  @define-color szfriends_incoming_bubble #48484f;
+  @define-color szfriends_local_route #62c27e;
+  @define-color szfriends_online_route #6aa8f0;
+  @define-color szfriends_offline_route #9a9aa3;
+}
+
+/* The dropdown and its pages: one background, as the AppKit dropdown has. */
+.szfriends-dropdown,
+.szfriends-dropdown .szfriends-page {
+  background-color: @szfriends_background;
+  color: @szfriends_text;
+}
+
+/* The client library's connection line while the helper does not answer. */
+.szfriends-status {
+  background-color: @szfriends_field_background;
+  color: @szfriends_secondary_text;
+  font-size: 0.85em;
+  padding: 6px 12px;
+}
+
+/* The waiting count, on the Friends button and on back arrows: a pill inside the control, never over its
+ * neighbours, so the control keeps one hit area. */
+.szfriends-badge {
+  background-color: @szfriends_badge;
+  color: @szfriends_badge_text;
+  font-size: 9px;
+  font-weight: bold;
+  border-radius: 6px;
+  min-width: 12px;
+  min-height: 12px;
+  padding: 0 3px;
+}
+
+/* With a count, the icon moves down and left so the count in the corner never covers the second person: covered,
+ * the two-people icon reads as one person, and two people is what tells Friends apart from AI chat. */
+.szfriends-title-button.szfriends-badged image {
+  -gtk-icon-transform: translate(-3px, 3px);
+}
+
+/* Files hovering over the button: the selection fill and an accent outline, as the AppKit button draws them. */
+.szfriends-title-button.szfriends-drop-accept > menubutton > button {
+  background-color: @szfriends_selection;
+  box-shadow: inset 0 0 0 2px @szfriends_accent;
+}

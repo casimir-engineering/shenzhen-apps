@@ -1,0 +1,67 @@
+{"type":"ping","id":"2"}
+{"type":"activate","id":"3"}
+{"type":"subscribe","id":"4","view":"badge"}
+{"type":"subscribe","id":"5","view":"list","params":null}
+{"type":"subscribe","id":"6","view":"details","params":{"conversation_id":"c_mei"}}
+{"type":"unsubscribe","id":"7","subscription":"s_6"}
+{"type":"set_filter","id":"8","subscription":"s_2","query":"mei"}
+{"type":"open_conversation","id":"9","conversation_id":"c_mei"}
+{"type":"open_conversation","id":"10","conversation_id":"c_mei","message_id":"m_a4109f52"}
+{"type":"load_earlier","id":"11","subscription":"s_4"}
+{"type":"send_message","id":"12","conversation_id":"c_mei","text":"On it. I'll send my notes tonight.","client_token":"3f0c9a7e5b2d4e61a8c0f7d2"}
+{"type":"send_message","id":"13","conversation_id":"c_mei","text":"Yes, this one has your comments","client_token":"8b1d2c3e4f5a6b7c8d9e0f1a","attachments":[{"path":"/Users/raph/Documents/Supplier contract v3.pdf","display_name":"Supplier contract v3.pdf","revision":{"source":"com.intuition.shenzhenpdf","document_id":"d_7f3a","revision_id":"r_0412","label":"version saved today, 14:02","sha256":"144be3ec17b8dec8691c13d45696f7c7f65cc3bce26ae27a6a4b5e3976447769","size":2431029}}]}
+{"type":"send_files","id":"14","conversation_id":"c_priya","client_token":"c4d5e6f708192a3b4c5d6e7f","files":[{"path":"/Users/raph/Documents/Supplier contract v3.pdf","revision":{"source":"com.intuition.shenzhenpdf","document_id":"d_7f3a","revision_id":"r_0412","label":"version saved today, 14:02","sha256":"144be3ec17b8dec8691c13d45696f7c7f65cc3bce26ae27a6a4b5e3976447769","size":2431029}},{"path":"/Users/raph/Desktop/Site photos.pdf","revision":null}]}
+{"type":"cancel_transfer","id":"15","transfer_id":"t_3e8b5d10"}
+{"type":"accept_offer","id":"16","transfer_id":"t_kenji_site"}
+{"type":"decline_offer","id":"17","transfer_id":"t_kenji_site"}
+{"type":"retry_item","id":"18","item_id":"m_0d1e2f30"}
+{"type":"accept_request","id":"19","conversation_id":"c_lena"}
+{"type":"decline_request","id":"20","conversation_id":"c_lena"}
+{"type":"cancel_request","id":"21","conversation_id":"c_tomas"}
+{"type":"send_request","id":"22","nearby_id":"n_7c1e"}
+{"type":"add_by_id","id":"23","friends_id":"willow-breeze"}
+{"type":"block","id":"24","conversation_id":"c_lena"}
+{"type":"unblock","id":"25","conversation_id":"c_lena"}
+{"type":"remove_friend","id":"26","conversation_id":"c_tulip"}
+{"type":"mark_verified","id":"27","conversation_id":"c_mei"}
+{"type":"accept_key_change","id":"28","conversation_id":"c_daniel"}
+{"type":"set_name","id":"29","name":"Raph"}
+{"type":"set_picture","id":"30","picture":{"kind":"animal","set":1,"index":7}}
+{"type":"set_picture","id":"31","picture":{"kind":"image","data_base64":"/9j/4CBmaXh0dXJlIGJ5dGVzLCBub3QgYSByZWFsIEpQRUc=","crop":{"x":120,"y":40,"side":960}}}
+{"type":"set_picture","id":"32","picture":{"kind":"image","path":"/Users/raph/Pictures/Me.heic","crop":null}}
+{"type":"set_auto_accept","id":"33","conversation_id":"c_mei","enabled":true}
+{"type":"start_visibility","id":"34"}
+{"type":"stop_visibility","id":"35"}
+{"type":"search_messages","id":"36","query":"合同","limit":20}
+{"type":"search_messages","id":"37","query":"pages","conversation_id":"c_mei"}
+{"type":"assistant_open_scope","id":"38","scope":{"kind":"conversations","conversation_ids":["c_mei"]}}
+{"type":"assistant_open_scope","id":"39","scope":{"kind":"all"}}
+{"type":"assistant_search","id":"40","scope_id":"sc_81f2","query":"delivery dates","limit":10}
+{"type":"assistant_read","id":"41","scope_id":"sc_81f2","message_id":"m_a4109f52","before":5,"after":5}
+{"type":"assistant_close_scope","id":"42","scope_id":"sc_81f2"}
+{"type":"delete_history","id":"43","conversation_id":"c_tulip"}
+{"type":"delete_history","id":"44"}
+{"type":"reset_friends","id":"45","confirm":"reset"}
+{"type":"disable","id":"46"}
+{"type":"dismiss_banner","id":"47","kind":"id_changed"}
+{"type":"send_message","id":"48","conversation_id":"c_mei","text":"Pages 3–5 changed: the bracket moved **4 mm** and the tolerance is now ±0.1 mm.","client_token":"5a6b7c8d9e0f1a2b3c4d5e6f","attachments":[{"path":"/Users/raph/Documents/Supplier contract v3.pdf","display_name":"Supplier contract v3.pdf","revision":null}],"via_assistant":true}
+{"type":"send_files","id":"49","conversation_id":"c_mei","client_token":"9e8d7c6b5a4f3e2d1c0b9a8f","files":[{"path":"/Users/raph/Documents/Bracket drawing rev B.pdf","revision":null}],"via_assistant":true}
+{"type":"subscribe","id":"50","view":"message_status","params":{"message_ids":["m_c4d27a19","m_7a3e5b21","m_5f2a90c1"]}}
+{"type":"cancel_message","id":"51","message_id":"m_c4d27a19"}
+{"type":"add_from_mention","id":"52","friends_id":"bonfire-otter","identity_key":"tN1JdICMMlIsgspydMWcnrWDAec9jXbspfRfygj7Q6o","name":"Leo Park"}
+{"type":"send_message","id":"53","conversation_id":"c_daniel","text":"\ufffc has the bracket drawing. Ask her for rev B.","client_token":"6c5d4e3f2a1b0c9d8e7f6a5b","mentions":[{"conversation_id":"c_mei"}]}
+{"type":"open_link","id":"54","payload":"f.AbTdSXSAjDJSLILKcnTFnJ61gwHnPY127KX0X8oI-0OqyMnKy8zNzs_Q0dLT1NXW1w1ib25maXJlLW90dGVyCExlbyBQYXJr"}
+{"type":"add_from_link","id":"55","payload":"f.AbTdSXSAjDJSLILKcnTFnJ61gwHnPY127KX0X8oI-0OqyMnKy8zNzs_Q0dLT1NXW1w1ib25maXJlLW90dGVyCExlbyBQYXJr"}
+{"type":"receive_link","id":"56","payload":"d.ARAREhMUFRYXGBkaGxwdHh9kZWZnaGlqa2xtbm9wcXJzdHV2d3h5ent8fX5_gIGCgw"}
+{"type":"make_download_link","id":"57","file":{"path":"/Users/raph/Documents/Site photos.pdf","display_name":"Site photos.pdf","revision":null},"expires_days":7}
+{"type":"reset_friend_link","id":"58"}
+{"type":"revoke_link","id":"59","link_id":"EBESExQVFhcYGRobHB0eHw"}
+{"type":"join_profile","id":"60","friends_id":"cottage-violet"}
+{"type":"enter_join_code","id":"61","code":"4831 2207"}
+{"type":"cancel_join","id":"62"}
+{"type":"approve_join","id":"63","join_id":"5f2d0c4be1a94a7b8d3e6f1a2b3c4d5e"}
+{"type":"deny_join","id":"64","join_id":"5f2d0c4be1a94a7b8d3e6f1a2b3c4d5e"}
+{"type":"revoke_device","id":"65","device_id":"d_5b07e2c9"}
+{"type":"rename_device","id":"66","name":"Raph’s MacBook Pro"}
+{"type":"fetch_from_device","id":"67","transfer_id":"t_c81f04d2"}
+{"type":"subscribe","id":"68","view":"join","params":null}

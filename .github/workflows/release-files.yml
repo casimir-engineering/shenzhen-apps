@@ -1,0 +1,70 @@
+name: Release Shenzhen Files
+# Builds, signs and notarizes Shenzhen Files at a files/<version>-<build> tag of this repository and publishes the
+# GitHub release <version>-<build> on casimir-engineering/shenzhen-files, where installed apps look for updates.
+# Started by hand only (docs/RELEASING.md).
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: The files/<version>-<build> tag to release
+        required: true
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: release-files
+  cancel-in-progress: false
+defaults:
+  run:
+    working-directory: apps/files
+jobs:
+  release:
+    if: github.repository_owner == 'casimir-engineering'
+    runs-on: macos-15
+    timeout-minutes: 180
+    env:
+      TAG: ${{ inputs.tag }}
+      REPO: casimir-engineering/shenzhen-files
+      ASSET: ShenzhenFiles-mac-arm64.dmg
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refs/tags/${{ inputs.tag }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: The tag is the version in package/make-app.sh
+        run: |
+          version=$(sed -n 's/^SHORT_VERSION="\(.*\)"$/\1/p' package/make-app.sh)
+          build=$(sed -n 's/^RELEASE_BUILD="\(.*\)"$/\1/p' package/make-app.sh)
+          test "$TAG" = "files/$version-$build" || { echo "::error::$TAG is not files/$version-$build"; exit 1; }
+          echo "RELEASE=$version-$build" >> "$GITHUB_ENV"
+          test -f "docs/release-$version-$build.md" || { echo "::error::no docs/release-$version-$build.md"; exit 1; }
+      - name: Friends helper build number
+        run: ../../tools/check-friends-number.sh
+      - name: Homebrew packages (README.md, Build from source)
+        run: >
+          brew install gtk4 libadwaita glib meson ninja pkgconf gettext gdk-pixbuf librsvg tinysparql
+          gnome-autoar blueprint-compiler icu4c@78 libarchive json-glib desktop-file-utils shared-mime-info
+      - run: tools/setup-friends.sh
+      - run: tools/setup-nautilus-tree.sh
+      - run: tools/test-friends-adapter.sh
+      - name: Signing
+        run: ../../tools/ci/mac-signing.sh >> "$GITHUB_ENV"
+        env:
+          MAC_CERTIFICATE_P12: ${{ secrets.MAC_CERTIFICATE_P12 }}
+          MAC_CERTIFICATE_PASSWORD: ${{ secrets.MAC_CERTIFICATE_PASSWORD }}
+          NOTARY_KEY_P8: ${{ secrets.NOTARY_KEY_P8 }}
+          NOTARY_KEY_ID: ${{ secrets.NOTARY_KEY_ID }}
+          NOTARY_ISSUER_ID: ${{ secrets.NOTARY_ISSUER_ID }}
+      - name: Signed, notarized and verified DMG
+        run: package/sign-and-notarize.sh --prepare-only --skip-install
+      - name: GitHub release on casimir-engineering/shenzhen-files
+        env:
+          GH_TOKEN: ${{ secrets.SHENZHEN_RELEASE_TOKEN }}
+        run: |
+          gh release create "$RELEASE" "dist/$ASSET" --repo "$REPO" --title "$RELEASE" \
+            --notes-file "docs/release-$RELEASE.md" --draft
+          gh release edit "$RELEASE" --repo "$REPO" --draft=false --latest
+          local_sha=$(shasum -a 256 "dist/$ASSET" | awk '{print $1}')
+          api_sha=$(gh api "repos/$REPO/releases/latest" --jq ".assets[] | select(.name == \"$ASSET\") | .digest")
+          test "$api_sha" = "sha256:$local_sha" || { echo "::error::GitHub has $api_sha, built $local_sha"; exit 1; }

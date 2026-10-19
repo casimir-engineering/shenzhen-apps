@@ -1,0 +1,26 @@
+{
+  "type": "reply",
+  "re": "54",
+  "ok": true,
+  "result": {
+    "card": {
+      "kind": "friend",
+      "title": "Add Leo Park?",
+      "subtitle": "Friends ID bonfire‑otter",
+      "note": "Leo Park made this link, so you’ll be friends as soon as your request reaches Leo Park.",
+      "avatar": {
+        "kind": "placeholder",
+        "initials": "LP",
+        "color": "#3f7a5c"
+      },
+      "actions": [
+        {
+          "action": "add_from_link",
+          "label": "Add",
+          "style": "primary",
+          "payload": "f.AbTdSXSAjDJSLILKcnTFnJ61gwHnPY127KX0X8oI-0OqyMnKy8zNzs_Q0dLT1NXW1w1ib25maXJlLW90dGVyCExlbyBQYXJr"
+        }
+      ]
+    }
+  }
+}

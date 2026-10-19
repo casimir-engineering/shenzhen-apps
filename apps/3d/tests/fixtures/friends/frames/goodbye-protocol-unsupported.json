@@ -1,0 +1,16 @@
+{
+  "type": "goodbye",
+  "reason": "protocol_error",
+  "message": null,
+  "successor": null,
+  "error": {
+    "code": "protocol_unsupported",
+    "message": null,
+    "retryable": false,
+    "details": {
+      "helper_major": 1,
+      "helper_min_major": 1,
+      "handover": "scheduled"
+    }
+  }
+}

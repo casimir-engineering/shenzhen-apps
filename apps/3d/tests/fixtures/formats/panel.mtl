@@ -1,0 +1,4 @@
+newmtl Glass
+Kd 0.2 0.6 1.0
+d 0.4
+map_Kd checker.png

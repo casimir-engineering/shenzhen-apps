@@ -1,0 +1,18 @@
+{
+  "type": "reply",
+  "re": "40",
+  "ok": true,
+  "result": {
+    "results": [
+      {
+        "conversation_id": "c_mei",
+        "conversation_title": "Mei Lin",
+        "message_id": "m_a4109f52",
+        "sender_label": "Mei Lin",
+        "sent_at": "2026-10-12T06:32:05Z",
+        "excerpt": "Can you check pages 3–5 before Friday?"
+      }
+    ],
+    "truncated": false
+  }
+}

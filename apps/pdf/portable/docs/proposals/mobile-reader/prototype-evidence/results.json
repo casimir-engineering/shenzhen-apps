@@ -1,0 +1,110 @@
+{
+  "testedAt": "2026-09-23T18:23:56.830Z",
+  "scope": "Browser prototype only; no native claims",
+  "results": [
+    {
+      "scene": "reader",
+      "width": 390,
+      "overflow": false
+    },
+    {
+      "scene": "epub",
+      "width": 390,
+      "overflow": false
+    },
+    {
+      "scene": "markdown",
+      "width": 390,
+      "overflow": false
+    },
+    {
+      "scene": "groups",
+      "width": 390,
+      "overflow": false
+    },
+    {
+      "scene": "documents",
+      "width": 390,
+      "overflow": false
+    },
+    {
+      "scene": "collection",
+      "width": 390,
+      "overflow": false
+    },
+    {
+      "scene": "history",
+      "width": 390,
+      "overflow": false
+    },
+    {
+      "scene": "storage",
+      "width": 390,
+      "overflow": false
+    },
+    {
+      "scene": "wheel",
+      "width": 390,
+      "overflow": false
+    },
+    {
+      "scene": "missing",
+      "width": 390,
+      "overflow": false
+    },
+    {
+      "scene": "consent",
+      "width": 390,
+      "overflow": false
+    },
+    {
+      "interaction": "tap switch PDF to EPUB",
+      "passed": true
+    },
+    {
+      "interaction": "hold, center, direction, release to EPUB",
+      "passed": true
+    },
+    {
+      "interaction": "unarmed release cancels",
+      "passed": true
+    },
+    {
+      "interaction": "Collection text filter",
+      "passed": true
+    },
+    {
+      "interaction": "dated revision and Return to latest",
+      "passed": true
+    },
+    {
+      "interaction": "cleanup accounting",
+      "passed": true
+    },
+    {
+      "scene": "groups",
+      "width": 360,
+      "large": true,
+      "overflow": false
+    },
+    {
+      "scene": "collection",
+      "width": 360,
+      "large": true,
+      "overflow": false
+    },
+    {
+      "scene": "wheel",
+      "width": 360,
+      "large": true,
+      "overflow": false
+    },
+    {
+      "scene": "consent",
+      "width": 360,
+      "large": true,
+      "overflow": false
+    }
+  ],
+  "errors": []
+}

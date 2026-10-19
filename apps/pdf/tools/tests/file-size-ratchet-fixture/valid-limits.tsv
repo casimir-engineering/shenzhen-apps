@@ -1,0 +1,3 @@
+# path<TAB>cap<TAB>kind<TAB>justification
+exception.c	501	exception	Synthetic cohesive exception used by the ratchet self-test.
+legacy.c	1001	legacy	Synthetic legacy file used by the ratchet self-test.

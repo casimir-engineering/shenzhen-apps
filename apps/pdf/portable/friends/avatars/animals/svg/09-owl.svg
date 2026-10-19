@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <!-- Owl: awake at noon, against its will, and judging you for it. -->
+  <clipPath id="c"><circle cx="32" cy="32" r="32"/></clipPath>
+  <circle id="bg" cx="32" cy="32" r="32" fill="#4f4f86"/>
+  <g clip-path="url(#c)">
+    <path d="M10 64 Q8 34 14 22 L12 9 L23 16 Q32 13 41 16 L52 9 L50 22 Q56 34 54 64 Z" fill="#b98657"/>
+    <ellipse cx="32" cy="56" rx="13" ry="14" fill="#ecd3ae"/>
+    <circle cx="23" cy="31" r="9" fill="#ecd3ae"/>
+    <circle cx="41" cy="31" r="9" fill="#ecd3ae"/>
+    <circle cx="23" cy="31" r="6.5" fill="#ffd23f"/>
+    <circle cx="41" cy="31" r="6.5" fill="#ffd23f"/>
+    <circle cx="23" cy="31" r="3" fill="#2b2233"/>
+    <circle cx="41" cy="31" r="3" fill="#2b2233"/>
+    <circle cx="24.1" cy="29.8" r="1.1" fill="#ffffff"/>
+    <circle cx="42.1" cy="29.8" r="1.1" fill="#ffffff"/>
+    <path d="M15.5 21 L28 24.5 M48.5 21 L36 24.5" stroke="#7a5236" stroke-width="2.2" stroke-linecap="round"/>
+    <path d="M29 37 H35 L32 43.5 Z" fill="#f7a23b"/>
+  </g>
+</svg>

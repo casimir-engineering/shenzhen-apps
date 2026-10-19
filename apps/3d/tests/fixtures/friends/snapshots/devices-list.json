@@ -1,0 +1,90 @@
+{
+  "type": "snapshot",
+  "subscription": "s_2",
+  "view": "list",
+  "rev": 51,
+  "data": {
+    "banner": null,
+    "empty": null,
+    "footer": {
+      "avatar": {
+        "kind": "animal",
+        "set": 1,
+        "index": 0,
+        "initials": "R",
+        "color": "#5a4a7a"
+      },
+      "name": "Raph",
+      "name_placeholder": "Choose your name",
+      "id_label": "ID cottage‑violet",
+      "id_note": "Your ID works nearby now. If it’s already taken, you’ll get a new one the next time ShenzhenPDF reaches the Friends server.",
+      "friends_id": "cottage-violet",
+      "add_label": "Add by ID"
+    },
+    "join_requests": [],
+    "name_prompt": null,
+    "query": "",
+    "removed": null,
+    "rows": [
+      {
+        "accessibility_label": "You, Bracket drawing rev C.pdf, 15:02",
+        "actions": [],
+        "avatar": {
+          "kind": "animal",
+          "set": 1,
+          "index": 0,
+          "initials": "R",
+          "color": "#5a4a7a"
+        },
+        "blocked": false,
+        "conversation_id": "you",
+        "drop_label": "Send to all your computers",
+        "drop_refusal": null,
+        "id_confirmed": false,
+        "id_confirmed_label": null,
+        "kind": "you",
+        "route": {
+          "kind": "none",
+          "label": null,
+          "method": null
+        },
+        "style": "normal",
+        "subtitle": "Bracket drawing rev C.pdf",
+        "time_label": "15:02",
+        "title": "You",
+        "unread": false,
+        "waiting": null
+      },
+      {
+        "conversation_id": "c_mei",
+        "avatar": {
+          "kind": "animal",
+          "set": 1,
+          "index": 7,
+          "initials": "ML",
+          "color": "#3f6b4f"
+        },
+        "title": "Mei Lin",
+        "subtitle": "Can you check pages 3–5 before Friday?",
+        "time_label": "14:32",
+        "route": {
+          "kind": "local",
+          "method": "lan",
+          "label": "Nearby, on your network"
+        },
+        "unread": true,
+        "waiting": null,
+        "blocked": false,
+        "id_confirmed": false,
+        "id_confirmed_label": null,
+        "style": "normal",
+        "drop_label": "Send to Mei",
+        "drop_refusal": null,
+        "accessibility_label": "Mei Lin, unread, Can you check pages 3–5 before Friday?, 14:32, nearby, on your network",
+        "actions": [],
+        "kind": "person"
+      }
+    ],
+    "state": "normal"
+  }
+}

@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <!-- Capybara: unbothered, with an orange balanced on its head for no reason it will share. -->
+  <clipPath id="c"><circle cx="32" cy="32" r="32"/></clipPath>
+  <circle id="bg" cx="32" cy="32" r="32" fill="#2f5a7a"/>
+  <g clip-path="url(#c)">
+    <ellipse cx="32" cy="74" rx="27" ry="17" fill="#b88a5a"/>
+    <ellipse cx="17" cy="22" rx="4" ry="3.4" fill="#8f6640"/>
+    <ellipse cx="47" cy="22" rx="4" ry="3.4" fill="#8f6640"/>
+    <path d="M14 30 Q14 20 32 20 Q50 20 50 30 L51 44 Q51 54 32 54 Q13 54 13 44 Z" fill="#b88a5a"/>
+    <path d="M20 39 Q20 34 32 34 Q44 34 44 39 L44.5 45 Q44.5 51 32 51 Q19.5 51 19.5 45 Z" fill="#a37548"/>
+    <ellipse cx="28" cy="40" rx="1.6" ry="2.2" fill="#2b2233"/>
+    <ellipse cx="36" cy="40" rx="1.6" ry="2.2" fill="#2b2233"/>
+    <path d="M28.5 46.5 Q32 48 35.5 46.5" fill="none" stroke="#2b2233" stroke-width="1.5" stroke-linecap="round"/>
+    <ellipse cx="23" cy="29.5" rx="2.6" ry="2.4" fill="#2b2233"/>
+    <ellipse cx="41" cy="29.5" rx="2.6" ry="2.4" fill="#2b2233"/>
+    <path d="M19.8 28.7 H26.2 V26 H19.8 Z M37.8 28.7 H44.2 V26 H37.8 Z" fill="#b88a5a"/>
+    <path d="M20 28.7 H26 M38 28.7 H44" stroke="#2b2233" stroke-width="1.5" stroke-linecap="round"/>
+    <circle cx="32" cy="13" r="7.5" fill="#ffa53a"/>
+    <circle cx="29.5" cy="10.5" r="1.6" fill="#ffd08a"/>
+    <path d="M32 5.8 Q33 3.5 35 3" fill="none" stroke="#6a8f3a" stroke-width="1.2" stroke-linecap="round"/>
+    <ellipse cx="37" cy="4" rx="3" ry="1.5" transform="rotate(-15 37 4)" fill="#8fd16a"/>
+  </g>
+</svg>

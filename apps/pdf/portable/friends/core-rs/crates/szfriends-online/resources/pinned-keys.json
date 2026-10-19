@@ -1,0 +1,15 @@
+{
+  "comment": "Host-list signing keys the helper pins (ADR 0005). Public keys only. One valid signature from either verifies a list; replacing a lost key takes an app release.",
+  "keys": [
+    {
+      "name": "primary",
+      "public_key": "7ufxHoU_bfT4zrE58C0Waa1d8Ym5Ltx50jkj35xJw1E",
+      "test": false
+    },
+    {
+      "name": "backup",
+      "public_key": "1GCPgt9PXjoxrS4OvIh8Hdep79SDn5AaKPPseSGWrr8",
+      "test": false
+    }
+  ]
+}

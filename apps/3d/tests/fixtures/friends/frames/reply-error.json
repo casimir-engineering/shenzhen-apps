@@ -1,0 +1,14 @@
+{
+  "type": "reply",
+  "re": "16",
+  "ok": false,
+  "error": {
+    "code": "disk_full",
+    "message": "There isn’t enough space on this computer for Site photos.pdf. Free up 120 MB, then accept it again.",
+    "retryable": true,
+    "details": {
+      "needed_bytes": 120000000,
+      "available_bytes": 4100000
+    }
+  }
+}

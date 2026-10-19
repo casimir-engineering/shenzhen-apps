@@ -1,0 +1,105 @@
+%PDF-1.7
+%‚„œ”
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Count 3 /Kids [3 0 R 4 0 R 5 0 R] >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 9 0 R /F2 10 0 R >> >> /Contents 6 0 R /Annots [13 0 R 14 0 R] >>
+endobj
+4 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 9 0 R /F2 10 0 R >> >> /Contents 7 0 R >>
+endobj
+5 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 9 0 R /F2 10 0 R >> >> /Contents 8 0 R >>
+endobj
+6 0 obj
+<< /Length 364 >>
+stream
+BT /F1 18 Tf 72 700 Td (Selection fixture alpha) Tj ET
+BT /F1 18 Tf 72 670 Td (Caf\351 r\351sum\351 na\357ve) Tj ET
+BT /F2 18 Tf 3 Tr 72 630 Td (ABCD) Tj 0 Tr ET
+0 0 0.8 rg BT /F1 18 Tf 72 560 Td (Jump to page three) Tj ET
+0 0 0.8 rg BT /F1 18 Tf 72 520 Td (Visit the web) Tj ET
+0 0 0 rg BT /F1 12 Tf 72 460 Td (Body text below the links, for a range drag.) Tj ET
+endstream
+endobj
+7 0 obj
+<< /Length 48 >>
+stream
+BT /F1 18 Tf 72 700 Td (Second page body) Tj ET
+endstream
+endobj
+8 0 obj
+<< /Length 49 >>
+stream
+BT /F1 18 Tf 72 700 Td (Third page target) Tj ET
+endstream
+endobj
+9 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>
+endobj
+10 0 obj
+<< /Type /Font /Subtype /Type3 /FontBBox [0 0 500 1000] /FontMatrix [0.001 0 0 0.001 0 0] /CharProcs << /empty 12 0 R >> /Encoding << /Type /Encoding /Differences [65 /empty /empty /empty /empty] >> /FirstChar 65 /LastChar 68 /Widths [500 500 500 500] /ToUnicode 11 0 R >>
+endobj
+11 0 obj
+<< /Length 369 >>
+stream
+/CIDInit /ProcSet findresource begin
+12 dict begin
+begincmap
+/CIDSystemInfo << /Registry (Adobe) /Ordering (UCS) /Supplement 0 >> def
+/CMapName /Adobe-Identity-UCS def
+/CMapType 2 def
+1 begincodespacerange
+<00> <FF>
+endcodespacerange
+4 beginbfchar
+<41> <4E2D>
+<42> <6587>
+<43> <6D4B>
+<44> <8BD5>
+endbfchar
+endcmap
+CMapName currentdict /CMap defineresource pop
+end
+end
+
+endstream
+endobj
+12 0 obj
+<< /Length 9 >>
+stream
+500 0 d0
+endstream
+endobj
+13 0 obj
+<< /Type /Annot /Subtype /Link /Rect [70 552 260 578] /Border [0 0 0] /A << /S /GoTo /D [5 0 R /XYZ 60 700 0] >> >>
+endobj
+14 0 obj
+<< /Type /Annot /Subtype /Link /Rect [70 512 260 538] /Border [0 0 0] /A << /S /URI /URI (https://example.invalid/shenzhen) >> >>
+endobj
+xref
+0 15
+0000000000 65535 f 
+0000000015 00000 n 
+0000000064 00000 n 
+0000000133 00000 n 
+0000000294 00000 n 
+0000000431 00000 n 
+0000000568 00000 n 
+0000000982 00000 n 
+0000001079 00000 n 
+0000001177 00000 n 
+0000001274 00000 n 
+0000001563 00000 n 
+0000001983 00000 n 
+0000002041 00000 n 
+0000002173 00000 n 
+trailer
+<< /Size 15 /Root 1 0 R >>
+startxref
+2319
+%%EOF

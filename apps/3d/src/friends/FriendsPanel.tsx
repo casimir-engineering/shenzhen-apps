@@ -1,0 +1,436 @@
+// The Friends dropdown and the Friends part of Settings: the lazily loaded half of Friends. FriendsButton.tsx (in
+// the app's first chunk) loads this file only when the person opens Friends or Settings, so none of it is on the
+// launch path.
+import { useEffect, useMemo, useState } from "react";
+import type { FriendsBridge } from "./bridge";
+import type { Confirm, FriendsStatus, Reply, SettingsData } from "./protocol";
+import {
+  ActionButton,
+  AvatarView,
+  CopyButton,
+  Panel,
+  usePanel,
+  type PanelContext,
+} from "./parts";
+import { FriendsStore, useFriendsStore, useView } from "./store";
+import { ListPage, type Outgoing } from "./ListPage";
+import { ConversationPage } from "./ConversationPage";
+import { DetailsPage, JoinPage, LinkPage } from "./MorePages";
+import { ProfilePage } from "./ProfilePage";
+import type { AttachSource } from "./Composer";
+import "./friends.css";
+import "./friends-chat.css";
+import "./friends-pages.css";
+
+let shared: FriendsStore | undefined;
+/** One store per page: the button's status seeds it, and it follows the bridge's events from then on. */
+export function friendsStore(bridge: FriendsBridge, status: FriendsStatus) {
+  if (!shared) {
+    shared = new FriendsStore(bridge, status);
+    bridge.subscribe((event) => shared!.handle(event));
+  }
+  return shared;
+}
+
+type Page =
+  | { kind: "list" }
+  | { kind: "conversation"; id: string; messageId?: string }
+  | { kind: "details"; id: string }
+  | { kind: "profile" }
+  | { kind: "join" }
+  | { kind: "link"; payload: string };
+// Reopening returns to the view the person left (brief § Interface).
+let remembered: { stack: Page[]; tab: "friends" | "nearby" } = {
+  stack: [{ kind: "list" }],
+  tab: "friends",
+};
+
+function useConfirm() {
+  const [pending, setPending] = useState<{
+    confirm: Confirm;
+    resolve(value: boolean): void;
+  } | null>(null);
+  const ask = (confirm: Confirm) =>
+    new Promise<boolean>((resolve) => setPending({ confirm, resolve }));
+  const view = pending ? (
+    <div
+      className="szf-confirm"
+      role="alertdialog"
+      aria-label={pending.confirm.title}
+    >
+      <div className="szf-confirm-box">
+        <strong>{pending.confirm.title}</strong>
+        <p>{pending.confirm.body}</p>
+        <div className="szf-actions">
+          <button
+            type="button"
+            className="szf-button secondary"
+            onClick={() => {
+              pending.resolve(false);
+              setPending(null);
+            }}
+          >
+            {pending.confirm.cancel_label}
+          </button>
+          <button
+            type="button"
+            autoFocus
+            className={`szf-button ${pending.confirm.destructive ? "destructive" : "primary"}`}
+            onClick={() => {
+              pending.resolve(true);
+              setPending(null);
+            }}
+          >
+            {pending.confirm.confirm_label}
+          </button>
+        </div>
+      </div>
+    </div>
+  ) : null;
+  return { ask, view, open: Boolean(pending) };
+}
+
+function usePanelContext(
+  store: FriendsStore,
+  openConversation: (id: string, messageId?: string) => void,
+  confirm: (confirm: Confirm) => Promise<boolean>,
+) {
+  const [notice, setNotice] = useState<string | null>(null);
+  useEffect(() => {
+    if (!notice) return;
+    const timer = window.setTimeout(() => setNotice(null), 6000);
+    return () => window.clearTimeout(timer);
+  }, [notice]);
+  const context = useMemo<PanelContext>(
+    () => ({
+      store,
+      bridge: store.bridge,
+      // Only the helper's display-ready words; a failure without words says nothing, and the connection line
+      // covers not_ready and connection_lost.
+      report: (reply: Reply) => {
+        if (!reply.ok && reply.error?.message) setNotice(reply.error.message);
+      },
+      openConversation,
+      confirm,
+    }),
+    [store, openConversation, confirm],
+  );
+  return {
+    context,
+    notice,
+    clearNotice: () => setNotice(null),
+    showNotice: setNotice,
+  };
+}
+
+export default function FriendsPanel({
+  bridge,
+  status,
+  outgoing,
+  link,
+  attach,
+  onClose,
+  onOutgoingDone,
+  onLinkDone,
+  refusal = null,
+  onRefusalShown,
+}: {
+  bridge: FriendsBridge;
+  status: FriendsStatus;
+  outgoing: Outgoing | null;
+  link: string | null;
+  attach: AttachSource | null;
+  onClose(): void;
+  onOutgoingDone(): void;
+  onLinkDone(): void;
+  /** Why files dropped on the Friends button were not taken (a folder, a link). */
+  refusal?: string | null;
+  onRefusalShown?(): void;
+}) {
+  const store = useFriendsStore(friendsStore(bridge, status));
+  const [stack, setStack] = useState<Page[]>(remembered.stack);
+  const [tab, setTab] = useState(remembered.tab);
+  const confirm = useConfirm();
+  const push = (page: Page) => setStack((old) => [...old, page]);
+  const pop = () =>
+    setStack((old) => (old.length > 1 ? old.slice(0, -1) : old));
+  const openConversation = useMemo(
+    () => (id: string, messageId?: string) =>
+      setStack((old) => {
+        const base = old.filter((page) => page.kind === "list");
+        return [
+          ...(base.length ? base : [{ kind: "list" as const }]),
+          { kind: "conversation", id, messageId },
+        ];
+      }),
+    [],
+  );
+  const { context, notice, clearNotice, showNotice } = usePanelContext(
+    store,
+    openConversation,
+    confirm.ask,
+  );
+  useEffect(() => {
+    if (!refusal) return;
+    showNotice(refusal);
+    onRefusalShown?.();
+  }, [refusal, onRefusalShown, showNotice]);
+
+  useEffect(() => {
+    remembered = { stack, tab };
+  }, [stack, tab]);
+  // The person opened Friends: Nearby may start now (and may ask for permission the first time, never at launch).
+  useEffect(() => {
+    if (store.ready) void store.send("activate");
+  }, [store, store.ready]);
+  useEffect(() => {
+    if (link) {
+      setStack([{ kind: "list" }, { kind: "link", payload: link }]);
+      onLinkDone();
+    }
+  }, [link, onLinkDone]);
+  useEffect(() => {
+    if (outgoing) setStack([{ kind: "list" }]);
+  }, [outgoing]);
+  useEffect(() => {
+    const key = (event: KeyboardEvent) => {
+      if (confirm.open) return;
+      // Escape closes; it never navigates back. Cmd+[ goes back one level.
+      if (event.key === "Escape") {
+        event.preventDefault();
+        if (outgoing) onOutgoingDone();
+        else onClose();
+      } else if (event.key === "[" && (event.metaKey || event.ctrlKey)) {
+        event.preventDefault();
+        pop();
+      }
+    };
+    window.addEventListener("keydown", key);
+    return () => window.removeEventListener("keydown", key);
+  }, [onClose, onOutgoingDone, outgoing, confirm.open]);
+
+  const page = stack[stack.length - 1];
+  const notReady = !store.ready && store.status.text;
+  return (
+    <Panel.Provider value={context}>
+      <div
+        className="szf-panel"
+        data-szfriends="dropdown"
+        role="dialog"
+        aria-label={store.strings.button_label}
+        // Files dragged over Friends belong to Friends' own targets, never to the viewer's "Drop to open".
+        onDragOver={(event) => event.stopPropagation()}
+        onDrop={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+        }}
+      >
+        {notReady ? (
+          <div className="szf-connection" role="status">
+            {store.status.text}
+          </div>
+        ) : null}
+        {notice && (
+          <button
+            type="button"
+            className="szf-notice"
+            role="status"
+            onClick={clearNotice}
+          >
+            {notice}
+          </button>
+        )}
+        {page.kind === "list" && (
+          <ListPage
+            tab={tab}
+            onTab={setTab}
+            outgoing={outgoing}
+            onCancelOutgoing={onOutgoingDone}
+            onSent={(id) => {
+              onOutgoingDone();
+              openConversation(id);
+            }}
+            onProfile={() => push({ kind: "profile" })}
+            onJoin={() => push({ kind: "join" })}
+          />
+        )}
+        {page.kind === "conversation" && (
+          <ConversationPage
+            key={`${page.id}:${page.messageId ?? ""}`}
+            conversationId={page.id}
+            messageId={page.messageId}
+            attach={attach}
+            onBack={pop}
+            onDetails={() => push({ kind: "details", id: page.id })}
+          />
+        )}
+        {page.kind === "details" && (
+          <DetailsPage conversationId={page.id} onBack={pop} />
+        )}
+        {page.kind === "profile" && <ProfilePage onBack={pop} />}
+        {page.kind === "join" && <JoinPage onBack={pop} />}
+        {page.kind === "link" && (
+          <LinkPage
+            payload={page.payload}
+            onBack={pop}
+            onOpened={(id) => openConversation(id)}
+          />
+        )}
+        {confirm.view}
+      </div>
+    </Panel.Provider>
+  );
+}
+
+/** The Friends part of the app's Settings. The switch and the disclosure are Shenzhen 3D's own words, because they
+ * show while Friends is off and no helper runs; everything under them comes from the helper. */
+export function FriendsSettings({
+  bridge,
+  status,
+  onEnabled,
+}: {
+  bridge: FriendsBridge;
+  status: FriendsStatus;
+  onEnabled(status: FriendsStatus): void;
+}) {
+  const store = useFriendsStore(friendsStore(bridge, status));
+  const confirm = useConfirm();
+  const { context, notice } = usePanelContext(store, () => {}, confirm.ask);
+  const enabled = store.status.enabled;
+  return (
+    <Panel.Provider value={context}>
+      <section className="szf-settings" data-szfriends="settings">
+        <label className="szf-switch">
+          <input
+            type="checkbox"
+            checked={enabled}
+            onChange={async (event) => {
+              const next = await bridge.setEnabled(event.target.checked);
+              store.setStatus(next);
+              onEnabled(next);
+            }}
+          />
+          <span>
+            <strong>Enable Shenzhen Friends</strong>
+            <small>
+              Shenzhen 3D connects to the Friends server whenever it is open and
+              Friends is on. The server sees your network address, your Friends
+              ID and when Shenzhen 3D is open. It never sees your name, messages
+              or files.
+            </small>
+          </span>
+        </label>
+        {enabled && store.ready && <SettingsBody />}
+        {enabled && !store.ready && store.status.text && (
+          <small>{store.status.text}</small>
+        )}
+        {notice && <small className="szf-refusal">{notice}</small>}
+        {confirm.view}
+      </section>
+    </Panel.Provider>
+  );
+}
+
+export function SettingsBody() {
+  const panel = usePanel();
+  const { store } = panel;
+  const data = useView<SettingsData>(store, "settings", {
+    type: "subscribe",
+    fields: { view: "settings" },
+  });
+  const [name, setName] = useState<string | null>(null);
+  const [changing, setChanging] = useState(false);
+  if (!data) return null;
+  return (
+    <div className="szf-form">
+      <form
+        className="szf-field"
+        onSubmit={async (event) => {
+          event.preventDefault();
+          if (name === null) return;
+          const reply = await store.send("set_name", { name });
+          panel.report(reply);
+          if (reply.ok) setName(null);
+        }}
+      >
+        <label>
+          <span>{data.name.label}</span>
+          <input
+            value={name ?? data.name.value ?? ""}
+            placeholder={data.name.placeholder}
+            onChange={(event) => setName(event.target.value)}
+            onBlur={(event) => event.currentTarget.form?.requestSubmit()}
+          />
+        </label>
+        <small>{data.name.note}</small>
+      </form>
+      <div className="szf-field">
+        <span>{data.id.label}</span>
+        <span className="szf-line">
+          <strong className="szf-id">{data.id.friends_id}</strong>
+          <CopyButton value={data.id.friends_id} label={data.id.copy_label} />
+        </span>
+        <small>{data.id.note}</small>
+      </div>
+      <div className="szf-field">
+        <span>{data.received.label}</span>
+        <small>{data.received.note}</small>
+        <ActionButton action={data.received.action} />
+      </div>
+      <div className="szf-field">
+        <span>{data.auto_accept.label}</span>
+        <small>{data.auto_accept.note}</small>
+        <button
+          type="button"
+          className="szf-button secondary"
+          onClick={() => setChanging((old) => !old)}
+        >
+          {data.auto_accept.action_label}
+        </button>
+        {changing &&
+          data.auto_accept.friends.map((friend) => (
+            <label key={friend.conversation_id} className="szf-switch compact">
+              <input
+                type="checkbox"
+                checked={friend.enabled}
+                onChange={async (event) =>
+                  panel.report(
+                    await store.send("set_auto_accept", {
+                      conversation_id: friend.conversation_id,
+                      enabled: event.target.checked,
+                    }),
+                  )
+                }
+              />
+              <AvatarView avatar={friend.avatar} size={20} />
+              <span>{friend.title}</span>
+            </label>
+          ))}
+      </div>
+      <div className="szf-field">
+        <span>{data.history.label}</span>
+        <small>{data.history.note}</small>
+        <ActionButton
+          action={{
+            action: "delete_history",
+            label: data.history.action_label,
+            style: "destructive",
+            confirm: data.history.confirm,
+          }}
+        />
+      </div>
+      <div className="szf-field">
+        <span>{data.reset.label}</span>
+        <small>{data.reset.note}</small>
+        <ActionButton
+          action={{
+            action: "reset_friends",
+            label: data.reset.action_label,
+            style: "destructive",
+            confirm: data.reset.confirm,
+          }}
+        />
+      </div>
+    </div>
+  );
+}

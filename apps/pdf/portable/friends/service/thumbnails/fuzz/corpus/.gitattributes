@@ -1,0 +1,3 @@
+# Fuzz inputs are bytes, not text: never diffed, normalised or checked for whitespace.
+* binary
+.gitattributes text

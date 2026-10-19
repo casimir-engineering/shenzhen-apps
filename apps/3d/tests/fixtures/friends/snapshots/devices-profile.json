@@ -1,0 +1,143 @@
+{
+  "type": "snapshot",
+  "subscription": "s_7",
+  "view": "profile",
+  "rev": 3,
+  "data": {
+    "title": "Your profile and ID",
+    "back": {
+      "badge_count": 2,
+      "badge_label": "2",
+      "accessibility_label": "Back to Friends, 2 waiting"
+    },
+    "name": {
+      "label": "Name friends see",
+      "value": "Raph",
+      "placeholder": "Your name",
+      "max_length": 40
+    },
+    "picture": {
+      "avatar": {
+        "kind": "animal",
+        "set": 1,
+        "index": 0,
+        "initials": "R",
+        "color": "#5a4a7a"
+      },
+      "choose_label": "Change picture…",
+      "own_picture_label": "Use your own picture…",
+      "animal_set": 1,
+      "selected_index": 0
+    },
+    "id": {
+      "label": "Your ID",
+      "friends_id": "cottage-violet",
+      "state": "unreserved",
+      "note": "Your ID works nearby now. If it’s already taken, you’ll get a new one the next time ShenzhenPDF reaches the Friends server.",
+      "copy_label": "Copy",
+      "qr_label": null,
+      "qr_payload": null
+    },
+    "add": {
+      "label": "Add someone by ID",
+      "placeholder": "Their ID",
+      "button_label": "Send request",
+      "hint": "Two words, like amber‑falcon."
+    },
+    "devices": {
+      "title": "Your computers",
+      "note": "To add a computer, open Friends on it and choose Use my existing profile.",
+      "rows": [
+        {
+          "device_id": "d_1e9c4a70",
+          "name": "Raph’s MacBook Pro",
+          "system": "macOS 26.1",
+          "last_connected": "This computer",
+          "detail": "macOS 26.1 · This computer",
+          "this_computer": true,
+          "state": "connected",
+          "accessibility_label": "Raph’s MacBook Pro, macOS 26.1, this computer",
+          "rename": {
+            "label": "Rename",
+            "placeholder": "Computer name",
+            "button_label": "Save",
+            "max_bytes": 64
+          },
+          "remove": null
+        },
+        {
+          "device_id": "d_5b07e2c9",
+          "name": "Raph’s Mac mini",
+          "system": "macOS 15.7",
+          "last_connected": "Now",
+          "detail": "macOS 15.7 · Now",
+          "this_computer": false,
+          "state": "connected",
+          "accessibility_label": "Raph’s Mac mini, macOS 15.7, connected now",
+          "rename": null,
+          "remove": {
+            "action": "revoke_device",
+            "label": "Remove…",
+            "style": "destructive",
+            "device_id": "d_5b07e2c9",
+            "confirm": {
+              "title": "Remove Raph’s Mac mini?",
+              "body": "Raph’s Mac mini stops getting your messages and files. Your friends stop accepting messages from it as soon as one of your computers connects to them. Chats already on it stay there. To use Friends on it again, start over there, then add it to your profile again.",
+              "confirm_label": "Remove",
+              "cancel_label": "Cancel",
+              "destructive": true
+            }
+          }
+        },
+        {
+          "device_id": "d_93f2d618",
+          "name": "Studio workstation",
+          "system": "Linux",
+          "last_connected": "Yesterday",
+          "detail": "Linux · Yesterday",
+          "this_computer": false,
+          "state": "not_connected",
+          "accessibility_label": "Studio workstation, Linux, last connected yesterday",
+          "rename": null,
+          "remove": {
+            "action": "revoke_device",
+            "label": "Remove…",
+            "style": "destructive",
+            "device_id": "d_93f2d618",
+            "confirm": {
+              "title": "Remove Studio workstation?",
+              "body": "Studio workstation stops getting your messages and files. Your friends stop accepting messages from it as soon as one of your computers connects to them. Chats already on it stay there. To use Friends on it again, start over there, then add it to your profile again.",
+              "confirm_label": "Remove",
+              "cancel_label": "Cancel",
+              "destructive": true
+            }
+          }
+        },
+        {
+          "device_id": "d_c0a47b3e",
+          "name": "Raph’s MacBook Air",
+          "system": "macOS 26.1",
+          "last_connected": "Not connected to this computer yet",
+          "detail": "macOS 26.1 · Not connected to this computer yet",
+          "this_computer": false,
+          "state": "never_connected",
+          "accessibility_label": "Raph’s MacBook Air, macOS 26.1, not connected to this computer yet",
+          "rename": null,
+          "remove": {
+            "action": "revoke_device",
+            "label": "Remove…",
+            "style": "destructive",
+            "device_id": "d_c0a47b3e",
+            "confirm": {
+              "title": "Remove Raph’s MacBook Air?",
+              "body": "Raph’s MacBook Air stops getting your messages and files. Your friends stop accepting messages from it as soon as one of your computers connects to them. Chats already on it stay there. To use Friends on it again, start over there, then add it to your profile again.",
+              "confirm_label": "Remove",
+              "cancel_label": "Cancel",
+              "destructive": true
+            }
+          }
+        }
+      ]
+    }
+  }
+}

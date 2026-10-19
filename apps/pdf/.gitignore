@@ -1,0 +1,56 @@
+*.suo
+*.aps
+*.opensdf
+*.sdf
+*.vspx
+*.vcxproj.user
+*.cov
+out.txt
+out/
+mupdf/generated/
+.vs/
+.vscode/db/
+.vscode/ipch/
+# src/utils/BuildConfig.h
+artifacts/
+dist/
+portable/build/
+portable/build-fedora/
+.idea/
+src/.vscode
+tools/pdfjs/coverage/
+cppcheck.out.txt
+clangtidy.out.txt
+node_modules
+
+# https://stackoverflow.com/questions/10755655/git-ignore-tracked-files
+# git update-index --assume-unchanged .\docs\manual.dat    : stop tracking changes
+# git update-index --no-assume-unchanged .\docs\manual.dat : re-start tracking changes
+# must be done in every checkout
+#docs/manual.dat
+
+.claude/settings.local.json
+pipe-preview-results
+nul
+docs/scratch.txt
+bin/zopflipng.exe
+
+docs-www/
+*.pdf
+*.cbr
+*.cbz
+translations/translations.txt.lzsa
+log.txt
+sumlog.txt
+vs2022/enc_temp_folder
+docs/md/.obsidian
+
+.DS_Store
+*.certSigningRequest
+*.provisionprofile
+*.cer
+# per-agent git worktrees created by the coding assistant
+.claude/worktrees/
+
+# Local-only agent handoff: the owner and machine notes, not the codebase.
+portable/docs/agent-handoff-private.md

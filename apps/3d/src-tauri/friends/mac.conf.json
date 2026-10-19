@@ -1,0 +1,16 @@
+{
+  "$schema": "../../node_modules/@tauri-apps/cli/config.schema.json",
+  "bundle": {
+    "macOS": {
+      "files": {
+        "Helpers/Shenzhen Friends.app": "friends/mac/Shenzhen Friends.app",
+        "Resources/Friends/Acknowledgements.txt": "friends/mac/Acknowledgements.txt"
+      },
+      "infoPlist": "friends/mac/Info.plist",
+      "signingIdentity": "-"
+    }
+  },
+  "plugins": {
+    "deep-link": { "desktop": { "schemes": ["shenzhen3d"] } }
+  }
+}

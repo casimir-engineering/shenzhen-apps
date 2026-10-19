@@ -1,0 +1,34 @@
+# Upstream checkout (reproduced via patches/macos-port-full.patch)
+/nautilus/
+
+# Build trees and install prefixes
+/build/
+/build-*/
+/install/
+/install-*/
+
+# Packaged artifacts (shipped via GitHub releases, not the repo)
+/dist/
+
+# Worker scratch areas and benchmarks
+/scratch-*/
+/bench/
+
+# Generated packaging intermediates
+/package/build/
+
+# Compiled dev tools
+/tools/fda-check
+
+.DS_Store
+
+# Local agent config
+.cursor/
+
+# Staging dir of tools/setup-nautilus-tree.sh (removed on exit)
+/.nautilus-setup.*/
+
+# shenzhen-pdf at the commit in friends.lock, fetched and built by
+# tools/setup-friends.sh, and that script's staging dir (removed on exit)
+/friends-src/
+/.friends-setup.*/

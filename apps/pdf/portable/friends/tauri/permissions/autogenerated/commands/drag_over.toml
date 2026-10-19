@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-drag-over"
+description = "Enables the drag_over command without any pre-configured scope."
+commands.allow = ["drag_over"]
+
+[[permission]]
+identifier = "deny-drag-over"
+description = "Denies the drag_over command without any pre-configured scope."
+commands.deny = ["drag_over"]

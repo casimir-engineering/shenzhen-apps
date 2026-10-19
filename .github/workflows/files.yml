@@ -1,0 +1,45 @@
+name: Shenzhen Files
+# Friends is built from apps/pdf: its sources, the Makefile that builds it and the ext/ libraries it links.
+on:
+  push:
+    branches: [main]
+    paths: [
+      'apps/files/**', 'apps/pdf/portable/friends/**', 'apps/pdf/portable/Makefile',
+      'apps/pdf/ext/cjson/**', 'apps/pdf/ext/libdatachannel/**', 'apps/pdf/ext/libjuice/**', 'apps/pdf/ext/libsodium/**',
+      'apps/pdf/ext/mbedtls/**', 'apps/pdf/ext/miniupnpc/**', 'apps/pdf/ext/plog/**', 'apps/pdf/ext/usrsctp/**',
+      '.github/workflows/files.yml']
+  pull_request:
+    paths: [
+      'apps/files/**', 'apps/pdf/portable/friends/**', 'apps/pdf/portable/Makefile',
+      'apps/pdf/ext/cjson/**', 'apps/pdf/ext/libdatachannel/**', 'apps/pdf/ext/libjuice/**', 'apps/pdf/ext/libsodium/**',
+      'apps/pdf/ext/mbedtls/**', 'apps/pdf/ext/miniupnpc/**', 'apps/pdf/ext/plog/**', 'apps/pdf/ext/usrsctp/**',
+      '.github/workflows/files.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: files-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+defaults:
+  run:
+    working-directory: apps/files
+jobs:
+  mac:
+    runs-on: macos-15
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - name: Homebrew packages (apps/files/README.md, Build from source)
+        run: >
+          brew install gtk4 libadwaita glib meson ninja pkgconf gettext gdk-pixbuf librsvg tinysparql
+          gnome-autoar blueprint-compiler icu4c@78 libarchive json-glib desktop-file-utils shared-mime-info
+      - name: Friends setup script
+        run: tools/test-setup-friends.sh
+      - name: Friends, built from apps/pdf in this tree
+        run: tools/setup-friends.sh
+      - run: tools/setup-nautilus-tree.sh
+      - name: The Friends host adapter, with and without Friends
+        run: tools/test-friends-adapter.sh
+      - run: package/make-app.sh
+      - run: package/bundle-dylibs.sh
+      - run: package/test-friends-bundle.sh

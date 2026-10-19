@@ -1,0 +1,173 @@
+{
+  "version": 1,
+  "frozenBeforeRuns": true,
+  "distinctQuestions": 5,
+  "protocol": [
+    "Use precisely these five questions, one fresh chat per model per question, with identical production system prompt, tool definitions, metadata and document bytes.",
+    "Never send this truth file, rubric, expected values or benchmark name to the model; names are runner labels only.",
+    "Do not change questions, source fixtures, metadata, tool budget, timeout or model parameters after observing answers. Do not retry selectively or cherry-pick replies.",
+    "Use same regular tool availability for every model. current_view can report unavailable in headless fixture; explicit render_page is available. Preserve this limit in reporting.",
+    "Score blinded transcripts before revealing model identity. Tool result errors and provider failures are recorded, not silently rerun.",
+    "Record elapsed wall time, model/tool round count and provider cost separately from quality. Compare only like-for-like completed runs; timeout or failure remains visible.",
+    "A single run of each case is a small benchmark, not a claim of population accuracy. Maximum five distinct tests includes the switch question.",
+    "Run two repetitions of each of the same five cases per model, fresh chat each time; no extra distinct question. Technical failures/timeouts count as failed runs, never omitted."
+  ],
+  "rubric": {
+    "correctness": {
+      "scale": [
+        0,
+        1,
+        2
+      ],
+      "0": "Wrong decisive fact, materially misleading conclusion, fabricated missing information, no usable answer, timeout or providerfailure.",
+      "1": "Partially correct but misses a required condition/comparison fact; or clearly qualified inconclusive answer despite available evidence.",
+      "2": "All mandatory case facts satisfied with no material contradiction. Extra correct details are not required."
+    },
+    "citationValidity": "Record true/false and citation URLs. True only if every displayed citation used for the answer matches an exact retrieved document/page/revision/layout or searched passage. Missing citations=false. Card citations use same rule.",
+    "sourceAdequacy": "Record true/false separately: decisive claims supported by source and necessary source page(s) were actually retrieved. Drawing/chart questions require actual pixels, not only extracted labels. Cross-document comparison requires both documents.",
+    "unsupportedClaims": "List each material unsupported claim, wrong numeric substitution, or false assertion that information is absent. Distinguish legitimate stated uncertainty from invented fact.",
+    "verbosity": "Record visible final-answer word count excluding citation URLs, sentence count and direct/overlong label. At most3 short sentences or compact card ispreferred; more detail is acceptable when needed for the actual question. No composite score.",
+    "cardAppropriateness": "Record used true/false and appropriate true/false/reason. A brief card is suitable for supported scalar/category. Prose is appropriate for conditional/multi-fact/absence cases; a card must retain essential qualifications. Do not penalize concise valid prose as factual failure. Report card use separately.",
+    "passDefinition": "Correctness2 + citationValiditytrue + sourceAdequacytrue + no material unsupportedclaim. Technicalfailures/timeouts fail. Report passcounts and individual findings, not a subjective aggregate rating. Compare speed/cost separately; two repeats are a small reproducibilitycheck, not populationaccuracy proof."
+  },
+  "cases": [
+    {
+      "name": "switch_full_travel",
+      "expected": "Drawing page1 shows3.1 mm nominal end-to-end handle centerline travel. Handle width1.3 mm adds to nominal swept length4.4 mm before clearance; this is distinct from3.1 mm travel. No tolerance is printed beside3.1, but the page1 titleblock shows a general +/-0.01 mm tolerance.",
+      "facts": [
+        {
+          "mandatory": true,
+          "fact": "Identifies3.1mm nominal full range travel from the drawing, optionally a clearly explained tolerance-based3.11mm maximum; does not substitute1.6,1.8 or derived3.2."
+        },
+        {
+          "mandatory": true,
+          "fact": "Does not equate per-step travel-to-closure with full stroke or claim no dimensional drawing exists."
+        },
+        {
+          "mandatory": true,
+          "fact": "Does not confuse travel with finished hole size. A concise3.1mm full-travel answer is sufficient; optional derived opening or maximum must identify its geometric/tolerance basis."
+        }
+      ],
+      "acceptableAlternatives": "A concise Full range travel3.1mm card is sufficient.4.4mm nominal envelope answer is valid if it explicitly distinguishes3.1mm travel and clearance.3.11mm maximum is also acceptable if the answer identifies3.1mm nominal and explicitly bases the maximum on the titleblock general +/-0.01mm tolerance. An uncertainty qualification about applicability of general tolerance is acceptable. Do not treat3.2mm derived from two1.6mm table steps as a substitute for the actual3.1mm drawing.",
+      "evidence": {
+        "source": "USER_SUPPLIED_SWITCH.pdf",
+        "page": 1,
+        "mustInspect": "Actual page1 image/fullpage or relevant crop showing centerline3.1 dimension and handle geometry; page3 table only is insufficient. If table figures are discussed, retrieve/cite page3 also."
+      },
+      "cardClass": "simple",
+      "question": "What is the max actuator distance of this switch (to size a hole in a case)?"
+    },
+    {
+      "name": "clinic_visit_conditions",
+      "expected": "Saturday09:00–13:30; appointment must be booked before visiting.",
+      "facts": [
+        {
+          "mandatory": true,
+          "fact": "Correct Saturday interval09:00 to13:30."
+        },
+        {
+          "mandatory": true,
+          "fact": "Explicit appointment booking required before visit."
+        }
+      ],
+      "evidence": {
+        "source": "clinic-hours.pdf",
+        "page": 1,
+        "mustInspect": "Opening hours and booking condition text."
+      },
+      "cardClass": "conditional",
+      "question": "When can I visit on Saturday, and is there anything I must do first?"
+    },
+    {
+      "name": "visual_chart_comparison",
+      "expected": "Orchid has the highest output.",
+      "facts": [
+        {
+          "mandatory": true,
+          "fact": "Selects Orchid; does not invent numeric units/heights absent from chart labels."
+        }
+      ],
+      "evidence": {
+        "source": "quarterly-output.pdf",
+        "page": 1,
+        "mustInspect": "Render chart image because the text stream contains only title and project labels; relative bar heights carry the answer."
+      },
+      "cardClass": "simple",
+      "question": "Which project has the highest output?"
+    },
+    {
+      "name": "cross_document_service_plans",
+      "expected": "Extended advisory plan lasts24months versus18months for Service plan; longerplan excludes repairs (quoted separately).",
+      "facts": [
+        {
+          "mandatory": true,
+          "fact": "Extended advisory is the longer plan."
+        },
+        {
+          "mandatory": true,
+          "fact": "Correctly compares24months versus18months."
+        },
+        {
+          "mandatory": true,
+          "fact": "Longerplan does not include repairs."
+        }
+      ],
+      "evidence": {
+        "sources": [
+          {
+            "source": "service-policy.pdf",
+            "page": 1
+          },
+          {
+            "source": "extended-advisory-plan.pdf",
+            "page": 1
+          }
+        ],
+        "mustInspect": "Read both policies and cite both for the comparison; at least one exact source citation is required forvalidCitation point, both support statements required forfullsupport/coverage."
+      },
+      "cardClass": "multi-fact",
+      "question": "Compare the Service plan and the Extended advisory plan. Which lasts longer, and does the longer plan include repairs?"
+    },
+    {
+      "name": "absent_renewal_price",
+      "expected": "The supplied policy does not state a renewal price, so its cost cannot be determined from this document.",
+      "facts": [
+        {
+          "mandatory": true,
+          "fact": "Says renewal price is not stated/unknown from supplied source; gives no invented monetaryamount or inference from warranty length."
+        }
+      ],
+      "evidence": {
+        "source": "service-policy.pdf",
+        "page": 1,
+        "mustInspect": "Read entire one-pagepolicy including explicit absence statement; a failed termsearch alone is insufficient."
+      },
+      "cardClass": "absence",
+      "question": "How much does renewal cost?"
+    }
+  ],
+  "documents": [
+    {
+      "path": "USER_SUPPLIED_SWITCH.pdf",
+      "sha256": "eca5ef0c04741350482a33444924f15e40fa0b9118f2e464b558823b40405a36"
+    },
+    {
+      "path": "clinic-hours.pdf",
+      "sha256": "3f48ababebcb1519a92eb7a52859f272f8bc1e4b9ca24cbbb01ceb9eea1440d4"
+    },
+    {
+      "path": "quarterly-output.pdf",
+      "sha256": "315dea2519b05fdd67f0e6a4c724395a2126a449f85671ab8c3b6f0859fb4fbd"
+    },
+    {
+      "path": "service-policy.pdf",
+      "sha256": "ebeda45350ffc72bc923c29ba6caaeea01bab4f0830c0376a7ddaa0d7d6d7002"
+    },
+    {
+      "path": "extended-advisory-plan.pdf",
+      "sha256": "88e5c312a1e223625c5d4449de13b9d331ef3624879a7b5a072b1f5897492789"
+    }
+  ],
+  "repetitionsPerModel": 2,
+  "visualVerification": "All five document sources were rendered and visually inspected before benchmark model calls. Switch titleblock general tolerance noted in accepted alternatives; no direct dimension-specific tolerance invented."
+}

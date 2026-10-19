@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Backups and device-to-device transfers (Android 12 and later). Shenzhen Friends keeps its identity, store and files
+  in the no-backup directory, which neither ever copies, and its key in the Android Keystore, which never leaves this
+  phone (docs/FRIENDS.md § Phones). These rules also keep out anything of Friends' in the app's own files, so a
+  restored phone never starts Friends with history its key cannot open.
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="file" path="Friends/" />
+        <exclude domain="file" path="friends.json" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="file" path="Friends/" />
+        <exclude domain="file" path="friends.json" />
+    </device-transfer>
+</data-extraction-rules>

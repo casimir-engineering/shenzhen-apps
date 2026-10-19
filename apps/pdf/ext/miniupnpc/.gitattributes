@@ -1,0 +1,3 @@
+# VENDORED.md embeds the local change as a unified diff of upstream code indented with tabs, so its context lines
+# start with a space then a tab; that is the diff format, not a whitespace error.
+VENDORED.md whitespace=-space-before-tab

@@ -1,0 +1,16 @@
+# Phone builds of an app that embeds Friends (ADR 0015 § 12: 5 MB per Android ABI): pass this file to cargo with
+# `--config <path>`, beside the `phone` profile's settings (Cargo.toml) in the app's own release profile.
+# tools/embedded-size.sh measures with it, and run-device-tests.sh runs the Android suites with it.
+#
+# The bundled SQLite (Android; iOS uses the system's) without what the store never asks of it: FTS3, R*Tree, dbstat,
+# STAT4, soundex, column metadata, extensions, JSON, shared cache, progress callbacks and declared types, with some of
+# SQLite's own recommended trims. FTS5, for the trigram search index, stays. The same value is in .cargo/config.toml,
+# so the desktop helper and every suite here use this SQLite too (tests/build_flags.rs keeps the two the same).
+[env]
+LIBSQLITE3_FLAGS = """\
+-USQLITE_ENABLE_FTS3 -USQLITE_ENABLE_FTS3_PARENTHESIS -USQLITE_ENABLE_RTREE -USQLITE_ENABLE_DBSTAT_VTAB \
+-USQLITE_ENABLE_STAT4 -USQLITE_SOUNDEX -USQLITE_ENABLE_COLUMN_METADATA -USQLITE_ENABLE_LOAD_EXTENSION \
+-USQLITE_ENABLE_MEMORY_MANAGEMENT -DSQLITE_OMIT_LOAD_EXTENSION -DSQLITE_OMIT_JSON -DSQLITE_OMIT_DEPRECATED \
+-DSQLITE_OMIT_SHARED_CACHE -DSQLITE_OMIT_PROGRESS_CALLBACK -DSQLITE_OMIT_COMPLETE -DSQLITE_OMIT_GET_TABLE \
+-DSQLITE_OMIT_TCL_VARIABLE -DSQLITE_OMIT_DECLTYPE -DSQLITE_DEFAULT_MEMSTATUS=0 -DSQLITE_MAX_EXPR_DEPTH=0 \
+-DSQLITE_LIKE_DOESNT_MATCH_BLOBS"""

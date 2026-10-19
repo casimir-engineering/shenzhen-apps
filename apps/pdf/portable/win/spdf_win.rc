@@ -1,0 +1,49 @@
+// spdf_win.rc -- the exe's identity: icon, manifest, version.
+//
+// Compiled by rc.exe from portable\win\build-native.cmd (app target only) and
+// linked as spdf_win.res. The numbers come from src\spdf_win_about_version.h,
+// which the About box and the updater also read, so the Properties sheet in
+// Explorer, the About box and the release compare cannot disagree.
+//
+// ProductVersion is the RELEASE TAG ("26.9.2-1"), not the dotted file version:
+// it is what spdf_win_updater_file_product_version() reads off a downloaded
+// exe to confirm the staged file is the release the feed named, before the
+// swap. FileVersion stays dotted because Explorer parses it as four numbers.
+#include <windows.h>
+#include "spdf_win_about_version.h"
+
+// The lowest-numbered icon group is the exe's icon in Explorer and the
+// taskbar; spdf_win_about_apply_identity() loads it for the window too.
+SPDF_WIN_RES_ICON_APP ICON "spdf_win.ico"
+
+// Per-monitor-v2 DPI awareness, long paths, common controls v6, asInvoker.
+SPDF_WIN_RES_MANIFEST RT_MANIFEST "spdf_win.manifest"
+
+VS_VERSION_INFO VERSIONINFO
+ FILEVERSION SPDF_WIN_VERSION_YEAR,SPDF_WIN_VERSION_MONTH,SPDF_WIN_VERSION_DAY,SPDF_WIN_VERSION_BUILD
+ PRODUCTVERSION SPDF_WIN_VERSION_YEAR,SPDF_WIN_VERSION_MONTH,SPDF_WIN_VERSION_DAY,SPDF_WIN_VERSION_BUILD
+ FILEFLAGSMASK VS_FFI_FILEFLAGSMASK
+ FILEFLAGS 0x0L
+ FILEOS VOS_NT_WINDOWS32
+ FILETYPE VFT_APP
+ FILESUBTYPE VFT2_UNKNOWN
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904B0"
+        BEGIN
+            VALUE "CompanyName", SPDF_WIN_COMPANY_NAME
+            VALUE "FileDescription", SPDF_WIN_PRODUCT_NAME
+            VALUE "FileVersion", SPDF_WIN_FILE_VERSION_STR
+            VALUE "InternalName", "ShenzhenPDF"
+            VALUE "LegalCopyright", SPDF_WIN_COPYRIGHT
+            VALUE "OriginalFilename", SPDF_WIN_EXE_NAME
+            VALUE "ProductName", SPDF_WIN_PRODUCT_NAME
+            VALUE "ProductVersion", SPDF_WIN_RELEASE_TAG
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x409, 1200
+    END
+END

@@ -1,0 +1,1175 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Shenzhen Reader — Mobile design specification</title><link rel="stylesheet" href="document.css"></head>
+<body><p style="padding:16px;background:#e7eee6"><strong>Updated wheel brief:</strong> see the <a href="index.html">reader controls UX study</a>. The earlier review scores below are historical.</p><a class="skip" href="#specification">Skip to specification</a>
+<header class="masthead"><a class="wordmark" href="#top"><span class="mark">深</span> SHENZHEN <b>READER</b></a><nav aria-label="Document sections"><a href="#experience">Mockups</a><a href="#specification">Specification</a><a href="#reviews">Reviews</a></nav><span class="edition">ANDROID FIRST / IPHONE NEXT</span></header>
+<main id="top"><section class="hero"><div><p class="eyebrow">A MOBILE DESIGN STUDY · SEPTEMBER 2026</p><h1>One document.<br><em>A whole workspace.</em></h1><p class="standfirst">A fast reader for PDF, EPUB and Markdown. A familiar place for your groups. A controls wheel for the current document.</p><div class="hero-actions"><a class="primary" href="#experience">Explore the mockups <span>↗</span></a><a class="text-link" href="#specification">Read the specification ↓</a></div></div><aside class="principles"><p class="eyebrow">THE DESIGN PRIORITIES</p><div><b>01</b><span>Read immediately<small>Opening never waits for an archive.</small></span></div><div><b>02</b><span>Keep less, recover more<small>Shared storage. Exact versions.</small></span></div><div><b>03</b><span>Make development observable<small>Shared UI, instant feedback, native proof.</small></span></div><p class="proposal">Proposal + interactive mockups.<br>No native app or performance claim is implied.</p></aside></section>
+<section id="experience" class="experience"><h2>Reader controls interaction study</h2><p>The corrected wheel, complete gesture sequences, source comparisons and interactive prototype are in the <a href="index.html">updated UX study</a>.</p></section>
+<section class="spec-layout" id="specification"><aside class="contents"><p class="eyebrow">THE SPECIFICATION</p><a href="#1-the-decision-in-one-minute">1. The decision in one minute</a><a href="#2-reading-comes-first">2. Reading comes first</a><a href="#3-groups-have-their-own-place">3. Groups have their own place</a><a href="#4-the-reader-controls-wheel">4. The reader-controls wheel</a><a href="#5-collection-smaller-by-construction">5. Collection: smaller by construction</a><a href="#6-history-and-comparison">6. History and comparison</a><a href="#7-architecture-chosen-for-fast-ai-feedback">7. Architecture chosen for fast AI feedback</a><a href="#8-ai-development-is-a-measurable-workflow">8. AI development is a measurable workflow</a><a href="#9-performance-resilience-and-accessibility-gates">9. Performance, resilience and accessibility gates</a><a href="#10-delivery-sequence-and-iphone-path">10. Delivery sequence and iPhone path</a><a href="#reviews">Review record</a><a href="spec.md">Markdown source ↗</a></aside><article class="spec">
+<p><strong>Android first. iPhone next. A quiet reader, a reader-controls wheel, and a codebase that gives AI immediate evidence.</strong></p>
+<p>Design specification · 24 September 2026 · Proposal, not an implemented application. Performance figures below are acceptance targets, not measured results. The browser prototype illustrates interaction and appearance; it does not contain production document engines.</p>
+<h2 id="1-the-decision-in-one-minute">1. The decision in one minute</h2>
+<p>Build a new <strong>React Native + Expo + TypeScript</strong> application. Share the interface and domain logic with a browser development surface. Keep PDF, EPUB, file-provider access and byte-intensive storage behind small native adapters. Do not port the macOS coordinator, custom window system or handwritten Markdown pagination engine.</p>
+<p>The reader shows <strong>one document at a time</strong>. Groups live on a separate screen. A <strong>reader-controls wheel</strong> selects commands for the current document through one continuous Tools-down → slide → release gesture. It contains no document/group switching or library navigation. A standard controls list provides an accessible alternative. The corrected interaction and research are defined in <a href="control-wheel-study.md">the reader controls UX study</a>; previous document-switching wheel reviews are historical and do not validate it. Collection quietly retains local copies and revisions using shared immutable blocks, with visible storage accounting and conservative cleanup.</p>
+<p>Ease of AI development is a release requirement: a small UI change must be reproducible in a named scenario, visible immediately, testable without compiling document engines, and accompanied by the appropriate browser and native evidence. This means architectural boundaries and tools, not an in-app chatbot.</p>
+<table>
+<thead>
+<tr>
+<th>Decision</th>
+<th>Recommendation</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Mobile shell</td>
+<td>React Native, Expo development builds, TypeScript, Expo Router</td>
+<td>Familiar component code and a shared browser feedback surface</td>
+</tr>
+<tr>
+<td>Visual system</td>
+<td>Material 3 conventions, a small token-based component set; standard controls first</td>
+<td>Predictable accessibility and fewer custom widgets</td>
+</tr>
+<tr>
+<td>PDF / EPUB</td>
+<td>Thin native views around maintained engines; prove them before building the library</td>
+<td>Reading fidelity and native gestures cannot be certified in a browser</td>
+</tr>
+<tr>
+<td>Markdown</td>
+<td>CommonMark + GFM rendered into a restricted local WebView</td>
+<td>Reuse web layout and browser inspection; no new pagination engine</td>
+</tr>
+<tr>
+<td>Persistence</td>
+<td>SQLite runtime authority; versioned YAML settings/workspace import and export</td>
+<td>Transactions and searchable metadata without competing live state files</td>
+</tr>
+<tr>
+<td>History storage</td>
+<td>Immutable content-addressed blocks; independent revision manifests</td>
+<td>Exact recovery and reuse without fragile delta chains</td>
+</tr>
+<tr>
+<td>Product boundary</td>
+<td>Offline first; no account, cloud sync or document-upload AI required</td>
+<td>Fast first use and a smaller development surface</td>
+</tr>
+</tbody></table>
+<p><strong>Deliberate mobile differences:</strong> no desktop tab strip, no permanent side panel, no separate Collection app, a proposed 1 GiB archive cap instead of desktop&#39;s unlimited default, and YAML as an interchange/debug format rather than a second live database. These are recommendations for this new application, not changes to the desktop app.</p>
+<h2 id="2-reading-comes-first">2. Reading comes first</h2>
+<p>Three entry points: Android <strong>Open with</strong>, <strong>Share to Shenzhen Reader</strong>, and the in-app system file picker. Cold launch resumes the last readable document; first launch presents Open a document and an unobtrusive sample. Never wait for Collection, thumbnails, a full-text index or every group&#39;s documents before painting the reader.</p>
+<p>The reading screen has a compact title/source header and reserved bottom reader chrome with <strong>Tools</strong> and a standard <strong>Controls list</strong> alternative. Tools is the sole origin for the reader command wheel; down → slide through a family → slide into its command → release selects in one contact. The six families are Navigate, Zoom, View, Find, Notes and Document. The detailed study distinguishes direct commands from tools requiring text or other input. The page viewport ends above the control strip. A tap on unlinked whitespace can hide chrome; links, text selection, scrolling and double-tap zoom win gesture precedence. The labeled Tools origin remains reachable when secondary chrome hides; no preliminary reveal tap is required. TalkBack keeps navigation controls available rather than auto-hiding them. A header Organizer button opens the last organizer destination, with Groups and Collection as ordinary navigation choices and a clearly labeled Search action. Search there is global; Find in the reader searches only its document. No edge-swipe takeover of Android system Back. Back dismisses the topmost sheet/wheel first, then returns through screen navigation; it does not unpredictably switch document history. Organizer Back always returns to its invoking reader and position. On a cold organizer launch without a reader, Back follows the Android task stack. External opens create a reader return target rather than inserting an unrelated last-used document into that stack. Closing a sheet restores focus to its invoking control. Failed switches keep the previous readable document and announce the failure; recovery into a saved copy announces its dated identity.</p>
+<p>PDF uses continuous vertical pages, pinch zoom, page entry, text selection and internal links. EPUB defaults to reflowed continuous reading, with font size, line spacing, theme and chapter navigation; reflow retains a semantic locator rather than a fabricated PDF page. Markdown defaults to reflow, supports headings, links, images, code and GFM tables, and keeps horizontal scrolling local to wide tables/code. Pagination/export fidelity with the desktop Markdown engine is not a v1 promise.</p>
+<p>Positions are format-specific: PDF page plus normalized viewport; EPUB spine/resource plus locator/progression; Markdown block anchor plus text quote and local offset. Font, rotation and viewport changes re-anchor rather than restore raw pixel coordinates. EPUB progress says “Chapter 3 · 42%”; PDF says “12 of 48”. Older revisions retain their own position and never overwrite the live document&#39;s position.</p>
+<h3>Source truth on a phone</h3>
+<p>Android documents are capability-bearing URIs, not dependable filesystem paths. Use the system Storage Access Framework and retain grants when the provider supports it. A provider may disappear or supply only a non-seekable stream. <a href="https://developer.android.com/training/data-storage/shared/documents-files">Android document access</a>.</p>
+<table>
+<thead>
+<tr>
+<th>Source kind</th>
+<th>Opening behavior</th>
+<th>What the user sees</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Persistable, available provider document</td>
+<td>Open the provider&#39;s current original; snapshot asynchronously after first readable content</td>
+<td>Original · provider name</td>
+</tr>
+<tr>
+<td>Temporary shared URI / stream</td>
+<td>Stage one private working copy while permission is valid; promote into Collection only after consent</td>
+<td>Imported copy; Temporary copy if Collection is off</td>
+</tr>
+<tr>
+<td>Retained revision, original unavailable</td>
+<td>Resolve the verified recovery target below; read-only</td>
+<td>Saved copy · Find original</td>
+</tr>
+<tr>
+<td>Cloud provider still downloading</td>
+<td>Cancellable provider/download progress; no false protection status</td>
+<td>Downloading… with Retry/Cancel</td>
+</tr>
+<tr>
+<td>Password-protected PDF</td>
+<td>Prompt; optional remember using platform secure storage, keyed to content identity</td>
+<td>Locked until authenticated</td>
+</tr>
+</tbody></table>
+<p>Temporary shared files live in app-private <code>cache/reader-working</code>, under the same opaque native read lease used by rendering and capture; ArchiveIO must not stage a second whole file. With Collection off, close deletes the working copy once leases release. Backgrounding retains it for resume for up to 24 hours after last use; expiry only makes it eligible for deletion after all active leases release, never underneath a reader; process-death recovery keeps only the last active unexpired staged file if the OS has not purged it, and labels it Temporary. It is never guaranteed recovery. “Save locally…” exports through the system picker; if a temporary copy was lost, restore a placeholder with Reopen from source / Choose file, not a silently empty reader. Expiry and idle-cache cleanup run off the opening path. Unknown-length imports enforce the 512 MiB per-file staging limit and 512 MiB device reserve from the budget below, checking each block while streaming; cancel and delete the partial file if either is exceeded. Show progress and required/available space, not an unbounded import.</p>
+<p>For stable capture, prefer a provider revision token or immutable descriptor. Check available identity/size/modification token before and after reading; retry twice if it changed. Without a provider guarantee, retain the exact captured byte stream, label it “Captured copy · source consistency unverified,” and do not call it a verified original revision. Rendering success or a hash alone cannot certify source consistency. A detected failed/torn read never becomes a visible revision. A complete but consistency-unverified stream may be durably Saved, but cannot replace the preferred verified recovery target. For app-managed staged files the lease prevents mutations, so exact capture is verified.</p>
+<p>Each document stores two independent pointers: <strong>newestCaptureID</strong> is the newest complete, durable capture, including consistency-unverified captures; <strong>preferredRecoveryRevisionID</strong> is the newest complete capture verified coherent under a stable provider token/descriptor or immutable staged-file lease. “Saved” certifies storage integrity, not provider consistency. Selection follows this table, shared by Collection, History and resume:</p>
+<table>
+<thead>
+<tr>
+<th>Available state</th>
+<th>Default open / History entry point</th>
+<th>Label and explicit alternatives</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Original available; verified and newer unverified captures</td>
+<td>Open current original</td>
+<td>Live Original gets Latest; unverified saved row stays dated and labeled Unverified capture</td>
+</tr>
+<tr>
+<td>Original missing; verified and newer unverified captures</td>
+<td>Open preferredRecoveryRevisionID</td>
+<td>Saved copy · date; that row gets Latest verified. Newer unverified row requires explicit selection and a consistency warning</td>
+</tr>
+<tr>
+<td>Original missing; only unverified captures</td>
+<td>Show recovery choice without auto-opening it</td>
+<td>Open captured copy · date · consistency unverified, or Find original / Save a copy; no Latest badge</td>
+</tr>
+<tr>
+<td>Failed, incomplete or detected torn stream</td>
+<td>Keep previous pointers and readable document unchanged</td>
+<td>Capture failed; Retry. No visible version for partial bytes</td>
+</tr>
+</tbody></table>
+<p>History keeps saved captures in chronological order even when the preferred recovery row is older. When an available original is not byte-identical to a verified saved row, show a separate live <strong>Original · Latest</strong> entry; otherwise merge the live action into that matching row. Exactly one Latest or Latest verified badge exists, or none if only unverified captures exist. Explicitly opening an unverified capture always retains its dated warning. A later verified capture can advance both pointers. An unverified commit advances only newestCaptureID. This avoids silently choosing less trustworthy bytes just because they are newer.</p>
+<p>A readable first page is not proof that the whole file has been archived. Source states and archive states are separate: <strong>Original / Imported / Original unavailable</strong> versus <strong>Saving / Saved / Not saved / Paused</strong>. Never show Saved until durable storage commits. For external edits, capture versions when reopening/resuming or receiving a supported provider notification; mobile background limits prevent a promise to capture every edit while the app is suspended.</p>
+<p>If the original becomes unavailable, preserve the already readable view and use the recovery table for any reopen; offer <strong>Find original</strong> or <strong>Save a copy</strong> in a non-blocking sheet. Search only granted provider locations; no promise to scan the entire phone. Verify candidate bytes by hash, and auto-relink only a unique missing-source match. Identical content can share storage while retaining distinct document identities; names alone never merge histories.</p>
+<h2 id="3-groups-have-their-own-place">3. Groups have their own place</h2>
+<p>The <strong>Groups</strong> screen contains named, colored groups and a search field that filters <strong>group names only</strong>. A group opens a dedicated document list. Browsing a group never changes the reading document. Tapping a document opens it at its saved position and makes that group active.</p>
+<p>Create, rename, recolor, reorder, hide/show and delete groups. Each document has one home group in v1; moving changes membership, not content. Hiding removes a group from normal navigation, not storage or global search; Show hidden reveals it. Deleting a nonempty group offers Move documents to General, never Delete files. General behaves like any other group. Rename it and the next unassigned incoming document creates a new General. The explicit “Open into this group” action targets the browsed group; incoming external intents use General.</p>
+<p>Group order, membership, visibility, scroll position, active group/document, reader-control layout preferences and reading positions survive process death. Document lists use thumbnails and a short position line. Overflow menus provide Rename, Move, History and Remove from group. Rename changes only the app display name. Move changes home-group membership; Remove from group moves it to General and is disabled in General. Close removes the document from the working set (and its group) but preserves original, Collection and reading position. Reopening a closed retained document puts it in General unless explicitly opened into another group. Archive-only documents need not be in any group until opened. A group is a working set, not the archive itself. The default General has a stable role independent of its label; renaming it clears that role, and the next unassigned open creates a new default. A manually named General is an ordinary group with a “Custom group” subtitle when disambiguation is needed. None of these operations delete original files or retained versions.</p>
+<h2 id="4-the-reader-controls-wheel">4. The reader-controls wheel</h2>
+<p>The wheel contains <strong>current-document reader controls only</strong>. Document/group switching remains in the organizer. This corrects the earlier specification&#39;s mistaken document-switcher interpretation. See <a href="control-wheel-study.md">the complete UX study</a> and <a href="control-wheel-comparables.md">primary-source comparison</a> for rationale, complete command routes, sequences and test gates.</p>
+<p>A visible Tools control occupies reserved reader chrome above the platform&#39;s navigation area. A contact starting there displays the upward fan immediately, with no hold timer or initial tap. Slide through one of six fixed families—Navigate, Zoom, View, Find, Notes, Document—then continue into its expanded command fan and release. The same contact selects a command; family selection is not a separate tap. At most eight commands occupy the shared child fan; they are not crammed into the parent&#39;s narrow wedge.</p>
+<p>The fixed center of Tools anchors the geometry; an off-center finger-down cannot move it toward an edge. In the 360-wide candidate, family lock is radius 90, inward branch correction 62, center cancel 24, and child band 108–160. Layout/capabilities/document identity freeze at down. No action happens on hover, and one valid release creates at most one command. Cancel, interruption, multi-touch or layout change creates none. Adjust zoom and Page scrub support outward continuation into a same-contact value rail, with preview then release-to-commit. Numeric/text entry and system share/print sheets are explicit alternative or additional tool inputs; do not claim opening their panel completes those tasks. Native pinch and page scrubbing remain standard alternatives.</p>
+<p>Page-origin contacts stay with the reader even if they cross Tools. The wheel never installs a global long-press, double-tap, two-finger or edge-swipe shortcut. Android system/mandatory gesture insets and iOS safe-area/navigation constraints are respected without excluding or deferring system gestures. A standard controls list has equivalent accessible commands. Actual native arbitration, one-handed reach and the eight-child layout require the device/usability gates in the study; browser appearance does not certify them.</p>
+<h2 id="5-collection-smaller-by-construction">5. Collection: smaller by construction</h2>
+<p>On first document open, let reading begin, then ask once: <strong>“Keep local copies and history of documents you open? Originals stay in place. Copies stay on this device.”</strong> Choices: <strong>Keep copies / Not now</strong> (enable later in Collection → Settings); show the proposed 1 GiB limit and a Change link. Do not retain content before the answer, except temporary bytes strictly necessary to open a shared/non-seekable file. Turning Collection off stops new snapshots/indexing but preserves existing history. Import only documents the user has granted access to; do not crawl another app&#39;s recents.</p>
+<p>Collection has one row per document, resolving the available original or the recovery target/choice defined in §2. No Latest badge on ordinary document rows. Search combines a thumbnail with highlighted text snippets. Selecting a match opens that exact document/location; History is a separate explicit action. Index only retained bytes after first paint, in cancellable batches, with clear “Text not indexed yet” states. Title search remains immediate. Each text hit carries document ID, exact content/revision identity, locator and index generation. Before navigation compare it with the live source identity. If unchanged, use the original; if changed or unverified, open the retained matching revision with “Match in saved version · date” and an explicit Open latest action. Never apply old offsets to new bytes. Open-document text search and in-reader Find use a separate cancellable in-memory engine search when Collection is off; closing removes it. Locked documents expose titles only until authenticated; no background password prompting.</p>
+<p>Global search orders open document titles, group names, open-document text (first five), collected titles excluding already-open documents (first five), then collected text (first five). Results arriving asynchronously do not move the selected item. <code>col:</code> limits to Collection titles/text, including open documents. Show more expands that section. History versions do not flood the default results.</p>
+<h3>Exact storage, not optimistic compression claims</h3>
+<p><strong>V1 format:</strong> divide original bytes into fixed 1 MiB blocks; SHA-256 addresses unique immutable blocks. A small ordered manifest reconstructs each revision exactly. Identical files and unchanged blocks across revisions share physical bytes. Small documents are one block. Markdown asset files use the same object store and a revision dependency manifest; only granted local assets are retained. EPUB is retained as original ZIP bytes, not an unpack/repack approximation. Password-protected PDFs retain encrypted original bytes.</p>
+<p>Whole-file hashing runs in the same background streaming pass as capture. No PDF byte array crosses the JavaScript boundary. Skip compression for v1 binary blocks: PDFs and EPUBs are often already compressed, and a codec is not allowed to delay reading. Small text/metadata can use the platform&#39;s standard deflate codec only when measured savings exceed overhead. No custom compression format or chained binary patches.</p>
+<p>Fixed blocks intentionally favor simplicity, append-style PDF changes and fast restore. Insertions and ZIP rewrites can reduce reuse. A <strong>content-defined chunking</strong> upgrade is a separately measured option if the real corpus misses the storage target; version the chunker in each manifest so old revisions stay readable. Content-defined deduplication is an established approach, but its wins depend on the data. <a href="https://restic.readthedocs.io/en/stable/100_references.html#backups-and-deduplication">Reference design: restic</a>.</p>
+<p>No permanent full-file duplicate alongside every chunked revision. Only leased active/incoming working files during handover and a bounded warm cache may duplicate retained bytes. Original-provider opens bypass reconstruction. A cold archived revision may need reconstruction into a seekable file: show a cached preview labeled Preparing saved copy, then enable interaction when ready. Large cold files cannot honestly have an unconditional instant-open guarantee. Even Android&#39;s platform PDF renderer requires seekable input. <a href="https://developer.android.com/reference/android/graphics/pdf/PdfRenderer">PdfRenderer contract</a>.</p>
+<h3>Accounting and cleanup</h3>
+<p>Default archive cap: <strong>1 GiB</strong>, configurable to 256 MiB, 1 GiB or 5 GiB, custom or unlimited. Keep a 512 MiB device-space reserve; low space pauses new capture, never reading an already available original. The cap counts physical unique retained block bytes plus manifest/index overhead; the Storage screen separately reports disposable previews, working files and total app-owned bytes. Idle cache has a 128 MiB ceiling. Active/incoming staging and extraction follow the explicit handover budget below and are visible in accounting. Large imports that cannot be staged offer a precise space error and a provider/direct-open option when possible.</p>
+<table>
+<thead>
+<tr>
+<th>Temporary storage category</th>
+<th>Hard v1 bound / lifetime</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Staged or reconstructed working files</td>
+<td>One active A and at most one incoming B during handover; each ≤512 MiB, known or unknown length. A direct seekable original needs no staged file. Larger files can use direct access if the engine supports them; otherwise explain the staging limit</td>
+</tr>
+<tr>
+<td>EPUB extracted resources</td>
+<td>At most one set per active/incoming document; each ≤512 MiB inflated, including the per-entry limits in §6. These bytes count in temporary totals, separately from the original ZIP</td>
+</tr>
+<tr>
+<td>Idle previews/working files/extraction combined</td>
+<td>≤128 MiB total; drop unleased extraction/working files first. The active exceptions end when their last lease releases</td>
+</tr>
+<tr>
+<td>Block work buffers</td>
+<td>≤8 MiB; archive capture reuses the leased source, never creates another whole-file staging copy</td>
+</tr>
+<tr>
+<td>Required remaining device space</td>
+<td>≥512 MiB after projected new allocations; checked before admission and per block, including permanent archive writes</td>
+</tr>
+</tbody></table>
+<p>Peak additional temporary allowance is <strong>working(A) + working(B) + extraction(A) + extraction(B) + 128 MiB idle + 8 MiB buffers</strong>. Each working/extraction term is zero or at most 512 MiB; it is an upper bound, not eagerly allocated space. Retained archive and metadata are counted separately in total app-owned space. Preflight known file lengths and a conservative EPUB extraction allowance before admitting B; stream unknown lengths with the same bound and reserve checks. If preserving A plus B cannot fit, cancel B, remove its partial allocations, keep A readable and offer Free cache / Choose another file. Other apps can consume space after preflight, so runtime allocation failures follow the same rollback. Only after B emits interactive content does it replace A; release A and reduce unleased caches to the 128 MiB ceiling. A second incoming request cancels the first incoming generation; no third file is admitted. Expiry never deletes an actively leased file. Export can stream blocks without another materialized full file.</p>
+<p>Cleanup first drops regenerable caches. Then rank documents by lowest user-open count, breaking ties by oldest last-open time. Remove each candidate&#39;s oldest unkept historical revisions before its latest copy; proceed to the next eligible document. Never automatically delete Kept revisions, active reader dependencies, pending exports, or the sole retained copy of an unavailable/import-only document. Also protect preferredRecoveryRevisionID while the original is unavailable or its availability/identity is unknown, even if a newer unverified capture exists: retaining that capture does not replace the verified recovery guarantee. Before evicting a latest copy, revalidate original availability with its granted capability and identity. Unknown, offline, revoked or unverified access is treated as unavailable: protect the last retained copy. Deleting a reference frees bytes only when no other revision owns the blocks. If protected data prevents meeting the limit, pause capture and offer Review storage / Increase limit. Never silently override Keep. Originals are never deleted. Explicit user deletion may remove a protected recovery revision only after naming that loss in the confirmation. Every revision deletion and pointer repair is one repository transaction: recompute newestCaptureID from remaining complete captures and preferredRecoveryRevisionID from remaining verified captures, or set either to null. Apply the §2 resolution table immediately; never leave a dangling pointer or promote an unverified capture to verified.</p>
+<p>Storage shows <strong>Used</strong>, <strong>Shared bytes saved</strong>, <strong>Temporary</strong>, <strong>Limit</strong>, <strong>Available on device</strong>, and what cleanup would actually free. “Shared bytes saved” compares logical retained revision bytes with physical retained blocks; it is not a compression-ratio promise. Preview cleanup before applying a lower cap. Exclude a document, stop future collection, remove a history, and remove one revision are distinct commands with explicit scope.</p>
+<h3>Crash-safe write protocol</h3>
+<p>The foreground TypeScript repository is the single SQLite writer and archive-mutation coordinator; no worker or native adapter writes SQLite. Its single serial command queue owns jobs and mutation order. ArchiveIO issues opaque process-scoped read/stage/GC lease handles and checks them on every byte operation; UI/domain code never handles paths or descriptor integers. Write and hash temporary blocks, flush/close them, atomically rename into the immutable object store, then commit the revision manifest/references, newestCaptureID and (only for a verified coherent capture) preferredRecoveryRevisionID in one SQLite transaction. Publish Saved only after that commit. Crash before metadata commit leaves reclaimable orphan blocks; it never exposes a half revision. GC takes a mutation lease, derives liveness from committed manifests plus active read/export leases, and deletes only unreferenced blocks. Use SQLite WAL with <code>synchronous=FULL</code>, enabled foreign keys and tested migrations. Native IO must fsync block data and affected parent directories before metadata publication; prove actual device behavior with power-loss/fault simulation, not just a rename test. Run bounded orphan recovery off the opening path. Verify reconstruction hashes before presenting/exporting a retained file. Fault-injection tests cover every phase, concurrent capture/delete, cancellation, full disk and missing/corrupt blocks. SQLite transactions do not themselves make external files atomic. <a href="https://www.sqlite.org/atomiccommit.html">SQLite atomic commit</a>.</p>
+<h2 id="6-history-and-comparison">6. History and comparison</h2>
+<p>History is a reader sheet/full screen, not a second implementation inside Collection. Collection&#39;s History button opens the document using the §2 resolution table with History selected. Saved versions list newest first, with the live Original entry and <strong>Latest / Latest verified</strong> badge governed by that table; never award Latest to an unverified capture. Selecting an older revision opens it read-only and shows <strong>Older version · date</strong> in the reader header, with Return to latest (or Return to latest verified when the source is missing). Unverified captures keep their explicit warning. If linked, Latest always resolves the current original; its unchanged bytes need no new revision.</p>
+<p>The Android launch scope includes version preview, Keep, Save a copy and missing-original recovery. Compare with Latest and Compare with Previous are the next delivery: on phones use a synchronized A/B toggle plus change list; on tablets/landscape, optional side-by-side panes. Added/removed text and images need labels and green/red marks plus navigation markers. Do not ship an unlabeled pixel difference as a semantic diff. EPUB comparisons use textual/structural locations and images, not unreliable page numbers. The domain contract and fixtures exist from v1; full visual comparison is explicitly outside the first Android acceptance gate.</p>
+<h3>Supported format and resource profile</h3>
+<p>Initial target: Android 10/API 29 and newer, subject to the Gate 0 dependency/support audit. Test API 29, the pinned target API and the current stable OS. Declare target/min SDK from actual engine requirements rather than silently dropping older devices. PDF v1 includes ordinary/password-protected documents, text/link selection and image scans; unsupported encryption, XFA/dynamic forms and malformed documents get explicit errors, not a blank page. Scans remain readable without OCR.</p>
+<table>
+<thead>
+<tr>
+<th>Format</th>
+<th>Supported at launch</th>
+<th>Graceful limitation</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>EPUB 2/3</td>
+<td>Reflow, contents, embedded fonts/images, links, fixed-layout through validated Readium capability</td>
+<td>No DRM, publication scripting, multimedia overlays or editing; explain unsupported features</td>
+</tr>
+<tr>
+<td>Markdown</td>
+<td>CommonMark + GFM tables, strikethrough, task lists; local images with explicit grants</td>
+<td>Raw HTML escaped; math/diagram fences remain labeled code; no desktop pagination parity</td>
+</tr>
+<tr>
+<td>External resources</td>
+<td>User-approved local folder/assets; external links open system browser</td>
+<td>A file grant never implies sibling-folder access; missing assets show a placeholder and Grant folder action; remote assets off by default</td>
+</tr>
+</tbody></table>
+<p>Bound EPUB extraction to 10,000 entries, 512 MiB total inflated bytes and 64 MiB per asset; reject traversal and symlink-like entries. Decode images into bounded tiles/thumbnails (maximum 32 million input pixels without a downsample path). Limit Markdown source for rich rendering to 10 MiB; larger text opens in an explicit plain-text mode. Exceeded budgets offer a readable unsupported/too-large explanation, never hang or silently omit content. The representative corpus validates and may refine these published limits before launch.</p>
+<p>The WebView loads only an app-owned local origin and an allowlisted dependency map. Disable untrusted publication scripts, frames, file URL privileges and network loads. Only the app&#39;s injected navigation/selection bridge may execute; validate origin, frame, command schema, active document generation and payload size. Messages expose locator/selection commands, never arbitrary filesystem operations or eval. Password-protected documents use memory-only plaintext thumbnails/search while unlocked; no persistent plaintext index, screenshot cache or extracted preview. Locked status clears these derived buffers; retained bytes stay encrypted. Other private temporary files are excluded from cloud backup and cleared through the defined lifecycle.</p>
+<p>Secure password storage uses Android Keystore-backed credentials and iOS Keychain later. Passwords never enter logs, YAML or preview fixtures. Collection/export retains encrypted source bytes. App-private storage is local recovery, not a backup against device loss or uninstall. Exclude archive/credential data from automatic cloud backup by default; make export deliberate. HTML scripts and automatic remote asset loads are disabled in EPUB/Markdown; user navigation to an external link goes through the system browser.</p>
+<h2 id="7-architecture-chosen-for-fast-ai-feedback">7. Architecture chosen for fast AI feedback</h2>
+<h3>Stack decision and alternatives</h3>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Strength</th>
+<th>Cost for this brief</th>
+<th>Decision</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>React Native + Expo + React Native Web</td>
+<td>TypeScript, familiar React component model, shared browser scenarios, Android/iPhone path</td>
+<td>Native document bridges still need native builds/tests; web layout is not identical</td>
+<td>Recommended, subject to renderer spike</td>
+</tr>
+<tr>
+<td>Kotlin + Jetpack Compose</td>
+<td>Excellent Android integration and native previews/testing</td>
+<td>iPhone strategy and browser feedback need additional UI work</td>
+<td>Fallback if native adapters dominate effort</td>
+</tr>
+<tr>
+<td>Flutter</td>
+<td>Shared mobile UI and hot reload, strong widget/golden tests</td>
+<td>Different Dart toolchain and browser evidence does not validate native plugins</td>
+<td>Credible alternative; choose only if team/engine spike favors it</td>
+</tr>
+<tr>
+<td>WebView-only/Capacitor reader</td>
+<td>Straight browser iteration</td>
+<td>Large-document gestures, file providers and engine accessibility are harder to make dependable</td>
+<td>Not the default</td>
+</tr>
+</tbody></table>
+<p>These are design judgments, not claims that native tools lack fast iteration. <a href="https://developer.android.com/develop/ui/compose/tooling/previews">Compose previews</a> and <a href="https://docs.flutter.dev/tools/hot-reload">Flutter hot reload</a> are established feedback tools. React Native&#39;s <a href="https://reactnative.dev/docs/fast-refresh">Fast Refresh</a> supports rapid component feedback; <a href="https://docs.expo.dev/develop/development-builds/faq/">Expo development builds</a> are necessary for custom native engines. Expo Go is not the production development plan.</p>
+<p>Use Expo Router, React Native Gesture Handler/Reanimated for the wheel, one icon family, React Native Paper where its components fit, and React Native StyleSheet tokens rather than a custom design-system framework. Freeze compatible versions in the lockfile at the initial spike; this document does not invent future SDK version guarantees. Jest + React Native Testing Library exercise components and domain reducers; Playwright tests the browser scenario surface; Maestro plus native instrumentation tests Android flows. <a href="https://docs.maestro.dev/">Maestro</a>.</p>
+<h3>Engines are adapters, not a new framework</h3>
+<p>PDF candidate: MuPDF&#39;s maintained Android engine through a small native view. EPUB candidate: Readium Kotlin navigator/publication APIs, Swift toolkit later. Markdown: markdown-it + a GFM table/strikethrough/task-list configuration, sanitized into a local WebView with a documented message bridge. Browser Markdown uses the same HTML/CSS; browser PDF/EPUB scenarios may use fixture surfaces clearly marked simulated. Do not imply those fixtures prove native text selection, rendering or DRM.</p>
+<p>MuPDF reuse is conditional on a resolved distribution/license decision before adoption; an iPhone plan cannot ignore that gate. If the intended licensing/distribution is incompatible, choose a maintained commercially licensed PDF SDK or another validated engine at the spike, not after building the product around it. Readium provides Kotlin and Swift toolkits; it is not an official ready-made React Native bridge. <a href="https://mupdf.readthedocs.io/en/latest/license.html">MuPDF licensing</a>, <a href="https://github.com/readium/kotlin-toolkit">Readium Kotlin</a>, <a href="https://github.com/readium/swift-toolkit">Readium Swift</a>. DRM-protected EPUBs and unsupported encryption receive a clear unsupported message; DRM work is not in v1.</p>
+<p>Create only three native boundaries: <strong>SourceAccess</strong>, <strong>ReaderSurface</strong>, <strong>ArchiveIO</strong>. Expo Modules supplies Kotlin/Swift module and view integration. <a href="https://docs.expo.dev/modules/overview/">Expo Modules</a>. Native code handles seekable descriptors, engine lifetime, file IO, hashing and block reconstruction. JS receives identities, metadata, locators and cancellable progress events; no base64 documents or per-scroll-pixel messages. Native reader gestures and wheel animations stay off a busy JS thread.</p>
+<p>SQLite is the durable authority through <strong>expo-sqlite, owned exclusively by the TypeScript repository</strong>. Native ArchiveIO performs immutable byte operations, issues opaque leases and returns validated descriptors; it never changes manifests or SQL. Foreground/resumed jobs only in v1: TypeScript schedules bounded capture/index batches after first content. App backgrounding stops admission, persists a job checkpoint, requests native cancellation and commits only fully completed verified batches while the runtime is alive. No WorkManager/Headless-JS service is required. On resume, replay persisted jobs idempotently; no claim to capture while suspended.</p>
+<p>Sequence: SourceAccess acquires the native source/staged-file lease → reader emits first interactive content → repository queues capture → ArchiveIO writes durable blocks under that lease → repository validates generation and commits references and the two conditional capture/recovery pointers in one transaction → UI receives Saved → release capture lease while the reader retains its own lease. A JS refresh cancels its generation and requests release; expiry/disconnect recovery cannot invalidate a still-active native reader lease. Process death invalidates all native handles; startup opens a new process epoch and uses committed references plus validated resumable staging records. Orphan files are recovered later, and GC cannot race a live write/read lease. Only complete source copies resume; partial streams are retried from their still-valid provider or discarded.</p>
+<p>Pure domain reducers and policy decisions are shared across platforms and the scenario lab. A browser fake and the real Android repository must pass the same command/observable-state contract suite; Android alone additionally verifies SQL transactions, filesystem durability and descriptor lifetimes. UI never writes ad-hoc SQL. Expo SQLite&#39;s web support is currently alpha, so browser storage is explicitly a fixture implementation. <a href="https://docs.expo.dev/versions/latest/sdk/sqlite/">Expo SQLite</a>.</p>
+<h3>Small contracts and a finite state model</h3>
+<table>
+<thead>
+<tr>
+<th>Contract</th>
+<th>Required responsibilities</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>SourceAccess</td>
+<td>Open/grant/revoke, capability flags, seekable lease or stage stream, detect identity change, locate/export</td>
+</tr>
+<tr>
+<td>ReaderSurface</td>
+<td>Open/cancel, first-content event, restore/get locator, find, selection, theme, close; explicit capability flags</td>
+</tr>
+<tr>
+<td>ArchiveIO</td>
+<td>Stream/hash/chunk, verify/reconstruct, stat physical bytes, atomic promote, bounded GC with leases</td>
+</tr>
+<tr>
+<td>WorkspaceService</td>
+<td>Group/membership commands, active document, positions, undo for reversible organization</td>
+</tr>
+<tr>
+<td>CollectionService</td>
+<td>Capture state, revision manifests, Keep/exclude/delete, quota preview, search index tasks</td>
+</tr>
+</tbody></table>
+<p>All commands carry document/revision IDs and an intent/generation token. A cancelled or stale open/search/capture cannot overwrite a newer selection. Model reader states as idle → resolving → loading → readable, with password-needed/error/cancelled branches. Model capture independently as off → queued → saving → saved/paused/failed. No shared boolean can mean both “document available” and “backup complete”.</p>
+<p>Database entities: Document, SourceReference, Revision, Block, RevisionBlock, Dependency, Group, Membership, ReadingPosition, Setting and Job. A document ID is distinct from source URI and content hash. Schema versions have forward migrations with rollback-safe backup/export; reject unsupported future imports without overwriting current state. YAML export/import includes versioned settings, groups, reader-control layout preferences and reading locators, validates schema and performs one transaction. It excludes credentials and archive payloads; cross-device source grants require reauthorization. No filesystem watcher racing the database.</p>
+<p>Suggested boundaries: <code>app/</code> routes; <code>features/reader</code>, <code>groups</code>, <code>collection</code>, <code>history</code>; <code>domain/</code> pure types/commands; <code>data/</code> repository and migrations; <code>native/</code> three adapters; <code>ui/</code> tokens and primitives; <code>scenarios/</code> fixtures; <code>tests/</code> contract/native/performance. Features depend on public contracts, never reach into another feature&#39;s private state. Avoid a global coordinator, event-bus spaghetti and renderer-specific types in UI components.</p>
+<h2 id="8-ai-development-is-a-measurable-workflow">8. AI development is a measurable workflow</h2>
+<p>Build the feedback tools before building all features. One command starts a browser scenario lab and a warm Android development build. Every screen and error state has a stable URL/scenario ID, a reset action, deterministic time/IDs/data and accessible element names. AI can navigate directly to <code>reader/locked</code>, <code>groups/long-names</code>, <code>collection/full</code>, <code>history/missing-source</code>, <code>wheel/all-controls</code> and <code>reader/stale-open</code> without manual setup. Production builds exclude scenario loaders and debug command bridges.</p>
+<table>
+<thead>
+<tr>
+<th>Change</th>
+<th>Smallest evidence loop</th>
+<th>Required native follow-up</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Spacing, copy, color, empty state</td>
+<td>Hot refresh + browser screenshot/accessibility check</td>
+<td>Native golden for changed screen before merge</td>
+</tr>
+<tr>
+<td>Group/selection/history logic</td>
+<td>Pure command tests + shared UI scenario</td>
+<td>Process-death restore smoke on Android</td>
+</tr>
+<tr>
+<td>Wheel behavior</td>
+<td>Reducer tests + browser pointer/keyboard tests</td>
+<td>Real touch, system Back, TalkBack, haptics, gesture cancellation</td>
+</tr>
+<tr>
+<td>Engine / URI / archive</td>
+<td>Native contract test against generated files</td>
+<td>Emulator + a physical mid-range phone, fault/performance evidence</td>
+</tr>
+</tbody></table>
+<p>Proposed local feedback budgets after a warm setup: component update ≤2 s; scenario screenshot ≤5 s; focused logic/component tests ≤10 s; focused native scenario ≤60 s excluding a cold native build. Repeat each of five ordinary changes 20 times after a warm setup (100 observations), report per-task p50/p95 plus all failures, record commands/environment, and investigate misses. A one-off run is labeled a smoke sample, not a percentile study. These are workflow gates, not promises that all native recompiles finish in one minute.</p>
+<p>A feature task provides: outcome and non-goals; relevant contract; one small fixture; acceptance scenario IDs; allowed file area; exact commands; expected evidence. One implementing agent owns a module at a time; an independent critic reviews the result. Keep an architecture map and decision log concise. Compiler errors and test results return as structured JSON plus a screenshot/trace where relevant. Agents should not repeatedly rediscover the project or interpret a giant build log.</p>
+<p>Definition of done: typecheck/lint, focused regression that covers behavior, relevant screenshot diff, applicable native smoke, state/low-space/accessibility checks, no background work on unaffected paths, and a short implementation note. Do not write dozens of source-text tests that merely assert code strings. Fail CI on unhandled errors, inaccessible primary controls, accidental network access in offline scenarios or stale-generation state overwrites. Do not grade a native reading feature from a browser mock alone.</p>
+<p>Development-efficiency trial: implement five bounded UI/state changes after setup. Record wall-clock iteration time, failed build/test loops, changed files, and agent input/output tokens when available. Compare against the same five tasks in a frozen desktop baseline where feasible; report missing token data as unavailable. Pass if the warm UI loops meet the budgets, a typical task needs no coordinator/native edit, and failures are localized. Do not promise a made-up percentage reduction in token cost.</p>
+<h2 id="9-performance-resilience-and-accessibility-gates">9. Performance, resilience and accessibility gates</h2>
+<p>Use release builds on a named physical mid-range Android phone (initial reference: Pixel 6a, 6 GB RAM) and one 4 GB low-memory device; record OS, thermal state, corpus hashes and cache condition. At least 30 runs per opening path. Measure two spans: <strong>external cold start</strong>, from the OS intent dispatch into a stopped app to the first displayed frame that accepts reading interaction (initial p95 target ≤1.5 s for the ordinary local corpus), and <strong>source-ready open</strong>, from a validated readable source lease to that same event (≤1 s). Record process start, JS ready, descriptor ready, first actual content frame and first accepted interaction in native traces. A cached preview or title is never the end event. Use force-stop between process-cold runs, close engine handles for renderer-cold runs, and label OS filesystem cache as uncontrolled/warm unless a documented device reset method is used. Separate picker/user-password/provider-network time and show it in end-to-end results rather than erasing it. Memory PSS includes the app plus attributable WebView renderer processes; disk accounting includes EPUB extraction, temporary and working files.</p>
+<table>
+<thead>
+<tr>
+<th>Scenario / local corpus</th>
+<th>Initial acceptance target</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Warm switch between loaded documents</td>
+<td>p95 interactive ≤150 ms</td>
+</tr>
+<tr>
+<td>Cold local PDF ≤20 MiB / 200 pages; EPUB ≤10 MiB; Markdown ≤500 KiB</td>
+<td>p95 first readable interactive content ≤1 s after valid source access</td>
+</tr>
+<tr>
+<td>Large/scanned PDF ≤250 MiB or cloud/staged archive</td>
+<td>Progress within 100 ms; cancellation ≤100 ms; report separate first-content/reconstruction metrics</td>
+</tr>
+<tr>
+<td>Wheel highlight</td>
+<td>p95 frame ≤16.7 ms on 60 Hz target; no repeated engine opens during hover</td>
+</tr>
+<tr>
+<td>Name search, 10,000 documents / 500 groups</td>
+<td>p95 initial results ≤100 ms; indexed text first results ≤300 ms</td>
+</tr>
+<tr>
+<td>Collection capture enabled versus disabled</td>
+<td>≤10% regression in first-content p95; capture never precedes first content for available originals</td>
+</tr>
+<tr>
+<td>Working memory, ordinary single document</td>
+<td>≤250 MiB peak process PSS target; bounded page/tile cache and pressure eviction</td>
+</tr>
+</tbody></table>
+<p>Targets are subject to the early engine spike, but a failure must be documented and resolved or explicitly change the supported envelope before implementation scales. Test malformed files, large images/tables, CJK/RTL, accessibility text scale at 200%, reduced motion, one-handed use, keyboard navigation, lost URI grants, rotation, process death, interruption while staging, battery saver and offline providers. PDF image scans without OCR have no searchable text; say so rather than return misleading emptiness.</p>
+<p>Storage benchmark is preregistered before selecting final storage format: at least 100 logical documents and 400 distinct revisions, including non-aligned incremental PDF saves (40% of source-byte weight), full PDF rewrites (25%), EPUB repacks (25%), and Markdown with small edits/shared assets (10%). Include 10 identical-but-distinct document identities and a separate unrelated/no-reuse set. Freeze fixture versions/hashes, tool/save procedures and byte weights so the corpus cannot be tuned to the implementation. Baseline is <strong>whole-file content-addressed storage</strong>, one full blob per unique revision hash, with the same catalog/index/preview policy; do not compare against duplicates that even simple deduplication avoids.</p>
+<p>Pass when steady idle total app-owned bytes (retained payload, metadata, index and derived cache) are <strong>≤80% of that baseline</strong> on the mixed corpus, and the no-reuse set adds <strong>≤5% or 8 MiB</strong>, whichever allowance is larger. Report retained allocated bytes, steady idle total and peak total separately, after cache-policy stabilization. During capture/reconstruction and document handover, peak incremental temporary storage must obey the §5 formula, including both active/incoming working files and extraction sets, 128 MiB idle cache and 8 MiB block buffers. Report every term and enforce the 512 MiB remaining-device reserve; extraction cannot evade total accounting. If fixed blocks fail, benchmark a maintained CDC implementation with identical fixtures, first-content/CPU/battery/restore gates and bridge complexity. If neither meets the gate, change the design or explicitly narrow the space-saving claim before launch; CDC is not a guaranteed fix for recompressed containers.</p>
+<p>Algorithmic checks remain separate: ten byte-identical opens add no new payload blocks; a 100 MiB PDF with five 1 MiB append-only revisions stays below 110 MiB retained payload plus metadata; repeated independent documents with identical content share bytes without merging identities. Measure rewrite-heavy PDF/EPUB files separately and publish the actual overhead. Restore/export must be byte-identical for every retained revision. A cap test must respect Keep/only-copy protection and never free a block still referenced by another document.</p>
+<h2 id="10-delivery-sequence-and-iphone-path">10. Delivery sequence and iPhone path</h2>
+<p><strong>Gate 0 — prove the risky seams.</strong> Android development build plus browser scenario lab; local PDF/EPUB/Markdown, including at least one fixed-layout EPUB if that launch capability remains; real URI grant and non-seekable import; a wheel over the real reader surface; text selection/search; memory and first-content traces; ten exact round-trip archived files; engine licenses and distribution resolved. A small iOS simulator smoke must open the same three formats through the intended adapters before declaring the architecture portable. Do not invest in all library screens until this passes. If integration needs renderer internals or a large bridge framework, simplify or reconsider the stack.</p>
+<p><strong>Gate 1 — Android daily reader.</strong> Reader, Groups, accessible reader-controls wheel/list, position persistence, original/imported source labels, password handling, appearance and offline behavior. Validate process death and simultaneous incoming open intents.</p>
+<p><strong>Gate 2 — Android Collection launch.</strong> Consent, block deduplication, exact restore, searchable latest-document list, History preview/Keep/export/recovery, cap accounting/cleanup and fault-injection coverage. A “Collection launch” is not complete with duplicate full files and a speculative dedup roadmap. Fixed-block storage is the first measured implementation; escalate to CDC if its documented corpus fails the required target.</p>
+<p><strong>Gate 3 — later Android enhancement.</strong> Visual/semantic comparison, richer annotations/OCR, optional text-to-speech, advanced Markdown export. Each requires its own performance/accessibility contract. No sync, collaboration service or built-in cloud AI in these gates.</p>
+<p><strong>iPhone product phase.</strong> Reuse domain commands, schemas, screens, scenarios, tokens and reader-command wheel state machine. Implement SourceAccess with document picker/security-scoped resources and file coordination; Readium Swift for EPUB and the chosen licensed PDF engine; Keychain credentials. Validate safe areas, VoiceOver, Dynamic Type, app suspension, share extension/import lifetime and iOS navigation conventions. Do not carry Android Back behavior into iPhone unchanged. App Store compatibility and licenses must be settled at Gate 0; this is a later delivery, not an assumed free compile.</p>
+<p>Named acceptance scenarios additionally include: <code>search/stale-original</code> (old match opens its exact dated revision); <code>import/opt-out-relaunch</code> (temporary availability/expiry is honest); <code>source/changes-during-capture</code> (exercise all four recovery-table rows and conditional pointer commits); <code>import/large-handover-reserve</code> (200 MiB temporary A stays readable when incoming 200 MiB B cannot fit the reserve); <code>cleanup/provider-disappears</code> (last copy and last verified recovery target protected, including verified V1 plus newer unverified U2); <code>history/delete-recovery-target</code> (explicit deletion atomically repairs pointers and enters the appropriate recovery choice); <code>archive/crash-before-commit</code>; <code>wheel/cancel-and-origin-ownership</code>; <code>reader/200-percent-text</code>; and <code>groups/close-reopen-general</code>. These join the earlier scenario lab and must execute against production contracts, not just static screens.</p>
+<p>Definition of specification success: a developer can begin Gate 0 without inventing navigation or data ownership; major failure states have specified outcomes; mockups and state contracts agree. The earlier eight-round scores assessed the superseded document-switcher interpretation and are not evidence for this corrected control wheel. Its research, interaction evidence and unresolved device gates are recorded separately in the controls study.</p>
+</article></section>
+<section id="reviews" class="review-section"><p class="eyebrow">INDEPENDENT REVIEW</p><h2>Scores with reasons.</h2><p>Text is reviewed before visuals. Scores assess this proposal and browser mockups, not an unbuilt native app. Stop at ≥9.5/10 in each phase or after eight total rounds; retain the actual findings and corrections.</p><ul class="score-trail"><li><span>text 01</span><strong>8.37 / 10</strong></li><li><span>text 02</span><strong>9.24 / 10</strong></li><li><span>text 03</span><strong>9.44 / 10</strong></li><li><span>text 04</span><strong>9.57 / 10</strong></li><li><span>visual 05</span><strong>8.64 / 10</strong></li><li><span>visual 06</span><strong>9.14 / 10</strong></li><li><span>visual 07</span><strong>9.47 / 10</strong></li></ul><details><summary>control wheel design 01</summary><h1>Independent adversarial review — controls-only marking menu</h1>
+<p>24 September 2026. New brief, new review. The previous document-switcher interpretation was rejected by the user; its scores do <strong>not</strong> validate this controls-only design. This is a review of the proposed protocol and desk study, before the new implementation and movement sequences are supplied. <strong>No implementation score is assigned.</strong></p>
+<p>Reviewed proposal: a dedicated 48dp Tools origin in reader chrome, immediate down → continuous slide → release, no preliminary tap or hold timer, page-origin gestures never adopted; six families Navigate / Zoom / View / Find / Notes / Document; family gate around 90dp, retreat below 62dp, origin cancellation below 24dp. The updated child hit band is <strong>108–160dp</strong>, up to eight children over the upper fan. The original 128–160dp proposal is superseded for this review.</p>
+<p>Also read <code>control-wheel-comparables.md</code> and the actual desktop control inventory in <code>docs/features.md</code>. Reader controls are actions affecting the current document; document lists, Groups, Collection and library/global search remain outside the wheel.</p>
+<h2>What is directionally sound</h2>
+<p>The dedicated origin is a strong answer to the page-gesture conflict. Requiring initial down inside it, with no later adoption of page contacts, gives pan, pinch, text selection and links a clean ownership rule. Showing categories immediately avoids recreating the rejected hold-to-open interaction. Replacing the family layer with a broad child fan is more plausible than cramming every command into nested narrow wedges. A conventional accessible command list is already correctly described as an equivalent route, not a prerequisite for ordinary one-contact use.</p>
+<p>The comparable study is appropriately cautious: it distinguishes a circular appearance from a continuous-contact protocol and does not claim that every referenced product implements the proposed cancellation rules. Its provisional geometry and family inventory now differ from the current proposal, however; those must not both appear canonical.</p>
+<h2>Blocker to declaring the new brief satisfied</h2>
+<h3>B1 — “All controls in one movement” needs an explicit completion contract</h3>
+<p>A completed Fit width action and opening a Find panel are not the same outcome. A page-number keyboard cannot be entered by a directional release; placing a comment on the document cannot be accomplished by releasing over a menu sector. Calling every leaf a “command” must not conceal this difference.</p>
+<p><strong>Required before the study claims success:</strong> inventory each leaf with its release result, using these concrete categories:</p>
+<table>
+<thead>
+<tr>
+<th>Action type</th>
+<th>What the continuous contact actually finishes</th>
+<th>What remains</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Discrete action: fit width, rotate, next match, theme preset</td>
+<td>Apply exactly that action on valid release</td>
+<td>Nothing beyond observing the result</td>
+</tr>
+<tr>
+<td>Parameter control: exact zoom, page number, font size</td>
+<td>Either select a value during this same contact, or open a specifically named editor</td>
+<td>State explicitly if a second interaction is required</td>
+</tr>
+<tr>
+<td>Text/placement action: Find query, text comment, highlight without a selection</td>
+<td>Open the appropriate input or placement mode on release</td>
+<td>Text entry, page selection/placement and confirmation are subsequent work</td>
+</tr>
+<tr>
+<td>Tool mode: select text, annotation tool</td>
+<td>Activate the named mode on release</td>
+<td>Tool use is a later page interaction, with a visible exit</td>
+</tr>
+</tbody></table>
+<p>Do not describe “opens Zoom…” as “sets zoom in one movement.” If the user expects continuous zoom adjustment or page scrubbing, those need their own same-contact parameter lane design, with pending value preview and release-to-commit. They cannot be silently relegated to a later roadmap while the study claims all controls satisfy the stronger interpretation. Explicitly delimit the unavoidable text/placement cases instead of promising impossible text entry by flick.</p>
+<h2>Major findings / decisions</h2>
+<h3>M1 — Family locking, child arming and correction are underspecified</h3>
+<p>Crossing radius 90 replaces one angular map with another only 18dp before the child band starts. A straight rapid stroke can cross both thresholds between two delivered events. A curved correction can also cross a newly mapped child before the user has understood the layer transition. The design needs to support expert speed without depending on a timer or accidentally committing whatever appears beneath the finger.</p>
+<p><strong>Specify:</strong> whether the first outward crossing locks a family; exact angular boundary/hysteresis rules; how coalesced or sparse movement samples determine that crossing; whether a straight continuation intentionally selects a child aligned with that family; and what release in each region does. Freeze branch, layout and enabled-command identities for the contact. A family release must cancel, not execute an arbitrary default child. After inward retreat below 62, remove the child candidate before reevaluating families. After origin cancellation, say whether the gesture is terminal until lift or can be rearmed; do not allow accidental later release to revive an old command.</p>
+<p>The next sequence must show a hard case such as far-left family → far-right child, then retreat → different family, while the same contact stays down. The ordinary straight-path demo alone does not test the remapping cost.</p>
+<h3>M2 — Origin choice and actual hit regions determine whether the fan fits</h3>
+<p>The updated geometry is arithmetically plausible. At a 134dp midpoint, a 22.5° child sector has about <strong>26.1dp perpendicular clearance to each angular edge</strong>; the 108–160dp band gives <strong>26dp radial clearance</strong>. A 48dp-diameter hit circle centered there can fit. This resolves the old 32dp-depth objection. It is not evidence of one-thumb accuracy or readable eight-item labels.</p>
+<p>The claimed 20dp side clearance in a 360dp viewport assumes a fixed, centered origin. If the menu instead uses the actual down coordinate anywhere inside a 48dp trigger, its center can shift roughly 24dp horizontally and clip an edge. A corner down also lies outside a 24dp-radius cancel circle measured from the control center.</p>
+<p><strong>Specify:</strong> fixed control-center versus contact-down origin; screen-coordinate transforms; dp/point units; allowed safe width; label and focus-preview bounds as well as hit bounds. Hit regions must follow displayed geometry. Do not shift the fan after down. If a smaller viewport, keyboard, landscape, large text or inset makes the layout impossible, name the alternative and its input sequence; silently shrinking targets or adding a preliminary tap breaks the contract. The separately accessible list remains valid, but should not disguise a broken ordinary-touch layout.</p>
+<h3>M3 — Prove command coverage with a finite inventory, not six attractive labels</h3>
+<p>Six families × eight children gives a capacity ceiling, not proof of completeness. The desktop reader has enough controls that omissions and vague catch-alls are likely. Use the following audit matrix; explicitly mark each operation supported now, deliberately later, inapplicable, or covered by another named command. This is a coverage check, not an instruction to ship every desktop feature on mobile.</p>
+<table>
+<thead>
+<tr>
+<th>Family</th>
+<th>Operations that need an explicit disposition</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Navigate</td>
+<td>Contents/outline, page entry/scrub, next/previous, first/last, return from link/search detour, bookmarks or locations</td>
+</tr>
+<tr>
+<td>Zoom</td>
+<td>In/out, fit width/page/height, actual size, custom percentage; define fit behavior versus PDF display density</td>
+</tr>
+<tr>
+<td>View</td>
+<td>Rotation both directions, continuous/page mode if supported, reading theme, preserve image colors, hide/show chrome, presentation; EPUB/Markdown typography alternatives</td>
+</tr>
+<tr>
+<td>Find</td>
+<td>New/edit current-document query, next/previous result, match overview/count, clear/return, supported search options; never global/library search</td>
+</tr>
+<tr>
+<td>Notes</td>
+<td>Copy selection/page text, selection mode, bookmarks if placed here, existing notes list, highlight/comment/edit/delete or their explicit later status; annotations require write/read-only capability</td>
+</tr>
+<tr>
+<td>Document</td>
+<td>Properties, save/export/share/print of this document, current-document history if included; no document switcher or organizer destinations</td>
+</tr>
+</tbody></table>
+<p>Avoid ambiguous overlap: for example, put Bookmarks in exactly one family, and distinguish page rotation from rotation lock and reader theme from exported colors. Keep family/leaf locations stable. Disabled commands should not cause the remaining actions to shift directions. A format/capability table is necessary for PDF scans, locked/read-only revisions, reflowable EPUB and Markdown. Do not put an unsupported Notes feature in the prototype as though it works merely to fill six families.</p>
+<h3>M4 — Native arbitration must match the clean start-origin rule</h3>
+<p>The proposal is good only if the native engine and menu implement it literally. A parent pan recognizer that waits for movement and then steals a page contact would reintroduce the conflict. A JS-only overlay that cannot claim the initiating Tools down consistently over a native reader surface would also fail the protocol.</p>
+<p><strong>Required contract:</strong> Tools owns its initial down through up/cancel; page-owned contacts stay page-owned even across Tools; a second contact during Tools cancels the menu without synthesizing a page pinch; pointer cancellation, lost ownership, app interruption, rotation/resize and document-generation change cancel pending action. Accept at most one terminal commit for the original pointer/generation. A stale or newly disabled command must not execute on another document after a source/open transition.</p>
+<p>Use current system insets, not a screenshot&#39;s home-bar estimate. Android says bottom home/quick-switch gestures cannot be opted out of like side Back gestures and provides mandatory gesture insets. Keep the Tools hit target wholly above that region; request no exclusion to rescue the design. Android also documents that late parent interception sends <code>ACTION_CANCEL</code> to the child, which is why late adoption is inappropriate here. <a href="https://developer.android.com/develop/ui/views/touch-and-input/gestures/gesturenav">Android gesture navigation</a>, <a href="https://developer.android.com/develop/ui/views/touch-and-input/gestures/viewgroup">Android touch interception</a>.</p>
+<p>The iPhone phase needs the same tested ownership policy against its actual recognizer hierarchy and safe regions. Merely citing UIKit or sharing React state does not certify it. No native OS gesture validation has been performed in this review.</p>
+<h2>Medium findings</h2>
+<h3>D1 — Continuous parameters need a distinct control grammar</h3>
+<p>If a same-contact numeric lane is chosen, define its coordinate system after leaf selection, gain, bounds, detents, displayed pending value, return/back route and commit/cancel behavior. Do not map family angle, child angle and numeric value simultaneously. Zoom should preserve a defined anchor; page scrubbing must specify whether release commits a previewed page or opens a page entry field. No live document mutation should occur while the user is merely choosing a family/leaf. A canceled value adjustment must restore the exact old value and position.</p>
+<h3>D2 — The alternative list needs an actual entry and semantic parity</h3>
+<p>The comparable study proposes the right alternative; now show its actual reachable control. A touch down/up on Tools currently cancels, so an ordinary button activation cannot be assumed to open that list. Expose a labeled standard Reader controls action for TalkBack, keyboard and switch access, or an explicit accessibility activation on Tools. Its items must invoke the same command IDs and checked/disabled states. The gesture route must remain immediate and require no preliminary tap. Verify label visibility outside the thumb, selection by more than color, and command feedback after release.</p>
+<p>Android recommends at least 48×48dp touch/focus targets, with semantics describing the action&#39;s result. The radial hit arithmetic above does not substitute for the accessible list or native testing. <a href="https://developer.android.com/guide/topics/ui/accessibility/apps">Android accessibility guidance</a>.</p>
+<h3>D3 — Maintain one canonical geometry and family map</h3>
+<p><code>control-wheel-comparables.md</code> currently illustrates four children at radius 164 and a category gate around 132, and gives a different family set. The current candidate is eight children, 108–160 hit band and gate 90. Both can be legitimate alternatives in a study, but only one may be labeled the actual prototype contract. Mark the other as rejected/alternative with its tradeoff. Similarly, the old document-switching sections of <code>spec.md</code> are not evidence for this corrected brief and must be superseded before a final proposal is presented.</p>
+<h2>Minimal evidence requested next</h2>
+<ol>
+<li>Actual down → family crossing → child selection → up frames, with one continuous pointer trace and unchanged reader state until release. Include immediate fast movement; no hold timer or preliminary tap.</li>
+<li>Difficult opposite-side child path, retreat to another family, origin cancel, outside release and interrupted/multitouch cancellation. Log zero or one committed command as appropriate.</li>
+<li>One discrete action, one toggle, one parameter path and one text/placement action, with their different completion boundaries labeled honestly.</li>
+<li>Page scroll crossing Tools, page pinch, text-selection long-press and OS-origin input: no menu activation or late takeover. Browser simulations prove the model only; native reader-surface arbitration remains a separate gate.</li>
+<li>Complete finite command map with stable positions/capabilities, plus 360dp, small-height, left/right-hand and large-text layout evidence. Show the equivalent list entry and focus behavior.</li>
+</ol>
+<p>The core proposal is worth prototyping. Its greatest risk is not the circle styling; it is quietly changing the meaning of a moving finger at the family transition, or declaring all controls complete when many leaves only open another interface. Resolve those explicitly before evaluating the new implementation.</p>
+</details><details><summary>control wheel design 02</summary><h1>Independent review — controls-only wheel implementation and study</h1>
+<p>24 September 2026. <strong>Design/prototype score: 9.35/10. Native implementation and participant usability: ungraded, not yet tested.</strong> The rejected document-switching wheel and its earlier scores provide no credit toward this assessment.</p>
+<p>The corrected proposal satisfies the central interaction brief in the inspected browser model: start directly on Tools, keep the same contact down, pass through a reader-control family, choose a command, and release once. There is no preliminary tap or hold timer. No document switcher, Group or Collection destination appears in the wheel. The optional parameter continuation can choose a zoom/page value during that same contact; releasing over the ordinary parameter leaf instead opens an explicitly separate numeric editor.</p>
+<h2>Scope and evidence</h2>
+<p>Reviewed <code>control-wheel-study.md</code>, the retired-alternative markings in <code>control-wheel-comparables.md</code>, the study wrapper, and <code>command-wheel-state.js</code>, <code>command-wheel-ui.js</code>, <code>command-wheel.js</code>, CSS and HTML. The live sample is an unlocked text PDF illustration. Its 48 slots are command routes, including visibly disclosed unavailable or placeholder operations; they are not 48 functioning native PDF tools.</p>
+<p>The child reviewer could not open an IAB browser (<code>Browser is not available: iab</code>). I independently inspected source, ran the reducer tests, reproduced the sparse-event regression, and inspected root-provided actual browser PNGs. Root&#39;s live interactions are attributed evidence, not interactions I performed. Inspected images include the final 360px family, Zoom, Notes and Document fans, 200% list, the scrolled 200% list, 320px narrow-layout fallback, the final 844×320 short landscape fallback, and the earlier parameter rail. The obsolete screenshots showing the trace obstruction and landscape failure are evidence of corrected defects, not the final appearance.</p>
+<p>The revised suite passes <strong>34 tests, exit 0</strong>, including source/ownership cancellation, second contact, off-fan release, frozen inventory, parameter preview/commit and layout availability. My separate reproduction feeds the identical cross-fan straight segment once and in 30 increments: both now select Document → Information and commit <code>info</code>. Tests prove this reducer&#39;s behavior, not native event delivery. Root also verified that Zoom in at 200% stays at 200%, Adjust starts at 200%, and the large list scrolls without horizontal overflow.</p>
+<h2>Corrections verified during this review</h2>
+<table>
+<thead>
+<tr>
+<th>Original finding</th>
+<th>Corrected behavior / evidence</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Major:</strong> a sparse segment missed the inward 62-unit retreat, while dense delivery of the same path switched families</td>
+<td>The reducer processes the inward crossing and subsequent outward 90-unit crossing. Sparse/dense parity passes independently. An arc outside the retreat band preserves the original family.</td>
+</tr>
+<tr>
+<td><strong>Medium:</strong> Zoom in could reduce 200% to 150%; Adjust reset to 100%</td>
+<td>Steps are relative and bounded. The editor starts with current numeric state and validates a number before applying it. Fit modes use the explicitly simulated numeric baseline; this is not native fit-scale verification.</td>
+</tr>
+<tr>
+<td><strong>Medium:</strong> short/narrow layouts still attempted the full fan</td>
+<td>Shared availability logic rejects width below 360 CSS pixels, insufficient vertical room, and the 200% text scenario. The notice explicitly says the continuous gesture is unavailable and exposes the list.</td>
+</tr>
+<tr>
+<td><strong>Medium:</strong> a 390px CSS minimum could defeat the short-height availability rule</td>
+<td>The minimum was removed. Root measured the actual phone at 320px high in an 844×320 viewport; the final screenshot shows the explanatory notice and reachable List above the system strip.</td>
+</tr>
+<tr>
+<td><strong>Medium:</strong> diagnostic/footer layering cut through the fan</td>
+<td>Final PNGs show unobstructed sectors and labels. The diagnostic strip is hidden while active without changing the control origin.</td>
+</tr>
+<tr>
+<td><strong>Medium:</strong> disabled hover had no reason; parameter continuation was undiscoverable</td>
+<td>Disabled candidates remain visible without committing and produce a reason. Adjust/Page expose a continuation caption and dashed gate.</td>
+</tr>
+<tr>
+<td><strong>Medium:</strong> the list&#39;s Tab trap included buttons hidden inside collapsed sections</td>
+<td>Final source filters non-rendered controls and closed-details descendants, including correct handling of initial dialog focus. Root live-checked Document summary → Tab → Close, and Close → Shift+Tab → Document, both within the dialog.</td>
+</tr>
+</tbody></table>
+<p>Root also found that the embedded Next-match replay used <code>scrollIntoView</code>, which could scroll the surrounding research page. The final source confines movement to <code>#reading.scrollTop</code> through <code>scrollReaderTo</code>; this correction is source-verified here. Root live-confirmed that closing the Controls sheet returns focus to Controls.</p>
+<h2>Remaining ranked findings</h2>
+<p><strong>Blocker: none in the inspected proposal/prototype scope. Major: none. Medium: none identified after these bounded corrections.</strong> This does not declare the unrun acceptance gates passed.</p>
+<p>The additional minor focus-return defect was corrected before this final snapshot: sheets preserve the connected external invoker and restore it, with Tools as fallback.</p>
+<p><strong>Minor — compact fan labels need explicit readability evidence before visual polish is called finished.</strong> The inspected English labels fit, with no collisions in the supplied 360px family and eight-leaf images. Initial family labels are about 10 CSS pixels and the entire menu is near the operating finger. The study already includes reach/occlusion and longer text in acceptance work; record those results rather than treating geometric 48-unit target containment as proof of readable labels. Do not shrink translated text to rescue this arrangement. This is an evidence limit, not a demonstrated clipping defect in the supplied English fixture.</p>
+<h2>Grounded score</h2>
+<p>These dimensions grade the <strong>reviewable design and browser prototype</strong>. Reliability here means input-state reliability; this task does not retest the separate Collection/storage proposal.</p>
+<table>
+<thead>
+<tr>
+<th>Dimension</th>
+<th align="right">Weight</th>
+<th align="right">Score</th>
+<th>Basis</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Product clarity and command coverage</td>
+<td align="right">25%</td>
+<td align="right">9.4</td>
+<td>Correct controls-only scope, finite map, honest completion boundaries and capability audit. EPUB/Markdown maps remain a named delivery gate.</td>
+</tr>
+<tr>
+<td>Geometry and technical feasibility</td>
+<td align="right">25%</td>
+<td align="right">9.2</td>
+<td>Fixed-center bounds, full-depth child band, disclosed fallback and parameter grammar are concrete. Usable physical reach and native ownership are not established by CSS geometry.</td>
+</tr>
+<tr>
+<td>Ease of implementation and AI-assisted development</td>
+<td align="right">20%</td>
+<td align="right">9.5</td>
+<td>Small pure reducer, explicit command IDs, frozen contact state and executable traces avoid an implicit custom UI framework. Native command/renderer integration is still work.</td>
+</tr>
+<tr>
+<td>Input reliability and cancellation</td>
+<td align="right">20%</td>
+<td align="right">9.4</td>
+<td>Commit-on-release, terminal hub cancellation, sparse crossings, ownership and interruption cases are inspectable and tested. Browser evidence cannot validate native generation arbitration.</td>
+</tr>
+<tr>
+<td>Accessibility and understandable feedback</td>
+<td align="right">10%</td>
+<td align="right">9.2</td>
+<td>Equivalent semantic list, disabled reasons, large-text disclosure, modal focus filtering and invoker restoration are present. Actual assistive-technology evaluation remains.</td>
+</tr>
+<tr>
+<td><strong>Weighted total</strong></td>
+<td align="right"><strong>100%</strong></td>
+<td align="right"><strong>9.35</strong></td>
+<td>A strong corrected prototype; not a justified 9.5+ validated interaction yet.</td>
+</tr>
+</tbody></table>
+<h2>Gates that remain outside this score</h2>
+<p>The study correctly leaves Android predictive Back/Home, three-button navigation, native reader scroll/pan/pinch/selection, interruption and actual safe-region layout to a native spike. Browser pointer capture cannot certify those. Android&#39;s own guidance distinguishes mandatory bottom gestures and explains child cancellation during parent interception: <a href="https://developer.android.com/develop/ui/views/touch-and-input/gestures/gesturenav">gesture navigation</a>, <a href="https://developer.android.com/develop/ui/views/touch-and-input/gestures/viewgroup">touch interception</a>.</p>
+<p>The proposed 12-participant, counterbalanced toolbar comparison has not run. Neither has the separate assistive-technology session. The fan&#39;s long cross-family paths, abrupt category-to-child remapping, small family labels and three-phase parameter rail are hypotheses to test there. Thirty native trials are a screening procedure, not proof of zero field failures. Nothing in the comparable-product research transfers its measured performance to this particular six-family/eight-child layout.</p>
+<p>Proceed to the bounded native ownership spike and participant study with this candidate. The remaining uncertainty should be resolved with device and participant evidence, not further score-driven cosmetic review rounds.</p>
+</details><details><summary>text 01</summary><h1>Independent review — text round 1</h1>
+<p>Reviewed 2026-09-24: <code>spec.md</code> and <code>director-notes.md</code>. This is a review of the proposed design, not certification of an implemented mobile reader. No browser mockups or native application were inspected in this round.</p>
+<h2>Score: 8.37 / 10</h2>
+<table>
+<thead>
+<tr>
+<th>Dimension</th>
+<th align="right">Weight</th>
+<th align="right">Score</th>
+<th align="right">Weighted contribution</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Product clarity</td>
+<td align="right">25%</td>
+<td align="right">8.2</td>
+<td align="right">2.05</td>
+</tr>
+<tr>
+<td>Technical feasibility</td>
+<td align="right">25%</td>
+<td align="right">8.4</td>
+<td align="right">2.10</td>
+</tr>
+<tr>
+<td>AI development and feedback</td>
+<td align="right">20%</td>
+<td align="right">9.0</td>
+<td align="right">1.80</td>
+</tr>
+<tr>
+<td>Storage efficiency and reliability</td>
+<td align="right">20%</td>
+<td align="right">7.7</td>
+<td align="right">1.54</td>
+</tr>
+<tr>
+<td>Accessibility</td>
+<td align="right">10%</td>
+<td align="right">8.8</td>
+<td align="right">0.88</td>
+</tr>
+<tr>
+<td><strong>Total</strong></td>
+<td align="right"><strong>100%</strong></td>
+<td align="right"></td>
+<td align="right"><strong>8.37</strong></td>
+</tr>
+</tbody></table>
+<p>The mainstream stack, explicit browser/native evidence split, ordinary switcher alternative, separate Groups, and honest distinction between a first page and a saved revision are strong. The proposal is much better than an attractive interface with an unspecified storage backend. It does not yet meet its own standard that Gate 0 can begin without inventing navigation or data ownership. The principal gaps are concrete enough to fix in text. Native implementation evidence is not required to score the <em>specification</em> highly; credible, unambiguous acceptance procedures are.</p>
+<h2>Blockers</h2>
+<p>None that prevents continued design work. Engine licensing and integration remain correctly labeled implementation gates, rather than accomplished facts.</p>
+<h2>Major findings</h2>
+<h3>M1 — Two competing product contracts</h3>
+<p><strong>Locations:</strong> spec §§2–4 and director notes “A page with room to breathe,” “Groups are the desk,” and wheel section.</p>
+<p>The notes put More in the header and position/Switch below; the spec puts Contents/Find/Switch/More below. Notes expand groups inline; spec opens a dedicated list. Notes define Close as removal from the working set and allow closing a deleted group&#39;s documents; spec only exposes Remove from group, which moves to General. Notes make the current wheel slot neutral and define a neutral travel corridor; spec does neither. Neither specification text clearly names the ordinary reader-to-organizer/global-search entry point. These are observable behavior disagreements, not harmless visual details.</p>
+<p><strong>Required change:</strong> choose one canonical navigation/control table and update both documents (or explicitly mark notes superseded and list superseded decisions). State how Reader reaches Groups, Collection and global search; how organizer Back behaves after cold resume/external open; whether group rows expand or navigate; and the exact difference between Close, Remove, Move and archive deletion. State membership of archived-only/closed documents. Carry current-slot neutrality, travel corridor, and zero/one-alternative wheel cases into the canonical contract. Do not leave a mockup implementer to choose which document wins.</p>
+<h3>M2 — Storage ownership is explicitly deferred, contradicting specification success</h3>
+<p><strong>Location:</strong> spec §7, SQLite ownership paragraph and contracts table; §5 crash protocol.</p>
+<p>“It is acceptable to host this repository natively” and “Define that ownership in the first spike” leave the key system boundary undecided. ArchiveIO owns GC but JS may own manifest transactions; the shared mutation lease has no owner, lifetime or cancellation semantics. SourceAccess stages streams while ArchiveIO stages archive blocks, without a stated shared staged-file lease. This can grow into the bespoke cross-runtime framework the brief wants to avoid.</p>
+<p><strong>Required change:</strong> select the v1 SQLite writer/runtime, transaction API, job scheduler owner and lease owner now. A simple foreground-only v1 is acceptable if capture/index pause on background and resume safely. Alternatively use a single native durable repository. Specify the sequence source lease → first-content → capture/stage → commit → release, plus who owns cleanup after JS reload/process death. Make leases opaque native handles and keep pure product decisions reusable in fixture tests. State that browser fake and native repository run the same contract suite; do not claim a fake repository alone validates production semantics. Include block data/directory durability and SQLite durability configuration in the native storage acceptance checklist, rather than equating flush/close/rename with power-loss durability.</p>
+<h3>M3 — “Genuinely smaller” has only an alignment-friendly acceptance test</h3>
+<p><strong>Locations:</strong> spec §5 “smaller by construction” and §9 storage corpus gate.</p>
+<p>The exact 100 MiB source plus exact 1 MiB appends is the optimal case for fixed 1 MiB blocks. It demonstrates an algorithmic property, but neither arbitrary-boundary appends nor the expected PDF/EPUB/Markdown workload. Rewrite-heavy results need only be published; no numeric gate determines whether the Collection meets its main product requirement. Physical metadata, index, materialization and engine extraction overhead are absent from the savings gate. Escalating to CDC is not guaranteed to recover reuse from compressed EPUB rewrites.</p>
+<p><strong>Required change:</strong> define a preregistered representative mixed corpus with non-aligned sizes, small Markdown edits/assets, real PDF incremental saves and full rewrites, EPUB rewrites, identical-but-distinct documents, and unrelated documents. Specify a numeric aggregate net-space target against exact full-file revision storage, plus a maximum overhead for a no-reuse corpus. Report retained bytes and peak/steady total app-owned bytes separately. Define what happens if fixed blocks fail: benchmark CDC and its complexity/CPU/restore cost, then change the storage choice or narrow the promise explicitly. Do not require native measurements now; require a falsifiable future gate.</p>
+<h3>M4 — Search promises exact destinations but indexes different bytes</h3>
+<p><strong>Locations:</strong> spec §5 Collection/latest resolution/global search, §6 Latest, §7 states.</p>
+<p>Only retained bytes are indexed, yet Collection results always resolve the current original when available. After an external edit, a snippet from the saved revision can point into different current bytes. Open-document text results are also promised when Collection is off, although capture/indexing is disabled. The spec correctly separates identities but not search content identity.</p>
+<p><strong>Required change:</strong> bind each text hit to document ID, content/revision identity and locator. Define whether a stale hit opens the matching retained revision with a dated explanation, revalidates/remaps into current bytes, or is marked stale until refreshed. Separate live in-reader Find/ephemeral open-document search from the persistent Collection index; explicitly state behavior with Collection disabled and encrypted documents locked. Add a fixture where the original changes after indexing and a match is selected.</p>
+<h3>M5 — Temporary copies and mutable originals lack a complete lifecycle</h3>
+<p><strong>Locations:</strong> spec §2 source table, §5 consent/cleanup, §7 SourceAccess.</p>
+<p>Temporary shared copies are permitted before consent, but their deletion/resume lifetime is unspecified. A no-Collection user can either lose a shared document silently after process death or accumulate unbounded “temporary” imports, depending on an implementer&#39;s choice. Hashing a mutable provider stream proves which bytes were copied, not that they form one coherent revision. Sole-copy protection depends on source availability, yet cleanup has no rule for stale or unknown provider status.</p>
+<p><strong>Required change:</strong> state where a temporary working copy lives, its quota/lifetime, behavior on close/background/process death and the visible Save locally option. Bound work when an unknown-length stream exceeds free space. Capture under a stable source capability where possible; otherwise detect revision/metadata change across capture, retry boundedly and label a best-effort captured stream honestly where a provider cannot guarantee consistency. Before evicting a latest copy, unknown/offline/permission-unverified originals must be treated conservatively. Add fixtures for opting out then reopening a temporary share, and for a provider disappearing before cleanup.</p>
+<h2>Medium findings</h2>
+<h3>D1 — Performance protocol excludes part of the “cold” experience</h3>
+<p><strong>Location:</strong> spec §§8–9.</p>
+<p>Timing from an in-app receipt with valid access can omit process/JS startup, despite cold launch being a core product promise. “Cold” does not distinguish cold process, cold renderer and warm OS filesystem cache. A p95 from five ordinary edits is too weak to present as a repeatable workflow gate.</p>
+<p><strong>Required change:</strong> separate external cold-start end-to-end timing from source-ready-to-first-content; name exact start/end events and how a native trace/instrumentation verifies actual readable interaction. Define cache/process resets that can be reproduced on an ordinary test phone. Keep provider-network/password/user time separately reported. Repeat each of the five edit tasks sufficiently to report meaningful distributions, or call five observations a smoke sample and report individual/max values. State whether the memory target includes associated WebView renderer processes and measure engine temporary extraction as app-owned space.</p>
+<h3>D2 — Format/security profile is still a promise to write a profile</h3>
+<p><strong>Locations:</strong> spec §§2,6–7; director notes MVP format-limit requirement.</p>
+<p>Markdown&#39;s named plugins are a useful start, but raw HTML, math, diagrams, remote images and missing local siblings need explicit readable fallbacks. A picked Markdown file does not imply permission to read its sibling assets. “Scripts disabled” alongside a message bridge needs to distinguish untrusted publication scripts from trusted app-owned bridge code. Password-protected source bytes do not protect plaintext search snippets, previews or extracted caches.</p>
+<p><strong>Required change:</strong> add a small supported/degrade/reject table for PDF, EPUB and Markdown, with a minimum supported Android/API range selected provisionally for the spike. Define a deliberate folder/asset grant flow; never infer sibling access from a file URI. Require bounded decompression/image/resource budgets and clear failure states. State an allowed local-resource origin and message schema, block untrusted frames/navigation/script and privileged file access, and define whether locked-document derived artifacts persist (conservative default: no persistent plaintext index/preview). These are finite adapter policies, not a request to build a general browser sandbox.</p>
+<h3>D3 — Consent wording and page taps are ambiguous</h3>
+<p><strong>Locations:</strong> spec §2 chrome hiding and §5 consent; notes first use/accessibility.</p>
+<p>“Keep enabled / Turn off” implies already-enabled capture even though no consent has occurred. “Tapping the page” can consume links, text-selection or zoom gestures, and hiding every exit control makes discoverability depend on a hidden gesture. Notes are better: unlinked whitespace only, native gestures win, focus restores to invoker.</p>
+<p><strong>Required change:</strong> use affirmative “Keep copies” / “Not now” (or an equally clear pair) and specify where to enable it later. Define chrome tap precedence, a discoverable accessible way to restore/exit, focus restoration and screen-reader announcements when a switch fails or a saved copy replaces an unavailable original. Fold these requirements into canonical spec and named scenarios.</p>
+<h2>Minor findings</h2>
+<ul>
+<li>Explain whether a renamed General remains the default by stable ID or genuinely creates another group. The proposed latter behavior is unusual; if retained, handle duplicate visible “General” names and moving/removing a document already in General without looping.</li>
+<li>Define document Rename as an app display-name edit unless a provider write/rename operation is explicitly intended. This avoids surprising changes to originals in a reader.</li>
+<li>Replace ambiguous “1/5 GiB” with “1 GiB or 5 GiB.”</li>
+</ul>
+<h2>Sources checked</h2>
+<p>The current primary docs support the existing licensing/platform cautions. No source was used to assert that the proposed native implementation already performs well.</p>
+<ul>
+<li><a href="https://mupdf.readthedocs.io/en/latest/license.html">MuPDF license</a>: AGPL and commercial paths exist. Keeping a distribution decision as Gate 0 is appropriate; the design must not assume a free iPhone-compatible license.</li>
+<li><a href="https://github.com/readium/kotlin-toolkit">Readium Kotlin toolkit</a>: it is a Kotlin toolkit, not a supplied React Native integration. The planned bridge is project work.</li>
+<li><a href="https://docs.expo.dev/versions/latest/sdk/sqlite/">Expo SQLite</a>: web support is described as alpha; browser fixture storage should not be called a native parity test.</li>
+<li><a href="https://developer.android.com/training/data-storage/shared/documents-files">Android SAF</a>: granted URI access and persistence must be handled explicitly; a file selection is not blanket filesystem authorization.</li>
+<li><a href="https://developer.android.com/privacy-and-security/risks/insecure-webview-native-bridges">Android WebView bridges</a>: origin/frame and message-validation concerns support D2&#39;s explicit resource/bridge policy.</li>
+<li><a href="https://developer.android.com/reference/android/util/AtomicFile">Android AtomicFile</a>: atomic file replacement and application locking are separate concerns, supporting an explicit mutation owner and durability gate.</li>
+</ul>
+<h2>Next review</h2>
+<p>Resolve M1–M5 before browser visual assessment. Then this same critic should inspect actual rendered browser states and transitions, including small screens, large text, wheel pointer cancellation, search, history and modeled failures. No visual score is assigned from source code or textual descriptions. Round count: <strong>1 of 8</strong>.</p>
+</details><details><summary>text 02</summary><h1>Independent review — text round 2</h1>
+<p>Reviewed 2026-09-24: revised <code>spec.md</code> and the new canonical-status notice in <code>director-notes.md</code>. Text only; no native implementation or browser visuals are certified.</p>
+<h2>Score: 9.24 / 10</h2>
+<table>
+<thead>
+<tr>
+<th>Dimension</th>
+<th align="right">Weight</th>
+<th align="right">Score</th>
+<th align="right">Weighted contribution</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Product clarity</td>
+<td align="right">25%</td>
+<td align="right">9.3</td>
+<td align="right">2.325</td>
+</tr>
+<tr>
+<td>Technical feasibility</td>
+<td align="right">25%</td>
+<td align="right">9.2</td>
+<td align="right">2.300</td>
+</tr>
+<tr>
+<td>AI development and feedback</td>
+<td align="right">20%</td>
+<td align="right">9.5</td>
+<td align="right">1.900</td>
+</tr>
+<tr>
+<td>Storage efficiency and reliability</td>
+<td align="right">20%</td>
+<td align="right">8.8</td>
+<td align="right">1.760</td>
+</tr>
+<tr>
+<td>Accessibility</td>
+<td align="right">10%</td>
+<td align="right">9.5</td>
+<td align="right">0.950</td>
+</tr>
+<tr>
+<td><strong>Total</strong></td>
+<td align="right"><strong>100%</strong></td>
+<td align="right"></td>
+<td align="right"><strong>9.235 → 9.24</strong></td>
+</tr>
+</tbody></table>
+<p>The revision resolves the original architectural uncertainty without multiplying native services. Its explicit TypeScript writer, foreground job scope, shared contract tests, reproducible timing spans and meaningful whole-file-CAS storage baseline support the brief well. Canonical navigation now exists, source and archive states are separated, and the temporary-copy behavior is honest. The higher score reflects specification quality, not presumed native success.</p>
+<h2>Previous findings</h2>
+<ul>
+<li><strong>M1 resolved:</strong> navigation, Close versus Move/Remove, archived-only membership and wheel arming are canonical; exploratory notes are explicitly superseded.</li>
+<li><strong>M2 resolved:</strong> SQLite, jobs, mutation order and opaque byte leases have named owners. SQL/filesystem durability and process generations have appropriate native gates.</li>
+<li><strong>M3 resolved:</strong> preregistered mixed corpus, whole-file-CAS baseline, net-space target, no-reuse overhead limit and CDC failure branch make the storage claim falsifiable.</li>
+<li><strong>M4 resolved:</strong> hits bind to content identity and stale matches open a dated saved version; live search is distinct from archival indexing.</li>
+<li><strong>M5 substantially resolved:</strong> temporary-copy lifecycle, rolling import checks and conservative provider availability are now specified. Two cross-section inconsistencies remain below.</li>
+<li><strong>D1–D3 resolved:</strong> cold startup is separately measured; editing samples are defined; format and bridge limits are explicit; consent and gesture/accessibility precedence are clear.</li>
+<li><strong>Original minor findings resolved:</strong> Rename scope, General role/disambiguation and quota labels are specified.</li>
+</ul>
+<h2>Blocker / major findings</h2>
+<p>None remaining. The implementation gates are appropriately conditional. Two medium findings prevent closing the text phase at 9.5.</p>
+<h2>Medium findings</h2>
+<h3>D4 — The newest captured copy and the verified fallback still compete for “Latest”</h3>
+<p><strong>Locations:</strong> §2 source consistency; §5 first Collection paragraph and crash publication; §6 History; final named scenarios.</p>
+<p>The final scenario says an unverified capture never replaces verified latest. But Collection “always” resolves latest original or latest retained revision, and History says only the latest version gets Latest. A newer unverified capture is a retained revision and may precede the older verified copy chronologically. The commit sequence also unconditionally updates the latest pointer. This leaves source-loss recovery and Latest badges dependent on an implementer&#39;s interpretation.</p>
+<p><strong>Required change:</strong> define separate durable meanings for newest capture and preferred recovery revision, or an equivalent single unambiguous model. Add a small resolution table covering:</p>
+<ol>
+<li>Available original, older verified snapshot and newer unverified capture.</li>
+<li>Missing original with both verified and newer unverified captures.</li>
+<li>Missing original with only an unverified capture.</li>
+<li>A detected failed/torn stream.</li>
+</ol>
+<p>Specify which revision Collection opens automatically, which receives a dated warning or requires an explicit selection, whether incomplete/torn data ever becomes a visible revision, and which pointer a capture commit may advance. History may remain chronological, but its label must not claim a newer unverified row is the verified recovery target. An unverified copy can still truthfully be durably Saved; source consistency and storage integrity should remain distinct. Update the existing three “latest” passages to refer to this rule.</p>
+<h3>D5 — Staging a second large document exceeds the stated working-file budget</h3>
+<p><strong>Locations:</strong> §2 temporary imports/failed switching, §5 accounting, §6 extraction limits, §9 peak-space acceptance.</p>
+<p>The reader preserves the old readable document until the incoming one succeeds. With an active 200 MiB temporary shared PDF and an incoming 200 MiB stream, both staged files must coexist during the switch. One active source file plus 128 MiB cache cannot cover that case. The 512 MiB extraction allowance also needs a defined relationship to the active exception and 128 MiB idle cap. Finally, “rolling byte limit” is not an actual limit yet, and a 24-hour maximum must not expire a file underneath an active lease.</p>
+<p><strong>Required change:</strong> state one consistent temporary-storage budget table or formula. Give a numeric/default limit for unknown-length staging, say whether a bounded second pending document is allowed during handover, and define the fallback when preflight cannot preserve the old document. Count archive staging/materialization and active EPUB extraction explicitly, including their peak handover cost; do not hide extraction outside total accounting. State when extraction is dropped to satisfy the idle cap and that expiry becomes eligible only after active leases release. Adjust the peak-space gate to the selected policy. Add a scenario for large temporary A → large incoming B with insufficient reserve: B fails/cancels predictably and A remains readable.</p>
+<p>This can be a simple bounded policy. It does not require a new scheduler or storage subsystem.</p>
+<h2>Minor observation</h2>
+<p>The format table newly admits fixed-layout EPUB subject to validated capability. That is a reasonable conditional choice, but the Gate 0 corpus should include one if it remains a launch promise. The old director notes deliberately exclude complex fixed-layout EPUB and are now historical, so this is not a canonical contradiction.</p>
+<h2>Scope and next step</h2>
+<p>No new external claim required source research in this round; the prior primary-source checks still support the platform cautions. The remaining issues are internal state/budget contradictions. Resolve D4 and D5, then regrade the text before visual assessment. No unbuilt performance, storage saving or accessibility behavior is being claimed as measured.</p>
+<p>Round count: <strong>2 of 8</strong>. Text phase <strong>not complete</strong>. Browser visual review <strong>not started</strong>.</p>
+</details><details><summary>text 03</summary><h1>Independent review — text round 3</h1>
+<p>Reviewed 2026-09-24: revised <code>spec.md</code>, focusing on the recovery-pointer table, conditional publication, handover accounting and their interaction with existing cleanup rules. No visual or native review in this round.</p>
+<h2>Score: 9.44 / 10</h2>
+<table>
+<thead>
+<tr>
+<th>Dimension</th>
+<th align="right">Weight</th>
+<th align="right">Score</th>
+<th align="right">Weighted contribution</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Product clarity</td>
+<td align="right">25%</td>
+<td align="right">9.6</td>
+<td align="right">2.40</td>
+</tr>
+<tr>
+<td>Technical feasibility</td>
+<td align="right">25%</td>
+<td align="right">9.4</td>
+<td align="right">2.35</td>
+</tr>
+<tr>
+<td>AI development and feedback</td>
+<td align="right">20%</td>
+<td align="right">9.6</td>
+<td align="right">1.92</td>
+</tr>
+<tr>
+<td>Storage efficiency and reliability</td>
+<td align="right">20%</td>
+<td align="right">9.1</td>
+<td align="right">1.82</td>
+</tr>
+<tr>
+<td>Accessibility</td>
+<td align="right">10%</td>
+<td align="right">9.5</td>
+<td align="right">0.95</td>
+</tr>
+<tr>
+<td><strong>Total</strong></td>
+<td align="right"><strong>100%</strong></td>
+<td align="right"></td>
+<td align="right"><strong>9.44</strong></td>
+</tr>
+</tbody></table>
+<h2>Resolved</h2>
+<p><strong>D4 resolved:</strong> newest durable capture and preferred verified recovery have independent identities. The four-case table governs Collection, History and conditional commits; unverified captures no longer acquire a misleading Latest badge or silently replace a verified fallback.</p>
+<p><strong>D5 resolved:</strong> active and incoming staging/extraction have explicit numeric bounds, each category contributes to peak accounting, reserve checks continue during allocation, and failed handover preserves the old reader. Idle cleanup and lease-aware expiry are defined. The fixed-layout EPUB launch capability now has an explicit Gate 0 fixture.</p>
+<h2>Blocker / major findings</h2>
+<p>None. The design is close to ready for visual review. One medium interaction remains.</p>
+<h2>Medium — D6: cleanup can delete the last verified recovery target</h2>
+<p><strong>Locations:</strong> §2 preferredRecoveryRevisionID; §5 cleanup priority and protection rules.</p>
+<p>Given missing original + verified V1 + newer unverified U2, the recovery table correctly opens V1. However, cleanup removes oldest unkept historical revisions before latest, protecting only the <em>sole retained copy</em>. V1 is older and not sole, so it can be deleted while U2 survives. That turns a document with a verified fallback into one requiring an unverified-recovery choice and potentially leaves a dangling preferred pointer. This directly undermines the newly introduced recovery rule.</p>
+<p><strong>Required change:</strong> when original availability is unavailable/unknown/unverified, automatically protect the last verified recovery target as well as a sole retained copy. It may be replaced only when another verified coherent revision is durably available; newer unverified captures do not qualify. For deliberate deletion of a protected recovery target, explain that the action removes the last verified recovery copy and require the user to choose that explicit scope. Recompute or clear newestCaptureID and preferredRecoveryRevisionID in the same transaction as authorized revision removal; do not repoint preferredRecoveryRevisionID to an unverified capture.</p>
+<p>Add one named cleanup scenario: missing original, older unkept verified V1, newer unverified U2, exceeded cap. Automatic cleanup preserves V1, may remove U2 if eligible, and pauses capture if no sufficient reclaimable data remains. Verify pointer integrity after both automatic and explicit deletion.</p>
+<p>This is a direct cross-section consequence of the new state model, not a request for a new feature. No other material text issue was found.</p>
+<h2>Status</h2>
+<p>Text phase remains open for D6. No new external factual claim required research; this finding follows from the document&#39;s own rules. Round count: <strong>3 of 8</strong>. Browser visual review has not started.</p>
+</details><details><summary>text 04</summary><h1>Independent review — text round 4</h1>
+<p>Reviewed 2026-09-24: canonical <code>spec.md</code>, including cleanup protection, transactional pointer repair and the added failure scenarios. This score assesses design specificity and credible acceptance gates, not native implementation results.</p>
+<h2>Score: 9.57 / 10 — text phase complete</h2>
+<table>
+<thead>
+<tr>
+<th>Dimension</th>
+<th align="right">Weight</th>
+<th align="right">Score</th>
+<th align="right">Weighted contribution</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Product clarity</td>
+<td align="right">25%</td>
+<td align="right">9.6</td>
+<td align="right">2.400</td>
+</tr>
+<tr>
+<td>Technical feasibility</td>
+<td align="right">25%</td>
+<td align="right">9.5</td>
+<td align="right">2.375</td>
+</tr>
+<tr>
+<td>AI development and feedback</td>
+<td align="right">20%</td>
+<td align="right">9.6</td>
+<td align="right">1.920</td>
+</tr>
+<tr>
+<td>Storage efficiency and reliability</td>
+<td align="right">20%</td>
+<td align="right">9.6</td>
+<td align="right">1.920</td>
+</tr>
+<tr>
+<td>Accessibility</td>
+<td align="right">10%</td>
+<td align="right">9.5</td>
+<td align="right">0.950</td>
+</tr>
+<tr>
+<td><strong>Total</strong></td>
+<td align="right"><strong>100%</strong></td>
+<td align="right"></td>
+<td align="right"><strong>9.565 → 9.57</strong></td>
+</tr>
+</tbody></table>
+<p><strong>D6 is resolved.</strong> Automatic cleanup now protects the last verified recovery target while the original is unavailable or uncertain, even if a newer unverified capture exists. Deliberate deletion names the lost guarantee and atomically recomputes or clears both pointers. The two named scenarios cover automatic protection and explicit deletion. Together with the recovery table, this is an implementable state rule rather than a general promise of safety.</p>
+<p>No unresolved blocker, major or medium text findings remain from four rounds. The design gives the intended Android-first reader a mainstream development surface, finite native boundaries, observable feedback loops and falsifiable storage/performance gates. “Instant” and “smaller” are scoped targets instead of unsupported accomplishments. Mobile provider and lifecycle limitations are explicit.</p>
+<p>The remaining margin below 10 reflects deliberately conditional decisions: engine integration/licensing, real device gesture geometry, real mixed-corpus savings, and iPhone parity must be proved at implementation gates. The browser design cannot close those gates. Their presence is appropriate for a specification; it is not a reason to invent native results or withhold a high design score indefinitely.</p>
+<p>Next: inspect the actual browser prototype images and modeled interactions. Visual review will receive its own score and evidence limitations. <strong>Round count: 4 of 8.</strong></p>
+</details><details><summary>visual 05</summary><h1>Independent review — visual round 5</h1>
+<p>Reviewed 2026-09-24: the first rendered prototype evidence bundle, its <code>results.json</code>, prototype source and root agent&#39;s live CUA observations. The critic inspected all 16 supplied PNGs, including reader formats, Groups, document list, Collection, History, Storage, consent, missing-original recovery, portrait/landscape wheel and the supplied larger-text variants.</p>
+<p>The critic&#39;s CUA inventory returned <strong>no browser surfaces</strong>. Therefore live interactions below are explicitly root-observed or supplied test evidence, not interactions performed by this critic. Source inspection supplements the rendered images; it does not replace them. This report freezes the first bundle. Corrections being made concurrently need fresh evidence in the next round.</p>
+<h2>Score: 8.64 / 10</h2>
+<p>The same requested weights assess the prototype&#39;s expression of the design, not native engine correctness or measured storage savings.</p>
+<table>
+<thead>
+<tr>
+<th>Dimension</th>
+<th align="right">Weight</th>
+<th align="right">Score</th>
+<th align="right">Weighted contribution</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Product clarity</td>
+<td align="right">25%</td>
+<td align="right">8.5</td>
+<td align="right">2.125</td>
+</tr>
+<tr>
+<td>Technical feasibility expressed by interactions</td>
+<td align="right">25%</td>
+<td align="right">8.7</td>
+<td align="right">2.175</td>
+</tr>
+<tr>
+<td>AI development and reproducible feedback</td>
+<td align="right">20%</td>
+<td align="right">9.0</td>
+<td align="right">1.800</td>
+</tr>
+<tr>
+<td>Storage/reliability UX and truthful state</td>
+<td align="right">20%</td>
+<td align="right">8.8</td>
+<td align="right">1.760</td>
+</tr>
+<tr>
+<td>Accessibility and responsive recovery</td>
+<td align="right">10%</td>
+<td align="right">7.8</td>
+<td align="right">0.780</td>
+</tr>
+<tr>
+<td><strong>Total</strong></td>
+<td align="right"><strong>100%</strong></td>
+<td align="right"></td>
+<td align="right"><strong>8.64</strong></td>
+</tr>
+</tbody></table>
+<h2>What works</h2>
+<p>The actual reader screens are restrained and readable, with substantive sample content rather than empty page placeholders. EPUB and Markdown look like reflowed reading. Groups and Collection are visually distinct destinations. Group/document rows use space sensibly; Collection combines small thumbnails, titles, location and snippets without giant cover cards. The wheel fits the supplied portrait and landscape viewports, exposes a current neutral slot, and retains a visible reading context. The ordinary switcher is a credible accessible alternative.</p>
+<p>History provides recognizable chronology and explicit dated-version actions. Storage separates retained, temporary and shared-byte figures. Consent explains local copies and a visible budget. Prototype and simulated-file/export behavior are identified rather than presented as real native operations.</p>
+<p>Root live CUA confirmed PDF reader → tap Switch → EPUB, organizer browsing without an immediate document switch, Collection layout, an older revision and Return to latest, and correct sample cleanup arithmetic (312 + 48 MiB → 286 + 12 MiB = 298 MiB). Switch-sheet Escape returns focus to Switch. Supplied automated evidence additionally reports held-wheel selection, unarmed cancellation and no outer horizontal overflow in its listed viewports; that evidence is not a native touch/accessibility test.</p>
+<h2>Blockers</h2>
+<p>None preventing continued prototype work.</p>
+<h2>Major — V1: document context changes during unrelated organizer actions</h2>
+<p>Source shows <code>docmenu</code> immediately assigning <code>state.doc</code>, which is also the active reading document. Opening another item&#39;s overflow menu in Collection can change the eventual Reader destination without selecting Open. <code>history</code> then forces <code>state.doc = 0</code>, so EPUB/Markdown History resolves to the PDF fixture. Contents is also hard-coded to the PDF title and chapter list. This is a visible violation of the canonical separation between browsing, selection and opening.</p>
+<p><strong>Required change:</strong> separate active reading identity from organizer/menu target. Bind History, Contents and export to the selected target and format. Preserve the active reader until an explicit successful Open. Add live or browser test evidence: read EPUB → inspect another Collection item&#39;s menu → dismiss → Reader still EPUB; open EPUB History → EPUB identity; open EPUB Contents → its chapter identity. A fixture can use sample data, but it must model the state contract consistently.</p>
+<h2>Medium findings</h2>
+<h3>V2 — “Large” does not exercise the specified 200% text state</h3>
+<p>The supplied <code>large=1</code> CSS increases selected text sizes, e.g. document titles to 18px, while many 10–14px labels, sheet content and controls stay fixed. These screenshots are a larger-text design variant, not the required 200% accessibility proof. The ordinary text is often small enough that the missing test matters. No true-200% or dark-theme evidence is in the first bundle.</p>
+<p><strong>Required change:</strong> provide a genuine text-scale fixture or platform-equivalent 200% test, identify the method, and make all meaningful text participate. At 360×800 verify consent, switcher, long group/document titles, History and Storage with actions reachable by scrolling; test dark theme and a long-title wheel/list fallback. Capture screenshots and state reachability, not only a page-level <code>scrollWidth</code> check. Keeping primary controls on screen is less important than readable text and reachable actions.</p>
+<h3>V3 — Dismissal restores the wrong focus outside the Switch sheet</h3>
+<p>Source <code>closeSheet()</code> always targets <code>#switch-control</code>. That is correct for Switch but wrong for Contents, Find, More, storage, creation and organizer menus. On screens without Switch it restores nowhere. Root has confirmed Switch/Escape only; other cases must not inherit that pass.</p>
+<p><strong>Required change:</strong> remember the invoker by stable action/identity and restore its corresponding rendered control after dismissal. Preserve a sensible fallback if the invoking item was deleted. Verify Contents→Escape, Find→Escape, Groups Add→Escape and Collection menu→Escape, including keyboard focus visible and no background modal interaction.</p>
+<h3>V4 — Search destination and scope are not yet demonstrated</h3>
+<p>Root observed “quiet” filtering two rows while the count remained seven, with “quiet” highlighted even before a query. Selecting a result opens the generic sample reader rather than demonstrating its exact hit and Return origin. Global search had no organizer entry in this bundle. Source Find returns the same hard-coded match for every nonempty input.</p>
+<p><strong>Required change:</strong> make counts and highlights reflect actual fixture results; distinguish empty query from no matches. Add the canonical global-search entry. Model a hit destination with a visible highlight and Return to the prior location using the sample DOM; this does not require a native engine. Use a meaningful unmatched query and stale-version fixture so the design is inspectable rather than a universal success response.</p>
+<h3>V5 — Revision labels disagree across the modeled reading/export flow</h3>
+<p>Root selected 12 September and saw that date in the header, but the footer still said 18 September. Source export similarly hard-codes the older revision as 18 September. This weakens the most important archive promise: users must know which exact saved version they are reading or exporting.</p>
+<p><strong>Required change:</strong> derive header, footer, History selection and export confirmation from one revision identity. Verify two distinct older dates and Return to latest. Include the latest-verified/unverified distinction from the finalized text in at least one recovery fixture; no native byte operation is needed to show those labels correctly.</p>
+<h2>Minor findings</h2>
+<ul>
+<li>The full focused wheel title is confined to a roughly 105px center circle. Current short fixtures fit, but a realistic long title needs either a full-width focused-title line or an explicit readable fallback. Show the selected-sector state as well as the idle wheel; the spec&#39;s non-color selection marker should be visible.</li>
+<li>Android-first presentation should identify its system-inset assumptions. The simulated status/home chrome looks generic/iPhone-like; it is not evidence of Android Back/gesture-safe placement. Native validation remains separate.</li>
+<li>The 390px evidence is useful, but the agreed 412×915 reference and more than six documents/one-alternative states still need a small representative evidence sample before declaring the entire mockup set complete.</li>
+</ul>
+<h2>Next-round evidence</h2>
+<p>Recheck the repaired flows on the actual browser, regenerate images/results with a source/build hash, and include true 200%, dark, long titles, one overflow group and revision-consistency evidence. Keep the evidence concise and distinguish root-operated live CUA, automated browser observations and critic-inspected screenshots. No native benchmark is required for this design task.</p>
+<p>Text remains accepted at <strong>9.57/10</strong>. Visual phase remains open at <strong>8.64/10</strong>. Round count: <strong>5 of 8</strong>.</p>
+</details><details><summary>visual 06</summary><h1>Independent review — visual round 6</h1>
+<p>Reviewed 2026-09-24: frozen round-six prototype source, <code>prototype-evidence/final/source-hashes.json</code>, fresh rendered images in that folder, and root-operated live CUA observations. This critic still has no browser surface in CUA; screenshots were inspected directly and live interactions are attributed to root. The images and source are design-prototype evidence, not native PDF/EPUB, Android accessibility, durable storage or performance evidence.</p>
+<h2>Score: 9.14 / 10</h2>
+<table>
+<thead>
+<tr>
+<th>Dimension</th>
+<th align="right">Weight</th>
+<th align="right">Score</th>
+<th align="right">Weighted contribution</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Product clarity</td>
+<td align="right">25%</td>
+<td align="right">9.2</td>
+<td align="right">2.30</td>
+</tr>
+<tr>
+<td>Technical feasibility expressed by interactions</td>
+<td align="right">25%</td>
+<td align="right">9.2</td>
+<td align="right">2.30</td>
+</tr>
+<tr>
+<td>AI development and reproducible feedback</td>
+<td align="right">20%</td>
+<td align="right">9.5</td>
+<td align="right">1.90</td>
+</tr>
+<tr>
+<td>Storage/reliability UX and truthful state</td>
+<td align="right">20%</td>
+<td align="right">9.0</td>
+<td align="right">1.80</td>
+</tr>
+<tr>
+<td>Accessibility and responsive recovery</td>
+<td align="right">10%</td>
+<td align="right">8.4</td>
+<td align="right">0.84</td>
+</tr>
+<tr>
+<td><strong>Total</strong></td>
+<td align="right"><strong>100%</strong></td>
+<td align="right"></td>
+<td align="right"><strong>9.14</strong></td>
+</tr>
+</tbody></table>
+<h2>Resolved and improved</h2>
+<ul>
+<li><strong>V1 resolved:</strong> root read EPUB, inspected another PDF&#39;s Collection menu, dismissed it, and returned to the same EPUB. EPUB Contents and History now show EPUB context. Source separates menu target from active reader.</li>
+<li><strong>V2 substantially resolved:</strong> the new fixture scales meaningful text to a measured 2×. Inspected 360×800 consent, switcher, Groups, History and Storage screenshots show readable wrapping and scrolling. Root reached/clicked both consent choices, confirmed 28px buttons from a 14px baseline, reached the last History action and Storage cleanup controls. Long titles, overflow and one-alternative list images are provided. Dark evidence exposes the remaining issue below.</li>
+<li><strong>V3 resolved:</strong> root verified Contents/Escape restores Contents; another document&#39;s menu restores that menu; Groups Create/Escape restores Create; Storage cleanup Cancel restores its invoker. Source retains invoker identity.</li>
+<li><strong>V4 resolved for the modeled sample:</strong> Find has a real unmatched state, “light” returns two results, the second opens a visible sample-text highlight, and Return clears the detour. Global search is reachable and returns two “quiet” results. Collection counts/highlights derive from the query. Stale-match evidence visibly preserves the 12 September revision and offers Return/Open latest.</li>
+<li><strong>V5 substantially resolved:</strong> the inspected stale screen and root&#39;s direct reading/export test agree on 12 September across header, footer and export. A separate History-row export path remains wrong below.</li>
+<li>Root&#39;s fresh 412px wheel interaction armed via center, selected the northeast alternative and opened EPUB. Prior supplied portrait/landscape evidence establishes the intended wheel geometry; native touch remains a future gate.</li>
+</ul>
+<p>The corrected prototype now demonstrates the important state transitions instead of only describing them. The improved score is warranted, but three concrete defects prevent visual acceptance.</p>
+<h2>Major — V6: dark theme makes primary navigation nearly invisible</h2>
+<p><strong>Evidence:</strong> <code>final/dark.png</code>; <code>prototype-adaptive.css</code> and inherited base styles.</p>
+<p>The reader document is visible, but the header title, Organizer control, status foreground and Contents/Find/More tools are extremely dark against dark backgrounds. The subtitle/dek is also much less legible than the body. The dark theme changes <code>--ink</code> inside <code>.dark</code> without setting the container foreground, so the already-computed body color remains inherited by many controls.</p>
+<p><strong>Required change:</strong> set the actual dark container foreground and audit hard-coded secondary text and control colors. Inspect dark Reader, organizer, sheets and wheel/list; a single body-paragraph color fix is insufficient. Provide fresh screenshots showing readable navigation, primary labels and meaningful secondary text, and check contrast for those tokens. No theme should hide the escape/navigation path.</p>
+<h2>Medium findings</h2>
+<h3>V7 — Return from unverified capture does not return to the verified copy</h3>
+<p>Root confirmed: recovery → explicitly open 24 September unverified capture → Return to latest still shows the 24 September unverified capture. Source clears <code>older</code> but leaves <code>unverified</code> and its date unchanged. This is a failure of the recovery interaction added to demonstrate the accepted text contract.</p>
+<p><strong>Required change:</strong> when the original is missing, expose Return to latest verified and resolve it to 18 September in this fixture. Clear unverified state while preserving original-unavailable state and dated saved-copy labels. When no verified recovery exists, do not present a false return-to-verified action. Verify both recovery cases, not just their initial sheets.</p>
+<h3>V8 — Export from a History row exports the current reader&#39;s identity</h3>
+<p>Root confirmed that Save a copy on the 18 September row opens a dialog saying Current readable version. The row action lacks a revision target; the dialog infers it from active reading state. Direct export after first opening an older revision works, but that does not validate the row action.</p>
+<p><strong>Required change:</strong> pass the row&#39;s explicit document/revision identity to export and derive the dialog from that identity. Do not change the active reader merely to select an export target. Verify the 18 September row while the latest is active, and direct export while reading 12 September.</p>
+<h2>Scope and next step</h2>
+<p>No further broad visual redesign is needed. Preserve the calm layouts, readable reflow, practical list density and truthful simulation labeling. Fix these three finite paths, capture updated dark/recovery/export evidence and run one focused regression round. Text remains accepted at <strong>9.57/10</strong>. Visual phase remains open. <strong>Round count: 6 of 8.</strong></p>
+</details><details><summary>visual 07</summary><h1>Independent review — visual round 7</h1>
+<p>Reviewed 2026-09-24: <code>dark-corrected.png</code>, <code>recovery-return-corrected.png</code>, <code>history-export-corrected.png</code>, the associated source snapshot/hash record, and appended root-operated live checks. This critic inspected the rendered images and code independently; live browser actions were performed by root because the critic has no CUA browser surface.</p>
+<h2>Score: 9.47 / 10</h2>
+<table>
+<thead>
+<tr>
+<th>Dimension</th>
+<th align="right">Weight</th>
+<th align="right">Score</th>
+<th align="right">Weighted contribution</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Product clarity</td>
+<td align="right">25%</td>
+<td align="right">9.6</td>
+<td align="right">2.400</td>
+</tr>
+<tr>
+<td>Technical feasibility expressed by interactions</td>
+<td align="right">25%</td>
+<td align="right">9.5</td>
+<td align="right">2.375</td>
+</tr>
+<tr>
+<td>AI development and reproducible feedback</td>
+<td align="right">20%</td>
+<td align="right">9.6</td>
+<td align="right">1.920</td>
+</tr>
+<tr>
+<td>Storage/reliability UX and truthful state</td>
+<td align="right">20%</td>
+<td align="right">9.1</td>
+<td align="right">1.820</td>
+</tr>
+<tr>
+<td>Accessibility and responsive recovery</td>
+<td align="right">10%</td>
+<td align="right">9.5</td>
+<td align="right">0.950</td>
+</tr>
+<tr>
+<td><strong>Total</strong></td>
+<td align="right"><strong>100%</strong></td>
+<td align="right"></td>
+<td align="right"><strong>9.465 → 9.47</strong></td>
+</tr>
+</tbody></table>
+<h2>Resolved</h2>
+<p><strong>V6 resolved:</strong> the fresh dark screenshot has readable title, Organizer, status, Contents/Find/Switch/More and secondary page text. The container now sets its actual foreground, and relevant hard-coded colors received dark overrides. This closes the major navigation defect.</p>
+<p><strong>V7 resolved:</strong> root&#39;s live recovery transition and the inspected screenshot show Latest verified · 18 Sep 2026, no unverified warning, and Find original still available. The no-verified-target case exposes Recovery choices rather than a false verified-return action.</p>
+<p><strong>V8 resolved for History and active reading:</strong> the 18 September row passes an explicit export target; the fresh dialog says 18 Sep 2026 version and root confirmed dismissal preserves History. The already checked 12 September reader export remains separately identified.</p>
+<h2>Medium — V8 remains on the unverified-only recovery sheet&#39;s direct export</h2>
+<p>The unverified-only fixture deliberately starts on Groups before opening captured bytes. Its recovery sheet exposes <strong>Save a separate copy</strong>, but that button still calls generic <code>export</code>. At that point <code>older</code> and <code>unverified</code> are false, so the export handler derives “Current readable version” instead of the sole 24 September unverified capture. Root confirmed this exact defect live after the critic identified the source path. It is the same explicit-target defect on another displayed export entry point.</p>
+<p><strong>Required final correction:</strong> make that recovery-sheet button pass the document ID, 24 September revision identity and unverified status explicitly. The dialog must name the captured version and consistency warning without first opening it or changing the active reader. Verify direct recovery export and recheck the already fixed History-row export. Use the final eighth round for this bounded regression, not a wider redesign.</p>
+<h2>Minor observation</h2>
+<p>The dark reader&#39;s decorative drop-cap A remains dark teal against the dark paper. The rest of the paragraph and controls are readable. Matching the dark heading/accent color would improve polish; this is not a new medium gate.</p>
+<h2>Status</h2>
+<p>No remaining blocker or major finding. One medium export-identity path remains. Text remains accepted at <strong>9.57/10</strong>. Visual review is <strong>9.47/10</strong> and not yet closed. <strong>Round count: 7 of 8.</strong> Scores still assess a browser design proposal, not native behavior or actual storage savings.</p>
+</details><details><summary>visual 08</summary><h1>Independent review — final visual round 8</h1>
+<p>Reviewed 2026-09-24: final explicit export-target handling, <code>unverified-export-final.png</code>, <code>dark-final.png</code>, <code>source-hashes-final.json</code> and root&#39;s appended live observations. This is the last of the agreed eight combined text/visual rounds.</p>
+<h2>Final visual score: 9.57 / 10 — accepted</h2>
+<table>
+<thead>
+<tr>
+<th>Dimension</th>
+<th align="right">Weight</th>
+<th align="right">Score</th>
+<th align="right">Weighted contribution</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Product clarity</td>
+<td align="right">25%</td>
+<td align="right">9.6</td>
+<td align="right">2.400</td>
+</tr>
+<tr>
+<td>Technical feasibility expressed by interactions</td>
+<td align="right">25%</td>
+<td align="right">9.5</td>
+<td align="right">2.375</td>
+</tr>
+<tr>
+<td>AI development and reproducible feedback</td>
+<td align="right">20%</td>
+<td align="right">9.6</td>
+<td align="right">1.920</td>
+</tr>
+<tr>
+<td>Storage/reliability UX and truthful state</td>
+<td align="right">20%</td>
+<td align="right">9.6</td>
+<td align="right">1.920</td>
+</tr>
+<tr>
+<td>Accessibility and responsive recovery</td>
+<td align="right">10%</td>
+<td align="right">9.5</td>
+<td align="right">0.950</td>
+</tr>
+<tr>
+<td><strong>Total</strong></td>
+<td align="right"><strong>100%</strong></td>
+<td align="right"></td>
+<td align="right"><strong>9.565 → 9.57</strong></td>
+</tr>
+</tbody></table>
+<h2>Final correction verified</h2>
+<p><strong>V8 is resolved across the reviewed entry points.</strong> The unopened unverified-only recovery sheet now sends an explicit captured-revision target. The inspected dialog names <strong>24 Sep 2026 version · source consistency unverified</strong>. Source preserves that status independently of the active reader. Root confirmed dismissal returns to Groups without opening the document and rechecked that the separate 18 September History export still identifies 18 September. This closes the remaining medium issue.</p>
+<p>The minor dark drop-cap issue is also corrected: the fresh image visibly renders the initial A in a light color against dark paper.</p>
+<h2>Ranked remaining findings</h2>
+<ul>
+<li><strong>Blocker:</strong> none observed within this design/prototype review.</li>
+<li><strong>Major:</strong> none unresolved from the reviewed flows.</li>
+<li><strong>Medium:</strong> none unresolved from the reviewed flows.</li>
+<li><strong>Minor:</strong> no required correction remains from these rounds.</li>
+</ul>
+<p>The cumulative evidence supports the high design score: substantive reading content, separate Groups and Collection, understandable wheel/list switching, readable long-title and 200% layouts, truthful history/storage labels, query-dependent search and visible destinations, correct document context, modal focus restoration, and coherent verified/unverified recovery/export paths. Reproducible scenes and hash-recorded evidence make these outcomes inspectable. The score was raised after specific defects were corrected, not to satisfy the target by rounding.</p>
+<h2>Evidence boundary</h2>
+<p>This critic directly inspected rendered PNGs and the associated source. Live interactions were root-operated CUA checks because the critic&#39;s CUA inventory exposed no browser. Root also reports 18 passing pure prototype state assertions. Those assertions are supplementary; they are not native engine, file-provider or storage tests.</p>
+<p>The final two correction images are wide browser captures that verify labels and colors. Phone layout confidence comes from the preceding 360×800, 390×844 and 412×915 evidence, including genuine 200% text, dark reader, wheel, scroll reachability and long/overflow document states. Earlier failed snapshots remain historical and must not be presented as the final accepted design.</p>
+<p>Acceptance applies to this <strong>design specification and browser prototype</strong>. Native first-content performance, real PDF/EPUB fidelity, TalkBack, provider permissions, background/process death, exact archive restoration, crash durability, actual net storage savings, engine licensing/distribution and later iPhone parity remain the explicit implementation gates in <code>spec.md</code>. No unbuilt behavior is certified by this review.</p>
+<h2>Final result</h2>
+<p><strong>Text: 9.57/10, accepted in round 4. Visual/prototype: 9.57/10, accepted in round 8.</strong> No blocker, major or medium design-review finding remains open. The review stops here at <strong>8 of 8 rounds</strong>.</p>
+</details></section>
+<footer><span>Shenzhen Reader · Mobile design specification</span><a href="journal.md">Design journal ↗</a><a href="director-notes.md">Creative director's direction ↗</a><a href="#top">Back to top ↑</a></footer></main><script src="document.js"></script></body></html>
