@@ -25,20 +25,19 @@ licenses/SOURCES.json and licenses/SOURCE-INSTRUCTIONS.txt. Installed
 versions, artifact integrity values, runtime hashes and copied notice
 paths are recorded in licenses/npm-inventory.json.
 
-The dependencies retain their respective licenses, warranty disclaimers
-and liability limits. These notices do not change Shenzhen 3D's product
-license or private repository status. Its package remains UNLICENSED;
-that metadata creates no additional rights or limits on third-party code.
+Shenzhen 3D is free software under the GNU General Public License,
+version 3 or (at your option) any later version. See
+licenses/GPL-3.0.txt. The dependencies retain their respective
+licenses, warranty disclaimers and liability limits; the product license
+does not change the terms of third-party code.
 
-This notice/source-information bundle is not legal clearance or a claim
-that corresponding-source obligations have been fulfilled. Supply the
-matching source and required build/replacement material with private
-preview binaries. A URL alone is not represented as a complete source
-delivery arrangement. Product source is available in the private
-repository from which this release was downloaded.
-Recipients need access to the matching snapshot when it accompanies a
-binary. Native Rust/platform attribution requires a separate inventory
-for the actual package. See docs/THIRD_PARTY.md in the source repository.
+The complete source code of Shenzhen 3D is at
+https://github.com/casimir-engineering/shenzhen-3D and in the
+shenzhen-apps repository (apps/3d) at
+https://github.com/casimir-engineering/shenzhen-apps. This
+notice/source-information bundle is not legal clearance. Native
+Rust/platform attribution requires a separate inventory for the actual
+package. See docs/THIRD_PARTY.md in the source repository.
 
 Optional progressive ray tracing uses three-gpu-pathtracer 0.0.27 (MIT),
 with three-mesh-bvh acceleration structures. Its npm peer xatlas-web 0.1.0

@@ -63,6 +63,13 @@ pinned or fetched. Their old pinned mode (`friends.lock`) still works for anyone
 repositories, and `SZF_FRIENDS_MODE=pinned` selects it here. [docs/FRIENDS.md](docs/FRIENDS.md) explains the helper
 build number rule and the plan to move Friends to a top-level `friends/`.
 
+## Licence
+
+ShenzhenPDF, Shenzhen Files and Shenzhen 3D are free software under the GNU General Public License, version 3
+(Shenzhen 3D and Shenzhen Files: version 3 or any later version). ShenzhenPDF includes MuPDF, which is under the
+GNU Affero General Public License, version 3. See `apps/pdf/COPYING`, `apps/files/LICENSE` and `apps/3d/LICENSE`, and
+the notices in each app, for the details and for third-party components.
+
 ## History
 
 This repository starts from a single commit holding the three apps as they were when they were brought together.

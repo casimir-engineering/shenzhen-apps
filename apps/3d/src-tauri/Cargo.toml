@@ -3,7 +3,7 @@ name = "shenzhen-3d"
 version = "0.1.9"
 description = "Local-first CAD and mesh viewer"
 authors = ["Shenzhen 3D contributors"]
-license = "LicenseRef-Proprietary"
+license = "GPL-3.0-or-later"
 edition = "2024"
 rust-version = "1.90"
 

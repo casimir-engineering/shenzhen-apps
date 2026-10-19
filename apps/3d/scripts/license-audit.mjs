@@ -73,7 +73,7 @@ const report = {
           ]
         : []),
       "The notice/source-information bundle does not itself deliver or verify all matching source/build inputs; LibreDWG npm publishes no gitHead and source/WASM correspondence needs verification.",
-      "Recipients of private preview binaries need access to the matching product/dependency source and applicable build/replacement material; product UNLICENSED metadata is not a third-party distribution license.",
+      "Shenzhen 3D is GPL-3.0-or-later and its source is public; recipients of binaries still need the matching product/dependency source and applicable build/replacement material, so release the source snapshot with each binary.",
       "Native Rust/platform dependency attribution and app-specific distribution terms require a separate inventory for each actual native package.",
     ],
   },

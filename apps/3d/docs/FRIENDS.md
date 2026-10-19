@@ -512,5 +512,5 @@ channels' libraries; that build has not yet been run on an emulator.
   without prompting. The Team ID check runs only in team-signed builds.
 - **Architecture.** The app is packaged for Apple Silicon only, so are its helper and addon.
 - **Licence.** shenzhen-pdf, the helper and its client library are GPL-3.0; Shenzhen 3D links the client library into
-  `friends-link.node` and ships the helper. How Shenzhen 3D is licensed with them is the owner's decision before any
-  release.
+  `friends-link.node` and ships the helper. Shenzhen 3D is GPL-3.0-or-later, so the combined app is under the same
+  licence.

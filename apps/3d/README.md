@@ -42,3 +42,7 @@ See [building and testing](docs/BUILDING.md), [platform requirements and current
 The included sample assembly, `fixtures/sample-assembly.step`, places 3,154 parts using 16 shared geometries. The screenshot below shows a point measurement on it.
 
 ![Sample assembly with a 78.351 mm point measurement](docs/images/sample-assembly.png)
+
+## Licence
+
+Shenzhen 3D is free software under the GNU General Public License, version 3 or (at your option) any later version. See [LICENSE](LICENSE). Third-party components keep their own licences; see [third-party components](docs/THIRD_PARTY.md).

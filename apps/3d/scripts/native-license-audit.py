@@ -150,7 +150,7 @@ def main():
         'No absent license text is replaced by a guessed generic license.\n\n'
         'This supplement accompanies the frontend THIRD_PARTY.txt/licenses bundle,\n'
         'which covers OCCT, LibreDWG, Draco and npm dependencies. It does not replace\n'
-        'required corresponding-source delivery. Product licensing is unchanged.\n\n'
+        'required corresponding-source delivery. Shenzhen 3D is GPL-3.0-or-later.\n\n'
         'Reproduce: python3 scripts/native-license-audit.py [--offline]\n', encoding='utf-8')
     archive = ROOT / f'artifacts/releases/shenzhen-3d-{VERSION}-native-notices.zip'
     archive.parent.mkdir(parents=True, exist_ok=True)

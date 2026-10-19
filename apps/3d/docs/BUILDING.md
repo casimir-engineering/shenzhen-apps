@@ -70,7 +70,7 @@ Build on the appropriate desktop OS after installing its [Tauri prerequisites](h
 
 Install the target Rust architectures before invoking these commands. The platform script initializes missing Android/Apple projects. Android needs the SDK/NDK/JDK; iOS needs Xcode and the Apple build tools. Device installation and external distribution need the appropriate signing/provisioning setup; an unsigned archive establishes compilation, not an installable iPhone app. Follow [platform instructions](PLATFORMS.md) for those details.
 
-GitHub Actions is configured to test the web app and package universal macOS, Windows, Linux, Android and iOS artifacts on suitable runners. A configured workflow is not a completed validation result. Check the workflow run and [platform evidence](PLATFORMS.md) for the specific artifact/target. Private repository access controls who can retrieve its artifacts; release signing and product distribution remain separate operations.
+GitHub Actions is configured to test the web app and package universal macOS, Windows, Linux, Android and iOS artifacts on suitable runners. A configured workflow is not a completed validation result. Check the workflow run and [platform evidence](PLATFORMS.md) for the specific artifact/target. Release signing and product distribution are separate operations.
 
 ## Reproducible validation
 
