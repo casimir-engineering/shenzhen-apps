@@ -422,7 +422,7 @@ has nothing useful to say (protocol errors). `details` carries machine-readable 
 | `link_changed` | `receive_link`: the sender's file changed after the link was made, so the link no longer delivers it | no |
 | `link_failed` | `receive_link`: no connection opened, or what arrived did not match the file; nothing was kept | yes |
 | `too_many_links` | `make_download_link` while 50 download links are live, the Friends host's limit | no |
-| `internal` | A helper bug; logged with detail, shown as a generic failure | yes |
+| `internal` | A helper bug; logged with detail, shown as a generic failure. `reset_friends` that could not remove the stored identity sends `details.reason` `identity_not_removed`: nothing was changed, and the message says so | yes |
 | `not_ready` | Client-side only: the client is not connected, nothing was sent | yes |
 | `connection_lost` | Client-side only: the connection dropped while the intent waited for its reply | yes |
 

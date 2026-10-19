@@ -144,8 +144,8 @@ pub(super) const NEARBY: &[(&str, &str)] = &[
     ("method.bluetooth.denied", "Bluetooth access is off for {app}"),
     ("method.bluetooth.radio_off", "Bluetooth is off"),
     ("method.bluetooth.unavailable", "Bluetooth isn’t working right now"),
-    ("method.network.unsupported", "Can’t look on your network on this computer"),
-    ("method.bluetooth.unsupported", "This computer has no Bluetooth Friends can use"),
+    ("method.network.unsupported", "This computer can’t look on your network"),
+    ("method.bluetooth.unsupported", "This computer can’t use Bluetooth"),
     // Without an identity nothing runs, and the list's banner says how to start again.
     ("method.identity_unavailable", "Starts once you reset Friends"),
     ("visibility.unavailable.failed", "People nearby can’t see you while Nearby isn’t working."),
@@ -167,9 +167,9 @@ pub(super) const NEARBY: &[(&str, &str)] = &[
     ("nearby.try_again", "Try Again"),
     (
         "note.bluetooth_unsupported",
-        "This computer has no Bluetooth Friends can use. People nearby without Wi-Fi won’t appear.",
+        "This computer can’t use Bluetooth. People nearby without Wi-Fi won’t appear.",
     ),
-    ("note.bluetooth_unsupported.under_card", "This computer has no Bluetooth Friends can use either."),
+    ("note.bluetooth_unsupported.under_card", "This computer can’t use Bluetooth either."),
     ("note.bluetooth_not_asked", "Bluetooth hasn’t started yet."),
     ("nearby.empty.not_asked.title", "Nearby hasn’t started yet"),
     ("nearby.empty.unavailable.body.failed", "People nearby won’t appear until it works again."),

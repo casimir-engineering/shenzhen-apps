@@ -17,6 +17,17 @@
     SZFriendsHelperCheckIn *checkIn = self.services.checkIn;
     // Off the air while the host releases the old identity and the reset runs, and until it has succeeded.
     [self.services.nearby suspendForReset];
+    // The stored identity goes first, before the host forgets it and before anything of the person's is deleted: if
+    // the keychain refuses (locked, say), nothing has changed and the person can try again.
+    NSError *removeError = nil;
+    if (![self.services removeIdentityForResetWithError:&removeError]) {
+        SZFriendsHelperLog(@"reset stopped, the identity could not be removed: %@",
+                           removeError.localizedDescription ?: @"no detail");
+        // Nothing changed, so Nearby carries on as the same person.
+        [self.services.nearby identityDidReset];
+        [self fail:reply code:@"internal" details:@{@"reason" : @"identity_not_removed"} connection:connection];
+        return;
+    }
     __weak SZFriendsIntentRouter *weakSelf = self;
     void (^reset)(void) = ^{
         SZFriendsIntentRouter *strongSelf = weakSelf;

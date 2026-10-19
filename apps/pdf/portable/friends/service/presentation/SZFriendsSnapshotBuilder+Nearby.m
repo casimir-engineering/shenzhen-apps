@@ -30,10 +30,6 @@ static BOOL Broken(SZFriendsAdapterState state) {
            state == SZFriendsAdapterStateUnavailable || state == SZFriendsAdapterStateUnsupported;
 }
 
-static BOOL Failing(SZFriendsAdapterState state) {
-    return state == SZFriendsAdapterStateUnavailable || state == SZFriendsAdapterStateUnsupported;
-}
-
 static BOOL IdentityUnavailable(SZFriendsProfileFacts *profile) {
     return profile.identityState == SZFriendsIdentityFactsStateUnavailable;
 }
@@ -396,8 +392,12 @@ static id RFC3339(NSDate *date) {
     } else if (bluetooth == SZFriendsAdapterStateRadioOff) {
         key = @"settings.nearby.note.bluetooth_off";
         action = [self settingsAction:@"bluetooth" labelKey:@"settings_link.bluetooth" style:@"secondary"];
-    } else if (Failing(network) || Failing(bluetooth)) {
-        key = @"settings.nearby.note.unsupported";
+    } else if (network == SZFriendsAdapterStateUnsupported || bluetooth == SZFriendsAdapterStateUnsupported) {
+        // What is left once everything refused or failing was handled: a method this computer cannot have. Each
+        // reader is told what still works.
+        key = network != SZFriendsAdapterStateUnsupported ? @"settings.nearby.note.unsupported.bluetooth"
+              : bluetooth != SZFriendsAdapterStateUnsupported ? @"settings.nearby.note.unsupported.network"
+                                                              : @"settings.nearby.note.unsupported.both";
     } else {
         key = @"settings.nearby.note.ready";
     }

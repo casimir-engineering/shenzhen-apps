@@ -165,12 +165,22 @@ static NSString *SZFriendsIdentityProblem(NSError *error) {
                                            generator:SZFriendsSystemRandomUniform()].friendsID;
 }
 
-// The old identity's data goes first and the identity last: a reset that replaced the identity and then failed to
-// wipe kept the old friends and presence secret beside the new key, and went on advertising tags old friends could
-// match, linking the two (review: Reset Friends ordering). Nothing is advertised from the first step until the reset
-// has succeeded (SZFriendsNearbyService -suspendForReset).
+- (BOOL)removeIdentityForResetWithError:(NSError **)error {
+    return _identityManager == nil || [_identityManager deleteIdentityWithError:error];
+}
+
+// The old identity leaves the keychain first, and nothing else changes unless that worked: a keychain that refuses
+// (locked, say) used to be found out after the friends, history and Friends ID were already gone, leaving the person
+// with nothing and an identity they still could not read. Then the old identity's data goes and the new identity
+// last: a reset that replaced the identity and then failed to wipe kept the old friends and presence secret beside
+// the new key, and went on advertising tags old friends could match, linking the two (review: Reset Friends
+// ordering); the presence secret changes before the wipe, so a wipe that fails after the delete links nothing
+// either. Nothing is advertised from the first step until the reset has succeeded (SZFriendsNearbyService
+// -suspendForReset).
 - (BOOL)resetFriendsWithError:(NSError **)error {
     [self.nearby suspendForReset];
+    // Removing it again after the router did is harmless: there is nothing left to find.
+    if (![self removeIdentityForResetWithError:error]) return NO;
     if (_store != nil) {
         // Old friends' tags stop matching before anything else, so even a reset that fails from here links nothing.
         _store.ownPresenceSecret = SZFriendsNewPresenceSecret();
@@ -187,7 +197,7 @@ static NSString *SZFriendsIdentityProblem(NSError *error) {
     NSString *attestation = [[self.paths.hostListPath stringByDeletingLastPathComponent]
         stringByAppendingPathComponent:@"host-attestation.json"];
     [[NSFileManager defaultManager] removeItemAtPath:attestation error:NULL];
-    SZFriendsIdentity *identity = [_identityManager resetIdentityWithError:error];
+    SZFriendsIdentity *identity = [_identityManager createIdentityWithError:error];
     if (identity == nil) return NO;
     _identity = identity;
     _identityState = SZFriendsIdentityStateCreated;

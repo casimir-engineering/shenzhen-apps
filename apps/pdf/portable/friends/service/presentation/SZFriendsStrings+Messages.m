@@ -68,6 +68,9 @@
                                         : @"error.disk_full";
         return [self text:key values:values];
     }
+    // A reset that stopped before changing anything, because the old identity could not be removed.
+    if ([code isEqualToString:@"internal"] && [details[@"reason"] isEqual:@"identity_not_removed"])
+        return [self text:@"error.internal.identity_not_removed"];
     NSArray<NSString *> *personal = @[ @"already_friends", @"blocked", @"not_friends", @"mention_mismatch" ];
     NSArray<NSString *> *withFile = @[ @"file_missing", @"folder_not_supported", @"source_changed" ];
     NSString *key = [@"error." stringByAppendingString:code];

@@ -55,8 +55,16 @@ static void SZFZero(NSData *data) {
     return identity;
 }
 
+- (BOOL)deleteIdentityWithError:(NSError **)error {
+    return [_keyStore deleteSecretNamed:SZFriendsIdentitySecretName error:error];
+}
+
+- (nullable SZFriendsIdentity *)createIdentityWithError:(NSError **)error {
+    return [self createWithError:error];
+}
+
 - (nullable SZFriendsIdentity *)resetIdentityWithError:(NSError **)error {
-    if (![_keyStore deleteSecretNamed:SZFriendsIdentitySecretName error:error]) return nil;
+    if (![self deleteIdentityWithError:error]) return nil;
     return [self createWithError:error];
 }
 

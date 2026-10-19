@@ -5,6 +5,7 @@
 
 #import <objc/runtime.h>
 #import <sodium.h>
+#import <sys/stat.h>
 
 #import "service/helper/SZFriendsHelperTesting.h"
 #import "service/identity/SZFriendsIdentity.h"
@@ -183,8 +184,9 @@ void SZFNTestIdleClose(NSString *scratch) {
     [services close];
 }
 
-// Review (Reset Friends ordering): the identity used to be replaced before the store was wiped, so a failed wipe kept
-// the old friends and presence secret beside the new key and went on advertising tags old friends could match.
+// The keychain identity is removed first, so a keychain that refuses (locked) costs the person nothing: the friends,
+// the ID and the identity stay and the person is told. The key store of these tests is the file store, whose delete
+// fails when its directory cannot be written, as the keychain's does when it is locked.
 void SZFNTestResetOrder(NSString *scratch) {
     SZFriendsHelperServices *services = SZFNOpenServices(scratch, @"reset");
     if (services == nil) return;
@@ -195,22 +197,38 @@ void SZFNTestResetOrder(NSString *scratch) {
     EXPECT(firstTag != nil, "advertising before the reset");
     SZFNSavePerson(services.store, SZFriendsRelationFriend);
     NSData *identity = services.identity.publicKey;
-    // A store that cannot be wiped (closed here; a full disk or a damaged file in life).
+    NSData *presenceSecret = services.store.ownPresenceSecret;
+    NSString *friendsID = services.store.friendsID;
+    NSString *keys = [[scratch stringByAppendingPathComponent:@"reset"] stringByAppendingPathComponent:@"keys"];
+    EXPECT(chmod(keys.fileSystemRepresentation, 0500) == 0, "the key directory is read-only");
+    NSError *error = nil;
+    EXPECT(![services resetFriendsWithError:&error] && error != nil, "the reset fails when the identity stays");
+    EXPECT(services.store.peopleByLatestInteraction.count == 1 && [services.store.friendsID isEqual:friendsID] &&
+               [services.store.ownPresenceSecret isEqualToData:presenceSecret],
+           "friends, ID and presence secret untouched");
+    EXPECT([services.identity.publicKey isEqualToData:identity], "the identity stays");
+    EXPECT(chmod(keys.fileSystemRepresentation, 0700) == 0);
+    SZFriendsHelperServices *reopened = SZFNOpenServices(scratch, @"reset");
+    if (reopened == nil) return;
+    EXPECT([reopened.identity.publicKey isEqualToData:identity] && reopened.store.peopleByLatestInteraction.count == 1,
+           "a restart finds the same identity and friends");
+    [reopened close];
+
+    // The wipe fails (a store that is closed here; a full disk or a damaged file in life) after the identity went.
+    // Nothing is advertised, and nothing of the old data stays on the air under a new key.
     [services.store close];
     EXPECT(![services resetFriendsWithError:NULL], "the reset fails");
-    EXPECT([services.identity.publicKey isEqualToData:identity], "the identity stays when the wipe fails");
     EXPECT(adapter.lastTag == nil && !adapter.lastPublicEntry, "nothing on the air: %@", adapter.lastTag);
     [nearby refreshAdvertisement];
     EXPECT(adapter.lastTag == nil, "and nothing until a reset completes");
 
-    // The same state again, now with a store that works: the key on disk is still the old one.
+    // The same state again, now with a store that works.
     SZFriendsHelperServices *again = SZFNOpenServices(scratch, @"reset");
     if (again == nil) return;
-    EXPECT([again.identity.publicKey isEqualToData:identity], "the failed reset wrote no new key");
     SZFNRecordingAdapter *second = [[SZFNRecordingAdapter alloc] init];
     SZFriendsNearbyService *resumed = SZFNNearbyWith(again, @[ second ]);
     [resumed refreshAdvertisement];
-    EXPECT(second.lastTag != nil, "on the air with the old identity");
+    EXPECT(second.lastTag != nil, "on the air");
     NSData *secret = again.store.ownPresenceSecret;
     EXPECT([again resetFriendsWithError:NULL], "a reset that can wipe succeeds");
     EXPECT(![again.identity.publicKey isEqualToData:identity] && again.store.peopleByLatestInteraction.count == 0,

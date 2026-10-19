@@ -81,6 +81,9 @@ NS_ASSUME_NONNULL_BEGIN
 - (BOOL)retryIdentity;
 // Reset Friends: a new identity and ID; friends, history and pictures deleted; received files kept.
 - (BOOL)resetFriendsWithError:(NSError **)error;
+// The first step of the reset on its own: the stored identity is removed and nothing else is touched. The reset
+// router does this before the host forgets the old identity, so a keychain that refuses costs the person nothing.
+- (BOOL)removeIdentityForResetWithError:(NSError **)error;
 
 // Random bytes from libsodium (Add by ID request tokens).
 + (NSData *)randomBytes:(NSUInteger)count;

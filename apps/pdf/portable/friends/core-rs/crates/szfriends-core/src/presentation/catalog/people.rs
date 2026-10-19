@@ -130,9 +130,14 @@ pub(super) const PEOPLE_AND_SETTINGS: &[(&str, &str)] = &[
     ("settings.nearby.note.bluetooth_off", "Bluetooth is off. People nearby without Wi-Fi won’t appear."),
     ("settings.nearby.note.failed", "Nearby isn’t working right now."),
     (
-        "settings.nearby.note.unsupported",
-        "{app} finds people nearby on your network. This computer has no Bluetooth Friends can use.",
+        "settings.nearby.note.unsupported.network",
+        "This computer can’t look for people on your network. {app} finds people nearby over Bluetooth.",
     ),
+    (
+        "settings.nearby.note.unsupported.bluetooth",
+        "This computer can’t use Bluetooth. {app} finds people nearby on your network.",
+    ),
+    ("settings.nearby.note.unsupported.both", "{app} can’t find people nearby on this computer."),
     ("settings.nearby.note.ready", "{app} can find people nearby on your network and over Bluetooth."),
     ("settings.reset.note", "You get a new ID, and every friend has to add you again."),
     ("settings.reset.action", "Reset Friends…"),
@@ -205,6 +210,11 @@ pub(super) const ERRORS: &[(&str, &str)] = &[
     // Written to a connection that dropped before their Mac answered: queued again, but it may have arrived.
     ("error.stale.message_sent", "{first} may already have it, so it can’t be cancelled."),
     ("error.internal", "Something went wrong in Friends. Try again."),
+    (
+        "error.internal.identity_not_removed",
+        "Nothing was reset: Friends couldn’t remove your old ID from this computer. Make sure it’s unlocked, then \
+         try again.",
+    ),
     // Before this computer reaches friends online: true nearby and, once it does, online too.
     (
         "add_by_id.sent",

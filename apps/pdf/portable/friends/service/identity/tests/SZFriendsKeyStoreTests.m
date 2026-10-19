@@ -19,6 +19,7 @@
 @property(nonatomic) NSMutableArray<NSDictionary *> *queries;
 @property(nonatomic) Boolean interactionAllowed;
 @property(nonatomic) BOOL itemCallWhileInteractive;
+@property(nonatomic) OSStatus deleteStatus;    // forced result of deleteItem when not errSecSuccess (a locked keychain)
 @property(nonatomic) OSStatus copyStatus;      // forced result of copyMatching when not errSecSuccess
 // Accounts made by a helper with another code signature: their secret is refused (errSecAuthFailed, as the real
 // keychain answers an ad-hoc item read by a Developer ID helper), but they can be found by reference and deleted.
@@ -35,6 +36,7 @@
         _foreign = [NSMutableSet set];
         _interactionAllowed = true;
         _copyStatus = errSecSuccess;
+        _deleteStatus = errSecSuccess;
         _getSwitchStatus = errSecSuccess;
     }
     return self;
@@ -61,6 +63,7 @@
 }
 - (OSStatus)deleteItem:(id)item {
     [self noteItemCall:@"delete" query:@{@"item" : item}];
+    if (_deleteStatus != errSecSuccess) return _deleteStatus;
     NSString *account = [item hasPrefix:@"ref:"] ? [item substringFromIndex:4] : nil;
     if (account == nil || _items[account] == nil) return errSecItemNotFound;
     [_items removeObjectForKey:account];
@@ -305,6 +308,25 @@ static void TestKeychainStore(void) {
     SZFExpect(![fake.foreign containsObject:@"identity"] && fake.items[@"identity"].length > 0, @"a new item, ours");
     SZFExpect([[manager loadExistingWithError:&error].publicKey isEqualToData:reset.publicKey],
               @"the new identity reads back: %@", error);
+
+    // A keychain that refuses the delete (locked, say): the reset's first step fails with the Keychain's status, the
+    // identity stays exactly as it was, and nothing is created.
+    fake.deleteStatus = errSecInteractionNotAllowed;
+    NSData *kept = [fake.items[@"identity"] copy];
+    [fake.calls removeAllObjects];
+    error = nil;
+    SZFExpect(![manager deleteIdentityWithError:&error] && error != nil, @"a refused delete fails");
+    SZFExpect([error.userInfo[NSUnderlyingErrorKey] code] == errSecInteractionNotAllowed,
+              @"and says what the keychain answered: %@", error);
+    SZFExpect([fake.items[@"identity"] isEqualToData:kept] && ![fake.calls containsObject:@"add"],
+              @"the identity is untouched and nothing was added");
+    error = nil;
+    SZFExpect([manager resetIdentityWithError:&error] == nil && ![fake.calls containsObject:@"add"],
+              @"the one-call reset stops there too");
+    SZFExpect([[manager loadExistingWithError:&error].publicKey isEqualToData:reset.publicKey],
+              @"and the identity still reads: %@", error);
+    fake.deleteStatus = errSecSuccess;
+    SZFExpect([manager deleteIdentityWithError:&error] && fake.items[@"identity"] == nil, @"deleted once it allows");
 }
 
 int main(void) {

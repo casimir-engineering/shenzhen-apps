@@ -57,7 +57,7 @@ static void TestNearbyAsksAndRetries(void) {
     facts.networkState = SZFriendsAdapterStateWorking;
     facts.bluetoothState = SZFriendsAdapterStateUnsupported;
     data = NearbyData(facts, @"", nil);
-    SZPExpect([data[@"note"][@"text"] containsString:@"no Bluetooth"] && data[@"note"][@"action"] == [NSNull null] &&
+    SZPExpect([data[@"note"][@"text"] containsString:@"can’t use Bluetooth"] && data[@"note"][@"action"] == [NSNull null] &&
                   [data[@"methods"][1][@"state"] isEqual:@"unavailable"],
               @"no Bluetooth on this computer is said as such: %@", data[@"note"]);
 
@@ -91,7 +91,12 @@ static void TestSettingsNearby(void) {
         {SZFriendsAdapterStateWorking, SZFriendsAdapterStateRadioOff, @"open_settings", @"bluetooth",
          @"Bluetooth is off"},
         {SZFriendsAdapterStateUnavailable, SZFriendsAdapterStateWorking, @"activate", nil, @"isn’t working"},
-        {SZFriendsAdapterStateWorking, SZFriendsAdapterStateUnsupported, nil, nil, @"no Bluetooth"},
+        {SZFriendsAdapterStateWorking, SZFriendsAdapterStateUnsupported, nil, nil,
+         @"can’t use Bluetooth. ShenzhenPDF finds people nearby on your network."},
+        {SZFriendsAdapterStateUnsupported, SZFriendsAdapterStateWorking, nil, nil,
+         @"can’t look for people on your network. ShenzhenPDF finds people nearby over Bluetooth."},
+        {SZFriendsAdapterStateUnsupported, SZFriendsAdapterStateUnsupported, nil, nil,
+         @"can’t find people nearby on this computer"},
         {SZFriendsAdapterStateWorking, SZFriendsAdapterStateWorking, nil, nil, @"can find people nearby"},
     };
     for (size_t i = 0; i < sizeof cases / sizeof cases[0]; i++) {

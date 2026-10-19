@@ -94,6 +94,10 @@ impl Strings {
             };
             return Some(self.text_with(key, &borrowed));
         }
+        // A reset that stopped before changing anything, because the old identity could not be removed.
+        if code == "internal" && string(details, "reason") == Some("identity_not_removed") {
+            return Some(self.text("error.internal.identity_not_removed"));
+        }
         let mut key = format!("error.{code}");
         if ["already_friends", "blocked", "not_friends", "mention_mismatch"].contains(&code) && has("name") {
             key.push_str(".name");

@@ -127,8 +127,8 @@ static NSDictionary<NSString *, NSString *> *NearbyEntries(void) {
         @"method.bluetooth.denied" : @"Bluetooth access is off for {app}",
         @"method.bluetooth.radio_off" : @"Bluetooth is off",
         @"method.bluetooth.unavailable" : @"Bluetooth isn’t working right now",
-        @"method.network.unsupported" : @"Can’t look on your network on this computer",
-        @"method.bluetooth.unsupported" : @"This computer has no Bluetooth Friends can use",
+        @"method.network.unsupported" : @"This computer can’t look on your network",
+        @"method.bluetooth.unsupported" : @"This computer can’t use Bluetooth",
         // Without an identity nothing runs, and the list's banner says how to start again.
         @"method.identity_unavailable" : @"Starts once you reset Friends",
         @"visibility.unavailable.failed" : @"People nearby can’t see you while Nearby isn’t working.",
@@ -139,9 +139,9 @@ static NSDictionary<NSString *, NSString *> *NearbyEntries(void) {
                                   @"your local network and Bluetooth.",
         @"nearby.allow" : @"Allow",
         @"nearby.try_again" : @"Try Again",
-        @"note.bluetooth_unsupported" : @"This computer has no Bluetooth Friends can use. People nearby without "
-                                        @"Wi-Fi won’t appear.",
-        @"note.bluetooth_unsupported.under_card" : @"This computer has no Bluetooth Friends can use either.",
+        @"note.bluetooth_unsupported" : @"This computer can’t use Bluetooth. People nearby without Wi-Fi won’t "
+                                        @"appear.",
+        @"note.bluetooth_unsupported.under_card" : @"This computer can’t use Bluetooth either.",
         @"note.bluetooth_not_asked" : @"Bluetooth hasn’t started yet.",
         @"nearby.empty.not_asked.title" : @"Nearby hasn’t started yet",
         @"nearby.empty.unavailable.body.failed" : @"People nearby won’t appear until it works again.",
@@ -291,8 +291,11 @@ static NSDictionary<NSString *, NSString *> *PeopleAndSettingsEntries(void) {
                                              @"network and close by, or Bluetooth to find people nearby without Wi-Fi.",
         @"settings.nearby.note.bluetooth_off" : @"Bluetooth is off. People nearby without Wi-Fi won’t appear.",
         @"settings.nearby.note.failed" : @"Nearby isn’t working right now.",
-        @"settings.nearby.note.unsupported" : @"{app} finds people nearby on your network. This computer has no "
-                                              @"Bluetooth Friends can use.",
+        @"settings.nearby.note.unsupported.network" : @"This computer can’t look for people on your network. {app} "
+                                                      @"finds people nearby over Bluetooth.",
+        @"settings.nearby.note.unsupported.bluetooth" : @"This computer can’t use Bluetooth. {app} finds people "
+                                                        @"nearby on your network.",
+        @"settings.nearby.note.unsupported.both" : @"{app} can’t find people nearby on this computer.",
         @"settings.nearby.note.ready" : @"{app} can find people nearby on your network and over Bluetooth.",
         @"settings.reset.note" : @"You get a new ID, and every friend has to add you again.",
         @"settings.reset.action" : @"Reset Friends…",
@@ -357,6 +360,8 @@ static NSDictionary<NSString *, NSString *> *ErrorEntries(void) {
         // Written to a connection that dropped before their computer answered: queued again, but it may have arrived.
         @"error.stale.message_sent" : @"{first} may already have it, so it can’t be cancelled.",
         @"error.internal" : @"Something went wrong in Friends. Try again.",
+        @"error.internal.identity_not_removed" : @"Nothing was reset: Friends couldn’t remove your old ID from this "
+                                                 @"computer. Make sure it’s unlocked, then try again.",
         // Before this computer reaches friends online: true nearby and, once it does, online too.
         @"add_by_id.sent" : @"Request sent to {id}. They’ll get it as soon as Friends reaches them, and you’ll be "
                             @"friends once they accept.",

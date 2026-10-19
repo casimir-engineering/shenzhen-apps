@@ -155,6 +155,11 @@ typedef NS_ENUM(NSInteger, SZFriendsIdentityState) {
 // the same errors as above while it still cannot be read (the keychain still locked, say).
 - (nullable SZFriendsIdentity *)loadExistingWithError:(NSError **)error;
 
+// The two halves of a reset, for a caller that has work between them: remove the stored secret (success when there is
+// none), then make a new identity. Nothing is created by the first, and the second never removes anything.
+- (BOOL)deleteIdentityWithError:(NSError **)error;
+- (nullable SZFriendsIdentity *)createIdentityWithError:(NSError **)error;
+
 // Explicit reset: deletes the old secret and creates a new identity. Only the user's Reset Friends calls it.
 // When the delete fails nothing is created.
 - (nullable SZFriendsIdentity *)resetIdentityWithError:(NSError **)error;
