@@ -9,9 +9,12 @@
 # commits after it that changed Friends code: apps/pdf/portable/friends, apart from its docs, tests and Markdown.
 # Release jobs run it before they build.
 #
-# When this repository was formed, Friends had already changed a good deal since the number was last raised (26.10.11
-# build 1), so the check fails until the next ShenzhenPDF release is prepared: that release raises MAC_BUILD (or
-# MAC_VERSION) and clears it. Prepare it before releasing Shenzhen Files or Shenzhen 3D.
+# This repository starts from one commit that holds the apps as they were; their history is in the original
+# repositories. That commit sets MAC_VERSION and MAC_BUILD and adds all of Friends at once, so it cannot show whether
+# Friends changed after the number was raised. It had: the number was last raised at 26.10.11 build 1, in
+# casimir-engineering/shenzhen-pdf. So when the last commit to set the number is that first commit, the check fails
+# until the next ShenzhenPDF release is prepared: that release raises MAC_BUILD (or MAC_VERSION) and clears it.
+# Prepare it before releasing Shenzhen Files or Shenzhen 3D.
 set -euo pipefail
 
 commit=${1:-HEAD}
@@ -25,6 +28,15 @@ number=$(echo "$version $build" | awk '{ split($1, v, "."); printf "%02d%02d%02d
 
 raised=$(git -C "$root" log -1 --format=%H -G'^MAC_(VERSION|BUILD) \?= ' "$commit" -- "$makefile")
 [ -n "$raised" ] || { echo "error: no commit sets MAC_VERSION or MAC_BUILD in $makefile" >&2; exit 2; }
+
+if ! git -C "$root" rev-parse -q --verify "$raised^" >/dev/null; then
+  echo "Friends helper build number $number was last set by this repository's first commit" \
+    "($(git -C "$root" log -1 --format='%h' "$raised")), which brought in Friends as it was."
+  echo "That number does not cover it: it was raised at 26.10.11 build 1, and Friends changed after that."
+  echo "Raise it first: prepare a ShenzhenPDF release (apps/pdf/portable/cut-release.sh --prepare-only), which sets a"
+  echo "new MAC_VERSION or MAC_BUILD. Do this before releasing any app, even if the ShenzhenPDF release is published later."
+  exit 1
+fi
 
 changes=$(git -C "$root" log --format='  %h %s' "$raised..$commit" -- "$friends" \
   ":(exclude)$friends/docs" ":(exclude)$friends/tests" ":(exclude)$friends/*.md" ":(exclude)$friends/**/*.md")

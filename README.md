@@ -26,10 +26,12 @@ commands; `make help` lists them.
 ```sh
 make -C apps/pdf/portable mac-app            # dist/ShenzhenPDF.app
 make -C apps/pdf/portable friends-suite      # Friends tests (set FRIENDS_TEST_COTURN for the relay ones)
-make -C apps/pdf/portable mac-launch-performance-tests LAUNCH_PERF_ROUNDS=3
+LAUNCH_PERF_BASELINE_RELEASE=latest make -C apps/pdf/portable mac-launch-performance-tests LAUNCH_PERF_ROUNDS=3
 ```
 
-`apps/pdf/portable/README.md` has the rest, including the GTK and Windows builds.
+`apps/pdf/portable/README.md` has the rest, including the GTK and Windows builds. The launch performance gate
+compares with the previous release; until this repository has a `pdf/` release tag, name it as above
+([docs/RELEASING.md](docs/RELEASING.md#before-the-first-release-from-this-repository)).
 
 ### Shenzhen Files
 

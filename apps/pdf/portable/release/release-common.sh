@@ -200,6 +200,15 @@ spdf_validate_release_version() {
     spdf_release_fail "Version must be an unpadded YY.M.DD value: $version"
 }
 
+# The <version>-<build> tags of the GitHub releases on SPDF_RELEASE_GITHUB_REPOSITORY for one version. The Shenzhen
+# repository starts from one commit without the earlier releases' tags: those are only on the release repository, so
+# the next build number has to count them too.
+spdf_release_repository_tags() {
+  local version="$1"
+  git ls-remote --tags --refs "https://github.com/$SPDF_RELEASE_GITHUB_REPOSITORY.git" "refs/tags/${version}-*" |
+    awk '{ sub("^refs/tags/", "", $2); print $2 }'
+}
+
 spdf_next_build_for_tags() {
   local version="$1"
   local tags="$2"

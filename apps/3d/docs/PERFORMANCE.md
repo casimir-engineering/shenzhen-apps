@@ -4,7 +4,7 @@ The optimized renderer sustained approximately **120 render submissions and anim
 
 Measurements were collected consecutively on this Mac: Apple M5 Max, 40 GPU cores, 64 GiB memory, macOS 26.5.1, Chromium 156.0.8078.4, ANGLE Metal (`Apple M5 Max`). Every case used a 1440×900 CSS viewport, DPR 2 and a **2880×1800 drawing buffer**. The idle browser schedule was approximately 120 Hz. Software rendering was rejected by the runner.
 
-The comparison uses baseline application source `7937fa8` and optimized renderer source `515e088`. The JSON records the viewer SHA-256 as well as the Git revision; no application source changed during the measured orbit windows. Baseline and current source used the same installed Three.js and the same browser.
+The comparison uses baseline application source `7937fa8` and optimized renderer source `515e088`, revisions in the history of `casimir-engineering/shenzhen-3D`. The JSON records the viewer SHA-256 as well as the Git revision; no application source changed during the measured orbit windows. Baseline and current source used the same installed Three.js and the same browser.
 
 | Workload                                     | Logical parts | Logical triangles | Baseline render fps | Optimized render fps | Draw calls, before → after |
 | -------------------------------------------- | ------------: | ----------------: | ------------------: | -------------------: | -------------------------: |

@@ -7,21 +7,64 @@ import { createHash } from "node:crypto";
 const source = process.argv.includes("--baseline") ? "baseline" : "current";
 const outputArg = process.argv.find((arg) => arg.startsWith("--output="));
 const output = outputArg?.slice(9) || `artifacts/perf/${source}.json`;
+// The baseline is the renderer of an earlier source tree: --baseline-src=<dir> (a checkout or source archive of
+// Shenzhen 3D), or --baseline-ref=<revision> of this repository. The recorded results used revision 7937fa8, from
+// the history of casimir-engineering/shenzhen-3D; this repository starts from one commit and does not have it, so
+// check that revision out from shenzhen-3D and pass the checkout as --baseline-src.
+const baselineSrc = process.argv
+  .find((arg) => arg.startsWith("--baseline-src="))
+  ?.slice(15);
 const baselineRef =
   process.argv.find((arg) => arg.startsWith("--baseline-ref="))?.slice(15) ||
   "7937fa8";
-const baselineCommit = execFileSync("git", ["rev-parse", baselineRef], {
-  encoding: "utf8",
-}).trim();
 const snapshot = "artifacts/perf/baseline-src";
-if (source === "baseline" && !fs.existsSync(`${snapshot}/src/core/viewer.ts`)) {
-  fs.mkdirSync(snapshot, { recursive: true });
-  const archive = execFileSync(
-    "git",
-    ["archive", baselineCommit, "src", "vendor"],
-    { maxBuffer: 512 * 1024 * 1024 },
-  );
-  execFileSync("tar", ["-x", "-C", snapshot], { input: archive });
+let baselineCommit = null;
+let expectedViewer = null;
+if (source === "baseline" && baselineSrc) {
+  const dir = path.resolve(baselineSrc);
+  if (!fs.existsSync(`${dir}/src/core/viewer.ts`))
+    throw new Error(`--baseline-src: no src/core/viewer.ts in ${dir}`);
+  try {
+    baselineCommit = execFileSync("git", ["-C", dir, "rev-parse", "HEAD"], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim();
+  } catch {
+    baselineCommit = null;
+  }
+  if (!fs.existsSync(`${snapshot}/src/core/viewer.ts`)) {
+    fs.mkdirSync(snapshot, { recursive: true });
+    for (const part of ["src", "vendor"])
+      fs.cpSync(`${dir}/${part}`, `${snapshot}/${part}`, { recursive: true });
+  }
+  expectedViewer = fs.readFileSync(`${dir}/src/core/viewer.ts`);
+} else if (source === "baseline") {
+  try {
+    baselineCommit = execFileSync(
+      "git",
+      ["rev-parse", "--verify", "--quiet", `${baselineRef}^{commit}`],
+      { encoding: "utf8" },
+    ).trim();
+  } catch {
+    throw new Error(
+      `Baseline revision ${baselineRef} is not in this repository. Check it out from casimir-engineering/shenzhen-3D ` +
+        "and pass --baseline-src=<that checkout>, or name a revision of this repository with --baseline-ref.",
+    );
+  }
+  if (!fs.existsSync(`${snapshot}/src/core/viewer.ts`)) {
+    fs.mkdirSync(snapshot, { recursive: true });
+    const archive = execFileSync(
+      "git",
+      ["archive", baselineCommit, "src", "vendor"],
+      { maxBuffer: 512 * 1024 * 1024 },
+    );
+    execFileSync("tar", ["-x", "-C", snapshot], { input: archive });
+  }
+  // "./" keeps the path relative to this directory, which is apps/3d in the Shenzhen repository.
+  expectedViewer = execFileSync("git", [
+    "show",
+    `${baselineCommit}:./src/core/viewer.ts`,
+  ]);
 }
 const viewerPath =
   source === "baseline"
@@ -31,14 +74,10 @@ const viewerSha256 = createHash("sha256")
   .update(fs.readFileSync(viewerPath))
   .digest("hex");
 if (source === "baseline") {
-  const expected = createHash("sha256")
-    .update(
-      execFileSync("git", ["show", `${baselineCommit}:src/core/viewer.ts`]),
-    )
-    .digest("hex");
+  const expected = createHash("sha256").update(expectedViewer).digest("hex");
   if (viewerSha256 !== expected)
     throw new Error(
-      "Baseline snapshot does not match requested git revision; remove artifacts/perf/baseline-src to regenerate it.",
+      "Baseline snapshot does not match the requested baseline; remove artifacts/perf/baseline-src to regenerate it.",
     );
 }
 const hardware =

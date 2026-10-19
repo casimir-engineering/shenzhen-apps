@@ -7,7 +7,7 @@ node scripts/perf/browser-benchmark.mjs --baseline
 node scripts/perf/browser-benchmark.mjs
 ```
 
-The baseline comes from git revision `7937fa8`. The runner creates an ignored source snapshot at `artifacts/perf/baseline-src` and verifies the viewer source hash against that revision. Set another revision with `--baseline-ref=<revision>` after removing an existing snapshot. The baseline imports its own original renderer and CAD importer; current imports `src/core`.
+The recorded baseline comes from git revision `7937fa8` of `casimir-engineering/shenzhen-3D`. The Shenzhen repository starts from one commit and does not have that revision: check it out from `shenzhen-3D` and pass the checkout with `--baseline-src=<dir>`. `--baseline-ref=<revision>` takes a revision of the repository the benchmark runs in instead. The runner creates an ignored source snapshot at `artifacts/perf/baseline-src` and verifies the viewer source hash against the baseline. Remove an existing snapshot before choosing another baseline. The baseline imports its own original renderer and CAD importer; current imports `src/core`.
 
 The runner opens **headed Chromium** using ANGLE Metal and rejects software rendering. It does not read the Playwright E2E configuration, which deliberately uses SwiftShader for functional tests. Bring the browser to the foreground and leave it there throughout a run. A visible browser and high-refresh-rate display are required to measure a 120 Hz schedule. Browser version, GPU renderer, display cadence, CSS size, drawing-buffer size, DPR, source hash, OS and RAM are recorded in each JSON result.
 

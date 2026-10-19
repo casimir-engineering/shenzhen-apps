@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Launch performance gate: this tree against the previous release, measured side by side in one run.
 
-Builds the previous release's app and launch probe from its tag (cached under the work directory by commit), then
+Builds the previous release's app and launch probe from its source (cached under the work directory), then
 launches both probes headlessly (mac/tests/launch/SPDFMacLaunchPerformanceProbe.mm: no window on screen, no Dock
 icon, no activation, state in a scratch directory) in interleaved rounds:
 
@@ -14,8 +14,20 @@ frame moves with machine load; the main thread's CPU time before the first frame
 puts the load of other work on the machine on every configuration alike, and the checks compare medians of
 this run's own release measurements, so the margins below only have to cover run-to-run noise, never a different
 machine or a busier hour. Exit status 0 when every check passes, 1 when one fails, 2 when the gate cannot run.
+
+The previous release, first match wins:
+
+    LAUNCH_PERF_BASELINE_SRC=<dir>          an unpacked ShenzhenPDF source tree (portable/, gfx/, ext/, tools/ and
+                                            usually mupdf/), such as a release's source archive
+    LAUNCH_PERF_BASELINE_RELEASE=<tag>      that release of casimir-engineering/shenzhen-pdf (26.10.11-1, or
+                                            "latest"): its source archive is downloaded once into the work directory
+    LAUNCH_PERF_BASELINE_REF=<ref>          a commit of this repository
+    (none of these)                         the newest release tag HEAD descends from, never one on HEAD itself
+
+The Shenzhen repository starts from one commit, so until its first pdf/ release tag the last one is only on
+casimir-engineering/shenzhen-pdf: set LAUNCH_PERF_BASELINE_RELEASE=latest then.
 """
-import argparse, json, os, shutil, statistics, subprocess, sys, time
+import argparse, json, os, re, shutil, statistics, subprocess, sys, time, urllib.request
 
 # Margins. Each round launches every configuration once, back to back, so the machine's load at that moment
 # reaches all of them alike; a check compares the median over rounds of this tree's time divided by the release's
@@ -53,8 +65,13 @@ def run(cmd, **kw):
 
 
 def previous_release(portable):
+    """The previous release as (kind, value): ("src", dir), ("release", tag) or ("ref", ref)."""
+    if os.environ.get("LAUNCH_PERF_BASELINE_SRC"):
+        return "src", os.path.abspath(os.environ["LAUNCH_PERF_BASELINE_SRC"])
+    if os.environ.get("LAUNCH_PERF_BASELINE_RELEASE"):
+        return "release", os.environ["LAUNCH_PERF_BASELINE_RELEASE"]
     if os.environ.get("LAUNCH_PERF_BASELINE_REF"):
-        return os.environ["LAUNCH_PERF_BASELINE_REF"]
+        return "ref", os.environ["LAUNCH_PERF_BASELINE_REF"]
     # The newest release tag this tree descends from, never one on HEAD itself: during a release the new tag is
     # created after this sweep, and a tagged HEAD still compares against the release before it.
     # In the Shenzhen repository, where this app is apps/pdf, its release tags read pdf/<version>-<build>.
@@ -65,32 +82,92 @@ def previous_release(portable):
                            "--sort=-creatordate", "--list", pattern],
                           capture_output=True, text=True, check=True).stdout.split()
     if not tags:
-        raise SystemExit("launch performance: no previous release tag reachable from HEAD")
-    return tags[0]
+        log("launch performance: no previous release tag reachable from HEAD. Name the release to compare with:")
+        log("  LAUNCH_PERF_BASELINE_RELEASE=latest (or a tag such as 26.10.11-1) downloads its source from "
+            + release_repository(portable))
+        log("  LAUNCH_PERF_BASELINE_SRC=<dir> builds an unpacked source tree, LAUNCH_PERF_BASELINE_REF=<ref> a commit")
+        sys.exit(2)
+    return "ref", tags[0]
 
 
-def build_release(args, ref, work):
-    """Extracts `ref` once per commit and builds its app and probe there; returns the app bundle path."""
-    commit = subprocess.run(["git", "-C", args.portable, "rev-parse", f"{ref}^{{commit}}"], capture_output=True,
-                            text=True, check=True).stdout.strip()
-    root = os.path.join(work, "release-" + commit[:12])
-    src = os.path.join(root, "src")
+def release_repository(portable):
+    """The GitHub repository ShenzhenPDF releases are published on, as release/release-common.sh names it."""
+    with open(os.path.join(portable, "release", "release-common.sh")) as f:
+        match = re.search(r'^SPDF_RELEASE_GITHUB_REPOSITORY="([^"]+)"', f.read(), re.M)
+    if not match:
+        raise SystemExit("launch performance: SPDF_RELEASE_GITHUB_REPOSITORY not found in release/release-common.sh")
+    return match.group(1)
+
+
+def github(url):
+    request = urllib.request.Request(url, headers={"User-Agent": "shenzhenpdf-launch-performance"})
+    token = os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN")
+    if token and url.startswith("https://api.github.com/"):
+        request.add_header("Authorization", "Bearer " + token)
+    return urllib.request.urlopen(request, timeout=600)
+
+
+def download_release(args, tag, work):
+    """Unpacks the source archive of release `tag` ("latest": the newest published one); returns (name, dir)."""
+    repository = release_repository(args.portable)
+    if tag == "latest":
+        with github(f"https://api.github.com/repos/{repository}/releases/latest") as response:
+            tag = json.load(response)["tag_name"]
+    if not re.fullmatch(r"[0-9A-Za-z._-]+", tag):
+        raise SystemExit(f"launch performance: not a release tag: {tag}")
+    src = os.path.join(work, "download-" + tag, "src")
     if not os.path.isdir(os.path.join(src, "portable")):
-        shutil.rmtree(root, ignore_errors=True)
+        shutil.rmtree(os.path.dirname(src), ignore_errors=True)
         os.makedirs(src)
-        same_mupdf = subprocess.run(["git", "-C", args.portable, "diff", "--quiet", commit, "HEAD", "--", "../mupdf"]
-                                    ).returncode == 0
-        paths = ["portable", "gfx", "ext", "tools"] + ([] if same_mupdf else ["mupdf"])
-        archive = subprocess.Popen(["git", "-C", os.path.dirname(args.portable), "archive", commit] + paths,
-                                   stdout=subprocess.PIPE)
-        run(["tar", "-x", "-C", src], stdin=archive.stdout)
-        if archive.wait() != 0:
-            raise SystemExit(f"launch performance: git archive {ref} failed")
+        archive = os.path.join(os.path.dirname(src), "source.tar.gz")
+        log(f"Downloading the source of {repository} {tag}")
+        with github(f"https://api.github.com/repos/{repository}/tarball/refs/tags/{tag}") as response, \
+                open(archive, "wb") as out:
+            shutil.copyfileobj(response, out)
+        # tar refuses absolute paths, ".." and extracting through a symbolic link; the archive has one top folder.
+        run(["tar", "-x", "-z", "--strip-components", "1", "-C", src, "-f", archive])
+        os.remove(archive)
+        if not os.path.isdir(os.path.join(src, "portable")):
+            raise SystemExit(f"launch performance: the {repository} {tag} source has no portable/")
+    return f"{repository} {tag}", src
+
+
+def build_release(args, baseline, work):
+    """Builds the previous release's app and probe, once per commit or source; returns (name, app, probe)."""
+    kind, value = baseline
+    if kind == "ref":
+        commit = subprocess.run(["git", "-C", args.portable, "rev-parse", f"{value}^{{commit}}"],
+                                capture_output=True, text=True, check=True).stdout.strip()
+        name, root = value, os.path.join(work, "release-" + commit[:12])
+        src = os.path.join(root, "src")
+        if not os.path.isdir(os.path.join(src, "portable")):
+            shutil.rmtree(root, ignore_errors=True)
+            os.makedirs(src)
+            same_mupdf = subprocess.run(["git", "-C", args.portable, "diff", "--quiet", commit, "HEAD", "--",
+                                         "../mupdf"]).returncode == 0
+            paths = ["portable", "gfx", "ext", "tools"] + ([] if same_mupdf else ["mupdf"])
+            archive = subprocess.Popen(["git", "-C", os.path.dirname(args.portable), "archive", commit] + paths,
+                                       stdout=subprocess.PIPE)
+            run(["tar", "-x", "-C", src], stdin=archive.stdout)
+            if archive.wait() != 0:
+                raise SystemExit(f"launch performance: git archive {value} failed")
+            with open(os.path.join(root, "mupdf-dir"), "w") as f:
+                f.write(args.mupdf if same_mupdf else os.path.join(src, "mupdf"))
+    else:
+        if kind == "release":
+            name, src = download_release(args, value, work)
+            root = os.path.dirname(src)
+        else:
+            name, src = value, value
+            root = os.path.join(work, "source-" + re.sub(r"[^0-9A-Za-z._-]", "_", value.strip("/"))[-60:])
+            os.makedirs(root, exist_ok=True)
+        if not os.path.isfile(os.path.join(src, "portable", "Makefile")):
+            raise SystemExit(f"launch performance: {src} is not a ShenzhenPDF source tree (no portable/Makefile)")
         with open(os.path.join(root, "mupdf-dir"), "w") as f:
-            f.write(args.mupdf if same_mupdf else os.path.join(src, "mupdf"))
+            f.write(os.path.join(src, "mupdf") if os.path.isdir(os.path.join(src, "mupdf")) else args.mupdf)
     mupdf = open(os.path.join(root, "mupdf-dir")).read().strip()
     jobs = str(os.cpu_count() or 4)
-    log(f"Building the {ref} app and launch probe ({commit[:12]})")
+    log(f"Building the {name} app and launch probe in {root}")
     with open(os.path.join(root, "build.log"), "w") as out:
         result = subprocess.run(["make", "-C", os.path.join(src, "portable"), "-j" + jobs, "-f", "Makefile", "-f",
                                  os.path.join(args.launch_dir, "launch-performance-tests.mk"), "mac-app",
@@ -98,8 +175,9 @@ def build_release(args, ref, work):
                                  f"BUILD={root}/build", f"DIST={root}/dist", f"MUPDF_DIR={mupdf}"],
                                 stdout=out, stderr=subprocess.STDOUT)
     if result.returncode != 0:
-        raise SystemExit(f"launch performance: building {ref} failed, see {root}/build.log")
-    return os.path.join(root, "dist", "ShenzhenPDF.app"), os.path.join(root, "build", "SPDFMacLaunchPerformanceProbe")
+        raise SystemExit(f"launch performance: building {name} failed, see {root}/build.log")
+    return (name, os.path.join(root, "dist", "ShenzhenPDF.app"),
+            os.path.join(root, "build", "SPDFMacLaunchPerformanceProbe"))
 
 
 def bundle(app, probe, dest):
@@ -184,8 +262,7 @@ def main():
     work = os.path.abspath(args.work)
     os.makedirs(work, exist_ok=True)
 
-    ref = previous_release(args.portable)
-    release_app, release_probe = build_release(args, ref, work)
+    ref, release_app, release_probe = build_release(args, previous_release(args.portable), work)
     exes = {"current": bundle(args.app, args.probe, os.path.join(work, "current", "ShenzhenPDF.app")),
             "release": bundle(release_app, release_probe, os.path.join(work, "release", "ShenzhenPDF.app"))}
     document = os.path.join(work, "Drawing set.pdf")

@@ -42,9 +42,15 @@ jobs:
           brew install coturn
           . release/release-common.sh
           make -j"$(sysctl -n hw.ncpu)" test-binaries
+          # Until this repository has a pdf/ release before this one, the launch gate compares with the latest
+          # release on casimir-engineering/shenzhen-pdf.
+          if [ -z "$(git tag --merged HEAD --no-contains HEAD --list 'pdf/*')" ]; then
+            export LAUNCH_PERF_BASELINE_RELEASE=latest
+          fi
           make $(spdf_discover_test_targets Makefile)
         env:
           FRIENDS_TEST_COTURN: /opt/homebrew/bin/turnserver
+          GH_TOKEN: ${{ github.token }}
       - name: Signing
         run: ../../../tools/ci/mac-signing.sh >> "$GITHUB_ENV"
         env:

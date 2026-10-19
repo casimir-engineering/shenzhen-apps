@@ -14,8 +14,9 @@ Options:
   --version VERSION  Date version. Preparation defaults to today's unpadded
                      YY.M.DD; publication defaults to committed metadata.
   --build BUILD      Positive build number. Preparation defaults to the highest
-                     matching local or origin tag plus one; publication defaults
-                     to committed metadata.
+                     matching local or origin tag (in the Shenzhen repository
+                     also the release repository's) plus one; publication
+                     defaults to committed metadata.
   --prepare-only     Test, update, and commit release metadata. Never builds,
                      signs, tags, pushes, notarizes, or publishes.
   --dry-run          Validate notes and run release tests without modifying state.
@@ -177,7 +178,11 @@ spdf_validate_release_version "$version"
 remote_tags="$(git ls-remote --tags --refs origin "refs/tags/${SPDF_TAG_PREFIX}${version}-*" |
   awk -v prefix="refs/tags/$SPDF_TAG_PREFIX" '{sub(prefix, "", $2); print $2}')"
 local_tags="$(git tag --list "${SPDF_TAG_PREFIX}${version}-*" | sed "s|^$SPDF_TAG_PREFIX||")"
-all_tags="$(printf '%s\n%s\n' "$local_tags" "$remote_tags" | sed '/^$/d' | sort -u)"
+release_repo_tags=""
+if [[ -n "$SPDF_TAG_PREFIX" ]]; then
+  release_repo_tags="$(spdf_release_repository_tags "$version")"
+fi
+all_tags="$(printf '%s\n%s\n%s\n' "$local_tags" "$remote_tags" "$release_repo_tags" | sed '/^$/d' | sort -u)"
 build="$requested_build"
 if [[ -z "$build" ]]; then
   build="$(spdf_next_build_for_tags "$version" "$all_tags")"
@@ -187,7 +192,7 @@ fi
 tag="${version}-${build}"
 notes_file="$script_dir/docs/releases/${tag}.md"
 if printf '%s\n' "$all_tags" | grep -qxF "$tag"; then
-  spdf_release_fail "Release tag already exists locally or on origin: $tag"
+  spdf_release_fail "Release tag already exists locally, on origin or on $SPDF_RELEASE_GITHUB_REPOSITORY: $tag"
 fi
 
 branch="$(git symbolic-ref --quiet --short HEAD || true)"

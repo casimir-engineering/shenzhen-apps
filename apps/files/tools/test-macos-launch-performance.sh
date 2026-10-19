@@ -29,12 +29,16 @@
 # probe records every such call, so this is no sample.
 #
 #   1. tools     build the probe and szf_proc_stats into $BUILD_PERF/tools
-#   2. baseline  --baseline APP, or build --baseline-ref (default: the newest
-#                release tag before HEAD) in a worktree under
-#                $BUILD_PERF, with this checkout's setup script when the ref
-#                predates it, and with the edits in baseline_compat when a
+#   2. baseline  --baseline APP; or --baseline-release TAG (or latest): the
+#                app in that release's DMG, downloaded from
+#                casimir-engineering/shenzhen-files; or build --baseline-ref
+#                (default: the newest release tag before HEAD) in a worktree
+#                under $BUILD_PERF, with this checkout's setup script when the
+#                ref predates it, and with the edits in baseline_compat when a
 #                newer Homebrew library no longer builds the ref's sources
-#                (only ever in that worktree)
+#                (only ever in that worktree). The Shenzhen repository starts
+#                from one commit, so until its first files/ release tag there
+#                is no ref to build: use --baseline-release latest then.
 #   3. launch    --rounds interleaved rounds (ABBA order, default 15) after one
 #                warm-up launch each, on a 46-item folder (--folder to change)
 #   4. folders   the same on a folder of 3000 subfolders (1500 plain, 1000
@@ -47,7 +51,8 @@
 # candidate it must fail.
 #
 # Usage: tools/test-macos-launch-performance.sh [--candidate APP]
-#          [--baseline APP | --baseline-ref REF] [--rounds N] [--folder DIR]
+#          [--baseline APP | --baseline-release TAG | --baseline-ref REF]
+#          [--rounds N] [--folder DIR]
 #          [--no-folders] [--candidate-friends on|off] [--self-test]
 #   --candidate  default <repo>/dist/Shenzhen Files.app (package/make-app.sh,
 #                then package/bundle-dylibs.sh)
@@ -75,6 +80,9 @@ PERF="$script_dir/perf"
 candidate="$repo_root/dist/Shenzhen Files.app"
 baseline=""
 baseline_ref=""
+baseline_release=""
+release_repo="casimir-engineering/shenzhen-files"
+release_asset="ShenzhenFiles-mac-arm64.dmg"
 rounds=15
 folder=""
 folders_phase=1
@@ -85,6 +93,7 @@ while [[ $# -gt 0 ]]; do
     --candidate) candidate="$2"; shift 2 ;;
     --baseline) baseline="$2"; shift 2 ;;
     --baseline-ref) baseline_ref="$2"; shift 2 ;;
+    --baseline-release) baseline_release="$2"; shift 2 ;;
     --rounds) rounds="$2"; shift 2 ;;
     --folder) folder="$2"; shift 2 ;;
     --no-folders) folders_phase=0; shift ;;
@@ -179,12 +188,57 @@ build_baseline() {
   printf '%s\n' "$app"
 }
 
+# The app of a published release, from its DMG: TAG, or latest for the newest release. Cached per release.
+download_baseline() {
+  local tag="$1" dir dmg mnt found
+  if [[ "$tag" == latest ]]; then
+    tag="$(curl -fsSL "https://api.github.com/repos/$release_repo/releases/latest" |
+      python3 -c 'import json, sys; print(json.load(sys.stdin)["tag_name"])')" || return 1
+  fi
+  [[ "$tag" =~ ^[0-9A-Za-z._-]+$ ]] || { echo "error: not a release tag: $tag" >&2; return 1; }
+  dir="$BUILD/baseline-release-$tag"
+  if [[ -x "$dir/Shenzhen Files.app/Contents/MacOS/nautilus" ]]; then
+    log "baseline: release $tag, downloaded earlier: $dir/Shenzhen Files.app" >&2
+    printf '%s\n' "$dir/Shenzhen Files.app"
+    return
+  fi
+  log "baseline: downloading release $tag of $release_repo" >&2
+  rm -rf "$dir"
+  mkdir -p "$dir"
+  dmg="$dir/$release_asset"
+  mnt="$dir/mnt"
+  curl -fsSL -o "$dmg" "https://github.com/$release_repo/releases/download/$tag/$release_asset" || return 1
+  mkdir -p "$mnt"
+  hdiutil attach -nobrowse -readonly -noautoopen -mountpoint "$mnt" "$dmg" >/dev/null || return 1
+  found=""
+  for found in "$mnt"/*.app; do break; done
+  if [[ -d "$found" ]]; then ditto "$found" "$dir/Shenzhen Files.app"; fi
+  hdiutil detach "$mnt" >/dev/null
+  rmdir "$mnt"
+  rm -f "$dmg"
+  [[ -x "$dir/Shenzhen Files.app/Contents/MacOS/nautilus" ]] ||
+    { echo "error: no Shenzhen Files.app in the $tag DMG" >&2; return 1; }
+  printf '%s\n' "$dir/Shenzhen Files.app"
+}
+
+if [[ -z "$baseline" && -n "$baseline_release" ]]; then
+  baseline="$(download_baseline "$baseline_release")" ||
+    { echo "error: could not download the baseline release $baseline_release" >&2; exit 2; }
+fi
 if [[ -z "$baseline" ]]; then
   if [[ -z "$baseline_ref" ]]; then
     # The newest release before this checkout: a release commit compares with the one before it.
-    baseline_ref="$(git -C "$repo_root" describe --tags --abbrev=0 --match "$release_tags" HEAD)"
+    no_release_tag() {
+      echo "error: no release tag ($release_tags) before HEAD to compare with. The Shenzhen repository starts" \
+        "from one commit; until its first files/ release, name the baseline: --baseline-release latest" \
+        "(the newest release on $release_repo), --baseline APP or --baseline-ref REF" >&2
+      exit 2
+    }
+    baseline_ref="$(git -C "$repo_root" describe --tags --abbrev=0 --match "$release_tags" HEAD 2>/dev/null)" ||
+      no_release_tag
     if [[ "$(git -C "$repo_root" rev-parse "$baseline_ref^{commit}")" == "$(git -C "$repo_root" rev-parse HEAD)" ]]; then
-      baseline_ref="$(git -C "$repo_root" describe --tags --abbrev=0 --match "$release_tags" HEAD^)"
+      baseline_ref="$(git -C "$repo_root" describe --tags --abbrev=0 --match "$release_tags" HEAD^ 2>/dev/null)" ||
+        no_release_tag
     fi
   fi
   baseline="$(build_baseline "$baseline_ref")" || { echo "error: could not build the baseline $baseline_ref" >&2; exit 2; }

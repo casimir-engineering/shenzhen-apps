@@ -24,14 +24,39 @@ up to that commit, and the tags of every release made before it, are in `casimir
 `casimir-engineering/shenzhen-files` and `casimir-engineering/shenzhen-3D`; look there for the source of an older
 release.
 
+## Before the first release from this repository
+
+This repository has no release tags of its own yet; the earlier releases are tagged only in the original
+repositories. Three things depend on that until each app's first release here:
+
+- **Friends helper build number.** `tools/check-friends-number.sh` fails while the last commit to set `MAC_VERSION`
+  or `MAC_BUILD` is this repository's first commit: that commit brought in all of Friends at once, and Friends had
+  changed after the number was last raised (26.10.11 build 1). Preparing the first ShenzhenPDF release clears it.
+- **Build numbers.** `cut-release.sh` counts the release tags on `casimir-engineering/shenzhen-pdf` as well as the
+  `pdf/` tags here, so a release made the same day as one published before this repository existed gets the next
+  build number, never the same one.
+- **Launch performance baselines.** The gates compare with the previous release, which they find by its tag here.
+  Without one, name it:
+  - ShenzhenPDF (`make -C apps/pdf/portable mac-launch-performance-tests`, also part of the release tests):
+    `LAUNCH_PERF_BASELINE_RELEASE=latest` (or a release such as `26.10.11-1`) downloads that release's source from
+    `casimir-engineering/shenzhen-pdf` and builds it; `LAUNCH_PERF_BASELINE_SRC=<dir>` builds an unpacked source tree
+    instead. Without either the gate stops and says so. The `pdf.yml` and `release-pdf.yml` jobs set
+    `LAUNCH_PERF_BASELINE_RELEASE=latest` themselves while there is no `pdf/` tag before the commit they test.
+  - Shenzhen Files (`apps/files/tools/test-macos-launch-performance.sh`): `--baseline-release latest` (or a release
+    such as `26.9.14-1`) uses the app in that release's DMG from `casimir-engineering/shenzhen-files`;
+    `--baseline APP` an app you have.
+  - Shenzhen 3D has no release gate; its renderer benchmark (`apps/3d/tests/perf/README.md`) takes the earlier source
+    with `--baseline-src=<dir>`.
+
+Once an app has a release tag here, its gate finds the previous release by tag again.
+
 ## Before every release
 
 1. **Friends helper build number.** Run `tools/check-friends-number.sh`. If Friends changed since the number was
    last raised, raise it first by preparing a ShenzhenPDF release (below), even if that release is published later.
    The rule and why: [FRIENDS.md](FRIENDS.md#the-helper-build-number). Every release job runs the same check.
-   The check fails until the first ShenzhenPDF release prepared in this repository: Friends changed a good deal
-   after the number was last raised (26.10.11 build 1), and that release's new `MAC_VERSION` or `MAC_BUILD` clears
-   it. Prepare it before releasing Shenzhen Files or Shenzhen 3D.
+   The check fails until the first ShenzhenPDF release prepared in this repository (see above). Prepare it before
+   releasing Shenzhen Files or Shenzhen 3D.
 2. Update the app's README "Latest" marker and its release notes, as each app's own guide says.
 3. Merge to `main`, with a clean tree.
 

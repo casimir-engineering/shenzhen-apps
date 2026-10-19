@@ -21,7 +21,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0   # the launch gate builds the previous pdf/ release
+          fetch-depth: 0   # the launch gate builds the previous pdf/ release, when there is one
       - name: Build tools for the Friends relay tests
         run: brew install coturn
       - run: make -j"$(sysctl -n hw.ncpu)" mac-app
@@ -33,4 +33,12 @@ jobs:
         env:
           FRIENDS_TEST_COTURN: /opt/homebrew/bin/turnserver
       - name: Launch performance against the previous release
-        run: make mac-launch-performance-tests LAUNCH_PERF_ROUNDS=3
+        run: |
+          # This repository starts from one commit: until it has a pdf/ release before HEAD, the previous release is
+          # the latest one on casimir-engineering/shenzhen-pdf, built from its source archive.
+          if [ -z "$(git tag --merged HEAD --no-contains HEAD --list 'pdf/*')" ]; then
+            export LAUNCH_PERF_BASELINE_RELEASE=latest
+          fi
+          make mac-launch-performance-tests LAUNCH_PERF_ROUNDS=3
+        env:
+          GH_TOKEN: ${{ github.token }}
