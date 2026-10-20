@@ -180,6 +180,7 @@ int main(int argc, char **argv) {
     szfg_run_list_reorder_probes(harness);
     szfg_run_list_live_probes(harness);
     szfg_run_list_route_probes(harness);
+    szfg_run_list_menu_probes(harness);
     szfg_run_list_renders(harness);
     szfg_harness_free(harness);
     g_unsetenv(SZFRIENDS_ENV_STATE_DIR);

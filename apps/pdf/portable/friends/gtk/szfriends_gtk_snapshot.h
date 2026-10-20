@@ -153,8 +153,11 @@ typedef struct { SZFriendsGtkPresence present; SZFriendsGtkAvatarKind kind; char
                  char *path; } SZFriendsGtkAvatar;
 typedef struct { SZFriendsGtkPresence present; SZFriendsGtkRouteKind kind; SZFriendsGtkRouteMethod method;
                  char *label; } SZFriendsGtkRoute;
+/* The one checkbox a question can carry, unticked at first: ticked, the intent also carries `field`: true. */
+typedef enum { SZFRIENDS_GTK_CONFIRM_FIELD_UNKNOWN, SZFRIENDS_GTK_CONFIRM_FIELD_DELETE_HISTORY } SZFriendsGtkConfirmField;
+typedef struct { SZFriendsGtkPresence present; char *label; SZFriendsGtkConfirmField field; } SZFriendsGtkConfirmOption;
 typedef struct { SZFriendsGtkPresence present; char *title, *body, *confirm_label, *cancel_label;
-                 gboolean destructive; } SZFriendsGtkConfirm;
+                 gboolean destructive; SZFriendsGtkConfirmOption *option; } SZFriendsGtkConfirm;
 typedef struct { SZFriendsGtkPresence present; char *label, *accessibility_label; gint64 seconds; } SZFriendsGtkArm;
 typedef struct {
     SZFriendsGtkPresence present;
@@ -211,6 +214,8 @@ typedef struct {
     gsize n_actions;
     gboolean mentionable; /* clients that declared mentions: the @ picker offers this person */
     SZFriendsGtkRowKind kind; /* `you` for the You conversation */
+    SZFriendsGtkAction *menu; /* clients that declared list.menu: right-click, long-press, Shift+F10, Delete */
+    gsize n_menu;
 } SZFriendsGtkListRow;
 typedef struct {
     SZFriendsGtkPresence present;

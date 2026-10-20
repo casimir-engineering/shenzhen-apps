@@ -117,6 +117,8 @@ typedef struct {
     void (*action)(GtkWidget *row, SZFriendsGtkActionKind action, gpointer data); /* Accept, Decline, Block */
     void (*dropped)(GtkWidget *row, GPtrArray *items, gpointer data);     /* SZFriendsGtkHostItem *, borrowed */
     void (*accessory)(GtkWidget *row, gpointer data);                     /* Nearby's Request */
+    /* An item of the row's menu was chosen: `index` into the list row's `menu` (PROTOCOL.md list_row). */
+    void (*menu_chosen)(GtkWidget *row, guint index, gpointer data);
 } SZFriendsGtkRowHandlers;
 
 GtkWidget *szfriends_gtk_row_new(SZFriendsGtkLink *link);
@@ -156,6 +158,13 @@ void szfriends_gtk_row_drag_leave(GtkWidget *row);
 gboolean szfriends_gtk_row_drop(GtkWidget *row, const GValue *value);
 SZFriendsGtkRowDrop szfriends_gtk_row_get_drop(GtkWidget *row);
 void szfriends_gtk_row_activate(GtkWidget *row);
+/* The row's menu (PROTOCOL.md list_row menu), opened by a right-click, a long press on a touch screen, the Menu key
+ * or Shift+F10, pointing at (x, y) in the row, or at the whole row for negative x. FALSE when the row has no menu. */
+gboolean szfriends_gtk_row_open_menu(GtkWidget *row, double x, double y);
+GtkWidget *szfriends_gtk_row_get_menu(GtkWidget *row); /* the open menu's popover; NULL when none is open */
+/* A key on the focused row, as its key controller sees it: Return and Space open, the Menu key and Shift+F10 open the
+ * menu, and Delete chooses the menu's first item. TRUE when the key did something. */
+gboolean szfriends_gtk_row_key(GtkWidget *row, guint keyval, GdkModifierType state);
 
 G_END_DECLS
 

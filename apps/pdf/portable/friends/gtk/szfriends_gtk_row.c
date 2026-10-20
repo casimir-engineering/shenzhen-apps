@@ -89,6 +89,7 @@ static void take_person(SZFriendsGtkRow *row, const char *conversation_id, const
     /* The old person's buttons go, not only their pill: two requests can carry the same words, and a press on a
      * kept button would answer for whoever took the row. A destroyed button never completes a click. */
     szfriends_gtk_row_actions_apply(row->actions, NULL, 0);
+    szfriends_gtk_row_close_menu(row);
     replace(&row->conversation_id, conversation_id);
     replace(&row->nearby_id, nearby_id);
 }
@@ -113,6 +114,7 @@ void szfriends_gtk_row_set_list_row(GtkWidget *widget, const SZFriendsGtkListRow
     gtk_widget_set_tooltip_text(row->check, list_row->id_confirmed ? list_row->id_confirmed_label : NULL);
     szfriends_gtk_row_actions_apply(row->actions, list_row->actions, list_row->n_actions);
     szfriends_gtk_row_actions_set_inactive(row->actions, row->dimmed);
+    szfriends_gtk_row_set_menu(row, list_row->menu, list_row->n_menu);
     g_clear_pointer(&row->accessory, gtk_widget_unparent);
     gtk_widget_set_focusable(widget, row->clickable);
     set_name(row, list_row->accessibility_label, list_row->title);
@@ -148,6 +150,7 @@ void szfriends_gtk_row_set_nearby_person(GtkWidget *widget, const SZFriendsGtkNe
     gtk_label_set_text(GTK_LABEL(row->status), person->status_label ? person->status_label : "");
     row->facts.has_status = person->status_label && *person->status_label;
     szfriends_gtk_row_actions_apply(row->actions, NULL, 0);
+    szfriends_gtk_row_set_menu(row, NULL, 0);
     g_clear_pointer(&row->accessory, gtk_widget_unparent);
     const SZFriendsGtkAction *action = person->action;
     /* Only the Request this view knows how to send; any other action is hidden (PROTOCOL.md § Principles). */
@@ -179,10 +182,8 @@ void szfriends_gtk_row_activate(GtkWidget *widget) {
 
 static gboolean key_pressed(GtkEventControllerKey *keys, guint keyval, guint keycode, GdkModifierType state,
                             gpointer data) {
-    (void)keys, (void)keycode, (void)state;
-    if (keyval != GDK_KEY_Return && keyval != GDK_KEY_KP_Enter && keyval != GDK_KEY_space) return FALSE;
-    szfriends_gtk_row_activate(data);
-    return TRUE;
+    (void)keys, (void)keycode;
+    return szfriends_gtk_row_key(data, keyval, state); /* szfriends_gtk_row_menu.c */
 }
 
 static void pointer_entered(GtkEventControllerMotion *motion, double x, double y, gpointer data) {
@@ -282,6 +283,7 @@ static void build(SZFriendsGtkRow *row) {
 
 static void row_dispose(GObject *object) {
     SZFriendsGtkRow *row = SZFRIENDS_GTK_ROW(object);
+    szfriends_gtk_row_free_menu(row);
     GtkWidget *child;
     while ((child = gtk_widget_get_first_child(GTK_WIDGET(row)))) gtk_widget_unparent(child);
     row->accessory = NULL;
@@ -298,8 +300,17 @@ static void row_finalize(GObject *object) {
     G_OBJECT_CLASS(szfriends_gtk_row_parent_class)->finalize(object);
 }
 
+/* The box lays out the row's own children; an open menu is placed again whenever the row moves. */
+static void row_size_allocate(GtkWidget *widget, int width, int height, int baseline) {
+    GTK_WIDGET_CLASS(szfriends_gtk_row_parent_class)->size_allocate(widget, width, height, baseline);
+    SZFriendsGtkRow *row = SZFRIENDS_GTK_ROW(widget);
+    if (row->menu_popover && gtk_widget_get_visible(row->menu_popover))
+        gtk_popover_present(GTK_POPOVER(row->menu_popover));
+}
+
 static void szfriends_gtk_row_class_init(SZFriendsGtkRowClass *klass) {
     G_OBJECT_CLASS(klass)->dispose = row_dispose;
+    GTK_WIDGET_CLASS(klass)->size_allocate = row_size_allocate;
     G_OBJECT_CLASS(klass)->finalize = row_finalize;
     gtk_widget_class_set_css_name(GTK_WIDGET_CLASS(klass), "szfriends-row");
     gtk_widget_class_set_layout_manager_type(GTK_WIDGET_CLASS(klass), GTK_TYPE_BOX_LAYOUT);
@@ -324,6 +335,7 @@ GtkWidget *szfriends_gtk_row_new(SZFriendsGtkLink *link) {
     g_signal_connect(motion, "leave", G_CALLBACK(pointer_left), row);
     gtk_widget_add_controller(widget, motion);
     szfriends_gtk_row_install_targets(row);
+    szfriends_gtk_row_install_menu(row);
     szfriends_gtk_row_refresh(row);
     return widget;
 }
@@ -340,6 +352,7 @@ void szfriends_gtk_row_set_dimmed(GtkWidget *widget, gboolean dimmed) {
     SZFriendsGtkRow *row = szfriends_gtk_row_of(widget);
     if (!row || row->dimmed == dimmed) return;
     row->dimmed = dimmed;
+    if (dimmed) szfriends_gtk_row_close_menu(row);
     /* Faded rows take no answer either; their buttons fade with them. */
     szfriends_gtk_row_actions_set_inactive(row->actions, dimmed);
     szfriends_gtk_row_refresh(row);

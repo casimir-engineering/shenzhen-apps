@@ -43,7 +43,10 @@ The pages:
   confirmation (`szfriends_gtk_confirm`: a card over the dropdown, a dialog in Settings) and running an action
   (`szfriends_gtk_perform`).
 - Rows (`szfriends_gtk_row.{c,h}`, `szfriends_gtk_row_private.h`, `szfriends_gtk_row_*.c`): a person's row, its
-  display-free look, its drops, and Accept, Decline and Block. Rows are reused by position, so a press or a drag
+  display-free look, its drops, Accept, Decline and Block, and its menu (`szfriends_gtk_row_menu.c`, PROTOCOL.md
+  list_row `menu`, capability `list.menu`): Remove on a right-click, a long press, the Menu key or Shift+F10, and
+  Delete on the focused row; the row leaves the list as soon as the person confirms, and comes back if the helper
+  refuses. Rows are reused by position, so a press or a drag
   belongs to the person who held the row when it began, and completes for nobody else. `szfriends_gtk_row.h` also
   holds the arming rule every Block in the views shares (`szfriends_gtk_arming_*`, never a double-click's second half)
   and its clock seam (`szfriends_gtk_set_clock`).

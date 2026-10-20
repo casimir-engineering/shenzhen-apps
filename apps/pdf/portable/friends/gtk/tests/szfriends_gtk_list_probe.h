@@ -43,5 +43,6 @@ void szfg_run_list_renders(SZFGHarness *harness);
 void szfg_run_list_reorder_probes(SZFGHarness *harness);
 void szfg_run_list_live_probes(SZFGHarness *harness);
 void szfg_run_list_route_probes(SZFGHarness *harness); /* szfriends_gtk_list_probe_routes.c */
+void szfg_run_list_menu_probes(SZFGHarness *harness);  /* szfriends_gtk_list_probe_menu.c */
 
 #endif /* SZFRIENDS_GTK_LIST_PROBE_H */

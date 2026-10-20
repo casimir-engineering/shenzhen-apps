@@ -32,6 +32,13 @@ gboolean szfriends_gtk_action_is_client_side(SZFriendsGtkActionKind action);
  * client-side or unknown action, or when that id is missing (delete_history alone may go without one: all history).
  * reset_friends carries confirm "reset". */
 szfriends_intent *szfriends_gtk_intent_for_action(const SZFriendsGtkAction *action, const SZFriendsGtkActionIds *ids);
+/* The intent a question's confirm button sends: `ticked` says the person ticked its option (confirm.option), and then
+ * the intent also carries that option's field as true (remove_friend's delete_history). Unticked, or for an option
+ * this view does not know, the same as szfriends_gtk_intent_for_action. */
+szfriends_intent *szfriends_gtk_intent_for_answer(const SZFriendsGtkAction *action, const SZFriendsGtkActionIds *ids,
+                                                  gboolean ticked);
+/* Whether a question's option is one this view can send, so only then is its checkbox shown. */
+gboolean szfriends_gtk_confirm_option_known(const SZFriendsGtkConfirm *confirm);
 /* The same for a list row's buttons, which carry only their kind (accept_request, decline_request, block). */
 szfriends_intent *szfriends_gtk_intent_for_action_kind(SZFriendsGtkActionKind action,
                                                        const SZFriendsGtkActionIds *ids);

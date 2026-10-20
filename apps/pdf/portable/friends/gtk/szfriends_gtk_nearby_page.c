@@ -92,7 +92,7 @@ static void apply_people(SZFriendsGtkNearbyPane *pane, const SZFriendsGtkNearbyS
         gtk_box_remove(GTK_BOX(pane->people_box), g_ptr_array_index(rows, rows->len - 1));
         g_ptr_array_remove_index(rows, rows->len - 1);
     }
-    static const SZFriendsGtkRowHandlers handlers = {person_activated, NULL, NULL, person_request};
+    static const SZFriendsGtkRowHandlers handlers = {person_activated, NULL, NULL, person_request, NULL};
     while (rows->len < snapshot->n_people) {
         GtkWidget *row = szfriends_gtk_row_new(pane->link);
         szfriends_gtk_row_set_handlers(row, &handlers, pane);
