@@ -121,7 +121,10 @@ export default function UpdatesDialog({ onClose }: { onClose: () => void }) {
                 disabled={busy}
                 onClick={() => void run(() => api.download())}
               >
-                <ArrowDownToLine size={16} /> Download update
+                <ArrowDownToLine size={16} />{" "}
+                {state.platform === "android"
+                  ? `Update to ${state.availableVersion}`
+                  : "Download update"}
               </button>
             ) : state.status === "ready" ? (
               <button
@@ -129,7 +132,10 @@ export default function UpdatesDialog({ onClose }: { onClose: () => void }) {
                 disabled={pending}
                 onClick={() => void run(() => api.install())}
               >
-                <RefreshCw size={16} /> Restart & install
+                <RefreshCw size={16} />{" "}
+                {state.platform === "android"
+                  ? "Install update"
+                  : "Restart & install"}
               </button>
             ) : (
               <button
@@ -163,21 +169,23 @@ export default function UpdatesDialog({ onClose }: { onClose: () => void }) {
                 }
               />
             </label>
-            <label className="updates-toggle">
-              <span>
-                <strong>Include preview releases</strong>
-              </span>
-              <input
-                type="checkbox"
-                checked={state.prereleases}
-                disabled={locked || !state.supported}
-                onChange={(e) =>
-                  void run(() =>
-                    api.configure({ prereleases: e.target.checked }),
-                  )
-                }
-              />
-            </label>
+            {state.platform !== "android" && (
+              <label className="updates-toggle">
+                <span>
+                  <strong>Include preview releases</strong>
+                </span>
+                <input
+                  type="checkbox"
+                  checked={state.prereleases}
+                  disabled={locked || !state.supported}
+                  onChange={(e) =>
+                    void run(() =>
+                      api.configure({ prereleases: e.target.checked }),
+                    )
+                  }
+                />
+              </label>
+            )}
           </div>
           {state.access === "private" && (
             <details className="updates-connection" open={!state.connected}>

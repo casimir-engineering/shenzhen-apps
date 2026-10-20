@@ -4,10 +4,12 @@
 // symbols) but signed with this computer's Android debug key, so it installs on an emulator or a test phone and can
 // never be mistaken for a published build. The debug flow (platform-build.mjs android --friends --debug) is unchanged.
 //
-//   node scripts/friends/android-release.mjs [--target aarch64|armv7|i686|x86_64 …] [--version-code <n>] [--out <apk>]
+//   node scripts/friends/android-release.mjs [--target aarch64|armv7|i686|x86_64 …] [--version <x.y.z>]
+//     [--version-code <n>] [--out <apk>]
 //
-// --version-code gives the APK an Android versionCode of its own (Tauri derives 2000 from 0.2.0), for a test build
-// that installs over a published one without being a release of its own.
+// --version builds the APK as another version than tauri.conf.json's (its versionCode follows, 0.2.2 → 2002), and
+// --version-code sets the versionCode alone (Tauri derives 2000 from 0.2.0): for a test build that installs over a
+// published one without being a release of its own.
 //
 // Needs a JDK for Gradle (JAVA_HOME), the Android SDK (ANDROID_HOME, or ~/Library/Android/sdk) with build-tools and an
 // NDK, and ~/.android/debug.keystore (Android Studio and Gradle make it on the first debug build). Prints the APK's
@@ -28,6 +30,9 @@ const option = (name) => {
 const targets = argv.flatMap((arg, i) =>
   argv[i - 1] === "--target" ? [arg] : [],
 );
+const version = option("version");
+if (version !== undefined && !/^\d+\.\d+\.\d+$/.test(version))
+  fail("--version takes x.y.z");
 const versionCode = option("version-code");
 if (versionCode !== undefined && !/^\d+$/.test(versionCode))
   fail("--version-code takes a whole number");
@@ -75,11 +80,14 @@ const built = spawnSync(
     "--friends",
     "--apk",
     ...targets.flatMap((target) => ["--target", target]),
-    ...(versionCode
+    ...(version || versionCode
       ? [
           "--config",
           JSON.stringify({
-            bundle: { android: { versionCode: Number(versionCode) } },
+            ...(version ? { version } : {}),
+            ...(versionCode
+              ? { bundle: { android: { versionCode: Number(versionCode) } } }
+              : {}),
           }),
         ]
       : []),

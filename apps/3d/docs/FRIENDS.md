@@ -491,6 +491,13 @@ budget, and `phones-size.sh` says so by failing. Fat LTO instead of thin changed
 4.95 MB with online (the plugin's README); the rest is the plugin's phone half and what Tauri links for it. Not yet
 tried: a real phone, Android 11 or earlier, iPad, the iOS share sheet's choices.
 
+**Android permissions.** `node scripts/friends/android-permissions.mjs --serial <emulator> [--apk <apk>]` opens
+Friends from a cleared app and answers the system's Bluetooth dialog through uiautomator: Allow grants scan,
+advertise and connect; Don't allow keeps Nearby's Allow, which asks again; after a second refusal Android stops
+asking and Nearby's Open Settings opens the app's page in Settings. It passed on 2026-10-20, headless, on an
+Android 16 arm64 emulator. Until then no Android build had ever asked: Nearby's Kotlin plugin was registered under
+the same Tauri plugin as FriendsPlugin, which replaced it, so every Nearby call failed. One class now answers both.
+
 **Release-size Android build.** `node scripts/friends/android-release.mjs --target aarch64` (with `JAVA_HOME` naming a
 JDK) builds the APK with Friends in the release profile, the native library stripped by cargo, and signs it with the
 computer's Android debug key, so it installs on an emulator or a test phone but is never a published build; the debug

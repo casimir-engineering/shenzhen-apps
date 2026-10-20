@@ -72,3 +72,46 @@ The current release stream uses preview releases, enabled by default. Turning pr
 A recipient credential needs permission to read releases/assets in the build’s repository. Keep it in the main process and appropriate OS credential storage. Never put credentials in the frontend, `electron-builder.cjs`, staged package metadata, `app-update.yml`, `latest-mac.yml`, build provenance or release assets. Publisher credentials have a separate purpose and must never be distributed with the app. No build-time credential is required to generate the feed locally with `--publish never`.
 
 Primary implementation references: [electron-builder update metadata generation](https://github.com/electron-userland/electron-builder/blob/master/packages/app-builder-lib/src/publish/updateInfoBuilder.ts), [updater provider selection](https://github.com/electron-userland/electron-builder/blob/master/packages/electron-updater/src/providerFactory.ts), and [private GitHub provider](https://github.com/electron-userland/electron-builder/blob/master/packages/electron-updater/src/providers/PrivateGitHubProvider.ts). The installed versions and root lock remain the authority for this build.
+
+## Android
+
+The Android app updates itself from the same channel its APK comes from: the pre-releases of
+`casimir-engineering/shenzhen-3D`, read through the public GitHub API with no account. `UpdatePlugin.kt`
+(`src-tauri/gen/android/app/src/main/java/com/shenzhen3d/viewer/`) does the work; `src-tauri/src/android_updates.rs`
+registers it and passes the page's calls (`window.shenzhenUpdates`, `src/core/android-updates.ts`) to it, so the
+footer's Updates button and the Updates dialog are the Mac's, with **Update to X** and **Install update**.
+
+- **When.** A few seconds after launch and then once a day while the app runs, when **Check daily** is on (the
+  default), and never over a metered connection; **Check for updates** in the dialog checks at once, metered or not.
+- **What.** The newest non-draft release whose tag (`preview-0.2.1`) is above the installed `versionName`, with an APK
+  for the phone's ABI (`shenzhen-3d-<version>-android-arm64-….apk`) and a `SHA256SUMS.txt`.
+- **Update.** On a metered connection the app asks first, giving the size. The APK is downloaded to the app's cache
+  with its progress shown, checked against its line in `SHA256SUMS.txt`, then against the installed app: same
+  package, a versionCode at least as high, the same signing certificate. Anything else is refused before Android sees
+  it.
+- **Install.** Android installs another app's APK only once the person allowed it ("Install unknown apps"). The first
+  time, the app says why and opens that setting for Shenzhen 3D; back in the app, it hands the APK to
+  `PackageInstaller`, and Android asks the person to confirm. Android replaces the app and stops it; the new version
+  starts when it is opened again. The app's data stays.
+- **Signing.** Android installs an update only when it is signed with the installed app's certificate. Every APK
+  published so far (0.1.9, 0.2.0) is signed with the Android debug key of the Mac that built them,
+  `~/.android/debug.keystore` (alias `androiddebugkey`, SHA-256
+  `3C:BA:6B:D5:76:0E:ED:14:AE:08:B4:C9:11:B4:9A:EA:18:A8:AE:17:D6:17:22:55:4B:67:F9:C2:C1:2E:04:AD`).
+  `scripts/friends/android-release.mjs` signs with it. **Keep that file**: an APK signed with any other key cannot
+  update the installed app, and people would have to uninstall it, losing its data, Friends included. Moving to a
+  release key later needs a key rotation (APK Signature Scheme v3 lineage) signed by this one.
+- **Test.** `node scripts/android-update-e2e.mjs --serial <emulator> --old <apk> --new <apk> --new-version <x.y.z>`
+  with two debug APKs (only debug builds read `files/update-api.txt`, which names the mock API): the old app finds the
+  mock's newer release at launch, Update downloads it (with `--bad-sum`, a wrong checksum is refused first), the
+  explanation and "Install unknown apps", Android's confirmation, and the new version running with its data.
+  The mock also lists a newer Mac-only release and a newer draft, which must be passed over, as the real
+  preview-0.2.1 (Mac only) is. Passed on 2026-10-20 on an Android 16 arm64 emulator, headless: 0.2.0 → 0.2.9 with a
+  wrong checksum refused first, data kept. The release-profile 0.2.2 build checked the real API there and found
+  itself up to date.
+- **A test build over a release.** `node scripts/friends/android-release.mjs --target aarch64 --version 0.2.2` (or
+  `--version-code <n>` alone; Tauri derives 2000 from 0.2.0) builds an APK that installs over a published one
+  without being a release. The footer still shows `package.json`'s version; the Updates dialog shows the installed
+  one.
+
+Windows and Linux (Tauri) have no updater: the footer shows the version only, and people install a newer MSI, Setup
+or Linux package from the release by hand.

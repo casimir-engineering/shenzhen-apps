@@ -1,6 +1,9 @@
 import { createRoot } from "react-dom/client";
 import App from "./App";
+import { installAndroidUpdates } from "./core/android-updates";
 import "./styles.css";
+// Before the first render: the footer offers Updates only where window.shenzhenUpdates exists.
+installAndroidUpdates();
 createRoot(document.getElementById("root")!).render(<App />);
 
 if (
