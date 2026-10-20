@@ -17,13 +17,20 @@
       "copy_label": "Copy"
     },
     "received": {
-      "label": "Received files",
-      "note": "Files you accept from friends are saved here.",
+      "label": "Save received files to",
+      "value": "Downloads",
+      "note": "",
+      "path": "/Users/raph/Downloads",
       "action": {
         "action": "show_file",
         "label": "Show in Finder",
         "style": "secondary",
-        "path": "/Users/raph/Library/Application Support/Shenzhen Friends/received"
+        "path": "/Users/raph/Downloads"
+      },
+      "change": {
+        "action": "choose_received_folder",
+        "label": "Change…",
+        "style": "secondary"
       }
     },
     "auto_accept": {
@@ -99,7 +106,7 @@
       "action_label": "Delete history…",
       "confirm": {
         "title": "Delete all conversation history?",
-        "body": "Your messages and file history, with every friend and in You, are deleted from this computer, and from your other computers as soon as they connect. Anything still waiting to go won’t be sent. You keep your friends, and they keep their own copies of your chats. Files you received stay in Received files.",
+        "body": "Your messages and file history, with every friend and in You, are deleted from this computer, and from your other computers as soon as they connect. Anything still waiting to go won’t be sent. You keep your friends, and they keep their own copies of your chats. Files you received stay where they were saved.",
         "confirm_label": "Delete History",
         "cancel_label": "Cancel",
         "destructive": true
@@ -111,7 +118,7 @@
       "action_label": "Reset Friends…",
       "confirm": {
         "title": "Reset Friends?",
-        "body": "This deletes your friends and conversations from this computer and gives you a new ID. Every friend has to add you again. Files you received stay in Received files.",
+        "body": "This deletes your friends and conversations from this computer and gives you a new ID. Every friend has to add you again. Files you received stay where they were saved.",
         "confirm_label": "Reset Friends",
         "cancel_label": "Cancel",
         "destructive": true

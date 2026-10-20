@@ -9,7 +9,7 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-const NSInteger SZFriendsStoreSchemaVersion = 9;
+const NSInteger SZFriendsStoreSchemaVersion = 10;
 
 // Pictures are columns rather than an archived object so a later Linux helper reads them with plain SQL.
 // Times are Unix seconds (REAL). Keys and secrets are BLOBs with their lengths checked by the schema itself, so a
@@ -247,6 +247,14 @@ static NSString *const SZFriendsSchemaV9 =
      "  created_at REAL NOT NULL, holders BLOB NOT NULL DEFAULT x'') WITHOUT ROWID;\n"
      "CREATE TABLE sync_state (key TEXT PRIMARY KEY NOT NULL, value) WITHOUT ROWID;\n";
 
+// v10, received files saved to Downloads or a folder the person chose (PROTOCOL.md § Views, received): when each
+// incoming file was published and how it came (0 a friend's offer, 1 a download link, 2 a copy from another of the
+// person's computers). Additive, so min_reader_version stays 2: a v9 helper ignores both columns.
+static NSString *const SZFriendsSchemaV10 =
+    @"ALTER TABLE transfers ADD COLUMN received_at REAL;\n"
+     "ALTER TABLE transfers ADD COLUMN received_via INTEGER NOT NULL DEFAULT 0;\n"
+     "CREATE INDEX transfers_received ON transfers(received_at) WHERE received_at IS NOT NULL;\n";
+
 @implementation SZFriendsStoreMigration
 
 + (instancetype)migrationToVersion:(NSInteger)version
@@ -319,7 +327,13 @@ NSArray<SZFriendsStoreMigration *> *SZFriendsStoreShippedMigrations(void) {
                      apply:^BOOL(SZFriendsStoreDB *db, NSError **error) {
                          return [db exec:SZFriendsSchemaV9 error:error];
                      }];
-    return @[ v1, v2, v3, v4, v5, v6, v7, v8, v9 ];
+    SZFriendsStoreMigration *v10 = [SZFriendsStoreMigration
+        migrationToVersion:10
+          minReaderVersion:0
+                     apply:^BOOL(SZFriendsStoreDB *db, NSError **error) {
+                         return [db exec:SZFriendsSchemaV10 error:error];
+                     }];
+    return @[ v1, v2, v3, v4, v5, v6, v7, v8, v9, v10 ];
 }
 
 BOOL SZFriendsStoreReadVersions(SZFriendsStoreDB *db, NSInteger *userVersion, NSInteger *minReaderVersion,

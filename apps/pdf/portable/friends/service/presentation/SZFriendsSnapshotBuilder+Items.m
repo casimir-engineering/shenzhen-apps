@@ -330,10 +330,18 @@ static BOOL EndsSentence(NSString *text) {
     }
     BOOL failed = state == SZFriendsTransferStateFailed;
     if (failed) statusKey = [self key:statusKey forFailure:item.failureReason person:person];
+    // A received file says which folder it is in; one the helper kept in its own folder stays "Received".
+    NSString *folder = item.savedToDownloads ? [s text:@"settings.received.default"] : item.savedFolderName;
+    BOOL saved = state == SZFriendsTransferStateReceived && !item.outgoing && item.localPath.length && folder.length;
+    if (saved) {
+        statusKey = @"transfer.status.received.saved";
+        values[@"folder"] = folder;
+    }
     NSString *status = [s text:statusKey values:values];
     values[@"status"] = WithoutFinalPeriod(status); // the spoken templates end the sentence themselves
     NSString *spokenKey = [NSString stringWithFormat:@"transfer.spoken.%@.%@", direction, TransferStateName(state)];
     if (failed) spokenKey = [self key:spokenKey forFailure:item.failureReason person:person];
+    if (saved) spokenKey = @"transfer.spoken.in.received.saved";
     NSString *assistant = [self assistantLabelForItem:item person:person];
     // Every spoken template lists "{file}, {kind}, {size}", so the assistant is said right after the file's facts.
     NSMutableDictionary<NSString *, NSString *> *said = [values mutableCopy];

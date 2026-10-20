@@ -63,6 +63,12 @@
   font-family: var(--mono);
   user-select: text;
 }
+.szf-folder {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .szf-inline {
   display: flex;
   gap: 6px;

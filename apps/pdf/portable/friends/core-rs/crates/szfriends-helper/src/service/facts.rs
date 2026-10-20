@@ -21,11 +21,14 @@ impl State {
     pub fn people_facts(&self) -> Vec<PersonFacts> {
         let people = self.store.people_by_latest_interaction().unwrap_or_default();
         let link_contacts = self.store.link_contact_conversations();
+        // Details' Show in Finder opens the folder received files go to now.
+        let folder = self.store.received_folder().map(|p| p.to_string_lossy().into_owned());
         people
             .iter()
             .map(|person| {
                 let mut facts = self.person_facts(person);
                 facts.link_contact = link_contacts.contains(&person.conversation_id);
+                facts.received_reveal_path = folder.clone();
                 facts
             })
             .collect()
@@ -163,6 +166,9 @@ impl State {
             item.transfer_state = Some(transfer.state);
             item.failure_reason = transfer.failure_reason.clone();
             item.local_path = transfer.received_path.as_ref().map(|p| p.to_string_lossy().into_owned());
+            if !item.outgoing {
+                item.saved_in = transfer.received_path.as_deref().and_then(|p| self.store.saved_place(p));
+            }
             item.transfer_route =
                 self.live_route(&transfer.conversation_id).map_or(RouteMethod::None, Self::view_route);
             let automatic: i64 = conn
@@ -223,8 +229,19 @@ impl State {
             },
             nearby_only: cfg!(not(feature = "online")),
             identity_public_key: Some(self.identity.public_key()),
-            received_directory: self.store.state_dir().join("received").to_string_lossy().into_owned(),
+            received: self.received_folder_facts(),
             ..ProfileFacts::default()
+        }
+    }
+
+    /// The folder received files go to, for Settings.
+    pub fn received_folder_facts(&self) -> szfriends_core::presentation::ReceivedFolderFacts {
+        let chosen = self.store.chosen_received_folder();
+        szfriends_core::presentation::ReceivedFolderFacts {
+            path: self.store.received_folder().map(|p| p.to_string_lossy().into_owned()),
+            chosen_name: chosen.and_then(|p| p.file_name().map(|n| n.to_string_lossy().into_owned())),
+            phone: self.store.received_defaults().phone,
+            fallback: self.store.received_fallback(),
         }
     }
 

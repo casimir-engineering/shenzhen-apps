@@ -53,7 +53,7 @@ static const NSUInteger SZFriendsMessageStatusMax = 16;
             @"delete_history", @"reset_friends", @"disable", @"cancel_message", @"add_from_mention", @"open_link",
             @"add_from_link", @"receive_link", @"make_download_link", @"reset_friend_link", @"revoke_link",
             @"join_profile", @"enter_join_code", @"cancel_join", @"approve_join", @"deny_join", @"revoke_device",
-            @"rename_device", @"fetch_from_device"
+            @"rename_device", @"fetch_from_device", @"set_received_folder"
         ]];
     });
     return known;
@@ -79,7 +79,7 @@ static const NSUInteger SZFriendsMessageStatusMax = 16;
     dispatch_once(&once, ^{
         allowed = [NSSet setWithArray:@[
             @"ping", @"activate", @"subscribe", @"unsubscribe", @"set_filter", @"open_conversation", @"load_earlier",
-            @"search_messages", @"delete_history", @"reset_friends", @"disable"
+            @"search_messages", @"delete_history", @"reset_friends", @"disable", @"set_received_folder"
         ]];
     });
     return allowed;
@@ -272,8 +272,9 @@ static const NSUInteger SZFriendsMessageStatusMax = 16;
 - (void)intent_subscribe:(NSDictionary *)intent connection:(SZFriendsIPCConnection *)connection
                    reply:(SZFriendsIntentReply)reply {
     NSString *view = intent[@"view"];
-    NSSet *views = [NSSet setWithArray:@[ @"badge", @"list", @"nearby", @"details", @"profile", @"settings",
-                                          @"message_status", @"join" ]];
+    NSMutableSet *views = [NSMutableSet setWithArray:@[ @"badge", @"list", @"nearby", @"details", @"profile",
+                                                        @"settings", @"message_status", @"join" ]];
+    if ([SZFriendsHelperCapabilityList(self.services) containsObject:@"received.folder"]) [views addObject:@"received"];
     if (!SZFriendsJSONIsString(view) || ![views containsObject:view]) {
         [self fail:reply code:@"invalid_field" details:@{@"field" : @"view"} connection:connection];
         return;

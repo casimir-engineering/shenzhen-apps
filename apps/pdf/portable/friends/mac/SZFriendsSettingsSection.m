@@ -31,7 +31,8 @@
 static NSArray<NSString *> *SZFSettingsRows(void) {
     return @[ @"name", @"id", @"received", @"auto_accept", @"nearby", @"history", @"reset" ];
 }
-static const NSUInteger SZFSettingsRowCount = 7, SZFSettingsAutoAcceptRow = 3, SZFSettingsNearbyRow = 4;
+static const NSUInteger SZFSettingsRowCount = 7, SZFSettingsReceivedRow = 2, SZFSettingsAutoAcceptRow = 3,
+                        SZFSettingsNearbyRow = 4;
 
 @implementation SZFriendsSettingsSection {
     SZFriendsSettingsView *_view;
@@ -43,6 +44,7 @@ static const NSUInteger SZFSettingsRowCount = 7, SZFSettingsAutoAcceptRow = 3, S
     NSTextField *_idValue;
     SZFriendsButton *_copyButton;
     SZFriendsButton *_receivedButton;
+    SZFriendsButton *_receivedChangeButton;
     SZFriendsButton *_changeButton;
     SZFriendsButton *_historyButton;
     SZFriendsButton *_resetButton;
@@ -93,6 +95,10 @@ static const NSUInteger SZFSettingsRowCount = 7, SZFSettingsAutoAcceptRow = 3, S
         NSDictionary *received = SZFDict(weakSelf.data, @"received");
         [weakSelf.context performAction:SZFDict(received, @"action") ids:nil done:nil];
     }];
+    _receivedChangeButton = [self button:^{ [weakSelf chooseReceivedFolder]; }];
+    _chooseFolder = ^(NSString *startPath, void (^chosen)(NSString *path)) {
+        [weakSelf showFolderPanelAt:startPath chosen:chosen];
+    };
     _changeButton = [self button:^{ [weakSelf toggleFriends]; }];
     _historyButton = [self button:^{ [weakSelf runConfirmed:@"delete_history" section:@"history"]; }];
     _resetButton = [self button:^{ [weakSelf runConfirmed:@"reset_friends" section:@"reset"]; }];
@@ -151,6 +157,55 @@ static const NSUInteger SZFSettingsRowCount = 7, SZFSettingsAutoAcceptRow = 3, S
     return _nearbyButton;
 }
 
+- (SZFriendsButton *)receivedChangeButton {
+    return _receivedChangeButton;
+}
+
+- (NSTextField *)receivedFolderField {
+    return _labels[2 * SZFSettingsReceivedRow + 1];
+}
+
+// Change…: the folder picker, then set_received_folder. A folder the helper refuses says why on the same sheet's
+// window; the row changes only when the next snapshot names the new folder.
+- (void)chooseReceivedFolder {
+    NSDictionary *received = SZFDict(_data, @"received");
+    if (!self.chooseFolder) return;
+    __weak SZFriendsSettingsSection *weakSelf = self;
+    self.chooseFolder(SZFStr(received, @"path"), ^(NSString *path) {
+        SZFriendsSettingsSection *section = weakSelf;
+        [section.context.link sendIntent:@"set_received_folder" fields:@{@"path" : path}
+                                   reply:^(NSDictionary *result, SZFriendsLinkError *error) {
+            (void)result;
+            if (error.message.length) [weakSelf showRefusal:error.message];
+        }];
+    });
+}
+
+- (void)showFolderPanelAt:(nullable NSString *)startPath chosen:(void (^)(NSString *path))chosen {
+    NSWindow *window = _view.window;
+    if (!window) return;
+    NSOpenPanel *panel = [NSOpenPanel openPanel];
+    panel.canChooseDirectories = YES;
+    panel.canChooseFiles = NO;
+    panel.canCreateDirectories = YES;
+    panel.allowsMultipleSelection = NO;
+    panel.resolvesAliases = YES;
+    if (startPath.length) panel.directoryURL = [NSURL fileURLWithPath:startPath isDirectory:YES];
+    [panel beginSheetModalForWindow:window completionHandler:^(NSModalResponse response) {
+        NSString *path = panel.URL.path;
+        if (response == NSModalResponseOK && path.length) chosen(path);
+    }];
+}
+
+- (void)showRefusal:(NSString *)message {
+    NSWindow *window = _view.window;
+    if (!window) return;
+    NSAlert *alert = [NSAlert new];
+    alert.messageText = message;
+    SZFriendsHideWindowFromAssistant(alert.window, SZFriendsIdentifierAlert);
+    [alert beginSheetModalForWindow:window completionHandler:nil];
+}
+
 - (NSArray<NSSwitch *> *)autoAcceptSwitches {
     return [_switches copy];
 }
@@ -198,6 +253,15 @@ static const NSUInteger SZFSettingsRowCount = 7, SZFSettingsAutoAcceptRow = 3, S
     NSDictionary *received = SZFDict(data, @"received");
     _receivedButton.title = SZFStr(SZFDict(received, @"action"), @"label") ?: @"";
     _receivedButton.hidden = ![SZFriendsContext knowsAction:SZFStr(SZFDict(received, @"action"), @"action")];
+    // The folder's name under the label, then the note (empty unless the last file went elsewhere).
+    NSDictionary *change = SZFDict(received, @"change");
+    _receivedChangeButton.title = SZFStr(change, @"label") ?: @"";
+    _receivedChangeButton.hidden = ![SZFStr(change, @"action") isEqualToString:@"choose_received_folder"];
+    NSString *folder = SZFStr(received, @"value"), *note = SZFStr(received, @"note");
+    NSTextField *folderField = self.receivedFolderField;
+    folderField.stringValue = folder.length && note.length ? [NSString stringWithFormat:@"%@\n%@", folder, note]
+                                                           : (folder.length ? folder : note ?: @"");
+    folderField.toolTip = SZFStr(received, @"path");
     _changeButton.title = SZFStr(SZFDict(data, @"auto_accept"), @"action_label") ?: @"";
     _historyButton.title = SZFStr(SZFDict(data, @"history"), @"action_label") ?: @"";
     _resetButton.title = SZFStr(SZFDict(data, @"reset"), @"action_label") ?: @"";
@@ -307,7 +371,9 @@ static const NSUInteger SZFSettingsRowCount = 7, SZFSettingsAutoAcceptRow = 3, S
         NSView *control = controls[row];
         // A Nearby line with nothing to fix has no button, and its words take the whole width.
         CGFloat controlWidth = control.hidden ? 0 : [self controlWidthForRow:row control:control];
-        CGFloat copyWidth = row == 1 ? MAX(70, [_copyButton fittingWidth]) + 12 : 0;
+        // The ID's Copy, and Change… before Show in Finder, sit left of the row's control.
+        SZFriendsButton *beside = row == 1 ? _copyButton : row == SZFSettingsReceivedRow ? _receivedChangeButton : nil;
+        CGFloat copyWidth = beside && !beside.hidden ? MAX(70, [beside fittingWidth]) + 12 : 0;
         CGFloat textWidth = MAX(120, width - controlWidth - copyWidth - 16);
         NSTextField *label = _labels[2 * row], *note = _labels[2 * row + 1];
         CGFloat labelHeight = SZFriendsFieldHeight(label, textWidth);
@@ -324,6 +390,11 @@ static const NSUInteger SZFSettingsRowCount = 7, SZFSettingsAutoAcceptRow = 3, S
             if (row == 1) {
                 CGFloat buttonY = y + floor((rowHeight - 28) / 2);
                 _copyButton.frame = NSMakeRect(width - copyWidth + 12, buttonY, copyWidth - 12, 28);
+            } else if (row == SZFSettingsReceivedRow && copyWidth > 0) {
+                // Change… first, then Show in Finder at the trailing edge.
+                CGFloat buttonY = y + floor((rowHeight - 28) / 2);
+                _receivedChangeButton.frame = NSMakeRect(width - controlWidth - copyWidth, buttonY, copyWidth - 12, 28);
+                control.frame = NSMakeRect(width - controlWidth, controlY, controlWidth, controlHeight);
             }
         }
         y += rowHeight + 16;

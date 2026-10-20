@@ -138,6 +138,21 @@ test("fields are checked for shape: opaque ids, extra keys, paths, tokens and si
     "expires_days",
   );
   rejects("set_name", { name: "x".repeat(2000) }, "name");
+  rejects("set_received_folder", { path: "Downloads" }, "path");
+  rejects(
+    "set_received_folder",
+    { path: "/Users/someone/../Downloads" },
+    "path",
+  );
+  rejects("set_received_folder", { path: "/Users/someone/Downloads/" }, "path");
+  rejects("set_received_folder", {}, "path");
+  rejects("set_received_folder", { path: "/a", extra: 1 }, "extra");
+  assert.ok(
+    validateIntent("set_received_folder", {
+      path: "/Users/someone/From friends",
+    }),
+  );
+  assert.ok(validateIntent("subscribe", { view: "received", params: null }));
 });
 
 test("links open only for the web and email, settings only for the four nearby targets", () => {

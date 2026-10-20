@@ -63,6 +63,7 @@ fn another_users_helper_and_another_users_client_are_refused() {
         .args(["--reuid", &NOBODY.to_string(), "--regid", &NOBODY.to_string(), "--clear-groups", "--"])
         .arg(helper_binary())
         .env("SZFRIENDS_STATE_DIR", &state.path)
+        .env("SZFRIENDS_DOWNLOADS_DIR", state.path.join("Downloads"))
         .env("SZFRIENDS_HELPER_TIME_SCALE", "0.2")
         .stdin(Stdio::null())
         .spawn()

@@ -96,6 +96,7 @@ export const CLIENT_ACTIONS = new Set([
   "open_file",
   "show_file",
   "open_settings",
+  "choose_received_folder",
 ]);
 
 /** The drag strings' placeholders, the only formatting views do (PROTOCOL.md § Static strings). */

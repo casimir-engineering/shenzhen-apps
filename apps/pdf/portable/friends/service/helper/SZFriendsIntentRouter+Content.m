@@ -352,7 +352,7 @@ static const NSUInteger SZFriendsSearchLimitMax = 50;
                           reply:(SZFriendsIntentReply)reply
                      connection:(SZFriendsIPCConnection *)connection {
     uint64_t needed = transfer.size > transfer.verifiedBytes ? transfer.size - transfer.verifiedBytes : 0;
-    uint64_t available = self.services.transfers.freeBytesProvider(self.services.paths.stateDirectory);
+    uint64_t available = [self.services.transfers freeBytesForReceiving];
     NSDictionary *details = @{@"needed_bytes" : @(needed), @"available_bytes" : @(available)};
     NSMutableDictionary *forMessage = [details mutableCopy];
     forMessage[@"file_name"] = transfer.fileName;

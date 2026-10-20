@@ -21,7 +21,8 @@
     "host.checkin",
     "messages.status",
     "messages.cancel",
-    "mentions"
+    "mentions",
+    "received.folder"
   ],
   "limits": {
     "max_frame_bytes": 8388608,

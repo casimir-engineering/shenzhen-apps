@@ -294,8 +294,8 @@ static void handle_subscribe(szfriends_fake_helper *fake, szf_fake_connection *c
     const char *conversation_id = conversation ? string_field(frame, "conversation_id")
                                                : string_field(params, "conversation_id");
     const char *message_id = string_field(frame, "message_id");
-    static const char *const views[] = {"badge", "list", "nearby", "details", "profile", "settings", "message_status",
-                                        "join"};
+    static const char *const views[] = {"badge",    "list",           "nearby", "details", "profile",
+                                        "settings", "message_status", "join",   "received"};
     szf_fake_subscription probe, *subscription;
     cJSON *result;
     size_t i;

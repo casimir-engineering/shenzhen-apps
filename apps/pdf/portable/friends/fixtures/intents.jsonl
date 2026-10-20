@@ -65,3 +65,5 @@
 {"type":"rename_device","id":"66","name":"Raph’s MacBook Pro"}
 {"type":"fetch_from_device","id":"67","transfer_id":"t_c81f04d2"}
 {"type":"subscribe","id":"68","view":"join","params":null}
+{"type":"set_received_folder","id":"69","path":"/Users/raph/Documents/From friends"}
+{"type":"subscribe","id":"70","view":"received","params":null}

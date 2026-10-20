@@ -247,7 +247,12 @@ fn a_store_without_its_key_offers_start_again_which_starts_afresh_and_keeps_rece
 fn friends_pauses_only_after_the_grace_period_in_the_background() {
     let home = TempDir::new("lifecycle");
     let (_, keys) = shared_keys();
-    let service = PhoneService::with_grace(home.0.clone(), keys, Duration::from_millis(80));
+    let service = PhoneService::with_grace(
+        home.0.clone(),
+        keys,
+        szfriends_core::store::ReceivedDefaults::contained(&home.0),
+        Duration::from_millis(80),
+    );
     service.suspended();
     std::thread::sleep(Duration::from_millis(20));
     service.resumed();
@@ -259,4 +264,74 @@ fn friends_pauses_only_after_the_grace_period_in_the_background() {
     service.resumed();
     assert!(!service.paused(), "resumed in the foreground");
     service.shutdown();
+}
+
+/// Copies where a test says, as the Kotlin side's MediaStore does: nothing here reaches a real Downloads.
+struct FakeMediaStore(PathBuf);
+
+impl szfriends_core::store::ExternalPublisher for FakeMediaStore {
+    fn publish(&self, staged: &std::path::Path, name: &str) -> std::io::Result<(String, String)> {
+        fs::copy(staged, self.0.join(name))?;
+        Ok(("content://media/external/downloads/7".into(), name.into()))
+    }
+}
+
+#[test]
+fn received_files_go_to_downloads_on_android_and_to_the_files_app_on_ios() {
+    use received::{defaults, Phone};
+    use szfriends_core::store::PhoneFolder;
+    let home = TempDir::new("received-defaults");
+    let state = home.0.join("Friends");
+    let media: Arc<dyn szfriends_core::store::ExternalPublisher> = Arc::new(FakeMediaStore(home.0.clone()));
+
+    let android = defaults(Phone::Android(33), &state, false, None, Some(media.clone()));
+    assert_eq!((android.folder.as_ref(), android.phone), (None, Some(PhoneFolder::Downloads)));
+    assert!(android.external.is_some(), "MediaStore publishes");
+    let android_10 = defaults(Phone::Android(29), &state, false, None, Some(media.clone()));
+    assert_eq!(android_10.phone, Some(PhoneFolder::Downloads), "no permission needed from Android 10");
+    let android_9 = defaults(Phone::Android(28), &state, false, None, Some(media.clone()));
+    assert_eq!((android_9.folder, android_9.phone), (Some(state.join("received")), Some(PhoneFolder::App)));
+    assert!(android_9.external.is_none(), "no storage permission is asked for");
+
+    let container = PathBuf::from("/var/mobile/Containers/Data/Application/ABC");
+    let ios = defaults(Phone::Ios, &state, false, Some(container.clone()), None);
+    assert_eq!((ios.folder, ios.phone), (Some(container.join("Documents")), Some(PhoneFolder::AppFiles)));
+
+    // A test home keeps received files inside itself, on either phone.
+    for phone in [Phone::Android(33), Phone::Ios] {
+        let test = defaults(phone, &state, true, Some(container.clone()), Some(media.clone()));
+        assert_eq!(test.folder, Some(state.join("Downloads")));
+        assert!(test.external.is_none() && test.phone.is_some());
+    }
+}
+
+#[test]
+fn a_phones_settings_say_where_received_files_go_and_offer_no_change() {
+    use szfriends_core::store::{PhoneFolder, ReceivedDefaults};
+    let home = TempDir::new("received-settings");
+    let settings = |received: ReceivedDefaults, state: &std::path::Path| {
+        let (_, keys) = shared_keys();
+        let service = PhoneService::start_with(state.to_path_buf(), keys, received);
+        let (_server, mut client) = Client::connect(&service);
+        let frames = client.send("1", json!({"type": "subscribe", "view": "settings"}));
+        let row = frames[0]["data"]["received"].clone();
+        let refused = client.send("2", json!({"type": "set_received_folder", "path": home.0.to_string_lossy()}));
+        let code = refused.last().unwrap()["error"]["code"].clone();
+        service.shutdown();
+        (row, code)
+    };
+    let documents = home.0.join("Documents");
+    let ios = ReceivedDefaults { folder: Some(documents), external: None, phone: Some(PhoneFolder::AppFiles) };
+    let (row, code) = settings(ios, &home.0.join("ios"));
+    assert_eq!(row["label"], "Save received files to");
+    assert_eq!(row["value"], "Phone Test", "the app's folder in Files");
+    assert_eq!(row["note"], "In the Files app, under On My iPhone.");
+    assert!(row["path"].is_null() && row["action"].is_null() && row["change"].is_null(), "{row}");
+    assert_eq!(code, "not_allowed", "a phone's folder does not change");
+
+    let media: Arc<dyn szfriends_core::store::ExternalPublisher> = Arc::new(FakeMediaStore(home.0.clone()));
+    let android = ReceivedDefaults { folder: None, external: Some(media), phone: Some(PhoneFolder::Downloads) };
+    let (row, _) = settings(android, &home.0.join("android"));
+    assert_eq!((row["value"].as_str(), row["note"].as_str()), (Some("Downloads"), Some("")));
+    assert!(row["path"].is_null() && row["action"].is_null() && row["change"].is_null(), "{row}");
 }

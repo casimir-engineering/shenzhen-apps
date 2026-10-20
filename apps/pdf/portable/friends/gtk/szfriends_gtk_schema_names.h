@@ -9,7 +9,7 @@ NAMES(actions, NULL, "accept_request", "decline_request", "cancel_request", "blo
       "retry_item", "mark_verified", "accept_key_change", "dismiss_banner", "start_visibility", "stop_visibility",
       "reset_friends", "delete_history", "open_file", "show_file", "open_settings", "add_from_link", "receive_link",
       "reset_friend_link", "revoke_link", "revoke_device", "fetch_from_device", "join_profile", "cancel_join",
-      "approve_join", "deny_join", "activate");
+      "approve_join", "deny_join", "activate", "choose_received_folder");
 NAMES(styles, NULL, "primary", "secondary", "link", "destructive");
 NAMES(settings_targets, NULL, "local_network_privacy", "bluetooth_privacy", "bluetooth", "wifi");
 NAMES(empty_kinds, NULL, "searching", "nobody", "unavailable", "no_match");
@@ -37,6 +37,7 @@ NAMES(goodbye_reasons, NULL, "handover", "shutdown", "protocol_error", "reset", 
 NAMES(handovers, NULL, "none", "scheduled");
 NAMES(mention_kinds, NULL, "friend", "you", "stranger");
 NAMES(thumbnail_sources, NULL, "sender", "local");
+NAMES(received_sources, NULL, "friend", "link", "device");
 
 NAMES(link_card_kinds, NULL, "friend", "download");
 /* Several computers (PROTOCOL.md § Devices, § Joining). */

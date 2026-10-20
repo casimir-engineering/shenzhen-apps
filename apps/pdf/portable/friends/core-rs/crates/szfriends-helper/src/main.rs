@@ -67,7 +67,7 @@ fn presentation(
         szfriends_helper::log!("no state directory: {error}");
         return std::sync::Arc::new(StubPresentation::default());
     }
-    match Service::start(&state.path, szfriends_helper::key_store(state)) {
+    match Service::start_with(&state.path, szfriends_helper::key_store(state), state.received_defaults()) {
         Ok(service) => service,
         Err(error) => {
             szfriends_helper::log!("Friends service not started: {error}");

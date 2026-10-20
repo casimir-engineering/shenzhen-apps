@@ -139,6 +139,7 @@ if (typeof process !== "undefined" && process.platform === "darwin") {
     token: () => friends("token"),
     openFile: (path) => friends("openFile", path),
     showFile: (path) => friends("showFile", path),
+    chooseFolder: (start) => friends("chooseFolder", start ?? null),
     openSettings: (target) => friends("openSettings", target),
     openURL: (url) => friends("openURL", url),
     shareable: (value) => friends("shareable", value === true),

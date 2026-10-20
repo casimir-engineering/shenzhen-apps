@@ -96,18 +96,18 @@ static void TestUniqueDestination(void) {
     SZFTExpect([SZFriendsUniqueDestination(directory, @"Plan.pdf")
                    isEqualToString:[directory stringByAppendingPathComponent:@"Plan.pdf"]], @"free name");
     [[NSData data] writeToFile:[directory stringByAppendingPathComponent:@"Plan.pdf"] atomically:NO];
-    [[NSData data] writeToFile:[directory stringByAppendingPathComponent:@"Plan 2.pdf"] atomically:NO];
-    SZFTExpect([SZFriendsUniqueDestination(directory, @"Plan.pdf").lastPathComponent isEqualToString:@"Plan 3.pdf"],
+    [[NSData data] writeToFile:[directory stringByAppendingPathComponent:@"Plan (2).pdf"] atomically:NO];
+    SZFTExpect([SZFriendsUniqueDestination(directory, @"Plan.pdf").lastPathComponent isEqualToString:@"Plan (3).pdf"],
                @"never overwrites");
     NSString *outside = [SZFTTemporaryDirectory(@"outside") stringByAppendingPathComponent:@"target"];
     symlink(outside.fileSystemRepresentation, [directory
         stringByAppendingPathComponent:@"report.pdf"].fileSystemRepresentation);
-    SZFTExpect([SZFriendsUniqueDestination(directory, @"report.pdf").lastPathComponent isEqualToString:@"report 2.pdf"],
-               @"a dangling symlink counts as taken");
+    SZFTExpect([SZFriendsUniqueDestination(directory, @"report.pdf").lastPathComponent
+                   isEqualToString:@"report (2).pdf"], @"a dangling symlink counts as taken");
     SZFTExpect(![files fileExistsAtPath:outside], @"and is not followed");
     [files createDirectoryAtPath:[directory stringByAppendingPathComponent:@"README"] withIntermediateDirectories:NO
                       attributes:nil error:NULL];
-    SZFTExpect([SZFriendsUniqueDestination(directory, @"README").lastPathComponent isEqualToString:@"README 2"],
+    SZFTExpect([SZFriendsUniqueDestination(directory, @"README").lastPathComponent isEqualToString:@"README (2)"],
                @"no extension");
     NSString *escape = SZFriendsUniqueDestination(directory, @"../../escape.pdf");
     SZFTExpect([escape.stringByDeletingLastPathComponent isEqualToString:directory], @"stays inside: %@", escape);

@@ -257,7 +257,7 @@ fn says_what_goes_and_stays(body: &str) {
         "deleted from this computer",
         "won’t be sent",
         "keep",
-        "Files you received stay in Received files.",
+        "Files you received stay where they were saved.",
     ] {
         assert!(body.contains(part), "says \"{part}\": {body}");
     }

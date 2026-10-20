@@ -59,7 +59,7 @@ static void test_snapshot_fixtures(void) {
     /* Every view the views render has a fixture behind it, so none goes untested. */
     const char *expected[] = {"snapshot.badge", "snapshot.list", "snapshot.nearby", "snapshot.conversation",
                               "snapshot.details", "snapshot.profile", "snapshot.settings", "snapshot.message_status",
-                              "snapshot.join"};
+                              "snapshot.join", "snapshot.received"};
     for (gsize i = 0; i < G_N_ELEMENTS(expected); i++)
         EXPECT(g_hash_table_contains(views, expected[i]), "a fixture covers %s", expected[i]);
     g_hash_table_unref(views);

@@ -38,9 +38,11 @@ function notReady() {
 
 class FriendsRouter {
   /** deliver(owner, event) sends an event to one window; broadcast(event) to every window that joined. */
-  constructor({ deliver, broadcast }) {
+  constructor({ deliver, broadcast, hostSnapshot }) {
     this.deliver = deliver;
     this.broadcast = broadcast;
+    // The bridge's own subscriptions other than the badge (the `received` view): their snapshots go here.
+    this.hostSnapshot = hostSnapshot ?? (() => {});
     this.pending = new Map(); // intent id -> {owner, type, resolve}
     this.owners = new Map(); // subscription id -> owner
     this.held = new Map(); // subscription id -> latest snapshot frame nobody owns yet
@@ -103,6 +105,7 @@ class FriendsRouter {
       this.held.delete(subscription);
       if (entry.owner === HOST && snapshot?.view === "badge")
         this.badgeSnapshot(snapshot);
+      else if (entry.owner === HOST && snapshot) this.hostSnapshot(snapshot);
       if (entry.owner === HOST) snapshot = undefined;
     }
     if (
@@ -127,6 +130,7 @@ class FriendsRouter {
     }
     if (owner === HOST) {
       if (frame.view === "badge") this.badgeSnapshot(frame);
+      else this.hostSnapshot(frame);
       return;
     }
     this.deliver(owner, { kind: "snapshot", frame });

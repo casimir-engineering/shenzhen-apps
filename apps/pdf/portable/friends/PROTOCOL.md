@@ -243,10 +243,11 @@ Lowercase dotted strings. Unknown ones are ignored on both sides.
 | `mentions` | `send_message.mentions` and `add_from_mention` are implemented (§ Mentions). Without it a host offers no `@`: an older helper would ignore `mentions` and send each U+FFFC as it is, and answers `add_from_mention` with `unknown_intent` |
 | `links` | Friend links and download links (§ Links): `open_link`, `add_from_link`, `receive_link`, `make_download_link`, `reset_friend_link` and `revoke_link`, and the profile's `links`. Without it they fail with `unknown_intent` and hosts offer no link items |
 | `devices` | One profile on several computers (§ Devices, § Joining): the profile's `devices`, the list's `state`, `removed`, `join_requests` and rows' `kind`, the name prompt's `join_label`, the `join` view, the You conversation, files on another computer, and the intents `revoke_device`, `rename_device`, `fetch_from_device` and the five join intents. Without it those fields are absent, the intents fail with `unknown_intent`, and hosts show none of it |
+| `received.folder` | Received files are published to a folder the person can choose (§ Views, `settings` and `received`): `data.received`'s `value`, `path` and `change`, the intent `set_received_folder` and the `received` view. Without it the intent fails with `unknown_intent`, `subscribe` to `received` with `invalid_field`, and hosts offer no Change… |
 | `online` | Online friends (M2): the helper reaches friends over the Internet, and its words say so (§ Shared objects, Route, online). Absent in M1: no snapshot shows an Online or Connecting state or Internet wording |
 
 An M1 helper announces `nearby.network`, `nearby.bluetooth`, `host.checkin`, `messages.status`, `messages.cancel` and
-`mentions` (`fixtures/frames/welcome.json`).
+`mentions`, and `received.folder` once it publishes received files to the chosen folder (`fixtures/frames/welcome.json`).
 
 ## Intents
 
@@ -260,7 +261,7 @@ composer on the reply already shows the sent message. Field types are in § Sche
 |---|---|---|
 | `ping` | — | Liveness check; empty result |
 | `activate` | — | The person opened Friends, or pressed Allow or Try Again: start Nearby (may prompt for permission the first time), restart a failing method, and read an identity that was unavailable again |
-| `subscribe` | `view`, `params?` | Start receiving a view's snapshots; result `subscription`. Views: `badge`, `list`, `nearby`, `details` (`params.conversation_id`), `profile`, `settings`, `message_status` (`params.message_ids`), `join` (§ Joining) |
+| `subscribe` | `view`, `params?` | Start receiving a view's snapshots; result `subscription`. Views: `badge`, `list`, `nearby`, `details` (`params.conversation_id`), `profile`, `settings`, `message_status` (`params.message_ids`), `join` (§ Joining), `received` (with `received.folder`) |
 | `unsubscribe` | `subscription` | Stop |
 | `set_filter` | `subscription`, `query` | Filter a `list` or `nearby` subscription by names and IDs; `""` clears. U+2011 in the query matches `-` |
 | `open_conversation` | `conversation_id`, `message_id?` | Subscribe to a conversation; marks it read while subscribed. With `message_id` the window includes that message and `highlight_item_id` names it. Hold only while on screen |
@@ -280,7 +281,7 @@ composer on the reply already shows the sent message. Field types are in § Sche
 | `add_from_mention` | `friends_id`, `identity_key`, `name` | Add by ID for someone a mention named, which only the mention's key may answer (§ Mentions); the fields are a card action's, sent as they are; result as `add_by_id` |
 | `open_link` | `payload` | A link the person opened in this app from its web page (§ Links): result `card`, shown before anything happens |
 | `add_from_link` | `payload` | The friend link card's Add: a request carrying the link's invite token, which the inviter's Mac accepts automatically while the link is valid; result as `add_by_id` |
-| `receive_link` | `payload` | The download link card's Download: fetch that one file from the sender's Mac into the received folder; result `conversation_id` and `message` |
+| `receive_link` | `payload` | The download link card's Download: fetch that one file from the sender's Mac into the folder received files are saved to; result `conversation_id` and `message` |
 | `make_download_link` | `file`, `expires_days` | A download link for one file, valid 1, 7 or 30 days; result `url`, `link_id` and `message` |
 | `reset_friend_link` | — | Stops the friend link working and makes a new one, which the profile's `links` then shows |
 | `revoke_link` | `link_id` | Ends one download link at once |
@@ -300,6 +301,7 @@ composer on the reply already shows the sent message. Field types are in § Sche
 | `set_name` | `name` | The name friends see; `""` clears it (friends then see the Friends ID) |
 | `set_picture` | `picture` | An animal (`kind` `animal`, `set`, `index`) or a photo (`kind` `image`, `data_base64` or `path`, optional `crop`) |
 | `set_auto_accept` | `conversation_id`, `enabled` | Accept files from this friend automatically |
+| `set_received_folder` | `path` | The folder received files are saved to on this computer (helper capability `received.folder`; § Views, `settings`) |
 | `dismiss_banner` | `kind` | The person read the list's one-time notice (`id_changed`); it does not come back |
 | `start_visibility` | — | Visible to people nearby for 5 minutes; result `deadline`. Repeating does not extend a running deadline |
 | `stop_visibility` | — | Stop being visible now |
@@ -600,6 +602,10 @@ One friend's history and composer, or the request card for a pending request.
 - Transfers carry `status_label`, optional `route_note` ("Over Bluetooth, about 6 min" when the route is slow, so
   the person can accept now or wait), `progress` while moving, and `actions` (Accept, Decline, Cancel, Open, Show
   in Finder, Try again). Open appears only for formats in the client's `open_formats`.
+- A received file's `status_label` says where it was saved: "Saved to Downloads" (the default Downloads, Android's
+  public Downloads too), "Saved to From friends" (another folder, by its name), or the app's name for iOS's Files
+  ("Saved to Shenzhen 3D"); its `accessibility_label` ends the same way ("…, saved to Downloads"). A file the helper
+  kept in its own folder (files from before `received.folder`, or one no folder could take) says "Received".
 - A transfer's `thumbnail` is the file's preview, which views show in place of its type icon, on both sides and
   before the file is accepted (§ Thumbnails). `null` means there is none, and views draw the type's icon themselves
   from `file.type_identifier`, or from `file.extension` when a toolkit has no use for the identifier.
@@ -660,6 +666,41 @@ Friends is off and no helper runs.
   system asks the first time), `open_settings` to the Privacy pane of the method that was refused, or to the Wi-Fi or
   Bluetooth settings while a radio is off, and `activate` labelled Try Again while a method is failing. `null` action
   when nothing needs doing. A view that does not know `nearby` shows nothing for it.
+- `received`, with the helper capability `received.folder`, is the folder received files are saved to: `label` "Save
+  received files to", `value` the folder's name ("Downloads" until the person chooses another), `path` the folder,
+  `action` Show in Finder (`show_file` with that path), and `change` labelled "Change…" with the client-side action
+  `choose_received_folder`: the view shows the platform's folder picker (folders only, New Folder allowed) starting at
+  `path`, and sends `set_received_folder` with the folder chosen; nothing when the person cancels. `note` is `""` on a
+  computer and views hide an empty note. When the last file could not be saved in this folder and went elsewhere,
+  `note` says so ("The last file couldn’t be saved here, so it went to Downloads.", or "…so ShenzhenPDF kept it. Open
+  it from its chat." when no folder took it) until a file is saved in the folder again or the folder is changed; the
+  helper remembers this across restarts (`received-fallback` beside `received-folder`). On phones the folder cannot be changed: `path`, `action` and `change` are
+  `null` (iOS `value` "Shenzhen 3D", `note` "In the Files app, under On My iPhone."; Android `value` "Downloads").
+  A helper without `received.folder` sends only `label`, `note` and `action`, and views then show no value and no
+  Change….
+
+**The folder received files go to.** Every file the helper publishes as received (a friend's file, a download link's
+file, a copy from another of the person's computers) goes to that folder. Until the person chooses one it is the
+system's Downloads folder (helpers under test: `SZFRIENDS_DOWNLOADS_DIR`, else `Downloads` inside their overridden
+state directory). The choice belongs to this computer and is never synced. A file never replaces another: a clash
+publishes "Name (2).ext", "Name (3).ext"… When the folder is missing, not a folder or cannot be written when a file
+arrives, the file goes to Downloads, and failing that to the helper's own `received/` folder, so it is never lost.
+Files already received stay where they were saved.
+
+`set_received_folder` `path`: an absolute path, else `invalid_field` (field `path`); `file_missing` (`details.path`)
+when it does not exist or cannot be read; `not_allowed` when it is not a folder, cannot be written, or is inside the
+helper's state directory. The helper stores the folder's real path; a path that is Downloads clears the choice. The
+result is empty, and the next `settings` snapshot shows the folder.
+
+### `received`
+
+With the helper capability `received.folder`: the files this computer received, for a host that keeps its own list
+of them (ShenzhenPDF's Collection, recent files). `data.files[]`, newest first and at most 100, holds incoming files
+in state `received` whose published file still exists: the `transfer_id`, the `path` it was published at, its
+`file_name` (that path's last component), `received_at` (Unix seconds when it was published) and `source`: `friend`
+for a friend's file, `link` for a download link's, `device` for a copy from another of the person's computers. The
+helper sends a new snapshot whenever a file is published. A host remembers the `transfer_id`s it has handled, so it
+adds each file once.
 
 ### `message_status`
 
@@ -725,7 +766,7 @@ The new computer's side of joining a person's existing profile, with the helper 
   `transfer_id`, `add_from_mention` with the action's own `friends_id`, `identity_key` and `name`, and likewise
   `revoke_device` with its `device_id`, `approve_join` and `deny_join` with its `join_id`, `join_profile` with its
   `friends_id`) or a client-side action (`open_file`,
-  `show_file` with `path`; `open_settings` with `settings_target`). `label` and `style` (`primary`, `secondary`,
+  `show_file` with `path`; `open_settings` with `settings_target`; `choose_received_folder`, § Views, `settings`). `label` and `style` (`primary`, `secondary`,
   `link`, `destructive`) are display-ready; `note` is an optional explanation shown under the button. When
   `confirm` is present the view asks with that dialog first and sends the intent only on its confirm button;
   `reset_friends` is then sent with `confirm` `"reset"`. `confirm.destructive` draws the confirm button in the
@@ -1447,7 +1488,7 @@ error: @error when ok=false
 ```schema frame.snapshot
 type: enum(snapshot)
 subscription: string
-view: enum(badge,list,nearby,conversation,details,profile,settings,message_status,join)
+view: enum(badge,list,nearby,conversation,details,profile,settings,message_status,join,received)
 rev: integer
 data: object
 ```
@@ -1494,7 +1535,7 @@ label: string|null
 ```
 
 ```schema type.action
-action: enum(accept_request,decline_request,cancel_request,block,unblock,remove_friend,send_request,add_from_mention,accept_offer,decline_offer,cancel_transfer,cancel_message,retry_item,mark_verified,accept_key_change,dismiss_banner,start_visibility,stop_visibility,activate,reset_friends,delete_history,open_file,show_file,open_settings,add_from_link,receive_link,reset_friend_link,revoke_link,revoke_device,fetch_from_device,join_profile,cancel_join,approve_join,deny_join)
+action: enum(accept_request,decline_request,cancel_request,block,unblock,remove_friend,send_request,add_from_mention,accept_offer,decline_offer,cancel_transfer,cancel_message,retry_item,mark_verified,accept_key_change,dismiss_banner,start_visibility,stop_visibility,activate,reset_friends,delete_history,open_file,show_file,open_settings,add_from_link,receive_link,reset_friend_link,revoke_link,revoke_device,fetch_from_device,join_profile,cancel_join,approve_join,deny_join,choose_received_folder)
 label: string
 style: enum(primary,secondary,link,destructive)
 note?: string|null
@@ -1932,9 +1973,12 @@ data.id.label: string
 data.id.note: string
 data.id.friends_id: string
 data.id.copy_label: string
-data.received.label: string
-data.received.note: string
-data.received.action: @action
+data.received.label: string      # "Save received files to"
+data.received.value?: string     # with `received.folder`: the folder's name, "Downloads" by default
+data.received.note: string       # "" on a computer; views hide an empty note
+data.received.path?: string|null # with `received.folder`: the folder; null on phones
+data.received.action: @action|null   # show_file with the folder; null on phones
+data.received.change?: @action|null  # with `received.folder`: choose_received_folder "Change…"; null on phones
 data.auto_accept.label: string
 data.auto_accept.note: string
 data.auto_accept.action_label: string
@@ -1955,6 +1999,15 @@ data.nearby?: object|null         # the helper's Nearby line; absent from a help
 data.nearby.label: string         # "Nearby"
 data.nearby.note: string
 data.nearby.action: @action|null  # activate (Allow, Try Again) or open_settings
+```
+
+```schema snapshot.received
+data.files: array                 # newest first, at most 100
+data.files[].transfer_id: string
+data.files[].path: string         # where it was published
+data.files[].file_name: string    # the path's last component
+data.files[].received_at: integer # Unix seconds when it was published
+data.files[].source: enum(friend,link,device)
 ```
 
 ```schema snapshot.message_status
@@ -1989,7 +2042,7 @@ type: enum(activate)
 ```
 
 ```schema intent.subscribe
-view: enum(badge,list,nearby,details,profile,settings,message_status,join)
+view: enum(badge,list,nearby,details,profile,settings,message_status,join,received)
 params?: object|null
 params.conversation_id?: string
 params.message_ids?: array
@@ -2118,6 +2171,10 @@ picture.crop.side: integer
 ```schema intent.set_auto_accept
 conversation_id: string
 enabled: bool
+```
+
+```schema intent.set_received_folder
+path: string                 # an absolute folder path
 ```
 
 ```schema intent.dismiss_banner

@@ -98,6 +98,7 @@ impl State {
             devices: true,
             links: self.capabilities.iter().any(|c| c == "links"),
             removed_computer: self.removed_computer(),
+            received_folder: self.capabilities.iter().any(|c| c == "received.folder"),
             ..Admission::default()
         };
         let parsed = admit(&kind, gate).and_then(|()| {
@@ -184,6 +185,9 @@ impl State {
             Intent::Subscribe { view, conversation_id, .. } => {
                 let name = format!("{view:?}").to_lowercase();
                 let view = ViewKind::from_name(&name).ok_or(IntentError::new("unavailable"))?;
+                if view == ViewKind::Received && !self.capabilities.iter().any(|c| c == "received.folder") {
+                    return Err(IntentError::field("invalid_field", "view"));
+                }
                 if view == ViewKind::Details
                     && self
                         .store
@@ -317,6 +321,24 @@ impl State {
                 let mut person = self.friend(&conversation_id)?;
                 person.auto_accept = enabled;
                 self.store.save_person(&person).map_err(|_| IntentError::new("internal"))?;
+                self.changed();
+                Ok(json!({}))
+            }
+            Intent::SetReceivedFolder { path } => {
+                use szfriends_core::intents::Wording;
+                use szfriends_core::store::FolderRefusal;
+                match self.store.set_received_folder(&path) {
+                    Ok(()) => {}
+                    Err(FolderRefusal::NotAbsolute) => return Err(IntentError::field("invalid_field", "path")),
+                    Err(FolderRefusal::Missing) => {
+                        let mut error = IntentError::new("file_missing").worded(Wording::ReceivedFolder);
+                        error.details.insert("path".into(), json!(path));
+                        return Err(error);
+                    }
+                    Err(FolderRefusal::NotAllowed) => {
+                        return Err(IntentError::new("not_allowed").worded(Wording::ReceivedFolder))
+                    }
+                }
                 self.changed();
                 Ok(json!({}))
             }

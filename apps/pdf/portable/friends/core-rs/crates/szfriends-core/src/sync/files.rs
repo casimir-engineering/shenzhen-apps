@@ -9,9 +9,10 @@ use rusqlite::types::Value;
 
 use super::engine::SyncEngine;
 use super::{copies_automatically, SyncError};
+use crate::store::destination::{mark_published, ReceivedSource};
 use crate::store::sync_files::{self, SyncFile};
 use crate::store::sync_log;
-use crate::store::{sanitized_file_name, unique_destination, Store};
+use crate::store::{sanitized_file_name, Store};
 
 fn want_key(transfer_id: &str) -> String {
     format!("want/{transfer_id}")
@@ -81,16 +82,19 @@ impl SyncEngine {
         Ok(())
     }
 
-    /// A copy arrived whole at `path` (its digest checked by the caller): published in received/, recorded, announced.
+    /// A copy arrived whole at `path` (its digest checked by the caller): published where received files go,
+    /// recorded, announced.
     pub fn adopt_copied_file(&mut self, store: &Store, transfer_id: &str, path: &Path) -> Result<(), SyncError> {
         let file =
             sync_files::sync_file(&store.conn, transfer_id)?.ok_or(SyncError::Malformed("no such file record"))?;
-        std::fs::create_dir_all(&self.received_dir).map_err(|e| SyncError::Store(e.into()))?;
-        let destination = unique_destination(&self.received_dir, &sanitized_file_name(&file.file_name));
-        std::fs::rename(path, &destination).map_err(|e| SyncError::Store(e.into()))?;
-        let stored = destination.to_string_lossy().into_owned();
-        if let Err(error) = sync_files::insert_copied_transfer(&store.conn, &file, &stored) {
-            let _ = std::fs::remove_file(&destination);
+        let name = sanitized_file_name(&file.file_name);
+        let (stored, _) = store.places().publish(path, &name, &mut |_| Ok(()))?;
+        let recorded = sync_files::insert_copied_transfer(&store.conn, &file, &stored)
+            .and_then(|()| mark_published(&store.conn, transfer_id, Some(ReceivedSource::Device)));
+        if let Err(error) = recorded {
+            if Path::new(&stored).is_absolute() {
+                let _ = std::fs::remove_file(&stored);
+            }
             return Err(error.into());
         }
         let _ = sync_log::set_state(&store.conn, &want_key(transfer_id), Value::Null);

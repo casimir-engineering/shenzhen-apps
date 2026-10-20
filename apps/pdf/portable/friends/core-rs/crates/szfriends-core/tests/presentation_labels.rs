@@ -107,6 +107,7 @@ fn the_catalog_is_the_helpers() {
         "alert.not_asked.body.phone",
         "settings_link.app.phone",
         "id.nearby",
+        "settings.received.note.ios",
     ];
     for key in rust.keys().filter(|key| !objc.contains_key(*key) && !PORTABLE_ONLY.contains(&key.as_str())) {
         differences.push(format!("{key} is not in the helper's catalog"));

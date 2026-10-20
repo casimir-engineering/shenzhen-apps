@@ -8,6 +8,7 @@
 
 mod add_by_id;
 pub mod attestation;
+pub mod destination;
 pub mod devices;
 mod friend_links;
 pub mod links;
@@ -16,6 +17,7 @@ mod outbox;
 mod people;
 mod receive;
 pub mod requests;
+mod saved;
 pub mod schema;
 mod search;
 pub mod sync_files;
@@ -37,6 +39,10 @@ pub use add_by_id::{
     IdRequest, ID_REQUEST_LIFETIME_SECONDS, ID_REQUEST_MAX_ANSWERS, ID_REQUEST_MAX_PENDING,
     ID_REQUEST_MAX_UNATTESTED_ANSWERS,
 };
+pub use destination::{
+    ExternalPublisher, FolderRefusal, PhoneFolder, ReceivedDefaults, ReceivedFile, ReceivedSource, ENV_DOWNLOADS_DIR,
+    RECEIVED_FOLDER_FILE,
+};
 pub use friend_links::{InviteRecord, INVITE_ACCEPTS_PER_DAY, ONE_TIME_INVITE_LIFETIME};
 pub use links::{
     link_file_hashes, link_tombstone_hash, DownloadLinkRecord, EndReason, LinkTombstone, SourceStamp,
@@ -45,6 +51,7 @@ pub use links::{
 pub use outbox::{OutboxEntry, OutboxEvent, OutboxKind, OutboxState, OUTBOX_EXPIRY_SECONDS};
 pub use people::{Direction, Item, ItemKind, Person, Relation};
 pub use receive::DURABLE_BATCH_BYTES;
+pub use saved::{ReceivedFallback, SavedPlace, RECEIVED_FALLBACK_FILE};
 pub use schema::{Migration, SCHEMA_VERSION, SHIPPED};
 pub use search::{fold, SearchHit};
 pub use transfer_files::{file_digest, sanitized_file_name, unique_destination};
@@ -132,6 +139,8 @@ pub struct StoreOptions {
     pub migrations: Option<Vec<Migration>>,
     /// Behave as on a SQLite without the trigram tokenizer: search scans, and writes mark the index stale.
     pub disable_trigram: bool,
+    /// Where received files go when the person chose nothing; `None`: [`ReceivedDefaults::contained`].
+    pub received: Option<destination::ReceivedDefaults>,
 }
 
 pub struct Store {
@@ -141,6 +150,7 @@ pub struct Store {
     schema_version: i64,
     search_uses_index: bool,
     pub(crate) receiving: receive::Receiving,
+    received_defaults: destination::ReceivedDefaults,
 }
 
 impl fmt::Debug for Store {
@@ -192,8 +202,17 @@ impl Store {
                 OutboxState::Sending as i64
             ],
         )?;
-        let mut store =
-            Self { conn, state_dir, db_path, schema_version, search_uses_index, receiving: Default::default() };
+        let received_defaults =
+            options.received.clone().unwrap_or_else(|| destination::ReceivedDefaults::contained(&state_dir));
+        let mut store = Self {
+            conn,
+            state_dir,
+            db_path,
+            schema_version,
+            search_uses_index,
+            receiving: Default::default(),
+            received_defaults,
+        };
         store.recover_transfers()?;
         Ok(store)
     }

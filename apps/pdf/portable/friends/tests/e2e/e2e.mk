@@ -20,7 +20,8 @@ FRIENDS_E2E_TEST_SRCS := $(addprefix $(FRIENDS_E2E_DIR)/, SZFriendsE2ETests.m SZ
 	SZFriendsE2EScenarios.m SZFriendsE2EScenarios2.m SZFriendsE2EScenarios3.m SZFriendsE2ERogue.m \
 	SZFriendsE2ERogueScenarios.m SZFriendsE2EHostScenario.m SZFriendsE2EAttestScenarios.m \
 	SZFriendsE2EAssistantScenarios.m SZFriendsE2EThumbnailScenarios.m SZFriendsE2EMentionScenarios.m \
-	SZFriendsE2EApps.m SZFriendsE2ETwoAppScenarios.m SZFriendsE2EHistoryScenarios.m)
+	SZFriendsE2EApps.m SZFriendsE2ETwoAppScenarios.m SZFriendsE2EHistoryScenarios.m \
+	SZFriendsE2EReceivedScenarios.m)
 # The two-app scenarios run each app as a process of its own: ShenzhenPDF's part through the C client library, and
 # Shenzhen Files' part through the GTK views' link, display-free (it never opens a display), so this suite needs GTK
 # through pkg-config as friends-gtk-check does. Built for the running macOS, as the GTK suite's binaries are.

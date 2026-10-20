@@ -21,6 +21,8 @@ const VIEWS = new Set([
   "profile",
   "settings",
   "join",
+  // The files received here, which the app adds to its recent files.
+  "received",
 ]);
 
 const isObject = (value) =>
@@ -300,6 +302,11 @@ const INTENTS = {
     keys: ["conversation_id", "enabled"],
     ids: ["conversation_id"],
     check: (fields) => bool(fields, "enabled"),
+  },
+  // Settings ▸ Save received files to ▸ Change…: the folder the system's picker gave.
+  set_received_folder: {
+    keys: ["path"],
+    check: (fields) => plainPath(fields.path, "path"),
   },
   dismiss_banner: {
     keys: ["kind"],

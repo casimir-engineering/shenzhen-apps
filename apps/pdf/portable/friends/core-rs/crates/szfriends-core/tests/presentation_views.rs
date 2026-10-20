@@ -13,6 +13,7 @@ use szfriends_core::presentation::{
     event, Audience, IdentityState, ItemFacts, OutboxState, PersonFacts, Picture, Relation, RouteKind, RouteMethod,
     TransferState, UpdateNeed,
 };
+use szfriends_core::store::SavedPlace;
 
 fn friend(id: &str, name: Option<&str>) -> PersonFacts {
     PersonFacts {
@@ -262,6 +263,19 @@ fn transfers() {
     assert_eq!(action_names(&item), ["open_file", "show_file"]);
     assert_eq!(item["actions"][1]["label"], "Show in Finder");
     assert_eq!(item["file"]["path"], "/tmp/received/Plan.pdf");
+    assert_eq!(item["status_label"], "Received", "kept in the store's own folder");
+    assert!(item["accessibility_label"].as_str().unwrap().ends_with(", received"), "{item}");
+    // Where it was saved, said in the item and when spoken: Downloads, a chosen folder, iOS's Files by the app's name.
+    for (place, folder) in [
+        (SavedPlace::Downloads, "Downloads"),
+        (SavedPlace::Folder("From friends".into()), "From friends"),
+        (SavedPlace::AppFiles, "ShenzhenPDF"),
+    ] {
+        received.saved_in = Some(place);
+        let item = last_item(&conversation(&mei, std::slice::from_ref(&received), None));
+        assert_eq!(item["status_label"], format!("Saved to {folder}"));
+        assert!(item["accessibility_label"].as_str().unwrap().ends_with(&format!(", saved to {folder}")), "{item}");
+    }
     received.file_name = Some("Archive.zip".into());
     received.file_extension = Some("zip".into());
     assert_eq!(action_names(&last_item(&conversation(&mei, &[received], None))), ["show_file"]);

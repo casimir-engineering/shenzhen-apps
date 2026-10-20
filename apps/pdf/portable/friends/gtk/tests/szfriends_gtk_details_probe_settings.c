@@ -86,8 +86,24 @@ static void test_rows(SZFGHarness *harness, GtkWidget *section) {
     GtkWidget *show = szfg_find_named(section, "szfriends.settings.received");
     EXPECT(show && !g_strcmp0(gtk_button_get_label(GTK_BUTTON(show)), "Show in Finder"), "the received folder");
     if (show) g_signal_emit_by_name(show, "clicked");
-    EXPECT(szfg_outside.revealed && g_str_has_suffix(g_ptr_array_index(szfg_outside.revealed, 0), "/received"),
+    EXPECT(szfg_outside.revealed && !g_strcmp0(g_ptr_array_index(szfg_outside.revealed, 0), "/Users/raph/Downloads"),
            "shown through the host");
+    /* Where received files go: the folder's name under "Save received files to", and Change… opens the folder
+     * dialog at that folder and sends the folder picked. */
+    EXPECT(szfg_find_label(section, "Save received files to") && szfg_find_label(section, "Downloads"),
+           "Save received files to: Downloads");
+    GtkWidget *change = szfg_find_named(section, "szfriends.settings.received_change");
+    EXPECT(change && gtk_widget_get_visible(change) && !g_strcmp0(gtk_button_get_label(GTK_BUTTON(change)), "Change…"),
+           "Change… beside Show in Finder");
+    g_free(szfg_outside.chosen);
+    szfg_outside.chosen = g_strdup("/home/raph/From friends");
+    guint calls = szfg_outside.chooser_calls;
+    if (change) g_signal_emit_by_name(change, "clicked");
+    EXPECT(szfg_outside.chooser_calls == calls + 1 && !g_strcmp0(szfg_outside.folder_start, "/Users/raph/Downloads"),
+           "the folder dialog opens at the folder: %s", szfg_outside.folder_start ? szfg_outside.folder_start : "");
+    EXPECT(szfg_wait_frames(harness, "set_received_folder", "path", "/home/raph/From friends", 1),
+           "set_received_folder with the folder picked");
+    g_clear_pointer(&szfg_outside.chosen, g_free);
 }
 
 static void test_friends(SZFGHarness *harness, GtkWidget *section) {
@@ -134,7 +150,7 @@ static void test_confirmed(SZFGHarness *harness, GtkWidget *section) {
                !strcmp(g_ptr_array_index(szfg_outside.confirm_bodies, 0),
                        "Your messages and file history with every friend are deleted from this computer, and anything "
                        "still waiting to go won’t be sent. You keep your friends, and they keep their own copies of "
-                       "your chats. Files you received stay in Received files."),
+                       "your chats. Files you received stay where they were saved."),
            "it says what goes and what stays");
     szfg_outside_answer(TRUE);
     EXPECT(szfg_wait_frames(harness, "delete_history", NULL, NULL, 1), "confirmed, it deletes");

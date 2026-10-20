@@ -6,7 +6,7 @@ use super::{IntentError, Wording};
 
 /// Every intent of protocol 1.0 this helper implements. The assistant_* family needs `assistant.scopes`, which no
 /// helper announces yet, so those are unknown_intent.
-pub const KNOWN_INTENTS: [&str; 49] = [
+pub const KNOWN_INTENTS: [&str; 50] = [
     "ping",
     "activate",
     "subscribe",
@@ -56,6 +56,7 @@ pub const KNOWN_INTENTS: [&str; 49] = [
     "revoke_device",
     "rename_device",
     "fetch_from_device",
+    "set_received_folder",
 ];
 
 /// One profile on several computers: only while the helper announces `devices`.
@@ -89,8 +90,9 @@ const ON_REMOVED_COMPUTER: [&str; 11] = [
     "dismiss_banner",
 ];
 
-/// What works while the identity key cannot be read: reads, the reset that fixes it, and leaving.
-const WITHOUT_IDENTITY: [&str; 11] = [
+/// What works while the identity key cannot be read: reads, the reset that fixes it, leaving, and where received
+/// files go (this computer's own setting).
+const WITHOUT_IDENTITY: [&str; 12] = [
     "ping",
     "activate",
     "subscribe",
@@ -102,6 +104,7 @@ const WITHOUT_IDENTITY: [&str; 11] = [
     "delete_history",
     "reset_friends",
     "disable",
+    "set_received_folder",
 ];
 
 /// What works without a store: nothing that reads or writes Friends data.
@@ -122,6 +125,8 @@ pub struct Admission {
     pub links: bool,
     /// Another of the person's computers removed this one.
     pub removed_computer: bool,
+    /// The helper announces `received.folder`.
+    pub received_folder: bool,
 }
 
 /// Whether the helper takes an intent of this `type` now; the error to reply with otherwise.
@@ -135,7 +140,10 @@ pub fn admit(kind: &str, state: Admission) -> Result<(), IntentError> {
     if !state.has_identity && !WITHOUT_IDENTITY.contains(&kind) {
         return Err(IntentError::new("identity_unavailable"));
     }
-    if (DEVICES_INTENTS.contains(&kind) && !state.devices) || (LINKS_INTENTS.contains(&kind) && !state.links) {
+    if (DEVICES_INTENTS.contains(&kind) && !state.devices)
+        || (LINKS_INTENTS.contains(&kind) && !state.links)
+        || (kind == "set_received_folder" && !state.received_folder)
+    {
         return Err(IntentError::new("unknown_intent"));
     }
     if state.removed_computer && !ON_REMOVED_COMPUTER.contains(&kind) {

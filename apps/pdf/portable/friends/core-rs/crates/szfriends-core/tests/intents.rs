@@ -92,6 +92,7 @@ fn everything() -> Admission {
         devices: true,
         links: true,
         removed_computer: false,
+        received_folder: true,
     }
 }
 
@@ -133,6 +134,7 @@ fn every_example_intent_reads_as_the_helper_reads_it() {
                 assert_eq!(message_ids.unwrap().len(), 3);
             }
             Intent::JoinProfile { friends_id } => assert_eq!(friends_id, "cottage-violet"),
+            Intent::SetReceivedFolder { path } => assert_eq!(path, "/Users/raph/Documents/From friends"),
             Intent::SearchMessages { limit, .. } => assert!(limit == 20 || limit == 50 || limit == 10),
             _ => {}
         }
@@ -151,6 +153,8 @@ fn gates() {
     let no_links = Admission { links: false, ..everything() };
     assert_eq!(admit("open_link", no_links).unwrap_err().code, "unknown_intent", "links only when announced");
     assert!(admit("add_from_mention", no_links).is_ok(), "mentions are not links");
+    let no_folder = Admission { received_folder: false, ..everything() };
+    assert_eq!(admit("set_received_folder", no_folder).unwrap_err().code, "unknown_intent", "only when announced");
     let removed = Admission { removed_computer: true, ..everything() };
     let error = admit("send_message", removed).unwrap_err();
     assert_eq!(error.code, "not_allowed");

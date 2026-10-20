@@ -53,7 +53,7 @@ NSDictionary<NSString *, NSString *> *SZFriendsEnglishCatalogDevices(void) {
         @"device_removed.action" : @"Start Over…",
         @"device_removed.confirm.title" : @"Start over on this computer?",
         @"device_removed.confirm.body" : @"This deletes the chats on this computer. Your other computers keep theirs. "
-                                         @"Files you received stay in Received files.",
+                                         @"Files you received stay where they were saved.",
         @"device_removed.confirm.button" : @"Start Over",
         @"device_removed.drop_refusal" : @"This computer can’t send anymore",
 
@@ -107,11 +107,11 @@ NSDictionary<NSString *, NSString *> *SZFriendsEnglishCatalogDevices(void) {
                                                    @"deleted from this computer, and from your other computers as soon "
                                                    @"as they connect. Anything still waiting to go won’t be sent. You "
                                                    @"keep your friends, and they keep their own copies of your chats. "
-                                                   @"Files you received stay in Received files.",
+                                                   @"Files you received stay where they were saved.",
         @"settings.history.confirm.body.assistant.devices" :
             @"Your messages and file history, with every friend and in You, are deleted from this computer, and from "
             @"your other computers as soon as they connect. Anything still waiting to go won’t be sent. You keep your "
-            @"friends, and they keep their own copies of your chats. Files you received stay in Received files. AI "
+            @"friends, and they keep their own copies of your chats. Files you received stay where they were saved. AI "
             @"chat answers that quoted your chats stay in Chats until you delete them there.",
 
         // Replies.

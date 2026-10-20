@@ -156,6 +156,10 @@ typedef NS_ENUM(NSInteger, SZFriendsItemFactsKind) {
 @property(nonatomic) SZFriendsRouteMethod transferRoute;
 @property(nonatomic) double bytesPerSecond;                 // measured on the current route; 0 when unknown
 @property(nonatomic, copy, nullable) NSString *localPath;   // received file, once published
+// Where a received file was saved, for its "Saved to {folder}": the default Downloads, else the name of the folder it
+// is in; neither (older files, or kept in the helper's own folder) keeps "Received".
+@property(nonatomic) BOOL savedToDownloads;
+@property(nonatomic, copy, nullable) NSString *savedFolderName;
 // The uniform type identifier the file name's extension names, from which, or from the extension, views draw the
 // type's icon when there is no preview; nil when there is none.
 @property(nonatomic, copy, nullable) NSString *fileTypeIdentifier;
@@ -224,6 +228,12 @@ typedef NS_ENUM(NSInteger, SZFriendsUpdateNeed) {
 @property(nonatomic, copy) NSDate *now;                                      // what expiry words count from
 @end
 
+typedef NS_ENUM(NSInteger, SZFriendsReceivedFallbackFacts) {
+    SZFriendsReceivedFallbackFactsNone = 0,
+    SZFriendsReceivedFallbackFactsDownloads = 1, // went to Downloads instead
+    SZFriendsReceivedFallbackFactsKept = 2,      // kept by the app (no folder took it)
+};
+
 @interface SZFriendsProfileFacts : NSObject
 @property(nonatomic, copy, nullable) NSString *name;
 @property(nonatomic, copy) NSString *friendsID;
@@ -236,7 +246,12 @@ typedef NS_ENUM(NSInteger, SZFriendsUpdateNeed) {
 // profile's id.state is "unavailable", whatever friendsIDState says.
 @property(nonatomic) SZFriendsIdentityFactsState identityState;
 @property(nonatomic) SZFriendsUpdateNeed updateNeed;
-@property(nonatomic, copy) NSString *receivedDirectory;
+@property(nonatomic, copy) NSString *receivedDirectory;  // the folder received files go to
+// That folder's name when the person chose it; nil while it is Downloads (PROTOCOL.md § Views, settings).
+@property(nonatomic, copy, nullable) NSString *receivedFolderName;
+// Where the last received file went when that folder could not take it, until one is saved there or the folder
+// changes (data.received.note).
+@property(nonatomic) SZFriendsReceivedFallbackFacts receivedFallback;
 // The profile's "Your links" (PROTOCOL.md § Links), for an audience whose helper announces "links"; nil shows none.
 @property(nonatomic, strong, nullable) SZFriendsLinksFacts *links;
 @end
