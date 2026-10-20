@@ -183,6 +183,7 @@ pub(super) const NEARBY: &[(&str, &str)] = &[
     ("alert.network_unavailable.title", "{app} can’t find people on your network right now"),
     ("alert.network_unavailable.body", "People on your Wi-Fi won’t appear until it works again."),
     ("settings_link.privacy", "Open Privacy Settings"),
+    ("settings_link.app.phone", "Open Settings"),
     ("settings_link.wifi", "Open Wi-Fi Settings"),
     ("settings_link.bluetooth", "Open Bluetooth settings"),
     ("note.still_bluetooth", "Still looking over Bluetooth."),
