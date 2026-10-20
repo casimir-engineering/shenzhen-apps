@@ -52,7 +52,7 @@ static const NSTimeInterval SZFriendsShutdownFlush = 1.0;
                                                                              clock:^NSDate * { return [NSDate date]; }];
             _coordinator.delegate = self;
             // The adapters apply these per listener and per remote address, before any Diffie-Hellman.
-            _coordinator.admissionLimits = SZFriendsNearbyAdmissionLimits();
+            _coordinator.admissionLimits = SZFriendsHelperTestHooks.admissionLimits ?: SZFriendsNearbyAdmissionLimits();
         }
         // A stored deadline further away than 5 minutes, or already past, is dropped at once: fails closed.
         _visibility = [[SZFriendsVisibility alloc] initWithStoredDeadline:services.store.visibilityDeadline

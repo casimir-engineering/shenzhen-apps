@@ -32,6 +32,9 @@ NS_ASSUME_NONNULL_BEGIN
 // The Friends ID a first start takes instead of a random draw, so two helpers can hold one unreserved ID (Add by ID
 // with two holders, and a collision at the host).
 @property(class, nonatomic, copy, nullable) NSString *initialFriendsID;
+// Replaces SZFriendsNearbyAdmissionLimits() when set. Every helper of a harness dials from 127.0.0.1, so per-address
+// rates meant to tell computers apart count a whole scenario's computers as one.
+@property(class, nonatomic, copy, nullable) SZFriendsAdmissionLimits *admissionLimits;
 @end
 
 // The adapters this helper runs. Production (no SZFRIENDS_STATE_DIR): Network.framework and CoreBluetooth. Under

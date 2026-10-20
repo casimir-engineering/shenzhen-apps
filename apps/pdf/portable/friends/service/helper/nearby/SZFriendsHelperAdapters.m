@@ -11,6 +11,7 @@ static NSTimeInterval SZFriendsOutboxClockOffset;
 static NSTimeInterval SZFriendsStrangerIdleTimeoutOverride;
 static NSTimeInterval SZFriendsStrangerSessionLifeOverride;
 static NSString *SZFriendsInitialFriendsID;
+static SZFriendsAdmissionLimits *SZFriendsAdmissionLimitsOverride;
 
 @implementation SZFriendsHelperTestHooks
 
@@ -55,6 +56,12 @@ static NSString *SZFriendsInitialFriendsID;
 }
 + (void)setInitialFriendsID:(NSString *)friendsID {
     SZFriendsInitialFriendsID = [friendsID copy];
+}
++ (SZFriendsAdmissionLimits *)admissionLimits {
+    return SZFriendsAdmissionLimitsOverride;
+}
++ (void)setAdmissionLimits:(SZFriendsAdmissionLimits *)limits {
+    SZFriendsAdmissionLimitsOverride = [limits copy];
 }
 
 @end

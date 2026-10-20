@@ -91,10 +91,15 @@ void SZFE2EKillHelpersUnder(NSArray<NSNumber *> *pids, NSString *directory) {
     NSMutableData *_pending;
     NSMutableArray<NSNumber *> *_helperPIDs;
     NSMutableArray<NSDictionary *> *_goodbyes, *_welcomes;
-    NSMutableDictionary<NSString *, NSDictionary *> *_conversations, *_replies;
+    NSMutableDictionary<NSString *, NSDictionary *> *_conversations, *_replies, *_views;
 }
 
 + (instancetype)launch:(NSString *)executable build:(uint64_t)build
+           environment:(NSDictionary<NSString *, NSString *> *)environment {
+    return [self launch:executable helper:SZFE2EAppHelperExecutable(executable) build:build environment:environment];
+}
+
++ (instancetype)launch:(NSString *)executable helper:(NSString *)helper build:(uint64_t)build
            environment:(NSDictionary<NSString *, NSString *> *)environment {
     int input[2], output[2];
     if (pipe(input) != 0) return nil;
@@ -119,7 +124,6 @@ void SZFE2EKillHelpersUnder(NSArray<NSNumber *> *pids, NSString *directory) {
     for (NSUInteger i = 0; i < pairs.count; i++) envp[i] = strdup(pairs[i].UTF8String);
     NSString *buildText = [NSString stringWithFormat:@"%llu", build];
     NSString *version = [NSString stringWithFormat:@"26.10.13-%llu", build % 100];
-    NSString *helper = SZFE2EAppHelperExecutable(executable);
     const char *argv[] = {executable.fileSystemRepresentation, helper.fileSystemRepresentation, version.UTF8String,
                           buildText.UTF8String, NULL};
     pid_t pid = -1;
@@ -153,6 +157,7 @@ void SZFE2EKillHelpersUnder(NSArray<NSNumber *> *pids, NSString *directory) {
     app->_welcomes = [NSMutableArray array];
     app->_conversations = [NSMutableDictionary dictionary];
     app->_replies = [NSMutableDictionary dictionary];
+    app->_views = [NSMutableDictionary dictionary];
     return app;
 }
 
@@ -176,6 +181,10 @@ void SZFE2EKillHelpersUnder(NSArray<NSNumber *> *pids, NSString *directory) {
     return _conversations[conversationID];
 }
 
+- (NSDictionary *)view:(NSString *)name {
+    return _views[name];
+}
+
 - (NSDictionary *)replyTagged:(NSString *)tag {
     return _replies[tag];
 }
@@ -196,6 +205,7 @@ void SZFE2EKillHelpersUnder(NSArray<NSNumber *> *pids, NSString *directory) {
     } else if ([kind isEqual:@"snapshot"] && [event[@"data"] isKindOfClass:[NSDictionary class]]) {
         NSDictionary *data = event[@"data"];
         if ([event[@"view"] isEqual:@"list"]) _list = data;
+        if ([event[@"view"] isKindOfClass:[NSString class]]) _views[event[@"view"]] = data;
         if ([event[@"view"] isEqual:@"conversation"] && [data[@"conversation_id"] isKindOfClass:[NSString class]]) {
             _conversations[data[@"conversation_id"]] = data;
         }

@@ -30,6 +30,10 @@ NSString *_Nullable SZFE2EProcessPath(pid_t pid);
 // Starts the app with `environment` as its whole environment. Its stderr goes to <executable>.log.
 + (nullable instancetype)launch:(NSString *)executable build:(uint64_t)build
                     environment:(NSDictionary<NSString *, NSString *> *)environment;
+// The same, for an app whose program lives outside its bundle (a driver that runs the app it names): `helper` is
+// the embedded helper the program is told about.
++ (nullable instancetype)launch:(NSString *)executable helper:(NSString *)helper build:(uint64_t)build
+                    environment:(NSDictionary<NSString *, NSString *> *)environment;
 @property(nonatomic, readonly) NSString *executable;
 @property(nonatomic, readonly) pid_t pid;
 // The last connection state the app reported ("ready", "waiting", ...) and, while ready, its helper's pid.
@@ -41,6 +45,8 @@ NSString *_Nullable SZFE2EProcessPath(pid_t pid);
 @property(nonatomic, readonly) NSArray<NSDictionary *> *goodbyes; // goodbye frames (the C client app reports them)
 @property(nonatomic, readonly) NSArray<NSDictionary *> *welcomes; // welcome frames (the C client app reports them)
 - (nullable NSDictionary *)conversation:(NSString *)conversationID;
+// The last snapshot of any other view the app reported ("profile"), by the name it gave.
+- (nullable NSDictionary *)view:(NSString *)name;
 - (nullable NSDictionary *)replyTagged:(NSString *)tag;
 - (void)send:(NSDictionary *)command;
 // Reads whatever the app wrote since the last call. Wait conditions call it, so the harness's pump serves both.
