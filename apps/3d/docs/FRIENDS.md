@@ -461,6 +461,7 @@ SQLite without what the store never uses) beside `phones-profile.toml`, and from
 | Backups | `src-tauri/gen/android/…/xml/data_extraction_rules.xml`, `backup_rules.xml` | Nothing of Friends' in backups or device transfers (it lives in the no-backup directory anyway) |
 | Size | `src-tauri/friends/phones-profile.toml`, the core's `phone.toml`, `scripts/friends/phones-size.sh` | Friends' crates, the online part's included, built for size; what Friends with online adds per Android ABI, against the 5 MB budget |
 | Exchange | `scripts/friends/phones-exchange.mjs` (`-page.js`, `-android.mjs`, `-ios.mjs`) | The phone app and a Friends service on the Mac, made friends: a message and a file each way |
+| Remove | `scripts/friends/phones-remove.mjs` | Android: a long press on a friend's row (the emulator's own touch input), Remove, confirm: the friend leaves the list, and is still off it after the app starts again |
 
 What the plugin does on a phone (shenzhen-pdf `portable/friends/tauri/README.md` § Phones): the identity's key in the
 Android Keystore (a sealed file in the no-backup directory) or the iOS Keychain (this device only), Friends' files
