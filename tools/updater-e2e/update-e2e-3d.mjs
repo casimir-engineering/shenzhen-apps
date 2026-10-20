@@ -255,7 +255,8 @@ try {
       const kept = JSON.parse(fs.readFileSync(path.join(profile, "updates.json"), "utf8"));
       check("public: the saved GitHub access from the old build is dropped", !("encryptedToken" in kept), Object.keys(kept));
     } else {
-      check("private: it keeps the connected access and checks with it", state.connected && after.status !== "error" && reqs.length > 0 && reqs.every((r) => r.authorization), { after, reqs });
+      // Saved access is decrypted while the first state is read; the check waits for it.
+      check("private: it keeps the connected access and checks with it", after.connected && after.status !== "error" && reqs.length > 0 && reqs.every((r) => r.authorization), { after, reqs });
     }
     await application.close();
     application = undefined;
@@ -268,11 +269,14 @@ try {
   if (application && (!installStarted || installed)) await application.close().catch(() => {});
   for (const s of [tlsServer, plainServer, proxy]) s.close();
   if (!installStarted || installed) {
+    for (let i = 0; i < 30 && launchctlHas(); i++) await sleep(1000); // ShipIt finishing after the install
     if (launchctlHas()) { try { execFileSync("launchctl", ["bootout", `gui/${process.getuid()}/${job}`], { stdio: "pipe" }); } catch {} }
     for (const { link, target } of cacheLinks) if (exists(link) && fs.lstatSync(link).isSymbolicLink() && fs.readlinkSync(link) === target) fs.unlinkSync(link);
+    // None existed before the run (checked above): an empty one is ShipIt's from this run.
     for (const p of shipItPrefs()) {
       const contents = JSON.parse(execFileSync("plutil", ["-convert", "json", "-o", "-", p], { encoding: "utf8" }));
-      result.shipItPrefsLeft = (result.shipItPrefsLeft || []).concat([{ p, keys: Object.keys(contents) }]);
+      if (Object.keys(contents).length === 0) fs.unlinkSync(p);
+      else result.shipItPrefsLeft = (result.shipItPrefsLeft || []).concat([{ p, keys: Object.keys(contents) }]);
     }
   }
   result.cleanup = { cacheLinks: cacheLinks.map(({ link }) => exists(link)), shipItJob: launchctlHas(), shipItPrefs: shipItPrefs() };
