@@ -67,6 +67,7 @@ impl State {
         if !file.holders.iter().any(|h| self.is_own_device(h)) {
             return Err("not_found");
         }
+        self.room_for(file.size)?;
         self.devices.engine.request_file(&self.store, transfer_id).map_err(|_| "internal")?;
         self.pump_sync();
         // The computer holding it is dialed, nearby or online.

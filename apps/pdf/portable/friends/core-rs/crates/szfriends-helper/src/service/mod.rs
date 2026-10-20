@@ -41,6 +41,7 @@ mod online;
 #[cfg(not(feature = "online"))]
 #[path = "online_off.rs"]
 mod online;
+mod room;
 pub mod seed;
 mod sessions;
 mod transfers;
@@ -69,6 +70,7 @@ use crate::server::{Connection, Reply};
 pub const ENV_TEST_LOOPBACK: &str = crate::nearby::ENV_TEST_NETWORK;
 pub use devices::set_local_device_name;
 pub use online::{BLOCK_DIRECT_FILE, ENV_TEST_HOST_KEYS, ENV_TEST_HOST_LIST};
+pub use room::TEST_FREE_BYTES_FILE;
 
 /// What the service announces in every welcome (PROTOCOL.md § Capabilities); `nearby.bluetooth` too where this
 /// helper has a Bluetooth adapter (not on Windows, nor on Linux without the `bluetooth` feature). `devices`: one
