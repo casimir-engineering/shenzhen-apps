@@ -17,7 +17,7 @@ import {
   useRunAction,
 } from "./parts";
 import { RowMenu, useLongPress, type MenuPoint } from "./RowMenu";
-import { Glyph, RouteIcon } from "./glyphs";
+import { FoundLine, Glyph, RouteIcon } from "./glyphs";
 import { useView } from "./store";
 import {
   dragHasFiles,
@@ -515,6 +515,7 @@ function Row({
           >
             {subtitle}
           </span>
+          <FoundLine found={row.found} />
         </span>
         {!row.actions.length && (
           <span className="szf-row-meta">

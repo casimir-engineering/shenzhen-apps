@@ -129,6 +129,7 @@ test("the host attaches after first paint, says who it is, and routes a window's
     "drop.files",
     "mentions",
     "list.menu",
+    "nearby.found",
   ]);
   assert.deepEqual(client.config.openFormats, ["sz3d", "stl"]);
   assert.equal(

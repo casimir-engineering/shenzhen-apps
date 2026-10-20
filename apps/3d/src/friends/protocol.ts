@@ -16,6 +16,12 @@ export type Route = {
     "lan" | "p2p_wifi" | "bluetooth" | "internet" | "relay" | string | null;
   label: string | null;
 };
+/** How a person nearby was found right now (client capability nearby.found): each method that sees them, in the
+ * order lan, p2p_wifi, bluetooth, and the words for them ("Local network and Bluetooth"). */
+export type Found = {
+  methods: ("lan" | "p2p_wifi" | "bluetooth" | string)[];
+  label: string;
+};
 export type Arm = {
   label: string;
   accessibility_label: string;
@@ -100,6 +106,8 @@ export type ListRow = {
   actions: RowAction[];
   /** With the client capability list.menu: what right-click or a long press on the row offers (Remove). */
   menu?: Action[];
+  /** With the client capability nearby.found: how a friend nearby was found; null while not nearby. */
+  found?: Found | null;
   mentionable?: boolean;
   kind?: "person" | "you" | string;
 };
@@ -140,6 +148,8 @@ export type NearbyPerson = {
   status_label: string | null;
   action: Action | null;
   accessibility_label: string;
+  /** With the client capability nearby.found: how this person was found. */
+  found?: Found | null;
 };
 export type NearbyData = {
   query: string;

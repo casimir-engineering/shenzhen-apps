@@ -9,6 +9,7 @@ const fixtures = resolve('tests/fixtures/friends');
 const read = (file: string) => JSON.parse(readFileSync(resolve(fixtures, file), 'utf8'));
 const welcome = read('frames/welcome.json');
 const list = read('snapshots/list.json');
+const nearby = read('snapshots/nearby-visible-bluetooth-off.json');
 
 // The confirmation the helper sends with Remove (PROTOCOL.md § list, rows[].menu), for a friend with history.
 const removeAction = (first: string) => ({
@@ -38,9 +39,9 @@ type Sent = {type: string; fields?: Record<string, unknown>};
 
 /** The stand-in bridge: answers subscribe(list) with `frame`; remove_friend replies after `delay` ms, refused when
  * `refuse`, and otherwise sends the list again without that row. */
-async function install(page: Page, options: {delay: number; refuse?: boolean}) {
+async function install(page: Page, options: {delay: number; refuse?: boolean; frame?: unknown; nearby?: unknown}) {
   await page.addInitScript(
-    ({welcome, frame, delay, refuse}) => {
+    ({welcome, frame, nearbyFrame, delay, refuse}) => {
       const status = {
         available: true,
         enabled: true,
@@ -80,6 +81,10 @@ async function install(page: Page, options: {delay: number; refuse?: boolean}) {
             listSubscription = `s_list_${next}`;
             return {reply: reply({subscription: listSubscription}), snapshot: {...current, subscription: listSubscription}};
           }
+          if (type === 'subscribe' && fields?.view === 'nearby' && nearbyFrame) {
+            const subscription = `s_nearby_${next}`;
+            return {reply: reply({subscription}), snapshot: {...nearbyFrame, subscription}};
+          }
           if (type === 'subscribe' || type === 'open_conversation') return {reply: reply({subscription: `s_${next}`})};
           if (type === 'remove_friend') {
             await wait(delay);
@@ -113,7 +118,13 @@ async function install(page: Page, options: {delay: number; refuse?: boolean}) {
         shareable: async () => {},
       };
     },
-    {welcome, frame, delay: options.delay, refuse: options.refuse ?? false},
+    {
+      welcome,
+      frame: options.frame ?? frame,
+      nearbyFrame: options.nearby ?? null,
+      delay: options.delay,
+      refuse: options.refuse ?? false,
+    },
   );
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
@@ -235,5 +246,75 @@ test('a long press on a phone opens the menu without opening the chat; Remove, c
   ]);
   await page.waitForTimeout(1000);
   await expect(row(page, 'Priya Raman')).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
+// How people nearby were found (client capability nearby.found), on computers and phones alike.
+const found = (methods: string[], label: string) => ({methods, label});
+const LAN = found(['lan'], 'Local network');
+const BLUETOOTH = found(['bluetooth'], 'Bluetooth');
+const BOTH = found(['lan', 'bluetooth'], 'Local network and Bluetooth');
+const nearbyFound = {
+  ...nearby,
+  data: {
+    ...nearby.data,
+    people: nearby.data.people.map((person: {title: string}) => ({
+      ...person,
+      found: {'Kenji Sato': LAN, 'Lena Weber': BLUETOOTH, 'Tomás Rivera': BOTH}[person.title] ?? null,
+    })),
+  },
+};
+const listFound = {
+  ...frame,
+  data: {
+    ...frame.data,
+    rows: frame.data.rows.map((row: {conversation_id: string; route: unknown}) => ({
+      ...row,
+      // Daniel nearby over Bluetooth, so the list draws that route icon to compare with.
+      route: row.conversation_id === 'c_daniel' ? {kind: 'local', method: 'bluetooth', label: 'Nearby, over Bluetooth'} : row.route,
+      found: {c_mei: LAN, c_kenji: BOTH, c_daniel: BLUETOOTH}[row.conversation_id] ?? null,
+    })),
+  },
+};
+
+test('rows say how each person nearby was found, with the route icon of each method', async ({page}) => {
+  const errors = await install(page, {delay: 0, frame: listFound, nearby: nearbyFound});
+  const shown = (scope: ReturnType<Page['locator']>) =>
+    scope.locator('.szf-found').evaluateAll(lines =>
+      lines.map(line => ({
+        text: (line as HTMLElement).innerText.trim(),
+        icons: [...line.querySelectorAll('svg path')].map(path => path.getAttribute('d')),
+      })),
+    );
+  // The route icons the list already draws: Mei's route is the local network, Daniel's Bluetooth.
+  const routeIcon = (name: string) => row(page, name).locator('.szf-route svg path').getAttribute('d');
+  const lan = await routeIcon('Mei Lin');
+  const bluetooth = await routeIcon('Daniel Ortiz');
+  expect(lan).not.toEqual(bluetooth);
+
+  expect(await shown(row(page, 'Mei Lin'))).toEqual([{text: 'Local network', icons: [lan]}]);
+  expect(await shown(row(page, 'Kenji Sato'))).toEqual([{text: 'Local network and Bluetooth', icons: [lan, bluetooth]}]);
+  expect(await shown(row(page, 'Daniel Ortiz'))).toEqual([{text: 'Bluetooth', icons: [bluetooth]}]);
+  // Friends not nearby say nothing about it.
+  await expect(row(page, 'Priya Raman').locator('.szf-found')).toHaveCount(0);
+  await expect(row(page, 'Mei Lin').locator('.szf-row-subtitle')).toBeVisible();
+
+  await page.getByRole('tab', {name: 'Nearby'}).click();
+  const person = (name: string) => page.locator('.szf-nearby .szf-row', {hasText: name});
+  await expect(person('Lena Weber')).toBeVisible();
+  expect(await shown(person('Kenji Sato'))).toEqual([{text: 'Local network', icons: [lan]}]);
+  expect(await shown(person('Lena Weber'))).toEqual([{text: 'Bluetooth', icons: [bluetooth]}]);
+  expect(await shown(person('Tomás Rivera'))).toEqual([{text: 'Local network and Bluetooth', icons: [lan, bluetooth]}]);
+  await expect(person('coral')).toBeVisible();
+  await expect(person('coral').locator('.szf-found')).toHaveCount(0);
+  // The words fit the row: nothing spills past the panel.
+  const overflow = await page.locator('.szf-nearby .szf-found').evaluateAll(lines =>
+    lines.some(line => {
+      const box = line.getBoundingClientRect();
+      const panel = line.closest('.szf-panel')!.getBoundingClientRect();
+      return box.right > panel.right || box.left < panel.left;
+    }),
+  );
+  expect(overflow).toBe(false);
   expect(errors).toEqual([]);
 });

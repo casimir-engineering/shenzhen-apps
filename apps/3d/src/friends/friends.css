@@ -301,6 +301,23 @@
   color: var(--jade);
   display: inline-flex;
 }
+/* How a person nearby was found: the method icons, then their words, under the subtitle. */
+.szf-found {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  color: var(--secondary);
+  font-size: 11px;
+}
+.szf-found > span {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.szf-found svg {
+  flex-shrink: 0;
+}
 .szf-route {
   display: inline-flex;
   color: var(--secondary);
