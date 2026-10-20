@@ -2,7 +2,7 @@
 
 A CAD, mesh and drawing viewer for inspecting assemblies and taking engineering measurements. One React/Three.js interface runs in the browser/PWA, a Chromium desktop performance shell, and lightweight Tauri desktop/mobile shells. Model files are processed on the device.
 
-[Mac 0.1.9 release notes](docs/MAC-0.1.9.md) · [Platform delivery and validation](docs/DELIVERY.md)
+[Mac 0.2.0 release notes](docs/MAC-0.2.0.md) · [Platform delivery and validation](docs/DELIVERY.md)
 
 Download installers from this repository’s **Releases** page.
 
@@ -18,7 +18,7 @@ Open STEP, IGES or BREP for CAD topology and exact supported feature queries; op
 - Comments attached to parts, points, edges, faces or vertices; edit, resolve and share portable `.sz3d` files containing the model and saved measurements. [Review files](docs/REVIEW.md).
 - Shaded, shaded-with-edges, wireframe and dashed hidden-line views; movable key light and uniform fill. Optional progressive WebGPU ray tracing with raster navigation and measurement overlays. [Rendering and device limits](docs/RENDERING.md).
 - Automatic controls: left/middle drag pans, right-drag orbits around the view center (hold Command or Ctrl to pan instead), two-finger trackpad swipes zoom (hold Command or Ctrl to pan), and pinch/mouse wheel zoom. Dark/light themes. [Controls and browser limits](docs/CONTROLS.md).
-- Shenzhen Friends in the Mac app: message friends and send them models and projects, nearby or by Friends ID, shared with ShenzhenPDF and Shenzhen Files. [Shenzhen Friends](docs/FRIENDS.md).
+- Shenzhen Friends (beta) in the Mac app: message friends and send them models and projects, nearby or by Friends ID, shared with ShenzhenPDF and Shenzhen Files. [Shenzhen Friends](docs/FRIENDS.md).
 - Lightweight startup: the welcome screen opens before loading the 3D engine. Geometry tools load on first import; project archives and ray tracing load when needed. [Startup measurements](docs/STARTUP.md).
 - GPU instancing and merged material draws, spatially indexed picking, and automatic navigation detail for large assemblies. Full geometry returns when still; measurements always use the original model.
 

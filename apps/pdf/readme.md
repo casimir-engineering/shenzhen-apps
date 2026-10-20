@@ -6,7 +6,7 @@ Supports PDF, EPUB, Markdown, text, code and images.
 
 **[Download for Mac](https://github.com/casimir-engineering/shenzhen-pdf/releases/latest/download/ShenzhenPDF-mac-arm64.dmg)** · Apple Silicon · macOS 12+ · Signed and notarized
 
-<sub>Latest <b>26.10.11-1</b></sub> · [Release notes](https://github.com/casimir-engineering/shenzhen-pdf/releases/latest) · [Website](https://casimir-engineering.github.io/shenzhen-pdf/) · [中文](https://casimir-engineering.github.io/shenzhen-pdf/zh/)
+<sub>Latest <b>26.10.20-1</b></sub> · [Release notes](https://github.com/casimir-engineering/shenzhen-pdf/releases/latest) · [Website](https://casimir-engineering.github.io/shenzhen-pdf/) · [中文](https://casimir-engineering.github.io/shenzhen-pdf/zh/)
 
 ## Ask about your documents
 
@@ -30,7 +30,7 @@ Paginated Markdown with native vector diagrams, math, tables and syntax highligh
 
 ## Search and navigation
 
-Type in the reader to search. Results include chapter context, page highlights and map markers. **⌘K** searches open documents and Collection; an empty palette lists recently viewed documents. The document map supports direct page navigation. **⌘J** opens or closes Friends, the people button in the title bar; ⌘K finds its commands too, such as Add by ID.
+Type in the reader to search. Results include chapter context, page highlights and map markers. **⌘K** searches open documents and Collection; an empty palette lists recently viewed documents. The document map supports direct page navigation. **⌘J** opens or closes Friends (beta), the people button in the title bar; ⌘K finds its commands too, such as Add by ID.
 
 ![Document search with context and highlights](docs/images/portable/macos-search-highlights.webp)
 

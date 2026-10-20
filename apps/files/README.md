@@ -5,7 +5,7 @@
 
 <a href="https://github.com/casimir-engineering/shenzhen-files/releases/latest/download/ShenzhenFiles-mac-arm64.dmg"><img src="https://img.shields.io/badge/Download%20for%20macOS-Apple%20Silicon-2ea44f?style=for-the-badge&logo=apple&logoColor=white" alt="Download for macOS (Apple Silicon)" height="46"></a>
 
-<sub>Latest <b>26.9.14-1</b> · Apple Silicon</sub>
+<sub>Latest <b>26.10.20-1</b> · Apple Silicon</sub>
 
 <a href="https://github.com/casimir-engineering/shenzhen-files/releases/latest">All releases</a> · <a href="https://github.com/casimir-engineering/shenzhen-files">Source</a>
 
@@ -19,7 +19,7 @@
 
 - **Native menu bar** — the full GNOME Files menu rendered as a real NSMenu bar (File · Edit · View · Go · Window · Help), with working key equivalents.
 - **Search commands with Cmd-K** — type a few letters to find a command (New Folder, Show Hidden Files, Preferences…, and Friends' own), move with the arrow keys, and press Return to run it. Each command shows its shortcut. Also in Help ▸ Search Commands….
-- **Friends with Cmd-J** — opens Shenzhen Friends with the cursor in its search field, and closes it again, even from that field. Also in View ▸ Friends and in the Friends button's tooltip; does nothing while Friends is off.
+- **Friends (beta) with Cmd-J** — opens Shenzhen Friends with the cursor in its search field, and closes it again, even from that field. Also in View ▸ Friends (Beta) and in the Friends button's tooltip; does nothing while Friends is off.
 - **Finder-like Dock lifecycle** — closing the last window keeps the app alive; clicking the Dock icon or pressing Cmd-T opens a new window, while Cmd-T adds a tab when a window exists.
 - **Mounted drives in the sidebar** — the startup disk, external disks, disk images, and network volumes appear under mounts with native eject or unmount controls and automatic hot-plug refresh. Ejecting a volume that is open in Shenzhen Files first returns every affected window and tab to Home, releases its directory handles, and then safely ejects it.
 - **QuickLook everywhere** — real macOS thumbnails in the grid, space-bar preview, and LaunchServices file-type icons for anything QuickLook can't draw.

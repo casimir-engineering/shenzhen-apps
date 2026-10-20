@@ -105,8 +105,8 @@ MAC_MARKDOWN_SRCS := $(sort $(wildcard mac/markdown/*.mm))
 include mac/companion/sources.mk
 MAC_SRCS := $(filter-out mac/SPDFUpdaterTests.mm,$(sort $(wildcard mac/*.mm))) $(MAC_MARKDOWN_SRCS)
 MAC_HDRS := $(sort $(wildcard mac/*.h) $(wildcard mac/markdown/*.h))
-MAC_VERSION ?= 26.10.11
-MAC_BUILD ?= 6
+MAC_VERSION ?= 26.10.20
+MAC_BUILD ?= 1
 MAC_SIGN_IDENTITY ?= -
 NOTARY_PROFILE ?=
 NOTARY_RESULT ?= $(DIST)/notarytool-$(MAC_VERSION)-$(MAC_BUILD).json
