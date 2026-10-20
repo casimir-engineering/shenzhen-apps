@@ -222,18 +222,58 @@ impl State {
         Ok(json!({}))
     }
 
-    pub(crate) fn remove_friend(&mut self, conversation_id: &str) -> Answer {
-        let mut person = self.person_for(conversation_id)?;
-        if person.relation != Relation::Friend {
-            return Err(IntentError::new("not_friends"));
-        }
+    /// Ends a friendship as it always has: nothing still waiting goes, offers waiting for us are declined, and the
+    /// friend keeps only our old presence secret.
+    fn end_friendship(&mut self, mut person: Person) -> Result<(), IntentError> {
+        let conversation_id = person.conversation_id.clone();
         person.relation = Relation::Removed;
         person.auto_accept = false;
         self.save(&person)?;
-        self.refuse_pending(conversation_id);
-        let _ = self.store.record_event(conversation_id, event::REMOVED);
-        self.rotate_presence_secret_except(conversation_id);
+        self.refuse_pending(&conversation_id);
+        self.decline_waiting_offers(&conversation_id);
+        let _ = self.store.record_event(&conversation_id, event::REMOVED);
+        self.rotate_presence_secret_except(&conversation_id);
+        Ok(())
+    }
+
+    fn decline_waiting_offers(&mut self, conversation_id: &str) {
+        let waiting: Vec<String> = self
+            .store
+            .connection()
+            .prepare("SELECT transfer_id FROM transfers WHERE conversation_id = ?1 AND outgoing = 0 AND state = ?2")
+            .and_then(|mut statement| {
+                let state = szfriends_core::store::TransferState::WaitingForYou as i64;
+                let rows = statement.query_map(rusqlite::params![conversation_id, state], |r| r.get(0))?;
+                rows.collect()
+            })
+            .unwrap_or_default();
+        for transfer in waiting {
+            let _ = self.store.decline_transfer(&transfer);
+        }
+    }
+
+    /// remove_friend: takes anyone off the list, ending a friendship or answering a request first exactly as Remove,
+    /// Decline and Cancel do; a block stays. Their history stays unless `delete_history` asks for it to go too.
+    /// Someone already off the list is left as they are.
+    pub(crate) fn remove_friend(&mut self, conversation_id: &str, delete_history: bool) -> Answer {
+        let person = self.person_for(conversation_id)?;
+        if person.left_list_at.is_some() {
+            return Ok(json!({}));
+        }
+        match person.relation {
+            Relation::Friend => self.end_friendship(person)?,
+            Relation::IncomingRequest => _ = self.decline_request(conversation_id)?,
+            Relation::OutgoingRequest => _ = self.cancel_request(conversation_id)?,
+            Relation::Removed | Relation::Blocked => {}
+        }
+        // Read again, after any history event above, so the removal is the last thing that happened to them here.
+        let mut person = self.person_for(conversation_id)?;
+        person.left_list_at = Some(unix_now());
+        self.save(&person)?;
         self.people_changed();
+        if delete_history {
+            self.delete_history(Some(conversation_id)).map_err(IntentError::new)?;
+        }
         Ok(json!({}))
     }
 

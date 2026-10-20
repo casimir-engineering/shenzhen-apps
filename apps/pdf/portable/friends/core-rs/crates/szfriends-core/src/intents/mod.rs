@@ -199,8 +199,10 @@ pub enum Intent {
     Unblock {
         conversation_id: String,
     },
+    /// Takes the person off the list, ending the friendship or request first; `delete_history` also deletes the chat.
     RemoveFriend {
         conversation_id: String,
+        delete_history: bool,
     },
     MarkVerified {
         conversation_id: String,
@@ -322,6 +324,20 @@ pub(crate) fn person(intent: &Value, state: &dyn IntentState) -> Result<(String,
     }
 }
 
+/// remove_friend: `delete_history`, when present and not null, must be a bool; then anyone but You.
+fn remove_friend(frame: &Value, state: &dyn IntentState) -> Result<Intent> {
+    let delete_history = match frame.get("delete_history") {
+        None | Some(Value::Null) => false,
+        Some(Value::Bool(value)) => *value,
+        Some(_) => return Err(IntentError::field("invalid_field", "delete_history")),
+    };
+    let (conversation_id, _) = person(frame, state)?;
+    if conversation_id == crate::store::sync_log::YOU {
+        return Err(IntentError::new("not_allowed"));
+    }
+    Ok(Intent::RemoveFriend { conversation_id, delete_history })
+}
+
 /// An intent's fields read and checked in the helper's order. `frame` is the whole client frame; its `type` must be
 /// an intent this helper takes ([`admit`] first).
 pub fn parse(frame: &Value, state: &dyn IntentState) -> Result<Intent> {
@@ -336,7 +352,7 @@ pub fn parse(frame: &Value, state: &dyn IntentState) -> Result<Intent> {
         "cancel_request" => conversation(|id| Intent::CancelRequest { conversation_id: id })?,
         "block" => conversation(|id| Intent::Block { conversation_id: id })?,
         "unblock" => conversation(|id| Intent::Unblock { conversation_id: id })?,
-        "remove_friend" => conversation(|id| Intent::RemoveFriend { conversation_id: id })?,
+        "remove_friend" => remove_friend(frame, state)?,
         "mark_verified" => conversation(|id| Intent::MarkVerified { conversation_id: id })?,
         "accept_key_change" => conversation(|id| Intent::AcceptKeyChange { conversation_id: id })?,
         "cancel_transfer" => Intent::CancelTransfer { transfer_id: required(frame, "transfer_id", 64)? },
