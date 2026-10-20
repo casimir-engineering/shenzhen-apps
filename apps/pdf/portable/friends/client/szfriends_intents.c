@@ -360,9 +360,7 @@ szfriends_intent *szfriends_intent_set_auto_accept(const char *conversation_id, 
 }
 
 szfriends_intent *szfriends_intent_set_received_folder(const char *path) {
-    szfriends_intent *intent;
-    if (!path) return NULL;
-    intent = intent_new("set_received_folder");
+    szfriends_intent *intent = path ? intent_new("set_received_folder") : NULL;
     return intent ? finish(intent, add_string(intent, "path", path)) : NULL;
 }
 
