@@ -78,7 +78,7 @@ fixtures. The repository's `docs/FRIENDS.md` has the helper build number rule th
 socket rules, the uid and signature checks, connect-or-spawn of the embedded helper, reconnection with backoff, the
 build-number handover and the `connection_lost` replies are the library's, exactly as in ShenzhenPDF and Shenzhen
 Files. Its hello says `app_name` "Shenzhen 3D", `app_id` `com.shenzhen3d.performance`, `toolkit` `electron` (the helper
-accepts any toolkit name), `reveal_in` "Finder", the capabilities `attach.items`, `drop.files` and `mentions`, and
+accepts any toolkit name), `reveal_in` "Finder", the capabilities `attach.items`, `drop.files`, `mentions` and `list.menu`, and
 `open_formats`, the formats the app opens (the same list as its file associations). The embedded helper's version and
 build number come from its `Info.plist`. A team-signed app sets the library's signing policy with its own Team ID and
 a Security.framework verifier before it connects (`prepare()`, off the main thread); ad-hoc and development builds keep

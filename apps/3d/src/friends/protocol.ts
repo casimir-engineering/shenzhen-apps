@@ -21,12 +21,18 @@ export type Arm = {
   accessibility_label: string;
   seconds: number;
 };
+/** A checkbox in a confirmation, unticked at first; ticked, the intent also carries `field: true`. */
+export type ConfirmOption = {
+  label: string;
+  field: "delete_history" | string;
+};
 export type Confirm = {
   title: string;
   body: string;
   confirm_label: string;
   cancel_label: string;
   destructive: boolean;
+  option?: ConfirmOption | null;
 };
 export type Action = {
   action: string;
@@ -92,6 +98,8 @@ export type ListRow = {
   drop_refusal: string | null;
   accessibility_label: string;
   actions: RowAction[];
+  /** With the client capability list.menu: what right-click or a long press on the row offers (Remove). */
+  menu?: Action[];
   mentionable?: boolean;
   kind?: "person" | "you" | string;
 };

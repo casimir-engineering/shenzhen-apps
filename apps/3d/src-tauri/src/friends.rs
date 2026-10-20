@@ -7,12 +7,12 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 /// What the panel implements (PROTOCOL.md § Capabilities), as the Electron host says it: `#` offers the open
-/// model, files may be dropped, and `@` mentions friends. Phones have nothing to drop files from, so their composer
-/// does not suggest it.
+/// model, files may be dropped, `@` mentions friends, and a list row's menu opens on right-click (a long press on
+/// phones). Phones have nothing to drop files from, so their composer does not suggest it.
 #[cfg(desktop)]
-const CAPABILITIES: &[&str] = &["attach.items", "drop.files", "mentions"];
+const CAPABILITIES: &[&str] = &["attach.items", "drop.files", "mentions", "list.menu"];
 #[cfg(mobile)]
-const CAPABILITIES: &[&str] = &["attach.items", "mentions"];
+const CAPABILITIES: &[&str] = &["attach.items", "mentions", "list.menu"];
 
 /// The formats the viewer opens, the same list as `bundle.fileAssociations`: received files in these offer Open.
 pub const OPEN_FORMATS: &[&str] = &[

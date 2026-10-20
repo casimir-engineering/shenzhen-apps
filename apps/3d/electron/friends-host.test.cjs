@@ -128,6 +128,7 @@ test("the host attaches after first paint, says who it is, and routes a window's
     "attach.items",
     "drop.files",
     "mentions",
+    "list.menu",
   ]);
   assert.deepEqual(client.config.openFormats, ["sz3d", "stl"]);
   assert.equal(

@@ -8,8 +8,10 @@ import type { Action } from "../src/friends/protocol";
 import {
   actionIntent,
   CLIENT_ACTIONS,
+  confirmedFields,
   dropLabel,
   fill,
+  shownOption,
 } from "../src/friends/actions";
 import { FriendsStore } from "../src/friends/store";
 import { chooseReceivedFolder } from "../src/friends/parts";
@@ -84,6 +86,30 @@ describe("Friends view details", () => {
       identity_key: mention.identity_key,
       name: mention.name,
     });
+  });
+
+  it("adds a ticked confirmation's option to the intent, and nothing when unticked or unknown", () => {
+    const confirm = {
+      title: "Remove Mei?",
+      body: "Mei leaves your list.",
+      confirm_label: "Remove",
+      cancel_label: "Cancel",
+      destructive: true,
+      option: { label: "Also delete chat history", field: "delete_history" },
+    };
+    const fields = { conversation_id: "c_mei" };
+    expect(confirmedFields(fields, confirm, true)).toEqual({
+      conversation_id: "c_mei",
+      delete_history: true,
+    });
+    expect(confirmedFields(fields, confirm, false)).toEqual(fields);
+    expect(confirmedFields(fields, { ...confirm, option: null }, true)).toEqual(
+      fields,
+    );
+    // A checkbox this panel cannot send is not shown, so ticking it can never be lost.
+    const later = { ...confirm, option: { label: "x", field: "later_field" } };
+    expect(shownOption(later)).toBeNull();
+    expect(confirmedFields(fields, later, true)).toEqual(fields);
   });
 
   it("fills only the drag strings' placeholders, with the named forms when every name is known", () => {
