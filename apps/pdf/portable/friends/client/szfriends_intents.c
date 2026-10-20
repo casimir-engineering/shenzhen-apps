@@ -227,11 +227,9 @@ szfriends_intent *szfriends_intent_via_assistant(szfriends_intent *intent) {
 }
 
 szfriends_intent *szfriends_intent_with_confirm_option(szfriends_intent *intent, const char *field) {
-    bool known;
-    if (!intent) return NULL;
-    known = field && strcmp(intent->type, "remove_friend") == 0 && strcmp(field, "delete_history") == 0;
-    if (!known) return finish(intent, false);
-    /* Replaces an earlier mark rather than adding a second key: a frame with a duplicate key is ambiguous. */
+    /* Only remove_friend has an option; a second mark replaces the first, as a duplicate key would be ambiguous. */
+    if (!intent || !field || strcmp(intent->type, "remove_friend") != 0 || strcmp(field, "delete_history") != 0)
+        return finish(intent, false);
     cJSON_DeleteItemFromObjectCaseSensitive(intent->fields, field);
     return finish(intent, cJSON_AddTrueToObject(intent->fields, field) != NULL);
 }
@@ -272,15 +270,20 @@ szfriends_intent *szfriends_intent_retry_item(const char *item_id) {
 szfriends_intent *szfriends_intent_cancel_message(const char *message_id) {
     return one_string("cancel_message", "message_id", message_id);
 }
-szfriends_intent *szfriends_intent_accept_request(const char *conversation_id) {
-    return one_string("accept_request", "conversation_id", conversation_id);
-}
-szfriends_intent *szfriends_intent_decline_request(const char *conversation_id) {
-    return one_string("decline_request", "conversation_id", conversation_id);
-}
-szfriends_intent *szfriends_intent_cancel_request(const char *conversation_id) {
-    return one_string("cancel_request", "conversation_id", conversation_id);
-}
+/* The intents whose only field is the conversation they act on. */
+#define SZFRIENDS_CONVERSATION_INTENT(name)                                     \
+    szfriends_intent *szfriends_intent_##name(const char *conversation_id) {   \
+        return one_string(#name, "conversation_id", conversation_id);          \
+    }
+SZFRIENDS_CONVERSATION_INTENT(accept_request)
+SZFRIENDS_CONVERSATION_INTENT(decline_request)
+SZFRIENDS_CONVERSATION_INTENT(cancel_request)
+SZFRIENDS_CONVERSATION_INTENT(block)
+SZFRIENDS_CONVERSATION_INTENT(unblock)
+SZFRIENDS_CONVERSATION_INTENT(remove_friend)
+SZFRIENDS_CONVERSATION_INTENT(mark_verified)
+SZFRIENDS_CONVERSATION_INTENT(accept_key_change)
+#undef SZFRIENDS_CONVERSATION_INTENT
 szfriends_intent *szfriends_intent_send_request(const char *nearby_id) {
     return one_string("send_request", "nearby_id", nearby_id);
 }
@@ -296,21 +299,6 @@ szfriends_intent *szfriends_intent_add_from_mention(const char *friends_id, cons
                                        add_string(intent, "identity_key", identity_key) &&
                                        add_string(intent, "name", name))
                   : NULL;
-}
-szfriends_intent *szfriends_intent_block(const char *conversation_id) {
-    return one_string("block", "conversation_id", conversation_id);
-}
-szfriends_intent *szfriends_intent_unblock(const char *conversation_id) {
-    return one_string("unblock", "conversation_id", conversation_id);
-}
-szfriends_intent *szfriends_intent_remove_friend(const char *conversation_id) {
-    return one_string("remove_friend", "conversation_id", conversation_id);
-}
-szfriends_intent *szfriends_intent_mark_verified(const char *conversation_id) {
-    return one_string("mark_verified", "conversation_id", conversation_id);
-}
-szfriends_intent *szfriends_intent_accept_key_change(const char *conversation_id) {
-    return one_string("accept_key_change", "conversation_id", conversation_id);
 }
 szfriends_intent *szfriends_intent_set_name(const char *name) {
     return one_string("set_name", "name", name);
