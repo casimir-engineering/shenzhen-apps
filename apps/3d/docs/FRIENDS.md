@@ -462,6 +462,7 @@ SQLite without what the store never uses) beside `phones-profile.toml`, and from
 | Size | `src-tauri/friends/phones-profile.toml`, the core's `phone.toml`, `scripts/friends/phones-size.sh` | Friends' crates, the online part's included, built for size; what Friends with online adds per Android ABI, against the 5 MB budget |
 | Exchange | `scripts/friends/phones-exchange.mjs` (`-page.js`, `-android.mjs`, `-ios.mjs`) | The phone app and a Friends service on the Mac, made friends: a message and a file each way |
 | Remove | `scripts/friends/phones-remove.mjs` | Android: a long press on a friend's row (the emulator's own touch input), Remove, confirm: the friend leaves the list, and is still off it after the app starts again |
+| Reset | `scripts/friends/phones-reset.mjs` | Android: Settings ▸ Reset Friends… and its confirmation (the emulator's own touch input): a new ID at once in Settings and the panel, the friends gone, Nearby running again, the new ID kept after the app starts again |
 
 What the plugin does on a phone (shenzhen-pdf `portable/friends/tauri/README.md` § Phones): the identity's key in the
 Android Keystore (a sealed file in the no-backup directory) or the iOS Keychain (this device only), Friends' files
@@ -493,6 +494,14 @@ built (`src-tauri/build.rs`) rather than added at launch, which linked Tauri's c
 budget, and `phones-size.sh` says so by failing. Fat LTO instead of thin changed nothing. The core alone measures
 4.95 MB with online (the plugin's README); the rest is the plugin's phone half and what Tauri links for it. Not yet
 tried: a real phone, Android 11 or earlier, iPad, the iOS share sheet's choices.
+
+**Reset Friends.** `node scripts/friends/phones-reset.mjs --serial <emulator> --tools <dir>` with a debug APK
+installed (`--tools` as above, for `befriend`): the phone, made friends with Bo and Cy, opens Settings with a tap,
+taps Reset Friends… and Reset Friends in the confirmation. Settings shows a new, different Friends ID at once, with no
+failure shown; the panel lists neither friend and shows the new ID; the phone writes a new entry on the test network
+(Nearby started again, as it was before); after a force-stop and a start, Settings still shows the new ID. It passed
+on 2026-10-21 headless on an Android 16 (API 36) arm64 emulator. Before, confirming did nothing: the core refused
+the reset as not yet available, with no words for the app to show.
 
 **Android permissions.** `node scripts/friends/android-permissions.mjs --serial <emulator> [--apk <apk>]` opens
 Friends from a cleared app and answers the system's Bluetooth dialog through uiautomator: Allow grants scan,
