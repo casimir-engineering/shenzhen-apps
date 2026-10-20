@@ -16,8 +16,10 @@
 #   phone: `adb logcat -s SZFriendsBle` (BleRadio.kt: seen / read / served / accepted / advertising lines), the Nearby
 #          screen (uiautomator), whether Bluetooth and Wi-Fi are on.
 #   Mac:   the running helper ("Shenzhen Friends"), the app macOS attributes its Bluetooth access to and the answer
-#          (tccd), and what the helper advertises (bluetoothd: the Friends service UUID, plus the public UUID while
-#          visible). Reading the unified log needs no permission for these processes.
+#          (tccd), what the helper advertises (bluetoothd: the Friends service UUID, plus the public UUID while
+#          visible), the L2CAP channels it publishes (one per peripheral manager session: bluetoothd routes
+#          connections only to the oldest channel a session has published) and the opens bluetoothd refused on them.
+#          Reading the unified log needs no permission for these processes.
 # Exit status: 0 when every expectation held, 1 otherwise, 2 for a setup problem.
 set -u
 
@@ -99,6 +101,21 @@ else
     pass "Mac advertises Friends, hidden (since ${advert:11:8})"
     [ "$MAC_VISIBLE" = 1 ] && fail "Mac: --expect-mac-visible, but its last advertisement has no public UUID"
   fi
+  # Each channel on its own session ("com.intuition.shenzhenfriends-peripheral-<pid>-<n>"); a session that published
+  # more than one is the bug that refused every phone's open of a visible Mac's public channel (2026-10-20).
+  registered=$("$LOG" show --last 20m --style compact --predicate \
+    "process == \"bluetoothd\" AND eventMessage CONTAINS \"Registering L2CAP Channel\" AND eventMessage CONTAINS \"shenzhenfriends-peripheral-$helper-\"" 2>/dev/null |
+    sed -n 's/.*Registering L2CAP Channel with PSM \(0x[0-9a-f]*\) for session "\([^"]*\)".*/\1 \2/p')
+  if [ -z "$registered" ]; then
+    info "Mac: the helper published no L2CAP channel in the last 20 minutes"
+  else
+    shared=$(printf '%s\n' "$registered" | awk '{ print $2 }' | sort | uniq -d | head -1)
+    if [ -n "$shared" ]; then
+      fail "Mac: session $shared published several L2CAP channels (bluetoothd accepts only the oldest)"
+    else
+      pass "Mac: each L2CAP channel published on its own session ($(printf '%s\n' "$registered" | wc -l | tr -d ' ') in 20 min)"
+    fi
+  fi
 fi
 
 # --- Drive the phone ------------------------------------------------------------------------------------------------
@@ -133,6 +150,17 @@ ui > "$OUT/phone-ui.txt"
   "process == \"bluetoothd\" AND eventMessage CONTAINS \"shenzhenfriends\"" > "$OUT/mac-bluetoothd.log" 2>/dev/null
 
 # --- Verdicts -------------------------------------------------------------------------------------------------------
+if [ -n "${helper:-}" ] && [ -n "${registered:-}" ]; then
+  "$LOG" show --last "$((SECONDS_TO_WATCH + 30))s" --style compact --predicate \
+    'process == "bluetoothd" AND eventMessage CONTAINS "Rejecting connection for PSM"' > "$OUT/mac-l2cap-refused.log" 2>/dev/null
+  refused=0
+  for psm in $(printf '%s\n' "$registered" | awk '{ print $1 }' | sort -u); do
+    n=$(grep -c "Rejecting connection for PSM:$psm " "$OUT/mac-l2cap-refused.log")
+    refused=$((refused + n))
+  done
+  [ "$refused" = 0 ] && pass "Mac: bluetoothd refused no open of the helper's channels" ||
+    fail "Mac: bluetoothd refused $refused open(s) of the helper's channels (\"Could not find a session, endpoint or pipe\")"
+fi
 B="$OUT/phone-ble.log"
 grep -q "advertising failed" "$B" && fail "phone: advertising failed ($(grep -m1 'advertising failed' "$B" | sed 's/.*: //'))"
 seen=$(grep -c " seen " "$B")
