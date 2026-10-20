@@ -98,3 +98,7 @@ log "test-nautilus-friends-shortcut"
 cd "$scratch"
 TMPDIR="$scratch" GSETTINGS_BACKEND=memory GSETTINGS_SCHEMA_DIR="$WITH/data" GTK_A11Y=none \
   perl -e 'alarm 120; exec @ARGV' "$WITH/test/friends/test-nautilus-friends-shortcut"
+
+# A pass on a clean commit is recorded (tools/test-stamp.sh), so tools/release.sh does not run it again.
+stamp_tool="$repo_root/../../tools/test-stamp.sh"
+if [[ -x "$stamp_tool" ]]; then (cd "$repo_root" && "$stamp_tool" record files/friends-shortcut); fi

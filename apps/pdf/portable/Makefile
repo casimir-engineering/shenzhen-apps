@@ -34,6 +34,11 @@ endif
 MUPDF_BUILD := $(MUPDF_DIR)/$(MUPDF_OUT)
 MUPDF_LIBS := $(MUPDF_BUILD)/libmupdf.a $(MUPDF_BUILD)/libmupdf-third.a $(MUPDF_BUILD)/libmupdf-pkcs7.a
 CPU := $(shell sysctl -n hw.ncpu 2>/dev/null || nproc 2>/dev/null || echo 4)
+# Records a suite that passed on this commit (tools/test-stamp.sh), so tools/release.sh does not run it again on the
+# same commit. The tool exists only in the Shenzhen repository; a partial run (a subset of flows, fewer rounds) records
+# nothing.
+SPDF_TEST_STAMP_TOOL := $(wildcard $(CURDIR)/../../../tools/test-stamp.sh)
+spdf_test_stamp = $(if $(SPDF_TEST_STAMP_TOOL),@"$(SPDF_TEST_STAMP_TOOL)" record pdf/$(1),@:)
 
 CORE_SRC := core/shenzhen_pdf_core.c
 CORE_HDR := core/shenzhen_pdf_core.h
@@ -970,6 +975,7 @@ include mac/friends/friends-host-adapter.mk
 # The dropdown driven end to end, clicks and keys against real helpers (mac/friends/tests/ui-e2e/friends-ui-e2e.mk).
 include mac/friends/tests/ui-e2e/friends-ui-e2e.mk
 friends-tests: friends-suite mac-friends-host-adapter-tests friends-ui-e2e
+	$(if $(FRIENDS_UI_E2E_VARIANTS)$(FRIENDS_UI_E2E_FLOWS),@:,$(call spdf_test_stamp,friends-tests))
 
 # Shenzhen Friends in ShenzhenPDF.app (friends/README.md § Integration the lead owns). Read after friends.mk, so the
 # Friends variables are set here and prerequisite lists get a second expansion.
@@ -1105,3 +1111,4 @@ mac-page-display-tests: mac-page-display-acceptance
 include mac/tests/launch/launch-performance-tests.mk
 .PHONY: mac-launch-performance-tests
 mac-launch-performance-tests: mac-launch-performance-gate
+	$(if $(LAUNCH_PERF_ROUNDS),@:,$(call spdf_test_stamp,mac-launch-performance-tests))

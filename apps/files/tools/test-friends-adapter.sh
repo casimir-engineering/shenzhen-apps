@@ -146,3 +146,7 @@ mkdir -p "$RENDERS"
 )
 
 echo "test-friends-adapter passed"
+
+# A pass on a clean commit is recorded (tools/test-stamp.sh), so tools/release.sh does not run it again.
+stamp_tool="$repo_root/../../tools/test-stamp.sh"
+if [[ -x "$stamp_tool" ]]; then (cd "$repo_root" && "$stamp_tool" record files/friends-adapter); fi

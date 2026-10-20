@@ -97,6 +97,26 @@ run_release_tests() {
   # the release log stays readable.
   local jobs
   jobs="$(sysctl -n hw.ncpu 2>/dev/null || echo 4)"
+  # In the Shenzhen repository each suite that passes is recorded for the commit (tools/test-stamp.sh), and one that
+  # passed on this commit already is not run again; the first failure stops the sweep, as before.
+  local stamp="$repo_root/../../tools/test-stamp.sh"
+  if [[ -x "$stamp" ]]; then
+    local missing=()
+    for target in "${targets[@]}"; do
+      "$stamp" check "pdf/$target" || missing+=("$target")
+    done
+    if ((${#missing[@]} == 0)); then
+      log "All ${#targets[@]} release suites passed on this commit already"
+      return 0
+    fi
+    log "Building test binaries with -j$jobs"
+    make -C "$script_dir" -j"$jobs" test-binaries
+    log "Running release tests not yet passed on this commit: ${missing[*]}"
+    for target in "${missing[@]}"; do
+      "$stamp" run "pdf/$target" -- make -C "$script_dir" "$target"
+    done
+    return 0
+  fi
   log "Building test binaries with -j$jobs"
   make -C "$script_dir" -j"$jobs" test-binaries
   log "Running release tests: ${targets[*]}"
