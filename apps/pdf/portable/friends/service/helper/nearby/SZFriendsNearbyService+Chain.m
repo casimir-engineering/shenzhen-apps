@@ -47,6 +47,7 @@
         SZFriendsHelperLog(@"no device chain to send: %@", error.localizedDescription);
         return;
     }
+    link.chainSent = YES;
     [channel sendFrame:[SZFriendsFrame frameWithType:SZFriendsFrameTypeChain
                                               fields:@{@(SZFriendsFieldChain) : chain.encodedData}]];
 }

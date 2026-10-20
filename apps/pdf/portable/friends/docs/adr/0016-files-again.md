@@ -62,6 +62,13 @@ The sender serves without asking anyone, because it already chose to send that f
 A helper sends AGAIN only on a session whose negotiated minor is 3 or more (an older one closes on an unknown type), and
 ignores it on a session with its own devices (they copy over SYNC) or with anyone not in its list as a friend.
 
+**A session with each of a friend's devices.** Get again comes from the device that asks, so a friend keeps a session
+with every device of the person that reaches it: a live session with one of the person's devices no longer supersedes
+one with another of them (only two sessions with the same device race, as ADR 0001 has it). The one that carried the
+conversation first keeps carrying what this side sends; the other carries what its own device sends and asks for, and
+takes over if the first ends. A friendship accepted on a session sends the accepting side's device chain on it at once,
+so the new friend knows the person's other devices before any of them dials it.
+
 ## Alternatives considered
 
 - **Offering the file again** (OFFER with the same id, answered at once): it reuses the transfer machinery but moves the

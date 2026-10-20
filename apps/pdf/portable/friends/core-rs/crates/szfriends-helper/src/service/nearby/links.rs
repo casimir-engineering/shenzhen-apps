@@ -11,7 +11,7 @@ use szfriends_core::wire::route::session_a_wins;
 use szfriends_core::wire::{CloseReason, Fields, Pattern, RouteMethod};
 
 use super::policy::{key_policy, Hooks};
-use crate::service::State;
+use crate::service::{sessions::Rival, State};
 
 /// Why a link exists (`SZFriendsLinkPurpose`). A responder link starts Incoming and its handshake says the rest.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -333,8 +333,10 @@ impl State {
         if let Some(s) = self.sessions.map.get_mut(&id) {
             s.conversation = Some(conversation.to_owned());
         }
-        let Some(current) = self.sessions.live_for(conversation).filter(|c| *c != id) else {
-            return self.adopt(id);
+        let current = match self.sessions.rival(conversation, id) {
+            Rival::None => return self.adopt(id),
+            Rival::OtherDevice => return, // both stay: this one stands by (ADR 0016)
+            Rival::Same(current) => current,
         };
         let own = self.identity.public_key();
         let initiator_key = |state: &State, link: u64| -> (RouteMethod, Vec<u8>) {

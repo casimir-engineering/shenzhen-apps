@@ -356,6 +356,8 @@ impl State {
         }
         if self.sync_active() {
             let _ = self.devices.engine.ensure_own_devices_secret(&self.store);
+            // You, as soon as the profile has a second computer (SZFriendsNearbyService+Devices.m does the same).
+            let _ = szfriends_core::store::sync_history::ensure_you_conversation(self.store.connection());
         }
         let gone: Vec<u64> = self
             .devices

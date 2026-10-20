@@ -42,6 +42,17 @@ pub struct Sessions {
 
 impl Sessions {
     /// The session carrying a conversation's traffic: live, adopted, not superseded.
+    /// What a new link `id` for `conversation` meets: nothing (adopt it), a live link with another device of the same
+    /// person (both stay, neither supersedes the other: ADR 0016), or one with the same device (settle the race).
+    pub fn rival(&self, conversation: &str, id: u64) -> Rival {
+        let Some(current) = self.live_for(conversation).filter(|c| *c != id) else { return Rival::None };
+        let remote = |id: u64| self.map.get(&id).and_then(|s| s.channel.remote_identity().copied());
+        match (remote(id), remote(current)) {
+            (Some(new), Some(old)) if new != old => Rival::OtherDevice,
+            _ => Rival::Same(current),
+        }
+    }
+
     pub fn live_for(&self, conversation_id: &str) -> Option<u64> {
         self.map
             .iter()
@@ -425,4 +436,11 @@ pub fn answer_kind(entry: &OutboxEntry) -> String {
     let payload: serde_json::Value =
         entry.payload.as_deref().and_then(|p| serde_json::from_slice(p).ok()).unwrap_or_default();
     payload["frame"].as_str().unwrap_or_default().to_owned()
+}
+
+/// See [`Sessions::rival`].
+pub enum Rival {
+    None,
+    OtherDevice,
+    Same(u64),
 }

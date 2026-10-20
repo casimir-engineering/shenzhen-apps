@@ -125,6 +125,7 @@ NSData *_Nullable SZFriendsLinkBytesFromHex(NSString *_Nullable hex); // nil unl
 // First contact from a device other than a person's first (+Chain): our chain went out before our request or answer
 // on this session; theirs, verified, arrived before their request.
 @property(nonatomic) BOOL firstContactChainSent;
+@property(nonatomic) BOOL chainSent; // our chain went on this session to a friend (+Chain)
 @property(nonatomic, strong, nullable) SZFriendsDeviceChain *pendingChain;
 - (void)cancelTimers;
 @end

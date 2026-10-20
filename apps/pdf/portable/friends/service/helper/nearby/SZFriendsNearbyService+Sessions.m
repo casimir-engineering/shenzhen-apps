@@ -161,7 +161,7 @@
     if (conversationID == nil) return; // a stranger's request session: REQUEST will say who they are
     if ([self keyChangedOnLink:link conversationID:conversationID]) return;
     [self attachLink:link toConversation:conversationID];
-    [self sendChainOnLink:link];
+    if (!link.chainSent) [self sendChainOnLink:link]; // adopting it may have sent it already
     // The initiator's side only waits for the responder's commitment. A responder commits only once the friendship's
     // first step is durable and visible: the IK callback's row is saved by now; an XX request commits after REQUEST
     // is stored (+Inbound), so a session that never asks never yields a code (review: code grinding).
@@ -263,6 +263,10 @@
         [self adoptLink:link];
         return;
     }
+    // Another of this person's devices (ADR 0016): both sessions stay. The one carrying the conversation keeps it;
+    // the other carries what its own device sends and asks for (Get again), and takes over if the first ends.
+    NSData *newRemote = link.channel.remoteIdentityKey, *oldRemote = current.channel.remoteIdentityKey;
+    if (newRemote != nil && oldRemote != nil && ![newRemote isEqualToData:oldRemote]) return;
     NSData *local = [self localIdentityKey];
     NSData *newKey = [link initiatorKeyWithLocalKey:local] ?: [NSData data];
     NSData *oldKey = [current initiatorKeyWithLocalKey:local] ?: [NSData data];
