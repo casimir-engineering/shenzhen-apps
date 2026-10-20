@@ -1,15 +1,21 @@
 //! How a nearby person was found (client capability `nearby.found`): Nearby's rows and a friend's list row name every
 //! discovery method that sees the person now, in the order local network, direct Wi-Fi, Bluetooth; nobody is "found"
-//! who no method sees; and a client without `nearby.found` gets the rows it always got.
+//! who no method sees; and a client without `nearby.found` gets the rows it always got (`SZFriendsPresentationFoundTests.m`).
+//!
+//! nearby-found.json: both methods working, nobody visible, four people as nearby_visible_bluetooth_off has them, found
+//! over: Kenji (friend) the local network and Bluetooth, Lena (stranger) Bluetooth, Tomás (request sent) the local
+//! network, coral-lagoon (stranger, no name) direct Wi-Fi, the local network and Bluetooth. list-found.json: the list's
+//! people, Mei found over the local network and Bluetooth, Kenji over Bluetooth, and Lena (a request, not a friend)
+//! over the local network, which her row never says.
 
 mod presentation;
 
 use std::collections::HashMap;
 
-use presentation::validate_snapshot;
 use presentation::world::*;
+use presentation::{expect_fixture, validate_snapshot};
 use serde_json::{json, Value};
-use szfriends_core::presentation::{Audience, RouteMethod};
+use szfriends_core::presentation::{AdapterState, Audience, NearbyFacts, Relation, RouteMethod};
 
 fn found_audience() -> Audience {
     let mut audience = audience();
@@ -87,4 +93,75 @@ fn a_friend_in_the_list_while_nearby() {
     assert!(rows["c_lena"]["found"].is_null(), "not a friend");
     let plain = builder(audience()).list(&all, &preview_items(), &profile_raph(), "", now());
     assert!(plain["rows"].as_array().unwrap().iter().all(|r| r.get("found").is_none()));
+}
+
+fn found_nearby() -> NearbyFacts {
+    use RouteMethod::{Bluetooth, Lan, PeerToPeerWifi};
+    let seen = |nearby_id: Option<&str>,
+                conversation: Option<&str>,
+                name: Option<&str>,
+                friends_id: &str,
+                animal: i64,
+                stranger: bool,
+                relation: Relation,
+                found: &[RouteMethod]| {
+        let mut person = nearby_person(nearby_id, conversation, name, friends_id, animal, stranger, relation, found[0]);
+        person.found_methods = found.to_vec();
+        person
+    };
+    NearbyFacts {
+        network_state: AdapterState::Working,
+        bluetooth_state: AdapterState::Working,
+        working_since: Some(hk("2026-10-12 14:40:10")),
+        people: vec![
+            seen(
+                None,
+                Some("c_kenji"),
+                Some("Kenji Sato"),
+                "cedar-lantern",
+                1,
+                false,
+                Relation::Friend,
+                &[Lan, Bluetooth],
+            ),
+            seen(Some("n_7c1e"), None, Some("Lena Weber"), "amber-falcon", 3, true, Relation::Friend, &[Bluetooth]),
+            seen(
+                Some("n_2b90"),
+                Some("c_tomas"),
+                Some("Tomás Rivera"),
+                "juniper-spring",
+                4,
+                true,
+                Relation::OutgoingRequest,
+                &[Lan],
+            ),
+            seen(
+                Some("n_9d44"),
+                None,
+                None,
+                "coral-lagoon",
+                10,
+                true,
+                Relation::Friend,
+                &[Bluetooth, Lan, PeerToPeerWifi],
+            ),
+        ],
+        ..Default::default()
+    }
+}
+
+#[test]
+fn the_found_fixtures() {
+    if presentation::tree_missing() {
+        return;
+    }
+    let builder = builder(found_audience());
+    let nearby = builder.nearby(&found_nearby(), &profile_raph(), "", now());
+    expect_fixture(&nearby, "nearby-found.json", "nearby");
+    let mut people = presentation::world::people();
+    people.get_mut("c_mei").unwrap().found_methods = vec![RouteMethod::Lan, RouteMethod::Bluetooth];
+    people.get_mut("c_kenji").unwrap().found_methods = vec![RouteMethod::Bluetooth];
+    people.get_mut("c_lena").unwrap().found_methods = vec![RouteMethod::Lan];
+    let list = builder.list(&everyone(&people), &preview_items(), &profile_raph(), "", now());
+    expect_fixture(&list, "list-found.json", "list");
 }
