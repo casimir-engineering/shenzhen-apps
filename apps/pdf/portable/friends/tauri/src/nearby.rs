@@ -132,6 +132,7 @@ impl<R: Runtime> PlatformDiscovery for Discovery<R> {
             match event["kind"].as_str().unwrap_or_default() {
                 "ready" => reports.ready(),
                 "denied" => reports.denied(),
+                "radio" => reports.radio(event["on"].as_bool().unwrap_or(true)),
                 "failed" => reports.failed(&text(&event, "why")),
                 "lost" => reports.lost(&text(&event, "name")),
                 "found" => {

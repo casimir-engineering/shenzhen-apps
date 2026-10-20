@@ -28,6 +28,9 @@ pub enum BrowseEvent {
     },
     /// The person refused local network access (iOS): Nearby says so, and how to allow it.
     Denied,
+    /// Whether the radio the network method needs is on (a phone's Wi-Fi). Only platforms that can tell send it;
+    /// while it is off Nearby says "Wi-Fi is off" rather than that it is looking on a network.
+    Radio(bool),
     /// The backend cannot work (no network, an error); detail for the log only.
     Failed(String),
 }

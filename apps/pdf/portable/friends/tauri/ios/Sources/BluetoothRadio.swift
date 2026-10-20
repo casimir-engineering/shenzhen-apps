@@ -204,7 +204,9 @@ final class BluetoothRadio: NSObject, CBCentralManagerDelegate, CBPeripheralMana
     queue.async {
       guard let central = self.central, central.state == .poweredOn else { return }
       let once = [CBCentralManagerScanOptionAllowDuplicatesKey: false]
-      central.scanForPeripherals(withServices: [serviceID], options: once)
+      // Either UUID: a visible Android phone advertises the public UUID first and the service UUID only in its
+      // scan response, which a scan without duplicates may never report.
+      central.scanForPeripherals(withServices: [serviceID, publicID], options: once)
       self.scanning = true
     }
   }

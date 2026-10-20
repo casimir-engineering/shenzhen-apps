@@ -82,3 +82,16 @@ fn each_new_window_asks_again() {
     assert!(!lan.listening());
     assert!(registered.lock().unwrap().is_empty());
 }
+
+#[test]
+fn a_phone_with_wi_fi_off_says_so_instead_of_looking() {
+    let (mut lan, _) = adapter(&Arc::new(AtomicBool::new(false)));
+    lan.start();
+    lan.browse_event(BrowseEvent::Ready);
+    assert_eq!(lan.state(), AdapterState::Working);
+    let events = lan.browse_event(BrowseEvent::Radio(false));
+    assert!(matches!(events.as_slice(), [Event::State(Method::Network, AdapterState::RadioOff)]));
+    assert!(lan.browse_event(BrowseEvent::Radio(false)).is_empty(), "said once");
+    lan.browse_event(BrowseEvent::Radio(true));
+    assert_eq!(lan.state(), AdapterState::Working);
+}

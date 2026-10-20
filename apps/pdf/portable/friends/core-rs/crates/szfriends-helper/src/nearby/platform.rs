@@ -82,6 +82,11 @@ impl Reports {
         (self.browse)(BrowseEvent::Denied);
     }
 
+    /// Whether the phone's Wi-Fi is on (Android); NearbyFacts then shows the network method as off while it is not.
+    pub fn radio(&self, on: bool) {
+        (self.browse)(BrowseEvent::Radio(on));
+    }
+
     /// The platform cannot browse now (no network, an error); detail for the log only.
     pub fn failed(&self, why: &str) {
         (self.browse)(BrowseEvent::Failed(why.to_owned()));
