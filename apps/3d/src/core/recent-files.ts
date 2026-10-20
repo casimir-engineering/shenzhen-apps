@@ -19,6 +19,8 @@ interface RecentBridge {
   ): Promise<{ name: string; lastModified: number; bytes: Uint8Array }[]>;
   remove(id: string): Promise<void>;
   touch(id: string): Promise<RecentEntry>;
+  /** Where a native entry's files are now (Electron), for Friends to send them from there. */
+  paths?(id: string): Promise<string[]>;
 }
 declare global {
   interface Window {
@@ -248,4 +250,12 @@ export async function removeRecent(id: string): Promise<void> {
   }).catch((error) => {
     if (!window.shenzhenRecentFiles) throw error;
   });
+}
+/** The paths a native entry's files are at now, when the shell keeps them (Electron); otherwise null. */
+export async function recentPaths(
+  entry: RecentEntry,
+): Promise<string[] | null> {
+  const bridge = window.shenzhenRecentFiles;
+  if (entry.storage !== "native" || !bridge?.paths) return null;
+  return bridge.paths(entry.id);
 }

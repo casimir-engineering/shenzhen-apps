@@ -1541,6 +1541,7 @@ function App() {
           <Suspense fallback={null}>
             <FriendsHeader
               projectName={projectName}
+              recent={recent}
               buildProject={buildProject}
               onError={setError}
               onNotice={notify}

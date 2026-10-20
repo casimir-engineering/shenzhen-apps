@@ -149,6 +149,24 @@ function createRecentFileStore(directory) {
         }
         return files;
       }),
+    // Where an entry's files are now, for Friends to send them from there as it sends a dropped file. Each must
+    // still be a regular file at that path: one moved, removed, or replaced by a link is not offered.
+    paths: (id) =>
+      serial(async () => {
+        if (typeof id !== "string" || !/^[a-f0-9-]{36}$/.test(id))
+          throw Error("Invalid recent file grant.");
+        const entry = (await read()).find((e) => e.id === id);
+        const regular = async (file) =>
+          (await fs.lstat(file).catch(() => null))?.isFile() === true;
+        if (
+          !entry ||
+          !(await Promise.all(entry.paths.map(regular))).every(Boolean)
+        )
+          throw Error(
+            "A recent file was moved, removed, or is no longer readable. Open it from its location again.",
+          );
+        return [...entry.paths];
+      }),
     remove: (id) =>
       serial(async () => write((await read()).filter((e) => e.id !== id))),
   };
