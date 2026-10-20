@@ -27,6 +27,7 @@ pub mod sync_records;
 mod sync_settings;
 mod transfer_files;
 mod transfer_local;
+mod transfer_states;
 mod transfers;
 
 use std::fmt;
