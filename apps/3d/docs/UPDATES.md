@@ -55,7 +55,7 @@ Builds of a private release owner can be moved to the public channel through the
 2. On the private repository, publish a release of that same version whose assets are the public release's Mac update files, byte for byte: the ZIP, the DMG, their blockmaps and `latest-mac.yml`. Leave out `build-info.json`, provenance, the README and the other platforms' packages. Its notes tell people that this version moves them to the open-source Shenzhen 3D and that updates come from there from now on.
 3. A private build connected to GitHub finds that release, downloads it and installs it like any other. The installed app is the public build. It reads the public owner's releases without a credential. The GitHub access saved by the private build is deleted without being decrypted, because the saved settings name another owner. The automatic-check and preview settings are kept, and with automatic checks on it checks the public channel 20 seconds after its first start. Later releases on the private repository are no longer read, so the private channel has no other use after this.
 
-`update-manager.test.cjs` covers the move in the app, and `tools/updater-e2e` checks it with the published private builds (`--expect-owner`, `--next-app`). Windows and Linux builds have no updater, so installs there stay on their version until someone installs the public package.
+`update-manager.test.cjs` covers the move in the app, and `tools/updater-e2e` checks it with the published private builds (`--expect-owner`, `--next-app`). Windows and Linux builds up to 0.2.1 have no updater, so installs there stay on their version until someone installs a newer package; from the first release with the updater they follow the public releases ([Windows and Linux](#windows-and-linux)).
 
 ## Authentication
 
@@ -113,5 +113,112 @@ footer's Updates button and the Updates dialog are the Mac's, with **Update to X
   without being a release. The footer still shows `package.json`'s version; the Updates dialog shows the installed
   one.
 
-Windows and Linux (Tauri) have no updater: the footer shows the version only, and people install a newer MSI, Setup
-or Linux package from the release by hand.
+## Windows and Linux
+
+The Tauri app on Windows and Linux updates from the pre-releases of `casimir-engineering/shenzhen-3D`, read through
+the public GitHub API with no account. `src-tauri/src/app_updates.rs` does the work and `src-tauri/src/release_feed.rs`
+holds what it reads (both unit-tested); the page's `window.shenzhenUpdates` (`src/core/native-updates.ts`) is the
+Mac's bridge, so the footer's Updates button and the Updates dialog are the Mac's, with **Update to X**, the download's
+progress and **Restart & install**. There is one channel, so the dialog has no preview toggle.
+
+- **When.** A few seconds after launch and then once a day while the app runs, when **Check daily** is on (the
+  default), and not when Windows or NetworkManager says the connection is metered; **Check for updates** checks at
+  once. On a metered connection the dialog gives the download's size before **Update to X**.
+- **What.** The newest non-draft release above the installed version whose `latest.json` has an entry for this
+  install and which has a `SHA256SUMS.txt`. Releases without them (Mac-only ones such as preview-0.2.1, and every
+  release before this updater) are passed over for the next one down. The entry is chosen by how the app was
+  installed, which Tauri's bundler writes into each installer's copy of the app: `windows-x86_64-nsis` (Setup),
+  `windows-x86_64-msi` (MSI), `linux-aarch64-appimage` (AppImage), and `x86_64`/`aarch64` likewise.
+- **Checks.** The installer is downloaded by Tauri's updater (`tauri-plugin-updater` 2.13.3, pinned), which refuses
+  it unless its minisign signature verifies against the public key in `src-tauri/tauri.conf.json`
+  (`plugins.updater.pubkey`) and names the version announced (`requireSignedVersion`). The app then checks the same
+  signature itself and the file's line in `SHA256SUMS.txt`. Anything else is refused before it runs, and the dialog
+  says the download didn't match.
+- **Install.** Setup: the new Setup runs in passive mode (a progress window, no questions), replaces the
+  installation in place and starts the new version. MSI: msiexec runs the new MSI in passive mode; MSIs install for
+  all users, so Windows asks for administrator approval as it does for any MSI; the new version starts afterwards.
+  AppImage: the file is replaced where it is (the folder must be writable) and the app restarts. People who installed
+  the Setup keep updating with Setups, and MSI installs with MSIs.
+- **deb and rpm.** A package manager installs these, and the app does not run it with administrator rights: the
+  dialog says a new version is available and **Download** opens the new package of the same kind and architecture
+  in the browser. No apt or rpm repository is published.
+- **Before this updater.** 0.2.0 and earlier have none: people install the first release that has it by hand, once.
+
+### The updater key
+
+Every installer the Windows and Linux apps accept is signed with one minisign key, made with `tauri signer generate`
+on 2026-10-20. The private key and its password are on the release Mac, outside any repository:
+
+- `~/FriendsKeys/tauri-updater/shenzhen-3d-updater.key` (the private key, encrypted with the password)
+- `~/FriendsKeys/tauri-updater/password.txt` (its password)
+- `~/FriendsKeys/tauri-updater/shenzhen-3d-updater.key.pub` (the public key, also in `tauri.conf.json`;
+  key id `03DA5522A283BC00`)
+
+**Losing the private key or its password ends updates on Windows and Linux**: every installed app accepts only
+installers signed by it, so people would have to download and install a new version by hand, once, to move to a new
+key. Keep a copy of the key and the password somewhere other than this Mac. Changing the key means a release, signed
+with the old key, whose `tauri.conf.json` names the new one.
+
+### Releasing
+
+The Windows and Linux installers are built in their own systems (`docs/PLATFORMS.md`). Once the release directory
+holds them under their release names (or `--collect` copies them from the Tauri bundle folders), on the Mac with the
+key:
+
+```sh
+node scripts/updates/release-updates.mjs --dir <release dir> --tag preview-<version> [--collect <bundle dir>]...
+node scripts/updates/release-updates.mjs --verify --dir <release dir> --tag preview-<version>
+```
+
+The first signs the Setup, the MSI and the AppImage for that version, checks each signature against
+`tauri.conf.json`, writes `latest.json` (each entry names the file's GitHub download address and carries its
+signature), writes `manifest.plist` for the registered-devices `.ipa` (below) and writes `SHA256SUMS.txt` for every
+file. Upload everything except the `.sig` files. A release whose `latest.json` is missing an installer simply isn't
+offered to that kind of install.
+
+## iPhone and iPad
+
+The iOS app is the registered-devices `.ipa`, signed with the developer account's development identity and a profile
+that lists the devices it installs on. It checks the same releases at launch and daily (`app_updates.rs`): a newer
+release with a `manifest.plist` and a `shenzhen-3d-<version>-ios-registered-devices.ipa` is offered as **Update to X**,
+with "Only iPhones and iPads registered for testing Shenzhen 3D can install it." **Update to X** gives iOS the link
+`itms-services://?action=download-manifest&url=<manifest.plist's download address>`; iOS asks whether to install,
+downloads the `.ipa` named in the manifest and replaces the app, keeping its data. A device that is not in the
+profile cannot install it (iOS says it is unable to). To add someone, register their device on the developer
+account, make a new profile with it and sign the next `.ipa` with that profile.
+
+`release-updates.mjs` writes the manifest, after checking that the `.ipa` holds `com.shenzhen3d.viewer` at the
+release's version. The manifest and the `.ipa` are served by GitHub's release download addresses, which answer
+with a redirect to the file over HTTPS; iOS needs HTTPS for both. That a registered iPhone installs from these
+addresses has not been tried yet: the simulator accepts the link but has no installer behind it. If a device says
+it cannot connect, publish `manifest.plist` where it is served directly (without a redirect) and point the release's
+`manifest.plist` asset there.
+
+## Browser
+
+The web build is not hosted anywhere (a ZIP in each release), so it has no update notice; whoever serves it updates
+it by replacing the files.
+
+## Testing
+
+- **Unit.** `cargo test --lib release_feed` in `src-tauri` (tags, releases passed over, the manifest, checksums, and a
+  signed file accepted while a changed one, another key's or another version's is refused), `node --test
+  scripts/updates/release-updates.test.mjs` (release tooling) and `tests/native-updates.test.ts` (the bridge).
+- **Windows and Linux, old to new.** `scripts/updates/vm-update-e2e.sh windows|linux <work dir> [--published <0.2.0
+  release files>]` builds an old and a new test version in a Parallels VM (feature `updates-test-api`, which lets the
+  app read a local copy of GitHub, `scripts/updates/mock-github.mjs`), signs the new one's installers here with the
+  real key, and installs and updates them in the guest: Setup and MSI (each over the published 0.2.0), AppImage, and
+  the deb's Download. The page driver (`tests/updates/drive-update.js`) clicks through the Updates dialog; the first
+  download is changed by one byte and must be refused. Release builds have no such setting and always read GitHub.
+- **iOS.** `node scripts/updates/ios-update-e2e.mjs --app <simulator test build> --release <dir> --tag
+  preview-<version> --work <dir>` runs a simulator of its own, without the Simulator app.
+
+Passed on 2026-10-20, with the real updater key: Windows 11 ARM64 VM (x64 builds), the published 0.2.0 Setup, then
+a 0.2.2 test Setup over it, updated itself to 0.2.9 (the changed download refused first; 0.2.9 started and was up to
+date); the same with the published 0.2.0 MSI and 0.2.2/0.2.9 MSIs (Windows Installer starts the new version on its
+own; opened again, it was 0.2.9 and up to date). Ubuntu 24.04 ARM64 VM: a 0.2.2 AppImage updated itself in place to
+the 0.2.9 file (changed download refused first); an installed 0.2.2 deb offered Download and opened the 0.2.9 deb's
+address. iOS 26.5 simulator: 0.2.2 found 0.2.9, showed who can install it and handed iOS the itms-services link to
+the release's manifest.plist. The test builds have no Friends, whose installer steps are the ones every install
+runs; the rpm takes the deb's path in the app and was not run; installing over the air on a registered iPhone was
+not tried.

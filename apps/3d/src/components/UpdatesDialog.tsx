@@ -122,9 +122,11 @@ export default function UpdatesDialog({ onClose }: { onClose: () => void }) {
                 onClick={() => void run(() => api.download())}
               >
                 <ArrowDownToLine size={16} />{" "}
-                {state.platform === "android"
-                  ? `Update to ${state.availableVersion}`
-                  : "Download update"}
+                {!state.platform
+                  ? "Download update"
+                  : state.downloadOnly
+                    ? "Download"
+                    : `Update to ${state.availableVersion}`}
               </button>
             ) : state.status === "ready" ? (
               <button
@@ -169,7 +171,7 @@ export default function UpdatesDialog({ onClose }: { onClose: () => void }) {
                 }
               />
             </label>
-            {state.platform !== "android" && (
+            {!state.platform && (
               <label className="updates-toggle">
                 <span>
                   <strong>Include preview releases</strong>

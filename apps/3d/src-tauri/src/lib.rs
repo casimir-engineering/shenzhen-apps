@@ -1,10 +1,14 @@
 #[cfg(target_os = "android")]
 mod android_updates;
+#[cfg(any(windows, target_os = "linux", target_os = "ios"))]
+mod app_updates;
 #[cfg(feature = "friends")]
 mod friends;
 #[cfg(feature = "friends")]
 mod friends_links;
 mod native_open;
+#[cfg(any(windows, target_os = "linux", target_os = "ios", test))]
+mod release_feed;
 #[cfg(feature = "friends-smoke")]
 mod smoke;
 #[cfg(desktop)]
@@ -175,7 +179,10 @@ pub fn run() {
     let builder = tauri::Builder::default().manage(native_open::NativeOpenFiles::default());
     #[cfg(all(feature = "friends", any(windows, target_os = "linux", target_os = "android")))]
     let builder = friends_links::plugins(builder);
-    #[cfg(all(not(feature = "friends-smoke"), not(target_os = "android")))]
+    #[cfg(all(
+        not(feature = "friends-smoke"),
+        not(any(windows, target_os = "linux", target_os = "ios", target_os = "android"))
+    ))]
     let builder = builder.invoke_handler(tauri::generate_handler![
         native_open::take_native_open_files
     ]);
@@ -188,6 +195,20 @@ pub fn run() {
             android_updates::android_updates,
             android_updates::android_updates_subscribe
         ]);
+    // Windows, Linux and iOS update themselves from GitHub Releases (src/app_updates.rs, docs/UPDATES.md).
+    #[cfg(all(
+        not(feature = "friends-smoke"),
+        any(windows, target_os = "linux", target_os = "ios")
+    ))]
+    let builder = builder
+        .plugin(app_updates::plugin())
+        .invoke_handler(tauri::generate_handler![
+            native_open::take_native_open_files,
+            app_updates::app_updates,
+            app_updates::app_updates_subscribe
+        ]);
+    #[cfg(all(not(feature = "friends-smoke"), any(windows, target_os = "linux")))]
+    let builder = builder.plugin(tauri_plugin_updater::Builder::new().build());
     let builder = builder
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init());

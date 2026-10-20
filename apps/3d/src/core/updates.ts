@@ -20,8 +20,11 @@ export interface UpdateState {
   progress?: number;
   message: string;
   lastChecked?: number;
-  /** Android: updates come as APKs that Android installs after the person confirms; the channel is fixed. */
-  platform?: "android";
+  /** Android: APKs that Android installs after the person confirms. Windows, Linux and iOS
+   * (src-tauri/src/app_updates.rs): one release channel, and Update to X does it all. */
+  platform?: "android" | "windows" | "linux" | "ios";
+  /** The newer version is a package to download and install by hand (Linux deb and rpm). */
+  downloadOnly?: boolean;
 }
 export interface UpdateBridge {
   getState(): Promise<UpdateState>;
