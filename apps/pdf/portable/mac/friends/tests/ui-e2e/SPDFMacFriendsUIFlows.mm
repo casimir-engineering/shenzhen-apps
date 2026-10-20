@@ -385,7 +385,10 @@ static NSWindow* UISettingsWindow(UIRig* rig, SZFriendsSettingsSection* section)
     return settings;
 }
 
-// The sheet once it is up and still (the same frame for a few turns in a row), as a person sees it before clicking.
+// The sheet once it is up and still (the same frame for a few turns in a row) and a person has had a moment to read
+// it. A press on "Reset Friends" within a tenth of a second of the sheet appearing was dropped about one try in
+// twelve, and the same press repeated a second later went through; 0.6 s after the sheet appeared, 20 tries of 20
+// went through. A person never clicks that fast, so the harness waits as they would.
 static NSWindow* UISheet(NSWindow* window) {
     __block NSWindow* sheet = nil;
     if (!UIWait(5, ^BOOL { return (sheet = window.attachedSheet) != nil && sheet.isVisible; })) return nil;
@@ -397,6 +400,7 @@ static NSWindow* UISheet(NSWindow* window) {
         last = frame;
         return steady >= 3;
     });
+    UISpin(0.6);
     return sheet;
 }
 
