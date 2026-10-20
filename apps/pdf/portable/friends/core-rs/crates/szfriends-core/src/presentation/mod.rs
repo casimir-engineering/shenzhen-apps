@@ -17,6 +17,7 @@ mod details;
 mod devices;
 mod devices_files;
 pub mod facts;
+mod found;
 mod items;
 mod join;
 mod links;

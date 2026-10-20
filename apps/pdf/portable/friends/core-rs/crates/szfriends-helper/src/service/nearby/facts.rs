@@ -2,6 +2,7 @@
 //! matched by tag, strangers whose public entry told us who they are), each method's state, the visibility deadline,
 //! and whether this computer accepts connections nearby.
 
+use szfriends_core::nearby::merger::Candidate;
 use szfriends_core::nearby::visibility::Instant;
 use szfriends_core::nearby::Method;
 use szfriends_core::presentation::{NearbyFacts, NearbyPersonFacts, Picture, RouteMethod as ViewRoute};
@@ -31,7 +32,29 @@ fn view_route(route: RouteMethod) -> ViewRoute {
     }
 }
 
+/// The discovery methods whose sightings of this candidate still live (lingering ones included, as the merger keeps
+/// them): how the person was found.
+fn found_methods(candidate: &Candidate) -> Vec<ViewRoute> {
+    let mut methods: Vec<ViewRoute> = Vec::new();
+    for sighting in &candidate.sightings {
+        let method = view_route(sighting.route);
+        if matches!(method, ViewRoute::Lan | ViewRoute::PeerToPeerWifi | ViewRoute::Bluetooth)
+            && !methods.contains(&method)
+        {
+            methods.push(method);
+        }
+    }
+    methods
+}
+
 impl State {
+    /// How a friend in the list is found nearby now: the methods that see them, or none.
+    pub(crate) fn found_methods_of(&self, conversation_id: &str) -> Vec<ViewRoute> {
+        let mut candidates = self.nearby.merger.identified();
+        let found = candidates.find(|c| c.conversation_id.as_deref() == Some(conversation_id));
+        found.map(found_methods).unwrap_or_default()
+    }
+
     /// What a public entry said about this key: its cleaned name and Friends ID.
     fn described(&self, key: &[u8; 32]) -> (Option<String>, Option<String>, Option<[u8; 32]>) {
         let Some((fields, static_key)) = self.nearby.public_profiles.get(key) else { return (None, None, None) };
@@ -73,6 +96,7 @@ impl State {
                     relation: person.relation,
                     is_stranger: person.relation != Relation::Friend,
                     route_method,
+                    found_methods: found_methods(candidate),
                 }),
                 None => {
                     // Someone visible for their 5 minutes, described by what their entry served; a removed person
@@ -88,6 +112,7 @@ impl State {
                         relation: Relation::Removed,
                         is_stranger: true,
                         route_method,
+                        found_methods: found_methods(candidate),
                     });
                 }
             }

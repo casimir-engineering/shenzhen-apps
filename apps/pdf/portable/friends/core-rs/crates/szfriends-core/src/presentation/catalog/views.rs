@@ -194,6 +194,13 @@ pub(super) const NEARBY: &[(&str, &str)] = &[
     ("note.bluetooth_unavailable", "Bluetooth isn’t working. People nearby without Wi-Fi won’t appear."),
     ("nearby.still_looking", "Still looking"),
     ("nearby.subtitle.lan", "On your network"),
+    // How a nearby person was found (nearby.found): one method, or two or three joined.
+    ("found.lan", "Local network"),
+    ("found.p2p_wifi", "Direct Wi-Fi"),
+    ("found.bluetooth", "Bluetooth"),
+    ("found.join", "{first} and {second}"),
+    ("found.join3", "{first}, {second} and {third}"),
+    ("found.spoken", "Found over {methods}"),
     ("nearby.subtitle.p2p_wifi", "Over direct Wi-Fi"),
     ("nearby.subtitle.bluetooth", "Over Bluetooth · messages fine, files slower"),
     ("nearby.subtitle.visible", "Visible now"),

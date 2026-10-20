@@ -78,6 +78,9 @@ impl State {
         facts.unconfirmed_answer_id = person.unconfirmed_answer_id.clone();
         facts.friends_id_confirmed = person.friends_id_confirmed;
         facts.key_change_pending = person.key_change_pending;
+        if person.relation == Relation::Friend {
+            facts.found_methods = self.found_methods_of(&person.conversation_id);
+        }
         facts.offers_waiting = conn
             .query_row(
                 "SELECT count(*) FROM transfers WHERE conversation_id = ?1 AND outgoing = 0 AND state = ?2",
