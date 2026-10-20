@@ -46,6 +46,16 @@ BUNDLE_ID="com.intuition.shenzhenfiles"
 SHORT_VERSION="26.10.20"
 RELEASE_BUILD="1"
 BUNDLE_VERSION="26102001"
+# tools/release.sh builds a candidate of another version (a dry run of a throwaway one) with
+# SZF_RELEASE_VERSION=<YY.M.D>-<N>; publishing refuses a version other than the one written above.
+if [[ -n "${SZF_RELEASE_VERSION:-}" ]]; then
+  [[ "$SZF_RELEASE_VERSION" =~ ^([0-9]{2})\.([1-9][0-9]?)\.([1-9][0-9]?)-([1-9][0-9]?)$ ]] ||
+    { echo "error: SZF_RELEASE_VERSION must read YY.M.D-N, not $SZF_RELEASE_VERSION" >&2; exit 2; }
+  SHORT_VERSION="${SZF_RELEASE_VERSION%-*}"
+  RELEASE_BUILD="${SZF_RELEASE_VERSION##*-}"
+  BUNDLE_VERSION="$(printf '%02d%02d%02d%02d' "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}" "${BASH_REMATCH[3]}" \
+    "${BASH_REMATCH[4]}")"
+fi
 RELEASE_TAG="$SHORT_VERSION-$RELEASE_BUILD"
 
 # Locales kept in the bundle (nautilus ships ~120; trim to a reasonable set).

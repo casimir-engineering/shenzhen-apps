@@ -307,15 +307,23 @@ fi
 # suppress. Identity signing must FAIL LOUDLY instead: a single silently
 # failed dylib signature poisons the whole bundle (deep verification and
 # notarization both reject it), which is much harder to debug later.
+# The libraries and modules are files with no code nested in them, so they are signed in parallel: with a secure
+# timestamp each signature waits on Apple's timestamp server, and one after the other they took most of a minute.
+machos="$(mktemp "${TMPDIR:-/tmp}/szf-machos.XXXXXX")"
 while IFS= read -r -d '' f; do
   if [[ "$(head -c4 "$f" | xxd -p)" == "cffaedfe" || "$(head -c4 "$f" | xxd -p)" == "cafebabe" ]]; then
-    if [[ "$SIGN_ID" == "-" ]]; then
-      codesign "${SIGN_FLAGS[@]}" "$f" 2>/dev/null
-    else
-      codesign "${SIGN_FLAGS[@]}" "$f" || { echo "error: codesign failed: $f" >&2; exit 1; }
-    fi
+    printf '%s\0' "$f" >> "$machos"
   fi
 done < <(find "$APP/Contents/Frameworks" "$APP/Contents/Resources/lib" -type f -print0)
+jobs="$(sysctl -n hw.ncpu 2>/dev/null || echo 4)"
+if [[ "$SIGN_ID" == "-" ]]; then
+  xargs -0 -n 1 -P "$jobs" codesign "${SIGN_FLAGS[@]}" < "$machos" 2>/dev/null ||
+    { rm -f "$machos"; echo "error: codesign failed for a library" >&2; exit 1; }
+else
+  xargs -0 -n 1 -P "$jobs" codesign "${SIGN_FLAGS[@]}" < "$machos" ||
+    { rm -f "$machos"; echo "error: codesign failed for a library (above)" >&2; exit 1; }
+fi
+rm -f "$machos"
 
 # Shenzhen Friends helper: its own line, before the outer bundle seals it as nested
 # code, signed exactly like the app (ad hoc, or MAC_SIGN_IDENTITY with the hardened
