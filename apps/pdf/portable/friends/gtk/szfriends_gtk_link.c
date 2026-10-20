@@ -96,6 +96,8 @@ static GPtrArray *derived_capabilities(const SZFriendsGtkHost *host) {
     g_ptr_array_add(list, "list.menu");
     /* How each person nearby was found, as icons and words on their row (szfriends_gtk_row.c). */
     g_ptr_array_add(list, "nearby.found");
+    /* Get again on a friend's file the person moved or deleted (szfriends_gtk_actions.c). */
+    g_ptr_array_add(list, "files.again");
     return list;
 }
 

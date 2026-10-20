@@ -9,7 +9,7 @@ NAMES(actions, NULL, "accept_request", "decline_request", "cancel_request", "blo
       "retry_item", "mark_verified", "accept_key_change", "dismiss_banner", "start_visibility", "stop_visibility",
       "reset_friends", "delete_history", "open_file", "show_file", "open_settings", "add_from_link", "receive_link",
       "reset_friend_link", "revoke_link", "revoke_device", "fetch_from_device", "join_profile", "cancel_join",
-      "approve_join", "deny_join", "activate", "choose_received_folder");
+      "approve_join", "deny_join", "activate", "choose_received_folder", "fetch_from_friend");
 NAMES(confirm_option_names, NULL, "delete_history");
 NAMES(styles, NULL, "primary", "secondary", "link", "destructive");
 NAMES(settings_targets, NULL, "local_network_privacy", "bluetooth_privacy", "bluetooth", "wifi");
@@ -30,7 +30,7 @@ NAMES(directions, NULL, "in", "out");
 NAMES(text_formats, NULL, "markdown");
 NAMES(message_states, NULL, "queued", "connecting", "sending", "delivered", "failed", "cancelled");
 NAMES(transfer_states, NULL, "queued", "offered", "waiting_for_you", "sending", "receiving", "delivered", "received",
-      "declined", "cancelled", "failed", "on_device", "fetching");
+      "declined", "cancelled", "failed", "on_device", "fetching", "missing", "gone");
 NAMES(request_directions, NULL, "incoming", "outgoing");
 NAMES(verification_states, NULL, "verified", "unverified");
 NAMES(id_states, NULL, "unreserved", "reserved", "changed", "unavailable");

@@ -40,6 +40,8 @@ static NSDictionary<NSString *, NSString *> *SZFActionIDs(void) {
             // transfer_id; a device row's Remove, a join row's Approve and Deny, and Start again carry their own id.
             @"fetch_from_device" : @"transfer_id", @"revoke_device" : @"", @"approve_join" : @"", @"deny_join" : @"",
             @"join_profile" : @"", @"cancel_join" : @"",
+            // Get again on a file a friend sent (PROTOCOL.md § Getting a file again): fetched by its transfer_id.
+            @"fetch_from_friend" : @"transfer_id",
         };
     });
     return table;

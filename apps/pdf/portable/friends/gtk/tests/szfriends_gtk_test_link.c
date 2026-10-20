@@ -102,13 +102,14 @@ static void test_hello_and_strings(void) {
            "hello names the app and where received files are shown");
     EXPECT(hello && json_object_get_null_member(hello, "embedded_helper"), "no embedded helper: never wins handover");
     JsonArray *capabilities = hello ? json_object_get_array_member(hello, "capabilities") : NULL;
-    EXPECT(capabilities && json_array_get_length(capabilities) == 4 &&
+    EXPECT(capabilities && json_array_get_length(capabilities) == 5 &&
                strcmp(json_array_get_string_element(capabilities, 0), "drop.files") == 0 &&
                strcmp(json_array_get_string_element(capabilities, 1), "mentions") == 0 &&
                strcmp(json_array_get_string_element(capabilities, 2), "list.menu") == 0 &&
-               strcmp(json_array_get_string_element(capabilities, 3), "nearby.found") == 0,
-           "a host without # items or tabs claims drop.files, and mentions, list.menu and nearby.found, which the "
-           "views draw");
+               strcmp(json_array_get_string_element(capabilities, 3), "nearby.found") == 0 &&
+               strcmp(json_array_get_string_element(capabilities, 4), "files.again") == 0,
+           "a host without # items or tabs claims drop.files, and mentions, list.menu, nearby.found and files.again, "
+           "which the views draw");
     if (hello) json_object_unref(hello);
     EXPECT(strcmp(szfriends_gtk_link_string(harness->link, "button_label"), "Friends") == 0, "welcome strings");
     EXPECT(strcmp(szfriends_gtk_link_string(harness->link, "no_such_key"), "") == 0, "an absent key reads as \"\"");

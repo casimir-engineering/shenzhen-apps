@@ -422,6 +422,9 @@ szfriends_intent *szfriends_intent_deny_join(const char *join_id);
 szfriends_intent *szfriends_intent_revoke_device(const char *device_id);
 szfriends_intent *szfriends_intent_rename_device(const char *name);
 szfriends_intent *szfriends_intent_fetch_from_device(const char *transfer_id);
+/* Get again (PROTOCOL.md § Getting a file again), when the helper announces "files.again": the transfer item's
+ * transfer_id. */
+szfriends_intent *szfriends_intent_fetch_from_friend(const char *transfer_id);
 
 #ifdef __cplusplus
 }
