@@ -39,7 +39,7 @@
       "available": true,
       "enabled": true,
       "title": "Accept files from Mei automatically",
-      "body": "Files from Mei download without asking. They still go to Received files and never open by themselves."
+      "body": "Files from Mei download without asking. They’re saved where other received files go and never open by themselves."
     },
     "received": {
       "label": "Received from Mei: 14 files",
@@ -48,7 +48,7 @@
         "action": "show_file",
         "label": "Show in Finder",
         "style": "link",
-        "path": "/Users/raph/Library/Application Support/Shenzhen Friends/received"
+        "path": "/Users/raph/Downloads"
       }
     },
     "key_change": null,
@@ -60,7 +60,7 @@
         "note": "Clears this chat on all your computers. Mei stays your friend.",
         "confirm": {
           "title": "Delete your chat history with Mei?",
-          "body": "Your messages and file history with Mei are deleted from this computer, and from your other computers as soon as they connect. Anything still waiting to go to Mei won’t be sent. Mei stays your friend and keeps their own copy of the chat. Files you received stay in Received files.",
+          "body": "Your messages and file history with Mei are deleted from this computer, and from your other computers as soon as they connect. Anything still waiting to go to Mei won’t be sent. Mei stays your friend and keeps their own copy of the chat. Files you received stay where they were saved.",
           "confirm_label": "Delete History",
           "cancel_label": "Cancel",
           "destructive": true

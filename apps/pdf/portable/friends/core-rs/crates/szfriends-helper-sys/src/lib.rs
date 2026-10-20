@@ -13,6 +13,7 @@
 //! - [`dnssd`]: the system's DNS-SD (`DnsServiceBrowse`, `DnsServiceResolve`, `DnsServiceRegister`) for nearby
 //!   discovery, served by the DNS client with its own mDNS rules (ADR 0015 § 15).
 //! - [`firewall`]: what Defender Firewall would do with a listener, read through `INetFwPolicy2` (§ 15).
+//! - [`known_folders`]: the person's Downloads folder (`SHGetKnownFolderPath`), where received files go.
 //!
 //! The decisions over these facts are pure functions in `szfriends-contract::pipe`. Everywhere, [`local_time`]: the
 //! computer's own time zone for the words about time. Otherwise Linux needs no `unsafe` (rustix covers it).
@@ -22,7 +23,7 @@ pub mod local_time;
 mod windows;
 
 #[cfg(windows)]
-pub use windows::{dnssd, dpapi, events, firewall, lock, pipe, token};
+pub use windows::{dnssd, dpapi, events, firewall, known_folders, lock, pipe, token};
 
 #[cfg(all(windows, feature = "testing"))]
 pub use windows::testing;

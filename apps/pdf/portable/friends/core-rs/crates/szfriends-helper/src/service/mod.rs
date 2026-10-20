@@ -70,7 +70,9 @@ pub use online::{BLOCK_DIRECT_FILE, ENV_TEST_HOST_KEYS, ENV_TEST_HOST_LIST};
 /// What the service announces in every welcome (PROTOCOL.md § Capabilities); `nearby.bluetooth` too where this
 /// helper has a Bluetooth adapter (not on Windows, nor on Linux without the `bluetooth` feature). `devices`: one
 /// profile on several computers, joined and synced over the same nearby and online routes friends use.
-const CAPABILITIES: &[&str] = &["nearby.network", "messages.status", "messages.cancel", "mentions", "devices"];
+/// `received.folder`: received files go to a folder the person can choose (Downloads until they do).
+const CAPABILITIES: &[&str] =
+    &["nearby.network", "messages.status", "messages.cancel", "mentions", "devices", "received.folder"];
 
 fn capabilities(bluetooth: bool) -> Vec<String> {
     let mut capabilities: Vec<String> = CAPABILITIES.iter().map(|c| (*c).to_owned()).collect();
@@ -149,12 +151,25 @@ pub(crate) fn local_time_zone() -> szfriends_core::presentation::time::TimeZone 
 impl Service {
     /// Loads the identity for the store in `state_dir` (creating both on a first start), opens the store and starts
     /// the service's thread.
+    /// Received files go to `$SZFRIENDS_DOWNLOADS_DIR` or `Downloads` inside `state_dir` until the person chooses a
+    /// folder: what tests and in-process services get. A helper for the person's own home passes their Downloads
+    /// with [`Service::start_with`].
     pub fn start(state_dir: &Path, keys: Box<dyn KeyStore>) -> Result<Arc<Self>, StartError> {
+        Self::start_with(state_dir, keys, szfriends_core::store::ReceivedDefaults::contained(state_dir))
+    }
+
+    /// As [`Service::start`], with where received files go until the person chooses a folder.
+    pub fn start_with(
+        state_dir: &Path,
+        keys: Box<dyn KeyStore>,
+        received: szfriends_core::store::ReceivedDefaults,
+    ) -> Result<Arc<Self>, StartError> {
         std::fs::create_dir_all(state_dir).map_err(|e| StartError::Store(e.to_string()))?;
         let recorded = Store::identity_of(state_dir).map_err(|e| StartError::Store(e.to_string()))?;
         let manager = IdentityManager::new(Keys(keys));
         let (identity, _) = manager.load_or_create(recorded).map_err(|e| StartError::Identity(format!("{e:?}")))?;
-        let mut store = Store::open(state_dir).map_err(|e| StartError::Store(e.to_string()))?;
+        let options = szfriends_core::store::StoreOptions { received: Some(received), ..Default::default() };
+        let mut store = Store::open_with(state_dir, options).map_err(|e| StartError::Store(e.to_string()))?;
         if recorded == StoreIdentity::NoStore {
             store.record_identity(&identity.public_key()).map_err(|e| StartError::Store(e.to_string()))?;
         }

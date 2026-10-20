@@ -8,10 +8,19 @@ const {
   Menu,
   MenuItem,
   shell,
+  dialog,
 } = require("electron");
 
-/** `trusted` says which pages may use Friends; received files in `associatedFormats` open through `queueOpenFiles`. */
-function setupFriends({ trusted, associatedFormats, queueOpenFiles }) {
+/**
+ * `trusted` says which pages may use Friends; received files in `associatedFormats` open through `queueOpenFiles`,
+ * and received models go to recent files through `rememberRecent(paths, name, format)`.
+ */
+function setupFriends({
+  trusted,
+  associatedFormats,
+  queueOpenFiles,
+  rememberRecent,
+}) {
   const available =
     process.platform === "darwin" &&
     (app.isPackaged ||
@@ -21,6 +30,18 @@ function setupFriends({ trusted, associatedFormats, queueOpenFiles }) {
       ));
   let host;
   let pendingLink;
+  let receivedRecents;
+  const onReceived = (files) => {
+    if (!rememberRecent) return;
+    receivedRecents ??= require("./received-recents.cjs").createReceivedRecents(
+      {
+        directory: app.getPath("userData"),
+        formats: associatedFormats,
+        remember: rememberRecent,
+      },
+    );
+    return receivedRecents.received(files);
+  };
   const friends = () => {
     if (!host) {
       host = require("./host.cjs").createFriendsHost({
@@ -32,6 +53,8 @@ function setupFriends({ trusted, associatedFormats, queueOpenFiles }) {
         trusted,
         openFormats: associatedFormats,
         openFiles: queueOpenFiles,
+        dialog,
+        onReceived,
       });
       if (pendingLink) host.openLink(pendingLink);
       pendingLink = undefined;

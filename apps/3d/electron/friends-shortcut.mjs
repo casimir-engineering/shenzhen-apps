@@ -68,6 +68,7 @@ const environment = {
   SHENZHEN_3D_FRIENDS_HELPER: helperApp,
   SHENZHEN_3D_FRIENDS_ADDON: addonPath,
   SZFRIENDS_STATE_DIR: path.join(directory, "home"),
+  SZFRIENDS_DOWNLOADS_DIR: path.join(directory, "downloads"),
   SZFRIENDS_TEST_SERVICE_TYPE: serviceType,
 };
 delete environment.SHENZHEN_3D_DEV_URL;

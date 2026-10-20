@@ -220,7 +220,9 @@ pub(super) fn set_column(
     column: &str,
     value: &dyn rusqlite::ToSql,
 ) -> Result<()> {
-    const ALLOWED: [&str; 7] = [
+    const ALLOWED: [&str; 9] = [
+        "received_at",
+        "received_via",
         "verified_bytes",
         "staged_path",
         "partial_path",

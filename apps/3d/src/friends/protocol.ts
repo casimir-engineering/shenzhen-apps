@@ -354,7 +354,17 @@ export type SettingsData = {
     placeholder: string;
   };
   id: { label: string; note: string; friends_id: string; copy_label: string };
-  received: { label: string; note: string; action: Action };
+  received: {
+    label: string;
+    /** With the helper capability received.folder: the folder's name ("Downloads"). */
+    value?: string;
+    /** "" on a computer, where no note shows. */
+    note: string;
+    path?: string | null;
+    action: Action | null;
+    /** choose_received_folder (Change…), null where the folder cannot be changed. */
+    change?: Action | null;
+  };
   auto_accept: {
     label: string;
     note: string;
@@ -459,4 +469,14 @@ export type FriendsStatus = {
   capabilities: string[];
   limits: Record<string, number> | null;
   badge: BadgeData | null;
+};
+/** The `received` view: files received here, newest first (helper capability received.folder). */
+export type ReceivedData = {
+  files: {
+    transfer_id: string;
+    path: string;
+    file_name: string;
+    received_at: number;
+    source: "friend" | "link" | "device";
+  }[];
 };

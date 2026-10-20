@@ -4,7 +4,18 @@
 use std::io;
 use std::path::{Component, Path, PathBuf};
 
-use szfriends_core::paths::{state_dir, Platform};
+use szfriends_core::paths::{downloads_dir, state_dir, Platform};
+use szfriends_core::store::destination::downloads_override;
+use szfriends_core::store::ReceivedDefaults;
+
+/// The system's Downloads folder for this person (the known folder on Windows, wherever they moved it).
+pub fn platform_downloads() -> Option<PathBuf> {
+    #[cfg(windows)]
+    if let Some(folder) = szfriends_helper_sys::known_folders::downloads() {
+        return Some(folder);
+    }
+    downloads_dir(Platform::current(), |key| std::env::var(key).ok(), |path| std::fs::read_to_string(path).ok())
+}
 
 /// An absolute path here replaces the platform's state directory (tests, probes, two helpers side by side).
 pub const ENV_STATE_DIR: &str = "SZFRIENDS_STATE_DIR";
@@ -43,6 +54,16 @@ impl StateDir {
     pub fn new(path: PathBuf) -> Self {
         let canonical = canonical_form(&path);
         Self { path, canonical }
+    }
+
+    /// Where received files go until the person chooses a folder: `$SZFRIENDS_DOWNLOADS_DIR` (tests), else
+    /// `Downloads` inside a test or development home, so no test ever reaches the person's own Downloads, else the
+    /// system's Downloads folder.
+    pub fn received_defaults(&self) -> ReceivedDefaults {
+        if downloads_override().is_some() || std::env::var_os(ENV_STATE_DIR).is_some() || !self.is_platform_default() {
+            return ReceivedDefaults::contained(&self.path);
+        }
+        platform_downloads().map_or_else(ReceivedDefaults::default, ReceivedDefaults::folder)
     }
 
     /// Creates the directory (0700 on Unix) and checks it is the user's own and not a link.

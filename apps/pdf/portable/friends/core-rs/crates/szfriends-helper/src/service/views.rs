@@ -19,6 +19,7 @@ pub enum ViewKind {
     Settings,
     Join,
     Conversation,
+    Received,
 }
 
 impl ViewKind {
@@ -32,6 +33,7 @@ impl ViewKind {
             Self::Settings => "settings",
             Self::Join => "join",
             Self::Conversation => "conversation",
+            Self::Received => "received",
         }
     }
 
@@ -45,6 +47,7 @@ impl ViewKind {
             Self::Settings,
             Self::Join,
             Self::Conversation,
+            Self::Received,
         ]
         .into_iter()
         .find(|v| v.name() == name)
@@ -129,6 +132,7 @@ impl State {
             ViewKind::Profile => builder.profile(&world.profile, elsewhere),
             ViewKind::Settings => builder.settings(&world.profile, &world.people),
             ViewKind::Join => builder.join(&self.joining_facts()),
+            ViewKind::Received => builder.received(&self.store.received_files()),
             ViewKind::Conversation => {
                 let person = person()?;
                 let (items, earlier) = self.conversation_items(&person.conversation_id, subscription.limit);

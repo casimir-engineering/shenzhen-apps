@@ -12,6 +12,7 @@ import {
   fill,
 } from "../src/friends/actions";
 import { FriendsStore } from "../src/friends/store";
+import { chooseReceivedFolder } from "../src/friends/parts";
 import { serializeParts } from "../src/friends/Composer";
 import {
   MAX_STAGED_NAME_BYTES,
@@ -144,6 +145,39 @@ describe("Friends view details", () => {
       type: "unsubscribe",
       fields: { subscription: "s_2" },
     });
+  });
+
+  it("Save received files to shows the folder, and Change… sends the folder the picker gave", async () => {
+    const frame = json("snapshots/settings.json");
+    const setup = pageFor("settings.json", frame)!;
+    const { html } = await render(setup.byView, setup.holds, setup.page);
+    const row = frame.data.received;
+    expect(html).toContain(escape(row.label));
+    expect(html).toContain(escape(row.value));
+    expect(html).toContain(escape(row.change.label));
+    expect(html).toContain(escape(row.action.label));
+
+    const bridge = fakeBridge({});
+    const starts: (string | null | undefined)[] = [];
+    let chosen: string | null = "/Users/someone/From friends";
+    bridge.chooseFolder = async (start) => {
+      starts.push(start);
+      return chosen;
+    };
+    const store = new FriendsStore(bridge, status);
+    const reports: unknown[] = [];
+    const panel = { bridge, store, report: (r: unknown) => reports.push(r) };
+    await chooseReceivedFolder(panel as never, row.path);
+    expect(starts).toEqual([row.path]);
+    expect(bridge.sent.at(-1)).toEqual({
+      type: "set_received_folder",
+      fields: { path: "/Users/someone/From friends" },
+    });
+    expect(reports).toHaveLength(1);
+    chosen = null;
+    const before = bridge.sent.length;
+    await chooseReceivedFolder(panel as never, row.path);
+    expect(bridge.sent.length, "cancelled: nothing sent").toBe(before);
   });
 
   it("the composer's hint, the history and the request card come from the snapshot", async () => {

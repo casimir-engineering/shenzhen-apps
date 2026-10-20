@@ -1,5 +1,7 @@
 //! Links between two Rust helpers online (PROTOCOL.md § Links): a friend link, and a download link received.
 
+use std::path::Path;
+
 use serde_json::{json, Value};
 use szfriends_helper::state::ENV_STATE_DIR;
 
@@ -97,6 +99,14 @@ pub fn receive_link() {
     let items = done["data"]["items"].as_array().cloned().unwrap_or_default();
     let file = items.iter().find(|i| i["kind"] == "transfer").expect("the file")["file"]["path"].clone();
     assert_eq!(std::fs::read(file.as_str().unwrap()).unwrap(), content, "whole");
+    assert_eq!(Path::new(file.as_str().unwrap()).parent(), Some(b.0.join("Downloads").as_path()), "in Downloads");
+    // Listed for hosts' recent files, as a link's file.
+    let view = bo.send("subscribe", json!({"view": "received"}))["subscription"].clone();
+    let listed = bo.snapshot(view.as_str().unwrap(), "the link's file listed", |d| {
+        d["files"].as_array().is_some_and(|files| !files.is_empty())
+    });
+    assert_eq!(listed["data"]["files"][0]["source"], "link");
+    assert_eq!(listed["data"]["files"][0]["file_name"], "Site photos.pdf");
     // Ada is not Bo's friend: the file offers Add.
     assert!(items.iter().any(|i| i["actions"].to_string().contains("add_from_mention")), "{items:?}");
     // Revoked: Bo is told it ended.

@@ -18,6 +18,7 @@ pub mod animals;
 pub mod keys;
 #[cfg(any(target_os = "android", target_os = "ios"))]
 pub mod native;
+pub mod received;
 pub mod restored;
 
 use std::path::{Path, PathBuf};
@@ -26,7 +27,7 @@ use std::time::Duration;
 
 use serde_json::{json, Value};
 use szfriends_contract::handshake::{goodbye, ClientInfo, GoodbyeReason};
-use szfriends_core::store::Store;
+use szfriends_core::store::{ReceivedDefaults, Store};
 use szfriends_helper::events::SystemEvent;
 use szfriends_helper::presentation::{Presentation, StubPresentation};
 use szfriends_helper::server::{Connection, Reply};
@@ -73,6 +74,8 @@ struct Lifecycle {
 pub struct PhoneService {
     state_dir: PathBuf,
     keys: Keys,
+    /// Where received files go (`received.rs`).
+    received: ReceivedDefaults,
     current: RwLock<Current>,
     lifecycle: Mutex<Lifecycle>,
     grace: Duration,
@@ -85,7 +88,7 @@ impl std::fmt::Debug for PhoneService {
 }
 
 /// What the store and key say at a start.
-fn begin(state_dir: &Path, keys: &Keys) -> Current {
+fn begin(state_dir: &Path, keys: &Keys, received: &ReceivedDefaults) -> Current {
     let checked = (|| {
         std::fs::create_dir_all(state_dir).map_err(|_| IdentityError::StoreFailed)?;
         // A store that records no identity is another identity's; one that cannot be opened is no reason to offer
@@ -97,7 +100,7 @@ fn begin(state_dir: &Path, keys: &Keys) -> Current {
         IdentityManager::new(Boxed(keys())).load_or_create(recorded)
     })();
     match checked {
-        Ok(_) => match Service::start(state_dir, keys()) {
+        Ok(_) => match Service::start_with(state_dir, keys(), received.clone()) {
             Ok(service) => Current::Service(service),
             Err(error) => {
                 crate::link::log(&format!("Friends service not started: {error}"));
@@ -116,14 +119,29 @@ fn begin(state_dir: &Path, keys: &Keys) -> Current {
 }
 
 impl PhoneService {
+    /// Received files stay inside `state_dir` (`Downloads`): what tests get.
+    #[cfg_attr(not(test), allow(dead_code))]
     pub fn start(state_dir: PathBuf, keys: Keys) -> Arc<Self> {
-        Self::with_grace(state_dir, keys, GRACE)
+        let received = ReceivedDefaults::contained(&state_dir);
+        Self::with_grace(state_dir, keys, received, GRACE)
     }
 
-    pub fn with_grace(state_dir: PathBuf, keys: Keys, grace: Duration) -> Arc<Self> {
-        let current = begin(&state_dir, &keys);
+    /// With where received files go on this phone (`received::defaults`).
+    pub fn start_with(state_dir: PathBuf, keys: Keys, received: ReceivedDefaults) -> Arc<Self> {
+        Self::with_grace(state_dir, keys, received, GRACE)
+    }
+
+    pub fn with_grace(state_dir: PathBuf, keys: Keys, received: ReceivedDefaults, grace: Duration) -> Arc<Self> {
+        let current = begin(&state_dir, &keys, &received);
         let lifecycle = Lifecycle { foreground: true, ..Lifecycle::default() };
-        Arc::new(Self { state_dir, keys, current: RwLock::new(current), lifecycle: Mutex::new(lifecycle), grace })
+        Arc::new(Self {
+            state_dir,
+            keys,
+            received,
+            current: RwLock::new(current),
+            lifecycle: Mutex::new(lifecycle),
+            grace,
+        })
     }
 
     /// "service", "restored" or "stub", for tests and the log.
@@ -152,7 +170,7 @@ impl PhoneService {
         if self.keys.as_ref()().delete(szfriends_identity::keystore::IDENTITY_SECRET_NAME).is_err() {
             return reply.error("internal", None, json!({}));
         }
-        *current = begin(&self.state_dir, &self.keys);
+        *current = begin(&self.state_dir, &self.keys, &self.received);
         drop(current);
         reply.ok(json!({}));
         for connection in restored.connections() {
@@ -222,11 +240,12 @@ impl KeyStore for Boxed {
     }
 }
 
-/// Removes the store and what belongs to its identity, keeping received files (`received/`), as Reset Friends does.
+/// Removes the store and what belongs to its identity, keeping received files (`received/`, and `Downloads/` in a
+/// test home), as Reset Friends does.
 fn remove_store(state_dir: &Path) -> std::io::Result<()> {
     for entry in std::fs::read_dir(state_dir)? {
         let entry = entry?;
-        if entry.file_name() == "received" {
+        if entry.file_name() == "received" || entry.file_name() == "Downloads" {
             continue;
         }
         let kind = entry.file_type()?;

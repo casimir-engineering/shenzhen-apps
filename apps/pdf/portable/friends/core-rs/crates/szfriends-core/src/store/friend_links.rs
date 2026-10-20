@@ -235,6 +235,7 @@ impl Store {
             insert_item(conn, &item)?;
             set_column(conn, transfer_id, "partial_path", &staging.to_string_lossy().into_owned())?;
             apply_event(conn, transfer_id, TransferEvent::Accepted, None)?;
+            conn.execute("UPDATE transfers SET received_via = 1 WHERE transfer_id = ?1", [transfer_id])?;
             transfers::load(conn, transfer_id)?.ok_or(StoreError::NotFound)
         });
         if recorded.is_err() {

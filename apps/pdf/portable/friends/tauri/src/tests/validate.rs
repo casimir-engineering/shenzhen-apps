@@ -93,6 +93,12 @@ fn fields_are_checked_for_shape() {
     rejects("reset_friends", json!({"confirm": "yes"}), "confirm");
     rejects("make_download_link", json!({"file": {"path": "/a.sz3d"}, "expires_days": 2}), "expires_days");
     rejects("set_name", json!({"name": "x".repeat(2000)}), "name");
+    rejects("set_received_folder", json!({"path": "Downloads"}), "path");
+    rejects("set_received_folder", json!({"path": "/Users/someone/../Downloads"}), "path");
+    rejects("set_received_folder", json!({"path": 3}), "path");
+    rejects("set_received_folder", json!({}), "path");
+    assert!(validate_intent(&json!("set_received_folder"), &json!({"path": "/Users/someone/From friends"})).is_ok());
+    assert!(validate_intent(&json!("subscribe"), &json!({"view": "received", "params": null})).is_ok());
 }
 
 #[cfg(windows)]
@@ -106,5 +112,22 @@ fn windows_paths_are_plain_drive_paths() {
     }
     for path in [r"C:\a\..\b.stl", r"C:\a\.\b.stl", r"C:\a\\b.stl", r"C:\a\", "C:/a/b.stl", r"a\b", r"\a\b"] {
         assert!(!plain_path(path), "{path}");
+    }
+}
+
+#[test]
+fn only_a_media_store_item_passes_for_a_received_file_without_a_path() {
+    assert!(media_store_uri("content://media/external/downloads/42"));
+    assert!(media_store_uri("content://media/external_primary/file/7"));
+    for uri in [
+        "content://com.example.other/file/1",
+        "content://media/",
+        "content://media/../x",
+        "content://media/external//1",
+        "content://media/external/downloads/1?x=1",
+        "file:///sdcard/Download/a.pdf",
+        "/sdcard/Download/a.pdf",
+    ] {
+        assert!(!media_store_uri(uri), "{uri}");
     }
 }

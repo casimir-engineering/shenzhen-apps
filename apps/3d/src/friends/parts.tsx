@@ -2,7 +2,7 @@
 // Every string they show comes from a snapshot or welcome.strings. The route and action glyphs are in glyphs.tsx.
 import { createContext, useContext, useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
-import type { FriendsBridge } from "./bridge";
+import { chooseFolder, type FriendsBridge } from "./bridge";
 import type {
   Action,
   Arm,
@@ -192,6 +192,19 @@ export function useArm(arm: Arm | null | undefined) {
 
 type ActionContext = Parameters<typeof actionIntent>[1];
 
+/** Settings ▸ Save received files to ▸ Change…: the system's folder picker at `start`, then set_received_folder with
+ * the folder chosen; nothing when the person cancels. */
+export async function chooseReceivedFolder(
+  panel: Pick<PanelContext, "bridge" | "store" | "report">,
+  start?: string | null,
+) {
+  const folder = await chooseFolder(panel.bridge, start);
+  if (!folder) return;
+  const reply = await panel.store.send("set_received_folder", { path: folder });
+  panel.report(reply);
+  return reply;
+}
+
 /** Runs an action: client-side ones through the host, intents after their confirmation when they carry one. */
 export function useRunAction() {
   const panel = usePanel();
@@ -203,6 +216,9 @@ export function useRunAction() {
         await panel.bridge.showFile(action.path);
       if (action.action === "open_settings" && action.settings_target)
         await panel.bridge.openSettings(action.settings_target);
+      // Settings' Change…: the picker starts at the folder now (the row puts it in `path`).
+      if (action.action === "choose_received_folder")
+        return chooseReceivedFolder(panel, action.path);
       return;
     }
     const intent = actionIntent(action, context);

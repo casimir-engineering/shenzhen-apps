@@ -349,6 +349,7 @@ pub fn objc_helper_with(name: &str, binary: &Path, home: &Path, env: &[(&str, &s
     let child = Command::new(binary)
         .env_clear()
         .env("SZFRIENDS_STATE_DIR", home)
+        .env("SZFRIENDS_DOWNLOADS_DIR", home.join("Downloads"))
         .env("SZFRIENDS_KEY_STORE", "file")
         .envs(env.iter().copied())
         .env("HOME", std::env::var("HOME").unwrap_or_default())

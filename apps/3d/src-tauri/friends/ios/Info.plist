@@ -3,7 +3,8 @@
 <!--
   Shenzhen Friends on iPhone and iPad, merged into the app's Info.plist by src-tauri/friends/phones.conf.json: the
   questions iOS asks when the person turns Friends on (the Mac helper's own words), the Bonjour type Friends
-  browses for, and the scheme of Friends links (shenzhen3d://friends/link#…), which open the link's card.
+  browses for, the scheme of Friends links (shenzhen3d://friends/link#…), which open the link's card, and the
+  app's Documents shown in the Files app (On My iPhone ▸ Shenzhen 3D), where received files are saved.
 -->
 <plist version="1.0">
 <dict>
@@ -15,6 +16,10 @@
 	<array>
 		<string>_szfriends._tcp</string>
 	</array>
+	<key>UIFileSharingEnabled</key>
+	<true/>
+	<key>LSSupportsOpeningDocumentsInPlace</key>
+	<true/>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>

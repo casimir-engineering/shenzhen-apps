@@ -47,6 +47,8 @@ pub enum View {
     Settings,
     MessageStatus,
     Join,
+    /// The files received here (helper capability `received.folder`).
+    Received,
 }
 
 /// A file object (`type.file`): a path, the name it is shown under, and the revision it must still be.
@@ -218,6 +220,10 @@ pub enum Intent {
         conversation_id: String,
         enabled: bool,
     },
+    /// The folder received files are saved to on this computer, as given (the store checks it).
+    SetReceivedFolder {
+        path: String,
+    },
     DismissBanner,
     StartVisibility,
     StopVisibility,
@@ -243,6 +249,8 @@ pub enum Wording {
     Devices(&'static str),
     /// Named as the mention or card named the person.
     Named(String),
+    /// Worded for the folder the person picked in Settings (set_received_folder), not for a file being sent.
+    ReceivedFolder,
 }
 
 /// A refused intent: the code and wire details, and how its message is worded.

@@ -54,6 +54,9 @@ const homeApp = path.join(directory, "app-home"),
 // Loopback only, and a type of this run's own, so nothing else on this Mac answers.
 const serviceType = `_szf3d${process.pid.toString(36).slice(-6)}._tcp`;
 process.env.SZFRIENDS_TEST_SERVICE_TYPE = serviceType;
+// Received files go to Downloads folders of this run's own, never the person's (the peer's helper inherits this).
+const appDownloads = path.join(directory, "app-downloads");
+process.env.SZFRIENDS_DOWNLOADS_DIR = path.join(directory, "peer-downloads");
 // macOS lets a bundle browse and advertise only the Bonjour types its Info.plist declares (NSBonjourServices), so
 // this run's helpers are an ad-hoc signed copy of the pinned helper that also declares the test type. Its code is
 // the pinned build's, byte for byte.
@@ -157,6 +160,7 @@ const environment = {
   SHENZHEN_3D_FRIENDS_HELPER: helperApp,
   SHENZHEN_3D_FRIENDS_ADDON: addonPath,
   SZFRIENDS_STATE_DIR: homeApp,
+  SZFRIENDS_DOWNLOADS_DIR: appDownloads,
 };
 delete environment.SHENZHEN_3D_DEV_URL;
 const peer = createPeer();
@@ -311,6 +315,36 @@ try {
       );
       throw error;
     });
+  // A helper that saves received files to Downloads lists them, and the app adds models to recent files unopened.
+  if (peer.welcome.capabilities?.includes?.("received.folder")) {
+    const saved = path.join(appDownloads, "bracket.svg");
+    await expect
+      .poll(
+        () =>
+          fs.access(saved).then(
+            () => true,
+            () => false,
+          ),
+        {
+          timeout: 30_000,
+        },
+      )
+      .toBe(true);
+    const real = await fs.realpath(saved);
+    const grants = path.join(directory, "profile", "recent-file-grants.json");
+    await expect
+      .poll(
+        async () =>
+          JSON.parse(await fs.readFile(grants, "utf8").catch(() => "[]")).some(
+            (entry) => entry.paths?.includes(real),
+          ),
+        { timeout: 30_000 },
+      )
+      .toBe(true);
+    check(
+      "the received drawing is saved to Downloads and in recent files before it is opened",
+    );
+  }
   await offer.locator(".szf-button", { hasText: /^Open$/ }).click();
   await expect(page.locator(".document-title")).toContainText("bracket", {
     timeout: 60_000,

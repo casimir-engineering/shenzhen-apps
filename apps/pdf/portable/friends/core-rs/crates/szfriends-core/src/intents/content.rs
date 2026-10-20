@@ -23,6 +23,7 @@ fn view_named(name: &str) -> Option<View> {
         "settings" => View::Settings,
         "message_status" => View::MessageStatus,
         "join" => View::Join,
+        "received" => View::Received,
         _ => return None,
     })
 }

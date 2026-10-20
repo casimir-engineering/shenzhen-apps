@@ -234,7 +234,8 @@ fn locate<R: Runtime>(app: &AppHandle<R>, config: &Config<R>) -> Option<Located>
         }
         let native = app.try_state::<phone::native::Native<R>>()?.inner().clone();
         // Android's no-backup directory, or iOS's Application Support with Friends excluded from backups.
-        let base = native.base()?;
+        let (base, sdk) = native.dirs()?;
+        let testing = test_home(config).is_some();
         let (state_dir, keys): (PathBuf, phone::Keys) = match test_home(config) {
             // A test home keeps its key in a file of its own, as the befriend tool seeds it.
             Some(home) => {
@@ -248,7 +249,26 @@ fn locate<R: Runtime>(app: &AppHandle<R>, config: &Config<R>) -> Option<Located>
             link::log("Friends could not be kept out of backups; it stays off");
             return None;
         }
-        let connector = link::embedded::EmbeddedConnector::new(state_dir.clone(), keys);
+        // Received files: Android's public Downloads, iOS's Documents (the Files app), a test home's own folder.
+        #[cfg(target_os = "android")]
+        let received = {
+            let downloads: Arc<dyn szfriends_core::store::ExternalPublisher> =
+                Arc::new(phone::native::MediaStoreDownloads(native.clone()));
+            phone::received::defaults(
+                phone::received::Phone::Android(sdk.unwrap_or(0)),
+                &state_dir,
+                testing,
+                None,
+                Some(downloads),
+            )
+        };
+        #[cfg(target_os = "ios")]
+        let received = {
+            let _ = sdk;
+            let home = std::env::var_os("HOME").map(PathBuf::from);
+            phone::received::defaults(phone::received::Phone::Ios, &state_dir, testing, home, None)
+        };
+        let connector = link::embedded::EmbeddedConnector::new(state_dir.clone(), keys, received);
         let animals = config.animals.clone().or_else(|| phone::animals::unpack(&base));
         return Some(Located { connector: Arc::new(connector), state_dir, animals, data_dir: Some(base) });
     }

@@ -5,7 +5,8 @@
   `activate` intent), never at launch:
   - Android 12 and later: Bluetooth scan, advertise and connect, declared as never used for location;
   - Android 11 and earlier: Bluetooth scanning required location, so fine location is declared for those levels only.
-  No storage permission: received files stay in the app's private directory and leave it through the share sheet.
+  No storage permission: received files go to the public Downloads through MediaStore (Android 10 and later, which
+  needs none); on Android 9 and earlier they stay in the app's private directory and leave it through the share sheet.
 -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">

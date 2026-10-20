@@ -44,6 +44,17 @@ impl<R: Runtime> std::fmt::Debug for Native<R> {
 #[serde(rename_all = "camelCase")]
 struct Dirs {
     base: String,
+    /// Android's SDK version; none on iOS.
+    #[serde(default)]
+    sdk: Option<u32>,
+}
+
+/// Where `publishDownload` put a received file: a path or a content URI, and the name it got.
+#[derive(Deserialize)]
+#[cfg_attr(target_os = "ios", allow(dead_code))]
+struct Published {
+    location: String,
+    name: String,
 }
 
 #[derive(Deserialize)]
@@ -88,10 +99,11 @@ impl<R: Runtime> Native<R> {
         self.0.run_mobile_plugin(command, payload).map_err(|e| e.to_string())
     }
 
-    /// The private directory Friends keeps its files in: Android's no-backup directory, iOS's Application Support.
-    pub fn base(&self) -> Option<PathBuf> {
+    /// The private directory Friends keeps its files in (Android's no-backup directory, iOS's Application Support),
+    /// and Android's SDK version.
+    pub fn dirs(&self) -> Option<(PathBuf, Option<u32>)> {
         let dirs: Dirs = self.call("dirs", json!({})).ok()?;
-        Some(PathBuf::from(dirs.base)).filter(|p| p.is_absolute())
+        Some((PathBuf::from(dirs.base), dirs.sdk)).filter(|(p, _)| p.is_absolute())
     }
 
     /// Keeps `path` out of backups (iOS); checked at every start. Android's no-backup directory needs nothing.
@@ -131,6 +143,21 @@ impl<R: Runtime> Native<R> {
     pub fn keychain_delete(&self, account: &str) -> Result<(), String> {
         let done: Done = self.call("keychainDelete", Item { alias: account, data: None })?;
         done.done.then_some(()).ok_or_else(|| "not deleted".into())
+    }
+}
+
+/// Android's public Downloads, through the Kotlin side's MediaStore (`publishDownload`).
+#[cfg(target_os = "android")]
+pub struct MediaStoreDownloads<R: Runtime>(pub Native<R>);
+
+#[cfg(target_os = "android")]
+impl<R: Runtime> szfriends_core::store::ExternalPublisher for MediaStoreDownloads<R> {
+    fn publish(&self, staged: &std::path::Path, name: &str) -> std::io::Result<(String, String)> {
+        let answer: Published = self
+            .0
+            .call("publishDownload", json!({"path": staged.to_string_lossy(), "name": name}))
+            .map_err(std::io::Error::other)?;
+        Ok((answer.location, answer.name))
     }
 }
 
