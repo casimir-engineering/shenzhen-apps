@@ -199,11 +199,13 @@ impl Service {
         self.identity_key
     }
 
-    /// Stops the service as at exit, for Reset Friends ([`reset`]): sessions, nearby and online closed, and the store
-    /// closed before it returns. Whether the person had opened Friends here (Nearby activated).
+    /// Stops the service for Reset Friends ([`reset`]): the host releases this identity first (bounded; see
+    /// `online_release.rs`), then sessions, nearby and online close as at exit, and the store is closed before it
+    /// returns. Whether the person had opened Friends here (Nearby activated).
     pub fn stop(&self) -> bool {
         let (tell, told) = channel();
         self.send(Input::Deferred(Box::new(move |state| {
+            state.release_identity_for_reset();
             let _ = tell.send(state.store.nearby_permissions_requested());
         })));
         let activated = told.recv_timeout(STOP_WAIT).unwrap_or(false);

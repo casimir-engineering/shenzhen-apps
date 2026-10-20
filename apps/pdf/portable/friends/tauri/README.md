@@ -100,7 +100,8 @@ can call them.
   page.
 - **Reset Friends.** Settings' Reset Friends… (`reset_friends` while the service runs) takes the same path
   (`szfriends-helper`'s `service/reset.rs`): the key leaves the Keystore or the Keychain first (if it refuses,
-  nothing changes and the reply says so), the service stops, the store goes (received files stay), a new identity's
+  nothing changes and the reply says so), the Friends host releases the old ID (with online, within 5 seconds;
+  offline the reset goes ahead), the service stops, the store goes (received files stay), a new identity's
   service starts with Nearby as it was, and every page reconnects to it.
 - **Lifecycle.** `WindowEvent::Suspended` starts a 20-second grace period; after it the service makes received bytes
   durable at a verified offset (its Sleep). `Resumed` dials friends again and resumes transfers (its Wake).

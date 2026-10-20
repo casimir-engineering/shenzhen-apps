@@ -5,14 +5,15 @@
 //! were saved.
 //!
 //! The order is the Mac helper's. The old key goes first: a key store that refuses (locked) changes nothing, and the
-//! running service carries on as the same person. Then the service stops as it does at exit (sessions, nearby,
-//! online and the store closed), the store goes, and a new service starts with a new identity, its Nearby started as
-//! it was before. Then the reply, and every connection is closed with goodbye `reset`, so each page reconnects and
-//! subscribes again: every view showed someone who no longer exists.
+//! running service carries on as the same person. Then the Friends host forgets the old identity and frees its ID
+//! (`online_release.rs`; at most 5 seconds, and the reset goes ahead unconfirmed offline), unless the ID stays with
+//! the person's other computers. Then the service stops as it does at exit (sessions, nearby, online and the store
+//! closed), the store goes, and a new service starts with a new identity, its Nearby started as it was before. Then
+//! the reply, and every connection is closed with goodbye `reset`, so each page reconnects and subscribes again:
+//! every view showed someone who no longer exists.
 //!
 //! A service cannot replace itself, so whoever runs it answers `reset_friends` before it: [`Resettable`] on Windows
-//! and Linux, `PhoneService` on a phone (which also starts again from a store restored without its key). Unlike the
-//! Mac helper, the host is not asked to release the old ID first.
+//! and Linux, `PhoneService` on a phone (which also starts again from a store restored without its key).
 
 use std::collections::HashMap;
 use std::io::{self, ErrorKind};
