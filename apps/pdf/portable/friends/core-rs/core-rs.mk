@@ -32,7 +32,8 @@
 #                           link (crates/szfriends-interop); a Rust helper and the Objective-C helper joining each
 #                           other's profile and adding each other by ID through the host alone; then two Rust
 #                           helpers' services reaching each other online, direct and relayed
-#                           (crates/szfriends-helper/tests/online.rs).
+#                           (crates/szfriends-helper/tests/online.rs), and Reset Friends releasing the old ID at the
+#                           host, or going ahead without it (tests/online_reset.rs).
 #   friends-core-rs-nat-check
 #                           the NAT emulator's punching matrix with tools/nat-peer (the Rust core) as the offerer,
 #                           then as the answerer, against the helper's own peer.
@@ -220,7 +221,7 @@ friends-core-rs-online-check: friends-session-peer friends-links-e2e-helper $$(F
 		SZFRIENDS_HOST_SERVER_DIR="$(abspath $(FRIENDS_HOST_SERVER_DIR))" FRIENDS_TEST_COTURN="$(FRIENDS_TEST_COTURN)" \
 		CARGO_TARGET_DIR="$(abspath $(FRIENDS_CORE_RS_BUILD))/target" \
 		cargo test $(FRIENDS_CORE_RS_MANIFEST) --locked --release -p szfriends-helper \
-		--test online --test route_order -- --nocapture
+		--test online --test online_reset --test route_order -- --nocapture
 
 # The NAT emulator's punching matrix (tests/nat-emulator) with the Rust core on one side of every pair: once as the
 # offerer, once as the answerer, against the helper's own peer, each through every pair of NAT types and checked
