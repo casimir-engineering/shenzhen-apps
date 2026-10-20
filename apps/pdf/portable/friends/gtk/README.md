@@ -16,7 +16,8 @@ The core:
   state change, a timeout runs the ticks, subscriptions go out again after each READY, replies are routed by id and
   run once, and one `badge` subscription serves every window.
 - `szfriends_gtk_snapshot.{c,h}`, `szfriends_gtk_schema.{c,h}`: every view, frame and result the views read, as plain
-  structs parsed by one walker from field tables type-checked at compile time.
+  structs parsed by one walker from field tables type-checked at compile time (the frames and results are in
+  `szfriends_gtk_snapshot_frames.h` and `szfriends_gtk_schema_frames.h`).
 - `szfriends_gtk_actions.{c,h}`, `szfriends_gtk_text.c`: actions and attachments to intents (which id each action
   takes), Settings pages, and rich-text segments as text with a `PangoAttrList`.
 - `szfriends_gtk_drops.{c,h}`: `GdkFileList` and host types to items; folders, links and special files refused with
@@ -38,9 +39,9 @@ The pages:
 
 - List and Nearby (`szfriends_gtk_list_page.{c,h}`, `szfriends_gtk_list_page_private.h`, `szfriends_gtk_list_*.c`,
   `szfriends_gtk_nearby_page.c`): the root page with search, the Friends and Nearby tabs, the notices above the rows
-  and the footer. `szfriends_gtk_list_support.c` holds what every page shares: the pages' stylesheet, the one table of
-  ways out of the views (`SZFriendsGtkSeams`: clipboard, URIs, Settings' dialog, the image chooser), the one
-  confirmation (`szfriends_gtk_confirm`: a card over the dropdown, a dialog in Settings) and running an action
+  and the footer. `szfriends_gtk_list_style.c` holds the pages' stylesheet and `szfriends_gtk_list_support.c` what
+  every page else shares: the one table of ways out of the views (`SZFriendsGtkSeams`: clipboard, URIs, Settings'
+  dialog, the image chooser), the one confirmation (`szfriends_gtk_confirm`: a card over the dropdown, a dialog in Settings) and running an action
   (`szfriends_gtk_perform`).
 - Rows (`szfriends_gtk_row.{c,h}`, `szfriends_gtk_row_private.h`, `szfriends_gtk_row_*.c`): a person's row, its
   display-free look, its drops, Accept, Decline and Block, and its menu (`szfriends_gtk_row_menu.c`, PROTOCOL.md
