@@ -88,6 +88,11 @@ fn a_deleted_file_comes_back_from_the_friend_who_sent_it() {
     let missing = bo_sees(&mut bo, &ada_in_b, t, "moved or deleted", |i| i["state"] == "missing");
     assert_eq!(missing["status_label"], "Moved or deleted");
     assert!(texts(&missing).contains("fetch_from_friend"), "{missing}");
+    // No room for it on Bo's computer: Get again says so, and nothing is asked of Ada.
+    let room = b.0.join(szfriends_helper::service::TEST_FREE_BYTES_FILE);
+    std::fs::write(&room, "1000").unwrap();
+    assert_eq!(bo.refused("fetch_from_friend", json!({"transfer_id": t})), "disk_full");
+    std::fs::remove_file(&room).unwrap();
     bo.send("fetch_from_friend", json!({"transfer_id": t}));
     let back = bo_sees(&mut bo, &ada_in_b, t, "the file back", |i| i["state"] == "received" && opened(i).is_some());
     let again = opened(&back).unwrap();

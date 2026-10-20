@@ -413,8 +413,14 @@ impl SyncExchange {
             return Ok(());
         }
         let end = copy.received + bytes.len() as u64;
-        if end > copy.file.size || (last && end != copy.file.size) || copy.handle.write_all(bytes).is_err() {
+        if end > copy.file.size || (last && end != copy.file.size) {
             self.abandon_copy(true);
+            return Ok(());
+        }
+        if copy.handle.write_all(bytes).is_err() {
+            // No room left here: what arrived goes, and so does the Get; the item offers Get, which then says so.
+            self.abandon_copy(true);
+            let _ = engine.cancel_file_request(store, &id);
             return Ok(());
         }
         copy.received = end;

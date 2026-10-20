@@ -127,6 +127,7 @@ impl State {
         if !received || elsewhere || !friend {
             return Err("not_allowed");
         }
+        self.room_for(file.size)?;
         set_again_state(&self.store, transfer_id, AgainState::Asked).map_err(|_| "internal")?;
         match self.sessions.live_for(&file.conversation_id) {
             Some(id) => self.again_start(id, &file.conversation_id),

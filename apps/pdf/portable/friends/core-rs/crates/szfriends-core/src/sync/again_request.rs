@@ -141,12 +141,18 @@ impl AgainRequester {
             return false;
         }
         let end = copy.received + bytes.len() as u64;
-        if end > copy.file.size || (last && end != copy.file.size) || copy.handle.write_all(bytes).is_err() {
-            // Not the file it was offered as: start over on the next session.
+        let bad = end > copy.file.size || (last && end != copy.file.size);
+        if bad || copy.handle.write_all(bytes).is_err() {
             let copy = self.copy.take().expect("present");
             drop(copy.handle);
             let _ = std::fs::remove_file(&copy.path);
-            self.not_now.insert(copy.file.transfer_id);
+            if bad {
+                // Not the file it was offered as: start over on the next session.
+                self.not_now.insert(copy.file.transfer_id);
+            } else {
+                // No room left here: Get again ends; the item offers it, which then says so.
+                let _ = set_again_state(store, id, AgainState::None);
+            }
             self.start_next(engine, store);
             return true;
         }

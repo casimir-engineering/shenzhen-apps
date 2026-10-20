@@ -210,7 +210,14 @@ static NSMutableData *SZFriendsAgainHead(SZFriendsAgainMessage type, NSData *ide
         [_unavailable addObject:transferID];
         return;
     }
-    [copy.handle writeData:bytes];
+    if (![copy.handle writeData:bytes error:NULL]) {
+        _copy = nil;
+        [copy.handle closeFile];
+        [NSFileManager.defaultManager removeItemAtPath:copy.path error:NULL];
+        if (self.noRoom) self.noRoom(transferID);
+        [self pump];
+        return;
+    }
     copy.received += bytes.length;
     if (copy.received < copy.file.size) {
         [self requestMore];

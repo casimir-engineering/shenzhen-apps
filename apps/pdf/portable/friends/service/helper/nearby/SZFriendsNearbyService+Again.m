@@ -195,6 +195,10 @@ static NSString *SZFriendsAgainKey(NSString *transferID) {
     };
     exchange.arrived = ^(SZFriendsAgainFile *file, NSString *path) { [weakSelf adoptAgainCopy:file path:path]; };
     exchange.notThere = ^(NSString *transferID) { [weakSelf againFileNotThere:transferID]; };
+    exchange.noRoom = ^(NSString *transferID) {
+        [weakSelf setAgainState:SZFriendsAgainNone ofTransfer:transferID];
+        [weakSelf changed];
+    };
     exchange.servePath = ^NSString *_Nullable(NSString *transferID, uint64_t *size, SZFriendsAgainAnswer *answer) {
         return [weakSelf againPathToServe:transferID conversation:conversationID size:size answer:answer];
     };

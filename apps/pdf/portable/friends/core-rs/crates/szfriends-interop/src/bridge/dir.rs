@@ -28,11 +28,8 @@ pub fn run(routes: &Path, service_type: &str) -> i32 {
         eprintln!("szfriends-testnet dir: no directory {}", routes.display());
         return 1;
     }
-    let shared = Arc::new(Mutex::new(Shared {
-        routes: routes.to_owned(),
-        written: HashSet::new(),
-        registered: HashMap::new(),
-    }));
+    let shared =
+        Arc::new(Mutex::new(Shared { routes: routes.to_owned(), written: HashSet::new(), registered: HashMap::new() }));
     let bonjour = Arc::new(Mutex::new(DnsSdCli::new(service_type)));
     let browsing = shared.clone();
     let browsed = bonjour.lock().unwrap_or_else(|e| e.into_inner()).browse(Box::new(move |event| {
@@ -42,7 +39,8 @@ pub fn run(routes: &Path, service_type: &str) -> i32 {
                 if state.registered.contains_key(&name) {
                     return;
                 }
-                let Some(port) = addresses.iter().find(|a| a.ip().is_loopback()).or(addresses.first()).map(|a| a.port())
+                let Some(port) =
+                    addresses.iter().find(|a| a.ip().is_loopback()).or(addresses.first()).map(|a| a.port())
                 else {
                     return;
                 };
@@ -51,11 +49,7 @@ pub fn run(routes: &Path, service_type: &str) -> i32 {
                     state.written.insert(name);
                 }
             }
-            BrowseEvent::Lost { name } => {
-                if state.written.remove(&name) {
-                    remove_entry(&state.routes, &name);
-                }
-            }
+            BrowseEvent::Lost { name } if state.written.remove(&name) => remove_entry(&state.routes, &name),
             _ => {}
         }
     }));

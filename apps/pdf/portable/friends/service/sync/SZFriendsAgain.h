@@ -37,6 +37,8 @@ BOOL SZFriendsFileHasDigest(NSString *path, uint64_t size, NSData *digest);
 @property(nonatomic, copy, nullable) NSArray<SZFriendsAgainFile *> * (^wanted)(void);
 @property(nonatomic, copy, nullable) void (^arrived)(SZFriendsAgainFile *file, NSString *path);
 @property(nonatomic, copy, nullable) void (^notThere)(NSString *transferID);
+// No room left here mid-copy: what arrived is gone, and the request ends (the next Get again says why).
+@property(nonatomic, copy, nullable) void (^noRoom)(NSString *transferID);
 // Server. The path to read a file's bytes from, checked by the owner (the session's person is the one it was sent to,
 // the bytes are unchanged), its size in `*size`; nil with `*answer` set otherwise.
 @property(nonatomic, copy, nullable) NSString *_Nullable (^servePath)(NSString *transferID, uint64_t *size,
