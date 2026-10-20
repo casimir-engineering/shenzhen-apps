@@ -12,26 +12,43 @@ use super::{copies_automatically, SyncError};
 use crate::store::destination::{mark_published, ReceivedSource};
 use crate::store::sync_files::{self, SyncFile};
 use crate::store::sync_log;
-use crate::store::{sanitized_file_name, Store};
+use crate::store::sync_records::SyncTransfer;
+use crate::store::{modified_ns, sanitized_file_name, Store};
 
 fn want_key(transfer_id: &str) -> String {
     format!("want/{transfer_id}")
 }
 
+/// `path` (relative to the state directory, or absolute) when it is a regular file of `size` bytes.
+fn whole_file(state_dir: &Path, path: Option<&str>, size: u64) -> Option<PathBuf> {
+    let path = PathBuf::from(path.filter(|p| !p.is_empty())?);
+    let path = if path.is_absolute() { path } else { state_dir.join(path) };
+    let metadata = std::fs::symlink_metadata(&path).ok()?;
+    (metadata.is_file() && metadata.len() == size).then_some(path)
+}
+
+/// Where this device has a transfer's bytes (ADR 0016): a received file where it was saved, at its size; for one of
+/// ours, the snapshot, a copy, or the file it was sent from while unchanged (size and modification time). `None`: none.
+pub fn local_path_of_transfer(state_dir: &Path, transfer: &SyncTransfer) -> Option<PathBuf> {
+    let size = transfer.size;
+    if !transfer.outgoing {
+        // Received here (or copied from another of our devices): the published file, where it was saved.
+        return whole_file(state_dir, transfer.received_path.as_deref(), size).filter(|_| transfer.state == 6);
+    }
+    whole_file(state_dir, transfer.staged_path.as_deref(), size)
+        .or_else(|| whole_file(state_dir, transfer.received_path.as_deref(), size))
+        .or_else(|| {
+            let path = whole_file(state_dir, transfer.source_path.as_deref(), size)?;
+            let unchanged = transfer.source_mtime_ns != 0 && modified_ns(&path) == transfer.source_mtime_ns;
+            unchanged.then_some(path)
+        })
+}
+
 impl SyncEngine {
-    /// Where this device keeps a file's bytes, or `None`.
+    /// Where this device keeps a file's bytes, or `None` ([`local_path_of_transfer`]).
     pub fn local_path_of_file(&self, store: &Store, transfer_id: &str) -> Option<PathBuf> {
         let transfer = sync_files::transfer(&store.conn, transfer_id).ok().flatten()?;
-        let path = if transfer.outgoing && transfer.staged_path.is_some() {
-            transfer.staged_path.clone()
-        } else {
-            transfer.received_path.clone()
-        };
-        let usable = if transfer.outgoing { path.is_some() } else { transfer.state == 6 && path.is_some() };
-        let path = PathBuf::from(path.filter(|_| usable)?);
-        let path = if path.is_absolute() { path } else { store.state_dir().join(path) };
-        let metadata = std::fs::metadata(&path).ok()?;
-        (metadata.is_file() && metadata.len() == transfer.size).then_some(path)
+        local_path_of_transfer(store.state_dir(), &transfer)
     }
 
     /// Records whose bytes are on another device and not here: asked for first, then the ones that copy by
@@ -41,15 +58,17 @@ impl SyncEngine {
         let me = self.device_key();
         let (mut asked, mut automatic) = (Vec::new(), Vec::new());
         for file in sync_files::sync_files(conn).unwrap_or_default() {
-            if sync_files::transfer(conn, &file.transfer_id).ok().flatten().is_some() {
-                continue;
+            let here = sync_files::transfer(conn, &file.transfer_id).ok().flatten();
+            if here.as_ref().is_some_and(|t| local_path_of_transfer(store.state_dir(), t).is_some()) {
+                continue; // its bytes are here
             }
             if !file.holders.iter().any(|h| *h != me) {
                 continue;
             }
             if sync_log::state(conn, &want_key(&file.transfer_id)).is_ok_and(|v| v != Value::Null) {
                 asked.push(file);
-            } else if copies_automatically(file.size, &file.conversation_id) {
+            } else if here.is_none() && copies_automatically(file.size, &file.conversation_id) {
+                // What the person moved or deleted here comes back only when they ask (Get).
                 automatic.push(file);
             }
         }

@@ -119,6 +119,8 @@ pub const STATE_PRESENCE_RETELL: &str = "presence_retell";
 
 /// Body tag every body naming a conversation carries: the author's own id for it.
 pub(crate) const TAG_CONVERSATION: u8 = 1;
+/// FILE HELD: u64 1, the author no longer holds the bytes (ADR 0016). Absent: it holds them.
+pub(crate) const TAG_RELEASED: u8 = 2;
 
 pub fn copies_automatically(size: u64, conversation_id: &str) -> bool {
     size <= AUTO_COPY_MAX || conversation_id == crate::store::sync_log::YOU

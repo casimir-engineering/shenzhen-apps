@@ -14,7 +14,7 @@ use super::codec::{decode_vector, vector_covers, Event, Fields};
 use super::engine::{SyncEngine, Tombstone};
 use super::{
     is_later, person_key, read_key, Kind, GROUP_RELATION, PERSON_GROUPS, SETTING_DEVICES, SETTING_PRESENCE,
-    SETTING_RENEWED, STATE_PRESENCE_DRAWN, STATE_PRESENCE_RETELL, STATE_RENEWED, TAG_CONVERSATION,
+    SETTING_RENEWED, STATE_PRESENCE_DRAWN, STATE_PRESENCE_RETELL, STATE_RENEWED, TAG_CONVERSATION, TAG_RELEASED,
 };
 use crate::store::devices::{self, ChainMerge};
 use crate::store::sync_log::{self, Register, Vector, YOU};
@@ -55,7 +55,7 @@ impl SyncEngine {
             Kind::Read => self.apply_read(store, event, &fields),
             Kind::Outbox => self.apply_outbox(store, event, &fields),
             Kind::File => self.apply_file(store, event, &fields),
-            Kind::FileHeld => self.apply_file_held(store, event),
+            Kind::FileHeld => self.apply_file_held(store, event, fields.u64(TAG_RELEASED) == 1),
             Kind::Tombstone => done_if(self.apply_tombstone(store, event)),
             Kind::Revocation => self.apply_revocation(store, event),
         }
@@ -350,17 +350,22 @@ impl SyncEngine {
         self.set_register(store, &key, event, file_body(&file))
     }
 
-    fn apply_file_held(&mut self, store: &Store, event: &Event) -> Applied {
+    /// Each author's FILE HELD events apply in its order, so its last one decides whether it is listed (ADR 0016).
+    fn apply_file_held(&mut self, store: &Store, event: &Event, released: bool) -> Applied {
         let conn = &store.conn;
         let Some(mut file) = sync_files::sync_file(conn, &event.subject).ok().flatten() else {
             // Deleted with its item, or its record has not arrived yet.
             let deleted = sync_log::has_bodiless_event(conn, FILE_KIND, &event.subject).unwrap_or(false);
             return if deleted { Applied::Done } else { Applied::Wait };
         };
-        if file.holders.contains(&event.author) {
+        if file.holders.contains(&event.author) != released {
             return Applied::Done;
         }
-        file.holders.push(event.author);
+        if released {
+            file.holders.retain(|h| *h != event.author);
+        } else {
+            file.holders.push(event.author);
+        }
         if sync_files::save_sync_file(conn, &file).is_err() {
             return Applied::Failed;
         }

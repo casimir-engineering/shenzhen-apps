@@ -193,16 +193,6 @@ pub fn save_sync_file(conn: &Connection, file: &SyncFile) -> Result<()> {
     Ok(())
 }
 
-/// Ours being sent (its snapshot), received here, or copied here from another of our devices.
-pub fn transfers_with_local_bytes(conn: &Connection) -> Result<Vec<SyncTransfer>> {
-    sync_transfers(
-        conn,
-        "WHERE (outgoing = 1 AND (staged_path IS NOT NULL OR received_path IS NOT NULL)) \
-         OR (outgoing = 0 AND state = 6 AND received_path IS NOT NULL) ORDER BY transfer_id",
-        &[],
-    )
-}
-
 pub fn all_transfers(conn: &Connection) -> Result<Vec<SyncTransfer>> {
     sync_transfers(conn, "ORDER BY transfer_id", &[])
 }
@@ -231,14 +221,16 @@ pub fn set_state_of_copied_transfer(conn: &Connection, transfer_id: &str, state:
     Ok(())
 }
 
-/// A transfers row for a file whose bytes were copied from another device, pointing at `path` (in received/).
+/// A transfers row for a file whose bytes were copied here (from another of our devices, or again from the friend
+/// who sent it), pointing at `path` (in received/). A row already here lost its bytes (the caller copies only what is
+/// not here): the copy replaces the path that is gone; the caller marks it published.
 pub fn insert_copied_transfer(conn: &Connection, file: &SyncFile, path: &str) -> Result<()> {
     let held: i64 =
         conn.query_row("SELECT count(*) FROM transfers WHERE transfer_id = ?1", [&file.transfer_id], |r| r.get(0))?;
     let now = unix_now();
     if held > 0 {
         conn.execute(
-            "UPDATE transfers SET received_path = coalesce(received_path, ?1), updated_at = ?2 WHERE transfer_id = ?3",
+            "UPDATE transfers SET received_path = ?1, updated_at = ?2 WHERE transfer_id = ?3",
             params![path, now, file.transfer_id],
         )?;
         return Ok(());

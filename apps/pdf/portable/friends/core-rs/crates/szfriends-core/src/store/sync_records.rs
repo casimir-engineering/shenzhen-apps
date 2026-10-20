@@ -415,12 +415,15 @@ pub struct SyncTransfer {
     pub staged_path: Option<String>,
     pub received_path: Option<String>,
     pub created_at: f64,
+    /// Outgoing: the file it was sent from and its modification time then (schema v12; never synced).
+    pub source_path: Option<String>,
+    pub source_mtime_ns: i64,
 }
 
 pub fn sync_transfers(conn: &Connection, tail: &str, binds: &[&dyn rusqlite::ToSql]) -> Result<Vec<SyncTransfer>> {
     let sql = format!(
         "SELECT transfer_id, conversation_id, outgoing, state, file_name, uniform_type, size, digest, staged_path, \
-         received_path, created_at FROM transfers {tail}"
+         received_path, created_at, source_path, source_mtime_ns FROM transfers {tail}"
     );
     let mut statement = conn.prepare(&sql)?;
     let rows = statement.query_map(binds, |row| {
@@ -436,6 +439,8 @@ pub fn sync_transfers(conn: &Connection, tail: &str, binds: &[&dyn rusqlite::ToS
             staged_path: row.get(8)?,
             received_path: row.get(9)?,
             created_at: row.get(10)?,
+            source_path: row.get(11)?,
+            source_mtime_ns: row.get::<_, Option<i64>>(12)?.unwrap_or(0),
         })
     })?;
     Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
