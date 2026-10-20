@@ -247,7 +247,8 @@ pub enum Wording {
     General,
     /// The join intents' own words.
     Join,
-    /// The devices intents' own words, for this reason ("device", "empty", "invalid", "fetch", "device_removed").
+    /// The devices intents' own words, for this reason ("device", "empty", "invalid", "fetch", "again",
+    /// "device_removed").
     Devices(&'static str),
     /// Named as the mention or card named the person.
     Named(String),

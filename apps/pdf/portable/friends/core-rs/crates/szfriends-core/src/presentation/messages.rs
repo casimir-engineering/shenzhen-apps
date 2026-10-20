@@ -142,11 +142,13 @@ impl Strings {
     }
 
     /// The devices intents' errors with words of their own. `reason`: "device" (revoke_device not_found), "empty"
-    /// or "invalid" (rename_device name_invalid), "fetch" (fetch_from_device not_found), "device_removed".
+    /// or "invalid" (rename_device name_invalid), "fetch" (fetch_from_device not_found), "again" (fetch_from_friend
+    /// not_found), "device_removed".
     pub fn devices_error_message(&self, code: &str, reason: &str) -> Option<String> {
         let key = match (code, reason) {
             ("not_found", "device") => "error.not_found.device",
             ("not_found", "fetch") => "error.not_found.fetch",
+            ("not_found", "again") => "error.not_found.again",
             ("name_invalid", "empty") => "error.name_invalid.device.empty",
             ("name_invalid", "invalid") => "error.name_invalid.device",
             ("not_allowed", "device_removed") => "error.not_allowed.device_removed",

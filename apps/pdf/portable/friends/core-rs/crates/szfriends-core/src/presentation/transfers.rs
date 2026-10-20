@@ -249,7 +249,7 @@ impl SnapshotBuilder {
         transfer.insert("assistant_label".into(), json!(assistant));
         transfer.insert("time_label".into(), json!(s.clock_label(item.sent_at)));
         transfer.insert("accessibility_label".into(), json!(spoken));
-        // A file on another of the person's computers, or one copying to them.
-        self.transfer_with_devices(transfer, item, person)
+        // A file on another of the person's computers, one copying to them, or one moved or deleted (again.rs).
+        self.transfer_where_it_is(transfer, item, person)
     }
 }
