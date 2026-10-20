@@ -8,6 +8,10 @@
 # size 128, background picture, icon positions 150/450) → detach → hdiutil
 # convert to compressed UDZO.
 #
+# DMG_LAYOUT_DS_STORE=<file> skips Finder: the image is attached without showing in Finder and that file becomes
+# the volume's .DS_Store. package/dmg-layout.DS_Store is the layout Finder wrote for the 26.9.14-1 release (same
+# volume name, app name, background file and positions), for a build where Finder cannot be scripted.
+#
 # Usage:
 #   ./make-dmg.sh [--check] [path/to/app] [out.dmg]
 #
@@ -115,7 +119,13 @@ tiff_rep_count="$(tiffutil -info "$staging/.background/dmg-background.tiff" |
 hdiutil create -volname "$vol_name" -srcfolder "$staging" -ov \
   -format UDRW -fs HFS+ "$rw_dmg" >/dev/null
 
-attach_out="$(hdiutil attach "$rw_dmg" -readwrite -noverify -noautoopen)"
+layout_template="${DMG_LAYOUT_DS_STORE:-}"
+[[ -z "$layout_template" || -f "$layout_template" ]] || { echo "error: DMG_LAYOUT_DS_STORE not found: $layout_template" >&2; exit 1; }
+if [[ -n "$layout_template" ]]; then
+  attach_out="$(hdiutil attach "$rw_dmg" -readwrite -noverify -noautoopen -nobrowse)"
+else
+  attach_out="$(hdiutil attach "$rw_dmg" -readwrite -noverify -noautoopen)"
+fi
 device="$(echo "$attach_out" | awk '/^\/dev\// { print $1; exit }')"
 mount_point="$(echo "$attach_out" | grep -o '/Volumes/.*$' | head -1)"
 if [[ -z "$device" || -z "$mount_point" ]]; then
@@ -124,6 +134,9 @@ if [[ -z "$device" || -z "$mount_point" ]]; then
 fi
 echo "mounted $device at $mount_point"
 
+if [[ -n "$layout_template" ]]; then
+  cp "$layout_template" "$mount_point/.DS_Store"
+else
 # Finder registers new volumes asynchronously; scripting it before the disk
 # appears fails with -1728 ("Can't get disk"). Poll until Finder sees it.
 for _ in $(seq 1 20); do
@@ -157,6 +170,7 @@ tell application "Finder"
     end tell
 end tell
 EOF
+fi
 
 sync
 hdiutil detach "$device" >/dev/null

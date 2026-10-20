@@ -13,6 +13,10 @@ set -euo pipefail
 # UDZO. Requires Automation permission for Finder scripting (one-time prompt).
 # Signing is the caller's job (the Makefile's dmg target signs afterwards).
 #
+# DMG_LAYOUT_DS_STORE=<file> skips Finder: the image is attached without showing in Finder and that file becomes
+# the volume's .DS_Store. mac/dmg-layout.DS_Store is the layout Finder wrote for the 26.10.11-1 release (same
+# volume name, app name, background file and positions), for a build where Finder cannot be scripted.
+#
 # Layout contract with the auto-updater (SPDFUpdater.mm): exactly ONE
 # non-symlink *.app at the volume root (the Applications symlink and the
 # hidden .background folder are skipped by its discovery glob).
@@ -67,13 +71,23 @@ tiffutil -cathidpicheck "$BG_1X" "$BG_2X" -out "$STAGING/.background/dmg-backgro
 echo "==> Creating read-write image"
 hdiutil create -volname "$VOLNAME" -srcfolder "$STAGING" -ov -format UDRW -fs HFS+ "$RW_DMG" >/dev/null
 
-echo "==> Mounting and applying Finder window layout"
-attach_plist="$(hdiutil attach -readwrite -noverify -noautoopen -plist "$RW_DMG")"
+layout_template="${DMG_LAYOUT_DS_STORE:-}"
+[[ -z "$layout_template" || -f "$layout_template" ]] || { echo "DMG_LAYOUT_DS_STORE not found: $layout_template" >&2; exit 1; }
+if [[ -n "$layout_template" ]]; then
+  echo "==> Mounting (hidden) and applying the layout from $layout_template"
+  attach_plist="$(hdiutil attach -readwrite -noverify -noautoopen -nobrowse -plist "$RW_DMG")"
+else
+  echo "==> Mounting and applying Finder window layout"
+  attach_plist="$(hdiutil attach -readwrite -noverify -noautoopen -plist "$RW_DMG")"
+fi
 MOUNT_POINT="$(printf '%s' "$attach_plist" | plutil -extract 'system-entities' json -o - - \
   | /usr/bin/python3 -c 'import json,sys; print(next(e["mount-point"] for e in json.load(sys.stdin) if "mount-point" in e))')"
 [[ -d "$MOUNT_POINT" ]] || { echo "failed to determine mount point" >&2; exit 1; }
 
 APP_NAME="$(basename "$APP")"
+if [[ -n "$layout_template" ]]; then
+  cp "$layout_template" "$MOUNT_POINT/.DS_Store"
+else
 osascript <<EOF
 tell application "Finder"
   tell disk "$VOLNAME"
@@ -96,6 +110,7 @@ tell application "Finder"
   end tell
 end tell
 EOF
+fi
 
 # Wait for Finder to persist the layout to .DS_Store.
 for _ in $(seq 1 20); do

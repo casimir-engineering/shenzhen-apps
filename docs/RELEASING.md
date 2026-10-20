@@ -60,6 +60,14 @@ Once an app has a release tag here, its gate finds the previous release by tag a
 2. Update the app's README "Latest" marker and its release notes, as each app's own guide says.
 3. Merge to `main`, with a clean tree.
 
+## Installer images without Finder
+
+ShenzhenPDF's and Shenzhen Files' DMG scripts lay out the installer window by scripting Finder, which mounts the
+image where it can be seen and needs Automation permission. Where that is not possible (a session nobody watches),
+set `DMG_LAYOUT_DS_STORE` to the layout the last release's Finder wrote: `apps/pdf/portable/mac/dmg-layout.DS_Store`
+or `apps/files/package/dmg-layout.DS_Store`. The image is then attached without showing in Finder and gets that
+layout: the same window, background and icon positions, since the volume, app and background names are unchanged.
+
 ## ShenzhenPDF
 
 ```sh
