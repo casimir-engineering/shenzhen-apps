@@ -195,7 +195,7 @@ static const NSUInteger SZFriendsDeviceNameMaxBytes = 64;
     } mutableCopy];
     if (mentions) row[@"mentionable"] = @NO; // nobody mentions themselves
     if ([self.audience.capabilities containsObject:@"list.menu"]) row[@"menu"] = @[]; // nothing to remove
-    return row;
+    return [self row:row foundWithMethods:nil]; // this computer is found nowhere
 }
 
 - (NSDictionary<NSString *, id> *)listWithDevices:(NSDictionary<NSString *, id> *)list

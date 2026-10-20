@@ -283,45 +283,6 @@ static const NSInteger SZFriendsBlockArmSeconds = 4;
     ];
 }
 
-// Remove, from the row's menu or a friend's details: what happens to this person, asked first. A friend is removed
-// without being told, a request is declined or withdrawn, and anyone else only leaves the list; a blocked person stays
-// blocked. With history, the person may also delete it there; otherwise the question says nothing about history.
-- (NSDictionary<NSString *, id> *)removeConfirmForPerson:(SZFriendsPersonFacts *)person {
-    SZFriendsStrings *s = _strings;
-    NSDictionary *who = @{@"first" : [self firstNameForPerson:person]};
-    BOOL request = person.relation == SZFriendsPersonRelationOutgoingRequest;
-    NSString *body = person.relation == SZFriendsPersonRelationFriend    ? @"remove.confirm.body.friend"
-                     : person.relation == SZFriendsPersonRelationBlocked ? @"remove.confirm.body.blocked"
-                     : request                                            ? @"remove.confirm.body.request"
-                                                                          : @"remove.confirm.body";
-    NSMutableDictionary *confirm = [@{
-        @"title" : [s text:request ? @"remove.confirm.title.request" : @"remove.confirm.title" values:who],
-        @"body" : [s text:body values:who],
-        @"confirm_label" : [s text:request ? @"action.cancel_request" : @"remove.confirm.button"],
-        @"cancel_label" : [s text:request ? @"remove.confirm.keep" : @"static.cancel"],
-        @"destructive" : @YES
-    } mutableCopy];
-    if (person.lastPreviewItemID.length) {
-        confirm[@"body"] = [@[ confirm[@"body"], [s text:@"remove.confirm.history" values:who] ]
-            componentsJoinedByString:@" "];
-        confirm[@"option"] = @{@"label" : [s text:@"remove.confirm.option"], @"field" : @"delete_history"};
-    }
-    return confirm;
-}
-
-// The row's menu (client capability list.menu), shown on right-click, Control-click or long-press: Remove for
-// everyone, worded as cancelling for a request this person sent.
-- (NSArray<NSDictionary<NSString *, id> *> *)rowMenuForPerson:(SZFriendsPersonFacts *)person {
-    BOOL request = person.relation == SZFriendsPersonRelationOutgoingRequest;
-    NSMutableDictionary *remove = [self action:@"remove_friend"
-                                         label:[_strings text:request ? @"action.cancel_request" : @"menu.remove"]
-                                         style:@"destructive"];
-    remove[@"note"] = [NSNull null];
-    remove[@"arm"] = [NSNull null];
-    remove[@"confirm"] = [self removeConfirmForPerson:person];
-    return @[ remove ];
-}
-
 - (NSDictionary<NSString *, id> *)rowForPerson:(SZFriendsPersonFacts *)person
                                    previewItem:(SZFriendsItemFacts *)item
                                            now:(NSDate *)now {
@@ -427,7 +388,9 @@ static const NSInteger SZFriendsBlockArmSeconds = 4;
         NSMutableDictionary *row = [[self rowForPerson:person previewItem:item now:now] mutableCopy];
         row[@"mentionable"] = [self mentionableForPerson:person]; // the @ picker's people, where a client has one
         if (menus) row[@"menu"] = [self rowMenuForPerson:person];
-        [rows addObject:row];
+        // How a friend nearby was found; nobody else's row says (nearby.found).
+        BOOL friend = person.relation == SZFriendsPersonRelationFriend;
+        [rows addObject:[self row:row foundWithMethods:friend ? person.foundMethods : nil]];
     }
     self.mentionDirectory = directory;
     id empty = [NSNull null];

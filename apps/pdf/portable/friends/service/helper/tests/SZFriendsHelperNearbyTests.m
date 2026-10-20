@@ -227,6 +227,7 @@ int main(void) {
         SZFNTestAdmissionLimits(scratch);
         SZFNTestPresenceSecretOnlyToFriends(scratch);
         SZFNTestStrangerPictures(scratch);
+        SZFNTestFoundMethods(scratch);
         SZFNTestKeyPolicy(scratch);
         SZFNTestFriendsChains(scratch);
         SZFNTestOwnChainToFriends(scratch);
