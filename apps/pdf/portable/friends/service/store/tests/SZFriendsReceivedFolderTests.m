@@ -133,6 +133,10 @@ static void TestPublishToChosenAndFallBack(void) {
     NSString *second = Receive(transfers, @"f2", @"Plan.pdf", SZFTRandomData(10));
     SZFTExpect([second.lastPathComponent isEqualToString:@"Plan (2).pdf"] &&
                    [[NSData dataWithContentsOfFile:first] isEqualToData:one], @"never replaced: %@", second);
+    NSString *state = store.stateDirectory;
+    SZFTExpect(SZFriendsSavedPlaceOfFile(state, first) == SZFriendsSavedPlaceFolder &&
+                   SZFriendsLastReceivedFallback(state) == SZFriendsReceivedFallbackNone,
+               @"saved where meant: no fallback");
     // Read-only now (as a privacy refusal would be): the next file goes to Downloads.
     chmod(chosen.fileSystemRepresentation, 0555);
     NSString *third = Receive(transfers, @"f3", @"Plan.pdf", SZFTRandomData(10));
@@ -140,6 +144,14 @@ static void TestPublishToChosenAndFallBack(void) {
     NSString *downloads = SZFriendsDefaultReceivedFolder(store.stateDirectory);
     SZFTExpect([third isEqualToString:[downloads stringByAppendingPathComponent:@"Plan.pdf"]],
                @"falls back to Downloads: %@", third);
+    SZFTExpect(SZFriendsSavedPlaceOfFile(state, third) == SZFriendsSavedPlaceDownloads &&
+                   SZFriendsLastReceivedFallback(state) == SZFriendsReceivedFallbackDownloads,
+               @"the fallback to Downloads is remembered");
+    // The next file saved where it was meant to be clears it.
+    NSString *back = Receive(transfers, @"f3b", @"Plan.pdf", SZFTRandomData(10));
+    SZFTExpect([back.stringByDeletingLastPathComponent isEqualToString:folder] &&
+                   SZFriendsLastReceivedFallback(state) == SZFriendsReceivedFallbackNone,
+               @"a good save clears the fallback: %@", back);
     // Chosen folder gone and Downloads unwritable: the helper's own received/ keeps the file.
     [NSFileManager.defaultManager removeItemAtPath:chosen error:NULL];
     chmod(downloads.fileSystemRepresentation, 0555);
@@ -147,6 +159,12 @@ static void TestPublishToChosenAndFallBack(void) {
     chmod(downloads.fileSystemRepresentation, 0755);
     SZFTExpect([fourth.stringByDeletingLastPathComponent isEqualToString:transfers.receivedDirectory],
                @"never lost: %@", fourth);
+    SZFTExpect(SZFriendsSavedPlaceOfFile(state, fourth) == SZFriendsSavedPlaceKept &&
+                   SZFriendsLastReceivedFallback(state) == SZFriendsReceivedFallbackKept,
+               @"kept in the helper's own folder, and remembered");
+    // Changing the folder (here back to Downloads) clears it too.
+    SZFriendsSetReceivedFolder(state, downloads, NULL);
+    SZFTExpect(SZFriendsLastReceivedFallback(state) == SZFriendsReceivedFallbackNone, @"a new folder clears it");
     struct stat info;
     SZFTExpect(stat(downloads.fileSystemRepresentation, &info) == 0 && (info.st_mode & 0777) == 0755,
                @"a person's folder keeps its permissions: %o", info.st_mode & 0777);

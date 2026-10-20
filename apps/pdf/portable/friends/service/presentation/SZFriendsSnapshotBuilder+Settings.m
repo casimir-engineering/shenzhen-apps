@@ -46,6 +46,13 @@ static const NSUInteger SZFriendsNamedAutoAcceptLimit = 3;
         received[@"path"] = profile.receivedDirectory;
         received[@"change"] = [self action:@"choose_received_folder" label:[s text:@"settings.received.change"]
                                      style:@"secondary"];
+        // The last file went elsewhere because this folder could not take it: said until one is saved here.
+        if (profile.receivedFallback == SZFriendsReceivedFallbackFactsDownloads) {
+            received[@"note"] = [s text:@"settings.received.note.fallback.downloads"];
+        } else if (profile.receivedFallback == SZFriendsReceivedFallbackFactsKept) {
+            received[@"note"] = [s text:@"settings.received.note.fallback.kept"
+                                 values:@{@"app" : self.audience.appName}];
+        }
     }
     return received;
 }

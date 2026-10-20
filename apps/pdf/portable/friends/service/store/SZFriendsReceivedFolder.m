@@ -15,6 +15,7 @@ NS_ASSUME_NONNULL_BEGIN
 BOOL SZFriendsPublishAcrossVolumes = NO;
 
 NSString *const SZFriendsReceivedFolderFileName = @"received-folder";
+NSString *const SZFriendsReceivedFallbackFileName = @"received-fallback";
 NSString *const SZFriendsDownloadsDirEnvironment = @"SZFRIENDS_DOWNLOADS_DIR";
 
 static NSString *SZFriendsStandardPath(NSString *path) {
@@ -28,6 +29,8 @@ static NSString *_Nullable SZFriendsEnv(const char *name) {
     const char *value = getenv(name);
     return value ? @(value) : nil;
 }
+
+static void SZFriendsRecordReceivedFallback(NSString *stateDirectory, SZFriendsReceivedFallback fallback);
 
 // The state directory a helper uses when nothing overrides it, for the HOME it runs with.
 static BOOL SZFriendsIsDefaultStateDirectory(NSString *stateDirectory) {
@@ -97,12 +100,54 @@ SZFriendsReceivedFolderResult SZFriendsSetReceivedFolder(NSString *stateDirector
             SZFriendsFail(error, SZFriendsStoreMakeError(SZFriendsStoreErrorDatabase, @"cannot clear the folder"));
             return SZFriendsReceivedFolderFailed;
         }
-        return SZFriendsReceivedFolderOK;
+    } else {
+        // Atomic: a crash leaves the old choice or the new one, never half a path.
+        NSData *data = [real dataUsingEncoding:NSUTF8StringEncoding];
+        if (![data writeToFile:file options:NSDataWritingAtomic error:error]) return SZFriendsReceivedFolderFailed;
     }
-    // Atomic: a crash leaves the old choice or the new one, never half a path.
-    NSData *data = [real dataUsingEncoding:NSUTF8StringEncoding];
-    if (![data writeToFile:file options:NSDataWritingAtomic error:error]) return SZFriendsReceivedFolderFailed;
+    // A new folder: what happened to the last file in the old one no longer applies.
+    SZFriendsRecordReceivedFallback(stateDirectory, SZFriendsReceivedFallbackNone);
     return SZFriendsReceivedFolderOK;
+}
+
+#pragma mark - Where files went
+
+static NSString *_Nullable SZFriendsFallbackWord(SZFriendsReceivedFallback fallback) {
+    return fallback == SZFriendsReceivedFallbackDownloads ? @"downloads"
+           : fallback == SZFriendsReceivedFallbackKept    ? @"kept"
+                                                          : nil;
+}
+
+SZFriendsReceivedFallback SZFriendsLastReceivedFallback(NSString *stateDirectory) {
+    NSString *file = [stateDirectory stringByAppendingPathComponent:SZFriendsReceivedFallbackFileName];
+    NSData *data = [NSData dataWithContentsOfFile:file options:0 error:NULL];
+    if (data.length == 0 || data.length > 64) return SZFriendsReceivedFallbackNone;
+    NSString *word = [[[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding]
+        stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
+    if ([word isEqualToString:@"downloads"]) return SZFriendsReceivedFallbackDownloads;
+    if ([word isEqualToString:@"kept"]) return SZFriendsReceivedFallbackKept;
+    return SZFriendsReceivedFallbackNone;
+}
+
+static void SZFriendsRecordReceivedFallback(NSString *stateDirectory, SZFriendsReceivedFallback fallback) {
+    if (SZFriendsLastReceivedFallback(stateDirectory) == fallback) return;
+    NSString *file = [stateDirectory stringByAppendingPathComponent:SZFriendsReceivedFallbackFileName];
+    NSString *word = SZFriendsFallbackWord(fallback);
+    if (word == nil) {
+        unlink(file.fileSystemRepresentation);
+        return;
+    }
+    [[word dataUsingEncoding:NSUTF8StringEncoding] writeToFile:file options:NSDataWritingAtomic error:NULL];
+}
+
+SZFriendsSavedPlace SZFriendsSavedPlaceOfFile(NSString *stateDirectory, NSString *path) {
+    NSString *folder = SZFriendsStandardPath(path.stringByDeletingLastPathComponent);
+    NSString *own = SZFriendsStandardPath([stateDirectory stringByAppendingPathComponent:@"received"]);
+    if ([folder isEqualToString:own]) return SZFriendsSavedPlaceKept;
+    if ([folder isEqualToString:SZFriendsStandardPath(SZFriendsDefaultReceivedFolder(stateDirectory))]) {
+        return SZFriendsSavedPlaceDownloads;
+    }
+    return SZFriendsSavedPlaceFolder;
 }
 
 #pragma mark - Publishing
@@ -187,6 +232,9 @@ NSString *_Nullable SZFriendsPublishReceivedFile(NSString *staged, NSString *fil
                                                  NSError **error) {
     // Quarantined before it gets a name anyone sees, as a browser download would be.
     SZFriendsSetQuarantine(staged, NULL);
+    // Where it is meant to go; any other folder that takes it is a fallback Settings mentions.
+    NSString *meant = SZFriendsReceivedFolder(stateDirectory);
+    NSString *downloads = SZFriendsDefaultReceivedFolder(stateDirectory);
     for (NSString *folder in SZFriendsPublishFolders(stateDirectory)) {
         for (int attempt = 0; attempt < 16; attempt++) {
             NSString *final = SZFriendsUniqueDestination(folder, fileName);
@@ -201,7 +249,14 @@ NSString *_Nullable SZFriendsPublishReceivedFile(NSString *staged, NSString *fil
                 SZFriendsSyncDirectory(folder);
             }
             if (number == EXDEV) number = SZFriendsCopyAcross(staged, final);
-            if (number == 0) return final;
+            if (number == 0) {
+                SZFriendsRecordReceivedFallback(stateDirectory, [folder isEqualToString:meant]
+                                                                    ? SZFriendsReceivedFallbackNone
+                                                                : [folder isEqualToString:downloads]
+                                                                    ? SZFriendsReceivedFallbackDownloads
+                                                                    : SZFriendsReceivedFallbackKept);
+                return final;
+            }
             if (number == EEXIST) continue; // something took the name since it was chosen: the next number
             if (SZFriendsFolderRefused(number)) break;
             SZFriendsFail(error, SZFriendsStoreMakeError(SZFriendsStoreErrorDatabase,

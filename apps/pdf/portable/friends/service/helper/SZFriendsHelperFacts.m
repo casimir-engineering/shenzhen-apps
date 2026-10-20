@@ -55,6 +55,16 @@ SZFriendsItemFacts *SZFriendsItemFactsFromRecord(SZFriendsItemRecord *record, SZ
             facts.askedBecauseDiskLow = transfer.askedBecauseDiskLow;
             facts.bytesPerSecond = transfer.measuredBytesPerSecond;
             facts.localPath = transfer.receivedPath;
+            if (transfer.receivedPath.length && !facts.outgoing) {
+                switch (SZFriendsSavedPlaceOfFile(services.paths.stateDirectory, transfer.receivedPath)) {
+                    case SZFriendsSavedPlaceDownloads: facts.savedToDownloads = YES; break;
+                    case SZFriendsSavedPlaceFolder:
+                        facts.savedFolderName =
+                            transfer.receivedPath.stringByDeletingLastPathComponent.lastPathComponent;
+                        break;
+                    case SZFriendsSavedPlaceKept: break;
+                }
+            }
             facts.fileTypeIdentifier = SZFriendsTypeIdentifierForFileName(transfer.fileName);
             // A row whose file is gone (a crash between the two) shows no preview rather than a broken one, and a
             // received file never shows the sender's picture: once it is here, only our own preview of it counts.
@@ -325,6 +335,13 @@ NSArray<NSString *> *SZFriendsHelperCapabilityList(SZFriendsHelperServices *serv
         profile.receivedDirectory =
             transfers ? transfers.destinationDirectory : SZFriendsReceivedFolder(stateDirectory);
         profile.receivedFolderName = SZFriendsChosenReceivedFolder(stateDirectory).lastPathComponent;
+        switch (SZFriendsLastReceivedFallback(stateDirectory)) {
+            case SZFriendsReceivedFallbackNone: break;
+            case SZFriendsReceivedFallbackDownloads:
+                profile.receivedFallback = SZFriendsReceivedFallbackFactsDownloads;
+                break;
+            case SZFriendsReceivedFallbackKept: profile.receivedFallback = SZFriendsReceivedFallbackFactsKept; break;
+        }
         _profile = profile;
     }
     return _profile;

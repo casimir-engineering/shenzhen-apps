@@ -151,6 +151,16 @@ static void TestFixtures(void) {
         ![received[@"change"][@"action"] isEqual:@"choose_received_folder"]) {
         SZPFail(@"a chosen folder: %@", received);
     }
+    // The last file could not be saved in the folder: the note says where it went instead, from the person's side.
+    chosen.receivedFallback = SZFriendsReceivedFallbackFactsDownloads;
+    received = [builder settingsWithProfile:chosen people:everyone][@"received"];
+    SZPExpect([received[@"note"] isEqual:@"The last file couldn’t be saved here, so it went to Downloads."],
+              @"fallback to Downloads: %@", received[@"note"]);
+    chosen.receivedFallback = SZFriendsReceivedFallbackFactsKept;
+    received = [builder settingsWithProfile:chosen people:everyone][@"received"];
+    NSString *kept = [NSString stringWithFormat:@"The last file couldn’t be saved here, so %@ kept it. Open it "
+                                                @"from its chat.", SZPAudience().appName];
+    SZPExpect([received[@"note"] isEqual:kept], @"kept by the app: %@", received[@"note"]);
     SZFriendsAudience *older = SZPAudience();
     older.helperCapabilities = [NSSet set];
     received = [SZPBuilder(older) settingsWithProfile:SZPProfileRaph() people:everyone][@"received"];

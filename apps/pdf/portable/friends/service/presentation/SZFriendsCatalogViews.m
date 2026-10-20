@@ -22,6 +22,7 @@ static NSDictionary<NSString *, NSString *> *TransferAndConversationEntries(void
         @"transfer.status.receiving_timed" : @"Receiving · {percent}% · {duration} left",
         @"transfer.status.delivered" : @"Delivered to {first}",
         @"transfer.status.received" : @"Received",
+        @"transfer.status.received.saved" : @"Saved to {folder}",
         @"transfer.status.declined.out" : @"{first} declined",
         @"transfer.status.declined.in" : @"You declined",
         @"transfer.status.cancelled" : @"Cancelled",
@@ -43,6 +44,7 @@ static NSDictionary<NSString *, NSString *> *TransferAndConversationEntries(void
         @"transfer.spoken.in.receiving" : @"{sender} is sending {file}, {kind}, {size}{auto}, {percent} percent "
                                           @"received{left}",
         @"transfer.spoken.in.received" : @"{sender} sent {file}, {kind}, {size}{auto}, received",
+        @"transfer.spoken.in.received.saved" : @"{sender} sent {file}, {kind}, {size}{auto}, saved to {folder}",
         @"transfer.spoken.in.declined" : @"{sender} offered {file}, {kind}, {size}, you declined",
         @"transfer.spoken.in.cancelled" : @"{sender} offered {file}, {kind}, {size}, cancelled",
         @"transfer.spoken.in.failed" : @"{sender} offered {file}, {kind}, {size}, it didn’t arrive",
@@ -234,6 +236,9 @@ static NSDictionary<NSString *, NSString *> *PeopleAndSettingsEntries(void) {
         @"settings.id.note" : @"People can add you with it.",
         @"settings.received.label" : @"Save received files to",
         @"settings.received.note" : @"",
+        @"settings.received.note.fallback.downloads" : @"The last file couldn’t be saved here, so it went to Downloads.",
+        @"settings.received.note.fallback.kept" : @"The last file couldn’t be saved here, so {app} kept it. Open it from "
+                                                  @"its chat.",
         @"settings.received.default" : @"Downloads",
         @"settings.received.change" : @"Change…",
         @"settings.auto.label" : @"Accept files automatically",

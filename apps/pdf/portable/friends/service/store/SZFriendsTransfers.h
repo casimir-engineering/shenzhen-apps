@@ -130,6 +130,26 @@ typedef NS_ENUM(NSInteger, SZFriendsReceivedFolderResult) {
 SZFriendsReceivedFolderResult SZFriendsSetReceivedFolder(NSString *stateDirectory, NSString *path,
                                                          NSError **error);
 
+// When the folder a file was meant for could not take it, where it went instead: one word in this file in the state
+// directory, beside received-folder ("downloads" or "kept"), until a file is saved where it was meant to be or the
+// folder is changed, so Settings can say so (PROTOCOL.md § Views, settings: data.received.note). Survives a restart.
+extern NSString *const SZFriendsReceivedFallbackFileName; // "received-fallback"
+typedef NS_ENUM(NSInteger, SZFriendsReceivedFallback) {
+    SZFriendsReceivedFallbackNone = 0,
+    SZFriendsReceivedFallbackDownloads = 1, // the chosen folder could not take it; Downloads did
+    SZFriendsReceivedFallbackKept = 2,      // nor could Downloads; it is in <state>/received/
+};
+SZFriendsReceivedFallback SZFriendsLastReceivedFallback(NSString *stateDirectory);
+
+// Where a published file sits, for its "Saved to …" (PROTOCOL.md § transfer status_label): the default Downloads,
+// another folder (named by its last path component), or <state>/received/ (older files, the last resort).
+typedef NS_ENUM(NSInteger, SZFriendsSavedPlace) {
+    SZFriendsSavedPlaceKept = 0,
+    SZFriendsSavedPlaceDownloads = 1,
+    SZFriendsSavedPlaceFolder = 2,
+};
+SZFriendsSavedPlace SZFriendsSavedPlaceOfFile(NSString *stateDirectory, NSString *path);
+
 // Publishes a verified, staged file (inside <state>/received/.partial/) as `fileName` in the chosen folder, else
 // Downloads, else <state>/received/: whichever is there and takes it (a missing, read-only or refused folder, a
 // full volume, passes to the next), so a file is never lost. Quarantined first; never replaces anything ("Name

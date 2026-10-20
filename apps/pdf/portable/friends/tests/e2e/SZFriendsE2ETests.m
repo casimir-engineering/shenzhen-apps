@@ -201,7 +201,7 @@ int main(int argc, const char *argv[]) {
             {"two apps, one helper: the same chats, messages and read state", SZFE2EScenarioTwoAppsShareHelper},
             {"two apps: equal builds keep the helper, the higher build takes over", SZFE2EScenarioTwoAppsHandover},
             {"delete history: one chat only (store, row, search), then all", SZFE2EScenarioDeleteHistory},
-            {"received files: Downloads, (2) on a clash, the received view, a chosen folder, bad folders",
+            {"received files: Downloads, (2) on a clash, the received view, a chosen folder, bad folders, fallback",
              SZFE2EScenarioReceivedFolder},
             {"received files: an overridden state directory keeps its Downloads inside it",
              SZFE2EScenarioReceivedDefaultUnderState},

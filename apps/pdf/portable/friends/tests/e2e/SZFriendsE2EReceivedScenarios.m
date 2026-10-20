@@ -1,12 +1,18 @@
 // friends-e2e-check: where received files go (PROTOCOL.md § Views, settings and received). Every helper here has
 // SZFRIENDS_DOWNLOADS_DIR at a folder of its scenario, so nothing reaches the real ~/Downloads.
 
+#import <sys/stat.h>
 #import <sys/xattr.h>
 
 #import "SZFriendsE2EScenarios.h"
 
 static NSString *Resolved(NSString *path) {
     return path.stringByResolvingSymlinksInPath;
+}
+
+// The folder a delivered item's file is in.
+static NSString *Folder(NSDictionary *item) {
+    return Resolved([item[@"file"][@"path"] stringByDeletingLastPathComponent]);
 }
 
 static NSDictionary *_Nullable TransferItem(NSDictionary *conversation, NSString *transferID) {
@@ -63,7 +69,8 @@ static BOOL StartAutoAcceptingPair(SZFE2EWorld *world, SZFE2EPair *pair, NSDicti
 
 // Received files go to Downloads, complete and quarantined, "Name (2).ext" on a clash; the item opens and shows that
 // file; the received view lists it; Settings names the folder; a chosen folder takes the next file; bad folders are
-// refused with the documented errors; choosing Downloads again clears the choice.
+// refused with the documented errors; a folder that cannot take a file passes it to Downloads, which the item and
+// Settings say until the next good save; choosing Downloads again clears the choice.
 BOOL SZFE2EScenarioReceivedFolder(SZFE2EWorld *world) {
     SZFE2EPair *pair = [[SZFE2EPair alloc] init];
     NSString *atB = nil;
@@ -90,6 +97,9 @@ BOOL SZFE2EScenarioReceivedFolder(SZFE2EWorld *world) {
           "in Downloads under its own name: %@", first);
     CHECK([[NSData dataWithContentsOfFile:path] isEqual:[NSData dataWithContentsOfFile:source]], "complete");
     CHECK(Quarantined(path), "quarantined like a download");
+    CHECK([first[@"status_label"] isEqual:@"Saved to Downloads"] &&
+              [first[@"accessibility_label"] hasSuffix:@", saved to Downloads"],
+          "the item says where it went: %@", first);
     CHECK([Names(downloads) isEqual:@[ @"Site plan.pdf" ]], "nothing half-written beside it: %@", Names(downloads));
     NSString *staging = [pair.helperB.stateDirectory stringByAppendingPathComponent:@"received/.partial"];
     CHECK(Names(staging).count == 0, "no staging file left: %@", Names(staging));
@@ -149,18 +159,52 @@ BOOL SZFE2EScenarioReceivedFolder(SZFE2EWorld *world) {
     NSDictionary *thirdItem = Deliver(pair, atB, third);
     CHECK([Resolved([thirdItem[@"file"][@"path"] stringByDeletingLastPathComponent]) isEqualToString:Resolved(chosen)],
           "the next file lands there: %@", thirdItem[@"file"]);
+    CHECK([thirdItem[@"status_label"] isEqual:@"Saved to From friends"], "%@", thirdItem[@"status_label"]);
     CHECK(SZFE2EWaitUntil(10, ^BOOL {
               NSArray *files = [pair.b dataFor:received][@"files"];
               return files.count == 3 && [files[0][@"transfer_id"] isEqual:thirdItem[@"transfer_id"]];
           }),
           "newest first: %@", [pair.b dataFor:received]);
 
-    // Downloads again clears the choice.
+    // The chosen folder cannot take the next file (read-only, as when macOS refuses access): it goes to Downloads,
+    // says so, and Settings says why until a file is saved in the chosen folder again.
+    NSString *fallbackNote = @"The last file couldn’t be saved here, so it went to Downloads.";
+    chmod(chosen.fileSystemRepresentation, 0555);
+    NSDictionary *fourth = Deliver(pair, atB, [world fileOfSize:1200 named:@"Fallback one.pdf"]);
+    chmod(chosen.fileSystemRepresentation, 0755);
+    CHECK([Folder(fourth) isEqualToString:Resolved(downloads)] &&
+              [fourth[@"status_label"] isEqual:@"Saved to Downloads"],
+          "a read-only folder: Downloads takes it: %@", fourth);
+    CHECK(SZFE2EWaitUntil(10, ^BOOL {
+              NSDictionary *now = [pair.b dataFor:settings][@"received"];
+              return [now[@"note"] isEqual:fallbackNote] && [now[@"value"] isEqual:@"From friends"];
+          }),
+          "Settings says the last file went to Downloads: %@", [pair.b dataFor:settings][@"received"]);
+    NSDictionary *fifth = Deliver(pair, atB, [world fileOfSize:1300 named:@"Back again.pdf"]);
+    CHECK([Folder(fifth) isEqualToString:Resolved(chosen)],
+          "writable again: %@", fifth[@"file"]);
+    CHECK(SZFE2EWaitUntil(10, ^BOOL {
+              return [[pair.b dataFor:settings][@"received"][@"note"] isEqual:@""];
+          }),
+          "the next good save clears the note: %@", [pair.b dataFor:settings][@"received"]);
+    // The folder is gone: Downloads again, and choosing a folder clears the note.
+    [NSFileManager.defaultManager removeItemAtPath:chosen error:NULL];
+    NSDictionary *sixth = Deliver(pair, atB, [world fileOfSize:1400 named:@"Fallback two.pdf"]);
+    CHECK([Folder(sixth) isEqualToString:Resolved(downloads)] &&
+              [sixth[@"status_label"] isEqual:@"Saved to Downloads"],
+          "a removed folder: Downloads takes it: %@", sixth);
+    CHECK(SZFE2EWaitUntil(10, ^BOOL {
+              return [[pair.b dataFor:settings][@"received"][@"note"] isEqual:fallbackNote];
+          }),
+          "the note again: %@", [pair.b dataFor:settings][@"received"]);
+
+    // Downloads again clears the choice, and the note with it.
     reply = [pair.b intent:@"set_received_folder" fields:@{@"path" : downloads}];
     CHECK([reply[@"ok"] boolValue] && [[pair.b dataFor:settings][@"received"][@"value"] isEqual:@"Downloads"] &&
+              [[pair.b dataFor:settings][@"received"][@"note"] isEqual:@""] &&
               ![NSFileManager.defaultManager fileExistsAtPath:[pair.helperB.stateDirectory
                                                                   stringByAppendingPathComponent:@"received-folder"]],
-          "Downloads again: %@", reply);
+          "Downloads again: %@ %@", reply, [pair.b dataFor:settings][@"received"]);
     return YES;
 }
 
