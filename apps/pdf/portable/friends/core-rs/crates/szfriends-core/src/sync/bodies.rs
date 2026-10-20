@@ -48,6 +48,8 @@ pub fn person_group_body(person: &SyncPerson, group: &str, full: bool) -> Vec<u8
             fields.set_date(3, person.request_at);
             fields.set_u64(4, u64::from(person.request_found_nearby));
             fields.set_u64(5, u64::from(person.auto_accept));
+            // Only while off the list, so the body of everyone never taken off it stays as older helpers write it.
+            fields.set_date(6, person.left_list_at);
         }
         GROUP_PROFILE => {
             fields.set_string(2, person.name.as_deref());
@@ -87,6 +89,7 @@ pub fn apply_person_group(fields: &Fields, group: &str, person: &mut SyncPerson,
             person.request_at = fields.date(3);
             person.request_found_nearby = fields.u64(4) != 0;
             person.auto_accept = fields.u64(5) != 0;
+            person.left_list_at = fields.date(6);
         }
         GROUP_PROFILE => {
             person.name = fields.string(2);

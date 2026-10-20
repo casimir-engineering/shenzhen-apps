@@ -24,6 +24,7 @@ pub mod sync_files;
 pub mod sync_history;
 pub mod sync_log;
 pub mod sync_records;
+mod sync_settings;
 mod transfer_files;
 mod transfer_local;
 mod transfers;
