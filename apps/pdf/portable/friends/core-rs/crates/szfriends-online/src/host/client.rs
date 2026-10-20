@@ -37,7 +37,7 @@ pub type HostSink = Arc<dyn Fn(HostInput) + Send + Sync>;
 pub use super::outcome::{HostOutcome, Via};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Phase {
+pub(super) enum Phase {
     Idle,
     Opening,
     /// Releasing the ID from before joining a profile, before checking in (`release.rs`).
@@ -57,16 +57,16 @@ pub struct HostClient {
     sink: HostSink,
     pub(super) id_provider: IdProvider,
     pub reserved: bool,
-    running: bool,
-    phase: Phase,
+    pub(super) running: bool,
+    pub(super) phase: Phase,
     generation: u64,
     pub(super) socket: Option<Socket>,
     candidates: Vec<(HostEntry, String)>,
     index: usize,
     pub(super) attempt: u32,
-    retry_at: f64,
+    pub(super) retry_at: f64,
     connect_deadline: f64,
-    challenge: Option<Vec<u8>>,
+    pub(super) challenge: Option<Vec<u8>>,
     pub(super) pending_id: String,
     pub(super) collisions: u32,
     pub(super) reserves: u32,
@@ -78,6 +78,8 @@ pub struct HostClient {
     pub release_owed: Option<super::release::ReleaseOwed>,
     pub(super) release_tried: bool,
     pub(super) releasing: bool,
+    /// Reset Friends' release (`release.rs`): its deadline and who hears whether the host confirmed it.
+    pub(super) reset: Option<(f64, std::sync::mpsc::Sender<bool>)>,
     next_ping: f64,
     pong_due: f64,
     pub(super) skew: f64,
@@ -144,6 +146,7 @@ impl HostClient {
             release_owed: None,
             release_tried: false,
             releasing: false,
+            reset: None,
             next_ping: f64::INFINITY,
             pong_due: f64::INFINITY,
             skew: 0.0,
@@ -199,7 +202,7 @@ impl HostClient {
     }
 
     pub(super) fn begin_round(&mut self) {
-        self.releasing = self.release_due();
+        self.releasing = self.reset.is_some() || self.release_due();
         self.candidates = self
             .list
             .entries
@@ -212,6 +215,9 @@ impl HostClient {
     }
 
     fn connect_candidate(&mut self) {
+        if self.index >= self.candidates.len() && self.reset.is_some() {
+            return self.finish_release(None);
+        }
         if self.index >= self.candidates.len() {
             // Every host failed: stay quiet and try again later. Nearby is unaffected.
             self.schedule_retry();
@@ -233,7 +239,7 @@ impl HostClient {
         });
     }
 
-    fn candidate_failed(&mut self) {
+    pub(super) fn candidate_failed(&mut self) {
         self.close_socket();
         self.index += 1;
         self.connect_candidate();
@@ -282,7 +288,7 @@ impl HostClient {
     }
 
     fn socket_closed(&mut self) {
-        if self.phase == Phase::Releasing {
+        if self.phase == Phase::Releasing && self.reset.is_none() {
             return self.finish_release(None);
         }
         let checked_in = self.phase == Phase::CheckedIn;
@@ -300,7 +306,7 @@ impl HostClient {
 
     pub fn next_deadline(&self) -> f64 {
         let mut next = self.retry_at.min(self.connect_deadline).min(self.next_ping).min(self.pong_due);
-        next = next.min(self.online.next_deadline());
+        next = next.min(self.online.next_deadline()).min(self.reset.as_ref().map_or(f64::INFINITY, |r| r.0));
         next
     }
 
@@ -312,7 +318,12 @@ impl HostClient {
                 self.begin_round();
             }
         }
-        if self.connect_deadline <= now && self.phase == Phase::Releasing {
+        // Reset Friends' release ends at its own deadline; the one from before joining, at the connection's.
+        let release_over = match &self.reset {
+            Some((deadline, _)) => *deadline <= now,
+            None => self.connect_deadline <= now && self.phase == Phase::Releasing,
+        };
+        if release_over {
             self.finish_release(None);
         } else if self.connect_deadline <= now && self.phase != Phase::CheckedIn {
             self.candidate_failed();
