@@ -103,6 +103,7 @@ static NSArray *SZFEncodeCases(void) {
         @[ @"chain", @(SZFriendsFrameTypeChain), @{@(33) : D(@"chain bytes", 40)} ],
         @[ @"join", @(SZFriendsFrameTypeJoin), @{@(34) : D(@"join bytes", 20)} ],
         @[ @"sync", @(SZFriendsFrameTypeSync), @{@(35) : D(@"sync bytes", 20)} ],
+        @[ @"again", @(SZFriendsFrameTypeAgain), @{@(36) : D(@"again bytes", 27)} ],
     ];
     NSMutableArray *out = [NSMutableArray array];
     for (NSArray *entry in cases) {
@@ -179,6 +180,10 @@ static NSArray *SZFDecodeCases(void) {
         @[ @"plaintext_65520", Raw(26, @[ @[ @35, Repeat(5, 64000) ], @[ @200, Repeat(6, 65520 - 64007) ] ]) ],
         @[ @"sync_64001", Raw(26, @[ @[ @35, Repeat(5, 64001) ] ]) ],
         @[ @"join_1001", Raw(25, @[ @[ @34, Repeat(5, 1001) ] ]) ],
+        @[ @"again_64000", Raw(27, @[ @[ @36, Repeat(5, 64000) ] ]) ],
+        @[ @"again_64001", Raw(27, @[ @[ @36, Repeat(5, 64001) ] ]) ],
+        @[ @"again_empty", Raw(27, @[ @[ @36, [NSData data] ] ]) ],
+        @[ @"again_missing", Raw(27, @[]) ],
     ];
     NSMutableArray *out = [NSMutableArray array];
     for (NSArray *entry in cases) {

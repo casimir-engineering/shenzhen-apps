@@ -2,8 +2,8 @@
 
 /// The preamble's major version.
 pub const SESSION_MAJOR: u8 = 1;
-/// The highest session minor this build speaks: 1 added THUMBNAIL, 2 CHAIN (and JOIN, SYNC).
-pub const SESSION_MINOR: u16 = 2;
+/// The highest session minor this build speaks: 1 added THUMBNAIL, 2 CHAIN (and JOIN, SYNC), 3 AGAIN.
+pub const SESSION_MINOR: u16 = 3;
 
 /// Every Noise message, handshake or transport, including the 16-byte tag.
 pub const NOISE_MESSAGE_MAX: usize = 65_535;
@@ -23,6 +23,7 @@ pub const FRAME_THUMBNAIL_MAX: usize = 64_000;
 pub const FRAME_CHAIN_MAX: usize = 64_000;
 pub const FRAME_JOIN_MAX: usize = 1_000;
 pub const FRAME_SYNC_MAX: usize = 64_000;
+pub const FRAME_AGAIN_MAX: usize = 64_000;
 pub const ATTESTATION_MAX: usize = 512;
 
 /// Data per CHUNK on LAN, peer-to-peer Wi-Fi and the Internet routes.

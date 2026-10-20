@@ -2,8 +2,8 @@
 //! what no honest peer sends before anything is allocated; the store and presentation apply product rules later.
 
 use crate::consts::{
-    ATTESTATION_MAX, CHUNK_BYTES_WIFI, FRAME_CHAIN_MAX, FRAME_JOIN_MAX, FRAME_PICTURE_MAX, FRAME_SYNC_MAX,
-    FRAME_TEXT_MAX, FRAME_THUMBNAIL_MAX,
+    ATTESTATION_MAX, CHUNK_BYTES_WIFI, FRAME_AGAIN_MAX, FRAME_CHAIN_MAX, FRAME_JOIN_MAX, FRAME_PICTURE_MAX,
+    FRAME_SYNC_MAX, FRAME_TEXT_MAX, FRAME_THUMBNAIL_MAX,
 };
 use crate::types::{tag, FrameType};
 
@@ -101,6 +101,7 @@ const THUMBNAIL: &[FieldRule] = &[
 const CHAIN: &[FieldRule] = &[rule(tag::CHAIN, 3, FRAME_CHAIN_MAX, REQUIRED)];
 const JOIN: &[FieldRule] = &[rule(tag::JOIN, 1, FRAME_JOIN_MAX, REQUIRED)];
 const SYNC: &[FieldRule] = &[rule(tag::SYNC, 1, FRAME_SYNC_MAX, REQUIRED)];
+const AGAIN: &[FieldRule] = &[rule(tag::AGAIN, 1, FRAME_AGAIN_MAX, REQUIRED)];
 
 /// Every field any handshake payload may carry; which ones a given message needs is the channel's check.
 pub const HANDSHAKE_PAYLOAD: &[FieldRule] = &[
@@ -143,6 +144,7 @@ pub fn for_type(frame_type: FrameType) -> &'static [FieldRule] {
         Chain => CHAIN,
         Join => JOIN,
         Sync => SYNC,
+        Again => AGAIN,
     }
 }
 

@@ -72,10 +72,12 @@ pub enum FrameType {
     Chain = 24,
     Join = 25,
     Sync = 26,
+    /// Session minor 3.
+    Again = 27,
 }
 
 impl FrameType {
-    pub const ALL: [FrameType; 26] = [
+    pub const ALL: [FrameType; 27] = [
         Self::Hello,
         Self::Profile,
         Self::PresenceSecret,
@@ -102,6 +104,7 @@ impl FrameType {
         Self::Chain,
         Self::Join,
         Self::Sync,
+        Self::Again,
     ];
 
     pub fn from_byte(byte: u8) -> Option<Self> {
@@ -113,6 +116,7 @@ impl FrameType {
         match self {
             Self::Thumbnail => 1,
             Self::Chain | Self::Join | Self::Sync => 2,
+            Self::Again => 3,
             _ => 0,
         }
     }
@@ -155,6 +159,7 @@ pub mod tag {
     pub const CHAIN: u8 = 33;
     pub const JOIN: u8 = 34;
     pub const SYNC: u8 = 35;
+    pub const AGAIN: u8 = 36;
 
     /// The tags a public profile may carry, in XX message 2 and in PROFILE.
     pub fn is_profile(tag: u8) -> bool {
