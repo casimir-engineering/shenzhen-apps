@@ -13,6 +13,7 @@ use std::sync::Arc;
 
 use rusqlite::{params, Connection};
 
+use super::saved::{record_fallback, ReceivedFallback};
 #[cfg(not(any(target_os = "linux", target_vendor = "apple")))]
 use super::transfer_files::move_no_replace;
 use super::transfer_files::{ensure_private_directory, unique_destination};
@@ -20,9 +21,6 @@ use super::{new_identifier, unix_now, Result, Store};
 
 /// The state directory's file naming the folder the person chose.
 pub const RECEIVED_FOLDER_FILE: &str = "received-folder";
-/// Where the last file went when the folder it was meant for could not take it (one word: `downloads` or `kept`),
-/// beside [`RECEIVED_FOLDER_FILE`] so a restart keeps it, until a file is saved where meant or the folder changes.
-pub const RECEIVED_FALLBACK_FILE: &str = "received-fallback";
 /// Tests: the default folder received files go to.
 pub const ENV_DOWNLOADS_DIR: &str = "SZFRIENDS_DOWNLOADS_DIR";
 /// The newest files the `received` view lists.
@@ -44,36 +42,6 @@ pub enum PhoneFolder {
     AppFiles,
     /// Android 9 and earlier: kept in the app, leaving it through Share….
     App,
-}
-
-/// Where the last received file went instead of the folder it was meant for (Settings' note says so).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum ReceivedFallback {
-    /// The chosen folder could not take it; the default Downloads did.
-    Downloads,
-    /// No folder could; it is in the store's own `received/`, where its chat still opens it.
-    Kept,
-}
-
-impl ReceivedFallback {
-    fn word(self) -> &'static str {
-        match self {
-            Self::Downloads => "downloads",
-            Self::Kept => "kept",
-        }
-    }
-}
-
-/// The folder a received file is in, for its "Saved to {folder}"; the store's own `received/` (older files, the last
-/// resort) has none, and keeps "Received".
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum SavedPlace {
-    /// The default Downloads (Android's public Downloads too).
-    Downloads,
-    /// iOS: the app's Documents, which the Files app shows under the app's name.
-    AppFiles,
-    /// Another folder, by its name.
-    Folder(String),
 }
 
 /// Where received files go when the person chose nothing.
@@ -234,7 +202,7 @@ pub(crate) type Claim<'a> = &'a mut dyn FnMut(Option<&str>) -> Result<()>;
 impl Places {
     /// Publishes the checked file at `staged` as `name`; returns where it went (a path, or an external location)
     /// and its name there. The staged file is gone afterwards. A file that could not go where it was meant to is
-    /// remembered ([`RECEIVED_FALLBACK_FILE`]); one that did clears that.
+    /// remembered ([`super::RECEIVED_FALLBACK_FILE`]); one that did clears that.
     pub(crate) fn publish(&self, staged: &Path, name: &str, claim: Claim<'_>) -> Result<(String, String)> {
         let (published, fallback) = self.publish_somewhere(staged, name, claim)?;
         if let Some(state_dir) = self.own.parent() {
@@ -279,34 +247,6 @@ impl Places {
             Ok(path) => Ok((done(path), Some(ReceivedFallback::Kept))),
             Err(error) => Err(error.into()),
         }
-    }
-}
-
-/// Remembers (or forgets, with `None`) where the last file went instead; written only when it changes.
-fn record_fallback(state_dir: &Path, fallback: Option<ReceivedFallback>) {
-    if read_fallback(state_dir) == fallback {
-        return;
-    }
-    let file = state_dir.join(RECEIVED_FALLBACK_FILE);
-    match fallback {
-        None => {
-            let _ = fs::remove_file(&file);
-        }
-        Some(fallback) => {
-            // Beside it and renamed over it, so a crash leaves one word or the other.
-            let temporary = state_dir.join(format!(".{RECEIVED_FALLBACK_FILE}.{}", new_identifier()));
-            if fs::write(&temporary, fallback.word()).and_then(|()| fs::rename(&temporary, &file)).is_err() {
-                let _ = fs::remove_file(&temporary);
-            }
-        }
-    }
-}
-
-fn read_fallback(state_dir: &Path) -> Option<ReceivedFallback> {
-    match fs::read_to_string(state_dir.join(RECEIVED_FALLBACK_FILE)).ok()?.trim() {
-        "downloads" => Some(ReceivedFallback::Downloads),
-        "kept" => Some(ReceivedFallback::Kept),
-        _ => None,
     }
 }
 
@@ -433,37 +373,6 @@ impl Store {
         })
     }
 
-    /// Where the last received file went when the folder it was meant for could not take it; `None` once a file
-    /// was saved there again or the folder changed.
-    pub fn received_fallback(&self) -> Option<ReceivedFallback> {
-        read_fallback(self.state_dir())
-    }
-
-    /// The folder a received file at `received_path` is in, for its "Saved to …"; `None` for the store's own
-    /// `received/` (older files, the last resort), whose items keep "Received".
-    pub fn saved_place(&self, received_path: &Path) -> Option<SavedPlace> {
-        // A MediaStore content URI (Android 10 and later): the public Downloads.
-        if !received_path.is_absolute() {
-            return Some(SavedPlace::Downloads);
-        }
-        let parent = received_path.parent()?;
-        let real = |p: &Path| fs::canonicalize(p).unwrap_or_else(|_| p.to_path_buf());
-        let folder = real(parent);
-        if folder == real(&self.state_dir().join("received")) {
-            return None;
-        }
-        match self.received_defaults.phone {
-            Some(PhoneFolder::Downloads) => return Some(SavedPlace::Downloads),
-            Some(PhoneFolder::AppFiles) => return Some(SavedPlace::AppFiles),
-            Some(PhoneFolder::App) => return None,
-            None => {}
-        }
-        if self.received_defaults.folder.as_deref().map(real) == Some(folder) {
-            return Some(SavedPlace::Downloads);
-        }
-        parent.file_name().map(|n| SavedPlace::Folder(n.to_string_lossy().into_owned()))
-    }
-
     pub(crate) fn places(&self) -> Places {
         Places {
             chosen: self.chosen_received_folder(),
@@ -575,58 +484,5 @@ pub(crate) fn mark_published(conn: &Connection, transfer_id: &str, via: Option<R
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn scratch(label: &str) -> PathBuf {
-        let path = std::env::temp_dir().join(format!("szf-destination-{label}-{}", new_identifier()));
-        fs::create_dir_all(&path).unwrap();
-        path
-    }
-
-    /// The other-volume path, driven directly (one test volume cannot make EXDEV happen): a hidden `.part` beside
-    /// the final name, a leftover one replaced, the final name never replaced, the staged file removed last.
-    #[test]
-    fn a_copy_to_another_volume_shows_only_when_whole() {
-        let base = scratch("across");
-        let (staged, folder) = (base.join("staged.part"), base.join("Downloads"));
-        fs::create_dir_all(&folder).unwrap();
-        fs::write(&staged, b"the whole file").unwrap();
-        fs::write(folder.join(".Plan.pdf.part"), b"half").unwrap();
-        let claims = std::cell::RefCell::new(Vec::new());
-        let mut claim = |p: Option<&str>| -> Result<()> {
-            claims.borrow_mut().push(p.map(str::to_owned));
-            Ok(())
-        };
-        let published =
-            copy_across(&folder, &staged, "Plan.pdf", folder.join("Plan.pdf"), &mut claim).unwrap().unwrap();
-        assert_eq!(published, folder.join("Plan.pdf"));
-        assert_eq!(fs::read(&published).unwrap(), b"the whole file");
-        assert!(!folder.join(".Plan.pdf.part").exists() && !staged.exists());
-        assert!(claims.borrow().is_empty(), "the name claimed before the copy stood");
-
-        // The name was taken while copying: the next one, claimed first.
-        fs::write(&staged, b"another").unwrap();
-        let taken = folder.join("Plan.pdf");
-        let published = copy_across(&folder, &staged, "Plan.pdf", taken.clone(), &mut claim).unwrap().unwrap();
-        assert_eq!(published, folder.join("Plan (2).pdf"));
-        assert_eq!(fs::read(&taken).unwrap(), b"the whole file", "never replaced");
-        assert_eq!(*claims.borrow(), vec![Some(folder.join("Plan (2).pdf").to_string_lossy().into_owned())]);
-        assert_eq!(fs::read_dir(&folder).unwrap().count(), 2, "no part file left");
-        let _ = fs::remove_dir_all(base);
-    }
-
-    #[test]
-    fn an_exclusive_rename_refuses_an_existing_name() {
-        let base = scratch("exclusive");
-        fs::write(base.join("a"), b"a").unwrap();
-        fs::write(base.join("b"), b"b").unwrap();
-        let error = rename_no_replace(&base.join("a"), &base.join("b")).unwrap_err();
-        assert_eq!(error.kind(), io::ErrorKind::AlreadyExists);
-        assert_eq!(fs::read(base.join("b")).unwrap(), b"b");
-        rename_no_replace(&base.join("a"), &base.join("c")).unwrap();
-        assert!(!base.join("a").exists() && fs::read(base.join("c")).unwrap() == b"a");
-        assert_eq!(part_path(&base.join("Plan (2).pdf")), base.join(".Plan (2).pdf.part"));
-        let _ = fs::remove_dir_all(base);
-    }
-}
+#[path = "destination_tests.rs"]
+mod tests;

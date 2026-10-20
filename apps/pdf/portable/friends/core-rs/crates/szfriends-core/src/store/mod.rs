@@ -17,6 +17,7 @@ mod outbox;
 mod people;
 mod receive;
 pub mod requests;
+mod saved;
 pub mod schema;
 mod search;
 pub mod sync_files;
@@ -39,8 +40,8 @@ pub use add_by_id::{
     ID_REQUEST_MAX_UNATTESTED_ANSWERS,
 };
 pub use destination::{
-    ExternalPublisher, FolderRefusal, PhoneFolder, ReceivedDefaults, ReceivedFallback, ReceivedFile, ReceivedSource,
-    SavedPlace, ENV_DOWNLOADS_DIR, RECEIVED_FALLBACK_FILE, RECEIVED_FOLDER_FILE,
+    ExternalPublisher, FolderRefusal, PhoneFolder, ReceivedDefaults, ReceivedFile, ReceivedSource, ENV_DOWNLOADS_DIR,
+    RECEIVED_FOLDER_FILE,
 };
 pub use friend_links::{InviteRecord, INVITE_ACCEPTS_PER_DAY, ONE_TIME_INVITE_LIFETIME};
 pub use links::{
@@ -50,6 +51,7 @@ pub use links::{
 pub use outbox::{OutboxEntry, OutboxEvent, OutboxKind, OutboxState, OUTBOX_EXPIRY_SECONDS};
 pub use people::{Direction, Item, ItemKind, Person, Relation};
 pub use receive::DURABLE_BATCH_BYTES;
+pub use saved::{ReceivedFallback, SavedPlace, RECEIVED_FALLBACK_FILE};
 pub use schema::{Migration, SCHEMA_VERSION, SHIPPED};
 pub use search::{fold, SearchHit};
 pub use transfer_files::{file_digest, sanitized_file_name, unique_destination};
