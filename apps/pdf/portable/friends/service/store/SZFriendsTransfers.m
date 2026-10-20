@@ -281,7 +281,7 @@ static NSError *SZFriendsTransferError(SZFriendsStoreError code, NSString *why) 
 }
 
 - (SZFriendsAutoAcceptDecision)applyAutomaticAcceptanceToTransfer:(NSString *)transferID error:(NSError **)error {
-    uint64_t freeBytes = self.freeBytesProvider(_stateDirectory); // outside the queue: it may touch the disk
+    uint64_t freeBytes = [self freeBytesForReceiving]; // outside the queue: it may touch the disk
     __block SZFriendsAutoAcceptDecision decision = SZFriendsAutoAcceptAsk;
     BOOL ok = [_store performWrite:^BOOL(SZFriendsStoreDB *db, NSError **inner) {
         SZFriendsTransferRecord *record = SZFriendsTransferRowLoad(db, transferID);
@@ -302,7 +302,7 @@ static NSError *SZFriendsTransferError(SZFriendsStoreError code, NSString *why) 
 }
 
 - (BOOL)acceptTransfer:(NSString *)transferID automatically:(BOOL)automatically error:(NSError **)error {
-    uint64_t freeBytes = self.freeBytesProvider(_stateDirectory);
+    uint64_t freeBytes = [self freeBytesForReceiving];
     return [_store performWrite:^BOOL(SZFriendsStoreDB *db, NSError **inner) {
         return [self acceptIn:db transfer:transferID automatically:automatically freeBytes:freeBytes error:inner];
     } error:error];

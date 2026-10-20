@@ -235,7 +235,11 @@ static SZFriendsOutboxEntry *SZFriendsSyncEntryFromRow(sqlite3_stmt *s) {
                        row:nil
                      error:inner];
         }
-        return SZFriendsTransferRowInsert(db, row, nil, inner);
+        // A copy from another of the person's computers, received here now (PROTOCOL.md § Views, received).
+        return SZFriendsTransferRowInsert(db, row, nil, inner) &&
+               SZFriendsTransferRowUpdate(db, row.transferID, @{@"received_at" : [NSDate date],
+                                                                @"received_via" : @(SZFriendsReceivedSourceDevice)},
+                                          inner);
     } error:error];
 }
 

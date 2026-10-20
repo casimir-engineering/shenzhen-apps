@@ -93,7 +93,7 @@ BOOL SZFE2EScenarioMessages(SZFE2EWorld *world) {
     return YES;
 }
 
-// An offer, Accept, the bytes, the digest, and the file published in B's received/ with the same contents.
+// An offer, Accept, the bytes, the digest, and the file published in B's Downloads with the same contents.
 BOOL SZFE2EScenarioTransfer(SZFE2EWorld *world) {
     SZFE2EPair *pair = [[SZFE2EPair alloc] init];
     if (!SZFE2EStartPair(world, pair, nil, nil) || !SZFE2EBefriend(pair)) return NO;
@@ -117,9 +117,9 @@ BOOL SZFE2EScenarioTransfer(SZFE2EWorld *world) {
           }),
           "received: %@", SZFE2ETransferItem([pair.b dataFor:atB], transferID));
     NSString *path = SZFE2ETransferItem([pair.b dataFor:atB], transferID)[@"file"][@"path"];
-    NSString *received = [[pair.helperB.stateDirectory stringByAppendingPathComponent:@"received"]
-        stringByResolvingSymlinksInPath];
-    CHECK([[path stringByResolvingSymlinksInPath] hasPrefix:received], "in received/: %@", path);
+    NSString *downloads = pair.helperB.downloadsDirectory.stringByResolvingSymlinksInPath;
+    CHECK([path.stringByDeletingLastPathComponent.stringByResolvingSymlinksInPath isEqualToString:downloads],
+          "in B's Downloads: %@", path);
     CHECK([[NSData dataWithContentsOfFile:path] isEqual:[NSData dataWithContentsOfFile:source]], "same bytes");
     CHECK(SZFE2EWaitUntil(10, ^BOOL {
               return [SZFE2ETransferItem([pair.a dataFor:atA], transferID)[@"state"] isEqual:@"delivered"];

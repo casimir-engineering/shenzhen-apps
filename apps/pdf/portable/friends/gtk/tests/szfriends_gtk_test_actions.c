@@ -193,7 +193,11 @@ static void walk_fixture(const char *name) {
     } else if (strcmp(view, "settings") == 0) {
         SZFriendsGtkSettingsSnapshot *settings = szfriends_gtk_settings_snapshot_parse(data);
         SZFriendsGtkActionIds none = {0};
-        check_action(name, &settings->received.action, &none);
+        if (settings->received.action) check_action(name, settings->received.action, &none);
+        /* Change… is the view's own folder dialog: a client-side action, no intent of its own. */
+        if (settings->received.change)
+            EXPECT(szfriends_gtk_action_is_client_side(settings->received.change->action),
+                   "%s: choose_received_folder is client-side", name);
         szfriends_gtk_settings_snapshot_free(settings);
     }
     json_object_unref(frame);

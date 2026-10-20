@@ -179,7 +179,7 @@ BOOL SZFLScenarioApps(SZFE2EWorld *world) {
     }
     CHECK([reply[@"result"][@"message"] hasPrefix:@"Receiving Site photos.pdf from Mei Wong."], "%@", reply);
     NSString *conversation = reply[@"result"][@"conversation_id"];
-    NSString *received = [opener.stateDirectory stringByAppendingPathComponent:@"received/Site photos.pdf"];
+    NSString *received = [opener.downloadsDirectory stringByAppendingPathComponent:@"Site photos.pdf"];
     NSData *bytes = [NSData dataWithContentsOfFile:path];
     CHECK(SZFE2EWaitUntil(15, ^BOOL { return [[NSData dataWithContentsOfFile:received] isEqualToData:bytes]; }),
           "the file arrives in the received folder");

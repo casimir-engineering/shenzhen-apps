@@ -20,4 +20,10 @@
 <key>NSBonjourServices</key><array><string>_szfriends._tcp</string></array>
 <key>NSBluetoothAlwaysUsageDescription</key>
 <string>Friends uses Bluetooth to find people near you, and to reach them when Wi-Fi can't.</string>
+<key>NSDownloadsFolderUsageDescription</key>
+<string>Friends saves the files you receive in your Downloads folder.</string>
+<key>NSDocumentsFolderUsageDescription</key>
+<string>Friends saves the files you receive in the folder you chose in Settings.</string>
+<key>NSDesktopFolderUsageDescription</key>
+<string>Friends saves the files you receive in the folder you chose in Settings.</string>
 </dict></plist>

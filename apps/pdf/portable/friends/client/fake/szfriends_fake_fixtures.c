@@ -22,7 +22,7 @@ static const char *const known_intents[] = {
     "assistant_search", "assistant_read", "assistant_close_scope", "delete_history", "reset_friends", "disable",
     "cancel_message", "add_from_mention", "open_link", "add_from_link", "receive_link", "make_download_link",
     "reset_friend_link", "revoke_link", "join_profile", "enter_join_code", "cancel_join", "approve_join", "deny_join",
-    "revoke_device", "rename_device", "fetch_from_device",
+    "revoke_device", "rename_device", "fetch_from_device", "set_received_folder",
 };
 
 bool szf_fake_is_intent(const char *type) {
@@ -101,6 +101,8 @@ static szfriends_status load_snapshots(szfriends_fake_helper *fake) {
         {"message_status", "message-status.json"},
         /* A new computer's side of joining, before an ID is typed (PROTOCOL.md § Joining). */
         {"join", "join-idle.json"},
+        /* Files this computer received, for a host's own list (PROTOCOL.md § Views, received). */
+        {"received", "received.json"},
     };
     char directory[SZFRIENDS_PATH_CAP * 2];
     DIR *listing;

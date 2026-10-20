@@ -30,6 +30,26 @@ static const NSUInteger SZFriendsNamedAutoAcceptLimit = 3;
     return [s text:key values:@{@"names" : who}];
 }
 
+// Where received files go. With received.folder the row names the folder and offers Change…, which the view answers
+// with a folder picker and set_received_folder (PROTOCOL.md § Views, settings).
+- (NSDictionary<NSString *, id> *)receivedFolderWithProfile:(SZFriendsProfileFacts *)profile
+                                                     reveal:(NSDictionary<NSString *, id> *)reveal {
+    SZFriendsStrings *s = self.strings;
+    NSMutableDictionary *received = [@{
+        @"label" : [s text:@"settings.received.label"],
+        @"note" : [s text:@"settings.received.note"],
+        @"action" : reveal
+    } mutableCopy];
+    if ([self.audience.helperCapabilities containsObject:@"received.folder"]) {
+        received[@"value"] = profile.receivedFolderName.length ? profile.receivedFolderName
+                                                               : [s text:@"settings.received.default"];
+        received[@"path"] = profile.receivedDirectory;
+        received[@"change"] = [self action:@"choose_received_folder" label:[s text:@"settings.received.change"]
+                                     style:@"secondary"];
+    }
+    return received;
+}
+
 - (NSDictionary<NSString *, id> *)buildSettingsWithProfile:(SZFriendsProfileFacts *)profile
                                                people:(NSArray<SZFriendsPersonFacts *> *)people {
     SZFriendsStrings *s = self.strings;
@@ -65,11 +85,7 @@ static const NSUInteger SZFriendsNamedAutoAcceptLimit = 3;
             @"friends_id" : profile.friendsID,
             @"copy_label" : [s text:@"static.copy"]
         },
-        @"received" : @{
-            @"label" : [s text:@"settings.received.label"],
-            @"note" : [s text:@"settings.received.note"],
-            @"action" : reveal
-        },
+        @"received" : [self receivedFolderWithProfile:profile reveal:reveal],
         @"auto_accept" : @{
             @"label" : [s text:@"settings.auto.label"],
             @"note" : [self autoAcceptNoteFor:on friendCount:on.count + off.count],

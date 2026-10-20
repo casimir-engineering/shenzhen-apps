@@ -55,6 +55,9 @@ extern "C" {
  * signed with a team ignore both, in the helper and in this library (szfriends_set_signing_policy()). */
 #define SZFRIENDS_ENV_STATE_DIR "SZFRIENDS_STATE_DIR"
 #define SZFRIENDS_ENV_KEY_STORE "SZFRIENDS_KEY_STORE"
+/* Where received files go when no folder was chosen (tests; PROTOCOL.md § Views, settings). Ignored, like the two
+ * above, by team-signed builds. */
+#define SZFRIENDS_ENV_DOWNLOADS_DIR "SZFRIENDS_DOWNLOADS_DIR"
 
 typedef enum szfriends_status {
     SZFRIENDS_OK = 0,
@@ -373,6 +376,8 @@ szfriends_intent *szfriends_intent_set_picture_animal(int64_t set, int64_t index
 szfriends_intent *szfriends_intent_set_picture_image_data(const char *data_base64, const szfriends_crop *crop);
 szfriends_intent *szfriends_intent_set_picture_image_path(const char *path, const szfriends_crop *crop);
 szfriends_intent *szfriends_intent_set_auto_accept(const char *conversation_id, bool enabled);
+/* The folder received files are saved to on this computer, an absolute path (helper capability received.folder). */
+szfriends_intent *szfriends_intent_set_received_folder(const char *path);
 szfriends_intent *szfriends_intent_dismiss_banner(const char *kind); /* "id_changed" */
 szfriends_intent *szfriends_intent_start_visibility(void);
 szfriends_intent *szfriends_intent_stop_visibility(void);

@@ -236,7 +236,9 @@ typedef NS_ENUM(NSInteger, SZFriendsUpdateNeed) {
 // profile's id.state is "unavailable", whatever friendsIDState says.
 @property(nonatomic) SZFriendsIdentityFactsState identityState;
 @property(nonatomic) SZFriendsUpdateNeed updateNeed;
-@property(nonatomic, copy) NSString *receivedDirectory;
+@property(nonatomic, copy) NSString *receivedDirectory;  // the folder received files go to
+// That folder's name when the person chose it; nil while it is Downloads (PROTOCOL.md § Views, settings).
+@property(nonatomic, copy, nullable) NSString *receivedFolderName;
 // The profile's "Your links" (PROTOCOL.md § Links), for an audience whose helper announces "links"; nil shows none.
 @property(nonatomic, strong, nullable) SZFriendsLinksFacts *links;
 @end

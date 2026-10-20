@@ -133,7 +133,7 @@ NSString *SZFriendsUniqueDestination(NSString *directory, NSString *name) {
                          safe.stringByDeletingPathExtension.length;
     NSString *base = keepExtension ? safe.stringByDeletingPathExtension : safe;
     for (NSUInteger n = 2; n < 10000; n++) {
-        NSString *numbered = [NSString stringWithFormat:@"%@ %lu", base, (unsigned long)n];
+        NSString *numbered = [NSString stringWithFormat:@"%@ (%lu)", base, (unsigned long)n];
         if (keepExtension) numbered = [numbered stringByAppendingPathExtension:extension];
         candidate = [directory stringByAppendingPathComponent:numbered];
         if (!SZFriendsPathTaken(candidate)) return candidate;

@@ -35,12 +35,17 @@ typedef struct {
     void (*choose_image)(GtkWidget *source, const char *title, SZFriendsGtkChosen chosen, gpointer chosen_data,
                          gpointer data);
     gpointer data;
+    /* Settings' Change… for where received files go: a folder, starting at `start` (may be NULL). */
+    void (*choose_folder)(GtkWidget *source, const char *start, SZFriendsGtkChosen chosen, gpointer chosen_data,
+                          gpointer data);
 } SZFriendsGtkSeams;
 void szfriends_gtk_set_seams(const SZFriendsGtkSeams *seams);
 void szfriends_gtk_copy_text(GtkWidget *source, const char *text);
 void szfriends_gtk_open_uri(GtkWidget *source, const char *uri);
 /* Asks for an image file (the system's open dialog, titled `title`); chosen(path or NULL, data) runs once. */
 void szfriends_gtk_choose_image(GtkWidget *source, const char *title, SZFriendsGtkChosen chosen, gpointer data);
+/* Asks for a folder (the system's folder dialog, opened at `start`, which may make a new folder); chosen runs once. */
+void szfriends_gtk_choose_folder(GtkWidget *source, const char *start, SZFriendsGtkChosen chosen, gpointer data);
 /* The pages' stylesheet, once per display, beside the views' own (its rules use the same @szfriends_* tokens). */
 void szfriends_gtk_list_style_ensure(GtkWidget *widget);
 

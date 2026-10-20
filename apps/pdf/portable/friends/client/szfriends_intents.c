@@ -359,6 +359,11 @@ szfriends_intent *szfriends_intent_set_auto_accept(const char *conversation_id, 
                   : NULL;
 }
 
+szfriends_intent *szfriends_intent_set_received_folder(const char *path) {
+    szfriends_intent *intent = path ? intent_new("set_received_folder") : NULL;
+    return intent ? finish(intent, add_string(intent, "path", path)) : NULL;
+}
+
 szfriends_intent *szfriends_intent_search_messages(const char *query, const char *conversation_id_or_null,
                                                    int64_t limit) {
     szfriends_intent *intent;
