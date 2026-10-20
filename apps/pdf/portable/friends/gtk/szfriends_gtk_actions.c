@@ -138,7 +138,7 @@ szfriends_intent *szfriends_gtk_intent_for_answer(const SZFriendsGtkAction *acti
     /* Only Remove offers "Also delete chat history"; anywhere else a ticked box adds nothing. */
     if (ticked && action->action == SZFRIENDS_GTK_ACTION_REMOVE_FRIEND &&
         szfriends_gtk_confirm_option_known(action->confirm))
-        return szfriends_intent_remove_friend_deleting_history(ids ? present(ids->conversation_id) : NULL, true);
+        return szfriends_intent_with_confirm_option(szfriends_gtk_intent_for_action(action, ids), "delete_history");
     return szfriends_gtk_intent_for_action(action, ids);
 }
 
