@@ -6,7 +6,7 @@ use std::collections::BTreeMap;
 
 use szfriends_core::presentation::DeviceFileFacts;
 use szfriends_core::store::sync_files;
-use szfriends_core::sync::{copies_automatically, local_path_of_transfer};
+use szfriends_core::sync::{copies_automatically, holds_transfer};
 
 use super::devices::local_device_name;
 use super::State;
@@ -25,7 +25,7 @@ impl State {
         let mut files = BTreeMap::new();
         for file in sync_files::sync_files(conn).unwrap_or_default() {
             let row = sync_files::transfer(conn, &file.transfer_id).ok().flatten();
-            if row.as_ref().is_some_and(|t| local_path_of_transfer(self.store.state_dir(), t).is_some()) {
+            if row.as_ref().is_some_and(|t| holds_transfer(&self.store, t)) {
                 continue;
             }
             // A holder that is connected now, else the first.
@@ -60,7 +60,7 @@ impl State {
         }
         let conn = self.store.connection();
         let row = sync_files::transfer(conn, transfer_id).ok().flatten();
-        if row.is_some_and(|t| local_path_of_transfer(self.store.state_dir(), &t).is_some()) {
+        if row.is_some_and(|t| holds_transfer(&self.store, &t)) {
             return Err("not_allowed");
         }
         let file = sync_files::sync_file(conn, transfer_id).ok().flatten().ok_or("not_found")?;

@@ -11,7 +11,7 @@ use super::bodies::{file_body, file_from_transfer, file_state_is_final, item_bod
 use super::bodies::{profile_body, read_body};
 use super::codec::Fields;
 use super::engine::SyncEngine;
-use super::files::local_path_of_transfer;
+use super::files::holds_transfer;
 use super::{person_key, read_key, ref_for_person, Kind, BODY_MAX, PERSON_GROUPS, SETTING_DEVICES, SETTING_PRESENCE};
 use super::{SETTING_RENEWED, STATE_RENEWED, TAG_CONVERSATION, TAG_RELEASED};
 use crate::store::devices;
@@ -208,7 +208,7 @@ impl SyncEngine {
             let regresses = held_final && !file_state_is_final(file.state);
             let changed = !same_value(current, &value) && !regresses;
             // Whether this device has the bytes now (ADR 0016): it says so when that changes, either way.
-            let here = local_path_of_transfer(store.state_dir(), &transfer).is_some();
+            let here = holds_transfer(store, &transfer);
             let listed = file.holders.contains(&me);
             let holds = here && !listed;
             let released = !here && listed && known.is_some();

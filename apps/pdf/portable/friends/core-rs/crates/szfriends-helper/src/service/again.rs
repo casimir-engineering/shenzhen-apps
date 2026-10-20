@@ -9,7 +9,7 @@ use szfriends_core::intents::{IntentError, Wording};
 use szfriends_core::presentation::{AgainState, ItemFacts};
 use szfriends_core::store::sync_log::YOU;
 use szfriends_core::store::{sync_files, unix_now, Relation};
-use szfriends_core::sync::local_path_of_transfer;
+use szfriends_core::sync::holds_transfer;
 use szfriends_core::sync::{again_state, set_again_state, AgainFile, AgainMessage, AgainRequester, AgainServer};
 use szfriends_core::wire::{tag, Frame, FrameType, Pattern};
 
@@ -117,7 +117,7 @@ impl State {
         let file = AgainFile::of(&self.store, transfer_id).ok_or("not_allowed")?;
         // A file this person received, whose bytes are not here.
         let received = match &row {
-            Some(row) => row.state == 6 && local_path_of_transfer(self.store.state_dir(), row).is_none(),
+            Some(row) => row.state == 6 && !holds_transfer(&self.store, row),
             None => record.as_ref().is_some_and(|r| r.state == 6),
         };
         // Another of our computers holds it: Get applies.

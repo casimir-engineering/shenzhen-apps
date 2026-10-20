@@ -52,6 +52,14 @@ struct Dirs {
     name: Option<String>,
 }
 
+/// A MediaStore item's size now (`downloadSize`), and a readable copy of it (`downloadCopy`).
+#[derive(Deserialize)]
+#[cfg_attr(target_os = "ios", allow(dead_code))]
+struct MediaItem {
+    size: Option<u64>,
+    path: Option<String>,
+}
+
 /// Where `publishDownload` put a received file: a path or a content URI, and the name it got.
 #[derive(Deserialize)]
 #[cfg_attr(target_os = "ios", allow(dead_code))]
@@ -169,6 +177,16 @@ impl<R: Runtime> szfriends_core::store::ExternalPublisher for MediaStoreDownload
             .call("publishDownload", json!({"path": staged.to_string_lossy(), "name": name}))
             .map_err(std::io::Error::other)?;
         Ok((answer.location, answer.name))
+    }
+
+    fn size(&self, location: &str) -> Option<u64> {
+        let answer: MediaItem = self.0.call("downloadSize", json!({"location": location})).ok()?;
+        answer.size
+    }
+
+    fn copy_out(&self, location: &str) -> Option<std::path::PathBuf> {
+        let answer: MediaItem = self.0.call("downloadCopy", json!({"location": location})).ok()?;
+        answer.path.map(std::path::PathBuf::from)
     }
 }
 

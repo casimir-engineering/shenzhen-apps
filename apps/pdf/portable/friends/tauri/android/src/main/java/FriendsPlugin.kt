@@ -82,6 +82,11 @@ class UrlArgs {
   lateinit var url: String
 }
 
+@InvokeArg
+class LocationArgs {
+  lateinit var location: String
+}
+
 private const val KEYSTORE = "AndroidKeyStore"
 private const val SEALED_VERSION: Byte = 1
 
@@ -366,6 +371,41 @@ class FriendsPlugin(private val activity: Activity) : NearbyPlugin(activity) {
         item?.let { try { resolver.delete(it, null, null) } catch (ignored: Exception) {} }
         invoke.reject("not saved: ${e.javaClass.simpleName}")
       }
+    }.start()
+  }
+
+  // A received file publishDownload left as a MediaStore item (Android 10): its size now, or none once the person
+  // deleted it; and a copy Rust can read, to give it to the person's other computers or a friend again.
+  private fun mediaItem(location: String): Uri? =
+    Uri.parse(location).takeIf { it.scheme == "content" && it.authority == MediaStore.AUTHORITY }
+
+  @Command
+  fun downloadSize(invoke: Invoke) {
+    val uri = mediaItem(invoke.parseArgs(LocationArgs::class.java).location)
+    val result = JSObject()
+    try {
+      activity.contentResolver.query(uri ?: return invoke.resolve(result), arrayOf(OpenableColumns.SIZE), null, null,
+        null)?.use { if (it.moveToFirst() && !it.isNull(0)) result.put("size", it.getLong(0)) }
+    } catch (e: Exception) {
+      // Gone, or no longer ours: no size.
+    }
+    invoke.resolve(result)
+  }
+
+  @Command
+  fun downloadCopy(invoke: Invoke) {
+    val uri = mediaItem(invoke.parseArgs(LocationArgs::class.java).location) ?: return invoke.resolve(JSObject())
+    Thread {
+      val result = JSObject()
+      try {
+        val directory = File(activity.cacheDir, "friends-out").apply { mkdirs() }
+        val copy = File(directory, uri.lastPathSegment ?: "item")
+        activity.contentResolver.openInputStream(uri)?.use { input -> copy.outputStream().use { input.copyTo(it) } }
+        result.put("path", copy.absolutePath)
+      } catch (e: Exception) {
+        // Not readable now: no path.
+      }
+      invoke.resolve(result)
     }.start()
   }
 

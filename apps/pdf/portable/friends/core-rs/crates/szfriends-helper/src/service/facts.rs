@@ -9,7 +9,7 @@ use szfriends_core::presentation::{
     IdState, ItemFacts, ItemKind, OutboxState, PersonFacts, ProfileFacts, RouteKind, RouteMethod, TransferState,
 };
 use szfriends_core::store::{sync_files, Relation};
-use szfriends_core::sync::local_path_of_transfer;
+use szfriends_core::sync::holds_transfer;
 use szfriends_identity::friends_id::{system_uniform, word_count_for_new_id, WordList};
 
 use super::State;
@@ -186,7 +186,7 @@ impl State {
             // Moved or deleted: a file received or copied here whose bytes are gone from where they were saved.
             let synced = sync_files::transfer(conn, &transfer.transfer_id).ok().flatten();
             let kept = transfer.received_path.is_some() && (item.outgoing || transfer.state == TransferState::Received);
-            if kept && synced.is_some_and(|t| local_path_of_transfer(self.store.state_dir(), &t).is_none()) {
+            if kept && synced.is_some_and(|t| !holds_transfer(&self.store, &t)) {
                 item.file_missing = true;
                 item.local_path = None;
                 item.saved_in = None;

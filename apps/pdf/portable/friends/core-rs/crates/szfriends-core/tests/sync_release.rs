@@ -109,3 +109,41 @@ fn edit(path: &Path) {
     handle.write_all(b"edited").unwrap();
     handle.set_modified(SystemTime::now() + Duration::from_secs(5)).unwrap();
 }
+
+/// Android 10 keeps a received file as a MediaStore item, which only the app's publisher reaches: held while the
+/// publisher says it is there at its size, read through the copy it makes, and let go once it is gone.
+#[test]
+fn a_file_in_androids_downloads_is_held_through_the_publisher() {
+    use std::sync::{Arc, Mutex};
+    use szfriends_core::store::{ExternalPublisher, ReceivedDefaults};
+    struct MediaStore(Mutex<Option<u64>>, std::path::PathBuf);
+    impl ExternalPublisher for MediaStore {
+        fn publish(&self, _staged: &Path, _name: &str) -> std::io::Result<(String, String)> {
+            Err(std::io::Error::other("not here"))
+        }
+        fn size(&self, location: &str) -> Option<u64> {
+            (location == "content://media/external/downloads/7").then(|| *self.0.lock().unwrap()).flatten()
+        }
+        fn copy_out(&self, _location: &str) -> Option<std::path::PathBuf> {
+            Some(self.1.clone())
+        }
+    }
+    let mut devices = joined(&["alice", "bob"]);
+    let mut b = devices.pop().unwrap();
+    let mut a = devices.pop().unwrap();
+    let id = stage_file(&mut a, "Plan.pdf", 20_000).transfer_id;
+    sync(&mut a, &mut b).unwrap();
+    let copy = received_path(&b, &id).expect("a small file copies");
+    let media = Arc::new(MediaStore(Mutex::new(Some(20_000)), Path::new(&copy).to_owned()));
+    let defaults = ReceivedDefaults { external: Some(media.clone()), ..ReceivedDefaults::default() };
+    b.store.set_received_defaults(defaults);
+    let sql = "UPDATE transfers SET received_path = 'content://media/external/downloads/7' WHERE transfer_id = ?1";
+    b.store.connection().execute(sql, [&id]).unwrap();
+    assert_eq!(b.engine.local_path_of_file(&b.store, &id).as_deref(), Some(Path::new(&copy)), "read via its copy");
+    b.engine.capture_local_changes(&b.store);
+    assert!(holds(&b, &id, &b), "held while it is there");
+    *media.0.lock().unwrap() = None;
+    assert!(b.engine.local_path_of_file(&b.store, &id).is_none(), "gone");
+    b.engine.capture_local_changes(&b.store);
+    assert!(!holds(&b, &id, &b), "let go once the person deleted it");
+}

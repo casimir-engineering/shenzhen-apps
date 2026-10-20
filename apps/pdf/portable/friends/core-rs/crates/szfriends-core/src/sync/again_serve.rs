@@ -61,7 +61,7 @@ impl AgainServer {
         let Some(row) = row.filter(|t| t.outgoing && t.conversation_id == conversation_id && t.state == 5) else {
             return none(NONE_GONE);
         };
-        let Some(path) = local_path_of_transfer(store.state_dir(), &row) else {
+        let Some(path) = local_path_of_transfer(store, &row) else {
             // Another of our computers has it: the friend waits for that one rather than hear it is gone.
             let record = sync_files::sync_file(&store.conn, id).ok().flatten();
             let elsewhere = record.is_some_and(|r| r.holders.iter().any(other_own_device));
