@@ -71,6 +71,7 @@ static void* kSearchHiddenContext = &kSearchHiddenContext;
     [state.link start];
     [state.dropdown install];
     [self friendsInstallShareMenu];
+    [self friendsInstallMenu];
     [self friendsShowPendingLink];
     [NSNotificationCenter.defaultCenter postNotificationName:SPDFMacFriendsSettingsPaneRefreshNotification object:nil];
 }
@@ -81,6 +82,7 @@ static void* kSearchHiddenContext = &kSearchHiddenContext;
     [state.settingsSection sectionDidDisappear];
     [state.dropdown uninstall];
     [self friendsRemoveShareMenu];
+    [self friendsRemoveMenu];
     [state.link stopDisablingFriends:disabling];
     state.settingsSection = nil;
     state.dropdown = nil;

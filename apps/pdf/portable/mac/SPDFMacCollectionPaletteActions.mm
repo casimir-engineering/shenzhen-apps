@@ -42,7 +42,9 @@
     }
     NSMutableArray<NSDictionary*>* menuCommands = [NSMutableArray array];
     for (NSDictionary* command in _paletteMenuCommandCandidates ?: @[]) {
-        if (spdf_palette_menu_command_matches_query(query, command[@"title"], command[@"breadcrumb"]))
+        NSMenuItem* item = [command[@"menuItem"] isKindOfClass:NSMenuItem.class] ? command[@"menuItem"] : nil;
+        if (spdf_palette_menu_command_matches_query_or_keywords(query, command[@"title"], command[@"breadcrumb"],
+                                                                spdf_palette_menu_command_keywords(item.identifier)))
             [menuCommands addObject:command];
     }
     [actionRows addObjectsFromArray:spdf_palette_menu_commands_excluding_selectors(menuCommands, curatedSelectors)];

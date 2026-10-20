@@ -30,7 +30,7 @@ Paginated Markdown with native vector diagrams, math, tables and syntax highligh
 
 ## Search and navigation
 
-Type in the reader to search. Results include chapter context, page highlights and map markers. **⌘K** searches open documents and Collection; an empty palette lists recently viewed documents. The document map supports direct page navigation.
+Type in the reader to search. Results include chapter context, page highlights and map markers. **⌘K** searches open documents and Collection; an empty palette lists recently viewed documents. The document map supports direct page navigation. **⌘J** opens or closes Friends, the people button in the title bar; ⌘K finds its commands too, such as Add by ID.
 
 ![Document search with context and highlights](docs/images/portable/macos-search-highlights.webp)
 

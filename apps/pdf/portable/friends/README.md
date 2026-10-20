@@ -154,6 +154,17 @@ Notes per area:
   temporary `SPDF_STATE_DIR` and `SZFRIENDS_STATE_DIR`, and fakes of the views and the spawn. The reader keeps a
   per-user `tab-drag.key` (0600) in its own state directory to sign the tabs it drags, so tests set
   `SPDF_STATE_DIR`.
+- **Keyboard and menu (ShenzhenPDF).** While Friends is attached the reader adds View ▸ Friends
+  (`mac/friends/SPDFMacFriendsMenu.{h,mm}`, `SPDFMacFriendsMenuIntegration.mm`): Open Friends ⌘J (it reads Close
+  Friends while the dropdown is open), Add by ID…, Make Myself Visible and Friends Settings…,
+  removed again when Friends detaches or is turned off. ⌘J was free in the reader's menus, so nothing else moved;
+  it is an ordinary menu key equivalent, so it also closes the dropdown while its search field has focus. Cmd+K lists
+  the items like any menu item, plus keywords (`spdf_palette_menu_command_keywords` in `mac/SPDFMacPaletteResults.mm`:
+  "chat", "nearby" and "add by id" find Open Friends). The button's tooltip gets " · ⌘J" from the host, which puts it
+  back each time the views reset it from the helper's `button_label`. The F1 sheet and `readme.md` list ⌘J. The
+  Windows and Linux readers have no Friends yet, so they have no Ctrl+J and nothing changed there. The probe
+  `make -C portable -f Makefile -f mac/tests/friends-shortcut-probe.mk mac-friends-shortcut-probe` drives all of it
+  with key events on the real reader, menu and views against the in-process fake helper.
 - **Optional host members.** Beyond the required ones, a host may implement these; `mac/SZFriendsHost.h` is the
   authoritative text for each, and a host without one gets the behaviour it describes:
   - on `SZFriendsHost`, `-friendsRenderMarkdown:width:appearance:` draws a friend's Markdown at chat scale, and
