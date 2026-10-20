@@ -36,6 +36,10 @@ NS_ASSUME_NONNULL_BEGIN
 // macOS version), so a test run never shows the real computer's.
 @property(class, nonatomic, copy, nullable) NSString *deviceName;
 @property(class, nonatomic, copy, nullable) NSString *deviceSystem;
+
+// Replaces SZFriendsNearbyAdmissionLimits() when set. Every helper of a harness dials from 127.0.0.1, so per-address
+// rates meant to tell computers apart count a whole scenario's computers as one.
+@property(class, nonatomic, copy, nullable) SZFriendsAdmissionLimits *admissionLimits;
 @end
 
 // This computer's name and system as the helper reports them: SZFriendsLocalDeviceName() and

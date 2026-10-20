@@ -317,9 +317,18 @@ impl Driver {
         }
         let ours: Vec<u64> = self.attempts.values().filter(|a| a.peer() == key).map(|a| a.id).collect();
         for id in ours {
-            // Both sides started at once: the side whose identity key sorts first offers.
+            // Both sides started at once: the side whose identity key sorts first offers. Ours goes unless it already
+            // carries a stream, and goes again when nobody answered it yet: it may have gone out while they were away
+            // and reached nobody, and their open shows they are here now (no wait noted for it).
             if self.attempts[&id].connected() || self.context.identity.public_key() < key {
                 host.close(&sid);
+                let ours = &self.attempts[&id];
+                if !ours.connected() && !ours.answered() {
+                    self.with_attempt(id, host, |a, ctx| a.close(ctx));
+                    self.backoff_until.remove(&key);
+                    self.backoff_wait.remove(&key);
+                    self.reach_friend(&key, host);
+                }
                 return;
             }
             self.with_attempt(id, host, |a, ctx| a.close(ctx));

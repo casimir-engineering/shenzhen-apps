@@ -31,11 +31,26 @@ NS_ASSUME_NONNULL_BEGIN
 // Tests only: lookups go here instead of to a host.
 @property(nonatomic, copy, nullable) void (^testLookup)
     (NSArray<NSData *> *keys, void (^completion)(NSArray<NSData *> *_Nullable blobs, NSError *_Nullable error));
+// Per friend (identity key): when the next attempt may start, on the context's clock, and the last wait; the lookups
+// running, and when each friend was last looked up (SZFriendsOnlineDriver+Backoff.m).
+@property(nonatomic, readonly) NSMutableDictionary<NSData *, NSNumber *> *backoffUntil, *backoffWait, *lastLookup;
+@property(nonatomic, readonly) NSMutableSet<NSData *> *lookingUp;
 // Tests only: what the default routes are, instead of reading the routing table.
 @property(nonatomic, copy, nullable) NSString * (^testNetworkSignature)(void);
 // The system's network-change notification arrived (debounced; acts only when the signature changed).
 - (void)scheduleNetworkChange;
 - (void)watchNetwork;
+@end
+
+// Waiting after an attempt nobody answered, and what ends the wait (SZFriendsOnlineDriver+Backoff.m).
+@interface SZFriendsOnlineDriver (BackoffInternal)
+- (BOOL)backedOff:(NSData *)identityKey;
+- (void)noteFailureForFriend:(NSData *)identityKey;
+// While a friend is backed off, their record appearing (they came online) ends the wait.
+- (void)lookUpFriend:(NSData *)identityKey;
+// Our offer nobody has answered yet, while the friend's own open just arrived: closed, and made again at once with no
+// wait noted, since it may have gone out while they were away and reached nobody (-admitSession:...).
+- (void)offerAgain:(SZFriendsOnlineAttempt *)attempt;
 @end
 
 // Add by ID online (SZFriendsOnlineDriver+ByID.m).

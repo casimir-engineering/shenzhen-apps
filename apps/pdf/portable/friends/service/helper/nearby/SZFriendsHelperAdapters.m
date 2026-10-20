@@ -23,6 +23,8 @@ NSString *SZFriendsHelperDeviceSystem(void) {
     return SZFriendsDeviceSystemOverride.length ? SZFriendsDeviceSystemOverride : SZFriendsLocalDeviceSystem();
 }
 
+static SZFriendsAdmissionLimits *SZFriendsAdmissionLimitsOverride;
+
 @implementation SZFriendsHelperTestHooks
 
 + (NSString *)deviceName {
@@ -79,6 +81,12 @@ NSString *SZFriendsHelperDeviceSystem(void) {
 }
 + (void)setInitialFriendsID:(NSString *)friendsID {
     SZFriendsInitialFriendsID = [friendsID copy];
+}
++ (SZFriendsAdmissionLimits *)admissionLimits {
+    return SZFriendsAdmissionLimitsOverride;
+}
++ (void)setAdmissionLimits:(SZFriendsAdmissionLimits *)limits {
+    SZFriendsAdmissionLimitsOverride = [limits copy];
 }
 
 @end

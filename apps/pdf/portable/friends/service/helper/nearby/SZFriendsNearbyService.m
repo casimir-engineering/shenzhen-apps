@@ -1,5 +1,4 @@
-// Nearby Friends in the helper: lifecycle, advertising, presence windows, visibility and wake
-// (SZFriendsNearbyService.h).
+// Nearby Friends in the helper: lifecycle, advertising, presence windows, visibility, wake (SZFriendsNearbyService.h).
 
 #import "service/helper/nearby/SZFriendsNearbyDevices.h"
 #import "service/helper/nearby/SZFriendsNearbyJoin.h"
@@ -53,7 +52,7 @@ static const NSTimeInterval SZFriendsShutdownFlush = 1.0;
                                                                              clock:^NSDate * { return [NSDate date]; }];
             _coordinator.delegate = self;
             // The adapters apply these per listener and per remote address, before any Diffie-Hellman.
-            _coordinator.admissionLimits = SZFriendsNearbyAdmissionLimits();
+            _coordinator.admissionLimits = SZFriendsHelperTestHooks.admissionLimits ?: SZFriendsNearbyAdmissionLimits();
         }
         // A stored deadline further away than 5 minutes, or already past, is dropped at once: fails closed.
         _visibility = [[SZFriendsVisibility alloc] initWithStoredDeadline:services.store.visibilityDeadline
@@ -266,6 +265,7 @@ static const NSTimeInterval SZFriendsShutdownFlush = 1.0;
         link.profileSent = NO;
         [self sendProfileOnLink:link];
     }
+    [self changed]; // our other computers get the new name and picture too, as any change (+Sync)
 }
 
 - (void)transferChanged:(NSString *)transferID {

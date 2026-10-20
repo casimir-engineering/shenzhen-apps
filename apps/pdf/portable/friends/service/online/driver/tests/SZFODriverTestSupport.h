@@ -81,6 +81,7 @@ void SZFODTestHelpers(void);
 void SZFODTestSidePath(void);
 void SZFODTestDirect(void);
 void SZFODTestSimultaneous(void);
+void SZFODTestBackWhileWeWait(void);
 void SZFODTestRelayAndLeave(void);
 void SZFODTestProbing(void);
 void SZFODTestNetworkChange(void);

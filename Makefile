@@ -6,7 +6,7 @@ FILES := apps/files
 THREED := apps/3d
 COTURN ?=
 
-.PHONY: help pdf pdf-tests friends friends-tests friends-number friends-server-tests \
+.PHONY: help pdf pdf-tests friends friends-tests friends-one-identity-e2e friends-number friends-server-tests \
 	files-setup files files-tests 3d-setup 3d-tests 3d-friends-tests
 
 help:
@@ -15,7 +15,9 @@ help:
 	@echo "  make pdf-tests            the release test sweep ShenzhenPDF's release script runs"
 	@echo "Shenzhen Friends"
 	@echo "  make friends              the helper, as every app embeds it"
-	@echo "  make friends-tests        the Friends suite (COTURN=<turnserver> for the relay tests)"
+	@echo "  make friends-tests        the Friends suite and friends-one-identity-e2e (COTURN=<turnserver> for the relay)"
+	@echo "  make friends-one-identity-e2e  one identity per computer: the three apps' real Friends views on one helper,"
+	@echo "                           and two computers of one profile kept the same (needs make 3d-setup once)"
 	@echo "  make friends-number       is the helper build number raised since Friends last changed?"
 	@echo "  make friends-server-tests the host's tests"
 	@echo "Shenzhen Files"
@@ -39,6 +41,16 @@ friends:
 
 friends-tests:
 	$(MAKE) -C $(PDF) friends-suite $(if $(COTURN),FRIENDS_TEST_COTURN=$(COTURN))
+	$(MAKE) friends-one-identity-e2e
+
+# ShenzhenPDF's AppKit views, Shenzhen Files' GTK views and Shenzhen 3D's packaged Electron shell on one Friends home,
+# hidden, and two computers of one profile (apps/pdf/portable/friends/tests/e2e/oneid.mk). Shenzhen 3D's client addon
+# and renderer are built from this tree first; its node_modules come from make 3d-setup.
+friends-one-identity-e2e:
+	@test -d $(THREED)/node_modules || { echo "friends-one-identity-e2e: run make 3d-setup first" >&2; exit 1; }
+	cd $(THREED) && scripts/friends/setup-friends.sh && npm run build
+	$(MAKE) -C $(PDF) friends-one-identity-check FRIENDS_ONEID_3D=$(CURDIR)/$(THREED) \
+		$(if $(COTURN),FRIENDS_TEST_COTURN=$(COTURN))
 
 friends-number:
 	tools/check-friends-number.sh

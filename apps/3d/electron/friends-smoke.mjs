@@ -22,6 +22,11 @@ const root = path.resolve(
   "..",
 );
 const { friendsBuild } = require("./friends/lock.cjs");
+const {
+  hiddenElectronApp,
+  anyWindowVisible,
+  HIDDEN_MAIN,
+} = require("./hidden-electron.cjs");
 const { readHelperInfo } = require("./friends/host.cjs");
 const build = friendsBuild(root);
 const addonPath = path.join(
@@ -159,15 +164,20 @@ peer.client.start();
 let application;
 const errors = [];
 try {
+  // Hidden, as every run of this test is: a background-only copy of Electron running the shell behind
+  // hidden-hook.cjs, so no window, Dock icon or dialog ever reaches the screen (hidden-electron.cjs).
+  hiddenElectronApp(path.join(root, "artifacts/hidden-electron/Electron.app"));
+  process.env.ELECTRON_OVERRIDE_DIST_PATH = path.join(
+    root,
+    "artifacts/hidden-electron",
+  );
   application = await electron.launch({
-    args: [
-      // Nothing on screen: no Dock icon, no window to the front, no error dialogs (test-hidden.cjs).
-      path.join(root, "electron/test-hidden.cjs"),
-      `--user-data-dir=${path.join(directory, "profile")}`,
-    ],
+    args: [HIDDEN_MAIN, `--user-data-dir=${path.join(directory, "profile")}`],
     env: environment,
   });
   const page = await application.firstWindow();
+  if (await anyWindowVisible(application))
+    throw Error("a window is visible: stopping before anything else shows");
   page.on("pageerror", (error) => errors.push(error.message));
   page.on(
     "console",

@@ -21,6 +21,7 @@ int main(void) {
             {"side path", SZFODTestSidePath},
             {"direct", SZFODTestDirect},
             {"simultaneous", SZFODTestSimultaneous},
+            {"back while we wait", SZFODTestBackWhileWeWait},
             {"relay and leave", SZFODTestRelayAndLeave},
             {"probing", SZFODTestProbing},
             {"network change", SZFODTestNetworkChange},

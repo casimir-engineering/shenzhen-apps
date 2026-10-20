@@ -43,7 +43,7 @@ beside the code in a `tests/` directory of the area (`service/store/tests/SZFrie
 | Area | Owns | Public interface | Builds on | Makefile → suite |
 |---|---|---|---|---|
 | protocol | `client/` (library and the fake helper in `client/fake/`), `service/presentation/` | `client/szfriends_client.h`, `service/presentation/SZFriendsPresentation.h`, `service/presentation/SZFriendsMentions.h` (the mention form, which the helper and the store use too) | PROTOCOL.md, `fixtures/`, cJSON; presentation: avatars and discovery headers (shared value types) | `client/client.mk` → `friends-client-check`; `service/presentation/presentation.mk` → `friends-presentation-check` |
-| helper | `service/helper/`: helper main, lifecycle, IPC server, helper bundle `Info.plist`, the helper bundle build; `tests/e2e/`, the two-helper harness | `service/helper/SZFriendsHelper.h` | every service header, the client library (socket path, directory check, framing), libsodium | `service/helper/helper.mk` → `friends-helper-check`; `service/helper/universal.mk` → `friends-helper-universal`, `friends-universal-check` (Intel Macs, not in `friends-suite`); `tests/e2e/e2e.mk` → `friends-e2e-check`, `friends-e2e-devices-check` |
+| helper | `service/helper/`: helper main, lifecycle, IPC server, helper bundle `Info.plist`, the helper bundle build; `tests/e2e/`, the two-helper harness | `service/helper/SZFriendsHelper.h` | every service header, the client library (socket path, directory check, framing), libsodium | `service/helper/helper.mk` → `friends-helper-check`; `service/helper/universal.mk` → `friends-helper-universal`, `friends-universal-check` (Intel Macs, not in `friends-suite`); `tests/e2e/e2e.mk` → `friends-e2e-check`, `friends-e2e-devices-check`; `tests/e2e/oneid.mk` → `friends-one-identity-check` (not in `friends-suite`) |
 | store | `service/store/` apart from previews | `SZFriendsStore.h`, `SZFriendsOutbox.h`, `SZFriendsTransfers.h`, `SZFriendsStoreDevices.h` (device chains, schema v8), `SZFriendsStoreSync.h` (sync's log and merge state, schema v9; helper-only) | avatars and identity headers (certificate checks for static-key changes; its suite links the identity objects), the mention form (search indexes mentions as their labels), libsodium (BLAKE2b digests), `-lsqlite3` | `service/store/store.mk` → `friends-store-check` |
 | thumbnails | `service/thumbnails/`: the C99 QOI codec and PNG writer, the QuickLook renderer, the maker, the fuzz harnesses and corpus; and `service/store/SZFriendsTransferThumbnails.{h,m}` (ADR 0008) | `service/thumbnails/SZFriendsThumbnails.h`, `szfriends_qoi.h`, `szfriends_image.h`, `service/store/SZFriendsTransferThumbnails.h` | the store and session headers, QuickLookThumbnailing, CoreGraphics, UniformTypeIdentifiers | `service/thumbnails/thumbnails.mk` → `friends-thumbnails-check`; also `friends-thumbnails-fuzz` and `friends-thumbnails-fuzz-seeds` |
 | sync | `service/sync/`: events, merge rules, capture, the exchange between our own devices and file copies (ADR 0014); the helper's `nearby/SZFriendsNearbyService+Sync.m` and `+FriendDevices.m` | `service/sync/SZFriendsSync.h` (helper-only) | store (`SZFriendsStoreSync.h`), identity and chain headers, libsodium; its suite links the store's and identity's objects and runs three stores in temporary directories | `service/sync/sync.mk` → `friends-sync-check` |
@@ -276,6 +276,17 @@ Make runs with cwd `portable/`, so every path in a Friends makefile is relative 
   another computer, and friends reaching any of the computers. A partition is a helper restarted on a Bonjour type of
   its own. Its helper is the online test main (`tests/e2e/SZFriendsE2EOnlineHelperMain.m`); the online scenario
   skips with a reason where the host service cannot run.
+- `friends-one-identity-check` (`tests/e2e/SZFriendsE2EOneIdentity.h`, not in `friends-suite`: the repository's
+  `make friends-one-identity-e2e` runs it with Shenzhen 3D's tree, and `make friends-tests` with it) puts the three
+  apps on one home with nothing saying where Friends lives: ShenzhenPDF's AppKit views in process
+  (`szfriends_e2e_appkit_app.m`), Shenzhen Files' GTK button and dropdown (`szfriends_e2e_gtk_views_app.c`) and
+  Shenzhen 3D's packaged Electron shell with its React panel (`apps/3d/electron/friends-one-identity-app.mjs`), each
+  embedding the test helper with a build number. It starts them in every order and with older and newer helpers, kills
+  the helper under them, types into each app's own composer and reads the other two views, and checks one helper
+  process, one Friends ID and one Friends home throughout; then two computers of one profile, nearby, online through
+  the local host and coturn (`FRIENDS_TEST_COTURN`), and with one of them away. Nothing reaches the screen: the AppKit
+  app is never a foreground app, the GTK app links the quiet interposer, and Electron runs as a background-only copy
+  behind `apps/3d/electron/hidden-hook.cjs`.
 - Never launch, quit or screenshot ShenzhenPDF, Shenzhen Files or Shenzhen 3D to verify Friends work; the owner's
   copies may be running. Verify with headless suites, the two-helper harness and offscreen probes.
 - Every maintained source file stays at or under 500 lines (`tools/check-file-sizes.sh`), lines at or under 120
