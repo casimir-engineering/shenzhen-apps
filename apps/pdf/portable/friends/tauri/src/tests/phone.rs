@@ -319,6 +319,7 @@ fn reset_friends_on_a_running_service_starts_a_new_identity_at_once_and_keeps_re
     assert_eq!(reset.last().unwrap()["ok"], true, "{reset:?}");
     let goodbye = client.0.next_frame().unwrap().unwrap();
     assert_eq!((goodbye["type"].as_str(), goodbye["reason"].as_str()), (Some("goodbye"), Some("reset")));
+    assert!(matches!(client.0.next_frame(), Ok(None) | Err(_)), "the connection is closed");
     assert_eq!(service.state(), "service");
     assert_ne!(Store::identity_of(&phone).unwrap(), recorded, "a new identity");
     assert_eq!(fs::read(phone.join("received/Gearbox.step")).unwrap(), b"kept", "received files stay");
