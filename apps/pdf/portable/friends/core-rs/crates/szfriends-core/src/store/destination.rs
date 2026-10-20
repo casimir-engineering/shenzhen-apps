@@ -13,7 +13,7 @@ use std::sync::Arc;
 
 use rusqlite::{params, Connection, OptionalExtension};
 
-#[cfg(not(any(target_os = "linux", target_vendor = "apple", windows)))]
+#[cfg(not(any(target_os = "linux", target_vendor = "apple")))]
 use super::transfer_files::move_no_replace;
 use super::transfer_files::{ensure_private_directory, unique_destination};
 use super::{new_identifier, unix_now, Result, Store};
@@ -179,25 +179,10 @@ pub(crate) fn rename_no_replace(from: &Path, to: &Path) -> io::Result<()> {
     }
 }
 
-/// Windows: MoveFileEx without MOVEFILE_REPLACE_EXISTING (and without MOVEFILE_COPY_ALLOWED, so another volume
-/// answers ERROR_NOT_SAME_DEVICE and is copied here, hidden until whole).
-#[cfg(windows)]
-pub(crate) fn rename_no_replace(from: &Path, to: &Path) -> io::Result<()> {
-    use std::os::windows::ffi::OsStrExt;
-    use windows_sys::Win32::Storage::FileSystem::{MoveFileExW, MOVEFILE_WRITE_THROUGH};
-    let wide = |p: &Path| p.as_os_str().encode_wide().chain(std::iter::once(0)).collect::<Vec<u16>>();
-    let (from, to) = (wide(from), wide(to));
-    // SAFETY: both are NUL-terminated UTF-16 strings that outlive the call.
-    if unsafe { MoveFileExW(from.as_ptr(), to.as_ptr(), MOVEFILE_WRITE_THROUGH) } != 0 {
-        Ok(())
-    } else {
-        Err(io::Error::last_os_error())
-    }
-}
-
-/// Android (whose system call filter is not asked for renameat2) and the rest: a hard link where allowed, else a
-/// claimed name renamed over (`move_no_replace`).
-#[cfg(not(any(target_os = "linux", target_vendor = "apple", windows)))]
+/// Windows, Android (whose system call filter is not asked for renameat2) and the rest: a hard link where the file
+/// system has them (another volume answers ERROR_NOT_SAME_DEVICE or EXDEV, and is copied here, hidden until whole),
+/// else a name claimed exclusively and the file renamed over the claim (`move_no_replace`).
+#[cfg(not(any(target_os = "linux", target_vendor = "apple")))]
 pub(crate) fn rename_no_replace(from: &Path, to: &Path) -> io::Result<()> {
     move_no_replace(from, to)
 }

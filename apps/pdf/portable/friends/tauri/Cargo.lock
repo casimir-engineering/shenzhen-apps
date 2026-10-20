@@ -3328,7 +3328,6 @@ dependencies = [
  "szfriends-identity",
  "szfriends-wire",
  "unicode-normalization",
- "windows-sys 0.52.0",
  "zeroize",
 ]
 
