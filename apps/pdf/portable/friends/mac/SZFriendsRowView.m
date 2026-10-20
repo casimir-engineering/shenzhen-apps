@@ -70,6 +70,8 @@ static BOOL SZFSamePerson(NSString *a, NSString *b) {
     // the mark's tooltip (the row's accessibility_label already says it).
     _idConfirmed = SZFBool(row, @"id_confirmed");
     _idConfirmedLabel = [SZFStr(row, @"id_confirmed_label") copy];
+    _foundLabel = [SZFStr(SZFDict(row, @"found"), @"label") copy];
+    _foundMethods = SZFriendsFoundMethods(SZFDict(row, @"found"));
     [self.accessoryButton removeFromSuperview];
     _accessoryButton = nil;
     [self applyRowActions:SZFArr(row, @"actions")];
@@ -97,6 +99,8 @@ static BOOL SZFSamePerson(NSString *a, NSString *b) {
     _dropRefusal = nil;
     _idConfirmed = NO;
     _idConfirmedLabel = nil;
+    _foundLabel = [SZFStr(SZFDict(person, @"found"), @"label") copy];
+    _foundMethods = SZFriendsFoundMethods(SZFDict(person, @"found"));
     [self.accessoryButton removeFromSuperview];
     _accessoryButton = nil;
     [self applyRowActions:@[]];
@@ -406,8 +410,13 @@ static CGFloat SZFPill(NSString *text, CGFloat right, CGFloat y, NSFont *font, N
     // The small check beside a Friends ID the server confirmed is this person's.
     _idConfirmedRect = _idConfirmed ? NSMakeRect(textX + titleWidth + 3, midY - 14, 10, 10) : NSZeroRect;
     if (_idConfirmed) SZFriendsDrawCheckIcon(_idConfirmedRect, appearance.successColor);
-    SZFDrawLine(_subtitle, NSMakeRect(textX, midY + 1, textWidth, 17), appearance.secondaryFont, subtitleColor,
-                NSTextAlignmentLeft);
+    // How they were found leads the line; the subtitle follows after a dot, in what room is left.
+    CGFloat foundWidth = SZFriendsDrawFound(_foundMethods, _foundLabel, NSMakeRect(textX, midY + 1, textWidth, 17),
+                                            appearance);
+    NSString *subtitle = _subtitle;
+    if (foundWidth > 0 && subtitle.length) subtitle = [@" · " stringByAppendingString:subtitle];
+    SZFDrawLine(subtitle, NSMakeRect(textX + foundWidth, midY + 1, MAX(0, textWidth - foundWidth), 17),
+                appearance.secondaryFont, subtitleColor, NSTextAlignmentLeft);
 }
 
 #pragma mark - Drop target

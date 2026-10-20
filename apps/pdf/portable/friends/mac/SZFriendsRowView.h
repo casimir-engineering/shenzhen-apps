@@ -65,6 +65,10 @@ NS_ASSUME_NONNULL_BEGIN
 @property(nonatomic, readonly) BOOL muted;
 // list_row id_confirmed: the Friends server confirmed this person holds the Friends ID (a small check).
 @property(nonatomic, readonly) BOOL idConfirmed;
+// list_row and nearby_person found: how the person is seen nearby now, as route icons (lan, p2p_wifi, bluetooth) and
+// the helper's label at the start of the second line, before the subtitle. Empty and nil when not nearby.
+@property(nonatomic, copy, readonly) NSArray<NSString *> *foundMethods;
+@property(nonatomic, copy, readonly, nullable) NSString *foundLabel;
 // What the row says under the pointer while it refuses files (list_row drop_refusal), or nil when it shows nothing.
 - (nullable NSString *)refusalText;
 // The list above the rows already says why the files are refused (drop_folders_refused, drop_not_a_file): a row that
@@ -87,6 +91,12 @@ NS_ASSUME_NONNULL_BEGIN
 // Opens the menu at `point` (the row's coordinates); NO when the row has none.
 - (BOOL)showContextMenuAtPoint:(NSPoint)point;
 @end
+
+// The known methods of a PROTOCOL.md found object, in its order; none without a label (SZFriendsRowFound.m).
+NSArray<NSString *> *SZFriendsFoundMethods(NSDictionary *_Nullable found);
+// Draws the methods' icons and `label` from the left of `line`; returns the width used (0 without a label).
+CGFloat SZFriendsDrawFound(NSArray<NSString *> *methods, NSString *_Nullable label, NSRect line,
+                           SZFriendsAppearance *appearance);
 
 extern const CGFloat SZFriendsRowHeight;
 

@@ -200,6 +200,10 @@ void SZFTestRenders(void);
 void SZFTestControls(void);
 void SZFTestRowActions(void);
 void SZFTestRowMenus(void);
+void SZFTestFoundRows(void);
+// Nearby and the list with `found` on some rows (SZFriendsViewsFoundTests.m).
+NSDictionary *SZFTestFoundNearby(void);
+NSDictionary *SZFTestFoundList(void);
 // The confirm a friend's Remove carries (spec § Confirm wording), with the history option when `history`.
 NSDictionary *SZFTestRemoveConfirm(NSString *first, BOOL history);
 void SZFTestAssistantMarkers(void);

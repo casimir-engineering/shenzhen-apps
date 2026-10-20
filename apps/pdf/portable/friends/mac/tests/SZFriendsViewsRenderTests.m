@@ -235,6 +235,18 @@ static void SZFTestRenderPass(void) {
         [page applyNearbySnapshot:SZFTestSnapshot(@"nearby-visible-bluetooth-off")];
         return page;
     });
+    // How each person nearby was found: local network, Bluetooth, both; and a nearby friend in the list.
+    SZFRenderBoth(@"nearby-found", dropdown, ^NSView *(SZFriendsContext *context) {
+        SZFriendsListPage *page = [[SZFriendsListPage alloc] initWithContext:context];
+        [page showNearby:YES];
+        [page applyNearbySnapshot:SZFTestFoundNearby()];
+        return page;
+    });
+    SZFRenderBoth(@"list-found", dropdown, ^NSView *(SZFriendsContext *context) {
+        SZFriendsListPage *page = [[SZFriendsListPage alloc] initWithContext:context];
+        [page applySnapshot:SZFTestFoundList()];
+        return page;
+    });
     SZFRenderBoth(@"nearby-denied", dropdown, ^NSView *(SZFriendsContext *context) {
         SZFriendsListPage *page = [[SZFriendsListPage alloc] initWithContext:context];
         [page showNearby:YES];

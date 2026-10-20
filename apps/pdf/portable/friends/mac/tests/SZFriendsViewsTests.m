@@ -184,6 +184,7 @@ int main(int argc, const char *argv[]) {
         SZFTestControls();
         SZFTestRowActions();
         SZFTestRowMenus();
+        SZFTestFoundRows();
         SZFTestAssistantMarkers();
         SZFTestChrome();
         SZFTestArmedActions();
