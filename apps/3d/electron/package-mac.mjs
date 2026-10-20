@@ -509,6 +509,38 @@ async function verifyPackage(output, pkg, provenance) {
     },
   };
 }
+/**
+ * The DMG electron-builder writes is zlib-compressed (UDZO; its schema allows no LZMA). Recompressed as ULMO (LZMA,
+ * macOS 10.15 and later; the app needs 13.0) the same volume is about a fifth smaller. The image is signed again with
+ * the identity that signed the app, and its entry in latest-mac.yml takes the new bytes. Its blockmap is made again
+ * after notarization (notarize-finalize.mjs).
+ */
+async function recompressDmg(output, pkg, identity) {
+  const yaml = require("js-yaml");
+  const dmg = path.join(output, `Shenzhen-3D-${pkg.version}-Apple-Silicon.dmg`);
+  const lzma = dmg.replace(/\.dmg$/, ".ulmo.dmg");
+  await run("hdiutil", ["convert", dmg, "-quiet", "-format", "ULMO", "-o", lzma]);
+  await fs.rename(lzma, dmg);
+  if (identity && identity !== "-")
+    await run("codesign", [
+      "--force",
+      "--timestamp",
+      "--sign",
+      /^[^:]+: /.test(identity) ? identity : `Developer ID Application: ${identity}`,
+      dmg,
+    ]);
+  else await run("codesign", ["--force", "--sign", "-", dmg]);
+  const bytes = await fs.readFile(dmg);
+  const feed = path.join(output, "latest-mac.yml");
+  const metadata = yaml.load(await fs.readFile(feed, "utf8"));
+  const entry = metadata.files?.find((file) => file.url === path.basename(dmg));
+  if (!entry) throw Error("latest-mac.yml lists no DMG");
+  entry.sha512 = hash(bytes, "sha512", "base64");
+  entry.size = bytes.length;
+  delete entry.blockMapSize;
+  await fs.writeFile(feed, yaml.dump(metadata, { lineWidth: -1, noRefs: true }));
+  await fs.rm(dmg + ".blockmap", { force: true });
+}
 async function main() {
   const releaseOwner = assertReleaseOwner(
     process.argv.find((arg) => arg.startsWith("--release-owner="))?.slice(16),
@@ -542,13 +574,36 @@ async function main() {
   const pkg = JSON.parse(
     await fs.readFile(path.join(root, "package.json"), "utf8"),
   );
+  // --version=X.Y.Z: a candidate of another version than package.json's (tools/release.sh's dry run of a throwaway
+  // version). The app, its feed and its file names carry it; provenance records both.
+  const committedVersion = pkg.version;
+  const versionOverride = process.argv
+    .find((arg) => arg.startsWith("--version="))
+    ?.slice(10);
+  if (versionOverride !== undefined) {
+    if (!/^\d+\.\d+\.\d+$/.test(versionOverride))
+      throw Error("--version must read X.Y.Z");
+    pkg.version = versionOverride;
+  }
   const stamp = new Date().toISOString().replaceAll(/[:.]/g, "-");
-  const output = path.join(
-      root,
-      "artifacts/electron",
-      `${pkg.version}-${releaseOwner}-${stamp}`,
-    ),
+  // --output=<dir>: where the artifacts go (a new directory under artifacts/electron/), instead of a timestamped one.
+  const requestedOutput = process.argv
+    .find((arg) => arg.startsWith("--output="))
+    ?.slice(9);
+  const output = requestedOutput
+      ? path.resolve(requestedOutput)
+      : path.join(
+          root,
+          "artifacts/electron",
+          `${pkg.version}-${releaseOwner}-${stamp}`,
+        ),
     staging = path.join(output, "staging");
+  if (
+    requestedOutput &&
+    (!output.startsWith(path.join(root, "artifacts/electron") + path.sep) ||
+      (await exists(output)))
+  )
+    throw Error("--output must name a new directory under artifacts/electron");
   await fs.mkdir(staging, { recursive: true });
   await fs.cp(path.join(root, "dist"), path.join(staging, "dist"), {
     recursive: true,
@@ -564,6 +619,9 @@ async function main() {
   });
   const provenance = {
     version: pkg.version,
+    ...(versionOverride !== undefined && versionOverride !== committedVersion
+      ? { packageJsonVersion: committedVersion }
+      : {}),
     sourceCommit: execFileSync("git", ["rev-parse", "HEAD"], {
       cwd: root,
       encoding: "utf8",
@@ -614,6 +672,12 @@ async function main() {
     "--publish",
     "never",
   ]);
+  const config = require("../electron-builder.cjs");
+  await recompressDmg(
+    output,
+    pkg,
+    process.argv.includes("--ad-hoc") ? "-" : config.mac.identity,
+  );
   const verification = await verifyPackage(output, pkg, provenance);
   await fs.writeFile(
     path.join(output, "build-info.json"),

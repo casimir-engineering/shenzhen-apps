@@ -179,14 +179,15 @@ const accepted = async (kind, id) => {
     archiveSha256: log.sha256,
   };
 };
-const verifyApp = async (p, label) => {
+const verifyApp = async (p, label, { stapled = true } = {}) => {
   verifyChannel(p);
   await run(
     "codesign",
     ["--verify", "--deep", "--strict", p],
     label + "-codesign.txt",
   );
-  await run("xcrun", ["stapler", "validate", p], label + "-stapler.txt");
+  if (stapled)
+    await run("xcrun", ["stapler", "validate", p], label + "-stapler.txt");
   await run(
     "spctl",
     ["--assess", "--type", "execute", "--verbose=4", p],
@@ -200,12 +201,20 @@ const verifyApp = async (p, label) => {
 };
 await verifyOriginal();
 if (arg("phase") === "package") {
-  const notarization = await accepted("zip", arg("zip-submission"));
+  // --dmg-from-original: the DMG was notarized on its own (tools/release.sh), and it ships as it was submitted, holding
+  // the app as signed. Apple issues a ticket for every piece of code in a submission, so the app inside staples from
+  // the DMG's submission (--dmg-submission) and the ZIP needs none of its own; it is made again here from the stapled
+  // app, and the feed keeps the original DMG's entry, which finalize updates once the DMG is stapled.
+  const dmgFromOriginal = process.argv.includes("--dmg-from-original");
+  const fromDmg = dmgFromOriginal && !arg("zip-submission");
+  const notarization = fromDmg
+    ? await accepted("dmg", arg("dmg-submission"))
+    : await accepted("zip", arg("zip-submission"));
   if (
     notarization.archiveSha256 !==
-    (await sha(path.join(original, filename("zip"))))
+    (await sha(path.join(original, filename(fromDmg ? "dmg" : "zip"))))
   )
-    throw Error("Apple ZIP log does not match frozen submitted ZIP");
+    throw Error("Apple's log does not match the frozen submitted archive");
   if ((await exists(app)) || (await exists(path.join(output, filename("zip")))))
     throw Error("Refusing to replace an existing notarized output app/archive");
   await fs.mkdir(path.dirname(app), { recursive: true });
@@ -235,12 +244,37 @@ if (arg("phase") === "package") {
       "--prepackaged",
       app,
       "--mac",
+      ...(dmgFromOriginal ? ["zip"] : []),
       "--arm64",
       "--publish",
       "never",
     ],
     "prepackaged-builder.txt",
   );
+  if (dmgFromOriginal) {
+    const yaml = require("js-yaml");
+    await fs.copyFile(
+      path.join(original, filename("dmg")),
+      path.join(output, filename("dmg")),
+    );
+    const metadataFile = path.join(output, "latest-mac.yml");
+    const metadata = yaml.load(await fs.readFile(metadataFile, "utf8"));
+    const originalMetadata = yaml.load(
+      await fs.readFile(path.join(original, "latest-mac.yml"), "utf8"),
+    );
+    const dmgEntry = originalMetadata.files.find(
+      (x) => x.url === filename("dmg"),
+    );
+    if (!dmgEntry) throw Error("The original feed lists no DMG");
+    metadata.files = [
+      ...metadata.files.filter((x) => x.url !== filename("dmg")),
+      dmgEntry,
+    ];
+    await fs.writeFile(
+      metadataFile,
+      yaml.dump(metadata, { lineWidth: -1, noRefs: true }),
+    );
+  }
   await verifyApp(app, "app-after-package");
   await fs.writeFile(
     path.join(output, "notarization-package.json"),
@@ -250,6 +284,8 @@ if (arg("phase") === "package") {
         output,
         app,
         zip: notarization,
+        appTicketFrom: fromDmg ? "dmg" : "zip",
+        dmgFromOriginal,
         sourceCommit: base.sourceCommit,
         releaseOwner,
         asarSha256: await sha(path.join(app, "Contents/Resources/app.asar")),
@@ -372,10 +408,10 @@ if (arg("phase") === "package") {
     "dmg-attach.txt",
   );
   try {
-    await verifyApp(
-      path.join(mount, config.productName + ".app"),
-      "embedded-dmg-app",
-    );
+    // An original DMG holds the app as signed, before its own ticket was stapled: the DMG's stapled ticket covers it.
+    await verifyApp(path.join(mount, config.productName + ".app"), "embedded-dmg-app", {
+      stapled: !packaged.dmgFromOriginal,
+    });
   } finally {
     await run("hdiutil", ["detach", mount], "dmg-detach.txt");
   }
@@ -399,6 +435,7 @@ if (arg("phase") === "package") {
       dmg: notarization,
       appStapled: true,
       dmgStapled: true,
+      dmgHoldsStapledApp: !packaged.dmgFromOriginal,
       codeSignaturesVerified: true,
       gatekeeperAccepted: true,
       embeddedZipAndDmgTicketsValidated: true,
