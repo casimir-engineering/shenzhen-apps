@@ -249,6 +249,8 @@ pub enum Wording {
     Devices(&'static str),
     /// Named as the mention or card named the person.
     Named(String),
+    /// Worded for the folder the person picked in Settings (set_received_folder), not for a file being sent.
+    ReceivedFolder,
 }
 
 /// A refused intent: the code and wire details, and how its message is worded.

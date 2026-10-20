@@ -9,7 +9,7 @@ use rusqlite::types::Value;
 
 use super::engine::SyncEngine;
 use super::{copies_automatically, SyncError};
-use crate::store::destination::{note_published, ReceivedSource};
+use crate::store::destination::{mark_published, ReceivedSource};
 use crate::store::sync_files::{self, SyncFile};
 use crate::store::sync_log;
 use crate::store::{sanitized_file_name, Store};
@@ -88,9 +88,9 @@ impl SyncEngine {
         let file =
             sync_files::sync_file(&store.conn, transfer_id)?.ok_or(SyncError::Malformed("no such file record"))?;
         let name = sanitized_file_name(&file.file_name);
-        let (stored, shown) = store.places().publish(path, &name, &mut |_| Ok(()))?;
+        let (stored, _) = store.places().publish(path, &name, &mut |_| Ok(()))?;
         let recorded = sync_files::insert_copied_transfer(&store.conn, &file, &stored)
-            .and_then(|()| note_published(&store.conn, transfer_id, &shown, ReceivedSource::Device));
+            .and_then(|()| mark_published(&store.conn, transfer_id, Some(ReceivedSource::Device)));
         if let Err(error) = recorded {
             if Path::new(&stored).is_absolute() {
                 let _ = std::fs::remove_file(&stored);

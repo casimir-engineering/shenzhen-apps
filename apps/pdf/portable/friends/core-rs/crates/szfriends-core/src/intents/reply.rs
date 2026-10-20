@@ -25,6 +25,11 @@ pub fn error_message(error: &IntentError, strings: &Strings) -> Option<String> {
         Wording::Devices(reason) => strings
             .devices_error_message(error.code, reason)
             .or_else(|| strings.error_message(error.code, &error.details)),
+        Wording::ReceivedFolder => {
+            let mut details = Map::new();
+            details.insert("field".into(), json!("received_folder"));
+            strings.error_message(error.code, &details)
+        }
         Wording::Named(name) => {
             let mut details = Map::new();
             details.insert("name".into(), json!(name));

@@ -18,6 +18,7 @@ use szfriends_core::store::{ExternalPublisher, PhoneFolder, ReceivedDefaults};
 pub const MEDIASTORE_DOWNLOADS_SDK: u32 = 29;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[cfg_attr(any(target_os = "android", target_os = "ios"), allow(dead_code))]
 pub enum Phone {
     /// With its SDK version.
     Android(u32),

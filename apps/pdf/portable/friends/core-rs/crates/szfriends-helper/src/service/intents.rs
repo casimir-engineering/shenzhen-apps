@@ -325,16 +325,19 @@ impl State {
                 Ok(json!({}))
             }
             Intent::SetReceivedFolder { path } => {
+                use szfriends_core::intents::Wording;
                 use szfriends_core::store::FolderRefusal;
                 match self.store.set_received_folder(&path) {
                     Ok(()) => {}
                     Err(FolderRefusal::NotAbsolute) => return Err(IntentError::field("invalid_field", "path")),
                     Err(FolderRefusal::Missing) => {
-                        let mut error = IntentError::new("file_missing");
+                        let mut error = IntentError::new("file_missing").worded(Wording::ReceivedFolder);
                         error.details.insert("path".into(), json!(path));
                         return Err(error);
                     }
-                    Err(FolderRefusal::NotAllowed) => return refused("not_allowed"),
+                    Err(FolderRefusal::NotAllowed) => {
+                        return Err(IntentError::new("not_allowed").worded(Wording::ReceivedFolder))
+                    }
                 }
                 self.changed();
                 Ok(json!({}))

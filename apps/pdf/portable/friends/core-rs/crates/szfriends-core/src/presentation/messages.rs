@@ -71,6 +71,14 @@ impl Strings {
                 return Some(self.text_with(&format!("error.stale.message_{state}"), &[("first", &first)]));
             }
         }
+        // set_received_folder: the folder the person picked in Settings.
+        if field == Some("received_folder") {
+            match code {
+                "file_missing" => return Some(self.text("error.received_folder.missing")),
+                "not_allowed" => return Some(self.text("error.received_folder.not_allowed")),
+                _ => {}
+            }
+        }
         // A link that was revoked, expired or reset.
         if code == "not_found" && field == Some("payload") {
             return Some(self.text("error.not_found.link"));

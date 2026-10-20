@@ -71,6 +71,8 @@ pub(super) const PEOPLE_AND_SETTINGS: &[(&str, &str)] = &[
     ("settings.received.change", "Change…"),
     ("settings.received.default", "Downloads"),
     ("settings.received.note.ios", "In the Files app, under On My iPhone."),
+    ("error.received_folder.missing", "That folder can’t be found or opened. Choose another folder."),
+    ("error.received_folder.not_allowed", "Files can’t be saved in that folder. Choose another folder."),
     ("settings.auto.label", "Accept files automatically"),
     ("settings.auto.action", "Change…"),
     ("settings.auto.note.some", "From {names}. Everyone else asks first."),

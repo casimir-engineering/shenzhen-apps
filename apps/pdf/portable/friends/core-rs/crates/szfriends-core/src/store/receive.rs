@@ -11,7 +11,7 @@ use std::time::{Duration, Instant};
 use blake2::digest::{Update, VariableOutput};
 use rusqlite::Connection;
 
-use super::destination::{note_published, part_path, ReceivedSource};
+use super::destination::{mark_published, part_path};
 use super::transfer_files::{create_staging_file, digest_prefix};
 use super::transfers::{self, apply_event, set_column, TransferEvent, TransferRecord, TransferState};
 use super::{Result, Store, StoreError};
@@ -228,14 +228,14 @@ impl Store {
     fn publish(&mut self, record: &TransferRecord, partial: &Path) -> Result<PathBuf> {
         let places = self.places();
         let id = record.transfer_id.clone();
-        let (location, name) = places.publish(partial, &record.file_name, &mut |claimed| {
+        let (location, _) = places.publish(partial, &record.file_name, &mut |claimed| {
             let claimed = claimed.map(str::to_owned);
             self.write(|conn| {
                 set_column(conn, &id, "final_path", &claimed)?;
                 set_column(conn, &id, "publishing", &1)
             })
         })?;
-        self.write(|conn| mark_received(conn, record, &location, &name))?;
+        self.write(|conn| mark_received(conn, record, &location))?;
         Ok(PathBuf::from(location))
     }
 
@@ -269,8 +269,7 @@ impl Store {
                     continue;
                 }
                 if let Some(location) = external {
-                    let name = record.file_name.clone();
-                    self.write(|conn| mark_received(conn, &record, location, &name))?;
+                    self.write(|conn| mark_received(conn, &record, location))?;
                     let _ = fs::remove_file(partial);
                     continue;
                 }
@@ -279,9 +278,8 @@ impl Store {
                     let whole = File::open(target).is_ok_and(|mut f| staged_file_matches(&mut f, target, &record));
                     if whole && record.size > 0 {
                         // Copied to another volume and renamed before the crash; only the staged file was left.
-                        let name = file_name_of(target);
                         let text = target.to_string_lossy().into_owned();
-                        self.write(|conn| mark_received(conn, &record, &text, &name))?;
+                        self.write(|conn| mark_received(conn, &record, &text))?;
                         let _ = fs::remove_file(partial);
                         continue;
                     }
@@ -296,12 +294,7 @@ impl Store {
                 final_path.filter(|p| !Path::new(p).is_absolute() || fs::symlink_metadata(p).is_ok())
             {
                 // Moved before the crash, committed after it: the digest was verified before the move.
-                let name = if Path::new(&published).is_absolute() {
-                    file_name_of(Path::new(&published))
-                } else {
-                    record.file_name.clone()
-                };
-                self.write(|conn| mark_received(conn, &record, &published, &name))?;
+                self.write(|conn| mark_received(conn, &record, &published))?;
             } else {
                 let fresh = create_staging_file(&partial_directory)?.to_string_lossy().into_owned();
                 self.write(|conn| {
@@ -357,12 +350,8 @@ impl Store {
     }
 }
 
-fn file_name_of(path: &Path) -> String {
-    path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default()
-}
-
-fn mark_received(conn: &Connection, record: &TransferRecord, destination: &str, name: &str) -> Result<()> {
-    note_published(conn, &record.transfer_id, name, ReceivedSource::Friend)?;
+fn mark_received(conn: &Connection, record: &TransferRecord, destination: &str) -> Result<()> {
+    mark_published(conn, &record.transfer_id, None)?;
     set_column(conn, &record.transfer_id, "received_path", &destination)?;
     set_column(conn, &record.transfer_id, "publishing", &0)?;
     set_column(conn, &record.transfer_id, "final_path", &rusqlite::types::Null)?;

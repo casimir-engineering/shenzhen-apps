@@ -99,12 +99,8 @@ impl<R: Runtime> Native<R> {
         self.0.run_mobile_plugin(command, payload).map_err(|e| e.to_string())
     }
 
-    /// The private directory Friends keeps its files in: Android's no-backup directory, iOS's Application Support.
-    pub fn base(&self) -> Option<PathBuf> {
-        self.dirs().map(|(base, _)| base)
-    }
-
-    /// The private directory, and Android's SDK version.
+    /// The private directory Friends keeps its files in (Android's no-backup directory, iOS's Application Support),
+    /// and Android's SDK version.
     pub fn dirs(&self) -> Option<(PathBuf, Option<u32>)> {
         let dirs: Dirs = self.call("dirs", json!({})).ok()?;
         Some((PathBuf::from(dirs.base), dirs.sdk)).filter(|(p, _)| p.is_absolute())

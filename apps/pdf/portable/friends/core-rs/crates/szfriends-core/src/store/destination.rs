@@ -11,7 +11,7 @@ use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use rusqlite::{params, Connection, OptionalExtension};
+use rusqlite::{params, Connection};
 
 #[cfg(not(any(target_os = "linux", target_vendor = "apple")))]
 use super::transfer_files::move_no_replace;
@@ -24,8 +24,6 @@ pub const RECEIVED_FOLDER_FILE: &str = "received-folder";
 pub const ENV_DOWNLOADS_DIR: &str = "SZFRIENDS_DOWNLOADS_DIR";
 /// The newest files the `received` view lists.
 pub const RECEIVED_VIEW_MAX: usize = 100;
-/// `settings` keys recording when and how each file was published (`published.<transfer_id>`).
-const PUBLISHED_PREFIX: &str = "published.";
 
 /// Publishes into a place the core cannot write itself (Android's public Downloads, through MediaStore).
 pub trait ExternalPublisher: Send + Sync {
@@ -111,10 +109,19 @@ impl ReceivedSource {
         }
     }
 
-    fn from_name(name: &str) -> Self {
-        match name {
-            "link" => Self::Link,
-            "device" => Self::Device,
+    /// The store's `received_via`.
+    pub(crate) fn via(self) -> i64 {
+        match self {
+            Self::Friend => 0,
+            Self::Link => 1,
+            Self::Device => 2,
+        }
+    }
+
+    fn from_via(via: i64) -> Self {
+        match via {
+            1 => Self::Link,
+            2 => Self::Device,
             _ => Self::Friend,
         }
     }
@@ -404,76 +411,53 @@ impl Store {
         Ok(())
     }
 
-    /// The `received` view's rows: files published since this store recorded how (newest first, at most 100),
-    /// whose transfer is still here and whose file still exists.
+    /// The `received` view's rows: files published since the store records when (schema v10), newest first, at most
+    /// 100, whose file still exists.
     pub fn received_files(&self) -> Vec<ReceivedFile> {
-        let sql = "SELECT t.transfer_id, t.received_path, s.value FROM settings s JOIN transfers t \
-                   ON t.transfer_id = substr(s.key, length(?1) + 1) WHERE s.key LIKE ?1 || '%' \
-                   AND t.received_path IS NOT NULL";
+        let sql = "SELECT transfer_id, received_path, file_name, received_at, received_via FROM transfers \
+                   WHERE received_at IS NOT NULL AND received_path IS NOT NULL \
+                   ORDER BY received_at DESC, transfer_id DESC";
         let Ok(mut statement) = self.conn.prepare(sql) else { return Vec::new() };
-        let rows = statement.query_map([PUBLISHED_PREFIX], |r| {
-            Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?, r.get::<_, String>(2)?))
-        });
-        let mut rows: Vec<(String, String, serde_json::Value)> = rows
-            .map(|rows| rows.flatten().collect::<Vec<_>>())
-            .unwrap_or_default()
-            .into_iter()
-            .filter_map(|(id, path, marker)| Some((id, path, serde_json::from_str::<serde_json::Value>(&marker).ok()?)))
-            .filter(|(_, _, marker)| marker["at"].is_i64())
-            .collect();
-        let at = |marker: &serde_json::Value| marker["at"].as_i64().unwrap_or_default();
-        rows.sort_by(|a, b| at(&b.2).cmp(&at(&a.2)).then_with(|| b.0.cmp(&a.0)));
+        let Ok(rows) = statement.query_map([], |r| {
+            Ok((
+                r.get::<_, String>(0)?,
+                r.get::<_, String>(1)?,
+                r.get::<_, String>(2)?,
+                r.get::<_, f64>(3)?,
+                r.get::<_, i64>(4)?,
+            ))
+        }) else {
+            return Vec::new();
+        };
         let mut files = Vec::new();
-        for (transfer_id, path, marker) in rows {
+        for (transfer_id, path, name, at, via) in rows.flatten() {
             if files.len() == RECEIVED_VIEW_MAX {
                 break;
             }
             let local = Path::new(&path);
+            // A content URI (Android 10) is not a path to check; the transfer's name stands for its own.
             let file_name = if local.is_absolute() {
                 if !fs::metadata(local).is_ok_and(|m| m.is_file()) {
                     continue;
                 }
                 local.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default()
             } else {
-                marker["name"].as_str().unwrap_or_default().to_owned()
+                name
             };
-            let source = ReceivedSource::from_name(marker["source"].as_str().unwrap_or_default());
-            files.push(ReceivedFile { transfer_id, path, file_name, received_at: at(&marker), source });
+            let source = ReceivedSource::from_via(via);
+            files.push(ReceivedFile { transfer_id, path, file_name, received_at: at.floor() as i64, source });
         }
         files
     }
 }
 
-/// Records how a file is coming before it is published (a download link's), so its publishing keeps it.
-pub(crate) fn note_source(conn: &Connection, transfer_id: &str, source: ReceivedSource) -> Result<()> {
-    let marker = serde_json::json!({"source": source.name()}).to_string();
-    conn.execute(
-        "INSERT INTO settings (key, value) VALUES (?1, ?2) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
-        params![format!("{PUBLISHED_PREFIX}{transfer_id}"), marker],
-    )?;
-    Ok(())
-}
-
-/// Records that a file was published now as `name` (its source as noted, else `source`), and forgets the markers of
-/// transfers no longer here.
-pub(crate) fn note_published(conn: &Connection, transfer_id: &str, name: &str, source: ReceivedSource) -> Result<()> {
-    let key = format!("{PUBLISHED_PREFIX}{transfer_id}");
-    let noted: Option<String> =
-        conn.query_row("SELECT value FROM settings WHERE key = ?1", [&key], |r| r.get(0)).optional()?.flatten();
-    let source = noted
-        .and_then(|text| serde_json::from_str::<serde_json::Value>(&text).ok())
-        .and_then(|marker| marker["source"].as_str().map(ReceivedSource::from_name))
-        .unwrap_or(source);
-    let marker = serde_json::json!({"source": source.name(), "at": unix_now().floor() as i64, "name": name});
-    conn.execute(
-        "INSERT INTO settings (key, value) VALUES (?1, ?2) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
-        params![key, marker.to_string()],
-    )?;
-    conn.execute(
-        "DELETE FROM settings WHERE key LIKE ?1 || '%' AND substr(key, length(?1) + 1) NOT IN \
-         (SELECT transfer_id FROM transfers)",
-        [PUBLISHED_PREFIX],
-    )?;
+/// Records that a file was published now (`received_at`), and how it came when the caller knows better than the row
+/// (`received_via`: a link download says so when it is recorded, a device copy when it is made).
+pub(crate) fn mark_published(conn: &Connection, transfer_id: &str, via: Option<ReceivedSource>) -> Result<()> {
+    conn.execute("UPDATE transfers SET received_at = ?1 WHERE transfer_id = ?2", params![unix_now(), transfer_id])?;
+    if let Some(via) = via {
+        conn.execute("UPDATE transfers SET received_via = ?1 WHERE transfer_id = ?2", params![via.via(), transfer_id])?;
+    }
     Ok(())
 }
 

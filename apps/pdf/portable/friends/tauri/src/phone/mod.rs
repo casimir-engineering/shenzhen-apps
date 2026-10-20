@@ -120,6 +120,7 @@ fn begin(state_dir: &Path, keys: &Keys, received: &ReceivedDefaults) -> Current 
 
 impl PhoneService {
     /// Received files stay inside `state_dir` (`Downloads`): what tests get.
+    #[cfg_attr(not(test), allow(dead_code))]
     pub fn start(state_dir: PathBuf, keys: Keys) -> Arc<Self> {
         let received = ReceivedDefaults::contained(&state_dir);
         Self::with_grace(state_dir, keys, received, GRACE)

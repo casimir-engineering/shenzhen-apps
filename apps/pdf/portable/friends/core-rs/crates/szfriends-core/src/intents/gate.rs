@@ -90,8 +90,9 @@ const ON_REMOVED_COMPUTER: [&str; 11] = [
     "dismiss_banner",
 ];
 
-/// What works while the identity key cannot be read: reads, the reset that fixes it, and leaving.
-const WITHOUT_IDENTITY: [&str; 11] = [
+/// What works while the identity key cannot be read: reads, the reset that fixes it, leaving, and where received
+/// files go (this computer's own setting).
+const WITHOUT_IDENTITY: [&str; 12] = [
     "ping",
     "activate",
     "subscribe",
@@ -103,6 +104,7 @@ const WITHOUT_IDENTITY: [&str; 11] = [
     "delete_history",
     "reset_friends",
     "disable",
+    "set_received_folder",
 ];
 
 /// What works without a store: nothing that reads or writes Friends data.
