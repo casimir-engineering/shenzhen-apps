@@ -1,6 +1,6 @@
 # Shenzhen Files (Nautilus → macOS) — Integrated Build Status
 
-**Date:** 2026-09-14 · **Version:** 26.9.14 build 1 (upstream 51.beta) · arm64,
+**Date:** 2026-10-20 · **Version:** 26.10.20 build 1 (upstream 51.beta) · arm64,
 `debugoptimized`, `-Dmacos_port=true` · Homebrew GTK 4.22.4 / GLib 2.88.2.
 
 Single integrated tree at `nautilus/` (uncommitted working-tree patches).
@@ -8,6 +8,35 @@ Deliverables: `build/src/nautilus`, `install/`, `dist/Shenzhen Files.app`,
 `dist/ShenzhenFiles-mac-arm64.dmg` (46 MiB), patch record in `patches/`.
 Published: https://github.com/casimir-engineering/shenzhen-files
 (releases carry the DMG; the self-updater consumes `releases/latest`).
+
+---
+
+## 26.10.20-1: Friends (Beta) and the update from 26.9.14-1 (2026-10-20)
+
+The release adds Shenzhen Friends, marked Beta (View ▸ Friends (Beta), the button's tooltip "Friends (Beta) · ⌘J",
+Preferences "Shenzhen Friends (Beta)"), with helper build 26102001. `nautilus-macos-updater.m` is unchanged since
+26.9.14-1 (the published helper installs its successor), so the 26.9.14-1 bootstrap note does not apply.
+
+Update gate, run before publication on the signed, notarized candidate DMG
+(SHA-256 `91b4caf230d294046268617fe46898c7a75b08398920a8e427d918df68759980`, built with
+`DMG_LAYOUT_DS_STORE=package/dmg-layout.DS_Store`):
+
+- The published 26.9.14-1 app (from its release DMG) ran unchanged except for an ad hoc signature and `LSUIElement`,
+  with a library inserted that answers its network requests from a local copy of GitHub (`releases/latest` as GitHub
+  returns it, the asset through GitHub's 302 to release-assets), keeps every window off screen, answers its alerts
+  with their first button and keeps it from touching anything outside the test (it saw the owner's running Shenzhen
+  Files and was kept from force-quitting it). In 12 s it: read `releases/latest`, offered 26.10.20-1 with the notes'
+  highlights, downloaded through the redirect, checked size and digest, verified the DMG (Developer ID, team pin,
+  notarization), extracted, verified the app, staged it, spawned `nautilus --post-update` through NSTask, got the
+  readiness marker, quit, and its helper swapped the bundle and reopened it at the same path.
+- The installed bundle has the DMG app's CDHash and files, `SZFReleaseTag` 26.10.20-1, `CFBundleVersion` 26102001,
+  passes `codesign --verify --deep --strict` and Gatekeeper (Notarized Developer ID); `.old` held 26.9.14.
+- The new app's first launch wrote `update_ok` 26.10.20-1, removed `.old` and said "You're now on Shenzhen Files
+  26.10.20-1."
+- Not run: `package/test-updater-helper-e2e.sh` and `sign-and-notarize.sh`'s launch smoke, which open the app on
+  screen, and whose helper force-quits every running Shenzhen Files (any copy) after 20 s. Run them only with Shenzhen
+  Files closed. The production-path check (an installed older build against the real `releases/latest`) follows
+  publication.
 
 ---
 
