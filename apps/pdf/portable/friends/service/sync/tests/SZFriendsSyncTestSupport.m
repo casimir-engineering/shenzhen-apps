@@ -207,6 +207,7 @@ int main(void) {
         SZFSRunExchangeTests();
         SZFSRunRevocationTests();
         SZFSRunReleaseTests();
+        SZFSRunAgainTests();
         SZFSRunPropertyTests();
         SZFSRemoveTemporaryRoot();
         if (SZFSFailures > 0) {
