@@ -17,7 +17,7 @@
       },
       "friends_id": "cottage-violet",
       "id_label": "ID cottage‑violet",
-      "id_note": "Your ID works nearby now. If it’s already taken, you’ll get a new one the next time ShenzhenPDF reaches the Friends server.",
+      "id_note": null,
       "name": "Raph",
       "name_placeholder": "Choose your name"
     },
@@ -80,12 +80,14 @@
             "action": "accept_request",
             "arm": null,
             "icon": "accept",
+            "title": "Accept",
             "label": "Accept Lena Weber’s request"
           },
           {
             "action": "decline_request",
             "arm": null,
             "icon": "decline",
+            "title": "Decline",
             "label": "Decline Lena Weber’s request"
           },
           {
@@ -96,6 +98,7 @@
               "seconds": 4
             },
             "icon": "block",
+            "title": null,
             "label": "Block Lena Weber"
           }
         ],

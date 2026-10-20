@@ -41,6 +41,28 @@ The fixed mapping and browser fallback are checked by `npm run test:viewer` and 
 
 View shortcuts are inactive while typing or while a dialog is open. Measurements retain their two/three-point picking workflow; this viewer does not implement CAD editing or window/crossing box selection.
 
+## App shortcuts
+
+These use ⌘ on a Mac and Ctrl on Windows and Linux. ⌘K and ⌘J also work while typing in a field (⌘J closes Friends
+from its own search field), but not while a dialog is open.
+
+| Shortcut    | Action                                                                                 |
+| ----------- | -------------------------------------------------------------------------------------- |
+| ⌘O / Ctrl+O | Open a file                                                                            |
+| ⌘S / Ctrl+S | Share the commented project                                                            |
+| ⌘F / Ctrl+F | Search the assembly                                                                    |
+| ⌘K / Ctrl+K | Find a command: type part of its name, then Return                                     |
+| ⌘J / Ctrl+J | Open or close Friends, with the search field ready (only where Friends runs and is on) |
+
+The command palette (⌘K / Ctrl+K) lists Open file…, Share commented project, Search assembly, Fit model, Settings…
+and Help & shortcuts, and, while Friends is on, Open Friends, Add by ID…, Make myself visible and Friends Settings….
+Open Friends is also found by "friend", "nearby", "add by id" and "chat". The Mac app's View menu has Friends (⌘J),
+and the Friends button's tooltip shows the shortcut.
+
+⌘J and ⌘K were not used before (2026-10-20). Browsers use Ctrl+J for Downloads and Ctrl+K for the search bar; the web
+build has no Friends and leaves Ctrl+J to the browser, and Ctrl+K opens the palette there too. In the Windows and Linux
+apps Ctrl+J is Friends' while Friends is on.
+
 ## Selecting parts
 
 Click a part in the assembly list to select it. The view moves so the part is in the center, and the zoom stays the same. Press Shift+F to zoom to it.

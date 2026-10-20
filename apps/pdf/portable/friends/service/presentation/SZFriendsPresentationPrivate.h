@@ -97,7 +97,6 @@ NSDictionary<NSString *, NSString *> *SZFriendsEnglishCatalogDevices(void);  // 
 // The back arrow toward the list. `thisRowWaits`: the view's own row waits too, so the count is "more".
 - (NSDictionary<NSString *, id> *)backToFriendsWithCount:(NSInteger)count thisRowWaits:(BOOL)thisRowWaits;
 - (NSDictionary<NSString *, id> *)footerWithProfile:(SZFriendsProfileFacts *)profile;
-- (nullable NSString *)idNoteForProfile:(SZFriendsProfileFacts *)profile;
 - (NSMutableDictionary<NSString *, id> *)action:(NSString *)action label:(NSString *)label style:(NSString *)style;
 // A confirmation dialog from catalog keys filled with `values`; `destructive` draws its confirm button in the
 // destructive color, since every confirmation Friends asks for ends something the person cannot get back.
@@ -163,10 +162,10 @@ typedef NS_ENUM(NSInteger, SZFriendsShownRoute) {
                                                   now:(NSDate *)now;
 // When an empty Nearby stops saying it is looking (workingSince + SZFriendsNearbySearchingSeconds), if still ahead.
 - (nullable NSDate *)searchingEndsWithFacts:(SZFriendsNearbyFacts *)nearby now:(NSDate *)now;
-// The `empty` object when no person shows. `filtered`: people are visible but the filter hides them all. `alert`:
-// the network card is up, so the unavailable state leaves the remedy to it. Separate so tests reach the variants a
-// card normally covers.
-- (NSDictionary<NSString *, id> *)emptyForNearby:(SZFriendsNearbyFacts *)nearby
+// The `empty` object when no person shows, or NSNull when nothing works or starts (the card above says it all).
+// `filtered`: people are visible but the filter hides them all. `alert`: the network card is up, so "nobody" leaves
+// out its body. Separate so tests reach each variant.
+- (id)emptyForNearby:(SZFriendsNearbyFacts *)nearby
                                         filtered:(BOOL)filtered
                                            query:(NSString *)query
                                            alert:(BOOL)alert

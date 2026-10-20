@@ -1,8 +1,9 @@
 /* A request row's Accept, Decline and Block, answered without opening the request, and the arming rule they share
  * with every Block in the dropdown (szfriends_gtk_row.h; mirrors mac/SZFriendsRowActions.m and SZFriendsArming.m).
  *
- * Round icon buttons, each with the snapshot's label as its tooltip and accessible name, because the button shows
- * no words. Block asks for a second click: the first turns it into a red "Block?" pill and sends nothing; a second,
+ * Accept and Decline show their word (the action's `title`), so a first-time reader tells Decline from Block; Block
+ * is a round red icon button. Each has the snapshot's label as its tooltip and accessible name. Block asks for a
+ * second click: the first turns it into a red "Block?" pill and sends nothing; a second,
  * separate click within arm.seconds blocks. The pill turns back when that time passes, on Escape and when the
  * pointer leaves the row, so a pill left behind cannot turn a later stray click into a block. */
 
@@ -112,7 +113,7 @@ gint64 szfriends_gtk_double_click_us(GtkWidget *widget) {
 typedef struct {
     SZFriendsGtkActionKind action;
     SZFriendsGtkRowIcon icon;
-    char *label, *arm_label, *arm_accessibility_label;
+    char *title, *label, *arm_label, *arm_accessibility_label;
     gboolean has_arm;
     double seconds;
     GtkWidget *button, *glyph, *text;
@@ -150,8 +151,14 @@ static SZFriendsGtkGlyphKind glyph_for(SZFriendsGtkRowIcon icon) {
 
 static void show_labels(SZFriendsGtkRowButton *entry, gboolean armed) {
     const char *name = armed && entry->arm_accessibility_label ? entry->arm_accessibility_label : entry->label;
-    gtk_label_set_text(GTK_LABEL(entry->text), armed && entry->arm_label ? entry->arm_label : "");
-    gtk_widget_set_visible(entry->text, armed);
+    gboolean worded = !armed && entry->title && *entry->title;
+    gtk_label_set_text(GTK_LABEL(entry->text), armed && entry->arm_label ? entry->arm_label
+                                               : worded              ? entry->title
+                                                                     : "");
+    gtk_widget_set_visible(entry->text, armed || worded);
+    gtk_widget_set_visible(entry->glyph, !worded);
+    if (worded) gtk_widget_add_css_class(entry->button, "worded");
+    else gtk_widget_remove_css_class(entry->button, "worded");
     /* The mockup's sizes: the cross smaller so the three glyphs look the same weight; 13 beside the pill's words. */
     szfriends_gtk_glyph_set_size(entry->glyph, armed ? 13 : entry->icon == SZFRIENDS_GTK_ICON_DECLINE ? 12 : 14);
     if (armed) gtk_widget_add_css_class(entry->button, "armed");
@@ -224,6 +231,7 @@ static void pressed(GtkGestureClick *gesture, int n_press, double x, double y, g
 static void clear_entry(gpointer data) {
     SZFriendsGtkRowButton *entry = data;
     g_free(entry->label);
+    g_free(entry->title);
     g_free(entry->arm_label);
     g_free(entry->arm_accessibility_label);
 }
@@ -255,6 +263,7 @@ static gboolean same_actions(SZFriendsGtkRowActions *actions, const SZFriendsGtk
         SZFriendsGtkRowButton *entry = &g_array_index(actions->buttons, SZFriendsGtkRowButton, shown++);
         const SZFriendsGtkArm *arm = list[i].arm;
         if (entry->action != list[i].action || entry->icon != list[i].icon || g_strcmp0(entry->label, list[i].label) ||
+            g_strcmp0(entry->title, list[i].title) ||
             entry->has_arm != (arm != NULL) ||
             (arm && (g_strcmp0(entry->arm_label, arm->label) ||
                      g_strcmp0(entry->arm_accessibility_label, arm->accessibility_label) ||
@@ -269,6 +278,7 @@ static void add_button(SZFriendsGtkRowActions *actions, const SZFriendsGtkRowAct
     entry.action = action->action;
     entry.icon = action->icon;
     entry.label = g_strdup(action->label);
+    entry.title = g_strdup(action->title);
     entry.has_arm = action->arm != NULL;
     if (action->arm) {
         entry.arm_label = g_strdup(action->arm->label);

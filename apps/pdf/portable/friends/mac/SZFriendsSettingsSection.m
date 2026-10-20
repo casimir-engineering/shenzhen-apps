@@ -24,7 +24,7 @@
 }
 @end
 
-@interface SZFriendsSettingsSection () <NSTextFieldDelegate>
+@interface SZFriendsSettingsSection ()
 @end
 
 // Rows in order; `nearby` shows only when the helper sends it (PROTOCOL.md § settings).
@@ -38,6 +38,8 @@ static const NSUInteger SZFSettingsRowCount = 7, SZFSettingsAutoAcceptRow = 3, S
     NSString *_token;
     NSDictionary *_data;
     NSMutableArray<NSTextField *> *_labels; // label, note pairs per row
+    SZFriendsNameEditor *_nameEditor;       // the name friends see, with Save (SZFriendsListPage.h)
+    NSString *_appliedName;                 // the name last shown, so a snapshot never overwrites typing
     NSTextField *_idValue;
     SZFriendsButton *_copyButton;
     SZFriendsButton *_receivedButton;
@@ -71,10 +73,19 @@ static const NSUInteger SZFSettingsRowCount = 7, SZFSettingsAutoAcceptRow = 3, S
         [_labels addObject:label];
         [_view addSubview:label];
     }
-    _nameField = [NSTextField textFieldWithString:@""];
-    _nameField.bezelStyle = NSTextFieldRoundedBezel;
-    _nameField.font = appearance.bodyFont;
-    _nameField.delegate = self;
+    _nameEditor = [[SZFriendsNameEditor alloc] initWithContext:_context font:appearance.bodyFont];
+    _nameEditor.onLayoutChange = ^{
+        SZFriendsSettingsSection *section = weakSelf;
+        [section->_view invalidateIntrinsicContentSize];
+        [section->_view setNeedsLayout:YES];
+    };
+    _nameEditor.onCancel = ^{
+        SZFriendsSettingsSection *section = weakSelf;
+        if (!section) return;
+        [section->_nameEditor reset];
+        section->_nameEditor.field.stringValue = section->_appliedName ?: @"";
+        if (section->_nameEditor.field.currentEditor) [section->_view.window makeFirstResponder:nil];
+    };
     _idValue = SZFriendsLabel(@"", SZFriendsSemibold(appearance.bodyFont), appearance.primaryTextColor);
     _idValue.selectable = YES;
     _copyButton = [self button:^{ [weakSelf.context copyText:SZFStr(SZFDict(weakSelf.data, @"id"), @"friends_id")]; }];
@@ -90,7 +101,7 @@ static const NSUInteger SZFSettingsRowCount = 7, SZFSettingsAutoAcceptRow = 3, S
     _nearbyButton = [self button:^{
         [weakSelf.context performAction:SZFDict(SZFDict(weakSelf.data, @"nearby"), @"action") ids:nil done:nil];
     }];
-    for (NSView *view in @[ _nameField, _idValue ]) [_view addSubview:view];
+    for (NSView *view in @[ _nameEditor, _idValue ]) [_view addSubview:view];
     _friendViews = [NSMutableArray array];
     _switches = [NSMutableArray array];
     _statusLabel = SZFriendsLabel(@"", appearance.secondaryFont, appearance.secondaryTextColor);
@@ -171,9 +182,16 @@ static const NSUInteger SZFSettingsRowCount = 7, SZFSettingsAutoAcceptRow = 3, S
         _labels[2 * i + 1].stringValue = SZFStr(section, @"note") ?: @"";
     }
     NSDictionary *name = SZFDict(data, @"name");
-    if (!_nameField.currentEditor) _nameField.stringValue = SZFStr(name, @"value") ?: @"";
-    _nameField.placeholderString = SZFStr(name, @"placeholder");
-    _nameField.accessibilityLabel = SZFStr(name, @"label");
+    // What the person is typing stays; a field still showing the last name follows the new one.
+    NSString *savedName = SZFStr(name, @"value") ?: @"";
+    NSTextField *nameField = _nameEditor.field;
+    if (!nameField.currentEditor || [nameField.stringValue isEqualToString:_appliedName ?: @""])
+        nameField.stringValue = savedName;
+    _appliedName = savedName;
+    _nameEditor.currentName = savedName;
+    [_nameEditor reloadStrings];
+    nameField.placeholderString = SZFStr(name, @"placeholder");
+    nameField.accessibilityLabel = SZFStr(name, @"label");
     NSDictionary *identifier = SZFDict(data, @"id");
     _idValue.stringValue = SZFStr(identifier, @"friends_id") ?: @"";
     _copyButton.title = SZFStr(identifier, @"copy_label") ?: @"";
@@ -262,34 +280,20 @@ static const NSUInteger SZFSettingsRowCount = 7, SZFSettingsAutoAcceptRow = 3, S
     }];
 }
 
-- (void)commitName {
-    NSString *value = _nameField.stringValue ?: @"";
-    if ([value isEqualToString:SZFStr(SZFDict(_data, @"name"), @"value") ?: @""]) return;
-    [_context.link sendIntent:@"set_name" fields:@{@"name" : value} reply:nil];
-}
-
-- (BOOL)control:(NSControl *)control textView:(NSTextView *)textView doCommandBySelector:(SEL)command {
-    (void)control, (void)textView;
-    if (command != @selector(insertNewline:)) return NO;
-    [self commitName];
-    return YES;
-}
-
-- (void)controlTextDidEndEditing:(NSNotification *)notification {
-    (void)notification;
-    [self commitName];
+- (NSTextField *)nameField {
+    return _nameEditor.field;
 }
 
 // The width a row's control takes: the name field is fixed, buttons fit their titles, the ID fits its text.
 - (CGFloat)controlWidthForRow:(NSUInteger)row control:(NSView *)control {
-    if (row == 0) return 220;
+    if (row == 0) return 300;
     if (row == 1) return SZFriendsTextWidth(_idValue.stringValue, _idValue.font) + 4;
     return MAX(90, [(SZFriendsButton *)control fittingWidth]);
 }
 
 - (CGFloat)layoutForWidth:(CGFloat)width apply:(BOOL)apply {
     NSArray<NSView *> *controls =
-        @[ _nameField, _idValue, _receivedButton, _changeButton, _nearbyButton, _historyButton, _resetButton ];
+        @[ _nameEditor, _idValue, _receivedButton, _changeButton, _nearbyButton, _historyButton, _resetButton ];
     CGFloat y = 0;
     CGFloat statusHeight = SZFriendsFieldHeight(_statusLabel, width);
     if (apply) {
@@ -308,12 +312,14 @@ static const NSUInteger SZFSettingsRowCount = 7, SZFSettingsAutoAcceptRow = 3, S
         NSTextField *label = _labels[2 * row], *note = _labels[2 * row + 1];
         CGFloat labelHeight = SZFriendsFieldHeight(label, textWidth);
         CGFloat noteHeight = SZFriendsFieldHeight(note, textWidth);
-        CGFloat rowHeight = MAX(labelHeight + (noteHeight ? 3 + noteHeight : 0), 30);
+        // The name's Save and its refusal can make the first row taller than its words.
+        CGFloat editorHeight = row == 0 ? [_nameEditor heightForWidth:controlWidth] : 0;
+        CGFloat rowHeight = MAX(MAX(labelHeight + (noteHeight ? 3 + noteHeight : 0), 30), editorHeight);
         if (apply) {
             label.frame = NSMakeRect(0, y, textWidth, labelHeight);
             note.frame = NSMakeRect(0, y + labelHeight + 3, textWidth, noteHeight);
-            CGFloat controlHeight = row == 1 ? 20 : 28;
-            CGFloat controlY = y + floor((rowHeight - controlHeight) / 2);
+            CGFloat controlHeight = row == 0 ? editorHeight : row == 1 ? 20 : 28;
+            CGFloat controlY = row == 0 && editorHeight > 30 ? y : y + floor((rowHeight - controlHeight) / 2);
             control.frame = NSMakeRect(width - controlWidth - copyWidth, controlY, controlWidth, controlHeight);
             if (row == 1) {
                 CGFloat buttonY = y + floor((rowHeight - 28) / 2);

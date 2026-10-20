@@ -206,6 +206,17 @@
 .szf-row-action.accept {
   color: var(--jade);
 }
+.szf-row-action.worded {
+  width: auto;
+  padding: 0 10px;
+  font-weight: 650;
+  color: var(--ink);
+}
+.szf-row-action.worded.accept {
+  background: var(--jade);
+  color: var(--surface);
+  border-color: transparent;
+}
 .szf-row-action.armed {
   width: auto;
   padding: 0 10px;
@@ -269,6 +280,18 @@
   display: block;
   color: var(--muted);
   margin-top: 6px;
+}
+.szf-name-prompt .szf-name-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.szf-name-prompt .szf-name-row input {
+  flex: 1;
+  min-width: 0;
+}
+.szf-name-prompt small.szf-refusal {
+  color: var(--error);
 }
 .szf-empty {
   padding: 28px 20px;

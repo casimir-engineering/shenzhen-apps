@@ -1,6 +1,7 @@
 /* The footer under both tabs (szfriends_gtk_list_page.h; mirrors mac/SZFriendsFooterView.m): the name friends see,
- * edited in place; Your ID with Copy, which copies the ASCII friends_id and never the display label; the note while the
- * ID is unreserved; and Add by ID, which opens the profile page. */
+ * edited in place with Save and Cancel beside the field (Return saves; Escape, Cancel or moving the focus elsewhere
+ * leaves it); Your ID with Copy, which copies the ASCII friends_id and never the display label; and Add by ID, which
+ * opens the profile page. The line under them says why a name was refused, or for a moment that it was saved. */
 
 #include "gtk/szfriends_gtk_avatars.h"
 #include "gtk/szfriends_gtk_glyphs.h"
@@ -10,11 +11,12 @@ typedef struct {
     SZFriendsGtkFooterParts parts;
     SZFriendsGtkLink *link;
     SZFriendsGtkDropdown *dropdown;
-    GtkWidget *box, *name_slot, *copy_glyph;
+    GtkWidget *box, *name_slot, *edit_row, *copy_glyph;
     char *name, *placeholder, *friends_id, *note;
     char *error; /* a refused name's reason, kept until the person edits again or the name changes */
+    char *saved; /* name_saved, filled in, for a moment after a rename */
     gboolean editing, cancelling;
-    guint copied_source;
+    guint copied_source, saved_source;
 } SZFriendsGtkListFooter;
 
 static SZFriendsGtkListFooter *footer_of(GtkWidget *box) {
@@ -27,10 +29,14 @@ static void replace(char **slot, const char *value) {
     *slot = copy;
 }
 
-/* The refusal wins over the ID note: Nearby sends a snapshot every second while visible, and a reason that vanished
- * a second after it appeared would never be read. */
+/* The refusal wins over the rest: Nearby sends a snapshot every second while visible, and a reason that vanished a
+ * second after it appeared would never be read. Then "Saved — friends now see …" for a moment, then the helper's note
+ * (null from current helpers). */
 static void show_note(SZFriendsGtkListFooter *footer) {
-    szfriends_gtk_list_label_set(footer->parts.note, footer->error ? footer->error : footer->note);
+    const char *text = footer->error ? footer->error : footer->saved ? footer->saved : footer->note;
+    szfriends_gtk_list_label_set(footer->parts.note, text);
+    if (footer->saved && !footer->error) gtk_widget_add_css_class(footer->parts.note, "szfriends-success");
+    else gtk_widget_remove_css_class(footer->parts.note, "szfriends-success");
 }
 
 static void set_name_line(SZFriendsGtkListFooter *footer) {
@@ -111,9 +117,32 @@ gboolean szfriends_gtk_footer_is_editing(GtkWidget *box) {
 
 static void end_edit(SZFriendsGtkListFooter *footer) {
     footer->editing = FALSE;
-    gtk_widget_set_visible(footer->parts.editor, FALSE);
+    footer->cancelling = TRUE; /* hiding the field takes its focus, which must not count as leaving it again */
+    gtk_widget_set_visible(footer->edit_row, FALSE);
     gtk_widget_set_visible(footer->parts.name_button, TRUE);
     footer->cancelling = FALSE;
+}
+
+static char *typed_name(SZFriendsGtkListFooter *footer) {
+    return g_strstrip(g_strdup(gtk_editable_get_text(GTK_EDITABLE(footer->parts.editor))));
+}
+
+/* Save waits for a name that differs from the saved one, as the name card's does. */
+static void update_save(SZFriendsGtkListFooter *footer) {
+    char *name = typed_name(footer);
+    gtk_widget_set_sensitive(footer->parts.save_button,
+                             *name != '\0' && g_strcmp0(name, footer->name ? footer->name : "") != 0);
+    g_free(name);
+}
+
+static void editor_changed(GtkEditable *editable, gpointer data) {
+    (void)editable;
+    SZFriendsGtkListFooter *footer = data;
+    if (footer->error) {
+        g_clear_pointer(&footer->error, g_free);
+        show_note(footer);
+    }
+    update_save(footer);
 }
 
 void szfriends_gtk_footer_begin_edit(GtkWidget *box) {
@@ -121,37 +150,80 @@ void szfriends_gtk_footer_begin_edit(GtkWidget *box) {
     if (!footer || footer->editing) return;
     footer->editing = TRUE;
     g_clear_pointer(&footer->error, g_free);
+    g_clear_pointer(&footer->saved, g_free);
+    szfriends_gtk_clock_cancel(footer->saved_source);
+    footer->saved_source = 0;
     show_note(footer);
     gtk_editable_set_text(GTK_EDITABLE(footer->parts.editor), footer->name ? footer->name : "");
     gtk_entry_set_placeholder_text(GTK_ENTRY(footer->parts.editor), footer->placeholder);
+    const char *save = szfriends_gtk_link_string(footer->link, "save");
+    const char *cancel = szfriends_gtk_link_string(footer->link, "cancel");
+    gtk_button_set_label(GTK_BUTTON(footer->parts.save_button), save);
+    gtk_widget_set_visible(footer->parts.save_button, *save != '\0');
+    gtk_button_set_label(GTK_BUTTON(footer->parts.cancel_button), cancel);
+    gtk_widget_set_visible(footer->parts.cancel_button, *cancel != '\0');
+    update_save(footer);
     gtk_widget_set_visible(footer->parts.name_button, FALSE);
-    gtk_widget_set_visible(footer->parts.editor, TRUE);
+    gtk_widget_set_visible(footer->edit_row, TRUE);
     gtk_widget_grab_focus(footer->parts.editor);
 }
 
 gboolean szfriends_gtk_footer_cancel_edit(GtkWidget *box) {
     SZFriendsGtkListFooter *footer = footer_of(box);
     if (!footer || !footer->editing) return FALSE;
-    footer->cancelling = TRUE; /* hiding the field takes its focus, which must not commit what was typed */
     end_edit(footer);
     return TRUE;
 }
 
-static void weak_free(gpointer data) {
-    g_weak_ref_clear(data);
-    g_free(data);
+static void refuse(SZFriendsGtkListFooter *footer, const char *message) {
+    if (!message || !*message) return;
+    replace(&footer->error, message);
+    show_note(footer);
+    gtk_accessible_announce(GTK_ACCESSIBLE(footer->parts.note), message, GTK_ACCESSIBLE_ANNOUNCEMENT_PRIORITY_HIGH);
+}
+
+static gboolean saved_over(gpointer data) {
+    SZFriendsGtkListFooter *footer = data;
+    footer->saved_source = 0;
+    g_clear_pointer(&footer->saved, g_free);
+    show_note(footer);
+    return G_SOURCE_REMOVE;
+}
+
+typedef struct {
+    GWeakRef box;
+    char *name;
+} SZFriendsGtkFooterRename;
+
+static void rename_free(gpointer data) {
+    SZFriendsGtkFooterRename *rename = data;
+    g_weak_ref_clear(&rename->box);
+    g_free(rename->name);
+    g_free(rename);
 }
 
 static void name_replied(JsonObject *result, const SZFriendsGtkError *error, gpointer data) {
     (void)result;
-    GtkWidget *box = g_weak_ref_get(data);
+    SZFriendsGtkFooterRename *rename = data;
+    GtkWidget *box = g_weak_ref_get(&rename->box);
     SZFriendsGtkListFooter *footer = footer_of(box);
-    /* The helper's words for a refused name ("Use 40 characters or fewer"), where the name was typed. */
-    if (footer && error && error->message && *error->message) {
-        replace(&footer->error, error->message);
-        show_note(footer);
-        gtk_accessible_announce(GTK_ACCESSIBLE(footer->parts.note), error->message,
-                                GTK_ACCESSIBLE_ANNOUNCEMENT_PRIORITY_HIGH);
+    if (footer && error) {
+        /* The helper's words for a refused name ("Use 40 characters or fewer"), where the name was typed. */
+        refuse(footer, error->message);
+    } else if (footer) {
+        /* It worked, said where the person was looking, for a moment. */
+        const char *format = szfriends_gtk_link_string(footer->link, "name_saved");
+        if (*format) {
+            GString *text = g_string_new(format);
+            g_string_replace(text, "{name}", rename->name, 0);
+            g_free(footer->saved);
+            footer->saved = g_string_free(text, FALSE);
+            show_note(footer);
+            gtk_accessible_announce(GTK_ACCESSIBLE(footer->parts.note), footer->saved,
+                                    GTK_ACCESSIBLE_ANNOUNCEMENT_PRIORITY_MEDIUM);
+            szfriends_gtk_clock_cancel(footer->saved_source);
+            footer->saved_source = szfriends_gtk_clock_schedule(2500, saved_over, footer);
+        }
     }
     if (box) g_object_unref(box);
 }
@@ -159,12 +231,19 @@ static void name_replied(JsonObject *result, const SZFriendsGtkError *error, gpo
 void szfriends_gtk_footer_commit_edit(GtkWidget *box) {
     SZFriendsGtkListFooter *footer = footer_of(box);
     if (!footer || !footer->editing) return;
-    char *name = g_strdup(gtk_editable_get_text(GTK_EDITABLE(footer->parts.editor)));
+    char *name = typed_name(footer);
+    if (!*name) {
+        /* Save is for a name: with nothing typed, say so and keep the field (friends would otherwise see the ID). */
+        refuse(footer, szfriends_gtk_link_string(footer->link, "name_empty"));
+        g_free(name);
+        return;
+    }
     end_edit(footer);
     if (g_strcmp0(name, footer->name ? footer->name : "") != 0) {
-        GWeakRef *ref = g_new0(GWeakRef, 1);
-        g_weak_ref_init(ref, box);
-        szfriends_gtk_link_send(footer->link, szfriends_intent_set_name(name), name_replied, ref, weak_free);
+        SZFriendsGtkFooterRename *rename = g_new0(SZFriendsGtkFooterRename, 1);
+        g_weak_ref_init(&rename->box, box);
+        rename->name = g_strdup(name);
+        szfriends_gtk_link_send(footer->link, szfriends_intent_set_name(name), name_replied, rename, rename_free);
     }
     g_free(name);
 }
@@ -174,11 +253,22 @@ static void editor_activated(GtkEntry *entry, gpointer data) {
     szfriends_gtk_footer_commit_edit(((SZFriendsGtkListFooter *)data)->box);
 }
 
-/* Clicking elsewhere keeps what was typed, as Finder's inline rename does; Escape discards it. */
+/* Clicking or tabbing elsewhere leaves the rename as Cancel does: a name is saved only by Save or Return, which the
+ * person can see. Save and Cancel never take the focus, so pressing them is not leaving. */
 static void editor_left(GtkEventControllerFocus *focus, gpointer data) {
     (void)focus;
     SZFriendsGtkListFooter *footer = data;
-    if (footer->editing && !footer->cancelling) szfriends_gtk_footer_commit_edit(footer->box);
+    if (footer->editing && !footer->cancelling) szfriends_gtk_footer_cancel_edit(footer->box);
+}
+
+static void save_clicked(GtkButton *button, gpointer data) {
+    (void)button;
+    szfriends_gtk_footer_commit_edit(((SZFriendsGtkListFooter *)data)->box);
+}
+
+static void cancel_clicked(GtkButton *button, gpointer data) {
+    (void)button;
+    szfriends_gtk_footer_cancel_edit(((SZFriendsGtkListFooter *)data)->box);
 }
 
 static void name_clicked(GtkButton *button, gpointer data) {
@@ -197,6 +287,8 @@ static void add_clicked(GtkButton *button, gpointer data) {
 static void footer_free(gpointer data) {
     SZFriendsGtkListFooter *footer = data;
     szfriends_gtk_clock_cancel(footer->copied_source);
+    szfriends_gtk_clock_cancel(footer->saved_source);
+    g_free(footer->saved);
     g_free(footer->name);
     g_free(footer->placeholder);
     g_free(footer->friends_id);
@@ -237,8 +329,24 @@ GtkWidget *szfriends_gtk_footer_new(SZFriendsGtkLink *link, SZFriendsGtkDropdown
     gtk_widget_set_halign(parts->name_button, GTK_ALIGN_START);
     g_signal_connect(parts->name_button, "clicked", G_CALLBACK(name_clicked), footer);
     parts->editor = gtk_entry_new();
-    gtk_widget_set_visible(parts->editor, FALSE);
+    gtk_widget_set_hexpand(parts->editor, TRUE);
     g_signal_connect(parts->editor, "activate", G_CALLBACK(editor_activated), footer);
+    g_signal_connect(parts->editor, "changed", G_CALLBACK(editor_changed), footer);
+    parts->save_button = gtk_button_new_with_label("");
+    gtk_widget_add_css_class(parts->save_button, "suggested-action");
+    parts->cancel_button = gtk_button_new_with_label("");
+    for (GtkWidget **button = (GtkWidget *[]){parts->save_button, parts->cancel_button, NULL}; *button; button++) {
+        gtk_widget_set_focus_on_click(*button, FALSE);
+        gtk_widget_set_valign(*button, GTK_ALIGN_CENTER);
+    }
+    g_signal_connect(parts->save_button, "clicked", G_CALLBACK(save_clicked), footer);
+    g_signal_connect(parts->cancel_button, "clicked", G_CALLBACK(cancel_clicked), footer);
+    footer->edit_row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 6);
+    gtk_widget_set_hexpand(footer->edit_row, TRUE);
+    gtk_box_append(GTK_BOX(footer->edit_row), parts->editor);
+    gtk_box_append(GTK_BOX(footer->edit_row), parts->save_button);
+    gtk_box_append(GTK_BOX(footer->edit_row), parts->cancel_button);
+    gtk_widget_set_visible(footer->edit_row, FALSE);
     GtkEventController *focus = gtk_event_controller_focus_new();
     g_signal_connect(focus, "leave", G_CALLBACK(editor_left), footer);
     gtk_widget_add_controller(parts->editor, focus);
@@ -246,7 +354,7 @@ GtkWidget *szfriends_gtk_footer_new(SZFriendsGtkLink *link, SZFriendsGtkDropdown
     if (*edit) gtk_accessible_update_property(GTK_ACCESSIBLE(parts->editor), GTK_ACCESSIBLE_PROPERTY_LABEL, edit, -1);
     footer->name_slot = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
     gtk_box_append(GTK_BOX(footer->name_slot), parts->name_button);
-    gtk_box_append(GTK_BOX(footer->name_slot), parts->editor);
+    gtk_box_append(GTK_BOX(footer->name_slot), footer->edit_row);
     GtkWidget *id_line = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 2);
     parts->id_label = gtk_label_new(NULL);
     gtk_label_set_ellipsize(GTK_LABEL(parts->id_label), PANGO_ELLIPSIZE_END);

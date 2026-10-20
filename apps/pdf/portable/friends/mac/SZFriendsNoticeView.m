@@ -21,10 +21,10 @@
     return self;
 }
 
-- (void)setField:(NSTextField *)field {
-    [_field removeFromSuperview];
-    _field = field;
-    if (field) [self addSubview:field];
+- (void)setNameEditor:(SZFriendsNameEditor *)nameEditor {
+    [_nameEditor removeFromSuperview];
+    _nameEditor = nameEditor;
+    if (nameEditor) [self addSubview:nameEditor];
 }
 
 - (void)setBigLabel:(NSTextField *)bigLabel {
@@ -114,10 +114,11 @@
         y += height;
         any = YES;
     }
-    if (self.field) {
+    if (self.nameEditor && !self.nameEditor.hidden) {
         if (any) y += 8;
-        if (apply) self.field.frame = NSMakeRect(x, y, textWidth, 24);
-        y += 24;
+        CGFloat height = [self.nameEditor heightForWidth:textWidth];
+        if (apply) self.nameEditor.frame = NSMakeRect(x, y, textWidth, height);
+        y += height;
         any = YES;
     }
     CGFloat noteHeight = SZFriendsFieldHeight(self.noteLabel, textWidth);

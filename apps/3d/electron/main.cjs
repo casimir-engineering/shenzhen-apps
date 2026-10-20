@@ -463,6 +463,7 @@ app.whenReady().then(() => {
       },
       { role: "editMenu" },
       {
+        id: "view", // Friends adds View ▸ Friends at the top (electron/friends/view-menu.cjs)
         label: "View",
         submenu: [
           { role: "reload" },

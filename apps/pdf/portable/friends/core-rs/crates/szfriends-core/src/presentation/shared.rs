@@ -4,7 +4,6 @@
 use serde_json::{json, Map, Value};
 
 use super::avatar::{initials, placeholder_color, protocol_fields, Picture};
-use super::facts::{IdState, IdentityState};
 use super::facts::{PersonFacts, ProfileFacts, Relation, RouteKind, RouteMethod};
 use super::strings::Values;
 use super::text::{contains_folded, is_space, non_empty_trimmed, trim};
@@ -145,16 +144,6 @@ impl SnapshotBuilder {
         json!({"badge_count": count.max(0), "badge_label": badge, "accessibility_label": label})
     }
 
-    pub(crate) fn id_note(&self, profile: &ProfileFacts) -> Option<String> {
-        if profile.identity_state == IdentityState::Unavailable
-            || profile.friends_id_state != IdState::Unreserved
-            || profile.nearby_only
-        {
-            return None;
-        }
-        Some(self.strings.text_with("id.unreserved", &[("app", &self.audience().app_name)]))
-    }
-
     pub(crate) fn footer(&self, profile: &ProfileFacts) -> Value {
         let name = non_empty_trimmed(profile.name.as_deref());
         let display = name.unwrap_or(&profile.friends_id);
@@ -164,7 +153,9 @@ impl SnapshotBuilder {
             "name": name,
             "name_placeholder": self.strings.text("footer.name_placeholder"),
             "id_label": self.strings.text_with("id.label", &[("id", &id)]),
-            "id_note": self.id_note(profile),
+            // Nothing while the ID is unreserved: the note raised a question it could not answer. A changed ID is
+            // the list's banner; the field stays for views that read it.
+            "id_note": Value::Null,
             "friends_id": profile.friends_id,
             "add_label": self.strings.text("footer.add"),
         })

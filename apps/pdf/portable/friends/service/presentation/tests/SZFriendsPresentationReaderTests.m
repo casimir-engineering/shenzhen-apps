@@ -135,23 +135,19 @@ static void TestNearbyStates(void) {
     off.networkState = off.bluetoothState = SZFriendsAdapterStateRadioOff;
     data = Nearby(off, since);
     SZPExpect([data[@"alert"][@"title"] isEqual:@"Wi-Fi and Bluetooth are off"] && data[@"note"] == [NSNull null] &&
-                  [data[@"empty"][@"kind"] isEqual:@"unavailable"] && data[@"empty"][@"body"] == [NSNull null],
-              @"both radios off: one card names both, nothing repeated: %@ %@ %@", data[@"alert"], data[@"note"],
+                  data[@"empty"] == [NSNull null],
+              @"both radios off: one card names both, nothing repeats it: %@ %@ %@", data[@"alert"], data[@"note"],
               data[@"empty"]);
     off.bluetoothState = SZFriendsAdapterStateDenied;
     data = Nearby(off, since);
-    SZPExpect([data[@"alert"][@"title"] isEqual:@"Wi-Fi is off"] &&
-                  [data[@"note"][@"text"] isEqual:@"Bluetooth access is off for ShenzhenPDF too."] &&
-                  [data[@"note"][@"action"][@"settings_target"] isEqual:@"bluetooth_privacy"],
-              @"Wi-Fi off and Bluetooth denied: each named once, never \"people without Wi-Fi\": %@", data[@"note"]);
-
-    // Without a card (no state reaches this today; the empty state must still be true on its own).
-    NSString *radio = [builder emptyForNearby:off filtered:NO query:@"" alert:NO now:since][@"body"];
-    off.networkState = SZFriendsAdapterStateDenied;
-    NSString *access = [builder emptyForNearby:off filtered:NO query:@"" alert:NO now:since][@"body"];
-    SZPExpect([radio isEqual:@"Turn on Wi-Fi or Bluetooth to find people nearby."] &&
-                  [access containsString:@"Privacy & Security"] && ![radio containsString:@"Privacy"],
-              @"radios off and access denied have their own words: %@ / %@", radio, access);
+    SZPExpect([data[@"alert"][@"title"] isEqual:@"Wi-Fi is off"] && data[@"note"] == [NSNull null] &&
+                  data[@"empty"] == [NSNull null] && data[@"visibility"][@"body"] == [NSNull null] &&
+                  data[@"visibility"][@"action"] == [NSNull null],
+              @"Wi-Fi off and Bluetooth denied: the card's one fix, no second problem under it: %@ %@", data[@"note"],
+              data[@"visibility"]);
+    // Bluetooth still finding people is worth its line under the card: it changes what the person can do.
+    off.bluetoothState = SZFriendsAdapterStateWorking;
+    SZPExpect([Nearby(off, since)[@"note"][@"text"] isEqual:@"Still looking over Bluetooth."], @"still Bluetooth");
 }
 
 static BOOL HasHyphenatedID(NSString *text) {
@@ -251,9 +247,8 @@ static void TestReaderStrings(void) {
     SZPExpect([settings[@"name"][@"note"] isEqual:@"The name your friends see."], @"settings name note");
     NSDictionary *profile = [builder profileWithFacts:SZPProfileRaph() waitingElsewhere:0];
     SZPExpect([profile[@"picture"][@"choose_label"] isEqual:@"Change picture…"] &&
-                  [profile[@"id"][@"note"] isEqual:@"Your ID works nearby now. If it’s already taken, you’ll get a new "
-                                                   @"one the next time ShenzhenPDF reaches the Friends server."],
-              @"profile words: %@", profile);
+                  profile[@"id"][@"note"] == [NSNull null],
+              @"profile words, and nothing about an unreserved ID until something happens to it: %@", profile);
     SZPExpect([[s messageForErrorCode:@"picture_invalid" details:@{}] containsString:@"picture under 5 MB"],
               @"picture, not photo");
     SZFriendsNearbyFacts *denied = SZPNearbyLocalNetworkDenied();

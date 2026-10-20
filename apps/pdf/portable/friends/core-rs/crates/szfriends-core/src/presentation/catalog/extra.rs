@@ -24,7 +24,7 @@ pub(super) const MENTIONS: &[(&str, &str)] = &[
         "mention.note",
         "{first} can click the name to open their chat with that person, or to add them if they aren’t friends yet.",
     ),
-    ("composer.hint.mention", "Mention"),
+    ("composer.hint.mention", "to mention someone"),
     (
         "add_from_mention.sent",
         "Request sent to {name}. They’ll get it as soon as Friends reaches them, and you’ll be friends once they \

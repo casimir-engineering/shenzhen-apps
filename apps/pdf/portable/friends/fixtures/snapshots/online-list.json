@@ -41,18 +41,21 @@
           {
             "action": "accept_request",
             "icon": "accept",
+            "title": "Accept",
             "label": "Accept Lena Weber’s request",
             "arm": null
           },
           {
             "action": "decline_request",
             "icon": "decline",
+            "title": "Decline",
             "label": "Decline Lena Weber’s request",
             "arm": null
           },
           {
             "action": "block",
             "icon": "block",
+            "title": null,
             "label": "Block Lena Weber",
             "arm": {
               "label": "Block?",
@@ -246,7 +249,7 @@
       "name": "Raph",
       "name_placeholder": "Choose your name",
       "id_label": "ID cottage‑violet",
-      "id_note": "Your ID works nearby now. If it’s already taken, you’ll get a new one the next time ShenzhenPDF reaches the Friends server.",
+      "id_note": null,
       "friends_id": "cottage-violet",
       "add_label": "Add by ID"
     }

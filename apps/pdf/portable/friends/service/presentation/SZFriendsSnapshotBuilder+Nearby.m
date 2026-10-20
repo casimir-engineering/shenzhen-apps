@@ -2,8 +2,11 @@
 //
 // Each discovery method reports its own state, and an unavailable one is never shown as an empty successful search
 // (brief § Interface). When the method most people rely on, the local network, cannot work, one prominent card says
-// so and how to fix it; when Bluetooth cannot work, one quiet line says who may be missed. Never both for one method,
-// and nothing said twice: with a card up the empty state drops its body, and a spinner shows only beside people.
+// so and gives the one action that fixes it, and nothing else on the tab repeats or contradicts it: the visibility
+// line says nothing, the empty state goes when nothing works at all, and Bluetooth is mentioned only while it still
+// finds people (the owner's report of 2026-10-20: a duplicated Open Privacy Settings, "Bluetooth isn't working
+// either" and "Nearby isn't working right now" stacked under a Local Network card). Without a card, when Bluetooth
+// cannot work, one quiet line says who may be missed. A spinner shows only beside people.
 
 #import "service/presentation/SZFriendsPresentationPrivate.h"
 
@@ -53,7 +56,7 @@ static id RFC3339(NSDate *date) {
     return [end compare:now] == NSOrderedDescending ? end : nil;
 }
 
-- (NSDictionary *)emptyForNearby:(SZFriendsNearbyFacts *)nearby
+- (id)emptyForNearby:(SZFriendsNearbyFacts *)nearby
                         filtered:(BOOL)filtered
                            query:(NSString *)query
                            alert:(BOOL)alert
@@ -64,29 +67,11 @@ static id RFC3339(NSDate *date) {
                               body:[s text:@"search.no_match.body"]];
     BOOL starting = nearby.networkState == SZFriendsAdapterStateStarting ||
                     nearby.bluetoothState == SZFriendsAdapterStateStarting;
-    BOOL notAsked = nearby.networkState == SZFriendsAdapterStateNotAsked ||
-                    nearby.bluetoothState == SZFriendsAdapterStateNotAsked;
     BOOL working = nearby.networkState == SZFriendsAdapterStateWorking ||
                    nearby.bluetoothState == SZFriendsAdapterStateWorking;
-    if (!working && !starting && notAsked) {
-        // Nothing has started, so "looking" would be untrue; the card above has the Allow button.
-        return [self emptyWithKind:@"unavailable" title:[s text:@"nearby.empty.not_asked.title"] body:nil];
-    }
-    if (!working && !starting) {
-        // A card above already says what to turn on or allow, so the empty state only says that Nearby is down.
-        NSString *body = nil;
-        if (!alert) {
-            BOOL radio = nearby.networkState == SZFriendsAdapterStateRadioOff ||
-                         nearby.bluetoothState == SZFriendsAdapterStateRadioOff;
-            BOOL denied = nearby.networkState == SZFriendsAdapterStateDenied ||
-                          nearby.bluetoothState == SZFriendsAdapterStateDenied;
-            NSString *key = radio    ? @"nearby.empty.unavailable.body.radio"
-                            : denied ? @"nearby.empty.unavailable.body.access"
-                                     : @"nearby.empty.unavailable.body.failed";
-            body = [s text:key values:@{@"app" : self.audience.appName}];
-        }
-        return [self emptyWithKind:@"unavailable" title:[s text:@"nearby.empty.unavailable.title"] body:body];
-    }
+    // Nothing works or starts: the card above (there always is one then) says what is wrong and how to fix it, and
+    // anything here would only repeat it ("Nearby isn't working right now" under "can't find people on your network").
+    if (!working && !starting) return [NSNull null];
     // "Nobody" a second after starting is a guess; the first results take a few seconds on any method.
     if (!working || [self searchingEndsWithFacts:nearby now:now])
         return [self emptyWithKind:@"searching" title:[s text:@"nearby.empty.searching.title"] body:nil];
@@ -97,7 +82,6 @@ static id RFC3339(NSDate *date) {
 
 - (NSDictionary *)visibilityWithFacts:(SZFriendsNearbyFacts *)nearby now:(NSDate *)now {
     SZFriendsStrings *s = self.strings;
-    NSDictionary *app = @{@"app" : self.audience.appName};
     NSTimeInterval remaining = nearby.visibilityDeadline ? [nearby.visibilityDeadline timeIntervalSinceDate:now] : 0;
     BOOL canAdvertise = !Broken(nearby.networkState) || !Broken(nearby.bluetoothState);
     if (remaining > 0 && canAdvertise) {
@@ -112,31 +96,16 @@ static id RFC3339(NSDate *date) {
         };
     }
     if (!canAdvertise) {
-        // Each cause in its own words, with what fixes it: a radio to turn on, access to give in System Settings,
-        // or a method that failed and can be tried again. Never "allow" for something nobody refused.
-        BOOL radio = nearby.networkState == SZFriendsAdapterStateRadioOff ||
-                     nearby.bluetoothState == SZFriendsAdapterStateRadioOff;
-        BOOL networkDenied = nearby.networkState == SZFriendsAdapterStateDenied;
-        BOOL denied = networkDenied || nearby.bluetoothState == SZFriendsAdapterStateDenied;
-        NSString *key = radio ? @"visibility.unavailable.radio"
-                        : denied ? @"visibility.unavailable.access"
-                                 : @"visibility.unavailable.failed";
-        id action = [NSNull null];
-        if (!radio && denied) {
-            action = [self settingsAction:networkDenied ? @"local_network_privacy" : @"bluetooth_privacy"
-                                 labelKey:@"settings_link.privacy"
-                                    style:@"secondary"];
-        } else if (!radio) {
-            action = [self action:@"activate" label:[s text:@"nearby.try_again"] style:@"secondary"];
-        }
+        // Nothing can advertise only while the network is down too, so the card above is up: it says what is wrong
+        // and has the one button that fixes it. Repeating that here put a second Open Privacy Settings on the tab.
         return @{
             @"state" : @"unavailable",
             @"title" : [NSNull null],
-            @"body" : [s text:key values:app],
+            @"body" : [NSNull null],
             @"remaining_label" : [NSNull null],
             @"remaining_accessibility_label" : [NSNull null],
             @"deadline" : [NSNull null],
-            @"action" : action
+            @"action" : [NSNull null]
         };
     }
     return @{
@@ -201,38 +170,30 @@ static id RFC3339(NSDate *date) {
     SZFriendsStrings *s = self.strings;
     NSDictionary *app = @{@"app" : self.audience.appName};
     if (alert) {
-        // The card explains the network. The line says who is still found, or what is wrong with Bluetooth too,
-        // unless the card already named both radios, or its Allow starts Bluetooth too.
+        // The card explains the network and has its one fix. Bluetooth is worth a line only while it still finds
+        // people, which changes what the person can do; what else is wrong with it would be a second problem and a
+        // second button under the first.
         if (nearby.bluetoothState == SZFriendsAdapterStateWorking)
             return @{@"text" : [s text:@"note.still_bluetooth"], @"action" : [NSNull null]};
-        BOOL bothRadiosOff = nearby.networkState == SZFriendsAdapterStateRadioOff &&
-                             nearby.bluetoothState == SZFriendsAdapterStateRadioOff;
-        BOOL bothNotAsked = nearby.networkState == SZFriendsAdapterStateNotAsked &&
-                            nearby.bluetoothState == SZFriendsAdapterStateNotAsked;
-        if (bothRadiosOff || bothNotAsked) return [NSNull null];
-    } else if (Broken(nearby.networkState)) {
         return [NSNull null];
     }
-    // Under a card nobody appears at all, so "people nearby without Wi-Fi won't appear" would suggest others still
-    // do; the line then only adds Bluetooth's state to the card's.
-    NSString *suffix = alert ? @".under_card" : @"";
+    if (Broken(nearby.networkState)) return [NSNull null];
     switch (nearby.bluetoothState) {
     case SZFriendsAdapterStateRadioOff:
         return @{
-            @"text" : [s text:[@"note.bluetooth_off" stringByAppendingString:suffix]],
+            @"text" : [s text:@"note.bluetooth_off"],
             @"action" : [self settingsAction:@"bluetooth" labelKey:@"settings_link.bluetooth" style:@"link"]
         };
     case SZFriendsAdapterStateDenied:
         return @{
-            @"text" : [s text:[@"note.bluetooth_denied" stringByAppendingString:suffix] values:app],
+            @"text" : [s text:@"note.bluetooth_denied" values:app],
             @"action" : [self settingsAction:@"bluetooth_privacy" labelKey:@"settings_link.privacy" style:@"link"]
         };
     case SZFriendsAdapterStateUnavailable:
-        return @{@"text" : [s text:[@"note.bluetooth_unavailable" stringByAppendingString:suffix]],
+        return @{@"text" : [s text:@"note.bluetooth_unavailable"],
                  @"action" : [self action:@"activate" label:[s text:@"nearby.try_again"] style:@"link"]};
     case SZFriendsAdapterStateUnsupported:
-        return @{@"text" : [s text:[@"note.bluetooth_unsupported" stringByAppendingString:suffix]],
-                 @"action" : [NSNull null]};
+        return @{@"text" : [s text:@"note.bluetooth_unsupported"], @"action" : [NSNull null]};
     case SZFriendsAdapterStateNotAsked:
         return @{@"text" : [s text:@"note.bluetooth_not_asked"],
                  @"action" : [self action:@"activate" label:[s text:@"nearby.allow"] style:@"link"]};

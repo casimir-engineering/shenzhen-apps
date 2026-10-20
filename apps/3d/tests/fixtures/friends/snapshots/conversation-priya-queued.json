@@ -203,11 +203,14 @@
       "placeholder": "Message Priya",
       "hint": [
         {
+          "text": "Type "
+        },
+        {
           "text": "#",
           "emphasis": true
         },
         {
-          "text": " Attach · or drop files"
+          "text": " to attach, or drop files here"
         }
       ],
       "send_label": "Send",

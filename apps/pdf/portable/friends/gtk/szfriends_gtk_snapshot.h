@@ -184,8 +184,9 @@ typedef struct { SZFriendsGtkPresence present; SZFriendsGtkBannerKind kind; char
                  SZFriendsGtkAction *action; } SZFriendsGtkBanner;
 typedef struct { SZFriendsGtkPresence present; char *title, *placeholder, *note;
                  char *join_label; /* opens the join view; NULL without `devices` */ } SZFriendsGtkNamePrompt;
-typedef struct { SZFriendsGtkPresence present; SZFriendsGtkActionKind action; SZFriendsGtkRowIcon icon; char *label;
-                 SZFriendsGtkArm *arm; } SZFriendsGtkRowAction;
+typedef struct { SZFriendsGtkPresence present; SZFriendsGtkActionKind action; SZFriendsGtkRowIcon icon;
+                 char *title; /* the word the button shows; NULL: the icon alone */
+                 char *label; SZFriendsGtkArm *arm; } SZFriendsGtkRowAction;
 typedef struct { SZFriendsGtkPresence present; SZFriendsGtkWaitingKind kind; char *label; } SZFriendsGtkWaiting;
 typedef struct {
     SZFriendsGtkPresence present;

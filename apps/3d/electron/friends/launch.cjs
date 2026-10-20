@@ -1,7 +1,14 @@
 // Shenzhen Friends in the main process (docs/FRIENDS.md): offered on macOS by the packaged app, which embeds the
 // helper, and by a development run told which helper and which Friends home to use. Only this file loads at launch;
 // the host and its modules load a second after the first paint, or when a page or a Friends link needs them.
-const { app, ipcMain, BrowserWindow, Menu, shell } = require("electron");
+const {
+  app,
+  ipcMain,
+  BrowserWindow,
+  Menu,
+  MenuItem,
+  shell,
+} = require("electron");
 
 /** `trusted` says which pages may use Friends; received files in `associatedFormats` open through `queueOpenFiles`. */
 function setupFriends({ trusted, associatedFormats, queueOpenFiles }) {
@@ -20,6 +27,7 @@ function setupFriends({ trusted, associatedFormats, queueOpenFiles }) {
         app,
         BrowserWindow,
         Menu,
+        MenuItem,
         shell,
         trusted,
         openFormats: associatedFormats,

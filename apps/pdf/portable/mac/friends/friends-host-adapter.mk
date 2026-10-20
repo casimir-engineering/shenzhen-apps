@@ -157,7 +157,7 @@ mac-friends-settings-tests:
 HOST_ADAPTER_READER_SRCS := $(addprefix $(HOST_ADAPTER_DIR)/,SPDFMacFriendsIntegration.mm \
 	SPDFMacFriendsSettingsIntegration.mm SPDFMacFriendsAssistantIntegration.mm SPDFMacFriendsPaletteIntegration.mm \
 	SPDFMacFriendsCollectionSource.mm SPDFMacFriendsLaunchDefault.mm SPDFMacFriendsToolProviderIntegration.mm \
-	SPDFMacFriendsSendIntegration.mm SPDFMacFriendsLinkIntegration.mm)
+	SPDFMacFriendsSendIntegration.mm SPDFMacFriendsLinkIntegration.mm SPDFMacFriendsMenuIntegration.mm)
 HOST_ADAPTER_SYNTAX_FLAGS = $(MAC_TARGET_FLAGS) -std=c++17 -fobjc-arc -Wall -Wextra -Werror -fsyntax-only \
 	-Imac -Icore -I$(MUPDF_DIR)/include
 mac-friends-host-adapter-syntax:

@@ -1,4 +1,6 @@
-// SZFriendsNearbyPane: visibility, the one alert or quiet note, and people as each method reports them.
+// SZFriendsNearbyPane: visibility, the one alert or quiet note, and people as each method reports them. Under a
+// card that says no method works, the helper sends nothing else (no visibility words, no empty state), and the pane
+// shows the card alone: no people header over an empty list.
 //
 // While visible the helper sends a snapshot every second for the countdown, so every subview here is created
 // once and updated in place; rows are reused by position.
@@ -19,6 +21,8 @@
     BOOL _emptySearching;
     BOOL _hasAlert;
     BOOL _hasNote;
+    BOOL _hasVisibility;
+    BOOL _hasPeopleSection;
 }
 
 - (instancetype)initWithContext:(SZFriendsContext *)context {
@@ -68,6 +72,9 @@
     _visibility.titleLabel.stringValue = SZFStr(visibility, @"title") ?: @"";
     _visibility.bodyLabel.stringValue = SZFStr(visibility, @"body") ?: @"";
     [_visibility setAction:SZFDict(visibility, @"action") onPress:perform];
+    _hasVisibility = _visibility.titleLabel.stringValue.length || _visibility.bodyLabel.stringValue.length ||
+                     _visibility.button != nil;
+    _visibility.hidden = !_hasVisibility;
     _visibility.buttonTrailing = visible;
     _visibility.buttonFullWidth = !visible;
     _visibility.buttonFirst = !visible;
@@ -148,6 +155,8 @@
     }];
 
     NSDictionary *empty = SZFDict(data, @"empty");
+    _hasPeopleSection = people.count > 0 || empty != nil;
+    _peopleHeader.hidden = !_hasPeopleSection;
     _emptyTitle.stringValue = SZFStr(empty, @"title") ?: @"";
     _emptyBody.stringValue = SZFStr(empty, @"body") ?: @"";
     _emptySearching = [SZFStr(empty, @"kind") isEqualToString:@"searching"];
@@ -159,11 +168,14 @@
     CGFloat pad = 12;
     CGFloat inner = width - 2 * pad;
     CGFloat y = 4;
-    CGFloat height = [_visibility heightForWidth:inner];
-    if (apply) _visibility.frame = NSMakeRect(pad, y, inner, height);
-    y += height;
+    CGFloat height = 0;
+    if (_hasVisibility) {
+        height = [_visibility heightForWidth:inner];
+        if (apply) _visibility.frame = NSMakeRect(pad, y, inner, height);
+        y += height;
+    }
     if (_hasAlert) {
-        y += 10;
+        if (_hasVisibility) y += 10;
         height = [_alert heightForWidth:inner];
         if (apply) _alert.frame = NSMakeRect(pad, y, inner, height);
         y += height;
@@ -173,6 +185,10 @@
         height = [_note heightForWidth:inner];
         if (apply) _note.frame = NSMakeRect(pad, y, inner, height);
         y += height;
+    }
+    if (!_hasPeopleSection) {
+        if (apply) _statusLabel.hidden = _emptyTitle.hidden = _emptyBody.hidden = YES;
+        return y + 8;
     }
     y += 14;
     if (apply) {

@@ -44,6 +44,13 @@ let remembered: { stack: Page[]; tab: "friends" | "nearby" } = {
   stack: [{ kind: "list" }],
   tab: "friends",
 };
+/** Where the dropdown opens next: the profile page (Add by ID) or the list's Nearby tab (requests.ts). */
+export function openNextAt(place: "profile" | "nearby") {
+  remembered =
+    place === "profile"
+      ? { stack: [{ kind: "list" }, { kind: "profile" }], tab: remembered.tab }
+      : { stack: [{ kind: "list" }], tab: "nearby" };
+}
 
 function useConfirm() {
   const [pending, setPending] = useState<{

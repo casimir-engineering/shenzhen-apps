@@ -33,7 +33,7 @@ npm ci
 npm run dev
 ```
 
-Open `http://localhost:1420`. Choose **Sample model** or open/drop a model. Select the model and its companion textures, MTL or BIN files together. **P** picks points, **E** picks features, **F** fits the view, and **Esc** clears a measurement. The measurement panel exposes units, scale and distance references; save useful results and export them before closing the session. **C** adds an anchored note; **⌘ / Ctrl S** shares the model, comments and saved measurements as one portable project.
+Open `http://localhost:1420`. Choose **Sample model** or open/drop a model. Select the model and its companion textures, MTL or BIN files together. **P** picks points, **E** picks features, **F** fits the view, and **Esc** clears a measurement. The measurement panel exposes units, scale and distance references; save useful results and export them before closing the session. **C** adds an anchored note; **⌘ / Ctrl S** shares the model, comments and saved measurements as one portable project. **⌘ / Ctrl K** finds any command, and in the apps with Friends, **⌘ / Ctrl J** opens or closes Friends ([controls](docs/CONTROLS.md#app-shortcuts)).
 
 Production web builds include a generated service worker for offline use after the app assets have been cached successfully. Installation starts after the welcome screen paints and a four-second grace period, then copies assets with at most two background requests; keep the first session online until that copy completes. Model files, annotations and saved measurement sessions are not stored by that cache; save a `.sz3d` project to retain them. Native shells bundle the application assets.
 

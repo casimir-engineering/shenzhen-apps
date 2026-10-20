@@ -236,10 +236,10 @@ static void test_rich_text(void) {
         szfriends_gtk_conversation_snapshot_parse(json_object_get_object_member(frame, "data"));
     PangoAttrList *attributes = NULL;
     char *text = szfriends_gtk_rich_text(conversation->composer.hint, conversation->composer.n_hint, &attributes);
-    EXPECT(g_str_has_prefix(text, "# Attach"), "the composer hint reads as its segments: %s", text);
+    EXPECT(g_str_has_prefix(text, "Type # to attach"), "the composer hint reads as its segments: %s", text);
     GSList *list = pango_attr_list_get_attributes(attributes);
     EXPECT(g_slist_length(list) == 1 && ((PangoAttribute *)list->data)->klass->type == PANGO_ATTR_WEIGHT &&
-               ((PangoAttribute *)list->data)->start_index == 0 && ((PangoAttribute *)list->data)->end_index == 1,
+               ((PangoAttribute *)list->data)->start_index == 5 && ((PangoAttribute *)list->data)->end_index == 6,
            "only the emphasised # is bold");
     g_slist_free_full(list, (GDestroyNotify)pango_attribute_destroy);
     pango_attr_list_unref(attributes);

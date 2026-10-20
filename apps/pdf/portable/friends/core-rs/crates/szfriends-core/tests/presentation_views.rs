@@ -169,11 +169,11 @@ fn row_actions() {
     assert_eq!(
         by_id["c_req"]["actions"],
         json!([
-            {"action": "accept_request", "icon": "accept", "label": "Accept tulip\u{2011}canyon’s request",
-             "arm": null},
-            {"action": "decline_request", "icon": "decline", "label": "Decline tulip\u{2011}canyon’s request",
-             "arm": null},
-            {"action": "block", "icon": "block", "label": "Block tulip\u{2011}canyon",
+            {"action": "accept_request", "icon": "accept", "title": "Accept",
+             "label": "Accept tulip\u{2011}canyon’s request", "arm": null},
+            {"action": "decline_request", "icon": "decline", "title": "Decline",
+             "label": "Decline tulip\u{2011}canyon’s request", "arm": null},
+            {"action": "block", "icon": "block", "title": null, "label": "Block tulip\u{2011}canyon",
              "arm": {"label": "Block?", "accessibility_label": "Click again to block tulip\u{2011}canyon",
                      "seconds": 4}},
         ])
@@ -213,11 +213,12 @@ fn nearby_only_id_note() {
     if presentation::tree_missing() {
         return;
     }
-    // A phone's embedded core never reaches a Friends server: no note says the ID gets settled there.
+    // The footer never carries a note about the ID (an unreserved one raised a question it could not answer); a
+    // phone's embedded core, which never reaches a Friends server, says on the profile who can add the person.
     let builder = builder(audience());
     let mut profile = profile_raph();
     let list = builder.list(&[], &HashMap::new(), &profile, "", now());
-    assert!(list["footer"]["id_note"].is_string());
+    assert!(list["footer"]["id_note"].is_null());
     profile.nearby_only = true;
     let list = builder.list(&[], &HashMap::new(), &profile, "", now());
     assert!(list["footer"]["id_note"].is_null());
@@ -366,10 +367,17 @@ fn requests_and_composer() {
     assert_eq!(
         with(&["attach.items", "assistant.drafts", "drop.files"]),
         json!([
-            {"text": "#", "emphasis": true}, {"text": " Attach · "},
-            {"text": "/", "emphasis": true}, {"text": " Ask the assistant · or drop files"},
+            {"text": "Type "}, {"text": "#", "emphasis": true}, {"text": " to attach, "},
+            {"text": "/", "emphasis": true}, {"text": " to ask the assistant, or drop files here"},
         ])
     );
-    assert_eq!(with(&["drop.files"]), json!([{"text": "Drop files to send them"}]));
+    assert_eq!(
+        with(&["attach.items", "mentions"]),
+        json!([
+            {"text": "Type "}, {"text": "#", "emphasis": true}, {"text": " to attach or "},
+            {"text": "@", "emphasis": true}, {"text": " to mention someone"},
+        ])
+    );
+    assert_eq!(with(&["drop.files"]), json!([{"text": "Drop files here to send them"}]));
     assert_eq!(with(&[]), json!([]));
 }

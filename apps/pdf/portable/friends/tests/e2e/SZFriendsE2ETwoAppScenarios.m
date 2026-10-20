@@ -136,10 +136,11 @@ static BOOL SZFE2ESharedChats(SZFE2EWorld *world, SZFE2ETwoApps *apps) {
                      [atPDF[@"subtitle"] isEqual:atFiles[@"subtitle"]];
           }),
           "both apps list Ben's conversation, unread: %@ / %@", apps.pdf.list, apps.files.list);
-    // One helper, two audiences: each app's hello named it, and its own snapshots name it back.
-    NSString *notePDF = apps.pdf.list[@"footer"][@"id_note"], *noteFiles = apps.files.list[@"footer"][@"id_note"];
-    CHECK([notePDF containsString:@"ShenzhenPDF"] && [noteFiles containsString:@"Shenzhen Files"],
-          "each app is named in its own words: %@ / %@", notePDF, noteFiles);
+    // One helper, two audiences, and neither footer carries a note about the ID any more (it was the one list string
+    // that named the app; each audience's own words are covered by the presentation suite).
+    CHECK(apps.pdf.list[@"footer"][@"id_note"] == [NSNull null] &&
+              apps.files.list[@"footer"][@"id_note"] == [NSNull null],
+          "no ID note in either app: %@ / %@", apps.pdf.list[@"footer"], apps.files.list[@"footer"]);
 
     // Read in Shenzhen Files: read in ShenzhenPDF too.
     [apps.files send:@{@"cmd" : @"open", @"conversation_id" : ben}];

@@ -44,6 +44,15 @@ NSString* spdf_palette_menu_breadcrumb(NSArray<NSString*>* menuTitles, NSString*
 // An empty query matches everything.
 BOOL spdf_palette_menu_command_matches_query(NSString* query, NSString* title, NSString* breadcrumb);
 
+// Other words a menu command answers to, by its menu item's identifier, for commands whose title alone would be
+// missed: "chat" or "nearby" finds Open Friends. Empty for any other item.
+NSArray<NSString*>* spdf_palette_menu_command_keywords(NSString* identifier);
+
+// spdf_palette_menu_command_matches_query, or the query (trimmed) is a case/diacritic-insensitive substring of one of
+// `keywords`.
+BOOL spdf_palette_menu_command_matches_query_or_keywords(NSString* query, NSString* title, NSString* breadcrumb,
+                                                         NSArray<NSString*>* keywords);
+
 // Removes menu-command entries (@{... @"selector"}) whose action selector is
 // already covered by a visible curated palette action, so a curated action
 // and the equivalent menu item never show as duplicate rows.

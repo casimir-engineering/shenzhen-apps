@@ -1,7 +1,8 @@
 //! The Nearby tab (`SZFriendsSnapshotBuilder+Nearby.m`). Each discovery method reports its own state, and an
-//! unavailable one is never shown as an empty successful search. When the local network cannot work, one prominent card
-//! says so and how to fix it; when Bluetooth cannot work, one quiet line says who may be missed. Never both for one
-//! method, and nothing said twice.
+//! unavailable one is never shown as an empty successful search. When the local network cannot work, one prominent
+//! card says so with the one action that fixes it, and nothing else on the tab repeats or contradicts it: the
+//! visibility line says nothing, the empty state goes when nothing works at all, and Bluetooth is mentioned only while
+//! it still finds people. Without a card, when Bluetooth cannot work, one quiet line says who may be missed.
 
 use serde_json::{json, Value};
 
@@ -35,8 +36,9 @@ impl SnapshotBuilder {
         (end > now).then_some(end)
     }
 
-    /// The `empty` object when no person shows. `filtered`: people are visible but the filter hides them all.
-    /// `alert`: the network card is up, so the unavailable state leaves the remedy to it.
+    /// The `empty` object when no person shows, or null when nothing works or starts (the card above says it all).
+    /// `filtered`: people are visible but the filter hides them all. `alert`: the network card is up, so "nobody"
+    /// leaves out its body.
     pub fn nearby_empty(&self, nearby: &NearbyFacts, filtered: bool, query: &str, alert: bool, now: f64) -> Value {
         let s = &self.strings;
         let app = [("app", self.audience().app_name.as_str())];
@@ -47,25 +49,11 @@ impl SnapshotBuilder {
         let bluetooth = if nearby.bluetooth_absent { nearby.network_state } else { nearby.bluetooth_state };
         let states = [nearby.network_state, bluetooth];
         let starting = states.contains(&AdapterState::Starting);
-        let not_asked = states.contains(&AdapterState::NotAsked);
         let working = states.contains(&AdapterState::Working);
-        if !working && !starting && not_asked {
-            // Nothing has started, so "looking" would be untrue; the card above has the Allow button.
-            return self.empty(Some("unavailable"), s.text("nearby.empty.not_asked.title"), None);
-        }
         if !working && !starting {
-            // A card above already says what to turn on or allow.
-            let body = (!alert).then(|| {
-                let key = if states.contains(&AdapterState::RadioOff) {
-                    "nearby.empty.unavailable.body.radio"
-                } else if states.contains(&AdapterState::Denied) {
-                    "nearby.empty.unavailable.body.access"
-                } else {
-                    "nearby.empty.unavailable.body.failed"
-                };
-                s.text_with(key, &app)
-            });
-            return self.empty(Some("unavailable"), s.text("nearby.empty.unavailable.title"), body);
+            // The card above (there always is one then) says what is wrong and how to fix it; anything here would
+            // only repeat it ("Nearby isn't working right now" under "can't find people on your network").
+            return Value::Null;
         }
         // "Nobody" a second after starting is a guess; the first results take a few seconds on any method.
         if !working || self.nearby_refresh_date(nearby, now).is_some() {
@@ -77,7 +65,6 @@ impl SnapshotBuilder {
 
     fn visibility(&self, nearby: &NearbyFacts, now: f64) -> Value {
         let s = &self.strings;
-        let app = [("app", self.audience().app_name.as_str())];
         let remaining = nearby.visibility_deadline.map_or(0.0, |deadline| deadline - now);
         if nearby.inbound_blocked && nearby.bluetooth_absent {
             // Nothing nearby can reach this computer, so nothing would see the person.
@@ -100,28 +87,11 @@ impl SnapshotBuilder {
             });
         }
         if !can_advertise {
-            // Each cause in its own words, with what fixes it; never "allow" for something nobody refused.
-            let states = [nearby.network_state, bluetooth];
-            let radio = states.contains(&AdapterState::RadioOff);
-            let network_denied = nearby.network_state == AdapterState::Denied;
-            let denied = states.contains(&AdapterState::Denied);
-            let key = match (radio, denied, nearby.phone) {
-                (true, _, _) => "visibility.unavailable.radio",
-                (false, true, false) => "visibility.unavailable.access",
-                (false, true, true) => "visibility.unavailable.access.phone",
-                (false, false, _) => "visibility.unavailable.failed",
-            };
-            let action = if radio {
-                Value::Null
-            } else if denied {
-                let target = if network_denied { "local_network_privacy" } else { "bluetooth_privacy" };
-                self.settings_action(target, "settings_link.privacy", "secondary")
-            } else {
-                Value::Object(self.action("activate", s.text("nearby.try_again"), "secondary"))
-            };
+            // Nothing can advertise only while the network is down too, so the card above is up with the one button
+            // that fixes it; repeating that here put a second Open Privacy Settings on the tab.
             return json!({
-                "state": "unavailable", "title": null, "body": s.text_with(key, &app), "remaining_label": null,
-                "remaining_accessibility_label": null, "deadline": null, "action": action,
+                "state": "unavailable", "title": null, "body": null, "remaining_label": null,
+                "remaining_accessibility_label": null, "deadline": null, "action": null,
             });
         }
         json!({
@@ -186,30 +156,29 @@ impl SnapshotBuilder {
             };
         }
         if alert {
-            // The card explains the network; the line says who is still found, or what is wrong with Bluetooth too.
-            if nearby.bluetooth_state == AdapterState::Working {
-                return json!({"text": s.text("note.still_bluetooth"), "action": null});
-            }
-            let both = |state| nearby.network_state == state && nearby.bluetooth_state == state;
-            if both(AdapterState::RadioOff) || both(AdapterState::NotAsked) {
-                return Value::Null;
-            }
-        } else if broken(nearby.network_state) {
+            // The card explains the network and has its one fix. Bluetooth is worth a line only while it still finds
+            // people, which changes what the person can do; anything else wrong with it would be a second problem
+            // and a second button under the first.
+            return if nearby.bluetooth_state == AdapterState::Working {
+                json!({"text": s.text("note.still_bluetooth"), "action": null})
+            } else {
+                Value::Null
+            };
+        }
+        if broken(nearby.network_state) {
             return Value::Null;
         }
-        // Under a card nobody appears at all, so the line only adds Bluetooth's state to the card's.
-        let suffix = if alert { ".under_card" } else { "" };
         match nearby.bluetooth_state {
             AdapterState::RadioOff => json!({
-                "text": s.text(&format!("note.bluetooth_off{suffix}")),
+                "text": s.text("note.bluetooth_off"),
                 "action": self.settings_action("bluetooth", "settings_link.bluetooth", "link"),
             }),
             AdapterState::Denied => json!({
-                "text": s.text_with(&format!("note.bluetooth_denied{suffix}"), &app),
+                "text": s.text_with("note.bluetooth_denied", &app),
                 "action": self.settings_action("bluetooth_privacy", "settings_link.privacy", "link"),
             }),
             AdapterState::Unavailable => json!({
-                "text": s.text(&format!("note.bluetooth_unavailable{suffix}")),
+                "text": s.text("note.bluetooth_unavailable"),
                 "action": self.action("activate", s.text("nearby.try_again"), "link"),
             }),
             AdapterState::NotAsked => json!({
@@ -334,7 +303,8 @@ impl SnapshotBuilder {
     /// says, reset Friends, and never asks for Local Network or Bluetooth access nobody refused.
     fn nearby_without_identity(&self, nearby: &NearbyFacts, profile: &ProfileFacts, query: &str) -> Value {
         let s = &self.strings;
-        let method = |name: &str| json!({"method": name, "state": "not_asked", "label": s.text("method.identity_unavailable")});
+        let method =
+            |name: &str| json!({"method": name, "state": "not_asked", "label": s.text("method.identity_unavailable")});
         let methods = if nearby.bluetooth_absent {
             json!([method("network")])
         } else {

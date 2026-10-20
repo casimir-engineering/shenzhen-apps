@@ -15,7 +15,7 @@ FRIENDS_E2E_BUILD := $(FRIENDS_BUILD)/e2e
 FRIENDS_E2E_HELPER := $(FRIENDS_E2E_BUILD)/szfriends-e2e-helper
 FRIENDS_E2E_TEST := $(FRIENDS_E2E_BUILD)/SZFriendsE2ETests
 FRIENDS_E2E_HELPER_SRCS := $(addprefix $(FRIENDS_E2E_DIR)/, SZFriendsE2EHelperMain.m SZFriendsE2EBluetooth.m \
-	SZFriendsE2ESocketStream.m)
+	SZFriendsE2ESocketStream.m SZFriendsE2EScriptedNearby.m)
 FRIENDS_E2E_TEST_SRCS := $(addprefix $(FRIENDS_E2E_DIR)/, SZFriendsE2ETests.m SZFriendsE2EHarness.m \
 	SZFriendsE2EScenarios.m SZFriendsE2EScenarios2.m SZFriendsE2EScenarios3.m SZFriendsE2ERogue.m \
 	SZFriendsE2ERogueScenarios.m SZFriendsE2EHostScenario.m SZFriendsE2EAttestScenarios.m \

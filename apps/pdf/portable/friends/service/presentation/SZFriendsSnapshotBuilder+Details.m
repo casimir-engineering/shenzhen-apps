@@ -166,7 +166,7 @@
                                   waitingElsewhere:(NSInteger)waitingElsewhere {
     SZFriendsStrings *s = self.strings;
     NSString *name = [profile.name stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
-    NSString *state, *note;
+    NSString *state, *note = nil;
     if (profile.identityState == SZFriendsIdentityFactsStateUnavailable) {
         state = @"unavailable";
         note = [s text:@"id.unavailable"];
@@ -179,8 +179,8 @@
             @{@"id" : [s displayID:profile.friendsID], @"old" : [s displayID:profile.previousFriendsID]};
         note = profile.previousFriendsID.length ? [s text:@"banner.id_changed" values:ids] : [s text:@"id.changed"];
     } else {
+        // Nothing to say until something happens to the ID: a changed one is said above, and in the list's banner.
         state = @"unreserved";
-        note = [self idNoteForProfile:profile];
     }
     SZFriendsPicture *picture = profile.picture;
     BOOL animal = picture.kind == SZFriendsPictureKindAnimal;
@@ -206,7 +206,7 @@
             @"label" : [s text:@"profile.id.label"],
             @"friends_id" : profile.friendsID,
             @"state" : state,
-            @"note" : note,
+            @"note" : note ?: [NSNull null],
             @"copy_label" : [s text:@"static.copy"],
             // No QR in M1: nothing on a Mac or a phone can open what it would encode yet, so a code to scan would
             // invite something that does nothing (UX critique). PROTOCOL.md § profile keeps the fields for later.

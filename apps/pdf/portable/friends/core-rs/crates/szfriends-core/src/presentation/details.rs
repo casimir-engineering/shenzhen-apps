@@ -194,7 +194,8 @@ impl SnapshotBuilder {
         } else if profile.nearby_only {
             ("unreserved", Some(s.text("id.nearby")))
         } else {
-            ("unreserved", self.id_note(profile))
+            // Nothing to say until something happens to the ID: a changed one is said above, and in the banner.
+            ("unreserved", None)
         };
         let selected = match &profile.picture {
             Picture::Animal { index, .. } => json!(index),

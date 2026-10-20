@@ -43,27 +43,28 @@ fn nearby_states() {
             let data = nearby(&facts, "", now());
             let (alert, note) = (!data["alert"].is_null(), !data["note"].is_null());
             let at = format!("{network:?}/{bluetooth:?}");
-            if alert && note {
+            // Under the card nothing repeats or contradicts it: Bluetooth only while it still finds people, no second
+            // action on the visibility line, and no empty state when nothing works at all.
+            if alert {
+                assert_eq!(note, bluetooth == AdapterState::Working, "{at}: {}", data["note"]);
+                let action = data["visibility"]["action"]["action"].as_str().unwrap_or("none");
+                assert!(["none", "start_visibility", "stop_visibility"].contains(&action), "{at}: {action}");
+                if data["empty"].is_object() {
+                    assert!(data["empty"]["body"].is_null(), "{at}: the card says it");
+                }
+            }
+            if note {
                 assert!(data["note"]["text"].as_str().unwrap().contains("Bluetooth"), "{at}: {}", data["note"]);
             }
-            if alert && data["empty"].is_object() {
-                assert!(data["empty"]["body"].is_null(), "{at}: the card says it");
+            let quiet = !matches!(network, AdapterState::Working | AdapterState::Starting)
+                && !matches!(bluetooth, AdapterState::Working | AdapterState::Starting);
+            assert_eq!(data["empty"].is_null(), quiet, "{at}: {}", data["empty"]);
+            if quiet {
+                assert!(alert, "{at}: a card says why nobody shows");
             }
-            let both_off = network == AdapterState::RadioOff && bluetooth == AdapterState::RadioOff;
-            if alert && broken(bluetooth) {
-                let named = if both_off {
-                    !note && data["alert"]["title"].as_str().unwrap().contains("Bluetooth")
-                } else {
-                    note
-                };
-                assert!(named, "{at}: Bluetooth's state is named somewhere");
-            }
-            assert!(!data["empty"].is_null(), "{at} says why nobody shows");
             if broken(network) && broken(bluetooth) {
-                assert_eq!(
-                    (&data["empty"]["kind"], &data["visibility"]["state"]),
-                    (&json!("unavailable"), &json!("unavailable"))
-                );
+                assert_eq!(data["visibility"]["state"], "unavailable", "{at}");
+                assert!(data["visibility"]["body"].is_null() && data["visibility"]["action"].is_null(), "{at}");
             }
         }
     }

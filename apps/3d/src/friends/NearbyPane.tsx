@@ -13,19 +13,22 @@ export function NearbyPane({ data }: { data: NearbyData | undefined }) {
   const visibility = data.visibility;
   return (
     <div className="szf-nearby">
-      <div className={`szf-card szf-visibility ${visibility.state}`}>
-        {visibility.title && <strong>{visibility.title}</strong>}
-        {visibility.body && <p>{visibility.body}</p>}
-        {visibility.remaining_label && (
-          <p
-            className="szf-countdown"
-            aria-label={visibility.remaining_accessibility_label ?? undefined}
-          >
-            {visibility.remaining_label}
-          </p>
-        )}
-        {visibility.action && <ActionButton action={visibility.action} />}
-      </div>
+      {/* Under a card that says nothing works, the helper sends no words and no action here. */}
+      {(visibility.title || visibility.body || visibility.action) && (
+        <div className={`szf-card szf-visibility ${visibility.state}`}>
+          {visibility.title && <strong>{visibility.title}</strong>}
+          {visibility.body && <p>{visibility.body}</p>}
+          {visibility.remaining_label && (
+            <p
+              className="szf-countdown"
+              aria-label={visibility.remaining_accessibility_label ?? undefined}
+            >
+              {visibility.remaining_label}
+            </p>
+          )}
+          {visibility.action && <ActionButton action={visibility.action} />}
+        </div>
+      )}
       <ul className="szf-methods" role="list">
         {data.methods.map((method) => (
           <li key={method.method} className={`szf-method ${method.state}`}>

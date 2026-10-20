@@ -60,7 +60,9 @@ static void subscribe_visible(SZFriendsGtkListPage *list) {
         parts->nearby_token = szfriends_gtk_link_subscribe(list->link, "nearby", NULL, nearby_snapshot, list, NULL);
         if (*query) szfriends_gtk_link_set_filter(list->link, parts->nearby_token, query);
     }
-    if (!parts->showing_nearby && !parts->list_token) {
+    /* The list stays subscribed on both tabs: the name card and the banner above the tabs come from it, and a name
+     * saved on the Nearby tab must take the card away there too (it stayed after Return, 2026-10-20). */
+    if (!parts->list_token) {
         parts->list_token = szfriends_gtk_link_subscribe(list->link, "list", NULL, list_snapshot, list, NULL);
         if (*query) szfriends_gtk_link_set_filter(list->link, parts->list_token, query);
     }
@@ -68,10 +70,6 @@ static void subscribe_visible(SZFriendsGtkListPage *list) {
     if (!parts->showing_nearby && parts->nearby_token) {
         szfriends_gtk_link_unsubscribe(list->link, parts->nearby_token);
         parts->nearby_token = 0;
-    }
-    if (parts->showing_nearby && parts->list_token) {
-        szfriends_gtk_link_unsubscribe(list->link, parts->list_token);
-        parts->list_token = 0;
     }
 }
 
@@ -107,8 +105,10 @@ static void tab_changed(GObject *tabs, GParamSpec *spec, gpointer data) {
 
 static void search_changed(GtkSearchEntry *entry, gpointer data) {
     SZFriendsGtkListPage *list = data;
-    guint token = list->parts.showing_nearby ? list->parts.nearby_token : list->parts.list_token;
-    if (token) szfriends_gtk_link_set_filter(list->link, token, gtk_editable_get_text(GTK_EDITABLE(entry)));
+    /* Both lists answer to what the field holds, so the search follows the person to the other tab. */
+    const char *query = gtk_editable_get_text(GTK_EDITABLE(entry));
+    if (list->parts.list_token) szfriends_gtk_link_set_filter(list->link, list->parts.list_token, query);
+    if (list->parts.nearby_token) szfriends_gtk_link_set_filter(list->link, list->parts.nearby_token, query);
 }
 
 /* ---- Rows ---------------------------------------------------------------------------------------- */

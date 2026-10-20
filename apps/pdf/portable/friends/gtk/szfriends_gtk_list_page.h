@@ -72,10 +72,11 @@ GtkWidget *szfriends_gtk_footer_new(SZFriendsGtkLink *link, SZFriendsGtkDropdown
 void szfriends_gtk_footer_apply(GtkWidget *footer, const SZFriendsGtkFooter *data);
 void szfriends_gtk_footer_begin_edit(GtkWidget *footer);
 gboolean szfriends_gtk_footer_cancel_edit(GtkWidget *footer); /* TRUE when an edit was open */
-void szfriends_gtk_footer_commit_edit(GtkWidget *footer);      /* what Return does */
+void szfriends_gtk_footer_commit_edit(GtkWidget *footer);      /* what Return and Save do */
 gboolean szfriends_gtk_footer_is_editing(GtkWidget *footer);
 typedef struct {
-    GtkWidget *avatar, *name_button, *name_label, *editor, *id_label, *copy_button, *copy_label, *add_button, *note;
+    GtkWidget *avatar, *name_button, *name_label, *editor, *save_button, *cancel_button, *id_label, *copy_button,
+        *copy_label, *add_button, *note;
 } SZFriendsGtkFooterParts;
 const SZFriendsGtkFooterParts *szfriends_gtk_footer_parts(GtkWidget *footer);
 
@@ -101,7 +102,7 @@ typedef struct {
     GtkWidget *search, *tabs, *stack;
     GtkWidget *send_notice, *send_text, *send_cancel;
     GtkWidget *banner, *banner_text, *banner_button;
-    GtkWidget *prompt, *prompt_title, *prompt_entry, *prompt_note;
+    GtkWidget *prompt, *prompt_title, *prompt_entry, *prompt_save, *prompt_note;
     /* Several computers (szfriends_gtk_list_devices.c): the removed notice with Start Over in its slot, the join
      * requests, and the name prompt's "Use my existing profile". */
     GtkWidget *devices, *removed, *removed_title, *removed_body, *removed_slot, *join_requests, *prompt_join;

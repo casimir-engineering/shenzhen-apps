@@ -32,7 +32,16 @@ NS_ASSUME_NONNULL_BEGIN
 // The Friends ID a first start takes instead of a random draw, so two helpers can hold one unreserved ID (Add by ID
 // with two holders, and a collision at the host).
 @property(class, nonatomic, copy, nullable) NSString *initialFriendsID;
+// The computer name and system this helper gives itself in place of the Mac's own (Sharing's computer name and the
+// macOS version), so a test run never shows the real computer's.
+@property(class, nonatomic, copy, nullable) NSString *deviceName;
+@property(class, nonatomic, copy, nullable) NSString *deviceSystem;
 @end
+
+// This computer's name and system as the helper reports them: SZFriendsLocalDeviceName() and
+// SZFriendsLocalDeviceSystem(), unless SZFriendsHelperTestHooks replaces them.
+NSString *SZFriendsHelperDeviceName(void);
+NSString *SZFriendsHelperDeviceSystem(void);
 
 // The adapters this helper runs. Production (no SZFRIENDS_STATE_DIR): Network.framework and CoreBluetooth. Under
 // SZFRIENDS_STATE_DIR (tests, probes, the harness) never a real radio and never a non-loopback interface: the

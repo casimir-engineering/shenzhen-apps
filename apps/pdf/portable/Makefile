@@ -106,7 +106,7 @@ include mac/companion/sources.mk
 MAC_SRCS := $(filter-out mac/SPDFUpdaterTests.mm,$(sort $(wildcard mac/*.mm))) $(MAC_MARKDOWN_SRCS)
 MAC_HDRS := $(sort $(wildcard mac/*.h) $(wildcard mac/markdown/*.h))
 MAC_VERSION ?= 26.10.11
-MAC_BUILD ?= 3
+MAC_BUILD ?= 5
 MAC_SIGN_IDENTITY ?= -
 NOTARY_PROFILE ?=
 NOTARY_RESULT ?= $(DIST)/notarytool-$(MAC_VERSION)-$(MAC_BUILD).json
@@ -942,7 +942,9 @@ include mac/tests/translation-tests.mk
 include friends/friends.mk
 # The host adapter's suite runs with the Friends suites, so the release sweep's friends-tests covers it.
 include mac/friends/friends-host-adapter.mk
-friends-tests: friends-suite mac-friends-host-adapter-tests
+# The dropdown driven end to end, clicks and keys against real helpers (mac/friends/tests/ui-e2e/friends-ui-e2e.mk).
+include mac/friends/tests/ui-e2e/friends-ui-e2e.mk
+friends-tests: friends-suite mac-friends-host-adapter-tests friends-ui-e2e
 
 # Shenzhen Friends in ShenzhenPDF.app (friends/README.md § Integration the lead owns). Read after friends.mk, so the
 # Friends variables are set here and prerequisite lists get a second expansion.

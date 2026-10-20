@@ -3,6 +3,7 @@
 #import "service/helper/SZFriendsHelperTesting.h"
 
 #import "client/szfriends_client.h"
+#import "service/identity/SZFriendsDeviceChain.h"
 
 static NSArray<id<SZFriendsDiscoveryAdapter>> * (^SZFriendsExtraAdapters)(dispatch_queue_t);
 static BOOL SZFriendsWithholdAcknowledgements;
@@ -11,8 +12,31 @@ static NSTimeInterval SZFriendsOutboxClockOffset;
 static NSTimeInterval SZFriendsStrangerIdleTimeoutOverride;
 static NSTimeInterval SZFriendsStrangerSessionLifeOverride;
 static NSString *SZFriendsInitialFriendsID;
+static NSString *SZFriendsDeviceNameOverride;
+static NSString *SZFriendsDeviceSystemOverride;
+
+NSString *SZFriendsHelperDeviceName(void) {
+    return SZFriendsDeviceNameOverride.length ? SZFriendsDeviceNameOverride : SZFriendsLocalDeviceName();
+}
+
+NSString *SZFriendsHelperDeviceSystem(void) {
+    return SZFriendsDeviceSystemOverride.length ? SZFriendsDeviceSystemOverride : SZFriendsLocalDeviceSystem();
+}
 
 @implementation SZFriendsHelperTestHooks
+
++ (NSString *)deviceName {
+    return SZFriendsDeviceNameOverride;
+}
++ (void)setDeviceName:(NSString *)deviceName {
+    SZFriendsDeviceNameOverride = [deviceName copy];
+}
++ (NSString *)deviceSystem {
+    return SZFriendsDeviceSystemOverride;
+}
++ (void)setDeviceSystem:(NSString *)deviceSystem {
+    SZFriendsDeviceSystemOverride = [deviceSystem copy];
+}
 
 + (NSArray<id<SZFriendsDiscoveryAdapter>> * (^)(dispatch_queue_t))extraAdapters {
     return SZFriendsExtraAdapters;

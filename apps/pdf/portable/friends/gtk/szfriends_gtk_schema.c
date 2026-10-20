@@ -103,7 +103,7 @@ static const SZFriendsGtkField name_prompt_fields[] = {STR(T, title), STR(T, pla
 TYPE(static, name_prompt, "type.name_prompt", SZFriendsGtkNamePrompt);
 #define T SZFriendsGtkRowAction
 static const SZFriendsGtkField row_action_fields[] = {ENUM(T, action, row_actions), ENUM(T, icon, row_icons),
-                                                      STR(T, label), OBJN(T, arm, arm)};
+                                                      STRN(T, title), STR(T, label), OBJN(T, arm, arm)};
 #undef T
 TYPE(static, row_action, "type.row_action", SZFriendsGtkRowAction);
 #define T SZFriendsGtkWaiting
@@ -280,7 +280,7 @@ static const SZFriendsGtkField profile_picture_fields[] = {OBJ(T, avatar, avatar
 TYPE(static, profile_picture, NULL, SZFriendsGtkProfilePicture);
 #define T SZFriendsGtkProfileId
 static const SZFriendsGtkField profile_id_fields[] = {STR(T, label), STR(T, friends_id), ENUM(T, state, id_states),
-                                                      STR(T, note), STR(T, copy_label), STRN(T, qr_label),
+                                                      STRN(T, note), STR(T, copy_label), STRN(T, qr_label),
                                                       STRN(T, qr_payload)};
 #undef T
 TYPE(static, profile_id, NULL, SZFriendsGtkProfileId);

@@ -11,10 +11,15 @@
 //   SZFRIENDS_E2E_IDLE_TIMEOUT=<s>  a stranger's quiet session ends after <s> seconds instead of 60
 //   SZFRIENDS_E2E_SESSION_LIFE=<s>  a stranger's session ends <s> seconds after going live instead of 180
 //   SZFRIENDS_E2E_FRIENDS_ID=<id>   a first start takes this Friends ID (two holders of one unreserved ID)
+//   SZFRIENDS_E2E_NEARBY_SCRIPT=<f> add a network method whose permission and state <f> names
+//                                   (SZFriendsE2EScriptedNearby.h), for the Nearby cards
+//   SZFRIENDS_E2E_DEVICE_NAME=<n>   this computer's name, in place of the Mac's own
+//   SZFRIENDS_E2E_DEVICE_SYSTEM=<s> this computer's system, in place of the Mac's macOS version
 
 #import <Foundation/Foundation.h>
 
 #import "SZFriendsE2EBluetooth.h"
+#import "SZFriendsE2EScriptedNearby.h"
 #import "service/helper/SZFriendsHelper.h"
 #import "service/helper/SZFriendsHelperTesting.h"
 
@@ -32,10 +37,16 @@ int main(int argc, const char *argv[]) {
         SZFriendsHelperTestHooks.strangerSessionLife = env[@"SZFRIENDS_E2E_SESSION_LIFE"].doubleValue;
         NSString *friendsID = env[@"SZFRIENDS_E2E_FRIENDS_ID"];
         if (friendsID.length > 0) SZFriendsHelperTestHooks.initialFriendsID = friendsID;
+        SZFriendsHelperTestHooks.deviceName = env[@"SZFRIENDS_E2E_DEVICE_NAME"];
+        SZFriendsHelperTestHooks.deviceSystem = env[@"SZFRIENDS_E2E_DEVICE_SYSTEM"];
         NSString *bluetooth = env[@"SZFRIENDS_E2E_BLUETOOTH_DIR"];
-        if (bluetooth.length > 0) {
+        NSString *script = env[@"SZFRIENDS_E2E_NEARBY_SCRIPT"];
+        if (bluetooth.length > 0 || script.length > 0) {
             SZFriendsHelperTestHooks.extraAdapters = ^NSArray<id<SZFriendsDiscoveryAdapter>> *(dispatch_queue_t queue) {
-                return @[ SZFriendsE2EMakeScriptedBluetoothAdapter(queue, bluetooth) ];
+                NSMutableArray<id<SZFriendsDiscoveryAdapter>> *adapters = [NSMutableArray array];
+                if (bluetooth.length > 0) [adapters addObject:SZFriendsE2EMakeScriptedBluetoothAdapter(queue, bluetooth)];
+                if (script.length > 0) [adapters addObject:SZFriendsE2EMakeScriptedNearbyAdapter(queue, script)];
+                return adapters;
             };
         }
     }

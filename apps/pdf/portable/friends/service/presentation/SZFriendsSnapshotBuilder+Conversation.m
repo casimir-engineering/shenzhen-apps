@@ -94,31 +94,36 @@
     };
 }
 
+// "Type # to attach, @ to mention someone, or drop files here": the keys the host offers, emphasised, each with what
+// it does, then dropping files; "Drop files here to send them" when dropping is all there is.
 - (NSArray *)composerHint {
     SZFriendsStrings *s = self.strings;
     NSSet<NSString *> *capabilities = self.audience.capabilities;
-    NSMutableArray<NSDictionary *> *parts = [NSMutableArray array];
-    if ([capabilities containsObject:@"attach.items"])
-        [parts addObject:@{@"key" : @"#", @"label" : [s text:@"composer.hint.attach"]}];
-    if ([capabilities containsObject:@"mentions"])
-        [parts addObject:@{@"key" : @"@", @"label" : [s text:@"composer.hint.mention"]}];
+    NSMutableArray<NSArray<NSString *> *> *keyed = [NSMutableArray array];
+    if ([capabilities containsObject:@"attach.items"]) [keyed addObject:@[ @"#", [s text:@"composer.hint.attach"] ]];
+    if ([capabilities containsObject:@"mentions"]) [keyed addObject:@[ @"@", [s text:@"composer.hint.mention"] ]];
     if ([capabilities containsObject:@"assistant.drafts"])
-        [parts addObject:@{@"key" : @"/", @"label" : [s text:@"composer.hint.assistant"]}];
-    if ([capabilities containsObject:@"drop.files"])
-        [parts addObject:@{@"label" : [s text:parts.count ? @"composer.hint.drop" : @"composer.hint.drop_alone"]}];
+        [keyed addObject:@[ @"/", [s text:@"composer.hint.assistant"] ]];
+    BOOL drop = [capabilities containsObject:@"drop.files"];
+    if (!keyed.count) return drop ? @[ @{@"text" : [s text:@"composer.hint.drop_alone"]} ] : @[];
+    NSUInteger items = keyed.count + (drop ? 1 : 0);
+    NSString *orWord = [s text:@"composer.hint.or"];
+    // Before the last of two: " or "; of three or more: ", or "; between the others: ", ".
+    NSString *(^separator)(NSUInteger) = ^NSString *(NSUInteger index) {
+        if (index + 1 < items) return @", ";
+        return items == 2 && !drop ? [NSString stringWithFormat:@" %@ ", orWord]
+                                   : [NSString stringWithFormat:@", %@ ", orWord];
+    };
     NSMutableArray<NSDictionary *> *segments = [NSMutableArray array];
-    NSMutableString *plain = [NSMutableString string];
-    for (NSUInteger i = 0; i < parts.count; i++) {
-        if (i > 0) [plain appendString:@" · "];
-        if (parts[i][@"key"]) {
-            if (plain.length) [segments addObject:@{@"text" : [plain copy]}];
-            [plain setString:@""];
-            [segments addObject:@{@"text" : parts[i][@"key"], @"emphasis" : @YES}];
-            [plain appendString:@" "];
-        }
-        [plain appendString:parts[i][@"label"]];
+    NSMutableString *plain = [NSMutableString stringWithFormat:@"%@ ", [s text:@"composer.hint.type"]];
+    for (NSUInteger i = 0; i < keyed.count; i++) {
+        if (i > 0) [plain appendString:separator(i)];
+        [segments addObject:@{@"text" : [plain copy]}];
+        [segments addObject:@{@"text" : keyed[i][0], @"emphasis" : @YES}];
+        [plain setString:[@" " stringByAppendingString:keyed[i][1]]];
     }
-    if (plain.length) [segments addObject:@{@"text" : [plain copy]}];
+    if (drop) [plain appendFormat:@"%@%@", separator(keyed.count), [s text:@"composer.hint.drop"]];
+    [segments addObject:@{@"text" : [plain copy]}];
     return segments;
 }
 

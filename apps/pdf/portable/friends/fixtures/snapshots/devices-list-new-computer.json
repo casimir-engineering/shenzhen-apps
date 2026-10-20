@@ -20,7 +20,7 @@
       "name": null,
       "name_placeholder": "Choose your name",
       "id_label": "ID cottage‑violet",
-      "id_note": "Your ID works nearby now. If it’s already taken, you’ll get a new one the next time ShenzhenPDF reaches the Friends server.",
+      "id_note": null,
       "friends_id": "cottage-violet",
       "add_label": "Add by ID"
     },

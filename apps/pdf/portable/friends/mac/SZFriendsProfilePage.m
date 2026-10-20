@@ -89,6 +89,8 @@
     SZFriendsFlippedView *_content;
     SZFriendsAvatarView *_avatar;
     NSTextField *_nameLabel;
+    SZFriendsNameEditor *_nameEditor; // the name friends see, with Save (SZFriendsListPage.h)
+    NSString *_appliedName;           // the name last shown, so a snapshot never overwrites what is being typed
     NSTextField *_animalsTitle;
     NSMutableArray<SZFriendsButton *> *_animals;
     SZFriendsFlippedView *_idCard;
@@ -103,6 +105,7 @@
     NSTextField *_addHint;
     NSTextField *_addResult;
     BOOL _addFailed;
+    BOOL _revealAdd; // scroll Add by ID into view at the next layout
     CGFloat _divider;
 }
 
@@ -134,10 +137,9 @@
 
     _avatar = [SZFriendsAvatarView new];
     _nameLabel = SZFriendsLabel(@"", appearance.captionFont, appearance.secondaryTextColor);
-    _nameField = [NSTextField textFieldWithString:@""];
-    _nameField.bezelStyle = NSTextFieldRoundedBezel;
-    _nameField.font = appearance.bodyFont;
-    _nameField.delegate = self;
+    _nameEditor = [[SZFriendsNameEditor alloc] initWithContext:context font:appearance.bodyFont];
+    _nameEditor.onLayoutChange = ^{ [weakSelf setNeedsLayout:YES]; };
+    _nameEditor.onCancel = ^{ [weakSelf cancelNameEdit]; };
     _photoButton = [SZFriendsButton buttonWithTitle:@"" style:SZFriendsButtonStyleSecondary appearance:appearance];
     _photoButton.onPress = ^(SZFriendsButton *button) {
         (void)button;
@@ -191,7 +193,7 @@
     _addResult = SZFriendsLabel(@"", appearance.secondaryFont, appearance.primaryTextColor);
     _links = [[SZFriendsYourLinksView alloc] initWithContext:context];
     _computers = [[SZFriendsYourComputersView alloc] initWithContext:context];
-    for (NSView *view in @[ _avatar, _nameLabel, _nameField, _photoButton, _animalsTitle, _ownPictureButton, _idCard,
+    for (NSView *view in @[ _avatar, _nameLabel, _nameEditor, _photoButton, _animalsTitle, _ownPictureButton, _idCard,
                             _links, _computers, _addLabel, _addField, _addButton, _addHint, _addResult ])
         [_content addSubview:view];
     [_content registerForDraggedTypes:@[ NSPasteboardTypeFileURL ]];
@@ -220,6 +222,9 @@
 
 - (void)pageWillAppear {
     [super pageWillAppear];
+    // The page opens from Add by ID: in a short dropdown that section is below the ID card and Your computers, so it
+    // scrolls into view with the field that has the focus (the owner's narrow dropdown showed only its top edge).
+    _revealAdd = YES;
     __weak SZFriendsProfilePage *weakSelf = self;
     _token = [self.context.link subscribeToView:@"profile" params:nil handler:^(NSDictionary *data, NSInteger rev) {
         (void)rev;
@@ -241,9 +246,15 @@
     if (self.onBackBadgeChange) self.onBackBadgeChange();
     NSDictionary *name = SZFDict(data, @"name");
     _nameLabel.stringValue = SZFStr(name, @"label") ?: @"";
-    if (!_nameField.currentEditor) _nameField.stringValue = SZFStr(name, @"value") ?: @"";
-    _nameField.placeholderString = SZFStr(name, @"placeholder");
-    _nameField.accessibilityLabel = _nameLabel.stringValue;
+    NSString *savedName = SZFStr(name, @"value") ?: @"";
+    NSTextField *nameField = _nameEditor.field;
+    if (!nameField.currentEditor || [nameField.stringValue isEqualToString:_appliedName ?: @""])
+        nameField.stringValue = savedName;
+    _appliedName = savedName;
+    _nameEditor.currentName = savedName;
+    [_nameEditor reloadStrings];
+    nameField.placeholderString = SZFStr(name, @"placeholder");
+    nameField.accessibilityLabel = _nameLabel.stringValue;
     NSDictionary *picture = SZFDict(data, @"picture");
     _avatar.avatar = SZFDict(picture, @"avatar");
     _photoButton.title = SZFStr(picture, @"choose_label") ?: @"";
@@ -271,6 +282,7 @@
     _addField.placeholderString = SZFStr(add, @"placeholder");
     _addField.accessibilityLabel = _addLabel.stringValue;
     _addButton.title = SZFStr(add, @"button_label") ?: @"";
+    [self updateAddButton];
     _addHint.stringValue = SZFStr(add, @"hint") ?: @"";
     [_links applyLinks:SZFDict(data, @"links")];
     [_computers applyDevices:SZFDict(data, @"devices")];
@@ -321,8 +333,21 @@
 
 #pragma mark - Add by ID, name
 
+// Send request rests until something is typed, as Save does beside the name.
+- (void)updateAddButton {
+    NSString *typed = [_addField.stringValue ?: @"" stringByTrimmingCharactersInSet:
+                                                        NSCharacterSet.whitespaceAndNewlineCharacterSet];
+    _addButton.enabled = typed.length > 0;
+    _addButton.needsDisplay = YES;
+}
+
+- (void)controlTextDidChange:(NSNotification *)notification {
+    if (notification.object == _addField) [self updateAddButton];
+}
+
 - (void)sendAddRequest {
-    NSString *friendsID = _addField.stringValue ?: @"";
+    NSString *friendsID = [_addField.stringValue ?: @"" stringByTrimmingCharactersInSet:
+                                                            NSCharacterSet.whitespaceAndNewlineCharacterSet];
     if (!friendsID.length) return;
     __weak SZFriendsProfilePage *weakSelf = self;
     [self.context.link sendIntent:@"add_by_id" fields:@{@"friends_id" : friendsID}
@@ -337,14 +362,22 @@
                                 // The answer appears under the field, out of VoiceOver's way: speak it too.
                                 [page.context announce:message];
                                 if (!error) page->_addField.stringValue = @"";
+                                [page updateAddButton];
+                                page->_revealAdd = YES; // and in view, however short the dropdown
                                 [page setNeedsLayout:YES];
                             }];
 }
 
-- (void)commitName {
-    NSString *value = _nameField.stringValue ?: @"";
-    if ([value isEqualToString:SZFStr(SZFDict(_data, @"name"), @"value") ?: @""]) return;
-    [self.context.link sendIntent:@"set_name" fields:@{@"name" : value} reply:nil];
+- (NSTextField *)nameField {
+    return _nameEditor.field;
+}
+
+// Escape in the name field: the saved name comes back, and the field lets go.
+- (void)cancelNameEdit {
+    _nameEditor.field.stringValue = _appliedName ?: @"";
+    [_nameEditor reset];
+    _nameEditor.field.stringValue = _appliedName ?: @"";
+    if (_nameEditor.field.currentEditor) [self.window makeFirstResponder:nil];
 }
 
 - (BOOL)control:(NSControl *)control textView:(NSTextView *)textView doCommandBySelector:(SEL)command {
@@ -355,12 +388,7 @@
     }
     if (command != @selector(insertNewline:)) return NO;
     if (control == _addField) [self sendAddRequest];
-    else [self commitName];
     return YES;
-}
-
-- (void)controlTextDidEndEditing:(NSNotification *)notification {
-    if (notification.object == _nameField) [self commitName];
 }
 
 #pragma mark - Your own picture
@@ -407,11 +435,14 @@
     CGFloat pad = 16, inner = width - 2 * pad, y = 14;
     _avatar.frame = NSMakeRect(pad, y + 4, 44, 44);
     CGFloat photoWidth = MAX(72, [_photoButton fittingWidth]);
-    CGFloat fieldX = pad + 56, fieldWidth = inner - 56 - photoWidth - 8;
+    // The name and its Save take the row beside the picture; Choose picture goes under them, so the name being
+    // typed stays readable at the narrowest dropdown.
+    CGFloat fieldX = pad + 56, fieldWidth = inner - 56;
     _nameLabel.frame = NSMakeRect(fieldX, y, fieldWidth, 15);
-    _nameField.frame = NSMakeRect(fieldX, y + 19, fieldWidth, 28);
-    _photoButton.frame = NSMakeRect(width - pad - photoWidth, y + 19, photoWidth, 28);
-    y += 52 + 14;
+    CGFloat editorHeight = [_nameEditor heightForWidth:fieldWidth];
+    _nameEditor.frame = NSMakeRect(fieldX, y + 19, fieldWidth, editorHeight);
+    _photoButton.frame = NSMakeRect(fieldX, y + 19 + editorHeight + 8, photoWidth, 28);
+    y += 19 + editorHeight + 8 + 28 + 14;
     _animalsTitle.hidden = _ownPictureButton.hidden = !_showingAnimals;
     if (_showingAnimals) {
         y = SZFriendsPlace(_animalsTitle, pad, y, inner) + 8;
@@ -465,6 +496,11 @@
     else _addResult.hidden = YES;
     _content.frame = NSMakeRect(0, 0, width, MAX(y + 16, NSHeight(_scroll.frame)));
     _content.needsDisplay = YES;
+    if (_revealAdd && _data && _addLabel.stringValue.length) {
+        _revealAdd = NO;
+        NSRect section = NSUnionRect(_addLabel.frame, _addResult.hidden ? _addHint.frame : _addResult.frame);
+        [_content scrollRectToVisible:NSInsetRect(section, 0, -12)];
+    }
 }
 
 @end

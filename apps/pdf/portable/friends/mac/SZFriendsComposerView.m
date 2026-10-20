@@ -36,8 +36,9 @@
     _noteLabel = SZFriendsLabel(@"", appearance.secondaryFont, appearance.secondaryTextColor);
     _errorLabel = SZFriendsLabel(@"", appearance.secondaryFont, appearance.destructiveColor);
     _hintLabel = SZFriendsLabel(@"", appearance.captionFont, appearance.secondaryTextColor);
-    _hintLabel.maximumNumberOfLines = 1;
-    _hintLabel.cell.lineBreakMode = NSLineBreakByTruncatingTail;
+    // "Type # to attach, @ to mention someone, or drop files here" takes two lines in a narrow dropdown.
+    _hintLabel.maximumNumberOfLines = 2;
+    _hintLabel.cell.lineBreakMode = NSLineBreakByWordWrapping;
     for (NSTextField *label in @[ _noteLabel, _errorLabel, _hintLabel ]) [self addSubview:label];
     _inputBox = [SZFriendsFlippedView new];
     _inputBox.fillColor = appearance.fieldBackgroundColor;
@@ -392,9 +393,13 @@
     CGFloat noteHeight = commandNote && !commandNote.hidden ? SZFriendsFieldHeight(commandNote, inner - 28 - 10) : 0;
     if (apply && noteHeight) commandNote.frame = NSMakeRect(10, y + 1, inner - 28 - 10, noteHeight);
     CGFloat sendWidth = MAX(64, [_sendButton fittingWidth]);
+    BOOL hintShown = _enabled && self.commandState == SZFriendsCommandStateOff;
+    CGFloat hintWidth = inner - sendWidth - 10;
+    CGFloat hintHeight = hintShown ? SZFriendsFieldHeight(_hintLabel, hintWidth) : 0;
     if (apply) {
         _sendButton.frame = NSMakeRect(width - 10 - sendWidth, y, sendWidth, 28);
-        _hintLabel.frame = NSMakeRect(10, y + 6, inner - sendWidth - 10, 16);
+        // One line sits level with Send's title; two start at Send's top edge.
+        _hintLabel.frame = NSMakeRect(10, y + (hintHeight > 18 ? 0 : 6), hintWidth, MAX(16, hintHeight));
         _hintLabel.hidden = !_enabled || self.commandState != SZFriendsCommandStateOff;
         // The arrow takes Send's place while the field holds a command; the progress row takes the whole line.
         _command.runButton.frame = NSMakeRect(width - 10 - 28, y, 28, 28);
@@ -403,7 +408,7 @@
         _command.cancelButton.frame = NSMakeRect(inner - cancelWidth, 5, cancelWidth, 18);
         _command.progressLabel.frame = NSMakeRect(24, 6, MAX(0, inner - 24 - cancelWidth - 8), 16);
     }
-    return y + MAX(28, noteHeight + 2) + 12;
+    return y + MAX(MAX(28, noteHeight + 2), hintHeight) + 12;
 }
 
 - (CGFloat)heightForWidth:(CGFloat)width {

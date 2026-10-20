@@ -33,7 +33,7 @@
       "label": "Your ID",
       "friends_id": "cottage-violet",
       "state": "unreserved",
-      "note": "Your ID works nearby now. If it’s already taken, you’ll get a new one the next time ShenzhenPDF reaches the Friends server.",
+      "note": null,
       "copy_label": "Copy",
       "qr_label": null,
       "qr_payload": null

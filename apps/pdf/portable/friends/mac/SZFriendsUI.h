@@ -115,6 +115,7 @@ typedef void (^SZFriendsIconDrawer)(NSRect rect, NSColor *color);
 @property(nonatomic, copy, nullable) id _Nullable (^pressSubject)(void);
 @property(nonatomic) BOOL selectedLook; // a selected tab, a pressed toggle
 @property(nonatomic, strong, nullable) NSColor *selectedFillColor; // overrides the selection colour when selected
+@property(nonatomic, strong, nullable) NSColor *selectedStrokeColor; // an outline while selected (the selected tab)
 @property(nonatomic) BOOL hovered;
 // Chrome drawn inside the frame by these insets, so a badge can sit outside the chrome yet inside the hit area.
 @property(nonatomic) NSEdgeInsets chromeInsets;

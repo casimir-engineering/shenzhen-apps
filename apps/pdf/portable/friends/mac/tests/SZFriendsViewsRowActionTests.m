@@ -85,11 +85,16 @@ static void SZFTestRequestRowFromFixture(void) {
     for (NSUInteger i = 0; i < MIN(buttons.count, expected.count); i++) {
         SZFriendsRowActionButton *button = buttons[i];
         NSString *label = expected[i][@"label"];
-        SZFExpect([button.rowAction isEqual:expected[i]] && button.title.length == 0, @"icon only: %@", button.title);
+        // Accept and Decline show their word, so a first-time reader tells Decline from Block; Block its icon.
+        id word = expected[i][@"title"];
+        BOOL worded = [word isKindOfClass:NSString.class];
+        SZFExpect([button.rowAction isEqual:expected[i]] && [button.title isEqualToString:worded ? word : @""],
+                  @"the button's word: %@", button.title);
         SZFExpect([button.accessibilityLabel isEqualToString:label] && [button.toolTip isEqualToString:label],
                   @"tooltip and accessible name name the person: %@ / %@", button.accessibilityLabel, button.toolTip);
-        SZFExpect(NSEqualSizes(button.frame.size, NSMakeSize(28, 28)), @"28 pt round button %@",
-                  NSStringFromSize(button.frame.size));
+        SZFExpect(worded ? NSHeight(button.frame) == 28 && NSWidth(button.frame) >= [button fittingWidth]
+                         : NSEqualSizes(button.frame.size, NSMakeSize(28, 28)),
+                  @"a 28 pt pill that fits its word, or a 28 pt round button: %@", NSStringFromSize(button.frame.size));
     }
     SZFExpect([buttons.firstObject.accessibilityLabel isEqualToString:@"Accept Lena Weber’s request"],
               @"Accept's name: %@", buttons.firstObject.accessibilityLabel);
