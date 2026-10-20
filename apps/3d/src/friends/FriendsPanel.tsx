@@ -429,13 +429,17 @@ export function SettingsBody() {
       <div className="szf-field">
         <span>{data.auto_accept.label}</span>
         <small>{data.auto_accept.note}</small>
-        <button
-          type="button"
-          className="szf-button secondary"
-          onClick={() => setChanging((old) => !old)}
-        >
-          {data.auto_accept.action_label}
-        </button>
+        {/* Without friends there is no switch to show: the note says where to turn it on. */}
+        {data.auto_accept.friends.length > 0 && (
+          <button
+            type="button"
+            className="szf-button secondary"
+            aria-expanded={changing}
+            onClick={() => setChanging((old) => !old)}
+          >
+            {data.auto_accept.action_label}
+          </button>
+        )}
         {changing &&
           data.auto_accept.friends.map((friend) => (
             <label key={friend.conversation_id} className="szf-switch compact">

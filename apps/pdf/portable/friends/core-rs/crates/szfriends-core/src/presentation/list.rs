@@ -154,7 +154,7 @@ impl SnapshotBuilder {
         let s = &self.strings;
         if profile.identity_state == IdentityState::Unavailable {
             let mut reset = self.action("reset_friends", s.text("settings.reset.action"), "destructive");
-            let body = self.deletion_body_key("settings.reset.confirm.body");
+            let body = self.this_device_key(&self.deletion_body_key("settings.reset.confirm.body"));
             let confirm =
                 self.confirm("settings.reset.confirm.title", &body, "settings.reset.confirm.button", &[], true);
             reset.insert("confirm".into(), confirm);

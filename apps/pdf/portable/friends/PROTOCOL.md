@@ -229,7 +229,7 @@ Lowercase dotted strings. Unknown ones are ignored on both sides.
 | `assistant.drafts` | The host has `/` drafts; the hint includes "/ to ask the assistant" (Assistant track) |
 | `assistant.chats` | The host's AI chat may open scoped chat access; without it `assistant_*` intents fail with `not_allowed` |
 | `search.export` | The host shows Friends results in its global search (Cmd+K) |
-| `files.share` | A phone: `show_file` hands a received file to the system's share sheet, labelled "Share…", and offers no folder to show (the details' `received.action` is null) |
+| `files.share` | A phone: `show_file` hands a received file to the system's share sheet, labelled "Share…", and offers no folder to show (the details' `received.action` is null). Settings says "this device" where a computer's says "this computer" |
 | `nearby.found` | The host shows how each person nearby was found: Nearby's rows and a friend's list row carry `found` (§ Views, `nearby`) |
 | `list.menu` | The host shows each list row's `menu` on right-click, Control-click or long-press; rows carry `menu` (§ Views, `list`) |
 | `mentions` | The host's views show mentions (§ Mentions): `@` in the composer, whose hint then includes "@ to mention someone", with `mentionable` on list rows and the composer's `mention_note`, and mentions in messages as links. Without it every mention arrives as plain text |
@@ -2022,14 +2022,14 @@ data.received.action: @action|null   # show_file with the folder; null on phones
 data.received.change?: @action|null  # with `received.folder`: choose_received_folder "Change…"; null on phones
 data.auto_accept.label: string
 data.auto_accept.note: string
-data.auto_accept.action_label: string
+data.auto_accept.action_label: string  # "Choose friends…" (a switch per friend); hidden while `friends` is empty
 data.auto_accept.friends: array
 data.auto_accept.friends[].conversation_id: string
 data.auto_accept.friends[].title: string
 data.auto_accept.friends[].avatar: @avatar
 data.auto_accept.friends[].enabled: bool
 data.history.label: string
-data.history.note: string
+data.history.note: string        # "Stored on this computer…"; "this device" with `files.share`
 data.history.action_label: string
 data.history.confirm: @confirm
 data.reset.label: string

@@ -263,6 +263,12 @@ static const NSUInteger SZFSettingsRowCount = 7, SZFSettingsReceivedRow = 2, SZF
                                                            : (folder.length ? folder : note ?: @"");
     folderField.toolTip = SZFStr(received, @"path");
     _changeButton.title = SZFStr(SZFDict(data, @"auto_accept"), @"action_label") ?: @"";
+    // No friends, no switch to show: the row's note says where to turn it on.
+    _changeButton.hidden = SZFArr(SZFDict(data, @"auto_accept"), @"friends").count == 0;
+    if (_changeButton.hidden) {
+        _showingFriends = NO;
+        _changeButton.selectedLook = NO;
+    }
     _historyButton.title = SZFStr(SZFDict(data, @"history"), @"action_label") ?: @"";
     _resetButton.title = SZFStr(SZFDict(data, @"reset"), @"action_label") ?: @"";
     NSDictionary *nearbyAction = SZFDict(SZFDict(data, @"nearby"), @"action");

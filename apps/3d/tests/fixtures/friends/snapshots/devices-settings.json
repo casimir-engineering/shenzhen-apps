@@ -36,7 +36,7 @@
     "auto_accept": {
       "label": "Accept files automatically",
       "note": "From Mei Lin and Daniel Ortiz. Everyone else asks first.",
-      "action_label": "Change…",
+      "action_label": "Choose friends…",
       "friends": [
         {
           "conversation_id": "c_mei",

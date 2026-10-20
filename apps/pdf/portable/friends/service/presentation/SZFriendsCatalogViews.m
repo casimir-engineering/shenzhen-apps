@@ -242,7 +242,7 @@ static NSDictionary<NSString *, NSString *> *PeopleAndSettingsEntries(void) {
         @"settings.received.default" : @"Downloads",
         @"settings.received.change" : @"Change…",
         @"settings.auto.label" : @"Accept files automatically",
-        @"settings.auto.action" : @"Change…",
+        @"settings.auto.action" : @"Choose friends…",
         @"settings.auto.note.some" : @"From {names}. Everyone else asks first.",
         @"settings.auto.note.only" : @"From {names}.",
         @"settings.auto.note.all" : @"From every friend.",

@@ -1,7 +1,7 @@
 /* The Settings section offscreen, against the fake helper: subscribed only while on screen, every row plain text
  * (use-markup off, a name with markup characters shown as typed), the name sent only when changed, Copy, Show in
- * Finder through the host, a switch per friend behind Change…, Delete history and Reset Friends sent only after
- * their confirmations and with the fields PROTOCOL.md asks for, and the link's line while the helper is away.
+ * Finder through the host, a switch per friend behind Choose friends…, Delete history and Reset Friends sent only
+ * after their confirmations and with the fields PROTOCOL.md asks for, and the link's line while the helper is away.
  * Renders light and dark with the friends' switches out. */
 
 #include "szfriends_gtk_details_probe.h"
@@ -108,7 +108,7 @@ static void test_rows(SZFGHarness *harness, GtkWidget *section) {
 
 static void test_friends(SZFGHarness *harness, GtkWidget *section) {
     GtkWidget *change = szfg_find_named(section, "szfriends.settings.change");
-    EXPECT(change && !g_strcmp0(gtk_button_get_label(GTK_BUTTON(change)), "Change…"), "Change…");
+    EXPECT(change && !g_strcmp0(gtk_button_get_label(GTK_BUTTON(change)), "Choose friends…"), "Choose friends…");
     gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(change), TRUE);
     guint rows = 0, markup = 0, switches = 0;
     count_rows(section, &rows, &markup, &switches);
@@ -133,6 +133,23 @@ static void test_friends(SZFGHarness *harness, GtkWidget *section) {
     rows = markup = switches = 0;
     count_rows(section, &rows, &markup, &switches);
     EXPECT(switches == 0, "and fold away again");
+    /* No friends: nothing to choose, so no button. */
+    gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(change), TRUE);
+    JsonObject *lonely = szfg_fixture_data("snapshots/settings.json");
+    JsonObject *nobody = json_object_get_object_member(lonely, "auto_accept");
+    json_object_set_array_member(nobody, "friends", json_array_new());
+    json_object_set_string_member(nobody, "note", "Turn it on for a friend in their details.");
+    szfg_script_view(harness, "settings", lonely);
+    json_object_unref(lonely);
+    for (int i = 0; i < 300 && gtk_widget_get_visible(change); i++) szfg_pump_for(10);
+    rows = markup = switches = 0;
+    count_rows(section, &rows, &markup, &switches);
+    EXPECT(!gtk_widget_get_visible(change) && switches == 0, "no friends, no Choose friends…");
+    JsonObject *again = szfg_fixture_data("snapshots/settings.json");
+    szfg_script_view(harness, "settings", again);
+    json_object_unref(again);
+    for (int i = 0; i < 300 && !gtk_widget_get_visible(change); i++) szfg_pump_for(10);
+    EXPECT(gtk_widget_get_visible(change), "friends again, Choose friends… again");
 }
 
 static void test_confirmed(SZFGHarness *harness, GtkWidget *section) {
