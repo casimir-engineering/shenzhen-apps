@@ -602,6 +602,10 @@ One friend's history and composer, or the request card for a pending request.
 - Transfers carry `status_label`, optional `route_note` ("Over Bluetooth, about 6 min" when the route is slow, so
   the person can accept now or wait), `progress` while moving, and `actions` (Accept, Decline, Cancel, Open, Show
   in Finder, Try again). Open appears only for formats in the client's `open_formats`.
+- A received file's `status_label` says where it was saved: "Saved to Downloads" (the default Downloads, Android's
+  public Downloads too), "Saved to From friends" (another folder, by its name), or the app's name for iOS's Files
+  ("Saved to Shenzhen 3D"); its `accessibility_label` ends the same way ("…, saved to Downloads"). A file the helper
+  kept in its own folder (files from before `received.folder`, or one no folder could take) says "Received".
 - A transfer's `thumbnail` is the file's preview, which views show in place of its type icon, on both sides and
   before the file is accepted (§ Thumbnails). `null` means there is none, and views draw the type's icon themselves
   from `file.type_identifier`, or from `file.extension` when a toolkit has no use for the identifier.
@@ -667,7 +671,10 @@ Friends is off and no helper runs.
   `action` Show in Finder (`show_file` with that path), and `change` labelled "Change…" with the client-side action
   `choose_received_folder`: the view shows the platform's folder picker (folders only, New Folder allowed) starting at
   `path`, and sends `set_received_folder` with the folder chosen; nothing when the person cancels. `note` is `""` on a
-  computer and views hide an empty note. On phones the folder cannot be changed: `path`, `action` and `change` are
+  computer and views hide an empty note. When the last file could not be saved in this folder and went elsewhere,
+  `note` says so ("The last file couldn’t be saved here, so it went to Downloads.", or "…so ShenzhenPDF kept it. Open
+  it from its chat." when no folder took it) until a file is saved in the folder again or the folder is changed; the
+  helper remembers this across restarts (`received-fallback` beside `received-folder`). On phones the folder cannot be changed: `path`, `action` and `change` are
   `null` (iOS `value` "Shenzhen 3D", `note` "In the Files app, under On My iPhone."; Android `value` "Downloads").
   A helper without `received.folder` sends only `label`, `note` and `action`, and views then show no value and no
   Change….

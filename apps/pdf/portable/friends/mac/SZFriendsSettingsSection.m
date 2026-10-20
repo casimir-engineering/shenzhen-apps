@@ -253,7 +253,7 @@ static const NSUInteger SZFSettingsRowCount = 7, SZFSettingsReceivedRow = 2, SZF
     NSDictionary *received = SZFDict(data, @"received");
     _receivedButton.title = SZFStr(SZFDict(received, @"action"), @"label") ?: @"";
     _receivedButton.hidden = ![SZFriendsContext knowsAction:SZFStr(SZFDict(received, @"action"), @"action")];
-    // The folder's name under the label, then the note (empty on a computer, so nothing more shows).
+    // The folder's name under the label, then the note (empty unless the last file went elsewhere).
     NSDictionary *change = SZFDict(received, @"change");
     _receivedChangeButton.title = SZFStr(change, @"label") ?: @"";
     _receivedChangeButton.hidden = ![SZFStr(change, @"action") isEqualToString:@"choose_received_folder"];
