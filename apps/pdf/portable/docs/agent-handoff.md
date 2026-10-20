@@ -70,12 +70,13 @@ a feature costs nothing for documents that do not use it. Measure with
 `SPDF_LAUNCH_PROFILE=1` (phase timings to stderr). Current reference: first
 window on screen ≈170 ms; a restored second window is a second process and now
 starts alongside the first. `make -C portable mac-launch-performance-tests`
-(in the release sweep) builds the previous release tag from source and launches
+(in the release sweep) takes the previous release's app from its DMG and launches
 it beside this tree headlessly, 15 interleaved rounds, Friends on and off: the
 median per-round ratio of main-thread CPU before the first frame must stay
 within 1.05x and spawn-to-first-frame within 1.08x, Friends must do no
 main-thread work before the first frame and must connect to its helper. The
-probe (`mac/tests/launch/SPDFMacLaunchPerformanceProbe.mm`) also measures idle
+probe (`mac/tests/launch/SPDFMacLaunchPerformanceProbe.mm`, a library inserted into
+both apps) also measures idle
 CPU and wakeups (`PROBE_MODE=idle`), document opens and page jumps.
 
 **Extraction over cleverness, and pictures over prose.** The readme is

@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """Launch performance gate: this tree against the previous release, measured side by side in one run.
 
-Builds the previous release's app and launch probe from its source (cached under the work directory), then
-launches both probes headlessly (mac/tests/launch/SPDFMacLaunchPerformanceProbe.mm: no window on screen, no Dock
-icon, no activation, state in a scratch directory) in interleaved rounds:
+Takes the previous release's app from its DMG, as people download it (cached), and launches it beside this tree's app
+headlessly in interleaved rounds. Both run their own shipped code with the same probe inserted
+(mac/tests/launch/SPDFMacLaunchPerformanceProbe.mm, a library loaded through DYLD_INSERT_LIBRARIES into an ad hoc
+signed copy: no window on screen, no Dock icon, no activation, state in a scratch directory):
 
-    release            the previous release tag
+    release            the previous release
     friends-off        this tree with Friends turned off in Settings
     friends-on         this tree as installed (Friends on, its helper spawned at launch)
 
@@ -17,17 +18,17 @@ machine or a busier hour. Exit status 0 when every check passes, 1 when one fail
 
 The previous release, first match wins:
 
-    LAUNCH_PERF_BASELINE_SRC=<dir>          an unpacked ShenzhenPDF source tree (portable/, gfx/, ext/, tools/ and
-                                            usually mupdf/), such as a release's source archive
-    LAUNCH_PERF_BASELINE_RELEASE=<tag>      that release of casimir-engineering/shenzhen-pdf (26.10.11-1, or
-                                            "latest"): its source archive is downloaded once into the work directory
-    LAUNCH_PERF_BASELINE_REF=<ref>          a commit of this repository
-    (none of these)                         the newest release tag HEAD descends from, never one on HEAD itself
+    LAUNCH_PERF_BASELINE_APP=<ShenzhenPDF.app>   that app
+    LAUNCH_PERF_BASELINE_DMG=<dmg>               the app in that DMG
+    LAUNCH_PERF_BASELINE_RELEASE=<tag>           that release of casimir-engineering/shenzhen-pdf (26.10.11-1, or
+                                                 "latest"): its DMG, downloaded once and checked against GitHub's digest
+    (none of these)                              the release of the newest pdf/ tag HEAD descends from, never one on
+                                                 HEAD itself
 
-The Shenzhen repository starts from one commit, so until its first pdf/ release tag the last one is only on
-casimir-engineering/shenzhen-pdf: set LAUNCH_PERF_BASELINE_RELEASE=latest then.
+The DMGs and their apps are kept in $SHENZHEN_BUILD_CACHE/releases (default ~/Library/Caches/shenzhen-build), shared
+by every worktree. The previous release is never built from source: what is measured is what people run.
 """
-import argparse, json, os, re, shutil, statistics, subprocess, sys, time, urllib.request
+import argparse, hashlib, json, os, re, shutil, statistics, subprocess, sys, time, urllib.request
 
 # Margins. Each round launches every configuration once, back to back, so the machine's load at that moment
 # reaches all of them alike; a check compares the median over rounds of this tree's time divided by the release's
@@ -51,6 +52,7 @@ FRIENDS_ATTACH_MAIN_MS = 8.0
 
 CONFIGS = (("release", "release", None), ("friends-off", "current", False), ("friends-on", "current", True))
 SCENARIOS = ("empty", "drawing")
+PROBE = None  # the probe library, from --probe
 BASE_SETTINGS = ("version: 1\nshowShortcutHelpOnLaunch: false\nautoUpdateEnabled: false\n"
                  "defaultReaderPromptDismissed: true\nfullDiskAccessPromptDismissed: true\n"
                  "permissionsWizardShown: true\n")
@@ -65,29 +67,32 @@ def run(cmd, **kw):
 
 
 def previous_release(portable):
-    """The previous release as (kind, value): ("src", dir), ("release", tag) or ("ref", ref)."""
-    if os.environ.get("LAUNCH_PERF_BASELINE_SRC"):
-        return "src", os.path.abspath(os.environ["LAUNCH_PERF_BASELINE_SRC"])
+    """The previous release as (kind, value): ("app", path), ("dmg", path) or ("release", tag)."""
+    for kind, name in (("app", "LAUNCH_PERF_BASELINE_APP"), ("dmg", "LAUNCH_PERF_BASELINE_DMG")):
+        if os.environ.get(name):
+            return kind, os.path.abspath(os.environ[name])
     if os.environ.get("LAUNCH_PERF_BASELINE_RELEASE"):
         return "release", os.environ["LAUNCH_PERF_BASELINE_RELEASE"]
-    if os.environ.get("LAUNCH_PERF_BASELINE_REF"):
-        return "ref", os.environ["LAUNCH_PERF_BASELINE_REF"]
+    for retired in ("LAUNCH_PERF_BASELINE_SRC", "LAUNCH_PERF_BASELINE_REF"):
+        if os.environ.get(retired):
+            log(f"launch performance: {retired} is no longer read: the gate compares with a release's DMG")
+            sys.exit(2)
     # The newest release tag this tree descends from, never one on HEAD itself: during a release the new tag is
     # created after this sweep, and a tagged HEAD still compares against the release before it.
     # In the Shenzhen repository, where this app is apps/pdf, its release tags read pdf/<version>-<build>.
     prefix = subprocess.run(["git", "-C", portable, "rev-parse", "--show-prefix"], capture_output=True, text=True,
                             check=True).stdout.strip()
-    pattern = ("" if prefix == "portable/" else "pdf/") + "[0-9]*.[0-9]*.[0-9]*-[0-9]*"
+    tag_prefix = "" if prefix == "portable/" else "pdf/"
     tags = subprocess.run(["git", "-C", portable, "tag", "--merged", "HEAD", "--no-contains", "HEAD",
-                           "--sort=-creatordate", "--list", pattern],
+                           "--sort=-creatordate", "--list", tag_prefix + "[0-9]*.[0-9]*.[0-9]*-[0-9]*"],
                           capture_output=True, text=True, check=True).stdout.split()
     if not tags:
         log("launch performance: no previous release tag reachable from HEAD. Name the release to compare with:")
-        log("  LAUNCH_PERF_BASELINE_RELEASE=latest (or a tag such as 26.10.11-1) downloads its source from "
+        log("  LAUNCH_PERF_BASELINE_RELEASE=latest (or a tag such as 26.10.11-1) uses its DMG from "
             + release_repository(portable))
-        log("  LAUNCH_PERF_BASELINE_SRC=<dir> builds an unpacked source tree, LAUNCH_PERF_BASELINE_REF=<ref> a commit")
+        log("  LAUNCH_PERF_BASELINE_DMG=<dmg> or LAUNCH_PERF_BASELINE_APP=<app> one you have")
         sys.exit(2)
-    return "ref", tags[0]
+    return "release", tags[0][len(tag_prefix):]
 
 
 def release_repository(portable):
@@ -99,97 +104,120 @@ def release_repository(portable):
     return match.group(1)
 
 
-def github(url):
-    request = urllib.request.Request(url, headers={"User-Agent": "shenzhenpdf-launch-performance"})
+def asset_name(portable):
+    with open(os.path.join(portable, "release", "release-common.sh")) as f:
+        match = re.search(r'^SPDF_RELEASE_ASSET_NAME="([^"]+)"', f.read(), re.M)
+    if not match:
+        raise SystemExit("launch performance: SPDF_RELEASE_ASSET_NAME not found in release/release-common.sh")
+    return match.group(1)
+
+
+def github(url, accept="application/vnd.github+json"):
+    request = urllib.request.Request(url, headers={"User-Agent": "shenzhenpdf-launch-performance", "Accept": accept})
     token = os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN")
     if token and url.startswith("https://api.github.com/"):
         request.add_header("Authorization", "Bearer " + token)
     return urllib.request.urlopen(request, timeout=600)
 
 
-def download_release(args, tag, work):
-    """Unpacks the source archive of release `tag` ("latest": the newest published one); returns (name, dir)."""
-    repository = release_repository(args.portable)
-    if tag == "latest":
-        with github(f"https://api.github.com/repos/{repository}/releases/latest") as response:
-            tag = json.load(response)["tag_name"]
+def cache_root():
+    return os.path.join(os.path.expanduser(os.environ.get("SHENZHEN_BUILD_CACHE") or "~/Library/Caches/shenzhen-build"),
+                        "releases")
+
+
+def sha256(path):
+    digest = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(1 << 20), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def download_dmg(portable, tag):
+    """The DMG of release `tag` ("latest": the newest published one), checked against GitHub's digest; returns
+    (name, path)."""
+    repository, name = release_repository(portable), asset_name(portable)
+    with github(f"https://api.github.com/repos/{repository}/releases/"
+                + ("latest" if tag == "latest" else f"tags/{tag}")) as response:
+        release = json.load(response)
+    tag = release["tag_name"]
     if not re.fullmatch(r"[0-9A-Za-z._-]+", tag):
         raise SystemExit(f"launch performance: not a release tag: {tag}")
-    src = os.path.join(work, "download-" + tag, "src")
-    if not os.path.isdir(os.path.join(src, "portable")):
-        shutil.rmtree(os.path.dirname(src), ignore_errors=True)
-        os.makedirs(src)
-        archive = os.path.join(os.path.dirname(src), "source.tar.gz")
-        log(f"Downloading the source of {repository} {tag}")
-        with github(f"https://api.github.com/repos/{repository}/tarball/refs/tags/{tag}") as response, \
-                open(archive, "wb") as out:
-            shutil.copyfileobj(response, out)
-        # tar refuses absolute paths, ".." and extracting through a symbolic link; the archive has one top folder.
-        run(["tar", "-x", "-z", "--strip-components", "1", "-C", src, "-f", archive])
-        os.remove(archive)
-        if not os.path.isdir(os.path.join(src, "portable")):
-            raise SystemExit(f"launch performance: the {repository} {tag} source has no portable/")
-    return f"{repository} {tag}", src
+    asset = next((a for a in release.get("assets", []) if a.get("name") == name), None)
+    if not asset:
+        raise SystemExit(f"launch performance: {repository} {tag} has no {name}")
+    want = (asset.get("digest") or "").removeprefix("sha256:")
+    folder = os.path.join(cache_root(), repository, tag)
+    dmg = os.path.join(folder, name)
+    if os.path.isfile(dmg) and (not want or sha256(dmg) == want):
+        return f"{repository} {tag}", dmg
+    os.makedirs(folder, exist_ok=True)
+    log(f"Downloading {name} of {repository} {tag}")
+    partial = dmg + ".part"
+    # The public download URL: it redirects to storage that must not see an API token.
+    with github(asset["browser_download_url"], accept="application/octet-stream") as response, \
+            open(partial, "wb") as out:
+        shutil.copyfileobj(response, out)
+    got = sha256(partial)
+    if want and got != want:
+        os.remove(partial)
+        raise SystemExit(f"launch performance: {name} of {tag} is sha256 {got}, GitHub says {want}")
+    os.replace(partial, dmg)
+    return f"{repository} {tag}", dmg
 
 
-def build_release(args, baseline, work):
-    """Builds the previous release's app and probe, once per commit or source; returns (name, app, probe)."""
+def app_from_dmg(dmg, work):
+    """The app in `dmg`, copied out once beside it (or into the work directory for a DMG named directly)."""
+    folder = os.path.dirname(dmg) if dmg.startswith(cache_root() + os.sep) else os.path.join(work, "baseline")
+    app = os.path.join(folder, "ShenzhenPDF.app")
+    marker = os.path.join(folder, "app-from-dmg.sha256")
+    digest = sha256(dmg)
+    if os.path.isdir(app) and os.path.isfile(marker) and open(marker).read().strip() == digest:
+        return app
+    shutil.rmtree(app, ignore_errors=True)
+    os.makedirs(folder, exist_ok=True)
+    mount = os.path.join(work, "baseline-volume")
+    os.makedirs(mount, exist_ok=True)
+    run(["hdiutil", "attach", "-readonly", "-nobrowse", "-noautoopen", "-mountpoint", mount, dmg],
+        stdout=subprocess.DEVNULL)
+    try:
+        apps = [n for n in os.listdir(mount) if n.endswith(".app") and not os.path.islink(os.path.join(mount, n))]
+        if len(apps) != 1:
+            raise SystemExit(f"launch performance: {dmg} holds {apps}, not one app")
+        run(["ditto", os.path.join(mount, apps[0]), app])
+    finally:
+        subprocess.run(["hdiutil", "detach", mount], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    with open(marker, "w") as f:
+        f.write(digest + "\n")
+    return app
+
+
+def baseline_app(portable, baseline, work):
+    """The previous release's app as (name, path)."""
     kind, value = baseline
-    if kind == "ref":
-        commit = subprocess.run(["git", "-C", args.portable, "rev-parse", f"{value}^{{commit}}"],
-                                capture_output=True, text=True, check=True).stdout.strip()
-        name, root = value, os.path.join(work, "release-" + commit[:12])
-        src = os.path.join(root, "src")
-        if not os.path.isdir(os.path.join(src, "portable")):
-            shutil.rmtree(root, ignore_errors=True)
-            os.makedirs(src)
-            same_mupdf = subprocess.run(["git", "-C", args.portable, "diff", "--quiet", commit, "HEAD", "--",
-                                         "../mupdf"]).returncode == 0
-            paths = ["portable", "gfx", "ext", "tools"] + ([] if same_mupdf else ["mupdf"])
-            archive = subprocess.Popen(["git", "-C", os.path.dirname(args.portable), "archive", commit] + paths,
-                                       stdout=subprocess.PIPE)
-            run(["tar", "-x", "-C", src], stdin=archive.stdout)
-            if archive.wait() != 0:
-                raise SystemExit(f"launch performance: git archive {value} failed")
-            with open(os.path.join(root, "mupdf-dir"), "w") as f:
-                f.write(args.mupdf if same_mupdf else os.path.join(src, "mupdf"))
-    else:
-        if kind == "release":
-            name, src = download_release(args, value, work)
-            root = os.path.dirname(src)
-        else:
-            name, src = value, value
-            root = os.path.join(work, "source-" + re.sub(r"[^0-9A-Za-z._-]", "_", value.strip("/"))[-60:])
-            os.makedirs(root, exist_ok=True)
-        if not os.path.isfile(os.path.join(src, "portable", "Makefile")):
-            raise SystemExit(f"launch performance: {src} is not a ShenzhenPDF source tree (no portable/Makefile)")
-        with open(os.path.join(root, "mupdf-dir"), "w") as f:
-            f.write(os.path.join(src, "mupdf") if os.path.isdir(os.path.join(src, "mupdf")) else args.mupdf)
-    mupdf = open(os.path.join(root, "mupdf-dir")).read().strip()
-    jobs = str(os.cpu_count() or 4)
-    log(f"Building the {name} app and launch probe in {root}")
-    with open(os.path.join(root, "build.log"), "w") as out:
-        result = subprocess.run(["make", "-C", os.path.join(src, "portable"), "-j" + jobs, "-f", "Makefile", "-f",
-                                 os.path.join(args.launch_dir, "launch-performance-tests.mk"), "mac-app",
-                                 "launch-performance-probe", f"LAUNCH_PERF_SRC_DIR={args.launch_dir}",
-                                 f"BUILD={root}/build", f"DIST={root}/dist", f"MUPDF_DIR={mupdf}"],
-                                stdout=out, stderr=subprocess.STDOUT)
-    if result.returncode != 0:
-        raise SystemExit(f"launch performance: building {name} failed, see {root}/build.log")
-    return (name, os.path.join(root, "dist", "ShenzhenPDF.app"),
-            os.path.join(root, "build", "SPDFMacLaunchPerformanceProbe"))
+    if kind == "app":
+        return value, value
+    if kind == "dmg":
+        return os.path.basename(value), app_from_dmg(value, work)
+    name, dmg = download_dmg(portable, value)
+    return name, app_from_dmg(dmg, work)
 
 
-def bundle(app, probe, dest):
-    """A copy of `app` with the probe beside its executable, under its own bundle identifier."""
+def bundle(app, dest):
+    """An ad hoc signed copy of `app` under its own bundle identifier: the probe can be inserted (no hardened runtime),
+    and its Friends helper, signed without a team, honours the scratch state directory. Returns its executable."""
     shutil.rmtree(dest, ignore_errors=True)
     run(["ditto", app, dest])
-    run(["/usr/libexec/PlistBuddy", "-c", "Set :CFBundleIdentifier com.intuition.shenzhenpdf.launchperf",
-         os.path.join(dest, "Contents", "Info.plist")])
-    exe = os.path.join(dest, "Contents", "MacOS", "SPDFMacLaunchPerformanceProbe")
-    shutil.copy2(probe, exe)
-    run(["codesign", "--force", "--sign", "-", exe], stderr=subprocess.DEVNULL)
-    return exe
+    run(["xattr", "-cr", dest])
+    info = os.path.join(dest, "Contents", "Info.plist")
+    run(["/usr/libexec/PlistBuddy", "-c", "Set :CFBundleIdentifier com.intuition.shenzhenpdf.launchperf", info])
+    helpers = os.path.join(dest, "Contents", "Helpers")
+    for name in sorted(os.listdir(helpers)) if os.path.isdir(helpers) else []:
+        run(["codesign", "--force", "--deep", "--sign", "-", os.path.join(helpers, name)], stderr=subprocess.DEVNULL)
+    run(["codesign", "--force", "--sign", "-", dest], stderr=subprocess.DEVNULL)
+    executable = subprocess.run(["/usr/libexec/PlistBuddy", "-c", "Print :CFBundleExecutable", info],
+                                capture_output=True, text=True, check=True).stdout.strip()
+    return os.path.join(dest, "Contents", "MacOS", executable)
 
 
 def launch(exe, template, work, env_extra, args=()):
@@ -198,7 +226,8 @@ def launch(exe, template, work, env_extra, args=()):
     shutil.copytree(template, state)
     os.makedirs(os.path.join(state, "friends"), exist_ok=True)
     env = {k: v for k, v in os.environ.items() if not k.startswith(("SPDF_", "PROBE_", "SZFRIENDS_"))}
-    env.update({"SPDF_STATE_DIR": state, "SZFRIENDS_STATE_DIR": os.path.join(state, "friends")})
+    env.update({"SPDF_STATE_DIR": state, "SZFRIENDS_STATE_DIR": os.path.join(state, "friends"),
+                "DYLD_INSERT_LIBRARIES": PROBE})
     env.update(env_extra)
     try:
         out = subprocess.run([exe, *args], env=env, capture_output=True, text=True, timeout=120)
@@ -229,7 +258,8 @@ def templates(exes, work, document):
         drawing = os.path.join(work, "templates", f"drawing-{name}")
         shutil.rmtree(drawing, ignore_errors=True)
         shutil.copytree(empty, drawing)
-        env = {"SPDF_STATE_DIR": drawing, "SZFRIENDS_STATE_DIR": os.path.join(drawing, "friends"), "PROBE_MODE": "seed"}
+        env = {"SPDF_STATE_DIR": drawing, "SZFRIENDS_STATE_DIR": os.path.join(drawing, "friends"), "PROBE_MODE": "seed",
+               "DYLD_INSERT_LIBRARIES": PROBE}
         os.makedirs(env["SZFRIENDS_STATE_DIR"])
         base = {k: v for k, v in os.environ.items() if not k.startswith(("SPDF_", "PROBE_", "SZFRIENDS_"))}
         run([exes[tree], document], env={**base, **env}, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
@@ -255,18 +285,20 @@ def main():
     parser.add_argument("--probe", required=True)
     parser.add_argument("--work", required=True)
     parser.add_argument("--portable", required=True)
-    parser.add_argument("--mupdf", required=True)
-    parser.add_argument("--launch-dir", required=True)
     parser.add_argument("--rounds", type=int, default=int(os.environ.get("LAUNCH_PERF_ROUNDS", FIRST_ROUNDS)))
     args = parser.parse_args()
     work = os.path.abspath(args.work)
     os.makedirs(work, exist_ok=True)
+    global PROBE
+    PROBE = os.path.abspath(args.probe)
 
-    ref, release_app, release_probe = build_release(args, previous_release(args.portable), work)
-    exes = {"current": bundle(args.app, args.probe, os.path.join(work, "current", "ShenzhenPDF.app")),
-            "release": bundle(release_app, release_probe, os.path.join(work, "release", "ShenzhenPDF.app"))}
+    ref, release_app = baseline_app(args.portable, previous_release(args.portable), work)
+    log(f"Comparing {args.app} with {ref} ({release_app})")
+    exes = {"current": bundle(args.app, os.path.join(work, "current", "ShenzhenPDF.app")),
+            "release": bundle(release_app, os.path.join(work, "release", "ShenzhenPDF.app"))}
     document = os.path.join(work, "Drawing set.pdf")
-    run([exes["current"]], env={"PROBE_MODE": "fixture", "PROBE_DOCUMENT": document, "PATH": os.environ["PATH"]})
+    run([exes["current"]], env={"PROBE_MODE": "fixture", "PROBE_DOCUMENT": document, "PATH": os.environ["PATH"],
+                                "DYLD_INSERT_LIBRARIES": PROBE})
     states = templates(exes, work, document)
 
     results = {(name, scen): [] for name, _, _ in CONFIGS for scen in SCENARIOS}

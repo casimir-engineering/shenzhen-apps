@@ -1,7 +1,7 @@
-// Launch performance probe: runs the reader's real main() -- state migration, launch prerender,
-// NSApplication, [NSApp run], applicationDidFinishLaunching -- with every window refused before it reaches
-// the screen, no Dock icon (activation policy Prohibited), no activation, the updater inert and the Settings
-// sheet disabled. It reports, relative to the kernel's spawn time of this process:
+// Launch performance probe: a library inserted into the reader (DYLD_INSERT_LIBRARIES, into an ad hoc signed copy of
+// the app) that lets its real main() run -- state migration, launch prerender, NSApplication, [NSApp run],
+// applicationDidFinishLaunching -- with every window refused before it reaches the screen, no Dock icon (activation
+// policy Prohibited), no activation, the updater inert and the Settings sheet disabled. It reports, relative to the kernel's spawn time of this process:
 //   dfl_end      applicationDidFinishLaunching returned (window built, startup document opened)
 //   order        the window asked to come on screen (refused here)
 //   frame        the first frame drawn: the app's own post-launch display pass, then the whole window content
@@ -12,10 +12,11 @@
 // started. PROBE_SAMPLE=<n> samples the main thread at 1 kHz until the first frame and prints the top n functions;
 // sample_friends and sample_spawn count the samples inside Friends code or a process spawn. Every launch also counts
 // the process spawns the main thread made before the first frame, deterministically (SPDFMacLaunchSpawnGuard.mm).
-// Every symbol of the reader is reached through the Objective-C runtime, so this file builds against older
-// trees too (a release tag) for A/B comparison: mac/tests/launch/run-launch-performance.py does exactly that.
+// Every symbol of the reader is reached through the Objective-C runtime, so the same library measures any release's
+// app as shipped, for A/B comparison: mac/tests/launch/run-launch-performance.py does exactly that.
 //
-// Usage: PROBE_MODE=<mode> [PROBE_DOCUMENT=<path>] SPDFMacLaunchPerformanceProbe [document opened at launch]
+// Usage: DYLD_INSERT_LIBRARIES=SPDFMacLaunchPerformanceProbe.dylib PROBE_MODE=<mode> [PROBE_DOCUMENT=<path>]
+//        <ad hoc signed copy of ShenzhenPDF.app>/Contents/MacOS/ShenzhenPDF [document opened at launch]
 //   launch   report and exit once the post-launch work has settled
 //   idle     then also measure 60 s (PROBE_IDLE_SECONDS) of idle CPU and wakeups, this process and the
 //            Friends helper it spawned (found by executable path under this bundle)
@@ -29,6 +30,8 @@
 #import <objc/message.h>
 #import <objc/runtime.h>
 #include <libproc.h>
+#include <mach-o/dyld.h>
+#include <mach-o/loader.h>
 #include <mach/mach.h>
 #include <mach/mach_time.h>
 #include <signal.h>
@@ -37,7 +40,6 @@
 #include <time.h>
 #include <unistd.h>
 
-int spdf_reader_entrypoint(int argc, const char* argv[]);
 bool SPDFLaunchPerformanceWriteDrawingSet(const char* path, long pages, long curves);
 void SPDFLaunchSpawnGuardInstall(void);
 void SPDFLaunchSpawnGuardFrameDrawn(void);
@@ -78,6 +80,9 @@ static double StartTimeMs(pid_t pid) {
 #include <set>
 #include <string>
 #include <vector>
+// SPDFMacLaunchProbeSymbols.mm
+void SPDFLaunchProbeListReaderMethods(uintptr_t didFinishLaunching, uintptr_t friendsAfterFirstPaint);
+std::string SPDFLaunchProbeSymbol(uintptr_t pc);
 static mach_port_t gMainThread;
 // Fixed storage allocated before sampling starts: the sampler must not allocate while the main thread is suspended,
 // which may be holding the malloc lock.
@@ -129,16 +134,13 @@ static void StartSampler(void) {
     pthread_attr_set_qos_class_np(&attr, QOS_CLASS_USER_INTERACTIVE, 0);
     pthread_create(&thread, &attr, SamplerThread, NULL);
 }
-static std::string Symbol(uintptr_t pc) {
-    Dl_info info;
-    if (!dladdr((void*)(pc - 1), &info) || !info.dli_sname) return "?";
-    return info.dli_sname;
-}
+static IMP gOrderWindow, gSetPolicy, gMakeKeyAndOrderFront, gDidFinishLaunching, gFriendsAfterFirstPaint;
 static long gSampleTotal = -1, gSampleFriends = -1, gSampleSpawn = -1;
 static void StopSamplerAndReport(void) {
     if (!gSampling) return;
     gSampling = false;
     usleep(3000);
+    SPDFLaunchProbeListReaderMethods((uintptr_t)gDidFinishLaunching, (uintptr_t)gFriendsAfterFirstPaint);
     std::map<std::string, int> inclusive, self;
     gSampleTotal = gSampleCount;
     gSampleFriends = gSampleSpawn = 0;
@@ -148,7 +150,7 @@ static void StopSamplerAndReport(void) {
         bool friends = false, spawn = false;
         for (size_t i = 0; i < stack.size(); i++) {
             if (i == 1) continue; // LR: only meaningful when the PC is a leaf; the fp chain covers callers
-            std::string name = Symbol(stack[i]);
+            std::string name = SPDFLaunchProbeSymbol(stack[i]);
             if (i == 0) self[name]++;
             if (seen.insert(name).second) inclusive[name]++;
             // Friends work on the main thread before the first frame: its classes and C library are all named so.
@@ -190,7 +192,6 @@ static Usage UsageOf(pid_t pid) {
 }
 
 // ---- hooks -------------------------------------------------------------------------------------------------
-static IMP gOrderWindow, gSetPolicy, gMakeKeyAndOrderFront, gDidFinishLaunching, gFriendsAfterFirstPaint;
 static double gFriendsAfterPaintMs = -1, gFriendsAfterPaintCpuMs = -1;
 // The reader's Friends attach after the first paint (absent before Friends): its main-thread cost, wall and CPU.
 static void TimedFriendsAfterFirstPaint(id delegate, SEL sel) {
@@ -440,19 +441,23 @@ static void WrappedDidFinishLaunching(id delegate, SEL sel, NSNotification* note
     });
 }
 
-int main(int argc, const char* argv[]) {
+// Runs when dyld loads the library, after the reader's classes are registered and before its main(). The processes the
+// reader starts (the Friends helper) do not inherit the library; one that loads it anyway is left alone.
+__attribute__((constructor)) static void ProbeStart(void) {
+    unsetenv("DYLD_INSERT_LIBRARIES");
+    if (!NSClassFromString(@"ShenzhenMacDelegate")) return;
     gSpawnMs = StartTimeMs(getpid());
     SPDFLaunchSpawnGuardInstall();
     StartSampler();
     setvbuf(stdout, NULL, _IONBF, 0);
     if (getenv("PROBE_MODE") && !strcmp(getenv("PROBE_MODE"), "fixture")) {
         const char* path = getenv("PROBE_DOCUMENT");
-        return path && SPDFLaunchPerformanceWriteDrawingSet(path, 10, 12000) ? 0 : 2;
+        _exit(path && SPDFLaunchPerformanceWriteDrawingSet(path, 10, 12000) ? 0 : 2);
     }
     const char* state = getenv("SPDF_STATE_DIR");
     if (!state || !*state) {
         fprintf(stderr, "SPDF_STATE_DIR must name a scratch directory\n");
-        return 2;
+        _exit(2);
     }
     // Mode and document come from the environment: AppKit reads every non-option argument as a file to open.
     if (getenv("PROBE_MODE")) gMode = getenv("PROBE_MODE");
@@ -476,10 +481,9 @@ int main(int argc, const char* argv[]) {
         Replace(reader, @"applicationDidFinishLaunching:", (IMP)WrappedDidFinishLaunching, &gDidFinishLaunching);
         Replace(reader, @"friendsAfterFirstPaint", (IMP)TimedFriendsAfterFirstPaint, &gFriendsAfterFirstPaint);
         if (!gDidFinishLaunching) {
-            fprintf(stderr, "reader delegate not linked\n");
-            return 2;
+            fprintf(stderr, "reader delegate has no applicationDidFinishLaunching:\n");
+            _exit(2);
         }
     }
-    // A document on the command line opens at launch, as `ShenzhenPDF <path>` does.
-    return spdf_reader_entrypoint(argc, argv);
+    // The reader's main() runs next; a document on the command line opens at launch, as `ShenzhenPDF <path>` does.
 }
