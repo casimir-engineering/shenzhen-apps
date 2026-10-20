@@ -236,7 +236,12 @@ const INTENTS = {
   fetch_from_device: { keys: ["transfer_id"], ids: ["transfer_id"] },
   block: { keys: ["conversation_id"], ids: ["conversation_id"] },
   unblock: { keys: ["conversation_id"], ids: ["conversation_id"] },
-  remove_friend: { keys: ["conversation_id"], ids: ["conversation_id"] },
+  // Ticking "Also delete chat history" in Remove's question adds delete_history: true.
+  remove_friend: {
+    keys: ["conversation_id", "delete_history"],
+    ids: ["conversation_id"],
+    check: (fields) => bool(fields, "delete_history", { optional: true }),
+  },
   mark_verified: { keys: ["conversation_id"], ids: ["conversation_id"] },
   accept_key_change: { keys: ["conversation_id"], ids: ["conversation_id"] },
   set_name: { keys: ["name"], check: (fields) => text(fields, "name", 1024) },

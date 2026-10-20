@@ -90,13 +90,17 @@
         "action": "remove_friend",
         "label": "Remove friend",
         "style": "destructive",
-        "note": "Keeps your conversation. Mei can send you a new request.",
+        "note": "Takes Mei off your list. Mei can send you a new request.",
         "confirm": {
-          "title": "Remove Mei as a friend?",
-          "body": "Mei isn’t told. Your conversation stays, and Mei can send you a new request. Anything still waiting to go to Mei won’t be sent.",
-          "confirm_label": "Remove Friend",
+          "title": "Remove Mei?",
+          "body": "Mei leaves your list and isn’t told. Anything still waiting to go to Mei won’t be sent. Your chat history with Mei is kept unless you also delete it.",
+          "confirm_label": "Remove",
           "cancel_label": "Cancel",
-          "destructive": true
+          "destructive": true,
+          "option": {
+            "label": "Also delete chat history",
+            "field": "delete_history"
+          }
         }
       },
       {

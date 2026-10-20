@@ -46,7 +46,10 @@ static void TestExistingProfileGetsItsGenesis(void) {
     NSError *error = nil;
     SZFriendsStore *older = SZFTOpenStoreWithOptions(directory, v7, &error);
     SZFTExpect(older.schemaVersion == 7, @"a v7 store: %@", error);
-    SZFTAddPerson(older, @"mei", 1, SZFriendsRelationFriend, 1000);
+    // Written with plain SQL: this code saves the newest schema's columns.
+    SZFTScalar(older, @"INSERT INTO friends (conversation_id, identity_pk, relation, last_interaction_at) "
+                      @"VALUES ('mei', ?, ?, 1000)",
+               @[ SZFTBytes(1, 32), @(SZFriendsRelationFriend) ]);
     [older close];
     SZFriendsStore *store = SZFTOpenStore(directory);
     SZFTExpect(store.schemaVersion >= 8 && [store personWithConversationID:@"mei"] != nil, @"v7 to v8 keeps people");

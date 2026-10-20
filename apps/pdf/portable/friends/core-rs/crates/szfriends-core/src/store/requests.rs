@@ -56,7 +56,8 @@ fn held(conn: &Connection, conversation_id: &str, outbox: bool) -> Result<i64> {
 }
 
 const BACK_TO_REMOVED: &str = "UPDATE friends SET relation = 3, request_since = NULL, callback_token = NULL, \
-                               callback_secret = NULL, auto_accept = 0 WHERE conversation_id = ?1";
+                               callback_secret = NULL, auto_accept = 0, left_list_at = NULL \
+                               WHERE conversation_id = ?1";
 
 impl Store {
     /// Records a history event ("now_friends", "blocked"...) in a conversation, now.

@@ -242,7 +242,7 @@
         "table",
         "friends",
         "friends",
-        "CREATE TABLE friends (\n  conversation_id TEXT PRIMARY KEY NOT NULL,\n  identity_pk BLOB UNIQUE CHECK (identity_pk IS NULL OR length(identity_pk) = 32),\n  static_pk BLOB CHECK (static_pk IS NULL OR length(static_pk) = 32),\n  friends_id TEXT, name TEXT,\n  picture_kind INTEGER NOT NULL DEFAULT 0, picture_set INTEGER NOT NULL DEFAULT 0,\n  picture_index INTEGER NOT NULL DEFAULT -1, picture_path TEXT, picture_sha256 BLOB,\n  relation INTEGER NOT NULL CHECK (relation BETWEEN 0 AND 4),\n  verified INTEGER NOT NULL DEFAULT 0, verified_at REAL, comparison_code TEXT,\n  auto_accept INTEGER NOT NULL DEFAULT 0, key_change_pending INTEGER NOT NULL DEFAULT 0,\n  presence_secret BLOB CHECK (presence_secret IS NULL OR length(presence_secret) = 32),\n  callback_token BLOB CHECK (callback_token IS NULL OR length(callback_token) = 16),\n  callback_secret BLOB CHECK (callback_secret IS NULL OR length(callback_secret) = 32),\n  last_interaction_at REAL NOT NULL, unread_count INTEGER NOT NULL DEFAULT 0,\n  request_at REAL, request_found_nearby INTEGER NOT NULL DEFAULT 0, pending_static_pk BLOB\n  CHECK (pending_static_pk IS NULL OR length(pending_static_pk) = 32), request_since REAL, attested_friends_id TEXT, id_attestation BLOB\n  CHECK (id_attestation IS NULL OR length(id_attestation) BETWEEN 1 AND 1024), id_attestation_day TEXT, unconfirmed_answer_id TEXT)"
+        "CREATE TABLE friends (\n  conversation_id TEXT PRIMARY KEY NOT NULL,\n  identity_pk BLOB UNIQUE CHECK (identity_pk IS NULL OR length(identity_pk) = 32),\n  static_pk BLOB CHECK (static_pk IS NULL OR length(static_pk) = 32),\n  friends_id TEXT, name TEXT,\n  picture_kind INTEGER NOT NULL DEFAULT 0, picture_set INTEGER NOT NULL DEFAULT 0,\n  picture_index INTEGER NOT NULL DEFAULT -1, picture_path TEXT, picture_sha256 BLOB,\n  relation INTEGER NOT NULL CHECK (relation BETWEEN 0 AND 4),\n  verified INTEGER NOT NULL DEFAULT 0, verified_at REAL, comparison_code TEXT,\n  auto_accept INTEGER NOT NULL DEFAULT 0, key_change_pending INTEGER NOT NULL DEFAULT 0,\n  presence_secret BLOB CHECK (presence_secret IS NULL OR length(presence_secret) = 32),\n  callback_token BLOB CHECK (callback_token IS NULL OR length(callback_token) = 16),\n  callback_secret BLOB CHECK (callback_secret IS NULL OR length(callback_secret) = 32),\n  last_interaction_at REAL NOT NULL, unread_count INTEGER NOT NULL DEFAULT 0,\n  request_at REAL, request_found_nearby INTEGER NOT NULL DEFAULT 0, pending_static_pk BLOB\n  CHECK (pending_static_pk IS NULL OR length(pending_static_pk) = 32), request_since REAL, attested_friends_id TEXT, id_attestation BLOB\n  CHECK (id_attestation IS NULL OR length(id_attestation) BETWEEN 1 AND 1024), id_attestation_day TEXT, unconfirmed_answer_id TEXT, left_list_at REAL)"
       ],
       [
         "table",
@@ -390,7 +390,7 @@
       ]
     ],
     "search_uses_index" : true,
-    "user_version" : 10
+    "user_version" : 11
   },
   "migrated_v1" : {
     "integrity" : "ok",
@@ -497,7 +497,7 @@
         "table",
         "friends",
         "friends",
-        "CREATE TABLE friends (\n  conversation_id TEXT PRIMARY KEY NOT NULL,\n  identity_pk BLOB UNIQUE CHECK (identity_pk IS NULL OR length(identity_pk) = 32),\n  static_pk BLOB CHECK (static_pk IS NULL OR length(static_pk) = 32),\n  friends_id TEXT, name TEXT,\n  picture_kind INTEGER NOT NULL DEFAULT 0, picture_set INTEGER NOT NULL DEFAULT 0,\n  picture_index INTEGER NOT NULL DEFAULT -1, picture_path TEXT, picture_sha256 BLOB,\n  relation INTEGER NOT NULL CHECK (relation BETWEEN 0 AND 4),\n  verified INTEGER NOT NULL DEFAULT 0, verified_at REAL, comparison_code TEXT,\n  auto_accept INTEGER NOT NULL DEFAULT 0, key_change_pending INTEGER NOT NULL DEFAULT 0,\n  presence_secret BLOB CHECK (presence_secret IS NULL OR length(presence_secret) = 32),\n  callback_token BLOB CHECK (callback_token IS NULL OR length(callback_token) = 16),\n  callback_secret BLOB CHECK (callback_secret IS NULL OR length(callback_secret) = 32),\n  last_interaction_at REAL NOT NULL, unread_count INTEGER NOT NULL DEFAULT 0,\n  request_at REAL, request_found_nearby INTEGER NOT NULL DEFAULT 0, pending_static_pk BLOB\n  CHECK (pending_static_pk IS NULL OR length(pending_static_pk) = 32), request_since REAL, attested_friends_id TEXT, id_attestation BLOB\n  CHECK (id_attestation IS NULL OR length(id_attestation) BETWEEN 1 AND 1024), id_attestation_day TEXT, unconfirmed_answer_id TEXT)"
+        "CREATE TABLE friends (\n  conversation_id TEXT PRIMARY KEY NOT NULL,\n  identity_pk BLOB UNIQUE CHECK (identity_pk IS NULL OR length(identity_pk) = 32),\n  static_pk BLOB CHECK (static_pk IS NULL OR length(static_pk) = 32),\n  friends_id TEXT, name TEXT,\n  picture_kind INTEGER NOT NULL DEFAULT 0, picture_set INTEGER NOT NULL DEFAULT 0,\n  picture_index INTEGER NOT NULL DEFAULT -1, picture_path TEXT, picture_sha256 BLOB,\n  relation INTEGER NOT NULL CHECK (relation BETWEEN 0 AND 4),\n  verified INTEGER NOT NULL DEFAULT 0, verified_at REAL, comparison_code TEXT,\n  auto_accept INTEGER NOT NULL DEFAULT 0, key_change_pending INTEGER NOT NULL DEFAULT 0,\n  presence_secret BLOB CHECK (presence_secret IS NULL OR length(presence_secret) = 32),\n  callback_token BLOB CHECK (callback_token IS NULL OR length(callback_token) = 16),\n  callback_secret BLOB CHECK (callback_secret IS NULL OR length(callback_secret) = 32),\n  last_interaction_at REAL NOT NULL, unread_count INTEGER NOT NULL DEFAULT 0,\n  request_at REAL, request_found_nearby INTEGER NOT NULL DEFAULT 0, pending_static_pk BLOB\n  CHECK (pending_static_pk IS NULL OR length(pending_static_pk) = 32), request_since REAL, attested_friends_id TEXT, id_attestation BLOB\n  CHECK (id_attestation IS NULL OR length(id_attestation) BETWEEN 1 AND 1024), id_attestation_day TEXT, unconfirmed_answer_id TEXT, left_list_at REAL)"
       ],
       [
         "table",
@@ -645,7 +645,7 @@
       ]
     ],
     "search_uses_index" : true,
-    "user_version" : 10
+    "user_version" : 11
   },
   "outbox_next_state" : [
     [
@@ -928,7 +928,7 @@
       "sanitized" : "name.verylongextension1"
     }
   ],
-  "schema_version" : 10,
+  "schema_version" : 11,
   "source" : "Exported by portable/friends/core-rs/tools/objc-vectors from the Objective-C helper's own code. Regenerate with `make friends-vectors-export`; do not edit by hand.",
   "transfer_next_state" : [
     [

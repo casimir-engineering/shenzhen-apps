@@ -128,17 +128,10 @@ impl SnapshotBuilder {
             actions.push(Value::Object(unblock));
         } else {
             if friend {
-                // Ending a friendship cannot be undone from this side, so it asks first.
+                // Ending a friendship cannot be undone from this side, so it asks first, as the list's menu does.
                 let mut remove = self.action("remove_friend", s.text("action.remove"), "destructive");
                 remove.insert("note".into(), json!(s.text_with("details.remove_note", who)));
-                let confirm = self.confirm(
-                    "action.remove.confirm.title",
-                    "action.remove.confirm.body",
-                    "action.remove.confirm.button",
-                    who,
-                    true,
-                );
-                remove.insert("confirm".into(), confirm);
+                remove.insert("confirm".into(), self.remove_confirm(person));
                 actions.push(Value::Object(remove));
             }
             let mut block = self.block_action(&first, s.text_with("action.block", who));

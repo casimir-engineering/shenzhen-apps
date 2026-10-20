@@ -242,3 +242,47 @@ fn host_attestations_confirm_ids_and_lapse_with_a_rename() {
     store.connection().execute("UPDATE profile SET friends_id = 'loud-fox' WHERE id = 1", []).unwrap();
     assert_eq!(store.friends_id_attestation(), None, "a rename voids it");
 }
+
+#[test]
+fn only_a_removed_or_blocked_person_can_be_off_the_list() {
+    let scratch = Scratch::new("off-list");
+    let mut store = open(&scratch);
+    let mut mei = person(&mut store, Relation::Removed, 1, None);
+    mei.left_list_at = Some(1000.0);
+    store.save_person(&mei).unwrap();
+    let read = store.person_with_conversation(&mei.conversation_id).unwrap().unwrap();
+    assert_eq!(read.left_list_at, Some(1000.0));
+    // Blocking keeps them off it; a request from either side brings them back.
+    mei.relation = Relation::Blocked;
+    store.save_person(&mei).unwrap();
+    assert_eq!(store.person_with_conversation(&mei.conversation_id).unwrap().unwrap().left_list_at, Some(1000.0));
+    for relation in [Relation::IncomingRequest, Relation::OutgoingRequest, Relation::Friend] {
+        let mut again = mei.clone();
+        again.relation = relation;
+        store.save_person(&again).unwrap();
+        let read = store.person_with_conversation(&mei.conversation_id).unwrap().unwrap();
+        assert_eq!(read.left_list_at, None, "{relation:?} saves no left_list_at");
+        let stored: Option<f64> = store
+            .connection()
+            .query_row("SELECT left_list_at FROM friends WHERE conversation_id = ?1", [&mei.conversation_id], |r| {
+                r.get(0)
+            })
+            .unwrap();
+        assert_eq!(stored, None);
+    }
+    // A column an older helper left behind counts only while the relation allows it.
+    store
+        .connection()
+        .execute(
+            "UPDATE friends SET left_list_at = 2000, relation = 0 WHERE conversation_id = ?1",
+            [&mei.conversation_id],
+        )
+        .unwrap();
+    assert_eq!(store.person_with_conversation(&mei.conversation_id).unwrap().unwrap().left_list_at, None);
+    store
+        .connection()
+        .execute("UPDATE friends SET relation = 3 WHERE conversation_id = ?1", [&mei.conversation_id])
+        .unwrap();
+    let removed = store.people_by_latest_interaction().unwrap();
+    assert_eq!(removed[0].left_list_at, Some(2000.0));
+}

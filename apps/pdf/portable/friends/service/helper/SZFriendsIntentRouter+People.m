@@ -83,12 +83,20 @@
         [self fail:reply code:@"stale" details:nil connection:connection];
         return;
     }
-    // Removed, not blocked: the person can ask again later (PROTOCOL.md decline_request).
-    person.relation = SZFriendsRelationRemoved;
-    if (![self savePerson:person reply:reply connection:connection]) return;
-    [self enqueueKind:SZFriendsOutboxKindAnswer conversationID:person.conversationID payload:@{@"frame" : @"decline"}];
+    if (![self declineRequestOf:person reply:reply connection:connection]) return;
     [self.services.nearby peopleChanged];
     [self succeed:reply result:nil];
+}
+
+// Removed, not blocked: the person can ask again later (PROTOCOL.md decline_request). Also remove_friend's first step
+// for an incoming request.
+- (BOOL)declineRequestOf:(SZFriendsPersonRecord *)person
+                   reply:(SZFriendsIntentReply)reply
+              connection:(SZFriendsIPCConnection *)connection {
+    person.relation = SZFriendsRelationRemoved;
+    if (![self savePerson:person reply:reply connection:connection]) return NO;
+    [self enqueueKind:SZFriendsOutboxKindAnswer conversationID:person.conversationID payload:@{@"frame" : @"decline"}];
+    return YES;
 }
 
 - (void)intent_cancel_request:(NSDictionary *)intent connection:(SZFriendsIPCConnection *)connection
@@ -99,8 +107,17 @@
         [self fail:reply code:@"stale" details:nil connection:connection];
         return;
     }
+    if (![self cancelRequestTo:person reply:reply connection:connection]) return;
+    [self.services.nearby peopleChanged];
+    [self succeed:reply result:nil];
+}
+
+// Also remove_friend's first step for an outgoing request.
+- (BOOL)cancelRequestTo:(SZFriendsPersonRecord *)person
+                  reply:(SZFriendsIntentReply)reply
+             connection:(SZFriendsIPCConnection *)connection {
     person.relation = SZFriendsRelationRemoved;
-    if (![self savePerson:person reply:reply connection:connection]) return;
+    if (![self savePerson:person reply:reply connection:connection]) return NO;
     [self.services.store deleteIDRequestForConversation:person.conversationID error:NULL];
     // A request still waiting in the outbox must not go out after the person withdrew it; one already delivered is
     // withdrawn with a CANCEL.
@@ -110,8 +127,7 @@
         }
     }
     [self enqueueKind:SZFriendsOutboxKindAnswer conversationID:person.conversationID payload:@{@"frame" : @"cancel"}];
-    [self.services.nearby peopleChanged];
-    [self succeed:reply result:nil];
+    return YES;
 }
 
 - (void)intent_send_request:(NSDictionary *)intent connection:(SZFriendsIPCConnection *)connection
@@ -273,23 +289,65 @@
     [self succeed:reply result:nil];
 }
 
+// Takes anyone but You off the list (PROTOCOL.md remove_friend). A friend is removed first, quietly as ever; a request
+// is declined or withdrawn exactly as decline_request and cancel_request do; anyone else (a former friend, someone
+// who removed us, a link contact, a blocked person, who stays blocked) only leaves the list. The row and its history
+// stay unless delete_history asks for that too, and a new request from either side brings them back.
 - (void)intent_remove_friend:(NSDictionary *)intent connection:(SZFriendsIPCConnection *)connection
                        reply:(SZFriendsIntentReply)reply {
-    SZFriendsPersonRecord *person = [self personForIntent:intent reply:reply connection:connection];
-    if (person == nil) return;
-    if (person.relation != SZFriendsRelationFriend) {
-        [self fail:reply code:@"not_friends" details:nil connection:connection];
+    id deleteHistory = intent[@"delete_history"];
+    if (deleteHistory == [NSNull null]) deleteHistory = nil;
+    if (deleteHistory != nil && !SZFriendsJSONIsBool(deleteHistory)) {
+        [self fail:reply code:@"invalid_field" details:@{@"field" : @"delete_history"} connection:connection];
         return;
     }
+    SZFriendsPersonRecord *person = [self personForIntent:intent reply:reply connection:connection];
+    if (person == nil) return;
+    if ([self isYou:person]) {
+        [self fail:reply code:@"not_allowed" details:nil connection:connection];
+        return;
+    }
+    if (person.leftListAt != nil) {
+        [self succeed:reply result:nil]; // already off the list
+        return;
+    }
+    switch (person.relation) {
+    case SZFriendsRelationFriend:
+        if (![self removeFriend:person reply:reply connection:connection]) return;
+        break;
+    case SZFriendsRelationIncomingRequest:
+        if (![self declineRequestOf:person reply:reply connection:connection]) return;
+        break;
+    case SZFriendsRelationOutgoingRequest:
+        if (![self cancelRequestTo:person reply:reply connection:connection]) return;
+        break;
+    case SZFriendsRelationRemoved:
+    case SZFriendsRelationBlocked:
+        break;
+    }
+    // After any history event above, so the removal is the last thing that happened to them here.
+    person.leftListAt = [NSDate date];
+    if (![self savePerson:person reply:reply connection:connection]) return;
+    [self.services.nearby peopleChanged];
+    if ([deleteHistory boolValue] && ![self eraseHistoryInConversation:person.conversationID]) {
+        [self fail:reply code:@"internal" details:nil connection:connection];
+        return;
+    }
+    [self succeed:reply result:nil];
+}
+
+// Removing a friend tells them nothing (brief § Outbox and delivery).
+- (BOOL)removeFriend:(SZFriendsPersonRecord *)person
+               reply:(SZFriendsIntentReply)reply
+          connection:(SZFriendsIPCConnection *)connection {
     person.relation = SZFriendsRelationRemoved;
     person.autoAccept = NO;
-    if (![self savePerson:person reply:reply connection:connection]) return;
+    if (![self savePerson:person reply:reply connection:connection]) return NO;
     [self refusePendingEntriesOfConversation:person.conversationID];
     [self declineWaitingOffersOfConversation:person.conversationID];
     [self recordEvent:SZFriendsEventRemoved inConversation:person.conversationID];
     [self rotatePresenceSecretExcept:person.conversationID];
-    [self.services.nearby peopleChanged];
-    [self succeed:reply result:nil];
+    return YES;
 }
 
 - (void)intent_mark_verified:(NSDictionary *)intent connection:(SZFriendsIPCConnection *)connection

@@ -101,6 +101,7 @@ impl State {
             .people
             .iter()
             .filter(|p| Some(p.conversation_id.as_str()) != conversation_id)
+            .filter(|p| !p.left_list) // off the list: nothing of theirs waits in it
             .filter(|p| p.relation == Relation::IncomingRequest || p.offers_waiting > 0)
             .count() as i64
     }

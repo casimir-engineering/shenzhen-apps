@@ -234,6 +234,7 @@ NSArray<NSString *> *SZFriendsHelperCapabilityList(SZFriendsHelperServices *serv
     facts.receivedRevealPath = self.profile.receivedDirectory;
     if (_linkContacts == nil) _linkContacts = [_services.store linkContactConversationIDs] ?: [NSSet set];
     facts.linkContact = [_linkContacts containsObject:record.conversationID];
+    facts.leftList = record.leftListAt != nil;
     return facts;
 }
 
@@ -280,6 +281,7 @@ NSArray<NSString *> *SZFriendsHelperCapabilityList(SZFriendsHelperServices *serv
     NSInteger count = 0;
     for (SZFriendsPersonFacts *person in self.people) {
         if (conversationID != nil && [person.conversationID isEqualToString:conversationID]) continue;
+        if (person.leftList) continue; // off the list: nothing of theirs waits in it
         if (person.relation == SZFriendsPersonRelationIncomingRequest || person.offersWaiting > 0 ||
             person.keyChangePending) {
             count++;

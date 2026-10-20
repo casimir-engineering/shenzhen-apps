@@ -75,9 +75,10 @@ fn destructive_actions() {
     expect_armed_block(named(&actions, "block"), "Mei");
     let remove = named(&actions, "remove_friend");
     assert!(remove["style"] == "destructive" && remove["confirm"]["destructive"] == true);
-    assert_eq!(remove["confirm"]["title"], "Remove Mei as a friend?");
-    assert_eq!(remove["confirm"]["confirm_label"], "Remove Friend");
+    assert_eq!(remove["confirm"]["title"], "Remove Mei?");
+    assert_eq!(remove["confirm"]["confirm_label"], "Remove");
     assert!(remove["confirm"]["body"].as_str().unwrap().contains("won’t be sent"));
+    assert!(remove["confirm"].get("option").is_none(), "no history here: nothing to delete");
     mei.key_change_pending = true;
     expect_armed_block(named(&details(&mei)["key_change"]["actions"], "block"), "Mei");
     let lena = PersonFacts {

@@ -66,9 +66,9 @@ static void TestDestructiveActions(void) {
     ExpectArmedBlock(ActionNamed(actions, @"block"), @"Mei", @"details");
     NSDictionary *remove = ActionNamed(actions, @"remove_friend");
     SZPExpect([remove[@"style"] isEqual:@"destructive"] && [remove[@"confirm"][@"destructive"] isEqual:@YES] &&
-                  [remove[@"confirm"][@"title"] isEqual:@"Remove Mei as a friend?"] &&
-                  [remove[@"confirm"][@"confirm_label"] isEqual:@"Remove Friend"] &&
-                  [remove[@"confirm"][@"body"] containsString:@"won’t be sent"],
+                  [remove[@"confirm"][@"title"] isEqual:@"Remove Mei?"] &&
+                  [remove[@"confirm"][@"confirm_label"] isEqual:@"Remove"] &&
+                  [remove[@"confirm"][@"body"] containsString:@"won’t be sent"] && remove[@"confirm"][@"option"] == nil,
               @"Remove friend asks first, in red: %@", remove);
 
     mei.keyChangePending = YES;

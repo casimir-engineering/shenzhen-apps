@@ -63,17 +63,19 @@ static SZFriendsPersonRecord *SZFriendsPersonFromRow(sqlite3_stmt *s) {
     person.friendsIDAttestationDay = person.friendsIDAttestation ? SZFriendsColumnText(s, 26) : nil;
     person.friendsIDConfirmed = person.friendsIDAttestation != nil && person.friendsIDAttestationDay != nil;
     person.unconfirmedAnswerID = SZFriendsColumnText(s, 27);
+    person.leftListAt = SZFriendsColumnDate(s, 28);
     return person;
 }
 
 // After the saved columns: the pending key; when the waiting request began, only while one waits (rows a v2 helper
 // made a request have no request_since, and count from when they were asked); the attestation with its day, only
 // while it covers the Friends ID the row holds now, so changing the ID by any path, even an older helper's, voids it;
-// and an unconfirmed answer's ID, only while the row still waits as an incoming request.
+// an unconfirmed answer's ID, only while the row still waits as an incoming request; and when the person took them off
+// the list, only while they are Removed or Blocked, so any other relation, even one an older helper wrote, voids it.
 static NSString *const SZFriendsPersonReadColumns =
     @"pending_static_pk, CASE WHEN relation IN (0, 1) THEN coalesce(request_since, request_at, last_interaction_at) "
     @"END, CASE WHEN attested_friends_id = friends_id THEN id_attestation END, id_attestation_day, "
-    @"CASE WHEN relation = 0 THEN unconfirmed_answer_id END";
+    @"CASE WHEN relation = 0 THEN unconfirmed_answer_id END, CASE WHEN relation IN (3, 4) THEN left_list_at END";
 
 NSArray<SZFriendsPersonRecord *> *SZFriendsStorePeople(SZFriendsStoreDB *db, NSString *_Nullable whereClause,
                                                        NSArray *_Nullable binds) {
@@ -88,6 +90,12 @@ NSArray<SZFriendsPersonRecord *> *SZFriendsStorePeople(SZFriendsStoreDB *db, NSS
         NSLog(@"Friends store: reading people failed: %@", error.localizedDescription);
     }
     return people;
+}
+
+// Only someone who is no longer a friend (Removed) or is blocked can be off the list: saving any other relation, such
+// as a new request from either side, puts them back on it.
+static BOOL SZFriendsMayBeOffTheList(SZFriendsRelation relation) {
+    return relation == SZFriendsRelationRemoved || relation == SZFriendsRelationBlocked;
 }
 
 static BOOL SZFriendsHasLength(NSData *_Nullable data, NSUInteger length) { return !data || data.length == length; }
@@ -142,13 +150,14 @@ BOOL SZFriendsStoreSavePerson(SZFriendsStoreDB *db, SZFriendsPersonRecord *perso
         @(person.keyChangePending), SZFriendsSQL(person.presenceSecret), SZFriendsSQL(person.callbackToken),
         SZFriendsSQL(person.callbackSecret), person.lastInteractionAt ?: [NSDate date], @(MAX(person.unreadCount, 0)),
         SZFriendsSQL(person.requestAt), @(person.requestFoundNearby), SZFriendsSQL(SZFriendsRequestStart(person)),
-        SZFriendsSQL(person.relation == SZFriendsRelationIncomingRequest ? person.unconfirmedAnswerID : nil)
+        SZFriendsSQL(person.relation == SZFriendsRelationIncomingRequest ? person.unconfirmedAnswerID : nil),
+        SZFriendsSQL(SZFriendsMayBeOffTheList(person.relation) ? person.leftListAt : nil)
     ]];
     // unread_count is not in the update list and the latest interaction only moves forward: a helper saving a copy
     // it read before a message arrived must not erase that message's unread mark or its place in the list.
     NSString *sql = [NSString stringWithFormat:
-        @"INSERT INTO friends (%@, request_since, unconfirmed_answer_id) "
-        @"VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) "
+        @"INSERT INTO friends (%@, request_since, unconfirmed_answer_id, left_list_at) "
+        @"VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) "
         @"ON CONFLICT(conversation_id) DO UPDATE SET identity_pk = excluded.identity_pk, "
         @"static_pk = excluded.static_pk, friends_id = excluded.friends_id, name = excluded.name, "
         @"picture_kind = excluded.picture_kind, picture_set = excluded.picture_set, "
@@ -161,7 +170,7 @@ BOOL SZFriendsStoreSavePerson(SZFriendsStoreDB *db, SZFriendsPersonRecord *perso
         @"callback_secret = excluded.callback_secret, "
         @"last_interaction_at = max(friends.last_interaction_at, excluded.last_interaction_at), "
         @"request_at = excluded.request_at, request_found_nearby = excluded.request_found_nearby, "
-        @"unconfirmed_answer_id = excluded.unconfirmed_answer_id, "
+        @"unconfirmed_answer_id = excluded.unconfirmed_answer_id, left_list_at = excluded.left_list_at, "
         // A request keeps the moment it began while it waits in the same direction; anything else starts afresh.
         @"request_since = CASE WHEN excluded.relation NOT IN (0, 1) THEN NULL "
         @"WHEN friends.relation = excluded.relation AND friends.request_since IS NOT NULL THEN friends.request_since "

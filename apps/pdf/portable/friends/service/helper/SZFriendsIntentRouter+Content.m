@@ -454,16 +454,21 @@ static const NSUInteger SZFriendsSearchLimitMax = 50;
     id conversationID = intent[@"conversation_id"];
     if (conversationID == [NSNull null]) conversationID = nil;
     if (conversationID != nil && [self personForIntent:intent reply:reply connection:connection] == nil) return;
+    if (![self eraseHistoryInConversation:conversationID]) {
+        [self fail:reply code:@"internal" details:nil connection:connection];
+        return;
+    }
+    [self succeed:reply result:nil];
+}
+
+// delete_history, and remove_friend's delete_history: one conversation's history, or all of it for nil.
+- (BOOL)eraseHistoryInConversation:(nullable NSString *)conversationID {
     // With another device of ours, the deletion reaches every one of them (sync); otherwise it is the store's alone.
     SZFriendsNearbyService *nearby = self.services.nearby;
     BOOL erased = nearby ? [nearby eraseHistoryInConversation:conversationID]
                          : [self.services.store deleteHistoryInConversation:conversationID error:NULL];
-    if (!erased) {
-        [self fail:reply code:@"internal" details:nil connection:connection];
-        return;
-    }
-    [self.services.nearby historyDeleted];
-    [self succeed:reply result:nil];
+    if (erased) [self.services.nearby historyDeleted];
+    return erased;
 }
 
 @end

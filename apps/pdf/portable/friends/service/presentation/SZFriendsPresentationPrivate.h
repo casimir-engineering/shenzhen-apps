@@ -112,6 +112,8 @@ NSDictionary<NSString *, NSString *> *SZFriendsEnglishCatalogDevices(void);  // 
 // whose U+2011 would hide the second word's initial).
 - (NSString *)initialsSourceForName:(nullable NSString *)name friendsID:(nullable NSString *)friendsID;
 - (BOOL)personWaits:(SZFriendsPersonFacts *)person;
+// Remove's question for this person (remove_friend), as the row's menu and a friend's details ask it.
+- (NSDictionary<NSString *, id> *)removeConfirmForPerson:(SZFriendsPersonFacts *)person;
 - (NSArray<SZFriendsPersonFacts *> *)peopleByLatestInteraction:(NSArray<SZFriendsPersonFacts *> *)people;
 - (BOOL)name:(nullable NSString *)name friendsID:(nullable NSString *)friendsID matchesQuery:(NSString *)query;
 - (NSDictionary<NSString *, id> *)emptyWithKind:(nullable NSString *)kind title:(NSString *)title
