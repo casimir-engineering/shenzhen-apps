@@ -1,8 +1,8 @@
 //! Every golden fixture under `fixtures/snapshots/` rebuilt from the facts behind it, as the same JSON value the
 //! Objective-C builder makes (`SZFriendsPresentationTests.m`, `...JoinTests.m`, `...LinksTests.m`,
 //! `...MentionTests.m`, `...AssistantTests.m`), each also validated against PROTOCOL.md's schema blocks. The people
-//! come through a real store first (`through_store`). The devices-* and online-* fixtures are in
-//! `presentation_devices.rs`.
+//! come through a real store first (`through_store`). The devices-*, online-* and phone-* fixtures are in
+//! `presentation_devices.rs`; phone-* only the Rust core builds, since only it serves phones.
 
 mod presentation;
 
@@ -18,7 +18,7 @@ use szfriends_core::presentation::{
 use szfriends_core::store::{PhoneFolder, ReceivedFallback, ReceivedFile, ReceivedSource};
 
 /// Every snapshot fixture, and the suite that builds it.
-const COVERED: [&str; 35] = [
+const COVERED: [&str; 36] = [
     "badge.json",
     "list.json",
     "list-id-changed.json",
@@ -51,6 +51,7 @@ const COVERED: [&str; 35] = [
     "devices-conversation-mei-files.json",
     "devices-settings.json",
     "devices-details-mei.json",
+    "phone-settings.json",
     "online-list.json",
     "online-conversation-kenji-relay.json",
     "online-conversation-priya-unreachable.json",

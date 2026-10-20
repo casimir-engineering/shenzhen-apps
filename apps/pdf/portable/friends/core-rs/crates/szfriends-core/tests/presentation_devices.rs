@@ -209,9 +209,11 @@ fn settings_words_on_a_phone() {
         identity_state: IdentityState::Unavailable,
         ..profile_raph()
     };
-    let mut phone = audience();
-    phone.app_name = "Shenzhen 3D".into();
-    phone.capabilities.insert("files.share".into());
+    let phone = phone_audience();
+    // The golden phone Settings: Android's Downloads, friends to choose from, one device.
+    let built = builder(phone.clone())
+        .settings(&ProfileFacts { received: profile.received.clone(), ..profile_raph() }, &everyone(&people));
+    expect_fixture(&built, "phone-settings.json", "settings");
     let mut assistant = phone.clone();
     assistant.capabilities.insert("assistant.chats".into());
     for audience in [phone, assistant] {
@@ -247,6 +249,14 @@ fn settings_words_on_a_phone() {
     let automatic = &builder(audience()).settings(&profile_raph(), &[])["auto_accept"];
     assert_eq!(automatic["friends"], serde_json::json!([]));
     assert_eq!(automatic["note"], "Turn it on for a friend in their details.");
+}
+
+/// Shenzhen 3D on a phone: the Tauri host adds `files.share` there.
+fn phone_audience() -> Audience {
+    let mut phone = audience();
+    phone.app_name = "Shenzhen 3D".into();
+    phone.capabilities.insert("files.share".into());
+    phone
 }
 
 fn online_audience() -> Audience {
