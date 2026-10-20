@@ -114,6 +114,7 @@ static NSError *SZFriendsTransferError(SZFriendsStoreError code, NSString *why) 
     NSString *snapshot = [_outgoingDirectory stringByAppendingPathComponent:transferID];
     uint64_t size = 0;
     NSData *digest = nil, *sha256 = nil;
+    int64_t modified = SZFriendsFileModifiedNs(path); // before the copy, so a change during it shows later
     if (!SZFriendsSnapshotFile(path, snapshot, self.freeBytesProvider(_stateDirectory), &size, &digest,
                                revision.sha256 ? &sha256 : NULL, error)) {
         return nil;
@@ -137,6 +138,8 @@ static NSError *SZFriendsTransferError(SZFriendsStoreError code, NSString *why) 
     record.stagedPath = snapshot;
     record.revision = revision;
     record.createdAt = [NSDate date];
+    record.sourcePath = path.stringByStandardizingPath;
+    record.sourceModifiedNs = modified;
     BOOL ok = [_store performWrite:^BOOL(SZFriendsStoreDB *db, NSError **inner) {
         if (!SZFriendsTransferRowInsert(db, record, nil, inner)) return NO;
         [self->_checkedSnapshots addObject:transferID]; // just hashed

@@ -11,30 +11,48 @@ static NSString *SZFriendsSyncWantKey(NSString *transferID) {
     return [@"want/" stringByAppendingString:transferID];
 }
 
+static BOOL SZFriendsSyncIsWholeFile(NSString *_Nullable path, uint64_t size) {
+    if (path.length == 0) return NO;
+    NSDictionary *attributes = [NSFileManager.defaultManager attributesOfItemAtPath:path error:NULL];
+    return [attributes.fileType isEqualToString:NSFileTypeRegular] && attributes.fileSize == size;
+}
+
+NSString *_Nullable SZFriendsSyncLocalPathOfTransfer(SZFriendsTransferRecord *transfer) {
+    if (!transfer.outgoing) {
+        // Received here (or copied from another of our devices): the published file, where it was saved.
+        BOOL received = transfer.state == SZFriendsTransferStateReceived;
+        return received && SZFriendsSyncIsWholeFile(transfer.receivedPath, transfer.size) ? transfer.receivedPath : nil;
+    }
+    // Ours: the snapshot while it is kept, a copy from another of our devices, or the file it was sent from while it
+    // is unchanged since (ADR 0016).
+    if (SZFriendsSyncIsWholeFile(transfer.stagedPath, transfer.size)) return transfer.stagedPath;
+    if (SZFriendsSyncIsWholeFile(transfer.receivedPath, transfer.size)) return transfer.receivedPath;
+    BOOL unchanged = transfer.sourceModifiedNs != 0 &&
+                     SZFriendsFileModifiedNs(transfer.sourcePath) == transfer.sourceModifiedNs;
+    return unchanged && SZFriendsSyncIsWholeFile(transfer.sourcePath, transfer.size) ? transfer.sourcePath : nil;
+}
+
 @implementation SZFriendsSyncEngine (Files)
 
 - (nullable NSString *)localPathOfFile:(NSString *)transferID {
     SZFriendsTransferRecord *transfer = [self.store transferRecordWithID:transferID];
-    if (transfer == nil) return nil;
-    // Ours being sent: the snapshot; received here (or copied from another of our devices): the published file.
-    NSString *path = transfer.outgoing && transfer.stagedPath ? transfer.stagedPath : transfer.receivedPath;
-    BOOL usable = transfer.outgoing ? path != nil : (transfer.state == SZFriendsTransferStateReceived && path != nil);
-    if (!usable) return nil;
-    NSDictionary *attributes = [NSFileManager.defaultManager attributesOfItemAtPath:path error:NULL];
-    if (![attributes.fileType isEqualToString:NSFileTypeRegular] || attributes.fileSize != transfer.size) return nil;
-    return path;
+    return transfer ? SZFriendsSyncLocalPathOfTransfer(transfer) : nil;
 }
 
 - (NSArray<SZFriendsSyncFileRecord *> *)filesWanted {
     NSData *me = self.identity.publicKey;
     NSMutableArray<SZFriendsSyncFileRecord *> *asked = [NSMutableArray array], *automatic = [NSMutableArray array];
     for (SZFriendsSyncFileRecord *file in [self.store syncFiles]) {
-        if ([self.store transferRecordWithID:file.transferID] != nil) continue; // here already, bytes or not
+        SZFriendsTransferRecord *here = [self.store transferRecordWithID:file.transferID];
+        if (here != nil && SZFriendsSyncLocalPathOfTransfer(here) != nil) continue; // its bytes are here
         BOOL elsewhere = NO;
         for (NSData *holder in file.holders) elsewhere = elsewhere || ![holder isEqualToData:me];
         if (!elsewhere) continue;
         if ([self.store syncStateForKey:SZFriendsSyncWantKey(file.transferID)] != nil) [asked addObject:file];
-        else if (SZFriendsSyncCopiesAutomatically(file.size, file.conversationID)) [automatic addObject:file];
+        // What the person moved or deleted here comes back only when they ask (Get).
+        else if (here == nil && SZFriendsSyncCopiesAutomatically(file.size, file.conversationID)) {
+            [automatic addObject:file];
+        }
     }
     NSComparator older = ^NSComparisonResult(SZFriendsSyncFileRecord *a, SZFriendsSyncFileRecord *b) {
         NSComparisonResult order = [a.createdAt compare:b.createdAt];

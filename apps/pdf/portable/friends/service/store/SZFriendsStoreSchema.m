@@ -9,7 +9,7 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-const NSInteger SZFriendsStoreSchemaVersion = 11;
+const NSInteger SZFriendsStoreSchemaVersion = 12;
 
 // Pictures are columns rather than an archived object so a later Linux helper reads them with plain SQL.
 // Times are Unix seconds (REAL). Keys and secrets are BLOBs with their lengths checked by the schema itself, so a
@@ -262,6 +262,12 @@ static NSString *const SZFriendsSchemaV10 =
 // Additive, so min_reader_version stays 2: a v10 helper ignores the column and still lists the person.
 static NSString *const SZFriendsSchemaV11 = @"ALTER TABLE friends ADD COLUMN left_list_at REAL;\n";
 
+// v12, getting a file again (ADR 0016): where an outgoing file was sent from and its modification time then, so the
+// computer that sent it still holds its bytes while that file is unchanged, and can give it again to the friend it
+// went to. Never synced. Additive, so min_reader_version stays 2: a v11 helper ignores both columns.
+static NSString *const SZFriendsSchemaV12 = @"ALTER TABLE transfers ADD COLUMN source_path TEXT;\n"
+                                             "ALTER TABLE transfers ADD COLUMN source_mtime_ns INTEGER;\n";
+
 @implementation SZFriendsStoreMigration
 
 + (instancetype)migrationToVersion:(NSInteger)version
@@ -346,7 +352,13 @@ NSArray<SZFriendsStoreMigration *> *SZFriendsStoreShippedMigrations(void) {
                      apply:^BOOL(SZFriendsStoreDB *db, NSError **error) {
                          return [db exec:SZFriendsSchemaV11 error:error];
                      }];
-    return @[ v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11 ];
+    SZFriendsStoreMigration *v12 = [SZFriendsStoreMigration
+        migrationToVersion:12
+          minReaderVersion:0
+                     apply:^BOOL(SZFriendsStoreDB *db, NSError **error) {
+                         return [db exec:SZFriendsSchemaV12 error:error];
+                     }];
+    return @[ v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12 ];
 }
 
 BOOL SZFriendsStoreReadVersions(SZFriendsStoreDB *db, NSInteger *userVersion, NSInteger *minReaderVersion,

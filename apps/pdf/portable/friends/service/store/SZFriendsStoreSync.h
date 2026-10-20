@@ -198,13 +198,16 @@ typedef NSDictionary<NSData *, NSNumber *> SZFriendsSyncVector;
 // Every transfer row here, and the history item showing one.
 - (NSArray<SZFriendsTransferRecord *> *)allTransferRecords;
 - (nullable NSString *)itemIDForTransfer:(NSString *)transferID inConversation:(NSString *)conversationID;
-// Transfers this device holds the bytes of: ours with a staged copy, received here, or copied from another device.
-- (NSArray<SZFriendsTransferRecord *> *)transfersWithLocalBytes;
 - (nullable SZFriendsTransferRecord *)transferRecordWithID:(NSString *)transferID;
 // A transfers row for a file whose bytes were copied from another device, in the state the profile's record has,
 // pointing at `path` (in received/). An outgoing copy holds a received path and no snapshot, which is how
 // -setState:ofCopiedTransfer: tells it from the device that sends it.
 - (BOOL)insertCopiedTransfer:(SZFriendsTransferRecord *)transfer path:(NSString *)path error:(NSError **)error;
+// The same, for bytes that came from `source`: a friend's again (ADR 0016), or another of our devices.
+- (BOOL)insertCopiedTransfer:(SZFriendsTransferRecord *)transfer
+                        path:(NSString *)path
+                      source:(SZFriendsReceivedSource)source
+                       error:(NSError **)error;
 - (BOOL)setState:(SZFriendsTransferState)state ofCopiedTransfer:(NSString *)transferID error:(NSError **)error;
 
 @end
