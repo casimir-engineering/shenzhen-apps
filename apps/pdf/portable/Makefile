@@ -942,7 +942,9 @@ include mac/tests/translation-tests.mk
 include friends/friends.mk
 # The host adapter's suite runs with the Friends suites, so the release sweep's friends-tests covers it.
 include mac/friends/friends-host-adapter.mk
-friends-tests: friends-suite mac-friends-host-adapter-tests
+# The dropdown driven end to end, clicks and keys against real helpers (mac/friends/tests/ui-e2e/friends-ui-e2e.mk).
+include mac/friends/tests/ui-e2e/friends-ui-e2e.mk
+friends-tests: friends-suite mac-friends-host-adapter-tests friends-ui-e2e
 
 # Shenzhen Friends in ShenzhenPDF.app (friends/README.md § Integration the lead owns). Read after friends.mk, so the
 # Friends variables are set here and prerequisite lists get a second expansion.

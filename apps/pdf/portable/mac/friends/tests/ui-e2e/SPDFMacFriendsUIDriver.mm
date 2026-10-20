@@ -1,0 +1,561 @@
+// friends-ui-e2e's driver (SPDFMacFriendsUIE2E.h): rigs, real events, the live view tree, screenshots.
+
+#import "SPDFMacFriendsUIE2E.h"
+
+#import "SPDFMacFriendsAppearance.h"
+#import "SPDFMacFriendsTitleBar.h"
+#import "mac/SZFriendsListPage.h"
+#include "client/szfriends_client.h"
+
+int UIFailures = 0;
+NSMutableArray<NSString*>* UIFlowResults;
+NSString* UIRoot = @"";
+NSString* UIShotsRoot = @"";
+NSString* UIHelperExecutable = @"";
+NSString* UIManifest = @"";
+
+@implementation UIVariant
+@end
+
+@implementation UIBridge
+- (instancetype)init {
+    if ((self = [super init])) {
+        _opened = [NSMutableArray array];
+        _revealed = [NSMutableArray array];
+        _dropdownWidth = 400;
+    }
+    return self;
+}
+- (void)friendsBridgeInstallTitleBarButton:(NSView*)button { self.installed = button; }
+- (void)friendsBridgeRemoveTitleBarButton:(NSView*)button {
+    if (self.installed == button) self.installed = nil;
+}
+- (NSArray<NSDictionary*>*)friendsBridgeOpenDocuments { return @[]; }
+- (id<SPDFMacFriendsCollectionLookup>)friendsBridgeCollectionLookup { return nil; }
+- (void)friendsBridgeOpenPaths:(NSArray<NSString*>*)paths { [self.opened addObjectsFromArray:paths]; }
+- (void)friendsBridgeRevealFiles:(NSArray<NSURL*>*)fileURLs { [self.revealed addObjectsFromArray:fileURLs]; }
+- (void)friendsBridgeServicesChanged:(id<SZFriendsServices>)services { (void)services; }
+// The reader's own tokens, at the width this variant asks for.
+- (SZFriendsAppearance*)friendsBridgeAppearance {
+    SZFriendsAppearance* appearance = SPDFMacFriendsReaderAppearance();
+    appearance.dropdownWidth = self.dropdownWidth;
+    return appearance;
+}
+@end
+
+@implementation UIRig
+- (SZFriendsDropdownContent*)content { return self.dropdown.content; }
+- (SZFriendsListPage*)listPage { return self.dropdown.content.listPage; }
+- (NSWindow*)popoverWindow { return self.dropdown.shown ? self.dropdown.content.window : nil; }
+@end
+
+#pragma mark - Failures
+
+void UIFail(UIRig* rig, const char* file, int line, const char* condition, NSString* detail) {
+    UIFailures++;
+    NSString* where = rig ? [NSString stringWithFormat:@"[%@ %@ step %ld] ", rig.variant.name, rig.flow,
+                                                       (long)rig.step] : @"";
+    fprintf(stderr, "%s:%d: %sexpected %s\n  %s\n", file, line, where.UTF8String, condition, detail.UTF8String);
+    if (!rig) return;
+    NSView* root = rig.popoverWindow ? rig.content : nil;
+    if (root) fprintf(stderr, "  the popover shows:\n%s\n", UIDescribe(root).UTF8String);
+    if (rig.popoverWindow) UIShot(rig, @"FAILED");
+}
+
+#pragma mark - Waiting
+
+void UISpin(NSTimeInterval seconds) {
+    UIWait(seconds, ^BOOL { return NO; });
+}
+
+BOOL UIWait(NSTimeInterval seconds, BOOL (^condition)(void)) {
+    NSDate* deadline = [NSDate dateWithTimeIntervalSinceNow:seconds];
+    while (!condition()) {
+        if (deadline.timeIntervalSinceNow <= 0) return NO;
+        @autoreleasepool {
+            [NSRunLoop.mainRunLoop runMode:NSDefaultRunLoopMode beforeDate:[NSDate dateWithTimeIntervalSinceNow:0.01]];
+            // Window-server events (none are expected; ours go straight to the windows) never pile up.
+            NSEvent* event = [NSApp nextEventMatchingMask:NSEventMaskAny untilDate:nil inMode:NSDefaultRunLoopMode
+                                                  dequeue:YES];
+            if (event) [NSApp sendEvent:event];
+            SZFE2EPump(0);
+        }
+    }
+    return YES;
+}
+
+NSInteger UISnapshotCount(UIRig* rig, NSString* view) {
+    return rig.snapshotCounts[view].integerValue;
+}
+
+BOOL UIWaitNextSnapshot(UIRig* rig, NSString* view, NSInteger count, NSTimeInterval seconds) {
+    BOOL arrived = UIWait(seconds, ^BOOL { return UISnapshotCount(rig, view) > count; });
+    // The views' own subscriptions receive the same frame in the same turn; let them lay out before anyone looks.
+    UISpin(0.05);
+    return arrived;
+}
+
+void UIObserve(UIRig* rig, NSString* view) {
+    if (rig.snapshotCounts[view]) return;
+    rig.snapshotCounts[view] = @0;
+    __weak UIRig* weakRig = rig;
+    [rig.link subscribeToView:view params:nil handler:^(NSDictionary* data, NSInteger rev) {
+        (void)rev;
+        UIRig* strong = weakRig;
+        strong.snapshots[view] = data;
+        strong.snapshotCounts[view] = @(strong.snapshotCounts[view].integerValue + 1);
+    }];
+}
+
+#pragma mark - The view tree
+
+NSArray<NSView*>* UIAllViews(NSView* root) {
+    NSMutableArray* views = [NSMutableArray arrayWithObject:root];
+    for (NSView* subview in root.subviews) [views addObjectsFromArray:UIAllViews(subview)];
+    return views;
+}
+
+BOOL UIVisible(NSView* view) {
+    if (!view.window || NSWidth(view.bounds) < 1 || NSHeight(view.bounds) < 1) return NO;
+    NSRect visible = view.bounds;
+    for (NSView* v = view; v; v = v.superview) {
+        if (v.hidden || v.alphaValue < 0.01) return NO;
+        if (v != view && [v isKindOfClass:NSClipView.class]) {
+            NSRect clip = [v convertRect:v.bounds toView:view];
+            visible = NSIntersectionRect(visible, clip);
+            if (NSIsEmptyRect(visible)) return NO;
+        }
+    }
+    return YES;
+}
+
+static NSString* UIWords(NSView* view) {
+    if ([view isKindOfClass:NSTextField.class]) {
+        NSTextField* field = (NSTextField*)view;
+        return field.stringValue.length ? field.stringValue : nil;
+    }
+    if ([view isKindOfClass:NSTextView.class]) return ((NSTextView*)view).string;
+    if ([view isKindOfClass:NSButton.class]) {
+        NSButton* button = (NSButton*)view;
+        if (button.title.length) return button.title;
+    }
+    NSString* label = view.accessibilityLabel;
+    return label.length ? label : nil;
+}
+
+NSView* UIFindText(NSView* root, NSString* text) {
+    for (NSView* view in UIAllViews(root)) {
+        NSString* words = UIWords(view);
+        // Rows speak in lower case ("Kenji, request sent") what they draw as a capitalised subtitle.
+        if (words && [words rangeOfString:text options:NSCaseInsensitiveSearch].location != NSNotFound && UIVisible(view))
+            return view;
+    }
+    return nil;
+}
+
+NSButton* UIFindButton(NSView* root, NSString* title) {
+    for (NSView* view in UIAllViews(root)) {
+        if (![view isKindOfClass:NSButton.class]) continue;
+        NSButton* button = (NSButton*)view;
+        if (([button.title isEqualToString:title] || [button.accessibilityLabel isEqualToString:title]) &&
+            UIVisible(button))
+            return button;
+    }
+    return nil;
+}
+
+NSString* UIDescribe(NSView* root) {
+    NSMutableArray* lines = [NSMutableArray array];
+    for (NSView* view in UIAllViews(root)) {
+        NSString* words = UIWords(view);
+        if (!words.length || !UIVisible(view)) continue;
+        NSString* kind = [view isKindOfClass:NSButton.class]
+                             ? (((NSButton*)view).enabled ? @"button" : @"button (disabled)")
+                             : NSStringFromClass(view.class);
+        [lines addObject:[NSString stringWithFormat:@"    %@: %@", kind,
+                                   [words stringByReplacingOccurrencesOfString:@"\n" withString:@" / "]]];
+    }
+    return [lines componentsJoinedByString:@"\n"];
+}
+
+// Views of `view` (inclusive) lying outside `area` in `root`'s coordinates; a scroll view's document may extend past
+// it (it scrolls), and controls are checked as a whole.
+static void UIOutside(NSView* view, NSView* root, NSRect area, NSMutableArray* problems) {
+    if (view.hidden || view.alphaValue < 0.01) return;
+    NSRect frame = [view convertRect:view.bounds toView:root];
+    if (NSWidth(frame) > 0 && NSHeight(frame) > 0 && !NSContainsRect(NSInsetRect(area, -0.5, -0.5), frame))
+        [problems addObject:[NSString stringWithFormat:@"%@ \"%@\" lies outside the popover: %@ not in %@",
+                                                       view.className, UIWords(view) ?: @"",
+                                                       NSStringFromRect(frame), NSStringFromRect(area)]];
+    if ([view isKindOfClass:NSScrollView.class] || [view isKindOfClass:NSControl.class]) return;
+    for (NSView* subview in view.subviews) UIOutside(subview, root, area, problems);
+}
+
+NSArray<NSString*>* UILayoutProblems(UIRig* rig) {
+    NSMutableArray* problems = [NSMutableArray array];
+    SZFriendsDropdownContent* content = rig.content;
+    NSView* frameView = content.superview;
+    if (!frameView) return @[ @"the dropdown is in no popover" ];
+    [content layoutSubtreeIfNeeded];
+    // The content keeps the place the popover gave it (the 2026-10-20 report: shifted down and left, cropped).
+    if (!NSContainsRect(NSInsetRect(frameView.bounds, -0.5, -0.5), content.frame))
+        [problems addObject:[NSString stringWithFormat:@"the dropdown %@ leaves the popover %@",
+                                                       NSStringFromRect(content.frame),
+                                                       NSStringFromRect(frameView.bounds)]];
+    UIOutside(content, frameView, content.frame, problems);
+    for (NSView* view in UIAllViews(content)) {
+        if (!UIVisible(view)) continue;
+        if ([view isKindOfClass:NSTextField.class]) {
+            NSTextField* label = (NSTextField*)view;
+            if (label.editable || !label.stringValue.length || label.cell.lineBreakMode == NSLineBreakByTruncatingTail)
+                continue;
+            CGFloat needed = [label.cell cellSizeForBounds:NSMakeRect(0, 0, NSWidth(label.frame), CGFLOAT_MAX)].height;
+            if (NSHeight(label.frame) + 0.5 < needed)
+                [problems addObject:[NSString stringWithFormat:@"\"%@\" is cut: %.0f pt of %.0f", label.stringValue,
+                                                               NSHeight(label.frame), needed]];
+        } else if ([view isKindOfClass:SZFriendsButton.class]) {
+            SZFriendsButton* button = (SZFriendsButton*)view;
+            if (!button.title.length || button.style == SZFriendsButtonStylePlain) continue;
+            if ([button fittingWidth] > NSWidth(button.frame) + 0.5)
+                [problems addObject:[NSString stringWithFormat:@"button \"%@\" is cut: %.0f pt of %.0f", button.title,
+                                                               NSWidth(button.frame), [button fittingWidth]]];
+        }
+    }
+    return problems;
+}
+
+#pragma mark - Events
+
+static NSInteger UIEventNumber = 1;
+static BOOL UIWhollyShown(NSView* view);
+
+// A press and release at the middle of `view`, through its window, as the window server would deliver them: the
+// release is queued first, so a control's tracking loop finds it. The point must reach `view` by hit testing, so a
+// control drawn under another view fails here as it would for a person.
+BOOL UIClick(NSView* view, NSString** why) {
+    // Out of sight in a scroll view, a person scrolls to it first.
+    if (view.window && !UIWhollyShown(view)) UIScrollIntoView(view);
+    NSWindow* window = view.window;
+    if (!window || !UIVisible(view)) {
+        if (why) *why = [NSString stringWithFormat:@"%@ \"%@\" is not on screen", view.className, UIWords(view) ?: @""];
+        return NO;
+    }
+    [window layoutIfNeeded];
+    NSRect bounds = view.bounds;
+    NSPoint point = [view convertPoint:NSMakePoint(NSMidX(bounds), NSMidY(bounds)) toView:nil];
+    NSView* top = window.contentView.superview ?: window.contentView;
+    NSView* hit = [top hitTest:point];
+    if (!(hit == view || [hit isDescendantOf:view])) {
+        if (why) *why = [NSString stringWithFormat:@"a click on %@ \"%@\" lands on %@", view.className,
+                                                   UIWords(view) ?: @"", hit.className];
+        return NO;
+    }
+    if ([view isKindOfClass:NSControl.class] && !((NSControl*)view).enabled) {
+        if (why) *why = [NSString stringWithFormat:@"%@ \"%@\" is disabled", view.className, UIWords(view) ?: @""];
+        return NO;
+    }
+    // Key first, as the person's first click on a window makes it: the click itself then reaches the control.
+    if (!window.isKeyWindow) [window makeKeyWindow];
+    NSTimeInterval now = NSProcessInfo.processInfo.systemUptime;
+    NSEvent* down = [NSEvent mouseEventWithType:NSEventTypeLeftMouseDown location:point modifierFlags:0 timestamp:now
+                                   windowNumber:window.windowNumber context:nil eventNumber:UIEventNumber++
+                                     clickCount:1 pressure:1];
+    NSEvent* up = [NSEvent mouseEventWithType:NSEventTypeLeftMouseUp location:point modifierFlags:0
+                                    timestamp:now + 0.05 windowNumber:window.windowNumber context:nil
+                                  eventNumber:UIEventNumber++ clickCount:1 pressure:0];
+    [NSApp postEvent:up atStart:NO];
+    [window sendEvent:down];
+    // A view that does not track the press leaves the release queued: deliver it as the window server would.
+    NSEvent* left = [NSApp nextEventMatchingMask:NSEventMaskLeftMouseUp untilDate:nil inMode:NSDefaultRunLoopMode
+                                         dequeue:YES];
+    if (left) [left.window ?: window sendEvent:left];
+    UISpin(0.05);
+    return YES;
+}
+
+// Is `view` wholly inside its scroll view's visible part (or in none)?
+static BOOL UIWhollyShown(NSView* view) {
+    NSScrollView* scroll = view.enclosingScrollView;
+    if (!scroll) return UIVisible(view);
+    NSRect inClip = [view convertRect:view.bounds toView:scroll.contentView];
+    return NSContainsRect(NSInsetRect(scroll.contentView.bounds, -0.5, -0.5), inClip);
+}
+
+BOOL UIScrollIntoView(NSView* view) {
+    NSScrollView* scroll = view.enclosingScrollView;
+    for (int attempt = 0; scroll && !UIWhollyShown(view) && attempt < 80; attempt++) {
+        NSRect inClip = [view convertRect:view.bounds toView:scroll.contentView];
+        NSRect shown = scroll.contentView.bounds;
+        BOOL below = scroll.contentView.isFlipped ? NSMaxY(inClip) > NSMaxY(shown) : NSMinY(inClip) < NSMinY(shown);
+        // A wheel turn of 30 points, as a trackpad without momentum sends it, to the scroll view under the pointer.
+        CGEventRef wheel = CGEventCreateScrollWheelEvent(NULL, kCGScrollEventUnitPixel, 1, below ? -30 : 30);
+        NSEvent* event = wheel ? [NSEvent eventWithCGEvent:wheel] : nil;
+        if (wheel) CFRelease(wheel);
+        if (!event) return NO;
+        [scroll scrollWheel:event];
+        UISpin(0.02);
+    }
+    return UIWhollyShown(view);
+}
+
+NSView* UIReveal(NSView* root, NSString* text) {
+    for (NSView* view in UIAllViews(root)) {
+        NSString* words = UIWords(view);
+        if (!words || [words rangeOfString:text options:NSCaseInsensitiveSearch].location == NSNotFound) continue;
+        BOOL shown = YES;
+        for (NSView* v = view; v && v != root.superview; v = v.superview)
+            if (v.hidden || v.alphaValue < 0.01) shown = NO;
+        if (shown && UIScrollIntoView(view) && UIVisible(view)) return view;
+    }
+    return nil;
+}
+
+static NSTextView* UIEditor(NSWindow* window) {
+    NSResponder* responder = window.firstResponder;
+    return [responder isKindOfClass:NSTextView.class] ? (NSTextView*)responder : nil;
+}
+
+BOOL UIType(NSWindow* window, NSString* text) {
+    NSTextView* editor = UIEditor(window);
+    if (!editor) return NO;
+    for (NSUInteger i = 0; i < text.length; i++) {
+        NSRange range = [text rangeOfComposedCharacterSequenceAtIndex:i];
+        [editor insertText:[text substringWithRange:range] replacementRange:NSMakeRange(NSNotFound, 0)];
+        i = NSMaxRange(range) - 1;
+    }
+    UISpin(0.02);
+    return YES;
+}
+
+BOOL UIClearField(NSWindow* window) {
+    NSTextView* editor = UIEditor(window);
+    if (!editor) return NO;
+    [editor selectAll:nil];
+    [editor deleteBackward:nil];
+    UISpin(0.02);
+    return YES;
+}
+
+void UIKey(NSWindow* window, unsigned short keyCode, NSString* characters) {
+    NSTimeInterval now = NSProcessInfo.processInfo.systemUptime;
+    const NSEventType types[] = {NSEventTypeKeyDown, NSEventTypeKeyUp};
+    for (NSEventType type : types) {
+        NSEvent* event = [NSEvent keyEventWithType:type location:NSZeroPoint modifierFlags:0 timestamp:now
+                                      windowNumber:window.windowNumber context:nil characters:characters
+                                 charactersIgnoringModifiers:characters isARepeat:NO keyCode:keyCode];
+        [window sendEvent:event];
+    }
+    UISpin(0.05);
+}
+
+void UIPressReturn(NSWindow* window) { UIKey(window, 36, @"\r"); }
+void UIPressEscape(NSWindow* window) { UIKey(window, 53, @"\x1b"); }
+
+#pragma mark - Rigs
+
+void UIBeginFlow(UIRig* rig, NSString* flow) {
+    rig.flow = flow;
+    rig.step = 0;
+}
+
+static NSString* UIShotPath(UIRig* rig, NSString* name) {
+    NSString* folder = [[UIShotsRoot stringByAppendingPathComponent:rig.variant.name]
+        stringByAppendingPathComponent:rig.flow ?: @"setup"];
+    [NSFileManager.defaultManager createDirectoryAtPath:folder withIntermediateDirectories:YES attributes:nil
+                                                  error:nil];
+    rig.step += 1;
+    return [folder stringByAppendingPathComponent:[NSString stringWithFormat:@"%02ld-%@.png", (long)rig.step, name]];
+}
+
+// `view` drawn over the dropdown's own background, so the PNG reads like the screen whatever the popover's glass does.
+static BOOL UIWritePNG(NSView* view, NSColor* background, NSString* path) {
+    [view layoutSubtreeIfNeeded];
+    NSRect bounds = view.bounds;
+    if (NSIsEmptyRect(bounds)) return NO;
+    CGFloat scale = 2;
+    NSBitmapImageRep* layer = [view bitmapImageRepForCachingDisplayInRect:bounds];
+    [view.effectiveAppearance performAsCurrentDrawingAppearance:^{ [view cacheDisplayInRect:bounds toBitmapImageRep:layer]; }];
+    NSBitmapImageRep* rep = [[NSBitmapImageRep alloc]
+        initWithBitmapDataPlanes:NULL pixelsWide:(NSInteger)(NSWidth(bounds) * scale)
+                      pixelsHigh:(NSInteger)(NSHeight(bounds) * scale) bitsPerSample:8 samplesPerPixel:4 hasAlpha:YES
+                        isPlanar:NO colorSpaceName:NSCalibratedRGBColorSpace bytesPerRow:0 bitsPerPixel:0];
+    rep.size = bounds.size;
+    NSGraphicsContext* context = [NSGraphicsContext graphicsContextWithBitmapImageRep:rep];
+    [NSGraphicsContext saveGraphicsState];
+    NSGraphicsContext.currentContext = context;
+    [view.effectiveAppearance performAsCurrentDrawingAppearance:^{
+        [background setFill];
+        NSRectFill(NSMakeRect(0, 0, NSWidth(bounds), NSHeight(bounds)));
+        [layer drawInRect:NSMakeRect(0, 0, NSWidth(bounds), NSHeight(bounds)) fromRect:NSZeroRect
+                operation:NSCompositingOperationSourceOver fraction:1 respectFlipped:YES hints:nil];
+    }];
+    [NSGraphicsContext restoreGraphicsState];
+    NSData* png = [rep representationUsingType:NSBitmapImageFileTypePNG properties:@{}];
+    return [png writeToFile:path atomically:YES];
+}
+
+BOOL UIShot(UIRig* rig, NSString* name) {
+    NSView* frameView = rig.content.superview;
+    if (!rig.popoverWindow || !frameView) return NO;
+    UISpin(0.05);
+    NSArray* problems = UILayoutProblems(rig);
+    NSString* path = UIShotPath(rig, name);
+    BOOL written = UIWritePNG(rig.content, rig.bridge.friendsBridgeAppearance.backgroundColor, path);
+    if (!written) {
+        UIFailures++;
+        fprintf(stderr, "[%s %s] no screenshot at %s\n", rig.variant.name.UTF8String, rig.flow.UTF8String,
+                path.UTF8String);
+        return NO;
+    }
+    if (problems.count && ![name isEqualToString:@"FAILED"]) {
+        UIFailures++;
+        fprintf(stderr, "[%s %s step %ld %s] layout:\n  %s\n  (%s)\n", rig.variant.name.UTF8String,
+                rig.flow.UTF8String, (long)rig.step, name.UTF8String,
+                [problems componentsJoinedByString:@"\n  "].UTF8String, path.UTF8String);
+        return NO;
+    }
+    return YES;
+}
+
+BOOL UIShotWindow(UIRig* rig, NSWindow* window, NSString* name) {
+    UISpin(0.05);
+    NSView* view = window.contentView;
+    return UIWritePNG(view, NSColor.windowBackgroundColor, UIShotPath(rig, name));
+}
+
+// The reader's title bar, as the integration suite builds it: a strip with Search at its end, and the views' button
+// placed between them by the reader's own placement code.
+static NSWindow* UIReaderWindow(UIVariant* variant, NSView* button) {
+    NSWindowStyleMask style = NSWindowStyleMaskTitled | NSWindowStyleMaskClosable | NSWindowStyleMaskResizable |
+                              NSWindowStyleMaskFullSizeContentView;
+    NSRect screen = NSScreen.mainScreen.visibleFrame;
+    NSRect frame = NSMakeRect(NSMinX(screen) + 40, NSMaxY(screen) - variant.windowHeight - 40, 900, variant.windowHeight);
+    NSWindow* window = [[NSWindow alloc] initWithContentRect:frame styleMask:style backing:NSBackingStoreBuffered
+                                                       defer:NO];
+    window.releasedWhenClosed = NO;
+    window.title = @"Friends UI test";
+    window.titlebarAppearsTransparent = YES;
+    NSView* content = [[NSView alloc] initWithFrame:NSMakeRect(0, 0, 900, variant.windowHeight)];
+    window.contentView = content;
+    NSView* strip = [NSView new];
+    NSButton* search = [NSButton buttonWithTitle:@"" target:nil action:NSSelectorFromString(@"showFavoritesPalette:")];
+    search.bordered = NO;
+    for (NSView* view in @[ strip, search ]) {
+        view.translatesAutoresizingMaskIntoConstraints = NO;
+        [content addSubview:view];
+    }
+    [NSLayoutConstraint activateConstraints:@[
+        [strip.topAnchor constraintEqualToAnchor:content.topAnchor], [strip.heightAnchor constraintEqualToConstant:44],
+        [strip.leadingAnchor constraintEqualToAnchor:content.leadingAnchor constant:80],
+        [strip.trailingAnchor constraintEqualToAnchor:content.trailingAnchor constant:-44],
+        [search.widthAnchor constraintEqualToConstant:24], [search.heightAnchor constraintEqualToConstant:24],
+        [search.trailingAnchor constraintEqualToAnchor:content.trailingAnchor constant:-8],
+        [search.centerYAnchor constraintEqualToAnchor:strip.centerYAnchor]
+    ]];
+    SPDFMacFriendsTitleBarPlacement* placement = SPDFMacFriendsInstallTitleBarButton(
+        button, content, strip, SPDFMacFriendsTrailingConstraint(content, strip), search, 28);
+    (void)placement;
+    [content layoutSubtreeIfNeeded];
+    return window;
+}
+
+UIRig* UIStartRig(SZFE2EWorld* world, UIVariant* variant, NSString* name,
+                  NSDictionary<NSString*, NSString*>* environment) {
+    UIRig* rig = [UIRig new];
+    rig.variant = variant;
+    rig.snapshotCounts = [NSMutableDictionary dictionary];
+    rig.snapshots = [NSMutableDictionary dictionary];
+    rig.openedURLs = [NSMutableArray array];
+    rig.helper = [world helperNamed:name];
+    NSString* home = [rig.helper.stateDirectory stringByAppendingString:@"-home"];
+    [NSFileManager.defaultManager createDirectoryAtPath:home withIntermediateDirectories:YES
+                                             attributes:@{NSFilePosixPermissions : @0700} error:nil];
+    NSMutableDictionary* env = [@{@"HOME" : home} mutableCopy];
+    [env addEntriesFromDictionary:environment ?: @{}];
+    rig.helper.extraEnvironment = env;
+    if (![rig.helper start]) {
+        UIFail(nil, __FILE__, __LINE__, "the helper starts", rig.helper.log);
+        return nil;
+    }
+    // What the reader's link connects to: the client library reads these when it starts. The reader's own state (tab
+    // drag key, reading copies) goes to the test home too.
+    setenv("SZFRIENDS_STATE_DIR", rig.helper.stateDirectory.fileSystemRepresentation, 1);
+    setenv("SPDF_STATE_DIR", home.fileSystemRepresentation, 1);
+    rig.bridge = [UIBridge new];
+    rig.bridge.dropdownWidth = variant.dropdownWidth;
+    // A bundle with no embedded helper: the link connects to the helper this run started and never spawns one.
+    NSBundle* bundle = [NSBundle bundleWithPath:home] ?: NSBundle.mainBundle;
+    rig.host = [[SPDFMacFriendsHost alloc] initWithBridge:rig.bridge bundle:bundle
+                                                  formats:[NSSet setWithArray:@[ @"pdf", @"md", @"txt" ]]];
+    rig.link = [[SZFriendsHelperLink alloc] initWithHost:rig.host];
+    rig.dropdown = [[SZFriendsDropdownController alloc] initWithHost:rig.host link:rig.link];
+    [rig.dropdown install];
+    if (!rig.bridge.installed) {
+        UIFail(nil, __FILE__, __LINE__, "the views hand their button to the reader", @"");
+        return nil;
+    }
+    // Nothing a test presses may reach System Settings, Finder or the general pasteboard.
+    SZFriendsContext* context = rig.dropdown.context;
+    __weak UIRig* weakRig = rig;
+    context.openURL = ^(NSURL* url) { [weakRig.openedURLs addObject:url]; };
+    context.pasteboard = [NSPasteboard pasteboardWithUniqueName];
+    context.chooseImage = ^(void (^completion)(NSString*)) { completion(nil); };
+    rig.window = UIReaderWindow(variant, rig.bridge.installed);
+    rig.window.appearance = [NSAppearance appearanceNamed:variant.appearance];
+    [rig.window orderFrontRegardless];
+    SZFriendsHelperLink* link = rig.link;
+    if (!UIWait(10, ^BOOL { return link.state == SZFriendsLinkStateReady; })) {
+        UIFail(nil, __FILE__, __LINE__, "the reader's link reaches the helper",
+               [NSString stringWithFormat:@"state %ld; helper log:\n%@", (long)link.state, rig.helper.log]);
+        UIStopRig(rig);
+        return nil;
+    }
+    UIObserve(rig, @"list");
+    UIWait(5, ^BOOL { return UISnapshotCount(rig, @"list") > 0; });
+    return rig;
+}
+
+// The fake helper's socket fallback folder (szfriends-<hash>) for a state path too long for a socket; removed with
+// the rig so a run leaves nothing behind.
+static void UIRemoveSocketFallback(NSString* state) {
+    char path[1024];
+    bool fallback = false;
+    if (szfriends_socket_path(state.fileSystemRepresentation, path, sizeof path, &fallback) != SZFRIENDS_OK || !fallback)
+        return;
+    NSString* folder = [@(path) stringByDeletingLastPathComponent];
+    if ([folder.lastPathComponent hasPrefix:@"szfriends-"])
+        [NSFileManager.defaultManager removeItemAtPath:folder error:nil];
+}
+
+void UIStopRig(UIRig* rig) {
+    if (rig.dropdown.shown) [rig.dropdown close];
+    [rig.dropdown uninstall];
+    [rig.link stopDisablingFriends:NO];
+    [rig.window orderOut:nil];
+    [rig.window close];
+    UISpin(0.05);
+    [rig.helper terminate];
+    UIRemoveSocketFallback(rig.helper.stateDirectory);
+}
+
+BOOL UIOpenDropdown(UIRig* rig) {
+    if (rig.dropdown.shown) return YES;
+    NSString* why = nil;
+    if (!UIClick(rig.bridge.installed, &why)) {
+        UIFail(rig, __FILE__, __LINE__, "the Friends button takes the click", why ?: @"");
+        return NO;
+    }
+    if (!UIWait(5, ^BOOL { return rig.dropdown.shown && rig.popoverWindow.isVisible; })) {
+        UIFail(rig, __FILE__, __LINE__, "the dropdown opens", @"");
+        return NO;
+    }
+    [rig.popoverWindow makeKeyWindow];
+    UISpin(0.2);
+    return YES;
+}
+
+BOOL UICloseDropdown(UIRig* rig) {
+    if (!rig.dropdown.shown) return YES;
+    [rig.dropdown close];
+    return UIWait(5, ^BOOL { return !rig.dropdown.shown; });
+}
