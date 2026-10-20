@@ -283,6 +283,10 @@ pub(super) const ERRORS: &[(&str, &str)] = &[
         "Nothing was reset: Friends couldn’t remove your old ID from this computer. Make sure it’s unlocked, then \
          try again.",
     ),
+    (
+        "error.internal.identity_not_removed.phone",
+        "Nothing was reset: Friends couldn’t remove your old ID from this device. Try again.",
+    ),
     // Before this computer reaches friends online: true nearby and, once it does, online too.
     (
         "add_by_id.sent",

@@ -104,7 +104,11 @@ impl Strings {
         }
         // A reset that stopped before changing anything, because the old identity could not be removed.
         if code == "internal" && string(details, "reason") == Some("identity_not_removed") {
-            return Some(self.text("error.internal.identity_not_removed"));
+            // A phone (`files.share`) is no computer, and is unlocked while Friends is in front.
+            let phone = self.audience().has("files.share");
+            let key =
+                if phone { "error.internal.identity_not_removed.phone" } else { "error.internal.identity_not_removed" };
+            return Some(self.text(key));
         }
         let mut key = format!("error.{code}");
         if ["already_friends", "blocked", "not_friends", "mention_mismatch"].contains(&code) && has("name") {
