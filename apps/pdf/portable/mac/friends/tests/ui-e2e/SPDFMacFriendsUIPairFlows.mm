@@ -65,7 +65,9 @@ static UIFriend* UIStartFriend(SZFE2EWorld* world, NSString* name) {
     person.helper = [world helperNamed:name.lowercaseString];
     NSString* home = [person.helper.stateDirectory stringByAppendingString:@"-home"];
     [NSFileManager.defaultManager createDirectoryAtPath:home withIntermediateDirectories:YES attributes:nil error:nil];
-    person.helper.extraEnvironment = @{@"HOME" : home};
+    NSMutableDictionary* env = [UIDeviceEnvironment(name) mutableCopy];
+    env[@"HOME"] = home;
+    person.helper.extraEnvironment = env;
     if (![person.helper start]) return nil;
     person.client = [SZFE2EClient clientForHelper:person.helper];
     if (!person.client) return nil;

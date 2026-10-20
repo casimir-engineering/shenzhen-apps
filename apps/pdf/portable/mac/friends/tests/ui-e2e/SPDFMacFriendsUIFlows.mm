@@ -252,6 +252,11 @@ static BOOL UIAddByID(UIRig* rig) {
     EXPECT(rig, [page.nameField.stringValue isEqualToString:saved ?: @""], "the page shows the name %@: %@", saved,
            page.nameField.stringValue);
     UIShot(rig, @"profile");
+    // Your computers names this computer as the test helper calls it, never this Mac's own name or macOS version.
+    EXPECT(rig, UIReveal(page, @"Test computer me") && UIReveal(page, @"Test system 1.0"),
+           "Your computers shows the test computer:\n%@", UIDescribe(page));
+    EXPECT(rig, !UIRealComputerShown(page), "this Mac's own name or system shows: %@", UIRealComputerShown(page));
+    UIShot(rig, @"your-computers");
     NSWindow* popover = rig.popoverWindow;
     CLICK(rig, page.addField, @"the ID field");
     UIType(popover, @"not an id");
@@ -294,9 +299,18 @@ static NSWindow* UISettingsWindow(UIRig* rig, SZFriendsSettingsSection* section)
     return settings;
 }
 
+// The sheet once it is up and still (the same frame for a few turns in a row), as a person sees it before clicking.
 static NSWindow* UISheet(NSWindow* window) {
     __block NSWindow* sheet = nil;
-    UIWait(5, ^BOOL { return (sheet = window.attachedSheet) != nil && sheet.isVisible; });
+    if (!UIWait(5, ^BOOL { return (sheet = window.attachedSheet) != nil && sheet.isVisible; })) return nil;
+    __block NSRect last = NSZeroRect;
+    __block int steady = 0;
+    UIWait(5, ^BOOL {
+        NSRect frame = sheet.frame;
+        steady = NSEqualRects(frame, last) ? steady + 1 : 0;
+        last = frame;
+        return steady >= 3;
+    });
     return sheet;
 }
 
@@ -329,6 +343,7 @@ static BOOL UISettingsAndReset(UIRig* rig) {
     sheet = UISheet(settings);
     EXPECT(rig, sheet != nil, "the sheet again");
     NSInteger before = UISnapshotCount(rig, @"list");
+    UIShotWindow(rig, sheet, @"confirm-again");
     CLICK(rig, UIFindButton(sheet.contentView, @"Reset Friends"), @"Reset Friends");
     EXPECT(rig, UIWait(5, ^BOOL { return settings.attachedSheet == nil; }), "the sheet closes");
     EXPECT(rig, UIWait(10, ^BOOL {

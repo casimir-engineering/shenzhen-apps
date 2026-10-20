@@ -4,8 +4,8 @@
 #   make friends-ui-e2e                                     every flow, light and dark, normal and narrow
 #   make friends-ui-e2e FRIENDS_UI_E2E_VARIANTS=dark-narrow FRIENDS_UI_E2E_FLOWS=solo     one look, one group
 #
-# It needs a logged-in macOS session: the reader's window and the dropdown's popover appear on screen while it runs
-# (a few minutes), without taking focus from other apps. Screenshots of every step, and flows.tsv with each flow's
+# It needs a logged-in macOS session (a window server), but shows nothing: every window it opens stays off every
+# screen, and none takes focus from other apps. Screenshots of every step, and flows.tsv with each flow's
 # result in each look, go to $(FRIENDS_UI_E2E_SHOTS).
 
 FRIENDS_UI_E2E_DIR := mac/friends/tests/ui-e2e

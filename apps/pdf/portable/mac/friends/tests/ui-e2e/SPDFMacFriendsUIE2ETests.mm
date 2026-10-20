@@ -53,6 +53,7 @@ int main(int argc, const char* argv[]) {
         [SZFriendsAvatarView setAnimalManifestPath:UIManifest];
 
         [NSApplication sharedApplication];
+        UIKeepWindowsOffscreen();
         // An accessory app: no Dock icon, no menu bar, and never activated, so the person's own apps keep focus.
         [NSApp setActivationPolicy:NSApplicationActivationPolicyAccessory];
         [NSApp finishLaunching];

@@ -7,6 +7,8 @@
 #import "mac/SZFriendsListPage.h"
 #include "client/szfriends_client.h"
 
+#import <objc/runtime.h>
+
 int UIFailures = 0;
 NSMutableArray<NSString*>* UIFlowResults;
 NSString* UIRoot = @"";
@@ -62,6 +64,131 @@ void UIFail(UIRig* rig, const char* file, int line, const char* condition, NSStr
     if (rig.popoverWindow) UIShot(rig, @"FAILED");
 }
 
+#pragma mark - Off every screen
+
+// Every window this run makes (the reader's, the popover, Settings, its sheets) lives left of and below every
+// screen: the person at the Mac never sees the run. AppKit is kept from moving one back (a titled window is
+// constrained onto a screen when it is ordered in; a popover may be placed by the screen it should fit), and a
+// window found on a screen anyway is taken off at once and fails the run.
+
+static NSRect UIScreensUnion(void) {
+    NSRect all = NSZeroRect;
+    for (NSScreen* screen in NSScreen.screens) all = NSUnionRect(all, screen.frame);
+    return all;
+}
+
+BOOL UIOnAnyScreen(NSRect frame) {
+    for (NSScreen* screen in NSScreen.screens)
+        if (NSIntersectsRect(NSInsetRect(screen.frame, -2, -2), frame)) return YES;
+    return NO;
+}
+
+NSPoint UIOffscreenOrigin(NSSize size) {
+    NSRect all = UIScreensUnion();
+    return NSMakePoint(NSMinX(all) - size.width - 3000, NSMinY(all) - size.height - 3000);
+}
+
+static NSRect UIKeptOffscreen(NSRect frame) {
+    if (UIOnAnyScreen(frame)) frame.origin = UIOffscreenOrigin(frame.size);
+    return frame;
+}
+
+static IMP UIOriginalSetFrame, UIOriginalSetFrameAnimate, UIOriginalSetOrigin, UIOriginalSetTopLeft,
+    UIOriginalOrderWindow, UIOriginalOrderFront, UIOriginalOrderFrontRegardless, UIOriginalMakeKeyAndOrderFront,
+    UIOriginalAddChild;
+
+static void UIMoveOffBeforeOrdering(NSWindow* window) {
+    if (UIOnAnyScreen(window.frame))
+        ((void (*)(id, SEL, NSRect, BOOL))UIOriginalSetFrame)(window, @selector(setFrame:display:),
+                                                             UIKeptOffscreen(window.frame), NO);
+}
+
+static void UISetFrame(NSWindow* self, SEL _cmd, NSRect frame, BOOL display) {
+    ((void (*)(id, SEL, NSRect, BOOL))UIOriginalSetFrame)(self, _cmd, UIKeptOffscreen(frame), display);
+}
+static void UISetFrameAnimate(NSWindow* self, SEL _cmd, NSRect frame, BOOL display, BOOL animate) {
+    (void)animate;
+    ((void (*)(id, SEL, NSRect, BOOL, BOOL))UIOriginalSetFrameAnimate)(self, _cmd, UIKeptOffscreen(frame), display,
+                                                                      NO);
+}
+static void UISetFrameOrigin(NSWindow* self, SEL _cmd, NSPoint origin) {
+    NSRect frame = UIKeptOffscreen(NSMakeRect(origin.x, origin.y, NSWidth(self.frame), NSHeight(self.frame)));
+    ((void (*)(id, SEL, NSPoint))UIOriginalSetOrigin)(self, _cmd, frame.origin);
+}
+static void UISetFrameTopLeftPoint(NSWindow* self, SEL _cmd, NSPoint point) {
+    NSRect frame = NSMakeRect(point.x, point.y - NSHeight(self.frame), NSWidth(self.frame), NSHeight(self.frame));
+    if (UIOnAnyScreen(frame)) {
+        frame = UIKeptOffscreen(frame);
+        point = NSMakePoint(NSMinX(frame), NSMaxY(frame));
+    }
+    ((void (*)(id, SEL, NSPoint))UIOriginalSetTopLeft)(self, _cmd, point);
+}
+static NSRect UIConstrainFrame(NSWindow* self, SEL _cmd, NSRect frame, NSScreen* screen) {
+    (void)self, (void)_cmd, (void)screen;
+    return UIKeptOffscreen(frame);
+}
+static void UIOrderWindow(NSWindow* self, SEL _cmd, NSWindowOrderingMode place, NSInteger other) {
+    if (place != NSWindowOut) UIMoveOffBeforeOrdering(self);
+    ((void (*)(id, SEL, NSWindowOrderingMode, NSInteger))UIOriginalOrderWindow)(self, _cmd, place, other);
+}
+static void UIOrderFront(NSWindow* self, SEL _cmd, id sender) {
+    UIMoveOffBeforeOrdering(self);
+    ((void (*)(id, SEL, id))UIOriginalOrderFront)(self, _cmd, sender);
+}
+static void UIOrderFrontRegardless(NSWindow* self, SEL _cmd) {
+    UIMoveOffBeforeOrdering(self);
+    ((void (*)(id, SEL))UIOriginalOrderFrontRegardless)(self, _cmd);
+}
+static void UIMakeKeyAndOrderFront(NSWindow* self, SEL _cmd, id sender) {
+    UIMoveOffBeforeOrdering(self);
+    ((void (*)(id, SEL, id))UIOriginalMakeKeyAndOrderFront)(self, _cmd, sender);
+}
+static void UIAddChildWindow(NSWindow* self, SEL _cmd, NSWindow* child, NSWindowOrderingMode place) {
+    UIMoveOffBeforeOrdering(child);
+    ((void (*)(id, SEL, NSWindow*, NSWindowOrderingMode))UIOriginalAddChild)(self, _cmd, child, place);
+}
+
+static BOOL UIClickMakesActive = NO;
+static IMP UIOriginalIsActive;
+static BOOL UIIsActive(NSApplication* self, SEL _cmd) {
+    return UIClickMakesActive || ((BOOL (*)(id, SEL))UIOriginalIsActive)(self, _cmd);
+}
+
+static IMP UIReplace(SEL selector, IMP replacement) {
+    Method method = class_getInstanceMethod(NSWindow.class, selector);
+    return method ? method_setImplementation(method, replacement) : NULL;
+}
+
+void UIKeepWindowsOffscreen(void) {
+    static BOOL done = NO;
+    if (done) return;
+    done = YES;
+    UIOriginalSetFrame = UIReplace(@selector(setFrame:display:), (IMP)UISetFrame);
+    UIOriginalSetFrameAnimate = UIReplace(@selector(setFrame:display:animate:), (IMP)UISetFrameAnimate);
+    UIOriginalSetOrigin = UIReplace(@selector(setFrameOrigin:), (IMP)UISetFrameOrigin);
+    UIOriginalSetTopLeft = UIReplace(@selector(setFrameTopLeftPoint:), (IMP)UISetFrameTopLeftPoint);
+    UIReplace(@selector(constrainFrameRect:toScreen:), (IMP)UIConstrainFrame);
+    UIOriginalOrderWindow = UIReplace(@selector(orderWindow:relativeTo:), (IMP)UIOrderWindow);
+    UIOriginalOrderFront = UIReplace(@selector(orderFront:), (IMP)UIOrderFront);
+    UIOriginalOrderFrontRegardless = UIReplace(@selector(orderFrontRegardless), (IMP)UIOrderFrontRegardless);
+    UIOriginalMakeKeyAndOrderFront = UIReplace(@selector(makeKeyAndOrderFront:), (IMP)UIMakeKeyAndOrderFront);
+    UIOriginalAddChild = UIReplace(@selector(addChildWindow:ordered:), (IMP)UIAddChildWindow);
+    UIOriginalIsActive = method_setImplementation(class_getInstanceMethod(NSApplication.class, @selector(isActive)),
+                                                  (IMP)UIIsActive);
+}
+
+// Any of this run's windows on a screen: off it at once, and the run fails.
+static void UICheckOffscreen(void) {
+    for (NSWindow* window in NSApp.windows) {
+        if (!window.isVisible || !UIOnAnyScreen(window.frame)) continue;
+        NSRect frame = window.frame;
+        [window orderOut:nil];
+        UIFailures++;
+        fprintf(stderr, "a %s appeared on a screen at %s and was taken off\n", window.className.UTF8String,
+                NSStringFromRect(frame).UTF8String);
+    }
+}
+
 #pragma mark - Waiting
 
 void UISpin(NSTimeInterval seconds) {
@@ -79,6 +206,7 @@ BOOL UIWait(NSTimeInterval seconds, BOOL (^condition)(void)) {
                                                   dequeue:YES];
             if (event) [NSApp sendEvent:event];
             SZFE2EPump(0);
+            UICheckOffscreen();
         }
     }
     return YES;
@@ -255,7 +383,10 @@ BOOL UIClick(NSView* view, NSString** why) {
         return NO;
     }
     // Key first, as the person's first click on a window makes it: the click itself then reaches the control.
-    if (!window.isKeyWindow) [window makeKeyWindow];
+    if (!window.isKeyWindow) {
+        if (window.sheetParent && !window.sheetParent.isKeyWindow) [window.sheetParent makeKeyWindow];
+        [window makeKeyWindow];
+    }
     NSTimeInterval now = NSProcessInfo.processInfo.systemUptime;
     NSEvent* down = [NSEvent mouseEventWithType:NSEventTypeLeftMouseDown location:point modifierFlags:0 timestamp:now
                                    windowNumber:window.windowNumber context:nil eventNumber:UIEventNumber++
@@ -264,11 +395,16 @@ BOOL UIClick(NSView* view, NSString** why) {
                                     timestamp:now + 0.05 windowNumber:window.windowNumber context:nil
                                   eventNumber:UIEventNumber++ clickCount:1 pressure:0];
     [NSApp postEvent:up atStart:NO];
+    // A person's click makes their app active before it lands. This run never activates (the person's own app keeps
+    // focus), so for the length of the press AppKit is told the app is active: an inactive app drops a click on a
+    // destructive button, such as the Reset Friends sheet's "Reset Friends" (the verifier's failures of 2026-10-20).
+    UIClickMakesActive = YES;
     [window sendEvent:down];
     // A view that does not track the press leaves the release queued: deliver it as the window server would.
     NSEvent* left = [NSApp nextEventMatchingMask:NSEventMaskLeftMouseUp untilDate:nil inMode:NSDefaultRunLoopMode
                                          dequeue:YES];
     if (left) [left.window ?: window sendEvent:left];
+    UIClickMakesActive = NO;
     UISpin(0.05);
     return YES;
 }
@@ -407,6 +543,8 @@ BOOL UIShot(UIRig* rig, NSString* name) {
                 path.UTF8String);
         return NO;
     }
+    NSString* real = UIRealComputerShown(rig.content);
+    if (real) problems = [problems arrayByAddingObject:[NSString stringWithFormat:@"this Mac's own \"%@\" shows", real]];
     if (problems.count && ![name isEqualToString:@"FAILED"]) {
         UIFailures++;
         fprintf(stderr, "[%s %s step %ld %s] layout:\n  %s\n  (%s)\n", rig.variant.name.UTF8String,
@@ -420,6 +558,12 @@ BOOL UIShot(UIRig* rig, NSString* name) {
 BOOL UIShotWindow(UIRig* rig, NSWindow* window, NSString* name) {
     UISpin(0.05);
     NSView* view = window.contentView;
+    NSString* real = UIRealComputerShown(view);
+    if (real) {
+        UIFailures++;
+        fprintf(stderr, "[%s %s %s] this Mac's own \"%s\" shows\n", rig.variant.name.UTF8String, rig.flow.UTF8String,
+                name.UTF8String, real.UTF8String);
+    }
     return UIWritePNG(view, NSColor.windowBackgroundColor, UIShotPath(rig, name));
 }
 
@@ -428,8 +572,8 @@ BOOL UIShotWindow(UIRig* rig, NSWindow* window, NSString* name) {
 static NSWindow* UIReaderWindow(UIVariant* variant, NSView* button) {
     NSWindowStyleMask style = NSWindowStyleMaskTitled | NSWindowStyleMaskClosable | NSWindowStyleMaskResizable |
                               NSWindowStyleMaskFullSizeContentView;
-    NSRect screen = NSScreen.mainScreen.visibleFrame;
-    NSRect frame = NSMakeRect(NSMinX(screen) + 40, NSMaxY(screen) - variant.windowHeight - 40, 900, variant.windowHeight);
+    NSPoint origin = UIOffscreenOrigin(NSMakeSize(900, variant.windowHeight));
+    NSRect frame = NSMakeRect(origin.x, origin.y, 900, variant.windowHeight);
     NSWindow* window = [[NSWindow alloc] initWithContentRect:frame styleMask:style backing:NSBackingStoreBuffered
                                                        defer:NO];
     window.releasedWhenClosed = NO;
@@ -459,6 +603,33 @@ static NSWindow* UIReaderWindow(UIVariant* variant, NSView* button) {
     return window;
 }
 
+NSDictionary<NSString*, NSString*>* UIDeviceEnvironment(NSString* person) {
+    return @{@"SZFRIENDS_E2E_DEVICE_NAME" : [NSString stringWithFormat:@"Test computer %@", person],
+             @"SZFRIENDS_E2E_DEVICE_SYSTEM" : @"Test system 1.0"};
+}
+
+// This Mac's own name and system, which no screen of the run may show (the helpers are given test ones).
+static NSArray<NSString*>* UIRealComputerWords(void) {
+    static NSArray<NSString*>* words;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        NSMutableArray* list = [NSMutableArray array];
+        NSString* name = NSHost.currentHost.localizedName;
+        if (name.length >= 4) [list addObject:name];
+        NSOperatingSystemVersion v = NSProcessInfo.processInfo.operatingSystemVersion;
+        [list addObject:[NSString stringWithFormat:@"macOS %ld.%ld", (long)v.majorVersion, (long)v.minorVersion]];
+        words = list;
+    });
+    return words;
+}
+
+NSString* UIRealComputerShown(NSView* root) {
+    NSString* shown = UIDescribe(root);
+    for (NSString* word in UIRealComputerWords())
+        if ([shown rangeOfString:word options:NSCaseInsensitiveSearch].location != NSNotFound) return word;
+    return nil;
+}
+
 UIRig* UIStartRig(SZFE2EWorld* world, UIVariant* variant, NSString* name,
                   NSDictionary<NSString*, NSString*>* environment) {
     UIRig* rig = [UIRig new];
@@ -470,7 +641,8 @@ UIRig* UIStartRig(SZFE2EWorld* world, UIVariant* variant, NSString* name,
     NSString* home = [rig.helper.stateDirectory stringByAppendingString:@"-home"];
     [NSFileManager.defaultManager createDirectoryAtPath:home withIntermediateDirectories:YES
                                              attributes:@{NSFilePosixPermissions : @0700} error:nil];
-    NSMutableDictionary* env = [@{@"HOME" : home} mutableCopy];
+    NSMutableDictionary* env = [UIDeviceEnvironment(name) mutableCopy];
+    env[@"HOME"] = home;
     [env addEntriesFromDictionary:environment ?: @{}];
     rig.helper.extraEnvironment = env;
     if (![rig.helper start]) {

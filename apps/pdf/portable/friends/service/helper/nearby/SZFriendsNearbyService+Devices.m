@@ -7,6 +7,7 @@
 
 #import "service/helper/SZFriendsHelperFacts.h"
 #import "service/helper/SZFriendsHostCheckIn.h"
+#import "service/helper/SZFriendsHelperTesting.h"
 #import "service/helper/nearby/SZFriendsNearbyJoin.h"
 #import "service/identity/SZFriendsDeviceChain.h"
 #import "service/store/SZFriendsStoreDevices.h"
@@ -244,8 +245,8 @@ NSString *SZFriendsDeviceIDForKey(NSData *deviceKey) {
     }
     if (me == nil) { // one computer, no chain yet: as it will name itself
         me = [[SZFriendsDeviceFacts alloc] init];
-        me.name = SZFriendsLocalDeviceName();
-        me.system = SZFriendsLocalDeviceSystem();
+        me.name = SZFriendsHelperDeviceName();
+        me.system = SZFriendsHelperDeviceSystem();
     }
     me.deviceID = SZFriendsDeviceIDForKey(local);
     me.thisComputer = YES;
@@ -295,7 +296,7 @@ NSString *SZFriendsDeviceIDForKey(NSData *deviceKey) {
         }
         if (holder == nil) continue;
         SZFriendsDeviceFileFacts *facts = [[SZFriendsDeviceFileFacts alloc] init];
-        facts.deviceName = names[holder] ?: SZFriendsLocalDeviceName();
+        facts.deviceName = names[holder] ?: SZFriendsHelperDeviceName();
         facts.fetching = [engine isFileRequested:file.transferID] ||
                          SZFriendsSyncCopiesAutomatically(file.size, file.conversationID);
         facts.holderConnected = connected;

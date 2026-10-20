@@ -14,7 +14,8 @@
 // library as the two-helper harness drives it (friends/tests/e2e/SZFriendsE2EHarness.h).
 //
 // Every flow runs in light and dark, at the normal dropdown (400 pt, a tall window) and the narrowest (320 pt, a
-// short window). Windows appear on screen for the length of the run, without taking focus from other apps.
+// short window). Every window stays off every screen (left of and below them all) and none takes focus from other
+// apps: the person at the Mac sees nothing of the run.
 
 #import <AppKit/AppKit.h>
 
@@ -82,6 +83,14 @@ void UIFail(UIRig* _Nullable rig, const char* file, int line, const char* condit
         }                                                                                                           \
     } while (0)
 
+#pragma mark - Off every screen
+
+// Installed before the first window: keeps every window of this process off every screen (UIOffscreenOrigin), and
+// UIWait takes off (and fails the run for) any window found on one.
+void UIKeepWindowsOffscreen(void);
+NSPoint UIOffscreenOrigin(NSSize size);
+BOOL UIOnAnyScreen(NSRect frame);
+
 #pragma mark - Waiting
 
 // Runs the main run loop (the link's dispatch sources, AppKit's drawing) and every harness client until `condition`
@@ -132,6 +141,10 @@ extern NSString* UIShotsRoot;
 extern NSString* UIHelperExecutable;
 extern NSString* UIManifest;
 
+// The helpers' test computer name and system (SZFRIENDS_E2E_DEVICE_NAME, _SYSTEM): no screen shows this Mac's own.
+NSDictionary<NSString*, NSString*>* UIDeviceEnvironment(NSString* person);
+// This Mac's own name or macOS version where `root` shows it, or nil; every screenshot checks it.
+NSString* _Nullable UIRealComputerShown(NSView* root);
 UIRig* _Nullable UIStartRig(SZFE2EWorld* world, UIVariant* variant, NSString* name,
                             NSDictionary<NSString*, NSString*>* _Nullable environment);
 void UIStopRig(UIRig* rig);

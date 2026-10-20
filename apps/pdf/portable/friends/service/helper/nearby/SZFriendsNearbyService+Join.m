@@ -7,6 +7,7 @@
 #import "service/helper/nearby/SZFriendsNearbyJoin.h"
 
 #import "service/helper/SZFriendsHostCheckIn.h"
+#import "service/helper/SZFriendsHelperTesting.h"
 
 #import <objc/runtime.h>
 
@@ -127,8 +128,8 @@ enum {
     SZFriendsJoinState *state = self.joinState;
     [self endJoinLegs];
     state.joiner = [[SZFriendsJoiner alloc] initWithIdentity:self.services.identity friendsID:normalized
-                                                        name:SZFriendsLocalDeviceName()
-                                                      system:SZFriendsLocalDeviceSystem()
+                                                        name:SZFriendsHelperDeviceName()
+                                                      system:SZFriendsHelperDeviceSystem()
                                                    requestID:nil];
     state.phase = SZFriendsJoiningWaiting;
     state.code = nil;
