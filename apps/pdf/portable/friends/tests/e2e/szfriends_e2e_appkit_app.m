@@ -316,7 +316,7 @@ int main(int argc, const char *argv[]) {
                                                               backing:NSBackingStoreBuffered
                                                                 defer:NO];
         app.host.buttonWindow.releasedWhenClosed = NO;
-        // The launch path: connect-or-spawn in the background, never waited for (SPDFMacFriendsSpawnAtLaunch).
+        // The launch path: connect-or-spawn in the background, never waited for, as ShenzhenPDF launches.
         [SZFriendsHelperLink spawnHelperInBackgroundForHost:app.host];
         app.presenter = [[SZFOPresenter alloc] init];
         app.link = [[SZFriendsHelperLink alloc] initWithHost:app.host];
