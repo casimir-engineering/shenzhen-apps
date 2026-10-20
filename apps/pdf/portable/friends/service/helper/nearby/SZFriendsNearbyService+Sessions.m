@@ -1,7 +1,8 @@
 // Secure channels: starting links, which link carries a conversation, and what happens when one ends (ADR 0001
 // § Session race, ADR 0004 § Hidden listeners, § Public visibility). Who may connect at all is +KeyPolicy.
 
-#import "service/helper/nearby/SZFriendsNearbyInternal.h"
+#import "service/helper/nearby/SZFriendsNearbyDevices.h"
+#import "service/sync/SZFriendsAgain.h"
 #import "service/helper/nearby/SZFriendsNearbyJoin.h"
 
 #import "service/identity/SZFriendsIdentity.h"
@@ -291,6 +292,7 @@
     // offset and the sender continues from there (ADR 0001 § Resume and route migration).
     [self startTransfersOnLink:link];
     [self deliverPendingOnLink:link];
+    [self startAgainOnLink:link]; // files asked for again (+Again)
     [self onlineRoutesChanged];
     [self changed];
 }
@@ -343,6 +345,7 @@ static BOOL SZFriendsEndWasSupersededByPeer(NSError *error) {
     [link cancelTimers];
     [self.links removeObject:link];
     [self syncLinkClosed:link];
+    [link.againExchange stop];
     // Faults only, and never a key, name or address: which kind of session ended, on which route, and why.
     if (error != nil && !link.probe) {
         // The peer's reason when it closed (SZFriendsCloseReason): superseded, shutting down, or a refusal.

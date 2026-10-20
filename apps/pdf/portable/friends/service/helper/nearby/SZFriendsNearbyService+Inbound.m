@@ -1,7 +1,7 @@
 // Frames from the other side: requests and their answers, messages, offers, presence secrets and profiles. Each is
 // committed before its ACK goes back, so an ACK always means the item is on this Mac (ADR 0001 § Messages).
 
-#import "service/helper/nearby/SZFriendsNearbyInternal.h"
+#import "service/helper/nearby/SZFriendsNearbyDevices.h"
 
 #import "service/identity/SZFriendsDeviceChain.h"
 #import "service/store/SZFriendsStoreDevices.h"
@@ -139,6 +139,9 @@ static BOOL SZFriendsCreatesFriendship(SZFriendsFrameType type) {
         break;
     case SZFriendsFrameTypeChunk:
         [self link:link receivedChunkFrame:frame];
+        break;
+    case SZFriendsFrameTypeAgain: // a file asked for again, either way (+Again)
+        [self link:link person:person receivedAgainFrame:frame];
         break;
     case SZFriendsFrameTypeProgress:
         [self link:link receivedProgressFrame:frame];

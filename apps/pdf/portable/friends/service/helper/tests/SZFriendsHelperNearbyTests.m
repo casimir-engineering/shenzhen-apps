@@ -255,6 +255,7 @@ int main(void) {
         SZFNTestByIDOnline(scratch);
         SZFNTestJoin(scratch);
         SZFNTestDevices(scratch);
+        SZFNTestAgain(scratch);
         SZFNTestFirstContact(scratch);
         SZFNTestLoopbackICE();
         [[NSFileManager defaultManager] removeItemAtPath:scratch error:NULL];

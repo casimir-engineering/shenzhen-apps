@@ -11,6 +11,7 @@
 NS_ASSUME_NONNULL_BEGIN
 
 @class SZFriendsSyncExchange;
+@class SZFriendsAgainExchange;
 @class SZFriendsDeviceChain;
 
 // Why a link exists. A responder link starts as Incoming and is classified by its handshake.
@@ -66,6 +67,8 @@ NSData *_Nullable SZFriendsLinkBytesFromHex(NSString *_Nullable hex); // nil unl
 @property(nonatomic) BOOL ownDevice;
 @property(nonatomic, strong, nullable) SZFriendsSyncExchange *syncExchange;
 @property(nonatomic, copy, nullable) NSString *syncDeviceHex;
+// A session with a friend at session minor 3 or later (+Again): files asked for again, either way.
+@property(nonatomic, strong, nullable) SZFriendsAgainExchange *againExchange;
 // Responder of an IK callback presenting our Add by ID token: the Friends ID that request asked for, and whether the
 // answer showed the host's attestation for it. An ACCEPT the host did not vouch for becomes a request the person
 // accepts (+Inbound), never a friendship by itself (wave-4 security re-check).

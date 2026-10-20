@@ -4,6 +4,7 @@
 #import "service/helper/SZFriendsHelperLinks.h"
 #import "service/store/SZFriendsStoreLinks.h"
 #import "service/store/SZFriendsStoreSync.h"
+#import "service/sync/SZFriendsSync.h"
 
 #import "service/helper/nearby/SZFriendsNearbyDevices.h"
 #import "service/store/SZFriendsTransferThumbnails.h"
@@ -65,6 +66,15 @@ SZFriendsItemFacts *SZFriendsItemFactsFromRecord(SZFriendsItemRecord *record, SZ
                     case SZFriendsSavedPlaceKept: break;
                 }
             }
+            // Moved or deleted by the person (ADR 0016): no path; the item says where the file still is.
+            BOOL copyHere = transfer.receivedPath.length > 0 &&
+                            (transfer.outgoing || transfer.state == SZFriendsTransferStateReceived);
+            if (copyHere && SZFriendsSyncLocalPathOfTransfer(transfer) == nil) {
+                facts.fileMissing = YES;
+                facts.localPath = nil;
+                facts.savedToDownloads = NO;
+                facts.savedFolderName = nil;
+            }
             facts.fileTypeIdentifier = SZFriendsTypeIdentifierForFileName(transfer.fileName);
             // A row whose file is gone (a crash between the two) shows no preview rather than a broken one, and a
             // received file never shows the sender's picture: once it is here, only our own preview of it counts.
@@ -97,7 +107,17 @@ SZFriendsItemFacts *SZFriendsItemFactsFromRecord(SZFriendsItemRecord *record, SZ
                 facts.transferState = file.state;
                 facts.fileTypeIdentifier = SZFriendsTypeIdentifierForFileName(file.fileName);
                 facts.transferRoute = SZFriendsRouteMethodNone;
+                // Received on another computer, and no computer of the profile holds it any more.
+                facts.fileMissing = !file.outgoing && file.state == SZFriendsTransferStateReceived &&
+                                    ![services.nearby anotherComputerHoldsFile:file];
             }
+        }
+        if (facts.fileMissing && !facts.outgoing) {
+            facts.again = [services.nearby againStateOfTransfer:record.transferID];
+            double fraction = 0;
+            BOOL copying = [services.nearby againCopyingTransfer:record.transferID fraction:&fraction];
+            facts.againConnected = copying || [services.nearby againReachesConversation:record.conversationID];
+            facts.againFraction = fraction;
         }
     }
     return facts;
@@ -137,6 +157,8 @@ NSArray<NSString *> *SZFriendsHelperCapabilityList(SZFriendsHelperServices *serv
     [capabilities addObject:@"mentions"];
     // One profile on several computers: Your computers, joining, You (PROTOCOL.md § Devices).
     if (services.store != nil && services.identity != nil && nearby != nil) [capabilities addObject:@"devices"];
+    // Files a friend sent come back from them when none of the person's computers has them (§ Getting a file again).
+    if (services.store != nil && services.identity != nil && nearby != nil) [capabilities addObject:@"files.again"];
     // Received files go to Downloads or the folder the person chose (PROTOCOL.md § Views, settings and received).
     if (services.transfers != nil) [capabilities addObject:@"received.folder"];
     if (nearby.reachesFriendsOnline) [capabilities addObject:@"online"];

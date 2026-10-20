@@ -108,6 +108,8 @@ typedef NSDictionary<NSData *, NSNumber *> SZFriendsSyncVector;
 - (BOOL)setSyncRegister:(SZFriendsSyncRegister *)value forKey:(NSString *)key error:(NSError **)error;
 - (nullable id)syncStateForKey:(NSString *)key;
 - (BOOL)setSyncState:(nullable id)value forKey:(NSString *)key error:(NSError **)error;
+// Every state whose key starts with `prefix` (integers as NSNumber, text as NSString), by key.
+- (NSDictionary<NSString *, id> *)syncStatesWithPrefix:(NSString *)prefix;
 
 // Runs `body` as one transaction on the store's writer: store methods called inside it join it, and nothing commits
 // unless the body returns YES. This header's reads see its writes; the rest of the store's reads (people lookups,

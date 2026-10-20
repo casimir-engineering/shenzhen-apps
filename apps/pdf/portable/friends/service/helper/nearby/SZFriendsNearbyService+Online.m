@@ -4,7 +4,7 @@
 // (SZFriendsHostCheckIn.m) and does nothing until the host's welcome says it takes online messages; nothing here runs
 // at launch.
 
-#import "service/helper/nearby/SZFriendsNearbyInternal.h"
+#import "service/helper/nearby/SZFriendsNearbyDevices.h"
 
 #import "service/identity/SZFriendsIdentity.h"
 #import "service/online/driver/SZFriendsOnlineDriver.h"
@@ -132,7 +132,8 @@ static const NSTimeInterval SZFriendsOnlineJustOpened = 45;
         SZFriendsPeerLink *live = [self liveLinkForConversation:person.conversationID];
         if (live != nil && !SZFriendsRouteIsBetter(SZFriendsRouteMethodInternet, live.raceRoute)) continue;
         if (![self hasDeliverableEntriesForPerson:person] &&
-            [self.services.transfers unfinishedIncomingTransfersForConversation:person.conversationID].count == 0) {
+            [self.services.transfers unfinishedIncomingTransfersForConversation:person.conversationID].count == 0 &&
+            ![self hasAgainRequestsForConversation:person.conversationID]) {
             continue;
         }
         [driver reachFriend:person.identityKey];

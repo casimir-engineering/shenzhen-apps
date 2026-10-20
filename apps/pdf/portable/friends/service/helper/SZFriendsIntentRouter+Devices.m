@@ -89,6 +89,20 @@ static const NSUInteger SZFriendsYouFilesMax = 100;
     [self succeed:reply result:nil];
 }
 
+- (void)intent_fetch_from_friend:(NSDictionary *)intent connection:(SZFriendsIPCConnection *)connection
+                           reply:(SZFriendsIntentReply)reply {
+    NSString *transferID = [self requiredString:@"transfer_id" in:intent maxLength:64 reply:reply
+                                     connection:connection];
+    if (transferID == nil) return;
+    NSString *reason = nil;
+    NSString *code = [self.services.nearby fetchFileFromFriend:transferID reason:&reason];
+    if (code != nil) {
+        [self failDevices:reply code:code reason:reason field:@"transfer_id" connection:connection];
+        return;
+    }
+    [self succeed:reply result:nil];
+}
+
 #pragma mark - You
 
 - (BOOL)isYou:(SZFriendsPersonRecord *)person {
