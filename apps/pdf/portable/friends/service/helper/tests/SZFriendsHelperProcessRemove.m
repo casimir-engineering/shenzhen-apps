@@ -192,3 +192,42 @@ BOOL SZFHTestRemoveMenu(SZFHHarness *harness) {
     CHECK([harness waitForExit:pid timeout:3 status:NULL]);
     return YES;
 }
+
+// A You conversation left on a computer with no other computers and nothing in it is nobody's row: not in the list
+// (never as a person, never "Someone"), not on the badge, not mentionable. With a message to yourself in it, the You
+// row shows it (SZFHTestYouIntents); with another computer, the You row is there as always (devices facts).
+BOOL SZFHTestLeftoverYouIsNoRow(SZFHHarness *harness) {
+    if (sodium_init() < 0) return NO;
+    NSString *state = [harness makeDirectory];
+    SZFriendsStore *store = [SZFriendsStore storeInDirectory:state error:NULL];
+    CHECK(store != nil && [store ensureYouConversation:NULL] && SZFHRemoveSeed(store, @"c_mei", SZFriendsRelationFriend),
+          "a leftover You conversation and a friend");
+    store.profileName = @"Raph";
+    [store close];
+    pid_t pid = [harness spawnHelperWithStateDirectory:state timeScale:1];
+    SZFHClient *c = [SZFHClient connectToSocket:[harness socketPathForStateDirectory:state] timeout:5];
+    NSDictionary *hello = @{
+        @"type" : @"hello", @"id" : @"1", @"protocol" : @{@"major" : @1, @"minor" : @0, @"min_major" : @1},
+        @"client" : @{@"app_id" : @"com.example.friends-test", @"app_name" : @"Friends Test", @"app_version" : @"1",
+                      @"toolkit" : @"appkit", @"reveal_in" : @"Finder", @"pid" : @(getpid())},
+        @"embedded_helper" : [NSNull null], @"capabilities" : @[ @"mentions" ], @"open_formats" : @[ @"pdf" ],
+        @"locale" : @"en-GB",
+    };
+    CHECK([c sendFrame:hello] && [[c nextFrameWithTimeout:5][@"type"] isEqual:@"welcome"]);
+    NSDictionary *reply = [c intent:@"subscribe" fields:@{@"view" : @"list"}];
+    NSDictionary *list = nil;
+    for (NSDictionary *frame in c.snapshots)
+        if ([frame[@"subscription"] isEqual:reply[@"result"][@"subscription"]]) list = frame[@"data"];
+    NSArray *rows = list[@"rows"];
+    CHECK(rows.count == 1 && [rows[0][@"conversation_id"] isEqual:@"c_mei"], "only Mei is listed: %@", rows);
+    for (NSDictionary *row in rows) CHECK(![row[@"title"] isEqual:@"Someone"], "nobody unnamed: %@", row);
+    reply = [c intent:@"subscribe" fields:@{@"view" : @"badge"}];
+    NSDictionary *badge = nil;
+    for (NSDictionary *frame in c.snapshots)
+        if ([frame[@"subscription"] isEqual:reply[@"result"][@"subscription"]]) badge = frame[@"data"];
+    CHECK([badge[@"count"] integerValue] == 0, "nothing waits: %@", badge);
+    [c close];
+    kill(pid, SIGTERM);
+    CHECK([harness waitForExit:pid timeout:3 status:NULL]);
+    return YES;
+}
