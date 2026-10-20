@@ -102,6 +102,8 @@ pub struct Side {
 pub struct Pair {
     pub sides: [Side; 2],
     next_sid: u32,
+    /// A side that is away: the host gives opens toward it a sid and delivers them to nobody.
+    pub away: [bool; 2],
 }
 
 impl Pair {
@@ -132,7 +134,7 @@ impl Pair {
             sides.push(Side { driver, inbox, host: Host::default(), key: keys[i], streams: Vec::new() });
         }
         let sides: [Side; 2] = sides.try_into().map_err(|_| ()).expect("two");
-        Self { sides, next_sid: 1 }
+        Self { sides, next_sid: 1, away: [false; 2] }
     }
 
     pub fn reach(&mut self, from: usize) {
@@ -175,6 +177,9 @@ impl Pair {
                     self.next_sid += 1;
                     let sender = &mut self.sides[from];
                     sender.driver.sid_opened(attempt, Some(sid.clone()), &mut sender.host);
+                    if self.away[to] {
+                        continue;
+                    }
                     let target = &mut self.sides[to];
                     target.driver.incoming(sid, &payload, &mut target.host);
                 }

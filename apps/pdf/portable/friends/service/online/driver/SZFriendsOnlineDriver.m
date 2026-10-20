@@ -23,11 +23,6 @@ static const NSUInteger kReplayCacheCapacity = 4096;
     SZFriendsOnlineContext *_context;
     SZFriendsHostOnline *_online;
     NSMutableArray<SZFriendsOnlineAttempt *> *_attempts;
-    // Per friend (identity key): when the next attempt may start, on the context's clock, and the last wait.
-    NSMutableDictionary<NSData *, NSNumber *> *_backoffUntil;
-    NSMutableDictionary<NSData *, NSNumber *> *_backoffWait;
-    NSMutableSet<NSData *> *_lookingUp;
-    NSMutableDictionary<NSData *, NSNumber *> *_lastLookup; // when each friend was last looked up, on the clock
     // Friends an attempt failed for with the relay asked for, and since when (wall clock): kept through retries.
     NSMutableDictionary<NSData *, NSDate *> *_failedEverywhere;
     SZFriendsReplayCache *_replayCache;
@@ -214,9 +209,10 @@ static const NSUInteger kReplayCacheCapacity = 4096;
             return;
         }
         // Both sides started at once. One rule on both Macs keeps exactly one: the side whose identity key sorts
-        // first offers. Ours goes unless it already carries a stream.
+        // first offers. Ours goes unless it already carries a stream, and goes again when nobody answered it yet.
         if (attempt.connected || SZFriendsOnlineKeySortsFirst(_identity.publicKey, key)) {
             [channel close];
+            if (!attempt.connected && !attempt.answered) [self offerAgain:attempt];
             return;
         }
         [attempt close];
@@ -332,57 +328,6 @@ static const NSUInteger kReplayCacheCapacity = 4096;
     if (_failedEverywhere.count == 0) return;
     [_failedEverywhere removeAllObjects];
     [self reachChangedForFriend:nil];
-}
-
-#pragma mark - Backoff and lookups
-
-- (BOOL)backedOff:(NSData *)identityKey {
-    NSNumber *until = _backoffUntil[identityKey];
-    return until != nil && until.doubleValue > self.context.clock();
-}
-
-- (void)noteFailureForFriend:(NSData *)identityKey {
-    NSTimeInterval wait = _backoffWait[identityKey] ? MIN(_backoffWait[identityKey].doubleValue * 2,
-                                                          SZFriendsOnlineBackoffMax)
-                                                    : SZFriendsOnlineBackoffFirst;
-    _backoffWait[identityKey] = @(wait);
-    _backoffUntil[identityKey] = @(self.context.clock() + wait);
-}
-
-// While a friend is backed off, their record appearing (they came online) ends the wait. Lookups change only once
-// per host period, so a friend is looked up at most once in each, however often the helper asks.
-- (void)lookUpFriend:(NSData *)identityKey {
-    NSTimeInterval now = self.context.clock();
-    NSNumber *last = _lastLookup[identityKey];
-    if ([_lookingUp containsObject:identityKey] || (last && now - last.doubleValue < SZFriendsHostRecordPeriod)) return;
-    SZFriendsOnlineFriend *friend = [self.delegate onlineDriver:self friendWithIdentityKey:identityKey];
-    NSData *rdvKey = SZFriendsHostRendezvousKey(identityKey);
-    if (friend.presenceSecret.length != 32 || rdvKey == nil) return;
-    void (^lookup)(NSArray<NSData *> *, void (^)(NSArray<NSData *> *, NSError *)) = self.testLookup;
-    if (lookup == nil && _online != nil) {
-        SZFriendsHostOnline *online = _online;
-        lookup = ^(NSArray<NSData *> *keys, void (^completion)(NSArray<NSData *> *, NSError *)) {
-            [online lookupRendezvousKeys:keys completion:completion];
-        };
-    }
-    if (lookup == nil) return;
-    _lastLookup[identityKey] = @(now);
-    [_lookingUp addObject:identityKey];
-    __weak SZFriendsOnlineDriver *weakSelf = self;
-    NSData *secret = friend.presenceSecret;
-    lookup(@[ rdvKey ], ^(NSArray<NSData *> *blobs, NSError *error) {
-        (void)error;
-        SZFriendsOnlineDriver *strongSelf = weakSelf;
-        if (strongSelf == nil) return;
-        [strongSelf->_lookingUp removeObject:identityKey];
-        int64_t window = SZFriendsPresenceWindowIndex([NSDate date]);
-        NSData *blob = blobs.count == 1 ? blobs[0] : nil;
-        // Only the friend's own record opens with their secret; the host's filler for someone offline does not.
-        if (blob != nil && SZFriendsOpenRendezvousRecord(blob, identityKey, secret, @[ identityKey ], window) != nil) {
-            [strongSelf->_backoffUntil removeObjectForKey:identityKey];
-            [strongSelf reachFriend:identityKey];
-        }
-    });
 }
 
 #pragma mark - SZFriendsOnlineAttemptOwner

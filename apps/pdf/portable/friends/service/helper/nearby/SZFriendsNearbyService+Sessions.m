@@ -345,8 +345,13 @@ static BOOL SZFriendsEndWasSupersededByPeer(NSError *error) {
     [self syncLinkClosed:link];
     // Faults only, and never a key, name or address: which kind of session ended, on which route, and why.
     if (error != nil && !link.probe) {
-        SZFriendsHelperLog(@"session ended (purpose %ld, route %ld, %@): %@ %ld", (long)link.purpose,
-                           (long)link.raceRoute, link.live ? @"live" : @"handshaking", error.domain, (long)error.code);
+        // The peer's reason when it closed (SZFriendsCloseReason): superseded, shutting down, or a refusal.
+        NSNumber *reason = error.userInfo[SZFriendsSessionCloseReasonKey];
+        SZFriendsHelperLog(@"session ended (purpose %ld, route %ld, %@): %@ %ld%@", (long)link.purpose,
+                           (long)link.raceRoute, link.live ? @"live" : @"handshaking", error.domain, (long)error.code,
+                           [reason isKindOfClass:[NSNumber class]]
+                               ? [NSString stringWithFormat:@" reason %ld", (long)reason.integerValue]
+                               : @"");
     }
     if (link.dialKey != nil) [self.dialing removeObject:link.dialKey];
     NSString *conversationID = link.conversationID;

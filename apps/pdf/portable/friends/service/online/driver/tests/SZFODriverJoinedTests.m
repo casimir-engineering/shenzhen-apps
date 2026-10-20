@@ -88,6 +88,48 @@ void SZFODTestSimultaneous(void) {
     [world stop];
 }
 
+// The friend was away when we offered, so our open reached nobody and waits for an answer that cannot come. They come
+// back and offer to us. When our key sorts first, the rule for both starting at once used to keep our dead offer and
+// drop theirs: nothing connected until ours ran out and the backoff after it (30 s, then minutes), so what one of a
+// person's computers changed while the other was away reached it minutes after it was back. Their open proves they are
+// there: we offer again at once, they answer, and it connects within a round trip.
+void SZFODTestBackWhileWeWait(void) {
+    SZFODWorld *world = [[SZFODWorld alloc] initWithTransportFactory:nil];
+    [world befriend];
+    BOOL aFirst = SZFriendsOnlineKeySortsFirst(world.identityA.publicKey, world.identityB.publicKey);
+    SZFriendsOnlineDriver *first = aFirst ? world.a : world.b, *other = aFirst ? world.b : world.a;
+    NSData *firstKey = aFirst ? world.identityA.publicKey : world.identityB.publicKey;
+    NSData *otherKey = aFirst ? world.identityB.publicKey : world.identityA.publicKey;
+    SZFODDelegate *firstDelegate = aFirst ? world.delegateA : world.delegateB;
+    SZFODDelegate *otherDelegate = aFirst ? world.delegateB : world.delegateA;
+    // Away: the host takes the open and delivers it to nobody.
+    void (^connected)(NSData *, NSData *, void (^)(id<SZFriendsOnlineSignalChannel>)) = first.testOpener;
+    NSMutableArray<NSArray<SZFODChannel *> *> *unheard = [NSMutableArray array];
+    first.testOpener = ^(NSData *rdvKey, NSData *payload, void (^completion)(id<SZFriendsOnlineSignalChannel>)) {
+        (void)rdvKey, (void)payload;
+        NSArray<SZFODChannel *> *pair = [SZFODChannel pair];
+        [unheard addObject:pair];
+        completion(pair[0]);
+    };
+    [first reachFriend:otherKey];
+    EXPECT(SZFODWaitUntil(2, ^BOOL { return unheard.count == 1 && first.attempts.count == 1; }),
+           "an offer that reaches nobody: %@", first.attempts);
+    // Back: opens are delivered again, and they offer to us.
+    first.testOpener = connected;
+    [other reachFriend:firstKey];
+    EXPECT(SZFODWaitUntil(5, ^BOOL {
+               return firstDelegate.streams.count > 0 && otherDelegate.streams.count > 0;
+           }),
+           "connected within a round trip, not after our dead offer and a backoff: %@ / %@", first.attempts,
+           other.attempts);
+    EXPECT(first.attempts.count == 1 && first.attempts[0].role == SZFriendsOnlineRoleOfferer,
+           "the key that sorts first still offers: %@", first.attempts);
+    EXPECT(other.attempts.count == 1 && other.attempts[0].role == SZFriendsOnlineRoleAnswerer,
+           "and the other answers: %@", other.attempts);
+    EXPECT(unheard.firstObject[0].closed, "the offer nobody heard is closed");
+    [world stop];
+}
+
 #pragma mark - The relay, with a local coturn
 
 static uint16_t FreeUDPPort(void) {
