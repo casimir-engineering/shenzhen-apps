@@ -150,9 +150,13 @@ static void UIAddChildWindow(NSWindow* self, SEL _cmd, NSWindow* child, NSWindow
 }
 
 static BOOL UIClickMakesActive = NO;
-static IMP UIOriginalIsActive;
+static __weak NSWindow* UIClickWindow; // the window a press is going to, key for its length
+static IMP UIOriginalIsActive, UIOriginalIsKeyWindow;
 static BOOL UIIsActive(NSApplication* self, SEL _cmd) {
     return UIClickMakesActive || ((BOOL (*)(id, SEL))UIOriginalIsActive)(self, _cmd);
+}
+static BOOL UIIsKeyWindow(NSWindow* self, SEL _cmd) {
+    return (UIClickMakesActive && self == UIClickWindow) || ((BOOL (*)(id, SEL))UIOriginalIsKeyWindow)(self, _cmd);
 }
 
 static IMP UIReplace(SEL selector, IMP replacement) {
@@ -176,6 +180,7 @@ void UIKeepWindowsOffscreen(void) {
     UIOriginalAddChild = UIReplace(@selector(addChildWindow:ordered:), (IMP)UIAddChildWindow);
     UIOriginalIsActive = method_setImplementation(class_getInstanceMethod(NSApplication.class, @selector(isActive)),
                                                   (IMP)UIIsActive);
+    UIOriginalIsKeyWindow = UIReplace(@selector(isKeyWindow), (IMP)UIIsKeyWindow);
 }
 
 // Any of this run's windows on a screen: off it at once, and the run fails.
@@ -396,10 +401,13 @@ BOOL UIClick(NSView* view, NSString** why) {
                                     timestamp:now + 0.05 windowNumber:window.windowNumber context:nil
                                   eventNumber:UIEventNumber++ clickCount:1 pressure:0];
     [NSApp postEvent:up atStart:NO];
-    // A person's click makes their app active before it lands. This run never activates (the person's own app keeps
-    // focus), so for the length of the press AppKit is told the app is active: an inactive app drops a click on a
-    // destructive button, such as the Reset Friends sheet's "Reset Friends" (the verifier's failures of 2026-10-20).
+    // A person's click makes their app active and the window key before it lands. This run never activates (the
+    // person's own app keeps focus), and in an inactive app the window server takes key status back at any moment,
+    // so for the length of the press AppKit is told the app is active and this window key: otherwise it drops a
+    // click on a destructive button, such as the Reset Friends sheet's "Reset Friends" (the verifier's failures of
+    // 2026-10-20, and one run in three after the app alone was made to read as active).
     UIClickMakesActive = YES;
+    UIClickWindow = window;
     [window sendEvent:down];
     // A view that does not track the press leaves the release queued: deliver it as the window server would.
     NSEvent* left = [NSApp nextEventMatchingMask:NSEventMaskLeftMouseUp untilDate:nil inMode:NSDefaultRunLoopMode
