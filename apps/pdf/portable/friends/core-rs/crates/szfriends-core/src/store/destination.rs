@@ -41,6 +41,8 @@ pub enum PhoneFolder {
     Downloads,
     /// iOS: the app's Documents, shown in the Files app under On My iPhone.
     AppFiles,
+    /// Android 9 and earlier: kept in the app, leaving it through Share….
+    App,
 }
 
 /// Where received files go when the person chose nothing.

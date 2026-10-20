@@ -11,6 +11,7 @@ use std::sync::{Arc, OnceLock};
 
 use szfriends_contract::handshake::HelperFacts;
 use szfriends_contract::lifecycle::PROTOCOL;
+use szfriends_core::store::ReceivedDefaults;
 use szfriends_helper::client::ClientConnection;
 use szfriends_helper::server::Server;
 use szfriends_helper::transport::{memory_pair, PeerInfo};
@@ -21,6 +22,8 @@ use crate::phone::{Keys, PhoneService};
 pub struct EmbeddedConnector {
     state_dir: PathBuf,
     keys: Keys,
+    /// Where received files go on this phone (`crate::phone::received`).
+    received: ReceivedDefaults,
     /// Started on the first connection, which comes from the page's first `join()`, after its first paint.
     server: OnceLock<(Server, Arc<PhoneService>)>,
 }
@@ -32,8 +35,8 @@ impl std::fmt::Debug for EmbeddedConnector {
 }
 
 impl EmbeddedConnector {
-    pub fn new(state_dir: PathBuf, keys: Keys) -> Self {
-        Self { state_dir, keys, server: OnceLock::new() }
+    pub fn new(state_dir: PathBuf, keys: Keys, received: ReceivedDefaults) -> Self {
+        Self { state_dir, keys, received, server: OnceLock::new() }
     }
 
     fn server(&self) -> &(Server, Arc<PhoneService>) {
@@ -47,7 +50,7 @@ impl EmbeddedConnector {
             };
             // No lifecycle here: the core lives as long as the app. Its events have no listener.
             let (events, _) = channel();
-            let service = PhoneService::start(self.state_dir.clone(), self.keys.clone());
+            let service = PhoneService::start_with(self.state_dir.clone(), self.keys.clone(), self.received.clone());
             let server = Server::new(service.clone(), facts, events, Box::new(|_, _| false));
             (server, service)
         })

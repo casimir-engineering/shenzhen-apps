@@ -246,7 +246,9 @@ pub async fn show_file<R: Runtime>(
     path: String,
 ) -> Answer<bool> {
     let host = available(&app, &friends, &webview)?;
-    if !crate::validate::plain_path(&path) {
+    // Android 10 keeps a received file as a MediaStore item no path reads: its content URI, as a snapshot offered it.
+    let media_item = cfg!(target_os = "android") && crate::validate::media_store_uri(&path);
+    if !crate::validate::plain_path(&path) && !media_item {
         return Ok(false);
     }
     // Phones: only a received file a snapshot offered goes to the share sheet, and never a folder.
@@ -255,7 +257,8 @@ pub async fn show_file<R: Runtime>(
         use tauri::Manager;
         let native = app.try_state::<crate::phone::native::Native<R>>().map(|n| n.inner().clone());
         let Some(native) = native.filter(|_| host.was_offered(&path)) else { return Ok(false) };
-        return blocking(move || crate::files::classify_path(&path) == "file" && native.share(&path)).await;
+        return blocking(move || (media_item || crate::files::classify_path(&path) == "file") && native.share(&path))
+            .await;
     }
     #[allow(unreachable_code)]
     {

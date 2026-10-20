@@ -15,7 +15,8 @@ const MAX_FRAME_BYTES: usize = 8 * 1024 * 1024;
 const MAX_PATH_BYTES: usize = 1024;
 const MAX_TEXT_BYTES: usize = 32768;
 /// The views the panel subscribes to. message_status is for host surfaces outside Friends.
-const VIEWS: &[&str] = &["badge", "list", "nearby", "details", "profile", "settings", "join"];
+/// `received` lists the files received here, for the app's own recent files.
+const VIEWS: &[&str] = &["badge", "list", "nearby", "details", "profile", "settings", "join", "received"];
 
 /// The field that failed, as PROTOCOL.md's `invalid_field` names it.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -67,6 +68,18 @@ pub fn plain_path(value: &str) -> bool {
     }
     let Some(rest) = rest.strip_prefix(separator) else { return false };
     !rest.is_empty() && rest.split(separator).all(|segment| !matches!(segment, "" | "." | ".."))
+}
+
+/// A MediaStore item's content URI (`content://media/…/<number>`), where Android 10 keeps a received file that no
+/// path reads; only the share sheet takes one, and only one a snapshot offered.
+pub fn media_store_uri(value: &str) -> bool {
+    let Some(rest) = value.strip_prefix("content://media/") else { return false };
+    value.len() <= MAX_PATH_BYTES
+        && !rest.is_empty()
+        && rest.split('/').all(|segment| {
+            !segment.is_empty() && segment.bytes().all(|b| b.is_ascii_alphanumeric() || matches!(b, b'_' | b'-' | b'.'))
+        })
+        && !rest.split('/').any(|segment| segment == "." || segment == "..")
 }
 
 fn path_field(value: &Value, field: &str) -> Checked {
@@ -296,6 +309,7 @@ fn rule(kind: &str) -> Option<Rule> {
         }),
         "search_messages" => rule!(&["query", "conversation_id", "limit"], &[], search_messages),
         "delete_history" => rule!(conversation, &[], |f| opaque(f, "conversation_id", true)),
+        "set_received_folder" => rule!(&["path"], &[], |f| path_field(f.get("path").unwrap_or(&Value::Null), "path")),
         "reset_friends" => rule!(&["confirm"], &[], |f| match f.get("confirm").and_then(Value::as_str) {
             Some("reset") => Ok(()),
             _ => fail("confirm"),
@@ -349,6 +363,7 @@ pub const INTENT_TYPES: &[&str] = &[
     "set_name",
     "set_picture",
     "set_auto_accept",
+    "set_received_folder",
     "dismiss_banner",
     "start_visibility",
     "stop_visibility",

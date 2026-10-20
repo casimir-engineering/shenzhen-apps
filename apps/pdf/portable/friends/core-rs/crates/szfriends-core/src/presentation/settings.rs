@@ -58,10 +58,16 @@ impl SnapshotBuilder {
             });
         }
         let (value, note) = match folder.phone {
-            Some(PhoneFolder::AppFiles) => (self.audience().app_name.clone(), s.text("settings.received.note.ios")),
-            Some(PhoneFolder::Downloads) => (s.text("settings.received.default"), s.text("settings.received.note")),
+            Some(PhoneFolder::AppFiles) => {
+                (Some(self.audience().app_name.clone()), s.text("settings.received.note.ios"))
+            }
+            Some(PhoneFolder::Downloads) => {
+                (Some(s.text("settings.received.default")), s.text("settings.received.note"))
+            }
+            // Kept in the app, where no folder shows: each file's Share… is the way out.
+            Some(PhoneFolder::App) => (None, s.text("settings.received.note")),
             None => (
-                folder.chosen_name.clone().unwrap_or_else(|| s.text("settings.received.default")),
+                Some(folder.chosen_name.clone().unwrap_or_else(|| s.text("settings.received.default"))),
                 s.text("settings.received.note"),
             ),
         };
@@ -69,14 +75,17 @@ impl SnapshotBuilder {
         let change = path.map(|_| {
             Value::Object(self.action("choose_received_folder", s.text("settings.received.change"), "secondary"))
         });
-        json!({
+        let mut row = json!({
             "label": s.text("settings.received.label"),
-            "value": value,
             "note": note,
             "path": path,
             "action": path.map_or(Value::Null, reveal),
             "change": change,
-        })
+        });
+        if let Some(value) = value {
+            row["value"] = json!(value);
+        }
+        row
     }
 
     /// The words that say history goes from every computer, on several.
