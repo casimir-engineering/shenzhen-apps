@@ -105,6 +105,14 @@ MAC_MARKDOWN_SRCS := $(sort $(wildcard mac/markdown/*.mm))
 include mac/companion/sources.mk
 MAC_SRCS := $(filter-out mac/SPDFUpdaterTests.mm,$(sort $(wildcard mac/*.mm))) $(MAC_MARKDOWN_SRCS)
 MAC_HDRS := $(sort $(wildcard mac/*.h) $(wildcard mac/markdown/*.h))
+# The reader's sources compile one object each, across all cores, with the headers each includes recorded by -MMD,
+# so a change recompiles only what it touches; they used to compile in one clang++ call, one file after the other,
+# every time the app was built. The flags are written to MAC_APP_FLAGS_FILE, which every object depends on, so building
+# with other flags (PORTABLE_OPTFLAGS, MAC_ARCH, release mode) recompiles them all.
+MAC_APP_OBJ_DIR := $(BUILD)/mac-app
+MAC_APP_OBJS := $(patsubst %.mm,$(MAC_APP_OBJ_DIR)/%.o,$(MAC_SRCS))
+MAC_APP_COMPILE_FLAGS = $(PORTABLE_OPTFLAGS) $(MAC_TARGET_FLAGS) -std=c++17 -fobjc-arc -Imac -Icore -I$(MUPDF_DIR)/include
+MAC_APP_FLAGS_FILE := $(MAC_APP_OBJ_DIR)/compile-flags
 MAC_VERSION ?= 26.10.20
 MAC_BUILD ?= 1
 MAC_SIGN_IDENTITY ?= -
@@ -495,7 +503,18 @@ $(MAC_STATE_YAML_TEST): mac/tests/SPDFStateYamlTests.mm $(YAML_OBJ) | $(BUILD)
 mac-state-yaml-tests: $(MAC_STATE_YAML_TEST)
 	"$(MAC_STATE_YAML_TEST)"
 
-$(MAC_BIN): core/spdf_document_export.h $(MAC_COLLECTION_BIN) mupdf-libs $(CORE_OBJS) $(YAML_OBJ) $(MAC_MD4C_OBJ) $(MAC_GUMBO_OBJS) $(MAC_SRCS) $(MAC_HDRS) $(MAC_ICON_SRCS) $(MAC_COLLECTION_SRCS) mac/companion/main.mm mac/companion/sources.mk mac/Info.plist mac/CollectionCompanion-Info.plist mac/Assets.xcassets/Contents.json mac/Assets.xcassets/AppIcon.appiconset/Contents.json
+$(MAC_APP_FLAGS_FILE): FORCE
+	@mkdir -p "$(@D)"
+	@printf '%s\n' '$(MAC_APP_COMPILE_FLAGS)' | cmp -s - "$@" || printf '%s\n' '$(MAC_APP_COMPILE_FLAGS)' > "$@"
+.PHONY: FORCE
+FORCE:
+
+-include $(MAC_APP_OBJS:.o=.d)
+$(MAC_APP_OBJ_DIR)/%.o: %.mm $(MAC_APP_FLAGS_FILE) Makefile
+	@mkdir -p "$(@D)"
+	clang++ $(MAC_APP_COMPILE_FLAGS) -MMD -MP -c "$<" -o "$@"
+
+$(MAC_BIN): $(MAC_APP_OBJS) core/spdf_document_export.h $(MAC_COLLECTION_BIN) mupdf-libs $(CORE_OBJS) $(YAML_OBJ) $(MAC_MD4C_OBJ) $(MAC_GUMBO_OBJS) $(MAC_SRCS) $(MAC_HDRS) $(MAC_ICON_SRCS) $(MAC_COLLECTION_SRCS) mac/companion/main.mm mac/companion/sources.mk mac/Info.plist mac/CollectionCompanion-Info.plist mac/Assets.xcassets/Contents.json mac/Assets.xcassets/AppIcon.appiconset/Contents.json
 	rm -rf "$(MAC_APP)"
 	mkdir -p "$(MAC_APP)/Contents/MacOS" "$(MAC_APP)/Contents/Resources" "$(DIST)"
 	cp "mac/Info.plist" "$(MAC_APP)/Contents/Info.plist"
@@ -519,14 +538,17 @@ $(MAC_BIN): core/spdf_document_export.h $(MAC_COLLECTION_BIN) mupdf-libs $(CORE_
 	cp mac/Assets.xcassets/Contents.json "$(BUILD)/Assets.xcassets/"
 	cp mac/Assets.xcassets/AppIcon.appiconset/Contents.json "$(BUILD)/Assets.xcassets/AppIcon.appiconset/"
 	cp "$(BUILD)/ShenzhenPDF.iconset"/*.png "$(BUILD)/Assets.xcassets/AppIcon.appiconset/"
+	# actool leaves its ibtoold agent running for two minutes after it returns, holding every descriptor it inherited.
+	# It gets neither make's output nor make's job slots (descriptors 3 to 9), or the build would wait for it.
 	if xcrun --find actool >/dev/null 2>&1; then \
-		xcrun actool "$(BUILD)/Assets.xcassets" --compile "$(MAC_APP)/Contents/Resources" --platform macosx --minimum-deployment-target "$(MACOSX_DEPLOYMENT_TARGET)" --app-icon AppIcon --output-partial-info-plist "$(BUILD)/actool-partial.plist"; \
+		( exec 3>&- 4>&- 5>&- 6>&- 7>&- 8>&- 9>&-; xcrun actool "$(BUILD)/Assets.xcassets" --compile "$(MAC_APP)/Contents/Resources" --platform macosx --minimum-deployment-target "$(MACOSX_DEPLOYMENT_TARGET)" --app-icon AppIcon --output-partial-info-plist "$(BUILD)/actool-partial.plist" > "$(BUILD)/actool.log" 2>&1 ) || \
+			{ cat "$(BUILD)/actool.log" >&2; exit 1; }; \
 	else \
 		echo "warning: actool not found; using .icns app icon fallback"; \
 	fi
 	iconutil -c icns "$(BUILD)/ShenzhenPDF.iconset" -o "$(MAC_APP)/Contents/Resources/AppIcon.icns"
-	clang++ $(PORTABLE_OPTFLAGS) $(MAC_TARGET_FLAGS) -std=c++17 -fobjc-arc -Imac -Icore -I$(MUPDF_DIR)/include \
-		$(MAC_SRCS) $(CORE_OBJS) "$(YAML_OBJ)" $(MAC_MD4C_OBJ) $(MAC_GUMBO_OBJS) $(MAC_FRIENDS_LINK) \
+	clang++ $(PORTABLE_OPTFLAGS) $(MAC_TARGET_FLAGS) -std=c++17 -fobjc-arc \
+		$(MAC_APP_OBJS) $(CORE_OBJS) "$(YAML_OBJ)" $(MAC_MD4C_OBJ) $(MAC_GUMBO_OBJS) $(MAC_FRIENDS_LINK) \
 		$(MUPDF_LIBS) -framework Cocoa -framework QuartzCore -framework PDFKit -framework \
 		UniformTypeIdentifiers -framework CoreServices -framework Security -framework LocalAuthentication \
 		-framework ImageIO $(MAC_FRIENDS_FRAMEWORKS) -lm -Wl,-dead_strip -Wl,-x -o "$(MAC_BIN)"
@@ -759,8 +781,11 @@ mac-tab-group-performance: | $(BUILD)
 	clang++ $(MAC_TARGET_FLAGS) -O2 -std=c++17 -fobjc-arc -Wall -Wextra -Werror -Imac -Icore -I$(MUPDF_DIR)/include mac/tests/SPDFMacTabGroupPerformance.mm mac/SPDFMacTabGroups.mm -framework Cocoa -o "$(BUILD)/SPDFMacTabGroupPerformance"
 	"$(BUILD)/SPDFMacTabGroupPerformance" --verify
 
-$(MAC_COLLECTION_BIN): mac/companion/main.mm mac/companion/sources.mk $(MAC_COLLECTION_SRCS) $(MAC_HDRS) $(YAML_OBJ) $(CORE_RECOLOR_OBJ) $(MAC_MD4C_OBJ) $(MAC_GUMBO_OBJS) | $(BUILD)
-	clang++ $(PORTABLE_OPTFLAGS) $(MAC_TARGET_FLAGS) -std=c++17 -fobjc-arc -Imac -Icore -I$(MUPDF_DIR)/include mac/companion/main.mm $(MAC_COLLECTION_SRCS) "$(YAML_OBJ)" $(CORE_RECOLOR_OBJ) $(MAC_MD4C_OBJ) $(MAC_GUMBO_OBJS) $(MAC_COLLECTION_FRAMEWORKS) -Wl,-dead_strip -Wl,-x -o "$(MAC_COLLECTION_BIN)"
+# The companion's sources are reader sources compiled with the same flags, so it links the reader's objects.
+MAC_COLLECTION_OBJS = $(patsubst %.mm,$(MAC_APP_OBJ_DIR)/%.o,mac/companion/main.mm $(MAC_COLLECTION_SRCS))
+-include $(MAC_APP_OBJ_DIR)/mac/companion/main.d
+$(MAC_COLLECTION_BIN): $(MAC_COLLECTION_OBJS) mac/companion/sources.mk $(YAML_OBJ) $(CORE_RECOLOR_OBJ) $(MAC_MD4C_OBJ) $(MAC_GUMBO_OBJS) | $(BUILD)
+	clang++ $(PORTABLE_OPTFLAGS) $(MAC_TARGET_FLAGS) -std=c++17 -fobjc-arc $(MAC_COLLECTION_OBJS) "$(YAML_OBJ)" $(CORE_RECOLOR_OBJ) $(MAC_MD4C_OBJ) $(MAC_GUMBO_OBJS) $(MAC_COLLECTION_FRAMEWORKS) -Wl,-dead_strip -Wl,-x -o "$(MAC_COLLECTION_BIN)"
 
 .PHONY: mac-collection-companion-link-tests
 mac-collection-companion-link-tests: $(MAC_COLLECTION_SRCS) $(YAML_OBJ) $(CORE_RECOLOR_OBJ) $(MAC_MD4C_OBJ) $(MAC_GUMBO_OBJS) | $(BUILD)
