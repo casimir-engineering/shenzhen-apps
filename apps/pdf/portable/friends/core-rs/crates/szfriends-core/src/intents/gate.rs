@@ -6,7 +6,7 @@ use super::{IntentError, Wording};
 
 /// Every intent of protocol 1.0 this helper implements. The assistant_* family needs `assistant.scopes`, which no
 /// helper announces yet, so those are unknown_intent.
-pub const KNOWN_INTENTS: [&str; 49] = [
+pub const KNOWN_INTENTS: [&str; 50] = [
     "ping",
     "activate",
     "subscribe",
@@ -56,6 +56,7 @@ pub const KNOWN_INTENTS: [&str; 49] = [
     "revoke_device",
     "rename_device",
     "fetch_from_device",
+    "set_received_folder",
 ];
 
 /// One profile on several computers: only while the helper announces `devices`.
@@ -122,6 +123,8 @@ pub struct Admission {
     pub links: bool,
     /// Another of the person's computers removed this one.
     pub removed_computer: bool,
+    /// The helper announces `received.folder`.
+    pub received_folder: bool,
 }
 
 /// Whether the helper takes an intent of this `type` now; the error to reply with otherwise.
@@ -135,7 +138,10 @@ pub fn admit(kind: &str, state: Admission) -> Result<(), IntentError> {
     if !state.has_identity && !WITHOUT_IDENTITY.contains(&kind) {
         return Err(IntentError::new("identity_unavailable"));
     }
-    if (DEVICES_INTENTS.contains(&kind) && !state.devices) || (LINKS_INTENTS.contains(&kind) && !state.links) {
+    if (DEVICES_INTENTS.contains(&kind) && !state.devices)
+        || (LINKS_INTENTS.contains(&kind) && !state.links)
+        || (kind == "set_received_folder" && !state.received_folder)
+    {
         return Err(IntentError::new("unknown_intent"));
     }
     if state.removed_computer && !ON_REMOVED_COMPUTER.contains(&kind) {

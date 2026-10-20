@@ -69,6 +69,14 @@ pub(super) fn parse_profile(kind: &str, frame: &Value, state: &dyn IntentState) 
             let enabled = enabled.ok_or_else(|| IntentError::field("invalid_field", "enabled"))?;
             Intent::SetAutoAccept { conversation_id, enabled }
         }
+        "set_received_folder" => {
+            let path = string(frame, "path").filter(|p| !p.is_empty() && p.len() <= 4096);
+            let path = path.ok_or_else(|| IntentError::field("invalid_field", "path"))?;
+            if !std::path::Path::new(path).is_absolute() {
+                return Err(IntentError::field("invalid_field", "path"));
+            }
+            Intent::SetReceivedFolder { path: path.to_owned() }
+        }
         "dismiss_banner" => {
             if string(frame, "kind") != Some("id_changed") {
                 return Err(IntentError::field("invalid_field", "kind"));

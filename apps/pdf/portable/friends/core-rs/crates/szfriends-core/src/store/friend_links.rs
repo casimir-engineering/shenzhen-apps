@@ -235,6 +235,7 @@ impl Store {
             insert_item(conn, &item)?;
             set_column(conn, transfer_id, "partial_path", &staging.to_string_lossy().into_owned())?;
             apply_event(conn, transfer_id, TransferEvent::Accepted, None)?;
+            super::destination::note_source(conn, transfer_id, super::destination::ReceivedSource::Link)?;
             transfers::load(conn, transfer_id)?.ok_or(StoreError::NotFound)
         });
         if recorded.is_err() {

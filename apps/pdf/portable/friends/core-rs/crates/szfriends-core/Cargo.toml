@@ -27,6 +27,10 @@ rusqlite = { workspace = true }
 [target.'cfg(unix)'.dependencies]
 rustix = { version = "1", default-features = false, features = ["std", "time", "fs", "process"] }
 
+# Publishing a received file without replacing one (MoveFileExW without MOVEFILE_REPLACE_EXISTING).
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.52", features = ["Win32_Foundation", "Win32_Storage_FileSystem"] }
+
 [dev-dependencies]
 hex.workspace = true
 szfriends-vectors.workspace = true

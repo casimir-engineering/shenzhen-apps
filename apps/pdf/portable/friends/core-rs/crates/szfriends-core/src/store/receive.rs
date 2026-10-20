@@ -11,9 +11,8 @@ use std::time::{Duration, Instant};
 use blake2::digest::{Update, VariableOutput};
 use rusqlite::Connection;
 
-use super::transfer_files::{
-    create_staging_file, digest_prefix, ensure_private_directory, move_no_replace, unique_destination,
-};
+use super::destination::{note_published, part_path, ReceivedSource};
+use super::transfer_files::{create_staging_file, digest_prefix};
 use super::transfers::{self, apply_event, set_column, TransferEvent, TransferRecord, TransferState};
 use super::{Result, Store, StoreError};
 
@@ -224,28 +223,20 @@ impl Store {
         self.write(|conn| fail_mismatched(conn, transfer_id))
     }
 
-    /// Records the destination before the move, so a crash between move and commit is finished at the next start;
-    /// the move refuses an existing destination (`move_no_replace`), so nothing is ever overwritten.
+    /// Publishes to the folder received files go to (`destination.rs`), recording each name before it is taken, so
+    /// a crash between move and commit is finished at the next start; nothing is ever overwritten.
     fn publish(&mut self, record: &TransferRecord, partial: &Path) -> Result<PathBuf> {
-        let directory = self.state_dir().join("received");
-        ensure_private_directory(&directory)?;
-        for _ in 0..8 {
-            let destination = unique_destination(&directory, &record.file_name);
-            let text = destination.to_string_lossy().into_owned();
+        let places = self.places();
+        let id = record.transfer_id.clone();
+        let (location, name) = places.publish(partial, &record.file_name, &mut |claimed| {
+            let claimed = claimed.map(str::to_owned);
             self.write(|conn| {
-                set_column(conn, &record.transfer_id, "final_path", &text)?;
-                set_column(conn, &record.transfer_id, "publishing", &1)
-            })?;
-            match move_no_replace(partial, &destination) {
-                Ok(()) => {}
-                Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => continue,
-                Err(e) => return Err(e.into()),
-            }
-            sync_directory(&directory);
-            self.write(|conn| mark_received(conn, record, &text))?;
-            return Ok(destination);
-        }
-        Err(StoreError::Database("no free destination name".into()))
+                set_column(conn, &id, "final_path", &claimed)?;
+                set_column(conn, &id, "publishing", &1)
+            })
+        })?;
+        self.write(|conn| mark_received(conn, record, &location, &name))?;
+        Ok(PathBuf::from(location))
     }
 
     /// ADR 0003 § Crash recovery for files: finish publishing, truncate staging files to their durable count, and
@@ -261,26 +252,56 @@ impl Store {
                 |r| r.get(0),
             )?;
             let staged = partial.as_ref().filter(|p| fs::symlink_metadata(p).is_ok());
+            // An external location (a content URI) is not a path: the publisher had finished with it.
+            let external = final_path.as_deref().filter(|p| !Path::new(p).is_absolute());
+            // A copy to another volume that stopped half-way: removed, and made again below.
+            if let Some(final_path) = final_path.as_deref().filter(|p| Path::new(p).is_absolute()) {
+                let part = part_path(Path::new(final_path));
+                if fs::symlink_metadata(&part).is_ok_and(|m| m.is_file()) {
+                    let _ = fs::remove_file(&part);
+                }
+            }
             if let Some(partial) = staged {
                 let ok = File::open(partial).is_ok_and(|mut f| staged_file_matches(&mut f, partial, &record));
-                if ok {
-                    // An empty file at the recorded destination while the staged file is still here is the name the
-                    // interrupted move claimed (or a link to an empty file): ours to remove before publishing again.
-                    let claimed = final_path
-                        .as_ref()
-                        .map(Path::new)
-                        .filter(|p| fs::symlink_metadata(p).is_ok_and(|m| m.is_file() && m.len() == 0));
-                    if let Some(claimed) = claimed {
-                        let _ = fs::remove_file(claimed);
-                    }
-                    self.publish(&record, &partial.clone())?;
-                } else {
+                if !ok {
                     let _ = fs::remove_file(partial);
                     self.write(|conn| fail_mismatched(conn, &record.transfer_id))?;
+                    continue;
                 }
-            } else if let Some(published) = final_path.filter(|p| fs::symlink_metadata(p).is_ok()) {
+                if let Some(location) = external {
+                    let name = record.file_name.clone();
+                    self.write(|conn| mark_received(conn, &record, location, &name))?;
+                    let _ = fs::remove_file(partial);
+                    continue;
+                }
+                let target = final_path.as_ref().map(Path::new).filter(|p| fs::symlink_metadata(p).is_ok());
+                if let Some(target) = target {
+                    let whole = File::open(target).is_ok_and(|mut f| staged_file_matches(&mut f, target, &record));
+                    if whole && record.size > 0 {
+                        // Copied to another volume and renamed before the crash; only the staged file was left.
+                        let name = file_name_of(target);
+                        let text = target.to_string_lossy().into_owned();
+                        self.write(|conn| mark_received(conn, &record, &text, &name))?;
+                        let _ = fs::remove_file(partial);
+                        continue;
+                    }
+                    // An empty file at the recorded destination while the staged file is still here is the name the
+                    // interrupted move claimed (or a link to an empty file): ours to remove before publishing again.
+                    if fs::symlink_metadata(target).is_ok_and(|m| m.is_file() && m.len() == 0) {
+                        let _ = fs::remove_file(target);
+                    }
+                }
+                self.publish(&record, &partial.clone())?;
+            } else if let Some(published) =
+                final_path.filter(|p| !Path::new(p).is_absolute() || fs::symlink_metadata(p).is_ok())
+            {
                 // Moved before the crash, committed after it: the digest was verified before the move.
-                self.write(|conn| mark_received(conn, &record, &published))?;
+                let name = if Path::new(&published).is_absolute() {
+                    file_name_of(Path::new(&published))
+                } else {
+                    record.file_name.clone()
+                };
+                self.write(|conn| mark_received(conn, &record, &published, &name))?;
             } else {
                 let fresh = create_staging_file(&partial_directory)?.to_string_lossy().into_owned();
                 self.write(|conn| {
@@ -336,7 +357,12 @@ impl Store {
     }
 }
 
-fn mark_received(conn: &Connection, record: &TransferRecord, destination: &str) -> Result<()> {
+fn file_name_of(path: &Path) -> String {
+    path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default()
+}
+
+fn mark_received(conn: &Connection, record: &TransferRecord, destination: &str, name: &str) -> Result<()> {
+    note_published(conn, &record.transfer_id, name, ReceivedSource::Friend)?;
     set_column(conn, &record.transfer_id, "received_path", &destination)?;
     set_column(conn, &record.transfer_id, "publishing", &0)?;
     set_column(conn, &record.transfer_id, "final_path", &rusqlite::types::Null)?;
@@ -352,13 +378,4 @@ fn fail_mismatched(conn: &Connection, transfer_id: &str) -> Result<()> {
     set_column(conn, transfer_id, "publishing", &0)?;
     set_column(conn, transfer_id, "final_path", &rusqlite::types::Null)?;
     apply_event(conn, transfer_id, TransferEvent::Failed, Some(transfers::FAILURE_DIGEST_MISMATCH)).map(|_| ())
-}
-
-fn sync_directory(directory: &Path) {
-    #[cfg(unix)]
-    if let Ok(handle) = File::open(directory) {
-        let _ = handle.sync_all();
-    }
-    #[cfg(not(unix))]
-    let _ = directory;
 }

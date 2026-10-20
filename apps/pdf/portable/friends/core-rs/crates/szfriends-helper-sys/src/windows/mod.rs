@@ -4,6 +4,7 @@ pub mod dnssd;
 pub mod dpapi;
 pub mod events;
 pub mod firewall;
+pub mod known_folders;
 pub mod lock;
 pub mod pipe;
 #[cfg(feature = "testing")]

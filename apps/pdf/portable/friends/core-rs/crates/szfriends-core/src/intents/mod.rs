@@ -47,6 +47,8 @@ pub enum View {
     Settings,
     MessageStatus,
     Join,
+    /// The files received here (helper capability `received.folder`).
+    Received,
 }
 
 /// A file object (`type.file`): a path, the name it is shown under, and the revision it must still be.
@@ -217,6 +219,10 @@ pub enum Intent {
     SetAutoAccept {
         conversation_id: String,
         enabled: bool,
+    },
+    /// The folder received files are saved to on this computer, as given (the store checks it).
+    SetReceivedFolder {
+        path: String,
     },
     DismissBanner,
     StartVisibility,

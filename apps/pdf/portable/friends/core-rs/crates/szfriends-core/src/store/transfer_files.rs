@@ -202,7 +202,7 @@ pub fn sanitized_file_name(proposed: &str) -> String {
     }
 }
 
-/// A path inside `directory` that overwrites nothing ("Site photos 2.pdf"); a symlink, even a dangling one, counts as
+/// A path inside `directory` that overwrites nothing ("Site photos (2).pdf"); a symlink, even a dangling one, counts as
 /// taken. Never leaves the directory, whatever `name` holds.
 pub fn unique_destination(directory: &Path, name: &str) -> PathBuf {
     let safe = sanitized_file_name(name);
@@ -216,8 +216,8 @@ pub fn unique_destination(directory: &Path, name: &str) -> PathBuf {
         None => (safe.clone(), None),
     };
     let named = |suffix: String| match &extension {
-        Some(extension) => format!("{base} {suffix}.{extension}"),
-        None => format!("{base} {suffix}"),
+        Some(extension) => format!("{base} ({suffix}).{extension}"),
+        None => format!("{base} ({suffix})"),
     };
     for n in 2..10_000 {
         let candidate = directory.join(named(n.to_string()));
