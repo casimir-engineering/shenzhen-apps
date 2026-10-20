@@ -238,7 +238,13 @@ impl SnapshotBuilder {
         };
         let seed = person.conversation_id.as_deref().or(person.nearby_id.as_deref()).unwrap_or(&title).to_owned();
         let initials_from = self.initials_source(person.name.as_deref(), person.friends_id.as_deref());
-        json!({
+        let (found, found_spoken) =
+            if self.shows_found() { self.found(&person.found_methods) } else { (Value::Null, None) };
+        let spoken = match found_spoken {
+            Some(found) => format!("{spoken}, {found}"),
+            None => spoken,
+        };
+        let mut row = json!({
             "nearby_id": person.nearby_id,
             "conversation_id": person.conversation_id,
             "avatar": self.avatar_for_picture(&person.picture, &seed, &initials_from),
@@ -247,7 +253,11 @@ impl SnapshotBuilder {
             "status_label": status,
             "action": action,
             "accessibility_label": spoken,
-        })
+        });
+        if self.shows_found() {
+            row["found"] = found;
+        }
+        row
     }
 
     /// The nearby view.

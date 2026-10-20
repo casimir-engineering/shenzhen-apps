@@ -71,6 +71,7 @@ void SZPExpectFixture(NSDictionary *built, NSString *fixture, NSString *view);
 extern NSString *SZPFriendsDirectory;
 
 void SZPRunFixtureTests(void);
+void SZPRunRemoveTests(void);
 void SZPRunLabelTests(void);
 void SZPRunViewEdgeTests(void);
 void SZPRunPeopleEdgeTests(void);

@@ -73,6 +73,13 @@ NS_ASSUME_NONNULL_BEGIN
             payload:(nullable NSDictionary<NSString *, id> *)payload;
 @end
 
+// History (SZFriendsIntentRouter+Content.m).
+@interface SZFriendsIntentRouter (Content)
+// delete_history's deletion of one conversation's history, or all of it for nil: on every computer of the person's
+// when sync runs. NO when it failed.
+- (BOOL)eraseHistoryInConversation:(nullable NSString *)conversationID;
+@end
+
 // Mentions (SZFriendsIntentRouter+Mentions.m, PROTOCOL.md § Mentions).
 @interface SZFriendsIntentRouter (Mentions)
 // send_message's text as it is sent: every Friends link the person typed made plain text, then each U+FFFC replaced by

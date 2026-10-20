@@ -59,6 +59,11 @@ impl Drop for Client {
 
 impl Client {
     pub fn connect(home: &Path) -> Self {
+        Self::connect_with(home, &["drop.files", "mentions"])
+    }
+
+    /// A client that declares `capabilities` in its hello.
+    pub fn connect_with(home: &Path, capabilities: &[&str]) -> Self {
         let service = Service::start(home, seed::test_key_store(home)).expect("the service starts");
         let (sender, _events) = channel();
         let facts = HelperFacts { version: "1.0".into(), build_number: 1, protocol: PROTOCOL, pid: 1 };
@@ -79,7 +84,7 @@ impl Client {
         let hello = json!({"type": "hello", "id": "1", "protocol": {"major": 1, "minor": 0, "min_major": 1},
             "client": {"app_id": "test", "app_name": "Shenzhen 3D", "app_version": "1", "toolkit": "tauri",
                        "reveal_in": "Files", "pid": 1},
-            "capabilities": ["drop.files", "mentions"], "open_formats": ["stl"], "locale": "en"});
+            "capabilities": capabilities, "open_formats": ["stl"], "locale": "en"});
         client.write(&hello);
         let welcome = client.wait("welcome", |f| f["type"] == "welcome");
         assert!(welcome["strings"].as_object().is_some_and(|s| !s.is_empty()), "the welcome carries the strings");

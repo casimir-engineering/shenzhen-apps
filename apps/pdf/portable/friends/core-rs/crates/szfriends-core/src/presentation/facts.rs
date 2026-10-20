@@ -186,6 +186,10 @@ pub struct PersonFacts {
     pub received_reveal_path: Option<String>,
     /// In the list only because they sent a file through a download link, and not a friend (relation Removed).
     pub link_contact: bool,
+    /// Taken off the list (`left_list_at`): the list skips them; their conversation and details still open.
+    pub left_list: bool,
+    /// The discovery methods that see this person nearby now (lan, p2p_wifi, bluetooth); empty when none do.
+    pub found_methods: Vec<RouteMethod>,
 }
 
 impl Default for PersonFacts {
@@ -216,6 +220,8 @@ impl Default for PersonFacts {
             received_file_count: 0,
             received_reveal_path: None,
             link_contact: false,
+            left_list: false,
+            found_methods: Vec::new(),
         }
     }
 }
@@ -233,6 +239,7 @@ impl PersonFacts {
             comparison_code: person.comparison_code.clone(),
             last_interaction_at: person.last_interaction_at,
             unread_count: person.unread_count,
+            left_list: person.left_list_at.is_some(),
             ..Self::default()
         }
     }
@@ -329,6 +336,8 @@ pub struct NearbyPersonFacts {
     pub relation: Relation,
     pub is_stranger: bool,
     pub route_method: RouteMethod,
+    /// The discovery methods that see this person now (lan, p2p_wifi, bluetooth).
+    pub found_methods: Vec<RouteMethod>,
 }
 
 impl Default for NearbyPersonFacts {
@@ -342,6 +351,7 @@ impl Default for NearbyPersonFacts {
             relation: Relation::Friend,
             is_stranger: false,
             route_method: RouteMethod::None,
+            found_methods: Vec::new(),
         }
     }
 }

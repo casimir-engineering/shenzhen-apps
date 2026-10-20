@@ -230,6 +230,7 @@ Lowercase dotted strings. Unknown ones are ignored on both sides.
 | `assistant.chats` | The host's AI chat may open scoped chat access; without it `assistant_*` intents fail with `not_allowed` |
 | `search.export` | The host shows Friends results in its global search (Cmd+K) |
 | `files.share` | A phone: `show_file` hands a received file to the system's share sheet, labelled "Share…", and offers no folder to show (the details' `received.action` is null) |
+| `list.menu` | The host shows each list row's `menu` on right-click, Control-click or long-press; rows carry `menu` (§ Views, `list`) |
 | `mentions` | The host's views show mentions (§ Mentions): `@` in the composer, whose hint then includes "@ to mention someone", with `mentionable` on list rows and the composer's `mention_note`, and mentions in messages as links. Without it every mention arrives as plain text |
 
 | Helper capability | Meaning |
@@ -295,7 +296,7 @@ composer on the reply already shows the sent message. Field types are in § Sche
 | `fetch_from_device` | `transfer_id` | Copy here a file another of the person's computers holds (Get, § Devices) |
 | `block` | `conversation_id` | Block: they cannot reconnect, send requests or offer files; turns off automatic acceptance |
 | `unblock` | `conversation_id` | Undo a block |
-| `remove_friend` | `conversation_id` | Remove; the conversation stays and either side may send a new request |
+| `remove_friend` | `conversation_id`, `delete_history?` | Take anyone but You off the list: a friend is removed without being told, an incoming request declined and an outgoing one withdrawn (as `decline_request` and `cancel_request` do), a blocked person stays blocked. The conversation stays unless `delete_history` is true, which then deletes it as `delete_history` does; a new request from either side brings the person back. `not_allowed` for You; someone already off the list succeeds with no change |
 | `mark_verified` | `conversation_id` | The person confirmed the comparison codes match |
 | `accept_key_change` | `conversation_id` | Continue with a friend's new key after review; the friend becomes unverified |
 | `set_name` | `name` | The name friends see; `""` clears it (friends then see the Friends ID) |
@@ -520,6 +521,18 @@ acceptance). There is no separate inbox; requests and offers are rows.
 - With the helper capability `devices`: `state` (`normal`, or `device_removed` with `removed`, § Devices),
   `join_requests` above the rows (§ Joining), and each row's `kind`, `you` for the You conversation (§ Devices).
 - `empty` replaces the rows when there are none, or when a filter matches none.
+- Someone the person removed (`remove_friend`) is off the list: no row, and nothing of theirs counts on the badge
+  or as waiting, until a new request from either side, an acceptance or an Add by ID brings them back. Their
+  conversation and details still open (from search, or a view already showing them), and the `nobody` empty state
+  counts only the people still listed.
+- `rows[].menu` (clients that declared `list.menu`) is what the row's context menu offers, on right-click or
+  Control-click, or a long-press on touch screens: one `remove_friend` action, labelled "Remove", or "Cancel
+  request" on a request this person sent, drawn destructive, with a `confirm` that says what happens to that
+  person, and, when there is history with them, the `option` to delete it too (§ Shared objects, Action). The You
+  row's menu is empty. Without `list.menu` rows carry no `menu` key. Views show no menu when it is absent or empty,
+  send the action with the row's `conversation_id` (and `delete_history: true` only when the option is ticked), and
+  hide the row as soon as they send it, showing it again if the intent fails. The Delete key on a selected row runs
+  its first `menu` action, with its confirmation.
 - `rows[].mentionable` (clients that declared `mentions`) says whether the `@` picker offers this person: a friend
   with a Friends ID. The picker is a second `list` subscription filtered with `set_filter` as the person types.
 - `footer` is the name friends see (`name` `null` until chosen, then `name_placeholder` shows), the ID line with
@@ -638,7 +651,8 @@ chat history comes first in `actions`, for anyone whose details show: `delete_hi
 Mac, and anything still waiting to go to them) and what stays (the person as friend or blocked, their own copy, files
 received, and, for a client with `assistant.chats`, AI chat answers that quoted the chat), as Settings' Delete
 history says for every chat. Delete chat history and Remove friend carry a `confirm` and every Block an `arm`, all
-drawn destructive. `id_confirmed` and `id_confirmed_label` mean what they mean on a
+drawn destructive. Remove friend asks what the list's menu asks for a friend ("Remove Mei?"), with the option to
+delete the history too when there is some, and takes the friend off the list (§ Views, `list`). `id_confirmed` and `id_confirmed_label` mean what they mean on a
 list row; views show the label under the ID line.
 
 ### `profile`
@@ -770,7 +784,9 @@ The new computer's side of joining a person's existing profile, with the helper 
   `link`, `destructive`) are display-ready; `note` is an optional explanation shown under the button. When
   `confirm` is present the view asks with that dialog first and sends the intent only on its confirm button;
   `reset_friends` is then sent with `confirm` `"reset"`. `confirm.destructive` draws the confirm button in the
-  destructive color. When `arm` is present the button behaves like a row button with
+  destructive color. `confirm.option`, when present, is a checkbox under the body labelled `option.label`,
+  unticked each time the dialog opens; when it is ticked the intent also carries `option.field` set to `true`
+  (Remove's "Also delete chat history" sends `delete_history: true`). When `arm` is present the button behaves like a row button with
   `arm` (§ Views, `list`): the first click shows `arm.label` in the destructive color and sends nothing, a second
   click within `arm.seconds` sends. Block always carries `arm`; Remove friend, Delete history (a friend's details
   and Settings) and Reset Friends carry `confirm`.
@@ -1539,7 +1555,8 @@ action: enum(accept_request,decline_request,cancel_request,block,unblock,remove_
 label: string
 style: enum(primary,secondary,link,destructive)
 note?: string|null
-confirm?: @confirm|null      # ask first; reset_friends and remove_friend always carry one
+confirm?: @confirm|null      # ask first; reset_friends and remove_friend always carry one (remove_friend's may
+                             # carry an `option`, § Shared objects, Action)
 arm?: @arm|null              # ask for a second click first; block always carries one
 path: string when action=open_file,show_file
 settings_target: enum(local_network_privacy,bluetooth_privacy,bluetooth,wifi) when action=open_settings
@@ -1588,6 +1605,12 @@ body: string
 confirm_label: string
 cancel_label: string
 destructive: bool            # draw the confirm button in the destructive color
+option?: @confirm_option|null  # a checkbox under the body, unticked; ticked, the intent carries `field: true`
+```
+
+```schema type.confirm_option
+label: string                # "Also delete chat history"
+field: enum(delete_history)  # the intent field set to true when the box is ticked
 ```
 
 ### Views
@@ -1651,6 +1674,8 @@ actions: array
 actions[]: @row_action
 mentionable?: bool           # clients that declared mentions: the @ picker offers this person
 kind?: enum(person,you)      # present while the helper announces `devices`; `you` is the You row
+menu?: array                 # clients that declared list.menu: the row's context menu; empty on the You row
+menu[]: @action
 ```
 
 ```schema type.row_action
@@ -2142,6 +2167,7 @@ conversation_id: string
 
 ```schema intent.remove_friend
 conversation_id: string
+delete_history?: bool        # also delete this conversation's history, as delete_history does
 ```
 
 ```schema intent.mark_verified

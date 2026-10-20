@@ -172,7 +172,9 @@ impl State {
             }
             Intent::Block { conversation_id } => self.block(&conversation_id),
             Intent::Unblock { conversation_id } => self.unblock(&conversation_id),
-            Intent::RemoveFriend { conversation_id } => self.remove_friend(&conversation_id),
+            Intent::RemoveFriend { conversation_id, delete_history } => {
+                self.remove_friend(&conversation_id, delete_history)
+            }
             Intent::MarkVerified { conversation_id } => self.mark_verified(&conversation_id),
             Intent::StartVisibility => {
                 let deadline = self.start_visibility();

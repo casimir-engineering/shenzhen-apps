@@ -99,6 +99,9 @@ typedef NS_ENUM(NSInteger, SZFriendsOnlineReach) {
 // In the list only because they sent this person a file through a download link, and not a friend (relation
 // Removed): the row says what they sent rather than "No longer friends", and their files offer Add.
 @property(nonatomic) BOOL linkContact;
+// The person took them off the list (remove_friend): no list shows them and they count for no badge, but their
+// conversation and details still open, from search or a view already showing them. Only someone Removed or Blocked.
+@property(nonatomic) BOOL leftList;
 @end
 
 // Event kinds the helper records in history (store item eventKind) and the catalog words for each. The store

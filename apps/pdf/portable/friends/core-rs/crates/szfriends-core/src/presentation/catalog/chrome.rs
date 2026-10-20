@@ -330,12 +330,5 @@ pub(super) const CORE: &[(&str, &str)] = &[
     ("action.block", "Block {first}"),
     ("action.unblock", "Unblock {first}"),
     ("action.remove", "Remove friend"),
-    ("action.remove.confirm.title", "Remove {first} as a friend?"),
-    (
-        "action.remove.confirm.body",
-        "{first} isn’t told. Your conversation stays, and {first} can send you a new request. Anything still waiting \
-         to go to {first} won’t be sent.",
-    ),
-    ("action.remove.confirm.button", "Remove Friend"),
     ("action.cancel_request", "Cancel request"),
 ];

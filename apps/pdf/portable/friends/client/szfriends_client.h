@@ -367,7 +367,13 @@ szfriends_intent *szfriends_intent_add_from_mention(const char *friends_id, cons
                                                     const char *name);
 szfriends_intent *szfriends_intent_block(const char *conversation_id);
 szfriends_intent *szfriends_intent_unblock(const char *conversation_id);
+/* Takes the person off the list (PROTOCOL.md § Intents, remove_friend): send it from a row's menu or a friend's
+ * details, after the action's confirm. */
 szfriends_intent *szfriends_intent_remove_friend(const char *conversation_id);
+/* Sets the field a confirm's ticked `option` names to true (PROTOCOL.md § Shared objects, Action, confirm.option):
+ * "delete_history" on remove_friend, when the person also chose to delete the chat history. Returns `intent`. Any
+ * other field or intent, or NULL, is freed and NULL returned, so an option is never sent where it means nothing. */
+szfriends_intent *szfriends_intent_with_confirm_option(szfriends_intent *intent, const char *field);
 szfriends_intent *szfriends_intent_mark_verified(const char *conversation_id);
 szfriends_intent *szfriends_intent_accept_key_change(const char *conversation_id);
 szfriends_intent *szfriends_intent_set_name(const char *name); /* "" clears it */

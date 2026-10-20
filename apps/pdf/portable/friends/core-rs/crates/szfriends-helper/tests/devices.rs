@@ -2,7 +2,7 @@
 //! loopback (ADR 0013, ADR 0014): a new computer asks to join by the profile's Friends ID over nearby, the person
 //! approves on the computer that has the profile and types the code it shows (a wrong one first); the new computer
 //! then holds the profile, both list both computers, and what changes on one (the name, a computer's name, a
-//! friend and their messages, a deleted chat) reaches the other over the session between them.
+//! friend and their messages, a deleted chat, a removal) reaches the other over the session between them.
 
 mod clients;
 mod support;
@@ -118,4 +118,9 @@ fn a_friend_and_their_messages_reach_the_other_computer() {
     ada.snapshot(chat_a.as_str().unwrap(), "every chat erased", |d| !texts(d).contains("Still there?"));
     let chat_c = cy.send("open_conversation", json!({"conversation_id": ada_in_c}))["subscription"].clone();
     cy.snapshot(chat_c.as_str().unwrap(), "Cy keeps theirs", |d| texts(d).contains("Hello Ada"));
+
+    // Removing Cy on one computer takes Cy off the other's list too.
+    ada.send("remove_friend", json!({"conversation_id": cy_in_a}));
+    ada.snapshot(&list_a, "Cy off the list", |d| row_titled(d, "Cy").is_none());
+    bo.snapshot(&list_b, "Cy off the other computer's list", |d| row_titled(d, "Cy").is_none());
 }

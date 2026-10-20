@@ -240,6 +240,7 @@ fn nearby_person(
         is_stranger: stranger,
         relation,
         route_method: route,
+        found_methods: Vec::new(),
     }
 }
 

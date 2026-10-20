@@ -114,8 +114,11 @@ impl SnapshotBuilder {
         if confirmed {
             said.push(s.text("list.spoken.id_confirmed"));
         }
+        let (found, found_spoken) =
+            if self.shows_found() { self.found(&person.found_methods) } else { (Value::Null, None) };
+        said.extend(found_spoken);
         let first = self.first_name_for_person(person);
-        json!({
+        let mut row = json!({
             "conversation_id": person.conversation_id,
             "avatar": self.avatar_for_person(person),
             "title": title,
@@ -133,7 +136,14 @@ impl SnapshotBuilder {
             "drop_refusal": if accepts_drops { Value::Null } else { self.drop_refusal(person) },
             "accessibility_label": said.join(", "),
             "actions": self.row_actions(person, &title),
-        })
+        });
+        if self.shows_list_menu() {
+            row["menu"] = self.row_menu(person);
+        }
+        if self.shows_found() {
+            row["found"] = found;
+        }
+        row
     }
 
     fn banner(&self, profile: &ProfileFacts) -> Value {
@@ -175,8 +185,10 @@ impl SnapshotBuilder {
         let s = &self.strings;
         let directory = MentionDirectory::new(people, profile);
         let mut rows = Vec::new();
+        // Someone taken off the list stays in the facts, so their open conversation, details or a search still finds
+        // them; the list skips them.
         for person in self.people_by_latest_interaction(people) {
-            if !self.matches_query(person.name.as_deref(), person.friends_id.as_deref(), query) {
+            if person.left_list || !self.matches_query(person.name.as_deref(), person.friends_id.as_deref(), query) {
                 continue;
             }
             let item = person.last_preview_item_id.as_ref().and_then(|id| preview_items.get(id));
@@ -188,7 +200,7 @@ impl SnapshotBuilder {
         }
         let empty = if !rows.is_empty() {
             Value::Null
-        } else if people.is_empty() {
+        } else if people.iter().all(|p| p.left_list) {
             self.empty(None, s.text("list.empty.title"), Some(s.text("list.empty.body")))
         } else {
             let title = s.text_with("search.no_match.title", &[("query", trim(query))]);
