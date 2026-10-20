@@ -70,6 +70,15 @@ FOUNDATION_EXPORT NSNotificationName const SPDFCollectionStoreDidChangeNotificat
 - (BOOL)ensureProtectedPath:(NSString*)path reason:(NSString*)reason
       continuingDocumentID:(nullable NSString*)documentID error:(NSError**)error;
 @end
+@interface SPDFMacCollectionStore (Received)
+// Files received through Shenzhen Friends (mac/friends/SPDFMacFriendsReceivedFiles.h). `files` maps transfer IDs to
+// when each file was received (Unix seconds). Returns the IDs this caller now captures with reason "Received",
+// recorded as handled under the manifest lock so no window or later launch takes them again. The first call records
+// when ShenzhenPDF began taking received files; anything received earlier is never returned. Enabled: the new IDs.
+// Disabled: none, but they are recorded, so turning Collection on later imports nothing received meanwhile.
+// Unset (no Collection is created for this), a damaged index or an unavailable location: nil, nothing recorded.
+- (nullable NSArray<NSString*>*)claimReceivedFiles:(NSDictionary<NSString*, NSNumber*>*)files;
+@end
 @interface SPDFMacCollectionStore (Access)
 - (BOOL)setExcluded:(BOOL)excluded path:(NSString*)path error:(NSError**)error;
 - (BOOL)setExcluded:(BOOL)excluded documentID:(NSString*)documentID error:(NSError**)error;

@@ -13,6 +13,7 @@
 #import "SPDFMacFriendsGrantBar.h"
 #import "SPDFMacFriendsHost.h"
 #import "SPDFMacFriendsLaunch.h"
+#import "SPDFMacFriendsReceivedFiles.h"
 #import "SPDFMacFriendsSendProvider.h"
 #import "SPDFMacFriendsSettingsPane.h"
 #import "SPDFMacFriendsTitleBar.h"
@@ -31,6 +32,8 @@ NS_ASSUME_NONNULL_BEGIN
 @property(nonatomic, nullable) NSButton* searchButton;
 @property(nonatomic, nullable) id<SZFriendsServices> services;
 @property(nonatomic, nullable) SPDFMacFriendsCollectionSource* collection;
+// Received documents into Collection (SPDFMacFriendsReceivedFiles.h), present while attached.
+@property(nonatomic, nullable) SPDFMacFriendsReceivedFiles* received;
 @property(nonatomic, nullable) id settingsObserver;
 // The AI chat's pieces; created with the chat, whether or not Friends is on.
 @property(nonatomic, nullable) SPDFMacFriendsChatScopeGate* gate;
