@@ -203,7 +203,7 @@
 @media (max-width: 600px) {
   .szf-panel {
     position: fixed;
-    top: calc(env(safe-area-inset-top) + 60px);
+    top: calc(var(--safe-top) + 60px);
     left: 0;
     right: 0;
     bottom: 0;
@@ -213,7 +213,7 @@
     border-left: 0;
     border-right: 0;
     border-bottom: 0;
-    padding-bottom: env(safe-area-inset-bottom);
+    padding-bottom: var(--safe-bottom);
     font-size: 14px;
   }
   .szf-panel input,

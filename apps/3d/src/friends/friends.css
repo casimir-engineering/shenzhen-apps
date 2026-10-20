@@ -8,7 +8,10 @@
   right: -8px;
   z-index: 120;
   width: min(400px, calc(100vw - 24px));
-  height: min(640px, calc(100dvh - 88px));
+  height: min(
+    640px,
+    calc(100dvh - 88px - var(--safe-top) - var(--safe-bottom))
+  );
   display: flex;
   flex-direction: column;
   background: var(--surface);

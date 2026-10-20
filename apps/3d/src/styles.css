@@ -24,6 +24,27 @@
   font-size: 13px;
   font-weight: 400;
   --control-height: 32px;
+  /* The edges the system keeps (status bar, navigation bar or gesture handle, display cutout). The app fills the
+     whole screen and keeps its controls inside these: env() on iOS and in browsers, the activity's own insets on
+     Android (src/core/safe-area.ts), whichever is larger. */
+  --safe-top: max(env(safe-area-inset-top, 0px), var(--native-inset-top, 0px));
+  --safe-right: max(
+    env(safe-area-inset-right, 0px),
+    var(--native-inset-right, 0px)
+  );
+  --safe-bottom: max(
+    env(safe-area-inset-bottom, 0px),
+    var(--native-inset-bottom, 0px)
+  );
+  --safe-left: max(
+    env(safe-area-inset-left, 0px),
+    var(--native-inset-left, 0px)
+  );
+  --header-height: 64px;
+  --header-gutter: 20px;
+  --toolbar-gutter: 12px;
+  --tree-width: 244px;
+  --inspector-width: 292px;
 }
 :root[data-theme="light"] {
   color-scheme: light;
@@ -154,15 +175,14 @@ kbd {
 }
 .app {
   height: 100dvh;
-  padding: env(safe-area-inset-top) env(safe-area-inset-right)
-    env(safe-area-inset-bottom) env(safe-area-inset-left);
   display: flex;
   flex-direction: column;
   background: var(--bench);
 }
 .app-header {
-  height: 64px;
-  padding: 0 20px;
+  height: calc(var(--header-height) + var(--safe-top));
+  padding: var(--safe-top) calc(var(--header-gutter) + var(--safe-right)) 0
+    calc(var(--header-gutter) + var(--safe-left));
   display: flex;
   align-items: center;
   gap: 12px;
@@ -270,7 +290,8 @@ kbd {
   align-items: center;
   justify-content: space-between;
   border-bottom: 1px solid var(--line);
-  padding: 0 12px;
+  padding: 0 calc(var(--toolbar-gutter) + var(--safe-right)) 0
+    calc(var(--toolbar-gutter) + var(--safe-left));
   gap: 12px;
   flex-shrink: 0;
 }
@@ -322,13 +343,20 @@ kbd {
   grid-template-columns: minmax(0, 1fr);
 }
 .workspace.with-tree {
-  grid-template-columns: 244px minmax(0, 1fr);
+  grid-template-columns: calc(var(--tree-width) + var(--safe-left)) minmax(
+      0,
+      1fr
+    );
 }
 .workspace.with-inspector {
-  grid-template-columns: minmax(0, 1fr) 292px;
+  grid-template-columns: minmax(0, 1fr) calc(
+      var(--inspector-width) + var(--safe-right)
+    );
 }
 .workspace.with-tree.with-inspector {
-  grid-template-columns: 244px minmax(0, 1fr) 292px;
+  grid-template-columns:
+    calc(var(--tree-width) + var(--safe-left)) minmax(0, 1fr)
+    calc(var(--inspector-width) + var(--safe-right));
 }
 .assembly-panel,
 .inspector {
@@ -341,6 +369,10 @@ kbd {
 }
 .assembly-panel {
   border-right: 1px solid var(--line);
+  padding-left: var(--safe-left);
+}
+.inspector {
+  padding-right: var(--safe-right);
 }
 .inspector {
   border-left: 1px solid var(--line);
@@ -517,8 +549,8 @@ kbd {
 .viewport-top {
   position: absolute;
   top: 16px;
-  left: 20px;
-  right: 20px;
+  left: calc(20px + var(--safe-left));
+  right: calc(20px + var(--safe-right));
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
@@ -558,8 +590,8 @@ kbd {
 .viewport-bottom {
   position: absolute;
   bottom: 20px;
-  left: 20px;
-  right: 20px;
+  left: calc(20px + var(--safe-left));
+  right: calc(20px + var(--safe-right));
   display: flex;
   justify-content: space-between;
   gap: 12px;
@@ -596,7 +628,7 @@ kbd {
 .axis-key {
   position: absolute;
   bottom: 80px;
-  left: 28px;
+  left: calc(28px + var(--safe-left));
   display: flex;
   gap: 9px;
   font: 10px var(--mono);
@@ -1116,11 +1148,13 @@ kbd {
   min-width: 82px;
 }
 .status-bar {
-  height: 28px;
+  /* The last row: it reaches the bottom edge, its text above the gesture handle or navigation bar. */
+  height: calc(28px + var(--safe-bottom));
   display: flex;
   align-items: center;
   gap: 20px;
-  padding: 0 12px;
+  padding: 0 calc(12px + var(--safe-right)) var(--safe-bottom)
+    calc(12px + var(--safe-left));
   border-top: 1px solid var(--line);
   flex-shrink: 0;
   font-size: 9px;
@@ -1200,8 +1234,8 @@ kbd {
 .error-banner {
   position: absolute;
   bottom: 80px;
-  left: 20px;
-  right: 20px;
+  left: calc(20px + var(--safe-left));
+  right: calc(20px + var(--safe-right));
   border: 1px solid color-mix(in srgb, var(--error), transparent 65%);
   background: var(--bench);
   color: var(--error);
@@ -1219,7 +1253,7 @@ kbd {
 }
 .toast {
   position: fixed;
-  bottom: 48px;
+  bottom: calc(48px + var(--safe-bottom));
   left: 50%;
   transform: translateX(-50%);
   background: var(--raised);
@@ -1238,7 +1272,8 @@ kbd {
 }
 .drop-overlay {
   position: fixed;
-  inset: 16px;
+  inset: calc(16px + var(--safe-top)) calc(16px + var(--safe-right))
+    calc(16px + var(--safe-bottom)) calc(16px + var(--safe-left));
   background: color-mix(in srgb, var(--bench), transparent 4%);
   border: 2px dashed var(--jade);
   border-radius: 16px;
@@ -1267,7 +1302,7 @@ kbd {
   padding: 28px;
   max-width: 650px;
   width: calc(100% - 32px);
-  max-height: calc(100dvh - 48px);
+  max-height: calc(100dvh - 48px - var(--safe-top) - var(--safe-bottom));
   overflow: auto;
 }
 .updates-dialog {
@@ -1479,17 +1514,10 @@ kbd {
   display: none;
 }
 @media (max-width: 1200px) {
-  .workspace.with-tree {
-    grid-template-columns: 210px minmax(0, 1fr);
-  }
-  .workspace.with-inspector {
-    grid-template-columns: minmax(0, 1fr) 270px;
-  }
-  .workspace.with-tree.with-inspector {
-    grid-template-columns: 210px minmax(0, 1fr) 270px;
-  }
-  .app-header {
-    padding: 0 16px;
+  :root {
+    --tree-width: 210px;
+    --inspector-width: 270px;
+    --header-gutter: 16px;
   }
   .toolbar-cluster {
     gap: 2px;
@@ -1523,18 +1551,18 @@ kbd {
   .assembly-panel {
     position: absolute;
     left: 0;
-    top: 112px;
-    bottom: 28px;
-    width: 260px;
+    top: calc(112px + var(--safe-top));
+    bottom: calc(28px + var(--safe-bottom));
+    width: calc(260px + var(--safe-left));
     z-index: 12;
     border-right: 1px solid var(--line-strong);
   }
   .inspector {
     position: absolute;
     right: 0;
-    top: 112px;
-    bottom: 28px;
-    width: 292px;
+    top: calc(112px + var(--safe-top));
+    bottom: calc(28px + var(--safe-bottom));
+    width: calc(292px + var(--safe-right));
     z-index: 12;
     border-left: 1px solid var(--line-strong);
   }
@@ -1569,10 +1597,11 @@ kbd {
 @media (max-width: 600px) {
   :root {
     --control-height: 44px;
+    --header-height: 60px;
+    --header-gutter: 10px;
+    --toolbar-gutter: 6px;
   }
   .app-header {
-    height: 60px;
-    padding: 0 10px;
     gap: 5px;
   }
   .brand {
@@ -1600,7 +1629,6 @@ kbd {
   }
   .workspace-toolbar {
     height: 52px;
-    padding: 0 6px;
     gap: 0;
   }
   .toolbar-cluster {
@@ -1719,7 +1747,6 @@ kbd {
     min-height: 32px;
   }
   .status-bar {
-    height: 28px;
     gap: 8px;
     font-size: 8px;
   }
