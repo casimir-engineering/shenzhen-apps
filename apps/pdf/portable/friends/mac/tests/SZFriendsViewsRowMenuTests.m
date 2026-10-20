@@ -296,7 +296,33 @@ static void SZFTestOptionElsewhere(void) {
               @"the views ask for row menus");
 }
 
+// The helper's own golden list (fixtures/snapshots/list-menu.json): every person row offers its Remove, and the
+// pending request's asks in its own words.
+static void SZFTestGoldenMenus(void) {
+    SZFMenuRig *rig = SZFMakeMenuRig();
+    NSDictionary *golden = SZFTestSnapshot(@"list-menu");
+    [rig.content.listPage applySnapshot:golden];
+    for (NSDictionary *source in golden[@"rows"]) {
+        SZFriendsRowView *row = SZFRowFor(rig, source[@"conversation_id"]);
+        NSArray *menu = source[@"menu"];
+        SZFExpect(row && row.menuActions.count == menu.count, @"%@: %lu of %lu", source[@"conversation_id"],
+                  (unsigned long)row.menuActions.count, (unsigned long)menu.count);
+        if (menu.count)
+            SZFExpect([row.contextMenu.itemArray.firstObject.title isEqualToString:menu[0][@"label"]], @"%@: %@",
+                      source[@"conversation_id"], row.contextMenu.itemArray.firstObject.title);
+    }
+    SZFriendsRowView *priya = SZFRowFor(rig, @"c_priya");
+    SZFChooseFirst(priya.contextMenu);
+    SZFriendsConfirmView *confirm = rig.content.confirmation;
+    SZFExpect([confirm.confirmButton.title isEqualToString:@"Cancel request"] &&
+                  [confirm.cancelButton.title isEqualToString:@"Keep request"] && confirm.optionCheckbox,
+              @"the request's own words: %@ / %@", confirm.confirmButton.title, confirm.cancelButton.title);
+    [confirm.cancelButton performClick:nil];
+    SZFExpect(SZFRemovals(rig).count == 0, @"Keep request sends nothing");
+}
+
 void SZFTestRowMenus(void) {
+    SZFTestGoldenMenus();
     SZFTestMenusFromSnapshot();
     SZFTestRemoveAsksFirst();
     SZFTestRefusedRemovalComesBack();
