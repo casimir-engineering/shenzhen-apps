@@ -226,6 +226,16 @@ szfriends_intent *szfriends_intent_via_assistant(szfriends_intent *intent) {
     return finish(intent, sends && cJSON_AddTrueToObject(intent->fields, "via_assistant") != NULL);
 }
 
+szfriends_intent *szfriends_intent_with_confirm_option(szfriends_intent *intent, const char *field) {
+    bool known;
+    if (!intent) return NULL;
+    known = field && strcmp(intent->type, "remove_friend") == 0 && strcmp(field, "delete_history") == 0;
+    if (!known) return finish(intent, false);
+    /* Replaces an earlier mark rather than adding a second key: a frame with a duplicate key is ambiguous. */
+    cJSON_DeleteItemFromObjectCaseSensitive(intent->fields, field);
+    return finish(intent, cJSON_AddTrueToObject(intent->fields, field) != NULL);
+}
+
 szfriends_intent *szfriends_intent_with_mentions(szfriends_intent *intent, const char *const *conversation_ids,
                                                  size_t count) {
     cJSON *mentions;

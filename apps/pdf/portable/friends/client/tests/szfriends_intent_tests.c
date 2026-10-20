@@ -62,7 +62,6 @@ szfriends_intent *szft_intent_from_fixture(const cJSON *line) {
     ONE(add_by_id, "friends_id");
     ONE(block, "conversation_id");
     ONE(unblock, "conversation_id");
-    ONE(remove_friend, "conversation_id");
     ONE(mark_verified, "conversation_id");
     ONE(accept_key_change, "conversation_id");
     ONE(set_name, "name");
@@ -77,6 +76,12 @@ szfriends_intent *szft_intent_from_fixture(const cJSON *line) {
     ONE(fetch_from_device, "transfer_id");
     ONE(set_received_folder, "path");
 #undef ONE
+    if (strcmp(type, "remove_friend") == 0) {
+        szfriends_intent *removal = szfriends_intent_remove_friend(str(line, "conversation_id"));
+        if (cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(line, "delete_history")))
+            removal = szfriends_intent_with_confirm_option(removal, "delete_history");
+        return removal;
+    }
     if (strcmp(type, "ping") == 0) return szfriends_intent_ping();
     if (strcmp(type, "activate") == 0) return szfriends_intent_activate();
     if (strcmp(type, "start_visibility") == 0) return szfriends_intent_start_visibility();
@@ -238,6 +243,25 @@ static void test_required_arguments_and_escaping(void) {
     /* Only the two sending intents carry via_assistant; any other is refused rather than sent with a stray key. */
     EXPECT(szfriends_intent_via_assistant(szfriends_intent_accept_offer("t_1")) == NULL, "via_assistant on accept");
     EXPECT(szfriends_intent_via_assistant(NULL) == NULL, "via_assistant on NULL");
+    {
+        /* A confirm's option sets its field on the intent it belongs to, once, and nowhere else. */
+        char *json;
+        intent = szfriends_intent_with_confirm_option(
+            szfriends_intent_with_confirm_option(szfriends_intent_remove_friend("c_mei"), "delete_history"),
+            "delete_history");
+        json = szfriends_intent_fields_json(intent);
+        EXPECT(json && strcmp(json, "{\"conversation_id\":\"c_mei\",\"delete_history\":true}") == 0, "%s",
+               json ? json : "(null)");
+        free(json);
+        szfriends_intent_free(intent);
+        EXPECT(szfriends_intent_with_confirm_option(szfriends_intent_block("c_mei"), "delete_history") == NULL,
+               "delete_history on block");
+        EXPECT(szfriends_intent_with_confirm_option(szfriends_intent_remove_friend("c_mei"), "enabled") == NULL,
+               "an unknown option field");
+        EXPECT(szfriends_intent_with_confirm_option(szfriends_intent_remove_friend("c_mei"), NULL) == NULL,
+               "a NULL field");
+        EXPECT(szfriends_intent_with_confirm_option(NULL, "delete_history") == NULL, "option on NULL");
+    }
     {
         /* Mentions ride on send_message only, 0 to 20 of them, none NULL (PROTOCOL.md § Mentions). */
         const char *ids[21] = {"c_1", "c_2", "c_3", "c_4", "c_5", "c_6", "c_7", "c_8", "c_9", "c_10", "c_11",
