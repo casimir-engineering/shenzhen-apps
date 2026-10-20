@@ -311,13 +311,12 @@ pub fn init<R: Runtime>(config: Config<R>) -> TauriPlugin<R> {
             drops::drag_over,
         ])
         .setup(move |app, _api| {
-            // Phones: the plugin's Kotlin or Swift halves. Nearby's finds people for the core (nothing starts here);
-            // the other answers calls for the key store, backups and sharing, and starts nothing by itself.
-            #[cfg(any(target_os = "android", target_os = "ios"))]
-            nearby::install(app, &_api);
+            // Phones: the plugin's Kotlin or Swift half, registered once (Tauri keeps one per plugin). It answers calls
+            // for the key store, backups and sharing, and Nearby's, which find people for the core; nothing starts here.
             #[cfg(any(target_os = "android", target_os = "ios"))]
             match phone::native::Native::register(&_api) {
                 Ok(native) => {
+                    nearby::install(native.handle());
                     app.manage(native);
                 }
                 Err(error) => link::log(&format!("no platform half: {error}")),

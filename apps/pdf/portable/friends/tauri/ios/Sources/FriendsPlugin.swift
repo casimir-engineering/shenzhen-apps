@@ -6,6 +6,9 @@
 //   unlock, on this device only, never synchronised.
 // - share: a received file to the share sheet (Save to Files is one of its choices).
 // - openUrl: a web or mail link, or the app's page in Settings.
+//
+// It extends NearbyPlugin, whose commands it answers too: Tauri keeps one Swift plugin per Tauri plugin, and a second
+// one registered for szfriends replaced the first.
 
 import Foundation
 import Security
@@ -47,7 +50,7 @@ private func unhex(_ text: String) -> Data? {
   return data
 }
 
-class FriendsPlugin: Plugin {
+class FriendsPlugin: NearbyPlugin {
 
   @objc public func dirs(_ invoke: Invoke) throws {
     let base = try FileManager.default.url(

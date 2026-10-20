@@ -204,13 +204,23 @@ impl State {
         adapter.start();
     }
 
-    /// The person opened Friends: recorded, so the next launch starts Nearby without waiting; every adapter starts.
+    /// The person opened Friends, or tapped Allow or Try Again: recorded, so the next launch starts Nearby without
+    /// waiting; every adapter starts, and one already started that is not asked yet, refused or unavailable starts
+    /// again, which is when the system may ask again (Android, until the person refuses for good).
     pub fn activate_nearby(&mut self) {
         if !self.store.nearby_permissions_requested() {
             let _ = self.store.set_nearby_permissions_requested();
         }
         self.refresh_advertisement();
         for index in 0..self.nearby.adapters.len() {
+            let method = self.nearby.adapters[index].method();
+            let stuck = matches!(
+                self.nearby.adapters[index].state(),
+                AdapterState::NotAsked | AdapterState::Denied | AdapterState::Unavailable
+            );
+            if stuck && self.nearby.started.remove(&method) {
+                self.nearby.adapters[index].stop();
+            }
             self.start_adapter(index);
         }
         self.schedule_reconsider();

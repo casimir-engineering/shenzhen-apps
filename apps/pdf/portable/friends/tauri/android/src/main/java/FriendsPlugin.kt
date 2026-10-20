@@ -5,6 +5,9 @@
 // - seal, unseal, forget: the Friends key, sealed with an AES-GCM key the Android Keystore holds and never exports.
 // - share: a received file to Save… (the system's document picker) or Share… (the share sheet).
 // - openUrl: a web or mail link, or one of the system's settings screens.
+//
+// It extends NearbyPlugin, whose commands it answers too: Tauri keeps one Kotlin plugin per Tauri plugin, and a
+// second one registered for szfriends replaced the first, so Nearby's calls never reached it.
 
 package com.shenzhen.friends
 
@@ -24,7 +27,7 @@ import app.tauri.annotation.InvokeArg
 import app.tauri.annotation.TauriPlugin
 import app.tauri.plugin.Invoke
 import app.tauri.plugin.JSObject
-import app.tauri.plugin.Plugin
+import app.shenzhen.friends.nearby.NearbyPlugin
 import java.io.File
 import java.security.KeyStore
 import javax.crypto.Cipher
@@ -66,7 +69,7 @@ private fun unhex(text: String): ByteArray? {
 }
 
 @TauriPlugin
-class FriendsPlugin(private val activity: Activity) : Plugin(activity) {
+class FriendsPlugin(private val activity: Activity) : NearbyPlugin(activity) {
   /** The file waiting for the document picker's answer (Save…). */
   private var saving: File? = null
 

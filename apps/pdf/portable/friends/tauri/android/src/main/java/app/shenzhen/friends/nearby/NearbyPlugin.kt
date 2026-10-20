@@ -1,11 +1,17 @@
 // The plugin's Android side (tauri/src/nearby.rs): the commands the core calls, which return at once, and the
 // channels on which NsdDiscovery and BleRadio report. Commands run on the core's thread, so none of them waits.
+// FriendsPlugin extends this class: Tauri keeps one Kotlin plugin per Tauri plugin, so the key store, sharing and
+// Nearby answer as one (registered as FriendsPlugin, src/phone/native.rs).
 //
 // Permissions (ADR 0015 § 10) are asked only when the core powers Bluetooth up, which it does when the person opens
-// Friends (or at launch once they allowed it): scanning, advertising and connecting from Android 12, location for
-// scanning on Android 10 and 11. The answer arrives when the app resumes after the system's dialog; a refusal is
-// reported as the radio being unauthorized, which the Nearby page explains. Network discovery needs no runtime
-// permission.
+// Friends or taps Allow (or at launch once they allowed it): scanning, advertising and connecting from Android 12,
+// location for scanning on Android 11 and earlier. The system's dialog answers through the plugin manager's result
+// launcher. A refusal the system may still ask about again reads as not yet asked, so Nearby keeps its Allow; once the
+// system stops showing the dialog, the refusal is for good and Nearby offers the app's settings page instead. The
+// system then answers within a moment (Android 16 still opens and closes its transparent permission activity, so the
+// app does pause), faster than anyone can read a dialog and refuse. That test does not rely on
+// shouldShowRequestPermissionRationale, which HyperOS and MIUI always answer false. Network discovery (NsdManager)
+// needs no runtime permission.
 
 package app.shenzhen.friends.nearby
 
@@ -16,9 +22,9 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.util.Base64
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import app.tauri.annotation.Command
 import app.tauri.annotation.InvokeArg
@@ -27,6 +33,7 @@ import app.tauri.plugin.Channel
 import app.tauri.plugin.Invoke
 import app.tauri.plugin.JSObject
 import app.tauri.plugin.Plugin
+import app.tauri.plugin.PluginManager
 
 @InvokeArg
 class RegisterArgs {
@@ -90,15 +97,22 @@ class StreamArgs {
 private fun bytes(hex: String): ByteArray =
     ByteArray(hex.length / 2) { hex.substring(it * 2, it * 2 + 2).toInt(16).toByte() }
 
-private const val PERMISSION_REQUEST = 0x5a46
-private const val ASKED = "bluetooth_asked"
+/** Set once the system answered a request without showing its dialog: only the app's settings page can allow it now. */
+private const val REFUSED = "bluetooth_refused_for_good"
+/** An answer sooner than this after the request came without a dialog anyone could have read. */
+private const val NO_DIALOG_MS = 700L
 
 @TauriPlugin
-class NearbyPlugin(private val activity: Activity) : Plugin(activity) {
+open class NearbyPlugin(private val activity: Activity) : Plugin(activity) {
     private val nsd = NsdDiscovery(activity.applicationContext)
     private val radio = BleRadio(activity.applicationContext)
     private val handler = Handler(Looper.getMainLooper())
-    @Volatile private var waitingForGrant = false
+    /** A request is out, since when, and whether the app paused for it (a dialog, or the activity that would show one). */
+    @Volatile private var asking = false
+    @Volatile private var askedAt = 0L
+    @Volatile private var dialogShown = false
+    /** Bluetooth was reported unauthorized to an attached core: a grant from Settings powers it up on return. */
+    @Volatile private var blocked = false
 
     private val preferences = activity.applicationContext.getSharedPreferences("szfriends_nearby", Context.MODE_PRIVATE)
 
@@ -167,13 +181,15 @@ class NearbyPlugin(private val activity: Activity) : Plugin(activity) {
         invoke.reject("not supported")
     }
 
-    /** Read without asking: allowed, denied (asked before and refused), or not yet asked. */
+    private fun refusedForGood(): Boolean = preferences.getBoolean(REFUSED, false)
+
+    /** Read without asking: allowed; denied for good (Settings only); or not determined, when the system may still ask. */
     @Command
     fun radioPermission(invoke: Invoke) {
         val state = when {
             !radio.present -> "unknown"
             granted() -> "allowed"
-            preferences.getBoolean(ASKED, false) -> "denied"
+            refusedForGood() -> "denied"
             else -> "notDetermined"
         }
         invoke.resolve(JSObject().put("permission", state))
@@ -184,31 +200,62 @@ class NearbyPlugin(private val activity: Activity) : Plugin(activity) {
         radio.attach(invoke.parseArgs(ChannelArgs::class.java).channel)
         invoke.resolve()
         if (!radio.present) return radio.reportPower("unsupported")
-        if (granted()) return radio.powerUp()
-        val refusedForGood = preferences.getBoolean(ASKED, false) &&
-            needed().none { ActivityCompat.shouldShowRequestPermissionRationale(activity, it) }
-        if (refusedForGood) return radio.reportPower("unauthorized")
-        preferences.edit().putBoolean(ASKED, true).apply()
-        waitingForGrant = true
+        if (granted()) return powerUp()
+        if (refusedForGood()) return refuse()
         radio.reportPower("unknown")
-        activity.runOnUiThread { ActivityCompat.requestPermissions(activity, needed(), PERMISSION_REQUEST) }
-        // Should no dialog come up at all, the answer is read anyway.
-        handler.postDelayed({ answered() }, 30_000)
+        activity.runOnUiThread { ask() }
+    }
+
+    private fun powerUp() {
+        blocked = false
+        preferences.edit().remove(REFUSED).apply()
+        radio.powerUp()
+    }
+
+    private fun refuse() {
+        blocked = true
+        radio.reportPower("unauthorized")
+    }
+
+    /** The system's dialog, on the main thread. */
+    private fun ask() {
+        if (asking) return
+        asking = true
+        askedAt = SystemClock.elapsedRealtime()
+        dialogShown = false
+        try {
+            PluginManager.requestPermissions(needed()) { handler.post { answered() } }
+        } catch (error: Exception) {
+            asking = false
+            refuse()
+        }
+    }
+
+    override fun onPause(activity: AppCompatActivity) {
+        if (asking) dialogShown = true
     }
 
     override fun onResume(activity: AppCompatActivity) {
-        answered()
+        // Back from the dialog, should its answer have gone astray; or back from Settings with access granted there.
+        if (asking && dialogShown) handler.postDelayed({ if (asking) answered() }, 1_000)
+        if (blocked && !asking && granted()) powerUp()
     }
 
     private fun answered() {
-        if (!waitingForGrant) return
-        waitingForGrant = false
-        if (granted()) radio.powerUp() else radio.reportPower("unauthorized")
+        if (!asking) return
+        asking = false
+        if (granted()) return powerUp()
+        // No dialog, or none anyone could have read: the system refused by itself, as it does once the person refused
+        // for good.
+        if (!dialogShown || SystemClock.elapsedRealtime() - askedAt < NO_DIALOG_MS) {
+            preferences.edit().putBoolean(REFUSED, true).apply()
+        }
+        refuse()
     }
 
     @Command
     fun radioPowerDown(invoke: Invoke) {
-        waitingForGrant = false
+        blocked = false
         radio.powerDown()
         invoke.resolve()
     }

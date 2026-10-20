@@ -14,7 +14,7 @@ use crate::nearby::Adapter;
 
 type Calls = Arc<Mutex<Vec<String>>>;
 
-struct Script(Calls);
+struct Script(Calls, Permission);
 
 impl Script {
     fn note(&self, call: String) {
@@ -30,7 +30,7 @@ fn describe(value: &[u8]) -> String {
 
 impl Radio for Script {
     fn permission(&self) -> Permission {
-        Permission::Allowed
+        self.1
     }
     fn power_up(&mut self, _reports: RadioReports) {
         self.note("power up".into());
@@ -75,6 +75,10 @@ struct Rig {
 const START: f64 = 1_800_000_000.0;
 
 fn rig() -> Rig {
+    rig_with(Permission::Allowed)
+}
+
+fn rig_with(permission: Permission) -> Rig {
     let calls = Calls::default();
     let events = Arc::new(Mutex::new(Vec::new()));
     let seen = events.clone();
@@ -89,7 +93,7 @@ fn rig() -> Rig {
     }));
     let now = Arc::new(Mutex::new(START));
     let clock = now.clone();
-    let radio = Box::new(Script(calls.clone()));
+    let radio = Box::new(Script(calls.clone(), permission));
     let adapter = BluetoothAdapter::with_clock(radio, sink, Box::new(move || *clock.lock().unwrap()));
     Rig { adapter, calls, events, now }
 }
@@ -142,6 +146,20 @@ fn states_follow_the_radio() {
     let states: Vec<String> = rig.events().into_iter().filter(|e| e.starts_with("state")).collect();
     assert_eq!(states, ["state Starting", "state Denied", "state RadioOff", "state Working", "state NotAsked"]);
     assert_eq!(rig.adapter.permission(), Permission::Allowed);
+}
+
+#[test]
+fn a_refusal_the_system_may_ask_again_reads_as_not_asked() {
+    let mut rig = rig_with(Permission::NotDetermined);
+    rig.adapter.start();
+    rig.radio(RadioEvent::Power(Power::Unauthorized));
+    assert_eq!(rig.adapter.state(), AdapterState::NotAsked);
+    // Allow starts it again, which powers the radio up again: that is when the system asks.
+    rig.adapter.stop();
+    rig.calls();
+    rig.adapter.start();
+    assert_eq!(rig.calls(), ["power up"]);
+    assert_eq!(rig.adapter.state(), AdapterState::Starting);
 }
 
 #[test]

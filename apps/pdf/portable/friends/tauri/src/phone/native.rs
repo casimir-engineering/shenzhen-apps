@@ -1,6 +1,6 @@
 //! The plugin's Kotlin (`android/`) and Swift (`ios/`) side, called from Rust: where the app's private files are,
-//! the key store, the share sheet and links. Nearby's own half, which asks for its permissions when the core first
-//! powers Bluetooth up (on `activate`), is `crate::nearby`'s. Each call blocks its thread until the
+//! the key store, the share sheet and links. The same native class answers Nearby's calls (`crate::nearby`), which
+//! ask for their permissions when the core powers Bluetooth up (on `activate`). Each call blocks its thread until the
 //! platform answers, so none is made on the main thread.
 
 use std::path::PathBuf;
@@ -82,6 +82,11 @@ impl<R: Runtime> Native<R> {
         #[cfg(target_os = "ios")]
         let handle = api.register_ios_plugin(init_plugin_szfriends);
         handle.map(Self).map_err(|e| e.to_string())
+    }
+
+    /// The registered plugin, which answers Nearby's commands too (`crate::nearby::install`).
+    pub fn handle(&self) -> PluginHandle<R> {
+        self.0.clone()
     }
 
     fn call<T: DeserializeOwned>(&self, command: &str, payload: impl Serialize) -> Result<T, String> {
