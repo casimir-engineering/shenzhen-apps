@@ -472,6 +472,11 @@ try {
     (action) => typeof action.path === "string",
   )?.path;
   expect(await fs.readFile(recentCopy)).toEqual(await fs.readFile(drawing));
+  expect(
+    peerConversation().items.filter(
+      (item) => item.kind === "message" && !item.text?.trim(),
+    ),
+  ).toEqual([]);
   check("choosing a recent file and pressing Send gives the friend that file");
 
   // The badge counts what waits for an answer, with the dropdown closed.

@@ -24,22 +24,13 @@
   font-size: 13px;
   font-weight: 400;
   --control-height: 32px;
-  /* The edges the system keeps (status bar, navigation bar or gesture handle, display cutout). The app fills the
-     whole screen and keeps its controls inside these: env() on iOS and in browsers, the activity's own insets on
-     Android (src/core/safe-area.ts), whichever is larger. */
-  --safe-top: max(env(safe-area-inset-top, 0px), var(--native-inset-top, 0px));
-  --safe-right: max(
-    env(safe-area-inset-right, 0px),
-    var(--native-inset-right, 0px)
-  );
-  --safe-bottom: max(
-    env(safe-area-inset-bottom, 0px),
-    var(--native-inset-bottom, 0px)
-  );
-  --safe-left: max(
-    env(safe-area-inset-left, 0px),
-    var(--native-inset-left, 0px)
-  );
+  /* The edges the system keeps (status bar, navigation bar or gesture handle, display cutout, home indicator). The
+     app fills the whole screen and keeps its controls inside these: env() in browsers and on iOS; on Android the
+     activity's own insets, since its WebView does not report them reliably (src/core/safe-area.ts sets these). */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
   --header-height: 64px;
   --header-gutter: 20px;
   --toolbar-gutter: 12px;

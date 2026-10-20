@@ -239,14 +239,18 @@ export function ComposerView({
     drafts.set(conversationId, { ...entry, parts });
     setSending(true);
     try {
-      const fields: Record<string, unknown> = {
-        conversation_id: conversationId,
-        text,
-        client_token: entry.token,
-      };
-      if (attachments.length) fields.attachments = attachments;
+      // Files with no words go as files alone, as a drop on the chat sends them, not under an empty message.
+      const filesOnly = !text.trim() && !mentions.length;
+      const fields: Record<string, unknown> = filesOnly
+        ? { conversation_id: conversationId, files: attachments }
+        : { conversation_id: conversationId, text };
+      fields.client_token = entry.token;
+      if (!filesOnly && attachments.length) fields.attachments = attachments;
       if (mentions.length) fields.mentions = mentions;
-      const reply = await store.send("send_message", fields);
+      const reply = await store.send(
+        filesOnly ? "send_files" : "send_message",
+        fields,
+      );
       panel.report(reply);
       if (reply.ok) {
         drafts.delete(conversationId);

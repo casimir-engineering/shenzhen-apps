@@ -475,7 +475,9 @@ Android 11 and earlier where Bluetooth scanning needed it, the local network and
 APK installed, or `--platform ios --udid <simulator>` with a `friends-smoke` simulator build installed; `--tools` names
 shenzhen-pdf's `befriend` and `loopback-peer` examples. The phone opens the panel, lists the friend, opens the
 conversation from its row, sends a message and a staged file, sees the reply, taps Accept on the Mac's file, which
-arrives with Open and Share…, and the files arrive whole on both sides. Both sides find each other on the core's test
+arrives with Open and Share…, and the files arrive whole on both sides. It then types `#` in the composer: a model
+the phone opened from Open file is listed among the recent files with when it was opened, typing narrows the list,
+and the chosen file, sent with Send from the copy the app keeps of it, arrives whole on the Mac. Both sides find each other on the core's test
 network, a directory of entries on loopback: the simulator shares the Mac's, and for an emulator the script copies
 each side's entries to the other while it runs, joining their ports with `adb reverse` and `adb forward`. It passed on
 2026-10-17 in an Android 16 (API 36) arm64 emulator and an iOS 26.5 iPhone 17 Pro simulator, at the phones' first

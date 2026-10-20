@@ -1,56 +1,61 @@
-// The screen edges the system keeps for itself (status bar, navigation bar or gesture handle, display cutout), as the
-// CSS variables --native-inset-top/right/bottom/left, for the Android app, which draws edge to edge but whose WebView
-// does not reliably report them through env(safe-area-inset-*). MainActivity.kt gives them as window.ShenzhenInsets
-// and fires `shenzhen-insets` when they change (rotation, cutout side, navigation mode). styles.css takes the larger
-// of these and env(), which iOS and browsers fill, as --safe-top/right/bottom/left. It also tells the activity
-// whether the page is light, so the bars' icons stay readable over it. Elsewhere this does nothing.
-type NativeInsets = { insets(): string; lightPage?(light: boolean): void };
+// The screen edges the system keeps for itself (status bar, navigation bar or gesture handle, display cutout), as
+// the CSS variables --safe-top/right/bottom/left that styles.css lays the app out with. Browsers and iOS fill them
+// from env(safe-area-inset-*). The Android app draws edge to edge, but its WebView does not report the insets
+// reliably, so MainActivity.kt gives its own in CSS pixels, as window.ShenzhenInsets.insets(), and says when they
+// change (rotation, cutout side, navigation mode) with a `shenzhen-insets` event. It also takes lightPage(), so the
+// bars' icons stay readable over the light theme. Elsewhere this does nothing.
+type Insets = Partial<Record<(typeof SIDES)[number], unknown>>;
+type AndroidInsets = { insets(): string; lightPage?(light: boolean): void };
 declare global {
   interface Window {
-    ShenzhenInsets?: NativeInsets;
+    ShenzhenInsets?: AndroidInsets;
   }
 }
 
 const SIDES = ["top", "right", "bottom", "left"] as const;
 
-export function applyNativeInsets(
+export function setInsets(root: HTMLElement, insets: Insets | undefined) {
+  if (!insets) return;
+  for (const side of SIDES) {
+    const value = Number(insets[side]);
+    root.style.setProperty(
+      `--safe-${side}`,
+      `${Number.isFinite(value) && value > 0 ? value : 0}px`,
+    );
+  }
+}
+
+export function followNativeInsets(
   root: HTMLElement,
-  native: NativeInsets | undefined,
+  host: Window,
 ): () => void {
-  if (!native) return () => {};
+  const android = host.ShenzhenInsets;
+  if (!android) return () => {};
   const apply = () => {
-    let values: Record<string, unknown> = {};
     try {
-      values = JSON.parse(native.insets());
+      setInsets(root, JSON.parse(android.insets()));
     } catch {
-      return;
-    }
-    for (const side of SIDES) {
-      const value = Number(values[side]);
-      root.style.setProperty(
-        `--native-inset-${side}`,
-        `${Number.isFinite(value) && value > 0 ? value : 0}px`,
-      );
+      /* Keep the last insets. */
     }
   };
-  // The app's own pinch and pan move the model; the page itself never zooms. Without this the WebView keeps a zoom
-  // across a rotation (about 6% on a phone turned to landscape), which pushes the right-hand controls off screen.
-  const viewport = document.querySelector<HTMLMetaElement>(
+  host.addEventListener("shenzhen-insets", apply);
+  apply();
+  // The app's own pinch and pan move the model; the page itself never zooms. Without this the WebView keeps a
+  // zoom across a rotation (about 6% on a phone turned to landscape), pushing the right-hand controls off screen.
+  const viewport = root.ownerDocument.querySelector<HTMLMetaElement>(
     'meta[name="viewport"]',
   );
   if (viewport && !/user-scalable/.test(viewport.content))
     viewport.content += ", maximum-scale=1, user-scalable=no";
-  const theme = () => native.lightPage?.(root.dataset.theme === "light");
-  apply();
+  const theme = () => android.lightPage?.(root.dataset.theme === "light");
   theme();
-  window.addEventListener("shenzhen-insets", apply);
   const observer = new MutationObserver(theme);
   observer.observe(root, { attributes: true, attributeFilter: ["data-theme"] });
   return () => {
-    window.removeEventListener("shenzhen-insets", apply);
+    host.removeEventListener("shenzhen-insets", apply);
     observer.disconnect();
   };
 }
 
 if (typeof window !== "undefined" && typeof document !== "undefined")
-  applyNativeInsets(document.documentElement, window.ShenzhenInsets);
+  followNativeInsets(document.documentElement, window);
