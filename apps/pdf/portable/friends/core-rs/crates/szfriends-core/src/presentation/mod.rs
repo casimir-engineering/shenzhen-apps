@@ -26,6 +26,7 @@ pub mod mentions;
 mod messages;
 mod nearby;
 mod previews;
+mod remove;
 mod routes;
 pub mod search;
 mod segments;

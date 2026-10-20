@@ -186,6 +186,8 @@ pub struct PersonFacts {
     pub received_reveal_path: Option<String>,
     /// In the list only because they sent a file through a download link, and not a friend (relation Removed).
     pub link_contact: bool,
+    /// Taken off the list (`left_list_at`): the list skips them; their conversation and details still open.
+    pub left_list: bool,
 }
 
 impl Default for PersonFacts {
@@ -216,6 +218,7 @@ impl Default for PersonFacts {
             received_file_count: 0,
             received_reveal_path: None,
             link_contact: false,
+            left_list: false,
         }
     }
 }
@@ -233,6 +236,7 @@ impl PersonFacts {
             comparison_code: person.comparison_code.clone(),
             last_interaction_at: person.last_interaction_at,
             unread_count: person.unread_count,
+            left_list: person.left_list_at.is_some(),
             ..Self::default()
         }
     }
