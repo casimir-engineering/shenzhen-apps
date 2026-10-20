@@ -22,6 +22,8 @@
 //!
 //! Search answers `unavailable` until its area comes over.
 
+mod again;
+mod device_files;
 mod devices;
 mod facts;
 mod friend_links;
@@ -72,7 +74,7 @@ pub use online::{BLOCK_DIRECT_FILE, ENV_TEST_HOST_KEYS, ENV_TEST_HOST_LIST};
 /// profile on several computers, joined and synced over the same nearby and online routes friends use.
 /// `received.folder`: received files go to a folder the person can choose (Downloads until they do).
 const CAPABILITIES: &[&str] =
-    &["nearby.network", "messages.status", "messages.cancel", "mentions", "devices", "received.folder"];
+    &["nearby.network", "messages.status", "messages.cancel", "mentions", "devices", "files.again", "received.folder"];
 
 fn capabilities(bluetooth: bool) -> Vec<String> {
     let mut capabilities: Vec<String> = CAPABILITIES.iter().map(|c| (*c).to_owned()).collect();
@@ -264,6 +266,8 @@ pub(crate) struct State {
     pub capabilities: Vec<String>,
     /// One profile on several computers: the join state and the sync engine.
     pub devices: devices::DeviceArea,
+    /// Get again: giving friends files again, and copying files again from them.
+    pub again: again::AgainArea,
     /// Something changed since the views were last brought up to date.
     pub dirty: bool,
     /// Answered once the thread has closed the store (shutdown).
@@ -313,6 +317,7 @@ impl State {
             next_receipt: 0,
             capabilities,
             devices,
+            again: again::AgainArea::default(),
             dirty: false,
             stopped: None,
         }

@@ -13,14 +13,13 @@ use szfriends_core::identity::chain::{chain_label, DeviceState, NAME_MAX};
 use szfriends_core::identity::join::{normalized_code, Approval, Approver, Attempt, Joiner, RequestState};
 use szfriends_core::identity::Identity;
 use szfriends_core::presentation::{
-    DeviceFacts, DeviceFileFacts, DevicesFacts, JoinRequestFacts, JoiningFacts, JoiningState, PersonFacts,
+    DeviceFacts, DevicesFacts, JoinRequestFacts, JoiningFacts, JoiningState, PersonFacts,
 };
 use szfriends_core::store::devices;
-use szfriends_core::store::sync_files;
 use szfriends_core::store::sync_history;
 use szfriends_core::store::sync_log::YOU;
 use szfriends_core::store::unix_now;
-use szfriends_core::sync::{copies_automatically, SyncEngine, SyncExchange};
+use szfriends_core::sync::{SyncEngine, SyncExchange};
 
 use super::{hex, State};
 
@@ -215,30 +214,13 @@ impl State {
             name: d.name.clone(),
             system: d.system.clone(),
             this_computer: false,
-            connected: false,
+            connected: self.own_device_live_link(&d.device_key).is_some(),
             last_seen_at: d.last_seen_at,
         }));
         let removed = self.removed_computer();
-        // Files another of our computers holds: its bytes are there, its name says where.
-        let names: BTreeMap<[u8; 32], String> = others.iter().map(|d| (d.device_key, d.name.clone())).collect();
-        let mut files = BTreeMap::new();
-        for file in sync_files::sync_files(conn).unwrap_or_default() {
-            if sync_files::transfer(conn, &file.transfer_id).ok().flatten().is_some() {
-                continue;
-            }
-            let Some(holder) = file.holders.iter().find(|h| names.contains_key(*h)) else { continue };
-            let fetching = self.devices.engine.is_file_requested(&self.store, &file.transfer_id)
-                || copies_automatically(file.size, &file.conversation_id);
-            files.insert(
-                file.transfer_id.clone(),
-                DeviceFileFacts {
-                    device_name: names[holder].clone(),
-                    fetching,
-                    holder_connected: false,
-                    fraction: 0.0,
-                },
-            );
-        }
+        // Files another of our computers holds: its bytes are there, its name says where (device_files.rs).
+        let names: BTreeMap<[u8; 32], String> = records.iter().map(|d| (d.device_key, d.name.clone())).collect();
+        let files = self.device_file_facts(&names);
         let you = people.iter().find(|p| p.conversation_id == YOU).cloned();
         DevicesFacts {
             now,
@@ -357,22 +339,6 @@ impl State {
         self.send_own_chain_to_devices();
         self.own_devices_changed();
         Ok(())
-    }
-
-    pub fn fetch_from_device(&mut self, transfer_id: &str) -> Result<(), &'static str> {
-        if self.removed_computer() {
-            return Err("not_allowed");
-        }
-        let conn = self.store.connection();
-        if sync_files::transfer(conn, transfer_id).ok().flatten().is_some() {
-            return Err("not_allowed");
-        }
-        let file = sync_files::sync_file(conn, transfer_id).ok().flatten().ok_or("not_found")?;
-        let me = self.local_key();
-        if !file.holders.iter().any(|h| *h != me) {
-            return Err("not_found");
-        }
-        self.devices.engine.request_file(&self.store, transfer_id).map_err(|_| "internal")
     }
 
     /// Delete history (`None`: every chat). With other computers on this profile it is a deletion every one of them

@@ -13,6 +13,7 @@ use szfriends_core::store::{
 };
 use szfriends_identity::friends_id::WordList;
 
+use super::again::worded;
 use super::views::{Subscription, ViewKind};
 use super::State;
 use crate::server::{Connection, Reply};
@@ -99,6 +100,7 @@ impl State {
             links: self.capabilities.iter().any(|c| c == "links"),
             removed_computer: self.removed_computer(),
             received_folder: self.capabilities.iter().any(|c| c == "received.folder"),
+            files_again: self.capabilities.iter().any(|c| c == "files.again"),
             ..Admission::default()
         };
         let parsed = admit(&kind, gate).and_then(|()| {
@@ -152,7 +154,12 @@ impl State {
             }),
             Intent::RevokeDevice { device_id } => self.device_intent(|s| s.revoke_device(&device_id)),
             Intent::RenameDevice { name } => self.device_intent(|s| s.rename_device(&name)),
-            Intent::FetchFromDevice { transfer_id } => self.device_intent(|s| s.fetch_from_device(&transfer_id)),
+            Intent::FetchFromDevice { transfer_id } => {
+                self.device_intent(|s| s.fetch_from_device(&transfer_id)).map_err(|e| worded(e, "fetch"))
+            }
+            Intent::FetchFromFriend { transfer_id } => {
+                self.device_intent(|s| s.fetch_from_friend(&transfer_id)).map_err(|e| worded(e, "again"))
+            }
             Intent::ResetFriendLink => self.reset_friend_link(),
             Intent::DeleteHistory { conversation_id } => {
                 self.delete_history(conversation_id.as_deref()).map_err(IntentError::new)?;
@@ -296,6 +303,10 @@ impl State {
                 Ok(json!({}))
             }
             Intent::CancelTransfer { transfer_id } => {
+                // Get again or Get on a file whose bytes are not here: the copy stops (again.rs, device_files.rs).
+                if self.cancel_again(&transfer_id) || self.cancel_fetch_from_device(&transfer_id) {
+                    return Ok(json!({}));
+                }
                 let record = self.store.cancel_transfer(&transfer_id).map_err(|_| IntentError::new("stale"))?;
                 for session in self.sessions.map.values_mut() {
                     session.senders.remove(&transfer_id);

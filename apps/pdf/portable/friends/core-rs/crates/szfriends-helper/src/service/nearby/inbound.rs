@@ -45,6 +45,10 @@ impl State {
         let devices = match frame.frame_type {
             FrameType::Join => self.join_frame_on(id, &frame),
             FrameType::Sync => self.own_device_frame(id, &frame),
+            FrameType::Again => {
+                self.again_frame(id, &frame);
+                true
+            }
             FrameType::Chain => {
                 self.own_device_frame(id, &frame) || {
                     self.friend_chain_frame(id, &frame);

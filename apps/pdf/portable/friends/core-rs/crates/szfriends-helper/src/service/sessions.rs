@@ -253,6 +253,8 @@ impl State {
             return;
         }
         let Some(person) = self.store.person_with_conversation(&conversation).ok().flatten() else { return };
+        // Files asked again of this friend start copying (again.rs).
+        self.again_start(id, &conversation);
         // A request accepted on this session: the friend gets our chain now (nearby/chain.rs).
         self.send_chain_to_friend(id);
         let busy: HashSet<String> = self.sessions.map.values().flat_map(|s| s.in_flight.iter().cloned()).collect();

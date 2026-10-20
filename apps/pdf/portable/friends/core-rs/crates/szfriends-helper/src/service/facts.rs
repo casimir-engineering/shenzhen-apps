@@ -8,7 +8,8 @@ use rusqlite::{params, OptionalExtension};
 use szfriends_core::presentation::{
     IdState, ItemFacts, ItemKind, OutboxState, PersonFacts, ProfileFacts, RouteKind, RouteMethod, TransferState,
 };
-use szfriends_core::store::Relation;
+use szfriends_core::store::{sync_files, Relation};
+use szfriends_core::sync::local_path_of_transfer;
 use szfriends_identity::friends_id::{system_uniform, word_count_for_new_id, WordList};
 
 use super::State;
@@ -182,6 +183,27 @@ impl State {
                 )
                 .unwrap_or(0);
             item.accepted_automatically = automatic != 0;
+            // Moved or deleted: a file received or copied here whose bytes are gone from where they were saved.
+            let synced = sync_files::transfer(conn, &transfer.transfer_id).ok().flatten();
+            let kept = transfer.received_path.is_some() && (item.outgoing || transfer.state == TransferState::Received);
+            if kept && synced.is_some_and(|t| local_path_of_transfer(self.store.state_dir(), &t).is_none()) {
+                item.file_missing = true;
+                item.local_path = None;
+                item.saved_in = None;
+            }
+        } else if let Some(file) = item.transfer_id.as_deref().and_then(|id| sync_files::sync_file(conn, id).ok()?) {
+            // A file another computer of ours received: its record is here at once, its bytes when copied.
+            item.file_extension =
+                std::path::Path::new(&file.file_name).extension().and_then(|e| e.to_str()).map(str::to_lowercase);
+            item.file_name = Some(file.file_name.clone());
+            item.file_size = file.size;
+            item.transfer_state = TransferState::from_i64(file.state);
+            // Received there, and no other computer of ours holds it anymore.
+            item.file_missing =
+                !file.outgoing && file.state == 6 && !file.holders.iter().any(|h| self.is_own_device(h));
+        }
+        if let Some(transfer_id) = item.transfer_id.clone().filter(|_| !item.outgoing) {
+            self.again_facts(&mut item, &transfer_id, &row.conversation_id);
         }
         item
     }

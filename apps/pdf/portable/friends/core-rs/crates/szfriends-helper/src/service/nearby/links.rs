@@ -389,8 +389,7 @@ impl State {
         let _ = self.store.flush_progress();
         self.nearby.admission.lock().unwrap_or_else(|e| e.into_inner()).release(id);
         self.nearby.policy.lock().unwrap_or_else(|e| e.into_inner()).strangers.remove(&id);
-        self.join_session_closed(id);
-        self.own_device_session_closed(id);
+        self.session_closed_elsewhere(id);
         let Some(session) = self.sessions.map.get_mut(&id) else { return };
         for entry in session.in_flight.drain() {
             let _ = self.store.apply_outbox_event(&entry, OutboxEvent::SessionLost);

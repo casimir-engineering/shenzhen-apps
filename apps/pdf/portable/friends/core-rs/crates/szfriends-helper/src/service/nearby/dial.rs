@@ -62,8 +62,10 @@ impl State {
         }
     }
 
+    /// Something waits for this person: an outbox entry they may receive now, or a file asked again of them.
     pub(crate) fn has_deliverable(&self, person: &Person) -> bool {
         self.store.pending_outbox(&person.conversation_id).unwrap_or_default().iter().any(|e| deliverable(e, person))
+            || (person.relation == Relation::Friend && self.has_asked_again(&person.conversation_id))
     }
 
     /// One pass over every candidate and everything waiting.
