@@ -17,6 +17,8 @@ const NSUInteger SZFriendsFrameChainMax = 64000;
 const NSUInteger SZFriendsFrameJoinMax = 1000;
 // SZFriendsSyncMessageMax: one event of the largest body, or a file part, with its framing.
 const NSUInteger SZFriendsFrameSyncMax = 64000;
+// SZFriendsAgain messages: a file part with its framing, as SYNC's.
+const NSUInteger SZFriendsFrameAgainMax = 64000;
 const NSUInteger SZFriendsChunkBytesWiFi = 61440;
 const NSUInteger SZFriendsChunkBytesBluetooth = 4096;
 const uint64_t SZFriendsSendWindowWiFi = 8ull * 1024 * 1024;
@@ -29,7 +31,7 @@ const NSTimeInterval SZFriendsHandshakeTimeout = 10;
 // holds an admission slot only briefly.
 const NSTimeInterval SZFriendsRefusalDelay = 1.5;
 const NSTimeInterval SZFriendsReplayWindow = 600;
-const uint16_t SZFriendsSessionMinor = 2;
+const uint16_t SZFriendsSessionMinor = 3;
 // A host signature (64 bytes), the identity key (32), the Friends ID (at most 64) and a few dates and key ids fit in
 // well under half of this; the rest leaves the host area room to grow the format without a session change.
 const NSUInteger SZFriendsAttestationMax = 512;
