@@ -11,6 +11,7 @@ use std::time::{Duration, Instant};
 use serde_json::{json, Value};
 use szfriends_contract::handshake::HelperFacts;
 use szfriends_contract::lifecycle::PROTOCOL;
+use szfriends_helper::presentation::Presentation;
 use szfriends_helper::server::Server;
 use szfriends_helper::service::{seed, Service};
 use szfriends_helper::transport::PeerInfo;
@@ -42,7 +43,7 @@ pub struct Client {
     frames: Receiver<Value>,
     next: u64,
     seen: Vec<Value>,
-    service: std::sync::Arc<Service>,
+    service: std::sync::Arc<dyn Presentation>,
     /// The service's welcome: its capabilities and strings.
     pub welcome: Value,
 }
@@ -53,7 +54,7 @@ const WAIT: Duration = Duration::from_secs(30);
 /// The service closes its store before the test's home is removed (Windows keeps an open database's files).
 impl Drop for Client {
     fn drop(&mut self) {
-        szfriends_helper::presentation::Presentation::shutdown(&*self.service);
+        self.service.shutdown();
     }
 }
 
@@ -65,9 +66,21 @@ impl Client {
     /// A client that declares `capabilities` in its hello.
     pub fn connect_with(home: &Path, capabilities: &[&str]) -> Self {
         let service = Service::start(home, seed::test_key_store(home)).expect("the service starts");
+        let server = Self::server(service.clone());
+        let client = Self::join(&server, service, capabilities);
+        std::mem::forget(server);
+        client
+    }
+
+    /// A protocol server for `service`, as a helper or a phone runs one.
+    pub fn server(service: std::sync::Arc<dyn Presentation>) -> Server {
         let (sender, _events) = channel();
         let facts = HelperFacts { version: "1.0".into(), build_number: 1, protocol: PROTOCOL, pid: 1 };
-        let server = Server::new(service.clone(), facts, sender, Box::new(|_, _| false));
+        Server::new(service, facts, sender, Box::new(|_, _| false))
+    }
+
+    /// A new connection to `server`, which serves `service`.
+    pub fn join(server: &Server, service: std::sync::Arc<dyn Presentation>, capabilities: &[&str]) -> Self {
         let (ours, theirs) = pair();
         server.add(theirs, PeerInfo::default());
         let end = ours.clone();
@@ -89,7 +102,6 @@ impl Client {
         let welcome = client.wait("welcome", |f| f["type"] == "welcome");
         assert!(welcome["strings"].as_object().is_some_and(|s| !s.is_empty()), "the welcome carries the strings");
         client.welcome = welcome;
-        std::mem::forget(server);
         client
     }
 

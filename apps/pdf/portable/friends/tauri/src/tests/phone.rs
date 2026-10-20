@@ -160,6 +160,12 @@ impl Client {
     fn connect(service: &Arc<PhoneService>) -> (Server, Self) {
         let facts = HelperFacts { version: "1.0".into(), build_number: 1, protocol: PROTOCOL, pid: 1 };
         let server = Server::new(service.clone(), facts, channel().0, Box::new(|_, _| false));
+        let client = Self::join(&server);
+        (server, client)
+    }
+
+    /// Another connection to the same server, as the page makes when it reconnects.
+    fn join(server: &Server) -> Self {
         let (ours, theirs) = memory_pair();
         server.add(theirs, PeerInfo::default());
         let mut connection = ClientConnection::new(ours);
@@ -175,7 +181,13 @@ impl Client {
         };
         let answer = connection.hello(&app, None).unwrap();
         assert_eq!(answer["type"], "welcome", "{answer}");
-        (server, Self(connection))
+        Self(connection)
+    }
+
+    /// The first snapshot of a new subscription to `view`.
+    fn view(&mut self, id: &str, view: &str) -> Value {
+        let frames = self.send(id, json!({"type": "subscribe", "view": view}));
+        frames.iter().find(|f| f["type"] == "snapshot").expect("a snapshot")["data"].clone()
     }
 
     /// Sends one intent; the frames up to and including its reply.
@@ -241,6 +253,85 @@ fn a_store_without_its_key_offers_start_again_which_starts_afresh_and_keeps_rece
     assert!(memory.secret(IDENTITY_SECRET_NAME).unwrap().is_some());
     assert_eq!(fs::read(home.0.join("received/Gearbox.step")).unwrap(), b"kept");
     restored.shutdown();
+}
+
+/// A test home's key file, as `befriend` seeds it; its deletions refused while `locked` (a Keystore that refuses).
+struct FileKeys {
+    home: PathBuf,
+    locked: Arc<AtomicBool>,
+}
+
+impl KeyStore for FileKeys {
+    fn secret(&self, name: &str) -> Result<Option<Zeroizing<Vec<u8>>>, IdentityError> {
+        szfriends_helper::service::seed::test_key_store(&self.home).secret(name)
+    }
+    fn store(&self, name: &str, secret: &[u8]) -> Result<(), IdentityError> {
+        szfriends_helper::service::seed::test_key_store(&self.home).store(name, secret)
+    }
+    fn delete(&self, name: &str) -> Result<(), IdentityError> {
+        if self.locked.load(Ordering::SeqCst) {
+            return Err(IdentityError::StoreFailed);
+        }
+        szfriends_helper::service::seed::test_key_store(&self.home).delete(name)
+    }
+}
+
+fn file_keys(home: &std::path::Path) -> (Arc<AtomicBool>, Keys) {
+    let locked = Arc::new(AtomicBool::new(false));
+    let (home, refuse) = (home.to_path_buf(), locked.clone());
+    (locked, Arc::new(move || Box::new(FileKeys { home: home.clone(), locked: refuse.clone() }) as Box<dyn KeyStore>))
+}
+
+#[test]
+fn reset_friends_on_a_running_service_starts_a_new_identity_at_once_and_keeps_received_files() {
+    let homes = TempDir::new("reset");
+    let (phone, bo) = (homes.0.join("phone"), homes.0.join("bo"));
+    szfriends_helper::service::seed::befriend(&phone, &bo, ("Ada", "Bo")).expect("friends");
+    let (locked, keys) = file_keys(&phone);
+    let service = PhoneService::start(phone.clone(), keys);
+    assert_eq!(service.state(), "service");
+    let (server, mut client) = Client::connect(&service);
+    assert!(client.view("1", "list").to_string().contains("Bo"), "Bo is a friend");
+    let before = client.view("2", "profile")["id"]["friends_id"].clone();
+    assert!(before.is_string(), "{before}");
+    client.send("3", json!({"type": "activate"}));
+    let recorded = Store::identity_of(&phone).unwrap();
+    fs::create_dir_all(phone.join("received/.partial")).unwrap();
+    fs::write(phone.join("received/Gearbox.step"), b"kept").unwrap();
+    fs::write(phone.join("received/.partial/Half.step"), b"half").unwrap();
+
+    // A Keystore that refuses: nothing changes, and the person is told so in a phone's words.
+    locked.store(true, Ordering::SeqCst);
+    let refused = client.send("4", json!({"type": "reset_friends", "confirm": "reset"}));
+    let error = &refused.last().unwrap()["error"];
+    assert_eq!(
+        (error["code"].as_str(), error["details"]["reason"].as_str()),
+        (Some("internal"), Some("identity_not_removed"))
+    );
+    assert_eq!(error["message"], "Nothing was reset: Friends couldn’t remove your old ID from this device. Try again.");
+    assert_eq!(Store::identity_of(&phone).unwrap(), recorded, "the same identity");
+    assert!(client.view("5", "list").to_string().contains("Bo"), "the same friends, from the same service");
+    locked.store(false, Ordering::SeqCst);
+
+    let unconfirmed = client.send("6", json!({"type": "reset_friends", "confirm": "yes"}));
+    assert_eq!(unconfirmed.last().unwrap()["error"]["code"], "invalid_field");
+    let reset = client.send("7", json!({"type": "reset_friends", "confirm": "reset"}));
+    assert_eq!(reset.last().unwrap()["ok"], true, "{reset:?}");
+    let goodbye = client.0.next_frame().unwrap().unwrap();
+    assert_eq!((goodbye["type"].as_str(), goodbye["reason"].as_str()), (Some("goodbye"), Some("reset")));
+    assert_eq!(service.state(), "service");
+    assert_ne!(Store::identity_of(&phone).unwrap(), recorded, "a new identity");
+    assert_eq!(fs::read(phone.join("received/Gearbox.step")).unwrap(), b"kept", "received files stay");
+    assert!(!phone.join("received/.partial").exists(), "unfinished downloads go");
+
+    // The page reconnects to the new service: a new ID at once, no friends, Nearby as it was.
+    let mut again = Client::join(&server);
+    let after = again.view("8", "profile")["id"]["friends_id"].clone();
+    assert!(after.is_string() && after != before, "{before} became {after}");
+    assert!(!again.view("9", "list").to_string().contains("Bo"), "the friends went with the old identity");
+    service.shutdown();
+    let store = Store::open(&phone).unwrap();
+    assert!(store.nearby_permissions_requested(), "Nearby was activated again");
 }
 
 #[test]

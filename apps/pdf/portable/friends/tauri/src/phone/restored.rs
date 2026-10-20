@@ -29,7 +29,7 @@ const VIEWS: &[&str] = &["badge", "list", "profile", "settings"];
 /// A connection and its subscriptions (id, view).
 type Subscribed = (Connection, Vec<(String, String)>);
 
-/// What the restored state serves until Start again; `start_again` is answered by [`super::PhoneService`].
+/// What the restored state serves until Start again; `reset_friends` is answered by [`super::PhoneService`].
 #[derive(Debug, Default)]
 pub struct Restored {
     /// Per connection: its audience and its subscriptions (id, view).
@@ -88,11 +88,6 @@ pub fn view(client: &ClientInfo, view: &str) -> Option<Value> {
 }
 
 impl Restored {
-    /// Every connection it served; Start again closes them so each reconnects to the new service.
-    pub fn connections(&self) -> Vec<Connection> {
-        self.clients.lock().unwrap_or_else(|e| e.into_inner()).values().map(|(c, _)| c.clone()).collect()
-    }
-
     fn subscribe(&self, connection: &Connection, intent: &Value, reply: Reply) {
         let Some(client) = connection.client() else { return reply.error("internal", None, json!({})) };
         let name = intent["view"].as_str().unwrap_or_default();

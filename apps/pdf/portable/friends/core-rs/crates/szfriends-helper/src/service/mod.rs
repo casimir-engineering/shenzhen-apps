@@ -20,7 +20,8 @@
 //! - links ([`friend_links`], `links.rs`, `link_receive.rs`; PROTOCOL.md § Links): Add from a mention or a friend
 //!   link, download links made and served, and download links received through a guest connection to the host.
 //!
-//! Search answers `unavailable` until its area comes over.
+//! Search answers `unavailable` until its area comes over. Reset Friends replaces the service with a new identity's,
+//! so whoever runs it answers that ([`reset`]).
 
 mod devices;
 mod facts;
@@ -39,6 +40,7 @@ mod online;
 #[cfg(not(feature = "online"))]
 #[path = "online_off.rs"]
 mod online;
+pub mod reset;
 pub mod seed;
 mod sessions;
 mod transfers;
@@ -92,7 +94,6 @@ pub(crate) enum Input {
     #[cfg(feature = "online")]
     Online(szfriends_online::OnlineEvent),
     /// Work that finished off the service's thread, to be completed on it.
-    #[cfg_attr(not(feature = "online"), allow(dead_code))]
     Deferred(Box<dyn FnOnce(&mut State) + Send>),
     Shutdown(Sender<()>),
 }
@@ -197,7 +198,29 @@ impl Service {
     pub fn identity_key(&self) -> Option<[u8; 32]> {
         self.identity_key
     }
+
+    /// Stops the service as at exit, for Reset Friends ([`reset`]): sessions, nearby and online closed, and the store
+    /// closed before it returns. Whether the person had opened Friends here (Nearby activated).
+    pub fn stop(&self) -> bool {
+        let (tell, told) = channel();
+        self.send(Input::Deferred(Box::new(move |state| {
+            let _ = tell.send(state.store.nearby_permissions_requested());
+        })));
+        let activated = told.recv_timeout(STOP_WAIT).unwrap_or(false);
+        let (done, wait) = channel();
+        self.send(Input::Shutdown(done));
+        let _ = wait.recv_timeout(STOP_WAIT);
+        activated
+    }
+
+    /// Starts Nearby in full, as the person opening Friends does (`activate`).
+    pub fn activate_nearby(&self) {
+        self.send(Input::Deferred(Box::new(State::activate_nearby)));
+    }
 }
+
+/// How long a reset waits for the service to stop: its store must be closed before it is removed.
+const STOP_WAIT: Duration = Duration::from_secs(10);
 
 impl Presentation for Service {
     fn welcome(&self, client: &ClientInfo) -> Value {

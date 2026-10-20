@@ -28,7 +28,6 @@ const NOT_YET: &[&str] = &[
     "revoke_link",
     "search_messages",
     "set_picture",
-    "reset_friends",
     "accept_key_change",
     "retry_item",
     "dismiss_banner",
@@ -154,6 +153,8 @@ impl State {
             Intent::RenameDevice { name } => self.device_intent(|s| s.rename_device(&name)),
             Intent::FetchFromDevice { transfer_id } => self.device_intent(|s| s.fetch_from_device(&transfer_id)),
             Intent::ResetFriendLink => self.reset_friend_link(),
+            // A reset replaces the service, so whoever runs it answers before it gets here (`reset.rs`).
+            Intent::ResetFriends => refused("unavailable"),
             Intent::DeleteHistory { conversation_id } => {
                 self.delete_history(conversation_id.as_deref()).map_err(IntentError::new)?;
                 Ok(json!({}))
