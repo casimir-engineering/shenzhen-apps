@@ -60,6 +60,10 @@ static void prepare_list(SZFGList *list) {
     wait_list(list);
 }
 
+static void prepare_found(SZFGList *list) {
+    EXPECT(szfg_list_wait_rows(list, 4), "the friends seen nearby arrive");
+}
+
 static void prepare_armed(SZFGList *list) {
     wait_list(list);
     GtkWidget *actions = szfriends_gtk_row_get_actions(szfg_list_row(list, "c_lena"));
@@ -211,6 +215,12 @@ void szfg_run_list_renders(SZFGHarness *harness) {
         g_object_unref(render(harness, "nearby-visible", dark, TRUE, NULL, NULL));
         szfriends_fake_helper_set_view_fixture(fake, "nearby", "nearby-local-network-denied.json");
         g_object_unref(render(harness, "nearby-denied", dark, TRUE, NULL, NULL));
+        /* How each person nearby was found: the network, Bluetooth, both, and someone not nearby. */
+        szfriends_fake_helper_set_view_data(fake, "list", szfg_list_found);
+        g_object_unref(render(harness, "list-found", dark, FALSE, prepare_found, NULL));
+        szfriends_fake_helper_set_view_fixture(fake, "list", "list.json");
+        szfriends_fake_helper_set_view_data(fake, "nearby", szfg_nearby_found);
+        g_object_unref(render(harness, "nearby-found", dark, TRUE, NULL, NULL));
         szfriends_fake_helper_set_view_fixture(fake, "nearby", "nearby-visible-bluetooth-off.json");
     }
     szfg_set_dark(FALSE);

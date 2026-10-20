@@ -26,6 +26,7 @@ struct _SZFriendsGtkRow {
     SZFriendsGtkRowLook look;
     GtkWidget *lead, *bar, *dot, *avatar, *title, *check, *subtitle;
     GtkWidget *time_box, *time, *pill, *route, *actions, *accessory, *status, *drop_pill;
+    GtkWidget *found, *found_icons, *found_label; /* how someone nearby was found, before the subtitle */
     GtkDropTarget *target;
     /* The row's menu (PROTOCOL.md list_row menu), its known items only: labels, and each item's index in `menu`. */
     GPtrArray *menu_labels; /* char * */

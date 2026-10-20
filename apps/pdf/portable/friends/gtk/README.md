@@ -46,7 +46,8 @@ The pages:
   display-free look, its drops, Accept, Decline and Block, and its menu (`szfriends_gtk_row_menu.c`, PROTOCOL.md
   list_row `menu`, capability `list.menu`): Remove on a right-click, a long press, the Menu key or Shift+F10, and
   Delete on the focused row; the row leaves the list as soon as the person confirms, and comes back if the helper
-  refuses. Rows are reused by position, so a press or a drag
+  refuses. A row of someone nearby (Nearby's people, a friend seen nearby) says how they were found (PROTOCOL.md
+  `found`, capability `nearby.found`): the route icon of each method, then the helper's words, before the subtitle. Rows are reused by position, so a press or a drag
   belongs to the person who held the row when it began, and completes for nobody else. `szfriends_gtk_row.h` also
   holds the arming rule every Block in the views shares (`szfriends_gtk_arming_*`, never a double-click's second half)
   and its clock seam (`szfriends_gtk_set_clock`).

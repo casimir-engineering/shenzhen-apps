@@ -141,7 +141,9 @@ SZFriendsGtkRowLook szfriends_gtk_row_get_look(GtkWidget *row);
 typedef enum {
     SZFRIENDS_GTK_ROW_PART_TITLE, SZFRIENDS_GTK_ROW_PART_SUBTITLE, SZFRIENDS_GTK_ROW_PART_TIME,
     SZFRIENDS_GTK_ROW_PART_WAITING, SZFRIENDS_GTK_ROW_PART_ROUTE, SZFRIENDS_GTK_ROW_PART_CHECK,
-    SZFRIENDS_GTK_ROW_PART_STATUS, SZFRIENDS_GTK_ROW_PART_PILL
+    SZFRIENDS_GTK_ROW_PART_STATUS, SZFRIENDS_GTK_ROW_PART_PILL,
+    SZFRIENDS_GTK_ROW_PART_FOUND,      /* how someone nearby was found: its words ("Local network") */
+    SZFRIENDS_GTK_ROW_PART_FOUND_ICONS /* and a box of route glyphs, one shown per method */
 } SZFriendsGtkRowPart;
 GtkWidget *szfriends_gtk_row_get_part(GtkWidget *row, SZFriendsGtkRowPart part);
 /* The pointer left the row: an armed pill turns back, so "Block?" never waits under a pointer that went away. */

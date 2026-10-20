@@ -94,6 +94,8 @@ static GPtrArray *derived_capabilities(const SZFriendsGtkHost *host) {
     g_ptr_array_add(list, "mentions");
     /* Every list row's menu (Remove), on right-click, a long press, Shift+F10 or Delete (szfriends_gtk_row_menu.c). */
     g_ptr_array_add(list, "list.menu");
+    /* How each person nearby was found, as icons and words on their row (szfriends_gtk_row.c). */
+    g_ptr_array_add(list, "nearby.found");
     return list;
 }
 

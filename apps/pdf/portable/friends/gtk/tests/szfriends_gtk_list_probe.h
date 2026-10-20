@@ -44,5 +44,8 @@ void szfg_run_list_reorder_probes(SZFGHarness *harness);
 void szfg_run_list_live_probes(SZFGHarness *harness);
 void szfg_run_list_route_probes(SZFGHarness *harness); /* szfriends_gtk_list_probe_routes.c */
 void szfg_run_list_menu_probes(SZFGHarness *harness);  /* szfriends_gtk_list_probe_menu.c */
+void szfg_run_list_found_probes(SZFGHarness *harness); /* szfriends_gtk_list_probe_found.c */
+/* Its list and Nearby data with `found` for the network, Bluetooth and both, which the renders draw too. */
+extern const char szfg_list_found[], szfg_nearby_found[];
 
 #endif /* SZFRIENDS_GTK_LIST_PROBE_H */
