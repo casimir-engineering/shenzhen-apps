@@ -53,6 +53,10 @@ the lead accepts them.
   core implementing the same wire formats and the same view contract, a helper process on desktops and in-process on
   phones, macOS staying on this helper, the WebRTC stack shared with it, vectors exported from this helper's code.
   Code: `friends/core-rs/`; plan: `portable/docs/plans/friends-portable-core.md`.
+- [0016 Getting a file again](0016-files-again.md) (Proposed): a computer that no longer has a file's bytes stops
+  counting as one that holds them, Get then copies it from another of the person's computers, and when none has it
+  the friend who sent it serves it again, unasked, over the AGAIN frame of session minor 3, only to the person it went
+  to and only while the file is unchanged; schema v12.
 
 Rules for these records:
 

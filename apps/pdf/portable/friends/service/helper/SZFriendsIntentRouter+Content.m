@@ -300,7 +300,8 @@ static const NSUInteger SZFriendsSearchLimitMax = 50;
                          reply:(SZFriendsIntentReply)reply {
     // Cancel after Get: the file stays on the computer that has it (+Devices).
     NSString *requested = SZFriendsJSONIsString(intent[@"transfer_id"]) ? intent[@"transfer_id"] : nil;
-    if (requested != nil && [self.services.nearby cancelFetchOfFile:requested]) {
+    if (requested != nil && ([self.services.nearby cancelFetchOfFile:requested] ||
+                             [self.services.nearby cancelAgainOfFile:requested])) {
         [self succeed:reply result:nil];
         return;
     }

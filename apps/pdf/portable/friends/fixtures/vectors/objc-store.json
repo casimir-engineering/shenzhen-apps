@@ -386,11 +386,11 @@
         "table",
         "transfers",
         "transfers",
-        "CREATE TABLE transfers (\n  transfer_id TEXT PRIMARY KEY NOT NULL,\n  conversation_id TEXT NOT NULL REFERENCES friends(conversation_id) ON DELETE CASCADE,\n  outgoing INTEGER NOT NULL, state INTEGER NOT NULL CHECK (state BETWEEN 0 AND 9),\n  file_name TEXT NOT NULL, uniform_type TEXT, size INTEGER NOT NULL CHECK (size >= 0),\n  digest BLOB NOT NULL CHECK (length(digest) = 32),\n  verified_bytes INTEGER NOT NULL DEFAULT 0 CHECK (verified_bytes >= 0 AND verified_bytes <= size),\n  accepted_automatically INTEGER NOT NULL DEFAULT 0, asked_low_disk INTEGER NOT NULL DEFAULT 0,\n  staged_path TEXT, partial_path TEXT, final_path TEXT, publishing INTEGER NOT NULL DEFAULT 0,\n  received_path TEXT,\n  revision_source TEXT, revision_document_id TEXT, revision_id TEXT, revision_label TEXT,\n  revision_sha256 BLOB, revision_size INTEGER,\n  bytes_per_second REAL NOT NULL DEFAULT 0, failure_reason TEXT,\n  created_at REAL NOT NULL, updated_at REAL NOT NULL, received_at REAL, received_via INTEGER NOT NULL DEFAULT 0)"
+        "CREATE TABLE transfers (\n  transfer_id TEXT PRIMARY KEY NOT NULL,\n  conversation_id TEXT NOT NULL REFERENCES friends(conversation_id) ON DELETE CASCADE,\n  outgoing INTEGER NOT NULL, state INTEGER NOT NULL CHECK (state BETWEEN 0 AND 9),\n  file_name TEXT NOT NULL, uniform_type TEXT, size INTEGER NOT NULL CHECK (size >= 0),\n  digest BLOB NOT NULL CHECK (length(digest) = 32),\n  verified_bytes INTEGER NOT NULL DEFAULT 0 CHECK (verified_bytes >= 0 AND verified_bytes <= size),\n  accepted_automatically INTEGER NOT NULL DEFAULT 0, asked_low_disk INTEGER NOT NULL DEFAULT 0,\n  staged_path TEXT, partial_path TEXT, final_path TEXT, publishing INTEGER NOT NULL DEFAULT 0,\n  received_path TEXT,\n  revision_source TEXT, revision_document_id TEXT, revision_id TEXT, revision_label TEXT,\n  revision_sha256 BLOB, revision_size INTEGER,\n  bytes_per_second REAL NOT NULL DEFAULT 0, failure_reason TEXT,\n  created_at REAL NOT NULL, updated_at REAL NOT NULL, received_at REAL, received_via INTEGER NOT NULL DEFAULT 0, source_path TEXT, source_mtime_ns INTEGER)"
       ]
     ],
     "search_uses_index" : true,
-    "user_version" : 11
+    "user_version" : 12
   },
   "migrated_v1" : {
     "integrity" : "ok",
@@ -641,11 +641,11 @@
         "table",
         "transfers",
         "transfers",
-        "CREATE TABLE transfers (\n  transfer_id TEXT PRIMARY KEY NOT NULL,\n  conversation_id TEXT NOT NULL REFERENCES friends(conversation_id) ON DELETE CASCADE,\n  outgoing INTEGER NOT NULL, state INTEGER NOT NULL CHECK (state BETWEEN 0 AND 9),\n  file_name TEXT NOT NULL, uniform_type TEXT, size INTEGER NOT NULL CHECK (size >= 0),\n  digest BLOB NOT NULL CHECK (length(digest) = 32),\n  verified_bytes INTEGER NOT NULL DEFAULT 0 CHECK (verified_bytes >= 0 AND verified_bytes <= size),\n  accepted_automatically INTEGER NOT NULL DEFAULT 0, asked_low_disk INTEGER NOT NULL DEFAULT 0,\n  staged_path TEXT, partial_path TEXT, final_path TEXT, publishing INTEGER NOT NULL DEFAULT 0,\n  received_path TEXT,\n  revision_source TEXT, revision_document_id TEXT, revision_id TEXT, revision_label TEXT,\n  revision_sha256 BLOB, revision_size INTEGER,\n  bytes_per_second REAL NOT NULL DEFAULT 0, failure_reason TEXT,\n  created_at REAL NOT NULL, updated_at REAL NOT NULL, received_at REAL, received_via INTEGER NOT NULL DEFAULT 0)"
+        "CREATE TABLE transfers (\n  transfer_id TEXT PRIMARY KEY NOT NULL,\n  conversation_id TEXT NOT NULL REFERENCES friends(conversation_id) ON DELETE CASCADE,\n  outgoing INTEGER NOT NULL, state INTEGER NOT NULL CHECK (state BETWEEN 0 AND 9),\n  file_name TEXT NOT NULL, uniform_type TEXT, size INTEGER NOT NULL CHECK (size >= 0),\n  digest BLOB NOT NULL CHECK (length(digest) = 32),\n  verified_bytes INTEGER NOT NULL DEFAULT 0 CHECK (verified_bytes >= 0 AND verified_bytes <= size),\n  accepted_automatically INTEGER NOT NULL DEFAULT 0, asked_low_disk INTEGER NOT NULL DEFAULT 0,\n  staged_path TEXT, partial_path TEXT, final_path TEXT, publishing INTEGER NOT NULL DEFAULT 0,\n  received_path TEXT,\n  revision_source TEXT, revision_document_id TEXT, revision_id TEXT, revision_label TEXT,\n  revision_sha256 BLOB, revision_size INTEGER,\n  bytes_per_second REAL NOT NULL DEFAULT 0, failure_reason TEXT,\n  created_at REAL NOT NULL, updated_at REAL NOT NULL, received_at REAL, received_via INTEGER NOT NULL DEFAULT 0, source_path TEXT, source_mtime_ns INTEGER)"
       ]
     ],
     "search_uses_index" : true,
-    "user_version" : 11
+    "user_version" : 12
   },
   "outbox_next_state" : [
     [
@@ -928,7 +928,7 @@
       "sanitized" : "name.verylongextension1"
     }
   ],
-  "schema_version" : 11,
+  "schema_version" : 12,
   "source" : "Exported by portable/friends/core-rs/tools/objc-vectors from the Objective-C helper's own code. Regenerate with `make friends-vectors-export`; do not edit by hand.",
   "transfer_next_state" : [
     [

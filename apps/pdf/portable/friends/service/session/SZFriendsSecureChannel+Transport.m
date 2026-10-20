@@ -57,8 +57,9 @@ static BOOL SZFriendsTypeAllowed(SZFriendsFrameType type, SZFriendsHandshakePatt
         return NO;
     }
     // A preview is up to 64 KB, slow over Bluetooth, and never urgent: it waits with the file data, behind messages.
+    // A file part asked for again (AGAIN) is file data too.
     if (frame.type == SZFriendsFrameTypeChunk || frame.type == SZFriendsFrameTypeDone ||
-        frame.type == SZFriendsFrameTypeThumbnail) {
+        frame.type == SZFriendsFrameTypeThumbnail || frame.type == SZFriendsFrameTypeAgain) {
         [_bulkQueue addObject:plaintext];
     } else {
         [_controlQueue addObject:plaintext];

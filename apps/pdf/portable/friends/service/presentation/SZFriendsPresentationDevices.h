@@ -51,7 +51,7 @@ NS_ASSUME_NONNULL_BEGIN
 @interface SZFriendsStrings (SZFriendsDevices)
 // error.message for the devices intents' errors that have words of their own; nil for the rest. `reason`:
 // "device" (revoke_device not_found), "empty" or "invalid" (rename_device name_invalid), "fetch" (fetch_from_device
-// not_found), "device_removed" (not_allowed on a computer another one removed).
+// not_found), "again" (fetch_from_friend not_found), "device_removed" (not_allowed on a computer another one removed).
 - (nullable NSString *)devicesMessageForErrorCode:(NSString *)code reason:(NSString *)reason;
 @end
 
@@ -76,6 +76,17 @@ NS_ASSUME_NONNULL_BEGIN
                                                person:(SZFriendsPersonFacts *)person;
 // Whether Delete history speaks of every computer (two or more).
 @property(nonatomic, readonly) BOOL deletesOnEveryComputer;
+// A copying file's progress ("Copying, 25 percent").
+- (NSDictionary<NSString *, id> *)progressWithFraction:(double)fraction;
+@end
+
+// A file the person moved or deleted (SZFriendsSnapshotBuilder+Again.m, PROTOCOL.md § Getting a file again).
+@interface SZFriendsSnapshotBuilder (SZFriendsAgain)
+// A transfer item by where its bytes are: here (as built), on another computer (+Devices), or moved or deleted, with
+// Get again from the friend who sent it.
+- (NSDictionary<NSString *, id> *)transferWhereItIs:(NSDictionary<NSString *, id> *)transfer
+                                              item:(SZFriendsItemFacts *)item
+                                            person:(SZFriendsPersonFacts *)person;
 @end
 
 NS_ASSUME_NONNULL_END

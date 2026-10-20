@@ -253,6 +253,17 @@ pub enum ItemKind {
     Event,
 }
 
+/// Get again on a file a friend sent (PROTOCOL.md § Getting a file again; `SZFriendsAgainState`).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum AgainState {
+    #[default]
+    None,
+    /// Get again pressed: waiting for the friend, or copying.
+    Asked,
+    /// The friend's computer answered that it no longer has the file.
+    Gone,
+}
+
 /// One history item (`SZFriendsItemFacts`).
 #[derive(Clone, Debug, Default)]
 pub struct ItemFacts {
@@ -288,6 +299,15 @@ pub struct ItemFacts {
     /// The folder a received file was saved in, for its "Saved to {folder}"; `None` (older files, or kept in the
     /// store's own folder) keeps "Received".
     pub saved_in: Option<crate::store::SavedPlace>,
+    /// A file received or copied here (or by another computer of the profile) whose bytes this computer no longer
+    /// has: the person moved or deleted it. `local_path` is None then. Where it can come from is the devices facts'
+    /// `files` (another computer) or the `again` facts below (the friend who sent it).
+    pub file_missing: bool,
+    /// Get again on a friend's file (fetch_from_friend): asked and waiting or copying, or answered that they no longer
+    /// have it; whether a session with that friend is live, so it copies now; and how much arrived.
+    pub again: AgainState,
+    pub again_connected: bool,
+    pub again_fraction: f64,
     pub file_type_identifier: Option<String>,
     pub thumbnail_path: Option<String>,
     pub thumbnail_width: u32,

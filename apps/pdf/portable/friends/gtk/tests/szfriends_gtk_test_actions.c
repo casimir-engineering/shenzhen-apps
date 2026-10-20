@@ -74,7 +74,8 @@ static void check_action(const char *where, const SZFriendsGtkAction *action, co
     case SZFRIENDS_GTK_ACTION_ACCEPT_OFFER:
     case SZFRIENDS_GTK_ACTION_DECLINE_OFFER:
     case SZFRIENDS_GTK_ACTION_CANCEL_TRANSFER:
-    case SZFRIENDS_GTK_ACTION_FETCH_FROM_DEVICE: key = "transfer_id", value = ids->transfer_id; break;
+    case SZFRIENDS_GTK_ACTION_FETCH_FROM_DEVICE:
+    case SZFRIENDS_GTK_ACTION_FETCH_FROM_FRIEND: key = "transfer_id", value = ids->transfer_id; break;
     case SZFRIENDS_GTK_ACTION_REVOKE_DEVICE: key = "device_id", value = action->device_id; break;
     case SZFRIENDS_GTK_ACTION_APPROVE_JOIN:
     case SZFRIENDS_GTK_ACTION_DENY_JOIN: key = "join_id", value = action->join_id; break;

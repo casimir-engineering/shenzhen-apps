@@ -194,6 +194,10 @@ friends-core-rs-interop-check: friends-session-peer $$(FRIENDS_HELPER_EXE)
 		CARGO_TARGET_DIR="$(abspath $(FRIENDS_CORE_RS_BUILD))/target" \
 		cargo test $(FRIENDS_CORE_RS_MANIFEST) --locked --release -p szfriends-interop \
 		--test objc_nearby -- --test-threads=1 --nocapture
+	SZFRIENDS_OBJC_HELPER="$(abspath $(FRIENDS_HELPER_EXE))" \
+		CARGO_TARGET_DIR="$(abspath $(FRIENDS_CORE_RS_BUILD))/target" \
+		cargo test $(FRIENDS_CORE_RS_MANIFEST) --locked --release -p szfriends-interop \
+		--test objc_again --test objc_dir_bridge -- --test-threads=1 --nocapture
 
 # Online between the Rust core and the helper's own check-in client and online driver (the session peer above in
 # its online mode), through the local Node host (server/friends, its node_modules installed) and a coturn built from

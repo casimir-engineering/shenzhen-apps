@@ -193,6 +193,9 @@ pub enum Intent {
     FetchFromDevice {
         transfer_id: String,
     },
+    FetchFromFriend {
+        transfer_id: String,
+    },
     Block {
         conversation_id: String,
     },
@@ -247,7 +250,8 @@ pub enum Wording {
     General,
     /// The join intents' own words.
     Join,
-    /// The devices intents' own words, for this reason ("device", "empty", "invalid", "fetch", "device_removed").
+    /// The devices intents' own words, for this reason ("device", "empty", "invalid", "fetch", "again",
+    /// "device_removed").
     Devices(&'static str),
     /// Named as the mention or card named the person.
     Named(String),
@@ -365,6 +369,7 @@ pub fn parse(frame: &Value, state: &dyn IntentState) -> Result<Intent> {
         "deny_join" => Intent::DenyJoin { join_id: required(frame, "join_id", 64)? },
         "revoke_device" => Intent::RevokeDevice { device_id: required(frame, "device_id", 64)? },
         "fetch_from_device" => Intent::FetchFromDevice { transfer_id: required(frame, "transfer_id", 64)? },
+        "fetch_from_friend" => Intent::FetchFromFriend { transfer_id: required(frame, "transfer_id", 64)? },
         "join_profile" => {
             // The ID typed, read as the word list reads it (U+2011, spaces and case as people type them).
             let typed = required(frame, "friends_id", 100)?;

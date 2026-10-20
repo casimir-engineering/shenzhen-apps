@@ -37,7 +37,8 @@ static SZFriendsGtkActionTakes action_takes(SZFriendsGtkActionKind action) {
     case SZFRIENDS_GTK_ACTION_ACCEPT_OFFER:
     case SZFRIENDS_GTK_ACTION_DECLINE_OFFER:
     case SZFRIENDS_GTK_ACTION_CANCEL_TRANSFER:
-    case SZFRIENDS_GTK_ACTION_FETCH_FROM_DEVICE: return TAKES_TRANSFER;
+    case SZFRIENDS_GTK_ACTION_FETCH_FROM_DEVICE:
+    case SZFRIENDS_GTK_ACTION_FETCH_FROM_FRIEND: return TAKES_TRANSFER;
     case SZFRIENDS_GTK_ACTION_RETRY_ITEM: return TAKES_ITEM;
     case SZFRIENDS_GTK_ACTION_DISMISS_BANNER: return TAKES_KIND;
     case SZFRIENDS_GTK_ACTION_CANCEL_MESSAGE: return TAKES_MESSAGE;
@@ -97,6 +98,7 @@ szfriends_intent *szfriends_gtk_intent_for_action_kind(SZFriendsGtkActionKind ac
     case SZFRIENDS_GTK_ACTION_RESET_FRIENDS: return szfriends_intent_reset_friends();
     case SZFRIENDS_GTK_ACTION_RESET_FRIEND_LINK: return szfriends_intent_reset_friend_link();
     case SZFRIENDS_GTK_ACTION_FETCH_FROM_DEVICE: return szfriends_intent_fetch_from_device(present(ids->transfer_id));
+    case SZFRIENDS_GTK_ACTION_FETCH_FROM_FRIEND: return szfriends_intent_fetch_from_friend(present(ids->transfer_id));
     case SZFRIENDS_GTK_ACTION_CANCEL_JOIN: return szfriends_intent_cancel_join();
     default: return NULL;
     }

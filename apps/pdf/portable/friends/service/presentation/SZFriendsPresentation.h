@@ -127,6 +127,13 @@ typedef NS_ENUM(NSInteger, SZFriendsItemFactsKind) {
     SZFriendsItemFactsKindEvent = 2,
 };
 
+// Get again on a file a friend sent (PROTOCOL.md § Getting a file again).
+typedef NS_ENUM(NSInteger, SZFriendsAgainState) {
+    SZFriendsAgainNone = 0,
+    SZFriendsAgainAsked = 1, // Get again pressed: waiting for the friend, or copying
+    SZFriendsAgainGone = 2,  // the friend's computer answered that it no longer has the file
+};
+
 @interface SZFriendsItemFacts : NSObject
 @property(nonatomic, copy) NSString *itemID;
 // Set where an item is shown away from its conversation (message_status), so its status can name the friend.
@@ -166,6 +173,15 @@ typedef NS_ENUM(NSInteger, SZFriendsItemFactsKind) {
 // is in; neither (older files, or kept in the helper's own folder) keeps "Received".
 @property(nonatomic) BOOL savedToDownloads;
 @property(nonatomic, copy, nullable) NSString *savedFolderName;
+// A file received or copied here (or by another computer of the profile) whose bytes this computer no longer has: the
+// person moved or deleted it (PROTOCOL.md § Getting a file again). localPath is nil then. Where it can come from is
+// SZFriendsDevicesFacts.files (another computer) or the `again` facts below (the friend who sent it).
+@property(nonatomic) BOOL fileMissing;
+// Get again on a friend's file (fetch_from_friend): asked and waiting or copying, or answered that they no longer
+// have it; whether a session with that friend is live, so it copies now; and how much arrived.
+@property(nonatomic) SZFriendsAgainState again;
+@property(nonatomic) BOOL againConnected;
+@property(nonatomic) double againFraction;
 // The uniform type identifier the file name's extension names, from which, or from the extension, views draw the
 // type's icon when there is no preview; nil when there is none.
 @property(nonatomic, copy, nullable) NSString *fileTypeIdentifier;

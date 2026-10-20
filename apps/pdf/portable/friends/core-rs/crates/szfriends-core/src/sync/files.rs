@@ -12,26 +12,60 @@ use super::{copies_automatically, SyncError};
 use crate::store::destination::{mark_published, ReceivedSource};
 use crate::store::sync_files::{self, SyncFile};
 use crate::store::sync_log;
-use crate::store::{sanitized_file_name, Store};
+use crate::store::sync_records::SyncTransfer;
+use crate::store::{modified_ns, sanitized_file_name, Store};
 
 fn want_key(transfer_id: &str) -> String {
     format!("want/{transfer_id}")
 }
 
+/// `path` (relative to the state directory, or absolute) when it is a regular file of `size` bytes. A location only the
+/// app's publisher reaches (a content URI in Android's Downloads) counts when the publisher says it is there at that
+/// size, and `read` copies it out to a file this process can read.
+fn whole_file(store: &Store, path: Option<&str>, size: u64, read: bool) -> Option<PathBuf> {
+    let text = path.filter(|p| !p.is_empty())?;
+    if text.contains("://") {
+        let external = store.received_defaults().external.clone()?;
+        external.size(text).filter(|s| *s == size)?;
+        return if read { external.copy_out(text) } else { Some(PathBuf::from(text)) };
+    }
+    let path = PathBuf::from(text);
+    let path = if path.is_absolute() { path } else { store.state_dir().join(path) };
+    let metadata = std::fs::symlink_metadata(&path).ok()?;
+    (metadata.is_file() && metadata.len() == size).then_some(path)
+}
+
+fn bytes_of(store: &Store, transfer: &SyncTransfer, read: bool) -> Option<PathBuf> {
+    let size = transfer.size;
+    if !transfer.outgoing {
+        // Received here (or copied from another of our devices): the published file, where it was saved.
+        return whole_file(store, transfer.received_path.as_deref(), size, read).filter(|_| transfer.state == 6);
+    }
+    whole_file(store, transfer.staged_path.as_deref(), size, read)
+        .or_else(|| whole_file(store, transfer.received_path.as_deref(), size, read))
+        .or_else(|| {
+            let path = whole_file(store, transfer.source_path.as_deref(), size, read)?;
+            let unchanged = transfer.source_mtime_ns != 0 && modified_ns(&path) == transfer.source_mtime_ns;
+            unchanged.then_some(path)
+        })
+}
+
+/// Whether this device has a transfer's bytes now (ADR 0016): a received file where it was saved, at its size; for one
+/// of ours, the snapshot, a copy, or the file it was sent from while unchanged (size and modification time).
+pub fn holds_transfer(store: &Store, transfer: &SyncTransfer) -> bool {
+    bytes_of(store, transfer, false).is_some()
+}
+
+/// Where to read a transfer's bytes from, as [`holds_transfer`] finds them; `None`: none.
+pub fn local_path_of_transfer(store: &Store, transfer: &SyncTransfer) -> Option<PathBuf> {
+    bytes_of(store, transfer, true)
+}
+
 impl SyncEngine {
-    /// Where this device keeps a file's bytes, or `None`.
+    /// Where this device keeps a file's bytes, or `None` ([`local_path_of_transfer`]).
     pub fn local_path_of_file(&self, store: &Store, transfer_id: &str) -> Option<PathBuf> {
         let transfer = sync_files::transfer(&store.conn, transfer_id).ok().flatten()?;
-        let path = if transfer.outgoing && transfer.staged_path.is_some() {
-            transfer.staged_path.clone()
-        } else {
-            transfer.received_path.clone()
-        };
-        let usable = if transfer.outgoing { path.is_some() } else { transfer.state == 6 && path.is_some() };
-        let path = PathBuf::from(path.filter(|_| usable)?);
-        let path = if path.is_absolute() { path } else { store.state_dir().join(path) };
-        let metadata = std::fs::metadata(&path).ok()?;
-        (metadata.is_file() && metadata.len() == transfer.size).then_some(path)
+        local_path_of_transfer(store, &transfer)
     }
 
     /// Records whose bytes are on another device and not here: asked for first, then the ones that copy by
@@ -41,15 +75,17 @@ impl SyncEngine {
         let me = self.device_key();
         let (mut asked, mut automatic) = (Vec::new(), Vec::new());
         for file in sync_files::sync_files(conn).unwrap_or_default() {
-            if sync_files::transfer(conn, &file.transfer_id).ok().flatten().is_some() {
-                continue;
+            let here = sync_files::transfer(conn, &file.transfer_id).ok().flatten();
+            if here.as_ref().is_some_and(|t| holds_transfer(store, t)) {
+                continue; // its bytes are here
             }
             if !file.holders.iter().any(|h| *h != me) {
                 continue;
             }
             if sync_log::state(conn, &want_key(&file.transfer_id)).is_ok_and(|v| v != Value::Null) {
                 asked.push(file);
-            } else if copies_automatically(file.size, &file.conversation_id) {
+            } else if here.is_none() && copies_automatically(file.size, &file.conversation_id) {
+                // What the person moved or deleted here comes back only when they ask (Get).
                 automatic.push(file);
             }
         }

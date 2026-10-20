@@ -273,7 +273,9 @@ fn rule(kind: &str) -> Option<Rule> {
             file_list(f, "files", 100)?;
             client_token(f)
         }),
-        "cancel_transfer" | "accept_offer" | "decline_offer" | "fetch_from_device" => rule!(&["transfer_id"], ids),
+        "cancel_transfer" | "accept_offer" | "decline_offer" | "fetch_from_device" | "fetch_from_friend" => {
+            rule!(&["transfer_id"], ids)
+        }
         "retry_item" => rule!(&["item_id"], ids),
         "cancel_message" => rule!(&["message_id"], ids),
         "accept_request" | "decline_request" | "cancel_request" | "block" | "unblock" | "mark_verified"
@@ -362,6 +364,7 @@ pub const INTENT_TYPES: &[&str] = &[
     "revoke_device",
     "rename_device",
     "fetch_from_device",
+    "fetch_from_friend",
     "block",
     "unblock",
     "remove_friend",

@@ -27,6 +27,7 @@ pub mod sync_records;
 mod sync_settings;
 mod transfer_files;
 mod transfer_local;
+mod transfer_states;
 mod transfers;
 
 use std::fmt;
@@ -55,7 +56,7 @@ pub use receive::DURABLE_BATCH_BYTES;
 pub use saved::{ReceivedFallback, SavedPlace, RECEIVED_FALLBACK_FILE};
 pub use schema::{Migration, SCHEMA_VERSION, SHIPPED};
 pub use search::{fold, SearchHit};
-pub use transfer_files::{file_digest, sanitized_file_name, unique_destination};
+pub use transfer_files::{file_digest, modified_ns, sanitized_file_name, unique_destination};
 pub use transfers::{TransferEvent, TransferRecord, TransferState};
 
 pub const DATABASE_NAME: &str = "friends.sqlite";

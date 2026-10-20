@@ -172,9 +172,58 @@ static void TestHistoryWords(void) {
                      @"settings");
 }
 
+static SZFriendsItemFacts *Moved(NSString *transferID, BOOL outgoing, NSString *time, NSString *name, uint64_t size,
+                                 SZFriendsAgainState again) {
+    SZFriendsItemFacts *item = SZPTransfer(transferID, outgoing, time, name, size,
+                                           outgoing ? SZFriendsTransferStateDelivered : SZFriendsTransferStateReceived);
+    item.fileMissing = YES;
+    item.again = again;
+    return item;
+}
+
+// Files the person moved or deleted (PROTOCOL.md § Getting a file again): Get again from Mei, copying from her,
+// waiting for her, her answer that she no longer has one, one still on another computer (Get), and one this person
+// sent from another computer, which only says where it went.
+static void TestFilesAgain(void) {
+    SZFriendsAudience *audience = SZPAudience();
+    audience.capabilities = [audience.capabilities setByAddingObject:@"files.again"];
+    SZFriendsSnapshotBuilder *builder = SZPBuilder(audience);
+    builder.devices = FourComputers();
+    SZFriendsItemFacts *copying = Moved(@"t_7b3e0f42", NO, @"2026-10-12 09:20", @"Shift rota.pdf", 1203456,
+                                        SZFriendsAgainAsked);
+    copying.againConnected = YES;
+    copying.againFraction = 0.4;
+    NSArray *items = @[
+        Moved(@"t_5a90c3e1", NO, @"2026-10-12 09:12", @"Site photos.pdf", 48231004, SZFriendsAgainNone), copying,
+        Moved(@"t_91c6d2a8", NO, @"2026-10-12 09:31", @"Supplier quote.pdf", 3604480, SZFriendsAgainAsked),
+        Moved(@"t_2f8a4c17", NO, @"2026-10-12 09:44", @"Old floor plan.pdf", 5100000, SZFriendsAgainGone),
+        Moved(@"t_c4e19b05", NO, @"2026-10-12 09:50", @"Audit checklist.pdf", 860160, SZFriendsAgainNone),
+        Moved(@"t_e83d5a6c", YES, @"2026-10-12 10:02", @"Quote reply.pdf", 2200000, SZFriendsAgainNone),
+    ];
+    SZFriendsDeviceFileFacts *onMini = [[SZFriendsDeviceFileFacts alloc] init];
+    onMini.deviceName = @"Raph’s Mac mini";
+    builder.devices.files = @{@"t_c4e19b05" : onMini};
+    SZFriendsPersonFacts *mei = SZPPeople()[@"c_mei"];
+    NSDictionary *built = [builder conversationForPerson:mei items:items hasEarlier:NO highlightItemID:nil
+                                        waitingElsewhere:2 now:SZPNow()];
+    SZPExpectFixture(built, @"devices-conversation-mei-again.json", @"conversation");
+    // A host that cannot send Get again is told where the file is, and offered nothing.
+    SZFriendsSnapshotBuilder *older = SZPBuilder(SZPAudience());
+    older.devices = builder.devices;
+    NSDictionary *plain = [older conversationForPerson:mei items:@[ items[0] ] hasEarlier:NO highlightItemID:nil
+                                      waitingElsewhere:2 now:SZPNow()][@"items"][1];
+    SZPExpect([plain[@"state"] isEqual:@"missing"] && [plain[@"actions"] count] == 0, @"no Get again: %@", plain);
+    // Nor is anyone who is not a friend now: their file stays moved or deleted.
+    mei.relation = SZFriendsPersonRelationRemoved;
+    NSDictionary *removed = [builder conversationForPerson:mei items:@[ items[0] ] hasEarlier:NO highlightItemID:nil
+                                          waitingElsewhere:2 now:SZPNow()][@"items"][1];
+    SZPExpect([removed[@"state"] isEqual:@"missing"] && [removed[@"actions"] count] == 0, @"removed: %@", removed);
+}
+
 void SZPRunDevicesBuildTests(void) {
     TestProfileAndRows();
     TestLists();
     TestConversations();
     TestHistoryWords();
+    TestFilesAgain();
 }

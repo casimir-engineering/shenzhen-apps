@@ -18,7 +18,7 @@ use szfriends_core::presentation::{
 use szfriends_core::store::{PhoneFolder, ReceivedFallback, ReceivedFile, ReceivedSource};
 
 /// Every snapshot fixture, and the suite that builds it.
-const COVERED: [&str; 39] = [
+const COVERED: [&str; 40] = [
     "badge.json",
     "list.json",
     "list-id-changed.json",
@@ -49,6 +49,7 @@ const COVERED: [&str; 39] = [
     "devices-list-new-computer.json",
     "devices-conversation-you.json",
     "devices-conversation-mei-files.json",
+    "devices-conversation-mei-again.json",
     "devices-settings.json",
     "devices-details-mei.json",
     "phone-settings.json",

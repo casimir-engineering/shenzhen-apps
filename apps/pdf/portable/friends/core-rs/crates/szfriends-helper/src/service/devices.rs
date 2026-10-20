@@ -13,14 +13,13 @@ use szfriends_core::identity::chain::{chain_label, DeviceState, NAME_MAX};
 use szfriends_core::identity::join::{normalized_code, Approval, Approver, Attempt, Joiner, RequestState};
 use szfriends_core::identity::Identity;
 use szfriends_core::presentation::{
-    DeviceFacts, DeviceFileFacts, DevicesFacts, JoinRequestFacts, JoiningFacts, JoiningState, PersonFacts,
+    DeviceFacts, DevicesFacts, JoinRequestFacts, JoiningFacts, JoiningState, PersonFacts,
 };
 use szfriends_core::store::devices;
-use szfriends_core::store::sync_files;
 use szfriends_core::store::sync_history;
 use szfriends_core::store::sync_log::YOU;
 use szfriends_core::store::unix_now;
-use szfriends_core::sync::{copies_automatically, SyncEngine, SyncExchange};
+use szfriends_core::sync::{SyncEngine, SyncExchange};
 
 use super::{hex, State};
 
@@ -29,8 +28,22 @@ pub fn device_id(key: &[u8; 32]) -> String {
     format!("d_{}", hex(&key[..8]))
 }
 
+static DEVICE_NAME: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+
+/// A phone's own name, as its system gives it (the app sets it before Friends starts): what the person's other
+/// computers call it ("On Pixel 9"), where a computer's comes from its host name.
+pub fn set_local_device_name(name: &str) {
+    let label = chain_label(name, NAME_MAX);
+    if !label.is_empty() {
+        let _ = DEVICE_NAME.set(label);
+    }
+}
+
 /// The local computer's name and system, for a chain's first link.
 pub fn local_device_name() -> String {
+    if let Some(name) = DEVICE_NAME.get() {
+        return name.clone();
+    }
     let name = std::env::var("COMPUTERNAME").or_else(|_| std::env::var("HOSTNAME")).unwrap_or_default();
     let label = chain_label(&name, NAME_MAX);
     if label.is_empty() {
@@ -76,6 +89,8 @@ pub struct DeviceArea {
     pub dial_after: HashMap<[u8; 32], f64>,
     /// Changes become events this soon while a session with another of our devices is live.
     pub capture_at: Option<f64>,
+    /// A snapshot found a file moved or deleted here: the next capture tells our other devices (ADR 0016).
+    pub missing_seen: std::cell::Cell<bool>,
     /// The device list last acted on, to notice a joined, renamed or removed computer.
     pub known: String,
     /// When the join rows change by themselves (a code or a request expires).
@@ -107,6 +122,7 @@ impl DeviceArea {
             links: HashMap::new(),
             dial_after: HashMap::new(),
             capture_at: None,
+            missing_seen: std::cell::Cell::new(false),
             known: String::new(),
             refresh_at: None,
             pipes: HashMap::new(),
@@ -215,30 +231,13 @@ impl State {
             name: d.name.clone(),
             system: d.system.clone(),
             this_computer: false,
-            connected: false,
+            connected: self.own_device_live_link(&d.device_key).is_some(),
             last_seen_at: d.last_seen_at,
         }));
         let removed = self.removed_computer();
-        // Files another of our computers holds: its bytes are there, its name says where.
-        let names: BTreeMap<[u8; 32], String> = others.iter().map(|d| (d.device_key, d.name.clone())).collect();
-        let mut files = BTreeMap::new();
-        for file in sync_files::sync_files(conn).unwrap_or_default() {
-            if sync_files::transfer(conn, &file.transfer_id).ok().flatten().is_some() {
-                continue;
-            }
-            let Some(holder) = file.holders.iter().find(|h| names.contains_key(*h)) else { continue };
-            let fetching = self.devices.engine.is_file_requested(&self.store, &file.transfer_id)
-                || copies_automatically(file.size, &file.conversation_id);
-            files.insert(
-                file.transfer_id.clone(),
-                DeviceFileFacts {
-                    device_name: names[holder].clone(),
-                    fetching,
-                    holder_connected: false,
-                    fraction: 0.0,
-                },
-            );
-        }
+        // Files another of our computers holds: its bytes are there, its name says where (device_files.rs).
+        let names: BTreeMap<[u8; 32], String> = records.iter().map(|d| (d.device_key, d.name.clone())).collect();
+        let files = self.device_file_facts(&names);
         let you = people.iter().find(|p| p.conversation_id == YOU).cloned();
         DevicesFacts {
             now,
@@ -357,22 +356,6 @@ impl State {
         self.send_own_chain_to_devices();
         self.own_devices_changed();
         Ok(())
-    }
-
-    pub fn fetch_from_device(&mut self, transfer_id: &str) -> Result<(), &'static str> {
-        if self.removed_computer() {
-            return Err("not_allowed");
-        }
-        let conn = self.store.connection();
-        if sync_files::transfer(conn, transfer_id).ok().flatten().is_some() {
-            return Err("not_allowed");
-        }
-        let file = sync_files::sync_file(conn, transfer_id).ok().flatten().ok_or("not_found")?;
-        let me = self.local_key();
-        if !file.holders.iter().any(|h| *h != me) {
-            return Err("not_found");
-        }
-        self.devices.engine.request_file(&self.store, transfer_id).map_err(|_| "internal")
     }
 
     /// Delete history (`None`: every chat). With other computers on this profile it is a deletion every one of them

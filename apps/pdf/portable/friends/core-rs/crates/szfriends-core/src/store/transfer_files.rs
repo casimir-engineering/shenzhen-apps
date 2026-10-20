@@ -257,3 +257,10 @@ pub(super) fn snapshot(source: &Path, destination: &Path) -> io::Result<(u64, [u
     let size = fs::metadata(destination)?.len();
     Ok((size, file_digest(destination, u64::MAX)?))
 }
+
+/// A file's modification time in nanoseconds since 1970, or 0 when it cannot be read.
+pub fn modified_ns(path: &Path) -> i64 {
+    let modified = fs::metadata(path).and_then(|m| m.modified()).ok();
+    let since = modified.and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok());
+    since.map_or(0, |d| i64::try_from(d.as_nanos()).unwrap_or(i64::MAX))
+}

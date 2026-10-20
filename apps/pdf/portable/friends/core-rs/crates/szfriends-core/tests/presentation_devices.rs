@@ -10,8 +10,8 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 use presentation::world::*;
 use presentation::{expect_fixture, through_store, validate_snapshot};
 use szfriends_core::presentation::{
-    Audience, DeviceFacts, DeviceFileFacts, DevicesFacts, IdentityState, ItemFacts, OnlineReach, OutboxState,
-    PersonFacts, ProfileFacts, ReceivedFolderFacts, Relation, RouteKind, RouteMethod, TransferState,
+    AgainState, Audience, DeviceFacts, DeviceFileFacts, DevicesFacts, IdentityState, ItemFacts, OnlineReach,
+    OutboxState, PersonFacts, ProfileFacts, ReceivedFolderFacts, Relation, RouteKind, RouteMethod, TransferState,
 };
 use szfriends_core::store::PhoneFolder;
 
@@ -178,6 +178,53 @@ fn conversations_on_several_computers() {
     let people = presentation::world::people();
     let built = builder.conversation(&people["c_mei"], &items, false, None, 2, now());
     expect_fixture(&built, "devices-conversation-mei-files.json", "conversation");
+}
+
+fn moved(id: &str, outgoing: bool, at: &str, name: &str, size: u64, again: AgainState) -> ItemFacts {
+    let state = if outgoing { TransferState::Delivered } else { TransferState::Received };
+    ItemFacts { file_missing: true, again, ..transfer(id, outgoing, at, name, size, state) }
+}
+
+/// Files the person moved or deleted (PROTOCOL.md § Getting a file again): Get again from Mei, copying from her,
+/// waiting for her, her answer that she no longer has one, one still on another computer (Get), and one this person
+/// sent from another computer, which only says where it went.
+#[test]
+fn files_moved_or_deleted() {
+    if presentation::tree_missing() {
+        return;
+    }
+    let mut again_audience = audience();
+    again_audience.capabilities.insert("files.again".into());
+    let mut builder = builder(again_audience);
+    let mut devices = four_computers();
+    let on_mini = DeviceFileFacts { device_name: "Raph’s Mac mini".into(), ..Default::default() };
+    devices.files = BTreeMap::from([("t_c4e19b05".to_owned(), on_mini)]);
+    builder.devices = Some(devices.clone());
+    let mut copying = moved("t_7b3e0f42", false, "2026-10-12 09:20", "Shift rota.pdf", 1_203_456, AgainState::Asked);
+    copying.again_connected = true;
+    copying.again_fraction = 0.4;
+    let items = [
+        moved("t_5a90c3e1", false, "2026-10-12 09:12", "Site photos.pdf", 48_231_004, AgainState::None),
+        copying,
+        moved("t_91c6d2a8", false, "2026-10-12 09:31", "Supplier quote.pdf", 3_604_480, AgainState::Asked),
+        moved("t_2f8a4c17", false, "2026-10-12 09:44", "Old floor plan.pdf", 5_100_000, AgainState::Gone),
+        moved("t_c4e19b05", false, "2026-10-12 09:50", "Audit checklist.pdf", 860_160, AgainState::None),
+        moved("t_e83d5a6c", true, "2026-10-12 10:02", "Quote reply.pdf", 2_200_000, AgainState::None),
+    ];
+    let mut mei = presentation::world::people()["c_mei"].clone();
+    let built = builder.conversation(&mei, &items, false, None, 2, now());
+    expect_fixture(&built, "devices-conversation-mei-again.json", "conversation");
+    // A host that cannot send Get again is told where the file is, and offered nothing.
+    let mut older = builder_with(audience());
+    older.devices = Some(devices);
+    let plain = &older.conversation(&mei, &items[..1], false, None, 2, now())["items"][1];
+    assert_eq!(plain["state"], "missing", "no Get again: {plain}");
+    assert_eq!(plain["actions"], serde_json::json!([]), "no Get again: {plain}");
+    // Nor is anyone who is not a friend now: their file stays moved or deleted.
+    mei.relation = Relation::Removed;
+    let removed = &builder.conversation(&mei, &items[..1], false, None, 2, now())["items"][1];
+    assert_eq!(removed["state"], "missing", "removed: {removed}");
+    assert_eq!(removed["actions"], serde_json::json!([]), "removed: {removed}");
 }
 
 #[test]

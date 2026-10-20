@@ -10,6 +10,7 @@
 //! Every user-facing string comes from the catalog ([`catalog`]), written for the person reading it and about what
 //! happens to their message ("Sends when Mei is nearby with ShenzhenPDF, Shenzhen Files or Shenzhen 3D open").
 
+mod again;
 mod avatar;
 pub mod catalog;
 mod conversation;

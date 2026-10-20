@@ -51,7 +51,8 @@ pub fn hello() -> Value {
     json!({"type": "hello", "id": "1", "protocol": {"major": 1, "minor": 0, "min_major": 1},
         "client": {"app_id": "interop", "app_name": "Shenzhen 3D", "app_version": "1", "toolkit": "tauri",
                    "reveal_in": "Files", "pid": std::process::id()},
-        "embedded_helper": null, "capabilities": ["drop.files"], "open_formats": ["stl"], "locale": "en"})
+        "embedded_helper": null, "capabilities": ["drop.files", "files.again"], "open_formats": ["stl"],
+        "locale": "en"})
 }
 
 impl Client {

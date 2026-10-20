@@ -169,21 +169,6 @@ static SZFriendsOutboxEntry *SZFriendsSyncEntryFromRow(sqlite3_stmt *s) {
     } error:error];
 }
 
-- (NSArray<SZFriendsTransferRecord *> *)transfersWithLocalBytes {
-    __block NSArray *records = @[];
-    [self performOnWriter:^(SZFriendsStoreDB *_Nullable db) {
-        if (!db) return;
-        // Ours being sent (its snapshot), received here, or copied here from another of our devices.
-        records = SZFriendsTransferRows(db,
-                                        @"WHERE (outgoing = 1 AND "
-                                        @"(staged_path IS NOT NULL OR received_path IS NOT NULL)) "
-                                        @"OR (outgoing = 0 AND state = ? AND received_path IS NOT NULL) "
-                                        @"ORDER BY transfer_id",
-                                        @[ @(SZFriendsTransferStateReceived) ]);
-    }];
-    return records;
-}
-
 - (NSArray<SZFriendsTransferRecord *> *)allTransferRecords {
     __block NSArray *records = @[];
     [self performOnWriter:^(SZFriendsStoreDB *_Nullable db) {
@@ -218,6 +203,13 @@ static SZFriendsOutboxEntry *SZFriendsSyncEntryFromRow(sqlite3_stmt *s) {
 }
 
 - (BOOL)insertCopiedTransfer:(SZFriendsTransferRecord *)transfer path:(NSString *)path error:(NSError **)error {
+    return [self insertCopiedTransfer:transfer path:path source:SZFriendsReceivedSourceDevice error:error];
+}
+
+- (BOOL)insertCopiedTransfer:(SZFriendsTransferRecord *)transfer
+                        path:(NSString *)path
+                      source:(SZFriendsReceivedSource)source
+                       error:(NSError **)error {
     SZFriendsTransferRecord *row = [transfer copy];
     row.receivedPath = path;
     row.stagedPath = nil;
@@ -229,16 +221,17 @@ static SZFriendsOutboxEntry *SZFriendsSyncEntryFromRow(sqlite3_stmt *s) {
                               error:inner];
         if (!held) return NO;
         if (held.integerValue > 0) {
-            return [db run:@"UPDATE transfers SET received_path = coalesce(received_path, ?), updated_at = ? "
-                           @"WHERE transfer_id = ?"
-                     binds:@[ path, [NSDate date], row.transferID ]
-                       row:nil
-                     error:inner];
+            // Here before, its bytes moved or deleted (the caller copies only what is not here): the copy replaces
+            // the path that is gone.
+            return SZFriendsTransferRowUpdate(db, row.transferID, @{@"received_path" : path,
+                                                                    @"received_at" : [NSDate date],
+                                                                    @"received_via" : @(source)},
+                                              inner);
         }
         // A copy from another of the person's computers, received here now (PROTOCOL.md § Views, received).
         return SZFriendsTransferRowInsert(db, row, nil, inner) &&
                SZFriendsTransferRowUpdate(db, row.transferID, @{@"received_at" : [NSDate date],
-                                                                @"received_via" : @(SZFriendsReceivedSourceDevice)},
+                                                                @"received_via" : @(source)},
                                           inner);
     } error:error];
 }

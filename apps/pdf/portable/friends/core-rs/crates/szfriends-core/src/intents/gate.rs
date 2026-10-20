@@ -6,7 +6,7 @@ use super::{IntentError, Wording};
 
 /// Every intent of protocol 1.0 this helper implements. The assistant_* family needs `assistant.scopes`, which no
 /// helper announces yet, so those are unknown_intent.
-pub const KNOWN_INTENTS: [&str; 50] = [
+pub const KNOWN_INTENTS: [&str; 51] = [
     "ping",
     "activate",
     "subscribe",
@@ -56,6 +56,7 @@ pub const KNOWN_INTENTS: [&str; 50] = [
     "revoke_device",
     "rename_device",
     "fetch_from_device",
+    "fetch_from_friend",
     "set_received_folder",
 ];
 
@@ -127,6 +128,8 @@ pub struct Admission {
     pub removed_computer: bool,
     /// The helper announces `received.folder`.
     pub received_folder: bool,
+    /// The helper announces `files.again`.
+    pub files_again: bool,
 }
 
 /// Whether the helper takes an intent of this `type` now; the error to reply with otherwise.
@@ -143,6 +146,7 @@ pub fn admit(kind: &str, state: Admission) -> Result<(), IntentError> {
     if (DEVICES_INTENTS.contains(&kind) && !state.devices)
         || (LINKS_INTENTS.contains(&kind) && !state.links)
         || (kind == "set_received_folder" && !state.received_folder)
+        || (kind == "fetch_from_friend" && !state.files_again)
     {
         return Err(IntentError::new("unknown_intent"));
     }

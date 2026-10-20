@@ -69,7 +69,8 @@ int main(int argc, const char* argv[]) {
         struct {
             const char* name;
             UIFlow run;
-        } groups[] = {{"solo", UIFlowSolo}, {"permission", UIFlowPermission}, {"pair", UIFlowTwoPeople}, {"found", UIFlowFound}};
+        } groups[] = {{"solo", UIFlowSolo}, {"permission", UIFlowPermission}, {"pair", UIFlowTwoPeople},
+                  {"found", UIFlowFound}, {"phone", UIFlowPhone}};
         NSDate* started = NSDate.date;
         for (UIVariant* variant in variants) {
             if (!UIWanted("FRIENDS_UI_E2E_VARIANTS", variant.name)) continue;

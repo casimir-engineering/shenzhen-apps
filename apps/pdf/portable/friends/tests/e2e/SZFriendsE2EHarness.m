@@ -330,8 +330,10 @@ BOOL SZFE2EWaitUntil(NSTimeInterval timeout, BOOL (^condition)(void)) {
     _scenarioDirectory = [_root stringByAppendingPathComponent:name];
     [[NSFileManager defaultManager] createDirectoryAtPath:_scenarioDirectory withIntermediateDirectories:YES
                                                attributes:@{NSFilePosixPermissions : @0700} error:NULL];
-    // A new type per scenario: helpers of an earlier scenario still winding down can never be found.
-    _serviceType = [NSString stringWithFormat:@"_szfe%08x._tcp", arc4random()];
+    // A new type per scenario: helpers of an earlier scenario still winding down can never be found. A test joined to
+    // another network through a bridge (the phone tests) names the type the bridge uses.
+    const char *given = getenv("SZFRIENDS_E2E_SERVICE_TYPE");
+    _serviceType = given && *given ? @(given) : [NSString stringWithFormat:@"_szfe%08x._tcp", arc4random()];
     _bluetoothDirectory = [_scenarioDirectory stringByAppendingPathComponent:@"bt"];
     [[NSFileManager defaultManager] createDirectoryAtPath:_bluetoothDirectory withIntermediateDirectories:YES
                                                attributes:@{NSFilePosixPermissions : @0700} error:NULL];

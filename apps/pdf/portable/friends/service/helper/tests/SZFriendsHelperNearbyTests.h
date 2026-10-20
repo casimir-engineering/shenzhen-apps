@@ -99,6 +99,7 @@ void SZFNTestOnlineReach(NSString *scratch);
 void SZFNTestByIDOnline(NSString *scratch);
 void SZFNTestJoin(NSString *scratch);
 void SZFNTestDevices(NSString *scratch);
+void SZFNTestAgain(NSString *scratch);
 void SZFNTestFirstContact(NSString *scratch);
 void SZFNTestLoopbackICE(void);
 

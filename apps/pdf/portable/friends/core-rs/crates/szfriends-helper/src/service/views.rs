@@ -165,6 +165,12 @@ impl State {
         let mut builder = SnapshotBuilder::new(client.audience.clone(), None);
         builder.devices = world.devices.clone();
         let Some(data) = self.render(&builder, subscription, world) else { return false };
+        if self.devices.missing_seen.take() {
+            self.schedule_sync_capture(); // a file moved or deleted here: our other devices hear it is gone
+        }
+        let Some(subscription) = self.clients.get(&client_id).and_then(|c| c.subscriptions.get(subscription_id)) else {
+            return false;
+        };
         if subscription.last.as_ref() == Some(&data) {
             return false;
         }

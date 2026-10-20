@@ -189,6 +189,7 @@ static void TestMismatchAndMissing(void) {
     [handle writeData:[@"tampered" dataUsingEncoding:NSUTF8StringEncoding]];
     [handle closeFile];
     [NSFileManager.defaultManager removeItemAtPath:gone.stagedPath error:NULL];
+    [NSFileManager.defaultManager removeItemAtPath:gone.sourcePath error:NULL];
     SZFSPipe *pipe = SZFSConnect(a, b);
     SZFSExpect(!pipe.broken, @"neither ends the session");
     SZFSExpect([b.store transferRecordWithID:bad.transferID] == nil, @"bytes that do not match are not kept");

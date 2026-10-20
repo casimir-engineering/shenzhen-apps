@@ -264,10 +264,6 @@ static BOOL SZFriendsSyncSameValue(SZFriendsSyncRegister *_Nullable current, NSD
 - (void)addFileChangesWithPeople:(NSDictionary<NSString *, SZFriendsPersonRecord *> *)people
                               to:(NSMutableArray<SZFriendsSyncPendingEvent *> *)pending {
     SZFriendsStore *store = self.store;
-    NSMutableSet<NSString *> *withBytes = [NSMutableSet set];
-    for (SZFriendsTransferRecord *transfer in [store transfersWithLocalBytes]) {
-        [withBytes addObject:transfer.transferID];
-    }
     NSData *me = self.identity.publicKey;
     NSDictionary<NSString *, SZFriendsSyncRegister *> *registers = [store syncRegistersWithPrefix:@"f/"];
     NSMutableDictionary<NSString *, SZFriendsSyncFileRecord *> *records = [NSMutableDictionary dictionary];
@@ -288,8 +284,15 @@ static BOOL SZFriendsSyncSameValue(SZFriendsSyncRegister *_Nullable current, NSD
         BOOL heldFinal = held != nil && SZFriendsSyncFileStateIsFinal((SZFriendsTransferState)[held uint64ForTag:4]);
         BOOL regresses = heldFinal && !SZFriendsSyncFileStateIsFinal(file.state);
         BOOL changed = !SZFriendsSyncSameValue(current, value) && !regresses;
-        BOOL holds = [withBytes containsObject:transfer.transferID] && ![file.holders containsObject:me];
+        // Whether this device has the bytes now (ADR 0016): it says so when that changes, either way.
+        BOOL here = SZFriendsSyncLocalPathOfTransfer(transfer) != nil, listed = [file.holders containsObject:me];
+        BOOL holds = here && !listed, released = !here && listed && known != nil;
         if (holds) file.holders = [file.holders arrayByAddingObject:me];
+        if (released) {
+            NSMutableArray<NSData *> *holders = [file.holders mutableCopy];
+            [holders removeObject:me];
+            file.holders = holders;
+        }
         if (changed) {
             SZFriendsSyncPendingEvent *event = SZFriendsSyncPending(SZFriendsSyncKindFile, scope, transfer.transferID,
                                                                     value);
@@ -298,9 +301,10 @@ static BOOL SZFriendsSyncSameValue(SZFriendsSyncRegister *_Nullable current, NSD
             event.file = file;
             [pending addObject:event];
         }
-        if (holds) {
+        if (holds || released) {
             SZFriendsSyncFields *fields = [[SZFriendsSyncFields alloc] init];
             [fields setString:transfer.conversationID forTag:SZFSTagConversation];
+            if (released) [fields setUInt64:1 forTag:SZFSTagReleased];
             SZFriendsSyncPendingEvent *event = SZFriendsSyncPending(SZFriendsSyncKindFileHeld, scope,
                                                                     transfer.transferID, fields.encodedData);
             event.file = file;

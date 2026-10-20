@@ -12,7 +12,7 @@ FRIENDS_SYNC_HDRS := $(wildcard $(FRIENDS_SYNC_DIR)/*.h) $(wildcard friends/serv
 	$(wildcard friends/service/identity/*.h) friends/avatars/SZFriendsAvatars.h
 
 FRIENDS_SERVICE_OBJS += $(FRIENDS_SYNC_OBJS)
-FRIENDS_PUBLIC_HEADERS += $(FRIENDS_SYNC_DIR)/SZFriendsSync.h
+FRIENDS_PUBLIC_HEADERS += $(FRIENDS_SYNC_DIR)/SZFriendsSync.h $(FRIENDS_SYNC_DIR)/SZFriendsAgain.h
 
 $(FRIENDS_SYNC_BUILD)/%.o: $(FRIENDS_SYNC_DIR)/%.m $(FRIENDS_SYNC_HDRS) friends/service/sync/sync.mk
 	@mkdir -p "$(@D)"

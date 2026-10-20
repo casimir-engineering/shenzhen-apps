@@ -463,6 +463,7 @@ SQLite without what the store never uses) beside `phones-profile.toml`, and from
 | Exchange | `scripts/friends/phones-exchange.mjs` (`-page.js`, `-android.mjs`, `-ios.mjs`) | The phone app and a Friends service on the Mac, made friends: a message and a file each way |
 | Remove | `scripts/friends/phones-remove.mjs` | Android: a long press on a friend's row (the emulator's own touch input), Remove, confirm: the friend leaves the list, and is still off it after the app starts again |
 | Reset | `scripts/friends/phones-reset.mjs` | Android: Settings ▸ Reset Friends… and its confirmation (the emulator's own touch input): a new ID at once in Settings and the panel, the friends gone, Nearby running again, the new ID kept after the app starts again |
+| Get again | `scripts/friends/phones-get-again.mjs` | Android and a Mac on one profile, with a friend: a file deleted on the phone comes back from the Mac with Get (a tap), one deleted on the Mac comes back from the phone with Get (a click in the real dropdown), one deleted on both comes back from the friend with Get again, and once the friend changed it, "Fay doesn’t have this file anymore." |
 
 What the plugin does on a phone (shenzhen-pdf `portable/friends/tauri/README.md` § Phones): the identity's key in the
 Android Keystore (a sealed file in the no-backup directory) or the iOS Keychain (this device only), Friends' files
@@ -502,6 +503,18 @@ failure shown; the panel lists neither friend and shows the new ID; the phone wr
 (Nearby started again, as it was before); after a force-stop and a start, Settings still shows the new ID. It passed
 on 2026-10-21 headless on an Android 16 (API 36) arm64 emulator. Before, confirming did nothing: the core refused
 the reset as not yet available, with no words for the app to show.
+
+**Get and Get again.** `node scripts/friends/phones-get-again.mjs --serial <emulator> --tools <core-rs target/release>
+--mac <shenzhen-pdf build/friends-ui-e2e> --manifest <animal manifest> [--shots <dir>]` with a debug APK installed:
+the phone's test home (befriended with Fay, the core's `loopback-peer`) is joined by ShenzhenPDF's Friends dropdown on
+the Mac (friends-ui-e2e's `phone` flow, offscreen, step by step through two FIFOs), the Mac's helper meeting the phone
+and Fay through `szfriends-testnet dir`, which joins the test network's directory to its Bonjour test type. Fay sends
+a file, the phone accepts it with a tap and it copies to the Mac; deleted on the phone, it shows "On Test computer
+mac" with Get, tapped, and comes back; deleted on the Mac, it shows "On ‹the phone's name›" with Get, clicked in the
+dropdown; deleted on both, "Moved or deleted" with Get again, tapped, brings it from Fay; once Fay edited it, Get again
+ends with "Fay doesn’t have this file anymore." It passed on 2026-10-21 on an Android 16 (API 36) arm64 emulator.
+Phones now name themselves for the person's other computers from the system (Settings ▸ About's name, else the
+model), where they used to be "Computer".
 
 **Android permissions.** `node scripts/friends/android-permissions.mjs --serial <emulator> [--apk <apk>]` opens
 Friends from a cleared app and answers the system's Bluetooth dialog through uiautomator: Allow grants scan,

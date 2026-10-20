@@ -291,7 +291,9 @@ static void TestV11AddsLeavingTheList(void) {
     SZFTScalar(older, person, @[ @"rm", SZFTBytes(4, 32), @(SZFriendsRelationRemoved), @5300 ]);
     SZFTScalar(older, person, @[ @"bl", SZFTBytes(5, 32), @(SZFriendsRelationBlocked), @5400 ]);
     [older close];
-    SZFriendsStore *store = SZFTOpenStoreWithOptions(directory, nil, &error);
+    SZFriendsStoreOptions *v11 = [[SZFriendsStoreOptions alloc] init];
+    v11.migrations = [SZFriendsStoreShippedMigrations() subarrayWithRange:NSMakeRange(0, 11)];
+    SZFriendsStore *store = SZFTOpenStoreWithOptions(directory, v11, &error);
     SZFTExpect(store.schemaVersion == 11 && [Backups(directory) isEqual:@[ BackupName(11) ]], @"v10 to v11: %@",
                error);
     SZFTExpect([SZFTScalar(store, @"SELECT value FROM meta WHERE key = 'min_reader_version'", @[]) isEqual:@"2"],

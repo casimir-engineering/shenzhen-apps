@@ -353,6 +353,8 @@ static BOOL SZFriendsSyncFileMatchesDigest(NSString *path, uint64_t size, NSData
         NSMutableData *none = [NSMutableData dataWithBytes:(uint8_t[]){SZFriendsSyncMessageNone} length:1];
         SZFriendsSyncPutID(none, transferID);
         _send(none);
+        // Listed as holding it and it is gone (moved or deleted here): every device hears so now (ADR 0016).
+        if (path == nil) [_engine captureLocalChanges];
         return YES;
     }
     [handle seekToFileOffset:start];

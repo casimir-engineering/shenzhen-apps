@@ -236,10 +236,10 @@ static void SZFTestPayloadBytes(void) {
     [expected appendString:SZFHexString(SZFBytes(0x11, 16))];
     [expected appendString:@"140060"];
     [expected appendString:SZFHexString(SZFBytes(0xCC, 96))];
-    [expected appendString:@"180002000019000200021a0004000000001b000101"]; // minor range 0...2
+    [expected appendString:@"180002000019000200031a0004000000001b000101"]; // minor range 0...3
     SZF_CHECK([SZFHexString([payload encodedDataWithError:NULL]) isEqualToString:expected], @"payload bytes");
     SZFriendsHandshakePayload *decoded = [SZFriendsHandshakePayload payloadWithData:SZFHex(expected) error:NULL];
-    SZF_CHECK(decoded.hasMinorRange && decoded.minorMax == 2 && decoded.hasRouteClass && decoded.routeClass == 1 &&
+    SZF_CHECK(decoded.hasMinorRange && decoded.minorMax == 3 && decoded.hasRouteClass && decoded.routeClass == 1 &&
                   [decoded.requestToken isEqualToData:SZFBytes(0x11, 16)] && decoded.profile == nil,
               @"payload decodes");
     payload.profile = @{@(SZFriendsFieldText) : SZFBytes('a', 1)};

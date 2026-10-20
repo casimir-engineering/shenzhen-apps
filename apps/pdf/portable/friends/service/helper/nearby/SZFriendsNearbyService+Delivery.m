@@ -65,6 +65,8 @@ static BOOL SZFriendsIsRequestAnswer(SZFriendsOutboxEntry *entry) {
     if (!link.live || !link.adopted || link.closed || link.superseded || conversationID == nil) return;
     SZFriendsPersonRecord *person = [self.services.store personWithConversationID:conversationID];
     if (person == nil) return;
+    // A request accepted on this session: the friend gets our chain now, so it knows our other computers (+Chain).
+    if (!link.chainSent) [self sendChainOnLink:link];
     // Entries still waiting for an ACK on another link (a superseded one draining) go again only once it ends.
     NSMutableSet<NSString *> *busy = [NSMutableSet set];
     for (SZFriendsPeerLink *other in self.links) {

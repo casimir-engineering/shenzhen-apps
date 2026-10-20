@@ -93,6 +93,7 @@ fn everything() -> Admission {
         links: true,
         removed_computer: false,
         received_folder: true,
+        files_again: true,
     }
 }
 
@@ -155,6 +156,8 @@ fn gates() {
     assert!(admit("add_from_mention", no_links).is_ok(), "mentions are not links");
     let no_folder = Admission { received_folder: false, ..everything() };
     assert_eq!(admit("set_received_folder", no_folder).unwrap_err().code, "unknown_intent", "only when announced");
+    let no_again = Admission { files_again: false, ..everything() };
+    assert_eq!(admit("fetch_from_friend", no_again).unwrap_err().code, "unknown_intent", "only when announced");
     let removed = Admission { removed_computer: true, ..everything() };
     let error = admit("send_message", removed).unwrap_err();
     assert_eq!(error.code, "not_allowed");

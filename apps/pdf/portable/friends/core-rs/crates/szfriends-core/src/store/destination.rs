@@ -31,6 +31,14 @@ pub trait ExternalPublisher: Send + Sync {
     /// Copies the checked file at `staged` there as `name` (made unique there); returns what the app later opens and
     /// shares (a path or a content URI) and the name it was given. `staged` stays; the caller removes it.
     fn publish(&self, staged: &Path, name: &str) -> io::Result<(String, String)>;
+    /// The size of what `publish` left at `location` now, or `None` when it is gone (the person deleted it).
+    fn size(&self, _location: &str) -> Option<u64> {
+        None
+    }
+    /// A file this process can read with what is at `location` now, copied out of the place it cannot read itself.
+    fn copy_out(&self, _location: &str) -> Option<PathBuf> {
+        None
+    }
 }
 
 /// A phone's place for received files, which the person cannot change from Friends.

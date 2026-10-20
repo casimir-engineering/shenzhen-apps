@@ -74,6 +74,7 @@ szfriends_intent *szft_intent_from_fixture(const cJSON *line) {
     ONE(revoke_device, "device_id");
     ONE(rename_device, "name");
     ONE(fetch_from_device, "transfer_id");
+    ONE(fetch_from_friend, "transfer_id");
     ONE(set_received_folder, "path");
 #undef ONE
     if (strcmp(type, "remove_friend") == 0) {
@@ -294,7 +295,7 @@ static void test_required_arguments_and_escaping(void) {
     EXPECT(!szfriends_intent_join_profile(NULL) && !szfriends_intent_enter_join_code(NULL) &&
                !szfriends_intent_approve_join(NULL) && !szfriends_intent_deny_join(NULL) &&
                !szfriends_intent_revoke_device(NULL) && !szfriends_intent_rename_device(NULL) &&
-               !szfriends_intent_fetch_from_device(NULL),
+               !szfriends_intent_fetch_from_device(NULL) && !szfriends_intent_fetch_from_friend(NULL),
            "device and join intents without their field");
     EXPECT(!szfriends_intent_set_received_folder(NULL), "a received folder needs its path");
     EXPECT(szfriends_client_send_intent(NULL, NULL, NULL, 0) == SZFRIENDS_ERR_INVALID_ARGUMENT, "NULL intent");
