@@ -176,5 +176,6 @@ void UIRecord(UIVariant* variant, NSString* flow, BOOL passed);
 BOOL UIFlowSolo(SZFE2EWorld* world, UIVariant* variant);
 BOOL UIFlowPermission(SZFE2EWorld* world, UIVariant* variant);
 BOOL UIFlowTwoPeople(SZFE2EWorld* world, UIVariant* variant);
+BOOL UIFlowFound(SZFE2EWorld* world, UIVariant* variant);
 
 NS_ASSUME_NONNULL_END

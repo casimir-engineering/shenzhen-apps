@@ -1,7 +1,7 @@
 // friends-ui-e2e's runner (SPDFMacFriendsUIE2E.h).
 //
 // Usage: SPDFMacFriendsUIE2ETests <e2e helper> <animal manifest> <screenshots folder>
-// FRIENDS_UI_E2E_VARIANTS=light-normal,dark-narrow runs only those looks; FRIENDS_UI_E2E_FLOWS=solo,permission,pair
+// FRIENDS_UI_E2E_VARIANTS=light-normal,dark-narrow runs only those looks; FRIENDS_UI_E2E_FLOWS=solo,permission,pair,found
 // only those groups, while working on them. The screenshots folder gets <variant>/<flow>/<NN>-<step>.png and
 // flows.tsv, the result of every flow in every look.
 
@@ -69,7 +69,7 @@ int main(int argc, const char* argv[]) {
         struct {
             const char* name;
             UIFlow run;
-        } groups[] = {{"solo", UIFlowSolo}, {"permission", UIFlowPermission}, {"pair", UIFlowTwoPeople}};
+        } groups[] = {{"solo", UIFlowSolo}, {"permission", UIFlowPermission}, {"pair", UIFlowTwoPeople}, {"found", UIFlowFound}};
         NSDate* started = NSDate.date;
         for (UIVariant* variant in variants) {
             if (!UIWanted("FRIENDS_UI_E2E_VARIANTS", variant.name)) continue;
