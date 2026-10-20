@@ -166,6 +166,9 @@ impl State {
             item.transfer_state = Some(transfer.state);
             item.failure_reason = transfer.failure_reason.clone();
             item.local_path = transfer.received_path.as_ref().map(|p| p.to_string_lossy().into_owned());
+            if !item.outgoing {
+                item.saved_in = transfer.received_path.as_deref().and_then(|p| self.store.saved_place(p));
+            }
             item.transfer_route =
                 self.live_route(&transfer.conversation_id).map_or(RouteMethod::None, Self::view_route);
             let automatic: i64 = conn
@@ -238,6 +241,7 @@ impl State {
             path: self.store.received_folder().map(|p| p.to_string_lossy().into_owned()),
             chosen_name: chosen.and_then(|p| p.file_name().map(|n| n.to_string_lossy().into_owned())),
             phone: self.store.received_defaults().phone,
+            fallback: self.store.received_fallback(),
         }
     }
 

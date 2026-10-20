@@ -278,6 +278,9 @@ pub struct ItemFacts {
     pub bytes_per_second: f64,
     /// A received file, once published.
     pub local_path: Option<String>,
+    /// The folder a received file was saved in, for its "Saved to {folder}"; `None` (older files, or kept in the
+    /// store's own folder) keeps "Received".
+    pub saved_in: Option<crate::store::SavedPlace>,
     pub file_type_identifier: Option<String>,
     pub thumbnail_path: Option<String>,
     pub thumbnail_width: u32,
@@ -416,6 +419,8 @@ pub struct ReceivedFolderFacts {
     pub chosen_name: Option<String>,
     /// A phone's place, which Friends does not change.
     pub phone: Option<crate::store::PhoneFolder>,
+    /// Where the last file went when this folder could not take it.
+    pub fallback: Option<crate::store::ReceivedFallback>,
 }
 
 /// One local search hit with what the result row needs (`SZFriendsSearchHitFacts`).

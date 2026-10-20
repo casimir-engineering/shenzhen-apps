@@ -8,6 +8,7 @@ use super::items::without_final_period;
 use super::mentions::{key_string, mention_name};
 use super::strings::path_extension;
 use super::SnapshotBuilder;
+use crate::store::SavedPlace;
 
 pub(crate) fn transfer_state_name(state: TransferState) -> &'static str {
     match state {
@@ -156,6 +157,17 @@ impl SnapshotBuilder {
         if failed {
             status_key = self.key_for_failure(&status_key, item.failure_reason.as_deref(), person);
         }
+        // A received file says which folder it is in; one kept in the store's own folder stays "Received".
+        let here =
+            state == TransferState::Received && !item.outgoing && non_empty(item.local_path.as_deref()).is_some();
+        let folder = item.saved_in.as_ref().filter(|_| here).and_then(|place| match place {
+            SavedPlace::Downloads => Some(s.text("settings.received.default")),
+            SavedPlace::AppFiles => Some(self.audience().app_name.clone()),
+            SavedPlace::Folder(name) => Some(name.clone()).filter(|n| !n.is_empty()),
+        });
+        if folder.is_some() {
+            status_key = "transfer.status.received.saved".into();
+        }
         let mut values: Vec<(&str, &str)> = vec![
             ("first", &first),
             ("sender", &sender),
@@ -171,12 +183,18 @@ impl SnapshotBuilder {
         if timed {
             values.push(("duration", &duration));
         }
+        if let Some(folder) = &folder {
+            values.push(("folder", folder));
+        }
         let status = s.text_with(&status_key, &values);
         let status_spoken = without_final_period(&status); // the spoken templates end the sentence themselves
         values.push(("status", &status_spoken));
         let mut spoken_key = format!("transfer.spoken.{direction}.{}", transfer_state_name(state));
         if failed {
             spoken_key = self.key_for_failure(&spoken_key, item.failure_reason.as_deref(), person);
+        }
+        if folder.is_some() {
+            spoken_key = "transfer.spoken.in.received.saved".into();
         }
         let assistant = self.assistant_label(item, person);
         // Every spoken template lists "{file}, {kind}, {size}", so the assistant is said right after the file's facts.

@@ -68,6 +68,11 @@ pub(super) const PEOPLE_AND_SETTINGS: &[(&str, &str)] = &[
     ("settings.id.note", "People can add you with it."),
     ("settings.received.label", "Save received files to"),
     ("settings.received.note", ""),
+    ("settings.received.note.fallback.downloads", "The last file couldn’t be saved here, so it went to Downloads."),
+    (
+        "settings.received.note.fallback.kept",
+        "The last file couldn’t be saved here, so {app} kept it. Open it from its chat.",
+    ),
     ("settings.received.change", "Change…"),
     ("settings.received.default", "Downloads"),
     ("settings.received.note.ios", "In the Files app, under On My iPhone."),

@@ -39,8 +39,8 @@ pub use add_by_id::{
     ID_REQUEST_MAX_UNATTESTED_ANSWERS,
 };
 pub use destination::{
-    ExternalPublisher, FolderRefusal, PhoneFolder, ReceivedDefaults, ReceivedFile, ReceivedSource, ENV_DOWNLOADS_DIR,
-    RECEIVED_FOLDER_FILE,
+    ExternalPublisher, FolderRefusal, PhoneFolder, ReceivedDefaults, ReceivedFallback, ReceivedFile, ReceivedSource,
+    SavedPlace, ENV_DOWNLOADS_DIR, RECEIVED_FALLBACK_FILE, RECEIVED_FOLDER_FILE,
 };
 pub use friend_links::{InviteRecord, INVITE_ACCEPTS_PER_DAY, ONE_TIME_INVITE_LIFETIME};
 pub use links::{

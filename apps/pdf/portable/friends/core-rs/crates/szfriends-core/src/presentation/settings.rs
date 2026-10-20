@@ -9,7 +9,7 @@ use serde_json::{json, Value};
 use super::facts::{PersonFacts, ProfileFacts, Relation, SearchHitFacts};
 use super::text::{composed_range16, from_utf16, non_empty_trimmed, utf16};
 use super::SnapshotBuilder;
-use crate::store::{PhoneFolder, ReceivedFile};
+use crate::store::{PhoneFolder, ReceivedFallback, ReceivedFile};
 
 /// Names spelled out in the automatic-acceptance summary before it switches to a count.
 const NAMED_AUTO_ACCEPT_LIMIT: usize = 3;
@@ -70,6 +70,14 @@ impl SnapshotBuilder {
                 Some(folder.chosen_name.clone().unwrap_or_else(|| s.text("settings.received.default"))),
                 s.text("settings.received.note"),
             ),
+        };
+        // The last file went elsewhere because this folder could not take it: said until one is saved here.
+        let note = match folder.fallback {
+            Some(ReceivedFallback::Downloads) => s.text("settings.received.note.fallback.downloads"),
+            Some(ReceivedFallback::Kept) => {
+                s.text_with("settings.received.note.fallback.kept", &[("app", &self.audience().app_name)])
+            }
+            None => note,
         };
         let path = folder.path.as_deref().filter(|_| folder.phone.is_none() && !self.on_phone());
         let change = path.map(|_| {

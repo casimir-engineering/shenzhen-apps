@@ -15,7 +15,7 @@ use szfriends_core::presentation::{
     DownloadLinkFacts, ItemFacts, JoinRequestFacts, JoiningFacts, JoiningState, LinksFacts, MentionDirectory,
     PersonFacts, ProfileFacts, ReceivedFolderFacts, SnapshotBuilder,
 };
-use szfriends_core::store::{PhoneFolder, ReceivedFile, ReceivedSource};
+use szfriends_core::store::{PhoneFolder, ReceivedFallback, ReceivedFile, ReceivedSource};
 
 /// Every snapshot fixture, and the suite that builds it.
 const COVERED: [&str; 35] = [
@@ -149,12 +149,23 @@ fn received_folder_and_received_view() {
         path: Some("/Users/raph/Documents/From friends".into()),
         chosen_name: Some("From friends".into()),
         phone: None,
+        fallback: None,
     };
     let row = settings(audience(), chosen.clone());
     assert_eq!(row["value"], "From friends");
     assert_eq!(row["path"], "/Users/raph/Documents/From friends");
     assert_eq!(row["action"]["path"], "/Users/raph/Documents/From friends");
     assert_eq!(row["change"]["action"], "choose_received_folder");
+    assert_eq!(row["note"], "");
+    // The last file could not be saved there: the note says where it went instead.
+    let fallback = |fallback| ReceivedFolderFacts { fallback: Some(fallback), ..chosen.clone() };
+    let row = settings(audience(), fallback(ReceivedFallback::Downloads));
+    assert_eq!(row["note"], "The last file couldn’t be saved here, so it went to Downloads.");
+    let row = settings(audience(), fallback(ReceivedFallback::Kept));
+    assert_eq!(
+        row["note"],
+        format!("The last file couldn’t be saved here, so {} kept it. Open it from its chat.", audience().app_name)
+    );
 
     let mut older = audience();
     older.helper_capabilities.clear();

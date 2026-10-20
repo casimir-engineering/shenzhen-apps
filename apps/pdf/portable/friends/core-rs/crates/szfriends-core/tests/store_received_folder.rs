@@ -7,8 +7,9 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
 use szfriends_core::store::{
-    file_digest, ExternalPublisher, FolderRefusal, Person, PhoneFolder, ReceivedDefaults, ReceivedSource, Relation,
-    Store, StoreOptions, TransferState, RECEIVED_FOLDER_FILE,
+    file_digest, ExternalPublisher, FolderRefusal, Person, PhoneFolder, ReceivedDefaults, ReceivedFallback,
+    ReceivedSource, Relation, SavedPlace, Store, StoreOptions, TransferState, RECEIVED_FALLBACK_FILE,
+    RECEIVED_FOLDER_FILE,
 };
 
 struct Scratch(PathBuf);
@@ -166,21 +167,50 @@ fn the_folder_the_person_chooses_is_checked_kept_and_used() {
     assert_eq!(store.received_folder(), Some(chosen.clone()));
     let (_, path) = receive(&mut store, &mei, "Bracket.step", b"solid");
     assert_eq!(path, chosen.join("Bracket.step"));
+    assert_eq!(store.saved_place(&path), Some(SavedPlace::Folder("From friends".into())));
+    assert_eq!(store.received_fallback(), None);
 
     // Kept across a restart.
     drop(store);
     let mut store = open(&scratch, ReceivedDefaults::folder(downloads.clone()));
     assert_eq!(store.chosen_received_folder(), Some(chosen.clone()));
 
-    // A chosen folder that went away: Downloads takes the file.
+    // A chosen folder that went away: Downloads takes the file, and that is remembered across a restart.
     std::fs::rename(&chosen, scratch.0.join("moved away")).unwrap();
     let (_, path) = receive(&mut store, &mei, "Bracket.step", b"solid");
     assert_eq!(path, downloads.join("Bracket.step"));
+    assert_eq!(store.saved_place(&path), Some(SavedPlace::Downloads));
+    assert_eq!(store.received_fallback(), Some(ReceivedFallback::Downloads));
+    drop(store);
+    let mut store = open(&scratch, ReceivedDefaults::folder(downloads.clone()));
+    assert_eq!(store.received_fallback(), Some(ReceivedFallback::Downloads));
 
-    // Choosing Downloads again clears the choice.
+    // Back again: the next file saved there clears it.
+    std::fs::rename(scratch.0.join("moved away"), &chosen).unwrap();
+    let (_, path) = receive(&mut store, &mei, "Bracket.step", b"solid");
+    assert_eq!(path, chosen.join("Bracket (2).step"));
+    assert_eq!(store.received_fallback(), None);
+    assert!(!scratch.state().join(RECEIVED_FALLBACK_FILE).exists());
+
+    // Read-only (as a refusal by the system would be): Downloads again.
+    #[cfg(unix)]
+    if !rustix_is_root() {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&chosen, std::fs::Permissions::from_mode(0o500)).unwrap();
+        let (_, path) = receive(&mut store, &mei, "Bracket.step", b"solid");
+        std::fs::set_permissions(&chosen, std::fs::Permissions::from_mode(0o700)).unwrap();
+        assert_eq!(path, downloads.join("Bracket (2).step"));
+        assert_eq!(store.received_fallback(), Some(ReceivedFallback::Downloads));
+    }
+    std::fs::remove_dir_all(&chosen).unwrap();
+    let _ = receive(&mut store, &mei, "Bracket.step", b"solid");
+    assert_eq!(store.received_fallback(), Some(ReceivedFallback::Downloads));
+
+    // Choosing Downloads again clears the choice, and what happened to the last file with it.
     store.set_received_folder(&downloads.to_string_lossy()).unwrap();
     assert!(!scratch.state().join(RECEIVED_FOLDER_FILE).exists());
     assert_eq!(store.received_folder(), Some(downloads));
+    assert_eq!(store.received_fallback(), None);
 }
 
 #[cfg(unix)]
@@ -200,6 +230,8 @@ fn a_file_is_never_lost_when_no_folder_takes_it() {
     assert_eq!(path, scratch.state().join("received").join("Plan.pdf"));
     assert_eq!(std::fs::read(&path).unwrap(), b"kept");
     assert_eq!(std::fs::read(&blocked).unwrap(), b"not a folder");
+    assert_eq!(store.saved_place(&path), None, "its item keeps \"Received\"");
+    assert_eq!(store.received_fallback(), Some(ReceivedFallback::Kept));
 }
 
 /// Copies into a folder of its own and answers a content URI, as the Android plugin does with MediaStore.
@@ -243,6 +275,8 @@ fn a_phone_publishes_through_its_platform_and_falls_back_to_its_own_folder() {
         ("Photo.jpg", "content://media/external/downloads/1")
     );
     assert_eq!(store.received_folder(), None, "no folder to show");
+    assert_eq!(store.saved_place(&location), Some(SavedPlace::Downloads));
+    assert_eq!(store.received_fallback(), None);
     assert_eq!(store.set_received_folder(&scratch.0.to_string_lossy()), Err(FolderRefusal::NotAllowed));
 
     // Without MediaStore (an older Android): the app's own folder.
@@ -254,6 +288,22 @@ fn a_phone_publishes_through_its_platform_and_falls_back_to_its_own_folder() {
     });
     let (_, path) = receive(&mut store, &mei, "Photo.jpg", b"jpeg");
     assert_eq!(path, scratch.state().join("received").join("Photo.jpg"));
+    assert_eq!(store.saved_place(&path), None);
+    assert_eq!(store.received_fallback(), Some(ReceivedFallback::Kept));
+}
+
+#[test]
+fn an_iphone_saves_in_the_apps_files() {
+    let scratch = Scratch::new("ios");
+    let documents = scratch.folder("Documents");
+    let defaults =
+        ReceivedDefaults { folder: Some(documents.clone()), external: None, phone: Some(PhoneFolder::AppFiles) };
+    let mut store = open(&scratch, defaults);
+    let mei = friend(&mut store);
+    let (_, path) = receive(&mut store, &mei, "Model.stl", b"solid");
+    assert_eq!(path, documents.join("Model.stl"));
+    assert_eq!(store.saved_place(&path), Some(SavedPlace::AppFiles));
+    assert_eq!(store.received_fallback(), None);
 }
 
 /// Sets a transfer that is fully staged as the crash left it: publishing, with `final_path` recorded.

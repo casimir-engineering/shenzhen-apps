@@ -111,8 +111,19 @@ fn open_or_show(value: &Value) -> Option<String> {
     }
 }
 
+/// The status a received item at `path` shows in the chat `chat`, once it shows `status`.
+fn expect_status(bo: &mut Client, chat: &str, path: &str, status: &str) {
+    let saved = |d: &Value| {
+        d["items"].as_array().is_some_and(|items| {
+            items.iter().any(|i| open_or_show(i).as_deref() == Some(path) && i["status_label"] == status)
+        })
+    };
+    bo.snapshot(chat, &format!("{path} saying {status}"), saved);
+}
+
 /// Received files go to Downloads (here the test's, `$SZFRIENDS_DOWNLOADS_DIR`), never replace one another, are
-/// listed in the `received` view, and go to the folder the person chooses in Settings once they choose one.
+/// listed in the `received` view, and go to the folder the person chooses in Settings once they choose one. Each says
+/// where it was saved; when the folder cannot take one, Downloads does and Settings says so until the next good save.
 #[test]
 fn received_files_go_to_downloads_or_the_folder_the_person_chose() {
     let (a, b, routes, chosen) = (Temp::new("ra"), Temp::new("rb"), Temp::new("rroutes"), Temp::new("chosen"));
@@ -149,6 +160,7 @@ fn received_files_go_to_downloads_or_the_folder_the_person_chose() {
     let first = send_file(&a.0, &mut ada, &mut bo, chats, "Bracket.step", b"solid one");
     assert_eq!(Path::new(&first), downloads.join("Bracket.step"));
     assert_eq!(std::fs::read(&first).unwrap(), b"solid one");
+    expect_status(&mut bo, &bo_chat, &first, "Saved to Downloads");
     let second = send_file(&a.0, &mut ada, &mut bo, chats, "Bracket.step", b"solid two");
     assert_eq!(Path::new(&second), downloads.join("Bracket (2).step"));
     assert_eq!(std::fs::read(&first).unwrap(), b"solid one", "never replaced");
@@ -171,11 +183,36 @@ fn received_files_go_to_downloads_or_the_folder_the_person_chose() {
     assert_eq!(shown["data"]["received"]["path"], real.to_string_lossy().as_ref());
     let third = send_file(&a.0, &mut ada, &mut bo, chats, "Bracket.step", b"solid three");
     assert_eq!(Path::new(&third), real.join("Bracket.step"));
+    expect_status(&mut bo, &bo_chat, &third, &format!("Saved to {name}"));
     bo.snapshot(&received, "three files listed", |d| d["files"].as_array().is_some_and(|f| f.len() == 3));
+    assert_eq!(bo.snapshot(&settings, "no note", |_| true)["data"]["received"]["note"], "");
 
-    // Choosing Downloads again is the default again.
+    // The chosen folder cannot take the next file (read-only, as a refusal by the system would be): Downloads does,
+    // the item says so, and Settings says why until a file is saved in the chosen folder again.
+    let note = "The last file couldn’t be saved here, so it went to Downloads.";
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&real, std::fs::Permissions::from_mode(0o500)).unwrap();
+        let fourth = send_file(&a.0, &mut ada, &mut bo, chats, "Fallback.pdf", b"one");
+        std::fs::set_permissions(&real, std::fs::Permissions::from_mode(0o700)).unwrap();
+        assert_eq!(Path::new(&fourth), downloads.join("Fallback.pdf"));
+        expect_status(&mut bo, &bo_chat, &fourth, "Saved to Downloads");
+        bo.snapshot(&settings, "the fallback note", |d| d["received"]["note"] == note);
+        let fifth = send_file(&a.0, &mut ada, &mut bo, chats, "Back.pdf", b"two");
+        assert_eq!(Path::new(&fifth), real.join("Back.pdf"));
+        bo.snapshot(&settings, "the note cleared by a good save", |d| d["received"]["note"] == "");
+    }
+    // The folder is gone: Downloads again, and the note until the folder is changed.
+    std::fs::remove_dir_all(&real).unwrap();
+    let sixth = send_file(&a.0, &mut ada, &mut bo, chats, "Gone.pdf", b"three");
+    assert_eq!(Path::new(&sixth), downloads.join("Gone.pdf"));
+    expect_status(&mut bo, &bo_chat, &sixth, "Saved to Downloads");
+    bo.snapshot(&settings, "the fallback note again", |d| d["received"]["note"] == note);
+
+    // Choosing Downloads again is the default again, and clears the note.
     bo.send("set_received_folder", json!({"path": downloads}));
-    bo.snapshot(&settings, "Downloads again", |d| d["received"]["value"] == "Downloads");
+    bo.snapshot(&settings, "Downloads again", |d| d["received"]["value"] == "Downloads" && d["received"]["note"] == "");
 }
 
 /// The first file named `name` under `dir`.

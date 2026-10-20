@@ -20,6 +20,9 @@ use super::{new_identifier, unix_now, Result, Store};
 
 /// The state directory's file naming the folder the person chose.
 pub const RECEIVED_FOLDER_FILE: &str = "received-folder";
+/// Where the last file went when the folder it was meant for could not take it (one word: `downloads` or `kept`),
+/// beside [`RECEIVED_FOLDER_FILE`] so a restart keeps it, until a file is saved where meant or the folder changes.
+pub const RECEIVED_FALLBACK_FILE: &str = "received-fallback";
 /// Tests: the default folder received files go to.
 pub const ENV_DOWNLOADS_DIR: &str = "SZFRIENDS_DOWNLOADS_DIR";
 /// The newest files the `received` view lists.
@@ -41,6 +44,36 @@ pub enum PhoneFolder {
     AppFiles,
     /// Android 9 and earlier: kept in the app, leaving it through Share….
     App,
+}
+
+/// Where the last received file went instead of the folder it was meant for (Settings' note says so).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ReceivedFallback {
+    /// The chosen folder could not take it; the default Downloads did.
+    Downloads,
+    /// No folder could; it is in the store's own `received/`, where its chat still opens it.
+    Kept,
+}
+
+impl ReceivedFallback {
+    fn word(self) -> &'static str {
+        match self {
+            Self::Downloads => "downloads",
+            Self::Kept => "kept",
+        }
+    }
+}
+
+/// The folder a received file is in, for its "Saved to {folder}"; the store's own `received/` (older files, the last
+/// resort) has none, and keeps "Received".
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum SavedPlace {
+    /// The default Downloads (Android's public Downloads too).
+    Downloads,
+    /// iOS: the app's Documents, which the Files app shows under the app's name.
+    AppFiles,
+    /// Another folder, by its name.
+    Folder(String),
 }
 
 /// Where received files go when the person chose nothing.
@@ -200,11 +233,25 @@ pub(crate) type Claim<'a> = &'a mut dyn FnMut(Option<&str>) -> Result<()>;
 
 impl Places {
     /// Publishes the checked file at `staged` as `name`; returns where it went (a path, or an external location)
-    /// and its name there. The staged file is gone afterwards.
+    /// and its name there. The staged file is gone afterwards. A file that could not go where it was meant to is
+    /// remembered ([`RECEIVED_FALLBACK_FILE`]); one that did clears that.
     pub(crate) fn publish(&self, staged: &Path, name: &str, claim: Claim<'_>) -> Result<(String, String)> {
+        let (published, fallback) = self.publish_somewhere(staged, name, claim)?;
+        if let Some(state_dir) = self.own.parent() {
+            record_fallback(state_dir, fallback);
+        }
+        Ok(published)
+    }
+
+    fn publish_somewhere(
+        &self,
+        staged: &Path,
+        name: &str,
+        claim: Claim<'_>,
+    ) -> Result<((String, String), Option<ReceivedFallback>)> {
         if let Some(chosen) = &self.chosen {
             if let Ok(path) = publish_into(chosen, staged, name, claim)? {
-                return Ok(done(path));
+                return Ok((done(path), None));
             }
         }
         if self.chosen.is_none() {
@@ -213,7 +260,7 @@ impl Places {
                 if let Ok((location, shown)) = external.publish(staged, name) {
                     claim(Some(&location))?;
                     let _ = fs::remove_file(staged);
-                    return Ok((location, shown));
+                    return Ok(((location, shown), None));
                 }
             }
         }
@@ -221,15 +268,45 @@ impl Places {
             // The default folder is made when missing, with the system's usual permissions.
             if fs::create_dir_all(folder).is_ok() {
                 if let Ok(path) = publish_into(folder, staged, name, claim)? {
-                    return Ok(done(path));
+                    // Where it was meant to go, unless the person chose a folder (or MediaStore was meant).
+                    let meant = self.chosen.is_none() && self.defaults.external.is_none();
+                    return Ok((done(path), (!meant).then_some(ReceivedFallback::Downloads)));
                 }
             }
         }
         ensure_private_directory(&self.own)?;
         match publish_into(&self.own, staged, name, claim)? {
-            Ok(path) => Ok(done(path)),
+            Ok(path) => Ok((done(path), Some(ReceivedFallback::Kept))),
             Err(error) => Err(error.into()),
         }
+    }
+}
+
+/// Remembers (or forgets, with `None`) where the last file went instead; written only when it changes.
+fn record_fallback(state_dir: &Path, fallback: Option<ReceivedFallback>) {
+    if read_fallback(state_dir) == fallback {
+        return;
+    }
+    let file = state_dir.join(RECEIVED_FALLBACK_FILE);
+    match fallback {
+        None => {
+            let _ = fs::remove_file(&file);
+        }
+        Some(fallback) => {
+            // Beside it and renamed over it, so a crash leaves one word or the other.
+            let temporary = state_dir.join(format!(".{RECEIVED_FALLBACK_FILE}.{}", new_identifier()));
+            if fs::write(&temporary, fallback.word()).and_then(|()| fs::rename(&temporary, &file)).is_err() {
+                let _ = fs::remove_file(&temporary);
+            }
+        }
+    }
+}
+
+fn read_fallback(state_dir: &Path) -> Option<ReceivedFallback> {
+    match fs::read_to_string(state_dir.join(RECEIVED_FALLBACK_FILE)).ok()?.trim() {
+        "downloads" => Some(ReceivedFallback::Downloads),
+        "kept" => Some(ReceivedFallback::Kept),
+        _ => None,
     }
 }
 
@@ -356,6 +433,37 @@ impl Store {
         })
     }
 
+    /// Where the last received file went when the folder it was meant for could not take it; `None` once a file
+    /// was saved there again or the folder changed.
+    pub fn received_fallback(&self) -> Option<ReceivedFallback> {
+        read_fallback(self.state_dir())
+    }
+
+    /// The folder a received file at `received_path` is in, for its "Saved to …"; `None` for the store's own
+    /// `received/` (older files, the last resort), whose items keep "Received".
+    pub fn saved_place(&self, received_path: &Path) -> Option<SavedPlace> {
+        // A MediaStore content URI (Android 10 and later): the public Downloads.
+        if !received_path.is_absolute() {
+            return Some(SavedPlace::Downloads);
+        }
+        let parent = received_path.parent()?;
+        let real = |p: &Path| fs::canonicalize(p).unwrap_or_else(|_| p.to_path_buf());
+        let folder = real(parent);
+        if folder == real(&self.state_dir().join("received")) {
+            return None;
+        }
+        match self.received_defaults.phone {
+            Some(PhoneFolder::Downloads) => return Some(SavedPlace::Downloads),
+            Some(PhoneFolder::AppFiles) => return Some(SavedPlace::AppFiles),
+            Some(PhoneFolder::App) => return None,
+            None => {}
+        }
+        if self.received_defaults.folder.as_deref().map(real) == Some(folder) {
+            return Some(SavedPlace::Downloads);
+        }
+        parent.file_name().map(|n| SavedPlace::Folder(n.to_string_lossy().into_owned()))
+    }
+
     pub(crate) fn places(&self) -> Places {
         Places {
             chosen: self.chosen_received_folder(),
@@ -381,10 +489,14 @@ impl Store {
         // Downloads clears the choice (a test's Downloads may sit inside its home).
         let default = self.received_defaults.folder.as_deref().and_then(|d| fs::canonicalize(d).ok());
         if default.as_deref() == Some(real.as_path()) {
-            return match fs::remove_file(&file) {
-                Err(e) if e.kind() != io::ErrorKind::NotFound => Err(FolderRefusal::NotAllowed),
-                _ => Ok(()),
-            };
+            if let Err(e) = fs::remove_file(&file) {
+                if e.kind() != io::ErrorKind::NotFound {
+                    return Err(FolderRefusal::NotAllowed);
+                }
+            }
+            // A new folder: what happened to the last file in the old one no longer applies.
+            record_fallback(self.state_dir(), None);
+            return Ok(());
         }
         let state = fs::canonicalize(self.state_dir()).unwrap_or_else(|_| self.state_dir().to_path_buf());
         if real.starts_with(&state) || real.starts_with(self.state_dir()) || !writable(&real) {
@@ -408,6 +520,7 @@ impl Store {
             let _ = fs::remove_file(&temporary);
             return Err(FolderRefusal::NotAllowed);
         }
+        record_fallback(self.state_dir(), None);
         Ok(())
     }
 
