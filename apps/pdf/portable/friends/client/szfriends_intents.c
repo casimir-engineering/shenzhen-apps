@@ -492,10 +492,9 @@ szfriends_intent *szfriends_intent_revoke_device(const char *id) {
 szfriends_intent *szfriends_intent_rename_device(const char *name) {
     return one_string("rename_device", "name", name);
 }
-szfriends_intent *szfriends_intent_fetch_from_device(const char *transfer_id) {
-    return one_string("fetch_from_device", "transfer_id", transfer_id);
+szfriends_intent *szfriends_intent_fetch_from_device(const char *id) {
+    return one_string("fetch_from_device", "transfer_id", id);
 }
-
-szfriends_intent *szfriends_intent_fetch_from_friend(const char *transfer_id) {
-    return one_string("fetch_from_friend", "transfer_id", transfer_id);
+szfriends_intent *szfriends_intent_fetch_from_friend(const char *id) {
+    return one_string("fetch_from_friend", "transfer_id", id);
 }
