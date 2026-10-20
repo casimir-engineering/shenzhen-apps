@@ -14,7 +14,8 @@ The source of the Shenzhen apps and of Shenzhen Friends, in one repository.
 
 Each app keeps its own version, its own tags (`pdf/…`, `files/…`, `3d/…`) and its own release job. Releases and
 update feeds are still published on the three existing GitHub repositories, so installed apps keep updating as
-before. See [docs/RELEASING.md](docs/RELEASING.md).
+before. One command releases an app, unattended: `tools/release.sh <pdf|files|3d> <version> --publish`; see
+[docs/RELEASING.md](docs/RELEASING.md).
 
 ## Building
 

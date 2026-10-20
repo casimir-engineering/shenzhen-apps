@@ -1,0 +1,254 @@
+#!/usr/bin/env python3
+"""Tests for tools/release.sh's machinery that a dry run does not reach: stage stamps and resuming, test stamps, the
+source tag on a release repository, and publishing a GitHub release (against a stand-in for gh that keeps releases
+in a JSON file). Nothing leaves the machine.
+
+    python3 tools/release/test_release.py
+"""
+import json
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+import textwrap
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+sys.dont_write_bytecode = True  # nothing left in the worktree
+TMP = tempfile.mkdtemp(prefix="release-tests.")
+os.environ["SHENZHEN_RELEASE_GIT_URL_BASE"] = "file://" + os.path.join(TMP, "remotes") + "/"
+os.environ["SHENZHEN_BUILD_CACHE"] = os.path.join(TMP, "cache")
+os.environ["FAKE_GH_STATE"] = os.path.join(TMP, "gh-state.json")
+sys.path.insert(0, HERE)
+
+import common  # noqa: E402
+
+FAKE_GH = r'''#!/usr/bin/env python3
+# A stand-in for gh: releases live in $FAKE_GH_STATE; every call is appended to its "calls".
+import fcntl, hashlib, json, os, re, sys
+path = os.environ["FAKE_GH_STATE"]
+lock = open(path + ".lock", "w")
+fcntl.flock(lock, fcntl.LOCK_EX)  # parallel uploads run several of these at once
+state = json.load(open(path))
+args = sys.argv[1:]
+state["calls"].append(args)
+def save():
+    json.dump(state, open(path, "w"), indent=1)
+def fail(message, code=1):
+    save(); sys.stderr.write(message + "\n"); sys.exit(code)
+if args[:2] == ["auth", "status"]:
+    save(); sys.exit(0)
+if args[:2] == ["release", "upload"]:
+    tag, file, repo = args[2], args[3], args[args.index("--repo") + 1]
+    release = next(r for r in state["releases"][repo] if r["tag_name"] == tag)
+    data = open(file, "rb").read()
+    release["assets"] = [a for a in release["assets"] if a["name"] != os.path.basename(file)]
+    state["next"] += 1
+    release["assets"].append({"id": state["next"], "name": os.path.basename(file), "size": len(data),
+                              "state": "uploaded", "digest": "sha256:" + hashlib.sha256(data).hexdigest()})
+    save(); sys.exit(0)
+if args[0] == "api":
+    method = args[args.index("--method") + 1] if "--method" in args else "GET"
+    target = next(a for a in args[1:] if a.startswith("repos/"))
+    body = json.load(open(args[args.index("--input") + 1])) if "--input" in args else {}
+    m = re.fullmatch(r"repos/([^/]+/[^/]+)/releases(?:/(assets/)?(\d+|latest))?(\?.*)?", target)
+    if not m:
+        fail("HTTP 404: " + target)
+    repo, asset, ident = m.group(1), m.group(2), m.group(3)
+    releases = state["releases"].setdefault(repo, [])
+    if asset and method == "DELETE":
+        for r in releases:
+            r["assets"] = [a for a in r["assets"] if str(a["id"]) != ident]
+        save(); sys.exit(0)
+    if ident is None and method == "GET":
+        print(json.dumps(sorted(releases, key=lambda r: -r["id"]))); save(); sys.exit(0)
+    if ident is None and method == "POST":
+        state["next"] += 1
+        release = dict(id=state["next"], assets=[], html_url="https://example.invalid/" + body["tag_name"], **body)
+        releases.append(release)
+        print(json.dumps(release)); save(); sys.exit(0)
+    if ident == "latest":
+        published = [r for r in releases if not r["draft"] and not r["prerelease"]]
+        print(json.dumps(max(published, key=lambda r: r["id"]))); save(); sys.exit(0)
+    release = next((r for r in releases if str(r["id"]) == ident), None)
+    if not release:
+        fail("HTTP 404: " + target)
+    if method == "PATCH":
+        release.update({k: v for k, v in body.items() if k != "make_latest"})
+    print(json.dumps(release)); save(); sys.exit(0)
+fail("fake gh: unexpected " + " ".join(args), 2)
+'''
+
+passed = failed = 0
+
+
+def check(name, ok, detail=""):
+    global passed, failed
+    if ok:
+        passed += 1
+        print(f"ok   {name}")
+    else:
+        failed += 1
+        print(f"FAIL {name} {detail}")
+
+
+def sh(*cmd, cwd=None, env=None):
+    return subprocess.run(cmd, cwd=cwd, env={**os.environ, **(env or {})}, check=True, capture_output=True,
+                          text=True).stdout.strip()
+
+
+def git_identity():
+    return {"GIT_AUTHOR_NAME": "Test", "GIT_AUTHOR_EMAIL": "test@example.invalid", "GIT_COMMITTER_NAME": "Test",
+            "GIT_COMMITTER_EMAIL": "test@example.invalid"}
+
+
+def setup():
+    bin_dir = os.path.join(TMP, "bin")
+    os.makedirs(bin_dir)
+    with open(os.path.join(bin_dir, "gh"), "w") as f:
+        f.write(FAKE_GH)
+    os.chmod(os.path.join(bin_dir, "gh"), 0o755)
+    os.environ["PATH"] = bin_dir + os.pathsep + os.environ["PATH"]
+    # The monorepo: apps/pdf, plus tools/test-stamp.sh; its origin is a local bare repository.
+    mono = os.path.join(TMP, "mono")
+    os.makedirs(os.path.join(mono, "apps/pdf/portable"))
+    os.makedirs(os.path.join(mono, "tools"))
+    open(os.path.join(mono, "apps/pdf/portable/readme.md"), "w").write("ShenzhenPDF\n")
+    open(os.path.join(mono, "apps/other.txt"), "w").write("not ShenzhenPDF\n")
+    shutil.copy(os.path.join(os.path.dirname(HERE), "test-stamp.sh"), os.path.join(mono, "tools/test-stamp.sh"))
+    sh("git", "init", "-q", "-b", "main", mono)
+    sh("git", "add", "-A", cwd=mono)
+    sh("git", "commit", "-q", "-m", "one", cwd=mono, env=git_identity())
+    sh("git", "init", "-q", "--bare", os.path.join(TMP, "origin.git"))
+    sh("git", "remote", "add", "origin", os.path.join(TMP, "origin.git"), cwd=mono)
+    sh("git", "push", "-q", "origin", "main", cwd=mono)
+    # The release repository: its own history, with the previous release tag.
+    old = os.path.join(TMP, "old")
+    os.makedirs(old)
+    open(os.path.join(old, "readme.md"), "w").write("ShenzhenPDF, before\n")
+    sh("git", "init", "-q", "-b", "master", old)
+    sh("git", "add", "-A", cwd=old)
+    sh("git", "commit", "-q", "-m", "standalone", cwd=old, env=git_identity())
+    sh("git", "tag", "26.10.20-1", cwd=old)
+    remote = os.path.join(TMP, "remotes/casimir-engineering/shenzhen-pdf.git")
+    os.makedirs(os.path.dirname(remote))
+    sh("git", "clone", "-q", "--bare", old, remote)
+    previous = {"id": 1, "tag_name": "26.10.20-1", "draft": False, "prerelease": False, "assets": [],
+                "html_url": "https://example.invalid/26.10.20-1"}
+    json.dump({"calls": [], "next": 100, "releases": {"casimir-engineering/shenzhen-pdf": [previous]}},
+              open(os.environ["FAKE_GH_STATE"], "w"))
+    return mono, remote, sh("git", "rev-parse", "26.10.20-1", cwd=old)
+
+
+def test_stages():
+    folder = os.path.join(TMP, "stamps")
+    out = os.path.join(TMP, "out.bin")
+    runs = []
+
+    def make(name, content):
+        def fn():
+            runs.append(name)
+            open(out if name == "a" else out + name, "w").write(content)
+            return {"files": [out if name == "a" else out + name]}
+        return fn
+    stages = common.Stages(folder, ["a", "b", "c"], "id-1")
+    stages.run("a", make("a", "1"))
+    stages.run("b", make("b", "1"))
+    stages.run("c", make("c", "1"))
+    stages = common.Stages(folder, ["a", "b", "c"], "id-1")
+    stages.run("a", make("a", "1"))
+    stages.run("b", make("b", "1"))
+    check("a rerun skips stages whose output is intact", runs == ["a", "b", "c"], runs)
+    open(out + "b", "w").write("changed")
+    stages.run("b", make("b", "2"))
+    check("a stage whose output changed runs again", runs[-1] == "b", runs)
+    check("running a stage again drops the stamps after it", stages.cached("c") is None)
+    other = common.Stages(folder, ["a", "b", "c"], "id-2")
+    check("another commit or version does not reuse the stamps", other.cached("a") is None)
+
+
+def test_test_stamps(mono):
+    stamp = os.path.join(mono, "tools/test-stamp.sh")
+    ok = lambda *args: subprocess.run([stamp, *args], cwd=mono, capture_output=True).returncode == 0  # noqa: E731
+    sh(stamp, "run", "pdf/suite", "--", "true", cwd=mono)
+    check("a passing suite is recorded", ok("check", "pdf/suite"))
+    check("a failing one is not", not ok("run", "pdf/bad", "--", "false") and not ok("check", "pdf/bad"))
+    open(os.path.join(mono, "apps/dirty.txt"), "w").write("x")
+    check("uncommitted changes find no stamp", not ok("check", "pdf/suite"))
+    sh(stamp, "record", "pdf/dirty", cwd=mono)
+    os.remove(os.path.join(mono, "apps/dirty.txt"))
+    check("and record none", not ok("check", "pdf/dirty"))
+    check("list names the recorded suites", sh(stamp, "list", cwd=mono) == "pdf/suite")
+    open(os.path.join(mono, "apps/other.txt"), "a").write("changed\n")
+    sh("git", "commit", "-q", "-am", "outside apps/pdf", cwd=mono, env=git_identity())
+    check("a commit outside the app's sources keeps its stamps", ok("check", "pdf/suite"))
+    open(os.path.join(mono, "apps/pdf/portable/readme.md"), "a").write("changed\n")
+    sh("git", "commit", "-q", "-am", "inside apps/pdf", cwd=mono, env=git_identity())
+    check("a commit inside them does not", not ok("check", "pdf/suite"))
+
+
+def test_source_tag(mono, remote, previous):
+    log = os.path.join(TMP, "publish.log")
+    commit = sh("git", "rev-parse", "HEAD", cwd=mono)
+    source = common.push_source_tag(mono, "apps/pdf", commit, "casimir-engineering/shenzhen-pdf", "26.10.20-99", log)
+    tree = sh("git", "rev-parse", f"{commit}:apps/pdf", cwd=mono)
+    check("the release repository's tag holds apps/pdf of the commit",
+          sh("git", "rev-parse", "26.10.20-99^{tree}", cwd=remote) == tree)
+    check("its parent is the previous release tag's commit",
+          sh("git", "rev-parse", "26.10.20-99^", cwd=remote) == previous)
+    check("its message names the commit", commit in sh("git", "log", "-1", "--format=%B", "26.10.20-99", cwd=remote))
+    check("pushing it again is accepted as done",
+          common.push_source_tag(mono, "apps/pdf", commit, "casimir-engineering/shenzhen-pdf", "26.10.20-99",
+                                 log) == source)
+    check("the default branch is untouched", sh("git", "rev-parse", "master", cwd=remote) == previous)
+
+
+def test_publish():
+    log = os.path.join(TMP, "publish.log")
+    notes = os.path.join(TMP, "notes.md")
+    open(notes, "w").write("- A highlight\n\n---\n\nDetails.\n")
+    files = [os.path.join(TMP, "ShenzhenPDF-mac-arm64.dmg"), os.path.join(TMP, "extra.json")]
+    open(files[0], "wb").write(os.urandom(4096))
+    open(files[1], "w").write("{}\n")
+    slug = "casimir-engineering/shenzhen-pdf"
+    release = common.publish_release(slug, "26.10.20-99", title="26.10.20-99", notes_file=notes, files=files,
+                                     prerelease=False, latest=True, log=log)
+    state = json.load(open(os.environ["FAKE_GH_STATE"]))
+    calls = [" ".join(c) for c in state["calls"]]
+    check("the release is published", release["draft"] is False and release["tag_name"] == "26.10.20-99")
+    check("it was a draft until its assets were checked",
+          any("--method POST" in c for c in calls) and
+          calls.index(next(c for c in calls if '--method PATCH' in c)) > calls.index(
+              next(c for c in calls if c.startswith("release upload"))))
+    check("every asset uploaded, digests checked, nothing downloaded",
+          sum(c.startswith("release upload") for c in calls) == 2 and not any("download" in c for c in calls))
+    count = len(state["calls"])
+    common.publish_release(slug, "26.10.20-99", title="26.10.20-99", notes_file=notes, files=files,
+                           prerelease=False, latest=True, log=log)
+    state = json.load(open(os.environ["FAKE_GH_STATE"]))
+    check("publishing again with the same bytes uploads nothing",
+          not any(" ".join(c).startswith("release upload") for c in state["calls"][count:]))
+    open(files[0], "wb").write(os.urandom(4096))
+    try:
+        common.publish_release(slug, "26.10.20-99", title="26.10.20-99", notes_file=notes, files=files,
+                               prerelease=False, latest=True, log=log)
+        check("other bytes for a published release stop the run", False)
+    except common.Failure:
+        check("other bytes for a published release stop the run", True)
+
+
+def main():
+    try:
+        mono, remote, previous = setup()
+        test_stages()
+        test_test_stamps(mono)
+        test_source_tag(mono, remote, previous)
+        test_publish()
+    finally:
+        shutil.rmtree(TMP, ignore_errors=True)
+    print(f"{passed} passed, {failed} failed")
+    return 1 if failed else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
