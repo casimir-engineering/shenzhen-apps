@@ -72,6 +72,7 @@ extern NSString *SZPFriendsDirectory;
 
 void SZPRunFixtureTests(void);
 void SZPRunRemoveTests(void);
+void SZPRunFoundTests(void);
 void SZPRunLabelTests(void);
 void SZPRunViewEdgeTests(void);
 void SZPRunPeopleEdgeTests(void);

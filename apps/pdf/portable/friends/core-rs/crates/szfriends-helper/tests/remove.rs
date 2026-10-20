@@ -92,7 +92,7 @@ fn anyone_but_you_leaves_the_list_and_their_history_goes_only_when_asked() {
     }
     ada.send("remove_friend", json!({"conversation_id": rae, "delete_history": true}));
     ada.send("remove_friend", json!({"conversation_id": rae})); // already off the list: nothing changes
-    let emptied = ada.snapshot(&list, "nobody listed", |d| titles(d).is_empty());
+    ada.snapshot(&list, "nobody listed", |d| titles(d).is_empty());
     // Still there to open: Bo's conversation keeps its history; Rae's went.
     let chat = ada.send("open_conversation", json!({"conversation_id": bo}))["subscription"].clone();
     ada.snapshot(chat.as_str().unwrap(), "Bo's chat kept", |d| texts(d).contains("hello from m_bo"));

@@ -221,7 +221,7 @@ pub fn everyone(people: &HashMap<String, PersonFacts>) -> Vec<PersonFacts> {
 }
 
 #[allow(clippy::too_many_arguments)]
-fn nearby_person(
+pub fn nearby_person(
     nearby_id: Option<&str>,
     conversation: Option<&str>,
     name: Option<&str>,

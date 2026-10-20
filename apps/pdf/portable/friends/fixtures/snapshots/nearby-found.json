@@ -1,0 +1,154 @@
+{
+  "type": "snapshot",
+  "subscription": "s_3",
+  "view": "nearby",
+  "rev": 53,
+  "data": {
+    "methods": [
+      {
+        "state": "working",
+        "method": "network",
+        "label": "Looking on your network and over Wi-Fi"
+      },
+      {
+        "state": "working",
+        "method": "bluetooth",
+        "label": "Looking over Bluetooth"
+      }
+    ],
+    "status": null,
+    "note": null,
+    "people": [
+      {
+        "avatar": {
+          "set": 1,
+          "initials": "KS",
+          "kind": "animal",
+          "color": "#2f6474",
+          "index": 1
+        },
+        "action": null,
+        "subtitle": "On your network",
+        "title": "Kenji Sato",
+        "conversation_id": "c_kenji",
+        "status_label": "Friend",
+        "found": {
+          "methods": [
+            "lan",
+            "bluetooth"
+          ],
+          "label": "Local network and Bluetooth"
+        },
+        "nearby_id": null,
+        "accessibility_label": "Kenji Sato, friend, on your network, Found over Local network and Bluetooth"
+      },
+      {
+        "avatar": {
+          "set": 1,
+          "initials": "LW",
+          "kind": "animal",
+          "color": "#7a3f4f",
+          "index": 3
+        },
+        "action": {
+          "label": "Request",
+          "action": "send_request",
+          "style": "primary"
+        },
+        "subtitle": "Visible now",
+        "title": "Lena Weber",
+        "conversation_id": null,
+        "status_label": null,
+        "found": {
+          "methods": [
+            "bluetooth"
+          ],
+          "label": "Bluetooth"
+        },
+        "nearby_id": "n_7c1e",
+        "accessibility_label": "Lena Weber, visible now, Found over Bluetooth"
+      },
+      {
+        "avatar": {
+          "set": 1,
+          "initials": "TR",
+          "kind": "animal",
+          "color": "#4a6a2f",
+          "index": 4
+        },
+        "action": null,
+        "subtitle": "Visible now",
+        "title": "Tomás Rivera",
+        "conversation_id": "c_tomas",
+        "status_label": "Request sent",
+        "found": {
+          "methods": [
+            "lan"
+          ],
+          "label": "Local network"
+        },
+        "nearby_id": "n_2b90",
+        "accessibility_label": "Tomás Rivera, request sent, Found over Local network"
+      },
+      {
+        "avatar": {
+          "set": 1,
+          "initials": "CL",
+          "kind": "animal",
+          "color": "#5a5a66",
+          "index": 10
+        },
+        "action": {
+          "label": "Request",
+          "action": "send_request",
+          "style": "primary"
+        },
+        "subtitle": "No name set",
+        "title": "coral‑lagoon",
+        "conversation_id": null,
+        "status_label": null,
+        "found": {
+          "methods": [
+            "lan",
+            "p2p_wifi",
+            "bluetooth"
+          ],
+          "label": "Local network, Direct Wi-Fi and Bluetooth"
+        },
+        "nearby_id": "n_9d44",
+        "accessibility_label": "coral‑lagoon, no name set, Found over Local network, Direct Wi-Fi and Bluetooth"
+      }
+    ],
+    "footer": {
+      "avatar": {
+        "set": 1,
+        "initials": "R",
+        "kind": "animal",
+        "color": "#5a4a7a",
+        "index": 0
+      },
+      "friends_id": "cottage-violet",
+      "name_placeholder": "Choose your name",
+      "id_label": "ID cottage‑violet",
+      "id_note": null,
+      "add_label": "Add by ID",
+      "name": "Raph"
+    },
+    "query": "",
+    "empty": null,
+    "alert": null,
+    "visibility": {
+      "action": {
+        "label": "Make myself visible for 5 minutes",
+        "action": "start_visibility",
+        "style": "primary"
+      },
+      "title": null,
+      "remaining_accessibility_label": null,
+      "deadline": null,
+      "remaining_label": null,
+      "body": "Friends you’ve added show up here on their own. Other people need to make themselves visible.",
+      "state": "hidden"
+    }
+  }
+}

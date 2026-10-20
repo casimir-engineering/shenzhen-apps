@@ -230,6 +230,7 @@ Lowercase dotted strings. Unknown ones are ignored on both sides.
 | `assistant.chats` | The host's AI chat may open scoped chat access; without it `assistant_*` intents fail with `not_allowed` |
 | `search.export` | The host shows Friends results in its global search (Cmd+K) |
 | `files.share` | A phone: `show_file` hands a received file to the system's share sheet, labelled "Share…", and offers no folder to show (the details' `received.action` is null) |
+| `nearby.found` | The host shows how each person nearby was found: Nearby's rows and a friend's list row carry `found` (§ Views, `nearby`) |
 | `list.menu` | The host shows each list row's `menu` on right-click, Control-click or long-press; rows carry `menu` (§ Views, `list`) |
 | `mentions` | The host's views show mentions (§ Mentions): `@` in the composer, whose hint then includes "@ to mention someone", with `mentionable` on list rows and the composer's `mention_note`, and mentions in messages as links. Without it every mention arrives as plain text |
 
@@ -571,6 +572,13 @@ The Nearby tab: the visibility action, then people as each method reports them.
   the identity is unavailable), or `no_match` for a filter. It is `null` when no method works or starts: the card
   then says why nobody shows, and views show no people section at all. Its `body` is `null` while a card is up,
   because the card already says what to do; the helper rebuilds the snapshot when `searching` turns into `nobody`.
+- `people[].found` (clients that declared `nearby.found`) says how this person was found: `methods`, every
+  discovery method that sees them now, in the order `lan` (the local network), `p2p_wifi` (direct Wi-Fi) and
+  `bluetooth`, and `label`, their names joined ("Local network", "Local network and Bluetooth"). Views draw one
+  route icon per method (the same icons as `route`, § Shared objects) and the label on the row. It is `null` when
+  no method sees the person, and the row's `accessibility_label` then ends without it; otherwise it ends "Found over
+  Local network and Bluetooth". A friend's `list` row carries the same `found` while they are nearby, and `null`
+  otherwise, as every other row does. Without `nearby.found` neither carries the key.
 
 ### `conversation`
 
@@ -1676,6 +1684,13 @@ mentionable?: bool           # clients that declared mentions: the @ picker offe
 kind?: enum(person,you)      # present while the helper announces `devices`; `you` is the You row
 menu?: array                 # clients that declared list.menu: the row's context menu; empty on the You row
 menu[]: @action
+found?: @found|null          # clients that declared nearby.found: how a friend nearby was found; null otherwise
+```
+
+```schema type.found
+methods: array               # every discovery method that sees the person now: lan, p2p_wifi, bluetooth, in that order
+methods[]: enum(lan,p2p_wifi,bluetooth)
+label: string                # "Local network and Bluetooth"
 ```
 
 ```schema type.row_action
@@ -1752,6 +1767,7 @@ subtitle: string
 status_label: string|null
 action: @action|null
 accessibility_label: string
+found?: @found|null          # clients that declared nearby.found: how they were found; null when nothing sees them
 ```
 
 ```schema snapshot.conversation

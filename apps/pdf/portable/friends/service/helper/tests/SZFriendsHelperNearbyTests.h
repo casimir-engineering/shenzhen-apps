@@ -71,6 +71,7 @@ void SZFNTestCallbackSecrets(NSString *scratch);
 void SZFNTestAdmissionLimits(NSString *scratch);
 void SZFNTestPresenceSecretOnlyToFriends(NSString *scratch);
 void SZFNTestStrangerPictures(NSString *scratch);
+void SZFNTestFoundMethods(NSString *scratch);
 void SZFNTestKeyPolicy(NSString *scratch);
 void SZFNTestFriendsChains(NSString *scratch);
 void SZFNTestOwnChainToFriends(NSString *scratch);

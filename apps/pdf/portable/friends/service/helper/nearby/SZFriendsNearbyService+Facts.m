@@ -13,7 +13,36 @@ static SZFriendsPersonRelation SZFriendsFactsRelation(SZFriendsRelation relation
     return SZFriendsPersonRelationRemoved;
 }
 
+// The discovery methods behind these sightings, each once, in the order views list them: LAN, peer-to-peer Wi-Fi,
+// Bluetooth.
+static NSArray<NSNumber *> *SZFriendsFoundMethods(NSArray<SZFriendsSighting *> *sightings) {
+    NSMutableSet<NSNumber *> *seen = [NSMutableSet set];
+    for (SZFriendsSighting *sighting in sightings) [seen addObject:@(sighting.route)];
+    NSMutableArray<NSNumber *> *methods = [NSMutableArray array];
+    for (NSNumber *route in @[ @(SZFriendsRouteMethodLAN), @(SZFriendsRouteMethodPeerToPeerWiFi),
+                               @(SZFriendsRouteMethodBluetooth) ]) {
+        if ([seen containsObject:route]) [methods addObject:route];
+    }
+    return methods;
+}
+
 @implementation SZFriendsNearbyService (Facts)
+
+- (NSDictionary<NSString *, NSArray<NSNumber *> *> *)foundMethodsByConversation {
+    if (self.coordinator == nil) return @{};
+    NSMutableDictionary<NSString *, NSMutableArray<SZFriendsSighting *> *> *sightings = [NSMutableDictionary dictionary];
+    for (SZFriendsCandidate *candidate in self.coordinator.merger.identifiedCandidates) {
+        // A friend's other device is the friend (+FriendDevices).
+        NSString *conversationID =
+            SZFriendsNearbyFriendDeviceConversation(candidate.conversationID, NULL) ?: candidate.conversationID;
+        if (conversationID == nil) continue;
+        if (sightings[conversationID] == nil) sightings[conversationID] = [NSMutableArray array];
+        [sightings[conversationID] addObjectsFromArray:candidate.sightings];
+    }
+    NSMutableDictionary<NSString *, NSArray<NSNumber *> *> *found = [NSMutableDictionary dictionary];
+    for (NSString *conversationID in sightings) found[conversationID] = SZFriendsFoundMethods(sightings[conversationID]);
+    return found;
+}
 
 - (BOOL)hasAdapterForMethod:(SZFriendsDiscoveryMethod)method {
     for (id<SZFriendsDiscoveryAdapter> adapter in self.adapters) {
@@ -65,6 +94,7 @@ static SZFriendsPersonRelation SZFriendsFactsRelation(SZFriendsRelation relation
         if (person.relation == SZFriendsRelationBlocked) continue; // blocked people never appear
         SZFriendsNearbyPersonFacts *facts = [[SZFriendsNearbyPersonFacts alloc] init];
         facts.routeMethod = candidate.sightings.firstObject.route;
+        facts.foundMethods = SZFriendsFoundMethods(candidate.sightings);
         BOOL known = person != nil && person.relation != SZFriendsRelationRemoved;
         if (known) {
             facts.conversationID = person.conversationID;

@@ -309,6 +309,13 @@ static NSDictionary<NSString *, NSString *> *CoreEntries(void) {
         // Remove, from a row's menu (list.menu) or a friend's details (remove_friend). The history sentence and the
         // option appear only when there is history with the person.
         @"menu.remove" : @"Remove",
+        // How someone nearby was found (nearby.found): the methods that see them, joined.
+        @"found.lan" : @"Local network",
+        @"found.p2p_wifi" : @"Direct Wi-Fi",
+        @"found.bluetooth" : @"Bluetooth",
+        @"found.join" : @"{first} and {second}",
+        @"found.join3" : @"{first}, {second} and {third}",
+        @"found.spoken" : @"Found over {methods}",
         @"remove.confirm.title" : @"Remove {first}?",
         @"remove.confirm.title.request" : @"Cancel your request to {first}?",
         @"remove.confirm.body.friend" : @"{first} leaves your list and isn’t told. Anything still waiting to go to "

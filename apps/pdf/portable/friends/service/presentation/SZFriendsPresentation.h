@@ -102,6 +102,9 @@ typedef NS_ENUM(NSInteger, SZFriendsOnlineReach) {
 // The person took them off the list (remove_friend): no list shows them and they count for no badge, but their
 // conversation and details still open, from search or a view already showing them. Only someone Removed or Blocked.
 @property(nonatomic) BOOL leftList;
+// Every discovery method that sees this friend nearby right now (SZFriendsRouteMethod numbers: LAN, PeerToPeerWiFi,
+// Bluetooth), for the row's "found" (client capability nearby.found). Empty or nil while they are not nearby.
+@property(nonatomic, copy, nullable) NSArray<NSNumber *> *foundMethods;
 @end
 
 // Event kinds the helper records in history (store item eventKind) and the catalog words for each. The store
@@ -188,6 +191,8 @@ typedef NS_ENUM(NSInteger, SZFriendsItemFactsKind) {
 @property(nonatomic) SZFriendsPersonRelation relation;      // strangers use OutgoingRequest only once asked
 @property(nonatomic) BOOL isStranger;
 @property(nonatomic) SZFriendsRouteMethod routeMethod;
+// Every discovery method that sees this person right now (SZFriendsRouteMethod numbers), for the row's "found".
+@property(nonatomic, copy, nullable) NSArray<NSNumber *> *foundMethods;
 @end
 
 // How long after a method starts working an empty Nearby keeps saying it is looking (8 seconds).

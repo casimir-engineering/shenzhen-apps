@@ -34,9 +34,9 @@ fn view_route(route: RouteMethod) -> ViewRoute {
 
 /// The discovery methods whose sightings of this candidate still live (lingering ones included, as the merger keeps
 /// them): how the person was found.
-fn found_methods(candidate: &Candidate) -> Vec<ViewRoute> {
+fn found_methods<'a>(candidates: impl IntoIterator<Item = &'a Candidate>) -> Vec<ViewRoute> {
     let mut methods: Vec<ViewRoute> = Vec::new();
-    for sighting in &candidate.sightings {
+    for sighting in candidates.into_iter().flat_map(|c| &c.sightings) {
         let method = view_route(sighting.route);
         if matches!(method, ViewRoute::Lan | ViewRoute::PeerToPeerWifi | ViewRoute::Bluetooth)
             && !methods.contains(&method)
@@ -48,11 +48,15 @@ fn found_methods(candidate: &Candidate) -> Vec<ViewRoute> {
 }
 
 impl State {
-    /// How a friend in the list is found nearby now: the methods that see them, or none.
+    /// How a friend in the list is found nearby now: the methods that see any of their devices, or none.
     pub(crate) fn found_methods_of(&self, conversation_id: &str) -> Vec<ViewRoute> {
-        let mut candidates = self.nearby.merger.identified();
-        let found = candidates.find(|c| c.conversation_id.as_deref() == Some(conversation_id));
-        found.map(found_methods).unwrap_or_default()
+        let theirs = self.nearby.merger.identified().filter(|c| {
+            let name = c.conversation_id.as_deref().unwrap_or_default();
+            // A friend's other device is the friend.
+            let owner = super::friend_devices::friend_device_of(name).map(|(conversation, _)| conversation);
+            owner.as_deref().unwrap_or(name) == conversation_id
+        });
+        found_methods(theirs)
     }
 
     /// What a public entry said about this key: its cleaned name and Friends ID.
@@ -96,7 +100,7 @@ impl State {
                     relation: person.relation,
                     is_stranger: person.relation != Relation::Friend,
                     route_method,
-                    found_methods: found_methods(candidate),
+                    found_methods: found_methods([candidate]),
                 }),
                 None => {
                     // Someone visible for their 5 minutes, described by what their entry served; a removed person
@@ -112,7 +116,7 @@ impl State {
                         relation: Relation::Removed,
                         is_stranger: true,
                         route_method,
-                        found_methods: found_methods(candidate),
+                        found_methods: found_methods([candidate]),
                     });
                 }
             }

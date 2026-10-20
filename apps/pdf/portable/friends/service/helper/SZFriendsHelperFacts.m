@@ -155,6 +155,7 @@ NSArray<NSString *> *SZFriendsHelperCapabilityList(SZFriendsHelperServices *serv
     SZFriendsMentionDirectory *_mentionDirectory;
     NSSet<NSString *> *_helperCapabilities;
     NSSet<NSString *> *_linkContacts;
+    NSDictionary<NSString *, NSArray<NSNumber *> *> *_foundMethods;
     SZFriendsDevicesFacts *_devices;
     BOOL _devicesRead;
 }
@@ -235,6 +236,11 @@ NSArray<NSString *> *SZFriendsHelperCapabilityList(SZFriendsHelperServices *serv
     if (_linkContacts == nil) _linkContacts = [_services.store linkContactConversationIDs] ?: [NSSet set];
     facts.linkContact = [_linkContacts containsObject:record.conversationID];
     facts.leftList = record.leftListAt != nil;
+    // How a friend nearby was found, for their row (nearby.found).
+    if (record.relation == SZFriendsRelationFriend) {
+        if (_foundMethods == nil) _foundMethods = [_services.nearby foundMethodsByConversation] ?: @{};
+        facts.foundMethods = _foundMethods[record.conversationID];
+    }
     return facts;
 }
 
