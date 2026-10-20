@@ -114,6 +114,9 @@ NSData *SZFriendsSyncPersonGroupBody(SZFriendsPersonRecord *person, NSString *gr
         // With the relation, not apart from it: the store turns it off for a blocked person, so the two must win
         // together or two devices could end with different values.
         [fields setUInt64:person.autoAccept forTag:5];
+        // When the person took them off the list, with the relation it depends on. Written only when set, so the
+        // body of anyone never taken off the list is what helpers before tag 6 wrote, and they ignore the tag.
+        if (person.leftListAt) [fields setDate:person.leftListAt forTag:6];
     } else if ([group isEqualToString:SZFriendsSyncGroupProfile]) {
         [fields setString:person.name forTag:2];
         [fields setString:person.friendsID forTag:3];
@@ -145,6 +148,7 @@ BOOL SZFriendsSyncApplyPersonGroup(SZFriendsSyncFields *fields, NSString *group,
         person.requestAt = [fields dateForTag:3];
         person.requestFoundNearby = [fields uint64ForTag:4] != 0;
         person.autoAccept = [fields uint64ForTag:5] != 0;
+        person.leftListAt = [fields dateForTag:6]; // the store keeps it only for someone Removed or Blocked
     } else if ([group isEqualToString:SZFriendsSyncGroupProfile]) {
         person.name = [fields stringForTag:2];
         person.friendsID = [fields stringForTag:3];
