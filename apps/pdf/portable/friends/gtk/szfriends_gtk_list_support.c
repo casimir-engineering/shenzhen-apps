@@ -38,7 +38,8 @@ static const char list_css[] =
     "szfriends-row.muted szfriends-avatar { opacity: 0.45; }\n"
     "szfriends-row.muted .szfriends-row-title { color: @szfriends_secondary_text; }\n"
     ".szfriends-row-title { font-weight: 600; }\n"
-    ".szfriends-row-subtitle, .szfriends-row-status { color: @szfriends_secondary_text; }\n"
+    ".szfriends-row-subtitle, .szfriends-row-status, .szfriends-row-found-label {\n"
+    "  color: @szfriends_secondary_text; }\n"
     ".szfriends-row-subtitle.waiting { color: @szfriends_accent; }\n"
     ".szfriends-row-time { color: @szfriends_secondary_text; font-size: 0.85em; }\n"
     ".szfriends-row-bar { background-color: @szfriends_accent; border-radius: 2px; min-width: 3px; }\n"
@@ -50,6 +51,7 @@ static const char list_css[] =
     ".szfriends-pill.warning { background-color: @szfriends_warning; }\n"
     ".szfriends-route { color: @szfriends_offline_route; }\n"
     ".szfriends-route.local { color: @szfriends_local_route; }\n"
+    ".szfriends-found-icon { color: @szfriends_local_route; }\n"
     ".szfriends-route.online { color: @szfriends_online_route; }\n"
     ".szfriends-id-check { color: @szfriends_success; }\n"
     "button.szfriends-row-action { min-width: 28px; min-height: 28px; padding: 0; border-radius: 14px;\n"
@@ -62,6 +64,8 @@ static const char list_css[] =
     "button.szfriends-row-action.worded.decline { color: @szfriends_text;\n"
     "  box-shadow: inset 0 0 0 1px alpha(currentColor, 0.25); }\n"
     "button.szfriends-row-action.block, button.szfriends-row-action.armed { color: @szfriends_destructive; }\n"
+    /* A row's menu: Remove in the destructive colour, as the confirmation's button that follows it. */
+    ".szfriends-row-menu modelbutton.szfriends-menu-destructive { color: @szfriends_destructive; }\n"
     "button.szfriends-row-action.armed { padding: 0 10px 0 8px; font-weight: bold; font-size: 12px;\n"
     "  background-color: mix(@szfriends_background, @szfriends_destructive, 0.12);\n"
     "  box-shadow: inset 0 0 0 1px alpha(@szfriends_destructive, 0.6); }\n"
@@ -202,6 +206,8 @@ void szfriends_gtk_choose_image(GtkWidget *source, const char *title, SZFriendsG
 
 typedef struct {
     SZFriendsGtkRun run;
+    SZFriendsGtkRunTicked run_ticked; /* instead of run: also told whether the option was ticked */
+    gboolean ticked;
     gpointer data;
     GDestroyNotify destroy;
 } SZFriendsGtkQuestion;
@@ -216,7 +222,8 @@ static void question_free(gpointer data) {
 static void question_answered(SZFriendsGtkQuestion *question) {
     SZFriendsGtkQuestion taken = *question;
     *question = (SZFriendsGtkQuestion){0};
-    if (taken.run) taken.run(taken.data);
+    if (taken.run_ticked) taken.run_ticked(taken.ticked, taken.data);
+    else if (taken.run) taken.run(taken.data);
     if (taken.destroy) taken.destroy(taken.data);
 }
 
@@ -224,9 +231,22 @@ static void question_answered_cb(gpointer data) {
     question_answered(data);
 }
 
+/* The question's option as a checkbox, unticked, or NULL when it has none this view can send. */
+static GtkWidget *option_check(const SZFriendsGtkConfirm *confirm) {
+    if (!szfriends_gtk_confirm_option_known(confirm)) return NULL;
+    GtkWidget *check = gtk_check_button_new_with_label(confirm->option->label);
+    gtk_widget_set_name(check, "szfriends.confirmation.option");
+    return check;
+}
+
+static void take_ticked(SZFriendsGtkQuestion *question, GtkWidget *check) {
+    question->ticked = check && gtk_check_button_get_active(GTK_CHECK_BUTTON(check));
+}
+
 static void alert_response(AdwAlertDialog *dialog, const char *response, gpointer data) {
-    (void)dialog;
-    if (!g_strcmp0(response, "confirm")) question_answered(data);
+    if (g_strcmp0(response, "confirm")) return;
+    take_ticked(data, g_object_get_data(G_OBJECT(dialog), "szfriends-option"));
+    question_answered(data);
 }
 
 static void system_confirm(GtkWidget *source, const SZFriendsGtkConfirm *confirm, gboolean destructive,
@@ -244,6 +264,11 @@ static void system_confirm(GtkWidget *source, const SZFriendsGtkConfirm *confirm
                                              destructive ? ADW_RESPONSE_DESTRUCTIVE : ADW_RESPONSE_SUGGESTED);
     adw_alert_dialog_set_default_response(alert, "cancel");
     adw_alert_dialog_set_close_response(alert, "cancel");
+    GtkWidget *check = option_check(confirm);
+    if (check) {
+        adw_alert_dialog_set_extra_child(alert, check);
+        g_object_set_data(G_OBJECT(dialog), "szfriends-option", check);
+    }
     g_object_set_data_full(G_OBJECT(dialog), "szfriends-question", question, question_free);
     g_signal_connect(dialog, "response", G_CALLBACK(alert_response), question);
     adw_dialog_present(dialog, source);
@@ -266,6 +291,7 @@ static void card_cancel(GtkButton *button, gpointer data) {
 static void card_confirm(GtkButton *button, gpointer data) {
     GtkWidget *card = g_object_get_data(G_OBJECT(button), "szfriends-card");
     SZFriendsGtkQuestion *question = g_object_steal_data(G_OBJECT(card), "szfriends-question");
+    if (question) take_ticked(question, g_object_get_data(G_OBJECT(card), "szfriends-option"));
     szfriends_gtk_dropdown_set_overlay(data, NULL);
     if (question) {
         question_answered(question);
@@ -307,6 +333,12 @@ static GtkWidget *confirm_card(SZFriendsGtkDropdown *dropdown, const SZFriendsGt
     szfriends_gtk_list_label_set(body, confirm->body);
     gtk_box_append(GTK_BOX(face), title);
     gtk_box_append(GTK_BOX(face), body);
+    GtkWidget *check = option_check(confirm);
+    if (check) {
+        gtk_widget_set_margin_top(check, 6);
+        gtk_box_append(GTK_BOX(face), check);
+        g_object_set_data(G_OBJECT(overlay), "szfriends-option", check);
+    }
     GtkWidget *buttons = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8);
     gtk_widget_set_halign(buttons, GTK_ALIGN_END);
     gtk_widget_set_margin_top(buttons, 10);
@@ -327,10 +359,8 @@ static GtkWidget *confirm_card(SZFriendsGtkDropdown *dropdown, const SZFriendsGt
     return overlay;
 }
 
-void szfriends_gtk_confirm(SZFriendsGtkDropdown *dropdown, GtkWidget *source, const SZFriendsGtkConfirm *confirm,
-                           gboolean destructive, SZFriendsGtkRun run, gpointer run_data, GDestroyNotify run_destroy) {
-    SZFriendsGtkQuestion *question = g_new0(SZFriendsGtkQuestion, 1);
-    *question = (SZFriendsGtkQuestion){run, run_data, run_destroy};
+static void ask(SZFriendsGtkDropdown *dropdown, GtkWidget *source, const SZFriendsGtkConfirm *confirm,
+                gboolean destructive, SZFriendsGtkQuestion *question) {
     destructive = destructive || confirm->destructive;
     if (dropdown) {
         GtkWidget *card = confirm_card(dropdown, confirm, destructive, question);
@@ -343,13 +373,29 @@ void szfriends_gtk_confirm(SZFriendsGtkDropdown *dropdown, GtkWidget *source, co
     }
 }
 
+void szfriends_gtk_confirm(SZFriendsGtkDropdown *dropdown, GtkWidget *source, const SZFriendsGtkConfirm *confirm,
+                           gboolean destructive, SZFriendsGtkRun run, gpointer run_data, GDestroyNotify run_destroy) {
+    SZFriendsGtkQuestion *question = g_new0(SZFriendsGtkQuestion, 1);
+    *question = (SZFriendsGtkQuestion){.run = run, .data = run_data, .destroy = run_destroy};
+    ask(dropdown, source, confirm, destructive, question);
+}
+
+void szfriends_gtk_confirm_ticked(SZFriendsGtkDropdown *dropdown, GtkWidget *source,
+                                  const SZFriendsGtkConfirm *confirm, gboolean destructive, SZFriendsGtkRunTicked run,
+                                  gpointer run_data, GDestroyNotify run_destroy) {
+    SZFriendsGtkQuestion *question = g_new0(SZFriendsGtkQuestion, 1);
+    *question = (SZFriendsGtkQuestion){.run_ticked = run, .data = run_data, .destroy = run_destroy};
+    ask(dropdown, source, confirm, destructive, question);
+}
+
 /* ---- Actions ------------------------------------------------------------------------------------- */
 
 /* An intent waiting for its question's answer: it was built when the action was pressed, so it holds its own copy
  * of everything and outlives the snapshot that offered it. */
 typedef struct {
     SZFriendsGtkLink *link;
-    szfriends_intent *intent;
+    szfriends_intent *intent, *ticked; /* ticked: what goes when the question's option is ticked; NULL without one */
+    SZFriendsGtkRun sending;
     SZFriendsGtkReplyFunc done;
     gpointer done_data;
 } SZFriendsGtkPending;
@@ -357,6 +403,7 @@ typedef struct {
 static void pending_free(gpointer data) {
     SZFriendsGtkPending *pending = data;
     /* Cancelled, or the card went with the dropdown: whoever waits hears that nothing was sent. */
+    szfriends_intent_free(pending->ticked);
     if (pending->intent) {
         szfriends_intent_free(pending->intent);
         if (pending->done) pending->done(NULL, NULL, pending->done_data);
@@ -365,15 +412,32 @@ static void pending_free(gpointer data) {
     g_free(pending);
 }
 
-static void pending_send(gpointer data) {
+static void pending_send(gboolean ticked, gpointer data) {
     SZFriendsGtkPending *pending = data;
-    szfriends_gtk_link_send(pending->link, g_steal_pointer(&pending->intent), pending->done, pending->done_data, NULL);
+    szfriends_intent *intent = g_steal_pointer(&pending->intent), *other = g_steal_pointer(&pending->ticked);
+    if (ticked && other) {
+        szfriends_intent *unticked = intent;
+        intent = other;
+        other = unticked;
+    }
+    szfriends_intent_free(other);
+    if (pending->sending) pending->sending(pending->done_data);
+    szfriends_gtk_link_send(pending->link, intent, pending->done, pending->done_data, NULL);
 }
 
 void szfriends_gtk_perform(SZFriendsGtkLink *link, SZFriendsGtkDropdown *dropdown, GtkWidget *source,
                            const SZFriendsGtkAction *action, const SZFriendsGtkActionIds *ids,
                            SZFriendsGtkReplyFunc done, gpointer done_data) {
-    if (!action || !szfriends_gtk_action_is_known(action->action)) return;
+    szfriends_gtk_perform_sending(link, dropdown, source, action, ids, NULL, done, done_data);
+}
+
+void szfriends_gtk_perform_sending(SZFriendsGtkLink *link, SZFriendsGtkDropdown *dropdown, GtkWidget *source,
+                                   const SZFriendsGtkAction *action, const SZFriendsGtkActionIds *ids,
+                                   SZFriendsGtkRun sending, SZFriendsGtkReplyFunc done, gpointer done_data) {
+    if (!action || !szfriends_gtk_action_is_known(action->action)) {
+        if (done) done(NULL, NULL, done_data);
+        return;
+    }
     if (szfriends_gtk_action_is_client_side(action->action)) {
         const SZFriendsGtkHost *host = szfriends_gtk_link_host(link);
         GtkWindow *window = dropdown ? szfriends_gtk_dropdown_get_window(dropdown) : window_of(source);
@@ -388,17 +452,23 @@ void szfriends_gtk_perform(SZFriendsGtkLink *link, SZFriendsGtkDropdown *dropdow
         return;
     }
     szfriends_intent *intent = szfriends_gtk_intent_for_action(action, ids);
-    if (!intent) return;
+    if (!intent) {
+        if (done) done(NULL, NULL, done_data);
+        return;
+    }
     if (!action->confirm) {
+        if (sending) sending(done_data);
         szfriends_gtk_link_send(link, intent, done, done_data, NULL);
         return;
     }
     SZFriendsGtkPending *pending = g_new0(SZFriendsGtkPending, 1);
     szfriends_gtk_link_ref(link); /* the question can outlive the page that asked it */
-    *pending = (SZFriendsGtkPending){link, intent, done, done_data};
+    szfriends_intent *ticked = szfriends_gtk_confirm_option_known(action->confirm)
+                                   ? szfriends_gtk_intent_for_answer(action, ids, TRUE) : NULL;
+    *pending = (SZFriendsGtkPending){link, intent, ticked, sending, done, done_data};
     /* A destructive action's question is drawn destructive too, even from a helper that marks only the action. */
-    szfriends_gtk_confirm(dropdown, source, action->confirm, action->style == SZFRIENDS_GTK_STYLE_DESTRUCTIVE,
-                          pending_send, pending, pending_free);
+    szfriends_gtk_confirm_ticked(dropdown, source, action->confirm, action->style == SZFRIENDS_GTK_STYLE_DESTRUCTIVE,
+                                 pending_send, pending, pending_free);
 }
 
 GtkWidget *szfriends_gtk_list_action_button_new(void) {

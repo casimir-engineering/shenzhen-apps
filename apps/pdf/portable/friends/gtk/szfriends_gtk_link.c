@@ -92,6 +92,10 @@ static GPtrArray *derived_capabilities(const SZFriendsGtkHost *host) {
     /* The conversation page draws mention links, opens their cards and offers @ (szfriends_gtk_conversation.h), so
      * every GTK host can show mentions; without the claim each one would arrive as plain text. */
     g_ptr_array_add(list, "mentions");
+    /* Every list row's menu (Remove), on right-click, a long press, Shift+F10 or Delete (szfriends_gtk_row_menu.c). */
+    g_ptr_array_add(list, "list.menu");
+    /* How each person nearby was found, as icons and words on their row (szfriends_gtk_row.c). */
+    g_ptr_array_add(list, "nearby.found");
     return list;
 }
 

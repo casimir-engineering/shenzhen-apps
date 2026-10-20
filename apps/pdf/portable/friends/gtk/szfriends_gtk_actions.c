@@ -128,6 +128,20 @@ szfriends_intent *szfriends_gtk_intent_for_action(const SZFriendsGtkAction *acti
     return szfriends_gtk_intent_for_action_kind(action->action, ids);
 }
 
+gboolean szfriends_gtk_confirm_option_known(const SZFriendsGtkConfirm *confirm) {
+    return confirm && confirm->option && confirm->option->field == SZFRIENDS_GTK_CONFIRM_FIELD_DELETE_HISTORY;
+}
+
+szfriends_intent *szfriends_gtk_intent_for_answer(const SZFriendsGtkAction *action, const SZFriendsGtkActionIds *ids,
+                                                  gboolean ticked) {
+    if (!action) return NULL;
+    /* Only Remove offers "Also delete chat history"; anywhere else a ticked box adds nothing. */
+    if (ticked && action->action == SZFRIENDS_GTK_ACTION_REMOVE_FRIEND &&
+        szfriends_gtk_confirm_option_known(action->confirm))
+        return szfriends_intent_with_confirm_option(szfriends_gtk_intent_for_action(action, ids), "delete_history");
+    return szfriends_gtk_intent_for_action(action, ids);
+}
+
 #ifdef __APPLE__
 /* macOS 13 (Darwin 22) renamed the Bluetooth and Wi-Fi panes; the privacy anchors are the same on 12 and later. */
 static gboolean macos_13_or_later(void) {

@@ -47,15 +47,24 @@ static const SZFriendsGtkField route_fields[] = {ENUM(T, kind, route_kinds), ENU
                                                  STRN(T, label)};
 #undef T
 TYPE(static, route, "type.route", SZFriendsGtkRoute);
+#define T SZFriendsGtkConfirmOption
+static const SZFriendsGtkField confirm_option_fields[] = {STR(T, label), ENUM(T, field, confirm_option_names)};
+#undef T
+TYPE(static, confirm_option, "type.confirm_option", SZFriendsGtkConfirmOption);
 #define T SZFriendsGtkConfirm
 static const SZFriendsGtkField confirm_fields[] = {STR(T, title), STR(T, body), STR(T, confirm_label),
-                                                   STR(T, cancel_label), BOOL(T, destructive)};
+                                                   STR(T, cancel_label), BOOL(T, destructive),
+                                                   OBJN(T, option, confirm_option)};
 #undef T
 TYPE(static, confirm, "type.confirm", SZFriendsGtkConfirm);
 #define T SZFriendsGtkArm
 static const SZFriendsGtkField arm_fields[] = {STR(T, label), STR(T, accessibility_label), INT(T, seconds)};
 #undef T
 TYPE(static, arm, "type.arm", SZFriendsGtkArm);
+#define T SZFriendsGtkFound
+static const SZFriendsGtkField found_fields[] = {STRS(T, methods), STR(T, label)};
+#undef T
+TYPE(static, found, "type.found", SZFriendsGtkFound);
 #define T SZFriendsGtkAction
 static const SZFriendsGtkField action_fields[] = {
     ENUM(T, action, actions), STR(T, label), ENUM(T, style, styles), STRN(T, note), OBJN(T, confirm, confirm),
@@ -115,7 +124,8 @@ static const SZFriendsGtkField list_row_fields[] = {
     STR(T, conversation_id), OBJ(T, avatar, avatar), STR(T, title), STR(T, subtitle), STR(T, time_label),
     OBJ(T, route, route), BOOL(T, unread), OBJN(T, waiting, waiting), BOOL(T, blocked), BOOL(T, id_confirmed),
     STRN(T, id_confirmed_label), ENUM(T, style, row_styles), STRN(T, drop_label), STRN(T, drop_refusal),
-    STR(T, accessibility_label), ARR(T, actions, row_action), BOOL(T, mentionable), ENUM(T, kind, row_kinds)};
+    STR(T, accessibility_label), ARR(T, actions, row_action), BOOL(T, mentionable), ENUM(T, kind, row_kinds),
+    ARR(T, menu, action), OBJN(T, found, found)};
 #undef T
 TYPE(static, list_row, "type.list_row", SZFriendsGtkListRow);
 #define T SZFriendsGtkListSnapshot
@@ -154,7 +164,7 @@ TYPE(static, status, "type.status", SZFriendsGtkStatus);
 #define T SZFriendsGtkNearbyPerson
 static const SZFriendsGtkField nearby_person_fields[] = {
     STRN(T, nearby_id), STRN(T, conversation_id), OBJ(T, avatar, avatar), STR(T, title), STR(T, subtitle),
-    STRN(T, status_label), OBJN(T, action, action), STR(T, accessibility_label)};
+    STRN(T, status_label), OBJN(T, action, action), STR(T, accessibility_label), OBJN(T, found, found)};
 #undef T
 TYPE(static, nearby_person, "type.nearby_person", SZFriendsGtkNearbyPerson);
 #define T SZFriendsGtkNearbySnapshot
@@ -472,7 +482,7 @@ static const SZFriendsGtkField szfriends_gtk_type_download_link_result_fields[] 
 TYPE(, szfriends_gtk_type_download_link_result, "result.make_download_link", SZFriendsGtkDownloadLinkResult);
 
 const SZFriendsGtkType *const szfriends_gtk_named_types[] = {
-    &avatar, &route, &confirm, &arm, &action, &segment, &back, &footer, &empty,
+    &avatar, &route, &confirm_option, &confirm, &arm, &found, &action, &segment, &back, &footer, &empty,
     &szfriends_gtk_type_badge_snapshot, &banner, &name_prompt, &row_action, &waiting, &list_row,
     &szfriends_gtk_type_list_snapshot, &visibility, &method_state, &alert, &note, &status, &nearby_person,
     &szfriends_gtk_type_nearby_snapshot, &header, &message_status, &file_info, &thumbnail, &mention_card, &mention,

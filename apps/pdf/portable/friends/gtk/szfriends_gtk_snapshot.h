@@ -153,9 +153,15 @@ typedef struct { SZFriendsGtkPresence present; SZFriendsGtkAvatarKind kind; char
                  char *path; } SZFriendsGtkAvatar;
 typedef struct { SZFriendsGtkPresence present; SZFriendsGtkRouteKind kind; SZFriendsGtkRouteMethod method;
                  char *label; } SZFriendsGtkRoute;
+/* The one checkbox a question can carry, unticked at first: ticked, the intent also carries `field`: true. */
+typedef enum { SZFRIENDS_GTK_CONFIRM_FIELD_UNKNOWN, SZFRIENDS_GTK_CONFIRM_FIELD_DELETE_HISTORY } SZFriendsGtkConfirmField;
+typedef struct { SZFriendsGtkPresence present; char *label; SZFriendsGtkConfirmField field; } SZFriendsGtkConfirmOption;
 typedef struct { SZFriendsGtkPresence present; char *title, *body, *confirm_label, *cancel_label;
-                 gboolean destructive; } SZFriendsGtkConfirm;
+                 gboolean destructive; SZFriendsGtkConfirmOption *option; } SZFriendsGtkConfirm;
 typedef struct { SZFriendsGtkPresence present; char *label, *accessibility_label; gint64 seconds; } SZFriendsGtkArm;
+/* How someone nearby was found (clients that declared nearby.found): the methods seeing them now ("lan", "p2p_wifi",
+ * "bluetooth", in that order), drawn with the route icons, and the words for them ("Local network and Bluetooth"). */
+typedef struct { SZFriendsGtkPresence present; char **methods; char *label; } SZFriendsGtkFound;
 typedef struct {
     SZFriendsGtkPresence present;
     SZFriendsGtkActionKind action;
@@ -211,6 +217,9 @@ typedef struct {
     gsize n_actions;
     gboolean mentionable; /* clients that declared mentions: the @ picker offers this person */
     SZFriendsGtkRowKind kind; /* `you` for the You conversation */
+    SZFriendsGtkAction *menu; /* clients that declared list.menu: right-click, long-press, Shift+F10, Delete */
+    gsize n_menu;
+    SZFriendsGtkFound *found; /* clients that declared nearby.found; NULL while the person is not nearby */
 } SZFriendsGtkListRow;
 typedef struct {
     SZFriendsGtkPresence present;
@@ -236,7 +245,8 @@ typedef struct { SZFriendsGtkPresence present; char *text; SZFriendsGtkAction *a
 typedef struct { SZFriendsGtkPresence present; SZFriendsGtkStatusKind kind; char *label; } SZFriendsGtkStatus;
 typedef struct { SZFriendsGtkPresence present; char *nearby_id, *conversation_id; SZFriendsGtkAvatar avatar;
                  char *title, *subtitle, *status_label; SZFriendsGtkAction *action;
-                 char *accessibility_label; } SZFriendsGtkNearbyPerson;
+                 char *accessibility_label;
+                 SZFriendsGtkFound *found; /* clients that declared nearby.found */ } SZFriendsGtkNearbyPerson;
 typedef struct {
     SZFriendsGtkPresence present;
     char *query;
