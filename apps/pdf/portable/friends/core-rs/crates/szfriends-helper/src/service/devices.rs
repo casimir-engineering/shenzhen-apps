@@ -28,8 +28,22 @@ pub fn device_id(key: &[u8; 32]) -> String {
     format!("d_{}", hex(&key[..8]))
 }
 
+static DEVICE_NAME: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+
+/// A phone's own name, as its system gives it (the app sets it before Friends starts): what the person's other
+/// computers call it ("On Pixel 9"), where a computer's comes from its host name.
+pub fn set_local_device_name(name: &str) {
+    let label = chain_label(name, NAME_MAX);
+    if !label.is_empty() {
+        let _ = DEVICE_NAME.set(label);
+    }
+}
+
 /// The local computer's name and system, for a chain's first link.
 pub fn local_device_name() -> String {
+    if let Some(name) = DEVICE_NAME.get() {
+        return name.clone();
+    }
     let name = std::env::var("COMPUTERNAME").or_else(|_| std::env::var("HOSTNAME")).unwrap_or_default();
     let label = chain_label(&name, NAME_MAX);
     if label.is_empty() {

@@ -67,6 +67,7 @@ use crate::server::{Connection, Reply};
 
 /// The test network a helper in a test home meets others on (a directory of entries on loopback).
 pub const ENV_TEST_LOOPBACK: &str = crate::nearby::ENV_TEST_NETWORK;
+pub use devices::set_local_device_name;
 pub use online::{BLOCK_DIRECT_FILE, ENV_TEST_HOST_KEYS, ENV_TEST_HOST_LIST};
 
 /// What the service announces in every welcome (PROTOCOL.md § Capabilities); `nearby.bluetooth` too where this

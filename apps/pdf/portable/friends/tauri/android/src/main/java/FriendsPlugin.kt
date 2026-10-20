@@ -107,6 +107,9 @@ class FriendsPlugin(private val activity: Activity) : NearbyPlugin(activity) {
     result.put("base", activity.noBackupFilesDir.absolutePath)
     // Android 10 (29) and later save received files to Downloads through MediaStore (publishDownload).
     result.put("sdk", Build.VERSION.SDK_INT)
+    // What the person's other computers call this phone: the name in Settings ▸ About, else the model.
+    val named = Settings.Global.getString(activity.contentResolver, Settings.Global.DEVICE_NAME)
+    result.put("name", if (named.isNullOrBlank()) Build.MODEL else named)
     invoke.resolve(result)
   }
 

@@ -47,6 +47,9 @@ struct Dirs {
     /// Android's SDK version; none on iOS.
     #[serde(default)]
     sdk: Option<u32>,
+    /// The device's name as its system shows it ("Pixel 9", "iPhone"): what the person's other computers call it.
+    #[serde(default)]
+    name: Option<String>,
 }
 
 /// Where `publishDownload` put a received file: a path or a content URI, and the name it got.
@@ -108,6 +111,9 @@ impl<R: Runtime> Native<R> {
     /// and Android's SDK version.
     pub fn dirs(&self) -> Option<(PathBuf, Option<u32>)> {
         let dirs: Dirs = self.call("dirs", json!({})).ok()?;
+        if let Some(name) = dirs.name.as_deref() {
+            szfriends_helper::service::set_local_device_name(name);
+        }
         Some((PathBuf::from(dirs.base), dirs.sdk)).filter(|(p, _)| p.is_absolute())
     }
 
