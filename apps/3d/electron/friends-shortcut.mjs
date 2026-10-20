@@ -213,7 +213,7 @@ try {
     });
   const item = await menuItem();
   if (
-    item?.label !== "Friends" ||
+    item?.label !== "Friends (Beta)" ||
     item.accelerator !== "CmdOrCtrl+J" ||
     !item.visible ||
     !item.enabled
