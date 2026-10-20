@@ -1,0 +1,19 @@
+{
+  "version": "0.2.9",
+  "notes": "Shenzhen 3D 0.2.9",
+  "pub_date": "2026-10-20T12:00:00Z",
+  "platforms": {
+    "windows-x86_64-nsis": {
+      "url": "https://github.com/casimir-engineering/shenzhen-3D/releases/download/preview-0.2.9/Shenzhen-3D-0.2.9-Windows-x64-Setup.exe",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUZDJLM00yWXVnVVBud25CMCtvNjU3aVF0UTQwdEkyMU1DbVhZVURKMnlleWx0ZE9KZjhINkE5SjRWZEErU1NobHJKZWs0NC9TWlZtd1B4L00yZkRydTdjYUdQOElFMWdVPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkyNDk5MDE0CWZpbGU6YnVuZGxlLmJpbgl2ZXJzaW9uOjAuMi45CjBXS0JVTnFYWG40M3JVcFAyL3dWU2lMOVM3dnMxN3c3cVArNDZJb2NDNjV3dlc5ZU5oRWl2dFA5M0h6cUtkU0hscmt0cERHeHhiTkcxTGh2ZDM5Y0JBPT0K"
+    },
+    "windows-x86_64-msi": {
+      "url": "https://github.com/casimir-engineering/shenzhen-3D/releases/download/preview-0.2.9/Shenzhen-3D-0.2.9-Windows-x64.msi",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUZDJLM00yWXVnVVBud25CMCtvNjU3aVF0UTQwdEkyMU1DbVhZVURKMnlleWx0ZE9KZjhINkE5SjRWZEErU1NobHJKZWs0NC9TWlZtd1B4L00yZkRydTdjYUdQOElFMWdVPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkyNDk5MDE0CWZpbGU6YnVuZGxlLmJpbgl2ZXJzaW9uOjAuMi45CjBXS0JVTnFYWG40M3JVcFAyL3dWU2lMOVM3dnMxN3c3cVArNDZJb2NDNjV3dlc5ZU5oRWl2dFA5M0h6cUtkU0hscmt0cERHeHhiTkcxTGh2ZDM5Y0JBPT0K"
+    },
+    "linux-aarch64-appimage": {
+      "url": "https://github.com/casimir-engineering/shenzhen-3D/releases/download/preview-0.2.9/Shenzhen-3D-0.2.9-Linux-arm64.AppImage",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUZDJLM00yWXVnVVBud25CMCtvNjU3aVF0UTQwdEkyMU1DbVhZVURKMnlleWx0ZE9KZjhINkE5SjRWZEErU1NobHJKZWs0NC9TWlZtd1B4L00yZkRydTdjYUdQOElFMWdVPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkyNDk5MDE0CWZpbGU6YnVuZGxlLmJpbgl2ZXJzaW9uOjAuMi45CjBXS0JVTnFYWG40M3JVcFAyL3dWU2lMOVM3dnMxN3c3cVArNDZJb2NDNjV3dlc5ZU5oRWl2dFA5M0h6cUtkU0hscmt0cERHeHhiTkcxTGh2ZDM5Y0JBPT0K"
+    }
+  }
+}

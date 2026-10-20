@@ -103,6 +103,14 @@ then the mirror's owner), notarizes its ZIP and DMG, and uploads each build to i
 draft until every asset's digest is verified. Its `prerelease` input publishes the release as a prerelease. It stops
 if the tag does not match `package.json` or the notes file is missing.
 
+The Windows, Linux and iPhone/iPad packages are built outside that job (`apps/3d/docs/PLATFORMS.md`). Raise the
+version in `apps/3d/src-tauri/tauri.conf.json` and `Cargo.toml` as well: it is the version those apps compare with
+the releases. Then, on the Mac that holds the updater key (`~/FriendsKeys/tauri-updater/`), run
+`apps/3d/scripts/updates/release-updates.mjs` on the release directory: it signs the Setup, the MSI and the AppImage,
+writes `latest.json` and the iPhone's `manifest.plist`, and rewrites `SHA256SUMS.txt`. Upload those with the
+packages (not the `.sig` files). Without `latest.json`, installed Windows and Linux apps are not offered the release;
+without `manifest.plist`, iPhones and iPads are not. Details: `apps/3d/docs/UPDATES.md` § Windows and Linux.
+
 The workflows that assemble large assets inside a release repository (`assemble-release-asset.yml`,
 `assemble-release-zip-delta.yml`) stay in the old `shenzhen-3D` repositories: they act on that repository's own
 releases and run there.

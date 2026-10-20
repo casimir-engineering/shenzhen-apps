@@ -29,6 +29,10 @@ friends-smoke = ["friends", "tauri-plugin-szfriends/test-homes"]
 # a phone reaches friends anywhere and makes and opens links. Desktops reach the helper, which has it already.
 # platform-build.mjs turns it on for Friends phone builds.
 friends-online = ["friends", "tauri-plugin-szfriends/online"]
+# Test builds only: the Windows, Linux and iOS updater reads its releases from the local copy of GitHub that
+# SHENZHEN_3D_UPDATES_API names (scripts/updates/mock-github.mjs), with src-tauri/updates-test.conf.json, which lets
+# Tauri's updater use that copy's plain-HTTP address. Release builds always read GitHub.
+updates-test-api = []
 
 [dependencies]
 # Resolved through ../.cargo/config.toml: a placeholder unless a Friends build points it at the pinned plugin.
@@ -46,6 +50,37 @@ tauri-plugin-deep-link = { version = "2.6", optional = true }
 
 [target.'cfg(any(windows, target_os = "linux"))'.dependencies]
 tauri-plugin-single-instance = { version = "2.5", optional = true }
+# Updates on Windows and Linux (docs/UPDATES.md § Windows and Linux): signed installers listed in each release's
+# latest.json. Pinned: its signature checks and installer handling are part of every published release.
+tauri-plugin-updater = "=2.13.3"
+# The app's own check of each downloaded installer (src/release_feed.rs): its signature, as Tauri's updater checks
+# it, and its line in the release's SHA256SUMS.txt.
+base64 = "0.22"
+minisign-verify = "0.3"
+sha2 = "0.10"
+
+# The releases check of the Windows, Linux and iOS updater (src/app_updates.rs): the reqwest and rustls Tauri's
+# updater uses.
+[target.'cfg(any(windows, target_os = "linux", target_os = "ios"))'.dependencies]
+reqwest = { version = "0.13", default-features = false, features = ["rustls-no-provider", "system-proxy"] }
+rustls = { version = "0.23", default-features = false, features = ["ring"] }
+tokio = { version = "1", features = ["time"] }
+
+# Whether the connection is metered, before a daily check.
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.62", features = ["Networking_Connectivity"] }
+
+# Opening iOS's installer for an update (an itms-services link).
+[target.'cfg(target_os = "ios")'.dependencies]
+objc2 = "0.6"
+block2 = "0.6"
+objc2-foundation = { version = "0.3", features = ["NSString", "NSURL", "NSDictionary"] }
+objc2-ui-kit = { version = "0.3", features = ["UIApplication", "UIResponder", "block2"] }
+
+[dev-dependencies]
+base64 = "0.22"
+minisign-verify = "0.3"
+sha2 = "0.10"
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-window-state = "2"

@@ -20,6 +20,10 @@ export interface UpdateState {
   progress?: number;
   message: string;
   lastChecked?: number;
+  /** Windows, Linux and iOS (src-tauri/src/app_updates.rs): one release channel, and Update to X does it all. */
+  platform?: "windows" | "linux" | "ios";
+  /** The newer version is a package to download and install by hand (Linux deb and rpm). */
+  downloadOnly?: boolean;
 }
 export interface UpdateBridge {
   getState(): Promise<UpdateState>;

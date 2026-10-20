@@ -225,5 +225,14 @@
         }
       }
     ]
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDAzREE1NTIyQTI4M0JDMDAKUldRQXZJT2lJbFhhQTl4UkJlUmNHMWVFRE5lRUFZRmhqVGJMNXVhVXVjcHFiMFYxV3RJTGhSSisK",
+      "requireSignedVersion": true,
+      "windows": {
+        "installMode": "passive"
+      }
+    }
   }
 }
