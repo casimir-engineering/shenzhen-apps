@@ -92,11 +92,12 @@ static int SZFHRun(NSString *tool, NSArray<NSString *> *arguments) {
     // or at a real state directory.
     NSArray *variables = @[
         [@"SZFRIENDS_STATE_DIR=" stringByAppendingString:stateDirectory], @"SZFRIENDS_KEY_STORE=file",
+        [@"SZFRIENDS_DOWNLOADS_DIR=" stringByAppendingString:[stateDirectory stringByAppendingString:@"-Downloads"]],
         [NSString stringWithFormat:@"SZFRIENDS_HELPER_TIME_SCALE=%g", timeScale],
         [@"HOME=" stringByAppendingString:NSHomeDirectory()], @"PATH=/usr/bin:/bin",
         [@"TMPDIR=" stringByAppendingString:NSTemporaryDirectory()],
     ];
-    char *envp[8] = {0};
+    char *envp[10] = {0};
     for (NSUInteger i = 0; i < variables.count; i++) envp[i] = strdup([variables[i] UTF8String]);
     posix_spawn_file_actions_t actions;
     posix_spawn_file_actions_init(&actions);

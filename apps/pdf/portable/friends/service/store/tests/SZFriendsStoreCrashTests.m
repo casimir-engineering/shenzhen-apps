@@ -39,8 +39,10 @@ static SZFriendsTransfers *Transfers(SZFriendsStore *store) {
     return transfers;
 }
 
+static const char *SZFTStallPoint = "transfer.after_rename";
+
 static void StallAtPoint(const char *point) {
-    if (strcmp(point, "transfer.after_rename") != 0) return;
+    if (strcmp(point, SZFTStallPoint) != 0) return;
     SZFTTell(SZFTChildFD, @"mid");
     sleep(30);
 }
@@ -89,6 +91,12 @@ int SZFTRunChild(int argc, const char *argv[]) {
         SZFTTell(SZFTChildFD, @"mid");
         sleep(30);
         return 1;
+    }
+    // Across volumes, stopped with the hidden part file written, or renamed with the staged file still there.
+    if ([mode isEqualToString:@"copy-part"] || [mode isEqualToString:@"copy-renamed"]) {
+        SZFriendsPublishAcrossVolumes = YES;
+        SZFTStallPoint = [mode isEqualToString:@"copy-part"] ? "received.part_written" : "received.part_renamed";
+        mode = @"publish";
     }
     if ([mode isEqualToString:@"publish"]) {
         [transfers appendChunk:contents atOffset:0 toTransfer:@"p1" fromConversation:@"mei" error:NULL];
@@ -213,11 +221,39 @@ static void TestKillBetweenRenameAndCommit(void) {
     SZFTExpect(record.state == SZFriendsTransferStateReceived && [record.receivedPath isEqualToString:final],
                @"recovery records the published file");
     SZFTExpect([SZFTBlake2b([NSData dataWithContentsOfFile:final]) isEqualToData:SZFTBlake2b(contents)], @"digest");
-    NSArray *names = [NSFileManager.defaultManager contentsOfDirectoryAtPath:setup.receivedDirectory error:NULL];
-    SZFTExpect(names.count == 2, @"one file and the staging folder, no duplicate: %@", names);
+    NSArray *names = [NSFileManager.defaultManager contentsOfDirectoryAtPath:setup.destinationDirectory error:NULL];
+    SZFTExpect(names.count == 1, @"one file, no duplicate: %@", names);
+}
+
+// A copy across volumes stopped by a crash: a leftover hidden part file goes and the copy is redone; a copy already
+// renamed is recorded as it is. Either way one complete file, no part file, no duplicate.
+static void TestKillDuringCopyAcrossVolumes(NSString *mode) {
+    NSString *directory = SZFTTemporaryDirectory([@"crash-" stringByAppendingString:mode]);
+    NSData *contents = SZFTRandomData(100000);
+    SZFriendsTransfers *setup = PrepareDownload(directory, @"p1", contents);
+    SZFTExpect(RunChildUntilMid(mode, directory, nil), @"%@: the child stalled", mode);
+    NSString *downloads = setup.destinationDirectory;
+    BOOL leftover = NO;
+    for (NSString *name in [NSFileManager.defaultManager contentsOfDirectoryAtPath:downloads error:NULL]) {
+        leftover = leftover || [name hasSuffix:@".part"];
+    }
+    SZFTExpect([mode isEqualToString:@"copy-part"] == leftover, @"%@: part file as the crash left it", mode);
+    SZFriendsStore *store = SZFTOpenStore(directory);
+    SZFriendsTransfers *transfers = Transfers(store);
+    SZFriendsTransferRecord *record = [transfers transferWithID:@"p1"];
+    SZFTExpect(record.state == SZFriendsTransferStateReceived &&
+                   [SZFTBlake2b([NSData dataWithContentsOfFile:record.receivedPath]) isEqualToData:SZFTBlake2b(contents)],
+               @"%@: recovered and complete: %@", mode, record.receivedPath);
+    NSArray *names = [NSFileManager.defaultManager contentsOfDirectoryAtPath:downloads error:NULL];
+    SZFTExpect([names isEqual:@[ @"Drawings.pdf" ]], @"%@: one file, no part, no duplicate: %@", mode, names);
+    NSString *partial = [transfers.receivedDirectory stringByAppendingPathComponent:@".partial"];
+    SZFTExpect([NSFileManager.defaultManager contentsOfDirectoryAtPath:partial error:NULL].count == 0,
+               @"%@: no staging file left", mode);
 }
 
 void SZFTRunCrashTests(void) {
+    TestKillDuringCopyAcrossVolumes(@"copy-part");
+    TestKillDuringCopyAcrossVolumes(@"copy-renamed");
     TestKillDuringMessageInsert();
     TestKillDuringMigration();
     TestKillMidTransfer();
