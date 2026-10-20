@@ -271,19 +271,23 @@ static BOOL UIFiles(UIRig* rig, UIFriend* mei, SZFE2EWorld* world) {
                        return UIFindButton(page, @"Show in Finder") != nil;
                return NO;
            }), "the file arrives:\n%@", UIDescribe(page));
-    NSString* received = [rig.helper.stateDirectory stringByAppendingPathComponent:@"received"];
+    // Received files go to Downloads (the harness's SZFRIENDS_DOWNLOADS_DIR, never the real one).
+    NSString* received = rig.helper.downloadsDirectory;
     __block NSString* found = nil;
     EXPECT(rig, UIWait(5, ^BOOL {
                for (NSString* name in [NSFileManager.defaultManager enumeratorAtPath:received])
                    if ([name.lastPathComponent isEqualToString:@"reply.pdf"])
                        found = [received stringByAppendingPathComponent:name];
                return found != nil;
-           }), "the file is in Ana's received folder");
+           }), "the file is in Ana's Downloads");
     EXPECT(rig, [[NSData dataWithContentsOfFile:found] isEqual:[NSData dataWithContentsOfFile:back]], "same bytes");
     NSButton* show = UIFindButton(page, @"Show in Finder");
     EXPECT(rig, show != nil, "the card offers Show in Finder:\n%@", UIDescribe(page));
     CLICK(rig, show, @"Show in Finder");
     EXPECT(rig, UIWait(3, ^BOOL { return rig.bridge.revealed.count > 0; }), "Show in Finder asks the reader");
+    EXPECT(rig, [rig.bridge.revealed.lastObject.path.stringByResolvingSymlinksInPath
+                    isEqualToString:found.stringByResolvingSymlinksInPath],
+           "Show in Finder reveals that file: %@", rig.bridge.revealed.lastObject.path);
     UIShot(rig, @"received");
     [mei.client intent:@"unsubscribe" fields:@{@"subscription" : atMei}];
     CLICK(rig, page.header.backButton, @"Back");

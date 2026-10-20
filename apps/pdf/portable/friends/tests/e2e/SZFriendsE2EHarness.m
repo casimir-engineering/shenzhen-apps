@@ -46,6 +46,7 @@ void SZFE2EUntrackPID(pid_t pid) {
     if ((self = [super init])) {
         _name = [name copy];
         _stateDirectory = [state copy];
+        _downloadsDirectory = [state stringByAppendingString:@"-Downloads"];
         _extraEnvironment = @{};
         _pid = -1;
     }
@@ -358,6 +359,7 @@ BOOL SZFE2EWaitUntil(NSTimeInterval timeout, BOOL (^condition)(void)) {
     helper.executable = _executable;
     helper.baseEnvironment = @{
         @"SZFRIENDS_STATE_DIR" : helper.stateDirectory,
+        @"SZFRIENDS_DOWNLOADS_DIR" : helper.downloadsDirectory,
         @"SZFRIENDS_KEY_STORE" : @"file",
         @"SZFRIENDS_TEST_SERVICE_TYPE" : _serviceType,
         @"SZFRIENDS_AVATARS_MANIFEST" : _manifest,

@@ -45,6 +45,8 @@ BOOL SZFE2EScenarioRequest(SZFE2EWorld *world);
 BOOL SZFE2EScenarioMessages(SZFE2EWorld *world);
 BOOL SZFE2EScenarioTransfer(SZFE2EWorld *world);
 BOOL SZFE2EScenarioAutoAccept(SZFE2EWorld *world);
+BOOL SZFE2EScenarioReceivedFolder(SZFE2EWorld *world);
+BOOL SZFE2EScenarioReceivedDefaultUnderState(SZFE2EWorld *world);
 BOOL SZFE2EScenarioKillResume(SZFE2EWorld *world);
 BOOL SZFE2EScenarioAddByID(SZFE2EWorld *world);
 BOOL SZFE2EScenarioBlock(SZFE2EWorld *world);
