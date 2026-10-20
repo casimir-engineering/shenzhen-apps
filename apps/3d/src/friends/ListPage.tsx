@@ -83,6 +83,17 @@ export function ListPage({
           )}
         </div>
       ) : null}
+      {/* Friends is a beta: the title and its tag say so. An older helper sends neither, and neither shows. */}
+      {strings.button_label && (
+        <div className="szf-list-title">
+          <strong>{strings.button_label}</strong>
+          {strings.beta && (
+            <span className="szf-beta" data-szfriends="beta">
+              {strings.beta}
+            </span>
+          )}
+        </div>
+      )}
       <div className="szf-search">
         <input
           type="search"

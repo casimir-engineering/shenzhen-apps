@@ -2,7 +2,8 @@
 
 #import "SPDFMacFriendsMenu.h"
 
-NSString* const SPDFMacFriendsMenuTitle = @"Friends";
+// Friends is a beta: the View menu says so (Settings and the button's tooltip do too).
+NSString* const SPDFMacFriendsMenuTitle = @"Friends (Beta)";
 NSString* const SPDFMacFriendsOpenTitle = @"Open Friends";
 NSString* const SPDFMacFriendsCloseTitle = @"Close Friends";
 NSString* const SPDFMacFriendsAddByIDTitle = @"Add by ID…";

@@ -55,6 +55,8 @@ export function NamePrompt({
       </label>
       {refusal && <small className="szf-refusal">{refusal}</small>}
       <small>{prompt.note}</small>
+      {/* The card shows on first run, so it also says Friends is a beta. */}
+      {strings.beta_note && <small>{strings.beta_note}</small>}
       {prompt.join_label && (
         <button type="button" className="szf-button link" onClick={onJoin}>
           {prompt.join_label}

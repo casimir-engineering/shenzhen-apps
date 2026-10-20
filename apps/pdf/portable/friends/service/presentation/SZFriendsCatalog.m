@@ -14,6 +14,11 @@ static NSDictionary<NSString *, NSString *> *CoreEntries(void) {
     return @{
         // welcome.strings (PROTOCOL.md § Static strings)
         @"static.button_label" : @"Friends",
+        // Friends is a beta in every app that has it. The tag beside the dropdown's title, the button's tooltip, and
+        // the line under the first-run card that says what beta means for the person reading it.
+        @"static.beta" : @"Beta",
+        @"static.button_tooltip" : @"Friends (Beta)",
+        @"static.beta_note" : @"Friends is in beta, so things may still change.",
         @"static.tab_friends" : @"Friends",
         @"static.tab_nearby" : @"Nearby",
         @"static.search_placeholder" : @"Search names and IDs",

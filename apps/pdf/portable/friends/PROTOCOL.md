@@ -1253,6 +1253,9 @@ over it: the helper sends only regular files, so views refuse the others there. 
 field where the person types the name friends see (the list's `name_prompt` and the footer's rename); `name_empty` is
 what that field says when Save or Return finds nothing typed, or only spaces, instead of sending `set_name`;
 `name_saved` is what shows there once the helper has the name, with `{name}` filled in by the view.
+Friends is a beta: `beta` is the small tag beside the dropdown's title (`button_label`), `button_tooltip` is the
+Friends button's tooltip, to which a host may add its shortcut, and `beta_note` is the line under the list's
+`name_prompt` card, which shows on first run.
 
 | Key | English |
 |---|---|
@@ -1290,6 +1293,9 @@ what that field says when Save or Return finds nothing typed, or only spaces, in
 | `save` | Save |
 | `name_empty` | Type the name friends should see. |
 | `name_saved` | Saved — friends now see {name} |
+| `beta` | Beta |
+| `button_tooltip` | Friends (Beta) |
+| `beta_note` | Friends is in beta, so things may still change. |
 
 ## Limits
 
@@ -1425,6 +1431,9 @@ strings.show_all: string
 strings.save: string
 strings.name_empty: string
 strings.name_saved: string
+strings.beta: string
+strings.button_tooltip: string
+strings.beta_note: string
 ```
 
 ```schema frame.reply

@@ -99,10 +99,13 @@ const SZFriendsGtkNearbyParts *szfriends_gtk_nearby_pane_parts(GtkWidget *pane);
 /* ---- The page (szfriends_gtk_list_page.c) ---------------------------------------------------------- */
 
 typedef struct {
+    /* The title and its Beta tag (welcome.strings button_label, beta) beside the search field. */
+    GtkWidget *title, *beta;
     GtkWidget *search, *tabs, *stack;
     GtkWidget *send_notice, *send_text, *send_cancel;
     GtkWidget *banner, *banner_text, *banner_button;
     GtkWidget *prompt, *prompt_title, *prompt_entry, *prompt_save, *prompt_note;
+    GtkWidget *prompt_beta; /* the card shows on first run, so it says Friends is a beta (beta_note) */
     /* Several computers (szfriends_gtk_list_devices.c): the removed notice with Start Over in its slot, the join
      * requests, and the name prompt's "Use my existing profile". */
     GtkWidget *devices, *removed, *removed_title, *removed_body, *removed_slot, *join_requests, *prompt_join;

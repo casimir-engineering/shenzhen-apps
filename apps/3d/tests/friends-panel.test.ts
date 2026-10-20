@@ -163,6 +163,8 @@ describe("Friends copy", () => {
     const directory = path.resolve(__dirname, "../src/friends");
     const allowed = [
       /^Enable Shenzhen Friends$/,
+      // The Settings switch's tag: Friends is a beta, said where it is turned on, with or without a helper.
+      /^Beta$/,
       /^Shenzhen 3D connects to the Friends server/,
       /^network address, your Friends ID/,
       /^files\.$/,

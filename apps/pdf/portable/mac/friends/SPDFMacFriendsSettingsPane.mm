@@ -7,7 +7,8 @@ NSString* const SPDFMacFriendsEnableTitle = @"Enable Shenzhen Friends";
 NSString* const SPDFMacFriendsDisclosureText = @"ShenzhenPDF connects to the Friends server whenever it is open and "
     "Friends is on. The server sees your network address, your Friends ID and when ShenzhenPDF is open. It never sees "
     "your name, messages or files.";
-NSString* const SPDFMacFriendsSettingsHeading = @"Shenzhen Friends";
+// Friends is a beta in every app that has it; its menu and its Settings say so where people meet it.
+NSString* const SPDFMacFriendsSettingsHeading = @"Shenzhen Friends (Beta)";
 // M1 reaches friends only nearby (brief § Milestones), so the subtitle promises nothing about the Internet. It names
 // every app, as the helper's queued note does: a friend with only Shenzhen Files or Shenzhen 3D open still receives.
 NSString* const SPDFMacFriendsSettingsSubtitle = @"Send documents and messages to people you add, when they are nearby "

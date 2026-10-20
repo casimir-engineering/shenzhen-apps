@@ -74,7 +74,7 @@ test("adds View ▸ Friends ⌘J hidden, shows it while Friends is on, and toggl
     [ITEM_ID, SEPARATOR_ID, "reload"],
   );
   const item = app.getMenuItemById(ITEM_ID);
-  assert.equal(item.label, "Friends");
+  assert.equal(item.label, "Friends (Beta)");
   assert.equal(item.accelerator, "CmdOrCtrl+J");
   assert.equal(item.visible, false);
   assert.equal(Menu.sets, 1);

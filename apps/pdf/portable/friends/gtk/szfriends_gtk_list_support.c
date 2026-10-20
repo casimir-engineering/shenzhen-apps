@@ -87,7 +87,11 @@ static const char list_css[] =
     /* Text actions (Remove friend, Block, Use your own picture) start where the column's words start, as AppKit
      * draws them: no side padding, so their notes need no indent to sit under them. Armed, a pill gets its padding
      * back with its fill. */
-    "button.flat.szfriends-text-action { padding-left: 0; padding-right: 0; min-width: 0; }\n";
+    "button.flat.szfriends-text-action { padding-left: 0; padding-right: 0; min-width: 0; }\n"
+    /* Friends is a beta: the title beside the search field, with a small tag that says so. */
+    ".szfriends-list-title { font-weight: 600; }\n"
+    ".szfriends-beta { background-color: alpha(@szfriends_accent, 0.14); color: @szfriends_accent; border-radius: 4px;\n"
+    "  font-size: 10px; font-weight: 600; padding: 1px 5px; }\n";
 
 void szfriends_gtk_list_style_ensure(GtkWidget *widget) {
     GdkDisplay *display = widget ? gtk_widget_get_display(widget) : gdk_display_get_default();

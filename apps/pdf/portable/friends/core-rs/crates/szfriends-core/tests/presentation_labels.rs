@@ -264,7 +264,7 @@ fn small_words() {
 fn static_strings() {
     let s = strings();
     let strings = s.static_strings();
-    assert_eq!(strings.len(), 34);
+    assert_eq!(strings.len(), 37);
     let welcome = presentation::fixture("frames/welcome.json");
     let built: Map<String, Value> = strings.iter().map(|(k, v)| (k.clone(), json!(v))).collect();
     assert_eq!(Value::Object(built), welcome["strings"], "welcome.strings");

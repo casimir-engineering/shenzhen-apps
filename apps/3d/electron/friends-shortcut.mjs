@@ -93,7 +93,7 @@ try {
   await expect(button).toBeVisible({ timeout: 30_000 });
   await expect(button).toHaveAttribute("title", /\S/);
   const title = await button.getAttribute("title");
-  if (!title.endsWith(`(${shortcut})`))
+  if (!title.endsWith(` · ${shortcut}`))
     throw Error(
       `the Friends button's tooltip is "${title}", without ${shortcut}`,
     );
@@ -107,6 +107,24 @@ try {
   await expect(panel).toBeVisible();
   await expect(search).toBeFocused();
   check(`${shortcut} opens Friends with the search field focused`);
+  // Friends is a beta: the tag beside the title shows, whole, inside the dropdown.
+  const beta = panel.locator('[data-szfriends="beta"]');
+  await expect(beta).toBeVisible();
+  await expect(beta).toHaveText("Beta");
+  const [tag, box] = [await beta.boundingBox(), await panel.boundingBox()];
+  if (
+    !tag ||
+    !box ||
+    tag.width < 1 ||
+    tag.x < box.x ||
+    tag.y < box.y ||
+    tag.x + tag.width > box.x + box.width ||
+    tag.y + tag.height > box.y + box.height
+  )
+    throw Error(
+      `the Beta tag is outside the dropdown: ${JSON.stringify({ tag, box })}`,
+    );
+  check("the dropdown's title shows the Beta tag inside the dropdown");
 
   await page.keyboard.type("zz");
   await expect(search).toHaveValue("zz");

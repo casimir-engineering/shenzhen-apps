@@ -57,8 +57,31 @@
   padding: 16px;
   margin: 0;
 }
+.szf-list-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 12px 0;
+  color: var(--ink);
+  font-size: 13px;
+}
+/* Friends is a beta: a small tag beside the dropdown's title, and beside Enable Shenzhen Friends in Settings. */
+.szf-beta {
+  display: inline-block;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--jade-wash);
+  color: var(--jade);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 14px;
+  vertical-align: middle;
+}
 .szf-search {
   padding: 12px 12px 6px;
+}
+.szf-list-title + .szf-search {
+  padding-top: 8px;
 }
 .szf-search input,
 .szf-conversation-search-open input,

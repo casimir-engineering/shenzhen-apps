@@ -56,7 +56,7 @@ from its own search field), but not while a dialog is open.
 
 The command palette (⌘K / Ctrl+K) lists Open file…, Share commented project, Search assembly, Fit model, Settings…
 and Help & shortcuts, and, while Friends is on, Open Friends, Add by ID…, Make myself visible and Friends Settings….
-Open Friends is also found by "friend", "nearby", "add by id" and "chat". The Mac app's View menu has Friends (⌘J),
+Open Friends is also found by "friend", "nearby", "add by id" and "chat". The Mac app's View menu has Friends (Beta), ⌘J,
 and the Friends button's tooltip shows the shortcut.
 
 ⌘J and ⌘K were not used before (2026-10-20). Browsers use Ctrl+J for Downloads and Ctrl+K for the search bar; the web

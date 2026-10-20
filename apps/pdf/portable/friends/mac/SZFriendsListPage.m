@@ -1,4 +1,5 @@
-// SZFriendsListPage: the dropdown's root view. Search, Friends / Nearby, rows sorted by the helper, the footer.
+// SZFriendsListPage: the dropdown's root view. The title with its Beta tag, search, Friends / Nearby, rows sorted by
+// the helper, the footer.
 
 #import "mac/SZFriendsListPage.h"
 
@@ -9,6 +10,9 @@
 @end
 
 @implementation SZFriendsListPage {
+    NSTextField *_titleLabel;
+    SZFriendsFlippedView *_betaTag;
+    NSTextField *_betaLabel;
     SZFriendsFlippedView *_tabTrack;
     SZFriendsNoticeView *_sendNotice;
     SZFriendsNoticeView *_banner;
@@ -32,6 +36,19 @@
 - (instancetype)initWithContext:(SZFriendsContext *)context {
     if (!(self = [super initWithContext:context])) return nil;
     SZFriendsAppearance *appearance = context.appearance;
+    // Friends is a beta: its title, with a small tag that says so (welcome.strings button_label and beta). Without
+    // those strings (an older helper) neither shows and the search field moves up.
+    _titleLabel = SZFriendsLabel(@"", appearance.headerFont, appearance.primaryTextColor);
+    _titleLabel.maximumNumberOfLines = 1;
+    [self addSubview:_titleLabel];
+    _betaTag = [[SZFriendsFlippedView alloc] initWithFrame:NSMakeRect(0, 0, 36, 16)];
+    _betaTag.fillColor = [appearance.accentColor colorWithAlphaComponent:0.14];
+    _betaTag.cornerRadius = 4;
+    _betaLabel = SZFriendsLabel(@"", [NSFont systemFontOfSize:10 weight:NSFontWeightSemibold], appearance.accentColor);
+    _betaLabel.maximumNumberOfLines = 1;
+    _betaLabel.alignment = NSTextAlignmentCenter;
+    [_betaTag addSubview:_betaLabel];
+    [self addSubview:_betaTag];
     _searchField = [[NSSearchField alloc] initWithFrame:NSMakeRect(12, 12, 376, 28)];
     // The other panels' search field: a rounded native field at 13 pt that searches as you type.
     _searchField.bezelStyle = NSTextFieldRoundedBezel;
@@ -142,12 +159,24 @@
     return _banner.hidden ? nil : _banner.button;
 }
 
+- (NSView *)betaTagView {
+    return _betaTag.hidden ? nil : _betaTag;
+}
+
 - (NSView *)preferredFirstResponder {
     return _searchField;
 }
 
 // The welcome's strings arrive after the page may already exist; re-read them whenever a snapshot lands.
 - (void)applyStaticStrings {
+    NSString *title = [self.context string:@"button_label"], *beta = [self.context string:@"beta"];
+    _titleLabel.stringValue = title ?: @"";
+    _titleLabel.hidden = !title.length;
+    _betaLabel.stringValue = beta ?: @"";
+    _betaTag.hidden = !title.length || !beta.length;
+    _betaTag.accessibilityElement = NO;
+    _titleLabel.accessibilityLabel = beta.length && title.length ? [NSString stringWithFormat:@"%@, %@", title, beta]
+                                                                 : nil;
     _searchField.placeholderString = [self.context string:@"search_placeholder"];
     _friendsTab.title = [self.context string:@"tab_friends"];
     _nearbyTab.title = [self.context string:@"tab_nearby"];
@@ -282,7 +311,10 @@
     BOOL wasHidden = _namePrompt.hidden;
     _namePrompt.hidden = prompt == nil;
     _namePrompt.titleLabel.stringValue = SZFStr(prompt, @"title") ?: @"";
-    _namePrompt.noteLabel.stringValue = SZFStr(prompt, @"note") ?: @"";
+    // The card shows on first run, so it also says Friends is a beta (welcome.strings beta_note), under its own note.
+    NSString *note = SZFStr(prompt, @"note"), *betaNote = [self.context string:@"beta_note"];
+    if (prompt && betaNote.length) note = note.length ? [NSString stringWithFormat:@"%@\n%@", note, betaNote] : betaNote;
+    _namePrompt.noteLabel.stringValue = note ?: @"";
     if (prompt && !_namePrompt.nameEditor) {
         SZFriendsNameEditor *editor = [[SZFriendsNameEditor alloc] initWithContext:self.context
                                                                               font:self.context.appearance.bodyFont];
@@ -526,12 +558,28 @@
 - (void)layout {
     [super layout];
     CGFloat width = NSWidth(self.bounds), height = NSHeight(self.bounds);
-    _searchField.frame = NSMakeRect(12, 12, width - 24, 28);
-    _tabTrack.frame = NSMakeRect(12, 48, width - 24, 30);
+    CGFloat top = 12;
+    if (!_titleLabel.hidden) {
+        // One line at its natural width: a wrapping label's intrinsic width can be a few points short and cut it.
+        NSSize titleSize = [_titleLabel.cell cellSizeForBounds:NSMakeRect(0, 0, CGFLOAT_MAX, CGFLOAT_MAX)];
+        CGFloat titleWidth = MIN(ceil(titleSize.width), width - 24 - (_betaTag.hidden ? 0 : 48));
+        _titleLabel.frame = NSMakeRect(12, 10, titleWidth, ceil(titleSize.height));
+        if (!_betaTag.hidden) {
+            NSSize betaSize = [_betaLabel.cell cellSizeForBounds:NSMakeRect(0, 0, CGFLOAT_MAX, CGFLOAT_MAX)];
+            CGFloat tagWidth = ceil(betaSize.width) + 10, tagHeight = 16;
+            _betaTag.frame = NSMakeRect(NSMaxX(_titleLabel.frame) + 6,
+                                        floor(NSMidY(_titleLabel.frame) - tagHeight / 2), tagWidth, tagHeight);
+            _betaLabel.frame = NSMakeRect(0, floor((tagHeight - ceil(betaSize.height)) / 2), tagWidth,
+                                          ceil(betaSize.height));
+        }
+        top = NSMaxY(_titleLabel.frame) + 8;
+    }
+    _searchField.frame = NSMakeRect(12, top, width - 24, 28);
+    _tabTrack.frame = NSMakeRect(12, top + 36, width - 24, 30);
     CGFloat half = floor((width - 24 - 6) / 2);
     _friendsTab.frame = NSMakeRect(2, 2, half, 26);
     _nearbyTab.frame = NSMakeRect(4 + half, 2, width - 24 - 6 - half, 26);
-    CGFloat y = _tabTrack.hidden ? 48 : 86;
+    CGFloat y = _tabTrack.hidden ? top + 36 : top + 74;
     for (SZFriendsFlippedView *notice in @[ _sendNotice, _banner, _devicesView, _namePrompt ]) {
         if (notice.hidden) continue;
         CGFloat noticeHeight = [(id)notice heightForWidth:width - 24];

@@ -144,7 +144,7 @@ static void TestSmallWords(void) {
     ExpectText([s groupedComparisonCode:@"12345"], @"12345");
 
     NSDictionary *strings = s.staticStrings;
-    SZPExpect(strings.count == 34, @"34 static strings, got %lu", (unsigned long)strings.count);
+    SZPExpect(strings.count == 37, @"37 static strings, got %lu", (unsigned long)strings.count);
     // The views fill only the four drag strings and the link warning, and hosts the queued note, each with exactly
     // the placeholders PROTOCOL.md § Static strings names; {apps} reaches nobody unfilled.
     NSDictionary<NSString *, NSArray<NSString *> *> *filled = @{
@@ -158,6 +158,10 @@ static void TestSmallWords(void) {
     // Integration review, wave 6b: GTK refused links and special files while dragging but had no words to show.
     ExpectText(strings[@"drop_not_a_file"], @"Links and special files can’t be sent. Drop the original file instead.");
     ExpectText(strings[@"link_open"], @"Open in Browser");
+    // Friends is a beta: the dropdown's tag, the button's tooltip and the first-run line say so in every app.
+    ExpectText(strings[@"beta"], @"Beta");
+    ExpectText(strings[@"button_tooltip"], @"Friends (Beta)");
+    ExpectText(strings[@"beta_note"], @"Friends is in beta, so things may still change.");
     ExpectText(strings[@"link_open_email"], @"New Email");
     ExpectText(strings[@"link_elsewhere"], @"Goes to {host}, not {shown}");
     // Either app open on each Mac sends it, so the note names the apps that run Friends, not the reading app.

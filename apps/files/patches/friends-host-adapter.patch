@@ -2054,10 +2054,10 @@ index 0000000..30c6094
 +}
 diff --git a/src/nautilus-friends-preferences.c b/src/nautilus-friends-preferences.c
 new file mode 100644
-index 0000000..529f0e3
+index 0000000..d74a6bc
 --- /dev/null
 +++ b/src/nautilus-friends-preferences.c
-@@ -0,0 +1,110 @@
+@@ -0,0 +1,113 @@
 +/*
 + * nautilus-friends-preferences.c: the Friends page of Shenzhen Files' Preferences.
 + *
@@ -2134,11 +2134,14 @@ index 0000000..529f0e3
 +    /* Two people, as on the Friends button: never a speech bubble, which would read as AI chat. */
 +    adw_preferences_page_set_icon_name (page, "system-users-symbolic");
 +
-+    adw_preferences_group_set_title (group, _("Shenzhen Friends"));
-+    /* Friends reach each other only nearby in this version, so nothing here promises the Internet. */
++    /* Friends is a beta in every app that has it; the title and the description say so. */
++    adw_preferences_group_set_title (group, _("Shenzhen Friends (Beta)"));
++    /* It names every app, as the helper's queued note does: a friend with only ShenzhenPDF or Shenzhen 3D open still
++     * receives. Nothing here promises the Internet. */
 +    adw_preferences_group_set_description (group,
 +                                           _("Send files and messages to people you add, when they are nearby with "
-+                                             "ShenzhenPDF or Shenzhen Files open."));
++                                             "ShenzhenPDF, Shenzhen Files or Shenzhen 3D open. Friends is in beta, "
++                                             "so things may still change."));
 +
 +    adw_preferences_row_set_use_markup (ADW_PREFERENCES_ROW (enable_row), FALSE);
 +    adw_preferences_row_set_title (ADW_PREFERENCES_ROW (enable_row), _("Enable Shenzhen Friends"));
@@ -2406,10 +2409,10 @@ index 0000000..7465f69
 +G_END_DECLS
 diff --git a/src/nautilus-friends-shortcut.c b/src/nautilus-friends-shortcut.c
 new file mode 100644
-index 0000000..fe97568
+index 0000000..1dd285a
 --- /dev/null
 +++ b/src/nautilus-friends-shortcut.c
-@@ -0,0 +1,457 @@
+@@ -0,0 +1,459 @@
 +/*
 + * nautilus-friends-shortcut.c: Cmd+J, the Friends menu item and Friends in Cmd+K.
 + *
@@ -2671,7 +2674,8 @@ index 0000000..fe97568
 +
 +/* ---- The button's tooltip ---------------------------------------------------------------------------------------- */
 +
-+/* The views name the button ("Friends") and rename it as the helper's strings arrive; the key goes after the name. */
++/* The views name the button ("Friends (Beta)") and rename it as the helper's strings arrive; the key goes after the
++ * name ("Friends (Beta) · ⌘J"). */
 +static void
 +on_tooltip_changed (GObject    *menu_button,
 +                    GParamSpec *pspec,
@@ -2687,7 +2691,7 @@ index 0000000..fe97568
 +    {
 +        return;
 +    }
-+    suffix = g_strdup_printf (" (%s)", label);
++    suffix = g_strdup_printf (" · %s", label);
 +    if (g_str_has_suffix (name, suffix))
 +    {
 +        return;
@@ -2736,7 +2740,8 @@ index 0000000..fe97568
 +void
 +nautilus_friends_add_menu_items (GMenu *section)
 +{
-+    g_autoptr (GMenuItem) item = g_menu_item_new (_("Friends"), "win." NAUTILUS_FRIENDS_ACTION);
++    /* Friends is a beta: the menu says so, as the button's tooltip and Preferences do. */
++    g_autoptr (GMenuItem) item = g_menu_item_new (_("Friends (Beta)"), "win." NAUTILUS_FRIENDS_ACTION);
 +
 +    /* Window accelerators are registered with the first window, after the menu bar is built, so the item carries
 +     * the key itself, as the menu's other window items do. */
@@ -6303,7 +6308,7 @@ index 0000000..2993b53
 +void       probe_menu (void);
 diff --git a/test/friends/test-nautilus-friends-shortcut.m b/test/friends/test-nautilus-friends-shortcut.m
 new file mode 100644
-index 0000000..03b0966
+index 0000000..c5b98f3
 --- /dev/null
 +++ b/test/friends/test-nautilus-friends-shortcut.m
 @@ -0,0 +1,933 @@
@@ -6902,17 +6907,17 @@ index 0000000..03b0966
 +        return;
 +    }
 +    EXPECT (action != NULL && g_action_get_enabled (action), "win.friends exists and is enabled with a button");
-+    EXPECT (menu_item != nil && [[menu_item title] isEqualToString:@"Friends"],
-+            "the menu bar has Friends with Cmd+J as its key equivalent (%s)",
++    EXPECT (menu_item != nil && [[menu_item title] isEqualToString:@"Friends (Beta)"],
++            "the menu bar has Friends (Beta) with Cmd+J as its key equivalent (%s)",
 +            menu_item != nil ? [[menu_item title] UTF8String] : "none");
 +    /* The views name the button from the helper's strings, and again on every badge change; without a helper this
 +     * test does what they do then (szfriends_gtk_button.c, apply_labels). */
 +    for (int change = 0; change < 2 && menu_button != NULL; change++)
 +    {
-+        gtk_widget_set_tooltip_text (menu_button, "Friends");
++        gtk_widget_set_tooltip_text (menu_button, "Friends (Beta)");
 +        tooltip = gtk_widget_get_tooltip_text (menu_button);
-+        EXPECT (g_strcmp0 (tooltip, "Friends (⌘J)") == 0,
-+                "the views name the button%s: its tooltip is \"Friends (⌘J)\" (\"%s\")",
++        EXPECT (g_strcmp0 (tooltip, "Friends (Beta) · ⌘J") == 0,
++                "the views name the button%s: its tooltip is \"Friends (Beta) · ⌘J\" (\"%s\")",
 +                change == 0 ? "" : " again", tooltip != NULL ? tooltip : "");
 +    }
 +    if (action != NULL)

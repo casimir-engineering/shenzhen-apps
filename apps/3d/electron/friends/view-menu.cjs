@@ -9,7 +9,8 @@
 // the shortcut and the button work without the menu.
 const ITEM_ID = "friends-toggle";
 const SEPARATOR_ID = `${ITEM_ID}-separator`;
-const LABEL = "Friends";
+// Friends is a beta: the menu says so, as the button's tooltip and Settings do.
+const LABEL = "Friends (Beta)";
 const ACCELERATOR = "CmdOrCtrl+J";
 
 /**

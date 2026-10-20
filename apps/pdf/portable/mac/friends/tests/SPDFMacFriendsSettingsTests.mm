@@ -109,7 +109,7 @@ static void TestSettingsPage(void) {
     [controller buildFriends];
     NSView* root = controller.window.contentView;
     NSView* heading = FindView(root, ^BOOL(NSView* view) {
-        return [view isKindOfClass:NSTextField.class] && [((NSTextField*)view).stringValue isEqual:@"Shenzhen Friends"];
+        return [view isKindOfClass:NSTextField.class] && [((NSTextField*)view).stringValue isEqual:SPDFMacFriendsSettingsHeading];
     });
     SPDFMacFriendsSettingsPane* pane = (SPDFMacFriendsSettingsPane*)FindView(root, ^BOOL(NSView* view) {
         return [view isKindOfClass:SPDFMacFriendsSettingsPane.class];

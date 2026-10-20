@@ -299,7 +299,7 @@ to, the plan above:
 - Bundle. `NAUTILUS_FRIENDS_HELPER` (a standalone `Shenzhen Friends.app`) counts only when the app embeds no
   helper and the build has no Team ID; it then also names that helper's own animal set. `helper_version` and
   `helper_build_number` are sent together or not at all.
-- Preferences. A "Friends" page (icon `system-users-symbolic`, two people): the group "Shenzhen Friends" with
+- Preferences. A "Friends" page (icon `system-users-symbolic`, two people): the group "Shenzhen Friends (Beta)" with
   "Send files and messages to people you add, when they are nearby with ShenzhenPDF or Shenzhen Files open.", the
   switch (plain-text title, `g_settings_bind`), the disclosure under it, and a second group that holds the views'
   Settings section only while Friends is attached. The disclosure is secondary text as the views draw it: the
@@ -352,7 +352,7 @@ to, the plan above:
   ⌘J" key equivalent lives, only when GTK left it unhandled (`gdkmacoseventsource.c`); GTK runs application
   accelerators from a capture-phase controller on the window; and a popover's keys go to its toplevel (popups
   cannot become key on macOS, and `gtkmain.c` rewrites popup key events for the toplevel), so no controller on the
-  popover is needed. The button's tooltip gets " (⌘J)" after the views' name, re-added whenever the views set it
+  popover is needed. The button's tooltip gets " · ⌘J" after the views' name ("Friends (Beta) · ⌘J"), re-added whenever the views set it
   (they do on every badge change); before the helper's strings arrive the views set no tooltip, and neither does
   the host. Cmd+K is `nautilus-command-palette.c`, built with or without Friends: an `AdwDialog` over the window
   with a search field and Files' commands (New Window, New Tab, New Folder, Enter Location…, Find, Search

@@ -63,6 +63,9 @@
     "show_all": "Show all",
     "save": "Save",
     "name_empty": "Type the name friends should see.",
-    "name_saved": "Saved — friends now see {name}"
+    "name_saved": "Saved — friends now see {name}",
+    "beta": "Beta",
+    "button_tooltip": "Friends (Beta)",
+    "beta_note": "Friends is in beta, so things may still change."
   }
 }

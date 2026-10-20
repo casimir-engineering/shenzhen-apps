@@ -9,7 +9,7 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-FOUNDATION_EXPORT NSString* const SPDFMacFriendsMenuTitle;           // "Friends"
+FOUNDATION_EXPORT NSString* const SPDFMacFriendsMenuTitle;           // "Friends (Beta)"
 FOUNDATION_EXPORT NSString* const SPDFMacFriendsOpenTitle;           // "Open Friends"
 FOUNDATION_EXPORT NSString* const SPDFMacFriendsCloseTitle;          // "Close Friends", while the dropdown is open
 FOUNDATION_EXPORT NSString* const SPDFMacFriendsAddByIDTitle;        // "Add by ID…"

@@ -13,7 +13,7 @@ NS_ASSUME_NONNULL_BEGIN
 // Written for the person deciding whether to keep Friends on, and true for M1 (brief § Product contract, Disclosure).
 FOUNDATION_EXPORT NSString* const SPDFMacFriendsEnableTitle;      // "Enable Shenzhen Friends"
 FOUNDATION_EXPORT NSString* const SPDFMacFriendsDisclosureText;
-FOUNDATION_EXPORT NSString* const SPDFMacFriendsSettingsHeading;  // "Shenzhen Friends"
+FOUNDATION_EXPORT NSString* const SPDFMacFriendsSettingsHeading;  // "Shenzhen Friends (Beta)"
 FOUNDATION_EXPORT NSString* const SPDFMacFriendsSettingsSubtitle;
 FOUNDATION_EXPORT NSString* const SPDFMacFriendsSettingsSectionKey; // "friends": the Settings section identifier
 // Posted (locally) when Friends was turned on or off or attached, so an open pane shows the new state.

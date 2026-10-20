@@ -107,7 +107,7 @@ impl Strings {
     /// welcome.strings: the static chrome labels PROTOCOL.md § Static strings lists. Only `{apps}` is filled here; the
     /// placeholders views and hosts fill stay as they are.
     pub fn static_strings(&self) -> BTreeMap<String, String> {
-        const KEYS: [&str; 34] = [
+        const KEYS: [&str; 37] = [
             "button_label",
             "tab_friends",
             "tab_nearby",
@@ -142,6 +142,9 @@ impl Strings {
             "save",
             "name_empty",
             "name_saved",
+            "beta",
+            "button_tooltip",
+            "beta_note",
         ];
         let apps = self.text("apps.with_friends");
         let values: Values = &[

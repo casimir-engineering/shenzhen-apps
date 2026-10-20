@@ -38,7 +38,10 @@ static void apply_labels(SZFriendsGtkButton *button) {
     const char *spoken = badge && *badge->accessibility_label ? badge->accessibility_label : name;
     if (*spoken)
         gtk_accessible_update_property(GTK_ACCESSIBLE(button->menu_button), GTK_ACCESSIBLE_PROPERTY_LABEL, spoken, -1);
-    gtk_widget_set_tooltip_text(button->menu_button, *name ? name : NULL);
+    /* "Friends (Beta)": the tooltip says Friends is a beta; a helper without button_tooltip gives the plain name. */
+    const char *tooltip = szfriends_gtk_link_string(button->link, "button_tooltip");
+    if (!*tooltip) tooltip = name;
+    gtk_widget_set_tooltip_text(button->menu_button, *tooltip ? tooltip : NULL);
 }
 
 static void badge_changed(SZFriendsGtkLink *link, const SZFriendsGtkBadgeSnapshot *badge, gpointer data) {

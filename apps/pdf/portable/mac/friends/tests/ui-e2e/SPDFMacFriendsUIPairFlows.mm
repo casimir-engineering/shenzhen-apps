@@ -126,7 +126,11 @@ static BOOL UIAcceptRequest(UIRig* rig, UIFriend* mei) {
            "each is named for what it does (%@, %@, %@)", accept.accessibilityLabel, decline.accessibilityLabel,
            block.toolTip);
     CLICK(rig, accept, @"Accept");
-    EXPECT(rig, UIWait(15, ^BOOL { return [UIRowTitled([mei.client dataFor:mei.list], @"Ana")[@"drop_label"] length] > 0; }),
+    EXPECT(rig, UIWait(15, ^BOOL {
+                    // null until the request is accepted on her side, a string after
+                    id label = UIRowTitled([mei.client dataFor:mei.list], @"Ana")[@"drop_label"];
+                    return [label isKindOfClass:NSString.class] && [label length] > 0;
+                }),
            "Mei sees Ana as a friend: %@", [mei.client dataFor:mei.list]);
     EXPECT(rig, UIWait(10, ^BOOL {
                SZFriendsRowView* now = UIRow(rig, @"Mei");

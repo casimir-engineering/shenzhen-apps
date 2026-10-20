@@ -153,7 +153,10 @@
     NSString *label = SZFStr(data, @"label");
     _button.badgeLabel = label.length ? label : nil;
     _button.accessibilityLabel = SZFStr(data, @"accessibility_label") ?: [_context string:@"button_label"];
-    _button.toolTip = [_context string:@"button_label"].length ? [_context string:@"button_label"] : nil;
+    // "Friends (Beta)": the tooltip says Friends is a beta; a helper without button_tooltip gives the plain name.
+    NSString *toolTip = [_context string:@"button_tooltip"];
+    if (!toolTip.length) toolTip = [_context string:@"button_label"];
+    _button.toolTip = toolTip.length ? toolTip : nil;
 }
 
 #pragma mark - Services for the host (Cmd+K, citations)

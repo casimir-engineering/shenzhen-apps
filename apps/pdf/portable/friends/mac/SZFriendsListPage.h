@@ -95,6 +95,8 @@ static const NSTimeInterval SZFriendsNameSavedSeconds = 2.5;
 @class SZFriendsListDevicesView;
 
 @interface SZFriendsListPage : SZFriendsPage
+// The small tag beside the title that says Friends is a beta (welcome.strings beta); nil while it is not shown.
+@property(nonatomic, strong, readonly, nullable) NSView *betaTagView;
 @property(nonatomic, strong, readonly) NSSearchField *searchField;
 @property(nonatomic, strong, readonly) SZFriendsButton *friendsTab;
 @property(nonatomic, strong, readonly) SZFriendsButton *nearbyTab;

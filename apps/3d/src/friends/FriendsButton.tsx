@@ -258,9 +258,10 @@ export function FriendsButton({ attach }: { attach: AttachSource | null }) {
       <button
         type="button"
         className={`icon-button friends-button ${open ? "active" : ""} ${dragging ? "drop-target" : ""}`}
+        // "Friends (Beta) · ⌘J": the tooltip says Friends is a beta; an older helper gives the plain name.
         title={
-          strings.button_label
-            ? `${strings.button_label} (${friendsShortcutLabel})`
+          strings.button_tooltip || strings.button_label
+            ? `${strings.button_tooltip || strings.button_label} · ${friendsShortcutLabel}`
             : undefined
         }
         aria-label={label}

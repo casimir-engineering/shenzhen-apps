@@ -62,6 +62,18 @@ static BOOL UIFirstOpen(UIRig* rig) {
     EXPECT(rig, UIFindText(list.footer, @"Choose your name") && UIFindText(list.footer, idLabel),
            "the footer shows the placeholder and %@ (%@)", idLabel, friendsID);
     EXPECT(rig, UIFindButton(rig.content, @"Friends") && UIFindButton(rig.content, @"Nearby"), "both tabs");
+    // Friends is a beta: the title's tag shows, whole and inside the dropdown; the first-run card and the button's
+    // tooltip say so too.
+    NSView* beta = list.betaTagView;
+    EXPECT(rig, beta && UIVisible(beta) && UIFindText(beta, @"Beta"), "the title shows the Beta tag: %@", beta);
+    NSRect tag = [beta convertRect:beta.bounds toView:rig.content];
+    EXPECT(rig, NSWidth(tag) >= 20 && NSHeight(tag) >= 10 && NSContainsRect(rig.content.bounds, tag),
+           "the Beta tag lies inside the dropdown: %@ in %@", NSStringFromRect(tag),
+           NSStringFromRect(rig.content.bounds));
+    EXPECT(rig, UIFindText(rig.content, @"Friends is in beta, so things may still change."),
+           "the first-run card says Friends is a beta");
+    EXPECT(rig, [rig.dropdown.button.toolTip hasPrefix:@"Friends (Beta)"], "the button's tooltip says Beta: %@",
+           rig.dropdown.button.toolTip);
     EXPECT(rig, UIFindText(rig.content, @"No friends yet"), "the empty list says so");
     // No note about the ID that raises a question without helping (the owner's report of 2026-10-20).
     EXPECT(rig, !UIFindText(rig.content, @"already taken") && !UIFindText(rig.content, @"works nearby now"),

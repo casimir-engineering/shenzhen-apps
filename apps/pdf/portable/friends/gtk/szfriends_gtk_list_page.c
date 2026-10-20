@@ -1,4 +1,5 @@
-/* The dropdown's root page (szfriends_gtk_list_page.h; mirrors mac/SZFriendsListPage.m): search, Friends / Nearby,
+/* The dropdown's root page (szfriends_gtk_list_page.h; mirrors mac/SZFriendsListPage.m): the title with its Beta
+ * tag beside search, Friends / Nearby,
  * the rows the helper sorted, the footer. Rows are reused by position, so a refresh keeps hover, focus and an armed
  * "Block?" on the person it was armed for. */
 
@@ -20,6 +21,12 @@ static const char *string(SZFriendsGtkListPage *list, const char *key) {
 /* The welcome's strings can arrive after the page exists; they are read again with every snapshot. */
 static void apply_static_strings(SZFriendsGtkListPage *list) {
     SZFriendsGtkListParts *parts = &list->parts;
+    /* Friends is a beta: the title and its tag say so. An older helper sends neither, and neither shows. */
+    const char *title = string(list, "button_label"), *beta = string(list, "beta");
+    gtk_label_set_text(GTK_LABEL(parts->title), title);
+    gtk_widget_set_visible(parts->title, *title != '\0');
+    gtk_label_set_text(GTK_LABEL(parts->beta), beta);
+    gtk_widget_set_visible(parts->beta, *title != '\0' && *beta != '\0');
     const char *placeholder = string(list, "search_placeholder");
     gtk_search_entry_set_placeholder_text(GTK_SEARCH_ENTRY(parts->search), placeholder);
     if (*placeholder)
@@ -296,7 +303,20 @@ static void page_build(SZFriendsGtkPage *page, gpointer data) {
     gtk_widget_set_hexpand(parts->search, TRUE);
     gtk_search_entry_set_search_delay(GTK_SEARCH_ENTRY(parts->search), 0); /* searches as you type, as AppKit */
     g_signal_connect(parts->search, "search-changed", G_CALLBACK(search_changed), list);
-    szfriends_gtk_page_set_title_widget(page, parts->search);
+    parts->title = gtk_label_new("");
+    gtk_widget_add_css_class(parts->title, "szfriends-list-title");
+    gtk_widget_set_visible(parts->title, FALSE);
+    parts->beta = gtk_label_new("");
+    gtk_widget_add_css_class(parts->beta, "szfriends-beta");
+    gtk_widget_set_valign(parts->beta, GTK_ALIGN_CENTER);
+    gtk_widget_set_visible(parts->beta, FALSE);
+    GtkWidget *header = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 6);
+    gtk_box_append(GTK_BOX(header), parts->title);
+    gtk_box_append(GTK_BOX(header), parts->beta);
+    gtk_widget_set_margin_end(parts->beta, 4);
+    gtk_box_append(GTK_BOX(header), parts->search);
+    gtk_widget_set_hexpand(header, TRUE);
+    szfriends_gtk_page_set_title_widget(page, header);
     build_tabs(list);
     szfriends_gtk_page_add_top_bar(page, parts->tabs);
     GtkWidget *content = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);

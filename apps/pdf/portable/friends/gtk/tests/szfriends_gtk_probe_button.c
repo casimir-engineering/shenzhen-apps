@@ -122,7 +122,7 @@ static void test_badge(SZFGHarness *harness) {
     EXPECT(gtk_widget_get_visible(badge) && strcmp(gtk_label_get_text(GTK_LABEL(badge)), "2") == 0,
            "the badge shows the helper's count");
     EXPECT(!gtk_widget_get_can_target(badge), "the badge takes no clicks: the button keeps one hit area");
-    EXPECT(g_strcmp0(gtk_widget_get_tooltip_text(menu), "Friends") == 0, "the tooltip is the helper's word");
+    EXPECT(g_strcmp0(gtk_widget_get_tooltip_text(menu), "Friends (Beta)") == 0, "the tooltip is the helper's words");
     /* The badge sits inside the button's own frame, and clear of the second person: covered, two read as one. */
     SZFGIconSpot shifted = icon_spot(window, anchor, "button-badge-clearance");
     graphene_rect_t badge_bounds, button_bounds;

@@ -165,6 +165,7 @@ void szfriends_gtk_list_apply_notices(SZFriendsGtkListPage *list, const SZFriend
     szfriends_gtk_list_label_set(parts->prompt_title, prompt ? prompt->title : NULL);
     const char *error = g_object_get_data(G_OBJECT(parts->prompt_note), SZFRIENDS_GTK_PROMPT_ERROR);
     szfriends_gtk_list_label_set(parts->prompt_note, error ? error : prompt ? prompt->note : NULL);
+    szfriends_gtk_list_label_set(parts->prompt_beta, prompt ? szfriends_gtk_link_string(list->link, "beta_note") : NULL);
     gtk_entry_set_placeholder_text(GTK_ENTRY(parts->prompt_entry), prompt ? prompt->placeholder : NULL);
     /* The helper's word for Save; an older helper sends none, and Return still saves. */
     const char *save = szfriends_gtk_link_string(list->link, "save");
@@ -218,9 +219,11 @@ void szfriends_gtk_list_build_notices(SZFriendsGtkListPage *list, GtkWidget *con
     gtk_box_append(GTK_BOX(prompt_row), parts->prompt_entry);
     gtk_box_append(GTK_BOX(prompt_row), parts->prompt_save);
     parts->prompt_note = szfriends_gtk_list_label("szfriends-caption");
+    parts->prompt_beta = szfriends_gtk_list_label("szfriends-caption");
     gtk_box_append(GTK_BOX(parts->prompt), parts->prompt_title);
     gtk_box_append(GTK_BOX(parts->prompt), prompt_row);
     gtk_box_append(GTK_BOX(parts->prompt), parts->prompt_note);
+    gtk_box_append(GTK_BOX(parts->prompt), parts->prompt_beta);
     gtk_box_append(GTK_BOX(content), parts->send_notice);
     gtk_box_append(GTK_BOX(content), parts->banner);
     gtk_box_append(GTK_BOX(content), parts->prompt);

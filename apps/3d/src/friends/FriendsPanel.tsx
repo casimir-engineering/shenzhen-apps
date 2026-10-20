@@ -318,12 +318,14 @@ export function FriendsSettings({
             }}
           />
           <span>
-            <strong>Enable Shenzhen Friends</strong>
+            <strong>
+              Enable Shenzhen Friends <span className="szf-beta">Beta</span>
+            </strong>
             <small>
               Shenzhen 3D connects to the Friends server whenever it is open and
               Friends is on. The server sees your network address, your Friends
               ID and when Shenzhen 3D is open. It never sees your name, messages
-              or files.
+              or files. Friends is in beta, so things may still change.
             </small>
           </span>
         </label>

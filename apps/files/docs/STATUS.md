@@ -1033,7 +1033,7 @@ never shown; on the app, with Friends on:
 
 - [ ] Cmd-J opens Friends with the cursor in its search field; Cmd-J again
       (cursor still there) closes it. Hovering the Friends button shows
-      "Friends (⌘J)". View ▸ Friends shows ⌘J and does the same.
+      "Friends (Beta) · ⌘J". View ▸ Friends (Beta) shows ⌘J and does the same.
 - [ ] Open Add by ID (or a conversation), close with Cmd-J, reopen with
       Cmd-J: it reopens on that page.
 - [ ] Cmd-K opens Search Commands with the cursor in its field. Type
