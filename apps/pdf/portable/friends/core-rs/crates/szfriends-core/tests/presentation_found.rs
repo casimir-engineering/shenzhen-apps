@@ -65,6 +65,7 @@ fn a_friend_in_the_list_while_nearby() {
     }
     let mut people = presentation::world::people();
     people.get_mut("c_mei").unwrap().found_methods = vec![RouteMethod::Lan, RouteMethod::Bluetooth];
+    people.get_mut("c_lena").unwrap().found_methods = vec![RouteMethod::Lan]; // a request: only friends' rows say
     let all = everyone(&people);
     let list = builder(found_audience()).list(&all, &preview_items(), &profile_raph(), "", now());
     validate_snapshot(&list, "list", "found");
@@ -83,6 +84,7 @@ fn a_friend_in_the_list_while_nearby() {
         .unwrap()
         .ends_with(", Found over Local network and Bluetooth"));
     assert!(rows["c_kenji"]["found"].is_null(), "not seen nearby now");
+    assert!(rows["c_lena"]["found"].is_null(), "not a friend");
     let plain = builder(audience()).list(&all, &preview_items(), &profile_raph(), "", now());
     assert!(plain["rows"].as_array().unwrap().iter().all(|r| r.get("found").is_none()));
 }

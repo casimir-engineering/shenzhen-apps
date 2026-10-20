@@ -25,7 +25,7 @@ use crate::service::{hex, unhex, State};
 const FRIEND_DEVICE_PREFIX: &str = "fdev-";
 
 /// The conversation and device key a matcher name stands for.
-fn friend_device_of(name: &str) -> Option<(String, [u8; 32])> {
+pub(super) fn friend_device_of(name: &str) -> Option<(String, [u8; 32])> {
     let rest = name.strip_prefix(FRIEND_DEVICE_PREFIX)?;
     let (key, conversation) = (rest.get(..64)?, rest.get(64..)?.strip_prefix('-')?);
     Some((conversation.to_owned(), unhex(key)?.try_into().ok()?))

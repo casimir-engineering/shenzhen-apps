@@ -114,8 +114,12 @@ impl SnapshotBuilder {
         if confirmed {
             said.push(s.text("list.spoken.id_confirmed"));
         }
-        let (found, found_spoken) =
-            if self.shows_found() { self.found(&person.found_methods) } else { (Value::Null, None) };
+        // How a friend nearby was found; nobody else's row says.
+        let (found, found_spoken) = if self.shows_found() && person.relation == Relation::Friend {
+            self.found(&person.found_methods)
+        } else {
+            (Value::Null, None)
+        };
         said.extend(found_spoken);
         let first = self.first_name_for_person(person);
         let mut row = json!({

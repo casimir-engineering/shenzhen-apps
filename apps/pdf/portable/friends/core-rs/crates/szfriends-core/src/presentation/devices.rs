@@ -221,6 +221,9 @@ impl SnapshotBuilder {
         if self.shows_list_menu() {
             row.insert("menu".into(), json!([])); // nothing to remove: these are the person's own computers
         }
+        if self.shows_found() {
+            row.insert("found".into(), Value::Null); // this computer is found nowhere
+        }
         if mentions {
             row.insert("mentionable".into(), json!(false)); // nobody mentions themselves
         }
