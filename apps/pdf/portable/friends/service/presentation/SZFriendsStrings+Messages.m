@@ -52,6 +52,11 @@
                                        friendsID:[friendsID isKindOfClass:NSString.class] ? friendsID : nil];
         return [self text:[@"error.stale.message_" stringByAppendingString:state] values:@{@"first" : first}];
     }
+    // set_received_folder: the folder the person picked in Settings (the router passes this field for the words).
+    if ([field isEqual:@"received_folder"] && [code isEqualToString:@"file_missing"])
+        return [self text:@"error.received_folder.missing"];
+    if ([field isEqual:@"received_folder"] && [code isEqualToString:@"not_allowed"])
+        return [self text:@"error.received_folder.not_allowed"];
     // A link that was revoked, expired or reset (PROTOCOL.md § Links).
     if ([code isEqualToString:@"not_found"] && [field isEqual:@"payload"]) return [self text:@"error.not_found.link"];
     if ([code isEqualToString:@"rate_limited"])

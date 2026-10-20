@@ -113,7 +113,8 @@ BOOL SZFriendsTransferRowUpdate(SZFriendsStoreDB *db, NSString *transferID, NSDi
     dispatch_once(&once, ^{
         allowed = [NSSet setWithArray:@[
             @"verified_bytes", @"accepted_automatically", @"asked_low_disk", @"staged_path", @"partial_path",
-            @"final_path", @"publishing", @"received_path", @"bytes_per_second", @"failure_reason"
+            @"final_path", @"publishing", @"received_path", @"bytes_per_second", @"failure_reason", @"received_at",
+            @"received_via"
         ]];
     });
     NSMutableArray *assignments = [NSMutableArray array];

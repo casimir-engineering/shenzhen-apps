@@ -37,6 +37,15 @@ static void choose_image(GtkWidget *source, const char *title, SZFriendsGtkChose
     chosen(szfg_outside.chosen, chosen_data);
 }
 
+static void choose_folder(GtkWidget *source, const char *start, SZFriendsGtkChosen chosen, gpointer chosen_data,
+                          gpointer data) {
+    (void)source, (void)data;
+    szfg_outside.chooser_calls++;
+    g_free(szfg_outside.folder_start);
+    szfg_outside.folder_start = g_strdup(start);
+    chosen(szfg_outside.chosen, chosen_data);
+}
+
 static void open_uri(GtkWidget *source, const char *uri, gpointer data) {
     (void)source, (void)data;
     record(&szfg_outside.uris, uri);
@@ -47,13 +56,15 @@ static void clear(void) {
                            &szfg_outside.confirms, &szfg_outside.confirm_bodies};
     for (gsize i = 0; i < G_N_ELEMENTS(lists); i++) g_clear_pointer(lists[i], g_ptr_array_unref);
     g_clear_pointer(&szfg_outside.chosen, g_free);
+    g_clear_pointer(&szfg_outside.folder_start, g_free);
     szfg_outside.chooser_calls = 0;
 }
 
 void szfg_outside_install(void) {
     szfg_outside_answer(FALSE);
     clear();
-    static const SZFriendsGtkSeams seams = {copy_text, open_uri, confirm, choose_image, NULL};
+    static const SZFriendsGtkSeams seams = {.copy_text = copy_text, .open_uri = open_uri, .confirm = confirm,
+                                            .choose_image = choose_image, .choose_folder = choose_folder};
     szfriends_gtk_set_seams(&seams);
 }
 

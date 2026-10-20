@@ -87,6 +87,7 @@ static BOOL SZFE2EPrepare(SZFE2EWorld *world, SZFE2EPair *pair, SZFE2ETwoApps *a
     CHECK(*pdfExecutable && *filesExecutable, "both test app bundles");
     *environment = @{
         @"SZFRIENDS_STATE_DIR" : pair.helperA.stateDirectory,
+        @"SZFRIENDS_DOWNLOADS_DIR" : pair.helperA.downloadsDirectory,
         @"SZFRIENDS_KEY_STORE" : @"file",
         @"SZFRIENDS_TEST_SERVICE_TYPE" : world.serviceType,
         @"SZFRIENDS_AVATARS_MANIFEST" : arguments[2],

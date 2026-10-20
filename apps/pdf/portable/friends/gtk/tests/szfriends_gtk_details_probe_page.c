@@ -88,7 +88,7 @@ static void test_fields(SZFGHarness *harness, SZFGRig *rig, GtkWidget *page) {
     GtkWidget *show = szfg_find_button(page, "Show in Finder");
     if (show) g_signal_emit_by_name(show, "clicked");
     EXPECT(szfg_outside.revealed && szfg_outside.revealed->len == 1 &&
-               g_str_has_suffix(g_ptr_array_index(szfg_outside.revealed, 0), "Shenzhen Friends/received"),
+               !g_strcmp0(g_ptr_array_index(szfg_outside.revealed, 0), "/Users/raph/Downloads"),
            "Show in Finder goes to the host with the folder's path");
     EXPECT(szfg_find_label(page, "Keeps your conversation. Mei can send you a new request.") != NULL,
            "each action's note under it");
@@ -161,7 +161,7 @@ static void test_delete_history(SZFGHarness *harness, SZFGRig *rig, GtkWidget *p
     EXPECT(card && szfg_find_label(card, "Delete your chat history with Mei?") &&
                szfg_find_label(card, "Your messages and file history with Mei are deleted from this computer, and "
                                      "anything still waiting to go to Mei won’t be sent. Mei stays your friend and "
-                                     "keeps their own copy of the chat. Files you received stay in Received files.") &&
+                                     "keeps their own copy of the chat. Files you received stay where they were saved.") &&
                szfg_fake_frames(harness, "delete_history", NULL, NULL) == 0,
            "it asks first, saying what goes and what stays, and sends nothing yet");
     GtkWidget *cancel = card ? szfg_find_named(card, "szfriends.confirmation.cancel") : NULL;
@@ -308,8 +308,9 @@ static void render_fresh(SZFGHarness *harness, gboolean dark, gboolean key_chang
                            szfg_find_label(page, key_change ? "ID confirmed by the Friends server"
                                                             : "Received from Mei: 14 files"),
                            szfg_find_label(page, key_change ? "Check that Mei sees the same code on her Mac."
-                                                            : "Files from Mei download without asking. They still go "
-                                                              "to Received files and never open by themselves."),
+                                                            : "Files from Mei download without asking. They’re saved "
+                                                              "where other received files go and never open by "
+                                                              "themselves."),
                            NULL};
     double contrast[G_N_ELEMENTS(labels)] = {0};
     /* Taller with a changed key: its card and three actions run past 640 px, where the page scrolls. */

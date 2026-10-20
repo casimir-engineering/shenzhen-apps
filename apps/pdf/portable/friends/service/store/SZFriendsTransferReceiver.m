@@ -1,5 +1,6 @@
 // The receiving side of a transfer: chunks into a private staging file, durable progress, digest verification,
-// publishing into received/, and crash recovery (ADR 0003 § Durable progress, § Crash recovery; ADR 0001 § Files).
+// publishing into the folder received files go to, and crash recovery (ADR 0003 § Durable progress, § Crash
+// recovery; ADR 0001 § Files).
 
 #import <fcntl.h>
 #import <sodium.h>
@@ -253,41 +254,29 @@ static BOOL SZFriendsHashPrefix(int fd, uint64_t length, crypto_generichash_stat
     return [db transaction:^BOOL(NSError **inner) {
         NSDictionary *values = @{
             @"received_path" : finalPath, @"publishing" : @0, @"final_path" : [NSNull null],
-            @"partial_path" : [NSNull null], @"verified_bytes" : @(size)
+            @"partial_path" : [NSNull null], @"verified_bytes" : @(size), @"received_at" : [NSDate date]
         };
         return SZFriendsTransferRowUpdate(db, transferID, values, inner) &&
                SZFriendsTransferRowApplyEvent(db, transferID, SZFriendsTransferEventVerified, nil, inner);
     } error:error];
 }
 
-// Records the destination before the rename, so a crash between rename and commit is finished at the next start
-// instead of leaving a published file the store does not know (ADR 0003 § Crash recovery). RENAME_EXCL makes the
-// no-overwrite rule hold even if something appeared at the destination after it was chosen.
+// Records the destination before each rename, so a crash between rename and commit is finished at the next start
+// instead of leaving a published file the store does not know (ADR 0003 § Crash recovery). The exclusive rename
+// makes the no-overwrite rule hold even if something appeared at the destination after it was chosen.
 - (BOOL)publish:(SZFriendsTransferRecord *)record from:(NSString *)partial db:(SZFriendsStoreDB *)db
           error:(NSError **)error {
-    if (!SZFriendsEnsurePrivateDirectory(_receivedDirectory, error)) return NO;
-    SZFriendsSetQuarantine(partial, NULL);
-    for (int attempt = 0; attempt < 8; attempt++) {
-        NSString *final = SZFriendsUniqueDestination(_receivedDirectory, record.fileName);
-        BOOL recorded = [db transaction:^BOOL(NSError **inner) {
-            return SZFriendsTransferRowUpdate(db, record.transferID, @{@"final_path" : final, @"publishing" : @1},
-                                              inner);
-        } error:error];
-        if (!recorded) return NO;
-        SZFriendsStoreTestPoint("transfer.before_rename");
-        if (renamex_np(partial.fileSystemRepresentation, final.fileSystemRepresentation, RENAME_EXCL) != 0) {
-            if (errno == EEXIST) continue;
-            return SZFriendsFail(error, SZFriendsReceiveError(SZFriendsStoreErrorDatabase, @"cannot publish"));
-        }
-        int directory = open(_receivedDirectory.fileSystemRepresentation, O_RDONLY | O_CLOEXEC);
-        if (directory >= 0) {
-            fsync(directory); // the rename itself must survive a power cut before the row says Received
-            close(directory);
-        }
-        SZFriendsStoreTestPoint("transfer.after_rename");
-        return [self markReceived:record.transferID at:final size:record.size db:db error:error];
-    }
-    return SZFriendsFail(error, SZFriendsReceiveError(SZFriendsStoreErrorDatabase, @"no free destination name"));
+    NSString *transferID = record.transferID;
+    NSString *final = SZFriendsPublishReceivedFile(partial, record.fileName, _stateDirectory,
+                                                   ^BOOL(NSString *candidate, NSError **inner) {
+        return [db transaction:^BOOL(NSError **innermost) {
+            NSDictionary *values = @{@"final_path" : candidate, @"publishing" : @1};
+            return SZFriendsTransferRowUpdate(db, transferID, values, innermost);
+        } error:inner];
+    }, error);
+    if (final == nil) return NO;
+    SZFriendsStoreTestPoint("transfer.after_rename");
+    return [self markReceived:transferID at:final size:record.size db:db error:error];
 }
 
 - (BOOL)finishTransfer:(NSString *)transferID finalDigest:(NSData *)finalDigest
@@ -362,6 +351,14 @@ static BOOL SZFriendsHashPrefix(int fd, uint64_t length, crypto_generichash_stat
         BOOL staged = partial && lstat(partial.fileSystemRepresentation, &info) == 0;
         BOOL published = final && lstat(final.fileSystemRepresentation, &info) == 0;
         SZFriendsTransferRecord *record = staged ? SZFriendsTransferRowLoad(db, transferID) : nil;
+        // A copy across volumes renamed before the crash, its staged file not yet removed: the published file is it.
+        if (record && published && SZFriendsStagedFileMatchesAtPath(final, record)) {
+            unlink(partial.fileSystemRepresentation);
+            if (![self markReceived:transferID at:final size:size db:db error:error]) return NO;
+            continue;
+        }
+        // A copy across volumes the crash interrupted: its hidden part file goes, and the copy is redone.
+        if (final) unlink(SZFriendsReceivedPartPath(final).fileSystemRepresentation);
         if (record && !SZFriendsStagedFileMatchesAtPath(partial, record)) {
             // Changed on disk since it was verified: never published as if it were what the friend sent.
             if (![self failMismatched:transferID partial:partial db:db error:error]) return NO;

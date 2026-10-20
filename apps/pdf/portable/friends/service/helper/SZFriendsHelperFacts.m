@@ -93,6 +93,23 @@ SZFriendsItemFacts *SZFriendsItemFactsFromRecord(SZFriendsItemRecord *record, SZ
     return facts;
 }
 
+NSDictionary<NSString *, id> *SZFriendsHelperReceivedSnapshot(SZFriendsHelperServices *services) {
+    NSMutableArray *files = [NSMutableArray array];
+    for (SZFriendsReceivedFile *file in [services.transfers receivedFilesWithLimit:100] ?: @[]) {
+        NSString *source = file.source == SZFriendsReceivedSourceLink     ? @"link"
+                           : file.source == SZFriendsReceivedSourceDevice ? @"device"
+                                                                          : @"friend";
+        [files addObject:@{
+            @"transfer_id" : file.transferID,
+            @"path" : file.path,
+            @"file_name" : file.path.lastPathComponent,
+            @"received_at" : @((long long)floor(file.receivedAt.timeIntervalSince1970)),
+            @"source" : source
+        }];
+    }
+    return @{@"files" : files};
+}
+
 NSArray<NSString *> *SZFriendsHelperCapabilityList(SZFriendsHelperServices *services) {
     // Only what this helper really does: a view must not offer a search that cannot find anyone. A helper under
     // SZFRIENDS_STATE_DIR runs only the adapters a test asked for and checks in only with a loopback host.
@@ -110,6 +127,8 @@ NSArray<NSString *> *SZFriendsHelperCapabilityList(SZFriendsHelperServices *serv
     [capabilities addObject:@"mentions"];
     // One profile on several computers: Your computers, joining, You (PROTOCOL.md § Devices).
     if (services.store != nil && services.identity != nil && nearby != nil) [capabilities addObject:@"devices"];
+    // Received files go to Downloads or the folder the person chose (PROTOCOL.md § Views, settings and received).
+    if (services.transfers != nil) [capabilities addObject:@"received.folder"];
     if (nearby.reachesFriendsOnline) [capabilities addObject:@"online"];
     return capabilities;
 }
@@ -202,7 +221,7 @@ NSArray<NSString *> *SZFriendsHelperCapabilityList(SZFriendsHelperServices *serv
         if (!transfer.outgoing && transfer.state == SZFriendsTransferStateReceived) received++;
     }
     facts.receivedFileCount = received;
-    facts.receivedRevealPath = transfers.receivedDirectory;
+    facts.receivedRevealPath = self.profile.receivedDirectory;
     if (_linkContacts == nil) _linkContacts = [_services.store linkContactConversationIDs] ?: [NSSet set];
     facts.linkContact = [_linkContacts containsObject:record.conversationID];
     return facts;
@@ -301,7 +320,11 @@ NSArray<NSString *> *SZFriendsHelperCapabilityList(SZFriendsHelperServices *serv
         profile.identityState = _services.identity != nil ? SZFriendsIdentityFactsStateReady
                                                           : SZFriendsIdentityFactsStateUnavailable;
         profile.updateNeed = _services.updateNeed;
-        profile.receivedDirectory = _services.transfers.receivedDirectory ?: _services.paths.receivedDirectory;
+        SZFriendsTransfers *transfers = _services.transfers;
+        NSString *stateDirectory = _services.paths.stateDirectory;
+        profile.receivedDirectory =
+            transfers ? transfers.destinationDirectory : SZFriendsReceivedFolder(stateDirectory);
+        profile.receivedFolderName = SZFriendsChosenReceivedFolder(stateDirectory).lastPathComponent;
         _profile = profile;
     }
     return _profile;

@@ -93,6 +93,13 @@ NS_ASSUME_NONNULL_BEGIN
 @property(nonatomic, copy, readonly) NSArray<SZFriendsButton *> *buttons;  // Copy, Show in Finder, Change…, …
 // The Nearby line's one button (Allow, Open Privacy Settings, Try Again); hidden without one.
 @property(nonatomic, strong, readonly) SZFriendsButton *nearbyButton;
+// Where received files go: Change… beside Show in Finder (hidden for a helper without received.folder), and the line
+// naming the folder under "Save received files to".
+@property(nonatomic, strong, readonly) SZFriendsButton *receivedChangeButton;
+@property(nonatomic, strong, readonly) NSTextField *receivedFolderField;
+// Shows the folder picker starting at `startPath` and calls `chosen` with the folder picked, never on Cancel. A
+// sheet on the Settings window by default; tests replace it so nothing appears on screen.
+@property(nonatomic, copy) void (^chooseFolder)(NSString *_Nullable startPath, void (^chosen)(NSString *path));
 @property(nonatomic, copy, readonly) NSArray<NSSwitch *> *autoAcceptSwitches;
 @property(nonatomic, strong, readonly) NSTextField *nameField;
 @property(nonatomic, readonly) BOOL holdsSubscription;

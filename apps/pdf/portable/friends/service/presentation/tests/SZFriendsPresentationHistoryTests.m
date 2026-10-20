@@ -35,7 +35,7 @@ static NSDictionary *HistoryAction(SZFriendsAudience *audience, SZFriendsPersonF
 
 static void ExpectSaysWhatGoesAndStays(NSString *body, NSString *where) {
     for (NSString *part in @[ @"messages and file history", @"deleted from this computer", @"won’t be sent",
-                              @"keep", @"Files you received stay in Received files." ])
+                              @"keep", @"Files you received stay where they were saved." ])
         SZPExpect([body containsString:part], @"%@ says \"%@\": %@", where, part, body);
 }
 

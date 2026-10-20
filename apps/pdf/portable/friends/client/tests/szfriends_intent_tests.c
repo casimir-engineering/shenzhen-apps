@@ -75,6 +75,7 @@ szfriends_intent *szft_intent_from_fixture(const cJSON *line) {
     ONE(revoke_device, "device_id");
     ONE(rename_device, "name");
     ONE(fetch_from_device, "transfer_id");
+    ONE(set_received_folder, "path");
 #undef ONE
     if (strcmp(type, "ping") == 0) return szfriends_intent_ping();
     if (strcmp(type, "activate") == 0) return szfriends_intent_activate();
@@ -271,6 +272,7 @@ static void test_required_arguments_and_escaping(void) {
                !szfriends_intent_revoke_device(NULL) && !szfriends_intent_rename_device(NULL) &&
                !szfriends_intent_fetch_from_device(NULL),
            "device and join intents without their field");
+    EXPECT(!szfriends_intent_set_received_folder(NULL), "a received folder needs its path");
     EXPECT(szfriends_client_send_intent(NULL, NULL, NULL, 0) == SZFRIENDS_ERR_INVALID_ARGUMENT, "NULL intent");
 
     /* A name and text with quotes, backslashes, a line break and non-ASCII characters survive the round trip. */

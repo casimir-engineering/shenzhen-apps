@@ -68,13 +68,11 @@ static NSString *SZFriendsSyncWantKey(NSString *transferID) {
     SZFriendsSyncFileRecord *file = [self.store syncFileWithID:transferID];
     if (file == nil) return SZFriendsSyncFail(error, SZFriendsSyncErrorMalformed, @"no such file record");
     NSFileManager *files = NSFileManager.defaultManager;
-    if (![files createDirectoryAtPath:self.receivedDirectory withIntermediateDirectories:YES attributes:nil
-                                error:error]) {
-        return NO;
-    }
-    NSString *destination =
-        SZFriendsUniqueDestination(self.receivedDirectory, SZFriendsSanitizedFileName(file.fileName));
-    if (![files moveItemAtPath:path toPath:destination error:error]) return NO;
+    // Where every received file goes (the chosen folder, else Downloads), quarantined, never replacing anything.
+    NSString *destination = SZFriendsPublishReceivedFile(path, SZFriendsSanitizedFileName(file.fileName),
+                                                         self.receivedDirectory.stringByDeletingLastPathComponent,
+                                                         nil, error);
+    if (destination == nil) return NO;
     SZFriendsTransferRecord *transfer = [[SZFriendsTransferRecord alloc] init];
     transfer.transferID = file.transferID;
     transfer.conversationID = file.conversationID;

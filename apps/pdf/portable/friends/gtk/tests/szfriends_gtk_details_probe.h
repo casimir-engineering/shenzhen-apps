@@ -15,6 +15,7 @@ typedef struct {
     GPtrArray *confirm_bodies;                             /* and their bodies, in the same order */
     char *chosen;                                          /* what the file chooser "picks", NULL for Cancel */
     guint chooser_calls;
+    char *folder_start;                                    /* where the folder dialog last opened */
     SZFriendsGtkRun run;
     gpointer run_data;
     GDestroyNotify run_destroy;
