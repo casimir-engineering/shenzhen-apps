@@ -10,7 +10,9 @@ export type FriendsEvent =
   | { kind: "badge"; data: BadgeData | null }
   | { kind: "link"; payload: string }
   // File ▸ Copy Download Link in the app's menu, chosen while this window has a model open.
-  | { kind: "copy_download_link"; days: number };
+  | { kind: "copy_download_link"; days: number }
+  // View ▸ Friends in the app's menu: open or close the dropdown, as Cmd+J does.
+  | { kind: "toggle" };
 
 export type HelperImage = {
   type: string;

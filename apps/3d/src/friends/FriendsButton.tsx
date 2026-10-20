@@ -20,6 +20,11 @@ import {
   shareWithFriend,
   useFriendsStatus,
 } from "./status";
+import {
+  friendsRequests,
+  friendsShortcutLabel,
+  type FriendsRequest,
+} from "./requests";
 import "./button.css";
 
 const FriendsPanel = lazy(() => import("./FriendsPanel"));
@@ -38,12 +43,15 @@ export function FriendsHeader({
   buildProject,
   onError,
   onNotice,
+  onAvailable,
 }: {
   projectName: string | null;
   buildProject(): Promise<{ blob: Blob; name: string }>;
   onError(message: string): void;
   /** A short confirmation, such as the helper's words after a link was copied. */
   onNotice(message: string): void;
+  /** Whether Friends runs and is on, so the app shows its Friends commands only then. */
+  onAvailable?(available: boolean): void;
 }) {
   const status = useFriendsStatus();
   const [busy, setBusy] = useState(false);
@@ -52,6 +60,8 @@ export function FriendsHeader({
   build.current = buildProject;
   const bridge = friendsBridge();
   const available = Boolean(status?.available);
+  const on = Boolean(bridge && status?.available && status.enabled);
+  useEffect(() => onAvailable?.(on), [onAvailable, on]);
   // File ▸ Copy Download Link is enabled only for a window with a model open.
   useEffect(() => {
     if (!bridge || !available) return;
@@ -182,6 +192,51 @@ export function FriendsButton({ attach }: { attach: AttachSource | null }) {
       }),
     [],
   );
+  // Cmd/Ctrl+J, the command palette's Friends commands and View ▸ Friends (requests.ts).
+  const isOpen = useRef(open);
+  isOpen.current = open;
+  useEffect(() => {
+    const show = async (request: FriendsRequest) => {
+      if (request === "add_by_id" || request === "visible") {
+        const panel = await import("./FriendsPanel");
+        panel.openNextAt(request === "add_by_id" ? "profile" : "nearby");
+        // The dropdown takes the page it opens on when it opens, so an open one closes first.
+        if (isOpen.current) {
+          setOpen(false);
+          await nextFrame();
+        }
+      }
+      setOutgoing(null);
+      setOpen(true);
+      const dropdown = await until(() =>
+        root.current?.querySelector<HTMLElement>('[data-szfriends="dropdown"]'),
+      );
+      if (!dropdown) return;
+      if (request === "visible")
+        void friendsBridge()
+          ?.send("start_visibility")
+          .catch(() => {});
+      // Typing goes where the person will type: the ID field for Add by ID, else the search field. A dropdown
+      // reopening on a conversation keeps its own focus.
+      const field = await until(() =>
+        request === "add_by_id"
+          ? // The profile page's last field is Add by ID's (its name, when it can be changed, comes first).
+            [
+              ...dropdown.querySelectorAll<HTMLInputElement>(
+                "form.szf-field input",
+              ),
+            ].at(-1)
+          : dropdown.querySelector<HTMLInputElement>('input[type="search"]'),
+      );
+      field?.focus();
+    };
+    return friendsRequests.listen((request) => {
+      if (request === "toggle" && isOpen.current) {
+        setOpen(false);
+        setOutgoing(null);
+      } else void show(request);
+    });
+  }, []);
   // A click in the window closes the dropdown; a drag from another app does not, so files can still arrive.
   useEffect(() => {
     if (!open) return;
@@ -203,8 +258,15 @@ export function FriendsButton({ attach }: { attach: AttachSource | null }) {
       <button
         type="button"
         className={`icon-button friends-button ${open ? "active" : ""} ${dragging ? "drop-target" : ""}`}
-        title={strings.button_label}
+        title={
+          strings.button_label
+            ? `${strings.button_label} (${friendsShortcutLabel})`
+            : undefined
+        }
         aria-label={label}
+        aria-keyshortcuts={
+          friendsShortcutLabel.startsWith("⌘") ? "Meta+J" : "Control+J"
+        }
         aria-expanded={open}
         data-szfriends="button"
         onClick={() => {
@@ -285,6 +347,18 @@ export function FriendsButton({ attach }: { attach: AttachSource | null }) {
       )}
     </div>
   );
+}
+
+const nextFrame = () =>
+  new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+/** What `find` finds within about two seconds (the dropdown loads on first use, a page on its first snapshot). */
+async function until<T>(find: () => T | null | undefined) {
+  for (let frame = 0; frame < 120; frame++) {
+    const found = find();
+    if (found) return found;
+    await nextFrame();
+  }
+  return null;
 }
 
 /** The Friends section of Settings, loaded when Settings first opens. */

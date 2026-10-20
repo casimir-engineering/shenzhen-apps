@@ -161,7 +161,8 @@ const errors = [];
 try {
   application = await electron.launch({
     args: [
-      path.join(root, "electron/main.cjs"),
+      // Nothing on screen: no Dock icon, no window to the front, no error dialogs (test-hidden.cjs).
+      path.join(root, "electron/test-hidden.cjs"),
       `--user-data-dir=${path.join(directory, "profile")}`,
     ],
     env: environment,

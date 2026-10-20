@@ -6,6 +6,7 @@ import type { FriendsStatus } from "./protocol";
 import type { Outgoing } from "./ListPage";
 import type { OutgoingFile } from "./drops";
 import { downloadLinkRequests } from "./download-link";
+import { friendsRequests } from "./requests";
 
 // Joins at an idle moment: this file loads a second after the first paint already (App.tsx), as the main process
 // loads Friends no sooner (docs/FRIENDS.md § Startup).
@@ -44,6 +45,7 @@ export function useFriendsStatus() {
           else if (event.kind === "link") pendingLink.request(event.payload);
           else if (event.kind === "copy_download_link")
             downloadLinkRequests.request(event.days);
+          else if (event.kind === "toggle") friendsRequests.request("toggle");
         });
         void bridge.join().then(publish, () => {});
       });
