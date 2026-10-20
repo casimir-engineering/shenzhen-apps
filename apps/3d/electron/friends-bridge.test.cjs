@@ -155,6 +155,18 @@ test("fields are checked for shape: opaque ids, extra keys, paths, tokens and si
   assert.ok(validateIntent("subscribe", { view: "received", params: null }));
 });
 
+test("Remove may also delete the chat history, and nothing else rides along", () => {
+  assert.deepEqual(
+    JSON.parse(validateIntent("remove_friend", { conversation_id: "c_1", delete_history: true })),
+    { conversation_id: "c_1", delete_history: true },
+  );
+  assert.ok(validateIntent("remove_friend", { conversation_id: "c_1" }));
+  rejects("remove_friend", { conversation_id: "c_1", delete_history: "yes" }, "delete_history");
+  rejects("remove_friend", { conversation_id: "c_1", delete_history: 1 }, "delete_history");
+  rejects("remove_friend", { conversation_id: "c_1", delete_history: true, block: true }, "block");
+  rejects("remove_friend", { delete_history: true }, "conversation_id");
+});
+
 test("links open only for the web and email, settings only for the four nearby targets", () => {
   assert.equal(
     externalURL("https://example.com/a?b=1"),
