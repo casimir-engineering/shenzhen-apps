@@ -328,7 +328,8 @@ static const SZFriendsGtkField settings_id_fields[] = {STR(T, label), STR(T, not
 #undef T
 TYPE(static, settings_id, NULL, SZFriendsGtkSettingsId);
 #define T SZFriendsGtkSettingsReceived
-static const SZFriendsGtkField settings_received_fields[] = {STR(T, label), STR(T, note), OBJ(T, action, action)};
+static const SZFriendsGtkField settings_received_fields[] = {STR(T, label), STR(T, value), STR(T, note), STRN(T, path),
+                                                             OBJN(T, action, action), OBJN(T, change, action)};
 #undef T
 TYPE(static, settings_received, NULL, SZFriendsGtkSettingsReceived);
 #define T SZFriendsGtkSettingsFriend
@@ -366,6 +367,15 @@ static const SZFriendsGtkField szfriends_gtk_type_message_status_snapshot_fields
     ARR(T, messages, message_entry)};
 #undef T
 TYPE(, szfriends_gtk_type_message_status_snapshot, "snapshot.message_status", SZFriendsGtkMessageStatusSnapshot);
+#define T SZFriendsGtkReceivedFile
+static const SZFriendsGtkField received_file_fields[] = {STR(T, transfer_id), STR(T, path), STR(T, file_name),
+                                                         INT(T, received_at), ENUM(T, source, received_sources)};
+#undef T
+TYPE(static, received_file, NULL, SZFriendsGtkReceivedFile);
+#define T SZFriendsGtkReceivedSnapshot
+static const SZFriendsGtkField szfriends_gtk_type_received_snapshot_fields[] = {ARR(T, files, received_file)};
+#undef T
+TYPE(, szfriends_gtk_type_received_snapshot, "snapshot.received", SZFriendsGtkReceivedSnapshot);
 
 /* ---- frames ---- */
 
@@ -474,7 +484,7 @@ const SZFriendsGtkType *const szfriends_gtk_named_types[] = {
     &szfriends_gtk_type_subscribe_result, &szfriends_gtk_type_send_result, &szfriends_gtk_type_add_by_id_result,
     &szfriends_gtk_type_visibility_result, &szfriends_gtk_type_search_result, &szfriends_gtk_type_open_link_result,
     &szfriends_gtk_type_download_link_result, &device_rename, &device_row, &device_removed, &join_request,
-    &join_id_field, &join_code_field, &szfriends_gtk_type_join_snapshot, NULL};
+    &join_id_field, &join_code_field, &szfriends_gtk_type_join_snapshot, &szfriends_gtk_type_received_snapshot, NULL};
 
 const SZFriendsGtkType *szfriends_gtk_view_type(const char *view) {
     static const struct { const char *view; const SZFriendsGtkType *type; } views[] = {
@@ -482,7 +492,8 @@ const SZFriendsGtkType *szfriends_gtk_view_type(const char *view) {
         {"nearby", &szfriends_gtk_type_nearby_snapshot}, {"conversation", &szfriends_gtk_type_conversation_snapshot},
         {"details", &szfriends_gtk_type_details_snapshot}, {"profile", &szfriends_gtk_type_profile_snapshot},
         {"settings", &szfriends_gtk_type_settings_snapshot},
-        {"message_status", &szfriends_gtk_type_message_status_snapshot}, {"join", &szfriends_gtk_type_join_snapshot}};
+        {"message_status", &szfriends_gtk_type_message_status_snapshot}, {"join", &szfriends_gtk_type_join_snapshot},
+        {"received", &szfriends_gtk_type_received_snapshot}};
     for (gsize i = 0; view && i < G_N_ELEMENTS(views); i++)
         if (strcmp(views[i].view, view) == 0) return views[i].type;
     return NULL;

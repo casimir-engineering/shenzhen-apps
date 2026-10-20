@@ -1,7 +1,7 @@
 /* The Friends part of the host's Settings, under the host's own "Enable Shenzhen Friends" switch and disclosure
  * (szfriends_gtk_details_page.h; szfriends_gtk_settings_section_new in szfriends_gtk.h). Mirrors
  * mac/SZFriendsSettingsSection.m: the `settings` snapshot as rows of libadwaita preference groups (the name friends
- * see, your ID with Copy, received files, automatic acceptance with a switch per friend, then Delete history and
+ * see, your ID with Copy, where received files go with Change… and Show, automatic acceptance with a switch per friend, then Delete history and
  * Reset Friends behind their confirmations). The subscription is held only while the section is on screen, and
  * while the helper does not answer the rows keep their last values under the link's status line. */
 
@@ -16,7 +16,7 @@ typedef struct {
     guint token, state_watch;
     SZFriendsGtkDetailsHeld *held;
     GtkWidget *status, *group, *danger;
-    GtkWidget *name_row, *name_entry, *id_row, *id_value, *copy, *received_row, *received_button;
+    GtkWidget *name_row, *name_entry, *id_row, *id_value, *copy, *received_row, *received_change, *received_button;
     GtkWidget *auto_row, *change, *history_row, *history_button, *reset_row, *reset_button;
     GPtrArray *friend_rows;
     gboolean editing_name, applying;
@@ -136,6 +136,29 @@ static void copy_clicked(GtkButton *button, gpointer data) {
     if (settings->held) szfriends_gtk_details_copy(settings->page, GTK_WIDGET(button), shown(settings)->id.friends_id);
 }
 
+/* Change…: the folder dialog at the folder shown, then set_received_folder. A folder the helper refuses says why on
+ * the status line; the row changes when the next snapshot names the new folder. */
+static void folder_set(SZFriendsGtkPage *page, JsonObject *result, const SZFriendsGtkError *error) {
+    (void)result;
+    SZFriendsGtkSettings *settings = szfriends_gtk_page_get_data(page);
+    if (settings) szfriends_gtk_details_label_set(settings->status, error ? error->message : NULL);
+}
+
+static void folder_chosen(const char *path, gpointer data) {
+    SZFriendsGtkPage *page = data;
+    if (path && *path) szfriends_gtk_details_send(page, szfriends_intent_set_received_folder(path), folder_set);
+    g_object_unref(szfriends_gtk_page_get_widget(page));
+}
+
+static void received_change_clicked(GtkButton *button, gpointer data) {
+    SZFriendsGtkSettings *settings = data;
+    const SZFriendsGtkSettingsSnapshot *snapshot = shown(settings);
+    if (!snapshot) return;
+    /* The page stays alive until the dialog answers, as a confirmation holds it. */
+    g_object_ref(szfriends_gtk_page_get_widget(settings->page));
+    szfriends_gtk_choose_folder(GTK_WIDGET(button), snapshot->received.path, folder_chosen, settings->page);
+}
+
 /* What a confirmation runs once answered: the section's widget is held so its link stays alive until then. */
 typedef struct {
     GtkWidget *widget;
@@ -188,18 +211,29 @@ static void apply(SZFriendsGtkSettings *settings) {
     set_row(settings->id_row, snapshot->id.label, snapshot->id.note);
     gtk_label_set_text(GTK_LABEL(settings->id_value), snapshot->id.friends_id);
     gtk_button_set_label(GTK_BUTTON(settings->copy), snapshot->id.copy_label);
-    set_row(settings->received_row, snapshot->received.label, snapshot->received.note);
+    /* The folder's name under the label, then the note (empty on a computer, so nothing more shows). */
+    const SZFriendsGtkSettingsReceived *received = &snapshot->received;
+    char *where = *received->value && *received->note ? g_strdup_printf("%s\n%s", received->value, received->note)
+                                                       : g_strdup(*received->value ? received->value : received->note);
+    set_row(settings->received_row, received->label, where);
+    g_free(where);
+    gtk_widget_set_tooltip_text(settings->received_row, received->path);
+    const SZFriendsGtkAction *change = received->change;
+    gboolean changeable = change && change->action == SZFRIENDS_GTK_ACTION_CHOOSE_RECEIVED_FOLDER;
+    gtk_button_set_label(GTK_BUTTON(settings->received_change), changeable ? change->label : "");
+    gtk_widget_set_visible(settings->received_change, changeable);
     gtk_widget_set_visible(settings->group, TRUE);
     gtk_widget_set_visible(settings->danger, TRUE);
     /* Show in Finder, or what the helper names for this app's files; an action this view does not know is hidden. */
-    if (szfriends_gtk_details_button_matches(settings->received_button, &snapshot->received.action, NULL)) {
+    if (szfriends_gtk_details_button_matches(settings->received_button, snapshot->received.action, NULL)) {
         /* the same button stays */
     } else if (settings->received_button) {
         adw_action_row_remove(ADW_ACTION_ROW(settings->received_row), settings->received_button);
         settings->received_button = NULL;
     }
-    if (!settings->received_button) settings->received_button = szfriends_gtk_details_button_new(
-                                        settings->page, settings->held, &snapshot->received.action, NULL);
+    if (!settings->received_button && snapshot->received.action)
+        settings->received_button = szfriends_gtk_details_button_new(settings->page, settings->held,
+                                                                     snapshot->received.action, NULL);
     if (settings->received_button && !gtk_widget_get_parent(settings->received_button)) {
         gtk_widget_set_name(settings->received_button, "szfriends.settings.received");
         gtk_widget_set_valign(settings->received_button, GTK_ALIGN_CENTER);
@@ -264,6 +298,8 @@ static void build(SZFriendsGtkPage *page, gpointer user_data) {
     adw_action_row_add_suffix(ADW_ACTION_ROW(settings->id_row), settings->id_value);
     settings->copy = suffix_button(settings->id_row, "szfriends.settings.copy", G_CALLBACK(copy_clicked), settings);
     settings->received_row = plain_row(ADW_TYPE_ACTION_ROW);
+    settings->received_change = suffix_button(settings->received_row, "szfriends.settings.received_change",
+                                              G_CALLBACK(received_change_clicked), settings);
     settings->auto_row = plain_row(ADW_TYPE_ACTION_ROW);
     settings->change = gtk_toggle_button_new();
     gtk_widget_set_name(settings->change, "szfriends.settings.change");

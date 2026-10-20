@@ -260,7 +260,7 @@ static void test_history_everywhere(SZFGHarness *harness) {
     EXPECT(card && szfg_find_label(card, "Your messages and file history with Mei are deleted from this computer, and "
                                          "from your other computers as soon as they connect. Anything still waiting to "
                                          "go to Mei won’t be sent. Mei stays your friend and keeps their own copy of "
-                                         "the chat. Files you received stay in Received files."),
+                                         "the chat. Files you received stay where they were saved."),
            "the confirmation says every computer");
     GtkWidget *ok = confirm_button(rig);
     if (ok) g_signal_emit_by_name(ok, "clicked");
