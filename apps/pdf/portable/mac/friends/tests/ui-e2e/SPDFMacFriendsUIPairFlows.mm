@@ -304,8 +304,9 @@ static BOOL UISearch(UIRig* rig) {
     UIShot(rig, @"no-match");
     UIClearField(rig.popoverWindow);
     EXPECT(rig, UIWait(5, ^BOOL { return UIRow(rig, @"Mei") && UIRow(rig, @"Kenji"); }), "clearing shows both again");
-    // The search follows to Nearby and back.
-    UIType(rig.popoverWindow, @"Ken");
+    // The search follows to Nearby and back. The whole name: search also matches IDs, and "ken" is in five words
+    // a random Friends ID is made of (awaken, kennel, unbroken, unshaken, unspoken), which once matched Mei.
+    UIType(rig.popoverWindow, @"Kenji");
     CLICK(rig, list.nearbyTab, @"the Nearby tab");
     CLICK(rig, list.friendsTab, @"the Friends tab");
     EXPECT(rig, UIWait(5, ^BOOL { return UIRow(rig, @"Kenji") && !UIRow(rig, @"Mei"); }),

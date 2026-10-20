@@ -280,7 +280,7 @@ static const SZFriendsGtkField profile_picture_fields[] = {OBJ(T, avatar, avatar
 TYPE(static, profile_picture, NULL, SZFriendsGtkProfilePicture);
 #define T SZFriendsGtkProfileId
 static const SZFriendsGtkField profile_id_fields[] = {STR(T, label), STR(T, friends_id), ENUM(T, state, id_states),
-                                                      STR(T, note), STR(T, copy_label), STRN(T, qr_label),
+                                                      STRN(T, note), STR(T, copy_label), STRN(T, qr_label),
                                                       STRN(T, qr_payload)};
 #undef T
 TYPE(static, profile_id, NULL, SZFriendsGtkProfileId);
