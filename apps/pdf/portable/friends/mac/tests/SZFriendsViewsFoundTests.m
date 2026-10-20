@@ -104,6 +104,25 @@ void SZFTestFoundRows(void) {
                       : row.foundLabel == nil && row.foundMethods.count == 0,
                   @"%@: %@", row.conversationID, row.foundLabel);
     }
+    // The helper's own golden snapshots: every row with `found` draws its label and methods.
+    [page applySnapshot:SZFTestSnapshot(@"list-found")];
+    [page showNearby:YES];
+    [page applyNearbySnapshot:SZFTestSnapshot(@"nearby-found")];
+    NSArray *goldenRows = [SZFTestSnapshot(@"list-found")[@"rows"] arrayByAddingObjectsFromArray:
+                                                                       SZFTestSnapshot(@"nearby-found")[@"people"]];
+    NSArray<SZFriendsRowView *> *shown = [page.rows arrayByAddingObjectsFromArray:page.nearbyPane.personRows];
+    NSUInteger withFound = 0;
+    for (NSUInteger i = 0; i < MIN(goldenRows.count, shown.count); i++) {
+        id found = goldenRows[i][@"found"];
+        BOOL has = [found isKindOfClass:NSDictionary.class];
+        withFound += has;
+        SZFExpect(has ? [shown[i].foundLabel isEqualToString:found[@"label"]] &&
+                            shown[i].foundMethods.count == [found[@"methods"] count]
+                      : shown[i].foundLabel == nil,
+                  @"golden row %lu: %@ / %@", (unsigned long)i, shown[i].foundLabel, found);
+    }
+    SZFExpect(goldenRows.count == shown.count && withFound >= 3, @"%lu rows, %lu with found",
+              (unsigned long)shown.count, (unsigned long)withFound);
     SZFExpect([[SZFriendsClientTransport capabilitiesForHost:[SZFTestHost new]] containsObject:@"nearby.found"],
               @"the views ask to be told how people were found");
 }
