@@ -183,6 +183,8 @@ int main(int argc, const char *argv[]) {
         SZFTestHitTesting();
         SZFTestControls();
         SZFTestRowActions();
+        SZFTestRowMenus();
+        SZFTestFoundRows();
         SZFTestAssistantMarkers();
         SZFTestChrome();
         SZFTestArmedActions();

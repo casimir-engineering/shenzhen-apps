@@ -212,10 +212,10 @@ void SZFTestSettingsAndServices(NSString *stateDirectory) {
     __block NSUInteger asked = 0;
     __block BOOL answer = NO;
     __block NSDictionary *question = nil;
-    section.context.presentConfirmation = ^(NSDictionary *confirm, void (^onConfirm)(void)) {
+    section.context.presentConfirmation = ^(NSDictionary *confirm, void (^onConfirm)(BOOL)) {
         question = confirm;
         asked++;
-        if (answer) onConfirm();
+        if (answer) onConfirm(NO);
     };
     [section sectionWillAppear];
     SZFExpect(section.holdsSubscription, @"settings subscribed while on screen");

@@ -118,9 +118,9 @@ static void SZFTestYourLinks(void) {
     SZFTestTransport *transport = nil;
     SZFriendsContext *context = SZFTestContext([SZFTestHost new], SZFLinksLink(&transport, YES));
     __block NSDictionary *confirmed = nil;
-    context.presentConfirmation = ^(NSDictionary *confirm, void (^onConfirm)(void)) {
+    context.presentConfirmation = ^(NSDictionary *confirm, void (^onConfirm)(BOOL)) {
         confirmed = confirm;
-        onConfirm();
+        onConfirm(NO);
     };
     SZFriendsProfilePage *page = [[SZFriendsProfilePage alloc] initWithContext:context];
     NSWindow *window = SZFTestHostWindow(page, NSMakeSize(400, 640), NSAppearanceNameAqua);

@@ -63,6 +63,8 @@ NS_ASSUME_NONNULL_BEGIN
 @property(nonatomic, copy) NSString* flow;
 @property(nonatomic) NSInteger step;
 @property(nonatomic, strong) NSMutableArray<NSURL*>* openedURLs; // System Settings links pressed
+// Menus the views opened (a row's right-click menu, a link's menu), recorded instead of popped up on a screen.
+@property(nonatomic, strong) NSMutableArray<NSMenu*>* menus;
 // The helper's snapshots as an observer subscription on the same link sees them: how many came, and the last.
 @property(nonatomic, strong) NSMutableDictionary<NSString*, NSNumber*>* snapshotCounts;
 @property(nonatomic, strong) NSMutableDictionary<NSString*, NSDictionary*>* snapshots;
@@ -174,5 +176,6 @@ void UIRecord(UIVariant* variant, NSString* flow, BOOL passed);
 BOOL UIFlowSolo(SZFE2EWorld* world, UIVariant* variant);
 BOOL UIFlowPermission(SZFE2EWorld* world, UIVariant* variant);
 BOOL UIFlowTwoPeople(SZFE2EWorld* world, UIVariant* variant);
+BOOL UIFlowFound(SZFE2EWorld* world, UIVariant* variant);
 
 NS_ASSUME_NONNULL_END

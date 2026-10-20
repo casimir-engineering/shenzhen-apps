@@ -88,8 +88,10 @@ SZFriendsPress SZFriendsPressFromEvent(NSEvent *_Nullable event, NSTimeInterval 
 // such as an armed "Block?", "Copied" or an inline error. Nothing for an empty text.
 - (void)announce:(nullable NSString *)text;
 // Shows a PROTOCOL.md confirm object (inline over the dropdown; a sheet in Settings); `onConfirm` runs only on its
-// confirm button. Unset: the action is not performed, because an unconfirmed destructive action must not run.
-@property(nonatomic, copy, nullable) void (^presentConfirmation)(NSDictionary *confirm, void (^onConfirm)(void));
+// confirm button. Unset: the action is not performed, because an unconfirmed destructive action must not run. A
+// confirm with `option` shows it as a checkbox, unticked; `optionTicked` says whether it was ticked at the confirm.
+@property(nonatomic, copy, nullable) void (^presentConfirmation)(NSDictionary *confirm,
+                                                                  void (^onConfirm)(BOOL optionTicked));
 // Actions a view may show: a view hides an action it does not know (PROTOCOL.md § Principles).
 + (BOOL)knowsAction:(nullable NSString *)action;
 // Performs a PROTOCOL.md action object: an intent named by `action` with the id it needs from `ids`
@@ -101,6 +103,12 @@ SZFriendsPress SZFriendsPressFromEvent(NSEvent *_Nullable event, NSTimeInterval 
                  done:(nullable void (^)(SZFriendsLinkError *_Nullable error))done;
 - (void)performAction:(NSDictionary *)action
                   ids:(nullable NSDictionary<NSString *, NSString *> *)ids
+                reply:(nullable SZFriendsReplyHandler)reply;
+// The same; `sending` runs just before the intent goes (after its confirmation, if it asks one), never when the
+// person cancels. A confirm `option` ticked adds its field as true (PROTOCOL.md confirm_option).
+- (void)performAction:(NSDictionary *)action
+                  ids:(nullable NSDictionary<NSString *, NSString *> *)ids
+              sending:(nullable void (^)(void))sending
                 reply:(nullable SZFriendsReplyHandler)reply;
 // Puts `text` on the pasteboard and announces the static string `copied`, since Copy's only feedback is visual.
 - (void)copyText:(NSString *)text;

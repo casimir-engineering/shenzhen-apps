@@ -14,12 +14,13 @@ CGFloat SZFriendsDropdownHeight(CGFloat spaceBelowButton, CGFloat maxHeight);
 NSString *_Nullable SZFriendsSendPickerTitle(SZFriendsContext *context, NSArray<NSString *> *names, NSUInteger count);
 
 // The inline confirmation over the dropdown (PROTOCOL.md confirm object; `destructive` draws its button red).
-// Escape cancels it.
+// Escape cancels it. A confirm `option` is a checkbox under the text, unticked; the confirm passes whether it was ticked.
 @interface SZFriendsConfirmView : SZFriendsFlippedView
 - (instancetype)initWithContext:(SZFriendsContext *)context confirm:(NSDictionary *)confirm
-                      onConfirm:(void (^)(void))onConfirm;
+                      onConfirm:(void (^)(BOOL optionTicked))onConfirm;
 @property(nonatomic, strong, readonly) SZFriendsButton *confirmButton;
 @property(nonatomic, strong, readonly) SZFriendsButton *cancelButton;
+@property(nonatomic, strong, readonly, nullable) NSButton *optionCheckbox; // nil without `option`
 @property(nonatomic, copy, nullable) void (^onFinish)(void);
 @end
 
