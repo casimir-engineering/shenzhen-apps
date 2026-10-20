@@ -226,6 +226,33 @@ fn field_refusals() {
     let relative = json!({"conversation_id": "c_mei", "client_token": "token-0123456789abcdef",
                           "files": [{"path": "/ok.pdf"}, {"path": "relative.pdf"}]});
     assert_eq!(refusal(&world, "send_files", relative), field("invalid_field", "files[1]"));
+    // remove_friend takes anyone off the list but You; delete_history is a bool when present.
+    for id in ["c_mei", "c_tomas", "c_gone", "c_jonas"] {
+        assert!(
+            matches!(
+                parse(&intent("remove_friend", json!({"conversation_id": id})), &world),
+                Ok(Intent::RemoveFriend { delete_history: false, .. })
+            ),
+            "{id}"
+        );
+    }
+    assert!(matches!(
+        parse(&intent("remove_friend", json!({"conversation_id": "c_gone", "delete_history": true})), &world),
+        Ok(Intent::RemoveFriend { delete_history: true, .. })
+    ));
+    assert!(matches!(
+        parse(&intent("remove_friend", json!({"conversation_id": "c_gone", "delete_history": null})), &world),
+        Ok(Intent::RemoveFriend { delete_history: false, .. })
+    ));
+    assert_eq!(refusal(&world, "remove_friend", json!({"conversation_id": "you"})), ("not_allowed".to_owned(), None));
+    assert_eq!(
+        refusal(&world, "remove_friend", json!({"conversation_id": "c_nobody"})),
+        field("not_found", "conversation_id")
+    );
+    for value in [json!("yes"), json!(1), json!({})] {
+        let fields = json!({"conversation_id": "c_mei", "delete_history": value});
+        assert_eq!(refusal(&world, "remove_friend", fields), field("invalid_field", "delete_history"));
+    }
     // Only a client whose app has an assistant may say its assistant wrote something.
     let mut plain = World::new();
     plain.capabilities.clear();

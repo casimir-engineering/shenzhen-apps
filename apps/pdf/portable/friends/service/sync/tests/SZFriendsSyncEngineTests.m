@@ -187,7 +187,43 @@ static void TestChainTravels(void) {
     SZFSExpect(![b.engine.otherDeviceKeys containsObject:c.identity.publicKey], @"and C is not ours any more");
 }
 
+// Taking someone off the list travels with their relation (tag 6): it reaches every device, a body for anyone never
+// taken off carries no tag 6 (what older helpers wrote), and a later request from them brings them back everywhere.
+static void TestLeavingTheListTravels(void) {
+    NSArray<SZFSDevice *> *devices = SZFSDevices(@"left", 2);
+    SZFSDevice *a = devices[0], *b = devices[1];
+    SZFSAddFriend(a, 0x90, @"mei");
+    SZFSSyncAll(devices);
+    NSString *key = SZFriendsSyncPersonKey(@"mei", SZFriendsSyncGroupRelation);
+    SZFriendsSyncFields *before = [SZFriendsSyncFields fieldsWithData:[b.store syncRegisterForKey:key].value];
+    SZFSExpect(before && ![before hasTag:6], @"a friend's relation body has no tag 6");
+    SZFriendsPersonRecord *onA = [a.store personWithConversationID:@"mei"];
+    onA.relation = SZFriendsRelationRemoved;
+    onA.leftListAt = [NSDate dateWithTimeIntervalSince1970:3000];
+    [a.store savePerson:onA error:NULL];
+    [a.engine captureLocalChanges];
+    SZFSSyncAll(devices);
+    SZFriendsPersonRecord *onB = [b.store personWithConversationID:@"mei"];
+    SZFSExpect(onB.relation == SZFriendsRelationRemoved && onB.leftListAt.timeIntervalSince1970 == 3000,
+               @"off B's list too: %ld %@", (long)onB.relation, onB.leftListAt);
+    SZFSExpect([SZFSDump(a) isEqualToString:SZFSDump(b)], @"same store:\n%@\n---\n%@", SZFSDump(a), SZFSDump(b));
+    // A new request from her reaches B first and brings her back on both.
+    onB.relation = SZFriendsRelationIncomingRequest;
+    onB.requestAt = [NSDate dateWithTimeIntervalSince1970:4000];
+    [b.store savePerson:onB error:NULL];
+    [b.engine captureLocalChanges];
+    SZFSSyncAll(devices);
+    onA = [a.store personWithConversationID:@"mei"];
+    SZFSExpect(onA.relation == SZFriendsRelationIncomingRequest && onA.leftListAt == nil &&
+                   [b.store personWithConversationID:@"mei"].leftListAt == nil,
+               @"back on both lists: %ld %@", (long)onA.relation, onA.leftListAt);
+    SZFriendsSyncFields *after = [SZFriendsSyncFields fieldsWithData:[a.store syncRegisterForKey:key].value];
+    SZFSExpect(after && ![after hasTag:6], @"and the body drops tag 6 again");
+    SZFSExpect([SZFSDump(a) isEqualToString:SZFSDump(b)], @"same store:\n%@\n---\n%@", SZFSDump(a), SZFSDump(b));
+}
+
 void SZFSRunEngineTests(void) {
+    TestLeavingTheListTravels();
     TestInactiveRecordsNothing();
     TestBackfillAndDuplicates();
     TestSameMessageOnTwoDevices();

@@ -71,9 +71,10 @@ static void SZFriendsRemoveUnusedPictures(SZFriendsStoreDB *db, NSString *stateD
                 if (person.picture.imagePath) [pictures addObject:person.picture.imagePath];
                 continue;
             }
-            // Someone with history here, a former friend asking again: back to where they were before they asked.
+            // Someone with history here, a former friend asking again: back to where they were before they asked,
+            // and on the list (left_list_at an older helper left behind would otherwise count again).
             if (![db run:@"UPDATE friends SET relation = ?, request_since = NULL, callback_token = NULL, "
-                         @"callback_secret = NULL, auto_accept = 0 WHERE conversation_id = ?"
+                         @"callback_secret = NULL, auto_accept = 0, left_list_at = NULL WHERE conversation_id = ?"
                    binds:@[ @(SZFriendsRelationRemoved), person.conversationID ]
                      row:nil
                    error:inner]) {
@@ -108,7 +109,8 @@ static void SZFriendsRemoveUnusedPictures(SZFriendsStoreDB *db, NSString *stateD
             if (!held) return NO;
             NSArray *only = @[ conversationID ];
             NSString *removed = @"UPDATE friends SET relation = ?, request_since = NULL, callback_token = NULL, "
-                                @"callback_secret = NULL, auto_accept = 0 WHERE conversation_id = ?";
+                                @"callback_secret = NULL, auto_accept = 0, left_list_at = NULL "
+                                @"WHERE conversation_id = ?";
             NSArray<NSArray *> *statements =
                 held.integerValue == 0
                     ? @[ @[ @"DELETE FROM friends WHERE conversation_id = ?", only ] ]

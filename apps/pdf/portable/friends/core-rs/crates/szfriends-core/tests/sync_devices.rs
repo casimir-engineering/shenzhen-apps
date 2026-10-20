@@ -153,3 +153,28 @@ fn a_removed_device_learns_it_and_its_later_events_count_for_nothing() {
     assert!(own.revokes(&b.identity.public_key()), "bob holds the chain that removed it");
     assert!(b.engine.root_key(&b.store).is_none());
 }
+
+#[test]
+fn taking_someone_off_the_list_reaches_the_other_device_and_a_new_request_brings_them_back() {
+    let (mut a, mut b) = joined_pair();
+    let mut carol = Person::new(Relation::Friend);
+    carol.identity_key = Some(identity("carol").public_key());
+    a.store.save_person(&carol).unwrap();
+    sync(&mut a, &mut b).unwrap();
+    // Removed and taken off the list on Alice's Mac.
+    carol.relation = Relation::Removed;
+    carol.left_list_at = Some(1.0e9 + 10.0);
+    a.store.save_person(&carol).unwrap();
+    sync(&mut a, &mut b).unwrap();
+    let on_b = b.store.person_with_identity_key(&identity("carol").public_key()).unwrap().unwrap();
+    assert_eq!((on_b.relation, on_b.left_list_at), (Relation::Removed, Some(1.0e9 + 10.0)));
+    // Carol asks again, and Bob's PC hears it first: back on the list on both.
+    let mut asking = on_b.clone();
+    asking.relation = Relation::IncomingRequest;
+    asking.request_at = Some(1.0e9 + 20.0);
+    b.store.save_person(&asking).unwrap();
+    assert_eq!(b.store.person_with_conversation(&on_b.conversation_id).unwrap().unwrap().left_list_at, None);
+    sync(&mut a, &mut b).unwrap();
+    let on_a = a.store.person_with_conversation(&carol.conversation_id).unwrap().unwrap();
+    assert_eq!((on_a.relation, on_a.left_list_at), (Relation::IncomingRequest, None));
+}

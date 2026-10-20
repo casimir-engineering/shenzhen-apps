@@ -218,6 +218,9 @@ impl SnapshotBuilder {
         row.insert("drop_refusal".into(), refusal);
         row.insert("accessibility_label".into(), json!(spoken));
         row.insert("actions".into(), json!([]));
+        if self.shows_list_menu() {
+            row.insert("menu".into(), json!([])); // nothing to remove: these are the person's own computers
+        }
         if mentions {
             row.insert("mentionable".into(), json!(false)); // nobody mentions themselves
         }

@@ -276,8 +276,15 @@ fn rule(kind: &str) -> Option<Rule> {
         "cancel_transfer" | "accept_offer" | "decline_offer" | "fetch_from_device" => rule!(&["transfer_id"], ids),
         "retry_item" => rule!(&["item_id"], ids),
         "cancel_message" => rule!(&["message_id"], ids),
-        "accept_request" | "decline_request" | "cancel_request" | "block" | "unblock" | "remove_friend"
-        | "mark_verified" | "accept_key_change" => rule!(conversation, ids),
+        "accept_request" | "decline_request" | "cancel_request" | "block" | "unblock" | "mark_verified"
+        | "accept_key_change" => rule!(conversation, ids),
+        // Ticking "Also delete chat history" in Remove's question adds delete_history: true.
+        "remove_friend" => rule!(&["conversation_id", "delete_history"], conversation, |f| {
+            match f.get("delete_history") {
+                None | Some(Value::Bool(_)) => Ok(()),
+                _ => fail("delete_history"),
+            }
+        }),
         "send_request" => rule!(&["nearby_id"], ids),
         "add_by_id" | "join_profile" => rule!(&["friends_id"], &[], |f| text(f, "friends_id", 800)),
         "add_from_mention" => rule!(&["friends_id", "identity_key", "name"], &[], |f| {

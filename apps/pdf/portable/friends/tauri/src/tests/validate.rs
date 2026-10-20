@@ -91,6 +91,11 @@ fn fields_are_checked_for_shape() {
     rejects("set_picture", json!({"picture": {"kind": "image", "data_base64": "AAAA", "path": "/a.png"}}), "picture");
     rejects("set_picture", json!({"picture": {"kind": "image", "data_base64": "not base64!"}}), "picture.data_base64");
     rejects("reset_friends", json!({"confirm": "yes"}), "confirm");
+    rejects("remove_friend", json!({"conversation_id": "c_1", "delete_history": "yes"}), "delete_history");
+    rejects("remove_friend", json!({"conversation_id": "c_1", "delete_history": null}), "delete_history");
+    for fields in [json!({"conversation_id": "c_1"}), json!({"conversation_id": "c_1", "delete_history": true})] {
+        assert!(validate_intent(&json!("remove_friend"), &fields).is_ok(), "{fields}");
+    }
     rejects("make_download_link", json!({"file": {"path": "/a.sz3d"}, "expires_days": 2}), "expires_days");
     rejects("set_name", json!({"name": "x".repeat(2000)}), "name");
     rejects("set_received_folder", json!({"path": "Downloads"}), "path");
