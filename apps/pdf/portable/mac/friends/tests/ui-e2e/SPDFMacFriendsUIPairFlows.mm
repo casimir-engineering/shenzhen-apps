@@ -263,11 +263,11 @@ static BOOL UIFiles(UIRig* rig, UIFriend* mei, SZFE2EWorld* world) {
     EXPECT(rig, UIWait(5, ^BOOL { return (accept = UIFindButton(page, @"Accept")) != nil; }), "with Accept");
     UIShot(rig, @"incoming");
     CLICK(rig, accept, @"Accept");
-    // Arrived: the card's status reads Received and it offers Show in Finder.
+    // Arrived: the card's status says where it went (Saved to Downloads) and it offers Show in Finder.
     EXPECT(rig, UIWait(20, ^BOOL {
                for (NSView* view in UIAllViews(page))
                    if ([view isKindOfClass:NSTextField.class] && UIVisible(view) &&
-                       [((NSTextField*)view).stringValue isEqualToString:@"Received"])
+                       [((NSTextField*)view).stringValue isEqualToString:@"Saved to Downloads"])
                        return UIFindButton(page, @"Show in Finder") != nil;
                return NO;
            }), "the file arrives:\n%@", UIDescribe(page));
