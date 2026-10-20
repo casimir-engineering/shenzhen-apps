@@ -185,7 +185,9 @@ def main():
             v = plist(app)
         except (OSError, ValueError):
             continue
-        if f'{v["CFBundleShortVersionString"]}' != old_info["CFBundleShortVersionString"] and \
+        # The build number too: a release of the same day changes only CFBundleVersion (26.10.20-1 to 26.10.20-2).
+        if (v["CFBundleShortVersionString"], v["CFBundleVersion"]) != \
+                (old_info["CFBundleShortVersionString"], old_info["CFBundleVersion"]) and \
                 os.path.exists(app + ".old") and not our_pids(work):
             swapped = True
             break
@@ -251,8 +253,9 @@ def main():
     check("verify", "Gatekeeper accepts it (notarized Developer ID)",
           g.returncode == 0 and "Notarized Developer ID" in g.stderr, g.stderr.strip())
     old_app = app + ".old"
-    check("verify", "the previous version waits as .old", plist(old_app)["CFBundleShortVersionString"] ==
-          old_info["CFBundleShortVersionString"])
+    check("verify", "the previous version waits as .old",
+          (plist(old_app)["CFBundleShortVersionString"], plist(old_app)["CFBundleVersion"]) ==
+          (old_info["CFBundleShortVersionString"], old_info["CFBundleVersion"]))
 
     # 4 handshake: the new app's first launch confirms the tag. Run hidden, as its own bundle id, opening nothing.
     # ShenzhenPDF's handshake runs under any bundle id; Shenzhen Files' only as com.intuition.shenzhenfiles, so it keeps
