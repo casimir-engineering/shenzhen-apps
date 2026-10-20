@@ -190,6 +190,7 @@ impl State {
                 item.file_missing = true;
                 item.local_path = None;
                 item.saved_in = None;
+                self.devices.missing_seen.set(true);
             }
         } else if let Some(file) = item.transfer_id.as_deref().and_then(|id| sync_files::sync_file(conn, id).ok()?) {
             // A file another computer of ours received: its record is here at once, its bytes when copied.

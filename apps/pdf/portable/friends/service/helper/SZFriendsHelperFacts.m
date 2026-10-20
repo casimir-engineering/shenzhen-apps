@@ -74,6 +74,8 @@ SZFriendsItemFacts *SZFriendsItemFactsFromRecord(SZFriendsItemRecord *record, SZ
                 facts.localPath = nil;
                 facts.savedToDownloads = NO;
                 facts.savedFolderName = nil;
+                // Our other computers hear that this one no longer holds it, while a session with one is live.
+                [services.nearby scheduleSyncCapture];
             }
             facts.fileTypeIdentifier = SZFriendsTypeIdentifierForFileName(transfer.fileName);
             // A row whose file is gone (a crash between the two) shows no preview rather than a broken one, and a

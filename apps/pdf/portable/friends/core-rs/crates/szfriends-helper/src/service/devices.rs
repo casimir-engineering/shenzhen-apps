@@ -75,6 +75,8 @@ pub struct DeviceArea {
     pub dial_after: HashMap<[u8; 32], f64>,
     /// Changes become events this soon while a session with another of our devices is live.
     pub capture_at: Option<f64>,
+    /// A snapshot found a file moved or deleted here: the next capture tells our other devices (ADR 0016).
+    pub missing_seen: std::cell::Cell<bool>,
     /// The device list last acted on, to notice a joined, renamed or removed computer.
     pub known: String,
     /// When the join rows change by themselves (a code or a request expires).
@@ -106,6 +108,7 @@ impl DeviceArea {
             links: HashMap::new(),
             dial_after: HashMap::new(),
             capture_at: None,
+            missing_seen: std::cell::Cell::new(false),
             known: String::new(),
             refresh_at: None,
             pipes: HashMap::new(),

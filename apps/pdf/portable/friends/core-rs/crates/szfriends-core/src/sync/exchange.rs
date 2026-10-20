@@ -369,6 +369,12 @@ impl SyncExchange {
             let mut none = vec![NONE];
             put_id(&mut none, &id);
             self.outgoing.push(none);
+            if size.is_none() {
+                // Listed as holding it and it is gone (moved or deleted here): every device hears so now.
+                if engine.capture_local_changes(store) > 0 {
+                    self.pump(engine, store);
+                }
+            }
             return Ok(());
         };
         let _ = handle.seek(SeekFrom::Start(start));
