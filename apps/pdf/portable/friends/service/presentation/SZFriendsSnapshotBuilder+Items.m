@@ -386,8 +386,8 @@ static BOOL EndsSentence(NSString *text) {
         @"time_label" : [s clockLabelForDate:item.sentAt],
         @"accessibility_label" : spoken
     };
-    // A file on another of the person's computers, or one copying to them (+Devices).
-    return [self transferWithDevices:transfer item:item person:person];
+    // A file on another of the person's computers, one copying to them (+Devices), or one moved or deleted (+Again).
+    return [self transferWhereItIs:transfer item:item person:person];
 }
 
 - (NSArray<NSDictionary<NSString *, id> *> *)itemsForPerson:(SZFriendsPersonFacts *)person

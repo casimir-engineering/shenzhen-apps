@@ -209,6 +209,10 @@ header `friends/service/session/SZFriendsSession.h` holds the numbers.
   64,000 bytes, `SZFriendsFrameChainMax`): the sender's encoded device chain, opaque to the session and verified by the
   identity area. `SZFriendsSessionMinor` is 2 and the handshake's range 0 to 2; a helper sends CHAIN once per live XX
   or IK session with a friend whose range reaches 2, never in NN. It travels in the control queue.
+- **AGAIN, session minor 3** (recorded 2026-10-21; ADR 0016). Frame type 27 carries one field, Again (tag 36, 1 to
+  64,000 bytes, `SZFriendsFrameAgainMax`): one message of the exchange by which a person gets a file a friend sent
+  them again, opaque to the session. `SZFriendsSessionMinor` is 3 and the handshake's range 0 to 3; a helper sends
+  AGAIN only on an XX or IK session with a friend whose range reaches 3, never in NN. Parts travel in the chunk queue.
 - **Frame fuzzing is in place** (recorded 2026-10-13). The fuzzing Verification asks for runs the session frame and
   field parser, THUMBNAIL included, under libFuzzer (`friends-thumbnails-fuzz`, harnesses in
   `service/thumbnails/fuzz/`); its corpus is kept there and every entry is replayed under the sanitizers by

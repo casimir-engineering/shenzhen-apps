@@ -68,3 +68,4 @@
 {"type":"set_received_folder","id":"69","path":"/Users/raph/Documents/From friends"}
 {"type":"subscribe","id":"70","view":"received","params":null}
 {"type":"remove_friend","id":"71","conversation_id":"c_lena","delete_history":true}
+{"type":"fetch_from_friend","id":"72","transfer_id":"t_5a90c3e1"}

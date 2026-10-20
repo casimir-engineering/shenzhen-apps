@@ -232,6 +232,7 @@ Lowercase dotted strings. Unknown ones are ignored on both sides.
 | `files.share` | A phone: `show_file` hands a received file to the system's share sheet, labelled "Share…", and offers no folder to show (the details' `received.action` is null). Settings says "this device" where a computer's says "this computer" |
 | `nearby.found` | The host shows how each person nearby was found: Nearby's rows and a friend's list row carry `found` (§ Views, `nearby`) |
 | `list.menu` | The host shows each list row's `menu` on right-click, Control-click or long-press; rows carry `menu` (§ Views, `list`) |
+| `files.again` | The host sends `fetch_from_friend`: a file a friend sent that is on none of the person's computers anymore carries Get again (§ Getting a file again). Without it the item says so and offers nothing |
 | `mentions` | The host's views show mentions (§ Mentions): `@` in the composer, whose hint then includes "@ to mention someone", with `mentionable` on list rows and the composer's `mention_note`, and mentions in messages as links. Without it every mention arrives as plain text |
 
 | Helper capability | Meaning |
@@ -245,6 +246,7 @@ Lowercase dotted strings. Unknown ones are ignored on both sides.
 | `mentions` | `send_message.mentions` and `add_from_mention` are implemented (§ Mentions). Without it a host offers no `@`: an older helper would ignore `mentions` and send each U+FFFC as it is, and answers `add_from_mention` with `unknown_intent` |
 | `links` | Friend links and download links (§ Links): `open_link`, `add_from_link`, `receive_link`, `make_download_link`, `reset_friend_link` and `revoke_link`, and the profile's `links`. Without it they fail with `unknown_intent` and hosts offer no link items |
 | `devices` | One profile on several computers (§ Devices, § Joining): the profile's `devices`, the list's `state`, `removed`, `join_requests` and rows' `kind`, the name prompt's `join_label`, the `join` view, the You conversation, files on another computer, and the intents `revoke_device`, `rename_device`, `fetch_from_device` and the five join intents. Without it those fields are absent, the intents fail with `unknown_intent`, and hosts show none of it |
+| `files.again` | `fetch_from_friend` is implemented, and this helper serves the files it sent to a friend who asks for them again (§ Getting a file again). Without it the intent fails with `unknown_intent` and no item carries Get again |
 | `received.folder` | Received files are published to a folder the person can choose (§ Views, `settings` and `received`): `data.received`'s `value`, `path` and `change`, the intent `set_received_folder` and the `received` view. Without it the intent fails with `unknown_intent`, `subscribe` to `received` with `invalid_field`, and hosts offer no Change… |
 | `online` | Online friends (M2): the helper reaches friends over the Internet, and its words say so (§ Shared objects, Route, online). Absent in M1: no snapshot shows an Online or Connecting state or Internet wording |
 
@@ -295,6 +297,7 @@ composer on the reply already shows the sent message. Field types are in § Sche
 | `revoke_device` | `device_id` | Remove another computer from this profile, after the action's confirmation (§ Devices) |
 | `rename_device` | `name` | The name this computer has in Your computers on every computer of the profile (§ Devices) |
 | `fetch_from_device` | `transfer_id` | Copy here a file another of the person's computers holds (Get, § Devices) |
+| `fetch_from_friend` | `transfer_id` | Get a file a friend sent again, from that friend, when none of the person's computers has it anymore (Get again, § Getting a file again; helper capability `files.again`) |
 | `block` | `conversation_id` | Block: they cannot reconnect, send requests or offer files; turns off automatic acceptance |
 | `unblock` | `conversation_id` | Undo a block |
 | `remove_friend` | `conversation_id`, `delete_history?` | Take anyone but You off the list: a friend is removed without being told, an incoming request declined and an outgoing one withdrawn (as `decline_request` and `cancel_request` do), a blocked person stays blocked. The conversation stays unless `delete_history` is true, which then deletes it as `delete_history` does; a new request from either side brings the person back. `not_allowed` for You; someone already off the list succeeds with no change |
@@ -632,7 +635,9 @@ One friend's history and composer, or the request card for a pending request.
   from `file.type_identifier`, or from `file.extension` when a toolkit has no use for the identifier.
 - `highlight_item_id` names the message to scroll to and highlight after a search or a citation.
 - A file another of the person's computers holds is a transfer in state `on_device` with Get, then `fetching`
-  (§ Devices). The conversation `you` is the person's own (§ Devices, You).
+  (§ Devices). The conversation `you` is the person's own (§ Devices, You). A file no longer where it was saved is
+  `missing`, and a friend's file can then be fetched from that friend again (`fetching`, or `gone` when they no
+  longer have it; § Getting a file again).
 - `request` replaces history and composer while a request is pending: the comparison code both screens show,
   with Accept, Decline and Block (incoming, Block destructive and armed), or Cancel request (outgoing).
   `comparison_code` is `null` when no session has derived one yet; `code_prompt` then says when it will be
@@ -784,8 +789,8 @@ The new computer's side of joining a person's existing profile, with the helper 
     and assumes 4 Mbit/s until a rate is measured ("Through the Friends relay, about 3 min").
 - **Action.** A button: `action` names the intent to send with the object's id (`accept_offer` with the item's
   `transfer_id`, `block` with the view's `conversation_id`, `dismiss_banner` with the banner's `kind`,
-  `cancel_message` with a message item's `item_id` as `message_id`, `fetch_from_device` with the item's
-  `transfer_id`, `add_from_mention` with the action's own `friends_id`, `identity_key` and `name`, and likewise
+  `cancel_message` with a message item's `item_id` as `message_id`, `fetch_from_device` and `fetch_from_friend`
+  with the item's `transfer_id`, `add_from_mention` with the action's own `friends_id`, `identity_key` and `name`, and likewise
   `revoke_device` with its `device_id`, `approve_join` and `deny_join` with its `join_id`, `join_profile` with its
   `friends_id`) or a client-side action (`open_file`,
   `show_file` with `path`; `open_settings` with `settings_target`; `choose_received_folder`, § Views, `settings`). `label` and `style` (`primary`, `secondary`,
@@ -1153,8 +1158,11 @@ the item's `transfer_id` (`fixtures/snapshots/devices-conversation-mei-files.jso
 with `progress` and "Copying from Raph’s Mac mini · 25%" while it copies, or `progress` null and "Copies when Studio
 workstation is nearby with ShenzhenPDF, Shenzhen Files or Shenzhen 3D open" ("online or nearby" with the helper
 capability `online`) while that computer is not connected; Cancel (`cancel_transfer`) stops it and the item returns to
-`on_device`. Once here it is `received` with its `path`, as any received file. Errors of `fetch_from_device`:
-`not_found` ("This file isn’t on your other computers anymore."), `not_allowed` when it is already here, `disk_full`.
+`on_device`. Once here it is `received` with its `path`, as any received file. A computer that no longer has a
+file's bytes (the person moved or deleted it there, or a file it sent is gone from where it was) stops counting as one
+that holds it on every computer, so no computer offers Get from it. Errors of `fetch_from_device`: `not_found` ("This
+file isn’t on your other computers anymore."), `not_allowed` when it is already here, `disk_full`. A file moved or
+deleted here is fetched the same way (§ Getting a file again).
 
 **Deleting history on several computers.** `delete_history` deletes on every computer of the profile (ADR 0014,
 tombstones), so while the profile has two or more computers the words say so: Settings' `history.note` "Stored on all
@@ -1163,6 +1171,42 @@ file history, with every friend and in You, are deleted from this computer, and 
 they connect. …", and a friend's Delete chat history note "Clears this chat on all your computers. Mei stays your
 friend." with a confirmation that begins the same way (`fixtures/snapshots/devices-settings.json`,
 `devices-details-mei.json`). A profile on one computer keeps the one-computer words.
+
+## Getting a file again
+
+A received file the person moved or deleted can come back ([ADR 0016](docs/adr/0016-files-again.md);
+`fixtures/snapshots/devices-conversation-mei-again.json`). Every string is display-ready, from the catalog
+(`service/presentation/SZFriendsCatalogDevices.m`).
+
+**Moved or deleted.** A file this computer received (or copied from another of the person's computers) whose
+published file is no longer where it was saved, at its size, has no `file.path`, no Open or Show, and is shown by
+where its bytes still are. The same holds for a file another computer received whose bytes no computer of the profile
+holds anymore. In order:
+
+1. Another of the person's computers holds it: `on_device`, "On Raph’s Mac mini" with Get (`fetch_from_device`),
+   exactly as a file that was never here (§ Devices). Get copies it into the folder received files go to. It never
+   copies by itself, whatever its size: the person moved or deleted it here.
+2. A friend sent it and none of the person's computers holds it: `state` `missing`, `status_label` "Moved or
+   deleted", and the action `fetch_from_friend` ("Get again", primary), sent with the item's `transfer_id`, for a
+   client with the capability `files.again` while that person is a friend. After Get again the item is `fetching`:
+   "Copying from Mei Lin · 25%" with `progress` while it copies, or `progress` null and "Copies when Mei Lin is nearby
+   with ShenzhenPDF, Shenzhen Files or Shenzhen 3D open" ("online or nearby" with the helper capability `online`) while
+   no session with them is live, with Cancel (`cancel_transfer`), which takes it back to `missing`. Once here it is
+   `received` with its new `path`, saved where received files go. The friend's computer answers by itself, with no
+   question to them: it already chose to send this file to this person. When it no longer has the file, or the file
+   changed since it was sent, the item is `gone`: "Mei Lin doesn’t have this file anymore." with no actions.
+3. Anything else (a file the person sent from another computer, a download link's file, a file in You, someone who
+   is not a friend anymore): `missing`, "Moved or deleted", no actions.
+
+The name in these words is the friend's display name, as the conversation's header shows it. `accessibility_label`
+reads "Mei Lin sent Site photos.zip, ZIP archive, 48.2 MB, moved or deleted", and for `gone` "Mei Lin sent Site
+photos.zip, ZIP archive, 48.2 MB. Mei Lin doesn’t have this file anymore."
+
+**Errors of `fetch_from_friend`:** `not_found` ("This file isn’t in this chat anymore.") for an unknown transfer or one
+whose history was deleted; `not_allowed` when the file is on this computer already, another computer of the profile
+holds it (Get applies), it is not a file a friend sent this person, that person is not a friend now, or this computer
+was removed from the profile; `disk_full` when the file does not fit. A friend's helper without `files.again` never
+answers: the item stays `fetching` with the waiting words.
 
 ## Joining
 
@@ -1559,7 +1603,7 @@ label: string|null
 ```
 
 ```schema type.action
-action: enum(accept_request,decline_request,cancel_request,block,unblock,remove_friend,send_request,add_from_mention,accept_offer,decline_offer,cancel_transfer,cancel_message,retry_item,mark_verified,accept_key_change,dismiss_banner,start_visibility,stop_visibility,activate,reset_friends,delete_history,open_file,show_file,open_settings,add_from_link,receive_link,reset_friend_link,revoke_link,revoke_device,fetch_from_device,join_profile,cancel_join,approve_join,deny_join,choose_received_folder)
+action: enum(accept_request,decline_request,cancel_request,block,unblock,remove_friend,send_request,add_from_mention,accept_offer,decline_offer,cancel_transfer,cancel_message,retry_item,mark_verified,accept_key_change,dismiss_banner,start_visibility,stop_visibility,activate,reset_friends,delete_history,open_file,show_file,open_settings,add_from_link,receive_link,reset_friend_link,revoke_link,revoke_device,fetch_from_device,fetch_from_friend,join_profile,cancel_join,approve_join,deny_join,choose_received_folder)
 label: string
 style: enum(primary,secondary,link,destructive)
 note?: string|null
@@ -1808,7 +1852,7 @@ assistant_label: string|null when kind=message,transfer   # set when the assista
 transfer_id: string when kind=transfer
 file: @file_info when kind=transfer
 meta_label: string when kind=transfer
-state: enum(queued,offered,waiting_for_you,sending,receiving,delivered,received,declined,cancelled,failed,on_device,fetching) when kind=transfer
+state: enum(queued,offered,waiting_for_you,sending,receiving,delivered,received,declined,cancelled,failed,on_device,fetching,missing,gone) when kind=transfer
 status_label: string when kind=transfer
 route_note: string|null when kind=transfer
 progress: @progress|null when kind=transfer
@@ -2302,6 +2346,10 @@ name: string                 # this computer's new name
 ```
 
 ```schema intent.fetch_from_device
+transfer_id: string
+```
+
+```schema intent.fetch_from_friend
 transfer_id: string
 ```
 
