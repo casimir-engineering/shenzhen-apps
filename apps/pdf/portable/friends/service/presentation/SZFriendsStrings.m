@@ -120,7 +120,7 @@ NSSet<NSString *> *SZFriendsMissingCatalogKeys(void) {
           @"drop_hint", @"drop_folders_refused", @"drop_not_a_file", @"drop_send_one", @"drop_send_many",
           @"drop_send_file", @"drop_send_file_and_more", @"animals_title", @"crop_title", @"crop_use", @"cancel",
           @"loading", @"load_earlier", @"link_open", @"link_open_email", @"link_elsewhere", @"queued_note",
-          @"show_all"
+          @"show_all", @"save", @"name_empty"
       ];
     });
     // Only {apps} is the helper's to fill; the placeholders views and hosts fill (PROTOCOL.md § Static strings) stay

@@ -125,7 +125,11 @@
 }
 
 - (NSTextField *)namePromptField {
-    return _namePrompt.hidden ? nil : _namePrompt.field;
+    return _namePrompt.hidden ? nil : _namePrompt.nameEditor.field;
+}
+
+- (SZFriendsNameEditor *)namePromptEditor {
+    return _namePrompt.hidden ? nil : _namePrompt.nameEditor;
 }
 
 - (SZFriendsButton *)bannerButton {
@@ -176,7 +180,10 @@
         }];
         if (_searchField.stringValue.length) [link setFilter:_searchField.stringValue forSubscription:_nearbyToken];
     }
-    if (!_showingNearby && !_listToken) {
+    // The list stays subscribed on both tabs: the name prompt and the banner above the tabs come from it, and a name
+    // saved on the Nearby tab must take the prompt away there too (the owner's report of 2026-10-20: the card stayed
+    // after Return, because Nearby had dropped the list and nothing told the card the name was saved).
+    if (!_listToken) {
         _listToken = [link subscribeToView:@"list" params:nil handler:^(NSDictionary *data, NSInteger rev) {
             (void)rev;
             [weakSelf applySnapshot:data];
@@ -187,10 +194,6 @@
     if (!_showingNearby && _nearbyToken) {
         [link unsubscribe:_nearbyToken];
         _nearbyToken = nil;
-    }
-    if (_showingNearby && _listToken) {
-        [link unsubscribe:_listToken];
-        _listToken = nil;
     }
 }
 
@@ -210,7 +213,6 @@
 - (void)applySnapshot:(NSDictionary *)data {
     _listData = [data copy];
     [self applyStaticStrings];
-    SZFriendsAppearance *appearance = self.context.appearance;
     __weak SZFriendsListPage *weakSelf = self;
 
     NSDictionary *banner = SZFDict(data, @"banner");
@@ -222,18 +224,7 @@
     }];
 
     NSDictionary *prompt = SZFDict(data, @"name_prompt");
-    _namePrompt.hidden = prompt == nil;
-    _namePrompt.titleLabel.stringValue = SZFStr(prompt, @"title") ?: @"";
-    _namePrompt.noteLabel.stringValue = SZFStr(prompt, @"note") ?: @"";
-    if (prompt && !_namePrompt.field) {
-        NSTextField *field = [NSTextField textFieldWithString:@""];
-        field.bezelStyle = NSTextFieldRoundedBezel;
-        field.font = appearance.bodyFont;
-        field.delegate = self;
-        _namePrompt.field = field;
-    }
-    _namePrompt.field.placeholderString = SZFStr(prompt, @"placeholder");
-    _namePrompt.field.accessibilityLabel = SZFStr(prompt, @"title");
+    [self applyNamePrompt:prompt];
     [self applyDevices:data prompt:prompt];
 
     NSArray *rows = SZFArr(data, @"rows");
@@ -266,6 +257,36 @@
     if (!_showingNearby || !_nearbyData) [_footer applyFooter:SZFDict(data, @"footer")];
     [self setNeedsLayout:YES];
     self.needsDisplay = YES;
+}
+
+// The card that asks for a name until one is saved. What is typed survives every snapshot; the card goes the moment
+// the helper confirms the name, and its next snapshot (no name_prompt) keeps it gone.
+- (void)applyNamePrompt:(NSDictionary *)prompt {
+    BOOL wasHidden = _namePrompt.hidden;
+    _namePrompt.hidden = prompt == nil;
+    _namePrompt.titleLabel.stringValue = SZFStr(prompt, @"title") ?: @"";
+    _namePrompt.noteLabel.stringValue = SZFStr(prompt, @"note") ?: @"";
+    if (prompt && !_namePrompt.nameEditor) {
+        SZFriendsNameEditor *editor = [[SZFriendsNameEditor alloc] initWithContext:self.context
+                                                                              font:self.context.appearance.bodyFont];
+        __weak SZFriendsListPage *weakSelf = self;
+        editor.onSaved = ^(NSString *name) {
+            (void)name;
+            SZFriendsListPage *page = weakSelf;
+            if (!page) return;
+            BOOL focused = page->_namePrompt.nameEditor.field.currentEditor != nil;
+            page->_namePrompt.hidden = YES;
+            [page->_namePrompt.nameEditor reset];
+            if (focused) [page.window makeFirstResponder:page->_searchField];
+            [page setNeedsLayout:YES];
+        };
+        editor.onLayoutChange = ^{ [weakSelf setNeedsLayout:YES]; };
+        _namePrompt.nameEditor = editor;
+    }
+    if (prompt && wasHidden && !_namePrompt.nameEditor.saving) [_namePrompt.nameEditor reset];
+    [_namePrompt.nameEditor reloadStrings];
+    _namePrompt.nameEditor.field.placeholderString = SZFStr(prompt, @"placeholder");
+    _namePrompt.nameEditor.field.accessibilityLabel = SZFStr(prompt, @"title");
 }
 
 - (void)applyNearbySnapshot:(NSDictionary *)data {
@@ -420,15 +441,16 @@
     for (SZFriendsRowView *row in _rowViews)
         if ([row.actionsView disarm]) return YES;
     if (SZFriendsDisarmActionButtons(_devicesView)) return YES; // a join row's "Deny?"
-    return [_footer cancelEditingName];
+    if ([_footer cancelEditingName]) return YES;
+    return !_namePrompt.hidden && [_namePrompt.nameEditor cancelTyping];
 }
 
 #pragma mark - Text fields
 
 - (void)controlTextDidChange:(NSNotification *)notification {
     if (notification.object != _searchField) return;
-    NSString *token = _showingNearby ? _nearbyToken : _listToken;
-    if (token) [self.context.link setFilter:_searchField.stringValue forSubscription:token];
+    for (NSString *token in @[ _listToken ?: @"", _nearbyToken ?: @"" ])
+        if (token.length) [self.context.link setFilter:_searchField.stringValue forSubscription:token];
 }
 
 - (BOOL)control:(NSControl *)control textView:(NSTextView *)textView doCommandBySelector:(SEL)command {
@@ -437,20 +459,7 @@
         SZFriendsForwardEscape(self);
         return YES;
     }
-    if (command == @selector(insertNewline:) && control == _namePrompt.field) {
-        NSString *name = _namePrompt.field.stringValue ?: @"";
-        __weak SZFriendsListPage *weakSelf = self;
-        [self.context.link sendIntent:@"set_name" fields:@{@"name" : name}
-                                reply:^(NSDictionary *result, SZFriendsLinkError *error) {
-                                    (void)result;
-                                    SZFriendsListPage *page = weakSelf;
-                                    if (!page || !error.message.length) return;
-                                    page->_namePrompt.noteLabel.stringValue = error.message;
-                                    [page.context announce:error.message];
-                                    [page setNeedsLayout:YES];
-                                }];
-        return YES;
-    }
+    (void)control;
     return NO;
 }
 

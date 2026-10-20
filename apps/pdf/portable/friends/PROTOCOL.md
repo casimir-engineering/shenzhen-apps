@@ -1244,7 +1244,9 @@ carries the same sentence filled in. A helper that announces `online` says "onli
 `show_all` labels the control under a message a view shows as plain text and cuts short to keep the conversation
 quick to open; pressing it shows the rest of that message. `drop_folders_refused` and `drop_not_a_file` are what a
 target that takes files says while a folder, or a symbolic link or special file (FIFO, socket, device), is dragged
-over it: the helper sends only regular files, so views refuse the others there.
+over it: the helper sends only regular files, so views refuse the others there. `save` labels the button beside the
+field where the person types the name friends see (the list's `name_prompt` and the footer's rename); `name_empty` is
+what that field says when Save or Return finds nothing typed, or only spaces, instead of sending `set_name`.
 
 | Key | English |
 |---|---|
@@ -1279,6 +1281,8 @@ over it: the helper sends only regular files, so views refuse the others there.
 | `link_elsewhere` | Goes to {host}, not {shown} |
 | `queued_note` | Messages and files send when {first} is nearby with ShenzhenPDF, Shenzhen Files or Shenzhen 3D open. |
 | `show_all` | Show all |
+| `save` | Save |
+| `name_empty` | Type the name friends should see. |
 
 ## Limits
 
@@ -1411,6 +1415,8 @@ strings.link_open_email: string
 strings.link_elsewhere: string
 strings.queued_note: string
 strings.show_all: string
+strings.save: string
+strings.name_empty: string
 ```
 
 ```schema frame.reply

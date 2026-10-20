@@ -92,26 +92,44 @@ static void weak_free(gpointer data) {
 /* A refused name's reason stays on the note until the person types again, whatever snapshots arrive meanwhile. */
 #define SZFRIENDS_GTK_PROMPT_ERROR "szfriends-prompt-error"
 
+/* Shows `message` under the field as the reason a name was not saved, until the person types again. */
+static void prompt_refuse(GtkWidget *note, const char *message) {
+    if (!message || !*message) return;
+    g_object_set_data_full(G_OBJECT(note), SZFRIENDS_GTK_PROMPT_ERROR, g_strdup(message), g_free);
+    szfriends_gtk_list_label_set(note, message);
+    gtk_accessible_announce(GTK_ACCESSIBLE(note), message, GTK_ACCESSIBLE_ANNOUNCEMENT_PRIORITY_HIGH);
+}
+
 static void name_replied(JsonObject *result, const SZFriendsGtkError *error, gpointer data) {
     (void)result;
     GtkWidget *note = g_weak_ref_get(data);
     /* The helper's words for a refused name, where it was typed. */
-    if (note && error && error->message && *error->message) {
-        g_object_set_data_full(G_OBJECT(note), SZFRIENDS_GTK_PROMPT_ERROR, g_strdup(error->message), g_free);
-        szfriends_gtk_list_label_set(note, error->message);
-        gtk_accessible_announce(GTK_ACCESSIBLE(note), error->message, GTK_ACCESSIBLE_ANNOUNCEMENT_PRIORITY_HIGH);
-    }
+    if (note && error) prompt_refuse(note, error->message);
     if (note) g_object_unref(note);
+}
+
+/* Something to save: not empty, not only spaces. */
+static gboolean prompt_has_name(GtkWidget *entry) {
+    char *name = g_strstrip(g_strdup(gtk_editable_get_text(GTK_EDITABLE(entry))));
+    gboolean has = *name != '\0';
+    g_free(name);
+    return has;
 }
 
 void szfriends_gtk_list_page_submit_name(SZFriendsGtkPage *page) {
     const SZFriendsGtkListParts *parts = szfriends_gtk_list_page_parts(page);
     if (!parts) return;
     SZFriendsGtkListPage *list = szfriends_gtk_page_get_data(page);
+    /* Save is for a name: with nothing typed, say so instead of clearing it (friends would then see the ID). */
+    if (!prompt_has_name(parts->prompt_entry)) {
+        prompt_refuse(parts->prompt_note, szfriends_gtk_link_string(list->link, "name_empty"));
+        return;
+    }
     GWeakRef *ref = g_new0(GWeakRef, 1);
     g_weak_ref_init(ref, parts->prompt_note);
-    const char *name = gtk_editable_get_text(GTK_EDITABLE(parts->prompt_entry));
+    char *name = g_strstrip(g_strdup(gtk_editable_get_text(GTK_EDITABLE(parts->prompt_entry))));
     szfriends_gtk_link_send(list->link, szfriends_intent_set_name(name), name_replied, ref, weak_free);
+    g_free(name);
 }
 
 static void prompt_activated(GtkEntry *entry, gpointer data) {
@@ -119,9 +137,14 @@ static void prompt_activated(GtkEntry *entry, gpointer data) {
     szfriends_gtk_list_page_submit_name(((SZFriendsGtkListPage *)data)->page);
 }
 
+static void prompt_save_clicked(GtkButton *button, gpointer data) {
+    (void)button;
+    szfriends_gtk_list_page_submit_name(((SZFriendsGtkListPage *)data)->page);
+}
+
 static void prompt_edited(GtkEditable *entry, gpointer data) {
-    (void)entry;
     SZFriendsGtkListPage *list = data;
+    gtk_widget_set_sensitive(list->parts.prompt_save, prompt_has_name(GTK_WIDGET(entry)));
     GtkWidget *note = list->parts.prompt_note;
     if (!g_object_get_data(G_OBJECT(note), SZFRIENDS_GTK_PROMPT_ERROR)) return;
     g_object_set_data(G_OBJECT(note), SZFRIENDS_GTK_PROMPT_ERROR, NULL);
@@ -143,6 +166,11 @@ void szfriends_gtk_list_apply_notices(SZFriendsGtkListPage *list, const SZFriend
     const char *error = g_object_get_data(G_OBJECT(parts->prompt_note), SZFRIENDS_GTK_PROMPT_ERROR);
     szfriends_gtk_list_label_set(parts->prompt_note, error ? error : prompt ? prompt->note : NULL);
     gtk_entry_set_placeholder_text(GTK_ENTRY(parts->prompt_entry), prompt ? prompt->placeholder : NULL);
+    /* The helper's word for Save; an older helper sends none, and Return still saves. */
+    const char *save = szfriends_gtk_link_string(list->link, "save");
+    gtk_button_set_label(GTK_BUTTON(parts->prompt_save), save);
+    gtk_widget_set_visible(parts->prompt_save, *save != '\0');
+    gtk_widget_set_sensitive(parts->prompt_save, prompt_has_name(parts->prompt_entry));
     if (prompt && *prompt->title)
         gtk_accessible_update_property(GTK_ACCESSIBLE(parts->prompt_entry), GTK_ACCESSIBLE_PROPERTY_LABEL,
                                        prompt->title, -1);
@@ -179,11 +207,19 @@ void szfriends_gtk_list_build_notices(SZFriendsGtkListPage *list, GtkWidget *con
     parts->prompt = notice("prompt", GTK_ORIENTATION_VERTICAL);
     parts->prompt_title = szfriends_gtk_list_label("szfriends-notice-title");
     parts->prompt_entry = gtk_entry_new();
+    gtk_widget_set_hexpand(parts->prompt_entry, TRUE);
     g_signal_connect(parts->prompt_entry, "activate", G_CALLBACK(prompt_activated), list);
     g_signal_connect(parts->prompt_entry, "changed", G_CALLBACK(prompt_edited), list);
+    parts->prompt_save = gtk_button_new_with_label("");
+    gtk_widget_add_css_class(parts->prompt_save, "suggested-action");
+    gtk_widget_set_sensitive(parts->prompt_save, FALSE);
+    g_signal_connect(parts->prompt_save, "clicked", G_CALLBACK(prompt_save_clicked), list);
+    GtkWidget *prompt_row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8);
+    gtk_box_append(GTK_BOX(prompt_row), parts->prompt_entry);
+    gtk_box_append(GTK_BOX(prompt_row), parts->prompt_save);
     parts->prompt_note = szfriends_gtk_list_label("szfriends-caption");
     gtk_box_append(GTK_BOX(parts->prompt), parts->prompt_title);
-    gtk_box_append(GTK_BOX(parts->prompt), parts->prompt_entry);
+    gtk_box_append(GTK_BOX(parts->prompt), prompt_row);
     gtk_box_append(GTK_BOX(parts->prompt), parts->prompt_note);
     gtk_box_append(GTK_BOX(content), parts->send_notice);
     gtk_box_append(GTK_BOX(content), parts->banner);

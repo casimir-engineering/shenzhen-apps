@@ -144,7 +144,7 @@ static void TestSmallWords(void) {
     ExpectText([s groupedComparisonCode:@"12345"], @"12345");
 
     NSDictionary *strings = s.staticStrings;
-    SZPExpect(strings.count == 31, @"31 static strings, got %lu", (unsigned long)strings.count);
+    SZPExpect(strings.count == 33, @"33 static strings, got %lu", (unsigned long)strings.count);
     // The views fill only the four drag strings and the link warning, and hosts the queued note, each with exactly
     // the placeholders PROTOCOL.md § Static strings names; {apps} reaches nobody unfilled.
     NSDictionary<NSString *, NSArray<NSString *> *> *filled = @{

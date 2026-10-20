@@ -101,7 +101,7 @@ typedef struct {
     GtkWidget *search, *tabs, *stack;
     GtkWidget *send_notice, *send_text, *send_cancel;
     GtkWidget *banner, *banner_text, *banner_button;
-    GtkWidget *prompt, *prompt_title, *prompt_entry, *prompt_note;
+    GtkWidget *prompt, *prompt_title, *prompt_entry, *prompt_save, *prompt_note;
     /* Several computers (szfriends_gtk_list_devices.c): the removed notice with Start Over in its slot, the join
      * requests, and the name prompt's "Use my existing profile". */
     GtkWidget *devices, *removed, *removed_title, *removed_body, *removed_slot, *join_requests, *prompt_join;

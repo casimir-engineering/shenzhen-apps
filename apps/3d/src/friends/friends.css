@@ -270,6 +270,18 @@
   color: var(--muted);
   margin-top: 6px;
 }
+.szf-name-prompt .szf-name-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.szf-name-prompt .szf-name-row input {
+  flex: 1;
+  min-width: 0;
+}
+.szf-name-prompt small.szf-refusal {
+  color: var(--error);
+}
 .szf-empty {
   padding: 28px 20px;
   text-align: center;

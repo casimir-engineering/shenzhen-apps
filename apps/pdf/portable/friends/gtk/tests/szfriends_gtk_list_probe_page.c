@@ -124,11 +124,25 @@ static void test_fresh_list(SZFGHarness *harness) {
                !gtk_widget_has_css_class(footer->name_label, "szfriends-footer-name"),
            "the footer offers the name in plain weight");
     guint names = szfg_frames(harness, "set_name"), dismissals = szfg_frames(harness, "dismiss_banner");
+    EXPECT(gtk_widget_get_visible(parts->prompt_save) &&
+               !g_strcmp0(gtk_button_get_label(GTK_BUTTON(parts->prompt_save)), "Save") &&
+               !gtk_widget_get_sensitive(parts->prompt_save), "Save beside the field, resting until a name is typed");
     gtk_editable_set_text(GTK_EDITABLE(parts->prompt_entry), "Mei");
+    EXPECT(gtk_widget_get_sensitive(parts->prompt_save), "a name wakes Save");
     g_signal_emit_by_name(parts->prompt_entry, "activate");
     EXPECT(szfg_wait_frames(harness, "set_name", names + 1), "Return in the field sets the name");
-    refuse_names(harness, "Use a name with letters in it.");
+    gtk_editable_set_text(GTK_EDITABLE(parts->prompt_entry), "Mei");
+    g_signal_emit_by_name(parts->prompt_save, "clicked");
+    EXPECT(szfg_wait_frames(harness, "set_name", names + 2), "and so does Save");
+    /* Nothing but spaces: Save says what to type, and nothing reaches the helper. */
     gtk_editable_set_text(GTK_EDITABLE(parts->prompt_entry), "   ");
+    EXPECT(!gtk_widget_get_sensitive(parts->prompt_save), "Save rests for spaces");
+    szfriends_gtk_list_page_submit_name(list->page);
+    SZFGLabelWait empty = {parts->prompt_note, "Type the name friends should see."};
+    EXPECT(szfg_pump_until(label_says, &empty, 3000) && szfg_frames(harness, "set_name") == names + 2,
+           "only spaces are refused before anything is sent");
+    refuse_names(harness, "Use a name with letters in it.");
+    gtk_editable_set_text(GTK_EDITABLE(parts->prompt_entry), "Mei, with a name the helper refuses");
     szfriends_gtk_list_page_submit_name(list->page);
     SZFGLabelWait refused = {parts->prompt_note, "Use a name with letters in it."};
     EXPECT(szfg_pump_until(label_says, &refused, 3000), "a refused name says why under the field");
@@ -218,13 +232,15 @@ static void test_search_and_tabs(SZFGHarness *harness) {
     guint nearby = views(harness, "nearby"), lists = views(harness, "list");
     guint unsubscribes = szfg_frames(harness, "unsubscribe");
     adw_toggle_group_set_active_name(ADW_TOGGLE_GROUP(parts->tabs), "nearby");
-    EXPECT(parts->showing_nearby && parts->nearby_token && !parts->list_token, "Nearby: only its view is held");
-    EXPECT(subscribe_wait(harness, "nearby", nearby + 1) && szfg_wait_frames(harness, "unsubscribe",
-                                                                             unsubscribes + 1),
-           "it subscribes Nearby and lets the list go");
+    /* The list stays held on Nearby: its name card and banner show above both tabs, and must follow the helper. */
+    EXPECT(parts->showing_nearby && parts->nearby_token && parts->list_token, "Nearby: its view and the list's");
+    EXPECT(subscribe_wait(harness, "nearby", nearby + 1) && szfg_frames(harness, "unsubscribe") == unsubscribes &&
+               views(harness, "list") == lists,
+           "it subscribes Nearby and keeps the list");
     adw_toggle_group_set_active_name(ADW_TOGGLE_GROUP(parts->tabs), "friends");
     EXPECT(!parts->showing_nearby && parts->list_token && !parts->nearby_token &&
-               subscribe_wait(harness, "list", lists + 1), "and back: Nearby's countdown stops with its tab");
+               szfg_wait_frames(harness, "unsubscribe", unsubscribes + 1),
+           "and back: Nearby's countdown stops with its tab");
 
     /* Only while on screen: a conversation on top lets the list go, and coming back holds it again. */
     lists = views(harness, "list");
@@ -237,7 +253,7 @@ static void test_search_and_tabs(SZFGHarness *harness) {
     szfriends_gtk_list_page_show_nearby(list->page, TRUE);
     EXPECT(!parts->list_token && !parts->nearby_token, "not even when the tab changes while closed");
     szfriends_gtk_dropdown_open(list->dropdown);
-    EXPECT(parts->nearby_token && !parts->list_token, "opening holds the tab that shows");
+    EXPECT(parts->nearby_token && parts->list_token, "opening holds the tab that shows, and the list");
     szfriends_gtk_list_page_show_nearby(list->page, FALSE);
     szfriends_gtk_dropdown_close(list->dropdown);
 

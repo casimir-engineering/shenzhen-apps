@@ -60,6 +60,8 @@
     "link_open_email": "New Email",
     "link_elsewhere": "Goes to {host}, not {shown}",
     "queued_note": "Messages and files send when {first} is nearby with ShenzhenPDF, Shenzhen Files or Shenzhen 3D open.",
-    "show_all": "Show all"
+    "show_all": "Show all",
+    "save": "Save",
+    "name_empty": "Type the name friends should see."
   }
 }

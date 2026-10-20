@@ -11,25 +11,49 @@ export function NamePrompt({
   onJoin(): void;
 }) {
   const panel = usePanel();
+  const strings = panel.store.strings;
   const [name, setName] = useState("");
+  // Why the last Save did not go through, until the person types again.
+  const [refusal, setRefusal] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
   return (
     <form
       className="szf-card szf-name-prompt"
       onSubmit={async (event) => {
         event.preventDefault();
-        if (!name.trim()) return;
-        const reply = await panel.store.send("set_name", { name });
-        panel.report(reply);
+        // Save is for a name: with nothing typed, say so instead of clearing it.
+        if (!name.trim()) return setRefusal(strings.name_empty || null);
+        setSaving(true);
+        const reply = await panel.store.send("set_name", { name: name.trim() });
+        setSaving(false);
+        // The helper's reason shows under the field, where the name was typed.
+        if (!reply.ok) setRefusal(reply.error?.message ?? null);
       }}
     >
       <label>
         <strong>{prompt.title}</strong>
-        <input
-          value={name}
-          placeholder={prompt.placeholder}
-          onChange={(event) => setName(event.target.value)}
-        />
+        <span className="szf-name-row">
+          <input
+            value={name}
+            placeholder={prompt.placeholder}
+            disabled={saving}
+            onChange={(event) => {
+              setName(event.target.value);
+              setRefusal(null);
+            }}
+          />
+          {strings.save && (
+            <button
+              type="submit"
+              className="szf-button primary"
+              disabled={saving || !name.trim()}
+            >
+              {strings.save}
+            </button>
+          )}
+        </span>
       </label>
+      {refusal && <small className="szf-refusal">{refusal}</small>}
       <small>{prompt.note}</small>
       {prompt.join_label && (
         <button type="button" className="szf-button link" onClick={onJoin}>
