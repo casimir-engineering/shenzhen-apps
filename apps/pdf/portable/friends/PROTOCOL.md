@@ -1981,7 +1981,7 @@ data.received.action: @action|null   # show_file with the folder; null on phones
 data.received.change?: @action|null  # with `received.folder`: choose_received_folder "Change…"; null on phones
 data.auto_accept.label: string
 data.auto_accept.note: string
-data.auto_accept.action_label: string  # "Choose friends…": shows a switch per friend; views hide it while `friends` is empty
+data.auto_accept.action_label: string  # "Choose friends…" (a switch per friend); hidden while `friends` is empty
 data.auto_accept.friends: array
 data.auto_accept.friends[].conversation_id: string
 data.auto_accept.friends[].title: string

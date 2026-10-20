@@ -241,6 +241,10 @@ static void apply(SZFriendsGtkSettings *settings) {
     }
     set_row(settings->auto_row, snapshot->auto_accept.label, snapshot->auto_accept.note);
     gtk_button_set_label(GTK_BUTTON(settings->change), snapshot->auto_accept.action_label);
+    /* No friends, no switch to show: the row's note says where to turn it on. */
+    gboolean choosable = snapshot->auto_accept.n_friends > 0;
+    gtk_widget_set_visible(settings->change, choosable);
+    if (!choosable) gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(settings->change), FALSE);
     set_row(settings->history_row, snapshot->history.label, snapshot->history.note);
     gtk_button_set_label(GTK_BUTTON(settings->history_button), snapshot->history.action_label);
     set_row(settings->reset_row, snapshot->reset.label, snapshot->reset.note);

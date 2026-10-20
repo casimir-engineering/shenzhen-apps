@@ -133,6 +133,23 @@ static void test_friends(SZFGHarness *harness, GtkWidget *section) {
     rows = markup = switches = 0;
     count_rows(section, &rows, &markup, &switches);
     EXPECT(switches == 0, "and fold away again");
+    /* No friends: nothing to choose, so no button. */
+    gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(change), TRUE);
+    JsonObject *lonely = szfg_fixture_data("snapshots/settings.json");
+    JsonObject *nobody = json_object_get_object_member(lonely, "auto_accept");
+    json_object_set_array_member(nobody, "friends", json_array_new());
+    json_object_set_string_member(nobody, "note", "Turn it on for a friend in their details.");
+    szfg_script_view(harness, "settings", lonely);
+    json_object_unref(lonely);
+    for (int i = 0; i < 300 && gtk_widget_get_visible(change); i++) szfg_pump_for(10);
+    rows = markup = switches = 0;
+    count_rows(section, &rows, &markup, &switches);
+    EXPECT(!gtk_widget_get_visible(change) && switches == 0, "no friends, no Choose friends…");
+    JsonObject *again = szfg_fixture_data("snapshots/settings.json");
+    szfg_script_view(harness, "settings", again);
+    json_object_unref(again);
+    for (int i = 0; i < 300 && !gtk_widget_get_visible(change); i++) szfg_pump_for(10);
+    EXPECT(gtk_widget_get_visible(change), "friends again, Choose friends… again");
 }
 
 static void test_confirmed(SZFGHarness *harness, GtkWidget *section) {

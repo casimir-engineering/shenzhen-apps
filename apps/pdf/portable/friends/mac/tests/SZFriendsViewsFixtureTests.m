@@ -197,6 +197,15 @@ static void SZFTestOtherFixtures(void) {
                   settings.autoAcceptSwitches[2].state == NSControlStateValueOff,
               @"switch states from the snapshot");
     SZFExpect(settings.view.intrinsicContentSize.height > collapsed + 100, @"height follows the content");
+    // No friends: nothing to choose, so no button, and the switches go.
+    NSMutableDictionary *lonely = [SZFTestSnapshot(@"settings") mutableCopy];
+    lonely[@"auto_accept"] = @{@"label" : @"Accept files automatically",
+                               @"note" : @"Turn it on for a friend in their details.",
+                               @"action_label" : @"Choose friends…", @"friends" : @[]};
+    [settings applySnapshot:lonely];
+    SZFExpect(settings.buttons[2].hidden && settings.autoAcceptSwitches.count == 0, @"no friends, no button");
+    [settings applySnapshot:SZFTestSnapshot(@"settings")];
+    SZFExpect(!settings.buttons[2].hidden && settings.autoAcceptSwitches.count == 0, @"friends again, closed");
 
     SZFTestHost *host = [SZFTestHost new];
     SZFriendsDropdownController *controller =
