@@ -19,3 +19,6 @@
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
+# Tauri finds the update plugin's commands and argument classes by reflection (UpdatePlugin.kt).
+-keep class com.shenzhen3d.viewer.UpdatePlugin { *; }
+-keep @app.tauri.annotation.InvokeArg class com.shenzhen3d.viewer.** { *; }

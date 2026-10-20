@@ -1,3 +1,5 @@
+#[cfg(target_os = "android")]
+mod android_updates;
 #[cfg(feature = "friends")]
 mod friends;
 #[cfg(feature = "friends")]
@@ -173,10 +175,19 @@ pub fn run() {
     let builder = tauri::Builder::default().manage(native_open::NativeOpenFiles::default());
     #[cfg(all(feature = "friends", any(windows, target_os = "linux", target_os = "android")))]
     let builder = friends_links::plugins(builder);
-    #[cfg(not(feature = "friends-smoke"))]
+    #[cfg(all(not(feature = "friends-smoke"), not(target_os = "android")))]
     let builder = builder.invoke_handler(tauri::generate_handler![
         native_open::take_native_open_files
     ]);
+    // Android updates itself from GitHub Releases (src/android_updates.rs, docs/UPDATES.md § Android).
+    #[cfg(all(not(feature = "friends-smoke"), target_os = "android"))]
+    let builder = builder
+        .plugin(android_updates::plugin())
+        .invoke_handler(tauri::generate_handler![
+            native_open::take_native_open_files,
+            android_updates::android_updates,
+            android_updates::android_updates_subscribe
+        ]);
     let builder = builder
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init());

@@ -20,6 +20,8 @@ export interface UpdateState {
   progress?: number;
   message: string;
   lastChecked?: number;
+  /** Android: updates come as APKs that Android installs after the person confirms; the channel is fixed. */
+  platform?: "android";
 }
 export interface UpdateBridge {
   getState(): Promise<UpdateState>;
