@@ -188,6 +188,8 @@ pub struct PersonFacts {
     pub link_contact: bool,
     /// Taken off the list (`left_list_at`): the list skips them; their conversation and details still open.
     pub left_list: bool,
+    /// The discovery methods that see this person nearby now (lan, p2p_wifi, bluetooth); empty when none do.
+    pub found_methods: Vec<RouteMethod>,
 }
 
 impl Default for PersonFacts {
@@ -219,6 +221,7 @@ impl Default for PersonFacts {
             received_reveal_path: None,
             link_contact: false,
             left_list: false,
+            found_methods: Vec::new(),
         }
     }
 }
@@ -333,6 +336,8 @@ pub struct NearbyPersonFacts {
     pub relation: Relation,
     pub is_stranger: bool,
     pub route_method: RouteMethod,
+    /// The discovery methods that see this person now (lan, p2p_wifi, bluetooth).
+    pub found_methods: Vec<RouteMethod>,
 }
 
 impl Default for NearbyPersonFacts {
@@ -346,6 +351,7 @@ impl Default for NearbyPersonFacts {
             relation: Relation::Friend,
             is_stranger: false,
             route_method: RouteMethod::None,
+            found_methods: Vec::new(),
         }
     }
 }
