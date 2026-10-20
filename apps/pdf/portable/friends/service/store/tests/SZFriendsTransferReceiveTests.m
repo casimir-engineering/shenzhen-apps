@@ -74,7 +74,7 @@ static void TestReceiveVerifyAndPublish(void) {
     SZFTExpect([transfers finishTransfer:@"r1" finalDigest:SZFTBlake2b(contents) fromConversation:@"mei" error:&error],
                @"finish: %@", error);
     SZFriendsTransferRecord *record = [transfers transferWithID:@"r1"];
-    NSString *expected = [transfers.receivedDirectory stringByAppendingPathComponent:@"Site photos.pdf"];
+    NSString *expected = [transfers.destinationDirectory stringByAppendingPathComponent:@"Site photos.pdf"];
     SZFTExpect(record.state == SZFriendsTransferStateReceived && [record.receivedPath isEqualToString:expected],
                @"published at %@", record.receivedPath);
     SZFTExpect([[NSData dataWithContentsOfFile:expected] isEqualToData:contents], @"the bytes that were offered");
@@ -86,12 +86,13 @@ static void TestReceiveVerifyAndPublish(void) {
     // The same name again, plus a dangling symlink planted where the next name would go: neither is overwritten.
     NSString *outside = [SZFTTemporaryDirectory(@"outside") stringByAppendingPathComponent:@"stolen"];
     symlink(outside.fileSystemRepresentation,
-            [transfers.receivedDirectory stringByAppendingPathComponent:@"Site photos 2.pdf"].fileSystemRepresentation);
+            [transfers.destinationDirectory
+                stringByAppendingPathComponent:@"Site photos (2).pdf"].fileSystemRepresentation);
     NSData *second = SZFTRandomData(1000);
     Accept(transfers, @"r2", @"mei", @"Site photos.pdf", second);
     Send(transfers, @"r2", second, 0, 400);
     [transfers finishTransfer:@"r2" finalDigest:SZFTBlake2b(second) fromConversation:@"mei" error:NULL];
-    SZFTExpect([[transfers transferWithID:@"r2"].receivedPath.lastPathComponent isEqualToString:@"Site photos 3.pdf"],
+    SZFTExpect([[transfers transferWithID:@"r2"].receivedPath.lastPathComponent isEqualToString:@"Site photos (3).pdf"],
                @"next free name: %@", [transfers transferWithID:@"r2"].receivedPath);
     SZFTExpect([[NSData dataWithContentsOfFile:expected] isEqualToData:contents], @"the first file is untouched");
     SZFTExpect(![NSFileManager.defaultManager fileExistsAtPath:outside], @"the symlink was not followed");
@@ -117,7 +118,7 @@ static void TestPublishingNeverOverwritesEvenInARace(void) {
     Accept(transfers, @"x1", @"mei", @"Race.pdf", contents);
     Send(transfers, @"x1", contents, 0, 3000);
     // A file appears at the chosen name after it was chosen and before the rename.
-    SZFTRacePath = [transfers.receivedDirectory stringByAppendingPathComponent:@"Race.pdf"];
+    SZFTRacePath = [transfers.destinationDirectory stringByAppendingPathComponent:@"Race.pdf"];
     NSString *planted = SZFTRacePath;
     SZFriendsStoreTestHook = PlantDuringPublish;
     NSError *error = nil;
@@ -128,7 +129,7 @@ static void TestPublishingNeverOverwritesEvenInARace(void) {
     SZFTExpect([[NSString stringWithContentsOfFile:planted encoding:NSUTF8StringEncoding error:NULL]
                    isEqualToString:@"someone else's file"], @"the file that appeared is untouched");
     SZFriendsTransferRecord *record = [transfers transferWithID:@"x1"];
-    SZFTExpect([record.receivedPath.lastPathComponent isEqualToString:@"Race 2.pdf"] &&
+    SZFTExpect([record.receivedPath.lastPathComponent isEqualToString:@"Race (2).pdf"] &&
                    [[NSData dataWithContentsOfFile:record.receivedPath] isEqualToData:contents],
                @"ours went to the next name: %@", record.receivedPath);
 }

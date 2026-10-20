@@ -50,6 +50,7 @@ static SZFriendsGtkActionTakes action_takes(SZFriendsGtkActionKind action) {
     case SZFRIENDS_GTK_ACTION_OPEN_FILE:
     case SZFRIENDS_GTK_ACTION_SHOW_FILE:
     case SZFRIENDS_GTK_ACTION_OPEN_SETTINGS:
+    case SZFRIENDS_GTK_ACTION_CHOOSE_RECEIVED_FOLDER:
     case SZFRIENDS_GTK_ACTION_UNKNOWN: break;
     }
     return CLIENT_SIDE;

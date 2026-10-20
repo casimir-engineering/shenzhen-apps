@@ -35,6 +35,8 @@ SZFriendsAudience *SZPAudience(void) {
     audience.capabilities = [NSSet setWithArray:@[ @"attach.items", @"drop.files", @"drop.tabs", @"search.export" ]];
     audience.openFormats = [NSSet setWithArray:@[ @"pdf", @"epub", @"xps", @"cbz", @"md", @"markdown" ]];
     audience.timeZone = HongKong();
+    // The fixtures show a helper that saves received files to Downloads or a chosen folder.
+    audience.helperCapabilities = [NSSet setWithObject:@"received.folder"];
     return audience;
 }
 
@@ -63,7 +65,7 @@ SZFriendsProfileFacts *SZPProfileRaph(void) {
     profile.friendsIDState = SZFriendsIDStateUnreserved;
     profile.picture = [SZFriendsPicture animalWithSet:1 index:0];
     profile.identityPublicKey = Base64URLDecode(@"C7p4jaaHK1zWWJGVH-YasjrlEk8qfJvd3KLmn0IFY3E");
-    profile.receivedDirectory = @"/Users/raph/Library/Application Support/Shenzhen Friends/received";
+    profile.receivedDirectory = @"/Users/raph/Downloads";
     return profile;
 }
 
@@ -111,7 +113,7 @@ NSDictionary<NSString *, SZFriendsPersonFacts *> *SZPPeople(void) {
     mei.verifiedAt = SZPHongKong(@"2026-10-03 10:12");
     mei.autoAccept = YES;
     mei.receivedFileCount = 14;
-    mei.receivedRevealPath = @"/Users/raph/Library/Application Support/Shenzhen Friends/received";
+    mei.receivedRevealPath = @"/Users/raph/Downloads";
 
     SZFriendsPersonFacts *kenji = Person(@"c_kenji", @"Kenji Sato", @"cedar-lantern", 1,
                                          SZFriendsPersonRelationFriend, SZFriendsRouteKindLocal,

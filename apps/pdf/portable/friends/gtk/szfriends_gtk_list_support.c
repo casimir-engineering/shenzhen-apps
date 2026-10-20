@@ -150,6 +150,33 @@ static void file_chosen(GObject *dialog, GAsyncResult *result, gpointer data) {
     g_free(choosing);
 }
 
+static void folder_chosen(GObject *dialog, GAsyncResult *result, gpointer data) {
+    SZFriendsGtkChoosing *choosing = data;
+    GFile *file = gtk_file_dialog_select_folder_finish(GTK_FILE_DIALOG(dialog), result, NULL);
+    char *path = file ? g_file_get_path(file) : NULL;
+    choosing->chosen(path, choosing->data);
+    g_free(path);
+    if (file) g_object_unref(file);
+    g_free(choosing);
+}
+
+void szfriends_gtk_choose_folder(GtkWidget *source, const char *start, SZFriendsGtkChosen chosen, gpointer data) {
+    if (seams.choose_folder) {
+        seams.choose_folder(source, start, chosen, data, seams.data);
+        return;
+    }
+    GtkFileDialog *dialog = gtk_file_dialog_new();
+    if (start && *start) {
+        GFile *folder = g_file_new_for_path(start);
+        gtk_file_dialog_set_initial_folder(dialog, folder);
+        g_object_unref(folder);
+    }
+    SZFriendsGtkChoosing *choosing = g_new0(SZFriendsGtkChoosing, 1);
+    *choosing = (SZFriendsGtkChoosing){chosen, data};
+    gtk_file_dialog_select_folder(dialog, window_of(source), NULL, folder_chosen, choosing);
+    g_object_unref(dialog);
+}
+
 void szfriends_gtk_choose_image(GtkWidget *source, const char *title, SZFriendsGtkChosen chosen, gpointer data) {
     if (seams.choose_image) {
         seams.choose_image(source, title, chosen, data, seams.data);

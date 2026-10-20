@@ -208,7 +208,7 @@ NSString *SZFriendsDeviceIDForKey(NSData *deviceKey) {
     for (NSData *holder in file.holders) elsewhere = elsewhere || [self isOwnDeviceKey:holder];
     if (engine == nil || file == nil || !elsewhere) return @"not_found";
     SZFriendsTransfers *transfers = self.services.transfers;
-    uint64_t free = transfers.freeBytesProvider ? transfers.freeBytesProvider(transfers.receivedDirectory) : UINT64_MAX;
+    uint64_t free = transfers.freeBytesProvider ? [transfers freeBytesForReceiving] : UINT64_MAX;
     if (free < file.size) return @"disk_full";
     if (![engine requestFile:transferID error:NULL]) return @"internal";
     [self pumpSyncExchanges];

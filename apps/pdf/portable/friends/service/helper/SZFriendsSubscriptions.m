@@ -126,6 +126,7 @@ static const CFTimeInterval SZFriendsSnapshotInterval = 0.1;
         settings[@"nearby"] = [builder nearbyAccessWithFacts:pass.nearby profile:pass.profile];
         return settings;
     }
+    if ([view isEqualToString:@"received"]) return SZFriendsHelperReceivedSnapshot(_services);
     if ([view isEqualToString:@"message_status"]) {
         NSMutableDictionary<NSString *, SZFriendsPersonFacts *> *people = [NSMutableDictionary dictionary];
         for (SZFriendsPersonFacts *person in pass.people) people[person.conversationID] = person;

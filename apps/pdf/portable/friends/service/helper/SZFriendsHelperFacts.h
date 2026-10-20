@@ -47,6 +47,8 @@ NS_ASSUME_NONNULL_BEGIN
 // The helper capabilities a welcome announces now (PROTOCOL.md § Capabilities), in a stable order. `online` joins once
 // the host has said it takes online messages; snapshots follow it from then on, also on connections whose welcome
 // came before.
+// The received view's data (PROTOCOL.md § Views, received): the newest 100 published incoming files.
+NSDictionary<NSString *, id> *SZFriendsHelperReceivedSnapshot(SZFriendsHelperServices *services);
 NSArray<NSString *> *SZFriendsHelperCapabilityList(SZFriendsHelperServices *services);
 
 // One item's facts, with the outbox state and transfer record the presentation needs beside the history row.

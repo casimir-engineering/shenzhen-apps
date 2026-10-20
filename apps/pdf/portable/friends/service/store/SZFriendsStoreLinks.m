@@ -429,7 +429,7 @@ static BOOL SZFriendsCountInviteAccept(SZFriendsStoreDB *db, NSData *token, NSDa
                                                           size:(uint64_t)size
                                                  contentDigest:(NSData *)contentDigest
                                                          error:(NSError **)error {
-    uint64_t freeBytes = self.freeBytesProvider(self.receivedDirectory);
+    uint64_t freeBytes = [self freeBytesForReceiving];
     NSString *partialDirectory = [self.receivedDirectory stringByAppendingPathComponent:@".partial"];
     __block SZFriendsTransferRecord *result = nil;
     __block NSString *partial = nil;
@@ -473,7 +473,8 @@ static BOOL SZFriendsCountInviteAccept(SZFriendsStoreDB *db, NSData *token, NSDa
         item.receivedAt = record.createdAt;
         if (!SZFriendsStoreInsertItem(db, item, NULL, inner)) return NO;
         if (!SZFriendsTransferRowApplyEvent(db, transferID, SZFriendsTransferEventAccepted, nil, inner)) return NO;
-        NSDictionary *values = @{@"partial_path" : partial, @"verified_bytes" : @0, @"accepted_automatically" : @0};
+        NSDictionary *values = @{@"partial_path" : partial, @"verified_bytes" : @0, @"accepted_automatically" : @0,
+                                 @"received_via" : @(SZFriendsReceivedSourceLink)};
         if (!SZFriendsTransferRowUpdate(db, transferID, values, inner)) return NO;
         result = SZFriendsTransferRowLoad(db, transferID);
         return result != nil;

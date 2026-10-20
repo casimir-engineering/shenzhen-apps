@@ -32,7 +32,7 @@ static void TestMigrationKeepsEverything(void) {
     [older insertItem:SZFTMessage(@"mei", @"m1", @"kept", 1000, SZFriendsDirectionIncoming) error:NULL];
     [older close];
     SZFriendsStore *store = SZFTOpenStore(directory);
-    SZFTExpect(store.schemaVersion == 9 && [store itemWithID:@"m1" inConversation:@"mei"] != nil, @"v8 to v9 keeps it");
+    SZFTExpect(store.schemaVersion >= 9 && [store itemWithID:@"m1" inConversation:@"mei"] != nil, @"v8 to v9 keeps it");
     SZFTExpect([store syncEventCount] == 0 && [store syncVector].count == 0, @"and starts with an empty log");
     int64_t last = 0;
     SZFTExpect([store itemsWithoutSyncOriginAfterRow:0 limit:10 lastRow:&last].count == 1 && last > 0,
