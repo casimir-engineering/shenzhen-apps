@@ -35,8 +35,9 @@ node ../../tools/updater-e2e/update-e2e-3d.mjs --owner=<owner> --fixture=<signed
 
 The fixture is the published app with `electron/hidden-hook.cjs` loaded before its main and `LSBackgroundOnly`; its
 updater code is the release's. The updater's session goes through a local proxy to the local copy of GitHub; global
-fetch (the GitHub access check of private builds) goes there too; safeStorage is an in-memory stand-in. Squirrel's
-cache and ShipIt job are kept in the work directory and removed afterwards. With `--relaunch-app`, the installed
+fetch (the GitHub access check of private builds) goes there too; safeStorage is an in-memory stand-in. The copies
+run with `CFFIXED_USER_HOME` in the work directory, so Squirrel's cache and ShipIt state stay there, apart from any
+Shenzhen 3D that is running; this run's ShipIt job is removed afterwards (a running one stops the test). With `--relaunch-app`, the installed
 version then starts with the same profile and checks its own feed: without any credential for a public build, with
 the connected one for a private build.
 

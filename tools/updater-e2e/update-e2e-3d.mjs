@@ -162,20 +162,37 @@ if (!live) await Promise.all([tlsServer, plainServer, proxy].map((s) => new Prom
 const ports = live ? null : { tls: tlsServer.address().port, plain: plainServer.address().port, proxy: proxy.address().port };
 
 // ---- Squirrel's native state, kept in the work directory --------------------------------------------------------
+// The test copies run with CFFIXED_USER_HOME in the work directory, so Squirrel's caches and ShipIt state (and the
+// app's own native caches and defaults) are there, apart from any Shenzhen 3D the person is running. ShipIt itself
+// runs as a launchd job named after the bundle identifier, and its preferences are the real user's.
 const library = path.join(os.homedir(), "Library");
-const cacheLinks = [id, job].map((name) => ({ link: path.join(library, "Caches", name), target: path.join(work, "native-cache", name) }));
-const exists = (p) => { try { fs.lstatSync(p); return true; } catch { return false; } };
+const home = path.join(work, "home");
+const nativeCaches = [id, job].map((name) => path.join(home, "Library/Caches", name));
 const shipItPrefs = () => [
   ...fs.readdirSync(path.join(library, "Preferences")).filter((x) => x === job + ".plist").map((x) => path.join(library, "Preferences", x)),
   ...fs.readdirSync(path.join(library, "Preferences/ByHost")).filter((x) => x.startsWith(job + ".")).map((x) => path.join(library, "Preferences/ByHost", x)),
 ];
-const launchctlHas = () => { try { execFileSync("launchctl", ["print", `gui/${process.getuid()}/${job}`], { stdio: "pipe" }); return true; } catch { return false; } };
-for (const { link } of cacheLinks) if (exists(link)) throw Error("existing native updater cache: " + link);
-if (launchctlHas()) throw Error("a ShipIt job already exists");
-if (shipItPrefs().length) throw Error("ShipIt preferences already exist");
+const shipItJob = () => { try { return execFileSync("launchctl", ["print", `gui/${process.getuid()}/${job}`], { encoding: "utf8", stdio: "pipe" }); } catch { return null; } };
+const launchctlHas = () => shipItJob() !== null;
+const shipItRunning = () => /^\tstate = running$/m.test(shipItJob() ?? "");
+// Ours when its program is the ShipIt of a copy in the work directory or of the relaunch copy.
+const real = (p) => { try { return fs.realpathSync(p); } catch { return p; } };
+const shipItOurs = () => {
+  const program = real(/^\tprogram = (.*)$/m.exec(shipItJob() ?? "")?.[1] ?? "");
+  return [work, relaunchPrepared].some((dir) => dir && program.startsWith(real(dir) + path.sep));
+};
+// A finished job of another copy (registrations stay after ShipIt exits) is replaced by Squirrel and harmless; a
+// running one is an install in progress.
+if (shipItRunning()) throw Error("a ShipIt job is running");
+if (launchctlHas()) result.earlierShipItJob = /^\tprogram = (.*)$/m.exec(shipItJob())?.[1];
+// Preferences ShipIt left empty after another copy's install are kept as they are; any with contents stop the run.
+const prefKeys = (p) => Object.keys(JSON.parse(execFileSync("plutil", ["-convert", "json", "-o", "-", p], { encoding: "utf8" })));
+const prefsBefore = new Set(shipItPrefs());
+if ([...prefsBefore].some((p) => prefKeys(p).length)) throw Error("ShipIt preferences already exist");
 
 const env = { ...process.env };
 for (const k of ["GH_TOKEN", "GITHUB_TOKEN", "SHENZHEN_3D_DEV_URL", "ELECTRON_RUN_AS_NODE", "NODE_OPTIONS"]) delete env[k];
+env.CFFIXED_USER_HOME = home;
 const launch = (target) => electron.launch({ executablePath: path.join(target, "Contents/MacOS/Shenzhen 3D"),
   args: [`--user-data-dir=${profile}`, "--use-mock-keychain"], env, timeout: 60_000 });
 
@@ -216,7 +233,7 @@ async function overrides(application) {
 const anyVisible = (application) => application.evaluate(({ BaseWindow }) => BaseWindow.getAllWindows().some((w) => w.isVisible()));
 
 let application, installed = false, installStarted = false;
-const shipItIdle = async () => { for (let i = 0; i < 60 && launchctlHas(); i++) await sleep(1000); return !launchctlHas(); };
+const shipItIdle = async () => { for (let i = 0; i < 60 && shipItRunning(); i++) await sleep(1000); return !shipItRunning(); };
 // Waits until the bundle at `target` is `version` with the archive of the app in `zipFile`.
 async function replacedBy(target, version, zipFile, into) {
   fs.mkdirSync(into);
@@ -231,7 +248,7 @@ async function replacedBy(target, version, zipFile, into) {
   return false;
 }
 try {
-  for (const { link, target } of cacheLinks) { fs.mkdirSync(target, { recursive: true }); fs.symlinkSync(target, link, "dir"); }
+  for (const dir of nativeCaches) fs.mkdirSync(dir, { recursive: true });
   // ---- 1. the released app finds, downloads and installs the new release ----
   application = await launch(app);
   const page = await application.firstWindow();
@@ -338,16 +355,15 @@ try {
   for (const s of [tlsServer, plainServer, proxy]) if (s.listening) s.close();
   if (!installStarted || installed) {
     await shipItIdle(); // ShipIt finishing after the install
-    if (launchctlHas()) { try { execFileSync("launchctl", ["bootout", `gui/${process.getuid()}/${job}`], { stdio: "pipe" }); } catch {} }
-    for (const { link, target } of cacheLinks) if (exists(link) && fs.lstatSync(link).isSymbolicLink() && fs.readlinkSync(link) === target) fs.unlinkSync(link);
-    // None existed before the run (checked above): an empty one is ShipIt's from this run.
+    if (launchctlHas() && shipItOurs()) { try { execFileSync("launchctl", ["bootout", `gui/${process.getuid()}/${job}`], { stdio: "pipe" }); } catch {} }
+    // An empty one that was not there before the run is ShipIt's from this run.
     for (const p of shipItPrefs()) {
-      const contents = JSON.parse(execFileSync("plutil", ["-convert", "json", "-o", "-", p], { encoding: "utf8" }));
-      if (Object.keys(contents).length === 0) fs.unlinkSync(p);
-      else result.shipItPrefsLeft = (result.shipItPrefsLeft || []).concat([{ p, keys: Object.keys(contents) }]);
+      const keys = prefKeys(p);
+      if (keys.length === 0 && !prefsBefore.has(p)) fs.unlinkSync(p);
+      else if (keys.length) result.shipItPrefsLeft = (result.shipItPrefsLeft || []).concat([{ p, keys }]);
     }
   }
-  result.cleanup = { cacheLinks: cacheLinks.map(({ link }) => exists(link)), shipItJob: launchctlHas(), shipItPrefs: shipItPrefs() };
+  result.cleanup = { shipItJob: launchctlHas() && shipItOurs(), shipItPrefs: shipItPrefs().filter((p) => !prefsBefore.has(p)) };
   save();
   process.exit(result.success ? 0 : 1);
 }
