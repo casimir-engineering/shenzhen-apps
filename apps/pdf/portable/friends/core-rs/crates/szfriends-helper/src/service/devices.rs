@@ -244,7 +244,8 @@ impl State {
             now,
             join_offered: !removed && self.join_available(),
             removed,
-            you: you.filter(|_| computers.len() >= 2),
+            // With other computers, or with something in it (the person's own notes stay reachable on one computer).
+            you: you.filter(|you| computers.len() >= 2 || you.last_preview_item_id.is_some()),
             computers,
             files,
             ..DevicesFacts::default()

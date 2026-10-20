@@ -94,7 +94,16 @@ impl State {
             let links = self.links_facts(&profile, now);
             szfriends_core::presentation::ProfileFacts { links, ..profile }
         };
-        let devices = Some(self.devices_facts(now, &people));
+        let mut devices = self.devices_facts(now, &people);
+        if let Some(you) = devices.you.as_mut() {
+            // You are named and pictured as your profile is, and the row shows your newest item.
+            you.name = profile.name.clone();
+            you.friends_id = Some(profile.friends_id.clone());
+            you.picture = profile.picture.clone();
+            let id = you.last_preview_item_id.clone();
+            devices.you_preview = id.and_then(|id| self.preview_items(std::slice::from_ref(you)).remove(&id));
+        }
+        let devices = Some(devices);
         let join_requests = self.join_request_facts(now);
         let (you, people): (Vec<PersonFacts>, Vec<PersonFacts>) =
             people.into_iter().partition(|p| p.conversation_id == YOU);

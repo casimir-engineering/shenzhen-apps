@@ -140,34 +140,55 @@ fn a_friend_and_their_messages_reach_the_other_computer() {
     bo.snapshot(&list_b, "Cy off the other computer's list", |d| row_titled(d, "Cy").is_none());
 }
 
-#[test]
-fn on_a_single_computer_the_you_conversation_is_no_row() {
-    let (home, network) = (Temp::new("da1"), Temp::new("dnet1"));
+/// One computer whose store keeps a You conversation (from when it had others), with `note` in it when given.
+fn single_computer_with_you(label: &str, note: Option<&str>) -> (Client, Temp, Temp) {
+    let (home, network) = (Temp::new(label), Temp::new(&format!("{label}net")));
     drop(start(&[&home], &network)); // the home and its identity
     let mut store = szfriends_core::store::Store::open(&home.0).unwrap();
     szfriends_core::store::sync_history::ensure_you_conversation(store.connection()).unwrap();
-    let note = szfriends_core::store::Item {
-        item_id: "m_note".into(),
-        conversation_id: "you".into(),
-        kind: szfriends_core::store::ItemKind::Message,
-        direction: szfriends_core::store::Direction::Incoming,
-        text: Some("a note kept from when there were two".into()),
-        transfer_id: None,
-        sent_at: 1.0e9,
-        received_at: 1.0e9,
-        via_assistant: false,
-    };
-    store.insert_item(&note).unwrap();
+    if let Some(note) = note {
+        let item = szfriends_core::store::Item {
+            item_id: "m_note".into(),
+            conversation_id: "you".into(),
+            kind: szfriends_core::store::ItemKind::Message,
+            direction: szfriends_core::store::Direction::Outgoing,
+            text: Some(note.into()),
+            transfer_id: None,
+            sent_at: 1.0e9,
+            received_at: 1.0e9,
+            via_assistant: false,
+        };
+        store.insert_item(&item).unwrap();
+    }
     drop(store);
-    let mut ada = start(&[&home], &network).pop().unwrap();
-    ada.send("set_name", json!({"name": "Ada"}));
+    let mut client = start(&[&home], &network).pop().unwrap();
+    client.send("set_name", json!({"name": "Ada"}));
+    (client, home, network)
+}
+
+#[test]
+fn on_a_single_computer_an_empty_you_conversation_is_no_row() {
+    let (mut ada, _home, _network) = single_computer_with_you("dy0", None);
     let list = ada.subscribe("list", json!({}));
     let shown = ada.snapshot(&list, "the list", |d| d["rows"].is_array());
-    assert!(you_rows(&shown["data"]).is_empty() && shown["data"]["rows"].as_array().unwrap().is_empty(), "{shown}");
+    assert!(shown["data"]["rows"].as_array().unwrap().is_empty(), "{shown}");
     assert!(shown["data"]["empty"].is_object(), "nobody listed: {shown}");
     let badge = ada.subscribe("badge", json!({}));
     ada.snapshot(&badge, "nothing waits", |d| d["count"] == 0);
-    // Its history stays, and opens.
+}
+
+#[test]
+fn on_a_single_computer_your_own_notes_stay_as_the_you_row() {
+    let (mut ada, _home, _network) = single_computer_with_you("dy1", Some("Pages 3 to 5"));
+    let list = ada.subscribe("list", json!({}));
+    let shown = ada.snapshot(&list, "the You row", |d| you_rows(d).len() == 1);
+    let rows = shown["data"]["rows"].as_array().unwrap();
+    assert_eq!(rows.len(), 1, "only the You row: {shown}");
+    let you = &rows[0];
+    assert_eq!((&you["kind"], &you["title"], &you["subtitle"]), (&json!("you"), &json!("You"), &json!("Pages 3 to 5")));
+    assert_ne!(you["mentionable"], true, "nobody mentions themselves");
+    let badge = ada.subscribe("badge", json!({}));
+    ada.snapshot(&badge, "nothing waits", |d| d["count"] == 0);
     let chat = ada.send("open_conversation", json!({"conversation_id": "you"}))["subscription"].clone();
-    ada.snapshot(chat.as_str().unwrap(), "the kept note", |d| texts(d).contains("a note kept"));
+    ada.snapshot(chat.as_str().unwrap(), "the note", |d| texts(d).contains("Pages 3 to 5"));
 }
