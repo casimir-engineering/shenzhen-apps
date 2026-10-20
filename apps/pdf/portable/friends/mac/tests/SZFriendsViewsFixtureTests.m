@@ -187,7 +187,7 @@ static void SZFTestOtherFixtures(void) {
     NSWindow *settingsWindow = SZFTestHostWindow(settings.view, NSMakeSize(560, 520), NSAppearanceNameDarkAqua);
     [settings applySnapshot:SZFTestSnapshot(@"settings")];
     NSArray *titles = [settings.buttons valueForKey:@"title"];
-    NSArray *expectedTitles = @[ @"Copy", @"Show in Finder", @"Change…", @"Delete history…", @"Reset Friends…" ];
+    NSArray *expectedTitles = @[ @"Copy", @"Show in Finder", @"Choose friends…", @"Delete history…", @"Reset Friends…" ];
     SZFExpect([titles isEqualToArray:expectedTitles], @"settings actions: %@", titles);
     SZFExpect([settings.nameField.stringValue isEqualToString:@"Raph"], @"settings name");
     CGFloat collapsed = settings.view.intrinsicContentSize.height;

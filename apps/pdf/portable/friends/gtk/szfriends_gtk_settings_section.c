@@ -87,7 +87,7 @@ static void friend_toggled(GObject *row, GParamSpec *pspec, gpointer data) {
     szfriends_gtk_details_send(settings->page, szfriends_intent_set_auto_accept(conversation, enabled), NULL);
 }
 
-/* One switch per friend under the summary while Change… is pressed. Rows stay when the snapshot names the same
+/* One switch per friend under the summary while Choose friends… is pressed. Rows stay when the snapshot names the same
  * friends in the same order, so a switch the person just used keeps its focus. */
 static void sync_friends(SZFriendsGtkSettings *settings) {
     const SZFriendsGtkSettingsAutoAccept *automatic = &shown(settings)->auto_accept;

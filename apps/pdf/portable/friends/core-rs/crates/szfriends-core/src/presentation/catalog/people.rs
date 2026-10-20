@@ -79,7 +79,7 @@ pub(super) const PEOPLE_AND_SETTINGS: &[(&str, &str)] = &[
     ("error.received_folder.missing", "That folder can’t be found or opened. Choose another folder."),
     ("error.received_folder.not_allowed", "Files can’t be saved in that folder. Choose another folder."),
     ("settings.auto.label", "Accept files automatically"),
-    ("settings.auto.action", "Change…"),
+    ("settings.auto.action", "Choose friends…"),
     ("settings.auto.note.some", "From {names}. Everyone else asks first."),
     ("settings.auto.note.only", "From {names}."),
     ("settings.auto.note.all", "From every friend."),
@@ -164,6 +164,49 @@ pub(super) const PEOPLE_AND_SETTINGS: &[(&str, &str)] = &[
          in Chats until you delete them there.",
     ),
     ("settings.reset.confirm.button", "Reset Friends"),
+    // A phone or tablet (`files.share`): where history is kept and what deleting it removes, in its own words. Only
+    // the portable core serves one.
+    ("settings.history.note.phone", "Stored on this device. Deleting it keeps your friends and the files you received."),
+    (
+        "settings.history.note.devices.phone",
+        "Stored on all your devices. Deleting it keeps your friends and the files you received.",
+    ),
+    (
+        "settings.history.confirm.body.phone",
+        "Your messages and file history with every friend are deleted from this device, and anything still waiting \
+         to go won’t be sent. You keep your friends, and they keep their own copies of your chats. Files you received \
+         stay where they were saved.",
+    ),
+    (
+        "settings.history.confirm.body.assistant.phone",
+        "Your messages and file history with every friend are deleted from this device, and anything still waiting \
+         to go won’t be sent. You keep your friends, and they keep their own copies of your chats. Files you received \
+         stay where they were saved. AI chat answers that quoted your chats stay in Chats until you delete them there.",
+    ),
+    (
+        "settings.history.confirm.body.devices.phone",
+        "Your messages and file history, with every friend and in You, are deleted from this device, and from your \
+         other devices as soon as they connect. Anything still waiting to go won’t be sent. You keep your friends, \
+         and they keep their own copies of your chats. Files you received stay where they were saved.",
+    ),
+    (
+        "settings.history.confirm.body.assistant.devices.phone",
+        "Your messages and file history, with every friend and in You, are deleted from this device, and from your \
+         other devices as soon as they connect. Anything still waiting to go won’t be sent. You keep your friends, \
+         and they keep their own copies of your chats. Files you received stay where they were saved. AI chat answers \
+         that quoted your chats stay in Chats until you delete them there.",
+    ),
+    (
+        "settings.reset.confirm.body.phone",
+        "This deletes your friends and conversations from this device and gives you a new ID. Every friend has to \
+         add you again. Files you received stay where they were saved.",
+    ),
+    (
+        "settings.reset.confirm.body.assistant.phone",
+        "This deletes your friends and conversations from this device and gives you a new ID. Every friend has to \
+         add you again. Files you received stay where they were saved. AI chat answers that quoted your conversations \
+         stay in Chats until you delete them there.",
+    ),
     // Search
     ("search.sender.you", "You"),
     ("search.empty", "No messages or files match."),

@@ -167,6 +167,12 @@ static void TestFixtures(void) {
     if (received[@"value"] || received[@"path"] || received[@"change"] || ![received[@"note"] isEqual:@""]) {
         SZPFail(@"without received.folder: %@", received);
     }
+    // The automatic-acceptance button names what it shows: a switch per friend. With no friends it shows nothing, so
+    // views hide it, and the note says where to turn it on instead.
+    NSDictionary *automatic = [builder settingsWithProfile:SZPProfileRaph() people:@[]][@"auto_accept"];
+    SZPExpect([automatic[@"action_label"] isEqual:@"Choose friends…"] && [automatic[@"friends"] count] == 0 &&
+                  [automatic[@"note"] isEqual:@"Turn it on for a friend in their details."],
+              @"no friends: %@", automatic);
 }
 
 static void TestReplies(void) {

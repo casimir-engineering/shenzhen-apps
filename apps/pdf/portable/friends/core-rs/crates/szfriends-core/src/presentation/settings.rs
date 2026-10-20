@@ -105,6 +105,16 @@ impl SnapshotBuilder {
         }
     }
 
+    /// Settings' words for where history is kept, for this audience: ".phone" on a phone or tablet, which says "this
+    /// device" where a computer says "this computer".
+    pub(crate) fn this_device_key(&self, key: &str) -> String {
+        if self.on_phone() {
+            format!("{key}.phone")
+        } else {
+            key.to_owned()
+        }
+    }
+
     /// A Delete history or Reset confirmation body for this audience: ".assistant" when its AI chat may have quoted
     /// Friends chats, whose answers stay there.
     pub(crate) fn deletion_body_key(&self, key: &str) -> String {
@@ -135,8 +145,9 @@ impl SnapshotBuilder {
             })
             .collect();
         let received = self.received_folder(profile);
-        let history_body = self.every_computer_key(&self.deletion_body_key("settings.history.confirm.body"));
-        let reset_body = self.deletion_body_key("settings.reset.confirm.body");
+        let history_body =
+            self.this_device_key(&self.every_computer_key(&self.deletion_body_key("settings.history.confirm.body")));
+        let reset_body = self.this_device_key(&self.deletion_body_key("settings.reset.confirm.body"));
         json!({
             "name": {
                 "label": s.text("settings.name.label"),
@@ -159,7 +170,7 @@ impl SnapshotBuilder {
             },
             "history": {
                 "label": s.text("settings.history.label"),
-                "note": s.text(&self.every_computer_key("settings.history.note")),
+                "note": s.text(&self.this_device_key(&self.every_computer_key("settings.history.note"))),
                 "action_label": s.text("settings.history.action"),
                 "confirm": self.confirm("settings.history.confirm.title", &history_body,
                                         "settings.history.confirm.button", &[], true),

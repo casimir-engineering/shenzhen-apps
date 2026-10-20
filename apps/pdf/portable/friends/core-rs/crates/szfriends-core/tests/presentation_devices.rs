@@ -10,9 +10,10 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 use presentation::world::*;
 use presentation::{expect_fixture, through_store, validate_snapshot};
 use szfriends_core::presentation::{
-    Audience, DeviceFacts, DeviceFileFacts, DevicesFacts, ItemFacts, OnlineReach, OutboxState, PersonFacts, Relation,
-    RouteKind, RouteMethod, TransferState,
+    Audience, DeviceFacts, DeviceFileFacts, DevicesFacts, IdentityState, ItemFacts, OnlineReach, OutboxState,
+    PersonFacts, ProfileFacts, ReceivedFolderFacts, Relation, RouteKind, RouteMethod, TransferState,
 };
+use szfriends_core::store::PhoneFolder;
 
 fn computer(id: &str, name: &str, system: &str, this: bool, connected: bool, seen: Option<&str>) -> DeviceFacts {
     DeviceFacts {
@@ -192,6 +193,60 @@ fn history_words_on_several_computers() {
     // One computer: the words of one computer.
     builder.devices.as_mut().unwrap().computers.truncate(1);
     expect_fixture(&builder.settings(&profile_raph(), &everyone(&people)), "settings.json", "settings");
+}
+
+/// On a phone or tablet (`files.share`) Settings says "this device" and "all your devices", never "computer": the
+/// history note, both confirmations, and the list's Reset banner, with and without AI chat and several devices. The
+/// folder has no Change… there, and the automatic-acceptance button says what it shows.
+#[test]
+fn settings_words_on_a_phone() {
+    if presentation::tree_missing() {
+        return;
+    }
+    let people = through_store(&presentation::world::people());
+    let profile = ProfileFacts {
+        received: ReceivedFolderFacts { phone: Some(PhoneFolder::Downloads), ..ReceivedFolderFacts::default() },
+        identity_state: IdentityState::Unavailable,
+        ..profile_raph()
+    };
+    let mut phone = audience();
+    phone.app_name = "Shenzhen 3D".into();
+    phone.capabilities.insert("files.share".into());
+    let mut assistant = phone.clone();
+    assistant.capabilities.insert("assistant.chats".into());
+    for audience in [phone, assistant] {
+        for devices in [None, Some(four_computers())] {
+            let mut builder = builder(audience.clone());
+            let several = devices.is_some();
+            builder.devices = devices;
+            let settings = builder.settings(&profile, &everyone(&people));
+            validate_snapshot(&settings, "settings", "settings on a phone");
+            let note = settings["history"]["note"].as_str().unwrap();
+            let body = settings["history"]["confirm"]["body"].as_str().unwrap();
+            if several {
+                assert!(note.starts_with("Stored on all your devices."), "{note}");
+                assert!(body.contains("deleted from this device, and from your other devices"), "{body}");
+            } else {
+                assert!(note.starts_with("Stored on this device."), "{note}");
+                assert!(body.contains("deleted from this device, and anything"), "{body}");
+            }
+            let reset = settings["reset"]["confirm"]["body"].as_str().unwrap();
+            assert!(reset.starts_with("This deletes your friends and conversations from this device "), "{reset}");
+            let banner = &builder.list(&everyone(&people), &HashMap::new(), &profile, "", now())["banner"];
+            assert_eq!(banner["action"]["confirm"]["body"], settings["reset"]["confirm"]["body"]);
+            let assistant = audience.capabilities.contains("assistant.chats");
+            assert_eq!(body.contains("AI chat answers"), assistant, "{body}");
+            assert_eq!(reset.contains("AI chat answers"), assistant, "{reset}");
+            let text = settings.to_string();
+            assert!(!text.contains("computer") && !text.contains("Mac"), "{text}");
+            assert!(settings["received"]["change"].is_null(), "{settings}");
+            assert_eq!(settings["auto_accept"]["action_label"], "Choose friends…");
+        }
+    }
+    // No friends: no switch to show, so views hide the button, and the note says where to turn it on.
+    let automatic = &builder(audience()).settings(&profile_raph(), &[])["auto_accept"];
+    assert_eq!(automatic["friends"], serde_json::json!([]));
+    assert_eq!(automatic["note"], "Turn it on for a friend in their details.");
 }
 
 fn online_audience() -> Audience {

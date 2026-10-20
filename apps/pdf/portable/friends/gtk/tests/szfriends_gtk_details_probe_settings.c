@@ -1,7 +1,7 @@
 /* The Settings section offscreen, against the fake helper: subscribed only while on screen, every row plain text
  * (use-markup off, a name with markup characters shown as typed), the name sent only when changed, Copy, Show in
- * Finder through the host, a switch per friend behind Change…, Delete history and Reset Friends sent only after
- * their confirmations and with the fields PROTOCOL.md asks for, and the link's line while the helper is away.
+ * Finder through the host, a switch per friend behind Choose friends…, Delete history and Reset Friends sent only
+ * after their confirmations and with the fields PROTOCOL.md asks for, and the link's line while the helper is away.
  * Renders light and dark with the friends' switches out. */
 
 #include "szfriends_gtk_details_probe.h"
@@ -108,7 +108,7 @@ static void test_rows(SZFGHarness *harness, GtkWidget *section) {
 
 static void test_friends(SZFGHarness *harness, GtkWidget *section) {
     GtkWidget *change = szfg_find_named(section, "szfriends.settings.change");
-    EXPECT(change && !g_strcmp0(gtk_button_get_label(GTK_BUTTON(change)), "Change…"), "Change…");
+    EXPECT(change && !g_strcmp0(gtk_button_get_label(GTK_BUTTON(change)), "Choose friends…"), "Choose friends…");
     gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(change), TRUE);
     guint rows = 0, markup = 0, switches = 0;
     count_rows(section, &rows, &markup, &switches);
