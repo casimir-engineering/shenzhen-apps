@@ -48,6 +48,8 @@ NS_ASSUME_NONNULL_BEGIN
 @property(nonatomic, copy, nullable) NSString* pendingLinkPayload;
 // The target of the Copy Download Link items (SPDFMacFriendsLinkIntegration.mm); menu items hold targets weakly.
 @property(nonatomic, nullable) id shareTarget;
+// View ▸ Friends' target, which also keeps " · ⌘J" on the title-bar button's tooltip (SPDFMacFriendsMenuIntegration.mm).
+@property(nonatomic, nullable) id menuTarget;
 - (void)stopMirroringSearch;
 @end
 
@@ -72,6 +74,17 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)friendsRemoveShareMenu;
 - (void)friendsAddItemsToTabMenu:(NSMenu*)menu path:(NSString*)path;
 - (void)friendsBridgeCopyDownloadLinkForItem:(SZFriendsAttachableItem*)item days:(NSInteger)days;
+@end
+
+// SPDFMacFriendsMenuIntegration.mm: Cmd+J and View ▸ Friends (SPDFMacFriendsMenu.h), present only while attached.
+@interface ShenzhenMacDelegate (SPDFMacFriendsMenu)
+- (void)friendsInstallMenu;
+- (void)friendsRemoveMenu;
+@end
+
+// SPDFMacFriendsSettingsIntegration.mm: Settings, on the Friends section.
+@interface ShenzhenMacDelegate (SPDFMacFriendsSettingsSection)
+- (void)friendsShowSettingsSection;
 @end
 
 NS_ASSUME_NONNULL_END

@@ -58,3 +58,12 @@ static void SelectFriendsSection(void) {
 }
 
 @end
+
+@implementation ShenzhenMacDelegate (SPDFMacFriendsSettingsSection)
+
+- (void)friendsShowSettingsSection {
+    [self showUnifiedSettings:nil];
+    SelectFriendsSection();
+}
+
+@end

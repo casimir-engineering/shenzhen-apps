@@ -27,6 +27,7 @@ const {
 } = require("./files.cjs");
 const { HELPER_NAME } = require("./lock.cjs");
 const { createShareMenu } = require("./share-menu.cjs");
+const { createViewMenu } = require("./view-menu.cjs");
 
 const EVENT = "shenzhen-friends-event";
 // What Shenzhen 3D's panel shows and does (PROTOCOL.md § Capabilities): `#` offers the open model, files may be
@@ -90,6 +91,7 @@ function createFriendsHost({
   app,
   BrowserWindow,
   Menu,
+  MenuItem,
   shell,
   trusted,
   openFormats,
@@ -139,6 +141,16 @@ function createFriendsHost({
       deliver(owner, { kind: "copy_download_link", days }),
   });
   shareMenu.install();
+  // View ▸ Friends (⌘J), while Friends runs and is on (view-menu.cjs).
+  const viewMenu = createViewMenu({
+    Menu: located ? Menu : undefined,
+    MenuItem,
+    toggle: (window) => {
+      const owner = window ?? focusedId();
+      if (owner !== undefined) deliver(owner, { kind: "toggle" });
+    },
+  });
+  viewMenu.install();
   app.on?.("browser-window-focus", shareMenu.refresh);
   app.on?.("browser-window-blur", shareMenu.refresh);
 
@@ -157,6 +169,7 @@ function createFriendsHost({
     };
   }
   const announce = () => {
+    viewMenu.setShown(Boolean(located) && enabled !== false);
     shareMenu.setOffers(
       Boolean(client) &&
         state === "ready" &&

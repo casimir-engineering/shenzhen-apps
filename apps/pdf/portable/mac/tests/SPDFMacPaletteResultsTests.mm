@@ -174,6 +174,36 @@ int main(int argc, char** argv) {
         expect_true(@"unrelated query does not match",
                     !spdf_palette_menu_command_matches_query(@"zoom", @"Show Minimap", @"View \u25B8 Show Minimap"));
 
+        // --- spdf_palette_menu_command_keywords / ..._matches_query_or_keywords ---
+        NSArray<NSString*>* openKeywords = spdf_palette_menu_command_keywords(@"szfriends.open");
+        NSString* openCrumb = @"View \u25B8 Friends \u25B8 Open Friends";
+        for (NSString* query in @[ @"friends", @"friend", @"nearby", @"add by id", @"chat", @"Chat ", @"PEOPLE" ])
+            expect_true([NSString stringWithFormat:@"\"%@\" finds Open Friends", query],
+                        spdf_palette_menu_command_matches_query_or_keywords(query, @"Open Friends", @"", openKeywords));
+        expect_true(@"the title still matches without keywords",
+                    spdf_palette_menu_command_matches_query_or_keywords(@"open fr", @"Open Friends", openCrumb, @[]));
+        expect_true(@"a word in no keyword or title does not match",
+                    !spdf_palette_menu_command_matches_query_or_keywords(@"zoom", @"Open Friends", openCrumb, openKeywords));
+        expect_true(@"whitespace alone matches nothing through keywords",
+                    !spdf_palette_menu_command_matches_query_or_keywords(@"  ", @"Open Friends", @"", openKeywords));
+        expect_true(@"Add by ID answers to invite",
+                    spdf_palette_menu_command_matches_query_or_keywords(
+                        @"invite", @"Add by ID\u2026", @"", spdf_palette_menu_command_keywords(@"szfriends.add-by-id")));
+        expect_true(@"visibility answers to discoverable",
+                    spdf_palette_menu_command_matches_query_or_keywords(
+                        @"discoverable", @"Make Myself Visible", @"",
+                        spdf_palette_menu_command_keywords(@"szfriends.make-visible")));
+        expect_true(@"Friends Settings answers to preferences",
+                    spdf_palette_menu_command_matches_query_or_keywords(
+                        @"preferences", @"Friends Settings\u2026", @"", spdf_palette_menu_command_keywords(@"szfriends.settings")));
+        expect_true(@"other items have no keywords",
+                    spdf_palette_menu_command_keywords(@"").count == 0 &&
+                        spdf_palette_menu_command_keywords(@"szfriends.share").count == 0 &&
+                        spdf_palette_menu_command_keywords(nil).count == 0);
+        expect_true(@"a menu item without keywords does not match chat",
+                    !spdf_palette_menu_command_matches_query_or_keywords(
+                        @"chat", @"Show Minimap", @"View \u25B8 Show Minimap", spdf_palette_menu_command_keywords(@"")));
+
         // --- spdf_palette_menu_commands_excluding_selectors ---
         NSArray<NSDictionary*>* menuCommands = @[
             @{@"title" : @"Favorite Current Page", @"selector" : @"favoriteCurrentPage:"},

@@ -10,6 +10,14 @@ import {
 import type { UpdateState } from "./core/updates";
 import type { Vector3 } from "three";
 import { createId } from "./core/id";
+import { CommandPalette, type Command } from "./components/CommandPalette";
+import {
+  friendsRequests,
+  friendsShortcutLabel,
+  isFriendsShortcut,
+  isPaletteShortcut,
+  shortcutLabel,
+} from "./friends/requests";
 import {
   Box,
   Upload,
@@ -692,6 +700,31 @@ function App() {
   };
   const projectName = doc ? doc.name.replace(/\.[^.]+$/, "") + ".sz3d" : null;
   const [friendsLoaded, setFriendsLoaded] = useState(false);
+  // Whether Friends runs here and is on: its commands and its shortcut's line in Help show only then.
+  const [friendsOn, setFriendsOn] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const friendsState = useRef({ loaded: false, on: false });
+  friendsState.current = { loaded: friendsLoaded, on: friendsOn };
+  // Cmd/Ctrl+K and Cmd/Ctrl+J work while typing too (Cmd+J closes Friends from its own search field), so they are
+  // handled before the shortcuts below, which leave text fields alone. Neither acts over another dialog.
+  useEffect(() => {
+    const key = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || event.repeat) return;
+      const palette = isPaletteShortcut(event);
+      const friends =
+        isFriendsShortcut(event) && Boolean(window.shenzhenFriends);
+      if (!palette && !friends) return;
+      event.preventDefault();
+      if (document.querySelector("dialog[open]")) return;
+      if (palette) setPaletteOpen(true);
+      else if (!friendsState.current.loaded) {
+        setFriendsLoaded(true); // Cmd+J in the first second after launch loads Friends at once.
+        friendsRequests.request("toggle");
+      } else if (friendsState.current.on) friendsRequests.request("toggle");
+    };
+    window.addEventListener("keydown", key, true);
+    return () => window.removeEventListener("keydown", key, true);
+  }, []);
   useEffect(() => {
     if (!window.shenzhenFriends) return;
     let timer: number | undefined;
@@ -1305,6 +1338,111 @@ function App() {
       unlisten?.();
     };
   }, []);
+  const showSearchAssembly = () => {
+    setLeft(true);
+    requestAnimationFrame(() =>
+      document
+        .querySelector<HTMLInputElement>('[aria-label="Search assembly"]')
+        ?.focus(),
+    );
+  };
+  // Cmd/Ctrl+K. Friends' commands show only while Friends runs and is on.
+  const commands: Command[] = [
+    {
+      id: "open",
+      title: "Open file…",
+      shortcut: shortcutLabel("O"),
+      keywords: ["model", "drawing", "import"],
+      run: () => void actions.current.open(),
+    },
+    ...(doc
+      ? [
+          {
+            id: "share",
+            title: "Share commented project",
+            shortcut: shortcutLabel("S"),
+            keywords: ["save", "sz3d", "export"],
+            run: () => void actions.current.shareProject(),
+          },
+          {
+            id: "search-assembly",
+            title: "Search assembly",
+            shortcut: shortcutLabel("F"),
+            keywords: ["find", "part", "tree"],
+            run: showSearchAssembly,
+          },
+          {
+            id: "fit",
+            title: "Fit model",
+            shortcut: "F",
+            keywords: ["zoom", "view"],
+            run: () => viewer.current?.fit(),
+          },
+        ]
+      : []),
+    ...(friendsOn
+      ? [
+          {
+            id: "friends-open",
+            title: "Open Friends",
+            shortcut: friendsShortcutLabel,
+            keywords: [
+              "friend",
+              "nearby",
+              "add by id",
+              "chat",
+              "message",
+              "people",
+            ],
+            run: () => friendsRequests.request("open"),
+          },
+          {
+            id: "friends-add",
+            title: "Add by ID…",
+            keywords: ["friends", "friend", "add", "invite"],
+            run: () => friendsRequests.request("add_by_id"),
+          },
+          {
+            id: "friends-visible",
+            title: "Make myself visible",
+            keywords: ["friends", "nearby", "discoverable"],
+            run: () => friendsRequests.request("visible"),
+          },
+          {
+            id: "friends-settings",
+            title: "Friends Settings…",
+            keywords: ["preferences"],
+            run: () => {
+              settings.current?.showModal();
+              // The Friends section loads when Settings first opens.
+              let frames = 0;
+              const reveal = () => {
+                const section = document.querySelector(
+                  '[data-szfriends="settings"]',
+                );
+                if (section) section.scrollIntoView({ block: "start" });
+                else if (++frames < 120) requestAnimationFrame(reveal);
+              };
+              requestAnimationFrame(reveal);
+            },
+          },
+        ]
+      : []),
+    {
+      id: "settings",
+      title: "Settings…",
+      shortcut: shortcutLabel(","),
+      keywords: ["preferences", "units", "theme"],
+      run: () => settings.current?.showModal(),
+    },
+    {
+      id: "help",
+      title: "Help & shortcuts",
+      shortcut: "?",
+      keywords: ["keyboard", "controls"],
+      run: () => help.current?.showModal(),
+    },
+  ];
   const instruction =
     mode === "part"
       ? "Select a part to inspect"
@@ -1406,6 +1544,7 @@ function App() {
               buildProject={buildProject}
               onError={setError}
               onNotice={notify}
+              onAvailable={setFriendsOn}
             />
           </Suspense>
         )}
@@ -2434,6 +2573,11 @@ function App() {
           <p>Models, drawings, textures, and companion files</p>
         </div>
       )}
+      <CommandPalette
+        open={paletteOpen}
+        commands={commands}
+        onClose={() => setPaletteOpen(false)}
+      />
       <dialog ref={help} className="dialog">
         <div className="dialog-heading">
           <h2>Help & shortcuts</h2>
@@ -2513,6 +2657,18 @@ function App() {
               <dd>
                 <kbd>⌘ / Ctrl O</kbd>
               </dd>
+              <dt>Find a command</dt>
+              <dd>
+                <kbd>⌘ / Ctrl K</kbd>
+              </dd>
+              {friendsOn && (
+                <>
+                  <dt>Open or close Friends</dt>
+                  <dd>
+                    <kbd>⌘ / Ctrl J</kbd>
+                  </dd>
+                </>
+              )}
               <dt>Angle</dt>
               <dd>Three points, vertex at B</dd>
               <dt>Surface route</dt>

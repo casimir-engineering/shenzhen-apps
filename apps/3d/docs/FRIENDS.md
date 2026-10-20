@@ -109,6 +109,15 @@ with its draft. Colours are the app's tokens, so the panel follows the dark and 
 
 **Shenzhen 3D's part.**
 
+- Cmd+J (Ctrl+J on Windows and Linux) opens or closes the dropdown, with focus in its search field, also from that
+  field; the button's tooltip and View ▸ Friends in the Mac app show it. The command palette (Cmd/Ctrl+K) has Open
+  Friends (also found by "friend", "nearby", "add by id" and "chat"), Add by ID… (the profile page, in its ID field),
+  Make myself visible (Nearby, sending `start_visibility`) and Friends Settings… (Settings at the Friends section),
+  only while Friends runs and is on. The page handles the key (`src/App.tsx`, `src/friends/requests.ts`) and marks it
+  handled, so the menu item (`electron/friends/view-menu.cjs`) does not run it a second time. `node
+  electron/friends-shortcut.mjs` presses the keys in the real Electron shell with a real helper, in windows that never
+  show (`electron/test-hidden.cjs`).
+
 - Send project to a friend (header, while a model is open) saves the open model as a `.sz3d` project (model, notes and
   measurements), then opens Friends with "Send … to…": the next friend clicked receives it.
 - `#` in a conversation offers the same project as an attachment chip.
@@ -506,7 +515,7 @@ channels' libraries; that build has not yet been run on an emulator.
 - **Invisible characters.** The shared invisible-character marking (`fixtures/text/invisible-cases.json`) is for
   assistant proposals and literal-text cards; Shenzhen 3D has no assistant and does not implement it, so a stranger's
   name in a mention card shows as plain text.
-- **Not hosted:** Cmd+K search export, the assistant (`/`, AI chat access), `message_status`.
+- **Not hosted:** Cmd+K search export (the palette has Friends' commands, not its message search), the assistant (`/`, AI chat access), `message_status`.
 - **Signing.** Only ad hoc builds were made and tested. A Developer ID build should check that the helper, signed with
   the hardened runtime and no entitlements, still starts, and that it and ShenzhenPDF's helper read the Keychain item
   without prompting. The Team ID check runs only in team-signed builds.

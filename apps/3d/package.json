@@ -26,7 +26,7 @@
     "benchmark:startup:electron": "node electron/startup.mjs",
     "build:dmg:artwork": "node scripts/build-dmg-artwork.mjs",
     "setup:friends": "scripts/friends/setup-friends.sh",
-    "test:friends": "node --test electron/friends-bridge.test.cjs electron/friends-files.test.cjs electron/friends-host.test.cjs electron/friends-share-menu.test.cjs && vitest run tests/friends-views.test.ts tests/friends-panel.test.ts tests/friends-download-link.test.ts tests/friends-drops.test.ts && node electron/friends-smoke.mjs",
+    "test:friends": "node --test electron/friends-bridge.test.cjs electron/friends-files.test.cjs electron/friends-host.test.cjs electron/friends-share-menu.test.cjs electron/friends-view-menu.test.cjs && vitest run tests/friends-views.test.ts tests/friends-panel.test.ts tests/friends-download-link.test.ts tests/friends-drops.test.ts && node electron/friends-smoke.mjs && node electron/friends-shortcut.mjs",
     "test:friends:package": "node electron/friends-package-smoke.mjs",
     "test:updates": "node --test electron/update-manager.test.cjs && node electron/updates-ui.mjs"
   },

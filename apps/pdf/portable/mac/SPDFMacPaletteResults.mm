@@ -107,6 +107,33 @@ BOOL spdf_palette_menu_command_matches_query(NSString* query, NSString* title, N
     return breadcrumb.length && [breadcrumb rangeOfString:query options:options].location != NSNotFound;
 }
 
+NSArray<NSString*>* spdf_palette_menu_command_keywords(NSString* identifier) {
+    // Keyed by the identifiers in mac/friends/SPDFMacFriendsMenu.mm (View ▸ Friends).
+    static NSDictionary<NSString*, NSArray<NSString*>*>* table;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+      table = @{
+          @"szfriends.open" : @[ @"friends", @"friend", @"nearby", @"add by id", @"chat", @"people", @"message" ],
+          @"szfriends.add-by-id" : @[ @"add", @"id", @"add by id", @"friend", @"invite" ],
+          @"szfriends.make-visible" : @[ @"visible", @"nearby", @"discoverable" ],
+          @"szfriends.settings" : @[ @"settings", @"preferences", @"friends" ],
+      };
+    });
+    return identifier.length && table[identifier] ? table[identifier] : @[];
+}
+
+BOOL spdf_palette_menu_command_matches_query_or_keywords(NSString* query, NSString* title, NSString* breadcrumb,
+                                                         NSArray<NSString*>* keywords) {
+    if (spdf_palette_menu_command_matches_query(query, title, breadcrumb)) return YES;
+    NSString* trimmed = [query stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
+    if (!trimmed.length) return NO;
+    NSStringCompareOptions options = NSCaseInsensitiveSearch | NSDiacriticInsensitiveSearch;
+    for (NSString* keyword in keywords ?: @[])
+        if ([keyword isKindOfClass:NSString.class] && [keyword rangeOfString:trimmed options:options].location != NSNotFound)
+            return YES;
+    return NO;
+}
+
 NSArray<NSDictionary*>* spdf_palette_menu_commands_excluding_selectors(NSArray<NSDictionary*>* menuCommands,
                                                                        NSSet<NSString*>* excludedSelectors) {
     if (excludedSelectors.count == 0) return menuCommands ?: @[];

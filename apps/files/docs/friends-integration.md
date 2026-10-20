@@ -341,6 +341,30 @@ to, the plan above:
   GTK's own menu widgets, that Copy Download Link shows and hides with the offer while the menu exists, and that
   clicking it opens the expiry choice (its submenu action does nothing) and a choice asks for one link.
   `docs/STATUS.md` has the results.
+- Cmd+J and Cmd+K (2026-10-20, branch `feat/friends-shortcut`). Before this, nothing in Files bound J or K
+  (checked in `nautilus/src`: accelerators, shortcut controllers, menu items, key handlers). `nautilus-friends-shortcut.c`
+  gives every browser window `win.friends`, bound to `<Primary>j` (Cmd+J after `macos_remap_accel`), enabled exactly
+  while the window has a Friends button, so it does nothing while Friends is off or not attached. It toggles the
+  window's dropdown through the views' `szfriends_gtk_dropdown_*`; opening puts the keyboard in the list's search
+  field when the list is on top (also on the popover's `map`), and a dropdown that kept another page keeps that
+  page's focus. The key reaches it once per press wherever the keyboard is, the dropdown's own search field
+  included: GDK gives every key to GTK first and passes it to `[NSApp sendEvent:]`, where the View menu's "Friends
+  ⌘J" key equivalent lives, only when GTK left it unhandled (`gdkmacoseventsource.c`); GTK runs application
+  accelerators from a capture-phase controller on the window; and a popover's keys go to its toplevel (popups
+  cannot become key on macOS, and `gtkmain.c` rewrites popup key events for the toplevel), so no controller on the
+  popover is needed. The button's tooltip gets " (⌘J)" after the views' name, re-added whenever the views set it
+  (they do on every badge change); before the helper's strings arrive the views set no tooltip, and neither does
+  the host. Cmd+K is `nautilus-command-palette.c`, built with or without Friends: an `AdwDialog` over the window
+  with a search field and Files' commands (New Window, New Tab, New Folder, Enter Location…, Find, Search
+  Everywhere, Show Hidden Files, Preferences…, Keyboard Shortcuts, each with the menu bar's shortcut), plus, while
+  the window has a Friends button, Open Friends (⌘J), Add by ID… (the dropdown's profile page, as the list's Add
+  by ID does), Make Myself Visible (the dropdown on Nearby; once Nearby's first snapshot is in, the host presses
+  Nearby's own visibility button when it offers `start_visibility`, so the views' path sends the intent, with any
+  confirmation the helper asks for) and Friends Preferences… (`nautilus_preferences_dialog_show_page`, page
+  `friends`). Every word typed must start a word of a command's title or keywords, ignoring case and accents. Help
+  ▸ Search Commands… (⌘K) and the shortcuts dialog list both keys; the dialog's Friends row is cut out of builds
+  without `friends_root` (`src/resources/ui/meson.build`). `tools/test-macos-friends-shortcut.sh` presses the keys
+  as real NSEvents on a mapped window that never reaches the screen; results in `docs/STATUS.md`.
 
 ### 3.4 Packaging
 
