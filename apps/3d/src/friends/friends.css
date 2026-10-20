@@ -206,6 +206,17 @@
 .szf-row-action.accept {
   color: var(--jade);
 }
+.szf-row-action.worded {
+  width: auto;
+  padding: 0 10px;
+  font-weight: 650;
+  color: var(--ink);
+}
+.szf-row-action.worded.accept {
+  background: var(--jade);
+  color: var(--surface);
+  border-color: transparent;
+}
 .szf-row-action.armed {
   width: auto;
   padding: 0 10px;

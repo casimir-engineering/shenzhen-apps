@@ -70,6 +70,8 @@ export type Empty = { kind?: string; title: string; body: string | null };
 export type RowAction = {
   action: "accept_request" | "decline_request" | "block" | string;
   icon: "accept" | "decline" | "block" | string;
+  /** The word the button shows (Accept, Decline); null: the icon alone (Block). */
+  title?: string | null;
   label: string;
   arm: Arm | null;
 };

@@ -57,6 +57,13 @@ SZFriendsButtonStyle SZFriendsButtonStyleNamed(NSString *style) {
     return YES;
 }
 
+// The tokens are the colours meant: inside the popover's material a borderless button is drawn with vibrancy, which
+// blended the selected tab's white fill into the track behind it, so the selected tab could not be seen in light
+// mode (the owner's report of 2026-10-20).
+- (BOOL)allowsVibrancy {
+    return NO;
+}
+
 // Popovers stay open while another app is active (semi-transient), and the person may hover from Finder mid-drag.
 - (void)updateTrackingAreas {
     [super updateTrackingAreas];
@@ -166,8 +173,9 @@ SZFriendsButtonStyle SZFriendsButtonStyleNamed(NSString *style) {
         [(pressed ? [fill blendedColorWithFraction:0.15 ofColor:NSColor.grayColor] : fill) setFill];
         [shape fill];
     }
-    if ([self isBordered]) {
-        [appearance.controlBorderColor setStroke];
+    if ([self isBordered] || (self.selectedLook && self.selectedStrokeColor)) {
+        [(self.selectedLook && self.selectedStrokeColor ? self.selectedStrokeColor : appearance.controlBorderColor)
+            setStroke];
         [shape stroke];
     }
 

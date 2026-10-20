@@ -139,18 +139,15 @@ fn nearby_looking_then_nobody() {
     };
     let data = nearby(&off, since);
     assert_eq!(data["alert"]["title"], "Wi-Fi and Bluetooth are off");
-    assert!(data["note"].is_null() && data["empty"]["kind"] == "unavailable" && data["empty"]["body"].is_null());
+    assert!(data["note"].is_null() && data["empty"].is_null(), "one card names both, nothing repeats it");
     off.bluetooth_state = AdapterState::Denied;
     let data = nearby(&off, since);
     assert_eq!(data["alert"]["title"], "Wi-Fi is off");
-    assert_eq!(data["note"]["text"], "Bluetooth access is off for ShenzhenPDF too.");
-    assert_eq!(data["note"]["action"]["settings_target"], "bluetooth_privacy");
-    // Without a card (no state reaches this today; the empty state must still be true on its own).
-    let radio = builder.nearby_empty(&off, false, "", false, since)["body"].clone();
-    off.network_state = AdapterState::Denied;
-    let access = builder.nearby_empty(&off, false, "", false, since)["body"].clone();
-    assert_eq!(radio, "Turn on Wi-Fi or Bluetooth to find people nearby.");
-    assert!(access.as_str().unwrap().contains("Privacy & Security") && !radio.as_str().unwrap().contains("Privacy"));
+    assert!(data["note"].is_null() && data["empty"].is_null(), "the card's one fix, no second problem under it");
+    assert!(data["visibility"]["body"].is_null() && data["visibility"]["action"].is_null());
+    // Bluetooth still finding people is worth its line under the card: it changes what the person can do.
+    off.bluetooth_state = AdapterState::Working;
+    assert_eq!(nearby(&off, since)["note"]["text"], "Still looking over Bluetooth.");
 }
 
 fn has_hyphenated_id(text: &str) -> bool {
@@ -260,11 +257,7 @@ fn reader_strings() {
     assert_eq!(settings["name"]["note"], "The name your friends see.");
     let profile = builder.profile(&profile_raph(), 0);
     assert_eq!(profile["picture"]["choose_label"], "Change picture…");
-    assert_eq!(
-        profile["id"]["note"],
-        "Your ID works nearby now. If it’s already taken, you’ll get a new one the next \
-                                       time ShenzhenPDF reaches the Friends server."
-    );
+    assert!(profile["id"]["note"].is_null(), "nothing to say about an unreserved ID until something happens to it");
     let picture = builder.strings().error_message("picture_invalid", &Default::default()).unwrap();
     assert!(picture.contains("picture under 5 MB"));
     let denied = nearby(&nearby_local_network_denied(), now());

@@ -215,7 +215,9 @@ function RowActionButton({
   return (
     <button
       type="button"
-      className={`szf-row-action ${action.icon} ${arming.armed ? "armed" : ""}`}
+      className={`szf-row-action ${action.icon} ${arming.armed ? "armed" : ""} ${
+        !arming.armed && action.title ? "worded" : ""
+      }`}
       title={arming.armed ? action.arm?.accessibility_label : action.label}
       aria-label={arming.armed ? action.arm?.accessibility_label : action.label}
       onMouseLeave={arming.disarm}
@@ -229,7 +231,13 @@ function RowActionButton({
         );
       }}
     >
-      {arming.armed ? action.arm?.label : <Glyph name={icon} size={14} />}
+      {arming.armed ? (
+        action.arm?.label
+      ) : action.title ? (
+        action.title
+      ) : (
+        <Glyph name={icon} size={14} />
+      )}
     </button>
   );
 }

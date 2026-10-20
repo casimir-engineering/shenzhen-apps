@@ -122,6 +122,17 @@ NSString* UIDescribe(NSView* root);
 // Problems with what the popover shows: views outside it, cut labels or buttons; empty when there are none.
 NSArray<NSString*>* UILayoutProblems(UIRig* rig);
 
+#pragma mark - Colours as drawn
+
+// The sRGB colour at `point` in `view`, as the PNGs draw the popover (cacheDisplayInRect:), and as the window's own
+// layers composited it (what reaches the screen, without capturing the screen; `savePath` keeps that rendering).
+BOOL UISampleCached(UIRig* rig, NSView* view, NSPoint point, double rgb[_Nonnull 3]);
+BOOL UISampleWindowLayers(UIRig* rig, NSView* view, NSPoint point, double rgb[_Nonnull 3],
+                          NSString* _Nullable savePath);
+double UIContrast(const double a[_Nonnull 3], const double b[_Nonnull 3]); // WCAG ratio, 1 to 21
+// Where the next screenshot of this step goes (<shots>/<variant>/<flow>/<NN>-<name>.png).
+NSString* UIShotPathFor(UIRig* rig, NSString* name);
+
 #pragma mark - Doing things
 
 BOOL UIClick(NSView* view, NSString* _Nullable* _Nullable why);

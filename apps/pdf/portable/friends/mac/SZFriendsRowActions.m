@@ -1,11 +1,12 @@
 // SZFriendsRowActions: a request row's own buttons (PROTOCOL.md list_row actions), so a friend request is answered
 // from the list without opening it (brief § Interface).
 //
-// Round icon buttons drawn by `icon`, each with the snapshot's label as its tooltip and accessible name, because
-// the button itself shows no words. Block asks for a second click: the first turns it into a red "Block?" pill and
-// sends nothing; a second, separate click within arm.seconds blocks (never the second half of a double-click,
-// SZFriendsArming.h). The pill turns back when that time passes, on Escape and when the pointer leaves the row, so a
-// pill left behind cannot turn a later stray click into a block.
+// Accept and Decline show their word (the action's `title`), Accept filled as the way forward and Decline outlined,
+// so a first-time reader tells Decline from Block; Block is a round red icon button. Each has the snapshot's label
+// as its tooltip and accessible name ("Accept Mei's request"). Block asks for a second click: the first turns it
+// into a red "Block?" pill and sends nothing; a second, separate click within arm.seconds blocks (never the second
+// half of a double-click, SZFriendsArming.h). The pill turns back when that time passes, on Escape and when the
+// pointer leaves the row, so a pill left behind cannot turn a later stray click into a block.
 
 #import "mac/SZFriendsArming.h"
 #import "mac/SZFriendsRowView.h"
@@ -27,12 +28,14 @@ static SZFriendsIconDrawer SZFRowActionIcon(NSString *icon) {
 
 @implementation SZFriendsRowActionButton {
     NSString *_iconName;
+    NSString *_word; // the action's title: drawn as a worded pill instead of the icon
 }
 
 - (instancetype)initWithRowAction:(NSDictionary *)action appearance:(SZFriendsAppearance *)appearance {
     if (!(self = [super initWithFrame:NSMakeRect(0, 0, SZFRowActionSide, SZFRowActionSide)])) return nil;
     _rowAction = [action copy];
     _iconName = [SZFStr(action, @"icon") copy];
+    _word = [SZFStr(action, @"title") copy];
     self.theme = appearance;
     self.style = SZFriendsButtonStyleIcon;
     self.title = @"";
@@ -48,7 +51,7 @@ static SZFriendsIconDrawer SZFRowActionIcon(NSString *icon) {
 - (void)applyLabels {
     NSDictionary *arm = SZFDict(_rowAction, @"arm");
     NSString *label = _armed ? SZFStr(arm, @"accessibility_label") : SZFStr(_rowAction, @"label");
-    self.title = _armed ? (SZFStr(arm, @"label") ?: @"") : @"";
+    self.title = _armed ? (SZFStr(arm, @"label") ?: @"") : (_word ?: @"");
     self.accessibilityLabel = label;
     self.toolTip = label;
 }
@@ -61,7 +64,12 @@ static SZFriendsIconDrawer SZFRowActionIcon(NSString *icon) {
     self.needsDisplay = YES;
 }
 
+- (BOOL)worded {
+    return !_armed && _word.length > 0;
+}
+
 - (CGFloat)fittingWidth {
+    if ([self worded]) return ceil([_word sizeWithAttributes:@{NSFontAttributeName : self.font}].width) + 2 * 11;
     if (!_armed) return SZFRowActionSide;
     NSDictionary *attributes = @{NSFontAttributeName : self.font};
     // 8 before the icon, 5 between icon and text, 10 after: the mockup's pill.
@@ -85,12 +93,20 @@ static SZFriendsIconDrawer SZFRowActionIcon(NSString *icon) {
     // Flat at rest like the host's panel icon buttons; the hover colour under the pointer. The armed pill is opaque,
     // blended from the background, so "Block?" keeps 4.5:1 whatever the row draws behind it.
     NSColor *fill = nil, *stroke = nil;
-    if (_armed) {
+    BOOL accept = [_iconName isEqualToString:@"accept"];
+    if ([self worded]) {
+        // Accept is the way forward, filled like the dropdown's primary buttons; Decline is outlined.
+        fill = accept ? appearance.primaryButtonColor : appearance.controlColor;
+        stroke = accept ? nil : appearance.controlBorderColor;
+        if (!self.enabled) fill = [fill colorWithAlphaComponent:0.5];
+    } else if (_armed) {
         fill = [appearance.backgroundColor blendedColorWithFraction:0.12 ofColor:appearance.destructiveColor];
         stroke = [appearance.destructiveColor colorWithAlphaComponent:0.6];
     } else if (self.enabled && (self.cell.isHighlighted || self.hovered)) {
         fill = appearance.hoverColor;
     }
+    if ([self worded] && self.hovered && self.enabled)
+        fill = [fill blendedColorWithFraction:0.08 ofColor:NSColor.grayColor];
     if (fill && self.cell.isHighlighted) fill = [fill blendedColorWithFraction:0.15 ofColor:NSColor.grayColor];
     else if (fill && _armed && self.hovered) fill = [fill blendedColorWithFraction:0.08 ofColor:NSColor.grayColor];
     if (fill) {
@@ -104,7 +120,14 @@ static SZFriendsIconDrawer SZFRowActionIcon(NSString *icon) {
     NSColor *iconColor = [self iconColor];
     NSSize icon = self.iconSize;
     CGFloat iconY = floor((NSHeight(bounds) - icon.height) / 2);
-    if (!_armed) {
+    if ([self worded]) {
+        NSColor *text = accept ? appearance.primaryButtonTextColor : appearance.primaryTextColor;
+        NSDictionary *attributes = @{NSFontAttributeName : self.font, NSForegroundColorAttributeName : text};
+        NSSize size = [_word sizeWithAttributes:attributes];
+        NSPoint origin =
+            NSMakePoint(floor((NSWidth(bounds) - size.width) / 2), floor((NSHeight(bounds) - size.height) / 2));
+        [_word drawAtPoint:origin withAttributes:attributes];
+    } else if (!_armed) {
         CGFloat iconX = floor((NSWidth(bounds) - icon.width) / 2);
         if (self.icon) self.icon(NSMakeRect(iconX, iconY, icon.width, icon.height), iconColor);
     } else {

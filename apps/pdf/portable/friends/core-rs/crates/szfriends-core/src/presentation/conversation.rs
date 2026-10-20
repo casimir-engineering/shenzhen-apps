@@ -122,42 +122,52 @@ impl SnapshotBuilder {
         })
     }
 
+    /// "Type # to attach, @ to mention someone, or drop files here": the keys the host offers, emphasised, each with
+    /// what it does, then dropping files; "Drop files here to send them" when dropping is all there is.
     fn composer_hint(&self) -> Vec<Value> {
         let s = &self.strings;
         let audience = self.audience();
-        let mut parts: Vec<(Option<&str>, String)> = Vec::new();
+        let mut keyed: Vec<(&str, String)> = Vec::new();
         if audience.has("attach.items") {
-            parts.push((Some("#"), s.text("composer.hint.attach")));
+            keyed.push(("#", s.text("composer.hint.attach")));
         }
         if audience.has("mentions") {
-            parts.push((Some("@"), s.text("composer.hint.mention")));
+            keyed.push(("@", s.text("composer.hint.mention")));
         }
         if audience.has("assistant.drafts") {
-            parts.push((Some("/"), s.text("composer.hint.assistant")));
+            keyed.push(("/", s.text("composer.hint.assistant")));
         }
-        if audience.has("drop.files") {
-            let key = if parts.is_empty() { "composer.hint.drop_alone" } else { "composer.hint.drop" };
-            parts.push((None, s.text(key)));
+        let drop = audience.has("drop.files");
+        if keyed.is_empty() {
+            return if drop { vec![json!({"text": s.text("composer.hint.drop_alone")})] } else { Vec::new() };
         }
+        let items = keyed.len() + usize::from(drop);
+        let or_word = s.text("composer.hint.or");
+        // Before the last of two: " or "; of three or more: ", or "; between the others: ", ".
+        let separator = |index: usize| -> String {
+            if index + 1 < items {
+                ", ".to_owned()
+            } else if items == 2 && !drop {
+                format!(" {or_word} ")
+            } else {
+                format!(", {or_word} ")
+            }
+        };
         let mut segments = Vec::new();
-        let mut plain = String::new();
-        for (i, (key, label)) in parts.iter().enumerate() {
+        let mut plain = format!("{} ", s.text("composer.hint.type"));
+        for (i, (key, label)) in keyed.iter().enumerate() {
             if i > 0 {
-                plain.push_str(" · ");
+                plain.push_str(&separator(i));
             }
-            if let Some(key) = key {
-                if !plain.is_empty() {
-                    segments.push(json!({"text": plain}));
-                }
-                plain.clear();
-                segments.push(json!({"text": key, "emphasis": true}));
-                plain.push(' ');
-            }
-            plain.push_str(label);
-        }
-        if !plain.is_empty() {
             segments.push(json!({"text": plain}));
+            segments.push(json!({"text": key, "emphasis": true}));
+            plain = format!(" {label}");
         }
+        if drop {
+            plain.push_str(&separator(keyed.len()));
+            plain.push_str(&s.text("composer.hint.drop"));
+        }
+        segments.push(json!({"text": plain}));
         segments
     }
 

@@ -62,6 +62,7 @@
     "queued_note": "Messages and files send when {first} is nearby with ShenzhenPDF, Shenzhen Files or Shenzhen 3D open.",
     "show_all": "Show all",
     "save": "Save",
-    "name_empty": "Type the name friends should see."
+    "name_empty": "Type the name friends should see.",
+    "name_saved": "Saved — friends now see {name}"
   }
 }

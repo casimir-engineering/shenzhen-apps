@@ -1,16 +1,39 @@
-// SZFriendsFooterView: the name friends see (renamed in place, with Save), the ID with Copy, the unreserved note, Add by ID.
+// SZFriendsFooterView: the name friends see (renamed in place, with Save and Cancel), the ID with Copy, Add by ID.
 
 #import "mac/SZFriendsListPage.h"
+
+// Sees every press in the view it watches (the list page) before the pressed control does, and reports one outside
+// `inside`: the rename ends when the person clicks anywhere else in the list. It never claims the press.
+@interface SZFriendsPressElsewhere : NSGestureRecognizer
+@property(nonatomic, weak) NSView *inside;
+@property(nonatomic, copy) void (^onPressElsewhere)(void);
+@end
+
+@implementation SZFriendsPressElsewhere
+
+- (void)mouseDown:(NSEvent *)event {
+    NSView *inside = self.inside;
+    if (inside && !NSPointInRect([inside convertPoint:event.locationInWindow fromView:nil], inside.bounds) &&
+        self.onPressElsewhere) {
+        // After the press: the field ends editing first, and the control pressed still gets its click.
+        dispatch_async(dispatch_get_main_queue(), self.onPressElsewhere);
+    }
+    self.state = NSGestureRecognizerStateFailed;
+}
+
+@end
 
 @implementation SZFriendsFooterView {
     SZFriendsContext *_context;
     SZFriendsAvatarView *_avatarView;
     NSTextField *_idLabel;
-    NSTextField *_noteLabel;
     NSString *_friendsID;
     NSString *_name;
     NSString *_errorText;
     NSDictionary *_footer;
+    SZFriendsPressElsewhere *_pressElsewhere;
+    NSString *_savedText;   // name_saved, while the name shows its check
+    NSUInteger _savedRound; // which save the pending reset belongs to
 }
 
 @synthesize nameEditor = _nameEditor;
@@ -52,8 +75,6 @@
         if (footer.onAddByID) footer.onAddByID();
     };
     [self addSubview:_addButton];
-    _noteLabel = SZFriendsLabel(@"", appearance.captionFont, appearance.secondaryTextColor);
-    [self addSubview:_noteLabel];
     return self;
 }
 
@@ -70,25 +91,21 @@
     _nameButton.title = _name ?: (SZFStr(footer, @"name_placeholder") ?: @"");
     _nameButton.font = _name ? SZFriendsSemibold(_context.appearance.secondaryFont) : _context.appearance.secondaryFont;
     _nameButton.accessibilityLabel = [_context string:@"edit_name"].length ? [_context string:@"edit_name"] : nil;
-    _nameButton.toolTip = _nameButton.accessibilityLabel;
+    _nameButton.toolTip = _savedText ?: _nameButton.accessibilityLabel;
+    [self applyNameIcon];
     _idLabel.stringValue = SZFStr(footer, @"id_label") ?: @"";
     _cpyButton.title = @"";
     _cpyButton.accessibilityLabel = [_context string:@"copy_your_id"];
     _cpyButton.toolTip = _cpyButton.accessibilityLabel.length ? _cpyButton.accessibilityLabel : nil;
     _addButton.title = SZFStr(footer, @"add_label") ?: @"";
     _errorText = nil;
-    _noteLabel.stringValue = SZFStr(footer, @"id_note") ?: @"";
     [self setNeedsLayout:YES];
     self.needsDisplay = YES;
 }
 
 - (CGFloat)heightForWidth:(CGFloat)width {
-    CGFloat note = SZFriendsFieldHeight(_noteLabel, width - 24);
-    if (_nameEditor) {
-        CGFloat editor = [_nameEditor heightForWidth:width - 12 - 48];
-        return 13 + MAX(26, editor) + (note ? 6 + note : 0) + 13;
-    }
-    return 10 + 32 + (note ? 6 + note : 0) + 10;
+    if (_nameEditor) return 13 + MAX(26, [_nameEditor heightForWidth:width - 12 - 48]) + 13;
+    return 10 + 32 + 10;
 }
 
 - (void)layout {
@@ -101,7 +118,6 @@
         CGFloat editorHeight = [_nameEditor heightForWidth:width - 12 - 48];
         _nameEditor.frame = NSMakeRect(48, 13, width - 12 - 48, editorHeight);
         for (NSView *view in @[ _nameButton, _idLabel, _cpyButton, _addButton ]) view.hidden = YES;
-        SZFriendsPlace(_noteLabel, 12, 13 + MAX(26, editorHeight) + 6, width - 24);
         return;
     }
     _nameButton.hidden = _idLabel.hidden = NO;
@@ -121,7 +137,6 @@
     CGFloat copyWidth = _cpyButton.title.length ? MAX(24, [_cpyButton fittingWidth]) : 24;
     _cpyButton.frame = NSMakeRect(NSMaxX(_idLabel.frame), 24, copyWidth, 24);
     _cpyButton.hidden = _friendsID.length == 0;
-    SZFriendsPlace(_noteLabel, 12, 48, width - 24);
 }
 
 - (void)drawRect:(NSRect)dirtyRect {
@@ -152,9 +167,50 @@
     return _nameEditor != nil;
 }
 
+// The pencil says the name can be changed; just after a rename a check says it was (name_saved, as its tooltip).
+- (void)applyNameIcon {
+    if (_savedText) {
+        NSColor *success = _context.appearance.successColor;
+        _nameButton.icon = ^(NSRect rect, NSColor *color) {
+            (void)color;
+            SZFriendsDrawCheckIcon(rect, success);
+        };
+    } else {
+        _nameButton.icon = ^(NSRect rect, NSColor *color) { SZFriendsDrawPencilIcon(rect, color); };
+    }
+    _nameButton.needsDisplay = YES;
+}
+
+- (BOOL)showingNameSaved {
+    return _savedText != nil;
+}
+
+- (void)showNameSaved:(NSString *)name {
+    NSString *format = [_context string:@"name_saved"];
+    if (!format.length) return;
+    _savedText = [format stringByReplacingOccurrencesOfString:@"{name}" withString:name ?: @""];
+    NSUInteger round = ++_savedRound;
+    _nameButton.toolTip = _savedText;
+    [self applyNameIcon];
+    [_context announce:_savedText];
+    __weak SZFriendsFooterView *weakSelf = self;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(SZFriendsNameSavedSeconds * NSEC_PER_SEC)),
+                   dispatch_get_main_queue(), ^{
+                       SZFriendsFooterView *footer = weakSelf;
+                       if (!footer || footer->_savedRound != round) return;
+                       footer->_savedText = nil;
+                       footer->_nameButton.toolTip = footer->_nameButton.accessibilityLabel;
+                       [footer applyNameIcon];
+                   });
+}
+
 - (void)beginEditingName {
     if (_nameEditor) return;
+    _savedText = nil;
+    _savedRound++;
+    [self applyNameIcon];
     _nameEditor = [[SZFriendsNameEditor alloc] initWithContext:_context font:_context.appearance.secondaryFont];
+    _nameEditor.showsCancel = YES;
     _nameEditor.field.stringValue = _name ?: @"";
     _nameEditor.field.placeholderString = SZFStr(_footer, @"name_placeholder");
     _nameEditor.field.accessibilityLabel = [_context string:@"edit_name"];
@@ -169,7 +225,25 @@
         footer->_nameButton.title = name;
         footer->_nameButton.font = SZFriendsSemibold(footer->_context.appearance.secondaryFont);
         [footer endEditing];
+        [footer showNameSaved:name];
     };
+    // Clicking anywhere else, or the field losing the typing some other way, leaves the rename as Cancel does.
+    SZFriendsNameEditor *editor = _nameEditor;
+    void (^leave)(void) = ^{
+        SZFriendsFooterView *footer = weakSelf;
+        if (!footer || footer->_nameEditor != editor || editor.saving) return;
+        if (editor.field.currentEditor) return; // the typing came back to the field
+        [footer endEditing];
+    };
+    _nameEditor.onEndEditing = ^{ dispatch_async(dispatch_get_main_queue(), leave); };
+    _pressElsewhere = [SZFriendsPressElsewhere new];
+    _pressElsewhere.delaysPrimaryMouseButtonEvents = NO;
+    _pressElsewhere.inside = _nameEditor;
+    _pressElsewhere.onPressElsewhere = ^{
+        SZFriendsFooterView *footer = weakSelf;
+        if (footer && footer->_nameEditor == editor && !editor.saving) [footer endEditing];
+    };
+    [self.superview addGestureRecognizer:_pressElsewhere];
     _nameEditor.onLayoutChange = ^{ [weakSelf relayoutDropdown]; };
     _nameButton.hidden = YES;
     [self addSubview:_nameEditor];
@@ -192,6 +266,8 @@
 - (void)endEditing {
     SZFriendsNameEditor *editor = _nameEditor;
     _nameEditor = nil;
+    if (_pressElsewhere) [_pressElsewhere.view removeGestureRecognizer:_pressElsewhere];
+    _pressElsewhere = nil;
     if (editor.field.currentEditor) [self.window makeFirstResponder:nil];
     [editor removeFromSuperview];
     _nameButton.hidden = NO;

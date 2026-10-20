@@ -34,26 +34,30 @@ static void TestNearbyAsksAndRetries(void) {
     SZPExpect([data[@"alert"][@"action"][@"action"] isEqual:@"activate"] &&
                   [data[@"alert"][@"action"][@"label"] isEqual:@"Allow"] && data[@"note"] == [NSNull null],
               @"not asked: one card with Allow: %@ %@", data[@"alert"], data[@"note"]);
-    SZPExpect(![data[@"empty"][@"title"] containsString:@"Looking"], @"not asked is not looking: %@", data[@"empty"]);
+    SZPExpect(data[@"empty"] == [NSNull null], @"not asked: the card alone, never \"looking\": %@", data[@"empty"]);
     facts.networkState = SZFriendsAdapterStateWorking;
     data = NearbyData(facts, @"", nil);
     SZPExpect(data[@"alert"] == [NSNull null] && [data[@"note"][@"action"][@"action"] isEqual:@"activate"],
               @"Bluetooth not asked: a quiet line with Allow: %@", data[@"note"]);
 
+    // One card, one button: Open Privacy Settings once (the owner's report of 2026-10-20 showed it twice).
     facts.networkState = facts.bluetoothState = SZFriendsAdapterStateDenied;
     data = NearbyData(facts, @"", nil);
-    SZPExpect([data[@"visibility"][@"action"][@"settings_target"] isEqual:@"local_network_privacy"],
-              @"both refused: visibility opens the Local Network pane: %@", data[@"visibility"]);
+    SZPExpect([data[@"alert"][@"action"][@"settings_target"] isEqual:@"local_network_privacy"] &&
+                  data[@"visibility"][@"action"] == [NSNull null] && data[@"visibility"][@"body"] == [NSNull null] &&
+                  data[@"note"] == [NSNull null] && data[@"empty"] == [NSNull null],
+              @"both refused: the card opens the Local Network pane, and nothing else speaks: %@", Said(data));
     facts.networkState = SZFriendsAdapterStateUnavailable;
     data = NearbyData(facts, @"", nil);
-    SZPExpect([data[@"visibility"][@"action"][@"settings_target"] isEqual:@"bluetooth_privacy"],
-              @"Bluetooth refused, network failing: the Bluetooth pane: %@", data[@"visibility"]);
-    SZPExpect([data[@"alert"][@"action"][@"action"] isEqual:@"activate"], @"failing network: Try Again");
+    SZPExpect([data[@"alert"][@"action"][@"action"] isEqual:@"activate"] && data[@"note"] == [NSNull null] &&
+                  data[@"visibility"][@"action"] == [NSNull null],
+              @"failing network, Bluetooth refused: the card's Try Again alone: %@", Said(data));
     facts.bluetoothState = SZFriendsAdapterStateUnavailable;
     data = NearbyData(facts, @"", nil);
-    SZPExpect(![Said(data) containsString:@"System Settings"] &&
-                  [data[@"visibility"][@"action"][@"action"] isEqual:@"activate"],
-              @"both failing: no permission words, Try Again: %@", Said(data));
+    SZPExpect(![Said(data) containsString:@"System Settings"] && ![Said(data) containsString:@"either"] &&
+                  [data[@"alert"][@"action"][@"action"] isEqual:@"activate"],
+              @"both failing: no permission words, no \"Bluetooth isn't working either\", Try Again: %@",
+              Said(data));
     facts.networkState = SZFriendsAdapterStateWorking;
     facts.bluetoothState = SZFriendsAdapterStateUnsupported;
     data = NearbyData(facts, @"", nil);
@@ -128,25 +132,36 @@ static void TestNearbyStates(void) {
             facts.bluetoothState = bluetooth;
             NSDictionary *data = NearbyData(facts, @"", nil);
             BOOL alert = data[@"alert"] != [NSNull null], note = data[@"note"] != [NSNull null];
-            // Never an alert and a note about the same method: under the network card the line is about Bluetooth,
-            // who is still found or what is wrong with it, and the empty state leaves the remedy to the card.
-            if (alert && note) SZPExpect([data[@"note"][@"text"] containsString:@"Bluetooth"],
-                                         @"%ld/%ld alert and note: %@", (long)network, (long)bluetooth, data[@"note"]);
-            if (alert && [data[@"empty"] isKindOfClass:NSDictionary.class])
-                SZPExpect(data[@"empty"][@"body"] == [NSNull null], @"%ld/%ld: the card says it, the empty state "
-                          @"does not repeat it: %@", (long)network, (long)bluetooth, data[@"empty"]);
-            BOOL bluetoothBroken = bluetooth >= SZFriendsAdapterStateDenied;
-            BOOL bothRadiosOff = network == SZFriendsAdapterStateRadioOff && bluetooth == SZFriendsAdapterStateRadioOff;
-            if (alert && bluetoothBroken)
-                SZPExpect(bothRadiosOff ? !note && [data[@"alert"][@"title"] containsString:@"Bluetooth"] : note,
-                          @"%ld/%ld: Bluetooth’s state is named somewhere: %@ %@", (long)network, (long)bluetooth,
-                          data[@"alert"], data[@"note"]);
-            SZPExpect(data[@"empty"] != [NSNull null], @"%ld/%ld says why nobody shows", (long)network,
-                      (long)bluetooth);
+            // Under the network card nothing repeats or contradicts it (the owner's report of 2026-10-20): Bluetooth
+            // only while it still finds people, no second action on the visibility line, no empty state when
+            // nothing works at all, and "nobody" without its body.
+            if (alert) {
+                SZPExpect(note == (bluetooth == SZFriendsAdapterStateWorking), @"%ld/%ld: under the card: %@",
+                          (long)network, (long)bluetooth, data[@"note"]);
+                id action = data[@"visibility"][@"action"];
+                NSString *name = [action isKindOfClass:NSDictionary.class] ? action[@"action"] : @"none";
+                BOOL ownAction = [name isEqual:@"none"] || [name hasSuffix:@"_visibility"];
+                SZPExpect(ownAction, @"%ld/%ld: the visibility line repeats the card: %@", (long)network,
+                          (long)bluetooth, name);
+                if ([data[@"empty"] isKindOfClass:NSDictionary.class])
+                    SZPExpect(data[@"empty"][@"body"] == [NSNull null], @"%ld/%ld: the card says it, the empty state "
+                              @"does not repeat it: %@", (long)network, (long)bluetooth, data[@"empty"]);
+            }
+            if (note) SZPExpect([data[@"note"][@"text"] containsString:@"Bluetooth"], @"%ld/%ld note: %@",
+                                (long)network, (long)bluetooth, data[@"note"]);
+            BOOL (^quietState)(NSInteger) = ^BOOL(NSInteger state) {
+                return state != SZFriendsAdapterStateWorking && state != SZFriendsAdapterStateStarting;
+            };
+            BOOL quiet = quietState(network) && quietState(bluetooth);
+            SZPExpect((data[@"empty"] == [NSNull null]) == quiet && (!quiet || alert),
+                      @"%ld/%ld: nothing works, so the card alone says why nobody shows: %@", (long)network,
+                      (long)bluetooth, data[@"empty"]);
             BOOL bothBroken = network >= SZFriendsAdapterStateDenied && bluetooth >= SZFriendsAdapterStateDenied;
-            SZPExpect(!bothBroken || ([data[@"empty"][@"kind"] isEqual:@"unavailable"] &&
-                                      [data[@"visibility"][@"state"] isEqual:@"unavailable"]),
-                      @"%ld/%ld: nothing works, never an empty successful search", (long)network, (long)bluetooth);
+            SZPExpect(!bothBroken || ([data[@"visibility"][@"state"] isEqual:@"unavailable"] &&
+                                      data[@"visibility"][@"body"] == [NSNull null] &&
+                                      data[@"visibility"][@"action"] == [NSNull null]),
+                      @"%ld/%ld: nothing works, the visibility line leaves it to the card", (long)network,
+                      (long)bluetooth);
         }
     }
     SZFriendsNearbyFacts *facts = [[SZFriendsNearbyFacts alloc] init];

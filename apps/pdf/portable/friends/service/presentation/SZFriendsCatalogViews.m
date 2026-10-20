@@ -89,10 +89,14 @@ static NSDictionary<NSString *, NSString *> *TransferAndConversationEntries(void
         // Composer
         @"composer.placeholder" : @"Message {first}",
         @"composer.send" : @"Send",
-        @"composer.hint.attach" : @"Attach",
-        @"composer.hint.assistant" : @"Ask the assistant",
-        @"composer.hint.drop" : @"or drop files",
-        @"composer.hint.drop_alone" : @"Drop files to send them",
+        // The hint under the composer, in words a newcomer follows: "Type # to attach, @ to mention someone, or drop
+        // files here" (the keys are shown emphasised; the parts depend on what the host offers).
+        @"composer.hint.type" : @"Type",
+        @"composer.hint.or" : @"or",
+        @"composer.hint.attach" : @"to attach",
+        @"composer.hint.assistant" : @"to ask the assistant",
+        @"composer.hint.drop" : @"drop files here",
+        @"composer.hint.drop_alone" : @"Drop files here to send them",
         // When queued messages go is static.queued_note (SZFriendsCatalog.m), shared with the hosts' own surfaces.
         @"composer.note.blocked" : @"You blocked {first}. Unblock them in their details to send messages.",
         @"composer.note.removed" : @"You’re no longer friends. Add {first} again to send messages.",
@@ -112,9 +116,6 @@ static NSDictionary<NSString *, NSString *> *NearbyEntries(void) {
         @"visibility.start" : @"Make myself visible for 5 minutes",
         @"visibility.hidden.body" : @"Friends you’ve added show up here on their own. Other people need to make "
                                     @"themselves visible.",
-        @"visibility.unavailable.radio" : @"Turn on Wi-Fi or Bluetooth to be visible to people nearby.",
-        @"visibility.unavailable.access" : @"Allow {app} to use the local network or Bluetooth in System Settings to "
-                                           @"be visible to people nearby.",
         @"method.network.not_asked" : @"Starts when you open Friends",
         @"method.network.starting" : @"Starting…",
         @"method.network.working" : @"Looking on your network and over Wi-Fi",
@@ -131,7 +132,6 @@ static NSDictionary<NSString *, NSString *> *NearbyEntries(void) {
         @"method.bluetooth.unsupported" : @"This computer can’t use Bluetooth",
         // Without an identity nothing runs, and the list's banner says how to start again.
         @"method.identity_unavailable" : @"Starts once you reset Friends",
-        @"visibility.unavailable.failed" : @"People nearby can’t see you while Nearby isn’t working.",
         @"visibility.unavailable.identity" : @"Reset Friends to be visible to people nearby.",
         // Nothing asked for access yet: Allow starts Nearby, and the system asks the first time.
         @"alert.not_asked.title" : @"Find people near you",
@@ -141,17 +141,14 @@ static NSDictionary<NSString *, NSString *> *NearbyEntries(void) {
         @"nearby.try_again" : @"Try Again",
         @"note.bluetooth_unsupported" : @"This computer can’t use Bluetooth. People nearby without Wi-Fi won’t "
                                         @"appear.",
-        @"note.bluetooth_unsupported.under_card" : @"This computer can’t use Bluetooth either.",
         @"note.bluetooth_not_asked" : @"Bluetooth hasn’t started yet.",
-        @"nearby.empty.not_asked.title" : @"Nearby hasn’t started yet",
-        @"nearby.empty.unavailable.body.failed" : @"People nearby won’t appear until it works again.",
         @"nearby.empty.unavailable.body.identity" : @"Reset Friends to find people nearby on this computer.",
         @"alert.network_denied.title" : @"{app} can’t find people on your network",
         @"alert.network_denied.body" : @"Turn on Local Network for {app} in System Settings › Privacy & Security. "
                                        @"Until then, people on your Wi-Fi won’t appear.",
         @"alert.wifi_off.title" : @"Wi-Fi is off",
         @"alert.wifi_off.body" : @"Turn on Wi-Fi to find people on your network and close by.",
-        // Both radios off: one card names both, since the quiet Bluetooth line never shows under a card.
+        // Both radios off: one card names both, since nothing about Bluetooth shows under a card unless it works.
         @"alert.radios_off.title" : @"Wi-Fi and Bluetooth are off",
         @"alert.radios_off.body" : @"Turn on Wi-Fi to find people on your network and close by, or Bluetooth to find "
                                    @"people nearby without Wi-Fi.",
@@ -164,10 +161,6 @@ static NSDictionary<NSString *, NSString *> *NearbyEntries(void) {
         @"note.bluetooth_off" : @"Bluetooth is off. People nearby without Wi-Fi won’t appear.",
         @"note.bluetooth_denied" : @"Bluetooth access is off for {app}. People nearby without Wi-Fi won’t appear.",
         @"note.bluetooth_unavailable" : @"Bluetooth isn’t working. People nearby without Wi-Fi won’t appear.",
-        // The same, under the network card, where nobody can appear at all.
-        @"note.bluetooth_off.under_card" : @"Bluetooth is off too.",
-        @"note.bluetooth_denied.under_card" : @"Bluetooth access is off for {app} too.",
-        @"note.bluetooth_unavailable.under_card" : @"Bluetooth isn’t working either.",
         @"nearby.still_looking" : @"Still looking",
         @"nearby.subtitle.lan" : @"On your network",
         @"nearby.subtitle.p2p_wifi" : @"Over direct Wi-Fi",
@@ -182,10 +175,6 @@ static NSDictionary<NSString *, NSString *> *NearbyEntries(void) {
         // The visibility line above already says who shows up; this answers whether to wait.
         @"nearby.empty.nobody.body" : @"{app} keeps looking while it’s open.",
         @"nearby.empty.unavailable.title" : @"Nearby isn’t working right now",
-        // Only without a card above; a card already says what to turn on or allow.
-        @"nearby.empty.unavailable.body.radio" : @"Turn on Wi-Fi or Bluetooth to find people nearby.",
-        @"nearby.empty.unavailable.body.access" : @"Allow {app} to use the local network or Bluetooth in System "
-                                                  @"Settings › Privacy & Security.",
     };
 }
 

@@ -7,6 +7,7 @@
 #import "mac/SZFriendsListPage.h"
 #include "client/szfriends_client.h"
 
+#import <QuartzCore/QuartzCore.h>
 #import <objc/runtime.h>
 
 int UIFailures = 0;
@@ -494,7 +495,7 @@ void UIBeginFlow(UIRig* rig, NSString* flow) {
     rig.step = 0;
 }
 
-static NSString* UIShotPath(UIRig* rig, NSString* name) {
+NSString* UIShotPathFor(UIRig* rig, NSString* name) {
     NSString* folder = [[UIShotsRoot stringByAppendingPathComponent:rig.variant.name]
         stringByAppendingPathComponent:rig.flow ?: @"setup"];
     [NSFileManager.defaultManager createDirectoryAtPath:folder withIntermediateDirectories:YES attributes:nil
@@ -530,12 +531,106 @@ static BOOL UIWritePNG(NSView* view, NSColor* background, NSString* path) {
     return [png writeToFile:path atomically:YES];
 }
 
+#pragma mark - Colours as drawn
+
+// The colour at `point` (in `view`'s coordinates) as `view`'s window shows it, two ways: drawn again by
+// cacheDisplayInRect: (what the PNGs show), and from the layers the window itself composited (the backing stores
+// AppKit drew into for the screen; a visual-effect backdrop renders transparent there, so the dropdown's own
+// background is laid under both). The run never captures the screen: that would need a permission prompt.
+static BOOL UIColorFromRep(NSBitmapImageRep* rep, NSInteger x, NSInteger y, double rgb[3]) {
+    if (x < 0 || y < 0 || x >= rep.pixelsWide || y >= rep.pixelsHigh) return NO;
+    NSColor* color = [[rep colorAtX:x y:y] colorUsingColorSpace:NSColorSpace.sRGBColorSpace];
+    if (!color) return NO;
+    rgb[0] = color.redComponent, rgb[1] = color.greenComponent, rgb[2] = color.blueComponent;
+    return YES;
+}
+
+BOOL UISampleCached(UIRig* rig, NSView* view, NSPoint point, double rgb[3]) {
+    NSView* root = rig.content;
+    [root layoutSubtreeIfNeeded];
+    NSRect bounds = root.bounds;
+    NSBitmapImageRep* layer = [root bitmapImageRepForCachingDisplayInRect:bounds];
+    [root.effectiveAppearance performAsCurrentDrawingAppearance:^{
+        [root cacheDisplayInRect:bounds toBitmapImageRep:layer];
+    }];
+    NSBitmapImageRep* rep = [[NSBitmapImageRep alloc]
+        initWithBitmapDataPlanes:NULL pixelsWide:layer.pixelsWide pixelsHigh:layer.pixelsHigh bitsPerSample:8
+                 samplesPerPixel:4 hasAlpha:YES isPlanar:NO colorSpaceName:NSCalibratedRGBColorSpace bytesPerRow:0
+                    bitsPerPixel:0];
+    rep.size = bounds.size;
+    NSGraphicsContext* context = [NSGraphicsContext graphicsContextWithBitmapImageRep:rep];
+    [NSGraphicsContext saveGraphicsState];
+    NSGraphicsContext.currentContext = context;
+    [root.effectiveAppearance performAsCurrentDrawingAppearance:^{
+        [rig.bridge.friendsBridgeAppearance.backgroundColor setFill];
+        NSRectFill(bounds);
+        [layer drawInRect:bounds fromRect:NSZeroRect operation:NSCompositingOperationSourceOver fraction:1
+            respectFlipped:YES hints:nil];
+    }];
+    [NSGraphicsContext restoreGraphicsState];
+    NSPoint inRoot = [view convertPoint:point toView:root];
+    CGFloat scale = rep.pixelsWide / NSWidth(bounds);
+    CGFloat fromTop = root.isFlipped ? inRoot.y : NSHeight(bounds) - inRoot.y;
+    return UIColorFromRep(rep, (NSInteger)(inRoot.x * scale), (NSInteger)(fromTop * scale), rgb);
+}
+
+BOOL UISampleWindowLayers(UIRig* rig, NSView* view, NSPoint point, double rgb[3], NSString* _Nullable savePath) {
+    NSWindow* window = view.window;
+    NSView* frameView = window.contentView.superview ?: window.contentView;
+    [window displayIfNeeded];
+    CALayer* layer = frameView.layer;
+    if (!layer) return NO;
+    CGFloat scale = 2;
+    NSSize size = frameView.bounds.size;
+    size_t width = (size_t)(size.width * scale), height = (size_t)(size.height * scale);
+    CGColorSpaceRef space = CGColorSpaceCreateWithName(kCGColorSpaceSRGB);
+    CGContextRef context = CGBitmapContextCreate(NULL, width, height, 8, 0, space,
+                                                 (CGBitmapInfo)kCGImageAlphaPremultipliedLast);
+    CGColorSpaceRelease(space);
+    if (!context) return NO;
+    __block CGColorRef background = NULL;
+    [view.effectiveAppearance performAsCurrentDrawingAppearance:^{
+        background = CGColorRetain(rig.bridge.friendsBridgeAppearance.backgroundColor.CGColor);
+    }];
+    CGContextSetFillColorWithColor(context, background);
+    CGContextFillRect(context, CGRectMake(0, 0, width, height));
+    CGColorRelease(background);
+    CGContextScaleCTM(context, scale, scale);
+    if (layer.geometryFlipped) {
+        CGContextTranslateCTM(context, 0, size.height);
+        CGContextScaleCTM(context, 1, -1);
+    }
+    [layer renderInContext:context];
+    CGImageRef image = CGBitmapContextCreateImage(context);
+    CGContextRelease(context);
+    if (!image) return NO;
+    NSBitmapImageRep* rep = [[NSBitmapImageRep alloc] initWithCGImage:image];
+    CGImageRelease(image);
+    if (savePath) [[rep representationUsingType:NSBitmapImageFileTypePNG properties:@{}] writeToFile:savePath
+                                                                                           atomically:YES];
+    NSPoint inFrame = [frameView convertPoint:[view convertPoint:point toView:nil] fromView:nil];
+    CGFloat fromTop = frameView.isFlipped ? inFrame.y : size.height - inFrame.y;
+    return UIColorFromRep(rep, (NSInteger)(inFrame.x * scale), (NSInteger)(fromTop * scale), rgb);
+}
+
+static double UILuminance(const double rgb[3]) {
+    double linear[3];
+    for (int i = 0; i < 3; i++)
+        linear[i] = rgb[i] <= 0.04045 ? rgb[i] / 12.92 : pow((rgb[i] + 0.055) / 1.055, 2.4);
+    return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2];
+}
+
+double UIContrast(const double a[3], const double b[3]) {
+    double la = UILuminance(a), lb = UILuminance(b);
+    return (MAX(la, lb) + 0.05) / (MIN(la, lb) + 0.05);
+}
+
 BOOL UIShot(UIRig* rig, NSString* name) {
     NSView* frameView = rig.content.superview;
     if (!rig.popoverWindow || !frameView) return NO;
     UISpin(0.05);
     NSArray* problems = UILayoutProblems(rig);
-    NSString* path = UIShotPath(rig, name);
+    NSString* path = UIShotPathFor(rig, name);
     BOOL written = UIWritePNG(rig.content, rig.bridge.friendsBridgeAppearance.backgroundColor, path);
     if (!written) {
         UIFailures++;
@@ -564,7 +659,7 @@ BOOL UIShotWindow(UIRig* rig, NSWindow* window, NSString* name) {
         fprintf(stderr, "[%s %s %s] this Mac's own \"%s\" shows\n", rig.variant.name.UTF8String, rig.flow.UTF8String,
                 name.UTF8String, real.UTF8String);
     }
-    return UIWritePNG(view, NSColor.windowBackgroundColor, UIShotPath(rig, name));
+    return UIWritePNG(view, NSColor.windowBackgroundColor, UIShotPathFor(rig, name));
 }
 
 // The reader's title bar, as the integration suite builds it: a strip with Search at its end, and the views' button

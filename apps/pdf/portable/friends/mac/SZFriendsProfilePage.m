@@ -282,6 +282,7 @@
     _addField.placeholderString = SZFStr(add, @"placeholder");
     _addField.accessibilityLabel = _addLabel.stringValue;
     _addButton.title = SZFStr(add, @"button_label") ?: @"";
+    [self updateAddButton];
     _addHint.stringValue = SZFStr(add, @"hint") ?: @"";
     [_links applyLinks:SZFDict(data, @"links")];
     [_computers applyDevices:SZFDict(data, @"devices")];
@@ -332,8 +333,21 @@
 
 #pragma mark - Add by ID, name
 
+// Send request rests until something is typed, as Save does beside the name.
+- (void)updateAddButton {
+    NSString *typed = [_addField.stringValue ?: @"" stringByTrimmingCharactersInSet:
+                                                        NSCharacterSet.whitespaceAndNewlineCharacterSet];
+    _addButton.enabled = typed.length > 0;
+    _addButton.needsDisplay = YES;
+}
+
+- (void)controlTextDidChange:(NSNotification *)notification {
+    if (notification.object == _addField) [self updateAddButton];
+}
+
 - (void)sendAddRequest {
-    NSString *friendsID = _addField.stringValue ?: @"";
+    NSString *friendsID = [_addField.stringValue ?: @"" stringByTrimmingCharactersInSet:
+                                                            NSCharacterSet.whitespaceAndNewlineCharacterSet];
     if (!friendsID.length) return;
     __weak SZFriendsProfilePage *weakSelf = self;
     [self.context.link sendIntent:@"add_by_id" fields:@{@"friends_id" : friendsID}
@@ -348,6 +362,7 @@
                                 // The answer appears under the field, out of VoiceOver's way: speak it too.
                                 [page.context announce:message];
                                 if (!error) page->_addField.stringValue = @"";
+                                [page updateAddButton];
                                 page->_revealAdd = YES; // and in view, however short the dropdown
                                 [page setNeedsLayout:YES];
                             }];

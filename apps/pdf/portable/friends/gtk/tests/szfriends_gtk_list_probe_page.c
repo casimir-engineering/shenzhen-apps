@@ -35,7 +35,8 @@ static void test_footer(SZFGHarness *harness) {
     szfg_list_wait_rows(list, 7);
     const SZFriendsGtkFooterParts *footer = szfriends_gtk_footer_parts(list->parts->footer);
     EXPECT(!g_strcmp0(text_of(footer->name_label), "Raph") && !g_strcmp0(text_of(footer->id_label),
-           "ID cottage‑violet") && gtk_widget_get_visible(footer->note), "the name, the ID line and its note");
+           "ID cottage‑violet") && !gtk_widget_get_visible(footer->note),
+           "the name and the ID line, and no note about the ID (the owner's report of 2026-10-20)");
     EXPECT(!g_strcmp0(gtk_button_get_label(GTK_BUTTON(footer->add_button)), "Add by ID"), "Add by ID");
     EXPECT(!g_strcmp0(gtk_widget_get_tooltip_text(footer->copy_button), "Copy your ID") &&
                szfg_accessible_label_is(footer->copy_button, "Copy your ID") &&
@@ -48,27 +49,57 @@ static void test_footer(SZFGHarness *harness) {
            "and says it did");
     EXPECT(szfg_clock_fire(1500) && !gtk_widget_get_visible(footer->copy_label), "for a moment");
 
+    /* The rename, as the Mac footer does it: Save and Cancel beside the field (the owner's report of 2026-10-20). */
     guint names = szfg_frames(harness, "set_name");
     g_signal_emit_by_name(footer->name_button, "clicked");
     EXPECT(szfriends_gtk_footer_is_editing(list->parts->footer) && gtk_widget_get_visible(footer->editor) &&
                !gtk_widget_get_visible(footer->name_button) &&
                !g_strcmp0(gtk_editable_get_text(GTK_EDITABLE(footer->editor)), "Raph"), "the name edits in place");
+    EXPECT(gtk_widget_get_visible(footer->save_button) && gtk_widget_get_visible(footer->cancel_button) &&
+               !g_strcmp0(gtk_button_get_label(GTK_BUTTON(footer->save_button)), "Save") &&
+               !g_strcmp0(gtk_button_get_label(GTK_BUTTON(footer->cancel_button)), "Cancel"),
+           "with Save and Cancel beside the field");
+    EXPECT(!gtk_widget_get_sensitive(footer->save_button), "Save rests while the name is unchanged");
+    EXPECT(!gtk_widget_get_focus_on_click(footer->save_button) && !gtk_widget_get_focus_on_click(footer->cancel_button),
+           "pressing Save or Cancel never takes the focus from the field, which would leave the rename");
     gtk_editable_set_text(GTK_EDITABLE(footer->editor), "Raph L.");
-    g_signal_emit_by_name(footer->editor, "activate");
+    EXPECT(gtk_widget_get_sensitive(footer->save_button), "Save wakes for a new name");
+    g_signal_emit_by_name(footer->save_button, "clicked");
     EXPECT(szfg_wait_frames(harness, "set_name", names + 1) && !szfriends_gtk_footer_is_editing(list->parts->footer),
-           "Return sends the new name");
+           "Save sends the new name");
     char *name = szfg_last_field(harness, "set_name", "name");
     EXPECT(!g_strcmp0(name, "Raph L."), "as typed (%s)", name);
     g_free(name);
+    SZFGLabelWait saved = {footer->note, "Saved — friends now see Raph L."};
+    EXPECT(szfg_pump_until(label_says, &saved, 3000), "and says it worked, where the name was typed");
+    EXPECT(szfg_clock_fire(2500) && !gtk_widget_get_visible(footer->note), "for a moment");
+
+    szfriends_gtk_footer_begin_edit(list->parts->footer);
+    gtk_editable_set_text(GTK_EDITABLE(footer->editor), "Raph Lee");
+    g_signal_emit_by_name(footer->editor, "activate");
+    EXPECT(szfg_wait_frames(harness, "set_name", names + 2) && !szfriends_gtk_footer_is_editing(list->parts->footer),
+           "Return saves too");
     szfriends_gtk_footer_begin_edit(list->parts->footer);
     gtk_editable_set_text(GTK_EDITABLE(footer->editor), "Someone else");
     szfriends_gtk_dropdown_escape(list->dropdown);
     EXPECT(!szfriends_gtk_footer_is_editing(list->parts->footer) && szfriends_gtk_dropdown_is_open(list->dropdown),
            "Escape closes the field and nothing else");
     szfriends_gtk_footer_begin_edit(list->parts->footer);
+    gtk_editable_set_text(GTK_EDITABLE(footer->editor), "Someone else");
+    g_signal_emit_by_name(footer->cancel_button, "clicked");
+    EXPECT(!szfriends_gtk_footer_is_editing(list->parts->footer), "Cancel closes the field");
+    szfriends_gtk_footer_begin_edit(list->parts->footer);
+    gtk_editable_set_text(GTK_EDITABLE(footer->editor), "   ");
+    g_signal_emit_by_name(footer->editor, "activate");
+    SZFGLabelWait empty = {footer->note, "Type the name friends should see."};
+    EXPECT(label_says(&empty) && szfriends_gtk_footer_is_editing(list->parts->footer),
+           "nothing typed is refused where it was typed, and the field stays");
+    szfriends_gtk_footer_cancel_edit(list->parts->footer);
+    szfriends_gtk_footer_begin_edit(list->parts->footer);
     szfriends_gtk_footer_commit_edit(list->parts->footer);
     szfg_pump_for(100);
-    EXPECT(szfg_frames(harness, "set_name") == names + 1, "neither Escape nor an unchanged name sends anything");
+    EXPECT(szfg_frames(harness, "set_name") == names + 2,
+           "neither Escape, Cancel, nothing typed nor an unchanged name sends anything");
 
     refuse_names(harness, "Use 40 characters or fewer.");
     szfriends_gtk_footer_begin_edit(list->parts->footer);
@@ -81,7 +112,7 @@ static void test_footer(SZFGHarness *harness) {
     szfriends_fake_helper_set_view_fixture(harness->fake, "list", "list.json");
     EXPECT(szfg_list_wait_snapshot(list, seen) && label_says(&wait), "and keeps saying it as snapshots arrive");
     szfriends_gtk_footer_begin_edit(list->parts->footer);
-    EXPECT(g_str_has_prefix(text_of(footer->note), "Your ID works nearby now"), "until the person edits again");
+    EXPECT(!gtk_widget_get_visible(footer->note), "until the person edits again");
     szfriends_gtk_footer_cancel_edit(list->parts->footer);
 
     g_signal_emit_by_name(footer->add_button, "clicked");

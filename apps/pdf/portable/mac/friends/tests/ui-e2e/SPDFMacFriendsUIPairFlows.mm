@@ -115,11 +115,16 @@ static BOOL UIAcceptRequest(UIRig* rig, UIFriend* mei) {
     EXPECT(rig, UIWait(15, ^BOOL { return (row = UIRow(rig, @"Mei")) != nil && row.actionsView != nil; }),
            "Mei's request shows in the list with its buttons:\n%@", UIDescribe(rig.content));
     UIShot(rig, @"request");
-    NSButton* accept = nil;
-    // The row's buttons are icons; their accessibility labels say what they do ("Accept Mei’s request").
-    for (NSButton* button in row.actionsView.buttons)
-        if ([button.accessibilityLabel hasPrefix:@"Accept"] && UIVisible(button)) accept = button;
-    EXPECT(rig, accept != nil, "the row offers Accept");
+    // Accept and Decline say their word on the button, so a first-time reader tells Decline from Block; Block is
+    // its icon, named for VoiceOver and the tooltip, and asks first (the owner's report of 2026-10-20).
+    NSButton* accept = UIFindButton(row, @"Accept");
+    NSButton* decline = UIFindButton(row, @"Decline");
+    NSButton* block = UIFindButton(row, @"Block Mei");
+    EXPECT(rig, accept && decline && block, "the row shows Accept, Decline and Block:\n%@", UIDescribe(row));
+    EXPECT(rig, [accept.accessibilityLabel hasPrefix:@"Accept Mei"] &&
+                    [decline.accessibilityLabel hasPrefix:@"Decline Mei"] && [block.toolTip isEqualToString:@"Block Mei"] && block.title.length == 0,
+           "each is named for what it does (%@, %@, %@)", accept.accessibilityLabel, decline.accessibilityLabel,
+           block.toolTip);
     CLICK(rig, accept, @"Accept");
     EXPECT(rig, UIWait(15, ^BOOL { return [UIRowTitled([mei.client dataFor:mei.list], @"Ana")[@"drop_label"] length] > 0; }),
            "Mei sees Ana as a friend: %@", [mei.client dataFor:mei.list]);
@@ -179,6 +184,10 @@ static BOOL UIMessages(UIRig* rig, UIFriend* mei) {
     EXPECT(rig, UIWait(5, ^BOOL { return UIVisible(page.composer.textView); }), "with a composer");
     CLICK(rig, page.composer.textView, @"the composer");
     EXPECT(rig, UIType(rig.popoverWindow, @"Hello Mei"), "typing reaches the composer");
+    // The hint in words a newcomer follows (the owner's report of 2026-10-20: "# Attach · @ Mention").
+    EXPECT(rig, UIFindText(page, @"Type # to attach, @ to mention someone, or drop files here") &&
+                    !UIFindText(page, @"# Attach"),
+           "the composer's hint is plain:\n%@", UIDescribe(page));
     UIShot(rig, @"typed");
     UIPressReturn(rig.popoverWindow);
     NSString* atMei = [mei.client openConversation:mei.anaID];

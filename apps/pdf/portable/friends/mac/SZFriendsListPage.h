@@ -9,10 +9,16 @@ NS_ASSUME_NONNULL_BEGIN
 // the trimmed name; nothing typed (or only spaces) shows welcome.strings name_empty instead; the helper's refusal
 // (too long, a line break) shows its message; Escape drops what was typed. While the helper has not answered, the
 // field rests and a spinner turns where the text is.
+// How long "Saved — friends now see …" stays where the name was typed before the place goes back to normal.
+static const NSTimeInterval SZFriendsNameSavedSeconds = 2.5;
+
 @interface SZFriendsNameEditor : SZFriendsFlippedView
 - (instancetype)initWithContext:(SZFriendsContext *)context font:(NSFont *)font;
 @property(nonatomic, strong, readonly) NSTextField *field;
 @property(nonatomic, strong, readonly) SZFriendsButton *saveButton; // hidden when the helper sends no `save` string
+// Cancel beside Save (welcome.strings cancel), for a rename that can be left: it calls onCancel. Off by default.
+@property(nonatomic) BOOL showsCancel;
+@property(nonatomic, strong, readonly, nullable) SZFriendsButton *cancelButton;
 @property(nonatomic, strong, readonly) NSTextField *messageLabel;
 // The name already saved; Save waits for a different one.
 @property(nonatomic, copy, nullable) NSString *currentName;
@@ -32,8 +38,9 @@ NS_ASSUME_NONNULL_BEGIN
 - (CGFloat)heightForWidth:(CGFloat)width;
 @end
 
-// The footer under both tabs: the name friends see (click to edit in place), the ID with Copy, the note while
-// the ID is unreserved, and Add by ID.
+// The footer under both tabs: the name friends see (click to edit in place), the ID with Copy, and Add by ID.
+// Renaming puts the field with Save and Cancel where the name was: Return or Save saves, Escape, Cancel or a click
+// anywhere else in the list leaves it. Once saved, the name shows with a check for a moment (name_saved).
 @interface SZFriendsFooterView : SZFriendsFlippedView
 - (instancetype)initWithContext:(SZFriendsContext *)context;
 - (void)applyFooter:(nullable NSDictionary *)footer; // PROTOCOL.md footer
@@ -46,6 +53,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property(nonatomic, strong, readonly, nullable) SZFriendsNameEditor *nameEditor;
 - (void)beginEditingName;
 - (BOOL)cancelEditingName; // YES when an edit was open
+@property(nonatomic, readonly) BOOL showingNameSaved; // the name with its check, just after a rename
 @property(nonatomic, copy, nullable) void (^onAddByID)(void);
 // NO on a computer removed from the person's profile, which can add nobody (PROTOCOL.md § Devices); default YES.
 @property(nonatomic) BOOL offersAdding;
@@ -112,7 +120,9 @@ NS_ASSUME_NONNULL_BEGIN
 @property(nonatomic, strong, readonly, nullable) SZFriendsButton *sendPickerLinkButton;
 // The name prompt's field and the banner's action, for tests and keyboard focus.
 @property(nonatomic, strong, readonly, nullable) NSTextField *namePromptField;
-@property(nonatomic, strong, readonly, nullable) SZFriendsNameEditor *namePromptEditor;
+@property(nonatomic, strong, readonly, nullable) SZFriendsNameEditor *namePromptEditor; // nil while it says "Saved"
+// The name card saying the name was saved (welcome.strings name_saved), for SZFriendsNameSavedSeconds before it goes.
+@property(nonatomic, readonly) BOOL showingNameSaved;
 @property(nonatomic, strong, readonly, nullable) SZFriendsButton *bannerButton;
 // Several computers (SZFriendsDevices.h): the removed notice and join rows, and the name prompt's "Use my existing
 // profile" (nil while the prompt or its join_label is absent).

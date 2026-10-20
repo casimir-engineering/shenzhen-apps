@@ -103,7 +103,7 @@ static const SZFriendsGtkField name_prompt_fields[] = {STR(T, title), STR(T, pla
 TYPE(static, name_prompt, "type.name_prompt", SZFriendsGtkNamePrompt);
 #define T SZFriendsGtkRowAction
 static const SZFriendsGtkField row_action_fields[] = {ENUM(T, action, row_actions), ENUM(T, icon, row_icons),
-                                                      STR(T, label), OBJN(T, arm, arm)};
+                                                      STRN(T, title), STR(T, label), OBJN(T, arm, arm)};
 #undef T
 TYPE(static, row_action, "type.row_action", SZFriendsGtkRowAction);
 #define T SZFriendsGtkWaiting

@@ -308,12 +308,21 @@ static void TestRequestsAndComposer(void) {
     SZFriendsAudience *assistant = SZPAudience();
     assistant.capabilities = [NSSet setWithArray:@[ @"attach.items", @"assistant.drafts", @"drop.files" ]];
     NSArray *hint = Conversation(Friend(@"c_h", @"Hana"), @[], nil, assistant)[@"composer"][@"hint"];
-    NSArray *expected = @[ @{@"text" : @"#", @"emphasis" : @YES}, @{@"text" : @" Attach · "},
-                           @{@"text" : @"/", @"emphasis" : @YES}, @{@"text" : @" Ask the assistant · or drop files"} ];
+    NSArray *expected = @[
+        @{@"text" : @"Type "}, @{@"text" : @"#", @"emphasis" : @YES}, @{@"text" : @" to attach, "},
+        @{@"text" : @"/", @"emphasis" : @YES}, @{@"text" : @" to ask the assistant, or drop files here"}
+    ];
     SZPExpect([hint isEqual:expected], @"hint with the assistant: %@", hint);
+    assistant.capabilities = [NSSet setWithArray:@[ @"attach.items", @"mentions" ]];
+    hint = Conversation(Friend(@"c_h", @"Hana"), @[], nil, assistant)[@"composer"][@"hint"];
+    expected = @[
+        @{@"text" : @"Type "}, @{@"text" : @"#", @"emphasis" : @YES}, @{@"text" : @" to attach or "},
+        @{@"text" : @"@", @"emphasis" : @YES}, @{@"text" : @" to mention someone"}
+    ];
+    SZPExpect([hint isEqual:expected], @"two keys, no dropping: %@", hint);
     assistant.capabilities = [NSSet setWithObject:@"drop.files"];
     hint = Conversation(Friend(@"c_h", @"Hana"), @[], nil, assistant)[@"composer"][@"hint"];
-    SZPExpect([hint isEqual:(@[ @{@"text" : @"Drop files to send them"} ])], @"drop-only hint: %@", hint);
+    SZPExpect([hint isEqual:(@[ @{@"text" : @"Drop files here to send them"} ])], @"drop-only hint: %@", hint);
     assistant.capabilities = [NSSet set];
     SZPExpect([Conversation(Friend(@"c_h", @"Hana"), @[], nil, assistant)[@"composer"][@"hint"] count] == 0,
               @"no hint without capabilities");
@@ -340,11 +349,11 @@ static void TestRowActions(void) {
     for (NSDictionary *row in List(people, nil, @"")[@"rows"]) byID[row[@"conversation_id"]] = row;
     NSArray *actions = byID[@"c_req"][@"actions"];
     NSArray *expected = @[
-        @{@"action" : @"accept_request", @"icon" : @"accept", @"label" : @"Accept tulip\u2011canyon’s request",
-          @"arm" : [NSNull null]},
-        @{@"action" : @"decline_request", @"icon" : @"decline", @"label" : @"Decline tulip\u2011canyon’s request",
-          @"arm" : [NSNull null]},
-        @{@"action" : @"block", @"icon" : @"block", @"label" : @"Block tulip\u2011canyon",
+        @{@"action" : @"accept_request", @"icon" : @"accept", @"title" : @"Accept",
+          @"label" : @"Accept tulip\u2011canyon’s request", @"arm" : [NSNull null]},
+        @{@"action" : @"decline_request", @"icon" : @"decline", @"title" : @"Decline",
+          @"label" : @"Decline tulip\u2011canyon’s request", @"arm" : [NSNull null]},
+        @{@"action" : @"block", @"icon" : @"block", @"title" : [NSNull null], @"label" : @"Block tulip\u2011canyon",
           @"arm" : @{@"label" : @"Block?", @"accessibility_label" : @"Click again to block tulip\u2011canyon",
                      @"seconds" : @4}},
     ];

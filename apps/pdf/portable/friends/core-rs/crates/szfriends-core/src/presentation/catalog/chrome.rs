@@ -53,6 +53,8 @@ pub(super) const CORE: &[(&str, &str)] = &[
     // says when nothing (or only spaces) was typed.
     ("static.save", "Save"),
     ("static.name_empty", "Type the name friends should see."),
+    // Where the name was typed, once the helper has it: the person sees it worked, and what friends now see.
+    ("static.name_saved", "Saved — friends now see {name}"),
     // Every app that runs Friends, for {apps}, which any catalog string may use. A message goes out while Friends
     // runs on a computer of each person, which it does while any of these apps is open there, so the note names
     // them all rather than the reading app's own name: a Shenzhen 3D reader's friend may have only ShenzhenPDF
@@ -182,13 +184,6 @@ pub(super) const CORE: &[(&str, &str)] = &[
         "Back to the conversation with {first}, {count} more waiting for you in Friends",
     ),
     ("id.label", "ID {id}"),
-    // Said from the reader's side: what {app} has to reach before the ID is settled, which Settings' disclosure
-    // already introduces as the Friends server.
-    (
-        "id.unreserved",
-        "Your ID works nearby now. If it’s already taken, you’ll get a new one the next time {app} reaches the \
-         Friends server.",
-    ),
     // A phone without online: only people nearby can add it, and nothing will settle the ID later.
     ("id.nearby", "People near you can add you with it."),
     ("id.confirmed", "ID confirmed by the Friends server"),

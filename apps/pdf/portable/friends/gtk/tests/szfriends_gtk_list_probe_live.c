@@ -99,7 +99,7 @@ static void switch_live(SZFGHarness *harness, gboolean to_dark) {
         const char *what;
     } glyphs[] = {{NULL, SZFRIENDS_GTK_GLYPH_PENCIL, "the footer's pencil"},
                   {NULL, SZFRIENDS_GTK_GLYPH_COPY, "the footer's copy mark"},
-                  {"c_lena", SZFRIENDS_GTK_GLYPH_CLOSE, "Lena's Decline"}};
+                  {"c_lena", SZFRIENDS_GTK_GLYPH_BLOCK, "Lena's Block"}};
     for (gsize i = 0; i < G_N_ELEMENTS(glyphs); i++) {
         int differing = glyph_differs(&live, glyphs[i].row, glyphs[i].kind, after, expected);
         EXPECT(differing == 0, "after a live switch to %s, %s draws as on a fresh %s list (%d px differ)", theme,

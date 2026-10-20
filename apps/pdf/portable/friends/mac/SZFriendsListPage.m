@@ -25,6 +25,8 @@
     NSString *_sendTitle;
     NSString *_dropHint;
     BOOL _dropHintRefuses;
+    BOOL _namePromptSaved;       // the card says the name was saved, and goes in a moment
+    NSUInteger _namePromptRound; // which "saved" the pending hide belongs to
 }
 
 - (instancetype)initWithContext:(SZFriendsContext *)context {
@@ -40,7 +42,9 @@
     [self addSubview:_searchField];
 
     _tabTrack = [[SZFriendsFlippedView alloc] initWithFrame:NSMakeRect(12, 48, 376, 30)];
-    _tabTrack.fillColor = appearance.fieldBackgroundColor;
+    // A track a step darker than the cards in light mode, so the white selected tab stands out from it (white on
+    // the field colour #f4f4f5 could not be told apart; the owner's report of 2026-10-20).
+    _tabTrack.fillColor = SZFriendsDynamicColor(0xe4e4e7, 0x1f1f23);
     _tabTrack.cornerRadius = 8;
     [self addSubview:_tabTrack];
     __weak SZFriendsListPage *weakSelf = self;
@@ -54,9 +58,11 @@
         (void)button;
         [weakSelf showNearby:YES];
     };
-    // The selected tab is raised and neutral, like a segmented control; blue already means "waiting for you".
+    // The selected tab is raised and neutral, like a segmented control (blue already means "waiting for you"): a
+    // lighter pill with an outline, and its title in semibold.
     for (SZFriendsButton *tab in @[ _friendsTab, _nearbyTab ]) {
         tab.selectedFillColor = SZFriendsDynamicColor(0xffffff, 0x3a3f4f);
+        tab.selectedStrokeColor = SZFriendsDynamicColor(0xc4c6cc, 0x555a68);
         [_tabTrack addSubview:tab];
     }
 
@@ -125,11 +131,11 @@
 }
 
 - (NSTextField *)namePromptField {
-    return _namePrompt.hidden ? nil : _namePrompt.nameEditor.field;
+    return self.namePromptEditor.field;
 }
 
 - (SZFriendsNameEditor *)namePromptEditor {
-    return _namePrompt.hidden ? nil : _namePrompt.nameEditor;
+    return _namePrompt.hidden || _namePromptSaved ? nil : _namePrompt.nameEditor;
 }
 
 - (SZFriendsButton *)bannerButton {
@@ -147,6 +153,10 @@
     _nearbyTab.title = [self.context string:@"tab_nearby"];
     _friendsTab.selectedLook = !_showingNearby;
     _nearbyTab.selectedLook = _showingNearby;
+    NSFont *plain = [NSFont systemFontOfSize:12 weight:NSFontWeightRegular];
+    NSFont *bold = [NSFont systemFontOfSize:12 weight:NSFontWeightSemibold];
+    _friendsTab.font = _showingNearby ? plain : bold;
+    _nearbyTab.font = _showingNearby ? bold : plain;
     // Tabs read as a radio group; the value is the selection state, so no word of ours is spoken.
     for (SZFriendsButton *tab in @[ _friendsTab, _nearbyTab ]) {
         tab.accessibilityRole = NSAccessibilityRadioButtonRole;
@@ -259,9 +269,16 @@
     self.needsDisplay = YES;
 }
 
-// The card that asks for a name until one is saved. What is typed survives every snapshot; the card goes the moment
-// the helper confirms the name, and its next snapshot (no name_prompt) keeps it gone.
+// The card that asks for a name until one is saved. What is typed survives every snapshot. When the helper confirms
+// the name, the card says so where the person typed it (welcome.strings name_saved, with a check) and goes a moment
+// later; the helper's next snapshot (no name_prompt) does not cut that short.
 - (void)applyNamePrompt:(NSDictionary *)prompt {
+    if (_namePromptSaved) {
+        if (!prompt) return;
+        [self endNameSaved]; // asked again meanwhile (Reset Friends): the card asks
+    }
+    // The snapshot without the card can come before set_name's reply: the card waits for the reply to say "Saved".
+    if (!prompt && !_namePrompt.hidden && _namePrompt.nameEditor.saving) return;
     BOOL wasHidden = _namePrompt.hidden;
     _namePrompt.hidden = prompt == nil;
     _namePrompt.titleLabel.stringValue = SZFStr(prompt, @"title") ?: @"";
@@ -270,16 +287,7 @@
         SZFriendsNameEditor *editor = [[SZFriendsNameEditor alloc] initWithContext:self.context
                                                                               font:self.context.appearance.bodyFont];
         __weak SZFriendsListPage *weakSelf = self;
-        editor.onSaved = ^(NSString *name) {
-            (void)name;
-            SZFriendsListPage *page = weakSelf;
-            if (!page) return;
-            BOOL focused = page->_namePrompt.nameEditor.field.currentEditor != nil;
-            page->_namePrompt.hidden = YES;
-            [page->_namePrompt.nameEditor reset];
-            if (focused) [page.window makeFirstResponder:page->_searchField];
-            [page setNeedsLayout:YES];
-        };
+        editor.onSaved = ^(NSString *name) { [weakSelf showNameSaved:name]; };
         editor.onLayoutChange = ^{ [weakSelf setNeedsLayout:YES]; };
         _namePrompt.nameEditor = editor;
     }
@@ -287,6 +295,56 @@
     [_namePrompt.nameEditor reloadStrings];
     _namePrompt.nameEditor.field.placeholderString = SZFStr(prompt, @"placeholder");
     _namePrompt.nameEditor.field.accessibilityLabel = SZFStr(prompt, @"title");
+}
+
+- (void)showNameSaved:(NSString *)name {
+    SZFriendsNameEditor *editor = _namePrompt.nameEditor;
+    // The field goes, so the typing goes to search: the next thing a person does in the list. The field let go of
+    // the typing while it rested for the helper's answer, which left nothing focused.
+    NSResponder *focus = self.window.firstResponder;
+    if (editor.field.currentEditor || !focus || focus == self.window) [self.window makeFirstResponder:_searchField];
+    [editor reset];
+    NSString *saved = [[self.context string:@"name_saved"] stringByReplacingOccurrencesOfString:@"{name}"
+                                                                                     withString:name ?: @""];
+    if (![self.context string:@"name_saved"].length) {
+        _namePrompt.hidden = YES;
+        [self setNeedsLayout:YES];
+        return;
+    }
+    _namePromptSaved = YES;
+    _namePrompt.hidden = NO;
+    NSUInteger round = ++_namePromptRound;
+    _namePrompt.titleLabel.stringValue = saved;
+    _namePrompt.noteLabel.stringValue = @"";
+    _namePrompt.nameEditor.hidden = YES;
+    _namePrompt.secondaryButton = nil;
+    _namePrompt.iconDrawer = ^(NSRect rect, NSColor *color) { SZFriendsDrawCheckIcon(rect, color); };
+    _namePrompt.iconColor = self.context.appearance.successColor;
+    _namePrompt.needsDisplay = YES;
+    [self.context announce:saved];
+    [self setNeedsLayout:YES];
+    __weak SZFriendsListPage *weakSelf = self;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(SZFriendsNameSavedSeconds * NSEC_PER_SEC)),
+                   dispatch_get_main_queue(), ^{
+                       SZFriendsListPage *page = weakSelf;
+                       if (!page || !page->_namePromptSaved || page->_namePromptRound != round) return;
+                       [page endNameSaved];
+                       page->_namePrompt.hidden = YES;
+                       [page setNeedsLayout:YES];
+                   });
+}
+
+- (void)endNameSaved {
+    _namePromptSaved = NO;
+    _namePromptRound++;
+    _namePrompt.iconDrawer = nil;
+    _namePrompt.iconColor = nil;
+    _namePrompt.nameEditor.hidden = NO;
+    _namePrompt.needsDisplay = YES;
+}
+
+- (BOOL)showingNameSaved {
+    return _namePromptSaved && !_namePrompt.hidden;
 }
 
 - (void)applyNearbySnapshot:(NSDictionary *)data {
@@ -442,7 +500,7 @@
         if ([row.actionsView disarm]) return YES;
     if (SZFriendsDisarmActionButtons(_devicesView)) return YES; // a join row's "Deny?"
     if ([_footer cancelEditingName]) return YES;
-    return !_namePrompt.hidden && [_namePrompt.nameEditor cancelTyping];
+    return !_namePrompt.hidden && !_namePromptSaved && [_namePrompt.nameEditor cancelTyping];
 }
 
 #pragma mark - Text fields

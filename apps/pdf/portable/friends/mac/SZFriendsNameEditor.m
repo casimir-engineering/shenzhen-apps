@@ -57,7 +57,28 @@ static const CGFloat SZFriendsNameEditorRowHeight = 26;
     _saveButton.title = save;
     _saveButton.hidden = save.length == 0;
     _saveButton.accessibilityLabel = save.length ? save : nil;
+    NSString *cancel = [_context string:@"cancel"];
+    _cancelButton.title = cancel;
+    _cancelButton.hidden = !_showsCancel || cancel.length == 0;
     [self updateSaveButton];
+}
+
+- (void)setShowsCancel:(BOOL)showsCancel {
+    _showsCancel = showsCancel;
+    if (showsCancel && !_cancelButton) {
+        _cancelButton = [SZFriendsButton buttonWithTitle:@"" style:SZFriendsButtonStyleSecondary
+                                              appearance:_context.appearance];
+        __weak SZFriendsNameEditor *weakSelf = self;
+        _cancelButton.onPress = ^(SZFriendsButton *button) {
+            (void)button;
+            SZFriendsNameEditor *editor = weakSelf;
+            if (editor && !editor->_saving && editor.onCancel) editor.onCancel();
+        };
+        [self addSubview:_cancelButton];
+    }
+    _cancelButton.hidden = !showsCancel;
+    [self reloadStrings];
+    [self setNeedsLayout:YES];
 }
 
 - (void)setCurrentName:(NSString *)currentName {
@@ -69,6 +90,7 @@ static const CGFloat SZFriendsNameEditorRowHeight = 26;
     NSString *name = [self typedName];
     _saveButton.enabled = !_saving && name.length > 0 && ![name isEqualToString:_currentName ?: @""];
     _saveButton.needsDisplay = YES;
+    _cancelButton.enabled = !_saving;
 }
 
 - (void)setMessage:(NSString *)message {
@@ -177,6 +199,10 @@ static const CGFloat SZFriendsNameEditorRowHeight = 26;
     return _saveButton.hidden ? 0 : MAX(60, [_saveButton fittingWidth]);
 }
 
+- (CGFloat)cancelWidth {
+    return !_cancelButton || _cancelButton.hidden ? 0 : MAX(60, [_cancelButton fittingWidth]);
+}
+
 - (CGFloat)heightForWidth:(CGFloat)width {
     CGFloat message = SZFriendsFieldHeight(_messageLabel, width);
     return SZFriendsNameEditorRowHeight + (message ? 6 + message : 0);
@@ -185,10 +211,11 @@ static const CGFloat SZFriendsNameEditorRowHeight = 26;
 - (void)layout {
     [super layout];
     CGFloat width = NSWidth(self.bounds);
-    CGFloat save = [self saveWidth];
-    CGFloat fieldWidth = MAX(60, width - (save ? save + 8 : 0));
+    CGFloat save = [self saveWidth], cancel = [self cancelWidth];
+    CGFloat fieldWidth = MAX(60, width - (save ? save + 8 : 0) - (cancel ? cancel + 6 : 0));
     _field.frame = NSMakeRect(0, 1, fieldWidth, SZFriendsNameEditorRowHeight - 2);
-    _saveButton.frame = NSMakeRect(width - save, 0, save, SZFriendsNameEditorRowHeight);
+    _saveButton.frame = NSMakeRect(fieldWidth + 8, 0, save, SZFriendsNameEditorRowHeight);
+    if (cancel) _cancelButton.frame = NSMakeRect(width - cancel, 0, cancel, SZFriendsNameEditorRowHeight);
     // Over the field's trailing end while saving, where the text it is saving already is.
     _spinner.frame = NSMakeRect(fieldWidth - 22, 5, 16, 16);
     CGFloat message = SZFriendsFieldHeight(_messageLabel, width);

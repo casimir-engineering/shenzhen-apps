@@ -29,6 +29,19 @@ static BOOL UIClickOrFail(UIRig* rig, NSView* _Nullable view, NSString* what, co
         if (!UIClickOrFail(rig, view, what, __FILE__, __LINE__)) return NO;                                       \
     } while (0)
 
+// Visible buttons titled `title` under `root`: one card, one button (the Nearby cards).
+static NSUInteger UICountButtons(NSView* root, NSString* title) {
+    NSUInteger count = 0;
+    for (NSView* view in UIAllViews(root))
+        if ([view isKindOfClass:NSButton.class] && [((NSButton*)view).title isEqualToString:title] && UIVisible(view))
+            count++;
+    return count;
+}
+
+static NSString* UISavedText(NSString* name) {
+    return [NSString stringWithFormat:@"Saved — friends now see %@", name];
+}
+
 #pragma mark - First open
 
 static BOOL UIFirstOpen(UIRig* rig) {
@@ -50,6 +63,9 @@ static BOOL UIFirstOpen(UIRig* rig) {
            "the footer shows the placeholder and %@ (%@)", idLabel, friendsID);
     EXPECT(rig, UIFindButton(rig.content, @"Friends") && UIFindButton(rig.content, @"Nearby"), "both tabs");
     EXPECT(rig, UIFindText(rig.content, @"No friends yet"), "the empty list says so");
+    // No note about the ID that raises a question without helping (the owner's report of 2026-10-20).
+    EXPECT(rig, !UIFindText(rig.content, @"already taken") && !UIFindText(rig.content, @"works nearby now"),
+           "no note about the ID in the list");
     EXPECT(rig, UIShot(rig, @"first-open"), "the first open lays out inside the popover");
     return YES;
 }
@@ -113,6 +129,16 @@ static BOOL UISetName(UIRig* rig, NSString* name, BOOL onNearby, BOOL withReturn
     else CLICK(rig, editor.saveButton, @"Save");
     EXPECT(rig, UIWaitNextSnapshot(rig, @"list", before, 5), "the helper sends the list again");
     EXPECT(rig, [UISavedName(rig) isEqualToString:name], "the helper saved the name: %@", UIFooter(rig));
+    // It worked, said where the person typed it, before the card goes (the owner's report of 2026-10-20: nothing
+    // said the name was saved). The field is gone, so the typing goes to search.
+    NSString* savedText = UISavedText(name);
+    EXPECT(rig, UIWait(3, ^BOOL { return UIFindText(rig.content, savedText) != nil; }) && list.showingNameSaved,
+           "the card says \"%@\"", savedText);
+    EXPECT(rig, list.searchField.currentEditor != nil, "the focus moves to search (first responder %@)",
+           popover.firstResponder);
+    UIShot(rig, @"saved-confirmation");
+    EXPECT(rig, UIWait(5, ^BOOL { return !list.showingNameSaved && !UIFindText(rig.content, savedText); }),
+           "then the card goes");
     EXPECT(rig, UIWait(5, ^BOOL { return list.namePromptEditor == nil; }),
            "the card goes once the helper has the name (Nearby %d)", list.showingNearby);
     EXPECT(rig, !UIFindText(rig.content, @"Choose the name friends see"), "nothing asks for a name any more");
@@ -142,7 +168,32 @@ static BOOL UIRename(UIRig* rig, NSString* from, NSString* to) {
     EXPECT(rig, editor.field.currentEditor != nil, "the field takes the typing");
     NSButton* save = UIFindButton(footer, @"Save");
     EXPECT(rig, save && !save.enabled, "Save shows and rests while the name is unchanged");
+    EXPECT(rig, UIFindButton(footer, @"Cancel") && editor.cancelButton.enabled, "Cancel shows beside Save");
     UIShot(rig, @"editing");
+    // Cancel leaves it: the name stays and nothing is sent.
+    NSInteger sent = UISnapshotCount(rig, @"list");
+    UIClearField(popover);
+    UIType(popover, @"Someone else");
+    CLICK(rig, UIFindButton(footer, @"Cancel"), @"Cancel");
+    EXPECT(rig, !footer.editingName && UIFindText(footer, from), "Cancel leaves the rename and the name stays");
+    // A click anywhere else in the list leaves it too: on a tab (which takes no focus), and in the search field.
+    CLICK(rig, footer.nameButton, @"the name in the footer");
+    UIClearField(popover);
+    UIType(popover, @"Someone else");
+    CLICK(rig, rig.listPage.friendsTab, @"the Friends tab");
+    EXPECT(rig, UIWait(2, ^BOOL { return !footer.editingName; }), "a click on a tab leaves the rename");
+    CLICK(rig, footer.nameButton, @"the name in the footer");
+    UIClearField(popover);
+    UIType(popover, @"Someone else");
+    CLICK(rig, rig.listPage.searchField, @"the search field");
+    EXPECT(rig, UIWait(2, ^BOOL { return !footer.editingName; }) && rig.listPage.searchField.currentEditor != nil,
+           "a click in the search field leaves the rename, and the typing goes there");
+    UISpin(0.3);
+    EXPECT(rig, UISnapshotCount(rig, @"list") == sent && [UISavedName(rig) isEqualToString:from] &&
+                    UIFindText(footer, from),
+           "neither Cancel nor a click elsewhere saved anything: %@", UIFooter(rig));
+    CLICK(rig, footer.nameButton, @"the name in the footer");
+    editor = footer.nameEditor;
     // Escape cancels: the name stays.
     UIClearField(popover);
     UIType(popover, @"Someone else");
@@ -166,16 +217,42 @@ static BOOL UIRename(UIRig* rig, NSString* from, NSString* to) {
     UIClearField(popover);
     UIType(popover, to);
     NSInteger before = UISnapshotCount(rig, @"list");
-    CLICK(rig, editor.saveButton, @"Save");
+    UIPressReturn(popover);
     EXPECT(rig, UIWaitNextSnapshot(rig, @"list", before, 5) && [UISavedName(rig) isEqualToString:to],
-           "the helper has the new name: %@", UIFooter(rig));
+           "Return saves the new name: %@", UIFooter(rig));
     EXPECT(rig, UIWait(3, ^BOOL { return !footer.editingName && UIFindText(footer, to) != nil; }),
            "the footer shows %@", to);
+    // It worked, said on the name itself: a check where the pencil was, and the words as its tooltip.
+    EXPECT(rig, footer.showingNameSaved && [footer.nameButton.toolTip isEqualToString:UISavedText(to)],
+           "the name shows its check (tooltip %@)", footer.nameButton.toolTip);
     UIShot(rig, @"renamed");
+    EXPECT(rig, UIWait(5, ^BOOL { return !footer.showingNameSaved; }), "then the pencil again");
     return YES;
 }
 
 #pragma mark - Tabs and being visible
+
+// The selected tab against the track it sits on, sampled beside its title in both tabs (the other tab shows the
+// track there): drawn by cacheDisplayInRect: and as the window's own layers hold it. The owner's report of
+// 2026-10-20: in light mode the selected tab could not be seen. Its white fill was blended into the track by the
+// popover's vibrancy (1.00:1 measured), and white on the old track #f4f4f5 would still be only 1.10:1.
+static BOOL UISelectedTabStandsOut(UIRig* rig, NSView* selected, NSView* other) {
+    NSPoint spot = NSMakePoint(5, NSMidY(selected.bounds));
+    double pill[3], track[3], pillLayers[3], trackLayers[3];
+    NSString* saved = UIShotPathFor(rig, @"tabs-window-layers");
+    EXPECT(rig, UISampleCached(rig, selected, spot, pill) && UISampleCached(rig, other, spot, track),
+           "the tabs can be sampled as drawn");
+    EXPECT(rig, UISampleWindowLayers(rig, selected, spot, pillLayers, saved) &&
+                    UISampleWindowLayers(rig, other, spot, trackLayers, nil),
+           "the tabs can be sampled from the window's layers");
+    double drawn = UIContrast(pill, track), composited = UIContrast(pillLayers, trackLayers);
+    EXPECT(rig, drawn >= 1.2 && composited >= 1.2,
+           "the selected tab stands out from the track: %.2f:1 as drawn (%.3f %.3f %.3f on %.3f %.3f %.3f), %.2f:1 in "
+           "the window's layers (%.3f %.3f %.3f on %.3f %.3f %.3f)",
+           drawn, pill[0], pill[1], pill[2], track[0], track[1], track[2], composited, pillLayers[0], pillLayers[1],
+           pillLayers[2], trackLayers[0], trackLayers[1], trackLayers[2]);
+    return YES;
+}
 
 static BOOL UITabs(UIRig* rig) {
     UIBeginFlow(rig, @"tabs");
@@ -187,6 +264,7 @@ static BOOL UITabs(UIRig* rig) {
     EXPECT(rig, [list.nearbyTab.accessibilityValue isEqual:@YES] && [list.friendsTab.accessibilityValue isEqual:@NO],
            "Nearby reads as the selected tab");
     UIShot(rig, @"nearby");
+    EXPECT(rig, UISelectedTabStandsOut(rig, list.nearbyTab, list.friendsTab), "the selected tab stands out");
     CLICK(rig, list.friendsTab, @"the Friends tab");
     EXPECT(rig, UIWait(5, ^BOOL { return !list.showingNearby && UIFindText(rig.content, @"No friends yet") != nil; }),
            "Friends shows the list again");
@@ -257,9 +335,17 @@ static BOOL UIAddByID(UIRig* rig) {
            "Your computers shows the test computer:\n%@", UIDescribe(page));
     EXPECT(rig, !UIRealComputerShown(page), "this Mac's own name or system shows: %@", UIRealComputerShown(page));
     UIShot(rig, @"your-computers");
+    EXPECT(rig, !UIReveal(page, @"already taken") && !UIReveal(page, @"works nearby now"),
+           "no note about the ID on the profile either");
     NSWindow* popover = rig.popoverWindow;
     CLICK(rig, page.addField, @"the ID field");
+    // Send request rests until something is typed, as Save does (the owner's report of 2026-10-20).
+    EXPECT(rig, !page.addButton.enabled, "Send request rests with nothing typed");
+    UIType(popover, @"  ");
+    EXPECT(rig, !page.addButton.enabled, "and for spaces");
+    UIClearField(popover);
     UIType(popover, @"not an id");
+    EXPECT(rig, page.addButton.enabled, "Send request wakes once something is typed");
     CLICK(rig, page.addButton, @"Send request");
     EXPECT(rig, UIWait(5, ^BOOL { return UIFindText(page, @"That isn’t a Friends ID") != nil; }),
            "a wrong ID is refused, saying what an ID looks like");
@@ -364,6 +450,38 @@ static BOOL UISettingsAndReset(UIRig* rig) {
     return YES;
 }
 
+#pragma mark - The name saved elsewhere, seen on Nearby
+
+// The root cause of the owner's stuck card (2026-10-20): the list page dropped its `list` subscription while Nearby
+// showed, and the card comes from it. Here the name is saved by another client of the same helper (another app),
+// so nothing in the card's editor runs: only the subscription can take the card away. Reverting the subscription
+// fix fails this step even though the editor hides the card after its own Save.
+static BOOL UINameSavedElsewhere(UIRig* rig) {
+    UIBeginFlow(rig, @"name-elsewhere");
+    UICloseDropdown(rig);
+    SZFE2EClient* other = [SZFE2EClient clientForHelper:rig.helper];
+    EXPECT(rig, other != nil, "another app connects to the helper");
+    NSDictionary* reply = [other intent:@"reset_friends" fields:@{@"confirm" : @"reset"}];
+    EXPECT(rig, [reply[@"ok"] boolValue], "the other app resets Friends: %@", reply);
+    EXPECT(rig, UIOpenDropdown(rig), "the dropdown opens");
+    SZFriendsListPage* list = rig.listPage;
+    CLICK(rig, list.nearbyTab, @"the Nearby tab");
+    EXPECT(rig, UIWait(5, ^BOOL { return list.showingNearby && list.namePromptEditor != nil; }),
+           "on Nearby, the card asks for a name");
+    UIShot(rig, @"asks");
+    reply = [other intent:@"set_name" fields:@{@"name" : @"Mika"}];
+    EXPECT(rig, [reply[@"ok"] boolValue], "the other app saves a name: %@", reply);
+    EXPECT(rig, UIWait(5, ^BOOL {
+               return list.namePromptEditor == nil && !UIFindText(rig.content, @"Choose the name friends see");
+           }), "the card goes on Nearby, though nothing was typed in it");
+    EXPECT(rig, !list.showingNameSaved, "and claims no save of its own");
+    EXPECT(rig, UIWait(3, ^BOOL { return UIFindText(list.footer, @"Mika") != nil; }), "the footer shows Mika");
+    UIShot(rig, @"gone");
+    CLICK(rig, list.friendsTab, @"the Friends tab");
+    [other close];
+    return YES;
+}
+
 #pragma mark - Escape
 
 static BOOL UIEscape(UIRig* rig) {
@@ -416,6 +534,7 @@ BOOL UIFlowSolo(SZFE2EWorld* world, UIVariant* variant) {
         {@"Settings: Reset Friends… cancel and confirm", ^BOOL { return UISettingsAndReset(rig); }},
         {@"choose the name on the Friends tab (Save)", ^BOOL { return UISetName(rig, @"Ana", NO, NO); }},
         {@"Escape closes the dropdown", ^BOOL { return UIEscape(rig); }},
+        {@"a name saved elsewhere takes the card away on Nearby", ^BOOL { return UINameSavedElsewhere(rig); }},
     };
     for (auto& step : steps) {
         int failuresBefore = UIFailures;
@@ -481,6 +600,14 @@ static BOOL UIPermissionCards(UIRig* rig, NSString* script) {
     EXPECT(rig, UIWait(5, ^BOOL { return UIFindButton(rig.content, @"Open Privacy Settings") != nil; }),
            "Local Network off shows the way to turn it on");
     EXPECT(rig, UIReveal(rig.content, @"can’t find people on your network"), "and says what is wrong");
+    // One card, one button, nothing under it saying more or the opposite (the owner's report of 2026-10-20: two
+    // Open Privacy Settings, "Bluetooth isn't working either" and "Nearby isn't working right now" under the card).
+    EXPECT(rig, UICountButtons(rig.content, @"Open Privacy Settings") == 1, "one Open Privacy Settings, not %lu",
+           (unsigned long)UICountButtons(rig.content, @"Open Privacy Settings"));
+    EXPECT(rig, UICountButtons(rig.content, @"Try Again") == 0 && !UIReveal(rig.content, @"either") &&
+                    !UIReveal(rig.content, @"isn’t working right now") && !UIReveal(rig.content, @"People nearby") &&
+                    !UIReveal(rig.content, @"to be visible to people nearby"),
+           "nothing under the card:\n%@", UIDescribe(rig.content));
     UIShot(rig, @"denied");
     CLICK(rig, UIFindButton(rig.content, @"Open Privacy Settings"), @"Open Privacy Settings");
     EXPECT(rig, UIWait(3, ^BOOL { return rig.openedURLs.count > 0; }) &&
@@ -491,6 +618,10 @@ static BOOL UIPermissionCards(UIRig* rig, NSString* script) {
     EXPECT(rig, UIWait(5, ^BOOL { return UIFindButton(rig.content, @"Open Wi-Fi Settings") != nil; }),
            "Wi-Fi off offers Wi-Fi settings");
     EXPECT(rig, UIReveal(rig.content, @"Wi-Fi is off"), "and says Wi-Fi is off");
+    EXPECT(rig, UICountButtons(rig.content, @"Open Wi-Fi Settings") == 1 &&
+                    UICountButtons(rig.content, @"Open Privacy Settings") == 0 &&
+                    UICountButtons(rig.content, @"Try Again") == 0 && !UIReveal(rig.content, @"People nearby"),
+           "one card, one button:\n%@", UIDescribe(rig.content));
     UIShot(rig, @"radio-off");
     // Not working: Try Again starts it again.
     UIWriteState(script, @"unavailable");
@@ -500,6 +631,9 @@ static BOOL UIPermissionCards(UIRig* rig, NSString* script) {
                card = title.superview;
                return card && UIFindButton(card, @"Try Again") != nil;
            }), "a failing Nearby says so, with Try Again");
+    EXPECT(rig, UICountButtons(rig.content, @"Try Again") == 1 && !UIReveal(rig.content, @"either") &&
+                    !UIReveal(rig.content, @"People nearby can’t see you") && !UIReveal(rig.content, @"People nearby"),
+           "one Try Again, nothing under the card:\n%@", UIDescribe(rig.content));
     UIShot(rig, @"unavailable");
     NSUInteger starts = UIStarts(script);
     NSButton* again = UIFindButton(card, @"Try Again");

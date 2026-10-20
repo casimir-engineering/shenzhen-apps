@@ -50,7 +50,8 @@ impl SnapshotBuilder {
         (s.text_count("list.subtitle.offers", person.offers_waiting, &[]), "offer")
     }
 
-    /// An incoming request is answered from the list: Accept and Decline at once, Block after a second click.
+    /// An incoming request is answered from the list: Accept and Decline at once, each saying its word on the button
+    /// so a first-time reader tells Decline from Block, and Block (its icon alone, red) after a second click.
     fn row_actions(&self, person: &PersonFacts, title: &str) -> Value {
         if person.relation != Relation::IncomingRequest {
             return json!([]);
@@ -58,11 +59,11 @@ impl SnapshotBuilder {
         let s = &self.strings;
         let who = [("title", title)];
         json!([
-            {"action": "accept_request", "icon": "accept", "label": s.text_with("list.action.accept", &who),
-             "arm": null},
-            {"action": "decline_request", "icon": "decline", "label": s.text_with("list.action.decline", &who),
-             "arm": null},
-            {"action": "block", "icon": "block", "label": s.text_with("list.action.block", &who),
+            {"action": "accept_request", "icon": "accept", "title": s.text("action.accept"),
+             "label": s.text_with("list.action.accept", &who), "arm": null},
+            {"action": "decline_request", "icon": "decline", "title": s.text("action.decline"),
+             "label": s.text_with("list.action.decline", &who), "arm": null},
+            {"action": "block", "icon": "block", "title": null, "label": s.text_with("list.action.block", &who),
              "arm": self.block_arm(title)},
         ])
     }

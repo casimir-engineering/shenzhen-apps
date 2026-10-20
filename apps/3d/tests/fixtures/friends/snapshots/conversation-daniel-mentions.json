@@ -277,18 +277,21 @@
       "placeholder": "Message Daniel",
       "hint": [
         {
+          "text": "Type "
+        },
+        {
           "text": "#",
           "emphasis": true
         },
         {
-          "text": " Attach · "
+          "text": " to attach, "
         },
         {
           "text": "@",
           "emphasis": true
         },
         {
-          "text": " Mention · or drop files"
+          "text": " to mention someone, or drop files here"
         }
       ],
       "send_label": "Send",

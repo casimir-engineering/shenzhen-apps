@@ -169,15 +169,8 @@ static id RouteMethodName(SZFriendsRouteMethod method) {
     };
 }
 
-- (NSString *)idNoteForProfile:(SZFriendsProfileFacts *)profile {
-    if (profile.identityState == SZFriendsIdentityFactsStateUnavailable) return nil;
-    if (profile.friendsIDState != SZFriendsIDStateUnreserved) return nil;
-    return [_strings text:@"id.unreserved" values:@{@"app" : _audience.appName}];
-}
-
 - (NSDictionary<NSString *, id> *)footerWithProfile:(SZFriendsProfileFacts *)profile {
     NSString *name = [profile.name stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
-    NSString *note = [self idNoteForProfile:profile];
     return @{
         @"avatar" : [self avatarForPicture:profile.picture
                                       seed:profile.friendsID
@@ -185,7 +178,9 @@ static id RouteMethodName(SZFriendsRouteMethod method) {
         @"name" : name.length ? name : [NSNull null],
         @"name_placeholder" : [_strings text:@"footer.name_placeholder"],
         @"id_label" : [_strings text:@"id.label" values:@{@"id" : [_strings displayID:profile.friendsID]}],
-        @"id_note" : note ?: [NSNull null],
+        // Nothing while the ID is unreserved: the note raised a question it could not answer (the owner's report of
+        // 2026-10-20). A changed ID is the list's banner; the field stays for views that read it.
+        @"id_note" : [NSNull null],
         @"friends_id" : profile.friendsID,
         @"add_label" : [_strings text:@"footer.add"]
     };
@@ -271,19 +266,20 @@ static const NSInteger SZFriendsBlockArmSeconds = 4;
 
 // The buttons a row carries itself: an incoming request is answered from the list without opening it. Block asks
 // for a second click, so a slip of the pointer cannot block someone; Accept and Decline act at once, since Remove
-// undoes an acceptance and a declined person may ask again.
+// undoes an acceptance and a declined person may ask again. Accept and Decline say their word on the button, so a
+// first-time reader tells Decline from Block; Block keeps its icon, red, and asks first.
 - (NSArray<NSDictionary<NSString *, id> *> *)rowActionsForPerson:(SZFriendsPersonFacts *)person
                                                            title:(NSString *)title {
     if (person.relation != SZFriendsPersonRelationIncomingRequest) return @[];
     NSDictionary *who = @{@"title" : title};
     NSDictionary *arm = [self blockArmNaming:title];
     return @[
-        @{@"action" : @"accept_request", @"icon" : @"accept",
+        @{@"action" : @"accept_request", @"icon" : @"accept", @"title" : [_strings text:@"action.accept"],
           @"label" : [_strings text:@"list.action.accept" values:who], @"arm" : [NSNull null]},
-        @{@"action" : @"decline_request", @"icon" : @"decline",
+        @{@"action" : @"decline_request", @"icon" : @"decline", @"title" : [_strings text:@"action.decline"],
           @"label" : [_strings text:@"list.action.decline" values:who], @"arm" : [NSNull null]},
-        @{@"action" : @"block", @"icon" : @"block", @"label" : [_strings text:@"list.action.block" values:who],
-          @"arm" : arm},
+        @{@"action" : @"block", @"icon" : @"block", @"title" : [NSNull null],
+          @"label" : [_strings text:@"list.action.block" values:who], @"arm" : arm},
     ];
 }
 

@@ -81,6 +81,9 @@ static void apply_visibility(SZFriendsGtkNearbyPane *pane, const SZFriendsGtkVis
     if (visible && spoken && *spoken)
         gtk_accessible_update_property(GTK_ACCESSIBLE(parts->countdown), GTK_ACCESSIBLE_PROPERTY_LABEL, spoken, -1);
     gtk_widget_set_visible(pane->side, visible);
+    /* Under a card that says nothing works, the helper sends no words and no action here: show nothing for it. */
+    gboolean said = (visibility->title && *visibility->title) || (visibility->body && *visibility->body);
+    gtk_widget_set_visible(parts->visibility, said || side || top);
 }
 
 static void apply_people(SZFriendsGtkNearbyPane *pane, const SZFriendsGtkNearbySnapshot *snapshot) {
@@ -138,6 +141,8 @@ void szfriends_gtk_nearby_pane_apply(GtkWidget *box, SZFriendsGtkNearbySnapshot 
     apply_header(pane, snapshot);
     apply_people(pane, snapshot);
     const SZFriendsGtkEmpty *empty = snapshot->empty;
+    /* No people and no empty state: the card alone says why, so no "People nearby" over nothing. */
+    gtk_widget_set_visible(pane->header, snapshot->n_people > 0 || empty != NULL);
     gtk_widget_set_visible(parts->empty, empty != NULL);
     gtk_widget_set_visible(parts->empty_glyph, empty && empty->kind == SZFRIENDS_GTK_EMPTY_SEARCHING);
     szfriends_gtk_list_label_set(parts->empty_title, empty ? empty->title : NULL);

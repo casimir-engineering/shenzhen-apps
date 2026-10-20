@@ -223,14 +223,14 @@ Lowercase dotted strings. Unknown ones are ignored on both sides.
 
 | Client capability | Effect |
 |---|---|
-| `attach.items` | The host offers `#` items; the composer hint includes "# Attach" |
-| `drop.files` | The host accepts dropped files; the hint includes "or drop files"; rows carry `drop_label` |
+| `attach.items` | The host offers `#` items; the composer hint includes "Type # to attach" |
+| `drop.files` | The host accepts dropped files; the hint ends "or drop files here"; rows carry `drop_label` |
 | `drop.tabs` | The host has its own draggable items (reader tabs); informational |
-| `assistant.drafts` | The host has `/` drafts; the hint includes "/ Ask the assistant" (Assistant track) |
+| `assistant.drafts` | The host has `/` drafts; the hint includes "/ to ask the assistant" (Assistant track) |
 | `assistant.chats` | The host's AI chat may open scoped chat access; without it `assistant_*` intents fail with `not_allowed` |
 | `search.export` | The host shows Friends results in its global search (Cmd+K) |
 | `files.share` | A phone: `show_file` hands a received file to the system's share sheet, labelled "Share…", and offers no folder to show (the details' `received.action` is null) |
-| `mentions` | The host's views show mentions (§ Mentions): `@` in the composer, whose hint then includes "@ Mention", with `mentionable` on list rows and the composer's `mention_note`, and mentions in messages as links. Without it every mention arrives as plain text |
+| `mentions` | The host's views show mentions (§ Mentions): `@` in the composer, whose hint then includes "@ to mention someone", with `mentionable` on list rows and the composer's `mention_note`, and mentions in messages as links. Without it every mention arrives as plain text |
 
 | Helper capability | Meaning |
 |---|---|
@@ -496,10 +496,11 @@ acceptance). There is no separate inbox; requests and offers are rows.
   dragged over it ("Lena isn’t your friend yet", "You blocked Jonas"); it is `null` on rows that accept drops, and
   on every row when the client did not declare `drop.files`.
 - `rows[].actions` are buttons on the row itself, so a friend request can be answered from the list: Accept,
-  Decline and Block on an incoming request, and none on any other row (an empty array). Views draw them as round
-  icon buttons by `icon` (`accept` a check, `decline` a cross, `block` a circle with a slash) in place of the
-  time, the waiting label and the route icon, with `label` ("Accept Lena Weber’s request") as each button's
-  tooltip and accessible name; a view hides an action or icon it does not know. Pressing one sends its intent
+  Decline and Block on an incoming request, and none on any other row (an empty array). Views draw them in place
+  of the time, the waiting label and the route icon: a button with `title` shows that word (Accept, Decline), so
+  a first-time reader tells Decline from Block; one without is a round icon button by `icon` (`block` a circle with
+  a slash; `accept` a check and `decline` a cross for helpers that send no title). `label` ("Accept Lena Weber’s
+  request") is each button's tooltip and accessible name; a view hides an action or icon it does not know. Pressing one sends its intent
   with the row's `conversation_id`; the rest of the row still opens the conversation. Accepting from the list
   leaves the person unverified until codes are compared in their details.
 - An action with `arm` needs a second click, so a stray click cannot block someone: the first click turns the
@@ -520,8 +521,9 @@ acceptance). There is no separate inbox; requests and offers are rows.
 - `rows[].mentionable` (clients that declared `mentions`) says whether the `@` picker offers this person: a friend
   with a Friends ID. The picker is a second `list` subscription filtered with `set_filter` as the person types.
 - `footer` is the name friends see (`name` `null` until chosen, then `name_placeholder` shows), the ID line with
-  Copy, `id_note` while the ID is not reserved yet ("Your ID works nearby now…", brief § Friends ID; `null` once
-  reserved), and Add by ID, which opens the profile view. Copy copies `friends_id`, never `id_label`.
+  Copy, and Add by ID, which opens the profile view. Copy copies `friends_id`, never `id_label`. `id_note` is
+  `null`: a note while the ID was unreserved raised a question it could not answer, and a changed ID is the
+  `id_changed` banner.
 
 ### `nearby`
 
@@ -529,7 +531,8 @@ The Nearby tab: the visibility action, then people as each method reports them.
 
 - `visibility.state` is `hidden` (the action makes the person visible for 5 minutes), `visible` (countdown in
   `remaining_label` with Stop) or `unavailable` (no method can advertise). Expiry, sleep and disabling never
-  extend the deadline.
+  extend the deadline. While `alert` is up and nothing can advertise, `unavailable` has no `body` and no `action`:
+  the card already says what is wrong and has the one button that fixes it, and views show nothing for it.
 - `methods[]` has one entry per discovery method, `network` (LAN and peer-to-peer Wi-Fi) and `bluetooth`, each
   with its own state. Each unavailable method is distinguished: Local Network access denied, Wi-Fi off,
   Bluetooth access denied, Bluetooth off, failing, and (state `unavailable`, its own label) no Bluetooth on this
@@ -539,19 +542,20 @@ The Nearby tab: the visibility action, then people as each method reports them.
 - Buttons that start or retry Nearby send `activate` (§ Intents), the same intent a view sends when Friends opens:
   Allow on the card shown while nothing has asked for access yet, and Try Again beside a method that is failing.
 - `alert` is the one prominent card, used when the method most people rely on is unavailable (Local Network
-  denied, Wi-Fi off, or the network failing); with Wi-Fi and Bluetooth both off it names both. `note` is one quiet
-  line when a method is unavailable but others work: "Bluetooth is off. People nearby without Wi-Fi won’t appear."
-  Under a card it says what Bluetooth is doing ("Still looking over Bluetooth.") or what is wrong with it. Never
-  both for the same method.
+  denied, Wi-Fi off, or the network failing), with the one action that fixes it; with Wi-Fi and Bluetooth both off
+  it names both. Nothing else on the tab repeats or contradicts it. `note` is one quiet line when a method is
+  unavailable but others work: "Bluetooth is off. People nearby without Wi-Fi won’t appear." Under a card it says
+  only that Bluetooth still finds people ("Still looking over Bluetooth."), which changes what the person can do;
+  anything else wrong with Bluetooth would be a second problem with a second button, so it is `null`.
 - `status` is the small "Still looking" indicator beside the people header, shown only while people are listed;
   an empty pane says whether it is looking itself, so the two never show together.
 - `people[]` are friends nearby (with `conversation_id`; clicking opens the conversation) and strangers who are
   visible (with `nearby_id` and a Request action). One row per person, however many methods see them.
-- `empty` replaces the people when there are none, and says why: `searching` (nothing works yet, or a method
-  started working less than 8 seconds ago: a first result takes that long), `nobody` visible, `unavailable` (no
-  method works, never shown as an empty successful search), or `no_match` for a filter. Its `body` is `null` while
-  a card is up, because the card already says what to do; the helper rebuilds the snapshot when `searching` turns
-  into `nobody`.
+- `empty` replaces the people when there are none, and says why: `searching` (a method is starting, or started
+  working less than 8 seconds ago: a first result takes that long), `nobody` visible, `unavailable` (only while
+  the identity is unavailable), or `no_match` for a filter. It is `null` when no method works or starts: the card
+  then says why nobody shows, and views show no people section at all. Its `body` is `null` while a card is up,
+  because the card already says what to do; the helper rebuilds the snapshot when `searching` turns into `nobody`.
 
 ### `conversation`
 
@@ -634,7 +638,8 @@ list row; views show the label under the ID line.
 ### `profile`
 
 The page behind Add by ID: the name field, the picture (the animal set and **Use your own picture…**), the
-Friends ID with Copy, its reservation state written for the person, and the field to add someone by ID.
+Friends ID with Copy, its reservation state written for the person (`id.note`, `null` while unreserved: nothing
+needs saying until something happens to the ID), and the field to add someone by ID.
 `picture.animal_set` and `picture.selected_index` tell the view which bundled set to offer and which animal is
 selected; the view draws the set from its own copy. `id.qr_label` and `id.qr_payload` are `null` in M1, and views
 show no QR and no QR button while they are: nothing on a Mac or a phone can open the code yet, so it would invite
@@ -1246,7 +1251,8 @@ quick to open; pressing it shows the rest of that message. `drop_folders_refused
 target that takes files says while a folder, or a symbolic link or special file (FIFO, socket, device), is dragged
 over it: the helper sends only regular files, so views refuse the others there. `save` labels the button beside the
 field where the person types the name friends see (the list's `name_prompt` and the footer's rename); `name_empty` is
-what that field says when Save or Return finds nothing typed, or only spaces, instead of sending `set_name`.
+what that field says when Save or Return finds nothing typed, or only spaces, instead of sending `set_name`;
+`name_saved` is what shows there once the helper has the name, with `{name}` filled in by the view.
 
 | Key | English |
 |---|---|
@@ -1283,6 +1289,7 @@ what that field says when Save or Return finds nothing typed, or only spaces, in
 | `show_all` | Show all |
 | `save` | Save |
 | `name_empty` | Type the name friends should see. |
+| `name_saved` | Saved — friends now see {name} |
 
 ## Limits
 
@@ -1417,6 +1424,7 @@ strings.queued_note: string
 strings.show_all: string
 strings.save: string
 strings.name_empty: string
+strings.name_saved: string
 ```
 
 ```schema frame.reply
@@ -1513,7 +1521,7 @@ avatar: @avatar
 name: string|null
 name_placeholder: string
 id_label: string
-id_note: string|null         # while the ID is unreserved; null on a phone without online, which never confirms it
+id_note: string|null         # null (older helpers sent a note while the ID was unreserved)
 friends_id: string
 add_label: string
 ```
@@ -1598,7 +1606,8 @@ kind?: enum(person,you)      # present while the helper announces `devices`; `yo
 ```schema type.row_action
 action: enum(accept_request,decline_request,block)
 icon: enum(accept,decline,block)
-label: string                # tooltip and accessible name; the button shows only its icon
+title: string|null           # the word the button shows (Accept, Decline); null: the icon alone (Block)
+label: string                # tooltip and accessible name
 arm: @arm|null               # ask for a second click first
 ```
 
@@ -1855,7 +1864,7 @@ data.picture.selected_index: integer|null
 data.id.label: string
 data.id.friends_id: string
 data.id.state: enum(unreserved,reserved,changed,unavailable)
-data.id.note: string
+data.id.note: string|null         # null while unreserved
 data.id.copy_label: string
 data.id.qr_label: string|null     # null in M1: nothing reads the QR yet
 data.id.qr_payload: string|null

@@ -44,8 +44,9 @@ static void SZFTestListFixtures(void) {
     SZFExpect([page.footer.addButton.title isEqualToString:@"Add by ID"], @"Add by ID");
     // Wording comes from the fixture: the helper owns it (U+2011 keeps an ID on one line), the view only shows it.
     SZFExpect(SZFHasLabel(page.footer, SZFTestSnapshot(@"list")[@"footer"][@"id_label"]), @"footer ID line");
-    SZFExpect(SZFHasLabel(page.footer, SZFTestSnapshot(@"list")[@"footer"][@"id_note"]),
-            @"id_note shows while unreserved");
+    SZFExpect(SZFTestSnapshot(@"list")[@"footer"][@"id_note"] == [NSNull null] &&
+                  !SZFHasLabel(page.footer, @"already taken"),
+              @"no note about the ID under it");
     SZFExpect([page.searchField.placeholderString isEqualToString:@"Search names and IDs"], @"search placeholder");
     SZFExpect([page.friendsTab.title isEqualToString:@"Friends"] && [page.nearbyTab.title isEqualToString:@"Nearby"],
               @"tabs from welcome strings");
