@@ -775,6 +775,12 @@ UIRig* UIStartRig(SZFE2EWorld* world, UIVariant* variant, NSString* name,
     context.openURL = ^(NSURL* url) { [weakRig.openedURLs addObject:url]; };
     context.pasteboard = [NSPasteboard pasteboardWithUniqueName];
     context.chooseImage = ^(void (^completion)(NSString*)) { completion(nil); };
+    // A popped-up menu would show on the person's screen and run its own loop: the flows choose from the record.
+    rig.menus = [NSMutableArray array];
+    context.presentMenu = ^(NSMenu* menu, NSView* view, NSPoint point) {
+        (void)view, (void)point;
+        [weakRig.menus addObject:menu];
+    };
     rig.window = UIReaderWindow(variant, rig.bridge.installed);
     rig.window.appearance = [NSAppearance appearanceNamed:variant.appearance];
     [rig.window orderFrontRegardless];
