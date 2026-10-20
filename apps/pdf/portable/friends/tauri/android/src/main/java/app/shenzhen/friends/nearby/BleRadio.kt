@@ -51,28 +51,8 @@ private val SPACER: UUID = UUID.fromString("5A0E6F3D-6C1B-4C8E-9D27-3F1B2E8A4C00
 /** 24 characteristics: 49 handles, past a dead server's leftovers (8 on the phone where this was found). */
 private const val SPACER_CHARACTERISTICS = 24
 
-private fun hex(bytes: ByteArray?): String? = bytes?.joinToString("") { "%02x".format(it) }
-
 /** One line per radio event worth seeing in `adb logcat -s SZFriendsBle` (scripts/friends/ble-hardware-check.sh). */
 private const val TAG = "SZFriendsBle"
-
-/**
- * Whether the advertisement says its list of 128-bit service UUIDs is incomplete (AD type 0x06). A Mac advertising the
- * Friends service and the public UUID gets only the first into the advertisement; macOS puts the second in Apple's
- * overflow area, which only Apple devices can read, and marks the list incomplete. The only UUID Friends ever adds is
- * the public one, so an incomplete list is a visible Mac. A wrong guess costs one read, whose public value comes back
- * empty.
- */
-private fun moreUuidsElsewhere(record: ByteArray?): Boolean {
-    var at = 0
-    while (record != null && at < record.size) {
-        val length = record[at].toInt() and 0xff
-        if (length == 0 || at + length >= record.size) return false
-        if (record[at + 1].toInt() == 0x06) return true
-        at += length + 1
-    }
-    return false
-}
 
 @SuppressLint("MissingPermission") // Every call follows the person's grant: NearbyPlugin powers up only then.
 class BleRadio(private val context: Context) {
