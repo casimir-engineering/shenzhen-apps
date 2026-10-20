@@ -9,6 +9,9 @@ export type DropResult =
   | { files: OutgoingFile[]; refusal: null }
   | { files: []; refusal: string | null };
 
+/** A `#` item that could not be attached, with the sentence the composer shows in its place. */
+export class AttachRefused extends Error {}
+
 /** Whether a drag carries files at all; their kinds are known only once dropped. */
 export const dragHasFiles = (transfer: DataTransfer | null) =>
   Boolean(transfer && Array.from(transfer.types ?? []).includes("Files"));
@@ -41,7 +44,7 @@ export async function filesFromDrop(
     const large = list.find((file) => file.size > limit);
     if (large)
       return { files: [], refusal: tooLargeToStage(large.name, limit) };
-    const staged = await stageDropped(bridge, list);
+    const staged = await stageFiles(bridge, list);
     if (Array.isArray(staged)) return { files: staged, refusal: null };
     return {
       files: [],
@@ -82,8 +85,9 @@ async function someFolder(files: File[]): Promise<boolean> {
   return false;
 }
 
-async function stageDropped(
-  bridge: FriendsBridge,
+/** Each file's bytes as a private copy the app keeps for sending (phones' drops, and `#` items without a path). */
+export async function stageFiles(
+  bridge: Pick<FriendsBridge, "stage">,
   files: File[],
 ): Promise<OutgoingFile[] | "folder" | "other"> {
   const staged: OutgoingFile[] = [];

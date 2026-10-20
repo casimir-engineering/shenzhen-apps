@@ -8,7 +8,8 @@
 //
 // It covers: attaching after first paint, the badge, naming, Nearby and a friend request, accepting it, a message
 // both ways, a file offer with the sender's preview before acceptance, Accept and Open in the viewer, a file dropped
-// on the chat, the open model sent as a .sz3d, and Copy Download Link hidden while no links are offered.
+// on the chat, the open model sent as a .sz3d, Copy Download Link hidden while no links are offered, and `#` in the
+// composer listing the recent files, narrowed by typing, the chosen one sent with Send.
 import { _electron as electron, expect } from "@playwright/test";
 import fs from "node:fs/promises";
 import os from "node:os";
@@ -397,6 +398,86 @@ try {
     page.locator("header").getByRole("button", { name: "Copy Download Link" }),
   ).toHaveCount(0);
   check("Copy Download Link stays hidden while the helper offers no links");
+
+  // `#` in the composer lists the recent files: the received drawing opened above, and a mesh opened now from the
+  // app's Open file. Typing narrows the list; choosing one attaches it as a dropped file is, and Send offers it.
+  await page.keyboard.press("Escape");
+  const recentMesh = path.join(outgoing, "gear-plate.stl");
+  await fs.copyFile(
+    path.join(root, "tests/fixtures/formats/triangle.stl"),
+    recentMesh,
+  );
+  await page.locator("input[type=file]").setInputFiles(recentMesh);
+  await expect(page.locator(".document-title")).toContainText("gear-plate", {
+    timeout: 60_000,
+  });
+  await button.click();
+  if (!(await panel.isVisible())) await button.click();
+  await expect(
+    panel.locator(".szf-editor, .szf-row-main, .szf-history").first(),
+  ).toBeVisible();
+  if (!(await panel.locator(".szf-editor").isVisible()))
+    await panel
+      .locator(".szf-row", { hasText: "Bo" })
+      .locator(".szf-row-main")
+      .click();
+  await editor.click();
+  await page.keyboard.type("#");
+  const picker = panel.locator(".szf-picker");
+  await expect(picker).toBeVisible();
+  const options = picker.getByRole("option");
+  await expect(options.filter({ hasText: "gear-plate.stl" })).toContainText(
+    "Opened just now",
+  );
+  await expect(options.filter({ hasText: "bracket.svg" })).toContainText("SVG");
+  await expect(panel.locator(".szf-picker-hint")).toHaveText(
+    "Attach the open model or a recent file",
+  );
+  if (process.env.SZF3D_SMOKE_SHOTS)
+    await page.screenshot({
+      path: path.join(process.env.SZF3D_SMOKE_SHOTS, "electron-recents.png"),
+    });
+  check("# lists the recent files with their kind and when they were opened");
+  await page.keyboard.type("brack");
+  await expect(options).toHaveCount(1);
+  await expect(options).toContainText("bracket.svg");
+  check("typing after # narrows the list");
+  await page.keyboard.press("Enter");
+  await expect(panel.locator(".szf-chip.attachment")).toHaveText(
+    /bracket\.svg/,
+  );
+  await page.keyboard.press("Enter");
+  const recentOffer = await peer.until(
+    () =>
+      peerConversation()?.items.find(
+        (item) =>
+          item.kind === "transfer" &&
+          item.direction === "in" &&
+          item.file?.name === "bracket.svg",
+      ),
+    "the recent file's offer",
+  );
+  await peer.send("accept_offer", { transfer_id: recentOffer.transfer_id });
+  const recentReceived = await peer.until(
+    () =>
+      peerConversation()?.items.find(
+        (item) =>
+          item.transfer_id === recentOffer.transfer_id &&
+          item.state === "received",
+      ),
+    "the recent file received",
+    60_000,
+  );
+  const recentCopy = recentReceived.actions?.find(
+    (action) => typeof action.path === "string",
+  )?.path;
+  expect(await fs.readFile(recentCopy)).toEqual(await fs.readFile(drawing));
+  expect(
+    peerConversation().items.filter(
+      (item) => item.kind === "message" && !item.text?.trim(),
+    ),
+  ).toEqual([]);
+  check("choosing a recent file and pressing Send gives the friend that file");
 
   // The badge counts what waits for an answer, with the dropdown closed.
   await page.keyboard.press("Escape");

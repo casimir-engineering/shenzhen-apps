@@ -354,6 +354,13 @@
   display: flex;
   flex-direction: column;
 }
+/* The kind label (STEP, SZ3D) stays a small file icon, not a column of text like the title beside it. */
+.szf-picker button span.szf-file-icon {
+  display: inline-flex;
+  flex-direction: row;
+  width: 30px;
+  overflow: hidden;
+}
 .szf-picker button small {
   color: var(--muted);
 }

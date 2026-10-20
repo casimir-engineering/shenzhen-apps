@@ -202,7 +202,7 @@ ipcMain.handle("shenzhen-recent-files", (event, method, value) => {
   if (
     event.senderFrame !== event.sender.mainFrame ||
     !trusted(event.senderFrame?.url) ||
-    !["list", "remember", "open", "remove", "touch"].includes(method)
+    !["list", "remember", "open", "paths", "remove", "touch"].includes(method)
   )
     throw Error("Recent file request is not allowed");
   recentFileStore ||= require("./recent-files.cjs").createRecentFileStore(

@@ -109,3 +109,20 @@ test("recent grants are bounded and reject directories or unsupported request sh
     ],
   );
 });
+test("Friends gets a granted entry's current paths, never a moved file or a link put in its place", async (t) => {
+  const { directory, profile } = await fixture(t);
+  const file = path.join(directory, "part.obj"),
+    companion = path.join(directory, "part.mtl"),
+    other = path.join(directory, "other.obj");
+  for (const name of [file, companion, other]) await fs.writeFile(name, name);
+  const store = createRecentFileStore(profile),
+    entry = await store.remember([file, companion], "part.obj", "obj");
+  const real = await Promise.all([file, companion].map((p) => fs.realpath(p)));
+  assert.deepEqual(await store.paths(entry.id), real);
+  await assert.rejects(store.paths("a".repeat(36)), /moved, removed/);
+  await assert.rejects(store.paths(file), /Invalid recent file grant/);
+  await fs.rm(real[1]);
+  await assert.rejects(store.paths(entry.id), /moved, removed/);
+  await fs.symlink(other, real[1]);
+  await assert.rejects(store.paths(entry.id), /moved, removed/);
+});

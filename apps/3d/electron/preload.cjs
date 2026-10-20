@@ -71,6 +71,7 @@ contextBridge.exposeInMainWorld("shenzhenRecentFiles", {
   },
   open: (id) => ipcRenderer.invoke("shenzhen-recent-files", "open", id),
   touch: (id) => ipcRenderer.invoke("shenzhen-recent-files", "touch", id),
+  paths: (id) => ipcRenderer.invoke("shenzhen-recent-files", "paths", id),
   remove: (id) => ipcRenderer.invoke("shenzhen-recent-files", "remove", id),
 });
 const invoke = (method, value) =>

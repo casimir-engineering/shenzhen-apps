@@ -98,6 +98,8 @@ const page = {
   outgoingName: "phone-part.stl",
   outgoingText: "solid phone\n" + "facet normal 0 0 1\nendfacet\n".repeat(4000) + "endsolid phone\n",
   incomingName: "mac-bracket.step",
+  recentName: "phone-recent.stl",
+  recentText: "solid recent\nfacet normal 0 0 1\nouter loop\nvertex 0 0 0\nvertex 10 0 0\nvertex 0 20 0\nendloop\nendfacet\nendsolid recent\n",
   report: platform === "ios" ? "smoke" : "return",
   // A smoke build quits when it reports: long enough for the screenshot first.
   holdMs: platform === "ios" ? 8000 : 0,
@@ -157,6 +159,22 @@ try {
     "the Mac's file delivered to the phone",
   );
   check("the Mac's file is delivered to the phone");
+  // The recent file the phone attached with `#` and sent.
+  const recent = await until(
+    () => items().find((i) => i.kind === "transfer" && i.direction === "in" && i.file?.name === page.recentName),
+    "the phone's recent file",
+  );
+  ok(await peer.send("accept_offer", { transfer_id: recent.transfer_id }), "accept_offer (recent)");
+  const recentDone = await until(
+    () => items().find((i) => i.transfer_id === recent.transfer_id && i.state === "received"),
+    "the phone's recent file received",
+  );
+  const recentFile = recentDone.actions?.find((a) => typeof a.path === "string")?.path;
+  if (!recentFile || (await fs.readFile(recentFile, "utf8")) !== page.recentText)
+    throw Error("the phone's recent file differs");
+  if (items().some((i) => i.kind === "message" && !i.text?.trim()))
+    throw Error("an empty message came with the recent file");
+  check("the recent file chosen with # arrives whole on the Mac");
   // The panel as the phone shows it now (an iOS smoke build quits once it has reported).
   await wait(3000);
   if (shots) await phone.screenshot(path.join(shots, `${platform}-conversation.png`));
