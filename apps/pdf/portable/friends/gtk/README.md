@@ -41,8 +41,8 @@ The pages:
   `szfriends_gtk_nearby_page.c`): the root page with search, the Friends and Nearby tabs, the notices above the rows
   and the footer. `szfriends_gtk_list_style.c` holds the pages' stylesheet and `szfriends_gtk_list_support.c` what
   every page else shares: the one table of ways out of the views (`SZFriendsGtkSeams`: clipboard, URIs, Settings'
-  dialog, the image chooser), the one confirmation (`szfriends_gtk_confirm`: a card over the dropdown, a dialog in Settings) and running an action
-  (`szfriends_gtk_perform`).
+  dialog, the image chooser), the one confirmation (`szfriends_gtk_confirm`: a card over the dropdown, a dialog in
+  Settings) and running an action (`szfriends_gtk_perform`).
 - Rows (`szfriends_gtk_row.{c,h}`, `szfriends_gtk_row_private.h`, `szfriends_gtk_row_*.c`): a person's row, its
   display-free look, its drops, Accept, Decline and Block, and its menu (`szfriends_gtk_row_menu.c`, PROTOCOL.md
   list_row `menu`, capability `list.menu`): Remove on a right-click, a long press, the Menu key or Shift+F10, and
