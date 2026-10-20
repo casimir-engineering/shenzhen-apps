@@ -247,6 +247,13 @@ pub fn state_bytes(conn: &Connection, key: &str) -> Result<Option<Vec<u8>>> {
     })
 }
 
+/// Every state value whose key starts with `prefix`, by key.
+pub fn states_with_prefix(conn: &Connection, prefix: &str) -> Result<Vec<(String, Value)>> {
+    let mut statement = conn.prepare("SELECT key, value FROM sync_state WHERE substr(key, 1, ?2) = ?1 ORDER BY key")?;
+    let rows = statement.query_map(params![prefix, prefix.len() as i64], |r| Ok((r.get(0)?, r.get(1)?)))?;
+    Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
+}
+
 pub fn set_state(conn: &Connection, key: &str, value: Value) -> Result<()> {
     if value == Value::Null {
         conn.execute("DELETE FROM sync_state WHERE key = ?1", [key])?;

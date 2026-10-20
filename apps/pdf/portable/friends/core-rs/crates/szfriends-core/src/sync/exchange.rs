@@ -76,7 +76,7 @@ fn get_id(data: &[u8], offset: &mut usize) -> Option<String> {
     (label_is_valid(&id) && !id.contains(':') && !id.contains('/')).then_some(id)
 }
 
-fn matches_digest(path: &std::path::Path, size: u64, digest: &[u8]) -> bool {
+pub(super) fn matches_digest(path: &std::path::Path, size: u64, digest: &[u8]) -> bool {
     use blake2::digest::{Update, VariableOutput};
     let Ok(mut file) = std::fs::File::open(path) else { return false };
     let mut hasher = blake2::Blake2bVar::new(32).expect("32");

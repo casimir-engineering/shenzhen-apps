@@ -4,6 +4,9 @@
 //! same store ([`apply`]). Local changes are found by comparing the store with what sync last recorded ([`capture`]).
 //! Byte for byte the helper's encodings: `fixtures/vectors/objc-sync.json`.
 
+pub mod again;
+mod again_request;
+mod again_serve;
 mod apply;
 pub mod bodies;
 mod capture;
@@ -14,6 +17,9 @@ mod files;
 mod purge;
 mod revocation;
 
+pub use again::{again_state, set_again_state, AgainFile, AgainMessage};
+pub use again_request::AgainRequester;
+pub use again_serve::AgainServer;
 pub use codec::{decode_vector, encode_vector, vector_covers, Event, Fields};
 pub use engine::SyncEngine;
 pub use exchange::SyncExchange;
