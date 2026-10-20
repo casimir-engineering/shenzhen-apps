@@ -285,7 +285,14 @@ static void SZFTestRenderPass(void) {
     SZFRenderBoth(@"confirm", dropdown, ^NSView *(SZFriendsContext *context) {
         SZFriendsDropdownContent *content = [[SZFriendsDropdownContent alloc] initWithContext:context];
         [content.listPage applySnapshot:SZFTestSnapshot(@"list")];
-        context.presentConfirmation(SZFTestSnapshot(@"settings")[@"reset"][@"confirm"], ^{});
+        context.presentConfirmation(SZFTestSnapshot(@"settings")[@"reset"][@"confirm"], ^(BOOL ticked) { (void)ticked; });
+        return content;
+    });
+    // Remove from a row's menu: the question with "Also delete chat history", unticked.
+    SZFRenderBoth(@"confirm-remove", dropdown, ^NSView *(SZFriendsContext *context) {
+        SZFriendsDropdownContent *content = [[SZFriendsDropdownContent alloc] initWithContext:context];
+        [content.listPage applySnapshot:SZFTestSnapshot(@"list")];
+        context.presentConfirmation(SZFTestRemoveConfirm(@"Mei", YES), ^(BOOL ticked) { (void)ticked; });
         return content;
     });
     SZFRenderBoth(@"settings", NSMakeSize(560, 560), ^NSView *(SZFriendsContext *context) {

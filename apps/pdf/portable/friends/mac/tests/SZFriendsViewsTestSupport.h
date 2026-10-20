@@ -199,6 +199,9 @@ void SZFTestSettingsAndServices(NSString *stateDirectory);
 void SZFTestRenders(void);
 void SZFTestControls(void);
 void SZFTestRowActions(void);
+void SZFTestRowMenus(void);
+// The confirm a friend's Remove carries (spec § Confirm wording), with the history option when `history`.
+NSDictionary *SZFTestRemoveConfirm(NSString *first, BOOL history);
 void SZFTestAssistantMarkers(void);
 void SZFTestChrome(void);
 void SZFTestArmedActions(void);

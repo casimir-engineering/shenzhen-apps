@@ -173,6 +173,17 @@ SZFriendsPress SZFriendsPressFromEvent(NSEvent *event, NSTimeInterval now) {
 }
 
 - (void)performAction:(NSDictionary *)action ids:(NSDictionary *)ids reply:(SZFriendsReplyHandler)reply {
+    [self performAction:action ids:ids sending:nil reply:reply];
+}
+
+// The fields a confirm option may set (PROTOCOL.md confirm_option field); any other is not shown.
+static NSString *SZFOptionField(NSDictionary *confirm) {
+    NSString *field = SZFStr(SZFDict(confirm, @"option"), @"field");
+    return [field isEqualToString:@"delete_history"] ? field : nil;
+}
+
+- (void)performAction:(NSDictionary *)action ids:(NSDictionary *)ids sending:(void (^)(void))sending
+                reply:(SZFriendsReplyHandler)reply {
     NSString *name = SZFStr(action, @"action");
     if (![SZFriendsContext knowsAction:name]) return;
     NSDictionary *confirm = SZFDict(action, @"confirm");
@@ -182,17 +193,27 @@ SZFriendsPress SZFriendsPressFromEvent(NSEvent *event, NSTimeInterval now) {
         marked[@"destructive"] = @YES;
         confirm = marked;
     }
+    // An option this view does not know is not shown, so nobody ticks a box that would do nothing.
+    NSString *optionField = SZFOptionField(confirm);
+    if (confirm && !optionField && SZFDict(confirm, @"option")) {
+        NSMutableDictionary *plain = [confirm mutableCopy];
+        [plain removeObjectForKey:@"option"];
+        confirm = plain;
+    }
     __weak SZFriendsContext *weakSelf = self;
-    void (^run)(void) = ^{ [weakSelf runAction:name object:action ids:ids reply:reply]; };
+    void (^run)(BOOL) = ^(BOOL ticked) {
+        NSDictionary *extra = ticked && optionField ? @{optionField : @YES} : nil;
+        [weakSelf runAction:name object:action ids:ids extra:extra sending:sending reply:reply];
+    };
     if (!confirm) {
-        run();
+        run(NO);
     } else if (self.presentConfirmation) {
         self.presentConfirmation(confirm, run);
     }
 }
 
 - (void)runAction:(NSString *)name object:(NSDictionary *)action ids:(NSDictionary *)ids
-            reply:(SZFriendsReplyHandler)reply {
+            extra:(NSDictionary *)extra sending:(void (^)(void))sending reply:(SZFriendsReplyHandler)reply {
     id<SZFriendsHost> host = self.host;
     NSString *path = SZFStr(action, @"path");
     if ([name isEqualToString:@"open_file"] || [name isEqualToString:@"show_file"]) {
@@ -233,6 +254,8 @@ SZFriendsPress SZFriendsPressFromEvent(NSEvent *event, NSTimeInterval now) {
         if (!SZFStr(action, own).length) return;
         fields[own] = SZFStr(action, own);
     }
+    if (extra) [fields addEntriesFromDictionary:extra];
+    if (sending) sending();
     [self.link sendIntent:name fields:fields reply:reply];
 }
 

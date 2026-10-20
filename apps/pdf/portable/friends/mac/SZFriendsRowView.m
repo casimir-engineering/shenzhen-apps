@@ -9,7 +9,6 @@ const CGFloat SZFriendsRowHeight = 50;
 @end
 
 @implementation SZFriendsRowView {
-    __weak SZFriendsContext *_context;
     NSDictionary *_avatar;
     NSString *_rowTitle;
     NSString *_subtitle;
@@ -30,6 +29,8 @@ const CGFloat SZFriendsRowHeight = 50;
 static BOOL SZFSamePerson(NSString *a, NSString *b) {
     return a == b || [a isEqualToString:b];
 }
+
+@synthesize context = _context;
 
 - (instancetype)initWithContext:(SZFriendsContext *)context {
     if (!(self = [super initWithFrame:NSMakeRect(0, 0, 380, SZFriendsRowHeight)])) return nil;
@@ -72,6 +73,7 @@ static BOOL SZFSamePerson(NSString *a, NSString *b) {
     [self.accessoryButton removeFromSuperview];
     _accessoryButton = nil;
     [self applyRowActions:SZFArr(row, @"actions")];
+    [self applyMenu:SZFArr(row, @"menu")];
     self.accessibilityLabel = SZFStr(row, @"accessibility_label") ?: _rowTitle;
     [self updateDragRegistration];
     [self setNeedsLayout:YES];
@@ -98,6 +100,7 @@ static BOOL SZFSamePerson(NSString *a, NSString *b) {
     [self.accessoryButton removeFromSuperview];
     _accessoryButton = nil;
     [self applyRowActions:@[]];
+    [self applyMenu:nil];
     NSDictionary *action = SZFDict(person, @"action");
     if ([SZFriendsContext knowsAction:SZFStr(action, @"action")]) {
         _accessoryButton = [SZFriendsButton buttonWithTitle:SZFStr(action, @"label")
@@ -133,6 +136,17 @@ static BOOL SZFSamePerson(NSString *a, NSString *b) {
     BOOL shown = [_actionsView applyActions:actions];
     _actionsView.hidden = !shown;
     _actionsView.inactive = self.dimmed;
+}
+
+// PROTOCOL.md list_row menu: only actions this view knows, each with its label.
+- (void)applyMenu:(NSArray *)menu {
+    NSMutableArray *known = [NSMutableArray array];
+    for (NSDictionary *action in menu) {
+        if (![action isKindOfClass:NSDictionary.class]) continue;
+        if (![SZFriendsContext knowsAction:SZFStr(action, @"action")] || !SZFStr(action, @"label").length) continue;
+        [known addObject:action];
+    }
+    _menuActions = [known copy];
 }
 
 - (BOOL)showsRowActions {

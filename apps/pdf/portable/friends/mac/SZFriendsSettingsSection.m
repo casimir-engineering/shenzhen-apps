@@ -60,7 +60,7 @@ static const NSUInteger SZFSettingsRowCount = 7, SZFSettingsReceivedRow = 2, SZF
     _context = [[SZFriendsContext alloc] initWithHost:host link:link];
     SZFriendsAppearance *appearance = _context.appearance;
     __weak SZFriendsSettingsSection *weakSelf = self;
-    _context.presentConfirmation = ^(NSDictionary *confirm, void (^onConfirm)(void)) {
+    _context.presentConfirmation = ^(NSDictionary *confirm, void (^onConfirm)(BOOL)) {
         [weakSelf confirm:confirm then:onConfirm];
     };
     _view = [[SZFriendsSettingsView alloc] initWithFrame:NSMakeRect(0, 0, 560, 300)];
@@ -330,17 +330,25 @@ static const NSUInteger SZFSettingsRowCount = 7, SZFSettingsReceivedRow = 2, SZF
     NSButton *confirmButton = [alert addButtonWithTitle:SZFStr(confirm, @"confirm_label") ?: @""];
     if (@available(macOS 11.0, *)) confirmButton.hasDestructiveAction = YES;
     [alert addButtonWithTitle:SZFStr(confirm, @"cancel_label") ?: @""];
+    // A confirm option ("Also delete chat history") is the alert's checkbox, unticked.
+    NSString *option = SZFStr(SZFDict(confirm, @"option"), @"label");
+    if (option.length) {
+        alert.showsSuppressionButton = YES;
+        alert.suppressionButton.title = option;
+        alert.suppressionButton.state = NSControlStateValueOff;
+    }
     SZFriendsHideWindowFromAssistant(alert.window, SZFriendsIdentifierAlert);
     return alert;
 }
 
 // Settings is a window of its own, so its confirmations are the standard sheet on it.
-- (void)confirm:(NSDictionary *)confirm then:(void (^)(void))onConfirm {
+- (void)confirm:(NSDictionary *)confirm then:(void (^)(BOOL))onConfirm {
     NSWindow *window = _view.window;
     if (!window) return;
     NSAlert *alert = [SZFriendsSettingsSection alertForConfirm:confirm];
     [alert beginSheetModalForWindow:window completionHandler:^(NSModalResponse response) {
-        if (response == NSAlertFirstButtonReturn) onConfirm();
+        BOOL ticked = alert.showsSuppressionButton && alert.suppressionButton.state == NSControlStateValueOn;
+        if (response == NSAlertFirstButtonReturn) onConfirm(ticked);
     }];
 }
 

@@ -63,7 +63,9 @@ void SZFriendsSpawnHelperInBackground(id<SZFriendsHost> host) {
 + (NSArray<NSString *> *)capabilitiesForHost:(id<SZFriendsHost>)host {
     // `mentions`: these views offer `@`, send chips as mentions and act on mention links (SZFriendsMentionViews.h); a
     // helper then sends mentions as links rather than as plain "@Name".
-    NSMutableArray *capabilities = [NSMutableArray arrayWithObjects:@"attach.items", @"drop.files", @"mentions", nil];
+    // `list.menu`: a list row's `menu` opens on right-click or Control-click (SZFriendsRowView.h).
+    NSMutableArray *capabilities =
+        [NSMutableArray arrayWithObjects:@"attach.items", @"drop.files", @"mentions", @"list.menu", nil];
     if (host.friendsExtraPasteboardTypes.count) [capabilities addObject:@"drop.tabs"];
     if ([host respondsToSelector:@selector(friendsAssistant)] && host.friendsAssistant)
         [capabilities addObject:@"assistant.drafts"];

@@ -288,7 +288,7 @@ void SZFTestHitTesting(void) {
     SZFriendsDropdownContent *confirming = [[SZFriendsDropdownContent alloc] initWithContext:SZFFixtureContext()];
     NSWindow *confirmWindow = SZFTestHostWindow(confirming, NSMakeSize(400, 640), NSAppearanceNameAqua);
     [confirming.listPage applySnapshot:SZFTestSnapshot(@"list")];
-    confirming.context.presentConfirmation(SZFTestSnapshot(@"settings")[@"reset"][@"confirm"], ^{});
+    confirming.context.presentConfirmation(SZFTestSnapshot(@"settings")[@"reset"][@"confirm"], ^(BOOL ticked) { (void)ticked; });
     SZFExpectFullHitsWithin(confirming.confirmation, confirmWindow.contentView, @"confirmation");
 
     SZFriendsSettingsSection *settings = [[SZFriendsSettingsSection alloc] initWithHost:[SZFTestHost new]

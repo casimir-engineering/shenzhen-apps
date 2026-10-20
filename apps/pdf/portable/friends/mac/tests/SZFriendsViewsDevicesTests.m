@@ -61,9 +61,9 @@ static void SZFExpectWhole(NSView *root, NSString *name) {
 
 static SZFriendsContext *SZFContext(SZFTestTransport **transport, SZFConfirmations *_Nullable confirmations) {
     SZFriendsContext *context = SZFTestContext([SZFTestHost new], SZFTestReadyLink(transport));
-    if (confirmations) context.presentConfirmation = ^(NSDictionary *confirm, void (^onConfirm)(void)) {
+    if (confirmations) context.presentConfirmation = ^(NSDictionary *confirm, void (^onConfirm)(BOOL)) {
         confirmations.last = confirm;
-        if (!confirmations.holds) onConfirm();
+        if (!confirmations.holds) onConfirm(NO);
     };
     return context;
 }

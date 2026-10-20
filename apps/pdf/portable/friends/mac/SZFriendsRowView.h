@@ -40,6 +40,7 @@ NS_ASSUME_NONNULL_BEGIN
 // and Block on a request) are separate targets.
 @interface SZFriendsRowView : SZFriendsButton
 - (instancetype)initWithContext:(SZFriendsContext *)context;
+@property(nonatomic, weak, readonly, nullable) SZFriendsContext *context;
 - (void)configureWithListRow:(NSDictionary *)row;          // PROTOCOL.md list_row
 - (void)configureWithNearbyPerson:(NSDictionary *)person;   // PROTOCOL.md nearby_person
 @property(nonatomic, copy, readonly, nullable) NSString *conversationID;
@@ -48,6 +49,14 @@ NS_ASSUME_NONNULL_BEGIN
 // list_row actions; nil when the row has none.
 @property(nonatomic, strong, readonly, nullable) SZFriendsRowActionsView *actionsView;
 @property(nonatomic, copy, nullable) void (^onRowAction)(SZFriendsRowView *row, NSDictionary *action);
+// list_row menu (PROTOCOL.md, capability list.menu; SZFriendsRowMenu.m): the actions this view knows, in order; empty when the row has
+// none. Right-click or Control-click opens them as a menu (through the context's presentMenu), VoiceOver's Show Menu
+// does too, and each is also one of the row's accessibility custom actions. Delete or Forward Delete on the focused
+// row chooses the first. A choice goes to onMenuAction with the person the row showed when the menu opened; one that
+// a snapshot has since moved elsewhere in the list is dropped.
+@property(nonatomic, copy, readonly) NSArray<NSDictionary *> *menuActions;
+@property(nonatomic, copy, nullable) void (^onMenuAction)(SZFriendsRowView *row, NSDictionary *action,
+                                                          NSString *conversationID);
 @property(nonatomic, readonly) SZFriendsDropHighlight dropHighlight;
 // Drawn faded: the send picker's rows that cannot receive files.
 @property(nonatomic) BOOL dimmed;
@@ -70,6 +79,13 @@ NS_ASSUME_NONNULL_BEGIN
 // after a snapshot moved someone else into the row is refused, and the drag shows nothing there until it re-enters.
 @property(nonatomic, copy, nullable) void (^onDropItems)(SZFriendsRowView *row, NSString *conversationID,
         NSArray<SZFriendsAttachableItem *> *items);
+@end
+
+@interface SZFriendsRowView (Menu)
+// The menu as it opens now; nil when the row has no menu.
+- (nullable NSMenu *)contextMenu;
+// Opens the menu at `point` (the row's coordinates); NO when the row has none.
+- (BOOL)showContextMenuAtPoint:(NSPoint)point;
 @end
 
 extern const CGFloat SZFriendsRowHeight;

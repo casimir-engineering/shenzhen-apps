@@ -31,6 +31,11 @@
     BOOL _dropHintRefuses;
     BOOL _namePromptSaved;       // the card says the name was saved, and goes in a moment
     NSUInteger _namePromptRound; // which "saved" the pending hide belongs to
+    // People taken off the list here (Remove): hidden at once, before the helper's next list. Sent and not yet
+    // answered, and whether a list without them came meanwhile; answered yes, until a list without them comes.
+    NSMutableSet<NSString *> *_leaving;
+    NSMutableSet<NSString *> *_leavingSeenGone;
+    NSMutableSet<NSString *> *_left;
 }
 
 - (instancetype)initWithContext:(SZFriendsContext *)context {
@@ -266,7 +271,34 @@
     [self applyNamePrompt:prompt];
     [self applyDevices:data prompt:prompt];
 
-    NSArray *rows = SZFArr(data, @"rows");
+    [self applyRows:SZFArr(data, @"rows")];
+    NSDictionary *empty = SZFDict(data, @"empty");
+    _emptyTitle.stringValue = SZFStr(empty, @"title") ?: @"";
+    _emptyBody.stringValue = SZFStr(empty, @"body") ?: @"";
+    if (!_showingNearby || !_nearbyData) [_footer applyFooter:SZFDict(data, @"footer")];
+    [self setNeedsLayout:YES];
+    self.needsDisplay = YES;
+}
+
+// The snapshot's rows, less anyone just removed here: a removal shows at once, and a list from before the helper
+// took them off cannot bring them back for a moment.
+- (void)applyRows:(NSArray *)snapshotRows {
+    NSMutableSet<NSString *> *listed = [NSMutableSet set];
+    for (NSDictionary *row in snapshotRows) {
+        NSString *conversationID = SZFStr(row, @"conversation_id");
+        if (conversationID) [listed addObject:conversationID];
+    }
+    for (NSString *conversationID in _leaving)
+        if (![listed containsObject:conversationID]) [_leavingSeenGone addObject:conversationID];
+    [_left intersectSet:listed]; // gone from the helper's list: from now on the helper's list decides
+    NSMutableArray *rows = [NSMutableArray array];
+    for (NSDictionary *row in snapshotRows) {
+        NSString *conversationID = SZFStr(row, @"conversation_id");
+        if (conversationID && ([_leaving containsObject:conversationID] || [_left containsObject:conversationID]))
+            continue;
+        [rows addObject:row];
+    }
+    __weak SZFriendsListPage *weakSelf = self;
     while (_rowViews.count > rows.count) {
         [_rowViews.lastObject removeFromSuperview];
         [_rowViews removeLastObject];
@@ -282,6 +314,10 @@
         row.onRowAction = ^(SZFriendsRowView *target, NSDictionary *action) {
             [weakSelf performRowAction:action onRow:target];
         };
+        row.onMenuAction = ^(SZFriendsRowView *target, NSDictionary *action, NSString *conversationID) {
+            (void)target;
+            [weakSelf performMenuAction:action conversation:conversationID];
+        };
         [_rowViews addObject:row];
         [_rowsView addSubview:row];
     }
@@ -290,12 +326,7 @@
         [self->_rowViews[index] configureWithListRow:row];
     }];
     [self dimRowsThatRefuseFiles];
-    NSDictionary *empty = SZFDict(data, @"empty");
-    _emptyTitle.stringValue = SZFStr(empty, @"title") ?: @"";
-    _emptyBody.stringValue = SZFStr(empty, @"body") ?: @"";
-    if (!_showingNearby || !_nearbyData) [_footer applyFooter:SZFDict(data, @"footer")];
     [self setNeedsLayout:YES];
-    self.needsDisplay = YES;
 }
 
 // The card that asks for a name until one is saved. What is typed survives every snapshot. When the helper confirms
@@ -523,6 +554,40 @@
                                (void)error;
                                if ([row.conversationID isEqualToString:conversationID]) actions.busy = NO;
                            }];
+}
+
+// A row's menu (Remove): asked first as the action says; once confirmed the row goes at once, and comes back with
+// the helper's reason if the helper refuses.
+- (void)performMenuAction:(NSDictionary *)action conversation:(NSString *)conversationID {
+    if (!conversationID.length) return;
+    __weak SZFriendsListPage *weakSelf = self;
+    [self.context performAction:action ids:@{@"conversation_id" : conversationID}
+        sending:^{ [weakSelf hidePerson:conversationID]; }
+        reply:^(NSDictionary *result, SZFriendsLinkError *error) {
+            (void)result;
+            [weakSelf person:conversationID leftWithError:error];
+        }];
+}
+
+- (void)hidePerson:(NSString *)conversationID {
+    if (!_leaving) {
+        _leaving = [NSMutableSet set];
+        _leavingSeenGone = [NSMutableSet set];
+        _left = [NSMutableSet set];
+    }
+    [_leaving addObject:conversationID];
+    [_leavingSeenGone removeObject:conversationID];
+    [self applyRows:SZFArr(_listData, @"rows")];
+}
+
+- (void)person:(NSString *)conversationID leftWithError:(SZFriendsLinkError *)error {
+    if (![_leaving containsObject:conversationID]) return;
+    [_leaving removeObject:conversationID];
+    BOOL seenGone = [_leavingSeenGone containsObject:conversationID];
+    [_leavingSeenGone removeObject:conversationID];
+    if (!error && !seenGone) [_left addObject:conversationID];
+    [self applyRows:SZFArr(_listData, @"rows")];
+    if (error) [self.context announce:error.message];
 }
 
 // Escape turns an armed "Block?" back first: it is the innermost thing open, and closing the dropdown under it
