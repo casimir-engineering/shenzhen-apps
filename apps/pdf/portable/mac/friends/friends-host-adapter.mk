@@ -37,7 +37,7 @@ endef
 	mac-friends-scope-tests mac-friends-settings-tests mac-friends-integration-tests mac-friends-host-adapter-syntax \
 	mac-friends-app-controls-tests mac-friends-promise-tests mac-friends-release-verify-tests \
 	mac-friends-tool-provider-tests mac-friends-send-tests mac-friends-slash-tests mac-friends-send-card-tests \
-	mac-friends-markdown-tests mac-friends-link-tests
+	mac-friends-markdown-tests mac-friends-link-tests mac-friends-received-tests
 
 mac-friends-launch-tests:
 	$(call HOST_ADAPTER_RUN,SPDFMacFriendsLaunchTests,$(HOST_ADAPTER_DIR)/tests/SPDFMacFriendsLaunchTests.mm \
@@ -180,11 +180,36 @@ mac-friends-integration-tests: $$(FRIENDS_VIEWS_LIB_OBJS) $$(FRIENDS_AVATARS_SET
 		mac/SPDFMacCollectionStyle.mm $(FRIENDS_VIEWS_LIB_OBJS) $(FRIENDS_AVATARS_SET_OBJS) \
 		$(FRIENDS_FAKE_HELPER_LINK) $(FRIENDS_VIEWS_LIBS) -framework Cocoa -framework ImageIO)
 
+# Received files into Collection (SPDFMacFriendsReceivedFiles.h) against real helpers: two-helper harness helpers in
+# a temporary home each (SZFRIENDS_STATE_DIR, SZFRIENDS_DOWNLOADS_DIR, HOME), the reader's host and the views' link
+# to one of them, and Collections at temporary roots. No window; nothing reaches the reader's real state.
+HOST_ADAPTER_RECEIVED_BUILD := $(HOST_ADAPTER_BUILD)/received
+mac-friends-received-tests: $$(FRIENDS_HELPER_OBJS) $(FRIENDS_SODIUM_LIB) $(FRIENDS_CJSON_OBJ) $$(FRIENDS_SERVICE_OBJS) \
+		$$(FRIENDS_CLIENT_OBJS) $$(FRIENDS_VIEWS_LIB_OBJS) $$(FRIENDS_AVATARS_SET_OBJS) $(MAC_COLLECTION_PARSER_LIBS)
+	@mkdir -p "$(HOST_ADAPTER_RECEIVED_BUILD)"
+	rm -f "$(HOST_ADAPTER_RECEIVED_BUILD)/szfriends-e2e-helper" "$(HOST_ADAPTER_RECEIVED_BUILD)/SZFriendsE2EHarness.o" \
+		"$(HOST_ADAPTER_RECEIVED_BUILD)/SPDFMacFriendsReceivedTests"
+	clang $(FRIENDS_E2E_FLAGS) $(FRIENDS_E2E_HELPER_SRCS) $(FRIENDS_HELPER_OBJS) $(FRIENDS_SERVICE_OBJS) \
+		$(FRIENDS_CLIENT_OBJS) $(FRIENDS_CJSON_OBJ) $(FRIENDS_SODIUM_LIB) $(FRIENDS_SERVICE_LIBS) \
+		$(FRIENDS_HELPER_FRAMEWORKS) -Wl,-dead_strip -o "$(HOST_ADAPTER_RECEIVED_BUILD)/szfriends-e2e-helper"
+	clang $(PORTABLE_TEST_OPTFLAGS) $(FRIENDS_OBJC_FLAGS) -I$(FRIENDS_E2E_DIR) -c $(FRIENDS_E2E_DIR)/SZFriendsE2EHarness.m \
+		-o "$(HOST_ADAPTER_RECEIVED_BUILD)/SZFriendsE2EHarness.o"
+	clang++ $(HOST_ADAPTER_FLAGS) -Wno-incomplete-implementation -Wno-objc-protocol-method-implementation \
+		-I$(FRIENDS_E2E_DIR) $(HOST_ADAPTER_DIR)/tests/SPDFMacFriendsReceivedTests.mm \
+		$(HOST_ADAPTER_DIR)/SPDFMacFriendsReceivedFiles.mm $(FRIENDS_UI_E2E_HOST_SRCS) \
+		mac/SPDFMacCollectionStore*.mm mac/SPDFMacSearchFileCache.mm $(MAC_COLLECTION_PARSER_SRCS) \
+		$(MAC_COLLECTION_PARSER_LIBS) "$(HOST_ADAPTER_RECEIVED_BUILD)/SZFriendsE2EHarness.o" $(FRIENDS_VIEWS_LIB_OBJS) \
+		$(FRIENDS_AVATARS_SET_OBJS) $(FRIENDS_CLIENT_OBJS) $(FRIENDS_CJSON_OBJ) $(FRIENDS_VIEWS_LIBS) -framework Cocoa \
+		-framework PDFKit -framework ImageIO -framework QuartzCore -lpthread \
+		-o "$(HOST_ADAPTER_RECEIVED_BUILD)/SPDFMacFriendsReceivedTests"
+	"$(HOST_ADAPTER_RECEIVED_BUILD)/SPDFMacFriendsReceivedTests" "$(HOST_ADAPTER_RECEIVED_BUILD)/szfriends-e2e-helper" \
+		"$(CURDIR)/friends/avatars/animals/manifest.json"
+
 mac-friends-host-adapter-tests: mac-friends-launch-tests mac-friends-title-bar-tests mac-friends-pasteboard-tests \
 	mac-friends-attach-tests mac-friends-scope-tests mac-friends-settings-tests mac-friends-integration-tests \
 	mac-friends-host-adapter-syntax mac-friends-app-controls-tests mac-friends-promise-tests \
 	mac-friends-release-verify-tests mac-friends-tool-provider-tests mac-friends-send-tests mac-friends-slash-tests \
-	mac-friends-send-card-tests mac-friends-markdown-tests mac-friends-link-tests
+	mac-friends-send-card-tests mac-friends-markdown-tests mac-friends-link-tests mac-friends-received-tests
 	@echo "mac-friends-host-adapter-tests passed"
 
 # The name the build wave's instructions use for an area's suite.
