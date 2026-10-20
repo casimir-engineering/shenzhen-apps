@@ -98,7 +98,7 @@ impl SnapshotBuilder {
     }
 
     pub(crate) fn person_waits(&self, person: &PersonFacts) -> bool {
-        if person.relation == Relation::Blocked {
+        if person.relation == Relation::Blocked || person.left_list {
             return false;
         }
         person.relation == Relation::IncomingRequest || person.offers_waiting > 0 || person.key_change_pending

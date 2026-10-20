@@ -26,7 +26,7 @@ impl SnapshotBuilder {
             Relation::Blocked => "remove.confirm.body.blocked",
             Relation::IncomingRequest | Relation::Removed => "remove.confirm.body",
         };
-        let has_history = person.last_preview_item_id.is_some();
+        let has_history = person.last_preview_item_id.as_deref().is_some_and(|id| !id.is_empty());
         let mut body = s.text_with(body_key, who);
         if has_history {
             body.push(' ');
