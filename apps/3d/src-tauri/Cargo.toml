@@ -1,6 +1,6 @@
 [package]
 name = "shenzhen-3d"
-version = "0.2.0"
+version = "0.2.1"
 description = "Local-first CAD and mesh viewer"
 authors = ["Shenzhen 3D contributors"]
 license = "GPL-3.0-or-later"

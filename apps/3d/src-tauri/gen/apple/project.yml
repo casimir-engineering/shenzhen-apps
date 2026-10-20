@@ -58,8 +58,8 @@ targets:
           - UIInterfaceOrientationPortraitUpsideDown
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
-        CFBundleShortVersionString: 0.2.0
-        CFBundleVersion: "0.2.0"
+        CFBundleShortVersionString: 0.2.1
+        CFBundleVersion: "0.2.1"
     entitlements:
       path: shenzhen-3d_iOS/shenzhen-3d_iOS.entitlements
     scheme:

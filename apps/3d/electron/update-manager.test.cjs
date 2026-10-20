@@ -703,6 +703,43 @@ test("public build drops GitHub access saved by an earlier private build without
   await f.manager.check();
   assert.equal(f.updater.feed.token, undefined);
 });
+// UPDATES.md, "Moving a private channel to the public one": a private owner's release carries the public build,
+// which then starts with the private build's profile.
+test("public build installed over another owner's private build moves to its own public channel", async (t) => {
+  const f = await fixture(t, {
+    ...PUBLIC_BUILD,
+    initialSettings: {
+      repository: "fixture-private",
+      automatic: true,
+      prereleases: true,
+      lastChecked: 1234,
+      encryptedToken: "private-owner-ciphertext",
+    },
+  });
+  const state = f.manager.getState();
+  await f.manager.configure({});
+  assert.equal(f.calls.decrypted, 0);
+  assert.equal(state.access, "public");
+  assert.equal(f.manager.getState().repository, "casimir-engineering");
+  assert.equal(f.manager.getState().connected, false);
+  assert.equal(f.manager.getState().status, "idle");
+  // The other channel's last check does not delay this one's first check.
+  assert.equal(f.manager.getState().lastChecked, undefined);
+  assert.deepEqual(
+    JSON.parse(await fs.readFile(path.join(f.directory, "updates.json"))),
+    { repository: "casimir-engineering", automatic: true, prereleases: true },
+  );
+  await assert.rejects(
+    f.manager.configure({ repository: "fixture-private" }),
+    /fixed to this build/,
+  );
+  await f.manager.check();
+  assert.equal(f.calls.auth.length, 0);
+  assert.equal(f.updater.feed.updateProvider, PublicReleaseProvider);
+  assert.equal(f.updater.feed.owner, "casimir-engineering");
+  assert.equal(f.updater.feed.token, undefined);
+  assert.equal(f.manager.getState().availableVersion, "0.1.5");
+});
 test("public build reports rate limits and denials as ordinary failures", async (t) => {
   for (const statusCode of [401, 403]) {
     const f = await fixture(t, PUBLIC_BUILD);

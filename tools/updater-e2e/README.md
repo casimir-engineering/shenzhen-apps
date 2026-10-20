@@ -30,7 +30,7 @@ node ../../tools/updater-e2e/prep-3d-fixture.mjs <published Shenzhen 3D.app> <di
                                                                                     # Developer ID (Squirrel checks it)
 node ../../tools/updater-e2e/update-e2e-3d.mjs --owner=<owner> --fixture=<signed fixture> --artifacts=<notarized
   output> --shape=<releases JSON> --notes=<notes> --work=<new directory> --expect-access=public|private
-  [--relaunch-app=<hidden, signed copy of the candidate>]
+  [--relaunch-app=<hidden, signed copy of the candidate>] [--expect-owner=<owner>] [--next-app=<signed newer copy>] [--live]
 ```
 
 The fixture is the published app with `electron/hidden-hook.cjs` loaded before its main and `LSBackgroundOnly`; its
@@ -39,3 +39,12 @@ fetch (the GitHub access check of private builds) goes there too; safeStorage is
 cache and ShipIt job are kept in the work directory and removed afterwards. With `--relaunch-app`, the installed
 version then starts with the same profile and checks its own feed: without any credential for a public build, with
 the connected one for a private build.
+
+Moving a private channel to the public one (`apps/3d/docs/UPDATES.md`): `--owner` is the private owner, whose release
+carries the public candidate, `--expect-owner` the public owner and `--expect-access=public`. The relaunched candidate
+must then read only the public owner's releases, with no credential and none saved. With `--next-app` (a later version:
+`prep-3d-fixture.mjs <candidate> <dir> --version=<newer>`, then signed with the Developer ID) the public owner lists it
+too, and the relaunched candidate must install it in place of itself. `--live` uses the real GitHub instead of the
+local copy, once the releases are published: the released app connects with the GitHub CLI login, and `--artifacts`
+holds the published Mac assets for the hash checks. With `--next-app` the install replaces the relaunch copy, so make
+a new one for each run.

@@ -42,10 +42,20 @@ Local upload helpers require an ignored `artifacts/operator/release-upload.json`
 
 1. Freeze and commit the intended source; build the DMG and ZIP together. Inspect `build-info.json`, the app signature, packaged updater feed and generated `latest-mac.yml`. Run the native app smoke before publishing.
 2. Create a version-tagged GitHub release with a strictly newer app version. Upload the unmodified DMG, ZIP, `latest-mac.yml`, relevant blockmaps and provenance. Keep a draft until the complete asset set is present and verified.
-3. Publish each verified release as preview or stable as intended. Drafts are not eligible update releases. Upload only artifacts whose signed owner matches this repository. The 0.1.6 upload guard verifies the adjacent provenance owner and source commit before uploading core assets. Verify each repository’s hashes against its own variant.
+3. Publish each verified release as preview or stable as intended. Drafts are not eligible update releases. Upload only artifacts whose signed owner matches this repository, except when moving a private channel to the public one (below). The 0.1.6 upload guard verifies the adjacent provenance owner and source commit before uploading core assets. Verify each repository’s hashes against its own variant.
 4. Test an older installed version: check, download, verify and install the update. For a private build, also test missing/expired credentials. Test an unavailable feed and cancellation using the app's raster/model workflow as appropriate.
 
 Do not substitute a Tauri DMG, web ZIP, generic source archive or version-tag source ZIP for the updater ZIP. The updater artifact is electron-builder's ZIP containing the signed Chromium `.app`.
+
+## Moving a private channel to the public one
+
+Builds of a private release owner can be moved to the public channel through their own updater, once. Their updater accepts any newer release of their own repository whose ZIP is signed with the same Developer ID team and bundle identifier (Squirrel.Mac checks the replacement against the running app's designated requirement); it never reads the owner recorded inside the package it installs. Every private build so far (0.1.x, and 0.2.0 with `PRIVATE_RELEASE_OWNER` set) works this way.
+
+1. Publish the public build of a version newer than every private release, on the public repository, as usual.
+2. On the private repository, publish a release of that same version whose assets are the public release's Mac update files, byte for byte: the ZIP, the DMG, their blockmaps and `latest-mac.yml`. Leave out `build-info.json`, provenance, the README and the other platforms' packages. Its notes tell people that this version moves them to the open-source Shenzhen 3D and that updates come from there from now on.
+3. A private build connected to GitHub finds that release, downloads it and installs it like any other. The installed app is the public build. It reads the public owner's releases without a credential. The GitHub access saved by the private build is deleted without being decrypted, because the saved settings name another owner. The automatic-check and preview settings are kept, and with automatic checks on it checks the public channel 20 seconds after its first start. Later releases on the private repository are no longer read, so the private channel has no other use after this.
+
+`update-manager.test.cjs` covers the move in the app, and `tools/updater-e2e` checks it with the published private builds (`--expect-owner`, `--next-app`). Windows and Linux builds have no updater, so installs there stay on their version until someone installs the public package.
 
 ## Authentication
 

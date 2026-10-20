@@ -2,7 +2,15 @@
 // GitHub, hidden, then the installed new version starts and checks its own feed. Run from apps/3d (Playwright).
 //
 //   node update-e2e-3d.mjs --owner=O --fixture=APP --artifacts=DIR --shape=RELEASES_JSON --notes=MD --work=DIR
-//                          --expect-access=public|private [--relaunch-app=HIDDEN_COPY_OF_NEW_APP]
+//                          --expect-access=public|private [--expect-owner=O2] [--relaunch-app=HIDDEN_COPY_OF_NEW_APP]
+//                          [--next-app=SIGNED_NEWER_APP] [--live]
+//
+// --expect-owner: the owner the new build reads from, when the release moves a private channel to the public one
+// (UPDATES.md, "Moving a private channel to the public one"): O's release carries O2's public build. The relaunched
+// new version then reads O2's releases, which list the new release and, with --next-app (a newer, Developer ID
+// signed copy, prep-3d-fixture.mjs --version), that newer one, which it must then install too.
+// --live: no local copy of GitHub; the released app reads the real releases (published already) and connects with
+// GitHub CLI's login, as a person would. --artifacts is then the published Mac assets, for the hash checks.
 //
 // The fixture is the released app with electron/hidden-hook.cjs loaded first and LSBackgroundOnly (prep-3d-fixture
 // .mjs), signed again with the same Developer ID, so Squirrel's designated-requirement check is the release's. Test
@@ -29,6 +37,8 @@ const opt = (name) => process.argv.find((a) => a.startsWith(`--${name}=`))?.slic
 const owner = opt("owner"), fixtureSrc = opt("fixture"), artifacts = opt("artifacts"), work = opt("work");
 const expectAccess = opt("expect-access"), shape = opt("shape"), notes = opt("notes");
 const relaunchPrepared = opt("relaunch-app");
+const expectOwner = opt("expect-owner") ?? owner, nextApp = opt("next-app"), live = process.argv.includes("--live");
+if (nextApp && (!relaunchPrepared || expectOwner === owner || live)) throw Error("--next-app needs --relaunch-app and another --expect-owner, not --live");
 if (!owner || !fixtureSrc || !artifacts || !work || !expectAccess || !shape || !notes) throw Error("missing options");
 const FAKE_TOKEN = "ghp_" + "x".repeat(36);
 const id = "com.shenzhen3d.performance", job = id + ".ShipIt";
@@ -67,20 +77,41 @@ const newVersion = /^version: (.+)$/m.exec(yml)[1].trim();
 const tag = `preview-${newVersion}`;
 const releases = JSON.parse(fs.readFileSync(shape, "utf8")).filter((r) => !r.draft);
 const template = releases.find((r) => r.tag_name === "preview-0.1.9") ?? releases[0];
-let assetId = 880000;
+let assetId = 880000, releaseId = 770000;
 const assetFiles = new Map();
-const assets = files.map((name) => {
-  const file = path.join(artifacts, name);
-  const assetUrl = `https://api.github.com/repos/${owner}/shenzhen-3D/releases/assets/${++assetId}`;
-  assetFiles.set(String(assetId), file);
-  return { ...template.assets[0], id: assetId, name, url: assetUrl, size: fs.statSync(file).size,
-    digest: "sha256:" + sha(file), browser_download_url: `https://github.com/${owner}/shenzhen-3D/releases/download/${tag}/${name}`,
-    state: "uploaded", download_count: 0 };
-});
-const newRelease = { ...template, id: 770001, tag_name: tag, name: `Shenzhen 3D ${newVersion}`, draft: false,
-  prerelease: true, body: fs.readFileSync(notes, "utf8"), assets, created_at: new Date().toISOString(),
-  published_at: new Date().toISOString() };
-let listing = [newRelease, ...releases];
+// A release of `version` on `releaseOwner`'s repository whose assets are `paths` (name -> file).
+const makeRelease = (releaseOwner, version, paths, body) => {
+  const releaseTag = `preview-${version}`;
+  const releaseAssets = [...paths].map(([name, file]) => {
+    const assetUrl = `https://api.github.com/repos/${releaseOwner}/shenzhen-3D/releases/assets/${++assetId}`;
+    assetFiles.set(String(assetId), file);
+    return { ...template.assets[0], id: assetId, name, url: assetUrl, size: fs.statSync(file).size,
+      digest: "sha256:" + sha(file), browser_download_url: `https://github.com/${releaseOwner}/shenzhen-3D/releases/download/${releaseTag}/${name}`,
+      state: "uploaded", download_count: 0 };
+  });
+  return { ...template, id: ++releaseId, tag_name: releaseTag, name: `Shenzhen 3D ${version}`, draft: false,
+    prerelease: true, body, assets: releaseAssets, created_at: new Date().toISOString(), published_at: new Date().toISOString() };
+};
+const newRelease = makeRelease(owner, newVersion, files.map((f) => [f, path.join(artifacts, f)]), fs.readFileSync(notes, "utf8"));
+// What each owner's repository lists. The new build's own channel, when it is another owner's, lists the same
+// build as its release, and the newer one (--next-app) above it.
+const listings = new Map([[owner, [newRelease, ...releases]]]);
+let nextRelease, nextVersion, nextZip;
+if (nextApp) {
+  // The newer build as electron-builder publishes it: a ZIP of "Shenzhen 3D.app" and latest-mac.yml naming it.
+  nextVersion = plist(nextApp).CFBundleShortVersionString;
+  const nextDir = path.join(work, "next-release"), stage = path.join(work, "next-stage");
+  fs.mkdirSync(nextDir);
+  fs.mkdirSync(stage);
+  execFileSync("ditto", [nextApp, path.join(stage, "Shenzhen 3D.app")]);
+  const zipName = `Shenzhen-3D-${nextVersion}-Apple-Silicon.zip`;
+  nextZip = path.join(nextDir, zipName);
+  execFileSync("ditto", ["-c", "-k", "--sequesterRsrc", "--keepParent", path.join(stage, "Shenzhen 3D.app"), nextZip]);
+  const zipSha = sha(nextZip, "sha512", "base64"), size = fs.statSync(nextZip).size;
+  fs.writeFileSync(path.join(nextDir, "latest-mac.yml"), `version: ${nextVersion}\nfiles:\n  - url: ${zipName}\n    sha512: ${zipSha}\n` +
+    `    size: ${size}\npath: ${zipName}\nsha512: ${zipSha}\nreleaseDate: '${new Date().toISOString()}'\n`);
+  nextRelease = makeRelease(expectOwner, nextVersion, [["latest-mac.yml", path.join(nextDir, "latest-mac.yml")], [zipName, nextZip]], "");
+}
 
 // ---- The local GitHub: HTTPS (via the proxy) and plain HTTP (global fetch) ---------------------------------------
 function handle(req, res, scheme) {
@@ -91,11 +122,11 @@ function handle(req, res, scheme) {
   save();
   const host = req.headers.host.replace(/:\d+$/, "");
   const m = /^\/repos\/([^/]+)\/shenzhen-3D\/releases(?:\/assets\/(\d+))?$/.exec(url.pathname);
-  if ((host === "api.github.com" || host.startsWith("127.0.0.1")) && m && m[1] === owner) {
+  if ((host === "api.github.com" || host.startsWith("127.0.0.1")) && m && listings.has(m[1])) {
     if (!m[2]) {
       const per = Number(url.searchParams.get("per_page") || 30);
       res.writeHead(200, { "content-type": "application/json; charset=utf-8" });
-      return res.end(JSON.stringify(listing.slice(0, per)));
+      return res.end(JSON.stringify(listings.get(m[1]).slice(0, per)));
     }
     if (assetFiles.has(m[2])) {
       res.writeHead(302, { location: `https://release-assets.githubusercontent.com/github-production-release-asset/1/${m[2]}?sp=r&sv=2018-11-09` });
@@ -127,8 +158,8 @@ proxy.on("connect", (req, socket, head) => {
   upstream.on("error", () => socket.destroy());
   socket.on("error", () => upstream.destroy());
 });
-await Promise.all([tlsServer, plainServer, proxy].map((s) => new Promise((r) => s.listen(0, "127.0.0.1", r))));
-const ports = { tls: tlsServer.address().port, plain: plainServer.address().port, proxy: proxy.address().port };
+if (!live) await Promise.all([tlsServer, plainServer, proxy].map((s) => new Promise((r) => s.listen(0, "127.0.0.1", r))));
+const ports = live ? null : { tls: tlsServer.address().port, plain: plainServer.address().port, proxy: proxy.address().port };
 
 // ---- Squirrel's native state, kept in the work directory --------------------------------------------------------
 const library = path.join(os.homedir(), "Library");
@@ -153,7 +184,7 @@ async function overrides(application) {
     const req = process.getBuiltinModule("module").createRequire(app.getAppPath() + "/package.json");
     // GitHub access check (global fetch) -> the local copy over plain HTTP.
     const realFetch = globalThis.fetch;
-    globalThis.fetch = (input, init) => {
+    if (ports) globalThis.fetch = (input, init) => {
       const url = new URL(typeof input === "string" || input instanceof URL ? input : input.url);
       if (url.hostname === "api.github.com") { url.protocol = "http:"; url.host = `127.0.0.1:${ports.plain}`; }
       return realFetch(url, init);
@@ -163,10 +194,12 @@ async function overrides(application) {
     safeStorage.encryptString = (s) => Buffer.from("szut:" + s, "utf8");
     safeStorage.decryptString = (b) => { const s = Buffer.from(b).toString("utf8"); if (!s.startsWith("szut:")) throw Error("not ours"); return s.slice(5); };
     // The updater's own session: through the proxy to the local copy, whose certificate it trusts.
-    const updaterSession = session.fromPartition("electron-updater", { cache: false });
-    await updaterSession.setProxy({ proxyRules: `http://127.0.0.1:${ports.proxy}` });
-    const hosts = ["api.github.com", "release-assets.githubusercontent.com", "github.com", "objects.githubusercontent.com"];
-    updaterSession.setCertificateVerifyProc((r, cb) => cb(hosts.includes(r.hostname) ? 0 : -2));
+    if (ports) {
+      const updaterSession = session.fromPartition("electron-updater", { cache: false });
+      await updaterSession.setProxy({ proxyRules: `http://127.0.0.1:${ports.proxy}` });
+      const hosts = ["api.github.com", "release-assets.githubusercontent.com", "github.com", "objects.githubusercontent.com"];
+      updaterSession.setCertificateVerifyProc((r, cb) => cb(hosts.includes(r.hostname) ? 0 : -2));
+    }
     const { ElectronAppAdapter } = req("electron-updater/out/ElectronAppAdapter");
     Object.defineProperty(ElectronAppAdapter.prototype, "baseCachePath", { get: () => cache, configurable: true });
     const { MacUpdater } = req("electron-updater");
@@ -183,6 +216,20 @@ async function overrides(application) {
 const anyVisible = (application) => application.evaluate(({ BaseWindow }) => BaseWindow.getAllWindows().some((w) => w.isVisible()));
 
 let application, installed = false, installStarted = false;
+const shipItIdle = async () => { for (let i = 0; i < 60 && launchctlHas(); i++) await sleep(1000); return !launchctlHas(); };
+// Waits until the bundle at `target` is `version` with the archive of the app in `zipFile`.
+async function replacedBy(target, version, zipFile, into) {
+  fs.mkdirSync(into);
+  execFileSync("ditto", ["-x", "-k", zipFile, into]);
+  const unpacked = fs.readdirSync(into).find((n) => n.endsWith(".app"));
+  const want = sha(path.join(into, unpacked, "Contents/Resources/app.asar"));
+  for (const deadline = Date.now() + 180_000; Date.now() < deadline; await sleep(1000)) {
+    try {
+      if (plist(target).CFBundleShortVersionString === version && sha(path.join(target, "Contents/Resources/app.asar")) === want) return true;
+    } catch {}
+  }
+  return false;
+}
 try {
   for (const { link, target } of cacheLinks) { fs.mkdirSync(target, { recursive: true }); fs.symlinkSync(target, link, "dir"); }
   // ---- 1. the released app finds, downloads and installs the new release ----
@@ -194,13 +241,15 @@ try {
   check(`released ${oldVersion} reads updates from ${owner}`, initial.repository === owner && initial.supported, initial);
   await page.evaluate(() => window.shenzhenUpdates.configure({ automatic: false, prereleases: true }));
   if (initial.status === "needs-auth" || /Connect GitHub/.test(initial.message || "")) {
-    const connected = await page.evaluate((t) => window.shenzhenUpdates.connect(t), FAKE_TOKEN);
+    // Live: the GitHub CLI login, as a person would connect; the credential never passes through this script.
+    const connected = live ? await page.evaluate(() => window.shenzhenUpdates.useGitHubCLI())
+      : await page.evaluate((t) => window.shenzhenUpdates.connect(t), FAKE_TOKEN);
     check("it needs GitHub access connected first (by design); connecting succeeds", connected.connected, connected);
   }
   const available = await page.evaluate(() => window.shenzhenUpdates.check());
   check(`it offers ${newVersion}`, available.status === "available" && available.availableVersion === newVersion, available);
   const apiRequests = result.requests.filter((r) => r.path?.startsWith(`/repos/${owner}/shenzhen-3D/releases`));
-  check("its release-list requests", apiRequests.length > 0, apiRequests.slice(0, 6));
+  if (!live) check("its release-list requests", apiRequests.length > 0, apiRequests.slice(0, 6));
   const ready = await page.evaluate(() => window.shenzhenUpdates.download());
   check("it downloads the update", ready.status === "ready", ready);
   const zip = files.find((f) => f.endsWith(".zip"));
@@ -210,23 +259,13 @@ try {
   scan(cache);
   check("the downloaded ZIP is the release's (SHA-512)", downloaded.some((p) => sha(p, "sha512", "base64") === zipHash), downloaded);
   const assetReqs = result.requests.filter((r) => r.host?.startsWith("release-assets"));
-  check("assets came through GitHub's redirect", assetReqs.length > 0, assetReqs.map((r) => r.path));
+  if (!live) check("assets came through GitHub's redirect", assetReqs.length > 0, assetReqs.map((r) => r.path));
   installStarted = true;
   const closed = application.waitForEvent("close", { timeout: 180_000 });
   await page.evaluate(() => window.shenzhenUpdates.install()).catch(() => {});
   await closed;
   application = undefined;
-  const newApp = path.join(work, "new-app");
-  fs.mkdirSync(newApp);
-  execFileSync("ditto", ["-x", "-k", path.join(artifacts, zip), newApp]);
-  const wantAsar = sha(path.join(newApp, "Shenzhen 3D.app/Contents/Resources/app.asar"));
-  const deadline = Date.now() + 180_000;
-  while (Date.now() < deadline) {
-    try {
-      if (plist(app).CFBundleShortVersionString === newVersion && sha(path.join(app, "Contents/Resources/app.asar")) === wantAsar) { installed = true; break; }
-    } catch {}
-    await sleep(1000);
-  }
+  installed = await replacedBy(app, newVersion, path.join(artifacts, zip), path.join(work, "new-app"));
   check(`Squirrel replaced the app with ${newVersion}`, installed);
   const verify = (args) => { try { execFileSync(args[0], args.slice(1), { stdio: "pipe" }); return true; } catch { return false; } };
   check("codesign --verify --deep --strict", verify(["codesign", "--verify", "--deep", "--strict", app]));
@@ -234,31 +273,54 @@ try {
   check("Gatekeeper accepts it", verify(["spctl", "--assess", "--type", "execute", app]));
   const pkg = JSON.parse(asar.extractFile(path.join(app, "Contents/Resources/app.asar"), "package.json").toString());
   const feed = fs.readFileSync(path.join(app, "Contents/Resources/app-update.yml"), "utf8");
-  check(`the new build reads ${owner}'s releases, ${expectAccess}`, pkg.releaseOwner === owner && pkg.releaseAccess === expectAccess &&
-    feed.includes(`owner: ${owner}`) && feed.includes(`private: ${expectAccess === "private"}`), { releaseOwner: pkg.releaseOwner, releaseAccess: pkg.releaseAccess, feed });
+  check(`the new build reads ${expectOwner}'s releases, ${expectAccess}`, pkg.releaseOwner === expectOwner && pkg.releaseAccess === expectAccess &&
+    feed.includes(`owner: ${expectOwner}`) && feed.includes(`private: ${expectAccess === "private"}`), { releaseOwner: pkg.releaseOwner, releaseAccess: pkg.releaseAccess, feed });
   // ---- 2. the new version starts (a hidden copy) and checks its own feed ----
   if (relaunchPrepared) {
     fs.writeFileSync(path.join(profile, "friends.json"), JSON.stringify({ enabled: false })); // no helper in the test
     const saved = JSON.parse(fs.readFileSync(path.join(profile, "updates.json"), "utf8"));
     check("the released app had saved its GitHub access (encrypted)", typeof saved.encryptedToken === "string" || expectAccess === "public", Object.keys(saved));
     const before = result.requests.length;
-    listing = [newRelease, ...releases];
+    if (expectOwner !== owner) {
+      // The new build's own channel: the same build as its release, and the newer one above it.
+      const own = makeRelease(expectOwner, newVersion, files.map((f) => [f, path.join(artifacts, f)]), "");
+      listings.set(expectOwner, nextRelease ? [nextRelease, own] : [own]);
+    }
     application = await launch(relaunchPrepared);
     const p2 = await application.firstWindow();
     await overrides(application);
     const state = await p2.evaluate(() => window.shenzhenUpdates.getState());
-    check(`the new version runs (${newVersion}) for ${owner}, ${expectAccess}`, state.version === newVersion && state.repository === owner && state.access === expectAccess, state);
+    check(`the new version runs (${newVersion}) for ${expectOwner}, ${expectAccess}`, state.version === newVersion && state.repository === expectOwner && state.access === expectAccess, state);
     const after = await p2.evaluate(() => window.shenzhenUpdates.check());
     const reqs = result.requests.slice(before).filter((r) => r.path?.includes("/releases"));
     if (expectAccess === "public") {
-      check("public: it checks without any credential and finds itself current", after.status !== "error" && reqs.length > 0 && reqs.every((r) => !r.authorization), { after, reqs });
       const kept = JSON.parse(fs.readFileSync(path.join(profile, "updates.json"), "utf8"));
       check("public: the saved GitHub access from the old build is dropped", !("encryptedToken" in kept), Object.keys(kept));
+      if (!live) check(`public: it reads only ${expectOwner}'s releases, without any credential`,
+        reqs.length > 0 && reqs.every((r) => !r.authorization && r.path.startsWith(`/repos/${expectOwner}/shenzhen-3D/`)), reqs);
+      if (!nextRelease)
+        check("public: it finds itself current", after.status === "idle" && !after.availableVersion && after.connected === false, after);
+      else {
+        check(`public: it offers ${nextVersion} from ${expectOwner}`, after.status === "available" && after.availableVersion === nextVersion, after);
+        const ready2 = await p2.evaluate(() => window.shenzhenUpdates.download());
+        check(`public: it downloads ${nextVersion}`, ready2.status === "ready", ready2);
+        check("ShipIt from the first install has finished", await shipItIdle());
+        const closed2 = application.waitForEvent("close", { timeout: 180_000 });
+        await p2.evaluate(() => window.shenzhenUpdates.install()).catch(() => {});
+        await closed2;
+        application = undefined;
+        const replaced = await replacedBy(relaunchPrepared, nextVersion, nextZip, path.join(work, "next-unpacked"));
+        check(`Squirrel replaced the new version with ${nextVersion}`, replaced);
+        check("codesign --verify --deep --strict (next)", verify(["codesign", "--verify", "--deep", "--strict", relaunchPrepared]));
+        const nextPkg = JSON.parse(asar.extractFile(path.join(relaunchPrepared, "Contents/Resources/app.asar"), "package.json").toString());
+        check(`the next build reads ${expectOwner}'s releases, public`, nextPkg.releaseOwner === expectOwner && nextPkg.releaseAccess === "public" && nextPkg.version === nextVersion,
+          { releaseOwner: nextPkg.releaseOwner, releaseAccess: nextPkg.releaseAccess, version: nextPkg.version });
+      }
     } else {
       // Saved access is decrypted while the first state is read; the check waits for it.
       check("private: it keeps the connected access and checks with it", after.connected && after.status !== "error" && reqs.length > 0 && reqs.every((r) => r.authorization), { after, reqs });
     }
-    await application.close();
+    await application?.close();
     application = undefined;
   }
   result.success = result.checks.every((c) => c.ok);
@@ -267,9 +329,15 @@ try {
   result.success = false;
 } finally {
   if (application && (!installStarted || installed)) await application.close().catch(() => {});
-  for (const s of [tlsServer, plainServer, proxy]) s.close();
+  // The stand-in safeStorage keeps the connected credential readable; never leave it in the work directory.
+  try {
+    const saved = path.join(profile, "updates.json");
+    const data = JSON.parse(fs.readFileSync(saved, "utf8"));
+    if ("encryptedToken" in data) { delete data.encryptedToken; fs.writeFileSync(saved, JSON.stringify(data)); }
+  } catch {}
+  for (const s of [tlsServer, plainServer, proxy]) if (s.listening) s.close();
   if (!installStarted || installed) {
-    for (let i = 0; i < 30 && launchctlHas(); i++) await sleep(1000); // ShipIt finishing after the install
+    await shipItIdle(); // ShipIt finishing after the install
     if (launchctlHas()) { try { execFileSync("launchctl", ["bootout", `gui/${process.getuid()}/${job}`], { stdio: "pipe" }); } catch {} }
     for (const { link, target } of cacheLinks) if (exists(link) && fs.lstatSync(link).isSymbolicLink() && fs.readlinkSync(link) === target) fs.unlinkSync(link);
     // None existed before the run (checked above): an empty one is ShipIt's from this run.
