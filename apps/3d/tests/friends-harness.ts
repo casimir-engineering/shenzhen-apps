@@ -90,7 +90,7 @@ export async function render(
     bridge,
     report: () => {},
     openConversation: () => {},
-    confirm: async () => true,
+    confirm: async () => ({ option: false }),
   };
   return {
     html: renderToStaticMarkup(

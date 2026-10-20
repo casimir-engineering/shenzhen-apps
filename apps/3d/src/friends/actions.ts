@@ -1,6 +1,6 @@
 // What the panel does with the view contract's values (protocol.ts): an action's intent and fields, the client-side
 // actions, the drag strings' placeholders and the composer's byte count.
-import type { Action, Strings } from "./protocol";
+import type { Action, Confirm, Strings } from "./protocol";
 
 /** Intents that carry an action's own fields (PROTOCOL.md § Shared objects, Action), and which fields. */
 export function actionIntent(
@@ -89,6 +89,23 @@ export function actionIntent(
     default:
       return null;
   }
+}
+
+/** The fields a confirmation's checkbox may add (PROTOCOL.md § Shared objects, confirm_option). A checkbox for any
+ * other field is not shown, so what the person ticks always reaches the helper. */
+export const CONFIRM_OPTION_FIELDS = new Set(["delete_history"]);
+export function shownOption(confirm: Confirm | null | undefined) {
+  const option = confirm?.option;
+  return option && CONFIRM_OPTION_FIELDS.has(option.field) ? option : null;
+}
+/** The intent's fields once confirmed: a ticked checkbox adds its field, set to true; unticked adds nothing. */
+export function confirmedFields(
+  fields: Record<string, unknown>,
+  confirm: Confirm | null | undefined,
+  ticked: boolean,
+): Record<string, unknown> {
+  const option = shownOption(confirm);
+  return ticked && option ? { ...fields, [option.field]: true } : fields;
 }
 
 /** Client-side actions: handled by the host, never sent (PROTOCOL.md § Intents, client-side actions). */

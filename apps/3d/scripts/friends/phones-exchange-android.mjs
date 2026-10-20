@@ -83,6 +83,9 @@ export function android(serial) {
   };
 
   return {
+    // For other phone tests (phones-remove.mjs): the page's DevTools and the emulator's own input.
+    evaluate,
+    adb,
     async install({ homePhone, routes, page, work }) {
       this.config = page;
       adb("shell", "am", "force-stop", PACKAGE);
@@ -102,6 +105,12 @@ export function android(serial) {
         }
       })();
       adb("shell", "am", "start", "-n", `${PACKAGE}/.MainActivity`);
+      await this.reattach();
+      const status = await evaluate("window.shenzhenFriends.join()");
+      if (!status.available) throw Error("Friends is not available in the app");
+    },
+    /** Finds the running app's WebView and waits for its page; again after the app was started anew. */
+    async reattach() {
       let pid = "";
       for (let i = 0; i < 120 && !pid; i++) {
         await wait(500);
@@ -117,8 +126,6 @@ export function android(serial) {
         if (ready) break;
         await wait(500);
       }
-      const status = await evaluate("window.shenzhenFriends.join()");
-      if (!status.available) throw Error("Friends is not available in the app");
     },
     async route() {
       for (let i = 0; i < 240 && !toMac.size; i++) await wait(250);

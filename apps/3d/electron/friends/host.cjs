@@ -31,8 +31,15 @@ const { createViewMenu } = require("./view-menu.cjs");
 
 const EVENT = "shenzhen-friends-event";
 // What Shenzhen 3D's panel shows and does (PROTOCOL.md § Capabilities): `#` offers the open model, files may be
-// dropped, and `@` mentions friends. No assistant, no global search.
-const CAPABILITIES = ["attach.items", "drop.files", "mentions"];
+// dropped, `@` mentions friends, a list row's menu opens on right-click, and people nearby show how they were found.
+// No assistant, no global search.
+const CAPABILITIES = [
+  "attach.items",
+  "drop.files",
+  "mentions",
+  "list.menu",
+  "nearby.found",
+];
 const STAGED_DAYS = 31;
 const MAX_STAGED_BYTES = 2 * 1024 * 1024 * 1024;
 const MAX_OFFERED_FILES = 4096;

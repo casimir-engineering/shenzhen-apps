@@ -249,3 +249,12 @@
   white-space: nowrap;
   flex-shrink: 0;
 }
+.szf-confirm-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+.szf-confirm-option input {
+  margin: 0;
+}

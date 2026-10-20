@@ -1,7 +1,7 @@
 // The list's Nearby tab: making yourself visible, the ways Friends looks for people, and the people it found.
 import type { Action, NearbyData } from "./protocol";
 import { ActionButton, AvatarView, usePanel } from "./parts";
-import { Glyph } from "./glyphs";
+import { FoundLine, Glyph } from "./glyphs";
 
 export function NearbyPane({ data }: { data: NearbyData | undefined }) {
   const panel = usePanel();
@@ -80,6 +80,7 @@ export function NearbyPane({ data }: { data: NearbyData | undefined }) {
                 <span className="szf-row-text">
                   <span className="szf-row-title">{person.title}</span>
                   <span className="szf-row-subtitle">{person.subtitle}</span>
+                  <FoundLine found={person.found} />
                 </span>
                 {person.status_label && (
                   <span className="szf-row-meta">

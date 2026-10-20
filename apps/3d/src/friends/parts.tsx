@@ -12,7 +12,7 @@ import type {
   Reply,
   Segment,
 } from "./protocol";
-import { CLIENT_ACTIONS, actionIntent } from "./actions";
+import { CLIENT_ACTIONS, actionIntent, confirmedFields } from "./actions";
 import type { FriendsStore } from "./store";
 import { Glyph } from "./glyphs";
 
@@ -22,8 +22,10 @@ export type PanelContext = {
   /** Shows a reply's failure: its display-ready message, or nothing when it has none. */
   report(reply: Reply): void;
   openConversation(conversationId: string, messageId?: string): void;
-  confirm(confirm: Confirm): Promise<boolean>;
+  /** Asks first: false when the person cancels, else whether they ticked the confirmation's checkbox. */
+  confirm(confirm: Confirm): Promise<ConfirmAnswer>;
 };
+export type ConfirmAnswer = false | { option: boolean };
 export const Panel = createContext<PanelContext | null>(null);
 export function usePanel() {
   const value = useContext(Panel);
@@ -205,10 +207,15 @@ export async function chooseReceivedFolder(
   return reply;
 }
 
-/** Runs an action: client-side ones through the host, intents after their confirmation when they carry one. */
+/** Runs an action: client-side ones through the host, intents after their confirmation when they carry one.
+ * `sending` runs once the person has confirmed, just before the intent goes (a row hides itself then). */
 export function useRunAction() {
   const panel = usePanel();
-  return async (action: Action, context: ActionContext = {}) => {
+  return async (
+    action: Action,
+    context: ActionContext = {},
+    sending?: () => void,
+  ) => {
     if (CLIENT_ACTIONS.has(action.action)) {
       if (action.action === "open_file" && action.path)
         await panel.bridge.openFile(action.path);
@@ -223,8 +230,14 @@ export function useRunAction() {
     }
     const intent = actionIntent(action, context);
     if (!intent) return;
-    if (action.confirm && !(await panel.confirm(action.confirm))) return;
-    const reply = await panel.store.send(intent.type, intent.fields);
+    let fields = intent.fields;
+    if (action.confirm) {
+      const answer = await panel.confirm(action.confirm);
+      if (!answer) return;
+      fields = confirmedFields(fields, action.confirm, answer.option);
+    }
+    sending?.();
+    const reply = await panel.store.send(intent.type, fields);
     panel.report(reply);
     return reply;
   };

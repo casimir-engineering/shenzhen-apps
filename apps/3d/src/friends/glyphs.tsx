@@ -1,6 +1,6 @@
 // The route and action glyphs Friends pages draw: the AppKit views' paths (mac/SZFriendsIcons.m), as the GTK
 // views draw them.
-import type { Route } from "./protocol";
+import type { Found, Route } from "./protocol";
 
 type GlyphName =
   | "people"
@@ -185,6 +185,27 @@ export function RouteIcon({
       aria-label={route?.label ?? undefined}
     >
       <Glyph name={name} size={size} />
+    </span>
+  );
+}
+
+const FOUND_GLYPHS: Record<string, GlyphName> = {
+  lan: "lan",
+  p2p_wifi: "p2p_wifi",
+  bluetooth: "bluetooth",
+};
+/** How a person nearby was found: the route icon of each method that sees them, then the helper's words. */
+export function FoundLine({ found }: { found: Found | null | undefined }) {
+  if (!found?.label) return null;
+  const glyphs = found.methods
+    .map((method) => FOUND_GLYPHS[method])
+    .filter((name): name is GlyphName => Boolean(name));
+  return (
+    <span className="szf-found" data-methods={found.methods.join(" ")}>
+      {glyphs.map((name) => (
+        <Glyph key={name} name={name} size={11} />
+      ))}
+      <span>{found.label}</span>
     </span>
   );
 }

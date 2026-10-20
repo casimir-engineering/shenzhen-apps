@@ -10,8 +10,10 @@ import {
   CopyButton,
   Panel,
   usePanel,
+  type ConfirmAnswer,
   type PanelContext,
 } from "./parts";
+import { shownOption } from "./actions";
 import { FriendsStore, useFriendsStore, useView } from "./store";
 import { ListPage, type Outgoing } from "./ListPage";
 import { ConversationPage } from "./ConversationPage";
@@ -55,10 +57,16 @@ export function openNextAt(place: "profile" | "nearby") {
 function useConfirm() {
   const [pending, setPending] = useState<{
     confirm: Confirm;
-    resolve(value: boolean): void;
+    resolve(value: ConfirmAnswer): void;
   } | null>(null);
+  // The confirmation's checkbox ("Also delete chat history"), unticked each time it opens.
+  const [ticked, setTicked] = useState(false);
   const ask = (confirm: Confirm) =>
-    new Promise<boolean>((resolve) => setPending({ confirm, resolve }));
+    new Promise<ConfirmAnswer>((resolve) => {
+      setTicked(false);
+      setPending({ confirm, resolve });
+    });
+  const option = shownOption(pending?.confirm);
   const view = pending ? (
     <div
       className="szf-confirm"
@@ -68,6 +76,16 @@ function useConfirm() {
       <div className="szf-confirm-box">
         <strong>{pending.confirm.title}</strong>
         <p>{pending.confirm.body}</p>
+        {option && (
+          <label className="szf-confirm-option">
+            <input
+              type="checkbox"
+              checked={ticked}
+              onChange={(event) => setTicked(event.target.checked)}
+            />
+            <span>{option.label}</span>
+          </label>
+        )}
         <div className="szf-actions">
           <button
             type="button"
@@ -84,7 +102,7 @@ function useConfirm() {
             autoFocus
             className={`szf-button ${pending.confirm.destructive ? "destructive" : "primary"}`}
             onClick={() => {
-              pending.resolve(true);
+              pending.resolve({ option: Boolean(option) && ticked });
               setPending(null);
             }}
           >
@@ -100,7 +118,7 @@ function useConfirm() {
 function usePanelContext(
   store: FriendsStore,
   openConversation: (id: string, messageId?: string) => void,
-  confirm: (confirm: Confirm) => Promise<boolean>,
+  confirm: (confirm: Confirm) => Promise<ConfirmAnswer>,
 ) {
   const [notice, setNotice] = useState<string | null>(null);
   useEffect(() => {
