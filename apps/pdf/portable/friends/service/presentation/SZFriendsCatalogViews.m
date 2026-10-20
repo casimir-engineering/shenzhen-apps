@@ -194,7 +194,7 @@ static NSDictionary<NSString *, NSString *> *PeopleAndSettingsEntries(void) {
         @"details.copy_id" : @"Copy {first}’s ID",
         @"details.received.one" : @"Received from {first}: 1 file",
         @"details.received.other" : @"Received from {first}: {count} files",
-        @"details.remove_note" : @"Keeps your conversation. {first} can send you a new request.",
+        @"details.remove_note" : @"Takes {first} off your list. {first} can send you a new request.",
         @"details.block_note" : @"{first} can’t reach you or send requests until you unblock.",
         @"details.unblock_note" : @"{first} can reach you and send requests again.",
         @"details.history.action" : @"Delete chat history…",

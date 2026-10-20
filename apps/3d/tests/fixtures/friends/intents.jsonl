@@ -67,3 +67,4 @@
 {"type":"subscribe","id":"68","view":"join","params":null}
 {"type":"set_received_folder","id":"69","path":"/Users/raph/Documents/From friends"}
 {"type":"subscribe","id":"70","view":"received","params":null}
+{"type":"remove_friend","id":"71","conversation_id":"c_lena","delete_history":true}
