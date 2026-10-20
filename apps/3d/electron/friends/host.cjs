@@ -96,6 +96,9 @@ function createFriendsHost({
   trusted,
   openFormats,
   openFiles,
+  dialog,
+  // Files received here (the `received` view's rows), for the app's recent files (received-recents.cjs).
+  onReceived = () => {},
   env = process.env,
   platform = process.platform,
   loadAddon = require,
@@ -131,7 +134,21 @@ function createFriendsHost({
     for (const contents of windows.values())
       if (!contents.isDestroyed()) contents.send(EVENT, event);
   };
-  const router = new FriendsRouter({ deliver, broadcast });
+  const router = new FriendsRouter({
+    deliver,
+    broadcast,
+    hostSnapshot: (frame) => {
+      if (frame.view !== "received" || !Array.isArray(frame.data?.files))
+        return;
+      try {
+        void Promise.resolve(onReceived(frame.data.files)).catch((error) =>
+          console.error("Friends: received files:", error),
+        );
+      } catch (error) {
+        console.error("Friends: received files:", error);
+      }
+    },
+  });
   const focusedId = () => BrowserWindow.getFocusedWindow?.()?.webContents?.id;
   // File ▸ Copy Download Link, while the helper announces `links` (share-menu.cjs).
   const shareMenu = createShareMenu({
@@ -204,7 +221,12 @@ function createFriendsHost({
         } else if (event.type === "state") {
           state = event.state;
           router.connectionChanged(state);
-          if (state === "ready") sendFromHost("subscribe", { view: "badge" });
+          if (state === "ready") {
+            sendFromHost("subscribe", { view: "badge" });
+            // A helper that saves received files where the person sees them lists them for recent files.
+            if (router.welcome?.capabilities?.includes?.("received.folder"))
+              sendFromHost("subscribe", { view: "received" });
+          }
         }
       }
       if (typeof events.stateText === "string") stateText = events.stateText;
@@ -421,6 +443,23 @@ function createFriendsHost({
     openFiles([file]);
     return true;
   }
+  // Settings ▸ Save received files to ▸ Change…: the system's folder picker over the window that asked, starting
+  // at the folder received files go to now. The folder chosen, or null.
+  async function chooseFolder(event, start) {
+    if (!dialog) return null;
+    const window = BrowserWindow.fromWebContents?.(event.sender) ?? undefined;
+    const options = {
+      properties: ["openDirectory", "createDirectory"],
+      ...(typeof start === "string" && plainPath(start)
+        ? { defaultPath: start }
+        : {}),
+    };
+    const result = window
+      ? await dialog.showOpenDialog(window, options)
+      : await dialog.showOpenDialog(options);
+    const folder = result?.canceled ? null : result?.filePaths?.[0];
+    return typeof folder === "string" && plainPath(folder) ? folder : null;
+  }
   async function showFile(file) {
     if (!plainPath(file) || (await classifyPath(file)) === "missing")
       return false;
@@ -453,6 +492,7 @@ function createFriendsHost({
     token: () => crypto.randomBytes(16).toString("hex"),
     openFile: (_event, value) => openReceived(value),
     showFile: (_event, value) => showFile(value),
+    chooseFolder: (event, value) => chooseFolder(event, value),
     openSettings: async (_event, value) => {
       const url = settingsURL(value);
       if (url) await shell.openExternal(url);

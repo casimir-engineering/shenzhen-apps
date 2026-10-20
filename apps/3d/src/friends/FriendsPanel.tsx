@@ -383,8 +383,30 @@ export function SettingsBody() {
       </div>
       <div className="szf-field">
         <span>{data.received.label}</span>
-        <small>{data.received.note}</small>
-        <ActionButton action={data.received.action} />
+        {data.received.value && (
+          <strong
+            className="szf-folder"
+            title={data.received.path ?? undefined}
+          >
+            {data.received.value}
+          </strong>
+        )}
+        {data.received.note && <small>{data.received.note}</small>}
+        {(data.received.action || data.received.change) && (
+          <span className="szf-inline">
+            {data.received.change && (
+              <ActionButton
+                action={{
+                  ...data.received.change,
+                  path: data.received.path ?? undefined,
+                }}
+              />
+            )}
+            {data.received.action && (
+              <ActionButton action={data.received.action} />
+            )}
+          </span>
+        )}
       </div>
       <div className="szf-field">
         <span>{data.auto_accept.label}</span>

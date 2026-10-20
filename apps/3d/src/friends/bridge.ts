@@ -55,6 +55,9 @@ export interface FriendsBridge {
   token(): Promise<string>;
   openFile(path: string): Promise<boolean>;
   showFile(path: string): Promise<boolean>;
+  /** The system's folder picker, starting at `start`; the folder chosen, or null. Electron's; Tauri builds use the
+   * dialog plugin instead (chooseFolder below). */
+  chooseFolder?(start?: string | null): Promise<string | null>;
   openSettings(target: string): Promise<boolean>;
   openURL(url: string): Promise<boolean>;
   /** Whether this window has a model open, for File ▸ Copy Download Link. */
@@ -69,3 +72,24 @@ declare global {
 
 export const friendsBridge = (): FriendsBridge | undefined =>
   typeof window === "undefined" ? undefined : window.shenzhenFriends;
+
+/** A folder the person picks, starting at `start`: the bridge's picker (Electron), else Tauri's dialog plugin. */
+export async function chooseFolder(
+  bridge: FriendsBridge,
+  start?: string | null,
+): Promise<string | null> {
+  if (bridge.chooseFolder) return bridge.chooseFolder(start ?? null);
+  if (
+    typeof window === "undefined" ||
+    !(window as unknown as { __TAURI_INTERNALS__?: unknown })
+      .__TAURI_INTERNALS__
+  )
+    return null;
+  const { open } = await import("@tauri-apps/plugin-dialog");
+  const folder = await open({
+    directory: true,
+    multiple: false,
+    ...(start ? { defaultPath: start } : {}),
+  });
+  return typeof folder === "string" ? folder : null;
+}
