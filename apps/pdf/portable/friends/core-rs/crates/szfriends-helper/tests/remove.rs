@@ -25,7 +25,7 @@ fn add(store: &mut Store, name: &str, relation: Relation, key: u8) -> String {
 }
 
 fn titles(list: &Value) -> Vec<String> {
-    // The You conversation, kept from when this computer had others, is no one to remove.
+    // The You conversation, kept from when this computer had others, is no row here.
     let rows: Vec<Value> = list["rows"]
         .as_array()
         .cloned()

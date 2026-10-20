@@ -4,6 +4,7 @@
 
 use serde_json::{json, Value};
 use szfriends_core::presentation::{NearbyFacts, PersonFacts, ProfileFacts, Relation, SnapshotBuilder};
+use szfriends_core::store::sync_log::YOU;
 use szfriends_core::store::unix_now;
 
 use super::facts::PAGE;
@@ -74,7 +75,10 @@ impl Subscription {
 
 /// Everything one round of views reads, gathered once.
 pub struct World {
+    /// Everyone a person row may show. The You conversation is never one of them: it shows only as the devices You
+    /// row, and without devices facts not at all; its conversation still opens (`you`).
     pub people: Vec<PersonFacts>,
+    pub you: Option<PersonFacts>,
     pub profile: ProfileFacts,
     pub now: f64,
     /// With the helper capability `devices`: the profile's computers and the join rows.
@@ -92,7 +96,9 @@ impl State {
         };
         let devices = Some(self.devices_facts(now, &people));
         let join_requests = self.join_request_facts(now);
-        World { people, profile, now, devices, join_requests }
+        let (you, people): (Vec<PersonFacts>, Vec<PersonFacts>) =
+            people.into_iter().partition(|p| p.conversation_id == YOU);
+        World { people, you: you.into_iter().next(), profile, now, devices, join_requests }
     }
 
     /// Rows waiting for an answer other than `conversation_id`'s.
@@ -115,7 +121,7 @@ impl State {
     pub fn render(&self, builder: &SnapshotBuilder, subscription: &Subscription, world: &World) -> Option<Value> {
         let person = || {
             let id = subscription.conversation_id.as_deref()?;
-            world.people.iter().find(|p| p.conversation_id == id)
+            world.people.iter().chain(&world.you).find(|p| p.conversation_id == id)
         };
         let elsewhere = Self::waiting_elsewhere(world, subscription.conversation_id.as_deref());
         Some(match subscription.view {
