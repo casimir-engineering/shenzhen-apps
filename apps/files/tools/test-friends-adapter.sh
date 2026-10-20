@@ -103,6 +103,12 @@ fi
 if otool -L "$WITHOUT/src/nautilus" | grep -q json-glib; then
   die "built without friends_root, but src/nautilus links json-glib"
 fi
+# Cmd+J is listed in the shortcuts dialog only when Friends is built in.
+if grep -q "Show/Hide Friends" "$WITHOUT/src/resources/ui/shortcuts-dialog.ui"; then
+  die "built without friends_root, but the shortcuts dialog lists Show/Hide Friends"
+fi
+grep -q "Search Commands" "$WITHOUT/src/resources/ui/shortcuts-dialog.ui" ||
+  die "built without friends_root, the shortcuts dialog lost Search Commands"
 log "without friends_root: src/nautilus builds with no Friends code"
 
 # --- 2. with Friends -----------------------------------------------------------
@@ -110,10 +116,13 @@ configure "$WITH" -Dtests=headless -Dfriends_root="$FRIENDS_ROOT"
 log "ninja -C $WITH src/nautilus test/friends/test-nautilus-friends test/friends/test-nautilus-friends-toolbar"
 ninja -C "$WITH" src/nautilus data/gschemas.compiled test/friends/test-nautilus-friends \
   test/friends/test-nautilus-friends-toolbar >/dev/null
+grep -q "Show/Hide Friends" "$WITH/src/resources/ui/shortcuts-dialog.ui" ||
+  die "with friends_root, the shortcuts dialog does not list Show/Hide Friends"
 symbols="$(defined "$WITH/src/nautilus")"
 for symbol in szfriends_gtk_link_new szfriends_gtk_link_add_window szfriends_gtk_settings_section_new \
               szfriends_client_new szfriends_set_signing_policy nautilus_friends_startup \
-              nautilus_friends_host_init nautilus_friends_place_button nautilus_toolbar_set_friends_button; do
+              nautilus_friends_host_init nautilus_friends_place_button nautilus_toolbar_set_friends_button \
+              nautilus_friends_toggle_dropdown nautilus_command_palette_present; do
   grep -qx "$symbol" <<<"$symbols" || die "with friends_root, src/nautilus does not define $symbol"
 done
 otool -L "$WITH/src/nautilus" | grep -q json-glib || die "with friends_root, src/nautilus does not link json-glib"

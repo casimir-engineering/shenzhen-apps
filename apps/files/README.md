@@ -18,6 +18,8 @@
 ## What the port adds on macOS
 
 - **Native menu bar** — the full GNOME Files menu rendered as a real NSMenu bar (File · Edit · View · Go · Window · Help), with working key equivalents.
+- **Search commands with Cmd-K** — type a few letters to find a command (New Folder, Show Hidden Files, Preferences…, and Friends' own), move with the arrow keys, and press Return to run it. Each command shows its shortcut. Also in Help ▸ Search Commands….
+- **Friends with Cmd-J** — opens Shenzhen Friends with the cursor in its search field, and closes it again, even from that field. Also in View ▸ Friends and in the Friends button's tooltip; does nothing while Friends is off.
 - **Finder-like Dock lifecycle** — closing the last window keeps the app alive; clicking the Dock icon or pressing Cmd-T opens a new window, while Cmd-T adds a tab when a window exists.
 - **Mounted drives in the sidebar** — the startup disk, external disks, disk images, and network volumes appear under mounts with native eject or unmount controls and automatic hot-plug refresh. Ejecting a volume that is open in Shenzhen Files first returns every affected window and tab to Home, releases its directory handles, and then safely ejects it.
 - **QuickLook everywhere** — real macOS thumbnails in the grid, space-bar preview, and LaunchServices file-type icons for anything QuickLook can't draw.

@@ -54,6 +54,7 @@ LaunchServices-facing id for the default-handler integration.
 | Spotlight search | **PASS** | `spotlight:` provider starts/queries/stops per keystroke against the correct scope; hits stream into the view (searched "STATUS" in the repo dir) |
 | Toolbar search button | **FIXED (headless test; the button itself needs checklist O)** | The magnifier at the right of the toolbar searches the current folder and its subfolders in the current tab, like Cmd-F, and stays pressed while the search is open; clicking it again closes the search. During Search Everywhere it is hidden, as upstream hides its folder search toggle. Search Everywhere is in the menu bar (Find ▸ Search Everywhere, ⇧⌘F) and on the "No Results Found" page. Until 2026-10-13 the button started Search Everywhere; see "Toolbar search button searches the current folder" below. |
 | Backspace goes back | **FIXED (headless test; the keys in a window need checklist Q)** | In the file list and the sidebar, the Delete key goes back like the toolbar's Back button. Cmd-Delete still moves the selection to the Trash and Cmd-Shift-Delete still deletes it. While renaming, editing the path or typing a search, Delete still deletes text; while a search is open it edits the search, also when the file list has the focus. See "Backspace goes back" below. |
+| Cmd-J (Friends) and Cmd-K (Search Commands) | **ADDED 2026-10-20 (real key events on a hidden window; eyes-on checklist R)** | `tools/test-macos-friends-shortcut.sh` (exit 0, 73 checks, "test-nautilus-friends-shortcut passed") posts Cmd+J, Cmd+K, letters, arrows, Return and Escape as NSEvents to the app's event queue, so they go through GDK, GTK and AppKit's menu key equivalents as typed keys do, on a mapped window with the real Friends button whose NSWindows are never ordered on screen. Cmd+J opens the dropdown with the keyboard in its search field and closes it from that field, one toggle per press (also with GTK's binding removed: the View menu's key equivalent alone toggles); "friends" + Return in Cmd+K opens Friends; "friend", "nearby", "add by id", "chat" list Open Friends; with Friends off Cmd+J runs nothing and Cmd+K lists no Friends command. With the wiring stubbed out (the tree before this change) the same test fails 11 checks (exit 1). `tools/test-friends-adapter.sh` passes too and checks that a build without Friends has no Friends row in the shortcuts dialog. No earlier Cmd-J or Cmd-K binding existed in Files. |
 | QuickLook space-bar preview | **FIXED (headless controller tests; panel needs checklist L)** | `QLPreviewPanel` opens on selection + space without taking the keyboard, so space, Escape and Cmd-Y close it and arrow keys move the selection while it follows. Until 2026-10-13 the panel was made key, Quick Look closed itself on the second space and the Files window never got the keyboard back; see "Quick Look keyboard focus fixed" below. |
 | Apps, packages and archives | **FIXED (headless tests; menus and dialogs need checklist K)** | Opening an app (double-click, Enter, Cmd-O, search results, Starred, sidebar bookmarks) launches it through `NSWorkspace`; other packages (`.rtfd`, `.pages`, …) open with their default app, and Show Package Contents browses inside. Archives offer Extract and Extract to… in the context menu and the File menu; double-click still opens them with their default app. Until 2026-10-13 apps opened like folders and no file counted as an archive; see "Opening apps and extracting archives fixed" below. |
 | Trash / Show in Finder (W2) | **PASS (native fixture + bridge)** | Native files now move through `NSFileManager trashItemAtURL`, so the operation and the sidebar's Finder Trash window use the same system Trash; a real fixture landed under `~/.Trash` and disappeared from its source. Remote locations keep the GIO fallback. `nautilus_macos_trash_open_in_finder`, `show_in_finder`, and `show_in_finder_files` drive Finder. |
@@ -1024,6 +1025,27 @@ pressing them needs a display. On a build of `files-fixes`:
       the search stays open, the window does not go back. Same during
       Search Everywhere (⇧⌘F).
 - [ ] Help ▸ Keyboard Shortcuts lists Delete (⌫) under Go Back.
+
+### R. Cmd-J and Cmd-K (2026-10-20 — eyes-on)
+
+`tools/test-macos-friends-shortcut.sh` presses the keys on a window that is
+never shown; on the app, with Friends on:
+
+- [ ] Cmd-J opens Friends with the cursor in its search field; Cmd-J again
+      (cursor still there) closes it. Hovering the Friends button shows
+      "Friends (⌘J)". View ▸ Friends shows ⌘J and does the same.
+- [ ] Open Add by ID (or a conversation), close with Cmd-J, reopen with
+      Cmd-J: it reopens on that page.
+- [ ] Cmd-K opens Search Commands with the cursor in its field. Type
+      "friends", press Return: Friends opens. "nearby", "add by id" and
+      "chat" list Open Friends; Down and Return run the selected command;
+      Escape closes. Help ▸ Search Commands… shows ⌘K.
+- [ ] "visible", Return: Friends opens on Nearby and you become visible
+      (with the helper running); when already visible, nothing changes.
+- [ ] Turn Friends off in Preferences: Cmd-J does nothing, View ▸ Friends is
+      greyed out, and Cmd-K lists no Friends command.
+- [ ] Help ▸ Keyboard Shortcuts lists Show/Hide Friends (⌘J) and Search
+      Commands (⌘K).
 
 ### G. DMG drag-install (packaging)
 

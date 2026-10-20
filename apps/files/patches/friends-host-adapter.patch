@@ -72,10 +72,19 @@ index 983d6cd..a81cad0 100644
 +  description: 'Absolute path of a shenzhen-pdf checkout with built Friends GTK views; empty leaves Friends out',
 +)
 diff --git a/src/meson.build b/src/meson.build
-index b3242cc..933f184 100644
+index b3242cc..b3ffab9 100644
 --- a/src/meson.build
 +++ b/src/meson.build
-@@ -367,9 +367,27 @@ else
+@@ -68,6 +68,8 @@ libnautilus_sources = [
+   'nautilus-column-chooser.h',
+   'nautilus-column-utilities.c',
+   'nautilus-column-utilities.h',
++  'nautilus-command-palette.c',
++  'nautilus-command-palette.h',
+   'nautilus-compress-dialog.c',
+   'nautilus-compress-dialog.h',
+   'nautilus-date-entry-row.c',
+@@ -367,9 +369,28 @@ else
    ]
  endif
 
@@ -92,6 +101,7 @@ index b3242cc..933f184 100644
 +    'nautilus-friends-placement.c',
 +    'nautilus-friends-preferences.c',
 +    'nautilus-friends-private.h',
++    'nautilus-friends-shortcut.c',
 +    'nautilus-macos-friends.m',
 +  ]
 +endif
@@ -103,7 +113,7 @@ index b3242cc..933f184 100644
    gio_unix,
    gmodule,
    gnome_autoar,
-@@ -439,6 +457,7 @@ nautilus = executable(
+@@ -439,6 +460,7 @@ nautilus = executable(
    'nautilus',
    'nautilus-main.c',
    dependencies: libnautilus_dep,
@@ -112,7 +122,7 @@ index b3242cc..933f184 100644
  )
 
 diff --git a/src/nautilus-application.c b/src/nautilus-application.c
-index d1f1f9b..3871db8 100644
+index d1f1f9b..148904a 100644
 --- a/src/nautilus-application.c
 +++ b/src/nautilus-application.c
 @@ -57,6 +57,7 @@
@@ -172,7 +182,25 @@ index d1f1f9b..3871db8 100644
      nautilus_icon_info_clear_caches ();
  }
 
-@@ -1901,8 +1922,8 @@ macos_setup_font_rendering (void)
+@@ -1573,6 +1594,8 @@ macos_build_view_menu (void)
+     macos_menu_append (reload_section, _("Stop"), "slot.stop", NULL);
+
+     macos_menu_append (sidebar_section, _("Show Sidebar"), "win.toggle-sidebar", "F9");
++    /* Friends' dropdown, Cmd+J; greyed out while Friends is off. Not built without Friends. */
++    nautilus_friends_add_menu_items (sidebar_section);
+
+     g_menu_append_section (menu, NULL, G_MENU_MODEL (mode_section));
+     g_menu_append_section (menu, NULL, G_MENU_MODEL (sort_section));
+@@ -1659,6 +1682,8 @@ macos_build_help_menu (void)
+
+     /* app.shortcuts is registered automatically by AdwApplication from
+      * the bundled shortcuts-dialog.ui resource. */
++    /* Cmd+K: the window's commands, found by typing (nautilus-command-palette.c). */
++    macos_menu_append (help_section, _("Search Commands…"), "win.command-palette", "<Meta>k");
+     macos_menu_append (help_section, _("Keyboard Shortcuts"), "app.shortcuts", NULL);
+     macos_menu_append (help_section, _("Files Help"), "app.help", "F1");
+
+@@ -1901,8 +1926,8 @@ macos_setup_font_rendering (void)
   * hidden — so the fallback needs no extra code.
   * ========================================================================== */
 
@@ -183,7 +211,7 @@ index d1f1f9b..3871db8 100644
  {
      GtkSettings *settings = gtk_settings_get_default ();
      g_autoptr (GtkCssProvider) provider = gtk_css_provider_new ();
-@@ -2085,7 +2106,7 @@ nautilus_application_startup (GApplication *app)
+@@ -2085,7 +2110,7 @@ nautilus_application_startup (GApplication *app)
 
      /* Finder-style window chrome: traffic-light window buttons on the
       * left, hosted by the sidebar header (see the CSS block above). */
@@ -192,7 +220,7 @@ index d1f1f9b..3871db8 100644
 
      /* Passive NSServices provider backing the "Open in Nautilus" service in
       * Info.plist (W12). Registration changes nothing system-wide and applies
-@@ -2098,6 +2119,10 @@ nautilus_application_startup (GApplication *app)
+@@ -2098,6 +2123,10 @@ nautilus_application_startup (GApplication *app)
      nautilus_macos_savepanel_handoff_init ();
  #endif
 
@@ -203,7 +231,7 @@ index d1f1f9b..3871db8 100644
      if (!g_test_initialized ())
      {
          maybe_migrate_gtk_filechooser_preferences ();
-@@ -2375,6 +2400,7 @@ nautilus_application_window_added (GtkApplication *app,
+@@ -2375,6 +2404,7 @@ nautilus_application_window_added (GtkApplication *app,
          macos_maybe_show_fda_first_launch_prompt (window);
          macos_maybe_show_integration_first_run_dialog (window);
  #endif
@@ -229,6 +257,704 @@ index 458c9a3..4cbba5d 100644
  /* Notification category strings to use with g_notification_set_catergory ().
   * From https://specifications.freedesktop.org/notification/latest/categories.html */
 
+diff --git a/src/nautilus-command-palette.c b/src/nautilus-command-palette.c
+new file mode 100644
+index 0000000..63967ba
+--- /dev/null
++++ b/src/nautilus-command-palette.c
+@@ -0,0 +1,619 @@
++/*
++ * nautilus-command-palette.c: Cmd+K in a browser window (nautilus-command-palette.h).
++ *
++ * A dialog over the window: a search field and the commands that match what is typed. The commands are a handful
++ * of the window's own actions, shown with the shortcut the menu bar shows for them, and Shenzhen Friends' while it
++ * is on in the window (nautilus_friends_add_commands). A command runs once the palette has closed and given the
++ * keyboard back to the window, so what it opens can take the keyboard itself.
++ *
++ * Copyright (C) 2026 The Nautilus authors
++ *
++ * SPDX-License-Identifier: GPL-2.0-or-later
++ */
++
++#define G_LOG_DOMAIN "nautilus-command-palette"
++
++#include "nautilus-command-palette.h"
++
++#include <glib/gi18n.h>
++#include <string.h>
++
++#include "nautilus-application.h"
++#include "nautilus-friends.h"
++
++#define PALETTE_KEY "nautilus-command-palette"
++
++/* ---- Commands ------------------------------------------------------------------------------------------------- */
++
++NautilusCommand *
++nautilus_command_new (const char         *title,
++                      const char         *keywords,
++                      const char         *action,
++                      const char         *accel,
++                      const char         *accel_action,
++                      NautilusCommandRun  run,
++                      gpointer            run_data)
++{
++    NautilusCommand *command = g_new0 (NautilusCommand, 1);
++
++    command->title = g_strdup (title);
++    command->keywords = g_strdup (keywords);
++    command->action = g_strdup (action);
++    command->accel = g_strdup (accel);
++    command->accel_action = g_strdup (accel_action);
++    command->run = run;
++    command->run_data = run_data;
++    return command;
++}
++
++void
++nautilus_command_free (NautilusCommand *command)
++{
++    if (command == NULL)
++    {
++        return;
++    }
++    g_free (command->title);
++    g_free (command->keywords);
++    g_free (command->action);
++    g_free (command->accel);
++    g_free (command->accel_action);
++    g_free (command);
++}
++
++/* The words of @text, case-folded and without accents: runs of letters and digits. */
++static GPtrArray *
++fold_words (const char *text)
++{
++    GPtrArray *words = g_ptr_array_new_with_free_func (g_free);
++    g_autofree char *normalized = NULL;
++    g_autofree char *folded = NULL;
++    GString *word = g_string_new (NULL);
++
++    if (text == NULL)
++    {
++        g_string_free (word, TRUE);
++        return words;
++    }
++    normalized = g_utf8_normalize (text, -1, G_NORMALIZE_ALL);
++    folded = g_utf8_casefold (normalized != NULL ? normalized : "", -1);
++    for (const char *p = folded; *p != '\0'; p = g_utf8_next_char (p))
++    {
++        gunichar c = g_utf8_get_char (p);
++
++        if (g_unichar_ismark (c))
++        {
++            continue;
++        }
++        if (g_unichar_isalnum (c))
++        {
++            g_string_append_unichar (word, c);
++        }
++        else if (word->len > 0)
++        {
++            g_ptr_array_add (words, g_strdup (word->str));
++            g_string_truncate (word, 0);
++        }
++    }
++    if (word->len > 0)
++    {
++        g_ptr_array_add (words, g_strdup (word->str));
++    }
++    g_string_free (word, TRUE);
++    return words;
++}
++
++static gboolean
++starts_a_word (GPtrArray  *words,
++               const char *prefix)
++{
++    for (guint i = 0; i < words->len; i++)
++    {
++        if (g_str_has_prefix (g_ptr_array_index (words, i), prefix))
++        {
++            return TRUE;
++        }
++    }
++    return FALSE;
++}
++
++gboolean
++nautilus_command_matches (const NautilusCommand *command,
++                          const char            *query,
++                          gboolean              *in_title)
++{
++    g_autoptr (GPtrArray) query_words = fold_words (query);
++    g_autoptr (GPtrArray) title_words = fold_words (command->title);
++    g_autoptr (GPtrArray) keyword_words = fold_words (command->keywords);
++    gboolean all_in_title = TRUE;
++
++    for (guint i = 0; i < query_words->len; i++)
++    {
++        const char *word = g_ptr_array_index (query_words, i);
++        gboolean title = starts_a_word (title_words, word);
++
++        if (!title && !starts_a_word (keyword_words, word))
++        {
++            return FALSE;
++        }
++        all_in_title = all_in_title && title;
++    }
++    if (in_title != NULL)
++    {
++        *in_title = all_in_title;
++    }
++    return TRUE;
++}
++
++GPtrArray *
++nautilus_command_palette_filter (GPtrArray  *commands,
++                                 const char *query)
++{
++    GPtrArray *listed = g_ptr_array_new ();
++    g_autoptr (GPtrArray) by_keyword = g_ptr_array_new ();
++
++    for (guint i = 0; i < commands->len; i++)
++    {
++        NautilusCommand *command = g_ptr_array_index (commands, i);
++        gboolean in_title = FALSE;
++
++        if (nautilus_command_matches (command, query, &in_title))
++        {
++            g_ptr_array_add (in_title ? listed : by_keyword, command);
++        }
++    }
++    g_ptr_array_extend (listed, by_keyword, NULL, NULL);
++    return listed;
++}
++
++/* Files' own commands, with the shortcuts the menu bar shows for them. Application and window actions show the
++ * accelerator the application has for them; the files view's and the tab's keys live in their own controllers, so
++ * those are spelled out, as the menu bar spells them. */
++#ifdef __APPLE__
++#define MAC_OR(mac, other) (mac)
++#else
++#define MAC_OR(mac, other) (other)
++#endif
++
++GPtrArray *
++nautilus_command_palette_commands (GtkWindow *window)
++{
++    GPtrArray *commands = g_ptr_array_new_with_free_func ((GDestroyNotify) nautilus_command_free);
++    const char *new_tab = MAC_OR ("app.new-tab", "win.new-tab");
++
++#define ADD(title, keywords, action, accel) \
++        g_ptr_array_add (commands, nautilus_command_new ((title), (keywords), (action), (accel), \
++                                                         (accel) == NULL ? (action) : NULL, NULL, NULL))
++
++    ADD (_("New Window"), "open", "app.clone-window", NULL);
++    ADD (_("New Tab"), "open", new_tab, NULL);
++    ADD (_("New Folder"), "create make directory", "view.new-folder", MAC_OR ("<Meta><Shift>n", "<Control><Shift>n"));
++#ifdef __APPLE__
++    ADD (_("Enter Location…"), "go to path address folder", "win.macos-edit-location", "<Meta><Shift>g");
++#endif
++    ADD (_("Find"), "search filter", "slot.focus-search", MAC_OR ("<Meta>f", "<Control>f"));
++    ADD (_("Search Everywhere"), "find", "slot.search-global", MAC_OR ("<Meta><Shift>f", "<Control><Shift>f"));
++    ADD (_("Show Hidden Files"), "hide dotfiles", "view.show-hidden-files",
++         MAC_OR ("<Meta><Shift>period", "<Control>h"));
++    ADD (_("Preferences…"), "settings options", "app.preferences", NULL);
++    ADD (_("Keyboard Shortcuts"), "keys help", "app.shortcuts", NULL);
++
++#undef ADD
++
++    nautilus_friends_add_commands (window, commands);
++    return commands;
++}
++
++#undef MAC_OR
++
++/* ---- The palette ---------------------------------------------------------------------------------------------- */
++
++typedef struct
++{
++    GtkWindow *window;          /* weak */
++    GtkWidget *entry;
++    GtkWidget *list;
++    GtkWidget *scroller;
++    GtkWidget *empty;
++    GPtrArray *commands;        /* NautilusCommand, owned */
++    GPtrArray *listed;          /* borrowed from commands, in row order */
++    NautilusCommand *chosen;    /* runs once the palette has closed */
++} Palette;
++
++typedef struct
++{
++    GtkWindow *window;          /* weak */
++    NautilusCommand *command;   /* owned */
++} PendingRun;
++
++static void
++palette_free (gpointer data)
++{
++    Palette *palette = data;
++
++    g_clear_weak_pointer (&palette->window);
++    g_clear_pointer (&palette->listed, g_ptr_array_unref);
++    g_clear_pointer (&palette->commands, g_ptr_array_unref);
++    g_free (palette);
++}
++
++static Palette *
++palette_of (AdwDialog *dialog)
++{
++    return dialog != NULL ? g_object_get_data (G_OBJECT (dialog), PALETTE_KEY) : NULL;
++}
++
++static char *
++shortcut_for (GtkWindow             *window,
++              const NautilusCommand *command)
++{
++    GtkApplication *application = window != NULL ? gtk_window_get_application (window) : NULL;
++    g_auto (GStrv) accels = NULL;
++
++    if (command->accel != NULL)
++    {
++        return g_strdup (command->accel);
++    }
++    if (command->accel_action == NULL || application == NULL)
++    {
++        return NULL;
++    }
++    accels = gtk_application_get_accels_for_action (application, command->accel_action);
++    return accels != NULL && accels[0] != NULL ? g_strdup (accels[0]) : NULL;
++}
++
++static GtkWidget *
++row_new (GtkWindow             *window,
++         const NautilusCommand *command)
++{
++    GtkWidget *row = gtk_list_box_row_new ();
++    GtkWidget *box = gtk_box_new (GTK_ORIENTATION_HORIZONTAL, 12);
++    GtkWidget *title = gtk_label_new (command->title);
++    g_autofree char *accel = shortcut_for (window, command);
++
++    gtk_label_set_xalign (GTK_LABEL (title), 0);
++    gtk_label_set_ellipsize (GTK_LABEL (title), PANGO_ELLIPSIZE_END);
++    gtk_widget_set_hexpand (title, TRUE);
++    gtk_box_append (GTK_BOX (box), title);
++    if (accel != NULL)
++    {
++        gtk_box_append (GTK_BOX (box), adw_shortcut_label_new (accel));
++    }
++    gtk_list_box_row_set_child (GTK_LIST_BOX_ROW (row), box);
++    return row;
++}
++
++static void
++refilter (Palette *palette)
++{
++    const char *query = gtk_editable_get_text (GTK_EDITABLE (palette->entry));
++    GtkWidget *child;
++
++    while ((child = gtk_widget_get_first_child (palette->list)) != NULL)
++    {
++        gtk_list_box_remove (GTK_LIST_BOX (palette->list), child);
++    }
++    g_clear_pointer (&palette->listed, g_ptr_array_unref);
++    palette->listed = nautilus_command_palette_filter (palette->commands, query);
++    for (guint i = 0; i < palette->listed->len; i++)
++    {
++        gtk_list_box_append (GTK_LIST_BOX (palette->list),
++                             row_new (palette->window, g_ptr_array_index (palette->listed, i)));
++    }
++    gtk_list_box_select_row (GTK_LIST_BOX (palette->list),
++                             gtk_list_box_get_row_at_index (GTK_LIST_BOX (palette->list), 0));
++    gtk_widget_set_visible (palette->scroller, palette->listed->len > 0);
++    gtk_widget_set_visible (palette->empty, palette->listed->len == 0);
++}
++
++static void
++on_search_changed (GtkSearchEntry *entry,
++                   gpointer        data)
++{
++    refilter (data);
++}
++
++static void
++run_pending (gpointer data)
++{
++    PendingRun *pending = data;
++    NautilusCommand *command = pending->command;
++
++    if (pending->window != NULL)
++    {
++        if (command->run != NULL)
++        {
++            command->run (pending->window, command->run_data);
++        }
++        else if (command->action != NULL)
++        {
++            g_autofree char *name = NULL;
++            g_autoptr (GVariant) target = NULL;
++            g_autoptr (GError) error = NULL;
++
++            if (g_action_parse_detailed_name (command->action, &name, &target, &error))
++            {
++                gtk_widget_activate_action_variant (GTK_WIDGET (pending->window), name, target);
++            }
++            else
++            {
++                g_warning ("%s: %s", command->action, error->message);
++            }
++        }
++    }
++    g_clear_weak_pointer (&pending->window);
++    nautilus_command_free (pending->command);
++    g_free (pending);
++}
++
++static void
++on_closed (AdwDialog *dialog,
++           gpointer   data)
++{
++    Palette *palette = data;
++    PendingRun *pending;
++
++    if (palette->chosen == NULL || palette->window == NULL)
++    {
++        return;
++    }
++    pending = g_new0 (PendingRun, 1);
++    g_set_weak_pointer (&pending->window, palette->window);
++    pending->command = nautilus_command_new (palette->chosen->title, palette->chosen->keywords,
++                                             palette->chosen->action, NULL, NULL,
++                                             palette->chosen->run, palette->chosen->run_data);
++    palette->chosen = NULL;
++    /* After the dialog has given the keyboard back to the window. */
++    g_idle_add_once (run_pending, pending);
++}
++
++static void
++choose (Palette   *palette,
++        AdwDialog *dialog,
++        int        index)
++{
++    if (index < 0 || (guint) index >= palette->listed->len)
++    {
++        return;
++    }
++    palette->chosen = g_ptr_array_index (palette->listed, index);
++    adw_dialog_close (dialog);
++}
++
++static void
++on_activate (GtkEntry *entry,
++             gpointer  data)
++{
++    AdwDialog *dialog = data;
++    Palette *palette = palette_of (dialog);
++    GtkListBoxRow *row = gtk_list_box_get_selected_row (GTK_LIST_BOX (palette->list));
++
++    choose (palette, dialog, row != NULL ? gtk_list_box_row_get_index (row) : -1);
++}
++
++static void
++on_row_activated (GtkListBox    *list,
++                  GtkListBoxRow *row,
++                  gpointer       data)
++{
++    AdwDialog *dialog = data;
++
++    choose (palette_of (dialog), dialog, gtk_list_box_row_get_index (row));
++}
++
++static void
++on_stop_search (GtkSearchEntry *entry,
++                gpointer        data)
++{
++    adw_dialog_close (data);
++}
++
++/* Up and Down move the selection while the keyboard stays in the field. */
++static gboolean
++on_key_pressed (GtkEventControllerKey *controller,
++                guint                  keyval,
++                guint                  keycode,
++                GdkModifierType        state,
++                gpointer               data)
++{
++    Palette *palette = data;
++    GtkListBox *list = GTK_LIST_BOX (palette->list);
++    GtkListBoxRow *selected = gtk_list_box_get_selected_row (list);
++    int index = selected != NULL ? gtk_list_box_row_get_index (selected) : -1;
++    int count = palette->listed != NULL ? (int) palette->listed->len : 0;
++    GtkListBoxRow *row;
++
++    if (count == 0 || (state & (GDK_CONTROL_MASK | GDK_ALT_MASK | GDK_META_MASK | GDK_SHIFT_MASK)) != 0)
++    {
++        return GDK_EVENT_PROPAGATE;
++    }
++    if (keyval == GDK_KEY_Down || keyval == GDK_KEY_KP_Down)
++    {
++        index = MIN (index + 1, count - 1);
++    }
++    else if (keyval == GDK_KEY_Up || keyval == GDK_KEY_KP_Up)
++    {
++        index = MAX (index - 1, 0);
++    }
++    else
++    {
++        return GDK_EVENT_PROPAGATE;
++    }
++    row = gtk_list_box_get_row_at_index (list, index);
++    gtk_list_box_select_row (list, row);
++    /* Keeps the selected row in view without taking the keyboard from the field. */
++    {
++        graphene_rect_t bounds;
++        GtkAdjustment *adjustment = gtk_scrolled_window_get_vadjustment (GTK_SCROLLED_WINDOW (palette->scroller));
++
++        if (gtk_widget_compute_bounds (GTK_WIDGET (row), palette->list, &bounds))
++        {
++            gtk_adjustment_clamp_page (adjustment, bounds.origin.y, bounds.origin.y + bounds.size.height);
++        }
++    }
++    return GDK_EVENT_STOP;
++}
++
++AdwDialog *
++nautilus_command_palette_get_open (GtkWindow *window)
++{
++    return window != NULL ? g_object_get_data (G_OBJECT (window), PALETTE_KEY) : NULL;
++}
++
++static void
++forget_palette (gpointer  data,
++                GObject  *where_the_dialog_was)
++{
++    GtkWindow *window = data;
++
++    if (g_object_get_data (G_OBJECT (window), PALETTE_KEY) == where_the_dialog_was)
++    {
++        g_object_set_data (G_OBJECT (window), PALETTE_KEY, NULL);
++    }
++}
++
++static void
++on_palette_closed_forget (AdwDialog *dialog,
++                          gpointer   data)
++{
++    Palette *palette = palette_of (dialog);
++
++    if (palette != NULL && palette->window != NULL &&
++        g_object_get_data (G_OBJECT (palette->window), PALETTE_KEY) == dialog)
++    {
++        g_object_weak_unref (G_OBJECT (dialog), forget_palette, palette->window);
++        g_object_set_data (G_OBJECT (palette->window), PALETTE_KEY, NULL);
++    }
++}
++
++void
++nautilus_command_palette_present (GtkWindow *window)
++{
++    AdwDialog *dialog = nautilus_command_palette_get_open (window);
++    Palette *palette;
++    GtkWidget *box;
++    GtkEventController *keys;
++
++    g_return_if_fail (GTK_IS_WINDOW (window));
++
++    if (dialog != NULL)
++    {
++        gtk_widget_grab_focus (palette_of (dialog)->entry);
++        return;
++    }
++    /* Friends' dropdown floats above the window and would cover the palette. */
++    nautilus_friends_close_dropdown (window);
++
++    palette = g_new0 (Palette, 1);
++    g_set_weak_pointer (&palette->window, window);
++    palette->commands = nautilus_command_palette_commands (window);
++
++    dialog = adw_dialog_new ();
++    /* Not shown: what assistive technology calls the palette. */
++    adw_dialog_set_title (dialog, _("Search Commands"));
++    adw_dialog_set_content_width (dialog, 440);
++    adw_dialog_set_follows_content_size (dialog, TRUE);
++    adw_dialog_set_presentation_mode (dialog, ADW_DIALOG_FLOATING);
++    g_object_set_data_full (G_OBJECT (dialog), PALETTE_KEY, palette, palette_free);
++
++    box = gtk_box_new (GTK_ORIENTATION_VERTICAL, 6);
++    gtk_widget_set_margin_top (box, 12);
++    gtk_widget_set_margin_bottom (box, 12);
++    gtk_widget_set_margin_start (box, 12);
++    gtk_widget_set_margin_end (box, 12);
++
++    palette->entry = gtk_search_entry_new ();
++    gtk_search_entry_set_placeholder_text (GTK_SEARCH_ENTRY (palette->entry), _("Search commands"));
++    gtk_search_entry_set_search_delay (GTK_SEARCH_ENTRY (palette->entry), 0);
++    gtk_box_append (GTK_BOX (box), palette->entry);
++
++    palette->list = gtk_list_box_new ();
++    gtk_list_box_set_selection_mode (GTK_LIST_BOX (palette->list), GTK_SELECTION_BROWSE);
++    gtk_widget_add_css_class (palette->list, "navigation-sidebar");
++    palette->scroller = gtk_scrolled_window_new ();
++    gtk_scrolled_window_set_policy (GTK_SCROLLED_WINDOW (palette->scroller), GTK_POLICY_NEVER,
++                                    GTK_POLICY_AUTOMATIC);
++    gtk_scrolled_window_set_propagate_natural_height (GTK_SCROLLED_WINDOW (palette->scroller), TRUE);
++    gtk_scrolled_window_set_max_content_height (GTK_SCROLLED_WINDOW (palette->scroller), 320);
++    gtk_scrolled_window_set_child (GTK_SCROLLED_WINDOW (palette->scroller), palette->list);
++    gtk_box_append (GTK_BOX (box), palette->scroller);
++
++    palette->empty = gtk_label_new (_("No matching commands"));
++    gtk_widget_add_css_class (palette->empty, "dim-label");
++    gtk_widget_set_margin_top (palette->empty, 12);
++    gtk_widget_set_margin_bottom (palette->empty, 12);
++    gtk_box_append (GTK_BOX (box), palette->empty);
++    adw_dialog_set_child (dialog, box);
++
++    g_signal_connect (palette->entry, "search-changed", G_CALLBACK (on_search_changed), palette);
++    g_signal_connect (palette->entry, "activate", G_CALLBACK (on_activate), dialog);
++    g_signal_connect (palette->entry, "stop-search", G_CALLBACK (on_stop_search), dialog);
++    g_signal_connect (palette->list, "row-activated", G_CALLBACK (on_row_activated), dialog);
++    keys = gtk_event_controller_key_new ();
++    gtk_event_controller_set_propagation_phase (keys, GTK_PHASE_CAPTURE);
++    g_signal_connect (keys, "key-pressed", G_CALLBACK (on_key_pressed), palette);
++    gtk_widget_add_controller (palette->entry, keys);
++    g_signal_connect (dialog, "closed", G_CALLBACK (on_palette_closed_forget), NULL);
++    g_signal_connect (dialog, "closed", G_CALLBACK (on_closed), palette);
++
++    refilter (palette);
++    adw_dialog_set_focus (dialog, palette->entry);
++
++    g_object_set_data (G_OBJECT (window), PALETTE_KEY, dialog);
++    g_object_weak_ref (G_OBJECT (dialog), forget_palette, window);
++    adw_dialog_present (dialog, GTK_WIDGET (window));
++    gtk_widget_grab_focus (palette->entry);
++}
++
++GtkWidget *
++nautilus_command_palette_get_entry (AdwDialog *dialog)
++{
++    Palette *palette = palette_of (dialog);
++
++    return palette != NULL ? palette->entry : NULL;
++}
++
++GStrv
++nautilus_command_palette_get_listed (AdwDialog *dialog)
++{
++    Palette *palette = palette_of (dialog);
++    g_autoptr (GStrvBuilder) builder = g_strv_builder_new ();
++
++    for (guint i = 0; palette != NULL && palette->listed != NULL && i < palette->listed->len; i++)
++    {
++        NautilusCommand *command = g_ptr_array_index (palette->listed, i);
++
++        g_strv_builder_add (builder, command->title);
++    }
++    return g_strv_builder_end (builder);
++}
++
++/* ---- The window's action -------------------------------------------------------------------------------------- */
++
++static void
++action_command_palette (GSimpleAction *action,
++                        GVariant      *parameter,
++                        gpointer       data)
++{
++    nautilus_command_palette_present (GTK_WINDOW (data));
++}
++
++void
++nautilus_command_palette_install (GtkWindow *window)
++{
++    g_autoptr (GSimpleAction) action = g_simple_action_new ("command-palette", NULL);
++    GApplication *application = G_APPLICATION (gtk_window_get_application (window));
++
++    g_return_if_fail (G_IS_ACTION_MAP (window));
++
++    g_signal_connect_object (action, "activate", G_CALLBACK (action_command_palette), window, 0);
++    g_action_map_add_action (G_ACTION_MAP (window), G_ACTION (action));
++    if (application == NULL)
++    {
++        application = g_application_get_default ();
++    }
++    if (application != NULL)
++    {
++        nautilus_application_set_accelerator (application, "win.command-palette", "<Primary>k");
++    }
++}
+diff --git a/src/nautilus-command-palette.h b/src/nautilus-command-palette.h
+new file mode 100644
+index 0000000..81d4bd1
+--- /dev/null
++++ b/src/nautilus-command-palette.h
+@@ -0,0 +1,67 @@
++/*
++ * nautilus-command-palette.h: Cmd+K (Ctrl+K elsewhere) in a browser window, a search field over the window's
++ * commands. Typing filters them, the arrow keys move, Return runs the selected one and Escape closes.
++ *
++ * Copyright (C) 2026 The Nautilus authors
++ *
++ * SPDX-License-Identifier: GPL-2.0-or-later
++ */
++
++#pragma once
++
++#include <adwaita.h>
++
++G_BEGIN_DECLS
++
++typedef void (*NautilusCommandRun) (GtkWindow *window,
++                                    gpointer   data);
++
++/* One command. It runs @action (a detailed action name) on the window, or @run. Its shortcut is @accel, or the
++ * application's first accelerator for @accel_action. */
++typedef struct
++{
++    char *title;
++    char *keywords;      /* words, separated by spaces */
++    char *action;
++    char *accel;
++    char *accel_action;
++    NautilusCommandRun run;
++    gpointer run_data;
++} NautilusCommand;
++
++NautilusCommand *nautilus_command_new (const char         *title,
++                                       const char         *keywords,
++                                       const char         *action,
++                                       const char         *accel,
++                                       const char         *accel_action,
++                                       NautilusCommandRun  run,
++                                       gpointer            run_data);
++void             nautilus_command_free (NautilusCommand *command);
++
++/* Every word of @query, ignoring case and accents, starts a word of the title or of the keywords. An empty query
++ * matches everything. @in_title (optional): every word matched in the title alone. */
++gboolean         nautilus_command_matches (const NautilusCommand *command,
++                                           const char            *query,
++                                           gboolean              *in_title);
++
++/* What the palette offers in @window now: Files' own commands, then those of Shenzhen Friends while it is on in
++ * that window. NautilusCommand pointers, freed with the array. */
++GPtrArray       *nautilus_command_palette_commands (GtkWindow *window);
++
++/* Those of @commands that match @query: title matches first, each group in the order given. Borrowed pointers. */
++GPtrArray       *nautilus_command_palette_filter (GPtrArray  *commands,
++                                                  const char *query);
++
++/* Adds win.command-palette to @window (a GtkApplicationWindow) and binds it to Cmd+K (<Primary>k, which
++ * nautilus_application_set_accelerator turns into Command on macOS). */
++void             nautilus_command_palette_install (GtkWindow *window);
++
++/* Opens the palette over @window, or focuses its field when it is already open. */
++void             nautilus_command_palette_present (GtkWindow *window);
++
++/* For the tests: the open palette, its search field and the titles it lists now, in order. */
++AdwDialog       *nautilus_command_palette_get_open (GtkWindow *window);
++GtkWidget       *nautilus_command_palette_get_entry (AdwDialog *palette);
++GStrv            nautilus_command_palette_get_listed (AdwDialog *palette);
++
++G_END_DECLS
 diff --git a/src/nautilus-files-view.c b/src/nautilus-files-view.c
 index 4c2ccf7..e46af0d 100644
 --- a/src/nautilus-files-view.c
@@ -255,10 +981,10 @@ index 4c2ccf7..e46af0d 100644
      {
 diff --git a/src/nautilus-friends-host.c b/src/nautilus-friends-host.c
 new file mode 100644
-index 0000000..b138a65
+index 0000000..363822c
 --- /dev/null
 +++ b/src/nautilus-friends-host.c
-@@ -0,0 +1,230 @@
+@@ -0,0 +1,236 @@
 +/*
 + * nautilus-friends-host.c: what Shenzhen Files tells the Friends views (gtk/szfriends_gtk_host.h).
 + *
@@ -294,6 +1020,8 @@ index 0000000..b138a65
 +    {
 +        nautilus_window_set_friends_button (NAUTILUS_WINDOW (window), button);
 +    }
++    /* Cmd+J and the menu item work while the window has a button. */
++    nautilus_friends_shortcut_set_button (window, button);
 +}
 +
 +static void
@@ -305,6 +1033,10 @@ index 0000000..b138a65
 +        nautilus_window_get_friends_button (NAUTILUS_WINDOW (window)) == button)
 +    {
 +        nautilus_window_set_friends_button (NAUTILUS_WINDOW (window), NULL);
++    }
++    if (nautilus_friends_shortcut_get_button (window) == button)
++    {
++        nautilus_friends_shortcut_set_button (window, NULL);
 +    }
 +}
 +
@@ -1322,7 +2054,7 @@ index 0000000..30c6094
 +}
 diff --git a/src/nautilus-friends-preferences.c b/src/nautilus-friends-preferences.c
 new file mode 100644
-index 0000000..45623fa
+index 0000000..529f0e3
 --- /dev/null
 +++ b/src/nautilus-friends-preferences.c
 @@ -0,0 +1,110 @@
@@ -1398,7 +2130,7 @@ index 0000000..45623fa
 +    GtkWidget *disclosure;
 +
 +    adw_preferences_page_set_title (page, _("Friends"));
-+    adw_preferences_page_set_name (page, "friends");
++    adw_preferences_page_set_name (page, NAUTILUS_FRIENDS_PREFERENCES_PAGE);
 +    /* Two people, as on the Friends button: never a speech bubble, which would read as AI chat. */
 +    adw_preferences_page_set_icon_name (page, "system-users-symbolic");
 +
@@ -1438,10 +2170,10 @@ index 0000000..45623fa
 +}
 diff --git a/src/nautilus-friends-private.h b/src/nautilus-friends-private.h
 new file mode 100644
-index 0000000..9846397
+index 0000000..7465f69
 --- /dev/null
 +++ b/src/nautilus-friends-private.h
-@@ -0,0 +1,211 @@
+@@ -0,0 +1,230 @@
 +/*
 + * nautilus-friends-private.h: the Shenzhen Friends host adapter's parts, shared by its files and by
 + * test/displayless/test-nautilus-friends.c, which drives each part without a display.
@@ -1521,6 +2253,25 @@ index 0000000..9846397
 +                                       GFile    *folder,
 +                                       GFile    *selection);
 +void nautilus_friends_host_set_opener (NautilusFriendsOpener opener);
++
++/* ---- Cmd+J and Cmd+K (nautilus-friends-shortcut.c) ---------------------------------------------------------- */
++
++/* The window action that opens and closes the window's Friends dropdown, bound to Cmd+J (<Primary>j). */
++#define NAUTILUS_FRIENDS_ACTION "friends"
++/* The Preferences page that holds Friends (nautilus-friends-preferences.c). */
++#define NAUTILUS_FRIENDS_PREFERENCES_PAGE "friends"
++
++/* A browser window (a GActionMap, normally a NautilusWindow): adds win.friends, disabled, and binds Cmd+J to it.
++ * Before the window can get a button. */
++void       nautilus_friends_shortcut_add_window (GtkWindow *window);
++/* The views installed (@button) or removed (NULL) @window's Friends button: win.friends is enabled exactly while
++ * there is one, and the button's tooltip names the key ("Friends (⌘J)"). */
++void       nautilus_friends_shortcut_set_button (GtkWindow *window,
++                                                 GtkWidget *button);
++GtkWidget *nautilus_friends_shortcut_get_button (GtkWindow *window);
++/* What Cmd+J does: closes the dropdown when it is open, otherwise opens it with the keyboard in the list's search
++ * field when the list is on top. Nothing without a button. */
++void       nautilus_friends_toggle_dropdown (GtkWindow *window);
 +
 +/* ---- `#` items (nautilus-friends-items.c) ----------------------------------------------------------------- */
 +
@@ -1653,12 +2404,475 @@ index 0000000..9846397
 +void  nautilus_friends_ask_to_turn_on (void);
 +
 +G_END_DECLS
+diff --git a/src/nautilus-friends-shortcut.c b/src/nautilus-friends-shortcut.c
+new file mode 100644
+index 0000000..fe97568
+--- /dev/null
++++ b/src/nautilus-friends-shortcut.c
+@@ -0,0 +1,457 @@
++/*
++ * nautilus-friends-shortcut.c: Cmd+J, the Friends menu item and Friends in Cmd+K.
++ *
++ * Every browser window has the action win.friends, bound to Cmd+J (<Primary>j, made Command on macOS by
++ * nautilus_application_set_accelerator) and shown in the View menu. It is enabled exactly while the window has a
++ * Friends button, which is while Friends is on and attached, so with Friends off the key does nothing and the menu
++ * item is greyed out.
++ *
++ * The key reaches the action once per press. GDK's macOS backend hands every key to GTK first and passes it to
++ * AppKit, where the menu's key equivalent lives, only when GTK left it unhandled (gdkmacoseventsource.c,
++ * gdk_macos_event_source_dispatch). GTK runs the application's accelerators from a capture-phase controller on the
++ * window, before any widget below it, so Cmd+J toggles the dropdown wherever the keyboard is, its own search field
++ * included: GTK delivers a popover's keys to its toplevel (gtkmain.c, rewrite_event_for_toplevel), and a popover's
++ * widgets are the window's descendants. With the action disabled GTK leaves the key alone, and AppKit finds the
++ * menu item disabled too.
++ *
++ * Opening puts the keyboard in the list's search field when the list is on top; another page the dropdown kept
++ * from last time keeps the focus its own page gives.
++ */
++
++#define G_LOG_DOMAIN "nautilus-friends"
++
++#include "nautilus-friends.h"
++#include "nautilus-friends-private.h"
++
++#include <glib/gi18n.h>
++
++#include "gtk/szfriends_gtk_internal.h"
++#include "gtk/szfriends_gtk_list_page.h"
++#include "nautilus-application.h"
++#include "nautilus-command-palette.h"
++#include "nautilus-preferences-dialog.h"
++
++#define SHORTCUT_KEY "nautilus-friends-shortcut"
++
++typedef struct
++{
++    GtkWidget *button;          /* weak: the Friends button's anchor */
++    GtkWidget *menu_button;     /* weak */
++    GtkWidget *popover;         /* weak: the dropdown's popover, once it exists */
++    GtkWindow *window;          /* weak */
++    guint visibility_source;    /* "Make myself visible" waiting for Nearby's first snapshot */
++    guint visibility_tries;
++} WindowFriends;
++
++static void
++window_friends_free (gpointer data)
++{
++    WindowFriends *friends = data;
++
++    g_clear_handle_id (&friends->visibility_source, g_source_remove);
++    if (friends->menu_button != NULL)
++    {
++        g_signal_handlers_disconnect_by_data (friends->menu_button, friends);
++    }
++    if (friends->popover != NULL)
++    {
++        g_signal_handlers_disconnect_by_data (friends->popover, friends);
++    }
++    g_clear_weak_pointer (&friends->button);
++    g_clear_weak_pointer (&friends->menu_button);
++    g_clear_weak_pointer (&friends->popover);
++    g_clear_weak_pointer (&friends->window);
++    g_free (friends);
++}
++
++static WindowFriends *
++window_friends (GtkWindow *window)
++{
++    return window != NULL ? g_object_get_data (G_OBJECT (window), SHORTCUT_KEY) : NULL;
++}
++
++GtkWidget *
++nautilus_friends_shortcut_get_button (GtkWindow *window)
++{
++    WindowFriends *friends = window_friends (window);
++
++    return friends != NULL ? friends->button : NULL;
++}
++
++static SZFriendsGtkDropdown *
++dropdown_of (GtkWindow *window)
++{
++    GtkWidget *button = nautilus_friends_shortcut_get_button (window);
++
++    return button != NULL ? szfriends_gtk_dropdown_for_button (button) : NULL;
++}
++
++/* "⌘J" on macOS, "Ctrl+J" elsewhere: the key the application has for win.friends, as GTK spells it. */
++static char *
++shortcut_label (GtkWindow *window)
++{
++    GtkApplication *application = gtk_window_get_application (window);
++    g_auto (GStrv) accels = NULL;
++    guint key = 0;
++    GdkModifierType mods = 0;
++
++    if (application == NULL)
++    {
++        return NULL;
++    }
++    accels = gtk_application_get_accels_for_action (application, "win." NAUTILUS_FRIENDS_ACTION);
++    if (accels == NULL || accels[0] == NULL || !gtk_accelerator_parse (accels[0], &key, &mods))
++    {
++        return NULL;
++    }
++    return gtk_accelerator_get_label (key, mods);
++}
++
++/* ---- Focus ------------------------------------------------------------------------------------------------------ */
++
++/* The list's search field when the list is on top; any other page keeps the focus it gives itself. */
++static void
++focus_list_search (SZFriendsGtkDropdown *dropdown)
++{
++    SZFriendsGtkPage *top = szfriends_gtk_dropdown_get_top_page (dropdown);
++    const SZFriendsGtkListParts *parts;
++
++    if (top == NULL || !szfriends_gtk_dropdown_is_open (dropdown) ||
++        szfriends_gtk_page_get_kind (top) != SZFRIENDS_GTK_PAGE_LIST)
++    {
++        return;
++    }
++    parts = szfriends_gtk_list_page_parts (top);
++    if (parts != NULL && parts->search != NULL && !gtk_widget_has_focus (parts->search))
++    {
++        gtk_widget_grab_focus (parts->search);
++    }
++}
++
++static void
++on_popover_map (GtkWidget *popover,
++                gpointer   data)
++{
++    WindowFriends *friends = data;
++    SZFriendsGtkDropdown *dropdown = friends->window != NULL ? dropdown_of (friends->window) : NULL;
++
++    if (dropdown != NULL)
++    {
++        focus_list_search (dropdown);
++    }
++}
++
++/* The dropdown's popover exists only from its first opening on. */
++static void
++watch_popover (WindowFriends *friends)
++{
++    GtkWidget *popover;
++
++    if (friends->menu_button == NULL)
++    {
++        return;
++    }
++    popover = GTK_WIDGET (gtk_menu_button_get_popover (GTK_MENU_BUTTON (friends->menu_button)));
++    if (popover == friends->popover)
++    {
++        return;
++    }
++    if (friends->popover != NULL)
++    {
++        g_signal_handlers_disconnect_by_data (friends->popover, friends);
++    }
++    g_set_weak_pointer (&friends->popover, popover);
++    if (popover != NULL)
++    {
++        g_signal_connect (popover, "map", G_CALLBACK (on_popover_map), friends);
++    }
++}
++
++static gboolean
++open_dropdown (GtkWindow *window)
++{
++    SZFriendsGtkDropdown *dropdown = dropdown_of (window);
++
++    if (dropdown == NULL)
++    {
++        return FALSE;
++    }
++    szfriends_gtk_dropdown_open (dropdown);
++    watch_popover (window_friends (window));
++    focus_list_search (dropdown);
++    return szfriends_gtk_dropdown_is_open (dropdown);
++}
++
++/* ---- Toggling ------------------------------------------------------------------------------------------------- */
++
++void
++nautilus_friends_toggle_dropdown (GtkWindow *window)
++{
++    SZFriendsGtkDropdown *dropdown = dropdown_of (window);
++
++    if (dropdown == NULL)
++    {
++        return;
++    }
++    if (szfriends_gtk_dropdown_is_open (dropdown))
++    {
++        szfriends_gtk_dropdown_close (dropdown);
++    }
++    else
++    {
++        open_dropdown (window);
++    }
++}
++
++void
++nautilus_friends_close_dropdown (GtkWindow *window)
++{
++    SZFriendsGtkDropdown *dropdown = dropdown_of (window);
++
++    if (dropdown != NULL)
++    {
++        szfriends_gtk_dropdown_close (dropdown);
++    }
++}
++
++static void
++action_friends (GSimpleAction *action,
++                GVariant      *parameter,
++                gpointer       data)
++{
++    nautilus_friends_toggle_dropdown (GTK_WINDOW (data));
++}
++
++void
++nautilus_friends_shortcut_add_window (GtkWindow *window)
++{
++    g_autoptr (GSimpleAction) action = NULL;
++    GApplication *application;
++
++    g_return_if_fail (G_IS_ACTION_MAP (window));
++
++    if (window_friends (window) != NULL)
++    {
++        return;
++    }
++    {
++        WindowFriends *friends = g_new0 (WindowFriends, 1);
++
++        g_set_weak_pointer (&friends->window, window);
++        g_object_set_data_full (G_OBJECT (window), SHORTCUT_KEY, friends, window_friends_free);
++    }
++    action = g_simple_action_new (NAUTILUS_FRIENDS_ACTION, NULL);
++    /* Enabled while the window has a button (nautilus_friends_shortcut_set_button). */
++    g_simple_action_set_enabled (action, FALSE);
++    g_signal_connect_object (action, "activate", G_CALLBACK (action_friends), window, 0);
++    g_action_map_add_action (G_ACTION_MAP (window), G_ACTION (action));
++
++    application = G_APPLICATION (gtk_window_get_application (window));
++    if (application == NULL)
++    {
++        application = g_application_get_default ();
++    }
++    if (application != NULL)
++    {
++        nautilus_application_set_accelerator (application, "win." NAUTILUS_FRIENDS_ACTION, "<Primary>j");
++    }
++}
++
++/* ---- The button's tooltip ---------------------------------------------------------------------------------------- */
++
++/* The views name the button ("Friends") and rename it as the helper's strings arrive; the key goes after the name. */
++static void
++on_tooltip_changed (GObject    *menu_button,
++                    GParamSpec *pspec,
++                    gpointer    data)
++{
++    WindowFriends *friends = data;
++    const char *name = gtk_widget_get_tooltip_text (GTK_WIDGET (menu_button));
++    g_autofree char *label = friends->window != NULL ? shortcut_label (friends->window) : NULL;
++    g_autofree char *suffix = NULL;
++    g_autofree char *tooltip = NULL;
++
++    if (name == NULL || *name == '\0' || label == NULL)
++    {
++        return;
++    }
++    suffix = g_strdup_printf (" (%s)", label);
++    if (g_str_has_suffix (name, suffix))
++    {
++        return;
++    }
++    tooltip = g_strconcat (name, suffix, NULL);
++    gtk_widget_set_tooltip_text (GTK_WIDGET (menu_button), tooltip);
++}
++
++void
++nautilus_friends_shortcut_set_button (GtkWindow *window,
++                                      GtkWidget *button)
++{
++    WindowFriends *friends = window_friends (window);
++    GAction *action;
++
++    if (friends == NULL)
++    {
++        return;
++    }
++    if (friends->menu_button != NULL)
++    {
++        g_signal_handlers_disconnect_by_data (friends->menu_button, friends);
++    }
++    if (friends->popover != NULL)
++    {
++        g_signal_handlers_disconnect_by_data (friends->popover, friends);
++    }
++    g_clear_weak_pointer (&friends->popover);
++    g_clear_handle_id (&friends->visibility_source, g_source_remove);
++    g_set_weak_pointer (&friends->button, button);
++    g_set_weak_pointer (&friends->menu_button, button != NULL ? szfriends_gtk_button_get_menu_button (button) : NULL);
++    if (friends->menu_button != NULL)
++    {
++        g_signal_connect (friends->menu_button, "notify::tooltip-text", G_CALLBACK (on_tooltip_changed), friends);
++        on_tooltip_changed (G_OBJECT (friends->menu_button), NULL, friends);
++    }
++    action = g_action_map_lookup_action (G_ACTION_MAP (window), NAUTILUS_FRIENDS_ACTION);
++    if (G_IS_SIMPLE_ACTION (action))
++    {
++        g_simple_action_set_enabled (G_SIMPLE_ACTION (action), button != NULL);
++    }
++}
++
++/* ---- The menu bar --------------------------------------------------------------------------------------------- */
++
++void
++nautilus_friends_add_menu_items (GMenu *section)
++{
++    g_autoptr (GMenuItem) item = g_menu_item_new (_("Friends"), "win." NAUTILUS_FRIENDS_ACTION);
++
++    /* Window accelerators are registered with the first window, after the menu bar is built, so the item carries
++     * the key itself, as the menu's other window items do. */
++    g_menu_item_set_attribute (item, "accel", "s", "<Meta>j");
++    g_menu_append_item (section, item);
++}
++
++/* ---- Cmd+K -------------------------------------------------------------------------------------------------------- */
++
++static void
++run_open (GtkWindow *window,
++          gpointer   data)
++{
++    open_dropdown (window);
++}
++
++static void
++run_add_by_id (GtkWindow *window,
++               gpointer   data)
++{
++    if (open_dropdown (window))
++    {
++        /* What the list's Add by ID button does. */
++        szfriends_gtk_dropdown_open_profile (dropdown_of (window));
++    }
++}
++
++/* Presses Nearby's own visibility button once Nearby has its first snapshot, and only while it offers to make the
++ * person visible: when they already are, the same button stops it. */
++static gboolean
++press_visibility (WindowFriends *friends)
++{
++    SZFriendsGtkDropdown *dropdown = friends->window != NULL ? dropdown_of (friends->window) : NULL;
++    SZFriendsGtkPage *top = dropdown != NULL ? szfriends_gtk_dropdown_get_top_page (dropdown) : NULL;
++    const SZFriendsGtkListParts *parts = top != NULL ? szfriends_gtk_list_page_parts (top) : NULL;
++    const SZFriendsGtkNearbySnapshot *nearby;
++    const SZFriendsGtkNearbyParts *pane;
++
++    if (parts == NULL || !parts->showing_nearby || !szfriends_gtk_dropdown_is_open (dropdown))
++    {
++        return TRUE; /* the person moved on */
++    }
++    nearby = szfriends_gtk_nearby_pane_snapshot (parts->nearby);
++    if (nearby == NULL)
++    {
++        return FALSE;
++    }
++    pane = szfriends_gtk_nearby_pane_parts (parts->nearby);
++    if (nearby->visibility.state != SZFRIENDS_GTK_VISIBILITY_VISIBLE && nearby->visibility.action != NULL &&
++        nearby->visibility.action->action == SZFRIENDS_GTK_ACTION_START_VISIBILITY &&
++        pane != NULL && pane->visibility_button != NULL && gtk_widget_get_visible (pane->visibility_button))
++    {
++        gtk_widget_activate (pane->visibility_button);
++    }
++    return TRUE;
++}
++
++static gboolean
++press_visibility_later (gpointer data)
++{
++    WindowFriends *friends = data;
++
++    /* Nearby's first snapshot comes with the helper's next answer; a helper that does not answer gets 5 s. */
++    if (press_visibility (friends) || ++friends->visibility_tries >= 50)
++    {
++        friends->visibility_source = 0;
++        return G_SOURCE_REMOVE;
++    }
++    return G_SOURCE_CONTINUE;
++}
++
++static void
++run_make_visible (GtkWindow *window,
++                  gpointer   data)
++{
++    WindowFriends *friends = window_friends (window);
++    SZFriendsGtkDropdown *dropdown = dropdown_of (window);
++    SZFriendsGtkPage *top;
++
++    if (friends == NULL || dropdown == NULL)
++    {
++        return;
++    }
++    szfriends_gtk_dropdown_pop_to_list (dropdown);
++    if (!open_dropdown (window))
++    {
++        return;
++    }
++    top = szfriends_gtk_dropdown_get_top_page (dropdown);
++    if (top == NULL || szfriends_gtk_list_page_parts (top) == NULL)
++    {
++        return;
++    }
++    szfriends_gtk_list_page_show_nearby (top, TRUE);
++    g_clear_handle_id (&friends->visibility_source, g_source_remove);
++    friends->visibility_tries = 0;
++    if (!press_visibility (friends))
++    {
++        friends->visibility_source = g_timeout_add (100, press_visibility_later, friends);
++    }
++}
++
++static void
++run_preferences (GtkWindow *window,
++                 gpointer   data)
++{
++    nautilus_preferences_dialog_show_page (GTK_WIDGET (window), NAUTILUS_FRIENDS_PREFERENCES_PAGE);
++}
++
++void
++nautilus_friends_add_commands (GtkWindow *window,
++                               GPtrArray *commands)
++{
++    if (nautilus_friends_shortcut_get_button (window) == NULL)
++    {
++        return;
++    }
++    g_ptr_array_add (commands,
++                     nautilus_command_new (_("Open Friends"), "friends friend nearby add by id chat people message send",
++                                           NULL, NULL, "win." NAUTILUS_FRIENDS_ACTION, run_open, NULL));
++    g_ptr_array_add (commands,
++                     nautilus_command_new (_("Add by ID…"), "add id friend friends invite", NULL, NULL, NULL,
++                                           run_add_by_id, NULL));
++    g_ptr_array_add (commands,
++                     nautilus_command_new (_("Make Myself Visible"), "visible nearby discoverable friends", NULL, NULL,
++                                           NULL, run_make_visible, NULL));
++    g_ptr_array_add (commands,
++                     nautilus_command_new (_("Friends Preferences…"), "settings preferences friends", NULL, NULL, NULL,
++                                           run_preferences, NULL));
++}
 diff --git a/src/nautilus-friends.c b/src/nautilus-friends.c
 new file mode 100644
-index 0000000..8200d4d
+index 0000000..cf182ff
 --- /dev/null
 +++ b/src/nautilus-friends.c
-@@ -0,0 +1,495 @@
+@@ -0,0 +1,497 @@
 +/*
 + * nautilus-friends.c: when Shenzhen Friends runs in Shenzhen Files.
 + *
@@ -2141,6 +3355,8 @@ index 0000000..8200d4d
 +    {
 +        return;
 +    }
++    /* Cmd+J, before the window can get its button. */
++    nautilus_friends_shortcut_add_window (window);
 +    nautilus_friends_add_window (app_friends, window);
 +    /* Watched even while Friends is off, so turning it on later attaches at once. */
 +    if (!app_friends->painted)
@@ -2156,10 +3372,10 @@ index 0000000..8200d4d
 +}
 diff --git a/src/nautilus-friends.h b/src/nautilus-friends.h
 new file mode 100644
-index 0000000..3ef4ca2
+index 0000000..574b739
 --- /dev/null
 +++ b/src/nautilus-friends.h
-@@ -0,0 +1,118 @@
+@@ -0,0 +1,146 @@
 +/*
 + * nautilus-friends.h: Shenzhen Friends in Shenzhen Files, as the application sees it.
 + *
@@ -2213,6 +3429,14 @@ index 0000000..3ef4ca2
 +/* The files view's selection menu: Copy Download Link for one selected regular file, while Friends offers links. */
 +void       nautilus_friends_selection_menu (GMenu *menu,
 +                                            GList *selection);
++
++/* The View menu's "Friends" item (Cmd+J, win.friends), greyed out while the window has no Friends button. */
++void       nautilus_friends_add_menu_items (GMenu *section);
++/* Cmd+K's Friends commands, appended to @commands (NautilusCommand) while @window has a Friends button. */
++void       nautilus_friends_add_commands (GtkWindow *window,
++                                          GPtrArray *commands);
++/* Closes @window's Friends dropdown if it is open. */
++void       nautilus_friends_close_dropdown (GtkWindow *window);
 +
 +#else
 +
@@ -2273,6 +3497,26 @@ index 0000000..3ef4ca2
 +{
 +    (void) menu;
 +    (void) selection;
++}
++
++static inline void
++nautilus_friends_add_menu_items (GMenu *section)
++{
++    (void) section;
++}
++
++static inline void
++nautilus_friends_add_commands (GtkWindow *window,
++                               GPtrArray *commands)
++{
++    (void) window;
++    (void) commands;
++}
++
++static inline void
++nautilus_friends_close_dropdown (GtkWindow *window)
++{
++    (void) window;
 +}
 +
 +#endif /* NAUTILUS_FRIENDS */
@@ -2593,7 +3837,7 @@ index 0000000..1343953
 +    }
 +}
 diff --git a/src/nautilus-preferences-dialog.c b/src/nautilus-preferences-dialog.c
-index 05474bc..43e96b0 100644
+index 05474bc..f315fde 100644
 --- a/src/nautilus-preferences-dialog.c
 +++ b/src/nautilus-preferences-dialog.c
 @@ -31,6 +31,7 @@
@@ -2620,6 +3864,35 @@ index 05474bc..43e96b0 100644
 
      date_time_action = g_settings_create_action (nautilus_preferences,
                                                   NAUTILUS_PREFERENCES_DATE_TIME_FORMAT);
+@@ -697,6 +707,15 @@ nautilus_preferences_dialog_show (GtkWidget *parent)
+     adw_dialog_present (ADW_DIALOG (preferences_dialog), parent);
+ }
+
++/* Opens Preferences on the page named @page_name. */
++void
++nautilus_preferences_dialog_show_page (GtkWidget  *parent,
++                                       const char *page_name)
++{
++    nautilus_preferences_dialog_show (parent);
++    adw_preferences_dialog_set_visible_page_name (preferences_dialog, page_name);
++}
++
+ #ifdef __APPLE__
+ void
+ nautilus_preferences_dialog_show_finder_integration (GtkWidget *parent)
+diff --git a/src/nautilus-preferences-dialog.h b/src/nautilus-preferences-dialog.h
+index 1b2b059..0743ffb 100644
+--- a/src/nautilus-preferences-dialog.h
++++ b/src/nautilus-preferences-dialog.h
+@@ -29,6 +29,8 @@
+ G_BEGIN_DECLS
+
+ void nautilus_preferences_dialog_show (GtkWidget *widget);
++void nautilus_preferences_dialog_show_page (GtkWidget  *widget,
++                                           const char *page_name);
+
+ #ifdef __APPLE__
+ /* Open the preferences dialog directly on the darwin-only "Finder
 diff --git a/src/nautilus-toolbar.c b/src/nautilus-toolbar.c
 index c6f32bc..11f9f9e 100644
 --- a/src/nautilus-toolbar.c
@@ -2744,18 +4017,19 @@ index 1c72224..c9f85fb 100644
 +GtkWidget *nautilus_toolbar_get_friends_button (NautilusToolbar *self);
  G_END_DECLS
 diff --git a/src/nautilus-window.c b/src/nautilus-window.c
-index 8d17e03..a01d241 100644
+index 8d17e03..ee1d326 100644
 --- a/src/nautilus-window.c
 +++ b/src/nautilus-window.c
-@@ -54,6 +54,7 @@
+@@ -54,6 +54,8 @@
  #include "nautilus-file-undo-manager.h"
  #include "nautilus-file-undo-operations.h"
  #include "nautilus-file-utilities.h"
++#include "nautilus-command-palette.h"
 +#include "nautilus-friends.h"
  #include "nautilus-global-preferences.h"
  #include "nautilus-metadata.h"
  #include "nautilus-network-address-bar.h"
-@@ -101,6 +102,7 @@ struct _NautilusWindow
+@@ -101,6 +103,7 @@ struct _NautilusWindow
      NautilusWindowSlot *active_slot; /* weak reference */
 
      GtkWidget *split_view;
@@ -2763,7 +4037,17 @@ index 8d17e03..a01d241 100644
 
      /* Side Pane */
      GtkWidget *sidebar_resize_handle;
-@@ -1833,6 +1835,7 @@ nautilus_window_class_init (NautilusWindowClass *class)
+@@ -1236,6 +1239,9 @@ nautilus_window_initialize_actions (NautilusWindow *window)
+         nautilus_application_set_accelerator (app, detailed_action, accel);
+     }
+
++    /* Cmd+K (Ctrl+K elsewhere): win.command-palette. */
++    nautilus_command_palette_install (GTK_WINDOW (window));
++
+     nautilus_window_on_undo_changed (nautilus_file_undo_manager_get (), window);
+
+ #undef ACCELS
+@@ -1833,6 +1839,7 @@ nautilus_window_class_init (NautilusWindowClass *class)
      gtk_widget_class_bind_template_child (wclass, NautilusWindow, undo_redo_section);
      gtk_widget_class_bind_template_child (wclass, NautilusWindow, toolbar);
      gtk_widget_class_bind_template_child (wclass, NautilusWindow, split_view);
@@ -2771,7 +4055,7 @@ index 8d17e03..a01d241 100644
      gtk_widget_class_bind_template_child (wclass, NautilusWindow, sidebar_resize_handle);
      gtk_widget_class_bind_template_child (wclass, NautilusWindow, places_sidebar);
      gtk_widget_class_bind_template_child (wclass, NautilusWindow, toast_overlay);
-@@ -1857,6 +1860,23 @@ nautilus_window_class_init (NautilusWindowClass *class)
+@@ -1857,6 +1864,23 @@ nautilus_window_class_init (NautilusWindowClass *class)
                        G_TYPE_NONE, 0);
  }
 
@@ -2812,6 +4096,37 @@ index 541fb2d..274fb4b 100644
 +GtkWidget *nautilus_window_get_friends_button (NautilusWindow *window);
 +
  G_END_DECLS
+diff --git a/src/resources/ui/meson.build b/src/resources/ui/meson.build
+index bb12822..6c62855 100644
+--- a/src/resources/ui/meson.build
++++ b/src/resources/ui/meson.build
+@@ -4,6 +4,17 @@
+ # record the directory's new time, so blueprints changed before a reconfigure
+ # were never compiled and the resource kept the old UI (macOS port).
+ blueprints = []
++# The shortcuts dialog lists Shenzhen Friends' key only when Friends is built
++# in: without friends_root, the lines between its BEGIN and END comments go.
++shortcuts_dialog_blp = 'shortcuts-dialog.blp'
++if not friends_enabled
++  shortcuts_dialog_blp = custom_target('shortcuts-dialog-without-friends',
++    input: 'shortcuts-dialog.blp',
++    output: 'shortcuts-dialog-without-friends.blp',
++    command: ['sed', '/BEGIN Shenzhen Friends/,/END Shenzhen Friends/d', '@INPUT@'],
++    capture: true,
++  )
++endif
+ foreach name : [
+   'nautilus-app-chooser',
+   'nautilus-app-chooser-widget',
+@@ -40,7 +51,7 @@ foreach name : [
+   'shortcuts-dialog',
+ ]
+   blueprints += custom_target('blueprint-' + name,
+-    input: name + '.blp',
++    input: name == 'shortcuts-dialog' ? shortcuts_dialog_blp : name + '.blp',
+     output: name + '.ui',
+     command: [blueprint_cmd, 'compile', '--minify', '--output', '@OUTPUT@', '@INPUT@'],
+   )
 diff --git a/src/resources/ui/nautilus-toolbar.blp b/src/resources/ui/nautilus-toolbar.blp
 index ab7048a..a070774 100644
 --- a/src/resources/ui/nautilus-toolbar.blp
@@ -2862,12 +4177,42 @@ index 49beff0..40e1ce8 100644
                app-menu-model: app_menu;
                sidebar-button-active: bind split_view.show-sidebar bidirectional;
                window-slot: bind template.active-slot;
+diff --git a/src/resources/ui/shortcuts-dialog.blp b/src/resources/ui/shortcuts-dialog.blp
+index 39cfa39..faaafe1 100644
+--- a/src/resources/ui/shortcuts-dialog.blp
++++ b/src/resources/ui/shortcuts-dialog.blp
+@@ -199,6 +199,13 @@ Adw.ShortcutsDialog shortcuts_dialog {
+       title: C_("shortcuts dialog", "Show/Hide Sidebar");
+       action-name: "win.toggle-sidebar";
+     }
++
++    // BEGIN Shenzhen Friends: left out without -Dfriends_root (ui/meson.build)
++    Adw.ShortcutsItem {
++      title: C_("shortcuts dialog", "Show/Hide Friends");
++      action-name: "win.friends";
++    }
++    // END Shenzhen Friends
+   }
+
+   Adw.ShortcutsSection {
+@@ -355,6 +362,11 @@ Adw.ShortcutsDialog shortcuts_dialog {
+       action-name: "app.preferences";
+     }
+
++    Adw.ShortcutsItem {
++      title: C_("shortcuts dialog", "Search Commands");
++      action-name: "win.command-palette";
++    }
++
+     Adw.ShortcutsItem {
+       title: C_("shortcuts dialog", "Shortcuts");
+       action-name: "app.shortcuts";
 diff --git a/test/friends/meson.build b/test/friends/meson.build
 new file mode 100644
-index 0000000..327c3a7
+index 0000000..b078498
 --- /dev/null
 +++ b/test/friends/meson.build
-@@ -0,0 +1,45 @@
+@@ -0,0 +1,58 @@
 +# The Shenzhen Friends host adapter's tests (src/nautilus-friends*.c and
 +# src/nautilus-macos-friends.m). Run them with tools/test-friends-adapter.sh
 +# from the repository root, which also builds Files without Friends.
@@ -2911,6 +4256,19 @@ index 0000000..327c3a7
 +  'test-nautilus-friends-preferences.c',
 +  'test-nautilus-friends-menu.c',
 +  dependencies: [libnautilus_dep, friends_frameworks],
++  link_with: friends_quiet,
++)
++
++# Cmd+J and Cmd+K pressed on a real, mapped window: NSEvents through AppKit's
++# event queue and GDK, the real Friends button and its dropdown, the command
++# palette, and the native menu bar's Friends item. No window the process
++# makes is ever ordered on screen, and the interposer keeps it out of the
++# Dock, so nothing shows and it never becomes active. Run it with
++# tools/test-macos-friends-shortcut.sh from the repository root.
++executable(
++  'test-nautilus-friends-shortcut',
++  'test-nautilus-friends-shortcut.m',
++  dependencies: [libnautilus_dep, dependency('appleframeworks', modules: ['AppKit', 'ApplicationServices'])],
 +  link_with: friends_quiet,
 +)
 diff --git a/test/friends/test-nautilus-friends-bundle.c b/test/friends/test-nautilus-friends-bundle.c
@@ -4943,6 +6301,945 @@ index 0000000..2993b53
 +
 +/* test-nautilus-friends-menu.c */
 +void       probe_menu (void);
+diff --git a/test/friends/test-nautilus-friends-shortcut.m b/test/friends/test-nautilus-friends-shortcut.m
+new file mode 100644
+index 0000000..03b0966
+--- /dev/null
++++ b/test/friends/test-nautilus-friends-shortcut.m
+@@ -0,0 +1,933 @@
++/*
++ * test-nautilus-friends-shortcut.m: Cmd+J and Cmd+K pressed on a real, mapped window, through AppKit and GDK.
++ *
++ * A window built like nautilus-window.blp (an AdwApplicationWindow with the split view, the sidebar's header bar
++ * and a NautilusToolbar) gets what a Files window gets: win.command-palette (nautilus_command_palette_install, as
++ * nautilus-window.c calls it), win.friends (nautilus_friends_shortcut_add_window, as nautilus_friends_window_added
++ * calls it) and, from the real Friends views' link, a real Friends button placed by nautilus_friends_place_button
++ * and handed to nautilus_friends_shortcut_set_button, as the host's install_button does. The application has a
++ * native menu bar with the View menu's Friends item from nautilus_friends_add_menu_items, Cmd+J as its key
++ * equivalent, so a key the GTK side left alone would reach it.
++ *
++ * Keys are NSEvents posted to the application's event queue ([NSApp postEvent:atStart:]), where a key press from
++ * the keyboard waits too: GDK's macOS event source takes them from there, GTK gets them first, and whatever GTK does
++ * not handle goes on to -[NSApp sendEvent:] and the menu's key equivalents (gdkmacoseventsource.c). Each press is a
++ * keyDown and a keyUp with the Command flag where Cmd is held.
++ *
++ * Nothing reaches the screen: every NSWindow this process creates is transparent and click-through and is never
++ * ordered in (the calls that would order one in do nothing here), and the test checks after every turn of the main
++ * loop that no window became visible. The process links the Friends views' quiet interposer, so it stays out of the
++ * Dock and never becomes the active app. GTK maps and presents its window as usual; it is never active. The link has no helper (a scratch SZFRIENDS_STATE_DIR,
++ * no helper path), so nothing reaches the network or the person's Keychain.
++ *
++ * Usage: test-nautilus-friends-shortcut; run by tools/test-macos-friends-shortcut.sh.
++ */
++
++#import <AppKit/AppKit.h>
++#include <ApplicationServices/ApplicationServices.h>
++#include <gdk/macos/gdkmacos.h>
++#include <glib/gstdio.h>
++#include <objc/runtime.h>
++#include <stdio.h>
++#include <string.h>
++
++#include <nautilus-application.h>
++#include <nautilus-file-utilities.h>
++#include <nautilus-command-palette.h>
++#include <nautilus-friends.h>
++#include <nautilus-friends-private.h>
++#include <nautilus-global-preferences.h>
++#include <nautilus-resources.h>
++#include <nautilus-toolbar.h>
++
++#include "gtk/szfriends_gtk_internal.h"
++#include "gtk/szfriends_gtk_list_page.h"
++
++int szfriends_gtk_quiet_transform_calls (void); /* the interposer */
++
++static int failures;
++
++#define EXPECT(condition, ...) \
++        G_STMT_START { \
++            if (!(condition)) \
++            { \
++                failures++; \
++                fprintf (stderr, "FAIL %s:%d: ", __FILE__, __LINE__); \
++                fprintf (stderr, __VA_ARGS__); \
++                fprintf (stderr, "\n"); \
++            } \
++            else \
++            { \
++                printf ("ok   "); \
++                printf (__VA_ARGS__); \
++                printf ("\n"); \
++            } \
++        } G_STMT_END
++
++/* ---- Windows that never reach the screen ------------------------------------------------------------------------ */
++
++/* Every NSWindow this process creates starts transparent and click-through, and is never ordered in: the calls that
++ * would put one on screen (GDK's makeKeyAndOrderFront: and orderFront:, a popup's addChildWindow:ordered:) do
++ * nothing here. GDK still maps its surfaces, and AppKit still routes events by window number to a window that is
++ * not on screen, so the keys below take the path a typed key takes. keep_hidden() checks after every turn of the
++ * main loop that no window became visible. */
++
++static IMP original_init;
++static IMP original_order_window;
++static guint blocked_orderings;
++static guint visible_windows_seen;
++
++static id
++hidden_init (id                  self,
++             SEL                 command,
++             NSRect              rect,
++             NSUInteger          style,
++             NSBackingStoreType  backing,
++             BOOL                defer)
++{
++    id window = ((id (*) (id, SEL, NSRect, NSUInteger, NSBackingStoreType, BOOL)) original_init) (self, command, rect,
++                                                                                              style, backing, defer);
++
++    [window setAlphaValue:0.0];
++    [window setIgnoresMouseEvents:YES];
++    return window;
++}
++
++static void
++no_ordering (id  self,
++             SEL command,
++             id  sender)
++{
++    blocked_orderings++;
++}
++
++static void
++no_ordering_regardless (id  self,
++                        SEL command)
++{
++    blocked_orderings++;
++}
++
++static void
++no_child_ordering (id               self,
++                   SEL              command,
++                   NSWindow        *child,
++                   NSWindowOrderingMode place)
++{
++    blocked_orderings++;
++}
++
++/* Ordering out is allowed; ordering in is not. */
++static void
++order_out_only (id                   self,
++                SEL                  command,
++                NSWindowOrderingMode place,
++                NSInteger            other)
++{
++    if (place == NSWindowOut)
++    {
++        ((void (*) (id, SEL, NSWindowOrderingMode, NSInteger)) original_order_window) (self, command, place, other);
++        return;
++    }
++    blocked_orderings++;
++}
++
++static void
++keep_windows_off_screen (void)
++{
++    Class window = [NSWindow class];
++
++    original_init = method_setImplementation (class_getInstanceMethod (window,
++                                                                       @selector (initWithContentRect:styleMask:backing:defer:)),
++                                              (IMP) hidden_init);
++    original_order_window = method_setImplementation (class_getInstanceMethod (window,
++                                                                               @selector (orderWindow:relativeTo:)),
++                                                      (IMP) order_out_only);
++    method_setImplementation (class_getInstanceMethod (window, @selector (makeKeyAndOrderFront:)), (IMP) no_ordering);
++    method_setImplementation (class_getInstanceMethod (window, @selector (orderFront:)), (IMP) no_ordering);
++    method_setImplementation (class_getInstanceMethod (window, @selector (orderFrontRegardless)),
++                              (IMP) no_ordering_regardless);
++    method_setImplementation (class_getInstanceMethod (window, @selector (makeKeyWindow)),
++                              (IMP) no_ordering_regardless);
++    method_setImplementation (class_getInstanceMethod (window, @selector (addChildWindow:ordered:)),
++                              (IMP) no_child_ordering);
++}
++
++static void
++keep_hidden (void)
++{
++    for (NSWindow *window in [NSApp windows])
++    {
++        if ([window isVisible] || [window alphaValue] != 0.0)
++        {
++            visible_windows_seen++;
++            [window setAlphaValue:0.0];
++            ((void (*) (id, SEL, NSWindowOrderingMode, NSInteger)) original_order_window) (window,
++                                                                                      @selector (orderWindow:relativeTo:),
++                                                                                      NSWindowOut, 0);
++        }
++    }
++}
++
++/* ---- The main loop and keys ------------------------------------------------------------------------------------- */
++
++static void
++pump_for (int milliseconds)
++{
++    gint64 until = g_get_monotonic_time () + milliseconds * 1000;
++
++    while (g_get_monotonic_time () < until)
++    {
++        g_main_context_iteration (NULL, FALSE);
++        keep_hidden ();
++    }
++}
++
++typedef gboolean (*Condition) (gpointer data);
++
++/* Runs the main loop until @condition holds, at most @milliseconds; then whether it holds. */
++static gboolean
++pump_until (Condition condition,
++            gpointer  data,
++            int       milliseconds)
++{
++    gint64 until = g_get_monotonic_time () + milliseconds * 1000;
++
++    while (!condition (data) && g_get_monotonic_time () < until)
++    {
++        g_main_context_iteration (NULL, FALSE);
++        keep_hidden ();
++    }
++    return condition (data);
++}
++
++static NSWindow *
++native_window (GtkWindow *window)
++{
++    GdkSurface *surface = gtk_native_get_surface (GTK_NATIVE (window));
++
++    return surface != NULL ? (__bridge NSWindow *) gdk_macos_surface_get_native_window (GDK_MACOS_SURFACE (surface))
++                           : nil;
++}
++
++/* Virtual key codes of an ANSI keyboard (HIToolbox Events.h). */
++enum
++{
++    KEY_J = 38, KEY_K = 40, KEY_RETURN = 36, KEY_SPACE = 49, KEY_ESCAPE = 53, KEY_DOWN = 125, KEY_UP = 126,
++};
++
++static const unsigned short letter_codes[26] = {
++    0, 11, 8, 2, 14, 3, 5, 4, 34, 38, 40, 37, 46, 45, 31, 35, 12, 15, 1, 17, 32, 9, 13, 7, 16, 6,
++};
++
++/* One press: keyDown then keyUp, for @window's NSWindow, as the window server delivers them. */
++static void
++press (GtkWindow            *window,
++       unsigned short        key_code,
++       NSString             *characters,
++       NSEventModifierFlags  flags)
++{
++    NSInteger number = [native_window (window) windowNumber];
++    NSEventType types[] = { NSEventTypeKeyDown, NSEventTypeKeyUp };
++
++    for (gsize i = 0; i < G_N_ELEMENTS (types); i++)
++    {
++        NSEvent *event = [NSEvent keyEventWithType:types[i]
++                                          location:NSZeroPoint
++                                     modifierFlags:flags
++                                         timestamp:[[NSProcessInfo processInfo] systemUptime]
++                                      windowNumber:number
++                                           context:nil
++                                        characters:characters
++                       charactersIgnoringModifiers:characters
++                                         isARepeat:NO
++                                           keyCode:key_code];
++
++        [NSApp postEvent:event atStart:NO];
++    }
++    pump_for (60);
++}
++
++static void
++press_command (GtkWindow      *window,
++               unsigned short  key_code,
++               NSString       *characters)
++{
++    press (window, key_code, characters, NSEventModifierFlagCommand);
++}
++
++static unsigned short
++key_code_for (char c)
++{
++    if (c == ' ')
++    {
++        return KEY_SPACE;
++    }
++    g_assert (c >= 'a' && c <= 'z');
++    return letter_codes[c - 'a'];
++}
++
++static void
++type_text (GtkWindow  *window,
++           const char *text)
++{
++    for (const char *p = text; *p != '\0'; p++)
++    {
++        press (window, key_code_for (*p), [NSString stringWithFormat:@"%c", *p], 0);
++    }
++}
++
++/* ---- A window like nautilus-window.blp -------------------------------------------------------------------------- */
++
++typedef struct
++{
++    GtkWidget *window, *split_view, *sidebar_header_bar;
++    NautilusToolbar *toolbar;
++} Frame;
++
++static void
++frame_install (gpointer   host_data,
++               GtkWindow *window,
++               GtkWidget *button)
++{
++    Frame *frame = g_object_get_data (G_OBJECT (window), "frame");
++
++    /* What the host's install_button does for a NautilusWindow. */
++    nautilus_friends_place_button (frame->split_view, frame->sidebar_header_bar, GTK_WIDGET (frame->toolbar), button);
++    nautilus_friends_shortcut_set_button (window, button);
++}
++
++static void
++frame_remove (gpointer   host_data,
++              GtkWindow *window,
++              GtkWidget *button)
++{
++    Frame *frame = g_object_get_data (G_OBJECT (window), "frame");
++
++    if (nautilus_friends_placed_button (frame->split_view) == button)
++    {
++        nautilus_friends_place_button (frame->split_view, frame->sidebar_header_bar, GTK_WIDGET (frame->toolbar),
++                                       NULL);
++    }
++    if (nautilus_friends_shortcut_get_button (window) == button)
++    {
++        nautilus_friends_shortcut_set_button (window, NULL);
++    }
++}
++
++static void
++frame_init (Frame          *frame,
++            GtkApplication *application)
++{
++    GtkWidget *sidebar = adw_toolbar_view_new (), *content = adw_toolbar_view_new ();
++
++    frame->split_view = adw_overlay_split_view_new ();
++    frame->sidebar_header_bar = adw_header_bar_new ();
++    adw_header_bar_set_show_title (ADW_HEADER_BAR (frame->sidebar_header_bar), FALSE);
++    adw_toolbar_view_add_top_bar (ADW_TOOLBAR_VIEW (sidebar), frame->sidebar_header_bar);
++    adw_toolbar_view_set_content (ADW_TOOLBAR_VIEW (sidebar), gtk_box_new (GTK_ORIENTATION_VERTICAL, 0));
++    frame->toolbar = g_object_new (NAUTILUS_TYPE_TOOLBAR, "show-view-controls", TRUE, "show-history-controls", TRUE,
++                                   "show-friends-button", TRUE, NULL);
++    adw_toolbar_view_add_top_bar (ADW_TOOLBAR_VIEW (content), GTK_WIDGET (frame->toolbar));
++    adw_toolbar_view_set_content (ADW_TOOLBAR_VIEW (content), gtk_box_new (GTK_ORIENTATION_VERTICAL, 0));
++    adw_overlay_split_view_set_sidebar (ADW_OVERLAY_SPLIT_VIEW (frame->split_view), sidebar);
++    adw_overlay_split_view_set_content (ADW_OVERLAY_SPLIT_VIEW (frame->split_view), content);
++
++    frame->window = adw_application_window_new (application);
++    adw_application_window_set_content (ADW_APPLICATION_WINDOW (frame->window), frame->split_view);
++    gtk_window_set_default_size (GTK_WINDOW (frame->window), 900, 640);
++    g_object_set_data (G_OBJECT (frame->window), "frame", frame);
++
++    /* What a Files window gets: nautilus-window.c, then nautilus_friends_window_added. */
++    nautilus_command_palette_install (GTK_WINDOW (frame->window));
++    nautilus_friends_shortcut_add_window (GTK_WINDOW (frame->window));
++}
++
++/* ---- What the checks look at ------------------------------------------------------------------------------------ */
++
++static guint friends_activations;
++
++static void
++count_activation (GSimpleAction *action,
++                  GVariant      *parameter,
++                  gpointer       data)
++{
++    friends_activations++;
++}
++
++/* The window's Friends button where the placement code put it, whatever the shortcut knows. */
++static GtkWidget *
++placed_button (GtkWindow *window)
++{
++    Frame *frame = g_object_get_data (G_OBJECT (window), "frame");
++
++    return frame != NULL ? nautilus_friends_placed_button (frame->split_view) : NULL;
++}
++
++static SZFriendsGtkDropdown *
++dropdown_of (GtkWindow *window)
++{
++    GtkWidget *button = placed_button (window);
++
++    return button != NULL ? szfriends_gtk_dropdown_for_button (button) : NULL;
++}
++
++static gboolean
++dropdown_open (gpointer window)
++{
++    return szfriends_gtk_dropdown_is_open (dropdown_of (window));
++}
++
++static gboolean
++dropdown_closed (gpointer window)
++{
++    return !dropdown_open (window);
++}
++
++static GtkWidget *
++list_search (GtkWindow *window)
++{
++    SZFriendsGtkDropdown *dropdown = dropdown_of (window);
++    SZFriendsGtkPage *top = dropdown != NULL ? szfriends_gtk_dropdown_get_top_page (dropdown) : NULL;
++    const SZFriendsGtkListParts *parts = top != NULL ? szfriends_gtk_list_page_parts (top) : NULL;
++
++    return parts != NULL ? parts->search : NULL;
++}
++
++/* The keyboard is in @widget: the window's focus is it or inside it (a search entry's text). */
++static gboolean
++focus_in (GtkWindow *window,
++          GtkWidget *widget)
++{
++    GtkWidget *focus = gtk_root_get_focus (GTK_ROOT (window));
++
++    return widget != NULL && focus != NULL && (focus == widget || gtk_widget_is_ancestor (focus, widget));
++}
++
++static gboolean
++focus_in_list_search (gpointer window)
++{
++    return focus_in (window, list_search (window));
++}
++
++static gboolean
++palette_open (gpointer window)
++{
++    return nautilus_command_palette_get_open (window) != NULL;
++}
++
++static gboolean
++palette_closed (gpointer window)
++{
++    return !palette_open (window);
++}
++
++static gboolean
++listed (AdwDialog  *palette,
++        const char *title)
++{
++    g_auto (GStrv) titles = nautilus_command_palette_get_listed (palette);
++
++    return titles != NULL && g_strv_contains ((const char * const *) titles, title);
++}
++
++static char *
++describe_focus (GtkWindow *window)
++{
++    GtkWidget *focus = gtk_root_get_focus (GTK_ROOT (window));
++
++    return g_strdup (focus != NULL ? G_OBJECT_TYPE_NAME (focus) : "nothing");
++}
++
++/* Opens the palette with Cmd+K and types @query into it as key presses. */
++static AdwDialog *
++palette_typed (GtkWindow  *window,
++               const char *query)
++{
++    AdwDialog *palette;
++    GtkWidget *entry;
++
++    press_command (window, KEY_K, @"k");
++    if (!pump_until (palette_open, window, 2000))
++    {
++        return NULL;
++    }
++    palette = nautilus_command_palette_get_open (window);
++    entry = nautilus_command_palette_get_entry (palette);
++    type_text (window, query);
++    pump_for (100);
++    EXPECT (g_strcmp0 (gtk_editable_get_text (GTK_EDITABLE (entry)), query) == 0,
++            "Cmd+K, then typing \"%s\": the palette's field reads it (it reads \"%s\")", query,
++            gtk_editable_get_text (GTK_EDITABLE (entry)));
++    return palette;
++}
++
++static void
++close_palette (GtkWindow *window)
++{
++    press (window, KEY_ESCAPE, @"\x1b", 0);
++    EXPECT (pump_until (palette_closed, window, 2000), "Escape closes the palette");
++}
++
++/* ---- The menu bar ----------------------------------------------------------------------------------------------- */
++
++static GMenuModel *
++menubar_new (void)
++{
++    GMenu *menubar = g_menu_new ();
++    g_autoptr (GMenu) view = g_menu_new ();
++    g_autoptr (GMenu) section = g_menu_new ();
++    g_autoptr (GMenu) help = g_menu_new ();
++    g_autoptr (GMenuItem) palette = g_menu_item_new ("Search Commands…", "win.command-palette");
++
++    /* As nautilus-application.c builds the View menu's last section and the Help menu. */
++    g_menu_append (section, "Show Sidebar", "win.toggle-sidebar");
++    nautilus_friends_add_menu_items (section);
++    g_menu_append_section (view, NULL, G_MENU_MODEL (section));
++    g_menu_append_submenu (menubar, "View", G_MENU_MODEL (view));
++    g_menu_item_set_attribute (palette, "accel", "s", "<Meta>k");
++    g_menu_append_item (help, palette);
++    g_menu_append_submenu (menubar, "Help", G_MENU_MODEL (help));
++    return G_MENU_MODEL (menubar);
++}
++
++static NSMenuItem *
++native_item_with_key (NSMenu   *menu,
++                      NSString *key)
++{
++    for (NSMenuItem *item in [menu itemArray])
++    {
++        if ([[item keyEquivalent] isEqualToString:key] &&
++            ([item keyEquivalentModifierMask] & NSEventModifierFlagDeviceIndependentFlagsMask) ==
++            NSEventModifierFlagCommand)
++        {
++            return item;
++        }
++        if ([item hasSubmenu])
++        {
++            NSMenuItem *found = native_item_with_key ([item submenu], key);
++
++            if (found != nil)
++            {
++                return found;
++            }
++        }
++    }
++    return nil;
++}
++
++/* ---- The shortcuts dialog --------------------------------------------------------------------------------------- */
++
++static GtkWidget *
++find_label (GtkWidget  *widget,
++            const char *text)
++{
++    if (GTK_IS_LABEL (widget) && g_strcmp0 (gtk_label_get_text (GTK_LABEL (widget)), text) == 0)
++    {
++        return widget;
++    }
++    for (GtkWidget *child = gtk_widget_get_first_child (widget); child != NULL;
++         child = gtk_widget_get_next_sibling (child))
++    {
++        GtkWidget *found = find_label (child, text);
++
++        if (found != NULL)
++        {
++            return found;
++        }
++    }
++    return NULL;
++}
++
++/* Visible up to the dialog: what a row the dialog shows looks like before it is presented. */
++static gboolean
++shown_in (GtkWidget *widget,
++          GtkWidget *top)
++{
++    for (; widget != NULL && widget != top; widget = gtk_widget_get_parent (widget))
++    {
++        if (!gtk_widget_get_visible (widget))
++        {
++            return FALSE;
++        }
++    }
++    return widget == top;
++}
++
++/* Presented over @window as app.shortcuts presents it; the dialog builds its rows from the items then. */
++static gboolean
++shortcuts_dialog_shows (GtkWindow  *window,
++                        const char *title)
++{
++    g_autoptr (GtkBuilder) builder = gtk_builder_new_from_resource ("/org/gnome/nautilus/shortcuts-dialog.ui");
++    AdwDialog *dialog = ADW_DIALOG (gtk_builder_get_object (builder, "shortcuts_dialog"));
++    GtkWidget *label;
++    gboolean shown;
++
++    adw_dialog_present (dialog, GTK_WIDGET (window));
++    pump_for (300);
++    label = find_label (GTK_WIDGET (dialog), title);
++    shown = label != NULL && shown_in (label, GTK_WIDGET (dialog));
++    adw_dialog_force_close (dialog);
++    pump_for (300);
++    return shown;
++}
++
++/* ---- The checks ------------------------------------------------------------------------------------------------- */
++
++static void
++check_shortcut (GtkApplication   *application,
++                GtkWindow        *window,
++                SZFriendsGtkLink *link)
++{
++    GAction *action = g_action_map_lookup_action (G_ACTION_MAP (window), NAUTILUS_FRIENDS_ACTION);
++    GtkWidget *button = placed_button (window);
++    GtkWidget *menu_button = button != NULL ? szfriends_gtk_button_get_menu_button (button) : NULL;
++    NSMenuItem *menu_item = native_item_with_key ([NSApp mainMenu], @"j");
++    g_autofree char *focus = NULL;
++    const char *tooltip;
++
++    EXPECT (button != NULL && gtk_widget_get_mapped (button), "the window shows its Friends button");
++    if (button == NULL)
++    {
++        return;
++    }
++    EXPECT (action != NULL && g_action_get_enabled (action), "win.friends exists and is enabled with a button");
++    EXPECT (menu_item != nil && [[menu_item title] isEqualToString:@"Friends"],
++            "the menu bar has Friends with Cmd+J as its key equivalent (%s)",
++            menu_item != nil ? [[menu_item title] UTF8String] : "none");
++    /* The views name the button from the helper's strings, and again on every badge change; without a helper this
++     * test does what they do then (szfriends_gtk_button.c, apply_labels). */
++    for (int change = 0; change < 2 && menu_button != NULL; change++)
++    {
++        gtk_widget_set_tooltip_text (menu_button, "Friends");
++        tooltip = gtk_widget_get_tooltip_text (menu_button);
++        EXPECT (g_strcmp0 (tooltip, "Friends (⌘J)") == 0,
++                "the views name the button%s: its tooltip is \"Friends (⌘J)\" (\"%s\")",
++                change == 0 ? "" : " again", tooltip != NULL ? tooltip : "");
++    }
++    if (action != NULL)
++    {
++        g_signal_connect_after (action, "activate", G_CALLBACK (count_activation), NULL);
++    }
++
++    /* Cmd+J: open, the keyboard in the list's search field. */
++    friends_activations = 0;
++    press_command (window, KEY_J, @"j");
++    EXPECT (pump_until (dropdown_open, window, 2000), "Cmd+J opens the Friends dropdown");
++    pump_for (200);
++    EXPECT (dropdown_open (window) && friends_activations == 1,
++            "one press, one toggle: still open, win.friends ran %u time(s)", friends_activations);
++    EXPECT (pump_until (focus_in_list_search, window, 1000), "the keyboard is in the dropdown's search field (%s)",
++            (focus = describe_focus (window)));
++    EXPECT (list_search (window) != NULL && gtk_widget_get_mapped (list_search (window)),
++            "the search field is mapped in the popover");
++    printf ("note the window is %sactive (a background process's window never is)\n",
++            gtk_window_is_active (window) ? "" : "not ");
++
++    /* Cmd+J with the keyboard in that field: closed. */
++    press_command (window, KEY_J, @"j");
++    EXPECT (pump_until (dropdown_closed, window, 2000), "Cmd+J in the dropdown's search field closes it");
++    pump_for (200);
++    EXPECT (!dropdown_open (window) && friends_activations == 2,
++            "still closed, win.friends ran %u time(s) in all", friends_activations);
++
++    /* Opened again: the list is on top, so the search field has the keyboard again. */
++    press_command (window, KEY_J, @"j");
++    EXPECT (pump_until (dropdown_open, window, 2000) && pump_until (focus_in_list_search, window, 1000),
++            "Cmd+J again: open, keyboard in the search field");
++
++    if (!dropdown_open (window))
++    {
++        return; /* nothing more to see without Cmd+J */
++    }
++    /* On another page (Add by ID's profile page) it reopens there, with that page's own focus. */
++    szfriends_gtk_dropdown_open_profile (dropdown_of (window));
++    pump_for (200);
++    press_command (window, KEY_J, @"j");
++    EXPECT (pump_until (dropdown_closed, window, 2000), "Cmd+J closes it on the profile page");
++    press_command (window, KEY_J, @"j");
++    EXPECT (pump_until (dropdown_open, window, 2000), "Cmd+J reopens it");
++    {
++        SZFriendsGtkPage *top = szfriends_gtk_dropdown_get_top_page (dropdown_of (window));
++
++        EXPECT (top != NULL && szfriends_gtk_page_get_kind (top) == SZFRIENDS_GTK_PAGE_PROFILE,
++                "it reopens on the profile page it kept");
++        EXPECT (!focus_in_list_search (window), "the hidden list's search field does not take the keyboard");
++    }
++    szfriends_gtk_dropdown_pop_to_list (dropdown_of (window));
++    press_command (window, KEY_J, @"j");
++    EXPECT (pump_until (dropdown_closed, window, 2000), "closed before the palette");
++
++    /* The menu item's key equivalent is live: with GTK's binding taken away, Cmd+J goes on to AppKit, and the menu
++     * toggles. With both in place, as above, each press ran win.friends once: GTK took the key and AppKit never
++     * saw it. */
++    {
++        const char *const none[] = { NULL };
++
++        gtk_application_set_accels_for_action (application, "win." NAUTILUS_FRIENDS_ACTION, none);
++        friends_activations = 0;
++        press_command (window, KEY_J, @"j");
++        EXPECT (pump_until (dropdown_open, window, 2000) && friends_activations == 1,
++                "without GTK's binding, the menu's Cmd+J opens it (win.friends ran %u time(s))", friends_activations);
++        press_command (window, KEY_J, @"j");
++        EXPECT (pump_until (dropdown_closed, window, 2000) && friends_activations == 2,
++                "and closes it (%u)", friends_activations);
++        nautilus_application_set_accelerator (G_APPLICATION (application), "win." NAUTILUS_FRIENDS_ACTION,
++                                              "<Primary>j");
++    }
++}
++
++static void
++check_palette (GtkWindow        *window,
++               SZFriendsGtkLink *link)
++{
++    static const char *const finds_friends[] = { "friend", "nearby", "add by id", "chat" };
++    AdwDialog *palette;
++    g_autofree char *focus = NULL;
++
++    /* Cmd+K, "friends", Return: Friends opens. */
++    palette = palette_typed (window, "friends");
++    EXPECT (palette != NULL, "Cmd+K opened the palette");
++    if (palette == NULL)
++    {
++        return;
++    }
++    EXPECT (focus_in (window, nautilus_command_palette_get_entry (palette)), "the keyboard is in the palette's field");
++    {
++        g_auto (GStrv) titles = nautilus_command_palette_get_listed (palette);
++        g_autofree char *all = g_strjoinv (", ", titles);
++
++        EXPECT (titles[0] != NULL && g_str_equal (titles[0], "Open Friends"),
++                "\"friends\" lists Open Friends first (%s)", all);
++    }
++    press (window, KEY_RETURN, @"\r", 0);
++    EXPECT (pump_until (palette_closed, window, 2000), "Return closes the palette");
++    EXPECT (pump_until (dropdown_open, window, 2000), "and runs Open Friends: the dropdown is open");
++    EXPECT (pump_until (focus_in_list_search, window, 1000), "with the keyboard in its search field (%s)",
++            (focus = describe_focus (window)));
++    press_command (window, KEY_J, @"j");
++    EXPECT (pump_until (dropdown_closed, window, 2000), "Cmd+J closes it");
++
++    for (gsize i = 0; i < G_N_ELEMENTS (finds_friends); i++)
++    {
++        palette = palette_typed (window, finds_friends[i]);
++        EXPECT (palette != NULL && listed (palette, "Open Friends"), "\"%s\" lists Open Friends", finds_friends[i]);
++        if (palette != NULL)
++        {
++            close_palette (window);
++        }
++    }
++
++    /* Arrow keys move, Return runs the selected command: "add" lists Add by ID… among others. */
++    palette = palette_typed (window, "add by id");
++    if (palette != NULL)
++    {
++        g_auto (GStrv) titles = nautilus_command_palette_get_listed (palette);
++        guint add_by_id = 0;
++
++        while (titles[add_by_id] != NULL && !g_str_equal (titles[add_by_id], "Add by ID…"))
++        {
++            add_by_id++;
++        }
++        EXPECT (titles[add_by_id] != NULL, "\"add by id\" lists Add by ID…");
++        for (guint i = 0; i < add_by_id; i++)
++        {
++            press (window, KEY_DOWN, [NSString stringWithFormat:@"%C", (unichar) NSDownArrowFunctionKey], 0);
++        }
++        press (window, KEY_RETURN, @"\r", 0);
++        EXPECT (pump_until (dropdown_open, window, 2000), "Down to Add by ID…, then Return: the dropdown opens");
++        pump_for (200);
++        {
++            SZFriendsGtkPage *top = dropdown_open (window) ? szfriends_gtk_dropdown_get_top_page (dropdown_of (window))
++                                                           : NULL;
++
++            EXPECT (top != NULL && szfriends_gtk_page_get_kind (top) == SZFRIENDS_GTK_PAGE_PROFILE,
++                    "on the profile page, which has Add by ID");
++        }
++        szfriends_gtk_dropdown_pop_to_list (dropdown_of (window));
++        press_command (window, KEY_J, @"j");
++        pump_until (dropdown_closed, window, 2000);
++    }
++
++    /* "visible": Make Myself Visible opens the dropdown on Nearby. */
++    palette = palette_typed (window, "visible");
++    if (palette != NULL)
++    {
++        g_auto (GStrv) titles = nautilus_command_palette_get_listed (palette);
++
++        EXPECT (titles[0] != NULL && g_str_equal (titles[0], "Make Myself Visible"),
++                "\"visible\" lists Make Myself Visible first");
++        press (window, KEY_RETURN, @"\r", 0);
++        EXPECT (pump_until (dropdown_open, window, 2000), "Return opens the dropdown");
++        pump_for (200);
++        {
++            SZFriendsGtkPage *top = dropdown_open (window) ? szfriends_gtk_dropdown_get_top_page (dropdown_of (window))
++                                                           : NULL;
++            const SZFriendsGtkListParts *parts = top != NULL ? szfriends_gtk_list_page_parts (top) : NULL;
++
++            EXPECT (parts != NULL && parts->showing_nearby, "on the list's Nearby tab");
++            if (top != NULL)
++            {
++                szfriends_gtk_list_page_show_nearby (top, FALSE);
++            }
++        }
++        press_command (window, KEY_J, @"j");
++        pump_until (dropdown_closed, window, 2000);
++    }
++
++    /* Friends off: no Friends commands, and Cmd+J does nothing. */
++    szfriends_gtk_link_stop (link, TRUE);
++    pump_for (200);
++    EXPECT (placed_button (window) == NULL && nautilus_friends_shortcut_get_button (window) == NULL,
++            "Friends off: the window has no button");
++    {
++        GAction *action = g_action_map_lookup_action (G_ACTION_MAP (window), NAUTILUS_FRIENDS_ACTION);
++
++        EXPECT (action != NULL && !g_action_get_enabled (action), "win.friends is there, disabled");
++    }
++    friends_activations = 0;
++    press_command (window, KEY_J, @"j");
++    pump_for (200);
++    EXPECT (friends_activations == 0, "Cmd+J runs nothing (%u)", friends_activations);
++    palette = palette_typed (window, "friends");
++    if (palette != NULL)
++    {
++        EXPECT (!listed (palette, "Open Friends") && !listed (palette, "Add by ID…") &&
++                !listed (palette, "Make Myself Visible") && !listed (palette, "Friends Preferences…"),
++                "\"friends\" lists no Friends command");
++        close_palette (window);
++    }
++    palette = palette_typed (window, "");
++    if (palette != NULL)
++    {
++        g_auto (GStrv) titles = nautilus_command_palette_get_listed (palette);
++        g_autofree char *all = g_strjoinv (", ", titles);
++
++        EXPECT (listed (palette, "New Folder") && listed (palette, "Show Hidden Files") && !listed (palette, "Open Friends"),
++                "an empty field lists Files' commands only (%s)", all);
++        close_palette (window);
++    }
++
++    /* Friends on again: back. */
++    szfriends_gtk_link_start (link);
++    szfriends_gtk_link_add_window (link, window);
++    pump_for (200);
++    palette = palette_typed (window, "friends");
++    if (palette != NULL)
++    {
++        EXPECT (listed (palette, "Open Friends") && listed (palette, "Friends Preferences…"),
++                "Friends on again: \"friends\" lists Open Friends and Friends Preferences…");
++        close_palette (window);
++    }
++}
++
++static void
++check_matching (void)
++{
++    NautilusCommand *command = nautilus_command_new ("Open Friends", "friends friend nearby add by id chat people",
++                                                     NULL, NULL, NULL, NULL, NULL);
++    gboolean in_title = FALSE;
++
++    EXPECT (nautilus_command_matches (command, "FRIENDS", &in_title) && in_title, "matching ignores case");
++    EXPECT (nautilus_command_matches (command, "op fr", NULL), "every word may be the start of a word");
++    EXPECT (!nautilus_command_matches (command, "riends", NULL), "a word must match from its start");
++    EXPECT (!nautilus_command_matches (command, "friends zebra", NULL), "every word must match");
++    EXPECT (nautilus_command_matches (command, "Fríends", NULL), "accents are ignored");
++    EXPECT (nautilus_command_matches (command, "add by id", &in_title) && !in_title, "keywords match");
++    nautilus_command_free (command);
++}
++
++/* Built without Friends, the dialog has no Friends row at all: tools/test-friends-adapter.sh checks that build. */
++static void
++check_shortcuts_dialog (GtkWindow *window)
++{
++    EXPECT (shortcuts_dialog_shows (window, "Show/Hide Friends"), "the shortcuts dialog lists Show/Hide Friends");
++    EXPECT (shortcuts_dialog_shows (window, "Search Commands"), "the shortcuts dialog lists Search Commands");
++}
++
++int
++main (int   argc,
++      char *argv[])
++{
++    g_autoptr (GError) error = NULL;
++    g_autofree char *state = NULL;
++    static NautilusFriendsBundle bundle = { .app_version = "26.9.14" };
++    g_autoptr (AdwApplication) application = NULL;
++    g_autoptr (GMenuModel) menubar = NULL;
++    SZFriendsGtkHost host;
++    SZFriendsGtkLink *link;
++    Frame frame;
++    int before;
++
++    @autoreleasepool
++    {
++        /* Before GDK opens the display: prove the interposer will keep this process out of the Dock. */
++        before = szfriends_gtk_quiet_transform_calls ();
++        TransformProcessType (NULL, 0);
++        if (szfriends_gtk_quiet_transform_calls () != before + 1)
++        {
++            fprintf (stderr, "test-nautilus-friends-shortcut: the interposer is not active; not opening a display\n");
++            return 2;
++        }
++        state = g_dir_make_tmp ("szf-state-XXXXXX", &error);
++        g_assert_no_error (error);
++        g_setenv ("SZFRIENDS_STATE_DIR", state, TRUE);
++
++        keep_windows_off_screen ();
++        if (!gtk_init_check ())
++        {
++            fprintf (stderr, "test-nautilus-friends-shortcut: no display; the test needs a logged-in session\n");
++            return 1;
++        }
++        adw_init ();
++        EXPECT (szfriends_gtk_quiet_transform_calls () >= before + 2,
++                "GDK's own TransformProcessType was intercepted: no Dock icon");
++        nautilus_register_resource ();
++        nautilus_ensure_extension_points ();
++        nautilus_global_preferences_init ();
++
++        application = adw_application_new ("com.intuition.shenzhenfiles.ShortcutTest", G_APPLICATION_NON_UNIQUE);
++        g_application_set_resource_base_path (G_APPLICATION (application), "/org/gnome/nautilus");
++        EXPECT (g_application_register (G_APPLICATION (application), NULL, &error), "the application registers");
++        g_application_set_default (G_APPLICATION (application));
++        menubar = menubar_new ();
++        gtk_application_set_menubar (GTK_APPLICATION (application), menubar);
++
++        check_matching ();
++
++        frame_init (&frame, GTK_APPLICATION (application));
++        nautilus_friends_host_init (&host, &bundle, NULL);
++        host.install_button = frame_install;
++        host.remove_button = frame_remove;
++        link = szfriends_gtk_link_new (&host);
++        EXPECT (link != NULL, "the views take Files' host description");
++        szfriends_gtk_link_start (link);
++        szfriends_gtk_link_add_window (link, GTK_WINDOW (frame.window));
++
++        gtk_window_present (GTK_WINDOW (frame.window));
++        pump_for (500);
++        EXPECT (gtk_widget_get_mapped (frame.window) && native_window (GTK_WINDOW (frame.window)) != nil,
++                "the window is mapped and has its NSWindow");
++        EXPECT (![native_window (GTK_WINDOW (frame.window)) isVisible] && blocked_orderings > 0,
++                "but it is not on screen: %u call(s) to put a window there did nothing", blocked_orderings);
++
++        check_shortcuts_dialog (GTK_WINDOW (frame.window));
++        check_shortcut (GTK_APPLICATION (application), GTK_WINDOW (frame.window), link);
++        check_palette (GTK_WINDOW (frame.window), link);
++
++        EXPECT (visible_windows_seen == 0, "no window of this process was ever visible (%u seen)",
++                visible_windows_seen);
++        szfriends_gtk_link_free (link);
++        gtk_window_destroy (GTK_WINDOW (frame.window));
++        pump_for (100);
++        g_rmdir (state);
++    }
++    if (failures > 0)
++    {
++        fprintf (stderr, "test-nautilus-friends-shortcut: %d failure(s)\n", failures);
++        return 1;
++    }
++    printf ("test-nautilus-friends-shortcut passed\n");
++    return 0;
++}
 diff --git a/test/friends/test-nautilus-friends-toolbar.c b/test/friends/test-nautilus-friends-toolbar.c
 new file mode 100644
 index 0000000..ef96729

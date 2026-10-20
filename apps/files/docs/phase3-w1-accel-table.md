@@ -52,6 +52,8 @@ on-disk / window-count / defaults evidence.
 | win.tab-move-left/right | `<shift><control>Page_Up/Down` | unchanged (Ctrl) | app accel, exempt by design | — |
 | win.current-location-menu | `F10` | unchanged | app accel | — |
 | tab switch | `<alt>1..9` | Option-1..9 (unchanged) | app accel | — |
+| win.friends (Friends dropdown, 2026-10-20) | n/a (new, `<Primary>j`) | Cmd-J | app accel (remap) + View menu equiv | yes — `tools/test-macos-friends-shortcut.sh`, real NSEvents |
+| win.command-palette (Search Commands, 2026-10-20) | n/a (new, `<Primary>k`) | Cmd-K | app accel (remap) + Help menu equiv | yes — same test |
 
 ## Collision / OS-reserved decisions
 
@@ -77,3 +79,9 @@ on-disk / window-count / defaults evidence.
   location entry / search entry keep GtkText's own undo.
 - **Cmd-Up/Down**: Cmd-Up = parent folder, Cmd-Down = open selection (Finder
   parity), both bubble-phase so text-entry cursor motion is unaffected.
+- **Cmd-J / Cmd-K** (2026-10-20): nothing in Files bound J or K before (no
+  accelerator, shortcut controller, menu item or `GDK_KEY_j`/`k` handler in
+  `nautilus/src`). Both are application accelerators, so GTK runs them from
+  the window's capture phase and AppKit's menu key equivalent never also
+  fires: GDK passes a key to `[NSApp sendEvent:]` only when GTK left it
+  unhandled. GtkText binds neither, so text fields lose nothing.
