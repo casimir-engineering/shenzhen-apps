@@ -218,7 +218,7 @@
     top: calc(var(--safe-top) + 60px);
     left: 0;
     right: 0;
-    bottom: 0;
+    bottom: var(--keyboard-inset, 0px);
     width: auto;
     height: auto;
     border-radius: 14px 14px 0 0;
@@ -227,6 +227,10 @@
     border-bottom: 0;
     padding-bottom: var(--safe-bottom);
     font-size: 14px;
+  }
+  /* The keyboard covers the home indicator: the composer sits right on the keyboard. */
+  :root[data-keyboard] .szf-panel {
+    padding-bottom: 0;
   }
   .szf-panel input,
   .szf-panel textarea,
@@ -239,6 +243,42 @@
   }
   .szf-row {
     min-height: 56px;
+  }
+}
+/* A keyboard up on a wider screen (a phone turned sideways, a tablet): the dropdown takes the whole height that is
+   left above the keyboard, so what is being typed and the last messages stay in sight. */
+@media (min-width: 601px) {
+  :root[data-keyboard] .szf-panel {
+    position: fixed;
+    top: calc(var(--safe-top) + 6px);
+    bottom: calc(var(--keyboard-inset, 0px) + 6px);
+    right: calc(var(--safe-right) + 8px);
+    width: min(
+      560px,
+      calc(100vw - 16px - var(--safe-left) - var(--safe-right))
+    );
+    height: auto;
+  }
+}
+/* On a phone turned sideways that height is only a few lines: the history keeps them, and the conversation's
+   search, the composer's notes and the header's second line make way while the keyboard is up. */
+@media (max-height: 360px) {
+  :root[data-keyboard] .szf-conversation-search:not(:focus-within),
+  :root[data-keyboard] .szf-composer .szf-composer-note,
+  :root[data-keyboard] .szf-composer .szf-hint,
+  :root[data-keyboard] .szf-panel .szf-header-subtitle {
+    display: none;
+  }
+  :root[data-keyboard] .szf-panel .szf-page-header {
+    min-height: 36px;
+    padding: 2px 6px;
+  }
+  :root[data-keyboard] .szf-panel .szf-composer {
+    padding: 6px 10px;
+  }
+  :root[data-keyboard] .szf-panel {
+    top: calc(var(--safe-top) + 2px);
+    bottom: calc(var(--keyboard-inset, 0px) + 2px);
   }
 }
 /* Touch: no hover to reveal anything, and no hover colour left behind after a tap. */

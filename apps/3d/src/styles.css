@@ -1296,6 +1296,14 @@ kbd {
   max-height: calc(100dvh - 48px - var(--safe-top) - var(--safe-bottom));
   overflow: auto;
 }
+/* A keyboard up (src/core/keyboard.ts): the dialog is centred in what is left above it, where iOS and browsers
+   would otherwise leave its lower half under the keyboard. */
+:root[data-keyboard] .dialog {
+  bottom: var(--keyboard-inset, 0px);
+  max-height: calc(
+    100dvh - 24px - var(--safe-top) - var(--keyboard-inset, 0px)
+  );
+}
 .updates-dialog {
   width: min(520px, calc(100vw - 32px));
 }
@@ -1556,6 +1564,10 @@ kbd {
     width: calc(292px + var(--safe-right));
     z-index: 12;
     border-left: 1px solid var(--line-strong);
+  }
+  :root[data-keyboard] .assembly-panel,
+  :root[data-keyboard] .inspector {
+    bottom: max(calc(28px + var(--safe-bottom)), var(--keyboard-inset, 0px));
   }
   .mobile-close {
     display: flex;

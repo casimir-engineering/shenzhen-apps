@@ -52,6 +52,17 @@ export function ConversationPage({
     }
     if (atBottom.current) element.scrollTop = element.scrollHeight;
   }, [data]);
+  // The last messages stay in sight when the history gets shorter: the keyboard coming up, the composer growing.
+  const hasHistory = Boolean(data && !data.request);
+  useEffect(() => {
+    const element = scroller.current;
+    if (!element || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(() => {
+      if (atBottom.current) element.scrollTop = element.scrollHeight;
+    });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [hasHistory]);
 
   if (!data)
     return (

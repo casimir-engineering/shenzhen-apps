@@ -11,6 +11,7 @@ import type { UpdateState } from "./core/updates";
 import type { Vector3 } from "three";
 import { createId } from "./core/id";
 import "./core/safe-area";
+import "./core/keyboard";
 import { CommandPalette, type Command } from "./components/CommandPalette";
 import {
   friendsRequests,

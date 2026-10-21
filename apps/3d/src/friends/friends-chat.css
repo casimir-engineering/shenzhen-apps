@@ -275,7 +275,8 @@
 .szf-editor {
   flex: 1;
   min-height: 30px;
-  max-height: 140px;
+  /* Never more than a third of what can be seen, so a long message leaves the history in sight above the keyboard. */
+  max-height: min(140px, 33dvh);
   overflow-y: auto;
   padding: 6px 10px;
   border-radius: 8px;
