@@ -182,14 +182,13 @@ impl Attempt {
 
     // --- The sid ------------------------------------------------------------------------------------------------
 
-    /// A sid ends after 120 s or 64 messages. Streams already open keep going; an answerer with no stream has nothing
-    /// left once its sid is gone.
+    /// A sid ends after 120 s or 64 messages, or when either end's host connection ends. Streams already open keep
+    /// going. An attempt with no stream has nothing left once its sid is gone: without one it could never ask for the
+    /// relay, and would only keep the next offer either side makes from being answered. An offerer that was answered
+    /// ends without a wait; the side whose connection ended asks again once it is back.
     pub fn channel_ended(&mut self, ctx: &mut Ctx<'_>) {
         self.channel = None;
-        if self.connected {
-            return;
-        }
-        if self.role == Role::Answerer || !self.answered {
+        if !self.connected {
             self.finish(ctx);
         }
     }

@@ -77,11 +77,13 @@ SZFriendsOnlineFriend *SZFODFriendFor(SZFriendsIdentity *identity, NSData *prese
 
 void SZFODTestGating(void);
 void SZFODTestBackoffLookups(void);
+void SZFODTestBackoffLookupsUnderTheRoot(void);
 void SZFODTestHelpers(void);
 void SZFODTestSidePath(void);
 void SZFODTestDirect(void);
 void SZFODTestSimultaneous(void);
 void SZFODTestBackWhileWeWait(void);
+void SZFODTestSidLostUnderAnAnsweredOffer(void);
 void SZFODTestRelayAndLeave(void);
 void SZFODTestProbing(void);
 void SZFODTestNetworkChange(void);

@@ -143,6 +143,26 @@ impl Pair {
         side.driver.reach_friend(&key, &mut side.host);
     }
 
+    /// The host ended `sid` for `side`: its own connection ended, or the far end's did (sig_closed `gone`).
+    pub fn end_sid(&mut self, side: usize, sid: &str) {
+        let side = &mut self.sides[side];
+        side.driver.sid_ended(sid, &mut side.host);
+    }
+
+    /// `side` checked in on a new host connection.
+    pub fn host_back(&mut self, side: usize) {
+        self.sides[side].driver.host_available();
+    }
+
+    /// While `blocked` holds true, neither side sends or applies a direct candidate (only the relay could connect).
+    pub fn block_direct(&mut self, blocked: &Arc<std::sync::atomic::AtomicBool>) {
+        for side in &mut self.sides {
+            let blocked = blocked.clone();
+            side.driver.context.direct_blocked =
+                Some(Arc::new(move || blocked.load(std::sync::atomic::Ordering::SeqCst)));
+        }
+    }
+
     /// Runs both drivers until `done` or the deadline.
     pub fn run_until(&mut self, limit: Duration, mut done: impl FnMut(&mut Pair) -> bool) -> bool {
         let deadline = Instant::now() + limit;

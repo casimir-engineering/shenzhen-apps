@@ -167,6 +167,15 @@ mod helpers_online {
     const BLOCK_DIRECT: &str = "online-block-direct";
 
     impl Pair {
+        /// The relayed attempts that ended so far on each side (Rust, then Objective-C): their technique log entries.
+        pub fn relayed_attempts_ended(&self) -> [usize; 2] {
+            self._homes.each_ref().map(|home| {
+                let log = std::fs::read(home.path().join("state").join("online-techniques.json")).unwrap_or_default();
+                let entries: Vec<serde_json::Value> = serde_json::from_slice(&log).unwrap_or_default();
+                entries.iter().filter(|e| e["relay_needed"] == true || e["relay_needed"] == 1).count()
+            })
+        }
+
         /// Direct connections work again on both sides, as on a network that stops blocking them.
         pub fn unblock_direct(&self) {
             for home in &self._homes {
@@ -314,6 +323,25 @@ fn relay_then_direct(objc_holds: bool) {
     let helpers_online::Pair { rust, objc, .. } = &mut pair;
     let joiner = if objc_holds { rust } else { objc };
     assert!(szfriends_interop::online_devices::join_page_route(joiner, "Online, direct"), "never moved off the relay");
+}
+
+/// Only the relay works, and stays the only way: the sync session between the two computers stays up through a quiet
+/// minute (a stranger's session would end there), so a relayed sync is not dropped and set up again every minute.
+#[test]
+fn a_relayed_sync_between_rust_and_the_mac_outlasts_a_quiet_minute() {
+    #[cfg(target_os = "macos")]
+    {
+        let _one = HELPERS.lock().unwrap_or_else(|e| e.into_inner());
+        let Some(w) = world(true) else { return };
+        let Some(mut pair) = helpers_online::pair_with(&w.host, "Rosa", "Otto", true) else { return };
+        let helpers_online::Pair { rust, objc, .. } = &mut pair;
+        szfriends_interop::online_devices::join_and_sync(objc, "Otto", rust);
+        let relay = szfriends_interop::online_devices::join_page_route(rust, "Online, through the Friends relay");
+        assert!(relay, "the join page never said the relay");
+        let before = pair.relayed_attempts_ended();
+        std::thread::sleep(std::time::Duration::from_secs(80));
+        assert_eq!(pair.relayed_attempts_ended(), before, "a relayed sync ended during a quiet minute");
+    }
 }
 
 #[test]

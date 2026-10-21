@@ -101,10 +101,18 @@ impl State {
         }
     }
 
+    /// A friend's session, or one with another of our devices (as the Mac helper's `-linkIsWithFriend:`): neither has
+    /// a stranger's limits. A sync session is often quiet for minutes, and closing it would drop a relayed one before
+    /// it could move to a direct connection.
     fn session_is_with_friend(&self, id: u64) -> bool {
         let Some(session) = self.sessions.map.get(&id) else { return false };
         if session.channel.pattern() == Pattern::NN {
             return false;
+        }
+        if session.channel.pattern() == Pattern::IK
+            && session.channel.remote_identity().is_some_and(|k| self.is_own_device(k))
+        {
+            return true;
         }
         let person =
             session.conversation.as_deref().and_then(|c| self.store.person_with_conversation(c).ok().flatten());

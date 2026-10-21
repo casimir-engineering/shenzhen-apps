@@ -130,6 +130,40 @@ void SZFODTestBackWhileWeWait(void) {
     [world stop];
 }
 
+// A host connection that ends while an attempt has no stream yet (a device checking in again after a rename, a host
+// restarting) ends the attempt's sid. An answered offer used to carry on without one: it could never ask for the
+// relay, and it turned away the next offer the other side made, so the session formed only after its direct phase
+// failed and a backoff passed, over a minute later. Now it ends, and the other side's new offer is answered at once.
+void SZFODTestSidLostUnderAnAnsweredOffer(void) {
+    __block BOOL blocked = YES;
+    SZFriendsOnlineDriverTestHooks.directPathsBlocked = ^BOOL { return blocked; };
+    SZFODWorld *world = [[SZFODWorld alloc] initWithTransportFactory:nil];
+    [world befriend];
+    // The side whose key sorts first offers: its leftover offer is the one that would turn the other's away.
+    BOOL aFirst = SZFriendsOnlineKeySortsFirst(world.identityA.publicKey, world.identityB.publicKey);
+    SZFriendsOnlineDriver *first = aFirst ? world.a : world.b, *other = aFirst ? world.b : world.a;
+    NSData *firstKey = aFirst ? world.identityA.publicKey : world.identityB.publicKey;
+    NSData *otherKey = aFirst ? world.identityB.publicKey : world.identityA.publicKey;
+    SZFODDelegate *firstDelegate = aFirst ? world.delegateA : world.delegateB;
+    SZFODDelegate *otherDelegate = aFirst ? world.delegateB : world.delegateA;
+    [first reachFriend:otherKey];
+    EXPECT(SZFODWaitUntil(3, ^BOOL { return first.attempts.firstObject.answered; }), "the offer is answered");
+    // The other side's host connection ends: its end of the sid ends, and the host tells the offerer it is gone.
+    NSArray<SZFODChannel *> *sid = world.sids.firstObject;
+    [sid[1] close];
+    if (sid[1].onEnd) sid[1].onEnd();
+    // Back on a new connection, on a network where direct connections work, the other side asks at once.
+    blocked = NO;
+    SZFODSpin(0.1);
+    [other reachFriend:firstKey];
+    EXPECT(SZFODWaitUntil(5, ^BOOL {
+               return firstDelegate.streams.count > 0 && otherDelegate.streams.count > 0;
+           }),
+           "the new offer is answered and a stream opens within moments: %@ / %@", first.attempts, other.attempts);
+    [world stop];
+    SZFriendsOnlineDriverTestHooks.directPathsBlocked = nil;
+}
+
 #pragma mark - The relay, with a local coturn
 
 static uint16_t FreeUDPPort(void) {

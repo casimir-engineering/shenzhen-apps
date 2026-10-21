@@ -137,7 +137,12 @@ NSArray<id<SZFriendsDiscoveryAdapter>> *SZFriendsHelperMakeAdapters(dispatch_que
 
 void SZFriendsHelperSetOnlineTestHooks(NSDictionary<NSString *, NSString *> *env) {
     NSString *state = env[@SZFRIENDS_ENV_STATE_DIR];
-    if (state.length == 0 || SZFriendsOnlineDriverTestHooks.directPathsBlocked != nil) return;
+    if (state.length == 0) return;
+    // A test home goes online only with a list of loopback hosts (SZFriendsHostCheckIn.m), so its peer connections
+    // stay on this Mac too, as the Rust helper's test homes do: without it, nothing direct could pair with a peer
+    // offering 127.0.0.1, and only the relay would ever connect.
+    if (env[@"SZFRIENDS_TEST_HOST_LIST"].length > 0) SZFriendsOnlineDriverTestHooks.loopbackOnly = YES;
+    if (SZFriendsOnlineDriverTestHooks.directPathsBlocked != nil) return;
     NSString *block = [state stringByAppendingPathComponent:@"online-block-direct"];
     SZFriendsOnlineDriverTestHooks.directPathsBlocked = ^BOOL {
         return [[NSFileManager defaultManager] fileExistsAtPath:block];

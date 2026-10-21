@@ -9,6 +9,7 @@ impl World {
         match outcome {
             HostOutcome::Available(available) => {
                 if available {
+                    self.driver.host_available();
                     self.resolve_stun();
                     self.links.register_all(&mut self.host);
                 }

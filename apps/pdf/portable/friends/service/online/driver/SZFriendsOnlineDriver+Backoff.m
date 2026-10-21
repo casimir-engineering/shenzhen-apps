@@ -30,7 +30,9 @@
     BOOL recent = last && now - last.doubleValue < SZFriendsHostRecordPeriod;
     if ([self.lookingUp containsObject:identityKey] || recent) return;
     SZFriendsOnlineFriend *friend = [self.delegate onlineDriver:self friendWithIdentityKey:identityKey];
-    NSData *rdvKey = SZFriendsHostRendezvousKey(identityKey);
+    // A person's devices all file their records under the person's root key (HOST-PROTOCOL-ONLINE.md § Several
+    // devices): another computer of ours or of a friend is looked up there, never under its own device key.
+    NSData *rdvKey = SZFriendsHostRendezvousKey(friend.rootKey.length == 32 ? friend.rootKey : identityKey);
     if (friend.presenceSecret.length != 32 || rdvKey == nil) return;
     void (^lookup)(NSArray<NSData *> *, void (^)(NSArray<NSData *> *, NSError *)) = self.testLookup;
     if (lookup == nil && self.online != nil) {
