@@ -65,8 +65,12 @@ void SZFriendsSpawnHelperInBackground(id<SZFriendsHost> host) {
     // helper then sends mentions as links rather than as plain "@Name".
     // `list.menu`: a list row's `menu` opens on right-click or Control-click; `nearby.found`: rows say how a nearby
     // person was found (SZFriendsRowView.h); `files.again`: a file's Get again sends fetch_from_friend.
+    // `notifications.focus`: the dropdown tells the helper which conversation it shows while focused, so that one is
+    // not notified; `notifications.ask`: the list shows the helper's Turn On card with Not Now (PROTOCOL.md §
+    // Notifications). Every AppKit host is a Mac, where the system asks once.
     NSMutableArray *capabilities = [NSMutableArray arrayWithObjects:@"attach.items", @"drop.files", @"mentions",
-                                                                    @"list.menu", @"nearby.found", @"files.again", nil];
+                                                                    @"list.menu", @"nearby.found", @"files.again",
+                                                                    @"notifications.focus", @"notifications.ask", nil];
     if (host.friendsExtraPasteboardTypes.count) [capabilities addObject:@"drop.tabs"];
     if ([host respondsToSelector:@selector(friendsAssistant)] && host.friendsAssistant)
         [capabilities addObject:@"assistant.drafts"];
@@ -152,6 +156,8 @@ static NSDictionary *SZFHelperBundleInfo(NSString *helperPath) {
         config.toolkit = "appkit";
         config.reveal_in = host.friendsRevealInName.UTF8String;
         config.locale = locale.UTF8String;
+        NSString *scheme = [host respondsToSelector:@selector(friendsURLScheme)] ? host.friendsURLScheme : nil;
+        config.url_scheme = scheme.length ? scheme.UTF8String : NULL;
         config.capabilities = capabilityStrings;
         config.capability_count = capabilityCount;
         config.open_formats = formatStrings;

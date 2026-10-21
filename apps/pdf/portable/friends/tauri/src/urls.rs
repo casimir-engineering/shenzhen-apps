@@ -1,6 +1,6 @@
 //! Values the bridge acts on itself: the web and mail links a friend's message may open, the system settings a
-//! Nearby notice may open, and the app's Friends link URLs (PROTOCOL.md § Links), checked as the Electron bridge
-//! checks them (`electron/friends/validate.cjs`).
+//! Nearby notice or Settings' Notifications may open, and the app's Friends URLs (PROTOCOL.md § Links,
+//! § Notifications), checked as the Electron bridge checks them (`electron/friends/validate.cjs`).
 
 use tauri::Url;
 
@@ -19,10 +19,15 @@ pub fn external_url(value: &str) -> Option<String> {
     }
 }
 
-/// The system settings a Nearby notice can open, per system. None where the system has no such page.
+/// The system settings a Nearby notice or Settings' Notifications can open, per system. None where the system has
+/// no such page.
 pub fn settings_url(target: &str) -> Option<&'static str> {
     if cfg!(target_os = "macos") {
         return match target {
+            // The Friends helper posts the notifications, so its own page in Notifications settings.
+            "notifications" => Some(
+                "x-apple.systempreferences:com.apple.Notifications-Settings.extension?id=com.intuition.shenzhenfriends",
+            ),
             "local_network_privacy" => {
                 Some("x-apple.systempreferences:com.apple.preference.security?Privacy_LocalNetwork")
             }
@@ -36,6 +41,7 @@ pub fn settings_url(target: &str) -> Option<&'static str> {
         return match target {
             "bluetooth" => Some("ms-settings:bluetooth"),
             "wifi" => Some("ms-settings:network-wifi"),
+            "notifications" => Some("ms-settings:notifications"),
             _ => None,
         };
     }
@@ -138,6 +144,45 @@ fn friend_link_is_plain(bytes: &[u8]) -> bool {
     std::str::from_utf8(&bytes[offset..]).is_ok_and(|name| !name.chars().any(|c| c.is_control()))
 }
 
+/// Where a Friends URL opened in the app goes: a friend or download link's card (its payload), or the panel open on a
+/// notification's conversation, or on the list when it names none.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum FriendsUrl {
+    Link(String),
+    Open(Option<String>),
+}
+
+/// `<scheme>://friends/conversation/<conversation_id>`, `<scheme>://friends` or `<scheme>://friends/link#<payload>`;
+/// None for anything else, a conversation id outside `[A-Za-z0-9_-]{1,64}` included.
+pub fn friends_url(url_text: &str, scheme: &str) -> Option<FriendsUrl> {
+    if url_text.len() > 512 {
+        return None;
+    }
+    let url = Url::parse(url_text).ok()?;
+    let plain = url.scheme() == scheme
+        && url.host_str() == Some("friends")
+        && url.username().is_empty()
+        && url.password().is_none()
+        && url.port().is_none()
+        && url.query().is_none();
+    if !plain {
+        return None;
+    }
+    if url.path() == "/link" {
+        return link_payload(url_text, scheme).map(FriendsUrl::Link);
+    }
+    if url.fragment().is_some() {
+        return None;
+    }
+    match url.path() {
+        "" | "/" => Some(FriendsUrl::Open(None)),
+        path => {
+            let id = path.strip_prefix("/conversation/")?;
+            szfriends_contract::ids::opaque_id_is_valid(id).then(|| FriendsUrl::Open(Some(id.to_owned())))
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -164,6 +209,44 @@ mod tests {
             assert_eq!(external_url(url), None, "{url}");
         }
         assert_eq!(settings_url("../../evil"), None);
+        if cfg!(any(target_os = "macos", windows)) {
+            assert!(settings_url("notifications").is_some());
+        }
+    }
+
+    #[test]
+    fn friends_urls_open_a_conversation_the_list_or_a_link() {
+        let open = |id: &str| Some(FriendsUrl::Open(Some(id.to_owned())));
+        assert_eq!(friends_url("shenzhen3d://friends/conversation/c_mei-2", "shenzhen3d"), open("c_mei-2"));
+        let longest = "A".repeat(64);
+        assert_eq!(friends_url(&format!("shenzhen3d://friends/conversation/{longest}"), "shenzhen3d"), open(&longest));
+        for url in ["shenzhen3d://friends", "shenzhen3d://friends/"] {
+            assert_eq!(friends_url(url, "shenzhen3d"), Some(FriendsUrl::Open(None)), "{url}");
+        }
+        let download = encode(&[[1u8].as_slice(), &[7u8; 48]].concat());
+        assert_eq!(
+            friends_url(&format!("shenzhen3d://friends/link#d.{download}"), "shenzhen3d"),
+            Some(FriendsUrl::Link(format!("d.{download}")))
+        );
+        for url in [
+            "shenzhen3d://friends/conversation/".to_owned(),
+            "shenzhen3d://friends/conversation".to_owned(),
+            format!("shenzhen3d://friends/conversation/{}", "A".repeat(65)),
+            "shenzhen3d://friends/conversation/c.mei".to_owned(),
+            "shenzhen3d://friends/conversation/c%5Fmei".to_owned(),
+            "shenzhen3d://friends/conversation/c_mei/more".to_owned(),
+            "shenzhen3d://friends/conversation/c_mei?x=1".to_owned(),
+            "shenzhen3d://friends/conversation/c_mei#x".to_owned(),
+            "shenzhen3d://user@friends/conversation/c_mei".to_owned(),
+            "shenzhen3d://friends:1/conversation/c_mei".to_owned(),
+            "shenzhen3d://other/conversation/c_mei".to_owned(),
+            "shenzhenpdf://friends/conversation/c_mei".to_owned(),
+            "shenzhen3d://friends/link#d.nope".to_owned(),
+            "https://friends/conversation/c_mei".to_owned(),
+            String::new(),
+        ] {
+            assert_eq!(friends_url(&url, "shenzhen3d"), None, "{url}");
+        }
     }
 
     #[test]

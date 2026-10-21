@@ -318,6 +318,10 @@ typedef void (^SZFriendsScopeReadCompletion)(NSDictionary<NSString *, id> *_Null
 // the link with -[SZFriendsDropdownController copyDownloadLinkForItem:expiresDays:completion:].
 @property(nonatomic, readonly, copy) NSString *friendsCopyLinkInsteadLabel;
 - (void)friendsOfferDownloadLinkForItem:(SZFriendsAttachableItem *)item fromView:(NSView *)view;
+// This app's URL scheme ("shenzhenpdf"), sent in hello as client.url_scheme: a notification's click opens
+// <scheme>://friends/conversation/<id> in this app (PROTOCOL.md § Notifications). Absent or empty: not sent, and the
+// helper opens its default app instead.
+@property(nonatomic, readonly, copy) NSString *friendsURLScheme;
 @end
 
 NS_ASSUME_NONNULL_END

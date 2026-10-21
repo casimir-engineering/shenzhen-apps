@@ -203,6 +203,7 @@ typedef struct szfriends_client_config {
     const char *toolkit;     /* "appkit" or "gtk4" */
     const char *reveal_in;   /* name of the file manager, "Finder": "Show in Finder" */
     const char *locale;      /* BCP 47, "en-GB"; NULL: "en" */
+    const char *url_scheme;  /* "shenzhenpdf": where a notification's click opens this app; NULL: not sent */
     const char *const *capabilities; /* client capability strings (PROTOCOL.md § Capabilities) */
     size_t capability_count;
     const char *const *open_formats; /* lowercase extensions this app opens in place */
@@ -384,7 +385,16 @@ szfriends_intent *szfriends_intent_set_picture_image_path(const char *path, cons
 szfriends_intent *szfriends_intent_set_auto_accept(const char *conversation_id, bool enabled);
 /* The folder received files are saved to on this computer, an absolute path (helper capability received.folder). */
 szfriends_intent *szfriends_intent_set_received_folder(const char *path);
-szfriends_intent *szfriends_intent_dismiss_banner(const char *kind); /* "id_changed" */
+szfriends_intent *szfriends_intent_dismiss_banner(const char *kind); /* "id_changed" or "notifications" */
+/* System notifications (PROTOCOL.md § Notifications), when the helper announces "notifications". set_focus names the
+ * conversation this client's focused window shows, NULL for none ("conversation_id":null). set_notifications sends
+ * only the switches whose value is 0 or 1; -1 leaves that field out (NULL when all three are -1).
+ * test_notification_response works in test homes only; action "open" or "reply", text NULL leaves it out. */
+szfriends_intent *szfriends_intent_set_focus(const char *conversation_id_or_null);
+szfriends_intent *szfriends_intent_set_notifications(int enabled, int preview, int background);
+szfriends_intent *szfriends_intent_allow_notifications(void);
+szfriends_intent *szfriends_intent_test_notification_response(const char *key, const char *action,
+                                                              const char *text_or_null);
 szfriends_intent *szfriends_intent_start_visibility(void);
 szfriends_intent *szfriends_intent_stop_visibility(void);
 /* conversation_id NULL: every conversation (Cmd+K). limit 0: omitted (the helper's default, 20). */

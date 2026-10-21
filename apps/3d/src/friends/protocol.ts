@@ -56,6 +56,8 @@ export type Action = {
   link_id?: string;
   device_id?: string;
   join_id?: string;
+  /** dismiss_banner: the banner it dismisses (id_changed when absent). */
+  kind?: string;
   /** reset_friends only: what the view shows once the reset succeeded (open_join). Never sent. */
   then?: string | null;
 };
@@ -128,7 +130,13 @@ export type JoinRequest = {
 };
 export type ListData = {
   query: string;
-  banner: { kind: string; text: string; action: Action | null } | null;
+  banner: {
+    kind: "id_changed" | "notifications" | string;
+    text: string;
+    action: Action | null;
+    /** notifications: Not Now (dismiss_banner with its kind). */
+    dismiss?: Action | null;
+  } | null;
   name_prompt: {
     title: string;
     placeholder: string;
@@ -417,6 +425,20 @@ export type SettingsData = {
   };
   /** While offered: using the person's existing profile here. */
   join?: { label: string; note: string; action: Action };
+  /** With the helper capability notifications: this device's notification switches (PROTOCOL.md § Notifications). */
+  notifications?: NotificationSettings | null;
+};
+export type NotificationSwitch = { label: string; value: boolean };
+export type NotificationSettings = {
+  label: string;
+  enabled: NotificationSwitch;
+  preview: NotificationSwitch & { note: string };
+  /** The permission's state, or the iPhone note; "" when there is nothing to say. */
+  note: string;
+  /** allow_notifications, or open_settings with settings_target notifications. */
+  action: Action | null;
+  /** Android hosts with background.reachable: Stay reachable in the background. */
+  background?: (NotificationSwitch & { note: string }) | null;
 };
 export type JoinData = {
   state: string;

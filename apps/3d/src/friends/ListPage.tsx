@@ -238,11 +238,27 @@ function FriendsRows({
       {list.banner && (
         <div className={`szf-banner ${list.banner.kind}`}>
           <p>{list.banner.text}</p>
-          {list.banner.action && (
-            <ActionButton
-              action={list.banner.action}
-              context={{ kind: list.banner.kind }}
-            />
+          {list.banner.dismiss ? (
+            // The notifications card: Turn On, and Not Now, which dismisses it for good.
+            <div className="szf-actions">
+              {list.banner.action && (
+                <ActionButton
+                  action={list.banner.action}
+                  context={{ kind: list.banner.kind }}
+                />
+              )}
+              <ActionButton
+                action={list.banner.dismiss}
+                context={{ kind: list.banner.kind }}
+              />
+            </div>
+          ) : (
+            list.banner.action && (
+              <ActionButton
+                action={list.banner.action}
+                context={{ kind: list.banner.kind }}
+              />
+            )
           )}
         </div>
       )}

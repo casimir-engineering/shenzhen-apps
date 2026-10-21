@@ -14,6 +14,7 @@ NS_ASSUME_NONNULL_BEGIN
     SZFriendsFlippedView *_tabTrack;
     SZFriendsNoticeView *_sendNotice;
     SZFriendsNoticeView *_banner;
+    NSDictionary *_bannerDismiss; // the banner's `dismiss` action (notifications: Not Now)
     SZFriendsNoticeView *_namePrompt;
     SZFriendsFlippedView *_rowsView;
     NSScrollView *_nearbyScroll;

@@ -50,6 +50,8 @@ typedef NS_ENUM(NSInteger, SZFriendsDropdownView) {
 - (void)close;
 // Opens the dropdown on a conversation with the message highlighted (Cmd+K results, assistant citations).
 - (void)showConversation:(NSString *)conversationID highlightMessage:(nullable NSString *)messageID;
+// Opens the dropdown on the list, whatever page it was left on (a notification about a computer joining).
+- (void)showList;
 // Opens the list in "Send N files to…" mode; the next friend clicked receives one offer per item. Escape cancels.
 - (void)beginSendPickerWithItems:(NSArray<SZFriendsAttachableItem *> *)items;
 

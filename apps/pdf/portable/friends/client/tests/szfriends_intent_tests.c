@@ -84,6 +84,16 @@ szfriends_intent *szft_intent_from_fixture(const cJSON *line) {
         return removal;
     }
     if (strcmp(type, "ping") == 0) return szfriends_intent_ping();
+    if (strcmp(type, "set_focus") == 0) return szfriends_intent_set_focus(str(line, "conversation_id"));
+    if (strcmp(type, "set_notifications") == 0) {
+#define SWITCH(key) (cJSON_IsBool(cJSON_GetObjectItemCaseSensitive(line, key)) ? \
+                     (int)cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(line, key)) : -1)
+        return szfriends_intent_set_notifications(SWITCH("enabled"), SWITCH("preview"), SWITCH("background"));
+#undef SWITCH
+    }
+    if (strcmp(type, "allow_notifications") == 0) return szfriends_intent_allow_notifications();
+    if (strcmp(type, "test_notification_response") == 0)
+        return szfriends_intent_test_notification_response(str(line, "key"), str(line, "action"), str(line, "text"));
     if (strcmp(type, "activate") == 0) return szfriends_intent_activate();
     if (strcmp(type, "start_visibility") == 0) return szfriends_intent_start_visibility();
     if (strcmp(type, "stop_visibility") == 0) return szfriends_intent_stop_visibility();
