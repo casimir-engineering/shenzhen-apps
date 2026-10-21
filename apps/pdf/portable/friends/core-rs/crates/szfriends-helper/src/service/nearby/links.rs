@@ -74,10 +74,12 @@ pub struct LinkMeta {
     /// Our chain went to the friend on this session.
     pub chain_sent: bool,
     pub pending_chain: Option<szfriends_core::identity::chain::DeviceChain>,
+    /// The name the racer knows the dialed peer by when it is not a conversation: "dev-" and one of our devices' keys.
+    pub race_name: Option<String>,
 }
 
 impl LinkMeta {
-    fn race_route(&self, channel: &SecureChannel) -> RouteMethod {
+    pub(crate) fn race_route(&self, channel: &SecureChannel) -> RouteMethod {
         if channel.is_established() {
             channel.initiator_route()
         } else {
@@ -156,6 +158,7 @@ impl State {
             dial_key: Some(plan.dial_key.clone()),
             request_token: plan.request_token,
             attempt_key: plan.attempt_key.clone(),
+            race_name: if plan.purpose == Purpose::OwnDevice { plan.conversation.clone() } else { None },
             created_at: unix_now(),
             // The session that creates a friendship runs the code exchange: our XX request, or our IK callback.
             creates_friendship: plan.purpose == Purpose::Request
@@ -194,9 +197,10 @@ impl State {
         let session = self.sessions.map.get(&id).expect("looked up");
         let (initiator, pattern) = (session.channel.is_initiator(), session.channel.pattern());
         let meta = session.meta.clone();
-        if initiator && meta.purpose == Purpose::Friend {
-            if let (Some((method, endpoint)), Some(conversation)) = (&meta.endpoint, &session.conversation) {
-                self.nearby.racer.note_succeeded(endpoint, *method, conversation);
+        if initiator && matches!(meta.purpose, Purpose::Friend | Purpose::OwnDevice) {
+            let name = session.conversation.as_ref().or(meta.race_name.as_ref());
+            if let (Some((method, endpoint)), Some(name)) = (&meta.endpoint, name) {
+                self.nearby.racer.note_succeeded(endpoint, *method, name);
             }
         }
         if pattern == Pattern::NN {
@@ -338,6 +342,22 @@ impl State {
             Rival::OtherDevice => return, // both stay: this one stands by (ADR 0016)
             Rival::Same(current) => current,
         };
+        match self.race(id, current) {
+            Some(true) => {
+                self.supersede(current);
+                self.adopt(id);
+            }
+            Some(false) => self.supersede(id),
+            None => {} // the responder's copy of a double dial waits for the initiator's CLOSE
+        }
+    }
+
+    /// The session race (ADR 0001 § Session race) between a new live link `id` and `current`, the one carrying the
+    /// same peer: the better route in the owner's order wins (`session_a_wins`), then the lower initiator key. Friends'
+    /// conversations and the sync with our own devices settle it here alike, so a profile moves to a better route
+    /// exactly as a friend's files do. `Some(true)`: the new link carries from now on; `Some(false)`: the new link
+    /// closes; `None`: one side dialed twice on one class and this side answered both, so only that initiator acts.
+    pub(crate) fn race(&self, id: u64, current: u64) -> Option<bool> {
         let own = self.identity.public_key();
         let initiator_key = |state: &State, link: u64| -> (RouteMethod, Vec<u8>) {
             let s = &state.sessions.map[&link];
@@ -347,18 +367,10 @@ impl State {
         let (new_route, new_key) = initiator_key(self, id);
         let (old_route, old_key) = initiator_key(self, current);
         if new_route == old_route && new_key == old_key {
-            // One side dialed twice on one class: only that initiator acts, keeping the one carrying traffic.
-            if self.sessions.map[&id].channel.is_initiator() {
-                self.supersede(id);
-            }
-            return;
+            // One side dialed twice on one class: that initiator keeps the one carrying traffic.
+            return self.sessions.map[&id].channel.is_initiator().then_some(false);
         }
-        if session_a_wins(new_route as u8, &new_key, old_route as u8, &old_key) {
-            self.supersede(current);
-            self.adopt(id);
-        } else {
-            self.supersede(id);
-        }
+        Some(session_a_wins(new_route as u8, &new_key, old_route as u8, &old_key))
     }
 
     fn adopt(&mut self, id: u64) {
@@ -426,9 +438,11 @@ impl State {
                 self.by_id_attempt_failed(key);
             }
         }
-        if initiator && meta.purpose == Purpose::Friend && !meta.live && error.is_some() {
-            if let (Some((method, endpoint)), Some(conversation)) = (&meta.endpoint, &conversation) {
-                self.nearby.racer.note_failed(endpoint, *method, conversation, unix_now());
+        if initiator && matches!(meta.purpose, Purpose::Friend | Purpose::OwnDevice) && !meta.live && error.is_some() {
+            if let (Some((method, endpoint)), Some(name)) =
+                (&meta.endpoint, conversation.as_ref().or(meta.race_name.as_ref()))
+            {
+                self.nearby.racer.note_failed(endpoint, *method, name, unix_now());
                 if let Some(end) = self.nearby.racer.next_backoff_end(unix_now()) {
                     self.schedule_reconsider_after(end - unix_now());
                 }

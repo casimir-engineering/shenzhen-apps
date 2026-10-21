@@ -9,12 +9,13 @@
 use szfriends_core::identity::chain::DeviceChain;
 use szfriends_core::nearby::callbacks::{window, window_end};
 use szfriends_core::nearby::merger::Candidate;
+use szfriends_core::nearby::racer::should_start;
 use szfriends_core::nearby::Tag;
 use szfriends_core::session::HandshakeOptions;
 use szfriends_core::store::devices::{self, ChainMerge};
 use szfriends_core::store::unix_now;
 use szfriends_core::sync::{device_tag_secret, friend_device_tag_secret, SyncError, SyncExchange};
-use szfriends_core::wire::{tag, CloseReason, Frame, FrameType, Pattern};
+use szfriends_core::wire::{tag, CloseReason, Frame, FrameType, Pattern, RouteMethod};
 
 use super::Purpose;
 use crate::log;
@@ -83,11 +84,7 @@ impl State {
         self.sessions.map.get(&id).filter(|s| !s.channel.is_closed()).map(|_| id)
     }
 
-    fn own_device_options(
-        &self,
-        device: &[u8; 32],
-        route: szfriends_core::wire::RouteMethod,
-    ) -> Option<HandshakeOptions> {
+    fn own_device_options(&self, device: &[u8; 32], route: RouteMethod) -> Option<HandshakeOptions> {
         let root = self.own_root()?;
         let static_key = devices::static_key_for_device(self.store.connection(), device, &root).ok().flatten()?;
         let mut options = HandshakeOptions::new(Pattern::IK, route);
@@ -96,27 +93,37 @@ impl State {
         Some(options)
     }
 
-    /// A candidate the matcher named after one of our devices; `false` for anyone else.
+    /// A candidate the matcher named after one of our devices; `false` for anyone else. Dialed as a friend is
+    /// (`dial.rs`): every route the racer allows, staggered toward the better ones, and while a session carries our
+    /// sync only a route that ranks before it, so the sync moves to it as a friend's files do (ADR 0001 § Session race).
     pub(crate) fn reach_own_device_candidate(&mut self, candidate: &Candidate) -> bool {
         let Some(name) = candidate.conversation_id.as_deref().and_then(|c| c.strip_prefix(OWN_DEVICE_PREFIX)) else {
             return false;
         };
         let Some(device) = key_of(name).filter(|d| self.is_own_device(d) && self.sync_active()) else { return true };
         let now = unix_now();
-        if self.own_device_live_link(&device).is_some()
-            || self.devices.dial_after.get(&device).is_some_and(|t| *t > now)
-        {
+        let live = self.own_device_live_link(&device);
+        let current = live.map_or(RouteMethod::None, |id| {
+            let s = &self.sessions.map[&id];
+            s.meta.race_route(&s.channel)
+        });
+        if live.is_none() && self.devices.dial_after.get(&device).is_some_and(|t| *t > now) {
             return true;
         }
-        for sighting in candidate.sightings.iter().filter(|s| !s.public) {
-            let Some(options) = self.own_device_options(&device, sighting.route) else { return true };
-            let mut plan = self.plan(sighting, Purpose::OwnDevice, options);
-            plan.conversation = candidate.conversation_id.clone();
-            if self.dial(plan, 0.0) {
-                // Not again for a while, however it ends: a session that goes live clears this.
-                self.devices.dial_after.insert(device, now + OWN_DEVICE_REDIAL);
-                break;
+        let attempts = self.nearby.racer.attempts(candidate, self.nearby.merger.matcher(), now);
+        let mut started = false;
+        for attempt in attempts.iter().filter(|a| !a.sighting.public) {
+            if !should_start(attempt, current) {
+                continue;
             }
+            let Some(options) = self.own_device_options(&device, attempt.sighting.route) else { return true };
+            let mut plan = self.plan(&attempt.sighting, Purpose::OwnDevice, options);
+            plan.conversation = candidate.conversation_id.clone();
+            started = self.dial(plan, attempt.delay) || started;
+        }
+        if started && live.is_none() {
+            // Not again for a while, however it ends: a session that goes live clears this.
+            self.devices.dial_after.insert(device, now + OWN_DEVICE_REDIAL);
         }
         true
     }
@@ -166,7 +173,7 @@ impl State {
                 let live = self.own_device_live_link(d);
                 live.is_none_or(|id| {
                     let route = self.sessions.map[&id].channel.initiator_route();
-                    szfriends_core::nearby::is_better(szfriends_core::wire::RouteMethod::Internet, route)
+                    szfriends_core::nearby::is_better(RouteMethod::Internet, route)
                 })
             })
             .collect()
@@ -209,23 +216,32 @@ impl State {
         }
         let _ = devices::note_device_seen(self.store.connection(), &remote, unix_now());
         if let Some(current) = self.own_device_live_link(&remote).filter(|c| *c != id) {
-            // Both dialed at once: both sides keep the session the lower key opened.
-            let me = self.identity.public_key();
-            let opener = |state: &State, link: u64| {
-                let s = &state.sessions.map[&link];
-                if s.channel.is_initiator() {
-                    me
-                } else {
-                    remote
+            // Two sessions with one of our devices: the race friends' sessions run (links.rs), so the better route
+            // carries the sync and what was copying resumes on it from the bytes already here.
+            match self.race(id, current) {
+                Some(true) => self.supersede_own_device(current),
+                Some(false) => {
+                    self.supersede_own_device(id);
+                    return true;
                 }
-            };
-            let keep_new = opener(self, id) < opener(self, current);
-            self.close(if keep_new { current } else { id }, CloseReason::Superseded);
-            if !keep_new {
-                return true;
+                None => return true, // standby until the initiator closes one (own_device_session_closed)
             }
-            self.stop_exchange(current);
         }
+        self.start_own_device_sync(id, remote);
+        true
+    }
+
+    /// The race's loser with one of our devices: its exchange stops (partial copies stay) and it closes.
+    fn supersede_own_device(&mut self, id: u64) {
+        self.stop_exchange(id);
+        if let Some(session) = self.sessions.map.get_mut(&id) {
+            session.meta.superseded = true;
+        }
+        self.close(id, CloseReason::Superseded);
+    }
+
+    /// The sync with `remote` runs on session `id` from now on.
+    fn start_own_device_sync(&mut self, id: u64, remote: [u8; 32]) {
         self.devices.links.insert(remote, id);
         self.devices.dial_after.remove(&remote);
         // Our chain first, so a device that missed an addition or a removal hears it before any event.
@@ -238,7 +254,6 @@ impl State {
         self.devices.exchanges.insert(id, exchange);
         self.flush_exchange(id);
         self.changed();
-        true
     }
 
     /// CHAIN and SYNC on a session with another of our devices; `false` for anything else.
@@ -341,10 +356,25 @@ impl State {
 
     /// A session ended: its exchange stops, its partial copies stay for the next one.
     pub(crate) fn own_device_session_closed(&mut self, id: u64) {
-        if self.devices.exchanges.contains_key(&id) {
-            self.stop_exchange(id);
-            self.schedule_reconsider();
+        let Some(peer) = self.devices.exchanges.get(&id).map(|e| *e.peer_key()) else { return };
+        self.stop_exchange(id);
+        // The responder's copy of a double dial takes over at once, as a friend's standby session does.
+        let standby = self.sessions.map.iter().find(|(other, s)| {
+            **other != id
+                && s.meta.live
+                && !s.meta.superseded
+                && !s.channel.is_closed()
+                && s.channel.pattern() == Pattern::IK
+                && s.channel.remote_identity() == Some(&peer)
+                && !self.devices.exchanges.contains_key(other)
+        });
+        if let Some((other, _)) = standby {
+            let other = *other;
+            if self.is_own_device(&peer) && self.sync_active() {
+                self.start_own_device_sync(other, peer);
+            }
         }
+        self.schedule_reconsider();
     }
 
     /// Our devices as the store lists them changed (one joined, was renamed or removed): matched, advertised, admitted
