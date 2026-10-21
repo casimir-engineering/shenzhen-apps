@@ -16,13 +16,13 @@
 // directory through adb (phones-exchange-android.mjs), and `szfriends-testnet dir` joins that directory to the Mac
 // helper's Bonjour test type on lo0. Joining and the friend's file are set up through each side's client protocol;
 // every Get, Get again and Accept is a tap on the phone (the emulator's own touch input) or a click in the dropdown.
-import { execFileSync, spawn } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import fs from "node:fs/promises";
 import { randomBytes } from "node:crypto";
 import os from "node:os";
 import path from "node:path";
-import readline from "node:readline";
 import { android } from "./phones-exchange-android.mjs";
+import { PACKAGE, phoneUI, startBridge, startFriend, startMac, stopAll, until, wait } from "./phones-mac.mjs";
 
 const argv = process.argv.slice(2);
 const option = (name) => {
@@ -34,105 +34,24 @@ if (!/^emulator-\d+$/.test(serial ?? "") || !tools || !macDir || !manifest) {
   console.error("usage: phones-get-again.mjs --serial emulator-NNNN --tools <dir> --mac <dir> --manifest <file>");
   process.exit(64);
 }
-const PACKAGE = "com.shenzhen3d.viewer";
 const FILE = "Bracket.stl";
-const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const checks = [];
 const check = (line) => {
   checks.push(line);
   console.log(`ok ${line}`);
 };
-async function until(probe, what, ms = 90_000) {
-  const begun = Date.now();
-  while (Date.now() - begun < ms) {
-    const value = await probe().catch(() => null);
-    if (value) return value;
-    await wait(300);
-  }
-  throw Error(`timed out waiting for ${what}`);
-}
-
 const work = await fs.mkdtemp(path.join(os.tmpdir(), "szf-again-"));
 const [homePhone, homeFay, routes] = ["phone", "fay", "routes"].map((n) => path.join(work, n));
 await fs.mkdir(routes, { mode: 0o700 });
 const serviceType = `_szfe${randomBytes(4).toString("hex")}._tcp`;
 const [fayInPhone, adaInFay] = execFileSync(path.join(tools, "examples", "befriend"), [homePhone, homeFay, "Ada", "Fay"],
   { encoding: "utf8" }).trim().split(/\s+/);
-const children = [];
-const started = (child) => (children.push(child), child);
-
-// The bridge between the routes directory and the Mac helper's Bonjour test type.
-const bridge = started(spawn(path.join(tools, "szfriends-testnet"), ["dir", routes, serviceType],
-  { stdio: ["pipe", "inherit", "inherit"] }));
-
-// Fay: the core's loopback peer, one intent per line in, every frame out.
-const fay = started(spawn(path.join(tools, "examples", "loopback-peer"), [homeFay], {
-  env: { ...process.env, SZFRIENDS_STATE_DIR: homeFay, SZFRIENDS_TEST_LOOPBACK: routes },
-  stdio: ["pipe", "pipe", "inherit"],
-}));
-const fayFrames = [];
-readline.createInterface({ input: fay.stdout }).on("line", (line) => {
-  try {
-    fayFrames.push(JSON.parse(line));
-  } catch {}
-});
-let fayNext = 0;
-async function fayIntent(type, fields = {}) {
-  const id = `p${++fayNext}`;
-  fay.stdin.write(`${JSON.stringify({ type, ...fields })}\n`);
-  const reply = await until(async () => fayFrames.find((f) => f.type === "reply" && f.re === id), `Fay's ${type}`);
-  if (!reply.ok) throw Error(`Fay's ${type}: ${JSON.stringify(reply)}`);
-  return reply.result;
-}
-
-// The Mac: friends-ui-e2e's phone flow, one command per line through two FIFOs.
-const [macIn, macOut] = [path.join(work, "mac-in"), path.join(work, "mac-out")];
-execFileSync("mkfifo", [macIn, macOut]);
-started(spawn(path.join(macDir, "SPDFMacFriendsUIE2ETests"),
-  [path.join(macDir, "szfriends-e2e-helper"), manifest, shots ? path.join(shots, "mac") : path.join(work, "mac-shots")],
-  { env: { ...process.env, FRIENDS_UI_E2E_FLOWS: "phone", FRIENDS_UI_E2E_VARIANTS: "light-normal",
-           FRIENDS_UI_E2E_PHONE_IN: macIn, FRIENDS_UI_E2E_PHONE_OUT: macOut, SZFRIENDS_E2E_SERVICE_TYPE: serviceType },
-    stdio: ["ignore", "inherit", "inherit"] }));
-const macAnswers = readline.createInterface({ input: (await fs.open(macOut, "r")).createReadStream() })[
-  Symbol.asyncIterator]();
-const macCommands = await fs.open(macIn, "w");
-const macReady = (await macAnswers.next()).value;
-if (!JSON.parse(macReady).ok) throw Error(`the Mac did not start: ${macReady}`);
-async function mac(cmd, fields = {}) {
-  await macCommands.write(`${JSON.stringify({ cmd, ...fields })}\n`);
-  const answer = JSON.parse((await macAnswers.next()).value);
-  if (!answer.ok && !fields.mayFail) throw Error(`the Mac's ${cmd}: ${JSON.stringify(answer)}`);
-  return answer;
-}
-
-// The phone.
+startBridge(tools, routes, serviceType);
+const fay = startFriend(tools, homeFay, routes, "Fay");
+const fayIntent = (type, fields) => fay.intent(type, fields);
+const mac = await startMac({ macDir, manifest, shots, work, serviceType });
 const phone = android(serial);
-const page = (body) => phone.evaluate(`(async () => { ${body} })()`);
-const phoneSend = (type, fields = {}) =>
-  page(`return await window.shenzhenFriends.send(${JSON.stringify(type)}, ${JSON.stringify(fields)});`);
-async function phoneData(type, fields) {
-  const { reply, snapshot } = await phoneSend(type, fields);
-  if (reply?.result?.subscription) await phoneSend("unsubscribe", { subscription: reply.result.subscription });
-  return snapshot?.data;
-}
-function webviewBounds() {
-  phone.adb("shell", "uiautomator", "dump", "/data/local/tmp/szf-window.xml");
-  const xml = phone.adb("shell", "cat", "/data/local/tmp/szf-window.xml");
-  const node = xml.match(/class="android\.webkit\.WebView"[^>]*bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"/);
-  if (!node) throw Error("no WebView on the screen");
-  const [, left, top, , bottom] = node.map(Number);
-  return { left, top, bottom };
-}
-// A tap where a person would put a finger: the element's centre, scrolled into sight, in screen pixels.
-async function tap(expression, what) {
-  const at = await until(() => page(`const e = ${expression}; if (!e) return null; e.scrollIntoView({block: "center"});
-    const b = e.getBoundingClientRect(); return { x: b.x + b.width / 2, y: b.y + b.height / 2, height: innerHeight };`),
-  what);
-  const bounds = webviewBounds();
-  const scale = (bounds.bottom - bounds.top) / at.height;
-  phone.adb("shell", "input", "tap", String(Math.round(bounds.left + at.x * scale)),
-    String(Math.round(bounds.top + at.y * scale)));
-}
+const { page, send: phoneSend, data: phoneData, tap } = phoneUI(phone);
 const transfer = (id) => `document.querySelector('.szf-panel .szf-transfer[data-item="${id}"]')`;
 const buttonIn = (id, label) =>
   `[...(${transfer(id)}?.querySelectorAll("button") ?? [])].find((b) => b.innerText.trim() === ${JSON.stringify(label)})`;
@@ -169,7 +88,7 @@ async function macPath(conversation, transferId) {
 
 let failed = false;
 try {
-  await until(async () => fayFrames.some((f) => f.type === "ready"), "Fay's helper");
+  await fay.ready();
   await fayIntent("activate");
   await phone.install({ homePhone, routes, page: {}, work });
   await until(async () => (await page(`return (await window.shenzhenFriends.join()).state;`)) === "ready", "Friends");
@@ -283,10 +202,9 @@ try {
 }
 await mac("end", { mayFail: true }).catch(() => {});
 await phone.cleanup?.();
-fay.stdin.end();
-bridge.stdin.end();
+fay.end();
 await wait(1500);
-for (const child of children) if (child.exitCode === null) child.kill();
+stopAll();
 await fs.rm(work, { recursive: true, force: true }).catch(() => {});
 console.log(failed ? "phones-get-again: FAILED" : `phones-get-again: passed (${checks.length} checks)`);
 process.exit(failed ? 1 : 0);

@@ -464,6 +464,8 @@ SQLite without what the store never uses) beside `phones-profile.toml`, and from
 | Remove | `scripts/friends/phones-remove.mjs` | Android: a long press on a friend's row (the emulator's own touch input), Remove, confirm: the friend leaves the list, and is still off it after the app starts again |
 | Reset | `scripts/friends/phones-reset.mjs` | Android: Settings ▸ Reset Friends… and its confirmation (the emulator's own touch input): a new ID at once in Settings and the panel, the friends gone, Nearby running again, the new ID kept after the app starts again |
 | Get again | `scripts/friends/phones-get-again.mjs` | Android and a Mac on one profile, with a friend: a file deleted on the phone comes back from the Mac with Get (a tap), one deleted on the Mac comes back from the phone with Get (a click in the real dropdown), one deleted on both comes back from the friend with Get again, and once the friend changed it, "Fay doesn’t have this file anymore." |
+| Join | `scripts/friends/phones-join.mjs` | Android and a Mac joining one profile with real taps and clicks, each way: the phone's Settings ▸ Use my existing profile… (asks first, then resets and opens the join page), Approve and the code in the Mac's dropdown; or the Mac's Use my existing profile…, Approve and the code on the phone. Then the friend, the chat and You on both, each way |
+| Phone and Mac | `scripts/friends/phones-mac.mjs` | What those two are made of: the Mac (friends-ui-e2e's `phone` flow), a friend (`loopback-peer`), the test network's bridge (`szfriends-testnet dir`), the phone's page and taps |
 
 What the plugin does on a phone (shenzhen-pdf `portable/friends/tauri/README.md` § Phones): the identity's key in the
 Android Keystore (a sealed file in the no-backup directory) or the iOS Keychain (this device only), Friends' files
@@ -515,6 +517,22 @@ dropdown; deleted on both, "Moved or deleted" with Get again, tapped, brings it 
 ends with "Fay doesn’t have this file anymore." It passed on 2026-10-21 on an Android 16 (API 36) arm64 emulator.
 Phones now name themselves for the person's other computers from the system (Settings ▸ About's name, else the
 model), where they used to be "Computer".
+
+**Joining the person's profile.** `node scripts/friends/phones-join.mjs --serial <emulator> --tools <dir> --mac <dir>
+--manifest <file> [--joins phone|mac] [--shots <dir>]`, the same arguments as Get and Get again, on the same pieces
+(`phones-mac.mjs`; the Mac's steps are SPDFMacFriendsUIPhoneFlows.mm's commands, which now also click a button, fill
+a field, read a join request's code and wait for words). `--joins phone`, the owner's case: the Mac has Fay and a chat
+with her, made friends nearby; the phone has its own ID and its own friend. Settings ▸ Use my existing profile… asks
+"Use your existing profile here?" naming the phone's own ID; Delete and Continue resets it and the join page opens by
+itself; the Mac's ID typed, Continue; Approve clicked in the Mac's dropdown and its code typed on the phone, Join:
+"This device now uses your profile". `--joins mac`: the phone has Fay; in the Mac's dropdown, Use my existing
+profile…, the phone's ID, Continue; Approve tapped on the phone and its code typed in the dropdown. Either way Fay
+and the chat's history arrive on the new one, its message reaches Fay and shows on the other, her reply reaches both,
+and You carries a note each way (a message from the Mac goes through its client protocol; everything the Mac shows
+is read from the dropdown). Both passed on 2026-10-21 on an Android 16 (API 36) arm64 emulator, nearby on the test
+network. Online between the emulator and the Mac is not covered here: the phone app reads no test host list, and the
+emulator cannot reach a relay on the Mac's loopback; the helpers' own online join (shenzhen-pdf's
+`online_interop.rs`, the Rust core the phone runs and the Objective-C helper) covers it.
 
 **Android permissions.** `node scripts/friends/android-permissions.mjs --serial <emulator> [--apk <apk>]` opens
 Friends from a cleared app and answers the system's Bluetooth dialog through uiautomator: Allow grants scan,
