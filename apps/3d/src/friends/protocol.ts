@@ -454,6 +454,8 @@ export type JoinData = {
   } | null;
   error: string | null;
   actions: Action[];
+  /** checking and joined, while a session with another of the person's computers is live */
+  route?: Route | null;
 };
 export type BadgeData = {
   count: number;

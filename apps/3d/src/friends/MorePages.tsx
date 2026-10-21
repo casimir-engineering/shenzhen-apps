@@ -140,6 +140,11 @@ export function JoinPage({ onBack }: { onBack(): void }) {
       </PageHeader>
       <div className="szf-scroll szf-form">
         {data.message && <p>{data.message}</p>}
+        {data.route?.label && (
+          <p className="szf-join-route" title={data.route.label}>
+            <RouteIcon route={data.route} size={11} /> {data.route.label}
+          </p>
+        )}
         {data.id_field && (
           <form
             className="szf-inline"

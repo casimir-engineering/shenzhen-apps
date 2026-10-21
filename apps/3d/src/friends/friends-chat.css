@@ -323,6 +323,15 @@
   color: var(--muted);
   font-size: 10.5px;
 }
+/* The join page's route line, drawn as the conversation header's: the route icon, then its words. */
+.szf-join-route {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--secondary);
+  font-size: 11px;
+}
+
 .szf-refusal {
   color: var(--error);
   font-size: 11.5px;
