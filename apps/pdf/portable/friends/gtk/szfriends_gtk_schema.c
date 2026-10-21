@@ -70,7 +70,7 @@ static const SZFriendsGtkField action_fields[] = {
     ENUM(T, action, actions), STR(T, label), ENUM(T, style, styles), STRN(T, note), OBJN(T, confirm, confirm),
     OBJN(T, arm, arm), STR(T, path), ENUM(T, settings_target, settings_targets), STR(T, friends_id),
     STR(T, identity_key), STR(T, name), STR(T, payload), STR(T, link_id), STR(T, device_id), STR(T, join_id),
-    ENUM(T, then, action_thens)};
+    ENUM(T, then, action_thens), ENUM(T, kind, dismiss_kinds)};
 #undef T
 TYPE(static, action, "type.action", SZFriendsGtkAction);
 #define T SZFriendsGtkSegment
@@ -103,7 +103,8 @@ static const SZFriendsGtkField szfriends_gtk_type_badge_snapshot_fields[] = {INT
 #undef T
 TYPE(, szfriends_gtk_type_badge_snapshot, "snapshot.badge", SZFriendsGtkBadgeSnapshot);
 #define T SZFriendsGtkBanner
-static const SZFriendsGtkField banner_fields[] = {ENUM(T, kind, banner_kinds), STR(T, text), OBJN(T, action, action)};
+static const SZFriendsGtkField banner_fields[] = {ENUM(T, kind, banner_kinds), STR(T, text), OBJN(T, action, action),
+                                                  OBJN(T, dismiss, action)};
 #undef T
 TYPE(static, banner, "type.banner", SZFriendsGtkBanner);
 #define T SZFriendsGtkNamePrompt
@@ -365,11 +366,26 @@ TYPE(static, settings_nearby, NULL, SZFriendsGtkSettingsNearby);
 static const SZFriendsGtkField settings_join_fields[] = {STR(T, label), STR(T, note), OBJ(T, action, action)};
 #undef T
 TYPE(static, settings_join, NULL, SZFriendsGtkSettingsJoin);
+#define T SZFriendsGtkSettingsSwitch
+static const SZFriendsGtkField settings_switch_fields[] = {STR(T, label), BOOL(T, value)};
+#undef T
+TYPE(static, settings_switch, NULL, SZFriendsGtkSettingsSwitch);
+#define T SZFriendsGtkSettingsNotedSwitch
+static const SZFriendsGtkField settings_noted_switch_fields[] = {STR(T, label), STR(T, note), BOOL(T, value)};
+#undef T
+TYPE(static, settings_noted_switch, NULL, SZFriendsGtkSettingsNotedSwitch);
+#define T SZFriendsGtkSettingsNotifications
+static const SZFriendsGtkField settings_notifications_fields[] = {
+    STR(T, label), OBJ(T, enabled, settings_switch), OBJ(T, preview, settings_noted_switch), STR(T, note),
+    OBJN(T, action, action), OBJN(T, background, settings_noted_switch)};
+#undef T
+TYPE(static, settings_notifications, NULL, SZFriendsGtkSettingsNotifications);
 #define T SZFriendsGtkSettingsSnapshot
 static const SZFriendsGtkField szfriends_gtk_type_settings_snapshot_fields[] = {
     OBJ(T, name, settings_name), OBJ(T, id, settings_id), OBJ(T, received, settings_received),
     OBJ(T, auto_accept, settings_auto_accept), OBJ(T, history, settings_confirmed),
-    OBJ(T, reset, settings_confirmed), OBJN(T, nearby, settings_nearby), OBJN(T, join, settings_join)};
+    OBJ(T, reset, settings_confirmed), OBJN(T, nearby, settings_nearby), OBJN(T, join, settings_join),
+    OBJN(T, notifications, settings_notifications)};
 #undef T
 TYPE(, szfriends_gtk_type_settings_snapshot, "snapshot.settings", SZFriendsGtkSettingsSnapshot);
 #define T SZFriendsGtkMessageEntry

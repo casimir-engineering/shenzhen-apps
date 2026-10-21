@@ -43,6 +43,8 @@ static void sync_presented(SZFriendsGtkDropdown *dropdown) {
         g_object_weak_ref(G_OBJECT(szfriends_gtk_page_get_widget(target)), forget_presented, dropdown);
         szfriends_gtk_page_set_presented(target, TRUE);
     }
+    /* What the person is looking at changed, so may the conversation notifications leave out (set_focus). */
+    szfriends_gtk_focus_update(dropdown->link);
 }
 
 /* "pushed" and "replaced" carry no page; "popped" carries the page that left. */
@@ -217,6 +219,7 @@ SZFriendsGtkDropdown *szfriends_gtk_dropdown_new(SZFriendsGtkLink *link, GtkWind
         g_signal_connect(dropdown->outside_click, "pressed", G_CALLBACK(window_pressed), dropdown);
         gtk_widget_add_controller(GTK_WIDGET(window), GTK_EVENT_CONTROLLER(dropdown->outside_click));
     }
+    szfriends_gtk_focus_add_dropdown(link, dropdown);
     return dropdown;
 }
 
@@ -224,6 +227,7 @@ void szfriends_gtk_dropdown_free(SZFriendsGtkDropdown *dropdown) {
     if (!dropdown) return;
     dropdown->open = FALSE;
     sync_presented(dropdown);
+    szfriends_gtk_focus_remove_dropdown(dropdown->link, dropdown);
     if (dropdown->window) {
         gtk_widget_remove_controller(GTK_WIDGET(dropdown->window), GTK_EVENT_CONTROLLER(dropdown->outside_click));
         g_object_remove_weak_pointer(G_OBJECT(dropdown->window), (gpointer *)&dropdown->window);

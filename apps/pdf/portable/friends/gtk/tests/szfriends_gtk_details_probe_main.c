@@ -53,6 +53,7 @@ int main(int argc, char **argv) {
     szfg_run_title_probes();
     szfg_run_link_probes();
     szfg_run_device_probes();
+    szfg_run_settings_notification_probes();
     szfg_clock_uninstall();
     g_unsetenv(SZFRIENDS_ENV_STATE_DIR);
     EXPECT(szfg_unexpected_warnings() == 0, "no GLib, GTK or libadwaita warnings (%d)", szfg_unexpected_warnings());

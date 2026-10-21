@@ -71,6 +71,17 @@ typedef void (*SZFriendsGtkLinkCopied)(const char *message, gboolean copied, gpo
 void szfriends_gtk_copy_download_link(SZFriendsGtkLink *link, GtkWidget *source, const SZFriendsGtkHostItem *item,
                                       int days, SZFriendsGtkLinkCopied done, gpointer data);
 
+/* ---- Notifications (PROTOCOL.md § Notifications) --------------------------------------------------------- */
+
+/* Defined while these views take host->url_scheme and offer show_conversation, so a host built against an older copy
+ * of them compiles without its route. */
+#define SZFRIENDS_GTK_NOTIFICATIONS 1
+
+/* Opens the dropdown of `window` (added with link_add_window; NULL: the first window) on the conversation
+ * `conversation_id`, or on the list for NULL: where <scheme>://friends/conversation/<id> and <scheme>://friends, a
+ * notification's click, lead once the host has checked the URL. */
+void szfriends_gtk_show_conversation(SZFriendsGtkLink *link, GtkWindow *window, const char *conversation_id);
+
 G_END_DECLS
 
 #endif /* SZFRIENDS_GTK_H */

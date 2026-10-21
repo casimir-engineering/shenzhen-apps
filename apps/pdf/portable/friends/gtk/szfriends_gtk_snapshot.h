@@ -60,7 +60,9 @@ typedef enum {
     /* Get again on a file a friend sent (PROTOCOL.md § Getting a file again) */
     SZFRIENDS_GTK_ACTION_FETCH_FROM_FRIEND,
     /* Client-side: the join page (PROTOCOL.md § Joining, Offering it) */
-    SZFRIENDS_GTK_ACTION_OPEN_JOIN
+    SZFRIENDS_GTK_ACTION_OPEN_JOIN,
+    /* Ask the system for permission to show notifications (PROTOCOL.md § Notifications) */
+    SZFRIENDS_GTK_ACTION_ALLOW_NOTIFICATIONS
 } SZFriendsGtkActionKind;
 /* What a reset_friends action shows once the reset succeeded; never sent. */
 typedef enum { SZFRIENDS_GTK_THEN_NONE, SZFRIENDS_GTK_THEN_OPEN_JOIN } SZFriendsGtkActionThen;
@@ -70,15 +72,21 @@ typedef enum {
 } SZFriendsGtkActionStyle;
 typedef enum {
     SZFRIENDS_GTK_SETTINGS_UNSET, SZFRIENDS_GTK_SETTINGS_LOCAL_NETWORK_PRIVACY,
-    SZFRIENDS_GTK_SETTINGS_BLUETOOTH_PRIVACY, SZFRIENDS_GTK_SETTINGS_BLUETOOTH, SZFRIENDS_GTK_SETTINGS_WIFI
+    SZFRIENDS_GTK_SETTINGS_BLUETOOTH_PRIVACY, SZFRIENDS_GTK_SETTINGS_BLUETOOTH, SZFRIENDS_GTK_SETTINGS_WIFI,
+    SZFRIENDS_GTK_SETTINGS_NOTIFICATIONS
 } SZFriendsGtkSettingsTarget;
+/* The banner a dismiss_banner action names; UNSET (absent) means id_changed. */
+typedef enum {
+    SZFRIENDS_GTK_DISMISS_UNSET, SZFRIENDS_GTK_DISMISS_ID_CHANGED, SZFRIENDS_GTK_DISMISS_NOTIFICATIONS
+} SZFriendsGtkDismissKind;
 typedef enum {
     SZFRIENDS_GTK_EMPTY_UNSET, SZFRIENDS_GTK_EMPTY_SEARCHING, SZFRIENDS_GTK_EMPTY_NOBODY,
     SZFRIENDS_GTK_EMPTY_UNAVAILABLE, SZFRIENDS_GTK_EMPTY_NO_MATCH
 } SZFriendsGtkEmptyKind;
 typedef enum {
     SZFRIENDS_GTK_BANNER_UNKNOWN, SZFRIENDS_GTK_BANNER_ID_CHANGED, SZFRIENDS_GTK_BANNER_IDENTITY_UNAVAILABLE,
-    SZFRIENDS_GTK_BANNER_UPDATE_REQUIRED
+    SZFRIENDS_GTK_BANNER_UPDATE_REQUIRED,
+    SZFRIENDS_GTK_BANNER_NOTIFICATIONS /* the ask: Turn On (allow_notifications) and Not Now (`dismiss`) */
 } SZFriendsGtkBannerKind;
 typedef enum { SZFRIENDS_GTK_ROW_NORMAL, SZFRIENDS_GTK_ROW_MUTED } SZFriendsGtkRowStyle; /* unknown draws as normal */
 typedef enum {
@@ -183,6 +191,7 @@ typedef struct {
     char *payload, *link_id; /* add_from_link and receive_link, revoke_link: the same, for links */
     char *device_id, *join_id; /* revoke_device; approve_join and deny_join (join_profile carries friends_id) */
     SZFriendsGtkActionThen then; /* reset_friends: open_join afterwards */
+    SZFriendsGtkDismissKind kind; /* dismiss_banner: which banner; unset is id_changed */
 } SZFriendsGtkAction;
 typedef struct { SZFriendsGtkPresence present; gboolean set; gint64 value; } SZFriendsGtkOptInt; /* integer|null */
 /* Rich text (PROTOCOL.md § Shared objects); `mention` indexes the message item's `mentions` when set. */
@@ -202,7 +211,8 @@ typedef struct { SZFriendsGtkPresence present; gint64 count;
                  char *label, *accessibility_label; } SZFriendsGtkBadgeSnapshot;
 
 typedef struct { SZFriendsGtkPresence present; SZFriendsGtkBannerKind kind; char *text;
-                 SZFriendsGtkAction *action; } SZFriendsGtkBanner;
+                 SZFriendsGtkAction *action;
+                 SZFriendsGtkAction *dismiss; /* notifications: Not Now */ } SZFriendsGtkBanner;
 typedef struct { SZFriendsGtkPresence present; char *title, *placeholder, *note; } SZFriendsGtkNamePrompt;
 typedef struct { SZFriendsGtkPresence present; SZFriendsGtkActionKind action; SZFriendsGtkRowIcon icon;
                  char *title; /* the word the button shows; NULL: the icon alone */
@@ -413,6 +423,19 @@ typedef struct { SZFriendsGtkPresence present; char *label, *note, *action_label
 /* The helper's Nearby line (PROTOCOL.md § settings): what Nearby can do, and the one button that fixes it. */
 typedef struct { SZFriendsGtkPresence present; char *label, *note;
                  SZFriendsGtkAction *action; } SZFriendsGtkSettingsNearby;
+/* This device's notifications (PROTOCOL.md § Notifications): two switches sent back with set_notifications, the
+ * permission's note and its one action, and on Android the background switch. */
+typedef struct { SZFriendsGtkPresence present; char *label; gboolean value; } SZFriendsGtkSettingsSwitch;
+typedef struct { SZFriendsGtkPresence present; char *label, *note; gboolean value; } SZFriendsGtkSettingsNotedSwitch;
+typedef struct {
+    SZFriendsGtkPresence present;
+    char *label;
+    SZFriendsGtkSettingsSwitch enabled;
+    SZFriendsGtkSettingsNotedSwitch preview;
+    char *note;                                  /* "" when nothing needs saying */
+    SZFriendsGtkAction *action;                  /* allow_notifications or open_settings; NULL for none */
+    SZFriendsGtkSettingsNotedSwitch *background; /* Android hosts only; NULL elsewhere */
+} SZFriendsGtkSettingsNotifications;
 typedef struct {
     SZFriendsGtkPresence present;
     SZFriendsGtkSettingsName name;
@@ -422,6 +445,7 @@ typedef struct {
     SZFriendsGtkSettingsConfirmed history, reset;
     SZFriendsGtkSettingsNearby *nearby; /* NULL without `nearby` */
     SZFriendsGtkSettingsJoin *join;     /* NULL while joining is not offered here */
+    SZFriendsGtkSettingsNotifications *notifications; /* NULL without the helper's `notifications` */
 } SZFriendsGtkSettingsSnapshot;
 
 typedef struct { SZFriendsGtkPresence present; char *message_id;
