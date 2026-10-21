@@ -3,56 +3,11 @@
 #import "mac/SZFriendsDetailsPage.h"
 #import "mac/SZFriendsDevices.h"
 #import "mac/SZFriendsLinkPage.h"
+#import "mac/SZFriendsQRView.h"
 
-#import <CoreImage/CoreImage.h>
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 
 #import "avatars/SZFriendsAvatars.h"
-
-// The QR of `id.qr_payload`, drawn with hard pixel edges so a phone camera reads it at any size.
-@interface SZFriendsQRView : NSView
-@property(nonatomic, copy) NSString *payload;
-@end
-
-@implementation SZFriendsQRView {
-    NSImage *_image;
-}
-- (void)setPayload:(NSString *)payload {
-    if ([payload isEqualToString:_payload]) return;
-    _payload = [payload copy];
-    _image = nil;
-    CIFilter *filter = [CIFilter filterWithName:@"CIQRCodeGenerator"];
-    NSData *data = [payload dataUsingEncoding:NSUTF8StringEncoding];
-    if (filter && data.length) {
-        [filter setValue:data forKey:@"inputMessage"];
-        [filter setValue:@"M" forKey:@"inputCorrectionLevel"];
-        CIImage *output = filter.outputImage;
-        if (output) {
-            NSCIImageRep *rep = [NSCIImageRep imageRepWithCIImage:output];
-            _image = [[NSImage alloc] initWithSize:rep.size];
-            [_image addRepresentation:rep];
-        }
-    }
-    self.needsDisplay = YES;
-}
-- (BOOL)isAccessibilityElement {
-    return YES;
-}
-- (NSAccessibilityRole)accessibilityRole {
-    return NSAccessibilityImageRole;
-}
-- (void)drawRect:(NSRect)dirtyRect {
-    (void)dirtyRect;
-    // Always dark on white, in both appearances: scanners need the contrast, not the theme.
-    [NSColor.whiteColor setFill];
-    [[NSBezierPath bezierPathWithRoundedRect:self.bounds xRadius:6 yRadius:6] fill];
-    if (!_image) return;
-    [NSGraphicsContext saveGraphicsState];
-    NSGraphicsContext.currentContext.imageInterpolation = NSImageInterpolationNone;
-    [_image drawInRect:NSInsetRect(self.bounds, 6, 6)];
-    [NSGraphicsContext restoreGraphicsState];
-}
-@end
 
 // The profile's scrolling content, which also takes a dropped image: it starts the same crop step as Use your own
 // picture… (brief § Product contract: choose a file or drop an image, then crop to the circle).

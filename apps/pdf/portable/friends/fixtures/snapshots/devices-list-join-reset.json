@@ -1,0 +1,81 @@
+{
+  "type": "snapshot",
+  "subscription": "s_1",
+  "view": "list",
+  "rev": 1,
+  "data": {
+    "banner": null,
+    "empty": null,
+    "footer": {
+      "add_label": "Add by ID",
+      "avatar": {
+        "color": "#5a4a7a",
+        "index": 0,
+        "initials": "CV",
+        "kind": "animal",
+        "set": 1
+      },
+      "friends_id": "cottage-violet",
+      "id_label": "ID cottage‑violet",
+      "id_note": null,
+      "name": null,
+      "name_placeholder": "Choose your name"
+    },
+    "join": {
+      "note": "Already use Friends on another computer or phone? Bring your friends and chats from it here.",
+      "action": {
+        "action": "reset_friends",
+        "label": "Use my existing profile…",
+        "style": "link",
+        "confirm": {
+          "title": "Use your existing profile here?",
+          "body": "This computer’s own ID, cottage‑violet, and its friends and chats are deleted from this computer. Then you type your ID from your other computer or phone, approve there, and your friends and chats come here. Files you received stay where they were saved.",
+          "confirm_label": "Delete and Continue",
+          "cancel_label": "Cancel",
+          "destructive": true
+        },
+        "then": "open_join"
+      }
+    },
+    "join_requests": [],
+    "name_prompt": {
+      "note": "Until you choose one, friends see your ID, cottage‑violet.",
+      "placeholder": "Your name",
+      "title": "Choose the name friends see"
+    },
+    "query": "",
+    "removed": null,
+    "rows": [
+      {
+        "accessibility_label": "Mei Lin, unread, Can you check pages 3–5 before Friday?, 14:32, nearby, on your network",
+        "actions": [],
+        "avatar": {
+          "color": "#3f6b4f",
+          "index": 7,
+          "initials": "ML",
+          "kind": "animal",
+          "set": 1
+        },
+        "blocked": false,
+        "conversation_id": "c_mei",
+        "drop_label": "Send to Mei",
+        "drop_refusal": null,
+        "id_confirmed": false,
+        "id_confirmed_label": null,
+        "kind": "person",
+        "route": {
+          "kind": "local",
+          "label": "Nearby, on your network",
+          "method": "lan"
+        },
+        "style": "normal",
+        "subtitle": "Can you check pages 3–5 before Friday?",
+        "time_label": "14:32",
+        "title": "Mei Lin",
+        "unread": true,
+        "waiting": null
+      }
+    ],
+    "state": "normal"
+  }
+}

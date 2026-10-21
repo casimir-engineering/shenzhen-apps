@@ -28,11 +28,14 @@ static void TestMigrationKeepsEverything(void) {
     NSError *error = nil;
     SZFriendsStore *older = SZFTOpenStoreWithOptions(directory, v8, &error);
     SZFTExpect(older.schemaVersion == 8, @"a v8 store: %@", error);
-    SZFTAddPerson(older, @"mei", 1, SZFriendsRelationFriend, 1000);
+    // Written with plain SQL: this code saves the newest schema's columns.
+    SZFTScalar(older, @"INSERT INTO friends (conversation_id, identity_pk, relation, last_interaction_at) "
+                      @"VALUES ('mei', ?, ?, 1000)",
+               @[ SZFTBytes(1, 32), @(SZFriendsRelationFriend) ]);
     [older insertItem:SZFTMessage(@"mei", @"m1", @"kept", 1000, SZFriendsDirectionIncoming) error:NULL];
     [older close];
     SZFriendsStore *store = SZFTOpenStore(directory);
-    SZFTExpect(store.schemaVersion == 9 && [store itemWithID:@"m1" inConversation:@"mei"] != nil, @"v8 to v9 keeps it");
+    SZFTExpect(store.schemaVersion >= 9 && [store itemWithID:@"m1" inConversation:@"mei"] != nil, @"v8 to v9 keeps it");
     SZFTExpect([store syncEventCount] == 0 && [store syncVector].count == 0, @"and starts with an empty log");
     int64_t last = 0;
     SZFTExpect([store itemsWithoutSyncOriginAfterRow:0 limit:10 lastRow:&last].count == 1 && last > 0,

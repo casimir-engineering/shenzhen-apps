@@ -46,6 +46,7 @@ void SZFE2EUntrackPID(pid_t pid) {
     if ((self = [super init])) {
         _name = [name copy];
         _stateDirectory = [state copy];
+        _downloadsDirectory = [state stringByAppendingString:@"-Downloads"];
         _extraEnvironment = @{};
         _pid = -1;
     }
@@ -154,6 +155,15 @@ static void SZFE2EOnState(void *context, szfriends_connection_state state) {
 }
 
 + (nullable instancetype)clientForHelper:(SZFE2EHelper *)helper capabilities:(NSArray<NSString *> *)names {
+    return [self clientForHelper:helper appID:@"com.example.friends-e2e" appName:@"Friends Test" urlScheme:nil
+                    capabilities:names];
+}
+
++ (nullable instancetype)clientForHelper:(SZFE2EHelper *)helper
+                                   appID:(NSString *)appID
+                                 appName:(NSString *)appName
+                               urlScheme:(nullable NSString *)urlScheme
+                            capabilities:(NSArray<NSString *> *)names {
     SZFE2EClient *client = [[self alloc] init];
     client->_replies = [NSMutableDictionary dictionary];
     client->_latest = [NSMutableDictionary dictionary];
@@ -165,8 +175,8 @@ static void SZFE2EOnState(void *context, szfriends_connection_state state) {
     szfriends_client_config config = {
         .state_dir = helper.stateDirectory.fileSystemRepresentation,
         .helper_path = NULL, // the harness starts and kills helpers itself
-        .app_id = "com.example.friends-e2e",
-        .app_name = "Friends Test",
+        .app_id = appID.UTF8String,
+        .app_name = appName.UTF8String,
         .app_version = "1",
         .toolkit = "appkit",
         .reveal_in = "Finder",
@@ -178,6 +188,7 @@ static void SZFE2EOnState(void *context, szfriends_connection_state state) {
         .on_frame = SZFE2EOnFrame,
         .on_state = SZFE2EOnState,
         .context = (__bridge void *)client,
+        .url_scheme = urlScheme.UTF8String,
     };
     client->_client = szfriends_client_new(&config);
     if (client->_client == NULL) return nil;
@@ -329,8 +340,10 @@ BOOL SZFE2EWaitUntil(NSTimeInterval timeout, BOOL (^condition)(void)) {
     _scenarioDirectory = [_root stringByAppendingPathComponent:name];
     [[NSFileManager defaultManager] createDirectoryAtPath:_scenarioDirectory withIntermediateDirectories:YES
                                                attributes:@{NSFilePosixPermissions : @0700} error:NULL];
-    // A new type per scenario: helpers of an earlier scenario still winding down can never be found.
-    _serviceType = [NSString stringWithFormat:@"_szfe%08x._tcp", arc4random()];
+    // A new type per scenario: helpers of an earlier scenario still winding down can never be found. A test joined to
+    // another network through a bridge (the phone tests) names the type the bridge uses.
+    const char *given = getenv("SZFRIENDS_E2E_SERVICE_TYPE");
+    _serviceType = given && *given ? @(given) : [NSString stringWithFormat:@"_szfe%08x._tcp", arc4random()];
     _bluetoothDirectory = [_scenarioDirectory stringByAppendingPathComponent:@"bt"];
     [[NSFileManager defaultManager] createDirectoryAtPath:_bluetoothDirectory withIntermediateDirectories:YES
                                                attributes:@{NSFilePosixPermissions : @0700} error:NULL];
@@ -358,6 +371,7 @@ BOOL SZFE2EWaitUntil(NSTimeInterval timeout, BOOL (^condition)(void)) {
     helper.executable = _executable;
     helper.baseEnvironment = @{
         @"SZFRIENDS_STATE_DIR" : helper.stateDirectory,
+        @"SZFRIENDS_DOWNLOADS_DIR" : helper.downloadsDirectory,
         @"SZFRIENDS_KEY_STORE" : @"file",
         @"SZFRIENDS_TEST_SERVICE_TYPE" : _serviceType,
         @"SZFRIENDS_AVATARS_MANIFEST" : _manifest,

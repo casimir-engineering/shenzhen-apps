@@ -22,6 +22,7 @@ NSData *_Nullable SZFriendsSyncBytesFromHex(NSString *hex);
 // whose copy of that person has no key yet (an Add by ID still unanswered) still finds the conversation.
 enum {
     SZFSTagConversation = 1,
+    SZFSTagReleased = 2, // FILE HELD: u64 1, the author no longer holds the bytes (ADR 0016)
 };
 
 // Person field groups (the Person event's subject): each one a register of its own, so changes to different fields
@@ -77,6 +78,8 @@ NSData *SZFriendsSyncProfileBody(SZFriendsStore *store, BOOL full);
 
 @interface SZFriendsSyncEngine ()
 @property(nonatomic, readonly) NSMutableSet<NSString *> *changedConversations;
+// Items an event in the open transaction put here for the first time; kept once it commits, reported by -flushChanges.
+@property(nonatomic, readonly) NSMutableArray<SZFriendsItemRecord *> *arrivingItems;
 @property(nonatomic) BOOL profileChanged;
 // Applied tombstones: [scope, vector], loaded on first use and kept up to date.
 @property(nonatomic, strong, nullable) NSArray<NSArray *> *tombstones;

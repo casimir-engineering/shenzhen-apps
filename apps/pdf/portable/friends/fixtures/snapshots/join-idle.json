@@ -12,7 +12,7 @@
       "button": "Continue",
       "placeholder": "Friends ID"
     },
-    "message": "Type the Friends ID of the profile you already use on another computer. You’ll approve this computer there.",
+    "message": "Type the Friends ID you use on your other computer or phone. You’ll approve this computer there.",
     "state": "idle",
     "title": "Use your existing profile"
   }

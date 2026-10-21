@@ -258,6 +258,7 @@ async function linkOpener(udid) {
           "test-without-building",
           ...["-xctestrun", path.join(products, plan)],
           ...["-destination", `id=${udid}`],
+          "-only-testing:LinkOpen/SZFLinkOpenTests/testOpenLink",
         ],
         { env: { ...process.env, TEST_RUNNER_SZF_LINK: url }, stdio: "ignore" },
       );

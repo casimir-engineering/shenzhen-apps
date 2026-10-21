@@ -12,7 +12,7 @@ Reception from launch is the one sanctioned launch-path exception and must not c
 
 ## Decision
 
-**One helper per Mac user.** A Foundation-only helper bundle (no AppKit, `LSBackgroundOnly`) in each app's
+**One helper per Mac user.** A Foundation-only helper bundle (no AppKit, `LSUIElement`: no Dock icon or windows, ADR 0017) in each app's
 `Contents/Helpers/`, signed by its own `codesign` line before the outer bundle, like the Collection
 companion. It has its own bundle identifier, distinct from both apps, because the reader's quit cascade and
 the updater's instance count both match the reader's identifier: neither may kill or wait for the helper.

@@ -7,12 +7,44 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 /// What the panel implements (PROTOCOL.md § Capabilities), as the Electron host says it: `#` offers the open
-/// model, files may be dropped, and `@` mentions friends. Phones have nothing to drop files from, so their composer
-/// does not suggest it.
+/// model, files may be dropped, `@` mentions friends, a list row's menu opens on right-click (a long press on
+/// phones), people nearby show how they were found, a friend's file can be fetched from them again (Get again),
+/// and the panel says which conversation the person is looking at, so it does not notify (`notifications.focus`).
+/// Phones have nothing to drop files from, so their composer does not suggest it. The list's card that asks to turn
+/// notifications on is for a Mac and an iPhone (`notifications.ask`); Android asks with its Bluetooth permissions
+/// and can keep Friends reachable in the background instead (`background.reachable`).
 #[cfg(desktop)]
-const CAPABILITIES: &[&str] = &["attach.items", "drop.files", "mentions"];
-#[cfg(mobile)]
-const CAPABILITIES: &[&str] = &["attach.items", "mentions"];
+const CAPABILITIES: &[&str] = &[
+    "attach.items",
+    "drop.files",
+    "mentions",
+    "list.menu",
+    "nearby.found",
+    "files.again",
+    "notifications.focus",
+    #[cfg(target_os = "macos")]
+    "notifications.ask",
+];
+#[cfg(target_os = "ios")]
+const CAPABILITIES: &[&str] = &[
+    "attach.items",
+    "mentions",
+    "list.menu",
+    "nearby.found",
+    "files.again",
+    "notifications.focus",
+    "notifications.ask",
+];
+#[cfg(target_os = "android")]
+const CAPABILITIES: &[&str] = &[
+    "attach.items",
+    "mentions",
+    "list.menu",
+    "nearby.found",
+    "files.again",
+    "notifications.focus",
+    "background.reachable",
+];
 
 /// The formats the viewer opens, the same list as `bundle.fileAssociations`: received files in these offer Open.
 pub const OPEN_FORMATS: &[&str] = &[
@@ -75,7 +107,9 @@ pub fn plugin() -> tauri::plugin::TauriPlugin<tauri::Wry> {
 
 /// Debug builds on Android, which start with no environment of their own: a test run's Friends home and loopback
 /// routes from `files/friends-test.env` in the app's private directory (written with `adb shell run-as`), as
-/// `SZFRIENDS_STATE_DIR` and `SZFRIENDS_TEST_LOOPBACK` give them on desktops and in the iOS simulator.
+/// `SZFRIENDS_STATE_DIR` and `SZFRIENDS_TEST_LOOPBACK` give them on desktops and in the iOS simulator, and the
+/// test host's signed list of loopback hosts and its keys (`SZFRIENDS_TEST_HOST_LIST`, `SZFRIENDS_TEST_HOST_KEYS`)
+/// for a test that goes online.
 #[cfg(all(target_os = "android", debug_assertions))]
 fn android_test_environment() {
     let file = "/data/data/com.shenzhen3d.viewer/files/friends-test.env";
@@ -83,7 +117,10 @@ fn android_test_environment() {
         return;
     };
     for (key, value) in text.lines().filter_map(|line| line.split_once('=')) {
-        if matches!(key, "SZFRIENDS_STATE_DIR" | "SZFRIENDS_TEST_LOOPBACK") {
+        if matches!(
+            key,
+            "SZFRIENDS_STATE_DIR" | "SZFRIENDS_TEST_LOOPBACK" | "SZFRIENDS_TEST_HOST_LIST" | "SZFRIENDS_TEST_HOST_KEYS"
+        ) {
             // SAFETY: at startup, before the plugin or the core starts a thread that reads the environment.
             unsafe { std::env::set_var(key, value) };
         }

@@ -51,7 +51,8 @@ pub fn hello() -> Value {
     json!({"type": "hello", "id": "1", "protocol": {"major": 1, "minor": 0, "min_major": 1},
         "client": {"app_id": "interop", "app_name": "Shenzhen 3D", "app_version": "1", "toolkit": "tauri",
                    "reveal_in": "Files", "pid": std::process::id()},
-        "embedded_helper": null, "capabilities": ["drop.files"], "open_formats": ["stl"], "locale": "en"})
+        "embedded_helper": null, "capabilities": ["drop.files", "files.again"], "open_formats": ["stl"],
+        "locale": "en"})
 }
 
 impl Client {
@@ -241,6 +242,64 @@ pub fn rust_helper(name: &str, home: &Path) -> Client {
     client
 }
 
+/// A Rust helper as [`rust_helper`] starts it, with `env` set while it starts (helpers read their test variables
+/// as they start) and removed after. The caller sets `SZFRIENDS_STATE_DIR` and keeps other starts out meanwhile.
+pub fn rust_helper_with(name: &str, home: &Path, env: &[(&str, &str)]) -> Client {
+    for (key, value) in env {
+        std::env::set_var(key, value);
+    }
+    let client = rust_helper(name, home);
+    for (key, _) in env {
+        std::env::remove_var(key);
+    }
+    client
+}
+
+/// The room two test helpers share: a test air both see over "Bluetooth" (`SZFRIENDS_TEST_BLUETOOTH`), and a hold
+/// file keeping their network off until [`Room::network_comes_up`] (`SZFRIENDS_TEST_NETWORK_HOLD`). Pass
+/// [`Room::env`] to [`rust_helper_with`] and [`objc_helper_with`], beside each helper's own network variables (a
+/// shared `SZFRIENDS_TEST_LOOPBACK` directory, or a test service type). Both helpers honour these in test homes only.
+#[derive(Debug)]
+pub struct Room {
+    air: PathBuf,
+    hold: PathBuf,
+}
+
+impl Room {
+    /// The air directory and hold file under `directory` (made here); the network starts off when `held`.
+    pub fn new(directory: &Path, held: bool) -> Self {
+        let air = directory.join("air");
+        std::fs::create_dir_all(&air).expect("a test air");
+        let room = Self { air, hold: directory.join("network-hold") };
+        if held {
+            room.network_goes_down();
+        }
+        room
+    }
+
+    /// The test air and the hold file, as each helper's environment names them.
+    pub fn env(&self) -> Vec<(&'static str, String)> {
+        vec![
+            (szfriends_helper::nearby::test_air::ENV_TEST_BLUETOOTH, self.air.to_string_lossy().into_owned()),
+            (szfriends_helper::nearby::hold::ENV_TEST_NETWORK_HOLD, self.hold.to_string_lossy().into_owned()),
+        ]
+    }
+
+    /// Removes the hold file: each helper's network adapter starts within about 250 ms, as Wi-Fi coming up.
+    pub fn network_comes_up(&self) {
+        let _ = std::fs::remove_file(&self.hold);
+    }
+
+    /// Puts the hold file back: each helper's network adapter stops again.
+    pub fn network_goes_down(&self) {
+        std::fs::write(&self.hold, b"").expect("the network hold");
+    }
+
+    pub fn air(&self) -> &Path {
+        &self.air
+    }
+}
+
 /// Files made in a local directory.
 pub fn local_files(directory: PathBuf) -> FileMaker {
     Box::new(move |name, size| {
@@ -349,6 +408,7 @@ pub fn objc_helper_with(name: &str, binary: &Path, home: &Path, env: &[(&str, &s
     let child = Command::new(binary)
         .env_clear()
         .env("SZFRIENDS_STATE_DIR", home)
+        .env("SZFRIENDS_DOWNLOADS_DIR", home.join("Downloads"))
         .env("SZFRIENDS_KEY_STORE", "file")
         .envs(env.iter().copied())
         .env("HOME", std::env::var("HOME").unwrap_or_default())

@@ -73,7 +73,7 @@ BOOL SZFHTestDevicesIntents(SZFHHarness *harness) {
     reply = [client intent:@"subscribe" fields:@{@"view" : @"list"}];
     NSDictionary *list = SZFHDevicesSnapshot(client, reply[@"result"][@"subscription"])[@"data"];
     CHECK([list[@"state"] isEqual:@"normal"] && list[@"removed"] == NSNull.null, "a normal list: %@", list);
-    CHECK([list[@"name_prompt"][@"join_label"] isEqual:@"Use my existing profile"], "joining offered: %@", list);
+    CHECK([list[@"join"][@"action"][@"action"] isEqual:@"open_join"], "joining offered: %@", list);
     [client close];
     kill(pid, SIGTERM);
     CHECK([harness waitForExit:pid timeout:3 status:NULL]);

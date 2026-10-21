@@ -5,7 +5,11 @@
 // - keychainRead, keychainAdd, keychainDelete: the Friends key, a generic-password item readable after the first
 //   unlock, on this device only, never synchronised.
 // - share: a received file to the share sheet (Save to Files is one of its choices).
-// - openUrl: a web or mail link, or the app's page in Settings.
+// - openUrl: a web or mail link, the app's page in Settings, or its notification settings.
+// - notify*: Friends' notifications (Notifications.swift).
+//
+// It extends NearbyPlugin, whose commands it answers too: Tauri keeps one Swift plugin per Tauri plugin, and a second
+// one registered for szfriends replaced the first.
 
 import Foundation
 import Security
@@ -47,12 +51,13 @@ private func unhex(_ text: String) -> Data? {
   return data
 }
 
-class FriendsPlugin: Plugin {
+class FriendsPlugin: NearbyPlugin {
 
   @objc public func dirs(_ invoke: Invoke) throws {
     let base = try FileManager.default.url(
       for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
-    invoke.resolve(["base": base.path])
+    // What the person's other computers call this device: its name ("iPhone" without the name entitlement).
+    invoke.resolve(["base": base.path, "name": UIDevice.current.name])
   }
 
   /// Sets the flag when it is missing and reads it back: called at every start, before Friends opens anything.
@@ -139,6 +144,12 @@ class FriendsPlugin: Plugin {
     let target: URL?
     if args.url == "app-settings:" {
       target = URL(string: UIApplication.openSettingsURLString)
+    } else if args.url == "app-notification-settings:" {
+      if #available(iOS 16.0, *) {
+        target = URL(string: UIApplication.openNotificationSettingsURLString)
+      } else {
+        target = URL(string: UIApplication.openSettingsURLString)
+      }
     } else if let url = URL(string: args.url), ["https", "http", "mailto"].contains(url.scheme ?? "") {
       target = url
     } else {
@@ -153,5 +164,7 @@ class FriendsPlugin: Plugin {
 
 @_cdecl("init_plugin_szfriends")
 public func initPlugin() -> Plugin {
+  // Before the app finishes launching, so the tap that launched it is delivered.
+  FriendsNotifications.shared.install()
   return FriendsPlugin()
 }

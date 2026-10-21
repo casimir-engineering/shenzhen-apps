@@ -78,7 +78,7 @@ impl State {
         Some(szfriends_core::crypto::presence::tag(&mine, window(now)))
     }
 
-    fn own_device_live_link(&self, device: &[u8; 32]) -> Option<u64> {
+    pub(crate) fn own_device_live_link(&self, device: &[u8; 32]) -> Option<u64> {
         let id = *self.devices.links.get(device)?;
         self.sessions.map.get(&id).filter(|s| !s.channel.is_closed()).map(|_| id)
     }
@@ -356,6 +356,8 @@ impl State {
         }
         if self.sync_active() {
             let _ = self.devices.engine.ensure_own_devices_secret(&self.store);
+            // You, as soon as the profile has a second computer (SZFriendsNearbyService+Devices.m does the same).
+            let _ = szfriends_core::store::sync_history::ensure_you_conversation(self.store.connection());
         }
         let gone: Vec<u64> = self
             .devices

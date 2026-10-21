@@ -133,6 +133,10 @@ typedef NS_ENUM(NSInteger, SZFriendsRelation) {
 // person's acceptance as an IncomingRequest (wave-4 re-check: an unattested ACCEPT is a card, not a friendship).
 // Saved only with relation IncomingRequest and read back nil for any other relation, so moving on voids it.
 @property(nonatomic, copy, nullable) NSString *unconfirmedAnswerID;
+// When the person took this someone off their list (remove_friend): the row and its history stay, but no list shows
+// them. Saved only with relation Removed or Blocked and read back nil for any other, so a new request from either
+// side, an acceptance or an Add by ID brings them back.
+@property(nonatomic, copy, nullable) NSDate *leftListAt;
 @end
 
 // An Add by ID this person sent (ADR 0004 steps 1 and 3; table id_requests). Pending until someone answers: it is

@@ -1,5 +1,6 @@
 // Shenzhen Friends snapshot builder: joining a profile (SZFriendsPresentationJoin.h, PROTOCOL.md § Joining).
 
+#import "service/presentation/SZFriendsPresentationDevices.h"
 #import "service/presentation/SZFriendsPresentationJoin.h"
 #import "service/presentation/SZFriendsPresentationPrivate.h"
 
@@ -49,7 +50,9 @@ static NSString *const SZFriendsJoinStateNames[] = {
 
 - (NSDictionary<NSString *, id> *)joinRowWithFacts:(SZFriendsJoinRequestFacts *)facts now:(NSDate *)now {
     SZFriendsStrings *s = self.strings;
-    NSDictionary<NSString *, NSString *> *names = @{@"device" : facts.deviceName, @"system" : facts.system};
+    // A phone asking says so ("Android phone"), where a computer's system shows as it is.
+    NSDictionary<NSString *, NSString *> *names = @{@"device" : facts.deviceName,
+                                                   @"system" : [s deviceSystemLabel:facts.system]};
     NSMutableDictionary<NSString *, id> *row = [@{
         @"join_id" : facts.joinID,
         @"code" : [NSNull null],

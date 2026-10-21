@@ -28,6 +28,19 @@ export function publish(status: FriendsStatus) {
   statusCache = status;
   for (const listener of statusListeners) listener(status);
 }
+/** Where each event from the bridge goes for the header: the status, the badge, and the requests the button
+ * carries out (a link's card, a notification's conversation, a download link, View ▸ Friends). */
+export function routeEvent(event: FriendsEvent) {
+  if (event.kind === "status") publish(event.status);
+  else if (event.kind === "badge" && statusCache)
+    publish({ ...statusCache, badge: event.data });
+  else if (event.kind === "link") pendingLink.request(event.payload);
+  else if (event.kind === "open")
+    pendingOpen.request({ conversation_id: event.conversation_id });
+  else if (event.kind === "copy_download_link")
+    downloadLinkRequests.request(event.days);
+  else if (event.kind === "toggle") friendsRequests.request("toggle");
+}
 export function useFriendsStatus() {
   const [status, setStatus] = useState<FriendsStatus | null>(statusCache);
   useEffect(() => {
@@ -38,15 +51,7 @@ export function useFriendsStatus() {
     if (!joined) {
       joined = true;
       stop = afterFirstPaint(() => {
-        bridge.subscribe((event: FriendsEvent) => {
-          if (event.kind === "status") publish(event.status);
-          else if (event.kind === "badge" && statusCache)
-            publish({ ...statusCache, badge: event.data });
-          else if (event.kind === "link") pendingLink.request(event.payload);
-          else if (event.kind === "copy_download_link")
-            downloadLinkRequests.request(event.days);
-          else if (event.kind === "toggle") friendsRequests.request("toggle");
-        });
+        bridge.subscribe(routeEvent);
         void bridge.join().then(publish, () => {});
       });
     }
@@ -82,6 +87,8 @@ function channel<T>() {
 }
 export const pendingShare = channel<Outgoing>();
 export const pendingLink = channel<string>();
+/** A notification's URL: open the dropdown on this conversation, or on the list (null). */
+export const pendingOpen = channel<{ conversation_id: string | null }>();
 
 /** Whether Friends runs in this build and is on: the app shows its Friends commands only then. */
 export function useFriendsAvailable() {

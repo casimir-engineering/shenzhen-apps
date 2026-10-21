@@ -65,3 +65,13 @@
 {"type":"rename_device","id":"66","name":"Raph’s MacBook Pro"}
 {"type":"fetch_from_device","id":"67","transfer_id":"t_c81f04d2"}
 {"type":"subscribe","id":"68","view":"join","params":null}
+{"type":"set_received_folder","id":"69","path":"/Users/raph/Documents/From friends"}
+{"type":"subscribe","id":"70","view":"received","params":null}
+{"type":"remove_friend","id":"71","conversation_id":"c_lena","delete_history":true}
+{"type":"fetch_from_friend","id":"72","transfer_id":"t_5a90c3e1"}
+{"type":"set_focus","id":"73","conversation_id":"c_mei"}
+{"type":"set_focus","id":"74","conversation_id":null}
+{"type":"set_notifications","id":"75","enabled":true,"preview":false}
+{"type":"allow_notifications","id":"76"}
+{"type":"dismiss_banner","id":"77","kind":"notifications"}
+{"type":"test_notification_response","id":"78","key":"message:i_81f2","action":"reply","text":"On it"}

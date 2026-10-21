@@ -46,4 +46,26 @@ NSString *SZFriendsDeviceIDForKey(NSData *deviceKey);
 - (void)tellRemovedComputerOnLink:(SZFriendsPeerLink *)link;
 @end
 
+@class SZFriendsSyncFileRecord;
+
+// Getting a file again (+Again, ADR 0016; PROTOCOL.md § Getting a file again).
+@interface SZFriendsNearbyService (Again)
+// fetch_from_friend: nil, or the error code (`reason` "again" with not_found).
+- (nullable NSString *)fetchFileFromFriend:(NSString *)transferID reason:(NSString *_Nullable *_Nullable)reason;
+// Cancel after Get again: YES when it was asked for (it stops; what arrived waits for the next Get again).
+- (BOOL)cancelAgainOfFile:(NSString *)transferID;
+// What a snapshot shows: asked, or answered gone; a copy running now and how far it is.
+- (SZFriendsAgainState)againStateOfTransfer:(NSString *)transferID;
+- (BOOL)againCopyingTransfer:(NSString *)transferID fraction:(nullable double *)fraction;
+// A live session with this friend that can carry Get again.
+- (BOOL)againReachesConversation:(NSString *)conversationID;
+// Another computer of this profile, authorized now, holds this file's bytes.
+- (BOOL)anotherComputerHoldsFile:(nullable SZFriendsSyncFileRecord *)file;
+// Something asked for again from this friend: they are reached online too.
+- (BOOL)hasAgainRequestsForConversation:(NSString *)conversationID;
+// A session with a friend became theirs (+Sessions): what is asked for starts.
+- (void)startAgainOnLink:(SZFriendsPeerLink *)link;
+- (void)link:(SZFriendsPeerLink *)link person:(SZFriendsPersonRecord *)person receivedAgainFrame:(SZFriendsFrame *)frame;
+@end
+
 NS_ASSUME_NONNULL_END

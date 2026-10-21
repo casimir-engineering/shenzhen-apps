@@ -212,10 +212,10 @@ void SZFTestSettingsAndServices(NSString *stateDirectory) {
     __block NSUInteger asked = 0;
     __block BOOL answer = NO;
     __block NSDictionary *question = nil;
-    section.context.presentConfirmation = ^(NSDictionary *confirm, void (^onConfirm)(void)) {
+    section.context.presentConfirmation = ^(NSDictionary *confirm, void (^onConfirm)(BOOL)) {
         question = confirm;
         asked++;
-        if (answer) onConfirm();
+        if (answer) onConfirm(NO);
     };
     [section sectionWillAppear];
     SZFExpect(section.holdsSubscription, @"settings subscribed while on screen");
@@ -225,8 +225,27 @@ void SZFTestSettingsAndServices(NSString *stateDirectory) {
     SZFExpect([[section.context.pasteboard stringForType:NSPasteboardTypeString] isEqualToString:@"cottage-violet"],
               @"Copy copies the ID");
     [section.buttons[1] performClick:nil];
-    SZFExpect([host.revealedFiles.lastObject.path hasSuffix:@"Shenzhen Friends/received"],
+    SZFExpect([host.revealedFiles.lastObject.path isEqualToString:@"/Users/raph/Downloads"],
             @"Show in Finder via the host");
+    // Where received files go: the folder's name under the label, Change… opens the folder picker at that folder,
+    // and the folder picked goes to the helper.
+    SZFExpect([section.receivedFolderField.stringValue isEqualToString:@"Downloads"] &&
+                  [section.receivedFolderField.toolTip isEqualToString:@"/Users/raph/Downloads"],
+              @"the folder: %@", section.receivedFolderField.stringValue);
+    SZFExpect(!section.receivedChangeButton.hidden && [section.receivedChangeButton.title isEqualToString:@"Change…"],
+              @"Change… beside Show in Finder");
+    __block NSString *pickerStart = nil;
+    section.chooseFolder = ^(NSString *startPath, void (^chosen)(NSString *path)) {
+        pickerStart = startPath;
+        chosen(@"/Users/raph/Documents/From friends");
+    };
+    [section.receivedChangeButton performClick:nil];
+    SZFExpect([pickerStart isEqualToString:@"/Users/raph/Downloads"], @"the picker starts at the folder: %@",
+              pickerStart);
+    SZFExpect(SZFTestWaitUntil(10, ^BOOL {
+                  return [[fake framesOfType:@"set_received_folder"].lastObject[@"path"]
+                      isEqualToString:@"/Users/raph/Documents/From friends"];
+              }), @"set_received_folder with the folder picked");
     [section.buttons[2] performClick:nil];
     [section.autoAcceptSwitches[2] performClick:nil];
     SZFExpect(SZFTestWaitUntil(10, ^BOOL {
@@ -241,7 +260,7 @@ void SZFTestSettingsAndServices(NSString *stateDirectory) {
     SZFExpect([question[@"body"] isEqualToString:@"Your messages and file history with every friend are deleted from "
                                                  @"this computer, and anything still waiting to go won’t be sent. You "
                                                  @"keep your friends, and they keep their own copies of your chats. "
-                                                 @"Files you received stay in Received files."] &&
+                                                 @"Files you received stay where they were saved."] &&
                   [question[@"title"] isEqualToString:@"Delete all conversation history?"],
               @"Delete history says what goes and what stays: %@", question);
     answer = YES;

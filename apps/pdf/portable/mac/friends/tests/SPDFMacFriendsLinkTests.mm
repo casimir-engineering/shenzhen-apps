@@ -154,6 +154,42 @@ static void TestSorting(void) {
     Expect([payloads isEqualToArray:(@[ download, friendLink ])], @"only links that pass reach Friends: %@", payloads);
 }
 
+// A notification's click (portable/friends/PROTOCOL.md § Notifications): the conversation, or the list.
+static void TestRoutes(void) {
+    Expect([SPDFMacFriendsRouteFromString(@"shenzhenpdf://friends/conversation/c_mei", @"shenzhenpdf")
+               isEqualToString:@"c_mei"], @"a conversation");
+    Expect([SPDFMacFriendsRouteFromString(@"ShenzhenPDF://friends/conversation/AZaz09_-", @"shenzhenpdf")
+               isEqualToString:@"AZaz09_-"], @"the scheme in any case, every id character");
+    Expect([SPDFMacFriendsRouteFromString(@"shenzhenpdf://friends", @"shenzhenpdf") isEqualToString:@""], @"the list");
+    Expect([SPDFMacFriendsRouteFromString(@"shenzhenpdf://friends/", @"shenzhenpdf") isEqualToString:@""], @"list /");
+    NSString* longest = [@"" stringByPaddingToLength:64 withString:@"a" startingAtIndex:0];
+    Expect([SPDFMacFriendsRouteFromString([@"shenzhenpdf://friends/conversation/" stringByAppendingString:longest],
+                                          @"shenzhenpdf") isEqualToString:longest], @"64 bytes");
+    for (NSString* refused in @[
+             @"shenzhenpdf://friends/conversation/", @"shenzhenpdf://friends/conversation/c_mei/",
+             @"shenzhenpdf://friends/conversation/c mei", @"shenzhenpdf://friends/conversation/c%5Fmei",
+             @"shenzhenpdf://friends/conversation/c_mei?x=1", @"shenzhenpdf://friends/conversation/c_mei#x",
+             @"shenzhenpdf://friends/conversation/c.mei", @"shenzhenpdf://friends/conversation/c_méi",
+             @"shenzhenpdf://friends/conversation/../list", @"shenzhenpdf://friends/conversations/c_mei",
+             @"shenzhenpdf://Friends/conversation/c_mei", @"shenzhenpdf:friends/conversation/c_mei",
+             @"shenzhenfiles://friends/conversation/c_mei", @"https://friends/conversation/c_mei",
+             @"shenzhenpdf://friends/link#f.AAAA", @"shenzhenpdf://friendsx",
+             [@"shenzhenpdf://friends/conversation/" stringByAppendingString:[longest stringByAppendingString:@"a"]],
+         ])
+        Expect(SPDFMacFriendsRouteFromString(refused, @"shenzhenpdf") == nil, @"refused: %@", refused);
+    Expect(SPDFMacFriendsRouteFromString(nil, @"shenzhenpdf") == nil, @"nil");
+
+    NSArray* urls = @[
+        [NSURL fileURLWithPath:@"/Users/raph/Documents/a.pdf"],
+        [NSURL URLWithString:@"shenzhenpdf://friends/conversation/c_mei"],
+        [NSURL URLWithString:@"shenzhenpdf://friends/conversation/c.bad"], [NSURL URLWithString:@"shenzhenpdf://friends"],
+    ];
+    NSMutableArray* paths = [NSMutableArray array], *payloads = [NSMutableArray array], *routes = [NSMutableArray array];
+    SPDFMacFriendsSortOpenedURLsWithRoutes(urls, @"shenzhenpdf", paths, payloads, routes);
+    Expect([routes isEqualToArray:(@[ @"c_mei", @"" ])] && payloads.count == 0 && paths.count == 1,
+           @"routes sorted out, in order: %@ %@ %@", routes, payloads, paths);
+}
+
 static void TestInfoPlist(NSString* path) {
     NSDictionary* plist = [NSDictionary dictionaryWithContentsOfFile:path];
     BOOL found = NO;
@@ -261,6 +297,7 @@ int main(int argc, const char* argv[]) {
         TestPayloads();
         TestSharedDownloadPayloads();
         TestSorting();
+        TestRoutes();
         TestInfoPlist(@(argv[1]));
         TestMenus();
         TestCopyLinkInstead();

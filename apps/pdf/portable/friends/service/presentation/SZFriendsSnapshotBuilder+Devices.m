@@ -36,12 +36,29 @@ static const NSUInteger SZFriendsDeviceNameMaxBytes = 64;
     NSDictionary<NSString *, NSString *> *keys = @{
         @"not_found/device" : @"error.not_found.device",
         @"not_found/fetch" : @"error.not_found.fetch",
+        @"not_found/again" : @"error.not_found.again",
         @"name_invalid/empty" : @"error.name_invalid.device.empty",
         @"name_invalid/invalid" : @"error.name_invalid.device",
         @"not_allowed/device_removed" : @"error.not_allowed.device_removed",
     };
     NSString *key = keys[[NSString stringWithFormat:@"%@/%@", code, reason]];
     return key ? [self text:key] : nil;
+}
+
+- (nullable NSString *)phoneSystemKey:(NSString *)system {
+    NSString *lower = system.lowercaseString;
+    if ([lower hasPrefix:@"android"]) return @"devices.system.android";
+    if ([lower hasPrefix:@"ios"] || [lower hasPrefix:@"ipados"]) return @"devices.system.ios";
+    return nil;
+}
+
+- (BOOL)isPhoneSystem:(NSString *)system {
+    return [self phoneSystemKey:system] != nil;
+}
+
+- (NSString *)deviceSystemLabel:(NSString *)system {
+    NSString *key = [self phoneSystemKey:system];
+    return key ? [self text:key] : system;
 }
 
 @end
@@ -82,7 +99,8 @@ static const NSUInteger SZFriendsDeviceNameMaxBytes = 64;
             spoken = [s timeAccessibilityLabelForDate:device.lastSeenAt now:now];
         }
     }
-    NSDictionary *values = @{@"name" : device.name, @"system" : device.system, @"last" : last, @"device" : device.name};
+    NSString *system = [s deviceSystemLabel:device.system];
+    NSDictionary *values = @{@"name" : device.name, @"system" : system, @"last" : last, @"device" : device.name};
     NSMutableDictionary *said = [values mutableCopy];
     said[@"last"] = spoken ?: last;
     id remove = [NSNull null];
@@ -106,7 +124,7 @@ static const NSUInteger SZFriendsDeviceNameMaxBytes = 64;
     return @{
         @"device_id" : device.deviceID,
         @"name" : device.name,
-        @"system" : device.system,
+        @"system" : system,
         @"last_connected" : last,
         @"detail" : [s text:@"devices.detail" values:values],
         @"this_computer" : SZFriendsBool(device.thisComputer),
@@ -119,11 +137,57 @@ static const NSUInteger SZFriendsDeviceNameMaxBytes = 64;
 
 - (NSDictionary<NSString *, id> *)devicesSectionWithFacts:(SZFriendsDevicesFacts *)facts now:(NSDate *)now {
     NSMutableArray<NSDictionary *> *rows = [NSMutableArray array];
+    BOOL phones = NO;
     for (SZFriendsDeviceFacts *device in facts.computers) {
         [rows addObject:[self rowForDevice:device removed:facts.removed now:now]];
+        phones = phones || [self.strings isPhoneSystem:device.system];
     }
-    return @{@"title" : [self.strings text:@"devices.title"], @"note" : [self.strings text:@"devices.note"],
+    // "Your computers and phones" once one of them is a phone: the heading names what the rows are.
+    NSString *title = [self.strings text:phones ? @"devices.title.phones" : @"devices.title"];
+    return @{@"title" : title, @"add" : [self addDeviceWithFacts:facts],
              @"rows" : rows};
+}
+
+// How to add another computer or phone, said from this one: what to do there, the ID to type, and Approve here.
+- (id)addDeviceWithFacts:(SZFriendsDevicesFacts *)facts {
+    if (facts.removed || facts.friendsID.length == 0) return [NSNull null];
+    SZFriendsStrings *s = self.strings;
+    return @{
+        @"title" : [s text:@"devices.add.title"],
+        @"steps" : @[
+            [s text:@"devices.add.step.open"],
+            [s text:@"devices.add.step.id" values:@{@"id" : [s displayID:facts.friendsID]}],
+            [s text:@"devices.add.step.approve"]
+        ],
+        @"friends_id" : facts.friendsID
+    };
+}
+
+#pragma mark - Using an existing profile here
+
+// The button that offers the person's existing profile here (PROTOCOL.md § Joining, Offering it): the join view at
+// once while this computer has nobody to lose, else Reset Friends first, with a confirmation that says what goes, and
+// the join view after it (`then`, which the view keeps to itself).
+- (nullable NSDictionary<NSString *, id> *)joinOfferActionWithStyle:(NSString *)style {
+    SZFriendsDevicesFacts *facts = self.devices;
+    if (facts == nil || facts.removed || !(facts.joinOffered || facts.joinReplaces)) return nil;
+    NSString *label = [self.strings text:@"join.offer.action"];
+    if (facts.joinOffered) return [self action:@"open_join" label:label style:style];
+    NSMutableDictionary *action = [self action:@"reset_friends" label:label style:style];
+    action[@"confirm"] = [self confirmWithTitle:@"join.offer.confirm.title"
+                                           body:[self deletionBodyKey:@"join.offer.confirm.body"]
+                                   confirmLabel:@"join.offer.confirm.button"
+                                         values:@{@"id" : [self.strings displayID:facts.friendsID ?: @""]}
+                                    destructive:YES];
+    action[@"then"] = @"open_join";
+    return action;
+}
+
+- (nullable NSDictionary<NSString *, id> *)settingsJoin {
+    NSDictionary *action = [self joinOfferActionWithStyle:@"secondary"];
+    if (action == nil) return nil;
+    return @{@"label" : [self.strings text:@"settings.join.label"], @"note" : [self.strings text:@"join.offer.note"],
+             @"action" : action};
 }
 
 #pragma mark - The list
@@ -194,7 +258,8 @@ static const NSUInteger SZFriendsDeviceNameMaxBytes = 64;
         @"actions" : @[]
     } mutableCopy];
     if (mentions) row[@"mentionable"] = @NO; // nobody mentions themselves
-    return row;
+    if ([self.audience.capabilities containsObject:@"list.menu"]) row[@"menu"] = @[]; // nothing to remove
+    return [self row:row foundWithMethods:nil]; // this computer is found nowhere
 }
 
 - (NSDictionary<NSString *, id> *)listWithDevices:(NSDictionary<NSString *, id> *)list
@@ -234,12 +299,13 @@ static const NSUInteger SZFriendsDeviceNameMaxBytes = 64;
         result[@"empty"] = [NSNull null];
     }
     result[@"rows"] = rows;
-    if ([result[@"name_prompt"] isKindOfClass:[NSDictionary class]]) {
-        NSMutableDictionary *prompt = [result[@"name_prompt"] mutableCopy];
-        prompt[@"join_label"] = facts.joinOffered && !facts.removed ? [self.strings text:@"name_prompt.join"]
-                                                                    : [NSNull null];
-        result[@"name_prompt"] = prompt;
-    }
+    // On the list while the name prompt shows, and while this computer has nobody in Friends: where someone setting
+    // up a new computer looks first, even once they chose a name.
+    NSDictionary *offer = [self joinOfferActionWithStyle:@"link"];
+    BOOL prompt = [result[@"name_prompt"] isKindOfClass:[NSDictionary class]];
+    result[@"join"] = offer && (prompt || facts.joinOffered)
+                          ? @{@"note" : [self.strings text:@"join.offer.note"], @"action" : offer}
+                          : [NSNull null];
     return result;
 }
 

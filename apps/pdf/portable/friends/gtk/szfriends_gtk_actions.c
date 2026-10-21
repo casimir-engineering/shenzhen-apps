@@ -37,7 +37,8 @@ static SZFriendsGtkActionTakes action_takes(SZFriendsGtkActionKind action) {
     case SZFRIENDS_GTK_ACTION_ACCEPT_OFFER:
     case SZFRIENDS_GTK_ACTION_DECLINE_OFFER:
     case SZFRIENDS_GTK_ACTION_CANCEL_TRANSFER:
-    case SZFRIENDS_GTK_ACTION_FETCH_FROM_DEVICE: return TAKES_TRANSFER;
+    case SZFRIENDS_GTK_ACTION_FETCH_FROM_DEVICE:
+    case SZFRIENDS_GTK_ACTION_FETCH_FROM_FRIEND: return TAKES_TRANSFER;
     case SZFRIENDS_GTK_ACTION_RETRY_ITEM: return TAKES_ITEM;
     case SZFRIENDS_GTK_ACTION_DISMISS_BANNER: return TAKES_KIND;
     case SZFRIENDS_GTK_ACTION_CANCEL_MESSAGE: return TAKES_MESSAGE;
@@ -46,10 +47,13 @@ static SZFriendsGtkActionTakes action_takes(SZFriendsGtkActionKind action) {
     case SZFRIENDS_GTK_ACTION_ACTIVATE:
     case SZFRIENDS_GTK_ACTION_RESET_FRIENDS:
     case SZFRIENDS_GTK_ACTION_RESET_FRIEND_LINK:
-    case SZFRIENDS_GTK_ACTION_CANCEL_JOIN: return TAKES_NOTHING;
+    case SZFRIENDS_GTK_ACTION_CANCEL_JOIN:
+    case SZFRIENDS_GTK_ACTION_ALLOW_NOTIFICATIONS: return TAKES_NOTHING;
     case SZFRIENDS_GTK_ACTION_OPEN_FILE:
     case SZFRIENDS_GTK_ACTION_SHOW_FILE:
     case SZFRIENDS_GTK_ACTION_OPEN_SETTINGS:
+    case SZFRIENDS_GTK_ACTION_CHOOSE_RECEIVED_FOLDER:
+    case SZFRIENDS_GTK_ACTION_OPEN_JOIN:
     case SZFRIENDS_GTK_ACTION_UNKNOWN: break;
     }
     return CLIENT_SIDE;
@@ -96,7 +100,9 @@ szfriends_intent *szfriends_gtk_intent_for_action_kind(SZFriendsGtkActionKind ac
     case SZFRIENDS_GTK_ACTION_RESET_FRIENDS: return szfriends_intent_reset_friends();
     case SZFRIENDS_GTK_ACTION_RESET_FRIEND_LINK: return szfriends_intent_reset_friend_link();
     case SZFRIENDS_GTK_ACTION_FETCH_FROM_DEVICE: return szfriends_intent_fetch_from_device(present(ids->transfer_id));
+    case SZFRIENDS_GTK_ACTION_FETCH_FROM_FRIEND: return szfriends_intent_fetch_from_friend(present(ids->transfer_id));
     case SZFRIENDS_GTK_ACTION_CANCEL_JOIN: return szfriends_intent_cancel_join();
+    case SZFRIENDS_GTK_ACTION_ALLOW_NOTIFICATIONS: return szfriends_intent_allow_notifications();
     default: return NULL;
     }
 }
@@ -124,7 +130,26 @@ szfriends_intent *szfriends_gtk_intent_for_action(const SZFriendsGtkAction *acti
     if (action->action == SZFRIENDS_GTK_ACTION_DENY_JOIN) return szfriends_intent_deny_join(present(action->join_id));
     if (action->action == SZFRIENDS_GTK_ACTION_JOIN_PROFILE)
         return szfriends_intent_join_profile(present(action->friends_id));
+    /* A dismiss that names its banner (the notifications ask's Not Now) sends that kind; one without takes the
+     * banner's own kind from `ids`, as before. */
+    if (action->action == SZFRIENDS_GTK_ACTION_DISMISS_BANNER && action->kind != SZFRIENDS_GTK_DISMISS_UNSET)
+        return szfriends_intent_dismiss_banner(action->kind == SZFRIENDS_GTK_DISMISS_NOTIFICATIONS ? "notifications"
+                                                                                                    : "id_changed");
     return szfriends_gtk_intent_for_action_kind(action->action, ids);
+}
+
+gboolean szfriends_gtk_confirm_option_known(const SZFriendsGtkConfirm *confirm) {
+    return confirm && confirm->option && confirm->option->field == SZFRIENDS_GTK_CONFIRM_FIELD_DELETE_HISTORY;
+}
+
+szfriends_intent *szfriends_gtk_intent_for_answer(const SZFriendsGtkAction *action, const SZFriendsGtkActionIds *ids,
+                                                  gboolean ticked) {
+    if (!action) return NULL;
+    /* Only Remove offers "Also delete chat history"; anywhere else a ticked box adds nothing. */
+    if (ticked && action->action == SZFRIENDS_GTK_ACTION_REMOVE_FRIEND &&
+        szfriends_gtk_confirm_option_known(action->confirm))
+        return szfriends_intent_with_confirm_option(szfriends_gtk_intent_for_action(action, ids), "delete_history");
+    return szfriends_gtk_intent_for_action(action, ids);
 }
 
 #ifdef __APPLE__
@@ -148,6 +173,11 @@ const char *szfriends_gtk_settings_uri(SZFriendsGtkSettingsTarget target) {
     case SZFRIENDS_GTK_SETTINGS_WIFI:
         return macos_13_or_later() ? "x-apple.systempreferences:com.apple.wifi-settings-extension"
                                    : "x-apple.systempreferences:com.apple.preference.network?Wi-Fi";
+    /* Notifications are posted by the helper (ADR 0017), so its own entry, under its bundle identifier. */
+    case SZFRIENDS_GTK_SETTINGS_NOTIFICATIONS:
+        return macos_13_or_later() ? "x-apple.systempreferences:com.apple.Notifications-Settings.extension"
+                                     "?id=com.intuition.shenzhenfriends"
+                                   : "x-apple.systempreferences:com.apple.preference.notifications";
     default: return NULL;
     }
 #else

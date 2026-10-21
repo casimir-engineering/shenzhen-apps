@@ -28,6 +28,7 @@ static SZFriendsDevicesFacts *FourComputers(void) {
         Computer(@"d_93f2d618", @"Studio workstation", @"Linux", NO, NO, @"2026-10-11 18:02"),
         Computer(@"d_c0a47b3e", @"Raph’s MacBook Air", @"macOS 26.1", NO, NO, nil),
     ];
+    facts.friendsID = @"cottage-violet";
     return facts;
 }
 
@@ -58,8 +59,19 @@ static void TestProfileAndRows(void) {
               @"minutes: %@", office);
     builder.devices.removed = YES;
     rows = [builder devicesSectionWithFacts:builder.devices now:SZPNow()];
-    SZPExpect(rows[@"rows"][1][@"remove"] == NSNull.null && rows[@"rows"][0][@"rename"] == NSNull.null,
-              @"a removed computer removes and renames nothing");
+    SZPExpect(rows[@"rows"][1][@"remove"] == NSNull.null && rows[@"rows"][0][@"rename"] == NSNull.null &&
+                  rows[@"add"] == NSNull.null,
+              @"a removed computer removes, renames and adds nothing");
+    // A phone among them: the heading says so, and its row reads as a phone.
+    builder.devices.removed = NO;
+    builder.devices.computers = @[ builder.devices.computers[0],
+                                   Computer(@"d_3", @"POCO F7", @"Android", NO, YES, nil) ];
+    rows = [builder devicesSectionWithFacts:builder.devices now:SZPNow()];
+    NSDictionary *phone = rows[@"rows"][1];
+    SZPExpect([rows[@"title"] isEqual:@"Your computers and phones"] &&
+                  [phone[@"detail"] isEqual:@"Android phone · Now"] &&
+                  [phone[@"accessibility_label"] isEqual:@"POCO F7, Android phone, connected now"],
+              @"a phone in Your computers: %@", rows);
     builder.devices = nil;
     SZPExpect([builder profileWithFacts:SZPProfileRaph() waitingElsewhere:2][@"devices"] == nil,
               @"without the capability, no devices");
@@ -108,6 +120,32 @@ static void TestLists(void) {
     empty[@"join_requests"] = @[];
     SZPExpectFixture([builder listWithDevices:empty people:@[] query:@"" now:now], @"devices-list-new-computer.json",
                      @"list");
+    // Named, still nobody: the list keeps offering it.
+    NSDictionary *named = [builder listWithDevices:[builder listWithPeople:@[] previewItems:@{}
+                                                                  profile:SZPProfileRaph() query:@"" now:now]
+                                            people:@[] query:@"" now:now];
+    SZPExpect([named[@"join"][@"action"][@"action"] isEqual:@"open_join"], @"offered once named: %@", named[@"join"]);
+
+    // Friends here already, no name yet: joining replaces them, so it asks first and opens the join view after.
+    SZFriendsDevicesFacts *own = [[SZFriendsDevicesFacts alloc] init];
+    own.now = now;
+    own.joinReplaces = YES;
+    own.friendsID = @"cottage-violet";
+    own.computers = @[ Computer(@"d_1e9c4a70", @"Raph’s MacBook Pro", @"macOS 26.1", YES, YES, nil) ];
+    builder.devices = own;
+    NSMutableDictionary *withMei = [[builder listWithPeople:meiOnly previewItems:SZPPreviewItems() profile:unnamed
+                                                      query:@"" now:now] mutableCopy];
+    withMei[@"join_requests"] = @[];
+    SZPExpectFixture([builder listWithDevices:withMei people:meiOnly query:@"" now:now],
+                     @"devices-list-join-reset.json", @"list");
+    // Named: only Settings offers it then, so friends' rows are not crowded by it.
+    named = [builder listWithDevices:[builder listWithPeople:meiOnly previewItems:SZPPreviewItems()
+                                                     profile:SZPProfileRaph() query:@"" now:now]
+                              people:meiOnly query:@"" now:now];
+    SZPExpect(named[@"join"] == NSNull.null, @"not on a named list with friends: %@", named[@"join"]);
+    own.removed = YES;
+    SZPExpect([builder listWithDevices:withMei people:meiOnly query:@"" now:now][@"join"] == NSNull.null,
+              @"a removed computer starts over first");
 }
 
 static void TestConversations(void) {
@@ -166,10 +204,71 @@ static void TestHistoryWords(void) {
                      @"settings");
     SZPExpectFixture([builder detailsForPerson:people[@"c_mei"] waitingElsewhere:2 now:SZPNow()],
                      @"devices-details-mei.json", @"details");
+    SZPExpect([builder settingsWithProfile:SZPProfileRaph() people:people.allValues][@"join"] == nil,
+              @"a profile on several computers offers no other one");
     // One computer: the words of one computer.
     builder.devices.computers = @[ builder.devices.computers[0] ];
     SZPExpectFixture([builder settingsWithProfile:SZPProfileRaph() people:people.allValues], @"settings.json",
                      @"settings");
+    // One computer with friends: Settings offers the person's existing profile, after Reset.
+    builder.devices.joinReplaces = YES;
+    SZPExpectFixture([builder settingsWithProfile:SZPProfileRaph() people:people.allValues],
+                     @"devices-settings-join.json", @"settings");
+    SZFriendsAudience *chats = SZPAudience();
+    chats.capabilities = [chats.capabilities setByAddingObject:@"assistant.chats"];
+    SZFriendsSnapshotBuilder *assistant = SZPBuilder(chats);
+    assistant.devices = builder.devices;
+    NSString *body = [assistant settingsWithProfile:SZPProfileRaph() people:people.allValues][@"join"][@"action"]
+        [@"confirm"][@"body"];
+    SZPExpect([body containsString:@"AI chat answers"], @"the AI chat's answers stay: %@", body);
+}
+
+static SZFriendsItemFacts *Moved(NSString *transferID, BOOL outgoing, NSString *time, NSString *name, uint64_t size,
+                                 SZFriendsAgainState again) {
+    SZFriendsItemFacts *item = SZPTransfer(transferID, outgoing, time, name, size,
+                                           outgoing ? SZFriendsTransferStateDelivered : SZFriendsTransferStateReceived);
+    item.fileMissing = YES;
+    item.again = again;
+    return item;
+}
+
+// Files the person moved or deleted (PROTOCOL.md § Getting a file again): Get again from Mei, copying from her,
+// waiting for her, her answer that she no longer has one, one still on another computer (Get), and one this person
+// sent from another computer, which only says where it went.
+static void TestFilesAgain(void) {
+    SZFriendsAudience *audience = SZPAudience();
+    audience.capabilities = [audience.capabilities setByAddingObject:@"files.again"];
+    SZFriendsSnapshotBuilder *builder = SZPBuilder(audience);
+    builder.devices = FourComputers();
+    SZFriendsItemFacts *copying = Moved(@"t_7b3e0f42", NO, @"2026-10-12 09:20", @"Shift rota.pdf", 1203456,
+                                        SZFriendsAgainAsked);
+    copying.againConnected = YES;
+    copying.againFraction = 0.4;
+    NSArray *items = @[
+        Moved(@"t_5a90c3e1", NO, @"2026-10-12 09:12", @"Site photos.pdf", 48231004, SZFriendsAgainNone), copying,
+        Moved(@"t_91c6d2a8", NO, @"2026-10-12 09:31", @"Supplier quote.pdf", 3604480, SZFriendsAgainAsked),
+        Moved(@"t_2f8a4c17", NO, @"2026-10-12 09:44", @"Old floor plan.pdf", 5100000, SZFriendsAgainGone),
+        Moved(@"t_c4e19b05", NO, @"2026-10-12 09:50", @"Audit checklist.pdf", 860160, SZFriendsAgainNone),
+        Moved(@"t_e83d5a6c", YES, @"2026-10-12 10:02", @"Quote reply.pdf", 2200000, SZFriendsAgainNone),
+    ];
+    SZFriendsDeviceFileFacts *onMini = [[SZFriendsDeviceFileFacts alloc] init];
+    onMini.deviceName = @"Raph’s Mac mini";
+    builder.devices.files = @{@"t_c4e19b05" : onMini};
+    SZFriendsPersonFacts *mei = SZPPeople()[@"c_mei"];
+    NSDictionary *built = [builder conversationForPerson:mei items:items hasEarlier:NO highlightItemID:nil
+                                        waitingElsewhere:2 now:SZPNow()];
+    SZPExpectFixture(built, @"devices-conversation-mei-again.json", @"conversation");
+    // A host that cannot send Get again is told where the file is, and offered nothing.
+    SZFriendsSnapshotBuilder *older = SZPBuilder(SZPAudience());
+    older.devices = builder.devices;
+    NSDictionary *plain = [older conversationForPerson:mei items:@[ items[0] ] hasEarlier:NO highlightItemID:nil
+                                      waitingElsewhere:2 now:SZPNow()][@"items"][1];
+    SZPExpect([plain[@"state"] isEqual:@"missing"] && [plain[@"actions"] count] == 0, @"no Get again: %@", plain);
+    // Nor is anyone who is not a friend now: their file stays moved or deleted.
+    mei.relation = SZFriendsPersonRelationRemoved;
+    NSDictionary *removed = [builder conversationForPerson:mei items:@[ items[0] ] hasEarlier:NO highlightItemID:nil
+                                          waitingElsewhere:2 now:SZPNow()][@"items"][1];
+    SZPExpect([removed[@"state"] isEqual:@"missing"] && [removed[@"actions"] count] == 0, @"removed: %@", removed);
 }
 
 void SZPRunDevicesBuildTests(void) {
@@ -177,4 +276,5 @@ void SZPRunDevicesBuildTests(void) {
     TestLists();
     TestConversations();
     TestHistoryWords();
+    TestFilesAgain();
 }

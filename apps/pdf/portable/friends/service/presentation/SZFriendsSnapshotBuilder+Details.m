@@ -121,11 +121,7 @@
             NSMutableDictionary *remove = [self action:@"remove_friend" label:[s text:@"action.remove"]
                                                  style:@"destructive"];
             remove[@"note"] = [s text:@"details.remove_note" values:who];
-            remove[@"confirm"] = [self confirmWithTitle:@"action.remove.confirm.title"
-                                                   body:@"action.remove.confirm.body"
-                                           confirmLabel:@"action.remove.confirm.button"
-                                                 values:who
-                                            destructive:YES];
+            remove[@"confirm"] = [self removeConfirmForPerson:person];
             [actions addObject:remove];
         }
         NSMutableDictionary *block = [self blockActionNaming:first label:[s text:@"action.block" values:who]];

@@ -71,6 +71,7 @@ extern const NSUInteger SZFriendsFrameThumbnailMax;     // 64,000 bytes of QOI i
 extern const NSUInteger SZFriendsFrameChainMax;         // 64,000 bytes of device chain in CHAIN
 extern const NSUInteger SZFriendsFrameJoinMax;          // 1,000 bytes of join message in JOIN (SZFriendsJoinMessageMax)
 extern const NSUInteger SZFriendsFrameSyncMax;          // 64,000 bytes of sync message in SYNC
+extern const NSUInteger SZFriendsFrameAgainMax;         // 64,000 bytes of again message in AGAIN
 extern const NSUInteger SZFriendsChunkBytesWiFi;        // 61,440 (60 KiB) per CHUNK on LAN and peer-to-peer Wi-Fi
 extern const NSUInteger SZFriendsChunkBytesBluetooth;   // 4,096 per CHUNK on Bluetooth
 extern const uint64_t SZFriendsSendWindowWiFi;          // 8 MiB of bytes sent but not yet in a PROGRESS
@@ -92,8 +93,8 @@ extern const NSTimeInterval SZFriendsRefusalDelay;      // 1.5 s
 // How long a responder remembers the initiator ephemeral keys of IK and NN message 1 (SZFriendsReplayCache).
 extern const NSTimeInterval SZFriendsReplayWindow;      // 600 s
 // The highest minor version this build speaks; it accepts peers whose range overlaps 0...this. Minor 1 adds THUMBNAIL,
-// minor 2 adds CHAIN.
-extern const uint16_t SZFriendsSessionMinor;            // 2
+// minor 2 adds CHAIN, JOIN and SYNC, minor 3 adds AGAIN.
+extern const uint16_t SZFriendsSessionMinor;            // 3
 // Largest Attestation field (SZFriendsFieldAttestation) a handshake payload or PROFILE may carry.
 extern const NSUInteger SZFriendsAttestationMax;        // 512 bytes
 // Longest handshake message a responder reads (IK and NN message 1, XX messages 1 and 3). The largest honest one, IK
@@ -178,6 +179,9 @@ typedef NS_ENUM(uint8_t, SZFriendsFrameType) {
     // of the same person only, IK or XX, as often as the exchange needs (friends-multi-device.md § Sync). The helper
     // sends it only on a session whose peer our own device chain authorizes; never in NN.
     SZFriendsFrameTypeSync = 26,
+    // Minor 3: Again (one message of getting a file again, ADR 0016, opaque here): between a person and a friend who
+    // sent them a file, IK or XX, as often as the exchange needs; never in NN. It travels in the CHUNK queue.
+    SZFriendsFrameTypeAgain = 27,
 };
 
 // Field tags, one namespace for every type so a value means the same thing wherever it appears. Unknown tag:
@@ -231,6 +235,8 @@ typedef NS_ENUM(uint8_t, SZFriendsFieldTag) {
     SZFriendsFieldJoin = 34,
     // SYNC: 1 to SZFriendsFrameSyncMax bytes, one sync message (SZFriendsSyncExchange).
     SZFriendsFieldSync = 35,
+    // AGAIN: 1 to SZFriendsFrameAgainMax bytes, one again message (SZFriendsAgainExchange).
+    SZFriendsFieldAgain = 36,
 };
 
 // One decoded frame: its type and raw field values. Typed accessors return nil / NO for an absent or

@@ -11,6 +11,8 @@
 //! Frames are lines of hex, so nothing a console or `prlctl` does to bytes can change them. [`host`] is the Mac's side
 //! (a library the tests use), [`guest`] the VM's (the `szfriends-testnet guest` binary).
 
+#[cfg(target_os = "macos")]
+pub mod dir;
 pub mod guest;
 #[cfg(target_os = "macos")]
 pub mod host;

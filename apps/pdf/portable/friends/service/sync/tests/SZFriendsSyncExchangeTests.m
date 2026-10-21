@@ -135,7 +135,9 @@ static void TestFileCopies(void) {
     NSData *original = SZFSFileBytes(staged.stagedPath);
     SZFSExpect(copy.receivedPath != nil && [SZFSFileBytes(copy.receivedPath) isEqualToData:original],
                @"the bytes arrived whole: %@", copy);
-    SZFSExpect([copy.receivedPath hasPrefix:b.engine.receivedDirectory], @"in received/");
+    NSString *folder = SZFriendsReceivedFolder(b.engine.receivedDirectory.stringByDeletingLastPathComponent);
+    SZFSExpect([copy.receivedPath.stringByDeletingLastPathComponent isEqualToString:folder],
+               @"where received files go: %@", copy.receivedPath);
     [pipe run];
     SZFSExpect([[a.store syncFileWithID:staged.transferID].holders containsObject:b.identity.publicKey],
                @"A learns B holds it too");
@@ -187,6 +189,7 @@ static void TestMismatchAndMissing(void) {
     [handle writeData:[@"tampered" dataUsingEncoding:NSUTF8StringEncoding]];
     [handle closeFile];
     [NSFileManager.defaultManager removeItemAtPath:gone.stagedPath error:NULL];
+    [NSFileManager.defaultManager removeItemAtPath:gone.sourcePath error:NULL];
     SZFSPipe *pipe = SZFSConnect(a, b);
     SZFSExpect(!pipe.broken, @"neither ends the session");
     SZFSExpect([b.store transferRecordWithID:bad.transferID] == nil, @"bytes that do not match are not kept");

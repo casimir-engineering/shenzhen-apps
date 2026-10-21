@@ -274,7 +274,67 @@ static void TestV5AddsCancelledMessages(void) {
                @"additive: older helpers still open it");
 }
 
+// v11 adds friends.left_list_at: nobody was off the list before. It counts only for someone Removed or Blocked, and a
+// save with any other relation clears it, so a new request brings them back; older helpers keep opening the store.
+static void TestV11AddsLeavingTheList(void) {
+    NSString *directory = SZFTTemporaryDirectory(@"v10");
+    SZFriendsStoreOptions *v10 = [[SZFriendsStoreOptions alloc] init];
+    v10.migrations = [SZFriendsStoreShippedMigrations() subarrayWithRange:NSMakeRange(0, 10)];
+    NSError *error = nil;
+    SZFriendsStore *older = SZFTOpenStoreWithOptions(directory, v10, &error);
+    SZFTExpect(older.schemaVersion == 10, @"a v10 store: %@", error);
+    NSString *person = @"INSERT INTO friends (conversation_id, identity_pk, relation, last_interaction_at) "
+                       @"VALUES (?, ?, ?, ?)";
+    SZFTScalar(older, person, @[ @"in", SZFTBytes(1, 32), @(SZFriendsRelationIncomingRequest), @5000 ]);
+    SZFTScalar(older, person, @[ @"out", SZFTBytes(2, 32), @(SZFriendsRelationOutgoingRequest), @5100 ]);
+    SZFTScalar(older, person, @[ @"fr", SZFTBytes(3, 32), @(SZFriendsRelationFriend), @5200 ]);
+    SZFTScalar(older, person, @[ @"rm", SZFTBytes(4, 32), @(SZFriendsRelationRemoved), @5300 ]);
+    SZFTScalar(older, person, @[ @"bl", SZFTBytes(5, 32), @(SZFriendsRelationBlocked), @5400 ]);
+    [older close];
+    SZFriendsStoreOptions *v11 = [[SZFriendsStoreOptions alloc] init];
+    v11.migrations = [SZFriendsStoreShippedMigrations() subarrayWithRange:NSMakeRange(0, 11)];
+    SZFriendsStore *store = SZFTOpenStoreWithOptions(directory, v11, &error);
+    SZFTExpect(store.schemaVersion == 11 && [Backups(directory) isEqual:@[ BackupName(11) ]], @"v10 to v11: %@",
+               error);
+    SZFTExpect([SZFTScalar(store, @"SELECT value FROM meta WHERE key = 'min_reader_version'", @[]) isEqual:@"2"],
+               @"additive: older helpers still open it");
+    for (NSString *conversationID in @[ @"in", @"out", @"fr", @"rm", @"bl" ]) {
+        SZFTExpect(![store personWithConversationID:conversationID].leftListAt, @"nobody was off the list: %@",
+                   conversationID);
+    }
+    SZFTScalar(store, @"UPDATE friends SET left_list_at = 6000", @[]);
+    NSDate *left = [NSDate dateWithTimeIntervalSince1970:6000];
+    SZFTExpect([[store personWithConversationID:@"rm"].leftListAt isEqualToDate:left] &&
+                   [[store personWithConversationID:@"bl"].leftListAt isEqualToDate:left] &&
+                   ![store personWithConversationID:@"in"].leftListAt &&
+                   ![store personWithConversationID:@"out"].leftListAt &&
+                   ![store personWithConversationID:@"fr"].leftListAt,
+               @"only someone Removed or Blocked can be off the list, whatever an older helper wrote");
+    // Saving keeps it for Removed and Blocked, and clears it for anything else: a new request brings them back.
+    SZFriendsPersonRecord *removed = [store personWithConversationID:@"rm"];
+    removed.leftListAt = [NSDate dateWithTimeIntervalSince1970:7000];
+    SZFTExpect([store savePerson:removed error:&error] &&
+                   [[store personWithConversationID:@"rm"].leftListAt
+                       isEqualToDate:[NSDate dateWithTimeIntervalSince1970:7000]],
+               @"a former friend stays off the list: %@", error);
+    removed = [store personWithConversationID:@"rm"];
+    removed.relation = SZFriendsRelationIncomingRequest;
+    SZFTExpect([store savePerson:removed error:&error] && ![store personWithConversationID:@"rm"].leftListAt &&
+                   [SZFTScalar(store, @"SELECT left_list_at IS NULL FROM friends WHERE conversation_id = 'rm'", @[])
+                       integerValue] == 1,
+               @"their new request brings them back, and the column is cleared: %@", error);
+    SZFriendsPersonRecord *friend = [store personWithConversationID:@"fr"];
+    friend.leftListAt = left;
+    SZFTExpect([store savePerson:friend error:&error] &&
+                   [SZFTScalar(store, @"SELECT left_list_at IS NULL FROM friends WHERE conversation_id = 'fr'", @[])
+                       integerValue] == 1,
+               @"a friend is never saved off the list: %@", error);
+    SZFriendsPersonRecord *copy = [[store personWithConversationID:@"bl"] copy];
+    SZFTExpect([copy.leftListAt isEqualToDate:left], @"copies keep it");
+}
+
 void SZFTRunMigrationTests(void) {
+    TestV11AddsLeavingTheList();
     TestFromEmptyAndFromTheV1Fixture();
     TestV3StartsTheRequestsAlreadyWaiting();
     TestV4AddsAssistantAndUnconfirmedAnswers();

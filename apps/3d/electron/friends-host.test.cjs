@@ -9,6 +9,7 @@ const os = require("node:os");
 const path = require("node:path");
 const { EventEmitter } = require("node:events");
 const { createFriendsHost } = require("./friends/host.cjs");
+const { createReceivedRecents } = require("./friends/received-recents.cjs");
 
 const snapshot = (subscription, view, rev, data = {}) => ({
   type: "snapshot",
@@ -75,7 +76,7 @@ const invoke = (host, contents, method, value) =>
     value,
   );
 
-async function hostFixture(t) {
+async function hostFixture(t, extra = {}) {
   const userData = await fsp.mkdtemp(path.join(os.tmpdir(), "szf3d-host-"));
   t.after(() => fsp.rm(userData, { recursive: true, force: true }));
   const addon = fakeAddon();
@@ -100,6 +101,7 @@ async function hostFixture(t) {
       animals: "/nowhere/animals",
       addon: "/nowhere/friends-link.node",
     },
+    ...extra,
   });
   t.after(() => host.dispose());
   return { host, addon, userData, opened };
@@ -126,7 +128,17 @@ test("the host attaches after first paint, says who it is, and routes a window's
     "attach.items",
     "drop.files",
     "mentions",
+    "list.menu",
+    "nearby.found",
+    "files.again",
+    "notifications.focus",
+    "notifications.ask",
   ]);
+  assert.equal(
+    client.config.urlScheme,
+    "shenzhen3d",
+    "a notification's click opens this app",
+  );
   assert.deepEqual(client.config.openFormats, ["sz3d", "stl"]);
   assert.equal(
     client.config.helperBuildNumber,
@@ -324,6 +336,7 @@ test("the preload offers the Friends bridge on the Mac only, and only through sh
   const friends = exposed.shenzhenFriends;
   await friends.send("ping", {});
   await friends.image("thumbnail", "/x.png", 1, 1);
+  await friends.chooseFolder("/Users/someone/Downloads");
   // Objects made inside the preload's context: compared by value.
   assert.deepEqual(JSON.parse(JSON.stringify(invoked)), [
     ["shenzhen-friends", "send", { type: "ping", fields: {} }],
@@ -332,6 +345,7 @@ test("the preload offers the Friends bridge on the Mac only, and only through sh
       "image",
       { kind: "thumbnail", path: "/x.png", width: 1, height: 1 },
     ],
+    ["shenzhen-friends", "chooseFolder", "/Users/someone/Downloads"],
   ]);
   assert.deepEqual(
     [...friends.pathsForFiles([{ path: "/a.stl" }, {}])],
@@ -344,4 +358,195 @@ test("the preload offers the Friends bridge on the Mac only, and only through sh
   stop();
   ipcRenderer.emit("shenzhen-friends-event", {}, { kind: "badge", data: null });
   assert.deepEqual(events, [{ kind: "badge", data: null }]);
+});
+
+test("Settings' Change… opens the folder picker at the folder now and gives back the folder chosen", async (t) => {
+  const asked = [];
+  let answer = { canceled: false, filePaths: ["/Users/someone/From friends"] };
+  const dialog = {
+    showOpenDialog: async (...args) => {
+      asked.push(args.at(-1));
+      return answer;
+    },
+  };
+  const { host } = await hostFixture(t, { dialog });
+  const window = fakeContents(1);
+  assert.equal(
+    await invoke(host, window, "chooseFolder", "/Users/someone/Downloads"),
+    "/Users/someone/From friends",
+  );
+  assert.deepEqual(asked[0], {
+    properties: ["openDirectory", "createDirectory"],
+    defaultPath: "/Users/someone/Downloads",
+  });
+  assert.equal(
+    await invoke(host, window, "chooseFolder", "../not/a/start"),
+    "/Users/someone/From friends",
+  );
+  assert.equal(
+    asked[1].defaultPath,
+    undefined,
+    "a start that is not a plain path is ignored",
+  );
+  answer = { canceled: true, filePaths: [] };
+  assert.equal(
+    await invoke(host, window, "chooseFolder", null),
+    null,
+    "cancelled",
+  );
+  answer = { canceled: false, filePaths: ["relative"] };
+  assert.equal(await invoke(host, window, "chooseFolder", null), null);
+});
+
+test("a helper that saves received files where the person sees them has the host list them for recent files", async (t) => {
+  const lists = [];
+  const { host, addon } = await hostFixture(t, {
+    onReceived: (files) => lists.push(files),
+  });
+  host.firstPaint();
+  await until(() => addon.clients.length === 1);
+  const client = addon.clients[0];
+  client.frame({
+    type: "welcome",
+    re: "1",
+    capabilities: ["mentions", "received.folder"],
+  });
+  client.emit([{ type: "state", state: "ready" }]);
+  assert.deepEqual(
+    client.sent.map((s) => s.fields.view),
+    ["badge", "received"],
+  );
+  const { id } = client.sent[1];
+  const files = [
+    {
+      transfer_id: "t_1",
+      path: "/Users/someone/Downloads/Bracket.step",
+      file_name: "Bracket.step",
+      received_at: 1792310520,
+      source: "friend",
+    },
+  ];
+  client.frame(snapshot("s_2", "received", 1, { files }));
+  client.frame(reply(id, { subscription: "s_2" }));
+  await until(() => lists.length === 1);
+  assert.deepEqual(lists[0], files);
+  client.frame(snapshot("s_2", "received", 2, { files: [] }));
+  await until(() => lists.length === 2);
+
+  // An older helper: no received view.
+  const { host: older, addon: olderAddon } = await hostFixture(t);
+  older.firstPaint();
+  await until(() => olderAddon.clients.length === 1);
+  const old = olderAddon.clients[0];
+  old.frame({ type: "welcome", re: "1", capabilities: ["mentions"] });
+  old.emit([{ type: "state", state: "ready" }]);
+  assert.deepEqual(
+    old.sent.map((s) => s.fields.view),
+    ["badge"],
+  );
+});
+
+test("received models go to recent files once each, and only those received since the first run", async (t) => {
+  const directory = await fsp.mkdtemp(path.join(os.tmpdir(), "szf3d-recents-"));
+  t.after(() => fsp.rm(directory, { recursive: true, force: true }));
+  const remembered = [];
+  let clock = 1792300000 * 1000;
+  const recents = () =>
+    createReceivedRecents({
+      directory,
+      formats: new Set(["step", "stl", "sz3d"]),
+      remember: async (paths, name, format) => {
+        if (paths[0].includes("gone")) throw Error("missing");
+        remembered.push([paths, name, format]);
+      },
+      now: () => clock,
+    });
+  const row = (id, name, at, folder = "/Users/someone/Downloads") => ({
+    transfer_id: id,
+    path: `${folder}/${name}`,
+    file_name: name,
+    received_at: at,
+    source: "friend",
+  });
+  const first = recents();
+  // The first run: what was received before it is history, not added.
+  assert.deepEqual(
+    await first.received([row("t_old", "Old.step", 1792200000)]),
+    [],
+  );
+  const added = await first.received([
+    row("t_pdf", "Notes.pdf", 1792300030),
+    row("t_b", "Bracket (2).step", 1792300020),
+    row("t_a", "Bracket.step", 1792300010),
+    row("t_gone", "Gone.stl", 1792300005, "/Users/someone/gone"),
+    row("t_old", "Old.step", 1792200000),
+  ]);
+  assert.deepEqual(
+    added,
+    [
+      "/Users/someone/Downloads/Bracket.step",
+      "/Users/someone/Downloads/Bracket (2).step",
+    ],
+    "oldest first, so the newest ends on top; not a PDF",
+  );
+  assert.deepEqual(
+    remembered.map((r) => r.slice(1)),
+    [
+      ["Bracket.step", "step"],
+      ["Bracket (2).step", "step"],
+    ],
+  );
+  // A later start keeps what was handled and when the first run was.
+  clock += 3600 * 1000;
+  const again = recents();
+  assert.deepEqual(
+    await again.received([
+      row("t_c", "Gearbox.stl", 1792303000),
+      row("t_b", "Bracket (2).step", 1792300020),
+      row("t_a", "Bracket.step", 1792300010),
+    ]),
+    ["/Users/someone/Downloads/Gearbox.stl"],
+  );
+  const record = JSON.parse(
+    fs.readFileSync(path.join(directory, "friends-received.json"), "utf8"),
+  );
+  assert.equal(record.since, 1792300000);
+  assert.ok(
+    record.handled.includes("t_gone") && record.handled.includes("t_pdf"),
+  );
+});
+
+test("a notification's URL opens the dropdown on its conversation once Friends is ready, and a malformed one is left alone", async (t) => {
+  const { host, addon } = await hostFixture(t);
+  const window = fakeContents(1);
+  await invoke(host, window, "join");
+  assert.equal(
+    host.openLink("shenzhen3d://friends/conversation/c_mei"),
+    true,
+    "taken before Friends is ready (a cold launch)",
+  );
+  host.firstPaint();
+  await until(() => addon.clients.length === 1);
+  const client = addon.clients[0];
+  client.frame({ type: "welcome", re: "1", capabilities: ["notifications"] });
+  client.emit([{ type: "state", state: "ready" }]);
+  await until(() => window.received.some(([, event]) => event.kind === "open"));
+  const opened = () =>
+    window.received.filter(([, event]) => event.kind === "open");
+  assert.deepEqual(opened().at(-1)[1], {
+    kind: "open",
+    conversation_id: "c_mei",
+  });
+  assert.equal(host.openLink("shenzhen3d://friends"), true);
+  assert.deepEqual(opened().at(-1)[1], { kind: "open", conversation_id: null });
+  const before = window.received.length;
+  for (const url of [
+    "shenzhen3d://friends/conversation/",
+    "shenzhen3d://friends/conversation/c%20mei",
+    `shenzhen3d://friends/conversation/${"a".repeat(65)}`,
+    "shenzhen3d://friends/conversation/c_mei/x",
+    "shenzhenpdf://friends/conversation/c_mei",
+  ])
+    assert.equal(host.openLink(url), false, url);
+  assert.equal(window.received.length, before);
 });

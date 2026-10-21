@@ -65,6 +65,9 @@ function hidden(
 ) {
   if (key === "name_placeholder") return record.name !== null;
   if (key === "add_label") return root.state === "device_removed";
+  // A row's own buttons take the place of its waiting label (PROTOCOL.md § Views, list).
+  if (key === "waiting" && Array.isArray(record.actions))
+    return (record.actions as unknown[]).length > 0;
   if (key === "route" && "waiting" in record)
     return Boolean(record.waiting) || (record.actions as unknown[]).length > 0;
   if (key === "composer")
@@ -89,6 +92,8 @@ const SKIP = new Set([
   "search_placeholder",
   "auto_accept_friends",
   "picture_avatar",
+  // A row's menu shows on right-click or a long press (tests/e2e-friends-menu.spec.ts).
+  "menu",
 ]);
 function displayStrings(
   value: unknown,

@@ -38,7 +38,7 @@ struct szfriends_client {
     char *helper_version;
     uint64_t helper_build_number;
     int helper_major, helper_minor;
-    char *app_id, *app_name, *app_version, *toolkit, *reveal_in, *locale;
+    char *app_id, *app_name, *app_version, *toolkit, *reveal_in, *locale, *url_scheme;
     char **capabilities;
     size_t capability_count;
     char **open_formats;

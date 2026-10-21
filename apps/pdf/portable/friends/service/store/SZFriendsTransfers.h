@@ -7,9 +7,9 @@
 //     friend; automatic acceptance gets every check and limit a manual one gets and falls back to asking when
 //     disk space is short. Received files never open by themselves.
 //   - Accepted files stream to a private temporary file, named by this Mac and never by the sender, and are
-//     published into <state dir>/received/ only after the final digest matches the offer, both as streamed and as
-//     read back from disk. Names are sanitized; no traversal, symlink escape or overwrite; the quarantine attribute
-//     is set.
+//     published into the folder received files go to (Downloads unless the person chose another) only after the
+//     final digest matches the offer, both as streamed and as read back from disk. Names are sanitized; no
+//     traversal, symlink escape or overwrite; the quarantine attribute is set.
 //   - Everything a peer names (an offer id, a chunk, DONE, an answer) is checked against the conversation it came
 //     from, which must own the transfer; there is no unchecked form.
 //   - Resume restarts from the recipient's verified byte count, bound to offer id, sender, recipient and hash;
@@ -30,7 +30,7 @@ typedef NS_ENUM(NSInteger, SZFriendsTransferState) {
     SZFriendsTransferStateSending = 3,
     SZFriendsTransferStateReceiving = 4,
     SZFriendsTransferStateDelivered = 5,     // outgoing; their Mac verified the digest
-    SZFriendsTransferStateReceived = 6,      // incoming; verified and published in received/
+    SZFriendsTransferStateReceived = 6,      // incoming; verified and published (receivedPath)
     SZFriendsTransferStateDeclined = 7,
     SZFriendsTransferStateCancelled = 8,
     SZFriendsTransferStateFailed = 9,
@@ -85,7 +85,14 @@ SZFriendsTransferState SZFriendsTransferNextState(BOOL outgoing, SZFriendsTransf
 @property(nonatomic, copy, nullable) NSString *failureReason; // while Failed: SZFriendsTransferFailure... or an
                                                               // SZFriendsOutboxFailure... key
 @property(nonatomic, copy, nullable) NSDate *createdAt;
+// Outgoing: the file the person chose, and its modification time (nanoseconds since 1970) when it was snapshotted. While
+// it is unchanged this computer still holds the file's bytes after the snapshot is gone (ADR 0016). Never synced.
+@property(nonatomic, copy, nullable) NSString *sourcePath;
+@property(nonatomic) int64_t sourceModifiedNs;
 @end
+
+// A file's modification time in nanoseconds since 1970, or 0 when it cannot be read.
+int64_t SZFriendsFileModifiedNs(NSString *path);
 
 extern NSString *const SZFriendsTransferFailureDigestMismatch; // "digest_mismatch": the bytes did not match
 extern NSString *const SZFriendsTransferFailureSourceMissing;  // "source_missing": the snapshot is gone
@@ -102,8 +109,65 @@ extern const uint64_t SZFriendsTransferDefaultReserveBytes;   // 1 GiB kept free
 // dots and trailing spaces; keeps the extension; caps the length; never empty ("Untitled").
 NSString *SZFriendsSanitizedFileName(NSString *proposedName);
 
-// The path inside `directory` for `name` that overwrites nothing ("Site photos 2.pdf"). Never leaves directory.
+// The path inside `directory` for `name` that overwrites nothing ("Site photos (2).pdf"). Never leaves directory.
 NSString *SZFriendsUniqueDestination(NSString *directory, NSString *name);
+
+#pragma mark - Where received files go (PROTOCOL.md § Views, settings and received)
+
+// The person's choice, one absolute folder path in this file in the state directory; never synced.
+extern NSString *const SZFriendsReceivedFolderFileName; // "received-folder"
+extern NSString *const SZFriendsDownloadsDirEnvironment; // "SZFRIENDS_DOWNLOADS_DIR", for tests
+
+// Downloads: $SZFRIENDS_DOWNLOADS_DIR when set; <state>/Downloads when the state directory is not the default one (a
+// test or probe helper, so it never reaches the person's real Downloads); else the account's Downloads folder.
+NSString *SZFriendsDefaultReceivedFolder(NSString *stateDirectory);
+// The folder the person chose, or nil for Downloads.
+NSString *_Nullable SZFriendsChosenReceivedFolder(NSString *stateDirectory);
+// The chosen folder, else Downloads: what Settings shows and Show in Finder opens.
+NSString *SZFriendsReceivedFolder(NSString *stateDirectory);
+
+typedef NS_ENUM(NSInteger, SZFriendsReceivedFolderResult) {
+    SZFriendsReceivedFolderOK = 0,
+    SZFriendsReceivedFolderInvalidPath = 1, // not an absolute path (invalid_field)
+    SZFriendsReceivedFolderMissing = 2,     // does not exist or cannot be read (file_missing)
+    SZFriendsReceivedFolderNotAllowed = 3,  // not a folder, not writable, or inside the state directory (not_allowed)
+    SZFriendsReceivedFolderFailed = 4,      // the choice could not be saved (internal)
+};
+// set_received_folder: stores the folder's real path atomically, or clears the choice when it is Downloads.
+SZFriendsReceivedFolderResult SZFriendsSetReceivedFolder(NSString *stateDirectory, NSString *path,
+                                                         NSError **error);
+
+// When the folder a file was meant for could not take it, where it went instead: one word in this file in the state
+// directory, beside received-folder ("downloads" or "kept"), until a file is saved where it was meant to be or the
+// folder is changed, so Settings can say so (PROTOCOL.md § Views, settings: data.received.note). Survives a restart.
+extern NSString *const SZFriendsReceivedFallbackFileName; // "received-fallback"
+typedef NS_ENUM(NSInteger, SZFriendsReceivedFallback) {
+    SZFriendsReceivedFallbackNone = 0,
+    SZFriendsReceivedFallbackDownloads = 1, // the chosen folder could not take it; Downloads did
+    SZFriendsReceivedFallbackKept = 2,      // nor could Downloads; it is in <state>/received/
+};
+SZFriendsReceivedFallback SZFriendsLastReceivedFallback(NSString *stateDirectory);
+
+// Where a published file sits, for its "Saved to …" (PROTOCOL.md § transfer status_label): the default Downloads,
+// another folder (named by its last path component), or <state>/received/ (older files, the last resort).
+typedef NS_ENUM(NSInteger, SZFriendsSavedPlace) {
+    SZFriendsSavedPlaceKept = 0,
+    SZFriendsSavedPlaceDownloads = 1,
+    SZFriendsSavedPlaceFolder = 2,
+};
+SZFriendsSavedPlace SZFriendsSavedPlaceOfFile(NSString *stateDirectory, NSString *path);
+
+// Publishes a verified, staged file (inside <state>/received/.partial/) as `fileName` in the chosen folder, else
+// Downloads, else <state>/received/: whichever is there and takes it (a missing, read-only or refused folder, a
+// full volume, passes to the next), so a file is never lost. Quarantined first; never replaces anything ("Name
+// (2).ext", exclusive rename). Across volumes the bytes are copied into SZFriendsReceivedPartPath(final), made
+// durable, quarantined and renamed, and the staged file is removed. `willPublish` runs before each attempt with the
+// path it will take (the receiver records it for crash recovery); returning NO stops. Returns the published path.
+NSString *_Nullable SZFriendsPublishReceivedFile(NSString *staged, NSString *fileName, NSString *stateDirectory,
+                                                 BOOL (^_Nullable willPublish)(NSString *finalPath, NSError **error),
+                                                 NSError **error);
+// The hidden file a copy across volumes writes before it takes `finalPath`: ".<name>.part" beside it.
+NSString *SZFriendsReceivedPartPath(NSString *finalPath);
 
 // Offer metadata a peer sent (the helper reads it from the OFFER frame; the session codec has already checked
 // field lengths), checked before any buffer is allocated: name, declared size, digest length, and the number of
@@ -125,6 +189,19 @@ typedef NS_ENUM(NSInteger, SZFriendsAutoAcceptDecision) {
 SZFriendsAutoAcceptDecision SZFriendsAutoAcceptDecide(BOOL autoAcceptOn, BOOL keyChangePending, BOOL blocked,
                                                       uint64_t fileSize, uint64_t freeBytes, uint64_t reserveBytes);
 
+// One published incoming file (PROTOCOL.md § Views, received).
+typedef NS_ENUM(NSInteger, SZFriendsReceivedSource) {
+    SZFriendsReceivedSourceFriend = 0, // a friend's offer
+    SZFriendsReceivedSourceLink = 1,   // a download link (receive_link)
+    SZFriendsReceivedSourceDevice = 2, // a copy from another of the person's computers (fetch_from_device)
+};
+@interface SZFriendsReceivedFile : NSObject
+@property(nonatomic, copy) NSString *transferID;
+@property(nonatomic, copy) NSString *path;
+@property(nonatomic, copy) NSDate *receivedAt;
+@property(nonatomic) SZFriendsReceivedSource source;
+@end
+
 #pragma mark - Transfer manager
 
 @interface SZFriendsTransfers : NSObject
@@ -135,8 +212,8 @@ SZFriendsAutoAcceptDecision SZFriendsAutoAcceptDecide(BOOL autoAcceptOn, BOOL ke
                stateDirectory:(NSString *)stateDirectory NS_DESIGNATED_INITIALIZER;
 - (instancetype)init NS_UNAVAILABLE;
 
-// <state dir>/received/; the host adapter reveals it (Show in Finder) and opens files from it. Incoming bytes
-// stage in received/.partial/ (same volume, so publishing is a rename); outgoing snapshots live in outgoing/.
+// <state dir>/received/: incoming bytes stage in received/.partial/, and it is the last folder a file falls back to.
+// Outgoing snapshots live in outgoing/.
 @property(nonatomic, readonly) NSString *receivedDirectory;
 
 // Free space on the state directory's volume, for acceptance checks; tests and the harness inject a fake.
@@ -223,7 +300,7 @@ SZFriendsAutoAcceptDecision SZFriendsAutoAcceptDecide(BOOL autoAcceptOn, BOOL ke
 
 // Receiving side of a chunk stream, from the conversation that owns the transfer (a chunk or DONE for another
 // friend's transfer, or with no conversation, is refused as unsolicited: Invalid). Appends to the private temporary
-// file after checking the offset equals the verified count. Finishing publishes into received/ only when
+// file after checking the offset equals the verified count. Finishing publishes the file only when
 // `finalDigest`, the digest of the streamed bytes and the digest of the staged file read back from disk all match the
 // offer's contentDigest; otherwise the file is deleted and the transfer fails (DigestMismatch). Durable progress
 // (what PROGRESS may report) advances only after F_FULLFSYNC and a commit, batched every 4 MiB or 1 s (ADR 0003).
@@ -233,6 +310,15 @@ SZFriendsAutoAcceptDecision SZFriendsAutoAcceptDecide(BOOL autoAcceptOn, BOOL ke
       fromConversation:(NSString *)conversationID error:(NSError **)error;
 // Makes every received byte durable now (session lost, handover, exit), so the next resume starts from it.
 - (BOOL)flushProgressWithError:(NSError **)error;
+@end
+
+@interface SZFriendsTransfers (ReceivedFolder)
+// The folder received files go to (SZFriendsReceivedFolder): what Settings shows and Show in Finder opens.
+@property(nonatomic, readonly) NSString *destinationDirectory;
+// Free space for a download: the staging volume's, and the destination folder's when it is on another volume.
+- (uint64_t)freeBytesForReceiving;
+// The received view: incoming files in state Received whose published file still exists, newest first.
+- (NSArray<SZFriendsReceivedFile *> *)receivedFilesWithLimit:(NSUInteger)limit;
 @end
 
 NS_ASSUME_NONNULL_END

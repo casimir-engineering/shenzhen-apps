@@ -353,6 +353,8 @@ static BOOL SZFriendsSyncFileMatchesDigest(NSString *path, uint64_t size, NSData
         NSMutableData *none = [NSMutableData dataWithBytes:(uint8_t[]){SZFriendsSyncMessageNone} length:1];
         SZFriendsSyncPutID(none, transferID);
         _send(none);
+        // Listed as holding it and it is gone (moved or deleted here): every device hears so now (ADR 0016).
+        if (path == nil) [_engine captureLocalChanges];
         return YES;
     }
     [handle seekToFileOffset:start];
@@ -394,7 +396,12 @@ static BOOL SZFriendsSyncFileMatchesDigest(NSString *path, uint64_t size, NSData
         [self abandonCopy:YES];
         return YES;
     }
-    [copy.handle writeData:bytes];
+    if (![copy.handle writeData:bytes error:NULL]) {
+        // No room left here: what arrived goes, and so does the Get; the item offers Get, which then says so.
+        [self abandonCopy:YES];
+        [_engine cancelFileRequest:transferID error:NULL];
+        return YES;
+    }
     copy.received += bytes.length;
     if (copy.received < copy.file.size) {
         [self requestMore];

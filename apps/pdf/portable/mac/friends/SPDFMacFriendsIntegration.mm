@@ -62,10 +62,15 @@ static void* kSearchHiddenContext = &kSearchHiddenContext;
     state.host = [[SPDFMacFriendsHost alloc] initWithBridge:self bundle:NSBundle.mainBundle
                                                     formats:[NSSet setWithArray:SPDFReadableDocumentExtensions()]];
     state.link = [[SZFriendsHelperLink alloc] initWithHost:state.host];
+    state.received = [[SPDFMacFriendsReceivedFiles alloc] initWithStore:SPDFMacCollectionStore.defaultStore
+        isDocument:^BOOL(NSString* path) { return SPDFReadableDocumentPath(path); }];
     __weak ShenzhenMacDelegate* weakSelf = self;
+    __weak SZFriendsHelperLink* weakLink = state.link;
     state.link.onStateChange = ^(SZFriendsLinkState linkState) {
         (void)linkState;
         [weakSelf friendsAssistantAvailabilityDidChange];
+        SZFriendsHelperLink* link = weakLink;
+        if (link) [[weakSelf friendsState].received followLink:link];
     };
     state.dropdown = [[SZFriendsDropdownController alloc] initWithHost:state.host link:state.link];
     [state.link start];
@@ -83,6 +88,8 @@ static void* kSearchHiddenContext = &kSearchHiddenContext;
     [state.dropdown uninstall];
     [self friendsRemoveShareMenu];
     [self friendsRemoveMenu];
+    [state.received stop];
+    state.received = nil;
     [state.link stopDisablingFriends:disabling];
     state.settingsSection = nil;
     state.dropdown = nil;

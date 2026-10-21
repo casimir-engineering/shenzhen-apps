@@ -981,10 +981,10 @@ index 4c2ccf7..e46af0d 100644
      {
 diff --git a/src/nautilus-friends-host.c b/src/nautilus-friends-host.c
 new file mode 100644
-index 0000000..363822c
+index 0000000..7f4d5c6
 --- /dev/null
 +++ b/src/nautilus-friends-host.c
-@@ -0,0 +1,236 @@
+@@ -0,0 +1,240 @@
 +/*
 + * nautilus-friends-host.c: what Shenzhen Files tells the Friends views (gtk/szfriends_gtk_host.h).
 + *
@@ -1220,6 +1220,10 @@ index 0000000..363822c
 +    /* Files only: no extra drop types, no veto, the views' own look and metrics, no Markdown, `/` or export. */
 +
 +    host->animals_manifest_path = bundle->animals_manifest_path;
++#ifdef SZFRIENDS_GTK_NOTIFICATIONS
++    /* A notification's click opens shenzhenfiles://friends/conversation/<id>, which Info.plist registers. */
++    host->url_scheme = NAUTILUS_FRIENDS_LINK_SCHEME;
++#endif
 +}
 diff --git a/src/nautilus-friends-items.c b/src/nautilus-friends-items.c
 new file mode 100644
@@ -1446,10 +1450,10 @@ index 0000000..b7fa38e
 +}
 diff --git a/src/nautilus-friends-links.c b/src/nautilus-friends-links.c
 new file mode 100644
-index 0000000..e39423a
+index 0000000..82c2916
 --- /dev/null
 +++ b/src/nautilus-friends-links.c
-@@ -0,0 +1,428 @@
+@@ -0,0 +1,512 @@
 +/*
 + * nautilus-friends-links.c: friend links and download links in Shenzhen Files (shenzhen-pdf
 + * portable/friends/PROTOCOL.md § Links).
@@ -1459,6 +1463,10 @@ index 0000000..e39423a
 + * it, as ShenzhenPDF checks shenzhenpdf: (portable/mac/friends/SPDFMacFriendsLinkURL.mm there): a URL that fails is
 + * dropped without a word, and one that passes is only a question for the helper, whose card the person has to press
 + * before anything happens. Copy Download Link is a file's context-menu item, shown while the helper offers links.
++ *
++ * A notification's click opens shenzhenfiles://friends/conversation/<conversation_id> (or shenzhenfiles://friends
++ * for a computer asking to join): the same open handler, the same strict check, then the window's dropdown on that
++ * conversation (PROTOCOL.md § Notifications).
 + */
 +
 +#define G_LOG_DOMAIN "nautilus-friends"
@@ -1637,6 +1645,66 @@ index 0000000..e39423a
 +    *refusal = payload[0] == 'f' || payload[0] == 'd' ? check_layout (payload[0], bytes)
 +                                                      : NAUTILUS_FRIENDS_LINK_WRONG_TYPE;
 +    return *refusal == NAUTILUS_FRIENDS_LINK_ACCEPTED ? g_strdup (payload) : NULL;
++}
++
++/* ---- A notification's click --------------------------------------------------------------------------------- */
++
++/* The helper's conversation ids: letters, digits, '_' and '-', 1 to 64 of them. Nothing else reaches the views. */
++static gboolean
++is_conversation_id (const char *text)
++{
++    gsize length = strlen (text);
++
++    if (length == 0 || length > NAUTILUS_FRIENDS_CONVERSATION_ID_MAX)
++    {
++        return FALSE;
++    }
++    for (const char *p = text; *p != '\0'; p++)
++    {
++        if (!g_ascii_isalnum (*p) && *p != '_' && *p != '-')
++        {
++            return FALSE;
++        }
++    }
++    return TRUE;
++}
++
++NautilusFriendsRoute
++nautilus_friends_route (const char  *uri,
++                        char       **conversation_id)
++{
++    static const char own[] = NAUTILUS_FRIENDS_LINK_SCHEME ":";
++    static const char conversation[] = "//friends/conversation/";
++    const char *rest;
++
++    if (conversation_id != NULL)
++    {
++        *conversation_id = NULL;
++    }
++    if (uri == NULL || g_ascii_strncasecmp (uri, own, strlen (own)) != 0 ||
++        strlen (uri) > NAUTILUS_FRIENDS_LINK_MAX_BYTES)
++    {
++        return NAUTILUS_FRIENDS_ROUTE_NONE;
++    }
++    rest = uri + strlen (own);
++    if (strcmp (rest, "//friends") == 0 || strcmp (rest, "//friends/") == 0)
++    {
++        return NAUTILUS_FRIENDS_ROUTE_LIST;
++    }
++    if (strncmp (rest, conversation, strlen (conversation)) != 0)
++    {
++        return NAUTILUS_FRIENDS_ROUTE_NONE;
++    }
++    rest += strlen (conversation);
++    if (!is_conversation_id (rest))
++    {
++        return NAUTILUS_FRIENDS_ROUTE_MALFORMED;
++    }
++    if (conversation_id != NULL)
++    {
++        *conversation_id = g_strdup (rest);
++    }
++    return NAUTILUS_FRIENDS_ROUTE_CONVERSATION;
 +}
 +
 +/* ---- Copy Download Link ------------------------------------------------------------------------------------ */
@@ -1843,6 +1911,26 @@ index 0000000..e39423a
 +#else
 +    (void) link;
 +    (void) payload;
++#endif
++}
++
++void
++nautilus_friends_show_conversation_in_window (SZFriendsGtkLink *link,
++                                              const char       *conversation_id)
++{
++#ifdef SZFRIENDS_GTK_NOTIFICATIONS
++    GtkApplication *application = GTK_APPLICATION (g_application_get_default ());
++    GtkWindow *window = application != NULL ? gtk_application_get_active_window (application) : NULL;
++
++    if (window != NULL)
++    {
++        gtk_window_present (window);
++    }
++    /* The active window's dropdown when it has a Friends button, else the first window that has one. */
++    szfriends_gtk_show_conversation (link, window, conversation_id);
++#else
++    (void) link;
++    (void) conversation_id;
 +#endif
 +}
 +
@@ -2173,10 +2261,10 @@ index 0000000..d74a6bc
 +}
 diff --git a/src/nautilus-friends-private.h b/src/nautilus-friends-private.h
 new file mode 100644
-index 0000000..7465f69
+index 0000000..574c53f
 --- /dev/null
 +++ b/src/nautilus-friends-private.h
-@@ -0,0 +1,230 @@
+@@ -0,0 +1,254 @@
 +/*
 + * nautilus-friends-private.h: the Shenzhen Friends host adapter's parts, shared by its files and by
 + * test/displayless/test-nautilus-friends.c, which drives each part without a display.
@@ -2335,6 +2423,10 @@ index 0000000..7465f69
 +                          gpointer                     data);
 +    void (*unwatch_links) (SZFriendsGtkLink *link,
 +                           guint             watch);
++    /* A notification's click (nautilus-friends-links.c): the window's Friends dropdown open on @conversation_id, or
++     * on the list for NULL. Optional. */
++    void (*show_conversation) (SZFriendsGtkLink *link,
++                               const char       *conversation_id);
 +} NautilusFriendsOps;
 +
 +typedef struct _NautilusFriends NautilusFriends;
@@ -2356,7 +2448,9 @@ index 0000000..7465f69
 +                                                       AdwPreferencesGroup *group);
 +/* A URL handed to the application: FALSE when it is not shenzhenfiles:. A link that passes the check is shown
 + * once Friends is attached (now, or when it attaches); while Friends is off the person is asked to turn it on, and
-+ * the link waits. A link that fails is dropped. */
++ * the link waits. A link that fails is dropped. A notification's click (shenzhenfiles://friends/conversation/<id>
++ * or shenzhenfiles://friends) opens the dropdown on that conversation or the list once Friends is attached; while
++ * Friends is off in Files it opens nothing. */
 +gboolean          nautilus_friends_take_link (NautilusFriends *self,
 +                                              const char      *uri);
 +/* TRUE while attached to a helper that offers links (Copy Download Link). */
@@ -2389,6 +2483,21 @@ index 0000000..7465f69
 +    NAUTILUS_FRIENDS_LINK_WRONG_TYPE, /* neither f. nor d., or bytes without that kind's layout */
 +} NautilusFriendsLinkRefusal;
 +
++/* Where a notification's click leads (shenzhen-pdf PROTOCOL.md § Notifications). */
++#define NAUTILUS_FRIENDS_CONVERSATION_ID_MAX 64
++
++typedef enum
++{
++    NAUTILUS_FRIENDS_ROUTE_NONE,         /* not one of the two below: a link, another scheme, anything else */
++    NAUTILUS_FRIENDS_ROUTE_LIST,         /* shenzhenfiles://friends (a computer asking to join the profile) */
++    NAUTILUS_FRIENDS_ROUTE_CONVERSATION, /* shenzhenfiles://friends/conversation/<conversation_id> */
++    NAUTILUS_FRIENDS_ROUTE_MALFORMED,    /* //friends/conversation/ with an id outside [A-Za-z0-9_-]{1,64} */
++} NautilusFriendsRoute;
++
++/* The route of @uri; for a conversation, its id newly allocated in @conversation_id (NULL otherwise). */
++NautilusFriendsRoute nautilus_friends_route (const char  *uri,
++                                             char       **conversation_id);
++
 +/* The payload ("f.…" or "d.…") of shenzhenfiles://friends/link#<payload>, newly allocated, or NULL and why. */
 +char *nautilus_friends_link_payload (const char                 *uri,
 +                                     NautilusFriendsLinkRefusal *refusal);
@@ -2405,6 +2514,9 @@ index 0000000..7465f69
 +void  nautilus_friends_show_link_in_window (SZFriendsGtkLink *link,
 +                                            const char       *payload);
 +void  nautilus_friends_ask_to_turn_on (void);
++/* Production NautilusFriendsOps.show_conversation: the active window, presented, its dropdown on the conversation. */
++void  nautilus_friends_show_conversation_in_window (SZFriendsGtkLink *link,
++                                                    const char       *conversation_id);
 +
 +G_END_DECLS
 diff --git a/src/nautilus-friends-shortcut.c b/src/nautilus-friends-shortcut.c
@@ -2874,10 +2986,10 @@ index 0000000..1dd285a
 +}
 diff --git a/src/nautilus-friends.c b/src/nautilus-friends.c
 new file mode 100644
-index 0000000..cf182ff
+index 0000000..5e3b556
 --- /dev/null
 +++ b/src/nautilus-friends.c
-@@ -0,0 +1,497 @@
+@@ -0,0 +1,537 @@
 +/*
 + * nautilus-friends.c: when Shenzhen Friends runs in Shenzhen Files.
 + *
@@ -2916,6 +3028,8 @@ index 0000000..cf182ff
 +    GPtrArray *windows;         /* GtkWindow, weak */
 +    GPtrArray *settings_groups; /* AdwPreferencesGroup, weak */
 +    char *pending_link;         /* a link's payload waiting for Friends to attach */
++    gboolean route_pending;     /* a notification's click waiting for Friends to attach */
++    char *pending_conversation; /* its conversation, NULL for the list */
 +    GActionMap *actions;        /* Copy Download Link's actions, weak */
 +    guint links_watch;          /* while attached */
 +};
@@ -2980,10 +3094,45 @@ index 0000000..cf182ff
 +    }
 +}
 +
++/* Opens the waiting notification's conversation once Friends is attached. While Friends is off in Files there is
++ * nothing to open, and no question: the person clicked a notification, not a link. */
++static void
++deliver_route (NautilusFriends *self)
++{
++    g_autofree char *conversation = NULL;
++
++    if (!self->route_pending || (!self->attached && self->enabled))
++    {
++        return;
++    }
++    self->route_pending = FALSE;
++    conversation = g_steal_pointer (&self->pending_conversation);
++    if (self->attached && self->ops->show_conversation != NULL)
++    {
++        self->ops->show_conversation (self->link, conversation);
++    }
++}
++
 +gboolean
 +nautilus_friends_take_link (NautilusFriends *self,
 +                            const char      *uri)
 +{
++    g_autofree char *conversation = NULL;
++    NautilusFriendsRoute route = nautilus_friends_route (uri, &conversation);
++
++    if (route == NAUTILUS_FRIENDS_ROUTE_LIST || route == NAUTILUS_FRIENDS_ROUTE_CONVERSATION)
++    {
++        g_free (self->pending_conversation);
++        self->pending_conversation = g_steal_pointer (&conversation);
++        self->route_pending = TRUE;
++        deliver_route (self);
++        return TRUE;
++    }
++    if (route == NAUTILUS_FRIENDS_ROUTE_MALFORMED)
++    {
++        return TRUE; /* dropped without a word, as a refused link is */
++    }
++
 +    NautilusFriendsLinkRefusal refusal = NAUTILUS_FRIENDS_LINK_NOT_OURS;
 +    g_autofree char *payload = nautilus_friends_link_payload (uri, &refusal);
 +
@@ -3066,6 +3215,7 @@ index 0000000..cf182ff
 +        refresh_settings_groups (self);
 +        sync_link_actions (self);
 +        deliver_link (self);
++        deliver_route (self);
 +    }
 +    else if (!wanted && self->attached)
 +    {
@@ -3196,6 +3346,7 @@ index 0000000..cf182ff
 +    g_ptr_array_unref (self->windows);
 +    g_ptr_array_unref (self->settings_groups);
 +    g_free (self->pending_link);
++    g_free (self->pending_conversation);
 +    g_free (self);
 +}
 +
@@ -3300,6 +3451,7 @@ index 0000000..cf182ff
 +    .add_window = szfriends_gtk_link_add_window,
 +    .show_link = nautilus_friends_show_link_in_window,
 +    .ask_to_turn_on = nautilus_friends_ask_to_turn_on,
++    .show_conversation = nautilus_friends_show_conversation_in_window,
 +#ifdef SZFRIENDS_GTK_LINKS
 +    .offers_links = szfriends_gtk_link_offers_links,
 +    .watch_links = production_watch_links,
@@ -4846,17 +4998,19 @@ index 0000000..2decc22
 +}
 diff --git a/test/friends/test-nautilus-friends-links.c b/test/friends/test-nautilus-friends-links.c
 new file mode 100644
-index 0000000..f5b95ce
+index 0000000..cf8d684
 --- /dev/null
 +++ b/test/friends/test-nautilus-friends-links.c
-@@ -0,0 +1,378 @@
+@@ -0,0 +1,480 @@
 +/*
 + * test-nautilus-friends-links.c: friend links and download links without a display or a helper.
 + *
 + * The strict check of shenzhenfiles://friends/link#<payload> (malformed, oversized and wrong-type payloads
 + * refused), a link waiting for Friends to attach and shown once it does, never shown when it fails the check, the
 + * question while Friends is off, and the Copy Download Link items with their expiry choice, which show and hide as
-+ * the helper starts and stops offering links.
++ * the helper starts and stops offering links. A notification's click: shenzhenfiles://friends/conversation/<id> and
++ * shenzhenfiles://friends checked strictly, then the dropdown on that conversation or the list once Friends is
++ * attached, and nothing while Friends is off.
 + */
 +
 +#include "test-nautilus-friends.h"
@@ -5000,6 +5154,7 @@ index 0000000..f5b95ce
 +#define LINK ((SZFriendsGtkLink *) &link_storage)
 +static GPtrArray *shown;
 +static guint asked;
++static GPtrArray *conversations; /* what show_conversation opened; "" for the list */
 +
 +static void nothing (void) {}
 +static SZFriendsGtkLink *new_link (void) { return LINK; }
@@ -5021,11 +5176,19 @@ index 0000000..f5b95ce
 +    asked++;
 +}
 +
++static void
++show_conversation (SZFriendsGtkLink *link,
++                   const char       *conversation_id)
++{
++    g_assert_true (link == LINK);
++    g_ptr_array_add (conversations, g_strdup (conversation_id != NULL ? conversation_id : ""));
++}
++
 +static const NautilusFriendsOps ops =
 +{
 +    .spawn_at_launch = nothing, .prepare_signing = nothing, .link_new = new_link, .link_start = start,
 +    .link_stop = stop, .link_free = start, .add_window = add_window, .show_link = show_link,
-+    .ask_to_turn_on = ask_to_turn_on,
++    .ask_to_turn_on = ask_to_turn_on, .show_conversation = show_conversation,
 +};
 +
 +static void
@@ -5073,6 +5236,95 @@ index 0000000..f5b95ce
 +    g_assert_cmpuint (shown->len, ==, 3);
 +
 +    nautilus_friends_free (friends);
++    g_ptr_array_unref (shown);
++}
++
++/* ---- A notification's click ------------------------------------------------------------------------------------- */
++
++static void
++expect_route (const char           *uri,
++              NautilusFriendsRoute  expected,
++              const char           *conversation)
++{
++    g_autofree char *id = NULL;
++
++    g_assert_cmpint (nautilus_friends_route (uri, &id), ==, expected);
++    g_assert_cmpstr (id, ==, conversation);
++}
++
++static void
++test_routes (void)
++{
++    g_autofree char *longest = g_strnfill (NAUTILUS_FRIENDS_CONVERSATION_ID_MAX, 'a');
++    g_autofree char *too_long = g_strnfill (NAUTILUS_FRIENDS_CONVERSATION_ID_MAX + 1, 'a');
++    g_autofree char *longest_uri = g_strconcat ("shenzhenfiles://friends/conversation/", longest, NULL);
++    g_autofree char *too_long_uri = g_strconcat ("shenzhenfiles://friends/conversation/", too_long, NULL);
++    const char *malformed[] = {
++        "shenzhenfiles://friends/conversation/", "shenzhenfiles://friends/conversation/c_mei/",
++        "shenzhenfiles://friends/conversation/c mei", "shenzhenfiles://friends/conversation/c%20mei",
++        "shenzhenfiles://friends/conversation/c_mei?x=1", "shenzhenfiles://friends/conversation/c_mei#i_1",
++        "shenzhenfiles://friends/conversation/../c_mei", "shenzhenfiles://friends/conversation/c.mei",
++        "shenzhenfiles://friends/conversation/c_méi", too_long_uri,
++    };
++    const char *ignored[] = {
++        "file:///Users/raph", "shenzhenpdf://friends/conversation/c_mei", "shenzhenfiles://friends/settings",
++        "shenzhenfiles://friends/conversations/c_mei", "shenzhenfiles://Friends/conversation/c_mei",
++        "shenzhenfiles://friends/link#d.AAAA", "shenzhenfiles:friends", "shenzhenfiles://friendsx", NULL,
++    };
++
++    expect_route ("shenzhenfiles://friends/conversation/c_mei", NAUTILUS_FRIENDS_ROUTE_CONVERSATION, "c_mei");
++    expect_route ("ShenzhenFiles://friends/conversation/C-8f_2a", NAUTILUS_FRIENDS_ROUTE_CONVERSATION, "C-8f_2a");
++    expect_route (longest_uri, NAUTILUS_FRIENDS_ROUTE_CONVERSATION, longest);
++    expect_route ("shenzhenfiles://friends", NAUTILUS_FRIENDS_ROUTE_LIST, NULL);
++    expect_route ("shenzhenfiles://friends/", NAUTILUS_FRIENDS_ROUTE_LIST, NULL);
++    for (gsize i = 0; i < G_N_ELEMENTS (malformed); i++)
++    {
++        expect_route (malformed[i], NAUTILUS_FRIENDS_ROUTE_MALFORMED, NULL);
++    }
++    for (gsize i = 0; i < G_N_ELEMENTS (ignored); i++)
++    {
++        expect_route (ignored[i], NAUTILUS_FRIENDS_ROUTE_NONE, NULL);
++    }
++}
++
++static void
++test_route_opening (void)
++{
++    NautilusFriends *friends;
++
++    shown = g_ptr_array_new_with_free_func (g_free);
++    conversations = g_ptr_array_new_with_free_func (g_free);
++    asked = 0;
++    set_enabled (TRUE);
++    friends = nautilus_friends_new (&ops, nautilus_preferences);
++
++    /* Launched by a click: it waits for the first paint, then opens once. */
++    g_assert_true (nautilus_friends_take_link (friends, "shenzhenfiles://friends/conversation/c_mei"));
++    g_assert_cmpuint (conversations->len, ==, 0);
++    nautilus_friends_first_paint (friends);
++    g_assert_cmpuint (conversations->len, ==, 1);
++    g_assert_cmpstr (g_ptr_array_index (conversations, 0), ==, "c_mei");
++    /* Running: at once. The list for a join request. A malformed id is taken and opens nothing. */
++    g_assert_true (nautilus_friends_take_link (friends, "shenzhenfiles://friends/conversation/c_daniel"));
++    g_assert_true (nautilus_friends_take_link (friends, "shenzhenfiles://friends"));
++    g_assert_true (nautilus_friends_take_link (friends, "shenzhenfiles://friends/conversation/c%2Fmei"));
++    g_assert_cmpuint (conversations->len, ==, 3);
++    g_assert_cmpstr (g_ptr_array_index (conversations, 1), ==, "c_daniel");
++    g_assert_cmpstr (g_ptr_array_index (conversations, 2), ==, "");
++    /* Anything else under friends/ goes the links' way, as before: dropped. */
++    g_assert_true (nautilus_friends_take_link (friends, "shenzhenfiles://friends/settings"));
++    g_assert_cmpuint (conversations->len, ==, 3);
++    g_assert_cmpuint (shown->len, ==, 0);
++
++    /* Friends off in Files: nothing opens, nobody is asked, and nothing waits for later. */
++    set_enabled (FALSE);
++    g_assert_true (nautilus_friends_take_link (friends, "shenzhenfiles://friends/conversation/c_mei"));
++    g_assert_cmpuint (asked, ==, 0);
++    set_enabled (TRUE);
++    g_assert_cmpuint (conversations->len, ==, 3);
++
++    nautilus_friends_free (friends);
++    g_ptr_array_unref (conversations);
 +    g_ptr_array_unref (shown);
 +}
 +
@@ -5225,6 +5477,8 @@ index 0000000..f5b95ce
 +{
 +    g_test_add_func ("/friends/links/payloads", test_payloads);
 +    g_test_add_func ("/friends/links/opening", test_opening);
++    g_test_add_func ("/friends/links/routes", test_routes);
++    g_test_add_func ("/friends/links/route-opening", test_route_opening);
 +    g_test_add_func ("/friends/links/menu-items", test_menu_items);
 +    g_test_add_func ("/friends/links/item-follows-offer", test_item_follows_offer);
 +}
@@ -7450,10 +7704,10 @@ index 0000000..ef96729
 +}
 diff --git a/test/friends/test-nautilus-friends.c b/test/friends/test-nautilus-friends.c
 new file mode 100644
-index 0000000..0681b0e
+index 0000000..5398bad
 --- /dev/null
 +++ b/test/friends/test-nautilus-friends.c
-@@ -0,0 +1,457 @@
+@@ -0,0 +1,461 @@
 +/*
 + * test-nautilus-friends.c: the Shenzhen Friends host adapter without a display or a helper.
 + *
@@ -7507,6 +7761,10 @@ index 0000000..0681b0e
 +
 +    /* Capabilities come from what Files implements; it opens no format in place. */
 +    g_assert_null (host.capabilities);
++#ifdef SZFRIENDS_GTK_NOTIFICATIONS
++    /* A notification's click opens shenzhenfiles://friends/conversation/<id> here. */
++    g_assert_cmpstr (host.url_scheme, ==, "shenzhenfiles");
++#endif
 +    g_assert_nonnull (host.open_formats);
 +    g_assert_null (host.open_formats[0]);
 +    g_assert_cmpstr (host.attach_placeholder, ==, "Search selected files and this folder");

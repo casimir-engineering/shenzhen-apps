@@ -300,7 +300,8 @@ static const NSUInteger SZFriendsSearchLimitMax = 50;
                          reply:(SZFriendsIntentReply)reply {
     // Cancel after Get: the file stays on the computer that has it (+Devices).
     NSString *requested = SZFriendsJSONIsString(intent[@"transfer_id"]) ? intent[@"transfer_id"] : nil;
-    if (requested != nil && [self.services.nearby cancelFetchOfFile:requested]) {
+    if (requested != nil && ([self.services.nearby cancelFetchOfFile:requested] ||
+                             [self.services.nearby cancelAgainOfFile:requested])) {
         [self succeed:reply result:nil];
         return;
     }
@@ -352,7 +353,7 @@ static const NSUInteger SZFriendsSearchLimitMax = 50;
                           reply:(SZFriendsIntentReply)reply
                      connection:(SZFriendsIPCConnection *)connection {
     uint64_t needed = transfer.size > transfer.verifiedBytes ? transfer.size - transfer.verifiedBytes : 0;
-    uint64_t available = self.services.transfers.freeBytesProvider(self.services.paths.stateDirectory);
+    uint64_t available = [self.services.transfers freeBytesForReceiving];
     NSDictionary *details = @{@"needed_bytes" : @(needed), @"available_bytes" : @(available)};
     NSMutableDictionary *forMessage = [details mutableCopy];
     forMessage[@"file_name"] = transfer.fileName;
@@ -454,16 +455,21 @@ static const NSUInteger SZFriendsSearchLimitMax = 50;
     id conversationID = intent[@"conversation_id"];
     if (conversationID == [NSNull null]) conversationID = nil;
     if (conversationID != nil && [self personForIntent:intent reply:reply connection:connection] == nil) return;
+    if (![self eraseHistoryInConversation:conversationID]) {
+        [self fail:reply code:@"internal" details:nil connection:connection];
+        return;
+    }
+    [self succeed:reply result:nil];
+}
+
+// delete_history, and remove_friend's delete_history: one conversation's history, or all of it for nil.
+- (BOOL)eraseHistoryInConversation:(nullable NSString *)conversationID {
     // With another device of ours, the deletion reaches every one of them (sync); otherwise it is the store's alone.
     SZFriendsNearbyService *nearby = self.services.nearby;
     BOOL erased = nearby ? [nearby eraseHistoryInConversation:conversationID]
                          : [self.services.store deleteHistoryInConversation:conversationID error:NULL];
-    if (!erased) {
-        [self fail:reply code:@"internal" details:nil connection:connection];
-        return;
-    }
-    [self.services.nearby historyDeleted];
-    [self succeed:reply result:nil];
+    if (erased) [self.services.nearby historyDeleted];
+    return erased;
 }
 
 @end

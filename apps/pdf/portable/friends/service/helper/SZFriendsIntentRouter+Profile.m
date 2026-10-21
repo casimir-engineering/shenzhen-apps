@@ -4,6 +4,7 @@
 
 #import "service/discovery/SZFriendsDiscovery.h"
 #import "service/helper/nearby/SZFriendsNearbyService.h"
+#import "service/notify/SZFriendsNotify.h"
 
 // PROTOCOL.md § Limits.
 static const NSUInteger SZFriendsNameMax = 40;
@@ -96,6 +97,12 @@ static NSUInteger SZFriendsVisibleLength(NSString *text) {
 
 - (void)intent_dismiss_banner:(NSDictionary *)intent connection:(SZFriendsIPCConnection *)connection
                         reply:(SZFriendsIntentReply)reply {
+    if ([intent[@"kind"] isEqual:@"notifications"] && self.services.notifier != nil) {
+        // Not Now on the card offering notifications: it does not come back; Settings keeps Allow.
+        self.services.notifier.settings.askDismissed = YES;
+        [self succeed:reply result:nil];
+        return;
+    }
     if (![intent[@"kind"] isEqual:@"id_changed"]) {
         [self fail:reply code:@"invalid_field" details:@{@"field" : @"kind"} connection:connection];
         return;
@@ -135,6 +142,38 @@ static NSUInteger SZFriendsVisibleLength(NSString *text) {
     if (self.services.nearby != nil) [self.services.nearby stopVisibility];
     else self.services.store.visibilityDeadline = nil;
     [self succeed:reply result:nil];
+}
+
+// The folder received files go to on this computer (PROTOCOL.md § Views, settings). The next settings snapshot, sent
+// before the reply, shows it.
+- (void)intent_set_received_folder:(NSDictionary *)intent connection:(SZFriendsIPCConnection *)connection
+                             reply:(SZFriendsIntentReply)reply {
+    NSString *path = intent[@"path"];
+    if (!SZFriendsJSONIsString(path) || path.length == 0 || path.length > 4096) {
+        [self fail:reply code:@"invalid_field" details:@{@"field" : @"path"} connection:connection];
+        return;
+    }
+    NSError *error = nil;
+    // Worded for the folder the person just picked, not for a file being sent.
+    SZFriendsStrings *strings = [self.publisher stateForConnection:connection].strings;
+    NSDictionary *folder = @{@"field" : @"received_folder"};
+    switch (SZFriendsSetReceivedFolder(self.services.paths.stateDirectory, path, &error)) {
+    case SZFriendsReceivedFolderOK:
+        [self succeed:reply result:nil];
+        return;
+    case SZFriendsReceivedFolderInvalidPath:
+        [self fail:reply code:@"invalid_field" details:@{@"field" : @"path"} connection:connection];
+        return;
+    case SZFriendsReceivedFolderMissing:
+        reply(nil, @"file_missing", [strings messageForErrorCode:@"file_missing" details:folder], @{@"path" : path});
+        return;
+    case SZFriendsReceivedFolderNotAllowed:
+        reply(nil, @"not_allowed", [strings messageForErrorCode:@"not_allowed" details:folder], @{});
+        return;
+    case SZFriendsReceivedFolderFailed: break;
+    }
+    NSLog(@"Friends: cannot save the received folder: %@", error.localizedDescription);
+    [self fail:reply code:@"internal" details:nil connection:connection];
 }
 
 @end

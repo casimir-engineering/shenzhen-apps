@@ -56,15 +56,16 @@ fn private_options(options: &mut OpenOptions) {
 
 /// Moves `from` to `to`, which must not exist yet: a file is never replaced. A hard link where the system allows one
 /// (`from` is then removed). Where it refuses with a permission error (Android's SELinux policy gives apps no hard
-/// links), `to` is claimed with an exclusive create and `from` renamed over the claim; a crash between the two leaves
-/// an empty file at `to`, which crash recovery removes before publishing again. `AlreadyExists` when `to` is taken.
+/// links) or the file system has none (FAT and exFAT drives), `to` is claimed with an exclusive create and `from`
+/// renamed over the claim; a crash between the two leaves an empty file at `to`, which crash recovery removes before
+/// publishing again. `AlreadyExists` when `to` is taken; another volume's error when `to` is on one.
 pub fn move_no_replace(from: &Path, to: &Path) -> io::Result<()> {
     match fs::hard_link(from, to) {
         Ok(()) => {
             let _ = fs::remove_file(from);
             return Ok(());
         }
-        Err(e) if e.kind() == io::ErrorKind::PermissionDenied => {}
+        Err(e) if e.kind() == io::ErrorKind::PermissionDenied || no_hard_links(&e) => {}
         Err(e) => return Err(e),
     }
     let mut options = OpenOptions::new();
@@ -72,6 +73,18 @@ pub fn move_no_replace(from: &Path, to: &Path) -> io::Result<()> {
     private_options(&mut options);
     drop(options.open(to)?);
     fs::rename(from, to)
+}
+
+/// A file system without hard links: EPERM/EOPNOTSUPP on Unix, ERROR_INVALID_FUNCTION or ERROR_NOT_SUPPORTED on
+/// Windows.
+fn no_hard_links(error: &io::Error) -> bool {
+    #[cfg(windows)]
+    let raw = matches!(error.raw_os_error(), Some(1 | 50));
+    #[cfg(unix)]
+    let raw = error.raw_os_error() == Some(rustix::io::Errno::OPNOTSUPP.raw_os_error());
+    #[cfg(not(any(unix, windows)))]
+    let raw = false;
+    raw || error.kind() == io::ErrorKind::Unsupported
 }
 
 /// Creates `path` 0600 if it is missing (never following a symlink there), so SQLite's -wal and -shm files get the
@@ -202,7 +215,7 @@ pub fn sanitized_file_name(proposed: &str) -> String {
     }
 }
 
-/// A path inside `directory` that overwrites nothing ("Site photos 2.pdf"); a symlink, even a dangling one, counts as
+/// A path inside `directory` that overwrites nothing ("Site photos (2).pdf"); a symlink, even a dangling one, counts as
 /// taken. Never leaves the directory, whatever `name` holds.
 pub fn unique_destination(directory: &Path, name: &str) -> PathBuf {
     let safe = sanitized_file_name(name);
@@ -216,8 +229,8 @@ pub fn unique_destination(directory: &Path, name: &str) -> PathBuf {
         None => (safe.clone(), None),
     };
     let named = |suffix: String| match &extension {
-        Some(extension) => format!("{base} {suffix}.{extension}"),
-        None => format!("{base} {suffix}"),
+        Some(extension) => format!("{base} ({suffix}).{extension}"),
+        None => format!("{base} ({suffix})"),
     };
     for n in 2..10_000 {
         let candidate = directory.join(named(n.to_string()));
@@ -243,4 +256,11 @@ pub(super) fn snapshot(source: &Path, destination: &Path) -> io::Result<(u64, [u
     out.sync_all()?;
     let size = fs::metadata(destination)?.len();
     Ok((size, file_digest(destination, u64::MAX)?))
+}
+
+/// A file's modification time in nanoseconds since 1970, or 0 when it cannot be read.
+pub fn modified_ns(path: &Path) -> i64 {
+    let modified = fs::metadata(path).and_then(|m| m.modified()).ok();
+    let since = modified.and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok());
+    since.map_or(0, |d| i64::try_from(d.as_nanos()).unwrap_or(i64::MAX))
 }

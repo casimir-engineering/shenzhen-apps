@@ -141,6 +141,38 @@ static void TestFixtures(void) {
     ExpectSnapshot([builder profileWithFacts:SZPProfileRaph() waitingElsewhere:2], @"profile-unreserved.json",
                    @"profile");
     ExpectSnapshot([builder settingsWithProfile:SZPProfileRaph() people:everyone], @"settings.json", @"settings");
+    // A chosen folder shows its name; a helper without received.folder shows no folder name and no Change….
+    SZFriendsProfileFacts *chosen = SZPProfileRaph();
+    chosen.receivedDirectory = @"/Users/raph/Documents/From friends";
+    chosen.receivedFolderName = @"From friends";
+    NSDictionary *received = [builder settingsWithProfile:chosen people:everyone][@"received"];
+    if (![received[@"value"] isEqual:@"From friends"] || ![received[@"path"] isEqual:chosen.receivedDirectory] ||
+        ![received[@"action"][@"path"] isEqual:chosen.receivedDirectory] ||
+        ![received[@"change"][@"action"] isEqual:@"choose_received_folder"]) {
+        SZPFail(@"a chosen folder: %@", received);
+    }
+    // The last file could not be saved in the folder: the note says where it went instead, from the person's side.
+    chosen.receivedFallback = SZFriendsReceivedFallbackFactsDownloads;
+    received = [builder settingsWithProfile:chosen people:everyone][@"received"];
+    SZPExpect([received[@"note"] isEqual:@"The last file couldn’t be saved here, so it went to Downloads."],
+              @"fallback to Downloads: %@", received[@"note"]);
+    chosen.receivedFallback = SZFriendsReceivedFallbackFactsKept;
+    received = [builder settingsWithProfile:chosen people:everyone][@"received"];
+    NSString *kept = [NSString stringWithFormat:@"The last file couldn’t be saved here, so %@ kept it. Open it "
+                                                @"from its chat.", SZPAudience().appName];
+    SZPExpect([received[@"note"] isEqual:kept], @"kept by the app: %@", received[@"note"]);
+    SZFriendsAudience *older = SZPAudience();
+    older.helperCapabilities = [NSSet set];
+    received = [SZPBuilder(older) settingsWithProfile:SZPProfileRaph() people:everyone][@"received"];
+    if (received[@"value"] || received[@"path"] || received[@"change"] || ![received[@"note"] isEqual:@""]) {
+        SZPFail(@"without received.folder: %@", received);
+    }
+    // The automatic-acceptance button names what it shows: a switch per friend. With no friends it shows nothing, so
+    // views hide it, and the note says where to turn it on instead.
+    NSDictionary *automatic = [builder settingsWithProfile:SZPProfileRaph() people:@[]][@"auto_accept"];
+    SZPExpect([automatic[@"action_label"] isEqual:@"Choose friends…"] && [automatic[@"friends"] count] == 0 &&
+                  [automatic[@"note"] isEqual:@"Turn it on for a friend in their details."],
+              @"no friends: %@", automatic);
 }
 
 static void TestReplies(void) {
@@ -222,6 +254,9 @@ int main(int argc, const char *argv[]) {
         SZPRunJoinTests();
         SZPRunDevicesTests();
         SZPRunDevicesBuildTests();
+        SZPRunRemoveTests();
+        SZPRunFoundTests();
+        SZPRunNotificationsTests();
         // Keys under "test." are looked up on purpose by the lookup test.
         NSSet<NSString *> *missing = [SZFriendsMissingCatalogKeys()
             objectsPassingTest:^BOOL(NSString *key, BOOL *stop) {

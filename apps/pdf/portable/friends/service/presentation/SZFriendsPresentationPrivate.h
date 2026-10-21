@@ -30,6 +30,7 @@ NSDictionary<NSString *, NSString *> *SZFriendsEnglishCatalog(void);
 NSDictionary<NSString *, NSString *> *SZFriendsEnglishCatalogViews(void); // part two, merged into the above
 NSDictionary<NSString *, NSString *> *SZFriendsEnglishCatalogMentions(void); // mentions, merged into the above
 NSDictionary<NSString *, NSString *> *SZFriendsEnglishCatalogLinks(void);    // links, merged into the above
+NSDictionary<NSString *, NSString *> *SZFriendsEnglishCatalogNotifications(void);  // notifications, ADR 0017
 NSDictionary<NSString *, NSString *> *SZFriendsEnglishCatalogJoin(void);     // joining, merged into the above
 NSDictionary<NSString *, NSString *> *SZFriendsEnglishCatalogDevices(void);  // several computers, merged into the above
 
@@ -112,6 +113,14 @@ NSDictionary<NSString *, NSString *> *SZFriendsEnglishCatalogDevices(void);  // 
 // whose U+2011 would hide the second word's initial).
 - (NSString *)initialsSourceForName:(nullable NSString *)name friendsID:(nullable NSString *)friendsID;
 - (BOOL)personWaits:(SZFriendsPersonFacts *)person;
+// Remove's question for this person (remove_friend), as the row's menu and a friend's details ask it (+Rows).
+- (NSDictionary<NSString *, id> *)removeConfirmForPerson:(SZFriendsPersonFacts *)person;
+// The list row's menu, for clients that declared list.menu (+Rows).
+- (NSArray<NSDictionary<NSString *, id> *> *)rowMenuForPerson:(SZFriendsPersonFacts *)person;
+// The row with `found` for clients that declared nearby.found, and "Found over ..." at the end of its spoken label
+// when something sees the person; the row as it was for other clients (+Rows).
+- (NSDictionary<NSString *, id> *)row:(NSDictionary<NSString *, id> *)row
+                     foundWithMethods:(nullable NSArray<NSNumber *> *)methods;
 - (NSArray<SZFriendsPersonFacts *> *)peopleByLatestInteraction:(NSArray<SZFriendsPersonFacts *> *)people;
 - (BOOL)name:(nullable NSString *)name friendsID:(nullable NSString *)friendsID matchesQuery:(NSString *)query;
 - (NSDictionary<NSString *, id> *)emptyWithKind:(nullable NSString *)kind title:(NSString *)title

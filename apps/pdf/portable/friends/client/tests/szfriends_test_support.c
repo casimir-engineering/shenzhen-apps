@@ -149,6 +149,7 @@ szft_client *szft_client_new(const szft_client_options *options) {
     config.app_version = "26.10.12";
     config.toolkit = "appkit";
     config.reveal_in = "Finder";
+    config.url_scheme = "shenzhenpdf";
     config.locale = "en-GB";
     config.capabilities = capabilities;
     config.capability_count = 4;

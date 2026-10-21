@@ -55,6 +55,9 @@ extern "C" {
  * signed with a team ignore both, in the helper and in this library (szfriends_set_signing_policy()). */
 #define SZFRIENDS_ENV_STATE_DIR "SZFRIENDS_STATE_DIR"
 #define SZFRIENDS_ENV_KEY_STORE "SZFRIENDS_KEY_STORE"
+/* Where received files go when no folder was chosen (tests; PROTOCOL.md § Views, settings). Ignored, like the two
+ * above, by team-signed builds. */
+#define SZFRIENDS_ENV_DOWNLOADS_DIR "SZFRIENDS_DOWNLOADS_DIR"
 
 typedef enum szfriends_status {
     SZFRIENDS_OK = 0,
@@ -200,6 +203,7 @@ typedef struct szfriends_client_config {
     const char *toolkit;     /* "appkit" or "gtk4" */
     const char *reveal_in;   /* name of the file manager, "Finder": "Show in Finder" */
     const char *locale;      /* BCP 47, "en-GB"; NULL: "en" */
+    const char *url_scheme;  /* "shenzhenpdf": where a notification's click opens this app; NULL: not sent */
     const char *const *capabilities; /* client capability strings (PROTOCOL.md § Capabilities) */
     size_t capability_count;
     const char *const *open_formats; /* lowercase extensions this app opens in place */
@@ -364,7 +368,13 @@ szfriends_intent *szfriends_intent_add_from_mention(const char *friends_id, cons
                                                     const char *name);
 szfriends_intent *szfriends_intent_block(const char *conversation_id);
 szfriends_intent *szfriends_intent_unblock(const char *conversation_id);
+/* Takes the person off the list (PROTOCOL.md § Intents, remove_friend): send it from a row's menu or a friend's
+ * details, after the action's confirm. */
 szfriends_intent *szfriends_intent_remove_friend(const char *conversation_id);
+/* Sets the field a confirm's ticked `option` names to true (PROTOCOL.md § Shared objects, Action, confirm.option):
+ * "delete_history" on remove_friend, when the person also chose to delete the chat history. Returns `intent`. Any
+ * other field or intent, or NULL, is freed and NULL returned, so an option is never sent where it means nothing. */
+szfriends_intent *szfriends_intent_with_confirm_option(szfriends_intent *intent, const char *field);
 szfriends_intent *szfriends_intent_mark_verified(const char *conversation_id);
 szfriends_intent *szfriends_intent_accept_key_change(const char *conversation_id);
 szfriends_intent *szfriends_intent_set_name(const char *name); /* "" clears it */
@@ -373,7 +383,18 @@ szfriends_intent *szfriends_intent_set_picture_animal(int64_t set, int64_t index
 szfriends_intent *szfriends_intent_set_picture_image_data(const char *data_base64, const szfriends_crop *crop);
 szfriends_intent *szfriends_intent_set_picture_image_path(const char *path, const szfriends_crop *crop);
 szfriends_intent *szfriends_intent_set_auto_accept(const char *conversation_id, bool enabled);
-szfriends_intent *szfriends_intent_dismiss_banner(const char *kind); /* "id_changed" */
+/* The folder received files are saved to on this computer, an absolute path (helper capability received.folder). */
+szfriends_intent *szfriends_intent_set_received_folder(const char *path);
+szfriends_intent *szfriends_intent_dismiss_banner(const char *kind); /* "id_changed" or "notifications" */
+/* System notifications (PROTOCOL.md § Notifications), when the helper announces "notifications". set_focus names the
+ * conversation this client's focused window shows, NULL for none ("conversation_id":null). set_notifications sends
+ * only the switches whose value is 0 or 1; -1 leaves that field out (NULL when all three are -1).
+ * test_notification_response works in test homes only; action "open" or "reply", text NULL leaves it out. */
+szfriends_intent *szfriends_intent_set_focus(const char *conversation_id_or_null);
+szfriends_intent *szfriends_intent_set_notifications(int enabled, int preview, int background);
+szfriends_intent *szfriends_intent_allow_notifications(void);
+szfriends_intent *szfriends_intent_test_notification_response(const char *key, const char *action,
+                                                              const char *text_or_null);
 szfriends_intent *szfriends_intent_start_visibility(void);
 szfriends_intent *szfriends_intent_stop_visibility(void);
 /* conversation_id NULL: every conversation (Cmd+K). limit 0: omitted (the helper's default, 20). */
@@ -411,6 +432,9 @@ szfriends_intent *szfriends_intent_deny_join(const char *join_id);
 szfriends_intent *szfriends_intent_revoke_device(const char *device_id);
 szfriends_intent *szfriends_intent_rename_device(const char *name);
 szfriends_intent *szfriends_intent_fetch_from_device(const char *transfer_id);
+/* Get again (PROTOCOL.md § Getting a file again), when the helper announces "files.again": the transfer item's
+ * transfer_id. */
+szfriends_intent *szfriends_intent_fetch_from_friend(const char *transfer_id);
 
 #ifdef __cplusplus
 }

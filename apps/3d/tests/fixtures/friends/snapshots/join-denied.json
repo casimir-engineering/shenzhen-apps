@@ -21,7 +21,7 @@
     "error": null,
     "friends_id": "cottage-violet",
     "id_field": null,
-    "message": "Your other computer chose Deny. Start again if you meant to approve it.",
+    "message": "Your other computer or phone chose Deny. Start again if you meant to approve it.",
     "state": "denied",
     "title": "This computer wasn’t approved"
   }

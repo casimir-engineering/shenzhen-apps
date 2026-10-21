@@ -136,7 +136,17 @@ function queueOpenFiles(paths) {
 }
 // Shenzhen Friends (docs/FRIENDS.md, electron/friends/launch.cjs): nothing of it loads before the first paint.
 const { setupFriends } = require("./friends/launch.cjs");
-const friends = setupFriends({ trusted, associatedFormats, queueOpenFiles });
+const friends = setupFriends({
+  trusted,
+  associatedFormats,
+  queueOpenFiles,
+  rememberRecent: (paths, name, format) => {
+    recentFileStore ||= require("./recent-files.cjs").createRecentFileStore(
+      app.getPath("userData"),
+    );
+    return recentFileStore.remember(paths, name, format);
+  },
+});
 app.on("open-file", (event, file) => {
   event.preventDefault();
   queueOpenFiles([file]);
@@ -202,7 +212,7 @@ ipcMain.handle("shenzhen-recent-files", (event, method, value) => {
   if (
     event.senderFrame !== event.sender.mainFrame ||
     !trusted(event.senderFrame?.url) ||
-    !["list", "remember", "open", "remove", "touch"].includes(method)
+    !["list", "remember", "open", "paths", "remove", "touch"].includes(method)
   )
     throw Error("Recent file request is not allowed");
   recentFileStore ||= require("./recent-files.cjs").createRecentFileStore(

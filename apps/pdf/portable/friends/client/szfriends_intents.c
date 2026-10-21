@@ -226,6 +226,14 @@ szfriends_intent *szfriends_intent_via_assistant(szfriends_intent *intent) {
     return finish(intent, sends && cJSON_AddTrueToObject(intent->fields, "via_assistant") != NULL);
 }
 
+szfriends_intent *szfriends_intent_with_confirm_option(szfriends_intent *intent, const char *field) {
+    /* Only remove_friend has an option; a second mark replaces the first, as a duplicate key would be ambiguous. */
+    if (!intent || !field || strcmp(intent->type, "remove_friend") != 0 || strcmp(field, "delete_history") != 0)
+        return finish(intent, false);
+    cJSON_DeleteItemFromObjectCaseSensitive(intent->fields, field);
+    return finish(intent, cJSON_AddTrueToObject(intent->fields, field) != NULL);
+}
+
 szfriends_intent *szfriends_intent_with_mentions(szfriends_intent *intent, const char *const *conversation_ids,
                                                  size_t count) {
     cJSON *mentions;
@@ -262,15 +270,20 @@ szfriends_intent *szfriends_intent_retry_item(const char *item_id) {
 szfriends_intent *szfriends_intent_cancel_message(const char *message_id) {
     return one_string("cancel_message", "message_id", message_id);
 }
-szfriends_intent *szfriends_intent_accept_request(const char *conversation_id) {
-    return one_string("accept_request", "conversation_id", conversation_id);
-}
-szfriends_intent *szfriends_intent_decline_request(const char *conversation_id) {
-    return one_string("decline_request", "conversation_id", conversation_id);
-}
-szfriends_intent *szfriends_intent_cancel_request(const char *conversation_id) {
-    return one_string("cancel_request", "conversation_id", conversation_id);
-}
+/* The intents whose only field is the conversation they act on. */
+#define SZFRIENDS_CONVERSATION_INTENT(name)                                     \
+    szfriends_intent *szfriends_intent_##name(const char *conversation_id) {   \
+        return one_string(#name, "conversation_id", conversation_id);          \
+    }
+SZFRIENDS_CONVERSATION_INTENT(accept_request)
+SZFRIENDS_CONVERSATION_INTENT(decline_request)
+SZFRIENDS_CONVERSATION_INTENT(cancel_request)
+SZFRIENDS_CONVERSATION_INTENT(block)
+SZFRIENDS_CONVERSATION_INTENT(unblock)
+SZFRIENDS_CONVERSATION_INTENT(remove_friend)
+SZFRIENDS_CONVERSATION_INTENT(mark_verified)
+SZFRIENDS_CONVERSATION_INTENT(accept_key_change)
+#undef SZFRIENDS_CONVERSATION_INTENT
 szfriends_intent *szfriends_intent_send_request(const char *nearby_id) {
     return one_string("send_request", "nearby_id", nearby_id);
 }
@@ -287,26 +300,38 @@ szfriends_intent *szfriends_intent_add_from_mention(const char *friends_id, cons
                                        add_string(intent, "name", name))
                   : NULL;
 }
-szfriends_intent *szfriends_intent_block(const char *conversation_id) {
-    return one_string("block", "conversation_id", conversation_id);
-}
-szfriends_intent *szfriends_intent_unblock(const char *conversation_id) {
-    return one_string("unblock", "conversation_id", conversation_id);
-}
-szfriends_intent *szfriends_intent_remove_friend(const char *conversation_id) {
-    return one_string("remove_friend", "conversation_id", conversation_id);
-}
-szfriends_intent *szfriends_intent_mark_verified(const char *conversation_id) {
-    return one_string("mark_verified", "conversation_id", conversation_id);
-}
-szfriends_intent *szfriends_intent_accept_key_change(const char *conversation_id) {
-    return one_string("accept_key_change", "conversation_id", conversation_id);
-}
 szfriends_intent *szfriends_intent_set_name(const char *name) {
     return one_string("set_name", "name", name);
 }
 szfriends_intent *szfriends_intent_dismiss_banner(const char *kind) {
     return one_string("dismiss_banner", "kind", kind);
+}
+szfriends_intent *szfriends_intent_set_focus(const char *conversation_id_or_null) {
+    szfriends_intent *intent = intent_new("set_focus");
+    if (!intent) return NULL;
+    if (conversation_id_or_null) return finish(intent, add_string(intent, "conversation_id", conversation_id_or_null));
+    return finish(intent, cJSON_AddNullToObject(intent->fields, "conversation_id") != NULL);
+}
+szfriends_intent *szfriends_intent_set_notifications(int enabled, int preview, int background) {
+    szfriends_intent *intent;
+    bool ok = true;
+    if (enabled < 0 && preview < 0 && background < 0) return NULL;
+    intent = intent_new("set_notifications");
+    if (!intent) return NULL;
+    if (enabled >= 0) ok = ok && cJSON_AddBoolToObject(intent->fields, "enabled", enabled != 0);
+    if (preview >= 0) ok = ok && cJSON_AddBoolToObject(intent->fields, "preview", preview != 0);
+    if (background >= 0) ok = ok && cJSON_AddBoolToObject(intent->fields, "background", background != 0);
+    return finish(intent, ok);
+}
+szfriends_intent *szfriends_intent_allow_notifications(void) { return no_fields("allow_notifications"); }
+szfriends_intent *szfriends_intent_test_notification_response(const char *key, const char *action,
+                                                              const char *text_or_null) {
+    szfriends_intent *intent;
+    if (!key || !action) return NULL;
+    intent = intent_new("test_notification_response");
+    return intent ? finish(intent, add_string(intent, "key", key) && add_string(intent, "action", action) &&
+                                       (!text_or_null || add_string(intent, "text", text_or_null)))
+                  : NULL;
 }
 szfriends_intent *szfriends_intent_assistant_close_scope(const char *scope_id) {
     return one_string("assistant_close_scope", "scope_id", scope_id);
@@ -357,6 +382,11 @@ szfriends_intent *szfriends_intent_set_auto_accept(const char *conversation_id, 
     return intent ? finish(intent, add_string(intent, "conversation_id", conversation_id) &&
                                        cJSON_AddBoolToObject(intent->fields, "enabled", enabled))
                   : NULL;
+}
+
+szfriends_intent *szfriends_intent_set_received_folder(const char *path) {
+    szfriends_intent *intent = path ? intent_new("set_received_folder") : NULL;
+    return intent ? finish(intent, add_string(intent, "path", path)) : NULL;
 }
 
 szfriends_intent *szfriends_intent_search_messages(const char *query, const char *conversation_id_or_null,
@@ -489,6 +519,9 @@ szfriends_intent *szfriends_intent_revoke_device(const char *id) {
 szfriends_intent *szfriends_intent_rename_device(const char *name) {
     return one_string("rename_device", "name", name);
 }
-szfriends_intent *szfriends_intent_fetch_from_device(const char *transfer_id) {
-    return one_string("fetch_from_device", "transfer_id", transfer_id);
+szfriends_intent *szfriends_intent_fetch_from_device(const char *id) {
+    return one_string("fetch_from_device", "transfer_id", id);
+}
+szfriends_intent *szfriends_intent_fetch_from_friend(const char *id) {
+    return one_string("fetch_from_friend", "transfer_id", id);
 }

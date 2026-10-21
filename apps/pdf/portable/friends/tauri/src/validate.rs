@@ -15,7 +15,8 @@ const MAX_FRAME_BYTES: usize = 8 * 1024 * 1024;
 const MAX_PATH_BYTES: usize = 1024;
 const MAX_TEXT_BYTES: usize = 32768;
 /// The views the panel subscribes to. message_status is for host surfaces outside Friends.
-const VIEWS: &[&str] = &["badge", "list", "nearby", "details", "profile", "settings", "join"];
+/// `received` lists the files received here, for the app's own recent files.
+const VIEWS: &[&str] = &["badge", "list", "nearby", "details", "profile", "settings", "join", "received"];
 
 /// The field that failed, as PROTOCOL.md's `invalid_field` names it.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -67,6 +68,18 @@ pub fn plain_path(value: &str) -> bool {
     }
     let Some(rest) = rest.strip_prefix(separator) else { return false };
     !rest.is_empty() && rest.split(separator).all(|segment| !matches!(segment, "" | "." | ".."))
+}
+
+/// A MediaStore item's content URI (`content://media/…/<number>`), where Android 10 keeps a received file that no
+/// path reads; only the share sheet takes one, and only one a snapshot offered.
+pub fn media_store_uri(value: &str) -> bool {
+    let Some(rest) = value.strip_prefix("content://media/") else { return false };
+    value.len() <= MAX_PATH_BYTES
+        && !rest.is_empty()
+        && rest.split('/').all(|segment| {
+            !segment.is_empty() && segment.bytes().all(|b| b.is_ascii_alphanumeric() || matches!(b, b'_' | b'-' | b'.'))
+        })
+        && !rest.split('/').any(|segment| segment == "." || segment == "..")
 }
 
 fn path_field(value: &Value, field: &str) -> Checked {
@@ -260,11 +273,20 @@ fn rule(kind: &str) -> Option<Rule> {
             file_list(f, "files", 100)?;
             client_token(f)
         }),
-        "cancel_transfer" | "accept_offer" | "decline_offer" | "fetch_from_device" => rule!(&["transfer_id"], ids),
+        "cancel_transfer" | "accept_offer" | "decline_offer" | "fetch_from_device" | "fetch_from_friend" => {
+            rule!(&["transfer_id"], ids)
+        }
         "retry_item" => rule!(&["item_id"], ids),
         "cancel_message" => rule!(&["message_id"], ids),
-        "accept_request" | "decline_request" | "cancel_request" | "block" | "unblock" | "remove_friend"
-        | "mark_verified" | "accept_key_change" => rule!(conversation, ids),
+        "accept_request" | "decline_request" | "cancel_request" | "block" | "unblock" | "mark_verified"
+        | "accept_key_change" => rule!(conversation, ids),
+        // Ticking "Also delete chat history" in Remove's question adds delete_history: true.
+        "remove_friend" => rule!(&["conversation_id", "delete_history"], conversation, |f| {
+            match f.get("delete_history") {
+                None | Some(Value::Bool(_)) => Ok(()),
+                _ => fail("delete_history"),
+            }
+        }),
         "send_request" => rule!(&["nearby_id"], ids),
         "add_by_id" | "join_profile" => rule!(&["friends_id"], &[], |f| text(f, "friends_id", 800)),
         "add_from_mention" => rule!(&["friends_id", "identity_key", "name"], &[], |f| {
@@ -291,11 +313,29 @@ fn rule(kind: &str) -> Option<Rule> {
             _ => fail("enabled"),
         }),
         "dismiss_banner" => rule!(&["kind"], &[], |f| match f.get("kind").and_then(Value::as_str) {
-            Some("id_changed") => Ok(()),
+            Some("id_changed" | "notifications") => Ok(()),
             _ => fail("kind"),
         }),
+        // System notifications (PROTOCOL.md § Notifications). test_notification_response is for test harnesses, never
+        // a page.
+        "set_focus" => rule!(conversation, &[], |f| match f.get("conversation_id") {
+            Some(Value::Null) => Ok(()),
+            Some(value) if opaque_id(value) => Ok(()),
+            _ => fail("conversation_id"),
+        }),
+        "set_notifications" => rule!(&["enabled", "preview", "background"], &[], |f| {
+            if f.is_empty() {
+                return fail("fields");
+            }
+            match f.iter().find(|(_, value)| !value.is_boolean()) {
+                Some((key, _)) => fail(key.as_str()),
+                None => Ok(()),
+            }
+        }),
+        "allow_notifications" => rule!(&[]),
         "search_messages" => rule!(&["query", "conversation_id", "limit"], &[], search_messages),
         "delete_history" => rule!(conversation, &[], |f| opaque(f, "conversation_id", true)),
+        "set_received_folder" => rule!(&["path"], &[], |f| path_field(f.get("path").unwrap_or(&Value::Null), "path")),
         "reset_friends" => rule!(&["confirm"], &[], |f| match f.get("confirm").and_then(Value::as_str) {
             Some("reset") => Ok(()),
             _ => fail("confirm"),
@@ -341,6 +381,7 @@ pub const INTENT_TYPES: &[&str] = &[
     "revoke_device",
     "rename_device",
     "fetch_from_device",
+    "fetch_from_friend",
     "block",
     "unblock",
     "remove_friend",
@@ -349,7 +390,11 @@ pub const INTENT_TYPES: &[&str] = &[
     "set_name",
     "set_picture",
     "set_auto_accept",
+    "set_received_folder",
     "dismiss_banner",
+    "set_focus",
+    "set_notifications",
+    "allow_notifications",
     "start_visibility",
     "stop_visibility",
     "search_messages",

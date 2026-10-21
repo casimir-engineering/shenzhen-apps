@@ -1,22 +1,37 @@
 // The Kotlin half of tauri-plugin-szfriends (ADR 0015 § 7, § 10, § 17). Rust calls it (src/phone/native.rs); the
 // page never does. It starts nothing by itself: each command answers one call.
 //
-// - dirs: the no-backup directory Friends keeps its files in (Auto Backup and device transfers skip it).
+// - dirs: the no-backup directory Friends keeps its files in (Auto Backup and device transfers skip it), and the
+//   Android version.
 // - seal, unseal, forget: the Friends key, sealed with an AES-GCM key the Android Keystore holds and never exports.
 // - share: a received file to Save… (the system's document picker) or Share… (the share sheet).
+// - publishDownload: a received file into the public Downloads through MediaStore (Android 10 and later, no
+//   permission), hidden while it is written (IS_PENDING), named "Name (2).ext" beside one of the same name.
 // - openUrl: a web or mail link, or one of the system's settings screens.
+// - notifySetup, notifyPost, notifyWithdraw, notifyPermission, notifyAsk, notifyBackground: Friends' notifications
+//   (notify/Notifications.kt, src/phone/notify.rs); a tap on one reports its key to the core.
+//
+// It extends NearbyPlugin, whose commands it answers too: Tauri keeps one Kotlin plugin per Tauri plugin, and a
+// second one registered for szfriends replaced the first, so Nearby's calls never reached it.
 
 package com.shenzhen.friends
 
 import android.app.Activity
 import android.app.AlertDialog
+import android.content.ContentResolver
+import android.content.ContentValues
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
+import android.os.Environment
+import android.provider.MediaStore
+import android.provider.OpenableColumns
 import android.provider.Settings
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.webkit.MimeTypeMap
 import androidx.activity.result.ActivityResult
+import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.FileProvider
 import app.tauri.annotation.ActivityCallback
 import app.tauri.annotation.Command
@@ -24,13 +39,30 @@ import app.tauri.annotation.InvokeArg
 import app.tauri.annotation.TauriPlugin
 import app.tauri.plugin.Invoke
 import app.tauri.plugin.JSObject
-import app.tauri.plugin.Plugin
+import app.shenzhen.friends.nearby.NearbyPlugin
+import app.shenzhen.friends.notify.Notifications
+import app.shenzhen.friends.notify.ReplyLabels
+import app.shenzhen.friends.notify.Request
+import app.tauri.plugin.Channel
 import java.io.File
+import java.io.FileOutputStream
+import java.io.InputStream
 import java.security.KeyStore
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
+
+/** "Name (2).ext", "Name (3).ext"… as the Friends core names a clash; the extension stays (16 characters at most). */
+internal fun numberedName(name: String, n: Int): String {
+  val dot = name.lastIndexOf('.')
+  val extension = if (dot > 0 && dot < name.length - 1 && name.length - dot - 1 <= 16) name.substring(dot) else ""
+  val base = if (extension.isEmpty()) name else name.substring(0, dot)
+  return "$base ($n)$extension"
+}
+
+/** A received file the share sheet or the document picker gets: a file Friends published, or a MediaStore item. */
+private class Received(val name: String, val open: () -> InputStream?)
 
 /** Received files shared with other apps, as copies in the cache (res/xml/szfriends_share_paths.xml). */
 class FriendsShareProvider : FileProvider()
@@ -47,8 +79,65 @@ class PathArgs {
 }
 
 @InvokeArg
+class PublishArgs {
+  lateinit var path: String
+  lateinit var name: String
+}
+
+@InvokeArg
 class UrlArgs {
   lateinit var url: String
+}
+
+@InvokeArg
+class LocationArgs {
+  lateinit var location: String
+}
+
+@InvokeArg
+class NotifySetupArgs {
+  lateinit var channel: Channel
+  var names: Map<String, String> = emptyMap()
+}
+
+@InvokeArg
+class NotifyReplyArgs {
+  var label: String = ""
+  var placeholder: String = ""
+  var send: String = ""
+}
+
+@InvokeArg
+class NotifyOpenArgs {
+  var url: String = ""
+}
+
+@InvokeArg
+class NotifyPostArgs {
+  var key: String = ""
+  var kind: String = ""
+  var channel: String = ""
+  var thread: String = ""
+  var title: String = ""
+  var body: String = ""
+  var time: String? = null
+  var reply: NotifyReplyArgs? = null
+  var open: NotifyOpenArgs = NotifyOpenArgs()
+}
+
+@InvokeArg
+class NotifyThreadArgs {
+  var thread: String = ""
+}
+
+@InvokeArg
+class NotifyBackgroundArgs {
+  var on: Boolean = false
+  var title: String? = null
+  var body: String? = null
+  var restartTitle: String? = null
+  var restartBody: String? = null
+  var url: String? = null
 }
 
 private const val KEYSTORE = "AndroidKeyStore"
@@ -66,14 +155,19 @@ private fun unhex(text: String): ByteArray? {
 }
 
 @TauriPlugin
-class FriendsPlugin(private val activity: Activity) : Plugin(activity) {
+class FriendsPlugin(private val activity: Activity) : NearbyPlugin(activity) {
   /** The file waiting for the document picker's answer (Save…). */
-  private var saving: File? = null
+  private var saving: Received? = null
 
   @Command
   fun dirs(invoke: Invoke) {
     val result = JSObject()
     result.put("base", activity.noBackupFilesDir.absolutePath)
+    // Android 10 (29) and later save received files to Downloads through MediaStore (publishDownload).
+    result.put("sdk", Build.VERSION.SDK_INT)
+    // What the person's other computers call this phone: the name in Settings ▸ About, else the model.
+    val named = Settings.Global.getString(activity.contentResolver, Settings.Global.DEVICE_NAME)
+    result.put("name", if (named.isNullOrBlank()) Build.MODEL else named)
     invoke.resolve(result)
   }
 
@@ -169,8 +263,32 @@ class FriendsPlugin(private val activity: Activity) : Plugin(activity) {
     invoke.resolve(result)
   }
 
-  private fun mimeType(file: File): String =
-    MimeTypeMap.getSingleton().getMimeTypeFromExtension(file.extension.lowercase()) ?: "application/octet-stream"
+  /**
+   * Save… or Share… for a received file. The person tapped Share… on it; they choose whether to keep a copy where
+   * they like (the system's document picker) or send it with another app.
+   */
+  /** What `path` names: a file, or a content URI publishDownload answered (Android 10, where no path reads it). */
+  private fun received(path: String): Received? {
+    if (path.startsWith("content://")) {
+      val uri = Uri.parse(path)
+      if (uri.authority != MediaStore.AUTHORITY) return null
+      val name = try {
+        activity.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use {
+          if (it.moveToFirst()) it.getString(0) else null
+        }
+      } catch (e: Exception) {
+        null
+      } ?: return null
+      return Received(name) { activity.contentResolver.openInputStream(uri) }
+    }
+    val file = File(path)
+    if (!file.isFile) return null
+    return Received(file.name) { file.inputStream() }
+  }
+
+  private fun mimeType(name: String): String =
+    MimeTypeMap.getSingleton().getMimeTypeFromExtension(name.substringAfterLast('.', "").lowercase())
+      ?: "application/octet-stream"
 
   /**
    * Save… or Share… for a received file. The person tapped Share… on it; they choose whether to keep a copy where
@@ -179,8 +297,7 @@ class FriendsPlugin(private val activity: Activity) : Plugin(activity) {
   @Command
   fun share(invoke: Invoke) {
     val args = invoke.parseArgs(PathArgs::class.java)
-    val file = File(args.path)
-    if (!file.isFile) return done(invoke, false)
+    val file = received(args.path) ?: return done(invoke, false)
     activity.runOnUiThread {
       AlertDialog.Builder(activity)
         .setTitle(file.name)
@@ -192,11 +309,11 @@ class FriendsPlugin(private val activity: Activity) : Plugin(activity) {
     }
   }
 
-  private fun save(invoke: Invoke, file: File) {
+  private fun save(invoke: Invoke, file: Received) {
     saving = file
     val intent = Intent(Intent.ACTION_CREATE_DOCUMENT)
       .addCategory(Intent.CATEGORY_OPENABLE)
-      .setType(mimeType(file))
+      .setType(mimeType(file.name))
       .putExtra(Intent.EXTRA_TITLE, file.name)
     startActivityForResult(invoke, intent, "saved")
   }
@@ -210,8 +327,8 @@ class FriendsPlugin(private val activity: Activity) : Plugin(activity) {
     Thread {
       val copied = try {
         activity.contentResolver.openOutputStream(target, "w")?.use { out ->
-          file.inputStream().use { it.copyTo(out) }
-        } != null
+          file.open()?.use { it.copyTo(out) } != null
+        } ?: false
       } catch (e: Exception) {
         false
       }
@@ -219,7 +336,7 @@ class FriendsPlugin(private val activity: Activity) : Plugin(activity) {
     }.start()
   }
 
-  private fun send(invoke: Invoke, file: File) {
+  private fun send(invoke: Invoke, file: Received) {
     Thread {
       try {
         // A copy in the cache, so no other app is ever handed a path into the Friends directory.
@@ -227,10 +344,11 @@ class FriendsPlugin(private val activity: Activity) : Plugin(activity) {
         directory.deleteRecursively()
         directory.mkdirs()
         val copy = File(directory, file.name)
-        file.copyTo(copy, overwrite = true)
+        val copied = copy.outputStream().use { out -> file.open()?.use { it.copyTo(out) } != null }
+        if (!copied) return@Thread done(invoke, false)
         val uri = FileProvider.getUriForFile(activity, "${activity.packageName}.szfriends.share", copy)
         val intent = Intent(Intent.ACTION_SEND)
-          .setType(mimeType(file))
+          .setType(mimeType(file.name))
           .putExtra(Intent.EXTRA_STREAM, uri)
           .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         activity.runOnUiThread { activity.startActivity(Intent.createChooser(intent, null)) }
@@ -241,12 +359,196 @@ class FriendsPlugin(private val activity: Activity) : Plugin(activity) {
     }.start()
   }
 
+  /** Whether Downloads already shows `name` as one of this app's items, or as a file this app can see. */
+  private fun taken(resolver: ContentResolver, collection: Uri, name: String): Boolean {
+    val where = "${MediaStore.MediaColumns.DISPLAY_NAME} = ? AND ${MediaStore.MediaColumns.RELATIVE_PATH} = ?"
+    val relative = "${Environment.DIRECTORY_DOWNLOADS}/"
+    val listed = try {
+      resolver.query(collection, arrayOf(MediaStore.MediaColumns._ID), where, arrayOf(name, relative), null)
+        ?.use { it.count > 0 } ?: false
+    } catch (e: Exception) {
+      false
+    }
+    @Suppress("DEPRECATION")
+    val downloads = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+    return listed || File(downloads, name).exists()
+  }
+
+  /**
+   * A received file, checked by Friends, into the public Downloads (MediaStore.Downloads, Android 10 and later; no
+   * permission): pending (invisible) until every byte is written and synced, under a name no other item has. Answers
+   * where Friends finds it again: the file's path where this app can read it by path (Android 11 and later), else
+   * the item's content URI; and the name it got. Android 9 and earlier: refused, and Friends keeps the file itself.
+   */
+  @Command
+  fun publishDownload(invoke: Invoke) {
+    val args = invoke.parseArgs(PublishArgs::class.java)
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return invoke.reject("no MediaStore downloads")
+    Thread {
+      val resolver = activity.contentResolver
+      val collection = MediaStore.Downloads.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
+      var item: Uri? = null
+      try {
+        val source = File(args.path)
+        var name = args.name
+        var n = 2
+        while (taken(resolver, collection, name) && n < 10000) name = numberedName(args.name, n++)
+        val values = ContentValues().apply {
+          put(MediaStore.MediaColumns.DISPLAY_NAME, name)
+          put(MediaStore.MediaColumns.MIME_TYPE, mimeType(name))
+          put(MediaStore.MediaColumns.RELATIVE_PATH, "${Environment.DIRECTORY_DOWNLOADS}/")
+          put(MediaStore.MediaColumns.IS_PENDING, 1)
+        }
+        val uri = resolver.insert(collection, values) ?: throw IllegalStateException("not inserted")
+        item = uri
+        resolver.openFileDescriptor(uri, "w")?.use { descriptor ->
+          FileOutputStream(descriptor.fileDescriptor).use { out ->
+            source.inputStream().use { it.copyTo(out) }
+            out.flush()
+            out.fd.sync()
+          }
+        } ?: throw IllegalStateException("not opened")
+        resolver.update(uri, ContentValues().apply { put(MediaStore.MediaColumns.IS_PENDING, 0) }, null, null)
+        // MediaStore may have changed the name to keep it unique among other apps' items.
+        val shown = resolver.query(uri, arrayOf(MediaStore.MediaColumns.DISPLAY_NAME), null, null, null)?.use {
+          if (it.moveToFirst()) it.getString(0) else null
+        } ?: name
+        @Suppress("DEPRECATION")
+        val file = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), shown)
+        val readable = Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && file.canRead()
+        val result = JSObject()
+        result.put("location", if (readable) file.absolutePath else uri.toString())
+        result.put("name", shown)
+        invoke.resolve(result)
+      } catch (e: Exception) {
+        item?.let { try { resolver.delete(it, null, null) } catch (ignored: Exception) {} }
+        invoke.reject("not saved: ${e.javaClass.simpleName}")
+      }
+    }.start()
+  }
+
+  // A received file publishDownload left as a MediaStore item (Android 10): its size now, or none once the person
+  // deleted it; and a copy Rust can read, to give it to the person's other computers or a friend again.
+  private fun mediaItem(location: String): Uri? =
+    Uri.parse(location).takeIf { it.scheme == "content" && it.authority == MediaStore.AUTHORITY }
+
+  @Command
+  fun downloadSize(invoke: Invoke) {
+    val uri = mediaItem(invoke.parseArgs(LocationArgs::class.java).location)
+    val result = JSObject()
+    try {
+      activity.contentResolver.query(uri ?: return invoke.resolve(result), arrayOf(OpenableColumns.SIZE), null, null,
+        null)?.use { if (it.moveToFirst() && !it.isNull(0)) result.put("size", it.getLong(0)) }
+    } catch (e: Exception) {
+      // Gone, or no longer ours: no size.
+    }
+    invoke.resolve(result)
+  }
+
+  @Command
+  fun downloadCopy(invoke: Invoke) {
+    val uri = mediaItem(invoke.parseArgs(LocationArgs::class.java).location) ?: return invoke.resolve(JSObject())
+    Thread {
+      val result = JSObject()
+      try {
+        val directory = File(activity.cacheDir, "friends-out").apply { mkdirs() }
+        val copy = File(directory, uri.lastPathSegment ?: "item")
+        activity.contentResolver.openInputStream(uri)?.use { input -> copy.outputStream().use { input.copyTo(it) } }
+        result.put("path", copy.absolutePath)
+      } catch (e: Exception) {
+        // Not readable now: no path.
+      }
+      invoke.resolve(result)
+    }.start()
+  }
+
+  /** The core started: where taps, replies and permission changes go, and the channels' names from the catalog. */
+  @Command
+  fun notifySetup(invoke: Invoke) {
+    val args = invoke.parseArgs(NotifySetupArgs::class.java)
+    Notifications.responses = args.channel
+    Notifications.setChannels(activity, args.names)
+    // Friends runs again: the note that it stopped at a restart goes.
+    Notifications.cancelRestarted(activity)
+    val background = Notifications.preferences(activity).getBoolean(Notifications.BACKGROUND_ON, false)
+    invoke.resolve(JSObject().put("permission", Notifications.permission(activity)).put("background", background))
+    Notifications.report(activity, always = true)
+    // The tap that started the app, before the core was there to hear it.
+    reportOpened(activity.intent)
+  }
+
+  @Command
+  fun notifyPost(invoke: Invoke) {
+    val args = invoke.parseArgs(NotifyPostArgs::class.java)
+    val reply = args.reply?.let { ReplyLabels(it.label, it.placeholder, it.send) }
+    val request = Request(args.key, args.kind, args.channel, args.thread, args.title, args.body, args.time,
+      args.open.url, reply)
+    done(invoke, Notifications.post(activity, request))
+  }
+
+  @Command
+  fun notifyWithdraw(invoke: Invoke) {
+    Notifications.withdraw(activity, invoke.parseArgs(NotifyThreadArgs::class.java).thread)
+    done(invoke, true)
+  }
+
+  @Command
+  fun notifyPermission(invoke: Invoke) {
+    invoke.resolve(JSObject().put("permission", Notifications.permission(activity)))
+  }
+
+  /** Settings' Allow: the system's dialog, while it may still show it; the answer arrives as a permission event. */
+  @Command
+  fun notifyAsk(invoke: Invoke) {
+    done(invoke, askNotifications())
+  }
+
+  @Command
+  fun notifyBackground(invoke: Invoke) {
+    val args = invoke.parseArgs(NotifyBackgroundArgs::class.java)
+    try {
+      Notifications.setBackground(activity, args.on, args.title, args.body, args.url, args.restartTitle, args.restartBody)
+      done(invoke, true)
+    } catch (e: Exception) {
+      // Android refuses a foreground service started from the background: it starts when the app is next in front.
+      done(invoke, false)
+    }
+  }
+
+  override fun onNewIntent(intent: Intent) {
+    reportOpened(intent)
+  }
+
+  /** A notification's tap: the app opens on its URL (the deep-link plugin hears that); the core hears its key. */
+  private fun reportOpened(intent: Intent?) {
+    val key = intent?.getStringExtra(Notifications.EXTRA_KEY) ?: return
+    if (Notifications.send(JSObject().put("kind", "open").put("key", key))) intent.removeExtra(Notifications.EXTRA_KEY)
+  }
+
+  override fun onResume(activity: AppCompatActivity) {
+    super.onResume(activity)
+    // The service could not start while the app was in the background: it starts now, with the app in front.
+    if (Notifications.preferences(activity).getBoolean(Notifications.BACKGROUND_ON, false)) {
+      try {
+        Notifications.setBackground(activity, true, null, null, null)
+      } catch (e: Exception) {
+        // Refused: the switch stays on, and the next time the app is in front tries again.
+      }
+    }
+  }
+
   @Command
   fun openUrl(invoke: Invoke) {
     val url = invoke.parseArgs(UrlArgs::class.java).url
     val intent = when (url) {
       "szfriends-settings:app" ->
         Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", activity.packageName, null))
+      "szfriends-settings:notifications" ->
+        if (Build.VERSION.SDK_INT >= 26) {
+          Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, activity.packageName)
+        } else {
+          Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", activity.packageName, null))
+        }
       "szfriends-settings:bluetooth" -> Intent(Settings.ACTION_BLUETOOTH_SETTINGS)
       "szfriends-settings:wifi" -> Intent(Settings.ACTION_WIFI_SETTINGS)
       else -> {

@@ -20,6 +20,7 @@ them is a bug; decide which and fix it in the same change.
 - [Thumbnails](#thumbnails)
 - [Links](#links)
 - [Devices](#devices)
+- [Notifications](#notifications)
 - [Static strings](#static-strings)
 - [Limits](#limits)
 - [Schemas](#schemas)
@@ -229,8 +230,14 @@ Lowercase dotted strings. Unknown ones are ignored on both sides.
 | `assistant.drafts` | The host has `/` drafts; the hint includes "/ to ask the assistant" (Assistant track) |
 | `assistant.chats` | The host's AI chat may open scoped chat access; without it `assistant_*` intents fail with `not_allowed` |
 | `search.export` | The host shows Friends results in its global search (Cmd+K) |
-| `files.share` | A phone: `show_file` hands a received file to the system's share sheet, labelled "Share…", and offers no folder to show (the details' `received.action` is null) |
+| `files.share` | A phone: `show_file` hands a received file to the system's share sheet, labelled "Share…", and offers no folder to show (the details' `received.action` is null). Settings says "this device" where a computer's says "this computer" |
+| `nearby.found` | The host shows how each person nearby was found: Nearby's rows and a friend's list row carry `found` (§ Views, `nearby`) |
+| `list.menu` | The host shows each list row's `menu` on right-click, Control-click or long-press; rows carry `menu` (§ Views, `list`) |
+| `files.again` | The host sends `fetch_from_friend`: a file a friend sent that is on none of the person's computers anymore carries Get again (§ Getting a file again). Without it the item says so and offers nothing |
 | `mentions` | The host's views show mentions (§ Mentions): `@` in the composer, whose hint then includes "@ to mention someone", with `mentionable` on list rows and the composer's `mention_note`, and mentions in messages as links. Without it every mention arrives as plain text |
+| `notifications.focus` | The host sends `set_focus` (§ Notifications) |
+| `notifications.ask` | The host shows the list's `notifications` banner with its `dismiss` action (macOS, iOS) |
+| `background.reachable` | An Android host that can keep Friends running in the background: Settings carries `notifications.background` |
 
 | Helper capability | Meaning |
 |---|---|
@@ -242,11 +249,14 @@ Lowercase dotted strings. Unknown ones are ignored on both sides.
 | `messages.cancel` | `cancel_message` is implemented (§ Intents): a host may offer Cancel on a message it sent while that message has not left this Mac. Without it the intent fails with `unknown_intent` |
 | `mentions` | `send_message.mentions` and `add_from_mention` are implemented (§ Mentions). Without it a host offers no `@`: an older helper would ignore `mentions` and send each U+FFFC as it is, and answers `add_from_mention` with `unknown_intent` |
 | `links` | Friend links and download links (§ Links): `open_link`, `add_from_link`, `receive_link`, `make_download_link`, `reset_friend_link` and `revoke_link`, and the profile's `links`. Without it they fail with `unknown_intent` and hosts offer no link items |
-| `devices` | One profile on several computers (§ Devices, § Joining): the profile's `devices`, the list's `state`, `removed`, `join_requests` and rows' `kind`, the name prompt's `join_label`, the `join` view, the You conversation, files on another computer, and the intents `revoke_device`, `rename_device`, `fetch_from_device` and the five join intents. Without it those fields are absent, the intents fail with `unknown_intent`, and hosts show none of it |
+| `devices` | One profile on several computers (§ Devices, § Joining): the profile's `devices`, the list's `state`, `removed`, `join_requests` and rows' `kind`, the list's and Settings' `join`, the `join` view and the profile devices' `add`, the You conversation, files on another computer, and the intents `revoke_device`, `rename_device`, `fetch_from_device` and the five join intents. Without it those fields are absent, the intents fail with `unknown_intent`, and hosts show none of it |
+| `files.again` | `fetch_from_friend` is implemented, and this helper serves the files it sent to a friend who asks for them again (§ Getting a file again). Without it the intent fails with `unknown_intent` and no item carries Get again |
+| `received.folder` | Received files are published to a folder the person can choose (§ Views, `settings` and `received`): `data.received`'s `value`, `path` and `change`, the intent `set_received_folder` and the `received` view. Without it the intent fails with `unknown_intent`, `subscribe` to `received` with `invalid_field`, and hosts offer no Change… |
 | `online` | Online friends (M2): the helper reaches friends over the Internet, and its words say so (§ Shared objects, Route, online). Absent in M1: no snapshot shows an Online or Connecting state or Internet wording |
+| `notifications` | This helper posts system notifications (§ Notifications): `set_focus`, `set_notifications`, `allow_notifications`, the settings' `notifications` and the list's `notifications` banner. Without it those intents fail with `unknown_intent` |
 
 An M1 helper announces `nearby.network`, `nearby.bluetooth`, `host.checkin`, `messages.status`, `messages.cancel` and
-`mentions` (`fixtures/frames/welcome.json`).
+`mentions`, and `received.folder` once it publishes received files to the chosen folder (`fixtures/frames/welcome.json`).
 
 ## Intents
 
@@ -260,7 +270,7 @@ composer on the reply already shows the sent message. Field types are in § Sche
 |---|---|---|
 | `ping` | — | Liveness check; empty result |
 | `activate` | — | The person opened Friends, or pressed Allow or Try Again: start Nearby (may prompt for permission the first time), restart a failing method, and read an identity that was unavailable again |
-| `subscribe` | `view`, `params?` | Start receiving a view's snapshots; result `subscription`. Views: `badge`, `list`, `nearby`, `details` (`params.conversation_id`), `profile`, `settings`, `message_status` (`params.message_ids`), `join` (§ Joining) |
+| `subscribe` | `view`, `params?` | Start receiving a view's snapshots; result `subscription`. Views: `badge`, `list`, `nearby`, `details` (`params.conversation_id`), `profile`, `settings`, `message_status` (`params.message_ids`), `join` (§ Joining), `received` (with `received.folder`) |
 | `unsubscribe` | `subscription` | Stop |
 | `set_filter` | `subscription`, `query` | Filter a `list` or `nearby` subscription by names and IDs; `""` clears. U+2011 in the query matches `-` |
 | `open_conversation` | `conversation_id`, `message_id?` | Subscribe to a conversation; marks it read while subscribed. With `message_id` the window includes that message and `highlight_item_id` names it. Hold only while on screen |
@@ -280,7 +290,7 @@ composer on the reply already shows the sent message. Field types are in § Sche
 | `add_from_mention` | `friends_id`, `identity_key`, `name` | Add by ID for someone a mention named, which only the mention's key may answer (§ Mentions); the fields are a card action's, sent as they are; result as `add_by_id` |
 | `open_link` | `payload` | A link the person opened in this app from its web page (§ Links): result `card`, shown before anything happens |
 | `add_from_link` | `payload` | The friend link card's Add: a request carrying the link's invite token, which the inviter's Mac accepts automatically while the link is valid; result as `add_by_id` |
-| `receive_link` | `payload` | The download link card's Download: fetch that one file from the sender's Mac into the received folder; result `conversation_id` and `message` |
+| `receive_link` | `payload` | The download link card's Download: fetch that one file from the sender's Mac into the folder received files are saved to; result `conversation_id` and `message` |
 | `make_download_link` | `file`, `expires_days` | A download link for one file, valid 1, 7 or 30 days; result `url`, `link_id` and `message` |
 | `reset_friend_link` | — | Stops the friend link working and makes a new one, which the profile's `links` then shows |
 | `revoke_link` | `link_id` | Ends one download link at once |
@@ -292,14 +302,20 @@ composer on the reply already shows the sent message. Field types are in § Sche
 | `revoke_device` | `device_id` | Remove another computer from this profile, after the action's confirmation (§ Devices) |
 | `rename_device` | `name` | The name this computer has in Your computers on every computer of the profile (§ Devices) |
 | `fetch_from_device` | `transfer_id` | Copy here a file another of the person's computers holds (Get, § Devices) |
+| `fetch_from_friend` | `transfer_id` | Get a file a friend sent again, from that friend, when none of the person's computers has it anymore (Get again, § Getting a file again; helper capability `files.again`) |
+| `set_focus` | `conversation_id` | The conversation this client's focused window shows, or `null`; no notification for it (§ Notifications) |
+| `set_notifications` | `enabled?`, `preview?`, `background?` | This device's notification switches (§ Notifications) |
+| `allow_notifications` | — | Ask the system for permission to show notifications (macOS, iOS, Android) |
+| `test_notification_response` | `key`, `action`, `text?` | Test homes only: a click (`open`) or a reply on a notification the sink recorded |
 | `block` | `conversation_id` | Block: they cannot reconnect, send requests or offer files; turns off automatic acceptance |
 | `unblock` | `conversation_id` | Undo a block |
-| `remove_friend` | `conversation_id` | Remove; the conversation stays and either side may send a new request |
+| `remove_friend` | `conversation_id`, `delete_history?` | Take anyone but You off the list: a friend is removed without being told, an incoming request declined and an outgoing one withdrawn (as `decline_request` and `cancel_request` do), a blocked person stays blocked. The conversation stays unless `delete_history` is true, which then deletes it as `delete_history` does; a new request from either side brings the person back. `not_allowed` for You; someone already off the list succeeds with no change |
 | `mark_verified` | `conversation_id` | The person confirmed the comparison codes match |
 | `accept_key_change` | `conversation_id` | Continue with a friend's new key after review; the friend becomes unverified |
 | `set_name` | `name` | The name friends see; `""` clears it (friends then see the Friends ID) |
 | `set_picture` | `picture` | An animal (`kind` `animal`, `set`, `index`) or a photo (`kind` `image`, `data_base64` or `path`, optional `crop`) |
 | `set_auto_accept` | `conversation_id`, `enabled` | Accept files from this friend automatically |
+| `set_received_folder` | `path` | The folder received files are saved to on this computer (helper capability `received.folder`; § Views, `settings`) |
 | `dismiss_banner` | `kind` | The person read the list's one-time notice (`id_changed`); it does not come back |
 | `start_visibility` | — | Visible to people nearby for 5 minutes; result `deadline`. Repeating does not extend a running deadline |
 | `stop_visibility` | — | Stop being visible now |
@@ -513,11 +529,25 @@ acceptance). There is no separate inbox; requests and offers are rows.
   walnut-garden because walnut-valley was taken." (its action sends `dismiss_banner`), an unreadable identity with
   its reset action, or `update_required`: online Friends needs a newer app, or another app on this Mac
   already updated the Friends data and this helper cannot read it (ADR 0003); the text says which.
-- `name_prompt` appears until a name is chosen: an inline field at the top of the list that never blocks it. With
-  the helper capability `devices` its `join_label` offers joining an existing profile instead (§ Joining).
+- `name_prompt` appears until a name is chosen: an inline field at the top of the list that never blocks it.
+- `join`, with the helper capability `devices`, offers using the person's existing profile here instead (§ Joining,
+  Offering it): views draw it in the name prompt's card while `name_prompt` shows, else as a card of its own above
+  the rows or the empty state.
 - With the helper capability `devices`: `state` (`normal`, or `device_removed` with `removed`, § Devices),
   `join_requests` above the rows (§ Joining), and each row's `kind`, `you` for the You conversation (§ Devices).
 - `empty` replaces the rows when there are none, or when a filter matches none.
+- Someone the person removed (`remove_friend`) is off the list: no row, and nothing of theirs counts on the badge
+  or as waiting, until a new request from either side, an acceptance or an Add by ID brings them back. Their
+  conversation and details still open (from search, or a view already showing them), and the `nobody` empty state
+  counts only the people still listed.
+- `rows[].menu` (clients that declared `list.menu`) is what the row's context menu offers, on right-click or
+  Control-click, or a long-press on touch screens: one `remove_friend` action, labelled "Remove", or "Cancel
+  request" on a request this person sent, drawn destructive, with a `confirm` that says what happens to that
+  person, and, when there is history with them, the `option` to delete it too (§ Shared objects, Action). The You
+  row's menu is empty. Without `list.menu` rows carry no `menu` key. Views show no menu when it is absent or empty,
+  send the action with the row's `conversation_id` (and `delete_history: true` only when the option is ticked), and
+  hide the row as soon as they send it, showing it again if the intent fails. The Delete key on a selected row runs
+  its first `menu` action, with its confirmation.
 - `rows[].mentionable` (clients that declared `mentions`) says whether the `@` picker offers this person: a friend
   with a Friends ID. The picker is a second `list` subscription filtered with `set_filter` as the person types.
 - `footer` is the name friends see (`name` `null` until chosen, then `name_placeholder` shows), the ID line with
@@ -556,6 +586,13 @@ The Nearby tab: the visibility action, then people as each method reports them.
   the identity is unavailable), or `no_match` for a filter. It is `null` when no method works or starts: the card
   then says why nobody shows, and views show no people section at all. Its `body` is `null` while a card is up,
   because the card already says what to do; the helper rebuilds the snapshot when `searching` turns into `nobody`.
+- `people[].found` (clients that declared `nearby.found`) says how this person was found: `methods`, every
+  discovery method that sees them now, in the order `lan` (the local network), `p2p_wifi` (direct Wi-Fi) and
+  `bluetooth`, and `label`, their names joined ("Local network", "Local network and Bluetooth"). Views draw one
+  route icon per method (the same icons as `route`, § Shared objects) and the label on the row. It is `null` when
+  no method sees the person, and the row's `accessibility_label` then ends without it; otherwise it ends "Found over
+  Local network and Bluetooth". A friend's `list` row carries the same `found` while they are nearby, and `null`
+  otherwise, as every other row does. Without `nearby.found` neither carries the key.
 
 ### `conversation`
 
@@ -600,12 +637,18 @@ One friend's history and composer, or the request card for a pending request.
 - Transfers carry `status_label`, optional `route_note` ("Over Bluetooth, about 6 min" when the route is slow, so
   the person can accept now or wait), `progress` while moving, and `actions` (Accept, Decline, Cancel, Open, Show
   in Finder, Try again). Open appears only for formats in the client's `open_formats`.
+- A received file's `status_label` says where it was saved: "Saved to Downloads" (the default Downloads, Android's
+  public Downloads too), "Saved to From friends" (another folder, by its name), or the app's name for iOS's Files
+  ("Saved to Shenzhen 3D"); its `accessibility_label` ends the same way ("…, saved to Downloads"). A file the helper
+  kept in its own folder (files from before `received.folder`, or one no folder could take) says "Received".
 - A transfer's `thumbnail` is the file's preview, which views show in place of its type icon, on both sides and
   before the file is accepted (§ Thumbnails). `null` means there is none, and views draw the type's icon themselves
   from `file.type_identifier`, or from `file.extension` when a toolkit has no use for the identifier.
 - `highlight_item_id` names the message to scroll to and highlight after a search or a citation.
 - A file another of the person's computers holds is a transfer in state `on_device` with Get, then `fetching`
-  (§ Devices). The conversation `you` is the person's own (§ Devices, You).
+  (§ Devices). The conversation `you` is the person's own (§ Devices, You). A file no longer where it was saved is
+  `missing`, and a friend's file can then be fetched from that friend again (`fetching`, or `gone` when they no
+  longer have it; § Getting a file again).
 - `request` replaces history and composer while a request is pending: the comparison code both screens show,
   with Accept, Decline and Block (incoming, Block destructive and armed), or Cancel request (outgoing).
   `comparison_code` is `null` when no session has derived one yet; `code_prompt` then says when it will be
@@ -632,7 +675,8 @@ chat history comes first in `actions`, for anyone whose details show: `delete_hi
 Mac, and anything still waiting to go to them) and what stays (the person as friend or blocked, their own copy, files
 received, and, for a client with `assistant.chats`, AI chat answers that quoted the chat), as Settings' Delete
 history says for every chat. Delete chat history and Remove friend carry a `confirm` and every Block an `arm`, all
-drawn destructive. `id_confirmed` and `id_confirmed_label` mean what they mean on a
+drawn destructive. Remove friend asks what the list's menu asks for a friend ("Remove Mei?"), with the option to
+delete the history too when there is some, and takes the friend off the list (§ Views, `list`). `id_confirmed` and `id_confirmed_label` mean what they mean on a
 list row; views show the label under the ID line.
 
 ### `profile`
@@ -660,6 +704,45 @@ Friends is off and no helper runs.
   system asks the first time), `open_settings` to the Privacy pane of the method that was refused, or to the Wi-Fi or
   Bluetooth settings while a radio is off, and `activate` labelled Try Again while a method is failing. `null` action
   when nothing needs doing. A view that does not know `nearby` shows nothing for it.
+- `received`, with the helper capability `received.folder`, is the folder received files are saved to: `label` "Save
+  received files to", `value` the folder's name ("Downloads" until the person chooses another), `path` the folder,
+  `action` Show in Finder (`show_file` with that path), and `change` labelled "Change…" with the client-side action
+  `choose_received_folder`: the view shows the platform's folder picker (folders only, New Folder allowed) starting at
+  `path`, and sends `set_received_folder` with the folder chosen; nothing when the person cancels. `note` is `""` on a
+  computer and views hide an empty note. When the last file could not be saved in this folder and went elsewhere,
+  `note` says so ("The last file couldn’t be saved here, so it went to Downloads.", or "…so ShenzhenPDF kept it. Open
+  it from its chat." when no folder took it) until a file is saved in the folder again or the folder is changed; the
+  helper remembers this across restarts (`received-fallback` beside `received-folder`). On phones the folder cannot be changed: `path`, `action` and `change` are
+  `null` (iOS `value` "Shenzhen 3D", `note` "In the Files app, under On My iPhone."; Android `value` "Downloads").
+  A helper without `received.folder` sends only `label`, `note` and `action`, and views then show no value and no
+  Change….
+
+- `join`, with the helper capability `devices`, offers using the person's existing profile here (§ Joining, Offering
+  it): `label` the row's heading, `note` what it does, `action` the button. Absent while this computer shares its
+  profile with another one, or was removed from it.
+
+**The folder received files go to.** Every file the helper publishes as received (a friend's file, a download link's
+file, a copy from another of the person's computers) goes to that folder. Until the person chooses one it is the
+system's Downloads folder (helpers under test: `SZFRIENDS_DOWNLOADS_DIR`, else `Downloads` inside their overridden
+state directory). The choice belongs to this computer and is never synced. A file never replaces another: a clash
+publishes "Name (2).ext", "Name (3).ext"… When the folder is missing, not a folder or cannot be written when a file
+arrives, the file goes to Downloads, and failing that to the helper's own `received/` folder, so it is never lost.
+Files already received stay where they were saved.
+
+`set_received_folder` `path`: an absolute path, else `invalid_field` (field `path`); `file_missing` (`details.path`)
+when it does not exist or cannot be read; `not_allowed` when it is not a folder, cannot be written, or is inside the
+helper's state directory. The helper stores the folder's real path; a path that is Downloads clears the choice. The
+result is empty, and the next `settings` snapshot shows the folder.
+
+### `received`
+
+With the helper capability `received.folder`: the files this computer received, for a host that keeps its own list
+of them (ShenzhenPDF's Collection, recent files). `data.files[]`, newest first and at most 100, holds incoming files
+in state `received` whose published file still exists: the `transfer_id`, the `path` it was published at, its
+`file_name` (that path's last component), `received_at` (Unix seconds when it was published) and `source`: `friend`
+for a friend's file, `link` for a download link's, `device` for a copy from another of the person's computers. The
+helper sends a new snapshot whenever a file is published. A host remembers the `transfer_id`s it has handled, so it
+adds each file once.
 
 ### `message_status`
 
@@ -700,6 +783,10 @@ The new computer's side of joining a person's existing profile, with the helper 
   `internet`, a server for `relay`), by `kind` when `method` is `null` or unknown to them (`local` the waves, `online`
   the globe), the globe in the offline colour for `connecting`, a hollow dot crossed out for `offline` and nothing for
   `none` or a kind they do not know, with `label` as its tooltip; both views draw the same shapes.
+- **Route order.** Helpers dial and keep routes in one order: `lan`, `p2p_wifi`, `internet`, `bluetooth`, `relay`.
+  A transfer never costs the device its Internet connection: `p2p_wifi` is used only where the device stays on its
+  Wi-Fi network at the same time (AWDL on Macs and iPhones). Anywhere else, or when unsure, it is skipped and the next
+  route carries the session; friends' files and a profile's own devices alike.
 - **Route, online (M2).** Only a helper that announces `online` says anything about the Internet; an M1 helper's
   words say nearby, whatever happens. With `online`:
   - a session over the Internet is kind `online`, never `local`: method `internet` reads "Online, direct", `relay`
@@ -721,15 +808,20 @@ The new computer's side of joining a person's existing profile, with the helper 
     and assumes 4 Mbit/s until a rate is measured ("Through the Friends relay, about 3 min").
 - **Action.** A button: `action` names the intent to send with the object's id (`accept_offer` with the item's
   `transfer_id`, `block` with the view's `conversation_id`, `dismiss_banner` with the banner's `kind`,
-  `cancel_message` with a message item's `item_id` as `message_id`, `fetch_from_device` with the item's
-  `transfer_id`, `add_from_mention` with the action's own `friends_id`, `identity_key` and `name`, and likewise
+  `cancel_message` with a message item's `item_id` as `message_id`, `fetch_from_device` and `fetch_from_friend`
+  with the item's `transfer_id`, `add_from_mention` with the action's own `friends_id`, `identity_key` and `name`, and likewise
   `revoke_device` with its `device_id`, `approve_join` and `deny_join` with its `join_id`, `join_profile` with its
   `friends_id`) or a client-side action (`open_file`,
-  `show_file` with `path`; `open_settings` with `settings_target`). `label` and `style` (`primary`, `secondary`,
+  `show_file` with `path`; `open_settings` with `settings_target`; `choose_received_folder`, § Views, `settings`;
+  `open_join`, which shows the `join` view, § Joining). `label` and `style` (`primary`, `secondary`,
   `link`, `destructive`) are display-ready; `note` is an optional explanation shown under the button. When
   `confirm` is present the view asks with that dialog first and sends the intent only on its confirm button;
-  `reset_friends` is then sent with `confirm` `"reset"`. `confirm.destructive` draws the confirm button in the
-  destructive color. When `arm` is present the button behaves like a row button with
+  `reset_friends` is then sent with `confirm` `"reset"`, and nothing else of the action: a `then` on it
+  (`open_join`) is for the view alone, which runs that client-side action once the reset succeeded and the views are
+  subscribed again (the helper restarts its subscriptions after a reset). `confirm.destructive` draws the confirm button in the
+  destructive color. `confirm.option`, when present, is a checkbox under the body labelled `option.label`,
+  unticked each time the dialog opens; when it is ticked the intent also carries `option.field` set to `true`
+  (Remove's "Also delete chat history" sends `delete_history: true`). When `arm` is present the button behaves like a row button with
   `arm` (§ Views, `list`): the first click shows `arm.label` in the destructive color and sends nothing, a second
   click within `arm.seconds` sends. Block always carries `arm`; Remove friend, Delete history (a friend's details
   and Settings) and Reset Friends carry `confirm`.
@@ -1020,19 +1112,24 @@ One person's Friends on several computers ([friends-multi-device.md](../docs/pla
 helpers agree on who belongs is [ADR 0012](docs/adr/0012-device-chain.md), how they stay in sync
 [ADR 0014](docs/adr/0014-sync.md)). Everything in this section and in § Joining exists only while the welcome lists
 the helper capability `devices`: the fields marked so in § Schemas are absent without it, and the intents fail with
-`unknown_intent`. The views' words say "computer", never anything about how computers belong to a profile; every
-string is display-ready, from the catalog (`service/presentation/SZFriendsCatalogDevices.m`).
+`unknown_intent`. The views' words say "computer", never anything about how computers belong to a profile; on a
+phone (client capability `files.share`) the portable core says "device" where it means the one showing it ("This
+device now uses your profile"), and where it means another one, "computer or phone". Every string is display-ready,
+from the catalog (`service/presentation/SZFriendsCatalogDevices.m`, `SZFriendsCatalogJoin.m`).
 
 **Your computers.** The profile's `devices` (`fixtures/snapshots/devices-profile.json`) lists every computer that
 uses this profile, this one first, then the others by when they joined; removed ones are gone from it. `title` is the
-section heading ("Your computers"), `note` says how to add one ("To add a computer, open Friends on it and choose Use
-my existing profile."), and `rows` are `type.device_row`:
+section heading ("Your computers"), `add` says how to add one, and `rows` are `type.device_row`. `add`
+(`type.device_add`) is `null` on a computer that was removed; otherwise its `title` ("Add a computer or phone") heads
+three `steps`, in order, that name this profile's ID ("On the other computer or phone, open Friends and choose Use my
+existing profile.", "Type this ID there: cottage‑violet", "Choose Approve when it appears here, then type the code
+this computer shows."), and `friends_id` is that ID, ASCII, for a view that offers Copy beside the steps:
 
 | Field of `type.device_row` | Type | What the view does with it |
 |---|---|---|
 | `device_id` | string | Opaque id (§ Framing), stable for the computer; sent back in `revoke_device` |
 | `name` | string | The computer's name, as it named itself: "Raph’s Mac mini" |
-| `system` | string | Its system: "macOS 26.1", "Linux" |
+| `system` | string | Its system: "macOS 26.1", "Linux"; a phone's says what it is, "Android phone", "iPhone or iPad" (as in the join rows' subtitles), and the heading is then "Your computers and phones" |
 | `last_connected` | string | "This computer" on this computer's row; "Now" while connected; "5 min ago" within the hour; then the list's time words ("14:32", "Yesterday", "3 Oct"); "Not connected to this computer yet" for one this computer has never reached |
 | `detail` | string | The line under the name: `system` and `last_connected` joined, "macOS 15.7 · Now" |
 | `this_computer` | bool | The row of the computer showing it |
@@ -1088,8 +1185,11 @@ the item's `transfer_id` (`fixtures/snapshots/devices-conversation-mei-files.jso
 with `progress` and "Copying from Raph’s Mac mini · 25%" while it copies, or `progress` null and "Copies when Studio
 workstation is nearby with ShenzhenPDF, Shenzhen Files or Shenzhen 3D open" ("online or nearby" with the helper
 capability `online`) while that computer is not connected; Cancel (`cancel_transfer`) stops it and the item returns to
-`on_device`. Once here it is `received` with its `path`, as any received file. Errors of `fetch_from_device`:
-`not_found` ("This file isn’t on your other computers anymore."), `not_allowed` when it is already here, `disk_full`.
+`on_device`. Once here it is `received` with its `path`, as any received file. A computer that no longer has a
+file's bytes (the person moved or deleted it there, or a file it sent is gone from where it was) stops counting as one
+that holds it on every computer, so no computer offers Get from it. Errors of `fetch_from_device`: `not_found` ("This
+file isn’t on your other computers anymore."), `not_allowed` when it is already here, `disk_full`. A file moved or
+deleted here is fetched the same way (§ Getting a file again).
 
 **Deleting history on several computers.** `delete_history` deletes on every computer of the profile (ADR 0014,
 tombstones), so while the profile has two or more computers the words say so: Settings' `history.note` "Stored on all
@@ -1098,6 +1198,42 @@ file history, with every friend and in You, are deleted from this computer, and 
 they connect. …", and a friend's Delete chat history note "Clears this chat on all your computers. Mei stays your
 friend." with a confirmation that begins the same way (`fixtures/snapshots/devices-settings.json`,
 `devices-details-mei.json`). A profile on one computer keeps the one-computer words.
+
+## Getting a file again
+
+A received file the person moved or deleted can come back ([ADR 0016](docs/adr/0016-files-again.md);
+`fixtures/snapshots/devices-conversation-mei-again.json`). Every string is display-ready, from the catalog
+(`service/presentation/SZFriendsCatalogDevices.m`).
+
+**Moved or deleted.** A file this computer received (or copied from another of the person's computers) whose
+published file is no longer where it was saved, at its size, has no `file.path`, no Open or Show, and is shown by
+where its bytes still are. The same holds for a file another computer received whose bytes no computer of the profile
+holds anymore. In order:
+
+1. Another of the person's computers holds it: `on_device`, "On Raph’s Mac mini" with Get (`fetch_from_device`),
+   exactly as a file that was never here (§ Devices). Get copies it into the folder received files go to. It never
+   copies by itself, whatever its size: the person moved or deleted it here.
+2. A friend sent it and none of the person's computers holds it: `state` `missing`, `status_label` "Moved or
+   deleted", and the action `fetch_from_friend` ("Get again", primary), sent with the item's `transfer_id`, for a
+   client with the capability `files.again` while that person is a friend. After Get again the item is `fetching`:
+   "Copying from Mei Lin · 25%" with `progress` while it copies, or `progress` null and "Copies when Mei Lin is nearby
+   with ShenzhenPDF, Shenzhen Files or Shenzhen 3D open" ("online or nearby" with the helper capability `online`) while
+   no session with them is live, with Cancel (`cancel_transfer`), which takes it back to `missing`. Once here it is
+   `received` with its new `path`, saved where received files go. The friend's computer answers by itself, with no
+   question to them: it already chose to send this file to this person. When it no longer has the file, or the file
+   changed since it was sent, the item is `gone`: "Mei Lin doesn’t have this file anymore." with no actions.
+3. Anything else (a file the person sent from another computer, a download link's file, a file in You, someone who
+   is not a friend anymore): `missing`, "Moved or deleted", no actions.
+
+The name in these words is the friend's display name, as the conversation's header shows it. `accessibility_label`
+reads "Mei Lin sent Site photos.zip, ZIP archive, 48.2 MB, moved or deleted", and for `gone` "Mei Lin sent Site
+photos.zip, ZIP archive, 48.2 MB. Mei Lin doesn’t have this file anymore."
+
+**Errors of `fetch_from_friend`:** `not_found` ("This file isn’t in this chat anymore.") for an unknown transfer or one
+whose history was deleted; `not_allowed` when the file is on this computer already, another computer of the profile
+holds it (Get applies), it is not a file a friend sent this person, that person is not a friend now, or this computer
+was removed from the profile; `disk_full` when the file does not fit. A friend's helper without `files.again` never
+answers: the item stays `fetching` with the waiting words.
 
 ## Joining
 
@@ -1108,9 +1244,26 @@ exchange between helpers is `service/identity/SZFriendsJoin.h`; this section is 
 `fixtures/snapshots/join-*.json`, `list-join-requests.json`, `badge-join-requests.json` and
 `devices-list-new-computer.json`.
 
-**On the new computer: the `join` view.** A fresh list's `name_prompt` carries `join_label` ("Use my existing
-profile") while this computer could join (it has no friends yet); the views show it as a link under the name field,
-and pressing it shows this view: `subscribe` with view `join` (no params).
+**Offering it.** Joining replaces this computer's own profile, so it is offered wherever someone setting up a new
+computer or phone looks, and says what it costs. Settings' `join` (`fixtures/snapshots/devices-settings-join.json`,
+`phone-settings-join.json`) and the list's `join` (`devices-list-new-computer.json`, `devices-list-join-reset.json`)
+are present while this computer's profile is on this computer only and it was not removed; the list shows its `join`
+while the name prompt shows, and while this computer has nobody in Friends, so a person who chose a name first still
+sees it on the empty list. Each has a `note`, what it does ("Already use Friends on another computer or phone? Bring
+your friends and chats from it here."), and an `action` labelled "Use my existing profile…":
+
+- While this computer has nobody in Friends (no friend, request or history with anyone), there is nothing to lose:
+  the action is the client-side `open_join`, and the view shows the `join` view at once.
+- Otherwise the action is `reset_friends` with a `confirm` that says what goes ("Use your existing profile here?",
+  "This computer’s own ID, cottage‑violet, and its friends and chats are deleted from this computer. Then you type
+  your ID from your other computer or phone, approve there, and your friends and chats come here. Files you received
+  stay where they were saved.", "Delete and Continue", destructive) and `then` `open_join`. The view sends
+  `reset_friends` as from Settings' Reset Friends, never `then`; once the reply succeeds and its views are
+  subscribed again, it shows the `join` view on the fresh profile.
+
+A view outside the dropdown (Settings) closes itself or opens the dropdown to show the `join` view there.
+
+**On the new computer: the `join` view.** `subscribe` with view `join` (no params).
 
 | Field of `snapshot.join` | Type | What the view does with it |
 |---|---|---|
@@ -1233,6 +1386,57 @@ join_id: string
 ```schema intent.deny_join
 join_id: string
 ```
+
+## Notifications
+
+The person hears about a friend's message, file, request or acceptance, and about a computer asking to join their
+profile, through the system's notifications ([ADR 0017](docs/adr/0017-notifications.md)). The helper capability
+`notifications` says this helper posts them. One process per device posts: the helper on a computer, shared by every
+app there, and the core inside the app on a phone. Views never post.
+
+**What notifies.** A friend's message (title the friend's name as the list shows it, body the text, or "New message"
+with previews off); a file a friend offers that waits for an answer ("Mei wants to send you Bracket.step"), or one
+accepted automatically, once received ("Mei sent Bracket.step"); a friend request ("Wants to be friends"); this
+person's request accepted ("Accepted your friend request"); someone added through this person's friend link, or
+added by this person through theirs; a computer or phone asking to join the profile. Every word is from the catalog
+(`notify.*`, `service/presentation/SZFriendsCatalogNotifications.m`).
+
+**What never notifies.** The conversation a focused window shows (`set_focus`); anything the person did on another
+of their devices; the You conversation; a friend's item that came by sync already read, or sent more than 10 minutes
+before it arrived here; anything in the store before the helper started; blocked people; anything while Notifications
+is off or the system refuses. Each item is decided once, when it is first committed to this device's store.
+
+**Focus.** `set_focus` `conversation_id` (string or `null`): the conversation this client's focused window shows,
+`null` when the window loses focus, the app goes to the background, the dropdown closes or shows another page.
+Clients that declare `notifications.focus` send it on every change. The helper keeps one value per connection and
+drops it on disconnect. A client without `notifications.focus` that holds an `open_conversation` counts as focused
+on it.
+
+**Where a click goes.** The app the person last used Friends from (the last client that sent `activate`,
+`open_conversation` or a non-null `set_focus`), remembered across restarts; ShenzhenPDF on a Mac and Shenzhen 3D
+elsewhere when there is none. The click opens `<client.url_scheme>://friends/conversation/<conversation_id>`, or
+`<scheme>://friends` for a join request. Every host routes that URL to its Friends dropdown or panel, open on that
+conversation, whether or not it was running.
+
+**Reply.** Message notifications offer Reply where the system has inline replies (macOS, Android); the helper sends
+the text in that conversation as `send_message` would and marks it read.
+
+**The ask.** On macOS and iOS (clients that declare `notifications.ask`) the list's `banner` is kind
+`notifications` while the system has not been asked, Notifications is on and the person has not chosen Not Now:
+"Get a notification when friends send you a message or a file.", `action` `allow_notifications` (Turn On) and
+`dismiss` `dismiss_banner` kind `notifications` (Not Now). Nothing is asked at launch. Android asks for
+POST_NOTIFICATIONS in the same request as Bluetooth. Windows and Linux need no permission.
+
+**Settings.** `settings.notifications`: `enabled` (Show notifications) and `preview` (Show message text) switches,
+sent back with `set_notifications`; `note` and `action` for the permission (`allow_notifications` Allow, or
+`open_settings` with `settings_target` `notifications`); on Android `background` ("Stay reachable in the
+background", clients that declare `background.reachable`) with its battery note. All of it belongs to this device and
+never syncs.
+
+**Tests.** A helper in a test home (`SZFRIENDS_STATE_DIR`) never touches the system's notification service: it
+appends each request, withdrawal, ask and routed click as JSON lines to `<state dir>/notifications.jsonl`, reads its
+permission from `SZFRIENDS_NOTIFY_PERMISSION`, and accepts `test_notification_response`. Elsewhere that intent fails
+with `unknown_intent`. ADR 0017 gives the request's fields.
 
 ## Static strings
 
@@ -1367,6 +1571,7 @@ client.app_version: string
 client.toolkit: enum(appkit,gtk4)
 client.reveal_in: string
 client.pid: integer
+client.url_scheme?: string     # the app's URL scheme, where a notification's click opens it (§ Notifications)
 embedded_helper: object|null
 embedded_helper.version: string
 embedded_helper.build_number: integer
@@ -1447,7 +1652,7 @@ error: @error when ok=false
 ```schema frame.snapshot
 type: enum(snapshot)
 subscription: string
-view: enum(badge,list,nearby,conversation,details,profile,settings,message_status,join)
+view: enum(badge,list,nearby,conversation,details,profile,settings,message_status,join,received)
 rev: integer
 data: object
 ```
@@ -1494,14 +1699,17 @@ label: string|null
 ```
 
 ```schema type.action
-action: enum(accept_request,decline_request,cancel_request,block,unblock,remove_friend,send_request,add_from_mention,accept_offer,decline_offer,cancel_transfer,cancel_message,retry_item,mark_verified,accept_key_change,dismiss_banner,start_visibility,stop_visibility,activate,reset_friends,delete_history,open_file,show_file,open_settings,add_from_link,receive_link,reset_friend_link,revoke_link,revoke_device,fetch_from_device,join_profile,cancel_join,approve_join,deny_join)
+action: enum(accept_request,decline_request,cancel_request,block,unblock,remove_friend,send_request,add_from_mention,accept_offer,decline_offer,cancel_transfer,cancel_message,retry_item,mark_verified,accept_key_change,dismiss_banner,start_visibility,stop_visibility,activate,reset_friends,delete_history,open_file,show_file,open_settings,add_from_link,receive_link,reset_friend_link,revoke_link,revoke_device,fetch_from_device,fetch_from_friend,join_profile,cancel_join,approve_join,deny_join,choose_received_folder,open_join,allow_notifications)
 label: string
 style: enum(primary,secondary,link,destructive)
 note?: string|null
-confirm?: @confirm|null      # ask first; reset_friends and remove_friend always carry one
+confirm?: @confirm|null      # ask first; reset_friends and remove_friend always carry one (remove_friend's may
+                             # carry an `option`, § Shared objects, Action)
 arm?: @arm|null              # ask for a second click first; block always carries one
+then?: enum(open_join)|null  # reset_friends only, for the view: what it shows once the reset succeeded; never sent
 path: string when action=open_file,show_file
-settings_target: enum(local_network_privacy,bluetooth_privacy,bluetooth,wifi) when action=open_settings
+settings_target: enum(local_network_privacy,bluetooth_privacy,bluetooth,wifi,notifications) when action=open_settings
+kind?: enum(id_changed,notifications) when action=dismiss_banner   # absent means id_changed
 friends_id: string when action=add_from_mention,join_profile   # the intent's fields, sent as they are
 identity_key: string when action=add_from_mention
 name: string when action=add_from_mention
@@ -1547,6 +1755,12 @@ body: string
 confirm_label: string
 cancel_label: string
 destructive: bool            # draw the confirm button in the destructive color
+option?: @confirm_option|null  # a checkbox under the body, unticked; ticked, the intent carries `field: true`
+```
+
+```schema type.confirm_option
+label: string                # "Also delete chat history"
+field: enum(delete_history)  # the intent field set to true when the box is ticked
 ```
 
 ### Views
@@ -1569,6 +1783,7 @@ data.state?: enum(normal,device_removed)   # present while the helper announces 
 data.removed?: @device_removed|null        # set exactly while state is device_removed
 data.join_requests?: array                 # present while the helper announces `devices` (§ Joining)
 data.join_requests[]: @join_request
+data.join?: @join_offer|null              # present while the helper announces `devices` (§ Joining, Offering it)
 ```
 
 ```schema type.device_removed
@@ -1578,16 +1793,16 @@ action: @action               # reset_friends, with its confirm
 ```
 
 ```schema type.banner
-kind: enum(id_changed,identity_unavailable,update_required)
+kind: enum(id_changed,identity_unavailable,update_required,notifications)
 text: string
 action: @action|null
+dismiss?: @action|null       # notifications: Not Now (dismiss_banner)
 ```
 
 ```schema type.name_prompt
 title: string
 placeholder: string
 note: string
-join_label?: string|null     # opens the `join` view; present while the helper announces `devices`
 ```
 
 ```schema type.list_row
@@ -1610,6 +1825,15 @@ actions: array
 actions[]: @row_action
 mentionable?: bool           # clients that declared mentions: the @ picker offers this person
 kind?: enum(person,you)      # present while the helper announces `devices`; `you` is the You row
+menu?: array                 # clients that declared list.menu: the row's context menu; empty on the You row
+menu[]: @action
+found?: @found|null          # clients that declared nearby.found: how a friend nearby was found; null otherwise
+```
+
+```schema type.found
+methods: array               # every discovery method that sees the person now: lan, p2p_wifi, bluetooth, in that order
+methods[]: enum(lan,p2p_wifi,bluetooth)
+label: string                # "Local network and Bluetooth"
 ```
 
 ```schema type.row_action
@@ -1686,6 +1910,7 @@ subtitle: string
 status_label: string|null
 action: @action|null
 accessibility_label: string
+found?: @found|null          # clients that declared nearby.found: how they were found; null when nothing sees them
 ```
 
 ```schema snapshot.conversation
@@ -1726,7 +1951,7 @@ assistant_label: string|null when kind=message,transfer   # set when the assista
 transfer_id: string when kind=transfer
 file: @file_info when kind=transfer
 meta_label: string when kind=transfer
-state: enum(queued,offered,waiting_for_you,sending,receiving,delivered,received,declined,cancelled,failed,on_device,fetching) when kind=transfer
+state: enum(queued,offered,waiting_for_you,sending,receiving,delivered,received,declined,cancelled,failed,on_device,fetching,missing,gone) when kind=transfer
 status_label: string when kind=transfer
 route_note: string|null when kind=transfer
 progress: @progress|null when kind=transfer
@@ -1898,7 +2123,7 @@ data.links.downloads[].expires_label: string     # "Expires in 6 days"
 data.links.downloads[].revoke: @action           # revoke_link with the action's own link_id
 data.devices?: object|null        # present while the helper announces `devices` (§ Devices)
 data.devices.title: string        # "Your computers"
-data.devices.note: string         # how to add another computer
+data.devices.add: @device_add|null   # how to add another computer or phone; null on a removed computer
 data.devices.rows: array          # this computer first, then the others by when they joined
 data.devices.rows[]: @device_row
 ```
@@ -1914,6 +2139,18 @@ state: enum(connected,not_connected,never_connected)
 accessibility_label: string
 rename: @device_rename|null  # this computer's row only
 remove: @action|null         # revoke_device with confirm; null on this computer's row
+```
+
+```schema type.device_add
+title: string                # "Add a computer or phone"
+steps: array                 # what to do, in order, display-ready; one names the ID
+steps[]: string
+friends_id: string           # the ID to type on the other computer or phone, ASCII, for Copy
+```
+
+```schema type.join_offer
+note: string                 # what joining does, in one line
+action: @action              # labelled "Use my existing profile…": open_join, or reset_friends with confirm and then
 ```
 
 ```schema type.device_rename
@@ -1932,29 +2169,58 @@ data.id.label: string
 data.id.note: string
 data.id.friends_id: string
 data.id.copy_label: string
-data.received.label: string
-data.received.note: string
-data.received.action: @action
+data.received.label: string      # "Save received files to"
+data.received.value?: string     # with `received.folder`: the folder's name, "Downloads" by default
+data.received.note: string       # "" on a computer; views hide an empty note
+data.received.path?: string|null # with `received.folder`: the folder; null on phones
+data.received.action: @action|null   # show_file with the folder; null on phones
+data.received.change?: @action|null  # with `received.folder`: choose_received_folder "Change…"; null on phones
 data.auto_accept.label: string
 data.auto_accept.note: string
-data.auto_accept.action_label: string
+data.auto_accept.action_label: string  # "Choose friends…" (a switch per friend); hidden while `friends` is empty
 data.auto_accept.friends: array
 data.auto_accept.friends[].conversation_id: string
 data.auto_accept.friends[].title: string
 data.auto_accept.friends[].avatar: @avatar
 data.auto_accept.friends[].enabled: bool
 data.history.label: string
-data.history.note: string
+data.history.note: string        # "Stored on this computer…"; "this device" with `files.share`
 data.history.action_label: string
 data.history.confirm: @confirm
 data.reset.label: string
 data.reset.note: string
 data.reset.action_label: string
 data.reset.confirm: @confirm
+data.join?: object                # with `devices`, while offered: using an existing profile here (§ Joining)
+data.join.label: string           # the row's heading
+data.join.note: string
+data.join.action: @action         # open_join, or reset_friends with confirm and then
 data.nearby?: object|null         # the helper's Nearby line; absent from a helper without one
 data.nearby.label: string         # "Nearby"
 data.nearby.note: string
 data.nearby.action: @action|null  # activate (Allow, Try Again) or open_settings
+data.notifications?: object|null  # with `notifications` (§ Notifications); this device only
+data.notifications.label: string  # "Notifications"
+data.notifications.enabled.label: string   # "Show notifications"
+data.notifications.enabled.value: bool
+data.notifications.preview.label: string   # "Show message text"
+data.notifications.preview.note: string
+data.notifications.preview.value: bool
+data.notifications.note: string   # the permission's state, or the iPhone note; "" when nothing to say
+data.notifications.action: @action|null    # allow_notifications or open_settings (notifications)
+data.notifications.background?: object|null  # Android hosts with `background.reachable`
+data.notifications.background.label: string  # "Stay reachable in the background"
+data.notifications.background.note: string   # what it costs in battery
+data.notifications.background.value: bool
+```
+
+```schema snapshot.received
+data.files: array                 # newest first, at most 100
+data.files[].transfer_id: string
+data.files[].path: string         # where it was published
+data.files[].file_name: string    # the path's last component
+data.files[].received_at: integer # Unix seconds when it was published
+data.files[].source: enum(friend,link,device)
 ```
 
 ```schema snapshot.message_status
@@ -1989,7 +2255,7 @@ type: enum(activate)
 ```
 
 ```schema intent.subscribe
-view: enum(badge,list,nearby,details,profile,settings,message_status,join)
+view: enum(badge,list,nearby,details,profile,settings,message_status,join,received)
 params?: object|null
 params.conversation_id?: string
 params.message_ids?: array
@@ -2089,6 +2355,7 @@ conversation_id: string
 
 ```schema intent.remove_friend
 conversation_id: string
+delete_history?: bool        # also delete this conversation's history, as delete_history does
 ```
 
 ```schema intent.mark_verified
@@ -2120,8 +2387,32 @@ conversation_id: string
 enabled: bool
 ```
 
+```schema intent.set_received_folder
+path: string                 # an absolute folder path
+```
+
 ```schema intent.dismiss_banner
-kind: enum(id_changed)
+kind: enum(id_changed,notifications)
+```
+
+```schema intent.set_focus
+conversation_id: string|null
+```
+
+```schema intent.set_notifications
+enabled?: bool
+preview?: bool
+background?: bool
+```
+
+```schema intent.allow_notifications
+type: enum(allow_notifications)
+```
+
+```schema intent.test_notification_response
+key: string
+action: enum(open,reply)
+text?: string
 ```
 
 ```schema intent.start_visibility
@@ -2203,6 +2494,10 @@ name: string                 # this computer's new name
 ```
 
 ```schema intent.fetch_from_device
+transfer_id: string
+```
+
+```schema intent.fetch_from_friend
 transfer_id: string
 ```
 

@@ -71,6 +71,7 @@ contextBridge.exposeInMainWorld("shenzhenRecentFiles", {
   },
   open: (id) => ipcRenderer.invoke("shenzhen-recent-files", "open", id),
   touch: (id) => ipcRenderer.invoke("shenzhen-recent-files", "touch", id),
+  paths: (id) => ipcRenderer.invoke("shenzhen-recent-files", "paths", id),
   remove: (id) => ipcRenderer.invoke("shenzhen-recent-files", "remove", id),
 });
 const invoke = (method, value) =>
@@ -138,6 +139,7 @@ if (typeof process !== "undefined" && process.platform === "darwin") {
     token: () => friends("token"),
     openFile: (path) => friends("openFile", path),
     showFile: (path) => friends("showFile", path),
+    chooseFolder: (start) => friends("chooseFolder", start ?? null),
     openSettings: (target) => friends("openSettings", target),
     openURL: (url) => friends("openURL", url),
     shareable: (value) => friends("shareable", value === true),

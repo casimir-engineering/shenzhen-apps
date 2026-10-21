@@ -102,10 +102,26 @@ static void test_hello_and_strings(void) {
            "hello names the app and where received files are shown");
     EXPECT(hello && json_object_get_null_member(hello, "embedded_helper"), "no embedded helper: never wins handover");
     JsonArray *capabilities = hello ? json_object_get_array_member(hello, "capabilities") : NULL;
-    EXPECT(capabilities && json_array_get_length(capabilities) == 2 &&
+#ifdef __APPLE__
+    const guint claimed = 7; /* and the ask: macOS asks before notifications show */
+#else
+    const guint claimed = 6;
+#endif
+    EXPECT(capabilities && json_array_get_length(capabilities) == claimed &&
                strcmp(json_array_get_string_element(capabilities, 0), "drop.files") == 0 &&
-               strcmp(json_array_get_string_element(capabilities, 1), "mentions") == 0,
-           "a host without # items or tabs claims drop.files, and mentions, which the views draw");
+               strcmp(json_array_get_string_element(capabilities, 1), "mentions") == 0 &&
+               strcmp(json_array_get_string_element(capabilities, 2), "list.menu") == 0 &&
+               strcmp(json_array_get_string_element(capabilities, 3), "nearby.found") == 0 &&
+               strcmp(json_array_get_string_element(capabilities, 4), "files.again") == 0 &&
+               strcmp(json_array_get_string_element(capabilities, 5), "notifications.focus") == 0,
+           "a host without # items or tabs claims drop.files, and mentions, list.menu, nearby.found, files.again and "
+           "notifications.focus, which the views draw");
+#ifdef __APPLE__
+    EXPECT(capabilities && json_array_get_length(capabilities) > 6 &&
+               strcmp(json_array_get_string_element(capabilities, 6), "notifications.ask") == 0,
+           "on macOS the views show the notifications ask, so they claim it");
+#endif
+    EXPECT(client && !json_object_has_member(client, "url_scheme"), "a host without a URL scheme sends none");
     if (hello) json_object_unref(hello);
     EXPECT(strcmp(szfriends_gtk_link_string(harness->link, "button_label"), "Friends") == 0, "welcome strings");
     EXPECT(strcmp(szfriends_gtk_link_string(harness->link, "no_such_key"), "") == 0, "an absent key reads as \"\"");

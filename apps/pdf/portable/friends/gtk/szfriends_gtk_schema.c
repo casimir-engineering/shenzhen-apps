@@ -47,20 +47,30 @@ static const SZFriendsGtkField route_fields[] = {ENUM(T, kind, route_kinds), ENU
                                                  STRN(T, label)};
 #undef T
 TYPE(static, route, "type.route", SZFriendsGtkRoute);
+#define T SZFriendsGtkConfirmOption
+static const SZFriendsGtkField confirm_option_fields[] = {STR(T, label), ENUM(T, field, confirm_option_names)};
+#undef T
+TYPE(static, confirm_option, "type.confirm_option", SZFriendsGtkConfirmOption);
 #define T SZFriendsGtkConfirm
 static const SZFriendsGtkField confirm_fields[] = {STR(T, title), STR(T, body), STR(T, confirm_label),
-                                                   STR(T, cancel_label), BOOL(T, destructive)};
+                                                   STR(T, cancel_label), BOOL(T, destructive),
+                                                   OBJN(T, option, confirm_option)};
 #undef T
 TYPE(static, confirm, "type.confirm", SZFriendsGtkConfirm);
 #define T SZFriendsGtkArm
 static const SZFriendsGtkField arm_fields[] = {STR(T, label), STR(T, accessibility_label), INT(T, seconds)};
 #undef T
 TYPE(static, arm, "type.arm", SZFriendsGtkArm);
+#define T SZFriendsGtkFound
+static const SZFriendsGtkField found_fields[] = {STRS(T, methods), STR(T, label)};
+#undef T
+TYPE(static, found, "type.found", SZFriendsGtkFound);
 #define T SZFriendsGtkAction
 static const SZFriendsGtkField action_fields[] = {
     ENUM(T, action, actions), STR(T, label), ENUM(T, style, styles), STRN(T, note), OBJN(T, confirm, confirm),
     OBJN(T, arm, arm), STR(T, path), ENUM(T, settings_target, settings_targets), STR(T, friends_id),
-    STR(T, identity_key), STR(T, name), STR(T, payload), STR(T, link_id), STR(T, device_id), STR(T, join_id)};
+    STR(T, identity_key), STR(T, name), STR(T, payload), STR(T, link_id), STR(T, device_id), STR(T, join_id),
+    ENUM(T, then, action_thens), ENUM(T, kind, dismiss_kinds)};
 #undef T
 TYPE(static, action, "type.action", SZFriendsGtkAction);
 #define T SZFriendsGtkSegment
@@ -93,12 +103,12 @@ static const SZFriendsGtkField szfriends_gtk_type_badge_snapshot_fields[] = {INT
 #undef T
 TYPE(, szfriends_gtk_type_badge_snapshot, "snapshot.badge", SZFriendsGtkBadgeSnapshot);
 #define T SZFriendsGtkBanner
-static const SZFriendsGtkField banner_fields[] = {ENUM(T, kind, banner_kinds), STR(T, text), OBJN(T, action, action)};
+static const SZFriendsGtkField banner_fields[] = {ENUM(T, kind, banner_kinds), STR(T, text), OBJN(T, action, action),
+                                                  OBJN(T, dismiss, action)};
 #undef T
 TYPE(static, banner, "type.banner", SZFriendsGtkBanner);
 #define T SZFriendsGtkNamePrompt
-static const SZFriendsGtkField name_prompt_fields[] = {STR(T, title), STR(T, placeholder), STR(T, note),
-                                                       STRN(T, join_label)};
+static const SZFriendsGtkField name_prompt_fields[] = {STR(T, title), STR(T, placeholder), STR(T, note)};
 #undef T
 TYPE(static, name_prompt, "type.name_prompt", SZFriendsGtkNamePrompt);
 #define T SZFriendsGtkRowAction
@@ -115,14 +125,15 @@ static const SZFriendsGtkField list_row_fields[] = {
     STR(T, conversation_id), OBJ(T, avatar, avatar), STR(T, title), STR(T, subtitle), STR(T, time_label),
     OBJ(T, route, route), BOOL(T, unread), OBJN(T, waiting, waiting), BOOL(T, blocked), BOOL(T, id_confirmed),
     STRN(T, id_confirmed_label), ENUM(T, style, row_styles), STRN(T, drop_label), STRN(T, drop_refusal),
-    STR(T, accessibility_label), ARR(T, actions, row_action), BOOL(T, mentionable), ENUM(T, kind, row_kinds)};
+    STR(T, accessibility_label), ARR(T, actions, row_action), BOOL(T, mentionable), ENUM(T, kind, row_kinds),
+    ARR(T, menu, action), OBJN(T, found, found)};
 #undef T
 TYPE(static, list_row, "type.list_row", SZFriendsGtkListRow);
 #define T SZFriendsGtkListSnapshot
 static const SZFriendsGtkField szfriends_gtk_type_list_snapshot_fields[] = {
     STR(T, query), OBJN(T, banner, banner), OBJN(T, name_prompt, name_prompt), ARR(T, rows, list_row),
     OBJN(T, empty, empty), OBJ(T, footer, footer), ENUM(T, state, list_states), OBJN(T, removed, device_removed),
-    ARR(T, join_requests, join_request)};
+    ARR(T, join_requests, join_request), OBJN(T, join, join_offer)};
 #undef T
 TYPE(, szfriends_gtk_type_list_snapshot, "snapshot.list", SZFriendsGtkListSnapshot);
 
@@ -154,7 +165,7 @@ TYPE(static, status, "type.status", SZFriendsGtkStatus);
 #define T SZFriendsGtkNearbyPerson
 static const SZFriendsGtkField nearby_person_fields[] = {
     STRN(T, nearby_id), STRN(T, conversation_id), OBJ(T, avatar, avatar), STR(T, title), STR(T, subtitle),
-    STRN(T, status_label), OBJN(T, action, action), STR(T, accessibility_label)};
+    STRN(T, status_label), OBJN(T, action, action), STR(T, accessibility_label), OBJN(T, found, found)};
 #undef T
 TYPE(static, nearby_person, "type.nearby_person", SZFriendsGtkNearbyPerson);
 #define T SZFriendsGtkNearbySnapshot
@@ -328,7 +339,8 @@ static const SZFriendsGtkField settings_id_fields[] = {STR(T, label), STR(T, not
 #undef T
 TYPE(static, settings_id, NULL, SZFriendsGtkSettingsId);
 #define T SZFriendsGtkSettingsReceived
-static const SZFriendsGtkField settings_received_fields[] = {STR(T, label), STR(T, note), OBJ(T, action, action)};
+static const SZFriendsGtkField settings_received_fields[] = {STR(T, label), STR(T, value), STR(T, note), STRN(T, path),
+                                                             OBJN(T, action, action), OBJN(T, change, action)};
 #undef T
 TYPE(static, settings_received, NULL, SZFriendsGtkSettingsReceived);
 #define T SZFriendsGtkSettingsFriend
@@ -350,11 +362,30 @@ TYPE(static, settings_confirmed, NULL, SZFriendsGtkSettingsConfirmed);
 static const SZFriendsGtkField settings_nearby_fields[] = {STR(T, label), STR(T, note), OBJN(T, action, action)};
 #undef T
 TYPE(static, settings_nearby, NULL, SZFriendsGtkSettingsNearby);
+#define T SZFriendsGtkSettingsJoin
+static const SZFriendsGtkField settings_join_fields[] = {STR(T, label), STR(T, note), OBJ(T, action, action)};
+#undef T
+TYPE(static, settings_join, NULL, SZFriendsGtkSettingsJoin);
+#define T SZFriendsGtkSettingsSwitch
+static const SZFriendsGtkField settings_switch_fields[] = {STR(T, label), BOOL(T, value)};
+#undef T
+TYPE(static, settings_switch, NULL, SZFriendsGtkSettingsSwitch);
+#define T SZFriendsGtkSettingsNotedSwitch
+static const SZFriendsGtkField settings_noted_switch_fields[] = {STR(T, label), STR(T, note), BOOL(T, value)};
+#undef T
+TYPE(static, settings_noted_switch, NULL, SZFriendsGtkSettingsNotedSwitch);
+#define T SZFriendsGtkSettingsNotifications
+static const SZFriendsGtkField settings_notifications_fields[] = {
+    STR(T, label), OBJ(T, enabled, settings_switch), OBJ(T, preview, settings_noted_switch), STR(T, note),
+    OBJN(T, action, action), OBJN(T, background, settings_noted_switch)};
+#undef T
+TYPE(static, settings_notifications, NULL, SZFriendsGtkSettingsNotifications);
 #define T SZFriendsGtkSettingsSnapshot
 static const SZFriendsGtkField szfriends_gtk_type_settings_snapshot_fields[] = {
     OBJ(T, name, settings_name), OBJ(T, id, settings_id), OBJ(T, received, settings_received),
     OBJ(T, auto_accept, settings_auto_accept), OBJ(T, history, settings_confirmed),
-    OBJ(T, reset, settings_confirmed), OBJN(T, nearby, settings_nearby)};
+    OBJ(T, reset, settings_confirmed), OBJN(T, nearby, settings_nearby), OBJN(T, join, settings_join),
+    OBJN(T, notifications, settings_notifications)};
 #undef T
 TYPE(, szfriends_gtk_type_settings_snapshot, "snapshot.settings", SZFriendsGtkSettingsSnapshot);
 #define T SZFriendsGtkMessageEntry
@@ -366,103 +397,20 @@ static const SZFriendsGtkField szfriends_gtk_type_message_status_snapshot_fields
     ARR(T, messages, message_entry)};
 #undef T
 TYPE(, szfriends_gtk_type_message_status_snapshot, "snapshot.message_status", SZFriendsGtkMessageStatusSnapshot);
+#define T SZFriendsGtkReceivedFile
+static const SZFriendsGtkField received_file_fields[] = {STR(T, transfer_id), STR(T, path), STR(T, file_name),
+                                                         INT(T, received_at), ENUM(T, source, received_sources)};
+#undef T
+TYPE(static, received_file, NULL, SZFriendsGtkReceivedFile);
+#define T SZFriendsGtkReceivedSnapshot
+static const SZFriendsGtkField szfriends_gtk_type_received_snapshot_fields[] = {ARR(T, files, received_file)};
+#undef T
+TYPE(, szfriends_gtk_type_received_snapshot, "snapshot.received", SZFriendsGtkReceivedSnapshot);
 
-/* ---- frames ---- */
-
-#define T SZFriendsGtkVersion
-static const SZFriendsGtkField version_fields[] = {INT(T, major), INT(T, minor)};
-#undef T
-TYPE(static, version, NULL, SZFriendsGtkVersion);
-#define T SZFriendsGtkHelperInfo
-static const SZFriendsGtkField helper_info_fields[] = {STR(T, version), INT(T, build_number),
-                                                       OBJ(T, protocol, version), INT(T, pid)};
-#undef T
-TYPE(static, helper_info, NULL, SZFriendsGtkHelperInfo);
-#define T SZFriendsGtkLimits
-static const SZFriendsGtkField limits_fields[] = {INT(T, max_frame_bytes), INT(T, max_message_bytes),
-                                                  INT(T, max_files_per_send), INT(T, max_subscriptions)};
-#undef T
-TYPE(static, limits, NULL, SZFriendsGtkLimits);
-#define T SZFriendsGtkWelcome
-static const SZFriendsGtkField szfriends_gtk_type_welcome_fields[] = {
-    STR(T, re), OBJ(T, protocol, version), OBJ(T, helper, helper_info), ENUM(T, handover, handovers),
-    STRS(T, capabilities), OBJ(T, limits, limits), MAP(T, strings)};
-#undef T
-TYPE(, szfriends_gtk_type_welcome, "frame.welcome", SZFriendsGtkWelcome);
-#define T SZFriendsGtkError
-static const SZFriendsGtkField szfriends_gtk_type_error_fields[] = {STR(T, code), STRN(T, message),
-                                                                    BOOL(T, retryable), JSONOBJ(T, details)};
-#undef T
-TYPE(, szfriends_gtk_type_error, "type.error", SZFriendsGtkError);
-#define T SZFriendsGtkReply
-static const SZFriendsGtkField szfriends_gtk_type_reply_fields[] = {
-    STRN(T, re), BOOL(T, ok), JSONOBJ(T, result), OBJN(T, error, szfriends_gtk_type_error)};
-#undef T
-TYPE(, szfriends_gtk_type_reply, "frame.reply", SZFriendsGtkReply);
-#define T SZFriendsGtkSuccessor
-static const SZFriendsGtkField successor_fields[] = {STR(T, version), INT(T, build_number)};
-#undef T
-TYPE(static, successor, NULL, SZFriendsGtkSuccessor);
-#define T SZFriendsGtkGoodbye
-static const SZFriendsGtkField szfriends_gtk_type_goodbye_fields[] = {
-    ENUM(T, reason, goodbye_reasons), STRN(T, message), OBJN(T, successor, successor),
-    OBJN(T, error, szfriends_gtk_type_error)};
-#undef T
-TYPE(, szfriends_gtk_type_goodbye, "frame.goodbye", SZFriendsGtkGoodbye);
-#define T SZFriendsGtkSnapshotFrame
-static const SZFriendsGtkField szfriends_gtk_type_snapshot_frame_fields[] = {
-    STR(T, subscription), STR(T, view), INT(T, rev), JSONOBJ(T, data)};
-#undef T
-TYPE(, szfriends_gtk_type_snapshot_frame, "frame.snapshot", SZFriendsGtkSnapshotFrame);
-
-/* ---- results (a reply's `result`) ---- */
-
-#define T SZFriendsGtkSubscribeResult
-static const SZFriendsGtkField szfriends_gtk_type_subscribe_result_fields[] = {STR(T, subscription),
-                                                                               STR(T, conversation_id)};
-#undef T
-TYPE(, szfriends_gtk_type_subscribe_result, "result.open_conversation", SZFriendsGtkSubscribeResult);
-#define T SZFriendsGtkSendResult
-static const SZFriendsGtkField szfriends_gtk_type_send_result_fields[] = {STR(T, message_id), STRS(T, transfer_ids)};
-#undef T
-TYPE(, szfriends_gtk_type_send_result, "result.send_message", SZFriendsGtkSendResult);
-#define T SZFriendsGtkAddByIdResult
-static const SZFriendsGtkField szfriends_gtk_type_add_by_id_result_fields[] = {STR(T, conversation_id),
-                                                                               STR(T, message)};
-#undef T
-TYPE(, szfriends_gtk_type_add_by_id_result, "result.add_by_id", SZFriendsGtkAddByIdResult);
-#define T SZFriendsGtkVisibilityResult
-static const SZFriendsGtkField szfriends_gtk_type_visibility_result_fields[] = {STR(T, deadline)};
-#undef T
-TYPE(, szfriends_gtk_type_visibility_result, "result.start_visibility", SZFriendsGtkVisibilityResult);
-#define T SZFriendsGtkSearchHit
-static const SZFriendsGtkField search_hit_fields[] = {
-    STR(T, conversation_id), STR(T, message_id), STR(T, conversation_title), OBJ(T, avatar, avatar),
-    STR(T, sender_label), STR(T, time_label), ARR(T, excerpt, segment)};
-#undef T
-TYPE(static, search_hit, NULL, SZFriendsGtkSearchHit);
-#define T SZFriendsGtkSearchResult
-static const SZFriendsGtkField szfriends_gtk_type_search_result_fields[] = {
-    ARR(T, results, search_hit), BOOL(T, more), STRN(T, empty_label)};
-#undef T
-TYPE(, szfriends_gtk_type_search_result, "result.search_messages", SZFriendsGtkSearchResult);
-#define T SZFriendsGtkLinkCard
-static const SZFriendsGtkField link_card_fields[] = {ENUM(T, kind, link_card_kinds), STR(T, title), STRN(T, subtitle),
-                                                     STRN(T, note), OBJN(T, avatar, avatar), ARR(T, actions, action)};
-#undef T
-TYPE(static, link_card, NULL, SZFriendsGtkLinkCard);
-#define T SZFriendsGtkOpenLinkResult
-static const SZFriendsGtkField szfriends_gtk_type_open_link_result_fields[] = {OBJ(T, card, link_card)};
-#undef T
-TYPE(, szfriends_gtk_type_open_link_result, "result.open_link", SZFriendsGtkOpenLinkResult);
-#define T SZFriendsGtkDownloadLinkResult
-static const SZFriendsGtkField szfriends_gtk_type_download_link_result_fields[] = {STR(T, url), STR(T, link_id),
-                                                                                   STR(T, message)};
-#undef T
-TYPE(, szfriends_gtk_type_download_link_result, "result.make_download_link", SZFriendsGtkDownloadLinkResult);
+#include "gtk/szfriends_gtk_schema_frames.h"
 
 const SZFriendsGtkType *const szfriends_gtk_named_types[] = {
-    &avatar, &route, &confirm, &arm, &action, &segment, &back, &footer, &empty,
+    &avatar, &route, &confirm_option, &confirm, &arm, &found, &action, &segment, &back, &footer, &empty,
     &szfriends_gtk_type_badge_snapshot, &banner, &name_prompt, &row_action, &waiting, &list_row,
     &szfriends_gtk_type_list_snapshot, &visibility, &method_state, &alert, &note, &status, &nearby_person,
     &szfriends_gtk_type_nearby_snapshot, &header, &message_status, &file_info, &thumbnail, &mention_card, &mention,
@@ -473,8 +421,9 @@ const SZFriendsGtkType *const szfriends_gtk_named_types[] = {
     &szfriends_gtk_type_reply, &szfriends_gtk_type_goodbye, &szfriends_gtk_type_snapshot_frame,
     &szfriends_gtk_type_subscribe_result, &szfriends_gtk_type_send_result, &szfriends_gtk_type_add_by_id_result,
     &szfriends_gtk_type_visibility_result, &szfriends_gtk_type_search_result, &szfriends_gtk_type_open_link_result,
-    &szfriends_gtk_type_download_link_result, &device_rename, &device_row, &device_removed, &join_request,
-    &join_id_field, &join_code_field, &szfriends_gtk_type_join_snapshot, NULL};
+    &szfriends_gtk_type_download_link_result, &device_rename, &device_row, &device_add, &join_offer,
+    &device_removed, &join_request,
+    &join_id_field, &join_code_field, &szfriends_gtk_type_join_snapshot, &szfriends_gtk_type_received_snapshot, NULL};
 
 const SZFriendsGtkType *szfriends_gtk_view_type(const char *view) {
     static const struct { const char *view; const SZFriendsGtkType *type; } views[] = {
@@ -482,7 +431,8 @@ const SZFriendsGtkType *szfriends_gtk_view_type(const char *view) {
         {"nearby", &szfriends_gtk_type_nearby_snapshot}, {"conversation", &szfriends_gtk_type_conversation_snapshot},
         {"details", &szfriends_gtk_type_details_snapshot}, {"profile", &szfriends_gtk_type_profile_snapshot},
         {"settings", &szfriends_gtk_type_settings_snapshot},
-        {"message_status", &szfriends_gtk_type_message_status_snapshot}, {"join", &szfriends_gtk_type_join_snapshot}};
+        {"message_status", &szfriends_gtk_type_message_status_snapshot}, {"join", &szfriends_gtk_type_join_snapshot},
+        {"received", &szfriends_gtk_type_received_snapshot}};
     for (gsize i = 0; view && i < G_N_ELEMENTS(views); i++)
         if (strcmp(views[i].view, view) == 0) return views[i].type;
     return NULL;

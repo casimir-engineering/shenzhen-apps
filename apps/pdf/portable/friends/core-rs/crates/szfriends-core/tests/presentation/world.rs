@@ -9,8 +9,8 @@ pub use super::items::*;
 use szfriends_core::presentation::mentions::key_from_string;
 use szfriends_core::presentation::time::{days_from_civil, TimeZone};
 use szfriends_core::presentation::{
-    AdapterState, Audience, IdState, NearbyFacts, NearbyPersonFacts, PersonFacts, Picture, ProfileFacts, Relation,
-    RouteKind, RouteMethod, SnapshotBuilder,
+    AdapterState, Audience, IdState, NearbyFacts, NearbyPersonFacts, PersonFacts, Picture, ProfileFacts,
+    ReceivedFolderFacts, Relation, RouteKind, RouteMethod, SnapshotBuilder,
 };
 
 pub const KEY_MEI: &str = "4VfVbTCPmosk0EmB4HbM9anI6WU2iMvJAX4lM3fFJu0";
@@ -51,7 +51,7 @@ pub fn audience() -> Audience {
         capabilities: set(&["attach.items", "drop.files", "drop.tabs", "search.export"]),
         open_formats: set(&["pdf", "epub", "xps", "cbz", "md", "markdown"]),
         time_zone: TimeZone::fixed(8 * 3600),
-        helper_capabilities: Default::default(),
+        helper_capabilities: set(&["received.folder"]),
     }
 }
 
@@ -66,7 +66,7 @@ pub fn profile_raph() -> ProfileFacts {
         friends_id_state: IdState::Unreserved,
         picture: Picture::animal(1, 0),
         identity_public_key: Some(key(KEY_RAPH)),
-        received_directory: "/Users/raph/Library/Application Support/Shenzhen Friends/received".into(),
+        received: ReceivedFolderFacts { path: Some("/Users/raph/Downloads".into()), ..ReceivedFolderFacts::default() },
         ..Default::default()
     }
 }
@@ -144,7 +144,7 @@ pub fn people() -> HashMap<String, PersonFacts> {
     mei.verified_at = Some(hk("2026-10-03 10:12"));
     mei.auto_accept = true;
     mei.received_file_count = 14;
-    mei.received_reveal_path = Some("/Users/raph/Library/Application Support/Shenzhen Friends/received".into());
+    mei.received_reveal_path = Some("/Users/raph/Downloads".into());
     let mut kenji = person(
         "c_kenji",
         Some("Kenji Sato"),
@@ -221,7 +221,7 @@ pub fn everyone(people: &HashMap<String, PersonFacts>) -> Vec<PersonFacts> {
 }
 
 #[allow(clippy::too_many_arguments)]
-fn nearby_person(
+pub fn nearby_person(
     nearby_id: Option<&str>,
     conversation: Option<&str>,
     name: Option<&str>,
@@ -240,6 +240,7 @@ fn nearby_person(
         is_stranger: stranger,
         relation,
         route_method: route,
+        found_methods: Vec::new(),
     }
 }
 

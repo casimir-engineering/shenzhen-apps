@@ -26,6 +26,9 @@ void SZFE2EFail(const char *file, int line, const char *condition, NSString *det
 @interface SZFE2EHelper : NSObject
 @property(nonatomic, readonly) NSString *name;
 @property(nonatomic, readonly) NSString *stateDirectory;
+// Its Downloads (SZFRIENDS_DOWNLOADS_DIR, beside the state directory): where received files go unless a scenario
+// chooses another folder. Never the real ~/Downloads.
+@property(nonatomic, readonly) NSString *downloadsDirectory;
 @property(nonatomic, readonly) pid_t pid;
 // Variables beside the harness's own (SZFRIENDS_E2E_*); applied at the next -start.
 @property(nonatomic, copy) NSDictionary<NSString *, NSString *> *extraEnvironment;
@@ -41,6 +44,12 @@ void SZFE2EFail(const char *file, int line, const char *condition, NSString *det
 + (nullable instancetype)clientForHelper:(SZFE2EHelper *)helper;
 // The same, declaring these capabilities in its hello instead of a plain view's ("drop.files", "attach.items").
 + (nullable instancetype)clientForHelper:(SZFE2EHelper *)helper capabilities:(NSArray<NSString *> *)capabilities;
+// The same as a named app: its app id, its name, and the URL scheme its hello gives (nil: none).
++ (nullable instancetype)clientForHelper:(SZFE2EHelper *)helper
+                                   appID:(NSString *)appID
+                                 appName:(NSString *)appName
+                               urlScheme:(nullable NSString *)urlScheme
+                            capabilities:(NSArray<NSString *> *)capabilities;
 @property(nonatomic, readonly) BOOL ready;
 - (BOOL)waitReady;
 // One intent; its reply frame, or nil when none came within 10 s.

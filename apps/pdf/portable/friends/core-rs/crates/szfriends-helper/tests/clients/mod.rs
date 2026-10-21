@@ -11,6 +11,7 @@ use std::time::{Duration, Instant};
 use serde_json::{json, Value};
 use szfriends_contract::handshake::HelperFacts;
 use szfriends_contract::lifecycle::PROTOCOL;
+use szfriends_helper::presentation::Presentation;
 use szfriends_helper::server::Server;
 use szfriends_helper::service::{seed, Service};
 use szfriends_helper::transport::PeerInfo;
@@ -42,7 +43,7 @@ pub struct Client {
     frames: Receiver<Value>,
     next: u64,
     seen: Vec<Value>,
-    service: std::sync::Arc<Service>,
+    service: std::sync::Arc<dyn Presentation>,
     /// The service's welcome: its capabilities and strings.
     pub welcome: Value,
 }
@@ -53,16 +54,43 @@ const WAIT: Duration = Duration::from_secs(30);
 /// The service closes its store before the test's home is removed (Windows keeps an open database's files).
 impl Drop for Client {
     fn drop(&mut self) {
-        szfriends_helper::presentation::Presentation::shutdown(&*self.service);
+        self.service.shutdown();
     }
 }
 
 impl Client {
     pub fn connect(home: &Path) -> Self {
+        Self::connect_with(home, &["drop.files", "mentions"])
+    }
+
+    /// A client that declares `capabilities` in its hello.
+    pub fn connect_with(home: &Path, capabilities: &[&str]) -> Self {
         let service = Service::start(home, seed::test_key_store(home)).expect("the service starts");
+        let server = Self::server(service.clone());
+        let client = Self::join(&server, service, capabilities);
+        std::mem::forget(server);
+        client
+    }
+
+    /// A protocol server for `service`, as a helper or a phone runs one.
+    pub fn server(service: std::sync::Arc<dyn Presentation>) -> Server {
         let (sender, _events) = channel();
         let facts = HelperFacts { version: "1.0".into(), build_number: 1, protocol: PROTOCOL, pid: 1 };
-        let server = Server::new(service.clone(), facts, sender, Box::new(|_, _| false));
+        Server::new(service, facts, sender, Box::new(|_, _| false))
+    }
+
+    /// A new connection to `server`, which serves `service`.
+    pub fn join(server: &Server, service: std::sync::Arc<dyn Presentation>, capabilities: &[&str]) -> Self {
+        Self::join_as(server, service, capabilities, ("test", "Shenzhen 3D", None))
+    }
+
+    /// As [`Client::join`], for the app `(app_id, app_name, url_scheme)`.
+    pub fn join_as(
+        server: &Server,
+        service: std::sync::Arc<dyn Presentation>,
+        capabilities: &[&str],
+        app: (&str, &str, Option<&str>),
+    ) -> Self {
         let (ours, theirs) = pair();
         server.add(theirs, PeerInfo::default());
         let end = ours.clone();
@@ -76,15 +104,17 @@ impl Client {
             }
         });
         let mut client = Self { end, frames, next: 1, seen: Vec::new(), service, welcome: Value::Null };
-        let hello = json!({"type": "hello", "id": "1", "protocol": {"major": 1, "minor": 0, "min_major": 1},
-            "client": {"app_id": "test", "app_name": "Shenzhen 3D", "app_version": "1", "toolkit": "tauri",
+        let mut hello = json!({"type": "hello", "id": "1", "protocol": {"major": 1, "minor": 0, "min_major": 1},
+            "client": {"app_id": app.0, "app_name": app.1, "app_version": "1", "toolkit": "tauri",
                        "reveal_in": "Files", "pid": 1},
-            "capabilities": ["drop.files", "mentions"], "open_formats": ["stl"], "locale": "en"});
+            "capabilities": capabilities, "open_formats": ["stl"], "locale": "en"});
+        if let Some(scheme) = app.2 {
+            hello["client"]["url_scheme"] = json!(scheme);
+        }
         client.write(&hello);
         let welcome = client.wait("welcome", |f| f["type"] == "welcome");
         assert!(welcome["strings"].as_object().is_some_and(|s| !s.is_empty()), "the welcome carries the strings");
         client.welcome = welcome;
-        std::mem::forget(server);
         client
     }
 

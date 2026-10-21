@@ -21,7 +21,8 @@
 #                           then a whole Rust helper against the whole Objective-C helper meeting on loopback Bonjour
 #                           under a test service type: found while visible, asked, accepted, Add by ID, a decline,
 #                           messages and a file, a new computer joining the other's profile and syncing with it, each
-#                           in both directions (tests/objc_nearby.rs).
+#                           in both directions (tests/objc_nearby.rs); and the two meeting over a shared test air
+#                           first, the network coming up later (tests/objc_routes.rs).
 #   friends-core-rs-fuzz    the cargo-fuzz targets for FRIENDS_FUZZ_SECONDS each (fuzz/).
 #   friends-core-rs-vm-check
 #                           the suites built and run inside the Windows 11 and Ubuntu Parallels VMs
@@ -32,7 +33,8 @@
 #                           link (crates/szfriends-interop); a Rust helper and the Objective-C helper joining each
 #                           other's profile and adding each other by ID through the host alone; then two Rust
 #                           helpers' services reaching each other online, direct and relayed
-#                           (crates/szfriends-helper/tests/online.rs).
+#                           (crates/szfriends-helper/tests/online.rs), and Reset Friends releasing the old ID at the
+#                           host, or going ahead without it (tests/online_reset.rs).
 #   friends-core-rs-nat-check
 #                           the NAT emulator's punching matrix with tools/nat-peer (the Rust core) as the offerer,
 #                           then as the answerer, against the helper's own peer.
@@ -193,6 +195,10 @@ friends-core-rs-interop-check: friends-session-peer $$(FRIENDS_HELPER_EXE)
 		CARGO_TARGET_DIR="$(abspath $(FRIENDS_CORE_RS_BUILD))/target" \
 		cargo test $(FRIENDS_CORE_RS_MANIFEST) --locked --release -p szfriends-interop \
 		--test objc_nearby -- --test-threads=1 --nocapture
+	SZFRIENDS_OBJC_HELPER="$(abspath $(FRIENDS_HELPER_EXE))" \
+		CARGO_TARGET_DIR="$(abspath $(FRIENDS_CORE_RS_BUILD))/target" \
+		cargo test $(FRIENDS_CORE_RS_MANIFEST) --locked --release -p szfriends-interop \
+		--test objc_again --test objc_dir_bridge --test objc_routes -- --test-threads=1 --nocapture
 
 # Online between the Rust core and the helper's own check-in client and online driver (the session peer above in
 # its online mode), through the local Node host (server/friends, its node_modules installed) and a coturn built from
@@ -220,7 +226,7 @@ friends-core-rs-online-check: friends-session-peer friends-links-e2e-helper $$(F
 		SZFRIENDS_HOST_SERVER_DIR="$(abspath $(FRIENDS_HOST_SERVER_DIR))" FRIENDS_TEST_COTURN="$(FRIENDS_TEST_COTURN)" \
 		CARGO_TARGET_DIR="$(abspath $(FRIENDS_CORE_RS_BUILD))/target" \
 		cargo test $(FRIENDS_CORE_RS_MANIFEST) --locked --release -p szfriends-helper \
-		--test online --test route_order -- --nocapture
+		--test online --test online_reset --test route_order -- --nocapture
 
 # The NAT emulator's punching matrix (tests/nat-emulator) with the Rust core on one side of every pair: once as the
 # offerer, once as the answerer, against the helper's own peer, each through every pair of NAT types and checked

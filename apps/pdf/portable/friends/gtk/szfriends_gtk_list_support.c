@@ -1,108 +1,13 @@
-/* What every page shares (szfriends_gtk_list_page.h): the pages' stylesheet; the one table of ways out of the views
- * (clipboard, URIs, the image chooser, Settings' dialog); the one confirmation, a card over the dropdown or a dialog
- * in Settings; running an action; action buttons and plain-text labels. Mirrors mac/SZFriendsContext.m's
- * performAction and the confirmation card of mac/SZFriendsDropdownContent.m. */
+/* What every page shares (szfriends_gtk_list_page.h): the one table of ways out of the views (clipboard, URIs, the
+ * image chooser, Settings' dialog); the one confirmation, a card over the dropdown or a dialog in Settings; running
+ * an action; action buttons and plain-text labels. The pages' stylesheet is in szfriends_gtk_list_style.c. Mirrors
+ * mac/SZFriendsContext.m's performAction and the confirmation card of mac/SZFriendsDropdownContent.m. */
 
 #include "gtk/szfriends_gtk_link_private.h"
 #include "gtk/szfriends_gtk_list_page.h"
 
 #include <adwaita.h>
 #include <string.h>
-
-/* ---- Stylesheet ---------------------------------------------------------------------------------- */
-
-/* The AppKit views' metrics (mac/SZFriendsListPage.m, SZFriendsRowView.m), in the views' colour tokens so a host's
- * appearance_css restyles these too. Colours only through tokens: no media query is needed for dark. Secondary text
- * is @szfriends_secondary_text (.szfriends-secondary, .szfriends-caption), never libadwaita's .dimmed: its 55 %
- * opacity measures 3.2:1 on white, under the 4.5:1 that text of 11 to 13 px needs. */
-static const char list_css[] =
-    ".szfriends-list-search { margin: 0 6px; }\n"
-    ".szfriends-tabs { margin: 2px 12px 8px 12px; }\n"
-    ".szfriends-notice { border-radius: 8px; padding: 10px; margin: 0 12px 8px 12px; }\n"
-    ".szfriends-notice.send { border: 1.5px dashed alpha(@szfriends_accent, 0.7); }\n"
-    ".szfriends-notice.banner { background-color: alpha(@szfriends_warning, 0.14); }\n"
-    ".szfriends-notice.prompt { background-color: @szfriends_field_background; }\n"
-    ".szfriends-notice-title { font-weight: 600; }\n"
-    ".szfriends-caption { font-size: 0.85em; color: @szfriends_secondary_text; }\n"
-    ".szfriends-secondary { color: @szfriends_secondary_text; }\n"
-    ".szfriends-caption.szfriends-success { color: @szfriends_success; }\n"
-    ".szfriends-empty-title { font-weight: 600; }\n"
-    "button.szfriends-link { color: @szfriends_accent; font-weight: 600; padding: 2px 4px; min-height: 0; }\n"
-    "szfriends-row { border-radius: 8px; margin: 0 6px; padding-right: 8px; }\n"
-    "szfriends-row.clickable:hover { background-color: @szfriends_hover; }\n"
-    "szfriends-row:focus-visible { outline: 2px solid alpha(@szfriends_accent, 0.5); outline-offset: -2px; }\n"
-    "szfriends-row.drop-accept { background-color: @szfriends_selection;\n"
-    "  box-shadow: inset 0 0 0 1.5px @szfriends_accent; }\n"
-    "szfriends-row.drop-refuse { background-color: alpha(@szfriends_warning, 0.18); }\n"
-    "szfriends-row.dimmed .szfriends-row-fade { opacity: 0.4; }\n"
-    "szfriends-row.muted szfriends-avatar { opacity: 0.45; }\n"
-    "szfriends-row.muted .szfriends-row-title { color: @szfriends_secondary_text; }\n"
-    ".szfriends-row-title { font-weight: 600; }\n"
-    ".szfriends-row-subtitle, .szfriends-row-status { color: @szfriends_secondary_text; }\n"
-    ".szfriends-row-subtitle.waiting { color: @szfriends_accent; }\n"
-    ".szfriends-row-time { color: @szfriends_secondary_text; font-size: 0.85em; }\n"
-    ".szfriends-row-bar { background-color: @szfriends_accent; border-radius: 2px; min-width: 3px; }\n"
-    ".szfriends-row-dot { background-color: @szfriends_accent; border-radius: 4px; min-width: 7px;\n"
-    "  min-height: 7px; }\n"
-    ".szfriends-pill { background-color: @szfriends_accent; color: @szfriends_background; font-weight: bold;\n"
-    "  font-size: 10px; border-radius: 4px; padding: 1px 5px; }\n"
-    ".szfriends-pill.drop { font-size: 12px; padding: 2px 5px; }\n"
-    ".szfriends-pill.warning { background-color: @szfriends_warning; }\n"
-    ".szfriends-route { color: @szfriends_offline_route; }\n"
-    ".szfriends-route.local { color: @szfriends_local_route; }\n"
-    ".szfriends-route.online { color: @szfriends_online_route; }\n"
-    ".szfriends-id-check { color: @szfriends_success; }\n"
-    "button.szfriends-row-action { min-width: 28px; min-height: 28px; padding: 0; border-radius: 14px;\n"
-    "  background: none; box-shadow: none; color: @szfriends_text; }\n"
-    "button.szfriends-row-action:hover { background-color: @szfriends_hover; }\n"
-    "button.szfriends-row-action.accept { color: @szfriends_success; }\n"
-    "button.szfriends-row-action.worded { padding: 0 11px; font-weight: 600; font-size: 12px; }\n"
-    "button.szfriends-row-action.worded.accept { background-color: @szfriends_primary_button;\n"
-    "  color: @szfriends_primary_button_text; }\n"
-    "button.szfriends-row-action.worded.decline { color: @szfriends_text;\n"
-    "  box-shadow: inset 0 0 0 1px alpha(currentColor, 0.25); }\n"
-    "button.szfriends-row-action.block, button.szfriends-row-action.armed { color: @szfriends_destructive; }\n"
-    "button.szfriends-row-action.armed { padding: 0 10px 0 8px; font-weight: bold; font-size: 12px;\n"
-    "  background-color: mix(@szfriends_background, @szfriends_destructive, 0.12);\n"
-    "  box-shadow: inset 0 0 0 1px alpha(@szfriends_destructive, 0.6); }\n"
-    ".szfriends-footer { border-top: 1px solid @szfriends_separator; padding: 10px 12px; }\n"
-    "button.szfriends-footer-button { padding: 2px 6px; min-height: 0; }\n"
-    "button.szfriends-footer-button label { font-weight: normal; }\n"
-    "button.szfriends-footer-button label.szfriends-footer-name { font-weight: 600; }\n"
-    ".szfriends-visibility.visible { background-color: alpha(@szfriends_accent, 0.12); border-radius: 8px;\n"
-    "  border: 1px solid alpha(@szfriends_accent, 0.45); padding: 12px; }\n"
-    ".szfriends-countdown { font-size: 20px; font-weight: 600; font-feature-settings: \"tnum\"; }\n"
-    ".szfriends-alert { background-color: alpha(@szfriends_warning, 0.14); border-radius: 8px;\n"
-    "  border: 1px solid alpha(@szfriends_warning, 0.45); padding: 12px; }\n"
-    ".szfriends-people-header { font-weight: 600; font-size: 0.85em; color: @szfriends_secondary_text; }\n"
-    ".szfriends-confirm { margin: 0 16px; }\n"
-    /* Several computers: a join request waits for the person like a request row; its code is read digit by digit. */
-    ".szfriends-join-request { background-color: alpha(@szfriends_accent, 0.08); border-radius: 10px;\n"
-    "  border: 1px solid alpha(@szfriends_accent, 0.5); padding: 12px; margin: 0 12px 8px 12px; }\n"
-    ".szfriends-join-code { font-size: 28px; font-weight: 600; font-feature-settings: \"tnum\"; }\n"
-    ".szfriends-device-dot { border-radius: 5px; min-width: 8px; min-height: 8px;\n"
-    "  border: 1px solid @szfriends_secondary_text; }\n"
-    ".szfriends-device-dot.connected { background-color: @szfriends_success; border-color: @szfriends_success; }\n"
-    ".szfriends-confirm-face { padding: 16px; }\n"
-    /* Text actions (Remove friend, Block, Use your own picture) start where the column's words start, as AppKit
-     * draws them: no side padding, so their notes need no indent to sit under them. Armed, a pill gets its padding
-     * back with its fill. */
-    "button.flat.szfriends-text-action { padding-left: 0; padding-right: 0; min-width: 0; }\n"
-    /* Friends is a beta: the title beside the search field, with a small tag that says so. */
-    ".szfriends-list-title { font-weight: 600; }\n"
-    ".szfriends-beta { background-color: alpha(@szfriends_accent, 0.14); color: @szfriends_accent; border-radius: 4px;\n"
-    "  font-size: 10px; font-weight: 600; padding: 1px 5px; }\n";
-
-void szfriends_gtk_list_style_ensure(GtkWidget *widget) {
-    GdkDisplay *display = widget ? gtk_widget_get_display(widget) : gdk_display_get_default();
-    if (!display || g_object_get_data(G_OBJECT(display), "szfriends-list-style")) return;
-    GtkCssProvider *provider = gtk_css_provider_new();
-    gtk_css_provider_load_from_string(provider, list_css);
-    /* The views' priority: the host's provider (one above) still redefines the tokens these rules use. */
-    gtk_style_context_add_provider_for_display(display, GTK_STYLE_PROVIDER(provider),
-                                               GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
-    g_object_set_data_full(G_OBJECT(display), "szfriends-list-style", provider, g_object_unref);
-}
 
 /* ---- The ways out -------------------------------------------------------------------------------- */
 
@@ -150,6 +55,33 @@ static void file_chosen(GObject *dialog, GAsyncResult *result, gpointer data) {
     g_free(choosing);
 }
 
+static void folder_chosen(GObject *dialog, GAsyncResult *result, gpointer data) {
+    SZFriendsGtkChoosing *choosing = data;
+    GFile *file = gtk_file_dialog_select_folder_finish(GTK_FILE_DIALOG(dialog), result, NULL);
+    char *path = file ? g_file_get_path(file) : NULL;
+    choosing->chosen(path, choosing->data);
+    g_free(path);
+    if (file) g_object_unref(file);
+    g_free(choosing);
+}
+
+void szfriends_gtk_choose_folder(GtkWidget *source, const char *start, SZFriendsGtkChosen chosen, gpointer data) {
+    if (seams.choose_folder) {
+        seams.choose_folder(source, start, chosen, data, seams.data);
+        return;
+    }
+    GtkFileDialog *dialog = gtk_file_dialog_new();
+    if (start && *start) {
+        GFile *folder = g_file_new_for_path(start);
+        gtk_file_dialog_set_initial_folder(dialog, folder);
+        g_object_unref(folder);
+    }
+    SZFriendsGtkChoosing *choosing = g_new0(SZFriendsGtkChoosing, 1);
+    *choosing = (SZFriendsGtkChoosing){chosen, data};
+    gtk_file_dialog_select_folder(dialog, window_of(source), NULL, folder_chosen, choosing);
+    g_object_unref(dialog);
+}
+
 void szfriends_gtk_choose_image(GtkWidget *source, const char *title, SZFriendsGtkChosen chosen, gpointer data) {
     if (seams.choose_image) {
         seams.choose_image(source, title, chosen, data, seams.data);
@@ -175,6 +107,8 @@ void szfriends_gtk_choose_image(GtkWidget *source, const char *title, SZFriendsG
 
 typedef struct {
     SZFriendsGtkRun run;
+    SZFriendsGtkRunTicked run_ticked; /* instead of run: also told whether the option was ticked */
+    gboolean ticked;
     gpointer data;
     GDestroyNotify destroy;
 } SZFriendsGtkQuestion;
@@ -189,7 +123,8 @@ static void question_free(gpointer data) {
 static void question_answered(SZFriendsGtkQuestion *question) {
     SZFriendsGtkQuestion taken = *question;
     *question = (SZFriendsGtkQuestion){0};
-    if (taken.run) taken.run(taken.data);
+    if (taken.run_ticked) taken.run_ticked(taken.ticked, taken.data);
+    else if (taken.run) taken.run(taken.data);
     if (taken.destroy) taken.destroy(taken.data);
 }
 
@@ -197,9 +132,22 @@ static void question_answered_cb(gpointer data) {
     question_answered(data);
 }
 
+/* The question's option as a checkbox, unticked, or NULL when it has none this view can send. */
+static GtkWidget *option_check(const SZFriendsGtkConfirm *confirm) {
+    if (!szfriends_gtk_confirm_option_known(confirm)) return NULL;
+    GtkWidget *check = gtk_check_button_new_with_label(confirm->option->label);
+    gtk_widget_set_name(check, "szfriends.confirmation.option");
+    return check;
+}
+
+static void take_ticked(SZFriendsGtkQuestion *question, GtkWidget *check) {
+    question->ticked = check && gtk_check_button_get_active(GTK_CHECK_BUTTON(check));
+}
+
 static void alert_response(AdwAlertDialog *dialog, const char *response, gpointer data) {
-    (void)dialog;
-    if (!g_strcmp0(response, "confirm")) question_answered(data);
+    if (g_strcmp0(response, "confirm")) return;
+    take_ticked(data, g_object_get_data(G_OBJECT(dialog), "szfriends-option"));
+    question_answered(data);
 }
 
 static void system_confirm(GtkWidget *source, const SZFriendsGtkConfirm *confirm, gboolean destructive,
@@ -217,6 +165,11 @@ static void system_confirm(GtkWidget *source, const SZFriendsGtkConfirm *confirm
                                              destructive ? ADW_RESPONSE_DESTRUCTIVE : ADW_RESPONSE_SUGGESTED);
     adw_alert_dialog_set_default_response(alert, "cancel");
     adw_alert_dialog_set_close_response(alert, "cancel");
+    GtkWidget *check = option_check(confirm);
+    if (check) {
+        adw_alert_dialog_set_extra_child(alert, check);
+        g_object_set_data(G_OBJECT(dialog), "szfriends-option", check);
+    }
     g_object_set_data_full(G_OBJECT(dialog), "szfriends-question", question, question_free);
     g_signal_connect(dialog, "response", G_CALLBACK(alert_response), question);
     adw_dialog_present(dialog, source);
@@ -239,6 +192,7 @@ static void card_cancel(GtkButton *button, gpointer data) {
 static void card_confirm(GtkButton *button, gpointer data) {
     GtkWidget *card = g_object_get_data(G_OBJECT(button), "szfriends-card");
     SZFriendsGtkQuestion *question = g_object_steal_data(G_OBJECT(card), "szfriends-question");
+    if (question) take_ticked(question, g_object_get_data(G_OBJECT(card), "szfriends-option"));
     szfriends_gtk_dropdown_set_overlay(data, NULL);
     if (question) {
         question_answered(question);
@@ -280,6 +234,12 @@ static GtkWidget *confirm_card(SZFriendsGtkDropdown *dropdown, const SZFriendsGt
     szfriends_gtk_list_label_set(body, confirm->body);
     gtk_box_append(GTK_BOX(face), title);
     gtk_box_append(GTK_BOX(face), body);
+    GtkWidget *check = option_check(confirm);
+    if (check) {
+        gtk_widget_set_margin_top(check, 6);
+        gtk_box_append(GTK_BOX(face), check);
+        g_object_set_data(G_OBJECT(overlay), "szfriends-option", check);
+    }
     GtkWidget *buttons = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8);
     gtk_widget_set_halign(buttons, GTK_ALIGN_END);
     gtk_widget_set_margin_top(buttons, 10);
@@ -300,10 +260,8 @@ static GtkWidget *confirm_card(SZFriendsGtkDropdown *dropdown, const SZFriendsGt
     return overlay;
 }
 
-void szfriends_gtk_confirm(SZFriendsGtkDropdown *dropdown, GtkWidget *source, const SZFriendsGtkConfirm *confirm,
-                           gboolean destructive, SZFriendsGtkRun run, gpointer run_data, GDestroyNotify run_destroy) {
-    SZFriendsGtkQuestion *question = g_new0(SZFriendsGtkQuestion, 1);
-    *question = (SZFriendsGtkQuestion){run, run_data, run_destroy};
+static void ask(SZFriendsGtkDropdown *dropdown, GtkWidget *source, const SZFriendsGtkConfirm *confirm,
+                gboolean destructive, SZFriendsGtkQuestion *question) {
     destructive = destructive || confirm->destructive;
     if (dropdown) {
         GtkWidget *card = confirm_card(dropdown, confirm, destructive, question);
@@ -316,13 +274,29 @@ void szfriends_gtk_confirm(SZFriendsGtkDropdown *dropdown, GtkWidget *source, co
     }
 }
 
+void szfriends_gtk_confirm(SZFriendsGtkDropdown *dropdown, GtkWidget *source, const SZFriendsGtkConfirm *confirm,
+                           gboolean destructive, SZFriendsGtkRun run, gpointer run_data, GDestroyNotify run_destroy) {
+    SZFriendsGtkQuestion *question = g_new0(SZFriendsGtkQuestion, 1);
+    *question = (SZFriendsGtkQuestion){.run = run, .data = run_data, .destroy = run_destroy};
+    ask(dropdown, source, confirm, destructive, question);
+}
+
+void szfriends_gtk_confirm_ticked(SZFriendsGtkDropdown *dropdown, GtkWidget *source,
+                                  const SZFriendsGtkConfirm *confirm, gboolean destructive, SZFriendsGtkRunTicked run,
+                                  gpointer run_data, GDestroyNotify run_destroy) {
+    SZFriendsGtkQuestion *question = g_new0(SZFriendsGtkQuestion, 1);
+    *question = (SZFriendsGtkQuestion){.run_ticked = run, .data = run_data, .destroy = run_destroy};
+    ask(dropdown, source, confirm, destructive, question);
+}
+
 /* ---- Actions ------------------------------------------------------------------------------------- */
 
 /* An intent waiting for its question's answer: it was built when the action was pressed, so it holds its own copy
  * of everything and outlives the snapshot that offered it. */
 typedef struct {
     SZFriendsGtkLink *link;
-    szfriends_intent *intent;
+    szfriends_intent *intent, *ticked; /* ticked: what goes when the question's option is ticked; NULL without one */
+    SZFriendsGtkRun sending;
     SZFriendsGtkReplyFunc done;
     gpointer done_data;
 } SZFriendsGtkPending;
@@ -330,6 +304,7 @@ typedef struct {
 static void pending_free(gpointer data) {
     SZFriendsGtkPending *pending = data;
     /* Cancelled, or the card went with the dropdown: whoever waits hears that nothing was sent. */
+    szfriends_intent_free(pending->ticked);
     if (pending->intent) {
         szfriends_intent_free(pending->intent);
         if (pending->done) pending->done(NULL, NULL, pending->done_data);
@@ -338,15 +313,62 @@ static void pending_free(gpointer data) {
     g_free(pending);
 }
 
-static void pending_send(gpointer data) {
+static void pending_send(gboolean ticked, gpointer data) {
     SZFriendsGtkPending *pending = data;
-    szfriends_gtk_link_send(pending->link, g_steal_pointer(&pending->intent), pending->done, pending->done_data, NULL);
+    szfriends_intent *intent = g_steal_pointer(&pending->intent), *other = g_steal_pointer(&pending->ticked);
+    if (ticked && other) {
+        szfriends_intent *unticked = intent;
+        intent = other;
+        other = unticked;
+    }
+    szfriends_intent_free(other);
+    if (pending->sending) pending->sending(pending->done_data);
+    szfriends_gtk_link_send(pending->link, intent, pending->done, pending->done_data, NULL);
 }
 
 void szfriends_gtk_perform(SZFriendsGtkLink *link, SZFriendsGtkDropdown *dropdown, GtkWidget *source,
                            const SZFriendsGtkAction *action, const SZFriendsGtkActionIds *ids,
                            SZFriendsGtkReplyFunc done, gpointer done_data) {
-    if (!action || !szfriends_gtk_action_is_known(action->action)) return;
+    szfriends_gtk_perform_sending(link, dropdown, source, action, ids, NULL, done, done_data);
+}
+
+/* reset_friends with `then` open_join ("Use my existing profile…"): the join page once the reset succeeded, while
+ * the button pressed (and so its dropdown) is still there; then the caller's own completion. */
+typedef struct {
+    GWeakRef source;
+    SZFriendsGtkDropdown *dropdown;
+    SZFriendsGtkReplyFunc done;
+    gpointer done_data;
+} SZFriendsGtkThenJoin;
+
+static void then_join(JsonObject *result, const SZFriendsGtkError *error, gpointer data) {
+    SZFriendsGtkThenJoin *then = data;
+    GtkWidget *source = g_weak_ref_get(&then->source);
+    /* A cancelled question answers with neither a result nor an error: nothing happened, so no join page. */
+    if (result && !error && source && then->dropdown) szfriends_gtk_dropdown_open_join(then->dropdown);
+    if (source) g_object_unref(source);
+    if (then->done) then->done(result, error, then->done_data);
+    g_weak_ref_clear(&then->source);
+    g_free(then);
+}
+
+void szfriends_gtk_perform_sending(SZFriendsGtkLink *link, SZFriendsGtkDropdown *dropdown, GtkWidget *source,
+                                   const SZFriendsGtkAction *action, const SZFriendsGtkActionIds *ids,
+                                   SZFriendsGtkRun sending, SZFriendsGtkReplyFunc done, gpointer done_data) {
+    if (action && action->action == SZFRIENDS_GTK_ACTION_RESET_FRIENDS && action->then == SZFRIENDS_GTK_THEN_OPEN_JOIN &&
+        dropdown && source) {
+        SZFriendsGtkThenJoin *then = g_new0(SZFriendsGtkThenJoin, 1);
+        g_weak_ref_init(&then->source, source);
+        then->dropdown = dropdown;
+        then->done = done;
+        then->done_data = done_data;
+        done = then_join;
+        done_data = then;
+    }
+    if (!action || !szfriends_gtk_action_is_known(action->action)) {
+        if (done) done(NULL, NULL, done_data);
+        return;
+    }
     if (szfriends_gtk_action_is_client_side(action->action)) {
         const SZFriendsGtkHost *host = szfriends_gtk_link_host(link);
         GtkWindow *window = dropdown ? szfriends_gtk_dropdown_get_window(dropdown) : window_of(source);
@@ -357,21 +379,29 @@ void szfriends_gtk_perform(SZFriendsGtkLink *link, SZFriendsGtkDropdown *dropdow
             host->open_received_file(host->host_data, window, action->path);
         else if (action->action == SZFRIENDS_GTK_ACTION_SHOW_FILE && path && host->reveal_file)
             host->reveal_file(host->host_data, window, action->path);
+        else if (action->action == SZFRIENDS_GTK_ACTION_OPEN_JOIN && dropdown)
+            szfriends_gtk_dropdown_open_join(dropdown);
         if (done) done(NULL, NULL, done_data);
         return;
     }
     szfriends_intent *intent = szfriends_gtk_intent_for_action(action, ids);
-    if (!intent) return;
+    if (!intent) {
+        if (done) done(NULL, NULL, done_data);
+        return;
+    }
     if (!action->confirm) {
+        if (sending) sending(done_data);
         szfriends_gtk_link_send(link, intent, done, done_data, NULL);
         return;
     }
     SZFriendsGtkPending *pending = g_new0(SZFriendsGtkPending, 1);
     szfriends_gtk_link_ref(link); /* the question can outlive the page that asked it */
-    *pending = (SZFriendsGtkPending){link, intent, done, done_data};
+    szfriends_intent *ticked = szfriends_gtk_confirm_option_known(action->confirm)
+                                   ? szfriends_gtk_intent_for_answer(action, ids, TRUE) : NULL;
+    *pending = (SZFriendsGtkPending){link, intent, ticked, sending, done, done_data};
     /* A destructive action's question is drawn destructive too, even from a helper that marks only the action. */
-    szfriends_gtk_confirm(dropdown, source, action->confirm, action->style == SZFRIENDS_GTK_STYLE_DESTRUCTIVE,
-                          pending_send, pending, pending_free);
+    szfriends_gtk_confirm_ticked(dropdown, source, action->confirm, action->style == SZFRIENDS_GTK_STYLE_DESTRUCTIVE,
+                                 pending_send, pending, pending_free);
 }
 
 GtkWidget *szfriends_gtk_list_action_button_new(void) {

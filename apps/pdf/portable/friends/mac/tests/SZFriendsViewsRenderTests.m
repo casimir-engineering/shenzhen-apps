@@ -235,6 +235,18 @@ static void SZFTestRenderPass(void) {
         [page applyNearbySnapshot:SZFTestSnapshot(@"nearby-visible-bluetooth-off")];
         return page;
     });
+    // How each person nearby was found: local network, Bluetooth, both; and a nearby friend in the list.
+    SZFRenderBoth(@"nearby-found", dropdown, ^NSView *(SZFriendsContext *context) {
+        SZFriendsListPage *page = [[SZFriendsListPage alloc] initWithContext:context];
+        [page showNearby:YES];
+        [page applyNearbySnapshot:SZFTestFoundNearby()];
+        return page;
+    });
+    SZFRenderBoth(@"list-found", dropdown, ^NSView *(SZFriendsContext *context) {
+        SZFriendsListPage *page = [[SZFriendsListPage alloc] initWithContext:context];
+        [page applySnapshot:SZFTestFoundList()];
+        return page;
+    });
     SZFRenderBoth(@"nearby-denied", dropdown, ^NSView *(SZFriendsContext *context) {
         SZFriendsListPage *page = [[SZFriendsListPage alloc] initWithContext:context];
         [page showNearby:YES];
@@ -285,7 +297,14 @@ static void SZFTestRenderPass(void) {
     SZFRenderBoth(@"confirm", dropdown, ^NSView *(SZFriendsContext *context) {
         SZFriendsDropdownContent *content = [[SZFriendsDropdownContent alloc] initWithContext:context];
         [content.listPage applySnapshot:SZFTestSnapshot(@"list")];
-        context.presentConfirmation(SZFTestSnapshot(@"settings")[@"reset"][@"confirm"], ^{});
+        context.presentConfirmation(SZFTestSnapshot(@"settings")[@"reset"][@"confirm"], ^(BOOL ticked) { (void)ticked; });
+        return content;
+    });
+    // Remove from a row's menu: the question with "Also delete chat history", unticked.
+    SZFRenderBoth(@"confirm-remove", dropdown, ^NSView *(SZFriendsContext *context) {
+        SZFriendsDropdownContent *content = [[SZFriendsDropdownContent alloc] initWithContext:context];
+        [content.listPage applySnapshot:SZFTestSnapshot(@"list")];
+        context.presentConfirmation(SZFTestRemoveConfirm(@"Mei", YES), ^(BOOL ticked) { (void)ticked; });
         return content;
     });
     SZFRenderBoth(@"settings", NSMakeSize(560, 560), ^NSView *(SZFriendsContext *context) {

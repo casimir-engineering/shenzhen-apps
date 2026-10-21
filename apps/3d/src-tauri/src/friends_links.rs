@@ -1,6 +1,8 @@
-//! Friends links opened from outside the app (PROTOCOL.md § Links): a `shenzhen3d://friends/link#<payload>` URL
-//! clicked in a browser, a message or another app opens the link's card in the focused window once Friends is ready,
-//! as the Electron app does. The plugin checks each URL before anything is sent; anything else is left alone.
+//! Friends URLs opened from outside the app: a `shenzhen3d://friends/link#<payload>` URL clicked in a browser, a
+//! message or another app opens the link's card in the focused window once Friends is ready (PROTOCOL.md § Links),
+//! and a notification's `shenzhen3d://friends/conversation/<id>` (or `shenzhen3d://friends`) opens the panel on
+//! that conversation (or the list; § Notifications), as the Electron app does. The plugin checks each URL before
+//! anything is sent; anything else is left alone.
 //!
 //! The systems hand the app its links in their own ways. A Mac and iOS report them with the files the app is asked
 //! to open (`RunEvent::Opened`, src/lib.rs), from the `CFBundleURLTypes` a Friends build declares. Windows and Linux
@@ -20,8 +22,8 @@ pub fn is_link(url: &str) -> bool {
         .is_some_and(|(scheme, _)| scheme.eq_ignore_ascii_case(SCHEME))
 }
 
-/// Gives each Friends link among `urls` to the plugin, which shows its card in the main window once Friends is
-/// ready, and brings that window to the front.
+/// Gives each Friends URL among `urls` to the plugin, which shows the link's card or the conversation in the main
+/// window once Friends is ready, and brings that window to the front.
 pub fn open<I, S>(app: &tauri::AppHandle, urls: I)
 where
     I: IntoIterator<Item = S>,
@@ -105,6 +107,7 @@ mod tests {
     fn only_the_app_scheme_is_a_friends_link() {
         assert!(is_link("shenzhen3d://friends/link#d.AQ"));
         assert!(is_link("SHENZHEN3D://friends/link#d.AQ"));
+        assert!(is_link("shenzhen3d://friends/conversation/c_mei"));
         for other in [
             "file:///Users/a/Gearbox.step",
             "https://example.com/shenzhen3d:",

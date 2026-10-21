@@ -16,10 +16,21 @@ export type Route = {
     "lan" | "p2p_wifi" | "bluetooth" | "internet" | "relay" | string | null;
   label: string | null;
 };
+/** How a person nearby was found right now (client capability nearby.found): each method that sees them, in the
+ * order lan, p2p_wifi, bluetooth, and the words for them ("Local network and Bluetooth"). */
+export type Found = {
+  methods: ("lan" | "p2p_wifi" | "bluetooth" | string)[];
+  label: string;
+};
 export type Arm = {
   label: string;
   accessibility_label: string;
   seconds: number;
+};
+/** A checkbox in a confirmation, unticked at first; ticked, the intent also carries `field: true`. */
+export type ConfirmOption = {
+  label: string;
+  field: "delete_history" | string;
 };
 export type Confirm = {
   title: string;
@@ -27,6 +38,7 @@ export type Confirm = {
   confirm_label: string;
   cancel_label: string;
   destructive: boolean;
+  option?: ConfirmOption | null;
 };
 export type Action = {
   action: string;
@@ -44,7 +56,13 @@ export type Action = {
   link_id?: string;
   device_id?: string;
   join_id?: string;
+  /** dismiss_banner: the banner it dismisses (id_changed when absent). */
+  kind?: string;
+  /** reset_friends only: what the view shows once the reset succeeded (open_join). Never sent. */
+  then?: string | null;
 };
+/** Using the person's existing profile here (PROTOCOL.md § Joining, Offering it). */
+export type JoinOffer = { note: string; action: Action };
 export type Segment = {
   text: string;
   url?: string;
@@ -92,6 +110,10 @@ export type ListRow = {
   drop_refusal: string | null;
   accessibility_label: string;
   actions: RowAction[];
+  /** With the client capability list.menu: what right-click or a long press on the row offers (Remove). */
+  menu?: Action[];
+  /** With the client capability nearby.found: how a friend nearby was found; null while not nearby. */
+  found?: Found | null;
   mentionable?: boolean;
   kind?: "person" | "you" | string;
 };
@@ -108,12 +130,17 @@ export type JoinRequest = {
 };
 export type ListData = {
   query: string;
-  banner: { kind: string; text: string; action: Action | null } | null;
+  banner: {
+    kind: "id_changed" | "notifications" | string;
+    text: string;
+    action: Action | null;
+    /** notifications: Not Now (dismiss_banner with its kind). */
+    dismiss?: Action | null;
+  } | null;
   name_prompt: {
     title: string;
     placeholder: string;
     note: string;
-    join_label?: string | null;
   } | null;
   rows: ListRow[];
   empty: Empty | null;
@@ -121,6 +148,7 @@ export type ListData = {
   state?: "normal" | "device_removed" | string;
   removed?: { title: string; body: string; action: Action } | null;
   join_requests?: JoinRequest[];
+  join?: JoinOffer | null;
 };
 export type MethodState = { method: string; state: string; label: string };
 export type NearbyPerson = {
@@ -132,6 +160,8 @@ export type NearbyPerson = {
   status_label: string | null;
   action: Action | null;
   accessibility_label: string;
+  /** With the client capability nearby.found: how this person was found. */
+  found?: Found | null;
 };
 export type NearbyData = {
   query: string;
@@ -344,7 +374,12 @@ export type ProfileData = {
       revoke: Action;
     }[];
   } | null;
-  devices?: { title: string; note: string; rows: DeviceRow[] } | null;
+  devices?: {
+    title: string;
+    /** How to add another computer or phone; null on a removed computer. */
+    add?: { title: string; steps: string[]; friends_id: string } | null;
+    rows: DeviceRow[];
+  } | null;
 };
 export type SettingsData = {
   name: {
@@ -354,7 +389,17 @@ export type SettingsData = {
     placeholder: string;
   };
   id: { label: string; note: string; friends_id: string; copy_label: string };
-  received: { label: string; note: string; action: Action };
+  received: {
+    label: string;
+    /** With the helper capability received.folder: the folder's name ("Downloads"). */
+    value?: string;
+    /** "" on a computer, where no note shows. */
+    note: string;
+    path?: string | null;
+    action: Action | null;
+    /** choose_received_folder (Change…), null where the folder cannot be changed. */
+    change?: Action | null;
+  };
   auto_accept: {
     label: string;
     note: string;
@@ -378,6 +423,22 @@ export type SettingsData = {
     action_label: string;
     confirm: Confirm;
   };
+  /** While offered: using the person's existing profile here. */
+  join?: { label: string; note: string; action: Action };
+  /** With the helper capability notifications: this device's notification switches (PROTOCOL.md § Notifications). */
+  notifications?: NotificationSettings | null;
+};
+export type NotificationSwitch = { label: string; value: boolean };
+export type NotificationSettings = {
+  label: string;
+  enabled: NotificationSwitch;
+  preview: NotificationSwitch & { note: string };
+  /** The permission's state, or the iPhone note; "" when there is nothing to say. */
+  note: string;
+  /** allow_notifications, or open_settings with settings_target notifications. */
+  action: Action | null;
+  /** Android hosts with background.reachable: Stay reachable in the background. */
+  background?: (NotificationSwitch & { note: string }) | null;
 };
 export type JoinData = {
   state: string;
@@ -459,4 +520,14 @@ export type FriendsStatus = {
   capabilities: string[];
   limits: Record<string, number> | null;
   badge: BadgeData | null;
+};
+/** The `received` view: files received here, newest first (helper capability received.folder). */
+export type ReceivedData = {
+  files: {
+    transfer_id: string;
+    path: string;
+    file_name: string;
+    received_at: number;
+    source: "friend" | "link" | "device";
+  }[];
 };

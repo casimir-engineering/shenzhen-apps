@@ -8,7 +8,8 @@ use rusqlite::{params, OptionalExtension};
 use szfriends_core::presentation::{
     IdState, ItemFacts, ItemKind, OutboxState, PersonFacts, ProfileFacts, RouteKind, RouteMethod, TransferState,
 };
-use szfriends_core::store::Relation;
+use szfriends_core::store::{sync_files, Relation};
+use szfriends_core::sync::holds_transfer;
 use szfriends_identity::friends_id::{system_uniform, word_count_for_new_id, WordList};
 
 use super::State;
@@ -21,11 +22,14 @@ impl State {
     pub fn people_facts(&self) -> Vec<PersonFacts> {
         let people = self.store.people_by_latest_interaction().unwrap_or_default();
         let link_contacts = self.store.link_contact_conversations();
+        // Details' Show in Finder opens the folder received files go to now.
+        let folder = self.store.received_folder().map(|p| p.to_string_lossy().into_owned());
         people
             .iter()
             .map(|person| {
                 let mut facts = self.person_facts(person);
                 facts.link_contact = link_contacts.contains(&person.conversation_id);
+                facts.received_reveal_path = folder.clone();
                 facts
             })
             .collect()
@@ -75,6 +79,9 @@ impl State {
         facts.unconfirmed_answer_id = person.unconfirmed_answer_id.clone();
         facts.friends_id_confirmed = person.friends_id_confirmed;
         facts.key_change_pending = person.key_change_pending;
+        if person.relation == Relation::Friend {
+            facts.found_methods = self.found_methods_of(&person.conversation_id);
+        }
         facts.offers_waiting = conn
             .query_row(
                 "SELECT count(*) FROM transfers WHERE conversation_id = ?1 AND outgoing = 0 AND state = ?2",
@@ -163,6 +170,9 @@ impl State {
             item.transfer_state = Some(transfer.state);
             item.failure_reason = transfer.failure_reason.clone();
             item.local_path = transfer.received_path.as_ref().map(|p| p.to_string_lossy().into_owned());
+            if !item.outgoing {
+                item.saved_in = transfer.received_path.as_deref().and_then(|p| self.store.saved_place(p));
+            }
             item.transfer_route =
                 self.live_route(&transfer.conversation_id).map_or(RouteMethod::None, Self::view_route);
             let automatic: i64 = conn
@@ -173,6 +183,28 @@ impl State {
                 )
                 .unwrap_or(0);
             item.accepted_automatically = automatic != 0;
+            // Moved or deleted: a file received or copied here whose bytes are gone from where they were saved.
+            let synced = sync_files::transfer(conn, &transfer.transfer_id).ok().flatten();
+            let kept = transfer.received_path.is_some() && (item.outgoing || transfer.state == TransferState::Received);
+            if kept && synced.is_some_and(|t| !holds_transfer(&self.store, &t)) {
+                item.file_missing = true;
+                item.local_path = None;
+                item.saved_in = None;
+                self.devices.missing_seen.set(true);
+            }
+        } else if let Some(file) = item.transfer_id.as_deref().and_then(|id| sync_files::sync_file(conn, id).ok()?) {
+            // A file another computer of ours received: its record is here at once, its bytes when copied.
+            item.file_extension =
+                std::path::Path::new(&file.file_name).extension().and_then(|e| e.to_str()).map(str::to_lowercase);
+            item.file_name = Some(file.file_name.clone());
+            item.file_size = file.size;
+            item.transfer_state = TransferState::from_i64(file.state);
+            // Received there, and no other computer of ours holds it anymore.
+            item.file_missing =
+                !file.outgoing && file.state == 6 && !file.holders.iter().any(|h| self.is_own_device(h));
+        }
+        if let Some(transfer_id) = item.transfer_id.clone().filter(|_| !item.outgoing) {
+            self.again_facts(&mut item, &transfer_id, &row.conversation_id);
         }
         item
     }
@@ -223,8 +255,20 @@ impl State {
             },
             nearby_only: cfg!(not(feature = "online")),
             identity_public_key: Some(self.identity.public_key()),
-            received_directory: self.store.state_dir().join("received").to_string_lossy().into_owned(),
+            received: self.received_folder_facts(),
+            notifications: Some(self.notification_facts()),
             ..ProfileFacts::default()
+        }
+    }
+
+    /// The folder received files go to, for Settings.
+    pub fn received_folder_facts(&self) -> szfriends_core::presentation::ReceivedFolderFacts {
+        let chosen = self.store.chosen_received_folder();
+        szfriends_core::presentation::ReceivedFolderFacts {
+            path: self.store.received_folder().map(|p| p.to_string_lossy().into_owned()),
+            chosen_name: chosen.and_then(|p| p.file_name().map(|n| n.to_string_lossy().into_owned())),
+            phone: self.store.received_defaults().phone,
+            fallback: self.store.received_fallback(),
         }
     }
 

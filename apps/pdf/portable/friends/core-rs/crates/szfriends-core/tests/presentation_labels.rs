@@ -79,6 +79,7 @@ fn the_catalog_is_the_helpers() {
         "SZFriendsCatalogLinks.m",
         "SZFriendsCatalogJoin.m",
         "SZFriendsCatalogDevices.m",
+        "SZFriendsCatalogNotifications.m",
     ] {
         let source = std::fs::read_to_string(directory.join(file)).unwrap();
         // Only the dictionary literals: from the first "return @{" on.
@@ -105,7 +106,31 @@ fn the_catalog_is_the_helpers() {
         "visibility.unavailable.access.phone",
         "alert.network_denied.body.phone",
         "alert.not_asked.body.phone",
+        "settings_link.app.phone",
         "id.nearby",
+        "settings.received.note.ios",
+        "settings.history.note.phone",
+        "settings.history.note.devices.phone",
+        "settings.history.confirm.body.phone",
+        "settings.history.confirm.body.assistant.phone",
+        "settings.history.confirm.body.devices.phone",
+        "settings.history.confirm.body.assistant.devices.phone",
+        "settings.reset.confirm.body.phone",
+        "settings.reset.confirm.body.assistant.phone",
+        "join.idle.message.phone",
+        "join.waiting.title.phone",
+        "join.denied.title.phone",
+        "join.joined.title.phone",
+        "join.offer.confirm.body.phone",
+        "join.offer.confirm.body.assistant.phone",
+        "devices.title.phone",
+        "devices.add.step.approve.phone",
+        "devices.last.this_computer.phone",
+        "devices.last.never.phone",
+        "devices.accessibility.this_computer.phone",
+        "devices.accessibility.never.phone",
+        "devices.rename.placeholder.phone",
+        "error.internal.identity_not_removed.phone",
     ];
     for key in rust.keys().filter(|key| !objc.contains_key(*key) && !PORTABLE_ONLY.contains(&key.as_str())) {
         differences.push(format!("{key} is not in the helper's catalog"));
@@ -389,13 +414,13 @@ fn apps_with_friends() {
     // Filled without the caller passing it, wherever a string says it.
     assert_eq!(
         s.text_with("join.waiting.message", &[("id", "cottage-violet")]),
-        "On a computer that uses cottage-violet, open Friends in ShenzhenPDF, Shenzhen Files or Shenzhen 3D and \
-         choose Approve. Then type the code it shows."
+        "On your computer or phone that uses cottage-violet, open Friends in ShenzhenPDF, Shenzhen Files or \
+         Shenzhen 3D and choose Approve. Then type the code it shows."
     );
     assert_eq!(
         s.text("join.not_reached"),
-        "Your other computer didn’t answer. Open ShenzhenPDF, Shenzhen Files or Shenzhen 3D there, and type the code \
-         again."
+        "Your other computer or phone didn’t answer. Open ShenzhenPDF, Shenzhen Files or Shenzhen 3D there, and type \
+         the code again."
     );
     assert_eq!(
         s.text("error.link_offline"),

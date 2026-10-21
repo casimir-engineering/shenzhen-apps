@@ -1,17 +1,26 @@
 // The Friends dropdown and the Friends part of Settings: the lazily loaded half of Friends. FriendsButton.tsx (in
 // the app's first chunk) loads this file only when the person opens Friends or Settings, so none of it is on the
 // launch path.
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { friendsRequests } from "./requests";
 import type { FriendsBridge } from "./bridge";
-import type { Confirm, FriendsStatus, Reply, SettingsData } from "./protocol";
+import type {
+  Confirm,
+  FriendsStatus,
+  NotificationSettings,
+  Reply,
+  SettingsData,
+} from "./protocol";
 import {
   ActionButton,
   AvatarView,
   CopyButton,
   Panel,
   usePanel,
+  type ConfirmAnswer,
   type PanelContext,
 } from "./parts";
+import { shownOption } from "./actions";
 import { FriendsStore, useFriendsStore, useView } from "./store";
 import { ListPage, type Outgoing } from "./ListPage";
 import { ConversationPage } from "./ConversationPage";
@@ -44,21 +53,60 @@ let remembered: { stack: Page[]; tab: "friends" | "nearby" } = {
   stack: [{ kind: "list" }],
   tab: "friends",
 };
-/** Where the dropdown opens next: the profile page (Add by ID) or the list's Nearby tab (requests.ts). */
-export function openNextAt(place: "profile" | "nearby") {
+/** Where the dropdown opens next: the profile page (Add by ID), the list's Nearby tab or the join view
+ * (requests.ts). */
+export function openNextAt(place: "profile" | "nearby" | "join") {
   remembered =
-    place === "profile"
-      ? { stack: [{ kind: "list" }, { kind: "profile" }], tab: remembered.tab }
-      : { stack: [{ kind: "list" }], tab: "nearby" };
+    place === "nearby"
+      ? { stack: [{ kind: "list" }], tab: "nearby" }
+      : { stack: [{ kind: "list" }, { kind: place }], tab: remembered.tab };
+}
+
+/** Whether this window is visible and has the keyboard focus (PROTOCOL.md § Notifications, Focus): `onChange`
+ * now and on every change. Returns a function that stops watching. */
+export function watchWindowFocus(
+  onChange: (focused: boolean) => void,
+  doc: Pick<Document, "visibilityState" | "hasFocus"> & EventTarget = document,
+  win: EventTarget = window,
+) {
+  const update = () =>
+    onChange(doc.visibilityState === "visible" && doc.hasFocus());
+  update();
+  doc.addEventListener("visibilitychange", update);
+  win.addEventListener("focus", update);
+  win.addEventListener("blur", update);
+  return () => {
+    doc.removeEventListener("visibilitychange", update);
+    win.removeEventListener("focus", update);
+    win.removeEventListener("blur", update);
+  };
+}
+function useWindowFocused() {
+  const [focused, setFocused] = useState(false);
+  useEffect(() => watchWindowFocus(setFocused), []);
+  return focused;
+}
+/** What a notification's conversation opens: the list, and that conversation over it (the list alone for null). */
+export function stackFor(openAt: { conversation_id: string | null }): Page[] {
+  const id = openAt.conversation_id;
+  return id
+    ? [{ kind: "list" }, { kind: "conversation", id }]
+    : [{ kind: "list" }];
 }
 
 function useConfirm() {
   const [pending, setPending] = useState<{
     confirm: Confirm;
-    resolve(value: boolean): void;
+    resolve(value: ConfirmAnswer): void;
   } | null>(null);
+  // The confirmation's checkbox ("Also delete chat history"), unticked each time it opens.
+  const [ticked, setTicked] = useState(false);
   const ask = (confirm: Confirm) =>
-    new Promise<boolean>((resolve) => setPending({ confirm, resolve }));
+    new Promise<ConfirmAnswer>((resolve) => {
+      setTicked(false);
+      setPending({ confirm, resolve });
+    });
+  const option = shownOption(pending?.confirm);
   const view = pending ? (
     <div
       className="szf-confirm"
@@ -68,6 +116,16 @@ function useConfirm() {
       <div className="szf-confirm-box">
         <strong>{pending.confirm.title}</strong>
         <p>{pending.confirm.body}</p>
+        {option && (
+          <label className="szf-confirm-option">
+            <input
+              type="checkbox"
+              checked={ticked}
+              onChange={(event) => setTicked(event.target.checked)}
+            />
+            <span>{option.label}</span>
+          </label>
+        )}
         <div className="szf-actions">
           <button
             type="button"
@@ -84,7 +142,7 @@ function useConfirm() {
             autoFocus
             className={`szf-button ${pending.confirm.destructive ? "destructive" : "primary"}`}
             onClick={() => {
-              pending.resolve(true);
+              pending.resolve({ option: Boolean(option) && ticked });
               setPending(null);
             }}
           >
@@ -100,7 +158,8 @@ function useConfirm() {
 function usePanelContext(
   store: FriendsStore,
   openConversation: (id: string, messageId?: string) => void,
-  confirm: (confirm: Confirm) => Promise<boolean>,
+  confirm: (confirm: Confirm) => Promise<ConfirmAnswer>,
+  openJoin: () => void,
 ) {
   const [notice, setNotice] = useState<string | null>(null);
   useEffect(() => {
@@ -119,8 +178,9 @@ function usePanelContext(
       },
       openConversation,
       confirm,
+      openJoin,
     }),
-    [store, openConversation, confirm],
+    [store, openConversation, confirm, openJoin],
   );
   return {
     context,
@@ -135,6 +195,8 @@ export default function FriendsPanel({
   status,
   outgoing,
   link,
+  openAt = null,
+  onOpenAtDone,
   attach,
   onClose,
   onOutgoingDone,
@@ -146,6 +208,9 @@ export default function FriendsPanel({
   status: FriendsStatus;
   outgoing: Outgoing | null;
   link: string | null;
+  /** A notification's conversation to show (null: the list). */
+  openAt?: { conversation_id: string | null } | null;
+  onOpenAtDone?(): void;
   attach: AttachSource | null;
   onClose(): void;
   onOutgoingDone(): void;
@@ -172,10 +237,15 @@ export default function FriendsPanel({
       }),
     [],
   );
+  const openJoin = useMemo(
+    () => () => setStack([{ kind: "list" }, { kind: "join" }]),
+    [],
+  );
   const { context, notice, clearNotice, showNotice } = usePanelContext(
     store,
     openConversation,
     confirm.ask,
+    openJoin,
   );
   useEffect(() => {
     if (!refusal) return;
@@ -197,6 +267,12 @@ export default function FriendsPanel({
     }
   }, [link, onLinkDone]);
   useEffect(() => {
+    if (!openAt) return;
+    setTab("friends");
+    setStack(stackFor(openAt));
+    onOpenAtDone?.();
+  }, [openAt, onOpenAtDone]);
+  useEffect(() => {
     if (outgoing) setStack([{ kind: "list" }]);
   }, [outgoing]);
   useEffect(() => {
@@ -217,6 +293,11 @@ export default function FriendsPanel({
   }, [onClose, onOutgoingDone, outgoing, confirm.open]);
 
   const page = stack[stack.length - 1];
+  // The conversation the person is looking at, while this window is in front: no notification for it.
+  const focused = useWindowFocused();
+  const looking = focused && page.kind === "conversation" ? page.id : null;
+  useEffect(() => store.setFocus(looking), [store, looking]);
+  useEffect(() => () => store.setFocus(null), [store]);
   const notReady = !store.ready && store.status.text;
   return (
     <Panel.Provider value={context}>
@@ -258,7 +339,6 @@ export default function FriendsPanel({
               openConversation(id);
             }}
             onProfile={() => push({ kind: "profile" })}
-            onJoin={() => push({ kind: "join" })}
           />
         )}
         {page.kind === "conversation" && (
@@ -302,11 +382,25 @@ export function FriendsSettings({
 }) {
   const store = useFriendsStore(friendsStore(bridge, status));
   const confirm = useConfirm();
-  const { context, notice } = usePanelContext(store, () => {}, confirm.ask);
+  const section = useRef<HTMLElement>(null);
+  // The join view is in the dropdown: Settings closes, and the dropdown opens on it.
+  const openJoin = useMemo(
+    () => () => {
+      section.current?.closest("dialog")?.close();
+      friendsRequests.request("join");
+    },
+    [],
+  );
+  const { context, notice } = usePanelContext(
+    store,
+    () => {},
+    confirm.ask,
+    openJoin,
+  );
   const enabled = store.status.enabled;
   return (
     <Panel.Provider value={context}>
-      <section className="szf-settings" data-szfriends="settings">
+      <section className="szf-settings" data-szfriends="settings" ref={section}>
         <label className="szf-switch">
           <input
             type="checkbox"
@@ -383,19 +477,45 @@ export function SettingsBody() {
       </div>
       <div className="szf-field">
         <span>{data.received.label}</span>
-        <small>{data.received.note}</small>
-        <ActionButton action={data.received.action} />
+        {data.received.value && (
+          <strong
+            className="szf-folder"
+            title={data.received.path ?? undefined}
+          >
+            {data.received.value}
+          </strong>
+        )}
+        {data.received.note && <small>{data.received.note}</small>}
+        {(data.received.action || data.received.change) && (
+          <span className="szf-inline">
+            {data.received.change && (
+              <ActionButton
+                action={{
+                  ...data.received.change,
+                  path: data.received.path ?? undefined,
+                }}
+              />
+            )}
+            {data.received.action && (
+              <ActionButton action={data.received.action} />
+            )}
+          </span>
+        )}
       </div>
       <div className="szf-field">
         <span>{data.auto_accept.label}</span>
         <small>{data.auto_accept.note}</small>
-        <button
-          type="button"
-          className="szf-button secondary"
-          onClick={() => setChanging((old) => !old)}
-        >
-          {data.auto_accept.action_label}
-        </button>
+        {/* Without friends there is no switch to show: the note says where to turn it on. */}
+        {data.auto_accept.friends.length > 0 && (
+          <button
+            type="button"
+            className="szf-button secondary"
+            aria-expanded={changing}
+            onClick={() => setChanging((old) => !old)}
+          >
+            {data.auto_accept.action_label}
+          </button>
+        )}
         {changing &&
           data.auto_accept.friends.map((friend) => (
             <label key={friend.conversation_id} className="szf-switch compact">
@@ -416,6 +536,16 @@ export function SettingsBody() {
             </label>
           ))}
       </div>
+      {data.notifications && (
+        <NotificationSettingsField notifications={data.notifications} />
+      )}
+      {data.join && (
+        <div className="szf-field">
+          <span>{data.join.label}</span>
+          <small>{data.join.note}</small>
+          <ActionButton action={data.join.action} />
+        </div>
+      )}
       <div className="szf-field">
         <span>{data.history.label}</span>
         <small>{data.history.note}</small>
@@ -440,6 +570,73 @@ export function SettingsBody() {
           }}
         />
       </div>
+    </div>
+  );
+}
+
+type NotificationField = "enabled" | "preview" | "background";
+/** Settings' Notifications switches the helper sent, in order, each with its note (the iPhone has no background). */
+export function notificationSwitches(notifications: NotificationSettings) {
+  const all: [NotificationField, NotificationSettings["background"]][] = [
+    ["enabled", { note: "", ...notifications.enabled }],
+    ["preview", notifications.preview],
+    ["background", notifications.background],
+  ];
+  return all.flatMap(([field, item]) =>
+    item && typeof item.value === "boolean" && item.label
+      ? [
+          {
+            field,
+            label: item.label,
+            note: item.note || null,
+            value: item.value,
+          },
+        ]
+      : [],
+  );
+}
+/** One switch turned: set_notifications with that field alone. */
+export async function setNotification(
+  panel: PanelContext,
+  field: NotificationField,
+  value: boolean,
+) {
+  const reply = await panel.store.send("set_notifications", { [field]: value });
+  panel.report(reply);
+  return reply;
+}
+
+/** Settings' Notifications: this device's switches, each sent alone with set_notifications, and the permission's
+ * note with its one action. Only what the helper sends shows. */
+function NotificationSettingsField({
+  notifications,
+}: {
+  notifications: NotificationSettings;
+}) {
+  const panel = usePanel();
+  return (
+    <div className="szf-field" data-szfriends="notifications">
+      {notifications.label && <span>{notifications.label}</span>}
+      {notificationSwitches(notifications).map(
+        ({ field, label, note, value }) => (
+          <label key={field} className="szf-switch">
+            <input
+              type="checkbox"
+              name={field}
+              checked={value}
+              onChange={(event) =>
+                void setNotification(panel, field, event.target.checked)
+              }
+            />
+            <span>
+              {label}
+              {note && <small>{note}</small>}
+            </span>
+          </label>
+        ),
+      )}
+      {notifications.note && <small>{notifications.note}</small>}
+      {notifications.action && <ActionButton action={notifications.action} />}
     </div>
   );
 }

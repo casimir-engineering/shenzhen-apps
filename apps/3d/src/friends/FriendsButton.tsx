@@ -8,6 +8,8 @@ import type { Outgoing } from "./ListPage";
 import { stageProject } from "./staging";
 import { DownloadLinkButton } from "./DownloadLinkButton";
 import { filesFromDrop } from "./drops";
+import { attachSource, type RecentFiles } from "./recent-attach";
+import type { RecentEntry } from "../core/recent-files";
 import {
   copyDownloadLink,
   downloadLinkRequests,
@@ -15,6 +17,7 @@ import {
 } from "./download-link";
 import {
   pendingLink,
+  pendingOpen,
   pendingShare,
   publish,
   shareWithFriend,
@@ -36,16 +39,19 @@ const FriendsSettingsSection = lazy(() =>
 
 /**
  * Everything Friends puts in the header: Send to a Friend and Copy Download Link while a model is open, and the
- * Friends button. The open model, as a project file, is also what `#` offers in a conversation.
+ * Friends button. The open model, as a project file, and the recent files are what `#` offers in a conversation.
  */
 export function FriendsHeader({
   projectName,
+  recent = [],
   buildProject,
   onError,
   onNotice,
   onAvailable,
 }: {
   projectName: string | null;
+  /** The app's recent files, most recently opened first. */
+  recent?: RecentEntry[];
   buildProject(): Promise<{ blob: Blob; name: string }>;
   onError(message: string): void;
   /** A short confirmation, such as the helper's words after a link was copied. */
@@ -96,23 +102,13 @@ export function FriendsHeader({
   );
   if (!bridge || !status?.available || !status.enabled) return null;
   const stage = () => stageProject(bridge, () => build.current(), onError);
-  const attach: AttachSource | null = projectName
-    ? {
-        // Shenzhen 3D's own words for what `#` offers here (PROTOCOL.md § Principles).
-        placeholder: "Attach the open model",
-        items: (query) =>
-          projectName.toLowerCase().includes(query.toLowerCase())
-            ? [
-                {
-                  title: projectName,
-                  detail: "The open model, with its notes and measurements",
-                  kind_label: "SZ3D",
-                  file: stage,
-                },
-              ]
-            : [],
-      }
-    : null;
+  const attach: AttachSource | null = attachSource({
+    projectName,
+    stageProject: stage,
+    recent,
+    bridge,
+    files: recentFiles,
+  });
   return (
     <>
       {projectName && (
@@ -166,12 +162,23 @@ export function FriendsHeader({
   );
 }
 
+// The recent-files store loads with the app's own chunk for it, only when a `#` item is chosen.
+const recentFiles: RecentFiles = {
+  paths: async (entry) =>
+    (await import("../core/recent-files")).recentPaths(entry),
+  open: async (entry) =>
+    (await import("../core/recent-files")).openRecent(entry),
+};
+
 export function FriendsButton({ attach }: { attach: AttachSource | null }) {
   const status = useFriendsStatus();
   const bridge = friendsBridge();
   const [open, setOpen] = useState(false);
   const [outgoing, setOutgoing] = useState<Outgoing | null>(null);
   const [link, setLink] = useState<string | null>(null);
+  const [openAt, setOpenAt] = useState<{
+    conversation_id: string | null;
+  } | null>(null);
   const [refusal, setRefusal] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
   const spring = useRef<number | undefined>(undefined);
@@ -192,14 +199,34 @@ export function FriendsButton({ attach }: { attach: AttachSource | null }) {
       }),
     [],
   );
+  // A notification clicked: the dropdown opens on its conversation (or the list).
+  useEffect(
+    () =>
+      pendingOpen.listen((target) => {
+        setOutgoing(null);
+        setOpenAt(target);
+        setOpen(true);
+      }),
+    [],
+  );
   // Cmd/Ctrl+J, the command palette's Friends commands and View ▸ Friends (requests.ts).
   const isOpen = useRef(open);
   isOpen.current = open;
   useEffect(() => {
     const show = async (request: FriendsRequest) => {
-      if (request === "add_by_id" || request === "visible") {
+      if (
+        request === "add_by_id" ||
+        request === "visible" ||
+        request === "join"
+      ) {
         const panel = await import("./FriendsPanel");
-        panel.openNextAt(request === "add_by_id" ? "profile" : "nearby");
+        panel.openNextAt(
+          request === "add_by_id"
+            ? "profile"
+            : request === "join"
+              ? "join"
+              : "nearby",
+        );
         // The dropdown takes the page it opens on when it opens, so an open one closes first.
         if (isOpen.current) {
           setOpen(false);
@@ -219,14 +246,16 @@ export function FriendsButton({ attach }: { attach: AttachSource | null }) {
       // Typing goes where the person will type: the ID field for Add by ID, else the search field. A dropdown
       // reopening on a conversation keeps its own focus.
       const field = await until(() =>
-        request === "add_by_id"
-          ? // The profile page's last field is Add by ID's (its name, when it can be changed, comes first).
-            [
-              ...dropdown.querySelectorAll<HTMLInputElement>(
-                "form.szf-field input",
-              ),
-            ].at(-1)
-          : dropdown.querySelector<HTMLInputElement>('input[type="search"]'),
+        request === "join"
+          ? dropdown.querySelector<HTMLInputElement>("input")
+          : request === "add_by_id"
+            ? // The profile page's last field is Add by ID's (its name, when it can be changed, comes first).
+              [
+                ...dropdown.querySelectorAll<HTMLInputElement>(
+                  "form.szf-field input",
+                ),
+              ].at(-1)
+            : dropdown.querySelector<HTMLInputElement>('input[type="search"]'),
       );
       field?.focus();
     };
@@ -337,6 +366,8 @@ export function FriendsButton({ attach }: { attach: AttachSource | null }) {
             status={status}
             outgoing={outgoing}
             link={link}
+            openAt={openAt}
+            onOpenAtDone={() => setOpenAt(null)}
             attach={attach}
             onClose={() => setOpen(false)}
             onOutgoingDone={() => setOutgoing(null)}

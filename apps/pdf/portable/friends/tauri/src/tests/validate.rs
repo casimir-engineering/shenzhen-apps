@@ -91,8 +91,19 @@ fn fields_are_checked_for_shape() {
     rejects("set_picture", json!({"picture": {"kind": "image", "data_base64": "AAAA", "path": "/a.png"}}), "picture");
     rejects("set_picture", json!({"picture": {"kind": "image", "data_base64": "not base64!"}}), "picture.data_base64");
     rejects("reset_friends", json!({"confirm": "yes"}), "confirm");
+    rejects("remove_friend", json!({"conversation_id": "c_1", "delete_history": "yes"}), "delete_history");
+    rejects("remove_friend", json!({"conversation_id": "c_1", "delete_history": null}), "delete_history");
+    for fields in [json!({"conversation_id": "c_1"}), json!({"conversation_id": "c_1", "delete_history": true})] {
+        assert!(validate_intent(&json!("remove_friend"), &fields).is_ok(), "{fields}");
+    }
     rejects("make_download_link", json!({"file": {"path": "/a.sz3d"}, "expires_days": 2}), "expires_days");
     rejects("set_name", json!({"name": "x".repeat(2000)}), "name");
+    rejects("set_received_folder", json!({"path": "Downloads"}), "path");
+    rejects("set_received_folder", json!({"path": "/Users/someone/../Downloads"}), "path");
+    rejects("set_received_folder", json!({"path": 3}), "path");
+    rejects("set_received_folder", json!({}), "path");
+    assert!(validate_intent(&json!("set_received_folder"), &json!({"path": "/Users/someone/From friends"})).is_ok());
+    assert!(validate_intent(&json!("subscribe"), &json!({"view": "received", "params": null})).is_ok());
 }
 
 #[cfg(windows)]
@@ -107,4 +118,49 @@ fn windows_paths_are_plain_drive_paths() {
     for path in [r"C:\a\..\b.stl", r"C:\a\.\b.stl", r"C:\a\\b.stl", r"C:\a\", "C:/a/b.stl", r"a\b", r"\a\b"] {
         assert!(!plain_path(path), "{path}");
     }
+}
+
+#[test]
+fn only_a_media_store_item_passes_for_a_received_file_without_a_path() {
+    assert!(media_store_uri("content://media/external/downloads/42"));
+    assert!(media_store_uri("content://media/external_primary/file/7"));
+    for uri in [
+        "content://com.example.other/file/1",
+        "content://media/",
+        "content://media/../x",
+        "content://media/external//1",
+        "content://media/external/downloads/1?x=1",
+        "file:///sdcard/Download/a.pdf",
+        "/sdcard/Download/a.pdf",
+    ] {
+        assert!(!media_store_uri(uri), "{uri}");
+    }
+}
+
+#[test]
+fn notification_intents_take_a_conversation_or_none_and_booleans_and_never_a_test_response() {
+    for fields in [json!({"conversation_id": "c_mei"}), json!({"conversation_id": null})] {
+        assert_eq!(validate_intent(&json!("set_focus"), &fields).map(Value::Object), Ok(fields.clone()));
+    }
+    rejects("set_focus", json!({}), "conversation_id");
+    rejects("set_focus", json!({"conversation_id": "../x"}), "conversation_id");
+    rejects("set_focus", json!({"conversation_id": 3}), "conversation_id");
+    for fields in [
+        json!({"enabled": false}),
+        json!({"preview": true}),
+        json!({"background": true}),
+        json!({"enabled": true, "preview": false}),
+    ] {
+        assert_eq!(validate_intent(&json!("set_notifications"), &fields).map(Value::Object), Ok(fields.clone()));
+    }
+    rejects("set_notifications", json!({}), "fields");
+    rejects("set_notifications", json!({"enabled": "yes"}), "enabled");
+    rejects("set_notifications", json!({"preview": null}), "preview");
+    rejects("set_notifications", json!({"sound": true}), "sound");
+    assert!(validate_intent(&json!("allow_notifications"), &json!({})).is_ok());
+    rejects("allow_notifications", json!({"now": true}), "now");
+    assert!(validate_intent(&json!("dismiss_banner"), &json!({"kind": "notifications"})).is_ok());
+    rejects("dismiss_banner", json!({"kind": "update_required"}), "kind");
+    rejects("test_notification_response", json!({"key": "message:i_1", "action": "open"}), "type");
+    assert!(!INTENT_TYPES.contains(&"test_notification_response"));
 }

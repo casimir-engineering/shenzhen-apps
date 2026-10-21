@@ -4,6 +4,7 @@
 #import "service/helper/SZFriendsHelperLinks.h"
 #import "service/store/SZFriendsStoreLinks.h"
 #import "service/store/SZFriendsStoreSync.h"
+#import "service/sync/SZFriendsSync.h"
 
 #import "service/helper/nearby/SZFriendsNearbyDevices.h"
 #import "service/store/SZFriendsTransferThumbnails.h"
@@ -55,6 +56,27 @@ SZFriendsItemFacts *SZFriendsItemFactsFromRecord(SZFriendsItemRecord *record, SZ
             facts.askedBecauseDiskLow = transfer.askedBecauseDiskLow;
             facts.bytesPerSecond = transfer.measuredBytesPerSecond;
             facts.localPath = transfer.receivedPath;
+            if (transfer.receivedPath.length && !facts.outgoing) {
+                switch (SZFriendsSavedPlaceOfFile(services.paths.stateDirectory, transfer.receivedPath)) {
+                    case SZFriendsSavedPlaceDownloads: facts.savedToDownloads = YES; break;
+                    case SZFriendsSavedPlaceFolder:
+                        facts.savedFolderName =
+                            transfer.receivedPath.stringByDeletingLastPathComponent.lastPathComponent;
+                        break;
+                    case SZFriendsSavedPlaceKept: break;
+                }
+            }
+            // Moved or deleted by the person (ADR 0016): no path; the item says where the file still is.
+            BOOL copyHere = transfer.receivedPath.length > 0 &&
+                            (transfer.outgoing || transfer.state == SZFriendsTransferStateReceived);
+            if (copyHere && SZFriendsSyncLocalPathOfTransfer(transfer) == nil) {
+                facts.fileMissing = YES;
+                facts.localPath = nil;
+                facts.savedToDownloads = NO;
+                facts.savedFolderName = nil;
+                // Our other computers hear that this one no longer holds it, while a session with one is live.
+                [services.nearby scheduleSyncCapture];
+            }
             facts.fileTypeIdentifier = SZFriendsTypeIdentifierForFileName(transfer.fileName);
             // A row whose file is gone (a crash between the two) shows no preview rather than a broken one, and a
             // received file never shows the sender's picture: once it is here, only our own preview of it counts.
@@ -87,10 +109,37 @@ SZFriendsItemFacts *SZFriendsItemFactsFromRecord(SZFriendsItemRecord *record, SZ
                 facts.transferState = file.state;
                 facts.fileTypeIdentifier = SZFriendsTypeIdentifierForFileName(file.fileName);
                 facts.transferRoute = SZFriendsRouteMethodNone;
+                // Received on another computer, and no computer of the profile holds it any more.
+                facts.fileMissing = !file.outgoing && file.state == SZFriendsTransferStateReceived &&
+                                    ![services.nearby anotherComputerHoldsFile:file];
             }
+        }
+        if (facts.fileMissing && !facts.outgoing) {
+            facts.again = [services.nearby againStateOfTransfer:record.transferID];
+            double fraction = 0;
+            BOOL copying = [services.nearby againCopyingTransfer:record.transferID fraction:&fraction];
+            facts.againConnected = copying || [services.nearby againReachesConversation:record.conversationID];
+            facts.againFraction = fraction;
         }
     }
     return facts;
+}
+
+NSDictionary<NSString *, id> *SZFriendsHelperReceivedSnapshot(SZFriendsHelperServices *services) {
+    NSMutableArray *files = [NSMutableArray array];
+    for (SZFriendsReceivedFile *file in [services.transfers receivedFilesWithLimit:100] ?: @[]) {
+        NSString *source = file.source == SZFriendsReceivedSourceLink     ? @"link"
+                           : file.source == SZFriendsReceivedSourceDevice ? @"device"
+                                                                          : @"friend";
+        [files addObject:@{
+            @"transfer_id" : file.transferID,
+            @"path" : file.path,
+            @"file_name" : file.path.lastPathComponent,
+            @"received_at" : @((long long)floor(file.receivedAt.timeIntervalSince1970)),
+            @"source" : source
+        }];
+    }
+    return @{@"files" : files};
 }
 
 NSArray<NSString *> *SZFriendsHelperCapabilityList(SZFriendsHelperServices *services) {
@@ -110,7 +159,13 @@ NSArray<NSString *> *SZFriendsHelperCapabilityList(SZFriendsHelperServices *serv
     [capabilities addObject:@"mentions"];
     // One profile on several computers: Your computers, joining, You (PROTOCOL.md § Devices).
     if (services.store != nil && services.identity != nil && nearby != nil) [capabilities addObject:@"devices"];
+    // Files a friend sent come back from them when none of the person's computers has them (§ Getting a file again).
+    if (services.store != nil && services.identity != nil && nearby != nil) [capabilities addObject:@"files.again"];
+    // Received files go to Downloads or the folder the person chose (PROTOCOL.md § Views, settings and received).
+    if (services.transfers != nil) [capabilities addObject:@"received.folder"];
     if (nearby.reachesFriendsOnline) [capabilities addObject:@"online"];
+    // This helper posts system notifications (PROTOCOL.md § Notifications).
+    if (services.notifier != nil) [capabilities addObject:@"notifications"];
     return capabilities;
 }
 
@@ -126,6 +181,7 @@ NSArray<NSString *> *SZFriendsHelperCapabilityList(SZFriendsHelperServices *serv
     SZFriendsMentionDirectory *_mentionDirectory;
     NSSet<NSString *> *_helperCapabilities;
     NSSet<NSString *> *_linkContacts;
+    NSDictionary<NSString *, NSArray<NSNumber *> *> *_foundMethods;
     SZFriendsDevicesFacts *_devices;
     BOOL _devicesRead;
 }
@@ -202,9 +258,15 @@ NSArray<NSString *> *SZFriendsHelperCapabilityList(SZFriendsHelperServices *serv
         if (!transfer.outgoing && transfer.state == SZFriendsTransferStateReceived) received++;
     }
     facts.receivedFileCount = received;
-    facts.receivedRevealPath = transfers.receivedDirectory;
+    facts.receivedRevealPath = self.profile.receivedDirectory;
     if (_linkContacts == nil) _linkContacts = [_services.store linkContactConversationIDs] ?: [NSSet set];
     facts.linkContact = [_linkContacts containsObject:record.conversationID];
+    facts.leftList = record.leftListAt != nil;
+    // How a friend nearby was found, for their row (nearby.found).
+    if (record.relation == SZFriendsRelationFriend) {
+        if (_foundMethods == nil) _foundMethods = [_services.nearby foundMethodsByConversation] ?: @{};
+        facts.foundMethods = _foundMethods[record.conversationID];
+    }
     return facts;
 }
 
@@ -251,6 +313,7 @@ NSArray<NSString *> *SZFriendsHelperCapabilityList(SZFriendsHelperServices *serv
     NSInteger count = 0;
     for (SZFriendsPersonFacts *person in self.people) {
         if (conversationID != nil && [person.conversationID isEqualToString:conversationID]) continue;
+        if (person.leftList) continue; // off the list: nothing of theirs waits in it
         if (person.relation == SZFriendsPersonRelationIncomingRequest || person.offersWaiting > 0 ||
             person.keyChangePending) {
             count++;
@@ -301,7 +364,18 @@ NSArray<NSString *> *SZFriendsHelperCapabilityList(SZFriendsHelperServices *serv
         profile.identityState = _services.identity != nil ? SZFriendsIdentityFactsStateReady
                                                           : SZFriendsIdentityFactsStateUnavailable;
         profile.updateNeed = _services.updateNeed;
-        profile.receivedDirectory = _services.transfers.receivedDirectory ?: _services.paths.receivedDirectory;
+        SZFriendsTransfers *transfers = _services.transfers;
+        NSString *stateDirectory = _services.paths.stateDirectory;
+        profile.receivedDirectory =
+            transfers ? transfers.destinationDirectory : SZFriendsReceivedFolder(stateDirectory);
+        profile.receivedFolderName = SZFriendsChosenReceivedFolder(stateDirectory).lastPathComponent;
+        switch (SZFriendsLastReceivedFallback(stateDirectory)) {
+            case SZFriendsReceivedFallbackNone: break;
+            case SZFriendsReceivedFallbackDownloads:
+                profile.receivedFallback = SZFriendsReceivedFallbackFactsDownloads;
+                break;
+            case SZFriendsReceivedFallbackKept: profile.receivedFallback = SZFriendsReceivedFallbackFactsKept; break;
+        }
         _profile = profile;
     }
     return _profile;

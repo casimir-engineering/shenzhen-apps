@@ -1,6 +1,6 @@
 // What the panel does with the view contract's values (protocol.ts): an action's intent and fields, the client-side
 // actions, the drag strings' placeholders and the composer's byte count.
-import type { Action, Strings } from "./protocol";
+import type { Action, Confirm, Strings } from "./protocol";
 
 /** Intents that carry an action's own fields (PROTOCOL.md § Shared objects, Action), and which fields. */
 export function actionIntent(
@@ -41,6 +41,7 @@ export function actionIntent(
     case "decline_offer":
     case "cancel_transfer":
     case "fetch_from_device":
+    case "fetch_from_friend":
       return context.transfer_id
         ? { type: action.action, fields: { transfer_id: context.transfer_id } }
         : null;
@@ -56,14 +57,17 @@ export function actionIntent(
       return context.nearby_id
         ? { type: action.action, fields: { nearby_id: context.nearby_id } }
         : null;
-    case "dismiss_banner":
-      return context.kind
-        ? { type: action.action, fields: { kind: context.kind } }
-        : null;
+    case "dismiss_banner": {
+      // The action names its banner (notifications' Not Now); id_changed's carries none and the banner's kind is used.
+      const kind = action.kind ?? context.kind;
+      return kind ? { type: action.action, fields: { kind } } : null;
+    }
     case "start_visibility":
     case "stop_visibility":
     case "reset_friend_link":
     case "cancel_join":
+    // The notifications card's Turn On and Settings' Allow: the system asks the person.
+    case "allow_notifications":
     // Nearby's Allow and Try Again: the intent Friends sends when it opens (PROTOCOL.md § nearby).
     case "activate":
       return { type: action.action, fields: {} };
@@ -91,11 +95,31 @@ export function actionIntent(
   }
 }
 
+/** The fields a confirmation's checkbox may add (PROTOCOL.md § Shared objects, confirm_option). A checkbox for any
+ * other field is not shown, so what the person ticks always reaches the helper. */
+export const CONFIRM_OPTION_FIELDS = new Set(["delete_history"]);
+export function shownOption(confirm: Confirm | null | undefined) {
+  const option = confirm?.option;
+  return option && CONFIRM_OPTION_FIELDS.has(option.field) ? option : null;
+}
+/** The intent's fields once confirmed: a ticked checkbox adds its field, set to true; unticked adds nothing. */
+export function confirmedFields(
+  fields: Record<string, unknown>,
+  confirm: Confirm | null | undefined,
+  ticked: boolean,
+): Record<string, unknown> {
+  const option = shownOption(confirm);
+  return ticked && option ? { ...fields, [option.field]: true } : fields;
+}
+
 /** Client-side actions: handled by the host, never sent (PROTOCOL.md § Intents, client-side actions). */
 export const CLIENT_ACTIONS = new Set([
   "open_file",
   "show_file",
   "open_settings",
+  "choose_received_folder",
+  // Shows the join view (PROTOCOL.md § Joining, Offering it).
+  "open_join",
 ]);
 
 /** The drag strings' placeholders, the only formatting views do (PROTOCOL.md § Static strings). */

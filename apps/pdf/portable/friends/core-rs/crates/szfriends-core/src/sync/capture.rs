@@ -3,7 +3,7 @@
 //! and a change made while sync was off (or before a crash) is found the next time. History items are found by having
 //! no origin yet, oldest first, in batches.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 
 use rusqlite::types::Value;
 
@@ -11,8 +11,9 @@ use super::bodies::{file_body, file_from_transfer, file_state_is_final, item_bod
 use super::bodies::{profile_body, read_body};
 use super::codec::Fields;
 use super::engine::SyncEngine;
+use super::files::holds_transfer;
 use super::{person_key, read_key, ref_for_person, Kind, BODY_MAX, PERSON_GROUPS, SETTING_DEVICES, SETTING_PRESENCE};
-use super::{SETTING_RENEWED, STATE_RENEWED, TAG_CONVERSATION};
+use super::{SETTING_RENEWED, STATE_RENEWED, TAG_CONVERSATION, TAG_RELEASED};
 use crate::store::devices;
 use crate::store::sync_files::{self, SyncFile};
 use crate::store::sync_log::{self, atomically, Register, CAPTURE_ROW_KEY, YOU};
@@ -186,11 +187,6 @@ impl SyncEngine {
 
     fn add_file_changes(&self, store: &Store, people: &BTreeMap<String, SyncPerson>, list: &mut Vec<Pending>) {
         let conn = &store.conn;
-        let with_bytes: BTreeSet<String> = sync_files::transfers_with_local_bytes(conn)
-            .unwrap_or_default()
-            .into_iter()
-            .map(|t| t.transfer_id)
-            .collect();
         let me = self.device_key();
         let registers = sync_log::registers_with_prefix(conn, "f/").unwrap_or_default();
         let records: BTreeMap<String, SyncFile> =
@@ -211,9 +207,16 @@ impl SyncEngine {
             let held_final = held.is_some_and(|h| file_state_is_final(h.u64(4) as i64));
             let regresses = held_final && !file_state_is_final(file.state);
             let changed = !same_value(current, &value) && !regresses;
-            let holds = with_bytes.contains(&transfer.transfer_id) && !file.holders.contains(&me);
+            // Whether this device has the bytes now (ADR 0016): it says so when that changes, either way.
+            let here = holds_transfer(store, &transfer);
+            let listed = file.holders.contains(&me);
+            let holds = here && !listed;
+            let released = !here && listed && known.is_some();
             if holds {
                 file.holders.push(me);
+            }
+            if released {
+                file.holders.retain(|h| *h != me);
             }
             if changed {
                 let mut event = pending(Kind::File, &scope, &transfer.transfer_id, value.clone());
@@ -221,9 +224,12 @@ impl SyncEngine {
                 event.file = Some(file.clone());
                 list.push(event);
             }
-            if holds {
+            if holds || released {
                 let mut fields = Fields::new();
                 fields.set_string(TAG_CONVERSATION, Some(&transfer.conversation_id));
+                if released {
+                    fields.set_u64(TAG_RELEASED, 1);
+                }
                 let mut event = pending(Kind::FileHeld, &scope, &transfer.transfer_id, fields.encode());
                 event.file = Some(file);
                 list.push(event);

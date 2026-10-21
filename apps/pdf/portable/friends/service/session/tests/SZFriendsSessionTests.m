@@ -44,6 +44,7 @@ int main(int argc, char **argv) {
             @[ @"chain", ^{ SZFRunChainFrameTests(); } ],
             @[ @"join", ^{ SZFRunJoinFrameTests(); } ],
             @[ @"sync", ^{ SZFRunSyncFrameTests(); } ],
+            @[ @"again", ^{ SZFRunAgainFrameTests(); } ],
         ];
         for (NSArray *group in groups) {
             NSDate *start = [NSDate date];

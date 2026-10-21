@@ -13,6 +13,7 @@
 #import "service/helper/SZFriendsHelperTesting.h"
 #import "service/helper/nearby/SZFriendsPeerLink.h"
 #import "service/host/SZFriendsHostConnection.h"
+#import "service/notify/SZFriendsNotify.h"
 #import "service/online/driver/SZFriendsOnlineDriver.h"
 #import "service/session/SZFriendsSession.h"
 #import "service/thumbnails/SZFriendsThumbnails.h"
@@ -83,6 +84,10 @@ extern const NSTimeInterval SZFriendsNearbyConnectingTimeout;
 // Another of the person's computers removed this one (+Devices): nothing is advertised, dialed or sent any more.
 @property(nonatomic) BOOL removedFromProfile;
 @property(nonatomic, copy, nullable) NSData *ownRootKeyCache; // our root, kept for when this computer is removed
+// Giving files again to friends who ask (+Again, ADR 0016): files whose digest was checked this run, by transfer id
+// ("path|size|mtime" as checked), and when each person's checks ran in the last hour, by conversation.
+@property(nonatomic, strong, nullable) NSMutableDictionary<NSString *, NSString *> *againVerified;
+@property(nonatomic, strong, nullable) NSMutableDictionary<NSString *, NSMutableArray<NSDate *> *> *againChecks;
 
 // Core.
 - (void)changed;

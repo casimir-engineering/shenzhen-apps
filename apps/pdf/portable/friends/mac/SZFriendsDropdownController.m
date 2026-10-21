@@ -56,6 +56,8 @@
 
 #pragma mark - Controller
 
+NSNotificationName const SZFriendsShowJoinNotification = @"SZFriendsShowJoinNotification";
+
 @implementation SZFriendsDropdownController {
     __weak id<SZFriendsHost> _host;
     SZFriendsHelperLink *_link;
@@ -66,6 +68,7 @@
     BOOL _closedByButtonPress;
     SZFriendsServicesProvider *_services;
     BOOL _servicesOffered;
+    BOOL _linkReady; // the state last seen, so a new connection starts from no focus
 }
 
 @synthesize content = _content;
@@ -91,10 +94,20 @@
     _context = [[SZFriendsContext alloc] initWithHost:host link:link];
     __weak SZFriendsDropdownController *weakSelf = self;
     _presenter.onDismiss = ^{ [weakSelf presenterDidDismiss]; };
+    _windowFocused = ^BOOL(void) {
+        SZFriendsDropdownController *controller = weakSelf;
+        if (!controller || !NSApp.isActive) return NO;
+        NSWindow *dropdownWindow = controller->_content.window, *buttonWindow = controller->_button.window;
+        return dropdownWindow.isKeyWindow || buttonWindow.isKeyWindow;
+    };
 }
 
 - (void)dealloc {
-    if (_installed) [_link removeObserver:self forKeyPath:@"state"];
+    if (_installed) {
+        [_link removeObserver:self forKeyPath:@"state"];
+        [_link removeObserver:self forKeyPath:@"helperCapabilities"];
+    }
+    [NSNotificationCenter.defaultCenter removeObserver:self];
 }
 
 - (NSButton *)button {
@@ -119,6 +132,7 @@
         _content = [[SZFriendsDropdownContent alloc] initWithContext:_context];
         __weak SZFriendsDropdownController *weakSelf = self;
         _content.onClose = ^{ [weakSelf close]; };
+        _content.onTopPageChange = ^{ [weakSelf updateFocus]; };
     }
     return _content;
 }
@@ -136,13 +150,53 @@
     }];
     // KVO rather than the link's onStateChange block, which belongs to the host adapter.
     [_link addObserver:self forKeyPath:@"state" options:NSKeyValueObservingOptionInitial context:NULL];
+    [_link addObserver:self forKeyPath:@"helperCapabilities" options:0 context:NULL];
+    NSNotificationCenter *center = NSNotificationCenter.defaultCenter;
+    [center addObserver:self selector:@selector(showJoin:) name:SZFriendsShowJoinNotification object:_link];
+    // Focus follows the app and its windows: any key window or activation change may change what the person sees.
+    for (NSNotificationName name in @[ NSApplicationDidBecomeActiveNotification,
+                                       NSApplicationDidResignActiveNotification, NSWindowDidBecomeKeyNotification,
+                                       NSWindowDidResignKeyNotification ])
+        [center addObserver:self selector:@selector(focusMayHaveChanged:) name:name object:nil];
+}
+
+- (void)focusMayHaveChanged:(NSNotification *)notification {
+    (void)notification;
+    [self updateFocus];
+}
+
+#pragma mark - Focus (PROTOCOL.md § Notifications)
+
+// The conversation the person is looking at: the dropdown open on it, in the active app's key window. The helper
+// does not notify for it. Sent only on change, and only to a helper that posts notifications; a new connection
+// starts with none, so it is sent again after a reconnect.
+- (void)updateFocus {
+    BOOL ready = _installed && _link.state == SZFriendsLinkStateReady;
+    if (!ready || ![_link.helperCapabilities containsObject:@"notifications"]) {
+        _sentFocus = nil;
+        return;
+    }
+    NSString *focus = self.shown && self.windowFocused && self.windowFocused() ? _content.shownConversationID : nil;
+    if (focus == _sentFocus || [focus isEqualToString:_sentFocus]) return;
+    _sentFocus = [focus copy];
+    [_link sendIntent:@"set_focus" fields:@{@"conversation_id" : focus ?: (id)NSNull.null} reply:nil];
+}
+
+- (void)showJoin:(NSNotification *)notification {
+    (void)notification;
+    [self open];
+    [self.content openJoin];
 }
 
 - (void)uninstall {
     if (!_installed) return;
     [self close];
     _installed = NO;
+    if (_sentFocus) [_link sendIntent:@"set_focus" fields:@{@"conversation_id" : NSNull.null} reply:nil];
+    _sentFocus = nil;
     [_link removeObserver:self forKeyPath:@"state"];
+    [_link removeObserver:self forKeyPath:@"helperCapabilities"];
+    [NSNotificationCenter.defaultCenter removeObserver:self];
     if (_badgeToken) [_link unsubscribe:_badgeToken];
     _badgeToken = nil;
     [self withdrawServices];
@@ -163,9 +217,16 @@
 
 - (void)observeValueForKeyPath:(NSString *)keyPath ofObject:(id)object change:(NSDictionary *)change
                        context:(void *)context {
-    (void)keyPath, (void)object, (void)change, (void)context;
-    if (_link.state == SZFriendsLinkStateReady) [self offerServices];
-    else [self withdrawServices];
+    (void)object, (void)change, (void)context;
+    BOOL ready = _link.state == SZFriendsLinkStateReady;
+    if ([keyPath isEqualToString:@"state"]) {
+        if (ready) [self offerServices];
+        else [self withdrawServices];
+        // Each connection starts with no focus on the helper's side.
+        if (ready != _linkReady) _sentFocus = nil;
+        _linkReady = ready;
+    }
+    [self updateFocus];
 }
 
 - (void)offerServices {
@@ -247,6 +308,12 @@
     }
     _button.selectedLook = NO;
     _content.presented = NO;
+}
+
+- (void)showList {
+    [self open];
+    [self.content popToList];
+    [self.content.listPage showNearby:NO];
 }
 
 - (void)showConversation:(NSString *)conversationID highlightMessage:(NSString *)messageID {

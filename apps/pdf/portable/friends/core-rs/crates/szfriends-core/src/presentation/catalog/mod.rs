@@ -6,6 +6,7 @@
 mod chrome;
 mod devices;
 mod extra;
+mod notifications;
 mod people;
 mod views;
 
@@ -23,6 +24,7 @@ const TABLES: &[&[(&str, &str)]] = &[
     extra::LINKS,
     extra::JOIN,
     devices::DEVICES,
+    notifications::NOTIFICATIONS,
 ];
 
 /// The English catalog: key to template.

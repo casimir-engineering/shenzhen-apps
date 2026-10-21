@@ -20,8 +20,11 @@
 //! - links ([`friend_links`], `links.rs`, `link_receive.rs`; PROTOCOL.md § Links): Add from a mention or a friend
 //!   link, download links made and served, and download links received through a guest connection to the host.
 //!
-//! Search answers `unavailable` until its area comes over.
+//! Search answers `unavailable` until its area comes over. Reset Friends replaces the service with a new identity's,
+//! so whoever runs it answers that ([`reset`]).
 
+mod again;
+mod device_files;
 mod devices;
 mod facts;
 mod friend_links;
@@ -34,11 +37,14 @@ mod link_receive;
 #[cfg(feature = "online")]
 mod links;
 pub mod nearby;
+mod notifications;
 #[cfg(feature = "online")]
 mod online;
 #[cfg(not(feature = "online"))]
 #[path = "online_off.rs"]
 mod online;
+pub mod reset;
+mod room;
 pub mod seed;
 mod sessions;
 mod transfers;
@@ -65,12 +71,25 @@ use crate::server::{Connection, Reply};
 
 /// The test network a helper in a test home meets others on (a directory of entries on loopback).
 pub const ENV_TEST_LOOPBACK: &str = crate::nearby::ENV_TEST_NETWORK;
+pub use devices::set_local_device_name;
 pub use online::{BLOCK_DIRECT_FILE, ENV_TEST_HOST_KEYS, ENV_TEST_HOST_LIST};
+pub use room::TEST_FREE_BYTES_FILE;
 
 /// What the service announces in every welcome (PROTOCOL.md § Capabilities); `nearby.bluetooth` too where this
 /// helper has a Bluetooth adapter (not on Windows, nor on Linux without the `bluetooth` feature). `devices`: one
 /// profile on several computers, joined and synced over the same nearby and online routes friends use.
-const CAPABILITIES: &[&str] = &["nearby.network", "messages.status", "messages.cancel", "mentions", "devices"];
+/// `received.folder`: received files go to a folder the person can choose (Downloads until they do).
+/// `notifications`: this helper decides and posts system notifications (ADR 0017).
+const CAPABILITIES: &[&str] = &[
+    "nearby.network",
+    "messages.status",
+    "messages.cancel",
+    "mentions",
+    "devices",
+    "files.again",
+    "received.folder",
+    "notifications",
+];
 
 fn capabilities(bluetooth: bool) -> Vec<String> {
     let mut capabilities: Vec<String> = CAPABILITIES.iter().map(|c| (*c).to_owned()).collect();
@@ -89,8 +108,9 @@ pub(crate) enum Input {
     Link(link::LinkEvent),
     #[cfg(feature = "online")]
     Online(szfriends_online::OnlineEvent),
+    /// A click or a reply on a notification, from the system's notifier.
+    Notify(crate::notify::Response),
     /// Work that finished off the service's thread, to be completed on it.
-    #[cfg_attr(not(feature = "online"), allow(dead_code))]
     Deferred(Box<dyn FnOnce(&mut State) + Send>),
     Shutdown(Sender<()>),
 }
@@ -149,12 +169,25 @@ pub(crate) fn local_time_zone() -> szfriends_core::presentation::time::TimeZone 
 impl Service {
     /// Loads the identity for the store in `state_dir` (creating both on a first start), opens the store and starts
     /// the service's thread.
+    /// Received files go to `$SZFRIENDS_DOWNLOADS_DIR` or `Downloads` inside `state_dir` until the person chooses a
+    /// folder: what tests and in-process services get. A helper for the person's own home passes their Downloads
+    /// with [`Service::start_with`].
     pub fn start(state_dir: &Path, keys: Box<dyn KeyStore>) -> Result<Arc<Self>, StartError> {
+        Self::start_with(state_dir, keys, szfriends_core::store::ReceivedDefaults::contained(state_dir))
+    }
+
+    /// As [`Service::start`], with where received files go until the person chooses a folder.
+    pub fn start_with(
+        state_dir: &Path,
+        keys: Box<dyn KeyStore>,
+        received: szfriends_core::store::ReceivedDefaults,
+    ) -> Result<Arc<Self>, StartError> {
         std::fs::create_dir_all(state_dir).map_err(|e| StartError::Store(e.to_string()))?;
         let recorded = Store::identity_of(state_dir).map_err(|e| StartError::Store(e.to_string()))?;
         let manager = IdentityManager::new(Keys(keys));
         let (identity, _) = manager.load_or_create(recorded).map_err(|e| StartError::Identity(format!("{e:?}")))?;
-        let mut store = Store::open(state_dir).map_err(|e| StartError::Store(e.to_string()))?;
+        let options = szfriends_core::store::StoreOptions { received: Some(received), ..Default::default() };
+        let mut store = Store::open_with(state_dir, options).map_err(|e| StartError::Store(e.to_string()))?;
         if recorded == StoreIdentity::NoStore {
             store.record_identity(&identity.public_key()).map_err(|e| StartError::Store(e.to_string()))?;
         }
@@ -182,7 +215,44 @@ impl Service {
     pub fn identity_key(&self) -> Option<[u8; 32]> {
         self.identity_key
     }
+
+    /// Stops the service for Reset Friends ([`reset`]): the host releases this identity first (bounded; see
+    /// `online_release.rs`), then sessions, nearby and online close as at exit, and the store is closed before it
+    /// returns. Whether the person had opened Friends here (Nearby activated).
+    pub fn stop(&self) -> bool {
+        let (tell, told) = channel();
+        self.send(Input::Deferred(Box::new(move |state| {
+            state.release_identity_for_reset();
+            let _ = tell.send(state.store.nearby_permissions_requested());
+        })));
+        let activated = told.recv_timeout(STOP_WAIT).unwrap_or(false);
+        let (done, wait) = channel();
+        self.send(Input::Shutdown(done));
+        let _ = wait.recv_timeout(STOP_WAIT);
+        activated
+    }
+
+    /// Starts Nearby in full, as the person opening Friends does (`activate`).
+    pub fn activate_nearby(&self) {
+        self.send(Input::Deferred(Box::new(State::activate_nearby)));
+    }
+
+    /// Puts a host's own notifier in place (a phone's native code: ADR 0017 § The request). Every request the
+    /// service decides from now on goes to it; until one is installed a phone posts nothing.
+    pub fn install_notifier(&self, notifier: Arc<dyn crate::notify::Notifier>) {
+        self.send(Input::Deferred(Box::new(move |state| state.install_notifier(notifier))));
+    }
+
+    /// A click (`Open`) or an inline reply (`Reply`) on a notification the notifier posted, as the system reported
+    /// it. Open needs nothing more where the system opens the request's URL itself (phones, Windows); a reply is sent
+    /// in that conversation and marks it read.
+    pub fn notification_response(&self, response: crate::notify::Response) {
+        self.send(Input::Notify(response));
+    }
 }
+
+/// How long a reset waits for the service to stop: its store must be closed before it is removed.
+const STOP_WAIT: Duration = Duration::from_secs(10);
 
 impl Presentation for Service {
     fn welcome(&self, client: &ClientInfo) -> Value {
@@ -249,6 +319,10 @@ pub(crate) struct State {
     pub capabilities: Vec<String>,
     /// One profile on several computers: the join state and the sync engine.
     pub devices: devices::DeviceArea,
+    /// Get again: giving friends files again, and copying files again from them.
+    pub again: again::AgainArea,
+    /// System notifications: what was seen, focus, this device's switches, the notifier.
+    pub notify: notifications::NotifyArea,
     /// Something changed since the views were last brought up to date.
     pub dirty: bool,
     /// Answered once the thread has closed the store (shutdown).
@@ -274,6 +348,12 @@ impl State {
         #[cfg(not(feature = "online"))]
         let online = online::OnlineRoutes::from_environment(&identity, &mut store, input.clone());
         let devices = devices::DeviceArea::new(&identity, store.state_dir().join("received"));
+        let responses = std::sync::Mutex::new(input.clone());
+        let responder: crate::notify::Responder = Arc::new(move |response| {
+            let _ = responses.lock().unwrap_or_else(|e| e.into_inner()).send(Input::Notify(response));
+        });
+        let notifier = crate::notify::platform_notifier(store.state_dir(), test_home, responder);
+        let notify = notifications::NotifyArea::new(&store, test_home, notifier);
         // Links are made for the Friends host's pages, so only a helper that checks in offers them.
         if online.is_some() {
             capabilities.push("links".to_owned());
@@ -298,6 +378,8 @@ impl State {
             next_receipt: 0,
             capabilities,
             devices,
+            again: again::AgainArea::default(),
+            notify,
             dirty: false,
             stopped: None,
         }
@@ -320,6 +402,10 @@ impl State {
             Input::Intent(connection, frame, reply) => self.intent(&connection, &frame, reply),
             Input::Disconnected(id) => {
                 self.clients.remove(&id);
+                self.notify.disconnected(id);
+            }
+            Input::Notify(response) => {
+                let _ = self.notification_response(response);
             }
             Input::System(event) => self.system_event(event),
             Input::Nearby(event) => self.nearby_event(event),
@@ -371,6 +457,7 @@ fn run(mut state: State, inbox: Receiver<Input>) {
             Err(RecvTimeoutError::Disconnected) => break,
         }
         state.service_sessions();
+        state.notify_pass(state.dirty);
         if state.dirty {
             state.dirty = false;
             state.schedule_sync_capture();

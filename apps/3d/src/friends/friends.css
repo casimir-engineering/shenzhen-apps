@@ -8,7 +8,10 @@
   right: -8px;
   z-index: 120;
   width: min(400px, calc(100vw - 24px));
-  height: min(640px, calc(100dvh - 88px));
+  height: min(
+    640px,
+    calc(100dvh - 88px - var(--safe-top) - var(--safe-bottom))
+  );
   display: flex;
   flex-direction: column;
   background: var(--surface);
@@ -156,6 +159,52 @@
   text-align: left;
   white-space: normal;
 }
+/* A row with a menu: a long press opens it, never the system's text selection or link callout. */
+.szf-row.has-menu {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.szf-row.menu-open .szf-row-main {
+  background: var(--raised);
+}
+.szf-row-menu {
+  position: absolute;
+  z-index: 12;
+  display: flex;
+  flex-direction: column;
+  min-width: 150px;
+  padding: 4px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: 0 10px 30px rgb(0 0 0 / 22%);
+}
+.szf-panel .szf-row-menu button {
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  justify-content: flex-start;
+  text-align: left;
+  cursor: pointer;
+}
+.szf-panel .szf-row-menu button.destructive {
+  color: var(--error);
+}
+@media (pointer: coarse) {
+  .szf-panel .szf-row-menu button {
+    padding: 11px 16px;
+    font-size: 15px;
+  }
+}
+.szf-panel .szf-row-menu button:hover,
+.szf-panel .szf-row-menu button:focus-visible {
+  background: var(--raised);
+}
 .szf-row-avatar {
   position: relative;
   flex-shrink: 0;
@@ -252,6 +301,23 @@
   color: var(--jade);
   display: inline-flex;
 }
+/* How a person nearby was found: the method icons, then their words, under the subtitle. */
+.szf-found {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  color: var(--secondary);
+  font-size: 11px;
+}
+.szf-found > span {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.szf-found svg {
+  flex-shrink: 0;
+}
 .szf-route {
   display: inline-flex;
   color: var(--secondary);
@@ -315,6 +381,15 @@
 }
 .szf-name-prompt small.szf-refusal {
   color: var(--error);
+}
+/* Use my existing profile…: the button, then what it does. */
+.szf-join-offer {
+  display: block;
+  margin-top: 8px;
+}
+.szf-join-offer p {
+  margin: 0 0 8px;
+  color: var(--secondary);
 }
 .szf-empty {
   padding: 28px 20px;

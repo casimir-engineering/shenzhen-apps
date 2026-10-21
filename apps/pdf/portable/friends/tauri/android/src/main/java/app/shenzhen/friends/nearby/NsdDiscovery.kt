@@ -6,7 +6,10 @@
 
 package app.shenzhen.friends.nearby
 
+import android.content.BroadcastReceiver
 import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.net.nsd.NsdManager
 import android.net.nsd.NsdServiceInfo
 import android.net.wifi.WifiManager
@@ -20,7 +23,7 @@ import java.net.Inet6Address
 import java.net.InetAddress
 import java.util.concurrent.Executors
 
-class NsdDiscovery(context: Context) {
+class NsdDiscovery(private val context: Context) {
     private val nsd = context.getSystemService(Context.NSD_SERVICE) as NsdManager
     private val wifi = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager?
     private val handler = Handler(Looper.getMainLooper())
@@ -32,6 +35,8 @@ class NsdDiscovery(context: Context) {
     private var channel: Channel? = null
     private var discovery: NsdManager.DiscoveryListener? = null
     private var lock: WifiManager.MulticastLock? = null
+    /** Tells the core whether Wi-Fi is on while it browses: with it off, Nearby says so instead of "looking". */
+    private var wifiWatcher: BroadcastReceiver? = null
 
     // Before Android 14: one resolve at a time.
     private val queue = ArrayDeque<NsdServiceInfo>()
@@ -91,6 +96,17 @@ class NsdDiscovery(context: Context) {
         }
         discovery = listener
         nsd.discoverServices(serviceType, NsdManager.PROTOCOL_DNS_SD, listener)
+        val watcher = object : BroadcastReceiver() {
+            override fun onReceive(context: Context, intent: Intent) = reportWifi()
+        }
+        context.applicationContext.registerReceiver(watcher, IntentFilter(WifiManager.WIFI_STATE_CHANGED_ACTION))
+        wifiWatcher = watcher
+        reportWifi()
+    }
+
+    private fun reportWifi() {
+        val on = wifi?.isWifiEnabled ?: true
+        send(JSObject().put("kind", "radio").put("on", on))
     }
 
     @Synchronized
@@ -189,6 +205,8 @@ class NsdDiscovery(context: Context) {
         followed.clear()
         lock?.let { if (it.isHeld) it.release() }
         lock = null
+        wifiWatcher?.let { runCatching { context.applicationContext.unregisterReceiver(it) } }
+        wifiWatcher = null
     }
 
     /** Ends browsing and every registration. */

@@ -166,10 +166,11 @@ NSString *SZFSDump(SZFSDevice *device) {
         refs[person.conversationID] = ref;
         [lines addObject:[NSString stringWithFormat:
             @"person %@ rel %ld name %@ id %@ pic %ld/%ld/%ld static %@ presence %@ verified %d code %@ auto %d "
-            @"unread %ld", ref, (long)person.relation, person.name ?: @"-", person.friendsID ?: @"-",
+            @"unread %ld left %.3f", ref, (long)person.relation, person.name ?: @"-", person.friendsID ?: @"-",
             (long)person.picture.kind, (long)person.picture.animalSet, (long)person.picture.animalIndex,
             SZFSHexOrDash(person.staticKey), SZFSHexOrDash(person.presenceSecret), person.verified,
-            person.comparisonCode ?: @"-", person.autoAccept, (long)person.unreadCount]];
+            person.comparisonCode ?: @"-", person.autoAccept, (long)person.unreadCount,
+            person.leftListAt.timeIntervalSince1970]];
         for (SZFriendsItemRecord *item in [store itemsInConversation:person.conversationID beforeItemID:nil
                                                                 limit:100000 hasEarlier:NULL]) {
             [lines addObject:[NSString stringWithFormat:@"item %@ %@ kind %ld dir %ld sent %.6f recv %.6f %@ %@ %@",
@@ -205,6 +206,8 @@ int main(void) {
         SZFSRunOutboxFileTests();
         SZFSRunExchangeTests();
         SZFSRunRevocationTests();
+        SZFSRunReleaseTests();
+        SZFSRunAgainTests();
         SZFSRunPropertyTests();
         SZFSRemoveTemporaryRoot();
         if (SZFSFailures > 0) {

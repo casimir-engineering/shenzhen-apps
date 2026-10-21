@@ -178,6 +178,9 @@ BOOL SZFriendsSyncVectorCovers(SZFriendsSyncVector *vector, NSData *author, uint
 @property(nonatomic, copy, nullable) void (^onChange)(NSSet<NSString *> *conversationIDs);
 // Events were recorded or received: sessions with our other devices send them on.
 @property(nonatomic, copy, nullable) void (^onNewEvents)(void);
+// History items another device brought that were not here before, once committed and the unread counts recounted
+// (after onChange): what the helper's notifier looks at (ADR 0017).
+@property(nonatomic, copy, nullable) void (^onItemsArrived)(NSArray<SZFriendsItemRecord *> *items);
 // Keeps a synced photo (bytes of a picture another device stored) and returns its picture; nil: placeholder.
 @property(nonatomic, copy, nullable) SZFriendsPicture *_Nullable (^storePicture)(NSData *imageBytes);
 // The clock events are stamped with; tests set it.
@@ -220,6 +223,10 @@ BOOL SZFriendsSyncVectorCovers(SZFriendsSyncVector *vector, NSData *author, uint
 // snapshot of You shows as on all your computers, read in two queries whatever the number of items.
 - (NSSet<NSString *> *)itemsOnEveryDeviceInConversation:(NSString *)conversationID;
 @end
+
+// Where this device has a transfer's bytes (ADR 0016): a received file where it was saved, at its size; for one of
+// ours, the snapshot, a copy, or the file it was sent from while unchanged (size and modification time). Nil: none.
+NSString *_Nullable SZFriendsSyncLocalPathOfTransfer(SZFriendsTransferRecord *transfer);
 
 @interface SZFriendsSyncEngine (Files)
 // Files: transfer records whose bytes are on another device and not here, the ones that copy by themselves (or were

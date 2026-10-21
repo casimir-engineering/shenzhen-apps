@@ -1,7 +1,7 @@
 //! One profile on several computers (`SZFriendsSnapshotBuilder+Devices.m`, PROTOCOL.md § Devices): Your computers in
-//! the profile, a computer another one removed, the You row, and the name prompt's join link. The reader is the person
-//! at one of their own computers: rows and labels speak of computers and of where things go, never of how a computer
-//! belongs to the profile. Conversations and files are in `devices_files.rs`.
+//! the profile, a computer another one removed, the You row, and the list's offer to join (`join_offer.rs`). The
+//! reader is the person at one of their own computers: rows and labels speak of computers and of where things go,
+//! never of how a computer belongs to the profile. Conversations and files are in `devices_files.rs`.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -51,8 +51,12 @@ pub struct DevicesFacts {
     pub computers: Vec<DeviceFacts>,
     /// Another of the person's computers removed this one: it reads, and sends nothing.
     pub removed: bool,
-    /// The name prompt offers joining an existing profile.
+    /// Joining an existing profile can start at once: this computer has nobody in Friends and no other computer.
     pub join_offered: bool,
+    /// Joining is offered after Reset Friends: no other computer, but people in Friends it would lose.
+    pub join_replaces: bool,
+    /// This profile's Friends ID: what another computer types to join it, and the ID joining here would replace.
+    pub friends_id: Option<String>,
     /// The You conversation while its row shows, and its newest item.
     pub you: Option<PersonFacts>,
     pub you_preview: Option<ItemFacts>,
@@ -74,9 +78,10 @@ impl SnapshotBuilder {
         let s = &self.strings;
         let mut spoken: Option<String> = None;
         let (last, state, spoken_key) = if device.this_computer {
-            (s.text("devices.last.this_computer"), "connected", "devices.accessibility.this_computer")
+            let spoken_key = self.device_key("devices.accessibility.this_computer");
+            (s.text(&self.device_key("devices.last.this_computer")), "connected", spoken_key)
         } else if device.connected {
-            (s.text("devices.last.now"), "connected", "devices.accessibility.now")
+            (s.text("devices.last.now"), "connected", "devices.accessibility.now".to_owned())
         } else if let Some(seen) = device.last_seen_at {
             let ago = (now - seen).max(0.0);
             let minutes = ((ago / 60.0).floor() as i64).max(1);
@@ -87,16 +92,14 @@ impl SnapshotBuilder {
                 spoken = Some(s.time_accessibility_label(seen, now));
                 s.time_label(seen, now)
             };
-            (last, "not_connected", "devices.accessibility.seen")
+            (last, "not_connected", "devices.accessibility.seen".to_owned())
         } else {
-            (s.text("devices.last.never"), "never_connected", "devices.accessibility.never")
+            let spoken_key = self.device_key("devices.accessibility.never");
+            (s.text(&self.device_key("devices.last.never")), "never_connected", spoken_key)
         };
-        let values = [
-            ("name", device.name.as_str()),
-            ("system", device.system.as_str()),
-            ("last", &last),
-            ("device", &device.name),
-        ];
+        let system = self.device_system_label(&device.system);
+        let values =
+            [("name", device.name.as_str()), ("system", system.as_str()), ("last", &last), ("device", &device.name)];
         let said_last = spoken.unwrap_or_else(|| last.clone());
         let said = [values[0], values[1], ("last", said_last.as_str()), values[3]];
         let remove = if !device.this_computer && !removed {
@@ -117,7 +120,7 @@ impl SnapshotBuilder {
         let rename = if device.this_computer && !removed {
             json!({
                 "label": s.text("devices.rename.label"),
-                "placeholder": s.text("devices.rename.placeholder"),
+                "placeholder": s.text(&self.device_key("devices.rename.placeholder")),
                 "button_label": s.text("devices.rename.button"),
                 "max_bytes": DEVICE_NAME_MAX_BYTES,
             })
@@ -127,12 +130,12 @@ impl SnapshotBuilder {
         json!({
             "device_id": device.device_id,
             "name": device.name,
-            "system": device.system,
+            "system": system,
             "last_connected": last,
             "detail": s.text_with("devices.detail", &values),
             "this_computer": device.this_computer,
             "state": state,
-            "accessibility_label": s.text_with(spoken_key, &said),
+            "accessibility_label": s.text_with(&spoken_key, &said),
             "rename": rename,
             "remove": remove,
         })
@@ -141,7 +144,15 @@ impl SnapshotBuilder {
     /// profile.devices.
     pub(crate) fn devices_section(&self, facts: &super::DevicesFacts, now: f64) -> Value {
         let rows: Vec<Value> = facts.computers.iter().map(|d| self.device_row(d, facts.removed, now)).collect();
-        json!({"title": self.strings.text("devices.title"), "note": self.strings.text("devices.note"), "rows": rows})
+        // "Your computers and phones" once one of them is a phone (on a phone itself, "Your devices").
+        let phones = facts.computers.iter().any(|d| super::join_offer::phone_system_key(&d.system).is_some());
+        let key = match (self.on_phone(), phones) {
+            (true, _) => "devices.title.phone",
+            (false, true) => "devices.title.phones",
+            (false, false) => "devices.title",
+        };
+        let title = self.strings.text(key);
+        json!({"title": title, "add": self.add_device(facts), "rows": rows})
     }
 
     fn removed_block(&self) -> Value {
@@ -218,6 +229,12 @@ impl SnapshotBuilder {
         row.insert("drop_refusal".into(), refusal);
         row.insert("accessibility_label".into(), json!(spoken));
         row.insert("actions".into(), json!([]));
+        if self.shows_list_menu() {
+            row.insert("menu".into(), json!([])); // nothing to remove: these are the person's own computers
+        }
+        if self.shows_found() {
+            row.insert("found".into(), Value::Null); // this computer is found nowhere
+        }
         if mentions {
             row.insert("mentionable".into(), json!(false)); // nobody mentions themselves
         }
@@ -225,7 +242,7 @@ impl SnapshotBuilder {
     }
 
     /// The list with what several computers add: `state`, `removed`, the You row among the others, each row's `kind`,
-    /// the name prompt's `join_label`; on a removed computer no join rows and no drops. Without devices facts, `list`
+    /// `join`; on a removed computer no join rows and no drops. Without devices facts, `list`
     /// as it is.
     pub fn list_with_devices(&self, list: Value, people: &[PersonFacts], query: &str, now: f64) -> Value {
         let Some(facts) = &self.devices else { return list };
@@ -267,10 +284,8 @@ impl SnapshotBuilder {
             }
         }
         result.insert("rows".into(), Value::Array(rows));
-        if let Some(Value::Object(prompt)) = result.get_mut("name_prompt") {
-            let join = (facts.join_offered && !facts.removed).then(|| self.strings.text("name_prompt.join"));
-            prompt.insert("join_label".into(), json!(join));
-        }
+        let name_prompt = result.get("name_prompt").is_some_and(Value::is_object);
+        result.insert("join".into(), self.list_join(name_prompt));
         Value::Object(result)
     }
 }

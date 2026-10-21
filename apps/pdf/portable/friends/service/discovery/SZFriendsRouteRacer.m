@@ -92,6 +92,7 @@ static NSString *EndpointKey(SZFriendsDiscoveryMethod method, NSString *endpoint
     if ((self = [super init])) {
         _backoffs = [NSMutableDictionary dictionary];
         _endpointTags = [NSMutableDictionary dictionary];
+        _peerToPeerWiFi = SZFriendsPlatformPeerToPeerWiFi;
         _clock = ^NSDate * {
             return [NSDate date];
         };
@@ -196,9 +197,12 @@ static BOOL BackoffIsStale(SZFriendsEndpointBackoff *backoff, NSDate *now) {
         hasHiddenEndpoint = hasHiddenEndpoint || !sighting.isPublic;
     }
     BOOL skipPublic = candidate.conversationID != nil && hasHiddenEndpoint;
+    // Peer-to-peer Wi-Fi only where it keeps the Wi-Fi connection: otherwise the next route carries the session.
+    BOOL skipPeerToPeer = !SZFriendsPeerToPeerWiFiUsable(self.peerToPeerWiFi);
     NSString *conversationID = candidate.conversationID;
     for (SZFriendsSighting *sighting in candidate.sightings) {
         if (skipPublic && sighting.isPublic) continue;
+        if (skipPeerToPeer && sighting.route == SZFriendsRouteMethodPeerToPeerWiFi) continue;
         NSString *endpoint = EndpointKey(sighting.method, sighting.endpointID);
         if (conversationID) {
             NSData *tag = [self matchedTagOfSighting:sighting conversationID:conversationID];

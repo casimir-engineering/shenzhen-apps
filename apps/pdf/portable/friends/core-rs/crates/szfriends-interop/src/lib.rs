@@ -4,6 +4,7 @@
 //! scenario runs Rust against Rust everywhere and Rust against the helper on a Mac. [`Proxy`] sits between two peers
 //! to cut a route or flip a byte. Nothing leaves loopback; every peer has its own temporary home.
 
+pub mod again;
 pub mod bridge;
 pub mod device_scenarios;
 mod devices;
@@ -20,7 +21,9 @@ mod online;
 pub mod online_devices;
 pub mod online_scenarios;
 mod peer;
+pub mod profile_moves;
 mod proxy;
+pub mod routes;
 pub mod scenarios;
 
 use std::path::{Path, PathBuf};

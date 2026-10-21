@@ -43,7 +43,7 @@ void SZFTestAssistantMarkers(void) {
     [content.topPage applySnapshot:SZFTestSnapshot(@"conversation-mei")];
     [content layoutSubtreeIfNeeded];
     SZFExpectAllControlsMarked(content, @"conversation");
-    context.presentConfirmation(SZFTestSnapshot(@"settings")[@"reset"][@"confirm"], ^{});
+    context.presentConfirmation(SZFTestSnapshot(@"settings")[@"reset"][@"confirm"], ^(BOOL ticked) { (void)ticked; });
     SZFExpect([content.confirmation.identifier isEqualToString:@"szfriends.confirmation"],
               @"the confirmation is marked: %@", content.confirmation.identifier);
     SZFExpectAllControlsMarked(content.confirmation, @"confirmation");

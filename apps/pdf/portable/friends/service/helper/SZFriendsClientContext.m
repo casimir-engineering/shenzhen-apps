@@ -20,6 +20,7 @@ static const NSUInteger SZFriendsClientListMax = 64;
 @property(nonatomic, readwrite) NSString *locale;
 @property(nonatomic, readwrite) NSSet<NSString *> *capabilities;
 @property(nonatomic, readwrite) NSSet<NSString *> *openFormats;
+@property(nonatomic, readwrite, nullable) NSString *urlScheme;
 @property(nonatomic, readwrite) SZFriendsProtocolVersion negotiatedVersion;
 @end
 
@@ -36,6 +37,19 @@ static NSString *_Nullable SZFriendsHelloString(NSDictionary *object, NSString *
     NSString *text = value;
     if (text.length > SZFriendsClientStringMax || (required && text.length == 0)) return nil;
     return text;
+}
+
+// A URL scheme as RFC 3986 spells one (a letter, then letters, digits, "+", "-" or "."), at most 32 characters;
+// anything else is no scheme, since the helper builds the URL a notification opens from it.
+static NSString *_Nullable SZFriendsHelloURLScheme(id value) {
+    if (!SZFriendsJSONIsString(value) || [value length] == 0 || [value length] > 32) return nil;
+    NSString *scheme = [value lowercaseString];
+    NSCharacterSet *letters = [NSCharacterSet characterSetWithCharactersInString:@"abcdefghijklmnopqrstuvwxyz"];
+    NSMutableCharacterSet *allowed = [letters mutableCopy];
+    [allowed addCharactersInString:@"0123456789+-."];
+    if (![letters characterIsMember:[scheme characterAtIndex:0]]) return nil;
+    if ([scheme rangeOfCharacterFromSet:allowed.invertedSet].location != NSNotFound) return nil;
+    return scheme;
 }
 
 static NSSet<NSString *> *_Nullable SZFriendsHelloStringSet(id value, NSUInteger max, BOOL lowercase) {
@@ -76,6 +90,8 @@ static NSSet<NSString *> *_Nullable SZFriendsHelloStringSet(id value, NSUInteger
     // the helper words nothing by toolkit.
     context.toolkit = values[@"toolkit"];
     context.revealIn = values[@"reveal_in"];
+    // Optional and new (protocol 1.0 hellos without it stay valid): a malformed one is ignored, never refused.
+    context.urlScheme = SZFriendsHelloURLScheme(client[@"url_scheme"]);
 
     // M1 answers in English whatever the locale; a missing one is not worth refusing a client over.
     NSString *locale = SZFriendsHelloString(hello, @"locale", NO);

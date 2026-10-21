@@ -264,6 +264,10 @@ fn several_computers_in_reader_words() {
     for (key, text) in devices.iter().chain(catalog::part("join").iter()) {
         let read = text.to_lowercase().replace("{device}", "");
         for word in mechanism {
+            // On a phone or tablet, "this device" is the plain word for the one in the person's hand.
+            if word == "device" && key.ends_with(".phone") {
+                continue;
+            }
             assert!(!read.contains(word), "{key} says “{word}”: {text}");
         }
     }

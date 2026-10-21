@@ -17,11 +17,11 @@ CGFloat SZFriendsDropdownHeight(CGFloat spaceBelowButton, CGFloat maxHeight) {
     SZFriendsFlippedView *_card;
     NSTextField *_title;
     NSTextField *_body;
-    void (^_onConfirm)(void);
+    void (^_onConfirm)(BOOL);
 }
 
 - (instancetype)initWithContext:(SZFriendsContext *)context confirm:(NSDictionary *)confirm
-                      onConfirm:(void (^)(void))onConfirm {
+                      onConfirm:(void (^)(BOOL))onConfirm {
     if (!(self = [super initWithFrame:NSMakeRect(0, 0, 400, 400)])) return nil;
     SZFriendsAppearance *appearance = context.appearance;
     _onConfirm = [onConfirm copy];
@@ -37,6 +37,19 @@ CGFloat SZFriendsDropdownHeight(CGFloat spaceBelowButton, CGFloat maxHeight) {
     _body = SZFriendsLabel(SZFStr(confirm, @"body"), appearance.secondaryFont, appearance.secondaryTextColor);
     [_card addSubview:_title];
     [_card addSubview:_body];
+    // "Also delete chat history": a choice inside the question, so it starts unticked and the plain answer keeps
+    // the history.
+    NSString *option = SZFStr(SZFDict(confirm, @"option"), @"label");
+    if (option.length) {
+        _optionCheckbox = [NSButton checkboxWithTitle:option target:nil action:nil];
+        _optionCheckbox.font = appearance.secondaryFont;
+        _optionCheckbox.state = NSControlStateValueOff;
+        NSMutableAttributedString *title = [_optionCheckbox.attributedTitle mutableCopy];
+        [title addAttribute:NSForegroundColorAttributeName value:appearance.primaryTextColor
+                      range:NSMakeRange(0, title.length)];
+        _optionCheckbox.attributedTitle = title;
+        [_card addSubview:_optionCheckbox];
+    }
     __weak SZFriendsConfirmView *weakSelf = self;
     _cancelButton = [SZFriendsButton buttonWithTitle:SZFStr(confirm, @"cancel_label")
                                                style:SZFriendsButtonStyleSecondary
@@ -57,9 +70,10 @@ CGFloat SZFriendsDropdownHeight(CGFloat spaceBelowButton, CGFloat maxHeight) {
         (void)button;
         SZFriendsConfirmView *view = weakSelf;
         if (!view) return;
-        void (^confirmed)(void) = view->_onConfirm;
+        void (^confirmed)(BOOL) = view->_onConfirm;
+        BOOL ticked = view.optionCheckbox.state == NSControlStateValueOn;
         if (view.onFinish) view.onFinish();
-        if (confirmed) confirmed();
+        if (confirmed) confirmed(ticked);
     };
     [_card addSubview:_cancelButton];
     [_card addSubview:_confirmButton];
@@ -71,6 +85,11 @@ CGFloat SZFriendsDropdownHeight(CGFloat spaceBelowButton, CGFloat maxHeight) {
     CGFloat width = MIN(NSWidth(self.bounds) - 32, 340), inner = width - 32, y = 16;
     y = SZFriendsPlace(_title, 16, y, inner) + 6;
     y = SZFriendsPlace(_body, 16, y, inner) + 16;
+    if (_optionCheckbox) {
+        NSSize size = _optionCheckbox.fittingSize;
+        _optionCheckbox.frame = NSMakeRect(16, y - 4, MIN(inner, ceil(size.width)), ceil(size.height));
+        y = NSMaxY(_optionCheckbox.frame) + 14;
+    }
     CGFloat confirmWidth = MAX(84, [_confirmButton fittingWidth]), cancelWidth = MAX(72, [_cancelButton fittingWidth]);
     _confirmButton.frame = NSMakeRect(width - 16 - confirmWidth, y, confirmWidth, 28);
     _cancelButton.frame = NSMakeRect(NSMinX(_confirmButton.frame) - 8 - cancelWidth, y, cancelWidth, 28);
@@ -104,7 +123,7 @@ static const CGFloat SZFStatusStripHeight = 28;
     self.identifier = SZFriendsIdentifierDropdown;
     context.navigator = self;
     __weak SZFriendsDropdownContent *weakSelf = self;
-    context.presentConfirmation = ^(NSDictionary *confirm, void (^onConfirm)(void)) {
+    context.presentConfirmation = ^(NSDictionary *confirm, void (^onConfirm)(BOOL)) {
         [weakSelf presentConfirmation:confirm onConfirm:onConfirm];
     };
     self.fillColor = context.appearance.backgroundColor;
@@ -159,6 +178,13 @@ static const CGFloat SZFStatusStripHeight = 28;
         [self finishSendPicker];
         [self setDropHint:nil];
     }
+    if (self.onTopPageChange) self.onTopPageChange();
+}
+
+- (NSString *)shownConversationID {
+    SZFriendsPage *top = self.topPage;
+    if (!_presented || ![top isKindOfClass:SZFriendsConversationPage.class]) return nil;
+    return ((SZFriendsConversationPage *)top).conversationID;
 }
 
 - (void)focusTopPage {
@@ -179,6 +205,7 @@ static const CGFloat SZFStatusStripHeight = 28;
         [page pageWillAppear];
         [self focusTopPage];
     }
+    if (self.onTopPageChange) self.onTopPageChange();
 }
 
 - (void)popPage {
@@ -193,6 +220,7 @@ static const CGFloat SZFStatusStripHeight = 28;
         [self.topPage pageWillAppear];
         [self focusTopPage];
     }
+    if (self.onTopPageChange) self.onTopPageChange();
 }
 
 - (void)popToList {
@@ -289,7 +317,7 @@ NSString *SZFriendsSendPickerTitle(SZFriendsContext *context, NSArray<NSString *
 
 #pragma mark - Confirmation
 
-- (void)presentConfirmation:(NSDictionary *)confirm onConfirm:(void (^)(void))onConfirm {
+- (void)presentConfirmation:(NSDictionary *)confirm onConfirm:(void (^)(BOOL))onConfirm {
     [self dismissConfirmation];
     SZFriendsConfirmView *view = [[SZFriendsConfirmView alloc] initWithContext:self.context confirm:confirm
                                                                      onConfirm:onConfirm];

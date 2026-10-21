@@ -33,7 +33,7 @@
         "style": "primary",
         "confirm": {
           "title": "Start over on this computer?",
-          "body": "This deletes the chats on this computer. Your other computers keep theirs. Files you received stay in Received files.",
+          "body": "This deletes the chats on this computer. Your other computers keep theirs. Files you received stay where they were saved.",
           "confirm_label": "Start Over",
           "cancel_label": "Cancel",
           "destructive": true
@@ -71,6 +71,7 @@
         "kind": "person"
       }
     ],
-    "state": "device_removed"
+    "state": "device_removed",
+    "join": null
   }
 }

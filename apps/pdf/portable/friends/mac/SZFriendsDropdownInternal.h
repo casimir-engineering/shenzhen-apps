@@ -14,12 +14,13 @@ CGFloat SZFriendsDropdownHeight(CGFloat spaceBelowButton, CGFloat maxHeight);
 NSString *_Nullable SZFriendsSendPickerTitle(SZFriendsContext *context, NSArray<NSString *> *names, NSUInteger count);
 
 // The inline confirmation over the dropdown (PROTOCOL.md confirm object; `destructive` draws its button red).
-// Escape cancels it.
+// Escape cancels it. A confirm `option` is a checkbox under the text, unticked; the confirm passes whether it was ticked.
 @interface SZFriendsConfirmView : SZFriendsFlippedView
 - (instancetype)initWithContext:(SZFriendsContext *)context confirm:(NSDictionary *)confirm
-                      onConfirm:(void (^)(void))onConfirm;
+                      onConfirm:(void (^)(BOOL optionTicked))onConfirm;
 @property(nonatomic, strong, readonly) SZFriendsButton *confirmButton;
 @property(nonatomic, strong, readonly) SZFriendsButton *cancelButton;
+@property(nonatomic, strong, readonly, nullable) NSButton *optionCheckbox; // nil without `option`
 @property(nonatomic, copy, nullable) void (^onFinish)(void);
 @end
 
@@ -35,6 +36,10 @@ NSString *_Nullable SZFriendsSendPickerTitle(SZFriendsContext *context, NSArray<
 @property(nonatomic) BOOL presented;
 @property(nonatomic, strong, readonly, nullable) SZFriendsConfirmView *confirmation;
 @property(nonatomic, copy, nullable) void (^onClose)(void);
+// After every change of the page on top or of `presented`: the conversation shown may have changed.
+@property(nonatomic, copy, nullable) void (^onTopPageChange)(void);
+// The conversation on top while presented (a conversation page), else nil.
+@property(nonatomic, copy, readonly, nullable) NSString *shownConversationID;
 // The client library's line while the helper is not answering ("Starting Friends…"); nil when connected.
 @property(nonatomic, copy, readonly, nullable) NSString *statusText;
 - (void)popToList;
@@ -75,6 +80,13 @@ NSString *_Nullable SZFriendsSendPickerTitle(SZFriendsContext *context, NSArray<
                    presenter:(id<SZFriendsDropdownPresenter>)presenter NS_DESIGNATED_INITIALIZER;
 @property(nonatomic, strong, readonly) SZFriendsContext *context;
 @property(nonatomic, strong, readonly) SZFriendsDropdownContent *content; // created on first open
+// Whether the person is looking at the dropdown: the app is active and its window or the button's window is key.
+// Tests replace it, since no window of theirs is ever key.
+@property(nonatomic, copy) BOOL (^windowFocused)(void);
+// The conversation last sent with set_focus on this connection (nil: none, or null sent).
+@property(nonatomic, copy, readonly, nullable) NSString *sentFocus;
+// Recomputes the focus and sends set_focus when it changed (PROTOCOL.md § Notifications, Focus).
+- (void)updateFocus;
 @end
 
 // Friends' services for the host (Cmd+K search, citations, scoped chat access), backed by the link.
@@ -93,7 +105,20 @@ NS_ASSUME_NONNULL_BEGIN
 @property(nonatomic, copy, readonly) NSArray<SZFriendsButton *> *buttons;  // Copy, Show in Finder, Change…, …
 // The Nearby line's one button (Allow, Open Privacy Settings, Try Again); hidden without one.
 @property(nonatomic, strong, readonly) SZFriendsButton *nearbyButton;
+// "Use my existing profile…" (data.join, PROTOCOL.md § Joining, Offering it); hidden while the helper sends none.
+@property(nonatomic, strong, readonly) SZFriendsButton *joinButton;
+// Where received files go: Change… beside Show in Finder (hidden for a helper without received.folder), and the line
+// naming the folder under "Save received files to".
+@property(nonatomic, strong, readonly) SZFriendsButton *receivedChangeButton;
+@property(nonatomic, strong, readonly) NSTextField *receivedFolderField;
+// Shows the folder picker starting at `startPath` and calls `chosen` with the folder picked, never on Cancel. A
+// sheet on the Settings window by default; tests replace it so nothing appears on screen.
+@property(nonatomic, copy) void (^chooseFolder)(NSString *_Nullable startPath, void (^chosen)(NSString *path));
 @property(nonatomic, copy, readonly) NSArray<NSSwitch *> *autoAcceptSwitches;
+// Settings › Notifications (PROTOCOL.md § Notifications): the permission's one action (hidden without one), and the
+// switches for enabled, preview and background in that order, each hidden while the helper sends no such part.
+@property(nonatomic, strong, readonly) SZFriendsButton *notificationsButton;
+@property(nonatomic, copy, readonly) NSArray<NSSwitch *> *notificationSwitches;
 @property(nonatomic, strong, readonly) NSTextField *nameField;
 @property(nonatomic, readonly) BOOL holdsSubscription;
 - (void)applySnapshot:(NSDictionary *)data;

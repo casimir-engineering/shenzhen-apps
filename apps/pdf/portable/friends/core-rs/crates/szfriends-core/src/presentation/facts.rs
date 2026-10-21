@@ -186,6 +186,10 @@ pub struct PersonFacts {
     pub received_reveal_path: Option<String>,
     /// In the list only because they sent a file through a download link, and not a friend (relation Removed).
     pub link_contact: bool,
+    /// Taken off the list (`left_list_at`): the list skips them; their conversation and details still open.
+    pub left_list: bool,
+    /// The discovery methods that see this person nearby now (lan, p2p_wifi, bluetooth); empty when none do.
+    pub found_methods: Vec<RouteMethod>,
 }
 
 impl Default for PersonFacts {
@@ -216,6 +220,8 @@ impl Default for PersonFacts {
             received_file_count: 0,
             received_reveal_path: None,
             link_contact: false,
+            left_list: false,
+            found_methods: Vec::new(),
         }
     }
 }
@@ -233,6 +239,7 @@ impl PersonFacts {
             comparison_code: person.comparison_code.clone(),
             last_interaction_at: person.last_interaction_at,
             unread_count: person.unread_count,
+            left_list: person.left_list_at.is_some(),
             ..Self::default()
         }
     }
@@ -244,6 +251,17 @@ pub enum ItemKind {
     Message,
     Transfer,
     Event,
+}
+
+/// Get again on a file a friend sent (PROTOCOL.md § Getting a file again; `SZFriendsAgainState`).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum AgainState {
+    #[default]
+    None,
+    /// Get again pressed: waiting for the friend, or copying.
+    Asked,
+    /// The friend's computer answered that it no longer has the file.
+    Gone,
 }
 
 /// One history item (`SZFriendsItemFacts`).
@@ -278,6 +296,18 @@ pub struct ItemFacts {
     pub bytes_per_second: f64,
     /// A received file, once published.
     pub local_path: Option<String>,
+    /// The folder a received file was saved in, for its "Saved to {folder}"; `None` (older files, or kept in the
+    /// store's own folder) keeps "Received".
+    pub saved_in: Option<crate::store::SavedPlace>,
+    /// A file received or copied here (or by another computer of the profile) whose bytes this computer no longer
+    /// has: the person moved or deleted it. `local_path` is None then. Where it can come from is the devices facts'
+    /// `files` (another computer) or the `again` facts below (the friend who sent it).
+    pub file_missing: bool,
+    /// Get again on a friend's file (fetch_from_friend): asked and waiting or copying, or answered that they no longer
+    /// have it; whether a session with that friend is live, so it copies now; and how much arrived.
+    pub again: AgainState,
+    pub again_connected: bool,
+    pub again_fraction: f64,
     pub file_type_identifier: Option<String>,
     pub thumbnail_path: Option<String>,
     pub thumbnail_width: u32,
@@ -326,6 +356,8 @@ pub struct NearbyPersonFacts {
     pub relation: Relation,
     pub is_stranger: bool,
     pub route_method: RouteMethod,
+    /// The discovery methods that see this person now (lan, p2p_wifi, bluetooth).
+    pub found_methods: Vec<RouteMethod>,
 }
 
 impl Default for NearbyPersonFacts {
@@ -339,6 +371,7 @@ impl Default for NearbyPersonFacts {
             relation: Relation::Friend,
             is_stranger: false,
             route_method: RouteMethod::None,
+            found_methods: Vec::new(),
         }
     }
 }
@@ -401,9 +434,25 @@ pub struct ProfileFacts {
     pub identity_public_key: Option<[u8; 32]>,
     pub identity_state: IdentityState,
     pub update_need: UpdateNeed,
-    pub received_directory: String,
+    /// The folder received files go to.
+    pub received: ReceivedFolderFacts,
     /// "Your links", for an audience whose helper announces "links"; None shows none.
     pub links: Option<LinksFacts>,
+    /// This device's notifications, from a helper that announces "notifications"; None shows no block or card.
+    pub notifications: Option<super::notifications::NotificationFacts>,
+}
+
+/// The folder received files go to (`settings`' `received`).
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct ReceivedFolderFacts {
+    /// The folder; `None` where there is none to show (a phone).
+    pub path: Option<String>,
+    /// The name of the folder the person chose; `None`: the default Downloads.
+    pub chosen_name: Option<String>,
+    /// A phone's place, which Friends does not change.
+    pub phone: Option<crate::store::PhoneFolder>,
+    /// Where the last file went when this folder could not take it.
+    pub fallback: Option<crate::store::ReceivedFallback>,
 }
 
 /// One local search hit with what the result row needs (`SZFriendsSearchHitFacts`).

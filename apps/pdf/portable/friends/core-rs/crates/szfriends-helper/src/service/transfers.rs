@@ -108,9 +108,9 @@ impl State {
             "offer_reply" if payload["accept"] == true => {
                 let record = self.store.transfer(&transfer).ok().flatten()?;
                 // Receiving from here: the chunks that follow have somewhere to go.
-                let route = szfriends_core::wire::RouteMethod::Lan;
-                let receiver = ChunkReceiver::for_route(&wire, record.size, record.verified_bytes, route)?;
                 let id = self.sessions.live_for(&entry.conversation_id)?;
+                let route = self.chunk_route(id);
+                let receiver = ChunkReceiver::for_route(&wire, record.size, record.verified_bytes, route)?;
                 self.sessions.map.get_mut(&id)?.receivers.insert(transfer.clone(), receiver);
                 id_frame(FrameType::OfferReply, &wire)
                     .with(tag::ACCEPT, [1])
@@ -180,7 +180,7 @@ impl State {
         let Some(conversation) = self.conversation_of(id) else { return false };
         match self.store.peer_answered_transfer(offer, accepted, offset, &conversation) {
             Ok(record) if accepted => {
-                let route = szfriends_core::wire::RouteMethod::Lan;
+                let route = self.chunk_route(id);
                 let Some(sender) =
                     ChunkSender::for_route(&unhex(offer).unwrap_or_default(), record.size, offset, route)
                 else {
@@ -198,8 +198,16 @@ impl State {
     pub fn offer_reply(&mut self, id: u64, frame: &Frame, offer: String) {
         let accepted = frame.integer(tag::ACCEPT) == Some(1);
         let offset = frame.integer(tag::OFFSET).unwrap_or(0);
+        // A late or replayed answer (the receiver's outbox sends it again on a new session until we acknowledge it)
+        // is stale and changes nothing; it is acknowledged all the same, as the Objective-C helper does, or every new
+        // session would carry it again.
         if !self.start_sending(id, &offer, accepted, offset) {
-            self.close(id, CloseReason::ProtocolError);
+            if let Some(session) = self.sessions.map.get_mut(&id) {
+                session.senders.remove(&offer);
+            }
+        }
+        if let Some(wire) = unhex(&offer) {
+            self.send_ack(id, &wire);
         }
         self.changed();
     }
@@ -278,10 +286,16 @@ impl State {
         }
     }
 
+    /// The route a session's chunk sizes and window follow, as both sides read it (Bluetooth's are
+    /// smaller, and a receiver refuses a chunk larger than its route allows).
+    fn chunk_route(&self, id: u64) -> szfriends_core::wire::RouteMethod {
+        self.sessions.map.get(&id).map_or(szfriends_core::wire::RouteMethod::Lan, |s| s.meta.race_route(&s.channel))
+    }
+
     /// On a new session: PROGRESS for every inbound transfer still Receiving, so the sender continues.
     pub fn resume_incoming(&mut self, id: u64, conversation: &str) {
         let now = monotonic_now();
-        let route = szfriends_core::wire::RouteMethod::Lan;
+        let route = self.chunk_route(id);
         for record in self.store.unfinished_incoming_transfers(conversation).unwrap_or_default() {
             let offer = unhex(&record.transfer_id).unwrap_or_default();
             let Some(receiver) = ChunkReceiver::for_route(&offer, record.size, record.verified_bytes, route) else {

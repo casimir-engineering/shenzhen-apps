@@ -1,7 +1,7 @@
 /* The Settings section offscreen, against the fake helper: subscribed only while on screen, every row plain text
  * (use-markup off, a name with markup characters shown as typed), the name sent only when changed, Copy, Show in
- * Finder through the host, a switch per friend behind Change…, Delete history and Reset Friends sent only after
- * their confirmations and with the fields PROTOCOL.md asks for, and the link's line while the helper is away.
+ * Finder through the host, a switch per friend behind Choose friends…, Delete history and Reset Friends sent only
+ * after their confirmations and with the fields PROTOCOL.md asks for, and the link's line while the helper is away.
  * Renders light and dark with the friends' switches out. */
 
 #include "szfriends_gtk_details_probe.h"
@@ -86,13 +86,29 @@ static void test_rows(SZFGHarness *harness, GtkWidget *section) {
     GtkWidget *show = szfg_find_named(section, "szfriends.settings.received");
     EXPECT(show && !g_strcmp0(gtk_button_get_label(GTK_BUTTON(show)), "Show in Finder"), "the received folder");
     if (show) g_signal_emit_by_name(show, "clicked");
-    EXPECT(szfg_outside.revealed && g_str_has_suffix(g_ptr_array_index(szfg_outside.revealed, 0), "/received"),
+    EXPECT(szfg_outside.revealed && !g_strcmp0(g_ptr_array_index(szfg_outside.revealed, 0), "/Users/raph/Downloads"),
            "shown through the host");
+    /* Where received files go: the folder's name under "Save received files to", and Change… opens the folder
+     * dialog at that folder and sends the folder picked. */
+    EXPECT(szfg_find_label(section, "Save received files to") && szfg_find_label(section, "Downloads"),
+           "Save received files to: Downloads");
+    GtkWidget *change = szfg_find_named(section, "szfriends.settings.received_change");
+    EXPECT(change && gtk_widget_get_visible(change) && !g_strcmp0(gtk_button_get_label(GTK_BUTTON(change)), "Change…"),
+           "Change… beside Show in Finder");
+    g_free(szfg_outside.chosen);
+    szfg_outside.chosen = g_strdup("/home/raph/From friends");
+    guint calls = szfg_outside.chooser_calls;
+    if (change) g_signal_emit_by_name(change, "clicked");
+    EXPECT(szfg_outside.chooser_calls == calls + 1 && !g_strcmp0(szfg_outside.folder_start, "/Users/raph/Downloads"),
+           "the folder dialog opens at the folder: %s", szfg_outside.folder_start ? szfg_outside.folder_start : "");
+    EXPECT(szfg_wait_frames(harness, "set_received_folder", "path", "/home/raph/From friends", 1),
+           "set_received_folder with the folder picked");
+    g_clear_pointer(&szfg_outside.chosen, g_free);
 }
 
 static void test_friends(SZFGHarness *harness, GtkWidget *section) {
     GtkWidget *change = szfg_find_named(section, "szfriends.settings.change");
-    EXPECT(change && !g_strcmp0(gtk_button_get_label(GTK_BUTTON(change)), "Change…"), "Change…");
+    EXPECT(change && !g_strcmp0(gtk_button_get_label(GTK_BUTTON(change)), "Choose friends…"), "Choose friends…");
     gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(change), TRUE);
     guint rows = 0, markup = 0, switches = 0;
     count_rows(section, &rows, &markup, &switches);
@@ -117,6 +133,23 @@ static void test_friends(SZFGHarness *harness, GtkWidget *section) {
     rows = markup = switches = 0;
     count_rows(section, &rows, &markup, &switches);
     EXPECT(switches == 0, "and fold away again");
+    /* No friends: nothing to choose, so no button. */
+    gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(change), TRUE);
+    JsonObject *lonely = szfg_fixture_data("snapshots/settings.json");
+    JsonObject *nobody = json_object_get_object_member(lonely, "auto_accept");
+    json_object_set_array_member(nobody, "friends", json_array_new());
+    json_object_set_string_member(nobody, "note", "Turn it on for a friend in their details.");
+    szfg_script_view(harness, "settings", lonely);
+    json_object_unref(lonely);
+    for (int i = 0; i < 300 && gtk_widget_get_visible(change); i++) szfg_pump_for(10);
+    rows = markup = switches = 0;
+    count_rows(section, &rows, &markup, &switches);
+    EXPECT(!gtk_widget_get_visible(change) && switches == 0, "no friends, no Choose friends…");
+    JsonObject *again = szfg_fixture_data("snapshots/settings.json");
+    szfg_script_view(harness, "settings", again);
+    json_object_unref(again);
+    for (int i = 0; i < 300 && !gtk_widget_get_visible(change); i++) szfg_pump_for(10);
+    EXPECT(gtk_widget_get_visible(change), "friends again, Choose friends… again");
 }
 
 static void test_confirmed(SZFGHarness *harness, GtkWidget *section) {
@@ -134,7 +167,7 @@ static void test_confirmed(SZFGHarness *harness, GtkWidget *section) {
                !strcmp(g_ptr_array_index(szfg_outside.confirm_bodies, 0),
                        "Your messages and file history with every friend are deleted from this computer, and anything "
                        "still waiting to go won’t be sent. You keep your friends, and they keep their own copies of "
-                       "your chats. Files you received stay in Received files."),
+                       "your chats. Files you received stay where they were saved."),
            "it says what goes and what stays");
     szfg_outside_answer(TRUE);
     EXPECT(szfg_wait_frames(harness, "delete_history", NULL, NULL, 1), "confirmed, it deletes");

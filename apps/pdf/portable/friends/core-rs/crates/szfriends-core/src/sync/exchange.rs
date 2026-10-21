@@ -76,7 +76,7 @@ fn get_id(data: &[u8], offset: &mut usize) -> Option<String> {
     (label_is_valid(&id) && !id.contains(':') && !id.contains('/')).then_some(id)
 }
 
-fn matches_digest(path: &std::path::Path, size: u64, digest: &[u8]) -> bool {
+pub(super) fn matches_digest(path: &std::path::Path, size: u64, digest: &[u8]) -> bool {
     use blake2::digest::{Update, VariableOutput};
     let Ok(mut file) = std::fs::File::open(path) else { return false };
     let mut hasher = blake2::Blake2bVar::new(32).expect("32");
@@ -369,6 +369,12 @@ impl SyncExchange {
             let mut none = vec![NONE];
             put_id(&mut none, &id);
             self.outgoing.push(none);
+            if size.is_none() {
+                // Listed as holding it and it is gone (moved or deleted here): every device hears so now.
+                if engine.capture_local_changes(store) > 0 {
+                    self.pump(engine, store);
+                }
+            }
             return Ok(());
         };
         let _ = handle.seek(SeekFrom::Start(start));
@@ -407,8 +413,14 @@ impl SyncExchange {
             return Ok(());
         }
         let end = copy.received + bytes.len() as u64;
-        if end > copy.file.size || (last && end != copy.file.size) || copy.handle.write_all(bytes).is_err() {
+        if end > copy.file.size || (last && end != copy.file.size) {
             self.abandon_copy(true);
+            return Ok(());
+        }
+        if copy.handle.write_all(bytes).is_err() {
+            // No room left here: what arrived goes, and so does the Get; the item offers Get, which then says so.
+            self.abandon_copy(true);
+            let _ = engine.cancel_file_request(store, &id);
             return Ok(());
         }
         copy.received = end;

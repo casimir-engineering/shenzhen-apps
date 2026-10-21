@@ -1,7 +1,7 @@
 /* One profile on several computers offscreen, against the fake helper (PROTOCOL.md § Devices, § Joining): Your
  * computers renames this computer within its byte limit and removes another only after the helper's confirmation;
  * the list shows join requests with Approve, an armed Deny and the code to type, and a removed computer's notice with
- * no Add by ID and no Nearby; the name prompt's "Use my existing profile" opens the join page, which sends what was
+ * no Add by ID and no Nearby; the name prompt's "Use my existing profile…" opens the join page, which sends what was
  * typed and shows why a code failed. Renders light and dark at the dropdown's 400 points and at the 320 and 600 a
  * host may give it, and checks no key line of these views is cut or reaches past the edge, and that they follow the
  * width (the join page's column stops growing past 400). */
@@ -23,6 +23,10 @@ static gboolean label_is(GtkWidget *widget, const char *label) {
 static SZFriendsGtkPageKind top_kind(SZFGRig *rig) {
     SZFriendsGtkPage *page = szfriends_gtk_dropdown_get_top_page(rig->dropdown);
     return page ? szfriends_gtk_page_get_kind(page) : SZFRIENDS_GTK_PAGE_KIND_COUNT;
+}
+
+static gboolean join_on_top(gpointer data) {
+    return top_kind(data) == SZFRIENDS_GTK_PAGE_JOIN;
 }
 
 static void reply_error(SZFGHarness *harness, const char *intent, const char *code, const char *message) {
@@ -54,8 +58,11 @@ static void test_your_computers(SZFGHarness *harness) {
                szfg_find_label(page, "Linux · Yesterday") &&
                szfg_find_label(page, "macOS 26.1 · Not connected to this computer yet"),
            "each computer with its system and last connection");
-    EXPECT(szfg_find_label(page, "To add a computer, open Friends on it and choose Use my existing profile.") != NULL,
-           "and how to add one");
+    EXPECT(szfg_find_label(page, "Add a computer or phone\n1. On the other computer or phone, open Friends and choose "
+                                 "Use my existing profile.\n2. Type this ID there: cottage‑violet\n3. Choose Approve "
+                                 "when the request appears in Friends here, then type the code this computer shows on "
+                                 "the other one.") != NULL,
+           "and how to add one, with the ID");
     GtkWidget *remove = szfg_find_named(page, "szfriends.profile.devices.remove");
     EXPECT(remove && label_is(remove, "Remove…, Raph’s Mac mini"), "Remove names its computer");
     if (remove) szfg_press(remove, 1);
@@ -199,7 +206,7 @@ static void test_join_page(SZFGHarness *harness) {
     GtkWidget *page = szfg_rig_page(rig);
     GtkWidget *join = szfg_find_named(page, "szfriends.list.join");
     EXPECT(szfg_wait_label(page, "Choose the name friends see") && join && gtk_widget_get_visible(join) &&
-               !g_strcmp0(gtk_button_get_label(GTK_BUTTON(join)), "Use my existing profile"),
+               !g_strcmp0(gtk_button_get_label(GTK_BUTTON(join)), "Use my existing profile…"),
            "the name prompt offers joining");
     guint subscribed = szfg_fake_frames(harness, "subscribe", "view", "join");
     if (join) g_signal_emit_by_name(join, "clicked");
@@ -221,8 +228,8 @@ static void test_join_page(SZFGHarness *harness) {
     EXPECT(szfg_wait_label(page, "That’s this computer’s own ID."), "a refused ID says why");
     reply_error(harness, "join_profile", NULL, NULL);
     szfriends_fake_helper_set_view_fixture(harness->fake, "join", "join-wrong-code.json");
-    EXPECT(szfg_wait_label(page, "That code didn’t match. Check the code on your other computer and type it "
-                                 "again.") &&
+    EXPECT(szfg_wait_label(page, "That code didn’t match. Check the code on your other computer or phone and type "
+                                 "it again.") &&
                gtk_widget_get_visible(parts->code_entry) && !gtk_widget_get_visible(parts->id_entry) &&
                gtk_widget_get_sensitive(parts->code_button), "the code field, and why the last code failed");
     gtk_editable_set_text(GTK_EDITABLE(parts->code_entry), "4831 2207");
@@ -247,6 +254,31 @@ static void test_join_page(SZFGHarness *harness) {
 }
 
 /* Deleting history reaches every computer, and the words say so: the helper's note and confirmation, drawn as sent. */
+/* A computer with friends of its own: "Use my existing profile…" asks first, sends Reset Friends alone, and the join
+ * page opens once the reset replied, as the Mac and React views do. */
+static void test_join_after_reset(SZFGHarness *harness) {
+    szfriends_fake_helper_set_view_fixture(harness->fake, "list", "devices-list-join-reset.json");
+    szfriends_fake_helper_set_view_fixture(harness->fake, "join", "join-idle.json");
+    SZFGRig *rig = szfg_rig_new(harness);
+    GtkWidget *page = szfg_rig_page(rig);
+    GtkWidget *join = szfg_find_named(page, "szfriends.list.join");
+    EXPECT(szfg_wait_label(page, "Choose the name friends see") && join && gtk_widget_get_visible(join),
+           "the name prompt offers it");
+    guint resets = szfg_fake_frames(harness, "reset_friends", NULL, NULL);
+    if (join) g_signal_emit_by_name(join, "clicked");
+    GtkWidget *card = szfriends_gtk_dropdown_get_overlay(rig->dropdown);
+    EXPECT(card != NULL, "it asks first");
+    EXPECT(card && szfg_find_label(card, "Use your existing profile here?"), "saying what goes");
+    EXPECT(szfg_fake_frames(harness, "reset_friends", NULL, NULL) == resets, "and sends nothing yet");
+    EXPECT(top_kind(rig) != SZFRIENDS_GTK_PAGE_JOIN, "nor opens the join page yet");
+    GtkWidget *ok = confirm_button(rig);
+    if (ok) g_signal_emit_by_name(ok, "clicked");
+    EXPECT(szfg_wait_frames(harness, "reset_friends", "confirm", "reset", resets + 1), "then Reset Friends");
+    EXPECT(szfg_pump_until(join_on_top, rig, 3000), "and the join page once it replied");
+    szfriends_fake_helper_set_view_fixture(harness->fake, "list", "list.json");
+    szfg_rig_free(rig);
+}
+
 static void test_history_everywhere(SZFGHarness *harness) {
     szfriends_fake_helper_set_view_fixture(harness->fake, "details", "devices-details-mei.json");
     SZFGRig *rig = szfg_rig_new(harness);
@@ -260,7 +292,7 @@ static void test_history_everywhere(SZFGHarness *harness) {
     EXPECT(card && szfg_find_label(card, "Your messages and file history with Mei are deleted from this computer, and "
                                          "from your other computers as soon as they connect. Anything still waiting to "
                                          "go to Mei won’t be sent. Mei stays your friend and keeps their own copy of "
-                                         "the chat. Files you received stay in Received files."),
+                                         "the chat. Files you received stay where they were saved."),
            "the confirmation says every computer");
     GtkWidget *ok = confirm_button(rig);
     if (ok) g_signal_emit_by_name(ok, "clicked");
@@ -403,6 +435,7 @@ void szfg_run_device_probes(void) {
     test_your_computers(harness);
     test_join_rows(harness);
     test_join_page(harness);
+    test_join_after_reset(harness);
     test_history_everywhere(harness);
     test_renders(harness);
     szfg_outside_uninstall();

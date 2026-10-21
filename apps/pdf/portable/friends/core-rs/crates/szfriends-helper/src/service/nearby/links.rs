@@ -11,7 +11,7 @@ use szfriends_core::wire::route::session_a_wins;
 use szfriends_core::wire::{CloseReason, Fields, Pattern, RouteMethod};
 
 use super::policy::{key_policy, Hooks};
-use crate::service::State;
+use crate::service::{sessions::Rival, State};
 
 /// Why a link exists (`SZFriendsLinkPurpose`). A responder link starts Incoming and its handshake says the rest.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -77,7 +77,8 @@ pub struct LinkMeta {
 }
 
 impl LinkMeta {
-    fn race_route(&self, channel: &SecureChannel) -> RouteMethod {
+    /// The route both sides agree a session runs on: the initiator's declared class once established.
+    pub(crate) fn race_route(&self, channel: &SecureChannel) -> RouteMethod {
         if channel.is_established() {
             channel.initiator_route()
         } else {
@@ -333,8 +334,10 @@ impl State {
         if let Some(s) = self.sessions.map.get_mut(&id) {
             s.conversation = Some(conversation.to_owned());
         }
-        let Some(current) = self.sessions.live_for(conversation).filter(|c| *c != id) else {
-            return self.adopt(id);
+        let current = match self.sessions.rival(conversation, id) {
+            Rival::None => return self.adopt(id),
+            Rival::OtherDevice => return, // both stay: this one stands by (ADR 0016)
+            Rival::Same(current) => current,
         };
         let own = self.identity.public_key();
         let initiator_key = |state: &State, link: u64| -> (RouteMethod, Vec<u8>) {
@@ -389,8 +392,7 @@ impl State {
         let _ = self.store.flush_progress();
         self.nearby.admission.lock().unwrap_or_else(|e| e.into_inner()).release(id);
         self.nearby.policy.lock().unwrap_or_else(|e| e.into_inner()).strangers.remove(&id);
-        self.join_session_closed(id);
-        self.own_device_session_closed(id);
+        self.session_closed_elsewhere(id);
         let Some(session) = self.sessions.map.get_mut(&id) else { return };
         for entry in session.in_flight.drain() {
             let _ = self.store.apply_outbox_event(&entry, OutboxEvent::SessionLost);

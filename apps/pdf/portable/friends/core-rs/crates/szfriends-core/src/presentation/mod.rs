@@ -10,6 +10,7 @@
 //! Every user-facing string comes from the catalog ([`catalog`]), written for the person reading it and about what
 //! happens to their message ("Sends when Mei is nearby with ShenzhenPDF, Shenzhen Files or Shenzhen 3D open").
 
+mod again;
 mod avatar;
 pub mod catalog;
 mod conversation;
@@ -17,15 +18,19 @@ mod details;
 mod devices;
 mod devices_files;
 pub mod facts;
+mod found;
 mod items;
 mod join;
+mod join_offer;
 mod links;
 mod list;
 mod mention_view;
 pub mod mentions;
 mod messages;
 mod nearby;
+mod notifications;
 mod previews;
+mod remove;
 mod routes;
 pub mod search;
 mod segments;
@@ -42,6 +47,7 @@ pub use devices::{DeviceFacts, DeviceFileFacts, DevicesFacts};
 pub use facts::*;
 pub use join::{JoinRequestFacts, JoiningFacts, JoiningState};
 pub use mention_view::MentionDirectory;
+pub use notifications::{NotificationFacts, NotificationWords, NotifyPermission, PeopleNotice, ReplyWords};
 pub use strings::{Strings, Values};
 
 use serde_json::Value;

@@ -15,6 +15,8 @@ static const NSUInteger SZFriendsSyncApplyBatch = 200;
     uint64_t _nextSeq;   // 0: read from the store before the next event
     uint64_t _lamport;
     NSMutableSet<NSString *> *_changedConversations;
+    NSMutableArray<SZFriendsItemRecord *> *_arrivingItems;
+    NSMutableArray<SZFriendsItemRecord *> *_arrivedItems;
 }
 
 - (instancetype)initWithStore:(SZFriendsStore *)store
@@ -25,6 +27,8 @@ static const NSUInteger SZFriendsSyncApplyBatch = 200;
         _identity = identity;
         _receivedDirectory = [receivedDirectory copy];
         _changedConversations = [NSMutableSet set];
+        _arrivingItems = [NSMutableArray array];
+        _arrivedItems = [NSMutableArray array];
         _clock = ^NSDate * { return [NSDate date]; };
     }
     return self;
@@ -32,6 +36,16 @@ static const NSUInteger SZFriendsSyncApplyBatch = 200;
 
 - (NSMutableSet<NSString *> *)changedConversations {
     return _changedConversations;
+}
+
+- (NSMutableArray<SZFriendsItemRecord *> *)arrivingItems {
+    return _arrivingItems;
+}
+
+// The items the last apply put here are kept when it committed and forgotten when it did not.
+- (void)keepArrivingItems:(BOOL)committed {
+    if (committed) [_arrivedItems addObjectsFromArray:_arrivingItems];
+    [_arrivingItems removeAllObjects];
 }
 
 #pragma mark - Who we are
@@ -228,8 +242,9 @@ static const NSUInteger SZFriendsSyncApplyBatch = 200;
             if ([self appliesAlone:event]) {
                 applied += [self applyBatch:batch];
                 [batch removeAllObjects];
-                if ([self applyEvent:event] == SZFriendsSyncApplyDone &&
-                    [self.store markSyncEventApplied:event.author seq:event.seq error:NULL]) {
+                BOOL done = [self applyEvent:event] == SZFriendsSyncApplyDone;
+                [self keepArrivingItems:done];
+                if (done && [self.store markSyncEventApplied:event.author seq:event.seq error:NULL]) {
                     applied++;
                     // A removal record may have taken events further down this list from the log: read it again.
                     if (event.kind == SZFriendsSyncKindRevocation) break;
@@ -281,6 +296,7 @@ static const NSUInteger SZFriendsSyncApplyBatch = 200;
         }
         return YES;
     } error:NULL];
+    [self keepArrivingItems:committed];
     return committed ? applied : 0;
 }
 
@@ -401,7 +417,10 @@ static const NSUInteger SZFriendsSyncApplyBatch = 200;
     NSSet<NSString *> *changed = [_changedConversations copy];
     [_changedConversations removeAllObjects];
     self.profileChanged = NO;
+    NSArray<SZFriendsItemRecord *> *arrived = [_arrivedItems copy];
+    [_arrivedItems removeAllObjects];
     if (self.onChange) self.onChange(changed);
+    if (arrived.count > 0 && self.onItemsArrived) self.onItemsArrived(arrived);
 }
 
 @end

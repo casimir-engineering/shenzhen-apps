@@ -305,12 +305,28 @@ static NSDictionary<NSString *, NSString *> *CoreEntries(void) {
         @"action.block" : @"Block {first}",
         @"action.unblock" : @"Unblock {first}",
         @"action.remove" : @"Remove friend",
-        @"action.remove.confirm.title" : @"Remove {first} as a friend?",
-        @"action.remove.confirm.body" : @"{first} isn’t told. Your conversation stays, and {first} can send you a "
-                                        @"new request. Anything still waiting to go to {first} won’t be "
-                                        @"sent.",
-        @"action.remove.confirm.button" : @"Remove Friend",
         @"action.cancel_request" : @"Cancel request",
+        // Remove, from a row's menu (list.menu) or a friend's details (remove_friend). The history sentence and the
+        // option appear only when there is history with the person.
+        @"menu.remove" : @"Remove",
+        // How someone nearby was found (nearby.found): the methods that see them, joined.
+        @"found.lan" : @"Local network",
+        @"found.p2p_wifi" : @"Direct Wi-Fi",
+        @"found.bluetooth" : @"Bluetooth",
+        @"found.join" : @"{first} and {second}",
+        @"found.join3" : @"{first}, {second} and {third}",
+        @"found.spoken" : @"Found over {methods}",
+        @"remove.confirm.title" : @"Remove {first}?",
+        @"remove.confirm.title.request" : @"Cancel your request to {first}?",
+        @"remove.confirm.body.friend" : @"{first} leaves your list and isn’t told. Anything still waiting to go to "
+                                        @"{first} won’t be sent.",
+        @"remove.confirm.body" : @"{first} leaves your list. Either of you can send a new request later.",
+        @"remove.confirm.body.blocked" : @"{first} leaves your list and stays blocked.",
+        @"remove.confirm.body.request" : @"{first} won’t get your request, and leaves your list.",
+        @"remove.confirm.history" : @"Your chat history with {first} is kept unless you also delete it.",
+        @"remove.confirm.option" : @"Also delete chat history",
+        @"remove.confirm.button" : @"Remove",
+        @"remove.confirm.keep" : @"Keep request",
     };
 }
 
@@ -323,6 +339,7 @@ NSDictionary<NSString *, NSString *> *SZFriendsEnglishCatalog(void) {
       [merged addEntriesFromDictionary:SZFriendsEnglishCatalogMentions()];
       [merged addEntriesFromDictionary:SZFriendsEnglishCatalogLinks()];
       [merged addEntriesFromDictionary:SZFriendsEnglishCatalogJoin()];
+      [merged addEntriesFromDictionary:SZFriendsEnglishCatalogNotifications()];
       [merged addEntriesFromDictionary:SZFriendsEnglishCatalogDevices()];
       catalog = [merged copy];
     });

@@ -1,0 +1,378 @@
+{
+  "type": "snapshot",
+  "subscription": "s_2",
+  "view": "list",
+  "rev": 52,
+  "data": {
+    "banner": null,
+    "empty": null,
+    "footer": {
+      "add_label": "Add by ID",
+      "avatar": {
+        "color": "#5a4a7a",
+        "index": 0,
+        "initials": "R",
+        "kind": "animal",
+        "set": 1
+      },
+      "friends_id": "cottage-violet",
+      "id_label": "ID cottage‑violet",
+      "id_note": null,
+      "name": "Raph",
+      "name_placeholder": "Choose your name"
+    },
+    "join_requests": [],
+    "name_prompt": null,
+    "query": "",
+    "removed": null,
+    "rows": [
+      {
+        "accessibility_label": "You, Bracket drawing rev C.pdf, 15:02",
+        "actions": [],
+        "avatar": {
+          "color": "#5a4a7a",
+          "index": 0,
+          "initials": "R",
+          "kind": "animal",
+          "set": 1
+        },
+        "blocked": false,
+        "conversation_id": "you",
+        "drop_label": "Send to all your computers",
+        "drop_refusal": null,
+        "id_confirmed": false,
+        "id_confirmed_label": null,
+        "kind": "you",
+        "menu": [],
+        "route": {
+          "kind": "none",
+          "label": null,
+          "method": null
+        },
+        "style": "normal",
+        "subtitle": "Bracket drawing rev C.pdf",
+        "time_label": "15:02",
+        "title": "You",
+        "unread": false,
+        "waiting": null
+      },
+      {
+        "accessibility_label": "Lena Weber, wants to be friends, 14:40, waiting for you",
+        "actions": [
+          {
+            "action": "accept_request",
+            "arm": null,
+            "icon": "accept",
+            "label": "Accept Lena Weber’s request",
+            "title": "Accept"
+          },
+          {
+            "action": "decline_request",
+            "arm": null,
+            "icon": "decline",
+            "label": "Decline Lena Weber’s request",
+            "title": "Decline"
+          },
+          {
+            "action": "block",
+            "arm": {
+              "accessibility_label": "Click again to block Lena Weber",
+              "label": "Block?",
+              "seconds": 4
+            },
+            "icon": "block",
+            "label": "Block Lena Weber",
+            "title": null
+          }
+        ],
+        "avatar": {
+          "color": "#7a3f4f",
+          "index": 3,
+          "initials": "LW",
+          "kind": "animal",
+          "set": 1
+        },
+        "blocked": false,
+        "conversation_id": "c_lena",
+        "drop_label": null,
+        "drop_refusal": "Lena isn’t your friend yet",
+        "id_confirmed": false,
+        "id_confirmed_label": null,
+        "kind": "person",
+        "menu": [
+          {
+            "action": "remove_friend",
+            "arm": null,
+            "confirm": {
+              "body": "Lena leaves your list. Either of you can send a new request later.",
+              "cancel_label": "Cancel",
+              "confirm_label": "Remove",
+              "destructive": true,
+              "title": "Remove Lena?"
+            },
+            "label": "Remove",
+            "note": null,
+            "style": "destructive"
+          }
+        ],
+        "route": {
+          "kind": "local",
+          "label": "Nearby, on your network",
+          "method": "lan"
+        },
+        "style": "normal",
+        "subtitle": "Wants to be friends",
+        "time_label": "14:40",
+        "title": "Lena Weber",
+        "unread": false,
+        "waiting": {
+          "kind": "request",
+          "label": "Waiting for you"
+        }
+      },
+      {
+        "accessibility_label": "Mei Lin, unread, Can you check pages 3–5 before Friday?, 14:32, nearby, on your network",
+        "actions": [],
+        "avatar": {
+          "color": "#3f6b4f",
+          "index": 7,
+          "initials": "ML",
+          "kind": "animal",
+          "set": 1
+        },
+        "blocked": false,
+        "conversation_id": "c_mei",
+        "drop_label": "Send to Mei",
+        "drop_refusal": null,
+        "id_confirmed": false,
+        "id_confirmed_label": null,
+        "kind": "person",
+        "menu": [
+          {
+            "action": "remove_friend",
+            "arm": null,
+            "confirm": {
+              "body": "Mei leaves your list and isn’t told. Anything still waiting to go to Mei won’t be sent. Your chat history with Mei is kept unless you also delete it.",
+              "cancel_label": "Cancel",
+              "confirm_label": "Remove",
+              "destructive": true,
+              "option": {
+                "field": "delete_history",
+                "label": "Also delete chat history"
+              },
+              "title": "Remove Mei?"
+            },
+            "label": "Remove",
+            "note": null,
+            "style": "destructive"
+          }
+        ],
+        "route": {
+          "kind": "local",
+          "label": "Nearby, on your network",
+          "method": "lan"
+        },
+        "style": "normal",
+        "subtitle": "Can you check pages 3–5 before Friday?",
+        "time_label": "14:32",
+        "title": "Mei Lin",
+        "unread": true,
+        "waiting": null
+      },
+      {
+        "accessibility_label": "Daniel Ortiz, Enclosure assembly guide.pdf, accepted automatically, 11:05, nearby, over direct Wi-Fi",
+        "actions": [],
+        "avatar": {
+          "color": "#7a5a34",
+          "index": 5,
+          "initials": "DO",
+          "kind": "animal",
+          "set": 1
+        },
+        "blocked": false,
+        "conversation_id": "c_daniel",
+        "drop_label": null,
+        "drop_refusal": "Daniel isn’t your friend",
+        "id_confirmed": false,
+        "id_confirmed_label": null,
+        "kind": "person",
+        "menu": [
+          {
+            "action": "remove_friend",
+            "arm": null,
+            "confirm": {
+              "body": "Daniel leaves your list. Either of you can send a new request later. Your chat history with Daniel is kept unless you also delete it.",
+              "cancel_label": "Cancel",
+              "confirm_label": "Remove",
+              "destructive": true,
+              "option": {
+                "field": "delete_history",
+                "label": "Also delete chat history"
+              },
+              "title": "Remove Daniel?"
+            },
+            "label": "Remove",
+            "note": null,
+            "style": "destructive"
+          }
+        ],
+        "route": {
+          "kind": "local",
+          "label": "Nearby, over direct Wi-Fi",
+          "method": "p2p_wifi"
+        },
+        "style": "normal",
+        "subtitle": "Accepted automatically · Enclosure assembly guide.pdf",
+        "time_label": "11:05",
+        "title": "Daniel Ortiz",
+        "unread": false,
+        "waiting": null
+      },
+      {
+        "accessibility_label": "Priya Raman, request sent, yesterday, not nearby right now",
+        "actions": [],
+        "avatar": {
+          "color": "#4f4f86",
+          "index": 9,
+          "initials": "PR",
+          "kind": "animal",
+          "set": 1
+        },
+        "blocked": false,
+        "conversation_id": "c_priya",
+        "drop_label": null,
+        "drop_refusal": "Priya isn’t your friend yet",
+        "id_confirmed": false,
+        "id_confirmed_label": null,
+        "kind": "person",
+        "menu": [
+          {
+            "action": "remove_friend",
+            "arm": null,
+            "confirm": {
+              "body": "Priya won’t get your request, and leaves your list. Your chat history with Priya is kept unless you also delete it.",
+              "cancel_label": "Keep request",
+              "confirm_label": "Cancel request",
+              "destructive": true,
+              "option": {
+                "field": "delete_history",
+                "label": "Also delete chat history"
+              },
+              "title": "Cancel your request to Priya?"
+            },
+            "label": "Cancel request",
+            "note": null,
+            "style": "destructive"
+          }
+        ],
+        "route": {
+          "kind": "offline",
+          "label": "Not nearby right now",
+          "method": null
+        },
+        "style": "normal",
+        "subtitle": "Request sent",
+        "time_label": "Yesterday",
+        "title": "Priya Raman",
+        "unread": false,
+        "waiting": null
+      },
+      {
+        "accessibility_label": "tulip‑canyon, no longer friends, 3 October, not nearby right now, ID confirmed",
+        "actions": [],
+        "avatar": {
+          "color": "#6a4a6a",
+          "index": 11,
+          "initials": "TC",
+          "kind": "animal",
+          "set": 1
+        },
+        "blocked": false,
+        "conversation_id": "c_tulip",
+        "drop_label": null,
+        "drop_refusal": "tulip‑canyon isn’t your friend",
+        "id_confirmed": true,
+        "id_confirmed_label": "ID confirmed by the Friends server",
+        "kind": "person",
+        "menu": [
+          {
+            "action": "remove_friend",
+            "arm": null,
+            "confirm": {
+              "body": "tulip‑canyon leaves your list. Either of you can send a new request later. Your chat history with tulip‑canyon is kept unless you also delete it.",
+              "cancel_label": "Cancel",
+              "confirm_label": "Remove",
+              "destructive": true,
+              "option": {
+                "field": "delete_history",
+                "label": "Also delete chat history"
+              },
+              "title": "Remove tulip‑canyon?"
+            },
+            "label": "Remove",
+            "note": null,
+            "style": "destructive"
+          }
+        ],
+        "route": {
+          "kind": "offline",
+          "label": "Not nearby right now",
+          "method": null
+        },
+        "style": "normal",
+        "subtitle": "No longer friends",
+        "time_label": "3 Oct",
+        "title": "tulip‑canyon",
+        "unread": false,
+        "waiting": null
+      },
+      {
+        "accessibility_label": "Jonas Berg, blocked, 28 September",
+        "actions": [],
+        "avatar": {
+          "color": "#4a6a2f",
+          "index": 4,
+          "initials": "JB",
+          "kind": "animal",
+          "set": 1
+        },
+        "blocked": true,
+        "conversation_id": "c_jonas",
+        "drop_label": null,
+        "drop_refusal": "You blocked Jonas",
+        "id_confirmed": false,
+        "id_confirmed_label": null,
+        "kind": "person",
+        "menu": [
+          {
+            "action": "remove_friend",
+            "arm": null,
+            "confirm": {
+              "body": "Jonas leaves your list and stays blocked.",
+              "cancel_label": "Cancel",
+              "confirm_label": "Remove",
+              "destructive": true,
+              "title": "Remove Jonas?"
+            },
+            "label": "Remove",
+            "note": null,
+            "style": "destructive"
+          }
+        ],
+        "route": {
+          "kind": "none",
+          "label": null,
+          "method": null
+        },
+        "style": "muted",
+        "subtitle": "Blocked",
+        "time_label": "28 Sep",
+        "title": "Jonas Berg",
+        "unread": false,
+        "waiting": null
+      }
+    ],
+    "state": "normal",
+    "join": null
+  }
+}

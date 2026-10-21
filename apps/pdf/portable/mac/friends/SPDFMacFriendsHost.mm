@@ -51,6 +51,8 @@
 - (NSString*)friendsAppName { return @"ShenzhenPDF"; }
 - (NSString*)friendsAppVersion { return [_bundle objectForInfoDictionaryKey:@"CFBundleShortVersionString"] ?: @"0"; }
 - (NSString*)friendsRevealInName { return @"Finder"; }
+// Where a Friends notification's click opens this app: shenzhenpdf://friends/conversation/<id> (Info.plist registers it).
+- (NSString*)friendsURLScheme { return @"shenzhenpdf"; }
 // Empty when this build embeds no helper (a development build), so the client library has nothing to spawn.
 - (NSString*)friendsHelperPath { return SPDFMacFriendsHelperExecutablePath(_bundle) ?: @""; }
 

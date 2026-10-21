@@ -78,7 +78,7 @@ fixtures. The repository's `docs/FRIENDS.md` has the helper build number rule th
 socket rules, the uid and signature checks, connect-or-spawn of the embedded helper, reconnection with backoff, the
 build-number handover and the `connection_lost` replies are the library's, exactly as in ShenzhenPDF and Shenzhen
 Files. Its hello says `app_name` "Shenzhen 3D", `app_id` `com.shenzhen3d.performance`, `toolkit` `electron` (the helper
-accepts any toolkit name), `reveal_in` "Finder", the capabilities `attach.items`, `drop.files` and `mentions`, and
+accepts any toolkit name), `reveal_in` "Finder", the capabilities `attach.items`, `drop.files`, `mentions`, `list.menu` and `nearby.found`, and
 `open_formats`, the formats the app opens (the same list as its file associations). The embedded helper's version and
 build number come from its `Info.plist`. A team-signed app sets the library's signing policy with its own Team ID and
 a Security.framework verifier before it connects (`prepare()`, off the main thread); ad-hoc and development builds keep
@@ -461,6 +461,11 @@ SQLite without what the store never uses) beside `phones-profile.toml`, and from
 | Backups | `src-tauri/gen/android/…/xml/data_extraction_rules.xml`, `backup_rules.xml` | Nothing of Friends' in backups or device transfers (it lives in the no-backup directory anyway) |
 | Size | `src-tauri/friends/phones-profile.toml`, the core's `phone.toml`, `scripts/friends/phones-size.sh` | Friends' crates, the online part's included, built for size; what Friends with online adds per Android ABI, against the 5 MB budget |
 | Exchange | `scripts/friends/phones-exchange.mjs` (`-page.js`, `-android.mjs`, `-ios.mjs`) | The phone app and a Friends service on the Mac, made friends: a message and a file each way |
+| Remove | `scripts/friends/phones-remove.mjs` | Android: a long press on a friend's row (the emulator's own touch input), Remove, confirm: the friend leaves the list, and is still off it after the app starts again |
+| Reset | `scripts/friends/phones-reset.mjs` | Android: Settings ▸ Reset Friends… and its confirmation (the emulator's own touch input): a new ID at once in Settings and the panel, the friends gone, Nearby running again, the new ID kept after the app starts again |
+| Get again | `scripts/friends/phones-get-again.mjs` | Android and a Mac on one profile, with a friend: a file deleted on the phone comes back from the Mac with Get (a tap), one deleted on the Mac comes back from the phone with Get (a click in the real dropdown), one deleted on both comes back from the friend with Get again, and once the friend changed it, "Fay doesn’t have this file anymore." |
+| Join | `scripts/friends/phones-join.mjs` | Android and a Mac joining one profile with real taps and clicks, each way: the phone's Settings ▸ Use my existing profile… (asks first, then resets and opens the join page), Approve and the code in the Mac's dropdown; or the Mac's Use my existing profile…, Approve and the code on the phone. Then the friend, the chat and You on both, each way |
+| Phone and Mac | `scripts/friends/phones-mac.mjs` | What those two are made of: the Mac (friends-ui-e2e's `phone` flow), a friend (`loopback-peer`), the test network's bridge (`szfriends-testnet dir`), the phone's page and taps |
 
 What the plugin does on a phone (shenzhen-pdf `portable/friends/tauri/README.md` § Phones): the identity's key in the
 Android Keystore (a sealed file in the no-backup directory) or the iOS Keychain (this device only), Friends' files
@@ -475,7 +480,9 @@ Android 11 and earlier where Bluetooth scanning needed it, the local network and
 APK installed, or `--platform ios --udid <simulator>` with a `friends-smoke` simulator build installed; `--tools` names
 shenzhen-pdf's `befriend` and `loopback-peer` examples. The phone opens the panel, lists the friend, opens the
 conversation from its row, sends a message and a staged file, sees the reply, taps Accept on the Mac's file, which
-arrives with Open and Share…, and the files arrive whole on both sides. Both sides find each other on the core's test
+arrives with Open and Share…, and the files arrive whole on both sides. It then types `#` in the composer: a model
+the phone opened from Open file is listed among the recent files with when it was opened, typing narrows the list,
+and the chosen file, sent with Send from the copy the app keeps of it, arrives whole on the Mac. Both sides find each other on the core's test
 network, a directory of entries on loopback: the simulator shares the Mac's, and for an emulator the script copies
 each side's entries to the other while it runs, joining their ports with `adb reverse` and `adb forward`. It passed on
 2026-10-17 in an Android 16 (API 36) arm64 emulator and an iOS 26.5 iPhone 17 Pro simulator, at the phones' first
@@ -490,6 +497,54 @@ built (`src-tauri/build.rs`) rather than added at launch, which linked Tauri's c
 budget, and `phones-size.sh` says so by failing. Fat LTO instead of thin changed nothing. The core alone measures
 4.95 MB with online (the plugin's README); the rest is the plugin's phone half and what Tauri links for it. Not yet
 tried: a real phone, Android 11 or earlier, iPad, the iOS share sheet's choices.
+
+**Reset Friends.** `node scripts/friends/phones-reset.mjs --serial <emulator> --tools <dir>` with a debug APK
+installed (`--tools` as above, for `befriend`): the phone, made friends with Bo and Cy, opens Settings with a tap,
+taps Reset Friends… and Reset Friends in the confirmation. Settings shows a new, different Friends ID at once, with no
+failure shown; the panel lists neither friend and shows the new ID; the phone writes a new entry on the test network
+(Nearby started again, as it was before); after a force-stop and a start, Settings still shows the new ID. It passed
+on 2026-10-21 headless on an Android 16 (API 36) arm64 emulator. Before, confirming did nothing: the core refused
+the reset as not yet available, with no words for the app to show.
+
+**Get and Get again.** `node scripts/friends/phones-get-again.mjs --serial <emulator> --tools <core-rs target/release>
+--mac <shenzhen-pdf build/friends-ui-e2e> --manifest <animal manifest> [--shots <dir>]` with a debug APK installed:
+the phone's test home (befriended with Fay, the core's `loopback-peer`) is joined by ShenzhenPDF's Friends dropdown on
+the Mac (friends-ui-e2e's `phone` flow, offscreen, step by step through two FIFOs), the Mac's helper meeting the phone
+and Fay through `szfriends-testnet dir`, which joins the test network's directory to its Bonjour test type. Fay sends
+a file, the phone accepts it with a tap and it copies to the Mac; deleted on the phone, it shows "On Test computer
+mac" with Get, tapped, and comes back; deleted on the Mac, it shows "On ‹the phone's name›" with Get, clicked in the
+dropdown; deleted on both, "Moved or deleted" with Get again, tapped, brings it from Fay; once Fay edited it, Get again
+ends with "Fay doesn’t have this file anymore." It passed on 2026-10-21 on an Android 16 (API 36) arm64 emulator.
+Phones now name themselves for the person's other computers from the system (Settings ▸ About's name, else the
+model), where they used to be "Computer".
+
+**Joining the person's profile.** `node scripts/friends/phones-join.mjs --serial <emulator> --tools <dir> --mac <dir>
+--manifest <file> [--joins phone|mac] [--shots <dir>]`, the same arguments as Get and Get again, on the same pieces
+(`phones-mac.mjs`; the Mac's steps are SPDFMacFriendsUIPhoneFlows.mm's commands, which now also click a button, fill
+a field, read a join request's code and wait for words). `--joins phone`, the owner's case: the Mac has Fay and a chat
+with her, made friends nearby; the phone has its own ID and its own friend. Settings ▸ Use my existing profile… asks
+"Use your existing profile here?" naming the phone's own ID; Delete and Continue resets it and the join page opens by
+itself; the Mac's ID typed, Continue; Approve clicked in the Mac's dropdown and its code typed on the phone, Join:
+"This device now uses your profile". `--joins mac`: the phone has Fay; in the Mac's dropdown, Use my existing
+profile…, the phone's ID, Continue; Approve tapped on the phone and its code typed in the dropdown. Either way Fay
+and the chat's history arrive on the new one, its message reaches Fay and shows on the other, her reply reaches both,
+and You carries a note each way (a message from the Mac goes through its client protocol; everything the Mac shows
+is read from the dropdown). `--route online --forwarder <udp-forward>`: nobody meets nearby (no bridge, Fay on a test network of her own); the
+script starts the local Friends host with its relay (`szfriends-testnet host`, from `$SZFRIENDS_HOST_SERVER_DIR` and
+`$FRIENDS_TEST_COTURN`), the Mac's helper and Fay check in with it, the Mac and Fay become friends by ID through it,
+and the phone reaches it on the Mac's loopback: its WebSocket through `adb reverse`, its relay and STUN through
+`scripts/friends/udp-forward.rs` running on the emulator (`rustc --edition 2021 -O --target aarch64-linux-android
+-C linker=<NDK aarch64-linux-android35-clang>`), since a test home's online stack reaches only loopback. The debug
+app reads the host's list and keys from its test environment (kept beside its Friends home, which Reset Friends
+empties). All four (phone or Mac joining, nearby or online) passed on 2026-10-21 on an Android 16 (API 36) arm64
+emulator.
+
+**Android permissions.** `node scripts/friends/android-permissions.mjs --serial <emulator> [--apk <apk>]` opens
+Friends from a cleared app and answers the system's Bluetooth dialog through uiautomator: Allow grants scan,
+advertise and connect; Don't allow keeps Nearby's Allow, which asks again; after a second refusal Android stops
+asking and Nearby's Open Settings opens the app's page in Settings. It passed on 2026-10-20, headless, on an
+Android 16 arm64 emulator. Until then no Android build had ever asked: Nearby's Kotlin plugin was registered under
+the same Tauri plugin as FriendsPlugin, which replaced it, so every Nearby call failed. One class now answers both.
 
 **Release-size Android build.** `node scripts/friends/android-release.mjs --target aarch64` (with `JAVA_HOME` naming a
 JDK) builds the APK with Friends in the release profile, the native library stripped by cargo, and signs it with the

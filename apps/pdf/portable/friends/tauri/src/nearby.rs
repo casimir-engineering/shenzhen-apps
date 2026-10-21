@@ -20,13 +20,10 @@ use szfriends_helper::nearby::platform::{self, PlatformDiscovery, Reports};
 use szfriends_helper::nearby::radio::{Permission, Power, Radio, RadioEvent, RadioReports};
 use szfriends_helper::nearby::stream::{LinkStream, PlatformStream};
 use tauri::ipc::{Channel, InvokeResponseBody};
-use tauri::plugin::{PluginApi, PluginHandle};
-use tauri::{AppHandle, Runtime};
+use tauri::plugin::PluginHandle;
+use tauri::Runtime;
 
 use crate::streams::StreamTable;
-
-#[cfg(target_os = "ios")]
-tauri::ios_plugin_binding!(init_plugin_szfriends_nearby);
 
 /// The native plugin and the streams it holds open into the core.
 struct Native<R: Runtime> {
@@ -135,6 +132,7 @@ impl<R: Runtime> PlatformDiscovery for Discovery<R> {
             match event["kind"].as_str().unwrap_or_default() {
                 "ready" => reports.ready(),
                 "denied" => reports.denied(),
+                "radio" => reports.radio(event["on"].as_bool().unwrap_or(true)),
                 "failed" => reports.failed(&text(&event, "why")),
                 "lost" => reports.lost(&text(&event, "name")),
                 "found" => {
@@ -285,16 +283,10 @@ impl<R: Runtime> Radio for MobileRadio<R> {
     }
 }
 
-/// Registers the native plugin and installs its discovery and radio for the core (once per process).
-pub fn install<R: Runtime, C: serde::de::DeserializeOwned>(_app: &AppHandle<R>, api: &PluginApi<R, C>) {
-    #[cfg(target_os = "android")]
-    let handle = api.register_android_plugin("app.shenzhen.friends.nearby", "NearbyPlugin");
-    #[cfg(target_os = "ios")]
-    let handle = api.register_ios_plugin(init_plugin_szfriends_nearby);
-    let handle = match handle {
-        Ok(handle) => handle,
-        Err(error) => return eprintln!("szfriends: nearby plugin: {error}"),
-    };
+/// Installs the platform's discovery and radio for the core (once per process), through the plugin's one native
+/// half: Tauri keeps a single Kotlin or Swift plugin per Tauri plugin, so Nearby's commands live on the class that
+/// `phone::native` registers (FriendsPlugin extends NearbyPlugin), and a second registration would replace it.
+pub fn install<R: Runtime>(handle: PluginHandle<R>) {
     let native = Arc::new(Native { handle, streams: StreamTable::default() });
     let capabilities = native.call("nearbyCapabilities", json!({})).unwrap_or_default();
     let owns_connections = capabilities["ownsConnections"].as_bool().unwrap_or(false);

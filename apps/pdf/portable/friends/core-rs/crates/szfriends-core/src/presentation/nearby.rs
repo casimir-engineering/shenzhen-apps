@@ -107,6 +107,15 @@ impl SnapshotBuilder {
         Value::Object(action)
     }
 
+    /// A phone opens the app's own page in Settings, where its permissions are, not a privacy section.
+    fn privacy_label(&self, nearby: &NearbyFacts) -> &'static str {
+        if nearby.phone {
+            "settings_link.app.phone"
+        } else {
+            "settings_link.privacy"
+        }
+    }
+
     fn alert(&self, nearby: &NearbyFacts) -> Value {
         let s = &self.strings;
         let app = [("app", self.audience().app_name.as_str())];
@@ -117,7 +126,7 @@ impl SnapshotBuilder {
                     if nearby.phone { "alert.network_denied.body.phone" } else { "alert.network_denied.body" },
                     &app,
                 ),
-                "action": self.settings_action("local_network_privacy", "settings_link.privacy", "secondary"),
+                "action": self.settings_action("local_network_privacy", self.privacy_label(nearby), "secondary"),
             }),
             AdapterState::RadioOff => {
                 // Both radios off: the card names both, since the quiet Bluetooth line never shows under a card.
@@ -175,7 +184,7 @@ impl SnapshotBuilder {
             }),
             AdapterState::Denied => json!({
                 "text": s.text_with("note.bluetooth_denied", &app),
-                "action": self.settings_action("bluetooth_privacy", "settings_link.privacy", "link"),
+                "action": self.settings_action("bluetooth_privacy", self.privacy_label(nearby), "link"),
             }),
             AdapterState::Unavailable => json!({
                 "text": s.text("note.bluetooth_unavailable"),
@@ -229,7 +238,13 @@ impl SnapshotBuilder {
         };
         let seed = person.conversation_id.as_deref().or(person.nearby_id.as_deref()).unwrap_or(&title).to_owned();
         let initials_from = self.initials_source(person.name.as_deref(), person.friends_id.as_deref());
-        json!({
+        let (found, found_spoken) =
+            if self.shows_found() { self.found(&person.found_methods) } else { (Value::Null, None) };
+        let spoken = match found_spoken {
+            Some(found) => format!("{spoken}, {found}"),
+            None => spoken,
+        };
+        let mut row = json!({
             "nearby_id": person.nearby_id,
             "conversation_id": person.conversation_id,
             "avatar": self.avatar_for_picture(&person.picture, &seed, &initials_from),
@@ -238,7 +253,11 @@ impl SnapshotBuilder {
             "status_label": status,
             "action": action,
             "accessibility_label": spoken,
-        })
+        });
+        if self.shows_found() {
+            row["found"] = found;
+        }
+        row
     }
 
     /// The nearby view.

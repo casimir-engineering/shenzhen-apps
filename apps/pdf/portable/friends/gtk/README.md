@@ -16,7 +16,8 @@ The core:
   state change, a timeout runs the ticks, subscriptions go out again after each READY, replies are routed by id and
   run once, and one `badge` subscription serves every window.
 - `szfriends_gtk_snapshot.{c,h}`, `szfriends_gtk_schema.{c,h}`: every view, frame and result the views read, as plain
-  structs parsed by one walker from field tables type-checked at compile time.
+  structs parsed by one walker from field tables type-checked at compile time (the frames and results are in
+  `szfriends_gtk_snapshot_frames.h` and `szfriends_gtk_schema_frames.h`).
 - `szfriends_gtk_actions.{c,h}`, `szfriends_gtk_text.c`: actions and attachments to intents (which id each action
   takes), Settings pages, and rich-text segments as text with a `PangoAttrList`.
 - `szfriends_gtk_drops.{c,h}`: `GdkFileList` and host types to items; folders, links and special files refused with
@@ -30,6 +31,10 @@ The core:
   `AdwNavigationView` of pages, per-window state, Escape.
 - `szfriends_gtk_pages_builtin.c`: registers the pages below for every link.
 - `szfriends_gtk_glyphs.{c,h}`: the route icons, the check and the circle with a slash, from the AppKit views' paths.
+- `szfriends_gtk_focus.c`: system notifications (PROTOCOL.md § Notifications): `set_focus` with the conversation the
+  active window's open dropdown shows, sent on change and again after a reconnect, and `szfriends_gtk_show_conversation`
+  for the host's `<scheme>://friends/conversation/<id>` route. The list's ask banner (Turn On, Not Now) is in
+  `szfriends_gtk_list_notices.c`, Settings' Notifications block in `szfriends_gtk_settings_notifications.c`.
 - `szfriends_gtk_style.c`, `szfriends_gtk.css`, `szfriends_gtk.gresource.xml`, `icons/`: the resource, the two-people
   symbolic icon and the `@szfriends_*` colour tokens.
 - `gtk.mk`: `friends-gtk-lib` (`libszfriends_gtk.a`: views, client library, cJSON) and the four suites below.
@@ -38,12 +43,16 @@ The pages:
 
 - List and Nearby (`szfriends_gtk_list_page.{c,h}`, `szfriends_gtk_list_page_private.h`, `szfriends_gtk_list_*.c`,
   `szfriends_gtk_nearby_page.c`): the root page with search, the Friends and Nearby tabs, the notices above the rows
-  and the footer. `szfriends_gtk_list_support.c` holds what every page shares: the pages' stylesheet, the one table of
-  ways out of the views (`SZFriendsGtkSeams`: clipboard, URIs, Settings' dialog, the image chooser), the one
-  confirmation (`szfriends_gtk_confirm`: a card over the dropdown, a dialog in Settings) and running an action
-  (`szfriends_gtk_perform`).
+  and the footer. `szfriends_gtk_list_style.c` holds the pages' stylesheet and `szfriends_gtk_list_support.c` what
+  every page else shares: the one table of ways out of the views (`SZFriendsGtkSeams`: clipboard, URIs, Settings'
+  dialog, the image chooser), the one confirmation (`szfriends_gtk_confirm`: a card over the dropdown, a dialog in
+  Settings) and running an action (`szfriends_gtk_perform`).
 - Rows (`szfriends_gtk_row.{c,h}`, `szfriends_gtk_row_private.h`, `szfriends_gtk_row_*.c`): a person's row, its
-  display-free look, its drops, and Accept, Decline and Block. Rows are reused by position, so a press or a drag
+  display-free look, its drops, Accept, Decline and Block, and its menu (`szfriends_gtk_row_menu.c`, PROTOCOL.md
+  list_row `menu`, capability `list.menu`): Remove on a right-click, a long press, the Menu key or Shift+F10, and
+  Delete on the focused row; the row leaves the list as soon as the person confirms, and comes back if the helper
+  refuses. A row of someone nearby (Nearby's people, a friend seen nearby) says how they were found (PROTOCOL.md
+  `found`, capability `nearby.found`): the route icon of each method, then the helper's words, before the subtitle. Rows are reused by position, so a press or a drag
   belongs to the person who held the row when it began, and completes for nobody else. `szfriends_gtk_row.h` also
   holds the arming rule every Block in the views shares (`szfriends_gtk_arming_*`, never a double-click's second half)
   and its clock seam (`szfriends_gtk_set_clock`).

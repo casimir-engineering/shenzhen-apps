@@ -49,6 +49,48 @@ pub fn state_dir(
     }
 }
 
+/// The person's Downloads folder, where received files go until they choose another (PROTOCOL.md § Views,
+/// `settings`): Linux `XDG_DOWNLOAD_DIR` from `user-dirs.dirs` (`read` reads it; injected for tests), else
+/// `~/Downloads`; a Mac `~/Downloads`; Windows `%USERPROFILE%\Downloads`, for when the Downloads known folder
+/// cannot be read; iOS the app's Documents (`$HOME/Documents`, shown in the Files app). `None` on Android, whose
+/// public Downloads only MediaStore reaches, and when the environment names no home.
+pub fn downloads_dir(
+    platform: Platform,
+    env: impl Fn(&str) -> Option<String>,
+    read: impl Fn(&Path) -> Option<String>,
+) -> Option<PathBuf> {
+    let absolute = |value: Option<String>| value.map(PathBuf::from).filter(|p| p.is_absolute());
+    match platform {
+        Platform::Linux => {
+            let home = absolute(env("HOME"))?;
+            let config = absolute(env("XDG_CONFIG_HOME")).unwrap_or_else(|| home.join(".config"));
+            let chosen = read(&config.join("user-dirs.dirs")).and_then(|text| xdg_download_dir(&text, &home));
+            Some(chosen.unwrap_or_else(|| home.join("Downloads")))
+        }
+        Platform::MacOs => absolute(env("HOME")).map(|home| home.join("Downloads")),
+        Platform::Windows => absolute(env("USERPROFILE")).map(|home| home.join("Downloads")),
+        Platform::Ios => absolute(env("HOME")).map(|home| home.join("Documents")),
+        Platform::Android => None,
+    }
+}
+
+/// `XDG_DOWNLOAD_DIR="$HOME/…"` (or an absolute path) from `user-dirs.dirs`; `None` when absent, or set to the
+/// home itself, which the specification reads as "no Downloads folder".
+fn xdg_download_dir(text: &str, home: &Path) -> Option<PathBuf> {
+    let line = text.lines().map(str::trim).find(|l| l.starts_with("XDG_DOWNLOAD_DIR="))?;
+    let value = line["XDG_DOWNLOAD_DIR=".len()..].trim().trim_matches('"');
+    let path = if let Some(rest) = value.strip_prefix("$HOME") {
+        let rest = rest.trim_start_matches('/');
+        if rest.is_empty() {
+            return None;
+        }
+        home.join(rest)
+    } else {
+        PathBuf::from(value)
+    };
+    (path.is_absolute() && path != home).then_some(path)
+}
+
 /// Where a desktop app puts its copy of the helper before spawning it (ADR 0015 § Desktop packaging):
 /// `<state dir>/helper/<version>-<build>-<first 16 hex of the binary's SHA-256>/`. The helper never runs from the
 /// app's own files: a Windows installer cannot replace an executable that is running, and an AppImage's mount
@@ -104,6 +146,34 @@ mod tests {
         assert_eq!(local, Some(PathBuf::from(r"C:\Users\mei\AppData\Local\Shenzhen Friends")));
         assert_eq!(state_dir(Platform::Windows, env(&[("LOCALAPPDATA", r"AppData\Local")]), None), None);
         assert_eq!(state_dir(Platform::Windows, env(&[]), None), None);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn downloads_folders() {
+        let none = |_: &Path| None;
+        let home = env(&[("HOME", "/home/mei")]);
+        assert_eq!(downloads_dir(Platform::Linux, &home, none), Some(PathBuf::from("/home/mei/Downloads")));
+        let dirs = |text: &'static str| {
+            move |path: &Path| (path == Path::new("/home/mei/.config/user-dirs.dirs")).then(|| text.to_owned())
+        };
+        let french = "# comment\nXDG_DESKTOP_DIR=\"$HOME/Bureau\"\nXDG_DOWNLOAD_DIR=\"$HOME/Téléchargements\"\n";
+        assert_eq!(
+            downloads_dir(Platform::Linux, &home, dirs(french)),
+            Some(PathBuf::from("/home/mei/Téléchargements"))
+        );
+        let elsewhere = "XDG_DOWNLOAD_DIR=\"/data/downloads\"";
+        assert_eq!(downloads_dir(Platform::Linux, &home, dirs(elsewhere)), Some(PathBuf::from("/data/downloads")));
+        let disabled = "XDG_DOWNLOAD_DIR=\"$HOME/\"";
+        assert_eq!(downloads_dir(Platform::Linux, &home, dirs(disabled)), Some(PathBuf::from("/home/mei/Downloads")));
+        assert_eq!(downloads_dir(Platform::Linux, env(&[]), none), None);
+        assert_eq!(
+            downloads_dir(Platform::MacOs, env(&[("HOME", "/Users/mei")]), none),
+            Some(PathBuf::from("/Users/mei/Downloads"))
+        );
+        let ios = downloads_dir(Platform::Ios, env(&[("HOME", "/var/mobile/Containers/Data/Application/X")]), none);
+        assert_eq!(ios, Some(PathBuf::from("/var/mobile/Containers/Data/Application/X/Documents")));
+        assert_eq!(downloads_dir(Platform::Android, &home, none), None);
     }
 
     #[test]

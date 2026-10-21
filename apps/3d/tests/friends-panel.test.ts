@@ -8,10 +8,13 @@ import type { Action } from "../src/friends/protocol";
 import {
   actionIntent,
   CLIENT_ACTIONS,
+  confirmedFields,
   dropLabel,
   fill,
+  shownOption,
 } from "../src/friends/actions";
 import { FriendsStore } from "../src/friends/store";
+import { chooseReceivedFolder, runAction } from "../src/friends/parts";
 import { serializeParts } from "../src/friends/Composer";
 import {
   MAX_STAGED_NAME_BYTES,
@@ -85,6 +88,30 @@ describe("Friends view details", () => {
     });
   });
 
+  it("adds a ticked confirmation's option to the intent, and nothing when unticked or unknown", () => {
+    const confirm = {
+      title: "Remove Mei?",
+      body: "Mei leaves your list.",
+      confirm_label: "Remove",
+      cancel_label: "Cancel",
+      destructive: true,
+      option: { label: "Also delete chat history", field: "delete_history" },
+    };
+    const fields = { conversation_id: "c_mei" };
+    expect(confirmedFields(fields, confirm, true)).toEqual({
+      conversation_id: "c_mei",
+      delete_history: true,
+    });
+    expect(confirmedFields(fields, confirm, false)).toEqual(fields);
+    expect(confirmedFields(fields, { ...confirm, option: null }, true)).toEqual(
+      fields,
+    );
+    // A checkbox this panel cannot send is not shown, so ticking it can never be lost.
+    const later = { ...confirm, option: { label: "x", field: "later_field" } };
+    expect(shownOption(later)).toBeNull();
+    expect(confirmedFields(fields, later, true)).toEqual(fields);
+  });
+
   it("fills only the drag strings' placeholders, with the named forms when every name is known", () => {
     const strings = welcome.strings;
     expect(dropLabel(strings, ["Gearbox.sz3d"])).toBe(
@@ -144,6 +171,39 @@ describe("Friends view details", () => {
       type: "unsubscribe",
       fields: { subscription: "s_2" },
     });
+  });
+
+  it("Save received files to shows the folder, and Change… sends the folder the picker gave", async () => {
+    const frame = json("snapshots/settings.json");
+    const setup = pageFor("settings.json", frame)!;
+    const { html } = await render(setup.byView, setup.holds, setup.page);
+    const row = frame.data.received;
+    expect(html).toContain(escape(row.label));
+    expect(html).toContain(escape(row.value));
+    expect(html).toContain(escape(row.change.label));
+    expect(html).toContain(escape(row.action.label));
+
+    const bridge = fakeBridge({});
+    const starts: (string | null | undefined)[] = [];
+    let chosen: string | null = "/Users/someone/From friends";
+    bridge.chooseFolder = async (start) => {
+      starts.push(start);
+      return chosen;
+    };
+    const store = new FriendsStore(bridge, status);
+    const reports: unknown[] = [];
+    const panel = { bridge, store, report: (r: unknown) => reports.push(r) };
+    await chooseReceivedFolder(panel as never, row.path);
+    expect(starts).toEqual([row.path]);
+    expect(bridge.sent.at(-1)).toEqual({
+      type: "set_received_folder",
+      fields: { path: "/Users/someone/From friends" },
+    });
+    expect(reports).toHaveLength(1);
+    chosen = null;
+    const before = bridge.sent.length;
+    await chooseReceivedFolder(panel as never, row.path);
+    expect(bridge.sent.length, "cancelled: nothing sent").toBe(before);
   });
 
   it("the composer's hint, the history and the request card come from the snapshot", async () => {
@@ -249,5 +309,65 @@ describe("Friends project staging", () => {
     ).rejects.toThrow();
     expect(errors).toEqual([STAGE_FAILED]);
     expect(STAGE_FAILED).not.toMatch(/invoke|remote|method|Invalid|Error/);
+  });
+
+  it("offers the existing profile: the join view at once, or after Reset with its confirmation", async () => {
+    // A fresh list draws the offer in the name prompt; a named list with nobody, as a card of its own.
+    const fresh = json("snapshots/devices-list-new-computer.json");
+    const offer = fresh.data.join;
+    let setup = pageFor("devices-list-new-computer.json", fresh)!;
+    let { html } = await render(setup.byView, setup.holds, setup.page);
+    expect(html).toContain(escape(offer.action.label));
+    expect(html).toContain(escape(offer.note));
+    const named = { ...fresh, data: { ...fresh.data, name_prompt: null } };
+    setup = pageFor("named.json", named)!;
+    ({ html } = await render(setup.byView, setup.holds, setup.page));
+    expect(html).toContain("szf-card szf-join-offer");
+    expect(html).toContain(escape(offer.note));
+
+    const panelWith = (answer: false | { option: boolean }) => {
+      const bridge = fakeBridge({});
+      const panel = {
+        bridge,
+        store: new FriendsStore(bridge, status),
+        report: () => {},
+        openConversation: () => {},
+        confirm: async () => answer,
+        joins: 0,
+        openJoin() {
+          panel.joins++;
+        },
+      };
+      return panel;
+    };
+    // Nothing to lose: straight to the join view, nothing sent.
+    let panel = panelWith({ option: false });
+    await runAction(panel as never, offer.action);
+    expect(panel.joins).toBe(1);
+    expect(panel.bridge.sent).toEqual([]);
+
+    // Friends here: Reset Friends alone (never `then`), then the join view; cancelled, nothing at all.
+    const reset = json("snapshots/devices-list-join-reset.json").data.join
+      .action;
+    expect(reset.then).toBe("open_join");
+    panel = panelWith({ option: false });
+    await runAction(panel as never, reset);
+    expect(panel.bridge.sent).toEqual([
+      { type: "reset_friends", fields: { confirm: "reset" } },
+    ]);
+    expect(panel.joins).toBe(1);
+    panel = panelWith(false);
+    await runAction(panel as never, reset);
+    expect(panel.bridge.sent).toEqual([]);
+    expect(panel.joins).toBe(0);
+  });
+
+  it("Your computers says how to add a computer or phone, with the ID to type there", async () => {
+    const frame = json("snapshots/devices-profile.json");
+    const setup = pageFor("devices-profile.json", frame)!;
+    const { html } = await render(setup.byView, setup.holds, setup.page);
+    expect(html).toContain(escape(frame.data.devices.add.title));
+    for (const step of frame.data.devices.add.steps)
+      expect(html).toContain(escape(step));
   });
 });

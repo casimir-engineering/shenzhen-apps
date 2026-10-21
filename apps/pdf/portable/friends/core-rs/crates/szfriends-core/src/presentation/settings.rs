@@ -9,6 +9,7 @@ use serde_json::{json, Value};
 use super::facts::{PersonFacts, ProfileFacts, Relation, SearchHitFacts};
 use super::text::{composed_range16, from_utf16, non_empty_trimmed, utf16};
 use super::SnapshotBuilder;
+use crate::store::{PhoneFolder, ReceivedFallback, ReceivedFile};
 
 /// Names spelled out in the automatic-acceptance summary before it switches to a count.
 const NAMED_AUTO_ACCEPT_LIMIT: usize = 3;
@@ -39,10 +40,76 @@ impl SnapshotBuilder {
         s.text_with(key, &[("names", &who)])
     }
 
+    /// Where received files are saved: the folder, Show in Finder and, with the helper capability `received.folder`,
+    /// its name and Change… (neither path nor buttons on a phone, whose place Friends does not change).
+    fn received_folder(&self, profile: &ProfileFacts) -> Value {
+        let s = &self.strings;
+        let folder = &profile.received;
+        let reveal = |path: &str| {
+            let mut reveal = self.action("show_file", self.show_file_label(), "secondary");
+            reveal.insert("path".into(), json!(path));
+            Value::Object(reveal)
+        };
+        if !self.audience().helper_has("received.folder") {
+            return json!({
+                "label": s.text("settings.received.label"),
+                "note": s.text("settings.received.note"),
+                "action": folder.path.as_deref().map_or(Value::Null, reveal),
+            });
+        }
+        let (value, note) = match folder.phone {
+            Some(PhoneFolder::AppFiles) => {
+                (Some(self.audience().app_name.clone()), s.text("settings.received.note.ios"))
+            }
+            Some(PhoneFolder::Downloads) => {
+                (Some(s.text("settings.received.default")), s.text("settings.received.note"))
+            }
+            // Kept in the app, where no folder shows: each file's Share… is the way out.
+            Some(PhoneFolder::App) => (None, s.text("settings.received.note")),
+            None => (
+                Some(folder.chosen_name.clone().unwrap_or_else(|| s.text("settings.received.default"))),
+                s.text("settings.received.note"),
+            ),
+        };
+        // The last file went elsewhere because this folder could not take it: said until one is saved here.
+        let note = match folder.fallback {
+            Some(ReceivedFallback::Downloads) => s.text("settings.received.note.fallback.downloads"),
+            Some(ReceivedFallback::Kept) => {
+                s.text_with("settings.received.note.fallback.kept", &[("app", &self.audience().app_name)])
+            }
+            None => note,
+        };
+        let path = folder.path.as_deref().filter(|_| folder.phone.is_none() && !self.on_phone());
+        let change = path.map(|_| {
+            Value::Object(self.action("choose_received_folder", s.text("settings.received.change"), "secondary"))
+        });
+        let mut row = json!({
+            "label": s.text("settings.received.label"),
+            "note": note,
+            "path": path,
+            "action": path.map_or(Value::Null, reveal),
+            "change": change,
+        });
+        if let Some(value) = value {
+            row["value"] = json!(value);
+        }
+        row
+    }
+
     /// The words that say history goes from every computer, on several.
     pub(crate) fn every_computer_key(&self, key: &str) -> String {
         if self.deletes_on_every_computer() {
             format!("{key}.devices")
+        } else {
+            key.to_owned()
+        }
+    }
+
+    /// Settings' words for where history is kept, for this audience: ".phone" on a phone or tablet, which says "this
+    /// device" where a computer says "this computer".
+    pub(crate) fn this_device_key(&self, key: &str) -> String {
+        if self.on_phone() {
+            format!("{key}.phone")
         } else {
             key.to_owned()
         }
@@ -77,11 +144,11 @@ impl SnapshotBuilder {
                 })
             })
             .collect();
-        let mut reveal = self.action("show_file", self.show_file_label(), "secondary");
-        reveal.insert("path".into(), json!(profile.received_directory));
-        let history_body = self.every_computer_key(&self.deletion_body_key("settings.history.confirm.body"));
-        let reset_body = self.deletion_body_key("settings.reset.confirm.body");
-        json!({
+        let received = self.received_folder(profile);
+        let history_body =
+            self.this_device_key(&self.every_computer_key(&self.deletion_body_key("settings.history.confirm.body")));
+        let reset_body = self.this_device_key(&self.deletion_body_key("settings.reset.confirm.body"));
+        let mut settings = json!({
             "name": {
                 "label": s.text("settings.name.label"),
                 "note": s.text("settings.name.note"),
@@ -94,11 +161,7 @@ impl SnapshotBuilder {
                 "friends_id": profile.friends_id,
                 "copy_label": s.text("static.copy"),
             },
-            "received": {
-                "label": s.text("settings.received.label"),
-                "note": s.text("settings.received.note"),
-                "action": reveal,
-            },
+            "received": received,
             "auto_accept": {
                 "label": s.text("settings.auto.label"),
                 "note": self.auto_accept_note(&on, on.len() + off.len()),
@@ -107,7 +170,7 @@ impl SnapshotBuilder {
             },
             "history": {
                 "label": s.text("settings.history.label"),
-                "note": s.text(&self.every_computer_key("settings.history.note")),
+                "note": s.text(&self.this_device_key(&self.every_computer_key("settings.history.note"))),
                 "action_label": s.text("settings.history.action"),
                 "confirm": self.confirm("settings.history.confirm.title", &history_body,
                                         "settings.history.confirm.button", &[], true),
@@ -119,7 +182,33 @@ impl SnapshotBuilder {
                 "confirm": self.confirm("settings.reset.confirm.title", &reset_body,
                                         "settings.reset.confirm.button", &[], true),
             },
-        })
+        });
+        // Using an existing profile here, while offered (helper capability `devices`).
+        if let Some(join) = self.settings_join() {
+            settings["join"] = join;
+        }
+        // This device's notifications (helper capability `notifications`).
+        if let Some(facts) = profile.notifications.as_ref().filter(|_| self.audience().helper_has("notifications")) {
+            settings["notifications"] = self.notifications_settings(facts);
+        }
+        settings
+    }
+
+    /// The `received` view: the files received here, newest first (helper capability `received.folder`).
+    pub fn received(&self, files: &[ReceivedFile]) -> Value {
+        let files: Vec<Value> = files
+            .iter()
+            .map(|file| {
+                json!({
+                    "transfer_id": file.transfer_id,
+                    "path": file.path,
+                    "file_name": file.file_name,
+                    "received_at": file.received_at,
+                    "source": file.source.name(),
+                })
+            })
+            .collect();
+        json!({ "files": files })
     }
 
     fn excerpt(&self, hit: &SearchHitFacts) -> Vec<Value> {

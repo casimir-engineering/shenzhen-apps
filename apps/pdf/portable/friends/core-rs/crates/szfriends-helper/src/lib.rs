@@ -21,6 +21,7 @@ pub mod lifecycle;
 pub mod linux;
 pub mod log;
 pub mod nearby;
+pub mod notify;
 pub mod presentation;
 #[cfg(any(target_os = "linux", windows))]
 pub mod run;

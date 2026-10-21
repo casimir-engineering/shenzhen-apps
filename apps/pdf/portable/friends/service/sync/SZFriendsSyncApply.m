@@ -26,7 +26,8 @@ NS_ASSUME_NONNULL_BEGIN
     case SZFriendsSyncKindRead: return [self applyRead:event fields:fields];
     case SZFriendsSyncKindOutbox: return [self applyOutbox:event fields:fields];
     case SZFriendsSyncKindFile: return [self applyFile:event fields:fields];
-    case SZFriendsSyncKindFileHeld: return [self applyFileHeld:event];
+    case SZFriendsSyncKindFileHeld:
+        return [self applyFileHeld:event released:[fields uint64ForTag:SZFSTagReleased] == 1];
     case SZFriendsSyncKindTombstone:
         return [self applyTombstone:event] ? SZFriendsSyncApplyDone : SZFriendsSyncApplyFailed;
     case SZFriendsSyncKindRevocation: return [self applyRevocation:event];
@@ -196,8 +197,15 @@ NS_ASSUME_NONNULL_BEGIN
     SZFriendsItemRecord *item = SZFriendsSyncItemFromBody(fields, event.subject);
     if (item == nil) return SZFriendsSyncApplyDone;
     item.conversationID = conversation;
-    return [store mergeSyncedItem:item author:event.author seq:event.seq error:NULL] ? SZFriendsSyncApplyDone
-                                                                                    : SZFriendsSyncApplyFailed;
+    // New here (the store's committed state; a second copy in the same batch is one item, told once).
+    BOOL known = [store itemWithID:item.itemID inConversation:conversation] != nil;
+    for (SZFriendsItemRecord *arriving in self.arrivingItems) {
+        known = known || ([arriving.itemID isEqualToString:item.itemID] &&
+                          [arriving.conversationID isEqualToString:conversation]);
+    }
+    if (![store mergeSyncedItem:item author:event.author seq:event.seq error:NULL]) return SZFriendsSyncApplyFailed;
+    if (!known) [self.arrivingItems addObject:item];
+    return SZFriendsSyncApplyDone;
 }
 
 - (SZFriendsSyncApplyResult)applyRead:(SZFriendsSyncEvent *)event fields:(SZFriendsSyncFields *)fields {
@@ -286,15 +294,20 @@ NS_ASSUME_NONNULL_BEGIN
     return [self setRegister:key event:event value:SZFriendsSyncFileBody(file)];
 }
 
-- (SZFriendsSyncApplyResult)applyFileHeld:(SZFriendsSyncEvent *)event {
+// Each author's FILE HELD events apply in its order, so its last one decides whether it is listed (ADR 0016).
+- (SZFriendsSyncApplyResult)applyFileHeld:(SZFriendsSyncEvent *)event released:(BOOL)released {
     SZFriendsSyncFileRecord *file = [self.store syncFileWithID:event.subject];
     if (file == nil) {
         // Deleted with its item, or its record has not arrived yet.
         BOOL deleted = [self.store hasBodilessSyncEventOfKind:SZFriendsSyncKindFile subject:event.subject];
         return deleted ? SZFriendsSyncApplyDone : SZFriendsSyncApplyWait;
     }
-    if ([file.holders containsObject:event.author]) return SZFriendsSyncApplyDone;
-    file.holders = [file.holders arrayByAddingObject:event.author];
+    BOOL listed = [file.holders containsObject:event.author];
+    if (listed != released) return SZFriendsSyncApplyDone;
+    NSMutableArray<NSData *> *holders = [file.holders mutableCopy];
+    if (released) [holders removeObject:event.author];
+    else [holders addObject:event.author];
+    file.holders = holders;
     if (![self.store saveSyncFile:file error:NULL]) return SZFriendsSyncApplyFailed;
     [self noteChangedConversation:file.conversationID];
     return SZFriendsSyncApplyDone;

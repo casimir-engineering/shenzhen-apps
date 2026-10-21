@@ -103,6 +103,7 @@
 @implementation SZFriendsListDevicesView {
     SZFriendsContext *_context;
     NSMutableArray<SZFriendsJoinRequestView *> *_requests;
+    NSDictionary *_joinAction; // the list's join action while offered
 }
 
 - (instancetype)initWithContext:(SZFriendsContext *)context {
@@ -115,6 +116,11 @@
     _removedNotice.bodyLabel.textColor = appearance.primaryTextColor;
     _removedNotice.hidden = YES;
     [self addSubview:_removedNotice];
+    _joinNotice = [[SZFriendsNoticeView alloc] initWithContext:context];
+    _joinNotice.fillColor = appearance.fieldBackgroundColor;
+    _joinNotice.padding = 10;
+    _joinNotice.hidden = YES;
+    [self addSubview:_joinNotice];
     _requests = [NSMutableArray array];
     self.hidden = YES;
     return self;
@@ -124,21 +130,39 @@
     return [_requests copy];
 }
 
-- (void)offerJoin:(NSString *)label inPrompt:(SZFriendsNoticeView *)prompt {
-    if (!label.length) {
-        prompt.secondaryButton = nil;
-        return;
-    }
-    if ([prompt.secondaryButton.title isEqualToString:label]) return;
+// A link button that runs the list's current join action (open_join, or Reset Friends with its confirmation first).
+- (SZFriendsButton *)joinButtonWithLabel:(NSString *)label {
     SZFriendsButton *button = [SZFriendsButton buttonWithTitle:label style:SZFriendsButtonStyleLink
                                                     appearance:_context.appearance];
     __weak SZFriendsListDevicesView *weakSelf = self;
     button.onPress = ^(SZFriendsButton *pressed) {
         (void)pressed;
         SZFriendsListDevicesView *view = weakSelf;
-        if (view.onJoin) view.onJoin();
+        if (view) [view->_context performAction:view->_joinAction ids:nil done:nil];
     };
-    prompt.secondaryButton = button;
+    return button;
+}
+
+- (void)offerJoin:(NSDictionary *)join inPrompt:(SZFriendsNoticeView *)prompt promptShown:(BOOL)promptShown {
+    NSDictionary *action = SZFDict(join, @"action");
+    NSString *label = SZFStr(action, @"label"), *note = SZFStr(join, @"note");
+    BOOL offered = label.length && [SZFriendsContext knowsAction:SZFStr(action, @"action")];
+    _joinAction = offered ? action : nil;
+    // In the name prompt while it shows, its note as the link's tooltip; else a card of its own above the rows.
+    if (offered && promptShown) {
+        if (![prompt.secondaryButton.title isEqualToString:label]) prompt.secondaryButton = [self joinButtonWithLabel:label];
+        prompt.secondaryButton.toolTip = note;
+    } else {
+        prompt.secondaryButton = nil;
+    }
+    BOOL card = offered && !promptShown;
+    _joinNotice.hidden = !card;
+    _joinNotice.bodyLabel.stringValue = card ? note ?: @"" : @"";
+    if (!card) _joinNotice.secondaryButton = nil;
+    else if (![_joinNotice.secondaryButton.title isEqualToString:label])
+        _joinNotice.secondaryButton = [self joinButtonWithLabel:label];
+    self.hidden = _removedNotice.hidden && _joinNotice.hidden && _requests.count == 0;
+    [self setNeedsLayout:YES];
 }
 
 - (void)applyList:(NSDictionary *)data {
@@ -167,13 +191,14 @@
         (void)stop;
         [self->_requests[index] applyRequest:[request isKindOfClass:NSDictionary.class] ? request : @{}];
     }];
-    self.hidden = _removedNotice.hidden && _requests.count == 0;
+    self.hidden = _removedNotice.hidden && _joinNotice.hidden && _requests.count == 0;
     [self setNeedsLayout:YES];
 }
 
 - (CGFloat)layoutForWidth:(CGFloat)width apply:(BOOL)apply {
     CGFloat y = 0;
     NSMutableArray<NSView *> *shown = [NSMutableArray array];
+    if (!_joinNotice.hidden) [shown addObject:_joinNotice];
     if (!_removedNotice.hidden) [shown addObject:_removedNotice];
     [shown addObjectsFromArray:_requests];
     for (NSView *view in shown) {

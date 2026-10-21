@@ -76,6 +76,31 @@ static void set_name(SZFriendsGtkRow *row, const char *accessibility_label, cons
     gtk_accessible_update_property(GTK_ACCESSIBLE(row), GTK_ACCESSIBLE_PROPERTY_LABEL, name ? name : "", -1);
 }
 
+/* PROTOCOL.md found: one route icon per method seeing the person now, then the helper's words for them. */
+static void set_found(SZFriendsGtkRow *row, const SZFriendsGtkFound *found) {
+    static const struct { const char *name; SZFriendsGtkRouteMethod method; } methods[] = {
+        {"lan", SZFRIENDS_GTK_METHOD_LAN}, {"p2p_wifi", SZFRIENDS_GTK_METHOD_P2P_WIFI},
+        {"bluetooth", SZFRIENDS_GTK_METHOD_BLUETOOTH}};
+    GtkWidget *glyph = gtk_widget_get_first_child(row->found_icons);
+    guint shown = 0;
+    for (char **m = found ? found->methods : NULL; m && *m && glyph; m++) {
+        SZFriendsGtkRouteMethod method = SZFRIENDS_GTK_METHOD_UNSET;
+        for (gsize i = 0; i < G_N_ELEMENTS(methods); i++)
+            if (!g_strcmp0(*m, methods[i].name)) method = methods[i].method;
+        if (method == SZFRIENDS_GTK_METHOD_UNSET) continue; /* a method this view has no icon for */
+        szfriends_gtk_glyph_set_kind(glyph, szfriends_gtk_route_glyph(SZFRIENDS_GTK_ROUTE_LOCAL, method));
+        gtk_widget_set_visible(glyph, TRUE);
+        glyph = gtk_widget_get_next_sibling(glyph);
+        shown++;
+    }
+    for (; glyph; glyph = gtk_widget_get_next_sibling(glyph)) gtk_widget_set_visible(glyph, FALSE);
+    const char *label = found && found->label ? found->label : "";
+    gtk_label_set_text(GTK_LABEL(row->found_label), label);
+    gtk_widget_set_visible(row->found_label, *label != '\0');
+    gtk_widget_set_visible(row->found, shown || *label);
+    gtk_widget_set_tooltip_text(row->found, *label ? label : NULL);
+}
+
 static void row_action(GtkWidget *actions, SZFriendsGtkActionKind action, gpointer data) {
     (void)actions;
     SZFriendsGtkRow *row = data;
@@ -89,6 +114,7 @@ static void take_person(SZFriendsGtkRow *row, const char *conversation_id, const
     /* The old person's buttons go, not only their pill: two requests can carry the same words, and a press on a
      * kept button would answer for whoever took the row. A destroyed button never completes a click. */
     szfriends_gtk_row_actions_apply(row->actions, NULL, 0);
+    szfriends_gtk_row_close_menu(row);
     replace(&row->conversation_id, conversation_id);
     replace(&row->nearby_id, nearby_id);
 }
@@ -107,12 +133,14 @@ void szfriends_gtk_row_set_list_row(GtkWidget *widget, const SZFriendsGtkListRow
     szfriends_gtk_avatar_set(row->avatar, &list_row->avatar);
     gtk_label_set_text(GTK_LABEL(row->title), list_row->title);
     gtk_label_set_text(GTK_LABEL(row->subtitle), list_row->subtitle);
+    set_found(row, list_row->found);
     gtk_label_set_text(GTK_LABEL(row->time), list_row->time_label);
     gtk_label_set_text(GTK_LABEL(row->pill), list_row->waiting ? list_row->waiting->label : "");
     replace(&row->route_label, list_row->route.label);
     gtk_widget_set_tooltip_text(row->check, list_row->id_confirmed ? list_row->id_confirmed_label : NULL);
     szfriends_gtk_row_actions_apply(row->actions, list_row->actions, list_row->n_actions);
     szfriends_gtk_row_actions_set_inactive(row->actions, row->dimmed);
+    szfriends_gtk_row_set_menu(row, list_row->menu, list_row->n_menu);
     g_clear_pointer(&row->accessory, gtk_widget_unparent);
     gtk_widget_set_focusable(widget, row->clickable);
     set_name(row, list_row->accessibility_label, list_row->title);
@@ -145,9 +173,11 @@ void szfriends_gtk_row_set_nearby_person(GtkWidget *widget, const SZFriendsGtkNe
     szfriends_gtk_avatar_set(row->avatar, &person->avatar);
     gtk_label_set_text(GTK_LABEL(row->title), person->title);
     gtk_label_set_text(GTK_LABEL(row->subtitle), person->subtitle);
+    set_found(row, person->found);
     gtk_label_set_text(GTK_LABEL(row->status), person->status_label ? person->status_label : "");
     row->facts.has_status = person->status_label && *person->status_label;
     szfriends_gtk_row_actions_apply(row->actions, NULL, 0);
+    szfriends_gtk_row_set_menu(row, NULL, 0);
     g_clear_pointer(&row->accessory, gtk_widget_unparent);
     const SZFriendsGtkAction *action = person->action;
     /* Only the Request this view knows how to send; any other action is hidden (PROTOCOL.md § Principles). */
@@ -179,10 +209,8 @@ void szfriends_gtk_row_activate(GtkWidget *widget) {
 
 static gboolean key_pressed(GtkEventControllerKey *keys, guint keyval, guint keycode, GdkModifierType state,
                             gpointer data) {
-    (void)keys, (void)keycode, (void)state;
-    if (keyval != GDK_KEY_Return && keyval != GDK_KEY_KP_Enter && keyval != GDK_KEY_space) return FALSE;
-    szfriends_gtk_row_activate(data);
-    return TRUE;
+    (void)keys, (void)keycode;
+    return szfriends_gtk_row_key(data, keyval, state); /* szfriends_gtk_row_menu.c */
 }
 
 static void pointer_entered(GtkEventControllerMotion *motion, double x, double y, gpointer data) {
@@ -244,8 +272,29 @@ static void build(SZFriendsGtkRow *row) {
     gtk_box_append(GTK_BOX(title_line), row->title);
     gtk_box_append(GTK_BOX(title_line), row->check);
     row->subtitle = label("szfriends-row-subtitle", 0);
+    gtk_widget_set_hexpand(row->subtitle, TRUE);
+    /* How someone nearby was found sits first on the subtitle's line, so the time keeps its place. */
+    row->found = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 4);
+    gtk_widget_add_css_class(row->found, "szfriends-row-found");
+    gtk_widget_set_margin_end(row->found, 6);
+    gtk_widget_set_can_target(row->found, TRUE); /* for its tooltip; a click still reaches the row */
+    row->found_icons = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 2);
+    gtk_widget_set_valign(row->found_icons, GTK_ALIGN_CENTER);
+    for (int i = 0; i < 3; i++) {
+        GtkWidget *glyph = szfriends_gtk_glyph_new(SZFRIENDS_GTK_GLYPH_NONE, 11);
+        gtk_widget_add_css_class(glyph, "szfriends-found-icon"); /* drawn in the nearby route's colour */
+        gtk_box_append(GTK_BOX(row->found_icons), glyph);
+    }
+    row->found_label = label("szfriends-row-found-label", 0);
+    gtk_label_set_ellipsize(GTK_LABEL(row->found_label), PANGO_ELLIPSIZE_NONE);
+    gtk_box_append(GTK_BOX(row->found), row->found_icons);
+    gtk_box_append(GTK_BOX(row->found), row->found_label);
+    gtk_widget_set_visible(row->found, FALSE);
+    GtkWidget *subtitle_line = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
+    gtk_box_append(GTK_BOX(subtitle_line), row->found);
+    gtk_box_append(GTK_BOX(subtitle_line), row->subtitle);
     gtk_box_append(GTK_BOX(text), title_line);
-    gtk_box_append(GTK_BOX(text), row->subtitle);
+    gtk_box_append(GTK_BOX(text), subtitle_line);
     row->time_box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 3);
     gtk_widget_set_valign(row->time_box, GTK_ALIGN_CENTER);
     gtk_widget_set_margin_start(row->time_box, 10);
@@ -282,6 +331,7 @@ static void build(SZFriendsGtkRow *row) {
 
 static void row_dispose(GObject *object) {
     SZFriendsGtkRow *row = SZFRIENDS_GTK_ROW(object);
+    szfriends_gtk_row_free_menu(row);
     GtkWidget *child;
     while ((child = gtk_widget_get_first_child(GTK_WIDGET(row)))) gtk_widget_unparent(child);
     row->accessory = NULL;
@@ -298,8 +348,17 @@ static void row_finalize(GObject *object) {
     G_OBJECT_CLASS(szfriends_gtk_row_parent_class)->finalize(object);
 }
 
+/* The box lays out the row's own children; an open menu is placed again whenever the row moves. */
+static void row_size_allocate(GtkWidget *widget, int width, int height, int baseline) {
+    GTK_WIDGET_CLASS(szfriends_gtk_row_parent_class)->size_allocate(widget, width, height, baseline);
+    SZFriendsGtkRow *row = SZFRIENDS_GTK_ROW(widget);
+    if (row->menu_popover && gtk_widget_get_visible(row->menu_popover))
+        gtk_popover_present(GTK_POPOVER(row->menu_popover));
+}
+
 static void szfriends_gtk_row_class_init(SZFriendsGtkRowClass *klass) {
     G_OBJECT_CLASS(klass)->dispose = row_dispose;
+    GTK_WIDGET_CLASS(klass)->size_allocate = row_size_allocate;
     G_OBJECT_CLASS(klass)->finalize = row_finalize;
     gtk_widget_class_set_css_name(GTK_WIDGET_CLASS(klass), "szfriends-row");
     gtk_widget_class_set_layout_manager_type(GTK_WIDGET_CLASS(klass), GTK_TYPE_BOX_LAYOUT);
@@ -324,6 +383,7 @@ GtkWidget *szfriends_gtk_row_new(SZFriendsGtkLink *link) {
     g_signal_connect(motion, "leave", G_CALLBACK(pointer_left), row);
     gtk_widget_add_controller(widget, motion);
     szfriends_gtk_row_install_targets(row);
+    szfriends_gtk_row_install_menu(row);
     szfriends_gtk_row_refresh(row);
     return widget;
 }
@@ -340,6 +400,7 @@ void szfriends_gtk_row_set_dimmed(GtkWidget *widget, gboolean dimmed) {
     SZFriendsGtkRow *row = szfriends_gtk_row_of(widget);
     if (!row || row->dimmed == dimmed) return;
     row->dimmed = dimmed;
+    if (dimmed) szfriends_gtk_row_close_menu(row);
     /* Faded rows take no answer either; their buttons fade with them. */
     szfriends_gtk_row_actions_set_inactive(row->actions, dimmed);
     szfriends_gtk_row_refresh(row);
@@ -381,7 +442,7 @@ GtkWidget *szfriends_gtk_row_get_part(GtkWidget *widget, SZFriendsGtkRowPart par
     SZFriendsGtkRow *row = szfriends_gtk_row_of(widget);
     if (!row) return NULL;
     GtkWidget *parts[] = {row->title, row->subtitle, row->time, row->pill, row->route, row->check, row->status,
-                          row->drop_pill};
+                          row->drop_pill, row->found_label, row->found_icons};
     return (gsize)part < G_N_ELEMENTS(parts) ? parts[part] : NULL;
 }
 

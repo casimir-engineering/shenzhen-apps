@@ -22,6 +22,7 @@ static NSDictionary<NSString *, NSString *> *TransferAndConversationEntries(void
         @"transfer.status.receiving_timed" : @"Receiving · {percent}% · {duration} left",
         @"transfer.status.delivered" : @"Delivered to {first}",
         @"transfer.status.received" : @"Received",
+        @"transfer.status.received.saved" : @"Saved to {folder}",
         @"transfer.status.declined.out" : @"{first} declined",
         @"transfer.status.declined.in" : @"You declined",
         @"transfer.status.cancelled" : @"Cancelled",
@@ -43,6 +44,7 @@ static NSDictionary<NSString *, NSString *> *TransferAndConversationEntries(void
         @"transfer.spoken.in.receiving" : @"{sender} is sending {file}, {kind}, {size}{auto}, {percent} percent "
                                           @"received{left}",
         @"transfer.spoken.in.received" : @"{sender} sent {file}, {kind}, {size}{auto}, received",
+        @"transfer.spoken.in.received.saved" : @"{sender} sent {file}, {kind}, {size}{auto}, saved to {folder}",
         @"transfer.spoken.in.declined" : @"{sender} offered {file}, {kind}, {size}, you declined",
         @"transfer.spoken.in.cancelled" : @"{sender} offered {file}, {kind}, {size}, cancelled",
         @"transfer.spoken.in.failed" : @"{sender} offered {file}, {kind}, {size}, it didn’t arrive",
@@ -192,7 +194,7 @@ static NSDictionary<NSString *, NSString *> *PeopleAndSettingsEntries(void) {
         @"details.copy_id" : @"Copy {first}’s ID",
         @"details.received.one" : @"Received from {first}: 1 file",
         @"details.received.other" : @"Received from {first}: {count} files",
-        @"details.remove_note" : @"Keeps your conversation. {first} can send you a new request.",
+        @"details.remove_note" : @"Takes {first} off your list. {first} can send you a new request.",
         @"details.block_note" : @"{first} can’t reach you or send requests until you unblock.",
         @"details.unblock_note" : @"{first} can reach you and send requests again.",
         @"details.history.action" : @"Delete chat history…",
@@ -206,12 +208,12 @@ static NSDictionary<NSString *, NSString *> *PeopleAndSettingsEntries(void) {
         @"details.history.confirm.stays.friend" : @"{first} stays your friend and keeps their own copy of the chat.",
         @"details.history.confirm.stays.blocked" : @"{first} stays blocked and keeps their own copy of the chat.",
         @"details.history.confirm.stays" : @"{first} keeps their own copy of the chat.",
-        @"details.history.confirm.files" : @"Files you received stay in Received files.",
+        @"details.history.confirm.files" : @"Files you received stay where they were saved.",
         @"details.history.confirm.assistant" : @"AI chat answers that quoted this chat stay in Chats until you delete "
                                                @"them there.",
         @"auto_accept.title" : @"Accept files from {first} automatically",
-        @"auto_accept.body" : @"Files from {first} download without asking. They still go to Received files and never "
-                              @"open by themselves.",
+        @"auto_accept.body" : @"Files from {first} download without asking. They’re saved where other received files "
+                              @"go and never open by themselves.",
         @"key_change.title" : @"{first}’s key changed",
         @"key_change.body" : @"This happens when {first} resets Friends or starts over on a new computer or phone. If "
                              @"you’re not sure it’s really them, compare codes before you continue.",
@@ -232,10 +234,15 @@ static NSDictionary<NSString *, NSString *> *PeopleAndSettingsEntries(void) {
         @"settings.name.label" : @"Your name",
         @"settings.name.note" : @"The name your friends see.",
         @"settings.id.note" : @"People can add you with it.",
-        @"settings.received.label" : @"Received files",
-        @"settings.received.note" : @"Files you accept from friends are saved here.",
+        @"settings.received.label" : @"Save received files to",
+        @"settings.received.note" : @"",
+        @"settings.received.note.fallback.downloads" : @"The last file couldn’t be saved here, so it went to Downloads.",
+        @"settings.received.note.fallback.kept" : @"The last file couldn’t be saved here, so {app} kept it. Open it from "
+                                                  @"its chat.",
+        @"settings.received.default" : @"Downloads",
+        @"settings.received.change" : @"Change…",
         @"settings.auto.label" : @"Accept files automatically",
-        @"settings.auto.action" : @"Change…",
+        @"settings.auto.action" : @"Choose friends…",
         @"settings.auto.note.some" : @"From {names}. Everyone else asks first.",
         @"settings.auto.note.only" : @"From {names}.",
         @"settings.auto.note.all" : @"From every friend.",
@@ -251,16 +258,16 @@ static NSDictionary<NSString *, NSString *> *PeopleAndSettingsEntries(void) {
         @"settings.history.confirm.body" : @"Your messages and file history with every friend are deleted from this "
                                            @"computer, and anything still waiting to go won’t be sent. You keep your "
                                            @"friends, and they keep their own copies of your chats. Files you "
-                                           @"received stay in Received files.",
+                                           @"received stay where they were saved.",
         // Only for a host whose AI chat may read Friends chats (assistant.chats): answers there that quoted a friend
         // are the host's, not Friends', so deleting here leaves them, and saying nothing would be untrue from the
         // person's side (wave-4 security re-check).
         @"settings.history.confirm.body.assistant" : @"Your messages and file history with every friend are deleted "
                                                      @"from this computer, and anything still waiting to go won’t be "
                                                      @"sent. You keep your friends, and they keep their own copies of "
-                                                     @"your chats. Files you received stay in Received files. AI chat "
-                                                     @"answers that quoted your chats stay in Chats until you delete "
-                                                     @"them there.",
+                                                     @"your chats. Files you received stay where they were saved. AI "
+                                                     @"chat answers that quoted your chats stay in Chats until you "
+                                                     @"delete them there.",
         @"settings.history.confirm.button" : @"Delete History",
         @"settings.reset.label" : @"Start over",
         // Settings' Nearby line: whether Friends can find people nearby, and what fixes it when it cannot.
@@ -290,12 +297,13 @@ static NSDictionary<NSString *, NSString *> *PeopleAndSettingsEntries(void) {
         @"settings.reset.action" : @"Reset Friends…",
         @"settings.reset.confirm.title" : @"Reset Friends?",
         @"settings.reset.confirm.body" : @"This deletes your friends and conversations from this computer and gives "
-                                         @"you a new ID. Every friend has to add you again. Files you received stay in "
-                                         @"Received files.",
+                                         @"you a new ID. Every friend has to add you again. Files you received stay "
+                                         @"where they were saved.",
         @"settings.reset.confirm.body.assistant" : @"This deletes your friends and conversations from this computer "
                                                    @"and gives you a new ID. Every friend has to add you again. Files "
-                                                   @"you received stay in Received files. AI chat answers that quoted "
-                                                   @"your conversations stay in Chats until you delete them there.",
+                                                   @"you received stay where they were saved. AI chat answers that "
+                                                   @"quoted your conversations stay in Chats until you delete them "
+                                                   @"there.",
         @"settings.reset.confirm.button" : @"Reset Friends",
 
         // Search
@@ -324,6 +332,9 @@ static NSDictionary<NSString *, NSString *> *ErrorEntries(void) {
         @"error.not_friends" : @"You’re not friends anymore. Add them again to send messages.",
         @"error.not_friends.name" : @"You’re not friends with {name} anymore. Add them again to send messages.",
         @"error.file_missing" : @"A file can’t be found or opened. Nothing was sent.",
+        // set_received_folder: the folder the person picked in Settings' Change….
+        @"error.received_folder.missing" : @"That folder can’t be found or opened. Choose another folder.",
+        @"error.received_folder.not_allowed" : @"Files can’t be saved in that folder. Choose another folder.",
         @"error.file_missing.file" : @"{file} can’t be found or opened. Nothing was sent.",
         @"error.folder_not_supported" : @"Folders can’t be sent yet.",
         @"error.folder_not_supported.file" : @"Folders can’t be sent yet.",

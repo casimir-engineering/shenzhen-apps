@@ -28,12 +28,19 @@
     "name_prompt": {
       "title": "Choose the name friends see",
       "placeholder": "Your name",
-      "note": "Until you choose one, friends see your ID, cottage‑violet.",
-      "join_label": "Use my existing profile"
+      "note": "Until you choose one, friends see your ID, cottage‑violet."
     },
     "query": "",
     "removed": null,
     "rows": [],
-    "state": "normal"
+    "state": "normal",
+    "join": {
+      "note": "Already use Friends on another computer or phone? Bring your friends and chats from it here.",
+      "action": {
+        "action": "open_join",
+        "label": "Use my existing profile…",
+        "style": "link"
+      }
+    }
   }
 }

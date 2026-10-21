@@ -25,6 +25,7 @@ extern const SZFriendsGtkPageClass szfriends_gtk_list_page_class;
  * One table for every page; the suites replace it, so no test writes the person's clipboard or opens a window or a
  * dialog. NULL members, or a NULL table, mean the system's own. */
 typedef void (*SZFriendsGtkRun)(gpointer data);
+typedef void (*SZFriendsGtkRunTicked)(gboolean ticked, gpointer data);
 typedef void (*SZFriendsGtkChosen)(const char *path, gpointer data); /* path NULL: cancelled */
 typedef struct {
     void (*copy_text)(GtkWidget *source, const char *text, gpointer data);
@@ -35,12 +36,17 @@ typedef struct {
     void (*choose_image)(GtkWidget *source, const char *title, SZFriendsGtkChosen chosen, gpointer chosen_data,
                          gpointer data);
     gpointer data;
+    /* Settings' Change… for where received files go: a folder, starting at `start` (may be NULL). */
+    void (*choose_folder)(GtkWidget *source, const char *start, SZFriendsGtkChosen chosen, gpointer chosen_data,
+                          gpointer data);
 } SZFriendsGtkSeams;
 void szfriends_gtk_set_seams(const SZFriendsGtkSeams *seams);
 void szfriends_gtk_copy_text(GtkWidget *source, const char *text);
 void szfriends_gtk_open_uri(GtkWidget *source, const char *uri);
 /* Asks for an image file (the system's open dialog, titled `title`); chosen(path or NULL, data) runs once. */
 void szfriends_gtk_choose_image(GtkWidget *source, const char *title, SZFriendsGtkChosen chosen, gpointer data);
+/* Asks for a folder (the system's folder dialog, opened at `start`, which may make a new folder); chosen runs once. */
+void szfriends_gtk_choose_folder(GtkWidget *source, const char *start, SZFriendsGtkChosen chosen, gpointer data);
 /* The pages' stylesheet, once per display, beside the views' own (its rules use the same @szfriends_* tokens). */
 void szfriends_gtk_list_style_ensure(GtkWidget *widget);
 
@@ -50,6 +56,11 @@ void szfriends_gtk_list_style_ensure(GtkWidget *widget);
  * resting on Cancel. */
 void szfriends_gtk_confirm(SZFriendsGtkDropdown *dropdown, GtkWidget *source, const SZFriendsGtkConfirm *confirm,
                            gboolean destructive, SZFriendsGtkRun run, gpointer run_data, GDestroyNotify run_destroy);
+/* The same, for a question that may carry an option (confirm.option, a checkbox, unticked): run(ticked, run_data). In
+ * the card and the system's dialog; the seam's dialog has no checkbox, so there it always runs unticked. */
+void szfriends_gtk_confirm_ticked(SZFriendsGtkDropdown *dropdown, GtkWidget *source,
+                                  const SZFriendsGtkConfirm *confirm, gboolean destructive, SZFriendsGtkRunTicked run,
+                                  gpointer run_data, GDestroyNotify run_destroy);
 /* Runs a PROTOCOL.md action, for every page: an unknown one does nothing; open_settings opens System Settings;
  * open_file and show_file go to the host; any other sends its intent with `ids`, after szfriends_gtk_confirm when it
  * carries `confirm`. `done` runs with the reply (or NULL, NULL when nothing was sent). `dropdown` is NULL in
@@ -57,6 +68,12 @@ void szfriends_gtk_confirm(SZFriendsGtkDropdown *dropdown, GtkWidget *source, co
 void szfriends_gtk_perform(SZFriendsGtkLink *link, SZFriendsGtkDropdown *dropdown, GtkWidget *source,
                            const SZFriendsGtkAction *action, const SZFriendsGtkActionIds *ids,
                            SZFriendsGtkReplyFunc done, gpointer done_data);
+/* The same, and sending(done_data) runs just before the intent goes (after its question, if any), so a page can show
+ * at once what the answer will do: a row removed from the list goes as soon as the person confirms. Its question's
+ * option, when ticked, goes along (szfriends_gtk_intent_for_answer). */
+void szfriends_gtk_perform_sending(SZFriendsGtkLink *link, SZFriendsGtkDropdown *dropdown, GtkWidget *source,
+                                   const SZFriendsGtkAction *action, const SZFriendsGtkActionIds *ids,
+                                   SZFriendsGtkRun sending, SZFriendsGtkReplyFunc done, gpointer done_data);
 /* A button showing one action slot (the visibility action, an alert's, a note's, the banner's), reused across
  * snapshots so a countdown ticking every second never takes its hover or focus. Hidden for no or an unknown action. */
 GtkWidget *szfriends_gtk_list_action_button_new(void);
@@ -104,6 +121,7 @@ typedef struct {
     GtkWidget *search, *tabs, *stack;
     GtkWidget *send_notice, *send_text, *send_cancel;
     GtkWidget *banner, *banner_text, *banner_button;
+    GtkWidget *banner_dismiss; /* the banner's second action (the notifications ask's Not Now); hidden without one */
     GtkWidget *prompt, *prompt_title, *prompt_entry, *prompt_save, *prompt_note;
     GtkWidget *prompt_beta; /* the card shows on first run, so it says Friends is a beta (beta_note) */
     /* Several computers (szfriends_gtk_list_devices.c): the removed notice with Start Over in its slot, the join

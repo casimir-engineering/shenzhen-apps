@@ -125,7 +125,7 @@ static id RouteMethodName(SZFriendsRouteMethod method) {
 }
 
 - (BOOL)personWaits:(SZFriendsPersonFacts *)person {
-    if (person.relation == SZFriendsPersonRelationBlocked) return NO;
+    if (person.relation == SZFriendsPersonRelationBlocked || person.leftList) return NO;
     return person.relation == SZFriendsPersonRelationIncomingRequest || person.offersWaiting > 0 ||
            person.keyChangePending;
 }
@@ -378,16 +378,23 @@ static const NSInteger SZFriendsBlockArmSeconds = 4;
     // Previews resolve mentions against the very people and profile this list shows (PROTOCOL.md § Mentions).
     SZFriendsMentionDirectory *directory = self.mentionDirectory;
     self.mentionDirectory = [[SZFriendsMentionDirectory alloc] initWithPeople:people profile:profile];
+    BOOL menus = [_audience.capabilities containsObject:@"list.menu"];
+    NSUInteger listed = 0;
     for (SZFriendsPersonFacts *person in [self peopleByLatestInteraction:people]) {
+        if (person.leftList) continue; // taken off the list; their conversation still opens from search
+        listed++;
         if (![self name:person.name friendsID:person.friendsID matchesQuery:query]) continue;
         SZFriendsItemFacts *item = person.lastPreviewItemID ? previewItems[person.lastPreviewItemID] : nil;
         NSMutableDictionary *row = [[self rowForPerson:person previewItem:item now:now] mutableCopy];
         row[@"mentionable"] = [self mentionableForPerson:person]; // the @ picker's people, where a client has one
-        [rows addObject:row];
+        if (menus) row[@"menu"] = [self rowMenuForPerson:person];
+        // How a friend nearby was found; nobody else's row says (nearby.found).
+        BOOL friend = person.relation == SZFriendsPersonRelationFriend;
+        [rows addObject:[self row:row foundWithMethods:friend ? person.foundMethods : nil]];
     }
     self.mentionDirectory = directory;
     id empty = [NSNull null];
-    if (rows.count == 0 && people.count == 0) {
+    if (rows.count == 0 && listed == 0) {
         empty = [self emptyWithKind:nil
                               title:[_strings text:@"list.empty.title"]
                                body:[_strings text:@"list.empty.body"]];

@@ -27,11 +27,18 @@
 @interface SZFriendsSettingsSection ()
 @end
 
-// Rows in order; `nearby` shows only when the helper sends it (PROTOCOL.md § settings).
+// Rows in order; `nearby`, `join` and `notifications` show only when the helper sends them (PROTOCOL.md § settings).
 static NSArray<NSString *> *SZFSettingsRows(void) {
-    return @[ @"name", @"id", @"received", @"auto_accept", @"nearby", @"history", @"reset" ];
+    return @[ @"name", @"id", @"received", @"auto_accept", @"nearby", @"join", @"notifications", @"history", @"reset" ];
 }
-static const NSUInteger SZFSettingsRowCount = 7, SZFSettingsAutoAcceptRow = 3, SZFSettingsNearbyRow = 4;
+static const NSUInteger SZFSettingsRowCount = 9, SZFSettingsReceivedRow = 2, SZFSettingsAutoAcceptRow = 3,
+                        SZFSettingsNearbyRow = 4, SZFSettingsJoinRow = 5, SZFSettingsNotificationsRow = 6;
+
+// The Notifications row's switches, in order, each sent back alone with set_notifications (PROTOCOL.md §
+// Notifications, Settings); `background` comes only to an Android host, so never here, but is drawn if it does.
+static NSArray<NSString *> *SZFNotificationSwitchKeys(void) {
+    return @[ @"enabled", @"preview", @"background" ];
+}
 
 @implementation SZFriendsSettingsSection {
     SZFriendsSettingsView *_view;
@@ -43,10 +50,15 @@ static const NSUInteger SZFSettingsRowCount = 7, SZFSettingsAutoAcceptRow = 3, S
     NSTextField *_idValue;
     SZFriendsButton *_copyButton;
     SZFriendsButton *_receivedButton;
+    SZFriendsButton *_receivedChangeButton;
     SZFriendsButton *_changeButton;
     SZFriendsButton *_historyButton;
     SZFriendsButton *_resetButton;
     SZFriendsButton *_nearbyButton;
+    SZFriendsButton *_joinButton; // Use my existing profile…: the join page, after Reset when it asks first
+    SZFriendsButton *_notificationsButton; // Allow or Open System Settings, for the permission
+    NSArray<NSSwitch *> *_notificationSwitches;     // per SZFNotificationSwitchKeys()
+    NSArray<NSTextField *> *_notificationLabels;    // label, note pairs per switch
     BOOL _showingFriends;
     NSMutableArray<NSView *> *_friendViews;
     NSMutableArray<NSSwitch *> *_switches;
@@ -58,7 +70,7 @@ static const NSUInteger SZFSettingsRowCount = 7, SZFSettingsAutoAcceptRow = 3, S
     _context = [[SZFriendsContext alloc] initWithHost:host link:link];
     SZFriendsAppearance *appearance = _context.appearance;
     __weak SZFriendsSettingsSection *weakSelf = self;
-    _context.presentConfirmation = ^(NSDictionary *confirm, void (^onConfirm)(void)) {
+    _context.presentConfirmation = ^(NSDictionary *confirm, void (^onConfirm)(BOOL)) {
         [weakSelf confirm:confirm then:onConfirm];
     };
     _view = [[SZFriendsSettingsView alloc] initWithFrame:NSMakeRect(0, 0, 560, 300)];
@@ -93,6 +105,10 @@ static const NSUInteger SZFSettingsRowCount = 7, SZFSettingsAutoAcceptRow = 3, S
         NSDictionary *received = SZFDict(weakSelf.data, @"received");
         [weakSelf.context performAction:SZFDict(received, @"action") ids:nil done:nil];
     }];
+    _receivedChangeButton = [self button:^{ [weakSelf chooseReceivedFolder]; }];
+    _chooseFolder = ^(NSString *startPath, void (^chosen)(NSString *path)) {
+        [weakSelf showFolderPanelAt:startPath chosen:chosen];
+    };
     _changeButton = [self button:^{ [weakSelf toggleFriends]; }];
     _historyButton = [self button:^{ [weakSelf runConfirmed:@"delete_history" section:@"history"]; }];
     _resetButton = [self button:^{ [weakSelf runConfirmed:@"reset_friends" section:@"reset"]; }];
@@ -101,6 +117,30 @@ static const NSUInteger SZFSettingsRowCount = 7, SZFSettingsAutoAcceptRow = 3, S
     _nearbyButton = [self button:^{
         [weakSelf.context performAction:SZFDict(SZFDict(weakSelf.data, @"nearby"), @"action") ids:nil done:nil];
     }];
+    _joinButton = [self button:^{
+        [weakSelf.context performAction:SZFDict(SZFDict(weakSelf.data, @"join"), @"action") ids:nil done:nil];
+    }];
+    _joinButton.style = SZFriendsButtonStyleSecondary;
+    _notificationsButton = [self button:^{
+        [weakSelf.context performAction:SZFDict(SZFDict(weakSelf.data, @"notifications"), @"action") ids:nil done:nil];
+    }];
+    NSMutableArray *switches = [NSMutableArray array], *labels = [NSMutableArray array];
+    for (NSString *key in SZFNotificationSwitchKeys()) {
+        NSSwitch *toggle = [NSSwitch new];
+        toggle.controlSize = NSControlSizeSmall;
+        toggle.identifier = key;
+        toggle.target = self;
+        toggle.action = @selector(notificationSwitchToggled:);
+        [switches addObject:toggle];
+        [_view addSubview:toggle];
+        NSTextField *label = SZFriendsLabel(@"", appearance.bodyFont, appearance.primaryTextColor);
+        NSTextField *note = SZFriendsLabel(@"", appearance.secondaryFont, appearance.secondaryTextColor);
+        [labels addObjectsFromArray:@[ label, note ]];
+        [_view addSubview:label];
+        [_view addSubview:note];
+    }
+    _notificationSwitches = switches;
+    _notificationLabels = labels;
     for (NSView *view in @[ _nameEditor, _idValue ]) [_view addSubview:view];
     _friendViews = [NSMutableArray array];
     _switches = [NSMutableArray array];
@@ -147,8 +187,69 @@ static const NSUInteger SZFSettingsRowCount = 7, SZFSettingsAutoAcceptRow = 3, S
     return @[ _copyButton, _receivedButton, _changeButton, _historyButton, _resetButton ];
 }
 
+- (SZFriendsButton *)joinButton {
+    return _joinButton;
+}
+
 - (SZFriendsButton *)nearbyButton {
     return _nearbyButton;
+}
+
+- (SZFriendsButton *)receivedChangeButton {
+    return _receivedChangeButton;
+}
+
+- (SZFriendsButton *)notificationsButton {
+    return _notificationsButton;
+}
+
+- (NSArray<NSSwitch *> *)notificationSwitches {
+    return _notificationSwitches;
+}
+
+- (NSTextField *)receivedFolderField {
+    return _labels[2 * SZFSettingsReceivedRow + 1];
+}
+
+// Change…: the folder picker, then set_received_folder. A folder the helper refuses says why on the same sheet's
+// window; the row changes only when the next snapshot names the new folder.
+- (void)chooseReceivedFolder {
+    NSDictionary *received = SZFDict(_data, @"received");
+    if (!self.chooseFolder) return;
+    __weak SZFriendsSettingsSection *weakSelf = self;
+    self.chooseFolder(SZFStr(received, @"path"), ^(NSString *path) {
+        SZFriendsSettingsSection *section = weakSelf;
+        [section.context.link sendIntent:@"set_received_folder" fields:@{@"path" : path}
+                                   reply:^(NSDictionary *result, SZFriendsLinkError *error) {
+            (void)result;
+            if (error.message.length) [weakSelf showRefusal:error.message];
+        }];
+    });
+}
+
+- (void)showFolderPanelAt:(nullable NSString *)startPath chosen:(void (^)(NSString *path))chosen {
+    NSWindow *window = _view.window;
+    if (!window) return;
+    NSOpenPanel *panel = [NSOpenPanel openPanel];
+    panel.canChooseDirectories = YES;
+    panel.canChooseFiles = NO;
+    panel.canCreateDirectories = YES;
+    panel.allowsMultipleSelection = NO;
+    panel.resolvesAliases = YES;
+    if (startPath.length) panel.directoryURL = [NSURL fileURLWithPath:startPath isDirectory:YES];
+    [panel beginSheetModalForWindow:window completionHandler:^(NSModalResponse response) {
+        NSString *path = panel.URL.path;
+        if (response == NSModalResponseOK && path.length) chosen(path);
+    }];
+}
+
+- (void)showRefusal:(NSString *)message {
+    NSWindow *window = _view.window;
+    if (!window) return;
+    NSAlert *alert = [NSAlert new];
+    alert.messageText = message;
+    SZFriendsHideWindowFromAssistant(alert.window, SZFriendsIdentifierAlert);
+    [alert beginSheetModalForWindow:window completionHandler:nil];
 }
 
 - (NSArray<NSSwitch *> *)autoAcceptSwitches {
@@ -198,7 +299,22 @@ static const NSUInteger SZFSettingsRowCount = 7, SZFSettingsAutoAcceptRow = 3, S
     NSDictionary *received = SZFDict(data, @"received");
     _receivedButton.title = SZFStr(SZFDict(received, @"action"), @"label") ?: @"";
     _receivedButton.hidden = ![SZFriendsContext knowsAction:SZFStr(SZFDict(received, @"action"), @"action")];
+    // The folder's name under the label, then the note (empty unless the last file went elsewhere).
+    NSDictionary *change = SZFDict(received, @"change");
+    _receivedChangeButton.title = SZFStr(change, @"label") ?: @"";
+    _receivedChangeButton.hidden = ![SZFStr(change, @"action") isEqualToString:@"choose_received_folder"];
+    NSString *folder = SZFStr(received, @"value"), *note = SZFStr(received, @"note");
+    NSTextField *folderField = self.receivedFolderField;
+    folderField.stringValue = folder.length && note.length ? [NSString stringWithFormat:@"%@\n%@", folder, note]
+                                                           : (folder.length ? folder : note ?: @"");
+    folderField.toolTip = SZFStr(received, @"path");
     _changeButton.title = SZFStr(SZFDict(data, @"auto_accept"), @"action_label") ?: @"";
+    // No friends, no switch to show: the row's note says where to turn it on.
+    _changeButton.hidden = SZFArr(SZFDict(data, @"auto_accept"), @"friends").count == 0;
+    if (_changeButton.hidden) {
+        _showingFriends = NO;
+        _changeButton.selectedLook = NO;
+    }
     _historyButton.title = SZFStr(SZFDict(data, @"history"), @"action_label") ?: @"";
     _resetButton.title = SZFStr(SZFDict(data, @"reset"), @"action_label") ?: @"";
     NSDictionary *nearbyAction = SZFDict(SZFDict(data, @"nearby"), @"action");
@@ -206,9 +322,45 @@ static const NSUInteger SZFSettingsRowCount = 7, SZFSettingsAutoAcceptRow = 3, S
     _nearbyButton.hidden = ![SZFriendsContext knowsAction:SZFStr(nearbyAction, @"action")];
     BOOL nearbyRow = SZFDict(data, @"nearby") != nil;
     _labels[2 * SZFSettingsNearbyRow].hidden = _labels[2 * SZFSettingsNearbyRow + 1].hidden = !nearbyRow;
+    NSDictionary *joinAction = SZFDict(SZFDict(data, @"join"), @"action");
+    _joinButton.title = SZFStr(joinAction, @"label") ?: @"";
+    BOOL joinRow = [SZFriendsContext knowsAction:SZFStr(joinAction, @"action")];
+    _joinButton.hidden = !joinRow;
+    _labels[2 * SZFSettingsJoinRow].hidden = _labels[2 * SZFSettingsJoinRow + 1].hidden = !joinRow;
+    [self applyNotifications:SZFDict(data, @"notifications")];
     [self rebuildFriends];
     [_view invalidateIntrinsicContentSize];
     [_view setNeedsLayout:YES];
+}
+
+// This device's notifications: the label and the permission's note on the row, its one action (Allow, or Open
+// System Settings once refused), and the switches under it. Anything the helper leaves out is not drawn.
+- (void)applyNotifications:(NSDictionary *)notifications {
+    BOOL row = notifications != nil;
+    _labels[2 * SZFSettingsNotificationsRow].hidden = _labels[2 * SZFSettingsNotificationsRow + 1].hidden = !row;
+    NSDictionary *action = SZFDict(notifications, @"action");
+    _notificationsButton.title = SZFStr(action, @"label") ?: @"";
+    _notificationsButton.hidden = !row || ![SZFriendsContext knowsAction:SZFStr(action, @"action")];
+    NSArray *keys = SZFNotificationSwitchKeys();
+    for (NSUInteger i = 0; i < keys.count; i++) {
+        NSDictionary *part = SZFDict(notifications, keys[i]);
+        NSSwitch *toggle = _notificationSwitches[i];
+        NSTextField *label = _notificationLabels[2 * i], *note = _notificationLabels[2 * i + 1];
+        BOOL shown = part != nil && SZFStr(part, @"label").length > 0;
+        toggle.hidden = label.hidden = note.hidden = !shown;
+        label.stringValue = SZFStr(part, @"label") ?: @"";
+        note.stringValue = SZFStr(part, @"note") ?: @"";
+        toggle.accessibilityLabel = label.stringValue;
+        toggle.state = SZFBool(part, @"value") ? NSControlStateValueOn : NSControlStateValueOff;
+    }
+}
+
+// One switch, one field: the others keep whatever the helper has (PROTOCOL.md set_notifications).
+- (void)notificationSwitchToggled:(NSSwitch *)toggle {
+    if (!toggle.identifier.length) return;
+    [_context.link sendIntent:@"set_notifications"
+                       fields:@{toggle.identifier : @(toggle.state == NSControlStateValueOn)}
+                        reply:nil];
 }
 
 - (void)toggleFriends {
@@ -266,17 +418,25 @@ static const NSUInteger SZFSettingsRowCount = 7, SZFSettingsAutoAcceptRow = 3, S
     NSButton *confirmButton = [alert addButtonWithTitle:SZFStr(confirm, @"confirm_label") ?: @""];
     if (@available(macOS 11.0, *)) confirmButton.hasDestructiveAction = YES;
     [alert addButtonWithTitle:SZFStr(confirm, @"cancel_label") ?: @""];
+    // A confirm option ("Also delete chat history") is the alert's checkbox, unticked.
+    NSString *option = SZFStr(SZFDict(confirm, @"option"), @"label");
+    if (option.length) {
+        alert.showsSuppressionButton = YES;
+        alert.suppressionButton.title = option;
+        alert.suppressionButton.state = NSControlStateValueOff;
+    }
     SZFriendsHideWindowFromAssistant(alert.window, SZFriendsIdentifierAlert);
     return alert;
 }
 
 // Settings is a window of its own, so its confirmations are the standard sheet on it.
-- (void)confirm:(NSDictionary *)confirm then:(void (^)(void))onConfirm {
+- (void)confirm:(NSDictionary *)confirm then:(void (^)(BOOL))onConfirm {
     NSWindow *window = _view.window;
     if (!window) return;
     NSAlert *alert = [SZFriendsSettingsSection alertForConfirm:confirm];
     [alert beginSheetModalForWindow:window completionHandler:^(NSModalResponse response) {
-        if (response == NSAlertFirstButtonReturn) onConfirm();
+        BOOL ticked = alert.showsSuppressionButton && alert.suppressionButton.state == NSControlStateValueOn;
+        if (response == NSAlertFirstButtonReturn) onConfirm(ticked);
     }];
 }
 
@@ -293,7 +453,8 @@ static const NSUInteger SZFSettingsRowCount = 7, SZFSettingsAutoAcceptRow = 3, S
 
 - (CGFloat)layoutForWidth:(CGFloat)width apply:(BOOL)apply {
     NSArray<NSView *> *controls =
-        @[ _nameEditor, _idValue, _receivedButton, _changeButton, _nearbyButton, _historyButton, _resetButton ];
+        @[ _nameEditor, _idValue, _receivedButton, _changeButton, _nearbyButton, _joinButton, _notificationsButton,
+           _historyButton, _resetButton ];
     CGFloat y = 0;
     CGFloat statusHeight = SZFriendsFieldHeight(_statusLabel, width);
     if (apply) {
@@ -303,11 +464,15 @@ static const NSUInteger SZFSettingsRowCount = 7, SZFSettingsAutoAcceptRow = 3, S
     if (statusHeight) y += statusHeight + 12;
     BOOL nearbyRow = SZFDict(_data, @"nearby") != nil;
     for (NSUInteger row = 0; row < SZFSettingsRowCount; row++) {
-        if (row == SZFSettingsNearbyRow && !nearbyRow) continue;
+        if ((row == SZFSettingsNearbyRow && !nearbyRow) || (row == SZFSettingsJoinRow && _joinButton.hidden) ||
+            (row == SZFSettingsNotificationsRow && !SZFDict(_data, @"notifications")))
+            continue;
         NSView *control = controls[row];
         // A Nearby line with nothing to fix has no button, and its words take the whole width.
         CGFloat controlWidth = control.hidden ? 0 : [self controlWidthForRow:row control:control];
-        CGFloat copyWidth = row == 1 ? MAX(70, [_copyButton fittingWidth]) + 12 : 0;
+        // The ID's Copy, and Change… before Show in Finder, sit left of the row's control.
+        SZFriendsButton *beside = row == 1 ? _copyButton : row == SZFSettingsReceivedRow ? _receivedChangeButton : nil;
+        CGFloat copyWidth = beside && !beside.hidden ? MAX(70, [beside fittingWidth]) + 12 : 0;
         CGFloat textWidth = MAX(120, width - controlWidth - copyWidth - 16);
         NSTextField *label = _labels[2 * row], *note = _labels[2 * row + 1];
         CGFloat labelHeight = SZFriendsFieldHeight(label, textWidth);
@@ -324,9 +489,15 @@ static const NSUInteger SZFSettingsRowCount = 7, SZFSettingsAutoAcceptRow = 3, S
             if (row == 1) {
                 CGFloat buttonY = y + floor((rowHeight - 28) / 2);
                 _copyButton.frame = NSMakeRect(width - copyWidth + 12, buttonY, copyWidth - 12, 28);
+            } else if (row == SZFSettingsReceivedRow && copyWidth > 0) {
+                // Change… first, then Show in Finder at the trailing edge.
+                CGFloat buttonY = y + floor((rowHeight - 28) / 2);
+                _receivedChangeButton.frame = NSMakeRect(width - controlWidth - copyWidth, buttonY, copyWidth - 12, 28);
+                control.frame = NSMakeRect(width - controlWidth, controlY, controlWidth, controlHeight);
             }
         }
         y += rowHeight + 16;
+        if (row == SZFSettingsNotificationsRow) y = [self layoutNotificationSwitchesAt:y width:width apply:apply];
         if (row != SZFSettingsAutoAcceptRow || !_showingFriends) continue;
         for (NSUInteger i = 0; i < _switches.count; i++) {
             if (apply) {
@@ -342,6 +513,32 @@ static const NSUInteger SZFSettingsRowCount = 7, SZFSettingsAutoAcceptRow = 3, S
         y += _switches.count ? 6 : 0;
     }
     return MAX(0, y - 16);
+}
+
+// The Notifications row's switches, indented under it like the friends' switches: words on the left (a note under
+// the label where there is one), the switch at the trailing edge.
+- (CGFloat)layoutNotificationSwitchesAt:(CGFloat)y width:(CGFloat)width apply:(BOOL)apply {
+    BOOL any = NO;
+    for (NSUInteger i = 0; i < _notificationSwitches.count; i++) {
+        NSSwitch *toggle = _notificationSwitches[i];
+        if (toggle.hidden) continue;
+        NSTextField *label = _notificationLabels[2 * i], *note = _notificationLabels[2 * i + 1];
+        NSSize size = toggle.fittingSize;
+        CGFloat textWidth = MAX(120, width - 12 - size.width - 16);
+        CGFloat labelHeight = SZFriendsFieldHeight(label, textWidth);
+        CGFloat noteHeight = SZFriendsFieldHeight(note, textWidth);
+        CGFloat rowHeight = MAX(22, labelHeight + (noteHeight ? 3 + noteHeight : 0));
+        if (apply) {
+            label.frame = NSMakeRect(12, y, textWidth, labelHeight);
+            note.frame = NSMakeRect(12, y + labelHeight + 3, textWidth, noteHeight);
+            note.hidden = noteHeight == 0;
+            toggle.frame = NSMakeRect(width - size.width, y + floor((MAX(labelHeight, 22) - size.height) / 2),
+                                      size.width, size.height);
+        }
+        y += rowHeight + 8;
+        any = YES;
+    }
+    return any ? y + 8 : y;
 }
 
 @end

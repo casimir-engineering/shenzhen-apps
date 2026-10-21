@@ -6,6 +6,8 @@
 #import "service/helper/nearby/SZFriendsNearbyJoin.h"
 #import "service/presentation/SZFriendsPresentationDevices.h"
 #import "service/helper/nearby/SZFriendsNearbyService.h"
+#import "service/notify/SZFriendsNotify.h"
+#import "service/presentation/SZFriendsPresentationNotifications.h"
 
 const NSUInteger SZFriendsMaxSubscriptions = 32;
 const NSUInteger SZFriendsConversationWindow = 200;
@@ -108,6 +110,12 @@ static const CFTimeInterval SZFriendsSnapshotInterval = 0.1;
         NSMutableDictionary *list = [[builder listWithPeople:pass.people previewItems:pass.previewItems
                                                      profile:pass.profile query:subscription.query now:pass.now]
             mutableCopy];
+        // The card offering notifications, while no other banner says something more pressing.
+        SZFriendsNotifier *notifier = _services.notifier;
+        if (notifier != nil && list[@"banner"] == [NSNull null]) {
+            NSDictionary *card = [builder notificationsBannerWithFacts:[notifier facts]];
+            if (card != nil) list[@"banner"] = card;
+        }
         if (pass.devices == nil) return list;
         list[@"join_requests"] = [builder joinRequestRowsWithFacts:joins now:pass.now];
         return [builder listWithDevices:list people:pass.people query:subscription.query now:pass.now];
@@ -124,8 +132,12 @@ static const CFTimeInterval SZFriendsSnapshotInterval = 0.1;
     if ([view isEqualToString:@"settings"]) {
         NSMutableDictionary *settings = [[builder settingsWithProfile:pass.profile people:pass.people] mutableCopy];
         settings[@"nearby"] = [builder nearbyAccessWithFacts:pass.nearby profile:pass.profile];
+        NSDictionary *notifications =
+            _services.notifier ? [builder notificationsSettingsWithFacts:[_services.notifier facts]] : nil;
+        if (notifications != nil) settings[@"notifications"] = notifications;
         return settings;
     }
+    if ([view isEqualToString:@"received"]) return SZFriendsHelperReceivedSnapshot(_services);
     if ([view isEqualToString:@"message_status"]) {
         NSMutableDictionary<NSString *, SZFriendsPersonFacts *> *people = [NSMutableDictionary dictionary];
         for (SZFriendsPersonFacts *person in pass.people) people[person.conversationID] = person;
@@ -207,6 +219,24 @@ static const CFTimeInterval SZFriendsSnapshotInterval = 0.1;
     }
 }
 
+- (NSSet<NSString *> *)focusedConversations {
+    NSMutableSet<NSString *> *focused = [NSMutableSet set];
+    for (SZFriendsIPCConnection *connection in _server.connections) {
+        SZFriendsClientState *state = [self stateForConnection:connection];
+        if (state == nil) continue;
+        if ([connection.client.capabilities containsObject:@"notifications.focus"]) {
+            if (state.focusedConversationID != nil) [focused addObject:state.focusedConversationID];
+            continue;
+        }
+        for (SZFriendsSubscription *subscription in state.subscriptions.allValues) {
+            if ([subscription.view isEqualToString:@"conversation"] && subscription.conversationID != nil) {
+                [focused addObject:subscription.conversationID];
+            }
+        }
+    }
+    return focused;
+}
+
 - (void)publishAllImmediately {
     [self publishViews:nil rateLimited:NO];
 }
@@ -218,6 +248,8 @@ static const CFTimeInterval SZFriendsSnapshotInterval = 0.1;
 // `views` nil means every view; the countdown tick names only Nearby, so the other views are not rebuilt each second.
 - (void)publishViews:(nullable NSSet<NSString *> *)views rateLimited:(BOOL)rateLimited {
     [self markSubscribedConversationsRead];
+    // A conversation read here or on another device takes its notifications away (ADR 0017).
+    [_services.notifier withdrawReadConversations];
     SZFriendsFactsPass *pass = [[SZFriendsFactsPass alloc] initWithServices:_services now:[NSDate date]];
     CFAbsoluteTime now = CFAbsoluteTimeGetCurrent();
     for (SZFriendsIPCConnection *connection in _server.connections) {

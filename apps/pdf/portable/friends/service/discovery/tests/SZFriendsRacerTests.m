@@ -56,6 +56,50 @@ static void TestAttempts(void) {
     CHECK(attempts.count == 1 && [attempts[0].sighting.endpointID isEqual:@"hidden"], "IK to the hidden entry");
 }
 
+static NSArray<NSString *> *Dialed(SZFriendsRouteRacer *racer, SZFriendsCandidate *candidate) {
+    NSMutableArray<NSString *> *endpoints = [NSMutableArray array];
+    for (SZFriendsDialAttempt *attempt in [racer attemptsForCandidate:candidate]) {
+        [endpoints addObject:attempt.sighting.endpointID];
+    }
+    return endpoints;
+}
+
+// Peer-to-peer Wi-Fi is dialed only where it keeps the Wi-Fi connection; otherwise the order goes on without it.
+static void TestPeerToPeerWiFiCapability(void) {
+    NSData *tag = SZFTestData(@"0101010101010101");
+    NSDate *t = SZFTestDate(1000);
+    SZFriendsCandidate *every = FriendCandidate(@[
+        SZFTestSighting(SZFriendsDiscoveryMethodNetwork, SZFriendsRouteMethodRelay, @"relay", tag, @[], NO, t),
+        SZFTestSighting(SZFriendsDiscoveryMethodBluetooth, SZFriendsRouteMethodBluetooth, @"bt", tag, @[], NO, t),
+        SZFTestSighting(SZFriendsDiscoveryMethodNetwork, SZFriendsRouteMethodPeerToPeerWiFi, @"awdl", tag, @[], NO, t),
+        SZFTestSighting(SZFriendsDiscoveryMethodNetwork, SZFriendsRouteMethodInternet, @"inet", tag, @[], NO, t),
+        SZFTestSighting(SZFriendsDiscoveryMethodNetwork, SZFriendsRouteMethodLAN, @"lan", tag, @[], NO, t),
+    ]);
+    CHECK([SZFriendsRouteRacer new].peerToPeerWiFi == SZFriendsPeerToPeerWiFiConcurrentWithStation, "macOS: AWDL");
+    CHECK(SZFriendsPeerToPeerWiFiUsable(SZFriendsPeerToPeerWiFiConcurrentWithStation));
+    SZFriendsRouteRacer *keeps = [SZFriendsRouteRacer new];
+    keeps.peerToPeerWiFi = SZFriendsPeerToPeerWiFiConcurrentWithStation;
+    CHECK([Dialed(keeps, every) isEqual:(@[ @"lan", @"awdl", @"inet", @"bt", @"relay" ])]);
+    SZFriendsPeerToPeerWiFi unusable[] = {SZFriendsPeerToPeerWiFiDropsStation, SZFriendsPeerToPeerWiFiUnsupported,
+                                          SZFriendsPeerToPeerWiFiUnknown};
+    for (size_t i = 0; i < sizeof unusable / sizeof unusable[0]; i++) {
+        CHECK(!SZFriendsPeerToPeerWiFiUsable(unusable[i]));
+        SZFriendsRouteRacer *racer = [SZFriendsRouteRacer new];
+        racer.peerToPeerWiFi = unusable[i];
+        CHECK([Dialed(racer, every) isEqual:(@[ @"lan", @"inet", @"bt", @"relay" ])], "capability %ld",
+              (long)unusable[i]);
+    }
+    // Without LAN, Internet leads rather than the direct link.
+    SZFriendsCandidate *noLAN = FriendCandidate(@[
+        SZFTestSighting(SZFriendsDiscoveryMethodNetwork, SZFriendsRouteMethodPeerToPeerWiFi, @"awdl", tag, @[], NO, t),
+        SZFTestSighting(SZFriendsDiscoveryMethodBluetooth, SZFriendsRouteMethodBluetooth, @"bt", tag, @[], NO, t),
+        SZFTestSighting(SZFriendsDiscoveryMethodNetwork, SZFriendsRouteMethodInternet, @"inet", tag, @[], NO, t),
+    ]);
+    SZFriendsRouteRacer *drops = [SZFriendsRouteRacer new];
+    drops.peerToPeerWiFi = SZFriendsPeerToPeerWiFiDropsStation;
+    CHECK([Dialed(drops, noLAN) isEqual:(@[ @"inet", @"bt" ])]);
+}
+
 static void TestDecisions(void) {
     SZFriendsRouteRacer *racer = [SZFriendsRouteRacer new];
     SZFriendsCandidate *candidate = FriendCandidate(@[
@@ -338,6 +382,7 @@ static void TestLaunchDecision(void) {
 
 void SZFriendsRunRacerTests(void) {
     TestAttempts();
+    TestPeerToPeerWiFiCapability();
     TestDecisions();
     TestSessionRace();
     TestSessionRaceUnknownRoutes();

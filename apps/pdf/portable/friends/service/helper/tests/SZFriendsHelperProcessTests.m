@@ -34,6 +34,9 @@ BOOL SZFHTestDevicesIntents(SZFHHarness *harness);
 BOOL SZFHTestYouIntents(SZFHHarness *harness);
 BOOL SZFHTestResetUnreadableIdentity(SZFHHarness *harness);
 BOOL SZFHTestIdentityReadableAgain(SZFHHarness *harness);
+BOOL SZFHTestRemoveFromList(SZFHHarness *harness);
+BOOL SZFHTestRemoveMenu(SZFHHarness *harness);
+BOOL SZFHTestLeftoverYouIsNoRow(SZFHHarness *harness);
 int SZFHHelloClientMain(const char *socket, const char *build);
 
 static NSString *SZFHFixtures;
@@ -226,6 +229,9 @@ int main(int argc, const char *argv[]) {
             {"mentions written by the helper", SZFHTestMentionsWritten},
             {"add from a mention: refusals, then bound to the key", SZFHTestAddFromMention},
             {"block and remove drop their previews", SZFHTestBlockAndRemoveDropPreviews},
+            {"remove anyone from the list, each the way the intent says", SZFHTestRemoveFromList},
+            {"list rows carry Remove for a client with list.menu", SZFHTestRemoveMenu},
+            {"a leftover You conversation on one computer is nobody's row", SZFHTestLeftoverYouIsNoRow},
             {"list rows describe the newest item", SZFHTestListRowsDescribeNewestItem},
             {"joining: the view and its intents", SZFHTestJoinIntents},
             {"computers: the profile's list and its intents", SZFHTestDevicesIntents},

@@ -239,10 +239,10 @@ static void TestAppsWithFriends(void) {
     }
     // Filled without the caller passing it, wherever a string says it.
     ExpectText([s text:@"join.waiting.message" values:@{@"id" : @"cottage-violet"}],
-               @"On a computer that uses cottage-violet, open Friends in ShenzhenPDF, Shenzhen Files or Shenzhen 3D "
-               @"and choose Approve. Then type the code it shows.");
-    ExpectText([s text:@"join.not_reached"], @"Your other computer didn’t answer. Open ShenzhenPDF, Shenzhen Files or "
-                                             @"Shenzhen 3D there, and type the code again.");
+               @"On your computer or phone that uses cottage-violet, open Friends in ShenzhenPDF, Shenzhen Files or "
+               @"Shenzhen 3D and choose Approve. Then type the code it shows.");
+    ExpectText([s text:@"join.not_reached"], @"Your other computer or phone didn’t answer. Open ShenzhenPDF, Shenzhen "
+                                             @"Files or Shenzhen 3D there, and type the code again.");
     ExpectText([s text:@"error.link_offline"], @"The computer this file comes from isn’t online right now. It can send "
                                                @"the file while ShenzhenPDF, Shenzhen Files or Shenzhen 3D is open "
                                                @"there.");

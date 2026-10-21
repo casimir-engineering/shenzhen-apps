@@ -8,7 +8,7 @@ use super::devices::YOU_ID;
 use super::facts::{ItemFacts, ItemKind, PersonFacts, RouteKind, RouteMethod};
 use super::SnapshotBuilder;
 
-fn percent_of(fraction: f64) -> i64 {
+pub(crate) fn percent_of(fraction: f64) -> i64 {
     ((fraction * 100.0).floor() as i64).clamp(0, 100)
 }
 
@@ -75,7 +75,7 @@ impl SnapshotBuilder {
         Some(json!({"state": state, "label": self.strings.text(&format!("you.status.{state}"))}))
     }
 
-    fn copy_progress(&self, fraction: f64) -> Value {
+    pub(crate) fn copy_progress(&self, fraction: f64) -> Value {
         let percent = percent_of(fraction);
         let label = self.strings.text_with("transfer.progress.copying", &[("percent", &percent.to_string())]);
         json!({"fraction": percent as f64 / 100.0, "determinate": true, "accessibility_label": label})

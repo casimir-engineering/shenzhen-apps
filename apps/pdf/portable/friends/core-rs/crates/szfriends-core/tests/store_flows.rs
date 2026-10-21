@@ -90,17 +90,17 @@ fn the_store_records_its_identity_and_refuses_another() {
 fn a_newer_schema_is_left_alone_and_a_failed_migration_keeps_the_backup() {
     let scratch = Scratch::new("versions");
     drop(Store::open(scratch.state()).unwrap());
-    let newer = SHIPPED.iter().copied().chain([Migration { version: 10, min_reader_version: 10, sql: "SELECT 1" }]);
+    let newer = SHIPPED.iter().copied().chain([Migration { version: 13, min_reader_version: 13, sql: "SELECT 1" }]);
     let options = StoreOptions { migrations: Some(newer.collect()), ..StoreOptions::default() };
     drop(Store::open_with(scratch.state(), options).unwrap());
-    assert!(matches!(Store::open(scratch.state()), Err(StoreError::NewerSchema { needs: 10, reads: 9 })));
+    assert!(matches!(Store::open(scratch.state()), Err(StoreError::NewerSchema { needs: 13, reads: 12 })));
     let other = Scratch::new("failing");
     drop(Store::open(other.state()).unwrap());
-    let broken = SHIPPED.iter().copied().chain([Migration { version: 10, min_reader_version: 0, sql: "NOT SQL" }]);
+    let broken = SHIPPED.iter().copied().chain([Migration { version: 13, min_reader_version: 0, sql: "NOT SQL" }]);
     let options = StoreOptions { migrations: Some(broken.collect()), ..StoreOptions::default() };
     assert!(matches!(Store::open_with(other.state(), options), Err(StoreError::MigrationFailed(_))));
-    assert!(other.state().join("friends.sqlite.before-v10").exists());
-    assert_eq!(Store::open(other.state()).unwrap().schema_version(), 9);
+    assert!(other.state().join("friends.sqlite.before-v13").exists());
+    assert_eq!(Store::open(other.state()).unwrap().schema_version(), 12);
 }
 
 #[test]
@@ -169,6 +169,11 @@ fn an_offer_entry_moves_its_transfer_and_an_answer_resumes_at_the_offset() {
     let record = store.stage_outgoing_file(&source, None, &mei.conversation_id).unwrap();
     assert_eq!((record.state, record.size, record.file_name.as_str()), (TransferState::Queued, 100_000, "Plan.pdf"));
     assert_eq!(record.digest, file_digest(&source, u64::MAX).unwrap());
+    // Where it was sent from and when it last changed, read back from the row (schema v12).
+    let modified = std::fs::metadata(&source).unwrap().modified().unwrap().duration_since(std::time::UNIX_EPOCH);
+    let stored = store.transfer(&record.transfer_id).unwrap().unwrap();
+    assert_eq!(stored.source_path.as_deref(), Some(std::path::absolute(&source).unwrap().as_path()));
+    assert_eq!(stored.source_mtime_ns, modified.unwrap().as_nanos() as i64);
     let offer = entry(&mei.conversation_id, "e-offer", OutboxKind::Offer, Some(&record.transfer_id));
     store.enqueue(&offer, None).unwrap();
     store.apply_outbox_event_from("e-offer", OutboxEvent::Acknowledged, &mei.conversation_id).unwrap();
@@ -243,7 +248,7 @@ fn a_received_file_survives_a_crash_is_checked_and_never_overwrites() {
     store.accept_transfer(third).unwrap();
     store.append_chunk(third, 0, &data[..1000], &conversation).unwrap();
     let beside = store.finish_transfer(third, &digest_other, &conversation).unwrap();
-    assert_eq!(beside.file_name().unwrap(), "-Site photos 2.pdf");
+    assert_eq!(beside.file_name().unwrap(), "-Site photos (2).pdf");
     assert_eq!(std::fs::read(&received).unwrap(), data, "the first file is untouched");
     let partial = scratch.state().join("received").join(".partial");
     assert_eq!(std::fs::read_dir(partial).unwrap().count(), 0, "no staging file is left behind");
@@ -256,7 +261,7 @@ fn a_publish_interrupted_after_claiming_its_name_is_finished_at_the_next_start()
     let data = write_file(&source, 1000);
     let digest = file_digest(&source, u64::MAX).unwrap();
     let id = "abcdefabcdefabcdefabcdefabcdef01";
-    let claimed = scratch.state().join("received").join("Plan.pdf");
+    let claimed = scratch.state().join("Downloads").join("Plan.pdf");
     {
         let mut store = Store::open(scratch.state()).unwrap();
         let mei = friend(&mut store, "Mei", 5);
@@ -269,6 +274,7 @@ fn a_publish_interrupted_after_claiming_its_name_is_finished_at_the_next_start()
         let text = claimed.to_string_lossy().into_owned();
         let sql = "UPDATE transfers SET publishing = 1, final_path = ?1 WHERE transfer_id = ?2";
         conn.execute(sql, rusqlite::params![text, id]).unwrap();
+        std::fs::create_dir_all(claimed.parent().unwrap()).unwrap();
         std::fs::write(&claimed, b"").unwrap();
     }
     let store = Store::open(scratch.state()).unwrap();
@@ -276,8 +282,8 @@ fn a_publish_interrupted_after_claiming_its_name_is_finished_at_the_next_start()
     assert_eq!(record.state, TransferState::Received);
     assert_eq!(record.received_path.as_deref(), Some(claimed.as_path()), "published under the name it claimed");
     assert_eq!(std::fs::read(&claimed).unwrap(), data);
-    let names = std::fs::read_dir(scratch.state().join("received")).unwrap().count();
-    assert_eq!(names, 2, "the file and the staging directory, no empty claim beside them");
+    let names = std::fs::read_dir(scratch.state().join("Downloads")).unwrap().count();
+    assert_eq!(names, 1, "the file, no empty claim beside it");
 }
 
 #[test]

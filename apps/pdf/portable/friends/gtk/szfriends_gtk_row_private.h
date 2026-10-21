@@ -26,7 +26,14 @@ struct _SZFriendsGtkRow {
     SZFriendsGtkRowLook look;
     GtkWidget *lead, *bar, *dot, *avatar, *title, *check, *subtitle;
     GtkWidget *time_box, *time, *pill, *route, *actions, *accessory, *status, *drop_pill;
+    GtkWidget *found, *found_icons, *found_label; /* how someone nearby was found, before the subtitle */
     GtkDropTarget *target;
+    /* The row's menu (PROTOCOL.md list_row menu), its known items only: labels, and each item's index in `menu`. */
+    GPtrArray *menu_labels; /* char * */
+    GArray *menu_index;     /* guint */
+    GArray *menu_destructive; /* gboolean */
+    GtkWidget *menu_popover;  /* while open, or until the next one */
+    guint menu_tenure;        /* who the open menu was opened for */
     SZFriendsGtkRowHandlers handlers;
     gpointer handlers_data;
 };
@@ -39,6 +46,12 @@ void szfriends_gtk_row_refresh(SZFriendsGtkRow *row);
 SZFriendsGtkRowDrop szfriends_gtk_row_drop_now(const SZFriendsGtkRow *row);
 /* The drop target and the click gesture's press and release (szfriends_gtk_row_drops.c). */
 void szfriends_gtk_row_install_targets(SZFriendsGtkRow *row);
+/* The row's menu (szfriends_gtk_row_menu.c): its gestures and actions, the items a list row brings, and closing an
+ * open menu when someone else takes the row. */
+void szfriends_gtk_row_install_menu(SZFriendsGtkRow *row);
+void szfriends_gtk_row_set_menu(SZFriendsGtkRow *row, const SZFriendsGtkAction *menu, gsize count);
+void szfriends_gtk_row_close_menu(SZFriendsGtkRow *row);
+void szfriends_gtk_row_free_menu(SZFriendsGtkRow *row);
 
 G_END_DECLS
 

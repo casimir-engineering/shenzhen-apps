@@ -130,7 +130,9 @@ static void check_kind(const char *block, SZFGRule *rule, const SZFriendsGtkFiel
         const char *t = g_ptr_array_index(rule->types, i);
         if (element && kind == SZFRIENDS_GTK_FIELD_ARRAY && t[0] == '@')
             ok &= names_block(field, t);
-        else if (element && kind == SZFRIENDS_GTK_FIELD_STRINGS) ok &= strcmp(t, "string") == 0;
+        /* A list of enum values (found.methods) stays strings, so a value added later is skipped, not fatal. */
+        else if (element && kind == SZFRIENDS_GTK_FIELD_STRINGS)
+            ok &= strcmp(t, "string") == 0 || g_str_has_prefix(t, "enum(");
         else if (strcmp(t, "string") == 0)
             ok &= kind == (rule->nullable ? SZFRIENDS_GTK_FIELD_STRING_NULL : SZFRIENDS_GTK_FIELD_STRING) ||
                   kind == SZFRIENDS_GTK_FIELD_STRING_NULL;

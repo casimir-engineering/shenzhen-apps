@@ -85,6 +85,11 @@ typedef struct {
     /* The animal set's manifest.json; NULL: Contents/Resources/Friends/animals/manifest.json of the app bundle
      * around helper_path, where both apps ship it. */
     const char *animals_manifest_path;
+
+    /* hello.client.url_scheme (PROTOCOL.md § Notifications): the scheme the app registers, without "://"
+     * ("shenzhenfiles"), so a notification's click opens <scheme>://friends/conversation/<id> in this app. The host
+     * routes those URLs to szfriends_gtk_show_conversation(). NULL: not sent, and clicks open another app. */
+    const char *url_scheme;
 } SZFriendsGtkHost;
 
 /* The smallest struct_size the views accept: everything up to and including reveal_in_name. */

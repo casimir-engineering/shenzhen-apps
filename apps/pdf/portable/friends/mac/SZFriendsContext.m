@@ -40,6 +40,11 @@ static NSDictionary<NSString *, NSString *> *SZFActionIDs(void) {
             // transfer_id; a device row's Remove, a join row's Approve and Deny, and Start again carry their own id.
             @"fetch_from_device" : @"transfer_id", @"revoke_device" : @"", @"approve_join" : @"", @"deny_join" : @"",
             @"join_profile" : @"", @"cancel_join" : @"",
+            // Get again on a file a friend sent (PROTOCOL.md § Getting a file again): fetched by its transfer_id.
+            @"fetch_from_friend" : @"transfer_id",
+            // The notifications card's and Settings' Turn On / Allow (PROTOCOL.md § Notifications): the helper asks
+            // the system, which shows its own prompt.
+            @"allow_notifications" : @"",
         };
     });
     return table;
@@ -71,6 +76,9 @@ static NSURL *SZFSettingsURL(NSString *target) {
     } else if ([target isEqualToString:@"wifi"]) {
         if (@available(macOS 13.0, *)) url = @"x-apple.systempreferences:com.apple.wifi-settings-extension";
         else url = @"x-apple.systempreferences:com.apple.preference.network?Wi-Fi";
+    } else if ([target isEqualToString:@"notifications"]) {
+        // Shenzhen Friends' own entry: the helper posts every notification, under its bundle (ADR 0017).
+        url = @"x-apple.systempreferences:com.apple.Notifications-Settings.extension?id=com.intuition.shenzhenfriends";
     }
     return url ? [NSURL URLWithString:url] : nil;
 }
@@ -162,7 +170,8 @@ SZFriendsPress SZFriendsPressFromEvent(NSEvent *event, NSTimeInterval now) {
 + (BOOL)knowsAction:(NSString *)action {
     if (!action) return NO;
     return SZFActionIDs()[action] != nil || [action isEqualToString:@"open_file"] ||
-           [action isEqualToString:@"show_file"] || [action isEqualToString:@"open_settings"];
+           [action isEqualToString:@"show_file"] || [action isEqualToString:@"open_settings"] ||
+           [action isEqualToString:@"open_join"];
 }
 
 - (void)performAction:(NSDictionary *)action ids:(NSDictionary *)ids done:(void (^)(SZFriendsLinkError *))done {
@@ -173,6 +182,17 @@ SZFriendsPress SZFriendsPressFromEvent(NSEvent *event, NSTimeInterval now) {
 }
 
 - (void)performAction:(NSDictionary *)action ids:(NSDictionary *)ids reply:(SZFriendsReplyHandler)reply {
+    [self performAction:action ids:ids sending:nil reply:reply];
+}
+
+// The fields a confirm option may set (PROTOCOL.md confirm_option field); any other is not shown.
+static NSString *SZFOptionField(NSDictionary *confirm) {
+    NSString *field = SZFStr(SZFDict(confirm, @"option"), @"field");
+    return [field isEqualToString:@"delete_history"] ? field : nil;
+}
+
+- (void)performAction:(NSDictionary *)action ids:(NSDictionary *)ids sending:(void (^)(void))sending
+                reply:(SZFriendsReplyHandler)reply {
     NSString *name = SZFStr(action, @"action");
     if (![SZFriendsContext knowsAction:name]) return;
     NSDictionary *confirm = SZFDict(action, @"confirm");
@@ -182,17 +202,27 @@ SZFriendsPress SZFriendsPressFromEvent(NSEvent *event, NSTimeInterval now) {
         marked[@"destructive"] = @YES;
         confirm = marked;
     }
+    // An option this view does not know is not shown, so nobody ticks a box that would do nothing.
+    NSString *optionField = SZFOptionField(confirm);
+    if (confirm && !optionField && SZFDict(confirm, @"option")) {
+        NSMutableDictionary *plain = [confirm mutableCopy];
+        [plain removeObjectForKey:@"option"];
+        confirm = plain;
+    }
     __weak SZFriendsContext *weakSelf = self;
-    void (^run)(void) = ^{ [weakSelf runAction:name object:action ids:ids reply:reply]; };
+    void (^run)(BOOL) = ^(BOOL ticked) {
+        NSDictionary *extra = ticked && optionField ? @{optionField : @YES} : nil;
+        [weakSelf runAction:name object:action ids:ids extra:extra sending:sending reply:reply];
+    };
     if (!confirm) {
-        run();
+        run(NO);
     } else if (self.presentConfirmation) {
         self.presentConfirmation(confirm, run);
     }
 }
 
 - (void)runAction:(NSString *)name object:(NSDictionary *)action ids:(NSDictionary *)ids
-            reply:(SZFriendsReplyHandler)reply {
+            extra:(NSDictionary *)extra sending:(void (^)(void))sending reply:(SZFriendsReplyHandler)reply {
     id<SZFriendsHost> host = self.host;
     NSString *path = SZFStr(action, @"path");
     if ([name isEqualToString:@"open_file"] || [name isEqualToString:@"show_file"]) {
@@ -203,6 +233,22 @@ SZFriendsPress SZFriendsPressFromEvent(NSEvent *event, NSTimeInterval now) {
         }
         if (reply) reply(@{}, nil);
         return;
+    }
+    // Using an existing profile here (PROTOCOL.md § Joining, Offering it): the join page, now or once the reset that
+    // comes first succeeded. Subscriptions survive the helper's restart (SZFriendsHelperLink.m), so the page shows the
+    // fresh profile's join view as soon as the link is back.
+    if ([name isEqualToString:@"open_join"]) {
+        [self showJoin];
+        if (reply) reply(@{}, nil);
+        return;
+    }
+    if ([name isEqualToString:@"reset_friends"] && [SZFStr(action, @"then") isEqualToString:@"open_join"]) {
+        __weak SZFriendsContext *weakSelf = self;
+        SZFriendsReplyHandler done = reply;
+        reply = ^(NSDictionary *result, SZFriendsLinkError *error) {
+            if (!error) [weakSelf showJoin];
+            if (done) done(result, error);
+        };
     }
     if ([name isEqualToString:@"open_settings"]) {
         NSURL *url = SZFSettingsURL(SZFStr(action, @"settings_target"));
@@ -233,7 +279,15 @@ SZFriendsPress SZFriendsPressFromEvent(NSEvent *event, NSTimeInterval now) {
         if (!SZFStr(action, own).length) return;
         fields[own] = SZFStr(action, own);
     }
+    if (extra) [fields addEntriesFromDictionary:extra];
+    if (sending) sending();
     [self.link sendIntent:name fields:fields reply:reply];
+}
+
+// The join page in this dropdown, or, from Settings (no navigator), in the dropdown of the same link.
+- (void)showJoin {
+    if (self.navigator) [self.navigator openJoin];
+    else [NSNotificationCenter.defaultCenter postNotificationName:SZFriendsShowJoinNotification object:self.link];
 }
 
 - (void)announce:(NSString *)text {

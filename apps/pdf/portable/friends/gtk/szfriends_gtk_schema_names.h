@@ -9,11 +9,16 @@ NAMES(actions, NULL, "accept_request", "decline_request", "cancel_request", "blo
       "retry_item", "mark_verified", "accept_key_change", "dismiss_banner", "start_visibility", "stop_visibility",
       "reset_friends", "delete_history", "open_file", "show_file", "open_settings", "add_from_link", "receive_link",
       "reset_friend_link", "revoke_link", "revoke_device", "fetch_from_device", "join_profile", "cancel_join",
-      "approve_join", "deny_join", "activate");
+      "approve_join", "deny_join", "activate", "choose_received_folder", "fetch_from_friend", "open_join",
+      "allow_notifications");
+NAMES(action_thens, NULL, "open_join");
+NAMES(confirm_option_names, NULL, "delete_history");
 NAMES(styles, NULL, "primary", "secondary", "link", "destructive");
-NAMES(settings_targets, NULL, "local_network_privacy", "bluetooth_privacy", "bluetooth", "wifi");
+NAMES(settings_targets, NULL, "local_network_privacy", "bluetooth_privacy", "bluetooth", "wifi", "notifications");
+/* Which banner a dismiss_banner action dismisses (PROTOCOL.md type.action `kind`); absent means id_changed. */
+NAMES(dismiss_kinds, NULL, "id_changed", "notifications");
 NAMES(empty_kinds, NULL, "searching", "nobody", "unavailable", "no_match");
-NAMES(banner_kinds, NULL, "id_changed", "identity_unavailable", "update_required");
+NAMES(banner_kinds, NULL, "id_changed", "identity_unavailable", "update_required", "notifications");
 NAMES(row_styles, "normal", "muted");
 NAMES(row_icons, NULL, "accept", "decline", "block");
 /* A row's buttons share SZFriendsGtkActionKind, but only these three may sit on a row (PROTOCOL.md type.row_action):
@@ -29,7 +34,7 @@ NAMES(directions, NULL, "in", "out");
 NAMES(text_formats, NULL, "markdown");
 NAMES(message_states, NULL, "queued", "connecting", "sending", "delivered", "failed", "cancelled");
 NAMES(transfer_states, NULL, "queued", "offered", "waiting_for_you", "sending", "receiving", "delivered", "received",
-      "declined", "cancelled", "failed", "on_device", "fetching");
+      "declined", "cancelled", "failed", "on_device", "fetching", "missing", "gone");
 NAMES(request_directions, NULL, "incoming", "outgoing");
 NAMES(verification_states, NULL, "verified", "unverified");
 NAMES(id_states, NULL, "unreserved", "reserved", "changed", "unavailable");
@@ -37,6 +42,7 @@ NAMES(goodbye_reasons, NULL, "handover", "shutdown", "protocol_error", "reset", 
 NAMES(handovers, NULL, "none", "scheduled");
 NAMES(mention_kinds, NULL, "friend", "you", "stranger");
 NAMES(thumbnail_sources, NULL, "sender", "local");
+NAMES(received_sources, NULL, "friend", "link", "device");
 
 NAMES(link_card_kinds, NULL, "friend", "download");
 /* Several computers (PROTOCOL.md § Devices, § Joining). */

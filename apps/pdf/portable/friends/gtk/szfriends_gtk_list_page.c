@@ -174,6 +174,77 @@ static void row_action(GtkWidget *row, SZFriendsGtkActionKind action, gpointer d
     szfriends_gtk_link_send(list->link, intent, answered, answer, answer_free);
 }
 
+/* ---- A row's menu: Remove, Cancel request ---------------------------------------------------------- */
+
+static void apply_rows(SZFriendsGtkListPage *list, const SZFriendsGtkListSnapshot *snapshot);
+
+typedef struct {
+    GWeakRef page; /* the page's widget: the list is gone once it is */
+    SZFriendsGtkListPage *list;
+    char *conversation_id;
+} SZFriendsGtkRemoval;
+
+static SZFriendsGtkListPage *removal_list(SZFriendsGtkRemoval *removal, GtkWidget **held) {
+    *held = g_weak_ref_get(&removal->page);
+    return *held ? removal->list : NULL;
+}
+
+/* The person confirmed: their row goes at once, before the helper's new list arrives. */
+static void removal_sending(gpointer data) {
+    SZFriendsGtkRemoval *removal = data;
+    GtkWidget *held;
+    SZFriendsGtkListPage *list = removal_list(removal, &held);
+    if (!list) return;
+    g_hash_table_add(list->hidden, g_strdup(removal->conversation_id));
+    if (list->list) apply_rows(list, list->list);
+    g_object_unref(held);
+}
+
+/* The helper answered: its new list (without them) came first, so the latest snapshot is the truth again. A refusal
+ * brings the row back, and its reason is read out, as the row is where the person left it. */
+static void removal_answered(JsonObject *result, const SZFriendsGtkError *error, gpointer data) {
+    (void)result;
+    SZFriendsGtkRemoval *removal = data;
+    GtkWidget *held;
+    SZFriendsGtkListPage *list = removal_list(removal, &held);
+    if (list && g_hash_table_remove(list->hidden, removal->conversation_id) && list->list) {
+        apply_rows(list, list->list);
+        GtkWidget *row = NULL;
+        for (guint i = 0; i < list->parts.rows->len && !row; i++)
+            if (!g_strcmp0(szfriends_gtk_row_get_conversation_id(g_ptr_array_index(list->parts.rows, i)),
+                           removal->conversation_id))
+                row = g_ptr_array_index(list->parts.rows, i);
+        if (row && error && error->message && *error->message)
+            gtk_accessible_announce(GTK_ACCESSIBLE(row), error->message, GTK_ACCESSIBLE_ANNOUNCEMENT_PRIORITY_HIGH);
+    }
+    if (held) g_object_unref(held);
+    g_weak_ref_clear(&removal->page);
+    g_free(removal->conversation_id);
+    g_free(removal);
+}
+
+static const SZFriendsGtkListRow *snapshot_row(SZFriendsGtkListPage *list, const char *conversation_id) {
+    for (gsize i = 0; list->list && conversation_id && i < list->list->n_rows; i++)
+        if (!g_strcmp0(list->list->rows[i].conversation_id, conversation_id)) return &list->list->rows[i];
+    return NULL;
+}
+
+/* From the latest snapshot, never a copy the row kept: the item does what the helper says now. */
+static void row_menu_chosen(GtkWidget *row, guint index, gpointer data) {
+    SZFriendsGtkListPage *list = data;
+    const char *conversation_id = szfriends_gtk_row_get_conversation_id(row);
+    const SZFriendsGtkListRow *person = snapshot_row(list, conversation_id);
+    if (!person || index >= person->n_menu) return;
+    SZFriendsGtkActionIds ids = {.conversation_id = conversation_id};
+    SZFriendsGtkRemoval *removal = g_new0(SZFriendsGtkRemoval, 1);
+    g_weak_ref_init(&removal->page, szfriends_gtk_page_get_widget(list->page));
+    removal->list = list;
+    removal->conversation_id = g_strdup(conversation_id);
+    /* Every reply, or nothing sent (Cancel), reaches removal_answered once, which frees it. */
+    szfriends_gtk_perform_sending(list->link, list->dropdown, row, &person->menu[index], &ids, removal_sending,
+                                  removal_answered, removal);
+}
+
 /* Files dropped on a friend go at once, one offer per file, shown in the conversation with Cancel. */
 static void row_dropped(GtkWidget *row, GPtrArray *items, gpointer data) {
     SZFriendsGtkListPage *list = data;
@@ -186,19 +257,24 @@ static void row_dropped(GtkWidget *row, GPtrArray *items, gpointer data) {
 
 static void apply_rows(SZFriendsGtkListPage *list, const SZFriendsGtkListSnapshot *snapshot) {
     GPtrArray *rows = list->parts.rows;
-    while (rows->len > snapshot->n_rows) {
+    GPtrArray *shown = g_ptr_array_new(); /* the snapshot's rows, without anyone just removed here */
+    for (gsize i = 0; i < snapshot->n_rows; i++)
+        if (!g_hash_table_contains(list->hidden, snapshot->rows[i].conversation_id))
+            g_ptr_array_add(shown, &snapshot->rows[i]);
+    while (rows->len > shown->len) {
         gtk_box_remove(GTK_BOX(list->rows_box), g_ptr_array_index(rows, rows->len - 1));
         g_ptr_array_remove_index(rows, rows->len - 1);
     }
-    static const SZFriendsGtkRowHandlers handlers = {row_activated, row_action, row_dropped, NULL};
-    while (rows->len < snapshot->n_rows) {
+    static const SZFriendsGtkRowHandlers handlers = {row_activated, row_action, row_dropped, NULL, row_menu_chosen};
+    while (rows->len < shown->len) {
         GtkWidget *row = szfriends_gtk_row_new(list->link);
         szfriends_gtk_row_set_handlers(row, &handlers, list);
         gtk_box_append(GTK_BOX(list->rows_box), row);
         g_ptr_array_add(rows, row);
     }
-    for (gsize i = 0; i < snapshot->n_rows; i++) szfriends_gtk_row_set_list_row(g_ptr_array_index(rows, i),
-                                                                               &snapshot->rows[i]);
+    for (guint i = 0; i < shown->len; i++)
+        szfriends_gtk_row_set_list_row(g_ptr_array_index(rows, i), g_ptr_array_index(shown, i));
+    g_ptr_array_unref(shown);
     szfriends_gtk_list_dim_rows(list);
 }
 
@@ -285,6 +361,7 @@ static void list_free(gpointer data) {
         g_object_remove_weak_pointer(G_OBJECT(list->parts.footer), (gpointer *)&list->parts.footer);
     if (list->list) szfriends_gtk_list_snapshot_free(list->list);
     g_ptr_array_unref(list->parts.rows); /* the row widgets went with the page */
+    g_hash_table_unref(list->hidden);
     g_free(list);
 }
 
@@ -293,6 +370,7 @@ static void page_build(SZFriendsGtkPage *page, gpointer data) {
     SZFriendsGtkListPage *list = g_new0(SZFriendsGtkListPage, 1);
     list->magic = SZFRIENDS_GTK_LIST_MAGIC;
     list->page = page;
+    list->hidden = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, NULL);
     list->link = szfriends_gtk_page_get_link(page);
     list->dropdown = szfriends_gtk_page_get_dropdown(page);
     szfriends_gtk_page_set_data(page, list, list_free);

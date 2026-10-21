@@ -61,6 +61,8 @@ extern const NSTimeInterval SZFriendsJoinOnlineRepeat; // 1,200 s
 - (BOOL)joinAvailable;
 - (SZFriendsJoiningFacts *)joiningFacts;
 - (NSArray<SZFriendsJoinRequestFacts *> *)joinRequestFacts;
+// A request arrived: a notification for each request the notifier has not heard of (ADR 0017).
+- (void)notifyJoinRequests;
 
 // Intents. Each returns nil, or the error code to reply with.
 - (nullable NSString *)startJoiningFriendsID:(NSString *)friendsID;

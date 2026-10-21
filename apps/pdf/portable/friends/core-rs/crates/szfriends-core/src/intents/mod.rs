@@ -47,6 +47,8 @@ pub enum View {
     Settings,
     MessageStatus,
     Join,
+    /// The files received here (helper capability `received.folder`).
+    Received,
 }
 
 /// A file object (`type.file`): a path, the name it is shown under, and the revision it must still be.
@@ -191,14 +193,19 @@ pub enum Intent {
     FetchFromDevice {
         transfer_id: String,
     },
+    FetchFromFriend {
+        transfer_id: String,
+    },
     Block {
         conversation_id: String,
     },
     Unblock {
         conversation_id: String,
     },
+    /// Takes the person off the list, ending the friendship or request first; `delete_history` also deletes the chat.
     RemoveFriend {
         conversation_id: String,
+        delete_history: bool,
     },
     MarkVerified {
         conversation_id: String,
@@ -218,7 +225,29 @@ pub enum Intent {
         conversation_id: String,
         enabled: bool,
     },
+    /// The folder received files are saved to on this computer, as given (the store checks it).
+    SetReceivedFolder {
+        path: String,
+    },
     DismissBanner,
+    /// dismiss_banner kind `notifications`: Not Now on the ask card, for good.
+    DismissNotificationsBanner,
+    /// The conversation this client's focused window shows, or None (§ Notifications).
+    SetFocus {
+        conversation_id: Option<String>,
+    },
+    /// This device's notification switches; absent ones stay as they are.
+    SetNotifications {
+        enabled: Option<bool>,
+        preview: Option<bool>,
+        background: Option<bool>,
+    },
+    AllowNotifications,
+    /// Test homes only: a click (`reply_text` None) or a reply on a notification the sink recorded.
+    TestNotificationResponse {
+        key: String,
+        reply_text: Option<String>,
+    },
     StartVisibility,
     StopVisibility,
     SearchMessages {
@@ -239,10 +268,13 @@ pub enum Wording {
     General,
     /// The join intents' own words.
     Join,
-    /// The devices intents' own words, for this reason ("device", "empty", "invalid", "fetch", "device_removed").
+    /// The devices intents' own words, for this reason ("device", "empty", "invalid", "fetch", "again",
+    /// "device_removed").
     Devices(&'static str),
     /// Named as the mention or card named the person.
     Named(String),
+    /// Worded for the folder the person picked in Settings (set_received_folder), not for a file being sent.
+    ReceivedFolder,
 }
 
 /// A refused intent: the code and wire details, and how its message is worded.
@@ -314,6 +346,61 @@ pub(crate) fn person(intent: &Value, state: &dyn IntentState) -> Result<(String,
     }
 }
 
+/// remove_friend: `delete_history`, when present and not null, must be a bool; then anyone but You.
+fn remove_friend(frame: &Value, state: &dyn IntentState) -> Result<Intent> {
+    let delete_history = match frame.get("delete_history") {
+        None | Some(Value::Null) => false,
+        Some(Value::Bool(value)) => *value,
+        Some(_) => return Err(IntentError::field("invalid_field", "delete_history")),
+    };
+    let (conversation_id, _) = person(frame, state)?;
+    if conversation_id == crate::store::sync_log::YOU {
+        return Err(IntentError::new("not_allowed"));
+    }
+    Ok(Intent::RemoveFriend { conversation_id, delete_history })
+}
+
+/// An optional bool: absent or null is None; anything else but a bool is invalid_field.
+fn optional_bool(frame: &Value, key: &str) -> Result<Option<bool>> {
+    match frame.get(key) {
+        None | Some(Value::Null) => Ok(None),
+        Some(Value::Bool(value)) => Ok(Some(*value)),
+        Some(_) => Err(IntentError::field("invalid_field", key)),
+    }
+}
+
+/// The notification intents (PROTOCOL.md § Notifications).
+fn notifications(kind: &str, frame: &Value) -> Result<Intent> {
+    Ok(match kind {
+        "set_focus" => {
+            let conversation_id = match frame.get("conversation_id") {
+                Some(Value::Null) => None,
+                Some(Value::String(_)) => Some(required(frame, "conversation_id", 64)?),
+                _ => return Err(IntentError::field("invalid_field", "conversation_id")),
+            };
+            Intent::SetFocus { conversation_id }
+        }
+        "set_notifications" => Intent::SetNotifications {
+            enabled: optional_bool(frame, "enabled")?,
+            preview: optional_bool(frame, "preview")?,
+            background: optional_bool(frame, "background")?,
+        },
+        "allow_notifications" => Intent::AllowNotifications,
+        _ => {
+            let key = required(frame, "key", 200)?;
+            let reply_text = match string(frame, "action") {
+                Some("open") => None,
+                Some("reply") => match string(frame, "text") {
+                    Some(text) if !text.trim().is_empty() && text.len() <= MESSAGE_BYTES_MAX => Some(text.to_owned()),
+                    _ => return Err(IntentError::field("invalid_field", "text")),
+                },
+                _ => return Err(IntentError::field("invalid_field", "action")),
+            };
+            Intent::TestNotificationResponse { key, reply_text }
+        }
+    })
+}
+
 /// An intent's fields read and checked in the helper's order. `frame` is the whole client frame; its `type` must be
 /// an intent this helper takes ([`admit`] first).
 pub fn parse(frame: &Value, state: &dyn IntentState) -> Result<Intent> {
@@ -328,7 +415,7 @@ pub fn parse(frame: &Value, state: &dyn IntentState) -> Result<Intent> {
         "cancel_request" => conversation(|id| Intent::CancelRequest { conversation_id: id })?,
         "block" => conversation(|id| Intent::Block { conversation_id: id })?,
         "unblock" => conversation(|id| Intent::Unblock { conversation_id: id })?,
-        "remove_friend" => conversation(|id| Intent::RemoveFriend { conversation_id: id })?,
+        "remove_friend" => remove_friend(frame, state)?,
         "mark_verified" => conversation(|id| Intent::MarkVerified { conversation_id: id })?,
         "accept_key_change" => conversation(|id| Intent::AcceptKeyChange { conversation_id: id })?,
         "cancel_transfer" => Intent::CancelTransfer { transfer_id: required(frame, "transfer_id", 64)? },
@@ -341,6 +428,7 @@ pub fn parse(frame: &Value, state: &dyn IntentState) -> Result<Intent> {
         "deny_join" => Intent::DenyJoin { join_id: required(frame, "join_id", 64)? },
         "revoke_device" => Intent::RevokeDevice { device_id: required(frame, "device_id", 64)? },
         "fetch_from_device" => Intent::FetchFromDevice { transfer_id: required(frame, "transfer_id", 64)? },
+        "fetch_from_friend" => Intent::FetchFromFriend { transfer_id: required(frame, "transfer_id", 64)? },
         "join_profile" => {
             // The ID typed, read as the word list reads it (U+2011, spaces and case as people type them).
             let typed = required(frame, "friends_id", 100)?;
@@ -350,6 +438,9 @@ pub fn parse(frame: &Value, state: &dyn IntentState) -> Result<Intent> {
         }
         "cancel_join" => Intent::CancelJoin,
         "reset_friend_link" => Intent::ResetFriendLink,
+        "set_focus" | "set_notifications" | "allow_notifications" | "test_notification_response" => {
+            notifications(kind, frame)?
+        }
         "start_visibility" => Intent::StartVisibility,
         "stop_visibility" => Intent::StopVisibility,
         "subscribe" | "unsubscribe" | "set_filter" | "open_conversation" | "load_earlier" | "search_messages"

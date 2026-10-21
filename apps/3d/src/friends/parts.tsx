@@ -2,7 +2,7 @@
 // Every string they show comes from a snapshot or welcome.strings. The route and action glyphs are in glyphs.tsx.
 import { createContext, useContext, useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
-import type { FriendsBridge } from "./bridge";
+import { chooseFolder, type FriendsBridge } from "./bridge";
 import type {
   Action,
   Arm,
@@ -12,7 +12,7 @@ import type {
   Reply,
   Segment,
 } from "./protocol";
-import { CLIENT_ACTIONS, actionIntent } from "./actions";
+import { CLIENT_ACTIONS, actionIntent, confirmedFields } from "./actions";
 import type { FriendsStore } from "./store";
 import { Glyph } from "./glyphs";
 
@@ -22,8 +22,12 @@ export type PanelContext = {
   /** Shows a reply's failure: its display-ready message, or nothing when it has none. */
   report(reply: Reply): void;
   openConversation(conversationId: string, messageId?: string): void;
-  confirm(confirm: Confirm): Promise<boolean>;
+  /** Asks first: false when the person cancels, else whether they ticked the confirmation's checkbox. */
+  confirm(confirm: Confirm): Promise<ConfirmAnswer>;
+  /** Shows the join view: in the dropdown, or from Settings by opening the dropdown on it. */
+  openJoin(): void;
 };
+export type ConfirmAnswer = false | { option: boolean };
 export const Panel = createContext<PanelContext | null>(null);
 export function usePanel() {
   const value = useContext(Panel);
@@ -192,26 +196,67 @@ export function useArm(arm: Arm | null | undefined) {
 
 type ActionContext = Parameters<typeof actionIntent>[1];
 
-/** Runs an action: client-side ones through the host, intents after their confirmation when they carry one. */
+/** Settings ▸ Save received files to ▸ Change…: the system's folder picker at `start`, then set_received_folder with
+ * the folder chosen; nothing when the person cancels. */
+export async function chooseReceivedFolder(
+  panel: Pick<PanelContext, "bridge" | "store" | "report">,
+  start?: string | null,
+) {
+  const folder = await chooseFolder(panel.bridge, start);
+  if (!folder) return;
+  const reply = await panel.store.send("set_received_folder", { path: folder });
+  panel.report(reply);
+  return reply;
+}
+
+/** Runs an action: client-side ones through the host, intents after their confirmation when they carry one.
+ * `sending` runs once the person has confirmed, just before the intent goes (a row hides itself then). */
 export function useRunAction() {
   const panel = usePanel();
-  return async (action: Action, context: ActionContext = {}) => {
-    if (CLIENT_ACTIONS.has(action.action)) {
-      if (action.action === "open_file" && action.path)
-        await panel.bridge.openFile(action.path);
-      if (action.action === "show_file" && action.path)
-        await panel.bridge.showFile(action.path);
-      if (action.action === "open_settings" && action.settings_target)
-        await panel.bridge.openSettings(action.settings_target);
-      return;
-    }
-    const intent = actionIntent(action, context);
-    if (!intent) return;
-    if (action.confirm && !(await panel.confirm(action.confirm))) return;
-    const reply = await panel.store.send(intent.type, intent.fields);
-    panel.report(reply);
-    return reply;
-  };
+  return (action: Action, context: ActionContext = {}, sending?: () => void) =>
+    runAction(panel, action, context, sending);
+}
+
+/** What pressing an action does: a client-side action here, else its intent, asking first when it has `confirm`. */
+export async function runAction(
+  panel: PanelContext,
+  action: Action,
+  context: ActionContext = {},
+  sending?: () => void,
+): Promise<Reply | undefined> {
+  if (CLIENT_ACTIONS.has(action.action)) {
+    if (action.action === "open_file" && action.path)
+      await panel.bridge.openFile(action.path);
+    if (action.action === "show_file" && action.path)
+      await panel.bridge.showFile(action.path);
+    if (action.action === "open_settings" && action.settings_target)
+      await panel.bridge.openSettings(action.settings_target);
+    // Settings' Change…: the picker starts at the folder now (the row puts it in `path`).
+    if (action.action === "choose_received_folder")
+      return chooseReceivedFolder(panel, action.path);
+    if (action.action === "open_join") panel.openJoin();
+    return;
+  }
+  const intent = actionIntent(action, context);
+  if (!intent) return;
+  let fields = intent.fields;
+  if (action.confirm) {
+    const answer = await panel.confirm(action.confirm);
+    if (!answer) return;
+    fields = confirmedFields(fields, action.confirm, answer.option);
+  }
+  sending?.();
+  const reply = await panel.store.send(intent.type, fields);
+  panel.report(reply);
+  // Using an existing profile after Reset: the join view on the fresh profile (its subscription follows the
+  // helper's restart, as every view's does).
+  if (
+    reply.ok &&
+    action.action === "reset_friends" &&
+    action.then === "open_join"
+  )
+    panel.openJoin();
+  return reply;
 }
 
 export function ActionButton({

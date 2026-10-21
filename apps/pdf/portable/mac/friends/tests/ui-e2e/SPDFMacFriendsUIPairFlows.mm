@@ -2,7 +2,7 @@
 // each a real helper in a home of its own, meeting over loopback Nearby. Mei asks Ana, who accepts in the list; Ana
 // asks Kenji from Nearby, and he accepts; then a message and a small file each way with Mei, and search.
 
-#import "SPDFMacFriendsUIE2E.h"
+#import "SPDFMacFriendsUIPairInternal.h"
 
 #import "mac/SZFriendsConversationPage.h"
 #import "mac/SZFriendsListPage.h"
@@ -11,13 +11,13 @@ static NSString* UIToken(void) {
     return [[NSUUID UUID].UUIDString stringByReplacingOccurrencesOfString:@"-" withString:@""].lowercaseString;
 }
 
-static NSDictionary* UIRowTitled(NSDictionary* list, NSString* title) {
+NSDictionary* UIRowTitled(NSDictionary* list, NSString* title) {
     for (NSDictionary* row in list[@"rows"])
         if ([row[@"title"] isEqual:title]) return row;
     return nil;
 }
 
-static NSArray<NSDictionary*>* UIItems(NSDictionary* conversation, NSString* kind) {
+NSArray<NSDictionary*>* UIItems(NSDictionary* conversation, NSString* kind) {
     NSMutableArray* items = [NSMutableArray array];
     for (NSDictionary* item in conversation[@"items"])
         if ([item[@"kind"] isEqual:kind]) [items addObject:item];
@@ -25,7 +25,7 @@ static NSArray<NSDictionary*>* UIItems(NSDictionary* conversation, NSString* kin
 }
 
 // The list row (a button) whose accessibility label starts with `title`.
-static SZFriendsRowView* UIRow(UIRig* rig, NSString* title) {
+SZFriendsRowView* UIRow(UIRig* rig, NSString* title) {
     for (SZFriendsRowView* row in rig.listPage.rows)
         if ([row.accessibilityLabel hasPrefix:title] && UIVisible(row)) return row;
     return nil;
@@ -37,25 +37,6 @@ static SZFriendsRowView* UINearbyRow(UIRig* rig, NSString* title) {
     return nil;
 }
 
-static BOOL UIClickChecked(UIRig* rig, NSView* _Nullable view, NSString* what, const char* file, int line) {
-    NSString* why = nil;
-    if (view && UIClick(view, &why)) return YES;
-    UIFail(rig, file, line, "a click reaches it", [NSString stringWithFormat:@"%@: %@", what, why ?: @"not found"]);
-    return NO;
-}
-#define CLICK(rig, view, what)                                                                                     \
-    do {                                                                                                           \
-        if (!UIClickChecked(rig, view, what, __FILE__, __LINE__)) return NO;                                      \
-    } while (0)
-
-// One of the two friends: a helper in its own home and the client library driving it.
-@interface UIFriend : NSObject
-@property(nonatomic, strong) SZFE2EHelper* helper;
-@property(nonatomic, strong) SZFE2EClient* client;
-@property(nonatomic, copy) NSString* name;
-@property(nonatomic, copy) NSString* list;
-@property(nonatomic, copy, nullable) NSString* anaID; // Ana's conversation in this friend's list
-@end
 @implementation UIFriend
 @end
 
@@ -263,27 +244,31 @@ static BOOL UIFiles(UIRig* rig, UIFriend* mei, SZFE2EWorld* world) {
     EXPECT(rig, UIWait(5, ^BOOL { return (accept = UIFindButton(page, @"Accept")) != nil; }), "with Accept");
     UIShot(rig, @"incoming");
     CLICK(rig, accept, @"Accept");
-    // Arrived: the card's status reads Received and it offers Show in Finder.
+    // Arrived: the card's status says where it went (Saved to Downloads) and it offers Show in Finder.
     EXPECT(rig, UIWait(20, ^BOOL {
                for (NSView* view in UIAllViews(page))
                    if ([view isKindOfClass:NSTextField.class] && UIVisible(view) &&
-                       [((NSTextField*)view).stringValue isEqualToString:@"Received"])
+                       [((NSTextField*)view).stringValue isEqualToString:@"Saved to Downloads"])
                        return UIFindButton(page, @"Show in Finder") != nil;
                return NO;
            }), "the file arrives:\n%@", UIDescribe(page));
-    NSString* received = [rig.helper.stateDirectory stringByAppendingPathComponent:@"received"];
+    // Received files go to Downloads (the harness's SZFRIENDS_DOWNLOADS_DIR, never the real one).
+    NSString* received = rig.helper.downloadsDirectory;
     __block NSString* found = nil;
     EXPECT(rig, UIWait(5, ^BOOL {
                for (NSString* name in [NSFileManager.defaultManager enumeratorAtPath:received])
                    if ([name.lastPathComponent isEqualToString:@"reply.pdf"])
                        found = [received stringByAppendingPathComponent:name];
                return found != nil;
-           }), "the file is in Ana's received folder");
+           }), "the file is in Ana's Downloads");
     EXPECT(rig, [[NSData dataWithContentsOfFile:found] isEqual:[NSData dataWithContentsOfFile:back]], "same bytes");
     NSButton* show = UIFindButton(page, @"Show in Finder");
     EXPECT(rig, show != nil, "the card offers Show in Finder:\n%@", UIDescribe(page));
     CLICK(rig, show, @"Show in Finder");
     EXPECT(rig, UIWait(3, ^BOOL { return rig.bridge.revealed.count > 0; }), "Show in Finder asks the reader");
+    EXPECT(rig, [rig.bridge.revealed.lastObject.path.stringByResolvingSymlinksInPath
+                    isEqualToString:found.stringByResolvingSymlinksInPath],
+           "Show in Finder reveals that file: %@", rig.bridge.revealed.lastObject.path);
     UIShot(rig, @"received");
     [mei.client intent:@"unsubscribe" fields:@{@"subscription" : atMei}];
     CLICK(rig, page.header.backButton, @"Back");
@@ -345,6 +330,8 @@ BOOL UIFlowTwoPeople(SZFE2EWorld* world, UIVariant* variant) {
         {@"two people: a message each way", ^BOOL { return UIMessages(rig, mei); }},
         {@"two people: a file each way", ^BOOL { return UIFiles(rig, mei, world); }},
         {@"search filters the list", ^BOOL { return UISearch(rig); }},
+        {@"two people: Remove from the row's menu, gone on both computers",
+         ^BOOL { return UIRemoveFromList(rig, world); }},
     };
     for (auto& step : steps) {
         if (!all) {

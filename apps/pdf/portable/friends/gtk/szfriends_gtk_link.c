@@ -67,6 +67,7 @@ static void copy_host(SZFriendsGtkLink *link, const SZFriendsGtkHost *host) {
     h->attach_placeholder = own_string(link, h->attach_placeholder);
     h->appearance_css = own_string(link, h->appearance_css);
     h->animals_manifest_path = own_string(link, h->animals_manifest_path);
+    h->url_scheme = own_string(link, h->url_scheme);
     h->capabilities = own_strv(link, h->capabilities);
     h->open_formats = own_strv(link, h->open_formats);
     if (h->extra_drop_types && h->n_extra_drop_types) {
@@ -92,6 +93,19 @@ static GPtrArray *derived_capabilities(const SZFriendsGtkHost *host) {
     /* The conversation page draws mention links, opens their cards and offers @ (szfriends_gtk_conversation.h), so
      * every GTK host can show mentions; without the claim each one would arrive as plain text. */
     g_ptr_array_add(list, "mentions");
+    /* Every list row's menu (Remove), on right-click, a long press, Shift+F10 or Delete (szfriends_gtk_row_menu.c). */
+    g_ptr_array_add(list, "list.menu");
+    /* How each person nearby was found, as icons and words on their row (szfriends_gtk_row.c). */
+    g_ptr_array_add(list, "nearby.found");
+    /* Get again on a friend's file the person moved or deleted (szfriends_gtk_actions.c). */
+    g_ptr_array_add(list, "files.again");
+    /* set_focus while a focused window's dropdown shows a conversation (szfriends_gtk_focus.c). */
+    g_ptr_array_add(list, "notifications.focus");
+#ifdef __APPLE__
+    /* macOS asks before showing notifications: the list's banner with Turn On and Not Now
+     * (szfriends_gtk_list_notices.c). Linux needs no permission, so no ask. */
+    g_ptr_array_add(list, "notifications.ask");
+#endif
     return list;
 }
 
@@ -158,6 +172,7 @@ static void free_now(SZFriendsGtkLink *link) {
     szfriends_gtk_link_routes_clear(link);
     szfriends_gtk_pages_unregister(link);
     szfriends_gtk_animal_set_free(link->animals);
+    szfriends_gtk_focus_clear(link);
     g_ptr_array_free(link->state_watches, TRUE);
     g_ptr_array_free(link->windows, TRUE);
     g_hash_table_unref(link->strings);
@@ -221,8 +236,11 @@ static void set_state(SZFriendsGtkLink *link, szfriends_connection_state raw) {
     link->status_text = status;
     link->state = state;
     /* READY: subscriptions go out before the views hear of it, so what they send next follows them. */
-    if (state == SZFRIENDS_GTK_LINK_READY && previous != SZFRIENDS_GTK_LINK_READY)
+    if (state == SZFRIENDS_GTK_LINK_READY && previous != SZFRIENDS_GTK_LINK_READY) {
         szfriends_gtk_link_routes_ready(link);
+        /* The helper forgot this connection's focus with the old one: say it again when there is one. */
+        szfriends_gtk_focus_connected(link, TRUE);
+    }
     szfriends_gtk_link_watches_begin(link);
     for (guint i = 0; changed && i < link->state_watches->len; i++) {
         SZFriendsGtkLinkWatch *watch = g_ptr_array_index(link->state_watches, i);
@@ -230,8 +248,10 @@ static void set_state(SZFriendsGtkLink *link, szfriends_connection_state raw) {
     }
     szfriends_gtk_link_watches_end(link);
     /* Leaving READY: waiting replies get connection_lost after the state change, as PROTOCOL.md § Intents says. */
-    if (previous == SZFRIENDS_GTK_LINK_READY && state != SZFRIENDS_GTK_LINK_READY)
+    if (previous == SZFRIENDS_GTK_LINK_READY && state != SZFRIENDS_GTK_LINK_READY) {
+        szfriends_gtk_focus_connected(link, FALSE);
         szfriends_gtk_link_routes_left_ready(link);
+    }
 }
 
 static void handle_frame(SZFriendsGtkLink *link, const char *json, gsize length) {
@@ -244,6 +264,8 @@ static void handle_frame(SZFriendsGtkLink *link, const char *json, gsize length)
         g_strfreev(link->helper_capabilities);
         link->helper_capabilities = g_strdupv(welcome->capabilities);
         szfriends_gtk_welcome_free(welcome);
+        /* Whether the helper takes set_focus is known only now. */
+        if (link->state == SZFRIENDS_GTK_LINK_READY) szfriends_gtk_focus_update(link);
     } else {
         szfriends_gtk_link_route_frame(link, frame);
     }
@@ -330,6 +352,7 @@ void szfriends_gtk_link_start(SZFriendsGtkLink *link) {
     config.capability_count = capabilities->len;
     config.open_formats = host->open_formats;
     config.open_format_count = host->open_formats ? g_strv_length((char **)host->open_formats) : 0;
+    config.url_scheme = host->url_scheme;
     config.on_frame = on_frame;
     config.on_state = on_state;
     config.context = link;

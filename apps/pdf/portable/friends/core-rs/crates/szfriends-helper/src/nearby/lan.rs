@@ -52,6 +52,8 @@ pub struct LanAdapter {
     running: bool,
     browser_ready: bool,
     denied: bool,
+    /// The platform said its Wi-Fi is off (BrowseEvent::Radio).
+    radio_off: bool,
     failed_at: Option<Instant>,
     hidden: Option<Entry>,
     retiring: Vec<(Listener, Instant)>,
@@ -85,6 +87,7 @@ impl LanAdapter {
             running: false,
             browser_ready: false,
             denied: false,
+            radio_off: false,
             failed_at: None,
             hidden: None,
             retiring: Vec::new(),
@@ -260,6 +263,8 @@ impl Adapter for LanAdapter {
             AdapterState::NotAsked
         } else if self.denied {
             AdapterState::Denied
+        } else if self.radio_off {
+            AdapterState::RadioOff
         } else if self.failed_at.is_some() {
             AdapterState::Unavailable
         } else if self.browser_ready && (self.hidden.is_some() || self.binding == Binding::Nowhere) {
@@ -314,6 +319,13 @@ impl Adapter for LanAdapter {
             BrowseEvent::Failed(why) => {
                 self.fail(&why);
                 Vec::new()
+            }
+            BrowseEvent::Radio(on) => {
+                if self.radio_off == !on {
+                    return Vec::new();
+                }
+                self.radio_off = !on;
+                vec![Event::State(Method::Network, self.state())]
             }
             BrowseEvent::Found { name, addresses, txt } => {
                 if self.own_names.contains(&name) || addresses.is_empty() {

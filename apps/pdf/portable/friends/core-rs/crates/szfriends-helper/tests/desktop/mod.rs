@@ -77,6 +77,7 @@ pub fn start(binary: &Path, state: &StateDir, arguments: &[&str]) -> Child {
     Command::new(binary)
         .args(arguments)
         .env(ENV_STATE_DIR, &state.path)
+        .env(szfriends_core::store::ENV_DOWNLOADS_DIR, state.path.join("Downloads"))
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null())
@@ -117,6 +118,7 @@ pub fn app() -> AppInfo {
         capabilities: Vec::new(),
         open_formats: vec!["pdf".into()],
         locale: "en".into(),
+        url_scheme: None,
     }
 }
 

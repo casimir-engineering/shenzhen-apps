@@ -22,10 +22,14 @@ static void devices_free(gpointer data) {
     g_free(devices);
 }
 
+/* Use my existing profile…: the join page, or Reset Friends with its confirmation first (the list's `join`). */
 static void join_clicked(GtkButton *button, gpointer data) {
-    (void)button;
     SZFriendsGtkListPage *list = data;
-    if (list->dropdown) szfriends_gtk_dropdown_open_join(list->dropdown);
+    SZFriendsGtkListDevices *devices = g_object_get_data(G_OBJECT(list->parts.devices), "szfriends-devices");
+    const SZFriendsGtkListSnapshot *snapshot = devices->held ? szfriends_gtk_details_held_value(devices->held) : NULL;
+    if (snapshot && snapshot->join)
+        szfriends_gtk_perform(list->link, list->dropdown, GTK_WIDGET(button), &snapshot->join->action, NULL, NULL,
+                              NULL);
 }
 
 void szfriends_gtk_list_build_devices(SZFriendsGtkListPage *list, GtkWidget *content) {
@@ -173,9 +177,12 @@ void szfriends_gtk_list_apply_devices(SZFriendsGtkListPage *list, JsonObject *da
     }
     apply_requests(list, devices, snapshot, removed);
     gtk_widget_set_visible(parts->devices, notice || (!removed && snapshot->n_join_requests));
-    const char *join = snapshot->name_prompt ? snapshot->name_prompt->join_label : NULL;
-    gtk_button_set_label(GTK_BUTTON(parts->prompt_join), join ? join : "");
-    gtk_widget_set_visible(parts->prompt_join, join && *join);
+    /* Shown in the name prompt (GTK draws the list's offer there only); its note is the tooltip. */
+    const SZFriendsGtkJoinOffer *offer = snapshot->name_prompt ? snapshot->join : NULL;
+    gboolean offered = offer && szfriends_gtk_action_is_known(offer->action.action);
+    gtk_button_set_label(GTK_BUTTON(parts->prompt_join), offered ? offer->action.label : "");
+    gtk_widget_set_tooltip_text(parts->prompt_join, offered ? offer->note : NULL);
+    gtk_widget_set_visible(parts->prompt_join, offered);
     gtk_widget_set_visible(parts->tabs, !removed);
     if (removed && parts->showing_nearby) szfriends_gtk_list_page_show_nearby(list->page, FALSE);
     if (removed) gtk_widget_set_visible(szfriends_gtk_footer_parts(parts->footer)->add_button, FALSE);

@@ -198,6 +198,22 @@ static void TestTransfers(void) {
                   [item[@"actions"][1][@"label"] isEqual:@"Show in Finder"] &&
                   [item[@"file"][@"path"] isEqual:@"/tmp/received/Plan.pdf"],
               @"received PDF opens in place and shows in Finder: %@", item[@"actions"]);
+    SZPExpect([item[@"status_label"] isEqual:@"Received"] &&
+                  [item[@"accessibility_label"] hasSuffix:@", received"],
+              @"a file kept in the helper's own folder says Received: %@", item);
+    // Where it was saved, said in the item and when spoken: Downloads by its name, any other folder by its own.
+    received.savedToDownloads = YES;
+    item = [Conversation(mei, @[ received ], nil, nil)[@"items"] lastObject];
+    SZPExpect([item[@"status_label"] isEqual:@"Saved to Downloads"] &&
+                  [item[@"accessibility_label"] hasSuffix:@", saved to Downloads"],
+              @"saved to Downloads: %@", item);
+    received.savedToDownloads = NO;
+    received.savedFolderName = @"From friends";
+    item = [Conversation(mei, @[ received ], nil, nil)[@"items"] lastObject];
+    SZPExpect([item[@"status_label"] isEqual:@"Saved to From friends"] &&
+                  [item[@"accessibility_label"] hasSuffix:@", saved to From friends"],
+              @"saved to a chosen folder: %@", item);
+    received.savedFolderName = nil;
     received.fileName = @"Archive.zip";
     received.fileExtension = @"zip";
     item = [Conversation(mei, @[ received ], nil, nil)[@"items"] lastObject];

@@ -221,6 +221,12 @@
         "CREATE INDEX transfers_by_id_nocase ON transfers(transfer_id COLLATE NOCASE)"
       ],
       [
+        "index",
+        "transfers_received",
+        "transfers",
+        "CREATE INDEX transfers_received ON transfers(received_at) WHERE received_at IS NOT NULL"
+      ],
+      [
         "table",
         "chain_devices",
         "chain_devices",
@@ -236,7 +242,7 @@
         "table",
         "friends",
         "friends",
-        "CREATE TABLE friends (\n  conversation_id TEXT PRIMARY KEY NOT NULL,\n  identity_pk BLOB UNIQUE CHECK (identity_pk IS NULL OR length(identity_pk) = 32),\n  static_pk BLOB CHECK (static_pk IS NULL OR length(static_pk) = 32),\n  friends_id TEXT, name TEXT,\n  picture_kind INTEGER NOT NULL DEFAULT 0, picture_set INTEGER NOT NULL DEFAULT 0,\n  picture_index INTEGER NOT NULL DEFAULT -1, picture_path TEXT, picture_sha256 BLOB,\n  relation INTEGER NOT NULL CHECK (relation BETWEEN 0 AND 4),\n  verified INTEGER NOT NULL DEFAULT 0, verified_at REAL, comparison_code TEXT,\n  auto_accept INTEGER NOT NULL DEFAULT 0, key_change_pending INTEGER NOT NULL DEFAULT 0,\n  presence_secret BLOB CHECK (presence_secret IS NULL OR length(presence_secret) = 32),\n  callback_token BLOB CHECK (callback_token IS NULL OR length(callback_token) = 16),\n  callback_secret BLOB CHECK (callback_secret IS NULL OR length(callback_secret) = 32),\n  last_interaction_at REAL NOT NULL, unread_count INTEGER NOT NULL DEFAULT 0,\n  request_at REAL, request_found_nearby INTEGER NOT NULL DEFAULT 0, pending_static_pk BLOB\n  CHECK (pending_static_pk IS NULL OR length(pending_static_pk) = 32), request_since REAL, attested_friends_id TEXT, id_attestation BLOB\n  CHECK (id_attestation IS NULL OR length(id_attestation) BETWEEN 1 AND 1024), id_attestation_day TEXT, unconfirmed_answer_id TEXT)"
+        "CREATE TABLE friends (\n  conversation_id TEXT PRIMARY KEY NOT NULL,\n  identity_pk BLOB UNIQUE CHECK (identity_pk IS NULL OR length(identity_pk) = 32),\n  static_pk BLOB CHECK (static_pk IS NULL OR length(static_pk) = 32),\n  friends_id TEXT, name TEXT,\n  picture_kind INTEGER NOT NULL DEFAULT 0, picture_set INTEGER NOT NULL DEFAULT 0,\n  picture_index INTEGER NOT NULL DEFAULT -1, picture_path TEXT, picture_sha256 BLOB,\n  relation INTEGER NOT NULL CHECK (relation BETWEEN 0 AND 4),\n  verified INTEGER NOT NULL DEFAULT 0, verified_at REAL, comparison_code TEXT,\n  auto_accept INTEGER NOT NULL DEFAULT 0, key_change_pending INTEGER NOT NULL DEFAULT 0,\n  presence_secret BLOB CHECK (presence_secret IS NULL OR length(presence_secret) = 32),\n  callback_token BLOB CHECK (callback_token IS NULL OR length(callback_token) = 16),\n  callback_secret BLOB CHECK (callback_secret IS NULL OR length(callback_secret) = 32),\n  last_interaction_at REAL NOT NULL, unread_count INTEGER NOT NULL DEFAULT 0,\n  request_at REAL, request_found_nearby INTEGER NOT NULL DEFAULT 0, pending_static_pk BLOB\n  CHECK (pending_static_pk IS NULL OR length(pending_static_pk) = 32), request_since REAL, attested_friends_id TEXT, id_attestation BLOB\n  CHECK (id_attestation IS NULL OR length(id_attestation) BETWEEN 1 AND 1024), id_attestation_day TEXT, unconfirmed_answer_id TEXT, left_list_at REAL)"
       ],
       [
         "table",
@@ -380,11 +386,11 @@
         "table",
         "transfers",
         "transfers",
-        "CREATE TABLE transfers (\n  transfer_id TEXT PRIMARY KEY NOT NULL,\n  conversation_id TEXT NOT NULL REFERENCES friends(conversation_id) ON DELETE CASCADE,\n  outgoing INTEGER NOT NULL, state INTEGER NOT NULL CHECK (state BETWEEN 0 AND 9),\n  file_name TEXT NOT NULL, uniform_type TEXT, size INTEGER NOT NULL CHECK (size >= 0),\n  digest BLOB NOT NULL CHECK (length(digest) = 32),\n  verified_bytes INTEGER NOT NULL DEFAULT 0 CHECK (verified_bytes >= 0 AND verified_bytes <= size),\n  accepted_automatically INTEGER NOT NULL DEFAULT 0, asked_low_disk INTEGER NOT NULL DEFAULT 0,\n  staged_path TEXT, partial_path TEXT, final_path TEXT, publishing INTEGER NOT NULL DEFAULT 0,\n  received_path TEXT,\n  revision_source TEXT, revision_document_id TEXT, revision_id TEXT, revision_label TEXT,\n  revision_sha256 BLOB, revision_size INTEGER,\n  bytes_per_second REAL NOT NULL DEFAULT 0, failure_reason TEXT,\n  created_at REAL NOT NULL, updated_at REAL NOT NULL)"
+        "CREATE TABLE transfers (\n  transfer_id TEXT PRIMARY KEY NOT NULL,\n  conversation_id TEXT NOT NULL REFERENCES friends(conversation_id) ON DELETE CASCADE,\n  outgoing INTEGER NOT NULL, state INTEGER NOT NULL CHECK (state BETWEEN 0 AND 9),\n  file_name TEXT NOT NULL, uniform_type TEXT, size INTEGER NOT NULL CHECK (size >= 0),\n  digest BLOB NOT NULL CHECK (length(digest) = 32),\n  verified_bytes INTEGER NOT NULL DEFAULT 0 CHECK (verified_bytes >= 0 AND verified_bytes <= size),\n  accepted_automatically INTEGER NOT NULL DEFAULT 0, asked_low_disk INTEGER NOT NULL DEFAULT 0,\n  staged_path TEXT, partial_path TEXT, final_path TEXT, publishing INTEGER NOT NULL DEFAULT 0,\n  received_path TEXT,\n  revision_source TEXT, revision_document_id TEXT, revision_id TEXT, revision_label TEXT,\n  revision_sha256 BLOB, revision_size INTEGER,\n  bytes_per_second REAL NOT NULL DEFAULT 0, failure_reason TEXT,\n  created_at REAL NOT NULL, updated_at REAL NOT NULL, received_at REAL, received_via INTEGER NOT NULL DEFAULT 0, source_path TEXT, source_mtime_ns INTEGER)"
       ]
     ],
     "search_uses_index" : true,
-    "user_version" : 9
+    "user_version" : 12
   },
   "migrated_v1" : {
     "integrity" : "ok",
@@ -470,6 +476,12 @@
         "CREATE INDEX transfers_by_id_nocase ON transfers(transfer_id COLLATE NOCASE)"
       ],
       [
+        "index",
+        "transfers_received",
+        "transfers",
+        "CREATE INDEX transfers_received ON transfers(received_at) WHERE received_at IS NOT NULL"
+      ],
+      [
         "table",
         "chain_devices",
         "chain_devices",
@@ -485,7 +497,7 @@
         "table",
         "friends",
         "friends",
-        "CREATE TABLE friends (\n  conversation_id TEXT PRIMARY KEY NOT NULL,\n  identity_pk BLOB UNIQUE CHECK (identity_pk IS NULL OR length(identity_pk) = 32),\n  static_pk BLOB CHECK (static_pk IS NULL OR length(static_pk) = 32),\n  friends_id TEXT, name TEXT,\n  picture_kind INTEGER NOT NULL DEFAULT 0, picture_set INTEGER NOT NULL DEFAULT 0,\n  picture_index INTEGER NOT NULL DEFAULT -1, picture_path TEXT, picture_sha256 BLOB,\n  relation INTEGER NOT NULL CHECK (relation BETWEEN 0 AND 4),\n  verified INTEGER NOT NULL DEFAULT 0, verified_at REAL, comparison_code TEXT,\n  auto_accept INTEGER NOT NULL DEFAULT 0, key_change_pending INTEGER NOT NULL DEFAULT 0,\n  presence_secret BLOB CHECK (presence_secret IS NULL OR length(presence_secret) = 32),\n  callback_token BLOB CHECK (callback_token IS NULL OR length(callback_token) = 16),\n  callback_secret BLOB CHECK (callback_secret IS NULL OR length(callback_secret) = 32),\n  last_interaction_at REAL NOT NULL, unread_count INTEGER NOT NULL DEFAULT 0,\n  request_at REAL, request_found_nearby INTEGER NOT NULL DEFAULT 0, pending_static_pk BLOB\n  CHECK (pending_static_pk IS NULL OR length(pending_static_pk) = 32), request_since REAL, attested_friends_id TEXT, id_attestation BLOB\n  CHECK (id_attestation IS NULL OR length(id_attestation) BETWEEN 1 AND 1024), id_attestation_day TEXT, unconfirmed_answer_id TEXT)"
+        "CREATE TABLE friends (\n  conversation_id TEXT PRIMARY KEY NOT NULL,\n  identity_pk BLOB UNIQUE CHECK (identity_pk IS NULL OR length(identity_pk) = 32),\n  static_pk BLOB CHECK (static_pk IS NULL OR length(static_pk) = 32),\n  friends_id TEXT, name TEXT,\n  picture_kind INTEGER NOT NULL DEFAULT 0, picture_set INTEGER NOT NULL DEFAULT 0,\n  picture_index INTEGER NOT NULL DEFAULT -1, picture_path TEXT, picture_sha256 BLOB,\n  relation INTEGER NOT NULL CHECK (relation BETWEEN 0 AND 4),\n  verified INTEGER NOT NULL DEFAULT 0, verified_at REAL, comparison_code TEXT,\n  auto_accept INTEGER NOT NULL DEFAULT 0, key_change_pending INTEGER NOT NULL DEFAULT 0,\n  presence_secret BLOB CHECK (presence_secret IS NULL OR length(presence_secret) = 32),\n  callback_token BLOB CHECK (callback_token IS NULL OR length(callback_token) = 16),\n  callback_secret BLOB CHECK (callback_secret IS NULL OR length(callback_secret) = 32),\n  last_interaction_at REAL NOT NULL, unread_count INTEGER NOT NULL DEFAULT 0,\n  request_at REAL, request_found_nearby INTEGER NOT NULL DEFAULT 0, pending_static_pk BLOB\n  CHECK (pending_static_pk IS NULL OR length(pending_static_pk) = 32), request_since REAL, attested_friends_id TEXT, id_attestation BLOB\n  CHECK (id_attestation IS NULL OR length(id_attestation) BETWEEN 1 AND 1024), id_attestation_day TEXT, unconfirmed_answer_id TEXT, left_list_at REAL)"
       ],
       [
         "table",
@@ -629,11 +641,11 @@
         "table",
         "transfers",
         "transfers",
-        "CREATE TABLE transfers (\n  transfer_id TEXT PRIMARY KEY NOT NULL,\n  conversation_id TEXT NOT NULL REFERENCES friends(conversation_id) ON DELETE CASCADE,\n  outgoing INTEGER NOT NULL, state INTEGER NOT NULL CHECK (state BETWEEN 0 AND 9),\n  file_name TEXT NOT NULL, uniform_type TEXT, size INTEGER NOT NULL CHECK (size >= 0),\n  digest BLOB NOT NULL CHECK (length(digest) = 32),\n  verified_bytes INTEGER NOT NULL DEFAULT 0 CHECK (verified_bytes >= 0 AND verified_bytes <= size),\n  accepted_automatically INTEGER NOT NULL DEFAULT 0, asked_low_disk INTEGER NOT NULL DEFAULT 0,\n  staged_path TEXT, partial_path TEXT, final_path TEXT, publishing INTEGER NOT NULL DEFAULT 0,\n  received_path TEXT,\n  revision_source TEXT, revision_document_id TEXT, revision_id TEXT, revision_label TEXT,\n  revision_sha256 BLOB, revision_size INTEGER,\n  bytes_per_second REAL NOT NULL DEFAULT 0, failure_reason TEXT,\n  created_at REAL NOT NULL, updated_at REAL NOT NULL)"
+        "CREATE TABLE transfers (\n  transfer_id TEXT PRIMARY KEY NOT NULL,\n  conversation_id TEXT NOT NULL REFERENCES friends(conversation_id) ON DELETE CASCADE,\n  outgoing INTEGER NOT NULL, state INTEGER NOT NULL CHECK (state BETWEEN 0 AND 9),\n  file_name TEXT NOT NULL, uniform_type TEXT, size INTEGER NOT NULL CHECK (size >= 0),\n  digest BLOB NOT NULL CHECK (length(digest) = 32),\n  verified_bytes INTEGER NOT NULL DEFAULT 0 CHECK (verified_bytes >= 0 AND verified_bytes <= size),\n  accepted_automatically INTEGER NOT NULL DEFAULT 0, asked_low_disk INTEGER NOT NULL DEFAULT 0,\n  staged_path TEXT, partial_path TEXT, final_path TEXT, publishing INTEGER NOT NULL DEFAULT 0,\n  received_path TEXT,\n  revision_source TEXT, revision_document_id TEXT, revision_id TEXT, revision_label TEXT,\n  revision_sha256 BLOB, revision_size INTEGER,\n  bytes_per_second REAL NOT NULL DEFAULT 0, failure_reason TEXT,\n  created_at REAL NOT NULL, updated_at REAL NOT NULL, received_at REAL, received_via INTEGER NOT NULL DEFAULT 0, source_path TEXT, source_mtime_ns INTEGER)"
       ]
     ],
     "search_uses_index" : true,
-    "user_version" : 9
+    "user_version" : 12
   },
   "outbox_next_state" : [
     [
@@ -916,7 +928,7 @@
       "sanitized" : "name.verylongextension1"
     }
   ],
-  "schema_version" : 9,
+  "schema_version" : 12,
   "source" : "Exported by portable/friends/core-rs/tools/objc-vectors from the Objective-C helper's own code. Regenerate with `make friends-vectors-export`; do not edit by hand.",
   "transfer_next_state" : [
     [

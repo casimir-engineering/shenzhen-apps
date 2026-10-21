@@ -92,6 +92,10 @@ pub struct Person {
     pub key_change_pending: bool,
     /// A host attestation covers the Friends ID this row holds now; read only.
     pub friends_id_confirmed: bool,
+    /// When the person took someone who is no longer a friend off their list (Unix seconds). Only a Removed or Blocked
+    /// person can be off the list: a read voids it for any other relation, and a save with another relation clears
+    /// it, so a new request from either side brings them back.
+    pub left_list_at: Option<f64>,
 }
 
 impl Person {
@@ -117,6 +121,7 @@ impl Person {
             unconfirmed_answer_id: None,
             key_change_pending: false,
             friends_id_confirmed: false,
+            left_list_at: None,
         }
     }
 }
@@ -127,11 +132,12 @@ const PERSON_COLUMNS: &str = "conversation_id, identity_pk, static_pk, friends_i
 
 /// After the saved columns, what reads work out (`SZFriendsPersonReadColumns`): when the waiting request began, only
 /// while one waits; an unconfirmed answer's ID only while the row waits as an incoming request; and whether an
-/// attestation covers the Friends ID the row holds now.
+/// attestation covers the Friends ID the row holds now; and when the person took them off the list, only while they are
+/// Removed or Blocked, so any other relation, even one an older helper wrote, voids it.
 const PERSON_READ_COLUMNS: &str = "CASE WHEN relation IN (0, 1) THEN coalesce(request_since, request_at, \
                                    last_interaction_at) END, CASE WHEN relation = 0 THEN unconfirmed_answer_id END, \
                                    attested_friends_id = friends_id AND id_attestation IS NOT NULL \
-                                   AND id_attestation_day IS NOT NULL";
+                                   AND id_attestation_day IS NOT NULL, CASE WHEN relation IN (3, 4) THEN left_list_at END";
 
 fn key_column(row: &Row, index: usize) -> rusqlite::Result<Option<[u8; 32]>> {
     Ok(row.get::<_, Option<Vec<u8>>>(index)?.and_then(|bytes| bytes.try_into().ok()))
@@ -158,6 +164,7 @@ fn person_from_row(row: &Row) -> rusqlite::Result<Person> {
         request_since: row.get(16)?,
         unconfirmed_answer_id: row.get(17)?,
         friends_id_confirmed: row.get::<_, Option<i64>>(18)?.unwrap_or(0) != 0,
+        left_list_at: row.get(19)?,
     })
 }
 
@@ -238,6 +245,12 @@ pub(super) fn insert_item(conn: &Connection, item: &Item) -> Result<bool> {
     Ok(true)
 }
 
+/// Only someone who is no longer a friend (Removed) or is blocked can be off the list: saving any other relation, such
+/// as a new request from either side, puts them back on it.
+pub(crate) fn may_be_off_the_list(relation: i64) -> bool {
+    relation == Relation::Removed as i64 || relation == Relation::Blocked as i64
+}
+
 /// [`Store::save_person`] inside a transaction the caller holds.
 pub(super) fn save_person_in(conn: &Connection, person: &Person) -> Result<()> {
     if !is_valid_identifier(&person.conversation_id) {
@@ -255,10 +268,11 @@ pub(super) fn save_person_in(conn: &Connection, person: &Person) -> Result<()> {
     let now = unix_now();
     let request_start = requesting.then(|| person.request_at.filter(|at| *at < now).unwrap_or(now));
     let unconfirmed = (person.relation == Relation::IncomingRequest).then_some(person.unconfirmed_answer_id.as_deref());
+    let left_list_at = may_be_off_the_list(person.relation as i64).then_some(person.left_list_at).flatten();
     conn.execute(
         &format!(
-            "INSERT INTO friends ({PERSON_COLUMNS}, request_since, unconfirmed_answer_id) VALUES (?1, ?2, ?3, \
-                 ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18) \
+            "INSERT INTO friends ({PERSON_COLUMNS}, request_since, unconfirmed_answer_id, left_list_at) VALUES (?1, \
+                 ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19) \
                  ON CONFLICT(conversation_id) DO UPDATE SET identity_pk = excluded.identity_pk, \
                  static_pk = excluded.static_pk, friends_id = excluded.friends_id, name = excluded.name, \
                  relation = excluded.relation, auto_accept = excluded.auto_accept, \
@@ -268,7 +282,7 @@ pub(super) fn save_person_in(conn: &Connection, person: &Person) -> Result<()> {
                  callback_token = excluded.callback_token, callback_secret = excluded.callback_secret, \
                  key_change_pending = excluded.key_change_pending, \
                  pending_static_pk = CASE WHEN excluded.key_change_pending THEN friends.pending_static_pk END, \
-                 unconfirmed_answer_id = excluded.unconfirmed_answer_id, \
+                 unconfirmed_answer_id = excluded.unconfirmed_answer_id, left_list_at = excluded.left_list_at, \
                  request_since = CASE WHEN excluded.relation NOT IN (0, 1) THEN NULL \
                  WHEN friends.relation = excluded.relation AND friends.request_since IS NOT NULL \
                  THEN friends.request_since ELSE excluded.request_since END"
@@ -291,7 +305,8 @@ pub(super) fn save_person_in(conn: &Connection, person: &Person) -> Result<()> {
             person.callback_secret.map(Vec::from),
             person.key_change_pending,
             request_start,
-            unconfirmed.flatten()
+            unconfirmed.flatten(),
+            left_list_at
         ],
     )?;
     Ok(())

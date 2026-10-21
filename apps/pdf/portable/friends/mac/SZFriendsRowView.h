@@ -40,6 +40,7 @@ NS_ASSUME_NONNULL_BEGIN
 // and Block on a request) are separate targets.
 @interface SZFriendsRowView : SZFriendsButton
 - (instancetype)initWithContext:(SZFriendsContext *)context;
+@property(nonatomic, weak, readonly, nullable) SZFriendsContext *context;
 - (void)configureWithListRow:(NSDictionary *)row;          // PROTOCOL.md list_row
 - (void)configureWithNearbyPerson:(NSDictionary *)person;   // PROTOCOL.md nearby_person
 @property(nonatomic, copy, readonly, nullable) NSString *conversationID;
@@ -48,6 +49,14 @@ NS_ASSUME_NONNULL_BEGIN
 // list_row actions; nil when the row has none.
 @property(nonatomic, strong, readonly, nullable) SZFriendsRowActionsView *actionsView;
 @property(nonatomic, copy, nullable) void (^onRowAction)(SZFriendsRowView *row, NSDictionary *action);
+// list_row menu (PROTOCOL.md, capability list.menu; SZFriendsRowMenu.m): the actions this view knows, in order; empty when the row has
+// none. Right-click or Control-click opens them as a menu (through the context's presentMenu), VoiceOver's Show Menu
+// does too, and each is also one of the row's accessibility custom actions. Delete or Forward Delete on the focused
+// row chooses the first. A choice goes to onMenuAction with the person the row showed when the menu opened; one that
+// a snapshot has since moved elsewhere in the list is dropped.
+@property(nonatomic, copy, readonly) NSArray<NSDictionary *> *menuActions;
+@property(nonatomic, copy, nullable) void (^onMenuAction)(SZFriendsRowView *row, NSDictionary *action,
+                                                          NSString *conversationID);
 @property(nonatomic, readonly) SZFriendsDropHighlight dropHighlight;
 // Drawn faded: the send picker's rows that cannot receive files.
 @property(nonatomic) BOOL dimmed;
@@ -56,6 +65,10 @@ NS_ASSUME_NONNULL_BEGIN
 @property(nonatomic, readonly) BOOL muted;
 // list_row id_confirmed: the Friends server confirmed this person holds the Friends ID (a small check).
 @property(nonatomic, readonly) BOOL idConfirmed;
+// list_row and nearby_person found: how the person is seen nearby now, as route icons (lan, p2p_wifi, bluetooth) and
+// the helper's label at the start of the second line, before the subtitle. Empty and nil when not nearby.
+@property(nonatomic, copy, readonly) NSArray<NSString *> *foundMethods;
+@property(nonatomic, copy, readonly, nullable) NSString *foundLabel;
 // What the row says under the pointer while it refuses files (list_row drop_refusal), or nil when it shows nothing.
 - (nullable NSString *)refusalText;
 // The list above the rows already says why the files are refused (drop_folders_refused, drop_not_a_file): a row that
@@ -71,6 +84,19 @@ NS_ASSUME_NONNULL_BEGIN
 @property(nonatomic, copy, nullable) void (^onDropItems)(SZFriendsRowView *row, NSString *conversationID,
         NSArray<SZFriendsAttachableItem *> *items);
 @end
+
+@interface SZFriendsRowView (Menu)
+// The menu as it opens now; nil when the row has no menu.
+- (nullable NSMenu *)contextMenu;
+// Opens the menu at `point` (the row's coordinates); NO when the row has none.
+- (BOOL)showContextMenuAtPoint:(NSPoint)point;
+@end
+
+// The known methods of a PROTOCOL.md found object, in its order; none without a label (SZFriendsRowFound.m).
+NSArray<NSString *> *SZFriendsFoundMethods(NSDictionary *_Nullable found);
+// Draws the methods' icons and `label` from the left of `line`; returns the width used (0 without a label).
+CGFloat SZFriendsDrawFound(NSArray<NSString *> *methods, NSString *_Nullable label, NSRect line,
+                           SZFriendsAppearance *appearance);
 
 extern const CGFloat SZFriendsRowHeight;
 

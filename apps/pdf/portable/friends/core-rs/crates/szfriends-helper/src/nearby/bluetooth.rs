@@ -154,6 +154,11 @@ impl BluetoothAdapter {
                 self.forget_radio_side();
                 self.set_state(match power {
                     Power::Off => AdapterState::RadioOff,
+                    // Refused, but the system may still ask (Android until the person refuses for good): Nearby
+                    // keeps its Allow, which starts the adapter again and so asks again.
+                    Power::Unauthorized if self.radio.permission() == Permission::NotDetermined => {
+                        AdapterState::NotAsked
+                    }
                     Power::Unauthorized => AdapterState::Denied,
                     _ => AdapterState::Unavailable,
                 });

@@ -203,12 +203,12 @@ NSString *SZFriendsDeviceIDForKey(NSData *deviceKey) {
     if (self.removedFromProfile || store == nil) return @"not_allowed";
     SZFriendsSyncEngine *engine = [self activeSyncEngine];
     SZFriendsSyncFileRecord *file = [store syncFileWithID:transferID];
-    if ([store transferRecordWithID:transferID] != nil) return @"not_allowed"; // here already
-    BOOL elsewhere = NO;
-    for (NSData *holder in file.holders) elsewhere = elsewhere || [self isOwnDeviceKey:holder];
-    if (engine == nil || file == nil || !elsewhere) return @"not_found";
+    SZFriendsTransferRecord *row = [store transferRecordWithID:transferID];
+    if (row != nil && SZFriendsSyncLocalPathOfTransfer(row) != nil) return @"not_allowed"; // here already
+    // Here before and moved or deleted, or never here: Get copies it from a computer that holds it now.
+    if (engine == nil || file == nil || ![self anotherComputerHoldsFile:file]) return @"not_found";
     SZFriendsTransfers *transfers = self.services.transfers;
-    uint64_t free = transfers.freeBytesProvider ? transfers.freeBytesProvider(transfers.receivedDirectory) : UINT64_MAX;
+    uint64_t free = transfers.freeBytesProvider ? [transfers freeBytesForReceiving] : UINT64_MAX;
     if (free < file.size) return @"disk_full";
     if (![engine requestFile:transferID error:NULL]) return @"internal";
     [self pumpSyncExchanges];
@@ -271,7 +271,12 @@ NSString *SZFriendsDeviceIDForKey(NSData *deviceKey) {
 // Read once per pass: which transfers are here, which keys are our other computers and what they are called.
 - (NSDictionary<NSString *, SZFriendsDeviceFileFacts *> *)fileFactsWithEngine:(SZFriendsSyncEngine *)engine {
     SZFriendsStore *store = self.services.store;
-    NSSet<NSString *> *here = [NSSet setWithArray:[[store allTransferRecords] valueForKey:@"transferID"]];
+    // Rows here, and which of them still have their bytes (what the person moved or deleted does not).
+    NSMutableSet<NSString *> *rows = [NSMutableSet set], *here = [NSMutableSet set];
+    for (SZFriendsTransferRecord *transfer in [store allTransferRecords]) {
+        [rows addObject:transfer.transferID];
+        if (SZFriendsSyncLocalPathOfTransfer(transfer) != nil) [here addObject:transfer.transferID];
+    }
     NSSet<NSData *> *ours = [NSSet setWithArray:engine.otherDeviceKeys];
     NSMutableDictionary<NSData *, NSString *> *names = [NSMutableDictionary dictionary];
     NSData *root = [self ownRootKeyEvenIfRemoved];
@@ -298,7 +303,8 @@ NSString *SZFriendsDeviceIDForKey(NSData *deviceKey) {
         SZFriendsDeviceFileFacts *facts = [[SZFriendsDeviceFileFacts alloc] init];
         facts.deviceName = names[holder] ?: SZFriendsHelperDeviceName();
         facts.fetching = [engine isFileRequested:file.transferID] ||
-                         SZFriendsSyncCopiesAutomatically(file.size, file.conversationID);
+                         (![rows containsObject:file.transferID] &&
+                          SZFriendsSyncCopiesAutomatically(file.size, file.conversationID));
         facts.holderConnected = connected;
         facts.fraction = [copying[file.transferID] doubleValue];
         files[file.transferID] = facts;
@@ -351,6 +357,9 @@ NSString *SZFriendsDeviceIDForKey(NSData *deviceKey) {
     facts.computers = [self computerFacts];
     facts.removed = self.removedFromProfile;
     facts.joinOffered = !facts.removed && [self joinAvailable];
+    // Joining after Reset Friends: a profile on this computer only, with people in it that joining would replace.
+    facts.joinReplaces = !facts.removed && !facts.joinOffered && self.services.store.ownDeviceChain.devices.count <= 1;
+    facts.friendsID = self.services.store.friendsID;
     SZFriendsSyncEngine *engine = [self activeSyncEngine];
     [self fillYouFacts:facts engine:engine];
     if (engine != nil) facts.files = [self fileFactsWithEngine:engine];

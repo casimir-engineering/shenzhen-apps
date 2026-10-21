@@ -1,7 +1,7 @@
 // Frames from the other side: requests and their answers, messages, offers, presence secrets and profiles. Each is
 // committed before its ACK goes back, so an ACK always means the item is on this Mac (ADR 0001 § Messages).
 
-#import "service/helper/nearby/SZFriendsNearbyInternal.h"
+#import "service/helper/nearby/SZFriendsNearbyDevices.h"
 
 #import "service/identity/SZFriendsDeviceChain.h"
 #import "service/store/SZFriendsStoreDevices.h"
@@ -140,6 +140,9 @@ static BOOL SZFriendsCreatesFriendship(SZFriendsFrameType type) {
     case SZFriendsFrameTypeChunk:
         [self link:link receivedChunkFrame:frame];
         break;
+    case SZFriendsFrameTypeAgain: // a file asked for again, either way (+Again)
+        [self link:link person:person receivedAgainFrame:frame];
+        break;
     case SZFriendsFrameTypeProgress:
         [self link:link receivedProgressFrame:frame];
         break;
@@ -189,7 +192,8 @@ static BOOL SZFriendsCreatesFriendship(SZFriendsFrameType type) {
         [self changed];
         return;
     }
-    if (person != nil && person.relation == SZFriendsRelationOutgoingRequest) {
+    BOOL mutual = person != nil && person.relation == SZFriendsRelationOutgoingRequest;
+    if (mutual) {
         // We asked them too: two requests are two acceptances. An Add by ID request of ours stays until it expires,
         // so a second holder of the ID can still answer it (ADR 0004 step 5).
         person.relation = SZFriendsRelationFriend;
@@ -233,6 +237,8 @@ static BOOL SZFriendsCreatesFriendship(SZFriendsFrameType type) {
     [self runCodeExchangeOnLink:link];
     [self rebuildTagMatcher];
     [self deliverPendingForConversation:person.conversationID];
+    if (mutual) [self.services.notifier noteAcceptedBy:person];
+    else [self.services.notifier noteRequestFrom:person];
     [self changed];
 }
 
@@ -272,6 +278,7 @@ static BOOL SZFriendsCreatesFriendship(SZFriendsFrameType type) {
         [self refreshAdvertisement];
         [self rebuildTagMatcher];
         [self sendAckForID:wire onLink:link];
+        [self.services.notifier noteRequestFrom:person]; // a request card the person answers
         [self changed];
         return;
     }
@@ -287,6 +294,7 @@ static BOOL SZFriendsCreatesFriendship(SZFriendsFrameType type) {
             SZFriendsNearbyRecordEvent(store, SZFriendsEventNowFriends, person.conversationID);
             if (store.ownPresenceSecret == nil) store.ownPresenceSecret = SZFriendsNewPresenceSecret();
             [self enqueueKind:SZFriendsOutboxKindPresenceSecret conversationID:person.conversationID payload:nil];
+            [self.services.notifier noteAcceptedBy:person];
         }
         [self refreshAdvertisement];
         [self rebuildTagMatcher];
@@ -338,11 +346,13 @@ static BOOL SZFriendsCreatesFriendship(SZFriendsFrameType type) {
     item.viaAssistant = [frame getUInt64:&assistant forTag:SZFriendsFieldViaAssistant] && assistant == 1;
     NSError *error = nil;
     // A duplicate (the ACK was lost) returns YES without a second copy, and is acknowledged again.
+    BOOL known = [self.services.store itemWithID:item.itemID inConversation:item.conversationID] != nil;
     if (![self.services.store insertItem:item error:&error]) {
         SZFriendsHelperLog(@"could not store a message: %@", error.localizedDescription);
         return;
     }
     [self sendAckForID:wire onLink:link];
+    if (!known) [self.services.notifier noteMessage:item]; // decided once, when it first reaches this Mac
     [self changed];
 }
 
@@ -353,6 +363,7 @@ static BOOL SZFriendsCreatesFriendship(SZFriendsFrameType type) {
     NSString *transferID = SZFriendsLinkHex(wire);
     NSString *name = [frame stringForTag:SZFriendsFieldName] ?: @"";
     NSError *error = nil;
+    BOOL known = [self.services.transfers transferWithID:transferID inConversation:person.conversationID] != nil;
     SZFriendsTransferRecord *record =
         [self.services.transfers recordIncomingOfferWithID:transferID
                                             conversationID:person.conversationID
@@ -377,8 +388,10 @@ static BOOL SZFriendsCreatesFriendship(SZFriendsFrameType type) {
         return;
     }
     // Automatic acceptance gets every check a manual one gets; low disk falls back to asking (the store decides).
-    if ([self.services.transfers applyAutomaticAcceptanceToTransfer:transferID error:NULL] ==
-        SZFriendsAutoAcceptDownload) {
+    BOOL automatic = [self.services.transfers applyAutomaticAcceptanceToTransfer:transferID error:NULL] ==
+                     SZFriendsAutoAcceptDownload;
+    if (!known) [self.services.notifier noteOffer:record automatic:automatic];
+    if (automatic) {
         [self enqueueKind:SZFriendsOutboxKindAnswer conversationID:person.conversationID
                   payload:@{@"frame" : @"offer_reply", @"transfer_id" : transferID, @"accept" : @YES}];
         // The answer first, then where the download stands: the sender starts on the PROGRESS that follows.

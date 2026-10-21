@@ -262,6 +262,25 @@ static SZFriendsSyncLogEvent *SZFriendsSyncEventFromRow(sqlite3_stmt *s) {
     return [self syncScalar:@"SELECT value FROM sync_state WHERE key = ?" binds:@[ key ]];
 }
 
+- (NSDictionary<NSString *, id> *)syncStatesWithPrefix:(NSString *)prefix {
+    NSString *escaped = [[prefix stringByReplacingOccurrencesOfString:@"%" withString:@""]
+        stringByReplacingOccurrencesOfString:@"_" withString:@""];
+    NSArray *rows = [self syncRows:@"SELECT key, value FROM sync_state WHERE key LIKE ? ORDER BY key"
+                             binds:@[ [escaped stringByAppendingString:@"%"] ]
+                               map:^id(sqlite3_stmt *s) {
+                                   NSString *key = SZFriendsColumnText(s, 0) ?: @"";
+                                   id value = sqlite3_column_type(s, 1) == SQLITE_INTEGER
+                                                  ? @(sqlite3_column_int64(s, 1))
+                                                  : (SZFriendsColumnText(s, 1) ?: (id)NSNull.null);
+                                   return @[ key, value ];
+                               }];
+    NSMutableDictionary<NSString *, id> *states = [NSMutableDictionary dictionary];
+    for (NSArray *row in rows) {
+        if ([row[0] hasPrefix:prefix]) states[row[0]] = row[1];
+    }
+    return states;
+}
+
 - (BOOL)setSyncState:(nullable id)value forKey:(NSString *)key error:(NSError **)error {
     return [self performWrite:^BOOL(SZFriendsStoreDB *db, NSError **inner) {
         if (value == nil) return [db run:@"DELETE FROM sync_state WHERE key = ?" binds:@[ key ] row:nil error:inner];

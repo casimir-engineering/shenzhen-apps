@@ -403,6 +403,7 @@ napi_value create_client(napi_env env, napi_callback_info info) {
     char *toolkit = config_string(env, config, "toolkit");
     char *reveal_in = config_string(env, config, "revealIn");
     char *locale = config_string(env, config, "locale");
+    char *url_scheme = config_string(env, config, "urlScheme");
     size_t capability_count = 0, format_count = 0;
     char **capabilities = config_strings(env, config, "capabilities", 64, &capability_count);
     char **formats = config_strings(env, config, "openFormats", SZFRIENDS_MAX_OPEN_FORMATS, &format_count);
@@ -427,6 +428,7 @@ napi_value create_client(napi_env env, napi_callback_info info) {
     c.toolkit = toolkit;
     c.reveal_in = reveal_in;
     c.locale = locale;
+    c.url_scheme = url_scheme; /* NULL: hello carries no url_scheme */
     c.capabilities = (const char *const *)capabilities;
     c.capability_count = capability_count;
     c.open_formats = (const char *const *)formats;
@@ -444,6 +446,7 @@ napi_value create_client(napi_env env, napi_callback_info info) {
     free(toolkit);
     free(reveal_in);
     free(locale);
+    free(url_scheme);
     free_strings(capabilities, capability_count);
     free_strings(formats, format_count);
     if (!link->client) {

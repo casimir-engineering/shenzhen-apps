@@ -15,7 +15,17 @@ NSDictionary<NSString *, NSString *> *SZFriendsEnglishCatalogDevices(void) {
         // Profile › Your computers. {name} is the computer's name, {system} "macOS 26.1" or "Linux", {last} when it
         // last connected to this one: devices.last.* below or the list's time words ("14:32", "Yesterday", "3 Oct").
         @"devices.title" : @"Your computers",
-        @"devices.note" : @"To add a computer, open Friends on it and choose Use my existing profile.",
+        // Once one of them is a phone, and what a phone's system says there: what it is, not a version number.
+        @"devices.title.phones" : @"Your computers and phones",
+        @"devices.system.android" : @"Android phone",
+        @"devices.system.ios" : @"iPhone or iPad",
+        // How to add one, from this computer's side: the steps name what the person does there and here. {id} is
+        // this profile's ID.
+        @"devices.add.title" : @"Add a computer or phone",
+        @"devices.add.step.open" : @"On the other computer or phone, open Friends and choose Use my existing profile.",
+        @"devices.add.step.id" : @"Type this ID there: {id}",
+        @"devices.add.step.approve" : @"Choose Approve when the request appears in Friends here, then type the code "
+                                      @"this computer shows on the other one.",
         @"devices.detail" : @"{system} · {last}",
         @"devices.last.this_computer" : @"This computer",
         @"devices.last.now" : @"Now",
@@ -53,12 +63,9 @@ NSDictionary<NSString *, NSString *> *SZFriendsEnglishCatalogDevices(void) {
         @"device_removed.action" : @"Start Over…",
         @"device_removed.confirm.title" : @"Start over on this computer?",
         @"device_removed.confirm.body" : @"This deletes the chats on this computer. Your other computers keep theirs. "
-                                         @"Files you received stay in Received files.",
+                                         @"Files you received stay where they were saved.",
         @"device_removed.confirm.button" : @"Start Over",
         @"device_removed.drop_refusal" : @"This computer can’t send anymore",
-
-        // A fresh list's name prompt, for someone who already uses Friends on another computer.
-        @"name_prompt.join" : @"Use my existing profile",
 
         // You: a conversation with yourself, on all your computers.
         @"you.title" : @"You",
@@ -94,6 +101,12 @@ NSDictionary<NSString *, NSString *> *SZFriendsEnglishCatalogDevices(void) {
         @"you.transfer.spoken.sending" : @"You are copying {file}, {kind}, {size}, to your other computers, "
                                          @"{percent} percent",
         @"you.transfer.spoken.queued" : @"You sent {file}, {kind}, {size}. {status}.",
+        // A file the person moved or deleted here (PROTOCOL.md § Getting a file again), and Get again from the friend
+        // who sent it when none of their computers has it. {name} is that friend's display name.
+        @"transfer.status.missing" : @"Moved or deleted",
+        @"transfer.action.again" : @"Get again",
+        @"transfer.status.again_gone" : @"{name} doesn’t have this file anymore.",
+        @"devices.spoken.transfer.gone" : @"{sender} sent {file}, {kind}, {size}. {status}.",
 
         // Delete history on a profile with several computers: where it is deleted, and when the others follow.
         @"details.history.note.devices" : @"Clears this chat on all your computers.",
@@ -107,16 +120,17 @@ NSDictionary<NSString *, NSString *> *SZFriendsEnglishCatalogDevices(void) {
                                                    @"deleted from this computer, and from your other computers as soon "
                                                    @"as they connect. Anything still waiting to go won’t be sent. You "
                                                    @"keep your friends, and they keep their own copies of your chats. "
-                                                   @"Files you received stay in Received files.",
+                                                   @"Files you received stay where they were saved.",
         @"settings.history.confirm.body.assistant.devices" :
             @"Your messages and file history, with every friend and in You, are deleted from this computer, and from "
             @"your other computers as soon as they connect. Anything still waiting to go won’t be sent. You keep your "
-            @"friends, and they keep their own copies of your chats. Files you received stay in Received files. AI "
+            @"friends, and they keep their own copies of your chats. Files you received stay where they were saved. AI "
             @"chat answers that quoted your chats stay in Chats until you delete them there.",
 
         // Replies.
         @"error.not_found.device" : @"That computer was already removed.",
         @"error.not_found.fetch" : @"This file isn’t on your other computers anymore.",
+        @"error.not_found.again" : @"This file isn’t in this chat anymore.",
         @"error.not_allowed.device_removed" : @"This computer was removed from your profile, so it can’t send "
                                               @"anything.",
         @"error.name_invalid.device" : @"That name is too long or has a line break. Try a shorter one.",

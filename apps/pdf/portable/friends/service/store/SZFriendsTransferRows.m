@@ -1,5 +1,7 @@
 // Transfer rows (table transfers), shared by the transfer manager and the outbox.
 
+#import <sys/stat.h>
+
 #import "service/store/SZFriendsStoreInternal.h"
 
 NS_ASSUME_NONNULL_BEGIN
@@ -7,7 +9,8 @@ NS_ASSUME_NONNULL_BEGIN
 static NSString *const SZFriendsTransferColumns =
     @"transfer_id, conversation_id, outgoing, state, file_name, uniform_type, size, digest, verified_bytes, "
     @"accepted_automatically, asked_low_disk, staged_path, received_path, revision_source, revision_document_id, "
-    @"revision_id, revision_label, revision_sha256, revision_size, bytes_per_second, failure_reason, created_at";
+    @"revision_id, revision_label, revision_sha256, revision_size, bytes_per_second, failure_reason, created_at, "
+    @"source_path, source_mtime_ns";
 
 static SZFriendsTransferRecord *SZFriendsTransferFromRow(sqlite3_stmt *s) {
     SZFriendsTransferRecord *record = [[SZFriendsTransferRecord alloc] init];
@@ -38,7 +41,15 @@ static SZFriendsTransferRecord *SZFriendsTransferFromRow(sqlite3_stmt *s) {
     record.measuredBytesPerSecond = SZFriendsColumnDouble(s, 19);
     record.failureReason = SZFriendsColumnText(s, 20);
     record.createdAt = SZFriendsColumnDate(s, 21);
+    record.sourcePath = SZFriendsColumnText(s, 22);
+    record.sourceModifiedNs = SZFriendsColumnInt(s, 23);
     return record;
+}
+
+int64_t SZFriendsFileModifiedNs(NSString *path) {
+    struct stat info;
+    if (stat(path.fileSystemRepresentation, &info) != 0) return 0;
+    return (int64_t)info.st_mtimespec.tv_sec * 1000000000 + (int64_t)info.st_mtimespec.tv_nsec;
 }
 
 NSArray<SZFriendsTransferRecord *> *SZFriendsTransferRows(SZFriendsStoreDB *db, NSString *whereClause,
@@ -71,7 +82,7 @@ BOOL SZFriendsTransferRowInsert(SZFriendsStoreDB *db, SZFriendsTransferRecord *r
     SZFriendsRevision *revision = record.revision;
     NSDate *now = [NSDate date];
     NSString *sql = [NSString stringWithFormat:@"INSERT INTO transfers (%@, partial_path, updated_at) VALUES "
-                                               @"(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                                               @"(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                                                SZFriendsTransferColumns];
     NSArray *binds = @[
         record.transferID, record.conversationID, @(record.outgoing), @(record.state), record.fileName,
@@ -80,7 +91,8 @@ BOOL SZFriendsTransferRowInsert(SZFriendsStoreDB *db, SZFriendsTransferRecord *r
         SZFriendsSQL(record.receivedPath), SZFriendsSQL(revision.source), SZFriendsSQL(revision.documentID),
         SZFriendsSQL(revision.revisionID), SZFriendsSQL(revision.label), SZFriendsSQL(revision.sha256),
         revision ? @(revision.size) : [NSNull null], @(record.measuredBytesPerSecond),
-        SZFriendsSQL(record.failureReason), record.createdAt ?: now, SZFriendsSQL(partialPath), now
+        SZFriendsSQL(record.failureReason), record.createdAt ?: now, SZFriendsSQL(record.sourcePath),
+        record.sourcePath ? @(record.sourceModifiedNs) : [NSNull null], SZFriendsSQL(partialPath), now
     ];
     return [db run:sql binds:binds row:nil error:error];
 }
@@ -113,7 +125,8 @@ BOOL SZFriendsTransferRowUpdate(SZFriendsStoreDB *db, NSString *transferID, NSDi
     dispatch_once(&once, ^{
         allowed = [NSSet setWithArray:@[
             @"verified_bytes", @"accepted_automatically", @"asked_low_disk", @"staged_path", @"partial_path",
-            @"final_path", @"publishing", @"received_path", @"bytes_per_second", @"failure_reason"
+            @"final_path", @"publishing", @"received_path", @"bytes_per_second", @"failure_reason", @"received_at",
+            @"received_via"
         ]];
     });
     NSMutableArray *assignments = [NSMutableArray array];

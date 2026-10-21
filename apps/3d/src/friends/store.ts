@@ -41,6 +41,10 @@ export class FriendsStore {
   private version = 0;
   private linkListeners = new Set<(payload: string) => void>();
   private pendingLink: string | undefined;
+  // The conversation the person is looking at in this window (set_focus, PROTOCOL.md § Notifications), and what
+  // the helper was last told on this connection; it forgets when the connection closes.
+  private focusWanted: string | null = null;
+  private focusSent: string | null = null;
 
   constructor(
     readonly bridge: FriendsBridge,
@@ -108,10 +112,26 @@ export class FriendsStore {
       for (const held of this.held.values()) held.id = undefined;
       this.byId.clear();
       this.early.clear();
-    } else if (!wasReady) {
-      for (const held of this.held.values()) void this.open(held);
+      this.focusSent = null;
+    } else {
+      if (!wasReady)
+        for (const held of this.held.values()) void this.open(held);
+      this.sendFocus();
     }
     this.changed();
+  }
+
+  /** The conversation this window shows while it is focused and visible, or null: sent with set_focus when it
+   * changes and the helper posts notifications, and again after a reconnect. */
+  setFocus(conversationId: string | null) {
+    this.focusWanted = conversationId;
+    this.sendFocus();
+  }
+  private sendFocus() {
+    if (!this.ready || !this.has("notifications")) return;
+    if (this.focusWanted === this.focusSent) return;
+    this.focusSent = this.focusWanted;
+    void this.send("set_focus", { conversation_id: this.focusWanted });
   }
 
   private snapshot(frame: Snapshot) {

@@ -109,8 +109,8 @@ BOOL SZFE2EJoinWatched(SZFE2EComputer *existing, SZFE2EComputer *newcomer, NSArr
     SZFE2EClient *old = existing.client, *fresh = newcomer.client;
     NSString *friendsID = SZFE2EFriendsID(existing);
     CHECK(friendsID.length > 0, "the profile has an ID: %@", [old dataFor:existing.profile][@"id"]);
-    CHECK([[fresh dataFor:newcomer.list][@"name_prompt"][@"join_label"] isKindOfClass:NSString.class],
-          "a fresh computer offers joining: %@", [fresh dataFor:newcomer.list][@"name_prompt"]);
+    CHECK([[fresh dataFor:newcomer.list][@"join"][@"action"][@"action"] isEqual:@"open_join"],
+          "a fresh computer offers joining: %@", [fresh dataFor:newcomer.list][@"join"]);
     NSString *join = [fresh subscribe:@"join" params:nil];
     CHECK([[fresh dataFor:join][@"state"] isEqual:@"idle"], "the join view starts idle: %@", [fresh dataFor:join]);
     NSDictionary *reply = [fresh intent:@"join_profile" fields:@{@"friends_id" : friendsID}];

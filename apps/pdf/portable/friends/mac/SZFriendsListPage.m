@@ -1,37 +1,14 @@
 // SZFriendsListPage: the dropdown's root view. The title with its Beta tag, search, Friends / Nearby, rows sorted by
 // the helper, the footer.
 
-#import "mac/SZFriendsListPage.h"
+#import "mac/SZFriendsListPageInternal.h"
 
 #import "mac/SZFriendsDevices.h"
-#import "mac/SZFriendsPromiseCopies.h"
 
 @interface SZFriendsListPage () <NSSearchFieldDelegate, NSTextFieldDelegate>
 @end
 
-@implementation SZFriendsListPage {
-    NSTextField *_titleLabel;
-    SZFriendsFlippedView *_betaTag;
-    NSTextField *_betaLabel;
-    SZFriendsFlippedView *_tabTrack;
-    SZFriendsNoticeView *_sendNotice;
-    SZFriendsNoticeView *_banner;
-    SZFriendsNoticeView *_namePrompt;
-    SZFriendsFlippedView *_rowsView;
-    NSScrollView *_nearbyScroll;
-    NSTextField *_emptyTitle;
-    NSTextField *_emptyBody;
-    NSMutableArray<SZFriendsRowView *> *_rowViews;
-    NSDictionary *_listData;
-    NSDictionary *_nearbyData;
-    NSString *_listToken;
-    NSString *_nearbyToken;
-    NSString *_sendTitle;
-    NSString *_dropHint;
-    BOOL _dropHintRefuses;
-    BOOL _namePromptSaved;       // the card says the name was saved, and goes in a moment
-    NSUInteger _namePromptRound; // which "saved" the pending hide belongs to
-}
+@implementation SZFriendsListPage
 
 - (instancetype)initWithContext:(SZFriendsContext *)context {
     if (!(self = [super initWithContext:context])) return nil;
@@ -98,7 +75,6 @@
     _namePrompt.fillColor = appearance.fieldBackgroundColor;
     _namePrompt.padding = 10;
     _devicesView = [[SZFriendsListDevicesView alloc] initWithContext:context];
-    _devicesView.onJoin = ^{ [weakSelf.context.navigator openJoin]; };
     for (NSView *view in @[ _sendNotice, _banner, _devicesView, _namePrompt ]) {
         view.hidden = YES;
         [self addSubview:view];
@@ -157,6 +133,40 @@
 
 - (SZFriendsButton *)bannerButton {
     return _banner.hidden ? nil : _banner.button;
+}
+
+- (SZFriendsButton *)bannerDismissButton {
+    return _banner.hidden ? nil : _banner.secondaryButton;
+}
+
+// The notifications card's Not Now (PROTOCOL.md § Notifications, The ask): a quiet link under the text, beside the
+// card's own Turn On. The card invites rather than warns, so it takes the name prompt's fill instead of the warning
+// tint the other banners keep.
+- (void)applyBannerDismiss:(NSDictionary *)dismiss kind:(NSString *)kind {
+    SZFriendsAppearance *appearance = self.context.appearance;
+    BOOL invitation = [kind isEqualToString:@"notifications"];
+    _banner.fillColor = invitation ? appearance.fieldBackgroundColor
+                                   : [appearance.warningColor colorWithAlphaComponent:0.14];
+    if (![SZFriendsContext knowsAction:SZFStr(dismiss, @"action")]) {
+        _banner.secondaryButton = nil;
+        return;
+    }
+    _bannerDismiss = [dismiss copy];
+    SZFriendsButton *button = _banner.secondaryButton;
+    if (!button) {
+        button = [SZFriendsButton buttonWithTitle:@"" style:SZFriendsButtonStyleLink appearance:appearance];
+        __weak SZFriendsListPage *weakSelf = self;
+        button.onPress = ^(SZFriendsButton *pressed) {
+            (void)pressed;
+            SZFriendsListPage *page = weakSelf;
+            NSDictionary *action = page ? page->_bannerDismiss : nil;
+            NSString *dismissKind = SZFStr(action, @"kind") ?: SZFStr(SZFDict(page->_listData, @"banner"), @"kind");
+            if (action) [page.context performAction:action ids:dismissKind ? @{@"kind" : dismissKind} : nil done:nil];
+        };
+        _banner.secondaryButton = button;
+    }
+    button.title = SZFStr(dismiss, @"label") ?: @"";
+    button.needsDisplay = YES;
 }
 
 - (NSView *)betaTagView {
@@ -261,12 +271,40 @@
     [_banner setAction:SZFDict(banner, @"action") onPress:^(NSDictionary *action) {
         [weakSelf.context performAction:action ids:bannerKind ? @{@"kind" : bannerKind} : nil done:nil];
     }];
+    [self applyBannerDismiss:SZFDict(banner, @"dismiss") kind:bannerKind];
 
     NSDictionary *prompt = SZFDict(data, @"name_prompt");
     [self applyNamePrompt:prompt];
     [self applyDevices:data prompt:prompt];
 
-    NSArray *rows = SZFArr(data, @"rows");
+    [self applyRows:SZFArr(data, @"rows")];
+    NSDictionary *empty = SZFDict(data, @"empty");
+    _emptyTitle.stringValue = SZFStr(empty, @"title") ?: @"";
+    _emptyBody.stringValue = SZFStr(empty, @"body") ?: @"";
+    if (!_showingNearby || !_nearbyData) [_footer applyFooter:SZFDict(data, @"footer")];
+    [self setNeedsLayout:YES];
+    self.needsDisplay = YES;
+}
+
+// The snapshot's rows, less anyone just removed here: a removal shows at once, and a list from before the helper
+// took them off cannot bring them back for a moment.
+- (void)applyRows:(NSArray *)snapshotRows {
+    NSMutableSet<NSString *> *listed = [NSMutableSet set];
+    for (NSDictionary *row in snapshotRows) {
+        NSString *conversationID = SZFStr(row, @"conversation_id");
+        if (conversationID) [listed addObject:conversationID];
+    }
+    for (NSString *conversationID in _leaving)
+        if (![listed containsObject:conversationID]) [_leavingSeenGone addObject:conversationID];
+    [_left intersectSet:listed]; // gone from the helper's list: from now on the helper's list decides
+    NSMutableArray *rows = [NSMutableArray array];
+    for (NSDictionary *row in snapshotRows) {
+        NSString *conversationID = SZFStr(row, @"conversation_id");
+        if (conversationID && ([_leaving containsObject:conversationID] || [_left containsObject:conversationID]))
+            continue;
+        [rows addObject:row];
+    }
+    __weak SZFriendsListPage *weakSelf = self;
     while (_rowViews.count > rows.count) {
         [_rowViews.lastObject removeFromSuperview];
         [_rowViews removeLastObject];
@@ -282,6 +320,10 @@
         row.onRowAction = ^(SZFriendsRowView *target, NSDictionary *action) {
             [weakSelf performRowAction:action onRow:target];
         };
+        row.onMenuAction = ^(SZFriendsRowView *target, NSDictionary *action, NSString *conversationID) {
+            (void)target;
+            [weakSelf performMenuAction:action conversation:conversationID];
+        };
         [_rowViews addObject:row];
         [_rowsView addSubview:row];
     }
@@ -290,89 +332,7 @@
         [self->_rowViews[index] configureWithListRow:row];
     }];
     [self dimRowsThatRefuseFiles];
-    NSDictionary *empty = SZFDict(data, @"empty");
-    _emptyTitle.stringValue = SZFStr(empty, @"title") ?: @"";
-    _emptyBody.stringValue = SZFStr(empty, @"body") ?: @"";
-    if (!_showingNearby || !_nearbyData) [_footer applyFooter:SZFDict(data, @"footer")];
     [self setNeedsLayout:YES];
-    self.needsDisplay = YES;
-}
-
-// The card that asks for a name until one is saved. What is typed survives every snapshot. When the helper confirms
-// the name, the card says so where the person typed it (welcome.strings name_saved, with a check) and goes a moment
-// later; the helper's next snapshot (no name_prompt) does not cut that short.
-- (void)applyNamePrompt:(NSDictionary *)prompt {
-    if (_namePromptSaved) {
-        if (!prompt) return;
-        [self endNameSaved]; // asked again meanwhile (Reset Friends): the card asks
-    }
-    // The snapshot without the card can come before set_name's reply: the card waits for the reply to say "Saved".
-    if (!prompt && !_namePrompt.hidden && _namePrompt.nameEditor.saving) return;
-    BOOL wasHidden = _namePrompt.hidden;
-    _namePrompt.hidden = prompt == nil;
-    _namePrompt.titleLabel.stringValue = SZFStr(prompt, @"title") ?: @"";
-    // The card shows on first run, so it also says Friends is a beta (welcome.strings beta_note), under its own note.
-    NSString *note = SZFStr(prompt, @"note"), *betaNote = [self.context string:@"beta_note"];
-    if (prompt && betaNote.length) note = note.length ? [NSString stringWithFormat:@"%@\n%@", note, betaNote] : betaNote;
-    _namePrompt.noteLabel.stringValue = note ?: @"";
-    if (prompt && !_namePrompt.nameEditor) {
-        SZFriendsNameEditor *editor = [[SZFriendsNameEditor alloc] initWithContext:self.context
-                                                                              font:self.context.appearance.bodyFont];
-        __weak SZFriendsListPage *weakSelf = self;
-        editor.onSaved = ^(NSString *name) { [weakSelf showNameSaved:name]; };
-        editor.onLayoutChange = ^{ [weakSelf setNeedsLayout:YES]; };
-        _namePrompt.nameEditor = editor;
-    }
-    if (prompt && wasHidden && !_namePrompt.nameEditor.saving) [_namePrompt.nameEditor reset];
-    [_namePrompt.nameEditor reloadStrings];
-    _namePrompt.nameEditor.field.placeholderString = SZFStr(prompt, @"placeholder");
-    _namePrompt.nameEditor.field.accessibilityLabel = SZFStr(prompt, @"title");
-}
-
-- (void)showNameSaved:(NSString *)name {
-    SZFriendsNameEditor *editor = _namePrompt.nameEditor;
-    // The field goes, so the typing goes to search: the next thing a person does in the list. The field let go of
-    // the typing while it rested for the helper's answer, which left nothing focused.
-    NSResponder *focus = self.window.firstResponder;
-    if (editor.field.currentEditor || !focus || focus == self.window) [self.window makeFirstResponder:_searchField];
-    [editor reset];
-    NSString *saved = [[self.context string:@"name_saved"] stringByReplacingOccurrencesOfString:@"{name}"
-                                                                                     withString:name ?: @""];
-    if (![self.context string:@"name_saved"].length) {
-        _namePrompt.hidden = YES;
-        [self setNeedsLayout:YES];
-        return;
-    }
-    _namePromptSaved = YES;
-    _namePrompt.hidden = NO;
-    NSUInteger round = ++_namePromptRound;
-    _namePrompt.titleLabel.stringValue = saved;
-    _namePrompt.noteLabel.stringValue = @"";
-    _namePrompt.nameEditor.hidden = YES;
-    _namePrompt.secondaryButton = nil;
-    _namePrompt.iconDrawer = ^(NSRect rect, NSColor *color) { SZFriendsDrawCheckIcon(rect, color); };
-    _namePrompt.iconColor = self.context.appearance.successColor;
-    _namePrompt.needsDisplay = YES;
-    [self.context announce:saved];
-    [self setNeedsLayout:YES];
-    __weak SZFriendsListPage *weakSelf = self;
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(SZFriendsNameSavedSeconds * NSEC_PER_SEC)),
-                   dispatch_get_main_queue(), ^{
-                       SZFriendsListPage *page = weakSelf;
-                       if (!page || !page->_namePromptSaved || page->_namePromptRound != round) return;
-                       [page endNameSaved];
-                       page->_namePrompt.hidden = YES;
-                       [page setNeedsLayout:YES];
-                   });
-}
-
-- (void)endNameSaved {
-    _namePromptSaved = NO;
-    _namePromptRound++;
-    _namePrompt.iconDrawer = nil;
-    _namePrompt.iconColor = nil;
-    _namePrompt.nameEditor.hidden = NO;
-    _namePrompt.needsDisplay = YES;
 }
 
 - (BOOL)showingNameSaved {
@@ -420,110 +380,24 @@
     return _sendNotice.hidden ? nil : _sendNotice.button;
 }
 
-// Whenever files are on their way in (dragged over the dropdown, or waiting for "Send 2 files to…"), a row that
-// refuses them (a request, a blocked person) fades, so it never looks like a place to drop or click.
-- (void)dimRowsThatRefuseFiles {
-    BOOL sending = _sendTitle != nil || _dropHint != nil;
-    BOOL refusalShown = _dropHintRefuses && !_sendTitle;
-    for (SZFriendsRowView *row in _rowViews) {
-        row.dimmed = sending && !row.dropLabel;
-        row.dropRefusalShownAbove = refusalShown;
-    }
-}
-
-- (void)updateSendNotice {
-    [self dimRowsThatRefuseFiles];
-    NSString *text = _sendTitle ?: _dropHint;
-    _sendNotice.hidden = text.length == 0;
-    _sendNotice.bodyLabel.stringValue = text ?: @"";
-    _sendNotice.bodyLabel.font = _sendTitle ? SZFriendsSemibold(self.context.appearance.bodyFont)
-                                            : self.context.appearance.secondaryFont;
-    // A way out for the mouse, not only Escape: the static Cancel, at the strip's trailing edge.
-    NSString *cancel = [self.context string:@"cancel"];
-    if (_sendTitle && cancel.length && !_sendNotice.button) {
-        SZFriendsButton *button = [SZFriendsButton buttonWithTitle:cancel style:SZFriendsButtonStyleLink
-                                                        appearance:self.context.appearance];
-        __weak SZFriendsListPage *weakSelf = self;
-        button.onPress = ^(SZFriendsButton *pressed) {
-            (void)pressed;
-            [weakSelf.context.navigator finishSendPicker];
-        };
-        _sendNotice.button = button;
-        _sendNotice.buttonTrailing = YES;
-    } else if (!_sendTitle) {
-        _sendNotice.button = nil;
-        _sendNotice.secondaryButton = nil;
-    }
-    [self setNeedsLayout:YES];
-}
-
 #pragma mark - Several computers
 
 // The name prompt's "Use my existing profile", the removed notice and the join rows (PROTOCOL.md § Devices). A removed
 // computer can add nobody and look for nobody, so Add by ID and the Nearby tab go.
 - (void)applyDevices:(NSDictionary *)data prompt:(NSDictionary *)prompt {
     [_devicesView applyList:data];
-    [_devicesView offerJoin:SZFStr(prompt, @"join_label") inPrompt:_namePrompt];
+    [_devicesView offerJoin:SZFDict(data, @"join") inPrompt:_namePrompt promptShown:prompt != nil];
     _tabTrack.hidden = _devicesView.removed;
     _footer.offersAdding = !_devicesView.removed;
     if (_devicesView.removed && _showingNearby) [self showNearby:NO];
 }
 
 - (SZFriendsButton *)joinButton {
+    if (!_devicesView.joinNotice.hidden) return _devicesView.joinNotice.secondaryButton;
     return _namePrompt.hidden ? nil : _namePrompt.secondaryButton;
 }
 
 #pragma mark - Actions
-
-- (void)rowPressed:(SZFriendsRowView *)row {
-    if (!row.conversationID) return;
-    NSArray *files = [self.context.navigator pendingSendFiles];
-    if (files) {
-        // The send picker: the next friend clicked receives one offer per file. Rows that refuse drops (requests,
-        // blocked people) cannot receive files this way either.
-        if (!row.dropLabel) return;
-        [self.context.link sendIntent:@"send_files"
-                               fields:@{@"conversation_id" : row.conversationID, @"files" : files,
-                                        @"client_token" : [SZFriendsContext clientToken]}
-                                reply:^(NSDictionary *result, SZFriendsLinkError *error) {
-                                    (void)result;
-                                    // The helper copied them before it answered (SZFriendsPromiseCopies.h).
-                                    if (!error) [SZFriendsPromiseCopies discardCopiesForFileObjects:files];
-                                }];
-        [self.context.navigator finishSendPicker];
-        [self.context.navigator openConversation:row.conversationID highlightMessage:nil];
-        return;
-    }
-    [self.context.navigator openConversation:row.conversationID highlightMessage:nil];
-}
-
-- (void)sendItems:(NSArray<SZFriendsAttachableItem *> *)items toConversation:(NSString *)conversationID {
-    if (!conversationID.length || !items.count) return;
-    NSMutableArray *files = [NSMutableArray array];
-    for (SZFriendsAttachableItem *item in items) [files addObject:[SZFriendsContext fileObjectForItem:item]];
-    [self.context.link sendIntent:@"send_files"
-                           fields:@{@"conversation_id" : conversationID, @"files" : files,
-                                    @"client_token" : [SZFriendsContext clientToken]}
-                            reply:^(NSDictionary *result, SZFriendsLinkError *error) {
-                                (void)result;
-                                if (!error) [SZFriendsPromiseCopies discardCopiesForItems:items after:0];
-                            }];
-    [self setDropHint:nil];
-}
-
-// Accept, Decline or Block from the row: the intent with the row's conversation. The buttons rest until the reply,
-// so a double click sends one answer; a success brings the new list (without the buttons) before its reply.
-- (void)performRowAction:(NSDictionary *)action onRow:(SZFriendsRowView *)row {
-    NSString *conversationID = row.conversationID;
-    if (!conversationID) return;
-    SZFriendsRowActionsView *actions = row.actionsView;
-    actions.busy = YES;
-    [self.context performAction:action ids:@{@"conversation_id" : conversationID}
-                           done:^(SZFriendsLinkError *error) {
-                               (void)error;
-                               if ([row.conversationID isEqualToString:conversationID]) actions.busy = NO;
-                           }];
-}
 
 // Escape turns an armed "Block?" back first: it is the innermost thing open, and closing the dropdown under it
 // would leave the person unsure whether they blocked someone.

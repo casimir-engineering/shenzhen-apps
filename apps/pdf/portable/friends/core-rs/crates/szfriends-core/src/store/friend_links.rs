@@ -219,6 +219,8 @@ impl Store {
                 staged_path: None,
                 received_path: None,
                 failure_reason: None,
+                source_path: None,
+                source_mtime_ns: 0,
             };
             transfers::insert(conn, &record, None)?;
             let item = Item {
@@ -235,6 +237,7 @@ impl Store {
             insert_item(conn, &item)?;
             set_column(conn, transfer_id, "partial_path", &staging.to_string_lossy().into_owned())?;
             apply_event(conn, transfer_id, TransferEvent::Accepted, None)?;
+            conn.execute("UPDATE transfers SET received_via = 1 WHERE transfer_id = ?1", [transfer_id])?;
             transfers::load(conn, transfer_id)?.ok_or(StoreError::NotFound)
         });
         if recorded.is_err() {

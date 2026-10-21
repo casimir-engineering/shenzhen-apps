@@ -125,6 +125,9 @@ typedef struct SZFriendsLiveTransfer {
 // Nearby's people, from the merger's identified candidates: friends matched by tag, strangers whose public entry
 // told us who they are. Never unmatched devices or unidentified entries.
 - (NSArray<SZFriendsNearbyPersonFacts *> *)nearbyPeople;
+// For each conversation seen nearby now, every discovery method that sees them (SZFriendsRouteMethod numbers in the
+// order LAN, peer-to-peer Wi-Fi, Bluetooth), across all of that person's devices.
+- (NSDictionary<NSString *, NSArray<NSNumber *> *> *)foundMethodsByConversation;
 - (BOOL)liveTransfer:(NSString *)transferID state:(SZFriendsLiveTransfer *)state;
 @end
 

@@ -193,6 +193,21 @@ mod helpers_online {
         let objc = objc_helper_with(objc_name, &binary, &homes[1].path().join("state"), &env);
         Some(Pair { rust, objc, _homes: homes })
     }
+
+    /// A friend on another Objective-C helper, online only (its own Bonjour test type, where it finds nobody).
+    pub fn objc_friend(host: &LocalHost, name: &str) -> Option<(Client, TempHome)> {
+        let binary = std::path::PathBuf::from(std::env::var_os("SZFRIENDS_OBJC_HELPER")?);
+        let home = TempHome::new(name);
+        let (list, keys) = (host.list_path.to_string_lossy(), host.keys_path.to_string_lossy());
+        let service_type = szfriends_interop::helpers::test_service_type();
+        let env = [
+            ("SZFRIENDS_TEST_HOST_LIST", list.as_ref()),
+            ("SZFRIENDS_TEST_HOST_KEYS", keys.as_ref()),
+            ("SZFRIENDS_TEST_SERVICE_TYPE", service_type.as_str()),
+        ];
+        let client = objc_helper_with(name, &binary, &home.path().join("state"), &env);
+        Some((client, home))
+    }
 }
 
 /// The Rust helper reads its test home from the process's environment: one pair at a time.
@@ -205,6 +220,35 @@ fn helpers(scenario: impl FnOnce(&mut helpers_online::Pair)) {
     let Some(w) = world(true) else { return };
     let Some(mut pair) = helpers_online::pair(&w.host, "Rosa", "Otto") else { return };
     scenario(&mut pair);
+}
+
+/// The first computer befriends Fay through the host, then the other helper joins it online, and the friend, the
+/// chat and You move and sync each way (`profile_moves.rs`).
+#[cfg(target_os = "macos")]
+fn profile_moves(objc_holds: bool) {
+    let _one = HELPERS.lock().unwrap_or_else(|e| e.into_inner());
+    let Some(w) = world(true) else { return };
+    let Some(mut pair) = helpers_online::pair(&w.host, "Rosa", "Otto") else { return };
+    let Some((mut fay, _home)) = helpers_online::objc_friend(&w.host, "Fay") else { return };
+    let helpers_online::Pair { rust, objc, .. } = &mut pair;
+    let (holder, holder_name, joiner) = if objc_holds { (objc, "Otto", rust) } else { (rust, "Rosa", objc) };
+    szfriends_interop::online_devices::add_by_id(&mut fay, "Fay", holder, holder_name);
+    joiner.send("activate", serde_json::json!({}));
+    szfriends_interop::online_devices::reserved_id(joiner);
+    let wait = std::time::Duration::from_secs(120);
+    szfriends_interop::profile_moves::friends_chats_and_you_move(holder, holder_name, joiner, &mut fay, "Fay", wait);
+}
+
+#[test]
+fn rust_joins_an_objc_profile_online_and_gets_its_friend_chat_and_you() {
+    #[cfg(target_os = "macos")]
+    profile_moves(true);
+}
+
+#[test]
+fn objc_helper_joins_a_rust_profile_online_and_gets_its_friend_chat_and_you() {
+    #[cfg(target_os = "macos")]
+    profile_moves(false);
 }
 
 #[test]

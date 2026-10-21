@@ -61,9 +61,9 @@ static void SZFExpectWhole(NSView *root, NSString *name) {
 
 static SZFriendsContext *SZFContext(SZFTestTransport **transport, SZFConfirmations *_Nullable confirmations) {
     SZFriendsContext *context = SZFTestContext([SZFTestHost new], SZFTestReadyLink(transport));
-    if (confirmations) context.presentConfirmation = ^(NSDictionary *confirm, void (^onConfirm)(void)) {
+    if (confirmations) context.presentConfirmation = ^(NSDictionary *confirm, void (^onConfirm)(BOOL)) {
         confirmations.last = confirm;
-        if (!confirmations.holds) onConfirm();
+        if (!confirmations.holds) onConfirm(NO);
     };
     return context;
 }
@@ -81,6 +81,9 @@ static void SZFTestYourComputers(void) {
     [page layoutSubtreeIfNeeded];
     SZFriendsYourComputersView *computers = page.computersView;
     SZFExpect(!computers.hidden && computers.nameLabels.count == 4, @"one row per computer");
+    SZFExpect([computers.addTitleLabel.stringValue isEqualToString:@"Add a computer or phone"] &&
+                  [computers.addStepsLabel.stringValue containsString:@"2. Type this ID there: cottage‑violet"],
+              @"how to add one, with the ID: %@", computers.addStepsLabel.stringValue);
     SZFExpect([computers.nameLabels[0].stringValue isEqualToString:@"Raph’s MacBook Pro"] &&
                   [computers.detailLabels[0].stringValue isEqualToString:@"macOS 26.1 · This computer"],
               @"this computer first, its system and that it is this one: %@", computers.detailLabels[0].stringValue);
@@ -221,7 +224,7 @@ static void SZFTestJoinPage(void) {
     [controller toggle];
     SZFriendsListPage *list = controller.content.listPage;
     [list applySnapshot:SZFTestSnapshot(@"devices-list-new-computer")];
-    SZFExpect([list.joinButton.title isEqualToString:@"Use my existing profile"], @"the name prompt offers joining");
+    SZFExpect([list.joinButton.title isEqualToString:@"Use my existing profile…"], @"the name prompt offers joining");
     [list.joinButton performClick:nil];
     SZFExpect(controller.currentView == SZFriendsDropdownViewJoin, @"it opens the join page");
     NSDictionary *subscribe = SZFLast(transport, @"subscribe");
@@ -266,6 +269,63 @@ static void SZFTestJoinPage(void) {
                   [page.titleLabel.stringValue isEqualToString:@"This computer now uses your profile"],
               @"joined: just what happened");
     [controller uninstall];
+}
+
+// Using an existing profile on a computer that has its own friends: the offer asks first and says what goes, sends
+// Reset Friends alone, and shows the join page once the reset succeeded; named and with nobody, a card of its own.
+static void SZFTestJoinAfterReset(void) {
+    SZFTestTransport *transport = nil;
+    SZFriendsHelperLink *link = SZFTestReadyLink(&transport);
+    SZFriendsDropdownController *controller =
+        [[SZFriendsDropdownController alloc] initWithHost:[SZFTestHost new] link:link presenter:[SZFTestPresenter new]];
+    [controller install];
+    [controller toggle];
+    SZFriendsListPage *list = controller.content.listPage;
+    [list applySnapshot:SZFTestSnapshot(@"devices-list-join-reset")];
+    SZFExpect(list.devicesView.joinNotice.hidden && [list.joinButton.title isEqualToString:@"Use my existing profile…"],
+              @"in the name prompt while it shows");
+    NSUInteger sent = transport.sent.count;
+    [list.joinButton performClick:nil];
+    SZFriendsConfirmView *confirm = controller.content.confirmation;
+    SZFExpect(confirm && transport.sent.count == sent, @"it asks first, sending nothing");
+    [confirm.confirmButton performClick:nil];
+    NSDictionary *reset = SZFLast(transport, @"reset_friends");
+    SZFExpect([reset[@"fields"] isEqual:@{@"confirm" : @"reset"}], @"Reset Friends alone, never `then`: %@", reset);
+    SZFExpect(controller.currentView != SZFriendsDropdownViewJoin, @"not before the reset succeeded");
+    SZFReply(transport, reset, nil);
+    SZFExpect(controller.currentView == SZFriendsDropdownViewJoin, @"then the join page");
+    [controller.content goBack];
+
+    // Named, nobody yet: the offer is a card of its own with what it does.
+    NSMutableDictionary *named = [SZFTestSnapshot(@"devices-list-new-computer") mutableCopy];
+    named[@"name_prompt"] = NSNull.null;
+    [list applySnapshot:named];
+    [list layoutSubtreeIfNeeded];
+    SZFExpect(!list.devicesView.joinNotice.hidden &&
+                  [list.devicesView.joinNotice.bodyLabel.stringValue hasPrefix:@"Already use Friends"] &&
+                  list.joinButton.superview == list.devicesView.joinNotice,
+              @"a card of its own once named");
+    [list.joinButton performClick:nil];
+    SZFExpect(controller.currentView == SZFriendsDropdownViewJoin, @"straight to the join page with nothing to lose");
+    [controller uninstall];
+
+    // Settings: the row shows only while offered, and its button opens this link's dropdown on the join page.
+    SZFriendsDropdownController *dropdown =
+        [[SZFriendsDropdownController alloc] initWithHost:[SZFTestHost new] link:link presenter:[SZFTestPresenter new]];
+    [dropdown install];
+    SZFriendsSettingsSection *settings = [[SZFriendsSettingsSection alloc] initWithHost:[SZFTestHost new] link:link];
+    [settings applySnapshot:SZFTestSnapshot(@"settings")];
+    SZFExpect(settings.joinButton.hidden, @"no row without an offer");
+    NSMutableDictionary *offered = [SZFTestSnapshot(@"devices-settings-join") mutableCopy];
+    NSMutableDictionary *join = [offered[@"join"] mutableCopy];
+    join[@"action"] = @{@"action" : @"open_join", @"label" : @"Use my existing profile…", @"style" : @"secondary"};
+    offered[@"join"] = join;
+    [settings applySnapshot:offered];
+    SZFExpect(!settings.joinButton.hidden && [settings.joinButton.title isEqualToString:@"Use my existing profile…"],
+              @"the row's button");
+    [settings.joinButton performClick:nil];
+    SZFExpect(dropdown.shown && dropdown.currentView == SZFriendsDropdownViewJoin, @"the dropdown opens on joining");
+    [dropdown uninstall];
 }
 
 static void SZFTestOtherComputersFiles(void) {
@@ -388,6 +448,7 @@ void SZFTestDevices(void) {
     SZFTestYourComputers();
     SZFTestJoinRows();
     SZFTestJoinPage();
+    SZFTestJoinAfterReset();
     SZFTestOtherComputersFiles();
     SZFTestHistoryOnEveryComputer();
     SZFTestDevicesRenders();

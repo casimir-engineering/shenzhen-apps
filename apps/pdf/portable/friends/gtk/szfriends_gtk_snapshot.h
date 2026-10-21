@@ -54,23 +54,39 @@ typedef enum {
     SZFRIENDS_GTK_ACTION_REVOKE_DEVICE, SZFRIENDS_GTK_ACTION_FETCH_FROM_DEVICE, SZFRIENDS_GTK_ACTION_JOIN_PROFILE,
     SZFRIENDS_GTK_ACTION_CANCEL_JOIN, SZFRIENDS_GTK_ACTION_APPROVE_JOIN, SZFRIENDS_GTK_ACTION_DENY_JOIN,
     /* Nearby's Allow and Try Again (PROTOCOL.md § nearby) */
-    SZFRIENDS_GTK_ACTION_ACTIVATE
+    SZFRIENDS_GTK_ACTION_ACTIVATE,
+    /* Settings' Change… for where received files go: the folder dialog, then set_received_folder */
+    SZFRIENDS_GTK_ACTION_CHOOSE_RECEIVED_FOLDER,
+    /* Get again on a file a friend sent (PROTOCOL.md § Getting a file again) */
+    SZFRIENDS_GTK_ACTION_FETCH_FROM_FRIEND,
+    /* Client-side: the join page (PROTOCOL.md § Joining, Offering it) */
+    SZFRIENDS_GTK_ACTION_OPEN_JOIN,
+    /* Ask the system for permission to show notifications (PROTOCOL.md § Notifications) */
+    SZFRIENDS_GTK_ACTION_ALLOW_NOTIFICATIONS
 } SZFriendsGtkActionKind;
+/* What a reset_friends action shows once the reset succeeded; never sent. */
+typedef enum { SZFRIENDS_GTK_THEN_NONE, SZFRIENDS_GTK_THEN_OPEN_JOIN } SZFriendsGtkActionThen;
 typedef enum {
     SZFRIENDS_GTK_STYLE_UNKNOWN, SZFRIENDS_GTK_STYLE_PRIMARY, SZFRIENDS_GTK_STYLE_SECONDARY, SZFRIENDS_GTK_STYLE_LINK,
     SZFRIENDS_GTK_STYLE_DESTRUCTIVE
 } SZFriendsGtkActionStyle;
 typedef enum {
     SZFRIENDS_GTK_SETTINGS_UNSET, SZFRIENDS_GTK_SETTINGS_LOCAL_NETWORK_PRIVACY,
-    SZFRIENDS_GTK_SETTINGS_BLUETOOTH_PRIVACY, SZFRIENDS_GTK_SETTINGS_BLUETOOTH, SZFRIENDS_GTK_SETTINGS_WIFI
+    SZFRIENDS_GTK_SETTINGS_BLUETOOTH_PRIVACY, SZFRIENDS_GTK_SETTINGS_BLUETOOTH, SZFRIENDS_GTK_SETTINGS_WIFI,
+    SZFRIENDS_GTK_SETTINGS_NOTIFICATIONS
 } SZFriendsGtkSettingsTarget;
+/* The banner a dismiss_banner action names; UNSET (absent) means id_changed. */
+typedef enum {
+    SZFRIENDS_GTK_DISMISS_UNSET, SZFRIENDS_GTK_DISMISS_ID_CHANGED, SZFRIENDS_GTK_DISMISS_NOTIFICATIONS
+} SZFriendsGtkDismissKind;
 typedef enum {
     SZFRIENDS_GTK_EMPTY_UNSET, SZFRIENDS_GTK_EMPTY_SEARCHING, SZFRIENDS_GTK_EMPTY_NOBODY,
     SZFRIENDS_GTK_EMPTY_UNAVAILABLE, SZFRIENDS_GTK_EMPTY_NO_MATCH
 } SZFriendsGtkEmptyKind;
 typedef enum {
     SZFRIENDS_GTK_BANNER_UNKNOWN, SZFRIENDS_GTK_BANNER_ID_CHANGED, SZFRIENDS_GTK_BANNER_IDENTITY_UNAVAILABLE,
-    SZFRIENDS_GTK_BANNER_UPDATE_REQUIRED
+    SZFRIENDS_GTK_BANNER_UPDATE_REQUIRED,
+    SZFRIENDS_GTK_BANNER_NOTIFICATIONS /* the ask: Turn On (allow_notifications) and Not Now (`dismiss`) */
 } SZFriendsGtkBannerKind;
 typedef enum { SZFRIENDS_GTK_ROW_NORMAL, SZFRIENDS_GTK_ROW_MUTED } SZFriendsGtkRowStyle; /* unknown draws as normal */
 typedef enum {
@@ -113,7 +129,8 @@ typedef enum {
     SZFRIENDS_GTK_TRANSFER_WAITING_FOR_YOU, SZFRIENDS_GTK_TRANSFER_SENDING, SZFRIENDS_GTK_TRANSFER_RECEIVING,
     SZFRIENDS_GTK_TRANSFER_DELIVERED, SZFRIENDS_GTK_TRANSFER_RECEIVED, SZFRIENDS_GTK_TRANSFER_DECLINED,
     SZFRIENDS_GTK_TRANSFER_CANCELLED, SZFRIENDS_GTK_TRANSFER_FAILED,
-    SZFRIENDS_GTK_TRANSFER_ON_DEVICE, SZFRIENDS_GTK_TRANSFER_FETCHING /* held by another of the person's computers */
+    SZFRIENDS_GTK_TRANSFER_ON_DEVICE, SZFRIENDS_GTK_TRANSFER_FETCHING, /* held by another of the person's computers */
+    SZFRIENDS_GTK_TRANSFER_MISSING, SZFRIENDS_GTK_TRANSFER_GONE /* moved or deleted; the friend no longer has it */
 } SZFriendsGtkTransferState;
 typedef enum {
     SZFRIENDS_GTK_REQUEST_UNSET, SZFRIENDS_GTK_REQUEST_INCOMING, SZFRIENDS_GTK_REQUEST_OUTGOING
@@ -139,6 +156,11 @@ typedef enum {
 typedef enum {
     SZFRIENDS_GTK_THUMBNAIL_UNKNOWN, SZFRIENDS_GTK_THUMBNAIL_SENDER, SZFRIENDS_GTK_THUMBNAIL_LOCAL
 } SZFriendsGtkThumbnailSource;
+/* How a received file came (PROTOCOL.md § Views, received). */
+typedef enum {
+    SZFRIENDS_GTK_RECEIVED_SOURCE_UNKNOWN, SZFRIENDS_GTK_RECEIVED_SOURCE_FRIEND, SZFRIENDS_GTK_RECEIVED_SOURCE_LINK,
+    SZFRIENDS_GTK_RECEIVED_SOURCE_DEVICE
+} SZFriendsGtkReceivedSource;
 
 /* ---- Shared objects (PROTOCOL.md § Shared objects) --------------------------------------------------- */
 
@@ -146,9 +168,15 @@ typedef struct { SZFriendsGtkPresence present; SZFriendsGtkAvatarKind kind; char
                  char *path; } SZFriendsGtkAvatar;
 typedef struct { SZFriendsGtkPresence present; SZFriendsGtkRouteKind kind; SZFriendsGtkRouteMethod method;
                  char *label; } SZFriendsGtkRoute;
+/* The one checkbox a question can carry, unticked at first: ticked, the intent also carries `field`: true. */
+typedef enum { SZFRIENDS_GTK_CONFIRM_FIELD_UNKNOWN, SZFRIENDS_GTK_CONFIRM_FIELD_DELETE_HISTORY } SZFriendsGtkConfirmField;
+typedef struct { SZFriendsGtkPresence present; char *label; SZFriendsGtkConfirmField field; } SZFriendsGtkConfirmOption;
 typedef struct { SZFriendsGtkPresence present; char *title, *body, *confirm_label, *cancel_label;
-                 gboolean destructive; } SZFriendsGtkConfirm;
+                 gboolean destructive; SZFriendsGtkConfirmOption *option; } SZFriendsGtkConfirm;
 typedef struct { SZFriendsGtkPresence present; char *label, *accessibility_label; gint64 seconds; } SZFriendsGtkArm;
+/* How someone nearby was found (clients that declared nearby.found): the methods seeing them now ("lan", "p2p_wifi",
+ * "bluetooth", in that order), drawn with the route icons, and the words for them ("Local network and Bluetooth"). */
+typedef struct { SZFriendsGtkPresence present; char **methods; char *label; } SZFriendsGtkFound;
 typedef struct {
     SZFriendsGtkPresence present;
     SZFriendsGtkActionKind action;
@@ -162,6 +190,8 @@ typedef struct {
     char *friends_id, *identity_key, *name; /* add_from_mention: the intent's own fields, sent as they are */
     char *payload, *link_id; /* add_from_link and receive_link, revoke_link: the same, for links */
     char *device_id, *join_id; /* revoke_device; approve_join and deny_join (join_profile carries friends_id) */
+    SZFriendsGtkActionThen then; /* reset_friends: open_join afterwards */
+    SZFriendsGtkDismissKind kind; /* dismiss_banner: which banner; unset is id_changed */
 } SZFriendsGtkAction;
 typedef struct { SZFriendsGtkPresence present; gboolean set; gint64 value; } SZFriendsGtkOptInt; /* integer|null */
 /* Rich text (PROTOCOL.md § Shared objects); `mention` indexes the message item's `mentions` when set. */
@@ -181,9 +211,9 @@ typedef struct { SZFriendsGtkPresence present; gint64 count;
                  char *label, *accessibility_label; } SZFriendsGtkBadgeSnapshot;
 
 typedef struct { SZFriendsGtkPresence present; SZFriendsGtkBannerKind kind; char *text;
-                 SZFriendsGtkAction *action; } SZFriendsGtkBanner;
-typedef struct { SZFriendsGtkPresence present; char *title, *placeholder, *note;
-                 char *join_label; /* opens the join view; NULL without `devices` */ } SZFriendsGtkNamePrompt;
+                 SZFriendsGtkAction *action;
+                 SZFriendsGtkAction *dismiss; /* notifications: Not Now */ } SZFriendsGtkBanner;
+typedef struct { SZFriendsGtkPresence present; char *title, *placeholder, *note; } SZFriendsGtkNamePrompt;
 typedef struct { SZFriendsGtkPresence present; SZFriendsGtkActionKind action; SZFriendsGtkRowIcon icon;
                  char *title; /* the word the button shows; NULL: the icon alone */
                  char *label; SZFriendsGtkArm *arm; } SZFriendsGtkRowAction;
@@ -204,6 +234,9 @@ typedef struct {
     gsize n_actions;
     gboolean mentionable; /* clients that declared mentions: the @ picker offers this person */
     SZFriendsGtkRowKind kind; /* `you` for the You conversation */
+    SZFriendsGtkAction *menu; /* clients that declared list.menu: right-click, long-press, Shift+F10, Delete */
+    gsize n_menu;
+    SZFriendsGtkFound *found; /* clients that declared nearby.found; NULL while the person is not nearby */
 } SZFriendsGtkListRow;
 typedef struct {
     SZFriendsGtkPresence present;
@@ -218,6 +251,7 @@ typedef struct {
     SZFriendsGtkDeviceRemoved *removed;
     SZFriendsGtkJoinRequest *join_requests;
     gsize n_join_requests;
+    SZFriendsGtkJoinOffer *join;    /* Use my existing profile…; NULL while not offered */
 } SZFriendsGtkListSnapshot;
 
 typedef struct { SZFriendsGtkPresence present; SZFriendsGtkVisibilityState state; char *title, *body, *remaining_label,
@@ -229,7 +263,8 @@ typedef struct { SZFriendsGtkPresence present; char *text; SZFriendsGtkAction *a
 typedef struct { SZFriendsGtkPresence present; SZFriendsGtkStatusKind kind; char *label; } SZFriendsGtkStatus;
 typedef struct { SZFriendsGtkPresence present; char *nearby_id, *conversation_id; SZFriendsGtkAvatar avatar;
                  char *title, *subtitle, *status_label; SZFriendsGtkAction *action;
-                 char *accessibility_label; } SZFriendsGtkNearbyPerson;
+                 char *accessibility_label;
+                 SZFriendsGtkFound *found; /* clients that declared nearby.found */ } SZFriendsGtkNearbyPerson;
 typedef struct {
     SZFriendsGtkPresence present;
     char *query;
@@ -376,8 +411,9 @@ typedef struct {
 
 typedef struct { SZFriendsGtkPresence present; char *label, *note, *value, *placeholder; } SZFriendsGtkSettingsName;
 typedef struct { SZFriendsGtkPresence present; char *label, *note, *friends_id, *copy_label; } SZFriendsGtkSettingsId;
-typedef struct { SZFriendsGtkPresence present; char *label, *note;
-                 SZFriendsGtkAction action; } SZFriendsGtkSettingsReceived;
+/* Where received files go (PROTOCOL.md § settings): `value`, `path` and `change` with the helper's received.folder. */
+typedef struct { SZFriendsGtkPresence present; char *label, *value, *note, *path;
+                 SZFriendsGtkAction *action, *change; } SZFriendsGtkSettingsReceived;
 typedef struct { SZFriendsGtkPresence present; char *conversation_id, *title; SZFriendsGtkAvatar avatar;
                  gboolean enabled; } SZFriendsGtkSettingsFriend;
 typedef struct { SZFriendsGtkPresence present; char *label, *note, *action_label; SZFriendsGtkSettingsFriend *friends;
@@ -387,6 +423,19 @@ typedef struct { SZFriendsGtkPresence present; char *label, *note, *action_label
 /* The helper's Nearby line (PROTOCOL.md § settings): what Nearby can do, and the one button that fixes it. */
 typedef struct { SZFriendsGtkPresence present; char *label, *note;
                  SZFriendsGtkAction *action; } SZFriendsGtkSettingsNearby;
+/* This device's notifications (PROTOCOL.md § Notifications): two switches sent back with set_notifications, the
+ * permission's note and its one action, and on Android the background switch. */
+typedef struct { SZFriendsGtkPresence present; char *label; gboolean value; } SZFriendsGtkSettingsSwitch;
+typedef struct { SZFriendsGtkPresence present; char *label, *note; gboolean value; } SZFriendsGtkSettingsNotedSwitch;
+typedef struct {
+    SZFriendsGtkPresence present;
+    char *label;
+    SZFriendsGtkSettingsSwitch enabled;
+    SZFriendsGtkSettingsNotedSwitch preview;
+    char *note;                                  /* "" when nothing needs saying */
+    SZFriendsGtkAction *action;                  /* allow_notifications or open_settings; NULL for none */
+    SZFriendsGtkSettingsNotedSwitch *background; /* Android hosts only; NULL elsewhere */
+} SZFriendsGtkSettingsNotifications;
 typedef struct {
     SZFriendsGtkPresence present;
     SZFriendsGtkSettingsName name;
@@ -395,6 +444,8 @@ typedef struct {
     SZFriendsGtkSettingsAutoAccept auto_accept;
     SZFriendsGtkSettingsConfirmed history, reset;
     SZFriendsGtkSettingsNearby *nearby; /* NULL without `nearby` */
+    SZFriendsGtkSettingsJoin *join;     /* NULL while joining is not offered here */
+    SZFriendsGtkSettingsNotifications *notifications; /* NULL without the helper's `notifications` */
 } SZFriendsGtkSettingsSnapshot;
 
 typedef struct { SZFriendsGtkPresence present; char *message_id;
@@ -402,49 +453,15 @@ typedef struct { SZFriendsGtkPresence present; char *message_id;
 typedef struct { SZFriendsGtkPresence present; SZFriendsGtkMessageEntry *messages;
                  gsize n_messages; } SZFriendsGtkMessageStatusSnapshot;
 
+/* Files this computer received, newest first, for a host's own list (PROTOCOL.md § Views, received). */
+typedef struct { SZFriendsGtkPresence present; char *transfer_id, *path, *file_name; gint64 received_at;
+                 SZFriendsGtkReceivedSource source; } SZFriendsGtkReceivedFile;
+typedef struct { SZFriendsGtkPresence present; SZFriendsGtkReceivedFile *files; gsize n_files; }
+    SZFriendsGtkReceivedSnapshot;
+
 /* ---- Frames and results the views read (PROTOCOL.md § Frames, § Results) ------------------------------ */
 
-typedef struct { SZFriendsGtkPresence present; gint64 major, minor; } SZFriendsGtkVersion;
-typedef struct { SZFriendsGtkPresence present; char *version; gint64 build_number; SZFriendsGtkVersion protocol;
-                 gint64 pid; } SZFriendsGtkHelperInfo;
-typedef struct { SZFriendsGtkPresence present; gint64 max_frame_bytes, max_message_bytes, max_files_per_send,
-                 max_subscriptions; } SZFriendsGtkLimits;
-typedef struct {
-    SZFriendsGtkPresence present;
-    char *re;
-    SZFriendsGtkVersion protocol;
-    SZFriendsGtkHelperInfo helper;
-    SZFriendsGtkHandover handover;
-    char **capabilities;        /* NULL-terminated */
-    SZFriendsGtkLimits limits;
-    GHashTable *strings;        /* welcome.strings: key -> label (PROTOCOL.md § Static strings) */
-} SZFriendsGtkWelcome;
-typedef struct { SZFriendsGtkPresence present; char *code, *message; gboolean retryable;
-                 JsonObject *details; } SZFriendsGtkError;
-typedef struct { SZFriendsGtkPresence present; char *re; gboolean ok; JsonObject *result;
-                 SZFriendsGtkError *error; } SZFriendsGtkReply;
-typedef struct { SZFriendsGtkPresence present; char *version; gint64 build_number; } SZFriendsGtkSuccessor;
-typedef struct { SZFriendsGtkPresence present; SZFriendsGtkGoodbyeReason reason; char *message;
-                 SZFriendsGtkSuccessor *successor; SZFriendsGtkError *error; } SZFriendsGtkGoodbye;
-typedef struct { SZFriendsGtkPresence present; char *subscription, *view; gint64 rev;
-                 JsonObject *data; } SZFriendsGtkSnapshotFrame;
-
-typedef struct { SZFriendsGtkPresence present; char *subscription, *conversation_id; } SZFriendsGtkSubscribeResult;
-typedef struct { SZFriendsGtkPresence present; char *message_id; char **transfer_ids; } SZFriendsGtkSendResult;
-typedef struct { SZFriendsGtkPresence present; char *conversation_id, *message; } SZFriendsGtkAddByIdResult;
-typedef struct { SZFriendsGtkPresence present; char *deadline; } SZFriendsGtkVisibilityResult;
-/* open_link's card and make_download_link's link (PROTOCOL.md § Links). */
-typedef enum { SZFRIENDS_GTK_LINK_CARD_UNKNOWN, SZFRIENDS_GTK_LINK_CARD_FRIEND, SZFRIENDS_GTK_LINK_CARD_DOWNLOAD
-} SZFriendsGtkLinkCardKind;
-typedef struct { SZFriendsGtkPresence present; SZFriendsGtkLinkCardKind kind; char *title, *subtitle, *note;
-                 SZFriendsGtkAvatar *avatar; SZFriendsGtkAction *actions; gsize n_actions; } SZFriendsGtkLinkCard;
-typedef struct { SZFriendsGtkPresence present; SZFriendsGtkLinkCard card; } SZFriendsGtkOpenLinkResult;
-typedef struct { SZFriendsGtkPresence present; char *url, *link_id, *message; } SZFriendsGtkDownloadLinkResult;
-typedef struct { SZFriendsGtkPresence present; char *conversation_id, *message_id, *conversation_title;
-                 SZFriendsGtkAvatar avatar; char *sender_label, *time_label; SZFriendsGtkSegment *excerpt;
-                 gsize n_excerpt; } SZFriendsGtkSearchHit;
-typedef struct { SZFriendsGtkPresence present; SZFriendsGtkSearchHit *results; gsize n_results; gboolean more;
-                 char *empty_label; } SZFriendsGtkSearchResult;
+#include "gtk/szfriends_gtk_snapshot_frames.h"
 
 /* ---- Parsing ----------------------------------------------------------------------------------------- */
 
@@ -467,7 +484,7 @@ extern const SZFriendsGtkType szfriends_gtk_type_badge_snapshot, szfriends_gtk_t
     szfriends_gtk_type_goodbye, szfriends_gtk_type_snapshot_frame, szfriends_gtk_type_error,
     szfriends_gtk_type_subscribe_result, szfriends_gtk_type_send_result, szfriends_gtk_type_add_by_id_result,
     szfriends_gtk_type_visibility_result, szfriends_gtk_type_search_result, szfriends_gtk_type_open_link_result,
-    szfriends_gtk_type_download_link_result, szfriends_gtk_type_join_snapshot;
+    szfriends_gtk_type_download_link_result, szfriends_gtk_type_join_snapshot, szfriends_gtk_type_received_snapshot;
 
 /* Typed shorthands: szfriends_gtk_list_snapshot_parse(data), szfriends_gtk_list_snapshot_free(snapshot). */
 #define SZFRIENDS_GTK_DECLARE_PARSE(name, Type)                                                                  \
@@ -486,6 +503,7 @@ SZFRIENDS_GTK_DECLARE_PARSE(profile_snapshot, SZFriendsGtkProfileSnapshot)
 SZFRIENDS_GTK_DECLARE_PARSE(settings_snapshot, SZFriendsGtkSettingsSnapshot)
 SZFRIENDS_GTK_DECLARE_PARSE(message_status_snapshot, SZFriendsGtkMessageStatusSnapshot)
 SZFRIENDS_GTK_DECLARE_PARSE(join_snapshot, SZFriendsGtkJoinSnapshot)
+SZFRIENDS_GTK_DECLARE_PARSE(received_snapshot, SZFriendsGtkReceivedSnapshot)
 SZFRIENDS_GTK_DECLARE_PARSE(welcome, SZFriendsGtkWelcome)
 SZFRIENDS_GTK_DECLARE_PARSE(reply, SZFriendsGtkReply)
 SZFRIENDS_GTK_DECLARE_PARSE(goodbye, SZFriendsGtkGoodbye)

@@ -18,6 +18,8 @@ typedef struct {
     SZFriendsGtkDropdown *dropdown;
     GtkWidget *rows_box, *empty, *friends_scroll, *nearby_scroll;
     SZFriendsGtkListSnapshot *list; /* the latest, read when the banner's button is pressed */
+    /* People removed from the list here and not yet answered for: their rows stay out until the helper replies. */
+    GHashTable *hidden; /* conversation_id -> conversation_id */
     guint dropdown_watch, state_watch;
 } SZFriendsGtkListPage;
 

@@ -1,0 +1,38 @@
+{
+  "type": "snapshot",
+  "subscription": "s_12",
+  "view": "received",
+  "rev": 3,
+  "data": {
+    "files": [
+      {
+        "transfer_id": "t_9b31e7a2",
+        "path": "/Users/raph/Downloads/Supplier contract v3 (2).pdf",
+        "file_name": "Supplier contract v3 (2).pdf",
+        "received_at": 1792310520,
+        "source": "friend"
+      },
+      {
+        "transfer_id": "t_c81f04d2",
+        "path": "/Users/raph/Downloads/Bracket rev B.step",
+        "file_name": "Bracket rev B.step",
+        "received_at": 1792306810,
+        "source": "device"
+      },
+      {
+        "transfer_id": "t_5d0a6c11",
+        "path": "/Users/raph/Downloads/Site photos.zip",
+        "file_name": "Site photos.zip",
+        "received_at": 1792221405,
+        "source": "link"
+      },
+      {
+        "transfer_id": "t_7e2f44b0",
+        "path": "/Users/raph/Downloads/Supplier contract v3.pdf",
+        "file_name": "Supplier contract v3.pdf",
+        "received_at": 1792138002,
+        "source": "friend"
+      }
+    ]
+  }
+}

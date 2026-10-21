@@ -15,7 +15,7 @@ const {
   FriendsFieldError,
   externalURL,
   settingsURL,
-  linkPayload,
+  friendsURL,
   plainPath,
 } = require("./validate.cjs");
 const {
@@ -31,8 +31,22 @@ const { createViewMenu } = require("./view-menu.cjs");
 
 const EVENT = "shenzhen-friends-event";
 // What Shenzhen 3D's panel shows and does (PROTOCOL.md § Capabilities): `#` offers the open model, files may be
-// dropped, and `@` mentions friends. No assistant, no global search.
-const CAPABILITIES = ["attach.items", "drop.files", "mentions"];
+// dropped, `@` mentions friends, a list row's menu opens on right-click, people nearby show how they were found, a
+// file a friend sent that is on none of the person's computers can be fetched from them again, the panel says which
+// conversation the person is looking at (no notification for it) and the list shows the card that asks to turn
+// notifications on (a Mac, where this app runs Friends). No assistant, no global search.
+const CAPABILITIES = [
+  "attach.items",
+  "drop.files",
+  "mentions",
+  "list.menu",
+  "nearby.found",
+  "files.again",
+  "notifications.focus",
+  "notifications.ask",
+];
+// Where a notification's click opens this app: shenzhen3d://friends/conversation/<id> (launch.cjs, openLink below).
+const URL_SCHEME = "shenzhen3d";
 const STAGED_DAYS = 31;
 const MAX_STAGED_BYTES = 2 * 1024 * 1024 * 1024;
 const MAX_OFFERED_FILES = 4096;
@@ -96,6 +110,9 @@ function createFriendsHost({
   trusted,
   openFormats,
   openFiles,
+  dialog,
+  // Files received here (the `received` view's rows), for the app's recent files (received-recents.cjs).
+  onReceived = () => {},
   env = process.env,
   platform = process.platform,
   loadAddon = require,
@@ -107,7 +124,7 @@ function createFriendsHost({
   const windows = new Map(); // webContents id -> webContents that joined
   const animals = located ? createAnimalSet(located.animals) : null;
   let enabled = null; // read once, after first paint
-  let addon, client, stateDir, attachTimer, pendingLink;
+  let addon, client, stateDir, attachTimer, pendingOpen;
   let state = "idle",
     stateText = "";
   let painted = false;
@@ -131,7 +148,21 @@ function createFriendsHost({
     for (const contents of windows.values())
       if (!contents.isDestroyed()) contents.send(EVENT, event);
   };
-  const router = new FriendsRouter({ deliver, broadcast });
+  const router = new FriendsRouter({
+    deliver,
+    broadcast,
+    hostSnapshot: (frame) => {
+      if (frame.view !== "received" || !Array.isArray(frame.data?.files))
+        return;
+      try {
+        void Promise.resolve(onReceived(frame.data.files)).catch((error) =>
+          console.error("Friends: received files:", error),
+        );
+      } catch (error) {
+        console.error("Friends: received files:", error);
+      }
+    },
+  });
   const focusedId = () => BrowserWindow.getFocusedWindow?.()?.webContents?.id;
   // File ▸ Copy Download Link, while the helper announces `links` (share-menu.cjs).
   const shareMenu = createShareMenu({
@@ -204,13 +235,18 @@ function createFriendsHost({
         } else if (event.type === "state") {
           state = event.state;
           router.connectionChanged(state);
-          if (state === "ready") sendFromHost("subscribe", { view: "badge" });
+          if (state === "ready") {
+            sendFromHost("subscribe", { view: "badge" });
+            // A helper that saves received files where the person sees them lists them for recent files.
+            if (router.welcome?.capabilities?.includes?.("received.folder"))
+              sendFromHost("subscribe", { view: "received" });
+          }
         }
       }
       if (typeof events.stateText === "string") stateText = events.stateText;
       if (events.some((event) => event.type === "state")) {
         announce();
-        if (state === "ready") offerPendingLink();
+        if (state === "ready") offerPendingOpen();
       }
     } catch (error) {
       console.error("Friends:", error);
@@ -247,6 +283,7 @@ function createFriendsHost({
           toolkit: "electron",
           revealIn: "Finder",
           locale: app.getLocale?.() || "en",
+          urlScheme: URL_SCHEME,
           capabilities: CAPABILITIES,
           openFormats: [...openFormats],
         },
@@ -357,26 +394,28 @@ function createFriendsHost({
         if (event?.isMainFrame !== false && !event?.isSameDocument) leave();
       });
     }
-    if (pendingLink && state === "ready") setTimeout(offerPendingLink, 0);
+    if (pendingOpen && state === "ready") setTimeout(offerPendingOpen, 0);
     return status();
   }
 
-  // A Friends link opened in this app (PROTOCOL.md § Links): given to the focused window once Friends is ready.
+  // A Friends URL opened in this app, given to the focused window once Friends is ready: a friend or download link
+  // shows its card (PROTOCOL.md § Links), a notification's opens the dropdown on its conversation, or on the list
+  // (§ Notifications).
   function openLink(url) {
-    const payload = linkPayload(url);
-    if (!payload || !located) return false;
-    pendingLink = payload;
-    offerPendingLink();
+    const opened = friendsURL(url, URL_SCHEME);
+    if (!opened || !located) return false;
+    pendingOpen = opened;
+    offerPendingOpen();
     return true;
   }
-  function offerPendingLink() {
-    if (!pendingLink || state !== "ready" || !windows.size) return;
+  function offerPendingOpen() {
+    if (!pendingOpen || state !== "ready" || !windows.size) return;
     const focused = BrowserWindow.getFocusedWindow?.()?.webContents;
     const target =
       focused && windows.has(focused.id) ? focused : [...windows.values()][0];
     if (!target || target.isDestroyed()) return;
-    target.send(EVENT, { kind: "link", payload: pendingLink });
-    pendingLink = undefined;
+    target.send(EVENT, pendingOpen);
+    pendingOpen = undefined;
   }
 
   // The open model as a project file, written where only this app looks, for send_files, `#` or a download link.
@@ -421,6 +460,23 @@ function createFriendsHost({
     openFiles([file]);
     return true;
   }
+  // Settings ▸ Save received files to ▸ Change…: the system's folder picker over the window that asked, starting
+  // at the folder received files go to now. The folder chosen, or null.
+  async function chooseFolder(event, start) {
+    if (!dialog) return null;
+    const window = BrowserWindow.fromWebContents?.(event.sender) ?? undefined;
+    const options = {
+      properties: ["openDirectory", "createDirectory"],
+      ...(typeof start === "string" && plainPath(start)
+        ? { defaultPath: start }
+        : {}),
+    };
+    const result = window
+      ? await dialog.showOpenDialog(window, options)
+      : await dialog.showOpenDialog(options);
+    const folder = result?.canceled ? null : result?.filePaths?.[0];
+    return typeof folder === "string" && plainPath(folder) ? folder : null;
+  }
   async function showFile(file) {
     if (!plainPath(file) || (await classifyPath(file)) === "missing")
       return false;
@@ -453,6 +509,7 @@ function createFriendsHost({
     token: () => crypto.randomBytes(16).toString("hex"),
     openFile: (_event, value) => openReceived(value),
     showFile: (_event, value) => showFile(value),
+    chooseFolder: (event, value) => chooseFolder(event, value),
     openSettings: async (_event, value) => {
       const url = settingsURL(value);
       if (url) await shell.openExternal(url);

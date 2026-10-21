@@ -4,7 +4,7 @@
 //! never edited; a change appends one, here and in the helper.
 
 /// The schema version this build writes (`SZFriendsStoreSchemaVersion`).
-pub const SCHEMA_VERSION: i64 = 9;
+pub const SCHEMA_VERSION: i64 = 12;
 
 /// One forward-only step: its version, the oldest schema that can still read the store after it (0 leaves
 /// `min_reader_version` alone, as additive steps do), and its statements.
@@ -16,7 +16,7 @@ pub struct Migration {
 }
 
 /// Every migration ever shipped, oldest first.
-pub const SHIPPED: [Migration; 9] = [
+pub const SHIPPED: [Migration; 12] = [
     Migration { version: 1, min_reader_version: 1, sql: V1 },
     Migration { version: 2, min_reader_version: 2, sql: V2 },
     Migration { version: 3, min_reader_version: 0, sql: V3 },
@@ -26,6 +26,9 @@ pub const SHIPPED: [Migration; 9] = [
     Migration { version: 7, min_reader_version: 0, sql: V7 },
     Migration { version: 8, min_reader_version: 0, sql: V8 },
     Migration { version: 9, min_reader_version: 0, sql: V9 },
+    Migration { version: 10, min_reader_version: 0, sql: V10 },
+    Migration { version: 11, min_reader_version: 0, sql: V11 },
+    Migration { version: 12, min_reader_version: 0, sql: V12 },
 ];
 
 /// Schema v1 (ADR 0003 § Schema v1). Times are Unix seconds (REAL); keys and secrets are BLOBs whose lengths the
@@ -208,4 +211,26 @@ CREATE TABLE sync_files (
   size INTEGER NOT NULL CHECK (size >= 0), digest BLOB NOT NULL CHECK (length(digest) = 32),
   created_at REAL NOT NULL, holders BLOB NOT NULL DEFAULT x'') WITHOUT ROWID;
 CREATE TABLE sync_state (key TEXT PRIMARY KEY NOT NULL, value) WITHOUT ROWID;
+"#;
+
+/// v10: when each received file was published (Unix seconds) and how it came (0 a friend's transfer, 1 a download
+/// link, 2 a copy from another of the person's devices), for the `received` view. Additive.
+const V10: &str = r#"ALTER TABLE transfers ADD COLUMN received_at REAL;
+ALTER TABLE transfers ADD COLUMN received_via INTEGER NOT NULL DEFAULT 0;
+CREATE INDEX transfers_received ON transfers(received_at) WHERE received_at IS NOT NULL;
+"#;
+
+/// v11, taking people off the list (PROTOCOL.md remove_friend): when the person took someone who is no longer a friend
+/// off their list. The row and its history stay, so that history can still be found and deleted, and a new request
+/// brings them back. It counts only while the relation is Removed or Blocked, so a request, an acceptance or an Add by
+/// ID, even one an older helper wrote, puts them back on the list. Additive: an older helper ignores the column and
+/// still lists the person.
+const V11: &str = r#"ALTER TABLE friends ADD COLUMN left_list_at REAL;
+"#;
+
+/// v12, getting a file again (ADR 0016): where an outgoing file was sent from and its modification time then
+/// (nanoseconds since 1970), so the computer that sent it still holds its bytes while that file is unchanged, and can
+/// give it again to the friend it went to. Never synced. Additive: a v11 helper ignores both columns.
+const V12: &str = r#"ALTER TABLE transfers ADD COLUMN source_path TEXT;
+ALTER TABLE transfers ADD COLUMN source_mtime_ns INTEGER;
 "#;

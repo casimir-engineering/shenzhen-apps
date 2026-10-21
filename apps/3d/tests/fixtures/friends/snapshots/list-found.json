@@ -1,0 +1,275 @@
+{
+  "type": "snapshot",
+  "subscription": "s_2",
+  "view": "list",
+  "rev": 54,
+  "data": {
+    "footer": {
+      "avatar": {
+        "set": 1,
+        "initials": "R",
+        "kind": "animal",
+        "color": "#5a4a7a",
+        "index": 0
+      },
+      "friends_id": "cottage-violet",
+      "name_placeholder": "Choose your name",
+      "id_label": "ID cottage‑violet",
+      "id_note": null,
+      "add_label": "Add by ID",
+      "name": "Raph"
+    },
+    "query": "",
+    "rows": [
+      {
+        "waiting": {
+          "kind": "request",
+          "label": "Waiting for you"
+        },
+        "style": "normal",
+        "drop_label": null,
+        "subtitle": "Wants to be friends",
+        "time_label": "14:40",
+        "blocked": false,
+        "actions": [
+          {
+            "arm": null,
+            "label": "Accept Lena Weber’s request",
+            "icon": "accept",
+            "title": "Accept",
+            "action": "accept_request"
+          },
+          {
+            "arm": null,
+            "label": "Decline Lena Weber’s request",
+            "icon": "decline",
+            "title": "Decline",
+            "action": "decline_request"
+          },
+          {
+            "arm": {
+              "label": "Block?",
+              "accessibility_label": "Click again to block Lena Weber",
+              "seconds": 4
+            },
+            "label": "Block Lena Weber",
+            "icon": "block",
+            "title": null,
+            "action": "block"
+          }
+        ],
+        "found": null,
+        "conversation_id": "c_lena",
+        "title": "Lena Weber",
+        "avatar": {
+          "set": 1,
+          "initials": "LW",
+          "kind": "animal",
+          "color": "#7a3f4f",
+          "index": 3
+        },
+        "id_confirmed_label": null,
+        "route": {
+          "kind": "local",
+          "method": "lan",
+          "label": "Nearby, on your network"
+        },
+        "drop_refusal": "Lena isn’t your friend yet",
+        "accessibility_label": "Lena Weber, wants to be friends, 14:40, waiting for you",
+        "id_confirmed": false,
+        "unread": false
+      },
+      {
+        "waiting": null,
+        "style": "normal",
+        "drop_label": "Send to Mei",
+        "subtitle": "Can you check pages 3–5 before Friday?",
+        "time_label": "14:32",
+        "blocked": false,
+        "actions": [],
+        "found": {
+          "methods": [
+            "lan",
+            "bluetooth"
+          ],
+          "label": "Local network and Bluetooth"
+        },
+        "conversation_id": "c_mei",
+        "title": "Mei Lin",
+        "avatar": {
+          "set": 1,
+          "initials": "ML",
+          "kind": "animal",
+          "color": "#3f6b4f",
+          "index": 7
+        },
+        "id_confirmed_label": null,
+        "route": {
+          "kind": "local",
+          "method": "lan",
+          "label": "Nearby, on your network"
+        },
+        "drop_refusal": null,
+        "accessibility_label": "Mei Lin, unread, Can you check pages 3–5 before Friday?, 14:32, nearby, on your network, Found over Local network and Bluetooth",
+        "id_confirmed": false,
+        "unread": true
+      },
+      {
+        "waiting": {
+          "kind": "offer",
+          "label": "Waiting for you"
+        },
+        "style": "normal",
+        "drop_label": "Send to Kenji",
+        "subtitle": "Sent you Site photos.pdf",
+        "time_label": "13:10",
+        "blocked": false,
+        "actions": [],
+        "found": {
+          "methods": [
+            "bluetooth"
+          ],
+          "label": "Bluetooth"
+        },
+        "conversation_id": "c_kenji",
+        "title": "Kenji Sato",
+        "avatar": {
+          "set": 1,
+          "initials": "KS",
+          "kind": "animal",
+          "color": "#2f6474",
+          "index": 1
+        },
+        "id_confirmed_label": null,
+        "route": {
+          "kind": "local",
+          "method": "bluetooth",
+          "label": "Nearby, over Bluetooth"
+        },
+        "drop_refusal": null,
+        "accessibility_label": "Kenji Sato, sent you Site photos.pdf, 13:10, waiting for you, Found over Bluetooth",
+        "id_confirmed": false,
+        "unread": false
+      },
+      {
+        "waiting": null,
+        "style": "normal",
+        "drop_label": "Send to Daniel",
+        "subtitle": "Accepted automatically · Enclosure assembly guide.pdf",
+        "time_label": "11:05",
+        "blocked": false,
+        "actions": [],
+        "found": null,
+        "conversation_id": "c_daniel",
+        "title": "Daniel Ortiz",
+        "avatar": {
+          "set": 1,
+          "initials": "DO",
+          "kind": "animal",
+          "color": "#7a5a34",
+          "index": 5
+        },
+        "id_confirmed_label": null,
+        "route": {
+          "kind": "local",
+          "method": "p2p_wifi",
+          "label": "Nearby, over direct Wi-Fi"
+        },
+        "drop_refusal": null,
+        "accessibility_label": "Daniel Ortiz, Enclosure assembly guide.pdf, accepted automatically, 11:05, nearby, over direct Wi-Fi",
+        "id_confirmed": false,
+        "unread": false
+      },
+      {
+        "waiting": null,
+        "style": "normal",
+        "drop_label": "Send to Priya",
+        "subtitle": "Sends when Priya is nearby · Supplier contract v3.pdf",
+        "time_label": "Yesterday",
+        "blocked": false,
+        "actions": [],
+        "found": null,
+        "conversation_id": "c_priya",
+        "title": "Priya Raman",
+        "avatar": {
+          "set": 1,
+          "initials": "PR",
+          "kind": "animal",
+          "color": "#4f4f86",
+          "index": 9
+        },
+        "id_confirmed_label": null,
+        "route": {
+          "kind": "offline",
+          "method": null,
+          "label": "Not nearby right now"
+        },
+        "drop_refusal": null,
+        "accessibility_label": "Priya Raman, you sent Supplier contract v3.pdf, it sends when Priya is nearby, yesterday",
+        "id_confirmed": false,
+        "unread": false
+      },
+      {
+        "waiting": null,
+        "style": "normal",
+        "drop_label": "Send to tulip‑canyon",
+        "subtitle": "You are now friends",
+        "time_label": "3 Oct",
+        "blocked": false,
+        "actions": [],
+        "found": null,
+        "conversation_id": "c_tulip",
+        "title": "tulip‑canyon",
+        "avatar": {
+          "set": 1,
+          "initials": "TC",
+          "kind": "animal",
+          "color": "#6a4a6a",
+          "index": 11
+        },
+        "id_confirmed_label": "ID confirmed by the Friends server",
+        "route": {
+          "kind": "offline",
+          "method": null,
+          "label": "Not nearby right now"
+        },
+        "drop_refusal": null,
+        "accessibility_label": "tulip‑canyon, you are now friends, 3 October, not nearby right now, ID confirmed",
+        "id_confirmed": true,
+        "unread": false
+      },
+      {
+        "waiting": null,
+        "style": "muted",
+        "drop_label": null,
+        "subtitle": "Blocked",
+        "time_label": "28 Sep",
+        "blocked": true,
+        "actions": [],
+        "found": null,
+        "conversation_id": "c_jonas",
+        "title": "Jonas Berg",
+        "avatar": {
+          "set": 1,
+          "initials": "JB",
+          "kind": "animal",
+          "color": "#4a6a2f",
+          "index": 4
+        },
+        "id_confirmed_label": null,
+        "route": {
+          "kind": "none",
+          "method": null,
+          "label": null
+        },
+        "drop_refusal": "You blocked Jonas",
+        "accessibility_label": "Jonas Berg, blocked, 28 September",
+        "id_confirmed": false,
+        "unread": false
+      }
+    ],
+    "name_prompt": null,
+    "empty": null,
+    "banner": null
+  }
+}

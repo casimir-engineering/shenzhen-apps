@@ -1,4 +1,4 @@
-// Schema v1, its v2 to v9 migrations, and the forward-only migration runner (ADR 0003 § Schema v1, § Migrations).
+// Schema v1, its v2 to v11 migrations, and the forward-only migration runner (ADR 0003 § Schema v1, § Migrations).
 //
 // A shipped migration is never edited: the committed v1 fixture (tests/fixtures/store-v1.sql) must keep migrating
 // to the current schema, and an older helper must keep reading whatever an additive migration produced.
@@ -9,7 +9,7 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-const NSInteger SZFriendsStoreSchemaVersion = 9;
+const NSInteger SZFriendsStoreSchemaVersion = 12;
 
 // Pictures are columns rather than an archived object so a later Linux helper reads them with plain SQL.
 // Times are Unix seconds (REAL). Keys and secrets are BLOBs with their lengths checked by the schema itself, so a
@@ -247,6 +247,27 @@ static NSString *const SZFriendsSchemaV9 =
      "  created_at REAL NOT NULL, holders BLOB NOT NULL DEFAULT x'') WITHOUT ROWID;\n"
      "CREATE TABLE sync_state (key TEXT PRIMARY KEY NOT NULL, value) WITHOUT ROWID;\n";
 
+// v10, received files saved to Downloads or a folder the person chose (PROTOCOL.md § Views, received): when each
+// incoming file was published and how it came (0 a friend's offer, 1 a download link, 2 a copy from another of the
+// person's computers). Additive, so min_reader_version stays 2: a v9 helper ignores both columns.
+static NSString *const SZFriendsSchemaV10 =
+    @"ALTER TABLE transfers ADD COLUMN received_at REAL;\n"
+     "ALTER TABLE transfers ADD COLUMN received_via INTEGER NOT NULL DEFAULT 0;\n"
+     "CREATE INDEX transfers_received ON transfers(received_at) WHERE received_at IS NOT NULL;\n";
+
+// v11, taking people off the list (PROTOCOL.md remove_friend): friends.left_list_at, when the person took someone
+// who is no longer a friend off their list. The row and its history stay, so the person can still find and delete
+// that history, and a new request brings them back. It counts only while the relation is Removed or Blocked, so a
+// request, an acceptance or an Add by ID, even one an older helper wrote, puts them back on the list.
+// Additive, so min_reader_version stays 2: a v10 helper ignores the column and still lists the person.
+static NSString *const SZFriendsSchemaV11 = @"ALTER TABLE friends ADD COLUMN left_list_at REAL;\n";
+
+// v12, getting a file again (ADR 0016): where an outgoing file was sent from and its modification time then, so the
+// computer that sent it still holds its bytes while that file is unchanged, and can give it again to the friend it
+// went to. Never synced. Additive, so min_reader_version stays 2: a v11 helper ignores both columns.
+static NSString *const SZFriendsSchemaV12 = @"ALTER TABLE transfers ADD COLUMN source_path TEXT;\n"
+                                             "ALTER TABLE transfers ADD COLUMN source_mtime_ns INTEGER;\n";
+
 @implementation SZFriendsStoreMigration
 
 + (instancetype)migrationToVersion:(NSInteger)version
@@ -319,7 +340,25 @@ NSArray<SZFriendsStoreMigration *> *SZFriendsStoreShippedMigrations(void) {
                      apply:^BOOL(SZFriendsStoreDB *db, NSError **error) {
                          return [db exec:SZFriendsSchemaV9 error:error];
                      }];
-    return @[ v1, v2, v3, v4, v5, v6, v7, v8, v9 ];
+    SZFriendsStoreMigration *v10 = [SZFriendsStoreMigration
+        migrationToVersion:10
+          minReaderVersion:0
+                     apply:^BOOL(SZFriendsStoreDB *db, NSError **error) {
+                         return [db exec:SZFriendsSchemaV10 error:error];
+                     }];
+    SZFriendsStoreMigration *v11 = [SZFriendsStoreMigration
+        migrationToVersion:11
+          minReaderVersion:0
+                     apply:^BOOL(SZFriendsStoreDB *db, NSError **error) {
+                         return [db exec:SZFriendsSchemaV11 error:error];
+                     }];
+    SZFriendsStoreMigration *v12 = [SZFriendsStoreMigration
+        migrationToVersion:12
+          minReaderVersion:0
+                     apply:^BOOL(SZFriendsStoreDB *db, NSError **error) {
+                         return [db exec:SZFriendsSchemaV12 error:error];
+                     }];
+    return @[ v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12 ];
 }
 
 BOOL SZFriendsStoreReadVersions(SZFriendsStoreDB *db, NSInteger *userVersion, NSInteger *minReaderVersion,

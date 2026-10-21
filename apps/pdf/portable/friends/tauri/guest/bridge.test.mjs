@@ -78,6 +78,14 @@ test("calls reach the plugin's commands; events arrive in order through the join
   deliver({ index: 1, message: { kind: "badge", data: null } });
   deliver({ index: 0, message: { kind: "status", status: {} } });
   assert.deepEqual(seen, ["status", "badge"], "in order");
+  // Joined again (the page reloaded its Friends part, or a test asked): the plugin numbers the new channel's
+  // messages from 0, and they arrive.
+  await bridge.join();
+  const again = calls.findLast((call) => call.command === "plugin:szfriends|join");
+  const next = callbacks.get(Number(String(again.args.events.toJSON()).replace("__CHANNEL__:", "")));
+  assert.notEqual(next, deliver, "a new channel");
+  next({ index: 0, message: { kind: "status", status: {} } });
+  assert.deepEqual(seen, ["status", "badge", "status"], "events after joining again arrive");
   await bridge.send("accept_offer", { transfer_id: "t_1" });
   assert.deepEqual(plain(calls.at(-1)), {
     command: "plugin:szfriends|send",

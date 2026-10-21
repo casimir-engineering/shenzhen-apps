@@ -99,6 +99,12 @@ typedef NS_ENUM(NSInteger, SZFriendsOnlineReach) {
 // In the list only because they sent this person a file through a download link, and not a friend (relation
 // Removed): the row says what they sent rather than "No longer friends", and their files offer Add.
 @property(nonatomic) BOOL linkContact;
+// The person took them off the list (remove_friend): no list shows them and they count for no badge, but their
+// conversation and details still open, from search or a view already showing them. Only someone Removed or Blocked.
+@property(nonatomic) BOOL leftList;
+// Every discovery method that sees this friend nearby right now (SZFriendsRouteMethod numbers: LAN, PeerToPeerWiFi,
+// Bluetooth), for the row's "found" (client capability nearby.found). Empty or nil while they are not nearby.
+@property(nonatomic, copy, nullable) NSArray<NSNumber *> *foundMethods;
 @end
 
 // Event kinds the helper records in history (store item eventKind) and the catalog words for each. The store
@@ -119,6 +125,13 @@ typedef NS_ENUM(NSInteger, SZFriendsItemFactsKind) {
     SZFriendsItemFactsKindMessage = 0,
     SZFriendsItemFactsKindTransfer = 1,
     SZFriendsItemFactsKindEvent = 2,
+};
+
+// Get again on a file a friend sent (PROTOCOL.md § Getting a file again).
+typedef NS_ENUM(NSInteger, SZFriendsAgainState) {
+    SZFriendsAgainNone = 0,
+    SZFriendsAgainAsked = 1, // Get again pressed: waiting for the friend, or copying
+    SZFriendsAgainGone = 2,  // the friend's computer answered that it no longer has the file
 };
 
 @interface SZFriendsItemFacts : NSObject
@@ -156,6 +169,19 @@ typedef NS_ENUM(NSInteger, SZFriendsItemFactsKind) {
 @property(nonatomic) SZFriendsRouteMethod transferRoute;
 @property(nonatomic) double bytesPerSecond;                 // measured on the current route; 0 when unknown
 @property(nonatomic, copy, nullable) NSString *localPath;   // received file, once published
+// Where a received file was saved, for its "Saved to {folder}": the default Downloads, else the name of the folder it
+// is in; neither (older files, or kept in the helper's own folder) keeps "Received".
+@property(nonatomic) BOOL savedToDownloads;
+@property(nonatomic, copy, nullable) NSString *savedFolderName;
+// A file received or copied here (or by another computer of the profile) whose bytes this computer no longer has: the
+// person moved or deleted it (PROTOCOL.md § Getting a file again). localPath is nil then. Where it can come from is
+// SZFriendsDevicesFacts.files (another computer) or the `again` facts below (the friend who sent it).
+@property(nonatomic) BOOL fileMissing;
+// Get again on a friend's file (fetch_from_friend): asked and waiting or copying, or answered that they no longer
+// have it; whether a session with that friend is live, so it copies now; and how much arrived.
+@property(nonatomic) SZFriendsAgainState again;
+@property(nonatomic) BOOL againConnected;
+@property(nonatomic) double againFraction;
 // The uniform type identifier the file name's extension names, from which, or from the extension, views draw the
 // type's icon when there is no preview; nil when there is none.
 @property(nonatomic, copy, nullable) NSString *fileTypeIdentifier;
@@ -181,6 +207,8 @@ typedef NS_ENUM(NSInteger, SZFriendsItemFactsKind) {
 @property(nonatomic) SZFriendsPersonRelation relation;      // strangers use OutgoingRequest only once asked
 @property(nonatomic) BOOL isStranger;
 @property(nonatomic) SZFriendsRouteMethod routeMethod;
+// Every discovery method that sees this person right now (SZFriendsRouteMethod numbers), for the row's "found".
+@property(nonatomic, copy, nullable) NSArray<NSNumber *> *foundMethods;
 @end
 
 // How long after a method starts working an empty Nearby keeps saying it is looking (8 seconds).
@@ -224,6 +252,12 @@ typedef NS_ENUM(NSInteger, SZFriendsUpdateNeed) {
 @property(nonatomic, copy) NSDate *now;                                      // what expiry words count from
 @end
 
+typedef NS_ENUM(NSInteger, SZFriendsReceivedFallbackFacts) {
+    SZFriendsReceivedFallbackFactsNone = 0,
+    SZFriendsReceivedFallbackFactsDownloads = 1, // went to Downloads instead
+    SZFriendsReceivedFallbackFactsKept = 2,      // kept by the app (no folder took it)
+};
+
 @interface SZFriendsProfileFacts : NSObject
 @property(nonatomic, copy, nullable) NSString *name;
 @property(nonatomic, copy) NSString *friendsID;
@@ -236,7 +270,12 @@ typedef NS_ENUM(NSInteger, SZFriendsUpdateNeed) {
 // profile's id.state is "unavailable", whatever friendsIDState says.
 @property(nonatomic) SZFriendsIdentityFactsState identityState;
 @property(nonatomic) SZFriendsUpdateNeed updateNeed;
-@property(nonatomic, copy) NSString *receivedDirectory;
+@property(nonatomic, copy) NSString *receivedDirectory;  // the folder received files go to
+// That folder's name when the person chose it; nil while it is Downloads (PROTOCOL.md § Views, settings).
+@property(nonatomic, copy, nullable) NSString *receivedFolderName;
+// Where the last received file went when that folder could not take it, until one is saved there or the folder
+// changes (data.received.note).
+@property(nonatomic) SZFriendsReceivedFallbackFacts receivedFallback;
 // The profile's "Your links" (PROTOCOL.md § Links), for an audience whose helper announces "links"; nil shows none.
 @property(nonatomic, strong, nullable) SZFriendsLinksFacts *links;
 @end

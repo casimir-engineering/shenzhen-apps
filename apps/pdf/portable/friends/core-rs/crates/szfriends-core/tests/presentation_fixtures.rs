@@ -1,8 +1,8 @@
 //! Every golden fixture under `fixtures/snapshots/` rebuilt from the facts behind it, as the same JSON value the
 //! Objective-C builder makes (`SZFriendsPresentationTests.m`, `...JoinTests.m`, `...LinksTests.m`,
 //! `...MentionTests.m`, `...AssistantTests.m`), each also validated against PROTOCOL.md's schema blocks. The people
-//! come through a real store first (`through_store`). The devices-* and online-* fixtures are in
-//! `presentation_devices.rs`.
+//! come through a real store first (`through_store`). The devices-*, online-* and phone-* fixtures are in
+//! `presentation_devices.rs`; phone-* only the Rust core builds, since only it serves phones.
 
 mod presentation;
 
@@ -10,13 +10,15 @@ use std::collections::HashMap;
 
 use presentation::world::*;
 use presentation::{expect_fixture, through_store, validate_snapshot};
+use szfriends_core::presentation::Audience;
 use szfriends_core::presentation::{
     DownloadLinkFacts, ItemFacts, JoinRequestFacts, JoiningFacts, JoiningState, LinksFacts, MentionDirectory,
-    PersonFacts, ProfileFacts, SnapshotBuilder,
+    PersonFacts, ProfileFacts, ReceivedFolderFacts, SnapshotBuilder,
 };
+use szfriends_core::store::{PhoneFolder, ReceivedFallback, ReceivedFile, ReceivedSource};
 
 /// Every snapshot fixture, and the suite that builds it.
-const COVERED: [&str; 34] = [
+const COVERED: [&str; 45] = [
     "badge.json",
     "list.json",
     "list-id-changed.json",
@@ -29,6 +31,7 @@ const COVERED: [&str; 34] = [
     "details-mei.json",
     "profile-unreserved.json",
     "settings.json",
+    "received.json",
     "key-change-details-mei.json",
     "list-join-requests.json",
     "badge-join-requests.json",
@@ -44,14 +47,27 @@ const COVERED: [&str; 34] = [
     "devices-list.json",
     "devices-list-removed.json",
     "devices-list-new-computer.json",
+    "devices-list-join-reset.json",
+    "devices-settings-join.json",
+    "phone-settings-join.json",
     "devices-conversation-you.json",
     "devices-conversation-mei-files.json",
+    "devices-conversation-mei-again.json",
     "devices-settings.json",
     "devices-details-mei.json",
+    "phone-settings.json",
     "online-list.json",
     "online-conversation-kenji-relay.json",
     "online-conversation-priya-unreachable.json",
     "online-conversation-priya-connecting.json",
+    // presentation_remove.rs
+    "list-menu.json",
+    // presentation_found.rs
+    "nearby-found.json",
+    "list-found.json",
+    // presentation_notifications.rs
+    "views-notifications-list.json",
+    "views-notifications-settings.json",
 ];
 
 fn people() -> HashMap<String, PersonFacts> {
@@ -128,6 +144,75 @@ fn details_profile_and_settings() {
     let mut mei = people["c_mei"].clone();
     mei.key_change_pending = true;
     expect_fixture(&builder.details(&mei, 2, now()), "key-change-details-mei.json", "details");
+}
+
+/// The folder received files go to (helper capability `received.folder`): the chosen folder by its name, phones
+/// without path or buttons, an older helper's row without them; and the `received` view.
+#[test]
+fn received_folder_and_received_view() {
+    if presentation::tree_missing() {
+        return;
+    }
+    let people = people();
+    let settings = |audience: Audience, received: ReceivedFolderFacts| {
+        let profile = ProfileFacts { received, ..profile_raph() };
+        builder(audience).settings(&profile, &everyone(&people))["received"].clone()
+    };
+    let chosen = ReceivedFolderFacts {
+        path: Some("/Users/raph/Documents/From friends".into()),
+        chosen_name: Some("From friends".into()),
+        phone: None,
+        fallback: None,
+    };
+    let row = settings(audience(), chosen.clone());
+    assert_eq!(row["value"], "From friends");
+    assert_eq!(row["path"], "/Users/raph/Documents/From friends");
+    assert_eq!(row["action"]["path"], "/Users/raph/Documents/From friends");
+    assert_eq!(row["change"]["action"], "choose_received_folder");
+    assert_eq!(row["note"], "");
+    // The last file could not be saved there: the note says where it went instead.
+    let fallback = |fallback| ReceivedFolderFacts { fallback: Some(fallback), ..chosen.clone() };
+    let row = settings(audience(), fallback(ReceivedFallback::Downloads));
+    assert_eq!(row["note"], "The last file couldn’t be saved here, so it went to Downloads.");
+    let row = settings(audience(), fallback(ReceivedFallback::Kept));
+    assert_eq!(
+        row["note"],
+        format!("The last file couldn’t be saved here, so {} kept it. Open it from its chat.", audience().app_name)
+    );
+
+    let mut older = audience();
+    older.helper_capabilities.clear();
+    let row = settings(older, chosen);
+    assert!(row.get("value").is_none() && row.get("change").is_none() && row.get("path").is_none(), "{row}");
+    assert_eq!(row["action"]["action"], "show_file");
+
+    let mut phone = audience();
+    phone.app_name = "Shenzhen 3D".into();
+    phone.capabilities.insert("files.share".into());
+    let ios = ReceivedFolderFacts { phone: Some(PhoneFolder::AppFiles), ..ReceivedFolderFacts::default() };
+    let row = settings(phone.clone(), ios);
+    assert_eq!(row["value"], "Shenzhen 3D");
+    assert_eq!(row["note"], "In the Files app, under On My iPhone.");
+    assert!(row["path"].is_null() && row["action"].is_null() && row["change"].is_null(), "{row}");
+    let android = ReceivedFolderFacts { phone: Some(PhoneFolder::Downloads), ..ReceivedFolderFacts::default() };
+    let row = settings(phone, android);
+    assert_eq!((row["value"].as_str(), row["note"].as_str()), (Some("Downloads"), Some("")));
+    assert!(row["path"].is_null() && row["action"].is_null() && row["change"].is_null(), "{row}");
+
+    let file = |id: &str, name: &str, at: i64, source: ReceivedSource| ReceivedFile {
+        transfer_id: id.into(),
+        path: format!("/Users/raph/Downloads/{name}"),
+        file_name: name.into(),
+        received_at: at,
+        source,
+    };
+    let files = [
+        file("t_9b31e7a2", "Supplier contract v3 (2).pdf", 1792310520, ReceivedSource::Friend),
+        file("t_c81f04d2", "Bracket rev B.step", 1792306810, ReceivedSource::Device),
+        file("t_5d0a6c11", "Site photos.zip", 1792221405, ReceivedSource::Link),
+        file("t_7e2f44b0", "Supplier contract v3.pdf", 1792138002, ReceivedSource::Friend),
+    ];
+    expect_fixture(&builder(audience()).received(&files), "received.json", "received");
 }
 
 fn join_requests() -> Vec<JoinRequestFacts> {

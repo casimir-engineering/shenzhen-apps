@@ -18,7 +18,22 @@ pub(super) const PEOPLE_AND_SETTINGS: &[(&str, &str)] = &[
     ("details.copy_id", "Copy {first}’s ID"),
     ("details.received.one", "Received from {first}: 1 file"),
     ("details.received.other", "Received from {first}: {count} files"),
-    ("details.remove_note", "Keeps your conversation. {first} can send you a new request."),
+    ("details.remove_note", "Takes {first} off your list. {first} can send you a new request."),
+    // Remove, from a list row's menu or a friend's details: it takes the person off the list.
+    ("menu.remove", "Remove"),
+    ("remove.confirm.title", "Remove {first}?"),
+    ("remove.confirm.title.request", "Cancel your request to {first}?"),
+    (
+        "remove.confirm.body.friend",
+        "{first} leaves your list and isn’t told. Anything still waiting to go to {first} won’t be sent.",
+    ),
+    ("remove.confirm.body", "{first} leaves your list. Either of you can send a new request later."),
+    ("remove.confirm.body.blocked", "{first} leaves your list and stays blocked."),
+    ("remove.confirm.body.request", "{first} won’t get your request, and leaves your list."),
+    ("remove.confirm.history", "Your chat history with {first} is kept unless you also delete it."),
+    ("remove.confirm.option", "Also delete chat history"),
+    ("remove.confirm.button", "Remove"),
+    ("remove.confirm.keep", "Keep request"),
     ("details.block_note", "{first} can’t reach you or send requests until you unblock."),
     ("details.unblock_note", "{first} can reach you and send requests again."),
     ("details.history.action", "Delete chat history…"),
@@ -35,7 +50,7 @@ pub(super) const PEOPLE_AND_SETTINGS: &[(&str, &str)] = &[
     ("details.history.confirm.stays.friend", "{first} stays your friend and keeps their own copy of the chat."),
     ("details.history.confirm.stays.blocked", "{first} stays blocked and keeps their own copy of the chat."),
     ("details.history.confirm.stays", "{first} keeps their own copy of the chat."),
-    ("details.history.confirm.files", "Files you received stay in Received files."),
+    ("details.history.confirm.files", "Files you received stay where they were saved."),
     (
         "details.history.confirm.assistant",
         "AI chat answers that quoted this chat stay in Chats until you delete them there.",
@@ -43,7 +58,7 @@ pub(super) const PEOPLE_AND_SETTINGS: &[(&str, &str)] = &[
     ("auto_accept.title", "Accept files from {first} automatically"),
     (
         "auto_accept.body",
-        "Files from {first} download without asking. They still go to Received files and never open by themselves.",
+        "Files from {first} download without asking. They’re saved where other received files go and never open by themselves.",
     ),
     ("key_change.title", "{first}’s key changed"),
     (
@@ -66,10 +81,20 @@ pub(super) const PEOPLE_AND_SETTINGS: &[(&str, &str)] = &[
     ("settings.name.label", "Your name"),
     ("settings.name.note", "The name your friends see."),
     ("settings.id.note", "People can add you with it."),
-    ("settings.received.label", "Received files"),
-    ("settings.received.note", "Files you accept from friends are saved here."),
+    ("settings.received.label", "Save received files to"),
+    ("settings.received.note", ""),
+    ("settings.received.note.fallback.downloads", "The last file couldn’t be saved here, so it went to Downloads."),
+    (
+        "settings.received.note.fallback.kept",
+        "The last file couldn’t be saved here, so {app} kept it. Open it from its chat.",
+    ),
+    ("settings.received.change", "Change…"),
+    ("settings.received.default", "Downloads"),
+    ("settings.received.note.ios", "In the Files app, under On My iPhone."),
+    ("error.received_folder.missing", "That folder can’t be found or opened. Choose another folder."),
+    ("error.received_folder.not_allowed", "Files can’t be saved in that folder. Choose another folder."),
     ("settings.auto.label", "Accept files automatically"),
-    ("settings.auto.action", "Change…"),
+    ("settings.auto.action", "Choose friends…"),
     ("settings.auto.note.some", "From {names}. Everyone else asks first."),
     ("settings.auto.note.only", "From {names}."),
     ("settings.auto.note.all", "From every friend."),
@@ -85,7 +110,7 @@ pub(super) const PEOPLE_AND_SETTINGS: &[(&str, &str)] = &[
         "settings.history.confirm.body",
         "Your messages and file history with every friend are deleted from this computer, and anything still waiting \
          to go won’t be sent. You keep your friends, and they keep their own copies of your chats. Files you received \
-         stay in Received files.",
+         stay where they were saved.",
     ),
     // Only for a host whose AI chat may read Friends chats (assistant.chats): answers there that quoted a friend
     // are the host's, not Friends', so deleting here leaves them, and saying nothing would be untrue from the
@@ -94,7 +119,7 @@ pub(super) const PEOPLE_AND_SETTINGS: &[(&str, &str)] = &[
         "settings.history.confirm.body.assistant",
         "Your messages and file history with every friend are deleted from this computer, and anything still waiting \
          to go won’t be sent. You keep your friends, and they keep their own copies of your chats. Files you received \
-         stay in Received files. AI chat answers that quoted your chats stay in Chats until you delete them there.",
+         stay where they were saved. AI chat answers that quoted your chats stay in Chats until you delete them there.",
     ),
     ("settings.history.confirm.button", "Delete History"),
     ("settings.reset.label", "Start over"),
@@ -145,15 +170,58 @@ pub(super) const PEOPLE_AND_SETTINGS: &[(&str, &str)] = &[
     (
         "settings.reset.confirm.body",
         "This deletes your friends and conversations from this computer and gives you a new ID. Every friend has to \
-         add you again. Files you received stay in Received files.",
+         add you again. Files you received stay where they were saved.",
     ),
     (
         "settings.reset.confirm.body.assistant",
         "This deletes your friends and conversations from this computer and gives you a new ID. Every friend has to \
-         add you again. Files you received stay in Received files. AI chat answers that quoted your conversations stay \
+         add you again. Files you received stay where they were saved. AI chat answers that quoted your conversations stay \
          in Chats until you delete them there.",
     ),
     ("settings.reset.confirm.button", "Reset Friends"),
+    // A phone or tablet (`files.share`): where history is kept and what deleting it removes, in its own words. Only
+    // the portable core serves one.
+    ("settings.history.note.phone", "Stored on this device. Deleting it keeps your friends and the files you received."),
+    (
+        "settings.history.note.devices.phone",
+        "Stored on all your devices. Deleting it keeps your friends and the files you received.",
+    ),
+    (
+        "settings.history.confirm.body.phone",
+        "Your messages and file history with every friend are deleted from this device, and anything still waiting \
+         to go won’t be sent. You keep your friends, and they keep their own copies of your chats. Files you received \
+         stay where they were saved.",
+    ),
+    (
+        "settings.history.confirm.body.assistant.phone",
+        "Your messages and file history with every friend are deleted from this device, and anything still waiting \
+         to go won’t be sent. You keep your friends, and they keep their own copies of your chats. Files you received \
+         stay where they were saved. AI chat answers that quoted your chats stay in Chats until you delete them there.",
+    ),
+    (
+        "settings.history.confirm.body.devices.phone",
+        "Your messages and file history, with every friend and in You, are deleted from this device, and from your \
+         other devices as soon as they connect. Anything still waiting to go won’t be sent. You keep your friends, \
+         and they keep their own copies of your chats. Files you received stay where they were saved.",
+    ),
+    (
+        "settings.history.confirm.body.assistant.devices.phone",
+        "Your messages and file history, with every friend and in You, are deleted from this device, and from your \
+         other devices as soon as they connect. Anything still waiting to go won’t be sent. You keep your friends, \
+         and they keep their own copies of your chats. Files you received stay where they were saved. AI chat answers \
+         that quoted your chats stay in Chats until you delete them there.",
+    ),
+    (
+        "settings.reset.confirm.body.phone",
+        "This deletes your friends and conversations from this device and gives you a new ID. Every friend has to \
+         add you again. Files you received stay where they were saved.",
+    ),
+    (
+        "settings.reset.confirm.body.assistant.phone",
+        "This deletes your friends and conversations from this device and gives you a new ID. Every friend has to \
+         add you again. Files you received stay where they were saved. AI chat answers that quoted your conversations \
+         stay in Chats until you delete them there.",
+    ),
     // Search
     ("search.sender.you", "You"),
     ("search.empty", "No messages or files match."),
@@ -214,6 +282,10 @@ pub(super) const ERRORS: &[(&str, &str)] = &[
         "error.internal.identity_not_removed",
         "Nothing was reset: Friends couldn’t remove your old ID from this computer. Make sure it’s unlocked, then \
          try again.",
+    ),
+    (
+        "error.internal.identity_not_removed.phone",
+        "Nothing was reset: Friends couldn’t remove your old ID from this device. Try again.",
     ),
     // Before this computer reaches friends online: true nearby and, once it does, online too.
     (

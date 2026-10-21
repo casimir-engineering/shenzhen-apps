@@ -90,7 +90,8 @@ export async function render(
     bridge,
     report: () => {},
     openConversation: () => {},
-    confirm: async () => true,
+    confirm: async () => ({ option: false }),
+    openJoin: () => {},
   };
   return {
     html: renderToStaticMarkup(
@@ -131,7 +132,6 @@ export function pageFor(
           onCancelOutgoing: none,
           onSent: none,
           onProfile: none,
-          onJoin: none,
         }),
       };
     case "nearby":
@@ -148,7 +148,6 @@ export function pageFor(
           onCancelOutgoing: none,
           onSent: none,
           onProfile: none,
-          onJoin: none,
         }),
       };
     case "conversation": {

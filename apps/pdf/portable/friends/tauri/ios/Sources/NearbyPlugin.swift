@@ -70,6 +70,7 @@ private func bytes(_ hex: String) -> Data {
   return data
 }
 
+/// FriendsPlugin extends it: Tauri keeps one Swift plugin per Tauri plugin, so Nearby answers through that one.
 class NearbyPlugin: Plugin {
   private let network = NetworkDiscovery()
   private let radio = BluetoothRadio()
@@ -178,9 +179,4 @@ class NearbyPlugin: Plugin {
     Streams.shared.close(try invoke.parseArgs(StreamArgs.self).stream)
     invoke.resolve()
   }
-}
-
-@_cdecl("init_plugin_szfriends_nearby")
-func initNearbyPlugin() -> Plugin {
-  return NearbyPlugin()
 }

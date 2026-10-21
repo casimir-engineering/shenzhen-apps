@@ -1,7 +1,7 @@
 // friends-ui-e2e's flows for one person (SPDFMacFriendsUIE2E.h): the first open, choosing the name, renaming it,
 // the tabs, being visible, Add by ID, Settings with Reset Friends, Escape, and the Nearby permission cards.
 
-#import "SPDFMacFriendsUIE2E.h"
+#import "SPDFMacFriendsUIFlowsInternal.h"
 
 #import "mac/SZFriendsDetailsPage.h"
 #import "mac/SZFriendsListPage.h"
@@ -9,33 +9,20 @@
 
 static NSString* const UITooLong = @"Abcdefghij Abcdefghij Abcdefghij Abcdefghij"; // 43 characters: over 40
 
-static NSDictionary* UIFooter(UIRig* rig) {
+NSDictionary* UIFooter(UIRig* rig) {
     return rig.snapshots[@"list"][@"footer"];
 }
 
-static NSString* UISavedName(UIRig* rig) {
+NSString* UISavedName(UIRig* rig) {
     id name = UIFooter(rig)[@"name"];
     return [name isKindOfClass:NSString.class] ? name : nil;
 }
 
-static BOOL UIClickOrFail(UIRig* rig, NSView* _Nullable view, NSString* what, const char* file, int line) {
+BOOL UIClickOrFail(UIRig* rig, NSView* _Nullable view, NSString* what, const char* file, int line) {
     NSString* why = nil;
     if (view && UIClick(view, &why)) return YES;
     UIFail(rig, file, line, "a click reaches it", [NSString stringWithFormat:@"%@: %@", what, why ?: @"not found"]);
     return NO;
-}
-#define CLICK(rig, view, what)                                                                                     \
-    do {                                                                                                           \
-        if (!UIClickOrFail(rig, view, what, __FILE__, __LINE__)) return NO;                                       \
-    } while (0)
-
-// Visible buttons titled `title` under `root`: one card, one button (the Nearby cards).
-static NSUInteger UICountButtons(NSView* root, NSString* title) {
-    NSUInteger count = 0;
-    for (NSView* view in UIAllViews(root))
-        if ([view isKindOfClass:NSButton.class] && [((NSButton*)view).title isEqualToString:title] && UIVisible(view))
-            count++;
-    return count;
 }
 
 static NSString* UISavedText(NSString* name) {
@@ -376,128 +363,6 @@ static BOOL UIAddByID(UIRig* rig) {
     return YES;
 }
 
-#pragma mark - Settings, Reset Friends
-
-// Settings in a window of its own, as the reader's Settings shows the section; the caller closes it.
-static NSWindow* UISettingsWindow(UIRig* rig, SZFriendsSettingsSection* section) {
-    section.context.openURL = ^(NSURL* url) { [rig.openedURLs addObject:url]; };
-    section.context.pasteboard = [NSPasteboard pasteboardWithUniqueName];
-    NSWindow* settings = [[NSWindow alloc] initWithContentRect:NSMakeRect(0, 0, 560, 640)
-                                                     styleMask:NSWindowStyleMaskTitled | NSWindowStyleMaskClosable
-                                                       backing:NSBackingStoreBuffered defer:NO];
-    settings.releasedWhenClosed = NO;
-    settings.title = @"Settings";
-    settings.appearance = [NSAppearance appearanceNamed:rig.variant.appearance];
-    NSView* view = section.view;
-    view.frame = NSMakeRect(20, 20, 520, 600);
-    [settings.contentView addSubview:view];
-    [settings setFrameTopLeftPoint:NSMakePoint(NSMaxX(rig.window.frame) - 600, NSMaxY(rig.window.frame))];
-    [settings orderFrontRegardless];
-    [section sectionWillAppear];
-    return settings;
-}
-
-// The sheet once it is up and still (the same frame for a few turns in a row) and a person has had a moment to read
-// it. A press on "Reset Friends" within a tenth of a second of the sheet appearing was dropped about one try in
-// twelve, and the same press repeated a second later went through; 0.6 s after the sheet appeared, 20 tries of 20
-// went through. A person never clicks that fast, so the harness waits as they would.
-static NSWindow* UISheet(NSWindow* window) {
-    __block NSWindow* sheet = nil;
-    if (!UIWait(5, ^BOOL { return (sheet = window.attachedSheet) != nil && sheet.isVisible; })) return nil;
-    __block NSRect last = NSZeroRect;
-    __block int steady = 0;
-    UIWait(5, ^BOOL {
-        NSRect frame = sheet.frame;
-        steady = NSEqualRects(frame, last) ? steady + 1 : 0;
-        last = frame;
-        return steady >= 3;
-    });
-    UISpin(0.6);
-    return sheet;
-}
-
-static BOOL UISettingsAndReset(UIRig* rig) {
-    UIBeginFlow(rig, @"settings-reset");
-    UICloseDropdown(rig);
-    NSString* idBefore = [UIFooter(rig)[@"friends_id"] description];
-    SZFriendsSettingsSection* section = [[SZFriendsSettingsSection alloc] initWithHost:rig.host link:rig.link];
-    NSWindow* settings = UISettingsWindow(rig, section);
-    NSView* view = section.view;
-    EXPECT(rig, UIWait(5, ^BOOL { return UIFindButton(view, @"Reset Friends…") != nil; }),
-           "Settings shows Reset Friends…:\n%@", UIDescribe(view));
-    NSString* name = UISavedName(rig);
-    EXPECT(rig, name && [section.nameField.stringValue isEqualToString:name], "Settings shows the name %@: %@", name,
-           section.nameField.stringValue);
-    UIShotWindow(rig, settings, @"settings");
-    // Cancel: the sheet goes and nothing changes.
-    CLICK(rig, UIFindButton(view, @"Reset Friends…"), @"Reset Friends…");
-    NSWindow* sheet = UISheet(settings);
-    EXPECT(rig, sheet && UIFindText(sheet.contentView, @"Reset Friends?"), "the confirmation sheet asks");
-    UIShotWindow(rig, sheet, @"confirm");
-    CLICK(rig, UIFindButton(sheet.contentView, @"Cancel"), @"Cancel");
-    EXPECT(rig, UIWait(5, ^BOOL { return settings.attachedSheet == nil; }), "Cancel closes the sheet");
-    UISpin(0.3);
-    EXPECT(rig, [[UIFooter(rig)[@"friends_id"] description] isEqualToString:idBefore] &&
-                    [UISavedName(rig) isEqualToString:name],
-           "Cancel changes nothing: %@", UIFooter(rig));
-    // Confirm: a new ID, no name, and the dropdown asks for a name again.
-    CLICK(rig, UIFindButton(view, @"Reset Friends…"), @"Reset Friends…");
-    sheet = UISheet(settings);
-    EXPECT(rig, sheet != nil, "the sheet again");
-    NSInteger before = UISnapshotCount(rig, @"list");
-    UIShotWindow(rig, sheet, @"confirm-again");
-    CLICK(rig, UIFindButton(sheet.contentView, @"Reset Friends"), @"Reset Friends");
-    EXPECT(rig, UIWait(5, ^BOOL { return settings.attachedSheet == nil; }), "the sheet closes");
-    EXPECT(rig, UIWait(10, ^BOOL {
-               return UISnapshotCount(rig, @"list") > before &&
-                      ![[UIFooter(rig)[@"friends_id"] description] isEqualToString:idBefore];
-           }), "Reset gives a new ID: %@ (was %@)", UIFooter(rig), idBefore);
-    EXPECT(rig, !UISavedName(rig), "and no name");
-    UIShotWindow(rig, settings, @"after-reset");
-    [section sectionDidDisappear];
-    [settings orderOut:nil];
-    [settings close];
-    EXPECT(rig, UIOpenDropdown(rig), "the dropdown opens");
-    NSString* newID = UIFooter(rig)[@"id_label"];
-    EXPECT(rig, UIWait(5, ^BOOL { return UIFindText(rig.content, @"Choose the name friends see") != nil; }) &&
-                    UIFindText(rig.listPage.footer, newID),
-           "after Reset the card asks for a name, and the footer shows %@", newID);
-    UIShot(rig, @"dropdown-after-reset");
-    return YES;
-}
-
-#pragma mark - The name saved elsewhere, seen on Nearby
-
-// The root cause of the owner's stuck card (2026-10-20): the list page dropped its `list` subscription while Nearby
-// showed, and the card comes from it. Here the name is saved by another client of the same helper (another app),
-// so nothing in the card's editor runs: only the subscription can take the card away. Reverting the subscription
-// fix fails this step even though the editor hides the card after its own Save.
-static BOOL UINameSavedElsewhere(UIRig* rig) {
-    UIBeginFlow(rig, @"name-elsewhere");
-    UICloseDropdown(rig);
-    SZFE2EClient* other = [SZFE2EClient clientForHelper:rig.helper];
-    EXPECT(rig, other != nil, "another app connects to the helper");
-    NSDictionary* reply = [other intent:@"reset_friends" fields:@{@"confirm" : @"reset"}];
-    EXPECT(rig, [reply[@"ok"] boolValue], "the other app resets Friends: %@", reply);
-    EXPECT(rig, UIOpenDropdown(rig), "the dropdown opens");
-    SZFriendsListPage* list = rig.listPage;
-    CLICK(rig, list.nearbyTab, @"the Nearby tab");
-    EXPECT(rig, UIWait(5, ^BOOL { return list.showingNearby && list.namePromptEditor != nil; }),
-           "on Nearby, the card asks for a name");
-    UIShot(rig, @"asks");
-    reply = [other intent:@"set_name" fields:@{@"name" : @"Mika"}];
-    EXPECT(rig, [reply[@"ok"] boolValue], "the other app saves a name: %@", reply);
-    EXPECT(rig, UIWait(5, ^BOOL {
-               return list.namePromptEditor == nil && !UIFindText(rig.content, @"Choose the name friends see");
-           }), "the card goes on Nearby, though nothing was typed in it");
-    EXPECT(rig, !list.showingNameSaved, "and claims no save of its own");
-    EXPECT(rig, UIWait(3, ^BOOL { return UIFindText(list.footer, @"Mika") != nil; }), "the footer shows Mika");
-    UIShot(rig, @"gone");
-    CLICK(rig, list.friendsTab, @"the Friends tab");
-    [other close];
-    return YES;
-}
-
 #pragma mark - Escape
 
 static BOOL UIEscape(UIRig* rig) {
@@ -569,114 +434,3 @@ BOOL UIFlowSolo(SZFE2EWorld* world, UIVariant* variant) {
     return all;
 }
 
-#pragma mark - Nearby permission cards (simulated states)
-
-static BOOL UIWriteState(NSString* path, NSString* word) {
-    return [word writeToFile:path atomically:YES encoding:NSUTF8StringEncoding error:nil];
-}
-
-static NSUInteger UIStarts(NSString* path) {
-    NSString* text = [NSString stringWithContentsOfFile:[path stringByAppendingString:@".starts"]
-                                               encoding:NSUTF8StringEncoding error:nil];
-    return text.length ? [text componentsSeparatedByString:@"start"].count - 1 : 0;
-}
-
-static BOOL UIPermissionCards(UIRig* rig, NSString* script) {
-    UIBeginFlow(rig, @"permission");
-    // Never asked, and Friends never opened: nothing has started, and Settings offers Allow.
-    SZFriendsSettingsSection* section = [[SZFriendsSettingsSection alloc] initWithHost:rig.host link:rig.link];
-    NSWindow* settings = UISettingsWindow(rig, section);
-    NSView* view = section.view;
-    EXPECT(rig, UIWait(5, ^BOOL { return UIFindText(view, @"to find people nearby") != nil; }),
-           "Settings says Nearby waits to be allowed:\n%@", UIDescribe(view));
-    NSButton* allow = UIFindButton(view, @"Allow");
-    EXPECT(rig, allow && allow.enabled, "with Allow");
-    EXPECT(rig, UIStarts(script) == 0, "nothing started before the person allowed it");
-    UIShotWindow(rig, settings, @"settings-not-asked");
-    CLICK(rig, allow, @"Allow");
-    EXPECT(rig, UIWait(5, ^BOOL { return UIStarts(script) == 1; }), "Allow starts Nearby (%lu starts)",
-           (unsigned long)UIStarts(script));
-    EXPECT(rig, UIWait(5, ^BOOL { return !UIFindButton(view, @"Allow"); }), "Allow goes once it has started");
-    UIWriteState(script, @"working");
-    UISpin(0.5);
-    UIShotWindow(rig, settings, @"settings-allowed");
-    [section sectionDidDisappear];
-    [settings orderOut:nil];
-    [settings close];
-
-    EXPECT(rig, UIOpenDropdown(rig), "the dropdown opens");
-    SZFriendsListPage* list = rig.listPage;
-    CLICK(rig, list.nearbyTab, @"the Nearby tab");
-    EXPECT(rig, UIWait(5, ^BOOL {
-               return UIReveal(rig.content, @"Looking for people nearby") || UIReveal(rig.content, @"Nobody visible");
-           }), "allowed, Nearby looks:\n%@", UIDescribe(rig.content));
-    UIShot(rig, @"working");
-    // Local Network off: the card says so and opens Privacy settings (recorded, never opened).
-    UIWriteState(script, @"denied");
-    EXPECT(rig, UIWait(5, ^BOOL { return UIFindButton(rig.content, @"Open Privacy Settings") != nil; }),
-           "Local Network off shows the way to turn it on");
-    EXPECT(rig, UIReveal(rig.content, @"can’t find people on your network"), "and says what is wrong");
-    // One card, one button, nothing under it saying more or the opposite (the owner's report of 2026-10-20: two
-    // Open Privacy Settings, "Bluetooth isn't working either" and "Nearby isn't working right now" under the card).
-    EXPECT(rig, UICountButtons(rig.content, @"Open Privacy Settings") == 1, "one Open Privacy Settings, not %lu",
-           (unsigned long)UICountButtons(rig.content, @"Open Privacy Settings"));
-    EXPECT(rig, UICountButtons(rig.content, @"Try Again") == 0 && !UIReveal(rig.content, @"either") &&
-                    !UIReveal(rig.content, @"isn’t working right now") && !UIReveal(rig.content, @"People nearby") &&
-                    !UIReveal(rig.content, @"to be visible to people nearby"),
-           "nothing under the card:\n%@", UIDescribe(rig.content));
-    UIShot(rig, @"denied");
-    CLICK(rig, UIFindButton(rig.content, @"Open Privacy Settings"), @"Open Privacy Settings");
-    EXPECT(rig, UIWait(3, ^BOOL { return rig.openedURLs.count > 0; }) &&
-                    [rig.openedURLs.lastObject.absoluteString containsString:@"Privacy"],
-           "the button opens Privacy & Security: %@", rig.openedURLs);
-    // Wi-Fi off.
-    UIWriteState(script, @"radio_off");
-    EXPECT(rig, UIWait(5, ^BOOL { return UIFindButton(rig.content, @"Open Wi-Fi Settings") != nil; }),
-           "Wi-Fi off offers Wi-Fi settings");
-    EXPECT(rig, UIReveal(rig.content, @"Wi-Fi is off"), "and says Wi-Fi is off");
-    EXPECT(rig, UICountButtons(rig.content, @"Open Wi-Fi Settings") == 1 &&
-                    UICountButtons(rig.content, @"Open Privacy Settings") == 0 &&
-                    UICountButtons(rig.content, @"Try Again") == 0 && !UIReveal(rig.content, @"People nearby"),
-           "one card, one button:\n%@", UIDescribe(rig.content));
-    UIShot(rig, @"radio-off");
-    // Not working: Try Again starts it again.
-    UIWriteState(script, @"unavailable");
-    __block NSView* card = nil;
-    EXPECT(rig, UIWait(5, ^BOOL {
-               NSView* title = UIReveal(rig.content, @"can’t find people on your network right now");
-               card = title.superview;
-               return card && UIFindButton(card, @"Try Again") != nil;
-           }), "a failing Nearby says so, with Try Again");
-    EXPECT(rig, UICountButtons(rig.content, @"Try Again") == 1 && !UIReveal(rig.content, @"either") &&
-                    !UIReveal(rig.content, @"People nearby can’t see you") && !UIReveal(rig.content, @"People nearby"),
-           "one Try Again, nothing under the card:\n%@", UIDescribe(rig.content));
-    UIShot(rig, @"unavailable");
-    NSUInteger starts = UIStarts(script);
-    NSButton* again = UIFindButton(card, @"Try Again");
-    CLICK(rig, again, @"Try Again");
-    EXPECT(rig, UIWait(5, ^BOOL { return UIStarts(script) > starts; }), "Try Again starts Nearby again");
-    UIWriteState(script, @"working");
-    EXPECT(rig, UIWait(5, ^BOOL { return !UIReveal(rig.content, @"can’t find people on your network"); }),
-           "working again, the card goes");
-    UIShot(rig, @"working-again");
-    return YES;
-}
-
-BOOL UIFlowPermission(SZFE2EWorld* world, UIVariant* variant) {
-    [world beginScenario:[@"permission-" stringByAppendingString:variant.name]];
-    NSString* script = [world.scenarioDirectory stringByAppendingPathComponent:@"nearby-state"];
-    UIWriteState(script, @"not_asked");
-    // No loopback method: the scripted one alone, so its state is Nearby's whole story.
-    UIRig* rig = UIStartRig(world, variant, @"perm",
-                            @{@"SZFRIENDS_E2E_NEARBY_SCRIPT" : script, @"SZFRIENDS_TEST_SERVICE_TYPE" : @""});
-    BOOL passed = NO;
-    if (rig) {
-        int failuresBefore = UIFailures;
-        passed = UIPermissionCards(rig, script) && UIFailures == failuresBefore;
-        if (!passed) [world printLogs];
-        UIStopRig(rig);
-    }
-    UIRecord(variant, @"Allow and the Nearby permission cards", passed);
-    [world endScenario];
-    return passed;
-}

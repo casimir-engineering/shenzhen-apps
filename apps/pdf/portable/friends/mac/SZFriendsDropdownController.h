@@ -50,6 +50,8 @@ typedef NS_ENUM(NSInteger, SZFriendsDropdownView) {
 - (void)close;
 // Opens the dropdown on a conversation with the message highlighted (Cmd+K results, assistant citations).
 - (void)showConversation:(NSString *)conversationID highlightMessage:(nullable NSString *)messageID;
+// Opens the dropdown on the list, whatever page it was left on (a notification about a computer joining).
+- (void)showList;
 // Opens the list in "Send N files to…" mode; the next friend clicked receives one offer per item. Escape cancels.
 - (void)beginSendPickerWithItems:(NSArray<SZFriendsAttachableItem *> *)items;
 
@@ -59,6 +61,10 @@ typedef NS_ENUM(NSInteger, SZFriendsDropdownView) {
 // Opens the dropdown on the link page for a payload the host already checked (§ Links, The app's URL): the helper's
 // card, and nothing happens until the person presses one of its actions.
 - (void)showLinkPayload:(NSString *)payload;
+
+// Posted with the link as its object when a view outside the dropdown (Settings' "Use my existing profile…") needs
+// the join page: the dropdown of that link opens on it (PROTOCOL.md § Joining, Offering it).
+extern NSNotificationName const SZFriendsShowJoinNotification;
 // make_download_link for `item`, valid `days` (1, 7 or 30), then the link on the pasteboard. `completion` runs once
 // on the main thread with the words to show: the helper's message, or its error's (nil when it gave none).
 - (void)copyDownloadLinkForItem:(SZFriendsAttachableItem *)item

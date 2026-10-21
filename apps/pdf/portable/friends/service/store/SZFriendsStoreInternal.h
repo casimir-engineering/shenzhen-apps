@@ -240,6 +240,9 @@ extern void (*_Nullable SZFriendsStoreTestHook)(const char *point);
 // Forces the copy path of SZFriendsSnapshotFile, where free space is checked; a clone needs none, so the low-disk
 // refusal is unreachable on APFS otherwise. Tests only.
 extern BOOL SZFriendsSnapshotDisableClone;
+// Publishes received files as if the destination were on another volume (the copy through a hidden part file), which
+// a test cannot otherwise reach without mounting a volume. Tests only.
+extern BOOL SZFriendsPublishAcrossVolumes;
 static inline void SZFriendsStoreTestPoint(const char *point) {
     if (SZFriendsStoreTestHook) SZFriendsStoreTestHook(point);
 }

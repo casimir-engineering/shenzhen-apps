@@ -229,7 +229,7 @@ static id RFC3339(NSDate *date) {
         spoken = [@[ title, [s spokenFragment:status ?: subtitle] ] componentsJoinedByString:@", "];
     }
     NSString *seed = person.conversationID ?: person.nearbyID ?: title;
-    return @{
+    return [self row:@{
         @"nearby_id" : person.nearbyID ?: [NSNull null],
         @"conversation_id" : person.conversationID ?: [NSNull null],
         @"avatar" : [self avatarForPicture:person.picture seed:seed
@@ -239,7 +239,7 @@ static id RFC3339(NSDate *date) {
         @"status_label" : status ?: [NSNull null],
         @"action" : action,
         @"accessibility_label" : spoken
-    };
+    } foundWithMethods:person.foundMethods];
 }
 
 - (NSDictionary<NSString *, id> *)buildNearbyWithFacts:(SZFriendsNearbyFacts *)nearby

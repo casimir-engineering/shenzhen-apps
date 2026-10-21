@@ -3,7 +3,7 @@
 // AppKit views only. The host adapter owns the "Enable Shenzhen Friends" checkbox and the disclosure text,
 // because they show while Friends is off and no helper runs (PROTOCOL.md § Views, settings). While Friends is on,
 // the host places this section's view under them; it renders the `settings` snapshot (name, ID with Copy,
-// received files with Show in Finder, automatic acceptance per friend, Delete history and Reset Friends with their
+// the folder received files are saved to with Change… and Show in Finder, automatic acceptance per friend, Delete history and Reset Friends with their
 // confirmations) and sends the matching intents. It holds no logic beyond rendering, like the dropdown.
 
 #import <AppKit/AppKit.h>

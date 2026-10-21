@@ -6,14 +6,19 @@ import type { Composer as ComposerData, ListData, ListRow } from "./protocol";
 import { utf8Length } from "./actions";
 import { AvatarView, RichText, usePanel } from "./parts";
 import { useView } from "./store";
-import { dragHasFiles, filesFromDrop, type OutgoingFile } from "./drops";
+import {
+  AttachRefused,
+  dragHasFiles,
+  filesFromDrop,
+  type OutgoingFile,
+} from "./drops";
 
 export type AttachItem = {
   title: string;
   detail: string;
   kind_label: string;
-  /** Prepares the file; nothing is sent until Send. */
-  file(): Promise<OutgoingFile>;
+  /** Prepares the file, or the files a model is made of; nothing is sent until Send. A refusal says why not. */
+  file(): Promise<OutgoingFile | OutgoingFile[]>;
 };
 export type AttachSource = {
   /** The host's words for what `#` searches (PROTOCOL.md § Principles: the host's own placeholder). */
@@ -206,14 +211,17 @@ export function ComposerView({
       const item = items[index];
       if (!item) return;
       replaceTrigger(null);
+      setRefusal(null);
       try {
-        const file = await item.file();
+        const prepared = await item.file();
+        const files = Array.isArray(prepared) ? prepared : [prepared];
         setAttachments((old) => [
-          ...old.filter((entry) => entry.path !== file.path),
-          file,
+          ...old.filter((entry) => !files.some((f) => f.path === entry.path)),
+          ...files,
         ]);
-      } catch {
-        /* The host could not prepare the item; nothing was attached. */
+      } catch (failure) {
+        // Nothing was attached. A refusal says why; otherwise the host has said so itself.
+        if (failure instanceof AttachRefused) setRefusal(failure.message);
       }
     }
   };
@@ -231,14 +239,18 @@ export function ComposerView({
     drafts.set(conversationId, { ...entry, parts });
     setSending(true);
     try {
-      const fields: Record<string, unknown> = {
-        conversation_id: conversationId,
-        text,
-        client_token: entry.token,
-      };
-      if (attachments.length) fields.attachments = attachments;
+      // Files with no words go as files alone, as a drop on the chat sends them, not under an empty message.
+      const filesOnly = !text.trim() && !mentions.length;
+      const fields: Record<string, unknown> = filesOnly
+        ? { conversation_id: conversationId, files: attachments }
+        : { conversation_id: conversationId, text };
+      fields.client_token = entry.token;
+      if (!filesOnly && attachments.length) fields.attachments = attachments;
       if (mentions.length) fields.mentions = mentions;
-      const reply = await store.send("send_message", fields);
+      const reply = await store.send(
+        filesOnly ? "send_files" : "send_message",
+        fields,
+      );
       panel.report(reply);
       if (reply.ok) {
         drafts.delete(conversationId);

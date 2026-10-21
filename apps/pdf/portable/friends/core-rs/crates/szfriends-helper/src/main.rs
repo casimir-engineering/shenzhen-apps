@@ -55,25 +55,21 @@ fn run(argument: Option<&str>, own: &stamp::Stamp) -> ExitCode {
     }
 }
 
-/// The Friends service for the person's state directory; the stub, which serves an empty badge, when the identity
-/// or the store cannot be opened (the log says why).
+/// The Friends service for the person's state directory, which Reset Friends replaces with a new identity's; the
+/// stub, which serves an empty badge, when the identity or the store cannot be opened (the log says why).
 #[cfg(any(target_os = "linux", windows))]
 fn presentation(
     state: &szfriends_helper::state::StateDir,
 ) -> std::sync::Arc<dyn szfriends_helper::presentation::Presentation> {
     use szfriends_helper::presentation::StubPresentation;
-    use szfriends_helper::service::Service;
+    use szfriends_helper::service::reset::Resettable;
     if let Err(error) = state.prepare() {
         szfriends_helper::log!("no state directory: {error}");
         return std::sync::Arc::new(StubPresentation::default());
     }
-    match Service::start(&state.path, szfriends_helper::key_store(state)) {
-        Ok(service) => service,
-        Err(error) => {
-            szfriends_helper::log!("Friends service not started: {error}");
-            std::sync::Arc::new(StubPresentation::default())
-        }
-    }
+    let home = state.clone();
+    let keys = std::sync::Arc::new(move || szfriends_helper::key_store(&home));
+    Resettable::start(state.path.clone(), keys, state.received_defaults())
 }
 
 /// On a Mac the Objective-C helper serves Friends (ADR 0015 § 2); nothing Rust runs there as a helper.

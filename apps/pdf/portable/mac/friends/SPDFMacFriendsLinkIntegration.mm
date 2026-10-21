@@ -17,6 +17,7 @@ static NSString* const SPDFMacFriendsLinkScheme = @"shenzhenpdf";
 @interface ShenzhenMacDelegate (SPDFMacFriendsLinksPrivate)
 - (BOOL)friendsValidateShareItem:(NSMenuItem*)item;
 - (void)friendsOpenLinkPayload:(NSString*)payload;
+- (void)friendsOpenRoute:(NSString*)route;
 - (void)friendsAskToTurnOnForLink;
 - (void)friendsCopyDownloadLink:(id)sender;
 @end
@@ -48,11 +49,14 @@ static BOOL SPDFMacFriendsCanShare(NSString* path) {
 - (void)application:(NSApplication*)application openURLs:(NSArray<NSURL*>*)urls {
     NSMutableArray<NSString*>* paths = [NSMutableArray array];
     NSMutableArray<NSString*>* payloads = [NSMutableArray array];
+    NSMutableArray<NSString*>* routes = [NSMutableArray array];
     // A URL that fails the check is dropped without a word: no link's page made it, and saying anything about it
     // would only let whoever crafted it put words in front of the person.
-    SPDFMacFriendsSortOpenedURLs(urls, SPDFMacFriendsLinkScheme, paths, payloads);
+    SPDFMacFriendsSortOpenedURLsWithRoutes(urls, SPDFMacFriendsLinkScheme, paths, payloads, routes);
     // The last link wins: the person pressed it most recently.
     if (payloads.count) [self friendsOpenLinkPayload:payloads.lastObject];
+    // A notification's click (portable/friends/PROTOCOL.md § Notifications): the dropdown on that conversation.
+    else if (routes.count) [self friendsOpenRoute:routes.lastObject];
     // With this method implemented AppKit no longer calls -application:openFiles:, so documents go there as before.
     if (paths.count) [self application:application openFiles:paths];
 }
@@ -65,8 +69,25 @@ static BOOL SPDFMacFriendsCanShare(NSString* path) {
     // Otherwise Friends attaches after the first paint, which shows it.
 }
 
+// Friends off in this app: the click still brings ShenzhenPDF forward, and there is no dropdown to open.
+- (void)friendsOpenRoute:(NSString*)route {
+    SPDFMacFriendsReaderState* state = [self friendsState];
+    state.pendingRoute = route;
+    if (state.dropdown) [self friendsShowPendingLink];
+    else if (!SPDFMacFriendsSettingsState.sharedState.enabled) state.pendingRoute = nil;
+    // Otherwise Friends attaches after the first paint, which shows it.
+}
+
 - (void)friendsShowPendingLink {
     SPDFMacFriendsReaderState* state = [self friendsState];
+    NSString* route = state.pendingRoute;
+    if (route && state.dropdown) {
+        state.pendingRoute = nil;
+        [_window makeKeyAndOrderFront:nil];
+        [NSApp activateIgnoringOtherApps:YES];
+        if (route.length) [state.dropdown showConversation:route highlightMessage:nil];
+        else [state.dropdown showList];
+    }
     NSString* payload = state.pendingLinkPayload;
     if (!payload.length || !state.dropdown) return;
     state.pendingLinkPayload = nil;

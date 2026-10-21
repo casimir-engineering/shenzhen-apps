@@ -8,6 +8,8 @@ use rusqlite::{params, Connection, OptionalExtension, Row};
 
 use super::{is_valid_identifier, new_identifier, unix_now, Result, StoreError};
 
+pub use super::sync_settings::{own_presence_secret, set_own_presence_secret, set_setting, setting};
+
 /// `SZFriendsPicture`: placeholder 0, animal 1, image 2.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Picture {
@@ -75,6 +77,8 @@ pub struct SyncPerson {
     pub request_at: Option<f64>,
     pub request_found_nearby: bool,
     pub unconfirmed_answer_id: Option<String>,
+    /// Off the list since (Removed or Blocked only; see `Person::left_list_at`).
+    pub left_list_at: Option<f64>,
 }
 
 impl SyncPerson {
@@ -101,6 +105,7 @@ impl SyncPerson {
             request_at: None,
             request_found_nearby: false,
             unconfirmed_answer_id: None,
+            left_list_at: None,
         }
     }
 }
@@ -132,13 +137,15 @@ fn person_from_row(row: &Row) -> rusqlite::Result<SyncPerson> {
         request_at: row.get(21)?,
         request_found_nearby: row.get::<_, i64>(22)? != 0,
         unconfirmed_answer_id: row.get(23)?,
+        left_list_at: row.get(24)?,
     })
 }
 
 /// People matching `clause` (with one bind), latest interaction first.
 pub fn sync_people(conn: &Connection, clause: &str, bind: Option<&dyn rusqlite::ToSql>) -> Result<Vec<SyncPerson>> {
     let sql = format!(
-        "SELECT {PERSON_COLUMNS}, CASE WHEN relation = 0 THEN unconfirmed_answer_id END FROM friends {clause} \
+        "SELECT {PERSON_COLUMNS}, CASE WHEN relation = 0 THEN unconfirmed_answer_id END, \
+         CASE WHEN relation IN (3, 4) THEN left_list_at END FROM friends {clause} \
          ORDER BY last_interaction_at DESC, conversation_id"
     );
     let mut statement = conn.prepare(&sql)?;
@@ -190,11 +197,12 @@ pub fn sync_save_person(conn: &Connection, person: &mut SyncPerson) -> Result<()
         person.request_at.filter(|at| *at < now).unwrap_or(now)
     });
     let unconfirmed = if person.relation == 0 { person.unconfirmed_answer_id.clone() } else { None };
+    let left_list_at = super::people::may_be_off_the_list(person.relation).then_some(person.left_list_at).flatten();
     let p = &*person;
     conn.execute(
         &format!(
-            "INSERT INTO friends ({PERSON_COLUMNS}, request_since, unconfirmed_answer_id) \
-             VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19,?20,?21,?22,?23,?24,?25) \
+            "INSERT INTO friends ({PERSON_COLUMNS}, request_since, unconfirmed_answer_id, left_list_at) VALUES \
+             (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19,?20,?21,?22,?23,?24,?25,?26) \
              ON CONFLICT(conversation_id) DO UPDATE SET identity_pk = excluded.identity_pk, \
              static_pk = excluded.static_pk, friends_id = excluded.friends_id, name = excluded.name, \
              picture_kind = excluded.picture_kind, picture_set = excluded.picture_set, \
@@ -207,7 +215,7 @@ pub fn sync_save_person(conn: &Connection, person: &mut SyncPerson) -> Result<()
              callback_secret = excluded.callback_secret, \
              last_interaction_at = max(friends.last_interaction_at, excluded.last_interaction_at), \
              request_at = excluded.request_at, request_found_nearby = excluded.request_found_nearby, \
-             unconfirmed_answer_id = excluded.unconfirmed_answer_id, \
+             unconfirmed_answer_id = excluded.unconfirmed_answer_id, left_list_at = excluded.left_list_at, \
              request_since = CASE WHEN excluded.relation NOT IN (0, 1) THEN NULL \
              WHEN friends.relation = excluded.relation AND friends.request_since IS NOT NULL \
              THEN friends.request_since ELSE excluded.request_since END"
@@ -237,7 +245,8 @@ pub fn sync_save_person(conn: &Connection, person: &mut SyncPerson) -> Result<()
             p.request_at,
             p.request_found_nearby,
             request_since,
-            unconfirmed
+            unconfirmed,
+            left_list_at
         ],
     )?;
     Ok(())
@@ -406,12 +415,15 @@ pub struct SyncTransfer {
     pub staged_path: Option<String>,
     pub received_path: Option<String>,
     pub created_at: f64,
+    /// Outgoing: the file it was sent from and its modification time then (schema v12; never synced).
+    pub source_path: Option<String>,
+    pub source_mtime_ns: i64,
 }
 
 pub fn sync_transfers(conn: &Connection, tail: &str, binds: &[&dyn rusqlite::ToSql]) -> Result<Vec<SyncTransfer>> {
     let sql = format!(
         "SELECT transfer_id, conversation_id, outgoing, state, file_name, uniform_type, size, digest, staged_path, \
-         received_path, created_at FROM transfers {tail}"
+         received_path, created_at, source_path, source_mtime_ns FROM transfers {tail}"
     );
     let mut statement = conn.prepare(&sql)?;
     let rows = statement.query_map(binds, |row| {
@@ -427,6 +439,8 @@ pub fn sync_transfers(conn: &Connection, tail: &str, binds: &[&dyn rusqlite::ToS
             staged_path: row.get(8)?,
             received_path: row.get(9)?,
             created_at: row.get(10)?,
+            source_path: row.get(11)?,
+            source_mtime_ns: row.get::<_, Option<i64>>(12)?.unwrap_or(0),
         })
     })?;
     Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
@@ -465,33 +479,4 @@ pub fn set_profile_value(conn: &Connection, column: &'static str, value: Value) 
 pub fn profile_value(conn: &Connection, column: &'static str) -> Result<Value> {
     let value = conn.query_row(&format!("SELECT {column} FROM profile WHERE id = 1"), [], |r| r.get(0)).optional()?;
     Ok(value.unwrap_or(Value::Null))
-}
-
-/// The settings table (`-setting:`), e.g. `own_presence_secret`.
-pub fn setting(conn: &Connection, key: &str) -> Result<Value> {
-    let value = conn.query_row("SELECT value FROM settings WHERE key = ?1", [key], |r| r.get(0)).optional()?;
-    Ok(value.unwrap_or(Value::Null))
-}
-
-pub fn set_setting(conn: &Connection, key: &str, value: Value) -> Result<()> {
-    if value == Value::Null {
-        conn.execute("DELETE FROM settings WHERE key = ?1", [key])?;
-    } else {
-        conn.execute(
-            "INSERT INTO settings(key, value) VALUES (?1, ?2) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
-            params![key, value],
-        )?;
-    }
-    Ok(())
-}
-
-pub fn own_presence_secret(conn: &Connection) -> Result<Option<Vec<u8>>> {
-    Ok(match setting(conn, "own_presence_secret")? {
-        Value::Blob(bytes) => Some(bytes),
-        _ => None,
-    })
-}
-
-pub fn set_own_presence_secret(conn: &Connection, secret: Option<&[u8]>) -> Result<()> {
-    set_setting(conn, "own_presence_secret", secret.map_or(Value::Null, |s| Value::Blob(s.to_vec())))
 }

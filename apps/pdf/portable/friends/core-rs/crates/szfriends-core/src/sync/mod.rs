@@ -4,6 +4,9 @@
 //! same store ([`apply`]). Local changes are found by comparing the store with what sync last recorded ([`capture`]).
 //! Byte for byte the helper's encodings: `fixtures/vectors/objc-sync.json`.
 
+pub mod again;
+mod again_request;
+mod again_serve;
 mod apply;
 pub mod bodies;
 mod capture;
@@ -14,9 +17,13 @@ mod files;
 mod purge;
 mod revocation;
 
+pub use again::{again_state, set_again_state, AgainFile, AgainMessage};
+pub use again_request::AgainRequester;
+pub use again_serve::AgainServer;
 pub use codec::{decode_vector, encode_vector, vector_covers, Event, Fields};
 pub use engine::SyncEngine;
 pub use exchange::SyncExchange;
+pub use files::{holds_transfer, local_path_of_transfer};
 pub use revocation::{adopt_own_devices_secret, own_devices_secret_in_store};
 
 use crate::store::StoreError;
@@ -119,6 +126,8 @@ pub const STATE_PRESENCE_RETELL: &str = "presence_retell";
 
 /// Body tag every body naming a conversation carries: the author's own id for it.
 pub(crate) const TAG_CONVERSATION: u8 = 1;
+/// FILE HELD: u64 1, the author no longer holds the bytes (ADR 0016). Absent: it holds them.
+pub(crate) const TAG_RELEASED: u8 = 2;
 
 pub fn copies_automatically(size: u64, conversation_id: &str) -> bool {
     size <= AUTO_COPY_MAX || conversation_id == crate::store::sync_log::YOU
@@ -178,6 +187,16 @@ pub(crate) fn person_key(conversation: &str, group: &str) -> String {
 
 pub(crate) fn read_key(conversation: &str) -> String {
     format!("r/{conversation}")
+}
+
+/// Whether the profile's read marker for `conversation` (the latest any of the person's devices set) covers an item
+/// received at `received_at` with id `item_id`: read on one of them. False where no marker was ever synced.
+pub fn read_marker_covers(conn: &rusqlite::Connection, conversation: &str, received_at: f64, item_id: &str) -> bool {
+    let marker = crate::store::sync_log::register(conn, &read_key(conversation)).ok().flatten();
+    let Some(fields) = marker.and_then(|m| m.value).and_then(|v| Fields::decode(&v)) else { return false };
+    let Some(at) = fields.date(2) else { return false };
+    let id = fields.string(3).unwrap_or_default();
+    received_at < at || (received_at == at && item_id <= id.as_str())
 }
 
 /// Last writer wins: whether (lamport, author) is later than what the register holds (absent: always).
