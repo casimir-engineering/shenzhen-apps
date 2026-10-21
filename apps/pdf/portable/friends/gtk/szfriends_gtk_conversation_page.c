@@ -66,7 +66,7 @@ static void title_clicked(GtkButton *button, gpointer data) {
         szfriends_gtk_dropdown_open_details(view->conversation->dropdown, view->conversation->conversation_id);
 }
 
-static const char *route_class(SZFriendsGtkRouteKind kind) {
+const char *szfriends_gtk_route_class(SZFriendsGtkRouteKind kind) {
     switch (kind) {
     case SZFRIENDS_GTK_ROUTE_LOCAL: return "szfriends-route-local";
     case SZFRIENDS_GTK_ROUTE_ONLINE: return "szfriends-route-online";
@@ -116,11 +116,11 @@ static void apply_header(SZFriendsGtkConversationPage *view, SZFriendsGtkPage *p
     szfriends_gtk_glyph_set_kind(view->route_glyph, glyph);
     gtk_widget_set_visible(view->route_glyph, glyph != SZFRIENDS_GTK_GLYPH_NONE);
     for (int kind = SZFRIENDS_GTK_ROUTE_UNKNOWN; kind <= SZFRIENDS_GTK_ROUTE_CONNECTING; kind++) {
-        gtk_widget_remove_css_class(subtitle, route_class((SZFriendsGtkRouteKind)kind));
-        gtk_widget_remove_css_class(view->route_glyph, route_class((SZFriendsGtkRouteKind)kind));
+        gtk_widget_remove_css_class(subtitle, szfriends_gtk_route_class((SZFriendsGtkRouteKind)kind));
+        gtk_widget_remove_css_class(view->route_glyph, szfriends_gtk_route_class((SZFriendsGtkRouteKind)kind));
     }
-    gtk_widget_add_css_class(subtitle, route_class(header->route.kind));
-    gtk_widget_add_css_class(view->route_glyph, route_class(header->route.kind));
+    gtk_widget_add_css_class(subtitle, szfriends_gtk_route_class(header->route.kind));
+    gtk_widget_add_css_class(view->route_glyph, szfriends_gtk_route_class(header->route.kind));
     gtk_widget_set_tooltip_text(view->route_line, header->route.label);
     gtk_accessible_update_property(GTK_ACCESSIBLE(view->title), GTK_ACCESSIBLE_PROPERTY_LABEL,
                                    header->accessibility_label, -1);

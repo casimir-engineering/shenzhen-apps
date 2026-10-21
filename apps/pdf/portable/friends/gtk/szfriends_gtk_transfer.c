@@ -8,6 +8,7 @@
  * loaded: the icon comes from the file name's extension through GIO, by name only. */
 
 #include "gtk/szfriends_gtk_conversation.h"
+#include "gtk/szfriends_gtk_glyphs.h"
 
 #include <errno.h>
 #include <fcntl.h>
@@ -361,6 +362,37 @@ static const char *status_class(SZFriendsGtkTransferState state) {
     return state == SZFRIENDS_GTK_TRANSFER_FAILED ? "szfriends-failure" : "szfriends-secondary";
 }
 
+/* The status words, and while a file copies here from another of the person's computers the route it comes by after
+ * them, drawn as the conversation header's: the route's icon, then its words ("… · 25% · Nearby, on your network").
+ * The separator, icon and words are one unit, so a narrow card moves them to the next line together and never ends
+ * a line on a dot. */
+static GtkWidget *status_new(const SZFriendsGtkConversationItem *item) {
+    GtkWidget *status = label(item->status_label, status_class(item->state));
+    const SZFriendsGtkRoute *route = item->route;
+    if (!route || !route->label || !*route->label) return status;
+    GtkWidget *line = adw_wrap_box_new();
+    adw_wrap_box_set_child_spacing(ADW_WRAP_BOX(line), 4);
+    adw_wrap_box_append(ADW_WRAP_BOX(line), status);
+    GtkWidget *unit = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 4);
+    if (item->status_label && *item->status_label)
+        gtk_box_append(GTK_BOX(unit), label("·", "szfriends-secondary"));
+    GtkWidget *route_line = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 4);
+    gtk_widget_set_name(route_line, "szfriends.transfer.route");
+    const char *css_class = szfriends_gtk_route_class(route->kind);
+    SZFriendsGtkGlyphKind kind = szfriends_gtk_route_glyph(route->kind, route->method);
+    GtkWidget *glyph = szfriends_gtk_glyph_new(kind, 11);
+    gtk_widget_set_valign(glyph, GTK_ALIGN_CENTER);
+    gtk_widget_add_css_class(glyph, css_class);
+    gtk_widget_set_visible(glyph, kind != SZFRIENDS_GTK_GLYPH_NONE);
+    GtkWidget *words = gtk_label_new(route->label);
+    gtk_widget_add_css_class(words, css_class);
+    gtk_box_append(GTK_BOX(route_line), glyph);
+    gtk_box_append(GTK_BOX(route_line), words);
+    gtk_box_append(GTK_BOX(unit), route_line);
+    adw_wrap_box_append(ADW_WRAP_BOX(line), unit);
+    return line;
+}
+
 GtkWidget *szfriends_gtk_transfer_row_new(SZFriendsGtkConversation *conversation,
                                           const SZFriendsGtkConversationItem *item) {
     gboolean outgoing = item->direction == SZFRIENDS_GTK_DIRECTION_OUT;
@@ -397,7 +429,7 @@ GtkWidget *szfriends_gtk_transfer_row_new(SZFriendsGtkConversation *conversation
 
     /* Link actions (Cancel, Show in Shenzhen Files) share the status line, right-aligned; buttons get their own row. */
     GtkWidget *status_line = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8);
-    GtkWidget *status = label(item->status_label, status_class(item->state));
+    GtkWidget *status = status_new(item);
     gtk_widget_set_hexpand(status, TRUE);
     gtk_box_append(GTK_BOX(status_line), status);
     GtkWidget *buttons = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8);

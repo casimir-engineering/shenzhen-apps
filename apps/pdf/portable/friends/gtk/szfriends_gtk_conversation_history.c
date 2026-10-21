@@ -101,7 +101,23 @@ static void row_bind(GtkSignalListItemFactory *factory, GtkListItem *list_item, 
                                                                                             item);
     else row = szfriends_gtk_simple_row_new(item);
     gtk_box_append(GTK_BOX(box), row);
-    gtk_list_item_set_accessible_label(list_item, item->accessibility_label);
+    char *spoken = szfriends_gtk_item_spoken_label(item);
+    gtk_list_item_set_accessible_label(list_item, spoken);
+    g_free(spoken);
+}
+
+/* The helper's words for the row, and after them the route a copying file comes by when they do not already say it,
+ * as the card shows it: "…, 25 percent, Nearby, on your network". */
+char *szfriends_gtk_item_spoken_label(const SZFriendsGtkConversationItem *item) {
+    const char *text = item->accessibility_label ? item->accessibility_label : "";
+    const SZFriendsGtkRoute *route = item->kind == SZFRIENDS_GTK_ITEM_TRANSFER ? item->route : NULL;
+    if (!route || !route->label || !*route->label) return g_strdup(text);
+    char *folded_text = g_utf8_casefold(text, -1), *folded_route = g_utf8_casefold(route->label, -1);
+    gboolean said = strstr(folded_text, folded_route) != NULL;
+    g_free(folded_text);
+    g_free(folded_route);
+    if (said) return g_strdup(text);
+    return *text ? g_strconcat(text, ", ", route->label, NULL) : g_strdup(route->label);
 }
 
 static void row_unbind(GtkSignalListItemFactory *factory, GtkListItem *list_item, gpointer data) {

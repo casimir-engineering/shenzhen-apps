@@ -195,6 +195,11 @@ GtkWidget *szfriends_gtk_message_row_new(SZFriendsGtkConversation *conversation,
                                          const SZFriendsGtkConversationItem *item);
 GtkWidget *szfriends_gtk_transfer_row_new(SZFriendsGtkConversation *conversation,
                                           const SZFriendsGtkConversationItem *item);
+/* The colour class of a route's icon and words, in the header and on a copying file (conversation_page.c). */
+const char *szfriends_gtk_route_class(SZFriendsGtkRouteKind kind);
+/* A history row's accessible label: the helper's, with a copying file's route words after it when it lacks them
+ * (szfriends_gtk_conversation_history.c). Display-free; free with g_free(). */
+char *szfriends_gtk_item_spoken_label(const SZFriendsGtkConversationItem *item);
 GtkWidget *szfriends_gtk_simple_row_new(const SZFriendsGtkConversationItem *item); /* day separators and events */
 /* "Via the assistant" with the assistant's spark, leading the time line under a bubble or a card. */
 GtkWidget *szfriends_gtk_assistant_label_new(const char *text);
