@@ -100,6 +100,8 @@ impl State {
             removed_computer: self.removed_computer(),
             received_folder: self.capabilities.iter().any(|c| c == "received.folder"),
             files_again: self.capabilities.iter().any(|c| c == "files.again"),
+            notifications: self.capabilities.iter().any(|c| c == "notifications"),
+            test_home: self.notify.test_home,
             ..Admission::default()
         };
         let parsed = admit(&kind, gate).and_then(|()| {
@@ -107,6 +109,10 @@ impl State {
             parse(frame, &context)
         });
         let answer = match parsed {
+            Ok(Intent::DismissNotificationsBanner) => {
+                self.notify_dismiss_ask();
+                Ok(json!({}))
+            }
             Ok(_) if NOT_YET.contains(&kind.as_str()) => refused("unavailable"),
             #[cfg(feature = "online")]
             Ok(Intent::MakeDownloadLink { file, expires_days }) => {
@@ -168,7 +174,31 @@ impl State {
             }
             Intent::Activate => {
                 self.activate_nearby();
+                self.notify_remember(client);
+                self.changed();
                 Ok(json!({}))
+            }
+            Intent::SetFocus { conversation_id } => {
+                self.notify_set_focus(client, conversation_id);
+                Ok(json!({}))
+            }
+            Intent::SetNotifications { enabled, preview, background } => {
+                self.notify_set_prefs(enabled, preview, background);
+                Ok(json!({}))
+            }
+            Intent::AllowNotifications => {
+                self.notify_ask();
+                Ok(json!({}))
+            }
+            Intent::TestNotificationResponse { key, reply_text } => {
+                let response = match reply_text {
+                    Some(text) => crate::notify::Response::Reply { key, text },
+                    None => crate::notify::Response::Open { key },
+                };
+                self.notification_response(response).map_err(|code| match code {
+                    "not_found" => IntentError::field("not_found", "key"),
+                    code => IntentError::new(code),
+                })
             }
             Intent::AcceptRequest { conversation_id } => self.accept_request(&conversation_id),
             Intent::DeclineRequest { conversation_id } => self.decline_request(&conversation_id),
@@ -230,6 +260,8 @@ impl State {
                     .store
                     .connection()
                     .execute("UPDATE friends SET unread_count = 0 WHERE conversation_id = ?1", [&conversation_id]);
+                self.notify_read(&conversation_id);
+                self.notify_remember(client);
                 let mut subscription = Subscription::new(ViewKind::Conversation, Some(conversation_id.clone()));
                 subscription.highlight = message_id;
                 self.changed();
@@ -247,24 +279,9 @@ impl State {
                         None,
                     )?);
                 }
-                let message_id = new_identifier();
-                let now = unix_now();
-                let item = Item {
-                    item_id: message_id.clone(),
-                    conversation_id: conversation_id.clone(),
-                    kind: ItemKind::Message,
-                    direction: Direction::Outgoing,
-                    text: Some(text),
-                    transfer_id: None,
-                    sent_at: now,
-                    received_at: now,
-                    via_assistant: false,
-                };
-                let entry =
-                    outbox_entry(&conversation_id, OutboxKind::Message, Some(message_id.clone()), Some(client_token));
-                self.store.enqueue(&entry, Some(&item)).map_err(|_| IntentError::new("internal"))?;
-                self.after_send(&conversation_id);
-                Ok(json!({"message_id": message_id, "transfer_ids": transfers}))
+                let mut sent = self.send_text(&conversation_id, text, client_token)?;
+                sent["transfer_ids"] = json!(transfers);
+                Ok(sent)
             }
             Intent::SendFiles { conversation_id, files, client_token, .. } => {
                 self.friend(&conversation_id)?;
@@ -397,6 +414,29 @@ impl State {
         let entry = outbox_entry(conversation_id, OutboxKind::Offer, Some(record.transfer_id.clone()), token);
         self.store.enqueue(&entry, None).map_err(|_| IntentError::new("internal"))?;
         Ok(record.transfer_id)
+    }
+
+    /// A message to a friend, as send_message sends one (and a reply from a notification): queued, then delivered
+    /// when a route is up.
+    pub(crate) fn send_text(&mut self, conversation_id: &str, text: String, client_token: String) -> Answer {
+        self.friend(conversation_id)?;
+        let message_id = new_identifier();
+        let now = unix_now();
+        let item = Item {
+            item_id: message_id.clone(),
+            conversation_id: conversation_id.to_owned(),
+            kind: ItemKind::Message,
+            direction: Direction::Outgoing,
+            text: Some(text),
+            transfer_id: None,
+            sent_at: now,
+            received_at: now,
+            via_assistant: false,
+        };
+        let entry = outbox_entry(conversation_id, OutboxKind::Message, Some(message_id.clone()), Some(client_token));
+        self.store.enqueue(&entry, Some(&item)).map_err(|_| IntentError::new("internal"))?;
+        self.after_send(conversation_id);
+        Ok(json!({"message_id": message_id, "transfer_ids": []}))
     }
 
     fn after_send(&mut self, conversation_id: &str) {

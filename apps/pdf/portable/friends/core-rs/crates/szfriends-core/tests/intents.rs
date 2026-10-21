@@ -94,6 +94,8 @@ fn everything() -> Admission {
         removed_computer: false,
         received_folder: true,
         files_again: true,
+        notifications: true,
+        test_home: true,
     }
 }
 
@@ -137,6 +139,15 @@ fn every_example_intent_reads_as_the_helper_reads_it() {
             Intent::JoinProfile { friends_id } => assert_eq!(friends_id, "cottage-violet"),
             Intent::SetReceivedFolder { path } => assert_eq!(path, "/Users/raph/Documents/From friends"),
             Intent::SearchMessages { limit, .. } => assert!(limit == 20 || limit == 50 || limit == 10),
+            Intent::SetFocus { conversation_id } => {
+                assert!(conversation_id.is_none() || conversation_id.as_deref() == Some("c_mei"))
+            }
+            Intent::SetNotifications { enabled, preview, background } => {
+                assert_eq!((enabled, preview, background), (Some(true), Some(false), None))
+            }
+            Intent::TestNotificationResponse { key, reply_text } => {
+                assert_eq!((key.as_str(), reply_text.as_deref()), ("message:i_81f2", Some("On it")))
+            }
             _ => {}
         }
     }
@@ -158,6 +169,13 @@ fn gates() {
     assert_eq!(admit("set_received_folder", no_folder).unwrap_err().code, "unknown_intent", "only when announced");
     let no_again = Admission { files_again: false, ..everything() };
     assert_eq!(admit("fetch_from_friend", no_again).unwrap_err().code, "unknown_intent", "only when announced");
+    let quiet = Admission { notifications: false, ..everything() };
+    for kind in ["set_focus", "set_notifications", "allow_notifications", "test_notification_response"] {
+        assert_eq!(admit(kind, quiet).unwrap_err().code, "unknown_intent", "{kind} only with notifications");
+    }
+    let person_home = Admission { test_home: false, ..everything() };
+    assert_eq!(admit("test_notification_response", person_home).unwrap_err().code, "unknown_intent");
+    assert!(admit("set_focus", person_home).is_ok());
     let removed = Admission { removed_computer: true, ..everything() };
     let error = admit("send_message", removed).unwrap_err();
     assert_eq!(error.code, "not_allowed");
@@ -196,6 +214,14 @@ fn field_refusals() {
     let details = json!({"view": "details", "params": {"conversation_id": "c_nobody"}});
     assert_eq!(refusal(&world, "subscribe", details), field("not_found", "params.conversation_id"));
     assert_eq!(refusal(&world, "set_name", json!({"name": "Mei\u{7}"})).0, "name_invalid");
+    assert_eq!(refusal(&world, "set_focus", json!({})), field("invalid_field", "conversation_id"));
+    assert_eq!(refusal(&world, "set_focus", json!({"conversation_id": 3})), field("invalid_field", "conversation_id"));
+    assert_eq!(refusal(&world, "set_notifications", json!({"preview": "no"})), field("invalid_field", "preview"));
+    assert_eq!(refusal(&world, "dismiss_banner", json!({"kind": "other"})), field("invalid_field", "kind"));
+    let click = json!({"key": "message:i_1", "action": "press"});
+    assert_eq!(refusal(&world, "test_notification_response", click), field("invalid_field", "action"));
+    let empty = json!({"key": "message:i_1", "action": "reply", "text": " "});
+    assert_eq!(refusal(&world, "test_notification_response", empty), field("invalid_field", "text"));
     assert_eq!(refusal(&world, "set_name", json!({"name": "x".repeat(41)})).0, "name_invalid");
     assert!(matches!(parse(&intent("set_name", json!({"name": "  Mei  "})), &world),
                      Ok(Intent::SetName { name: Some(n) }) if n == "Mei"));

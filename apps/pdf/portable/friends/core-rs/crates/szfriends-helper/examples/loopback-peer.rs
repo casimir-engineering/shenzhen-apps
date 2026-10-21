@@ -43,6 +43,7 @@ fn main() -> std::process::ExitCode {
         capabilities: vec!["drop.files".into()],
         open_formats: vec!["stl".into(), "step".into()],
         locale: "en".into(),
+        url_scheme: None,
     };
     match connection.hello(&app, None) {
         Ok(welcome) => println!("{}", json!({"type": "ready", "welcome": welcome["type"]})),

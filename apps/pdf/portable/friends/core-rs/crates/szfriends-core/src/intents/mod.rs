@@ -230,6 +230,24 @@ pub enum Intent {
         path: String,
     },
     DismissBanner,
+    /// dismiss_banner kind `notifications`: Not Now on the ask card, for good.
+    DismissNotificationsBanner,
+    /// The conversation this client's focused window shows, or None (§ Notifications).
+    SetFocus {
+        conversation_id: Option<String>,
+    },
+    /// This device's notification switches; absent ones stay as they are.
+    SetNotifications {
+        enabled: Option<bool>,
+        preview: Option<bool>,
+        background: Option<bool>,
+    },
+    AllowNotifications,
+    /// Test homes only: a click (`reply_text` None) or a reply on a notification the sink recorded.
+    TestNotificationResponse {
+        key: String,
+        reply_text: Option<String>,
+    },
     StartVisibility,
     StopVisibility,
     SearchMessages {
@@ -342,6 +360,47 @@ fn remove_friend(frame: &Value, state: &dyn IntentState) -> Result<Intent> {
     Ok(Intent::RemoveFriend { conversation_id, delete_history })
 }
 
+/// An optional bool: absent or null is None; anything else but a bool is invalid_field.
+fn optional_bool(frame: &Value, key: &str) -> Result<Option<bool>> {
+    match frame.get(key) {
+        None | Some(Value::Null) => Ok(None),
+        Some(Value::Bool(value)) => Ok(Some(*value)),
+        Some(_) => Err(IntentError::field("invalid_field", key)),
+    }
+}
+
+/// The notification intents (PROTOCOL.md § Notifications).
+fn notifications(kind: &str, frame: &Value) -> Result<Intent> {
+    Ok(match kind {
+        "set_focus" => {
+            let conversation_id = match frame.get("conversation_id") {
+                Some(Value::Null) => None,
+                Some(Value::String(_)) => Some(required(frame, "conversation_id", 64)?),
+                _ => return Err(IntentError::field("invalid_field", "conversation_id")),
+            };
+            Intent::SetFocus { conversation_id }
+        }
+        "set_notifications" => Intent::SetNotifications {
+            enabled: optional_bool(frame, "enabled")?,
+            preview: optional_bool(frame, "preview")?,
+            background: optional_bool(frame, "background")?,
+        },
+        "allow_notifications" => Intent::AllowNotifications,
+        _ => {
+            let key = required(frame, "key", 200)?;
+            let reply_text = match string(frame, "action") {
+                Some("open") => None,
+                Some("reply") => match string(frame, "text") {
+                    Some(text) if !text.trim().is_empty() && text.len() <= MESSAGE_BYTES_MAX => Some(text.to_owned()),
+                    _ => return Err(IntentError::field("invalid_field", "text")),
+                },
+                _ => return Err(IntentError::field("invalid_field", "action")),
+            };
+            Intent::TestNotificationResponse { key, reply_text }
+        }
+    })
+}
+
 /// An intent's fields read and checked in the helper's order. `frame` is the whole client frame; its `type` must be
 /// an intent this helper takes ([`admit`] first).
 pub fn parse(frame: &Value, state: &dyn IntentState) -> Result<Intent> {
@@ -379,6 +438,9 @@ pub fn parse(frame: &Value, state: &dyn IntentState) -> Result<Intent> {
         }
         "cancel_join" => Intent::CancelJoin,
         "reset_friend_link" => Intent::ResetFriendLink,
+        "set_focus" | "set_notifications" | "allow_notifications" | "test_notification_response" => {
+            notifications(kind, frame)?
+        }
         "start_visibility" => Intent::StartVisibility,
         "stop_visibility" => Intent::StopVisibility,
         "subscribe" | "unsubscribe" | "set_filter" | "open_conversation" | "load_earlier" | "search_messages"

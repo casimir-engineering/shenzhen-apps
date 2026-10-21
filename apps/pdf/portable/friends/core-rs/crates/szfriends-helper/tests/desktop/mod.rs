@@ -118,6 +118,7 @@ pub fn app() -> AppInfo {
         capabilities: Vec::new(),
         open_formats: vec!["pdf".into()],
         locale: "en".into(),
+        url_scheme: None,
     }
 }
 

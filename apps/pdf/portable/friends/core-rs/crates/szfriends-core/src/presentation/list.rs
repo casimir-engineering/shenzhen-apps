@@ -173,7 +173,7 @@ impl SnapshotBuilder {
             let action = self.action("dismiss_banner", s.text("banner.ok"), "link");
             return json!({"kind": "id_changed", "text": text, "action": action});
         }
-        Value::Null
+        self.notifications_banner(profile).unwrap_or(Value::Null)
     }
 
     /// The list. `preview_items` is keyed by item id: each row describes `preview_items[person.last_preview_item_id]`.
