@@ -65,7 +65,8 @@ id<SZFriendsDiscoveryAdapter> SZFriendsHelperHoldNetworkAdapter(dispatch_queue_t
                                                                 id<SZFriendsDiscoveryAdapter> adapter, NSString *file);
 // Under SZFRIENDS_STATE_DIR only: while <state dir>/online-block-direct exists, online attempts send and apply no
 // direct candidate, so only the relay connects (as the Rust helper's test homes do). Leaves a hook already set (the
-// links e2e helper's main sets the same one) in place. Nothing in production.
+// links e2e helper's main sets the same one) in place. A test home given a test host list also connects on loopback
+// only (SZFriendsOnlineDriverTestHooks.loopbackOnly), as the Rust helper's do. Nothing in production.
 void SZFriendsHelperSetOnlineTestHooks(NSDictionary<NSString *, NSString *> *env);
 // The rule for SZFRIENDS_TEST_SERVICE_TYPE, exposed for the unit tests.
 BOOL SZFriendsHelperTestServiceTypeIsValid(NSString *_Nullable serviceType);

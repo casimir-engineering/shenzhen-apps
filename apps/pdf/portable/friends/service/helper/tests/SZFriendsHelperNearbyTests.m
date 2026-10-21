@@ -182,8 +182,19 @@ static void SZFNTestAirAndHold(NSString *scratch) {
 // exists; production sets nothing, and a hook already set (the links e2e helper's) is kept.
 static void SZFNTestBlockDirect(NSString *scratch) {
     SZFriendsOnlineDriverTestHooks.directPathsBlocked = nil;
+    BOOL loopback = SZFriendsOnlineDriverTestHooks.loopbackOnly;
+    SZFriendsOnlineDriverTestHooks.loopbackOnly = NO;
     SZFriendsHelperSetOnlineTestHooks(@{});
     EXPECT(SZFriendsOnlineDriverTestHooks.directPathsBlocked == nil, "nothing in production");
+    EXPECT(!SZFriendsOnlineDriverTestHooks.loopbackOnly, "production connects beyond this Mac");
+    SZFriendsHelperSetOnlineTestHooks(@{@"SZFRIENDS_STATE_DIR" : scratch});
+    EXPECT(!SZFriendsOnlineDriverTestHooks.loopbackOnly, "nothing more without a test host list");
+    SZFriendsOnlineDriverTestHooks.directPathsBlocked = nil;
+    SZFriendsHelperSetOnlineTestHooks(@{@"SZFRIENDS_STATE_DIR" : scratch, @"SZFRIENDS_TEST_HOST_LIST" : @"/list"});
+    EXPECT(SZFriendsOnlineDriverTestHooks.loopbackOnly,
+           "a test home online connects on loopback, so a peer offering 127.0.0.1 is reached directly");
+    SZFriendsOnlineDriverTestHooks.loopbackOnly = loopback;
+    SZFriendsOnlineDriverTestHooks.directPathsBlocked = nil;
     SZFriendsHelperSetOnlineTestHooks(@{@"SZFRIENDS_STATE_DIR" : scratch});
     BOOL (^blocked)(void) = SZFriendsOnlineDriverTestHooks.directPathsBlocked;
     EXPECT(blocked != nil && !blocked(), "direct allowed without the file");

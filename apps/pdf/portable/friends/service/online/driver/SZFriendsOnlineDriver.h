@@ -190,7 +190,8 @@ extern const NSUInteger SZFriendsOnlineJoinOpensPerHour; // 40, the host's limit
 @end
 
 // Tests only. The e2e online helper's main (tests/e2e/SZFriendsE2EOnlineHelperMain.m) sets these under
-// SZFRIENDS_STATE_DIR; the shipped helper never does.
+// SZFRIENDS_STATE_DIR, and the helper's own main in a test home (SZFriendsHelperSetOnlineTestHooks); never in a
+// person's own home.
 @interface SZFriendsOnlineDriverTestHooks : NSObject
 // Peer connections bind to 127.0.0.1 and accept loopback candidates, every NAT technique runs in its loopback-only
 // mode, and no router is asked for a port mapping: two helpers on one Mac meet without leaving it.
