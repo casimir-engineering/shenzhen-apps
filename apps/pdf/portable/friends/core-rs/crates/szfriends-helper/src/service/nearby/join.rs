@@ -30,6 +30,8 @@ const CODE_ATTEMPT_SECONDS: f64 = 60.0;
 const WELCOME_PROFILE_FRAME: u8 = 1;
 const WELCOME_PRESENCE_SECRET: u8 = 2;
 const WELCOME_DEVICES_SECRET: u8 = 3;
+/// The approving device's Lamport clock (8 bytes, big-endian) once it recorded what the profile held before the join.
+const WELCOME_CLOCK: u8 = 4;
 
 pub(crate) fn join_frame(message: Vec<u8>) -> Frame {
     Frame::new(FrameType::Join).with(tag::JOIN, message)
@@ -233,22 +235,33 @@ impl State {
             Ok(rusqlite::types::Value::Integer(state)) => state,
             _ => 0,
         };
+        let mut stored = true;
         let welcome = match (approval, chain, profile) {
-            (Some(mut approval), Some(chain), Some(profile)) => self
-                .devices
-                .approver
-                .welcome(message, &mut approval, &chain, &profile, state, now)
-                .map(|w| (w, approval.request_id)),
+            (Some(mut approval), Some(chain), Some(mut profile)) => {
+                let (store, engine) = (&self.store, &mut self.devices.engine);
+                // Stored first: a welcome never goes out for a device this profile does not hold. Then what the
+                // profile held before the join is recorded, and the new computer starts its clock past it.
+                let complete = |added: &DeviceChain| {
+                    stored = devices::merge_own_chain(store.connection(), added).is_ok();
+                    if !stored {
+                        return None;
+                    }
+                    engine.capture_local_changes(store);
+                    let clock = szfriends_core::store::sync_log::lamport(store.connection()).ok()?;
+                    profile.set_data(WELCOME_CLOCK, Some(&clock.to_be_bytes()));
+                    Some(profile.encode())
+                };
+                let welcome = self.devices.approver.welcome_with(message, &mut approval, &chain, state, now, complete);
+                welcome.map(|w| (w, approval.request_id))
+            }
             _ => None,
         };
         self.join_close_after(id, BY_ID_REPLY_LINGER_SECONDS);
         self.changed();
-        let Some((welcome, request)) = welcome else { return };
-        // Stored first: a welcome never goes out for a device this profile does not hold.
-        if devices::merge_own_chain(self.store.connection(), &welcome.chain).is_err() {
+        if !stored {
             log!("could not store the chain for a joining computer");
-            return;
         }
+        let Some((welcome, request)) = welcome else { return };
         // Advertised for the new computer before it hears it joined: its first read of us nearby then finds the tag
         // our devices know each other by, so the sync starts on whatever route that read came over.
         self.own_devices_changed();
@@ -260,8 +273,9 @@ impl State {
     }
 
     /// The PROFILE friends receive, the presence secret friends find us by and the secret our own devices find each
-    /// other by, so the new computer reaches friends and syncs with us at once.
-    fn welcome_profile(&mut self) -> Option<Vec<u8>> {
+    /// other by, so the new computer reaches friends and syncs with us at once; the clock goes in once the chain
+    /// holds the new computer.
+    fn welcome_profile(&mut self) -> Option<Fields> {
         let mut frame = Frame::new(FrameType::Profile);
         frame.fields = self.profile_fields();
         let presence = self.store.ensure_own_presence_secret().ok()?;
@@ -270,7 +284,7 @@ impl State {
         fields.set_data(WELCOME_PROFILE_FRAME, Some(&frame.encode().ok()?));
         fields.set_data(WELCOME_PRESENCE_SECRET, Some(&presence));
         fields.set_data(WELCOME_DEVICES_SECRET, Some(&devices_secret));
-        Some(fields.encode())
+        Some(fields)
     }
 
     /// The new computer's side of a run.
@@ -345,6 +359,10 @@ impl State {
         let _ = sync_records::set_profile_value(conn, "friends_id_state", i64::from(friends_id_state).into());
         let _ = sync_records::set_own_presence_secret(conn, presence);
         sync::adopt_own_devices_secret(&self.store, devices_secret.unwrap_or_default());
+        // The name taken here is the profile's as it was, not a change of ours: a change made on any of the profile's
+        // computers from now on wins over it, and one made here wins over everything recorded before the join.
+        let clock = welcome.as_ref().and_then(|w| w.data(WELCOME_CLOCK)).and_then(|c| <[u8; 8]>::try_from(c).ok());
+        sync::adopt_join_copy(&self.store, clock.map(u64::from_be_bytes).unwrap_or(0));
         // Checked in for the person from now on, after this computer's own ID from before is released (owed until a
         // host confirms it, across launches).
         let _ = szfriends_core::store::sync_log::set_state(conn, super::super::devices::PRE_JOIN_RELEASE, 1.into());

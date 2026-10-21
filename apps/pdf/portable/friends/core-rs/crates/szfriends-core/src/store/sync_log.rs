@@ -96,9 +96,18 @@ pub fn vector(conn: &Connection) -> Result<Vector> {
     Ok(vector)
 }
 
-/// The highest Lamport clock in the log; 0 when it is empty.
+/// The sync state holding the clock a device that joined starts from: the approving device's when it welcomed it.
+pub const STATE_JOIN_CLOCK: &str = "join_clock";
+
+/// The highest Lamport clock in the log, or the one this device started from when it joined when that is higher; 0
+/// when both are absent.
 pub fn lamport(conn: &Connection) -> Result<u64> {
-    Ok(conn.query_row("SELECT coalesce(max(lamport), 0) FROM sync_events", [], |r| r.get::<_, i64>(0))? as u64)
+    let logged = conn.query_row("SELECT coalesce(max(lamport), 0) FROM sync_events", [], |r| r.get::<_, i64>(0))?;
+    let joined = match state(conn, STATE_JOIN_CLOCK)? {
+        Value::Integer(clock) => clock,
+        _ => 0,
+    };
+    Ok(logged.max(joined).max(0) as u64)
 }
 
 pub fn event_count(conn: &Connection) -> Result<u64> {

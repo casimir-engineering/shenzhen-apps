@@ -24,7 +24,7 @@ pub use codec::{decode_vector, encode_vector, vector_covers, Event, Fields};
 pub use engine::SyncEngine;
 pub use exchange::SyncExchange;
 pub use files::{holds_transfer, local_path_of_transfer};
-pub use revocation::{adopt_own_devices_secret, own_devices_secret_in_store};
+pub use revocation::{adopt_join_copy, adopt_own_devices_secret, own_devices_secret_in_store};
 
 use crate::store::StoreError;
 

@@ -100,8 +100,6 @@ impl RoutePair for DevicePair {
     }
 
     /// The join page shows `route`; then a new name for the profile on Ada's computer reaches the new one over it.
-    /// (Named once the sync runs: a name given while the new computer's first capture is on its way can lose to the
-    /// copy that computer took when it joined.)
     fn carry_over(&mut self, route: &str) {
         self.shows(route);
         self.renamed += 1;

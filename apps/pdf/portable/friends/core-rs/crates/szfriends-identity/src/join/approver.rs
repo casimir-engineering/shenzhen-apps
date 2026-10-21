@@ -371,6 +371,21 @@ impl Approver {
         friends_id_state: i64,
         now: f64,
     ) -> Option<Welcome> {
+        self.welcome_with(message, approval, chain, friends_id_state, now, |_| Some(profile.to_vec()))
+    }
+
+    /// As `welcome`, with the profile part made once the Confirm checked out, from the chain that holds the new
+    /// device (the caller stores it first, then says what the profile held up to then); None from `profile` sends
+    /// nothing.
+    pub fn welcome_with(
+        &mut self,
+        message: &[u8],
+        approval: &mut Approval,
+        chain: &DeviceChain,
+        friends_id_state: i64,
+        now: f64,
+        profile: impl FnOnce(&DeviceChain) -> Option<Vec<u8>>,
+    ) -> Option<Welcome> {
         let isk = approval.isk.take();
         self.prune(now);
         let key = approval.request_id;
@@ -400,7 +415,8 @@ impl Approver {
                 now,
             )
             .ok()?;
-        let parts = welcome_parts(&added, profile, friends_id_state, isk.as_ref())?;
+        let profile = profile(&added)?;
+        let parts = welcome_parts(&added, &profile, friends_id_state, isk.as_ref())?;
         Some(Welcome { chain: added, parts })
     }
 

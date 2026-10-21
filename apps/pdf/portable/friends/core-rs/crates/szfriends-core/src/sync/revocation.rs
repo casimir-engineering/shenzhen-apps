@@ -9,6 +9,7 @@ use rusqlite::types::Value;
 use szfriends_identity::chain::{DeviceChain, DeviceState, LinkKind};
 
 use super::apply::Applied;
+use super::bodies::profile_body;
 use super::codec::{decode_vector, encode_vector, vector_covers, Event, Fields};
 use super::engine::SyncEngine;
 use super::{digest, from_hex, hex, Kind, SyncError, SECRET_RENEWAL_WAIT, STATE_DEVICES_SECRET};
@@ -300,4 +301,16 @@ pub fn own_devices_secret_in_store(store: &Store, create: bool) -> Option<Vec<u8
 /// The one a joined device receives.
 pub fn adopt_own_devices_secret(store: &Store, secret: &[u8]) -> bool {
     secret.len() == 32 && sync_log::set_state(&store.conn, STATE_DEVICES_SECRET, secret.to_vec().into()).is_ok()
+}
+
+/// What a device that just joined took from the welcome, made its starting point rather than an edit of its own: the
+/// profile it received is held at clock 0, so anything the profile's devices record wins over it and it is never
+/// recorded again here; and this device's clock starts from `clock`, the approving device's once it had recorded what
+/// the profile held before the join, so a change made here right away wins over all of that.
+pub fn adopt_join_copy(store: &Store, clock: u64) -> bool {
+    let Ok((name, picture)) = sync_records::profile(&store.conn) else { return false };
+    let copy = Register { lamport: 0, author: Vec::new(), value: Some(profile_body(name.as_deref(), &picture, false)) };
+    let clock = clock.min(i64::MAX as u64) as i64;
+    sync_log::set_register(&store.conn, "profile", &copy).is_ok()
+        && sync_log::set_state(&store.conn, sync_log::STATE_JOIN_CLOCK, clock.into()).is_ok()
 }
