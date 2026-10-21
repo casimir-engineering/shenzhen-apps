@@ -219,6 +219,9 @@ typedef struct szfriends_client_config {
      * subscription ids never survive a reconnect. */
     void (*on_state)(void *context, szfriends_connection_state state);
     void *context;
+    /* hello.client.url_scheme: the app's URL scheme ("shenzhenpdf"), where a click on a Friends notification opens
+     * it (PROTOCOL.md § Notifications). NULL: omitted. Last, so hosts that predate it still initialise the rest. */
+    const char *url_scheme;
 } szfriends_client_config;
 
 /* Copies everything it needs from config; the caller may free its strings afterwards. NULL when config is NULL,

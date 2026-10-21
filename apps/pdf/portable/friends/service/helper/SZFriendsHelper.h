@@ -107,6 +107,9 @@ typedef NS_ENUM(NSInteger, SZFriendsExitReason) {
 @property(nonatomic, readonly) NSString *locale;
 @property(nonatomic, readonly) NSSet<NSString *> *capabilities;
 @property(nonatomic, readonly) NSSet<NSString *> *openFormats;
+// hello.client.url_scheme, lowercased, where a click on a notification opens this app (PROTOCOL.md § Notifications);
+// nil when absent or not a URL scheme.
+@property(nonatomic, readonly, nullable) NSString *urlScheme;
 @property(nonatomic, readonly) SZFriendsProtocolVersion negotiatedVersion;
 // Parses and validates a hello frame; nil with an error naming the bad field.
 + (nullable instancetype)contextFromHello:(NSDictionary<NSString *, id> *)hello

@@ -13,6 +13,7 @@ FRIENDS_PRESENTATION_HDRS := \
 	friends/service/presentation/SZFriendsPresentationPrivate.h \
 	friends/service/presentation/SZFriendsPresentationJoin.h \
 	friends/service/presentation/SZFriendsPresentationDevices.h \
+	friends/service/presentation/SZFriendsPresentationNotifications.h \
 	friends/service/presentation/SZFriendsMentions.h \
 	friends/avatars/SZFriendsAvatars.h \
 	friends/service/discovery/SZFriendsDiscovery.h \

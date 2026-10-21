@@ -256,6 +256,7 @@ int main(int argc, const char *argv[]) {
         SZPRunDevicesBuildTests();
         SZPRunRemoveTests();
         SZPRunFoundTests();
+        SZPRunNotificationsTests();
         // Keys under "test." are looked up on purpose by the lookup test.
         NSSet<NSString *> *missing = [SZFriendsMissingCatalogKeys()
             objectsPassingTest:^BOOL(NSString *key, BOOL *stop) {
