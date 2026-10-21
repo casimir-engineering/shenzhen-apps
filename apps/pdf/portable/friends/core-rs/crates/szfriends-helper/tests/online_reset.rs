@@ -71,7 +71,8 @@ fn reset_friends_frees_the_old_id_at_the_host_and_goes_ahead_offline() {
     let released = host::events(&dir.0, "release");
     assert!(released.iter().any(|e| e["result"] == "released"), "the host released it: {released:?}");
     let mut again = Client::join(&ada_server, ada_helper.clone(), &[]);
-    let new = shown_id(&mut again, "Ada's new ID", |_| true);
+    // The new identity checks in at once, as the old one did: it can be found, and can join a profile, online.
+    let new = shown_id(&mut again, "Ada's new ID reserved", |d| d["id"]["state"] == "reserved");
     assert_ne!(new, old);
 
     // Someone else asks the host for Ada's old ID: it is free, so it is theirs. Their home is made offline first,

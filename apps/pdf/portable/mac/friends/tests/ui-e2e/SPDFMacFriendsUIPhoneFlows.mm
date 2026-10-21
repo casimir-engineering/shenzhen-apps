@@ -1,7 +1,8 @@
 // friends-ui-e2e's Mac half of a test with a phone (SPDFMacFriendsUIE2E.h): the person's Mac, ShenzhenPDF's real
 // Friends dropdown on a real helper in a test home, driven step by step by a script on the other side (Shenzhen 3D's
-// scripts/friends/phones-get-again.mjs, which drives the phone in an emulator). Only when FRIENDS_UI_E2E_PHONE_IN and
-// FRIENDS_UI_E2E_PHONE_OUT name two FIFOs; any other run skips it.
+// scripts/friends/phones-get-again.mjs and phones-join.mjs, which drive the phone in an emulator). Only when
+// FRIENDS_UI_E2E_PHONE_IN and FRIENDS_UI_E2E_PHONE_OUT name two FIFOs; any other run skips it. SZFRIENDS_TEST_HOST_LIST
+// and _KEYS, when set, reach its helper, which then goes online.
 //
 // The script writes one JSON command per line to the first and reads one JSON answer per line from the second:
 //   intent {type, fields}       through another app's client on the same helper (setting up: joining, sending)
@@ -193,7 +194,13 @@ BOOL UIFlowPhone(SZFE2EWorld* world, UIVariant* variant) {
     FILE* in = out ? fopen(inPath, "r") : NULL;
     if (!in) return NO;
     [world beginScenario:[@"phone-" stringByAppendingString:variant.name]];
-    UIRig* rig = UIStartRig(world, variant, @"mac", nil);
+    // Online (phones-join.mjs --route online): the helper checks in with the script's local host.
+    NSMutableDictionary<NSString*, NSString*>* online = [NSMutableDictionary dictionary];
+    for (NSString* key in @[ @"SZFRIENDS_TEST_HOST_LIST", @"SZFRIENDS_TEST_HOST_KEYS" ]) {
+        const char* value = getenv(key.UTF8String);
+        if (value && *value) online[key] = @(value);
+    }
+    UIRig* rig = UIStartRig(world, variant, @"mac", online);
     SZFE2EClient* client = rig ? [SZFE2EClient clientForHelper:rig.helper] : nil;
     BOOL passed = client != nil && [[client intent:@"activate" fields:nil][@"ok"] boolValue];
     if (rig) UIBeginFlow(rig, @"phone");
