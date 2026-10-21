@@ -7,7 +7,8 @@ mod presentation;
 use std::collections::HashMap;
 
 use presentation::world::*;
-use presentation::{expect_no_missing_keys, validate_snapshot};
+use presentation::items::preview_items;
+use presentation::{expect_fixture, expect_no_missing_keys, through_store, validate_snapshot};
 use serde_json::json;
 use szfriends_core::presentation::{NotificationFacts, NotifyPermission, PeopleNotice, ProfileFacts};
 
@@ -149,4 +150,22 @@ fn the_ask_card_shows_once_friends_was_used_until_not_now() {
     assert!(banner(notifying(&["notifications.ask"]), NotificationFacts { enabled: false, ..not_asked }).is_null());
     let granted = NotificationFacts { permission: NotifyPermission::Granted, ..not_asked };
     assert!(banner(notifying(&["notifications.ask"]), granted).is_null());
+}
+
+/// The shared goldens the views render (and SZFriendsPresentationNotificationsTests.m rebuilds): the list with the ask
+/// card, and Settings on a Mac whose system settings turned Friends' notifications off, message text hidden.
+#[test]
+fn the_shared_fixtures() {
+    if presentation::tree_missing() {
+        return;
+    }
+    let people = through_store(&presentation::world::people());
+    let all = everyone(&people);
+    let not_asked = NotificationFacts { permission: NotifyPermission::NotAsked, activated: true, ..Default::default() };
+    let b = builder(notifying(&["notifications.focus", "notifications.ask"]));
+    let list = b.list(&all, &preview_items(), &with_notifications(not_asked), "", now());
+    expect_fixture(&list, "views-notifications-list.json", "list");
+    let denied =
+        NotificationFacts { permission: NotifyPermission::Denied, preview: false, activated: true, ..Default::default() };
+    expect_fixture(&b.settings(&with_notifications(denied), &all), "views-notifications-settings.json", "settings");
 }

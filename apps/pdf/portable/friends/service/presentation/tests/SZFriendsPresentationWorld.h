@@ -87,5 +87,6 @@ void SZPRunHistoryTests(void);
 void SZPRunJoinTests(void);
 void SZPRunDevicesTests(void);
 void SZPRunDevicesBuildTests(void);
+void SZPRunNotificationsTests(void);
 
 NS_ASSUME_NONNULL_END

@@ -109,4 +109,12 @@ NS_ASSUME_NONNULL_BEGIN
 - (BOOL)refusesOnRemovedComputer:(SZFriendsIntentReply)reply connection:(SZFriendsIPCConnection *)connection;
 @end
 
+// System notifications (SZFriendsIntentRouter+Notifications.m, PROTOCOL.md § Notifications).
+@interface SZFriendsIntentRouter (Notifications)
+// The client's app becomes where a notification's click opens (activate, open_conversation, a non-null set_focus).
+- (void)rememberNotificationTargetFor:(SZFriendsIPCConnection *)connection;
+// Reply on a message notification: sent in the conversation as send_message would, which is then read.
+- (void)sendNotificationReply:(NSString *)text inConversation:(NSString *)conversationID;
+@end
+
 NS_ASSUME_NONNULL_END

@@ -155,6 +155,15 @@ static void SZFE2EOnState(void *context, szfriends_connection_state state) {
 }
 
 + (nullable instancetype)clientForHelper:(SZFE2EHelper *)helper capabilities:(NSArray<NSString *> *)names {
+    return [self clientForHelper:helper appID:@"com.example.friends-e2e" appName:@"Friends Test" urlScheme:nil
+                    capabilities:names];
+}
+
++ (nullable instancetype)clientForHelper:(SZFE2EHelper *)helper
+                                   appID:(NSString *)appID
+                                 appName:(NSString *)appName
+                               urlScheme:(nullable NSString *)urlScheme
+                            capabilities:(NSArray<NSString *> *)names {
     SZFE2EClient *client = [[self alloc] init];
     client->_replies = [NSMutableDictionary dictionary];
     client->_latest = [NSMutableDictionary dictionary];
@@ -166,8 +175,8 @@ static void SZFE2EOnState(void *context, szfriends_connection_state state) {
     szfriends_client_config config = {
         .state_dir = helper.stateDirectory.fileSystemRepresentation,
         .helper_path = NULL, // the harness starts and kills helpers itself
-        .app_id = "com.example.friends-e2e",
-        .app_name = "Friends Test",
+        .app_id = appID.UTF8String,
+        .app_name = appName.UTF8String,
         .app_version = "1",
         .toolkit = "appkit",
         .reveal_in = "Finder",
@@ -179,6 +188,7 @@ static void SZFE2EOnState(void *context, szfriends_connection_state state) {
         .on_frame = SZFE2EOnFrame,
         .on_state = SZFE2EOnState,
         .context = (__bridge void *)client,
+        .url_scheme = urlScheme.UTF8String,
     };
     client->_client = szfriends_client_new(&config);
     if (client->_client == NULL) return nil;

@@ -45,8 +45,8 @@ FRIENDS_HELPER_CORE_NAMES := SZFriendsStatePaths SZFriendsInstanceLock SZFriends
 FRIENDS_HELPER_DISPATCH_NAMES := SZFriendsHelperServices SZFriendsHelperFacts SZFriendsSubscriptions \
 	SZFriendsIntentRouter SZFriendsIntentRouter+Profile SZFriendsIntentRouter+People SZFriendsIntentRouter+Content \
 	SZFriendsIntentRouter+Cancel SZFriendsIntentRouter+Mentions SZFriendsIntentRouter+Links SZFriendsHelperLinks \
-	SZFriendsIntentRouter+Join SZFriendsIntentRouter+Devices SZFriendsIntentRouter+Reset SZFriendsHostCheckIn \
-	SZFriendsHelperMain
+	SZFriendsIntentRouter+Join SZFriendsIntentRouter+Devices SZFriendsIntentRouter+Reset \
+	SZFriendsIntentRouter+Notifications SZFriendsHostCheckIn SZFriendsHelperMain
 # Nearby orchestration (nearby/): discovery, sessions, delivery and transfers wired together for the helper.
 FRIENDS_HELPER_NEARBY_SRCS := $(sort $(wildcard $(FRIENDS_HELPER_DIR)/nearby/*.m))
 FRIENDS_HELPER_NEARBY_OBJS := $(patsubst $(FRIENDS_HELPER_DIR)/nearby/%.m,$(FRIENDS_HELPER_BUILD)/obj/nearby/%.o,\
@@ -68,8 +68,10 @@ $(FRIENDS_HELPER_BUILD)/obj/%.o: $(FRIENDS_HELPER_DIR)/%.m $(FRIENDS_HELPER_HDRS
 	@mkdir -p "$(@D)"
 	clang $(PORTABLE_OPTFLAGS) $(FRIENDS_OBJC_FLAGS) $(FRIENDS_SODIUM_CFLAGS) -c "$<" -o "$@"
 
-# IOKit for sleep and wake (nearby/SZFriendsWakeMonitor.m): the helper is Foundation-only, so no NSWorkspace.
-FRIENDS_HELPER_FRAMEWORKS := -framework Foundation -framework Security -framework IOKit
+# IOKit for sleep and wake (nearby/SZFriendsWakeMonitor.m): the helper links no UI toolkit, so no NSWorkspace.
+# UserNotifications posts its notifications and CoreServices' LaunchServices opens their clicks (service/notify/).
+FRIENDS_HELPER_FRAMEWORKS := -framework Foundation -framework Security -framework IOKit -framework UserNotifications \
+	-framework CoreServices
 FRIENDS_HELPER_EXE := $(FRIENDS_HELPER_BUILD)/szfriends-helper
 $(FRIENDS_HELPER_EXE): $(FRIENDS_HELPER_OBJS) $(FRIENDS_HELPER_MAIN_OBJ) $(FRIENDS_SODIUM_LIB) $(FRIENDS_CJSON_OBJ) \
 		$$(FRIENDS_SERVICE_OBJS) $$(FRIENDS_CLIENT_OBJS)
@@ -88,7 +90,10 @@ FRIENDS_HELPER_PLIST = "$(FRIENDS_HELPER_APP)/Contents/Info.plist"
 FRIENDS_HELPER_LICENSES := ../ext/libsodium/LICENSE=libsodium ../ext/cjson/LICENSE=cJSON \
 	../ext/libdatachannel/LICENSE=libdatachannel ../ext/libjuice/LICENSE=libjuice ../ext/usrsctp/LICENSE.md=usrsctp \
 	../ext/plog/LICENSE=plog ../ext/mbedtls/LICENSE=mbedtls ../ext/miniupnpc/LICENSE=miniupnpc
+# The icon notification banners show beside "Shenzhen Friends" (CFBundleIconFile), made from AppIcon.svg.
+FRIENDS_HELPER_ICON := $(FRIENDS_HELPER_DIR)/AppIcon.icns
 $(FRIENDS_HELPER_BUNDLE_STAMP): $(FRIENDS_HELPER_EXE) $(FRIENDS_HELPER_DIR)/Info.plist $(FRIENDS_HELPER_DIR)/helper.mk \
+		$(FRIENDS_HELPER_ICON) \
 		$(foreach license,$(FRIENDS_HELPER_LICENSES),$(firstword $(subst =, ,$(license)))) \
 		$$(FRIENDS_HELPER_RESOURCE_SOURCES)
 	rm -rf "$(FRIENDS_HELPER_APP)"
@@ -99,6 +104,7 @@ $(FRIENDS_HELPER_BUNDLE_STAMP): $(FRIENDS_HELPER_EXE) $(FRIENDS_HELPER_DIR)/Info
 	/usr/libexec/PlistBuddy -c "Set :SZFriendsBuildNumber $(FRIENDS_HELPER_BUILD_NUMBER)" $(FRIENDS_HELPER_PLIST)
 	plutil -lint -s $(FRIENDS_HELPER_PLIST)
 	cp "$(FRIENDS_HELPER_EXE)" "$(FRIENDS_HELPER_APP)/Contents/MacOS/$(FRIENDS_HELPER_APP_NAME)"
+	cp "$(FRIENDS_HELPER_ICON)" "$(FRIENDS_HELPER_APP)/Contents/Resources/AppIcon.icns"
 	@for entry in $(FRIENDS_HELPER_LICENSES); do \
 		echo "cp $${entry%%=*} Licenses/$${entry#*=}.txt"; \
 		cp "$${entry%%=*}" "$(FRIENDS_HELPER_APP)/Contents/Resources/Licenses/$${entry#*=}.txt" || exit 1; \

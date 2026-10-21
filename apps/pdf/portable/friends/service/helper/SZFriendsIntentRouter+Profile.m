@@ -4,6 +4,7 @@
 
 #import "service/discovery/SZFriendsDiscovery.h"
 #import "service/helper/nearby/SZFriendsNearbyService.h"
+#import "service/notify/SZFriendsNotify.h"
 
 // PROTOCOL.md § Limits.
 static const NSUInteger SZFriendsNameMax = 40;
@@ -96,6 +97,12 @@ static NSUInteger SZFriendsVisibleLength(NSString *text) {
 
 - (void)intent_dismiss_banner:(NSDictionary *)intent connection:(SZFriendsIPCConnection *)connection
                         reply:(SZFriendsIntentReply)reply {
+    if ([intent[@"kind"] isEqual:@"notifications"] && self.services.notifier != nil) {
+        // Not Now on the card offering notifications: it does not come back; Settings keeps Allow.
+        self.services.notifier.settings.askDismissed = YES;
+        [self succeed:reply result:nil];
+        return;
+    }
     if (![intent[@"kind"] isEqual:@"id_changed"]) {
         [self fail:reply code:@"invalid_field" details:@{@"field" : @"kind"} connection:connection];
         return;

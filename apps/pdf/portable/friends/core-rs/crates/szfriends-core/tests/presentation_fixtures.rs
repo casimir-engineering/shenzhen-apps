@@ -18,7 +18,7 @@ use szfriends_core::presentation::{
 use szfriends_core::store::{PhoneFolder, ReceivedFallback, ReceivedFile, ReceivedSource};
 
 /// Every snapshot fixture, and the suite that builds it.
-const COVERED: [&str; 43] = [
+const COVERED: [&str; 45] = [
     "badge.json",
     "list.json",
     "list-id-changed.json",
@@ -65,6 +65,9 @@ const COVERED: [&str; 43] = [
     // presentation_found.rs
     "nearby-found.json",
     "list-found.json",
+    // presentation_notifications.rs
+    "views-notifications-list.json",
+    "views-notifications-settings.json",
 ];
 
 fn people() -> HashMap<String, PersonFacts> {

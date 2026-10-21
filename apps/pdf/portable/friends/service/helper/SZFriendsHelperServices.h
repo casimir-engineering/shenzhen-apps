@@ -32,6 +32,7 @@ NS_ASSUME_NONNULL_BEGIN
 @class SZFriendsHostListCache;
 @class SZFriendsLinkService;
 @class SZFriendsNearbyService;
+@class SZFriendsNotifier;
 
 @interface SZFriendsHelperServices : NSObject
 - (instancetype)initWithPaths:(SZFriendsStatePaths *)paths
@@ -66,6 +67,12 @@ NS_ASSUME_NONNULL_BEGIN
 // Friend and download links (SZFriendsHelperLinks.h): made on first use, never at launch.
 @property(nonatomic, strong, nullable) SZFriendsLinkService *links;
 @property(nonatomic, strong, nullable) id linkRouter;
+// System notifications (service/notify/, ADR 0017): made by -openNotifierOnQueue: with a store; nil without one.
+@property(nonatomic, readonly, nullable) SZFriendsNotifier *notifier;
+// The poster is the test home's JSON-lines sink when SZFRIENDS_STATE_DIR is set (a team-signed build never sees it),
+// the notification centre otherwise. Called by SZFriendsHelperMain before it serves, so a click that launched the
+// helper finds its delegate.
+- (void)openNotifierOnQueue:(dispatch_queue_t)queue;
 
 // Fails outbox entries unsent for 30 days; at open, then hourly. Returns whether any changed.
 - (BOOL)expireOutbox;

@@ -179,6 +179,7 @@ static NSData *SZFriendsJoinOpenPayload(uint8_t kind, NSData *body) {
         SZFriendsJoinReceipt receipt = [approver receiveRequestMessage:body ownFriendsID:store.friendsID
                                                                  chain:store.ownDeviceChain now:[NSDate date]
                                                            endedReason:NULL];
+        if (receipt == SZFriendsJoinReceiptAdded) [self notifyJoinRequests];
         if (receipt == SZFriendsJoinReceiptAdded || receipt == SZFriendsJoinReceiptRefreshed) [self changed];
         return;
     }

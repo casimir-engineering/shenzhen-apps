@@ -21,6 +21,7 @@
 #import "service/helper/SZFriendsHostCheckIn.h"
 #import "service/helper/SZFriendsIntentRouter.h"
 #import "service/helper/nearby/SZFriendsNearbyService.h"
+#import "service/notify/SZFriendsNotify.h"
 
 // Held for the life of the process: dispatch_main() never returns, and ARC may otherwise release a local after
 // its last use.
@@ -84,7 +85,15 @@ int SZFriendsHelperMain(int argc, const char *_Nonnull argv[_Nonnull]) {
         }
         SZFriendsInstanceLock *lock = [SZFriendsInstanceLock acquireAtPath:paths.lockPath error:&error];
         if (lock == nil) {
-            if ([error.domain isEqualToString:NSPOSIXErrorDomain] && error.code == EWOULDBLOCK) return 0;
+            if ([error.domain isEqualToString:NSPOSIXErrorDomain] && error.code == EWOULDBLOCK) {
+                // Another helper serves. macOS may have launched this one (its parent is launchd, never an app's
+                // spawner) for a click or a reply on a notification: it routes that before leaving (ADR 0017). Never
+                // in a test home, where nothing touches the notification centre.
+                if (environment[@"SZFRIENDS_STATE_DIR"] == nil && getppid() == 1) {
+                    SZFriendsNotifyForwardLaunchResponse(paths.stateDirectory);
+                }
+                return 0;
+            }
             SZFriendsHelperLog(@"cannot take helper.lock: %@", error.localizedDescription);
             return 1;
         }
@@ -119,6 +128,17 @@ int SZFriendsHelperMain(int argc, const char *_Nonnull argv[_Nonnull]) {
                                                                               server:server
                                                                                queue:queue];
         SZFriendsIntentRouter *router = [[SZFriendsIntentRouter alloc] initWithServices:services publisher:publisher];
+        // Notifications, before serving: a click or a reply that launched this helper reaches its delegate.
+        [services openNotifierOnQueue:queue];
+        SZFriendsNotifier *notifier = services.notifier;
+        __weak SZFriendsPublisher *weakPublisher = publisher;
+        __weak SZFriendsIntentRouter *weakReplyRouter = router;
+        notifier.focusedConversations = ^NSSet<NSString *> * { return [weakPublisher focusedConversations] ?: [NSSet set]; };
+        notifier.sendReply = ^(NSString *conversationID, NSString *text) {
+            [weakReplyRouter sendNotificationReply:text inConversation:conversationID];
+        };
+        // Allowed or refused in System Settings meanwhile: Settings' line and the list's card follow.
+        notifier.poster.onPermissionChange = ^{ [weakPublisher publishAllCoalesced]; };
         SZFriendsLifecyclePolicy *policy = [[SZFriendsLifecyclePolicy alloc] init];
         double scale = SZFriendsHelperTimeScale(environment);
         policy.gracePeriod *= scale;

@@ -70,8 +70,9 @@ go there. Without one it is ShenzhenPDF on a Mac and Shenzhen 3D elsewhere. A cl
 `<scheme>://friends/conversation/<conversation_id>` (a join request: `<scheme>://friends`), which every host routes to
 its Friends dropdown or panel, open on that conversation. The URL works whether or not the app is running.
 
-- Mac: `-[NSWorkspace openURLs:withApplicationAtURL:configuration:]` with the remembered bundle, activating it; the
-  scheme's default handler when that bundle is gone. A click can reach a helper macOS just launched for it (no
+- Mac: LaunchServices' `LSOpenFromURLSpec` (what `-[NSWorkspace openURLs:withApplicationAtURL:configuration:]` calls;
+  the service layer links no UI toolkit) with the remembered bundle, activating it; the scheme's default handler when
+  that bundle is gone. A click can reach a helper macOS just launched for it (no
   client, maybe not the lock holder): it routes the click before it exits.
 - Windows: the toast's `activationType="protocol"` with the URL as `launch`, so Windows opens it without the helper.
 - Linux: the helper listens for `ActionInvoked` (`default`) on the session bus and starts the remembered executable
@@ -111,6 +112,15 @@ costs: the phone keeps looking for friends nearby and stays connected, which use
 **iOS.** Local notifications only, posted while the app runs or in the short time iOS gives it after going to the
 background. Settings says plainly that an iPhone gets messages only while Shenzhen 3D is open: there is no push
 server, by design (no server learns who talks to whom).
+
+**The Mac helper is a UI element, not background-only.** The helper's Info.plist said `LSBackgroundOnly`. Apple
+documents UserNotifications for applications and nowhere says a background-only process may ask for permission or
+present banners; LaunchServices treats such a process as having no user interface, and command-line posters that
+work (terminal-notifier) are `LSUIElement` bundles. A probe on macOS 26.5 under a scratch bundle identifier (settings
+read only; nothing asked or posted) returned "not determined" for both kinds, so only asking could tell them apart.
+The helper therefore says `LSUIElement` instead: still no Dock icon, no menu bar and no windows (it links no AppKit).
+Nothing relied on `LSBackgroundOnly`: the reader's quit cascade and the updater's instance count match the reader's
+bundle identifier, apps start the helper with `posix_spawn`, and the launch-performance gate finds helpers by path.
 
 **The request.** Both helpers build the same request, and the test sink and the phone bridge carry it as JSON:
 

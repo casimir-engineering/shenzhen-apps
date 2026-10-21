@@ -13,6 +13,7 @@
 #import "service/helper/SZFriendsHelperTesting.h"
 #import "service/helper/nearby/SZFriendsPeerLink.h"
 #import "service/host/SZFriendsHostConnection.h"
+#import "service/notify/SZFriendsNotify.h"
 #import "service/online/driver/SZFriendsOnlineDriver.h"
 #import "service/session/SZFriendsSession.h"
 #import "service/thumbnails/SZFriendsThumbnails.h"

@@ -188,6 +188,11 @@ NSData *SZFriendsCallbackSecretForDay(NSData *masterSecret, int64_t day) {
                   payload:@{@"frame" : @"accept"}];
         [self enqueueKind:SZFriendsOutboxKindPresenceSecret conversationID:person.conversationID payload:nil];
     }
+    // Through our friend link they are friends at once; their request and ours make friends too; otherwise a new
+    // request (one asked again on another day is the same request).
+    if (invited) [self.services.notifier noteLinkUsedBy:person];
+    else if (mutual) [self.services.notifier noteAcceptedBy:person];
+    else if (!askedBefore) [self.services.notifier noteRequestFrom:person];
     [self rebuildTagMatcher];
     [self changed];
 }
@@ -231,6 +236,8 @@ NSData *SZFriendsCallbackSecretForDay(NSData *masterSecret, int64_t day) {
     [self recordAnswerInConversation:conversationID attestation:attestation requestedID:requested keyKnown:keyKnown];
     if ([self requestTokenCameFromLink:token]) {
         SZFriendsNearbyRecordEvent(store, SZFriendsEventAddedThroughTheirLink, conversationID);
+        SZFriendsPersonRecord *person = [store personWithConversationID:conversationID];
+        if (person != nil) [self.services.notifier noteLinkAddedWith:person];
     }
     link.answerForID = requested;
     link.answerAttested = said == SZFriendsAnswerAttested;
