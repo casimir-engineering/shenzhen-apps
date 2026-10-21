@@ -20,6 +20,7 @@ them is a bug; decide which and fix it in the same change.
 - [Thumbnails](#thumbnails)
 - [Links](#links)
 - [Devices](#devices)
+- [Notifications](#notifications)
 - [Static strings](#static-strings)
 - [Limits](#limits)
 - [Schemas](#schemas)
@@ -234,6 +235,9 @@ Lowercase dotted strings. Unknown ones are ignored on both sides.
 | `list.menu` | The host shows each list row's `menu` on right-click, Control-click or long-press; rows carry `menu` (§ Views, `list`) |
 | `files.again` | The host sends `fetch_from_friend`: a file a friend sent that is on none of the person's computers anymore carries Get again (§ Getting a file again). Without it the item says so and offers nothing |
 | `mentions` | The host's views show mentions (§ Mentions): `@` in the composer, whose hint then includes "@ to mention someone", with `mentionable` on list rows and the composer's `mention_note`, and mentions in messages as links. Without it every mention arrives as plain text |
+| `notifications.focus` | The host sends `set_focus` (§ Notifications) |
+| `notifications.ask` | The host shows the list's `notifications` banner with its `dismiss` action (macOS, iOS) |
+| `background.reachable` | An Android host that can keep Friends running in the background: Settings carries `notifications.background` |
 
 | Helper capability | Meaning |
 |---|---|
@@ -249,6 +253,7 @@ Lowercase dotted strings. Unknown ones are ignored on both sides.
 | `files.again` | `fetch_from_friend` is implemented, and this helper serves the files it sent to a friend who asks for them again (§ Getting a file again). Without it the intent fails with `unknown_intent` and no item carries Get again |
 | `received.folder` | Received files are published to a folder the person can choose (§ Views, `settings` and `received`): `data.received`'s `value`, `path` and `change`, the intent `set_received_folder` and the `received` view. Without it the intent fails with `unknown_intent`, `subscribe` to `received` with `invalid_field`, and hosts offer no Change… |
 | `online` | Online friends (M2): the helper reaches friends over the Internet, and its words say so (§ Shared objects, Route, online). Absent in M1: no snapshot shows an Online or Connecting state or Internet wording |
+| `notifications` | This helper posts system notifications (§ Notifications): `set_focus`, `set_notifications`, `allow_notifications`, the settings' `notifications` and the list's `notifications` banner. Without it those intents fail with `unknown_intent` |
 
 An M1 helper announces `nearby.network`, `nearby.bluetooth`, `host.checkin`, `messages.status`, `messages.cancel` and
 `mentions`, and `received.folder` once it publishes received files to the chosen folder (`fixtures/frames/welcome.json`).
@@ -298,6 +303,10 @@ composer on the reply already shows the sent message. Field types are in § Sche
 | `rename_device` | `name` | The name this computer has in Your computers on every computer of the profile (§ Devices) |
 | `fetch_from_device` | `transfer_id` | Copy here a file another of the person's computers holds (Get, § Devices) |
 | `fetch_from_friend` | `transfer_id` | Get a file a friend sent again, from that friend, when none of the person's computers has it anymore (Get again, § Getting a file again; helper capability `files.again`) |
+| `set_focus` | `conversation_id` | The conversation this client's focused window shows, or `null`; no notification for it (§ Notifications) |
+| `set_notifications` | `enabled?`, `preview?`, `background?` | This device's notification switches (§ Notifications) |
+| `allow_notifications` | — | Ask the system for permission to show notifications (macOS, iOS, Android) |
+| `test_notification_response` | `key`, `action`, `text?` | Test homes only: a click (`open`) or a reply on a notification the sink recorded |
 | `block` | `conversation_id` | Block: they cannot reconnect, send requests or offer files; turns off automatic acceptance |
 | `unblock` | `conversation_id` | Undo a block |
 | `remove_friend` | `conversation_id`, `delete_history?` | Take anyone but You off the list: a friend is removed without being told, an incoming request declined and an outgoing one withdrawn (as `decline_request` and `cancel_request` do), a blocked person stays blocked. The conversation stays unless `delete_history` is true, which then deletes it as `delete_history` does; a new request from either side brings the person back. `not_allowed` for You; someone already off the list succeeds with no change |
@@ -1374,6 +1383,57 @@ join_id: string
 join_id: string
 ```
 
+## Notifications
+
+The person hears about a friend's message, file, request or acceptance, and about a computer asking to join their
+profile, through the system's notifications ([ADR 0017](docs/adr/0017-notifications.md)). The helper capability
+`notifications` says this helper posts them. One process per device posts: the helper on a computer, shared by every
+app there, and the core inside the app on a phone. Views never post.
+
+**What notifies.** A friend's message (title the friend's name as the list shows it, body the text, or "New message"
+with previews off); a file a friend offers that waits for an answer ("Mei wants to send you Bracket.step"), or one
+accepted automatically, once received ("Mei sent Bracket.step"); a friend request ("Wants to be friends"); this
+person's request accepted ("Accepted your friend request"); someone added through this person's friend link, or
+added by this person through theirs; a computer or phone asking to join the profile. Every word is from the catalog
+(`notify.*`, `service/presentation/SZFriendsCatalogNotifications.m`).
+
+**What never notifies.** The conversation a focused window shows (`set_focus`); anything the person did on another
+of their devices; the You conversation; a friend's item that came by sync already read, or sent more than 10 minutes
+before it arrived here; anything in the store before the helper started; blocked people; anything while Notifications
+is off or the system refuses. Each item is decided once, when it is first committed to this device's store.
+
+**Focus.** `set_focus` `conversation_id` (string or `null`): the conversation this client's focused window shows,
+`null` when the window loses focus, the app goes to the background, the dropdown closes or shows another page.
+Clients that declare `notifications.focus` send it on every change. The helper keeps one value per connection and
+drops it on disconnect. A client without `notifications.focus` that holds an `open_conversation` counts as focused
+on it.
+
+**Where a click goes.** The app the person last used Friends from (the last client that sent `activate`,
+`open_conversation` or a non-null `set_focus`), remembered across restarts; ShenzhenPDF on a Mac and Shenzhen 3D
+elsewhere when there is none. The click opens `<client.url_scheme>://friends/conversation/<conversation_id>`, or
+`<scheme>://friends` for a join request. Every host routes that URL to its Friends dropdown or panel, open on that
+conversation, whether or not it was running.
+
+**Reply.** Message notifications offer Reply where the system has inline replies (macOS, Android); the helper sends
+the text in that conversation as `send_message` would and marks it read.
+
+**The ask.** On macOS and iOS (clients that declare `notifications.ask`) the list's `banner` is kind
+`notifications` while the system has not been asked, Notifications is on and the person has not chosen Not Now:
+"Get a notification when friends send you a message or a file.", `action` `allow_notifications` (Turn On) and
+`dismiss` `dismiss_banner` kind `notifications` (Not Now). Nothing is asked at launch. Android asks for
+POST_NOTIFICATIONS in the same request as Bluetooth. Windows and Linux need no permission.
+
+**Settings.** `settings.notifications`: `enabled` (Show notifications) and `preview` (Show message text) switches,
+sent back with `set_notifications`; `note` and `action` for the permission (`allow_notifications` Allow, or
+`open_settings` with `settings_target` `notifications`); on Android `background` ("Stay reachable in the
+background", clients that declare `background.reachable`) with its battery note. All of it belongs to this device and
+never syncs.
+
+**Tests.** A helper in a test home (`SZFRIENDS_STATE_DIR`) never touches the system's notification service: it
+appends each request, withdrawal, ask and routed click as JSON lines to `<state dir>/notifications.jsonl`, reads its
+permission from `SZFRIENDS_NOTIFY_PERMISSION`, and accepts `test_notification_response`. Elsewhere that intent fails
+with `unknown_intent`. ADR 0017 gives the request's fields.
+
 ## Static strings
 
 `welcome.strings` holds the labels that do not depend on state, keyed as below, so the catalog stays in the
@@ -1507,6 +1567,7 @@ client.app_version: string
 client.toolkit: enum(appkit,gtk4)
 client.reveal_in: string
 client.pid: integer
+client.url_scheme?: string     # the app's URL scheme, where a notification's click opens it (§ Notifications)
 embedded_helper: object|null
 embedded_helper.version: string
 embedded_helper.build_number: integer
@@ -1634,7 +1695,7 @@ label: string|null
 ```
 
 ```schema type.action
-action: enum(accept_request,decline_request,cancel_request,block,unblock,remove_friend,send_request,add_from_mention,accept_offer,decline_offer,cancel_transfer,cancel_message,retry_item,mark_verified,accept_key_change,dismiss_banner,start_visibility,stop_visibility,activate,reset_friends,delete_history,open_file,show_file,open_settings,add_from_link,receive_link,reset_friend_link,revoke_link,revoke_device,fetch_from_device,fetch_from_friend,join_profile,cancel_join,approve_join,deny_join,choose_received_folder,open_join)
+action: enum(accept_request,decline_request,cancel_request,block,unblock,remove_friend,send_request,add_from_mention,accept_offer,decline_offer,cancel_transfer,cancel_message,retry_item,mark_verified,accept_key_change,dismiss_banner,start_visibility,stop_visibility,activate,reset_friends,delete_history,open_file,show_file,open_settings,add_from_link,receive_link,reset_friend_link,revoke_link,revoke_device,fetch_from_device,fetch_from_friend,join_profile,cancel_join,approve_join,deny_join,choose_received_folder,open_join,allow_notifications)
 label: string
 style: enum(primary,secondary,link,destructive)
 note?: string|null
@@ -1643,7 +1704,8 @@ confirm?: @confirm|null      # ask first; reset_friends and remove_friend always
 arm?: @arm|null              # ask for a second click first; block always carries one
 then?: enum(open_join)|null  # reset_friends only, for the view: what it shows once the reset succeeded; never sent
 path: string when action=open_file,show_file
-settings_target: enum(local_network_privacy,bluetooth_privacy,bluetooth,wifi) when action=open_settings
+settings_target: enum(local_network_privacy,bluetooth_privacy,bluetooth,wifi,notifications) when action=open_settings
+kind?: enum(id_changed,notifications) when action=dismiss_banner   # absent means id_changed
 friends_id: string when action=add_from_mention,join_profile   # the intent's fields, sent as they are
 identity_key: string when action=add_from_mention
 name: string when action=add_from_mention
@@ -1727,9 +1789,10 @@ action: @action               # reset_friends, with its confirm
 ```
 
 ```schema type.banner
-kind: enum(id_changed,identity_unavailable,update_required)
+kind: enum(id_changed,identity_unavailable,update_required,notifications)
 text: string
 action: @action|null
+dismiss?: @action|null       # notifications: Not Now (dismiss_banner)
 ```
 
 ```schema type.name_prompt
@@ -2132,6 +2195,19 @@ data.nearby?: object|null         # the helper's Nearby line; absent from a help
 data.nearby.label: string         # "Nearby"
 data.nearby.note: string
 data.nearby.action: @action|null  # activate (Allow, Try Again) or open_settings
+data.notifications?: object|null  # with `notifications` (§ Notifications); this device only
+data.notifications.label: string  # "Notifications"
+data.notifications.enabled.label: string   # "Show notifications"
+data.notifications.enabled.value: bool
+data.notifications.preview.label: string   # "Show message text"
+data.notifications.preview.note: string
+data.notifications.preview.value: bool
+data.notifications.note: string   # the permission's state, or the iPhone note; "" when nothing to say
+data.notifications.action: @action|null    # allow_notifications or open_settings (notifications)
+data.notifications.background?: object|null  # Android hosts with `background.reachable`
+data.notifications.background.label: string  # "Stay reachable in the background"
+data.notifications.background.note: string   # what it costs in battery
+data.notifications.background.value: bool
 ```
 
 ```schema snapshot.received
@@ -2312,7 +2388,27 @@ path: string                 # an absolute folder path
 ```
 
 ```schema intent.dismiss_banner
-kind: enum(id_changed)
+kind: enum(id_changed,notifications)
+```
+
+```schema intent.set_focus
+conversation_id: string|null
+```
+
+```schema intent.set_notifications
+enabled?: bool
+preview?: bool
+background?: bool
+```
+
+```schema intent.allow_notifications
+type: enum(allow_notifications)
+```
+
+```schema intent.test_notification_response
+key: string
+action: enum(open,reply)
+text?: string
 ```
 
 ```schema intent.start_visibility

@@ -339,6 +339,7 @@ NSDictionary<NSString *, NSString *> *SZFriendsEnglishCatalog(void) {
       [merged addEntriesFromDictionary:SZFriendsEnglishCatalogMentions()];
       [merged addEntriesFromDictionary:SZFriendsEnglishCatalogLinks()];
       [merged addEntriesFromDictionary:SZFriendsEnglishCatalogJoin()];
+      [merged addEntriesFromDictionary:SZFriendsEnglishCatalogNotifications()];
       [merged addEntriesFromDictionary:SZFriendsEnglishCatalogDevices()];
       catalog = [merged copy];
     });

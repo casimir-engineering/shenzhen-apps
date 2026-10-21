@@ -103,3 +103,8 @@ trusts no claimed ID, and the per-address NN rate, attestation only on ACCEPT an
 Corrections recorded on 2026-10-13 from waves 6a and 6b, in the same sections: 0001 (the THUMBNAIL frame of session
 minor 1, and the frame fuzzing now in place), 0003 (schema v6 for previews; search reading mentions as their labels)
 and 0007 (search no longer holds mentions' IDs and keys).
+- [0017 System notifications](0017-notifications.md) (Proposed): one notifier per device (the helper on a computer,
+  the core in the app on a phone) decides each item once at commit; nothing for the focused conversation or the
+  person's own other devices; clicks open `<scheme>://friends/conversation/<id>` in the app last used; the ask card on
+  macOS and iOS, POST_NOTIFICATIONS with Bluetooth on Android, a foreground service for background reach; a JSON-lines
+  sink in test homes.

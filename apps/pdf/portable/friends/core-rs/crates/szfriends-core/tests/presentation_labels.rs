@@ -79,6 +79,7 @@ fn the_catalog_is_the_helpers() {
         "SZFriendsCatalogLinks.m",
         "SZFriendsCatalogJoin.m",
         "SZFriendsCatalogDevices.m",
+        "SZFriendsCatalogNotifications.m",
     ] {
         let source = std::fs::read_to_string(directory.join(file)).unwrap();
         // Only the dictionary literals: from the first "return @{" on.

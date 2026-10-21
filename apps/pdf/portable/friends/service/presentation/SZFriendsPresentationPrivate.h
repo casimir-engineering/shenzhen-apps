@@ -30,6 +30,7 @@ NSDictionary<NSString *, NSString *> *SZFriendsEnglishCatalog(void);
 NSDictionary<NSString *, NSString *> *SZFriendsEnglishCatalogViews(void); // part two, merged into the above
 NSDictionary<NSString *, NSString *> *SZFriendsEnglishCatalogMentions(void); // mentions, merged into the above
 NSDictionary<NSString *, NSString *> *SZFriendsEnglishCatalogLinks(void);    // links, merged into the above
+NSDictionary<NSString *, NSString *> *SZFriendsEnglishCatalogNotifications(void);  // notifications, ADR 0017
 NSDictionary<NSString *, NSString *> *SZFriendsEnglishCatalogJoin(void);     // joining, merged into the above
 NSDictionary<NSString *, NSString *> *SZFriendsEnglishCatalogDevices(void);  // several computers, merged into the above
 
