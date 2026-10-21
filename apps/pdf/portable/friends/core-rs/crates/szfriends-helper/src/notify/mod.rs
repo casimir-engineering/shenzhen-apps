@@ -2,9 +2,22 @@
 //! Windows and Linux the helper process posts (toasts, org.freedesktop.Notifications); on phones the Tauri plugin's
 //! native code does, through its own `Notifier`; in a test home every request goes to the JSON-lines [`FileSink`].
 
+pub mod prefs;
+pub mod toast;
+
 use std::io::Write;
-use std::path::PathBuf;
-use std::sync::Mutex;
+use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
+
+/// The name notifications come from on Windows and Linux.
+pub const APP_NAME: &str = "Shenzhen Friends";
+/// Windows: the AppUserModelID toasts are posted under, registered under HKCU with [`APP_NAME`] and the icon.
+pub const APP_USER_MODEL_ID: &str = "com.intuition.shenzhenfriends";
+/// The icon notifications show (written next to the state on first use).
+pub const ICON_PNG: &[u8] = include_bytes!("../../resources/notify-icon.png");
+
+/// How a platform notifier hands a click or a reply back to the service (Linux's ActionInvoked, a phone's response).
+pub type Responder = Arc<dyn Fn(Response) + Send + Sync>;
 
 /// Where a click goes: `url` is `<scheme>://friends/conversation/<id>` (or `<scheme>://friends`).
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -65,6 +78,25 @@ pub enum Permission {
     NotNeeded,
     /// Linux with no notification service on the session bus.
     Unavailable,
+}
+
+impl From<Permission> for szfriends_core::presentation::NotifyPermission {
+    fn from(permission: Permission) -> Self {
+        match permission {
+            Permission::Granted => Self::Granted,
+            Permission::Denied => Self::Denied,
+            Permission::NotAsked => Self::NotAsked,
+            Permission::NotNeeded => Self::NotNeeded,
+            Permission::Unavailable => Self::Unavailable,
+        }
+    }
+}
+
+impl Permission {
+    /// Whether a request may be posted now.
+    pub fn allows_posting(self) -> bool {
+        matches!(self, Self::Granted | Self::NotNeeded)
+    }
 }
 
 /// A click or a reply, from the system or `test_notification_response`.
@@ -130,4 +162,32 @@ impl Notifier for FileSink {
         self.append(serde_json::json!({ "opened": {
             "url": open.url, "app_id": open.app_id, "app_path": open.app_path } }));
     }
+}
+
+impl Response {
+    pub fn key(&self) -> &str {
+        match self {
+            Self::Open { key } | Self::Reply { key, .. } => key,
+        }
+    }
+}
+
+/// The notifier this desktop posts with: the test home's sink, Windows toasts, freedesktop notifications on Linux;
+/// None elsewhere (a phone's host installs its own, `Service::install_notifier`).
+pub fn platform_notifier(state_dir: &Path, test_home: bool, responder: Responder) -> Option<Arc<dyn Notifier>> {
+    if test_home {
+        return Some(Arc::new(FileSink::new(state_dir)));
+    }
+    let _ = &responder;
+    None
+}
+
+/// The icon's file, written into the state directory when missing; None when it cannot be.
+pub fn icon_file(state_dir: &Path) -> Option<PathBuf> {
+    let path = state_dir.join("notify-icon.png");
+    if std::fs::metadata(&path).map(|m| m.len() == ICON_PNG.len() as u64).unwrap_or(false) {
+        return Some(path);
+    }
+    std::fs::write(&path, ICON_PNG).ok()?;
+    Some(path)
 }

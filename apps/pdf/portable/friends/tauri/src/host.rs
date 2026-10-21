@@ -1,6 +1,6 @@
 //! Friends in the app's Rust process: one link per app, shared by every window that joined; the status the page
 //! reads; intents checked and routed; the windows' event channels; received files the service offered to open; and
-//! Friends links waiting for a window. The Tauri side of Shenzhen 3D's Electron host (`electron/friends/host.cjs`).
+//! Friends links and notifications' URLs waiting for a window. The Tauri side of Shenzhen 3D's Electron host (`electron/friends/host.cjs`).
 
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::PathBuf;
@@ -31,6 +31,14 @@ fn client_capabilities(app: &[String]) -> Vec<String> {
     capabilities
 }
 
+/// The page's event for a Friends URL (src/friends/bridge.ts in Shenzhen 3D, as the Electron host sends it).
+pub(crate) fn open_event(opened: crate::urls::FriendsUrl) -> Value {
+    match opened {
+        crate::urls::FriendsUrl::Link(payload) => json!({"kind": "link", "payload": payload}),
+        crate::urls::FriendsUrl::Open(conversation_id) => json!({"kind": "open", "conversation_id": conversation_id}),
+    }
+}
+
 #[derive(Default)]
 struct State {
     enabled: Option<bool>,
@@ -40,7 +48,8 @@ struct State {
     windows: HashMap<String, Channel<Value>>,
     offered: VecDeque<String>,
     offered_set: HashSet<String>,
-    pending_link: Option<String>,
+    /// The event a Friends URL opened in the app gives the focused window once Friends is ready.
+    pending_open: Option<Value>,
     state_dir: Option<PathBuf>,
     share: share::Share,
 }
@@ -160,7 +169,7 @@ impl<R: Runtime> Host<R> {
             self.attach();
         }
         if ready {
-            self.offer_pending_link();
+            self.offer_pending_open();
         }
         self.status()
     }
@@ -183,6 +192,8 @@ impl<R: Runtime> Host<R> {
             capabilities: client_capabilities(&self.config.capabilities),
             open_formats: self.config.open_formats.clone(),
             locale: self.config.locale.clone(),
+            // Where a notification's click opens this app (ADR 0017): the scheme its Friends links use.
+            url_scheme: Some(self.config.link_scheme.clone()).filter(|s| !s.is_empty()),
         };
         let host = Arc::downgrade(self);
         let sink: crate::link::Sink = Arc::new(move |event| {
@@ -235,7 +246,7 @@ impl<R: Runtime> Host<R> {
                 }
                 self.announce();
                 if ready {
-                    self.offer_pending_link();
+                    self.offer_pending_open();
                 }
             }
         }
@@ -344,18 +355,20 @@ impl<R: Runtime> Host<R> {
         }
     }
 
-    /// A Friends link opened in this app (PROTOCOL.md § Links): given to the focused window once Friends is ready.
+    /// A Friends URL opened in this app, given to the focused window once Friends is ready: a friend or download
+    /// link shows its card (PROTOCOL.md § Links), a notification's opens the panel on its conversation, or on the
+    /// list (§ Notifications).
     pub fn open_link(self: &Arc<Self>, url: &str) -> bool {
-        let Some(payload) = crate::urls::link_payload(url, &self.config.link_scheme) else { return false };
+        let Some(opened) = crate::urls::friends_url(url, &self.config.link_scheme) else { return false };
         if !self.available {
             return false;
         }
-        self.lock().pending_link = Some(payload);
-        self.offer_pending_link();
+        self.lock().pending_open = Some(open_event(opened));
+        self.offer_pending_open();
         true
     }
 
-    fn offer_pending_link(&self) {
+    fn offer_pending_open(&self) {
         let mut state = self.lock();
         if state.link_state != Some(LinkState::Ready) || state.windows.is_empty() {
             return;
@@ -367,9 +380,9 @@ impl<R: Runtime> Host<R> {
             .find(|(label, w)| state.windows.contains_key(label) && w.is_focused().unwrap_or(false))
             .map(|(label, _)| label);
         let Some(label) = focused.or_else(|| state.windows.keys().next().cloned()) else { return };
-        if let Some(payload) = state.pending_link.take() {
+        if let Some(event) = state.pending_open.take() {
             if let Some(channel) = state.windows.get(&label) {
-                let _ = channel.send(json!({"kind": "link", "payload": payload}));
+                let _ = channel.send(event);
             }
         }
     }
@@ -385,5 +398,23 @@ impl<R: Runtime> Host<R> {
     /// The app is quitting: the helper keeps serving other apps and exits on its own when none remains.
     pub fn dispose(&self) {
         self.detach(false);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::urls::{friends_url, FriendsUrl};
+
+    #[test]
+    fn a_friends_url_becomes_the_event_the_page_opens() {
+        let open = |url: &str| friends_url(url, "shenzhen3d").map(open_event);
+        assert_eq!(
+            open("shenzhen3d://friends/conversation/c_mei"),
+            Some(json!({"kind": "open", "conversation_id": "c_mei"}))
+        );
+        assert_eq!(open("shenzhen3d://friends"), Some(json!({"kind": "open", "conversation_id": null})));
+        assert_eq!(open_event(FriendsUrl::Link("d.AQ".into())), json!({"kind": "link", "payload": "d.AQ"}));
+        assert_eq!(open("shenzhen3d://friends/conversation/c%20mei"), None);
     }
 }

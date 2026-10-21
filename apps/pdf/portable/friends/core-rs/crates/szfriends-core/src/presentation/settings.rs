@@ -187,6 +187,10 @@ impl SnapshotBuilder {
         if let Some(join) = self.settings_join() {
             settings["join"] = join;
         }
+        // This device's notifications (helper capability `notifications`).
+        if let Some(facts) = profile.notifications.as_ref().filter(|_| self.audience().helper_has("notifications")) {
+            settings["notifications"] = self.notifications_settings(facts);
+        }
         settings
     }
 

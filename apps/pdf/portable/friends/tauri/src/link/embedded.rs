@@ -17,13 +17,15 @@ use szfriends_helper::server::Server;
 use szfriends_helper::transport::{memory_pair, PeerInfo};
 
 use super::{Connector, NotConnected};
-use crate::phone::{Keys, PhoneService};
+use crate::phone::{Keys, PhoneNotify, PhoneService, GRACE};
 
 pub struct EmbeddedConnector {
     state_dir: PathBuf,
     keys: Keys,
     /// Where received files go on this phone (`crate::phone::received`).
     received: ReceivedDefaults,
+    /// The phone's notifier (`crate::phone::notify`), when the platform half answers.
+    notify: Option<Arc<dyn PhoneNotify>>,
     /// Started on the first connection, which comes from the page's first `join()`, after its first paint.
     server: OnceLock<(Server, Arc<PhoneService>)>,
 }
@@ -36,7 +38,14 @@ impl std::fmt::Debug for EmbeddedConnector {
 
 impl EmbeddedConnector {
     pub fn new(state_dir: PathBuf, keys: Keys, received: ReceivedDefaults) -> Self {
-        Self { state_dir, keys, received, server: OnceLock::new() }
+        Self { state_dir, keys, received, notify: None, server: OnceLock::new() }
+    }
+
+    /// With the phone's notifier, which every service this starts posts with.
+    #[cfg_attr(not(any(target_os = "android", target_os = "ios")), allow(dead_code))]
+    pub fn with_notify(mut self, notify: Arc<dyn PhoneNotify>) -> Self {
+        self.notify = Some(notify);
+        self
     }
 
     fn server(&self) -> &(Server, Arc<PhoneService>) {
@@ -50,7 +59,13 @@ impl EmbeddedConnector {
             };
             // No lifecycle here: the core lives as long as the app. Its events have no listener.
             let (events, _) = channel();
-            let service = PhoneService::start_with(self.state_dir.clone(), self.keys.clone(), self.received.clone());
+            let service = PhoneService::with_notify(
+                self.state_dir.clone(),
+                self.keys.clone(),
+                self.received.clone(),
+                GRACE,
+                self.notify.clone(),
+            );
             let server = Server::new(service.clone(), facts, events, Box::new(|_, _| false));
             (server, service)
         })

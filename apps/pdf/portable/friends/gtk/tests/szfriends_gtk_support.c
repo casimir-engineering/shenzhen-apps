@@ -228,7 +228,7 @@ static void record_state(SZFriendsGtkLink *link, SZFriendsGtkLinkState state, gp
     if (harness->n_states < G_N_ELEMENTS(harness->states)) harness->states[harness->n_states++] = state;
 }
 
-SZFGHarness *szfg_harness_new(const char *label, gboolean start_fake) {
+static SZFGHarness *harness_new(const char *label, const char *url_scheme) {
     SZFGHarness *harness = g_new0(SZFGHarness, 1);
     harness->state = szfg_temp_dir(label);
     g_setenv(SZFRIENDS_ENV_STATE_DIR, harness->state, TRUE);
@@ -237,19 +237,36 @@ SZFGHarness *szfg_harness_new(const char *label, gboolean start_fake) {
     harness->host.app_name = "Shenzhen Files";
     harness->host.app_version = "26.10.13";
     harness->host.reveal_in_name = "Shenzhen Files";
+    harness->host.url_scheme = url_scheme;
     harness->link = szfriends_gtk_link_new(&harness->host);
     szfriends_gtk_link_add_state_watch(harness->link, record_state, harness, NULL);
-    if (start_fake) szfg_harness_start_fake(harness);
+    return harness;
+}
+
+static gboolean start_fake(SZFGHarness *harness, const char *capabilities_json) {
+    szfriends_fake_helper_config config = {0};
+    config.state_dir = harness->state;
+    config.fixtures_dir = szfg_fixtures;
+    config.capabilities_json = capabilities_json;
+    szfriends_status status = szfriends_fake_helper_start(&config, &harness->fake);
+    EXPECT(status == SZFRIENDS_OK, "fake helper starts: %s", szfriends_status_name(status));
+    return status == SZFRIENDS_OK;
+}
+
+SZFGHarness *szfg_harness_new(const char *label, gboolean start) {
+    SZFGHarness *harness = harness_new(label, NULL);
+    if (start) start_fake(harness, NULL);
+    return harness;
+}
+
+SZFGHarness *szfg_harness_new_custom(const char *label, const char *url_scheme, const char *capabilities_json) {
+    SZFGHarness *harness = harness_new(label, url_scheme);
+    start_fake(harness, capabilities_json);
     return harness;
 }
 
 gboolean szfg_harness_start_fake(SZFGHarness *harness) {
-    szfriends_fake_helper_config config = {0};
-    config.state_dir = harness->state;
-    config.fixtures_dir = szfg_fixtures;
-    szfriends_status status = szfriends_fake_helper_start(&config, &harness->fake);
-    EXPECT(status == SZFRIENDS_OK, "fake helper starts: %s", szfriends_status_name(status));
-    return status == SZFRIENDS_OK;
+    return start_fake(harness, NULL);
 }
 
 typedef struct {

@@ -178,6 +178,7 @@ impl Client {
             capabilities: vec!["files.share".into()],
             open_formats: vec!["stl".into()],
             locale: "en".into(),
+            url_scheme: None,
         };
         let answer = connection.hello(&app, None).unwrap();
         assert_eq!(answer["type"], "welcome", "{answer}");
@@ -355,6 +356,28 @@ fn friends_pauses_only_after_the_grace_period_in_the_background() {
     assert!(service.paused(), "the grace period ended in the background");
     service.resumed();
     assert!(!service.paused(), "resumed in the foreground");
+    service.shutdown();
+}
+
+#[test]
+fn friends_stays_awake_in_the_background_while_reachable() {
+    let home = TempDir::new("reachable");
+    let (_, keys) = shared_keys();
+    let service = PhoneService::with_grace(
+        home.0.clone(),
+        keys,
+        szfriends_core::store::ReceivedDefaults::contained(&home.0),
+        Duration::from_millis(60),
+    );
+    service.set_reachable(true);
+    service.suspended();
+    std::thread::sleep(Duration::from_millis(180));
+    assert!(!service.paused(), "reachable in the background: never paused");
+    service.set_reachable(false);
+    std::thread::sleep(Duration::from_millis(180));
+    assert!(service.paused(), "switched off in the background: paused after the grace period");
+    service.set_reachable(true);
+    assert!(!service.paused(), "switched on again: awake at once");
     service.shutdown();
 }
 

@@ -70,7 +70,8 @@ pub struct Config<R: Runtime> {
     pub open_formats: Vec<String>,
     /// Extensions `stage` accepts; empty accepts any plain name (dropped files are staged too on phones).
     pub staged_extensions: Vec<String>,
-    /// The app's URL scheme for Friends links (`<scheme>://friends/link#…`).
+    /// The app's URL scheme for Friends links (`<scheme>://friends/link#…`) and notifications' clicks
+    /// (`<scheme>://friends/conversation/<id>`, `<scheme>://friends`).
     pub link_scheme: String,
     /// The windows that get the bridge; the capability granting the commands must name the same.
     pub windows: Vec<String>,
@@ -128,8 +129,9 @@ impl<R: Runtime> Friends<R> {
         self.host.get()
     }
 
-    /// A Friends link URL opened in the app (a deep link): its card opens in the focused window once Friends is
-    /// ready. False when it is not one of the app's well-formed Friends links.
+    /// A Friends URL opened in the app (a deep link): a link's card, or the panel on a notification's conversation
+    /// (or the list), opens in the focused window once Friends is ready. False when it is not one of the app's
+    /// well-formed Friends URLs.
     pub fn open_link(&self, app: &AppHandle<R>, url: &str) -> bool {
         self.host(app).open_link(url)
     }
@@ -268,7 +270,11 @@ fn locate<R: Runtime>(app: &AppHandle<R>, config: &Config<R>) -> Option<Located>
             let home = std::env::var_os("HOME").map(PathBuf::from);
             phone::received::defaults(phone::received::Phone::Ios, &state_dir, testing, home, None)
         };
-        let connector = link::embedded::EmbeddedConnector::new(state_dir.clone(), keys, received);
+        // Notifications: the core decides, the platform half posts (ADR 0017); real ones in a test home too, on the
+        // emulator or simulator the test runs in.
+        let notifier = phone::notify::PhoneNotifier::start(native.handle(), &config.link_scheme, &config.app_name);
+        let notify: Arc<dyn phone::PhoneNotify> = Arc::new(phone::notify::Notifications(notifier));
+        let connector = link::embedded::EmbeddedConnector::new(state_dir.clone(), keys, received).with_notify(notify);
         let animals = config.animals.clone().or_else(|| phone::animals::unpack(&base));
         return Some(Located { connector: Arc::new(connector), state_dir, animals, data_dir: Some(base) });
     }

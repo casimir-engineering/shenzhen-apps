@@ -135,6 +135,40 @@
     return _banner.hidden ? nil : _banner.button;
 }
 
+- (SZFriendsButton *)bannerDismissButton {
+    return _banner.hidden ? nil : _banner.secondaryButton;
+}
+
+// The notifications card's Not Now (PROTOCOL.md § Notifications, The ask): a quiet link under the text, beside the
+// card's own Turn On. The card invites rather than warns, so it takes the name prompt's fill instead of the warning
+// tint the other banners keep.
+- (void)applyBannerDismiss:(NSDictionary *)dismiss kind:(NSString *)kind {
+    SZFriendsAppearance *appearance = self.context.appearance;
+    BOOL invitation = [kind isEqualToString:@"notifications"];
+    _banner.fillColor = invitation ? appearance.fieldBackgroundColor
+                                   : [appearance.warningColor colorWithAlphaComponent:0.14];
+    if (![SZFriendsContext knowsAction:SZFStr(dismiss, @"action")]) {
+        _banner.secondaryButton = nil;
+        return;
+    }
+    _bannerDismiss = [dismiss copy];
+    SZFriendsButton *button = _banner.secondaryButton;
+    if (!button) {
+        button = [SZFriendsButton buttonWithTitle:@"" style:SZFriendsButtonStyleLink appearance:appearance];
+        __weak SZFriendsListPage *weakSelf = self;
+        button.onPress = ^(SZFriendsButton *pressed) {
+            (void)pressed;
+            SZFriendsListPage *page = weakSelf;
+            NSDictionary *action = page ? page->_bannerDismiss : nil;
+            NSString *dismissKind = SZFStr(action, @"kind") ?: SZFStr(SZFDict(page->_listData, @"banner"), @"kind");
+            if (action) [page.context performAction:action ids:dismissKind ? @{@"kind" : dismissKind} : nil done:nil];
+        };
+        _banner.secondaryButton = button;
+    }
+    button.title = SZFStr(dismiss, @"label") ?: @"";
+    button.needsDisplay = YES;
+}
+
 - (NSView *)betaTagView {
     return _betaTag.hidden ? nil : _betaTag;
 }
@@ -237,6 +271,7 @@
     [_banner setAction:SZFDict(banner, @"action") onPress:^(NSDictionary *action) {
         [weakSelf.context performAction:action ids:bannerKind ? @{@"kind" : bannerKind} : nil done:nil];
     }];
+    [self applyBannerDismiss:SZFDict(banner, @"dismiss") kind:bannerKind];
 
     NSDictionary *prompt = SZFDict(data, @"name_prompt");
     [self applyNamePrompt:prompt];

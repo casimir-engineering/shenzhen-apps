@@ -131,7 +131,14 @@ test("the host attaches after first paint, says who it is, and routes a window's
     "list.menu",
     "nearby.found",
     "files.again",
+    "notifications.focus",
+    "notifications.ask",
   ]);
+  assert.equal(
+    client.config.urlScheme,
+    "shenzhen3d",
+    "a notification's click opens this app",
+  );
   assert.deepEqual(client.config.openFormats, ["sz3d", "stl"]);
   assert.equal(
     client.config.helperBuildNumber,
@@ -507,4 +514,39 @@ test("received models go to recent files once each, and only those received sinc
   assert.ok(
     record.handled.includes("t_gone") && record.handled.includes("t_pdf"),
   );
+});
+
+test("a notification's URL opens the dropdown on its conversation once Friends is ready, and a malformed one is left alone", async (t) => {
+  const { host, addon } = await hostFixture(t);
+  const window = fakeContents(1);
+  await invoke(host, window, "join");
+  assert.equal(
+    host.openLink("shenzhen3d://friends/conversation/c_mei"),
+    true,
+    "taken before Friends is ready (a cold launch)",
+  );
+  host.firstPaint();
+  await until(() => addon.clients.length === 1);
+  const client = addon.clients[0];
+  client.frame({ type: "welcome", re: "1", capabilities: ["notifications"] });
+  client.emit([{ type: "state", state: "ready" }]);
+  await until(() => window.received.some(([, event]) => event.kind === "open"));
+  const opened = () =>
+    window.received.filter(([, event]) => event.kind === "open");
+  assert.deepEqual(opened().at(-1)[1], {
+    kind: "open",
+    conversation_id: "c_mei",
+  });
+  assert.equal(host.openLink("shenzhen3d://friends"), true);
+  assert.deepEqual(opened().at(-1)[1], { kind: "open", conversation_id: null });
+  const before = window.received.length;
+  for (const url of [
+    "shenzhen3d://friends/conversation/",
+    "shenzhen3d://friends/conversation/c%20mei",
+    `shenzhen3d://friends/conversation/${"a".repeat(65)}`,
+    "shenzhen3d://friends/conversation/c_mei/x",
+    "shenzhenpdf://friends/conversation/c_mei",
+  ])
+    assert.equal(host.openLink(url), false, url);
+  assert.equal(window.received.length, before);
 });

@@ -87,6 +87,7 @@ szfriends_client *szfriends_client_new(const szfriends_client_config *config) {
     client->toolkit = copy_or_null(config->toolkit, &failed);
     client->reveal_in = copy_or_null(config->reveal_in, &failed);
     client->locale = copy_or_null(config->locale ? config->locale : "en", &failed);
+    client->url_scheme = copy_or_null(config->url_scheme, &failed);
     client->capabilities = copy_list(config->capabilities, config->capability_count, &failed);
     client->capability_count = client->capabilities ? config->capability_count : 0;
     client->open_formats = copy_list(config->open_formats, config->open_format_count, &failed);
@@ -135,6 +136,7 @@ void szfriends_client_free(szfriends_client *client) {
     free(client->toolkit);
     free(client->reveal_in);
     free(client->locale);
+    free(client->url_scheme);
     free_list(client->capabilities, client->capability_count);
     free_list(client->open_formats, client->open_format_count);
     free(client);

@@ -28,6 +28,7 @@ mod mention_view;
 pub mod mentions;
 mod messages;
 mod nearby;
+mod notifications;
 mod previews;
 mod remove;
 mod routes;
@@ -46,6 +47,7 @@ pub use devices::{DeviceFacts, DeviceFileFacts, DevicesFacts};
 pub use facts::*;
 pub use join::{JoinRequestFacts, JoiningFacts, JoiningState};
 pub use mention_view::MentionDirectory;
+pub use notifications::{NotificationFacts, NotificationWords, NotifyPermission, PeopleNotice, ReplyWords};
 pub use strings::{Strings, Values};
 
 use serde_json::Value;

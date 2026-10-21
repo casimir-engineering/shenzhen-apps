@@ -12,7 +12,8 @@
     "app_version": "26.10.12",
     "toolkit": "appkit",
     "reveal_in": "Finder",
-    "pid": 4242
+    "pid": 4242,
+    "url_scheme": "shenzhenpdf"
   },
   "embedded_helper": {
     "version": "26.10.12-1",

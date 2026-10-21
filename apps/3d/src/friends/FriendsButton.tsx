@@ -17,6 +17,7 @@ import {
 } from "./download-link";
 import {
   pendingLink,
+  pendingOpen,
   pendingShare,
   publish,
   shareWithFriend,
@@ -175,6 +176,9 @@ export function FriendsButton({ attach }: { attach: AttachSource | null }) {
   const [open, setOpen] = useState(false);
   const [outgoing, setOutgoing] = useState<Outgoing | null>(null);
   const [link, setLink] = useState<string | null>(null);
+  const [openAt, setOpenAt] = useState<{
+    conversation_id: string | null;
+  } | null>(null);
   const [refusal, setRefusal] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
   const spring = useRef<number | undefined>(undefined);
@@ -191,6 +195,16 @@ export function FriendsButton({ attach }: { attach: AttachSource | null }) {
     () =>
       pendingLink.listen((payload) => {
         setLink(payload);
+        setOpen(true);
+      }),
+    [],
+  );
+  // A notification clicked: the dropdown opens on its conversation (or the list).
+  useEffect(
+    () =>
+      pendingOpen.listen((target) => {
+        setOutgoing(null);
+        setOpenAt(target);
         setOpen(true);
       }),
     [],
@@ -352,6 +366,8 @@ export function FriendsButton({ attach }: { attach: AttachSource | null }) {
             status={status}
             outgoing={outgoing}
             link={link}
+            openAt={openAt}
+            onOpenAtDone={() => setOpenAt(null)}
             attach={attach}
             onClose={() => setOpen(false)}
             onOutgoingDone={() => setOutgoing(null)}

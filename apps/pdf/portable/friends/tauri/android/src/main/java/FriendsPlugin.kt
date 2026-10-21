@@ -8,6 +8,8 @@
 // - publishDownload: a received file into the public Downloads through MediaStore (Android 10 and later, no
 //   permission), hidden while it is written (IS_PENDING), named "Name (2).ext" beside one of the same name.
 // - openUrl: a web or mail link, or one of the system's settings screens.
+// - notifySetup, notifyPost, notifyWithdraw, notifyPermission, notifyAsk, notifyBackground: Friends' notifications
+//   (notify/Notifications.kt, src/phone/notify.rs); a tap on one reports its key to the core.
 //
 // It extends NearbyPlugin, whose commands it answers too: Tauri keeps one Kotlin plugin per Tauri plugin, and a
 // second one registered for szfriends replaced the first, so Nearby's calls never reached it.
@@ -29,6 +31,7 @@ import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.webkit.MimeTypeMap
 import androidx.activity.result.ActivityResult
+import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.FileProvider
 import app.tauri.annotation.ActivityCallback
 import app.tauri.annotation.Command
@@ -37,6 +40,10 @@ import app.tauri.annotation.TauriPlugin
 import app.tauri.plugin.Invoke
 import app.tauri.plugin.JSObject
 import app.shenzhen.friends.nearby.NearbyPlugin
+import app.shenzhen.friends.notify.Notifications
+import app.shenzhen.friends.notify.ReplyLabels
+import app.shenzhen.friends.notify.Request
+import app.tauri.plugin.Channel
 import java.io.File
 import java.io.FileOutputStream
 import java.io.InputStream
@@ -85,6 +92,52 @@ class UrlArgs {
 @InvokeArg
 class LocationArgs {
   lateinit var location: String
+}
+
+@InvokeArg
+class NotifySetupArgs {
+  lateinit var channel: Channel
+  var names: Map<String, String> = emptyMap()
+}
+
+@InvokeArg
+class NotifyReplyArgs {
+  var label: String = ""
+  var placeholder: String = ""
+  var send: String = ""
+}
+
+@InvokeArg
+class NotifyOpenArgs {
+  var url: String = ""
+}
+
+@InvokeArg
+class NotifyPostArgs {
+  var key: String = ""
+  var kind: String = ""
+  var channel: String = ""
+  var thread: String = ""
+  var title: String = ""
+  var body: String = ""
+  var time: String? = null
+  var reply: NotifyReplyArgs? = null
+  var open: NotifyOpenArgs = NotifyOpenArgs()
+}
+
+@InvokeArg
+class NotifyThreadArgs {
+  var thread: String = ""
+}
+
+@InvokeArg
+class NotifyBackgroundArgs {
+  var on: Boolean = false
+  var title: String? = null
+  var body: String? = null
+  var restartTitle: String? = null
+  var restartBody: String? = null
+  var url: String? = null
 }
 
 private const val KEYSTORE = "AndroidKeyStore"
@@ -409,12 +462,93 @@ class FriendsPlugin(private val activity: Activity) : NearbyPlugin(activity) {
     }.start()
   }
 
+  /** The core started: where taps, replies and permission changes go, and the channels' names from the catalog. */
+  @Command
+  fun notifySetup(invoke: Invoke) {
+    val args = invoke.parseArgs(NotifySetupArgs::class.java)
+    Notifications.responses = args.channel
+    Notifications.setChannels(activity, args.names)
+    // Friends runs again: the note that it stopped at a restart goes.
+    Notifications.cancelRestarted(activity)
+    val background = Notifications.preferences(activity).getBoolean(Notifications.BACKGROUND_ON, false)
+    invoke.resolve(JSObject().put("permission", Notifications.permission(activity)).put("background", background))
+    Notifications.report(activity, always = true)
+    // The tap that started the app, before the core was there to hear it.
+    reportOpened(activity.intent)
+  }
+
+  @Command
+  fun notifyPost(invoke: Invoke) {
+    val args = invoke.parseArgs(NotifyPostArgs::class.java)
+    val reply = args.reply?.let { ReplyLabels(it.label, it.placeholder, it.send) }
+    val request = Request(args.key, args.kind, args.channel, args.thread, args.title, args.body, args.time,
+      args.open.url, reply)
+    done(invoke, Notifications.post(activity, request))
+  }
+
+  @Command
+  fun notifyWithdraw(invoke: Invoke) {
+    Notifications.withdraw(activity, invoke.parseArgs(NotifyThreadArgs::class.java).thread)
+    done(invoke, true)
+  }
+
+  @Command
+  fun notifyPermission(invoke: Invoke) {
+    invoke.resolve(JSObject().put("permission", Notifications.permission(activity)))
+  }
+
+  /** Settings' Allow: the system's dialog, while it may still show it; the answer arrives as a permission event. */
+  @Command
+  fun notifyAsk(invoke: Invoke) {
+    done(invoke, askNotifications())
+  }
+
+  @Command
+  fun notifyBackground(invoke: Invoke) {
+    val args = invoke.parseArgs(NotifyBackgroundArgs::class.java)
+    try {
+      Notifications.setBackground(activity, args.on, args.title, args.body, args.url, args.restartTitle, args.restartBody)
+      done(invoke, true)
+    } catch (e: Exception) {
+      // Android refuses a foreground service started from the background: it starts when the app is next in front.
+      done(invoke, false)
+    }
+  }
+
+  override fun onNewIntent(intent: Intent) {
+    reportOpened(intent)
+  }
+
+  /** A notification's tap: the app opens on its URL (the deep-link plugin hears that); the core hears its key. */
+  private fun reportOpened(intent: Intent?) {
+    val key = intent?.getStringExtra(Notifications.EXTRA_KEY) ?: return
+    if (Notifications.send(JSObject().put("kind", "open").put("key", key))) intent.removeExtra(Notifications.EXTRA_KEY)
+  }
+
+  override fun onResume(activity: AppCompatActivity) {
+    super.onResume(activity)
+    // The service could not start while the app was in the background: it starts now, with the app in front.
+    if (Notifications.preferences(activity).getBoolean(Notifications.BACKGROUND_ON, false)) {
+      try {
+        Notifications.setBackground(activity, true, null, null, null)
+      } catch (e: Exception) {
+        // Refused: the switch stays on, and the next time the app is in front tries again.
+      }
+    }
+  }
+
   @Command
   fun openUrl(invoke: Invoke) {
     val url = invoke.parseArgs(UrlArgs::class.java).url
     val intent = when (url) {
       "szfriends-settings:app" ->
         Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", activity.packageName, null))
+      "szfriends-settings:notifications" ->
+        if (Build.VERSION.SDK_INT >= 26) {
+          Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, activity.packageName)
+        } else {
+          Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", activity.packageName, null))
+        }
       "szfriends-settings:bluetooth" -> Intent(Settings.ACTION_BLUETOOTH_SETTINGS)
       "szfriends-settings:wifi" -> Intent(Settings.ACTION_WIFI_SETTINGS)
       else -> {

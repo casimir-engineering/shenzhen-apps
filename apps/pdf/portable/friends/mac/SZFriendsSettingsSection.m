@@ -27,12 +27,18 @@
 @interface SZFriendsSettingsSection ()
 @end
 
-// Rows in order; `nearby` and `join` show only when the helper sends them (PROTOCOL.md § settings).
+// Rows in order; `nearby`, `join` and `notifications` show only when the helper sends them (PROTOCOL.md § settings).
 static NSArray<NSString *> *SZFSettingsRows(void) {
-    return @[ @"name", @"id", @"received", @"auto_accept", @"nearby", @"join", @"history", @"reset" ];
+    return @[ @"name", @"id", @"received", @"auto_accept", @"nearby", @"join", @"notifications", @"history", @"reset" ];
 }
-static const NSUInteger SZFSettingsRowCount = 8, SZFSettingsReceivedRow = 2, SZFSettingsAutoAcceptRow = 3,
-                        SZFSettingsNearbyRow = 4, SZFSettingsJoinRow = 5;
+static const NSUInteger SZFSettingsRowCount = 9, SZFSettingsReceivedRow = 2, SZFSettingsAutoAcceptRow = 3,
+                        SZFSettingsNearbyRow = 4, SZFSettingsJoinRow = 5, SZFSettingsNotificationsRow = 6;
+
+// The Notifications row's switches, in order, each sent back alone with set_notifications (PROTOCOL.md §
+// Notifications, Settings); `background` comes only to an Android host, so never here, but is drawn if it does.
+static NSArray<NSString *> *SZFNotificationSwitchKeys(void) {
+    return @[ @"enabled", @"preview", @"background" ];
+}
 
 @implementation SZFriendsSettingsSection {
     SZFriendsSettingsView *_view;
@@ -50,6 +56,9 @@ static const NSUInteger SZFSettingsRowCount = 8, SZFSettingsReceivedRow = 2, SZF
     SZFriendsButton *_resetButton;
     SZFriendsButton *_nearbyButton;
     SZFriendsButton *_joinButton; // Use my existing profile…: the join page, after Reset when it asks first
+    SZFriendsButton *_notificationsButton; // Allow or Open System Settings, for the permission
+    NSArray<NSSwitch *> *_notificationSwitches;     // per SZFNotificationSwitchKeys()
+    NSArray<NSTextField *> *_notificationLabels;    // label, note pairs per switch
     BOOL _showingFriends;
     NSMutableArray<NSView *> *_friendViews;
     NSMutableArray<NSSwitch *> *_switches;
@@ -112,6 +121,26 @@ static const NSUInteger SZFSettingsRowCount = 8, SZFSettingsReceivedRow = 2, SZF
         [weakSelf.context performAction:SZFDict(SZFDict(weakSelf.data, @"join"), @"action") ids:nil done:nil];
     }];
     _joinButton.style = SZFriendsButtonStyleSecondary;
+    _notificationsButton = [self button:^{
+        [weakSelf.context performAction:SZFDict(SZFDict(weakSelf.data, @"notifications"), @"action") ids:nil done:nil];
+    }];
+    NSMutableArray *switches = [NSMutableArray array], *labels = [NSMutableArray array];
+    for (NSString *key in SZFNotificationSwitchKeys()) {
+        NSSwitch *toggle = [NSSwitch new];
+        toggle.controlSize = NSControlSizeSmall;
+        toggle.identifier = key;
+        toggle.target = self;
+        toggle.action = @selector(notificationSwitchToggled:);
+        [switches addObject:toggle];
+        [_view addSubview:toggle];
+        NSTextField *label = SZFriendsLabel(@"", appearance.bodyFont, appearance.primaryTextColor);
+        NSTextField *note = SZFriendsLabel(@"", appearance.secondaryFont, appearance.secondaryTextColor);
+        [labels addObjectsFromArray:@[ label, note ]];
+        [_view addSubview:label];
+        [_view addSubview:note];
+    }
+    _notificationSwitches = switches;
+    _notificationLabels = labels;
     for (NSView *view in @[ _nameEditor, _idValue ]) [_view addSubview:view];
     _friendViews = [NSMutableArray array];
     _switches = [NSMutableArray array];
@@ -168,6 +197,14 @@ static const NSUInteger SZFSettingsRowCount = 8, SZFSettingsReceivedRow = 2, SZF
 
 - (SZFriendsButton *)receivedChangeButton {
     return _receivedChangeButton;
+}
+
+- (SZFriendsButton *)notificationsButton {
+    return _notificationsButton;
+}
+
+- (NSArray<NSSwitch *> *)notificationSwitches {
+    return _notificationSwitches;
 }
 
 - (NSTextField *)receivedFolderField {
@@ -290,9 +327,40 @@ static const NSUInteger SZFSettingsRowCount = 8, SZFSettingsReceivedRow = 2, SZF
     BOOL joinRow = [SZFriendsContext knowsAction:SZFStr(joinAction, @"action")];
     _joinButton.hidden = !joinRow;
     _labels[2 * SZFSettingsJoinRow].hidden = _labels[2 * SZFSettingsJoinRow + 1].hidden = !joinRow;
+    [self applyNotifications:SZFDict(data, @"notifications")];
     [self rebuildFriends];
     [_view invalidateIntrinsicContentSize];
     [_view setNeedsLayout:YES];
+}
+
+// This device's notifications: the label and the permission's note on the row, its one action (Allow, or Open
+// System Settings once refused), and the switches under it. Anything the helper leaves out is not drawn.
+- (void)applyNotifications:(NSDictionary *)notifications {
+    BOOL row = notifications != nil;
+    _labels[2 * SZFSettingsNotificationsRow].hidden = _labels[2 * SZFSettingsNotificationsRow + 1].hidden = !row;
+    NSDictionary *action = SZFDict(notifications, @"action");
+    _notificationsButton.title = SZFStr(action, @"label") ?: @"";
+    _notificationsButton.hidden = !row || ![SZFriendsContext knowsAction:SZFStr(action, @"action")];
+    NSArray *keys = SZFNotificationSwitchKeys();
+    for (NSUInteger i = 0; i < keys.count; i++) {
+        NSDictionary *part = SZFDict(notifications, keys[i]);
+        NSSwitch *toggle = _notificationSwitches[i];
+        NSTextField *label = _notificationLabels[2 * i], *note = _notificationLabels[2 * i + 1];
+        BOOL shown = part != nil && SZFStr(part, @"label").length > 0;
+        toggle.hidden = label.hidden = note.hidden = !shown;
+        label.stringValue = SZFStr(part, @"label") ?: @"";
+        note.stringValue = SZFStr(part, @"note") ?: @"";
+        toggle.accessibilityLabel = label.stringValue;
+        toggle.state = SZFBool(part, @"value") ? NSControlStateValueOn : NSControlStateValueOff;
+    }
+}
+
+// One switch, one field: the others keep whatever the helper has (PROTOCOL.md set_notifications).
+- (void)notificationSwitchToggled:(NSSwitch *)toggle {
+    if (!toggle.identifier.length) return;
+    [_context.link sendIntent:@"set_notifications"
+                       fields:@{toggle.identifier : @(toggle.state == NSControlStateValueOn)}
+                        reply:nil];
 }
 
 - (void)toggleFriends {
@@ -385,8 +453,8 @@ static const NSUInteger SZFSettingsRowCount = 8, SZFSettingsReceivedRow = 2, SZF
 
 - (CGFloat)layoutForWidth:(CGFloat)width apply:(BOOL)apply {
     NSArray<NSView *> *controls =
-        @[ _nameEditor, _idValue, _receivedButton, _changeButton, _nearbyButton, _joinButton, _historyButton,
-           _resetButton ];
+        @[ _nameEditor, _idValue, _receivedButton, _changeButton, _nearbyButton, _joinButton, _notificationsButton,
+           _historyButton, _resetButton ];
     CGFloat y = 0;
     CGFloat statusHeight = SZFriendsFieldHeight(_statusLabel, width);
     if (apply) {
@@ -396,7 +464,9 @@ static const NSUInteger SZFSettingsRowCount = 8, SZFSettingsReceivedRow = 2, SZF
     if (statusHeight) y += statusHeight + 12;
     BOOL nearbyRow = SZFDict(_data, @"nearby") != nil;
     for (NSUInteger row = 0; row < SZFSettingsRowCount; row++) {
-        if ((row == SZFSettingsNearbyRow && !nearbyRow) || (row == SZFSettingsJoinRow && _joinButton.hidden)) continue;
+        if ((row == SZFSettingsNearbyRow && !nearbyRow) || (row == SZFSettingsJoinRow && _joinButton.hidden) ||
+            (row == SZFSettingsNotificationsRow && !SZFDict(_data, @"notifications")))
+            continue;
         NSView *control = controls[row];
         // A Nearby line with nothing to fix has no button, and its words take the whole width.
         CGFloat controlWidth = control.hidden ? 0 : [self controlWidthForRow:row control:control];
@@ -427,6 +497,7 @@ static const NSUInteger SZFSettingsRowCount = 8, SZFSettingsReceivedRow = 2, SZF
             }
         }
         y += rowHeight + 16;
+        if (row == SZFSettingsNotificationsRow) y = [self layoutNotificationSwitchesAt:y width:width apply:apply];
         if (row != SZFSettingsAutoAcceptRow || !_showingFriends) continue;
         for (NSUInteger i = 0; i < _switches.count; i++) {
             if (apply) {
@@ -442,6 +513,32 @@ static const NSUInteger SZFSettingsRowCount = 8, SZFSettingsReceivedRow = 2, SZF
         y += _switches.count ? 6 : 0;
     }
     return MAX(0, y - 16);
+}
+
+// The Notifications row's switches, indented under it like the friends' switches: words on the left (a note under
+// the label where there is one), the switch at the trailing edge.
+- (CGFloat)layoutNotificationSwitchesAt:(CGFloat)y width:(CGFloat)width apply:(BOOL)apply {
+    BOOL any = NO;
+    for (NSUInteger i = 0; i < _notificationSwitches.count; i++) {
+        NSSwitch *toggle = _notificationSwitches[i];
+        if (toggle.hidden) continue;
+        NSTextField *label = _notificationLabels[2 * i], *note = _notificationLabels[2 * i + 1];
+        NSSize size = toggle.fittingSize;
+        CGFloat textWidth = MAX(120, width - 12 - size.width - 16);
+        CGFloat labelHeight = SZFriendsFieldHeight(label, textWidth);
+        CGFloat noteHeight = SZFriendsFieldHeight(note, textWidth);
+        CGFloat rowHeight = MAX(22, labelHeight + (noteHeight ? 3 + noteHeight : 0));
+        if (apply) {
+            label.frame = NSMakeRect(12, y, textWidth, labelHeight);
+            note.frame = NSMakeRect(12, y + labelHeight + 3, textWidth, noteHeight);
+            note.hidden = noteHeight == 0;
+            toggle.frame = NSMakeRect(width - size.width, y + floor((MAX(labelHeight, 22) - size.height) / 2),
+                                      size.width, size.height);
+        }
+        y += rowHeight + 8;
+        any = YES;
+    }
+    return any ? y + 8 : y;
 }
 
 @end

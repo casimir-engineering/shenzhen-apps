@@ -29,9 +29,19 @@ NSString* _Nullable SPDFMacFriendsLinkPayload(NSURL* _Nullable url, NSString* sc
 NSString* _Nullable SPDFMacFriendsLinkPayloadFromString(NSString* _Nullable text, NSString* scheme,
                                                         SPDFMacFriendsLinkRefusal* _Nullable refusal);
 
+// shenzhenpdf://friends/conversation/<conversation_id> and shenzhenpdf://friends: where a Friends notification's click
+// opens the app (portable/friends/PROTOCOL.md § Notifications). The conversation's id for the first, @"" (the list)
+// for the second, nil for anything else: another scheme, a query or fragment, a trailing slash after the id, or an id
+// outside [A-Za-z0-9_-] or longer than 64 bytes. It only opens the dropdown on what the helper then shows.
+NSString* _Nullable SPDFMacFriendsRouteFromString(NSString* _Nullable text, NSString* scheme);
+
 // The URLs the system hands the app, sorted: documents (file URLs) into `paths`, for -application:openFiles: as before,
 // and the payload of every link for `scheme` that passes into `payloads`, in order. Anything else is dropped.
 void SPDFMacFriendsSortOpenedURLs(NSArray<NSURL*>* urls, NSString* scheme, NSMutableArray<NSString*>* paths,
                                   NSMutableArray<NSString*>* payloads);
+// The same, with every Friends route that passes (SPDFMacFriendsRouteFromString) into `routes`, in order.
+void SPDFMacFriendsSortOpenedURLsWithRoutes(NSArray<NSURL*>* urls, NSString* scheme, NSMutableArray<NSString*>* paths,
+                                            NSMutableArray<NSString*>* payloads,
+                                            NSMutableArray<NSString*>* _Nullable routes);
 
 NS_ASSUME_NONNULL_END

@@ -115,6 +115,7 @@ szfriends_status szfriends_client_send_hello(szfriends_client *client) {
     cJSON_AddStringToObject(app, "toolkit", client->toolkit);
     cJSON_AddStringToObject(app, "reveal_in", client->reveal_in);
     cJSON_AddNumberToObject(app, "pid", (double)getpid());
+    if (client->url_scheme) cJSON_AddStringToObject(app, "url_scheme", client->url_scheme);
     if (client->helper_version) {
         cJSON *helper_protocol;
         embedded = cJSON_AddObjectToObject(hello, "embedded_helper");

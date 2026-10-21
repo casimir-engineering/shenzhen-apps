@@ -87,6 +87,8 @@ pub struct AppInfo {
     pub capabilities: Vec<String>,
     pub open_formats: Vec<String>,
     pub locale: String,
+    /// The app's URL scheme, sent as hello `client.url_scheme`: where a notification's click opens it (ADR 0017).
+    pub url_scheme: Option<String>,
 }
 
 impl ClientConnection {
@@ -125,11 +127,15 @@ impl ClientConnection {
             json!({"version": stamp.version, "build_number": stamp.build,
                    "protocol": {"major": PROTOCOL.major, "minor": PROTOCOL.minor}})
         });
+        let mut client = json!({"app_id": app.app_id, "app_name": app.app_name, "app_version": app.app_version,
+                                "toolkit": app.toolkit, "reveal_in": app.reveal_in, "pid": std::process::id()});
+        if let Some(scheme) = &app.url_scheme {
+            client["url_scheme"] = json!(scheme);
+        }
         self.send(&json!({
             "type": "hello", "id": "1",
             "protocol": {"major": PROTOCOL.major, "minor": PROTOCOL.minor, "min_major": PROTOCOL_MIN_MAJOR},
-            "client": {"app_id": app.app_id, "app_name": app.app_name, "app_version": app.app_version,
-                       "toolkit": app.toolkit, "reveal_in": app.reveal_in, "pid": std::process::id()},
+            "client": client,
             "embedded_helper": embedded,
             "capabilities": app.capabilities, "open_formats": app.open_formats, "locale": app.locale,
         }))?;
@@ -215,6 +221,7 @@ pub fn hand_over(state: &StateDir, own: &Stamp) -> Result<Handover, ConnectError
         capabilities: Vec::new(),
         open_formats: Vec::new(),
         locale: "en".into(),
+        url_scheme: None,
     };
     let answer = connection.hello(&app, Some(own)).map_err(ConnectError::Io)?;
     let scheduled = answer["handover"] == "scheduled" || answer["error"]["details"]["handover"] == "scheduled";

@@ -81,6 +81,16 @@ impl Client {
 
     /// A new connection to `server`, which serves `service`.
     pub fn join(server: &Server, service: std::sync::Arc<dyn Presentation>, capabilities: &[&str]) -> Self {
+        Self::join_as(server, service, capabilities, ("test", "Shenzhen 3D", None))
+    }
+
+    /// As [`Client::join`], for the app `(app_id, app_name, url_scheme)`.
+    pub fn join_as(
+        server: &Server,
+        service: std::sync::Arc<dyn Presentation>,
+        capabilities: &[&str],
+        app: (&str, &str, Option<&str>),
+    ) -> Self {
         let (ours, theirs) = pair();
         server.add(theirs, PeerInfo::default());
         let end = ours.clone();
@@ -94,10 +104,13 @@ impl Client {
             }
         });
         let mut client = Self { end, frames, next: 1, seen: Vec::new(), service, welcome: Value::Null };
-        let hello = json!({"type": "hello", "id": "1", "protocol": {"major": 1, "minor": 0, "min_major": 1},
-            "client": {"app_id": "test", "app_name": "Shenzhen 3D", "app_version": "1", "toolkit": "tauri",
+        let mut hello = json!({"type": "hello", "id": "1", "protocol": {"major": 1, "minor": 0, "min_major": 1},
+            "client": {"app_id": app.0, "app_name": app.1, "app_version": "1", "toolkit": "tauri",
                        "reveal_in": "Files", "pid": 1},
             "capabilities": capabilities, "open_formats": ["stl"], "locale": "en"});
+        if let Some(scheme) = app.2 {
+            hello["client"]["url_scheme"] = json!(scheme);
+        }
         client.write(&hello);
         let welcome = client.wait("welcome", |f| f["type"] == "welcome");
         assert!(welcome["strings"].as_object().is_some_and(|s| !s.is_empty()), "the welcome carries the strings");

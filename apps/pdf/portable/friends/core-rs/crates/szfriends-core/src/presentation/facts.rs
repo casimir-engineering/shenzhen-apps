@@ -438,6 +438,8 @@ pub struct ProfileFacts {
     pub received: ReceivedFolderFacts,
     /// "Your links", for an audience whose helper announces "links"; None shows none.
     pub links: Option<LinksFacts>,
+    /// This device's notifications, from a helper that announces "notifications"; None shows no block or card.
+    pub notifications: Option<super::notifications::NotificationFacts>,
 }
 
 /// The folder received files go to (`settings`' `received`).

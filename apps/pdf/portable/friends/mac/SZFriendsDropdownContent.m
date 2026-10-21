@@ -178,6 +178,13 @@ static const CGFloat SZFStatusStripHeight = 28;
         [self finishSendPicker];
         [self setDropHint:nil];
     }
+    if (self.onTopPageChange) self.onTopPageChange();
+}
+
+- (NSString *)shownConversationID {
+    SZFriendsPage *top = self.topPage;
+    if (!_presented || ![top isKindOfClass:SZFriendsConversationPage.class]) return nil;
+    return ((SZFriendsConversationPage *)top).conversationID;
 }
 
 - (void)focusTopPage {
@@ -198,6 +205,7 @@ static const CGFloat SZFStatusStripHeight = 28;
         [page pageWillAppear];
         [self focusTopPage];
     }
+    if (self.onTopPageChange) self.onTopPageChange();
 }
 
 - (void)popPage {
@@ -212,6 +220,7 @@ static const CGFloat SZFStatusStripHeight = 28;
         [self.topPage pageWillAppear];
         [self focusTopPage];
     }
+    if (self.onTopPageChange) self.onTopPageChange();
 }
 
 - (void)popToList {
