@@ -157,9 +157,17 @@ the ShenzhenPDF archive of a release from the same commit, or the prefixed tag h
   from this commit: `SHENZHEN_3D_PRIVATE_RULES` names the file of ordered replacements applied to `apps/3d`
   (`old==>new`, or `regex:pattern==>new`), and `SHENZHEN_3D_MIRROR_AUTHOR` (`Name <email>`) signs its source commit.
   Neither lives in this repository.
-- `--platforms all` also builds the web ZIP, Android and the iOS Simulator here and the Linux and Windows installers in
-  the Parallels VMs (`scripts/friends/tauri-vm.sh`, with its `SZF_VM_*` settings; the VMs are resumed for the build and
-  suspended after), and publishes them with the Mac assets and a `SHA256SUMS.txt`.
+- `--platforms all` also builds here the web ZIP, the Android APK (signed with the debug key every published APK
+  carries, which the stage checks with its version) and AAB, and the iOS Simulator app and registered-devices `.ipa`;
+  and the Linux and Windows installers in the Parallels VMs with `scripts/friends/tauri-vm.sh` (Linux: `package`, from
+  a `cargo vendor` kept in the cache, since the guest's clock may be wrong; Windows: `installers`, through cmd.exe
+  only). Each VM has its own settings in `app_3d.py`, which `SZF_VM_LINUX_*` and `SZF_VM_WINDOWS_*` override (for
+  `SZF_VM_ENV`, `SZF_VM_TAURI_CLI` and so on); a VM that was suspended is resumed for the build and suspended after,
+  one already running stays running. `release-updates.mjs` then signs the Setup, MSI and AppImage with the updater key
+  and writes `latest.json` and `manifest.plist`. Everything is published with the Mac assets and a `SHA256SUMS.txt`
+  (the `.sig` files are not). The Android build needs a JDK: `JAVA_HOME`, or Homebrew's `openjdk@17`.
+- If notarytool's upload is reset, the stage tries again without S3 acceleration; `NOTARY_NO_S3_ACCELERATION=1`
+  starts without it.
 
 ## Installer images without Finder
 
