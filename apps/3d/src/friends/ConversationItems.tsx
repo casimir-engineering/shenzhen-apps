@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import type { Item, Mention } from "./protocol";
 import { fill } from "./actions";
 import { Actions, RichText, linkHost, shownHost, usePanel } from "./parts";
+import { RouteIcon } from "./glyphs";
 
 // A message longer than this shows cut short with Show all, so a conversation stays quick to open.
 const SHORT_TEXT = 3000;
@@ -100,18 +101,36 @@ function cut(segments: { text: string }[], limit: number) {
 }
 
 function TransferView({ item }: { item: Item }) {
+  // A file copying here from another of the person's computers: the route it comes by, drawn as the conversation
+  // header's (its icon, then its words), after the status, and said with the rest of the row.
+  const route = item.route?.label ? item.route : null;
+  const label =
+    route?.label && !item.accessibility_label.includes(route.label)
+      ? `${item.accessibility_label}, ${route.label}`
+      : item.accessibility_label;
   return (
     <div
       className={`szf-transfer ${item.direction} ${item.highlighted ? "highlighted" : ""}`}
       data-item={item.item_id}
-      aria-label={item.accessibility_label}
+      aria-label={label}
     >
       <div className="szf-transfer-body">
         <Preview item={item} />
         <div className="szf-transfer-text">
           <strong>{item.file?.name}</strong>
           <small>{item.meta_label}</small>
-          <span className="szf-status">{item.status_label}</span>
+          <span className="szf-status">
+            {item.status_label}
+            {route?.label && (
+              <>
+                {" · "}
+                <span className="szf-header-subtitle" title={route.label}>
+                  <RouteIcon route={route} size={11} />
+                  {route.label}
+                </span>
+              </>
+            )}
+          </span>
           {item.route_note && <small>{item.route_note}</small>}
           {item.assistant_label && <small>{item.assistant_label}</small>}
         </div>

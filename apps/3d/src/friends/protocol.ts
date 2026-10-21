@@ -228,6 +228,8 @@ export type Item = {
   state?: string;
   status_label?: string;
   route_note?: string | null;
+  /** a transfer copying here from another of the person's computers: the route it comes by */
+  route?: Route | null;
   progress?: {
     fraction: number;
     determinate: boolean;
