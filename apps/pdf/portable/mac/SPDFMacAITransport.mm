@@ -139,7 +139,7 @@ static NSError* ContextLengthError(void) {
         if ([reason isEqual:@"length"]) {
             // Reasoning consumes the same output budget as the visible answer.
             // Never execute even apparently complete actions from a truncated batch.
-            failure=SPDFMacAIError(7,@"The model exhausted its response budget before finishing. Your chat is saved; try a shorter question or another model.");
+            failure=SPDFMacAIError(7,@"The assistant's answer got cut off. Your chat is saved; try again, or ask for less at once.");
         } else if ([reason isEqual:@"content_filter"] ||
                    ([candidate isKindOfClass:NSDictionary.class] && [candidate[@"refusal"] isKindOfClass:NSString.class] && [candidate[@"refusal"] length])) {
             failure=SPDFMacAIError(9,@"The model declined this request. Your chat is saved; rephrase it or choose another model.");
@@ -164,8 +164,8 @@ static NSError* ContextLengthError(void) {
             BOOL actions=[calls isKindOfClass:NSArray.class] && [calls count]>0;
             if (calls==NSNull.null) [normalized removeObjectForKey:@"tool_calls"];
             if (text || actions) message=normalized;
-            else failure=SPDFMacAIError(8,@"The model returned no answer or actions. Your chat is saved; retry or choose another model.");
-        } else failure=SPDFMacAIError(6,@"The provider returned an invalid response format. Your chat is saved; retry or choose another model.");
+            else failure=SPDFMacAIError(8,@"The assistant sent back an empty answer. Your chat is saved; try again or choose another model.");
+        } else failure=SPDFMacAIError(6,@"The assistant's answer couldn't be read. Your chat is saved; try again or choose another model.");
     }
     void (^completion)(NSDictionary*,NSError*)=self.completion; self.completion=nil;
     self.token.task=nil; self.bytes=nil;

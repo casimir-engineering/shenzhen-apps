@@ -270,6 +270,12 @@ static char stateKey;
     SPDFReaderAIState* state=[self readerAIState];
     if ([action isEqual:@"close"]) { [self closeAIChat]; return; }
     if ([action isEqual:@"compact"]) { [self aiCompactChat]; return; }
+    if ([action isEqual:@"retry"]) { // the latest question again, in place of the answer that couldn't be used
+        SPDFMacAIChatSession* session=state.session; NSUInteger index=session.retryMessageIndex;
+        if (session.canRetry && index!=NSNotFound)
+            [self aiResendMessageAtIndex:index text:session.chat[@"messages"][index][@"content"] authorizedKey:nil];
+        return;
+    }
     if ([action isEqual:@"authorize"] && state.pendingEdit) {
         NSError* error=nil; NSString* key=[self aiAuthorizeAPIKeyForSending:&error];
         NSDictionary* edit=state.pendingEdit;

@@ -98,6 +98,17 @@ Page-only citations remain available for diagrams and other visual evidence.
 Changed or unavailable sources produce an explanation instead of navigating to
 an unverified passage. Source links contain opaque document IDs, not local paths.
 
+Some models write their actions carelessly, most often a long Python call: line
+breaks left raw, a stray fence or token, or the call cut off before its end.
+Slips with only one possible meaning are read as meant; anything else, a call
+cut off included, is never guessed at. The model is then asked once, within the
+same request and its step limit, to send that reply's actions again, and nothing
+in such a reply runs until all of it can be read. When an answer still can't be
+used (cut off, unreadable or empty), the panel says so above the composer with
+**Retry**, which asks your latest question again in place of the unfinished
+answer. Retry is not offered once the request has changed a document, since
+asking again would repeat the change; send a follow-up instead.
+
 The assistant can request `current_view` to see the visible document viewport,
 including its zoom, scroll position, selection and highlights. This is captured
 only when the tool is called; it does not move the document or capture other

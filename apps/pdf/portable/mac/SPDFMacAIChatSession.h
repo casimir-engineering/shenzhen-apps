@@ -86,6 +86,17 @@ typedef NS_ENUM(NSInteger, SPDFMacAIChatActivityState) {
 - (void)cancel;
 - (BOOL)undo:(NSError**)error;
 @end
+// Answers that couldn't be used (SPDFMacAIChatSessionCalls.mm).
+@interface SPDFMacAIChatSession (Calls)
+// The request ended on an answer that couldn't be used (cut off, unreadable, empty) and sending the latest question
+// again is safe: it changed no document. The chat then offers Retry, which resends retryMessageIndex's question.
+@property(nonatomic, readonly) BOOL canRetry;
+// The latest question in the chat, or NSNotFound.
+@property(nonatomic, readonly) NSUInteger retryMessageIndex;
+// The latest call whose arguments couldn't be read: tool name, problem (SPDFMacAIToolArgumentsProblem), length and
+// the first 4 KB as the provider sent them. Memory only, never saved with the chat: for diagnosing a provider.
+@property(nonatomic, readonly) NSDictionary* lastUnreadableCall;
+@end
 // Long chats and edited questions (SPDFMacAIChatSessionSummaries.mm).
 @interface SPDFMacAIChatSession (Summaries)
 // Summarize everything before the latest question so the chat can keep going.
