@@ -11,12 +11,15 @@
 //! - Friends runs while the app is in the foreground. When the app goes to the background, sessions and transfers
 //!   carry on for a grace period; after it, received bytes are made durable at a verified offset (the service's
 //!   Sleep). Back in the foreground the service dials its friends again and transfers resume where they stopped.
+//!   While "Stay reachable in the background" is on (Android, ADR 0017), a foreground service keeps the process and
+//!   the service sleeps not at all.
 //!
 //! Everything here builds and is tested on any computer; `native.rs` joins it to the app's Kotlin and Swift code.
 
 #[cfg(any(target_os = "android", target_os = "ios"))]
 pub mod animals;
 pub mod keys;
+pub mod notify;
 #[cfg(any(target_os = "android", target_os = "ios"))]
 pub mod native;
 pub mod received;
@@ -79,6 +82,8 @@ struct Lifecycle {
     foreground: bool,
     /// The grace period ended in the background: the service was told to pause.
     paused: bool,
+    /// "Stay reachable in the background" is on: the service keeps running in the background.
+    reachable: bool,
 }
 
 /// The service a phone's app runs in-process, with Start again and the foreground lifecycle.
@@ -194,7 +199,7 @@ impl PhoneService {
             std::thread::sleep(grace);
             let Some(service) = service.upgrade() else { return };
             let mut lifecycle = service.lifecycle.lock().unwrap_or_else(|e| e.into_inner());
-            if lifecycle.generation == generation && !lifecycle.foreground && !lifecycle.paused {
+            if lifecycle.generation == generation && !lifecycle.foreground && !lifecycle.paused && !lifecycle.reachable {
                 lifecycle.paused = true;
                 drop(lifecycle);
                 service.presentation().system_event(SystemEvent::Sleep);
@@ -215,6 +220,22 @@ impl PhoneService {
         };
         if paused {
             self.presentation().system_event(SystemEvent::Wake);
+        }
+    }
+
+    /// "Stay reachable in the background" turned on or off: on, the service no longer sleeps in the background (and
+    /// wakes if it was asleep); off, it sleeps after the grace period as before.
+    pub fn set_reachable(self: &Arc<Self>, on: bool) {
+        let (background, paused) = {
+            let mut lifecycle = self.lifecycle.lock().unwrap_or_else(|e| e.into_inner());
+            lifecycle.reachable = on;
+            (!lifecycle.foreground, lifecycle.paused)
+        };
+        if on && paused {
+            self.lifecycle.lock().unwrap_or_else(|e| e.into_inner()).paused = false;
+            self.presentation().system_event(SystemEvent::Wake);
+        } else if !on && background && !paused {
+            self.suspended();
         }
     }
 

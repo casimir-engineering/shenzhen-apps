@@ -39,10 +39,14 @@ pub fn settings_url(target: &str) -> Option<&'static str> {
             _ => None,
         };
     }
-    // iOS opens the app's own page in Settings, where its Local Network and Bluetooth switches are; it links to no
-    // other page of Settings.
+    // iOS opens the app's own page in Settings, where its Local Network and Bluetooth switches are, or its
+    // notification settings; it links to no other page of Settings.
     if cfg!(target_os = "ios") {
-        return matches!(target, "local_network_privacy" | "bluetooth_privacy").then_some("app-settings:");
+        return match target {
+            "local_network_privacy" | "bluetooth_privacy" => Some("app-settings:"),
+            "notifications" => Some("app-notification-settings:"),
+            _ => None,
+        };
     }
     // Android: the plugin's Kotlin half turns these into the system's settings screens.
     if cfg!(target_os = "android") {
@@ -50,6 +54,7 @@ pub fn settings_url(target: &str) -> Option<&'static str> {
             "bluetooth_privacy" => Some("szfriends-settings:app"),
             "bluetooth" => Some("szfriends-settings:bluetooth"),
             "wifi" => Some("szfriends-settings:wifi"),
+            "notifications" => Some("szfriends-settings:notifications"),
             _ => None,
         };
     }

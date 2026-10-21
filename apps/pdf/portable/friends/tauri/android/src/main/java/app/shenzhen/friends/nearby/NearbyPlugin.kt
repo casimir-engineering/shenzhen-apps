@@ -12,6 +12,10 @@
 // app does pause), faster than anyone can read a dialog and refuse. That test does not rely on
 // shouldShowRequestPermissionRationale, which HyperOS and MIUI always answer false. Network discovery (NsdManager)
 // needs no runtime permission.
+//
+// POST_NOTIFICATIONS (Android 13 and later, ADR 0017) goes out in the same request, so the person meets one moment of
+// questions, not two. A phone that allowed Bluetooth before notifications came asks for it alone, once, the next time
+// Nearby starts; after that only Settings' Allow asks (askNotifications).
 
 package app.shenzhen.friends.nearby
 
@@ -34,6 +38,7 @@ import app.tauri.plugin.Invoke
 import app.tauri.plugin.JSObject
 import app.tauri.plugin.Plugin
 import app.tauri.plugin.PluginManager
+import app.shenzhen.friends.notify.Notifications
 
 @InvokeArg
 class RegisterArgs {
@@ -111,6 +116,9 @@ open class NearbyPlugin(private val activity: Activity) : Plugin(activity) {
     @Volatile private var asking = false
     @Volatile private var askedAt = 0L
     @Volatile private var dialogShown = false
+    /** What the request out asks for: Bluetooth's permissions, POST_NOTIFICATIONS, or both. */
+    @Volatile private var askingBluetooth = false
+    @Volatile private var askingNotifications = false
     /** Bluetooth was reported unauthorized to an attached core: a grant from Settings powers it up on return. */
     @Volatile private var blocked = false
 
@@ -200,10 +208,21 @@ open class NearbyPlugin(private val activity: Activity) : Plugin(activity) {
         radio.attach(invoke.parseArgs(ChannelArgs::class.java).channel)
         invoke.resolve()
         if (!radio.present) return radio.reportPower("unsupported")
-        if (granted()) return powerUp()
+        if (granted()) {
+            powerUp()
+            if (Notifications.wantedOnceAlone(activity)) activity.runOnUiThread { ask(bluetooth = false, notifications = true) }
+            return
+        }
         if (refusedForGood()) return refuse()
         radio.reportPower("unknown")
-        activity.runOnUiThread { ask() }
+        activity.runOnUiThread { ask(bluetooth = true, notifications = Notifications.wanted(activity)) }
+    }
+
+    /** Settings' Allow for notifications (`allow_notifications`): the system's dialog, while it may still show it. */
+    protected fun askNotifications(): Boolean {
+        if (!Notifications.wanted(activity)) return false
+        activity.runOnUiThread { ask(bluetooth = false, notifications = true) }
+        return true
     }
 
     private fun powerUp() {
@@ -218,16 +237,21 @@ open class NearbyPlugin(private val activity: Activity) : Plugin(activity) {
     }
 
     /** The system's dialog, on the main thread. */
-    private fun ask() {
+    private fun ask(bluetooth: Boolean, notifications: Boolean) {
         if (asking) return
         asking = true
+        askingBluetooth = bluetooth
+        askingNotifications = notifications
         askedAt = SystemClock.elapsedRealtime()
         dialogShown = false
+        val permissions = (if (bluetooth) needed() else emptyArray()) +
+            (if (notifications) arrayOf(Manifest.permission.POST_NOTIFICATIONS) else emptyArray())
+        if (notifications) Notifications.markAsked(activity)
         try {
-            PluginManager.requestPermissions(needed()) { handler.post { answered() } }
+            PluginManager.requestPermissions(permissions) { handler.post { answered() } }
         } catch (error: Exception) {
             asking = false
-            refuse()
+            if (bluetooth) refuse()
         }
     }
 
@@ -239,15 +263,20 @@ open class NearbyPlugin(private val activity: Activity) : Plugin(activity) {
         // Back from the dialog, should its answer have gone astray; or back from Settings with access granted there.
         if (asking && dialogShown) handler.postDelayed({ if (asking) answered() }, 1_000)
         if (blocked && !asking && granted()) powerUp()
+        // Back from Settings, where notifications may have been turned on or off.
+        if (!asking) Notifications.report(activity)
     }
 
     private fun answered() {
         if (!asking) return
         asking = false
-        if (granted()) return powerUp()
         // No dialog, or none anyone could have read: the system refused by itself, as it does once the person refused
         // for good.
-        if (!dialogShown || SystemClock.elapsedRealtime() - askedAt < NO_DIALOG_MS) {
+        val noDialog = !dialogShown || SystemClock.elapsedRealtime() - askedAt < NO_DIALOG_MS
+        if (askingNotifications) Notifications.answered(activity, alone = !askingBluetooth, noDialog = noDialog)
+        if (!askingBluetooth) return
+        if (granted()) return powerUp()
+        if (noDialog) {
             preferences.edit().putBoolean(REFUSED, true).apply()
         }
         refuse()

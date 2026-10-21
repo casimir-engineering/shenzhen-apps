@@ -5,7 +5,8 @@
 // - keychainRead, keychainAdd, keychainDelete: the Friends key, a generic-password item readable after the first
 //   unlock, on this device only, never synchronised.
 // - share: a received file to the share sheet (Save to Files is one of its choices).
-// - openUrl: a web or mail link, or the app's page in Settings.
+// - openUrl: a web or mail link, the app's page in Settings, or its notification settings.
+// - notify*: Friends' notifications (Notifications.swift).
 //
 // It extends NearbyPlugin, whose commands it answers too: Tauri keeps one Swift plugin per Tauri plugin, and a second
 // one registered for szfriends replaced the first.
@@ -143,6 +144,12 @@ class FriendsPlugin: NearbyPlugin {
     let target: URL?
     if args.url == "app-settings:" {
       target = URL(string: UIApplication.openSettingsURLString)
+    } else if args.url == "app-notification-settings:" {
+      if #available(iOS 16.0, *) {
+        target = URL(string: UIApplication.openNotificationSettingsURLString)
+      } else {
+        target = URL(string: UIApplication.openSettingsURLString)
+      }
     } else if let url = URL(string: args.url), ["https", "http", "mailto"].contains(url.scheme ?? "") {
       target = url
     } else {
@@ -157,5 +164,7 @@ class FriendsPlugin: NearbyPlugin {
 
 @_cdecl("init_plugin_szfriends")
 public func initPlugin() -> Plugin {
+  // Before the app finishes launching, so the tap that launched it is delivered.
+  FriendsNotifications.shared.install()
   return FriendsPlugin()
 }

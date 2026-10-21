@@ -358,6 +358,28 @@ fn friends_pauses_only_after_the_grace_period_in_the_background() {
     service.shutdown();
 }
 
+#[test]
+fn friends_stays_awake_in_the_background_while_reachable() {
+    let home = TempDir::new("reachable");
+    let (_, keys) = shared_keys();
+    let service = PhoneService::with_grace(
+        home.0.clone(),
+        keys,
+        szfriends_core::store::ReceivedDefaults::contained(&home.0),
+        Duration::from_millis(60),
+    );
+    service.set_reachable(true);
+    service.suspended();
+    std::thread::sleep(Duration::from_millis(180));
+    assert!(!service.paused(), "reachable in the background: never paused");
+    service.set_reachable(false);
+    std::thread::sleep(Duration::from_millis(180));
+    assert!(service.paused(), "switched off in the background: paused after the grace period");
+    service.set_reachable(true);
+    assert!(!service.paused(), "switched on again: awake at once");
+    service.shutdown();
+}
+
 /// Copies where a test says, as the Kotlin side's MediaStore does: nothing here reaches a real Downloads.
 struct FakeMediaStore(PathBuf);
 
