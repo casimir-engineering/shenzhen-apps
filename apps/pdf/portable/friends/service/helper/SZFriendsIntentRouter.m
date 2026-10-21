@@ -4,6 +4,7 @@
 
 #import "service/helper/SZFriendsHelperFacts.h"
 #import "service/helper/nearby/SZFriendsNearbyService.h"
+#import "service/notify/SZFriendsNotify.h"
 
 // PROTOCOL.md § Limits: filter and search queries.
 static const NSUInteger SZFriendsQueryMax = 200;
@@ -53,7 +54,8 @@ static const NSUInteger SZFriendsMessageStatusMax = 16;
             @"delete_history", @"reset_friends", @"disable", @"cancel_message", @"add_from_mention", @"open_link",
             @"add_from_link", @"receive_link", @"make_download_link", @"reset_friend_link", @"revoke_link",
             @"join_profile", @"enter_join_code", @"cancel_join", @"approve_join", @"deny_join", @"revoke_device",
-            @"rename_device", @"fetch_from_device", @"fetch_from_friend", @"set_received_folder"
+            @"rename_device", @"fetch_from_device", @"fetch_from_friend", @"set_received_folder", @"set_focus",
+            @"set_notifications", @"allow_notifications", @"test_notification_response"
         ]];
     });
     return known;
@@ -68,7 +70,8 @@ static const NSUInteger SZFriendsMessageStatusMax = 16;
 + (NSSet<NSString *> *)intentsOnRemovedComputer {
     return [NSSet setWithArray:@[ @"ping", @"activate", @"subscribe", @"unsubscribe", @"set_filter",
                                   @"open_conversation", @"load_earlier", @"search_messages", @"reset_friends",
-                                  @"disable", @"dismiss_banner" ]];
+                                  @"disable", @"dismiss_banner", @"set_focus", @"set_notifications",
+                                  @"allow_notifications" ]];
 }
 
 // What still works while the identity key cannot be read (PROTOCOL.md identity_unavailable): reads, the reset
@@ -79,7 +82,8 @@ static const NSUInteger SZFriendsMessageStatusMax = 16;
     dispatch_once(&once, ^{
         allowed = [NSSet setWithArray:@[
             @"ping", @"activate", @"subscribe", @"unsubscribe", @"set_filter", @"open_conversation", @"load_earlier",
-            @"search_messages", @"delete_history", @"reset_friends", @"disable", @"set_received_folder"
+            @"search_messages", @"delete_history", @"reset_friends", @"disable", @"set_received_folder", @"set_focus",
+            @"set_notifications", @"allow_notifications"
         ]];
     });
     return allowed;
@@ -264,6 +268,12 @@ static const NSUInteger SZFriendsMessageStatusMax = 16;
     if (recovered && self.onIdentityAvailable) self.onIdentityAvailable();
     // The person opened Friends: Nearby starts, which may show the permission prompts the first time (ADR 0004).
     [self.services.nearby activate];
+    // From now on the list may offer notifications, and a click on one opens this app (ADR 0017).
+    SZFriendsNotifySettings *notifications = self.services.notifier.settings;
+    BOOL firstUse = notifications != nil && !notifications.used;
+    notifications.used = YES;
+    [self rememberNotificationTargetFor:connection];
+    if (firstUse) [self.publisher publishAllCoalesced];
     reply(@{}, nil, nil, nil);
     if (recovered && self.onReset) self.onReset();
 }
@@ -431,6 +441,7 @@ static const NSUInteger SZFriendsMessageStatusMax = 16;
     }
     [self.services.store markConversationRead:person.conversationID error:NULL];
     [self.services.nearby conversationOpened:person.conversationID];
+    [self rememberNotificationTargetFor:connection];
     [self subscribeView:@"conversation" conversationID:person.conversationID messageIDs:nil highlight:messageID
                  window:window connection:connection reply:reply];
 }

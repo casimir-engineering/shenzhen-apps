@@ -36,6 +36,9 @@ extern const NSUInteger SZFriendsConversationWindow;  // 200 items, and load_ear
 @property(nonatomic, readonly) SZFriendsStrings *strings;
 @property(nonatomic, readonly) SZFriendsSnapshotBuilder *builder;
 @property(nonatomic, readonly) NSMutableDictionary<NSString *, SZFriendsSubscription *> *subscriptions;
+// set_focus: the conversation this client's focused window shows (PROTOCOL.md § Notifications); gone with the
+// connection, since the state is.
+@property(nonatomic, copy, nullable) NSString *focusedConversationID;
 @end
 
 @interface SZFriendsPublisher : NSObject
@@ -57,6 +60,9 @@ extern const NSUInteger SZFriendsConversationWindow;  // 200 items, and load_ear
 // Everything that changed, to every client: now (after an intent) or within the rate limit (background).
 - (void)publishAllImmediately;
 - (void)publishAllCoalesced;
+// The conversations no notification is posted for now: each focus a client declared with set_focus, and every open
+// conversation of a client that does not send it (notifications.focus), so older apps stay quiet rather than noisy.
+- (NSSet<NSString *> *)focusedConversations;
 // The helper is going away: no more timers.
 - (void)stop;
 @end

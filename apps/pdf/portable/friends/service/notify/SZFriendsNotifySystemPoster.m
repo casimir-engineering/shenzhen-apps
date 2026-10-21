@@ -175,7 +175,8 @@ static void SZFriendsNotifyOpen(NSString *urlString, NSString *_Nullable appPath
     NSString *category = [self categoryForRequest:request];
     if (category != nil) content.categoryIdentifier = category;
     NSData *json = [NSJSONSerialization dataWithJSONObject:request options:0 error:NULL];
-    if (json != nil) content.userInfo = @{@"request" : [[NSString alloc] initWithData:json encoding:NSUTF8StringEncoding]};
+    NSString *text = json ? [[NSString alloc] initWithData:json encoding:NSUTF8StringEncoding] : nil;
+    if (text != nil) content.userInfo = @{@"request" : text};
     UNNotificationRequest *notification = [UNNotificationRequest requestWithIdentifier:request[@"key"]
                                                                                content:content
                                                                                trigger:nil];

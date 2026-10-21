@@ -178,6 +178,9 @@ BOOL SZFriendsSyncVectorCovers(SZFriendsSyncVector *vector, NSData *author, uint
 @property(nonatomic, copy, nullable) void (^onChange)(NSSet<NSString *> *conversationIDs);
 // Events were recorded or received: sessions with our other devices send them on.
 @property(nonatomic, copy, nullable) void (^onNewEvents)(void);
+// History items another device brought that were not here before, once committed and the unread counts recounted
+// (after onChange): what the helper's notifier looks at (ADR 0017).
+@property(nonatomic, copy, nullable) void (^onItemsArrived)(NSArray<SZFriendsItemRecord *> *items);
 // Keeps a synced photo (bytes of a picture another device stored) and returns its picture; nil: placeholder.
 @property(nonatomic, copy, nullable) SZFriendsPicture *_Nullable (^storePicture)(NSData *imageBytes);
 // The clock events are stamped with; tests set it.

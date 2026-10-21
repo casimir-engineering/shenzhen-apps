@@ -81,6 +81,12 @@ enum {
     return facts;
 }
 
+- (void)notifyJoinRequests {
+    for (SZFriendsJoinRequestFacts *request in [self joinRequestFacts]) {
+        if (!request.approved) [self.services.notifier noteJoinRequest:request.joinID deviceName:request.deviceName];
+    }
+}
+
 - (NSArray<SZFriendsJoinRequestFacts *> *)joinRequestFacts {
     SZFriendsJoinApprover *approver = self.joinState.approver; // none made just to say there is nothing
     SZFriendsStore *store = self.services.store;
@@ -242,6 +248,7 @@ enum {
         if (receipt == SZFriendsJoinReceiptEnded) [pipe sendJoinMessages:@[ SZFriendsJoinEndedMessage(ended) ]];
         else [pipe sendReceived];
         [pipe finish];
+        if (receipt == SZFriendsJoinReceiptAdded) [self notifyJoinRequests];
         if (receipt == SZFriendsJoinReceiptAdded || receipt == SZFriendsJoinReceiptRefreshed) [self changed];
         return;
     }

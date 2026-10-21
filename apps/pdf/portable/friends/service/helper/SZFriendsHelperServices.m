@@ -10,6 +10,7 @@
 #import "service/helper/SZFriendsHostCheckIn.h"
 #import "service/helper/nearby/SZFriendsNearbyService.h"
 #import "service/host/SZFriendsHostConnection.h"
+#import "service/notify/SZFriendsNotify.h"
 #import "service/store/SZFriendsTransferThumbnails.h"
 
 @implementation SZFriendsHelperResources
@@ -101,6 +102,19 @@ static NSString *SZFriendsIdentityProblem(NSError *error) {
                              : [NSString stringWithFormat:@"%@ %ld", e.domain, (long)e.code]];
     }
     return parts.count ? [parts componentsJoinedByString:@" / "] : @"no detail";
+}
+
+- (void)openNotifierOnQueue:(dispatch_queue_t)queue {
+    if (_store == nil || _notifier != nil) return;
+    NSString *directory = self.paths.stateDirectory;
+    // A test home never touches the notification centre: every Mac test posts to the sink.
+    id<SZFriendsNotificationPoster> poster =
+        _environment[@"SZFRIENDS_STATE_DIR"] != nil
+            ? [[SZFriendsNotifyFileSink alloc] initWithStateDirectory:directory environment:_environment]
+            : [[SZFriendsNotifySystemPoster alloc] initWithQueue:queue];
+    SZFriendsNotifySettings *settings = [[SZFriendsNotifySettings alloc] initWithStateDirectory:directory];
+    _notifier = [[SZFriendsNotifier alloc] initWithStore:_store transfers:_transfers settings:settings poster:poster
+                                                   queue:queue];
 }
 
 - (BOOL)retryIdentity {

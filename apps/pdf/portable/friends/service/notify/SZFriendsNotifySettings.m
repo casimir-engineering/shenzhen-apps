@@ -155,7 +155,11 @@ static BOOL SZFriendsBoolIn(NSDictionary *object, NSString *key, BOOL fallback) 
 - (void)setTarget:(SZFriendsNotifyTarget *)target {
     if ([_target isEqual:target]) return;
     _target = [target copy];
-    [self write:@{@"app_id" : target.appID, @"url_scheme" : target.urlScheme, @"app_path" : target.appPath ?: [NSNull null]}
+    [self write:@{
+        @"app_id" : target.appID,
+        @"url_scheme" : target.urlScheme,
+        @"app_path" : target.appPath ?: [NSNull null]
+    }
          toFile:SZFriendsNotifyTargetFile];
 }
 

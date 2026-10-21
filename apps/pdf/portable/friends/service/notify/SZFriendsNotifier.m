@@ -306,7 +306,9 @@ static NSString *SZFriendsNotifyTime(NSDate *date) {
     [self postFiles:waiting person:person offered:YES];
 }
 
-- (void)postFiles:(NSArray<SZFriendsTransferRecord *> *)files person:(SZFriendsPersonRecord *)person offered:(BOOL)offered {
+- (void)postFiles:(NSArray<SZFriendsTransferRecord *> *)files
+           person:(SZFriendsPersonRecord *)person
+          offered:(BOOL)offered {
     NSString *title = [self titleFor:person];
     NSArray *names = _settings.preview ? [files valueForKey:@"fileName"] : nil;
     NSString *body = [_strings notificationBodyForFiles:names count:files.count sender:title offered:offered];

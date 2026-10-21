@@ -235,7 +235,8 @@ static void TestFilesAndRequests(void) {
     Settle();
     NSDictionary *request = Requests(world).lastObject;
     EXPECT([request[@"key"] isEqual:@"file:0123456789abcdef0123456789abcdef"] && [request[@"kind"] isEqual:@"file"] &&
-               [request[@"channel"] isEqual:@"files"] && [request[@"body"] isEqual:@"Mei wants to send you Bracket.step"] &&
+               [request[@"channel"] isEqual:@"files"] &&
+               [request[@"body"] isEqual:@"Mei wants to send you Bracket.step"] &&
                request[@"reply"] == [NSNull null],
            @"offer: %@", request);
 

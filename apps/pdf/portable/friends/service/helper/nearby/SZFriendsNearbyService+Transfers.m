@@ -153,6 +153,7 @@ static const NSTimeInterval SZFriendsProgressFlushDelay = 0.5;
         [self sendAckForID:wire onLink:link];
         // The file is what it claimed to be: our own preview of it now replaces the sender's (+Thumbnails).
         [self makeLocalThumbnailForReceivedTransfer:transferID];
+        [self.services.notifier noteTransferReceived:transferID]; // a file accepted automatically, now here
     } else {
         SZFriendsHelperLog(@"a received file did not verify: %@", error.localizedDescription);
     }

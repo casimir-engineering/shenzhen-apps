@@ -164,6 +164,8 @@ NSArray<NSString *> *SZFriendsHelperCapabilityList(SZFriendsHelperServices *serv
     // Received files go to Downloads or the folder the person chose (PROTOCOL.md § Views, settings and received).
     if (services.transfers != nil) [capabilities addObject:@"received.folder"];
     if (nearby.reachesFriendsOnline) [capabilities addObject:@"online"];
+    // This helper posts system notifications (PROTOCOL.md § Notifications).
+    if (services.notifier != nil) [capabilities addObject:@"notifications"];
     return capabilities;
 }
 

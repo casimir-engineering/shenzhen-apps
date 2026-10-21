@@ -197,8 +197,15 @@ NS_ASSUME_NONNULL_BEGIN
     SZFriendsItemRecord *item = SZFriendsSyncItemFromBody(fields, event.subject);
     if (item == nil) return SZFriendsSyncApplyDone;
     item.conversationID = conversation;
-    return [store mergeSyncedItem:item author:event.author seq:event.seq error:NULL] ? SZFriendsSyncApplyDone
-                                                                                    : SZFriendsSyncApplyFailed;
+    // New here (the store's committed state; a second copy in the same batch is one item, told once).
+    BOOL known = [store itemWithID:item.itemID inConversation:conversation] != nil;
+    for (SZFriendsItemRecord *arriving in self.arrivingItems) {
+        known = known || ([arriving.itemID isEqualToString:item.itemID] &&
+                          [arriving.conversationID isEqualToString:conversation]);
+    }
+    if (![store mergeSyncedItem:item author:event.author seq:event.seq error:NULL]) return SZFriendsSyncApplyFailed;
+    if (!known) [self.arrivingItems addObject:item];
+    return SZFriendsSyncApplyDone;
 }
 
 - (SZFriendsSyncApplyResult)applyRead:(SZFriendsSyncEvent *)event fields:(SZFriendsSyncFields *)fields {

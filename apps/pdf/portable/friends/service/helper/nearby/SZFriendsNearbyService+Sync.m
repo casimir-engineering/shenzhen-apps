@@ -68,6 +68,11 @@ static NSData *_Nullable SZFriendsKeyFromHex(NSString *hex) {
             [strongSelf changed];
         };
         engine.onNewEvents = ^{ [weakSelf pumpSyncExchanges]; };
+        // A friend's message that reached another of the person's devices first notifies here too while fresh and
+        // unread (ADR 0017); everything the person did there never does.
+        engine.onItemsArrived = ^(NSArray<SZFriendsItemRecord *> *items) {
+            [weakSelf.services.notifier noteSyncedItems:items];
+        };
         NSString *pictures = self.services.paths.picturesDirectory;
         engine.storePicture = ^SZFriendsPicture *_Nullable(NSData *bytes) {
             // Bytes another of our devices stored after re-encoding them; checked and re-encoded here all the same.

@@ -78,6 +78,8 @@ NSData *SZFriendsSyncProfileBody(SZFriendsStore *store, BOOL full);
 
 @interface SZFriendsSyncEngine ()
 @property(nonatomic, readonly) NSMutableSet<NSString *> *changedConversations;
+// Items an event in the open transaction put here for the first time; kept once it commits, reported by -flushChanges.
+@property(nonatomic, readonly) NSMutableArray<SZFriendsItemRecord *> *arrivingItems;
 @property(nonatomic) BOOL profileChanged;
 // Applied tombstones: [scope, vector], loaded on first use and kept up to date.
 @property(nonatomic, strong, nullable) NSArray<NSArray *> *tombstones;

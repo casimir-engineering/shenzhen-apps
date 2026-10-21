@@ -70,8 +70,9 @@ go there. Without one it is ShenzhenPDF on a Mac and Shenzhen 3D elsewhere. A cl
 `<scheme>://friends/conversation/<conversation_id>` (a join request: `<scheme>://friends`), which every host routes to
 its Friends dropdown or panel, open on that conversation. The URL works whether or not the app is running.
 
-- Mac: `-[NSWorkspace openURLs:withApplicationAtURL:configuration:]` with the remembered bundle, activating it; the
-  scheme's default handler when that bundle is gone. A click can reach a helper macOS just launched for it (no
+- Mac: LaunchServices' `LSOpenFromURLSpec` (what `-[NSWorkspace openURLs:withApplicationAtURL:configuration:]` calls;
+  the service layer links no UI toolkit) with the remembered bundle, activating it; the scheme's default handler when
+  that bundle is gone. A click can reach a helper macOS just launched for it (no
   client, maybe not the lock holder): it routes the click before it exits.
 - Windows: the toast's `activationType="protocol"` with the URL as `launch`, so Windows opens it without the helper.
 - Linux: the helper listens for `ActionInvoked` (`default`) on the session bus and starts the remembered executable
