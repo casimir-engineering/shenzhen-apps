@@ -376,6 +376,15 @@ class ThreeDRelease(Release):
         """The release APK and AAB, the native library stripped; the APK aligned for 16 KB pages and signed with the
         Android debug key every published APK carries, then checked: that key, this version and versionCode."""
         app_dir = self.app_dir(OWNER)
+        # Gradle and apksigner need a JDK (17, docs/PLATFORMS.md); macOS has none of its own.
+        if not os.environ.get("JAVA_HOME"):
+            jdks = [p for p in ("/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home",
+                                "/Applications/Android Studio.app/Contents/jbr/Contents/Home")
+                    if os.path.isfile(os.path.join(p, "bin/java"))]
+            if not jdks:
+                raise Failure("no JDK for the Android build: set JAVA_HOME (JDK 17)")
+            os.environ["JAVA_HOME"] = jdks[0]
+        os.environ["PATH"] = os.path.join(os.environ["JAVA_HOME"], "bin") + os.pathsep + os.environ["PATH"]
         outputs = os.path.join(app_dir, "src-tauri/gen/android/app/build/outputs")
         shutil.rmtree(outputs, ignore_errors=True)
         run(["node", "scripts/platform-build.mjs", "android", "--friends", "--apk", "--aab", "--target", "aarch64",

@@ -87,23 +87,23 @@ windows_installers() { # guest dir, Rust target, guest node.exe; uses $vm's exec
             'set PATH=%USERPROFILE%\.cargo\bin;%PATH%' \
             "set SZFRIENDS_HELPER_VERSION=$helper_version" "set SZFRIENDS_HELPER_BUILD=$helper_build" \
             "mkdir $dir\3d\node_modules\@tauri-apps" \
-            "xcopy /e /i /q $cli\@tauri-apps\cli $dir\3d\node_modules\@tauri-apps\cli >nul || exit /b 11" \
+            "xcopy /e /i /q $cli\@tauri-apps\cli $dir\3d\node_modules\@tauri-apps\cli >nul || (echo failed at step 11 & exit /b 11)" \
             "for /d %%d in ($cli\@tauri-apps\cli-win32-*) do xcopy /e /i /q %%d $dir\3d\node_modules\@tauri-apps\%%~nxd >nul" \
-            "cd /d $dir\friends\core-rs || exit /b 12" \
+            "cd /d $dir\friends\core-rs || (echo failed at step 12 & exit /b 12)" \
             "set CARGO_TARGET_DIR=$dir\target-core" \
-            "cargo build --release --target $target -p szfriends-helper --bin szfriends-helper || exit /b 13" \
+            "cargo build --release --target $target -p szfriends-helper --bin szfriends-helper || (echo failed at step 13 & exit /b 13)" \
             "mkdir $dir\3d\src-tauri\friends\bin" \
-            "copy /b $dir\target-core\$target\release\szfriends-helper.exe $dir\3d\src-tauri\friends\bin\szfriends-helper-$target.exe >nul || exit /b 14" \
-            "xcopy /e /i /q $dir\friends\avatars\animals $dir\3d\src-tauri\friends\animals >nul || exit /b 15" \
+            "copy /b $dir\target-core\\$target\release\szfriends-helper.exe $dir\3d\src-tauri\friends\bin\szfriends-helper-$target.exe >nul || (echo failed at step 14 & exit /b 14)" \
+            "xcopy /e /i /q $dir\friends\avatars\animals $dir\3d\src-tauri\friends\animals >nul || (echo failed at step 15 & exit /b 15)" \
             "if exist $dir\3d\src-tauri\friends\animals\pdf rmdir /s /q $dir\3d\src-tauri\friends\animals\pdf" \
-            "$node $dir\3d\scripts\friends\helper-notices.mjs $dir\target-core\$target\release\szfriends-helper.exe $dir\friends $dir\3d\src-tauri\friends\Acknowledgements.txt || exit /b 16" \
+            "$node $dir\3d\scripts\friends\helper-notices.mjs $dir\target-core\\$target\release\szfriends-helper.exe $dir\friends $dir\3d\src-tauri\friends\Acknowledgements.txt || (echo failed at step 16 & exit /b 16)" \
             "echo {\"build\": {\"beforeBuildCommand\": \"\"}}> $dir\no-frontend-build.json" \
-            "cd /d $dir\3d || exit /b 17" \
+            "cd /d $dir\3d || (echo failed at step 17 & exit /b 17)" \
             "set CARGO_TARGET_DIR=$dir\target-app" \
-            "$node node_modules\@tauri-apps\cli\tauri.js build --target $target --features friends --config src-tauri\friends\tauri.conf.json --config $dir\no-frontend-build.json --bundles nsis,msi -- --config patch.szfriends-pinned.tauri-plugin-szfriends.path='$plugin' || exit /b 18" \
-            "cd /d $dir\target-app\$target\release\bundle || exit /b 19" \
-            "tar -cf $dir\bundles.tar nsis msi || exit /b 20" \
-            "certutil -f -encode $dir\bundles.tar $dir\bundles.b64 >nul || exit /b 21" \
+            "$node node_modules\@tauri-apps\cli\tauri.js build --target $target --features friends --config src-tauri\friends\tauri.conf.json --config $dir\no-frontend-build.json --bundles nsis,msi -- --config patch.szfriends-pinned.tauri-plugin-szfriends.path='$plugin' || (echo failed at step 18 & exit /b 18)" \
+            "cd /d $dir\target-app\\$target\release\bundle || (echo failed at step 19 & exit /b 19)" \
+            "tar -cf $dir\bundles.tar nsis msi || (echo failed at step 20 & exit /b 20)" \
+            "certutil -f -encode $dir\bundles.tar $dir\bundles.b64 >nul || (echo failed at step 21 & exit /b 21)" \
             'echo installers built'
     } >"$batch"
     base64 -b 76 <"$batch" | "${exec[@]}" cmd /c "findstr /v /c:# > $dir\\build.b64"
