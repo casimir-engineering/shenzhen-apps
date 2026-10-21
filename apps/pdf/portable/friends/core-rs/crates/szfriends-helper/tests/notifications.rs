@@ -24,10 +24,12 @@ const PDF: (&str, &str, Option<&str>) = ("com.intuition.shenzhenpdf", "ShenzhenP
 const FILES: (&str, &str, Option<&str>) = ("com.intuition.shenzhenfiles", "Shenzhen Files", Some("shenzhenfiles"));
 const THREE_D: (&str, &str, Option<&str>) = ("com.shenzhen3d.viewer", "Shenzhen 3D", Some("shenzhen3d"));
 
-/// Every line the sink in `home` holds.
+/// Every whole line the sink in `home` holds: one the helper is still writing has no newline yet and is left for the
+/// next read.
 fn sink(home: &Path) -> Vec<Value> {
     let text = std::fs::read_to_string(home.join("notifications.jsonl")).unwrap_or_default();
-    text.lines().filter(|l| !l.is_empty()).map(|l| serde_json::from_str(l).expect("a JSON line")).collect()
+    let whole = text.rfind('\n').map_or("", |end| &text[..end]);
+    whole.lines().filter(|l| !l.is_empty()).map(|l| serde_json::from_str(l).expect("a JSON line")).collect()
 }
 
 /// The first line from index `from` on that `matches`, waiting for it.
