@@ -21,6 +21,7 @@ mod online;
 pub mod online_devices;
 pub mod online_scenarios;
 mod peer;
+pub mod profile_moves;
 mod proxy;
 pub mod scenarios;
 
