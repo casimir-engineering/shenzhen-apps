@@ -50,6 +50,20 @@ impl State {
         self.devices.engine.is_active(&self.store)
     }
 
+    /// The matcher's entries for our other devices; when they changed (a device joined, or we learned the secret our
+    /// devices find each other by), every adapter reads anew: their tags appear only in reads made from now on, and
+    /// Bluetooth caches a read per window.
+    pub(crate) fn own_device_tag_secrets_rereading(&mut self) -> Vec<(String, Vec<u8>)> {
+        let own = self.own_device_tag_secrets();
+        if own != self.devices.matched_own {
+            self.devices.matched_own = own.clone();
+            for adapter in &mut self.nearby.adapters {
+                adapter.reread();
+            }
+        }
+        own
+    }
+
     /// The matcher's entries for our other devices.
     pub(crate) fn own_device_tag_secrets(&self) -> Vec<(String, Vec<u8>)> {
         let engine = &self.devices.engine;

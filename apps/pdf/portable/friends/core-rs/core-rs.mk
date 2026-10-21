@@ -208,8 +208,9 @@ friends-core-rs-interop-check: friends-session-peer $$(FRIENDS_HELPER_EXE)
 # each joining the other's profile through the host and syncing online, and each adding the other by ID through it;
 # links and Add by ID between a Rust helper and the Objective-C helper (the links e2e helper, loopback allowed); then
 # two Rust helpers' services, friends with no other route, reaching each other the same way, and the same two meeting
-# nearby too, where the better route in the owner's order takes over and a worse one never does. Loopback only;
-# temporary homes.
+# nearby too, where the better route in the owner's order takes over and a worse one never does, and one person's
+# computers joined through the host alone, whose sync moves off the relay once a direct connection works. Loopback
+# only; temporary homes.
 .PHONY: friends-core-rs-online-check
 friends-core-rs-online-check: friends-session-peer friends-links-e2e-helper $$(FRIENDS_HELPER_EXE)
 	SZFRIENDS_OBJC_PEER="$(abspath $(FRIENDS_SESSION_PEER))" SZFRIENDS_OBJC_HELPER="$(abspath $(FRIENDS_HELPER_EXE))" \
@@ -226,7 +227,7 @@ friends-core-rs-online-check: friends-session-peer friends-links-e2e-helper $$(F
 		SZFRIENDS_HOST_SERVER_DIR="$(abspath $(FRIENDS_HOST_SERVER_DIR))" FRIENDS_TEST_COTURN="$(FRIENDS_TEST_COTURN)" \
 		CARGO_TARGET_DIR="$(abspath $(FRIENDS_CORE_RS_BUILD))/target" \
 		cargo test $(FRIENDS_CORE_RS_MANIFEST) --locked --release -p szfriends-helper \
-		--test online --test online_reset --test route_order -- --nocapture
+		--test online --test online_reset --test route_order --test profile_routes -- --nocapture
 
 # The NAT emulator's punching matrix (tests/nat-emulator) with the Rust core on one side of every pair: once as the
 # offerer, once as the answerer, against the helper's own peer, each through every pair of NAT types and checked
