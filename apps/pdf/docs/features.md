@@ -161,7 +161,7 @@ does not re-trigger the macOS access prompt.
 - Optional OpenRouter chat beside the document, opened through **Cmd+K → Return** with an empty search or the Chats sidebar. Saved conversations have searchable messages, timestamps, editable titles and folders; drag chats between folders or ask the assistant to organize them.
 - Cited answers open retrieved passages with highlights. Image-capable models can inspect pages, crops and the visible document viewport on request. Brief supported answers can use pastel cards with **View evidence**; evidence provenance checks do not certify model interpretation.
 - One cached background request supplies a summary, keywords, up to six tags and missing chapters in the selected AI language. Authored outlines remain authoritative; only eligible latest revisions are analyzed.
-- Supported group, reader, comment, rename, metadata and chat-organization actions have guarded Undo/Redo. Requested OCR, translation and PDF jobs create separate outputs. Stop cancels future work; completed changes remain until undone.
+- Supported group, reader, comment, rename, metadata and chat-organization actions have guarded Undo/Redo. Requested OCR, translation and PDF jobs create separate outputs. Everything the assistant makes, including charts you save, goes to Downloads under a clear name (never replacing a file) and into Collection as **Made by the assistant**. Stop cancels future work; completed changes remain until undone.
 - Four-step setup covers file access, Collection, OpenRouter and per-format default-reader choices. Keys remain in Keychain; cloud analysis waits for completed setup and a connected account. Usage spends provider credits and can be disabled.
 - The [document assistant guide](../portable/docs/document-assistant.md) specifies privacy routing, model requirements, action limits and local job dependencies. The [CLI/MCP guide](../portable/docs/agent-interface.md) is a separate interface; chat tool names are not external MCP commands.
 
@@ -399,7 +399,7 @@ fence the renderer cannot draw keeps its ordinary highlighted code box.
 
 - **macOS: choose Local or AI** from the menu below Translate. Local keeps the existing Argos workflow.
 - **AI translation** uses your OpenRouter connection and model. Review the source text, choose a searchable target language (your AI language by default), then send explicitly. Selection and whole-document text are supported; scanned pages need OCR first.
-- AI results are editable and saved as a **new Markdown copy**, not a layout-preserving PDF. The original is protected from overwrite. Progress and Cancel are available; failed or cancelled requests do not save partial files.
+- AI results are editable and saved as a **new Markdown copy** in Downloads (kept in Collection when it is on), not a layout-preserving PDF. Nothing is overwritten. Progress and Cancel are available; failed or cancelled requests do not save partial files.
 - AI requests run sequentially in small text chunks. Documents above 500,000 characters are rejected with a request to select a smaller passage, never silently truncated.
 - **Argos Translate**, running locally across ~19 languages including Chinese.
   Text never leaves the machine.

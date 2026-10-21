@@ -5,7 +5,8 @@
 @property(nonatomic, copy) BOOL (^sendText)(NSString*);
 @property(nonatomic, copy) void (^action)(NSString*);
 @property(nonatomic, copy) void (^openLink)(NSURL*);
-// Save… on an image in the chat (SPDFMacAIChatActivity.h). nil: a save panel on the chat's window.
+// Save on an image in the chat (SPDFMacAIChatActivity.h). The reader saves it to Downloads and Collection
+// (SPDFMacAIOutputs.h); nil: a save panel on the chat's window.
 @property(nonatomic, copy) void (^saveImage)(NSString* path, NSString* caption);
 // Replaces your message at `index` in the displayed chat and asks again from there. NO keeps the edit open.
 @property(nonatomic, copy) BOOL (^editMessage)(NSUInteger index, NSString* text);

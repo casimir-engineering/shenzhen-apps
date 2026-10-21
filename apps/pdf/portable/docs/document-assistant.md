@@ -173,7 +173,8 @@ workspace, then retrieves evidence as needed. Its tools can:
 - read, add, edit or delete comments in the currently displayed writable PDF;
 - close and reopen tabs, rename a supported open file, and list/open documents
   in Collection;
-- run a requested PDF export, OCR or translation job as a separate output.
+- run a requested PDF export, OCR or translation job as a separate output, saved
+  to Downloads and kept in Collection (see below).
 
 Changes are scoped to the current reader and the tools listed above. Creating a
 group, changing controls, navigation, comments, closing tabs, renaming, opening
@@ -181,14 +182,38 @@ Collection items and document jobs return action receipts for safe Undo. Group
 or control Undo is refused if the relevant state has changed. File Undo checks
 the resulting file identity/content before restoring or removing anything.
 
-OCR, translation and export make a new PDF; the source stays unchanged. Outputs
-go into an `Assistant Exports` folder in the application state directory. OCR and translation
+OCR, translation and export make a new PDF; the source stays unchanged. OCR and translation
 need their local tools already installed. Assistant jobs do not install tools
 or ask to install them, and protected PDFs must first be made into an
 unprotected copy. Translation requires supported source and target language
 codes and extractable text; scan-only PDFs need OCR first. Undo closes the
 generated tab and removes the output only if it is still the exact generated
 file.
+
+## Where documents the assistant makes go
+
+Every document the assistant makes goes to two places:
+
+- **Downloads**, under a clear name: `Report (OCR).pdf`, `Report (French).pdf`,
+  `Report (copy).pdf` for a PDF exported as a PDF, `Notes.pdf` for a Markdown
+  export, or the name you asked for. A name already taken gets ` (2)`, ` (3)`…
+  before its extension; a file already in Downloads is never replaced. The file
+  is made elsewhere and appears in Downloads only when complete.
+- **Collection**, captured at once with the reason **Made by the assistant**,
+  the way files received through Friends are captured with **Received**. This
+  follows Collection's own setting: when Collection is off, or not yet chosen,
+  nothing is captured and no Collection is created.
+
+This covers document jobs (OCR, translation, export), charts from Python that
+you save with **Save** under the picture, and AI translations saved from the
+translation panel as Markdown. The chat then shows **Saved to Downloads** with
+**Open** and **Show in Finder**; a reopened chat keeps the line without the
+buttons. If the file has since been moved or removed, either button says so.
+
+Undo of a job removes the Downloads copy only while it is still the exact file
+made. Its Collection history stays, as it does whenever an original is removed;
+delete it from Collection if you do not want it. With `SPDF_STATE_DIR` set,
+outputs go to a `Downloads` folder inside that state directory instead.
 
 ## Automatic summaries and Collection history
 

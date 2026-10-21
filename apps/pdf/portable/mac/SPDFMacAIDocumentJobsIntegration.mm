@@ -4,7 +4,8 @@
 #import "SPDFMacSearchFileCache.h"
 #import "SPDFMacToolEnvironment.h"
 #import "SPDFMacImageSave.h"
-#import "SPDFMacStateDirectory.h"
+#import "SPDFMacAIOutputs.h"
+#import "SPDFMacCollectionStore.h"
 #import "SPDFMacMarkdownDelegatePrivate.h"
 #import "SPDFMacMarkdownPrinting.h"
 #import "markdown/SPDFTextDocumentFormats.h"
@@ -33,8 +34,7 @@ static BOOL Language(NSString* value, BOOL ocr) {
         completion(JobError(@"Create an unprotected copy before exporting, OCR or translation.")); return;
     }
     NSString* name=arguments[@"name"];
-    if (!name) name=[NSString stringWithFormat:@"%@-%@.pdf",source.lastPathComponent.stringByDeletingPathExtension,
-        [kind isEqual:@"translate"] ? @"translated" : [kind isEqual:@"ocr"] ? @"ocr" : @"export"];
+    if (!name) name=SPDFMacAIJobOutputName(source,kind,arguments[@"targetLanguage"]);
     if (![name isKindOfClass:NSString.class] || !name.length || name.length>240 ||
         ![name isEqual:name.lastPathComponent] || [name containsString:@":"] ||
         ![name.pathExtension.lowercaseString isEqual:@"pdf"] || [name hasPrefix:@"."]) {
@@ -63,9 +63,11 @@ static BOOL Language(NSString* value, BOOL ocr) {
     if (SPDFIsRenderedTextDocumentPath(source) && (!plan || !text)) {
         completion(JobError(@"The text document is still preparing its PDF export.")); return;
     }
-    NSString* root=[SPDFMacStateDirectoryPath() stringByAppendingPathComponent:@"Assistant Exports"];
-    NSString* directory=[root stringByAppendingPathComponent:NSUUID.UUID.UUIDString];
-    NSString* destination=[directory stringByAppendingPathComponent:name];
+    // The person's Downloads, never replacing a file there; a private folder holds the rendition meanwhile.
+    NSString* downloads=SPDFMacAIDownloadsDirectory();
+    NSString* directory=[NSTemporaryDirectory() stringByAppendingPathComponent:
+        [@"ShenzhenPDF-rendition-" stringByAppendingString:NSUUID.UUID.UUIDString]];
+    SPDFMacCollectionStore* collection=SPDFMacCollectionStore.defaultStore;
     __weak ShenzhenMacDelegate* weakSelf=self;
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED,0), ^{
         @autoreleasepool {
@@ -85,30 +87,34 @@ static BOOL Language(NSString* value, BOOL ocr) {
                 input=rendition;
             }
             if (prepared && !progress.cancelled && [revision isEqual:SPDFSearchFileStamp(source)])
-                owned=SPDFAIRunPDFJob(kind,input,destination,tool,environment,options,progress,&error);
+                owned=SPDFAIRunPDFJob(kind,input,downloads,name,tool,environment,options,progress,&error);
             [fm removeItemAtPath:rendition error:nil];
+            rmdir(directory.fileSystemRepresentation);
+            // Kept in Collection now, before its tab opens, so its history says who made it rather than "Opened".
+            if (owned && !progress.cancelled && [revision isEqual:SPDFSearchFileStamp(source)])
+                SPDFMacAIOutputKeepInCollection(owned[@"path"],collection);
             dispatch_async(dispatch_get_main_queue(), ^{
                 ShenzhenMacDelegate* reader=weakSelf;
                 if (!reader || progress.cancelled || ![revision isEqual:SPDFSearchFileStamp(source)] ||
                     (session && session.paginationPlan!=livePlan)) {
                     if (owned) SPDFAIRemoveJobOutput(owned);
-                    rmdir(directory.fileSystemRepresentation);
                     completion(JobError(progress.cancelled ? @"Cancelled." : @"Source document changed; output was discarded.")); return;
                 }
                 if (!owned) {
-                    rmdir(directory.fileSystemRepresentation);
                     completion(JobError(error.localizedDescription ?: @"Document could not be prepared for this job.")); return;
                 }
+                NSString* destination=owned[@"path"];
                 NSDictionary* opened=[reader aiOpenCollectionDocumentAtPath:destination archived:NO progress:progress];
                 if (progress.cancelled && opened[@"documentReceipt"]) {
                     [reader aiUndoDocumentAction:opened[@"documentReceipt"] progress:[NSProgress progressWithTotalUnitCount:1]];
-                    SPDFAIRemoveJobOutput(owned); rmdir(directory.fileSystemRepresentation);
+                    SPDFAIRemoveJobOutput(owned);
                     completion(JobError(@"Cancelled.")); return;
                 }
                 if (opened[@"error"] || !opened[@"documentReceipt"]) {
-                    SPDFAIRemoveJobOutput(owned); rmdir(directory.fileSystemRepresentation); completion(opened); return;
+                    SPDFAIRemoveJobOutput(owned); completion(opened); return;
                 }
-                completion(@{@"path":destination,@"filename":name,@"completed":@YES,@"operation":kind,
+                completion(@{@"path":destination,@"filename":destination.lastPathComponent,@"savedTo":@"Downloads",
+                    @"completed":@YES,@"operation":kind,
                     @"documentReceipt":@{@"kind":@"job",@"owned":owned,@"open":opened[@"documentReceipt"]}});
             });
         }
@@ -118,9 +124,8 @@ static BOOL Language(NSString* value, BOOL ocr) {
     NSDictionary* owned=receipt[@"owned"];
     if (progress.cancelled || !SPDFAIJobReceiptIsCurrent(owned)) return NO;
     if (![self aiUndoDocumentAction:receipt[@"open"] progress:progress]) return NO;
-    if (!SPDFAIRemoveJobOutput(owned)) return NO;
-    // Only remove an empty request directory; never recursively remove human additions.
-    rmdir([owned[@"path"] stringByDeletingLastPathComponent].fileSystemRepresentation);
-    return YES;
+    // The Downloads copy only, and only while it is the exact file made; its Collection history stays, as it does
+    // for any original that is removed.
+    return SPDFAIRemoveJobOutput(owned);
 }
 @end

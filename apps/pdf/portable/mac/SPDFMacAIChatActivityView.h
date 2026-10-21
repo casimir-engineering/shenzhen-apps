@@ -10,7 +10,8 @@
 //   card   a bordered box: title, Markdown body (the chat's renderer, wide blocks scrolling sideways inside the card)
 //          or, for text the person approves (SPDFMacAIActivityBodyIsLiteral), that text character for character,
 //          attachments, the status wrapped on its own line, the live actions at the right of a footer;
-//   image  the picture at its size or smaller, left-aligned and framed, with the caption and Save… under it;
+//   image  the picture at its size or smaller, left-aligned and framed, with the caption and Save under it (once saved,
+//          its status and Open and Show in Finder);
 //   fold   two or more finished steps in a row, folded into one line ("3 steps · Searched the web, …") that opens
 //          to show them; it says how many of them stopped ("3 steps · 3 stopped · …"). Running steps, failures and
 //          cards are never folded.
@@ -44,7 +45,7 @@ NSString* SPDFMacAIChatActivityUnitKey(NSDictionary* unit);
 // A PNG the chat may show: inside the chat store's folder, at most 8 MB, decodable. nil for anything else, so a
 // path written into a chat file cannot make the view read another file.
 NSImage* _Nullable SPDFMacAIChatStoredImage(NSString* _Nullable path);
-// Save… without a handler: a save panel on `window` named after the caption, writing the stored PNG.
+// Save without a handler: a save panel on `window` named after the caption, writing the stored PNG.
 void SPDFMacAIChatSaveStoredImage(NSWindow* _Nullable window, NSString* path, NSString* caption);
 
 NS_ASSUME_NONNULL_END

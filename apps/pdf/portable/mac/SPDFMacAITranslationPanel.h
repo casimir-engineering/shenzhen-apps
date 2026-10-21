@@ -5,6 +5,8 @@
 @property(nonatomic,copy) NSArray<NSString*>* protectedSourcePaths;
 @property(nonatomic,copy) void (^onClosed)(void);
 @property(nonatomic,copy) void (^openCopy)(NSString* path);
+// Runs off the main thread once Save has written the translation to Downloads: the reader keeps it in Collection.
+@property(nonatomic,copy) void (^keepCopy)(NSString* path);
 // Build/show is explicit; displaying the panel never sends content.
 - (instancetype)initWithSourceName:(NSString*)name language:(NSString*)language;
 - (void)setSourceText:(NSString*)text error:(NSError*)error;

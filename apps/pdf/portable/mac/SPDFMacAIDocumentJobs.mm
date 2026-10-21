@@ -1,37 +1,17 @@
 #import "SPDFMacAIDocumentJobs.h"
 #import "SPDFMacOCRCommand.h"
 #import "SPDFMacOCRValidation.h"
-#import "SPDFMacImageSave.h"
-#import <CommonCrypto/CommonDigest.h>
+#import "SPDFMacAIOutputFiles.h"
 #include "shenzhen_pdf_core.h"
 #include <vector>
-#include <fcntl.h>
-#include <sys/stat.h>
 
 static id Fail(NSError** error, NSString* message) {
     if (error) *error=[NSError errorWithDomain:@"ShenzhenPDF.AI.Job" code:1
         userInfo:@{NSLocalizedDescriptionKey:message ?: @"Document operation failed."}];
     return nil;
 }
-static NSDictionary* Identity(NSString* path) {
-    struct stat info={};
-    if (lstat(path.fileSystemRepresentation,&info) || !S_ISREG(info.st_mode)) return nil;
-    NSDictionary* before=SPDFImageSaveDestinationIdentity(path);
-    NSInputStream* stream=[NSInputStream inputStreamWithFileAtPath:path]; [stream open];
-    CC_SHA256_CTX hash; CC_SHA256_Init(&hash); uint8_t buffer[65536]; NSInteger count=0;
-    while ((count=[stream read:buffer maxLength:sizeof(buffer)])>0) CC_SHA256_Update(&hash,buffer,(CC_LONG)count);
-    [stream close];
-    if (count<0 || ![before isEqual:SPDFImageSaveDestinationIdentity(path)]) return nil;
-    unsigned char digest[CC_SHA256_DIGEST_LENGTH]; CC_SHA256_Final(digest,&hash);
-    return @{@"file":before,@"hash":[NSData dataWithBytes:digest length:sizeof(digest)]};
-}
-BOOL SPDFAIJobReceiptIsCurrent(NSDictionary* receipt) {
-    return receipt[@"identity"] && [receipt[@"identity"] isEqual:Identity(receipt[@"path"])];
-}
-BOOL SPDFAIRemoveJobOutput(NSDictionary* receipt) {
-    if (!SPDFAIJobReceiptIsCurrent(receipt)) return NO;
-    return [NSFileManager.defaultManager removeItemAtPath:receipt[@"path"] error:nil];
-}
+BOOL SPDFAIJobReceiptIsCurrent(NSDictionary* receipt) { return SPDFMacAIOutputIsCurrent(receipt); }
+BOOL SPDFAIRemoveJobOutput(NSDictionary* receipt) { return SPDFMacAIOutputRemove(receipt); }
 static NSString* OneLine(NSString* text) {
     NSArray* words=[text componentsSeparatedByCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
     return [[words filteredArrayUsingPredicate:[NSPredicate predicateWithFormat:@"length > 0"]] componentsJoinedByString:@" "];
@@ -125,15 +105,15 @@ static BOOL Translate(spdf_document* doc, NSString* output, NSString* executable
     if (!ok) Fail(error,@(detail));
     return ok;
 }
-NSDictionary* SPDFAIRunPDFJob(NSString* kind, NSString* source, NSString* destination,
+NSDictionary* SPDFAIRunPDFJob(NSString* kind, NSString* source, NSString* directory, NSString* name,
     NSString* executable, NSDictionary* environment, NSDictionary* options, NSProgress* progress, NSError** error) {
     if (progress.cancelled) return Fail(error,@"Cancelled.");
     if (![@[@"ocr",@"translate",@"export-pdf"] containsObject:kind]) return Fail(error,@"Unknown document job.");
     NSFileManager* fm=NSFileManager.defaultManager;
-    if ([fm fileExistsAtPath:destination]) return Fail(error,@"Output already exists. Choose another filename.");
-    NSString* scratch=[destination.stringByDeletingLastPathComponent stringByAppendingPathComponent:
-        [@".job-" stringByAppendingString:NSUUID.UUID.UUIDString]];
-    if (![fm createDirectoryAtPath:scratch withIntermediateDirectories:NO attributes:@{NSFilePosixPermissions:@0700}
+    // Private, outside the destination: a long OCR run leaves nothing half-made in the person's Downloads.
+    NSString* scratch=[NSTemporaryDirectory() stringByAppendingPathComponent:
+        [@"ShenzhenPDF-job-" stringByAppendingString:NSUUID.UUID.UUIDString]];
+    if (![fm createDirectoryAtPath:scratch withIntermediateDirectories:YES attributes:@{NSFilePosixPermissions:@0700}
         error:error]) return nil;
     NSString* input=[scratch stringByAppendingPathComponent:@"input.pdf"];
     NSString* output=[scratch stringByAppendingPathComponent:@"output.pdf"];
@@ -165,12 +145,9 @@ NSDictionary* SPDFAIRunPDFJob(NSString* kind, NSString* source, NSString* destin
         spdf_close(verified);
         if (!valid) return Fail(error,@"Output validation failed: page count changed or OCR produced no text.");
         if (progress.cancelled) return Fail(error,@"Cancelled.");
-        // Exclusive rename closes the destination-exists race without ever replacing a user's file.
-        if (renameatx_np(AT_FDCWD,output.fileSystemRepresentation,AT_FDCWD,destination.fileSystemRepresentation,RENAME_EXCL))
-            return Fail(error,@"Output could not be installed without replacing an existing file.");
-        NSDictionary* identity=Identity(destination);
-        if (!identity) { [fm removeItemAtPath:destination error:nil]; return Fail(error,@"Output could not be verified."); }
-        receipt=@{@"path":destination,@"identity":identity};
+        // Exclusive rename under the first free name: never replaces a file already there.
+        receipt=SPDFMacAIOutputInstallFile(output,directory,name,error);
+        if (!receipt) return nil;
         if (progress.cancelled) { SPDFAIRemoveJobOutput(receipt); return Fail(error,@"Cancelled."); }
         return receipt;
     } @finally { [fm removeItemAtPath:scratch error:nil]; }

@@ -16,6 +16,8 @@
 #import "SPDFMacAISettings.h"
 #import "SPDFMacAITools.h"
 #import "SPDFMacAIToolRegistry.h"
+#import "SPDFMacAIOutputs.h"
+#import "SPDFMacCollectionStore.h"
 #import "SPDFMacPalettePresentation.h"
 #import "SPDFMacUnifiedSettings.h"
 #import <objc/runtime.h>
@@ -87,6 +89,14 @@ static char stateKey;
         };
         state.view.action=^(NSString* action) { [owner aiChatAction:action]; };
         state.view.openLink=^(NSURL* URL) { [owner aiOpenCitation:URL]; };
+        // A chart the person saves is a document the assistant made: Downloads and Collection (SPDFMacAIOutputs.h).
+        state.view.saveImage=^(NSString* path,NSString* caption) {
+            SPDFMacAIOutputSaveChatImage(weakState.session.activity,path,caption,SPDFMacCollectionStore.defaultStore,
+                [SPDFMacAIOutputActions actionsOpeningWith:^(NSString* saved){ [owner openPath:saved]; }],
+                ^(NSDictionary* receipt,NSError* error){
+                    if(!receipt && error) [weakState.view.window presentError:error];
+                });
+        };
         [self friendsAttachChatView:state.view session:state.session];
     }
     return state;

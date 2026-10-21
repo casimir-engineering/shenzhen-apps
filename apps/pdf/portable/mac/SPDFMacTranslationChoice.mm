@@ -1,6 +1,8 @@
 #import "SPDFMacTranslationChoice.h"
 #import "SPDFMacTranslationEnablement.h"
 #import "SPDFMacAITranslationPanel.h"
+#import "SPDFMacAIOutputs.h"
+#import "SPDFMacCollectionStore.h"
 #import "SPDFMacAITranslation.h"
 #import "SPDFMacAISettings.h"
 #import "SPDFMacAITransport.h"
@@ -36,6 +38,7 @@
     __weak NSMutableArray* weakPanels=panels;__weak SPDFMacAITranslationPanel* weakPanel=panel;
     panel.onClosed=^{SPDFMacAITranslationPanel* closed=weakPanel;if(closed)[weakPanels removeObject:closed];};
     __weak ShenzhenMacDelegate* weakSelf=self;panel.openCopy=^(NSString* path){[weakSelf openPath:path];};
+    panel.keepCopy=^(NSString* path){SPDFMacAIOutputKeepInCollection(path,SPDFMacCollectionStore.defaultStore);};
     [panel.window center];[panel showWindow:nil];
     NSString* selected=[self trimmedSelectedTextForCommand];
     if(selected.length){[panel setSourceText:selected error:nil];return;}

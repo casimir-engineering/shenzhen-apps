@@ -27,34 +27,40 @@ int main(void) { @autoreleasepool {
     [fm createDirectoryAtPath:directory withIntermediateDirectories:YES attributes:nil error:nil];
     NSString* source=[directory stringByAppendingPathComponent:@"original.pdf"]; PDF(source);
     NSData* original=[NSData dataWithContentsOfFile:source];
-    NSString* output=[directory stringByAppendingPathComponent:@"result.pdf"];
+    // The job's Downloads (SPDFMacAIOutputFiles.h): this run's own folder, never the person's.
+    NSString* downloads=[directory stringByAppendingPathComponent:@"Downloads"];
+    NSString* output=[downloads stringByAppendingPathComponent:@"result.pdf"];
     NSString* copy=Tool(directory,@"#!/bin/sh\nfor arg do prev=\"$last\"; last=\"$arg\"; done\ncp \"$prev\" \"$last\"\n");
     NSDictionary* environment=spdf_mac_tool_environment(@{@"PYTHONHOME":@"/wrong"},@[copy],@{});
     NSProgress* progress=[NSProgress progressWithTotalUnitCount:1]; NSError* error=nil;
-    NSDictionary* receipt=SPDFAIRunPDFJob(@"ocr",source,output,copy,environment,@{@"language":@"eng"},progress,&error);
+    NSDictionary* receipt=SPDFAIRunPDFJob(@"ocr",source,downloads,@"result.pdf",copy,environment,@{@"language":@"eng"},progress,&error);
     Check(receipt!=nil,error.localizedDescription ?: @"fake OCR succeeds");
-    Check(SPDFAIJobReceiptIsCurrent(receipt),@"completed output has a verifiable identity");
+    Check(SPDFAIJobReceiptIsCurrent(receipt) && [receipt[@"path"] isEqual:output],@"completed output has a verifiable identity");
     Check([original isEqual:[NSData dataWithContentsOfFile:source]],@"OCR never edits its source");
     Check(SPDFAIRemoveJobOutput(receipt),@"Undo removes its own unchanged output");
     Check(!SPDFAIRemoveJobOutput(receipt),@"duplicate Undo cannot remove a later replacement");
 
-    receipt=SPDFAIRunPDFJob(@"export-pdf",source,output,@"",environment,@{},progress,&error);
+    receipt=SPDFAIRunPDFJob(@"export-pdf",source,downloads,@"result.pdf",@"",environment,@{},progress,&error);
     Check(receipt!=nil,@"export verifies a real PDF");
     NSFileHandle* handle=[NSFileHandle fileHandleForWritingAtPath:output]; [handle seekToEndOfFile];
     [handle writeData:[@"% human edit\n" dataUsingEncoding:NSUTF8StringEncoding]]; [handle closeFile];
     Check(!SPDFAIRemoveJobOutput(receipt),@"Undo preserves intervening output edits");
-    Check(!SPDFAIRunPDFJob(@"export-pdf",source,output,@"",environment,@{},progress,&error),@"existing output is never overwritten");
+    NSData* edited=[NSData dataWithContentsOfFile:output];
+    NSDictionary* second=SPDFAIRunPDFJob(@"export-pdf",source,downloads,@"result.pdf",@"",environment,@{},progress,&error);
+    Check([second[@"path"] isEqual:[downloads stringByAppendingPathComponent:@"result (2).pdf"]] &&
+          [edited isEqual:[NSData dataWithContentsOfFile:output]],@"a taken name gets \" (2)\"; the existing file is untouched");
+    Check(SPDFAIRemoveJobOutput(second) && [fm fileExistsAtPath:output],@"Undo of the second removes only the second");
     [fm removeItemAtPath:output error:nil];
 
     NSString* bad=Tool(directory,@"#!/bin/sh\necho 'fake tool failed' >&2\nexit 9\n");
-    Check(!SPDFAIRunPDFJob(@"ocr",source,output,bad,environment,@{},progress,&error),@"nonzero tool exit fails");
+    Check(!SPDFAIRunPDFJob(@"ocr",source,downloads,@"result.pdf",bad,environment,@{},progress,&error),@"nonzero tool exit fails");
     Check(![fm fileExistsAtPath:output],@"failure leaves no installed output");
     NSString* invalid=Tool(directory,@"#!/bin/sh\nfor arg do last=\"$arg\"; done\necho broken > \"$last\"\n");
-    Check(!SPDFAIRunPDFJob(@"ocr",source,output,invalid,environment,@{},progress,&error),@"zero exit with invalid PDF still fails");
+    Check(!SPDFAIRunPDFJob(@"ocr",source,downloads,@"result.pdf",invalid,environment,@{},progress,&error),@"zero exit with invalid PDF still fails");
     Check(![fm fileExistsAtPath:output],@"invalid output is discarded");
 
     NSString* translate=Tool(directory,@"#!/bin/sh\necho 'WARNING: Language en package test expects a newer version'\n/usr/bin/sed 's/Hello world/Bonjour monde/'\n");
-    error=nil; receipt=SPDFAIRunPDFJob(@"translate",source,output,translate,environment,
+    error=nil; receipt=SPDFAIRunPDFJob(@"translate",source,downloads,@"result.pdf",translate,environment,
         @{@"sourceLanguage":@"en",@"targetLanguage":@"fr"},progress,&error);
     Check(receipt!=nil,error.localizedDescription ?: @"translation writes a PDF");
     char message[1024]={}; spdf_document* doc=spdf_open(output.fileSystemRepresentation,message,sizeof(message));
@@ -68,7 +74,7 @@ int main(void) { @autoreleasepool {
     NSProgress* cancel=[NSProgress progressWithTotalUnitCount:1];
     dispatch_semaphore_t done=dispatch_semaphore_create(0); __block NSDictionary* cancelledReceipt=nil;
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED,0), ^{
-        cancelledReceipt=SPDFAIRunPDFJob(@"ocr",source,output,slow,environment,@{},cancel,nil);
+        cancelledReceipt=SPDFAIRunPDFJob(@"ocr",source,downloads,@"result.pdf",slow,environment,@{},cancel,nil);
         dispatch_semaphore_signal(done);
     });
     NSDate* deadline=[NSDate dateWithTimeIntervalSinceNow:5];
@@ -83,7 +89,7 @@ int main(void) { @autoreleasepool {
         @"#!/bin/sh\ntrap '' TERM\n/bin/sh -c 'trap \"\" TERM; sleep 1; echo orphan > \"%@\"' &\necho started > '%@'\nwait\n",lateMarker,marker]);
     NSProgress* childCancel=[NSProgress progressWithTotalUnitCount:1];
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED,0), ^{
-        SPDFAIRunPDFJob(@"ocr",source,output,childTool,environment,@{},childCancel,nil);
+        SPDFAIRunPDFJob(@"ocr",source,downloads,@"result.pdf",childTool,environment,@{},childCancel,nil);
         dispatch_semaphore_signal(done);
     });
     deadline=[NSDate dateWithTimeIntervalSinceNow:5];
@@ -94,11 +100,11 @@ int main(void) { @autoreleasepool {
     [NSThread sleepForTimeInterval:1.2];
     Check(![fm fileExistsAtPath:lateMarker],@"Stop kills descendants, not only the root NSTask");
     [fm removeItemAtPath:marker error:nil];
-    Check(!SPDFAIRunPDFJob(@"ocr",source,output,slow,environment,@{},cancel,nil),@"cancel before launch fails");
+    Check(!SPDFAIRunPDFJob(@"ocr",source,downloads,@"result.pdf",slow,environment,@{},cancel,nil),@"cancel before launch fails");
     Check(![fm fileExistsAtPath:marker],@"cancel before launch performs no executable work");
     Check([original isEqual:[NSData dataWithContentsOfFile:source]],@"all jobs preserve original bytes");
-    for (NSString* name in [fm contentsOfDirectoryAtPath:directory error:nil])
-        Check(![name hasPrefix:@".job-"],@"every job cleans its private scratch inputs and diagnostics");
+    Check(![[fm contentsOfDirectoryAtPath:downloads error:nil] count],
+          @"failed and cancelled jobs leave nothing in Downloads, not even scratch");
     [fm removeItemAtPath:directory error:nil];
     puts("SPDFMacAIDocumentJobsTests passed");
 } return 0; }
