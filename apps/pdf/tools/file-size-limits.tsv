@@ -33,3 +33,12 @@ portable/win/mupdf-gen-ninja-native.sh	523	exception	Mechanical translator from 
 tools/efi/Dia2Subset.h	571	exception	Intentional minimal DIA SDK subset kept local for the EFI diagnostic tool.
 tools/efi/main.cpp	663	exception	Cohesive EFI diagnostic command-line tool.
 tools/sizer/pdbfile.cpp	715	exception	Cohesive PDB parsing component for the size-analysis tool.
+portable/friends/client/szfriends_intents.c	527	exception	Cohesive table of one JSON builder per PROTOCOL.md intent, mirrored line for line by fixtures/intents.jsonl; the notification intents brought it past 500.
+portable/friends/core-rs/crates/szfriends-core/tests/presentation_devices.rs	532	exception	Cohesive fixture suite rebuilding every devices-*, online-* and phone-* snapshot from one shared world of facts; splitting it would duplicate that world.
+portable/friends/core-rs/crates/szfriends-helper/src/service/mod.rs	503	exception	The service's one dispatch point joining identity, store, views, intents and sessions on one thread, as the Objective-C helper's queue does; areas live in submodules.
+portable/friends/core-rs/crates/szfriends-helper/src/service/nearby/links.rs	515	exception	Cohesive nearby session lifecycle (accept, dial, race, close) port of SZFriendsNearbyService+Sessions.m; the race and its close paths share private link state.
+portable/friends/core-rs/crates/szfriends-helper/src/service/notifications.rs	682	exception	Cohesive notification decision pass (ADR 0017): store deltas, the never-rules, coalescing and withdrawal share one cursor state; posters live in their own crates.
+portable/friends/gtk/szfriends_gtk_link.c	514	exception	Cohesive GLib main-loop driver for the C client: callback queue, reconnect watch and dispatch share private state that must not re-enter the library.
+portable/friends/gtk/szfriends_gtk_snapshot.h	524	exception	Display-free C structs mirroring every PROTOCOL.md view schema field for field; one header so each page reads the same names the schema uses.
+portable/friends/mac/SZFriendsSettingsSection.m	544	exception	Cohesive AppKit Friends settings section: one measured row layout shared by every setting, including Notifications and devices; rows are data, not classes.
+portable/friends/tauri/android/src/main/java/FriendsPlugin.kt	570	exception	The Android plugin's single Tauri command surface (Keystore sealing, Downloads, sharing, settings links, notifications); each command is a thin call into its own helper class.
