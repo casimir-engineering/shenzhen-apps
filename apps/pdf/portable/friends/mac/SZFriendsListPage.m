@@ -75,7 +75,6 @@
     _namePrompt.fillColor = appearance.fieldBackgroundColor;
     _namePrompt.padding = 10;
     _devicesView = [[SZFriendsListDevicesView alloc] initWithContext:context];
-    _devicesView.onJoin = ^{ [weakSelf.context.navigator openJoin]; };
     for (NSView *view in @[ _sendNotice, _banner, _devicesView, _namePrompt ]) {
         view.hidden = YES;
         [self addSubview:view];
@@ -352,13 +351,14 @@
 // computer can add nobody and look for nobody, so Add by ID and the Nearby tab go.
 - (void)applyDevices:(NSDictionary *)data prompt:(NSDictionary *)prompt {
     [_devicesView applyList:data];
-    [_devicesView offerJoin:SZFStr(prompt, @"join_label") inPrompt:_namePrompt];
+    [_devicesView offerJoin:SZFDict(data, @"join") inPrompt:_namePrompt promptShown:prompt != nil];
     _tabTrack.hidden = _devicesView.removed;
     _footer.offersAdding = !_devicesView.removed;
     if (_devicesView.removed && _showingNearby) [self showNearby:NO];
 }
 
 - (SZFriendsButton *)joinButton {
+    if (!_devicesView.joinNotice.hidden) return _devicesView.joinNotice.secondaryButton;
     return _namePrompt.hidden ? nil : _namePrompt.secondaryButton;
 }
 

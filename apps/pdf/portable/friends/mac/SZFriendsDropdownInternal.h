@@ -94,6 +94,8 @@ NS_ASSUME_NONNULL_BEGIN
 @property(nonatomic, copy, readonly) NSArray<SZFriendsButton *> *buttons;  // Copy, Show in Finder, Change…, …
 // The Nearby line's one button (Allow, Open Privacy Settings, Try Again); hidden without one.
 @property(nonatomic, strong, readonly) SZFriendsButton *nearbyButton;
+// "Use my existing profile…" (data.join, PROTOCOL.md § Joining, Offering it); hidden while the helper sends none.
+@property(nonatomic, strong, readonly) SZFriendsButton *joinButton;
 // Where received files go: Change… beside Show in Finder (hidden for a helper without received.folder), and the line
 // naming the folder under "Save received files to".
 @property(nonatomic, strong, readonly) SZFriendsButton *receivedChangeButton;

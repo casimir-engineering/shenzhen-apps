@@ -56,6 +56,8 @@
 
 #pragma mark - Controller
 
+NSNotificationName const SZFriendsShowJoinNotification = @"SZFriendsShowJoinNotification";
+
 @implementation SZFriendsDropdownController {
     __weak id<SZFriendsHost> _host;
     SZFriendsHelperLink *_link;
@@ -136,6 +138,14 @@
     }];
     // KVO rather than the link's onStateChange block, which belongs to the host adapter.
     [_link addObserver:self forKeyPath:@"state" options:NSKeyValueObservingOptionInitial context:NULL];
+    [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(showJoin:)
+                                               name:SZFriendsShowJoinNotification object:_link];
+}
+
+- (void)showJoin:(NSNotification *)notification {
+    (void)notification;
+    [self open];
+    [self.content openJoin];
 }
 
 - (void)uninstall {
@@ -143,6 +153,7 @@
     [self close];
     _installed = NO;
     [_link removeObserver:self forKeyPath:@"state"];
+    [NSNotificationCenter.defaultCenter removeObserver:self name:SZFriendsShowJoinNotification object:_link];
     if (_badgeToken) [_link unsubscribe:_badgeToken];
     _badgeToken = nil;
     [self withdrawServices];

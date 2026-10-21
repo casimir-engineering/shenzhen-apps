@@ -126,8 +126,8 @@ static const NSTimeInterval SZFriendsNameSavedSeconds = 2.5;
 // The name card saying the name was saved (welcome.strings name_saved), for SZFriendsNameSavedSeconds before it goes.
 @property(nonatomic, readonly) BOOL showingNameSaved;
 @property(nonatomic, strong, readonly, nullable) SZFriendsButton *bannerButton;
-// Several computers (SZFriendsDevices.h): the removed notice and join rows, and the name prompt's "Use my existing
-// profile" (nil while the prompt or its join_label is absent).
+// Several computers (SZFriendsDevices.h): the removed notice and join rows, and "Use my existing profile…" in the
+// name prompt or its own card (nil while the list has no `join`).
 @property(nonatomic, strong, readonly) SZFriendsListDevicesView *devicesView;
 @property(nonatomic, strong, readonly, nullable) SZFriendsButton *joinButton;
 @end

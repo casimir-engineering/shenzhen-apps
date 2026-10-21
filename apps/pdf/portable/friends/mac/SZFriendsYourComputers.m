@@ -29,7 +29,8 @@ static NSString *SZFPrefixFittingBytes(NSString *text, NSUInteger maxBytes) {
     NSDictionary *_rename; // this computer's row's rename object
     NSString *_thisName;
     NSTextField *_title;
-    NSTextField *_note;
+    NSTextField *_addTitle; // "Add a computer or phone"
+    NSTextField *_addSteps; // its steps, numbered, one per line
     NSMutableArray<NSTextField *> *_names;
     NSMutableArray<NSTextField *> *_details;
     NSMutableArray<NSView *> *_dots;
@@ -42,7 +43,9 @@ static NSString *SZFPrefixFittingBytes(NSString *text, NSUInteger maxBytes) {
     SZFriendsAppearance *appearance = context.appearance;
     __weak SZFriendsYourComputersView *weakSelf = self;
     _title = SZFriendsLabel(@"", SZFriendsSemibold(appearance.bodyFont), appearance.primaryTextColor);
-    _note = SZFriendsLabel(@"", appearance.secondaryFont, appearance.secondaryTextColor);
+    _addTitle = SZFriendsLabel(@"", SZFriendsSemibold(appearance.secondaryFont), appearance.primaryTextColor);
+    _addSteps = SZFriendsLabel(@"", appearance.secondaryFont, appearance.secondaryTextColor);
+    _addSteps.selectable = YES; // the ID in it can be copied from here too
     _renameButton = [SZFriendsButton buttonWithTitle:@"" style:SZFriendsButtonStyleLink appearance:appearance];
     _renameButton.onPress = ^(SZFriendsButton *button) {
         (void)button;
@@ -58,7 +61,7 @@ static NSString *SZFPrefixFittingBytes(NSString *text, NSUInteger maxBytes) {
         [weakSelf saveName];
     };
     _renameError = SZFriendsLabel(@"", appearance.secondaryFont, appearance.destructiveColor);
-    for (NSView *view in @[ _title, _note, _renameButton, _renameField, _saveButton, _renameError ])
+    for (NSView *view in @[ _title, _addTitle, _addSteps, _renameButton, _renameField, _saveButton, _renameError ])
         [self addSubview:view];
     _names = [NSMutableArray array];
     _details = [NSMutableArray array];
@@ -76,6 +79,14 @@ static NSString *SZFPrefixFittingBytes(NSString *text, NSUInteger maxBytes) {
     return [_details copy];
 }
 
+- (NSTextField *)addTitleLabel {
+    return _addTitle;
+}
+
+- (NSTextField *)addStepsLabel {
+    return _addSteps;
+}
+
 - (NSArray<SZFriendsActionButton *> *)removeButtons {
     return [_removes copy];
 }
@@ -84,7 +95,13 @@ static NSString *SZFPrefixFittingBytes(NSString *text, NSUInteger maxBytes) {
     _devices = [devices copy];
     self.hidden = devices == nil;
     _title.stringValue = SZFStr(devices, @"title") ?: @"";
-    _note.stringValue = SZFStr(devices, @"note") ?: @"";
+    NSDictionary *add = SZFDict(devices, @"add");
+    _addTitle.stringValue = SZFStr(add, @"title") ?: @"";
+    NSMutableArray<NSString *> *steps = [NSMutableArray array];
+    for (id step in SZFArr(add, @"steps"))
+        if ([step isKindOfClass:NSString.class])
+            [steps addObject:[NSString stringWithFormat:@"%lu. %@", (unsigned long)steps.count + 1, step]];
+    _addSteps.stringValue = [steps componentsJoinedByString:@"\n"];
     _rename = nil;
     for (NSArray *views in @[ _names, _details, _dots ])
         for (NSView *view in views) [view removeFromSuperview];
@@ -245,7 +262,11 @@ static NSString *SZFPrefixFittingBytes(NSString *text, NSUInteger maxBytes) {
     _renameButton.hidden = !_rename || _renaming;
     _renameField.hidden = _saveButton.hidden = !_renaming;
     _renameError.hidden = !_renaming || !_renameError.stringValue.length;
-    if (_note.stringValue.length) y = SZFriendsPlace(_note, 0, y, width) + 4;
+    // How to add another computer or phone, under the list of them.
+    _addTitle.hidden = !_addTitle.stringValue.length;
+    _addSteps.hidden = !_addSteps.stringValue.length;
+    if (!_addTitle.hidden) y = SZFriendsPlace(_addTitle, 0, y + 2, width) + 3;
+    if (!_addSteps.hidden) y = SZFriendsPlace(_addSteps, 0, y, width) + 4;
     return y;
 }
 

@@ -27,12 +27,12 @@
 @interface SZFriendsSettingsSection ()
 @end
 
-// Rows in order; `nearby` shows only when the helper sends it (PROTOCOL.md § settings).
+// Rows in order; `nearby` and `join` show only when the helper sends them (PROTOCOL.md § settings).
 static NSArray<NSString *> *SZFSettingsRows(void) {
-    return @[ @"name", @"id", @"received", @"auto_accept", @"nearby", @"history", @"reset" ];
+    return @[ @"name", @"id", @"received", @"auto_accept", @"nearby", @"join", @"history", @"reset" ];
 }
-static const NSUInteger SZFSettingsRowCount = 7, SZFSettingsReceivedRow = 2, SZFSettingsAutoAcceptRow = 3,
-                        SZFSettingsNearbyRow = 4;
+static const NSUInteger SZFSettingsRowCount = 8, SZFSettingsReceivedRow = 2, SZFSettingsAutoAcceptRow = 3,
+                        SZFSettingsNearbyRow = 4, SZFSettingsJoinRow = 5;
 
 @implementation SZFriendsSettingsSection {
     SZFriendsSettingsView *_view;
@@ -49,6 +49,7 @@ static const NSUInteger SZFSettingsRowCount = 7, SZFSettingsReceivedRow = 2, SZF
     SZFriendsButton *_historyButton;
     SZFriendsButton *_resetButton;
     SZFriendsButton *_nearbyButton;
+    SZFriendsButton *_joinButton; // Use my existing profile…: the join page, after Reset when it asks first
     BOOL _showingFriends;
     NSMutableArray<NSView *> *_friendViews;
     NSMutableArray<NSSwitch *> *_switches;
@@ -107,6 +108,10 @@ static const NSUInteger SZFSettingsRowCount = 7, SZFSettingsReceivedRow = 2, SZF
     _nearbyButton = [self button:^{
         [weakSelf.context performAction:SZFDict(SZFDict(weakSelf.data, @"nearby"), @"action") ids:nil done:nil];
     }];
+    _joinButton = [self button:^{
+        [weakSelf.context performAction:SZFDict(SZFDict(weakSelf.data, @"join"), @"action") ids:nil done:nil];
+    }];
+    _joinButton.style = SZFriendsButtonStyleSecondary;
     for (NSView *view in @[ _nameEditor, _idValue ]) [_view addSubview:view];
     _friendViews = [NSMutableArray array];
     _switches = [NSMutableArray array];
@@ -151,6 +156,10 @@ static const NSUInteger SZFSettingsRowCount = 7, SZFSettingsReceivedRow = 2, SZF
 
 - (NSArray<SZFriendsButton *> *)buttons {
     return @[ _copyButton, _receivedButton, _changeButton, _historyButton, _resetButton ];
+}
+
+- (SZFriendsButton *)joinButton {
+    return _joinButton;
 }
 
 - (SZFriendsButton *)nearbyButton {
@@ -276,6 +285,11 @@ static const NSUInteger SZFSettingsRowCount = 7, SZFSettingsReceivedRow = 2, SZF
     _nearbyButton.hidden = ![SZFriendsContext knowsAction:SZFStr(nearbyAction, @"action")];
     BOOL nearbyRow = SZFDict(data, @"nearby") != nil;
     _labels[2 * SZFSettingsNearbyRow].hidden = _labels[2 * SZFSettingsNearbyRow + 1].hidden = !nearbyRow;
+    NSDictionary *joinAction = SZFDict(SZFDict(data, @"join"), @"action");
+    _joinButton.title = SZFStr(joinAction, @"label") ?: @"";
+    BOOL joinRow = [SZFriendsContext knowsAction:SZFStr(joinAction, @"action")];
+    _joinButton.hidden = !joinRow;
+    _labels[2 * SZFSettingsJoinRow].hidden = _labels[2 * SZFSettingsJoinRow + 1].hidden = !joinRow;
     [self rebuildFriends];
     [_view invalidateIntrinsicContentSize];
     [_view setNeedsLayout:YES];
@@ -371,7 +385,8 @@ static const NSUInteger SZFSettingsRowCount = 7, SZFSettingsReceivedRow = 2, SZF
 
 - (CGFloat)layoutForWidth:(CGFloat)width apply:(BOOL)apply {
     NSArray<NSView *> *controls =
-        @[ _nameEditor, _idValue, _receivedButton, _changeButton, _nearbyButton, _historyButton, _resetButton ];
+        @[ _nameEditor, _idValue, _receivedButton, _changeButton, _nearbyButton, _joinButton, _historyButton,
+           _resetButton ];
     CGFloat y = 0;
     CGFloat statusHeight = SZFriendsFieldHeight(_statusLabel, width);
     if (apply) {
@@ -381,7 +396,7 @@ static const NSUInteger SZFSettingsRowCount = 7, SZFSettingsReceivedRow = 2, SZF
     if (statusHeight) y += statusHeight + 12;
     BOOL nearbyRow = SZFDict(_data, @"nearby") != nil;
     for (NSUInteger row = 0; row < SZFSettingsRowCount; row++) {
-        if (row == SZFSettingsNearbyRow && !nearbyRow) continue;
+        if ((row == SZFSettingsNearbyRow && !nearbyRow) || (row == SZFSettingsJoinRow && _joinButton.hidden)) continue;
         NSView *control = controls[row];
         // A Nearby line with nothing to fix has no button, and its words take the whole width.
         CGFloat controlWidth = control.hidden ? 0 : [self controlWidthForRow:row control:control];

@@ -162,7 +162,8 @@ SZFriendsPress SZFriendsPressFromEvent(NSEvent *event, NSTimeInterval now) {
 + (BOOL)knowsAction:(NSString *)action {
     if (!action) return NO;
     return SZFActionIDs()[action] != nil || [action isEqualToString:@"open_file"] ||
-           [action isEqualToString:@"show_file"] || [action isEqualToString:@"open_settings"];
+           [action isEqualToString:@"show_file"] || [action isEqualToString:@"open_settings"] ||
+           [action isEqualToString:@"open_join"];
 }
 
 - (void)performAction:(NSDictionary *)action ids:(NSDictionary *)ids done:(void (^)(SZFriendsLinkError *))done {
@@ -225,6 +226,22 @@ static NSString *SZFOptionField(NSDictionary *confirm) {
         if (reply) reply(@{}, nil);
         return;
     }
+    // Using an existing profile here (PROTOCOL.md § Joining, Offering it): the join page, now or once the reset that
+    // comes first succeeded. Subscriptions survive the helper's restart (SZFriendsHelperLink.m), so the page shows the
+    // fresh profile's join view as soon as the link is back.
+    if ([name isEqualToString:@"open_join"]) {
+        [self showJoin];
+        if (reply) reply(@{}, nil);
+        return;
+    }
+    if ([name isEqualToString:@"reset_friends"] && [SZFStr(action, @"then") isEqualToString:@"open_join"]) {
+        __weak SZFriendsContext *weakSelf = self;
+        SZFriendsReplyHandler done = reply;
+        reply = ^(NSDictionary *result, SZFriendsLinkError *error) {
+            if (!error) [weakSelf showJoin];
+            if (done) done(result, error);
+        };
+    }
     if ([name isEqualToString:@"open_settings"]) {
         NSURL *url = SZFSettingsURL(SZFStr(action, @"settings_target"));
         if (url && self.openURL) self.openURL(url);
@@ -257,6 +274,12 @@ static NSString *SZFOptionField(NSDictionary *confirm) {
     if (extra) [fields addEntriesFromDictionary:extra];
     if (sending) sending();
     [self.link sendIntent:name fields:fields reply:reply];
+}
+
+// The join page in this dropdown, or, from Settings (no navigator), in the dropdown of the same link.
+- (void)showJoin {
+    if (self.navigator) [self.navigator openJoin];
+    else [NSNotificationCenter.defaultCenter postNotificationName:SZFriendsShowJoinNotification object:self.link];
 }
 
 - (void)announce:(NSString *)text {

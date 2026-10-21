@@ -43,10 +43,11 @@ NS_ASSUME_NONNULL_BEGIN
 @interface SZFriendsListDevicesView : SZFriendsFlippedView
 - (instancetype)initWithContext:(SZFriendsContext *)context;
 - (void)applyList:(nullable NSDictionary *)data;
-// The name prompt's join_label as a link under its field ("Use my existing profile"), which runs onJoin; nil
-// removes it.
-- (void)offerJoin:(nullable NSString *)label inPrompt:(SZFriendsNoticeView *)prompt;
-@property(nonatomic, copy, nullable) void (^onJoin)(void);
+// The list's `join` (PROTOCOL.md § Joining, Offering it): "Use my existing profile…" as a link under the name
+// prompt's field while it shows, else a card of its own with what it does; nil removes it. Pressing it runs its
+// action: the join page, or Reset Friends with its confirmation first and the join page after.
+- (void)offerJoin:(nullable NSDictionary *)join inPrompt:(SZFriendsNoticeView *)prompt promptShown:(BOOL)promptShown;
+@property(nonatomic, strong, readonly) SZFriendsNoticeView *joinNotice;
 - (CGFloat)heightForWidth:(CGFloat)width;
 @property(nonatomic, readonly, getter=isRemoved) BOOL removed; // state device_removed
 @property(nonatomic, strong, readonly) SZFriendsNoticeView *removedNotice;
@@ -54,7 +55,7 @@ NS_ASSUME_NONNULL_BEGIN
 @end
 
 // The profile's "Your computers" (data.devices): each computer with its name, system and last connection, Rename on
-// this computer's row and Remove… on the others (with the helper's confirmation), then how to add one. Hidden (zero
+// this computer's row and Remove… on the others (with the helper's confirmation), then how to add one (`add`). Hidden (zero
 // height) while the snapshot has no `devices`.
 @interface SZFriendsYourComputersView : SZFriendsFlippedView
 - (instancetype)initWithContext:(SZFriendsContext *)context;
@@ -63,6 +64,8 @@ NS_ASSUME_NONNULL_BEGIN
 @property(nonatomic, copy, readonly) NSArray<NSTextField *> *nameLabels;
 @property(nonatomic, copy, readonly) NSArray<NSTextField *> *detailLabels;
 @property(nonatomic, copy, readonly) NSArray<SZFriendsActionButton *> *removeButtons;
+@property(nonatomic, strong, readonly) NSTextField *addTitleLabel; // "Add a computer or phone"
+@property(nonatomic, strong, readonly) NSTextField *addStepsLabel; // its steps, numbered
 @property(nonatomic, strong, readonly, nullable) SZFriendsButton *renameButton;
 @property(nonatomic, strong, readonly) NSTextField *renameField; // shown while renaming
 @property(nonatomic, strong, readonly) SZFriendsButton *saveButton;
