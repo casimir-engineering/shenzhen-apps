@@ -7,6 +7,7 @@
 
 @interface RunningToolChatFixture : ActivityChatFixture
 @property(nonatomic, copy) NSString* runningTool;
+@property(nonatomic, copy) NSString* runningToolProgress;
 @end
 @implementation RunningToolChatFixture
 @end
@@ -260,7 +261,7 @@ static void CheckRunningToolHeading(void) {
     fixture.running = YES;
     fixture.activityState = SPDFMacAIChatActivityWorking;
     NSDictionary* words = @{@"web_search" : @"Searching the web…", @"open_page" : @"Reading a page…",
-        @"run_python" : @"Running Python…", @"run_subagents" : @"Running helpers…",
+        @"run_python" : @"Running Python…", @"run_subagents" : @"Working on parts…",
         @"friends_send_message" : @"Preparing a message…", @"friends_read_messages" : @"Reading your Friends chat…"};
     NSString* (^heading)(NSString*) = ^NSString*(NSString* tool) {
         fixture.runningTool = tool;
@@ -278,6 +279,13 @@ static void CheckRunningToolHeading(void) {
     for (NSString* tool in @[@"search_documents", @"read_pages", @"render_page", @"list_chats", @"web_search"])
         plain &= [SPDFChatRunningToolText(tool) hasSuffix:@"…"] && ![SPDFChatRunningToolText(tool) containsString:@"_"];
     Check(!unknown.length && plain, @"a tool without words shows none, never its name; every wording ends in …");
+    // A run of parts says how many there are and how many have ended, in place of its usual words.
+    fixture.runningToolProgress = @"Working on 3 parts, 1 finished…";
+    NSString* parts = heading(@"run_subagents");
+    fixture.runningToolProgress = nil;
+    Check([parts isEqual:@"Working on 3 parts, 1 finished…"] &&
+          [heading(@"run_subagents") isEqual:@"Working on parts…"],
+          @"while parts work the heading says how many and how many have finished; without that, its usual words");
     fixture.runningTool = nil;
     fixture.activityDetail = @"Undoing…";
     [view refreshActivityFromSession:(id)fixture];

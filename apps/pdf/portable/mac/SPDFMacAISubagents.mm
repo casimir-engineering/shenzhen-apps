@@ -30,17 +30,29 @@ static NSString* Unavailable(SPDFMacAIRequestContext* context) {
 static NSString* const kRunsUsed = @"This request has already run tasks twice, the most it can. Answer with what the "
     "tasks found, or do any remaining lookup yourself.";
 
+// When to split, in the main assistant's prompt while the tool is offered (-messagesForRequest:context:). Without it
+// the tool was a name at the end of a long list, described as for "only" some questions, beside a prompt that says
+// to start with the active document and stop as soon as the answer is supported: the model never chose it.
+static NSString* const kWhenToSplit = @"Split big requests with run_subagents, one task per independent piece: "
+    "comparing or checking several documents, summarizing more than about 20 pages, answering several separate "
+    "questions, or researching several items on the web. For one quick question or a single short lookup, work "
+    "directly.";
+
 static NSDictionary* Definition(NSTimeInterval timeout) {
     NSUInteger minutes = (NSUInteger)MAX(1.0, ceil(timeout / 60.0));
-    NSString* description = [NSString stringWithFormat:@"Run 1 to 4 independent research tasks at the same time, "
-        "each in its own conversation with read-only tools: document search and reads, and web search, web pages "
-        "and Python where available. Use it only when a question needs several separate lookups, such as comparing "
-        "documents or checking several sources; do a single lookup yourself. A task sees only its instructions and "
-        "the user's message, never this conversation, so make instructions self-contained. Tasks cannot make "
-        "changes, send messages, see rendered page images or start tasks. Each stops after %lu tool calls, and the "
-        "whole run after %lu minute%@. Call it at most %lu times in one request. Each task returns a status "
-        "(answered; timed_out or out_of_budget, whose summary is partial; stopped, when the user cancelled it; "
-        "failed, with the problem), a short summary and its sources. Cite those sources, copying citation URLs "
+    NSString* description = [NSString stringWithFormat:@"Split a big request into up to 4 tasks that run at the "
+        "same time, each in its own conversation with read-only tools (document search and reads, and web search, "
+        "web pages and Python where available), and get back each task's short findings with sources. Use it when "
+        "the work divides into independent pieces: comparing or checking several documents (one task per "
+        "document); summarizing more than about 20 pages (one task per chapter or range of pages); answering "
+        "several separate questions; or researching several items on the web. Don't use it for one quick question "
+        "or a single short lookup: do that yourself. A task sees only its instructions and the user's message, "
+        "never this conversation, so make each task's instructions complete: which document (its title or path), "
+        "which pages, what to find and what to report. Tasks cannot make changes, send messages, see rendered page "
+        "images or start tasks. Each stops after %lu tool calls, and the whole run after %lu minute%@. Call it at "
+        "most %lu times in one request. Each task returns a status (answered; timed_out or out_of_budget, whose "
+        "summary is partial; stopped, when the user cancelled it; failed, with the problem), a short summary and "
+        "its sources. Combine the findings into one answer, citing their sources and copying citation URLs "
         "exactly.",
         (unsigned long)SPDFMacAISubagentsToolCallsPerTask, (unsigned long)minutes, minutes == 1 ? @"" : @"s",
         (unsigned long)SPDFMacAISubagentsRunsPerRequest];
@@ -51,7 +63,8 @@ static NSDictionary* Definition(NSTimeInterval timeout) {
                          @"description" : @"A few words the user sees while the task runs, such as \"Delivery "
                                           "dates in the supplier contract\"."},
             @"instructions" : @{@"type" : @"string", @"maxLength" : @(SPDFMacAISubagentInstructionsLimit),
-                                @"description" : @"What to find out and where to look, complete on its own."}}};
+                                @"description" : @"What to find out, where to look (document title or path, pages) and "
+                                                 "what to report, complete on its own."}}};
     return @{@"type" : @"function", @"function" : @{@"name" : SPDFMacAISubagentsToolName,
         @"description" : description,
         @"parameters" : @{@"type" : @"object", @"additionalProperties" : @NO, @"required" : @[@"tasks"],
@@ -122,6 +135,31 @@ static NSDictionary* Definition(NSTimeInterval timeout) {
 
 - (NSArray<NSDictionary*>*)toolDefinitionsForContext:(SPDFMacAIRequestContext*)context {
     return [self unavailableReasonForContext:context] ? @[] : @[Definition(self.timeout)];
+}
+
+// While the tool is offered, the main assistant's prompt says when to split; until the request has run tasks, it
+// also says when the person's message itself points at work that splits (SPDFMacAISubagentSplitHint). Nothing for a
+// task (depth 1) or a request that may not run tasks, so a request without the tool costs nothing more.
+- (NSArray<NSDictionary*>*)messagesForRequest:(NSArray<NSDictionary*>*)messages
+                                      context:(SPDFMacAIRequestContext*)context {
+    NSDictionary* system = messages.firstObject;
+    if ([self unavailableReasonForContext:context] || ![system isKindOfClass:NSDictionary.class] ||
+        ![system[@"role"] isEqual:@"system"] || ![system[@"content"] isKindOfClass:NSString.class])
+        return messages;
+    NSString* added = kWhenToSplit;
+    if (![_allowances objectForKey:context].runs) {
+        NSMutableArray* files = [NSMutableArray array];
+        for (SPDFMacAIRequestChip* chip in context.chips)
+            if ([chip.kind isEqual:SPDFMacAIChipKindDocument] || [chip.kind isEqual:SPDFMacAIChipKindAttachment])
+                [files addObject:chip.displayName];
+        NSString* hint = SPDFMacAISubagentSplitHint(context.text, files);
+        if (hint) added = [added stringByAppendingFormat:@" %@", hint];
+    }
+    NSMutableDictionary* prompt = [system mutableCopy];
+    prompt[@"content"] = [system[@"content"] stringByAppendingFormat:@" %@", added];
+    NSMutableArray* told = [messages mutableCopy];
+    told[0] = prompt;
+    return told;
 }
 
 - (NSString*)unavailableMessageForTool:(NSString*)name context:(SPDFMacAIRequestContext*)context {

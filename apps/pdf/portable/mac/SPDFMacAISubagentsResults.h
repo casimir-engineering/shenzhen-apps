@@ -35,6 +35,14 @@ NSString* SPDFMacAISubagentPlainText(NSString* _Nullable markdown);
 NSString* _Nullable SPDFMacAISubagentCurrentTool(NSArray* _Nullable messages);
 // What a task's row says while that tool runs ("Searching documents…"), for the person watching.
 NSString* SPDFMacAISubagentStepText(NSString* _Nullable tool);
+// What the main chat's heading says while a run's parts work: "Working on 3 parts…", then "Working on 3 parts,
+// 1 finished…" as each ends, however it ends (its row says how).
+NSString* SPDFMacAISubagentProgressText(NSUInteger parts, NSUInteger finished);
+// One sentence for the main assistant's prompt when the person's message itself points at work that splits into
+// parts: two or more files on its chips (`documents`, their names as the chips show them), or wording that asks to
+// compare or go through several documents ("compare", "each document", "所有文件"). nil otherwise. A pattern match,
+// no model call, and a hint the model weighs, never a decision: "compare page 2 with page 3" matches too.
+NSString* _Nullable SPDFMacAISubagentSplitHint(NSString* _Nullable text, NSArray<NSString*>* documents);
 // Why a task didn't finish, as one short line under what it was asked: the problem's first sentence, clipped. The
 // session's errors are written for a person but some end in advice for the main chat ("Start a new chat"), which
 // would be wrong under a helper. nil when there is nothing to say.

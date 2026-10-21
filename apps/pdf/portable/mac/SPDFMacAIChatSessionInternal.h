@@ -16,7 +16,7 @@
     NSUInteger _generation; BOOL _changedDocument;
     NSDictionary* _readerContext; NSMutableDictionary* _reasoning;
     NSString* _model; NSString* _key; BOOL _running; NSString* _status; SPDFMacAIChatActivityState _activityState;
-    NSString* _runningTool;
+    NSString* _runningTool; NSString* _runningToolProgress;
     // Calls whose provider keeps them for their request only: saved as stubs from their first save, so the file
     // never holds their arguments even when Stop or a crash comes before their result.
     NSMutableSet<NSString*>* _requestOnlyCalls;

@@ -190,6 +190,22 @@ workspace, then retrieves evidence as needed. Its tools can:
   in Collection;
 - run a requested PDF export, OCR or translation job as a separate output.
 
+With **Let the assistant split big tasks into parts** on in AI Settings (on by
+default), `run_subagents` splits a big request into up to four parts that run at
+once, each its own conversation with read-only tools (document reads, web,
+Python), returning short findings with sources that the main answer cites. Its
+description and one sentence in the main prompt say when to split: comparing or
+checking several documents, summarizing more than about 20 pages, several
+separate questions, web research on several items; never one quick question.
+When the message itself comes with two or more files or asks to compare or go
+through several documents, the prompt adds a hint until the request has split
+(a pattern match, no extra model call). While parts work, the heading says
+"Working on 3 parts…" (then "…, 1 finished…") and each part has a row: what it
+is doing, then Done, Ran out of steps, Ran out of time, Didn't finish or Stopped.
+Stop ends every part; a row's Cancel ends that part alone. Limits: 2 runs and 48
+part turns per request, 12 tool calls a part, 600,000 tokens a run, 3 minutes a
+run; parts never start parts (`mac/SPDFMacAISubagents.h`).
+
 Changes are scoped to the current reader and the tools listed above. Creating a
 group, changing controls, navigation, comments, closing tabs, renaming, opening
 Collection items and document jobs return action receipts for safe Undo. Group

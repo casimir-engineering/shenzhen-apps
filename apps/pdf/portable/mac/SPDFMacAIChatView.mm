@@ -262,7 +262,8 @@
     // While a tool runs, what it does in the person's words; never its identifier, and nothing for one without words.
     NSString* tool=[session respondsToSelector:@selector(runningTool)] ? session.runningTool : nil;
     NSString* detail=session.activityDetail.length ? session.activityDetail : fallback;
-    if(tool) detail=SPDFChatRunningToolText(tool) ?: @"";
+    NSString* progress=[session respondsToSelector:@selector(runningToolProgress)] ? session.runningToolProgress : nil;
+    if(tool) detail=progress.length ? progress : SPDFChatRunningToolText(tool) ?: @"";
     _activityDetail.stringValue=retry ? @"Your chat is saved." : issueVisible ? _submissionError : detail;
     if(_chatSearch.stringValue.length && !issueVisible && !session.running) {
         NSUInteger matches=0;
