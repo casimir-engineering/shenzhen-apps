@@ -57,14 +57,17 @@ export function actionIntent(
       return context.nearby_id
         ? { type: action.action, fields: { nearby_id: context.nearby_id } }
         : null;
-    case "dismiss_banner":
-      return context.kind
-        ? { type: action.action, fields: { kind: context.kind } }
-        : null;
+    case "dismiss_banner": {
+      // The action names its banner (notifications' Not Now); id_changed's carries none and the banner's kind is used.
+      const kind = action.kind ?? context.kind;
+      return kind ? { type: action.action, fields: { kind } } : null;
+    }
     case "start_visibility":
     case "stop_visibility":
     case "reset_friend_link":
     case "cancel_join":
+    // The notifications card's Turn On and Settings' Allow: the system asks the person.
+    case "allow_notifications":
     // Nearby's Allow and Try Again: the intent Friends sends when it opens (PROTOCOL.md § nearby).
     case "activate":
       return { type: action.action, fields: {} };

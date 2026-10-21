@@ -4,7 +4,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { friendsRequests } from "./requests";
 import type { FriendsBridge } from "./bridge";
-import type { Confirm, FriendsStatus, Reply, SettingsData } from "./protocol";
+import type {
+  Confirm,
+  FriendsStatus,
+  NotificationSettings,
+  Reply,
+  SettingsData,
+} from "./protocol";
 import {
   ActionButton,
   AvatarView,
@@ -54,6 +60,38 @@ export function openNextAt(place: "profile" | "nearby" | "join") {
     place === "nearby"
       ? { stack: [{ kind: "list" }], tab: "nearby" }
       : { stack: [{ kind: "list" }, { kind: place }], tab: remembered.tab };
+}
+
+/** Whether this window is visible and has the keyboard focus (PROTOCOL.md § Notifications, Focus): `onChange`
+ * now and on every change. Returns a function that stops watching. */
+export function watchWindowFocus(
+  onChange: (focused: boolean) => void,
+  doc: Pick<Document, "visibilityState" | "hasFocus"> & EventTarget = document,
+  win: EventTarget = window,
+) {
+  const update = () =>
+    onChange(doc.visibilityState === "visible" && doc.hasFocus());
+  update();
+  doc.addEventListener("visibilitychange", update);
+  win.addEventListener("focus", update);
+  win.addEventListener("blur", update);
+  return () => {
+    doc.removeEventListener("visibilitychange", update);
+    win.removeEventListener("focus", update);
+    win.removeEventListener("blur", update);
+  };
+}
+function useWindowFocused() {
+  const [focused, setFocused] = useState(false);
+  useEffect(() => watchWindowFocus(setFocused), []);
+  return focused;
+}
+/** What a notification's conversation opens: the list, and that conversation over it (the list alone for null). */
+export function stackFor(openAt: { conversation_id: string | null }): Page[] {
+  const id = openAt.conversation_id;
+  return id
+    ? [{ kind: "list" }, { kind: "conversation", id }]
+    : [{ kind: "list" }];
 }
 
 function useConfirm() {
@@ -157,6 +195,8 @@ export default function FriendsPanel({
   status,
   outgoing,
   link,
+  openAt = null,
+  onOpenAtDone,
   attach,
   onClose,
   onOutgoingDone,
@@ -168,6 +208,9 @@ export default function FriendsPanel({
   status: FriendsStatus;
   outgoing: Outgoing | null;
   link: string | null;
+  /** A notification's conversation to show (null: the list). */
+  openAt?: { conversation_id: string | null } | null;
+  onOpenAtDone?(): void;
   attach: AttachSource | null;
   onClose(): void;
   onOutgoingDone(): void;
@@ -224,6 +267,12 @@ export default function FriendsPanel({
     }
   }, [link, onLinkDone]);
   useEffect(() => {
+    if (!openAt) return;
+    setTab("friends");
+    setStack(stackFor(openAt));
+    onOpenAtDone?.();
+  }, [openAt, onOpenAtDone]);
+  useEffect(() => {
     if (outgoing) setStack([{ kind: "list" }]);
   }, [outgoing]);
   useEffect(() => {
@@ -244,6 +293,11 @@ export default function FriendsPanel({
   }, [onClose, onOutgoingDone, outgoing, confirm.open]);
 
   const page = stack[stack.length - 1];
+  // The conversation the person is looking at, while this window is in front: no notification for it.
+  const focused = useWindowFocused();
+  const looking = focused && page.kind === "conversation" ? page.id : null;
+  useEffect(() => store.setFocus(looking), [store, looking]);
+  useEffect(() => () => store.setFocus(null), [store]);
   const notReady = !store.ready && store.status.text;
   return (
     <Panel.Provider value={context}>
@@ -482,6 +536,9 @@ export function SettingsBody() {
             </label>
           ))}
       </div>
+      {data.notifications && (
+        <NotificationSettingsField notifications={data.notifications} />
+      )}
       {data.join && (
         <div className="szf-field">
           <span>{data.join.label}</span>
@@ -513,6 +570,73 @@ export function SettingsBody() {
           }}
         />
       </div>
+    </div>
+  );
+}
+
+type NotificationField = "enabled" | "preview" | "background";
+/** Settings' Notifications switches the helper sent, in order, each with its note (the iPhone has no background). */
+export function notificationSwitches(notifications: NotificationSettings) {
+  const all: [NotificationField, NotificationSettings["background"]][] = [
+    ["enabled", { note: "", ...notifications.enabled }],
+    ["preview", notifications.preview],
+    ["background", notifications.background],
+  ];
+  return all.flatMap(([field, item]) =>
+    item && typeof item.value === "boolean" && item.label
+      ? [
+          {
+            field,
+            label: item.label,
+            note: item.note || null,
+            value: item.value,
+          },
+        ]
+      : [],
+  );
+}
+/** One switch turned: set_notifications with that field alone. */
+export async function setNotification(
+  panel: PanelContext,
+  field: NotificationField,
+  value: boolean,
+) {
+  const reply = await panel.store.send("set_notifications", { [field]: value });
+  panel.report(reply);
+  return reply;
+}
+
+/** Settings' Notifications: this device's switches, each sent alone with set_notifications, and the permission's
+ * note with its one action. Only what the helper sends shows. */
+function NotificationSettingsField({
+  notifications,
+}: {
+  notifications: NotificationSettings;
+}) {
+  const panel = usePanel();
+  return (
+    <div className="szf-field" data-szfriends="notifications">
+      {notifications.label && <span>{notifications.label}</span>}
+      {notificationSwitches(notifications).map(
+        ({ field, label, note, value }) => (
+          <label key={field} className="szf-switch">
+            <input
+              type="checkbox"
+              name={field}
+              checked={value}
+              onChange={(event) =>
+                void setNotification(panel, field, event.target.checked)
+              }
+            />
+            <span>
+              {label}
+              {note && <small>{note}</small>}
+            </span>
+          </label>
+        ),
+      )}
+      {notifications.note && <small>{notifications.note}</small>}
+      {notifications.action && <ActionButton action={notifications.action} />}
     </div>
   );
 }
