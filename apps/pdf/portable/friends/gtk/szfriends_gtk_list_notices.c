@@ -1,6 +1,7 @@
 /* What sits above the list's rows (szfriends_gtk_list_page_private.h): "Send 2 files to…" with Cancel, or the drop
  * hint, while files are on their way in; the banner (an ID that changed, an identity that cannot be read, an update
- * that is needed); and the name field until a name is chosen, which never blocks the list. */
+ * that is needed, or the ask to show notifications with its Not Now); and the name field until a name is chosen,
+ * which never blocks the list. */
 
 #include "gtk/szfriends_gtk_list_page_private.h"
 #include "gtk/szfriends_gtk_schema.h"
@@ -74,12 +75,21 @@ static const char *banner_kind_name(SZFriendsGtkBannerKind kind) {
     return NULL;
 }
 
-static void banner_clicked(GtkButton *button, gpointer data) {
-    SZFriendsGtkListPage *list = data;
+static void banner_perform(SZFriendsGtkListPage *list, GtkWidget *button, gboolean dismiss) {
     const SZFriendsGtkBanner *banner = list->list ? list->list->banner : NULL;
     if (!banner) return;
     SZFriendsGtkActionIds ids = {.kind = banner_kind_name(banner->kind)};
-    szfriends_gtk_perform(list->link, list->dropdown, GTK_WIDGET(button), banner->action, &ids, NULL, NULL);
+    szfriends_gtk_perform(list->link, list->dropdown, button, dismiss ? banner->dismiss : banner->action, &ids, NULL,
+                          NULL);
+}
+
+static void banner_clicked(GtkButton *button, gpointer data) {
+    banner_perform(data, GTK_WIDGET(button), FALSE);
+}
+
+/* The notifications ask's Not Now: dismiss_banner with the kind the action names. */
+static void banner_dismiss_clicked(GtkButton *button, gpointer data) {
+    banner_perform(data, GTK_WIDGET(button), TRUE);
 }
 
 /* ---- The name field ------------------------------------------------------------------------------ */
@@ -160,6 +170,7 @@ void szfriends_gtk_list_apply_notices(SZFriendsGtkListPage *list, const SZFriend
     gtk_widget_set_visible(parts->banner, banner != NULL);
     gtk_label_set_text(GTK_LABEL(parts->banner_text), banner ? banner->text : "");
     szfriends_gtk_list_action_button_set(parts->banner_button, banner ? banner->action : NULL);
+    szfriends_gtk_list_action_button_set(parts->banner_dismiss, banner ? banner->dismiss : NULL);
     const SZFriendsGtkNamePrompt *prompt = snapshot->name_prompt;
     gtk_widget_set_visible(parts->prompt, prompt != NULL);
     szfriends_gtk_list_label_set(parts->prompt_title, prompt ? prompt->title : NULL);
@@ -203,7 +214,11 @@ void szfriends_gtk_list_build_notices(SZFriendsGtkListPage *list, GtkWidget *con
     parts->banner_button = szfriends_gtk_list_action_button_new();
     gtk_widget_set_valign(parts->banner_button, GTK_ALIGN_CENTER);
     g_signal_connect(parts->banner_button, "clicked", G_CALLBACK(banner_clicked), list);
+    parts->banner_dismiss = szfriends_gtk_list_action_button_new();
+    gtk_widget_set_valign(parts->banner_dismiss, GTK_ALIGN_CENTER);
+    g_signal_connect(parts->banner_dismiss, "clicked", G_CALLBACK(banner_dismiss_clicked), list);
     gtk_box_append(GTK_BOX(parts->banner), parts->banner_text);
+    gtk_box_append(GTK_BOX(parts->banner), parts->banner_dismiss);
     gtk_box_append(GTK_BOX(parts->banner), parts->banner_button);
     parts->prompt = notice("prompt", GTK_ORIENTATION_VERTICAL);
     parts->prompt_title = szfriends_gtk_list_label("szfriends-notice-title");

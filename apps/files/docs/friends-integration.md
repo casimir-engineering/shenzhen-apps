@@ -328,6 +328,15 @@ to, the plan above:
   capabilities is fixed for its process, and the client takes it from the welcome only (a second welcome is
   ignored), so the offer changes only with a new connection. The views give hosts no watch yet (shenzhen-pdf
   `7e49dfb3a`), so the adapter uses their internal `szfriends_gtk_link_add_state_watch` (`gtk/szfriends_gtk_link.h`).
+- Notifications (shenzhen-pdf `portable/friends/PROTOCOL.md` § Notifications, ADR 0017). The helper posts them;
+  Files tells it where a click goes and what the person is looking at. The host sets `url_scheme`
+  `shenzhenfiles` (sent as `client.url_scheme`); the views claim `notifications.focus`, and `notifications.ask` on
+  macOS, and send `set_focus` themselves. A click opens `shenzhenfiles://friends/conversation/<conversation_id>`
+  (or `shenzhenfiles://friends` for a computer asking to join) through the same `open` path as links:
+  `nautilus_friends_route` accepts an id of 1 to 64 of `[A-Za-z0-9_-]` and drops anything else without a word;
+  other paths under `friends/` go the links' way, as before. A route waits for Friends to attach (a cold launch)
+  and then opens the active window's dropdown on that conversation, or the list (`szfriends_gtk_show_conversation`);
+  while Friends is off in Files it opens nothing and asks nothing: the person clicked a notification, not a link.
   The calls into the views (`szfriends_gtk_show_link`, `szfriends_gtk_link_offers_links`,
   `szfriends_gtk_copy_download_link`) compile only when `gtk/szfriends_gtk.h` defines `SZFRIENDS_GTK_LINKS`, so the
   patch also builds against views older than links.

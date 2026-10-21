@@ -49,6 +49,11 @@ gpointer szfriends_gtk_details_held_value(SZFriendsGtkDetailsHeld *held);
 GtkWidget *szfriends_gtk_profile_links_new(SZFriendsGtkPage *page);
 void szfriends_gtk_profile_links_apply(GtkWidget *links, SZFriendsGtkDetailsHeld *held);
 
+/* The Settings section's Notifications block (szfriends_gtk_settings_notifications.c): hidden while the snapshot
+ * has no `notifications`; `held` holds the settings snapshot. */
+GtkWidget *szfriends_gtk_settings_notifications_new(SZFriendsGtkPage *page);
+void szfriends_gtk_settings_notifications_apply(GtkWidget *block, SZFriendsGtkDetailsHeld *held);
+
 /* A button for one action object: its label and style, its `arm` (the shared rule of szfriends_gtk_row.h, on its
  * clock: the first click arms, a second separate click within arm.seconds sends, never a double-click's second half;
  * leaving the button or Escape turns it back) and its `confirm` (szfriends_gtk_confirm: a card over the dropdown, or

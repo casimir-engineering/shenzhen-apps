@@ -31,6 +31,10 @@ The core:
   `AdwNavigationView` of pages, per-window state, Escape.
 - `szfriends_gtk_pages_builtin.c`: registers the pages below for every link.
 - `szfriends_gtk_glyphs.{c,h}`: the route icons, the check and the circle with a slash, from the AppKit views' paths.
+- `szfriends_gtk_focus.c`: system notifications (PROTOCOL.md § Notifications): `set_focus` with the conversation the
+  active window's open dropdown shows, sent on change and again after a reconnect, and `szfriends_gtk_show_conversation`
+  for the host's `<scheme>://friends/conversation/<id>` route. The list's ask banner (Turn On, Not Now) is in
+  `szfriends_gtk_list_notices.c`, Settings' Notifications block in `szfriends_gtk_settings_notifications.c`.
 - `szfriends_gtk_style.c`, `szfriends_gtk.css`, `szfriends_gtk.gresource.xml`, `icons/`: the resource, the two-people
   symbolic icon and the `@szfriends_*` colour tokens.
 - `gtk.mk`: `friends-gtk-lib` (`libszfriends_gtk.a`: views, client library, cJSON) and the four suites below.

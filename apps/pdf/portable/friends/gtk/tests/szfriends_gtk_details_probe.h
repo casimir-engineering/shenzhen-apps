@@ -73,6 +73,7 @@ void szfg_run_settings_probes(void);
 void szfg_run_title_probes(void);
 void szfg_run_link_probes(void);
 void szfg_run_device_probes(void); /* szfriends_gtk_details_probe_devices.c */
+void szfg_run_settings_notification_probes(void); /* szfriends_gtk_details_probe_notifications.c */
 /* SZFriendsGtkDetailsTests, without a display */
 void szfg_run_details_tests(void);
 void szfg_run_qr_tests(void);

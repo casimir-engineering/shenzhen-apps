@@ -70,6 +70,8 @@ struct _SZFriendsGtkLink {
     gpointer pages;              /* the page builders (szfriends_gtk_page.c) */
     gpointer animals;            /* the animal set, loaded on first use (szfriends_gtk_avatars.c) */
     gboolean animals_loaded;
+    GPtrArray *focus_dropdowns;  /* every window's dropdown, not owned (szfriends_gtk_focus.c) */
+    char *focus_sent;            /* the conversation set_focus last named on this connection; NULL: none */
 };
 
 /* szfriends_gtk_link.c */

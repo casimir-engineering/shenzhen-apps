@@ -121,6 +121,7 @@ typedef struct {
     GtkWidget *search, *tabs, *stack;
     GtkWidget *send_notice, *send_text, *send_cancel;
     GtkWidget *banner, *banner_text, *banner_button;
+    GtkWidget *banner_dismiss; /* the banner's second action (the notifications ask's Not Now); hidden without one */
     GtkWidget *prompt, *prompt_title, *prompt_entry, *prompt_save, *prompt_note;
     GtkWidget *prompt_beta; /* the card shows on first run, so it says Friends is a beta (beta_note) */
     /* Several computers (szfriends_gtk_list_devices.c): the removed notice with Start Over in its slot, the join

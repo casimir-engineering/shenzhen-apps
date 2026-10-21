@@ -1,9 +1,10 @@
 /* The Friends part of the host's Settings, under the host's own "Enable Shenzhen Friends" switch and disclosure
  * (szfriends_gtk_details_page.h; szfriends_gtk_settings_section_new in szfriends_gtk.h). Mirrors
  * mac/SZFriendsSettingsSection.m: the `settings` snapshot as rows of libadwaita preference groups (the name friends
- * see, your ID with Copy, where received files go with Change… and Show, automatic acceptance with a switch per friend, then Delete history and
- * Reset Friends behind their confirmations). The subscription is held only while the section is on screen, and
- * while the helper does not answer the rows keep their last values under the link's status line. */
+ * see, your ID with Copy, where received files go with Change… and Show, automatic acceptance with a switch per friend,
+ * Notifications when the helper posts them (szfriends_gtk_settings_notifications.c), then Delete history and Reset
+ * Friends behind their confirmations). The subscription is held only while the section is on screen, and while the
+ * helper does not answer the rows keep their last values under the link's status line. */
 
 #include "gtk/szfriends_gtk_avatars.h"
 #include "gtk/szfriends_gtk_details_page.h"
@@ -18,6 +19,7 @@ typedef struct {
     GtkWidget *status, *group, *danger;
     GtkWidget *name_row, *name_entry, *id_row, *id_value, *copy, *received_row, *received_change, *received_button;
     GtkWidget *auto_row, *change, *history_row, *history_button, *reset_row, *reset_button;
+    GtkWidget *notifications; /* szfriends_gtk_settings_notifications.c */
     GPtrArray *friend_rows;
     gboolean editing_name, applying;
 } SZFriendsGtkSettings;
@@ -245,6 +247,7 @@ static void apply(SZFriendsGtkSettings *settings) {
     gboolean choosable = snapshot->auto_accept.n_friends > 0;
     gtk_widget_set_visible(settings->change, choosable);
     if (!choosable) gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(settings->change), FALSE);
+    szfriends_gtk_settings_notifications_apply(settings->notifications, settings->held);
     set_row(settings->history_row, snapshot->history.label, snapshot->history.note);
     gtk_button_set_label(GTK_BUTTON(settings->history_button), snapshot->history.action_label);
     set_row(settings->reset_row, snapshot->reset.label, snapshot->reset.note);
@@ -323,7 +326,9 @@ static void build(SZFriendsGtkPage *page, gpointer user_data) {
                                            settings);
     adw_preferences_group_add(ADW_PREFERENCES_GROUP(settings->danger), settings->history_row);
     adw_preferences_group_add(ADW_PREFERENCES_GROUP(settings->danger), settings->reset_row);
+    settings->notifications = szfriends_gtk_settings_notifications_new(page);
     gtk_box_append(GTK_BOX(box), settings->group);
+    gtk_box_append(GTK_BOX(box), settings->notifications);
     gtk_box_append(GTK_BOX(box), settings->danger);
     /* Nothing to show until the first snapshot: empty rows would read as settings without names. */
     gtk_widget_set_visible(settings->group, FALSE);

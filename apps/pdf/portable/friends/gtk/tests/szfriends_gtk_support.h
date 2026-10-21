@@ -61,6 +61,13 @@ typedef struct {
 } SZFGHarness;
 
 SZFGHarness *szfg_harness_new(const char *label, gboolean start_fake);
+/* The same with the host's URL scheme (NULL: none) and a fake helper announcing `capabilities_json` (NULL: the
+ * welcome fixture's), started. */
+SZFGHarness *szfg_harness_new_custom(const char *label, const char *url_scheme, const char *capabilities_json);
+/* The welcome fixture's helper capabilities with "notifications": a helper that posts them. */
+#define SZFG_NOTIFYING_CAPABILITIES                                                                               \
+    "[\"nearby.network\",\"nearby.bluetooth\",\"host.checkin\",\"messages.status\",\"messages.cancel\","        \
+    "\"mentions\",\"received.folder\",\"notifications\"]"
 gboolean szfg_harness_start_fake(SZFGHarness *harness);
 /* Starts the link and waits for READY. */
 gboolean szfg_harness_ready(SZFGHarness *harness, int timeout_ms);
