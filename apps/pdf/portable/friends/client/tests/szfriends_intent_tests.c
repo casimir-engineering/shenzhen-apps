@@ -90,6 +90,20 @@ szfriends_intent *szft_intent_from_fixture(const cJSON *line) {
     if (strcmp(type, "disable") == 0) return szfriends_intent_disable();
     if (strcmp(type, "reset_friends") == 0) return szfriends_intent_reset_friends();
     if (strcmp(type, "cancel_join") == 0) return szfriends_intent_cancel_join();
+    if (strcmp(type, "set_focus") == 0) return szfriends_intent_set_focus(str(line, "conversation_id"));
+    if (strcmp(type, "allow_notifications") == 0) return szfriends_intent_allow_notifications();
+    if (strcmp(type, "test_notification_response") == 0)
+        return szfriends_intent_test_notification_response(str(line, "key"), str(line, "action"), str(line, "text"));
+    if (strcmp(type, "set_notifications") == 0) {
+        const char *names[3] = {"enabled", "preview", "background"};
+        int values[3];
+        size_t i;
+        for (i = 0; i < 3; i++) {
+            const cJSON *value = cJSON_GetObjectItemCaseSensitive(line, names[i]);
+            values[i] = cJSON_IsBool(value) ? cJSON_IsTrue(value) : -1;
+        }
+        return szfriends_intent_set_notifications(values[0], values[1], values[2]);
+    }
     if (strcmp(type, "subscribe") == 0 && str(line, "view") && strcmp(str(line, "view"), "message_status") == 0) {
         const cJSON *ids = cJSON_GetObjectItemCaseSensitive(cJSON_GetObjectItemCaseSensitive(line, "params"),
                                                             "message_ids"), *id;

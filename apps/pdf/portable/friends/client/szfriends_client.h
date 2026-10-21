@@ -387,7 +387,15 @@ szfriends_intent *szfriends_intent_set_picture_image_path(const char *path, cons
 szfriends_intent *szfriends_intent_set_auto_accept(const char *conversation_id, bool enabled);
 /* The folder received files are saved to on this computer, an absolute path (helper capability received.folder). */
 szfriends_intent *szfriends_intent_set_received_folder(const char *path);
-szfriends_intent *szfriends_intent_dismiss_banner(const char *kind); /* "id_changed" */
+szfriends_intent *szfriends_intent_dismiss_banner(const char *kind); /* "id_changed", "notifications" */
+/* Notifications (PROTOCOL.md § Notifications). set_focus: the conversation the focused window shows, NULL when none.
+ * set_notifications: each switch 1 (on), 0 (off) or -1 (omitted, unchanged). test_notification_response: test homes
+ * only; action "open" or "reply", text NULL for open. */
+szfriends_intent *szfriends_intent_set_focus(const char *conversation_id_or_null);
+szfriends_intent *szfriends_intent_set_notifications(int enabled, int preview, int background);
+szfriends_intent *szfriends_intent_allow_notifications(void);
+szfriends_intent *szfriends_intent_test_notification_response(const char *key, const char *action,
+                                                              const char *text_or_null);
 szfriends_intent *szfriends_intent_start_visibility(void);
 szfriends_intent *szfriends_intent_stop_visibility(void);
 /* conversation_id NULL: every conversation (Cmd+K). limit 0: omitted (the helper's default, 20). */
