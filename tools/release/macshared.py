@@ -5,8 +5,8 @@ import os
 import shutil
 import time
 
-from common import (CACHE, Failure, app_from_dmg, download_asset, gh_api, git, publish_release, push_source_tag, run,
-                    say)
+from common import (CACHE, Failure, app_from_dmg, download_asset, end_test_processes, gh_api, git, publish_release,
+                    push_source_tag, run, say)
 
 
 def write_json(path, data):
@@ -66,9 +66,12 @@ def run_mac_update_e2e(release, kind, old, new_dmg, shape, stage):
     os.makedirs(os.path.dirname(work), exist_ok=True)
     log = release.log(stage)
     say(f"{stage}: {kind} {old['tag']} updates to {release.tag} (tools/updater-e2e)")
-    code = run(["python3", "-I", os.path.join(release.wt, "tools/updater-e2e/mac-update-e2e.py"), "--kind", kind,
-                "--old-app", old["app"], "--new-dmg", new_dmg, "--notes", release.notes(), "--tag", release.tag,
-                "--shape", shape, "--work", work], log=log, check=False)
+    try:
+        code = run(["python3", "-I", os.path.join(release.wt, "tools/updater-e2e/mac-update-e2e.py"), "--kind", kind,
+                    "--old-app", old["app"], "--new-dmg", new_dmg, "--notes", release.notes(), "--tag", release.tag,
+                    "--shape", shape, "--work", work], log=log, check=False)
+    finally:
+        end_test_processes(work, log)
     if code != 0:
         raise Failure(f"updating from {old['tag']} to {release.tag} failed: {os.path.join(work, 'result.json')}")
     return work

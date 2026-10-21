@@ -1,7 +1,8 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
 import { _electron as electron, expect } from "@playwright/test";
@@ -192,6 +193,33 @@ for (const key of [
   "GITHUB_TOKEN",
 ])
   delete environment[key];
+// Nothing this test starts outlives it: whatever still runs from the fixture or the output directory when it ends,
+// however it was started (Squirrel reopens an app with launchd as its parent), is ended by its exact executable path
+// (tools/updater-e2e/sweep.py), never by name, and the test fails.
+const sweepScript = fileURLToPath(
+  new URL("../../../tools/updater-e2e/sweep.py", import.meta.url),
+);
+const sweep = (grace = 0) => {
+  const r = spawnSync(
+    "python3",
+    ["-I", sweepScript, `--grace=${grace}`, "--kill", fixture, output],
+    { encoding: "utf8" },
+  );
+  return {
+    left: r.status !== 0,
+    output: `${r.stdout ?? ""}${r.stderr ?? ""}${r.error ?? ""}`.trim(),
+  };
+};
+let swept = false;
+process.on("exit", () => {
+  if (!swept) sweep();
+});
+for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"])
+  process.on(signal, () => {
+    if (!swept) sweep();
+    swept = true;
+    process.exit(1);
+  });
 const launch = () =>
   electron.launch({
     executablePath: path.join(fixture, "Contents/MacOS/Shenzhen 3D"),
@@ -414,9 +442,17 @@ try {
   } else
     evidence.cleanup =
       "Install may still be in progress; native cache links retained for investigation; isolated credential file removed";
+  const left = sweep(15);
+  swept = true;
+  evidence.leftRunning = left.left ? left.output : null;
+  if (left.left) evidence.success = false;
   evidence.finishedAt = new Date().toISOString();
   await fs.writeFile(
     path.join(output, "result.json"),
     JSON.stringify(evidence, null, 2) + "\n",
   );
+  if (left.left)
+    throw Error(
+      `Processes this test started were still running and were ended:\n${left.output}`,
+    );
 }

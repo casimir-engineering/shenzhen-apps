@@ -77,6 +77,16 @@ def run(cmd, *, cwd=None, env=None, log=None, check=True, capture=False, timeout
     return p.stdout if capture else p.returncode
 
 
+def end_test_processes(path, log):
+    """An updater test may leave nothing running: a test copy the updater reopened runs with launchd as its parent and
+    can hold an installed app's single-instance lock. Ends whatever still runs from `path` (the test's work directory),
+    by exact executable path (tools/updater-e2e/sweep.py), never by name, and fails the stage if anything did."""
+    code = run([sys.executable, "-I", os.path.join(TOOLS, "updater-e2e", "sweep.py"), "--grace=10", "--kill", path],
+               log=log, check=False)
+    if code != 0:
+        raise Failure(f"the updater test left processes running from {path}; they were ended (log: {log})")
+
+
 def git(repo, *args, check=True):
     p = subprocess.run(["git", "-C", repo, *args], stdin=subprocess.DEVNULL, capture_output=True, text=True)
     if check and p.returncode != 0:

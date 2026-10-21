@@ -19,6 +19,11 @@
 // in-memory stand-in (no keychain); the install dialog answers Install; the app does not reopen itself after
 // installing (Squirrel replaces the bundle at quit). Everything else, provider choice, release selection, version
 // check, download, SHA-512 check and native install, is the release's own code.
+//
+// The fixture, the relaunch copy and --next-app are test copies (prep-3d-fixture.mjs): each runs under a profile of its
+// own (electron/test-identity.cjs), so an installed Shenzhen 3D keeps its single-instance lock. Whatever still runs from
+// the work directory or the relaunch copy when the run ends, however it was started, is ended by its exact executable
+// path (sweep.py) and fails the run; so does the installed release, which is not a test copy, if Squirrel reopens it.
 import fs from "node:fs";
 import fsp from "node:fs/promises";
 import http from "node:http";
@@ -27,8 +32,9 @@ import net from "node:net";
 import os from "node:os";
 import path from "node:path";
 import { createHash } from "node:crypto";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { createRequire } from "node:module";
+import { fileURLToPath } from "node:url";
 
 const require = createRequire(path.join(process.cwd(), "package.json"));
 const asar = require("@electron/asar");
@@ -56,6 +62,21 @@ const plist = (app) => JSON.parse(execFileSync("plutil", ["-convert", "json", "-
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 fs.mkdirSync(work, { recursive: false });
+// ---- Nothing this run starts outlives it ----------------------------------------------------------------------------
+// By exact executable path under the work directory and the relaunch copy, never by name: a copy the updater reopened
+// has launchd as its parent and none of the test's arguments.
+const owned = [work, relaunchPrepared].filter(Boolean);
+const SWEEP = path.join(path.dirname(fileURLToPath(import.meta.url)), "sweep.py");
+const sweep = (paths, { grace = 0, kill = true } = {}) => {
+  const r = spawnSync("python3", ["-I", SWEEP, `--grace=${grace}`, ...(kill ? ["--kill"] : []), ...paths], { encoding: "utf8" });
+  return { left: r.status !== 0, output: `${r.stdout ?? ""}${r.stderr ?? ""}${r.error ? String(r.error) : ""}`.trim() };
+};
+let swept = false;
+process.on("exit", () => { if (!swept) sweep(owned); });
+for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"])
+  process.on(signal, () => { if (!swept) sweep(owned); swept = true; process.exit(1); });
+const already = sweep(owned, { kill: false });
+if (already.left) throw Error(`something already runs from this run's copies:\n${already.output}`);
 const install = path.join(work, "install"), profile = path.join(work, "profile"), cache = path.join(work, "updater-cache");
 for (const d of [install, profile, cache]) fs.mkdirSync(d);
 // A certificate for the local GitHub copy, trusted only by the updater's session in this run.
@@ -284,6 +305,12 @@ try {
   application = undefined;
   installed = await replacedBy(app, newVersion, path.join(artifacts, zip), path.join(work, "new-app"));
   check(`Squirrel replaced the app with ${newVersion}`, installed);
+  // The installed bundle is now the release itself, without a test identity: reopened, it would take the profile and
+  // single-instance lock of the Shenzhen 3D installed on this Mac. Squirrel must not reopen it.
+  await shipItIdle();
+  await sleep(3000);
+  const reopened = sweep([app]);
+  check("the installed release was not reopened", !reopened.left, reopened.output || undefined);
   const verify = (args) => { try { execFileSync(args[0], args.slice(1), { stdio: "pipe" }); return true; } catch { return false; } };
   check("codesign --verify --deep --strict", verify(["codesign", "--verify", "--deep", "--strict", app]));
   check("stapled notarization ticket", verify(["xcrun", "stapler", "validate", app]));
@@ -363,7 +390,14 @@ try {
       else if (keys.length) result.shipItPrefsLeft = (result.shipItPrefsLeft || []).concat([{ p, keys }]);
     }
   }
-  result.cleanup = { shipItJob: launchctlHas() && shipItOurs(), shipItPrefs: shipItPrefs().filter((p) => !prefsBefore.has(p)) };
+  const left = sweep(owned, { grace: 15 });
+  swept = true;
+  if (left.left) {
+    check("nothing this run started is still running", false, left.output);
+    result.success = false;
+  }
+  result.cleanup = { shipItJob: launchctlHas() && shipItOurs(), shipItPrefs: shipItPrefs().filter((p) => !prefsBefore.has(p)),
+    leftRunning: left.left ? left.output : null };
   save();
   process.exit(result.success ? 0 : 1);
 }
