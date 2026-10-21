@@ -71,6 +71,7 @@ typedef struct {
     char *error;
     SZFriendsGtkAction *actions;
     gsize n_actions;
+    SZFriendsGtkRoute *route; /* checking and joined, while a session is live */
 } SZFriendsGtkJoinSnapshot;
 
 #endif /* SZFRIENDS_GTK_SNAPSHOT_DEVICES_H */

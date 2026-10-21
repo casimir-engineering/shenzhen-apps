@@ -190,6 +190,8 @@ JsonNode *szfg_serialize(const SZFriendsGtkType *type, gconstpointer value) {
 }
 
 gboolean szfg_json_equal(JsonNode *a, JsonNode *b, GString *where) {
+    /* A member or element only one side has: json_node_equal() takes no NULL. */
+    if (!a || !b) return a == b;
     if (json_node_equal(a, b)) return TRUE;
     /* Narrow the difference down for the failure message. */
     if (a && b && JSON_NODE_HOLDS_OBJECT(a) && JSON_NODE_HOLDS_OBJECT(b)) {

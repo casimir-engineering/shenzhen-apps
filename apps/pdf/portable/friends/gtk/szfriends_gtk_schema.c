@@ -221,7 +221,7 @@ static const SZFriendsGtkField item_fields[] = {
     STR(T, text), ENUM(T, text_format, text_formats), ARR(T, segments, segment),
     OBJN(T, status, message_status), STRN(T, assistant_label), STR(T, transfer_id), OBJ(T, file, file_info),
     STR(T, meta_label), ENUM(T, state, transfer_states), STR(T, status_label), STRN(T, route_note),
-    OBJN(T, progress, progress), OBJN(T, thumbnail, thumbnail), ARR(T, actions, action), ARR(T, mentions, mention),
+    OBJN(T, route, route), OBJN(T, progress, progress), OBJN(T, thumbnail, thumbnail), ARR(T, actions, action), ARR(T, mentions, mention),
     BOOL(T, highlighted), STR(T, accessibility_label)};
 #undef T
 TYPE(static, item, "type.item", SZFriendsGtkConversationItem);

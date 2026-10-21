@@ -48,6 +48,7 @@ TYPE(static, join_code_field, "type.join_code_field", SZFriendsGtkJoinCodeField)
 #define T SZFriendsGtkJoinSnapshot
 static const SZFriendsGtkField szfriends_gtk_type_join_snapshot_fields[] = {
     ENUM(T, state, join_states), STR(T, title), STRN(T, message), STRN(T, friends_id),
-    OBJN(T, id_field, join_id_field), OBJN(T, code_field, join_code_field), STRN(T, error), ARR(T, actions, action)};
+    OBJN(T, id_field, join_id_field), OBJN(T, code_field, join_code_field), STRN(T, error), ARR(T, actions, action),
+    OBJN(T, route, route)};
 #undef T
 TYPE(, szfriends_gtk_type_join_snapshot, "snapshot.join", SZFriendsGtkJoinSnapshot);

@@ -314,6 +314,7 @@ typedef struct {
     char *meta_label;
     SZFriendsGtkTransferState state;
     char *status_label, *route_note;
+    SZFriendsGtkRoute *route;         /* transfer: while it copies here from another of the person's computers */
     SZFriendsGtkProgress *progress;
     SZFriendsGtkThumbnail *thumbnail; /* transfer: NULL draws the type's icon */
     SZFriendsGtkAction *actions;
