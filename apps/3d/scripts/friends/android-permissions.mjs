@@ -6,8 +6,9 @@
 //   node scripts/friends/android-permissions.mjs --serial emulator-5554 [--apk <apk>]
 //
 // Two runs from a cleared app:
-//   grant  opening Friends brings up the system's Bluetooth ("Nearby devices") dialog; Allow grants scan, advertise
-//          and connect.
+//   grant  opening Friends brings up the system's Bluetooth ("Nearby devices") dialog and, in the same request on
+//          Android 13 and later, its notifications dialog (ADR 0017); Allow on each grants scan, advertise, connect
+//          and POST_NOTIFICATIONS.
 //   deny   Don't allow leaves Nearby's Allow; Allow asks again; refused again, Android stops asking, and Nearby's
 //          Allow is replaced by Open Settings, which opens the app's page in Settings.
 import { execFileSync } from "node:child_process";
@@ -105,15 +106,31 @@ const denyButton = (node) => isDialog(node) && /permission_deny/.test(node.id);
 const exact = (text) => (node) =>
   node.pkg === PACKAGE && (node.text === text || node.desc === text);
 
-function granted() {
+function granted(names = PERMISSIONS) {
   const dump = adb("shell", "dumpsys", "package", PACKAGE);
   return Object.fromEntries(
-    PERMISSIONS.map((name) => [
+    names.map((name) => [
       name,
       new RegExp(`android.permission.${name}: granted=true`).test(dump),
     ]),
   );
 }
+
+/** Answers every dialog of one request (Bluetooth, then notifications), as long as another comes up. */
+async function answerAll(what, button) {
+  let answered = 0;
+  for (;;) {
+    const node = await find(what, button, answered ? 4_000 : 20_000);
+    if (!node) break;
+    adb("shell", "input", "tap", String(node.x), String(node.y));
+    answered++;
+    await wait(1_200);
+  }
+  if (!answered) fail(`no ${what} on screen`);
+  return answered;
+}
+
+const sdkLevel = Number(adb("shell", "getprop", "ro.build.version.sdk").trim());
 
 async function fresh() {
   adb("shell", "am", "force-stop", PACKAGE);
@@ -146,10 +163,13 @@ if (option("apk")) {
 step("grant: a cleared app, Friends opened");
 await fresh();
 await openFriends();
-step("grant: the system's dialog comes up; Allow");
-await tap("system Allow button", allowButton, 20_000);
-await wait(2_000);
-const afterGrant = granted();
+step("grant: the system's dialogs come up; Allow on each");
+const dialogs = await answerAll("system Allow button", allowButton);
+await wait(1_000);
+const notify = sdkLevel >= 33 ? ["POST_NOTIFICATIONS"] : [];
+if (notify.length && dialogs < 2)
+  fail("no notifications dialog in the same request as Bluetooth's");
+const afterGrant = granted([...PERMISSIONS, ...notify]);
 if (!Object.values(afterGrant).every(Boolean))
   fail(`not granted after Allow: ${JSON.stringify(afterGrant)}`);
 step(`grant: ${JSON.stringify(afterGrant)}`);
@@ -158,13 +178,13 @@ step(`grant: ${JSON.stringify(afterGrant)}`);
 step("deny: a cleared app, Friends opened");
 await fresh();
 await openFriends();
-step("deny: Don't allow");
-await tap("system Don't allow button", denyButton, 20_000);
+step("deny: Don't allow (Bluetooth and notifications)");
+await answerAll("system Don't allow button", denyButton);
 await wait(1_500);
 await openNearby();
 step("deny: Nearby keeps its Allow; tapping it asks again");
 await tap("Nearby's Allow", exact("Allow"), 20_000);
-await tap("system Don't allow button (second time)", denyButton, 20_000);
+await answerAll("system Don't allow button (second time)", denyButton);
 await wait(1_500);
 step(
   "deny: refused twice; Allow once more, and Android answers without a dialog",
