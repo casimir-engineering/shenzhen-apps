@@ -4203,6 +4203,8 @@ dependencies = [
  "szfriends-helper-sys",
  "szfriends-identity",
  "szfriends-online",
+ "windows",
+ "windows-registry",
  "zeroize",
 ]
 
