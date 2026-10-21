@@ -358,6 +358,13 @@ impl Driver {
         }
     }
 
+    /// Checked in on a new host connection: everyone may be tried again (as the Mac helper's driver does). An offer
+    /// cut off with the old connection counted as nobody answering, and its wait would otherwise hold the next one
+    /// back (a check-in for the person after a device was renamed, a host restarting).
+    pub fn host_available(&mut self) {
+        self.backoff_until.clear();
+    }
+
     pub fn sid_ended(&mut self, sid: &str, host: &mut dyn SignalHost) {
         if let Some(id) = self.attempt_for_sid(sid) {
             self.with_attempt(id, host, Attempt::channel_ended);
