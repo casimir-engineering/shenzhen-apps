@@ -86,7 +86,9 @@ export function android(serial) {
     // For other phone tests (phones-remove.mjs): the page's DevTools and the emulator's own input.
     evaluate,
     adb,
-    async install({ homePhone, routes, page, work }) {
+    // `host`, for a test that goes online: the local host's signed list and keys (files on this computer), which
+    // the app reads from its test environment.
+    async install({ homePhone, routes, page, work, host }) {
       this.config = page;
       adb("shell", "am", "force-stop", PACKAGE);
       runAs(`rm -rf files/fhome files/froutes && mkdir -p files/fhome/keys files/froutes`);
@@ -95,7 +97,15 @@ export function android(serial) {
       }
       await push(path.join(homePhone, "keys", "identity"), "files/fhome/keys/identity");
       runAs(`chmod 700 files/fhome files/fhome/keys files/froutes && chmod 600 files/fhome/keys/identity`);
-      const environment = `SZFRIENDS_STATE_DIR=${FILES}/fhome\\nSZFRIENDS_TEST_LOOPBACK=${FILES}/froutes\\n`;
+      let environment = `SZFRIENDS_STATE_DIR=${FILES}/fhome\\nSZFRIENDS_TEST_LOOPBACK=${FILES}/froutes\\n`;
+      if (host) {
+        // Beside the home, not in it: Reset Friends empties the home, and the new identity checks in with these.
+        runAs("rm -rf files/fhost && mkdir -p files/fhost");
+        await push(host.list, "files/fhost/host-list.json");
+        await push(host.keys, "files/fhost/host-keys.json");
+        environment += `SZFRIENDS_TEST_HOST_LIST=${FILES}/fhost/host-list.json\\n`;
+        environment += `SZFRIENDS_TEST_HOST_KEYS=${FILES}/fhost/host-keys.json\\n`;
+      }
       runAs(`printf "${environment}" > files/friends-test.env`);
       bridging = true;
       (async () => {

@@ -529,10 +529,15 @@ itself; the Mac's ID typed, Continue; Approve clicked in the Mac's dropdown and 
 profile…, the phone's ID, Continue; Approve tapped on the phone and its code typed in the dropdown. Either way Fay
 and the chat's history arrive on the new one, its message reaches Fay and shows on the other, her reply reaches both,
 and You carries a note each way (a message from the Mac goes through its client protocol; everything the Mac shows
-is read from the dropdown). Both passed on 2026-10-21 on an Android 16 (API 36) arm64 emulator, nearby on the test
-network. Online between the emulator and the Mac is not covered here: the phone app reads no test host list, and the
-emulator cannot reach a relay on the Mac's loopback; the helpers' own online join (shenzhen-pdf's
-`online_interop.rs`, the Rust core the phone runs and the Objective-C helper) covers it.
+is read from the dropdown). `--route online --forwarder <udp-forward>`: nobody meets nearby (no bridge, Fay on a test network of her own); the
+script starts the local Friends host with its relay (`szfriends-testnet host`, from `$SZFRIENDS_HOST_SERVER_DIR` and
+`$FRIENDS_TEST_COTURN`), the Mac's helper and Fay check in with it, the Mac and Fay become friends by ID through it,
+and the phone reaches it on the Mac's loopback: its WebSocket through `adb reverse`, its relay and STUN through
+`scripts/friends/udp-forward.rs` running on the emulator (`rustc --edition 2021 -O --target aarch64-linux-android
+-C linker=<NDK aarch64-linux-android35-clang>`), since a test home's online stack reaches only loopback. The debug
+app reads the host's list and keys from its test environment (kept beside its Friends home, which Reset Friends
+empties). All four (phone or Mac joining, nearby or online) passed on 2026-10-21 on an Android 16 (API 36) arm64
+emulator.
 
 **Android permissions.** `node scripts/friends/android-permissions.mjs --serial <emulator> [--apk <apk>]` opens
 Friends from a cleared app and answers the system's Bluetooth dialog through uiautomator: Allow grants scan,

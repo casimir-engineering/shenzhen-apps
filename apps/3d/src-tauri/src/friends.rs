@@ -83,7 +83,9 @@ pub fn plugin() -> tauri::plugin::TauriPlugin<tauri::Wry> {
 
 /// Debug builds on Android, which start with no environment of their own: a test run's Friends home and loopback
 /// routes from `files/friends-test.env` in the app's private directory (written with `adb shell run-as`), as
-/// `SZFRIENDS_STATE_DIR` and `SZFRIENDS_TEST_LOOPBACK` give them on desktops and in the iOS simulator.
+/// `SZFRIENDS_STATE_DIR` and `SZFRIENDS_TEST_LOOPBACK` give them on desktops and in the iOS simulator, and the
+/// test host's signed list of loopback hosts and its keys (`SZFRIENDS_TEST_HOST_LIST`, `SZFRIENDS_TEST_HOST_KEYS`)
+/// for a test that goes online.
 #[cfg(all(target_os = "android", debug_assertions))]
 fn android_test_environment() {
     let file = "/data/data/com.shenzhen3d.viewer/files/friends-test.env";
@@ -91,7 +93,10 @@ fn android_test_environment() {
         return;
     };
     for (key, value) in text.lines().filter_map(|line| line.split_once('=')) {
-        if matches!(key, "SZFRIENDS_STATE_DIR" | "SZFRIENDS_TEST_LOOPBACK") {
+        if matches!(
+            key,
+            "SZFRIENDS_STATE_DIR" | "SZFRIENDS_TEST_LOOPBACK" | "SZFRIENDS_TEST_HOST_LIST" | "SZFRIENDS_TEST_HOST_KEYS"
+        ) {
             // SAFETY: at startup, before the plugin or the core starts a thread that reads the environment.
             unsafe { std::env::set_var(key, value) };
         }

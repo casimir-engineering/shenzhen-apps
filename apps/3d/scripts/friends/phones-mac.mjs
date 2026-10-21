@@ -31,6 +31,36 @@ export function startBridge(tools, routes, serviceType) {
     { stdio: ["pipe", "inherit", "inherit"] }));
 }
 
+/** The local Friends host with its relay (`szfriends-testnet host`, from $SZFRIENDS_HOST_SERVER_DIR and
+ * $FRIENDS_TEST_COTURN): its URL, signed list and keys, and its relay's and STUN's ports. */
+export async function startHost(tools, dir) {
+  const child = started(spawn(path.join(tools, "szfriends-testnet"), ["host", dir],
+    { stdio: ["pipe", "pipe", "inherit"] }));
+  const lines = readline.createInterface({ input: child.stdout })[Symbol.asyncIterator]();
+  const first = (await lines.next()).value;
+  if (!first) throw Error("the local host did not start (SZFRIENDS_HOST_SERVER_DIR, FRIENDS_TEST_COTURN)");
+  return { ...JSON.parse(first), end: () => child.stdin.end() };
+}
+
+/** The phone reaches the Mac's loopback for `host`: its WebSocket with adb reverse (TCP), its relay and STUN through
+ * udp-forward on the emulator (UDP; `forwarder` is that program built for the emulator). Returns what undoes it. */
+export async function phoneReachesHost(phone, serial, host, forwarder) {
+  const hostPort = new URL(host.url).port;
+  phone.adb("reverse", `tcp:${hostPort}`, `tcp:${hostPort}`);
+  phone.adb("push", forwarder, "/data/local/tmp/szf-udp-forward");
+  phone.adb("shell", "chmod", "755", "/data/local/tmp/szf-udp-forward");
+  const child = started(spawn("adb", ["-s", serial, "shell",
+    `echo $$; exec /data/local/tmp/szf-udp-forward ${host.turn_port} ${host.stun_port}`],
+  { stdio: ["ignore", "pipe", "inherit"] }));
+  const lines = readline.createInterface({ input: child.stdout })[Symbol.asyncIterator]();
+  const pid = (await lines.next()).value?.trim();
+  if ((await lines.next()).value?.trim() !== "forwarding") throw Error("udp-forward did not start on the phone");
+  return () => {
+    if (/^\d+$/.test(pid ?? "")) phone.adb("shell", "kill", pid);
+    phone.adb("reverse", "--remove", `tcp:${hostPort}`);
+  };
+}
+
 /** A friend: the core's loopback peer in `home`, one intent per line in, every frame out. */
 export function startFriend(tools, home, routes, name) {
   const child = started(spawn(path.join(tools, "examples", "loopback-peer"), [home], {
