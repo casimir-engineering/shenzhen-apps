@@ -12,6 +12,7 @@
 #import "service/helper/SZFriendsHostCheckIn.h"
 #import "service/helper/nearby/SZFriendsPeerLink.h"
 #import "service/identity/SZFriendsIdentity.h"
+#import "service/online/driver/SZFriendsOnlineDriver.h"
 
 int SZFNFailures = 0;
 
@@ -177,6 +178,26 @@ static void SZFNTestAirAndHold(NSString *scratch) {
     EXPECT(SZFriendsCoreBluetoothManagersCreated() == 0, "no Bluetooth manager in a test home");
 }
 
+// The relay-only switch: in a test home, online-block-direct in the state directory blocks direct paths while it
+// exists; production sets nothing, and a hook already set (the links e2e helper's) is kept.
+static void SZFNTestBlockDirect(NSString *scratch) {
+    SZFriendsOnlineDriverTestHooks.directPathsBlocked = nil;
+    SZFriendsHelperSetOnlineTestHooks(@{});
+    EXPECT(SZFriendsOnlineDriverTestHooks.directPathsBlocked == nil, "nothing in production");
+    SZFriendsHelperSetOnlineTestHooks(@{@"SZFRIENDS_STATE_DIR" : scratch});
+    BOOL (^blocked)(void) = SZFriendsOnlineDriverTestHooks.directPathsBlocked;
+    EXPECT(blocked != nil && !blocked(), "direct allowed without the file");
+    NSString *file = [scratch stringByAppendingPathComponent:@"online-block-direct"];
+    [NSData.data writeToFile:file atomically:YES];
+    EXPECT(blocked != nil && blocked(), "direct blocked while the file exists");
+    [[NSFileManager defaultManager] removeItemAtPath:file error:NULL];
+    BOOL (^kept)(void) = ^BOOL { return NO; };
+    SZFriendsOnlineDriverTestHooks.directPathsBlocked = kept;
+    SZFriendsHelperSetOnlineTestHooks(@{@"SZFRIENDS_STATE_DIR" : scratch});
+    EXPECT(SZFriendsOnlineDriverTestHooks.directPathsBlocked == kept, "a hook already set is kept");
+    SZFriendsOnlineDriverTestHooks.directPathsBlocked = nil;
+}
+
 // Tests and probes never check in, whatever the bundle holds, unless both test variables name a loopback list.
 static void SZFNTestCheckInGate(NSString *scratch) {
     NSData *list = nil, *keys = nil, *remoteList = nil, *remoteKeys = nil;
@@ -314,6 +335,7 @@ int main(void) {
         SZFNTestServiceTypes();
         SZFNTestAdapterSelection();
         SZFNTestAirAndHold(scratch);
+        SZFNTestBlockDirect(scratch);
         SZFNTestCheckInGate(scratch);
         SZFNTestLinkBookkeeping();
         SZFNTestCheckInGlue(scratch);
