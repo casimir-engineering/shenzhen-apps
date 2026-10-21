@@ -5,6 +5,16 @@ the new release, and check that it finds, downloads, verifies and installs it. N
 leaves the machine, and nothing outside the test's work directory is touched. Run them before publishing a release,
 with the signed and notarized candidate.
 
+## Nothing the tests start outlives them
+
+An updater reopens the app it installed, with launchd as its parent and none of the test's arguments. Every test here
+ends, however it ends (a failed check, an error, SIGINT or SIGTERM), by finding what still runs from its work directory
+or test copies by the exact path of the executable (`sweep.py`, never by name) and ending it; the test then fails.
+`tools/release.sh` does the same after each updater test. The Shenzhen 3D test copies (`prep-3d-fixture.mjs`) also run
+under a profile of their own (`apps/3d/electron/test-identity.cjs`): the test's `--user-data-dir`, or `szut-profile`
+beside the `.app` when reopened. Electron keeps the single-instance lock in the profile, so a Shenzhen 3D installed on
+the Mac still starts while a test copy runs. `apps/3d/electron/test-identity.test.cjs` checks both.
+
 ## ShenzhenPDF and Shenzhen Files
 
 ```sh

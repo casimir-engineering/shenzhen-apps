@@ -12,10 +12,14 @@ Stages, each recorded in DIR/result.json:
               through GitHub's redirect, verifies, extracts, quits, and its --post-update helper swaps the bundle
   3 verify    the bundle at the old path is the DMG's app (CDHash), signed, notarized, Gatekeeper accepts it
   4 handshake the installed new app, run hidden (ad hoc, own bundle id), confirms the tag: update_ok, .old removed
+
+However the run ends (a failed check, an error, SIGTERM or SIGINT), whatever still runs from DIR is ended by its exact
+executable path (sweep.py), including a copy the helper reopened with launchd as its parent, and the run fails.
 """
 import argparse, hashlib, json, os, plistlib, shutil, signal, subprocess, sys, time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+WORK = None  # set once this run's work directory exists
 LSREGISTER = ("/System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/LaunchServices.framework/"
               "Versions/A/Support/lsregister")
 KINDS = {
@@ -92,6 +96,8 @@ def main():
     k = KINDS[args.kind]
     work = os.path.realpath(args.work)
     os.makedirs(work, exist_ok=False)
+    global WORK
+    WORK = work
     apps, home, mock = (os.path.join(work, d) for d in ("Applications", "home", "mock"))
     for d in (apps, home, mock):
         os.makedirs(d)
@@ -298,5 +304,35 @@ def main():
     save()
     return 0 if result["success"] else 1
 
+def end_leftovers(work):
+    """Ends what still runs from the work directory, by exact executable path; True when something was."""
+    p = subprocess.run([sys.executable, "-I", os.path.join(HERE, "sweep.py"), "--grace=15", "--kill", work],
+                       capture_output=True, text=True)
+    if p.returncode == 0:
+        return False
+    detail = (p.stdout + p.stderr).strip()
+    print(f"FAIL all: nothing this run started is still running ({detail})", flush=True)
+    path = os.path.join(work, "result.json")
+    try:
+        with open(path) as f:
+            result = json.load(f)
+    except (OSError, ValueError):
+        result = {"stages": {}}
+    result["stages"].setdefault("cleanup", []).append(
+        {"check": "nothing this run started is still running", "ok": False, "detail": detail})
+    result["success"] = False
+    with open(path, "w") as f:
+        json.dump(result, f, indent=2)
+    return True
+
+
 if __name__ == "__main__":
-    sys.exit(main())
+    for sig in (signal.SIGTERM, signal.SIGHUP):
+        signal.signal(sig, lambda signum, _frame: sys.exit(128 + signum))
+    code = 1
+    try:
+        code = main()
+    finally:
+        if WORK and end_leftovers(WORK):
+            code = 1
+    sys.exit(code)

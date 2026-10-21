@@ -13,8 +13,9 @@ import time
 import zipfile
 
 from base import Release
-from common import (CACHE, IDENTITY, PROFILE, TEAM_REQUIREMENT, Failure, app_from_dmg, download_asset, gh_api, git,
-                    notarize, parallel, prepare_worktree, publish_release, push_source_tag, retry, run, say, sha256)
+from common import (CACHE, IDENTITY, PROFILE, TEAM_REQUIREMENT, Failure, app_from_dmg, download_asset,
+                    end_test_processes, gh_api, git, notarize, parallel, prepare_worktree, publish_release,
+                    push_source_tag, retry, run, say, sha256)
 from macshared import push_monorepo_tag, write_json
 
 OWNER = "casimir-engineering"
@@ -305,10 +306,14 @@ class ThreeDRelease(Release):
         access = "public" if owner == OWNER else "private"
         notes = self.notes() if owner == OWNER else self.private_notes()
         say(f"{stage}: {owner}'s {old['tag']} updates to {self.tag} (tools/updater-e2e)")
-        code = run(["node", os.path.join(self.wt, "tools/updater-e2e/update-e2e-3d.mjs"), f"--owner={owner}",
-                    f"--fixture={fixture}", f"--artifacts={self.notarized(owner)}", f"--shape={shape}",
-                    f"--notes={notes}", f"--work={os.path.join(work_root, 'run')}", f"--expect-access={access}",
-                    f"--relaunch-app={relaunch}"] + (["--live"] if live else []), cwd=app_dir, log=log, check=False)
+        try:
+            code = run(["node", os.path.join(self.wt, "tools/updater-e2e/update-e2e-3d.mjs"), f"--owner={owner}",
+                        f"--fixture={fixture}", f"--artifacts={self.notarized(owner)}", f"--shape={shape}",
+                        f"--notes={notes}", f"--work={os.path.join(work_root, 'run')}", f"--expect-access={access}",
+                        f"--relaunch-app={relaunch}"] + (["--live"] if live else []), cwd=app_dir, log=log,
+                       check=False)
+        finally:
+            end_test_processes(work_root, log)
         if code != 0:
             raise Failure(f"{owner}: updating from {old['tag']} to {self.tag} failed: "
                           f"{os.path.join(work_root, 'run', 'result.json')}")

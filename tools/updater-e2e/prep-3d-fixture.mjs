@@ -1,6 +1,9 @@
 // prep-3d-fixture.mjs <released-app> <out-dir> [--version=X.Y.Z]: a copy of a released Shenzhen 3D app that runs
-// hidden: its main loads electron/hidden-hook.cjs first (from this repository), Info.plist says LSBackgroundOnly and
-// LSUIElement. The updater code and everything else in the archive are the release's own bytes. Not signed here.
+// hidden and as its own identity: its main loads electron/hidden-hook.cjs and electron/test-identity.cjs first (from
+// this repository), Info.plist says LSBackgroundOnly and LSUIElement. test-identity.cjs gives the copy a profile of its
+// own (the test's --user-data-dir, or szut-profile beside the .app when the updater reopens it), so its single-instance
+// lock never meets an installed Shenzhen 3D's. The updater code and everything else in the archive are the release's
+// own bytes. Not signed here.
 // --version gives the copy another version (package.json and Info.plist), to stand for a later release of the same
 // channel in update-e2e-3d.mjs --next-app.
 import fs from "node:fs";
@@ -20,9 +23,11 @@ const res = path.join(app, "Contents/Resources");
 const tmp = path.join(out, "asar-src");
 asar.extractAll(path.join(res, "app.asar"), tmp);
 fs.copyFileSync(path.join(process.cwd(), "electron/hidden-hook.cjs"), path.join(tmp, "electron/szut-hook.cjs"));
+fs.copyFileSync(path.join(process.cwd(), "electron/test-identity.cjs"), path.join(tmp, "electron/szut-identity.cjs"));
 fs.writeFileSync(path.join(tmp, "electron/szut-main.cjs"),
-  '// Updater test: nothing may reach the screen (electron/hidden-hook.cjs), then the release main.\n' +
-  'require("./szut-hook.cjs");\nrequire("./main.cjs");\n');
+  '// Updater test: nothing may reach the screen (electron/hidden-hook.cjs), the copy has its own profile and\n' +
+  '// single-instance lock (electron/test-identity.cjs), then the release main.\n' +
+  'require("./szut-hook.cjs");\nrequire("./szut-identity.cjs");\nrequire("./main.cjs");\n');
 const pkg = JSON.parse(fs.readFileSync(path.join(tmp, "package.json"), "utf8"));
 pkg.main = "electron/szut-main.cjs";
 if (version) pkg.version = version;
