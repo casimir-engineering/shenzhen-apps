@@ -141,14 +141,14 @@ static const NSUInteger kHeldItemsMax = 64;
     };
 }
 
-// A sid ends after 120 s or 64 messages (ADR 0010). Streams already open keep going; whatever must be said later
-// goes in a new sid (-sendItems: opens one for the offerer; the answerer waits for the offerer's).
-// An answerer that reached no stream has nothing left once its sid is gone: only the offerer could say more, and it
-// would open a new sid, which starts a new attempt here.
+// A sid ends after 120 s or 64 messages (ADR 0010), or when either end's host connection ends. Streams already open
+// keep going; whatever must be said later goes in a new sid (-sendItems: opens one for the offerer; the answerer
+// waits for the offerer's). An attempt that reached no stream has nothing left once its sid is gone: without one it
+// could never ask for the relay, and would only keep the next offer either side makes from being answered. An offerer
+// that was answered ends without a wait; the side whose connection ended asks again once it is back.
 - (void)channelEnded {
     _channel = nil;
-    if (_connected) return;
-    if (_role == SZFriendsOnlineRoleAnswerer || !_answered) [self finish];
+    if (!_connected) [self finish];
 }
 
 - (void)continueWithSession:(SZFriendsSignalingSession *)session

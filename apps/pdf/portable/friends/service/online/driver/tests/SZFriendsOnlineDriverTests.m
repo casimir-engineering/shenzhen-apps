@@ -23,6 +23,7 @@ int main(void) {
             {"direct", SZFODTestDirect},
             {"simultaneous", SZFODTestSimultaneous},
             {"back while we wait", SZFODTestBackWhileWeWait},
+            {"a sid lost under an answered offer", SZFODTestSidLostUnderAnAnsweredOffer},
             {"relay and leave", SZFODTestRelayAndLeave},
             {"probing", SZFODTestProbing},
             {"network change", SZFODTestNetworkChange},
