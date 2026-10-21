@@ -79,6 +79,7 @@ pub struct LinkMeta {
 }
 
 impl LinkMeta {
+    /// The route both sides agree a session runs on: the initiator's declared class once established.
     pub(crate) fn race_route(&self, channel: &SecureChannel) -> RouteMethod {
         if channel.is_established() {
             channel.initiator_route()

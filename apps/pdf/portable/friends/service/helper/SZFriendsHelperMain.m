@@ -72,6 +72,7 @@ int SZFriendsHelperMain(int argc, const char *_Nonnull argv[_Nonnull]) {
         NSDictionary<NSString *, NSString *> *environment = SZFriendsHelperTrustedEnvironment(
             [NSProcessInfo processInfo].environment, SZFriendsEnvironmentOverridesAllowed(), &ignored);
         for (NSString *name in ignored) unsetenv(name.UTF8String);
+        SZFriendsHelperSetOnlineTestHooks(environment);
         NSString *stateDirectory = [SZFriendsStatePaths defaultStateDirectoryWithEnvironment:environment];
         SZFriendsStatePaths *paths = [[SZFriendsStatePaths alloc] initWithStateDirectory:stateDirectory];
 

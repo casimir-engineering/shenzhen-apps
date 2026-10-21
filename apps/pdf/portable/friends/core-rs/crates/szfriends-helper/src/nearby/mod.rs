@@ -10,6 +10,7 @@
 //!     listeners only when the firewall already admits them ([`firewall`]);
 //!   - test homes: a directory of entries on loopback ([`registry`]), or on a Mac the system's Bonjour through
 //!     `dns-sd -i lo0` ([`dns_sd_cli`]), which is how a Rust helper meets the Objective-C helper's test entries;
+//!     either held back until a file is gone ([`hold`]), as Wi-Fi coming up;
 //! - the Bluetooth adapter ([`bluetooth`]) over a radio: BlueZ on Linux (`bluez`, the `bluetooth` feature), the
 //!   phone's own (installed by the app, [`platform`]), or a test home's test air ([`test_air`]); none on Windows (no
 //!   LE L2CAP channels for apps there).
@@ -24,6 +25,7 @@ pub mod bluez;
 pub mod dns_sd_cli;
 pub mod dnssd;
 pub mod firewall;
+pub mod hold;
 pub mod lan;
 pub mod listeners;
 #[cfg(target_os = "linux")]
@@ -158,6 +160,13 @@ pub fn adapters(state_dir: &Path, test_home: bool, sink: std::sync::Arc<Sink>) -
                 let lan = lan::LanAdapter::new(Box::new(backend), lan::Binding::Nowhere, sink.clone());
                 adapters.push(Box::new(lan.with_rebind(firewall::rebind(state_dir))));
             }
+        }
+        // Only network adapters so far: a hold file keeps each of them from starting until it is gone.
+        if let Some(file) = env(hold::ENV_TEST_NETWORK_HOLD).map(PathBuf::from).filter(|f| f.is_absolute()) {
+            adapters = adapters
+                .into_iter()
+                .map(|lan| Box::new(hold::Held::new(lan, file.clone(), sink.clone())) as Box<dyn Adapter>)
+                .collect();
         }
         if let Some(directory) = env(test_air::ENV_TEST_BLUETOOTH).map(PathBuf::from).filter(|d| d.is_absolute()) {
             let radio = Box::new(test_air::TestAir::new(directory));

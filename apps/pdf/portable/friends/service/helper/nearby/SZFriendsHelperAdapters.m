@@ -3,7 +3,9 @@
 #import "service/helper/SZFriendsHelperTesting.h"
 
 #import "client/szfriends_client.h"
+#import "service/discovery/SZFriendsBluetoothRadio.h"
 #import "service/identity/SZFriendsDeviceChain.h"
+#import "service/online/driver/SZFriendsOnlineDriver.h"
 
 static NSArray<id<SZFriendsDiscoveryAdapter>> * (^SZFriendsExtraAdapters)(dispatch_queue_t);
 static BOOL SZFriendsWithholdAcknowledgements;
@@ -114,10 +116,30 @@ NSArray<id<SZFriendsDiscoveryAdapter>> *SZFriendsHelperMakeAdapters(dispatch_que
         // for Bluetooth access, on a Mac whose owner is working. Loopback only, and only when asked for.
         NSString *serviceType = env[@"SZFRIENDS_TEST_SERVICE_TYPE"];
         if (SZFriendsHelperTestServiceTypeIsValid(serviceType)) {
-            [adapters addObject:SZFriendsMakeLoopbackNetworkAdapter(queue, serviceType)];
+            id<SZFriendsDiscoveryAdapter> network = SZFriendsMakeLoopbackNetworkAdapter(queue, serviceType);
+            NSString *hold = env[@"SZFRIENDS_TEST_NETWORK_HOLD"];
+            if (hold.absolutePath) network = SZFriendsHelperHoldNetworkAdapter(queue, network, hold);
+            [adapters addObject:network];
+        }
+        // A test air on loopback in place of CoreBluetooth, which is never created here.
+        NSString *air = env[@"SZFRIENDS_TEST_BLUETOOTH"];
+        if (air.absolutePath) {
+            id<SZFriendsBluetoothRadio> radio =
+                SZFriendsMakeTestAirRadio(queue, air, env[@"SZFRIENDS_TEST_BLUETOOTH_POWER"]);
+            [adapters addObject:SZFriendsMakeBluetoothAdapterWithRadio(queue, radio,
+                                                                       [SZFriendsBluetoothAdapterOptions new])];
         }
     }
     NSArray<id<SZFriendsDiscoveryAdapter>> * (^extra)(dispatch_queue_t) = SZFriendsHelperTestHooks.extraAdapters;
     if (extra != nil) [adapters addObjectsFromArray:extra(queue) ?: @[]];
     return adapters;
+}
+
+void SZFriendsHelperSetOnlineTestHooks(NSDictionary<NSString *, NSString *> *env) {
+    NSString *state = env[@SZFRIENDS_ENV_STATE_DIR];
+    if (state.length == 0 || SZFriendsOnlineDriverTestHooks.directPathsBlocked != nil) return;
+    NSString *block = [state stringByAppendingPathComponent:@"online-block-direct"];
+    SZFriendsOnlineDriverTestHooks.directPathsBlocked = ^BOOL {
+        return [[NSFileManager defaultManager] fileExistsAtPath:block];
+    };
 }

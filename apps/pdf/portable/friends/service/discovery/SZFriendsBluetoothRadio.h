@@ -112,6 +112,11 @@ id<SZFriendsDiscoveryAdapter> SZFriendsMakeBluetoothAdapterWithRadio(dispatch_qu
                                                                       SZFriendsBluetoothAdapterOptions *options);
 // The production radio. Creating it creates no manager; -powerUp does.
 id<SZFriendsBluetoothRadio> SZFriendsMakeCoreBluetoothRadio(dispatch_queue_t queue);
+// A test home's radio: the test air in `directory`, shared with the Rust helper's (its test_air.rs), on loopback
+// only. `power` is SZFRIENDS_TEST_BLUETOOTH_POWER: "off", "denied", "unsupported" or "ask"; nil or anything else is
+// on and allowed. Creates no manager.
+id<SZFriendsBluetoothRadio> SZFriendsMakeTestAirRadio(dispatch_queue_t queue, NSString *directory,
+                                                       NSString *_Nullable power);
 // CBCentralManager and CBPeripheralManager instances this process has created (the launch tests prove creating
 // an adapter creates none).
 NSUInteger SZFriendsCoreBluetoothManagersCreated(void);
