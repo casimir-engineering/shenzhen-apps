@@ -2,8 +2,12 @@
 //! Windows and Linux the helper process posts (toasts, org.freedesktop.Notifications); on phones the Tauri plugin's
 //! native code does, through its own `Notifier`; in a test home every request goes to the JSON-lines [`FileSink`].
 
+#[cfg(target_os = "linux")]
+pub mod freedesktop;
 pub mod prefs;
 pub mod toast;
+#[cfg(windows)]
+pub mod windows;
 
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -179,6 +183,11 @@ pub fn platform_notifier(state_dir: &Path, test_home: bool, responder: Responder
         return Some(Arc::new(FileSink::new(state_dir)));
     }
     let _ = &responder;
+    #[cfg(target_os = "linux")]
+    return Some(Arc::new(freedesktop::FreedesktopNotifier::start(state_dir, responder)));
+    #[cfg(windows)]
+    return Some(Arc::new(windows::ToastNotifier::new(state_dir)));
+    #[allow(unreachable_code)]
     None
 }
 

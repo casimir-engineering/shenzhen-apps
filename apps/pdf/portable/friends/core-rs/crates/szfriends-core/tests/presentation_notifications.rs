@@ -105,6 +105,12 @@ fn settings_say_what_the_system_allows_on_this_device() {
     assert_eq!(phone["action"]["label"], "Open Settings");
     assert_eq!(phone["background"]["value"], true);
     assert_eq!(phone["background"]["label"], "Stay reachable in the background");
+    let windows = settings(
+        notifying(&[]),
+        NotificationFacts { permission: NotifyPermission::Denied, windows: true, ..Default::default() },
+    );
+    assert_eq!(windows["note"], "Notifications from Shenzhen Friends are off in Windows Settings.");
+    assert_eq!(windows["action"]["label"], "Open Settings");
     let linux =
         settings(notifying(&[]), NotificationFacts { permission: NotifyPermission::Unavailable, ..Default::default() });
     assert!(linux["note"].as_str().unwrap().starts_with("This computer has no notification service"));

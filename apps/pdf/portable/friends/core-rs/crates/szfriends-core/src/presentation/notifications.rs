@@ -38,6 +38,8 @@ pub struct NotificationFacts {
     pub permission: NotifyPermission,
     /// An iPhone or iPad, which gets messages only while the app is open: Settings says so.
     pub ios: bool,
+    /// Windows, whose own Settings app turns an app's notifications off.
+    pub windows: bool,
     /// The person chose Not Now on the ask card.
     pub ask_dismissed: bool,
     /// The person has used Friends here (an `activate`): only then may the ask card show.
@@ -52,6 +54,7 @@ impl Default for NotificationFacts {
             background: false,
             permission: NotifyPermission::NotNeeded,
             ios: false,
+            windows: false,
             ask_dismissed: false,
             activated: false,
         }
@@ -178,7 +181,12 @@ impl SnapshotBuilder {
                 (s.text("settings.notifications.note.not_asked"), Value::Object(allow))
             }
             NotifyPermission::Denied => {
-                let (note, label) = if self.on_phone() {
+                let (note, label) = if facts.windows {
+                    (
+                        s.text("settings.notifications.note.denied.windows"),
+                        s.text("settings.notifications.open_settings.windows"),
+                    )
+                } else if self.on_phone() {
                     (
                         s.text_with("settings.notifications.note.denied.phone", &[("app", &app)]),
                         s.text("settings.notifications.open_settings.phone"),
