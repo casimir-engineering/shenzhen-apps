@@ -87,6 +87,7 @@ pub trait Notifier: Send + Sync {
 }
 
 /// The test home's sink: `<state dir>/notifications.jsonl`, one JSON object per line. Never touches the system.
+#[derive(Debug)]
 pub struct FileSink {
     path: PathBuf,
     permission: Permission,
