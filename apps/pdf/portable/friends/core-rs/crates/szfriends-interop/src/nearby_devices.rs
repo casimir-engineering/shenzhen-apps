@@ -75,7 +75,7 @@ pub fn rename_right_after_join(holder: &mut Client, holder_name: &str, joiner: &
     let both = |d: &Value| d.to_string().contains("Studio desk") && d.to_string().contains("Workshop PC");
     for (client, view) in [(&mut *holder, &profile_h), (&mut *joiner, &profile_j)] {
         let shown = client.snapshot(view, "both computers' new names", both);
-        assert!(named(&shown["data"], &renamed), "went back from {renamed}: {}", shown["data"]);
+        assert!(named(&shown, &renamed), "went back from {renamed}: {shown}");
     }
     let given = format!("{holder_name} Somerville");
     joiner.send("set_name", json!({"name": given}));
