@@ -291,9 +291,18 @@ def notarize(paths, state_file, log):
         digest = sha256(path)
         record = state.get(digest)
         if not record or record.get("status") in ("Invalid", "Rejected"):
+            # An upload the network resets is tried again without S3 transfer acceleration, which some networks cut;
+            # NOTARY_NO_S3_ACCELERATION=1 goes without it from the start.
+            plain = [os.environ.get("NOTARY_NO_S3_ACCELERATION") == "1"]
+
             def submit():
-                out = run(["xcrun", "notarytool", "submit", path, "--keychain-profile", PROFILE, "--output-format",
-                           "json", "--no-wait"], log=log, capture=True)
+                extra = ["--no-s3-acceleration"] if plain[0] else []
+                try:
+                    out = run(["xcrun", "notarytool", "submit", path, "--keychain-profile", PROFILE, "--output-format",
+                               "json", "--no-wait", *extra], log=log, capture=True)
+                except Failure:
+                    plain[0] = True
+                    raise
                 return json.loads(out)["id"]
             submission = retry(f"notarize {name}: upload", submit, transient=_notary_transient)
             record = {"id": submission, "file": path, "status": "In Progress", "submitted": time.time()}

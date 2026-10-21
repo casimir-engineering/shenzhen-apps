@@ -13,7 +13,7 @@ import time
 import zipfile
 
 from base import Release
-from common import (CACHE, IDENTITY, PROFILE, TEAM_REQUIREMENT, Failure, app_from_dmg, download_asset,
+from common import (CACHE, IDENTITY, PROFILE, TEAM_ID, TEAM_REQUIREMENT, Failure, app_from_dmg, download_asset,
                     end_test_processes, gh_api, git, notarize, parallel, prepare_worktree, publish_release,
                     push_source_tag, retry, run, say, sha256)
 from macshared import push_monorepo_tag, write_json
@@ -331,10 +331,113 @@ class ThreeDRelease(Release):
             self.update_test(owner, "verify")
         return {"files": [f for o in self.owners for f in self.final_files(o)]}
 
+    # The Parallels VMs' settings for scripts/friends/tauri-vm.sh, per VM: the release Mac's own guests, with what
+    # each one keeps for building. SZF_VM_LINUX_<NAME> and SZF_VM_WINDOWS_<NAME> in the environment override them
+    # (SZF_VM_LINUX_ENV for SZF_VM_ENV, and so on).
+    VMS = {
+        "linux": ("linux-vm", "Ubuntu 24.04 (with Rosetta)", "package", {
+            "SZF_VM_ENV": "/opt/shenzhen3d-build-0.1.9-4f7dbf54/environment.sh",
+            "SZF_VM_TAURI_CLI": "/opt/shenzhen3d-build-0.1.9-4f7dbf54/source/node_modules",
+            "SZF_VM_AS_ROOT": "1"}),
+        "windows": ("windows-vm", "Windows 11", "installers", {
+            "SZF_VM_NODE": r"C:\Shenzhen3D-build-0.1.9-4f7dbf54\tools\node-v24.22.0-win-arm64\node.exe",
+            "SZF_VM_TAURI_CLI": r"C:\Shenzhen3D-build-0.1.9-4f7dbf54\source\node_modules",
+            "SZF_VM_TARGET": "x86_64-pc-windows-msvc"}),
+    }
+    # The Android debug key every published APK is signed with (docs/UPDATES.md, Android): an APK signed with another
+    # key cannot update the installed app.
+    ANDROID_CERT = "3cba6bd5760eed14ae08b4c911b49aea18a8ae17d61722554b67f9c2c12e04ad"
+
+    def vm_env(self, kind, keep):
+        _, _, _, defaults = self.VMS[kind]
+        env = {"SZF_VM_KEEP": keep}
+        for name, value in defaults.items():
+            env[name] = os.environ.get(name.replace("SZF_VM_", f"SZF_VM_{kind.upper()}_"), value)
+        return env
+
+    def vendor(self, log):
+        """The crates the Linux guest builds from (its clock may be off, which fails crates.io's certificate): one
+        `cargo vendor` of the app's Friends build, the core and the plugin (host-build.sh vendor), kept in the cache by
+        the Friends lock's content."""
+        app_dir = self.app_dir(OWNER)
+        lock = os.path.join(app_dir, "src-tauri/friends/Cargo.lock")
+        key = hashlib.sha256(open(lock, "rb").read()).hexdigest()[:16]
+        out = os.path.join(CACHE, "cargo-vendor", f"3d-{key}")
+        if os.path.isfile(os.path.join(out, ".complete")):
+            return out
+        shutil.rmtree(out, ignore_errors=True)
+        os.makedirs(os.path.dirname(out), exist_ok=True)
+        host_build = os.path.join(self.wt, "apps/pdf/portable/friends/tauri/tools/host-build.sh")
+        run(["bash", host_build, "vendor", os.path.join(app_dir, "src-tauri"), lock, out], log=log)
+        open(os.path.join(out, ".complete"), "w").close()
+        return out
+
+    def android(self, out, cargo_env, no_frontend, log):
+        """The release APK and AAB, the native library stripped; the APK aligned for 16 KB pages and signed with the
+        Android debug key every published APK carries, then checked: that key, this version and versionCode."""
+        app_dir = self.app_dir(OWNER)
+        outputs = os.path.join(app_dir, "src-tauri/gen/android/app/build/outputs")
+        shutil.rmtree(outputs, ignore_errors=True)
+        run(["node", "scripts/platform-build.mjs", "android", "--friends", "--apk", "--aab", "--target", "aarch64",
+             "--ci", "--config", no_frontend], cwd=app_dir,
+            env={**cargo_env, "CARGO_PROFILE_RELEASE_STRIP": "symbols"}, log=log)
+        apk = sorted(glob.glob(os.path.join(outputs, "apk/**/*-release-unsigned.apk"), recursive=True))
+        aab = sorted(glob.glob(os.path.join(outputs, "bundle/**/*.aab"), recursive=True))
+        if len(apk) != 1 or len(aab) != 1:
+            raise Failure(f"the Android build left {len(apk)} unsigned APKs and {len(aab)} AABs under {outputs}")
+        sdk = os.environ.get("ANDROID_HOME") or os.path.expanduser("~/Library/Android/sdk")
+        tools = os.path.join(sdk, "build-tools")
+        version = sorted((d for d in os.listdir(tools) if d[:1].isdigit()),
+                         key=lambda d: [int(x) if x.isdigit() else 0 for x in re.split(r"[.-]", d)])[-1]
+        tool = lambda name: os.path.join(tools, version, name)  # noqa: E731
+        keystore = os.path.expanduser("~/.android/debug.keystore")
+        aligned = os.path.join(self.run_dir, "android-aligned.apk")
+        signed = os.path.join(out, f"shenzhen-3d-{self.version}-android-arm64-development.apk")
+        run([tool("zipalign"), "-P", "16", "-f", "4", apk[0], aligned], log=log)
+        # The debug key's well-known passwords.
+        run([tool("apksigner"), "sign", "--ks", keystore, "--ks-pass", "pass:android", "--ks-key-alias",
+             "androiddebugkey", "--key-pass", "pass:android", "--out", signed, aligned], log=log)
+        os.remove(aligned)
+        for leftover in glob.glob(signed + ".idsig"):
+            os.remove(leftover)
+        certs = run([tool("apksigner"), "verify", "--print-certs", signed], log=log, capture=True)
+        if f"SHA-256 digest: {self.ANDROID_CERT}" not in certs:
+            raise Failure(f"{signed} is not signed with the Android debug key the published APKs carry")
+        badging = run([tool("aapt2"), "dump", "badging", signed], log=log, capture=True)
+        m = re.search(r"versionCode='(\d+)' versionName='([^']+)'", badging)
+        if not m or m.group(2) != self.version:
+            raise Failure(f"{signed} says {m.groups() if m else 'no version'}, not {self.version}")
+        say(f"platforms: Android {self.version} (versionCode {m.group(1)}), signed with the debug key")
+        shutil.copyfile(aab[0], os.path.join(out, f"shenzhen-3d-{self.version}-android-arm64-unsigned.aab"))
+
+    def ios(self, out, cargo_env, no_frontend, log):
+        """The simulator app (tar.gz, modes kept) and the registered-devices .ipa, signed for development with the
+        team's profile, which lists the devices it installs on."""
+        app_dir = self.app_dir(OWNER)
+        build = os.path.join(app_dir, "src-tauri/gen/apple/build")
+        shutil.rmtree(build, ignore_errors=True)
+        run(["node", "scripts/platform-build.mjs", "ios", "--friends", "--target", "aarch64-sim", "--ci",
+             "--archive-only", "--config", no_frontend], cwd=app_dir, env=cargo_env("aarch64-apple-ios-sim"), log=log)
+        sims = sorted(glob.glob(os.path.join(build, "**/*.app"), recursive=True), key=len)
+        if not sims:
+            raise Failure(f"the iOS Simulator build left no .app under {build}")
+        run(["tar", "-czf", os.path.join(out, f"shenzhen-3d-{self.version}-ios-arm64-simulator.tar.gz"), "-C",
+             os.path.dirname(sims[0]), os.path.basename(sims[0])], log=log)
+        shutil.rmtree(build, ignore_errors=True)
+        run(["node", "scripts/platform-build.mjs", "ios", "--friends", "--target", "aarch64", "--ci",
+             "--export-method", "debugging", "--config", no_frontend], cwd=app_dir,
+            env={**cargo_env("aarch64-apple-ios"), "APPLE_DEVELOPMENT_TEAM": TEAM_ID}, log=log)
+        ipas = glob.glob(os.path.join(build, "**/*.ipa"), recursive=True)
+        if len(ipas) != 1:
+            raise Failure(f"the iOS device build left {len(ipas)} .ipa files under {build}")
+        shutil.copyfile(ipas[0], os.path.join(out, f"shenzhen-3d-{self.version}-ios-registered-devices.ipa"))
+
     def platforms(self):
-        """--platforms all: the web build, Android, the iOS Simulator, and the Linux and Windows installers built in the
-        Parallels VMs (resumed for the build and suspended again) by scripts/friends/tauri-vm.sh, which takes its
-        SZF_VM_* settings from the environment. Files land in the run's platforms/ folder under their release names."""
+        """--platforms all: the web build, Android, iOS (simulator and registered devices), and the Linux and Windows
+        installers built in the Parallels VMs (resumed for the build and suspended again) by
+        scripts/friends/tauri-vm.sh; then release-updates.mjs signs the Windows and Linux installers with the updater
+        key and writes latest.json and manifest.plist. Files land in the run's platforms/ folder under their release
+        names."""
         log = self.log("platforms")
         app_dir = self.app_dir(OWNER)
         out = os.path.join(self.out, "platforms")
@@ -352,33 +455,30 @@ class ThreeDRelease(Release):
                                  {"build": {"beforeBuildCommand": ""}})
         # Cargo's output is kept per target in the cache, shared by every worktree.
         cargo = lambda triple: {"CARGO_TARGET_DIR": os.path.join(CACHE, "cargo", triple)}  # noqa: E731
-        run(["node", "scripts/platform-build.mjs", "android", "--friends", "--apk", "--aab", "--target", "aarch64",
-             "--ci", "--config", no_frontend], cwd=app_dir, env=cargo("aarch64-linux-android"), log=log)
-        outputs = os.path.join(app_dir, "src-tauri/gen/android/app/build/outputs")
-        apk = sorted(glob.glob(os.path.join(outputs, "apk/**/*.apk"), recursive=True))
-        aab = sorted(glob.glob(os.path.join(outputs, "bundle/**/*.aab"), recursive=True))
-        if not apk or not aab:
-            raise Failure(f"the Android build left no APK or AAB under {outputs}")
-        shutil.copyfile(apk[-1], os.path.join(out, f"shenzhen-3d-{v}-android-arm64-development.apk"))
-        shutil.copyfile(aab[-1], os.path.join(out, f"shenzhen-3d-{v}-android-arm64-unsigned.aab"))
-        run(["node", "scripts/platform-build.mjs", "ios", "--friends", "--target", "aarch64-sim", "--ci",
-             "--archive-only", "--config", no_frontend], cwd=app_dir, env=cargo("aarch64-apple-ios-sim"), log=log)
-        sims = glob.glob(os.path.join(app_dir, "src-tauri/gen/apple/build/**/*.app"), recursive=True)
-        if not sims:
-            raise Failure("the iOS Simulator build left no .app")
-        run(["tar", "-czf", os.path.join(out, f"shenzhen-3d-{v}-ios-arm64-simulator.tar.gz"), "-C",
-             os.path.dirname(sims[0]), os.path.basename(sims[0])], log=log)
+        self.android(out, cargo("aarch64-linux-android"), no_frontend, log)
+        self.ios(out, cargo, no_frontend, log)
         keep = os.path.join(self.run_dir, "vm-installers")
         shutil.rmtree(keep, ignore_errors=True)
         os.makedirs(keep)
         pdf = os.path.join(self.wt, "apps/pdf")
-        for kind, vm in (("linux-vm", "Ubuntu 24.04 (with Rosetta)"), ("windows-vm", "Windows 11")):
-            run(["prlctl", "resume", vm], log=log, check=False)
+        vendor = self.vendor(log)
+        for kind in ("linux", "windows"):
+            platform, vm, mode, _ = self.VMS[kind]
+            env = self.vm_env(kind, keep)
+            if kind == "linux":
+                env["SZF_VM_VENDOR"] = vendor
+            # A VM already running stays running; one that was not is resumed for the build and suspended after.
+            was_running = run(["prlctl", "status", vm], log=log, capture=True).strip().endswith(" running")
+            if not was_running:
+                say(f"platforms: {vm}: resumed for the {kind} installers")
+                run(["prlctl", "resume", vm], log=log, check=False)
             try:
-                run(["scripts/friends/tauri-vm.sh", "package", kind, pdf, vm], cwd=app_dir,
-                    env={"SZF_VM_KEEP": keep}, log=log)
+                retry(f"platforms: {kind} installers", lambda: run(
+                    ["scripts/friends/tauri-vm.sh", mode, platform, pdf, vm], cwd=app_dir, env=env, log=log),
+                    attempts=2)
             finally:
-                run(["prlctl", "suspend", vm], log=log, check=False)
+                if not was_running:
+                    run(["prlctl", "suspend", vm], log=log, check=False)
         names = {"*_x64-setup.exe": f"Shenzhen-3D-{v}-Windows-x64-Setup.exe",
                  "*_x64_en-US.msi": f"Shenzhen-3D-{v}-Windows-x64.msi",
                  "*_aarch64.AppImage": f"Shenzhen-3D-{v}-Linux-arm64.AppImage",
@@ -386,15 +486,25 @@ class ThreeDRelease(Release):
                  "*.aarch64.rpm": f"Shenzhen-3D-{v}-Linux-arm64.rpm"}
         for pattern, name in names.items():
             found = glob.glob(os.path.join(keep, "**", pattern), recursive=True)
-            if not found:
-                raise Failure(f"the VM builds left no {pattern} in {keep}")
+            if len(found) != 1 or f"{v}" not in os.path.basename(found[0]):
+                raise Failure(f"the VM builds left {found or 'no file'} for {pattern} in {keep}")
             shutil.copyfile(found[0], os.path.join(out, name))
-        return {"files": sorted(glob.glob(os.path.join(out, "*")))}
+        # The updater key signs the installers the Windows and Linux apps install in place; latest.json and
+        # manifest.plist announce them. The key stays where it is: release-updates.mjs reads it, nothing prints it.
+        updates = os.path.join(app_dir, "scripts/updates/release-updates.mjs")
+        run(["node", updates, "--dir", out, "--tag", self.tag], cwd=app_dir, log=log)
+        run(["node", updates, "--verify", "--dir", out, "--tag", self.tag], cwd=app_dir, log=log)
+        files = sorted(f for f in glob.glob(os.path.join(out, "*"))
+                       if not f.endswith(".sig") and os.path.basename(f) != "SHA256SUMS.txt")
+        return {"files": files}
 
     def release_files(self, owner):
         files = list(self.final_files(owner))
         if self.opts.platforms == "all" and owner == OWNER:
-            files += sorted(glob.glob(os.path.join(self.out, "platforms", "*")))
+            # Not the .sig files (latest.json carries the signatures) nor release-updates.mjs's SHA256SUMS.txt,
+            # which the one below, over every file published, replaces.
+            files += sorted(f for f in glob.glob(os.path.join(self.out, "platforms", "*"))
+                            if not f.endswith(".sig") and os.path.basename(f) != "SHA256SUMS.txt")
         sums = os.path.join(self.run_dir, f"SHA256SUMS-{owner}.txt")
         with open(sums, "w") as f:
             for path in files:

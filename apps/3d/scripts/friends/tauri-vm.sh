@@ -4,7 +4,7 @@
 # stack's libraries from its ext/, into a fresh temporary directory in the guest, works there, and removes the
 # directory. Nothing is shared or mounted; the guest fetches crates itself.
 #
-#   scripts/friends/tauri-vm.sh smoke|package|check windows-vm|linux-vm <shenzhen-pdf checkout> [VM name]
+#   scripts/friends/tauri-vm.sh smoke|package|installers|check windows-vm|linux-vm <shenzhen-pdf checkout> [VM name]
 #
 #   smoke     builds the Rust helper, the befriend tool and the app with the friends-smoke feature, and runs
 #             tauri-smoke.mjs: the app against two real helpers in temporary homes.
@@ -12,6 +12,9 @@
 #             tauri-package-check.ps1 or .sh: what they carry, and the handover and per-user copy of ADR 0015 § 14.
 #             With $SZF_VM_KEEP (a directory on the Mac), a passing run copies the installers there, under
 #             windows-<target>/ or linux-<arch>/.
+#   installers  Windows only: builds the NSIS installer and the MSI with Friends, as package does, through cmd.exe
+#             alone (no PowerShell, which can hang in a guest that otherwise answers) and without package's checks,
+#             and copies them to $SZF_VM_KEEP/windows-<target>/. tools/release.sh builds the release's installers so.
 #   check     cargo check of the Tauri shell with and without the `friends` feature for $SZF_VM_TARGETS (default
 #             x86_64-pc-windows-msvc aarch64-pc-windows-msvc, or the guest's own Linux target).
 #
@@ -36,8 +39,8 @@ trap cleanup_guest EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 here=$(cd "$(dirname "$0")/../.." && pwd)
-mode=${1:?usage: tauri-vm.sh smoke|package windows-vm|linux-vm <shenzhen-pdf checkout> [VM]}
-platform=${2:?usage: tauri-vm.sh smoke|package windows-vm|linux-vm <shenzhen-pdf checkout> [VM]}
+mode=${1:?usage: tauri-vm.sh smoke|package|installers|check windows-vm|linux-vm <shenzhen-pdf checkout> [VM]}
+platform=${2:?usage: tauri-vm.sh smoke|package|installers|check windows-vm|linux-vm <shenzhen-pdf checkout> [VM]}
 friends_root=$(cd "${3:?the shenzhen-pdf checkout with portable/friends/tauri}" && pwd)
 friends="$friends_root/portable/friends"
 [ -f "$here/dist/index.html" ] || { echo "dist/ is missing: npm run build first" >&2; exit 1; }
@@ -70,6 +73,56 @@ payload() {
     rm -rf "$stage"
 }
 
+# The installers with Friends, as tauri-package-check.ps1 builds them, by a batch file cmd.exe runs: the Rust helper
+# for the target, the animal set, the acknowledgements, then NSIS and MSI. The bundles come back as base64 that
+# certutil writes and cmd's type prints.
+windows_installers() { # guest dir, Rust target, guest node.exe; uses $vm's exec array from run_windows
+    local dir=$1 target=$2 node=$3
+    local cli=${SZF_VM_TAURI_CLI:?set SZF_VM_TAURI_CLI to a guest node_modules holding @tauri-apps/cli}
+    local keep=${SZF_VM_KEEP:?set SZF_VM_KEEP to the Mac directory the installers go to}
+    local plugin="${dir//\\//}/friends/tauri" batch
+    batch=$(mktemp "${TMPDIR:-/tmp}/szf3d-installers.XXXXXX")
+    {
+        printf '%s\r\n' '@echo off' 'setlocal' \
+            'set PATH=%USERPROFILE%\.cargo\bin;%PATH%' \
+            "set SZFRIENDS_HELPER_VERSION=$helper_version" "set SZFRIENDS_HELPER_BUILD=$helper_build" \
+            "mkdir $dir\3d\node_modules\@tauri-apps" \
+            "xcopy /e /i /q $cli\@tauri-apps\cli $dir\3d\node_modules\@tauri-apps\cli >nul || exit /b 11" \
+            "for /d %%d in ($cli\@tauri-apps\cli-win32-*) do xcopy /e /i /q %%d $dir\3d\node_modules\@tauri-apps\%%~nxd >nul" \
+            "cd /d $dir\friends\core-rs || exit /b 12" \
+            "set CARGO_TARGET_DIR=$dir\target-core" \
+            "cargo build --release --target $target -p szfriends-helper --bin szfriends-helper || exit /b 13" \
+            "mkdir $dir\3d\src-tauri\friends\bin" \
+            "copy /b $dir\target-core\$target\release\szfriends-helper.exe $dir\3d\src-tauri\friends\bin\szfriends-helper-$target.exe >nul || exit /b 14" \
+            "xcopy /e /i /q $dir\friends\avatars\animals $dir\3d\src-tauri\friends\animals >nul || exit /b 15" \
+            "if exist $dir\3d\src-tauri\friends\animals\pdf rmdir /s /q $dir\3d\src-tauri\friends\animals\pdf" \
+            "$node $dir\3d\scripts\friends\helper-notices.mjs $dir\target-core\$target\release\szfriends-helper.exe $dir\friends $dir\3d\src-tauri\friends\Acknowledgements.txt || exit /b 16" \
+            "echo {\"build\": {\"beforeBuildCommand\": \"\"}}> $dir\no-frontend-build.json" \
+            "cd /d $dir\3d || exit /b 17" \
+            "set CARGO_TARGET_DIR=$dir\target-app" \
+            "$node node_modules\@tauri-apps\cli\tauri.js build --target $target --features friends --config src-tauri\friends\tauri.conf.json --config $dir\no-frontend-build.json --bundles nsis,msi -- --config patch.szfriends-pinned.tauri-plugin-szfriends.path='$plugin' || exit /b 18" \
+            "cd /d $dir\target-app\$target\release\bundle || exit /b 19" \
+            "tar -cf $dir\bundles.tar nsis msi || exit /b 20" \
+            "certutil -f -encode $dir\bundles.tar $dir\bundles.b64 >nul || exit /b 21" \
+            'echo installers built'
+    } >"$batch"
+    base64 -b 76 <"$batch" | "${exec[@]}" cmd /c "findstr /v /c:# > $dir\\build.b64"
+    rm -f "$batch"
+    "${exec[@]}" cmd /c "certutil -f -decode $dir\\build.b64 $dir\\build.cmd >nul && del $dir\\build.b64" >/dev/null
+    # The build's output goes to a log in the guest, whose last lines come back. Only a batch that reached its end
+    # writes "installers built" (cmd expands %ERRORLEVEL% before the line runs, so it cannot say).
+    "${exec[@]}" cmd /c "$dir\\build.cmd > $dir\\build.log 2>&1" >/dev/null 2>&1 || true
+    local log
+    log=$("${exec[@]}" cmd /c "type $dir\\build.log" | tr -d '\r')
+    printf '%s\n' "$log" | tail -40
+    printf '%s\n' "$log" | grep -q '^installers built' ||
+        { echo "windows-vm: the installers did not build" >&2; return 1; }
+    mkdir -p "$keep/windows-$target"
+    "${exec[@]}" cmd /c "type $dir\\bundles.b64" | tr -d '\r' | grep -v -- '-----' | base64 -d |
+        tar -xf - -C "$keep/windows-$target"
+    ls "$keep/windows-$target"/nsis/*.exe "$keep/windows-$target"/msi/*.msi
+}
+
 run_windows() { # VM name
     local vm=$1 dir status=0
     local exec=(prlctl exec "$vm" --current-user)
@@ -95,6 +148,8 @@ $features --config patch.szfriends-pinned.tauri-plugin-szfriends.path='$plugin' 
 2>&1" | tr -d '\r' | tail -1 || status=$?
             done
         done
+    elif [ "$mode" = installers ]; then
+        windows_installers "$dir" "$target" "$node" || status=$?
     elif [ "$mode" = package ]; then
         local cli=${SZF_VM_TAURI_CLI:?set SZF_VM_TAURI_CLI to a guest node_modules holding @tauri-apps/cli}
         local check="$dir\\3d\\scripts\\friends\\tauri-package-check.ps1"
@@ -150,7 +205,9 @@ cd $dir/3d/src-tauri && cargo check --features $features --config \"$patch\" 2>&
         done
     elif [ "$mode" = package ]; then
         local cli=${SZF_VM_TAURI_CLI:?set SZF_VM_TAURI_CLI to a guest node_modules holding @tauri-apps/cli}
-        "${exec[@]}" "$setup export CARGO_HOME=$dir/cargo-home; bash $dir/3d/scripts/friends/tauri-package-check.sh \
+        # A guest clock that has run off confuses incremental builds' timestamps: never incremental here.
+        "${exec[@]}" "$setup export CARGO_HOME=$dir/cargo-home CARGO_INCREMENTAL=0 ${SZF_VM_VENDOR:+CARGO_NET_OFFLINE=true}; \
+bash $dir/3d/scripts/friends/tauri-package-check.sh \
 $dir $cli $helper_version $helper_build 2>&1" || status=$?
         if [ "$status" = 0 ] && [ -n "${SZF_VM_KEEP:-}" ]; then
             local arch
@@ -183,7 +240,7 @@ friends_lock_read "$here"
 helper_build=$FRIENDS_BUILD_NUMBER
 helper_version=$FRIENDS_SHORT_VERSION
 
-case "$mode" in smoke | package | check) ;; *) echo "unknown mode: $mode" >&2; exit 2 ;; esac
+case "$mode" in smoke | package | installers | check) ;; *) echo "unknown mode: $mode" >&2; exit 2 ;; esac
 case "$platform" in
 windows-vm) run_windows "${4:-Windows 11}" ;;
 linux-vm) run_linux "${4:-Ubuntu 24.04 (with Rosetta)}" ;;
