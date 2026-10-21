@@ -104,7 +104,11 @@ impl Strings {
         }
         // A reset that stopped before changing anything, because the old identity could not be removed.
         if code == "internal" && string(details, "reason") == Some("identity_not_removed") {
-            return Some(self.text("error.internal.identity_not_removed"));
+            // A phone (`files.share`) is no computer, and is unlocked while Friends is in front.
+            let phone = self.audience().has("files.share");
+            let key =
+                if phone { "error.internal.identity_not_removed.phone" } else { "error.internal.identity_not_removed" };
+            return Some(self.text(key));
         }
         let mut key = format!("error.{code}");
         if ["already_friends", "blocked", "not_friends", "mention_mismatch"].contains(&code) && has("name") {
@@ -142,11 +146,13 @@ impl Strings {
     }
 
     /// The devices intents' errors with words of their own. `reason`: "device" (revoke_device not_found), "empty"
-    /// or "invalid" (rename_device name_invalid), "fetch" (fetch_from_device not_found), "device_removed".
+    /// or "invalid" (rename_device name_invalid), "fetch" (fetch_from_device not_found), "again" (fetch_from_friend
+    /// not_found), "device_removed".
     pub fn devices_error_message(&self, code: &str, reason: &str) -> Option<String> {
         let key = match (code, reason) {
             ("not_found", "device") => "error.not_found.device",
             ("not_found", "fetch") => "error.not_found.fetch",
+            ("not_found", "again") => "error.not_found.again",
             ("name_invalid", "empty") => "error.name_invalid.device.empty",
             ("name_invalid", "invalid") => "error.name_invalid.device",
             ("not_allowed", "device_removed") => "error.not_allowed.device_removed",

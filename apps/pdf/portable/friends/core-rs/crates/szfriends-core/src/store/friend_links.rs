@@ -219,6 +219,8 @@ impl Store {
                 staged_path: None,
                 received_path: None,
                 failure_reason: None,
+                source_path: None,
+                source_mtime_ns: 0,
             };
             transfers::insert(conn, &record, None)?;
             let item = Item {

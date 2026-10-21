@@ -53,7 +53,7 @@ static const NSUInteger SZFriendsMessageStatusMax = 16;
             @"delete_history", @"reset_friends", @"disable", @"cancel_message", @"add_from_mention", @"open_link",
             @"add_from_link", @"receive_link", @"make_download_link", @"reset_friend_link", @"revoke_link",
             @"join_profile", @"enter_join_code", @"cancel_join", @"approve_join", @"deny_join", @"revoke_device",
-            @"rename_device", @"fetch_from_device", @"set_received_folder"
+            @"rename_device", @"fetch_from_device", @"fetch_from_friend", @"set_received_folder"
         ]];
     });
     return known;
@@ -117,6 +117,11 @@ static const NSUInteger SZFriendsMessageStatusMax = 16;
     // One profile on several computers: only while the helper announces it (PROTOCOL.md § Capabilities).
     if ([[[self class] devicesIntents] containsObject:type] &&
         ![SZFriendsHelperCapabilityList(self.services) containsObject:@"devices"]) {
+        [self fail:reply code:@"unknown_intent" details:nil connection:connection];
+        return;
+    }
+    if ([type isEqualToString:@"fetch_from_friend"] &&
+        ![SZFriendsHelperCapabilityList(self.services) containsObject:@"files.again"]) {
         [self fail:reply code:@"unknown_intent" details:nil connection:connection];
         return;
     }

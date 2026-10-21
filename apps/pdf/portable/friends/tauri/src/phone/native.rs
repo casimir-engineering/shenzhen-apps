@@ -47,6 +47,17 @@ struct Dirs {
     /// Android's SDK version; none on iOS.
     #[serde(default)]
     sdk: Option<u32>,
+    /// The device's name as its system shows it ("Pixel 9", "iPhone"): what the person's other computers call it.
+    #[serde(default)]
+    name: Option<String>,
+}
+
+/// A MediaStore item's size now (`downloadSize`), and a readable copy of it (`downloadCopy`).
+#[derive(Deserialize)]
+#[cfg_attr(target_os = "ios", allow(dead_code))]
+struct MediaItem {
+    size: Option<u64>,
+    path: Option<String>,
 }
 
 /// Where `publishDownload` put a received file: a path or a content URI, and the name it got.
@@ -108,6 +119,9 @@ impl<R: Runtime> Native<R> {
     /// and Android's SDK version.
     pub fn dirs(&self) -> Option<(PathBuf, Option<u32>)> {
         let dirs: Dirs = self.call("dirs", json!({})).ok()?;
+        if let Some(name) = dirs.name.as_deref() {
+            szfriends_helper::service::set_local_device_name(name);
+        }
         Some((PathBuf::from(dirs.base), dirs.sdk)).filter(|(p, _)| p.is_absolute())
     }
 
@@ -163,6 +177,16 @@ impl<R: Runtime> szfriends_core::store::ExternalPublisher for MediaStoreDownload
             .call("publishDownload", json!({"path": staged.to_string_lossy(), "name": name}))
             .map_err(std::io::Error::other)?;
         Ok((answer.location, answer.name))
+    }
+
+    fn size(&self, location: &str) -> Option<u64> {
+        let answer: MediaItem = self.0.call("downloadSize", json!({"location": location})).ok()?;
+        answer.size
+    }
+
+    fn copy_out(&self, location: &str) -> Option<std::path::PathBuf> {
+        let answer: MediaItem = self.0.call("downloadCopy", json!({"location": location})).ok()?;
+        answer.path.map(std::path::PathBuf::from)
     }
 }
 

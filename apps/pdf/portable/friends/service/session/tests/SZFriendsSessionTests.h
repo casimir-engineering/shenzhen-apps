@@ -20,3 +20,4 @@ void SZFRunThumbnailFrameTests(void);
 void SZFRunChainFrameTests(void);
 void SZFRunJoinFrameTests(void);
 void SZFRunSyncFrameTests(void);
+void SZFRunAgainFrameTests(void);

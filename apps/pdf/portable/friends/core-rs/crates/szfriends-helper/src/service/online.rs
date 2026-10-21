@@ -29,6 +29,8 @@ use szfriends_online::{Online, OnlineConfig, OnlineEvent};
 mod attestation;
 #[path = "online_people.rs"]
 mod people;
+#[path = "online_release.rs"]
+mod release;
 use people::{friends, membership, Person};
 
 use super::devices::REMOVED_BY_HOST;

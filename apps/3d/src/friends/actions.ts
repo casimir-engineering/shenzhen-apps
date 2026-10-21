@@ -41,6 +41,7 @@ export function actionIntent(
     case "decline_offer":
     case "cancel_transfer":
     case "fetch_from_device":
+    case "fetch_from_friend":
       return context.transfer_id
         ? { type: action.action, fields: { transfer_id: context.transfer_id } }
         : null;

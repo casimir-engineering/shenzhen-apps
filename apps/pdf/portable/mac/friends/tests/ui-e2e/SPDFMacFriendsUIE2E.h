@@ -177,5 +177,7 @@ BOOL UIFlowSolo(SZFE2EWorld* world, UIVariant* variant);
 BOOL UIFlowPermission(SZFE2EWorld* world, UIVariant* variant);
 BOOL UIFlowTwoPeople(SZFE2EWorld* world, UIVariant* variant);
 BOOL UIFlowFound(SZFE2EWorld* world, UIVariant* variant);
+// The Mac half of a test with a phone, step by step (SPDFMacFriendsUIPhoneFlows.mm); skipped without its FIFOs.
+BOOL UIFlowPhone(SZFE2EWorld* world, UIVariant* variant);
 
 NS_ASSUME_NONNULL_END

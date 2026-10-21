@@ -29,7 +29,6 @@
   };
 
   // A Tauri channel, as @tauri-apps/api's Channel makes one: messages carry an index and are delivered in order.
-  let channel = null;
   const makeChannel = () => {
     let next = 0;
     const waiting = new Map();
@@ -80,10 +79,9 @@
   }
 
   const bridge = {
-    join: () => {
-      channel ??= makeChannel();
-      return invoke("join", { events: channel });
-    },
+    // A new channel each time: the plugin takes the latest one for this window and numbers its messages from 0, so
+    // a channel joined again would hold every later event back until the count came round to where it was.
+    join: () => invoke("join", { events: makeChannel() }),
     status: () => invoke("status"),
     subscribe: (listener) => {
       if (typeof listener !== "function") return () => {};

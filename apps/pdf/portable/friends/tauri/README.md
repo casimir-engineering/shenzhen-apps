@@ -96,8 +96,13 @@ can call them.
 - **Restored store.** A store without its key, or with another identity's, is served by `phone/restored.rs`: the
   list's banner "Friends can't continue from a backup on this device. Start again to set up Friends here: the
   restored conversations are removed, and your friends will need to accept you again." with Start again
-  (`reset_friends`), which removes the store (keeping `received/`), then the key, starts afresh and reconnects every
+  (`reset_friends`), which removes the key, then the store (keeping `received/`), starts afresh and reconnects every
   page.
+- **Reset Friends.** Settings' Reset Friends… (`reset_friends` while the service runs) takes the same path
+  (`szfriends-helper`'s `service/reset.rs`): the key leaves the Keystore or the Keychain first (if it refuses,
+  nothing changes and the reply says so), the Friends host releases the old ID (with online, within 5 seconds;
+  offline the reset goes ahead), the service stops, the store goes (received files stay), a new identity's
+  service starts with Nearby as it was, and every page reconnects to it.
 - **Lifecycle.** `WindowEvent::Suspended` starts a 20-second grace period; after it the service makes received bytes
   durable at a verified offset (its Sleep). `Resumed` dials friends again and resumes transfers (its Wake).
 - **Files.** Phones stage dropped and attached files (`STAGED_DROP_LIMIT`, 250 MB); Android's WebView sends the bytes
@@ -152,8 +157,10 @@ Shenzhen 3D's `src-tauri` at `friends-host`: the Friends lock added 54 packages 
   staged names, link URLs, dropped files' matching, the share menu's states, and the link against
   `szfriends-helper`'s own protocol server in memory.
 - `node --test guest/bridge.test.mjs`: the guest script in a fake page.
-- `cargo test phone` here: the sealed-file and Keychain stores' rules with fake platform halves, Start again over a
-  real store and the protocol server, the grace period.
+- `cargo test phone` here: the sealed-file and Keychain stores' rules with fake platform halves, Start again and Reset
+  Friends over a real store and the protocol server, the grace period.
+- Shenzhen 3D's `scripts/friends/phones-reset.mjs`: Settings ▸ Reset Friends… in an Android emulator, with the
+  emulator's own taps: a new ID at once, the friends gone, Nearby running again, the ID kept across a restart.
 - Shenzhen 3D's `scripts/friends/phones-exchange.mjs`: the phone app in an Android emulator or the iOS simulator and
   `loopback-peer` (`core-rs/crates/szfriends-helper/examples/`) on the Mac exchange a message and a file each way.
 - Shenzhen 3D's Tauri smoke runs the real app against real helpers on Windows, Linux and macOS.

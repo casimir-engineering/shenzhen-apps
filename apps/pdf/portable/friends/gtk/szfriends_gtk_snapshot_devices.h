@@ -42,6 +42,8 @@ typedef struct { SZFriendsGtkPresence present; char *title; SZFriendsGtkDeviceAd
                  gsize n_rows; } SZFriendsGtkProfileDevices;
 /* The list's offer to use the person's existing profile here: what it does, and its button. */
 typedef struct { SZFriendsGtkPresence present; char *note; SZFriendsGtkAction action; } SZFriendsGtkJoinOffer;
+/* Settings' row for it (PROTOCOL.md § settings `join`): its heading, what it does, and the button. */
+typedef struct { SZFriendsGtkPresence present; char *label, *note; SZFriendsGtkAction action; } SZFriendsGtkSettingsJoin;
 
 /* Above the list: this computer was removed (with Start Over), and the requests to join waiting here. */
 typedef struct { SZFriendsGtkPresence present; char *title, *body;

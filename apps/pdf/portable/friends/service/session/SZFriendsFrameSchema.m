@@ -87,6 +87,8 @@ static const SZFriendsFieldRule kChain[] = {RULE(SZFriendsFieldChain, 3, 64000, 
 static const SZFriendsFieldRule kJoin[] = {RULE(SZFriendsFieldJoin, 1, 1000, REQ)}; // SZFriendsFrameJoinMax
 // And the sync exchange's (service/sync/SZFriendsSyncExchange.m).
 static const SZFriendsFieldRule kSync[] = {RULE(SZFriendsFieldSync, 1, 64000, REQ)}; // SZFriendsFrameSyncMax
+// And getting a file again (ADR 0016; service/sync/SZFriendsAgain.m).
+static const SZFriendsFieldRule kAgain[] = {RULE(SZFriendsFieldAgain, 1, 64000, REQ)}; // SZFriendsFrameAgainMax
 
 static const SZFriendsFieldRule kHandshakePayload[] = {
     RULE(SZFriendsFieldName, 0, kNameMax, 0),
@@ -136,6 +138,7 @@ BOOL SZFriendsFrameRulesForType(uint8_t type, SZFriendsFieldRules *rules) {
     case SZFriendsFrameTypeChain: *rules = RULES(kChain); return YES;
     case SZFriendsFrameTypeJoin: *rules = RULES(kJoin); return YES;
     case SZFriendsFrameTypeSync: *rules = RULES(kSync); return YES;
+    case SZFriendsFrameTypeAgain: *rules = RULES(kAgain); return YES;
     }
     return NO;
 }

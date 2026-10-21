@@ -192,3 +192,40 @@ fn on_a_single_computer_your_own_notes_stay_as_the_you_row() {
     let chat = ada.send("open_conversation", json!({"conversation_id": "you"}))["subscription"].clone();
     ada.snapshot(chat.as_str().unwrap(), "the note", |d| texts(d).contains("Pages 3 to 5"));
 }
+
+/// A copy deleted on the new computer: Get is refused while there is no room for it there (disk_full, as the Mac's
+/// helper answers), and copies it back from the first computer once there is.
+#[test]
+fn get_says_when_there_is_no_room() {
+    let (a, b, network) = (Temp::new("ra"), Temp::new("rb"), Temp::new("rnet"));
+    let mut clients = start(&[&a, &b], &network);
+    let (mut bo, mut ada) = (clients.pop().unwrap(), clients.pop().unwrap());
+    for client in [&mut ada, &mut bo] {
+        client.send("activate", json!({}));
+    }
+    let ada_id = friends_id(&mut ada);
+    join_profile(&mut ada, &ada_id, &mut bo);
+    for home in [&a, &b] {
+        let store = rusqlite::Connection::open(home.0.join(szfriends_core::store::DATABASE_NAME)).unwrap();
+        szfriends_core::store::sync_history::ensure_you_conversation(&store).unwrap();
+    }
+    let source = a.0.join("Fixture.stl");
+    std::fs::write(&source, vec![7u8; 50_000]).unwrap();
+    let files = json!({"conversation_id": "you", "files": [{"path": source}],
+                       "client_token": "0123456789abcdef0123456789abcdef"});
+    let transfer = ada.send("send_files", files)["transfer_ids"][0].as_str().unwrap().to_owned();
+    let path_of = |data: &Value| -> Option<String> {
+        let item = data["items"].as_array()?.iter().find(|i| i["transfer_id"] == transfer.as_str())?;
+        item["file"]["path"].as_str().map(str::to_owned).filter(|p| std::path::Path::new(p).is_file())
+    };
+    let chat = bo.send("open_conversation", json!({"conversation_id": "you"}))["subscription"].clone();
+    let copied = bo.snapshot(chat.as_str().unwrap(), "the copy on the new computer", |d| path_of(d).is_some());
+    std::fs::remove_file(path_of(&copied["data"]).unwrap()).unwrap();
+    let room = b.0.join(szfriends_helper::service::TEST_FREE_BYTES_FILE);
+    std::fs::write(&room, "49999").unwrap();
+    assert_eq!(bo.refused("fetch_from_device", json!({"transfer_id": transfer})), "disk_full");
+    std::fs::write(&room, "50000").unwrap();
+    bo.send("fetch_from_device", json!({"transfer_id": transfer}));
+    let chat = bo.send("open_conversation", json!({"conversation_id": "you"}))["subscription"].clone();
+    bo.snapshot(chat.as_str().unwrap(), "the copy back", |d| path_of(d).is_some());
+}

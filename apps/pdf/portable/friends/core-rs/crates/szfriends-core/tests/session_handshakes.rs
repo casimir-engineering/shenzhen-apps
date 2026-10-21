@@ -23,7 +23,7 @@ fn xx_request_goes_live_with_identities_profile_and_equal_codes() {
     assert_eq!(pipe.responder.remote_identity(), Some(&identity("alice").public_key()));
     assert_eq!(pipe.responder.initiator_route(), RouteMethod::Lan);
     assert_eq!(pipe.initiator.handshake_hash(), pipe.responder.handshake_hash());
-    assert_eq!(pipe.initiator.negotiated_minor(), 2);
+    assert_eq!(pipe.initiator.negotiated_minor(), 3);
     assert!(pipe.send(Side::Initiator, &message("hello", 1)));
     assert_eq!(Pipe::frames(&pipe.responder_events), vec![message("hello", 1)]);
     let now = pipe.now;

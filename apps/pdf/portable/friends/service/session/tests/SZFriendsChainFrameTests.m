@@ -52,7 +52,7 @@ static void SZFTestChainOverASession(void) {
     [pair start];
     SZF_CHECK([pair waitUntilBothEstablished], @"established");
     SZFOnQueue(pair.queue, ^{
-        SZF_CHECK(pair.initiator.negotiatedMinor == 2 && pair.responder.negotiatedMinor == 2, @"both speak minor 2");
+        SZF_CHECK(pair.initiator.negotiatedMinor == 3 && pair.responder.negotiatedMinor == 3, @"both speak minor 3");
         SZF_CHECK([pair.responder sendFrame:SZFChainFrame(9, SZFriendsFrameChainMax)], @"the responder sends one");
         SZF_CHECK([pair.initiator sendFrame:SZFChainFrame(8, 400)], @"and the initiator its own");
     });

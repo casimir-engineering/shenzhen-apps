@@ -1,0 +1,250 @@
+{
+  "type": "snapshot",
+  "subscription": "s_4",
+  "view": "conversation",
+  "rev": 12,
+  "data": {
+    "conversation_id": "c_mei",
+    "header": {
+      "title": "Mei Lin",
+      "subtitle": "Nearby, on your network",
+      "route": {
+        "kind": "local",
+        "method": "lan",
+        "label": "Nearby, on your network"
+      },
+      "avatar": {
+        "kind": "animal",
+        "set": 1,
+        "index": 7,
+        "initials": "ML",
+        "color": "#3f6b4f"
+      },
+      "details_available": true,
+      "accessibility_label": "Mei Lin, nearby, on your network, show details"
+    },
+    "back": {
+      "badge_count": 2,
+      "badge_label": "2",
+      "accessibility_label": "Back to Friends, 2 waiting"
+    },
+    "search_placeholder": "Search this conversation",
+    "has_earlier": false,
+    "items": [
+      {
+        "kind": "day",
+        "item_id": "d_20261012",
+        "label": "Today",
+        "highlighted": false,
+        "accessibility_label": "Today"
+      },
+      {
+        "kind": "transfer",
+        "item_id": "t_5a90c3e1",
+        "transfer_id": "t_5a90c3e1",
+        "direction": "in",
+        "file": {
+          "name": "Site photos.pdf",
+          "kind_label": "PDF",
+          "size_label": "48.2 MB",
+          "size_bytes": 48231004,
+          "path": null,
+          "type_identifier": "com.adobe.pdf",
+          "extension": "pdf"
+        },
+        "meta_label": "PDF · 48.2 MB",
+        "state": "missing",
+        "status_label": "Moved or deleted",
+        "route_note": null,
+        "progress": null,
+        "thumbnail": null,
+        "actions": [
+          {
+            "action": "fetch_from_friend",
+            "label": "Get again",
+            "style": "primary"
+          }
+        ],
+        "assistant_label": null,
+        "time_label": "09:12",
+        "highlighted": false,
+        "accessibility_label": "Mei Lin sent Site photos.pdf, PDF, 48.2 MB, moved or deleted"
+      },
+      {
+        "kind": "transfer",
+        "item_id": "t_7b3e0f42",
+        "transfer_id": "t_7b3e0f42",
+        "direction": "in",
+        "file": {
+          "name": "Shift rota.pdf",
+          "kind_label": "PDF",
+          "size_label": "1.2 MB",
+          "size_bytes": 1203456,
+          "path": null,
+          "type_identifier": "com.adobe.pdf",
+          "extension": "pdf"
+        },
+        "meta_label": "PDF · 1.2 MB",
+        "state": "fetching",
+        "status_label": "Copying from Mei Lin · 40%",
+        "route_note": null,
+        "progress": {
+          "fraction": 0.4,
+          "determinate": true,
+          "accessibility_label": "Copying, 40 percent"
+        },
+        "thumbnail": null,
+        "actions": [
+          {
+            "action": "cancel_transfer",
+            "label": "Cancel",
+            "style": "link"
+          }
+        ],
+        "assistant_label": null,
+        "time_label": "09:20",
+        "highlighted": false,
+        "accessibility_label": "Mei Lin sent Shift rota.pdf, PDF, 1.2 MB, copying from Mei Lin, 40 percent"
+      },
+      {
+        "kind": "transfer",
+        "item_id": "t_91c6d2a8",
+        "transfer_id": "t_91c6d2a8",
+        "direction": "in",
+        "file": {
+          "name": "Supplier quote.pdf",
+          "kind_label": "PDF",
+          "size_label": "3.6 MB",
+          "size_bytes": 3604480,
+          "path": null,
+          "type_identifier": "com.adobe.pdf",
+          "extension": "pdf"
+        },
+        "meta_label": "PDF · 3.6 MB",
+        "state": "fetching",
+        "status_label": "Copies when Mei Lin is nearby with ShenzhenPDF, Shenzhen Files or Shenzhen 3D open",
+        "route_note": null,
+        "progress": null,
+        "thumbnail": null,
+        "actions": [
+          {
+            "action": "cancel_transfer",
+            "label": "Cancel",
+            "style": "link"
+          }
+        ],
+        "assistant_label": null,
+        "time_label": "09:31",
+        "highlighted": false,
+        "accessibility_label": "Mei Lin sent Supplier quote.pdf, PDF, 3.6 MB, copies when Mei Lin is nearby with ShenzhenPDF, Shenzhen Files or Shenzhen 3D open"
+      },
+      {
+        "kind": "transfer",
+        "item_id": "t_2f8a4c17",
+        "transfer_id": "t_2f8a4c17",
+        "direction": "in",
+        "file": {
+          "name": "Old floor plan.pdf",
+          "kind_label": "PDF",
+          "size_label": "5.1 MB",
+          "size_bytes": 5100000,
+          "path": null,
+          "type_identifier": "com.adobe.pdf",
+          "extension": "pdf"
+        },
+        "meta_label": "PDF · 5.1 MB",
+        "state": "gone",
+        "status_label": "Mei Lin doesn’t have this file anymore.",
+        "route_note": null,
+        "progress": null,
+        "thumbnail": null,
+        "actions": [],
+        "assistant_label": null,
+        "time_label": "09:44",
+        "highlighted": false,
+        "accessibility_label": "Mei Lin sent Old floor plan.pdf, PDF, 5.1 MB. Mei Lin doesn’t have this file anymore."
+      },
+      {
+        "kind": "transfer",
+        "item_id": "t_c4e19b05",
+        "transfer_id": "t_c4e19b05",
+        "direction": "in",
+        "file": {
+          "name": "Audit checklist.pdf",
+          "kind_label": "PDF",
+          "size_label": "860 KB",
+          "size_bytes": 860160,
+          "path": null,
+          "type_identifier": "com.adobe.pdf",
+          "extension": "pdf"
+        },
+        "meta_label": "PDF · 860 KB",
+        "state": "on_device",
+        "status_label": "On Raph’s Mac mini",
+        "route_note": null,
+        "progress": null,
+        "thumbnail": null,
+        "actions": [
+          {
+            "action": "fetch_from_device",
+            "label": "Get",
+            "style": "primary"
+          }
+        ],
+        "assistant_label": null,
+        "time_label": "09:50",
+        "highlighted": false,
+        "accessibility_label": "Mei Lin sent Audit checklist.pdf, PDF, 860 KB, on Raph’s Mac mini"
+      },
+      {
+        "kind": "transfer",
+        "item_id": "t_e83d5a6c",
+        "transfer_id": "t_e83d5a6c",
+        "direction": "out",
+        "file": {
+          "name": "Quote reply.pdf",
+          "kind_label": "PDF",
+          "size_label": "2.2 MB",
+          "size_bytes": 2200000,
+          "path": null,
+          "type_identifier": "com.adobe.pdf",
+          "extension": "pdf"
+        },
+        "meta_label": "PDF · 2.2 MB",
+        "state": "missing",
+        "status_label": "Moved or deleted",
+        "route_note": null,
+        "progress": null,
+        "thumbnail": null,
+        "actions": [],
+        "assistant_label": null,
+        "time_label": "10:02",
+        "highlighted": false,
+        "accessibility_label": "You sent Quote reply.pdf, PDF, 2.2 MB, moved or deleted"
+      }
+    ],
+    "highlight_item_id": null,
+    "request": null,
+    "composer": {
+      "visible": true,
+      "enabled": true,
+      "placeholder": "Message Mei",
+      "hint": [
+        {
+          "text": "Type "
+        },
+        {
+          "text": "#",
+          "emphasis": true
+        },
+        {
+          "text": " to attach, or drop files here"
+        }
+      ],
+      "send_label": "Send",
+      "note": null,
+      "accepts_drops": true,
+      "max_text_bytes": 32768
+    }
+  }
+}

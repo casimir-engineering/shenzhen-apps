@@ -221,6 +221,10 @@ BOOL SZFriendsSyncVectorCovers(SZFriendsSyncVector *vector, NSData *author, uint
 - (NSSet<NSString *> *)itemsOnEveryDeviceInConversation:(NSString *)conversationID;
 @end
 
+// Where this device has a transfer's bytes (ADR 0016): a received file where it was saved, at its size; for one of
+// ours, the snapshot, a copy, or the file it was sent from while unchanged (size and modification time). Nil: none.
+NSString *_Nullable SZFriendsSyncLocalPathOfTransfer(SZFriendsTransferRecord *transfer);
+
 @interface SZFriendsSyncEngine (Files)
 // Files: transfer records whose bytes are on another device and not here, the ones that copy by themselves (or were
 // asked for) first.

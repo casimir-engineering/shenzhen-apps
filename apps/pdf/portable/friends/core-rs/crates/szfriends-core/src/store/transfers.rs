@@ -10,6 +10,7 @@ use rusqlite::{params, Connection, Row};
 
 use super::people::{insert_item, person_where, Direction, Item, ItemKind, Relation};
 use super::transfer_files::{create_staging_file, file_digest, sanitized_file_name, snapshot};
+pub use super::transfer_states::{TransferEvent, TransferState};
 use super::{is_valid_identifier, new_identifier, unix_now, Result, Store, StoreError};
 
 /// PROTOCOL.md sizes are JSON integers: 2^53 - 1.
@@ -17,93 +18,6 @@ pub const MAX_FILE_SIZE: u64 = (1 << 53) - 1;
 pub const MAX_NAME_BYTES: usize = 1024;
 pub const MAX_PENDING_OFFERS: i64 = 200;
 pub const FAILURE_DIGEST_MISMATCH: &str = "digest_mismatch";
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum TransferState {
-    Queued = 0,
-    Offered = 1,
-    WaitingForYou = 2,
-    Sending = 3,
-    Receiving = 4,
-    Delivered = 5,
-    Received = 6,
-    Declined = 7,
-    Cancelled = 8,
-    Failed = 9,
-}
-
-impl TransferState {
-    pub const ALL: [Self; 10] = [
-        Self::Queued,
-        Self::Offered,
-        Self::WaitingForYou,
-        Self::Sending,
-        Self::Receiving,
-        Self::Delivered,
-        Self::Received,
-        Self::Declined,
-        Self::Cancelled,
-        Self::Failed,
-    ];
-
-    pub fn from_i64(value: i64) -> Option<Self> {
-        Self::ALL.into_iter().find(|s| *s as i64 == value)
-    }
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum TransferEvent {
-    OfferDelivered = 0,
-    Accepted = 1,
-    Declined = 2,
-    Cancelled = 3,
-    Verified = 4,
-    Failed = 5,
-    Retry = 6,
-}
-
-impl TransferEvent {
-    pub const ALL: [Self; 7] = [
-        Self::OfferDelivered,
-        Self::Accepted,
-        Self::Declined,
-        Self::Cancelled,
-        Self::Verified,
-        Self::Failed,
-        Self::Retry,
-    ];
-
-    /// `SZFriendsTransferNextState`: `state` unchanged when the event does not apply (an acceptance of an offer no
-    /// longer offered, a cancel after the file arrived, which cannot be retracted).
-    pub fn next_state(self, outgoing: bool, state: TransferState) -> TransferState {
-        use TransferState::*;
-        let unanswered = if outgoing { matches!(state, Queued | Offered) } else { state == WaitingForYou };
-        let moving = if outgoing { Sending } else { Receiving };
-        match self {
-            Self::OfferDelivered if outgoing && state == Queued => Offered,
-            Self::Accepted if unanswered => moving,
-            Self::Declined if unanswered => Declined,
-            Self::Cancelled if unanswered || state == moving => Cancelled,
-            Self::Verified if state == moving => {
-                if outgoing {
-                    Delivered
-                } else {
-                    Received
-                }
-            }
-            // An incoming offer nobody accepted has nothing that can fail; the sender withdraws it with CANCEL.
-            Self::Failed if (outgoing && unanswered) || state == moving => Failed,
-            Self::Retry if state == Failed => {
-                if outgoing {
-                    Queued
-                } else {
-                    Receiving
-                }
-            }
-            _ => state,
-        }
-    }
-}
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct TransferRecord {
@@ -122,10 +36,15 @@ pub struct TransferRecord {
     pub staged_path: Option<PathBuf>,
     pub received_path: Option<PathBuf>,
     pub failure_reason: Option<String>,
+    /// Outgoing: the file the person chose, and its modification time (nanoseconds since 1970) when it was
+    /// snapshotted. While it is unchanged this device still holds the file's bytes after the snapshot is gone
+    /// (ADR 0016). Never synced.
+    pub source_path: Option<PathBuf>,
+    pub source_mtime_ns: i64,
 }
 
 const COLUMNS: &str = "transfer_id, conversation_id, outgoing, state, file_name, uniform_type, size, digest, \
-                       verified_bytes, staged_path, received_path, failure_reason";
+                       verified_bytes, staged_path, received_path, failure_reason, source_path, source_mtime_ns";
 
 fn record_from_row(row: &Row) -> rusqlite::Result<TransferRecord> {
     let digest: Vec<u8> = row.get(7)?;
@@ -142,6 +61,8 @@ fn record_from_row(row: &Row) -> rusqlite::Result<TransferRecord> {
         staged_path: row.get::<_, Option<String>>(9)?.map(PathBuf::from),
         received_path: row.get::<_, Option<String>>(10)?.map(PathBuf::from),
         failure_reason: row.get(11)?,
+        source_path: row.get::<_, Option<String>>(12)?.map(PathBuf::from),
+        source_mtime_ns: row.get::<_, Option<i64>>(13)?.unwrap_or(0),
     })
 }
 
@@ -166,7 +87,7 @@ pub(super) fn insert(conn: &Connection, record: &TransferRecord, partial: Option
     conn.execute(
         &format!(
             "INSERT INTO transfers ({COLUMNS}, partial_path, created_at, updated_at) \
-                  VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?14)"
+                  VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?16)"
         ),
         params![
             record.transfer_id,
@@ -181,6 +102,8 @@ pub(super) fn insert(conn: &Connection, record: &TransferRecord, partial: Option
             record.staged_path.as_ref().map(|p| p.to_string_lossy().into_owned()),
             record.received_path.as_ref().map(|p| p.to_string_lossy().into_owned()),
             record.failure_reason,
+            record.source_path.as_ref().map(|p| p.to_string_lossy().into_owned()),
+            record.source_path.as_ref().map(|_| record.source_mtime_ns),
             partial,
             now
         ],
@@ -278,6 +201,8 @@ impl Store {
         super::transfer_files::ensure_private_directory(&directory)?;
         let transfer_id = new_identifier();
         let staged = directory.join(&transfer_id);
+        // Before the copy, so a change during it shows later.
+        let source_mtime_ns = super::transfer_files::modified_ns(source);
         let (size, digest) = snapshot(source, &staged).map_err(|e| match e.kind() {
             std::io::ErrorKind::NotFound => StoreError::FileMissing,
             _ => StoreError::from(e),
@@ -297,6 +222,8 @@ impl Store {
             staged_path: Some(staged.clone()),
             received_path: None,
             failure_reason: None,
+            source_path: std::path::absolute(source).ok(),
+            source_mtime_ns,
         };
         let result = self.write(|conn| {
             insert(conn, &record, None)?;
@@ -373,6 +300,8 @@ impl Store {
                 staged_path: None,
                 received_path: None,
                 failure_reason: None,
+                source_path: None,
+                source_mtime_ns: 0,
             };
             insert(conn, &record, None)?;
             let item = Item {

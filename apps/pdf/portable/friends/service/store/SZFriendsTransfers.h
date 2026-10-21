@@ -85,7 +85,14 @@ SZFriendsTransferState SZFriendsTransferNextState(BOOL outgoing, SZFriendsTransf
 @property(nonatomic, copy, nullable) NSString *failureReason; // while Failed: SZFriendsTransferFailure... or an
                                                               // SZFriendsOutboxFailure... key
 @property(nonatomic, copy, nullable) NSDate *createdAt;
+// Outgoing: the file the person chose, and its modification time (nanoseconds since 1970) when it was snapshotted. While
+// it is unchanged this computer still holds the file's bytes after the snapshot is gone (ADR 0016). Never synced.
+@property(nonatomic, copy, nullable) NSString *sourcePath;
+@property(nonatomic) int64_t sourceModifiedNs;
 @end
+
+// A file's modification time in nanoseconds since 1970, or 0 when it cannot be read.
+int64_t SZFriendsFileModifiedNs(NSString *path);
 
 extern NSString *const SZFriendsTransferFailureDigestMismatch; // "digest_mismatch": the bytes did not match
 extern NSString *const SZFriendsTransferFailureSourceMissing;  // "source_missing": the snapshot is gone

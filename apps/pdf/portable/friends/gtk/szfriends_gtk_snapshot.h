@@ -57,6 +57,8 @@ typedef enum {
     SZFRIENDS_GTK_ACTION_ACTIVATE,
     /* Settings' Change… for where received files go: the folder dialog, then set_received_folder */
     SZFRIENDS_GTK_ACTION_CHOOSE_RECEIVED_FOLDER,
+    /* Get again on a file a friend sent (PROTOCOL.md § Getting a file again) */
+    SZFRIENDS_GTK_ACTION_FETCH_FROM_FRIEND,
     /* Client-side: the join page (PROTOCOL.md § Joining, Offering it) */
     SZFRIENDS_GTK_ACTION_OPEN_JOIN
 } SZFriendsGtkActionKind;
@@ -119,7 +121,8 @@ typedef enum {
     SZFRIENDS_GTK_TRANSFER_WAITING_FOR_YOU, SZFRIENDS_GTK_TRANSFER_SENDING, SZFRIENDS_GTK_TRANSFER_RECEIVING,
     SZFRIENDS_GTK_TRANSFER_DELIVERED, SZFRIENDS_GTK_TRANSFER_RECEIVED, SZFRIENDS_GTK_TRANSFER_DECLINED,
     SZFRIENDS_GTK_TRANSFER_CANCELLED, SZFRIENDS_GTK_TRANSFER_FAILED,
-    SZFRIENDS_GTK_TRANSFER_ON_DEVICE, SZFRIENDS_GTK_TRANSFER_FETCHING /* held by another of the person's computers */
+    SZFRIENDS_GTK_TRANSFER_ON_DEVICE, SZFRIENDS_GTK_TRANSFER_FETCHING, /* held by another of the person's computers */
+    SZFRIENDS_GTK_TRANSFER_MISSING, SZFRIENDS_GTK_TRANSFER_GONE /* moved or deleted; the friend no longer has it */
 } SZFriendsGtkTransferState;
 typedef enum {
     SZFRIENDS_GTK_REQUEST_UNSET, SZFRIENDS_GTK_REQUEST_INCOMING, SZFRIENDS_GTK_REQUEST_OUTGOING
@@ -410,8 +413,6 @@ typedef struct { SZFriendsGtkPresence present; char *label, *note, *action_label
 /* The helper's Nearby line (PROTOCOL.md § settings): what Nearby can do, and the one button that fixes it. */
 typedef struct { SZFriendsGtkPresence present; char *label, *note;
                  SZFriendsGtkAction *action; } SZFriendsGtkSettingsNearby;
-/* Using the person's existing profile here (PROTOCOL.md § Joining, Offering it). */
-typedef struct { SZFriendsGtkPresence present; char *label, *note; SZFriendsGtkAction action; } SZFriendsGtkSettingsJoin;
 typedef struct {
     SZFriendsGtkPresence present;
     SZFriendsGtkSettingsName name;

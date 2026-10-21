@@ -111,6 +111,12 @@ pub(super) const DEVICES: &[(&str, &str)] = &[
         "You are copying {file}, {kind}, {size}, to your other computers, {percent} percent",
     ),
     ("you.transfer.spoken.queued", "You sent {file}, {kind}, {size}. {status}."),
+    // A file the person moved or deleted here (PROTOCOL.md § Getting a file again), and Get again from the friend
+    // who sent it when none of their computers has it. {name} is that friend's display name.
+    ("transfer.status.missing", "Moved or deleted"),
+    ("transfer.action.again", "Get again"),
+    ("transfer.status.again_gone", "{name} doesn’t have this file anymore."),
+    ("devices.spoken.transfer.gone", "{sender} sent {file}, {kind}, {size}. {status}."),
     // Delete history on a profile with several computers: where it is deleted, and when the others follow.
     ("details.history.note.devices", "Clears this chat on all your computers."),
     ("details.history.note.friend.devices", "Clears this chat on all your computers. {first} stays your friend."),
@@ -139,6 +145,7 @@ pub(super) const DEVICES: &[(&str, &str)] = &[
     // Replies.
     ("error.not_found.device", "That computer was already removed."),
     ("error.not_found.fetch", "This file isn’t on your other computers anymore."),
+    ("error.not_found.again", "This file isn’t in this chat anymore."),
     ("error.not_allowed.device_removed", "This computer was removed from your profile, so it can’t send anything."),
     ("error.name_invalid.device", "That name is too long or has a line break. Try a shorter one."),
     ("error.name_invalid.device.empty", "Type a name for this computer."),

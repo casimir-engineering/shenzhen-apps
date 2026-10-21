@@ -20,8 +20,11 @@
 //! - links ([`friend_links`], `links.rs`, `link_receive.rs`; PROTOCOL.md § Links): Add from a mention or a friend
 //!   link, download links made and served, and download links received through a guest connection to the host.
 //!
-//! Search answers `unavailable` until its area comes over.
+//! Search answers `unavailable` until its area comes over. Reset Friends replaces the service with a new identity's,
+//! so whoever runs it answers that ([`reset`]).
 
+mod again;
+mod device_files;
 mod devices;
 mod facts;
 mod friend_links;
@@ -39,6 +42,8 @@ mod online;
 #[cfg(not(feature = "online"))]
 #[path = "online_off.rs"]
 mod online;
+pub mod reset;
+mod room;
 pub mod seed;
 mod sessions;
 mod transfers;
@@ -65,14 +70,16 @@ use crate::server::{Connection, Reply};
 
 /// The test network a helper in a test home meets others on (a directory of entries on loopback).
 pub const ENV_TEST_LOOPBACK: &str = crate::nearby::ENV_TEST_NETWORK;
+pub use devices::set_local_device_name;
 pub use online::{BLOCK_DIRECT_FILE, ENV_TEST_HOST_KEYS, ENV_TEST_HOST_LIST};
+pub use room::TEST_FREE_BYTES_FILE;
 
 /// What the service announces in every welcome (PROTOCOL.md § Capabilities); `nearby.bluetooth` too where this
 /// helper has a Bluetooth adapter (not on Windows, nor on Linux without the `bluetooth` feature). `devices`: one
 /// profile on several computers, joined and synced over the same nearby and online routes friends use.
 /// `received.folder`: received files go to a folder the person can choose (Downloads until they do).
 const CAPABILITIES: &[&str] =
-    &["nearby.network", "messages.status", "messages.cancel", "mentions", "devices", "received.folder"];
+    &["nearby.network", "messages.status", "messages.cancel", "mentions", "devices", "files.again", "received.folder"];
 
 fn capabilities(bluetooth: bool) -> Vec<String> {
     let mut capabilities: Vec<String> = CAPABILITIES.iter().map(|c| (*c).to_owned()).collect();
@@ -92,7 +99,6 @@ pub(crate) enum Input {
     #[cfg(feature = "online")]
     Online(szfriends_online::OnlineEvent),
     /// Work that finished off the service's thread, to be completed on it.
-    #[cfg_attr(not(feature = "online"), allow(dead_code))]
     Deferred(Box<dyn FnOnce(&mut State) + Send>),
     Shutdown(Sender<()>),
 }
@@ -197,7 +203,31 @@ impl Service {
     pub fn identity_key(&self) -> Option<[u8; 32]> {
         self.identity_key
     }
+
+    /// Stops the service for Reset Friends ([`reset`]): the host releases this identity first (bounded; see
+    /// `online_release.rs`), then sessions, nearby and online close as at exit, and the store is closed before it
+    /// returns. Whether the person had opened Friends here (Nearby activated).
+    pub fn stop(&self) -> bool {
+        let (tell, told) = channel();
+        self.send(Input::Deferred(Box::new(move |state| {
+            state.release_identity_for_reset();
+            let _ = tell.send(state.store.nearby_permissions_requested());
+        })));
+        let activated = told.recv_timeout(STOP_WAIT).unwrap_or(false);
+        let (done, wait) = channel();
+        self.send(Input::Shutdown(done));
+        let _ = wait.recv_timeout(STOP_WAIT);
+        activated
+    }
+
+    /// Starts Nearby in full, as the person opening Friends does (`activate`).
+    pub fn activate_nearby(&self) {
+        self.send(Input::Deferred(Box::new(State::activate_nearby)));
+    }
 }
+
+/// How long a reset waits for the service to stop: its store must be closed before it is removed.
+const STOP_WAIT: Duration = Duration::from_secs(10);
 
 impl Presentation for Service {
     fn welcome(&self, client: &ClientInfo) -> Value {
@@ -264,6 +294,8 @@ pub(crate) struct State {
     pub capabilities: Vec<String>,
     /// One profile on several computers: the join state and the sync engine.
     pub devices: devices::DeviceArea,
+    /// Get again: giving friends files again, and copying files again from them.
+    pub again: again::AgainArea,
     /// Something changed since the views were last brought up to date.
     pub dirty: bool,
     /// Answered once the thread has closed the store (shutdown).
@@ -313,6 +345,7 @@ impl State {
             next_receipt: 0,
             capabilities,
             devices,
+            again: again::AgainArea::default(),
             dirty: false,
             stopped: None,
         }

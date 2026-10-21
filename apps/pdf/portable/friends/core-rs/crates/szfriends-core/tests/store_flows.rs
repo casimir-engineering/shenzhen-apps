@@ -90,17 +90,17 @@ fn the_store_records_its_identity_and_refuses_another() {
 fn a_newer_schema_is_left_alone_and_a_failed_migration_keeps_the_backup() {
     let scratch = Scratch::new("versions");
     drop(Store::open(scratch.state()).unwrap());
-    let newer = SHIPPED.iter().copied().chain([Migration { version: 12, min_reader_version: 12, sql: "SELECT 1" }]);
+    let newer = SHIPPED.iter().copied().chain([Migration { version: 13, min_reader_version: 13, sql: "SELECT 1" }]);
     let options = StoreOptions { migrations: Some(newer.collect()), ..StoreOptions::default() };
     drop(Store::open_with(scratch.state(), options).unwrap());
-    assert!(matches!(Store::open(scratch.state()), Err(StoreError::NewerSchema { needs: 12, reads: 11 })));
+    assert!(matches!(Store::open(scratch.state()), Err(StoreError::NewerSchema { needs: 13, reads: 12 })));
     let other = Scratch::new("failing");
     drop(Store::open(other.state()).unwrap());
-    let broken = SHIPPED.iter().copied().chain([Migration { version: 12, min_reader_version: 0, sql: "NOT SQL" }]);
+    let broken = SHIPPED.iter().copied().chain([Migration { version: 13, min_reader_version: 0, sql: "NOT SQL" }]);
     let options = StoreOptions { migrations: Some(broken.collect()), ..StoreOptions::default() };
     assert!(matches!(Store::open_with(other.state(), options), Err(StoreError::MigrationFailed(_))));
-    assert!(other.state().join("friends.sqlite.before-v12").exists());
-    assert_eq!(Store::open(other.state()).unwrap().schema_version(), 11);
+    assert!(other.state().join("friends.sqlite.before-v13").exists());
+    assert_eq!(Store::open(other.state()).unwrap().schema_version(), 12);
 }
 
 #[test]
@@ -169,6 +169,11 @@ fn an_offer_entry_moves_its_transfer_and_an_answer_resumes_at_the_offset() {
     let record = store.stage_outgoing_file(&source, None, &mei.conversation_id).unwrap();
     assert_eq!((record.state, record.size, record.file_name.as_str()), (TransferState::Queued, 100_000, "Plan.pdf"));
     assert_eq!(record.digest, file_digest(&source, u64::MAX).unwrap());
+    // Where it was sent from and when it last changed, read back from the row (schema v12).
+    let modified = std::fs::metadata(&source).unwrap().modified().unwrap().duration_since(std::time::UNIX_EPOCH);
+    let stored = store.transfer(&record.transfer_id).unwrap().unwrap();
+    assert_eq!(stored.source_path.as_deref(), Some(std::path::absolute(&source).unwrap().as_path()));
+    assert_eq!(stored.source_mtime_ns, modified.unwrap().as_nanos() as i64);
     let offer = entry(&mei.conversation_id, "e-offer", OutboxKind::Offer, Some(&record.transfer_id));
     store.enqueue(&offer, None).unwrap();
     store.apply_outbox_event_from("e-offer", OutboxEvent::Acknowledged, &mei.conversation_id).unwrap();

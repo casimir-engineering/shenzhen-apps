@@ -36,6 +36,7 @@ static const NSUInteger SZFriendsDeviceNameMaxBytes = 64;
     NSDictionary<NSString *, NSString *> *keys = @{
         @"not_found/device" : @"error.not_found.device",
         @"not_found/fetch" : @"error.not_found.fetch",
+        @"not_found/again" : @"error.not_found.again",
         @"name_invalid/empty" : @"error.name_invalid.device.empty",
         @"name_invalid/invalid" : @"error.name_invalid.device",
         @"not_allowed/device_removed" : @"error.not_allowed.device_removed",

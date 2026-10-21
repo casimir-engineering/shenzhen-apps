@@ -55,7 +55,8 @@ class FriendsPlugin: NearbyPlugin {
   @objc public func dirs(_ invoke: Invoke) throws {
     let base = try FileManager.default.url(
       for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
-    invoke.resolve(["base": base.path])
+    // What the person's other computers call this device: its name ("iPhone" without the name entitlement).
+    invoke.resolve(["base": base.path, "name": UIDevice.current.name])
   }
 
   /// Sets the flag when it is missing and reads it back: called at every start, before Friends opens anything.

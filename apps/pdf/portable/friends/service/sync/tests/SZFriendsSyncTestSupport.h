@@ -60,5 +60,7 @@ void SZFSRunOutboxFileTests(void);
 void SZFSRunPropertyTests(void);
 void SZFSRunExchangeTests(void);
 void SZFSRunRevocationTests(void);
+void SZFSRunReleaseTests(void);
+void SZFSRunAgainTests(void);
 
 NS_ASSUME_NONNULL_END

@@ -29,6 +29,11 @@ impl OnlineRoutes {
 impl State {
     pub(crate) fn reach_online(&mut self) {}
 
+    /// No host holds this identity.
+    pub(crate) fn release_identity_for_reset(&mut self) -> bool {
+        false
+    }
+
     /// No host connection, so no attestation of our own to show.
     pub(crate) fn attestation_for_our_answer(&self) -> Option<Vec<u8>> {
         None
