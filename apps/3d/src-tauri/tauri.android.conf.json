@@ -3,7 +3,7 @@
   "version": "0.2.2",
   "bundle": {
     "android": {
-      "versionCode": 2010
+      "versionCode": 2011
     }
   }
 }
