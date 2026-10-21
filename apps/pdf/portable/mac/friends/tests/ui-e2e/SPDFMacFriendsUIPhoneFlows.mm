@@ -10,6 +10,12 @@
 //   open {title}                the dropdown opens and the person clicks that row, as a person does
 //   press {near, label}         clicks the button titled `label` on the item showing `near` (a file's name)
 //   text {near, text, seconds}  waits until the item showing `near` says `text`
+//   list                        the dropdown opens on its list, as a person comes back to it
+//   click {label}               clicks the visible button titled `label` on the page showing (Approve, Use my
+//                               existing profile…, Continue, Join), then waits for the page to settle
+//   fill {placeholder, text}    clicks the field showing `placeholder` and types `text` into it
+//   join_code                   the code a join request shows, as drawn ("4831 2207"), once Approve has drawn one
+//   see {text, seconds}         waits until the page showing says `text` (scrolled into sight)
 //   shot {name}                 a screenshot of the popover
 //   log                         the end of the helper's log (what a failing step leaves to read)
 //   end                         stops
@@ -18,6 +24,7 @@
 #import "SPDFMacFriendsUIPairInternal.h"
 
 #import "mac/SZFriendsConversationPage.h"
+#import "mac/SZFriendsDevices.h"
 
 static NSDictionary* UIPhoneRead(FILE* in) {
     char* line = NULL;
@@ -58,7 +65,77 @@ static NSDictionary* UIPhoneData(SZFE2EClient* client, NSString* subscription) {
     return data ? @{@"ok" : @YES, @"data" : data} : @{@"ok" : @NO, @"why" : @"no snapshot"};
 }
 
+// The dropdown open on its list: closed and opened again, then Back until the list shows.
+static NSString* _Nullable UIPhoneToList(UIRig* rig) {
+    UICloseDropdown(rig);
+    if (!UIOpenDropdown(rig)) return @"the dropdown does not open";
+    if (rig.dropdown.currentView == SZFriendsDropdownViewList) return nil;
+    NSString* why = nil;
+    // The pages with a badge say "Back to Friends"; the join page's header has a plain Back.
+    NSButton* back = UIFindButton(rig.content, @"Back to Friends") ?: UIFindButton(rig.content, @"Back");
+    if (!back || !UIClick(back, &why)) return why ?: @"no way back to the list";
+    if (!UIWait(5, ^BOOL { return rig.dropdown.currentView == SZFriendsDropdownViewList; }))
+        return @"Back does not reach the list";
+    return nil;
+}
+
+// The field whose placeholder is `placeholder`, visible on the page showing.
+static NSTextField* _Nullable UIPhoneField(UIRig* rig, NSString* placeholder) {
+    for (NSView* view in UIAllViews(rig.content))
+        if ([view isKindOfClass:NSTextField.class] && [((NSTextField*)view).placeholderString isEqual:placeholder] &&
+            UIVisible(view))
+            return (NSTextField*)view;
+    return nil;
+}
+
+// Joining's steps on the Mac (PROTOCOL.md § Joining): a button, a field, the code a request shows, words on the page.
+static NSDictionary* _Nullable UIPhoneJoinStep(UIRig* rig, NSDictionary* command) {
+    NSString* cmd = command[@"cmd"];
+    if ([cmd isEqual:@"list"]) {
+        NSString* why = UIPhoneToList(rig);
+        return why ? UIPhoneFailed(rig, why) : @{@"ok" : @YES};
+    }
+    if ([cmd isEqual:@"click"]) {
+        __block NSButton* button = nil;
+        if (!UIWait(30, ^BOOL { return (button = UIFindButton(rig.content, command[@"label"])) != nil; }))
+            return UIPhoneFailed(rig, [NSString stringWithFormat:@"no button %@", command[@"label"]]);
+        NSString* why = nil;
+        if (!UIClick(button, &why)) return UIPhoneFailed(rig, why ?: @"the button takes no click");
+        UISpin(0.3);
+        return @{@"ok" : @YES};
+    }
+    if ([cmd isEqual:@"fill"]) {
+        __block NSTextField* field = nil;
+        if (!UIWait(15, ^BOOL { return (field = UIPhoneField(rig, command[@"placeholder"])) != nil; }))
+            return UIPhoneFailed(rig, [NSString stringWithFormat:@"no field %@", command[@"placeholder"]]);
+        NSString* why = nil;
+        if (!UIClick(field, &why) && ![field.window makeFirstResponder:field])
+            return UIPhoneFailed(rig, why ?: @"the field takes no typing");
+        UIClearField(field.window);
+        return UIType(field.window, command[@"text"]) ? @{@"ok" : @YES} : UIPhoneFailed(rig, @"typing went nowhere");
+    }
+    if ([cmd isEqual:@"join_code"]) {
+        __block NSString* code = nil;
+        UIWait(30, ^BOOL {
+            for (SZFriendsJoinRequestView* request in rig.listPage.devicesView.requestViews)
+                if (!request.codeLabel.hidden && request.codeLabel.stringValue.length)
+                    code = request.codeLabel.stringValue;
+            return code != nil;
+        });
+        return code ? @{@"ok" : @YES, @"code" : code} : UIPhoneFailed(rig, @"no code shows");
+    }
+    if ([cmd isEqual:@"see"]) {
+        NSString* text = command[@"text"];
+        NSTimeInterval seconds = [command[@"seconds"] doubleValue] ?: 30;
+        BOOL shown = UIWait(seconds, ^BOOL { return UIReveal(rig.content, text) != nil; });
+        return shown ? @{@"ok" : @YES} : UIPhoneFailed(rig, [NSString stringWithFormat:@"never says %@", text]);
+    }
+    return nil;
+}
+
 static NSDictionary* UIPhoneStep(UIRig* rig, SZFE2EClient* client, NSDictionary* command) {
+    NSDictionary* joining = UIPhoneJoinStep(rig, command);
+    if (joining) return joining;
     NSString* cmd = command[@"cmd"];
     if ([cmd isEqual:@"intent"]) {
         NSDictionary* reply = [client intent:command[@"type"] fields:command[@"fields"]];
@@ -72,15 +149,8 @@ static NSDictionary* UIPhoneStep(UIRig* rig, SZFE2EClient* client, NSDictionary*
     if ([cmd isEqual:@"conversation"]) return UIPhoneData(client, [client openConversation:command[@"id"]]);
     if ([cmd isEqual:@"open"]) {
         // Back to the list first, as a person coming back to the chat does: the conversation is opened anew.
-        UICloseDropdown(rig);
-        if (!UIOpenDropdown(rig)) return UIPhoneFailed(rig, @"the dropdown does not open");
-        if (rig.dropdown.currentView != SZFriendsDropdownViewList) {
-            NSString* why = nil;
-            NSButton* back = UIFindButton(rig.content, @"Back to Friends");
-            if (!back || !UIClick(back, &why)) return UIPhoneFailed(rig, why ?: @"no way back to the list");
-            if (!UIWait(5, ^BOOL { return rig.dropdown.currentView == SZFriendsDropdownViewList; }))
-                return UIPhoneFailed(rig, @"Back does not reach the list");
-        }
+        NSString* away = UIPhoneToList(rig);
+        if (away) return UIPhoneFailed(rig, away);
         __block SZFriendsRowView* row = nil;
         if (!UIWait(15, ^BOOL { return (row = UIRow(rig, command[@"title"])) != nil; }))
             return UIPhoneFailed(rig, @"no such row");
