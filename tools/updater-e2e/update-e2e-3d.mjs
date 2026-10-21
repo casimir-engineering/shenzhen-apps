@@ -75,6 +75,23 @@ let swept = false;
 process.on("exit", () => { if (!swept) sweep(owned); });
 for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"])
   process.on(signal, () => { if (!swept) sweep(owned); swept = true; process.exit(1); });
+// ---- Nothing this run starts may put a dialog on the person's screen -------------------------------------------------
+// The copies keep the released bundle identifier (Squirrel checks the update against the app's designated requirement)
+// and register with LaunchServices when they run. Left there, an unnotarized, modified copy (the fixture, the relaunch
+// copy) can be picked for anything that opens Shenzhen 3D, and Gatekeeper shows "is damaged and can't be opened" on the
+// person's screen. So each copy is unregistered as soon as it has stopped (nodialogs.py), and the unified log must show
+// no Gatekeeper prompt (syspolicyd, CoreServicesUIAgent) during the run.
+const NODIALOGS = path.join(path.dirname(fileURLToPath(import.meta.url)), "nodialogs.py");
+const startedAt = Date.now() / 1000;
+const forget = () => {
+  const r = spawnSync("python3", ["-I", NODIALOGS, "unregister", ...owned], { encoding: "utf8" });
+  return { left: r.status !== 0, output: `${r.stdout ?? ""}${r.stderr ?? ""}${r.error ? String(r.error) : ""}`.trim() };
+};
+const gatekeeperPrompts = () => {
+  const r = spawnSync("python3", ["-I", NODIALOGS, "prompts", String(startedAt), String(Date.now() / 1000)], { encoding: "utf8" });
+  return { found: r.status !== 0, output: `${r.stdout ?? ""}${r.stderr ?? ""}`.trim() };
+};
+spawnSync("python3", ["-I", NODIALOGS, "stale"], { encoding: "utf8" }); // copies of earlier runs
 const already = sweep(owned, { kill: false });
 if (already.left) throw Error(`something already runs from this run's copies:\n${already.output}`);
 const install = path.join(work, "install"), profile = path.join(work, "profile"), cache = path.join(work, "updater-cache");
@@ -303,6 +320,7 @@ try {
   await page.evaluate(() => window.shenzhenUpdates.install()).catch(() => {});
   await closed;
   application = undefined;
+  forget();
   installed = await replacedBy(app, newVersion, path.join(artifacts, zip), path.join(work, "new-app"));
   check(`Squirrel replaced the app with ${newVersion}`, installed);
   // The installed bundle is now the release itself, without a test identity: reopened, it would take the profile and
@@ -310,6 +328,7 @@ try {
   await shipItIdle();
   await sleep(3000);
   const reopened = sweep([app]);
+  forget(); // LaunchServices registers the installed bundle a few seconds after Squirrel moves it into place
   check("the installed release was not reopened", !reopened.left, reopened.output || undefined);
   const verify = (args) => { try { execFileSync(args[0], args.slice(1), { stdio: "pipe" }); return true; } catch { return false; } };
   check("codesign --verify --deep --strict", verify(["codesign", "--verify", "--deep", "--strict", app]));
@@ -353,6 +372,7 @@ try {
         await p2.evaluate(() => window.shenzhenUpdates.install()).catch(() => {});
         await closed2;
         application = undefined;
+        forget();
         const replaced = await replacedBy(relaunchPrepared, nextVersion, nextZip, path.join(work, "next-unpacked"));
         check(`Squirrel replaced the new version with ${nextVersion}`, replaced);
         check("codesign --verify --deep --strict (next)", verify(["codesign", "--verify", "--deep", "--strict", relaunchPrepared]));
@@ -366,6 +386,7 @@ try {
     }
     await application?.close();
     application = undefined;
+    forget();
   }
   result.success = result.checks.every((c) => c.ok);
 } catch (error) {
@@ -396,6 +417,11 @@ try {
     check("nothing this run started is still running", false, left.output);
     result.success = false;
   }
+  const registered = forget();
+  if (!check("no test copy stays registered with LaunchServices", !registered.left, registered.output || undefined)) result.success = false;
+  const prompts = gatekeeperPrompts();
+  if (!check("the unified log shows no Gatekeeper prompt (syspolicyd, CoreServicesUIAgent) during the run", !prompts.found,
+    prompts.output ? prompts.output.split("\n").slice(0, 5) : undefined)) result.success = false;
   result.cleanup = { shipItJob: launchctlHas() && shipItOurs(), shipItPrefs: shipItPrefs().filter((p) => !prefsBefore.has(p)),
     leftRunning: left.left ? left.output : null };
   save();

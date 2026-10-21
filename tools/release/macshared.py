@@ -5,8 +5,8 @@ import os
 import shutil
 import time
 
-from common import (CACHE, Failure, app_from_dmg, download_asset, end_test_processes, gh_api, git, publish_release,
-                    push_source_tag, run, say)
+from common import (CACHE, Failure, app_from_dmg, download_asset, end_test_processes, forget_registrations, gh_api, git,
+                    publish_release, push_source_tag, run, say)
 
 
 def write_json(path, data):
@@ -36,6 +36,7 @@ def gatekeeper_check(dmg, app_name, work, log):
     if "Notarized Developer ID" not in text.split("$ spctl -a -vv")[-1]:
         raise Failure(f"Gatekeeper did not accept the quarantined {app_name} as Notarized Developer ID; log: {log}")
     shutil.rmtree(work, ignore_errors=True)
+    forget_registrations(work, log)  # the quarantined copy was registered when spctl looked at it
     return verdict
 
 

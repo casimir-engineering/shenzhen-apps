@@ -18,10 +18,12 @@ executable path (sweep.py), including a copy the helper reopened with launchd as
 """
 import argparse, hashlib, json, os, plistlib, shutil, signal, subprocess, sys, time
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import nodialogs  # LaunchServices registrations and the Gatekeeper prompt check; see nodialogs.py
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 WORK = None  # set once this run's work directory exists
-LSREGISTER = ("/System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/LaunchServices.framework/"
-              "Versions/A/Support/lsregister")
+STARTED = time.time()  # the run's window in the unified log
 KINDS = {
     "pdf": dict(app="ShenzhenPDF.app", repo="casimir-engineering/shenzhen-pdf", asset="ShenzhenPDF-mac-arm64.dmg",
                 exe="Contents/MacOS/ShenzhenPDF", support="ShenzhenPDF", nested=[]),
@@ -98,6 +100,7 @@ def main():
     os.makedirs(work, exist_ok=False)
     global WORK
     WORK = work
+    nodialogs.forget_stale()  # copies of earlier runs that LaunchServices may still offer for the same identifier
     apps, home, mock = (os.path.join(work, d) for d in ("Applications", "home", "mock"))
     for d in (apps, home, mock):
         os.makedirs(d)
@@ -202,6 +205,7 @@ def main():
             break
     if not swapped:
         stop(work)
+    nodialogs.forget([work])  # the old app and the helper's reopened copy have stopped
     ev = events(log)
     keys = [e.get("key") for e in ev if e.get("event") == "request"]
     check("update", "the old build asked GitHub for its latest release",
@@ -297,12 +301,30 @@ def main():
               len(helper_refusals))
     unexpected = [e.get("key") for e in events(log) if e.get("event") == "request" and not e.get("routed")]
     check("all", "no request left the test", True, unexpected or None)
-    # LaunchServices learnt these copies when they ran; forget them.
-    for p in (app, old_app):
-        run(LSREGISTER, "-u", p, check=False)
+    # LaunchServices learnt these copies when they ran. They keep the release's bundle identifier (the handshake of
+    # Shenzhen Files needs it), so it could offer one of them, unnotarized or modified, for anything that opens the
+    # app, and Gatekeeper would then show its "damaged" dialog on the person's screen: forget them.
+    nodialogs.forget([work])
     result["success"] = all(c["ok"] for s in result["stages"].values() for c in s)
     save()
     return 0 if result["success"] else 1
+
+def add_failure(work, name, ok, detail):
+    """Records one more check in result.json after main() returned (or failed); a failing one fails the run."""
+    path = os.path.join(work, "result.json")
+    try:
+        with open(path) as f:
+            result = json.load(f)
+    except (OSError, ValueError):
+        result = {"stages": {}}
+    result["stages"].setdefault("cleanup", []).append({"check": name, "ok": bool(ok), "detail": detail})
+    if not ok:
+        result["success"] = False
+    with open(path, "w") as f:
+        json.dump(result, f, indent=2)
+    print(("ok   " if ok else "FAIL ") + f"all: {name}" + ("" if ok else f" ({detail})"), flush=True)
+    return ok
+
 
 def end_leftovers(work):
     """Ends what still runs from the work directory, by exact executable path; True when something was."""
@@ -310,20 +332,19 @@ def end_leftovers(work):
                        capture_output=True, text=True)
     if p.returncode == 0:
         return False
-    detail = (p.stdout + p.stderr).strip()
-    print(f"FAIL all: nothing this run started is still running ({detail})", flush=True)
-    path = os.path.join(work, "result.json")
-    try:
-        with open(path) as f:
-            result = json.load(f)
-    except (OSError, ValueError):
-        result = {"stages": {}}
-    result["stages"].setdefault("cleanup", []).append(
-        {"check": "nothing this run started is still running", "ok": False, "detail": detail})
-    result["success"] = False
-    with open(path, "w") as f:
-        json.dump(result, f, indent=2)
+    add_failure(work, "nothing this run started is still running", False, (p.stdout + p.stderr).strip())
     return True
+
+
+def no_dialogs(work):
+    """However the run ended: its test copies keep the release's bundle identifier, so none may stay registered with
+    LaunchServices (it could offer one for opening the app, and Gatekeeper would show its "damaged" dialog); and the
+    unified log must show no Gatekeeper prompt during the run. True when both hold."""
+    left = nodialogs.forget([work])
+    ok = add_failure(work, "no test copy stays registered with LaunchServices", not left, left or None)
+    prompts = nodialogs.prompts(STARTED, time.time())
+    return add_failure(work, "the unified log shows no Gatekeeper prompt (syspolicyd, CoreServicesUIAgent) during the "
+                       "run", not prompts, prompts[:5] or None) and ok
 
 
 if __name__ == "__main__":
@@ -334,5 +355,7 @@ if __name__ == "__main__":
         code = main()
     finally:
         if WORK and end_leftovers(WORK):
+            code = 1
+        if WORK and not no_dialogs(WORK):
             code = 1
     sys.exit(code)

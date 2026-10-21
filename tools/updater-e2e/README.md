@@ -15,6 +15,18 @@ under a profile of their own (`apps/3d/electron/test-identity.cjs`): the test's 
 beside the `.app` when reopened. Electron keeps the single-instance lock in the profile, so a Shenzhen 3D installed on
 the Mac still starts while a test copy runs. `apps/3d/electron/test-identity.test.cjs` checks both.
 
+## Nothing reaches the owner's screen, not even later
+
+The test copies keep the release's bundle identifier (Squirrel checks the update against the app's designated
+requirement; the Shenzhen Files handshake needs its own), and each one that runs registers itself with LaunchServices.
+A copy that stays registered, unnotarized and modified after signing (the Shenzhen 3D fixture and relaunch copy), or one
+in a cache folder, can be picked later for anything that opens the app by identifier, URL scheme or document, and
+Gatekeeper then shows "is damaged and can't be opened" on the person's screen, long after the test ended. So
+`nodialogs.py` unregisters the copies as soon as each has stopped and at the end (and the stale ones of earlier runs
+at the start), and a run fails if LaunchServices still knows one or if the unified log shows a Gatekeeper prompt
+(syspolicyd's denial, CoreServicesUIAgent's dialog) between its start and its end. `tools/release.sh` unregisters the
+work directory after each updater test and after the Gatekeeper check of a DMG.
+
 ## ShenzhenPDF and Shenzhen Files
 
 ```sh

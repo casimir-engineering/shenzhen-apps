@@ -85,6 +85,18 @@ def end_test_processes(path, log):
                log=log, check=False)
     if code != 0:
         raise Failure(f"the updater test left processes running from {path}; they were ended (log: {log})")
+    forget_registrations(path, log)
+
+
+def forget_registrations(path, log):
+    """Test copies keep the release's bundle identifier and register with LaunchServices when they run; one left there
+    (unnotarized, modified, or quarantined) can be offered for opening the app, and Gatekeeper then puts its "damaged"
+    dialog on the person's screen. Unregisters every app under `path`; fails the stage if LaunchServices still knows
+    one (tools/updater-e2e/nodialogs.py)."""
+    code = run([sys.executable, "-I", os.path.join(TOOLS, "updater-e2e", "nodialogs.py"), "unregister", path],
+               log=log, check=False)
+    if code != 0:
+        raise Failure(f"LaunchServices still knows test copies under {path} (log: {log})")
 
 
 def git(repo, *args, check=True):
