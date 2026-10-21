@@ -32,6 +32,24 @@ static SPDFMacAIRequestContext* SeamContext(NSArray* chips) {
 - (id)aiToolProvider { self.calls += 100; return nil; }
 @end
 
+// A tools object that reports to the chat (the reader's, for a saved document's card): takes the request's context.
+@interface SeamContextTools : NSObject <SPDFMacAIChatTools>
+@property(nonatomic) SPDFMacAIRequestContext* context;
+@property(nonatomic) NSUInteger plainCalls;
+@end
+@implementation SeamContextTools
+- (void)performTool:(NSString*)name arguments:(NSDictionary*)arguments completion:(void (^)(NSDictionary*))completion {
+    (void)name; (void)arguments; self.plainCalls++; completion(@{});
+}
+- (void)performTool:(NSString*)name arguments:(NSDictionary*)arguments context:(SPDFMacAIRequestContext*)context
+         completion:(void (^)(NSDictionary*))completion {
+    (void)name; (void)arguments; self.context = context; completion(@{});
+}
+- (BOOL)canUndo { return NO; }
+- (void)cancel {}
+- (BOOL)undoLastAction:(NSError**)error { (void)error; return NO; }
+@end
+
 static void CheckRegistry(void) {
     SPDFMacAIToolRegistry* registry = [SPDFMacAIToolRegistry new];
     SeamProvider* reader = [[SeamProvider alloc] initWithIdentifier:@"reader" tools:@{@"read_pages" : @YES,
@@ -120,6 +138,13 @@ static void CheckRegistry(void) {
     CHECK(!SeamRun(legacy, @"friends_search_chats", plain)[@"error"] &&
           [tools.ran.lastObject isEqual:@"friends_search_chats"],
           "the original initializer still hands every call to its tools object");
+    SeamContextTools* reporting = [SeamContextTools new];
+    SPDFMacAIToolRegistry* reportingRegistry = [SPDFMacAIToolRegistry new];
+    [reportingRegistry registerProvider:[[SPDFMacAIChatToolsProvider alloc] initWithIdentifier:@"reader"
+        tools:reporting definitions:@[SeamDefinition(@"document_job")] readOnlyTools:[NSSet set]] error:nil];
+    SeamRun(reportingRegistry, @"document_job", plain);
+    CHECK(reporting.context == plain && !reporting.plainCalls,
+          "a tools object that takes the request's context gets it, so its cards reach the request's chat");
 
     SeamDiscoveryOwner* owner = [SeamDiscoveryOwner new];
     NSArray* found = SPDFMacAIDiscoverToolProviders(owner);

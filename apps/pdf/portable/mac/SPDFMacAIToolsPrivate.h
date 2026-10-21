@@ -1,9 +1,12 @@
 #pragma once
 #import "SPDFMacAITools.h"
+@protocol SPDFMacAIActivityReporting;
 @interface SPDFMacAITools ()
 @property(nonatomic,weak) ShenzhenMacDelegate* reader;
 @property(nonatomic,strong) NSOperationQueue* queue;
 @property(nonatomic,strong) NSProgress* progress;
+// The chat of the request being served (SPDFMacAIRequestContext.activity), for cards about saved documents.
+@property(nonatomic,weak) id<SPDFMacAIActivityReporting> activity;
 @property(nonatomic) NSUInteger generation;
 @property(nonatomic,strong) NSMutableArray<NSDictionary*>* actions;
 @property(nonatomic,strong) NSMutableArray<NSDictionary*>* redoActions;

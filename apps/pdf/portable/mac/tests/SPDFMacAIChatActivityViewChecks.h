@@ -1,7 +1,7 @@
 // Chat activity rows in the real chat view: placement after their messages, disclosure, live actions, cards with
-// Markdown and attachments, images with Save, in-place updates and search; then their layout at the dock's minimum
-// (320 pt) and default (400 pt) widths. Included by SPDFMacAIChatViewTests.mm after ChatFixture, Find, Click and
-// InspectTargets.
+// Markdown and attachments, images with Save (once saved, Open and Show in Finder), in-place updates and search;
+// then their layout at the dock's minimum (320 pt) and default (400 pt) widths. Included by SPDFMacAIChatViewTests.mm
+// after ChatFixture, Find, Click and InspectTargets.
 #pragma once
 #import "../SPDFMacAIChatActivity.h"
 #import "../SPDFMacAIChatActivityView.h"
@@ -121,6 +121,27 @@ static void RunChatActivityViewChecks(void) {
     Check(rows.arrangedSubviews[1] == userText &&
           [[(NSTextField*)Find(view, @"activityStatus:S") stringValue] isEqual:@"5 results"] &&
           !Find(view, @"activityAction:S:cancel"), @"a finished step is redrawn alone, its Cancel gone");
+    // A saved chart (SPDFMacAIOutputs.h): its row says so, with Open and Show in Finder in place of Save.
+    NSMutableDictionary* saved = [picture mutableCopy];
+    saved[@"status"] = @"Saved to Downloads";
+    fixture.chat = @{@"id" : @"activity", @"messages" : messages, @"activity" : @[step, card, saved, kept]};
+    fixture.live = @{@"C" : @[cancel], @"I" : @[@{@"id" : @"open", @"title" : @"Open"},
+                                                @{@"id" : @"reveal", @"title" : @"Show in Finder"}]};
+    [view displaySession:(id)fixture];
+    SettleActivity(view);
+    NSButton* openSaved = (NSButton*)Find(view, @"activityAction:I:open");
+    NSButton* revealSaved = (NSButton*)Find(view, @"activityAction:I:reveal");
+    Check([[(NSTextField*)Find(view, @"activityStatus:I") stringValue] isEqual:@"Saved to Downloads"] &&
+          [openSaved.title isEqual:@"Open"] && [revealSaved.title isEqual:@"Show in Finder"] &&
+          !Find(view, @"activitySave:I"), @"a saved chart says \"Saved to Downloads\" with Open and Show in Finder");
+    Click(window, revealSaved, NSMakePoint(2, 2));
+    Check([fixture.performed.lastObject isEqual:@"I:reveal"], @"Show in Finder reaches the session for that chart");
+    fixture.live = @{@"C" : @[cancel]};
+    [view displaySession:(id)fixture];
+    SettleActivity(view);
+    Check(Find(view, @"activitySave:I") && !Find(view, @"activityAction:I:open") &&
+          [[(NSTextField*)Find(view, @"activityStatus:I") stringValue] isEqual:@"Saved to Downloads"],
+          @"reopened, a saved chart keeps its status and offers Save again, without dead buttons");
     [view setChatSearchQuery:@"chart"];
     Check(!Find(view, @"activity:S") && !Find(view, @"activity:C"), @"searching a chat shows matching messages only");
     [view setChatSearchQuery:@""];

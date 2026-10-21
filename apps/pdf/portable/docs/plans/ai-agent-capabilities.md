@@ -130,7 +130,8 @@ every capability acts only inside a request the person typed.
   matplotlib, installed on first use after consent, like the OCR tools; never global, never inherited
   environment variables (`spdf_mac_tool_environment`).
 - Inputs are files the assistant writes into the work directory (document excerpts, tables). Outputs return as
-  text, tables and images shown in the chat; images can be saved or inserted into a Markdown document.
+  text, tables and images shown in the chat; images can be saved (to Downloads and Collection, as every document the
+  assistant makes: document-assistant.md) or inserted into a Markdown document.
 - If the sandbox cannot be applied on this macOS version, the tool is unavailable and says so; it never runs
   unsandboxed.
 - **Profile, as reviewed.** Deny by default; a named sysctl allowlist; no information about other processes, no

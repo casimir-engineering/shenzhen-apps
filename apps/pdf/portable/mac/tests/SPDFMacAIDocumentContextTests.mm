@@ -133,6 +133,7 @@ static SPDFDocumentTab* Tab(NSString* path, SPDFTabGroup* group) {
 #import "SPDFMacAICurrentViewChecks.h"
 #import "SPDFMacAICollectionRenameChecks.h"
 #import "SPDFMacAIMetadataHistoryChecks.h"
+#import "SPDFMacAIJobOutputChecks.h"
 int main(void) { @autoreleasepool {
     NSString* emojiBoundary=[[@"a" stringByPaddingToLength:63999 withString:@"a" startingAtIndex:0] stringByAppendingString:@"😀x"];
     NSString* boundedEmoji=SPDFAIBoundedText(emojiBoundary,64000);
@@ -354,19 +355,7 @@ int main(void) { @autoreleasepool {
     Check([collectionTarget[@"archived"] boolValue] && [NSFileManager.defaultManager fileExistsAtPath:collectionTarget[@"readPath"]],"explicit Collection copy materializes saved document");
     CheckAICollectionRename(reader,collection,captured,collectionTarget[@"readPath"],group);
     Check(SPDFAICollectionOpenTarget(@"/etc/passwd",NO,controlProgress)[@"error"]!=nil,"Collection rejects arbitrary path IDs");
-    [reader seedTabs:@[Tab(path,group)]]; result=nil;
-    SPDFMacAITools* jobTools=[[SPDFMacAITools alloc] initWithReader:reader];
-    Check(![NSFileManager.defaultManager fileExistsAtPath:[[root stringByAppendingPathComponent:@"state"] stringByAppendingPathComponent:@"Assistant Exports"]],"tool creation and ordinary reads never create job storage");
-    [jobTools performTool:@"document_job" arguments:@{@"path":SPDFAIDocumentIdentifier(path),@"kind":@"export-pdf",
-        @"revision":SPDFSearchFileStamp(path)} completion:^(NSDictionary* value){ result=value; }];
-    deadline=[NSDate dateWithTimeIntervalSinceNow:10];
-    while (!result && deadline.timeIntervalSinceNow>0) [NSRunLoop.currentRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:.01]];
-    NSString* generatedPath=[reader visiblePath];
-    Check([result[@"completed"] boolValue] && [result[@"undoable"] boolValue] &&
-        !result[@"documentReceipt"] && [result[@"path"] hasPrefix:@"doc:"] && [generatedPath hasPrefix:[root stringByAppendingString:@"/"]] &&
-        ![generatedPath isEqual:path] && [NSFileManager.defaultManager fileExistsAtPath:generatedPath],"async export dispatcher returns opaque result and Undo action");
-    Check([jobTools undoLastAction:nil] && [[reader visiblePath] isEqual:path] &&
-        ![NSFileManager.defaultManager fileExistsAtPath:generatedPath],"job Undo removes only owned output and restores reader");
+    CheckJobOutputs(reader,path,group,root,collection); result=nil;
     AIContextProbe* large=[AIContextProbe new]; NSMutableArray* many=[NSMutableArray array];
     for (NSUInteger index=0;index<1000;index++) {
         SPDFTabGroup* manyGroup=[SPDFTabGroup fromDictionary:@{@"id":[NSString stringWithFormat:@"group-%lu",(unsigned long)index],@"name":@"Many documents",@"color":@"blue"}];
