@@ -49,7 +49,21 @@ class ReachableService : Service() {
       stopSelf()
       return START_NOT_STICKY
     }
+    // Started after a restart of the phone: the core lives in the app, which is not running yet. Start it behind
+    // whatever is on screen (FriendsPlugin sends it back at once), where Android lets a boot-started service do so.
+    if (Notifications.responses == null) startCore()
     return START_STICKY
+  }
+
+  private fun startCore() {
+    val launcher = packageManager.getLaunchIntentForPackage(packageName) ?: return
+    launcher.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_NO_ANIMATION)
+      .putExtra(Notifications.EXTRA_BACKGROUND_START, true)
+    try {
+      startActivity(launcher)
+    } catch (e: Exception) {
+      // Refused: Friends starts with the app next time.
+    }
   }
 
   companion object {

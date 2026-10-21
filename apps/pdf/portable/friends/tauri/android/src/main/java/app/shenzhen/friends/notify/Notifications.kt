@@ -56,6 +56,8 @@ object Notifications {
   /** The extra a notification's tap carries: its key, for the core. */
   const val EXTRA_KEY = "app.shenzhen.friends.notification"
   const val EXTRA_THREAD = "app.shenzhen.friends.thread"
+  /** The launcher activity started by ReachableService after a restart: it goes behind at once. */
+  const val EXTRA_BACKGROUND_START = "app.shenzhen.friends.background_start"
   const val REPLY_TEXT = "app.shenzhen.friends.reply"
   const val ACTION_REPLY = "app.shenzhen.friends.REPLY"
 

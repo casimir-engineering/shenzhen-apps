@@ -89,7 +89,7 @@ mod native {
 
     pub struct PhoneNotifier<R: Runtime> {
         handle: PluginHandle<R>,
-        /// `<scheme>://friends/settings`: where the background notification's tap goes.
+        /// `<scheme>://friends`: the background notification's tap opens Friends (the hosts route no settings page).
         settings_url: String,
         app_name: String,
         shared: Arc<Mutex<Shared>>,
@@ -133,7 +133,7 @@ mod native {
             }
             Arc::new(Self {
                 handle,
-                settings_url: format!("{scheme}://friends/settings"),
+                settings_url: format!("{scheme}://friends"),
                 app_name: app_name.to_owned(),
                 shared,
             })
@@ -215,9 +215,9 @@ mod tests {
         assert_eq!(names["friends.files"], "Files");
         assert_eq!(names["friends.requests"], "Requests");
         assert_eq!(names["friends.background"], "Reachable in the background");
-        let payload = background_payload(true, "Shenzhen 3D", "shenzhen3d://friends/settings");
+        let payload = background_payload(true, "Shenzhen 3D", "shenzhen3d://friends");
         assert_eq!(payload["title"], "Friends is reachable");
         assert_eq!(payload["body"], "Messages and files still arrive while Shenzhen 3D is closed.");
-        assert_eq!(payload["url"], "shenzhen3d://friends/settings");
+        assert_eq!(payload["url"], "shenzhen3d://friends");
     }
 }

@@ -134,7 +134,10 @@ extension FriendsPlugin {
 
   /// Turn On (allow_notifications): the system's own prompt; the answer arrives as a permission event.
   @objc public func notifyAsk(_ invoke: Invoke) throws {
-    UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { _, _ in
+    NSLog("FRIENDS-NOTIFY asking")
+    UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, _ in
+      // In the log for the simulator's check (phones-notify-ios.mjs): asked once, on Turn On.
+      NSLog("FRIENDS-NOTIFY asked granted=%@", granted ? "true" : "false")
       FriendsNotifications.shared.report()
     }
     invoke.resolve(["done": true])
@@ -150,6 +153,7 @@ extension FriendsPlugin {
     content.userInfo = ["url": args.open.url, "kind": args.kind]
     let request = UNNotificationRequest(identifier: args.key, content: content, trigger: nil)
     UNUserNotificationCenter.current().add(request) { error in
+      NSLog("FRIENDS-NOTIFY posted %@ kind=%@ added=%@", args.key, args.kind, error == nil ? "true" : "false")
       invoke.resolve(["done": error == nil])
     }
   }
