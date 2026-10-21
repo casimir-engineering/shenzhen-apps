@@ -3,6 +3,7 @@
  * other computers shows. */
 
 #include "gtk/szfriends_gtk_devices.h"
+#include "gtk/szfriends_gtk_glyphs.h"
 #include "gtk/szfriends_gtk_internal.h"
 
 #include <adwaita.h>
@@ -106,6 +107,16 @@ static void apply(SZFriendsGtkJoinPage *join, SZFriendsGtkJoinSnapshot *snapshot
     if (previous != snapshot->state) g_clear_pointer(&join->reply_error, g_free);
     szfriends_gtk_details_label_set(parts->title, snapshot->title);
     szfriends_gtk_details_label_set(parts->message, snapshot->message);
+    /* The route line, drawn as the conversation header's: the route's icon, then its words. */
+    const SZFriendsGtkRoute *route = snapshot->route;
+    gboolean has_route = route && route->label && *route->label;
+    gtk_widget_set_visible(parts->route, has_route);
+    if (has_route) {
+        SZFriendsGtkGlyphKind glyph = szfriends_gtk_route_glyph(route->kind, route->method);
+        szfriends_gtk_glyph_set_kind(parts->route_glyph, glyph);
+        gtk_widget_set_visible(parts->route_glyph, glyph != SZFRIENDS_GTK_GLYPH_NONE);
+        gtk_label_set_text(GTK_LABEL(parts->route_label), route->label);
+    }
     szfriends_gtk_page_set_name(join->page, snapshot->title);
     const SZFriendsGtkJoinIdField *id_field = snapshot->id_field;
     gtk_widget_set_visible(parts->id_entry, id_field != NULL);
@@ -184,6 +195,15 @@ static void build(SZFriendsGtkPage *page, gpointer user_data) {
     gtk_widget_set_valign(box, GTK_ALIGN_START);
     parts->title = centered(szfriends_gtk_details_label("title-3"));
     parts->message = centered(szfriends_gtk_details_label("szfriends-secondary"));
+    parts->route = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 4);
+    gtk_widget_set_name(parts->route, "szfriends.join.route");
+    gtk_widget_set_halign(parts->route, GTK_ALIGN_CENTER);
+    parts->route_glyph = szfriends_gtk_glyph_new(SZFRIENDS_GTK_GLYPH_NONE, 11);
+    parts->route_label = gtk_label_new(NULL);
+    gtk_widget_add_css_class(parts->route_label, "szfriends-secondary");
+    gtk_box_append(GTK_BOX(parts->route), parts->route_glyph);
+    gtk_box_append(GTK_BOX(parts->route), parts->route_label);
+    gtk_widget_set_visible(parts->route, FALSE);
     GtkWidget *id_row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8);
     gtk_widget_set_margin_top(id_row, 8);
     parts->id_entry = gtk_entry_new();
@@ -218,7 +238,7 @@ static void build(SZFriendsGtkPage *page, gpointer user_data) {
     gtk_widget_set_halign(parts->actions, GTK_ALIGN_CENTER);
     gtk_widget_set_margin_top(parts->actions, 8);
     gtk_widget_set_visible(parts->actions, FALSE);
-    for (GtkWidget **child = (GtkWidget *[]){parts->title, parts->message, id_row, parts->code_entry,
+    for (GtkWidget **child = (GtkWidget *[]){parts->title, parts->message, parts->route, id_row, parts->code_entry,
                                             parts->code_button, parts->error, parts->actions, NULL};
          *child; child++)
         gtk_box_append(GTK_BOX(box), *child);

@@ -249,6 +249,9 @@ static void test_join_page(SZFGHarness *harness) {
     EXPECT(szfg_wait_label(page, "This computer now uses your profile") && !gtk_widget_get_visible(parts->code_entry) &&
                !gtk_widget_get_visible(parts->id_entry) && !gtk_widget_get_visible(parts->actions),
            "joined: just what happened");
+    EXPECT(gtk_widget_get_visible(parts->route) && gtk_widget_get_visible(parts->route_glyph) &&
+               !g_strcmp0(gtk_label_get_text(GTK_LABEL(parts->route_label)), "Nearby, on your network"),
+           "joined: the route it joined over, its icon before its words");
     szfriends_fake_helper_set_view_fixture(harness->fake, "list", "list.json");
     szfg_rig_free(rig);
 }

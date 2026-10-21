@@ -268,6 +268,12 @@ static void SZFTestJoinPage(void) {
     SZFExpect(page.idField.hidden && page.codeField.hidden && page.actionButtons.count == 0 &&
                   [page.titleLabel.stringValue isEqualToString:@"This computer now uses your profile"],
               @"joined: just what happened");
+    SZFExpect(!page.routeLabel.hidden && !page.routeIconView.hidden &&
+                  [page.routeLabel.stringValue isEqualToString:@"Nearby, on your network"],
+              @"joined: the route it joined over, its icon before its words");
+    [page applySnapshot:SZFTestSnapshot(@"join-idle")];
+    [page layoutSubtreeIfNeeded];
+    SZFExpect(page.routeLabel.hidden && page.routeIconView.hidden, @"no route line before a session is live");
     [controller uninstall];
 }
 

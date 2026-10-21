@@ -15,6 +15,9 @@ NS_ASSUME_NONNULL_BEGIN
 @property(nonatomic, strong, readonly) NSTextField *titleLabel;
 @property(nonatomic, strong, readonly) NSTextField *messageLabel;
 @property(nonatomic, strong, readonly) NSTextField *errorLabel;
+// The route line (checking and joined, while a session is live): the route's icon before its words, as details draw it.
+@property(nonatomic, strong, readonly) NSView *routeIconView;
+@property(nonatomic, strong, readonly) NSTextField *routeLabel;
 @property(nonatomic, strong, readonly) NSTextField *idField;   // hidden unless the snapshot has id_field
 @property(nonatomic, strong, readonly) NSTextField *codeField; // hidden unless the snapshot has code_field
 @property(nonatomic, strong, readonly) SZFriendsButton *idButton;

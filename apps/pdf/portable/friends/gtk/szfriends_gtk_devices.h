@@ -19,6 +19,7 @@ void szfriends_gtk_join_page_register(SZFriendsGtkLink *link);
 #define SZFRIENDS_GTK_JOIN_COLUMN 400
 typedef struct {
     GtkWidget *title, *message, *id_entry, *id_button, *code_entry, *code_button, *error, *actions;
+    GtkWidget *route, *route_glyph, *route_label; /* the route line: checking and joined, while a session is live */
     guint snapshots; /* applied so far, so the suite knows a scripted one arrived */
 } SZFriendsGtkJoinParts;
 const SZFriendsGtkJoinParts *szfriends_gtk_join_page_parts(SZFriendsGtkPage *page); /* NULL for any other page */

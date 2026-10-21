@@ -10,6 +10,7 @@
     NSString *_token;
     NSString *_replyError; // a refused join_profile or enter_join_code, until the next snapshot changes the state
     NSMutableArray<SZFriendsActionButton *> *_buttons;
+    SZFriendsFlippedView *_routeIcon;
 }
 
 - (instancetype)initWithContext:(SZFriendsContext *)context {
@@ -27,10 +28,20 @@
                                  appearance.primaryTextColor);
     _messageLabel = SZFriendsLabel(@"", appearance.bodyFont, appearance.secondaryTextColor);
     _errorLabel = SZFriendsLabel(@"", appearance.secondaryFont, appearance.destructiveColor);
-    for (NSTextField *label in @[ _titleLabel, _messageLabel, _errorLabel ]) {
+    _routeLabel = SZFriendsLabel(@"", appearance.secondaryFont, appearance.secondaryTextColor);
+    for (NSTextField *label in @[ _titleLabel, _messageLabel, _errorLabel, _routeLabel ]) {
         label.alignment = NSTextAlignmentCenter;
         [self addSubview:label];
     }
+    _routeIcon = [[SZFriendsFlippedView alloc] initWithFrame:NSMakeRect(0, 0, 11, 11)];
+    _routeIcon.drawContents = ^(SZFriendsFlippedView *view) {
+        SZFriendsJoinPage *page = weakSelf;
+        NSDictionary *route = page ? SZFDict(page->_data, @"route") : nil;
+        SZFriendsDrawRouteIcon(SZFriendsRouteGlyph(route), view.bounds,
+                               SZFriendsRouteColor(page.context.appearance, SZFStr(route, @"kind")));
+    };
+    _routeIcon.hidden = YES;
+    [self addSubview:_routeIcon];
     _idField = [NSTextField textFieldWithString:@""];
     _idField.font = appearance.bodyFont;
     // The code is read back digit by digit: monospaced digits, large, so a typo stands out against the other screen.
@@ -63,6 +74,10 @@
 
 - (SZFriendsDropdownView)kind {
     return SZFriendsDropdownViewJoin;
+}
+
+- (NSView *)routeIconView {
+    return _routeIcon;
 }
 
 - (NSArray<SZFriendsActionButton *> *)actionButtons {
@@ -98,6 +113,11 @@
     if (![previousState isEqualToString:SZFStr(data, @"state")]) _replyError = nil;
     _titleLabel.stringValue = SZFStr(data, @"title") ?: @"";
     _messageLabel.stringValue = SZFStr(data, @"message") ?: @"";
+    NSDictionary *route = SZFDict(data, @"route");
+    _routeLabel.stringValue = SZFStr(route, @"label") ?: @"";
+    _routeLabel.textColor = SZFriendsRouteColor(self.context.appearance, SZFStr(route, @"kind"));
+    _routeIcon.hidden = !SZFriendsRouteGlyph(route) || !_routeLabel.stringValue.length;
+    _routeIcon.needsDisplay = YES;
     NSDictionary *idField = SZFDict(data, @"id_field");
     _idField.hidden = _idButton.hidden = idField == nil;
     _idField.placeholderString = SZFStr(idField, @"placeholder");
@@ -196,6 +216,17 @@
     for (NSTextField *label in @[ _titleLabel, _messageLabel ]) {
         label.hidden = label.stringValue.length == 0;
         if (!label.hidden) y = SZFriendsPlace(label, pad, y, inner) + 8;
+    }
+    // The route line, centred: its icon, 4 points, then its words.
+    _routeLabel.hidden = _routeLabel.stringValue.length == 0;
+    if (_routeLabel.hidden) _routeIcon.hidden = YES;
+    else {
+        CGFloat icon = _routeIcon.hidden ? 0 : 15;
+        CGFloat words = MIN(ceil(_routeLabel.intrinsicContentSize.width), inner - icon);
+        CGFloat x = floor((width - icon - words) / 2);
+        _routeIcon.frame = NSMakeRect(x, y + 2, 11, 11);
+        _routeLabel.frame = NSMakeRect(x + icon, y, words, 16);
+        y += 16 + 8;
     }
     y += 8;
     if (!_idField.hidden) {
