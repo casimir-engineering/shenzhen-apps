@@ -313,9 +313,26 @@ fn rule(kind: &str) -> Option<Rule> {
             _ => fail("enabled"),
         }),
         "dismiss_banner" => rule!(&["kind"], &[], |f| match f.get("kind").and_then(Value::as_str) {
-            Some("id_changed") => Ok(()),
+            Some("id_changed" | "notifications") => Ok(()),
             _ => fail("kind"),
         }),
+        // System notifications (PROTOCOL.md § Notifications). test_notification_response is for test harnesses, never
+        // a page.
+        "set_focus" => rule!(conversation, &[], |f| match f.get("conversation_id") {
+            Some(Value::Null) => Ok(()),
+            Some(value) if opaque_id(value) => Ok(()),
+            _ => fail("conversation_id"),
+        }),
+        "set_notifications" => rule!(&["enabled", "preview", "background"], &[], |f| {
+            if f.is_empty() {
+                return fail("fields");
+            }
+            match f.iter().find(|(_, value)| !value.is_boolean()) {
+                Some((key, _)) => fail(key.as_str()),
+                None => Ok(()),
+            }
+        }),
+        "allow_notifications" => rule!(&[]),
         "search_messages" => rule!(&["query", "conversation_id", "limit"], &[], search_messages),
         "delete_history" => rule!(conversation, &[], |f| opaque(f, "conversation_id", true)),
         "set_received_folder" => rule!(&["path"], &[], |f| path_field(f.get("path").unwrap_or(&Value::Null), "path")),
@@ -375,6 +392,9 @@ pub const INTENT_TYPES: &[&str] = &[
     "set_auto_accept",
     "set_received_folder",
     "dismiss_banner",
+    "set_focus",
+    "set_notifications",
+    "allow_notifications",
     "start_visibility",
     "stop_visibility",
     "search_messages",

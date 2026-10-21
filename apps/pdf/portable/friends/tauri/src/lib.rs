@@ -70,7 +70,8 @@ pub struct Config<R: Runtime> {
     pub open_formats: Vec<String>,
     /// Extensions `stage` accepts; empty accepts any plain name (dropped files are staged too on phones).
     pub staged_extensions: Vec<String>,
-    /// The app's URL scheme for Friends links (`<scheme>://friends/link#…`).
+    /// The app's URL scheme for Friends links (`<scheme>://friends/link#…`) and notifications' clicks
+    /// (`<scheme>://friends/conversation/<id>`, `<scheme>://friends`).
     pub link_scheme: String,
     /// The windows that get the bridge; the capability granting the commands must name the same.
     pub windows: Vec<String>,
@@ -128,8 +129,9 @@ impl<R: Runtime> Friends<R> {
         self.host.get()
     }
 
-    /// A Friends link URL opened in the app (a deep link): its card opens in the focused window once Friends is
-    /// ready. False when it is not one of the app's well-formed Friends links.
+    /// A Friends URL opened in the app (a deep link): a link's card, or the panel on a notification's conversation
+    /// (or the list), opens in the focused window once Friends is ready. False when it is not one of the app's
+    /// well-formed Friends URLs.
     pub fn open_link(&self, app: &AppHandle<R>, url: &str) -> bool {
         self.host(app).open_link(url)
     }

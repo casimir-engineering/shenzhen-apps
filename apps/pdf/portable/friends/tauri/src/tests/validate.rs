@@ -136,3 +136,31 @@ fn only_a_media_store_item_passes_for_a_received_file_without_a_path() {
         assert!(!media_store_uri(uri), "{uri}");
     }
 }
+
+#[test]
+fn notification_intents_take_a_conversation_or_none_and_booleans_and_never_a_test_response() {
+    for fields in [json!({"conversation_id": "c_mei"}), json!({"conversation_id": null})] {
+        assert_eq!(validate_intent(&json!("set_focus"), &fields).map(Value::Object), Ok(fields.clone()));
+    }
+    rejects("set_focus", json!({}), "conversation_id");
+    rejects("set_focus", json!({"conversation_id": "../x"}), "conversation_id");
+    rejects("set_focus", json!({"conversation_id": 3}), "conversation_id");
+    for fields in [
+        json!({"enabled": false}),
+        json!({"preview": true}),
+        json!({"background": true}),
+        json!({"enabled": true, "preview": false}),
+    ] {
+        assert_eq!(validate_intent(&json!("set_notifications"), &fields).map(Value::Object), Ok(fields.clone()));
+    }
+    rejects("set_notifications", json!({}), "fields");
+    rejects("set_notifications", json!({"enabled": "yes"}), "enabled");
+    rejects("set_notifications", json!({"preview": null}), "preview");
+    rejects("set_notifications", json!({"sound": true}), "sound");
+    assert!(validate_intent(&json!("allow_notifications"), &json!({})).is_ok());
+    rejects("allow_notifications", json!({"now": true}), "now");
+    assert!(validate_intent(&json!("dismiss_banner"), &json!({"kind": "notifications"})).is_ok());
+    rejects("dismiss_banner", json!({"kind": "update_required"}), "kind");
+    rejects("test_notification_response", json!({"key": "message:i_1", "action": "open"}), "type");
+    assert!(!INTENT_TYPES.contains(&"test_notification_response"));
+}
