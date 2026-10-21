@@ -316,9 +316,28 @@ const INTENTS = {
   dismiss_banner: {
     keys: ["kind"],
     check(fields) {
-      if (fields.kind !== "id_changed") fail("kind");
+      if (fields.kind !== "id_changed" && fields.kind !== "notifications")
+        fail("kind");
     },
   },
+  // System notifications (PROTOCOL.md § Notifications). test_notification_response is for test harnesses, never a
+  // page.
+  set_focus: {
+    keys: ["conversation_id"],
+    check(fields) {
+      if (!Object.hasOwn(fields, "conversation_id")) fail("conversation_id");
+      opaque(fields, "conversation_id", { optional: true });
+    },
+  },
+  set_notifications: {
+    keys: ["enabled", "preview", "background"],
+    check(fields) {
+      if (!Object.keys(fields).length) fail("fields");
+      for (const key of ["enabled", "preview", "background"])
+        bool(fields, key, { optional: true });
+    },
+  },
+  allow_notifications: {},
   start_visibility: {},
   stop_visibility: {},
   search_messages: {
@@ -392,6 +411,9 @@ const SETTINGS_URLS = {
     "x-apple.systempreferences:com.apple.preference.security?Privacy_Bluetooth",
   bluetooth: "x-apple.systempreferences:com.apple.BluetoothSettings",
   wifi: "x-apple.systempreferences:com.apple.wifi-settings-extension",
+  // The Friends helper posts the notifications, so its own page in Notifications settings.
+  notifications:
+    "x-apple.systempreferences:com.apple.Notifications-Settings.extension?id=com.intuition.shenzhenfriends",
 };
 const settingsURL = (target) =>
   typeof target === "string" && Object.hasOwn(SETTINGS_URLS, target)
@@ -461,6 +483,40 @@ function linkPayload(urlText, scheme = "shenzhen3d") {
   return payload;
 }
 
+// Where a Friends URL opened in this app goes (PROTOCOL.md § Notifications, § Links): a notification's
+// <scheme>://friends/conversation/<conversation_id>, <scheme>://friends for the list, or a friend or download link.
+// Anything else, or a malformed id, is null.
+function friendsURL(urlText, scheme = "shenzhen3d") {
+  if (typeof urlText !== "string" || Buffer.byteLength(urlText) > 512)
+    return null;
+  let url;
+  try {
+    url = new URL(urlText);
+  } catch {
+    return null;
+  }
+  if (
+    url.protocol !== `${scheme}:` ||
+    url.hostname !== "friends" ||
+    url.username ||
+    url.password ||
+    url.port ||
+    url.search
+  )
+    return null;
+  if (url.pathname === "/link") {
+    const payload = linkPayload(urlText, scheme);
+    return payload ? { kind: "link", payload } : null;
+  }
+  if (url.hash) return null;
+  if (url.pathname === "" || url.pathname === "/")
+    return { kind: "open", conversation_id: null };
+  const match = /^\/conversation\/([^/]*)$/.exec(url.pathname);
+  return match && OPAQUE_ID.test(match[1])
+    ? { kind: "open", conversation_id: match[1] }
+    : null;
+}
+
 module.exports = {
   FriendsFieldError,
   INTENT_TYPES,
@@ -469,6 +525,7 @@ module.exports = {
   externalURL,
   settingsURL,
   linkPayload,
+  friendsURL,
   plainPath(value) {
     try {
       plainPath(value, "path");

@@ -13,6 +13,7 @@ const {
   externalURL,
   settingsURL,
   linkPayload,
+  friendsURL,
 } = require("./friends/validate.cjs");
 const {
   FriendsRouter,
@@ -157,13 +158,30 @@ test("fields are checked for shape: opaque ids, extra keys, paths, tokens and si
 
 test("Remove may also delete the chat history, and nothing else rides along", () => {
   assert.deepEqual(
-    JSON.parse(validateIntent("remove_friend", { conversation_id: "c_1", delete_history: true })),
+    JSON.parse(
+      validateIntent("remove_friend", {
+        conversation_id: "c_1",
+        delete_history: true,
+      }),
+    ),
     { conversation_id: "c_1", delete_history: true },
   );
   assert.ok(validateIntent("remove_friend", { conversation_id: "c_1" }));
-  rejects("remove_friend", { conversation_id: "c_1", delete_history: "yes" }, "delete_history");
-  rejects("remove_friend", { conversation_id: "c_1", delete_history: 1 }, "delete_history");
-  rejects("remove_friend", { conversation_id: "c_1", delete_history: true, block: true }, "block");
+  rejects(
+    "remove_friend",
+    { conversation_id: "c_1", delete_history: "yes" },
+    "delete_history",
+  );
+  rejects(
+    "remove_friend",
+    { conversation_id: "c_1", delete_history: 1 },
+    "delete_history",
+  );
+  rejects(
+    "remove_friend",
+    { conversation_id: "c_1", delete_history: true, block: true },
+    "block",
+  );
   rejects("remove_friend", { delete_history: true }, "conversation_id");
 });
 
@@ -328,4 +346,83 @@ test("a window holds a bounded number of subscriptions", async () => {
     router.sent(String(index), 1, "subscribe");
   assert.equal(router.mayAddSubscription(1), false);
   assert.equal(router.mayAddSubscription(2), true);
+});
+
+test("notification intents: focus names a conversation or none, switches are booleans, and no test response", () => {
+  for (const fields of [
+    { conversation_id: "c_mei" },
+    { conversation_id: null },
+  ])
+    assert.deepEqual(JSON.parse(validateIntent("set_focus", fields)), fields);
+  rejects("set_focus", {}, "conversation_id");
+  rejects("set_focus", { conversation_id: "../x" }, "conversation_id");
+  rejects("set_focus", { conversation_id: 3 }, "conversation_id");
+  for (const fields of [
+    { enabled: false },
+    { preview: true },
+    { background: true },
+    { enabled: true, preview: false },
+  ])
+    assert.deepEqual(
+      JSON.parse(validateIntent("set_notifications", fields)),
+      fields,
+    );
+  rejects("set_notifications", {}, "fields");
+  rejects("set_notifications", { enabled: "yes" }, "enabled");
+  rejects("set_notifications", { preview: null }, "preview");
+  rejects("set_notifications", { sound: true }, "sound");
+  assert.equal(validateIntent("allow_notifications", {}), "{}");
+  rejects("allow_notifications", { now: true }, "now");
+  assert.ok(validateIntent("dismiss_banner", { kind: "notifications" }));
+  rejects("dismiss_banner", { kind: "update_required" }, "kind");
+  rejects(
+    "test_notification_response",
+    { key: "message:i_1", action: "open" },
+    "type",
+  );
+  assert.ok(!INTENT_TYPES.includes("test_notification_response"));
+  assert.match(
+    settingsURL("notifications"),
+    /Notifications-Settings\.extension\?id=com\.intuition\.shenzhenfriends$/,
+  );
+});
+
+test("Friends URLs: a conversation, the list, or a link; anything else is refused", () => {
+  assert.deepEqual(friendsURL("shenzhen3d://friends/conversation/c_mei-2"), {
+    kind: "open",
+    conversation_id: "c_mei-2",
+  });
+  const longest = "A".repeat(64);
+  assert.deepEqual(friendsURL(`shenzhen3d://friends/conversation/${longest}`), {
+    kind: "open",
+    conversation_id: longest,
+  });
+  for (const url of ["shenzhen3d://friends", "shenzhen3d://friends/"])
+    assert.deepEqual(friendsURL(url), { kind: "open", conversation_id: null });
+  const download = Buffer.from([1, ...new Array(48).fill(7)]).toString(
+    "base64url",
+  );
+  assert.deepEqual(friendsURL(`shenzhen3d://friends/link#d.${download}`), {
+    kind: "link",
+    payload: `d.${download}`,
+  });
+  for (const url of [
+    "shenzhen3d://friends/conversation/",
+    "shenzhen3d://friends/conversation",
+    `shenzhen3d://friends/conversation/${"A".repeat(65)}`,
+    "shenzhen3d://friends/conversation/c.mei",
+    "shenzhen3d://friends/conversation/c%5Fmei",
+    "shenzhen3d://friends/conversation/c_mei/more",
+    "shenzhen3d://friends/conversation/c_mei?x=1",
+    "shenzhen3d://friends/conversation/c_mei#x",
+    "shenzhen3d://user@friends/conversation/c_mei",
+    "shenzhen3d://friends:1/conversation/c_mei",
+    "shenzhen3d://other/conversation/c_mei",
+    "shenzhenpdf://friends/conversation/c_mei",
+    "shenzhen3d://friends/link#d.nope",
+    "https://friends/conversation/c_mei",
+    "",
+    null,
+  ])
+    assert.equal(friendsURL(url), null, String(url));
 });
