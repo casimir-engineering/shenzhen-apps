@@ -1,7 +1,8 @@
 // The Friends dropdown and the Friends part of Settings: the lazily loaded half of Friends. FriendsButton.tsx (in
 // the app's first chunk) loads this file only when the person opens Friends or Settings, so none of it is on the
 // launch path.
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { friendsRequests } from "./requests";
 import type { FriendsBridge } from "./bridge";
 import type { Confirm, FriendsStatus, Reply, SettingsData } from "./protocol";
 import {
@@ -46,12 +47,13 @@ let remembered: { stack: Page[]; tab: "friends" | "nearby" } = {
   stack: [{ kind: "list" }],
   tab: "friends",
 };
-/** Where the dropdown opens next: the profile page (Add by ID) or the list's Nearby tab (requests.ts). */
-export function openNextAt(place: "profile" | "nearby") {
+/** Where the dropdown opens next: the profile page (Add by ID), the list's Nearby tab or the join view
+ * (requests.ts). */
+export function openNextAt(place: "profile" | "nearby" | "join") {
   remembered =
-    place === "profile"
-      ? { stack: [{ kind: "list" }, { kind: "profile" }], tab: remembered.tab }
-      : { stack: [{ kind: "list" }], tab: "nearby" };
+    place === "nearby"
+      ? { stack: [{ kind: "list" }], tab: "nearby" }
+      : { stack: [{ kind: "list" }, { kind: place }], tab: remembered.tab };
 }
 
 function useConfirm() {
@@ -119,6 +121,7 @@ function usePanelContext(
   store: FriendsStore,
   openConversation: (id: string, messageId?: string) => void,
   confirm: (confirm: Confirm) => Promise<ConfirmAnswer>,
+  openJoin: () => void,
 ) {
   const [notice, setNotice] = useState<string | null>(null);
   useEffect(() => {
@@ -137,8 +140,9 @@ function usePanelContext(
       },
       openConversation,
       confirm,
+      openJoin,
     }),
-    [store, openConversation, confirm],
+    [store, openConversation, confirm, openJoin],
   );
   return {
     context,
@@ -190,10 +194,15 @@ export default function FriendsPanel({
       }),
     [],
   );
+  const openJoin = useMemo(
+    () => () => setStack([{ kind: "list" }, { kind: "join" }]),
+    [],
+  );
   const { context, notice, clearNotice, showNotice } = usePanelContext(
     store,
     openConversation,
     confirm.ask,
+    openJoin,
   );
   useEffect(() => {
     if (!refusal) return;
@@ -276,7 +285,6 @@ export default function FriendsPanel({
               openConversation(id);
             }}
             onProfile={() => push({ kind: "profile" })}
-            onJoin={() => push({ kind: "join" })}
           />
         )}
         {page.kind === "conversation" && (
@@ -320,11 +328,25 @@ export function FriendsSettings({
 }) {
   const store = useFriendsStore(friendsStore(bridge, status));
   const confirm = useConfirm();
-  const { context, notice } = usePanelContext(store, () => {}, confirm.ask);
+  const section = useRef<HTMLElement>(null);
+  // The join view is in the dropdown: Settings closes, and the dropdown opens on it.
+  const openJoin = useMemo(
+    () => () => {
+      section.current?.closest("dialog")?.close();
+      friendsRequests.request("join");
+    },
+    [],
+  );
+  const { context, notice } = usePanelContext(
+    store,
+    () => {},
+    confirm.ask,
+    openJoin,
+  );
   const enabled = store.status.enabled;
   return (
     <Panel.Provider value={context}>
-      <section className="szf-settings" data-szfriends="settings">
+      <section className="szf-settings" data-szfriends="settings" ref={section}>
         <label className="szf-switch">
           <input
             type="checkbox"
@@ -460,6 +482,13 @@ export function SettingsBody() {
             </label>
           ))}
       </div>
+      {data.join && (
+        <div className="szf-field">
+          <span>{data.join.label}</span>
+          <small>{data.join.note}</small>
+          <ActionButton action={data.join.action} />
+        </div>
+      )}
       <div className="szf-field">
         <span>{data.history.label}</span>
         <small>{data.history.note}</small>

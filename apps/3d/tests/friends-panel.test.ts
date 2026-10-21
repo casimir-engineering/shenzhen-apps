@@ -14,7 +14,7 @@ import {
   shownOption,
 } from "../src/friends/actions";
 import { FriendsStore } from "../src/friends/store";
-import { chooseReceivedFolder } from "../src/friends/parts";
+import { chooseReceivedFolder, runAction } from "../src/friends/parts";
 import { serializeParts } from "../src/friends/Composer";
 import {
   MAX_STAGED_NAME_BYTES,
@@ -309,5 +309,65 @@ describe("Friends project staging", () => {
     ).rejects.toThrow();
     expect(errors).toEqual([STAGE_FAILED]);
     expect(STAGE_FAILED).not.toMatch(/invoke|remote|method|Invalid|Error/);
+  });
+
+  it("offers the existing profile: the join view at once, or after Reset with its confirmation", async () => {
+    // A fresh list draws the offer in the name prompt; a named list with nobody, as a card of its own.
+    const fresh = json("snapshots/devices-list-new-computer.json");
+    const offer = fresh.data.join;
+    let setup = pageFor("devices-list-new-computer.json", fresh)!;
+    let { html } = await render(setup.byView, setup.holds, setup.page);
+    expect(html).toContain(escape(offer.action.label));
+    expect(html).toContain(escape(offer.note));
+    const named = { ...fresh, data: { ...fresh.data, name_prompt: null } };
+    setup = pageFor("named.json", named)!;
+    ({ html } = await render(setup.byView, setup.holds, setup.page));
+    expect(html).toContain("szf-card szf-join-offer");
+    expect(html).toContain(escape(offer.note));
+
+    const panelWith = (answer: false | { option: boolean }) => {
+      const bridge = fakeBridge({});
+      const panel = {
+        bridge,
+        store: new FriendsStore(bridge, status),
+        report: () => {},
+        openConversation: () => {},
+        confirm: async () => answer,
+        joins: 0,
+        openJoin() {
+          panel.joins++;
+        },
+      };
+      return panel;
+    };
+    // Nothing to lose: straight to the join view, nothing sent.
+    let panel = panelWith({ option: false });
+    await runAction(panel as never, offer.action);
+    expect(panel.joins).toBe(1);
+    expect(panel.bridge.sent).toEqual([]);
+
+    // Friends here: Reset Friends alone (never `then`), then the join view; cancelled, nothing at all.
+    const reset = json("snapshots/devices-list-join-reset.json").data.join
+      .action;
+    expect(reset.then).toBe("open_join");
+    panel = panelWith({ option: false });
+    await runAction(panel as never, reset);
+    expect(panel.bridge.sent).toEqual([
+      { type: "reset_friends", fields: { confirm: "reset" } },
+    ]);
+    expect(panel.joins).toBe(1);
+    panel = panelWith(false);
+    await runAction(panel as never, reset);
+    expect(panel.bridge.sent).toEqual([]);
+    expect(panel.joins).toBe(0);
+  });
+
+  it("Your computers says how to add a computer or phone, with the ID to type there", async () => {
+    const frame = json("snapshots/devices-profile.json");
+    const setup = pageFor("devices-profile.json", frame)!;
+    const { html } = await render(setup.byView, setup.holds, setup.page);
+    expect(html).toContain(escape(frame.data.devices.add.title));
+    for (const step of frame.data.devices.add.steps)
+      expect(html).toContain(escape(step));
   });
 });

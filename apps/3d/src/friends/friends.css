@@ -382,6 +382,15 @@
 .szf-name-prompt small.szf-refusal {
   color: var(--error);
 }
+/* Use my existing profile…: the button, then what it does. */
+.szf-join-offer {
+  display: block;
+  margin-top: 8px;
+}
+.szf-join-offer p {
+  margin: 0 0 8px;
+  color: var(--secondary);
+}
 .szf-empty {
   padding: 28px 20px;
   text-align: center;

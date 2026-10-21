@@ -24,6 +24,8 @@ export type PanelContext = {
   openConversation(conversationId: string, messageId?: string): void;
   /** Asks first: false when the person cancels, else whether they ticked the confirmation's checkbox. */
   confirm(confirm: Confirm): Promise<ConfirmAnswer>;
+  /** Shows the join view: in the dropdown, or from Settings by opening the dropdown on it. */
+  openJoin(): void;
 };
 export type ConfirmAnswer = false | { option: boolean };
 export const Panel = createContext<PanelContext | null>(null);
@@ -211,36 +213,50 @@ export async function chooseReceivedFolder(
  * `sending` runs once the person has confirmed, just before the intent goes (a row hides itself then). */
 export function useRunAction() {
   const panel = usePanel();
-  return async (
-    action: Action,
-    context: ActionContext = {},
-    sending?: () => void,
-  ) => {
-    if (CLIENT_ACTIONS.has(action.action)) {
-      if (action.action === "open_file" && action.path)
-        await panel.bridge.openFile(action.path);
-      if (action.action === "show_file" && action.path)
-        await panel.bridge.showFile(action.path);
-      if (action.action === "open_settings" && action.settings_target)
-        await panel.bridge.openSettings(action.settings_target);
-      // Settings' Change…: the picker starts at the folder now (the row puts it in `path`).
-      if (action.action === "choose_received_folder")
-        return chooseReceivedFolder(panel, action.path);
-      return;
-    }
-    const intent = actionIntent(action, context);
-    if (!intent) return;
-    let fields = intent.fields;
-    if (action.confirm) {
-      const answer = await panel.confirm(action.confirm);
-      if (!answer) return;
-      fields = confirmedFields(fields, action.confirm, answer.option);
-    }
-    sending?.();
-    const reply = await panel.store.send(intent.type, fields);
-    panel.report(reply);
-    return reply;
-  };
+  return (action: Action, context: ActionContext = {}, sending?: () => void) =>
+    runAction(panel, action, context, sending);
+}
+
+/** What pressing an action does: a client-side action here, else its intent, asking first when it has `confirm`. */
+export async function runAction(
+  panel: PanelContext,
+  action: Action,
+  context: ActionContext = {},
+  sending?: () => void,
+): Promise<Reply | undefined> {
+  if (CLIENT_ACTIONS.has(action.action)) {
+    if (action.action === "open_file" && action.path)
+      await panel.bridge.openFile(action.path);
+    if (action.action === "show_file" && action.path)
+      await panel.bridge.showFile(action.path);
+    if (action.action === "open_settings" && action.settings_target)
+      await panel.bridge.openSettings(action.settings_target);
+    // Settings' Change…: the picker starts at the folder now (the row puts it in `path`).
+    if (action.action === "choose_received_folder")
+      return chooseReceivedFolder(panel, action.path);
+    if (action.action === "open_join") panel.openJoin();
+    return;
+  }
+  const intent = actionIntent(action, context);
+  if (!intent) return;
+  let fields = intent.fields;
+  if (action.confirm) {
+    const answer = await panel.confirm(action.confirm);
+    if (!answer) return;
+    fields = confirmedFields(fields, action.confirm, answer.option);
+  }
+  sending?.();
+  const reply = await panel.store.send(intent.type, fields);
+  panel.report(reply);
+  // Using an existing profile after Reset: the join view on the fresh profile (its subscription follows the
+  // helper's restart, as every view's does).
+  if (
+    reply.ok &&
+    action.action === "reset_friends" &&
+    action.then === "open_join"
+  )
+    panel.openJoin();
+  return reply;
 }
 
 export function ActionButton({

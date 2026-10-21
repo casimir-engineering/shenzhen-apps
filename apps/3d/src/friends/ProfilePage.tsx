@@ -214,7 +214,16 @@ export function ProfilePage({ onBack }: { onBack(): void }) {
             {data.devices.rows.map((row) => (
               <DeviceRowView key={row.device_id} row={row} />
             ))}
-            <small>{data.devices.note}</small>
+            {data.devices.add && (
+              <div className="szf-device-add">
+                <strong>{data.devices.add.title}</strong>
+                <ol>
+                  {data.devices.add.steps.map((step) => (
+                    <li key={step}>{step}</li>
+                  ))}
+                </ol>
+              </div>
+            )}
           </section>
         )}
       </div>

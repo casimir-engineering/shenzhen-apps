@@ -56,7 +56,11 @@ export type Action = {
   link_id?: string;
   device_id?: string;
   join_id?: string;
+  /** reset_friends only: what the view shows once the reset succeeded (open_join). Never sent. */
+  then?: string | null;
 };
+/** Using the person's existing profile here (PROTOCOL.md § Joining, Offering it). */
+export type JoinOffer = { note: string; action: Action };
 export type Segment = {
   text: string;
   url?: string;
@@ -129,7 +133,6 @@ export type ListData = {
     title: string;
     placeholder: string;
     note: string;
-    join_label?: string | null;
   } | null;
   rows: ListRow[];
   empty: Empty | null;
@@ -137,6 +140,7 @@ export type ListData = {
   state?: "normal" | "device_removed" | string;
   removed?: { title: string; body: string; action: Action } | null;
   join_requests?: JoinRequest[];
+  join?: JoinOffer | null;
 };
 export type MethodState = { method: string; state: string; label: string };
 export type NearbyPerson = {
@@ -362,7 +366,12 @@ export type ProfileData = {
       revoke: Action;
     }[];
   } | null;
-  devices?: { title: string; note: string; rows: DeviceRow[] } | null;
+  devices?: {
+    title: string;
+    /** How to add another computer or phone; null on a removed computer. */
+    add?: { title: string; steps: string[]; friends_id: string } | null;
+    rows: DeviceRow[];
+  } | null;
 };
 export type SettingsData = {
   name: {
@@ -406,6 +415,8 @@ export type SettingsData = {
     action_label: string;
     confirm: Confirm;
   };
+  /** While offered: using the person's existing profile here. */
+  join?: { label: string; note: string; action: Action };
 };
 export type JoinData = {
   state: string;

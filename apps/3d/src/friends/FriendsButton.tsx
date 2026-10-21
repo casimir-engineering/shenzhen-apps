@@ -200,9 +200,19 @@ export function FriendsButton({ attach }: { attach: AttachSource | null }) {
   isOpen.current = open;
   useEffect(() => {
     const show = async (request: FriendsRequest) => {
-      if (request === "add_by_id" || request === "visible") {
+      if (
+        request === "add_by_id" ||
+        request === "visible" ||
+        request === "join"
+      ) {
         const panel = await import("./FriendsPanel");
-        panel.openNextAt(request === "add_by_id" ? "profile" : "nearby");
+        panel.openNextAt(
+          request === "add_by_id"
+            ? "profile"
+            : request === "join"
+              ? "join"
+              : "nearby",
+        );
         // The dropdown takes the page it opens on when it opens, so an open one closes first.
         if (isOpen.current) {
           setOpen(false);
@@ -222,14 +232,16 @@ export function FriendsButton({ attach }: { attach: AttachSource | null }) {
       // Typing goes where the person will type: the ID field for Add by ID, else the search field. A dropdown
       // reopening on a conversation keeps its own focus.
       const field = await until(() =>
-        request === "add_by_id"
-          ? // The profile page's last field is Add by ID's (its name, when it can be changed, comes first).
-            [
-              ...dropdown.querySelectorAll<HTMLInputElement>(
-                "form.szf-field input",
-              ),
-            ].at(-1)
-          : dropdown.querySelector<HTMLInputElement>('input[type="search"]'),
+        request === "join"
+          ? dropdown.querySelector<HTMLInputElement>("input")
+          : request === "add_by_id"
+            ? // The profile page's last field is Add by ID's (its name, when it can be changed, comes first).
+              [
+                ...dropdown.querySelectorAll<HTMLInputElement>(
+                  "form.szf-field input",
+                ),
+              ].at(-1)
+            : dropdown.querySelector<HTMLInputElement>('input[type="search"]'),
       );
       field?.focus();
     };

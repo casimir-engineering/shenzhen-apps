@@ -3,8 +3,9 @@
 // nothing of Friends; FriendsButton.tsx (loaded with Friends) carries the requests out.
 
 /** toggle: Cmd/Ctrl+J. open: Open Friends. add_by_id: the profile page, where Add by ID is. visible: Nearby, made
- * visible. */
-export type FriendsRequest = "toggle" | "open" | "add_by_id" | "visible";
+ * visible. join: the join view, from Settings' "Use my existing profile…". */
+export type FriendsRequest =
+  "toggle" | "open" | "add_by_id" | "visible" | "join";
 
 // A request made before Friends has loaded (Cmd+J in the first second after launch) waits for the button, but not
 // for long: Friends may turn out to be off, and a dropdown opening by itself much later would be a surprise.

@@ -85,6 +85,19 @@ describe("Friends Settings", () => {
     expect(words).not.toMatch(/computer|\bMac\b/);
   });
 
+  it("on a phone with its own friends, Settings offers the existing profile with what it does", async () => {
+    const offered = json("snapshots/phone-settings-join.json") as Snapshot;
+    const all = await fields(offered);
+    const join = field(all, "Your existing profile");
+    expect(join.buttons).toEqual(["Use my existing profile…"]);
+    expect(join.text).toContain("Bring your friends and chats from it here.");
+    expect(join.top).toBeLessThan(field(all, "Conversation history").top);
+    // No offer: no row.
+    expect((await fields(phone)).map((f) => f.label)).not.toContain(
+      "Your existing profile",
+    );
+  });
+
   it("with no friends there is nothing to choose, so the row shows only its note", async () => {
     const data = phone.data as Record<string, Record<string, unknown>>;
     const lonely = {

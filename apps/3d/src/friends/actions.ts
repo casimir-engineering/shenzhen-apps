@@ -114,6 +114,8 @@ export const CLIENT_ACTIONS = new Set([
   "show_file",
   "open_settings",
   "choose_received_folder",
+  // Shows the join view (PROTOCOL.md § Joining, Offering it).
+  "open_join",
 ]);
 
 /** The drag strings' placeholders, the only formatting views do (PROTOCOL.md § Static strings). */

@@ -1,14 +1,22 @@
-// The list's parts around its rows: the prompt for your name, a computer asking to join, and the footer.
+// The list's parts around its rows: the prompt for your name, the offer to use an existing profile here, a computer
+// asking to join, and the footer.
 import { useState } from "react";
-import type { Action, Footer, JoinRequest, ListData } from "./protocol";
+import type {
+  Action,
+  Footer,
+  JoinOffer,
+  JoinRequest,
+  ListData,
+} from "./protocol";
 import { ActionButton, AvatarView, CopyButton, usePanel } from "./parts";
 
 export function NamePrompt({
   prompt,
-  onJoin,
+  join,
 }: {
   prompt: NonNullable<ListData["name_prompt"]>;
-  onJoin(): void;
+  /** The list's offer to use an existing profile here, drawn in this card while it shows. */
+  join: JoinOffer | null;
 }) {
   const panel = usePanel();
   const strings = panel.store.strings;
@@ -57,12 +65,23 @@ export function NamePrompt({
       <small>{prompt.note}</small>
       {/* The card shows on first run, so it also says Friends is a beta. */}
       {strings.beta_note && <small>{strings.beta_note}</small>}
-      {prompt.join_label && (
-        <button type="button" className="szf-button link" onClick={onJoin}>
-          {prompt.join_label}
-        </button>
+      {join && (
+        <span className="szf-join-offer">
+          <ActionButton action={join.action} />
+          <small>{join.note}</small>
+        </span>
       )}
     </form>
+  );
+}
+
+/** The offer to use an existing profile here, as a card of its own once a name is chosen (PROTOCOL.md § Joining). */
+export function JoinOfferCard({ offer }: { offer: JoinOffer }) {
+  return (
+    <div className="szf-card szf-join-offer">
+      <p>{offer.note}</p>
+      <ActionButton action={offer.action} />
+    </div>
   );
 }
 

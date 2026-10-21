@@ -25,7 +25,12 @@ import {
   sendFiles,
   type OutgoingFile,
 } from "./drops";
-import { FooterView, JoinRequestRow, NamePrompt } from "./ListSections";
+import {
+  FooterView,
+  JoinOfferCard,
+  JoinRequestRow,
+  NamePrompt,
+} from "./ListSections";
 import { NearbyPane } from "./NearbyPane";
 
 export type Outgoing = { files: OutgoingFile[]; names: (string | null)[] };
@@ -37,7 +42,6 @@ export function ListPage({
   onCancelOutgoing,
   onSent,
   onProfile,
-  onJoin,
 }: {
   tab: "friends" | "nearby";
   onTab(tab: "friends" | "nearby"): void;
@@ -46,7 +50,6 @@ export function ListPage({
   onCancelOutgoing(): void;
   onSent(conversationId: string): void;
   onProfile(): void;
-  onJoin(): void;
 }) {
   const panel = usePanel();
   const { store } = panel;
@@ -141,7 +144,6 @@ export function ListPage({
             list={list}
             outgoing={Boolean(outgoing)}
             onChoose={choose}
-            onJoin={onJoin}
           />
         )}
       </div>
@@ -156,12 +158,10 @@ function FriendsRows({
   list,
   outgoing,
   onChoose,
-  onJoin,
 }: {
   list: ListData | undefined;
   outgoing: boolean;
   onChoose(row: ListRow): void;
-  onJoin(): void;
 }) {
   const { store } = usePanel();
   const run = useRunAction();
@@ -254,8 +254,9 @@ function FriendsRows({
         </div>
       )}
       {list.name_prompt && (
-        <NamePrompt prompt={list.name_prompt} onJoin={onJoin} />
+        <NamePrompt prompt={list.name_prompt} join={list.join ?? null} />
       )}
+      {!list.name_prompt && list.join && <JoinOfferCard offer={list.join} />}
       {(list.join_requests ?? []).map((request) => (
         <JoinRequestRow key={request.join_id} request={request} />
       ))}
