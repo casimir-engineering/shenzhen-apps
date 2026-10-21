@@ -6,7 +6,29 @@ pub(super) const DEVICES: &[(&str, &str)] = &[
     // Profile › Your computers. {name} is the computer's name, {system} "macOS 26.1" or "Linux", {last} when it
     // last connected to this one: devices.last.* below or the list's time words ("14:32", "Yesterday", "3 Oct").
     ("devices.title", "Your computers"),
-    ("devices.note", "To add a computer, open Friends on it and choose Use my existing profile."),
+    // How to add one, from this computer's side: the steps name what the person does there and here. {id} is this
+    // profile's ID.
+    ("devices.add.title", "Add a computer or phone"),
+    ("devices.add.step.open", "On the other computer or phone, open Friends and choose Use my existing profile."),
+    ("devices.add.step.id", "Type this ID there: {id}"),
+    (
+        "devices.add.step.approve",
+        "Choose Approve when the request appears in Friends here, then type the code this computer shows on the other \
+         one.",
+    ),
+    // A phone or tablet (`files.share`) is a device, not a computer, in its own words. Only the portable core serves
+    // one.
+    ("devices.title.phone", "Your devices"),
+    (
+        "devices.add.step.approve.phone",
+        "Choose Approve when the request appears in Friends here, then type the code this device shows on the other \
+         one.",
+    ),
+    ("devices.last.this_computer.phone", "This device"),
+    ("devices.last.never.phone", "Not connected to this device yet"),
+    ("devices.accessibility.this_computer.phone", "{name}, {system}, this device"),
+    ("devices.accessibility.never.phone", "{name}, {system}, not connected to this device yet"),
+    ("devices.rename.placeholder.phone", "Device name"),
     ("devices.detail", "{system} · {last}"),
     ("devices.last.this_computer", "This computer"),
     ("devices.last.now", "Now"),
@@ -53,7 +75,6 @@ pub(super) const DEVICES: &[(&str, &str)] = &[
     ("device_removed.confirm.button", "Start Over"),
     ("device_removed.drop_refusal", "This computer can’t send anymore"),
     // A fresh list's name prompt, for someone who already uses Friends on another computer.
-    ("name_prompt.join", "Use my existing profile"),
     // You: a conversation with yourself, on all your computers.
     ("you.title", "You"),
     ("you.subtitle.empty", "Send yourself messages and files"),

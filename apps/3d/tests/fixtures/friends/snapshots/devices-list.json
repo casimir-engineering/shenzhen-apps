@@ -85,6 +85,7 @@
         "kind": "person"
       }
     ],
-    "state": "normal"
+    "state": "normal",
+    "join": null
   }
 }

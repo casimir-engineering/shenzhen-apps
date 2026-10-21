@@ -35,8 +35,12 @@ NS_ASSUME_NONNULL_BEGIN
 @property(nonatomic, copy) NSArray<SZFriendsDeviceFacts *> *computers;
 // Another of the person's computers removed this one: it reads, and sends nothing.
 @property(nonatomic) BOOL removed;
-// The name prompt offers joining an existing profile (this computer has nobody in Friends and no other computer).
+// Joining an existing profile can start at once: this computer has nobody in Friends and no other computer.
 @property(nonatomic) BOOL joinOffered;
+// Joining is offered after Reset Friends: this computer has no other computer, but people in Friends it would lose.
+@property(nonatomic) BOOL joinReplaces;
+// This profile's Friends ID: what another computer types to join it, and the ID joining here would replace.
+@property(nonatomic, copy, nullable) NSString *friendsID;
 // The You conversation while its row shows (two or more computers, or anything in it), and its newest item.
 @property(nonatomic, strong, nullable) SZFriendsPersonFacts *you;
 @property(nonatomic, strong, nullable) SZFriendsItemFacts *youPreview;
@@ -58,8 +62,10 @@ NS_ASSUME_NONNULL_BEGIN
 @interface SZFriendsSnapshotBuilder (SZFriendsDevices)
 // profile.devices.
 - (NSDictionary<NSString *, id> *)devicesSectionWithFacts:(SZFriendsDevicesFacts *)facts now:(NSDate *)now;
+// Settings' `join` (label, note, action), or nil when joining is not offered here (PROTOCOL.md § Joining).
+- (nullable NSDictionary<NSString *, id> *)settingsJoin;
 // The list with what several computers add: `state`, `removed`, the You row among the others, each row's `kind`,
-// the name prompt's `join_label`; on a removed computer no join rows and no drops.
+// `join`; on a removed computer no join rows and no drops.
 - (NSDictionary<NSString *, id> *)listWithDevices:(NSDictionary<NSString *, id> *)list
                                            people:(NSArray<SZFriendsPersonFacts *> *)people
                                             query:(NSString *)query

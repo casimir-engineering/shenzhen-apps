@@ -153,8 +153,13 @@ impl State {
     /// Joining is offered to a computer with nobody in its list and no profile shared with another one.
     fn join_available(&self) -> bool {
         let people = self.store.people_by_latest_interaction().map(|p| p.is_empty()).unwrap_or(false);
+        people && self.profile_here_only()
+    }
+
+    /// This computer's profile is on no other computer.
+    fn profile_here_only(&self) -> bool {
         let chain = devices::own_chain(self.store.connection()).ok().flatten();
-        people && chain.is_none_or(|c| c.devices().len() <= 1)
+        chain.is_none_or(|c| c.devices().len() <= 1)
     }
 
     pub fn joining_facts(&self) -> JoiningFacts {
@@ -240,9 +245,15 @@ impl State {
             );
         }
         let you = people.iter().find(|p| p.conversation_id == YOU).cloned();
+        let join_offered = !removed && self.join_available();
+        let friends_id: Option<String> =
+            conn.query_row("SELECT friends_id FROM profile WHERE id = 1", [], |r| r.get(0)).ok().flatten();
         DevicesFacts {
             now,
-            join_offered: !removed && self.join_available(),
+            join_offered,
+            // Joining after Reset Friends: a profile here only, with people in it that joining would replace.
+            join_replaces: !removed && !join_offered && self.profile_here_only(),
+            friends_id,
             removed,
             // With other computers, or with something in it (the person's own notes stay reachable on one computer).
             you: you.filter(|you| computers.len() >= 2 || you.last_preview_item_id.is_some()),

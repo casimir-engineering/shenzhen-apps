@@ -1,0 +1,136 @@
+{
+  "type": "snapshot",
+  "subscription": "s_8",
+  "view": "settings",
+  "rev": 1,
+  "data": {
+    "name": {
+      "label": "Your name",
+      "note": "The name your friends see.",
+      "value": "Raph",
+      "placeholder": "Choose your name"
+    },
+    "id": {
+      "label": "Your ID",
+      "note": "People can add you with it.",
+      "friends_id": "cottage-violet",
+      "copy_label": "Copy"
+    },
+    "received": {
+      "label": "Save received files to",
+      "value": "Downloads",
+      "note": "",
+      "path": null,
+      "action": null,
+      "change": null
+    },
+    "auto_accept": {
+      "label": "Accept files automatically",
+      "note": "From Mei Lin and Daniel Ortiz. Everyone else asks first.",
+      "action_label": "Choose friends…",
+      "friends": [
+        {
+          "conversation_id": "c_mei",
+          "title": "Mei Lin",
+          "avatar": {
+            "kind": "animal",
+            "set": 1,
+            "index": 7,
+            "initials": "ML",
+            "color": "#3f6b4f"
+          },
+          "enabled": true
+        },
+        {
+          "conversation_id": "c_daniel",
+          "title": "Daniel Ortiz",
+          "avatar": {
+            "kind": "animal",
+            "set": 1,
+            "index": 5,
+            "initials": "DO",
+            "color": "#7a5a34"
+          },
+          "enabled": true
+        },
+        {
+          "conversation_id": "c_kenji",
+          "title": "Kenji Sato",
+          "avatar": {
+            "kind": "animal",
+            "set": 1,
+            "index": 1,
+            "initials": "KS",
+            "color": "#2f6474"
+          },
+          "enabled": false
+        },
+        {
+          "conversation_id": "c_priya",
+          "title": "Priya Raman",
+          "avatar": {
+            "kind": "animal",
+            "set": 1,
+            "index": 9,
+            "initials": "PR",
+            "color": "#4f4f86"
+          },
+          "enabled": false
+        },
+        {
+          "conversation_id": "c_tulip",
+          "title": "tulip‑canyon",
+          "avatar": {
+            "kind": "animal",
+            "set": 1,
+            "index": 11,
+            "initials": "TC",
+            "color": "#6a4a6a"
+          },
+          "enabled": false
+        }
+      ]
+    },
+    "history": {
+      "label": "Conversation history",
+      "note": "Stored on this device. Deleting it keeps your friends and the files you received.",
+      "action_label": "Delete history…",
+      "confirm": {
+        "title": "Delete all conversation history?",
+        "body": "Your messages and file history with every friend are deleted from this device, and anything still waiting to go won’t be sent. You keep your friends, and they keep their own copies of your chats. Files you received stay where they were saved.",
+        "confirm_label": "Delete History",
+        "cancel_label": "Cancel",
+        "destructive": true
+      }
+    },
+    "reset": {
+      "label": "Start over",
+      "note": "You get a new ID, and every friend has to add you again.",
+      "action_label": "Reset Friends…",
+      "confirm": {
+        "title": "Reset Friends?",
+        "body": "This deletes your friends and conversations from this device and gives you a new ID. Every friend has to add you again. Files you received stay where they were saved.",
+        "confirm_label": "Reset Friends",
+        "cancel_label": "Cancel",
+        "destructive": true
+      }
+    },
+    "join": {
+      "label": "Your existing profile",
+      "note": "Already use Friends on another computer or phone? Bring your friends and chats from it here.",
+      "action": {
+        "action": "reset_friends",
+        "label": "Use my existing profile…",
+        "style": "secondary",
+        "confirm": {
+          "title": "Use your existing profile here?",
+          "body": "This device’s own ID, cottage‑violet, and its friends and chats are deleted from this device. Then you type your ID from your other computer or phone, approve there, and your friends and chats come here. Files you received stay where they were saved.",
+          "confirm_label": "Delete and Continue",
+          "cancel_label": "Cancel",
+          "destructive": true
+        },
+        "then": "open_join"
+      }
+    }
+  }
+}

@@ -148,7 +148,7 @@ impl SnapshotBuilder {
         let history_body =
             self.this_device_key(&self.every_computer_key(&self.deletion_body_key("settings.history.confirm.body")));
         let reset_body = self.this_device_key(&self.deletion_body_key("settings.reset.confirm.body"));
-        json!({
+        let mut settings = json!({
             "name": {
                 "label": s.text("settings.name.label"),
                 "note": s.text("settings.name.note"),
@@ -182,7 +182,12 @@ impl SnapshotBuilder {
                 "confirm": self.confirm("settings.reset.confirm.title", &reset_body,
                                         "settings.reset.confirm.button", &[], true),
             },
-        })
+        });
+        // Using an existing profile here, while offered (helper capability `devices`).
+        if let Some(join) = self.settings_join() {
+            settings["join"] = join;
+        }
+        settings
     }
 
     /// The `received` view: the files received here, newest first (helper capability `received.folder`).

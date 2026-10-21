@@ -372,6 +372,7 @@
         "waiting": null
       }
     ],
-    "state": "normal"
+    "state": "normal",
+    "join": null
   }
 }

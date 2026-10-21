@@ -28,6 +28,7 @@ static SZFriendsDevicesFacts *FourComputers(void) {
         Computer(@"d_93f2d618", @"Studio workstation", @"Linux", NO, NO, @"2026-10-11 18:02"),
         Computer(@"d_c0a47b3e", @"Raph’s MacBook Air", @"macOS 26.1", NO, NO, nil),
     ];
+    facts.friendsID = @"cottage-violet";
     return facts;
 }
 
@@ -58,8 +59,9 @@ static void TestProfileAndRows(void) {
               @"minutes: %@", office);
     builder.devices.removed = YES;
     rows = [builder devicesSectionWithFacts:builder.devices now:SZPNow()];
-    SZPExpect(rows[@"rows"][1][@"remove"] == NSNull.null && rows[@"rows"][0][@"rename"] == NSNull.null,
-              @"a removed computer removes and renames nothing");
+    SZPExpect(rows[@"rows"][1][@"remove"] == NSNull.null && rows[@"rows"][0][@"rename"] == NSNull.null &&
+                  rows[@"add"] == NSNull.null,
+              @"a removed computer removes, renames and adds nothing");
     builder.devices = nil;
     SZPExpect([builder profileWithFacts:SZPProfileRaph() waitingElsewhere:2][@"devices"] == nil,
               @"without the capability, no devices");
@@ -108,6 +110,32 @@ static void TestLists(void) {
     empty[@"join_requests"] = @[];
     SZPExpectFixture([builder listWithDevices:empty people:@[] query:@"" now:now], @"devices-list-new-computer.json",
                      @"list");
+    // Named, still nobody: the list keeps offering it.
+    NSDictionary *named = [builder listWithDevices:[builder listWithPeople:@[] previewItems:@{}
+                                                                  profile:SZPProfileRaph() query:@"" now:now]
+                                            people:@[] query:@"" now:now];
+    SZPExpect([named[@"join"][@"action"][@"action"] isEqual:@"open_join"], @"offered once named: %@", named[@"join"]);
+
+    // Friends here already, no name yet: joining replaces them, so it asks first and opens the join view after.
+    SZFriendsDevicesFacts *own = [[SZFriendsDevicesFacts alloc] init];
+    own.now = now;
+    own.joinReplaces = YES;
+    own.friendsID = @"cottage-violet";
+    own.computers = @[ Computer(@"d_1e9c4a70", @"Raph’s MacBook Pro", @"macOS 26.1", YES, YES, nil) ];
+    builder.devices = own;
+    NSMutableDictionary *withMei = [[builder listWithPeople:meiOnly previewItems:SZPPreviewItems() profile:unnamed
+                                                      query:@"" now:now] mutableCopy];
+    withMei[@"join_requests"] = @[];
+    SZPExpectFixture([builder listWithDevices:withMei people:meiOnly query:@"" now:now],
+                     @"devices-list-join-reset.json", @"list");
+    // Named: only Settings offers it then, so friends' rows are not crowded by it.
+    named = [builder listWithDevices:[builder listWithPeople:meiOnly previewItems:SZPPreviewItems()
+                                                     profile:SZPProfileRaph() query:@"" now:now]
+                              people:meiOnly query:@"" now:now];
+    SZPExpect(named[@"join"] == NSNull.null, @"not on a named list with friends: %@", named[@"join"]);
+    own.removed = YES;
+    SZPExpect([builder listWithDevices:withMei people:meiOnly query:@"" now:now][@"join"] == NSNull.null,
+              @"a removed computer starts over first");
 }
 
 static void TestConversations(void) {
@@ -166,10 +194,23 @@ static void TestHistoryWords(void) {
                      @"settings");
     SZPExpectFixture([builder detailsForPerson:people[@"c_mei"] waitingElsewhere:2 now:SZPNow()],
                      @"devices-details-mei.json", @"details");
+    SZPExpect([builder settingsWithProfile:SZPProfileRaph() people:people.allValues][@"join"] == nil,
+              @"a profile on several computers offers no other one");
     // One computer: the words of one computer.
     builder.devices.computers = @[ builder.devices.computers[0] ];
     SZPExpectFixture([builder settingsWithProfile:SZPProfileRaph() people:people.allValues], @"settings.json",
                      @"settings");
+    // One computer with friends: Settings offers the person's existing profile, after Reset.
+    builder.devices.joinReplaces = YES;
+    SZPExpectFixture([builder settingsWithProfile:SZPProfileRaph() people:people.allValues],
+                     @"devices-settings-join.json", @"settings");
+    SZFriendsAudience *chats = SZPAudience();
+    chats.capabilities = [chats.capabilities setByAddingObject:@"assistant.chats"];
+    SZFriendsSnapshotBuilder *assistant = SZPBuilder(chats);
+    assistant.devices = builder.devices;
+    NSString *body = [assistant settingsWithProfile:SZPProfileRaph() people:people.allValues][@"join"][@"action"]
+        [@"confirm"][@"body"];
+    SZPExpect([body containsString:@"AI chat answers"], @"the AI chat's answers stay: %@", body);
 }
 
 void SZPRunDevicesBuildTests(void) {

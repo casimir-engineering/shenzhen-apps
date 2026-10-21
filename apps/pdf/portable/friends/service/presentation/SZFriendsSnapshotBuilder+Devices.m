@@ -122,8 +122,50 @@ static const NSUInteger SZFriendsDeviceNameMaxBytes = 64;
     for (SZFriendsDeviceFacts *device in facts.computers) {
         [rows addObject:[self rowForDevice:device removed:facts.removed now:now]];
     }
-    return @{@"title" : [self.strings text:@"devices.title"], @"note" : [self.strings text:@"devices.note"],
+    return @{@"title" : [self.strings text:@"devices.title"], @"add" : [self addDeviceWithFacts:facts],
              @"rows" : rows};
+}
+
+// How to add another computer or phone, said from this one: what to do there, the ID to type, and Approve here.
+- (id)addDeviceWithFacts:(SZFriendsDevicesFacts *)facts {
+    if (facts.removed || facts.friendsID.length == 0) return [NSNull null];
+    SZFriendsStrings *s = self.strings;
+    return @{
+        @"title" : [s text:@"devices.add.title"],
+        @"steps" : @[
+            [s text:@"devices.add.step.open"],
+            [s text:@"devices.add.step.id" values:@{@"id" : [s displayID:facts.friendsID]}],
+            [s text:@"devices.add.step.approve"]
+        ],
+        @"friends_id" : facts.friendsID
+    };
+}
+
+#pragma mark - Using an existing profile here
+
+// The button that offers the person's existing profile here (PROTOCOL.md § Joining, Offering it): the join view at
+// once while this computer has nobody to lose, else Reset Friends first, with a confirmation that says what goes, and
+// the join view after it (`then`, which the view keeps to itself).
+- (nullable NSDictionary<NSString *, id> *)joinOfferActionWithStyle:(NSString *)style {
+    SZFriendsDevicesFacts *facts = self.devices;
+    if (facts == nil || facts.removed || !(facts.joinOffered || facts.joinReplaces)) return nil;
+    NSString *label = [self.strings text:@"join.offer.action"];
+    if (facts.joinOffered) return [self action:@"open_join" label:label style:style];
+    NSMutableDictionary *action = [self action:@"reset_friends" label:label style:style];
+    action[@"confirm"] = [self confirmWithTitle:@"join.offer.confirm.title"
+                                           body:[self deletionBodyKey:@"join.offer.confirm.body"]
+                                   confirmLabel:@"join.offer.confirm.button"
+                                         values:@{@"id" : [self.strings displayID:facts.friendsID ?: @""]}
+                                    destructive:YES];
+    action[@"then"] = @"open_join";
+    return action;
+}
+
+- (nullable NSDictionary<NSString *, id> *)settingsJoin {
+    NSDictionary *action = [self joinOfferActionWithStyle:@"secondary"];
+    if (action == nil) return nil;
+    return @{@"label" : [self.strings text:@"settings.join.label"], @"note" : [self.strings text:@"join.offer.note"],
+             @"action" : action};
 }
 
 #pragma mark - The list
@@ -235,12 +277,13 @@ static const NSUInteger SZFriendsDeviceNameMaxBytes = 64;
         result[@"empty"] = [NSNull null];
     }
     result[@"rows"] = rows;
-    if ([result[@"name_prompt"] isKindOfClass:[NSDictionary class]]) {
-        NSMutableDictionary *prompt = [result[@"name_prompt"] mutableCopy];
-        prompt[@"join_label"] = facts.joinOffered && !facts.removed ? [self.strings text:@"name_prompt.join"]
-                                                                    : [NSNull null];
-        result[@"name_prompt"] = prompt;
-    }
+    // On the list while the name prompt shows, and while this computer has nobody in Friends: where someone setting
+    // up a new computer looks first, even once they chose a name.
+    NSDictionary *offer = [self joinOfferActionWithStyle:@"link"];
+    BOOL prompt = [result[@"name_prompt"] isKindOfClass:[NSDictionary class]];
+    result[@"join"] = offer && (prompt || facts.joinOffered)
+                          ? @{@"note" : [self.strings text:@"join.offer.note"], @"action" : offer}
+                          : [NSNull null];
     return result;
 }
 

@@ -71,6 +71,7 @@
         "kind": "person"
       }
     ],
-    "state": "device_removed"
+    "state": "device_removed",
+    "join": null
   }
 }

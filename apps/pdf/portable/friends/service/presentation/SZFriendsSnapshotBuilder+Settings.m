@@ -79,7 +79,7 @@ static const NSUInteger SZFriendsNamedAutoAcceptLimit = 3;
                                          label:[s text:@"action.show_in" values:@{@"app" : self.audience.revealIn}]
                                          style:@"secondary"];
     reveal[@"path"] = profile.receivedDirectory;
-    return @{
+    NSMutableDictionary *settings = [@{
         @"name" : @{
             @"label" : [s text:@"settings.name.label"],
             @"note" : [s text:@"settings.name.note"],
@@ -120,7 +120,9 @@ static const NSUInteger SZFriendsNamedAutoAcceptLimit = 3;
                                          values:nil
                                     destructive:YES]
         }
-    };
+    } mutableCopy];
+    settings[@"join"] = self.devices ? [self settingsJoin] : nil; // using an existing profile here (+Devices)
+    return settings;
 }
 
 // Deleting history or resetting leaves what the host's AI chat already wrote: an answer there that quoted a friend is

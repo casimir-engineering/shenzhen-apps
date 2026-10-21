@@ -10,8 +10,9 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 use presentation::world::*;
 use presentation::{expect_fixture, through_store, validate_snapshot};
 use szfriends_core::presentation::{
-    Audience, DeviceFacts, DeviceFileFacts, DevicesFacts, IdentityState, ItemFacts, OnlineReach, OutboxState,
-    PersonFacts, ProfileFacts, ReceivedFolderFacts, Relation, RouteKind, RouteMethod, TransferState,
+    Audience, DeviceFacts, DeviceFileFacts, DevicesFacts, IdentityState, ItemFacts, JoiningFacts, JoiningState,
+    OnlineReach, OutboxState, PersonFacts, ProfileFacts, ReceivedFolderFacts, Relation, RouteKind, RouteMethod,
+    TransferState,
 };
 use szfriends_core::store::PhoneFolder;
 
@@ -35,6 +36,7 @@ fn four_computers() -> DevicesFacts {
             computer("d_93f2d618", "Studio workstation", "Linux", false, false, Some("2026-10-11 18:02")),
             computer("d_c0a47b3e", "Raph’s MacBook Air", "macOS 26.1", false, false, None),
         ],
+        friends_id: Some("cottage-violet".into()),
         ..Default::default()
     }
 }
@@ -70,6 +72,7 @@ fn your_computers() {
     builder.devices.as_mut().unwrap().removed = true;
     let rows = builder.profile(&profile_raph(), 2)["devices"]["rows"].clone();
     assert!(rows[1]["remove"].is_null() && rows[0]["rename"].is_null(), "a removed computer removes nothing");
+    assert!(builder.profile(&profile_raph(), 2)["devices"]["add"].is_null(), "a removed computer adds nothing");
     builder.devices = None;
     assert!(builder.profile(&profile_raph(), 2).get("devices").is_none(), "without the capability, no devices");
 }
@@ -120,6 +123,29 @@ fn lists_on_several_computers() {
     empty["join_requests"] = serde_json::json!([]);
     let built = builder.list_with_devices(empty, &[], "", now());
     expect_fixture(&built, "devices-list-new-computer.json", "list");
+    // Named, still nobody: the list keeps offering it.
+    let named = builder.list(&[], &HashMap::new(), &profile_raph(), "", now());
+    let named = builder.list_with_devices(named, &[], "", now());
+    assert_eq!(named["join"]["action"]["action"], "open_join", "offered once named");
+
+    // Friends here already, no name yet: joining replaces them, so it asks first and opens the join view after.
+    builder.devices = Some(DevicesFacts {
+        now: now(),
+        join_replaces: true,
+        friends_id: Some("cottage-violet".into()),
+        computers: vec![computer("d_1e9c4a70", "Raph’s MacBook Pro", "macOS 26.1", true, true, None)],
+        ..Default::default()
+    });
+    let mut with_mei = builder.list(&mei_only, &preview_items(), &unnamed, "", now());
+    with_mei["join_requests"] = serde_json::json!([]);
+    let built = builder.list_with_devices(with_mei.clone(), &mei_only, "", now());
+    expect_fixture(&built, "devices-list-join-reset.json", "list");
+    // Named: only Settings offers it then, so friends' rows are not crowded by it.
+    let named = builder.list(&mei_only, &preview_items(), &profile_raph(), "", now());
+    assert!(builder.list_with_devices(named, &mei_only, "", now())["join"].is_null(), "not on a named list");
+    builder.devices.as_mut().unwrap().removed = true;
+    let built = builder.list_with_devices(with_mei, &mei_only, "", now());
+    assert!(built["join"].is_null(), "a removed computer starts over first");
 }
 
 #[test]
@@ -190,9 +216,48 @@ fn history_words_on_several_computers() {
     builder.devices = Some(four_computers());
     expect_fixture(&builder.settings(&profile_raph(), &everyone(&people)), "devices-settings.json", "settings");
     expect_fixture(&builder.details(&people["c_mei"], 2, now()), "devices-details-mei.json", "details");
+    assert!(builder.settings(&profile_raph(), &everyone(&people)).get("join").is_none(), "no other profile");
     // One computer: the words of one computer.
     builder.devices.as_mut().unwrap().computers.truncate(1);
     expect_fixture(&builder.settings(&profile_raph(), &everyone(&people)), "settings.json", "settings");
+    // One computer with friends: Settings offers the person's existing profile, after Reset.
+    builder.devices.as_mut().unwrap().join_replaces = true;
+    let built = builder.settings(&profile_raph(), &everyone(&people));
+    expect_fixture(&built, "devices-settings-join.json", "settings");
+    let mut chats = audience();
+    chats.capabilities.insert("assistant.chats".into());
+    let mut assistant = builder_with(chats);
+    assistant.devices = builder.devices.clone();
+    let body = assistant.settings(&profile_raph(), &everyone(&people))["join"]["action"]["confirm"]["body"].clone();
+    assert!(body.as_str().unwrap().contains("AI chat answers"), "{body}");
+}
+
+/// On a phone the offer and Your computers say "this device" where a computer says "this computer".
+#[test]
+fn joining_words_on_a_phone() {
+    if presentation::tree_missing() {
+        return;
+    }
+    let people = through_store(&presentation::world::people());
+    let mut builder = builder(phone_audience());
+    let mut facts = four_computers();
+    facts.computers.truncate(1);
+    facts.join_replaces = true;
+    builder.devices = Some(facts);
+    let profile = ProfileFacts {
+        received: ReceivedFolderFacts { phone: Some(PhoneFolder::Downloads), ..ReceivedFolderFacts::default() },
+        ..profile_raph()
+    };
+    expect_fixture(&builder.settings(&profile, &everyone(&people)), "phone-settings-join.json", "settings");
+    let devices = builder.profile(&profile, 0)["devices"].clone();
+    assert_eq!(devices["title"], "Your devices");
+    assert_eq!(devices["rows"][0]["last_connected"], "This device");
+    let approve = devices["add"]["steps"][2].as_str().unwrap();
+    assert!(approve.contains("the code this device shows"), "{approve}");
+    let join = builder.join(&JoiningFacts { state: JoiningState::Idle, friends_id: None });
+    assert!(join["message"].as_str().unwrap().ends_with("You’ll approve this device there."), "{join}");
+    let joined = builder.join(&JoiningFacts { state: JoiningState::Joined, friends_id: None });
+    assert_eq!(joined["title"], "This device now uses your profile");
 }
 
 /// On a phone or tablet (`files.share`) Settings says "this device" and "all your devices", never "computer": the

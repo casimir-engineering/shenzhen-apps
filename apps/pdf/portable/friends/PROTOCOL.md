@@ -244,7 +244,7 @@ Lowercase dotted strings. Unknown ones are ignored on both sides.
 | `messages.cancel` | `cancel_message` is implemented (§ Intents): a host may offer Cancel on a message it sent while that message has not left this Mac. Without it the intent fails with `unknown_intent` |
 | `mentions` | `send_message.mentions` and `add_from_mention` are implemented (§ Mentions). Without it a host offers no `@`: an older helper would ignore `mentions` and send each U+FFFC as it is, and answers `add_from_mention` with `unknown_intent` |
 | `links` | Friend links and download links (§ Links): `open_link`, `add_from_link`, `receive_link`, `make_download_link`, `reset_friend_link` and `revoke_link`, and the profile's `links`. Without it they fail with `unknown_intent` and hosts offer no link items |
-| `devices` | One profile on several computers (§ Devices, § Joining): the profile's `devices`, the list's `state`, `removed`, `join_requests` and rows' `kind`, the name prompt's `join_label`, the `join` view, the You conversation, files on another computer, and the intents `revoke_device`, `rename_device`, `fetch_from_device` and the five join intents. Without it those fields are absent, the intents fail with `unknown_intent`, and hosts show none of it |
+| `devices` | One profile on several computers (§ Devices, § Joining): the profile's `devices`, the list's `state`, `removed`, `join_requests` and rows' `kind`, the list's and Settings' `join`, the `join` view and the profile devices' `add`, the You conversation, files on another computer, and the intents `revoke_device`, `rename_device`, `fetch_from_device` and the five join intents. Without it those fields are absent, the intents fail with `unknown_intent`, and hosts show none of it |
 | `received.folder` | Received files are published to a folder the person can choose (§ Views, `settings` and `received`): `data.received`'s `value`, `path` and `change`, the intent `set_received_folder` and the `received` view. Without it the intent fails with `unknown_intent`, `subscribe` to `received` with `invalid_field`, and hosts offer no Change… |
 | `online` | Online friends (M2): the helper reaches friends over the Internet, and its words say so (§ Shared objects, Route, online). Absent in M1: no snapshot shows an Online or Connecting state or Internet wording |
 
@@ -517,8 +517,10 @@ acceptance). There is no separate inbox; requests and offers are rows.
   walnut-garden because walnut-valley was taken." (its action sends `dismiss_banner`), an unreadable identity with
   its reset action, or `update_required`: online Friends needs a newer app, or another app on this Mac
   already updated the Friends data and this helper cannot read it (ADR 0003); the text says which.
-- `name_prompt` appears until a name is chosen: an inline field at the top of the list that never blocks it. With
-  the helper capability `devices` its `join_label` offers joining an existing profile instead (§ Joining).
+- `name_prompt` appears until a name is chosen: an inline field at the top of the list that never blocks it.
+- `join`, with the helper capability `devices`, offers using the person's existing profile here instead (§ Joining,
+  Offering it): views draw it in the name prompt's card while `name_prompt` shows, else as a card of its own above
+  the rows or the empty state.
 - With the helper capability `devices`: `state` (`normal`, or `device_removed` with `removed`, § Devices),
   `join_requests` above the rows (§ Joining), and each row's `kind`, `you` for the You conversation (§ Devices).
 - `empty` replaces the rows when there are none, or when a filter matches none.
@@ -701,6 +703,10 @@ Friends is off and no helper runs.
   A helper without `received.folder` sends only `label`, `note` and `action`, and views then show no value and no
   Change….
 
+- `join`, with the helper capability `devices`, offers using the person's existing profile here (§ Joining, Offering
+  it): `label` the row's heading, `note` what it does, `action` the button. Absent while this computer shares its
+  profile with another one, or was removed from it.
+
 **The folder received files go to.** Every file the helper publishes as received (a friend's file, a download link's
 file, a copy from another of the person's computers) goes to that folder. Until the person chooses one it is the
 system's Downloads folder (helpers under test: `SZFRIENDS_DOWNLOADS_DIR`, else `Downloads` inside their overridden
@@ -788,10 +794,13 @@ The new computer's side of joining a person's existing profile, with the helper 
   `transfer_id`, `add_from_mention` with the action's own `friends_id`, `identity_key` and `name`, and likewise
   `revoke_device` with its `device_id`, `approve_join` and `deny_join` with its `join_id`, `join_profile` with its
   `friends_id`) or a client-side action (`open_file`,
-  `show_file` with `path`; `open_settings` with `settings_target`; `choose_received_folder`, § Views, `settings`). `label` and `style` (`primary`, `secondary`,
+  `show_file` with `path`; `open_settings` with `settings_target`; `choose_received_folder`, § Views, `settings`;
+  `open_join`, which shows the `join` view, § Joining). `label` and `style` (`primary`, `secondary`,
   `link`, `destructive`) are display-ready; `note` is an optional explanation shown under the button. When
   `confirm` is present the view asks with that dialog first and sends the intent only on its confirm button;
-  `reset_friends` is then sent with `confirm` `"reset"`. `confirm.destructive` draws the confirm button in the
+  `reset_friends` is then sent with `confirm` `"reset"`, and nothing else of the action: a `then` on it
+  (`open_join`) is for the view alone, which runs that client-side action once the reset succeeded and the views are
+  subscribed again (the helper restarts its subscriptions after a reset). `confirm.destructive` draws the confirm button in the
   destructive color. `confirm.option`, when present, is a checkbox under the body labelled `option.label`,
   unticked each time the dialog opens; when it is ticked the intent also carries `option.field` set to `true`
   (Remove's "Also delete chat history" sends `delete_history: true`). When `arm` is present the button behaves like a row button with
@@ -1085,13 +1094,18 @@ One person's Friends on several computers ([friends-multi-device.md](../docs/pla
 helpers agree on who belongs is [ADR 0012](docs/adr/0012-device-chain.md), how they stay in sync
 [ADR 0014](docs/adr/0014-sync.md)). Everything in this section and in § Joining exists only while the welcome lists
 the helper capability `devices`: the fields marked so in § Schemas are absent without it, and the intents fail with
-`unknown_intent`. The views' words say "computer", never anything about how computers belong to a profile; every
-string is display-ready, from the catalog (`service/presentation/SZFriendsCatalogDevices.m`).
+`unknown_intent`. The views' words say "computer", never anything about how computers belong to a profile; on a
+phone (client capability `files.share`) the portable core says "device" where it means the one showing it ("This
+device now uses your profile"), and where it means another one, "computer or phone". Every string is display-ready,
+from the catalog (`service/presentation/SZFriendsCatalogDevices.m`, `SZFriendsCatalogJoin.m`).
 
 **Your computers.** The profile's `devices` (`fixtures/snapshots/devices-profile.json`) lists every computer that
 uses this profile, this one first, then the others by when they joined; removed ones are gone from it. `title` is the
-section heading ("Your computers"), `note` says how to add one ("To add a computer, open Friends on it and choose Use
-my existing profile."), and `rows` are `type.device_row`:
+section heading ("Your computers"), `add` says how to add one, and `rows` are `type.device_row`. `add`
+(`type.device_add`) is `null` on a computer that was removed; otherwise its `title` ("Add a computer or phone") heads
+three `steps`, in order, that name this profile's ID ("On the other computer or phone, open Friends and choose Use my
+existing profile.", "Type this ID there: cottage‑violet", "Choose Approve when it appears here, then type the code
+this computer shows."), and `friends_id` is that ID, ASCII, for a view that offers Copy beside the steps:
 
 | Field of `type.device_row` | Type | What the view does with it |
 |---|---|---|
@@ -1173,9 +1187,26 @@ exchange between helpers is `service/identity/SZFriendsJoin.h`; this section is 
 `fixtures/snapshots/join-*.json`, `list-join-requests.json`, `badge-join-requests.json` and
 `devices-list-new-computer.json`.
 
-**On the new computer: the `join` view.** A fresh list's `name_prompt` carries `join_label` ("Use my existing
-profile") while this computer could join (it has no friends yet); the views show it as a link under the name field,
-and pressing it shows this view: `subscribe` with view `join` (no params).
+**Offering it.** Joining replaces this computer's own profile, so it is offered wherever someone setting up a new
+computer or phone looks, and says what it costs. Settings' `join` (`fixtures/snapshots/devices-settings-join.json`,
+`phone-settings-join.json`) and the list's `join` (`devices-list-new-computer.json`, `devices-list-join-reset.json`)
+are present while this computer's profile is on this computer only and it was not removed; the list shows its `join`
+while the name prompt shows, and while this computer has nobody in Friends, so a person who chose a name first still
+sees it on the empty list. Each has a `note`, what it does ("Already use Friends on another computer or phone? Bring
+your friends and chats from it here."), and an `action` labelled "Use my existing profile…":
+
+- While this computer has nobody in Friends (no friend, request or history with anyone), there is nothing to lose:
+  the action is the client-side `open_join`, and the view shows the `join` view at once.
+- Otherwise the action is `reset_friends` with a `confirm` that says what goes ("Use your existing profile here?",
+  "This computer’s own ID, cottage‑violet, and its friends and chats are deleted from this computer. Then you type
+  your ID from your other computer or phone, approve there, and your friends and chats come here. Files you received
+  stay where they were saved.", "Delete and Continue", destructive) and `then` `open_join`. The view sends
+  `reset_friends` as from Settings' Reset Friends, never `then`; once the reply succeeds and its views are
+  subscribed again, it shows the `join` view on the fresh profile.
+
+A view outside the dropdown (Settings) closes itself or opens the dropdown to show the `join` view there.
+
+**On the new computer: the `join` view.** `subscribe` with view `join` (no params).
 
 | Field of `snapshot.join` | Type | What the view does with it |
 |---|---|---|
@@ -1559,13 +1590,14 @@ label: string|null
 ```
 
 ```schema type.action
-action: enum(accept_request,decline_request,cancel_request,block,unblock,remove_friend,send_request,add_from_mention,accept_offer,decline_offer,cancel_transfer,cancel_message,retry_item,mark_verified,accept_key_change,dismiss_banner,start_visibility,stop_visibility,activate,reset_friends,delete_history,open_file,show_file,open_settings,add_from_link,receive_link,reset_friend_link,revoke_link,revoke_device,fetch_from_device,join_profile,cancel_join,approve_join,deny_join,choose_received_folder)
+action: enum(accept_request,decline_request,cancel_request,block,unblock,remove_friend,send_request,add_from_mention,accept_offer,decline_offer,cancel_transfer,cancel_message,retry_item,mark_verified,accept_key_change,dismiss_banner,start_visibility,stop_visibility,activate,reset_friends,delete_history,open_file,show_file,open_settings,add_from_link,receive_link,reset_friend_link,revoke_link,revoke_device,fetch_from_device,join_profile,cancel_join,approve_join,deny_join,choose_received_folder,open_join)
 label: string
 style: enum(primary,secondary,link,destructive)
 note?: string|null
 confirm?: @confirm|null      # ask first; reset_friends and remove_friend always carry one (remove_friend's may
                              # carry an `option`, § Shared objects, Action)
 arm?: @arm|null              # ask for a second click first; block always carries one
+then?: enum(open_join)|null  # reset_friends only, for the view: what it shows once the reset succeeded; never sent
 path: string when action=open_file,show_file
 settings_target: enum(local_network_privacy,bluetooth_privacy,bluetooth,wifi) when action=open_settings
 friends_id: string when action=add_from_mention,join_profile   # the intent's fields, sent as they are
@@ -1641,6 +1673,7 @@ data.state?: enum(normal,device_removed)   # present while the helper announces 
 data.removed?: @device_removed|null        # set exactly while state is device_removed
 data.join_requests?: array                 # present while the helper announces `devices` (§ Joining)
 data.join_requests[]: @join_request
+data.join?: @join_offer|null              # present while the helper announces `devices` (§ Joining, Offering it)
 ```
 
 ```schema type.device_removed
@@ -1659,7 +1692,6 @@ action: @action|null
 title: string
 placeholder: string
 note: string
-join_label?: string|null     # opens the `join` view; present while the helper announces `devices`
 ```
 
 ```schema type.list_row
@@ -1980,7 +2012,7 @@ data.links.downloads[].expires_label: string     # "Expires in 6 days"
 data.links.downloads[].revoke: @action           # revoke_link with the action's own link_id
 data.devices?: object|null        # present while the helper announces `devices` (§ Devices)
 data.devices.title: string        # "Your computers"
-data.devices.note: string         # how to add another computer
+data.devices.add: @device_add|null   # how to add another computer or phone; null on a removed computer
 data.devices.rows: array          # this computer first, then the others by when they joined
 data.devices.rows[]: @device_row
 ```
@@ -1996,6 +2028,18 @@ state: enum(connected,not_connected,never_connected)
 accessibility_label: string
 rename: @device_rename|null  # this computer's row only
 remove: @action|null         # revoke_device with confirm; null on this computer's row
+```
+
+```schema type.device_add
+title: string                # "Add a computer or phone"
+steps: array                 # what to do, in order, display-ready; one names the ID
+steps[]: string
+friends_id: string           # the ID to type on the other computer or phone, ASCII, for Copy
+```
+
+```schema type.join_offer
+note: string                 # what joining does, in one line
+action: @action              # labelled "Use my existing profile…": open_join, or reset_friends with confirm and then
 ```
 
 ```schema type.device_rename
@@ -2036,6 +2080,10 @@ data.reset.label: string
 data.reset.note: string
 data.reset.action_label: string
 data.reset.confirm: @confirm
+data.join?: object                # with `devices`, while offered: using an existing profile here (§ Joining)
+data.join.label: string           # the row's heading
+data.join.note: string
+data.join.action: @action         # open_join, or reset_friends with confirm and then
 data.nearby?: object|null         # the helper's Nearby line; absent from a helper without one
 data.nearby.label: string         # "Nearby"
 data.nearby.note: string

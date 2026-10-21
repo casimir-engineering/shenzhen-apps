@@ -35,7 +35,12 @@ static void ExpectConfirm(NSDictionary *confirm, NSString *prefix, NSDictionary 
 static void TestYourComputers(void) {
     NSDictionary *devices = Data(@"devices-profile.json")[@"devices"];
     Same(devices[@"title"], T(@"devices.title", nil), @"devices.title");
-    Same(devices[@"note"], T(@"devices.note", nil), @"devices.note");
+    NSDictionary *add = devices[@"add"];
+    Same(add[@"title"], T(@"devices.add.title", nil), @"devices.add.title");
+    Same(add[@"friends_id"], @"cottage-violet", @"the ID to type there");
+    NSArray *steps = @[ T(@"devices.add.step.open", nil), T(@"devices.add.step.id", @{@"id" : @"cottage‑violet"}),
+                        T(@"devices.add.step.approve", nil) ];
+    SZPExpect([add[@"steps"] isEqual:steps], @"the steps, in order, with the ID: %@", add[@"steps"]);
     NSDictionary *lastKeys = @{@"connected" : @"devices.last.now", @"never_connected" : @"devices.last.never"};
     NSDictionary *spokenKeys = @{@"connected" : @"devices.accessibility.now",
                                  @"never_connected" : @"devices.accessibility.never",
@@ -81,12 +86,28 @@ static void TestRemovedAndNewComputer(void) {
         Same(row[@"drop_refusal"], T(@"device_removed.drop_refusal", nil), @"a removed computer's row");
         SZPExpect(row[@"drop_label"] == NSNull.null, @"a removed computer takes no drops");
     }
-    NSDictionary *prompt = Data(@"devices-list-new-computer.json")[@"name_prompt"];
-    Same(prompt[@"join_label"], T(@"name_prompt.join", nil), @"join link");
-    // The way in that Your computers and the removed computer name is the link's own label.
-    SZPExpect([T(@"devices.note", nil) containsString:T(@"name_prompt.join", nil)] &&
-                  [T(@"device_removed.body", nil) containsString:T(@"name_prompt.join", nil)],
-              @"the notes name the join link as it reads");
+    // A new computer: the join view at once, nothing to lose.
+    NSDictionary *join = Data(@"devices-list-new-computer.json")[@"join"];
+    Same(join[@"note"], T(@"join.offer.note", nil), @"what joining does");
+    Same(join[@"action"][@"action"], @"open_join", @"straight to the join view");
+    Same(join[@"action"][@"label"], T(@"join.offer.action", nil), @"join button");
+    SZPExpect(join[@"action"][@"confirm"] == nil, @"nothing to confirm with nothing to lose");
+    // Friends here already: Reset first, saying what goes, then the join view.
+    NSDictionary *reset = Data(@"devices-list-join-reset.json")[@"join"][@"action"];
+    Same(reset[@"action"], @"reset_friends", @"joining replaces this computer's profile");
+    Same(reset[@"then"], @"open_join", @"then the join view");
+    ExpectConfirm(reset[@"confirm"], @"join.offer.confirm", @{@"id" : @"cottage‑violet"}, @"joining here");
+    NSDictionary *settings = Data(@"devices-settings-join.json")[@"join"];
+    Same(settings[@"label"], T(@"settings.join.label", nil), @"Settings' heading");
+    Same(settings[@"note"], T(@"join.offer.note", nil), @"Settings' note");
+    SZPExpect([settings[@"action"] isEqual:reset] == NO && [settings[@"action"][@"confirm"] isEqual:reset[@"confirm"]],
+              @"Settings asks the same, as a button");
+    // The way in that Your computers and the removed computer name is the button's own label.
+    NSString *button = [T(@"join.offer.action", nil) stringByReplacingOccurrencesOfString:@"…" withString:@""];
+    SZPExpect([T(@"devices.add.step.open", nil) containsString:button] &&
+                  [T(@"device_removed.body", nil) containsString:button] &&
+                  [T(@"join.unavailable.message", nil) containsString:T(@"join.offer.action", nil)],
+              @"the steps name the button as it reads");
 }
 
 static void TestYou(void) {

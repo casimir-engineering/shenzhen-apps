@@ -46,7 +46,6 @@
     },
     "devices": {
       "title": "Your computers",
-      "note": "To add a computer, open Friends on it and choose Use my existing profile.",
       "rows": [
         {
           "device_id": "d_1e9c4a70",
@@ -137,7 +136,16 @@
             }
           }
         }
-      ]
+      ],
+      "add": {
+        "title": "Add a computer or phone",
+        "steps": [
+          "On the other computer or phone, open Friends and choose Use my existing profile.",
+          "Type this ID there: cottage‑violet",
+          "Choose Approve when the request appears in Friends here, then type the code this computer shows on the other one."
+        ],
+        "friends_id": "cottage-violet"
+      }
     }
   }
 }

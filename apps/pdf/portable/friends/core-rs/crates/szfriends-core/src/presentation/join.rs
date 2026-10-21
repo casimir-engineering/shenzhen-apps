@@ -172,13 +172,13 @@ impl SnapshotBuilder {
         });
         match state {
             JoiningState::Idle => {
-                data.insert("message".into(), json!(s.text("join.idle.message")));
+                data.insert("message".into(), json!(s.text(&self.device_key("join.idle.message"))));
                 let field =
                     json!({"placeholder": s.text("join.idle.placeholder"), "button": s.text("join.idle.button")});
                 data.insert("id_field".into(), field);
             }
             JoiningState::Waiting | JoiningState::Checking | JoiningState::WrongCode | JoiningState::NotReached => {
-                data.insert("title".into(), json!(s.text("join.waiting.title")));
+                data.insert("title".into(), json!(s.text(&self.device_key("join.waiting.title"))));
                 let message = if state == JoiningState::Checking {
                     s.text("join.checking.message")
                 } else {
@@ -200,13 +200,13 @@ impl SnapshotBuilder {
                     JoiningState::Expired => "join.expired",
                     _ => "join.too_many",
                 };
-                data.insert("title".into(), json!(s.text(&format!("{key}.title"))));
+                data.insert("title".into(), json!(s.text(&self.device_key(&format!("{key}.title")))));
                 data.insert("message".into(), json!(s.text(&format!("{key}.message"))));
                 let has_id = facts.friends_id.as_deref().is_some_and(|id| !id.is_empty());
                 data.insert("actions".into(), if has_id { json!([again, cancel]) } else { json!([cancel]) });
             }
             JoiningState::Joined => {
-                data.insert("title".into(), json!(s.text("join.joined.title")));
+                data.insert("title".into(), json!(s.text(&self.device_key("join.joined.title"))));
                 data.insert("message".into(), json!(s.text("join.joined.message")));
             }
             JoiningState::Unavailable => {

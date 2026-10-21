@@ -20,6 +20,7 @@ pub mod facts;
 mod found;
 mod items;
 mod join;
+mod join_offer;
 mod links;
 mod list;
 mod mention_view;

@@ -1,0 +1,145 @@
+{
+  "type": "snapshot",
+  "subscription": "s_1",
+  "view": "settings",
+  "rev": 1,
+  "data": {
+    "auto_accept": {
+      "action_label": "Choose friends…",
+      "friends": [
+        {
+          "avatar": {
+            "color": "#3f6b4f",
+            "index": 7,
+            "initials": "ML",
+            "kind": "animal",
+            "set": 1
+          },
+          "conversation_id": "c_mei",
+          "enabled": true,
+          "title": "Mei Lin"
+        },
+        {
+          "avatar": {
+            "color": "#7a5a34",
+            "index": 5,
+            "initials": "DO",
+            "kind": "animal",
+            "set": 1
+          },
+          "conversation_id": "c_daniel",
+          "enabled": true,
+          "title": "Daniel Ortiz"
+        },
+        {
+          "avatar": {
+            "color": "#2f6474",
+            "index": 1,
+            "initials": "KS",
+            "kind": "animal",
+            "set": 1
+          },
+          "conversation_id": "c_kenji",
+          "enabled": false,
+          "title": "Kenji Sato"
+        },
+        {
+          "avatar": {
+            "color": "#4f4f86",
+            "index": 9,
+            "initials": "PR",
+            "kind": "animal",
+            "set": 1
+          },
+          "conversation_id": "c_priya",
+          "enabled": false,
+          "title": "Priya Raman"
+        },
+        {
+          "avatar": {
+            "color": "#6a4a6a",
+            "index": 11,
+            "initials": "TC",
+            "kind": "animal",
+            "set": 1
+          },
+          "conversation_id": "c_tulip",
+          "enabled": false,
+          "title": "tulip‑canyon"
+        }
+      ],
+      "label": "Accept files automatically",
+      "note": "From Mei Lin and Daniel Ortiz. Everyone else asks first."
+    },
+    "history": {
+      "action_label": "Delete history…",
+      "confirm": {
+        "title": "Delete all conversation history?",
+        "body": "Your messages and file history with every friend are deleted from this computer, and anything still waiting to go won’t be sent. You keep your friends, and they keep their own copies of your chats. Files you received stay where they were saved.",
+        "confirm_label": "Delete History",
+        "cancel_label": "Cancel",
+        "destructive": true
+      },
+      "label": "Conversation history",
+      "note": "Stored on this computer. Deleting it keeps your friends and the files you received."
+    },
+    "id": {
+      "copy_label": "Copy",
+      "friends_id": "cottage-violet",
+      "label": "Your ID",
+      "note": "People can add you with it."
+    },
+    "join": {
+      "label": "Your existing profile",
+      "note": "Already use Friends on another computer or phone? Bring your friends and chats from it here.",
+      "action": {
+        "action": "reset_friends",
+        "label": "Use my existing profile…",
+        "style": "secondary",
+        "confirm": {
+          "title": "Use your existing profile here?",
+          "body": "This computer’s own ID, cottage‑violet, and its friends and chats are deleted from this computer. Then you type your ID from your other computer or phone, approve there, and your friends and chats come here. Files you received stay where they were saved.",
+          "confirm_label": "Delete and Continue",
+          "cancel_label": "Cancel",
+          "destructive": true
+        },
+        "then": "open_join"
+      }
+    },
+    "name": {
+      "label": "Your name",
+      "note": "The name your friends see.",
+      "placeholder": "Choose your name",
+      "value": "Raph"
+    },
+    "received": {
+      "action": {
+        "action": "show_file",
+        "label": "Show in Finder",
+        "style": "secondary",
+        "path": "/Users/raph/Downloads"
+      },
+      "change": {
+        "action": "choose_received_folder",
+        "label": "Change…",
+        "style": "secondary"
+      },
+      "label": "Save received files to",
+      "note": "",
+      "path": "/Users/raph/Downloads",
+      "value": "Downloads"
+    },
+    "reset": {
+      "action_label": "Reset Friends…",
+      "confirm": {
+        "title": "Reset Friends?",
+        "body": "This deletes your friends and conversations from this computer and gives you a new ID. Every friend has to add you again. Files you received stay where they were saved.",
+        "confirm_label": "Reset Friends",
+        "cancel_label": "Cancel",
+        "destructive": true
+      },
+      "label": "Start over",
+      "note": "You get a new ID, and every friend has to add you again."
+    }
+  }
+}

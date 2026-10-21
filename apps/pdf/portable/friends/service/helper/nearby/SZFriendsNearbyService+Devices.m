@@ -351,6 +351,9 @@ NSString *SZFriendsDeviceIDForKey(NSData *deviceKey) {
     facts.computers = [self computerFacts];
     facts.removed = self.removedFromProfile;
     facts.joinOffered = !facts.removed && [self joinAvailable];
+    // Joining after Reset Friends: a profile on this computer only, with people in it that joining would replace.
+    facts.joinReplaces = !facts.removed && !facts.joinOffered && self.services.store.ownDeviceChain.devices.count <= 1;
+    facts.friendsID = self.services.store.friendsID;
     SZFriendsSyncEngine *engine = [self activeSyncEngine];
     [self fillYouFacts:facts engine:engine];
     if (engine != nil) facts.files = [self fileFactsWithEngine:engine];

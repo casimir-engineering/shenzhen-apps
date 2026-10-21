@@ -17,10 +17,10 @@
       "length": 8,
       "placeholder": "8-digit code"
     },
-    "error": "That code didn’t match. Check the code on your other computer and type it again.",
+    "error": "That code didn’t match. Check the code on your other computer or phone and type it again.",
     "friends_id": "cottage-violet",
     "id_field": null,
-    "message": "On a computer that uses cottage‑violet, open Friends in ShenzhenPDF, Shenzhen Files or Shenzhen 3D and choose Approve. Then type the code it shows.",
+    "message": "On your computer or phone that uses cottage‑violet, open Friends in ShenzhenPDF, Shenzhen Files or Shenzhen 3D and choose Approve. Then type the code it shows.",
     "state": "wrong_code",
     "title": "Approve this computer"
   }
