@@ -10,7 +10,7 @@ use serde_json::{json, Value};
 use szfriends_core::presentation::catalog;
 use szfriends_helper::notify::{Permission, Response};
 #[cfg(any(target_os = "android", target_os = "ios"))]
-pub use native::PhoneNotifier;
+pub use native::{Notifications, PhoneNotifier};
 
 /// What the platform reports: a response for the core, or the system's permission changing.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -76,6 +76,23 @@ mod native {
     use tauri::Runtime;
 
     use super::{background_payload, channel_names, parse_event, permission_of, Event};
+
+    /// The notifier as the phone's service holds it (`crate::phone::PhoneNotify`).
+    pub struct Notifications<R: Runtime>(pub Arc<PhoneNotifier<R>>);
+
+    impl<R: Runtime> crate::phone::PhoneNotify for Notifications<R> {
+        fn notifier(&self) -> Arc<dyn Notifier> {
+            self.0.clone()
+        }
+
+        fn set_background(&self, on: bool) -> bool {
+            self.0.set_background(on)
+        }
+
+        fn listen(&self, listener: Box<dyn Fn(Event) + Send + Sync>) {
+            self.0.listen(listener);
+        }
+    }
 
     /// Where events go once the core listens; until then they wait (a tap that launched the app).
     type Listener = Arc<dyn Fn(Event) + Send + Sync>;

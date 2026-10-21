@@ -47,6 +47,16 @@ pub const GRACE: Duration = Duration::from_secs(20);
 /// Makes the key store the identity lives in, each time the service (re)starts.
 pub type Keys = Arc<dyn Fn() -> Box<dyn KeyStore> + Send + Sync>;
 
+/// The phone's notifier as the service sees it (`notify.rs`): what it posts with, "Stay reachable in the
+/// background", and what the person does with a notification.
+pub trait PhoneNotify: Send + Sync {
+    fn notifier(&self) -> Arc<dyn szfriends_helper::notify::Notifier>;
+    /// Starts or stops the background service (Android); whether it runs now.
+    fn set_background(&self, on: bool) -> bool;
+    /// Where taps, replies and permission changes go.
+    fn listen(&self, listener: Box<dyn Fn(notify::Event) + Send + Sync>);
+}
+
 /// What runs behind the phone's protocol server now.
 enum Current {
     Service(Arc<Service>),
@@ -97,6 +107,8 @@ pub struct PhoneService {
     connections: Connections,
     lifecycle: Mutex<Lifecycle>,
     grace: Duration,
+    /// The phone's notifier, installed in every service this starts (a reset starts a new one).
+    notify: Option<Arc<dyn PhoneNotify>>,
 }
 
 impl std::fmt::Debug for PhoneService {
@@ -106,7 +118,7 @@ impl std::fmt::Debug for PhoneService {
 }
 
 /// What the store and key say at a start.
-fn begin(state_dir: &Path, keys: &Keys, received: &ReceivedDefaults) -> Current {
+fn begin(state_dir: &Path, keys: &Keys, received: &ReceivedDefaults, notify: Option<&Arc<dyn PhoneNotify>>) -> Current {
     let checked = (|| {
         std::fs::create_dir_all(state_dir).map_err(|_| IdentityError::StoreFailed)?;
         // A store that records no identity is another identity's; one that cannot be opened is no reason to offer
@@ -119,7 +131,14 @@ fn begin(state_dir: &Path, keys: &Keys, received: &ReceivedDefaults) -> Current 
     })();
     match checked {
         Ok(_) => match Service::start_with(state_dir, keys(), received.clone()) {
-            Ok(service) => Current::Service(service),
+            Ok(service) => {
+                if let Some(notify) = notify {
+                    service.install_notifier(notify.notifier());
+                    // The switch as this store keeps it: the background service runs while it is on.
+                    notify.set_background(szfriends_helper::notify::prefs::Prefs::load(state_dir).background);
+                }
+                Current::Service(service)
+            }
             Err(error) => {
                 crate::link::log(&format!("Friends service not started: {error}"));
                 Current::Stub(Arc::default())
@@ -145,14 +164,27 @@ impl PhoneService {
     }
 
     /// With where received files go on this phone (`received::defaults`).
+    #[cfg_attr(not(test), allow(dead_code))]
     pub fn start_with(state_dir: PathBuf, keys: Keys, received: ReceivedDefaults) -> Arc<Self> {
         Self::with_grace(state_dir, keys, received, GRACE)
     }
 
     pub fn with_grace(state_dir: PathBuf, keys: Keys, received: ReceivedDefaults, grace: Duration) -> Arc<Self> {
-        let current = begin(&state_dir, &keys, &received);
-        let lifecycle = Lifecycle { foreground: true, ..Lifecycle::default() };
-        Arc::new(Self {
+        Self::with_notify(state_dir, keys, received, grace, None)
+    }
+
+    /// With the phone's notifier (`notify.rs`), installed in the service and listened to.
+    pub fn with_notify(
+        state_dir: PathBuf,
+        keys: Keys,
+        received: ReceivedDefaults,
+        grace: Duration,
+        notify: Option<Arc<dyn PhoneNotify>>,
+    ) -> Arc<Self> {
+        let current = begin(&state_dir, &keys, &received, notify.as_ref());
+        let reachable = notify.is_some() && szfriends_helper::notify::prefs::Prefs::load(&state_dir).background;
+        let lifecycle = Lifecycle { foreground: true, reachable, ..Lifecycle::default() };
+        let service = Arc::new(Self {
             state_dir,
             keys,
             received,
@@ -160,7 +192,25 @@ impl PhoneService {
             connections: Connections::default(),
             lifecycle: Mutex::new(lifecycle),
             grace,
-        })
+            notify,
+        });
+        if let Some(notify) = &service.notify {
+            let weak = Arc::downgrade(&service);
+            notify.listen(Box::new(move |event| {
+                let Some(phone) = weak.upgrade() else { return };
+                let Some(core) = phone.current.read().unwrap_or_else(|e| e.into_inner()).service() else { return };
+                match event {
+                    notify::Event::Response(response) => core.notification_response(response),
+                    // Installing it again tells the service to show the system's new answer (Settings, the card).
+                    notify::Event::Permission(_) => {
+                        if let Some(notify) = &phone.notify {
+                            core.install_notifier(notify.notifier());
+                        }
+                    }
+                }
+            }));
+        }
+        service
     }
 
     /// "service", "restored" or "stub", for tests and the log.
@@ -180,7 +230,7 @@ impl PhoneService {
     /// files stay), a new identity's service starts with Nearby as it was, and every connection is closed, so each
     /// page reconnects to it and subscribes again.
     fn reset(&self, connection: &Connection, reply: Reply) {
-        let start = || begin(&self.state_dir, &self.keys, &self.received);
+        let start = || begin(&self.state_dir, &self.keys, &self.received, self.notify.as_ref());
         let keys = self.keys.as_ref()();
         reset::reset(&self.current, start, (&self.state_dir, &*keys), &self.connections, (connection, reply));
     }
@@ -225,6 +275,7 @@ impl PhoneService {
 
     /// "Stay reachable in the background" turned on or off: on, the service no longer sleeps in the background (and
     /// wakes if it was asleep); off, it sleeps after the grace period as before.
+    #[cfg_attr(not(test), allow(dead_code))]
     pub fn set_reachable(self: &Arc<Self>, on: bool) {
         let (background, paused) = {
             let mut lifecycle = self.lifecycle.lock().unwrap_or_else(|e| e.into_inner());
@@ -237,6 +288,11 @@ impl PhoneService {
         } else if !on && background && !paused {
             self.suspended();
         }
+    }
+
+    /// The switch from an intent: the app is in front, so nothing sleeps now; only the flag changes.
+    fn set_reachable_flag(&self, on: bool) {
+        self.lifecycle.lock().unwrap_or_else(|e| e.into_inner()).reachable = on;
     }
 
     /// Whether the grace period ended in the background (for tests).
@@ -280,7 +336,14 @@ impl Presentation for PhoneService {
             }
             return;
         }
+        // "Stay reachable in the background": the core keeps the switch, the app runs the foreground service.
+        let background = (intent["type"] == "set_notifications").then(|| intent["background"].as_bool()).flatten();
+        let serving = self.current.read().unwrap_or_else(|e| e.into_inner()).service().is_some();
         self.presentation().intent(connection, intent, reply);
+        if let (Some(on), Some(notify), true) = (background, &self.notify, serving) {
+            notify.set_background(on);
+            self.set_reachable_flag(on);
+        }
     }
 
     fn disconnected(&self, connection_id: u64) {

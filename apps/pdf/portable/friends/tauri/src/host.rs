@@ -192,7 +192,8 @@ impl<R: Runtime> Host<R> {
             capabilities: client_capabilities(&self.config.capabilities),
             open_formats: self.config.open_formats.clone(),
             locale: self.config.locale.clone(),
-            url_scheme: None,
+            // Where a notification's click opens this app (ADR 0017): the scheme its Friends links use.
+            url_scheme: Some(self.config.link_scheme.clone()).filter(|s| !s.is_empty()),
         };
         let host = Arc::downgrade(self);
         let sink: crate::link::Sink = Arc::new(move |event| {

@@ -270,7 +270,11 @@ fn locate<R: Runtime>(app: &AppHandle<R>, config: &Config<R>) -> Option<Located>
             let home = std::env::var_os("HOME").map(PathBuf::from);
             phone::received::defaults(phone::received::Phone::Ios, &state_dir, testing, home, None)
         };
-        let connector = link::embedded::EmbeddedConnector::new(state_dir.clone(), keys, received);
+        // Notifications: the core decides, the platform half posts (ADR 0017); real ones in a test home too, on the
+        // emulator or simulator the test runs in.
+        let notifier = phone::notify::PhoneNotifier::start(native.handle(), &config.link_scheme, &config.app_name);
+        let notify: Arc<dyn phone::PhoneNotify> = Arc::new(phone::notify::Notifications(notifier));
+        let connector = link::embedded::EmbeddedConnector::new(state_dir.clone(), keys, received).with_notify(notify);
         let animals = config.animals.clone().or_else(|| phone::animals::unpack(&base));
         return Some(Located { connector: Arc::new(connector), state_dir, animals, data_dir: Some(base) });
     }
