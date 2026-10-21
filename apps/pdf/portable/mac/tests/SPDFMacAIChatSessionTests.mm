@@ -21,11 +21,13 @@ static int failures;
 @property NSUInteger calls;
 @property NSUInteger cancellations;
 @property NSUInteger contextReads;
+@property NSString* lastName;
+@property NSDictionary* lastArguments;
 @property(copy) void (^reply)(NSDictionary*);
 @end
 @implementation FakeTools
 - (void)performTool:(NSString*)name arguments:(NSDictionary*)args completion:(void (^)(NSDictionary*))completion {
-    (void)name; (void)args; self.calls++; self.reply=completion;
+    self.lastName=name; self.lastArguments=args; self.calls++; self.reply=completion;
 }
 - (NSDictionary*)conversationContext {self.contextReads++;return @{@"path":@"doc:active-fixture",@"title":@"Active drawing",@"page":@1};}
 - (void)cancel { self.cancellations++; }
@@ -42,6 +44,7 @@ static int failures;
 #import "SPDFMacAIChatCompactionChecks.h"
 #import "SPDFMacAIChatContextRetryChecks.h"
 #import "SPDFMacAIChatRewriteChecks.h"
+#import "SPDFMacAIToolArgumentChecks.h"
 int main(void) { @autoreleasepool {
     NSURL* citation=[NSURL URLWithString:@"spdf-ai://document?path=doc:fixture&page=2&revision=abc"];
     NSDictionary* arguments=SPDFMacAICitationArguments(citation);
@@ -67,6 +70,7 @@ int main(void) { @autoreleasepool {
     CheckEditAndResend([snapshotRoot URLByAppendingPathComponent:@"edit"]);
     CheckContextLengthRetry([snapshotRoot URLByAppendingPathComponent:@"context-retry"]);
     CheckHistoryRewrites([snapshotRoot URLByAppendingPathComponent:@"rewrites"]);
+    CheckToolArgumentRecovery([snapshotRoot URLByAppendingPathComponent:@"tool-arguments"]);
     [NSFileManager.defaultManager removeItemAtURL:snapshotRoot error:nil];
     SPDFMacAIChatStore* store=[[SPDFMacAIChatStore alloc] initWithDirectory:root];
     FakeTransport* transport=[FakeTransport new]; FakeTools* tools=[FakeTools new];
@@ -116,6 +120,8 @@ int main(void) { @autoreleasepool {
     [session send:@"bad arguments" model:@"fake/model" apiKey:@"test"];
     transport.reply(@{@"role":@"assistant",@"tool_calls":@[@{@"id":@"badargs",@"function":
         @{@"name":@"undo_action",@"arguments":@"not JSON"}}]},nil);
+    transport.reply(@{@"role":@"assistant",@"tool_calls":@[@{@"id":@"badargs2",@"function":
+        @{@"name":@"undo_action",@"arguments":@"not JSON"}}]},nil); // asked again once, then the request ends
     CHECK(!session.running && tools.calls==callsBefore,"invalid JSON cannot invoke a zero-argument mutation");
     NSString* sharedID=NSUUID.UUID.UUIDString;
     NSDictionary* base=@{@"id":sharedID,@"messages":@[@{@"role":@"user",@"content":@"base"}]};

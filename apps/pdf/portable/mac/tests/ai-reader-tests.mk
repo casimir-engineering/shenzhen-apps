@@ -34,6 +34,7 @@ $(AI_CHAT_VIEW_TEST): mac/tests/SPDFMacAIChatActivityViewChecks.h mac/tests/SPDF
 		mac/tests/SPDFMacAIChatReopenChecks.h mac/tests/SPDFMacAIChatDockChecks.h mac/tests/SPDFMacAIChatBannerChecks.h \
 		mac/tests/SPDFMacAIChatEditChecks.h mac/tests/SPDFMacAIChatLinkChecks.h mac/tests/SPDFMacAIChatWrapChecks.h \
 		mac/SPDFMacAIChatViewInternal.h \
+		mac/tests/SPDFMacAIChatRetryChecks.h \
 		mac/tests/SPDFMacAIChatViewTests.mm mac/SPDFMacAIChatView.mm mac/SPDFMacAIChatViewMessages.mm \
 		mac/SPDFMacAIAnswerCardView.mm \
 		mac/SPDFMacAIAnswerCard.mm mac/SPDFMacAICitations.mm mac/SPDFMacAIChatSearch.mm \

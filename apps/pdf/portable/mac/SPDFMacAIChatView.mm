@@ -238,8 +238,13 @@
 }
 - (void)refreshActivityFromSession:(SPDFMacAIChatSession*)session {
     _displayedSession=session; _running=session.running;
-    BOOL issueVisible=!_history && _submissionError.length>0;
+    // An answer that couldn't be used, where asking again is safe: what happened, with Retry beside it.
+    BOOL retry=!_history && !_submissionError.length && [session respondsToSelector:@selector(canRetry)] &&
+        session.canRetry;
+    BOOL issueVisible=!_history && (_submissionError.length>0 || retry);
     _issue.hidden=!issueVisible;
+    if(retry) { _issueText.stringValue=session.status; _recovery.identifier=@"retry"; _recovery.title=@"Retry";
+        _recovery.accessibilityLabel=_recovery.title; _recovery.toolTip=@"Ask your last question again"; }
     // One at a time, so the two are never active together.
     if(issueVisible) { _scrollAboveInput.active=NO; _scrollAboveIssue.active=YES; }
     else { _scrollAboveIssue.active=NO; _scrollAboveInput.active=YES; }
@@ -253,12 +258,12 @@
     else if(state==SPDFMacAIChatActivityPaused) title=@"Paused · Ready to continue";
     else if(state==SPDFMacAIChatActivitySummarizing) title=@"Summarizing earlier messages…";
     else if(state==SPDFMacAIChatActivityStopped) title=@"Stopped · Ready for your next message";
-    _status.stringValue=issueVisible ? @"Message not sent" : title;
+    _status.stringValue=retry ? @"Not finished" : issueVisible ? @"Message not sent" : title;
     // While a tool runs, what it does in the person's words; never its identifier, and nothing for one without words.
     NSString* tool=[session respondsToSelector:@selector(runningTool)] ? session.runningTool : nil;
     NSString* detail=session.activityDetail.length ? session.activityDetail : fallback;
     if(tool) detail=SPDFChatRunningToolText(tool) ?: @"";
-    _activityDetail.stringValue=issueVisible ? _submissionError : detail;
+    _activityDetail.stringValue=retry ? @"Your chat is saved." : issueVisible ? _submissionError : detail;
     if(_chatSearch.stringValue.length && !issueVisible && !session.running) {
         NSUInteger matches=0;
         for(NSDictionary* message in session.chat[@"messages"]) {
