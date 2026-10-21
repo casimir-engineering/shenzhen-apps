@@ -163,11 +163,19 @@
     NSTextField *_meta;
     NSTextField *_routeNote;
     NSTextField *_status;
+    NSTextField *_routeLabel;
+    SZFriendsFlippedView *_routeIcon; // the route's icon before its words, as the conversation header draws it
     NSTextField *_time;
     SZFriendsProgressBar *_progress;
 }
 - (NSTextField *)timeLabel {
     return _time;
+}
+- (NSView *)routeIconView {
+    return _routeIcon;
+}
+- (NSTextField *)routeLabel {
+    return _routeLabel;
 }
 - (void)setUp {
     SZFriendsAppearance *appearance = self.context.appearance;
@@ -185,7 +193,20 @@
     _routeNote = SZFriendsLabel(@"", appearance.secondaryFont, appearance.primaryTextColor);
     _status = SZFriendsLabel(@"", appearance.secondaryFont, appearance.secondaryTextColor);
     _time = SZFriendsLabel(@"", appearance.captionFont, appearance.secondaryTextColor);
-    for (NSTextField *label in @[ _name, _meta, _routeNote, _status ]) [_card addSubview:label];
+    _routeLabel = SZFriendsLabel(@"", appearance.secondaryFont, appearance.secondaryTextColor);
+    _routeLabel.cell.lineBreakMode = NSLineBreakByTruncatingTail;
+    _routeLabel.maximumNumberOfLines = 1;
+    for (NSTextField *label in @[ _name, _meta, _routeNote, _status, _routeLabel ]) [_card addSubview:label];
+    __weak SZFriendsTransferItemView *weakSelf = self;
+    _routeIcon = [[SZFriendsFlippedView alloc] initWithFrame:NSMakeRect(0, 0, 11, 11)];
+    _routeIcon.drawContents = ^(SZFriendsFlippedView *view) {
+        SZFriendsTransferItemView *item = weakSelf;
+        if (!item) return;
+        NSDictionary *route = SZFDict(item.item, @"route");
+        SZFriendsDrawRouteIcon(SZFriendsRouteGlyph(route), view.bounds,
+                               SZFriendsRouteColor(item.context.appearance, SZFStr(route, @"kind")));
+    };
+    [_card addSubview:_routeIcon];
     [self addSubview:_time];
     _progress = [SZFriendsProgressBar new];
     _progress.theme = appearance;
@@ -212,6 +233,17 @@
                             ? appearance.successColor
                         : [state isEqualToString:@"failed"] ? appearance.destructiveColor
                                                             : appearance.secondaryTextColor;
+    // A file copying here from another of the person's computers: the route it comes by, under its status.
+    NSDictionary *route = SZFDict(item, @"route");
+    _routeLabel.stringValue = SZFStr(route, @"label") ?: @"";
+    _routeLabel.textColor = SZFriendsRouteColor(appearance, SZFStr(route, @"kind"));
+    _routeLabel.hidden = _routeLabel.stringValue.length == 0;
+    _routeIcon.hidden = _routeLabel.hidden || !SZFriendsRouteGlyph(route);
+    _routeIcon.needsDisplay = YES;
+    // VoiceOver reads the route with the rest of the card, after what the helper says of it.
+    NSString *spoken = SZFStr(item, @"accessibility_label");
+    if (!_routeLabel.hidden && spoken.length && ![spoken containsString:_routeLabel.stringValue])
+        self.accessibilityLabel = [NSString stringWithFormat:@"%@, %@", spoken, _routeLabel.stringValue];
     _time.stringValue = SZFStr(item, @"time_label") ?: @"";
     _card.strokeColor = self.highlighted ? appearance.accentColor : appearance.separatorColor;
     NSDictionary *progress = SZFDict(item, @"progress");
@@ -272,6 +304,16 @@
             }
         }
         y += statusHeight;
+    }
+    // The route line: its icon, 4 points, then its words, as the conversation header draws it.
+    if (!_routeLabel.hidden) {
+        y += 4;
+        CGFloat icon = _routeIcon.hidden ? 0 : 15;
+        if (apply) {
+            _routeIcon.frame = NSMakeRect(12, y + 2, 11, 11);
+            _routeLabel.frame = NSMakeRect(12 + icon, y, inner - icon, 16);
+        }
+        y += 16;
     }
     if (buttons.count) {
         y += 8;

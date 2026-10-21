@@ -271,6 +271,10 @@ static void SZFTestJoinPage(void) {
     SZFExpect(!page.routeLabel.hidden && !page.routeIconView.hidden &&
                   [page.routeLabel.stringValue isEqualToString:@"Nearby, on your network"],
               @"joined: the route it joined over, its icon before its words");
+    NSRect routeFrame = page.routeLabel.frame;
+    SZFExpect([page.routeLabel.cell cellSizeForBounds:NSMakeRect(0, 0, CGFLOAT_MAX, CGFLOAT_MAX)].width <=
+                      NSWidth(routeFrame) && NSMaxX(page.routeIconView.frame) <= NSMinX(routeFrame),
+              @"joined: the route's words whole on one line: %@", NSStringFromRect(routeFrame));
     [page applySnapshot:SZFTestSnapshot(@"join-idle")];
     [page layoutSubtreeIfNeeded];
     SZFExpect(page.routeLabel.hidden && page.routeIconView.hidden, @"no route line before a session is live");
@@ -343,10 +347,11 @@ static void SZFTestOtherComputersFiles(void) {
     (void)window;
     [page applySnapshot:SZFTestSnapshot(@"devices-conversation-mei-files")];
     [page layoutSubtreeIfNeeded];
-    SZFriendsItemView *onDevice = nil, *fetching = nil;
+    SZFriendsItemView *onDevice = nil, *fetching = nil, *waiting = nil;
     for (SZFriendsItemView *item in page.itemViews) {
         NSString *state = SZFStr(item.item, @"state");
         if ([state isEqualToString:@"on_device"]) onDevice = item;
+        if ([state isEqualToString:@"fetching"] && fetching) waiting = item;
         if ([state isEqualToString:@"fetching"] && !fetching) fetching = item;
     }
     SZFExpect(onDevice.actionButtons.count == 1 && [onDevice.actionButtons[0].title isEqualToString:@"Get"],
@@ -357,6 +362,34 @@ static void SZFTestOtherComputersFiles(void) {
     NSDictionary *fetch = SZFLast(transport, @"fetch_from_device");
     SZFExpect([fetch[@"fields"] isEqual:@{@"transfer_id" : SZFStr(onDevice.item, @"transfer_id")}], @"Get: %@", fetch);
     SZFExpect(fetching.progressView != nil && fetching.actionButtons.count == 1, @"copying shows progress and Cancel");
+    // The route it copies by, under the status: the route's icon, then its words, in the route's colour.
+    SZFriendsTransferItemView *copying = (SZFriendsTransferItemView *)fetching;
+    NSTextField *status = nil;
+    for (NSTextField *label in SZFTestSubviews(copying, NSTextField.class))
+        if ([label.stringValue isEqualToString:@"Copying from Raph’s Mac mini · 25%"]) status = label;
+    NSRect icon = copying.routeIconView.frame, words = copying.routeLabel.frame;
+    SZFExpect(!copying.routeIconView.hidden && !copying.routeLabel.hidden &&
+                  [copying.routeLabel.stringValue isEqualToString:fetching.item[@"route"][@"label"]] &&
+                  [copying.routeLabel.stringValue isEqualToString:@"Nearby, on your network"] &&
+                  copying.routeLabel.textColor == context.appearance.localRouteColor &&
+                  [copying.accessibilityLabel hasSuffix:@"25 percent, Nearby, on your network"],
+              @"copying shows its route, and says it: %@ / %@", copying.routeLabel.stringValue,
+              copying.accessibilityLabel);
+    SZFExpect(status && NSMinY(icon) >= NSMaxY(status.frame) && NSMinY(words) >= NSMaxY(status.frame) &&
+                  NSMaxX(icon) <= NSMinX(words) && NSWidth(words) >= copying.routeLabel.intrinsicContentSize.width,
+              @"the icon before the words, under the status, whole: %@ %@ %@", NSStringFromRect(icon),
+              NSStringFromRect(words), NSStringFromRect(status.frame));
+    NSMutableDictionary *routeless = [fetching.item mutableCopy];
+    [routeless removeObjectForKey:@"route"];
+    CGFloat withRoute = [copying heightForWidth:372];
+    [copying applyItem:routeless];
+    [copying layoutSubtreeIfNeeded];
+    SZFExpect(copying.routeIconView.hidden && copying.routeLabel.hidden && [copying heightForWidth:372] < withRoute &&
+                  [copying.accessibilityLabel isEqualToString:routeless[@"accessibility_label"]],
+              @"without a route, no route line");
+    SZFExpect(!waiting.item[@"route"] && ((SZFriendsTransferItemView *)waiting).routeLabel.hidden &&
+                  ((SZFriendsTransferItemView *)waiting).routeIconView.hidden,
+              @"waiting for the other computer: no route line");
     [fetching.actionButtons[0] performClick:nil];
     SZFExpect([SZFLast(transport, @"cancel_transfer")[@"fields"][@"transfer_id"]
                   isEqualToString:SZFStr(fetching.item, @"transfer_id")],

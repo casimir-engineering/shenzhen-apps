@@ -17,7 +17,7 @@ FRIENDS_UI_E2E_SHOTS := $(FRIENDS_UI_E2E_BUILD)/screenshots
 FRIENDS_UI_E2E_SRCS := $(addprefix $(FRIENDS_UI_E2E_DIR)/,SPDFMacFriendsUIE2ETests.mm SPDFMacFriendsUIDriver.mm \
 	SPDFMacFriendsUIOffscreen.mm SPDFMacFriendsUIViewTree.mm SPDFMacFriendsUIFlows.mm SPDFMacFriendsUISettingsFlows.mm \
 	SPDFMacFriendsUIPermissionFlows.mm SPDFMacFriendsUIPairFlows.mm SPDFMacFriendsUIRemoveFlows.mm \
-	SPDFMacFriendsUIFoundFlows.mm SPDFMacFriendsUIPhoneFlows.mm)
+	SPDFMacFriendsUIFoundFlows.mm SPDFMacFriendsUIPhoneFlows.mm SPDFMacFriendsUIJoinFlows.mm)
 # The reader's side of Friends as the app links it: the host adapter, its title-bar placement and appearance.
 FRIENDS_UI_E2E_HOST_SRCS := $(sort $(HOST_ADAPTER_REVISION_SRCS) $(addprefix $(HOST_ADAPTER_DIR)/,\
 	SPDFMacFriendsAttachItems.mm SPDFMacFriendsHost.mm SPDFMacFriendsShareMenu.mm SPDFMacFriendsLaunch.mm \

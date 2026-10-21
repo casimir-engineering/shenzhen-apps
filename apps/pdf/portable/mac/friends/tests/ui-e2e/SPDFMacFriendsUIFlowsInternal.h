@@ -25,5 +25,7 @@ NSWindow* _Nullable UISettingsWindow(UIRig* rig, SZFriendsSettingsSection* secti
 // Steps of the solo run, in SPDFMacFriendsUISettingsFlows.mm.
 BOOL UISettingsAndReset(UIRig* rig);
 BOOL UINameSavedElsewhere(UIRig* rig);
+// The last step of the solo run, in SPDFMacFriendsUIJoinFlows.mm: this Mac joins another computer's profile.
+BOOL UIJoinExistingProfile(UIRig* rig, SZFE2EWorld* world);
 
 NS_ASSUME_NONNULL_END

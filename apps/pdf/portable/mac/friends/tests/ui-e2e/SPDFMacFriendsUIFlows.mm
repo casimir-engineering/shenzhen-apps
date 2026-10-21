@@ -416,6 +416,8 @@ BOOL UIFlowSolo(SZFE2EWorld* world, UIVariant* variant) {
         {@"choose the name on the Friends tab (Save)", ^BOOL { return UISetName(rig, @"Ana", NO, NO); }},
         {@"Escape closes the dropdown", ^BOOL { return UIEscape(rig); }},
         {@"a name saved elsewhere takes the card away on Nearby", ^BOOL { return UINameSavedElsewhere(rig); }},
+        {@"use the profile of another computer: the join page names its route",
+         ^BOOL { return UIJoinExistingProfile(rig, world); }},
     };
     for (auto& step : steps) {
         int failuresBefore = UIFailures;

@@ -127,6 +127,10 @@ CGImageRef _Nullable SZFriendsCopyThumbnailImage(NSString *path, NSInteger width
 @property(nonatomic, strong, readonly) SZFriendsAssistantLabelView *assistantLabel;
 @property(nonatomic, strong, readonly) NSTextField *timeLabel;
 @property(nonatomic, strong, readonly) SZFriendsFilePreviewView *preview;
+// While a file copies here from another of the person's computers (the item's `route`), the line under its status:
+// the route's icon before its words, as the conversation header draws them. Both hidden without a route.
+@property(nonatomic, strong, readonly) NSView *routeIconView;
+@property(nonatomic, strong, readonly) NSTextField *routeLabel;
 @end
 
 NS_ASSUME_NONNULL_END

@@ -33,6 +33,9 @@
         label.alignment = NSTextAlignmentCenter;
         [self addSubview:label];
     }
+    // One line beside its icon: cut at its end on a page too narrow for it, never wrapped under the icon.
+    _routeLabel.cell.lineBreakMode = NSLineBreakByTruncatingTail;
+    _routeLabel.maximumNumberOfLines = 1;
     _routeIcon = [[SZFriendsFlippedView alloc] initWithFrame:NSMakeRect(0, 0, 11, 11)];
     _routeIcon.drawContents = ^(SZFriendsFlippedView *view) {
         SZFriendsJoinPage *page = weakSelf;
@@ -222,7 +225,8 @@
     if (_routeLabel.hidden) _routeIcon.hidden = YES;
     else {
         CGFloat icon = _routeIcon.hidden ? 0 : 15;
-        CGFloat words = MIN(ceil(_routeLabel.intrinsicContentSize.width), inner - icon);
+        NSSize whole = [_routeLabel.cell cellSizeForBounds:NSMakeRect(0, 0, CGFLOAT_MAX, CGFLOAT_MAX)];
+        CGFloat words = MIN(ceil(whole.width), inner - icon);
         CGFloat x = floor((width - icon - words) / 2);
         _routeIcon.frame = NSMakeRect(x, y + 2, 11, 11);
         _routeLabel.frame = NSMakeRect(x + icon, y, words, 16);
