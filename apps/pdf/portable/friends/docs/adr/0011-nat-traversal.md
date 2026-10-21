@@ -48,6 +48,16 @@ number: `shouldStartAttempt` and `decisionForCompletedRoute` in `SZFriendsRouteR
 instead of Bluetooth's (`DialDelayForRoute`). Within the Internet class the first path to go live carries the
 session; a later direct path of the same class does not replace it, but any direct path replaces the relay.
 
+**Peer-to-peer Wi-Fi keeps the device online.** A transfer never costs a device its Internet connection, a
+computer's above all (a phone has cellular, but its Wi-Fi Internet is kept too). Peer-to-peer Wi-Fi is dialed only
+where the platform keeps its Wi-Fi network connection up beside the direct link: one check per helper,
+`p2p_wifi_usable` (`szfriends-core::nearby::p2p_wifi`) and `SZFriendsPeerToPeerWiFiUsable`, which the racers apply
+before dialing. Apple's AWDL qualifies and is the only implementation. A future Wi-Fi Direct route qualifies only
+where the hardware reports station and P2P at once (Windows: the WiFiDirect APIs on a driver with that concurrency;
+Linux: `iw list` combinations allowing managed plus P2P-client or P2P-GO; Android: `WifiP2pManager` with documented
+STA + P2P concurrency), never a hotspot or anything that drops the station link. Unsure means skip: the racer moves
+on to the next route in the order above.
+
 **The direct phase, on the helper's own timer.** The timer starts on each side when both descriptions are
 applied: on the offerer when it applies the authenticated answer, on the answerer when it sends its answer. The
 offerer's timer rules; the answerer never starts the relay or probing itself, it follows the offerer's signalling.

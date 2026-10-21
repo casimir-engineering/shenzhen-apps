@@ -5,6 +5,7 @@
 use szfriends_core::crypto::presence;
 use szfriends_core::nearby::callbacks::{window, TagMatcher};
 use szfriends_core::nearby::merger::{Merger, BLUETOOTH_SIGHTING_LIFE_SECONDS, BONJOUR_REMOVAL_GRACE_SECONDS};
+use szfriends_core::nearby::p2p_wifi::P2pWifi;
 use szfriends_core::nearby::racer::{self, Decision, Racer};
 use szfriends_core::nearby::{Method, RouteMethod, Sighting, Tag};
 
@@ -141,6 +142,43 @@ fn racer_staggers_toward_better_routes() {
     assert_eq!(racer::decision(RouteMethod::Internet, RouteMethod::Bluetooth), Decision::Upgrade);
     assert_eq!(racer::decision(RouteMethod::Bluetooth, RouteMethod::Internet), Decision::Close);
     assert_eq!(racer::decision(RouteMethod::Lan, RouteMethod::Lan), Decision::Close);
+}
+
+/// A friend sighted on every route, in no particular order.
+fn every_route() -> Merger {
+    let mut merger = Merger::new(matcher());
+    merger.add_sighting(sighting(Method::Network, RouteMethod::Relay, "relay1", Some(tag()), NOW));
+    merger.add_sighting(sighting(Method::Bluetooth, RouteMethod::Bluetooth, "bt1", Some(tag()), NOW));
+    merger.add_sighting(sighting(Method::Network, RouteMethod::PeerToPeerWifi, "awdl1", Some(tag()), NOW));
+    merger.add_sighting(sighting(Method::Network, RouteMethod::Internet, "inet1", Some(tag()), NOW));
+    merger.add_sighting(sighting(Method::Network, RouteMethod::Lan, "lan1", Some(tag()), NOW));
+    merger
+}
+
+fn dialed(racer: &mut Racer, merger: &Merger) -> Vec<String> {
+    racer.attempts(&merger.candidates()[0], merger.matcher(), NOW).into_iter().map(|a| a.sighting.endpoint).collect()
+}
+
+#[test]
+fn peer_to_peer_wifi_only_where_it_keeps_the_wifi_connection() {
+    let merger = every_route();
+    let mut racer = Racer::default();
+    racer.set_p2p_wifi(P2pWifi::ConcurrentWithStation);
+    assert_eq!(dialed(&mut racer, &merger), ["lan1", "awdl1", "inet1", "bt1", "relay1"]);
+    for capability in [P2pWifi::DropsStation, P2pWifi::Unsupported, P2pWifi::Unknown] {
+        let mut racer = Racer::default();
+        racer.set_p2p_wifi(capability);
+        assert_eq!(dialed(&mut racer, &merger), ["lan1", "inet1", "bt1", "relay1"], "{capability:?}");
+    }
+    // Without LAN the next route in the owner's order leads.
+    let mut no_lan = Merger::new(matcher());
+    no_lan.add_sighting(sighting(Method::Network, RouteMethod::PeerToPeerWifi, "awdl1", Some(tag()), NOW));
+    no_lan.add_sighting(sighting(Method::Bluetooth, RouteMethod::Bluetooth, "bt1", Some(tag()), NOW));
+    no_lan.add_sighting(sighting(Method::Network, RouteMethod::Internet, "inet1", Some(tag()), NOW));
+    let mut racer = Racer::default();
+    racer.set_p2p_wifi(P2pWifi::DropsStation);
+    assert_eq!(dialed(&mut racer, &no_lan), ["inet1", "bt1"]);
+    assert_eq!(Racer::default().p2p_wifi(), P2pWifi::PLATFORM);
 }
 
 #[test]

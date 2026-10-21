@@ -1,11 +1,13 @@
 //! Route racing (`SZFriendsRouteRacer.m`, ADR 0004 § Route racing): every sighted endpoint of a friend dialed at once
 //! with IK, staggered toward the better routes, and a backoff per person, method and tag after a failed handshake, so
 //! a device re-advertising someone's captured tag draws each friend's dial rarely. Pure; the clock is an argument.
+//! Peer-to-peer Wi-Fi is dialed only where it keeps the device's Wi-Fi connection ([`super::p2p_wifi`]).
 
 use std::collections::HashMap;
 
 use super::callbacks::TagMatcher;
 use super::merger::{matched_tag, Candidate};
+use super::p2p_wifi::{p2p_wifi_usable, P2pWifi};
 use super::{is_better, Method, RouteMethod, Sighting, Tag};
 
 pub const DIAL_DELAY_LAN: f64 = 0.0;
@@ -66,6 +68,8 @@ pub struct Racer {
     backoffs: HashMap<String, Backoff>,
     /// method/endpoint → the tag it showed when last handed out, for the failure report naming only the endpoint.
     endpoint_tags: HashMap<String, Tag>,
+    /// The platform's answer unless a probe or a test sets another.
+    p2p_wifi: P2pWifi,
 }
 
 fn endpoint_key(method: Method, endpoint: &str) -> String {
@@ -81,6 +85,16 @@ fn backoff_key(conversation: &str, method: Method, endpoint: &str, tag: Option<&
 }
 
 impl Racer {
+    /// What peer-to-peer Wi-Fi does to this device's Wi-Fi connection; unless it keeps it, those sightings are not
+    /// dialed and the next route in the owner's order carries the session.
+    pub fn set_p2p_wifi(&mut self, capability: P2pWifi) {
+        self.p2p_wifi = capability;
+    }
+
+    pub fn p2p_wifi(&self) -> P2pWifi {
+        self.p2p_wifi
+    }
+
     fn key_for(&self, endpoint: &str, method: Method, conversation: &str) -> String {
         backoff_key(conversation, method, endpoint, self.endpoint_tags.get(&endpoint_key(method, endpoint)))
     }
@@ -90,14 +104,19 @@ impl Racer {
     }
 
     /// Every endpoint of the candidate, staggered shortest delay first. A friend's public entries are skipped while a
-    /// hidden one is known: IK belongs on the hidden listener. Endpoints backing off for this person are left out.
+    /// hidden one is known: IK belongs on the hidden listener. Endpoints backing off for this person are left out, and
+    /// so are peer-to-peer Wi-Fi ones where that route would cost the device its Wi-Fi connection.
     pub fn attempts(&mut self, candidate: &Candidate, matcher: &TagMatcher, now: f64) -> Vec<Attempt> {
         let has_hidden = candidate.sightings.iter().any(|s| !s.public);
         let skip_public = candidate.conversation_id.is_some() && has_hidden;
+        let skip_p2p = !p2p_wifi_usable(self.p2p_wifi);
         let mut seen = Vec::new();
         let mut attempts = Vec::new();
         for sighting in &candidate.sightings {
             if skip_public && sighting.public {
+                continue;
+            }
+            if skip_p2p && sighting.route == RouteMethod::PeerToPeerWifi {
                 continue;
             }
             let endpoint = endpoint_key(sighting.method, &sighting.endpoint);
