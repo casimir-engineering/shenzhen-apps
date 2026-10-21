@@ -306,6 +306,33 @@ szfriends_intent *szfriends_intent_set_name(const char *name) {
 szfriends_intent *szfriends_intent_dismiss_banner(const char *kind) {
     return one_string("dismiss_banner", "kind", kind);
 }
+szfriends_intent *szfriends_intent_set_focus(const char *conversation_id_or_null) {
+    szfriends_intent *intent = intent_new("set_focus");
+    if (!intent) return NULL;
+    if (conversation_id_or_null) return finish(intent, add_string(intent, "conversation_id", conversation_id_or_null));
+    return finish(intent, cJSON_AddNullToObject(intent->fields, "conversation_id") != NULL);
+}
+szfriends_intent *szfriends_intent_set_notifications(int enabled, int preview, int background) {
+    szfriends_intent *intent;
+    bool ok = true;
+    if (enabled < 0 && preview < 0 && background < 0) return NULL;
+    intent = intent_new("set_notifications");
+    if (!intent) return NULL;
+    if (enabled >= 0) ok = ok && cJSON_AddBoolToObject(intent->fields, "enabled", enabled != 0);
+    if (preview >= 0) ok = ok && cJSON_AddBoolToObject(intent->fields, "preview", preview != 0);
+    if (background >= 0) ok = ok && cJSON_AddBoolToObject(intent->fields, "background", background != 0);
+    return finish(intent, ok);
+}
+szfriends_intent *szfriends_intent_allow_notifications(void) { return no_fields("allow_notifications"); }
+szfriends_intent *szfriends_intent_test_notification_response(const char *key, const char *action,
+                                                              const char *text_or_null) {
+    szfriends_intent *intent;
+    if (!key || !action) return NULL;
+    intent = intent_new("test_notification_response");
+    return intent ? finish(intent, add_string(intent, "key", key) && add_string(intent, "action", action) &&
+                                       (!text_or_null || add_string(intent, "text", text_or_null)))
+                  : NULL;
+}
 szfriends_intent *szfriends_intent_assistant_close_scope(const char *scope_id) {
     return one_string("assistant_close_scope", "scope_id", scope_id);
 }
