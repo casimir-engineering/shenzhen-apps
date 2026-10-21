@@ -49,6 +49,9 @@ NS_ASSUME_NONNULL_BEGIN
 @property(nonatomic, nullable) SPDFMacFriendsSendProvider* chatSendProvider;
 // A link opened before the dropdown existed (a launch by the link, or Friends just turned on), shown once it does.
 @property(nonatomic, copy, nullable) NSString* pendingLinkPayload;
+// A notification's click that came before the dropdown existed (a launch by the click): the conversation's id, or @""
+// for the list (SPDFMacFriendsRouteFromString), shown once it does.
+@property(nonatomic, copy, nullable) NSString* pendingRoute;
 // The target of the Copy Download Link items (SPDFMacFriendsLinkIntegration.mm); menu items hold targets weakly.
 @property(nonatomic, nullable) id shareTarget;
 // View ▸ Friends' target, which also keeps " · ⌘J" on the title-bar button's tooltip (SPDFMacFriendsMenuIntegration.mm).

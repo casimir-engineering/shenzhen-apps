@@ -121,8 +121,31 @@ NSString* SPDFMacFriendsLinkPayload(NSURL* url, NSString* scheme, SPDFMacFriends
     return SPDFMacFriendsLinkPayloadFromString(url.absoluteString, scheme, refusal);
 }
 
-void SPDFMacFriendsSortOpenedURLs(NSArray<NSURL*>* urls, NSString* scheme, NSMutableArray<NSString*>* paths,
-                                  NSMutableArray<NSString*>* payloads) {
+NSString* SPDFMacFriendsRouteFromString(NSString* text, NSString* scheme) {
+    if (![text isKindOfClass:NSString.class] || !scheme.length) return nil;
+    const char* utf8 = text.UTF8String;
+    if (!utf8) return nil;
+    std::string url(utf8);
+    NSUInteger byteLength = [text lengthOfBytesUsingEncoding:NSUTF8StringEncoding];
+    if (byteLength > SPDFMacFriendsLinkMaxBytes || url.size() != byteLength) return nil;
+    std::string own = std::string(scheme.lowercaseString.UTF8String) + ":";
+    if (url.size() < own.size()) return nil;
+    for (size_t i = 0; i < own.size(); i++)
+        if (tolower((unsigned char)url[i]) != own[i]) return nil;
+    std::string rest = url.substr(own.size());
+    if (rest == "//friends" || rest == "//friends/") return @"";
+    const std::string prefix = "//friends/conversation/";
+    if (rest.compare(0, prefix.size(), prefix) != 0) return nil;
+    std::string conversation = rest.substr(prefix.size());
+    if (conversation.empty() || conversation.size() > 64) return nil;
+    for (unsigned char c : conversation)
+        if (!((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '_' || c == '-'))
+            return nil;
+    return @(conversation.c_str());
+}
+
+void SPDFMacFriendsSortOpenedURLsWithRoutes(NSArray<NSURL*>* urls, NSString* scheme, NSMutableArray<NSString*>* paths,
+                                            NSMutableArray<NSString*>* payloads, NSMutableArray<NSString*>* routes) {
     for (NSURL* url in urls) {
         if (![url isKindOfClass:NSURL.class]) continue;
         if (url.isFileURL) {
@@ -131,5 +154,12 @@ void SPDFMacFriendsSortOpenedURLs(NSArray<NSURL*>* urls, NSString* scheme, NSMut
         }
         NSString* payload = SPDFMacFriendsLinkPayload(url, scheme, NULL);
         if (payload) [payloads addObject:payload];
+        NSString* route = routes ? SPDFMacFriendsRouteFromString(url.absoluteString, scheme) : nil;
+        if (route) [routes addObject:route];
     }
+}
+
+void SPDFMacFriendsSortOpenedURLs(NSArray<NSURL*>* urls, NSString* scheme, NSMutableArray<NSString*>* paths,
+                                  NSMutableArray<NSString*>* payloads) {
+    SPDFMacFriendsSortOpenedURLsWithRoutes(urls, scheme, paths, payloads, nil);
 }
