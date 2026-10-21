@@ -9,7 +9,8 @@ use std::sync::Arc;
 /// What the panel implements (PROTOCOL.md § Capabilities), as the Electron host says it: `#` offers the open
 /// model, files may be dropped, `@` mentions friends, a list row's menu opens on right-click (a long press on
 /// phones), people nearby show how they were found, and a friend's file can be fetched from them again (Get again).
-/// Phones have nothing to drop files from, so their composer does not suggest it.
+/// Phones have nothing to drop files from, so their composer does not suggest it. Android keeps Friends running in the
+/// background while the person turns on "Stay reachable in the background" (a foreground service, ADR 0017).
 #[cfg(desktop)]
 const CAPABILITIES: &[&str] = &[
     "attach.items",
@@ -19,8 +20,17 @@ const CAPABILITIES: &[&str] = &[
     "nearby.found",
     "files.again",
 ];
-#[cfg(mobile)]
+#[cfg(target_os = "ios")]
 const CAPABILITIES: &[&str] = &["attach.items", "mentions", "list.menu", "nearby.found", "files.again"];
+#[cfg(target_os = "android")]
+const CAPABILITIES: &[&str] = &[
+    "attach.items",
+    "mentions",
+    "list.menu",
+    "nearby.found",
+    "files.again",
+    "background.reachable",
+];
 
 /// The formats the viewer opens, the same list as `bundle.fileAssociations`: received files in these offer Open.
 pub const OPEN_FORMATS: &[&str] = &[
