@@ -20,11 +20,11 @@ NSString* const SPDFMacAIPythonStatusUnavailable = @"unavailable";
 NSString* const SPDFMacAIPythonInstallAction = @"installPython";
 
 // Read by someone deciding whether to keep each switch on: what leaves the Mac, who sees it, what it costs.
-static NSString* const WebLabel = @"Search the web when I ask";
-// Pages are fetched by this Mac and read by the model through OpenRouter; only search terms reach the search service.
-static NSString* const WebDetail = @"Your search terms go to OpenRouter and the search service it uses, and the pages "
-    "the assistant reads go to OpenRouter. Each site it opens sees a visit from this Mac. The assistant doesn’t "
-    "search the web or open pages in requests that include your Friends chats. Searches use OpenRouter credits.";
+static NSString* const WebLabel = @"Let the assistant search the web";
+// Search terms reach OpenRouter's search service; pages and PDFs are fetched by this Mac itself (no other service sees
+// the address), and what the assistant reads goes to OpenRouter like the rest of the request.
+static NSString* const WebDetail = @"Search terms go to OpenRouter’s search service, and searches use credits. Pages "
+    "are read from this Mac, and what the assistant reads goes to OpenRouter.";
 static NSString* const HelpersLabel = @"Let the assistant run helpers in parallel";
 static NSString* const HelpersDetail = @"For bigger questions, the assistant can send up to four helpers to look "
     "things up at the same time. Helpers only read: they can’t change or send anything. This uses more OpenRouter "

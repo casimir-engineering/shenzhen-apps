@@ -21,9 +21,13 @@ typedef NS_ENUM(NSInteger, SPDFMacAIWebError) {
     SPDFMacAIWebErrorTimedOut,
     SPDFMacAIWebErrorTooManyRedirects,
     SPDFMacAIWebErrorHTTPStatus,         // the site answered with an error status
-    SPDFMacAIWebErrorUnsupportedContent, // a PDF, an image, a compressed body: not text to read
+    SPDFMacAIWebErrorUnsupportedContent, // an image, an archive, an unknown compression: not text to read
     SPDFMacAIWebErrorBadResponse,        // not a readable HTTP response
     SPDFMacAIWebErrorCancelled,
+    SPDFMacAIWebErrorSignInRequired,     // 401, or a page that is only a sign-in form: reported, never worked around
+    SPDFMacAIWebErrorTooLarge,           // a PDF over open_page's document limit
+    SPDFMacAIWebErrorLockedDocument,     // a PDF that needs a password
+    SPDFMacAIWebErrorBadDocument,        // a PDF the reader's engine cannot open
 };
 FOUNDATION_EXPORT NSString* const SPDFMacAIWebErrorDomain;
 // The HTTP status of an SPDFMacAIWebErrorHTTPStatus error (a site's or OpenRouter's), in its userInfo.

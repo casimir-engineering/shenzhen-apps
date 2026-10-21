@@ -41,7 +41,7 @@
     };
     _provider = [[SPDFMacAIWebToolProvider alloc]
         initWithSearcher:[[SPDFMacAIWebSearcher alloc] initWithTransport:_transport]
-                 fetcher:[[SPDFMacAIWebFetcher alloc] initWithResolver:_resolver connector:_connector]
+                 fetcher:WebTestFetcher(_resolver, _connector)
                   apiKey:^NSString*(NSError** error) {
         (void)error;
         rig.keyReads++;
@@ -87,9 +87,9 @@ static void CheckProviderSwitch(void) {
     SPDFMacAIRequestContext* off = [rig begin:@"search the web for tea https://tea.example.com/" web:NO];
     CHECK(![rig.registry toolDefinitionsForContext:off].count, "with the switch off, no web tool is offered");
     NSDictionary* result = [rig call:@"web_search" arguments:@{@"query" : @"tea"} context:off];
-    CHECK(WebRefused(result, @"Search the web when I ask"), "and a call says how to turn it on");
+    CHECK(WebRefused(result, @"Let the assistant search the web"), "and a call says how to turn it on");
     result = [rig call:@"open_page" arguments:@{@"url" : @"https://tea.example.com/"} context:off];
-    CHECK(WebRefused(result, @"Search the web when I ask"), "open_page too");
+    CHECK(WebRefused(result, @"Let the assistant search the web"), "open_page too");
     __block NSDictionary* direct = nil;
     [rig.provider performTool:@"web_search" arguments:@{@"query" : @"tea"} context:off
                    completion:^(NSDictionary* value) { direct = value; }];
@@ -213,8 +213,9 @@ static void CheckProviderProvenance(void) {
     CHECK(WebRefused(result, @"private network") && rig.activity.entries.count == rows + 1 &&
           [step[SPDFMacAIActivityTitleKey] isEqual:@"Didn’t open 192.168.1.1"] &&
           [step[SPDFMacAIActivityStateKey] isEqual:SPDFMacAIActivityStateFailed] &&
-          [step[SPDFMacAIActivityStatusKey] isEqual:@"Only public websites are opened"],
-          "a private address the person typed is still refused, and the chat says why");
+          [step[SPDFMacAIActivityStatusKey] isEqual:@"Only public websites are opened, and this address is on a "
+                                                     "private network. The assistant carries on without it."],
+          "a private address the person typed is still refused, and the chat says why and what happens next");
 
     NSError* error = nil;
     SPDFMacAIRequestContext* child = [context childContextWithText:@"open https://task.example.com/x"

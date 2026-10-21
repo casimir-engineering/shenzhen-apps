@@ -83,9 +83,12 @@ static NSArray<NSDictionary*>* ShownLinks(NSDictionary* entry) {
         BOOL titled = [link isKindOfClass:NSDictionary.class];
         NSURL* URL = [NSURL URLWithString:titled ? link[@"url"] : link];
         NSString* scheme = URL.scheme.lowercaseString;
-        BOOL secure = [scheme isEqual:@"https"] && SPDFMacAIChatLinkAllowed(URL);
+        // A PDF the assistant downloaded, opened in the reader (SPDFMacAIWebPDF.h), is listed with the pages; it is
+        // on no site, so no host follows it.
+        BOOL app = [scheme isEqual:@"spdf-ai"] && [URL.host isEqual:@"web-document"];
+        BOOL secure = ([scheme isEqual:@"https"] || app) && SPDFMacAIChatLinkAllowed(URL);
         if ((!secure && ![scheme isEqual:@"http"]) || !URL.host.length) continue;
-        NSString* host = titled && link[@"host"] ? link[@"host"] : URL.host;
+        NSString* host = app ? @"" : titled && link[@"host"] ? link[@"host"] : URL.host;
         NSString* title = titled ? link[@"title"] : nil;
         NSMutableDictionary* row = [@{@"url" : URL, @"host" : host} mutableCopy];
         if (title && ![title isEqual:host]) row[@"title"] = title;  // else the address said twice

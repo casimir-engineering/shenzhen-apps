@@ -15,6 +15,7 @@
 #import "SPDFMacAICredentials.h"
 #import "SPDFMacAISettings.h"
 #import "SPDFMacAITools.h"
+#import "SPDFMacAIWebPDF.h"
 #import "SPDFMacAIToolRegistry.h"
 #import "SPDFMacPalettePresentation.h"
 #import "SPDFMacUnifiedSettings.h"
@@ -366,6 +367,13 @@ static char stateKey;
 - (void)aiOpenCitation:(NSURL*)URL {
     NSString* scheme=URL.scheme.lowercaseString;
     if ([scheme isEqual:@"https"] || [scheme isEqual:@"http"]) { [self aiOpenWebLink:URL]; return; }
+    // A PDF the assistant downloaded: its saved copy opens like any document; gone, its address is offered.
+    if (SPDFMacAIWebIsDocumentLink(URL)) {
+        NSURL* file=SPDFMacAIWebDocumentFileForLink(URL,SPDFMacAIWebDocumentDefaultFolder());
+        if (file) [self showDocumentsAtPaths:@[file.path]];
+        else [self aiShowMissingWebDocument:SPDFMacAIWebDocumentSourceForLink(URL)];
+        return;
+    }
     SPDFReaderAIState* state=[self readerAIState];
     if ([self friendsOpenCitation:URL chat:state.session.chat]) return;
     NSDictionary* link=SPDFMacAIDocumentLinkArguments(URL);
