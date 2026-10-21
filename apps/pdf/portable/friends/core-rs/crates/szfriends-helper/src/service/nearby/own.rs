@@ -171,8 +171,9 @@ impl State {
     }
 
     /// Our devices online needs to reach: no session with them on a route better than a direct Internet connection.
-    /// Of two of our devices, the one whose key sorts first asks, as the driver settles two offers crossing: both
-    /// waking at once and asking would each give up its own offer and wait out a backoff.
+    /// Every one of our devices asks, whichever key sorts first, as the Mac helper's do: the driver settles two offers
+    /// crossing. A computer that just joined must ask itself: the one it joined may have asked before this one's
+    /// records were filed under the person, found nobody and is waiting out a backoff.
     #[cfg_attr(not(feature = "online"), allow(dead_code))]
     pub(crate) fn own_devices_to_reach_online(&self) -> Vec<[u8; 32]> {
         if !self.sync_active() {
@@ -182,13 +183,9 @@ impl State {
         let others = self.devices.engine.other_device_keys(&self.store);
         others
             .into_iter()
-            .filter(|d| me < *d)
             .filter(|d| {
-                let live = self.own_device_live_link(d);
-                live.is_none_or(|id| {
-                    let route = self.sessions.map[&id].channel.initiator_route();
-                    szfriends_core::nearby::is_better(RouteMethod::Internet, route)
-                })
+                let live = self.own_device_live_link(d).map(|id| self.sessions.map[&id].channel.initiator_route());
+                reach_online(&me, d, live)
             })
             .collect()
     }
@@ -458,5 +455,28 @@ impl State {
         if !self.devices.exchanges.is_empty() && self.devices.engine.capture_local_changes(&self.store) > 0 {
             self.pump_sync();
         }
+    }
+}
+
+/// Whether online asks `device` (another of our devices, whose live session if any runs on `live`) for a session: while
+/// no session with it ranks before a direct Internet connection, whichever of the two keys sorts first.
+#[cfg_attr(not(feature = "online"), allow(dead_code))]
+fn reach_online(_me: &[u8; 32], _device: &[u8; 32], live: Option<RouteMethod>) -> bool {
+    live.is_none_or(|route| szfriends_core::nearby::is_better(RouteMethod::Internet, route))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn every_computer_asks_online_until_a_route_as_good_as_direct_carries_the_sync() {
+        let (first, second) = ([1; 32], [2; 32]);
+        assert!(reach_online(&first, &second, None));
+        // The computer whose key sorts after the other's asks too: the Mac it just joined may be waiting out a backoff.
+        assert!(reach_online(&second, &first, None), "the later key asks too");
+        assert!(reach_online(&second, &first, Some(RouteMethod::Relay)), "the relay: a direct connection may come");
+        assert!(!reach_online(&first, &second, Some(RouteMethod::Internet)));
+        assert!(!reach_online(&second, &first, Some(RouteMethod::Lan)));
     }
 }
