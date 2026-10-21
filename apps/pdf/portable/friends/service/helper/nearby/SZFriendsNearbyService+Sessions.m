@@ -83,6 +83,12 @@
     [channel start];
 }
 
+// What the racer knows a dialed peer by: a friend's conversation, or "dev-" and the key of one of our devices.
+- (nullable NSString *)raceNameOfLink:(SZFriendsPeerLink *)link {
+    if (link.purpose != SZFriendsLinkPurposeOwnDevice) return link.conversationID;
+    return link.syncDeviceHex ? [@"dev-" stringByAppendingString:link.syncDeviceHex] : nil;
+}
+
 #pragma mark - Handshake outcomes
 
 - (void)link:(SZFriendsPeerLink *)link browsedProfile:(NSDictionary<NSNumber *, NSData *> *)profile {
@@ -114,8 +120,9 @@
     if (link.dialKey != nil) [self.dialing removeObject:link.dialKey];
     [self armIdleCheckForLink:link];
     SZFriendsSecureChannel *channel = link.channel;
-    if (channel.isInitiator && link.purpose == SZFriendsLinkPurposeFriend) {
-        [self noteDialToEndpoint:link.endpointID method:link.discoveryMethod conversation:link.conversationID
+    if (channel.isInitiator && (link.purpose == SZFriendsLinkPurposeFriend ||
+                                link.purpose == SZFriendsLinkPurposeOwnDevice)) {
+        [self noteDialToEndpoint:link.endpointID method:link.discoveryMethod conversation:[self raceNameOfLink:link]
                        succeeded:YES];
     }
     if (channel.pattern == SZFriendsHandshakeNN) {
@@ -267,6 +274,23 @@
     // the other carries what its own device sends and asks for (Get again), and takes over if the first ends.
     NSData *newRemote = link.channel.remoteIdentityKey, *oldRemote = current.channel.remoteIdentityKey;
     if (newRemote != nil && oldRemote != nil && ![newRemote isEqualToData:oldRemote]) return;
+    switch ([self raceOfLink:link against:current]) {
+    case SZFriendsRaceKeepsNew:
+        [self supersedeLink:current];
+        [self adoptLink:link];
+        return;
+    case SZFriendsRaceKeepsCurrent:
+        [self supersedeLink:link];
+        return;
+    case SZFriendsRaceWaits:
+        return; // the responder's copy of a double dial waits for the initiator's CLOSE
+    }
+}
+
+// The session race (ADR 0001 § Session race) between a new live link and the one carrying the same peer: the better
+// route in the owner's order wins (SZFriendsSessionAWins), then the lower initiator key. Friends' conversations and the
+// sync with our own devices settle it here alike, so a profile moves to a better route exactly as a friend's files do.
+- (SZFriendsRaceOutcome)raceOfLink:(SZFriendsPeerLink *)link against:(SZFriendsPeerLink *)current {
     NSData *local = [self localIdentityKey];
     NSData *newKey = [link initiatorKeyWithLocalKey:local] ?: [NSData data];
     NSData *oldKey = [current initiatorKeyWithLocalKey:local] ?: [NSData data];
@@ -274,15 +298,10 @@
     if (newRoute == oldRoute && [newKey isEqualToData:oldKey]) {
         // One side dialed twice on one class: nothing both sides hold tells the sessions apart, so only that
         // initiator acts, keeping the one already carrying traffic; the responder waits for its CLOSE.
-        if (link.channel.isInitiator) [self supersedeLink:link];
-        return;
+        return link.channel.isInitiator ? SZFriendsRaceKeepsCurrent : SZFriendsRaceWaits;
     }
-    if (SZFriendsSessionAWins(newRoute, newKey, oldRoute, oldKey)) {
-        [self supersedeLink:current];
-        [self adoptLink:link];
-    } else {
-        [self supersedeLink:link];
-    }
+    return SZFriendsSessionAWins(newRoute, newKey, oldRoute, oldKey) ? SZFriendsRaceKeepsNew
+                                                                    : SZFriendsRaceKeepsCurrent;
 }
 
 - (void)adoptLink:(SZFriendsPeerLink *)link {
@@ -375,8 +394,9 @@ static BOOL SZFriendsEndWasSupersededByPeer(NSError *error) {
         [self byIDAttemptFailed:link.attemptKey];
     }
     // A handshake that ended before going live, other than by our own decision, counts against that endpoint.
-    if (link.channel.isInitiator && link.purpose == SZFriendsLinkPurposeFriend && !link.live && error != nil) {
-        [self noteDialToEndpoint:link.endpointID method:link.discoveryMethod conversation:link.conversationID
+    if (link.channel.isInitiator && !link.live && error != nil &&
+        (link.purpose == SZFriendsLinkPurposeFriend || link.purpose == SZFriendsLinkPurposeOwnDevice)) {
+        [self noteDialToEndpoint:link.endpointID method:link.discoveryMethod conversation:[self raceNameOfLink:link]
                        succeeded:NO];
     }
     if (conversationID != nil && !link.probe && !link.superseded && SZFriendsEndCounts(error)) {

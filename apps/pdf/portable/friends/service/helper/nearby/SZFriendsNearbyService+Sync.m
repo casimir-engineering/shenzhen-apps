@@ -95,6 +95,11 @@ static NSData *_Nullable SZFriendsKeyFromHex(NSString *hex) {
     return self.syncLinkTable;
 }
 
+- (nullable SZFriendsPeerLink *)liveSyncLinkForDeviceHex:(NSString *)hex {
+    SZFriendsPeerLink *link = self.syncLinkTable[hex];
+    return link.closed ? nil : link;
+}
+
 - (NSMutableDictionary<NSString *, NSDate *> *)syncDialAfter {
     if (self.syncDialAfterTable == nil) self.syncDialAfterTable = [NSMutableDictionary dictionary];
     return self.syncDialAfterTable;
@@ -114,14 +119,36 @@ static NSData *_Nullable SZFriendsKeyFromHex(NSString *hex) {
     NSString *hex = SZFriendsKeyHex(key);
     SZFriendsPeerLink *current = self.syncLinks[hex];
     if (current != nil && !current.closed && current != link) {
-        // Both dialed at once: both sides keep the session the lower key opened, whichever arrived first.
-        NSData *local = [self localIdentityKey];
-        NSData *mine = [link initiatorKeyWithLocalKey:local], *theirs = [current initiatorKeyWithLocalKey:local];
-        BOOL keepNew = mine && theirs && memcmp(mine.bytes, theirs.bytes, 32) < 0;
-        SZFriendsPeerLink *loser = keepNew ? current : link;
-        [loser.channel closeWithReason:SZFriendsCloseReasonSuperseded];
-        if (!keepNew) return YES;
+        // Two sessions with one of our devices: the race friends' sessions run (+Sessions), so the better route
+        // carries the sync and what was copying resumes on it from the bytes already here.
+        switch ([self raceOfLink:link against:current]) {
+        case SZFriendsRaceKeepsNew:
+            [self supersedeOwnDeviceLink:current];
+            break;
+        case SZFriendsRaceKeepsCurrent:
+            [self supersedeOwnDeviceLink:link];
+            return YES;
+        case SZFriendsRaceWaits:
+            return YES; // standby until the initiator closes one (-syncLinkClosed:)
+        }
     }
+    [self startSyncOnLink:link engine:engine key:key];
+    return YES;
+}
+
+// The race's loser with one of our devices: its exchange stops (partial copies stay) and it closes.
+- (void)supersedeOwnDeviceLink:(SZFriendsPeerLink *)link {
+    [link.syncExchange stop];
+    link.syncExchange = nil;
+    link.superseded = YES;
+    NSString *hex = SZFriendsKeyHex(link.channel.remoteIdentityKey);
+    if (self.syncLinks[hex] == link) [self.syncLinks removeObjectForKey:hex];
+    [link.channel closeWithReason:SZFriendsCloseReasonSuperseded];
+}
+
+// The sync with the device `key` runs on `link` from now on.
+- (void)startSyncOnLink:(SZFriendsPeerLink *)link engine:(SZFriendsSyncEngine *)engine key:(NSData *)key {
+    NSString *hex = SZFriendsKeyHex(key);
     self.syncLinks[hex] = link;
     [self.syncDialAfter removeObjectForKey:hex];
     // Our chain first, so a device that missed an addition or a revocation hears it before any event.
@@ -144,7 +171,6 @@ static NSData *_Nullable SZFriendsKeyFromHex(NSString *hex) {
     [engine captureLocalChanges];
     [exchange start];
     [self changed];
-    return YES;
 }
 
 - (void)link:(SZFriendsPeerLink *)link receivedOwnDeviceFrame:(SZFriendsFrame *)frame {
@@ -195,8 +221,21 @@ static NSData *_Nullable SZFriendsKeyFromHex(NSString *hex) {
         return;
     }
     [link.syncExchange stop];
-    NSString *hex = SZFriendsKeyHex(link.channel.remoteIdentityKey);
-    if (self.syncLinks[hex] == link) [self.syncLinks removeObjectForKey:hex];
+    NSData *key = link.channel.remoteIdentityKey;
+    NSString *hex = SZFriendsKeyHex(key);
+    if (self.syncLinks[hex] == link) {
+        [self.syncLinks removeObjectForKey:hex];
+        // The responder's copy of a double dial takes over at once, as a friend's standby session does.
+        SZFriendsSyncEngine *engine = [self activeSyncEngine];
+        for (SZFriendsPeerLink *other in self.links) {
+            if (other == link || !other.live || other.closed || other.superseded || other.syncExchange != nil ||
+                !other.ownDevice || ![other.channel.remoteIdentityKey isEqualToData:key]) {
+                continue;
+            }
+            if (engine != nil && [self isOwnDeviceKey:key]) [self startSyncOnLink:other engine:engine key:key];
+            break;
+        }
+    }
     [self scheduleReconsider];
 }
 
@@ -272,12 +311,18 @@ static NSData *_Nullable SZFriendsKeyFromHex(NSString *hex) {
     NSData *root = [self activeSyncEngine].rootKey;
     NSData *staticKey = device && root ? [store staticKeyForDeviceKey:device ofRootKey:root] : nil;
     if (staticKey == nil || ![self isOwnDeviceKey:device]) return YES;
+    // Dialed as a friend is (+Dial): every route the racer allows, staggered toward the better ones, and while a
+    // session carries our sync only a route that ranks before it, so the sync moves to it (ADR 0001 § Session race).
     SZFriendsPeerLink *live = self.syncLinks[hex];
-    if (live != nil && !live.closed) return YES;
+    if (live.closed) live = nil;
+    SZFriendsRouteMethod current = live != nil ? live.raceRoute : SZFriendsRouteMethodNone;
     NSDate *after = self.syncDialAfter[hex];
-    if (after != nil && [after timeIntervalSinceNow] > 0) return YES;
-    for (SZFriendsSighting *sighting in candidate.sightings) {
-        if (sighting.isPublic) continue;
+    if (live == nil && after != nil && [after timeIntervalSinceNow] > 0) return YES;
+    BOOL started = NO;
+    SZFriendsRouteRacer *racer = self.coordinator.racer;
+    for (SZFriendsDialAttempt *attempt in [racer attemptsForCandidate:candidate]) {
+        SZFriendsSighting *sighting = attempt.sighting;
+        if (sighting.isPublic || ![racer shouldStartAttempt:attempt currentRoute:current]) continue;
         SZFriendsHandshakeOptions *options = [[SZFriendsHandshakeOptions alloc] init];
         options.pattern = SZFriendsHandshakeIK;
         options.route = sighting.route;
@@ -287,12 +332,12 @@ static NSData *_Nullable SZFriendsKeyFromHex(NSString *hex) {
                                                               purpose:SZFriendsLinkPurposeOwnDevice
                                                               options:options];
         plan.ownDeviceHex = hex;
-        if ([self dial:plan]) {
-            // Not again for a while, however it ends: a session that goes live clears this (-syncAdoptsLiveLink:).
-            self.syncDialAfter[hex] = [NSDate dateWithTimeIntervalSinceNow:SZFriendsOwnDeviceRedial];
-            break;
-        }
+        plan.conversationID = name; // what the racer knows this device by; an own-device link joins no conversation
+        plan.delay = attempt.delay;
+        started = [self dial:plan] || started;
     }
+    // Not again for a while, however it ends: a session that goes live clears this (-startSyncOnLink:).
+    if (started && live == nil) self.syncDialAfter[hex] = [NSDate dateWithTimeIntervalSinceNow:SZFriendsOwnDeviceRedial];
     return YES;
 }
 

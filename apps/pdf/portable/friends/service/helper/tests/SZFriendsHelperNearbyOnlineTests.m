@@ -73,8 +73,23 @@ static SZFriendsDialPlan *SZFNFriendPlan(SZFriendsPersonRecord *person, SZFriend
     return plan;
 }
 
-// ADR 0011 § Route rank: with an Internet session live, a Bluetooth dial is pointless (Internet ranks first, though
-// its number is larger) and a LAN dial still goes ahead.
+// ADR 0011 § Route rank, as nearby dialing applies it: with an Internet session live, a Bluetooth dial is pointless
+// (Internet ranks first, though its number is larger) and a LAN dial still goes ahead. One assertion for every kind of
+// session, so a friend's files and the sync between a person's own devices keep the same order.
+static void SZFNExpectDialRank(SZFriendsNearbyService *nearby, SZFNDialRecorder *adapter,
+                               SZFriendsPeerLink * (^live)(SZFriendsRouteMethod route),
+                               SZFriendsPeerLink *_Nullable (^carrier)(void),
+                               SZFriendsDialPlan * (^plan)(SZFriendsRouteMethod route, NSString *endpoint)) {
+    live(SZFriendsRouteMethodInternet);
+    EXPECT(carrier().raceRoute == SZFriendsRouteMethodInternet);
+    [nearby dial:plan(SZFriendsRouteMethodBluetooth, @"bluetooth-endpoint")];
+    [nearby dial:plan(SZFriendsRouteMethodLAN, @"lan-endpoint")];
+    SZFNSpin(0.2);
+    EXPECT(![adapter.dialed containsObject:@"bluetooth-endpoint"], "no Bluetooth dial beside Internet: %@",
+           adapter.dialed);
+    EXPECT([adapter.dialed containsObject:@"lan-endpoint"], "the LAN still beats Internet: %@", adapter.dialed);
+}
+
 void SZFNTestDialRank(NSString *scratch) {
     EXPECT(SZFriendsNearbyDialIsPointless(SZFriendsRouteMethodInternet, SZFriendsRouteMethodBluetooth));
     EXPECT(!SZFriendsNearbyDialIsPointless(SZFriendsRouteMethodBluetooth, SZFriendsRouteMethodInternet));
@@ -85,14 +100,41 @@ void SZFNTestDialRank(NSString *scratch) {
     SZFNDialRecorder *adapter = [[SZFNDialRecorder alloc] init];
     SZFriendsNearbyService *nearby = SZFNNearbyWith(services, @[ adapter ]);
     SZFriendsPersonRecord *person = SZFNSavePerson(services.store, SZFriendsRelationFriend);
-    SZFNLiveLink(nearby, person, SZFriendsRouteMethodInternet);
-    EXPECT([nearby liveLinkForConversation:person.conversationID].raceRoute == SZFriendsRouteMethodInternet);
-    [nearby dial:SZFNFriendPlan(person, SZFriendsRouteMethodBluetooth, @"bluetooth-endpoint")];
-    [nearby dial:SZFNFriendPlan(person, SZFriendsRouteMethodLAN, @"lan-endpoint")];
-    SZFNSpin(0.2);
-    EXPECT(![adapter.dialed containsObject:@"bluetooth-endpoint"], "no Bluetooth dial beside Internet: %@",
-           adapter.dialed);
-    EXPECT([adapter.dialed containsObject:@"lan-endpoint"], "the LAN still beats Internet: %@", adapter.dialed);
+    SZFNExpectDialRank(
+        nearby, adapter, ^SZFriendsPeerLink *(SZFriendsRouteMethod route) { return SZFNLiveLink(nearby, person, route); },
+        ^SZFriendsPeerLink *{ return [nearby liveLinkForConversation:person.conversationID]; },
+        ^SZFriendsDialPlan *(SZFriendsRouteMethod route, NSString *endpoint) {
+            return SZFNFriendPlan(person, route, endpoint);
+        });
+    [services close];
+
+    // The same order for the sync with another of the person's own devices (the profile they joined).
+    services = SZFNOpenServices(scratch, @"dial-rank-own");
+    if (services == nil) return;
+    adapter = [[SZFNDialRecorder alloc] init];
+    nearby = SZFNNearbyWith(services, @[ adapter ]);
+    NSString *hex = SZFriendsLinkHex(SZFNBytes(32));
+    SZFNExpectDialRank(
+        nearby, adapter,
+        ^SZFriendsPeerLink *(SZFriendsRouteMethod route) {
+            SZFNFakeChannel *channel = [[SZFNFakeChannel alloc] init];
+            [channel setInitiatorRoute:route];
+            SZFriendsPeerLink *link = [[SZFriendsPeerLink alloc] initWithChannel:channel.asChannel
+                                                                         purpose:SZFriendsLinkPurposeOwnDevice
+                                                                           route:route];
+            link.live = YES;
+            link.ownDevice = YES;
+            nearby.syncLinks[hex] = link;
+            return link;
+        },
+        ^SZFriendsPeerLink *{ return [nearby liveSyncLinkForDeviceHex:hex]; },
+        ^SZFriendsDialPlan *(SZFriendsRouteMethod route, NSString *endpoint) {
+            SZFriendsDialPlan *plan = SZFNFriendPlan(person, route, endpoint);
+            plan.purpose = SZFriendsLinkPurposeOwnDevice;
+            plan.conversationID = [@"dev-" stringByAppendingString:hex];
+            plan.ownDeviceHex = hex;
+            return plan;
+        });
     [services close];
 }
 
