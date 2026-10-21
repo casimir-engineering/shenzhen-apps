@@ -58,6 +58,8 @@ NSDictionary<NSString *, NSString *> *SZFriendsEnglishCatalogNotifications(void)
         @"settings.notifications.note.denied.phone" : @"Notifications from {app} are off in Settings.",
         @"settings.notifications.open_settings.mac" : @"Open System Settings",
         @"settings.notifications.open_settings.phone" : @"Open Settings",
+        @"settings.notifications.note.denied.windows" : @"Notifications from Shenzhen Friends are off in Windows Settings.",
+        @"settings.notifications.open_settings.windows" : @"Open Settings",
         @"settings.notifications.note.unavailable" : @"This computer has no notification service running, so Friends "
                                                      @"can’t show notifications.",
         @"settings.notifications.note.ios" : @"An iPhone gets messages and files only while {app} is open. Friends "

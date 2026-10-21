@@ -639,6 +639,7 @@ impl State {
             background: prefs.background,
             permission: self.notify.permission().into(),
             ios: cfg!(target_os = "ios"),
+            windows: cfg!(windows),
             ask_dismissed: prefs.ask_dismissed,
             activated: self.store.nearby_permissions_requested(),
         }
