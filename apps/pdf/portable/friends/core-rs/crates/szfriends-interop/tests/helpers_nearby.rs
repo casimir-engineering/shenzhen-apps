@@ -3,8 +3,8 @@
 
 use std::sync::Mutex;
 
-use szfriends_interop::helpers::{rust_helper, Client};
-use szfriends_interop::{nearby, nearby_devices, TempHome};
+use szfriends_interop::helpers::{rust_helper, rust_helper_with, Client, Room};
+use szfriends_interop::{nearby, nearby_devices, routes, TempHome};
 
 /// Helpers read the environment as they start: one pair at a time.
 static START: Mutex<()> = Mutex::new(());
@@ -45,4 +45,25 @@ fn a_declined_request() {
 fn a_new_computer_joins_and_syncs() {
     let (_homes, mut gil, mut hal) = pair(("Gil", "Hal"));
     nearby_devices::join_and_sync(&mut gil, "Gil", &mut hal);
+}
+
+#[test]
+fn bluetooth_first_then_the_network_takes_over() {
+    let homes = [TempHome::new("Ida"), TempHome::new("Jon"), TempHome::new("room")];
+    let room = Room::new(homes[2].path(), true);
+    let network = homes[2].path().join("net");
+    std::fs::create_dir_all(&network).unwrap();
+    let mut env: Vec<(&str, String)> = room.env();
+    env.push(("SZFRIENDS_TEST_LOOPBACK", network.to_string_lossy().into_owned()));
+    let env: Vec<(&str, &str)> = env.iter().map(|(k, v)| (*k, v.as_str())).collect();
+    let (mut ida, mut jon) = {
+        let _guard = START.lock().unwrap_or_else(|e| e.into_inner());
+        std::env::set_var("SZFRIENDS_STATE_DIR", homes[0].path());
+        std::env::remove_var("SZFRIENDS_TEST_SERVICE_TYPE");
+        let ida = rust_helper_with("Ida", &homes[0].path().join("state"), &env);
+        let jon = rust_helper_with("Jon", &homes[1].path().join("state"), &env);
+        (ida, jon)
+    };
+    nearby::start(&mut ida, "Ida", &mut jon, "Jon");
+    routes::bluetooth_then_network(&mut ida, "Ida", &mut jon, "Jon", &room);
 }

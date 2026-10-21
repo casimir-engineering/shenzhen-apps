@@ -23,6 +23,7 @@ pub mod online_scenarios;
 mod peer;
 pub mod profile_moves;
 mod proxy;
+pub mod routes;
 pub mod scenarios;
 
 use std::path::{Path, PathBuf};

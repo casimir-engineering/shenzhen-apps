@@ -48,12 +48,25 @@ NSString *SZFriendsHelperDeviceName(void);
 NSString *SZFriendsHelperDeviceSystem(void);
 
 // The adapters this helper runs. Production (no SZFRIENDS_STATE_DIR): Network.framework and CoreBluetooth. Under
-// SZFRIENDS_STATE_DIR (tests, probes, the harness) never a real radio and never a non-loopback interface: the
-// loopback network adapter for the Bonjour type in SZFRIENDS_TEST_SERVICE_TYPE when it is a valid test type
-// ("_" + 1 to 15 letters, digits or hyphens + "._tcp", never the production type), nothing otherwise; then
-// whatever SZFriendsHelperTestHooks.extraAdapters adds. Creating adapters creates no browser, listener or manager.
+// SZFRIENDS_STATE_DIR (tests, probes, the harness) never a real radio and never a non-loopback interface:
+//   - the loopback network adapter for the Bonjour type in SZFRIENDS_TEST_SERVICE_TYPE when it is a valid test type
+//     ("_" + 1 to 15 letters, digits or hyphens + "._tcp", never the production type); with
+//     SZFRIENDS_TEST_NETWORK_HOLD (an absolute path) it does not start while that file exists, and starts within
+//     100 ms of the file going (SZFriendsHelperHoldNetworkAdapter);
+//   - the Bluetooth adapter over the test air in SZFRIENDS_TEST_BLUETOOTH (an absolute directory, shared with Rust
+//     helpers; SZFRIENDS_TEST_BLUETOOTH_POWER as SZFriendsMakeTestAirRadio reads it);
+// nothing otherwise; then whatever SZFriendsHelperTestHooks.extraAdapters adds. Creating adapters creates no
+// browser, listener or manager.
 NSArray<id<SZFriendsDiscoveryAdapter>> *SZFriendsHelperMakeAdapters(dispatch_queue_t queue,
                                                                     NSDictionary<NSString *, NSString *> *env);
+// `adapter` held back while `file` exists, reporting its radio off; started once the file is gone, stopped again
+// when it comes back.
+id<SZFriendsDiscoveryAdapter> SZFriendsHelperHoldNetworkAdapter(dispatch_queue_t queue,
+                                                                id<SZFriendsDiscoveryAdapter> adapter, NSString *file);
+// Under SZFRIENDS_STATE_DIR only: while <state dir>/online-block-direct exists, online attempts send and apply no
+// direct candidate, so only the relay connects (as the Rust helper's test homes do). Leaves a hook already set (the
+// links e2e helper's main sets the same one) in place. Nothing in production.
+void SZFriendsHelperSetOnlineTestHooks(NSDictionary<NSString *, NSString *> *env);
 // The rule for SZFRIENDS_TEST_SERVICE_TYPE, exposed for the unit tests.
 BOOL SZFriendsHelperTestServiceTypeIsValid(NSString *_Nullable serviceType);
 

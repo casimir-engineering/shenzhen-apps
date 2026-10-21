@@ -232,6 +232,7 @@ int main(void) {
         SZFriendsRunBluetoothAdapterTests();
         SZFriendsRunStreamAndTXTTests();
         SZFriendsRunAdmissionTests();
+        SZFriendsRunTestAirTests();
         if (SZFTestFailures) {
             fprintf(stderr, "SZFriendsDiscoveryTests: %d failure(s)\n", SZFTestFailures);
             return 1;
