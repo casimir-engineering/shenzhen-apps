@@ -22,6 +22,7 @@ use szfriends_core::store::unix_now;
 use szfriends_core::sync::{SyncEngine, SyncExchange};
 
 use super::{hex, State};
+use szfriends_core::wire::RouteMethod;
 
 /// "d_" and the first 8 bytes of the device key, as the helper names a computer to its views.
 pub fn device_id(key: &[u8; 32]) -> String {
@@ -184,7 +185,26 @@ impl State {
         if state == JoiningState::Idle && !self.join_available() {
             state = JoiningState::Unavailable;
         }
-        JoiningFacts { state, friends_id: area.joiner.as_ref().map(|j| j.friends_id().to_owned()) }
+        // What carries the join now: a session with another of our computers once joined (the sync), else a nearby
+        // session running the code; the best of them in the owner's order.
+        let joined = state == JoiningState::Joined;
+        let carrying = self.sessions.map.values().filter(|s| {
+            let ours = joined && s.channel.remote_identity().is_some_and(|k| self.is_own_device(k));
+            let code = !joined && s.meta.purpose == super::nearby::Purpose::Join;
+            (ours || code) && s.meta.live && !s.meta.superseded && !s.channel.is_closed()
+        });
+        let route = carrying.map(|s| s.meta.race_route(&s.channel)).fold(RouteMethod::None, |best, route| {
+            if best == RouteMethod::None || szfriends_core::nearby::is_better(route, best) {
+                route
+            } else {
+                best
+            }
+        });
+        JoiningFacts {
+            state,
+            friends_id: area.joiner.as_ref().map(|j| j.friends_id().to_owned()),
+            route: super::nearby::view_route(route),
+        }
     }
 
     pub fn join_request_facts(&mut self, now: f64) -> Vec<JoinRequestFacts> {

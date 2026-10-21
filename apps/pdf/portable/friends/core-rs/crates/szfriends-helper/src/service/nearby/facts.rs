@@ -21,7 +21,7 @@ pub struct Stranger {
     pub friends_id: Option<String>,
 }
 
-fn view_route(route: RouteMethod) -> ViewRoute {
+pub(crate) fn view_route(route: RouteMethod) -> ViewRoute {
     match route {
         RouteMethod::Lan => ViewRoute::Lan,
         RouteMethod::PeerToPeerWifi => ViewRoute::PeerToPeerWifi,

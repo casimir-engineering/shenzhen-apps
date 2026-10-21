@@ -78,6 +78,16 @@ enum {
     facts.friendsID = state.joiner.friendsID ?: (state.phase != SZFriendsJoiningIdle ? self.services.store.friendsID
                                                                                      : nil);
     if (state.phase == SZFriendsJoiningIdle && ![self joinAvailable]) facts.state = SZFriendsJoiningUnavailable;
+    // What carries the join now: a session with another of our computers once joined (the sync), else a nearby
+    // session running the code; the best of them in the owner's order.
+    BOOL joined = state.phase == SZFriendsJoiningJoined;
+    SZFriendsRouteMethod route = SZFriendsRouteMethodNone;
+    for (SZFriendsPeerLink *link in self.links) {
+        BOOL carries = joined ? link.syncExchange != nil : link.purpose == SZFriendsLinkPurposeJoin;
+        if (!carries || !link.live || link.closed || link.superseded) continue;
+        if (route == SZFriendsRouteMethodNone || SZFriendsRouteIsBetter(link.raceRoute, route)) route = link.raceRoute;
+    }
+    facts.routeMethod = route;
     return facts;
 }
 

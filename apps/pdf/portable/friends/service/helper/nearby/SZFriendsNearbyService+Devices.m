@@ -307,6 +307,9 @@ NSString *SZFriendsDeviceIDForKey(NSData *deviceKey) {
                           SZFriendsSyncCopiesAutomatically(file.size, file.conversationID));
         facts.holderConnected = connected;
         facts.fraction = [copying[file.transferID] doubleValue];
+        // The session carrying the copy, as the conversation's route shows a friend's file.
+        SZFriendsPeerLink *carrier = [self liveSyncLinkForDeviceHex:SZFriendsLinkHex(holder)];
+        facts.routeMethod = carrier != nil ? carrier.raceRoute : SZFriendsRouteMethodNone;
         files[file.transferID] = facts;
     }
     return files;
