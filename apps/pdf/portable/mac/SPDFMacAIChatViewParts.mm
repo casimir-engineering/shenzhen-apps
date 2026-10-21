@@ -172,8 +172,25 @@ NSTextField* SPDFChatSummaryMarker(void) {
 - (void)viewDidChangeEffectiveAppearance { [super viewDidChangeEffectiveAppearance]; [self updateBorder]; }
 - (void)viewDidMoveToWindow { [super viewDidMoveToWindow]; [self updateBorder]; }
 - (void)layout { [super layout]; [self updateBorder]; }
+// The text is exactly as wide as the field shows, so a word longer than a line wraps at the field's edge.
+- (void)tile {
+    [super tile]; NSView* text=self.documentView; CGFloat width=NSWidth(self.contentView.bounds);
+    if(text && width>0 && fabs(NSWidth(text.frame)-width)>.5) [text setFrameSize:NSMakeSize(width,NSHeight(text.frame))];
+}
+- (CGFloat)fittingHeight {
+    NSTextView* text=self.documentView; [text.layoutManager ensureLayoutForTextContainer:text.textContainer];
+    CGFloat used=ceil(NSMaxY([text.layoutManager usedRectForTextContainer:text.textContainer]))+
+        2*text.textContainerInset.height+self.contentInsets.top+self.contentInsets.bottom;
+    return MIN(SPDFChatComposerMaximumHeight,MAX(SPDFChatComposerHeight,used));
+}
 @end
 @implementation SPDFChatComposer
+- (void)didChangeText { [super didChangeText]; if(self.fit) self.fit(); }
+- (void)setString:(NSString*)string { [super setString:string]; if(self.fit) self.fit(); }
+- (void)setFrameSize:(NSSize)size {
+    BOOL rewraps=fabs(size.width-NSWidth(self.frame))>.5; [super setFrameSize:size];
+    if(rewraps && self.fit) { void (^fit)(void)=self.fit; dispatch_async(dispatch_get_main_queue(),fit); }
+}
 - (BOOL)becomeFirstResponder {
     BOOL ok=[super becomeFirstResponder]; [(SPDFChatInputScrollView*)self.enclosingScrollView updateBorder]; return ok;
 }

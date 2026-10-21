@@ -59,7 +59,11 @@ the current catalog and connection status are authoritative.
 
 Press **⌘K**, then press **Return** while the search field is empty to open
 chat. It returns to the current conversation; use **New chat** to start another. Type a question and press **Return** to send; **Shift-Return** inserts a
-line break. With text in the search field, Return keeps its usual search-result
+line break. The message box grows with what you type, up to about eight lines, and
+then scrolls; text always wraps inside it, and a word longer than a line (a pasted
+address, say) breaks onto the next line rather than running past the edge. Sent
+messages, and your latest question above the transcript, wrap the same way.
+With text in the search field, Return keeps its usual search-result
 behavior. Use the explicit **Ask** action to start a new chat with that query as a draft, then press Return to send.
 The **Chats** icon in the reader's left navigation opens saved conversations in
 that sidebar. Selecting one opens a separate, resizable chat panel beside it;

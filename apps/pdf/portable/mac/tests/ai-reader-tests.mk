@@ -32,7 +32,8 @@ $(AI_CHAT_VIEW_TEST): mac/tests/SPDFMacAIChatActivityViewChecks.h mac/tests/SPDF
 		mac/friends/SPDFMacFriendsEmojiTables.h $(AI_CHAT_VIEW_SRCS) mac/tests/SPDFMacAIChatBlankRowsChecks.h \
 		mac/tests/SPDFMacAIAnswerCardViewChecks.h mac/tests/SPDFMacAIChatOrderChecks.h \
 		mac/tests/SPDFMacAIChatReopenChecks.h mac/tests/SPDFMacAIChatDockChecks.h mac/tests/SPDFMacAIChatBannerChecks.h \
-		mac/tests/SPDFMacAIChatEditChecks.h mac/tests/SPDFMacAIChatLinkChecks.h mac/SPDFMacAIChatViewInternal.h \
+		mac/tests/SPDFMacAIChatEditChecks.h mac/tests/SPDFMacAIChatLinkChecks.h mac/tests/SPDFMacAIChatWrapChecks.h \
+		mac/SPDFMacAIChatViewInternal.h \
 		mac/tests/SPDFMacAIChatViewTests.mm mac/SPDFMacAIChatView.mm mac/SPDFMacAIChatViewMessages.mm \
 		mac/SPDFMacAIAnswerCardView.mm \
 		mac/SPDFMacAIAnswerCard.mm mac/SPDFMacAICitations.mm mac/SPDFMacAIChatSearch.mm \

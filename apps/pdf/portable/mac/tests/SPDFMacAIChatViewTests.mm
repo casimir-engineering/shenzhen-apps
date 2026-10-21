@@ -236,6 +236,7 @@ static void CheckLiteralCard(NSView* card, NSTextView* body, NSString* message, 
 #import "SPDFMacAIChatBannerChecks.h"
 #import "SPDFMacAIChatEditChecks.h"
 #import "SPDFMacAIChatLinkChecks.h"
+#import "SPDFMacAIChatWrapChecks.h"
 int main(void) { @autoreleasepool {
     [NSApplication sharedApplication];
     NSDate* started=[NSDate date];
@@ -249,6 +250,7 @@ int main(void) { @autoreleasepool {
     RunChatActivityLayoutChecks();
     RunChatActivityStepChecks();
     RunChatLinkChecks();
+    RunChatWrapChecks();
     NSWindow* window=[[NSWindow alloc] initWithContentRect:NSMakeRect(0,0,760,580) styleMask:NSWindowStyleMaskTitled backing:NSBackingStoreBuffered defer:NO];
     SPDFMacAIChatView* view=[[SPDFMacAIChatView alloc] initWithFrame:window.contentView.bounds]; window.contentView=view;
     ChatFixture* fixture=[ChatFixture new]; fixture.chat=@{@"id":@"test",@"messages":@[
