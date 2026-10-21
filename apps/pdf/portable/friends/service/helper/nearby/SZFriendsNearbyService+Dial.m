@@ -280,9 +280,13 @@ BOOL SZFriendsNearbyDialIsPointless(SZFriendsRouteMethod live, SZFriendsRouteMet
         if (strongSelf == nil) return;
         // Asked again when the stagger ends: a faster session may have won meanwhile (the racer's rule).
         NSString *conversationID = plan.conversationID;
-        SZFriendsPeerLink *live = conversationID ? [strongSelf liveLinkForConversation:conversationID] : nil;
-        BOOL pointless = plan.purpose == SZFriendsLinkPurposeFriend && live != nil &&
-                         SZFriendsNearbyDialIsPointless(live.raceRoute, sighting.route);
+        SZFriendsPeerLink *live = nil;
+        if (plan.purpose == SZFriendsLinkPurposeFriend && conversationID != nil) {
+            live = [strongSelf liveLinkForConversation:conversationID];
+        } else if (plan.purpose == SZFriendsLinkPurposeOwnDevice && plan.ownDeviceHex != nil) {
+            live = [strongSelf liveSyncLinkForDeviceHex:plan.ownDeviceHex]; // the session carrying our sync with it
+        }
+        BOOL pointless = live != nil && SZFriendsNearbyDialIsPointless(live.raceRoute, sighting.route);
         if (strongSelf.shutDown || pointless) {
             [strongSelf.dialing removeObject:key];
             return;
@@ -310,7 +314,7 @@ BOOL SZFriendsNearbyDialIsPointless(SZFriendsRouteMethod live, SZFriendsRouteMet
         } else if (plan.conversationID != nil && !plan.probe && plan.purpose == SZFriendsLinkPurposeFriend) {
             [self noteFailureForConversation:plan.conversationID];
         }
-        if (plan.purpose == SZFriendsLinkPurposeFriend) {
+        if (plan.purpose == SZFriendsLinkPurposeFriend || plan.purpose == SZFriendsLinkPurposeOwnDevice) {
             [self noteDialToEndpoint:plan.sighting.endpointID method:plan.sighting.method
                         conversation:plan.conversationID succeeded:NO];
         }

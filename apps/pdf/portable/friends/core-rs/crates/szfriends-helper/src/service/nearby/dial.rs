@@ -301,9 +301,14 @@ impl State {
             std::mem::take(&mut self.nearby.staged).into_iter().partition(|(at, _)| *at <= now);
         self.nearby.staged = waiting;
         for (_, plan) in due {
-            let live = plan.conversation.as_deref().and_then(|c| self.sessions.live_for(c));
-            let pointless = plan.purpose == Purpose::Friend
-                && live.is_some_and(|id| !is_better(plan.route, self.sessions.map[&id].channel.initiator_route()));
+            let live = match plan.purpose {
+                Purpose::Friend => plan.conversation.as_deref().and_then(|c| self.sessions.live_for(c)),
+                // Another of our devices: the session carrying our sync with it.
+                Purpose::OwnDevice => plan.options.expected_identity.and_then(|d| self.own_device_live_link(&d)),
+                _ => None,
+            };
+            let pointless =
+                live.is_some_and(|id| !is_better(plan.route, self.sessions.map[&id].channel.initiator_route()));
             if self.nearby.shut_down || pointless {
                 self.nearby.dialing.remove(&plan.dial_key);
                 continue;
@@ -330,6 +335,9 @@ impl State {
                     self.note_failure(conversation, None);
                 }
                 self.nearby.racer.note_failed(&plan.endpoint, plan.method, conversation, unix_now());
+            }
+            (Purpose::OwnDevice, None, Some(name)) => {
+                self.nearby.racer.note_failed(&plan.endpoint, plan.method, name, unix_now());
             }
             _ => {}
         }

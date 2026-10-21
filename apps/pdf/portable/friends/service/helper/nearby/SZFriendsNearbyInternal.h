@@ -163,6 +163,15 @@ BOOL SZFriendsNearbyDialIsPointless(SZFriendsRouteMethod live, SZFriendsRouteMet
 - (void)startLink:(SZFriendsPeerLink *)link;
 // The link now belongs to this conversation: adopt it or settle the session race (ADR 0001 § Session race).
 - (void)attachLink:(SZFriendsPeerLink *)link toConversation:(NSString *)conversationID;
+// What the session race keeps of a new live link and the live one carrying the same peer (+Sessions).
+typedef NS_ENUM(NSInteger, SZFriendsRaceOutcome) {
+    SZFriendsRaceKeepsNew,
+    SZFriendsRaceKeepsCurrent,
+    SZFriendsRaceWaits, // a double dial on one class, answered here: the initiator closes one
+};
+- (SZFriendsRaceOutcome)raceOfLink:(SZFriendsPeerLink *)link against:(SZFriendsPeerLink *)current;
+// What the racer knows a dialed peer by: a conversation, or "dev-" and one of our devices' keys (+Sessions).
+- (nullable NSString *)raceNameOfLink:(SZFriendsPeerLink *)link;
 - (void)closeLinksForConversation:(NSString *)conversationID;
 - (nullable SZFriendsPeerLink *)liveLinkForConversation:(NSString *)conversationID;
 // Starts the comparison-code exchange on a link that creates a friendship, once, and only while the person has no
@@ -209,6 +218,8 @@ BOOL SZFriendsNearbyDialIsPointless(SZFriendsRouteMethod live, SZFriendsRouteMet
 // CHAIN and SYNC on a session with one of our devices.
 - (void)link:(SZFriendsPeerLink *)link receivedOwnDeviceFrame:(SZFriendsFrame *)frame;
 - (void)syncLinkClosed:(SZFriendsPeerLink *)link;
+// The live session carrying our sync with the device whose key is `hex`, if any (+Sync).
+- (nullable SZFriendsPeerLink *)liveSyncLinkForDeviceHex:(NSString *)hex;
 - (void)pumpSyncExchanges;
 - (void)scheduleSyncCapture;
 // Our devices as the store's index lists them now: matched, advertised and dialed anew when they changed.

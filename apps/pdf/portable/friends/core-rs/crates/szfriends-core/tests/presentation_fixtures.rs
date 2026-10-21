@@ -13,12 +13,12 @@ use presentation::{expect_fixture, through_store, validate_snapshot};
 use szfriends_core::presentation::Audience;
 use szfriends_core::presentation::{
     DownloadLinkFacts, ItemFacts, JoinRequestFacts, JoiningFacts, JoiningState, LinksFacts, MentionDirectory,
-    PersonFacts, ProfileFacts, ReceivedFolderFacts, SnapshotBuilder,
+    PersonFacts, ProfileFacts, ReceivedFolderFacts, RouteMethod, SnapshotBuilder,
 };
 use szfriends_core::store::{PhoneFolder, ReceivedFallback, ReceivedFile, ReceivedSource};
 
 /// Every snapshot fixture, and the suite that builds it.
-const COVERED: [&str; 45] = [
+const COVERED: [&str; 46] = [
     "badge.json",
     "list.json",
     "list-id-changed.json",
@@ -37,6 +37,7 @@ const COVERED: [&str; 45] = [
     "badge-join-requests.json",
     "join-idle.json",
     "join-wrong-code.json",
+    "join-checking.json",
     "join-denied.json",
     "join-joined.json",
     "profile-links.json",
@@ -247,12 +248,18 @@ fn joining() {
     list["join_requests"] = builder.join_request_rows(&join_requests(), now());
     expect_fixture(&list, "list-join-requests.json", "list");
     expect_fixture(&builder.badge(&people, join_requests().len()), "badge-join-requests.json", "badge");
-    let joining = |state, id: Option<&str>| JoiningFacts { state, friends_id: id.map(str::to_owned) };
-    expect_fixture(&builder.join(&joining(JoiningState::Idle, None)), "join-idle.json", "join");
+    let joining = |state, id: Option<&str>, route| JoiningFacts { state, friends_id: id.map(str::to_owned), route };
+    expect_fixture(&builder.join(&joining(JoiningState::Idle, None, RouteMethod::None)), "join-idle.json", "join");
     let id = Some("cottage-violet");
-    expect_fixture(&builder.join(&joining(JoiningState::WrongCode, id)), "join-wrong-code.json", "join");
-    expect_fixture(&builder.join(&joining(JoiningState::Denied, id)), "join-denied.json", "join");
-    expect_fixture(&builder.join(&joining(JoiningState::Joined, id)), "join-joined.json", "join");
+    let wrong = builder.join(&joining(JoiningState::WrongCode, id, RouteMethod::Lan));
+    expect_fixture(&wrong, "join-wrong-code.json", "join"); // no route once the code is no longer being checked
+    let checking = builder.join(&joining(JoiningState::Checking, id, RouteMethod::Relay));
+    expect_fixture(&checking, "join-checking.json", "join");
+    expect_fixture(&builder.join(&joining(JoiningState::Denied, id, RouteMethod::None)), "join-denied.json", "join");
+    let joined = builder.join(&joining(JoiningState::Joined, id, RouteMethod::Lan));
+    expect_fixture(&joined, "join-joined.json", "join");
+    let alone = builder.join(&joining(JoiningState::Joined, id, RouteMethod::None));
+    assert!(alone["route"].is_null(), "joined with none of the other computers connected: no route");
 }
 
 pub fn links_audience() -> szfriends_core::presentation::Audience {

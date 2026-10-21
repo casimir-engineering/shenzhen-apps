@@ -76,6 +76,7 @@ void SZFNTestKeyPolicy(NSString *scratch);
 void SZFNTestFriendsChains(NSString *scratch);
 void SZFNTestOwnChainToFriends(NSString *scratch);
 void SZFNTestOwnDeviceSync(NSString *scratch);
+void SZFNTestOwnDeviceRouteMigration(NSString *scratch);
 void SZFNTestFriendDevices(NSString *scratch);
 void SZFNTestIdleClose(NSString *scratch);
 void SZFNTestResetOrder(NSString *scratch);

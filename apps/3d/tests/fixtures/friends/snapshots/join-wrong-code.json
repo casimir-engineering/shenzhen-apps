@@ -21,6 +21,7 @@
     "friends_id": "cottage-violet",
     "id_field": null,
     "message": "On your computer or phone that uses cottage‑violet, open Friends in ShenzhenPDF, Shenzhen Files or Shenzhen 3D and choose Approve. Then type the code it shows.",
+    "route": null,
     "state": "wrong_code",
     "title": "Approve this computer"
   }

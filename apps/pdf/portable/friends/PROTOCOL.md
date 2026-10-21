@@ -1182,7 +1182,10 @@ computer whatever their size.
 files up to 25 MB copy here by themselves, and a larger one waits on the computer that has it: its transfer item has
 `state` `on_device`, `status_label` "On Raph’s Mac mini" and the action `fetch_from_device` ("Get", primary), sent with
 the item's `transfer_id` (`fixtures/snapshots/devices-conversation-mei-files.json`). After Get, `state` is `fetching`:
-with `progress` and "Copying from Raph’s Mac mini · 25%" while it copies, or `progress` null and "Copies when Studio
+with `progress` and "Copying from Raph’s Mac mini · 25%" while it copies, together with `route`, the route of the
+session it comes by (§ Shared objects Route; views draw it as the conversation header's, its icon and "Nearby, on
+your network"), and through the relay a `route_note` with the time it takes ("Through the Friends relay, about 3 min"),
+or `progress` null and "Copies when Studio
 workstation is nearby with ShenzhenPDF, Shenzhen Files or Shenzhen 3D open" ("online or nearby" with the helper
 capability `online`) while that computer is not connected; Cancel (`cancel_transfer`) stops it and the item returns to
 `on_device`. Once here it is `received` with its `path`, as any received file. A computer that no longer has a
@@ -1216,7 +1219,8 @@ holds anymore. In order:
 2. A friend sent it and none of the person's computers holds it: `state` `missing`, `status_label` "Moved or
    deleted", and the action `fetch_from_friend` ("Get again", primary), sent with the item's `transfer_id`, for a
    client with the capability `files.again` while that person is a friend. After Get again the item is `fetching`:
-   "Copying from Mei Lin · 25%" with `progress` while it copies, or `progress` null and "Copies when Mei Lin is nearby
+   "Copying from Mei Lin · 25%" with `progress` while it copies (and on a slow route `route_note`, as any file Mei
+   sends), or `progress` null and "Copies when Mei Lin is nearby
    with ShenzhenPDF, Shenzhen Files or Shenzhen 3D open" ("online or nearby" with the helper capability `online`) while
    no session with them is live, with Cancel (`cancel_transfer`), which takes it back to `missing`. Once here it is
    `received` with its new `path`, saved where received files go. The friend's computer answers by itself, with no
@@ -1275,6 +1279,7 @@ A view outside the dropdown (Settings) closes itself or opens the dropdown to sh
 | `code_field` | object or null | `waiting` to `not_reached`: `length` (8), `placeholder`, `button` (sends `enter_join_code`) and `enabled` (false while `checking`) |
 | `error` | string or null | Why the last code did not work: it did not match, or no computer of the profile answered |
 | `actions` | array | § Shared objects actions: `cancel_join` (Cancel) while joining; `join_profile` with `friends_id` (Start again) and Cancel after Deny, an expired code or three wrong codes |
+| `route` | object or null | § Shared objects Route, drawn as the conversation header's (the route icon and `label` beside it, "Nearby, on your network"): `checking`, the session carrying the code ("Online, through the Friends relay" through the host); `joined`, the best live session with another of the person's computers, while friends and chats come over. `null` otherwise, and whenever none is connected |
 
 `join_profile` takes `friends_id` as `add_by_id` does (U+2011 read as `-`); errors `id_invalid`, `id_is_yours`, and
 `not_allowed` when this computer already has friends or shares a profile. `enter_join_code` takes `code`, eight digits
@@ -1340,6 +1345,7 @@ data.code_field: @join_code_field|null
 data.error: string|null
 data.actions: array
 data.actions[]: @action
+data.route: @route|null       # checking and joined only, while a session is live
 ```
 
 ```schema type.join_id_field
@@ -1954,6 +1960,7 @@ meta_label: string when kind=transfer
 state: enum(queued,offered,waiting_for_you,sending,receiving,delivered,received,declined,cancelled,failed,on_device,fetching,missing,gone) when kind=transfer
 status_label: string when kind=transfer
 route_note: string|null when kind=transfer
+route?: @route when kind=transfer   # present while a file copies here from another of the person's computers (§ Devices)
 progress: @progress|null when kind=transfer
 thumbnail: @thumbnail|null when kind=transfer   # the file's preview (§ Thumbnails); null: draw the type's icon
 actions: array when kind=message,transfer

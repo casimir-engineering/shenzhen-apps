@@ -5,6 +5,7 @@
 #import "SZFriendsPresentationWorld.h"
 
 #import "service/presentation/SZFriendsPresentationDevices.h"
+#import "service/presentation/SZFriendsPresentationPrivate.h"
 #import "service/store/SZFriendsTransfers.h"
 
 static SZFriendsDeviceFacts *Computer(NSString *deviceID, NSString *name, NSString *system, BOOL thisComputer,
@@ -187,6 +188,7 @@ static void TestConversations(void) {
     copying.fetching = YES;
     copying.holderConnected = YES;
     copying.fraction = 0.25;
+    copying.routeMethod = SZFriendsRouteMethodLAN;
     SZFriendsDeviceFileFacts *away = [[SZFriendsDeviceFileFacts alloc] init];
     away.deviceName = @"Studio workstation";
     away.fetching = YES;
@@ -271,10 +273,67 @@ static void TestFilesAgain(void) {
     SZPExpect([removed[@"state"] isEqual:@"missing"] && [removed[@"actions"] count] == 0, @"removed: %@", removed);
 }
 
+// A file copying here from another of the person's computers shows the route it comes by, the conversation header's
+// route object (same words, same icon); a slow route with a time to tell adds it as any transfer's route_note.
+static void TestCopyingRoutes(void) {
+    SZFriendsSnapshotBuilder *builder = SZPBuilder(SZPAudience());
+    builder.devices = FourComputers();
+    SZFriendsItemFacts *item = SZPTransfer(@"t_4d9b7a35", NO, @"2026-10-12 10:07", @"Line 2 layout.pdf", 58402113,
+                                           SZFriendsTransferStateReceived);
+    SZFriendsDeviceFileFacts *copying = [[SZFriendsDeviceFileFacts alloc] init];
+    copying.deviceName = @"Raph’s Mac mini";
+    copying.fetching = YES;
+    copying.holderConnected = YES;
+    copying.fraction = 0.25;
+    builder.devices.files = @{@"t_4d9b7a35" : copying};
+    SZFriendsPersonFacts *mei = SZPPeople()[@"c_mei"];
+    NSDictionary *(^built)(SZFriendsRouteMethod) = ^NSDictionary *(SZFriendsRouteMethod route) {
+      copying.routeMethod = route;
+      NSDictionary *conversation = [builder conversationForPerson:mei items:@[ item ] hasEarlier:NO
+                                                  highlightItemID:nil waitingElsewhere:2 now:SZPNow()];
+      SZPValidateSnapshot(conversation, @"conversation", @"a file copying from another computer");
+      return [conversation[@"items"] lastObject];
+    };
+    NSDictionary *bluetooth = built(SZFriendsRouteMethodBluetooth);
+    SZPExpect([bluetooth[@"route"] isEqual:[builder routeForKind:SZFriendsRouteKindLocal
+                                                          method:SZFriendsRouteMethodBluetooth]] &&
+                  [bluetooth[@"route"][@"label"] isEqual:@"Nearby, over Bluetooth"],
+              @"over Bluetooth: %@", bluetooth[@"route"]);
+    SZPExpect([bluetooth[@"status_label"] isEqual:@"Copying from Raph’s Mac mini · 25%"], @"%@", bluetooth);
+    SZPExpect(bluetooth[@"route_note"] == NSNull.null, @"no time to tell over Bluetooth: %@", bluetooth[@"route_note"]);
+    NSDictionary *relay = built(SZFriendsRouteMethodRelay);
+    SZPExpect([relay[@"route"][@"kind"] isEqual:@"online"] && [relay[@"route"][@"method"] isEqual:@"relay"] &&
+                  [relay[@"route"][@"label"] isEqual:@"Online, through the Friends relay"],
+              @"through the relay: %@", relay[@"route"]);
+    SZPExpect([relay[@"route_note"] hasPrefix:@"Through the Friends relay, about "], @"%@", relay[@"route_note"]);
+    NSDictionary *direct = built(SZFriendsRouteMethodInternet);
+    SZPExpect([direct[@"route"][@"label"] isEqual:@"Online, direct"] && direct[@"route_note"] == NSNull.null,
+              @"online, direct: %@", direct);
+    // Not connected: the waiting words, and no route.
+    copying.holderConnected = NO;
+    NSDictionary *away = built(SZFriendsRouteMethodNone);
+    SZPExpect(away[@"route"] == nil && away[@"route_note"] == NSNull.null, @"no route while away: %@", away);
+    // A file coming again from a friend: the friend's route is the header's; a slow one adds its note.
+    SZFriendsAudience *audience = SZPAudience();
+    audience.capabilities = [audience.capabilities setByAddingObject:@"files.again"];
+    SZFriendsSnapshotBuilder *again = SZPBuilder(audience);
+    again.devices = FourComputers();
+    SZFriendsItemFacts *coming = Moved(@"t_7b3e0f42", NO, @"2026-10-12 09:20", @"Shift rota.pdf", 1203456,
+                                       SZFriendsAgainAsked);
+    coming.againConnected = YES;
+    coming.againFraction = 0.4;
+    coming.transferRoute = SZFriendsRouteMethodBluetooth;
+    NSDictionary *slow = [[again conversationForPerson:mei items:@[ coming ] hasEarlier:NO highlightItemID:nil
+                                      waitingElsewhere:2 now:SZPNow()][@"items"] lastObject];
+    SZPExpect([slow[@"route_note"] isEqual:@"Over Bluetooth"] && slow[@"route"] == nil, @"again over Bluetooth: %@",
+              slow);
+}
+
 void SZPRunDevicesBuildTests(void) {
     TestProfileAndRows();
     TestLists();
     TestConversations();
     TestHistoryWords();
     TestFilesAgain();
+    TestCopyingRoutes();
 }

@@ -16,6 +16,7 @@
 // A fake channel naming the device at the other end, as a verified handshake would.
 @interface SZFNOwnDeviceChannel : SZFNFakeChannel
 @property(nonatomic, copy) NSData *deviceKey;
+@property(nonatomic) SZFriendsRouteMethod route; // the initiator's declared route; LAN when not set
 @end
 
 @implementation SZFNOwnDeviceChannel
@@ -26,7 +27,7 @@
     return 2;
 }
 - (SZFriendsRouteMethod)initiatorRoute {
-    return SZFriendsRouteMethodLAN;
+    return self.route != SZFriendsRouteMethodNone ? self.route : SZFriendsRouteMethodLAN;
 }
 - (NSData *)presentedRequestToken {
     return nil;
@@ -45,12 +46,17 @@ static SZFriendsIdentity *SZFNSyncDevice(uint8_t seed) {
     return [SZFriendsIdentity identityWithSigningSeed:signing staticPrivateKey:key];
 }
 
-static SZFriendsPeerLink *SZFNOwnLink(SZFriendsIdentity *device, BOOL weDialed) {
+static SZFriendsPeerLink *SZFNOwnLinkOn(SZFriendsIdentity *device, BOOL weDialed, SZFriendsRouteMethod route) {
     SZFNOwnDeviceChannel *channel = [[SZFNOwnDeviceChannel alloc] init];
     channel.pattern = SZFriendsHandshakeIK;
     channel.isInitiator = weDialed;
     channel.deviceKey = device.publicKey;
+    channel.route = route;
     return SZFNLink(channel);
+}
+
+static SZFriendsPeerLink *SZFNOwnLink(SZFriendsIdentity *device, BOOL weDialed) {
+    return SZFNOwnLinkOn(device, weDialed, SZFriendsRouteMethodLAN);
 }
 
 // The laptop's side: its own store and engine, and an exchange whose messages go to the helper's link.
@@ -313,5 +319,95 @@ void SZFNTestFriendDevices(NSString *scratch) {
     EXPECT(probes == 1 && nearby.dialing.count == 1, "one probe for the first device: %@", nearby.attempts);
     [nearby reconsider];
     EXPECT(nearby.dialing.count == 1, "and only once this window");
+    [services close];
+}
+
+// The profile moves like a friend's files (ADR 0001 § Session race, ADR 0011 § Route rank): of two sessions with one
+// of our devices the better route in the owner's order carries the sync, whichever went live first and whoever dialed;
+// a double dial on one class answered here waits and takes over when the initiator closes the other; and while a
+// session carries the sync, a sighting on a better route is dialed and one on a worse route is not.
+void SZFNTestOwnDeviceRouteMigration(NSString *scratch) {
+    SZFriendsHelperServices *services = SZFNOpenServices(scratch, @"own-routes");
+    if (services == nil) return;
+    SZFriendsStore *store = services.store;
+    SZFNRecordingAdapter *adapter = [[SZFNRecordingAdapter alloc] init];
+    SZFriendsNearbyService *nearby = SZFNNearbyWith(services, @[ adapter ]);
+    SZFriendsIdentity *laptopID = SZFNSyncDevice(0x63);
+    SZFriendsDeviceChain *genesis = [store ownDeviceChainCreatingGenesisWithIdentity:services.identity error:NULL];
+    SZFriendsDeviceChain *two = [genesis chainByAddingDeviceKey:laptopID.publicKey staticKey:laptopID.staticPublicKey
+                                                       consent:SZFriendsDeviceConsent(laptopID, genesis.rootKey)
+                                                          name:@"MacBook Air" system:@"macOS 26.1"
+                                                      signedBy:services.identity date:[NSDate date] error:NULL];
+    [store mergeOwnDeviceChain:two error:NULL];
+    EXPECT([nearby activeSyncEngine] != nil, "sync runs with the laptop in our chain");
+    NSString *hex = SZFriendsLinkHex(laptopID.publicKey);
+    SZFriendsRouteMethod order[] = {SZFriendsRouteMethodLAN, SZFriendsRouteMethodPeerToPeerWiFi,
+                                    SZFriendsRouteMethodInternet, SZFriendsRouteMethodBluetooth,
+                                    SZFriendsRouteMethodRelay};
+    size_t count = sizeof(order) / sizeof(order[0]);
+    for (size_t i = 0; i < count; i++) {
+        for (size_t j = i + 1; j < count; j++) {
+            for (int firstBetter = 0; firstBetter < 2; firstBetter++) {
+                for (int dialers = 0; dialers < 4; dialers++) {
+                    SZFriendsRouteMethod firstRoute = firstBetter ? order[i] : order[j];
+                    SZFriendsRouteMethod secondRoute = firstBetter ? order[j] : order[i];
+                    SZFriendsPeerLink *first = SZFNOwnLinkOn(laptopID, dialers & 1, firstRoute);
+                    SZFriendsPeerLink *second = SZFNOwnLinkOn(laptopID, (dialers >> 1) & 1, secondRoute);
+                    [nearby linkWentLive:first];
+                    [nearby linkWentLive:second];
+                    SZFriendsPeerLink *better = firstBetter ? first : second, *worse = firstBetter ? second : first;
+                    EXPECT(nearby.syncLinks[hex] == better && better.syncExchange != nil &&
+                               !((SZFNFakeChannel *)better.channel).closed && ((SZFNFakeChannel *)worse.channel).closed,
+                           "route %ld carries the sync over route %ld (first %ld, dialers %d)", (long)order[i],
+                           (long)order[j], (long)firstRoute, dialers);
+                    [nearby link:first closedWithError:nil];
+                    [nearby link:second closedWithError:nil];
+                    EXPECT(nearby.syncLinks.count == 0, "nothing left after both end");
+                }
+            }
+        }
+    }
+    // The laptop dialed twice on one class: this side keeps the first, holds the second, and moves to it when the
+    // laptop closes the first.
+    SZFriendsPeerLink *carrying = SZFNOwnLinkOn(laptopID, NO, SZFriendsRouteMethodLAN);
+    SZFriendsPeerLink *standby = SZFNOwnLinkOn(laptopID, NO, SZFriendsRouteMethodLAN);
+    [nearby.links addObject:carrying]; // as -startLink: would have
+    [nearby.links addObject:standby];
+    [nearby linkWentLive:carrying];
+    [nearby linkWentLive:standby];
+    EXPECT(nearby.syncLinks[hex] == carrying && !((SZFNFakeChannel *)standby.channel).closed &&
+               standby.syncExchange == nil,
+           "the responder waits for the initiator's choice");
+    [nearby link:carrying closedWithError:nil];
+    EXPECT(nearby.syncLinks[hex] == standby && standby.syncExchange != nil, "the standby session carries the sync");
+    [nearby link:standby closedWithError:nil];
+
+    // With Bluetooth carrying the sync, the laptop seen on the network is dialed; seen on Bluetooth again, it is not.
+    SZFriendsPeerLink *bluetooth = SZFNOwnLinkOn(laptopID, YES, SZFriendsRouteMethodBluetooth);
+    [nearby linkWentLive:bluetooth];
+    EXPECT(nearby.syncLinks[hex] == bluetooth, "Bluetooth carries the sync");
+    [nearby changed];
+    SZFNSpin(0.6);
+    [nearby rebuildTagMatcher];
+    NSData *secret = SZFriendsSyncDeviceTagSecret([nearby activeSyncEngine].ownDevicesSecret, laptopID.publicKey);
+    NSData *tag = SZFriendsPresenceTag(secret, SZFriendsPresenceWindowIndex([NSDate date]));
+    SZFriendsSighting *(^seen)(SZFriendsRouteMethod, NSString *) = ^(SZFriendsRouteMethod route, NSString *endpoint) {
+        return [[SZFriendsSighting alloc] initWithMethod:SZFriendsDiscoveryMethodNetwork
+                                                   route:route
+                                              endpointID:endpoint
+                                             presenceTag:SZFNBytes(SZFriendsPresenceTagLength)
+                                            callbackTags:@[ tag ]
+                                                isPublic:NO
+                                                  seenAt:[NSDate date]];
+    };
+    [nearby.coordinator.merger addSighting:seen(SZFriendsRouteMethodRelay, @"laptop-worse")];
+    [nearby reconsider];
+    EXPECT(nearby.dialing.count == 0, "a worse route is not dialed beside Bluetooth: %@", nearby.dialing);
+    [nearby.coordinator.merger addSighting:seen(SZFriendsRouteMethodLAN, @"laptop-lan")];
+    [nearby reconsider];
+    BOOL lanDialed = NO;
+    for (NSString *key in nearby.dialing) lanDialed = lanDialed || [key hasSuffix:@"|laptop-lan"];
+    EXPECT(lanDialed, "the network is dialed while Bluetooth carries the sync: %@", nearby.dialing);
+    [nearby link:bluetooth closedWithError:nil];
     [services close];
 }

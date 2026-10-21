@@ -68,6 +68,12 @@
     };
 }
 
+- (NSDictionary<NSString *, id> *)routeForLiveMethod:(SZFriendsRouteMethod)method {
+    if (method == SZFriendsRouteMethodNone) return nil;
+    BOOL online = method == SZFriendsRouteMethodInternet || method == SZFriendsRouteMethodRelay;
+    return [self routeForKind:online ? SZFriendsRouteKindOnline : SZFriendsRouteKindLocal method:method];
+}
+
 - (NSString *)spokenRouteForPerson:(SZFriendsPersonFacts *)person {
     NSString *label = [self routeLabelForPerson:person];
     if (!label.length) return nil;

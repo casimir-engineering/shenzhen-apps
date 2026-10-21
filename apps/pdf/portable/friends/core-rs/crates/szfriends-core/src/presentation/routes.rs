@@ -49,6 +49,17 @@ impl SnapshotBuilder {
         }
     }
 
+    /// PROTOCOL.md type.route for a live session that is not with a friend (one of the person's own computers, a code
+    /// being checked): nearby or online by its method; None for none.
+    pub(crate) fn route_for_live_method(&self, method: RouteMethod) -> Option<Value> {
+        let kind = match method {
+            RouteMethod::None => return None,
+            RouteMethod::Internet | RouteMethod::Relay => RouteKind::Online,
+            _ => RouteKind::Local,
+        };
+        Some(self.route_for_kind(kind, method))
+    }
+
     pub(crate) fn route_label_for_person(&self, person: &PersonFacts) -> Option<String> {
         let s = &self.strings;
         Some(match self.shown_route(person) {

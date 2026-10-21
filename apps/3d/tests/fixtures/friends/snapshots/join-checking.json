@@ -1,0 +1,32 @@
+{
+  "type": "snapshot",
+  "subscription": "s_9",
+  "view": "join",
+  "rev": 1,
+  "data": {
+    "actions": [
+      {
+        "action": "cancel_join",
+        "label": "Cancel",
+        "style": "secondary"
+      }
+    ],
+    "code_field": {
+      "button": "Join",
+      "enabled": false,
+      "length": 8,
+      "placeholder": "8-digit code"
+    },
+    "error": null,
+    "friends_id": "cottage-violet",
+    "id_field": null,
+    "message": "Checking the code with your other computer or phone…",
+    "route": {
+      "kind": "online",
+      "method": "relay",
+      "label": "Online, through the Friends relay"
+    },
+    "state": "checking",
+    "title": "Approve this computer"
+  }
+}

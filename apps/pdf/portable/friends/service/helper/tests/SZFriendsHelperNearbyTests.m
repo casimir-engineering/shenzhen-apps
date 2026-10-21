@@ -348,6 +348,7 @@ int main(void) {
         SZFNTestFriendsChains(scratch);
         SZFNTestOwnChainToFriends(scratch);
         SZFNTestOwnDeviceSync(scratch);
+        SZFNTestOwnDeviceRouteMigration(scratch);
         SZFNTestFriendDevices(scratch);
         SZFNTestIdleClose(scratch);
         SZFNTestResetOrder(scratch);

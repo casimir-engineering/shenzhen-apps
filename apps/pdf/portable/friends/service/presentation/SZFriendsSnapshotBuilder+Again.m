@@ -35,6 +35,7 @@
     NSString *state = @"fetching", *status, *spokenKey = item.outgoing ? @"devices.spoken.transfer.out"
                                                                       : @"devices.spoken.transfer.in";
     id progress = [NSNull null];
+    NSString *note = nil;
     NSArray *actions = @[ [self action:@"cancel_transfer" label:[s text:@"static.cancel"] style:@"link"] ];
     if (again == SZFriendsAgainGone) {
         state = @"gone";
@@ -45,6 +46,11 @@
         status = [s text:@"transfer.status.fetching" values:values];
         progress = [self progressWithFraction:item.againFraction];
         spokenKey = @"devices.spoken.transfer.fetching";
+        // From the friend, like any file they send: a slow route says so, with the time left once it can tell.
+        double arrived = MIN(MAX(item.againFraction, 0.0), 1.0) * (double)item.fileSize;
+        uint64_t remaining = item.fileSize - MIN(item.fileSize, (uint64_t)arrived);
+        note = [s transferEstimateForRemainingBytes:remaining bytesPerSecond:item.bytesPerSecond
+                                              route:item.transferRoute];
     } else if (again == SZFriendsAgainAsked) {
         status = [s text:s.reachesOnline ? @"transfer.status.fetch_waiting.online" : @"transfer.status.fetch_waiting"
                   values:values];
@@ -63,7 +69,7 @@
     result[@"state"] = state;
     result[@"status_label"] = status;
     result[@"progress"] = progress;
-    result[@"route_note"] = [NSNull null];
+    result[@"route_note"] = note ?: [NSNull null];
     result[@"actions"] = actions;
     result[@"accessibility_label"] = [s text:spokenKey values:values];
     return result;

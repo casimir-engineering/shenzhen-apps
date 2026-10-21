@@ -7,6 +7,7 @@
 #import "SZFriendsPresentationWorld.h"
 
 #import "service/presentation/SZFriendsPresentationJoin.h"
+#import "service/presentation/SZFriendsPresentationPrivate.h"
 
 static id Serialized(id object) {
     NSData *data = [NSJSONSerialization isValidJSONObject:object]
@@ -45,6 +46,12 @@ static SZFriendsJoiningFacts *Joining(SZFriendsJoiningState state, NSString *_Nu
     return facts;
 }
 
+static SZFriendsJoiningFacts *JoiningOver(SZFriendsJoiningState state, SZFriendsRouteMethod route) {
+    SZFriendsJoiningFacts *facts = Joining(state, @"cottage-violet");
+    facts.routeMethod = route;
+    return facts;
+}
+
 static void TestFixtures(void) {
     SZFriendsSnapshotBuilder *builder = SZPBuilder(SZPAudience());
     NSArray<SZFriendsPersonFacts *> *people = SZPPeople().allValues;
@@ -61,15 +68,25 @@ static void TestFixtures(void) {
 
     NSDictionary<NSString *, SZFriendsJoiningFacts *> *views = @{
         @"join-idle.json" : Joining(SZFriendsJoiningIdle, nil),
-        @"join-wrong-code.json" : Joining(SZFriendsJoiningWrongCode, @"cottage-violet"),
+        // No route once the code is no longer being checked, even with a session up.
+        @"join-wrong-code.json" : JoiningOver(SZFriendsJoiningWrongCode, SZFriendsRouteMethodLAN),
+        @"join-checking.json" : JoiningOver(SZFriendsJoiningChecking, SZFriendsRouteMethodRelay),
         @"join-denied.json" : Joining(SZFriendsJoiningDenied, @"cottage-violet"),
-        @"join-joined.json" : Joining(SZFriendsJoiningJoined, @"cottage-violet"),
+        @"join-joined.json" : JoiningOver(SZFriendsJoiningJoined, SZFriendsRouteMethodLAN),
     };
     for (NSString *name in views) {
         NSDictionary *data = [builder joinWithFacts:views[name]];
         ExpectData(data, name);
         SZPValidateSnapshot(data, @"join", name);
     }
+    // Joined with none of the other computers connected: the message alone, no route.
+    NSDictionary *alone = [builder joinWithFacts:Joining(SZFriendsJoiningJoined, @"cottage-violet")];
+    SZPExpect(alone[@"route"] == NSNull.null, @"joined, nothing connected: %@", alone[@"route"]);
+    // The same words and icon as a conversation's header: the shared route builder's.
+    NSDictionary *direct = [builder joinWithFacts:JoiningOver(SZFriendsJoiningChecking, SZFriendsRouteMethodInternet)];
+    SZPExpect([direct[@"route"] isEqual:[builder routeForKind:SZFriendsRouteKindOnline
+                                                       method:SZFriendsRouteMethodInternet]],
+              @"checking online, direct: %@", direct[@"route"]);
 }
 
 // Every state builds a valid view; the code field shows exactly while a code can be typed.

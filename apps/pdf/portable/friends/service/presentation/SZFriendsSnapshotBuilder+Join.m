@@ -130,7 +130,13 @@ static NSString *const SZFriendsJoinStateNames[] = {
         @"code_field" : [NSNull null],
         @"error" : [NSNull null],
         @"actions" : @[],
+        @"route" : [NSNull null],
     } mutableCopy];
+    // How the code is being checked, and how friends and chats come over once joined: the same route words and icon
+    // as a conversation's header.
+    if (state == SZFriendsJoiningChecking || state == SZFriendsJoiningJoined) {
+        data[@"route"] = [self routeForLiveMethod:facts.routeMethod] ?: [NSNull null];
+    }
     NSMutableDictionary *cancel = [self action:@"cancel_join" label:[s text:@"join.cancel"] style:@"secondary"];
     NSMutableDictionary *again = [self action:@"join_profile" label:[s text:@"join.start_again"] style:@"primary"];
     again[@"friends_id"] = facts.friendsID ?: @"";
