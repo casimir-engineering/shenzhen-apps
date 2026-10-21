@@ -5,6 +5,7 @@
 
 use serde_json::{json, Map, Value};
 
+use super::facts::RouteMethod;
 use super::SnapshotBuilder;
 
 /// One request as a computer of the person holds it.
@@ -77,6 +78,9 @@ pub struct JoiningFacts {
     pub state: JoiningState,
     /// The ID typed, from Waiting on.
     pub friends_id: Option<String>,
+    /// Checking: the session carrying the code (the best one when several do); Joined: the best live session with
+    /// another of the person's computers. None when nothing is connected.
+    pub route: RouteMethod,
 }
 
 /// "4831 2207": two groups of four, as people read a code aloud.
@@ -163,6 +167,11 @@ impl SnapshotBuilder {
         data.insert("code_field".into(), Value::Null);
         data.insert("error".into(), Value::Null);
         data.insert("actions".into(), json!([]));
+        // How the code is being checked, and how friends and chats come over once joined: the same route words and
+        // icon as a conversation's header.
+        let routed = matches!(state, JoiningState::Checking | JoiningState::Joined);
+        let route = if routed { self.route_for_live_method(facts.route) } else { None };
+        data.insert("route".into(), route.unwrap_or(Value::Null));
         let cancel = self.action("cancel_join", s.text("join.cancel"), "secondary");
         let mut again = self.action("join_profile", s.text("join.start_again"), "primary");
         again.insert("friends_id".into(), json!(facts.friends_id.as_deref().unwrap_or("")));

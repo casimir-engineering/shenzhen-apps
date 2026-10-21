@@ -182,7 +182,8 @@ fn joining_in_every_state() {
     }
     let builder = builder(audience());
     for state in JoiningState::ALL {
-        let data = builder.join(&JoiningFacts { state, friends_id: Some("cottage-violet".into()) });
+        let data =
+            builder.join(&JoiningFacts { state, friends_id: Some("cottage-violet".into()), ..Default::default() });
         validate_snapshot(&data, "join", &format!("{state:?}"));
         let typing = matches!(
             state,

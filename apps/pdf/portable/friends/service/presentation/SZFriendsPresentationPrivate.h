@@ -143,6 +143,9 @@ typedef NS_ENUM(NSInteger, SZFriendsShownRoute) {
 - (NSDictionary<NSString *, id> *)routeForPerson:(SZFriendsPersonFacts *)person;
 - (nullable NSString *)routeLabelForPerson:(SZFriendsPersonFacts *)person;
 - (nullable NSString *)spokenRouteForPerson:(SZFriendsPersonFacts *)person;
+// PROTOCOL.md type.route for a live session that is not with a friend (one of the person's own computers, a code
+// being checked): nearby or online by its method; nil for None.
+- (nullable NSDictionary<NSString *, id> *)routeForLiveMethod:(SZFriendsRouteMethod)method;
 // The catalog key of something outgoing that is still waiting to go (`family` "message.status", "preview.status" or
 // "transfer.status"): ".connecting" while an online attempt runs, ".queued_online" when friends are reached online
 // too, ".queued" otherwise.

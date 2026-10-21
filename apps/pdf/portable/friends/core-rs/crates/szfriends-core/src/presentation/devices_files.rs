@@ -119,6 +119,8 @@ impl SnapshotBuilder {
         let mut spoken_key = if item.outgoing { "devices.spoken.transfer.out" } else { "devices.spoken.transfer.in" };
         let mut progress = Value::Null;
         let mut actions = json!([self.action("cancel_transfer", s.text("static.cancel"), "link")]);
+        let mut route = None;
+        let mut note = None;
         let state = transfer.get("state").cloned().unwrap_or(Value::Null);
         let (state, status) = match file {
             Some(file) if !file.fetching => {
@@ -128,6 +130,14 @@ impl SnapshotBuilder {
             Some(file) if file.holder_connected => {
                 progress = self.copy_progress(fraction);
                 spoken_key = "devices.spoken.transfer.fetching";
+                // The route it comes by, as a friend's conversation header shows it, and on a slow route the time it
+                // takes when one can be told (as a friend's transfer says it; no rate is measured for these copies).
+                route = self.route_for_live_method(file.route);
+                if s.estimate_bytes_per_second(0.0, file.route) > 0.0 {
+                    let size = info["size_bytes"].as_u64().unwrap_or(0);
+                    let remaining = size - size.min((fraction.clamp(0.0, 1.0) * size as f64) as u64);
+                    note = s.transfer_estimate(remaining, 0.0, file.route);
+                }
                 ("fetching", s.text_with("transfer.status.fetching", &values))
             }
             Some(_) => {
@@ -164,7 +174,10 @@ impl SnapshotBuilder {
         transfer.insert("state".into(), json!(state));
         transfer.insert("status_label".into(), json!(status));
         transfer.insert("progress".into(), progress);
-        transfer.insert("route_note".into(), Value::Null);
+        transfer.insert("route_note".into(), json!(note));
+        if let Some(route) = route {
+            transfer.insert("route".into(), route);
+        }
         transfer.insert("actions".into(), actions);
         transfer.insert("accessibility_label".into(), json!(s.text_with(spoken_key, &spoken_values)));
         transfer
