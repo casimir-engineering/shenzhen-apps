@@ -67,6 +67,24 @@ static inline BOOL SZFriendsRouteIsBetter(SZFriendsRouteMethod route, SZFriendsR
     return SZFriendsRouteRank(route) < SZFriendsRouteRank(other);
 }
 
+// What this device's peer-to-peer Wi-Fi does to its normal Wi-Fi connection (the Rust core's P2pWifi). A transfer
+// never costs the device its Internet connection: peer-to-peer Wi-Fi is dialed only where the Wi-Fi connection stays
+// up beside it (ADR 0011 § Route rank). Unsure is Unknown, which is not used.
+typedef NS_ENUM(NSInteger, SZFriendsPeerToPeerWiFi) {
+    SZFriendsPeerToPeerWiFiUnsupported = 0,
+    SZFriendsPeerToPeerWiFiConcurrentWithStation = 1, // AWDL: runs beside the Wi-Fi connection
+    SZFriendsPeerToPeerWiFiDropsStation = 2,          // making the link takes the device off its network
+    SZFriendsPeerToPeerWiFiUnknown = 3,
+};
+
+// This helper's platform: macOS, where AWDL keeps the Wi-Fi connection.
+static const SZFriendsPeerToPeerWiFi SZFriendsPlatformPeerToPeerWiFi = SZFriendsPeerToPeerWiFiConcurrentWithStation;
+
+// YES only when peer-to-peer Wi-Fi keeps the Wi-Fi connection up.
+static inline BOOL SZFriendsPeerToPeerWiFiUsable(SZFriendsPeerToPeerWiFi capability) {
+    return capability == SZFriendsPeerToPeerWiFiConcurrentWithStation;
+}
+
 #pragma mark - Adapters
 
 extern NSString *const SZFriendsBonjourServiceType; // "_szfriends._tcp"
@@ -395,11 +413,16 @@ extern const NSTimeInterval SZFriendsEndpointBackoffMax;   // 900 s: one window,
 // against the tag that matched rather than one a relayer could vary. The coordinator passes its merger's matcher;
 // without one the presence tag counts.
 @property(nonatomic, copy, nullable) SZFriendsTagMatcher tagMatcher;
+// What peer-to-peer Wi-Fi does to this device's Wi-Fi connection; SZFriendsPlatformPeerToPeerWiFi unless a test sets
+// another. Unless it is ConcurrentWithStation, peer-to-peer Wi-Fi sightings are not dialed and the next route in the
+// owner's order carries the session.
+@property(nonatomic) SZFriendsPeerToPeerWiFi peerToPeerWiFi;
 // Dial every sighted endpoint at once with IK, staggered in rank order (LAN, peer-to-peer Wi-Fi, Internet, Bluetooth,
 // relay), shortest delay first. Every endpoint of the candidate is dialed, lingering ones included, so a Bluetooth
 // sighting never holds back Wi-Fi attempts to endpoints known for that friend (the coordinator also asks for a fresh
 // browse). A friend's public entries are skipped while a hidden one is known: IK belongs on the hidden listener.
-// Endpoints in their backoff for the candidate's conversation are left out.
+// Endpoints in their backoff for the candidate's conversation are left out, and so are peer-to-peer Wi-Fi ones when
+// peerToPeerWiFi is not usable.
 - (NSArray<SZFriendsDialAttempt *> *)attemptsForCandidate:(SZFriendsCandidate *)candidate;
 // The helper reports how each dial for a person ended before the session went live: a failure starts or doubles
 // the backoff of the tag that endpoint showed when the racer last handed it out (of the endpoint itself when it
