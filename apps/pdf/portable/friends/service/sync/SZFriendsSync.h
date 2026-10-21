@@ -209,6 +209,11 @@ BOOL SZFriendsSyncVectorCovers(SZFriendsSyncVector *vector, NSData *author, uint
 // and `create` (a device approving a join hands it to the new computer); and the one a joined device receives.
 + (nullable NSData *)ownDevicesSecretInStore:(SZFriendsStore *)store creating:(BOOL)create;
 + (BOOL)adoptOwnDevicesSecret:(NSData *)secret inStore:(SZFriendsStore *)store;
+// What a device that just joined took from the welcome, made its starting point rather than an edit of its own: the
+// profile it received is held at clock 0, so anything the profile's devices record wins over it and it is never
+// recorded again here; and this device's clock starts from `clock`, the approving device's once it had recorded what
+// the profile held before the join, so a change made here right away wins over all of that.
++ (BOOL)adoptJoinCopyWithClock:(uint64_t)clock inStore:(SZFriendsStore *)store;
 // The own-devices secrets this device held before the current one, newest first (at most 4): a computer removed while
 // away still advertises under one of them, which is how our devices find it to tell it so.
 - (NSArray<NSData *> *)previousOwnDevicesSecrets;

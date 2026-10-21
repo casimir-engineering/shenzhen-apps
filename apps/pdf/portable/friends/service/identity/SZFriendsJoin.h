@@ -193,6 +193,14 @@ typedef NS_ENUM(NSInteger, SZFriendsJoinReceipt) {
                                                     profile:(NSData *)profile
                                              friendsIDState:(NSInteger)friendsIDState
                                                         now:(NSDate *)now;
+// As above, with the profile part made once the Confirm checked out, from the chain that holds the new device (the
+// caller stores it first, then says what the profile held up to then); nil from `profile` sends nothing.
+- (nullable SZFriendsJoinWelcome *)welcomeForConfirmMessage:(NSData *)message
+                                                   approval:(SZFriendsJoinApproval *)approval
+                                                      chain:(SZFriendsDeviceChain *)chain
+                                             friendsIDState:(NSInteger)friendsIDState
+                                                        now:(NSDate *)now
+                                            profileForChain:(NSData *_Nullable (^)(SZFriendsDeviceChain *added))profile;
 // The session carrying `approval` ended before a Confirm (the new computer found the code wrong, or went away): that
 // attempt failed, and the third failure ends the approval at once.
 - (void)abandonApproval:(SZFriendsJoinApproval *)approval now:(NSDate *)now;

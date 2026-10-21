@@ -47,6 +47,12 @@ fn a_new_computer_joins_and_syncs() {
     nearby_devices::join_and_sync(&mut gil, "Gil", &mut hal);
 }
 
+#[test]
+fn a_name_given_right_after_a_join_stays() {
+    let (_homes, mut ivy, mut jay) = pair(("Ivy", "Jay"));
+    nearby_devices::rename_right_after_join(&mut ivy, "Ivy", &mut jay);
+}
+
 /// Two Rust helpers in one room (the test air, and a loopback network that starts held), started and named.
 fn room(names: (&str, &str)) -> ([TempHome; 3], Client, Client, Room) {
     let homes = [TempHome::new(names.0), TempHome::new(names.1), TempHome::new("room")];

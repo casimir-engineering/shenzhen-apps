@@ -16,6 +16,7 @@ NS_ASSUME_NONNULL_BEGIN
 @end
 
 NSString *const SZFriendsSyncCaptureRowKey = @"capture_row";
+NSString *const SZFriendsSyncStateJoinClock = @"join_clock";
 
 static SZFriendsItemRecord *SZFriendsSyncItemFromRow(sqlite3_stmt *s) {
     SZFriendsItemRecord *item = [[SZFriendsItemRecord alloc] init];

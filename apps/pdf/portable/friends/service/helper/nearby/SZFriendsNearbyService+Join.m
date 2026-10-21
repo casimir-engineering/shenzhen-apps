@@ -28,6 +28,8 @@ enum {
     SZFriendsJoinWelcomeProfileFrame = 1,
     SZFriendsJoinWelcomePresenceSecret = 2,
     SZFriendsJoinWelcomeDevicesSecret = 3,
+    // The approving device's Lamport clock (8 bytes, big-endian) once it recorded what the profile held before.
+    SZFriendsJoinWelcomeClock = 4,
 };
 
 @implementation SZFriendsJoinState
@@ -294,23 +296,36 @@ enum {
     SZFriendsJoinState *state = self.joinState;
     SZFriendsJoinApproval *approval = [state.approvals objectForKey:pipe];
     [state.approvals removeObjectForKey:pipe];
-    NSData *profile = [self welcomeProfile];
+    SZFriendsSyncFields *profile = [self welcomeProfile];
+    SZFriendsStore *store = self.services.store;
+    __block NSError *error = nil;
+    __block BOOL refused = NO;
+    __weak typeof(self) weakSelf = self;
+    // Stored first: a welcome never goes out for a device this profile does not hold. Then what the profile held
+    // before the join is recorded, and the new computer starts its clock past it.
+    NSData * (^complete)(SZFriendsDeviceChain *) = ^NSData *(SZFriendsDeviceChain *added) {
+        refused = [store mergeOwnDeviceChain:added error:&error] == SZFriendsChainMergeRefused;
+        if (refused) return nil;
+        [[weakSelf activeSyncEngine] captureLocalChanges];
+        uint64_t clock = CFSwapInt64HostToBig(store.syncLamport);
+        [profile setData:[NSData dataWithBytes:&clock length:sizeof clock] forTag:SZFriendsJoinWelcomeClock];
+        return profile.encodedData;
+    };
     SZFriendsJoinWelcome *welcome =
         approval && chain && profile ? [self.joinApprover welcomeForConfirmMessage:message approval:approval
-                                                                             chain:chain profile:profile
-                                                                    friendsIDState:self.services.store.friendsIDState
-                                                                               now:now]
+                                                                             chain:chain
+                                                                    friendsIDState:store.friendsIDState
+                                                                               now:now
+                                                                   profileForChain:complete]
                                      : nil;
-    NSError *error = nil;
-    if (welcome != nil &&
-        [self.services.store mergeOwnDeviceChain:welcome.chain error:&error] != SZFriendsChainMergeRefused) {
-        // Stored first: a welcome never goes out for a device this profile does not hold. Advertised for it first
-        // too, so its first read of us nearby finds the tag our devices know each other by.
+    if (welcome != nil) {
+        // Advertised for the new computer first too, so its first read of us nearby finds the tag our devices know
+        // each other by.
         [self noticeOwnDevicesChange];
         [pipe sendJoinMessages:welcome.parts];
         [self.joinApprover finishRequestID:approval.requestID];
         SZFriendsHelperLog(@"a new computer joined this profile");
-    } else if (welcome != nil) {
+    } else if (refused) {
         SZFriendsHelperLog(@"could not store the chain for a joining computer: %ld", (long)error.code);
     }
     [pipe finish];
@@ -320,7 +335,7 @@ enum {
 // What the new computer receives besides the chain (opaque to SZFriendsJoin.h): the PROFILE our friends receive, the
 // presence secret friends find us by and the secret our own devices find each other by, so it reaches friends and
 // syncs with us at once, nearby or online, without waiting to meet one of us nearby first.
-- (nullable NSData *)welcomeProfile {
+- (nullable SZFriendsSyncFields *)welcomeProfile {
     SZFriendsStore *store = self.services.store;
     NSData *frame = SZFriendsEncodeFrame([SZFriendsFrame frameWithType:SZFriendsFrameTypeProfile
                                                                 fields:[self profileFields]], NULL);
@@ -331,7 +346,7 @@ enum {
     [fields setData:frame forTag:SZFriendsJoinWelcomeProfileFrame];
     [fields setData:store.ownPresenceSecret forTag:SZFriendsJoinWelcomePresenceSecret];
     [fields setData:devicesSecret forTag:SZFriendsJoinWelcomeDevicesSecret];
-    return fields.encodedData;
+    return fields;
 }
 
 - (void)joiningPipe:(id<SZFriendsJoinPipe>)pipe receivedMessage:(NSData *)message {
@@ -415,6 +430,15 @@ enum {
     store.friendsIDState = step.friendsIDState;
     store.ownPresenceSecret = presence;
     [SZFriendsSyncEngine adoptOwnDevicesSecret:devicesSecret inStore:store];
+    // The name taken here is the profile's as it was, not a change of ours: a change made on any of the profile's
+    // computers from now on wins over it, and one made here wins over everything recorded before the join.
+    NSData *clockData = [welcome dataForTag:SZFriendsJoinWelcomeClock];
+    uint64_t clock = 0;
+    if (clockData.length == sizeof clock) {
+        memcpy(&clock, clockData.bytes, sizeof clock);
+        clock = CFSwapInt64BigToHost(clock);
+    }
+    [SZFriendsSyncEngine adoptJoinCopyWithClock:clock inStore:store];
     // Checked in from now on for the person, after this computer's own ID from before is released (owed until a
     // host confirms it, across launches).
     [store setSyncState:@YES forKey:SZFriendsCheckInPreJoinReleaseKey error:NULL];

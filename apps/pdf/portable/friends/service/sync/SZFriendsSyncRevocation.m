@@ -305,6 +305,15 @@ static NSData *SZFriendsSyncSeqValue(uint64_t seq) {
     return secret.length == 32 && [store setSyncState:secret forKey:SZFriendsSyncStateDevicesSecret error:NULL];
 }
 
++ (BOOL)adoptJoinCopyWithClock:(uint64_t)clock inStore:(SZFriendsStore *)store {
+    SZFriendsSyncRegister *copy = [[SZFriendsSyncRegister alloc] init];
+    copy.lamport = 0;
+    copy.author = [NSData data];
+    copy.value = SZFriendsSyncProfileBody(store, NO);
+    return [store setSyncRegister:copy forKey:@"profile" error:NULL] &&
+           [store setSyncState:@(MIN(clock, (uint64_t)INT64_MAX)) forKey:SZFriendsSyncStateJoinClock error:NULL];
+}
+
 @end
 
 NS_ASSUME_NONNULL_END

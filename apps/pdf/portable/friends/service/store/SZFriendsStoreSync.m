@@ -123,7 +123,11 @@ static SZFriendsSyncLogEvent *SZFriendsSyncEventFromRow(sqlite3_stmt *s) {
 }
 
 - (uint64_t)syncLamport {
-    return [[self syncScalar:@"SELECT coalesce(max(lamport), 0) FROM sync_events" binds:@[]] unsignedLongLongValue];
+    uint64_t logged =
+        [[self syncScalar:@"SELECT coalesce(max(lamport), 0) FROM sync_events" binds:@[]] unsignedLongLongValue];
+    id joined = [self syncStateForKey:SZFriendsSyncStateJoinClock];
+    uint64_t start = [joined isKindOfClass:[NSNumber class]] ? [(NSNumber *)joined unsignedLongLongValue] : 0;
+    return MAX(logged, start);
 }
 
 - (NSUInteger)syncEventCount {

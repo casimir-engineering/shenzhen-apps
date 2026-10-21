@@ -59,3 +59,25 @@ pub fn join_and_sync(holder: &mut Client, holder_name: &str, joiner: &mut Client
     holder.send("set_name", json!({"name": renamed}));
     joiner.snapshot(&profile_j, "the new name on the new computer", |d| d.to_string().contains(&renamed));
 }
+
+/// A name given on `holder` the moment `joiner` joined is the one both keep: the copy `joiner` took when it joined
+/// never takes it back, once each computer's next change went round to the other. Then a name given on `joiner`
+/// reaches `holder`.
+pub fn rename_right_after_join(holder: &mut Client, holder_name: &str, joiner: &mut Client) {
+    join(holder, joiner);
+    let renamed = format!("{holder_name} Byron");
+    holder.send("set_name", json!({"name": renamed}));
+    let (profile_h, profile_j) = (holder.subscribe("profile", json!({})), joiner.subscribe("profile", json!({})));
+    let named = |d: &Value, name: &str| d.to_string().contains(&format!("\"{name}\""));
+    joiner.snapshot(&profile_j, "the new name on the new computer", |d| named(d, &renamed));
+    holder.send("rename_device", json!({"name": "Studio desk"}));
+    joiner.send("rename_device", json!({"name": "Workshop PC"}));
+    let both = |d: &Value| d.to_string().contains("Studio desk") && d.to_string().contains("Workshop PC");
+    for (client, view) in [(&mut *holder, &profile_h), (&mut *joiner, &profile_j)] {
+        let shown = client.snapshot(view, "both computers' new names", both);
+        assert!(named(&shown["data"], &renamed), "went back from {renamed}: {}", shown["data"]);
+    }
+    let given = format!("{holder_name} Somerville");
+    joiner.send("set_name", json!({"name": given}));
+    holder.snapshot(&profile_h, "the name given on the new computer", |d| named(d, &given));
+}

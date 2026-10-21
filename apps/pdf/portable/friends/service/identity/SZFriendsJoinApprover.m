@@ -300,6 +300,18 @@ static NSString *Hex(NSData *data) {
                                            profile:(NSData *)profile
                                     friendsIDState:(NSInteger)friendsIDState
                                                now:(NSDate *)now {
+    return [self welcomeForConfirmMessage:message approval:approval chain:chain friendsIDState:friendsIDState now:now
+                          profileForChain:^NSData *(__unused SZFriendsDeviceChain *added) {
+                              return profile;
+                          }];
+}
+
+- (SZFriendsJoinWelcome *)welcomeForConfirmMessage:(NSData *)message
+                                          approval:(SZFriendsJoinApproval *)approval
+                                             chain:(SZFriendsDeviceChain *)chain
+                                    friendsIDState:(NSInteger)friendsIDState
+                                               now:(NSDate *)now
+                                   profileForChain:(NSData *_Nullable (^)(SZFriendsDeviceChain *added))profileForChain {
     NSData *isk = approval.isk;
     approval.isk = nil; // one Confirm per run
     [self pruneAtDate:now];
@@ -322,8 +334,10 @@ static NSString *Hex(NSData *data) {
                                                        signedBy:_device
                                                            date:now
                                                           error:NULL];
-    NSArray<NSData *> *parts = added ? [self partsOfWelcomeWithChain:added profile:profile state:friendsIDState isk:isk]
-                                     : nil;
+    NSData *profile = added ? profileForChain(added) : nil;
+    NSArray<NSData *> *parts = profile ? [self partsOfWelcomeWithChain:added profile:profile state:friendsIDState
+                                                                   isk:isk]
+                                       : nil;
     return parts ? [[SZFriendsJoinWelcome alloc] initWithChain:added parts:parts] : nil;
 }
 

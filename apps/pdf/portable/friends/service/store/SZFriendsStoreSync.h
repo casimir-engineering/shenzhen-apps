@@ -29,6 +29,8 @@ NS_ASSUME_NONNULL_BEGIN
 extern NSString *const SZFriendsYouConversationID; // "you"
 // The sync state key (-syncStateForKey:) holding the last history row a scan for new items read; a deletion clears it.
 extern NSString *const SZFriendsSyncCaptureRowKey;
+// The sync state key holding the clock a device that joined starts from: the approving device's when it welcomed it.
+extern NSString *const SZFriendsSyncStateJoinClock; // "join_clock"
 
 // author -> highest sequence number held, as NSData (32 bytes) -> NSNumber (uint64).
 typedef NSDictionary<NSData *, NSNumber *> SZFriendsSyncVector;
@@ -83,7 +85,8 @@ typedef NSDictionary<NSData *, NSNumber *> SZFriendsSyncVector;
 #pragma mark Event log
 
 - (SZFriendsSyncVector *)syncVector;
-// The highest Lamport clock in the log; 0 when it is empty.
+// The highest Lamport clock in the log, or the one this device started from when it joined when that is higher; 0
+// when both are absent.
 - (uint64_t)syncLamport;
 // Appends an event that follows its author's last one. A copy already held is YES with `appended` NO; a gap (a
 // sequence number past the next one) is Invalid and stores nothing, so the log stays contiguous per author.

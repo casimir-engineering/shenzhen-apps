@@ -67,6 +67,15 @@ mod mac {
         }
     }
 
+    pub fn renamed_after_joining(rust_joins: bool) {
+        let Some(mut p) = pair("Rena", "Omar") else { return };
+        if rust_joins {
+            nearby_devices::rename_right_after_join(&mut p.objc, "Omar", &mut p.rust);
+        } else {
+            nearby_devices::rename_right_after_join(&mut p.rust, "Rena", &mut p.objc);
+        }
+    }
+
     pub fn declined(rust_asks: bool) {
         let Some(mut p) = pair("Remy", "Olga") else { return };
         if rust_asks {
@@ -123,4 +132,16 @@ fn rust_joins_an_objc_profile_and_syncs() {
 fn objc_helper_joins_a_rust_profile_and_syncs() {
     #[cfg(target_os = "macos")]
     mac::joined(false);
+}
+
+#[test]
+fn a_name_given_on_the_objc_helper_right_after_a_rust_helper_joins_stays() {
+    #[cfg(target_os = "macos")]
+    mac::renamed_after_joining(true);
+}
+
+#[test]
+fn a_name_given_on_the_rust_helper_right_after_the_objc_helper_joins_stays() {
+    #[cfg(target_os = "macos")]
+    mac::renamed_after_joining(false);
 }
