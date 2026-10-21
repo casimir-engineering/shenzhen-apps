@@ -6,6 +6,7 @@
 
 #import <sodium.h>
 
+#import "service/discovery/SZFriendsBluetoothRadio.h"
 #import "service/helper/SZFriendsHelperFacts.h"
 #import "service/helper/SZFriendsHelperTesting.h"
 #import "service/helper/SZFriendsHostCheckIn.h"
@@ -82,6 +83,98 @@ static void SZFNTestAdapterSelection(void) {
     };
     EXPECT(SZFriendsHelperMakeAdapters(queue, @{@"SZFRIENDS_STATE_DIR" : @"/x"}).count == 0);
     SZFriendsHelperTestHooks.extraAdapters = nil;
+}
+
+@interface SZFNStateRecorder : NSObject <SZFriendsDiscoveryAdapterDelegate>
+@property(atomic) NSMutableArray<NSNumber *> *states;
+@end
+
+@implementation SZFNStateRecorder
+- (instancetype)init {
+    if ((self = [super init])) _states = [NSMutableArray array];
+    return self;
+}
+- (void)adapter:(id<SZFriendsDiscoveryAdapter>)adapter didChangeState:(SZFriendsAdapterState)state {
+    (void)adapter;
+    [self.states addObject:@(state)];
+}
+- (void)adapter:(id<SZFriendsDiscoveryAdapter>)adapter didSight:(SZFriendsSighting *)sighting {
+    (void)adapter;
+    (void)sighting;
+}
+- (void)adapter:(id<SZFriendsDiscoveryAdapter>)adapter didLoseEndpoint:(NSString *)endpointID {
+    (void)adapter;
+    (void)endpointID;
+}
+- (void)adapter:(id<SZFriendsDiscoveryAdapter>)adapter
+    didAcceptStream:(id<SZFriendsByteStream>)stream
+              route:(SZFriendsRouteMethod)route {
+    (void)adapter;
+    (void)route;
+    [stream close];
+}
+@end
+
+static BOOL SZFNWaitFor(NSTimeInterval timeout, BOOL (^condition)(void)) {
+    NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:timeout];
+    while (!condition()) {
+        if ([deadline timeIntervalSinceNow] < 0) return NO;
+        [NSThread sleepForTimeInterval:0.02];
+    }
+    return YES;
+}
+
+// A test home's test air and network hold: Bluetooth over the test air (never a manager), and the loopback network
+// held back while the hold file exists, started once it goes.
+static void SZFNTestAirAndHold(NSString *scratch) {
+    dispatch_queue_t queue = dispatch_queue_create("szfn.air", DISPATCH_QUEUE_SERIAL);
+    NSString *air = [scratch stringByAppendingPathComponent:@"air"];
+    NSString *hold = [scratch stringByAppendingPathComponent:@"hold"];
+    [[NSFileManager defaultManager] createDirectoryAtPath:air withIntermediateDirectories:YES attributes:nil error:NULL];
+    [NSData.data writeToFile:hold atomically:YES];
+    NSArray<id<SZFriendsDiscoveryAdapter>> *adapters = SZFriendsHelperMakeAdapters(queue, @{
+        @"SZFRIENDS_STATE_DIR" : scratch,
+        @"SZFRIENDS_TEST_SERVICE_TYPE" : @"_szfnhold._tcp",
+        @"SZFRIENDS_TEST_NETWORK_HOLD" : hold,
+        @"SZFRIENDS_TEST_BLUETOOTH" : air,
+    });
+    EXPECT(adapters.count == 2, "%@", adapters);
+    if (adapters.count != 2) return;
+    id<SZFriendsDiscoveryAdapter> network = adapters[0], bluetooth = adapters[1];
+    EXPECT(network.method == SZFriendsDiscoveryMethodNetwork && bluetooth.method == SZFriendsDiscoveryMethodBluetooth);
+    EXPECT(bluetooth.permissionWithoutPrompting == SZFriendsPermissionAllowed);
+    SZFNStateRecorder *networkStates = [SZFNStateRecorder new], *bluetoothStates = [SZFNStateRecorder new];
+    dispatch_sync(queue, ^{
+        network.delegate = networkStates;
+        bluetooth.delegate = bluetoothStates;
+        [network start];
+        [bluetooth start];
+        [bluetooth advertisePresenceTag:[NSMutableData dataWithLength:8] callbackTags:@[] publicEntry:NO];
+    });
+    __block SZFriendsAdapterState state = 0;
+    EXPECT(SZFNWaitFor(3, ^BOOL {
+        dispatch_sync(queue, ^{ state = bluetooth.state; });
+        return state == SZFriendsAdapterStateWorking;
+    }), "Bluetooth working over the test air (%ld)", (long)state);
+    EXPECT(SZFNWaitFor(3, ^BOOL {
+        NSArray *names = [[NSFileManager defaultManager] contentsOfDirectoryAtPath:air error:NULL];
+        return [names filteredArrayUsingPredicate:[NSPredicate predicateWithFormat:@"SELF ENDSWITH '.air'"]].count == 1;
+    }), "on the test air");
+    dispatch_sync(queue, ^{ state = network.state; });
+    EXPECT(state == SZFriendsAdapterStateRadioOff, "held: %ld", (long)state);
+    [NSThread sleepForTimeInterval:0.3];
+    dispatch_sync(queue, ^{ state = network.state; });
+    EXPECT(state == SZFriendsAdapterStateRadioOff, "still held: %ld", (long)state);
+    [[NSFileManager defaultManager] removeItemAtPath:hold error:NULL];
+    EXPECT(SZFNWaitFor(1, ^BOOL {
+        dispatch_sync(queue, ^{ state = network.state; });
+        return state == SZFriendsAdapterStateStarting || state == SZFriendsAdapterStateWorking;
+    }), "released within a second: %ld", (long)state);
+    dispatch_sync(queue, ^{
+        [network stop];
+        [bluetooth stop];
+    });
+    EXPECT(SZFriendsCoreBluetoothManagersCreated() == 0, "no Bluetooth manager in a test home");
 }
 
 // Tests and probes never check in, whatever the bundle holds, unless both test variables name a loopback list.
@@ -220,6 +313,7 @@ int main(void) {
         if (scratch == nil) return 1;
         SZFNTestServiceTypes();
         SZFNTestAdapterSelection();
+        SZFNTestAirAndHold(scratch);
         SZFNTestCheckInGate(scratch);
         SZFNTestLinkBookkeeping();
         SZFNTestCheckInGlue(scratch);
