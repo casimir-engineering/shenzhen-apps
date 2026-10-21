@@ -460,9 +460,10 @@ NSString* SPDFChatRunningToolText(NSString* tool) {
     static NSDictionary* words;
     static dispatch_once_t once;
     dispatch_once(&once, ^{
-        // In progress, so each ends in an ellipsis; "helpers" is what the person calls subagents.
+        // In progress, so each ends in an ellipsis; "parts" is what the person calls subagents' tasks (a run says how
+        // many through runningToolProgress, "Working on 3 parts…").
         words = @{@"web_search" : @"Searching the web…", @"open_page" : @"Reading a page…",
-                  @"run_python" : @"Running Python…", @"run_subagents" : @"Running helpers…",
+                  @"run_python" : @"Running Python…", @"run_subagents" : @"Working on parts…",
                   @"friends_send_message" : @"Preparing a message…",
                   @"friends_read_messages" : @"Reading your Friends chat…",
                   @"friends_search_chats" : @"Reading your Friends chat…",

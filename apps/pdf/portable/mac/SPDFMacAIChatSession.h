@@ -40,6 +40,11 @@ typedef NS_ENUM(NSInteger, SPDFMacAIChatActivityState) {
 // The tool the request is running now ("web_search"), nil otherwise. An identifier, never shown: each view words it
 // for the person who reads it ("Searching the web…", SPDFChatRunningToolText). Meanwhile `status` says "Working…".
 @property(nonatomic, readonly, copy) NSString* runningTool;
+// What that tool says about its progress, for the person ("Working on 3 parts, 1 finished…"), shown in place of its
+// usual words; nil when it says nothing. Its provider sets it with -setProgress:forTool: while the tool runs, and it
+// ends with the tool.
+@property(nonatomic, readonly, copy) NSString* runningToolProgress;
+- (void)setProgress:(NSString*)progress forTool:(NSString*)name;
 // One tools object and fixed definitions, as before tool providers (SPDFMacAIToolRegistry -initWithLegacyTools:).
 - (instancetype)initWithTransport:(SPDFMacAITransport*)transport tools:(id<SPDFMacAIChatTools>)tools
     definitions:(NSArray*)definitions store:(SPDFMacAIChatStore*)store;

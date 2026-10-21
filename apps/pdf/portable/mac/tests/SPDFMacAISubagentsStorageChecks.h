@@ -87,8 +87,8 @@ static void CheckFriendsRequestKeepsNothing(void) {
                          @"FINDING-SECRET", @"SEARCHWORDS-SECRET", @"Clause check"];
     NSMutableArray* found = [NSMutableArray array];
     for (NSString* secret in secrets) if ([file containsString:secret]) [found addObject:secret];
-    CHECK(file.length && !found.count && [file containsString:@"They agree"] && [file containsString:@"Helper"],
-          "the saved chat holds none of the query, the page, the code, its output, the helper's task, its findings "
+    CHECK(file.length && !found.count && [file containsString:@"They agree"] && [file containsString:@"\"Part\""],
+          "the saved chat holds none of the query, the page, the code, its output, the part's task, its findings "
           "or the title the model gave it");
     if (found.count) fprintf(stderr, "  still in the file: %s\n", [found componentsJoinedByString:@", "].UTF8String);
     NSDictionary* reopened = [chat.store chatWithID:chat.session.chat[@"id"]];

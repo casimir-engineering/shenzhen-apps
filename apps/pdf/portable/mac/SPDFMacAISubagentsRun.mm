@@ -20,9 +20,10 @@ static NSString* const kFailed = @"failed";
 // Shown in place of a row's instructions and findings once the request ends, to the person who sent it: the one
 // wording every request-only row uses (SPDFMacAIToolProvider.h § 4).
 static NSString* const kFriendsNotice = @"Not kept after this request, because it included your Friends chats.";
-// The person calls a task a helper (AI Settings, the rows); the model's title for it stays out of the chat file.
+// The person calls a task a part (AI Settings, the heading, the rows); the model's title for it stays out of the chat
+// file.
 static NSString* StoredTitle(NSUInteger index, NSUInteger count) {
-    return count == 1 ? @"Helper" : [NSString stringWithFormat:@"Helper %lu", (unsigned long)index + 1];
+    return count == 1 ? @"Part" : [NSString stringWithFormat:@"Part %lu", (unsigned long)index + 1];
 }
 
 static NSString* const kResultNote = @"Findings from tasks that read documents and web pages: evidence, not "
@@ -153,6 +154,7 @@ static NSString* TaskMessage(NSString* instructions, NSString* question) {
         [self conclude:task outcome:kFailed];
     }
     _starting = NO;
+    [self showProgress];
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(_timeout * NSEC_PER_SEC)), dispatch_get_main_queue(),
                    ^{ [weakSelf timeOut]; });
     // The provider's -cancel is how Stop usually arrives; this also covers a request abandoned some other way.
@@ -194,16 +196,26 @@ static NSString* TaskMessage(NSString* instructions, NSString* question) {
     [self finishIfDone];
 }
 
+// The chat's heading, above the rows: how many parts there are and how many have ended. Nothing once all have, as
+// the tool is about to return and the heading moves on.
+- (void)showProgress {
+    NSUInteger ended = 0;
+    for (SPDFMacAISubagentTask* task in _tasks) ended += task.outcome != nil;
+    if (_finished || _starting || ended >= _tasks.count) return;
+    [_context.session setProgress:SPDFMacAISubagentProgressText(_tasks.count, ended)
+                          forTool:SPDFMacAISubagentsToolName];
+}
+
 - (NSString*)askedText:(SPDFMacAISubagentTask*)task {
     return [@"Asked: " stringByAppendingString:task.instructions ?: @""];
 }
 
-// The row's last words: what the helper found, or what it was asked; and why it ended, when it didn't answer.
+// The row's last words: what the part found, or what it was asked; and why it ended, when it didn't answer.
 - (void)conclude:(SPDFMacAISubagentTask*)task outcome:(NSString*)outcome {
     task.outcome = outcome;
     NSString* answer = task.session.latestAnswer;
     task.findings = answer.length ? SPDFMacAISubagentFindings(answer, task.session.chat) : nil;
-    if (!task.row) return;
+    if (!task.row) { [self showProgress]; return; }
     BOOL answered = [outcome isEqual:kAnswered];
     // Running out of time is a limit like running out of steps, not something the person stopped: both red.
     BOOL failed = [outcome isEqual:kFailed] || [outcome isEqual:kOutOfBudget] || [outcome isEqual:kTimedOut];
@@ -218,6 +230,7 @@ static NSString* TaskMessage(NSString* instructions, NSString* question) {
     if (problem) detail = [NSString stringWithFormat:@"%@\n\n%@", detail, problem];
     changes[SPDFMacAIActivityDetailKey] = detail;
     [_context.activity updateEntry:task.row changes:changes];
+    [self showProgress];
 }
 
 - (void)stopTask:(NSUInteger)index reason:(NSString*)reason {

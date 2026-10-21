@@ -149,7 +149,7 @@ static void CheckRowsAfterFriends(void) {
     Reply(MainTurn(chat.model, person), SeamAnswer(@"They agree."));
     NSArray* stored = [chat.store chatWithID:chat.session.chat[@"id"]][@"activity"];
     NSString* notice = @"Not kept after this request, because it included your Friends chats.";
-    CHECK(stored.count == 1 && [stored[0][SPDFMacAIActivityTitleKey] isEqual:@"Helper"] &&
+    CHECK(stored.count == 1 && [stored[0][SPDFMacAIActivityTitleKey] isEqual:@"Part"] &&
           [stored[0][SPDFMacAIActivityDetailKey] isEqual:notice] && ![JSONText(stored) containsString:@"4471"] &&
           ![JSONText(stored) containsString:@"Delivery date"],
           "the chat file keeps a plain title and the request-only notice, never the model's title, the task or its "

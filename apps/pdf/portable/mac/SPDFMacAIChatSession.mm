@@ -82,6 +82,12 @@ static NSUInteger EstimatedTokens(id value) {
 - (NSString*)status { return _status ?: @""; }
 // Only while a tool runs: Thinking, Undo and an ended request all leave Working or clear the status.
 - (NSString*)runningTool { return _activityState==SPDFMacAIChatActivityWorking ? _runningTool : nil; }
+- (NSString*)runningToolProgress { return self.runningTool ? _runningToolProgress : nil; }
+// Only the tool running now may say how it is getting on: a late word from one that ended must not label the next.
+- (void)setProgress:(NSString*)progress forTool:(NSString*)name {
+    if (!_running || !self.runningTool || ![name isEqual:_runningTool] || [progress isEqual:_runningToolProgress]) return;
+    _runningToolProgress=[progress copy]; [self notify];
+}
 - (void)notify { if (self.changed) self.changed(); }
 // Providers are shared: a child shares its parent's, and an idle session (a chat just made, opened or started anew)
 // has no work of its own with them. Only this session's running request, Undo or Redo is its to stop; cancelling them
@@ -371,6 +377,7 @@ static NSUInteger EstimatedTokens(id value) {
     }
     // Each view words the tool for its reader from runningTool; the status never shows an identifier.
     _activityState=SPDFMacAIChatActivityWorking; _runningTool=[name copy]; _status=@"Working…";
+    _runningToolProgress=nil;
     [self notify];
     __weak __typeof__(self) weakSelf=self;
     [_registry performTool:name arguments:args context:_context completion:^(NSDictionary* result) {
@@ -452,13 +459,13 @@ static SPDFMacAIChatSession* Refuse(NSError** error, NSString* message) {
 }
 - (BOOL)sendTask:(NSString*)task error:(NSError**)error {
     // These can reach a helper's row in the chat (SPDFMacAISubagentsRun.mm), so they name helpers as the person does.
-    if (!_depth || !_parentContext) { Refuse(error,@"The helper couldn’t start."); return NO; }
-    if (_running) { Refuse(error,@"This helper is still running."); return NO; }
+    if (!_depth || !_parentContext) { Refuse(error,@"This part couldn’t start."); return NO; }
+    if (_running) { Refuse(error,@"This part is still running."); return NO; }
     SPDFMacAIRequestContext* context=[_parentContext childContextWithText:task ?: @"" budget:_childBudget error:error];
     if (!context) return NO;
     NSUInteger before=_messages.count;
     [self sendContext:context model:nil apiKey:nil];
-    if (_messages.count==before) { Refuse(error,@"The helper couldn’t start."); return NO; }
+    if (_messages.count==before) { Refuse(error,@"This part couldn’t start."); return NO; }
     return YES;
 }
 - (NSString*)latestAnswer {

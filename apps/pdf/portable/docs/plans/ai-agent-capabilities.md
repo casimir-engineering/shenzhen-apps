@@ -109,6 +109,14 @@ every capability acts only inside a request the person typed.
   Friends scope or its read-only rule.
 - The chat shows one progress row per subagent with its title and current step; results come back as short
   summaries the main assistant cites.
+- The person calls a subagent's task a "part". While a run works the heading says "Working on 3 parts…", then
+  "Working on 3 parts, 1 finished…"; each row ends Done, Ran out of steps, Ran out of time, Didn't finish or Stopped.
+- When to split: the tool's description and one sentence the provider adds to the main prompt while the tool is
+  offered (several documents to compare or check, more than about 20 pages to summarize, several separate
+  questions, web research on several items; never one quick question). Until the request has split, a message with
+  two or more files on its chips, or wording such as "compare" or "each document", adds a hint (pattern match, no
+  model call). Without these the model (deepseek-v4.1-flash on OpenRouter) never called the tool: the main prompt
+  never named it and steers toward reading the active document and stopping early.
 
 ## 4. Python sandbox
 

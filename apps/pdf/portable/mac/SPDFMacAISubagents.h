@@ -24,11 +24,18 @@
 //         few page reads.
 //   - One timeout for the whole tool (`timeout`): tasks still running are stopped and the tool returns what every
 //     task has so far. Stop on the request stops every task; each task's row has Cancel for that task alone.
-//   - The chat shows one step row per task, a "helper" to the person: its title, what it is doing now as the status,
-//     and "Asked: " with its instructions, then what it found (or why it didn't finish), as the detail. In a request
+//   - When to use it: the description, and a sentence this provider adds to the main assistant's prompt while the
+//     tool is offered (comparing several documents, more than about 20 pages to summarize, several separate
+//     questions, web research on several items; never one quick question). Until the request has run tasks, the
+//     prompt also says when the person's message itself points at a split (SPDFMacAISubagentSplitHint: two or more
+//     files on its chips, or wording such as "compare" or "each document"), a pattern match with no model call.
+//   - The person calls a task a "part". While a run works, the chat's heading says "Working on 3 parts…" (then
+//     "Working on 3 parts, 1 finished…"), and the chat shows one step row per part: its title, what it is doing now
+//     as the status, and "Asked: " with its instructions, then what it found (or why it didn't finish), as the
+//     detail; it ends Done, Ran out of steps, Ran out of time, Didn't finish or Stopped. In a request
 //     that includes Friends chats (SPDFMacAIRequestContext includesFriendsChats) the main assistant may have copied a
 //     friend's words into a task's instructions, and the findings can echo them, so the chat file keeps neither: the
-//     rows are request-only with a stored title ("Helper") in place of the model's, and the call itself is
+//     rows are request-only with a stored title ("Part") in place of the model's, and the call itself is
 //     (-isRequestOnlyTool:context:), so its tasks and findings are stubbed in the saved messages too.
 //   - Results: per task a status, a summary of at most 2,000 characters, and sources: document citations a tool in
 //     that task really returned (so the main chat can verify and link them) and web addresses its tools returned.

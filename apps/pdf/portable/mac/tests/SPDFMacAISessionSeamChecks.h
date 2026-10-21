@@ -226,8 +226,8 @@ static void CheckChildSessions(void) {
           "a task answers its parent and is never saved as a chat");
     error = nil;
     // The refusal can reach a helper's row, where the person reads it: what happened, not the mechanism.
-    CHECK(![session sendTask:@"x" error:&error] && [error.localizedDescription isEqual:@"The helper couldn’t start."],
-          "only a task's own session runs tasks, and saying so names the helper");
+    CHECK(![session sendTask:@"x" error:&error] && [error.localizedDescription isEqual:@"This part couldn’t start."],
+          "only a task's own session runs tasks, and saying so names the part");
     CHECK([child sendTask:@"Check the second document" error:nil] && child.running, "a task session can run again");
     NSUInteger cancels = chat.reader.cancels, ends = chat.reader.ends, begins = chat.reader.begins;
     [child cancel];

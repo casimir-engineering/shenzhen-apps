@@ -238,7 +238,7 @@ static void TestWizardAndCopy(void) {
     root = page.window.contentView;
     NSString *web = Text(root, @"aiWebSearchEnabledDetail"), *helpers = Text(root, @"aiSubagentsEnabledDetail");
     Expect([Button(root, webKey).title isEqual:@"Search the web when I ask"] &&
-           [Button(root, helpersKey).title isEqual:@"Let the assistant run helpers in parallel"] &&
+           [Button(root, helpersKey).title isEqual:@"Let the assistant split big tasks into parts"] &&
            [Button(root, SPDFMacAIPythonEnabledKey).title isEqual:@"Let the assistant run Python"], @"switch labels");
     // Exact: pages go only to OpenRouter (never the search service), and no page opens in a Friends request either.
     Expect([web isEqual:@"Your search terms go to OpenRouter and the search service it uses, and the pages the "
@@ -246,7 +246,7 @@ static void TestWizardAndCopy(void) {
                          "assistant doesn’t search the web or open pages in requests that include your Friends "
                          "chats. Searches use OpenRouter credits."],
            With(@"web says where search terms and pages go, the visit, the Friends rule and the cost", web));
-    Expect([helpers containsString:@"up to four helpers"] && [helpers containsString:@"can’t change or send anything"]
+    Expect([helpers containsString:@"up to four parts"] && [helpers containsString:@"can’t change or send anything"]
            && [helpers containsString:@"more OpenRouter credits"],
            With(@"helpers say what they can do and cost", helpers));
     NSMutableArray* words = [@[web, helpers, Text(root, @"aiPythonDescription")] mutableCopy];
