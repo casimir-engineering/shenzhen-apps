@@ -5,6 +5,7 @@
 #import "SPDFMacAICredentials.h"
 #import "SPDFMacAISettings.h"
 #import "SPDFMacAILanguagePicker.h"
+#import "SPDFMacAIOutputFiles.h"
 #import <sys/stat.h>
 
 BOOL SPDFMacAITranslationCanSaveToURL(NSURL* destination, NSString* sourcePath) {
@@ -27,7 +28,7 @@ BOOL SPDFMacAITranslationCanSaveToURL(NSURL* destination, NSString* sourcePath) 
     if(!(self=[super initWithWindow:panel]))return nil;
     _name=name;_preparation=[NSProgress progressWithTotalUnitCount:-1];_protectedSourcePaths=@[name];_busy=YES; panel.title=[@"AI Translation — " stringByAppendingString:name.lastPathComponent];panel.releasedWhenClosed=NO;panel.minSize=NSMakeSize(600,470);panel.delegate=self;
     NSView* content=panel.contentView;
-    NSTextField* info=[NSTextField wrappingLabelWithString:@"Send this text to OpenRouter using your selected model. Save as a new Markdown document. PDF page layout is not preserved; the original stays unchanged."];
+    NSTextField* info=[NSTextField wrappingLabelWithString:@"Send this text to OpenRouter using your selected model. The translation is saved as a new Markdown document in your Downloads folder. PDF page layout is not preserved; the original stays unchanged."];
     _language=SPDFMacAILanguagePicker(language,nil);_language.accessibilityLabel=@"Translate into";
     _status=[NSTextField wrappingLabelWithString:@"Preparing text…"];
     _source=[NSTextView new];_result=[NSTextView new];
@@ -43,7 +44,7 @@ BOOL SPDFMacAITranslationCanSaveToURL(NSURL* destination, NSString* sourcePath) 
     _source.accessibilityLabel=@"Text to translate";_result.accessibilityLabel=@"Translated text";
     _send=[NSButton buttonWithTitle:@"Translate with AI" target:self action:@selector(send:)];_send.enabled=NO;
     _cancel=[NSButton buttonWithTitle:@"Cancel" target:self action:@selector(cancelOperation:)];_cancel.keyEquivalent=@"\e";_cancel.enabled=YES;
-    _save=[NSButton buttonWithTitle:@"Save translated copy…" target:self action:@selector(save:)];_save.enabled=NO;
+    _save=[NSButton buttonWithTitle:@"Save translated copy" target:self action:@selector(save:)];_save.enabled=NO;
     NSStackView* buttons=[NSStackView stackViewWithViews:@[_cancel,_send,_save]];buttons.spacing=8;
     NSTextField* sourceLabel=[NSTextField labelWithString:@"Source text"];
     NSTextField* resultLabel=[NSTextField labelWithString:@"Translation"];
@@ -104,16 +105,22 @@ BOOL SPDFMacAITranslationCanSaveToURL(NSURL* destination, NSString* sourcePath) 
 }
 - (void)save:(id)sender {
     (void)sender;if(_busy || !_result.string.length)return;
-    NSSavePanel* panel=[NSSavePanel savePanel];panel.allowedContentTypes=@[[UTType typeWithFilenameExtension:@"md"]];
-    panel.nameFieldStringValue=[_name.lastPathComponent.stringByDeletingPathExtension stringByAppendingFormat:@"-%@.md",_language.selectedID];
-    [panel beginSheetModalForWindow:self.window completionHandler:^(NSModalResponse response) {
-        if(response!=NSModalResponseOK)return;NSError* error=nil;
-        BOOL allowed=YES;for(NSString* source in self.protectedSourcePaths)allowed=allowed && SPDFMacAITranslationCanSaveToURL(panel.URL,source);
-        if(!allowed) {
-            self->_status.stringValue=@"Choose a different file. Translation never replaces the original.";return;
-        }
-        if(![self->_result.string writeToURL:panel.URL atomically:YES encoding:NSUTF8StringEncoding error:&error])self->_status.stringValue=error.localizedDescription;
-        else {self->_status.stringValue=@"Translated copy saved.";if(self.openCopy)self.openCopy(panel.URL.path);}
-    }];
+    // Straight to Downloads under a new name, never over a file there, the original included; then Collection.
+    NSString* language=[[NSLocale localeWithLocaleIdentifier:@"en"] localizedStringForLanguageCode:_language.selectedID ?: @""];
+    NSString* name=SPDFMacAIOutputFileName([NSString stringWithFormat:@"%@ (%@)",
+        _name.lastPathComponent.stringByDeletingPathExtension,language ?: _language.selectedID],@"Translation",@"md");
+    NSData* data=[_result.string dataUsingEncoding:NSUTF8StringEncoding];void (^keep)(NSString*)=self.keepCopy;
+    _save.enabled=NO;__weak SPDFMacAITranslationPanel* weakSelf=self;
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED,0),^{
+        NSError* error=nil;NSDictionary* saved=SPDFMacAIOutputWriteData(data,SPDFMacAIDownloadsDirectory(),name,&error);
+        if(saved && keep)keep(saved[@"path"]);
+        dispatch_async(dispatch_get_main_queue(),^{
+            SPDFMacAITranslationPanel* panel=weakSelf;if(!panel)return;
+            panel->_save.enabled=!panel->_busy && panel->_result.string.length;
+            if(!saved){panel->_status.stringValue=error.localizedDescription ?: @"The translation could not be saved.";return;}
+            panel->_status.stringValue=[NSString stringWithFormat:@"Saved to Downloads as “%@”.",[saved[@"path"] lastPathComponent]];
+            if(panel.openCopy)panel.openCopy(saved[@"path"]);
+        });
+    });
 }
 @end

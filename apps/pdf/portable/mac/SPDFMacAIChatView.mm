@@ -74,7 +74,8 @@
     _activityDetail.identifier=@"chatActivityDetail"; _activityDetail.maximumNumberOfLines=2;
     _activityDetail.translatesAutoresizingMaskIntoConstraints=NO; [self addSubview:_activityDetail];
     _prompt=SPDFCollectionText(@"",13,NSFontWeightMedium,NO); _prompt.identifier=@"latestUserPrompt";
-    _prompt.maximumNumberOfLines=3; _prompt.selectable=YES; _prompt.translatesAutoresizingMaskIntoConstraints=NO;
+    _prompt.maximumNumberOfLines=3; _prompt.cell.truncatesLastVisibleLine=YES; _prompt.selectable=YES;
+    _prompt.translatesAutoresizingMaskIntoConstraints=NO;
     _promptHeight=[_prompt.heightAnchor constraintEqualToConstant:0]; [self addSubview:_prompt];
     _scroll=[NSScrollView new]; _scroll.translatesAutoresizingMaskIntoConstraints=NO;
     _scroll.automaticallyAdjustsContentInsets=NO; _scroll.contentInsets=NSEdgeInsetsZero;
@@ -105,6 +106,7 @@
     _composer.submit=^{ [weakSelf submit]; }; _composer.undoAction=^{ if (weakSelf.action) weakSelf.action(@"undo"); };
     _composer.redoAction=^{if(weakSelf.action)weakSelf.action(@"redo");};
     _composer.closeAction=^{if(weakSelf.action)weakSelf.action(@"close");};
+    _composer.fit=^{ [weakSelf fitComposer]; };
     _issueText=SPDFCollectionText(@"",12,NSFontWeightMedium,NO); _issueText.maximumNumberOfLines=3;
     _issueText.identifier=@"chatSubmissionError";
     _recovery=[self button:@"AI settings…" action:@"settings"];
@@ -117,7 +119,7 @@
     // 0 pt instead made AppKit break its 28 pt button's height on every layout.
     _scrollAboveIssue=[_scroll.bottomAnchor constraintEqualToAnchor:_issue.topAnchor constant:-8];
     _scrollAboveInput=[_scroll.bottomAnchor constraintEqualToAnchor:input.topAnchor constant:-12];
-    _inputHeight=[input.heightAnchor constraintEqualToConstant:68];
+    _inputHeight=[input.heightAnchor constraintEqualToConstant:SPDFChatComposerHeight];
     _stopTrailing=[_stop.trailingAnchor constraintEqualToAnchor:_send.leadingAnchor constant:-8];
     _stopHistoryTrailing=[_stop.trailingAnchor constraintEqualToAnchor:self.trailingAnchor constant:-16];
     [NSLayoutConstraint activateConstraints:@[
@@ -160,6 +162,8 @@
     ]];
     return self;
 }
+// The field grows with what is typed, a line at a time, up to its maximum; past that the text scrolls in it.
+- (void)fitComposer { if(!_history) _inputHeight.constant=[(SPDFChatInputScrollView*)_input fittingHeight]; }
 - (void)controlTextDidChange:(NSNotification*)note { (void)note; [self setChatSearchQuery:_chatSearch.stringValue]; }
 - (BOOL)control:(NSControl*)control textView:(NSTextView*)textView doCommandBySelector:(SEL)command {
     if (control!=_chatSearch || textView.hasMarkedText || (command!=@selector(insertNewline:) && command!=@selector(insertLineBreak:) && command!=@selector(insertNewlineIgnoringFieldEditor:))) return NO;
@@ -234,8 +238,13 @@
 }
 - (void)refreshActivityFromSession:(SPDFMacAIChatSession*)session {
     _displayedSession=session; _running=session.running;
-    BOOL issueVisible=!_history && _submissionError.length>0;
+    // An answer that couldn't be used, where asking again is safe: what happened, with Retry beside it.
+    BOOL retry=!_history && !_submissionError.length && [session respondsToSelector:@selector(canRetry)] &&
+        session.canRetry;
+    BOOL issueVisible=!_history && (_submissionError.length>0 || retry);
     _issue.hidden=!issueVisible;
+    if(retry) { _issueText.stringValue=session.status; _recovery.identifier=@"retry"; _recovery.title=@"Retry";
+        _recovery.accessibilityLabel=_recovery.title; _recovery.toolTip=@"Ask your last question again"; }
     // One at a time, so the two are never active together.
     if(issueVisible) { _scrollAboveInput.active=NO; _scrollAboveIssue.active=YES; }
     else { _scrollAboveIssue.active=NO; _scrollAboveInput.active=YES; }
@@ -249,12 +258,13 @@
     else if(state==SPDFMacAIChatActivityPaused) title=@"Paused · Ready to continue";
     else if(state==SPDFMacAIChatActivitySummarizing) title=@"Summarizing earlier messages…";
     else if(state==SPDFMacAIChatActivityStopped) title=@"Stopped · Ready for your next message";
-    _status.stringValue=issueVisible ? @"Message not sent" : title;
+    _status.stringValue=retry ? @"Not finished" : issueVisible ? @"Message not sent" : title;
     // While a tool runs, what it does in the person's words; never its identifier, and nothing for one without words.
     NSString* tool=[session respondsToSelector:@selector(runningTool)] ? session.runningTool : nil;
     NSString* detail=session.activityDetail.length ? session.activityDetail : fallback;
-    if(tool) detail=SPDFChatRunningToolText(tool) ?: @"";
-    _activityDetail.stringValue=issueVisible ? _submissionError : detail;
+    NSString* progress=[session respondsToSelector:@selector(runningToolProgress)] ? session.runningToolProgress : nil;
+    if(tool) detail=progress.length ? progress : SPDFChatRunningToolText(tool) ?: @"";
+    _activityDetail.stringValue=retry ? @"Your chat is saved." : issueVisible ? _submissionError : detail;
     if(_chatSearch.stringValue.length && !issueVisible && !session.running) {
         NSUInteger matches=0;
         for(NSDictionary* message in session.chat[@"messages"]) {
@@ -277,7 +287,7 @@
     _prompt.toolTip=latest; _prompt.accessibilityLabel=_prompt.stringValue;
     _status.accessibilityLabel=_status.stringValue;
     _send.enabled=!session.running && !_history; _stop.enabled=session.running; _composer.editable=!_history;
-    _input.hidden=_history; _send.hidden=_history; _inputHeight.constant=_history ? 0 : 68;
+    _input.hidden=_history; _send.hidden=_history; _inputHeight.constant=0; [self fitComposer];
     _stopTrailing.active=NO; _stopHistoryTrailing.active=NO;
     (_history ? _stopHistoryTrailing : _stopTrailing).active=YES;
     _inputHelp.stringValue=_history ? @"Select a chat above, or start a new one." : @"↵ Send · ⇧↵ New line";

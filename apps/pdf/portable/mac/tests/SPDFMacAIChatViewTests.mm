@@ -25,6 +25,7 @@ static NSEvent* pendingUp;
 @property(nonatomic) BOOL canUndo;
 @property(nonatomic) BOOL canRedo;
 @property(nonatomic) BOOL canCompact;
+@property(nonatomic) BOOL canRetry;
 @property(nonatomic) SPDFMacAIChatActivityState activityState;
 @property(nonatomic) NSString* activityDetail;
 @end
@@ -236,6 +237,8 @@ static void CheckLiteralCard(NSView* card, NSTextView* body, NSString* message, 
 #import "SPDFMacAIChatBannerChecks.h"
 #import "SPDFMacAIChatEditChecks.h"
 #import "SPDFMacAIChatLinkChecks.h"
+#import "SPDFMacAIChatWrapChecks.h"
+#import "SPDFMacAIChatRetryChecks.h"
 int main(void) { @autoreleasepool {
     [NSApplication sharedApplication];
     NSDate* started=[NSDate date];
@@ -249,6 +252,7 @@ int main(void) { @autoreleasepool {
     RunChatActivityLayoutChecks();
     RunChatActivityStepChecks();
     RunChatLinkChecks();
+    RunChatWrapChecks();
     NSWindow* window=[[NSWindow alloc] initWithContentRect:NSMakeRect(0,0,760,580) styleMask:NSWindowStyleMaskTitled backing:NSBackingStoreBuffered defer:NO];
     SPDFMacAIChatView* view=[[SPDFMacAIChatView alloc] initWithFrame:window.contentView.bounds]; window.contentView=view;
     ChatFixture* fixture=[ChatFixture new]; fixture.chat=@{@"id":@"test",@"messages":@[
@@ -432,6 +436,7 @@ int main(void) { @autoreleasepool {
     [view displaySession:(id)fixture]; Capture(view,@"error");
     Check([[(NSTextField*)Find(view,@"chatStatus") stringValue] containsString:@"Error"] &&
         [[(NSTextField*)Find(view,@"chatActivityDetail") stringValue] containsString:@"another window"],@"error heading and recovery detail remain visible");
+    CheckRetryRow(view,fixture);
     view.composer.string=@"Please summarize this document.";
     [view showSubmissionError:@"macOS blocked the saved OpenRouter key. Authorize access to send this message." recoveryAction:@"authorize"];
     Capture(view,@"authorize-minimum");

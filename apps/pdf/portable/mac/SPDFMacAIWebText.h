@@ -12,6 +12,10 @@ NS_ASSUME_NONNULL_BEGIN
 @property(nonatomic, readonly) BOOL truncated;        // the text was cut at the limit
 // The page's https links, absolute, in page order, at most 100: [{text, url}]. Text may be empty.
 @property(nonatomic, readonly, copy) NSArray<NSDictionary<NSString*, NSString*>*>* links;
+// Read as HTML (not plain text), and whether that HTML holds scripts: a page with scripts and nearly no text shows its
+// content with them.
+@property(nonatomic) BOOL markup;
+@property(nonatomic) BOOL scripts;
 - (instancetype)initWithTitle:(NSString*)title text:(NSString*)text truncated:(BOOL)truncated
                         links:(NSArray<NSDictionary<NSString*, NSString*>*>*)links NS_DESIGNATED_INITIALIZER;
 - (instancetype)init NS_UNAVAILABLE;
@@ -22,6 +26,10 @@ NS_ASSUME_NONNULL_BEGIN
 // (a PDF, an image, an archive).
 SPDFMacAIWebReadable* _Nullable SPDFMacAIWebReadableText(NSData* body, NSString* _Nullable contentType,
                                                          NSURL* baseURL, NSUInteger maxTextBytes, NSError** error);
+
+// Whether HTML holds a password field: a page that is little more than one is a sign-in page, which open_page reports
+// rather than reads.
+BOOL SPDFMacAIWebHasPasswordField(NSData* body);
 
 // `body` as text: the charset the site declared (header, byte-order mark or HTML meta), else UTF-8, with invalid
 // bytes replaced rather than failing the whole page (a body cut at the size limit may end mid-character).

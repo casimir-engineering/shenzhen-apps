@@ -17,17 +17,26 @@ static NSData* WebASCII(NSString* text) { return [text dataUsingEncoding:NSISOLa
 static void CheckRequest(void) {
     SPDFMacAIWebTarget* target = SPDFMacAIWebTargetForURL([NSURL URLWithString:@"https://example.com:8443/a?b=%0D%0A"],
                                                           nil);
-    NSString* request = [[NSString alloc] initWithData:SPDFMacAIWebRequestData(target) encoding:NSASCIIStringEncoding];
+    NSString* request = [[NSString alloc] initWithData:SPDFMacAIWebRequestData(target, @"en-GB,en;q=0.9")
+                                              encoding:NSASCIIStringEncoding];
     NSArray* lines = [request componentsSeparatedByString:@"\r\n"];
     CHECK([lines[0] isEqual:@"GET /a?b=%0D%0A HTTP/1.1"] && [lines[1] isEqual:@"Host: example.com:8443"],
           "the request line and Host header carry the target exactly, an encoded CRLF still encoded");
-    CHECK([request containsString:@"\r\nUser-Agent: Mozilla/5.0 (compatible; ShenzhenPDF)\r\n"] &&
-          [request containsString:@"\r\nAccept-Encoding: identity\r\n"] && [request hasSuffix:@"\r\n\r\n"],
-          "a plain user agent and identity encoding");
+    CHECK([request containsString:@"\r\nUser-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                                   "AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Safari/605.1.15\r\n"] &&
+          [request containsString:@"\r\nAccept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8\r\n"] &&
+          [request containsString:@"\r\nAccept-Language: en-GB,en;q=0.9\r\n"] &&
+          [request containsString:@"\r\nAccept-Encoding: gzip, deflate, br\r\n"] && [request hasSuffix:@"\r\n\r\n"],
+          "Safari's user agent and Accept, the person's languages, and the encodings a browser accepts");
     NSString* lower = request.lowercaseString;
     CHECK(![lower containsString:@"cookie"] && ![lower containsString:@"authorization"] &&
-          ![lower containsString:@"referer"] && ![lower containsString:@"accept-language"],
-          "no cookies, credentials, referrer or language leave with the request");
+          ![lower containsString:@"referer"], "no cookies, credentials or referrer leave with the request");
+
+    CHECK([SPDFMacAIWebAcceptLanguage(@[@"en-GB", @"zh-Hans-CN", @"fr"]) isEqual:@"en-GB,en;q=0.9,zh-CN;q=0.8,zh;q=0.7"],
+          "languages as Safari lists them: region kept, script dropped, the bare language after it, at most four");
+    CHECK([SPDFMacAIWebAcceptLanguage(@[@"de"]) isEqual:@"de"] && [SPDFMacAIWebAcceptLanguage(@[]) isEqual:@"en"] &&
+          [SPDFMacAIWebAcceptLanguage(@[@"x\r\nCookie: a=b", @"zh_TW"]) isEqual:@"zh-TW,zh;q=0.9"],
+          "one language, none (English), and nothing that could break a header line");
 }
 
 static void CheckResponseParser(void) {
@@ -75,8 +84,12 @@ static void CheckResponseParser(void) {
     CHECK(parser.error.code == SPDFMacAIWebErrorBadResponse, "conflicting lengths are refused, not guessed");
     parser = WebParse(WebASCII(@"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\nzz\r\n"), 100, 100, NO);
     CHECK(parser.error.code == SPDFMacAIWebErrorBadResponse, "a malformed chunk size is refused");
-    parser = WebParse(WebResponse(200, @{@"Content-Encoding" : @"gzip"}, body), 100, 100, NO);
-    CHECK(parser.error.code == SPDFMacAIWebErrorUnsupportedContent, "a compressed body is refused, not misread");
+    parser = WebParse(WebResponse(200, @{@"Content-Encoding" : @"gzip", @"Content-Length" : @"12"}, body), 100, 100,
+                      NO);
+    CHECK(!parser.error && [parser.contentEncoding isEqual:@"gzip"] && [parser.body isEqual:body],
+          "a gzip body is read as sent, for decoding after");
+    parser = WebParse(WebResponse(200, @{@"Content-Encoding" : @"zstd"}, body), 100, 100, NO);
+    CHECK(parser.error.code == SPDFMacAIWebErrorUnsupportedContent, "an encoding never asked for is refused");
     parser = WebParse(WebResponse(200, @{@"Transfer-Encoding" : @"gzip, chunked"}, body), 100, 100, NO);
     CHECK(parser.error.code == SPDFMacAIWebErrorUnsupportedContent, "a transfer coding other than chunked is refused");
     parser = WebParse(WebASCII(@"SSH-2.0-OpenSSH\r\n\r\n"), 100, 100, NO);

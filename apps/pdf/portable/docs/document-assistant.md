@@ -59,7 +59,11 @@ the current catalog and connection status are authoritative.
 
 Press **⌘K**, then press **Return** while the search field is empty to open
 chat. It returns to the current conversation; use **New chat** to start another. Type a question and press **Return** to send; **Shift-Return** inserts a
-line break. With text in the search field, Return keeps its usual search-result
+line break. The message box grows with what you type, up to about eight lines, and
+then scrolls; text always wraps inside it, and a word longer than a line (a pasted
+address, say) breaks onto the next line rather than running past the edge. Sent
+messages, and your latest question above the transcript, wrap the same way.
+With text in the search field, Return keeps its usual search-result
 behavior. Use the explicit **Ask** action to start a new chat with that query as a draft, then press Return to send.
 The **Chats** icon in the reader's left navigation opens saved conversations in
 that sidebar. Selecting one opens a separate, resizable chat panel beside it;
@@ -97,6 +101,17 @@ literal passage using the reader's normal search. The conversation stays open.
 Page-only citations remain available for diagrams and other visual evidence.
 Changed or unavailable sources produce an explanation instead of navigating to
 an unverified passage. Source links contain opaque document IDs, not local paths.
+
+Some models write their actions carelessly, most often a long Python call: line
+breaks left raw, a stray fence or token, or the call cut off before its end.
+Slips with only one possible meaning are read as meant; anything else, a call
+cut off included, is never guessed at. The model is then asked once, within the
+same request and its step limit, to send that reply's actions again, and nothing
+in such a reply runs until all of it can be read. When an answer still can't be
+used (cut off, unreadable or empty), the panel says so above the composer with
+**Retry**, which asks your latest question again in place of the unfinished
+answer. Retry is not offered once the request has changed a document, since
+asking again would repeat the change; send a follow-up instead.
 
 The assistant can request `current_view` to see the visible document viewport,
 including its zoom, scroll position, selection and highlights. This is captured
@@ -158,7 +173,8 @@ Native commands can open ordinary confirmation, file, or permission dialogs;
 the model must inspect the result, not assume a queued command completed. Secure
 and credential fields are excluded. Generic native commands return
 `undoable: false`; their own native Cancel/Undo behavior applies where available.
-No other applications, shell execution, or web-browsing tool is provided.
+No other applications or shell execution are provided; web search and pages are
+described below.
 
 The model receives opaque document IDs and titles from the current reader
 workspace, then retrieves evidence as needed. Its tools can:
@@ -173,7 +189,24 @@ workspace, then retrieves evidence as needed. Its tools can:
 - read, add, edit or delete comments in the currently displayed writable PDF;
 - close and reopen tabs, rename a supported open file, and list/open documents
   in Collection;
-- run a requested PDF export, OCR or translation job as a separate output.
+- run a requested PDF export, OCR or translation job as a separate output, saved
+  to Downloads and kept in Collection (see below).
+
+With **Let the assistant split big tasks into parts** on in AI Settings (on by
+default), `run_subagents` splits a big request into up to four parts that run at
+once, each its own conversation with read-only tools (document reads, web,
+Python), returning short findings with sources that the main answer cites. Its
+description and one sentence in the main prompt say when to split: comparing or
+checking several documents, summarizing more than about 20 pages, several
+separate questions, web research on several items; never one quick question.
+When the message itself comes with two or more files or asks to compare or go
+through several documents, the prompt adds a hint until the request has split
+(a pattern match, no extra model call). While parts work, the heading says
+"Working on 3 parts…" (then "…, 1 finished…") and each part has a row: what it
+is doing, then Done, Ran out of steps, Ran out of time, Didn't finish or Stopped.
+Stop ends every part; a row's Cancel ends that part alone. Limits: 2 runs and 48
+part turns per request, 12 tool calls a part, 600,000 tokens a run, 3 minutes a
+run; parts never start parts (`mac/SPDFMacAISubagents.h`).
 
 Changes are scoped to the current reader and the tools listed above. Creating a
 group, changing controls, navigation, comments, closing tabs, renaming, opening
@@ -181,14 +214,64 @@ Collection items and document jobs return action receipts for safe Undo. Group
 or control Undo is refused if the relevant state has changed. File Undo checks
 the resulting file identity/content before restoring or removing anything.
 
-OCR, translation and export make a new PDF; the source stays unchanged. Outputs
-go into an `Assistant Exports` folder in the application state directory. OCR and translation
+OCR, translation and export make a new PDF; the source stays unchanged. OCR and translation
 need their local tools already installed. Assistant jobs do not install tools
 or ask to install them, and protected PDFs must first be made into an
 unprotected copy. Translation requires supported source and target language
 codes and extractable text; scan-only PDFs need OCR first. Undo closes the
 generated tab and removes the output only if it is still the exact generated
 file.
+
+## Where documents the assistant makes go
+
+Every document the assistant makes goes to two places:
+
+- **Downloads**, under a clear name: `Report (OCR).pdf`, `Report (French).pdf`,
+  `Report (copy).pdf` for a PDF exported as a PDF, `Notes.pdf` for a Markdown
+  export, or the name you asked for. A name already taken gets ` (2)`, ` (3)`…
+  before its extension; a file already in Downloads is never replaced. The file
+  is made elsewhere and appears in Downloads only when complete.
+- **Collection**, captured at once with the reason **Made by the assistant**,
+  the way files received through Friends are captured with **Received**. This
+  follows Collection's own setting: when Collection is off, or not yet chosen,
+  nothing is captured and no Collection is created.
+
+This covers document jobs (OCR, translation, export), charts from Python that
+you save with **Save** under the picture, and AI translations saved from the
+translation panel as Markdown. The chat then shows **Saved to Downloads** with
+**Open** and **Show in Finder**; a reopened chat keeps the line without the
+buttons. If the file has since been moved or removed, either button says so.
+
+Undo of a job removes the Downloads copy only while it is still the exact file
+made. Its Collection history stays, as it does whenever an original is removed;
+delete it from Collection if you do not want it. With `SPDF_STATE_DIR` set,
+outputs go to a `Downloads` folder inside that state directory instead.
+
+## Web search and pages
+
+With **Let the assistant search the web** on in AI settings (on by default), the
+assistant has `web_search` and `open_page`. Search terms go to OpenRouter's search
+service; pages and PDFs are fetched by this Mac itself, asking as Safari on a Mac
+would (Safari's user agent and Accept, the person's preferred languages,
+gzip/deflate/br decoded with the size limit applied to the decoded bytes), then
+read by the model through OpenRouter like the rest of the request. No cookies,
+credentials or referrer are sent, nothing on a local or private network is
+opened, at most 5 redirects are followed with every hop's addresses checked, and
+a sign-in page or 401 is reported, never worked around.
+
+A PDF (served as `application/pdf`, or with any type when its bytes start with
+`%PDF-`) is downloaded up to 32 MB within a 90 s deadline into
+`$TMPDIR/ShenzhenPDF-AI-Web/<id>/`, never ~/Downloads, and its text is read by
+the reader's own engine a range of pages at a time (`page`, `count`), with
+`page_count` and `next_page`; table rows keep their cells on one line. Its step
+row offers **Open in ShenzhenPDF**, a link by opaque id that opens the saved copy
+in the reader; copies older than a week are removed when the next PDF is saved.
+A page built by scripts with almost no text is reported as such, with its
+PDF/datasheet links. When a site refuses (a bot filter, a sign-in, a timeout)
+and a search found the page, the model gets the search engine's excerpt,
+labelled as such, and the step row says so; no other service is asked to fetch
+the page (OpenRouter's `openrouter:web_fetch` server tool was considered and not
+used: its documentation does not say how the fetched content reaches the caller).
 
 ## Automatic summaries and Collection history
 
@@ -278,7 +361,8 @@ Other current boundaries:
 - The assistant reads only documents open in this reader workspace, plus
   documents explicitly discovered and opened through Collection. These document-reading tools do not browse arbitrary folders. Native
   app commands can open normal reader dialogs, subject to macOS permissions.
-  The assistant cannot browse the web, run shell commands, or access other apps.
+  The assistant cannot run shell commands or access other apps; it reaches the
+  web only through `web_search` and `open_page` (above).
 - OCR and translation are local jobs, but the assistant does not install or
   configure their dependencies. Encrypted PDFs are not supported by assistant
   export/OCR/translation jobs.

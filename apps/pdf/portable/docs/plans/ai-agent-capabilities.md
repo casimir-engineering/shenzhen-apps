@@ -80,11 +80,19 @@ every capability acts only inside a request the person typed.
 ## 2. Web search and pages
 
 - `web_search(query, max_results ≤ 8)` uses OpenRouter's web search (no new account or key) and returns title,
-  URL and snippet per result. `open_page(url)` fetches one https page and returns readable text, at most 200 KB,
-  following at most 3 redirects.
+  URL and snippet per result. `open_page(url, start?, page?, count?)` fetches one https page or PDF from this Mac,
+  asking as Safari on a Mac does (Safari's user agent and Accept, the person's languages, gzip/deflate/br decoded with
+  the limit on the decoded size): a page returns readable text, at most 200 KB, in parts; a PDF (by type or by its
+  `%PDF-` bytes, up to 32 MB, 90 s) is saved in the app's temporary folder and read by the reader's engine a page
+  range at a time, table rows kept, with an "Open in ShenzhenPDF" link by opaque id. At most 5 redirects. A page built
+  by scripts says so and lists its PDF links. A sign-in page or 401 is reported, never worked around.
+- **When a site refuses.** User agent "ShenzhenPDF" got 403 from bot filters (hirose.com, 21 October 2026); Safari's
+  gets the page. If a site still refuses, the model gets the web_search excerpt for that address when a search found
+  it, labelled as the engine's summary. OpenRouter's `openrouter:web_fetch` server tool exists (docs read 21 October
+  2026) but its documentation does not say how fetched content reaches the caller, so it is not used.
 - **No local network.** `open_page` refuses loopback, link-local, private and carrier-grade NAT ranges, `.local`
   and `.internal` names, and any name that resolves to them (checked after every redirect); no cookies, no
-  credentials, a plain user agent.
+  credentials, no referrer.
 - **Untrusted.** Results and pages are quoted data; they cannot call tools or change scope. Answers cite URLs.
 - **Which addresses open.** `open_page` opens only addresses the person typed, results of `web_search` (OpenRouter
   citations that carry the search engine's excerpt; others are dropped) and links on pages already opened; never an
@@ -94,9 +102,9 @@ every capability acts only inside a request the person typed.
 - **Not with Friends chats.** In a request that includes Friends chats (an `@` chip, a friend conversation or `/`,
   or a time grant running when it was sent), the web tools are not offered, to the assistant or its helpers, so
   nothing from those chats can reach a search service or a site. The model is told why; a call it makes anyway is refused and saved without its arguments.
-- **Visible and switchable.** Each search and page appears in the chat as a collapsible step. AI Settings gains
-  "Search the web when I ask" (on), stating that search terms go to OpenRouter and the search service it uses, and
-  pages to the sites visited.
+- **Visible and switchable.** Each search and page appears in the chat as a collapsible step; a page that did not
+  open says what happened and what the assistant does next. AI Settings has "Let the assistant search the web" (on):
+  search terms go to OpenRouter's search service, pages are read from this Mac.
 
 ## 3. Subagents
 
@@ -109,6 +117,14 @@ every capability acts only inside a request the person typed.
   Friends scope or its read-only rule.
 - The chat shows one progress row per subagent with its title and current step; results come back as short
   summaries the main assistant cites.
+- The person calls a subagent's task a "part". While a run works the heading says "Working on 3 parts…", then
+  "Working on 3 parts, 1 finished…"; each row ends Done, Ran out of steps, Ran out of time, Didn't finish or Stopped.
+- When to split: the tool's description and one sentence the provider adds to the main prompt while the tool is
+  offered (several documents to compare or check, more than about 20 pages to summarize, several separate
+  questions, web research on several items; never one quick question). Until the request has split, a message with
+  two or more files on its chips, or wording such as "compare" or "each document", adds a hint (pattern match, no
+  model call). Without these the model (deepseek-v4.1-flash on OpenRouter) never called the tool: the main prompt
+  never named it and steers toward reading the active document and stopping early.
 
 ## 4. Python sandbox
 
@@ -122,7 +138,8 @@ every capability acts only inside a request the person typed.
   matplotlib, installed on first use after consent, like the OCR tools; never global, never inherited
   environment variables (`spdf_mac_tool_environment`).
 - Inputs are files the assistant writes into the work directory (document excerpts, tables). Outputs return as
-  text, tables and images shown in the chat; images can be saved or inserted into a Markdown document.
+  text, tables and images shown in the chat; images can be saved (to Downloads and Collection, as every document the
+  assistant makes: document-assistant.md) or inserted into a Markdown document.
 - If the sandbox cannot be applied on this macOS version, the tool is unavailable and says so; it never runs
   unsandboxed.
 - **Profile, as reviewed.** Deny by default; a named sysctl allowlist; no information about other processes, no

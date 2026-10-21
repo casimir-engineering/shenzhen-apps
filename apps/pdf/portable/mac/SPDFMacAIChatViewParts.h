@@ -33,11 +33,18 @@ NSUInteger SPDFChatMessagePlace(NSArray<NSDictionary*>* messages, NSUInteger ind
 NSUInteger SPDFChatEditedMessageIndex(NSArray<NSDictionary*>* messages, NSUInteger place, NSString* original);
 // The short transcript line shown where earlier messages were summarized.
 NSTextField* SPDFChatSummaryMarker(void);
+// The composer's height: three lines when short; it grows with its text up to about eight lines, then scrolls.
+static const CGFloat SPDFChatComposerHeight=68, SPDFChatComposerMaximumHeight=148;
 @interface SPDFChatInputScrollView : NSScrollView
 - (void)updateBorder;
 - (BOOL)composerFocused;
+// The height that shows all of its text at its present width, kept between the composer's usual and maximum heights.
+- (CGFloat)fittingHeight;
 @end
 @interface SPDFChatComposer : NSTextView
+// After the text changes; after the width it wraps at changes, once that layout pass is over, so the field's height
+// constraint can change.
+@property(nonatomic, copy) void (^fit)(void);
 @property(nonatomic, copy) void (^submit)(void);
 @property(nonatomic, copy) void (^undoAction)(void);
 @property(nonatomic, copy) void (^redoAction)(void);

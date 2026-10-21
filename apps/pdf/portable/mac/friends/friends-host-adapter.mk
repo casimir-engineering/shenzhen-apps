@@ -64,7 +64,8 @@ mac-friends-attach-tests: $$(HOST_ADAPTER_PROMISE_OBJS)
 HOST_ADAPTER_SESSION_SRCS := mac/SPDFMacAIChatSession.mm mac/SPDFMacAIAnswerCard.mm mac/SPDFMacAIChatVision.mm \
 	mac/SPDFMacAIChatStore.mm mac/SPDFMacAIChatStoreRequestOnly.mm \
 	mac/SPDFMacAICitations.mm mac/SPDFMacAIToolRegistry.mm mac/SPDFMacAIRequestContext.mm \
-	mac/SPDFMacAIChatActivity.mm mac/SPDFMacAIChatSessionSummaries.mm mac/SPDFMacAIChatBudget.mm
+	mac/SPDFMacAIChatActivity.mm mac/SPDFMacAIChatSessionSummaries.mm mac/SPDFMacAIChatBudget.mm \
+	mac/SPDFMacAIChatSessionCalls.mm mac/SPDFMacAIToolArguments.mm
 mac-friends-scope-tests:
 	$(call HOST_ADAPTER_RUN,SPDFMacFriendsScopeTests,$(HOST_ADAPTER_DIR)/tests/SPDFMacFriendsScopeTests.mm \
 		$(HOST_ADAPTER_SCOPE_SRCS) $(HOST_ADAPTER_SESSION_SRCS) -framework Cocoa -framework ImageIO)

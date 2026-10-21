@@ -15,7 +15,10 @@
 #import "SPDFMacAICredentials.h"
 #import "SPDFMacAISettings.h"
 #import "SPDFMacAITools.h"
+#import "SPDFMacAIWebPDF.h"
 #import "SPDFMacAIToolRegistry.h"
+#import "SPDFMacAIOutputs.h"
+#import "SPDFMacCollectionStore.h"
 #import "SPDFMacPalettePresentation.h"
 #import "SPDFMacUnifiedSettings.h"
 #import <objc/runtime.h>
@@ -87,6 +90,14 @@ static char stateKey;
         };
         state.view.action=^(NSString* action) { [owner aiChatAction:action]; };
         state.view.openLink=^(NSURL* URL) { [owner aiOpenCitation:URL]; };
+        // A chart the person saves is a document the assistant made: Downloads and Collection (SPDFMacAIOutputs.h).
+        state.view.saveImage=^(NSString* path,NSString* caption) {
+            SPDFMacAIOutputSaveChatImage(weakState.session.activity,path,caption,SPDFMacCollectionStore.defaultStore,
+                [SPDFMacAIOutputActions actionsOpeningWith:^(NSString* saved){ [owner openPath:saved]; }],
+                ^(NSDictionary* receipt,NSError* error){
+                    if(!receipt && error) [weakState.view.window presentError:error];
+                });
+        };
         [self friendsAttachChatView:state.view session:state.session];
     }
     return state;
@@ -270,6 +281,12 @@ static char stateKey;
     SPDFReaderAIState* state=[self readerAIState];
     if ([action isEqual:@"close"]) { [self closeAIChat]; return; }
     if ([action isEqual:@"compact"]) { [self aiCompactChat]; return; }
+    if ([action isEqual:@"retry"]) { // the latest question again, in place of the answer that couldn't be used
+        SPDFMacAIChatSession* session=state.session; NSUInteger index=session.retryMessageIndex;
+        if (session.canRetry && index!=NSNotFound)
+            [self aiResendMessageAtIndex:index text:session.chat[@"messages"][index][@"content"] authorizedKey:nil];
+        return;
+    }
     if ([action isEqual:@"authorize"] && state.pendingEdit) {
         NSError* error=nil; NSString* key=[self aiAuthorizeAPIKeyForSending:&error];
         NSDictionary* edit=state.pendingEdit;
@@ -366,6 +383,13 @@ static char stateKey;
 - (void)aiOpenCitation:(NSURL*)URL {
     NSString* scheme=URL.scheme.lowercaseString;
     if ([scheme isEqual:@"https"] || [scheme isEqual:@"http"]) { [self aiOpenWebLink:URL]; return; }
+    // A PDF the assistant downloaded: its saved copy opens like any document; gone, its address is offered.
+    if (SPDFMacAIWebIsDocumentLink(URL)) {
+        NSURL* file=SPDFMacAIWebDocumentFileForLink(URL,SPDFMacAIWebDocumentDefaultFolder());
+        if (file) [self showDocumentsAtPaths:@[file.path]];
+        else [self aiShowMissingWebDocument:SPDFMacAIWebDocumentSourceForLink(URL)];
+        return;
+    }
     SPDFReaderAIState* state=[self readerAIState];
     if ([self friendsOpenCitation:URL chat:state.session.chat]) return;
     NSDictionary* link=SPDFMacAIDocumentLinkArguments(URL);

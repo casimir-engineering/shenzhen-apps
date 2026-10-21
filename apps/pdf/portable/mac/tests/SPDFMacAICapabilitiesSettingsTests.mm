@@ -237,16 +237,15 @@ static void TestWizardAndCopy(void) {
                                                    [NSMutableArray array], [NSMutableArray array]);
     root = page.window.contentView;
     NSString *web = Text(root, @"aiWebSearchEnabledDetail"), *helpers = Text(root, @"aiSubagentsEnabledDetail");
-    Expect([Button(root, webKey).title isEqual:@"Search the web when I ask"] &&
-           [Button(root, helpersKey).title isEqual:@"Let the assistant run helpers in parallel"] &&
+    Expect([Button(root, webKey).title isEqual:@"Let the assistant search the web"] &&
+           [Button(root, helpersKey).title isEqual:@"Let the assistant split big tasks into parts"] &&
            [Button(root, SPDFMacAIPythonEnabledKey).title isEqual:@"Let the assistant run Python"], @"switch labels");
-    // Exact: pages go only to OpenRouter (never the search service), and no page opens in a Friends request either.
-    Expect([web isEqual:@"Your search terms go to OpenRouter and the search service it uses, and the pages the "
-                         "assistant reads go to OpenRouter. Each site it opens sees a visit from this Mac. The "
-                         "assistant doesn’t search the web or open pages in requests that include your Friends "
-                         "chats. Searches use OpenRouter credits."],
-           With(@"web says where search terms and pages go, the visit, the Friends rule and the cost", web));
-    Expect([helpers containsString:@"up to four helpers"] && [helpers containsString:@"can’t change or send anything"]
+    // Exact: search terms go to OpenRouter's search service; pages are fetched by this Mac itself, so no other
+    // service sees the address, and what the assistant reads goes to OpenRouter with the request.
+    Expect([web isEqual:@"Search terms go to OpenRouter’s search service, and searches use credits. Pages are read "
+                         "from this Mac, and what the assistant reads goes to OpenRouter."],
+           With(@"web says where search terms and pages go, and the cost", web));
+    Expect([helpers containsString:@"up to four parts"] && [helpers containsString:@"can’t change or send anything"]
            && [helpers containsString:@"more OpenRouter credits"],
            With(@"helpers say what they can do and cost", helpers));
     NSMutableArray* words = [@[web, helpers, Text(root, @"aiPythonDescription")] mutableCopy];

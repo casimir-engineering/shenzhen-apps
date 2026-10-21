@@ -13,6 +13,8 @@
 #import "SPDFMacAgentCommand.h"
 #import "SPDFMacSearchFileCache.h"
 #import "SPDFMacAIPagePreview.h"
+#import "SPDFMacAIOutputs.h"
+#import "SPDFMacAIRequestContext.h"
 #import "markdown/SPDFTextDocumentFormats.h"
 #import <CommonCrypto/CommonDigest.h>
 
@@ -107,7 +109,7 @@ static NSDictionary* Definition(NSString* name, NSString* description, NSDiction
         Definition(@"document_job",@"Create a separate OCR, translated or exported PDF from an open document. Explicitly user-requested only. The source is unchanged. Jobs can be stopped; Undo closes the generated tab and deletes only an unchanged generated file. OCR/translation require installed local tools and never install them silently.",
             @{@"path":path,@"kind":@{@"type":@"string",@"enum":@[@"ocr",@"translate",@"export-pdf"]},
               @"revision":Field(@"string",@"Expected source revision from retrieval."),
-              @"name":Field(@"string",@"Optional output filename, no folder separators; saved in Assistant Exports."),
+              @"name":Field(@"string",@"Optional output filename, no folder separators. Saved to the person's Downloads folder and kept in Collection; a taken name gets a number."),
               @"language":Field(@"string",@"OCR language code; defaults to eng."),
               @"sourceLanguage":Field(@"string",@"Translation source language code."),
               @"targetLanguage":Field(@"string",@"Required target language code for translation.")},@[@"path",@"kind",@"revision"]),
@@ -188,6 +190,11 @@ static NSDictionary* Definition(NSString* name, NSString* description, NSDiction
     }
     for (NSString* key in schema[@"required"]) if (!arguments[key]) return ToolError(@"Missing required tool argument.");
     return nil;
+}
+// From the registry (SPDFMacAIChatToolsProvider): the request's chat, where a saved document's card goes.
+- (void)performTool:(NSString*)name arguments:(NSDictionary*)arguments context:(SPDFMacAIRequestContext*)context
+         completion:(void (^)(NSDictionary*))completion {
+    self.activity=context.activity; [self performTool:name arguments:arguments completion:completion];
 }
 - (void)performTool:(NSString*)name arguments:(NSDictionary*)arguments completion:(void (^)(NSDictionary*))completion {
     if (!NSThread.isMainThread) {
@@ -311,10 +318,16 @@ static NSDictionary* Definition(NSString* name, NSString* description, NSDiction
             completion(ToolError(@"Unknown document job.")); return;
         }
         NSProgress* progress=[NSProgress progressWithTotalUnitCount:1]; self.progress=progress;
+        id<SPDFMacAIActivityReporting> activity=self.activity; __weak ShenzhenMacDelegate* reader=self.reader;
         // The adapter owns cancellation until commit and always returns a receipt
         // for any installed output, so a late Stop never loses its Undo action.
         [self.reader aiRunDocumentJob:arguments[@"kind"] arguments:arguments progress:progress completion:^(NSDictionary* result) {
-            dispatch_block_t finish=^{ completion([self recordDocumentResult:result]); };
+            dispatch_block_t finish=^{
+                if (!result[@"error"] && [result[@"path"] isKindOfClass:NSString.class])
+                    SPDFMacAIOutputShowSavedCard(activity,result[@"path"],[SPDFMacAIOutputActions
+                        actionsOpeningWith:^(NSString* path){ [reader openPath:path]; }]);
+                completion([self recordDocumentResult:result]);
+            };
             if (NSThread.isMainThread) finish(); else dispatch_async(dispatch_get_main_queue(),finish);
         }]; return;
     }

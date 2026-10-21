@@ -40,6 +40,11 @@ typedef NS_ENUM(NSInteger, SPDFMacAIChatActivityState) {
 // The tool the request is running now ("web_search"), nil otherwise. An identifier, never shown: each view words it
 // for the person who reads it ("Searching the web…", SPDFChatRunningToolText). Meanwhile `status` says "Working…".
 @property(nonatomic, readonly, copy) NSString* runningTool;
+// What that tool says about its progress, for the person ("Working on 3 parts, 1 finished…"), shown in place of its
+// usual words; nil when it says nothing. Its provider sets it with -setProgress:forTool: while the tool runs, and it
+// ends with the tool.
+@property(nonatomic, readonly, copy) NSString* runningToolProgress;
+- (void)setProgress:(NSString*)progress forTool:(NSString*)name;
 // One tools object and fixed definitions, as before tool providers (SPDFMacAIToolRegistry -initWithLegacyTools:).
 - (instancetype)initWithTransport:(SPDFMacAITransport*)transport tools:(id<SPDFMacAIChatTools>)tools
     definitions:(NSArray*)definitions store:(SPDFMacAIChatStore*)store;
@@ -85,6 +90,17 @@ typedef NS_ENUM(NSInteger, SPDFMacAIChatActivityState) {
 // child's providers are its parent's, and an idle session has nothing of theirs to stop.
 - (void)cancel;
 - (BOOL)undo:(NSError**)error;
+@end
+// Answers that couldn't be used (SPDFMacAIChatSessionCalls.mm).
+@interface SPDFMacAIChatSession (Calls)
+// The request ended on an answer that couldn't be used (cut off, unreadable, empty) and sending the latest question
+// again is safe: it changed no document. The chat then offers Retry, which resends retryMessageIndex's question.
+@property(nonatomic, readonly) BOOL canRetry;
+// The latest question in the chat, or NSNotFound.
+@property(nonatomic, readonly) NSUInteger retryMessageIndex;
+// The latest call whose arguments couldn't be read: tool name, problem (SPDFMacAIToolArgumentsProblem), length and
+// the first 4 KB as the provider sent them. Memory only, never saved with the chat: for diagnosing a provider.
+@property(nonatomic, readonly) NSDictionary* lastUnreadableCall;
 @end
 // Long chats and edited questions (SPDFMacAIChatSessionSummaries.mm).
 @interface SPDFMacAIChatSession (Summaries)

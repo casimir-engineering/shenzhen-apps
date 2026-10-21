@@ -60,8 +60,10 @@ static NSString* DefinitionName(id definition) {
 - (BOOL)isReadOnlyTool:(NSString*)name { return [_readOnly containsObject:name]; }
 - (void)performTool:(NSString*)name arguments:(NSDictionary*)arguments context:(SPDFMacAIRequestContext*)context
          completion:(SPDFMacAIToolCompletion)completion {
-    (void)context;
-    [_tools performTool:name arguments:arguments completion:completion];
+    // Tools that report to the chat take the request's context; the rest run as before providers existed.
+    if ([(id)_tools respondsToSelector:@selector(performTool:arguments:context:completion:)])
+        [(id<SPDFMacAIToolProvider>)_tools performTool:name arguments:arguments context:context completion:completion];
+    else [_tools performTool:name arguments:arguments completion:completion];
 }
 - (void)cancel { [_tools cancel]; }
 - (NSDictionary*)chatForStorage:(NSDictionary*)chat {

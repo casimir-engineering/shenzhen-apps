@@ -172,8 +172,25 @@ NSTextField* SPDFChatSummaryMarker(void) {
 - (void)viewDidChangeEffectiveAppearance { [super viewDidChangeEffectiveAppearance]; [self updateBorder]; }
 - (void)viewDidMoveToWindow { [super viewDidMoveToWindow]; [self updateBorder]; }
 - (void)layout { [super layout]; [self updateBorder]; }
+// The text is exactly as wide as the field shows, so a word longer than a line wraps at the field's edge.
+- (void)tile {
+    [super tile]; NSView* text=self.documentView; CGFloat width=NSWidth(self.contentView.bounds);
+    if(text && width>0 && fabs(NSWidth(text.frame)-width)>.5) [text setFrameSize:NSMakeSize(width,NSHeight(text.frame))];
+}
+- (CGFloat)fittingHeight {
+    NSTextView* text=self.documentView; [text.layoutManager ensureLayoutForTextContainer:text.textContainer];
+    CGFloat used=ceil(NSMaxY([text.layoutManager usedRectForTextContainer:text.textContainer]))+
+        2*text.textContainerInset.height+self.contentInsets.top+self.contentInsets.bottom;
+    return MIN(SPDFChatComposerMaximumHeight,MAX(SPDFChatComposerHeight,used));
+}
 @end
 @implementation SPDFChatComposer
+- (void)didChangeText { [super didChangeText]; if(self.fit) self.fit(); }
+- (void)setString:(NSString*)string { [super setString:string]; if(self.fit) self.fit(); }
+- (void)setFrameSize:(NSSize)size {
+    BOOL rewraps=fabs(size.width-NSWidth(self.frame))>.5; [super setFrameSize:size];
+    if(rewraps && self.fit) { void (^fit)(void)=self.fit; dispatch_async(dispatch_get_main_queue(),fit); }
+}
 - (BOOL)becomeFirstResponder {
     BOOL ok=[super becomeFirstResponder]; [(SPDFChatInputScrollView*)self.enclosingScrollView updateBorder]; return ok;
 }
@@ -392,7 +409,7 @@ NSStackView* SPDFChatLinkList(NSArray<NSDictionary*>* links, CGFloat width, id<N
         NSAttributedString* words = [[NSAttributedString alloc] initWithString:link[@"title"] ?: address attributes:
             insecure ? @{NSFontAttributeName : font, NSForegroundColorAttributeName : SPDFCollectionColor(@"text")} :
             @{NSFontAttributeName : font, NSLinkAttributeName : URL,
-              NSToolTipAttributeName : URL.absoluteString}];  // where it goes, before it is clicked
+              NSToolTipAttributeName : [URL.scheme hasPrefix:@"http"] ? URL.absoluteString : link[@"title"] ?: @""}];
         SPDFChatMessageView* title = [[SPDFChatMessageView alloc] initWithFrame:NSMakeRect(0, 0, MAX(40, width), line)];
         title.editable = NO; title.selectable = YES; title.drawsBackground = NO;
         title.backgroundColor = NSColor.clearColor;
@@ -460,9 +477,9 @@ NSString* SPDFChatRunningToolText(NSString* tool) {
     static NSDictionary* words;
     static dispatch_once_t once;
     dispatch_once(&once, ^{
-        // In progress, so each ends in an ellipsis; "helpers" is what the person calls subagents.
+        // In progress, so each ends in an ellipsis; "parts" is what the person calls subagents' tasks.
         words = @{@"web_search" : @"Searching the web…", @"open_page" : @"Reading a page…",
-                  @"run_python" : @"Running Python…", @"run_subagents" : @"Running helpers…",
+                  @"run_python" : @"Running Python…", @"run_subagents" : @"Working on parts…",
                   @"friends_send_message" : @"Preparing a message…",
                   @"friends_read_messages" : @"Reading your Friends chat…",
                   @"friends_search_chats" : @"Reading your Friends chat…",

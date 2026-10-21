@@ -104,6 +104,23 @@ static NSString* (^const Identify)(NSString*) = ^NSString*(NSString* path) { ret
     }
 }
 
+- (void)aiShowMissingWebDocument:(NSURL*)source {
+    NSAlert* alert = [NSAlert new];
+    alert.messageText = @"This PDF is no longer on this Mac";
+    alert.informativeText = @"PDFs the assistant reads are kept for a week. You can open it from its website instead.";
+    [alert addButtonWithTitle:@"OK"];
+    if (source.host.length) [alert addButtonWithTitle:@"Open Website"];
+    else alert.informativeText = @"PDFs the assistant reads are kept for a week.";
+    __weak ShenzhenMacDelegate* weakSelf = self;
+    if (_window) {
+        [alert beginSheetModalForWindow:_window completionHandler:^(NSModalResponse response) {
+          [weakSelf aiFinishMissingDocumentAlert:response site:source];
+        }];
+    } else {
+        [self aiFinishMissingDocumentAlert:[alert runModal] site:source];
+    }
+}
+
 - (void)aiFinishMissingDocumentAlert:(NSModalResponse)response site:(NSURL*)site {
     if (site && response == NSAlertSecondButtonReturn) [self aiOpenWebLink:site];
 }

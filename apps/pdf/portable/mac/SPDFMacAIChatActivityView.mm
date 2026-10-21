@@ -83,9 +83,11 @@ static NSArray<NSDictionary*>* ShownLinks(NSDictionary* entry) {
         BOOL titled = [link isKindOfClass:NSDictionary.class];
         NSURL* URL = [NSURL URLWithString:titled ? link[@"url"] : link];
         NSString* scheme = URL.scheme.lowercaseString;
-        BOOL secure = [scheme isEqual:@"https"] && SPDFMacAIChatLinkAllowed(URL);
+        // A PDF the assistant downloaded (SPDFMacAIWebPDF.h) opens in the reader; it is on no site, so it has no host.
+        BOOL app = [scheme isEqual:@"spdf-ai"] && [URL.host isEqual:@"web-document"];
+        BOOL secure = ([scheme isEqual:@"https"] || app) && SPDFMacAIChatLinkAllowed(URL);
         if ((!secure && ![scheme isEqual:@"http"]) || !URL.host.length) continue;
-        NSString* host = titled && link[@"host"] ? link[@"host"] : URL.host;
+        NSString* host = app ? @"" : titled && link[@"host"] ? link[@"host"] : URL.host;
         NSString* title = titled ? link[@"title"] : nil;
         NSMutableDictionary* row = [@{@"url" : URL, @"host" : host} mutableCopy];
         if (title && ![title isEqual:host]) row[@"title"] = title;  // else the address said twice
@@ -429,16 +431,25 @@ static NSArray<NSDictionary*>* ShownLinks(NSDictionary* entry) {
         .active = YES;
     [view.widthAnchor constraintLessThanOrEqualToAnchor:self.widthAnchor].active = YES;
     [view.heightAnchor constraintEqualToAnchor:view.widthAnchor multiplier:ratio].active = YES;
-    NSButton* save = SPDFChatMakePill(@"Save…", [@"activitySave:" stringByAppendingString:_entryID], self,
-                                      @selector(clicked:), NO);
-    save.accessibilityLabel = [@"Save image: " stringByAppendingString:caption];
-    save.toolTip = @"Save this image as a PNG file";
-    NSStackView* line = [NSStackView stackViewWithViews:@[label, save]];
+    // Saved: "Saved to Downloads" with Open and Show in Finder while this chat stays open (SPDFMacAIOutputs.h).
+    NSMutableArray* parts = [NSMutableArray arrayWithObject:label];
+    NSString* status = _entry[SPDFMacAIActivityStatusKey];
+    if (status.length) [parts addObject:[self status:status wraps:NO width:0]];
+    NSArray* live = _unit[@"actions"];
+    if (live.count) [parts addObjectsFromArray:[self actionButtons:live]];
+    else {
+        NSButton* save = SPDFChatMakePill(@"Save", [@"activitySave:" stringByAppendingString:_entryID], self,
+                                          @selector(clicked:), NO);
+        save.accessibilityLabel = [@"Save image: " stringByAppendingString:caption];
+        save.toolTip = @"Save this image to your Downloads folder";
+        [parts addObject:save];
+    }
+    NSStackView* line = [NSStackView stackViewWithViews:parts];
     line.spacing = 8;
-    line.distribution = NSStackViewDistributionFill;  // the caption takes the room, so Save… ends with the picture
+    line.distribution = NSStackViewDistributionFill;  // the caption takes the room, so Save ends with the picture
     line.translatesAutoresizingMaskIntoConstraints = NO;
     [self addArrangedSubview:line];
-    // Under the picture, ending where it ends, unless a small picture leaves Save… too little room.
+    // Under the picture, ending where it ends, unless a small picture leaves Save too little room.
     [line.widthAnchor constraintGreaterThanOrEqualToAnchor:view.widthAnchor].active = YES;
     [line.widthAnchor constraintLessThanOrEqualToAnchor:self.widthAnchor].active = YES;
     NSLayoutConstraint* under = [line.widthAnchor constraintEqualToAnchor:view.widthAnchor];

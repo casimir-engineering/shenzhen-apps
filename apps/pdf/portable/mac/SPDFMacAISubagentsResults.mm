@@ -235,3 +235,39 @@ NSString* SPDFMacAISubagentProblemLine(NSString* problem) {
     if (stop.location != NSNotFound) text = [text substringToIndex:stop.location + 1];
     return SPDFMacAISubagentClipped(text, 160);
 }
+
+NSString* SPDFMacAISubagentProgressText(NSUInteger parts, NSUInteger finished) {
+    NSString* working = [NSString stringWithFormat:@"Working on %lu part%@", (unsigned long)parts,
+                                                   parts == 1 ? @"" : @"s"];
+    if (!finished || finished >= parts) return [working stringByAppendingString:@"…"];
+    return [working stringByAppendingFormat:@", %lu finished…", (unsigned long)finished];
+}
+
+NSString* SPDFMacAISubagentSplitHint(NSString* text, NSArray<NSString*>* documents) {
+    NSMutableArray* names = [NSMutableArray array];
+    for (NSString* name in documents) {
+        NSString* shown = Trimmed(name);
+        if (shown) [names addObject:SPDFMacAISubagentClipped(shown, 60)];
+    }
+    if (names.count >= 2) {
+        NSArray* shown = names.count > 6 ? [names subarrayWithRange:NSMakeRange(0, 6)] : names;
+        return [NSString stringWithFormat:@"This message comes with %lu documents (%@%@): if each needs its own "
+            "reading, run_subagents with one task per document fits it.", (unsigned long)names.count,
+            [shown componentsJoinedByString:@", "], names.count > shown.count ? @", …" : @""];
+    }
+    static NSRegularExpression* several;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        NSString* kinds = @"(?:documents?|files?|pdfs?|papers?|reports?|contracts?|chapters?|tabs?|datasheets?)";
+        NSString* pattern = [NSString stringWithFormat:@"\\b(?:compar(?:e|es|ed|ing|ison)|versus|vs|differences? "
+            "between|each of (?:the|these|those|my)|(?:each|every) %@|all (?:of )?(?:the |my |these |those |open )?%@)"
+            "\\b|对比|比较|每个文件|每份|所有文件|这些文件|几个文件|多个文件|所有文档|这些文档", kinds, kinds];
+        several = [NSRegularExpression regularExpressionWithPattern:pattern
+                                                            options:NSRegularExpressionCaseInsensitive error:nil];
+    });
+    if (![text isKindOfClass:NSString.class] || !text.length) return nil;
+    NSString* sample = text.length > 4000 ? [text substringToIndex:4000] : text;
+    if (![several firstMatchInString:sample options:0 range:NSMakeRange(0, sample.length)]) return nil;
+    return @"This message asks to compare or go through several documents or questions: if each needs its own "
+        "reading, run_subagents with one task per piece fits it.";
+}

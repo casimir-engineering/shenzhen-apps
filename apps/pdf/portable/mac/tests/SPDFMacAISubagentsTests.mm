@@ -8,6 +8,7 @@
 #import "SPDFMacAISubagentsStopChecks.h"
 #import "SPDFMacAISubagentsLimitChecks.h"
 #import "SPDFMacAISubagentsStorageChecks.h"
+#import "SPDFMacAISubagentsUseChecks.h"
 
 int main(void) {
     @autoreleasepool {
@@ -29,6 +30,10 @@ int main(void) {
         CheckRowsAfterFriends();
         CheckFailedRows();
         CheckFriendsRequestKeepsNothing();
+        CheckSplitGuidance();
+        CheckSplitHint();
+        CheckThreePartsInParallel();
+        CheckStopEndsEveryPart();
     }
     if (failures) {
         fprintf(stderr, "SPDFMacAISubagentsTests: %d failures\n", failures);

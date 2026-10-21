@@ -7,6 +7,7 @@
 
 @interface RunningToolChatFixture : ActivityChatFixture
 @property(nonatomic, copy) NSString* runningTool;
+@property(nonatomic, copy) NSString* runningToolProgress;
 @end
 @implementation RunningToolChatFixture
 @end
@@ -162,6 +163,36 @@ static void CheckInsecureResults(void) {
     window.contentView = [NSView new];
 }
 
+// A PDF the assistant downloaded is a second row under its page, "Open in ShenzhenPDF", a link to the app's own copy
+// (SPDFMacAIWebPDF.h): no host beside it, no address as its tooltip, and a click goes to the chat's link handler.
+static void CheckDownloadedPDFRow(void) {
+    NSWindow* window = [[NSWindow alloc] initWithContentRect:NSMakeRect(0, 0, 320, 600)
+        styleMask:NSWindowStyleMaskTitled backing:NSBackingStoreBuffered defer:NO];
+    NSString* app = @"spdf-ai://web-document?id=42439C23-F36B-46D3-9AC7-9110B46AB1A8&"
+                     "web=https://datasheet.example/ds.pdf";
+    NSDictionary* opened = @{@"id" : @"D", @"kind" : @"step", @"after" : @1, @"title" : @"Opened datasheet.example",
+        @"state" : @"done", @"detail" : @"A PDF of 8 pages.", @"links" : @[
+            @{@"url" : @"https://datasheet.example/ds.pdf", @"title" : @"BM28 Series Catalog",
+              @"host" : @"datasheet.example"},
+            @{@"url" : app, @"title" : @"Open in ShenzhenPDF", @"host" : @""}]};
+    SPDFMacAIChatView* view = StepChat(window, [ActivityChatFixture new], @[opened], @[@"D"]);
+    __block NSURL* clicked = nil;
+    view.openLink = ^(NSURL* URL) { clicked = URL; };
+    NSStackView* links = (NSStackView*)Find(view, @"activityLinks:D");
+    NSArray<NSStackView*>* lines = [links isKindOfClass:NSStackView.class] ? (id)links.arrangedSubviews : nil;
+    NSTextView* open = lines.count == 2 ? (NSTextView*)lines[1].arrangedSubviews[0] : nil;
+    NSURL* target = open.string.length ? [open.textStorage attribute:NSLinkAttributeName atIndex:0 effectiveRange:nil]
+                                       : nil;
+    Check([open.string isEqual:@"Open in ShenzhenPDF"] && [target.absoluteString isEqual:app] &&
+          lines[1].arrangedSubviews.count == 2 &&
+          [[open.textStorage attribute:NSToolTipAttributeName atIndex:0 effectiveRange:nil]
+              isEqual:@"Open in ShenzhenPDF"],
+          @"a downloaded PDF's step offers Open in ShenzhenPDF as a link, without a host or an app address");
+    if (target) [(id<NSTextViewDelegate>)open.delegate textView:open clickedOnLink:target atIndex:0];
+    Check([clicked.absoluteString isEqual:app], @"and a click on it reaches the chat's link handler");
+    window.contentView = [NSView new];
+}
+
 // A step that stopped or ran out of time says so whole, under its title, as a failure does: beside the title its
 // status shrank to a few letters at 320 pt.
 static void CheckStoppedStatusLine(void) {
@@ -260,7 +291,7 @@ static void CheckRunningToolHeading(void) {
     fixture.running = YES;
     fixture.activityState = SPDFMacAIChatActivityWorking;
     NSDictionary* words = @{@"web_search" : @"Searching the web…", @"open_page" : @"Reading a page…",
-        @"run_python" : @"Running Python…", @"run_subagents" : @"Running helpers…",
+        @"run_python" : @"Running Python…", @"run_subagents" : @"Working on parts…",
         @"friends_send_message" : @"Preparing a message…", @"friends_read_messages" : @"Reading your Friends chat…"};
     NSString* (^heading)(NSString*) = ^NSString*(NSString* tool) {
         fixture.runningTool = tool;
@@ -278,6 +309,13 @@ static void CheckRunningToolHeading(void) {
     for (NSString* tool in @[@"search_documents", @"read_pages", @"render_page", @"list_chats", @"web_search"])
         plain &= [SPDFChatRunningToolText(tool) hasSuffix:@"…"] && ![SPDFChatRunningToolText(tool) containsString:@"_"];
     Check(!unknown.length && plain, @"a tool without words shows none, never its name; every wording ends in …");
+    // A run of parts says how many there are and how many have ended, in place of its usual words.
+    fixture.runningToolProgress = @"Working on 3 parts, 1 finished…";
+    NSString* parts = heading(@"run_subagents");
+    fixture.runningToolProgress = nil;
+    Check([parts isEqual:@"Working on 3 parts, 1 finished…"] &&
+          [heading(@"run_subagents") isEqual:@"Working on parts…"],
+          @"while parts work the heading says how many and how many have finished; without that, its usual words");
     fixture.runningTool = nil;
     fixture.activityDetail = @"Undoing…";
     [view refreshActivityFromSession:(id)fixture];
@@ -289,6 +327,7 @@ static void CheckRunningToolHeading(void) {
 static void RunChatActivityStepChecks(void) {
     CheckStepOutputAndNote();
     CheckInsecureResults();
+    CheckDownloadedPDFRow();
     CheckStoppedStatusLine();
     CheckFoldSaysStopped();
     CheckLongLiteralCard();

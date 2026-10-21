@@ -1,6 +1,6 @@
 #pragma once
 // web_search and open_page for the assistant (ai-agent-capabilities.md § 2), as a provider on the tool seam
-// (SPDFMacAIToolProvider.h). Offered only while "Search the web when I ask" is on in the request's settings snapshot.
+// (SPDFMacAIToolProvider.h). Offered only while "Let the assistant search the web" is on in the request's settings snapshot.
 // Results and pages go back to the model as quoted data with a notice, and each search and page shows in the chat as
 // a step row with the results as links. open_page opens only addresses the person typed, search results and links of
 // pages already opened (SPDFMacAIWebProvenance.h), only on the public internet (SPDFMacAIWebAddress.h). A request

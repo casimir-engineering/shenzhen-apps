@@ -15,7 +15,7 @@ static const NSUInteger kMaximumQueryLength = 400;
 static const NSUInteger kMaximumLinkLength = 2048;
 
 static NSString* const kOff = @"Web search is turned off in Settings. If the user wants the assistant to search the "
-    "web, they can turn on “Search the web when I ask” in AI Settings.";
+    "web, they can turn on “Let the assistant search the web” in AI Settings.";
 // One sentence, for the model: told with each turn of such a request, and as the refusal if it calls a web tool anyway.
 static NSString* const kFriends = @"Web search and opening web pages are unavailable in requests that include the "
     "user's Friends chats, so this request cannot use the web; the user can ask for a web search in a new message that "
@@ -64,6 +64,39 @@ static BOOL WholeNumber(NSNumber* number, long long minimum, long long maximum) 
         value >= minimum && value <= maximum;
 }
 
+// Failures the site or the network caused, where a search result's excerpt still says what the page is about. A refusal
+// of the address itself (private, not https, a password in it) or Stop gets no excerpt.
+static BOOL SiteFailure(NSError* error) {
+    if (![error.domain isEqual:SPDFMacAIWebErrorDomain]) return NO;
+    switch ((SPDFMacAIWebError)error.code) {
+        case SPDFMacAIWebErrorNotFound: case SPDFMacAIWebErrorUnreachable: case SPDFMacAIWebErrorTimedOut:
+        case SPDFMacAIWebErrorTooManyRedirects: case SPDFMacAIWebErrorHTTPStatus:
+        case SPDFMacAIWebErrorUnsupportedContent: case SPDFMacAIWebErrorBadResponse:
+        case SPDFMacAIWebErrorSignInRequired: case SPDFMacAIWebErrorTooLarge: case SPDFMacAIWebErrorLockedDocument:
+        case SPDFMacAIWebErrorBadDocument: return YES;
+        default: return NO;
+    }
+}
+
+// One answer for a cached or a freshly opened page: a PDF's pages from `first`, read off the main thread one document
+// at a time, or the page's text from `offset`. The completion runs on the main thread.
+static void Answer(SPDFMacAIWebPage* page, NSUInteger offset, NSUInteger first, NSUInteger count,
+                   SPDFMacAIToolCompletion completion) {
+    if (!page.document) { completion(SPDFMacAIWebPageToolResult(page, offset)); return; }
+    static dispatch_queue_t queue;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{ queue = dispatch_queue_create("ShenzhenPDF.AI.Web.Documents", DISPATCH_QUEUE_SERIAL); });
+    dispatch_async(queue, ^{
+        NSError* error = nil;
+        NSDictionary* pages = SPDFMacAIWebDocumentPages(page.document, first, count, SPDFMacAIWebPagePartBytes, &error);
+        dispatch_async(dispatch_get_main_queue(), ^{
+            completion(pages ? SPDFMacAIWebDocumentToolResult(page, pages) :
+                @{@"error" : error.localizedDescription ?: @"The PDF's pages could not be read.",
+                  @"url" : page.URL.absoluteString, @"page_count" : @(page.document.pageCount)});
+        });
+    });
+}
+
 @implementation SPDFMacAIWebToolProvider {
     SPDFMacAIWebSearcher* _searcher;
     SPDFMacAIWebFetcher* _fetcher;
@@ -73,6 +106,7 @@ static BOOL WholeNumber(NSNumber* number, long long minimum, long long maximum) 
     NSMutableArray<NSString*>* _pageOrder;
     NSMutableDictionary<NSNumber*, dispatch_block_t>* _running;
     NSMutableDictionary<NSString*, NSNumber*>* _opensBySite; // by SPDFMacAIWebShownHost
+    NSMutableDictionary<NSString*, NSDictionary*>* _excerpts;  // search results, by SPDFMacAIWebProvenanceKey
     NSUInteger _nextOperation, _searches, _opens;
 }
 
@@ -87,6 +121,7 @@ static BOOL WholeNumber(NSNumber* number, long long minimum, long long maximum) 
     _pageOrder = [NSMutableArray array];
     _running = [NSMutableDictionary dictionary];
     _opensBySite = [NSMutableDictionary dictionary];
+    _excerpts = [NSMutableDictionary dictionary];
     _maxSearchesPerRequest = 10;
     _maxPagesPerRequest = 20;
     _maxPagesPerSitePerRequest = 3;
@@ -130,6 +165,7 @@ static NSString* Unavailable(SPDFMacAIRequestContext* context) {
     [_pages removeAllObjects];
     [_pageOrder removeAllObjects];
     [_opensBySite removeAllObjects];
+    [_excerpts removeAllObjects];
     _searches = _opens = 0;
 }
 
@@ -248,7 +284,7 @@ static NSString* Unavailable(SPDFMacAIRequestContext* context) {
                 return;
             }
             // The urls the search engine cited, never the query echoed back: the model wrote that.
-            for (NSDictionary* result in results) [weakSelf noteURL:[NSURL URLWithString:result[@"url"]]];
+            for (NSDictionary* result in results) [weakSelf noteResult:result];
             [activity updateEntry:step changes:@{SPDFMacAIActivityTitleKey : @"Searched the web",
                 SPDFMacAIActivityStateKey : SPDFMacAIActivityStateDone,
                 SPDFMacAIActivityStatusKey : SPDFMacAIWebSearchStepStatus(results.count),
@@ -259,6 +295,15 @@ static NSString* Unavailable(SPDFMacAIRequestContext* context) {
 }
 
 - (void)noteURL:(NSURL*)URL { if (URL) [_provenance noteURL:URL]; }
+
+// A search result: its address may be opened, and its excerpt stands in when the page itself cannot be read.
+- (void)noteResult:(NSDictionary*)result {
+    NSURL* URL = [result[@"url"] isKindOfClass:NSString.class] ? [NSURL URLWithString:result[@"url"]] : nil;
+    NSString* key = URL ? SPDFMacAIWebProvenanceKey(URL) : nil;
+    [self noteURL:URL];
+    if (key && [result[@"snippet"] length] && !_excerpts[key]) _excerpts[key] = result;
+}
+
 
 - (void)countOpenOn:(NSString*)host { _opensBySite[host] = @(_opensBySite[host].unsignedIntegerValue + 1); }
 
@@ -278,20 +323,25 @@ static NSString* Unavailable(SPDFMacAIRequestContext* context) {
 
 - (void)open:(NSDictionary*)arguments context:(SPDFMacAIRequestContext*)context
     completion:(SPDFMacAIToolCompletion)completion {
-    NSString* problem = ArgumentProblem(arguments, @{@"url" : NSString.class, @"start" : NSNumber.class});
+    NSString* problem = ArgumentProblem(arguments, @{@"url" : NSString.class, @"start" : NSNumber.class,
+                                                     @"page" : NSNumber.class, @"count" : NSNumber.class});
     NSString* link = [arguments[@"url"] isKindOfClass:NSString.class] ?
         [arguments[@"url"] stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet] : nil;
     NSNumber* start = [arguments[@"start"] isKindOfClass:NSNumber.class] ? arguments[@"start"] : @0;
+    NSNumber* first = [arguments[@"page"] isKindOfClass:NSNumber.class] ? arguments[@"page"] : @1;
+    NSNumber* count = [arguments[@"count"] isKindOfClass:NSNumber.class] ? arguments[@"count"] : @20;
     NSURL* URL = link.length && link.length <= kMaximumLinkLength ? [NSURL URLWithString:link] : nil;
     NSString* key = URL ? SPDFMacAIWebProvenanceKey(URL) : nil;
-    if (problem || !key || !WholeNumber(start, 0, 100000000)) {
-        completion(Refusal(problem ?: @"Give open_page a complete https:// URL of at most 2,048 characters, and a "
-                           "start from next_start when reading on."));
+    if (problem || !key || !WholeNumber(start, 0, 100000000) || !WholeNumber(first, 1, 1000000) ||
+        !WholeNumber(count, 1, 20)) {
+        completion(Refusal(problem ?: @"Give open_page a complete https:// URL of at most 2,048 characters, a start "
+                           "from next_start when reading on, and for a PDF a page from 1 and a count from 1 to 20."));
         return;
     }
-    NSUInteger offset = start.unsignedIntegerValue;
+    NSUInteger offset = start.unsignedIntegerValue, from = first.unsignedIntegerValue;
+    NSUInteger pages = count.unsignedIntegerValue;
     SPDFMacAIWebPage* cached = _pages[key];
-    if (cached) { completion(SPDFMacAIWebPageToolResult(cached, offset)); return; }
+    if (cached) { Answer(cached, offset, from, pages, completion); return; }
     if (![_provenance allowsURL:URL]) { completion(Refusal(kNotSeen)); return; }
     if (_opens >= _maxPagesPerRequest) {
         completion(Refusal([NSString stringWithFormat:@"This request has already opened %lu pages, the most one "
@@ -319,26 +369,35 @@ static NSString* Unavailable(SPDFMacAIRequestContext* context) {
             done();
             if (!page) {
                 BOOL stopped = error.code == SPDFMacAIWebErrorCancelled;
+                __typeof__(self) owner = weakSelf;
+                NSDictionary* excerpt = !stopped && SiteFailure(error) && owner ? owner->_excerpts[key] : nil;
                 [activity updateEntry:step changes:@{
                     SPDFMacAIActivityTitleKey :
                         [(stopped ? @"Page on " : @"Didn’t open ") stringByAppendingString:host],
                     SPDFMacAIActivityStateKey : stopped ? SPDFMacAIActivityStateStopped : SPDFMacAIActivityStateFailed,
-                    SPDFMacAIActivityStatusKey : SPDFMacAIWebStatusForError(error, NO)}];
-                completion(@{@"error" : stopped ? @"The page was stopped before it opened." :
-                             error.localizedDescription ?: @"The page could not be opened.", @"url" : link});
+                    SPDFMacAIActivityStatusKey : SPDFMacAIWebPageFailureStatus(error, host, excerpt != nil)}];
+                NSMutableDictionary* refusal = [@{@"error" : stopped ? @"The page was stopped before it opened." :
+                    error.localizedDescription ?: @"The page could not be opened.", @"url" : link} mutableCopy];
+                // The site refused this Mac (a bot filter, a sign-in, a timeout): the search engine already read the
+                // page, and its excerpt is what there is. No other service is asked to fetch it.
+                if (excerpt) refusal[@"search_excerpt"] = SPDFMacAIWebExcerptResult(excerpt);
+                completion(refusal);
                 return;
             }
             [weakSelf rememberPage:page key:key];
             // Where the site's redirects ended counts as a visit to that site too.
             NSString* landed = SPDFMacAIWebShownHost(page.URL.absoluteString);
             if (![landed isEqual:host]) [weakSelf countOpenOn:landed];
-            // No status of its own: the title says it opened, the row under it is the page.
-            [activity updateEntry:step changes:@{
-                SPDFMacAIActivityTitleKey : [@"Opened " stringByAppendingString:landed],
+            // Usually no status of its own: the title says it opened, the row under it is the page. A page built by
+            // scripts says it had almost nothing to read.
+            NSMutableDictionary* changes = [@{SPDFMacAIActivityTitleKey : [@"Opened " stringByAppendingString:landed],
                 SPDFMacAIActivityDetailKey : SPDFMacAIWebPageStepDetail(page), // empty clears the address shown
                 SPDFMacAIActivityStateKey : SPDFMacAIActivityStateDone,
-                SPDFMacAIActivityLinksKey : SPDFMacAIWebPageStepLinks(page)}];
-            completion(SPDFMacAIWebPageToolResult(page, offset));
+                SPDFMacAIActivityLinksKey : SPDFMacAIWebPageStepLinks(page)} mutableCopy];
+            NSString* status = SPDFMacAIWebPageStepStatus(page);
+            if (status) changes[SPDFMacAIActivityStatusKey] = status;
+            [activity updateEntry:step changes:changes];
+            Answer(page, offset, from, pages, completion);
         }];
     } context:context];
 }

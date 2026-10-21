@@ -27,7 +27,7 @@ static WebFetchResult* WebFetch(SPDFMacAIWebFetcher* fetcher, NSString* link) {
 static void CheckFetchBasics(void) {
     WebFakeResolver* resolver = [WebFakeResolver new];
     WebFakeConnector* connector = [WebFakeConnector new];
-    SPDFMacAIWebFetcher* fetcher = [[SPDFMacAIWebFetcher alloc] initWithResolver:resolver connector:connector];
+    SPDFMacAIWebFetcher* fetcher = WebTestFetcher(resolver, connector);
     [resolver answer:@"pages.example.com" with:@[@"93.184.216.34"]];
     connector.respond = ^NSArray*(WebConnection* connection) {
         (void)connection;
@@ -97,7 +97,7 @@ static void CheckFetchBasics(void) {
 static void CheckFetchRedirects(void) {
     WebFakeResolver* resolver = [WebFakeResolver new];
     WebFakeConnector* connector = [WebFakeConnector new];
-    SPDFMacAIWebFetcher* fetcher = [[SPDFMacAIWebFetcher alloc] initWithResolver:resolver connector:connector];
+    SPDFMacAIWebFetcher* fetcher = WebTestFetcher(resolver, connector);
     [resolver answer:@"start.example.com" with:@[@"93.184.216.34"]];
     [resolver answer:@"other.example.com" with:@[@"151.101.1.69"]];
     [resolver answer:@"evil.example.net" with:@[@"192.168.1.1"]];
@@ -143,17 +143,19 @@ static void CheckFetchRedirects(void) {
     routes = @{@"93.184.216.34 GET / HTTP/1.1" : WebRedirect(302, @"/one"),
                @"93.184.216.34 GET /one HTTP/1.1" : WebRedirect(302, @"/two"),
                @"93.184.216.34 GET /two HTTP/1.1" : WebRedirect(302, @"/three"),
-               @"93.184.216.34 GET /three HTTP/1.1" : WebRedirect(302, @"/four")};
+               @"93.184.216.34 GET /three HTTP/1.1" : WebRedirect(302, @"/four"),
+               @"93.184.216.34 GET /four HTTP/1.1" : WebRedirect(302, @"/five"),
+               @"93.184.216.34 GET /five HTTP/1.1" : WebRedirect(302, @"/six")};
     connector.connections = [NSMutableArray array];
     result = WebFetch(fetcher, @"https://start.example.com/");
-    CHECK(result.error.code == SPDFMacAIWebErrorTooManyRedirects && connector.connections.count == 4,
-          "a fourth redirect is not followed");
+    CHECK(result.error.code == SPDFMacAIWebErrorTooManyRedirects && connector.connections.count == 6,
+          "a sixth redirect is not followed");
 }
 
 static void CheckFetchRebinding(void) {
     WebFakeResolver* resolver = [WebFakeResolver new];
     WebFakeConnector* connector = [WebFakeConnector new];
-    SPDFMacAIWebFetcher* fetcher = [[SPDFMacAIWebFetcher alloc] initWithResolver:resolver connector:connector];
+    SPDFMacAIWebFetcher* fetcher = WebTestFetcher(resolver, connector);
     // The attacker's name answers with a public address for the check and a private one ever after.
     [resolver answer:@"rebind.example.net" with:@[@"93.184.216.34"]];
     [resolver answer:@"rebind.example.net" with:@[@"127.0.0.1"]];
@@ -180,7 +182,7 @@ static void CheckFetchRebinding(void) {
 static void CheckFetchLimits(void) {
     WebFakeResolver* resolver = [WebFakeResolver new];
     WebFakeConnector* connector = [WebFakeConnector new];
-    SPDFMacAIWebFetcher* fetcher = [[SPDFMacAIWebFetcher alloc] initWithResolver:resolver connector:connector];
+    SPDFMacAIWebFetcher* fetcher = WebTestFetcher(resolver, connector);
     [resolver answer:@"big.example.com" with:@[@"93.184.216.34"]];
     NSMutableData* huge = [NSMutableData dataWithCapacity:3 * 1024 * 1024];
     while (huge.length < 3 * 1024 * 1024) [huge appendData:[@"<p>more words here</p>"
@@ -201,8 +203,8 @@ static void CheckFetchLimits(void) {
         return @[WebResponse(200, @{@"Content-Type" : @"application/pdf", @"Content-Length" : @"4"}, [@"%PDF"
             dataUsingEncoding:NSASCIIStringEncoding])];
     };
-    CHECK(WebFetch(fetcher, @"https://big.example.com/").error.code == SPDFMacAIWebErrorUnsupportedContent,
-          "a PDF is refused as content");
+    CHECK(WebFetch(fetcher, @"https://big.example.com/").error.code == SPDFMacAIWebErrorBadDocument,
+          "a PDF the engine cannot open is refused, not read as text");
     connector.respond = ^NSArray*(WebConnection* connection) {
         (void)connection;
         return @[WebResponse(404, @{@"Content-Length" : @"0"}, nil)];

@@ -12,6 +12,7 @@
 #import "SPDFMacAIWebProvenanceChecks.h"
 #import "SPDFMacAIWebSessionChecks.h"
 #import "SPDFMacAIWebFriendsChecks.h"
+#import "SPDFMacAIWebBrowserChecks.h"
 
 int main(void) {
     @autoreleasepool {
@@ -41,6 +42,11 @@ int main(void) {
         CheckSessionEcho();
         CheckFriendsSavedChat();
         CheckReaderRegistration();
+        CheckBrowserFetch();
+        CheckDocumentPages();
+        CheckProviderDocuments();
+        CheckFailureCopy();
+        [NSFileManager.defaultManager removeItemAtURL:WebDocumentFolder() error:nil];
     }
     if (failures) { fprintf(stderr, "SPDFMacAIWebTests: %d failures\n", failures); return 1; }
     puts("SPDFMacAIWebTests passed");

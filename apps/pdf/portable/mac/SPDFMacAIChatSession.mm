@@ -4,6 +4,7 @@
 #import "SPDFMacAIChatVision.h"
 #import "SPDFMacAICitations.h"
 #import "SPDFMacAIAnswerCard.h"
+#import "SPDFMacAIToolArguments.h"
 static NSString* SystemPrompt(NSString* language) {
     NSString* base=@"You are Shenzhen PDF's document assistant. Be as brief as possible and follow the user's specifications closely. "
     "Default to 1-3 short sentences: answer, citation, essential qualifications. Give detailed reasoning, derivations, tables or extra suggestions only when the user asks. Brevity limits the reply, not the evidence needed to answer correctly. "
@@ -82,6 +83,12 @@ static NSUInteger EstimatedTokens(id value) {
 - (NSString*)status { return _status ?: @""; }
 // Only while a tool runs: Thinking, Undo and an ended request all leave Working or clear the status.
 - (NSString*)runningTool { return _activityState==SPDFMacAIChatActivityWorking ? _runningTool : nil; }
+- (NSString*)runningToolProgress { return self.runningTool ? _runningToolProgress : nil; }
+// Only the tool running now may say how it is getting on: a late word from one that ended must not label the next.
+- (void)setProgress:(NSString*)progress forTool:(NSString*)name {
+    if (!_running || !self.runningTool || ![name isEqual:_runningTool] || [progress isEqual:_runningToolProgress]) return;
+    _runningToolProgress=[progress copy]; [self notify];
+}
 - (void)notify { if (self.changed) self.changed(); }
 // Providers are shared: a child shares its parent's, and an idle session (a chat just made, opened or started anew)
 // has no work of its own with them. Only this session's running request, Undo or Redo is its to stop; cancelling them
@@ -89,7 +96,7 @@ static NSUInteger EstimatedTokens(id value) {
 - (void)cancelOwnProviderWork { if (!_depth && (_running || _context)) [_registry cancel]; }
 - (void)stopAfterSaveFailure:(NSError*)error {
     ++_generation; [_visionWork cancel]; _visionWork=nil; [_request cancel]; _request=nil;
-    [self cancelOwnProviderWork]; _running=NO; _key=nil; _activityState=SPDFMacAIChatActivityError;
+    [self cancelOwnProviderWork]; _running=NO; _key=nil; _retryable=NO; _activityState=SPDFMacAIChatActivityError;
     _status=error.localizedDescription ?: @"Chat could not be saved. Copy important answers before closing.";
     [self notify];
     // Also when -finish: had already stopped running: the request still ends exactly once.
@@ -167,7 +174,7 @@ static NSUInteger EstimatedTokens(id value) {
     _model=[model copy] ?: _model; _key=[key copy] ?: _key;
     _wrapUpSent=NO; _changedDocument=NO; _running=YES; ++_generation;
     _compactions=0; _compactionFailed=NO; _contextRetried=NO; _definitionTokens=0;
-    _context=context;
+    _argumentsRetried=NO; _retryable=NO; _context=context;
     __weak __typeof__(self) weakSelf=self; NSUInteger generation=_generation;
     // A child's token is cancelled with its parent's: the parent's Stop stops every subagent.
     [context.cancellation onCancel:^{ dispatch_async(dispatch_get_main_queue(),^{
@@ -285,36 +292,31 @@ static NSUInteger EstimatedTokens(id value) {
         id total=[usage isKindOfClass:NSDictionary.class] ? usage[@"total_tokens"] : nil;
         BOOL reported=[total isKindOfClass:NSNumber.class] && [total integerValue]>0;
         [budget consumeTokens:reported ? [total unsignedIntegerValue] : estimate+EstimatedTokens(reply)];
-        if (error) { if (wrappingUp) [owner pauseAfterBudget]; else [owner finish:error.localizedDescription]; return; }
-        if (![reply isKindOfClass:NSDictionary.class]) { [owner finish:@"The model returned an invalid response."]; return; }
-        id content=reply[@"content"];
-        if (content && content!=NSNull.null && ![content isKindOfClass:NSString.class]) {
-            [owner finish:@"The model returned invalid message content."]; return;
+        if (error) {
+            // Codes from SPDFMacAITransport.mm: not reached, busy, unreadable, cut off, empty, provider failure.
+            BOOL again=[error.domain isEqual:@"SPDFMacAI"] && [@[@5,@6,@7,@8,@10,@429] containsObject:@(error.code)];
+            if (wrappingUp) [owner pauseAfterBudget]; else [owner finish:error.localizedDescription retryable:again];
+            return;
+        }
+        id content=[reply isKindOfClass:NSDictionary.class] ? reply[@"content"] : nil;
+        if (![reply isKindOfClass:NSDictionary.class] ||
+            (content && content!=NSNull.null && ![content isKindOfClass:NSString.class])) {
+            [owner finishUnusableAnswer:@"The assistant's answer couldn't be read."]; return;
         }
         NSMutableDictionary* message=[@{@"role":@"assistant",@"content":content==NSNull.null || !content ? @"" : [content copy]} mutableCopy];
         if (![message[@"content"] stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet].length) message[@"content"]=@"";
         NSArray* calls=reply[@"tool_calls"];
         if (wrappingUp && ((calls && (![calls isKindOfClass:NSArray.class] || calls.count)) || ![message[@"content"] length])) { [owner pauseAfterBudget]; return; }
-        if (calls && (![calls isKindOfClass:NSArray.class] || calls.count>12)) {
-            [owner finish:@"The model returned too many actions. Try a smaller request."]; return;
+        if (calls && ![calls isKindOfClass:NSArray.class]) {
+            [owner finishUnusableAnswer:@"The assistant's answer couldn't be read."]; return;
         }
-        NSMutableSet* identifiers=[NSMutableSet set];
-        for (id call in calls) {
-            if (![call isKindOfClass:NSDictionary.class] || ![call[@"id"] isKindOfClass:NSString.class] ||
-                ![call[@"id"] length] || [identifiers containsObject:call[@"id"]] ||
-                ![call[@"function"] isKindOfClass:NSDictionary.class]) {
-                [owner finish:@"The model returned an invalid action."]; return;
-            }
-            NSDictionary* function=call[@"function"]; id raw=function[@"arguments"];
-            if (![function[@"name"] isKindOfClass:NSString.class] || ![raw isKindOfClass:NSString.class] || [raw length]>65536) {
-                [owner finish:@"The model returned invalid action arguments."]; return;
-            }
-            id args=[NSJSONSerialization JSONObjectWithData:[raw dataUsingEncoding:NSUTF8StringEncoding] options:0 error:nil];
-            if (![args isKindOfClass:NSDictionary.class]) { [owner finish:@"The model returned malformed action JSON."]; return; }
-            [identifiers addObject:call[@"id"]];
+        if (calls.count>12) {
+            [owner finishUnusableAnswer:@"The assistant tried to take too many steps at once."]; return;
         }
+        if (calls.count && !(calls=[owner runnableCalls:calls message:message offered:offered generation:generation]))
+            return;
         if (!calls.count && ![message[@"content"] stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet].length) {
-            [owner finish:@"The model returned no answer or actions. Your chat is saved; retry or choose another model."]; return;
+            [owner finishUnusableAnswer:@"The assistant sent back an empty answer."]; return;
         }
         if (calls.count) {
             // Preserve the provider's opaque reasoning blocks across tool rounds. They are
@@ -325,17 +327,9 @@ static NSUInteger EstimatedTokens(id value) {
                 if(bytes.length>0 && bytes.length<=128*1024)owner->_reasoning[@(owner->_messages.count)]=ImmutableJSON(details);
             }
             calls=ImmutableJSON(calls);
-            if (!calls) { [owner finish:@"The model returned an invalid action."]; return; }
+            if (!calls) { [owner finishUnusableAnswer:@"The assistant's answer couldn't be read."]; return; }
             message[@"tool_calls"]=calls;
-            // Decided before the save below, which already writes the calls' arguments. A call to a tool this
-            // request did not offer has no provider to vouch that its arguments quote no friend.
-            SPDFMacAIRequestContext* request=owner->_context;
-            for (NSDictionary* call in calls) {
-                NSString* name=call[@"function"][@"name"];
-                if ([owner->_registry isRequestOnlyTool:name context:request] ||
-                    (request.includesFriendsChats && ![offered containsObject:name]))
-                    [owner->_requestOnlyCalls addObject:call[@"id"]];
-            }
+            [owner markRequestOnlyCalls:calls offered:offered]; // before the save below writes their arguments
         }
         message[@"content"]=SPDFMacAIRepairCitationLinks(message[@"content"],owner.chat);
         [owner->_messages addObject:[message copy]]; if (![owner persist]) return; [owner notify];
@@ -347,13 +341,10 @@ static NSUInteger EstimatedTokens(id value) {
     if (!_running || generation!=_generation) return;
     if (index>=calls.count) { if ([self persist]) [self nextRequest:generation]; return; }
     NSDictionary* call=calls[index]; NSDictionary* function=call[@"function"];
-    NSString* name=function[@"name"]; NSString* raw=function[@"arguments"];
-    if (![name isKindOfClass:NSString.class] || ![raw isKindOfClass:NSString.class] ||
-        ![call[@"id"] isKindOfClass:NSString.class] || raw.length>65536) {
-        [self finish:@"The model returned an invalid action."]; return;
+    NSString* name=function[@"name"]; NSDictionary* args=SPDFMacAIToolCallArguments(function[@"arguments"],NULL,NULL);
+    if (![name isKindOfClass:NSString.class] || ![call[@"id"] isKindOfClass:NSString.class] || !args) {
+        [self finishUnusableAnswer:@"The assistant's answer couldn't be read."]; return;
     }
-    id args=[NSJSONSerialization JSONObjectWithData:[raw dataUsingEncoding:NSUTF8StringEncoding] options:0 error:nil];
-    if (![args isKindOfClass:NSDictionary.class]) { [self finish:@"The model returned malformed action JSON."]; return; }
     if ([name isEqual:@"present_answer"]) {
         NSDictionary* card=calls.count==1 ? SPDFMacAIValidatedAnswerCard(args,self.chat) : nil;
         NSString* result=card ? @"{\"displayed\":true}" : @"{\"error\":\"Call present_answer alone with a short label/value and an exact retrieved citation. Otherwise answer in prose.\"}";
@@ -371,6 +362,7 @@ static NSUInteger EstimatedTokens(id value) {
     }
     // Each view words the tool for its reader from runningTool; the status never shows an identifier.
     _activityState=SPDFMacAIChatActivityWorking; _runningTool=[name copy]; _status=@"Working…";
+    _runningToolProgress=nil;
     [self notify];
     __weak __typeof__(self) weakSelf=self;
     [_registry performTool:name arguments:args context:_context completion:^(NSDictionary* result) {
@@ -452,13 +444,13 @@ static SPDFMacAIChatSession* Refuse(NSError** error, NSString* message) {
 }
 - (BOOL)sendTask:(NSString*)task error:(NSError**)error {
     // These can reach a helper's row in the chat (SPDFMacAISubagentsRun.mm), so they name helpers as the person does.
-    if (!_depth || !_parentContext) { Refuse(error,@"The helper couldn’t start."); return NO; }
-    if (_running) { Refuse(error,@"This helper is still running."); return NO; }
+    if (!_depth || !_parentContext) { Refuse(error,@"This part couldn’t start."); return NO; }
+    if (_running) { Refuse(error,@"This part is still running."); return NO; }
     SPDFMacAIRequestContext* context=[_parentContext childContextWithText:task ?: @"" budget:_childBudget error:error];
     if (!context) return NO;
     NSUInteger before=_messages.count;
     [self sendContext:context model:nil apiKey:nil];
-    if (_messages.count==before) { Refuse(error,@"The helper couldn’t start."); return NO; }
+    if (_messages.count==before) { Refuse(error,@"This part couldn’t start."); return NO; }
     return YES;
 }
 - (NSString*)latestAnswer {
