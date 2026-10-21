@@ -46,6 +46,14 @@ impl State {
                 fetching,
                 holder_connected: connected,
                 fraction: copying.get(&file.transfer_id).copied().unwrap_or(0.0),
+                // The session carrying the copy, as the conversation's route shows a friend's file.
+                route: self
+                    .own_device_live_link(&holder)
+                    .map(|id| {
+                        let s = &self.sessions.map[&id];
+                        super::nearby::view_route(s.meta.race_route(&s.channel))
+                    })
+                    .unwrap_or_default(),
             };
             files.insert(file.transfer_id, facts);
         }

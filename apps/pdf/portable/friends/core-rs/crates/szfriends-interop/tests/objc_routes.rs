@@ -9,30 +9,36 @@ mod mac {
     use std::path::PathBuf;
     use std::sync::Mutex;
 
-    use szfriends_interop::helpers::{objc_helper_with, rust_helper_with, test_service_type, Room};
+    use szfriends_interop::helpers::{objc_helper_with, rust_helper_with, test_service_type, Client, Room};
     use szfriends_interop::{nearby, routes, TempHome};
 
     static START: Mutex<()> = Mutex::new(());
 
-    pub fn bluetooth_then_network(rust_asks: bool) {
+    /// A Rust helper and the Objective-C helper in one room, the network held.
+    fn room(rust_name: &str, objc_name: &str) -> Option<([TempHome; 3], Client, Client, Room)> {
         let Some(binary) = std::env::var_os("SZFRIENDS_OBJC_HELPER").map(PathBuf::from) else {
             eprintln!("SZFRIENDS_OBJC_HELPER is not set: make friends-core-rs-interop-check builds the helper");
-            return;
+            return None;
         };
-        let (rust_name, objc_name) = ("Rina", "Olaf");
         let homes = [TempHome::new(rust_name), TempHome::new(objc_name), TempHome::new("room")];
         let room = Room::new(homes[2].path(), true);
         let service_type = test_service_type();
         let mut env: Vec<(&str, String)> = room.env();
         env.push(("SZFRIENDS_TEST_SERVICE_TYPE", service_type));
         let env: Vec<(&str, &str)> = env.iter().map(|(k, v)| (*k, v.as_str())).collect();
-        let mut rust = {
+        let rust = {
             let _guard = START.lock().unwrap_or_else(|e| e.into_inner());
             std::env::set_var("SZFRIENDS_STATE_DIR", homes[0].path());
             std::env::remove_var("SZFRIENDS_TEST_LOOPBACK");
             rust_helper_with(rust_name, &homes[0].path().join("state"), &env)
         };
-        let mut objc = objc_helper_with(objc_name, &binary, &homes[1].path().join("state"), &env);
+        let objc = objc_helper_with(objc_name, &binary, &homes[1].path().join("state"), &env);
+        Some((homes, rust, objc, room))
+    }
+
+    pub fn bluetooth_then_network(rust_asks: bool) {
+        let (rust_name, objc_name) = ("Rina", "Olaf");
+        let Some((_homes, mut rust, mut objc, room)) = room(rust_name, objc_name) else { return };
         nearby::start(&mut rust, rust_name, &mut objc, objc_name);
         if rust_asks {
             routes::bluetooth_then_network(&mut rust, rust_name, &mut objc, objc_name, &room);
@@ -40,6 +46,29 @@ mod mac {
             routes::bluetooth_then_network(&mut objc, objc_name, &mut rust, rust_name, &room);
         }
     }
+    /// One computer joins the other's profile over the test air alone; the sync moves to the network once it comes up.
+    pub fn profile_bluetooth_then_network(rust_joins: bool) {
+        let (rust_name, objc_name) = ("Rhea", "Odin");
+        let Some((_homes, mut rust, mut objc, room)) = room(rust_name, objc_name) else { return };
+        nearby::start(&mut rust, rust_name, &mut objc, objc_name);
+        if rust_joins {
+            routes::join_over_bluetooth_then_network(&mut objc, objc_name, &mut rust, &room);
+        } else {
+            routes::join_over_bluetooth_then_network(&mut rust, rust_name, &mut objc, &room);
+        }
+    }
+}
+
+#[test]
+fn rust_joins_the_objc_helpers_profile_over_bluetooth_then_the_network() {
+    #[cfg(target_os = "macos")]
+    mac::profile_bluetooth_then_network(true);
+}
+
+#[test]
+fn objc_helper_joins_rusts_profile_over_bluetooth_then_the_network() {
+    #[cfg(target_os = "macos")]
+    mac::profile_bluetooth_then_network(false);
 }
 
 #[test]

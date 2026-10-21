@@ -58,6 +58,17 @@ pub fn join_and_sync(holder: &mut Client, holder_name: &str, joiner: &mut Client
     });
 }
 
+/// Waits (up to two minutes: leaving the relay is retried 30 s after it connects) until the join page of `joiner`
+/// names `route` as the one carrying the profile's sync.
+pub fn join_page_route(joiner: &mut Client, route: &str) -> bool {
+    let view = joiner.subscribe("join", json!({}));
+    let what = format!("the join page showing {route}");
+    let data =
+        joiner.snapshot_within(&view, &what, std::time::Duration::from_secs(120), |d| d["route"]["label"] == route);
+    joiner.send("unsubscribe", json!({"subscription": view}));
+    data["route"]["label"] == route
+}
+
 fn rows(data: &Value) -> Vec<Value> {
     data["rows"].as_array().cloned().unwrap_or_default()
 }

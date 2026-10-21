@@ -33,7 +33,9 @@ pub fn message(a: &mut Client, a_chat: &str, a_conversation: &str, b: &mut Clien
     a.send("send_message", json!({"conversation_id": a_conversation, "text": text, "client_token": token}));
     b.snapshot(b_chat, "the message arriving", |d| d.to_string().contains(text));
     a.snapshot(a_chat, "the message delivered", |d| {
-        d["items"].as_array().is_some_and(|items| items.iter().any(|i| i["text"] == text && i["status"]["state"] == "delivered"))
+        d["items"]
+            .as_array()
+            .is_some_and(|items| items.iter().any(|i| i["text"] == text && i["status"]["state"] == "delivered"))
     });
 }
 
@@ -52,5 +54,28 @@ pub fn bluetooth_then_network(a: &mut Client, a_name: &str, b: &mut Client, b_na
     shows(b, &chat_b, LAN);
     message(b, &chat_b, &a_in_b, a, &chat_a, "Over the network");
     let data = shows(a, &chat_a, LAN);
+    assert!(!data.to_string().contains(BLUETOOTH), "still Bluetooth: {data}");
+}
+
+/// The profile's own route: `joiner` joins `holder`'s profile with the network held, so the join and the sync after
+/// it run over the test air, and the join page says Bluetooth; once the network comes up the sync moves to it, as a
+/// friend's conversation does (`bluetooth_then_network`), and a new name still reaches the new computer there.
+pub fn join_over_bluetooth_then_network(holder: &mut Client, holder_name: &str, joiner: &mut Client, room: &Room) {
+    crate::nearby_devices::join(holder, joiner);
+    let join_view = joiner.subscribe("join", json!({}));
+    let profile = joiner.subscribe("profile", json!({}));
+    let rename = |holder: &mut Client, joiner: &mut Client, name: String| {
+        holder.send("set_name", json!({"name": name}));
+        joiner.snapshot(&profile, &format!("{name} on the new computer"), |d| d.to_string().contains(&name));
+    };
+    let shows_route = |joiner: &mut Client, route: &str| {
+        joiner.snapshot(&join_view, &format!("the join page showing {route}"), |d| d["route"]["label"] == route)
+    };
+    rename(holder, joiner, format!("{holder_name} over the air"));
+    shows_route(joiner, BLUETOOTH);
+    room.network_comes_up();
+    shows_route(joiner, LAN);
+    rename(holder, joiner, format!("{holder_name} over the network"));
+    let data = shows_route(joiner, LAN);
     assert!(!data.to_string().contains(BLUETOOTH), "still Bluetooth: {data}");
 }

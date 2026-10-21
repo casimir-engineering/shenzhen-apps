@@ -164,12 +164,35 @@ mod helpers_online {
         _homes: [TempHome; 2],
     }
 
+    const BLOCK_DIRECT: &str = "online-block-direct";
+
+    impl Pair {
+        /// Direct connections work again on both sides, as on a network that stops blocking them.
+        pub fn unblock_direct(&self) {
+            for home in &self._homes {
+                let _ = std::fs::remove_file(home.path().join("state").join(BLOCK_DIRECT));
+            }
+        }
+    }
+
     pub fn pair(host: &LocalHost, rust_name: &str, objc_name: &str) -> Option<Pair> {
+        pair_with(host, rust_name, objc_name, false)
+    }
+
+    /// `relayed`: both helpers find direct connections blocked (`online-block-direct` in each state directory) until
+    /// [`Pair::unblock_direct`].
+    pub fn pair_with(host: &LocalHost, rust_name: &str, objc_name: &str, relayed: bool) -> Option<Pair> {
         let Some(binary) = std::env::var_os("SZFRIENDS_OBJC_HELPER").map(std::path::PathBuf::from) else {
             eprintln!("SZFRIENDS_OBJC_HELPER is not set: make friends-core-rs-online-check builds the helper");
             return None;
         };
         let homes = [TempHome::new(rust_name), TempHome::new(objc_name)];
+        if relayed {
+            for home in &homes {
+                std::fs::create_dir_all(home.path().join("state")).unwrap();
+                std::fs::write(home.path().join("state").join(BLOCK_DIRECT), b"").unwrap();
+            }
+        }
         let (list, keys) = (host.list_path.to_string_lossy(), host.keys_path.to_string_lossy());
         for (key, value) in [
             ("SZFRIENDS_STATE_DIR", homes[0].path().as_os_str()),
@@ -273,4 +296,34 @@ fn rust_adds_the_objc_helper_by_id_through_the_host() {
 fn objc_helper_adds_the_rust_helper_by_id_through_the_host() {
     #[cfg(target_os = "macos")]
     helpers(|p| szfriends_interop::online_devices::add_by_id(&mut p.objc, "Otto", &mut p.rust, "Rosa"));
+}
+
+/// Only the relay works: the new computer joins through the host and the sync runs through the relay, which its join
+/// page says; once direct connections work, the sync moves to one. Each implementation joining the other's.
+#[cfg(target_os = "macos")]
+fn relay_then_direct(objc_holds: bool) {
+    let _one = HELPERS.lock().unwrap_or_else(|e| e.into_inner());
+    let Some(w) = world(true) else { return };
+    let Some(mut pair) = helpers_online::pair_with(&w.host, "Rosa", "Otto", true) else { return };
+    let helpers_online::Pair { rust, objc, .. } = &mut pair;
+    let (holder, holder_name, joiner) = if objc_holds { (objc, "Otto", rust) } else { (rust, "Rosa", objc) };
+    szfriends_interop::online_devices::join_and_sync(holder, holder_name, joiner);
+    let relay = szfriends_interop::online_devices::join_page_route(joiner, "Online, through the Friends relay");
+    assert!(relay, "the join page never said the relay");
+    pair.unblock_direct();
+    let helpers_online::Pair { rust, objc, .. } = &mut pair;
+    let joiner = if objc_holds { rust } else { objc };
+    assert!(szfriends_interop::online_devices::join_page_route(joiner, "Online, direct"), "never moved off the relay");
+}
+
+#[test]
+fn rust_joins_an_objc_profile_through_the_relay_then_goes_direct() {
+    #[cfg(target_os = "macos")]
+    relay_then_direct(true);
+}
+
+#[test]
+fn objc_helper_joins_a_rust_profile_through_the_relay_then_goes_direct() {
+    #[cfg(target_os = "macos")]
+    relay_then_direct(false);
 }

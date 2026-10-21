@@ -7,69 +7,15 @@
 #![cfg(feature = "online")]
 
 mod clients;
+mod routes;
 mod support;
 
-use std::collections::HashSet;
-use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
-use std::time::Duration;
-
 use clients::{Client, Temp};
+use routes::{Joined, RoutePair};
 use serde_json::json;
-use szfriends_helper::nearby::test_air::ENV_TEST_BLUETOOTH;
-use szfriends_helper::service::{seed, BLOCK_DIRECT_FILE, ENV_TEST_HOST_KEYS, ENV_TEST_HOST_LIST, ENV_TEST_LOOPBACK};
+use szfriends_helper::service::{seed, BLOCK_DIRECT_FILE, ENV_TEST_HOST_KEYS, ENV_TEST_HOST_LIST};
 use szfriends_helper::state::ENV_STATE_DIR;
 use szfriends_interop::host::{self, LocalHost};
-
-const LAN: &str = "Nearby, on your network";
-const BLUETOOTH: &str = "Nearby, over Bluetooth";
-const DIRECT: &str = "Online, direct";
-const RELAY: &str = "Online, through the Friends relay";
-
-/// Copies each side's own entries to the other until dropped: the two test networks (or airs) become one.
-struct Joined(Arc<AtomicBool>);
-
-impl Joined {
-    fn new(a: PathBuf, b: PathBuf) -> Self {
-        let stop = Arc::new(AtomicBool::new(false));
-        let running = stop.clone();
-        std::thread::spawn(move || {
-            let (mut copied_into_a, mut copied_into_b) = (HashSet::new(), HashSet::new());
-            while !running.load(Ordering::SeqCst) {
-                copy_own(&a, &b, &copied_into_a, &mut copied_into_b);
-                copy_own(&b, &a, &copied_into_b, &mut copied_into_a);
-                std::thread::sleep(Duration::from_millis(50));
-            }
-        });
-        Self(stop)
-    }
-}
-
-impl Drop for Joined {
-    fn drop(&mut self) {
-        self.0.store(true, Ordering::SeqCst);
-    }
-}
-
-/// Entries written in `from` itself (not ones copied there) reach `to` whenever they change.
-fn copy_own(from: &Path, to: &Path, foreign: &HashSet<String>, copied: &mut HashSet<String>) {
-    let Ok(entries) = std::fs::read_dir(from) else { return };
-    for entry in entries.flatten() {
-        let Ok(name) = entry.file_name().into_string() else { continue };
-        if name.starts_with('.') || foreign.contains(&name) || !entry.path().is_file() {
-            continue;
-        }
-        let Ok(bytes) = std::fs::read(entry.path()) else { continue };
-        if std::fs::read(to.join(&name)).ok().as_deref() == Some(bytes.as_slice()) {
-            continue;
-        }
-        let temporary = to.join(format!(".{name}.copy"));
-        if std::fs::write(&temporary, &bytes).is_ok() && std::fs::rename(&temporary, to.join(&name)).is_ok() {
-            copied.insert(name);
-        }
-    }
-}
 
 struct Pair {
     ada: Client,
@@ -81,7 +27,7 @@ struct Pair {
     _homes: (Temp, Temp, Temp, Temp),
 }
 
-impl Pair {
+impl RoutePair for Pair {
     /// Ada and Bo, friends, each on a nearby test network (`variable`) of their own until joined.
     fn start(label: &str, variable: &str, relayed: bool) -> Self {
         let homes = (
@@ -116,7 +62,7 @@ impl Pair {
     }
 
     /// A message from Ada, delivered; then Ada's conversation shows `route`.
-    fn message_over(&mut self, route: &str) {
+    fn carry_over(&mut self, route: &str) {
         self.sent += 1;
         let text = format!("Message {} from Ada", self.sent);
         let token = format!("{:032x}", self.sent);
@@ -130,35 +76,10 @@ impl Pair {
         let what = format!("Ada's conversation showing {route}");
         self.ada.snapshot(&self.chats.0, &what, |d| d.to_string().contains(route));
     }
-}
 
-/// Online direct first; once they share a network, the network carries them.
-fn the_network_takes_over_from_a_direct_connection() {
-    let mut pair = Pair::start("lan", ENV_TEST_LOOPBACK, false);
-    pair.message_over(DIRECT);
-    let _joined = pair.join();
-    pair.shows(LAN);
-    pair.message_over(LAN);
-}
-
-/// Through the relay first; once they are in Bluetooth range, Bluetooth carries them.
-fn bluetooth_takes_over_from_the_relay() {
-    let mut pair = Pair::start("bt-relay", ENV_TEST_BLUETOOTH, true);
-    pair.message_over(RELAY);
-    let _joined = pair.join();
-    pair.shows(BLUETOOTH);
-    pair.message_over(BLUETOOTH);
-}
-
-/// Online direct first; Bluetooth in range changes nothing, since it ranks after a direct connection.
-fn a_direct_connection_keeps_them_when_bluetooth_comes() {
-    let mut pair = Pair::start("bt-direct", ENV_TEST_BLUETOOTH, false);
-    pair.message_over(DIRECT);
-    let _joined = pair.join();
-    std::thread::sleep(Duration::from_secs(4));
-    pair.message_over(DIRECT);
-    let chat = pair.ada.snapshot(&pair.chats.0, "Ada's conversation", |_| true);
-    assert!(!chat["data"].to_string().contains(BLUETOOTH), "Bluetooth took over: {}", chat["data"]);
+    fn shown(&mut self) -> String {
+        self.ada.snapshot(&self.chats.0, "Ada's conversation", |_| true)["data"].to_string()
+    }
 }
 
 #[test]
@@ -175,8 +96,6 @@ fn nearby_and_online_keep_the_owners_route_order() {
     let host = LocalHost::start(&server, &dir.0, true);
     std::env::set_var(ENV_TEST_HOST_LIST, &host.list_path);
     std::env::set_var(ENV_TEST_HOST_KEYS, &host.keys_path);
-    the_network_takes_over_from_a_direct_connection();
-    bluetooth_takes_over_from_the_relay();
-    a_direct_connection_keeps_them_when_bluetooth_comes();
+    routes::owners_route_order::<Pair>("friends");
     drop(host);
 }

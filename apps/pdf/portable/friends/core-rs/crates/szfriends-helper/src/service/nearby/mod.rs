@@ -47,6 +47,7 @@ use szfriends_core::store::{unix_now, Relation};
 use szfriends_core::wire::Fields;
 
 pub use by_id::AnswerAttestation;
+pub(crate) use facts::view_route;
 pub use links::{LinkMeta, Purpose};
 
 use super::{Input, State};

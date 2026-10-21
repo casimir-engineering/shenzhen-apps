@@ -47,23 +47,35 @@ fn a_new_computer_joins_and_syncs() {
     nearby_devices::join_and_sync(&mut gil, "Gil", &mut hal);
 }
 
-#[test]
-fn bluetooth_first_then_the_network_takes_over() {
-    let homes = [TempHome::new("Ida"), TempHome::new("Jon"), TempHome::new("room")];
+/// Two Rust helpers in one room (the test air, and a loopback network that starts held), started and named.
+fn room(names: (&str, &str)) -> ([TempHome; 3], Client, Client, Room) {
+    let homes = [TempHome::new(names.0), TempHome::new(names.1), TempHome::new("room")];
     let room = Room::new(homes[2].path(), true);
     let network = homes[2].path().join("net");
     std::fs::create_dir_all(&network).unwrap();
     let mut env: Vec<(&str, String)> = room.env();
     env.push(("SZFRIENDS_TEST_LOOPBACK", network.to_string_lossy().into_owned()));
     let env: Vec<(&str, &str)> = env.iter().map(|(k, v)| (*k, v.as_str())).collect();
-    let (mut ida, mut jon) = {
+    let (mut a, mut b) = {
         let _guard = START.lock().unwrap_or_else(|e| e.into_inner());
         std::env::set_var("SZFRIENDS_STATE_DIR", homes[0].path());
         std::env::remove_var("SZFRIENDS_TEST_SERVICE_TYPE");
-        let ida = rust_helper_with("Ida", &homes[0].path().join("state"), &env);
-        let jon = rust_helper_with("Jon", &homes[1].path().join("state"), &env);
-        (ida, jon)
+        let a = rust_helper_with(names.0, &homes[0].path().join("state"), &env);
+        let b = rust_helper_with(names.1, &homes[1].path().join("state"), &env);
+        (a, b)
     };
-    nearby::start(&mut ida, "Ida", &mut jon, "Jon");
+    nearby::start(&mut a, names.0, &mut b, names.1);
+    (homes, a, b, room)
+}
+
+#[test]
+fn bluetooth_first_then_the_network_takes_over() {
+    let (_homes, mut ida, mut jon, room) = room(("Ida", "Jon"));
     routes::bluetooth_then_network(&mut ida, "Ida", &mut jon, "Jon", &room);
+}
+
+#[test]
+fn a_join_over_bluetooth_moves_to_the_network() {
+    let (_homes, mut kim, mut lev, room) = room(("Kim", "Lev"));
+    routes::join_over_bluetooth_then_network(&mut kim, "Kim", &mut lev, &room);
 }
