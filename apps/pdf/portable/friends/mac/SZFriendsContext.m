@@ -42,6 +42,9 @@ static NSDictionary<NSString *, NSString *> *SZFActionIDs(void) {
             @"join_profile" : @"", @"cancel_join" : @"",
             // Get again on a file a friend sent (PROTOCOL.md § Getting a file again): fetched by its transfer_id.
             @"fetch_from_friend" : @"transfer_id",
+            // The notifications card's and Settings' Turn On / Allow (PROTOCOL.md § Notifications): the helper asks
+            // the system, which shows its own prompt.
+            @"allow_notifications" : @"",
         };
     });
     return table;
@@ -73,6 +76,9 @@ static NSURL *SZFSettingsURL(NSString *target) {
     } else if ([target isEqualToString:@"wifi"]) {
         if (@available(macOS 13.0, *)) url = @"x-apple.systempreferences:com.apple.wifi-settings-extension";
         else url = @"x-apple.systempreferences:com.apple.preference.network?Wi-Fi";
+    } else if ([target isEqualToString:@"notifications"]) {
+        // Shenzhen Friends' own entry: the helper posts every notification, under its bundle (ADR 0017).
+        url = @"x-apple.systempreferences:com.apple.Notifications-Settings.extension?id=com.intuition.shenzhenfriends";
     }
     return url ? [NSURL URLWithString:url] : nil;
 }

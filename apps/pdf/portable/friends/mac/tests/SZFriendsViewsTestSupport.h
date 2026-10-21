@@ -226,6 +226,7 @@ void SZFTestFilePreviews(void);
 void SZFTestDropRefusals(void);
 void SZFTestAvatarPhotos(void);
 void SZFTestFriendLinks(void);
+void SZFTestNotifications(void);
 void SZFTestRouteIcons(void);
 void SZFTestOnlineStates(void);
 void SZFTestDevices(void);

@@ -206,6 +206,7 @@ int main(int argc, const char *argv[]) {
         SZFTestRouteIcons();
         SZFTestOnlineStates();
         SZFTestFriendLinks();
+        SZFTestNotifications();
         SZFTestDevices();
         SZFTestPopoverLayout();
         SZFTestDropdownSession([state stringByAppendingPathComponent:@"session"]);
