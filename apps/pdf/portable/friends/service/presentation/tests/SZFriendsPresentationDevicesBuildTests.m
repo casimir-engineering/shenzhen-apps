@@ -62,6 +62,16 @@ static void TestProfileAndRows(void) {
     SZPExpect(rows[@"rows"][1][@"remove"] == NSNull.null && rows[@"rows"][0][@"rename"] == NSNull.null &&
                   rows[@"add"] == NSNull.null,
               @"a removed computer removes, renames and adds nothing");
+    // A phone among them: the heading says so, and its row reads as a phone.
+    builder.devices.removed = NO;
+    builder.devices.computers = @[ builder.devices.computers[0],
+                                   Computer(@"d_3", @"POCO F7", @"Android", NO, YES, nil) ];
+    rows = [builder devicesSectionWithFacts:builder.devices now:SZPNow()];
+    NSDictionary *phone = rows[@"rows"][1];
+    SZPExpect([rows[@"title"] isEqual:@"Your computers and phones"] &&
+                  [phone[@"detail"] isEqual:@"Android phone · Now"] &&
+                  [phone[@"accessibility_label"] isEqual:@"POCO F7, Android phone, connected now"],
+              @"a phone in Your computers: %@", rows);
     builder.devices = nil;
     SZPExpect([builder profileWithFacts:SZPProfileRaph() waitingElsewhere:2][@"devices"] == nil,
               @"without the capability, no devices");

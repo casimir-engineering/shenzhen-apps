@@ -97,12 +97,9 @@ impl SnapshotBuilder {
             let spoken_key = self.device_key("devices.accessibility.never");
             (s.text(&self.device_key("devices.last.never")), "never_connected", spoken_key)
         };
-        let values = [
-            ("name", device.name.as_str()),
-            ("system", device.system.as_str()),
-            ("last", &last),
-            ("device", &device.name),
-        ];
+        let system = self.device_system_label(&device.system);
+        let values =
+            [("name", device.name.as_str()), ("system", system.as_str()), ("last", &last), ("device", &device.name)];
         let said_last = spoken.unwrap_or_else(|| last.clone());
         let said = [values[0], values[1], ("last", said_last.as_str()), values[3]];
         let remove = if !device.this_computer && !removed {
@@ -133,7 +130,7 @@ impl SnapshotBuilder {
         json!({
             "device_id": device.device_id,
             "name": device.name,
-            "system": device.system,
+            "system": system,
             "last_connected": last,
             "detail": s.text_with("devices.detail", &values),
             "this_computer": device.this_computer,
@@ -147,7 +144,14 @@ impl SnapshotBuilder {
     /// profile.devices.
     pub(crate) fn devices_section(&self, facts: &super::DevicesFacts, now: f64) -> Value {
         let rows: Vec<Value> = facts.computers.iter().map(|d| self.device_row(d, facts.removed, now)).collect();
-        let title = self.strings.text(&self.device_key("devices.title"));
+        // "Your computers and phones" once one of them is a phone (on a phone itself, "Your devices").
+        let phones = facts.computers.iter().any(|d| super::join_offer::phone_system_key(&d.system).is_some());
+        let key = match (self.on_phone(), phones) {
+            (true, _) => "devices.title.phone",
+            (false, true) => "devices.title.phones",
+            (false, false) => "devices.title",
+        };
+        let title = self.strings.text(key);
         json!({"title": title, "add": self.add_device(facts), "rows": rows})
     }
 

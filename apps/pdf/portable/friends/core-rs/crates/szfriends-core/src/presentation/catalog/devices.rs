@@ -6,6 +6,10 @@ pub(super) const DEVICES: &[(&str, &str)] = &[
     // Profile › Your computers. {name} is the computer's name, {system} "macOS 26.1" or "Linux", {last} when it
     // last connected to this one: devices.last.* below or the list's time words ("14:32", "Yesterday", "3 Oct").
     ("devices.title", "Your computers"),
+    // Once one of them is a phone, and what a phone's system says there: what it is, not a version number.
+    ("devices.title.phones", "Your computers and phones"),
+    ("devices.system.android", "Android phone"),
+    ("devices.system.ios", "iPhone or iPad"),
     // How to add one, from this computer's side: the steps name what the person does there and here. {id} is this
     // profile's ID.
     ("devices.add.title", "Add a computer or phone"),

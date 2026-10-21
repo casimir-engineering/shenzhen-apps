@@ -57,6 +57,10 @@ NS_ASSUME_NONNULL_BEGIN
 // "device" (revoke_device not_found), "empty" or "invalid" (rename_device name_invalid), "fetch" (fetch_from_device
 // not_found), "again" (fetch_from_friend not_found), "device_removed" (not_allowed on a computer another one removed).
 - (nullable NSString *)devicesMessageForErrorCode:(NSString *)code reason:(NSString *)reason;
+// What another computer's system says to the person: a phone's ("Android", "iOS") as a phone ("Android phone"), a
+// computer's as it is ("macOS 26.1").
+- (NSString *)deviceSystemLabel:(NSString *)system;
+- (BOOL)isPhoneSystem:(NSString *)system;
 @end
 
 @interface SZFriendsSnapshotBuilder (SZFriendsDevices)

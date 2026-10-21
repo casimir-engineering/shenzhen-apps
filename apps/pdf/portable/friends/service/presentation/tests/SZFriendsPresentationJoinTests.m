@@ -97,6 +97,23 @@ static void TestStates(void) {
     stale.codeExpiresAt = [SZPNow() dateByAddingTimeInterval:-1];
     NSDictionary *row = [builder joinRequestRowsWithFacts:@[ stale ] now:SZPNow()].firstObject;
     SZPExpect([row[@"state"] isEqual:@"waiting"] && row[@"code"] == NSNull.null, @"no expired code: %@", row);
+    // A phone asking reads as a phone, waiting and approved, aloud too; never as a version number.
+    SZFriendsJoinRequestFacts *phone = JoinRequests().lastObject;
+    phone.deviceName = @"POCO F7";
+    phone.system = @"Android";
+    row = [builder joinRequestRowsWithFacts:@[ phone ] now:SZPNow()].firstObject;
+    SZPExpect([row[@"title"] isEqual:@"POCO F7 wants to join your profile"] &&
+                  [row[@"subtitle"] isEqual:@"Android phone · Approve only if you’re setting it up now"] &&
+                  [row[@"accessibility_label"] isEqual:@"POCO F7 wants to join your profile, Android phone"],
+              @"a phone asking: %@", row);
+    SZFriendsJoinRequestFacts *approvedPhone = JoinRequests().firstObject;
+    approvedPhone.deviceName = @"POCO F7";
+    approvedPhone.system = @"Android";
+    row = [builder joinRequestRowsWithFacts:@[ approvedPhone ] now:SZPNow()].firstObject;
+    SZPExpect([row[@"title"] isEqual:@"Type this code on POCO F7"] &&
+                  [row[@"subtitle"] isEqual:@"Android phone · Waiting for the code"] &&
+                  [row[@"code_note"] containsString:@"Type it only on POCO F7"],
+              @"a phone approved: %@", row);
 }
 
 // fixtures/intents.jsonl holds one example of every join intent (friends-protocol-check validates each line).

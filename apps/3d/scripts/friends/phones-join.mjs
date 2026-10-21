@@ -228,11 +228,13 @@ try {
     // The Mac: Approve in the dropdown, and the code it shows.
     await mac("list");
     await mac("see", { text: "wants to join your profile", seconds: LONG / 1000 });
+    await mac("see", { text: "Android phone · Approve only if you’re setting it up now" });
     await mac("shot", { name: "join-request" });
     await mac("click", { label: "Approve" });
     const code = (await mac("join_code")).code;
     await mac("shot", { name: "join-code" });
-    check(`the Mac's dropdown shows the phone's request; Approve clicked; it shows the code ${code}`);
+    await mac("see", { text: "Android phone · Waiting for the code" });
+    check(`the Mac's dropdown shows the phone's request as an Android phone; Approve clicked; it shows the code ${code}`);
     await tap(`document.querySelector('.szf-panel .szf-join input[inputmode=numeric]')`, "the code field");
     type(code.replace(/\s/g, ""));
     await tap(panelButton("Join"), "Join");

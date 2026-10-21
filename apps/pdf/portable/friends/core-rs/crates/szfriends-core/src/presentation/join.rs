@@ -97,7 +97,9 @@ fn spoken_join_code(code: &str) -> String {
 impl SnapshotBuilder {
     fn join_row(&self, facts: &JoinRequestFacts, now: f64) -> Value {
         let s = &self.strings;
-        let names = [("device", facts.device_name.as_str()), ("system", facts.system.as_str())];
+        // A phone asking says so ("Android phone"), where a computer's system shows as it is.
+        let system = self.device_system_label(&facts.system);
+        let names = [("device", facts.device_name.as_str()), ("system", system.as_str())];
         let mut row = Map::new();
         row.insert("join_id".into(), json!(facts.join_id));
         row.insert("code".into(), Value::Null);

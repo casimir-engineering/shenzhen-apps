@@ -25,6 +25,10 @@ static SZFriendsGtkPageKind top_kind(SZFGRig *rig) {
     return page ? szfriends_gtk_page_get_kind(page) : SZFRIENDS_GTK_PAGE_KIND_COUNT;
 }
 
+static gboolean join_on_top(gpointer data) {
+    return top_kind(data) == SZFRIENDS_GTK_PAGE_JOIN;
+}
+
 static void reply_error(SZFGHarness *harness, const char *intent, const char *code, const char *message) {
     char *reply = code ? g_strdup_printf("{\"type\":\"reply\",\"re\":\"0\",\"ok\":false,\"error\":{\"code\":\"%s\","
                                          "\"message\":\"%s\",\"retryable\":false,\"details\":{}}}", code, message)
@@ -250,6 +254,31 @@ static void test_join_page(SZFGHarness *harness) {
 }
 
 /* Deleting history reaches every computer, and the words say so: the helper's note and confirmation, drawn as sent. */
+/* A computer with friends of its own: "Use my existing profile…" asks first, sends Reset Friends alone, and the join
+ * page opens once the reset replied, as the Mac and React views do. */
+static void test_join_after_reset(SZFGHarness *harness) {
+    szfriends_fake_helper_set_view_fixture(harness->fake, "list", "devices-list-join-reset.json");
+    szfriends_fake_helper_set_view_fixture(harness->fake, "join", "join-idle.json");
+    SZFGRig *rig = szfg_rig_new(harness);
+    GtkWidget *page = szfg_rig_page(rig);
+    GtkWidget *join = szfg_find_named(page, "szfriends.list.join");
+    EXPECT(szfg_wait_label(page, "Choose the name friends see") && join && gtk_widget_get_visible(join),
+           "the name prompt offers it");
+    guint resets = szfg_fake_frames(harness, "reset_friends", NULL, NULL);
+    if (join) g_signal_emit_by_name(join, "clicked");
+    GtkWidget *card = szfriends_gtk_dropdown_get_overlay(rig->dropdown);
+    EXPECT(card != NULL, "it asks first");
+    EXPECT(card && szfg_find_label(card, "Use your existing profile here?"), "saying what goes");
+    EXPECT(szfg_fake_frames(harness, "reset_friends", NULL, NULL) == resets, "and sends nothing yet");
+    EXPECT(top_kind(rig) != SZFRIENDS_GTK_PAGE_JOIN, "nor opens the join page yet");
+    GtkWidget *ok = confirm_button(rig);
+    if (ok) g_signal_emit_by_name(ok, "clicked");
+    EXPECT(szfg_wait_frames(harness, "reset_friends", "confirm", "reset", resets + 1), "then Reset Friends");
+    EXPECT(szfg_pump_until(join_on_top, rig, 3000), "and the join page once it replied");
+    szfriends_fake_helper_set_view_fixture(harness->fake, "list", "list.json");
+    szfg_rig_free(rig);
+}
+
 static void test_history_everywhere(SZFGHarness *harness) {
     szfriends_fake_helper_set_view_fixture(harness->fake, "details", "devices-details-mei.json");
     SZFGRig *rig = szfg_rig_new(harness);
@@ -406,6 +435,7 @@ void szfg_run_device_probes(void) {
     test_your_computers(harness);
     test_join_rows(harness);
     test_join_page(harness);
+    test_join_after_reset(harness);
     test_history_everywhere(harness);
     test_renders(harness);
     szfg_outside_uninstall();

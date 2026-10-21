@@ -332,9 +332,39 @@ void szfriends_gtk_perform(SZFriendsGtkLink *link, SZFriendsGtkDropdown *dropdow
     szfriends_gtk_perform_sending(link, dropdown, source, action, ids, NULL, done, done_data);
 }
 
+/* reset_friends with `then` open_join ("Use my existing profile…"): the join page once the reset succeeded, while
+ * the button pressed (and so its dropdown) is still there; then the caller's own completion. */
+typedef struct {
+    GWeakRef source;
+    SZFriendsGtkDropdown *dropdown;
+    SZFriendsGtkReplyFunc done;
+    gpointer done_data;
+} SZFriendsGtkThenJoin;
+
+static void then_join(JsonObject *result, const SZFriendsGtkError *error, gpointer data) {
+    SZFriendsGtkThenJoin *then = data;
+    GtkWidget *source = g_weak_ref_get(&then->source);
+    /* A cancelled question answers with neither a result nor an error: nothing happened, so no join page. */
+    if (result && !error && source && then->dropdown) szfriends_gtk_dropdown_open_join(then->dropdown);
+    if (source) g_object_unref(source);
+    if (then->done) then->done(result, error, then->done_data);
+    g_weak_ref_clear(&then->source);
+    g_free(then);
+}
+
 void szfriends_gtk_perform_sending(SZFriendsGtkLink *link, SZFriendsGtkDropdown *dropdown, GtkWidget *source,
                                    const SZFriendsGtkAction *action, const SZFriendsGtkActionIds *ids,
                                    SZFriendsGtkRun sending, SZFriendsGtkReplyFunc done, gpointer done_data) {
+    if (action && action->action == SZFRIENDS_GTK_ACTION_RESET_FRIENDS && action->then == SZFRIENDS_GTK_THEN_OPEN_JOIN &&
+        dropdown && source) {
+        SZFriendsGtkThenJoin *then = g_new0(SZFriendsGtkThenJoin, 1);
+        g_weak_ref_init(&then->source, source);
+        then->dropdown = dropdown;
+        then->done = done;
+        then->done_data = done_data;
+        done = then_join;
+        done_data = then;
+    }
     if (!action || !szfriends_gtk_action_is_known(action->action)) {
         if (done) done(NULL, NULL, done_data);
         return;

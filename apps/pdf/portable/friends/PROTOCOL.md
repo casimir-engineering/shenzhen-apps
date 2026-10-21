@@ -1116,7 +1116,7 @@ this computer shows."), and `friends_id` is that ID, ASCII, for a view that offe
 |---|---|---|
 | `device_id` | string | Opaque id (§ Framing), stable for the computer; sent back in `revoke_device` |
 | `name` | string | The computer's name, as it named itself: "Raph’s Mac mini" |
-| `system` | string | Its system: "macOS 26.1", "Linux" |
+| `system` | string | Its system: "macOS 26.1", "Linux"; a phone's says what it is, "Android phone", "iPhone or iPad" (as in the join rows' subtitles), and the heading is then "Your computers and phones" |
 | `last_connected` | string | "This computer" on this computer's row; "Now" while connected; "5 min ago" within the hour; then the list's time words ("14:32", "Yesterday", "3 Oct"); "Not connected to this computer yet" for one this computer has never reached |
 | `detail` | string | The line under the name: `system` and `last_connected` joined, "macOS 15.7 · Now" |
 | `this_computer` | bool | The row of the computer showing it |

@@ -45,6 +45,22 @@ static const NSUInteger SZFriendsDeviceNameMaxBytes = 64;
     return key ? [self text:key] : nil;
 }
 
+- (nullable NSString *)phoneSystemKey:(NSString *)system {
+    NSString *lower = system.lowercaseString;
+    if ([lower hasPrefix:@"android"]) return @"devices.system.android";
+    if ([lower hasPrefix:@"ios"] || [lower hasPrefix:@"ipados"]) return @"devices.system.ios";
+    return nil;
+}
+
+- (BOOL)isPhoneSystem:(NSString *)system {
+    return [self phoneSystemKey:system] != nil;
+}
+
+- (NSString *)deviceSystemLabel:(NSString *)system {
+    NSString *key = [self phoneSystemKey:system];
+    return key ? [self text:key] : system;
+}
+
 @end
 
 @implementation SZFriendsSnapshotBuilder (SZFriendsDevices)
@@ -83,7 +99,8 @@ static const NSUInteger SZFriendsDeviceNameMaxBytes = 64;
             spoken = [s timeAccessibilityLabelForDate:device.lastSeenAt now:now];
         }
     }
-    NSDictionary *values = @{@"name" : device.name, @"system" : device.system, @"last" : last, @"device" : device.name};
+    NSString *system = [s deviceSystemLabel:device.system];
+    NSDictionary *values = @{@"name" : device.name, @"system" : system, @"last" : last, @"device" : device.name};
     NSMutableDictionary *said = [values mutableCopy];
     said[@"last"] = spoken ?: last;
     id remove = [NSNull null];
@@ -107,7 +124,7 @@ static const NSUInteger SZFriendsDeviceNameMaxBytes = 64;
     return @{
         @"device_id" : device.deviceID,
         @"name" : device.name,
-        @"system" : device.system,
+        @"system" : system,
         @"last_connected" : last,
         @"detail" : [s text:@"devices.detail" values:values],
         @"this_computer" : SZFriendsBool(device.thisComputer),
@@ -120,10 +137,14 @@ static const NSUInteger SZFriendsDeviceNameMaxBytes = 64;
 
 - (NSDictionary<NSString *, id> *)devicesSectionWithFacts:(SZFriendsDevicesFacts *)facts now:(NSDate *)now {
     NSMutableArray<NSDictionary *> *rows = [NSMutableArray array];
+    BOOL phones = NO;
     for (SZFriendsDeviceFacts *device in facts.computers) {
         [rows addObject:[self rowForDevice:device removed:facts.removed now:now]];
+        phones = phones || [self.strings isPhoneSystem:device.system];
     }
-    return @{@"title" : [self.strings text:@"devices.title"], @"add" : [self addDeviceWithFacts:facts],
+    // "Your computers and phones" once one of them is a phone: the heading names what the rows are.
+    NSString *title = [self.strings text:phones ? @"devices.title.phones" : @"devices.title"];
+    return @{@"title" : title, @"add" : [self addDeviceWithFacts:facts],
              @"rows" : rows};
 }
 

@@ -20,6 +20,15 @@ impl SnapshotBuilder {
         }
     }
 
+    /// What another computer's system says to the person: a phone's ("Android", "iOS") as a phone ("Android
+    /// phone"), a computer's as it is ("macOS 26.1").
+    pub(crate) fn device_system_label(&self, system: &str) -> String {
+        match phone_system_key(system) {
+            Some(key) => self.strings.text(key),
+            None => system.to_owned(),
+        }
+    }
+
     /// profile.devices.add: what to do there, the ID to type, and Approve here; null on a removed computer.
     pub(crate) fn add_device(&self, facts: &DevicesFacts) -> Value {
         let Some(id) = facts.friends_id.as_deref().filter(|id| !id.is_empty() && !facts.removed) else {
@@ -77,5 +86,17 @@ impl SnapshotBuilder {
             }
             _ => Value::Null,
         }
+    }
+}
+
+/// The catalog key for a phone's system, or None for a computer's.
+pub(crate) fn phone_system_key(system: &str) -> Option<&'static str> {
+    let lower = system.to_lowercase();
+    if lower.starts_with("android") {
+        Some("devices.system.android")
+    } else if lower.starts_with("ios") || lower.starts_with("ipados") {
+        Some("devices.system.ios")
+    } else {
+        None
     }
 }

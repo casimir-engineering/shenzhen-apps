@@ -9,10 +9,11 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use presentation::world::*;
 use presentation::{expect_fixture, through_store, validate_snapshot};
+use serde_json::json;
 use szfriends_core::presentation::{
-    AgainState, Audience, DeviceFacts, DeviceFileFacts, DevicesFacts, IdentityState, ItemFacts, JoiningFacts,
-    JoiningState, OnlineReach, OutboxState, PersonFacts, ProfileFacts, ReceivedFolderFacts, Relation, RouteKind,
-    RouteMethod, TransferState,
+    AgainState, Audience, DeviceFacts, DeviceFileFacts, DevicesFacts, IdentityState, ItemFacts, JoinRequestFacts,
+    JoiningFacts, JoiningState, OnlineReach, OutboxState, PersonFacts, ProfileFacts, ReceivedFolderFacts, Relation,
+    RouteKind, RouteMethod, TransferState,
 };
 use szfriends_core::store::PhoneFolder;
 
@@ -73,6 +74,35 @@ fn your_computers() {
     let rows = builder.profile(&profile_raph(), 2)["devices"]["rows"].clone();
     assert!(rows[1]["remove"].is_null() && rows[0]["rename"].is_null(), "a removed computer removes nothing");
     assert!(builder.profile(&profile_raph(), 2)["devices"]["add"].is_null(), "a removed computer adds nothing");
+    // A phone among them: the heading says so, and its row reads as a phone.
+    let devices = builder.devices.as_mut().unwrap();
+    devices.removed = false;
+    devices.computers.truncate(1);
+    devices.computers.push(computer("d_3", "POCO F7", "Android", false, true, None));
+    let section = builder.profile(&profile_raph(), 2)["devices"].clone();
+    assert_eq!(section["title"], "Your computers and phones");
+    assert_eq!(section["rows"][1]["detail"], "Android phone · Now");
+    assert_eq!(section["rows"][1]["accessibility_label"], "POCO F7, Android phone, connected now");
+    let asking = JoinRequestFacts {
+        join_id: "5f2d".into(),
+        device_name: "POCO F7".into(),
+        system: "Android".into(),
+        ..Default::default()
+    };
+    let row = builder.join_request_rows(std::slice::from_ref(&asking), now())[0].clone();
+    assert_eq!(row["subtitle"], "Android phone · Approve only if you’re setting it up now");
+    assert_eq!(row["accessibility_label"], "POCO F7 wants to join your profile, Android phone");
+    let approved = JoinRequestFacts {
+        approved: true,
+        code: Some("48312207".into()),
+        code_expires_at: Some(now() + 300.0),
+        ..asking
+    };
+    let row = builder.join_request_rows(&[approved], now())[0].clone();
+    assert_eq!(
+        (&row["title"], &row["subtitle"]),
+        (&json!("Type this code on POCO F7"), &json!("Android phone · Waiting for the code"))
+    );
     builder.devices = None;
     assert!(builder.profile(&profile_raph(), 2).get("devices").is_none(), "without the capability, no devices");
 }
