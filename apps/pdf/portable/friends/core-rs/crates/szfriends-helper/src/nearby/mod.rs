@@ -120,6 +120,11 @@ pub trait Adapter: Send {
     fn dial(&mut self, endpoint: &str, dial: u64) -> bool;
     /// Looks again now.
     fn refresh(&mut self) {}
+    /// Our own devices changed (a computer joined the profile or left it): what each device nearby said about itself
+    /// is read again now rather than when its cached read expires, since a new device's tags appear only then.
+    fn reread(&mut self) {
+        self.refresh();
+    }
     /// Whether this computer accepts connections nearby (the Nearby page's line when it does not).
     fn listening(&self) -> bool {
         true

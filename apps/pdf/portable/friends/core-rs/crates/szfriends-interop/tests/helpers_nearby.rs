@@ -68,14 +68,19 @@ fn room(names: (&str, &str)) -> ([TempHome; 3], Client, Client, Room) {
     (homes, a, b, room)
 }
 
+/// The room scenarios count on Bluetooth reads and dials arriving within the snapshot waits: one at a time.
+static ROOM: Mutex<()> = Mutex::new(());
+
 #[test]
 fn bluetooth_first_then_the_network_takes_over() {
+    let _one = ROOM.lock().unwrap_or_else(|e| e.into_inner());
     let (_homes, mut ida, mut jon, room) = room(("Ida", "Jon"));
     routes::bluetooth_then_network(&mut ida, "Ida", &mut jon, "Jon", &room);
 }
 
 #[test]
 fn a_join_over_bluetooth_moves_to_the_network() {
+    let _one = ROOM.lock().unwrap_or_else(|e| e.into_inner());
     let (_homes, mut kim, mut lev, room) = room(("Kim", "Lev"));
     routes::join_over_bluetooth_then_network(&mut kim, "Kim", &mut lev, &room);
 }

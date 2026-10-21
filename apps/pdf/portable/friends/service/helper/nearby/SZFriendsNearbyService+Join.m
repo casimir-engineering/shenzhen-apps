@@ -297,7 +297,9 @@ enum {
     NSError *error = nil;
     if (welcome != nil &&
         [self.services.store mergeOwnDeviceChain:welcome.chain error:&error] != SZFriendsChainMergeRefused) {
-        // Stored first: a welcome never goes out for a device this profile does not hold.
+        // Stored first: a welcome never goes out for a device this profile does not hold. Advertised for it first
+        // too, so its first read of us nearby finds the tag our devices know each other by.
+        [self noticeOwnDevicesChange];
         [pipe sendJoinMessages:welcome.parts];
         [self.joinApprover finishRequestID:approval.requestID];
         SZFriendsHelperLog(@"a new computer joined this profile");

@@ -71,8 +71,10 @@ pub fn join_over_bluetooth_then_network(holder: &mut Client, holder_name: &str, 
     let shows_route = |joiner: &mut Client, route: &str| {
         joiner.snapshot(&join_view, &format!("the join page showing {route}"), |d| d["route"]["label"] == route)
     };
-    rename(holder, joiner, format!("{holder_name} over the air"));
+    // Named once the sync runs over the air: a name given while the new computer's first capture is on its way can
+    // lose to the copy that computer took when it joined.
     shows_route(joiner, BLUETOOTH);
+    rename(holder, joiner, format!("{holder_name} over the air"));
     room.network_comes_up();
     shows_route(joiner, LAN);
     rename(holder, joiner, format!("{holder_name} over the network"));

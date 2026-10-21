@@ -324,7 +324,16 @@ impl State {
             }
         }
         // Our other devices, as "dev-<key>" (own.rs); friends' other computers; computers we removed.
-        secrets.extend(self.own_device_tag_secrets());
+        let own = self.own_device_tag_secrets();
+        if own != self.devices.matched_own {
+            // A device joined (or we learned the secret our devices find each other by): its tags appear only in
+            // reads made from now on, and Bluetooth caches a read per window.
+            self.devices.matched_own = own.clone();
+            for adapter in &mut self.nearby.adapters {
+                adapter.reread();
+            }
+        }
+        secrets.extend(own);
         secrets.extend(self.friend_device_tag_secrets());
         secrets.extend(self.removed_device_tag_secrets());
         let pairs = secrets.iter().map(|(c, s)| (c.as_str(), s.as_slice()));

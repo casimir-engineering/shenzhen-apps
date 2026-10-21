@@ -216,6 +216,9 @@ extern const NSTimeInterval SZFriendsFirstMessageTimeout; // 2 s
 // Looks again now instead of waiting for the next change (a Bluetooth sighting of a friend asks the network
 // adapter for a fresh browse, ADR 0004 § Route racing).
 - (void)refreshDiscovery;
+// Our own devices changed (a computer joined the profile or left it): what each device nearby said about itself is
+// read again now rather than when a cached read expires, since a new device's tags appear only in fresh reads.
+- (void)rereadDiscovery;
 // Replaces the admission limits (default SZFriendsAdmissionLimits.defaultLimits); streams already admitted keep
 // their places.
 - (void)setAdmissionLimits:(SZFriendsAdmissionLimits *)limits;

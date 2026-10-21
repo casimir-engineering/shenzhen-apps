@@ -88,6 +88,8 @@ pub struct DeviceArea {
     pub links: HashMap<[u8; 32], u64>,
     /// Not dialed again before this time, by device.
     pub dial_after: HashMap<[u8; 32], f64>,
+    /// Our other devices' tag secrets as the matcher last had them: a change rereads what devices nearby say.
+    pub matched_own: Vec<(String, Vec<u8>)>,
     /// Changes become events this soon while a session with another of our devices is live.
     pub capture_at: Option<f64>,
     /// A snapshot found a file moved or deleted here: the next capture tells our other devices (ADR 0016).
@@ -122,6 +124,7 @@ impl DeviceArea {
             exchanges: HashMap::new(),
             links: HashMap::new(),
             dial_after: HashMap::new(),
+            matched_own: Vec::new(),
             capture_at: None,
             missing_seen: std::cell::Cell::new(false),
             known: String::new(),
