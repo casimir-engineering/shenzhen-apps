@@ -135,6 +135,8 @@ class NotifyBackgroundArgs {
   var on: Boolean = false
   var title: String? = null
   var body: String? = null
+  var restartTitle: String? = null
+  var restartBody: String? = null
   var url: String? = null
 }
 
@@ -466,6 +468,8 @@ class FriendsPlugin(private val activity: Activity) : NearbyPlugin(activity) {
     val args = invoke.parseArgs(NotifySetupArgs::class.java)
     Notifications.responses = args.channel
     Notifications.setChannels(activity, args.names)
+    // Friends runs again: the note that it stopped at a restart goes.
+    Notifications.cancelRestarted(activity)
     val background = Notifications.preferences(activity).getBoolean(Notifications.BACKGROUND_ON, false)
     invoke.resolve(JSObject().put("permission", Notifications.permission(activity)).put("background", background))
     Notifications.report(activity, always = true)
@@ -503,20 +507,11 @@ class FriendsPlugin(private val activity: Activity) : NearbyPlugin(activity) {
   fun notifyBackground(invoke: Invoke) {
     val args = invoke.parseArgs(NotifyBackgroundArgs::class.java)
     try {
-      Notifications.setBackground(activity, args.on, args.title, args.body, args.url)
+      Notifications.setBackground(activity, args.on, args.title, args.body, args.url, args.restartTitle, args.restartBody)
       done(invoke, true)
     } catch (e: Exception) {
       // Android refuses a foreground service started from the background: it starts when the app is next in front.
       done(invoke, false)
-    }
-  }
-
-  override fun load(webView: android.webkit.WebView) {
-    super.load(webView)
-    // Started after a restart of the phone to run Friends in the background: out of the person's way at once.
-    if (activity.intent?.getBooleanExtra(Notifications.EXTRA_BACKGROUND_START, false) == true) {
-      activity.intent.removeExtra(Notifications.EXTRA_BACKGROUND_START)
-      activity.moveTaskToBack(true)
     }
   }
 

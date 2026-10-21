@@ -162,7 +162,6 @@ try {
   ]) {
     adb("shell", "pm", "grant", PACKAGE, `android.permission.${permission}`);
   }
-  shell(`cmd notification cancel_all ${PACKAGE} 2>/dev/null; true`);
   await peer.send("activate", {});
   await until(async () => (await fs.readdir(routes)).some((n) => n.endsWith(".entry")), "the Mac's route");
   await phone.install({ homePhone, routes, page: {}, work });

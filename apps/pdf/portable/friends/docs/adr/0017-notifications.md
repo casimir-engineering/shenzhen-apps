@@ -103,7 +103,9 @@ sync: a person may want text on the Mac but not on a phone's lock screen.
 **Android in the background.** Friends receives only while the app's process lives. "Stay reachable in the
 background" runs a foreground service (type `specialUse`, subtype "Stay reachable to friends") while on, with a quiet
 ongoing notification on its own channel, "Friends is reachable", so Android keeps the process and the core running
-after the app is closed; it starts again after a restart of the phone while the switch is on. Settings says what it
+after the app is closed. The core lives in the app and Android starts no app by itself after a restart of the phone,
+so then, while the switch is on, the phone says Friends stopped ("Friends stopped when your phone restarted",
+"Open {app} to get messages and files again."), and opening the app starts Friends and the service again. Settings says what it
 costs: the phone keeps looking for friends nearby and stays connected, which uses battery all day.
 
 **iOS.** Local notifications only, posted while the app runs or in the short time iOS gives it after going to the

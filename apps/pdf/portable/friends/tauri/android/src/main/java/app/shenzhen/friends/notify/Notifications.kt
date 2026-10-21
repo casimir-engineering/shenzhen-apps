@@ -56,8 +56,6 @@ object Notifications {
   /** The extra a notification's tap carries: its key, for the core. */
   const val EXTRA_KEY = "app.shenzhen.friends.notification"
   const val EXTRA_THREAD = "app.shenzhen.friends.thread"
-  /** The launcher activity started by ReachableService after a restart: it goes behind at once. */
-  const val EXTRA_BACKGROUND_START = "app.shenzhen.friends.background_start"
   const val REPLY_TEXT = "app.shenzhen.friends.reply"
   const val ACTION_REPLY = "app.shenzhen.friends.REPLY"
 
@@ -70,6 +68,9 @@ object Notifications {
   const val BACKGROUND_TITLE = "background_title"
   const val BACKGROUND_BODY = "background_body"
   const val BACKGROUND_URL = "background_url"
+  const val RESTART_TITLE = "restart_title"
+  const val RESTART_BODY = "restart_body"
+  private const val RESTARTED_TAG = "friends.restarted"
   private const val CHANNEL_NAME = "channel_name."
 
   /** Where responses go: the core's channel while it runs in this process. */
@@ -252,13 +253,46 @@ object Notifications {
     }
   }
 
-  /** "Stay reachable in the background": the service runs while the switch is on, and again after a restart. */
-  fun setBackground(context: Context, on: Boolean, title: String?, body: String?, url: String?) {
+  /**
+   * The phone restarted (or the app was updated, or Android ended its process) while "Stay reachable in the
+   * background" was on. Friends runs inside the app, and Android starts no app by itself: the person learns that it
+   * stopped, and the tap opens the app, which starts it again.
+   */
+  fun postRestarted(context: Context) {
+    val preferences = preferences(context)
+    val title = preferences.getString(RESTART_TITLE, null) ?: return
+    if (!allowed(context)) return
+    ensureChannel(context, BACKGROUND)
+    val builder = NotificationCompat.Builder(context, BACKGROUND)
+      .setSmallIcon(R.drawable.szfriends_notification)
+      .setContentTitle(title)
+      .setContentText(preferences.getString(RESTART_BODY, null))
+      .setAutoCancel(true)
+      .setPriority(NotificationCompat.PRIORITY_LOW)
+    preferences.getString(BACKGROUND_URL, null)?.let { builder.setContentIntent(openIntent(context, it, null, null)) }
+    try {
+      NotificationManagerCompat.from(context).notify(RESTARTED_TAG, 0, builder.build())
+    } catch (e: SecurityException) {
+    }
+  }
+
+  fun cancelRestarted(context: Context) {
+    NotificationManagerCompat.from(context).cancel(RESTARTED_TAG, 0)
+  }
+
+  /** "Stay reachable in the background": the service runs while the switch is on, started by the app (the core lives in it). */
+  fun setBackground(
+    context: Context, on: Boolean, title: String?, body: String?, url: String?,
+    restartTitle: String? = null, restartBody: String? = null,
+  ) {
     val editor = preferences(context).edit().putBoolean(BACKGROUND_ON, on)
     if (title != null) editor.putString(BACKGROUND_TITLE, title)
     if (body != null) editor.putString(BACKGROUND_BODY, body)
     if (url != null) editor.putString(BACKGROUND_URL, url)
+    if (restartTitle != null) editor.putString(RESTART_TITLE, restartTitle)
+    if (restartBody != null) editor.putString(RESTART_BODY, restartBody)
     editor.apply()
+    if (!on) cancelRestarted(context)
     val intent = Intent(context, ReachableService::class.java)
     if (on) {
       ContextCompat.startForegroundService(context, intent)

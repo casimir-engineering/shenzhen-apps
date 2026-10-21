@@ -3,6 +3,9 @@
 //! person does with a notification comes back on a channel: a tap (`open`, whose URL the app routes as it routes a
 //! Friends link), a reply (Android's RemoteInput) and changes of the system's permission.
 //!
+//! After a restart of the phone Android starts no app by itself, and the core lives in the app: while "Stay reachable
+//! in the background" is on, the phone then says Friends stopped, and opening the app starts it again.
+//!
 //! Every call returns at once on the native side, so the core's thread is never held for long. On Android the
 //! channels' names, the background service's words and its URL come from the catalog and the app's scheme, here.
 
@@ -61,6 +64,8 @@ pub fn background_payload(on: bool, app_name: &str, settings_url: &str) -> Value
         "on": on,
         "title": text("notify.background.title"),
         "body": text("notify.background.body").replace("{app}", app_name),
+        "restartTitle": text("notify.background.restart.title"),
+        "restartBody": text("notify.background.restart.body").replace("{app}", app_name),
         "url": settings_url,
     })
 }
@@ -236,5 +241,7 @@ mod tests {
         assert_eq!(payload["title"], "Friends is reachable");
         assert_eq!(payload["body"], "Messages and files still arrive while Shenzhen 3D is closed.");
         assert_eq!(payload["url"], "shenzhen3d://friends");
+        assert_eq!(payload["restartTitle"], "Friends stopped when your phone restarted");
+        assert_eq!(payload["restartBody"], "Open Shenzhen 3D to get messages and files again.");
     }
 }

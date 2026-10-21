@@ -1,8 +1,7 @@
 // "Stay reachable in the background" (ADR 0017 § Android in the background): a foreground service of type specialUse
 // that keeps the app's process, and so the Friends core in it, running after the app leaves the screen. It does no
 // work of its own; its quiet ongoing notification ("Friends is reachable") opens Friends' settings when tapped. The
-// switch (set_notifications background) starts and stops it; BootReceiver starts it again after a restart while the
-// switch is on.
+// switch (set_notifications background) starts and stops it, from the app, where Friends runs.
 
 package app.shenzhen.friends.notify
 
@@ -20,6 +19,13 @@ class ReachableService : Service() {
   override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
     val preferences = Notifications.preferences(this)
     if (!preferences.getBoolean(Notifications.BACKGROUND_ON, false)) {
+      stopSelf()
+      return START_NOT_STICKY
+    }
+    // Restarted by Android in a process without the app (and so without Friends): saying "reachable" would be
+    // untrue. The person learns Friends stopped; opening the app starts it again, and the service with it.
+    if (Notifications.responses == null) {
+      Notifications.postRestarted(this)
       stopSelf()
       return START_NOT_STICKY
     }
@@ -49,21 +55,7 @@ class ReachableService : Service() {
       stopSelf()
       return START_NOT_STICKY
     }
-    // Started after a restart of the phone: the core lives in the app, which is not running yet. Start it behind
-    // whatever is on screen (FriendsPlugin sends it back at once), where Android lets a boot-started service do so.
-    if (Notifications.responses == null) startCore()
     return START_STICKY
-  }
-
-  private fun startCore() {
-    val launcher = packageManager.getLaunchIntentForPackage(packageName) ?: return
-    launcher.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_NO_ANIMATION)
-      .putExtra(Notifications.EXTRA_BACKGROUND_START, true)
-    try {
-      startActivity(launcher)
-    } catch (e: Exception) {
-      // Refused: Friends starts with the app next time.
-    }
   }
 
   companion object {

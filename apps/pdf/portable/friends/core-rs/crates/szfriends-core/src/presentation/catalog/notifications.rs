@@ -29,6 +29,8 @@ pub(super) const NOTIFICATIONS: &[(&str, &str)] = &[
     ("notify.channel.background", "Reachable in the background"),
     ("notify.background.title", "Friends is reachable"),
     ("notify.background.body", "Messages and files still arrive while {app} is closed."),
+    ("notify.background.restart.title", "Friends stopped when your phone restarted"),
+    ("notify.background.restart.body", "Open {app} to get messages and files again."),
     ("banner.notifications.text", "Get a notification when friends send you a message or a file."),
     ("banner.notifications.allow", "Turn On"),
     ("banner.notifications.dismiss", "Not Now"),
