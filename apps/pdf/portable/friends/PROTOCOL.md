@@ -783,6 +783,10 @@ The new computer's side of joining a person's existing profile, with the helper 
   `internet`, a server for `relay`), by `kind` when `method` is `null` or unknown to them (`local` the waves, `online`
   the globe), the globe in the offline colour for `connecting`, a hollow dot crossed out for `offline` and nothing for
   `none` or a kind they do not know, with `label` as its tooltip; both views draw the same shapes.
+- **Route order.** Helpers dial and keep routes in one order: `lan`, `p2p_wifi`, `internet`, `bluetooth`, `relay`.
+  A transfer never costs the device its Internet connection: `p2p_wifi` is used only where the device stays on its
+  Wi-Fi network at the same time (AWDL on Macs and iPhones). Anywhere else, or when unsure, it is skipped and the next
+  route carries the session; friends' files and a profile's own devices alike.
 - **Route, online (M2).** Only a helper that announces `online` says anything about the Internet; an M1 helper's
   words say nearby, whatever happens. With `online`:
   - a session over the Internet is kind `online`, never `local`: method `internet` reads "Online, direct", `relay`

@@ -66,5 +66,6 @@ void SZFriendsRunCoordinatorTests(void);
 void SZFriendsRunBluetoothAdapterTests(void);
 void SZFriendsRunStreamAndTXTTests(void);
 void SZFriendsRunAdmissionTests(void);
+void SZFriendsRunTestAirTests(void);
 
 NS_ASSUME_NONNULL_END

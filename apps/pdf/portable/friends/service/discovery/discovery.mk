@@ -2,7 +2,8 @@
 #
 # Production objects go to FRIENDS_SERVICE_OBJS for the helper. The suite builds two test programs:
 #   SZFriendsDiscoveryTests      pure and scripted: tags, merger, racer, visibility, coordinator, the Bluetooth
-#                                adapter over a fake radio, streams, TXT records. No radios at all.
+#                                adapter over a fake radio, streams, TXT records, the test air on loopback. No
+#                                radios at all.
 #   SZFriendsNetworkAdapterTests two real Network.framework adapters on the loopback interface only; skips with
 #                                a message if mDNS does not answer there within 8 s.
 # No test creates a Bluetooth manager or touches a non-loopback interface (hardware-matrix.md covers those).
@@ -25,6 +26,7 @@ FRIENDS_DISCOVERY_SRCS := $(addprefix $(FRIENDS_DISCOVERY_DIR)/, \
 	SZFriendsBluetoothAdapter.m \
 	SZFriendsCoreBluetoothRadio.m \
 	SZFriendsCoreBluetoothRadio+Central.m \
+	SZFriendsTestAirRadio.m \
 	SZFriendsRunLoopByteStream.m)
 # The session header is included for SZFriendsByteStream only; no session object is linked.
 FRIENDS_DISCOVERY_HDRS := $(wildcard $(FRIENDS_DISCOVERY_DIR)/*.h) friends/service/session/SZFriendsSession.h
@@ -52,7 +54,8 @@ FRIENDS_DISCOVERY_TEST_SRCS := $(addprefix $(FRIENDS_DISCOVERY_DIR)/tests/, \
 	SZFriendsBluetoothTestRadio.m \
 	SZFriendsBluetoothVisibilityTests.m \
 	SZFriendsAdmissionTests.m \
-	SZFriendsStreamTests.m)
+	SZFriendsStreamTests.m \
+	SZFriendsTestAirTests.m)
 FRIENDS_DISCOVERY_NETWORK_TEST := $(FRIENDS_DISCOVERY_BUILD)/SZFriendsNetworkAdapterTests
 FRIENDS_DISCOVERY_NETWORK_TEST_SRCS := $(addprefix $(FRIENDS_DISCOVERY_DIR)/tests/, \
 	SZFriendsNetworkAdapterTests.m \
