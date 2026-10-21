@@ -13,8 +13,17 @@ static const SZFriendsGtkField device_row_fields[] = {
     OBJN(T, remove, action)};
 #undef T
 TYPE(static, device_row, "type.device_row", SZFriendsGtkDeviceRow);
+#define T SZFriendsGtkDeviceAdd
+static const SZFriendsGtkField device_add_fields[] = {STR(T, title), STRS(T, steps), STR(T, friends_id)};
+#undef T
+TYPE(static, device_add, "type.device_add", SZFriendsGtkDeviceAdd);
+#define T SZFriendsGtkJoinOffer
+static const SZFriendsGtkField join_offer_fields[] = {STR(T, note), OBJ(T, action, action)};
+#undef T
+TYPE(static, join_offer, "type.join_offer", SZFriendsGtkJoinOffer);
 #define T SZFriendsGtkProfileDevices
-static const SZFriendsGtkField profile_devices_fields[] = {STR(T, title), STR(T, note), ARR(T, rows, device_row)};
+static const SZFriendsGtkField profile_devices_fields[] = {STR(T, title), OBJN(T, add, device_add),
+                                                           ARR(T, rows, device_row)};
 #undef T
 TYPE(static, profile_devices, NULL, SZFriendsGtkProfileDevices);
 #define T SZFriendsGtkDeviceRemoved

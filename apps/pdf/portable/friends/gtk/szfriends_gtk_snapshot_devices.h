@@ -36,8 +36,12 @@ typedef struct {
     SZFriendsGtkDeviceRename *rename; /* this computer's row only */
     SZFriendsGtkAction *remove;       /* revoke_device with its confirm; NULL on this computer's row */
 } SZFriendsGtkDeviceRow;
-typedef struct { SZFriendsGtkPresence present; char *title, *note; SZFriendsGtkDeviceRow *rows;
+/* How to add another computer or phone: steps in order, one naming the ID; NULL on a removed computer. */
+typedef struct { SZFriendsGtkPresence present; char *title; char **steps; char *friends_id; } SZFriendsGtkDeviceAdd;
+typedef struct { SZFriendsGtkPresence present; char *title; SZFriendsGtkDeviceAdd *add; SZFriendsGtkDeviceRow *rows;
                  gsize n_rows; } SZFriendsGtkProfileDevices;
+/* The list's offer to use the person's existing profile here: what it does, and its button. */
+typedef struct { SZFriendsGtkPresence present; char *note; SZFriendsGtkAction action; } SZFriendsGtkJoinOffer;
 
 /* Above the list: this computer was removed (with Start Over), and the requests to join waiting here. */
 typedef struct { SZFriendsGtkPresence present; char *title, *body;

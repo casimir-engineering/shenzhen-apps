@@ -36,7 +36,7 @@ void szfriends_gtk_profile_devices_apply(GtkWidget *devices, SZFriendsGtkDetails
 /* Escape: closes the rename field or turns an armed button back; TRUE when it did. */
 gboolean szfriends_gtk_profile_devices_escape(GtkWidget *devices);
 typedef struct {
-    GtkWidget *title, *rows, *note, *rename_button, *rename_box, *rename_entry, *save_button, *rename_error;
+    GtkWidget *title, *rows, *note /* how to add one */, *rename_button, *rename_box, *rename_entry, *save_button, *rename_error;
 } SZFriendsGtkProfileDevicesParts;
 const SZFriendsGtkProfileDevicesParts *szfriends_gtk_profile_devices_parts(GtkWidget *devices);
 /* Opens the rename field on this computer's name; Save (or Return) sends rename_device with what was typed. */

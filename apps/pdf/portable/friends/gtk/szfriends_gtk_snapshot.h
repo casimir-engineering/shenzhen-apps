@@ -56,8 +56,12 @@ typedef enum {
     /* Nearby's Allow and Try Again (PROTOCOL.md § nearby) */
     SZFRIENDS_GTK_ACTION_ACTIVATE,
     /* Settings' Change… for where received files go: the folder dialog, then set_received_folder */
-    SZFRIENDS_GTK_ACTION_CHOOSE_RECEIVED_FOLDER
+    SZFRIENDS_GTK_ACTION_CHOOSE_RECEIVED_FOLDER,
+    /* Client-side: the join page (PROTOCOL.md § Joining, Offering it) */
+    SZFRIENDS_GTK_ACTION_OPEN_JOIN
 } SZFriendsGtkActionKind;
+/* What a reset_friends action shows once the reset succeeded; never sent. */
+typedef enum { SZFRIENDS_GTK_THEN_NONE, SZFRIENDS_GTK_THEN_OPEN_JOIN } SZFriendsGtkActionThen;
 typedef enum {
     SZFRIENDS_GTK_STYLE_UNKNOWN, SZFRIENDS_GTK_STYLE_PRIMARY, SZFRIENDS_GTK_STYLE_SECONDARY, SZFRIENDS_GTK_STYLE_LINK,
     SZFRIENDS_GTK_STYLE_DESTRUCTIVE
@@ -175,6 +179,7 @@ typedef struct {
     char *friends_id, *identity_key, *name; /* add_from_mention: the intent's own fields, sent as they are */
     char *payload, *link_id; /* add_from_link and receive_link, revoke_link: the same, for links */
     char *device_id, *join_id; /* revoke_device; approve_join and deny_join (join_profile carries friends_id) */
+    SZFriendsGtkActionThen then; /* reset_friends: open_join afterwards */
 } SZFriendsGtkAction;
 typedef struct { SZFriendsGtkPresence present; gboolean set; gint64 value; } SZFriendsGtkOptInt; /* integer|null */
 /* Rich text (PROTOCOL.md § Shared objects); `mention` indexes the message item's `mentions` when set. */
@@ -195,8 +200,7 @@ typedef struct { SZFriendsGtkPresence present; gint64 count;
 
 typedef struct { SZFriendsGtkPresence present; SZFriendsGtkBannerKind kind; char *text;
                  SZFriendsGtkAction *action; } SZFriendsGtkBanner;
-typedef struct { SZFriendsGtkPresence present; char *title, *placeholder, *note;
-                 char *join_label; /* opens the join view; NULL without `devices` */ } SZFriendsGtkNamePrompt;
+typedef struct { SZFriendsGtkPresence present; char *title, *placeholder, *note; } SZFriendsGtkNamePrompt;
 typedef struct { SZFriendsGtkPresence present; SZFriendsGtkActionKind action; SZFriendsGtkRowIcon icon;
                  char *title; /* the word the button shows; NULL: the icon alone */
                  char *label; SZFriendsGtkArm *arm; } SZFriendsGtkRowAction;
@@ -234,6 +238,7 @@ typedef struct {
     SZFriendsGtkDeviceRemoved *removed;
     SZFriendsGtkJoinRequest *join_requests;
     gsize n_join_requests;
+    SZFriendsGtkJoinOffer *join;    /* Use my existing profile…; NULL while not offered */
 } SZFriendsGtkListSnapshot;
 
 typedef struct { SZFriendsGtkPresence present; SZFriendsGtkVisibilityState state; char *title, *body, *remaining_label,
@@ -405,6 +410,8 @@ typedef struct { SZFriendsGtkPresence present; char *label, *note, *action_label
 /* The helper's Nearby line (PROTOCOL.md § settings): what Nearby can do, and the one button that fixes it. */
 typedef struct { SZFriendsGtkPresence present; char *label, *note;
                  SZFriendsGtkAction *action; } SZFriendsGtkSettingsNearby;
+/* Using the person's existing profile here (PROTOCOL.md § Joining, Offering it). */
+typedef struct { SZFriendsGtkPresence present; char *label, *note; SZFriendsGtkAction action; } SZFriendsGtkSettingsJoin;
 typedef struct {
     SZFriendsGtkPresence present;
     SZFriendsGtkSettingsName name;
@@ -413,6 +420,7 @@ typedef struct {
     SZFriendsGtkSettingsAutoAccept auto_accept;
     SZFriendsGtkSettingsConfirmed history, reset;
     SZFriendsGtkSettingsNearby *nearby; /* NULL without `nearby` */
+    SZFriendsGtkSettingsJoin *join;     /* NULL while joining is not offered here */
 } SZFriendsGtkSettingsSnapshot;
 
 typedef struct { SZFriendsGtkPresence present; char *message_id;

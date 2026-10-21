@@ -69,7 +69,8 @@ TYPE(static, found, "type.found", SZFriendsGtkFound);
 static const SZFriendsGtkField action_fields[] = {
     ENUM(T, action, actions), STR(T, label), ENUM(T, style, styles), STRN(T, note), OBJN(T, confirm, confirm),
     OBJN(T, arm, arm), STR(T, path), ENUM(T, settings_target, settings_targets), STR(T, friends_id),
-    STR(T, identity_key), STR(T, name), STR(T, payload), STR(T, link_id), STR(T, device_id), STR(T, join_id)};
+    STR(T, identity_key), STR(T, name), STR(T, payload), STR(T, link_id), STR(T, device_id), STR(T, join_id),
+    ENUM(T, then, action_thens)};
 #undef T
 TYPE(static, action, "type.action", SZFriendsGtkAction);
 #define T SZFriendsGtkSegment
@@ -106,8 +107,7 @@ static const SZFriendsGtkField banner_fields[] = {ENUM(T, kind, banner_kinds), S
 #undef T
 TYPE(static, banner, "type.banner", SZFriendsGtkBanner);
 #define T SZFriendsGtkNamePrompt
-static const SZFriendsGtkField name_prompt_fields[] = {STR(T, title), STR(T, placeholder), STR(T, note),
-                                                       STRN(T, join_label)};
+static const SZFriendsGtkField name_prompt_fields[] = {STR(T, title), STR(T, placeholder), STR(T, note)};
 #undef T
 TYPE(static, name_prompt, "type.name_prompt", SZFriendsGtkNamePrompt);
 #define T SZFriendsGtkRowAction
@@ -132,7 +132,7 @@ TYPE(static, list_row, "type.list_row", SZFriendsGtkListRow);
 static const SZFriendsGtkField szfriends_gtk_type_list_snapshot_fields[] = {
     STR(T, query), OBJN(T, banner, banner), OBJN(T, name_prompt, name_prompt), ARR(T, rows, list_row),
     OBJN(T, empty, empty), OBJ(T, footer, footer), ENUM(T, state, list_states), OBJN(T, removed, device_removed),
-    ARR(T, join_requests, join_request)};
+    ARR(T, join_requests, join_request), OBJN(T, join, join_offer)};
 #undef T
 TYPE(, szfriends_gtk_type_list_snapshot, "snapshot.list", SZFriendsGtkListSnapshot);
 
@@ -361,11 +361,15 @@ TYPE(static, settings_confirmed, NULL, SZFriendsGtkSettingsConfirmed);
 static const SZFriendsGtkField settings_nearby_fields[] = {STR(T, label), STR(T, note), OBJN(T, action, action)};
 #undef T
 TYPE(static, settings_nearby, NULL, SZFriendsGtkSettingsNearby);
+#define T SZFriendsGtkSettingsJoin
+static const SZFriendsGtkField settings_join_fields[] = {STR(T, label), STR(T, note), OBJ(T, action, action)};
+#undef T
+TYPE(static, settings_join, NULL, SZFriendsGtkSettingsJoin);
 #define T SZFriendsGtkSettingsSnapshot
 static const SZFriendsGtkField szfriends_gtk_type_settings_snapshot_fields[] = {
     OBJ(T, name, settings_name), OBJ(T, id, settings_id), OBJ(T, received, settings_received),
     OBJ(T, auto_accept, settings_auto_accept), OBJ(T, history, settings_confirmed),
-    OBJ(T, reset, settings_confirmed), OBJN(T, nearby, settings_nearby)};
+    OBJ(T, reset, settings_confirmed), OBJN(T, nearby, settings_nearby), OBJN(T, join, settings_join)};
 #undef T
 TYPE(, szfriends_gtk_type_settings_snapshot, "snapshot.settings", SZFriendsGtkSettingsSnapshot);
 #define T SZFriendsGtkMessageEntry
@@ -401,7 +405,8 @@ const SZFriendsGtkType *const szfriends_gtk_named_types[] = {
     &szfriends_gtk_type_reply, &szfriends_gtk_type_goodbye, &szfriends_gtk_type_snapshot_frame,
     &szfriends_gtk_type_subscribe_result, &szfriends_gtk_type_send_result, &szfriends_gtk_type_add_by_id_result,
     &szfriends_gtk_type_visibility_result, &szfriends_gtk_type_search_result, &szfriends_gtk_type_open_link_result,
-    &szfriends_gtk_type_download_link_result, &device_rename, &device_row, &device_removed, &join_request,
+    &szfriends_gtk_type_download_link_result, &device_rename, &device_row, &device_add, &join_offer,
+    &device_removed, &join_request,
     &join_id_field, &join_code_field, &szfriends_gtk_type_join_snapshot, &szfriends_gtk_type_received_snapshot, NULL};
 
 const SZFriendsGtkType *szfriends_gtk_view_type(const char *view) {

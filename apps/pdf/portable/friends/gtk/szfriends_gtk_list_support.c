@@ -349,6 +349,8 @@ void szfriends_gtk_perform_sending(SZFriendsGtkLink *link, SZFriendsGtkDropdown 
             host->open_received_file(host->host_data, window, action->path);
         else if (action->action == SZFRIENDS_GTK_ACTION_SHOW_FILE && path && host->reveal_file)
             host->reveal_file(host->host_data, window, action->path);
+        else if (action->action == SZFRIENDS_GTK_ACTION_OPEN_JOIN && dropdown)
+            szfriends_gtk_dropdown_open_join(dropdown);
         if (done) done(NULL, NULL, done_data);
         return;
     }

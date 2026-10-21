@@ -1,7 +1,7 @@
 /* One profile on several computers offscreen, against the fake helper (PROTOCOL.md § Devices, § Joining): Your
  * computers renames this computer within its byte limit and removes another only after the helper's confirmation;
  * the list shows join requests with Approve, an armed Deny and the code to type, and a removed computer's notice with
- * no Add by ID and no Nearby; the name prompt's "Use my existing profile" opens the join page, which sends what was
+ * no Add by ID and no Nearby; the name prompt's "Use my existing profile…" opens the join page, which sends what was
  * typed and shows why a code failed. Renders light and dark at the dropdown's 400 points and at the 320 and 600 a
  * host may give it, and checks no key line of these views is cut or reaches past the edge, and that they follow the
  * width (the join page's column stops growing past 400). */
@@ -54,8 +54,11 @@ static void test_your_computers(SZFGHarness *harness) {
                szfg_find_label(page, "Linux · Yesterday") &&
                szfg_find_label(page, "macOS 26.1 · Not connected to this computer yet"),
            "each computer with its system and last connection");
-    EXPECT(szfg_find_label(page, "To add a computer, open Friends on it and choose Use my existing profile.") != NULL,
-           "and how to add one");
+    EXPECT(szfg_find_label(page, "Add a computer or phone\n1. On the other computer or phone, open Friends and choose "
+                                 "Use my existing profile.\n2. Type this ID there: cottage‑violet\n3. Choose Approve "
+                                 "when the request appears in Friends here, then type the code this computer shows on "
+                                 "the other one.") != NULL,
+           "and how to add one, with the ID");
     GtkWidget *remove = szfg_find_named(page, "szfriends.profile.devices.remove");
     EXPECT(remove && label_is(remove, "Remove…, Raph’s Mac mini"), "Remove names its computer");
     if (remove) szfg_press(remove, 1);
@@ -199,7 +202,7 @@ static void test_join_page(SZFGHarness *harness) {
     GtkWidget *page = szfg_rig_page(rig);
     GtkWidget *join = szfg_find_named(page, "szfriends.list.join");
     EXPECT(szfg_wait_label(page, "Choose the name friends see") && join && gtk_widget_get_visible(join) &&
-               !g_strcmp0(gtk_button_get_label(GTK_BUTTON(join)), "Use my existing profile"),
+               !g_strcmp0(gtk_button_get_label(GTK_BUTTON(join)), "Use my existing profile…"),
            "the name prompt offers joining");
     guint subscribed = szfg_fake_frames(harness, "subscribe", "view", "join");
     if (join) g_signal_emit_by_name(join, "clicked");
@@ -221,8 +224,8 @@ static void test_join_page(SZFGHarness *harness) {
     EXPECT(szfg_wait_label(page, "That’s this computer’s own ID."), "a refused ID says why");
     reply_error(harness, "join_profile", NULL, NULL);
     szfriends_fake_helper_set_view_fixture(harness->fake, "join", "join-wrong-code.json");
-    EXPECT(szfg_wait_label(page, "That code didn’t match. Check the code on your other computer and type it "
-                                 "again.") &&
+    EXPECT(szfg_wait_label(page, "That code didn’t match. Check the code on your other computer or phone and type "
+                                 "it again.") &&
                gtk_widget_get_visible(parts->code_entry) && !gtk_widget_get_visible(parts->id_entry) &&
                gtk_widget_get_sensitive(parts->code_button), "the code field, and why the last code failed");
     gtk_editable_set_text(GTK_EDITABLE(parts->code_entry), "4831 2207");

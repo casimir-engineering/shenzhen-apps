@@ -216,7 +216,12 @@ void szfriends_gtk_profile_devices_apply(GtkWidget *box, SZFriendsGtkDetailsHeld
     const SZFriendsGtkDeviceRow *here = this_computer(view);
     if (devices) {
         szfriends_gtk_details_label_set(parts->title, devices->title);
-        szfriends_gtk_details_label_set(parts->note, devices->note);
+        /* How to add another computer or phone: its title, then the steps, numbered. */
+        GString *add = g_string_new(devices->add ? devices->add->title : "");
+        for (gsize i = 0; devices->add && devices->add->steps && devices->add->steps[i]; i++)
+            g_string_append_printf(add, "\n%" G_GSIZE_FORMAT ". %s", i + 1, devices->add->steps[i]);
+        szfriends_gtk_details_label_set(parts->note, add->len ? add->str : NULL);
+        g_string_free(add, TRUE);
         for (gsize i = 0; i < devices->n_rows; i++) {
             gtk_box_append(GTK_BOX(parts->rows), device_row(view, &devices->rows[i]));
             if (&devices->rows[i] == here) gtk_box_append(GTK_BOX(parts->rows), parts->rename_box);
