@@ -46,6 +46,20 @@ pub struct ClientInfo {
     /// Lowercased.
     pub open_formats: BTreeSet<String>,
     pub negotiated: ProtocolVersion,
+    /// `client.url_scheme`: where a notification's click opens this app (`<scheme>://friends/...`); `None` when
+    /// absent or not a URL scheme.
+    pub url_scheme: Option<String>,
+}
+
+/// A URL scheme as RFC 3986 spells one, lowercased, at most 32 characters.
+fn url_scheme(value: Option<&Value>) -> Option<String> {
+    let scheme = value?.as_str()?.to_ascii_lowercase();
+    let mut chars = scheme.chars();
+    let first = chars.next()?;
+    let valid = first.is_ascii_lowercase()
+        && scheme.len() <= 32
+        && chars.all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || matches!(c, '+' | '-' | '.'));
+    valid.then_some(scheme)
 }
 
 /// A JSON integer, as `NSJSONSerialization` reads one: not a boolean, not a fraction.
@@ -130,6 +144,7 @@ pub fn client_info(hello: &Value, negotiated: ProtocolVersion) -> Result<ClientI
         capabilities,
         open_formats,
         negotiated,
+        url_scheme: url_scheme(client.get("url_scheme")),
     })
 }
 

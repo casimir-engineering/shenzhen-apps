@@ -189,6 +189,16 @@ pub(crate) fn read_key(conversation: &str) -> String {
     format!("r/{conversation}")
 }
 
+/// Whether the profile's read marker for `conversation` (the latest any of the person's devices set) covers an item
+/// received at `received_at` with id `item_id`: read on one of them. False where no marker was ever synced.
+pub fn read_marker_covers(conn: &rusqlite::Connection, conversation: &str, received_at: f64, item_id: &str) -> bool {
+    let marker = crate::store::sync_log::register(conn, &read_key(conversation)).ok().flatten();
+    let Some(fields) = marker.and_then(|m| m.value).and_then(|v| Fields::decode(&v)) else { return false };
+    let Some(at) = fields.date(2) else { return false };
+    let id = fields.string(3).unwrap_or_default();
+    received_at < at || (received_at == at && item_id <= id.as_str())
+}
+
 /// Last writer wins: whether (lamport, author) is later than what the register holds (absent: always).
 pub(crate) fn is_later(lamport: u64, author: &[u8], current: Option<&crate::store::sync_log::Register>) -> bool {
     let Some(current) = current else { return true };

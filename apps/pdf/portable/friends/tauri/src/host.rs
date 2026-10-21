@@ -192,6 +192,7 @@ impl<R: Runtime> Host<R> {
             capabilities: client_capabilities(&self.config.capabilities),
             open_formats: self.config.open_formats.clone(),
             locale: self.config.locale.clone(),
+            url_scheme: None,
         };
         let host = Arc::downgrade(self);
         let sink: crate::link::Sink = Arc::new(move |event| {

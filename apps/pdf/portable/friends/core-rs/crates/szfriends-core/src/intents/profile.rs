@@ -77,12 +77,11 @@ pub(super) fn parse_profile(kind: &str, frame: &Value, state: &dyn IntentState) 
             }
             Intent::SetReceivedFolder { path: path.to_owned() }
         }
-        "dismiss_banner" => {
-            if string(frame, "kind") != Some("id_changed") {
-                return Err(IntentError::field("invalid_field", "kind"));
-            }
-            Intent::DismissBanner
-        }
+        "dismiss_banner" => match string(frame, "kind") {
+            Some("id_changed") => Intent::DismissBanner,
+            Some("notifications") => Intent::DismissNotificationsBanner,
+            _ => return Err(IntentError::field("invalid_field", "kind")),
+        },
         "enter_join_code" => {
             let code = string(frame, "code").filter(|c| c.encode_utf16().count() <= 32);
             let code = code.ok_or_else(|| IntentError::field("invalid_field", "code").worded(Wording::Join))?;

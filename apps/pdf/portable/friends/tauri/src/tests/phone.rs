@@ -178,6 +178,7 @@ impl Client {
             capabilities: vec!["files.share".into()],
             open_formats: vec!["stl".into()],
             locale: "en".into(),
+            url_scheme: None,
         };
         let answer = connection.hello(&app, None).unwrap();
         assert_eq!(answer["type"], "welcome", "{answer}");

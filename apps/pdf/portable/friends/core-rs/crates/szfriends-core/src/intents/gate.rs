@@ -6,7 +6,7 @@ use super::{IntentError, Wording};
 
 /// Every intent of protocol 1.0 this helper implements. The assistant_* family needs `assistant.scopes`, which no
 /// helper announces yet, so those are unknown_intent.
-pub const KNOWN_INTENTS: [&str; 51] = [
+pub const KNOWN_INTENTS: [&str; 55] = [
     "ping",
     "activate",
     "subscribe",
@@ -58,7 +58,15 @@ pub const KNOWN_INTENTS: [&str; 51] = [
     "fetch_from_device",
     "fetch_from_friend",
     "set_received_folder",
+    "set_focus",
+    "set_notifications",
+    "allow_notifications",
+    "test_notification_response",
 ];
+
+/// System notifications: only while the helper announces `notifications`; the test response only in a test home.
+const NOTIFICATIONS_INTENTS: [&str; 4] =
+    ["set_focus", "set_notifications", "allow_notifications", "test_notification_response"];
 
 /// One profile on several computers: only while the helper announces `devices`.
 const DEVICES_INTENTS: [&str; 8] = [
@@ -77,7 +85,7 @@ const LINKS_INTENTS: [&str; 6] =
     ["open_link", "add_from_link", "receive_link", "make_download_link", "reset_friend_link", "revoke_link"];
 
 /// What a removed computer still does: read, search, Start Over, leave.
-const ON_REMOVED_COMPUTER: [&str; 11] = [
+const ON_REMOVED_COMPUTER: [&str; 12] = [
     "ping",
     "activate",
     "subscribe",
@@ -89,6 +97,7 @@ const ON_REMOVED_COMPUTER: [&str; 11] = [
     "reset_friends",
     "disable",
     "dismiss_banner",
+    "set_focus",
 ];
 
 /// What works while the identity key cannot be read: reads, the reset that fixes it, leaving, and where received
@@ -130,6 +139,10 @@ pub struct Admission {
     pub received_folder: bool,
     /// The helper announces `files.again`.
     pub files_again: bool,
+    /// The helper announces `notifications`.
+    pub notifications: bool,
+    /// The helper runs in a test home (`SZFRIENDS_STATE_DIR`): `test_notification_response` is taken.
+    pub test_home: bool,
 }
 
 /// Whether the helper takes an intent of this `type` now; the error to reply with otherwise.
@@ -147,6 +160,8 @@ pub fn admit(kind: &str, state: Admission) -> Result<(), IntentError> {
         || (LINKS_INTENTS.contains(&kind) && !state.links)
         || (kind == "set_received_folder" && !state.received_folder)
         || (kind == "fetch_from_friend" && !state.files_again)
+        || (NOTIFICATIONS_INTENTS.contains(&kind) && !state.notifications)
+        || (kind == "test_notification_response" && !state.test_home)
     {
         return Err(IntentError::new("unknown_intent"));
     }

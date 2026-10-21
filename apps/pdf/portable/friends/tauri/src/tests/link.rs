@@ -50,6 +50,7 @@ fn app() -> AppInfo {
         capabilities: vec!["drop.files".into()],
         open_formats: vec!["stl".into()],
         locale: "en".into(),
+        url_scheme: None,
     }
 }
 

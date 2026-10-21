@@ -256,6 +256,7 @@ impl State {
             nearby_only: cfg!(not(feature = "online")),
             identity_public_key: Some(self.identity.public_key()),
             received: self.received_folder_facts(),
+            notifications: Some(self.notification_facts()),
             ..ProfileFacts::default()
         }
     }

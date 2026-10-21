@@ -37,6 +37,7 @@ mod link_receive;
 #[cfg(feature = "online")]
 mod links;
 pub mod nearby;
+mod notifications;
 #[cfg(feature = "online")]
 mod online;
 #[cfg(not(feature = "online"))]
@@ -78,8 +79,17 @@ pub use room::TEST_FREE_BYTES_FILE;
 /// helper has a Bluetooth adapter (not on Windows, nor on Linux without the `bluetooth` feature). `devices`: one
 /// profile on several computers, joined and synced over the same nearby and online routes friends use.
 /// `received.folder`: received files go to a folder the person can choose (Downloads until they do).
-const CAPABILITIES: &[&str] =
-    &["nearby.network", "messages.status", "messages.cancel", "mentions", "devices", "files.again", "received.folder"];
+/// `notifications`: this helper decides and posts system notifications (ADR 0017).
+const CAPABILITIES: &[&str] = &[
+    "nearby.network",
+    "messages.status",
+    "messages.cancel",
+    "mentions",
+    "devices",
+    "files.again",
+    "received.folder",
+    "notifications",
+];
 
 fn capabilities(bluetooth: bool) -> Vec<String> {
     let mut capabilities: Vec<String> = CAPABILITIES.iter().map(|c| (*c).to_owned()).collect();
@@ -98,6 +108,8 @@ pub(crate) enum Input {
     Link(link::LinkEvent),
     #[cfg(feature = "online")]
     Online(szfriends_online::OnlineEvent),
+    /// A click or a reply on a notification, from the system's notifier.
+    Notify(crate::notify::Response),
     /// Work that finished off the service's thread, to be completed on it.
     Deferred(Box<dyn FnOnce(&mut State) + Send>),
     Shutdown(Sender<()>),
@@ -224,6 +236,19 @@ impl Service {
     pub fn activate_nearby(&self) {
         self.send(Input::Deferred(Box::new(State::activate_nearby)));
     }
+
+    /// Puts a host's own notifier in place (a phone's native code: ADR 0017 § The request). Every request the
+    /// service decides from now on goes to it; until one is installed a phone posts nothing.
+    pub fn install_notifier(&self, notifier: Arc<dyn crate::notify::Notifier>) {
+        self.send(Input::Deferred(Box::new(move |state| state.install_notifier(notifier))));
+    }
+
+    /// A click (`Open`) or an inline reply (`Reply`) on a notification the notifier posted, as the system reported
+    /// it. Open needs nothing more where the system opens the request's URL itself (phones, Windows); a reply is sent
+    /// in that conversation and marks it read.
+    pub fn notification_response(&self, response: crate::notify::Response) {
+        self.send(Input::Notify(response));
+    }
 }
 
 /// How long a reset waits for the service to stop: its store must be closed before it is removed.
@@ -296,6 +321,8 @@ pub(crate) struct State {
     pub devices: devices::DeviceArea,
     /// Get again: giving friends files again, and copying files again from them.
     pub again: again::AgainArea,
+    /// System notifications: what was seen, focus, this device's switches, the notifier.
+    pub notify: notifications::NotifyArea,
     /// Something changed since the views were last brought up to date.
     pub dirty: bool,
     /// Answered once the thread has closed the store (shutdown).
@@ -321,6 +348,12 @@ impl State {
         #[cfg(not(feature = "online"))]
         let online = online::OnlineRoutes::from_environment(&identity, &mut store, input.clone());
         let devices = devices::DeviceArea::new(&identity, store.state_dir().join("received"));
+        let responses = std::sync::Mutex::new(input.clone());
+        let responder: crate::notify::Responder = Arc::new(move |response| {
+            let _ = responses.lock().unwrap_or_else(|e| e.into_inner()).send(Input::Notify(response));
+        });
+        let notifier = crate::notify::platform_notifier(store.state_dir(), test_home, responder);
+        let notify = notifications::NotifyArea::new(&store, test_home, notifier);
         // Links are made for the Friends host's pages, so only a helper that checks in offers them.
         if online.is_some() {
             capabilities.push("links".to_owned());
@@ -346,6 +379,7 @@ impl State {
             capabilities,
             devices,
             again: again::AgainArea::default(),
+            notify,
             dirty: false,
             stopped: None,
         }
@@ -368,6 +402,10 @@ impl State {
             Input::Intent(connection, frame, reply) => self.intent(&connection, &frame, reply),
             Input::Disconnected(id) => {
                 self.clients.remove(&id);
+                self.notify.disconnected(id);
+            }
+            Input::Notify(response) => {
+                let _ = self.notification_response(response);
             }
             Input::System(event) => self.system_event(event),
             Input::Nearby(event) => self.nearby_event(event),
@@ -419,6 +457,7 @@ fn run(mut state: State, inbox: Receiver<Input>) {
             Err(RecvTimeoutError::Disconnected) => break,
         }
         state.service_sessions();
+        state.notify_pass(state.dirty);
         if state.dirty {
             state.dirty = false;
             state.schedule_sync_capture();
