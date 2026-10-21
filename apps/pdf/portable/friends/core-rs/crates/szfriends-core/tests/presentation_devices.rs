@@ -224,6 +224,7 @@ fn conversations_on_several_computers() {
         fetching: true,
         holder_connected: true,
         fraction: 0.25,
+        route: RouteMethod::Lan,
     };
     let away = DeviceFileFacts { device_name: "Studio workstation".into(), fetching: true, ..Default::default() };
     builder.devices.as_mut().unwrap().files = BTreeMap::from([
@@ -283,6 +284,60 @@ fn files_moved_or_deleted() {
     assert_eq!(removed["actions"], serde_json::json!([]), "removed: {removed}");
 }
 
+/// A file copying here from another of the person's computers shows the route it comes by, the conversation header's
+/// route object (same words, same icon); a slow route with a time to tell adds it as any transfer's route_note.
+#[test]
+fn copying_routes() {
+    if presentation::tree_missing() {
+        return;
+    }
+    let mut builder = builder(audience());
+    let item =
+        transfer("t_4d9b7a35", false, "2026-10-12 10:07", "Line 2 layout.pdf", 58_402_113, TransferState::Received);
+    let mei = presentation::world::people()["c_mei"].clone();
+    let mut built = |connected: bool, route: RouteMethod| {
+        let copying = DeviceFileFacts {
+            device_name: "Raph’s Mac mini".into(),
+            fetching: true,
+            holder_connected: connected,
+            fraction: 0.25,
+            route,
+        };
+        let mut devices = four_computers();
+        devices.files = BTreeMap::from([("t_4d9b7a35".to_owned(), copying)]);
+        builder.devices = Some(devices);
+        let conversation = builder.conversation(&mei, std::slice::from_ref(&item), false, None, 2, now());
+        validate_snapshot(&conversation, "conversation", "a file copying from another computer");
+        conversation["items"].as_array().unwrap().last().unwrap().clone()
+    };
+    let bluetooth = built(true, RouteMethod::Bluetooth);
+    assert_eq!(bluetooth["route"], json!({"kind": "local", "method": "bluetooth", "label": "Nearby, over Bluetooth"}));
+    assert_eq!(bluetooth["status_label"], "Copying from Raph’s Mac mini · 25%");
+    assert!(bluetooth["route_note"].is_null(), "no time to tell over Bluetooth: {bluetooth}");
+    let relay = built(true, RouteMethod::Relay);
+    let label = "Online, through the Friends relay";
+    assert_eq!(relay["route"], json!({"kind": "online", "method": "relay", "label": label}));
+    assert!(relay["route_note"].as_str().unwrap().starts_with("Through the Friends relay, about "), "{relay}");
+    let direct = built(true, RouteMethod::Internet);
+    assert_eq!(direct["route"]["label"], "Online, direct");
+    assert!(direct["route_note"].is_null(), "{direct}");
+    let away = built(false, RouteMethod::None);
+    assert!(away.get("route").is_none() && away["route_note"].is_null(), "no route while away: {away}");
+    // A file coming again from a friend: the friend's route is the header's; a slow one adds its note.
+    let mut again_audience = audience();
+    again_audience.capabilities.insert("files.again".into());
+    let mut again = builder_with(again_audience);
+    again.devices = Some(four_computers());
+    let mut coming = moved("t_7b3e0f42", false, "2026-10-12 09:20", "Shift rota.pdf", 1_203_456, AgainState::Asked);
+    coming.again_connected = true;
+    coming.again_fraction = 0.4;
+    coming.transfer_route = RouteMethod::Bluetooth;
+    let slow =
+        again.conversation(&mei, &[coming], false, None, 2, now())["items"].as_array().unwrap().last().unwrap().clone();
+    assert_eq!(slow["route_note"], "Over Bluetooth");
+    assert!(slow.get("route").is_none(), "{slow}");
+}
+
 #[test]
 fn history_words_on_several_computers() {
     if presentation::tree_missing() {
@@ -331,9 +386,9 @@ fn joining_words_on_a_phone() {
     assert_eq!(devices["rows"][0]["last_connected"], "This device");
     let approve = devices["add"]["steps"][2].as_str().unwrap();
     assert!(approve.contains("the code this device shows"), "{approve}");
-    let join = builder.join(&JoiningFacts { state: JoiningState::Idle, friends_id: None });
+    let join = builder.join(&JoiningFacts { state: JoiningState::Idle, friends_id: None, ..Default::default() });
     assert!(join["message"].as_str().unwrap().ends_with("You’ll approve this device there."), "{join}");
-    let joined = builder.join(&JoiningFacts { state: JoiningState::Joined, friends_id: None });
+    let joined = builder.join(&JoiningFacts { state: JoiningState::Joined, friends_id: None, ..Default::default() });
     assert_eq!(joined["title"], "This device now uses your profile");
 }
 

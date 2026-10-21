@@ -37,6 +37,9 @@ typedef NS_ENUM(NSInteger, SZFriendsJoiningState) {
 @interface SZFriendsJoiningFacts : NSObject
 @property(nonatomic) SZFriendsJoiningState state;
 @property(nonatomic, copy, nullable) NSString *friendsID; // the ID typed, from Waiting on
+// Checking: the session carrying the code (the best one when several do); Joined: the best live session with another
+// of the person's computers. None when nothing is connected.
+@property(nonatomic) SZFriendsRouteMethod routeMethod;
 @end
 
 @interface SZFriendsStrings (SZFriendsJoin)

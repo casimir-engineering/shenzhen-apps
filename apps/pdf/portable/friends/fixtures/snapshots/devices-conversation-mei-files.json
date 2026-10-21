@@ -88,6 +88,11 @@
         "state": "fetching",
         "status_label": "Copying from Raph’s Mac mini · 25%",
         "route_note": null,
+        "route": {
+          "kind": "local",
+          "method": "lan",
+          "label": "Nearby, on your network"
+        },
         "progress": {
           "fraction": 0.25,
           "determinate": true,

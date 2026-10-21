@@ -48,6 +48,7 @@ impl SnapshotBuilder {
         let mut state = "fetching";
         let mut spoken_key = if item.outgoing { "devices.spoken.transfer.out" } else { "devices.spoken.transfer.in" };
         let mut progress = Value::Null;
+        let mut note = None;
         let mut actions = json!([self.action("cancel_transfer", s.text("static.cancel"), "link")]);
         let status = match again {
             AgainState::Gone => {
@@ -59,6 +60,10 @@ impl SnapshotBuilder {
             AgainState::Asked if item.again_connected => {
                 progress = self.copy_progress(item.again_fraction);
                 spoken_key = "devices.spoken.transfer.fetching";
+                // From the friend, like any file they send: a slow route says so, with the time left once it can tell.
+                let arrived = (item.again_fraction.clamp(0.0, 1.0) * item.file_size as f64) as u64;
+                let remaining = item.file_size - item.file_size.min(arrived);
+                note = s.transfer_estimate(remaining, item.bytes_per_second, item.transfer_route);
                 s.text_with("transfer.status.fetching", &values)
             }
             AgainState::Asked => {
@@ -88,7 +93,7 @@ impl SnapshotBuilder {
         transfer.insert("state".into(), json!(state));
         transfer.insert("status_label".into(), json!(status));
         transfer.insert("progress".into(), progress);
-        transfer.insert("route_note".into(), Value::Null);
+        transfer.insert("route_note".into(), json!(note));
         transfer.insert("actions".into(), actions);
         transfer.insert("accessibility_label".into(), json!(s.text_with(spoken_key, &spoken_values)));
         transfer

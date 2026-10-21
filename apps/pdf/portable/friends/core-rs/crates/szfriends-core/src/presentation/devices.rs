@@ -41,6 +41,8 @@ pub struct DeviceFileFacts {
     pub holder_connected: bool,
     /// How much arrived, while it copies.
     pub fraction: f64,
+    /// The live session with that computer; None without one.
+    pub route: RouteMethod,
 }
 
 #[derive(Clone, Debug, Default)]

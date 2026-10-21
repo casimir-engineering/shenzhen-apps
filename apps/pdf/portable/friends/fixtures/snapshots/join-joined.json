@@ -10,6 +10,11 @@
     "friends_id": "cottage-violet",
     "id_field": null,
     "message": "Your friends and chats arrive from your other computers and phones while they’re nearby or online.",
+    "route": {
+      "kind": "local",
+      "method": "lan",
+      "label": "Nearby, on your network"
+    },
     "state": "joined",
     "title": "This computer now uses your profile"
   }

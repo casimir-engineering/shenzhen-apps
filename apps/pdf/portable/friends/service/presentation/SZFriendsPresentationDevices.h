@@ -26,6 +26,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property(nonatomic) BOOL fetching;                // the person pressed Get
 @property(nonatomic) BOOL holderConnected;         // a session with that computer is live, so it copies now
 @property(nonatomic) double fraction;              // how much arrived, while it copies
+@property(nonatomic) SZFriendsRouteMethod routeMethod; // the live session with that computer; None without one
 @end
 
 @interface SZFriendsDevicesFacts : NSObject

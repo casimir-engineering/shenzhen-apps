@@ -403,6 +403,8 @@ static const NSUInteger SZFriendsDeviceNameMaxBytes = 64;
     NSString *spokenKey = item.outgoing ? @"devices.spoken.transfer.out" : @"devices.spoken.transfer.in";
     id progress = [NSNull null];
     NSArray *actions = @[ [self action:@"cancel_transfer" label:[s text:@"static.cancel"] style:@"link"] ];
+    NSDictionary *route = nil;
+    NSString *note = nil;
     double fraction = file ? file.fraction : [facts.youCopying[transferID] doubleValue];
     long percent = MIN(100L, MAX(0L, (long)floor(fraction * 100.0)));
     values[@"percent"] = [NSString stringWithFormat:@"%ld", percent];
@@ -415,6 +417,14 @@ static const NSUInteger SZFriendsDeviceNameMaxBytes = 64;
         status = [s text:@"transfer.status.fetching" values:values];
         progress = [self progressWithFraction:fraction];
         spokenKey = @"devices.spoken.transfer.fetching";
+        // The route it comes by, as a friend's conversation header shows it, and on a slow route the time it takes
+        // when one can be told (as a friend's transfer says it; no rate is measured for these copies).
+        route = [self routeForLiveMethod:file.routeMethod];
+        if ([s estimateBytesPerSecond:0 route:file.routeMethod] > 0) {
+            uint64_t size = [fileInfo[@"size_bytes"] unsignedLongLongValue];
+            uint64_t remaining = size - MIN(size, (uint64_t)(MIN(MAX(fraction, 0.0), 1.0) * (double)size));
+            note = [s transferEstimateForRemainingBytes:remaining bytesPerSecond:0 route:file.routeMethod];
+        }
     } else if (file != nil) {
         state = @"fetching";
         status = [s text:s.reachesOnline ? @"transfer.status.fetch_waiting.online" : @"transfer.status.fetch_waiting"
@@ -442,7 +452,8 @@ static const NSUInteger SZFriendsDeviceNameMaxBytes = 64;
     result[@"state"] = state;
     result[@"status_label"] = status;
     result[@"progress"] = progress;
-    result[@"route_note"] = [NSNull null];
+    result[@"route_note"] = note ?: [NSNull null];
+    if (route != nil) result[@"route"] = route;
     result[@"actions"] = actions;
     result[@"accessibility_label"] = [s text:spokenKey values:values];
     return result;
