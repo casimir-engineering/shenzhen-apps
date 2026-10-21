@@ -83,8 +83,7 @@ static NSArray<NSDictionary*>* ShownLinks(NSDictionary* entry) {
         BOOL titled = [link isKindOfClass:NSDictionary.class];
         NSURL* URL = [NSURL URLWithString:titled ? link[@"url"] : link];
         NSString* scheme = URL.scheme.lowercaseString;
-        // A PDF the assistant downloaded, opened in the reader (SPDFMacAIWebPDF.h), is listed with the pages; it is
-        // on no site, so no host follows it.
+        // A PDF the assistant downloaded (SPDFMacAIWebPDF.h) opens in the reader; it is on no site, so it has no host.
         BOOL app = [scheme isEqual:@"spdf-ai"] && [URL.host isEqual:@"web-document"];
         BOOL secure = ([scheme isEqual:@"https"] || app) && SPDFMacAIChatLinkAllowed(URL);
         if ((!secure && ![scheme isEqual:@"http"]) || !URL.host.length) continue;

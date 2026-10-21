@@ -410,7 +410,6 @@ NSStackView* SPDFChatLinkList(NSArray<NSDictionary*>* links, CGFloat width, id<N
             insecure ? @{NSFontAttributeName : font, NSForegroundColorAttributeName : SPDFCollectionColor(@"text")} :
             @{NSFontAttributeName : font, NSLinkAttributeName : URL,
               NSToolTipAttributeName : [URL.scheme hasPrefix:@"http"] ? URL.absoluteString : link[@"title"] ?: @""}];
-        // where a web link goes, before it is clicked; an app link's address would mean nothing to the reader
         SPDFChatMessageView* title = [[SPDFChatMessageView alloc] initWithFrame:NSMakeRect(0, 0, MAX(40, width), line)];
         title.editable = NO; title.selectable = YES; title.drawsBackground = NO;
         title.backgroundColor = NSColor.clearColor;
@@ -478,8 +477,7 @@ NSString* SPDFChatRunningToolText(NSString* tool) {
     static NSDictionary* words;
     static dispatch_once_t once;
     dispatch_once(&once, ^{
-        // In progress, so each ends in an ellipsis; "parts" is what the person calls subagents' tasks (a run says how
-        // many through runningToolProgress, "Working on 3 parts…").
+        // In progress, so each ends in an ellipsis; "parts" is what the person calls subagents' tasks.
         words = @{@"web_search" : @"Searching the web…", @"open_page" : @"Reading a page…",
                   @"run_python" : @"Running Python…", @"run_subagents" : @"Working on parts…",
                   @"friends_send_message" : @"Preparing a message…",
