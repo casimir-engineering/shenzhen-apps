@@ -60,6 +60,10 @@ NSString *SZFriendsDeviceIDForKey(NSData *deviceKey) {
 - (void)ownDevicesChanged {
     SZFriendsStore *store = self.services.store;
     if (store == nil || self.services.identity == nil) return;
+    // A device that just joined shows its tags only in reads made from now on (Bluetooth caches a read per window).
+    for (id<SZFriendsDiscoveryAdapter> adapter in self.adapters) {
+        if ([adapter respondsToSelector:@selector(rereadDiscovery)]) [adapter rereadDiscovery];
+    }
     BOOL removed = [self computeThisComputerRemoved];
     if (removed && !self.removedFromProfile) {
         self.removedFromProfile = YES;

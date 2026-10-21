@@ -249,12 +249,14 @@ impl State {
             log!("could not store the chain for a joining computer");
             return;
         }
+        // Advertised for the new computer before it hears it joined: its first read of us nearby then finds the tag
+        // our devices know each other by, so the sync starts on whatever route that read came over.
+        self.own_devices_changed();
         for part in welcome.parts {
             self.join_send(id, part);
         }
         self.devices.approver.finish(&request);
         log!("a new computer joined this profile");
-        self.own_devices_changed();
     }
 
     /// The PROFILE friends receive, the presence secret friends find us by and the secret our own devices find each

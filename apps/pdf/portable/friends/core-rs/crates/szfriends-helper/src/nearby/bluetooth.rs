@@ -440,6 +440,13 @@ impl super::Adapter for BluetoothAdapter {
         true
     }
 
+    fn reread(&mut self) {
+        for record in self.peripherals.values_mut() {
+            record.read_at = None;
+        }
+        self.refresh();
+    }
+
     fn refresh(&mut self) {
         if self.running && self.power == Power::On {
             // With duplicates off a running scan reports each device once; a fresh scan reports it again.

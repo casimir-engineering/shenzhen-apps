@@ -191,6 +191,11 @@ static NSString *const kPublicSuffix = @"/public";
     _scanTimer = nil;
 }
 
+- (void)rereadDiscovery {
+    for (SZFriendsPeripheralRecord *record in _peripherals.allValues) record.readAt = nil;
+    [self refreshDiscovery];
+}
+
 - (void)refreshDiscovery {
     if (!_running || _power != SZFriendsRadioPowerOn) return;
     // With duplicates off a running scan reports each peripheral once; a fresh scan reports it again.
