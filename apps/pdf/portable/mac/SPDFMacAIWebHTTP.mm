@@ -1,8 +1,12 @@
 #import "SPDFMacAIWebHTTP.h"
 
-// "compatible" in the style of other fetchers: sites that turn away anything without "Mozilla" still answer, and it
-// claims no browser, operating system or language.
-NSString* const SPDFMacAIWebUserAgent = @"Mozilla/5.0 (compatible; ShenzhenPDF)";
+// Safari 26 as it identifies itself; the operating system part is frozen at 10_15_7 by Safari itself on every macOS,
+// so it says no more about this Mac than any Safari visit does. "Mozilla/5.0 (compatible; ShenzhenPDF)" got 403 from
+// hirose.com's CloudFront where this string got the page, over the same HTTP/1.1.
+NSString* const SPDFMacAIWebUserAgent = @"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 "
+    "(KHTML, like Gecko) Version/26.0 Safari/605.1.15";
+NSString* const SPDFMacAIWebAcceptEncoding = @"gzip, deflate, br";
+static NSString* const kAccept = @"text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8";
 
 static const NSUInteger kMaximumHeaderBytes = 32 * 1024;
 static const NSUInteger kMaximumChunkLine = 1024;
@@ -10,10 +14,45 @@ static const NSUInteger kMaximumTrailerBytes = 8 * 1024;
 // 100 Continue and 103 Early Hints may precede the answer; more than a few is a site stalling on purpose.
 static const NSUInteger kMaximumInformational = 4;
 
-NSData* SPDFMacAIWebRequestData(SPDFMacAIWebTarget* target) {
+// One language tag as a header carries it: letters, digits and hyphens only, language-region without a script.
+static NSString* LanguageTag(NSString* identifier) {
+    NSCharacterSet* allowed = [NSCharacterSet characterSetWithCharactersInString:
+        @"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-"];
+    NSString* tag = [identifier stringByReplacingOccurrencesOfString:@"_" withString:@"-"];
+    if (!tag.length || tag.length > 35 || [tag rangeOfCharacterFromSet:allowed.invertedSet].location != NSNotFound)
+        return nil;
+    NSArray<NSString*>* parts = [tag componentsSeparatedByString:@"-"];
+    NSString* language = parts[0].lowercaseString;
+    if (language.length < 2 || language.length > 3) return nil;
+    for (NSString* part in [parts subarrayWithRange:NSMakeRange(1, parts.count - 1)])
+        if (part.length == 2 || (part.length == 3 && [part rangeOfCharacterFromSet:
+                NSCharacterSet.decimalDigitCharacterSet.invertedSet].location == NSNotFound))
+            return [NSString stringWithFormat:@"%@-%@", language, part.uppercaseString];
+    return language;
+}
+
+NSString* SPDFMacAIWebAcceptLanguage(NSArray<NSString*>* preferredLanguages) {
+    NSMutableOrderedSet<NSString*>* tags = [NSMutableOrderedSet orderedSet];
+    for (id identifier in preferredLanguages) {
+        NSString* tag = [identifier isKindOfClass:NSString.class] ? LanguageTag(identifier) : nil;
+        if (!tag) continue;
+        [tags addObject:tag];
+        [tags addObject:[tag componentsSeparatedByString:@"-"].firstObject];
+        if (tags.count >= 4) break;
+    }
+    if (!tags.count) return @"en";
+    NSMutableArray* values = [NSMutableArray array];
+    for (NSUInteger index = 0; index < MIN(tags.count, (NSUInteger)4); index++)
+        [values addObject:index ? [NSString stringWithFormat:@"%@;q=0.%lu", tags[index], (unsigned long)(10 - index)] :
+                                  tags[index]];
+    return [values componentsJoinedByString:@","];
+}
+
+NSData* SPDFMacAIWebRequestData(SPDFMacAIWebTarget* target, NSString* acceptLanguage) {
     NSString* request = [NSString stringWithFormat:@"GET %@ HTTP/1.1\r\nHost: %@\r\nUser-Agent: %@\r\n"
-        "Accept: text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.1\r\nAccept-Encoding: identity\r\n"
-        "Connection: close\r\n\r\n", target.requestTarget, target.hostHeader, SPDFMacAIWebUserAgent];
+        "Accept: %@\r\nAccept-Language: %@\r\nAccept-Encoding: %@\r\nConnection: close\r\n\r\n",
+        target.requestTarget, target.hostHeader, SPDFMacAIWebUserAgent, kAccept, acceptLanguage,
+        SPDFMacAIWebAcceptEncoding];
     return [request dataUsingEncoding:NSASCIIStringEncoding];
 }
 
@@ -31,7 +70,8 @@ typedef NS_ENUM(NSInteger, SPDFWebParseMode) {
 };
 
 @implementation SPDFMacAIWebResponseParser {
-    NSUInteger _limit;
+    NSUInteger _limit, _documentLimit;
+    BOOL _sniffed; // the body's first bytes were checked for a PDF
     NSMutableData* _pending; // header bytes, or a chunk-size or trailer line, until it is whole
     NSMutableData* _body;
     NSMutableArray<NSArray<NSString*>*>* _headers;
@@ -42,8 +82,13 @@ typedef NS_ENUM(NSInteger, SPDFWebParseMode) {
 }
 
 - (instancetype)initWithBodyLimit:(NSUInteger)bodyLimit {
+    return [self initWithBodyLimit:bodyLimit documentLimit:bodyLimit];
+}
+
+- (instancetype)initWithBodyLimit:(NSUInteger)bodyLimit documentLimit:(NSUInteger)documentLimit {
     if (!(self = [super init])) return nil;
     _limit = bodyLimit;
+    _documentLimit = MAX(bodyLimit, documentLimit);
     _pending = [NSMutableData data];
     _body = [NSMutableData data];
     _headers = [NSMutableArray array];
@@ -52,6 +97,12 @@ typedef NS_ENUM(NSInteger, SPDFWebParseMode) {
 }
 
 - (NSData*)body { return [_body copy]; }
+- (NSUInteger)bodyLimit { return _limit; }
+
+- (void)becomeDocument {
+    _document = YES;
+    _limit = _documentLimit;
+}
 
 - (NSString*)headerNamed:(NSString*)name {
     NSString* wanted = name.lowercaseString;
@@ -70,6 +121,16 @@ typedef NS_ENUM(NSInteger, SPDFWebParseMode) {
 }
 
 - (void)appendBody:(const uint8_t*)bytes length:(NSUInteger)length {
+    // A PDF served as application/octet-stream, or with any other wrong type, is known by its first bytes; only an
+    // uncompressed body shows them.
+    if (!_sniffed && !_contentEncoding && _body.length + length >= 5) {
+        _sniffed = YES;
+        uint8_t head[5];
+        NSUInteger kept = MIN(_body.length, (NSUInteger)5);
+        memcpy(head, _body.bytes, kept);
+        memcpy(head + kept, bytes, 5 - kept);
+        if (!memcmp(head, "%PDF-", 5)) [self becomeDocument];
+    }
     NSUInteger room = _limit > _body.length ? _limit - _body.length : 0;
     [_body appendBytes:bytes length:MIN(room, length)];
     // Bytes past the limit: the limit, not the site, ends the read, and what was kept is a prefix of the page. A body
@@ -135,13 +196,22 @@ typedef NS_ENUM(NSInteger, SPDFWebParseMode) {
         return;
     }
     if (_status == 204 || _status == 304) { [self finishBody]; return; }
-    NSString* encoding = [self headerNamed:@"content-encoding"].lowercaseString;
+    NSString* encoding = [[self headerNamed:@"content-encoding"].lowercaseString
+        stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceCharacterSet];
+    NSDictionary* codings = @{@"gzip" : @"gzip", @"x-gzip" : @"gzip", @"deflate" : @"deflate", @"br" : @"br"};
     if (encoding.length && ![encoding isEqual:@"identity"]) {
-        [self failWith:SPDFMacAIWebErrorUnsupportedContent
-               message:[NSString stringWithFormat:@"The site sent the page compressed (%@), which open_page "
-                        "cannot read.", encoding]];
-        return;
+        // One coding, as Accept-Encoding asked for; stacked codings are not something a browser request receives.
+        _contentEncoding = codings[encoding];
+        if (!_contentEncoding) {
+            [self failWith:SPDFMacAIWebErrorUnsupportedContent
+                   message:[NSString stringWithFormat:@"The site sent the page compressed (%@), which open_page "
+                            "cannot read.", encoding]];
+            return;
+        }
     }
+    NSString* type = [[self headerNamed:@"content-type"] componentsSeparatedByString:@";"].firstObject;
+    type = [type stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceCharacterSet].lowercaseString;
+    if ([type isEqual:@"application/pdf"] || [type isEqual:@"application/x-pdf"]) [self becomeDocument];
     NSString* transfer = [self headerNamed:@"transfer-encoding"].lowercaseString;
     if (transfer) {
         NSMutableArray* codings = [NSMutableArray array];
@@ -174,6 +244,13 @@ typedef NS_ENUM(NSInteger, SPDFWebParseMode) {
     }
     if (!declared) { _mode = SPDFWebParseUntilClose; return; }
     _remaining = strtoull(declared.UTF8String, NULL, 10);
+    // A PDF larger than open_page reads is refused before its first byte, not after 32 MB of it.
+    if (_document && _remaining > _limit) {
+        [self failWith:SPDFMacAIWebErrorTooLarge message:[NSString stringWithFormat:@"The PDF is %llu MB, more than "
+               "the %lu MB open_page reads.", (_remaining + 999999) / 1000000,
+               (unsigned long)(_limit / (1024 * 1024))]];
+        return;
+    }
     if (!_remaining) [self finishBody];
     else _mode = SPDFWebParseLength;
 }

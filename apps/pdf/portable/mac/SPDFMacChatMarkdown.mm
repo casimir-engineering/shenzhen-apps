@@ -67,7 +67,8 @@ BOOL SPDFMacChatMarkdownLinkAllowed(NSURL* URL, SPDFMacChatMarkdownLinks links) 
     BOOL web = [scheme isEqualToString:@"https"] && credentialFree;
     if (links == SPDFMacChatMarkdownLinksFriends) return web;
     return web || ([scheme isEqualToString:@"http"] && credentialFree) ||
-           ([scheme isEqualToString:@"spdf-ai"] && [URL.host isEqualToString:@"document"]) ||
+           ([scheme isEqualToString:@"spdf-ai"] &&
+            ([URL.host isEqualToString:@"document"] || [URL.host isEqualToString:@"web-document"])) ||
            ([scheme isEqualToString:@"shenzhenpdf-friends"] && [URL.host isEqualToString:@"message"]);
 }
 

@@ -16,6 +16,8 @@ NSAlert* SPDFMacAIMissingDocumentAlert(NSURL* site);
 - (void)aiShowMissingDocumentLink;
 // The same, offering to open `site` instead when the link may have meant a website.
 - (void)aiShowMissingDocumentLinkOfferingSite:(NSURL*)site;
+// A PDF the assistant downloaded is gone from this Mac: says so, offering its website (`source`) when known.
+- (void)aiShowMissingWebDocument:(NSURL*)source;
 - (void)aiFinishMissingDocumentAlert:(NSModalResponse)response site:(NSURL*)site;
 // Opens a web page from an answer in the browser.
 - (void)aiOpenWebLink:(NSURL*)URL;

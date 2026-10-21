@@ -161,6 +161,7 @@ struct Extractor {
     size_t anchorStart = 0;
 
     BOOL markup = YES;
+    BOOL scripts = NO;
 
     BOOL Put(uint32_t c) {
         if (c >= 0x10000) {
@@ -383,7 +384,11 @@ void Extractor::Tag() {
     }
     // "<script/>" still opens a script in HTML, as browsers read it, so its text stays hidden here too; only SVG and
     // MathML elements may close themselves.
-    if ([raw containsObject:name]) { SkipRaw(name); return; }
+    if ([raw containsObject:name]) {
+        scripts = scripts || [name isEqual:@"script"];
+        SkipRaw(name);
+        return;
+    }
     BOOL foreign = [name isEqual:@"svg"] || [name isEqual:@"math"];
     if ([nested containsObject:name]) { if (!(selfClosing && foreign)) SkipNested(name); return; }
     if ([name isEqual:@"base"]) {
@@ -450,6 +455,16 @@ SPDFMacAIWebReadable* SPDFMacAIWebReadableText(NSData* body, NSString* contentTy
     extractor.Run();
     NSString* readable = [NSString stringWithCharacters:extractor.out.data() length:extractor.out.size()];
     readable = [readable stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
-    return [[SPDFMacAIWebReadable alloc] initWithTitle:extractor.title text:readable truncated:extractor.truncated
-                                                 links:extractor.links];
+    SPDFMacAIWebReadable* page = [[SPDFMacAIWebReadable alloc] initWithTitle:extractor.title text:readable
+                                                                   truncated:extractor.truncated links:extractor.links];
+    page.markup = html;
+    page.scripts = extractor.scripts;
+    return page;
+}
+
+BOOL SPDFMacAIWebHasPasswordField(NSData* body) {
+    NSString* text = [[NSString alloc] initWithData:body encoding:NSISOLatin1StringEncoding];
+    for (NSString* spelling in @[@"type=\"password\"", @"type='password'", @"type=password"])
+        if ([text rangeOfString:spelling options:NSCaseInsensitiveSearch].location != NSNotFound) return YES;
+    return NO;
 }

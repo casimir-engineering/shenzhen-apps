@@ -163,6 +163,36 @@ static void CheckInsecureResults(void) {
     window.contentView = [NSView new];
 }
 
+// A PDF the assistant downloaded is a second row under its page, "Open in ShenzhenPDF", a link to the app's own copy
+// (SPDFMacAIWebPDF.h): no host beside it, no address as its tooltip, and a click goes to the chat's link handler.
+static void CheckDownloadedPDFRow(void) {
+    NSWindow* window = [[NSWindow alloc] initWithContentRect:NSMakeRect(0, 0, 320, 600)
+        styleMask:NSWindowStyleMaskTitled backing:NSBackingStoreBuffered defer:NO];
+    NSString* app = @"spdf-ai://web-document?id=42439C23-F36B-46D3-9AC7-9110B46AB1A8&"
+                     "web=https://datasheet.example/ds.pdf";
+    NSDictionary* opened = @{@"id" : @"D", @"kind" : @"step", @"after" : @1, @"title" : @"Opened datasheet.example",
+        @"state" : @"done", @"detail" : @"A PDF of 8 pages.", @"links" : @[
+            @{@"url" : @"https://datasheet.example/ds.pdf", @"title" : @"BM28 Series Catalog",
+              @"host" : @"datasheet.example"},
+            @{@"url" : app, @"title" : @"Open in ShenzhenPDF", @"host" : @""}]};
+    SPDFMacAIChatView* view = StepChat(window, [ActivityChatFixture new], @[opened], @[@"D"]);
+    __block NSURL* clicked = nil;
+    view.openLink = ^(NSURL* URL) { clicked = URL; };
+    NSStackView* links = (NSStackView*)Find(view, @"activityLinks:D");
+    NSArray<NSStackView*>* lines = [links isKindOfClass:NSStackView.class] ? (id)links.arrangedSubviews : nil;
+    NSTextView* open = lines.count == 2 ? (NSTextView*)lines[1].arrangedSubviews[0] : nil;
+    NSURL* target = open.string.length ? [open.textStorage attribute:NSLinkAttributeName atIndex:0 effectiveRange:nil]
+                                       : nil;
+    Check([open.string isEqual:@"Open in ShenzhenPDF"] && [target.absoluteString isEqual:app] &&
+          lines[1].arrangedSubviews.count == 2 &&
+          [[open.textStorage attribute:NSToolTipAttributeName atIndex:0 effectiveRange:nil]
+              isEqual:@"Open in ShenzhenPDF"],
+          @"a downloaded PDF's step offers Open in ShenzhenPDF as a link, without a host or an app address");
+    if (target) [(id<NSTextViewDelegate>)open.delegate textView:open clickedOnLink:target atIndex:0];
+    Check([clicked.absoluteString isEqual:app], @"and a click on it reaches the chat's link handler");
+    window.contentView = [NSView new];
+}
+
 // A step that stopped or ran out of time says so whole, under its title, as a failure does: beside the title its
 // status shrank to a few letters at 320 pt.
 static void CheckStoppedStatusLine(void) {
@@ -297,6 +327,7 @@ static void CheckRunningToolHeading(void) {
 static void RunChatActivityStepChecks(void) {
     CheckStepOutputAndNote();
     CheckInsecureResults();
+    CheckDownloadedPDFRow();
     CheckStoppedStatusLine();
     CheckFoldSaysStopped();
     CheckLongLiteralCard();

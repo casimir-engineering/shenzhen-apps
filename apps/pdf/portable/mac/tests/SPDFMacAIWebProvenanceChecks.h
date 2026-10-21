@@ -101,7 +101,7 @@ static void CheckProvenanceRedirects(void) {
     result = [rig call:@"open_page" arguments:@{@"url" : @"https://sneaky.example.com/"} context:context];
     NSDictionary* step = rig.activity.entries.lastObject;
     CHECK([result[@"error"] length] && !result[@"text"] && rig.connector.connections.count == connections + 1 &&
-          [step[SPDFMacAIActivityStatusKey] isEqual:@"Only public websites are opened"],
+          [step[SPDFMacAIActivityStatusKey] hasPrefix:@"Only public websites are opened"],
           "a redirect into a private range is still refused after the address passed provenance");
 }
 

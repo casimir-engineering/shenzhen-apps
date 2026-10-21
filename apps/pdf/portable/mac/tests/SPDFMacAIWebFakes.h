@@ -6,6 +6,7 @@
 #import "SPDFMacAISettings.h"
 #import "SPDFMacAIWebAddress.h"
 #import "SPDFMacAIWebConnection.h"
+#import "SPDFMacAIWebFetcher.h"
 #import "SPDFMacAIWebSearch.h"
 
 static int failures;
@@ -42,6 +43,24 @@ static NSData* WebHTML(NSString* html) {
 
 static NSData* WebRedirect(NSInteger status, NSString* location) {
     return WebResponse(status, @{@"Location" : location, @"Content-Length" : @"0"}, nil);
+}
+
+// Where this run's downloaded PDFs go: a folder of its own, removed when the suite ends, never the app's.
+static NSURL* WebDocumentFolder(void) {
+    static NSURL* folder;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        folder = [NSURL fileURLWithPath:[NSTemporaryDirectory() stringByAppendingPathComponent:
+            [@"spdf-ai-web-documents-" stringByAppendingString:NSUUID.UUID.UUIDString]] isDirectory:YES];
+    });
+    return folder;
+}
+
+static SPDFMacAIWebFetcher* WebTestFetcher(id<SPDFMacAIWebResolving> resolver, id<SPDFMacAIWebConnecting> connector) {
+    SPDFMacAIWebFetcher* fetcher = [[SPDFMacAIWebFetcher alloc] initWithResolver:resolver connector:connector];
+    fetcher.documentFolder = WebDocumentFolder();
+    fetcher.acceptLanguage = @"en";
+    return fetcher;
 }
 
 static SPDFMacAISettingsSnapshot* WebSettings(BOOL web) {

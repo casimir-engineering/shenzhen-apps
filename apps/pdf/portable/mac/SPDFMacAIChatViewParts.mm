@@ -409,7 +409,8 @@ NSStackView* SPDFChatLinkList(NSArray<NSDictionary*>* links, CGFloat width, id<N
         NSAttributedString* words = [[NSAttributedString alloc] initWithString:link[@"title"] ?: address attributes:
             insecure ? @{NSFontAttributeName : font, NSForegroundColorAttributeName : SPDFCollectionColor(@"text")} :
             @{NSFontAttributeName : font, NSLinkAttributeName : URL,
-              NSToolTipAttributeName : URL.absoluteString}];  // where it goes, before it is clicked
+              NSToolTipAttributeName : [URL.scheme hasPrefix:@"http"] ? URL.absoluteString : link[@"title"] ?: @""}];
+        // where a web link goes, before it is clicked; an app link's address would mean nothing to the reader
         SPDFChatMessageView* title = [[SPDFChatMessageView alloc] initWithFrame:NSMakeRect(0, 0, MAX(40, width), line)];
         title.editable = NO; title.selectable = YES; title.drawsBackground = NO;
         title.backgroundColor = NSColor.clearColor;

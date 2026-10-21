@@ -173,7 +173,8 @@ Native commands can open ordinary confirmation, file, or permission dialogs;
 the model must inspect the result, not assume a queued command completed. Secure
 and credential fields are excluded. Generic native commands return
 `undoable: false`; their own native Cancel/Undo behavior applies where available.
-No other applications, shell execution, or web-browsing tool is provided.
+No other applications or shell execution are provided; web search and pages are
+described below.
 
 The model receives opaque document IDs and titles from the current reader
 workspace, then retrieves evidence as needed. Its tools can:
@@ -245,6 +246,32 @@ Undo of a job removes the Downloads copy only while it is still the exact file
 made. Its Collection history stays, as it does whenever an original is removed;
 delete it from Collection if you do not want it. With `SPDF_STATE_DIR` set,
 outputs go to a `Downloads` folder inside that state directory instead.
+
+## Web search and pages
+
+With **Let the assistant search the web** on in AI settings (on by default), the
+assistant has `web_search` and `open_page`. Search terms go to OpenRouter's search
+service; pages and PDFs are fetched by this Mac itself, asking as Safari on a Mac
+would (Safari's user agent and Accept, the person's preferred languages,
+gzip/deflate/br decoded with the size limit applied to the decoded bytes), then
+read by the model through OpenRouter like the rest of the request. No cookies,
+credentials or referrer are sent, nothing on a local or private network is
+opened, at most 5 redirects are followed with every hop's addresses checked, and
+a sign-in page or 401 is reported, never worked around.
+
+A PDF (served as `application/pdf`, or with any type when its bytes start with
+`%PDF-`) is downloaded up to 32 MB within a 90 s deadline into
+`$TMPDIR/ShenzhenPDF-AI-Web/<id>/`, never ~/Downloads, and its text is read by
+the reader's own engine a range of pages at a time (`page`, `count`), with
+`page_count` and `next_page`; table rows keep their cells on one line. Its step
+row offers **Open in ShenzhenPDF**, a link by opaque id that opens the saved copy
+in the reader; copies older than a week are removed when the next PDF is saved.
+A page built by scripts with almost no text is reported as such, with its
+PDF/datasheet links. When a site refuses (a bot filter, a sign-in, a timeout)
+and a search found the page, the model gets the search engine's excerpt,
+labelled as such, and the step row says so; no other service is asked to fetch
+the page (OpenRouter's `openrouter:web_fetch` server tool was considered and not
+used: its documentation does not say how the fetched content reaches the caller).
 
 ## Automatic summaries and Collection history
 
@@ -334,7 +361,8 @@ Other current boundaries:
 - The assistant reads only documents open in this reader workspace, plus
   documents explicitly discovered and opened through Collection. These document-reading tools do not browse arbitrary folders. Native
   app commands can open normal reader dialogs, subject to macOS permissions.
-  The assistant cannot browse the web, run shell commands, or access other apps.
+  The assistant cannot run shell commands or access other apps; it reaches the
+  web only through `web_search` and `open_page` (above).
 - OCR and translation are local jobs, but the assistant does not install or
   configure their dependencies. Encrypted PDFs are not supported by assistant
   export/OCR/translation jobs.
