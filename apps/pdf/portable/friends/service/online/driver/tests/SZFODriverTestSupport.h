@@ -77,6 +77,7 @@ SZFriendsOnlineFriend *SZFODFriendFor(SZFriendsIdentity *identity, NSData *prese
 
 void SZFODTestGating(void);
 void SZFODTestBackoffLookups(void);
+void SZFODTestBackoffLookupsUnderTheRoot(void);
 void SZFODTestHelpers(void);
 void SZFODTestSidePath(void);
 void SZFODTestDirect(void);

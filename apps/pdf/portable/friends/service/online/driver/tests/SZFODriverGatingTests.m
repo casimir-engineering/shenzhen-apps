@@ -189,3 +189,30 @@ void SZFODTestBackoffLookups(void) {
         [world stop];
     }
 }
+
+// Another computer of the friend's (or of ours) files its records under the person's root key, not its own key: a
+// lookup under the device key only ever finds filler, so the wait would never end early.
+void SZFODTestBackoffLookupsUnderTheRoot(void) {
+    SZFODWorld *world = FakeWorld();
+    [world befriend];
+    SZFriendsIdentity *root = SZFODNewIdentity();
+    world.delegateA.friends[world.identityB.publicKey].rootKey = root.publicKey;
+    __block NSTimeInterval clock = 1000;
+    world.a.onlineContext.clock = ^NSTimeInterval { return clock; };
+    SZFODFakeTransport *fakeA = (SZFODFakeTransport *)world.a.onlineContext.transport;
+    FailOnce(world, &clock);
+    NSData *secret = world.delegateA.friends[world.identityB.publicKey].presenceSecret;
+    NSData *record = SZFriendsSealRendezvousRecord(world.identityB, world.identityB.publicKey, secret,
+                                                   SZFriendsPresenceWindowIndex([NSDate date]), @[ NATItem() ], NULL);
+    __block NSArray<NSData *> *asked = nil;
+    world.a.testLookup = ^(NSArray<NSData *> *keys, void (^completion)(NSArray<NSData *> *, NSError *)) {
+        asked = keys;
+        completion(@[ record ], nil);
+    };
+    clock += 1;
+    [world.a reachFriend:world.identityB.publicKey];
+    EXPECT(asked.count == 1 && [asked[0] isEqualToData:SZFriendsHostRendezvousKey(root.publicKey)],
+           "the device is looked up under its person's root key");
+    EXPECT(fakeA.requests.count == 2 && world.a.attempts.count == 1, "its record there ends the wait");
+    [world stop];
+}

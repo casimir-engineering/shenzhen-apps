@@ -18,6 +18,7 @@ int main(void) {
             {"helpers", SZFODTestHelpers},
             {"gating", SZFODTestGating},
             {"backoff and lookups", SZFODTestBackoffLookups},
+            {"backoff lookups under the root", SZFODTestBackoffLookupsUnderTheRoot},
             {"side path", SZFODTestSidePath},
             {"direct", SZFODTestDirect},
             {"simultaneous", SZFODTestSimultaneous},
