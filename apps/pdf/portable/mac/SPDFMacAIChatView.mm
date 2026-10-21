@@ -74,7 +74,8 @@
     _activityDetail.identifier=@"chatActivityDetail"; _activityDetail.maximumNumberOfLines=2;
     _activityDetail.translatesAutoresizingMaskIntoConstraints=NO; [self addSubview:_activityDetail];
     _prompt=SPDFCollectionText(@"",13,NSFontWeightMedium,NO); _prompt.identifier=@"latestUserPrompt";
-    _prompt.maximumNumberOfLines=3; _prompt.selectable=YES; _prompt.translatesAutoresizingMaskIntoConstraints=NO;
+    _prompt.maximumNumberOfLines=3; _prompt.cell.truncatesLastVisibleLine=YES; _prompt.selectable=YES;
+    _prompt.translatesAutoresizingMaskIntoConstraints=NO;
     _promptHeight=[_prompt.heightAnchor constraintEqualToConstant:0]; [self addSubview:_prompt];
     _scroll=[NSScrollView new]; _scroll.translatesAutoresizingMaskIntoConstraints=NO;
     _scroll.automaticallyAdjustsContentInsets=NO; _scroll.contentInsets=NSEdgeInsetsZero;
@@ -105,6 +106,7 @@
     _composer.submit=^{ [weakSelf submit]; }; _composer.undoAction=^{ if (weakSelf.action) weakSelf.action(@"undo"); };
     _composer.redoAction=^{if(weakSelf.action)weakSelf.action(@"redo");};
     _composer.closeAction=^{if(weakSelf.action)weakSelf.action(@"close");};
+    _composer.fit=^{ [weakSelf fitComposer]; };
     _issueText=SPDFCollectionText(@"",12,NSFontWeightMedium,NO); _issueText.maximumNumberOfLines=3;
     _issueText.identifier=@"chatSubmissionError";
     _recovery=[self button:@"AI settings…" action:@"settings"];
@@ -117,7 +119,7 @@
     // 0 pt instead made AppKit break its 28 pt button's height on every layout.
     _scrollAboveIssue=[_scroll.bottomAnchor constraintEqualToAnchor:_issue.topAnchor constant:-8];
     _scrollAboveInput=[_scroll.bottomAnchor constraintEqualToAnchor:input.topAnchor constant:-12];
-    _inputHeight=[input.heightAnchor constraintEqualToConstant:68];
+    _inputHeight=[input.heightAnchor constraintEqualToConstant:SPDFChatComposerHeight];
     _stopTrailing=[_stop.trailingAnchor constraintEqualToAnchor:_send.leadingAnchor constant:-8];
     _stopHistoryTrailing=[_stop.trailingAnchor constraintEqualToAnchor:self.trailingAnchor constant:-16];
     [NSLayoutConstraint activateConstraints:@[
@@ -160,6 +162,8 @@
     ]];
     return self;
 }
+// The field grows with what is typed, a line at a time, up to its maximum; past that the text scrolls in it.
+- (void)fitComposer { if(!_history) _inputHeight.constant=[(SPDFChatInputScrollView*)_input fittingHeight]; }
 - (void)controlTextDidChange:(NSNotification*)note { (void)note; [self setChatSearchQuery:_chatSearch.stringValue]; }
 - (BOOL)control:(NSControl*)control textView:(NSTextView*)textView doCommandBySelector:(SEL)command {
     if (control!=_chatSearch || textView.hasMarkedText || (command!=@selector(insertNewline:) && command!=@selector(insertLineBreak:) && command!=@selector(insertNewlineIgnoringFieldEditor:))) return NO;
@@ -277,7 +281,7 @@
     _prompt.toolTip=latest; _prompt.accessibilityLabel=_prompt.stringValue;
     _status.accessibilityLabel=_status.stringValue;
     _send.enabled=!session.running && !_history; _stop.enabled=session.running; _composer.editable=!_history;
-    _input.hidden=_history; _send.hidden=_history; _inputHeight.constant=_history ? 0 : 68;
+    _input.hidden=_history; _send.hidden=_history; _inputHeight.constant=0; [self fitComposer];
     _stopTrailing.active=NO; _stopHistoryTrailing.active=NO;
     (_history ? _stopHistoryTrailing : _stopTrailing).active=YES;
     _inputHelp.stringValue=_history ? @"Select a chat above, or start a new one." : @"↵ Send · ⇧↵ New line";
