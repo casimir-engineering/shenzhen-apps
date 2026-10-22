@@ -39,6 +39,7 @@ static NSString* const kLengthTitle = @"Let the assistant read all your Friends 
     CGFloat _baseBottomInset;
     BOOL _noteShown;
     id _observer;
+    id _boxObserver;
 }
 
 - (instancetype)initWithComposer:(NSTextView*)composer choices:(void (^)(SPDFMacFriendsChoicesDelivery))choices {
@@ -57,10 +58,18 @@ static NSString* const kLengthTitle = @"Let the assistant read all your Friends 
     if (input) {
         _baseBottomInset = input.contentInsets.bottom;
         // A subview of the scroll view, not of the text, so it stays put while the text scrolls; it sits in the
-        // strip the bottom inset reserves while it is visible.
-        _note.frame = NSMakeRect(10, 3, MAX(0, NSWidth(input.bounds) - 20), kNoteHeight - 4);
-        _note.autoresizingMask = NSViewWidthSizable | NSViewMaxYMargin;
+        // strip the bottom inset reserves while it is visible. Placed by hand whenever the box changes size: a
+        // width-sizable mask froze the margins the box had when it was first laid out (a box made at zero width and
+        // laid out at 618 pt kept a 608 pt right margin), so the box could never get narrower and the composer ran
+        // past the chat panel's edge; and the scroll view is flipped, so y = 3 put the note at the top. A fixed mask
+        // gives Auto Layout the note's position and width only, never a margin to the box's far edge.
+        _note.autoresizingMask = NSViewNotSizable;
         [input addSubview:_note positioned:NSWindowAbove relativeTo:nil];
+        [self placeNote];
+        input.postsFrameChangedNotifications = YES;
+        __weak SPDFMacFriendsComposerScope* weakScope = self;
+        _boxObserver = [NSNotificationCenter.defaultCenter addObserverForName:NSViewFrameDidChangeNotification
+            object:input queue:nil usingBlock:^(NSNotification* note) { (void)note; [weakScope placeNote]; }];
     }
     __weak SPDFMacFriendsComposerScope* weakSelf = self;
     _presentPicker = ^(NSUInteger index, NSArray* list) { [weakSelf showPopoverAt:index choices:list title:nil]; };
@@ -76,7 +85,8 @@ static NSString* const kLengthTitle = @"Let the assistant read all your Friends 
 
 - (void)uninstall {
     if (_observer) [NSNotificationCenter.defaultCenter removeObserver:_observer];
-    _observer = nil;
+    if (_boxObserver) [NSNotificationCenter.defaultCenter removeObserver:_boxObserver];
+    _observer = _boxObserver = nil;
     [self closePopover];
     [self setNoteShown:NO];
     [_note removeFromSuperview];
@@ -174,6 +184,15 @@ static NSString* const kLengthTitle = @"Let the assistant read all your Friends 
     _pendingIndex = NSNotFound; // a drop goes at the caret, never over a typed "#"
     for (SPDFMacAIRequestChip* file in files)
         [self choose:@{@"id" : @"file", @"name" : file.displayName, @"file" : file}];
+}
+
+// The note across the bottom strip of its box, 10 pt in from each side and 3 pt up from the bottom edge.
+- (void)placeNote {
+    NSView* input = _note.superview;
+    if (!input) return;
+    NSRect box = input.bounds;
+    CGFloat height = kNoteHeight - 4, y = input.isFlipped ? NSHeight(box) - 3 - height : 3;
+    _note.frame = NSMakeRect(10, y, MAX(0, NSWidth(box) - 20), height);
 }
 
 - (void)setNoteShown:(BOOL)shown {

@@ -9,7 +9,54 @@ static void Type(NSTextView* composer, NSString* text) {
     [composer insertText:text replacementRange:composer.selectedRange];
 }
 
+// The chat panel's input box is made at zero size and laid out by constraints, first at one width and later at
+// another (the panel opened, then narrowed). The note inside it must follow the box: it once kept the right margin
+// of the first layout, so the box could not get narrower and the composer ran past the panel's edge.
+static void CheckNoteFollowsTheBox(void) {
+    NSWindow* window = [[NSWindow alloc] initWithContentRect:NSMakeRect(0, 0, 650, 120)
+                                                   styleMask:NSWindowStyleMaskBorderless
+                                                     backing:NSBackingStoreBuffered defer:YES];
+    window.releasedWhenClosed = NO;
+    NSView* panel = window.contentView;
+    NSScrollView* input = [NSScrollView new];
+    input.translatesAutoresizingMaskIntoConstraints = NO;
+    input.automaticallyAdjustsContentInsets = NO;
+    input.contentInsets = NSEdgeInsetsMake(2, 2, 2, 2);
+    NSTextView* composer = [[NSTextView alloc] initWithFrame:NSMakeRect(0, 0, 500, 64)];
+    composer.autoresizingMask = NSViewWidthSizable;
+    input.documentView = composer;
+    [panel addSubview:input];
+    SPDFMacFriendsComposerScope* scope = [[SPDFMacFriendsComposerScope alloc] initWithComposer:composer
+        choices:^(SPDFMacFriendsChoicesDelivery deliver) { deliver(@[]); }];
+    [NSLayoutConstraint activateConstraints:@[
+        [input.leadingAnchor constraintEqualToAnchor:panel.leadingAnchor constant:16],
+        [input.trailingAnchor constraintEqualToAnchor:panel.trailingAnchor constant:-16],
+        [input.topAnchor constraintEqualToAnchor:panel.topAnchor constant:20],
+        [input.heightAnchor constraintEqualToConstant:68]
+    ]];
+    [panel layoutSubtreeIfNeeded];
+    Expect(fabs(NSWidth(input.frame) - 618) < 0.5, @"the box must take the panel's width: %@",
+           NSStringFromRect(input.frame));
+    [window setContentSize:NSMakeSize(400, 120)];
+    [panel layoutSubtreeIfNeeded];
+    Expect(fabs(NSWidth(input.frame) - 368) < 0.5, @"the box must narrow with the panel: %@ in a 400 pt panel",
+           NSStringFromRect(input.frame));
+    scope.note.stringValue = @"The assistant can read your chat with Mei and write messages to Mei for you to send.";
+    scope.note.hidden = NO;
+    [panel layoutSubtreeIfNeeded];
+    NSRect note = scope.note.frame;
+    Expect(fabs(NSMinX(note) - 10) < 0.5 && fabs(NSMaxX(note) - (NSWidth(input.bounds) - 10)) < 0.5,
+           @"the note must span the box less 10 pt each side: %@ in %@", NSStringFromRect(note),
+           NSStringFromRect(input.bounds));
+    Expect(fabs(NSMaxY(note) - (NSHeight(input.bounds) - 3)) < 0.5,
+           @"the note must sit in the strip at the bottom of the box: %@ in %@", NSStringFromRect(note),
+           NSStringFromRect(input.bounds));
+    [scope uninstall];
+    [window close];
+}
+
 static void CheckComposerUI(void) {
+    CheckNoteFollowsTheBox();
     NSWindow* window = [[NSWindow alloc] initWithContentRect:NSMakeRect(0, 0, 500, 120)
                                                    styleMask:NSWindowStyleMaskTitled
                                                      backing:NSBackingStoreBuffered defer:YES];
