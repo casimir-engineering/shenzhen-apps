@@ -3851,6 +3851,65 @@ index eb0e9a3..fe7bba5 100644
  /* These are in the typical sort order. Known things come first, then
   * things where we can't know, finally things where we don't yet know.
   */
+diff --git a/src/nautilus-file-undo-operations.c b/src/nautilus-file-undo-operations.c
+index 7a017d9..70eeeca 100644
+--- a/src/nautilus-file-undo-operations.c
++++ b/src/nautilus-file-undo-operations.c
+@@ -34,6 +34,10 @@
+ #include "nautilus-scheme.h"
+ #include "nautilus-tag-manager.h"
+
++#ifdef __APPLE__
++#include "nautilus-macos-bridge.h"
++#endif
++
+
+ /* Since we use g_get_current_time for setting "orig_trash_time" in the undo
+  * info, there are situations where the difference between this value and the
+@@ -1700,6 +1704,43 @@ trash_retrieve_files_to_restore_thread (GTask        *task,
+     GError *error = NULL;
+     gboolean restored_at_least_once = FALSE;
+
++#ifdef __APPLE__
++    {
++        /* Local files went to the macOS Trash through NSFileManager, which
++         * has no trash:/// listing to find them in: move each back from
++         * where it was put. Only what GIO trashed (remote files) is looked
++         * for in trash:/// below. */
++        GHashTableIter iter;
++        gpointer key;
++        gboolean all_local = TRUE;
++
++        g_hash_table_iter_init (&iter, self->trashed);
++        while (g_hash_table_iter_next (&iter, &key, NULL))
++        {
++            GFile *origfile = key;
++            g_autoptr (GFile) item = NULL;
++
++            if (!g_file_is_native (origfile))
++            {
++                all_local = FALSE;
++                continue;
++            }
++            item = nautilus_macos_trash_lookup (origfile);
++            if (item != NULL &&
++                g_file_move (item, origfile, G_FILE_COPY_NOFOLLOW_SYMLINKS,
++                             NULL, NULL, NULL, NULL))
++            {
++                restored_at_least_once = TRUE;
++            }
++        }
++        if (all_local)
++        {
++            g_task_return_boolean (task, restored_at_least_once);
++            return;
++        }
++    }
++#endif
++
+     trash = g_file_new_for_uri (SCHEME_TRASH ":///");
+
+     enumerator = g_file_enumerate_children (trash,
 diff --git a/src/nautilus-file-utilities.c b/src/nautilus-file-utilities.c
 index b2f8996..db1621e 100644
 --- a/src/nautilus-file-utilities.c
@@ -6171,10 +6230,10 @@ index 5152091..64e62fb 100644
      gtk_widget_class_add_shortcut (GTK_WIDGET_CLASS (class), shortcut);
 diff --git a/src/nautilus-macos-bridge.h b/src/nautilus-macos-bridge.h
 new file mode 100644
-index 0000000..843ea6c
+index 0000000..fa0fb83
 --- /dev/null
 +++ b/src/nautilus-macos-bridge.h
-@@ -0,0 +1,927 @@
+@@ -0,0 +1,932 @@
 +/*
 + * nautilus-macos-bridge.h: C-callable API of the macOS Objective-C bridge.
 + *
@@ -6279,6 +6338,11 @@ index 0000000..843ea6c
 +gboolean nautilus_macos_trash_file (GFile         *file,
 +                                    GCancellable  *cancellable,
 +                                    GError       **error);
++
++/* Where nautilus_macos_trash_file() last put @original in this session, or
++ * NULL. macOS has no trash:/// listing that names an item's original path,
++ * so undoing Move to Trash finds the item through this. Transfer full. */
++GFile *nautilus_macos_trash_lookup (GFile *original);
 +
 +/* --- Open With (nautilus-macos-openwith.m) --- */
 +
@@ -13875,10 +13939,10 @@ index 0000000..faf3a57
 +}
 diff --git a/src/nautilus-macos-trash.m b/src/nautilus-macos-trash.m
 new file mode 100644
-index 0000000..b2479cb
+index 0000000..6123f19
 --- /dev/null
 +++ b/src/nautilus-macos-trash.m
-@@ -0,0 +1,169 @@
+@@ -0,0 +1,215 @@
 +/*
 + * nautilus-macos-trash.m: Finder Trash integration (W2).
 + *
@@ -13936,6 +14000,48 @@ index 0000000..b2479cb
 +    }
 +}
 +
++/* Original path -> where the Trash holds it, for every item this process
++ * trashed. Jobs trash from worker threads, so it is locked. */
++static GMutex trashed_lock;
++static GHashTable *trashed_items;
++
++static void
++remember_trashed (const char *original,
++                  const char *trashed)
++{
++    g_mutex_lock (&trashed_lock);
++    if (trashed_items == NULL)
++    {
++        trashed_items = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, g_free);
++    }
++    g_hash_table_insert (trashed_items, g_strdup (original), g_strdup (trashed));
++    g_mutex_unlock (&trashed_lock);
++}
++
++GFile *
++nautilus_macos_trash_lookup (GFile *original)
++{
++    g_autofree char *path = g_file_get_path (original);
++    GFile *trashed = NULL;
++
++    if (path == NULL)
++    {
++        return NULL;
++    }
++    g_mutex_lock (&trashed_lock);
++    if (trashed_items != NULL)
++    {
++        const char *found = g_hash_table_lookup (trashed_items, path);
++
++        if (found != NULL)
++        {
++            trashed = g_file_new_for_path (found);
++        }
++    }
++    g_mutex_unlock (&trashed_lock);
++    return trashed;
++}
++
 +gboolean
 +nautilus_macos_trash_file (GFile         *file,
 +                           GCancellable  *cancellable,
@@ -13971,6 +14077,10 @@ index 0000000..b2479cb
 +                                          resultingItemURL:&trashed_url
 +                                                     error:&ns_error])
 +        {
++            if ([trashed_url path] != nil)
++            {
++                remember_trashed (path, [[trashed_url path] fileSystemRepresentation]);
++            }
 +            g_debug ("nautilus_macos_trash_file: moved %s to %s",
 +                     path,
 +                     [[[trashed_url path] stringByStandardizingPath] UTF8String]);
@@ -21958,7 +22068,7 @@ index 0000000..d207aef
 +    return 0;
 +}
 diff --git a/test/displayless/meson.build b/test/displayless/meson.build
-index 33adf34..1fb184d 100644
+index 33adf34..82147fd 100644
 --- a/test/displayless/meson.build
 +++ b/test/displayless/meson.build
 @@ -1,4 +1,6 @@
@@ -21980,7 +22090,7 @@ index 33adf34..1fb184d 100644
    if extra_args.get('tracker', false)
      # Tests that read and write from the Tracker index are run using 'tracker-sandbox'
      # script to use a temporary instance of tracker-miner-fs instead of the session one.
-@@ -55,3 +61,122 @@ foreach test_name, extra_args : tests
+@@ -55,3 +61,139 @@ foreach test_name, extra_args : tests
      suite: suite,
    )
  endforeach
@@ -22100,6 +22210,23 @@ index 33adf34..1fb184d 100644
 +    macos_window_shortcuts_test,
 +    env: [test_env],
 +    timeout: 30,
++    suite: ['displayless'],
++  )
++
++  # Undo after Move to Trash brings files back from the macOS Trash; trashes
++  # only throwaway files it creates and leaves none in the Trash.  Run it with
++  # tools/test-macos-trash-undo.sh from the repository root.
++  macos_trash_undo_test = executable(
++    'test-macos-trash-undo',
++    'test-macos-trash-undo.c',
++    dependencies: [libnautilus_dep],
++  )
++  test(
++    'test-macos-trash-undo',
++    macos_trash_undo_test,
++    env: [test_env],
++    is_parallel: false,
++    timeout: 60,
 +    suite: ['displayless'],
 +  )
 +endif
@@ -26208,6 +26335,245 @@ index 0000000..3bbc887
 +    g_free (scratch);
 +
 +    return status;
++}
+diff --git a/test/displayless/test-macos-trash-undo.c b/test/displayless/test-macos-trash-undo.c
+new file mode 100644
+index 0000000..93dec09
+--- /dev/null
++++ b/test/displayless/test-macos-trash-undo.c
+@@ -0,0 +1,233 @@
++/*
++ * test-macos-trash-undo.c: Undo after Move to Trash on macOS, without a
++ * display.
++ *
++ * Copyright (C) 2026 The Nautilus authors
++ *
++ * SPDX-License-Identifier: GPL-2.0-or-later
++ *
++ * Local files go to the macOS Trash through NSFileManager
++ * (nautilus-macos-trash.m), which keeps no trash:/// listing of where an item
++ * came from, so upstream's Undo, which looks the item up there, found
++ * nothing and left it in the Trash.  This trashes throwaway files in
++ * $NAUTILUS_TEST_SCRATCH (tools/test-macos-trash-undo.sh) or a temporary
++ * directory through the same file operation as Cmd-Delete, and checks:
++ *
++ *   - Undo moves a file back to where it was, with its contents;
++ *   - Redo trashes it again, and Undo brings it back once more;
++ *   - Undo of several files at once brings each back;
++ *   - a file trashed from a folder that is gone by the time of Undo stays in
++ *     the Trash (Undo reports it could not restore it), it is not lost.
++ *
++ * Every file the test trashes and does not get back is removed from the
++ * Trash at the end, by the path NSFileManager gave.
++ *
++ * It does not use g_test_init(): under GTest, file operations delete instead
++ * of trashing (can_delete_without_confirm() in nautilus-file-operations.c),
++ * and the Trash is what this is about.  Each check prints a TAP line; a
++ * failed one takes the test's files out of the Trash before exiting.
++ */
++
++#include <nautilus-file-operations.h>
++#include <nautilus-file-undo-manager.h>
++#include <nautilus-file-utilities.h>
++#include <nautilus-macos-bridge.h>
++
++#include <gio/gio.h>
++#include <glib.h>
++#include <glib/gstdio.h>
++#include <stdlib.h>
++#include <string.h>
++
++static char *scratch;
++static GPtrArray *trashed_originals;
++
++static void forget_all (void);
++
++#define CHECK(condition) \
++    G_STMT_START { \
++        if (!(condition)) \
++        { \
++            g_print ("not ok - %s:%d: %s\n", __FILE__, __LINE__, #condition); \
++            forget_all (); \
++            exit (1); \
++        } \
++    } G_STMT_END
++
++static GFile *
++scratch_file (const char *name,
++              const char *contents)
++{
++    g_autofree char *path = g_build_filename (scratch, name, NULL);
++    GFile *file = g_file_new_for_path (path);
++
++    CHECK (g_file_replace_contents (file, contents, strlen (contents), NULL, FALSE,
++                                    G_FILE_CREATE_NONE, NULL, NULL, NULL));
++    return file;
++}
++
++static void
++wait_for_undo_change (void (*operation) (GtkWindow                      *parent_window,
++                                         NautilusFileOperationsDBusData *dbus_data))
++{
++    g_autoptr (GMainContext) context = g_main_context_new ();
++    g_autoptr (GMainLoop) loop = NULL;
++    gulong handler_id;
++
++    g_main_context_push_thread_default (context);
++    loop = g_main_loop_new (context, FALSE);
++    handler_id = g_signal_connect_swapped (nautilus_file_undo_manager_get (), "undo-changed",
++                                           G_CALLBACK (g_main_loop_quit), loop);
++    operation (NULL, NULL);
++    g_main_loop_run (loop);
++    g_signal_handler_disconnect (nautilus_file_undo_manager_get (), handler_id);
++    g_main_context_pop_thread_default (context);
++}
++
++static void
++trash (GList *files)
++{
++    nautilus_file_operations_trash_or_delete_sync (files);
++    for (GList *l = files; l != NULL; l = l->next)
++    {
++        g_autoptr (GFile) trashed = nautilus_macos_trash_lookup (l->data);
++
++        g_ptr_array_add (trashed_originals, g_object_ref (l->data));
++        CHECK (!g_file_query_exists (l->data, NULL));
++        CHECK (trashed != NULL && g_file_query_exists (trashed, NULL));
++    }
++}
++
++/* Leaves nothing of the test in the Trash or the scratch directory. */
++static void
++forget (GFile *original)
++{
++    g_autoptr (GFile) trashed = nautilus_macos_trash_lookup (original);
++
++    if (trashed != NULL)
++    {
++        g_file_delete (trashed, NULL, NULL);
++    }
++    g_file_delete (original, NULL, NULL);
++}
++
++static void
++forget_all (void)
++{
++    for (guint i = 0; i < trashed_originals->len; i++)
++    {
++        forget (g_ptr_array_index (trashed_originals, i));
++    }
++    g_ptr_array_set_size (trashed_originals, 0);
++}
++
++static void
++assert_contents (GFile      *file,
++                 const char *expected)
++{
++    g_autofree char *contents = NULL;
++
++    CHECK (g_file_load_contents (file, NULL, &contents, NULL, NULL, NULL));
++    CHECK (g_strcmp0 (contents, expected) == 0);
++}
++
++static void
++test_undo_one_file (void)
++{
++    g_autoptr (GFile) file = scratch_file ("Quarterly report.txt", "kept");
++    g_autolist (GFile) files = g_list_prepend (NULL, g_object_ref (file));
++
++    trash (files);
++    wait_for_undo_change (nautilus_file_undo_manager_undo);
++    assert_contents (file, "kept");
++
++    wait_for_undo_change (nautilus_file_undo_manager_redo);
++    CHECK (!g_file_query_exists (file, NULL));
++    wait_for_undo_change (nautilus_file_undo_manager_undo);
++    assert_contents (file, "kept");
++
++    forget_all ();
++}
++
++static void
++test_undo_several_files (void)
++{
++    g_autoptr (GFile) first = scratch_file ("Plan A.txt", "a");
++    g_autoptr (GFile) second = scratch_file ("Plan B 日本.txt", "b");
++    g_autolist (GFile) files = NULL;
++
++    files = g_list_prepend (files, g_object_ref (second));
++    files = g_list_prepend (files, g_object_ref (first));
++    trash (files);
++    wait_for_undo_change (nautilus_file_undo_manager_undo);
++    assert_contents (first, "a");
++    assert_contents (second, "b");
++
++    forget_all ();
++}
++
++static void
++test_undo_into_a_folder_that_is_gone (void)
++{
++    g_autofree char *folder_path = g_build_filename (scratch, "Gone folder", NULL);
++    g_autofree char *path = g_build_filename (folder_path, "inside.txt", NULL);
++    g_autoptr (GFile) file = g_file_new_for_path (path);
++    g_autolist (GFile) files = NULL;
++    g_autoptr (GFile) trashed = NULL;
++
++    CHECK (g_mkdir (folder_path, 0755) == 0);
++    CHECK (g_file_replace_contents (file, "x", 1, NULL, FALSE, G_FILE_CREATE_NONE, NULL, NULL, NULL));
++    files = g_list_prepend (files, g_object_ref (file));
++    trash (files);
++    CHECK (g_rmdir (folder_path) == 0);
++
++    wait_for_undo_change (nautilus_file_undo_manager_undo);
++    CHECK (!g_file_query_exists (file, NULL));
++    trashed = nautilus_macos_trash_lookup (file);
++    CHECK (g_file_query_exists (trashed, NULL));
++
++    forget_all ();
++}
++
++static void
++run (const char *name,
++     void      (*check) (void))
++{
++    static int number;
++
++    check ();
++    g_print ("ok %d - %s\n", ++number, name);
++}
++
++int
++main (void)
++{
++    g_autoptr (NautilusFileUndoManager) undo_manager = NULL;
++    const char *scratch_root = g_getenv ("NAUTILUS_TEST_SCRATCH");
++
++    g_assert_false (g_test_initialized ());
++    trashed_originals = g_ptr_array_new_with_free_func (g_object_unref);
++    nautilus_ensure_extension_points ();
++    undo_manager = nautilus_file_undo_manager_new ();
++    if (scratch_root != NULL)
++    {
++        g_autofree char *template = g_build_filename (scratch_root, "trash-undo.XXXXXX", NULL);
++
++        scratch = g_mkdtemp (g_steal_pointer (&template));
++    }
++    else
++    {
++        scratch = g_dir_make_tmp ("szf-trash-undo.XXXXXX", NULL);
++    }
++    g_assert_nonnull (scratch);
++
++    g_print ("1..3\n");
++    run ("undo one file, redo, undo again", test_undo_one_file);
++    run ("undo several files", test_undo_several_files);
++    run ("undo into a folder that is gone", test_undo_into_a_folder_that_is_gone);
++
++    CHECK (g_rmdir (scratch) == 0);
++    g_free (scratch);
++    g_ptr_array_unref (trashed_originals);
++    return 0;
 +}
 diff --git a/test/displayless/test-macos-volumes.c b/test/displayless/test-macos-volumes.c
 new file mode 100644

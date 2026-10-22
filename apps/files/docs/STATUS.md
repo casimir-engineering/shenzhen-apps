@@ -86,7 +86,7 @@ LaunchServices-facing id for the default-handler integration.
 | Cmd-J (Friends) and Cmd-K (Search Commands) | **ADDED 2026-10-20 (real key events on a hidden window; eyes-on checklist R)** | `tools/test-macos-friends-shortcut.sh` (exit 0, 73 checks, "test-nautilus-friends-shortcut passed") posts Cmd+J, Cmd+K, letters, arrows, Return and Escape as NSEvents to the app's event queue, so they go through GDK, GTK and AppKit's menu key equivalents as typed keys do, on a mapped window with the real Friends button whose NSWindows are never ordered on screen. Cmd+J opens the dropdown with the keyboard in its search field and closes it from that field, one toggle per press (also with GTK's binding removed: the View menu's key equivalent alone toggles); "friends" + Return in Cmd+K opens Friends; "friend", "nearby", "add by id", "chat" list Open Friends; with Friends off Cmd+J runs nothing and Cmd+K lists no Friends command. With the wiring stubbed out (the tree before this change) the same test fails 11 checks (exit 1). `tools/test-friends-adapter.sh` passes too and checks that a build without Friends has no Friends row in the shortcuts dialog. No earlier Cmd-J or Cmd-K binding existed in Files. |
 | QuickLook space-bar preview | **FIXED (headless controller tests; panel needs checklist L)** | `QLPreviewPanel` opens on selection + space without taking the keyboard, so space, Escape and Cmd-Y close it and arrow keys move the selection while it follows. Until 2026-10-13 the panel was made key, Quick Look closed itself on the second space and the Files window never got the keyboard back; see "Quick Look keyboard focus fixed" below. |
 | Apps, packages and archives | **FIXED (headless tests; menus and dialogs need checklist K)** | Opening an app (double-click, Enter, Cmd-O, search results, Starred, sidebar bookmarks) launches it through `NSWorkspace`; other packages (`.rtfd`, `.pages`, …) open with their default app, and Show Package Contents browses inside. Archives offer Extract and Extract to… in the context menu and the File menu; double-click still opens them with their default app. Until 2026-10-13 apps opened like folders and no file counted as an archive; see "Opening apps and extracting archives fixed" below. |
-| Trash / Show in Finder (W2) | **PASS (native fixture + bridge)** | Native files now move through `NSFileManager trashItemAtURL`, so the operation and the sidebar's Finder Trash window use the same system Trash; a real fixture landed under `~/.Trash` and disappeared from its source. Remote locations keep the GIO fallback. `nautilus_macos_trash_open_in_finder`, `show_in_finder`, and `show_in_finder_files` drive Finder. |
+| Trash / Show in Finder (W2) | **PASS (native fixture + bridge)** | Native files now move through `NSFileManager trashItemAtURL`, so the operation and the sidebar's Finder Trash window use the same system Trash; a real fixture landed under `~/.Trash` and disappeared from its source. Remote locations keep the GIO fallback. `nautilus_macos_trash_open_in_finder`, `show_in_finder`, and `show_in_finder_files` drive Finder. Undo (Cmd-Z, Edit ▸ Undo) moves each file back from where the Trash put it; until 2026-10-22 it did nothing, see "Undo after Move to Trash" below. |
 | Permanent delete | **PASS (build/static verification)** | Edit ▸ **Delete Permanently…** exposes `Cmd-Shift-Backspace`, with a bubble-phase shortcut fallback and shortcut-help entry. It activates Nautilus's existing direct-delete path, whose destructive dialog requires explicit confirmation before deletion. |
 | Open With chooser icons (.icns) | **PASS** | New NSWorkspace→GdkTexture bridge renders real app icons (Safari/TextEdit verified) instead of generic ones |
 | Starring / ontology in bundle | **PASS** | Bundle honors launcher-set `NAUTILUS_DATADIR`; tag DB (`meta.db`) created from bundled ontology — the relocatability fix works |
@@ -2926,3 +2926,21 @@ is in checklists O and Q.
 
 The other listing thread's CPU shows in the process's time as before
 (folders gate `loaded_proc_cpu_ms` +21.3 ms), not on the main thread.
+
+## Undo after Move to Trash (2026-10-22)
+
+Found while testing the installed 26.10.20 through its real UI (a hidden ad hoc copy, real clicks and keys): Cmd-Delete
+moved a file to the Trash, then Cmd-Z and Edit ▸ Undo did nothing and the file stayed in the Trash. Undo looked the
+file up in `trash:///`, which GIO only lists with GVfs; on macOS the file went to the Trash through `NSFileManager`
+(`nautilus-macos-trash.m`), which keeps no such listing. Now `nautilus_macos_trash_file()` remembers, for this
+session, where the Trash put each original path (`nautilus_macos_trash_lookup()`), and Undo of a trash operation moves
+local files back from there; only remote files are still looked up in `trash:///`. A file whose folder is gone stays
+in the Trash, as before.
+
+| Command (2026-10-22, macOS 26.5 arm64, Homebrew glib 2.90.1) | Exit | Result |
+|---|---|---|
+| `tools/test-macos-trash-undo.sh` (new) | 0 | 3/3: undo one file, then redo and undo again; undo several files; a file whose folder is gone stays in the Trash. Not a GTest program: under GTest, file operations delete instead of trashing |
+| the same with `nautilus-file-undo-operations.c` as before | 1 | `undo one file`: the file is not back |
+| `build-tests/src/nautilus` with real clicks and keys on a hidden window: Cmd-Delete, then Edit ▸ Undo, then Cmd-Delete and Cmd-Z | — | the file went to `~/.Trash` and came back both times |
+| `tools/test-macos-window-shortcuts.sh` | 0 | 5/5 |
+| `patches/macos-port-full.patch` regenerated from a tree with the port patch alone (the recipe reproduces the previous patch byte for byte), `tools/setup-nautilus-tree.sh --check`, and a fresh `--tree-only` setup | 0, 0 | 115 patched paths; the fresh tree equals the working one |
