@@ -63,16 +63,17 @@ class PdfRelease(Release):
         clear = {name: None for name in ("SPDF_RELEASE_MODE", "MAC_ARCH", "MACOSX_DEPLOYMENT_TARGET", "MAC_BUNDLE_ID",
                                          "MAC_TEAM_ID", "PORTABLE_OPTFLAGS", "MUPDF_OUT", "MAKEFLAGS", "MFLAGS")}
         run(["make", "-C", self.portable, f"-j{JOBS}", "mac-app", "SPDF_RELEASE_MODE=1",
-             f"MAC_VERSION={self.version}", f"MAC_BUILD={self.build_number}", f"MAC_SIGN_IDENTITY={IDENTITY}",
+             f"MAC_VERSION={self.version}", f"MAC_BUILD={self.build_number}", f"MAC_RELEASE_TAG={self.tag}",
+             f"MAC_SIGN_IDENTITY={IDENTITY}",
              f"BUILD={build_dir}", f"DIST={os.path.join(self.out, 'dist')}", f"MUPDF_OUT={keys['MUPDF_OUT']}",
              f"FRIENDS_DEPS_BUILD={keys['FRIENDS_DEPS']}", f"FRIENDS_DC_BUILD={keys['FRIENDS_DEPS']}"],
             env=clear, log=self.log("build"))
         app = self.app_path()
         info = os.path.join(app, "Contents/Info.plist")
         got = [run(["/usr/libexec/PlistBuddy", "-c", f"Print :{k}", info], capture=True).strip()
-               for k in ("CFBundleShortVersionString", "CFBundleVersion")]
-        if got != [self.version, self.build_number]:
-            raise Failure(f"the built app says {got}, not {self.version} build {self.build_number}")
+               for k in ("CFBundleShortVersionString", "CFBundleVersion", "SZFReleaseTag")]
+        if got != [self.version, self.build_number, self.tag]:
+            raise Failure(f"the built app says {got}, not {self.version} build {self.build_number} ({self.tag})")
         return {"files": [os.path.join(app, "Contents/MacOS/ShenzhenPDF")]}
 
     def sign(self):

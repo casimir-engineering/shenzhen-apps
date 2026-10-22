@@ -58,6 +58,11 @@ BOOL spdf_is_sandboxed(void);
 /// Malformed input compares as ordered-same. Never lexical.
 NSComparisonResult spdf_compare_versions(NSString* _Nullable a, NSString* _Nullable b);
 
+/// The running app's version as people see it and the updater compares it, from its Info.plist: the release tag
+/// (SZFReleaseTag, as Shenzhen Files has it) when it reads YY.M.DD-BUILD, else CFBundleShortVersionString-
+/// CFBundleVersion as builds without the key had it. nil when the short version is missing or malformed.
+NSString* _Nullable spdf_running_version_from_info(NSDictionary* _Nullable info);
+
 /// Requires an exact numeric YY.M.DD-BUILD match between a release tag and an
 /// extracted app's two plist version fields. Missing/malformed build fields
 /// fail closed so a same-day wrong-build asset cannot be installed repeatedly.

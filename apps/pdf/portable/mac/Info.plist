@@ -241,5 +241,7 @@
 	<string>Friends uses your local network to find people near you and to send them messages and files directly.</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
+	<key>SZFReleaseTag</key>
+	<string>26.10.20-1</string>
 </dict>
 </plist>

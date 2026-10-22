@@ -143,6 +143,32 @@ int main(int argc, char** argv) {
         expectBool(@"missing build", spdf_release_tag_matches_bundle_version(@"26.8.27-2", @"26.8.27", @""), NO);
         expectBool(@"malformed bundle tag", spdf_release_tag_matches_bundle_version(@"26.8.27-2", @"26.8.x", @"2"), NO);
 
+        // The version people see and the updater compares: the release tag (testing of 2026-10-22: the update dialog
+        // named 26.10.20-8, MAC_BUILD, for release 26.10.20-1), else the two version fields as before.
+        expectString(@"release tag wins", spdf_running_version_from_info(@{
+                         @"CFBundleShortVersionString" : @"26.10.20", @"CFBundleVersion" : @"8",
+                         @"SZFReleaseTag" : @"26.10.20-1"}), @"26.10.20-1");
+        expectString(@"no release tag", spdf_running_version_from_info(@{
+                         @"CFBundleShortVersionString" : @"26.10.20", @"CFBundleVersion" : @"8"}), @"26.10.20-8");
+        expectString(@"malformed release tag", spdf_running_version_from_info(@{
+                         @"CFBundleShortVersionString" : @"26.10.20", @"CFBundleVersion" : @"8",
+                         @"SZFReleaseTag" : @"26.10.20"}), @"26.10.20-8");
+        expectBool(@"no short version",
+                   spdf_running_version_from_info(@{@"SZFReleaseTag" : @"26.10.20-1"}) == nil, YES);
+        // The app's own Info.plist names its release.
+        NSString* plistPath =
+            [@(__FILE__).stringByDeletingLastPathComponent stringByAppendingPathComponent:@"Info.plist"];
+        NSDictionary* plist = [NSDictionary dictionaryWithContentsOfFile:plistPath];
+        expectBool(@"Info.plist has a release tag",
+                   [spdf_running_version_from_info(plist) isEqualToString:plist[@"SZFReleaseTag"]], YES);
+        // The update dialog names it.
+        NSAlert* named = spdf_make_update_available_alert(@"26.10.22-1", spdf_running_version_from_info(@{
+            @"CFBundleShortVersionString" : @"26.10.20", @"CFBundleVersion" : @"8", @"SZFReleaseTag" : @"26.10.20-1"}),
+            @"- Fixes");
+        expectBool(@"the dialog names the release",
+                   [named.informativeText containsString:@"26.10.20-1"] &&
+                       ![named.informativeText containsString:@"26.10.20-8"], YES);
+
         // 22-26. Relaunch health requires the complete date and build.
         expectBool(@"health exact tag", spdf_release_tag_matches_running_version(@"26.8.27-2", @"26.8.27-2"), YES);
         expectBool(@"health wrong build", spdf_release_tag_matches_running_version(@"26.8.27-2", @"26.8.27-1"), NO);

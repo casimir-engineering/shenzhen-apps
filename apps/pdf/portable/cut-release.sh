@@ -272,6 +272,7 @@ sed -i '' -E "s/^MAC_VERSION \?= .*/MAC_VERSION ?= ${version}/" "$script_dir/Mak
 sed -i '' -E "s/^MAC_BUILD \?= .*/MAC_BUILD ?= ${build}/" "$script_dir/Makefile"
 /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString ${version}" "$script_dir/mac/Info.plist"
 /usr/libexec/PlistBuddy -c "Set :CFBundleVersion ${build}" "$script_dir/mac/Info.plist"
+/usr/libexec/PlistBuddy -c "Set :SZFReleaseTag ${tag}" "$script_dir/mac/Info.plist"
 sed -i '' -E "s/if \(version\.length == 0\) version = @\"[^\"]*\";/if (version.length == 0) version = @\"${version}\";/" "$script_dir/mac/ShenzhenPDFMac.mm"
 sed -i '' -E "s/if \(build\.length == 0\) build = @\"[^\"]*\";/if (build.length == 0) build = @\"${build}\";/" "$script_dir/mac/ShenzhenPDFMac.mm"
 sed -i '' -E "s|<sub>Latest <b>[^<]*</b>|<sub>Latest <b>${tag}</b>|" "$repo_root/readme.md"

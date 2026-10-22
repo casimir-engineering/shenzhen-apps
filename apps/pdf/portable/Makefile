@@ -120,6 +120,9 @@ MAC_APP_COMPILE_FLAGS = $(PORTABLE_OPTFLAGS) $(MAC_TARGET_FLAGS) -std=c++17 -fob
 MAC_APP_FLAGS_FILE := $(MAC_APP_OBJ_DIR)/compile-flags
 MAC_VERSION ?= 26.10.20
 MAC_BUILD ?= 10
+# The release this app is, as people see it and the updater compares it (mac/Info.plist SZFReleaseTag, which
+# cut-release.sh sets). MAC_BUILD alone is not it: Friends changes raise MAC_BUILD between releases.
+MAC_RELEASE_TAG ?=
 MAC_SIGN_IDENTITY ?= -
 NOTARY_PROFILE ?=
 NOTARY_RESULT ?= $(DIST)/notarytool-$(MAC_VERSION)-$(MAC_BUILD).json
@@ -526,6 +529,7 @@ $(MAC_BIN): $(MAC_APP_OBJS) core/spdf_document_export.h $(MAC_COLLECTION_BIN) mu
 	/usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier $(MAC_BUNDLE_ID)" "$(MAC_APP)/Contents/Info.plist"
 	/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $(MAC_VERSION)" "$(MAC_APP)/Contents/Info.plist"
 	/usr/libexec/PlistBuddy -c "Set :CFBundleVersion $(MAC_BUILD)" "$(MAC_APP)/Contents/Info.plist"
+	$(if $(MAC_RELEASE_TAG),/usr/libexec/PlistBuddy -c "Set :SZFReleaseTag $(MAC_RELEASE_TAG)" "$(MAC_APP)/Contents/Info.plist")
 	rm -rf "$(BUILD)/ShenzhenPDF.iconset"
 	mkdir -p "$(BUILD)/ShenzhenPDF.iconset"
 	cp ../gfx/ShenzhenPDF-16x16x32.png "$(BUILD)/ShenzhenPDF.iconset/icon_16x16.png"
