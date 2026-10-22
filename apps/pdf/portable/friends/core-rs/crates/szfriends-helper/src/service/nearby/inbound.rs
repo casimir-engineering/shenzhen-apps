@@ -182,9 +182,18 @@ impl State {
         match person {
             Some(p) if p.relation == Relation::Blocked => {} // dropped; blocked people cannot ask
             Some(p) if p.relation == Relation::Friend => {
-                // Already friends: the earlier commit stands.
+                // Still a friend here: they removed us, which we are never told, and ask again (PROTOCOL.md
+                // remove_friend), or they repeat a request we accepted. Either way they wait for an answer: it is an
+                // acceptance, as accept_request sends, and the conversation goes on. Queued before the ACK.
+                let _ = self.store.ensure_own_presence_secret();
+                if !self.queue_answer(&p.conversation_id, serde_json::json!({"frame": "accept"})) {
+                    return; // no ACK: the requester's outbox tries again
+                }
+                self.queue_presence_secret(&p.conversation_id);
                 self.send_ack(id, &wire);
                 self.attach_if_unattached(id, &p.conversation_id);
+                self.deliver_acceptance_then_resend(id, &p.conversation_id);
+                self.changed();
             }
             Some(mut p) if p.relation == Relation::IncomingRequest => {
                 // The same request again: one row, back at the top; its code is never replaced.
@@ -249,6 +258,24 @@ impl State {
         // codes is a request the person sees.
         self.run_code_exchange(id);
         self.people_changed();
+    }
+
+    /// What this session wrote before their REQUEST arrived reached someone still waiting for our answer, who drops
+    /// it unacknowledged. The acceptance goes first, then those entries again, with the same ids (repeats are
+    /// recognised).
+    fn deliver_acceptance_then_resend(&mut self, id: u64, conversation: &str) {
+        let dropped: Vec<String> =
+            self.sessions.map.get(&id).map(|s| s.in_flight.iter().cloned().collect()).unwrap_or_default();
+        self.deliver_to(conversation);
+        if let Some(session) = self.sessions.map.get_mut(&id) {
+            for entry in &dropped {
+                session.in_flight.remove(entry);
+            }
+        }
+        for entry in &dropped {
+            let _ = self.store.apply_outbox_event(entry, OutboxEvent::SessionLost);
+        }
+        self.deliver_to(conversation);
     }
 
     fn attach_if_unattached(&mut self, id: u64, conversation: &str) {

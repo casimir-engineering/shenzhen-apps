@@ -268,6 +268,18 @@ static BOOL SZFriendsIsRequestAnswer(SZFriendsOutboxEntry *entry) {
     [link.inFlightEntries removeAllObjects];
 }
 
+- (void)deliverAcceptanceThenResendOnLink:(SZFriendsPeerLink *)link {
+    NSString *conversationID = link.conversationID;
+    if (conversationID == nil) return;
+    // What this link wrote before their REQUEST arrived reached someone still waiting for our answer, who drops it
+    // unacknowledged. The acceptance goes first, then those entries again, with the same ids (repeats are recognised).
+    NSSet<NSString *> *dropped = [link.inFlightEntries copy];
+    [self deliverPendingForConversation:conversationID];
+    for (NSString *entryID in dropped) [self applyEvent:SZFriendsOutboxEventSessionLost toEntry:entryID];
+    [link.inFlightEntries minusSet:dropped];
+    [self deliverPendingForConversation:conversationID];
+}
+
 - (void)applyEvent:(SZFriendsOutboxEvent)event toEntry:(NSString *)entryID {
     NSError *error = nil;
     if (![self.services.outbox applyEvent:event toEntry:entryID error:&error]) {

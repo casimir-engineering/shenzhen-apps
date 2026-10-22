@@ -2,7 +2,7 @@
 //! (ADR 0004): a person visible for their 5 minutes found by someone browsing, a friend request with matching
 //! comparison codes, accepted, then messages both ways once each holds the other's presence secret; Add by ID, its
 //! callback becoming a request the asker accepts (no host vouched for the answer), then messages; a declined request;
-//! a withdrawn one.
+//! a withdrawn one; a friend removed and asked again, whose helper never learned of the removal and accepts at once.
 
 mod clients;
 mod support;
@@ -183,4 +183,103 @@ fn a_declined_and_a_withdrawn_request() {
     eve.snapshot(&list_e, "the withdrawal at Eve", |d| {
         row_titled(d, "Finn").is_none_or(|r| !r["actions"].to_string().contains("accept_request"))
     });
+}
+
+/// Whoever is visible in `asker`'s Nearby under `title`, asked from there.
+fn ask_from_nearby(asker: &mut Client, title: &str) {
+    let nearby = asker.subscribe("nearby", json!({}));
+    let visible = |d: &Value| {
+        d["people"]
+            .as_array()
+            .and_then(|p| p.iter().find(|p| p["title"] == title && p["nearby_id"].is_string()))
+            .cloned()
+    };
+    let seen = asker.snapshot(&nearby, "visible in Nearby", |d| visible(d).is_some());
+    asker.send("send_request", json!({"nearby_id": visible(&seen["data"]).unwrap()["nearby_id"]}));
+}
+
+fn friend(d: &Value, title: &str) -> bool {
+    row_titled(d, title).is_some_and(|r| r["drop_label"].is_string())
+}
+
+/// Ada visible, Bo asks, Ada accepts, a message each way: (Bo's conversation at Ada, Ada's at Bo, the two lists).
+fn befriended(ada: &mut Client, bo: &mut Client) -> (String, String, String, String) {
+    ada.send("start_visibility", json!({}));
+    ask_from_nearby(bo, "Ada");
+    let list_a = ada.subscribe("list", json!({}));
+    let asked = ada.snapshot(&list_a, "Bo's request at Ada", |d| row_titled(d, "Bo").is_some());
+    let bo_in_a = row_titled(&asked["data"], "Bo").unwrap()["conversation_id"].as_str().unwrap().to_owned();
+    ada.send("accept_request", json!({"conversation_id": bo_in_a}));
+    ada.send("stop_visibility", json!({}));
+    let list_b = bo.subscribe("list", json!({}));
+    let data = bo.snapshot(&list_b, "Ada a friend at Bo", |d| friend(d, "Ada"));
+    let ada_in_b = row_titled(&data["data"], "Ada").unwrap()["conversation_id"].as_str().unwrap().to_owned();
+    message_both_ways(ada, &bo_in_a, bo, &ada_in_b);
+    (bo_in_a, ada_in_b, list_a, list_b)
+}
+
+#[test]
+fn a_removed_friend_asked_again_accepts_at_once_and_the_conversation_goes_on() {
+    let Pair { _homes, a: mut ada, b: mut bo } = start(("Ada", "Bo"));
+    let (bo_in_a, ada_in_b, list_a, list_b) = befriended(&mut ada, &mut bo);
+
+    // Ada removes Bo, which tells him nothing: he writes to her meanwhile, and it waits.
+    ada.send("remove_friend", json!({"conversation_id": bo_in_a}));
+    ada.snapshot(&list_a, "Bo off Ada's list", |d| row_titled(d, "Bo").is_none());
+    let token = "0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a";
+    bo.send("send_message", json!({"conversation_id": ada_in_b, "text": "Still there?", "client_token": token}));
+
+    // Bo is visible and Ada asks again. His helper still has her as a friend: it accepts at once, so no request
+    // waits at Bo, and Ada's row is a friend again, in the same conversation.
+    bo.send("start_visibility", json!({}));
+    ask_from_nearby(&mut ada, "Bo");
+    let again = ada.snapshot(&list_a, "Bo a friend again at Ada", |d| friend(d, "Bo"));
+    assert_eq!(row_titled(&again["data"], "Bo").unwrap()["conversation_id"], bo_in_a.as_str());
+    let at_b = bo.snapshot(&list_b, "Bo's list", |_| true);
+    assert!(row_titled(&at_b["data"], "Ada").is_some_and(|r| r["waiting"].is_null()), "{}", at_b["data"]);
+    bo.send("stop_visibility", json!({}));
+
+    // What Bo wrote while removed arrives, and so does what he writes now.
+    let chat_a = ada.send("open_conversation", json!({"conversation_id": bo_in_a}))["subscription"].to_string();
+    let token = "0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b";
+    bo.send("send_message", json!({"conversation_id": ada_in_b, "text": "Good to be back", "client_token": token}));
+    ada.snapshot(chat_a.trim_matches('"'), "both of Bo's messages at Ada", |d| {
+        let text = d.to_string();
+        text.contains("Still there?") && text.contains("Good to be back")
+    });
+}
+
+#[test]
+fn someone_removed_who_removes_too_and_asks_again_is_an_ordinary_request() {
+    let Pair { _homes, a: mut ada, b: mut bo } = start(("Ada", "Bo"));
+    let (bo_in_a, ada_in_b, _, list_b) = befriended(&mut ada, &mut bo);
+    // Bo removes Ada; Ada, never told, removes Bo too and asks him again (Bo asked first, so Ada asks now: neither
+    // listener takes more XX from one address in a minute than its admissions allow).
+    bo.send("remove_friend", json!({"conversation_id": ada_in_b}));
+    ada.send("remove_friend", json!({"conversation_id": bo_in_a}));
+    // Bo's removal ended their session, which Ada's helper holds against dialing him for up to half a minute; a
+    // restart forgets that, as it would long before anyone asks again.
+    drop(ada);
+    let mut ada = {
+        let _guard = START.lock().unwrap_or_else(|e| e.into_inner());
+        std::env::set_var(ENV_STATE_DIR, &_homes.0 .0);
+        std::env::set_var(ENV_TEST_LOOPBACK, &_homes.2 .0);
+        Client::connect(&_homes.0 .0)
+    };
+    let list_a = ada.subscribe("list", json!({}));
+    ada.snapshot(&list_a, "Bo off Ada's list", |d| row_titled(d, "Bo").is_none());
+    bo.send("start_visibility", json!({}));
+    ask_from_nearby(&mut ada, "Bo");
+    // Bo gets an ordinary request card, on Ada's old row; accepting it makes them friends again.
+    let asked = bo.snapshot(&list_b, "Ada's new request at Bo", |d| {
+        row_titled(d, "Ada").is_some_and(|r| r["actions"].to_string().contains("accept_request"))
+    });
+    assert_eq!(row_titled(&asked["data"], "Ada").unwrap()["conversation_id"], ada_in_b.as_str());
+    bo.send("accept_request", json!({"conversation_id": ada_in_b}));
+    bo.send("stop_visibility", json!({}));
+    ada.snapshot(&list_a, "Bo a friend again at Ada", |d| friend(d, "Bo"));
+    let chat_b = bo.send("open_conversation", json!({"conversation_id": ada_in_b}))["subscription"].to_string();
+    let token = "0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c";
+    ada.send("send_message", json!({"conversation_id": bo_in_a, "text": "Friends again", "client_token": token}));
+    bo.snapshot(chat_b.trim_matches('"'), "Ada's message at Bo", |d| d.to_string().contains("Friends again"));
 }

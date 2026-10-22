@@ -174,9 +174,18 @@ static BOOL SZFriendsCreatesFriendship(SZFriendsFrameType type) {
     if (person.relation == SZFriendsRelationBlocked) return; // dropped; blocked people cannot ask
     NSDate *now = [NSDate date];
     if (person != nil && person.relation == SZFriendsRelationFriend) {
-        // Already friends: the earlier commit stands.
+        // Still a friend here: they removed us, which we are never told, and ask again (PROTOCOL.md remove_friend),
+        // or they repeat a request we accepted. Either way they wait for an answer: it is an acceptance, as
+        // accept_request sends, and the conversation goes on. Queued before the ACK, so the answer is durable first.
+        if (store.ownPresenceSecret == nil) store.ownPresenceSecret = SZFriendsNewPresenceSecret();
+        [self enqueueKind:SZFriendsOutboxKindAnswer
+           conversationID:person.conversationID
+                  payload:@{@"frame" : @"accept"}];
+        [self enqueueKind:SZFriendsOutboxKindPresenceSecret conversationID:person.conversationID payload:nil];
         [self sendAckForID:wire onLink:link];
         if (link.conversationID == nil) [self attachLink:link toConversation:person.conversationID];
+        [self deliverAcceptanceThenResendOnLink:link];
+        [self changed];
         return;
     }
     if (person != nil && person.relation == SZFriendsRelationIncomingRequest) {

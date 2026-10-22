@@ -1,5 +1,5 @@
-// friends-e2e-check: Add by ID with two holders of one unreserved ID, asking again by ID after a decline, and what
-// removing someone before an answer was delivered leaves unsent.
+// friends-e2e-check: Add by ID with two holders of one unreserved ID, asking again by ID after a decline, what
+// removing someone before an answer was delivered leaves unsent, and asking a removed friend again from Nearby.
 
 #import "SZFriendsE2EHost.h"
 #import "SZFriendsE2EScenarios.h"
@@ -181,4 +181,68 @@ BOOL SZFE2EScenarioAskAgainByID(SZFE2EWorld *world) {
     } @finally {
         [host stop];
     }
+}
+
+static NSArray<NSString *> *SZFE2EMessageTexts(NSDictionary *conversation) {
+    NSMutableArray<NSString *> *texts = [NSMutableArray array];
+    for (NSDictionary *item in SZFE2EItems(conversation, @"message")) {
+        if ([item[@"text"] isKindOfClass:[NSString class]]) [texts addObject:item[@"text"]];
+    }
+    return texts;
+}
+
+// PROTOCOL.md remove_friend: after A asked B and B accepted, B removes A, which tells A nothing, and A writes to B
+// meanwhile. Then B finds A in Nearby and asks again (B asks this time, so neither listener takes more than its XX
+// admissions per address in a minute). A's helper still holds B as a friend, so it accepts at once: B's row is a
+// friend again, in the same conversation, no request waits at A, and what A wrote while removed arrives, then what A
+// writes next. B's row used to say "request sent" for good, A saw nothing, and A's messages stayed sending.
+BOOL SZFE2EScenarioAskAgainAfterRemove(SZFE2EWorld *world) {
+    SZFE2EPair *pair = [[SZFE2EPair alloc] init];
+    if (!SZFE2EStartPair(world, pair, nil, nil) || !SZFE2EBefriend(pair)) return NO;
+    CHECK([[pair.b intent:@"remove_friend" fields:@{@"conversation_id" : pair.aAtB}][@"ok"] boolValue]);
+    CHECK(SZFE2EWaitUntil(5, ^BOOL { return SZFE2ERowWithID([pair.b dataFor:pair.listB], pair.aAtB) == nil; }),
+          "A left B's list: %@", [pair.b dataFor:pair.listB]);
+    NSDictionary *sent = [pair.a intent:@"send_message" fields:@{@"conversation_id" : pair.bAtA,
+                                                                 @"text" : @"Still there?",
+                                                                 @"client_token" : SZFE2EToken()}];
+    CHECK([sent[@"ok"] boolValue], "A was never told: %@", sent);
+    CHECK([[pair.a intent:@"start_visibility" fields:nil][@"ok"] boolValue], "A is visible");
+    NSString *nearby = [pair.b subscribe:@"nearby" params:nil];
+    __block NSString *nearbyID = nil;
+    CHECK(SZFE2EWaitUntil(20, ^BOOL {
+              for (NSDictionary *person in [pair.b dataFor:nearby][@"people"]) {
+                  if ([person[@"title"] isEqual:@"Ana"] && [person[@"nearby_id"] isKindOfClass:[NSString class]]) {
+                      nearbyID = person[@"nearby_id"];
+                  }
+              }
+              return nearbyID != nil;
+          }),
+          "B sees Ana in Nearby: %@", [pair.b dataFor:nearby]);
+    NSDictionary *reply = [pair.b intent:@"send_request" fields:@{@"nearby_id" : nearbyID}];
+    CHECK([reply[@"ok"] boolValue], "B asks again: %@", reply);
+    [pair.b intent:@"unsubscribe" fields:@{@"subscription" : nearby}];
+    CHECK(SZFE2EWaitUntil(20, ^BOOL {
+              return SZFE2EIsFriendRow(SZFE2ERowWithID([pair.b dataFor:pair.listB], pair.aAtB));
+          }),
+          "A is B's friend again, in the same conversation: %@", [pair.b dataFor:pair.listB]);
+    NSDictionary *rowAtA = SZFE2ERowWithID([pair.a dataFor:pair.listA], pair.bAtA);
+    CHECK(SZFE2EIsFriendRow(rowAtA) && rowAtA[@"waiting"] == [NSNull null], "no request waits at A: %@", rowAtA);
+    CHECK([[pair.a intent:@"stop_visibility" fields:nil][@"ok"] boolValue], "A hides again");
+    sent = [pair.a intent:@"send_message" fields:@{@"conversation_id" : pair.bAtA, @"text" : @"Good to be back",
+                                                   @"client_token" : SZFE2EToken()}];
+    CHECK([sent[@"ok"] boolValue], "%@", sent);
+    NSString *atB = [pair.b openConversation:pair.aAtB], *atA = [pair.a openConversation:pair.bAtA];
+    CHECK(SZFE2EWaitUntil(20, ^BOOL {
+              NSArray<NSString *> *texts = SZFE2EMessageTexts([pair.b dataFor:atB]);
+              return [texts containsObject:@"Still there?"] && [texts containsObject:@"Good to be back"];
+          }),
+          "both of A's messages reached B: %@", [pair.b dataFor:atB][@"items"]);
+    CHECK(SZFE2EWaitUntil(10, ^BOOL {
+              for (NSDictionary *item in SZFE2EItems([pair.a dataFor:atA], @"message")) {
+                  if (![item[@"status"][@"state"] isEqual:@"delivered"]) return NO;
+              }
+              return YES;
+          }),
+          "and A sees them delivered: %@", [pair.a dataFor:atA][@"items"]);
+    return YES;
 }

@@ -306,6 +306,8 @@ NSString *_Nullable SZFriendsNearbyFriendDeviceConversation(NSString *_Nullable 
 - (void)sendProfileOnLink:(SZFriendsPeerLink *)link;
 // A link ended: what it had in flight goes back to Queued for the next session.
 - (void)requeueEntriesOfLink:(SZFriendsPeerLink *)link;
+// A friend's REQUEST was answered with an acceptance: it goes now, then what this link wrote before it, again.
+- (void)deliverAcceptanceThenResendOnLink:(SZFriendsPeerLink *)link;
 - (void)applyEvent:(SZFriendsOutboxEvent)event toEntry:(NSString *)entryID;
 // The frame an entry becomes for this person now, or nil (also exposed for the helper's tests).
 - (nullable SZFriendsFrame *)frameForEntry:(SZFriendsOutboxEntry *)entry

@@ -205,6 +205,8 @@ int main(int argc, const char *argv[]) {
              SZFE2EScenarioReceivedFolder},
             {"received files: an overridden state directory keeps its Downloads inside it",
              SZFE2EScenarioReceivedDefaultUnderState},
+            {"removed, asked again from Nearby: accepted at once, the waiting messages arrive",
+             SZFE2EScenarioAskAgainAfterRemove},
         };
         // While working on one scenario, only it runs; make always runs them all.
         NSArray<NSString *> *only = argc > 3 ? [@(argv[3]) componentsSeparatedByString:@","] : nil;
