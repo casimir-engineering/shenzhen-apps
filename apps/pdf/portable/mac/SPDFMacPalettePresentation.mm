@@ -38,7 +38,9 @@ static CGFloat Clamp(CGFloat value, CGFloat low, CGFloat high) { return MIN(MAX(
         _paletteTable.action = @selector(activatePaletteSelection:);
         _paletteTable.doubleAction = @selector(activatePaletteSelection:);
         NSTableColumn* column = [[NSTableColumn alloc] initWithIdentifier:@"result"];
-        column.width = 620;
+        // As wide as what shows of the rows, which -updatePalettePanelFramePreservingTop: keeps it to.
+        column.width = 526;
+        column.minWidth = 100;
         column.resizingMask = NSTableColumnAutoresizingMask;
         [_paletteTable addTableColumn:column];
         _palettePanel.contentView = SPDFPaletteContentView(_paletteSearchField,_paletteTable,self);
@@ -136,6 +138,9 @@ static CGFloat Clamp(CGFloat value, CGFloat low, CGFloat high) { return MIN(MAX(
         Clamp(frame.origin.x, NSMinX(visibleFrame) + 24.0, NSMaxX(visibleFrame) - NSWidth(frame) - 24.0);
     frame.origin.y = floor(topY - NSHeight(frame));
     [_palettePanel setFrame:frame display:_palettePanel.visible animate:NO];
+    // The column follows the palette's width: wider, it ran the menu paths at the rows' right off the edge.
+    [_palettePanel.contentView layoutSubtreeIfNeeded];
+    [_paletteTable sizeLastColumnToFit];
 }
 
 - (NSView*)workspacePaletteViewForRow:(NSInteger)row {

@@ -7,7 +7,7 @@
 //   run as for a key press) opens the dropdown with its search field focused and closes it again, also while that
 //   field has focus; Cmd+K, typing "friends" and Return opens it; "friend", "nearby", "add by id" and "chat" list
 //   Open Friends; Add by ID… and Make Myself Visible land where they say; the button's tooltip shows ⌘J.
-//   Detached again: everything is gone.
+//   Detached again: everything is gone. And the palette's rows, with their menu paths, fit inside it.
 //
 // No window is ever seen: every window AppKit orders in is made fully transparent and click-through first, and the
 // app's activation policy is Prohibited, so it never activates, takes focus or shows in the Dock. Because such an
@@ -123,6 +123,7 @@ static BOOL PressShortcut(NSString* key, NSWindow* keyWindow) {
 - (NSSearchField*)paletteField;
 - (NSArray<NSDictionary*>*)paletteRows;
 - (NSInteger)paletteSelectedRow;
+- (NSTableView*)paletteTable;
 @end
 
 @implementation FriendsShortcutReader
@@ -153,6 +154,7 @@ static BOOL PressShortcut(NSString* key, NSWindow* keyWindow) {
 - (NSSearchField*)paletteField { return _paletteSearchField; }
 - (NSArray<NSDictionary*>*)paletteRows { return [_paletteResults copy] ?: @[]; }
 - (NSInteger)paletteSelectedRow { return _paletteTable.selectedRow; }
+- (NSTableView*)paletteTable { return _paletteTable; }
 @end
 
 static NSArray<NSString*>* PaletteCommandTitles(FriendsShortcutReader* reader) {
@@ -299,6 +301,45 @@ static void CheckPalette(FriendsShortcutReader* reader) {
     Check(RunUntil(2, ^BOOL { return !reader.palette.visible; }), @"Escape closes the palette");
 }
 
+// Testing of 2026-10-22: the palette's rows were 620 points wide in a 526-point view, so the menu paths on their right
+// ran off its edge. Every row, with the column of menu paths, now ends inside what the palette shows. The palette is
+// drawn to $SPDF_PALETTE_SHOT when that is set.
+static void CheckPaletteFits(FriendsShortcutReader* reader) {
+    NSArray* rows = TypeInPalette(reader, @"friends");
+    NSTableView* table = reader.paletteTable;
+    NSClipView* clip = table.enclosingScrollView.contentView;
+    [reader.palette.contentView layoutSubtreeIfNeeded];
+    CGFloat shown = NSWidth(clip.bounds);
+    Check(shown > 0 && NSWidth(table.frame) <= shown + 0.5,
+          [NSString stringWithFormat:@"the palette's rows are as wide as what shows of them (%.0f in %.0f)",
+                                     NSWidth(table.frame), shown]);
+    NSUInteger paths = 0;
+    for (NSInteger row = 0; row < (NSInteger)rows.count; row++) {
+        NSView* view = [table viewAtColumn:0 row:row makeIfNecessary:NO];
+        for (NSView* sub in view.subviews) {
+            if (![sub.identifier isEqualToString:@"metadata"] || !((NSTextField*)sub).stringValue.length) continue;
+            NSRect frame = [clip convertRect:sub.bounds fromView:sub];
+            Check(NSMinX(frame) >= NSMinX(clip.bounds) - 0.5 && NSMaxX(frame) <= NSMaxX(clip.bounds) + 0.5,
+                  [NSString stringWithFormat:@"\"%@\" ends inside the palette (%.0f to %.0f in %.0f)",
+                                             ((NSTextField*)sub).stringValue, NSMinX(frame), NSMaxX(frame),
+                                             NSMaxX(clip.bounds)]);
+            paths++;
+        }
+    }
+    Check(paths > 0, [NSString stringWithFormat:@"\"friends\" lists commands with their menu paths: %@",
+                                                [rows valueForKey:@"title"]]);
+    const char* shot = getenv("SPDF_PALETTE_SHOT");
+    NSView* content = reader.palette.contentView;
+    NSBitmapImageRep* image = shot ? [content bitmapImageRepForCachingDisplayInRect:content.bounds] : nil;
+    if (image) {
+        [content cacheDisplayInRect:content.bounds toBitmapImageRep:image];
+        NSData* png = [image representationUsingType:NSBitmapImageFileTypePNG properties:@{}];
+        Check([png writeToFile:@(shot) atomically:YES], [NSString stringWithFormat:@"the palette is drawn to %s", shot]);
+    }
+    PressInPalette(reader, @"\x1b", 53);
+    Check(RunUntil(2, ^BOOL { return !reader.palette.visible; }), @"Escape closes the palette");
+}
+
 static size_t FramesOfType(szfriends_fake_helper* fake, const char* type) {
     size_t count = 0;
     NSString* needle = [NSString stringWithFormat:@"\"type\":\"%s\"", type];
@@ -338,10 +379,12 @@ static void CheckOtherItems(FriendsShortcutReader* reader, szfriends_fake_helper
 
 static void CheckToolTip(FriendsShortcutReader* reader) {
     NSButton* button = [reader friendsState].dropdown.button;
-    Check(RunUntil(5, ^BOOL { return [button.toolTip isEqualToString:@"Friends · ⌘J"]; }),
+    // The button's label is the helper's ("Friends (Beta)" while Friends is a beta), then the key.
+    Check(RunUntil(5, ^BOOL { return [button.toolTip isEqualToString:@"Friends (Beta) · ⌘J"]; }),
           [NSString stringWithFormat:@"the Friends button's tooltip shows the shortcut (%@)", button.toolTip]);
-    button.toolTip = @"Friends"; // what the views set again on every badge update
-    Check([button.toolTip isEqualToString:@"Friends · ⌘J"], @"the shortcut comes back after the views reset it");
+    button.toolTip = @"Friends (Beta)"; // what the views set again on every badge update
+    Check([button.toolTip isEqualToString:@"Friends (Beta) · ⌘J"],
+          @"the shortcut comes back after the views reset it");
 }
 
 #pragma mark - Main
@@ -398,6 +441,7 @@ int main(void) {
             CheckToolTip(reader);
             CheckCommandJ(reader);
             CheckPalette(reader);
+            CheckPaletteFits(reader);
             CheckOtherItems(reader, fake);
         }
         [reader friendsDetachDisabling:NO];

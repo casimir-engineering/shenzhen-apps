@@ -3,7 +3,8 @@
 # Links the workspace probe's reader objects (every reader source, the host adapter, the Friends views, client
 # library and cJSON) with the protocol area's in-process fake helper. The probe sets SPDF_STATE_DIR and
 # SZFRIENDS_STATE_DIR to a temporary folder, runs with a Prohibited activation policy (no Dock icon, never active)
-# and makes every window it orders in transparent and click-through.
+# and makes every window it orders in transparent and click-through. It draws the Cmd+K palette to
+# build/friends-shortcut-probe/palette.png.
 include mac/tests/workspace-probe.mk
 MAC_FRIENDS_SHORTCUT_PROBE := $(BUILD)/SPDFMacFriendsShortcutProbe
 MAC_FRIENDS_SHORTCUT_PROBE_OBJ := $(BUILD)/friends-shortcut-probe/SPDFMacFriendsShortcutProbe.o
@@ -22,4 +23,4 @@ mac-friends-shortcut-probe: $(MAC_FRIENDS_SHORTCUT_PROBE_OBJ) $(MAC_WORKSPACE_PR
 		$(CORE_OBJS) $(YAML_OBJ) $(MAC_MD4C_OBJ) $(MAC_GUMBO_OBJS) $(MUPDF_LIBS) $(FRIENDS_FAKE_HELPER_LIB) -lpthread \
 		-framework Cocoa -framework QuartzCore -framework PDFKit -framework ImageIO -framework UniformTypeIdentifiers \
 		-framework CoreServices -framework Security -framework LocalAuthentication -lm -o "$(MAC_FRIENDS_SHORTCUT_PROBE)"
-	"$(MAC_FRIENDS_SHORTCUT_PROBE)"
+	SPDF_PALETTE_SHOT="$(BUILD)/friends-shortcut-probe/palette.png" "$(MAC_FRIENDS_SHORTCUT_PROBE)"
