@@ -73,7 +73,20 @@ static BOOL SZFriendsIsRequestAnswer(SZFriendsOutboxEntry *entry) {
         if (!other.closed) [busy unionSet:other.inFlightEntries];
     }
     BOOL moved = NO; // an entry changed state, so the views hear of it
-    for (SZFriendsOutboxEntry *entry in [self.services.outbox pendingEntriesForConversation:conversationID]) {
+    NSArray<SZFriendsOutboxEntry *> *pending = [self.services.outbox pendingEntriesForConversation:conversationID];
+    if (person.callbackToken != nil) {
+        // Until our acceptance reaches an Add by ID requester, they know us only by its token and keep nothing else we
+        // send: it goes first. A friend who removed us and asked again by ID finds what we wrote meanwhile queued
+        // ahead of it (PROTOCOL.md remove_friend).
+        NSMutableArray<SZFriendsOutboxEntry *> *accepts = [NSMutableArray array], *rest = [NSMutableArray array];
+        for (SZFriendsOutboxEntry *entry in pending) {
+            BOOL accept = entry.kind == SZFriendsOutboxKindAnswer &&
+                          [SZFriendsAnswerPayload(entry)[@"frame"] isEqual:@"accept"];
+            [accept ? accepts : rest addObject:entry];
+        }
+        pending = [accepts arrayByAddingObjectsFromArray:rest];
+    }
+    for (SZFriendsOutboxEntry *entry in pending) {
         if ([busy containsObject:entry.entryID] || ![self entry:entry isDeliverableTo:person]) continue;
         // A request or an answer may be the first they hear of us: our chain goes first (+Chain).
         if (entry.kind == SZFriendsOutboxKindRequest || entry.kind == SZFriendsOutboxKindAnswer) {

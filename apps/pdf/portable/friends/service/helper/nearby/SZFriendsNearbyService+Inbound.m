@@ -274,6 +274,7 @@ static BOOL SZFriendsCreatesFriendship(SZFriendsFrameType type) {
     NSData *wire = [frame dataForTag:SZFriendsFieldID];
     if (wire == nil) return;
     SZFriendsStore *store = self.services.store;
+    BOOL acceptedByFriend = person.relation == SZFriendsRelationFriend && frame.type == SZFriendsFrameTypeAccept;
     if (person.relation == SZFriendsRelationOutgoingRequest && frame.type == SZFriendsFrameTypeAccept &&
         [self link:link holdsUnconfirmedAcceptanceFrom:person]) {
         NSDate *now = [NSDate date];
@@ -309,6 +310,14 @@ static BOOL SZFriendsCreatesFriendship(SZFriendsFrameType type) {
         [self rebuildTagMatcher];
     }
     [self sendAckForID:wire onLink:link];
+    if (acceptedByFriend) {
+        // They accept someone already our friend: they had removed us and asked again by Friends ID, and took our
+        // acceptance, which no host vouched for, as a request to accept. What this link wrote before reached them as
+        // a stranger and was dropped unacknowledged: it goes again, with the same ids.
+        [self deliverAcceptanceThenResendOnLink:link];
+        [self changed];
+        return;
+    }
     [self deliverPendingOnLink:link];
     [self changed];
 }

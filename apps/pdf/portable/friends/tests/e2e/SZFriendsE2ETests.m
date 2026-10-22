@@ -207,6 +207,10 @@ int main(int argc, const char *argv[]) {
              SZFE2EScenarioReceivedDefaultUnderState},
             {"removed, asked again from Nearby: accepted at once, the waiting messages arrive",
              SZFE2EScenarioAskAgainAfterRemove},
+            {"removed, asked again by Friends ID: accepted, the waiting messages arrive",
+             SZFE2EScenarioAskAgainByIDAfterRemove},
+            {"removed, asked again by an attested Friends ID: accepted at once, the waiting messages arrive",
+             SZFE2EScenarioAskAgainByAttestedIDAfterRemove},
         };
         // While working on one scenario, only it runs; make always runs them all.
         NSArray<NSString *> *only = argc > 3 ? [@(argv[3]) componentsSeparatedByString:@","] : nil;

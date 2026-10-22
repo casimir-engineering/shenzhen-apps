@@ -269,7 +269,14 @@ impl State {
         // A request accepted on this session: the friend gets our chain now (nearby/chain.rs).
         self.send_chain_to_friend(id);
         let busy: HashSet<String> = self.sessions.map.values().flat_map(|s| s.in_flight.iter().cloned()).collect();
-        for entry in self.store.pending_outbox(&conversation).unwrap_or_default() {
+        let mut pending = self.store.pending_outbox(&conversation).unwrap_or_default();
+        if person.callback_token.is_some() {
+            // Until our acceptance reaches an Add by ID requester, they know us only by its token and keep nothing else
+            // we send: it goes first. A friend who removed us and asked again by ID finds what we wrote meanwhile
+            // queued ahead of it (PROTOCOL.md remove_friend).
+            pending.sort_by_key(|e| !(is_request_answer(e) && answer_kind(e) == "accept"));
+        }
+        for entry in pending {
             if busy.contains(&entry.entry_id) || !deliverable(&entry, &person) {
                 continue;
             }

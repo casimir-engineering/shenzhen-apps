@@ -144,7 +144,16 @@ impl State {
             return;
         }
         let current = live.map_or(RouteMethod::None, |id| self.sessions.map[&id].channel.initiator_route());
-        let attempts = self.nearby.racer.attempts(candidate, self.nearby.merger.matcher(), unix_now());
+        let now = unix_now();
+        let attempts = self.nearby.racer.attempts(candidate, self.nearby.merger.matcher(), now);
+        if attempts.is_empty() && live.is_none() && deliverable {
+            // Every route to them is backing off: look again when the first backoff ends. A sooner reconsider would
+            // otherwise take the place of the one the failure asked for, and nothing would dial them until the next
+            // window (a removed friend's answer to their Add by ID waited out the test's half minute).
+            if let Some(end) = self.nearby.racer.next_backoff_end(now) {
+                self.schedule_reconsider_after(end - now);
+            }
+        }
         let mut started = false;
         for attempt in attempts {
             if !should_start(&attempt, current) {

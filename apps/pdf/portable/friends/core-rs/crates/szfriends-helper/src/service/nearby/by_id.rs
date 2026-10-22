@@ -122,12 +122,17 @@ impl State {
             return;
         }
         let existing = self.store.person_with_identity_key(&key).ok().flatten();
-        if existing.as_ref().is_some_and(|p| matches!(p.relation, Relation::Blocked | Relation::Friend)) {
-            return; // blocked senders are dropped after the same reply; friends need no request
+        if existing.as_ref().is_some_and(|p| p.relation == Relation::Blocked) {
+            return; // blocked senders are dropped after the same reply
         }
         self.nearby.by_id_senders.insert(key, now);
         let token = frame.get(tag::TOKEN).and_then(|t| <[u8; 16]>::try_from(t).ok());
         let callback = frame.get(tag::CALLBACK_SECRET).and_then(|s| <[u8; 32]>::try_from(s).ok());
+        if let Some(friend) = existing.clone().filter(|p| p.relation == Relation::Friend) {
+            let static_key = frame.get(tag::STATIC_KEY).and_then(|s| <[u8; 32]>::try_from(s).ok());
+            self.answer_friend_asking_by_id(friend, token, callback, static_key);
+            return;
+        }
         if let Some(mut asked) =
             existing.clone().filter(|p| p.relation == Relation::IncomingRequest && p.callback_token == token)
         {
@@ -172,6 +177,43 @@ impl State {
             let _ = self.store.ensure_own_presence_secret();
             self.queue_answer(&person.conversation_id, serde_json::json!({"frame": "accept"}));
             self.queue_presence_secret(&person.conversation_id);
+        }
+        self.people_changed();
+    }
+
+    /// Still a friend here: they removed us, which we are never told, and ask again by our Friends ID (PROTOCOL.md
+    /// remove_friend), or they repeat a request we accepted. Either way they wait for an answer: an acceptance, as
+    /// accept_request sends, on the callback their token lets in, and the conversation goes on. A request presenting
+    /// another static key is not answered (the key policy reviews key changes); one broadcast again on a later day,
+    /// while our acceptance is still on its way, only renews the callback.
+    fn answer_friend_asking_by_id(
+        &mut self,
+        mut friend: Person,
+        token: Option<[u8; 16]>,
+        callback: Option<[u8; 32]>,
+        static_key: Option<[u8; 32]>,
+    ) {
+        if token.is_none() || callback.is_none() || friend.key_change_pending {
+            return;
+        }
+        if friend.static_key.is_some_and(|known| Some(known) != static_key) {
+            return;
+        }
+        let answering = friend.callback_token.is_some(); // our acceptance of an earlier request has not landed yet
+        friend.callback_token = token;
+        friend.callback_secret = callback;
+        if let Err(error) = self.store.save_person(&friend) {
+            crate::log!("could not store a friend's request by ID: {error}");
+            return;
+        }
+        // They are nearby and waiting now: the backoff our dials earned while they had us removed (refused, every
+        // one) no longer holds the answer back.
+        self.nearby.failures.remove(&friend.conversation_id);
+        self.nearby.retry_after.remove(&friend.conversation_id);
+        if !answering {
+            let _ = self.store.ensure_own_presence_secret();
+            self.queue_answer(&friend.conversation_id, serde_json::json!({"frame": "accept"}));
+            self.queue_presence_secret(&friend.conversation_id);
         }
         self.people_changed();
     }

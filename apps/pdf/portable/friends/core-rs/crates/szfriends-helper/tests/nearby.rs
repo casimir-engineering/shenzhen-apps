@@ -2,7 +2,8 @@
 //! (ADR 0004): a person visible for their 5 minutes found by someone browsing, a friend request with matching
 //! comparison codes, accepted, then messages both ways once each holds the other's presence secret; Add by ID, its
 //! callback becoming a request the asker accepts (no host vouched for the answer), then messages; a declined request;
-//! a withdrawn one; a friend removed and asked again, whose helper never learned of the removal and accepts at once.
+//! a withdrawn one; a friend removed and asked again, from Nearby or by Friends ID, whose helper never learned of the
+//! removal and accepts at once.
 
 mod clients;
 mod support;
@@ -282,4 +283,51 @@ fn someone_removed_who_removes_too_and_asks_again_is_an_ordinary_request() {
     let token = "0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c";
     ada.send("send_message", json!({"conversation_id": bo_in_a, "text": "Friends again", "client_token": token}));
     bo.snapshot(chat_b.trim_matches('"'), "Ada's message at Bo", |d| d.to_string().contains("Friends again"));
+}
+
+#[test]
+fn a_removed_friend_asked_again_by_friends_id_accepts_at_once() {
+    let Pair { _homes, a: mut ada, b: mut bo } = start(("Ada", "Bo"));
+    let (bo_in_a, ada_in_b, list_a, _) = befriended(&mut ada, &mut bo);
+    let bo_id = friends_id(&mut bo);
+
+    // Ada removes Bo, which tells him nothing: he writes to her meanwhile, and it waits.
+    ada.send("remove_friend", json!({"conversation_id": bo_in_a}));
+    ada.snapshot(&list_a, "Bo off Ada's list", |d| row_titled(d, "Bo").is_none());
+    let token = "0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d";
+    bo.send("send_message", json!({"conversation_id": ada_in_b, "text": "Still there?", "client_token": token}));
+    // Ada's removal ended their session, which Bo's helper holds against dialing her for up to half a minute; a
+    // restart forgets that, as it would long before anyone asks again.
+    drop(bo);
+    let mut bo = {
+        let _guard = START.lock().unwrap_or_else(|e| e.into_inner());
+        std::env::set_var(ENV_STATE_DIR, &_homes.1 .0);
+        std::env::set_var(ENV_TEST_LOOPBACK, &_homes.2 .0);
+        Client::connect(&_homes.1 .0)
+    };
+    let list_b = bo.subscribe("list", json!({}));
+
+    // Ada asks again by his Friends ID. His helper still has her as a friend: it answers with an acceptance, so no
+    // request waits at Bo. No host vouched for the answer, so Ada accepts it herself (with a host it would be at once);
+    // then Ada's row is a friend again, in the same conversation.
+    ada.send("add_by_id", json!({"friends_id": bo_id}));
+    let answered = ada.snapshot(&list_a, "Bo's answer at Ada", |d| {
+        row_titled(d, "Bo").is_some_and(|r| r["actions"].to_string().contains("accept_request"))
+    });
+    assert_eq!(row_titled(&answered["data"], "Bo").unwrap()["conversation_id"], bo_in_a.as_str());
+    ada.send("accept_request", json!({"conversation_id": bo_in_a}));
+    let again = ada.snapshot(&list_a, "Bo a friend again at Ada", |d| friend(d, "Bo"));
+    assert_eq!(row_titled(&again["data"], "Bo").unwrap()["conversation_id"], bo_in_a.as_str());
+    assert_eq!(rows(&again["data"]).len(), 1, "one row for Bo: {}", again["data"]);
+    let at_b = bo.snapshot(&list_b, "Bo's list", |_| true);
+    assert!(row_titled(&at_b["data"], "Ada").is_some_and(|r| r["waiting"].is_null()), "{}", at_b["data"]);
+
+    // What Bo wrote while removed arrives, and so does what he writes now.
+    let chat_a = ada.send("open_conversation", json!({"conversation_id": bo_in_a}))["subscription"].to_string();
+    let token = "0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e";
+    bo.send("send_message", json!({"conversation_id": ada_in_b, "text": "Good to be back", "client_token": token}));
+    ada.snapshot(chat_a.trim_matches('"'), "both of Bo's messages at Ada", |d| {
+        let text = d.to_string();
+        text.contains("Still there?") && text.contains("Good to be back")
+    });
 }

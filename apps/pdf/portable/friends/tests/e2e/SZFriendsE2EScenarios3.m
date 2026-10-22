@@ -1,5 +1,6 @@
 // friends-e2e-check: Add by ID with two holders of one unreserved ID, asking again by ID after a decline, what
-// removing someone before an answer was delivered leaves unsent, and asking a removed friend again from Nearby.
+// removing someone before an answer was delivered leaves unsent, and asking a removed friend again, from Nearby and by
+// Friends ID.
 
 #import "SZFriendsE2EHost.h"
 #import "SZFriendsE2EScenarios.h"
@@ -245,4 +246,77 @@ BOOL SZFE2EScenarioAskAgainAfterRemove(SZFE2EWorld *world) {
           }),
           "and A sees them delivered: %@", [pair.a dataFor:atA][@"items"]);
     return YES;
+}
+
+// PROTOCOL.md remove_friend, by Friends ID: as above, but B asks again for A's Friends ID. A's helper still holds B as
+// a friend, so it answers with an acceptance on the callback B's request asks for: no request waits at A, and B's row
+// is a friend again, in the same conversation. With a host vouching for A's ID (attested) that is at once, and the
+// acceptance goes ahead of what A wrote meanwhile, which B would drop as a stranger's; without one B accepts the
+// answer itself, and what A wrote goes again after that. Then what A writes next. B's row used to say "request sent"
+// until the request expired, and A's messages stayed sending.
+static BOOL SZFE2EAskAgainByIDAfterRemoveSteps(SZFE2EWorld *world, NSDictionary *_Nullable hostEnv) {
+    SZFE2EPair *pair = [[SZFE2EPair alloc] init];
+    if (!SZFE2EStartPair(world, pair, hostEnv, hostEnv) || !SZFE2EBefriend(pair)) return NO;
+    NSString *friendsID = nil;
+    if (hostEnv != nil) {
+        friendsID = SZFE2EReservedAndAttested(pair.a, pair.helperA);
+    } else {
+        NSString *profile = [pair.a subscribe:@"profile" params:nil];
+        CHECK(SZFE2EWaitUntil(5, ^BOOL { return [[pair.a dataFor:profile][@"id"][@"friends_id"] length] > 0; }));
+        friendsID = [pair.a dataFor:profile][@"id"][@"friends_id"];
+        [pair.a intent:@"unsubscribe" fields:@{@"subscription" : profile}];
+    }
+    CHECK(friendsID.length > 0, "A's Friends ID");
+    CHECK([[pair.b intent:@"remove_friend" fields:@{@"conversation_id" : pair.aAtB}][@"ok"] boolValue]);
+    CHECK(SZFE2EWaitUntil(5, ^BOOL { return SZFE2ERowWithID([pair.b dataFor:pair.listB], pair.aAtB) == nil; }),
+          "A left B's list: %@", [pair.b dataFor:pair.listB]);
+    NSDictionary *sent = [pair.a intent:@"send_message" fields:@{@"conversation_id" : pair.bAtA,
+                                                                 @"text" : @"Still there?",
+                                                                 @"client_token" : SZFE2EToken()}];
+    CHECK([sent[@"ok"] boolValue], "A was never told: %@", sent);
+    NSDictionary *reply = [pair.b intent:@"add_by_id" fields:@{@"friends_id" : friendsID}];
+    CHECK([reply[@"ok"] boolValue], "B asks again by ID: %@", reply);
+    if (hostEnv == nil && !SZFE2EAcceptAnswer(pair.b, pair.listB, @"Ana")) return NO;
+    CHECK(SZFE2EWaitUntil(45, ^BOOL {
+              return SZFE2EIsFriendRow(SZFE2ERowWithID([pair.b dataFor:pair.listB], pair.aAtB));
+          }),
+          "A is B's friend again, in the same conversation: %@", [pair.b dataFor:pair.listB]);
+    CHECK([[pair.b dataFor:pair.listB][@"rows"] count] == 1, "one row for A: %@", [pair.b dataFor:pair.listB]);
+    NSDictionary *rowAtA = SZFE2ERowWithID([pair.a dataFor:pair.listA], pair.bAtA);
+    CHECK(SZFE2EIsFriendRow(rowAtA) && rowAtA[@"waiting"] == [NSNull null], "no request waits at A: %@", rowAtA);
+    sent = [pair.a intent:@"send_message" fields:@{@"conversation_id" : pair.bAtA, @"text" : @"Good to be back",
+                                                   @"client_token" : SZFE2EToken()}];
+    CHECK([sent[@"ok"] boolValue], "%@", sent);
+    NSString *atB = [pair.b openConversation:pair.aAtB], *atA = [pair.a openConversation:pair.bAtA];
+    CHECK(SZFE2EWaitUntil(20, ^BOOL {
+              NSArray<NSString *> *texts = SZFE2EMessageTexts([pair.b dataFor:atB]);
+              return [texts containsObject:@"Still there?"] && [texts containsObject:@"Good to be back"];
+          }),
+          "both of A's messages reached B: %@", [pair.b dataFor:atB][@"items"]);
+    CHECK(SZFE2EWaitUntil(10, ^BOOL {
+              for (NSDictionary *item in SZFE2EItems([pair.a dataFor:atA], @"message")) {
+                  if (![item[@"status"][@"state"] isEqual:@"delivered"]) return NO;
+              }
+              return YES;
+          }),
+          "and A sees them delivered: %@", [pair.a dataFor:atA][@"items"]);
+    return YES;
+}
+
+BOOL SZFE2EScenarioAskAgainByIDAfterRemove(SZFE2EWorld *world) {
+    return SZFE2EAskAgainByIDAfterRemoveSteps(world, nil);
+}
+
+BOOL SZFE2EScenarioAskAgainByAttestedIDAfterRemove(SZFE2EWorld *world) {
+    NSString *why = nil;
+    SZFE2ELocalHost *host = [SZFE2ELocalHost startInWorld:world skip:&why];
+    if (host == nil) {
+        if (why != nil) printf("skip asking a removed friend again by an attested ID: %s\n", why.UTF8String);
+        return why != nil;
+    }
+    @try {
+        return SZFE2EAskAgainByIDAfterRemoveSteps(world, host.helperEnvironment);
+    } @finally {
+        [host stop];
+    }
 }

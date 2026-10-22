@@ -132,10 +132,14 @@ NSData *SZFriendsCallbackSecretForDay(NSData *masterSecret, int64_t day) {
     NSDate *last = self.byIDSenders[keyHex];
     if (last != nil && -last.timeIntervalSinceNow < SZFriendsByIDSenderInterval) return;
     SZFriendsPersonRecord *person = [store personWithIdentityKey:key];
-    // Blocked senders are dropped after the same reply; friends need no request.
-    if (person.relation == SZFriendsRelationBlocked || person.relation == SZFriendsRelationFriend) return;
+    // Blocked senders are dropped after the same reply.
+    if (person.relation == SZFriendsRelationBlocked) return;
     self.byIDSenders[keyHex] = [NSDate date];
     NSData *token = [frame dataForTag:SZFriendsFieldToken];
+    if (person.relation == SZFriendsRelationFriend) {
+        [self answerFriend:person askingByIDWithFrame:frame];
+        return;
+    }
     if (person.relation == SZFriendsRelationIncomingRequest && [person.callbackToken isEqualToData:token]) {
         // The same request broadcast again on a later day: only its callback secret is new. The row stays where it
         // is; nothing new happened from the person's side.
@@ -193,6 +197,40 @@ NSData *SZFriendsCallbackSecretForDay(NSData *masterSecret, int64_t day) {
     if (invited) [self.services.notifier noteLinkUsedBy:person];
     else if (mutual) [self.services.notifier noteAcceptedBy:person];
     else if (!askedBefore) [self.services.notifier noteRequestFrom:person];
+    [self rebuildTagMatcher];
+    [self changed];
+}
+
+// Still a friend here: they removed us, which we are never told, and ask again by our Friends ID (PROTOCOL.md
+// remove_friend), or they repeat a request we accepted. Either way they wait for an answer: an acceptance, as
+// accept_request sends, on the callback their token lets in, and the conversation goes on. A request presenting another
+// static key is not answered (the key policy reviews key changes); one broadcast again on a later day, while our
+// acceptance is still on its way, only renews the callback.
+- (void)answerFriend:(SZFriendsPersonRecord *)person askingByIDWithFrame:(SZFriendsFrame *)frame {
+    NSData *token = [frame dataForTag:SZFriendsFieldToken];
+    NSData *callbackSecret = [frame dataForTag:SZFriendsFieldCallbackSecret];
+    NSData *staticKey = [frame dataForTag:SZFriendsFieldStaticKey];
+    if (token.length != 16 || callbackSecret.length != 32 || person.keyChangePending) return;
+    if (person.staticKey != nil && ![person.staticKey isEqualToData:staticKey]) return;
+    BOOL answering = person.callbackToken != nil; // our acceptance of an earlier request has not landed yet
+    person.callbackToken = token;
+    person.callbackSecret = callbackSecret;
+    SZFriendsStore *store = self.services.store;
+    NSError *error = nil;
+    if (![store savePerson:person error:&error]) {
+        SZFriendsHelperLog(@"could not store a friend's request by ID: %@", error.localizedDescription);
+        return;
+    }
+    // They are nearby and waiting now: the backoff our dials earned while they had us removed (refused, every one)
+    // no longer holds the answer back.
+    [self noteSuccessForConversation:person.conversationID];
+    if (!answering) {
+        if (store.ownPresenceSecret == nil) store.ownPresenceSecret = SZFriendsNewPresenceSecret();
+        [self enqueueKind:SZFriendsOutboxKindAnswer
+           conversationID:person.conversationID
+                  payload:@{@"frame" : @"accept"}];
+        [self enqueueKind:SZFriendsOutboxKindPresenceSecret conversationID:person.conversationID payload:nil];
+    }
     [self rebuildTagMatcher];
     [self changed];
 }

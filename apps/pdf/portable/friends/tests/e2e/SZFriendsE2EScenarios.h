@@ -58,6 +58,8 @@ BOOL SZFE2EScenarioAnswersByID(SZFE2EWorld *world);
 BOOL SZFE2EScenarioTwoHolders(SZFE2EWorld *world);
 BOOL SZFE2EScenarioRemoveBeforeDelivery(SZFE2EWorld *world);
 BOOL SZFE2EScenarioAskAgainAfterRemove(SZFE2EWorld *world);
+BOOL SZFE2EScenarioAskAgainByIDAfterRemove(SZFE2EWorld *world);
+BOOL SZFE2EScenarioAskAgainByAttestedIDAfterRemove(SZFE2EWorld *world);
 BOOL SZFE2EScenarioAdmission(SZFE2EWorld *world);
 BOOL SZFE2EScenarioStrangerLifetimes(SZFE2EWorld *world);
 BOOL SZFE2EScenarioHostCheckIn(SZFE2EWorld *world);

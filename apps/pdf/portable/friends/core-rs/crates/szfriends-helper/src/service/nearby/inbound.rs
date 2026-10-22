@@ -342,6 +342,14 @@ impl State {
             return self.changed();
         }
         self.send_ack(id, &bytes);
+        if accepted && person.relation == Relation::Friend {
+            // They accept someone already our friend: they had removed us and asked again by Friends ID, and took our
+            // acceptance, which no host vouched for, as a request to accept. What this session wrote before reached
+            // them as a stranger and was dropped unacknowledged: it goes again, with the same ids.
+            let conversation = person.conversation_id.clone();
+            self.deliver_acceptance_then_resend(id, &conversation);
+            return self.changed();
+        }
         self.deliver_pending(id);
         self.changed();
     }
