@@ -232,11 +232,19 @@
                                    replacing:_actionButtons];
     for (NSTextField *note in _actionNotes) [note removeFromSuperview];
     [_actionNotes removeAllObjects];
+    __weak SZFriendsDetailsPage *weakSelf = self;
     for (SZFriendsActionButton *button in _actionButtons) {
         NSTextField *note = SZFriendsLabel(SZFStr(button.actionObject, @"note"), appearance.secondaryFont,
                                            appearance.secondaryTextColor);
         [_content addSubview:note];
         [_actionNotes addObject:note];
+        // Removed, the person is off the list, and their details and chat have nobody to show: back to the list.
+        if ([SZFStr(button.actionObject, @"action") isEqualToString:@"remove_friend"]) {
+            button.onReply = ^(NSDictionary *result, SZFriendsLinkError *error) {
+                (void)result;
+                if (!error) [weakSelf.context.navigator popToList];
+            };
+        }
     }
     [self setNeedsLayout:YES];
     self.needsDisplay = YES;

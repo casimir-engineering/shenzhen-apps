@@ -95,6 +95,23 @@ static void pressed(GtkGestureClick *gesture, int n_press, double x, double y, g
     ((SZFriendsGtkDetailsButton *)data)->n_press = n_press;
 }
 
+/* Removed, the person is off the list, and their details and chat have nobody to show: back to the list, while the
+ * page that asked is still there. */
+typedef struct {
+    GWeakRef page;
+    SZFriendsGtkDropdown *dropdown;
+} SZFriendsGtkRemoved;
+
+static void removed(JsonObject *result, const SZFriendsGtkError *error, gpointer data) {
+    SZFriendsGtkRemoved *then = data;
+    GtkWidget *page = g_weak_ref_get(&then->page);
+    /* A cancelled question answers with neither a result nor an error: nobody was removed. */
+    if (result && !error && page) szfriends_gtk_dropdown_pop_to_list(then->dropdown);
+    if (page) g_object_unref(page);
+    g_weak_ref_clear(&then->page);
+    g_free(then);
+}
+
 static void clicked(GtkButton *button, gpointer data) {
     SZFriendsGtkDetailsButton *state = data;
     int n_press = state->n_press > 0 ? state->n_press : 1;
@@ -111,8 +128,15 @@ static void clicked(GtkButton *button, gpointer data) {
         return;
     disarm(state);
     SZFriendsGtkPage *page = state->page;
-    szfriends_gtk_perform(szfriends_gtk_page_get_link(page), szfriends_gtk_page_get_dropdown(page), GTK_WIDGET(button),
-                          state->action, &state->id_view, NULL, NULL);
+    SZFriendsGtkDropdown *dropdown = szfriends_gtk_page_get_dropdown(page);
+    SZFriendsGtkRemoved *then = NULL;
+    if (state->action->action == SZFRIENDS_GTK_ACTION_REMOVE_FRIEND && dropdown) {
+        then = g_new0(SZFriendsGtkRemoved, 1);
+        g_weak_ref_init(&then->page, szfriends_gtk_page_get_widget(page));
+        then->dropdown = dropdown;
+    }
+    szfriends_gtk_perform(szfriends_gtk_page_get_link(page), dropdown, GTK_WIDGET(button), state->action,
+                          &state->id_view, then ? removed : NULL, then);
 }
 
 /* Leaving the button turns the pill back, so a "Block?" never waits for a click aimed at something else. */

@@ -29,6 +29,8 @@
 }
 - (void)goBack {
 }
+- (void)popToList {
+}
 - (void)closeDropdown {
 }
 - (NSArray<NSDictionary *> *)pendingSendFiles {

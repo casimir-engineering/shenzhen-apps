@@ -268,7 +268,7 @@ export function ActionButton({
   action: Action;
   context?: ActionContext;
   disabled?: boolean;
-  onDone?: (reply: Reply | undefined) => void;
+  onDone?: (reply: Reply | undefined, action: Action) => void;
 }) {
   const run = useRunAction();
   const arming = useArm(action.arm);
@@ -289,7 +289,7 @@ export function ActionButton({
           try {
             // Not onDone?.(await run(...)): optional chaining would skip the run itself when there is no onDone.
             const reply = await run(action, context);
-            onDone?.(reply);
+            onDone?.(reply, action);
           } finally {
             setBusy(false);
           }
@@ -309,7 +309,7 @@ export function Actions({
 }: {
   actions: Action[] | undefined;
   context?: ActionContext;
-  onDone?: (reply: Reply | undefined) => void;
+  onDone?: (reply: Reply | undefined, action: Action) => void;
 }) {
   const known = (actions ?? []).filter(
     (action) =>

@@ -9,7 +9,8 @@
 // It covers: attaching after first paint, the badge, naming, Nearby and a friend request, accepting it, a message
 // both ways, a file offer with the sender's preview before acceptance, Accept and Open in the viewer, a file dropped
 // on the chat, the open model sent as a .sz3d, Copy Download Link hidden while no links are offered, and `#` in the
-// composer listing the recent files, narrowed by typing, the chosen one sent with Send.
+// composer listing the recent files, narrowed by typing, the chosen one sent with Send, and Remove friend on Bo's
+// details going back to the list.
 import { _electron as electron, expect } from "@playwright/test";
 import fs from "node:fs/promises";
 import os from "node:os";
@@ -529,6 +530,37 @@ try {
     timeout: 30_000,
   });
   check("the badge counts the waiting offer");
+
+  // Remove friend on Bo's details, confirmed: the panel goes back to the list, without Bo, rather than staying on
+  // his details (testing of 2026-10-22).
+  if (!(await panel.isVisible())) await button.click();
+  await expect(panel).toBeVisible();
+  // From the list, whatever the panel shows after the steps above.
+  const list = panel.locator(".szf-list-page");
+  for (let i = 0; i < 3 && !(await list.isVisible()); i++)
+    await panel.locator(".szf-back").first().click();
+  const bo = panel.locator(".szf-row", { hasText: "Bo" });
+  await bo.locator(".szf-row-main").click();
+  await panel.locator(".szf-conversation .szf-header-button").click();
+  const details = panel.locator(".szf-details");
+  await expect(details).toBeVisible();
+  await details.getByRole("button", { name: "Remove friend" }).click();
+  const question = panel.locator(".szf-confirm");
+  await expect(question).toBeVisible();
+  await question.locator(".szf-button.destructive").click();
+  await expect(list).toBeVisible({ timeout: 10_000 });
+  await expect(details).toHaveCount(0);
+  await expect(bo).toHaveCount(0, { timeout: 10_000 });
+  if (process.env.SZF3D_SMOKE_SHOTS)
+    await panel.screenshot({
+      path: path.join(
+        process.env.SZF3D_SMOKE_SHOTS,
+        "removed-back-on-list.png",
+      ),
+    });
+  check(
+    "Remove friend on a friend's details goes back to the list, without them",
+  );
 
   expect(errors).toEqual([]);
   check("no page errors");

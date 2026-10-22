@@ -19,7 +19,8 @@ NSArray<NSDictionary*>* UIItems(NSDictionary* conversation, NSString* kind);
 // The list row (a button) whose accessibility label starts with `title`.
 SZFriendsRowView* _Nullable UIRow(UIRig* rig, NSString* title);
 
-// The step in SPDFMacFriendsUIRemoveFlows.mm.
+// The steps in SPDFMacFriendsUIRemoveFlows.mm.
 BOOL UIRemoveFromList(UIRig* rig, SZFE2EWorld* world);
+BOOL UIRemoveFromDetails(UIRig* rig);
 
 NS_ASSUME_NONNULL_END

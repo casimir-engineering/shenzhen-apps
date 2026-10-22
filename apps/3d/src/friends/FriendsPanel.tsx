@@ -352,7 +352,11 @@ export default function FriendsPanel({
           />
         )}
         {page.kind === "details" && (
-          <DetailsPage conversationId={page.id} onBack={pop} />
+          <DetailsPage
+            conversationId={page.id}
+            onBack={pop}
+            onRemoved={() => setStack([{ kind: "list" }])}
+          />
         )}
         {page.kind === "profile" && <ProfilePage onBack={pop} />}
         {page.kind === "join" && <JoinPage onBack={pop} />}

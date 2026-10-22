@@ -332,6 +332,7 @@ BOOL UIFlowTwoPeople(SZFE2EWorld* world, UIVariant* variant) {
         {@"search filters the list", ^BOOL { return UISearch(rig); }},
         {@"two people: Remove from the row's menu, gone on both computers",
          ^BOOL { return UIRemoveFromList(rig, world); }},
+        {@"two people: Remove from a friend's details, back to the list", ^BOOL { return UIRemoveFromDetails(rig); }},
     };
     for (auto& step : steps) {
         if (!all) {

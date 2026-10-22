@@ -1,6 +1,12 @@
 // A friend's details, joining an existing profile, and a Friends link's card. The profile is in ProfilePage.tsx.
 import { useEffect, useState } from "react";
-import type { DetailsData, JoinData, LinkCard, Reply } from "./protocol";
+import type {
+  Action,
+  DetailsData,
+  JoinData,
+  LinkCard,
+  Reply,
+} from "./protocol";
 import {
   ActionButton,
   Actions,
@@ -12,12 +18,21 @@ import {
 import { Glyph, RouteIcon } from "./glyphs";
 import { useView } from "./store";
 
+/** Whether an action pressed on a friend's details leaves them: Remove took the person off the list, so their
+ * details and chat have nobody to show, and the panel goes back to the list. */
+export function leavesDetails(action: Action, reply: Reply | undefined) {
+  return action.action === "remove_friend" && reply?.ok === true;
+}
+
 export function DetailsPage({
   conversationId,
   onBack,
+  onRemoved,
 }: {
   conversationId: string;
   onBack(): void;
+  /** The person was removed from here: back to the list. */
+  onRemoved?(): void;
 }) {
   const panel = usePanel();
   const { store } = panel;
@@ -112,7 +127,13 @@ export function DetailsPage({
             )}
           </section>
         )}
-        <Actions actions={data.actions} context={context} />
+        <Actions
+          actions={data.actions}
+          context={context}
+          onDone={(reply, action) => {
+            if (leavesDetails(action, reply)) onRemoved?.();
+          }}
+        />
       </div>
     </div>
   );

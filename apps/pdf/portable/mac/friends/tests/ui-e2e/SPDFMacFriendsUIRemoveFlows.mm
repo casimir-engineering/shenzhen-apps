@@ -1,8 +1,10 @@
 // friends-ui-e2e's flows for three people (SPDFMacFriendsUIE2E.h): Remove from a row's menu, on the computer at the
-// dropdown and on the friend's, and a second computer joining Ana's profile.
+// dropdown and on the friend's, and a second computer joining Ana's profile; Remove from a friend's details.
 
 #import "SPDFMacFriendsUIPairInternal.h"
 
+#import "mac/SZFriendsConversationPage.h"
+#import "mac/SZFriendsDetailsPage.h"
 #import "mac/SZFriendsListPage.h"
 
 #pragma mark - Removing someone from the list
@@ -132,5 +134,37 @@ BOOL UIRemoveFromList(UIRig* rig, SZFE2EWorld* world) {
     [laptop.client close];
     [laptop.helper terminate];
     [ana close];
+    return YES;
+}
+
+// Testing of 2026-10-22: Remove friend on a friend's details took the person off the list, and the dropdown stayed
+// on their details, over their chat. Ana opens Kenji's chat, then his details from the name at the top, presses
+// Remove friend and confirms: the dropdown is back on the list, without Kenji.
+BOOL UIRemoveFromDetails(UIRig* rig) {
+    UIBeginFlow(rig, @"remove-details");
+    EXPECT(rig, UIOpenDropdown(rig), "the dropdown opens");
+    CLICK(rig, UIRow(rig, @"Kenji"), @"Kenji's row");
+    EXPECT(rig, UIWait(5, ^BOOL { return rig.dropdown.currentView == SZFriendsDropdownViewConversation; }),
+           "the chat with Kenji opens");
+    SZFriendsConversationPage* chat = (SZFriendsConversationPage*)rig.content.topPage;
+    CLICK(rig, chat.header.titleButton, @"Kenji's name");
+    EXPECT(rig, UIWait(5, ^BOOL { return rig.dropdown.currentView == SZFriendsDropdownViewDetails; }),
+           "his details open:\n%@", UIDescribe(rig.content));
+    SZFriendsPage* details = rig.content.topPage;
+    __block NSButton* remove = nil;
+    EXPECT(rig, UIWait(5, ^BOOL { return (remove = UIFindButton(details, @"Remove friend")) != nil; }),
+           "the details offer Remove friend:\n%@", UIDescribe(details));
+    UIShot(rig, @"details");
+    CLICK(rig, remove, @"Remove friend");
+    SZFriendsConfirmView* confirm = rig.content.confirmation;
+    EXPECT(rig, UIWait(3, ^BOOL { return UIFindText(rig.content, @"Remove Kenji?") != nil; }),
+           "Remove asks first:\n%@", UIDescribe(rig.content));
+    UIShot(rig, @"confirm");
+    CLICK(rig, confirm.confirmButton, @"Remove");
+    EXPECT(rig, UIWait(10, ^BOOL { return rig.dropdown.currentView == SZFriendsDropdownViewList; }),
+           "the dropdown is back on the list:\n%@", UIDescribe(rig.content));
+    EXPECT(rig, UIWait(10, ^BOOL { return UIRow(rig, @"Kenji") == nil; }), "without Kenji:\n%@",
+           UIDescribe(rig.content));
+    UIShot(rig, @"back-on-list");
     return YES;
 }

@@ -1,11 +1,11 @@
 /* A friend's details offscreen, against the fake helper: the `details` subscription held only while on screen,
  * every field of details-mei.json drawn as plain text, the route's icon before its words, Copy, Show in Finder
  * through the host, automatic acceptance sent and put back when refused, Delete chat history and Remove asked first
- * in a card, Block armed by a first click and sent by a second, separate one (never a double-click's second half),
- * turned back by Escape, by leaving it or after arm.seconds, a changed key leading the page, and the server's check.
- * Time is the hand-moved clock's, as for the list's Block. Renders light and dark, plain and with a changed key, and
- * measures the secondary text's contrast in each and that the text actions and their notes start at the column's
- * edge. */
+ * in a card (Remove then back on the list), Block armed by a first click and sent by a second, separate one (never a
+ * double-click's second half), turned back by Escape, by leaving it or after arm.seconds, a changed key leading the
+ * page, and the server's check. Time is the hand-moved clock's, as for the list's Block. Renders light and dark,
+ * plain and with a changed key, and measures the secondary text's contrast in each and that the text actions and
+ * their notes start at the column's edge. */
 
 #include "szfriends_gtk_details_probe.h"
 
@@ -183,7 +183,13 @@ static void test_delete_history(SZFGHarness *harness, SZFGRig *rig, GtkWidget *p
     if (frame) json_object_unref(frame);
 }
 
-static void test_remove(SZFGHarness *harness, SZFGRig *rig, GtkWidget *page) {
+static gboolean on_list(gpointer data) {
+    return szfriends_gtk_dropdown_get_depth(data) == 1;
+}
+
+/* Confirmed, Mei is off the list, and the dropdown goes back to it rather than staying on her details (testing of
+ * 2026-10-22). Returns her details opened again, for the probes after this one. */
+static GtkWidget *test_remove(SZFGHarness *harness, SZFGRig *rig, GtkWidget *page) {
     GtkWidget *remove = szfg_find_button(page, "Remove friend");
     EXPECT(remove && gtk_widget_has_css_class(remove, "error"), "Remove is drawn destructive");
     szfg_press(remove, 1);
@@ -215,6 +221,10 @@ static void test_remove(SZFGHarness *harness, SZFGRig *rig, GtkWidget *page) {
     EXPECT(frame && !json_object_has_member(frame, "delete_history"), "left unticked, the history is kept");
     if (frame) json_object_unref(frame);
     EXPECT(!szfriends_gtk_dropdown_get_overlay(rig->dropdown), "and the card goes");
+    EXPECT(szfg_pump_until(on_list, rig->dropdown, 3000), "and the dropdown is back on the list (depth %u)",
+           szfriends_gtk_dropdown_get_depth(rig->dropdown));
+    szfg_rig_render(rig, 560, "details-removed-list-light");
+    return open_details(rig);
 }
 
 static void test_block(SZFGHarness *harness, SZFGRig *rig, GtkWidget *page) {
@@ -367,7 +377,7 @@ void szfg_run_details_probes(void) {
     test_route_icon(harness, page);
     test_auto_accept(harness, page);
     test_delete_history(harness, rig, page);
-    test_remove(harness, rig, page);
+    page = test_remove(harness, rig, page);
     test_block(harness, rig, page);
     test_key_change(harness, rig, page);
     guint unsubscribed = szfg_fake_frames(harness, "unsubscribe", NULL, NULL);

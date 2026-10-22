@@ -15,6 +15,7 @@ import {
 } from "../src/friends/actions";
 import { FriendsStore } from "../src/friends/store";
 import { chooseReceivedFolder, runAction } from "../src/friends/parts";
+import { leavesDetails } from "../src/friends/MorePages";
 import { serializeParts } from "../src/friends/Composer";
 import {
   MAX_STAGED_NAME_BYTES,
@@ -369,5 +370,27 @@ describe("Friends project staging", () => {
     expect(html).toContain(escape(frame.data.devices.add.title));
     for (const step of frame.data.devices.add.steps)
       expect(html).toContain(escape(step));
+  });
+});
+
+describe("Remove on a friend's details", () => {
+  it("goes back to the list once the helper removed them, and only then", () => {
+    const reply = (ok: boolean) => ({ type: "reply" as const, re: "1", ok });
+    const remove: Action = {
+      action: "remove_friend",
+      label: "Remove",
+      style: "destructive",
+    };
+    const block: Action = {
+      action: "block",
+      label: "Block",
+      style: "destructive",
+    };
+    expect(leavesDetails(remove, reply(true))).toBe(true);
+    // Refused, or the question cancelled (nothing sent): the details stay.
+    expect(leavesDetails(remove, reply(false))).toBe(false);
+    expect(leavesDetails(remove, undefined)).toBe(false);
+    // A blocked person stays on the list, so their details stay too.
+    expect(leavesDetails(block, reply(true))).toBe(false);
   });
 });

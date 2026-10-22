@@ -19,6 +19,8 @@ NS_ASSUME_NONNULL_BEGIN
 // A new computer's side of joining an existing profile (the name prompt's "Use my existing profile").
 - (void)openJoin;
 - (void)goBack;
+// Back to the list, whatever is open above it.
+- (void)popToList;
 - (void)closeDropdown;
 // The send picker's files, while "Send 2 files to…" is showing; nil otherwise.
 - (nullable NSArray<NSDictionary *> *)pendingSendFiles;
