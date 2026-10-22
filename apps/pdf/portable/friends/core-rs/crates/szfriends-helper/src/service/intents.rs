@@ -270,14 +270,18 @@ impl State {
             }
             Intent::SendMessage { conversation_id, text, client_token, attachments, .. } => {
                 self.friend(&conversation_id)?;
+                // Files attached with nothing typed are only the files, as send_files sends them: an empty message
+                // would reach the friend as an empty bubble above them. message_id is then "" (PROTOCOL.md § Files).
+                let files_only = text.is_empty();
                 let mut transfers = Vec::new();
-                for file in &attachments {
-                    transfers.push(self.offer_file(
-                        &conversation_id,
-                        Path::new(&file.path),
-                        file.display_name.as_deref(),
-                        None,
-                    )?);
+                for (index, file) in attachments.iter().enumerate() {
+                    let token = (files_only && index == 0).then(|| client_token.clone());
+                    let path = Path::new(&file.path);
+                    transfers.push(self.offer_file(&conversation_id, path, file.display_name.as_deref(), token)?);
+                }
+                if files_only {
+                    self.after_send(&conversation_id);
+                    return Ok(json!({"message_id": "", "transfer_ids": transfers}));
                 }
                 let mut sent = self.send_text(&conversation_id, text, client_token)?;
                 sent["transfer_ids"] = json!(transfers);
@@ -297,11 +301,16 @@ impl State {
             }
             Intent::Resend { client_token, message } => {
                 let entries = self.store.outbox_entries_with_client_token(&client_token).unwrap_or_default();
-                let ids: Vec<String> = entries.iter().filter_map(|e| e.item_id.clone()).collect();
+                let ids = |kind: OutboxKind| -> Vec<String> {
+                    entries.iter().filter(|e| e.kind == kind).filter_map(|e| e.item_id.clone()).collect()
+                };
                 Ok(if message {
-                    json!({"message_id": ids.first(), "transfer_ids": []})
+                    // A message with files only has no message entry; its first offer carries the token.
+                    let message_id = ids(OutboxKind::Message).into_iter().next().unwrap_or_default();
+                    let transfers = if message_id.is_empty() { ids(OutboxKind::Offer) } else { Vec::new() };
+                    json!({"message_id": message_id, "transfer_ids": transfers})
                 } else {
-                    json!({"transfer_ids": ids})
+                    json!({"transfer_ids": ids(OutboxKind::Offer)})
                 })
             }
             Intent::AcceptOffer { transfer_id } => {

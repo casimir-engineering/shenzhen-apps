@@ -48,6 +48,38 @@ fn two_helpers_exchange_messages_and_a_file_over_the_test_network() {
     assert_eq!(bo.refused("delete_history", json!({"conversation_id": "c_unknown"})), "not_found");
 }
 
+/// Files attached with nothing typed are only the files: no empty message goes out above them, the result names no
+/// message, and the same client token offers them once.
+#[test]
+fn files_attached_with_nothing_typed_send_no_empty_message() {
+    let (a, b, routes) = (Temp::new("fa"), Temp::new("fb"), Temp::new("froutes"));
+    let guard = START.lock().unwrap_or_else(|e| e.into_inner());
+    std::env::set_var(ENV_STATE_DIR, &a.0);
+    std::env::set_var(ENV_TEST_LOOPBACK, &routes.0);
+    let (bo_in_a, _) = seed::befriend(&a.0, &b.0, ("Ada", "Bo")).expect("befriended");
+    let mut ada = Client::connect(&a.0);
+    drop(guard);
+    let source = a.0.join("outgoing").join("Site plan.pdf");
+    std::fs::create_dir_all(source.parent().unwrap()).unwrap();
+    std::fs::write(&source, b"%PDF-1.4\n").unwrap();
+    let send = json!({"conversation_id": bo_in_a, "text": "", "attachments": [{"path": source}],
+                      "client_token": "token-attachonly-0123456789"});
+    let sent = ada.send("send_message", send.clone());
+    assert_eq!(sent["message_id"], "", "no message: {sent}");
+    let transfers = sent["transfer_ids"].as_array().cloned().unwrap_or_default();
+    assert_eq!(transfers.len(), 1, "one offer: {sent}");
+    assert_eq!(ada.send("send_message", send)["transfer_ids"], json!(transfers), "the same token offers it once");
+    let chat = ada.send("open_conversation", json!({"conversation_id": bo_in_a}))["subscription"].clone();
+    let shown = ada.snapshot(chat.as_str().unwrap(), "the offer in Ada's chat", |d| {
+        d["items"].as_array().is_some_and(|items| items.iter().any(|i| i["transfer_id"] == transfers[0]))
+    });
+    for item in shown["data"]["items"].as_array().unwrap() {
+        assert!(item["kind"] != "message" || item["text"].as_str().is_some_and(|t| !t.is_empty()), "{item}");
+    }
+    let nothing = json!({"conversation_id": bo_in_a, "text": "", "client_token": "token-nothing-0123456789"});
+    assert_eq!(ada.refused("send_message", nothing), "invalid_field", "nothing typed or attached");
+}
+
 #[test]
 fn your_computers_and_joining_show_this_computers_real_state() {
     let (home, routes) = (Temp::new("devices"), Temp::new("devices-routes"));

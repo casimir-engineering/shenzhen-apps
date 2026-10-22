@@ -347,6 +347,8 @@ On receipt the helper binds each file to an immutable snapshot at once (an APFS 
 is sent: a newer source is never substituted. `revision` is optional or `null` for plain files, whose bytes at
 that moment are what the person meant. Folders fail with `folder_not_supported`; views refuse them while
 dragging, before any intent. All files of one intent are checked before any is offered: one bad file sends none.
+`send_message` with an empty `text` and attachments offers only the files, as `send_files` does: no message item is
+written or sent, so the friend sees no empty message above them, and `result.message_id` is `""`.
 
 **Idempotency.** `client_token` (16 to 64 characters, random per press of Send) makes `send_message` and
 `send_files` safe to retry after a reconnect: the helper returns the earlier result instead of sending twice.

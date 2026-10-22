@@ -229,27 +229,32 @@ static const NSUInteger SZFriendsSearchLimitMax = 50;
                    conversationID:person.conversationID reply:reply connection:connection];
         if (staged == nil) return;
     }
-    SZFriendsItemRecord *message = [[SZFriendsItemRecord alloc] init];
-    message.itemID = SZFriendsNewIdentifier();
-    message.conversationID = person.conversationID;
-    message.kind = SZFriendsItemKindMessage;
-    message.direction = SZFriendsDirectionOutgoing;
-    message.sentAt = [NSDate date];
-    message.receivedAt = message.sentAt;
-    message.text = text;
-    message.viaAssistant = viaAssistant;
-    NSError *error = nil;
-    if (![self enqueueKind:SZFriendsOutboxKindMessage conversationID:person.conversationID item:message
-               clientToken:token error:&error]) {
-        for (SZFriendsTransferRecord *done in staged) {
-            [self.services.transfers discardStagedTransfer:done.transferID error:NULL];
+    // Files attached with nothing typed are only the files, as send_files sends them: an empty message would
+    // reach the friend as an empty bubble above them. message_id is then "", as for our own computers (+Devices).
+    SZFriendsItemRecord *message = nil;
+    if (text.length > 0) {
+        message = [[SZFriendsItemRecord alloc] init];
+        message.itemID = SZFriendsNewIdentifier();
+        message.conversationID = person.conversationID;
+        message.kind = SZFriendsItemKindMessage;
+        message.direction = SZFriendsDirectionOutgoing;
+        message.sentAt = [NSDate date];
+        message.receivedAt = message.sentAt;
+        message.text = text;
+        message.viaAssistant = viaAssistant;
+        NSError *error = nil;
+        if (![self enqueueKind:SZFriendsOutboxKindMessage conversationID:person.conversationID item:message
+                   clientToken:token error:&error]) {
+            for (SZFriendsTransferRecord *done in staged) {
+                [self.services.transfers discardStagedTransfer:done.transferID error:NULL];
+            }
+            [self fail:reply code:SZFriendsStoreProtocolErrorCode(error) details:nil connection:connection];
+            return;
         }
-        [self fail:reply code:SZFriendsStoreProtocolErrorCode(error) details:nil connection:connection];
-        return;
     }
     NSArray *transferIDs = [self offerTransfers:staged conversationID:person.conversationID clientToken:token
                                    viaAssistant:viaAssistant];
-    [self succeed:reply result:@{@"message_id" : message.itemID, @"transfer_ids" : transferIDs}];
+    [self succeed:reply result:@{@"message_id" : message.itemID ?: @"", @"transfer_ids" : transferIDs}];
 }
 
 - (void)intent_send_files:(NSDictionary *)intent connection:(SZFriendsIPCConnection *)connection

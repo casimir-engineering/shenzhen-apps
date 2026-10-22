@@ -242,7 +242,8 @@ BOOL SZFHTestDispatch(SZFHHarness *harness) {
     [c.snapshots removeAllObjects];
     reply = [c intent:@"open_conversation" fields:@{@"conversation_id" : @"c_kenji"}];
     CHECK([reply[@"result"][@"conversation_id"] isEqual:@"c_kenji"], "%@", reply);
-    NSDictionary *conversation = SZFHSnapshotFor(c, reply[@"result"][@"subscription"], 0);
+    NSString *conversationSubscription = reply[@"result"][@"subscription"];
+    NSDictionary *conversation = SZFHSnapshotFor(c, conversationSubscription, 0);
     CHECK([conversation[@"view"] isEqual:@"conversation"], "snapshot before reply: %@", conversation);
 
     CHECK([[c intent:@"accept_request" fields:@{@"conversation_id" : @"c_kenji"}][@"ok"] boolValue]);
@@ -253,6 +254,37 @@ BOOL SZFHTestDispatch(SZFHHarness *harness) {
     CHECK(messageID.length > 0, "%@", reply);
     reply = [c intent:@"send_message" fields:fields];
     CHECK([reply[@"result"][@"message_id"] isEqual:messageID], "the same client token sends once: %@", reply);
+    // Files attached with nothing typed are only the files: no empty message goes out above them.
+    NSString *attached = [[harness makeDirectory] stringByAppendingPathComponent:@"Site plan.pdf"];
+    CHECK([[NSData dataWithBytes:"%PDF-1.4\n" length:9] writeToFile:attached atomically:YES]);
+    NSDictionary *attachOnly = @{@"conversation_id" : @"c_kenji", @"text" : @"",
+                                 @"attachments" : @[ @{@"path" : attached} ],
+                                 @"client_token" : @"token-attachonly-0123456789"};
+    reply = [c intent:@"send_message" fields:attachOnly];
+    CHECK([reply[@"result"][@"message_id"] isEqual:@""] && [reply[@"result"][@"transfer_ids"] count] == 1,
+          "an attachment alone is one offer and no message: %@", reply);
+    NSString *transferID = reply[@"result"][@"transfer_ids"][0];
+    reply = [c intent:@"send_message" fields:attachOnly];
+    CHECK([reply[@"result"][@"message_id"] isEqual:@""] && [reply[@"result"][@"transfer_ids"] isEqual:@[ transferID ]],
+          "the same client token offers it once: %@", reply);
+    // The newest conversation snapshot, from those that came with the replies or from the ones that follow.
+    NSArray *items = nil;
+    for (NSDictionary *frame in c.snapshots) {
+        if ([frame[@"subscription"] isEqual:conversationSubscription]) items = frame[@"data"][@"items"];
+    }
+    for (NSDate *until = [NSDate dateWithTimeIntervalSinceNow:5];
+         ![[items valueForKey:@"item_id"] containsObject:transferID] && until.timeIntervalSinceNow > 0;) {
+        NSDictionary *frame = [c nextFrameOfType:@"snapshot" timeout:until.timeIntervalSinceNow];
+        if (frame == nil) break;
+        if ([frame[@"subscription"] isEqual:conversationSubscription]) items = frame[@"data"][@"items"];
+    }
+    CHECK([[items valueForKey:@"item_id"] containsObject:transferID], "the offer is in the conversation: %@", items);
+    for (NSDictionary *item in items) {
+        CHECK(![item[@"kind"] isEqual:@"message"] || [item[@"text"] length] > 0, "an empty message: %@", item);
+    }
+    reply = [c intent:@"send_message" fields:@{@"conversation_id" : @"c_kenji", @"text" : @"",
+                                               @"client_token" : @"token-nothing-0123456789"}];
+    CHECK([reply[@"error"][@"code"] isEqual:@"invalid_field"], "nothing typed or attached: %@", reply);
     reply = [c intent:@"search_messages" fields:@{@"query" : @"合同"}];
     CHECK([reply[@"ok"] boolValue] && [reply[@"result"][@"results"] isKindOfClass:[NSArray class]], "%@", reply);
 
