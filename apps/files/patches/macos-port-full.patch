@@ -4496,7 +4496,7 @@ index 0d6200f..f643c34 100644
   * parse_previous_name:
   * @name: Name of the original file
 diff --git a/src/nautilus-files-view.c b/src/nautilus-files-view.c
-index 2e390ad..4c2ccf7 100644
+index 2e390ad..bae3122 100644
 --- a/src/nautilus-files-view.c
 +++ b/src/nautilus-files-view.c
 @@ -32,8 +32,10 @@
@@ -4510,18 +4510,19 @@ index 2e390ad..4c2ccf7 100644
  #include <nautilus-extension.h>
 
  #include "nautilus-application.h"
-@@ -79,6 +81,10 @@
+@@ -79,6 +81,11 @@
  #include "nautilus-view-model.h"
  #include "nautilus-window-slot.h"
 
 +#ifdef __APPLE__
 +#include "nautilus-macos-bridge.h"
++#include "nautilus-macos-window-shortcuts.h"
 +#endif
 +
  /* Minimum starting update interval */
  #define UPDATE_INTERVAL_MIN 100
  /* Maximum update interval */
-@@ -1423,6 +1429,7 @@ action_open_item_new_tab (GSimpleAction *action,
+@@ -1423,6 +1430,7 @@ action_open_item_new_tab (GSimpleAction *action,
                                          TRUE);
  }
 
@@ -4529,7 +4530,7 @@ index 2e390ad..4c2ccf7 100644
  static void
  sandboxed_choose_program_callback (GObject      *source_object,
                                     GAsyncResult *res,
-@@ -1477,6 +1484,7 @@ sandboxed_choose_program (GList     *files,
+@@ -1477,6 +1485,7 @@ sandboxed_choose_program (GList     *files,
                           sandboxed_choose_program_callback,
                           g_steal_pointer (&files));
  }
@@ -4537,7 +4538,7 @@ index 2e390ad..4c2ccf7 100644
 
  static void
  app_choosen (AdwDialog *dialog,
-@@ -1509,11 +1517,13 @@ choose_program (NautilusFilesView *view,
+@@ -1509,11 +1518,13 @@ choose_program (NautilusFilesView *view,
 
      parent_window = nautilus_files_view_get_containing_window (view);
 
@@ -4551,7 +4552,7 @@ index 2e390ad..4c2ccf7 100644
 
      dialog = nautilus_app_chooser_new (files);
      g_object_set_data_full (G_OBJECT (dialog),
-@@ -1584,6 +1594,188 @@ action_open_current_directory_with_files (GSimpleAction *action,
+@@ -1584,6 +1595,188 @@ action_open_current_directory_with_files (GSimpleAction *action,
      }
  }
 
@@ -4740,7 +4741,7 @@ index 2e390ad..4c2ccf7 100644
  static void
  trash_or_delete_done_cb (GHashTable        *debuting_uris,
                           gboolean           user_cancel,
-@@ -1751,6 +1943,19 @@ action_preview_selection (GSimpleAction *action,
+@@ -1751,6 +1944,19 @@ action_preview_selection (GSimpleAction *action,
      nautilus_previewer_call_show_file (uri, self->slot, TRUE);
  }
 
@@ -4760,7 +4761,7 @@ index 2e390ad..4c2ccf7 100644
  static void
  action_popup_menu (GSimpleAction *action,
                     GVariant      *state,
-@@ -2700,8 +2905,7 @@ handle_clipboard_data (NautilusFilesView *view,
+@@ -2700,8 +2906,7 @@ handle_clipboard_data (NautilusFilesView *view,
          /* If items are cut then remove from clipboard */
          if (action == GDK_ACTION_MOVE)
          {
@@ -4770,7 +4771,7 @@ index 2e390ad..4c2ccf7 100644
          }
      }
  }
-@@ -2779,6 +2983,16 @@ paste_files (NautilusFilesView *view,
+@@ -2779,6 +2984,16 @@ paste_files (NautilusFilesView *view,
      clipboard = gtk_widget_get_clipboard (GTK_WIDGET (view));
      formats = gdk_clipboard_get_formats (clipboard);
 
@@ -4787,7 +4788,7 @@ index 2e390ad..4c2ccf7 100644
      view->selection_source = NAUTILUS_SELECTION_SOURCE_OP_START;
      real_dest_uri = dest_uri != NULL ? dest_uri : nautilus_files_view_get_backing_uri (view);
 
-@@ -2811,6 +3025,23 @@ paste_files (NautilusFilesView *view,
+@@ -2811,6 +3026,23 @@ paste_files (NautilusFilesView *view,
                                          paste_value_received_callback,
                                          g_steal_pointer (&data));
      }
@@ -4811,7 +4812,7 @@ index 2e390ad..4c2ccf7 100644
      else if (gdk_content_formats_contain_gtype (formats, GDK_TYPE_TEXTURE))
      {
          /* Finder includes a rendered preview alongside a copied file URL.
-@@ -6271,6 +6502,23 @@ action_compress (GSimpleAction *action,
+@@ -6271,6 +6503,23 @@ action_compress (GSimpleAction *action,
      nautilus_files_view_compress_dialog_new (view);
  }
 
@@ -4835,7 +4836,7 @@ index 2e390ad..4c2ccf7 100644
  static void
  send_email_done (GObject      *source_object,
                   GAsyncResult *res,
-@@ -6315,6 +6563,7 @@ real_send_email (GStrv              attachments,
+@@ -6315,6 +6564,7 @@ real_send_email (GStrv              attachments,
                                NULL, NULL, NULL, NULL, (const char * const *) attachments,
                                XDP_EMAIL_FLAG_NONE, NULL, send_email_done, toplevel);
  }
@@ -4843,7 +4844,7 @@ index 2e390ad..4c2ccf7 100644
 
  static void
  email_archive_ready (GFile    *new_file,
-@@ -6454,6 +6703,13 @@ can_set_wallpaper (NautilusFileList *selection)
+@@ -6454,6 +6704,13 @@ can_set_wallpaper (NautilusFileList *selection)
  {
      NautilusFile *file;
 
@@ -4857,7 +4858,7 @@ index 2e390ad..4c2ccf7 100644
      if (!list_len_is_one (selection))
      {
          return FALSE;
-@@ -6470,6 +6726,7 @@ can_set_wallpaper (NautilusFileList *selection)
+@@ -6470,6 +6727,7 @@ can_set_wallpaper (NautilusFileList *selection)
      return TRUE;
  }
 
@@ -4865,7 +4866,7 @@ index 2e390ad..4c2ccf7 100644
  static void
  set_wallpaper_with_portal_cb (GObject      *source,
                                GAsyncResult *result,
-@@ -6516,12 +6773,14 @@ set_wallpaper_with_portal (NautilusFile *file,
+@@ -6516,12 +6774,14 @@ set_wallpaper_with_portal (NautilusFile *file,
                                NULL);
      xdp_parent_free (parent);
  }
@@ -4880,7 +4881,7 @@ index 2e390ad..4c2ccf7 100644
      g_autolist (NautilusFile) selection = NULL;
 
      g_assert (NAUTILUS_IS_FILES_VIEW (user_data));
-@@ -6535,6 +6794,7 @@ action_set_as_wallpaper (GSimpleAction *action,
+@@ -6535,6 +6795,7 @@ action_set_as_wallpaper (GSimpleAction *action,
 
          set_wallpaper_with_portal (file, user_data);
      }
@@ -4888,7 +4889,7 @@ index 2e390ad..4c2ccf7 100644
  }
 
  static void
-@@ -6880,6 +7140,19 @@ const GActionEntry view_entries[] =
+@@ -6880,6 +7141,19 @@ const GActionEntry view_entries[] =
          .activate = action_open_current_directory_with_other_application
      },
      { .name = "open-current-directory-with-files", .activate = action_open_current_directory_with_files },
@@ -4908,7 +4909,7 @@ index 2e390ad..4c2ccf7 100644
      { .name = "open-item-new-window", .activate = action_open_item_new_window },
      { .name = "open-item-new-tab", .activate = action_open_item_new_tab },
      { .name = "cut", .activate = action_cut},
-@@ -6937,6 +7210,15 @@ const GActionEntry view_entries[] =
+@@ -6937,6 +7211,15 @@ const GActionEntry view_entries[] =
  static gboolean
  can_paste_into_file (NautilusFile *file)
  {
@@ -4924,7 +4925,7 @@ index 2e390ad..4c2ccf7 100644
      if (nautilus_file_is_directory (file) &&
          nautilus_file_can_write (file))
      {
-@@ -7539,6 +7821,125 @@ nautilus_files_view_update_actions_state (NautilusFilesView *self)
+@@ -7539,6 +7822,125 @@ nautilus_files_view_update_actions_state (NautilusFilesView *self)
      action = g_action_map_lookup_action (G_ACTION_MAP (view_action_group),
                                           "preview-selection");
      g_simple_action_set_enabled (G_SIMPLE_ACTION (action), selection != NULL);
@@ -5050,7 +5051,7 @@ index 2e390ad..4c2ccf7 100644
      action = g_action_map_lookup_action (G_ACTION_MAP (view_action_group),
                                           "copy-current-location");
      g_simple_action_set_enabled (G_SIMPLE_ACTION (action),
-@@ -7933,6 +8334,32 @@ update_selection_menu (NautilusFilesView *self,
+@@ -7933,6 +8335,32 @@ update_selection_menu (NautilusFilesView *self,
          }
 
          g_free (item_label);
@@ -5083,7 +5084,7 @@ index 2e390ad..4c2ccf7 100644
      }
 
      /* The "Open" submenu should be hidden if the item doesn't open in the view. */
-@@ -8073,6 +8500,55 @@ update_selection_menu (NautilusFilesView *self,
+@@ -8073,6 +8501,55 @@ update_selection_menu (NautilusFilesView *self,
                                           "hidden-when",
                                           !show_scripts ? "action-missing" : NULL);
 
@@ -5139,7 +5140,7 @@ index 2e390ad..4c2ccf7 100644
      const char *view_name = NAUTILUS_IS_NETWORK_VIEW (self->list_base) ? "network" : "normal";
 
      /* Filter  the menus at the end to not interfere with other checks */
-@@ -8122,6 +8598,87 @@ update_background_menu (NautilusFilesView *self,
+@@ -8122,6 +8599,87 @@ update_background_menu (NautilusFilesView *self,
                                           "hidden-when",
                                           remove_submenu ? "action-missing" : NULL);
 
@@ -5227,7 +5228,7 @@ index 2e390ad..4c2ccf7 100644
      const char *view_name = NAUTILUS_IS_NETWORK_VIEW (self->list_base) ? "network" : "normal";
 
      /* Filter  the menus at the end to not interfere with other checks */
-@@ -9605,6 +10162,15 @@ nautilus_files_view_init (NautilusFilesView *self)
+@@ -9605,6 +10163,15 @@ nautilus_files_view_init (NautilusFilesView *self)
      gtk_widget_add_controller (GTK_WIDGET (self), controller);
      /* By default, :scope is GTK_SHORTCUT_SCOPE_LOCAL, so no need to set it. */
      gtk_event_controller_set_propagation_phase (controller, GTK_PHASE_CAPTURE);
@@ -5243,6 +5244,19 @@ index 2e390ad..4c2ccf7 100644
      gtk_shortcut_controller_add_shortcut (GTK_SHORTCUT_CONTROLLER (controller), shortcut);
 
      self->starred_cancellable = g_cancellable_new ();
+@@ -9612,6 +10179,12 @@ nautilus_files_view_init (NautilusFilesView *self)
+
+     self->rename_file_popover = nautilus_rename_file_popover_new ();
+     gtk_widget_set_parent (self->rename_file_popover, GTK_WIDGET (self));
++
++#ifdef __APPLE__
++    /* Added last, so the right-click menus show its Cmd keys rather than the
++     * Ctrl ones bound above (nautilus-macos-window-shortcuts.c). */
++    gtk_widget_add_controller (GTK_WIDGET (self), nautilus_macos_view_shortcuts_new ());
++#endif
+ }
+
+ static void
 diff --git a/src/nautilus-global-preferences.c b/src/nautilus-global-preferences.c
 index eaf6401..64a7152 100644
 --- a/src/nautilus-global-preferences.c
@@ -17562,10 +17576,10 @@ index 0000000..9294b83
 +}
 diff --git a/src/nautilus-macos-window-shortcuts.c b/src/nautilus-macos-window-shortcuts.c
 new file mode 100644
-index 0000000..a901dbd
+index 0000000..ec9a5f7
 --- /dev/null
 +++ b/src/nautilus-macos-window-shortcuts.c
-@@ -0,0 +1,126 @@
+@@ -0,0 +1,163 @@
 +/*
 + * nautilus-macos-window-shortcuts.c: the keys each macOS window binds
 + * after the focused widget has had them.
@@ -17619,6 +17633,27 @@ index 0000000..a901dbd
 +    { "<Meta>d", "slot.bookmark-current-directory" },
 +    /* GNOME muscle memory: Cmd-L also opens the location bar */
 +    { "<Meta>l", "win.macos-edit-location" },
++};
++
++/* What a file view's right-click menus show.  A menu item shows the key
++ * last bound to its action on the nearest widget, and the view binds
++ * upstream's Ctrl keys (Ctrl-X, Ctrl-C, Ctrl-Shift-N...), so without these
++ * the menus showed ^X and ^C though Cmd-X and Cmd-C are the keys to press.
++ * Each also works without them: the window binds the clipboard keys above,
++ * and the menu bar has the others as key equivalents. */
++static const struct
++{
++    const char *trigger;
++    const char *action;
++} view_shortcuts[] =
++{
++    { "<Meta>x", "view.cut" },
++    { "<Meta>c", "view.copy" },
++    { "<Meta>v", "view.paste" },
++    { "<Meta>a", "view.select-all" },
++    { "<Meta><Shift>n", "view.new-folder" },
++    { "<Meta>i", "view.properties" },
++    { "<Meta>BackSpace", "view.move-to-trash" },
 +};
 +
 +typedef struct
@@ -17692,12 +17727,28 @@ index 0000000..a901dbd
 +
 +    return GTK_EVENT_CONTROLLER (controller);
 +}
++
++GtkEventController *
++nautilus_macos_view_shortcuts_new (void)
++{
++    GtkShortcutController *controller = GTK_SHORTCUT_CONTROLLER (gtk_shortcut_controller_new ());
++
++    for (gsize i = 0; i < G_N_ELEMENTS (view_shortcuts); i++)
++    {
++        gtk_shortcut_controller_add_shortcut (
++            controller,
++            gtk_shortcut_new (gtk_shortcut_trigger_parse_string (view_shortcuts[i].trigger),
++                              gtk_named_action_new (view_shortcuts[i].action)));
++    }
++
++    return GTK_EVENT_CONTROLLER (controller);
++}
 diff --git a/src/nautilus-macos-window-shortcuts.h b/src/nautilus-macos-window-shortcuts.h
 new file mode 100644
-index 0000000..897fc62
+index 0000000..a14f572
 --- /dev/null
 +++ b/src/nautilus-macos-window-shortcuts.h
-@@ -0,0 +1,31 @@
+@@ -0,0 +1,36 @@
 +/*
 + * nautilus-macos-window-shortcuts.h: the keys each macOS window binds
 + * after the focused widget has had them.
@@ -17727,6 +17778,11 @@ index 0000000..897fc62
 +gboolean nautilus_macos_window_shortcuts_delete_key (GtkWidget               *window,
 +                                                     NautilusMacosWindowFunc  search_open,
 +                                                     NautilusMacosWindowFunc  back);
++
++/* The controller each file view adds last: the Cmd keys of its right-click
++ * menu items (Cut, Copy, Paste, Select All, New Folder, Properties, Move to
++ * Trash), which those menus then show instead of the view's Ctrl keys. */
++GtkEventController *nautilus_macos_view_shortcuts_new (void);
 +
 +G_END_DECLS
 diff --git a/src/nautilus-main.c b/src/nautilus-main.c

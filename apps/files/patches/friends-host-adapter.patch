@@ -956,18 +956,18 @@ index 0000000..81d4bd1
 +
 +G_END_DECLS
 diff --git a/src/nautilus-files-view.c b/src/nautilus-files-view.c
-index 4c2ccf7..e46af0d 100644
+index bae3122..28b7217 100644
 --- a/src/nautilus-files-view.c
 +++ b/src/nautilus-files-view.c
-@@ -83,6 +83,7 @@
-
+@@ -84,6 +84,7 @@
  #ifdef __APPLE__
  #include "nautilus-macos-bridge.h"
+ #include "nautilus-macos-window-shortcuts.h"
 +#include "nautilus-friends.h"
  #endif
 
  /* Minimum starting update interval */
-@@ -8706,6 +8707,11 @@ nautilus_files_view_update_context_menus (NautilusFilesView *self)
+@@ -8707,6 +8708,11 @@ nautilus_files_view_update_context_menus (NautilusFilesView *self)
 
      update_selection_menu (self, builder);
      update_background_menu (self, builder);
@@ -4366,10 +4366,10 @@ index 39cfa39..faaafe1 100644
        action-name: "app.shortcuts";
 diff --git a/test/friends/meson.build b/test/friends/meson.build
 new file mode 100644
-index 0000000..b078498
+index 0000000..cb821e7
 --- /dev/null
 +++ b/test/friends/meson.build
-@@ -0,0 +1,58 @@
+@@ -0,0 +1,69 @@
 +# The Shenzhen Friends host adapter's tests (src/nautilus-friends*.c and
 +# src/nautilus-macos-friends.m). Run them with tools/test-friends-adapter.sh
 +# from the repository root, which also builds Files without Friends.
@@ -4428,6 +4428,320 @@ index 0000000..b078498
 +  dependencies: [libnautilus_dep, dependency('appleframeworks', modules: ['AppKit', 'ApplicationServices'])],
 +  link_with: friends_quiet,
 +)
++
++# The keys a file view's right-click menus show on macOS: a real view, its
++# menus built as Files pops them up, never mapped, rendered offscreen. It
++# links the Friends views' interposer only to stay out of the Dock. Run it
++# with tools/test-macos-context-menu-keys.sh from the repository root.
++executable(
++  'test-macos-context-menu-keys',
++  'test-macos-context-menu-keys.c',
++  dependencies: [libnautilus_dep, friends_frameworks],
++  link_with: friends_quiet,
++)
+diff --git a/test/friends/test-macos-context-menu-keys.c b/test/friends/test-macos-context-menu-keys.c
+new file mode 100644
+index 0000000..0e28d40
+--- /dev/null
++++ b/test/friends/test-macos-context-menu-keys.c
+@@ -0,0 +1,297 @@
++/*
++ * test-macos-context-menu-keys.c: the keys a file view's right-click menus show on macOS.
++ *
++ * A real NautilusFilesView (a list view in a browse slot, as a Files window has) gets its selection and background
++ * menus the way nautilus-files-view.c pops them up: gtk_popover_menu_new_from_model (NULL) parented to the view, with
++ * the menus of nautilus-files-view-context-menus.ui. GTK's own menu widgets then say which key each item shows:
++ * Cmd-X for Cut and Cmd-C for Copy (they showed upstream's Ctrl-X and Ctrl-C), and Cmd for Paste, Select All, New
++ * Folder, Properties and Move to Trash; F2 for Rename stays. Both menus are rendered to <renders>/selection-menu.png
++ * and background-menu.png.
++ *
++ * It lives with the Friends tests for the Friends views' quiet interposer (shenzhen-pdf gtk/tests/
++ * szfriends_gtk_quiet.c), which keeps this process out of the Dock and away from focus once GDK opens the display.
++ * No window is ever mapped, and the application the slot needs is made but never registered or run. Nothing here
++ * launches Shenzhen Files or a Friends helper.
++ *
++ * Usage: test-macos-context-menu-keys <renders dir>; run by tools/test-macos-context-menu-keys.sh.
++ */
++
++#include <ApplicationServices/ApplicationServices.h>
++#include <adwaita.h>
++#include <glib/gstdio.h>
++#include <stdio.h>
++
++#include <nautilus-application.h>
++#include <nautilus-file-utilities.h>
++#include <nautilus-files-view.h>
++#include <nautilus-global-preferences.h>
++#include <nautilus-resources.h>
++#include <nautilus-view-info.h>
++#include <nautilus-window-slot.h>
++
++int szfriends_gtk_quiet_transform_calls (void); /* the interposer */
++
++static int failures;
++static const char *renders;
++
++#define EXPECT(condition, ...) \
++        G_STMT_START { \
++            if (!(condition)) \
++            { \
++                failures++; \
++                fprintf (stderr, "FAIL %s:%d: ", __FILE__, __LINE__); \
++                fprintf (stderr, __VA_ARGS__); \
++                fprintf (stderr, "\n"); \
++            } \
++            else \
++            { \
++                printf ("ok   "); \
++                printf (__VA_ARGS__); \
++                printf ("\n"); \
++            } \
++        } G_STMT_END
++
++static void
++pump (void)
++{
++    gint64 until = g_get_monotonic_time () + 50 * 1000;
++
++    while (g_get_monotonic_time () < until)
++    {
++        g_main_context_iteration (NULL, FALSE);
++    }
++}
++
++/* The menu item labelled @text on the menu's first page, or NULL. */
++static GtkWidget *
++find_item (GtkWidget  *widget,
++           const char *text)
++{
++    GType model_button = g_type_from_name ("GtkModelButton");
++
++    if (model_button != 0 && G_TYPE_CHECK_INSTANCE_TYPE (widget, model_button))
++    {
++        g_autofree char *label = NULL;
++
++        g_object_get (widget, "text", &label, NULL);
++        if (g_strcmp0 (label, text) == 0)
++        {
++            return widget;
++        }
++    }
++    for (GtkWidget *child = gtk_widget_get_first_child (widget); child != NULL;
++         child = gtk_widget_get_next_sibling (child))
++    {
++        GtkWidget *found = find_item (child, text);
++
++        if (found != NULL)
++        {
++            return found;
++        }
++    }
++    return NULL;
++}
++
++static GtkWidget *
++find_stack (GtkWidget *widget)
++{
++    if (GTK_IS_STACK (widget))
++    {
++        return widget;
++    }
++    for (GtkWidget *child = gtk_widget_get_first_child (widget); child != NULL;
++         child = gtk_widget_get_next_sibling (child))
++    {
++        GtkWidget *stack = find_stack (child);
++
++        if (stack != NULL)
++        {
++            return stack;
++        }
++    }
++    return NULL;
++}
++
++/* What the item labelled @text shows as its key, as the menu draws it ("⌘X"), or "" for none. */
++static char *
++shown_key (GtkWidget  *menu,
++           const char *text)
++{
++    GtkWidget *item = find_item (menu, text);
++    g_autofree char *accel = NULL;
++    guint key = 0;
++    GdkModifierType mods = 0;
++
++    if (item == NULL)
++    {
++        return NULL;
++    }
++    g_object_get (item, "accel", &accel, NULL);
++    if (accel == NULL || !gtk_accelerator_parse (accel, &key, &mods))
++    {
++        return g_strdup ("");
++    }
++    return gtk_accelerator_get_label (key, mods);
++}
++
++static GskRenderer *
++renderer (void)
++{
++    static GskRenderer *shared;
++
++    if (shared == NULL)
++    {
++        shared = gsk_cairo_renderer_new ();
++        EXPECT (gsk_renderer_realize_for_display (shared, gdk_display_get_default (), NULL), "renderer realized");
++    }
++    return shared;
++}
++
++/* The menu's first page, laid out at its natural size and rendered at scale 2 to <renders>/<name>.png. */
++static void
++render_menu (GtkWidget  *menu,
++             const char *name)
++{
++    GtkWidget *stack = find_stack (menu);
++    GtkWidget *page = stack != NULL ? gtk_stack_get_visible_child (GTK_STACK (stack)) : NULL;
++    g_autofree char *file = g_strdup_printf ("%s/%s.png", renders, name);
++    GtkSnapshot *snapshot;
++    GskRenderNode *node;
++    GdkTexture *texture;
++    int width = 0, height = 0;
++    const GdkRGBA background = { 0.98f, 0.98f, 0.98f, 1 };
++
++    if (page == NULL)
++    {
++        EXPECT (FALSE, "the %s has a page to render", name);
++        return;
++    }
++    gtk_widget_measure (page, GTK_ORIENTATION_HORIZONTAL, -1, NULL, &width, NULL, NULL);
++    gtk_widget_measure (page, GTK_ORIENTATION_VERTICAL, width, NULL, &height, NULL, NULL);
++    if (!gtk_widget_get_mapped (page))
++    {
++        gtk_widget_map (page);
++    }
++    gtk_widget_allocate (page, width, height, -1, NULL);
++    snapshot = gtk_snapshot_new ();
++    gtk_snapshot_scale (snapshot, 2, 2);
++    gtk_snapshot_append_color (snapshot, &background, &GRAPHENE_RECT_INIT (0, 0, (float) width, (float) height));
++    gtk_widget_snapshot_child (gtk_widget_get_parent (page), page, snapshot);
++    node = gtk_snapshot_free_to_node (snapshot);
++    if (node == NULL)
++    {
++        EXPECT (FALSE, "the %s rendered", name);
++        return;
++    }
++    texture = gsk_renderer_render_texture (renderer (), node,
++                                           &GRAPHENE_RECT_INIT (0, 0, (float) width * 2, (float) height * 2));
++    gsk_render_node_unref (node);
++    EXPECT (gdk_texture_save_to_png (texture, file), "%s written", file);
++    g_object_unref (texture);
++}
++
++/* A right-click menu as the view pops it up (nautilus_files_view_pop_up_selection_context_menu), not shown. */
++static GtkWidget *
++context_menu (GtkWidget  *view,
++              const char *id)
++{
++    g_autoptr (GtkBuilder) builder =
++        gtk_builder_new_from_resource ("/org/gnome/nautilus/menu/nautilus-files-view-context-menus.ui");
++    GtkWidget *menu = gtk_popover_menu_new_from_model (NULL);
++
++    gtk_widget_set_parent (menu, view);
++    gtk_popover_set_has_arrow (GTK_POPOVER (menu), FALSE);
++    gtk_widget_set_halign (menu, GTK_ALIGN_START);
++    gtk_popover_menu_set_menu_model (GTK_POPOVER_MENU (menu), G_MENU_MODEL (gtk_builder_get_object (builder, id)));
++    gtk_widget_realize (menu);
++    pump ();
++    return menu;
++}
++
++static void
++expect_key (GtkWidget  *menu,
++            const char *menu_name,
++            const char *item,
++            const char *key)
++{
++    g_autofree char *shown = shown_key (menu, item);
++
++    EXPECT (g_strcmp0 (shown, key) == 0, "%s: %s shows %s (shows %s)", menu_name, item, key,
++            shown != NULL ? (shown[0] != '\0' ? shown : "no key") : "no such item");
++}
++
++int
++main (int   argc,
++      char *argv[])
++{
++    NautilusApplication *application;
++    NautilusWindowSlot *slot;
++    NautilusFilesView *view;
++    GtkWidget *window, *menu;
++    int before;
++
++    if (argc != 2)
++    {
++        fprintf (stderr, "usage: %s <renders dir>\n", argv[0]);
++        return 2;
++    }
++    renders = argv[1];
++    g_mkdir_with_parents (renders, 0755);
++
++    /* Before GDK opens the display: prove the interposer will keep this process out of the Dock. */
++    before = szfriends_gtk_quiet_transform_calls ();
++    TransformProcessType (NULL, 0);
++    if (szfriends_gtk_quiet_transform_calls () != before + 1)
++    {
++        fprintf (stderr, "test-macos-context-menu-keys: the interposer is not active; not opening a display\n");
++        return 2;
++    }
++    if (!gtk_init_check ())
++    {
++        fprintf (stderr, "test-macos-context-menu-keys: no display; the probe needs a logged-in session\n");
++        return 1;
++    }
++    adw_init ();
++    adw_style_manager_set_color_scheme (adw_style_manager_get_default (), ADW_COLOR_SCHEME_FORCE_LIGHT);
++    nautilus_register_resource ();
++    nautilus_ensure_extension_points ();
++    nautilus_global_preferences_init ();
++
++    /* The application a slot asks for its bookmarks: made, never registered or run. */
++    application = nautilus_application_new ();
++    slot = nautilus_window_slot_new (NAUTILUS_MODE_BROWSE);
++    view = nautilus_files_view_new (NAUTILUS_VIEW_LIST_ID, slot);
++    window = gtk_window_new ();
++    gtk_window_set_child (GTK_WINDOW (window), GTK_WIDGET (view));
++    gtk_widget_realize (window);
++    pump ();
++
++    menu = context_menu (GTK_WIDGET (view), "selection-menu");
++    expect_key (menu, "selection menu", "Cut", "⌘X");
++    expect_key (menu, "selection menu", "Copy", "⌘C");
++    expect_key (menu, "selection menu", "Move to Trash", "⌘⌫");
++    expect_key (menu, "selection menu", "Properties", "⌘I");
++    expect_key (menu, "selection menu", "Rename…", "F2");
++    render_menu (menu, "selection-menu");
++    gtk_widget_unparent (menu);
++
++    menu = context_menu (GTK_WIDGET (view), "background-menu");
++    expect_key (menu, "background menu", "New Folder…", "⇧⌘N");
++    expect_key (menu, "background menu", "Paste", "⌘V");
++    expect_key (menu, "background menu", "Select All", "⌘A");
++    render_menu (menu, "background-menu");
++    gtk_widget_unparent (menu);
++
++    EXPECT (!gtk_widget_get_mapped (window), "no window was ever mapped");
++    gtk_window_destroy (GTK_WINDOW (window));
++    g_object_unref (slot);
++    g_object_unref (application);
++
++    if (failures > 0)
++    {
++        fprintf (stderr, "test-macos-context-menu-keys: %d failure(s)\n", failures);
++        return 1;
++    }
++    printf ("test-macos-context-menu-keys passed\n");
++    return 0;
++}
 diff --git a/test/friends/test-nautilus-friends-bundle.c b/test/friends/test-nautilus-friends-bundle.c
 new file mode 100644
 index 0000000..272d981
