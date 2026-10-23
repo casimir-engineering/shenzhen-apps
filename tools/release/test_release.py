@@ -167,6 +167,31 @@ def test_stages():
     check("another commit or version does not reuse the stamps", other.cached("a") is None)
 
 
+def test_interrupted_command():
+    log = os.path.join(TMP, "interrupt.log")
+    check("a failing command is a failure, not an interruption",
+          common.run(["sh", "-c", "exit 3"], log=log, check=False) == 3)
+    for name, cmd in (("killed by SIGINT", ["sh", "-c", "kill -INT $$"]),
+                      ("exiting 130 after a SIGINT", ["bash", "-c", "exit 130"])):
+        try:
+            common.run(cmd, log=log, check=False)
+            check(f"a command {name} stops the run", False)
+        except KeyboardInterrupt:
+            check(f"a command {name} stops the run", True)
+    ran = []
+
+    def sweep():
+        for suite in ("first", "interrupted", "after"):
+            ran.append(suite)
+            common.run(["sh", "-c", "kill -INT $$" if suite == "interrupted" else "true"], log=log, check=False)
+    try:
+        common.parallel({"notarize": lambda: None, "tests": sweep})
+        check("an interrupted test sweep stops the run", False)
+    except KeyboardInterrupt:
+        check("an interrupted test sweep stops the run", True)
+    check("no suite runs after the interrupted one", ran == ["first", "interrupted"], ran)
+
+
 def test_test_stamps(mono):
     stamp = os.path.join(mono, "tools/test-stamp.sh")
     ok = lambda *args: subprocess.run([stamp, *args], cwd=mono, capture_output=True).returncode == 0  # noqa: E731
@@ -241,6 +266,7 @@ def main():
     try:
         mono, remote, previous = setup()
         test_stages()
+        test_interrupted_command()
         test_test_stamps(mono)
         test_source_tag(mono, remote, previous)
         test_publish()

@@ -7,6 +7,7 @@ import os
 import re
 import shlex
 import shutil
+import signal
 import subprocess
 import sys
 import threading
@@ -70,6 +71,11 @@ def run(cmd, *, cwd=None, env=None, log=None, check=True, capture=False, timeout
         except subprocess.TimeoutExpired:
             raise Failure(f"{os.path.basename(str(cmd[0]))} took longer than {timeout} s" +
                           (f"; log: {log}" if log else ""))
+    if p.returncode in (-signal.SIGINT, 128 + signal.SIGINT):
+        # Ctrl-C, or SIGINT to the run's process group, reaches the command first: that stops the run, it is not
+        # the command failing. Raised in a parallel() job too, so a test sweep stops instead of calling the
+        # interrupted suite FAILED and going on to the next one.
+        raise KeyboardInterrupt
     if check and p.returncode != 0:
         detail = f"; log: {log}" if log else ""
         raise Failure(f"{' '.join(os.path.basename(str(c)) if i == 0 else str(c) for i, c in enumerate(cmd[:3]))}"
