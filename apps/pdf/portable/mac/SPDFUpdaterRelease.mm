@@ -57,6 +57,18 @@ BOOL spdf_release_tag_matches_running_version(NSString* tag, NSString* runningVe
     return YES;
 }
 
+NSString* spdf_running_version_from_info(NSDictionary* info) {
+    NSString* shortVersion = info[@"CFBundleShortVersionString"];
+    if (![shortVersion isKindOfClass:NSString.class] || shortVersion.length == 0) return nil;
+    if (!spdf_version_components(shortVersion)) return nil;
+    // The release, not the build: MAC_BUILD also counts Friends changes, so 26.10.20-1 can carry build 8.
+    NSString* releaseTag = info[@"SZFReleaseTag"];
+    if ([releaseTag isKindOfClass:NSString.class] && spdf_version_components(releaseTag).count == 4) return releaseTag;
+    NSString* build = info[(NSString*)kCFBundleVersionKey];
+    if (![build isKindOfClass:NSString.class] || build.length == 0) build = @"1";
+    return [NSString stringWithFormat:@"%@-%@", shortVersion, build];
+}
+
 NSString* spdf_format_release_notes_for_alert(NSString* body) {
     if (![body isKindOfClass:NSString.class] || body.length == 0) return @"";
     NSCharacterSet* ws = NSCharacterSet.whitespaceCharacterSet;
