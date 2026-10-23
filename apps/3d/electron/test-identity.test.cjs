@@ -71,16 +71,24 @@ test("every Mac updater test launches with its own profile and ends what it star
     assert.match(read(file), /finally:\n\s+end_test_processes\(/, file);
 });
 
-test("sweep.py ends a process left under a test directory, by path, and leaves others alone", { skip: process.platform !== "darwin" }, async () => {
+// The leftover is a sleeper compiled here, outside any .app. A copy of /bin/sleep is an Apple platform binary run from
+// outside the system volume: Gatekeeper kills it, and inside a "Shenzhen 3D.app" folder it shows "Shenzhen 3D.app is
+// damaged and can't be opened" on the person's screen.
+const hasCompiler = process.platform === "darwin" && spawnSync("xcrun", ["--find", "cc"], { stdio: "ignore" }).status === 0;
+
+test("sweep.py ends a process left under a test directory, by path, and leaves others alone", { skip: !hasCompiler }, async () => {
   const work = fs.mkdtempSync(path.join(os.tmpdir(), "szut-sweep-"));
   const outside = spawn("/bin/sleep", ["60"], { stdio: "ignore" });
   let left;
   try {
-    const macos = path.join(work, "relaunch/Shenzhen 3D.app/Contents/MacOS");
-    fs.mkdirSync(macos, { recursive: true });
-    const exe = path.join(macos, "Shenzhen 3D");
-    fs.copyFileSync("/bin/sleep", exe);
-    fs.chmodSync(exe, 0o755);
+    const dir = path.join(work, "relaunch");
+    fs.mkdirSync(dir, { recursive: true });
+    const exe = path.join(dir, "szut-sleeper");
+    const cc = spawnSync("xcrun", ["cc", "-x", "c", "-o", exe, "-"], {
+      input: "#include <stdlib.h>\n#include <unistd.h>\nint main(int c, char **v) { sleep(c > 1 ? atoi(v[1]) : 60); return 0; }\n",
+      encoding: "utf8",
+    });
+    assert.equal(cc.status, 0, cc.stderr);
     // As the updater reopens an app: detached, its command line naming nothing of the test.
     left = spawn(exe, ["60"], { detached: true, stdio: "ignore" });
     left.unref();
