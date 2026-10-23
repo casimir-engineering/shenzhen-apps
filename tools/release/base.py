@@ -51,6 +51,7 @@ class Release:
             raise Failure("this worktree has uncommitted changes; a release builds HEAD as committed. Commit or stash "
                           "them first:\n" + status)
         run([os.path.join(self.repo, "tools", "check-friends-number.sh")], cwd=self.repo, log=log)
+        run([os.path.join(self.repo, "tools", "check-tests-leave-apps-alone.sh")], cwd=self.repo, log=log)
         committed = self.committed_version()
         if committed != self.tag:
             if self.opts.publish:

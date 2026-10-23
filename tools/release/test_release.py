@@ -192,6 +192,38 @@ def test_interrupted_command():
     check("no suite runs after the interrupted one", ran == ["first", "interrupted"], ran)
 
 
+def test_tests_leave_apps_alone():
+    repo = os.path.dirname(os.path.dirname(HERE))
+    guard = os.path.join(repo, "tools", "check-tests-leave-apps-alone.sh")
+    root = os.path.join(TMP, "apps-alone")
+    allowed = ["apps/3d/electron/test-identity.test.cjs", "apps/files/package/updater-helper-process-test.swift",
+               "tools/updater-e2e/sweep.py", "tools/updater-e2e/szut.m"]
+    for path in allowed:
+        os.makedirs(os.path.dirname(os.path.join(root, path)), exist_ok=True)
+        shutil.copyfile(os.path.join(repo, path), os.path.join(root, path))
+    os.makedirs(os.path.join(root, "apps/pdf/tests"))
+    script = os.path.join(root, "apps/pdf/tests/run-app.sh")
+    open(script, "w").write('"$APP_UNDER_TEST/Contents/MacOS/ShenzhenPDF" & pid=$!\nkill "$pid"\n')
+    sh("git", "init", "-q", root)
+    result = lambda: subprocess.run([guard, "--root", root], capture_output=True, text=True)  # noqa: E731
+    check("a test acting on what it started passes", result().returncode == 0, result().stdout + result().stderr)
+    # Spelled in pieces so this file does not trip the guard itself.
+    for name, line in (("quitting an app by name", "osa" + "script -e 'quit app \"ShenzhenPDF\"'"),
+                       ("killing by name", "kill" + "all ShenzhenPDF"),
+                       ("opening by bundle id", "open" + " -b com.intuition.shenzhenpdf"),
+                       ("naming the installed copy", 'cp -R "/Appli' + 'cations/ShenzhenPDF.app" .')):
+        open(script, "w").write(line + "\n")
+        out = result()
+        check(f"a test {name} is refused", out.returncode == 1 and "apps/pdf/tests/run-app.sh:1:" in out.stdout,
+              out.stdout + out.stderr)
+    open(script, "w").write("true\n")
+    swift = os.path.join(root, allowed[1])
+    open(swift, "w").write("// no lookups left\n")
+    out = result()
+    check("an allowed file that no longer matches must leave the list", out.returncode == 1 and allowed[1] in out.stdout,
+          out.stdout + out.stderr)
+
+
 def test_test_stamps(mono):
     stamp = os.path.join(mono, "tools/test-stamp.sh")
     ok = lambda *args: subprocess.run([stamp, *args], cwd=mono, capture_output=True).returncode == 0  # noqa: E731
@@ -267,6 +299,7 @@ def main():
         mono, remote, previous = setup()
         test_stages()
         test_interrupted_command()
+        test_tests_leave_apps_alone()
         test_test_stamps(mono)
         test_source_tag(mono, remote, previous)
         test_publish()
