@@ -212,6 +212,85 @@ kbd {
   min-width: 0;
   flex: 1;
   font-size: 12px;
+  overflow: hidden;
+}
+/* A narrow header folds (HeaderMore.tsx sets data-fold): nothing in it shrinks but the document's name, and what
+   is folded away is in the More menu. */
+.app-header > * {
+  flex-shrink: 0;
+}
+.app-header > .document-title {
+  flex-shrink: 1;
+}
+.header-open {
+  margin-left: auto;
+  white-space: nowrap;
+}
+.header-more {
+  position: relative;
+  display: none;
+}
+.app-header[data-fold~="help"] .header-more {
+  display: inline-flex;
+}
+.app-header[data-fold~="title"] .document-title,
+.app-header[data-fold~="title"] .header-divider,
+.app-header[data-fold~="shortcut"] .header-open kbd,
+.app-header[data-fold~="wordmark"] .brand > span,
+.app-header[data-fold~="help"] .header-help,
+.app-header[data-fold~="share"] .header-share,
+.app-header[data-fold~="settings"] .header-settings,
+.app-header[data-fold~="close"] .header-close,
+.app-header[data-fold~="label"] .header-open > span {
+  display: none;
+}
+.app-header[data-fold~="label"] .header-open {
+  padding-left: 9px;
+  padding-right: 9px;
+}
+.header-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 120;
+  display: flex;
+  flex-direction: column;
+  min-width: 200px;
+  max-width: calc(100vw - 20px);
+  padding: 4px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: 0 10px 30px rgb(0 0 0 / 22%);
+}
+.header-menu button {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+  min-height: 40px;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.header-menu button svg {
+  flex-shrink: 0;
+  color: var(--secondary);
+}
+.header-menu button:hover,
+.header-menu button:focus-visible {
+  background: var(--jade-wash);
+  color: var(--jade);
+}
+.header-menu button:disabled {
+  opacity: 0.5;
 }
 .document-title > span {
   overflow: hidden;
@@ -219,6 +298,7 @@ kbd {
   white-space: nowrap;
 }
 .document-title small {
+  flex-shrink: 0;
   font: 10px var(--mono);
   background: var(--raised);
   color: var(--secondary);
@@ -1615,9 +1695,6 @@ kbd {
     width: 26px;
     height: 26px;
   }
-  .document-title {
-    display: none;
-  }
   .app-header .button {
     margin-left: auto;
     min-height: 36px;
@@ -1626,9 +1703,6 @@ kbd {
   }
   .app-header > .icon-button {
     width: 32px;
-  }
-  .app-header > .icon-button:last-child {
-    display: none;
   }
   .workspace-toolbar {
     height: 52px;

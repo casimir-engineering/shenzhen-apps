@@ -362,8 +362,17 @@ try {
 
   // Last, as it resets this test's Friends: the join page's Friends ID field (Settings ▸ Use my existing profile…).
   await page(`document.querySelector('.mobile-close[aria-label="Close measurements"]')?.click(); return true;`);
-  // With a model open, a phone under about 410 dp wide has the header's Settings button past its right edge.
-  await page(`document.querySelector('button[title="Settings"]').click(); return true;`);
+  // Settings, or More ▸ Settings where a narrow header folds it there (phones-header.mjs).
+  const settingsButton = `document.querySelector('.app-header button[title="Settings"]')`;
+  if (await page(`return !${settingsButton}.getBoundingClientRect().width;`)) {
+    await tapElement(`document.querySelector('.app-header button[aria-label="More"]')`, "More");
+    await tapElement(
+      `[...document.querySelectorAll('.app-header [role="menuitem"]')].find((m) => m.innerText.trim() === "Settings")`,
+      "More ▸ Settings",
+    );
+  } else {
+    await tapElement(settingsButton, "Settings in the header");
+  }
   const settings = `document.querySelector('[data-szfriends="settings"]')`;
   await tapElement(`__szk.button(${settings}, "Use my existing profile…")`, "Use my existing profile… in Settings");
   const confirmBox = `document.querySelector('[data-szfriends="settings"] [role=alertdialog]')`;

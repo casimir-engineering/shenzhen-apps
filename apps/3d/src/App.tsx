@@ -14,6 +14,11 @@ import "./core/safe-area";
 import "./core/keyboard";
 import { CommandPalette, type Command } from "./components/CommandPalette";
 import {
+  HeaderMore,
+  useHeaderFit,
+  type HeaderMoreItem,
+} from "./components/HeaderMore";
+import {
   friendsRequests,
   friendsShortcutLabel,
   isFriendsShortcut,
@@ -141,16 +146,18 @@ function IconButton({
   onClick,
   children,
   disabled = false,
+  className = "",
 }: {
   title: string;
   active?: boolean;
   onClick: () => void;
   children: React.ReactNode;
   disabled?: boolean;
+  className?: string;
 }) {
   return (
     <button
-      className={`icon-button ${active ? "active" : ""}`}
+      className={`icon-button ${active ? "active" : ""} ${className}`}
       title={title}
       aria-label={title}
       aria-pressed={active === undefined ? undefined : active}
@@ -196,6 +203,8 @@ function App() {
   const fileInput = useRef<HTMLInputElement>(null);
   const help = useRef<HTMLDialogElement>(null);
   const settings = useRef<HTMLDialogElement>(null);
+  const header = useRef<HTMLElement>(null);
+  const headerFolds = useHeaderFit(header);
   const [updatesOpen, setUpdatesOpen] = useState(false);
   const [updateStatus, setUpdateStatus] = useState<UpdateState["status"]>();
   // The version the app itself runs as (the one Updates compares), else the one this page was built from.
@@ -1462,6 +1471,38 @@ function App() {
           : points.length === 1
             ? "Pick a second " + (mode === "feature" ? "feature" : "point")
             : "Measurement complete · pick to start again";
+  // What a narrow header folded into its More menu, in the header's order.
+  const moreItems: HeaderMoreItem[] = [];
+  if (doc && headerFolds.includes("share"))
+    moreItems.push({
+      id: "share",
+      title: "Share commented project",
+      icon: <Share2 size={16} />,
+      run: () => void shareProject(),
+      disabled: sharing,
+    });
+  if (doc && headerFolds.includes("close"))
+    moreItems.push({
+      id: "close",
+      title: "Close document",
+      icon: <X size={16} />,
+      run: closeDocument,
+      disabled: !!loading,
+    });
+  if (headerFolds.includes("settings"))
+    moreItems.push({
+      id: "settings",
+      title: "Settings",
+      icon: <Settings2 size={16} />,
+      run: () => settings.current?.showModal(),
+    });
+  if (headerFolds.includes("help"))
+    moreItems.push({
+      id: "help",
+      title: "Help & shortcuts",
+      icon: <HelpCircle size={16} />,
+      run: () => help.current?.showModal(),
+    });
   return (
     <div
       className="app"
@@ -1494,7 +1535,7 @@ function App() {
           e.target.value = "";
         }}
       />
-      <header className="app-header">
+      <header className="app-header" ref={header}>
         <a
           className="brand"
           href="#"
@@ -1516,7 +1557,8 @@ function App() {
           ) : null}
         </div>
         <button
-          className="button primary"
+          className="button primary header-open"
+          aria-label="Open file"
           onClick={() => void open()}
           disabled={!!loading}
         >
@@ -1527,6 +1569,7 @@ function App() {
         {doc && (
           <IconButton
             title="Share commented project"
+            className="header-share"
             disabled={sharing}
             onClick={() => void shareProject()}
           >
@@ -1536,6 +1579,7 @@ function App() {
         {doc && (
           <IconButton
             title="Close document"
+            className="header-close"
             onClick={closeDocument}
             disabled={!!loading}
           >
@@ -1556,16 +1600,19 @@ function App() {
         )}
         <IconButton
           title="Settings"
+          className="header-settings"
           onClick={() => settings.current?.showModal()}
         >
           <Settings2 size={18} />
         </IconButton>
         <IconButton
           title="Help & shortcuts"
+          className="header-help"
           onClick={() => help.current?.showModal()}
         >
           <HelpCircle size={18} />
         </IconButton>
+        <HeaderMore items={moreItems} />
       </header>
       {doc && (
         <div className="workspace-toolbar">
