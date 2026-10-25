@@ -15,7 +15,8 @@ type GlyphName =
   | "offline"
   | "copy"
   | "back"
-  | "verified";
+  | "verified"
+  | "paperclip";
 
 const arc = (cx: number, cy: number, r: number, from: number, to: number) => {
   const a = (from * Math.PI) / 180,
@@ -117,6 +118,14 @@ const GLYPHS: Record<
     box: 16,
     width: 1.6,
     d: "M14 8A6 6 0 1 1 2 8A6 6 0 1 1 14 8ZM5.2 8.2L7.2 10.2L10.8 6",
+  },
+  // Attach files: a paperclip leaning right, its three bends half circles.
+  paperclip: {
+    box: 16,
+    width: 1.3,
+    d:
+      "M11.54 8L7.47 12.07A2.5 2.5 0 0 1 3.93 8.53L9.24 3.23A1.75 1.75 0 0 1 11.71 5.7" +
+      "L6.76 10.65A0.75 0.75 0 0 1 5.7 9.59L9.41 5.88",
   },
 };
 

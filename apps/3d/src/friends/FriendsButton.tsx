@@ -199,6 +199,41 @@ export function FriendsButton({ attach }: { attach: AttachSource | null }) {
       }),
     [],
   );
+  // Phones: files another app shared with this one (Android's share sheet) open the list to choose who receives
+  // them, as files dropped on the button do. The app comes to the front for a share, so it looks then.
+  const sharing = Boolean(
+    bridge?.sharedFiles && status?.available && status.enabled,
+  );
+  useEffect(() => {
+    if (!sharing || !bridge?.sharedFiles) return;
+    const take = bridge.sharedFiles;
+    let looking = false;
+    const look = async () => {
+      if (looking || document.visibilityState !== "visible") return;
+      looking = true;
+      try {
+        const files = await take();
+        if (files.length) {
+          setOutgoing({
+            files,
+            names: files.map((file) => file.display_name),
+          });
+          setOpen(true);
+        }
+      } catch {
+        // Nothing shared could be read: nothing to send.
+      } finally {
+        looking = false;
+      }
+    };
+    void look();
+    document.addEventListener("visibilitychange", look);
+    window.addEventListener("focus", look);
+    return () => {
+      document.removeEventListener("visibilitychange", look);
+      window.removeEventListener("focus", look);
+    };
+  }, [sharing, bridge]);
   // A notification clicked: the dropdown opens on its conversation (or the list).
   useEffect(
     () =>

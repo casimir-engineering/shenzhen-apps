@@ -12,7 +12,7 @@ const source = fs.readFileSync(new URL("./bridge.js", import.meta.url), "utf8");
 // Values made inside the page's realm, compared as plain data.
 const plain = (value) => JSON.parse(JSON.stringify(value));
 
-function page(label, { stagedDropLimit = 0, webview = null, dropPaths = null, dragOver = false } = {}) {
+function page(label, { stagedDropLimit = 0, webview = null, dropPaths = null, dragOver = false, shares = false } = {}) {
   const calls = [];
   const listeners = {};
   const callbacks = new Map();
@@ -48,7 +48,8 @@ function page(label, { stagedDropLimit = 0, webview = null, dropPaths = null, dr
   const script = source
     .replace("__SZFRIENDS_WINDOWS__", '["main"]')
     .replace("__SZFRIENDS_STAGED_DROP_LIMIT__", String(stagedDropLimit))
-    .replace("__SZFRIENDS_DRAG_OVER__", String(dragOver));
+    .replace("__SZFRIENDS_DRAG_OVER__", String(dragOver))
+    .replace("__SZFRIENDS_SHARES__", String(shares));
   vm.runInContext(script, context);
   return { window, calls, callbacks, listeners };
 }
@@ -145,4 +146,20 @@ test("a Mac says when files are dragged over its window, at most every 200 ms; e
   assert.equal(asked.length, 1, "once within 200 ms, and only for files");
   const elsewhere = page("main");
   assert.equal(elsewhere.listeners.dragover, undefined);
+});
+
+test("Attach files and shared files: the plugin's own picker on phones, shares on Android only, neither on desktops", async () => {
+  const desktop = page("main").window.shenzhenFriends;
+  assert.equal(desktop.chooseFiles, undefined, "desktops open the dialog plugin from the page");
+  assert.equal(desktop.sharedFiles, undefined);
+  const iphone = page("main", { stagedDropLimit: 250e6 }).window.shenzhenFriends;
+  assert.equal(typeof iphone.chooseFiles, "function");
+  assert.equal(iphone.sharedFiles, undefined, "no share target on iOS");
+  const android = page("main", { stagedDropLimit: 250e6, shares: true });
+  await android.window.shenzhenFriends.chooseFiles();
+  await android.window.shenzhenFriends.sharedFiles();
+  assert.deepEqual(
+    android.calls.map((call) => call.command),
+    ["plugin:szfriends|choose_files", "plugin:szfriends|shared_files"],
+  );
 });

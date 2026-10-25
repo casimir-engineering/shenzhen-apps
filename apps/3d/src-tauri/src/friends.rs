@@ -10,9 +10,11 @@ use std::sync::Arc;
 /// model, files may be dropped, `@` mentions friends, a list row's menu opens on right-click (a long press on
 /// phones), people nearby show how they were found, a friend's file can be fetched from them again (Get again),
 /// and the panel says which conversation the person is looking at, so it does not notify (`notifications.focus`).
-/// Phones have nothing to drop files from, so their composer does not suggest it. The list's card that asks to turn
-/// notifications on is for a Mac and an iPhone (`notifications.ask`); Android asks with its Bluetooth permissions
-/// and can keep Friends reachable in the background instead (`background.reachable`).
+/// Phones have nothing to drop files from, so their composer does not suggest it; they still hold files for a
+/// friend chosen from the list (shared from another app, Send project to a friend), so their rows take files
+/// (`send.files`). The list's card that asks to turn notifications on is for a Mac and an iPhone
+/// (`notifications.ask`); Android asks with its Bluetooth permissions and can keep Friends reachable in the
+/// background instead (`background.reachable`).
 #[cfg(desktop)]
 const CAPABILITIES: &[&str] = &[
     "attach.items",
@@ -28,6 +30,7 @@ const CAPABILITIES: &[&str] = &[
 #[cfg(target_os = "ios")]
 const CAPABILITIES: &[&str] = &[
     "attach.items",
+    "send.files",
     "mentions",
     "list.menu",
     "nearby.found",
@@ -38,6 +41,7 @@ const CAPABILITIES: &[&str] = &[
 #[cfg(target_os = "android")]
 const CAPABILITIES: &[&str] = &[
     "attach.items",
+    "send.files",
     "mentions",
     "list.menu",
     "nearby.found",

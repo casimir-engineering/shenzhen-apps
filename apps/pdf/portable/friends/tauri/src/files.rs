@@ -266,6 +266,43 @@ pub fn stage(outgoing: &Path, name: &str, bytes: &[u8], extensions: &[String]) -
     Ok(file)
 }
 
+/// A new private folder among the staged copies for the files a phone's own picker or share sheet copies for
+/// sending (Attach files, a share from another app); swept with them.
+pub fn picked_folder(outgoing: &Path) -> Result<PathBuf, &'static str> {
+    let mut random = [0u8; 16];
+    szfriends_crypto::random_bytes(&mut random);
+    let folder = outgoing.join(random.iter().map(|b| format!("{b:02x}")).collect::<String>());
+    szfriends_helper::state::create_private_dir(&folder).map_err(|_| "Could not stage")?;
+    Ok(folder)
+}
+
+/// The most files one pick or share hands over, as send_files takes at once.
+const MAX_PICKED: usize = 100;
+
+/// What the platform half copied into `folder` (`[{"path": …}]`), as send_files' file objects: only regular files
+/// (never a link) directly inside a subfolder of `folder`, each named as the person saw it there; anything else is
+/// left out. The platform half writes `folder/<n>/<name>`, so two files of one name both go.
+pub fn picked_files(folder: &Path, copied: &Value) -> Vec<Value> {
+    let folders = state_directories(folder);
+    copied
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|entry| entry["path"].as_str())
+        .filter(|file| crate::validate::plain_path(file))
+        .filter(|file| {
+            let path = Path::new(file);
+            let inside = path.parent().and_then(Path::parent).is_some_and(|p| folders.iter().any(|f| f == p));
+            inside && fs::symlink_metadata(path).is_ok_and(|m| m.file_type().is_file())
+        })
+        .filter_map(|file| {
+            let name = Path::new(file).file_name()?.to_str()?;
+            (!name.is_empty() && name.len() <= 1024).then(|| json!({"path": file, "display_name": name}))
+        })
+        .take(MAX_PICKED)
+        .collect()
+}
+
 /// Removes staged copies older than a link can live, plus a day.
 pub fn sweep_outgoing(outgoing: &Path) {
     let Ok(entries) = fs::read_dir(outgoing) else { return };

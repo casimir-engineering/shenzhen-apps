@@ -1,13 +1,17 @@
 // The conversation's composer: text, `@` mention chips (one U+FFFC each in the sent text, PROTOCOL.md § Mentions),
-// `#` attachment chips from the host's items, and dropped files. Return sends; Shift+Return breaks the line; Escape
+// `#` attachment chips from the host's items, files chosen with Attach files (the system's file picker), and dropped
+// files. Return sends; Shift+Return breaks the line; Escape
 // closes the innermost picker first. Drafts and their chips survive leaving the conversation and closing the panel.
 import { useEffect, useRef, useState } from "react";
 import type { Composer as ComposerData, ListData, ListRow } from "./protocol";
 import { utf8Length } from "./actions";
 import { AvatarView, RichText, usePanel } from "./parts";
+import { Glyph } from "./glyphs";
 import { useView } from "./store";
 import {
   AttachRefused,
+  canChooseFiles,
+  chooseFiles,
   dragHasFiles,
   filesFromDrop,
   type OutgoingFile,
@@ -226,6 +230,26 @@ export function ComposerView({
     }
   };
 
+  // Attach files: any file the system's picker reaches, checked as a drop is; chips until Send.
+  const attachChosen = async () => {
+    setRefusal(null);
+    let chosen;
+    try {
+      chosen = await chooseFiles(bridge, strings);
+    } catch {
+      return;
+    }
+    setRefusal(chosen.refusal);
+    if (chosen.files.length)
+      setAttachments((old) => [
+        ...old,
+        ...chosen.files.filter(
+          (file) => !old.some((entry) => entry.path === file.path),
+        ),
+      ]);
+    editor.current?.focus();
+  };
+
   const send = async () => {
     const root = editor.current;
     if (!root || sending || !composer.enabled) return;
@@ -368,6 +392,19 @@ export function ComposerView({
         </div>
       )}
       <div className="szf-composer-row">
+        {strings.attach_files && canChooseFiles(bridge) && (
+          <button
+            type="button"
+            className="szf-attach"
+            title={strings.attach_files}
+            aria-label={strings.attach_files}
+            disabled={!composer.enabled || sending}
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={() => void attachChosen()}
+          >
+            <Glyph name="paperclip" size={18} />
+          </button>
+        )}
         <div
           ref={editor}
           className={`szf-editor ${composer.enabled ? "" : "disabled"}`}

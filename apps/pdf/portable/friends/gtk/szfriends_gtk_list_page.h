@@ -27,6 +27,7 @@ extern const SZFriendsGtkPageClass szfriends_gtk_list_page_class;
 typedef void (*SZFriendsGtkRun)(gpointer data);
 typedef void (*SZFriendsGtkRunTicked)(gboolean ticked, gpointer data);
 typedef void (*SZFriendsGtkChosen)(const char *path, gpointer data); /* path NULL: cancelled */
+typedef void (*SZFriendsGtkChosenFiles)(GSList *files, gpointer data); /* GFile list; NULL: cancelled */
 typedef struct {
     void (*copy_text)(GtkWidget *source, const char *text, gpointer data);
     void (*open_uri)(GtkWidget *source, const char *uri, gpointer data);
@@ -39,9 +40,13 @@ typedef struct {
     /* Settings' Change… for where received files go: a folder, starting at `start` (may be NULL). */
     void (*choose_folder)(GtkWidget *source, const char *start, SZFriendsGtkChosen chosen, gpointer chosen_data,
                           gpointer data);
+    /* The composer's Attach files: any files, several at once. */
+    void (*choose_files)(GtkWidget *source, SZFriendsGtkChosenFiles chosen, gpointer chosen_data, gpointer data);
 } SZFriendsGtkSeams;
 void szfriends_gtk_set_seams(const SZFriendsGtkSeams *seams);
 void szfriends_gtk_copy_text(GtkWidget *source, const char *text);
+/* The system's file chooser for any files, several at once (the composer's Attach files). */
+void szfriends_gtk_choose_files(GtkWidget *source, SZFriendsGtkChosenFiles chosen, gpointer data);
 void szfriends_gtk_open_uri(GtkWidget *source, const char *uri);
 /* Asks for an image file (the system's open dialog, titled `title`); chosen(path or NULL, data) runs once. */
 void szfriends_gtk_choose_image(GtkWidget *source, const char *title, SZFriendsGtkChosen chosen, gpointer data);

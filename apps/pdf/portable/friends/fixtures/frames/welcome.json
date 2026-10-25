@@ -44,6 +44,7 @@
     "conversation_search_placeholder": "Search this conversation",
     "attach_keys": "↵ Attach · Esc Close",
     "attach_note": "Attaching sends nothing yet",
+    "attach_files": "Attach files",
     "drop_hint": "Drop on a friend to send. Release on the Friends button to choose afterwards.",
     "drop_folders_refused": "Folders can’t be sent yet",
     "drop_not_a_file": "Links and special files can’t be sent. Drop the original file instead.",

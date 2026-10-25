@@ -145,6 +145,20 @@ SZFriendsPress SZFriendsPressFromEvent(NSEvent *event, NSTimeInterval now) {
             completion(response == NSModalResponseOK ? panel.URL.path : nil);
         }];
     };
+    _chooseFiles = ^(NSWindow *window, void (^completion)(NSArray<NSURL *> *files)) {
+        NSOpenPanel *panel = [NSOpenPanel openPanel];
+        SZFriendsHideWindowFromAssistant(panel, SZFriendsIdentifierOpenPanel);
+        panel.canChooseFiles = YES;
+        panel.canChooseDirectories = NO;
+        panel.allowsMultipleSelection = YES;
+        panel.resolvesAliases = YES;
+        // Not modal for the app: the dropdown is semi-transient and stays open while the panel is up.
+        void (^answer)(NSModalResponse) = ^(NSModalResponse response) {
+            completion(response == NSModalResponseOK && panel.URLs.count ? panel.URLs : nil);
+        };
+        (void)window;
+        [panel beginWithCompletionHandler:answer];
+    };
     return self;
 }
 

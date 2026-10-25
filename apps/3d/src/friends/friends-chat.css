@@ -272,6 +272,17 @@
   gap: 6px;
   align-items: flex-end;
 }
+/* Attach files: the paperclip beside the field, as tall as its first line. */
+.szf-attach {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  color: var(--secondary);
+}
+.szf-attach:disabled {
+  opacity: 0.5;
+}
 .szf-editor {
   flex: 1;
   min-height: 30px;

@@ -77,6 +77,10 @@ SZFriendsPress SZFriendsPressFromEvent(NSEvent *_Nullable event, NSTimeInterval 
 @property(nonatomic, copy, nullable) NSString *promiseDirectory; // where dropped file promises are received
 // Asks for an image file (Use your own picture…); defaults to an open panel. Tests answer it directly.
 @property(nonatomic, copy) void (^chooseImage)(void (^completion)(NSString *_Nullable path));
+// Attach files: asks for any files, several at once (an open panel, beside `window` when there is one); nil when
+// cancelled. Tests answer it directly.
+@property(nonatomic, copy) void (^chooseFiles)(NSWindow *_Nullable window,
+                                               void (^completion)(NSArray<NSURL *> *_Nullable files));
 // Runs `block` on the main queue after `seconds`; Block's armed pill times out through it. Tests replace it to fire
 // the timer on demand instead of waiting.
 @property(nonatomic, copy) void (^scheduleAfter)(NSTimeInterval seconds, dispatch_block_t block);

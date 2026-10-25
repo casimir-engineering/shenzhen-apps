@@ -154,6 +154,18 @@ static float build(SZFriendsGtkGlyphKind kind, GskPathBuilder *builder, float *w
         gsk_path_builder_line_to(builder, 6.5f, 12);
         gsk_path_builder_close(builder);
         return 16;
+    case SZFRIENDS_GTK_GLYPH_PAPERCLIP:
+        /* mac/SZFriendsIcons.m's SZFriendsDrawPaperclipIcon: three half turns joined by straight legs. */
+        *width = 1.3f;
+        gsk_path_builder_move_to(builder, 11.54f, 8);
+        gsk_path_builder_line_to(builder, 7.47f, 12.07f);
+        gsk_path_builder_svg_arc_to(builder, 2.5f, 2.5f, 0, FALSE, TRUE, 3.93f, 8.53f);
+        gsk_path_builder_line_to(builder, 9.24f, 3.23f);
+        gsk_path_builder_svg_arc_to(builder, 1.75f, 1.75f, 0, FALSE, TRUE, 11.71f, 5.7f);
+        gsk_path_builder_line_to(builder, 6.76f, 10.65f);
+        gsk_path_builder_svg_arc_to(builder, 0.75f, 0.75f, 0, FALSE, TRUE, 5.7f, 9.59f);
+        gsk_path_builder_line_to(builder, 9.41f, 5.88f);
+        return 16;
     case SZFRIENDS_GTK_GLYPH_ARC:
         *width = 1.8f;
         arc(builder, 8, 8, 6, -90, 180);

@@ -337,6 +337,7 @@ test("the preload offers the Friends bridge on the Mac only, and only through sh
   await friends.send("ping", {});
   await friends.image("thumbnail", "/x.png", 1, 1);
   await friends.chooseFolder("/Users/someone/Downloads");
+  await friends.chooseFiles();
   // Objects made inside the preload's context: compared by value.
   assert.deepEqual(JSON.parse(JSON.stringify(invoked)), [
     ["shenzhen-friends", "send", { type: "ping", fields: {} }],
@@ -346,6 +347,7 @@ test("the preload offers the Friends bridge on the Mac only, and only through sh
       { kind: "thumbnail", path: "/x.png", width: 1, height: 1 },
     ],
     ["shenzhen-friends", "chooseFolder", "/Users/someone/Downloads"],
+    ["shenzhen-friends", "chooseFiles", null],
   ]);
   assert.deepEqual(
     [...friends.pathsForFiles([{ path: "/a.stl" }, {}])],
@@ -396,6 +398,48 @@ test("Settings' Change… opens the folder picker at the folder now and gives ba
   );
   answer = { canceled: false, filePaths: ["relative"] };
   assert.equal(await invoke(host, window, "chooseFolder", null), null);
+});
+
+test("Attach files opens the file picker for any files, several at once, and gives back the regular files chosen", async (t) => {
+  const folder = await fsp.mkdtemp(path.join(os.tmpdir(), "szf-attach-"));
+  t.after(() => fsp.rm(folder, { recursive: true, force: true }));
+  const plan = path.join(folder, "Plant layout.pdf");
+  const notes = path.join(folder, "notes.txt");
+  await fsp.writeFile(plan, "%PDF");
+  await fsp.writeFile(notes, "hi");
+  await fsp.mkdir(path.join(folder, "Parts.app"));
+  await fsp.symlink(notes, path.join(folder, "link.txt"));
+  const asked = [];
+  let answer = { canceled: false, filePaths: [plan, notes] };
+  const dialog = {
+    showOpenDialog: async (...args) => {
+      asked.push(args.at(-1));
+      return answer;
+    },
+  };
+  const { host } = await hostFixture(t, { dialog });
+  const window = fakeContents(1);
+  assert.deepEqual(await invoke(host, window, "chooseFiles"), [
+    { path: plan, display_name: "Plant layout.pdf" },
+    { path: notes, display_name: "notes.txt" },
+  ]);
+  assert.deepEqual(asked[0], { properties: ["openFile", "multiSelections"] });
+  answer = {
+    canceled: false,
+    filePaths: [
+      path.join(folder, "Parts.app"),
+      path.join(folder, "link.txt"),
+      "relative.txt",
+      plan,
+    ],
+  };
+  assert.deepEqual(
+    await invoke(host, window, "chooseFiles"),
+    [{ path: plan, display_name: "Plant layout.pdf" }],
+    "a folder, a link and a path that is not plain are left out",
+  );
+  answer = { canceled: true, filePaths: [] };
+  assert.equal(await invoke(host, window, "chooseFiles"), null, "cancelled");
 });
 
 test("a helper that saves received files where the person sees them has the host list them for recent files", async (t) => {

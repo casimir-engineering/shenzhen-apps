@@ -477,6 +477,23 @@ function createFriendsHost({
     const folder = result?.canceled ? null : result?.filePaths?.[0];
     return typeof folder === "string" && plainPath(folder) ? folder : null;
   }
+  // Attach files in a conversation's composer: the system's file picker over the window that asked, for any files,
+  // several at once. The regular files chosen, each with its own name, or null when cancelled; a folder or a link
+  // among them (a package Finder shows as a file) is left out, as a drop refuses it, and none left is null.
+  async function chooseFiles(event) {
+    if (!dialog) return null;
+    const window = BrowserWindow.fromWebContents?.(event.sender) ?? undefined;
+    const options = { properties: ["openFile", "multiSelections"] };
+    const result = window
+      ? await dialog.showOpenDialog(window, options)
+      : await dialog.showOpenDialog(options);
+    if (result?.canceled || !Array.isArray(result?.filePaths)) return null;
+    const files = [];
+    for (const file of result.filePaths.slice(0, 100))
+      if (plainPath(file) && (await classifyPath(file)) === "file")
+        files.push({ path: file, display_name: path.basename(file) });
+    return files.length ? files : null;
+  }
   async function showFile(file) {
     if (!plainPath(file) || (await classifyPath(file)) === "missing")
       return false;
@@ -510,6 +527,7 @@ function createFriendsHost({
     openFile: (_event, value) => openReceived(value),
     showFile: (_event, value) => showFile(value),
     chooseFolder: (event, value) => chooseFolder(event, value),
+    chooseFiles: (event) => chooseFiles(event),
     openSettings: async (_event, value) => {
       const url = settingsURL(value);
       if (url) await shell.openExternal(url);

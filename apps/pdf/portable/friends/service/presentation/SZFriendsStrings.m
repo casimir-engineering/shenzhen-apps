@@ -117,10 +117,10 @@ NSSet<NSString *> *SZFriendsMissingCatalogKeys(void) {
       keys = @[
           @"button_label", @"tab_friends", @"tab_nearby", @"search_placeholder", @"people_nearby", @"back", @"copy",
           @"copied", @"copy_your_id", @"edit_name", @"conversation_search_placeholder", @"attach_keys", @"attach_note",
-          @"drop_hint", @"drop_folders_refused", @"drop_not_a_file", @"drop_send_one", @"drop_send_many",
-          @"drop_send_file", @"drop_send_file_and_more", @"animals_title", @"crop_title", @"crop_use", @"cancel",
-          @"loading", @"load_earlier", @"link_open", @"link_open_email", @"link_elsewhere", @"queued_note",
-          @"show_all", @"save", @"name_empty", @"name_saved", @"beta", @"button_tooltip", @"beta_note"
+          @"attach_files", @"drop_hint", @"drop_folders_refused", @"drop_not_a_file", @"drop_send_one",
+          @"drop_send_many", @"drop_send_file", @"drop_send_file_and_more", @"animals_title", @"crop_title",
+          @"crop_use", @"cancel", @"loading", @"load_earlier", @"link_open", @"link_open_email", @"link_elsewhere",
+          @"queued_note", @"show_all", @"save", @"name_empty", @"name_saved", @"beta", @"button_tooltip", @"beta_note"
       ];
     });
     // Only {apps} is the helper's to fill; the placeholders views and hosts fill (PROTOCOL.md § Static strings) stay

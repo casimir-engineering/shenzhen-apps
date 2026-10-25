@@ -2,6 +2,7 @@
 // Tauri build made with the `friends` feature (docs/FRIENDS.md § Tauri), the same methods either way. The web and
 // PWA builds, and Tauri builds without the feature, have no `window.shenzhenFriends`, so they show nothing of
 // Friends.
+import type { OutgoingFile } from "./drops";
 import type { BadgeData, FriendsStatus, Reply, Snapshot } from "./protocol";
 
 export type FriendsEvent =
@@ -60,6 +61,13 @@ export interface FriendsBridge {
   /** The system's folder picker, starting at `start`; the folder chosen, or null. Electron's; Tauri builds use the
    * dialog plugin instead (chooseFolder below). */
   chooseFolder?(start?: string | null): Promise<string | null>;
+  /** The system's file picker for any files, several at once (the composer's Attach files): the regular files
+   * chosen, or null when cancelled. Electron's (paths), and on phones the plugin's, which copies each file for
+   * sending as it reads it, never whole into memory. Tauri desktops use the dialog plugin (drops.ts chooseFiles). */
+  chooseFiles?(): Promise<OutgoingFile[] | null>;
+  /** Phones: files another app shared with this one through the system's share sheet, copied for sending; each
+   * share is handed over once. */
+  sharedFiles?(): Promise<OutgoingFile[]>;
   openSettings(target: string): Promise<boolean>;
   openURL(url: string): Promise<boolean>;
   /** Whether this window has a model open, for File ▸ Copy Download Link. */

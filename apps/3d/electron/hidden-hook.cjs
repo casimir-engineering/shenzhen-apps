@@ -55,7 +55,23 @@ function hide(electron) {
   dialog.showErrorBox = (title, content) => note("error box", { title, message: content });
   dialog.showMessageBox = async (...args) => (note("message box", last(args)), answer(last(args)));
   dialog.showMessageBoxSync = (...args) => (note("message box", last(args)), answer(last(args)).response);
-  dialog.showOpenDialog = async (...args) => (note("open dialog", last(args)), { canceled: true, filePaths: [] });
+  // A run that picks files (friends-smoke.mjs's Attach files) names them in SHENZHEN_HIDDEN_OPEN_FILES, a JSON list of
+  // absolute paths: an open dialog for files then answers as if the person had chosen them, and is cancelled
+  // otherwise.
+  const chosenFiles = () => {
+    try {
+      const paths = JSON.parse(process.env.SHENZHEN_HIDDEN_OPEN_FILES ?? "[]");
+      return Array.isArray(paths) ? paths.filter((p) => typeof p === "string" && p.startsWith("/")) : [];
+    } catch {
+      return [];
+    }
+  };
+  dialog.showOpenDialog = async (...args) => {
+    const options = last(args);
+    note("open dialog", options);
+    const files = options?.properties?.includes?.("openFile") ? chosenFiles() : [];
+    return files.length ? { canceled: false, filePaths: files } : { canceled: true, filePaths: [] };
+  };
   dialog.showOpenDialogSync = (...args) => (note("open dialog", last(args)), undefined);
   dialog.showSaveDialog = async (...args) => (note("save dialog", last(args)), { canceled: true, filePath: "" });
   dialog.showSaveDialogSync = (...args) => (note("save dialog", last(args)), undefined);

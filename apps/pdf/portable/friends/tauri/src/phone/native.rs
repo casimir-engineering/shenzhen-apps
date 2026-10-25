@@ -138,6 +138,19 @@ impl<R: Runtime> Native<R> {
         answer.is_ok_and(|d| d.done)
     }
 
+    /// Attach files (`pickFiles`: the system's document picker, any type, several at once) or a share from another app
+    /// (`sharedFiles`): the platform half copies each file into a subfolder of `folder` as it reads it, never whole in
+    /// memory, and answers `[{"path": …}]`; None when the person cancelled or nothing was shared.
+    pub fn copy_files(&self, command: &str, folder: &std::path::Path) -> Option<serde_json::Value> {
+        #[derive(Deserialize)]
+        struct Copied {
+            #[serde(default)]
+            files: Option<serde_json::Value>,
+        }
+        let answer: Copied = self.call(command, json!({"folder": folder.to_string_lossy()})).ok()?;
+        answer.files
+    }
+
     pub fn open_url(&self, url: &str) -> bool {
         let answer: Result<Done, _> = self.call("openUrl", json!({"url": url}));
         answer.is_ok_and(|d| d.done)

@@ -80,9 +80,10 @@ export async function render(
   byView: Record<string, Snapshot>,
   holds: [string, Record<string, unknown>][],
   page: ReactElement,
+  options: { bridge?: Partial<FriendsBridge>; status?: FriendsStatus } = {},
 ) {
-  const bridge = fakeBridge(byView);
-  const store = new FriendsStore(bridge, status);
+  const bridge = Object.assign(fakeBridge(byView), options.bridge);
+  const store = new FriendsStore(bridge, options.status ?? status);
   for (const [key, intent] of holds) store.hold(key, intent as never);
   await new Promise((resolve) => setTimeout(resolve, 0));
   const context: PanelContext = {

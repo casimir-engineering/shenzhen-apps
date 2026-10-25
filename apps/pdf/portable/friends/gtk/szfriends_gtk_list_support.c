@@ -82,6 +82,35 @@ void szfriends_gtk_choose_folder(GtkWidget *source, const char *start, SZFriends
     g_object_unref(dialog);
 }
 
+typedef struct {
+    SZFriendsGtkChosenFiles chosen;
+    gpointer data;
+} SZFriendsGtkChoosingFiles;
+
+static void files_chosen(GObject *dialog, GAsyncResult *result, gpointer data) {
+    SZFriendsGtkChoosingFiles *choosing = data;
+    GListModel *model = gtk_file_dialog_open_multiple_finish(GTK_FILE_DIALOG(dialog), result, NULL);
+    GSList *files = NULL;
+    for (guint i = 0; model && i < g_list_model_get_n_items(model); i++)
+        files = g_slist_append(files, g_list_model_get_item(model, i));
+    choosing->chosen(files, choosing->data);
+    g_slist_free_full(files, g_object_unref);
+    if (model) g_object_unref(model);
+    g_free(choosing);
+}
+
+void szfriends_gtk_choose_files(GtkWidget *source, SZFriendsGtkChosenFiles chosen, gpointer data) {
+    if (seams.choose_files) {
+        seams.choose_files(source, chosen, data, seams.data);
+        return;
+    }
+    GtkFileDialog *dialog = gtk_file_dialog_new();
+    SZFriendsGtkChoosingFiles *choosing = g_new0(SZFriendsGtkChoosingFiles, 1);
+    *choosing = (SZFriendsGtkChoosingFiles){chosen, data};
+    gtk_file_dialog_open_multiple(dialog, window_of(source), NULL, files_chosen, choosing);
+    g_object_unref(dialog);
+}
+
 void szfriends_gtk_choose_image(GtkWidget *source, const char *title, SZFriendsGtkChosen chosen, gpointer data) {
     if (seams.choose_image) {
         seams.choose_image(source, title, chosen, data, seams.data);

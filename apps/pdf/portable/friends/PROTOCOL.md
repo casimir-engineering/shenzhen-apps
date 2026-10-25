@@ -226,6 +226,7 @@ Lowercase dotted strings. Unknown ones are ignored on both sides.
 |---|---|
 | `attach.items` | The host offers `#` items; the composer hint includes "Type # to attach" |
 | `drop.files` | The host accepts dropped files; the hint ends "or drop files here"; rows carry `drop_label` |
+| `send.files` | The host holds files for the person to send to someone chosen from the list without any drag (a phone's share sheet, Send project to a friend): rows carry `drop_label` as with `drop.files`, and the hint says nothing of dropping |
 | `drop.tabs` | The host has its own draggable items (reader tabs); informational |
 | `assistant.drafts` | The host has `/` drafts; the hint includes "/ to ask the assistant" (Assistant track) |
 | `assistant.chats` | The host's AI chat may open scoped chat access; without it `assistant_*` intents fail with `not_allowed` |
@@ -512,7 +513,8 @@ acceptance). There is no separate inbox; requests and offers are rows.
 - `rows[].drop_label` ("Send to Mei") is what the row says while files are dragged over it; `null` means the row
   refuses drops (requests, blocked people). A row that refuses says why in `rows[].drop_refusal` while files are
   dragged over it ("Lena isn’t your friend yet", "You blocked Jonas"); it is `null` on rows that accept drops, and
-  on every row when the client did not declare `drop.files`.
+  on every row when the client did not declare `drop.files`. A client that declares only `send.files` gets
+  `drop_label` on the rows that take files, for choosing who receives files it holds, and no `drop_refusal`.
 - `rows[].actions` are buttons on the row itself, so a friend request can be answered from the list: Accept,
   Decline and Block on an incoming request, and none on any other row (an empty array). Views draw them in place
   of the time, the waiting label and the route icon: a button with `title` shows that word (Accept, Decline), so
@@ -1484,6 +1486,7 @@ Friends button's tooltip, to which a host may add its shortcut, and `beta_note` 
 | `conversation_search_placeholder` | Search this conversation |
 | `attach_keys` | ↵ Attach · Esc Close |
 | `attach_note` | Attaching sends nothing yet |
+| `attach_files` | Attach files |
 | `drop_hint` | Drop on a friend to send. Release on the Friends button to choose afterwards. |
 | `drop_folders_refused` | Folders can’t be sent yet |
 | `drop_not_a_file` | Links and special files can’t be sent. Drop the original file instead. |
@@ -1623,6 +1626,7 @@ strings.edit_name: string
 strings.conversation_search_placeholder: string
 strings.attach_keys: string
 strings.attach_note: string
+strings.attach_files: string
 strings.drop_hint: string
 strings.drop_folders_refused: string
 strings.drop_not_a_file: string

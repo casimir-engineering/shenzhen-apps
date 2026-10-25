@@ -237,7 +237,8 @@ static const NSUInteger SZFriendsDeviceNameMaxBytes = 64;
                                    values:@{@"preview" : preview,
                                             @"time" : [s timeAccessibilityLabelForDate:you.lastInteractionAt now:now]}]
                                : [s text:@"you.row.accessibility.empty"];
-    BOOL drops = [self.audience.capabilities containsObject:@"drop.files"];
+    BOOL drops = [self.audience.capabilities containsObject:@"drop.files"] ||
+                 [self.audience.capabilities containsObject:@"send.files"];
     NSMutableDictionary *row = [@{
         @"conversation_id" : SZFriendsYouID,
         @"kind" : @"you",

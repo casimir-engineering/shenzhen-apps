@@ -132,6 +132,7 @@ typedef void (^SZFriendsIconDrawer)(NSRect rect, NSColor *color);
 void SZFriendsDrawPeopleIcon(NSRect rect, NSColor *color);
 void SZFriendsDrawBackArrow(NSRect rect, NSColor *color);
 void SZFriendsDrawCopyIcon(NSRect rect, NSColor *color);
+void SZFriendsDrawPaperclipIcon(NSRect rect, NSColor *color); // Attach files
 void SZFriendsDrawPencilIcon(NSRect rect, NSColor *color);
 void SZFriendsDrawSearchIcon(NSRect rect, NSColor *color);
 void SZFriendsDrawCheckIcon(NSRect rect, NSColor *color);

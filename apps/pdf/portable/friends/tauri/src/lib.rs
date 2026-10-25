@@ -314,7 +314,8 @@ pub fn init<R: Runtime>(config: Config<R>) -> TauriPlugin<R> {
     let guest = GUEST
         .replace("__SZFRIENDS_WINDOWS__", &windows)
         .replace("__SZFRIENDS_STAGED_DROP_LIMIT__", &staged_drops.to_string())
-        .replace("__SZFRIENDS_DRAG_OVER__", if cfg!(target_os = "macos") { "true" } else { "false" });
+        .replace("__SZFRIENDS_DRAG_OVER__", if cfg!(target_os = "macos") { "true" } else { "false" })
+        .replace("__SZFRIENDS_SHARES__", if cfg!(target_os = "android") { "true" } else { "false" });
     Builder::new("szfriends")
         .js_init_script(guest)
         .invoke_handler(tauri::generate_handler![
@@ -333,6 +334,8 @@ pub fn init<R: Runtime>(config: Config<R>) -> TauriPlugin<R> {
             commands::open_settings,
             commands::open_url,
             commands::shareable,
+            commands::choose_files,
+            commands::shared_files,
             drops::drop_paths,
             drops::drag_over,
         ])

@@ -9,6 +9,8 @@
   const STAGED_DROP_LIMIT = __SZFRIENDS_STAGED_DROP_LIMIT__;
   // A Mac: a drop's files are read only for a drag the system saw over this window, so the page says when one is.
   const DRAG_OVER = __SZFRIENDS_DRAG_OVER__;
+  // Android: files other apps share with this one through the share sheet wait for the panel.
+  const SHARES = __SZFRIENDS_SHARES__;
   const internals = window.__TAURI_INTERNALS__;
   const label = internals?.metadata?.currentWebview?.label;
   if (!internals || !WINDOWS.includes(label) || window.shenzhenFriends) return;
@@ -119,6 +121,10 @@
     // Phones: the most the panel stages of one dropped file. Absent on desktops, where a file without a path
     // cannot be sent.
     ...(STAGED_DROP_LIMIT > 0 ? { stagedDropLimit: STAGED_DROP_LIMIT } : {}),
+    // Phones: Attach files opens the system's own picker, which copies each file for sending as it reads it. Desktops
+    // open the dialog plugin from the page and send from the paths it gives.
+    ...(STAGED_DROP_LIMIT > 0 ? { chooseFiles: () => invoke("choose_files") } : {}),
+    ...(SHARES ? { sharedFiles: () => invoke("shared_files") } : {}),
     classify: (paths) => invoke("classify", { paths }),
     stage: (name, bytes) =>
       invoke("stage", bytes instanceof Uint8Array ? bytes : new Uint8Array(0), {

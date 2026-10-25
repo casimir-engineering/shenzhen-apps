@@ -1,10 +1,12 @@
 /* The composer offscreen (szfriends_gtk_conversation_probe.h): `@` opens the friends who may be mentioned from a
  * second list subscription filtered as the person types, a chip goes out as U+FFFC with its friend in `mentions`,
  * Return sends and Shift+Return or an input method's Return does not, `#` attaches the host's items, drops on the
- * composer become chips and drops on the history are sent at once, the draft survives leaving the page, and a helper
+ * composer become chips and drops on the history are sent at once, the paperclip (Attach files) turns files chosen
+ * in the system's file chooser into chips and refuses a folder, the draft survives leaving the page, and a helper
  * without `mentions` gets no `@`. */
 
 #include "szfriends_gtk_conversation_probe.h"
+#include "gtk/szfriends_gtk_list_page.h"
 
 #include <glib/gstdio.h>
 #include <string.h>
@@ -194,6 +196,63 @@ static void test_attaching_and_drafts(SZFGHarness *harness, const char *file, co
     szfg_conv_close(conv);
 }
 
+/* What the file chooser answers in this suite: the paths set here, as GFiles; none is cancelling. */
+static const char *const *chooser_answer;
+static guint chooser_asked;
+
+static void answer_chooser(GtkWidget *source, SZFriendsGtkChosenFiles chosen, gpointer chosen_data, gpointer data) {
+    (void)source, (void)data;
+    chooser_asked++;
+    GSList *files = NULL;
+    for (const char *const *path = chooser_answer; path && *path; path++)
+        files = g_slist_append(files, g_file_new_for_path(*path));
+    chosen(files, chosen_data);
+    g_slist_free_full(files, g_object_unref);
+}
+
+static void test_attach_files(SZFGHarness *harness, const char *file, const char *other, const char *folder) {
+    SZFriendsGtkSeams seams = {.choose_files = answer_chooser};
+    szfriends_gtk_set_seams(&seams);
+    SZFGConv *conv = szfg_conv_open(harness, "c_kenji");
+    SZFriendsGtkComposerView *composer = composer_of(conv);
+    GtkWidget *attach = szfriends_gtk_composer_get_attach_button(composer);
+    const char *label = attach ? gtk_widget_get_tooltip_text(attach) : NULL;
+    EXPECT(attach && gtk_widget_get_visible(attach) && label && strcmp(label, "Attach files") == 0,
+           "the paperclip beside Send is named Attach files (%s)", label ? label : "none");
+    GtkWidget *chips = szfriends_gtk_composer_get_chips(composer);
+    guint before = szfg_count_type(chips, GTK_TYPE_BUTTON);
+    chooser_answer = (const char *[]){file, other, NULL};
+    g_signal_emit_by_name(attach, "clicked");
+    EXPECT(chooser_asked == 1 && szfg_count_type(chips, GTK_TYPE_BUTTON) == before + 2,
+           "a click opens the file chooser, and both files chosen become chips (%u)",
+           szfg_count_type(chips, GTK_TYPE_BUTTON));
+    chooser_answer = (const char *[]){folder, NULL};
+    g_signal_emit_by_name(attach, "clicked");
+    GtkWidget *error = szfriends_gtk_composer_get_error_label(composer);
+    EXPECT(gtk_widget_get_visible(error) && strcmp(gtk_label_get_text(GTK_LABEL(error)), "Folders can’t be sent yet") == 0 &&
+               szfg_count_type(chips, GTK_TYPE_BUTTON) == before + 2,
+           "a folder chosen is refused in the helper's words, and nothing is added");
+    chooser_answer = NULL;
+    g_signal_emit_by_name(attach, "clicked");
+    EXPECT(szfg_count_type(chips, GTK_TYPE_BUTTON) == before + 2, "cancelling adds nothing");
+    szfg_conv_layout(conv);
+    szfg_conv_render(conv, "composer-attach-files-light");
+    guint sends = szfg_fake_frames(harness, "send_message", NULL, NULL);
+    gtk_text_buffer_insert_at_cursor(buffer_of(conv), "Survey", -1);
+    szfriends_gtk_composer_send(composer);
+    EXPECT(szfg_conv_wait_frames(harness, "send_message", sends), "Send sends them");
+    JsonObject *frame = szfg_fake_last_frame(harness, "send_message");
+    JsonArray *sent = frame && json_object_has_member(frame, "attachments")
+                          ? json_object_get_array_member(frame, "attachments") : NULL;
+    EXPECT(sent && json_array_get_length(sent) == 2 &&
+               strcmp(json_object_get_string_member(json_array_get_object_element(sent, 0), "path"), file) == 0 &&
+               strcmp(json_object_get_string_member(json_array_get_object_element(sent, 1), "path"), other) == 0,
+           "with the message, as its attachments, in the order chosen");
+    if (frame) json_object_unref(frame);
+    szfg_conv_close(conv);
+    szfriends_gtk_set_seams(NULL);
+}
+
 /* A helper that predates mentions and messages.cancel: no `@`, and no Cancel on queued messages. */
 static void test_older_helper(void) {
     SZFGHarness *harness = szfg_conv_harness("conv-old", "[\"nearby.network\",\"nearby.bluetooth\"]");
@@ -221,6 +280,10 @@ void szfg_run_conversation_composer_probes(void) {
     g_mkdir(folder, 0700);
     test_mentioning_and_sending(harness);
     test_attaching_and_drafts(harness, file, folder);
+    char *other = g_build_filename(harness->state, "wiring notes.txt", NULL);
+    g_file_set_contents(other, "Red to 12 V\n", -1, NULL);
+    test_attach_files(harness, file, other, folder);
+    g_free(other);
     g_free(file);
     g_free(folder);
     szfg_harness_free(harness);

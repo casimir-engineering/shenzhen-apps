@@ -107,7 +107,7 @@ impl Strings {
     /// welcome.strings: the static chrome labels PROTOCOL.md § Static strings lists. Only `{apps}` is filled here; the
     /// placeholders views and hosts fill stay as they are.
     pub fn static_strings(&self) -> BTreeMap<String, String> {
-        const KEYS: [&str; 37] = [
+        const KEYS: [&str; 38] = [
             "button_label",
             "tab_friends",
             "tab_nearby",
@@ -121,6 +121,7 @@ impl Strings {
             "conversation_search_placeholder",
             "attach_keys",
             "attach_note",
+            "attach_files",
             "drop_hint",
             "drop_folders_refused",
             "drop_not_a_file",

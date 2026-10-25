@@ -177,6 +177,12 @@ impl SnapshotBuilder {
     }
 
     /// Why a row will not take dragged files, or null when no file can be dragged in this client at all.
+    /// Whether list rows carry `drop_label`: the host takes dropped files (`drop.files`), or holds files the person
+    /// sends to someone chosen from the list without any drag (`send.files`: a phone's share sheet).
+    pub(crate) fn rows_take_files(&self) -> bool {
+        self.audience().has("drop.files") || self.audience().has("send.files")
+    }
+
     pub(crate) fn drop_refusal(&self, person: &PersonFacts) -> Value {
         if !self.audience().has("drop.files") {
             return Value::Null;

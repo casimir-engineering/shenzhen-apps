@@ -213,6 +213,62 @@ pub async fn token<R: Runtime>(
     Ok(bytes.iter().map(|b| format!("{b:02x}")).collect())
 }
 
+/// Attach files on a phone: the system's own picker for any files, several at once, each copied for sending as it is
+/// read (a large file never crosses into the page or into memory whole). The files chosen as send_files' file
+/// objects, or null when cancelled. Desktops send from paths the page's dialog gives and never call this.
+#[tauri::command]
+pub async fn choose_files<R: Runtime>(
+    app: AppHandle<R>,
+    webview: Webview<R>,
+    friends: State<'_, Friends<R>>,
+) -> Answer<Value> {
+    let host = available(&app, &friends, &webview)?;
+    phone_copies(&app, &host, "pickFiles").await
+}
+
+/// Android: files another app shared with this one through the system's share sheet, copied for sending, each share
+/// handed over once; an empty list when there are none.
+#[tauri::command]
+pub async fn shared_files<R: Runtime>(
+    app: AppHandle<R>,
+    webview: Webview<R>,
+    friends: State<'_, Friends<R>>,
+) -> Answer<Value> {
+    let host = available(&app, &friends, &webview)?;
+    Ok(match phone_copies(&app, &host, "sharedFiles").await? {
+        Value::Null => json!([]),
+        files => files,
+    })
+}
+
+/// The platform half's copies in a new private folder among the staged files, checked (`files::picked_files`); null
+/// when nothing came, and the folder goes again.
+async fn phone_copies<R: Runtime>(app: &AppHandle<R>, host: &Arc<Host<R>>, command: &'static str) -> Answer<Value> {
+    #[cfg(any(target_os = "android", target_os = "ios"))]
+    {
+        use tauri::Manager;
+        let native = app.try_state::<crate::phone::native::Native<R>>().map(|n| n.inner().clone());
+        let (Some(native), Some(outgoing)) = (native, host.outgoing()) else { return Ok(Value::Null) };
+        return blocking(move || {
+            let Ok(folder) = crate::files::picked_folder(&outgoing) else { return Value::Null };
+            let files = native.copy_files(command, &folder).map(|copied| crate::files::picked_files(&folder, &copied));
+            match files {
+                Some(files) if !files.is_empty() => Value::Array(files),
+                _ => {
+                    let _ = std::fs::remove_dir_all(&folder);
+                    Value::Null
+                }
+            }
+        })
+        .await;
+    }
+    #[allow(unreachable_code)]
+    {
+        let _ = (app, host, command);
+        Ok(Value::Null)
+    }
+}
+
 /// Opens a received file in the app: only a file the service offered to open, in a format the app opens.
 #[tauri::command]
 pub async fn open_file<R: Runtime>(

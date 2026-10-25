@@ -95,7 +95,7 @@ impl SnapshotBuilder {
         };
 
         let accepts_drops =
-            person.relation == Relation::Friend && !person.key_change_pending && self.audience().has("drop.files");
+            person.relation == Relation::Friend && !person.key_change_pending && self.rows_take_files();
         let mut said = vec![title.clone()];
         if person.unread_count > 0 {
             said.push(s.text("list.spoken.unread"));

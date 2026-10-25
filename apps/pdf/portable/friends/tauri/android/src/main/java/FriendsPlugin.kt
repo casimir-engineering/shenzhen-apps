@@ -5,6 +5,8 @@
 //   Android version.
 // - seal, unseal, forget: the Friends key, sealed with an AES-GCM key the Android Keystore holds and never exports.
 // - share: a received file to Save… (the system's document picker) or Share… (the share sheet).
+// - pickFiles, sharedFiles: Attach files (the system's document picker, any type, several at once) and files other
+//   apps shared with this one (ShareActivity), each copied into the folder Rust names as it is read.
 // - publishDownload: a received file into the public Downloads through MediaStore (Android 10 and later, no
 //   permission), hidden while it is written (IS_PENDING), named "Name (2).ext" beside one of the same name.
 // - openUrl: a web or mail link, or one of the system's settings screens.
@@ -18,6 +20,7 @@ package com.shenzhen.friends
 
 import android.app.Activity
 import android.app.AlertDialog
+import android.content.ClipData
 import android.content.ContentResolver
 import android.content.ContentValues
 import android.content.Intent
@@ -82,6 +85,65 @@ class PathArgs {
 class PublishArgs {
   lateinit var path: String
   lateinit var name: String
+}
+
+@InvokeArg
+class FolderArgs {
+  lateinit var folder: String
+}
+
+/** "Send to a friend" in the system's share sheet (AndroidManifest.xml): the files go to the app's own activity,
+ * which may read them, and Friends opens on the list to choose who receives them. */
+class ShareActivity : Activity() {
+  override fun onCreate(savedInstanceState: android.os.Bundle?) {
+    super.onCreate(savedInstanceState)
+    val uris = sharedUris(intent)
+    val launch = packageManager.getLaunchIntentForPackage(packageName)
+    if (uris.isNotEmpty() && launch != null) {
+      launch.action = ACTION_SHARED
+      launch.putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(uris))
+      val clip = ClipData.newRawUri("", uris[0])
+      uris.drop(1).forEach { clip.addItem(ClipData.Item(it)) }
+      launch.clipData = clip
+      launch.addFlags(
+        Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
+      )
+      startActivity(launch)
+    }
+    finish()
+  }
+}
+
+/** What ShareActivity hands the app's activity. */
+internal const val ACTION_SHARED = "com.shenzhen.friends.action.SHARED"
+
+/** The content a share or a pick carries: EXTRA_STREAM (one or several) and the clip's items, each once. */
+internal fun sharedUris(intent: Intent?): List<Uri> {
+  if (intent == null) return emptyList()
+  val found = LinkedHashSet<Uri>()
+  @Suppress("DEPRECATION")
+  when (val stream = intent.extras?.get(Intent.EXTRA_STREAM)) {
+    is Uri -> found.add(stream)
+    is ArrayList<*> -> stream.filterIsInstance<Uri>().forEach { found.add(it) }
+  }
+  intent.clipData?.let { clip -> for (i in 0 until clip.itemCount) clip.getItemAt(i).uri?.let { found.add(it) } }
+  intent.data?.let { if (intent.action == Intent.ACTION_SEND || intent.action == ACTION_SHARED) found.add(it) }
+  return found.filter { it.scheme == ContentResolver.SCHEME_CONTENT || it.scheme == ContentResolver.SCHEME_FILE }
+    .take(100)
+}
+
+/** A name a file can have here, as the person saw it: no folder separators, no leading dot, at most 200 bytes with
+ * its extension kept. */
+internal fun plainName(raw: String?): String {
+  var name = (raw ?: "").replace('/', '-').replace('\\', '-').replace("\u0000", "").trim().trimStart('.')
+  if (name.isEmpty()) name = "File"
+  while (name.toByteArray().size > 200) {
+    val dot = name.lastIndexOf('.')
+    val extension = if (dot > 0 && name.length - dot <= 17) name.substring(dot) else ""
+    val base = name.substring(0, name.length - extension.length)
+    name = base.substring(0, maxOf(1, base.length - 1)).trimEnd() + extension
+  }
+  return name
 }
 
 @InvokeArg
@@ -158,6 +220,100 @@ private fun unhex(text: String): ByteArray? {
 class FriendsPlugin(private val activity: Activity) : NearbyPlugin(activity) {
   /** The file waiting for the document picker's answer (Save…). */
   private var saving: Received? = null
+  /** Where Attach files copies what the document picker gives. */
+  private var picking: File? = null
+  /** Files shared from other apps (ShareActivity) that the panel has not taken yet. */
+  private val shared = ArrayList<Uri>()
+
+  override fun load(webView: android.webkit.WebView) {
+    super.load(webView)
+    takeShare(activity.intent)
+  }
+
+  /** A share ShareActivity forwarded: kept for the panel (sharedFiles), once. */
+  private fun takeShare(intent: Intent?) {
+    if (intent?.action != ACTION_SHARED) return
+    val uris = sharedUris(intent)
+    synchronized(shared) { uris.forEach { if (it !in shared) shared.add(it) } }
+    intent.action = Intent.ACTION_MAIN
+  }
+
+  /** What `uri` is called where the person saw it, or its last path segment. */
+  private fun displayName(uri: Uri): String? = try {
+    activity.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use {
+      if (it.moveToFirst() && !it.isNull(0)) it.getString(0) else null
+    }
+  } catch (e: Exception) {
+    null
+  } ?: uri.lastPathSegment
+
+  /**
+   * Each of `uris` copied into `folder/<n>/<name>` as it is read, in 64 KiB pieces (a large file never sits whole in
+   * memory), and answered as `{files: [{path}]}`; a file that cannot be read is left out.
+   */
+  private fun copyInto(invoke: Invoke, folder: File, uris: List<Uri>) {
+    Thread {
+      val files = app.tauri.plugin.JSArray()
+      uris.forEachIndexed { index, uri ->
+        val directory = File(folder, index.toString())
+        val target = File(directory, plainName(displayName(uri)))
+        try {
+          directory.mkdirs()
+          val copied = activity.contentResolver.openInputStream(uri)?.use { input ->
+            FileOutputStream(target).use { output ->
+              val buffer = ByteArray(64 * 1024)
+              while (true) {
+                val read = input.read(buffer)
+                if (read < 0) break
+                output.write(buffer, 0, read)
+              }
+              output.fd.sync()
+            }
+            true
+          } ?: false
+          if (copied) files.put(JSObject().put("path", target.absolutePath))
+          else directory.deleteRecursively()
+        } catch (e: Exception) {
+          directory.deleteRecursively()
+        }
+      }
+      invoke.resolve(JSObject().put("files", files))
+    }.start()
+  }
+
+  /** Attach files: the system's document picker for any type, several at once. Cancelled answers no files. */
+  @Command
+  fun pickFiles(invoke: Invoke) {
+    val folder = File(invoke.parseArgs(FolderArgs::class.java).folder)
+    picking = folder
+    val intent = Intent(Intent.ACTION_OPEN_DOCUMENT)
+      .addCategory(Intent.CATEGORY_OPENABLE)
+      .setType("*/*")
+      .putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
+    startActivityForResult(invoke, intent, "picked")
+  }
+
+  @ActivityCallback
+  fun picked(invoke: Invoke, result: ActivityResult) {
+    val folder = picking
+    picking = null
+    val data = result.data
+    if (result.resultCode != Activity.RESULT_OK || folder == null || data == null) return invoke.resolve(JSObject())
+    val uris = LinkedHashSet<Uri>()
+    data.clipData?.let { clip -> for (i in 0 until clip.itemCount) clip.getItemAt(i).uri?.let { uris.add(it) } }
+    data.data?.let { uris.add(it) }
+    if (uris.isEmpty()) return invoke.resolve(JSObject())
+    copyInto(invoke, folder, uris.take(100))
+  }
+
+  /** Files other apps shared with this one, each share handed over once; none answers no files. */
+  @Command
+  fun sharedFiles(invoke: Invoke) {
+    val folder = File(invoke.parseArgs(FolderArgs::class.java).folder)
+    val uris = synchronized(shared) { ArrayList(shared).also { shared.clear() } }
+    if (uris.isEmpty()) return invoke.resolve(JSObject())
+    copyInto(invoke, folder, uris)
+  }
 
   @Command
   fun dirs(invoke: Invoke) {
@@ -516,6 +672,7 @@ class FriendsPlugin(private val activity: Activity) : NearbyPlugin(activity) {
   }
 
   override fun onNewIntent(intent: Intent) {
+    takeShare(intent)
     reportOpened(intent)
   }
 

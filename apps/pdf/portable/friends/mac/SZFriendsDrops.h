@@ -39,6 +39,11 @@ FOUNDATION_EXPORT NSString *_Nullable SZFriendsDropRefusalKey(SZFriendsDropVerdi
                promiseDirectory:(nullable NSString *)promiseDirectory
                      completion:(void (^)(NSArray<SZFriendsAttachableItem *> *items, BOOL refusedFolder))completion;
 
+// Files the person chose in an open panel (Attach files), judged as dropped file URLs are, and as items when every
+// one is a regular file; nil otherwise, with the verdict that refused them.
++ (nullable NSArray<SZFriendsAttachableItem *> *)itemsForChosenFiles:(NSArray<NSURL *> *)urls
+                                                             verdict:(SZFriendsDropVerdict *)verdict;
+
 // A new private folder for one drop's promised files, in "Shenzhen Friends drops" inside `promiseDirectory`
 // (NSTemporaryDirectory() when nil). Folders of earlier drops older than SZFriendsPromiseLifetime are removed first,
 // so a reader that quit before its timer fired leaves nothing behind for long.

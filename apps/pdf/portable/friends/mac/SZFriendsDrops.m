@@ -172,6 +172,16 @@ static SZFriendsDropVerdict SZFVerdictForURLs(NSArray<NSURL *> *urls) {
     });
 }
 
++ (NSArray<SZFriendsAttachableItem *> *)itemsForChosenFiles:(NSArray<NSURL *> *)urls
+                                                    verdict:(SZFriendsDropVerdict *)verdict {
+    SZFriendsDropVerdict judged = SZFVerdictForURLs(urls);
+    if (verdict) *verdict = judged;
+    if (judged != SZFriendsDropVerdictAccept) return nil;
+    NSMutableArray *items = [NSMutableArray array];
+    for (NSURL *url in urls) [items addObject:SZFItemForURL(url)];
+    return items;
+}
+
 + (NSURL *)promiseFolderInDirectory:(NSString *)promiseDirectory {
     NSFileManager *files = NSFileManager.defaultManager;
     NSString *parent = [promiseDirectory ?: NSTemporaryDirectory() stringByAppendingPathComponent:SZFPromiseParentName];

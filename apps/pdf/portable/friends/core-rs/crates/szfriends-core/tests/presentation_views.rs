@@ -142,8 +142,14 @@ fn list_rows() {
 
     // Without drop.files the rows refuse drops.
     let no_drops = Audience { capabilities: Default::default(), ..audience() };
-    let plain = builder(no_drops).list(&[mei], &HashMap::new(), &profile_raph(), "", now());
+    let plain = builder(no_drops).list(std::slice::from_ref(&mei), &HashMap::new(), &profile_raph(), "", now());
     assert!(plain["rows"][0]["drop_label"].is_null());
+    // A phone takes no drops but holds files shared from other apps for a friend chosen from the list (send.files):
+    // its rows still say whom they send to, and refuse nothing in words meant for a drag.
+    let shares = Audience { capabilities: ["send.files".to_owned()].into_iter().collect(), ..audience() };
+    let phone = builder(shares).list(&[mei], &HashMap::new(), &profile_raph(), "", now());
+    assert_eq!(phone["rows"][0]["drop_label"], "Send to Mei");
+    assert!(phone["rows"][0]["drop_refusal"].is_null());
 }
 
 #[test]
@@ -393,5 +399,7 @@ fn requests_and_composer() {
         ])
     );
     assert_eq!(with(&["drop.files"]), json!([{"text": "Drop files here to send them"}]));
+    // send.files says nothing of dropping.
+    assert_eq!(with(&["send.files"]), json!([]));
     assert_eq!(with(&[]), json!([]));
 }

@@ -126,3 +126,47 @@ export async function sendFiles(
     })
   ).reply;
 }
+
+/** Whether this shell has a file picker the composer's Attach files can open. */
+export function canChooseFiles(bridge: FriendsBridge): boolean {
+  return Boolean(bridge.chooseFiles) || (isTauri() && !bridge.stagedDropLimit);
+}
+const isTauri = () =>
+  typeof window !== "undefined" &&
+  Boolean(
+    (window as unknown as { __TAURI_INTERNALS__?: unknown })
+      .__TAURI_INTERNALS__,
+  );
+
+/**
+ * Attach files: the system's file picker for any files, several at once, checked as a drop is (folders, links and
+ * special files refused in the helper's words). Nothing chosen gives no files and no refusal.
+ */
+export async function chooseFiles(
+  bridge: FriendsBridge,
+  strings: Strings,
+): Promise<DropResult> {
+  if (bridge.chooseFiles) {
+    const files = await bridge.chooseFiles();
+    return { files: files ?? [], refusal: null };
+  }
+  if (!canChooseFiles(bridge)) return { files: [], refusal: null };
+  const { open } = await import("@tauri-apps/plugin-dialog");
+  const chosen = await open({ multiple: true, directory: false });
+  const paths = (Array.isArray(chosen) ? chosen : chosen ? [chosen] : [])
+    .filter((path): path is string => typeof path === "string")
+    .slice(0, 100);
+  if (!paths.length) return { files: [], refusal: null };
+  const kinds = await bridge.classify(paths);
+  if (kinds.includes("folder"))
+    return { files: [], refusal: strings.drop_folders_refused ?? null };
+  if (kinds.some((kind) => kind !== "file"))
+    return { files: [], refusal: strings.drop_not_a_file ?? null };
+  return {
+    files: paths.map((path) => ({
+      path,
+      display_name: path.split(/[\\/]/).pop() || path,
+    })),
+    refusal: null,
+  };
+}

@@ -130,3 +130,58 @@ fn a_snapshot_offers_only_its_open_file_actions() {
     openable_paths(&data, &mut found, 0);
     assert_eq!(found, vec!["/r/a.stl".to_owned()]);
 }
+
+#[test]
+fn picked_and_shared_files_are_the_regular_files_the_platform_copied_into_their_folder() {
+    let outgoing = TempDir::new("picked");
+    let folder = picked_folder(&outgoing.0).expect("a folder");
+    assert_eq!(folder.parent(), Some(outgoing.0.as_path()));
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        assert_eq!(fs::metadata(&folder).unwrap().permissions().mode() & 0o777, 0o700);
+    }
+    let write = |n: &str, name: &str, bytes: &[u8]| {
+        let directory = folder.join(n);
+        fs::create_dir_all(&directory).unwrap();
+        let file = directory.join(name);
+        fs::write(&file, bytes).unwrap();
+        file.to_str().unwrap().to_owned()
+    };
+    let survey = write("0", "Site survey 2026.pdf", b"%PDF");
+    let again = write("1", "Site survey 2026.pdf", b"%PDF 2");
+    let notes = write("2", "wiring notes.txt", b"red to 12 V");
+    // What the platform must not hand over: a folder, a link, a file elsewhere, one not in a numbered subfolder.
+    fs::create_dir_all(folder.join("3").join("Parts")).unwrap();
+    let folder_entry = folder.join("3").join("Parts").to_str().unwrap().to_owned();
+    let elsewhere = TempDir::new("elsewhere");
+    let outside = elsewhere.0.join("secret.txt");
+    fs::write(&outside, b"no").unwrap();
+    #[cfg(unix)]
+    let link = {
+        fs::create_dir_all(folder.join("4")).unwrap();
+        let link = folder.join("4").join("link.txt");
+        std::os::unix::fs::symlink(&outside, &link).unwrap();
+        link.to_str().unwrap().to_owned()
+    };
+    #[cfg(not(unix))]
+    let link = outside.to_str().unwrap().to_owned();
+    let flat = folder.join("flat.txt");
+    fs::write(&flat, b"x").unwrap();
+    let copied = json!([
+        {"path": survey}, {"path": again}, {"path": notes}, {"path": folder_entry}, {"path": link},
+        {"path": outside.to_str().unwrap()}, {"path": flat.to_str().unwrap()},
+        {"path": format!("{}/0/../2/wiring notes.txt", folder.display())}, {"path": 7}, {"name": "x"},
+    ]);
+    assert_eq!(
+        picked_files(&folder, &copied),
+        vec![
+            json!({"path": survey, "display_name": "Site survey 2026.pdf"}),
+            json!({"path": again, "display_name": "Site survey 2026.pdf"}),
+            json!({"path": notes, "display_name": "wiring notes.txt"}),
+        ]
+    );
+    assert!(picked_files(&folder, &json!(null)).is_empty(), "cancelled");
+    let many: Vec<_> = (0..150).map(|_| json!({"path": notes})).collect();
+    assert_eq!(picked_files(&folder, &json!(many)).len(), 100, "as many as send_files takes");
+}

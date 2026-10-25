@@ -31,6 +31,7 @@ static NSDictionary<NSString *, NSString *> *CoreEntries(void) {
         @"static.conversation_search_placeholder" : @"Search this conversation",
         @"static.attach_keys" : @"↵ Attach · Esc Close",
         @"static.attach_note" : @"Attaching sends nothing yet",
+        @"static.attach_files" : @"Attach files",
         @"static.drop_hint" : @"Drop on a friend to send. Release on the Friends button to choose afterwards.",
         @"static.drop_folders_refused" : @"Folders can’t be sent yet",
         // Over a target that takes files, while a symbolic link or a special file (a FIFO, socket or device) is

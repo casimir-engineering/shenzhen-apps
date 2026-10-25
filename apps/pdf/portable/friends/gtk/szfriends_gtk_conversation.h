@@ -296,6 +296,10 @@ GtkWidget *szfriends_gtk_composer_get_text_view(SZFriendsGtkComposerView *compos
 GtkWidget *szfriends_gtk_composer_get_send_button(SZFriendsGtkComposerView *composer);
 GtkWidget *szfriends_gtk_composer_get_error_label(SZFriendsGtkComposerView *composer);
 GtkWidget *szfriends_gtk_composer_get_chips(SZFriendsGtkComposerView *composer);
+/* Attach files: the paperclip beside Send, named by welcome.strings attach_files and hidden without it. A click opens
+ * the system's file chooser (szfriends_gtk_choose_files); regular files become chips, a folder or a link is refused
+ * in the helper's words, as a drop is. */
+GtkWidget *szfriends_gtk_composer_get_attach_button(SZFriendsGtkComposerView *composer);
 void szfriends_gtk_composer_send(SZFriendsGtkComposerView *composer);
 void szfriends_gtk_composer_add_items(SZFriendsGtkComposerView *composer, GPtrArray *items); /* NULL: redraw */
 /* A `#` item chosen: the `#` typed before the cursor becomes its chip. */

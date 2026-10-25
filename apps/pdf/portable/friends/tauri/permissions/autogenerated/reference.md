@@ -1,7 +1,7 @@
 ## Default Permission
 
 Everything the Friends panel needs: joining, status, intents to the Friends service, previews and pictures, the
-animal set, dropped and staged files, opening received files and links. Grant it to the app's main window only,
+animal set, dropped, staged, picked and shared files, opening received files and links. Grant it to the app's main window only,
 in a capability with no remote URLs, so no other window, frame or page can reach Friends.
 
 #### This default permission set includes the following:
@@ -23,6 +23,8 @@ in a capability with no remote URLs, so no other window, frame or page can reach
 - `allow-shareable`
 - `allow-drop-paths`
 - `allow-drag-over`
+- `allow-choose-files`
+- `allow-shared-files`
 
 ## Permission Table
 
@@ -81,6 +83,32 @@ Enables the animals command without any pre-configured scope.
 <td>
 
 Denies the animals command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`szfriends:allow-choose-files`
+
+</td>
+<td>
+
+Enables the choose_files command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`szfriends:deny-choose-files`
+
+</td>
+<td>
+
+Denies the choose_files command without any pre-configured scope.
 
 </td>
 </tr>
@@ -367,6 +395,32 @@ Enables the shareable command without any pre-configured scope.
 <td>
 
 Denies the shareable command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`szfriends:allow-shared-files`
+
+</td>
+<td>
+
+Enables the shared_files command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`szfriends:deny-shared-files`
+
+</td>
+<td>
+
+Denies the shared_files command without any pre-configured scope.
 
 </td>
 </tr>

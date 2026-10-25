@@ -1,6 +1,6 @@
 /* The composer (szfriends_gtk_conversation.h; mirrors mac/SZFriendsComposerView.m): Return sends, Shift+Return breaks
- * the line, `#` opens the host's items, `@` the friends who may be mentioned, and dropped files become chips that go
- * with the next Send; nothing is sent until then.
+ * the line, `#` opens the host's items, `@` the friends who may be mentioned, and files chosen with the paperclip
+ * (Attach files) or dropped become chips that go with the next Send; nothing is sent until then.
  *
  * An @ chip is a child anchor in the text, which GTK counts as U+FFFC: the message goes out with one U+FFFC per chip
  * and one `mentions` entry per chip in the same order, and the helper writes each mention itself (PROTOCOL.md
@@ -8,6 +8,8 @@
  * window's draft for the conversation, so closing the dropdown or going back loses nothing. */
 
 #include "gtk/szfriends_gtk_composer_private.h"
+#include "gtk/szfriends_gtk_glyphs.h"
+#include "gtk/szfriends_gtk_list_page.h"
 
 static void composer_release(gpointer data) {
     SZFriendsGtkComposerView *composer = data;
@@ -74,6 +76,49 @@ void szfriends_gtk_composer_send(SZFriendsGtkComposerView *composer) {
 static void send_clicked(GtkButton *button, gpointer data) {
     (void)button;
     szfriends_gtk_composer_send(data);
+}
+
+/* ---- Attach files ---------------------------------------------------------------------------------------- */
+
+static void files_chosen(GSList *files, gpointer data) {
+    SZFriendsGtkComposerView *composer = data;
+    if (composer->root && files) {
+        SZFriendsGtkLink *link = composer->conversation->link;
+        SZFriendsGtkDropVerdict verdict = szfriends_gtk_drop_verdict_for_files(files);
+        if (szfriends_gtk_drop_refused(verdict)) {
+            szfriends_gtk_composer_set_error(composer, szfriends_gtk_drop_refusal(link, verdict));
+        } else if (verdict == SZFRIENDS_GTK_DROP_ACCEPT) {
+            GValue value = G_VALUE_INIT;
+            g_value_init(&value, GDK_TYPE_FILE_LIST);
+            g_value_take_boxed(&value, gdk_file_list_new_from_list(files));
+            SZFriendsGtkDropVerdict taken = SZFRIENDS_GTK_DROP_NONE;
+            GPtrArray *items = szfriends_gtk_drop_items(szfriends_gtk_link_host(link), &value, &taken);
+            szfriends_gtk_composer_set_error(composer, NULL);
+            if (items->len) {
+                szfriends_gtk_composer_add_items(composer, items);
+                szfriends_gtk_composer_save_draft(composer);
+            }
+            g_ptr_array_unref(items);
+            g_value_unset(&value);
+            gtk_widget_grab_focus(composer->text_view);
+        }
+    }
+    composer_unref(composer);
+}
+
+static void attach_clicked(GtkButton *button, gpointer data) {
+    SZFriendsGtkComposerView *composer = data;
+    if (!composer->enabled || composer->sending) return;
+    szfriends_gtk_choose_files(GTK_WIDGET(button), files_chosen, composer_ref(composer));
+}
+
+/* Named by the helper; without its words (an older helper) the paperclip stays hidden rather than unnamed. */
+static void name_attach(SZFriendsGtkComposerView *composer) {
+    const char *label = szfriends_gtk_link_string(composer->conversation->link, "attach_files");
+    gboolean named = label && *label;
+    gtk_widget_set_tooltip_text(composer->attach, named ? label : NULL);
+    if (named) gtk_accessible_update_property(GTK_ACCESSIBLE(composer->attach), GTK_ACCESSIBLE_PROPERTY_LABEL, label, -1);
+    gtk_widget_set_visible(composer->attach, named);
 }
 
 /* ---- Typing --------------------------------------------------------------------------------------------- */
@@ -206,7 +251,15 @@ GtkWidget *szfriends_gtk_composer_new(SZFriendsGtkConversation *conversation) {
     gtk_widget_add_css_class(composer->send, "suggested-action");
     gtk_widget_set_size_request(composer->send, 64, -1);
     g_signal_connect(composer->send, "clicked", G_CALLBACK(send_clicked), composer);
+    composer->attach = gtk_button_new();
+    gtk_button_set_child(GTK_BUTTON(composer->attach), szfriends_gtk_glyph_new(SZFRIENDS_GTK_GLYPH_PAPERCLIP, 16));
+    gtk_widget_add_css_class(composer->attach, "flat");
+    gtk_widget_add_css_class(composer->attach, "szfriends-attach");
+    gtk_widget_set_valign(composer->attach, GTK_ALIGN_CENTER);
+    g_signal_connect(composer->attach, "clicked", G_CALLBACK(attach_clicked), composer);
+    name_attach(composer);
     gtk_box_append(GTK_BOX(bottom), composer->hint);
+    gtk_box_append(GTK_BOX(bottom), composer->attach);
     gtk_box_append(GTK_BOX(bottom), composer->send);
     for (GtkWidget *const *part = (GtkWidget *const[]){composer->note, composer->error, composer->chips,
                                                        composer->input_box, bottom, NULL}; *part; part++)
@@ -260,6 +313,8 @@ void szfriends_gtk_composer_apply(SZFriendsGtkComposerView *composer, const SZFr
     g_free(hint);
     gtk_button_set_label(GTK_BUTTON(composer->send), snapshot->send_label);
     gtk_widget_set_sensitive(composer->send, snapshot->enabled && !composer->sending);
+    gtk_widget_set_sensitive(composer->attach, snapshot->enabled);
+    name_attach(composer);
     if (!snapshot->enabled) szfriends_gtk_composer_close_picker(composer);
 }
 
@@ -273,6 +328,10 @@ GtkWidget *szfriends_gtk_composer_get_send_button(SZFriendsGtkComposerView *comp
 
 GtkWidget *szfriends_gtk_composer_get_error_label(SZFriendsGtkComposerView *composer) {
     return composer->error;
+}
+
+GtkWidget *szfriends_gtk_composer_get_attach_button(SZFriendsGtkComposerView *composer) {
+    return composer->attach;
 }
 
 GtkWidget *szfriends_gtk_composer_get_chips(SZFriendsGtkComposerView *composer) {

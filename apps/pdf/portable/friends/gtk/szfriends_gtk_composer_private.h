@@ -12,6 +12,7 @@ struct _SZFriendsGtkComposerView {
     SZFriendsGtkConversation *conversation;
     GtkWidget *root; /* weak: replies arriving after it went change nothing */
     GtkWidget *note, *error, *chips, *input_box, *text_view, *placeholder, *hint, *send, *picker;
+    GtkWidget *attach; /* Attach files: the paperclip beside Send */
     GtkTextBuffer *buffer;
     SZFriendsGtkDraft *draft, *own_draft;
     gboolean enabled, accepts_drops, sending, preedit, restoring;

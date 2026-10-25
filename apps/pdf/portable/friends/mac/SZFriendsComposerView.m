@@ -1,4 +1,5 @@
-// SZFriendsComposerView: Return sends, Shift+Return inserts a line, `#` attaches, dropped files become chips, and
+// SZFriendsComposerView: Return sends, Shift+Return inserts a line, `#` attaches, the paperclip (Attach files) and
+// dropped files become chips, and
 // `/` turns the field into a command for the host's assistant (SZFriendsComposerCommand.m).
 
 #import "mac/SZFriendsComposerInternal.h"
@@ -98,6 +99,19 @@
         [weakSelf send];
     };
     [self addSubview:_sendButton];
+    // Attach files: any file the open panel reaches, beside Send; named by the helper (hidden without its words).
+    _attachButton = [SZFriendsButton buttonWithTitle:@"" style:SZFriendsButtonStyleIcon appearance:appearance];
+    _attachButton.icon = ^(NSRect rect, NSColor *color) { SZFriendsDrawPaperclipIcon(rect, color); };
+    _attachButton.iconSize = NSMakeSize(16, 16);
+    NSString *attachLabel = [context string:@"attach_files"];
+    _attachButton.toolTip = attachLabel.length ? attachLabel : nil;
+    _attachButton.accessibilityLabel = attachLabel;
+    _attachButton.hidden = attachLabel.length == 0;
+    _attachButton.onPress = ^(SZFriendsButton *button) {
+        (void)button;
+        [weakSelf chooseFiles];
+    };
+    [self addSubview:_attachButton];
     _items = [NSMutableArray array];
     _chips = [NSMutableArray array];
     _enabled = YES;
@@ -233,6 +247,34 @@
     [self changedHeight];
 }
 
+- (void)chooseFiles {
+    if (!_enabled || _sending || !_context.chooseFiles) return;
+    __weak SZFriendsComposerView *weakSelf = self;
+    _context.chooseFiles(self.window, ^(NSArray<NSURL *> *files) {
+        SZFriendsComposerView *composer = weakSelf;
+        if (!composer || !files.count) return;
+        SZFriendsDropVerdict verdict = SZFriendsDropVerdictNone;
+        NSArray<SZFriendsAttachableItem *> *items = [SZFriendsDrops itemsForChosenFiles:files verdict:&verdict];
+        NSString *refusal = SZFriendsDropRefusalKey(verdict);
+        if (refusal) {
+            // As a drop says it: a folder or a link chosen sends nothing, in the helper's words.
+            [composer showError:[composer->_context string:refusal]];
+            [composer->_context announce:[composer->_context string:refusal]];
+            return;
+        }
+        NSMutableArray<SZFriendsAttachableItem *> *fresh = [NSMutableArray array];
+        for (SZFriendsAttachableItem *item in items) {
+            BOOL there = NO;
+            for (SZFriendsAttachableItem *old in composer->_items)
+                there = there || (old.fileURL && [old.fileURL isEqual:item.fileURL]);
+            if (!there) [fresh addObject:item];
+        }
+        [composer showError:nil];
+        if (fresh.count) [composer addAttachments:fresh];
+        [composer.window makeFirstResponder:composer->_input];
+    });
+}
+
 - (void)removeAttachmentAtIndex:(NSUInteger)index {
     if (index >= _items.count) return;
     [_chips[index] removeFromSuperview];
@@ -276,6 +318,11 @@
                                     [_command tagWidth], 17);
     _hintLabel.hidden = !_enabled || command;
     _sendButton.hidden = command;
+    NSString *attachLabel = [_context string:@"attach_files"];
+    _attachButton.toolTip = attachLabel.length ? attachLabel : nil;
+    _attachButton.accessibilityLabel = attachLabel;
+    _attachButton.hidden = command || !attachLabel.length;
+    _attachButton.enabled = _enabled && !_sending;
     // While a proposal waits above, its Send is the one primary action: the composer's own Send turns secondary, and
     // with nothing typed or attached it is disabled, since pressing it would do nothing.
     BOOL proposal = _command.proposalView.proposal != nil;
@@ -394,10 +441,13 @@
     if (apply && noteHeight) commandNote.frame = NSMakeRect(10, y + 1, inner - 28 - 10, noteHeight);
     CGFloat sendWidth = MAX(64, [_sendButton fittingWidth]);
     BOOL hintShown = _enabled && self.commandState == SZFriendsCommandStateOff;
-    CGFloat hintWidth = inner - sendWidth - 10;
+    // The paperclip sits just left of Send; the hint gives it room.
+    CGFloat attachWidth = _attachButton.hidden ? 0 : 30 + 6;
+    CGFloat hintWidth = inner - sendWidth - attachWidth - 10;
     CGFloat hintHeight = hintShown ? SZFriendsFieldHeight(_hintLabel, hintWidth) : 0;
     if (apply) {
         _sendButton.frame = NSMakeRect(width - 10 - sendWidth, y, sendWidth, 28);
+        _attachButton.frame = NSMakeRect(width - 10 - sendWidth - 6 - 30, y, 30, 28);
         // One line sits level with Send's title; two start at Send's top edge.
         _hintLabel.frame = NSMakeRect(10, y + (hintHeight > 18 ? 0 : 6), hintWidth, MAX(16, hintHeight));
         _hintLabel.hidden = !_enabled || self.commandState != SZFriendsCommandStateOff;

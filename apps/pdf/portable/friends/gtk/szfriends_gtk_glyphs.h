@@ -29,7 +29,8 @@ typedef enum {
     SZFRIENDS_GTK_GLYPH_INFO,
     SZFRIENDS_GTK_GLYPH_COPY,
     SZFRIENDS_GTK_GLYPH_PENCIL,
-    SZFRIENDS_GTK_GLYPH_ARC      /* "still looking": an open ring, not an animated spinner */
+    SZFRIENDS_GTK_GLYPH_ARC,     /* "still looking": an open ring, not an animated spinner */
+    SZFRIENDS_GTK_GLYPH_PAPERCLIP /* Attach files: a paperclip leaning right */
 } SZFriendsGtkGlyphKind;
 
 /* The route icon for a PROTOCOL.md route: its `method` when the helper names one, else by `kind` (local: the LAN

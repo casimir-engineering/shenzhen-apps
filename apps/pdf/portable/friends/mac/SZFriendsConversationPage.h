@@ -71,6 +71,9 @@ typedef NS_ENUM(NSInteger, SZFriendsCommandState) {
 - (CGFloat)heightForWidth:(CGFloat)width;
 @property(nonatomic, strong, readonly) NSTextView *textView;
 @property(nonatomic, strong, readonly) SZFriendsButton *sendButton;
+// Attach files: the paperclip beside Send, named by welcome.strings attach_files; hidden without that string.
+@property(nonatomic, strong, readonly) SZFriendsButton *attachButton;
+- (void)chooseFiles; // the paperclip's press: the context's chooseFiles, then chips
 @property(nonatomic, copy, readonly) NSArray<SZFriendsAttachableItem *> *attachments;
 @property(nonatomic, copy, readonly) NSArray<SZFriendsButton *> *chipButtons;
 @property(nonatomic, readonly) SZFriendsDropHighlight dropHighlight;

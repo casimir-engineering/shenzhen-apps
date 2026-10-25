@@ -22,6 +22,8 @@ const COMMANDS: &[&str] = &[
     "shareable",
     "drop_paths",
     "drag_over",
+    "choose_files",
+    "shared_files",
 ];
 
 /// `OUT_DIR/animals.rs`: the manifest and every SVG, by their paths in the set; empty off phones.

@@ -89,6 +89,28 @@ void SZFriendsDrawCopyIcon(NSRect rect, NSColor *color) {
     });
 }
 
+// A paperclip leaning right, its three bends half circles (the 3D panel's glyphs.tsx and the GTK views draw the same).
+static void SZFHalfTurn(NSBezierPath *path, CGFloat cx, CGFloat cy, CGFloat r, CGFloat from) {
+    [path appendBezierPathWithArcWithCenter:NSMakePoint(cx, cy) radius:r startAngle:from endAngle:from + 180
+                                  clockwise:NO];
+}
+
+void SZFriendsDrawPaperclipIcon(NSRect rect, NSColor *color) {
+    SZFIconBox(rect, 16, ^{
+        NSBezierPath *path = SZFStrokePath(1.3);
+        [path moveToPoint:NSMakePoint(11.54, 8)];
+        [path lineToPoint:NSMakePoint(7.47, 12.07)];
+        SZFHalfTurn(path, 5.7, 10.3, 2.5, 45);
+        [path lineToPoint:NSMakePoint(9.24, 3.23)];
+        SZFHalfTurn(path, 10.475, 4.465, 1.75, 225);
+        [path lineToPoint:NSMakePoint(6.76, 10.65)];
+        SZFHalfTurn(path, 6.23, 10.12, 0.75, 45);
+        [path lineToPoint:NSMakePoint(9.41, 5.88)];
+        [color setStroke];
+        [path stroke];
+    });
+}
+
 void SZFriendsDrawPencilIcon(NSRect rect, NSColor *color) {
     SZFIconBox(rect, 16, ^{
         NSBezierPath *path = SZFStrokePath(1.4);

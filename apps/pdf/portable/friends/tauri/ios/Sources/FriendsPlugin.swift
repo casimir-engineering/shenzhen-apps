@@ -5,6 +5,8 @@
 // - keychainRead, keychainAdd, keychainDelete: the Friends key, a generic-password item readable after the first
 //   unlock, on this device only, never synchronised.
 // - share: a received file to the share sheet (Save to Files is one of its choices).
+// - pickFiles: Attach files, the system's document picker for any type, several at once; the system copies each file
+//   as it reads it and the copies move into the folder Rust names.
 // - openUrl: a web or mail link, the app's page in Settings, or its notification settings.
 // - notify*: Friends' notifications (Notifications.swift).
 //
@@ -16,6 +18,7 @@ import Security
 import SwiftRs
 import Tauri
 import UIKit
+import UniformTypeIdentifiers
 import WebKit
 
 struct KeyArgs: Decodable {
@@ -29,6 +32,59 @@ struct PathArgs: Decodable {
 
 struct UrlArgs: Decodable {
   let url: String
+}
+
+struct FolderArgs: Decodable {
+  let folder: String
+}
+
+/// A name a file can have here, as the person saw it: no folder separators, no leading dot, at most 200 bytes.
+func plainFileName(_ raw: String) -> String {
+  var name = raw.replacingOccurrences(of: "/", with: "-").replacingOccurrences(of: "\0", with: "")
+  while name.hasPrefix(".") { name.removeFirst() }
+  name = name.trimmingCharacters(in: .whitespaces)
+  if name.isEmpty { name = "File" }
+  while name.utf8.count > 200 {
+    let ext = (name as NSString).pathExtension
+    var base = (name as NSString).deletingPathExtension
+    base.removeLast()
+    name = ext.isEmpty || ext.utf8.count > 16 ? String((name).dropLast()) : base + "." + ext
+  }
+  return name
+}
+
+/// Attach files: the picker's answer, the chosen copies moved into `folder/<n>/<name>`.
+final class FilePicking: NSObject, UIDocumentPickerDelegate {
+  let invoke: Invoke
+  let folder: URL
+  var done: (() -> Void)?
+
+  init(invoke: Invoke, folder: URL) {
+    self.invoke = invoke
+    self.folder = folder
+  }
+
+  func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
+    var files: [[String: String]] = []
+    for (index, url) in urls.prefix(100).enumerated() {
+      let directory = folder.appendingPathComponent(String(index), isDirectory: true)
+      let target = directory.appendingPathComponent(plainFileName(url.lastPathComponent))
+      do {
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        try FileManager.default.moveItem(at: url, to: target)
+        files.append(["path": target.path])
+      } catch {
+        try? FileManager.default.removeItem(at: directory)
+      }
+    }
+    invoke.resolve(["files": files])
+    done?()
+  }
+
+  func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) {
+    invoke.resolve([:])
+    done?()
+  }
 }
 
 /// The Keychain service every Friends item is filed under.
@@ -52,6 +108,24 @@ private func unhex(_ text: String) -> Data? {
 }
 
 class FriendsPlugin: NearbyPlugin {
+  /// Attach files while its picker is up.
+  private var picking: FilePicking?
+
+  @objc public func pickFiles(_ invoke: Invoke) throws {
+    let args = try invoke.parseArgs(FolderArgs.self)
+    let folder = URL(fileURLWithPath: args.folder, isDirectory: true)
+    DispatchQueue.main.async {
+      guard let presenter = self.manager.viewController else { return invoke.resolve([:]) }
+      // asCopy: the system copies each chosen file for this app as it reads it, whatever app or service holds it.
+      let picker = UIDocumentPickerViewController(forOpeningContentTypes: [UTType.item], asCopy: true)
+      picker.allowsMultipleSelection = true
+      let picking = FilePicking(invoke: invoke, folder: folder)
+      picking.done = { [weak self] in self?.picking = nil }
+      self.picking = picking
+      picker.delegate = picking
+      presenter.present(picker, animated: true)
+    }
+  }
 
   @objc public func dirs(_ invoke: Invoke) throws {
     let base = try FileManager.default.url(

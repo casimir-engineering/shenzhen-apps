@@ -210,7 +210,7 @@ impl SnapshotBuilder {
             }
             None => s.text("you.row.accessibility.empty"),
         };
-        let drops = self.audience().has("drop.files");
+        let drops = self.rows_take_files();
         let mut row = Map::new();
         row.insert("conversation_id".into(), json!(YOU_ID));
         row.insert("kind".into(), json!("you"));

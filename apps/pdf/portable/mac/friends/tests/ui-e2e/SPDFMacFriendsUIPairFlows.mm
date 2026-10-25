@@ -276,6 +276,78 @@ static BOOL UIFiles(UIRig* rig, UIFriend* mei, SZFE2EWorld* world) {
     return YES;
 }
 
+// Attach files: the paperclip beside Send asks for files (the open panel, answered here as the person's choice: no
+// panel may reach the screen), they become chips, and Send gives Mei both with the message, byte for byte.
+static BOOL UIAttachFiles(UIRig* rig, UIFriend* mei, SZFE2EWorld* world) {
+    UIBeginFlow(rig, @"attach-files");
+    NSString* survey = UIFileOfSize(world, @"Site survey 2026.pdf", 300 * 1024);
+    NSString* notes = UIFileOfSize(world, @"wiring notes.txt", 2 * 1024);
+    __block NSInteger asked = 0;
+    __block NSArray<NSURL*>* answer = @[ [NSURL fileURLWithPath:survey], [NSURL fileURLWithPath:notes] ];
+    rig.dropdown.context.chooseFiles = ^(NSWindow* window, void (^completion)(NSArray<NSURL*>* files)) {
+        (void)window;
+        asked++;
+        completion(answer);
+    };
+    EXPECT(rig, UIOpenDropdown(rig), "the dropdown opens");
+    CLICK(rig, UIRow(rig, @"Mei"), @"Mei's row");
+    EXPECT(rig, UIWait(5, ^BOOL { return UIConversation(rig) != nil; }), "the conversation with Mei opens");
+    SZFriendsConversationPage* page = UIConversation(rig);
+    SZFriendsButton* attach = page.composer.attachButton;
+    EXPECT(rig, UIWait(5, ^BOOL { return UIVisible(attach); }), "the paperclip shows beside Send:\n%@", UIDescribe(page));
+    EXPECT(rig, [attach.toolTip isEqualToString:@"Attach files"] && [attach.accessibilityLabel isEqualToString:@"Attach files"],
+           "it is named Attach files (%@, %@)", attach.toolTip, attach.accessibilityLabel);
+    EXPECT(rig, NSMaxX(attach.frame) <= NSMinX(page.composer.sendButton.frame), "left of Send");
+    UIShot(rig, @"paperclip");
+    CLICK(rig, attach, @"the paperclip");
+    EXPECT(rig, asked == 1, "the paperclip asks for files once");
+    EXPECT(rig, UIWait(5, ^BOOL { return page.composer.attachments.count == 2; }), "both files become chips");
+    EXPECT(rig, [page.composer.chipButtons[0].title isEqualToString:@"Site survey 2026.pdf"] &&
+                    [page.composer.chipButtons[1].title isEqualToString:@"wiring notes.txt"],
+           "the chips name the files");
+    UIShot(rig, @"chips");
+    // A folder chosen is refused in the helper's words, and nothing more is attached.
+    NSString* folder = [survey.stringByDeletingLastPathComponent stringByAppendingPathComponent:@"Parts"];
+    [NSFileManager.defaultManager createDirectoryAtPath:folder withIntermediateDirectories:YES attributes:nil error:nil];
+    answer = @[ [NSURL fileURLWithPath:folder isDirectory:YES] ];
+    CLICK(rig, attach, @"the paperclip again");
+    EXPECT(rig, UIWait(5, ^BOOL { return UIFindText(page, @"Folders can’t be sent yet") != nil; }),
+           "a folder is refused:\n%@", UIDescribe(page));
+    EXPECT(rig, page.composer.attachments.count == 2, "still two chips");
+    CLICK(rig, page.composer.textView, @"the composer");
+    EXPECT(rig, UIType(rig.popoverWindow, @"Survey and wiring"), "typing reaches the composer");
+    UIPressReturn(rig.popoverWindow);
+    EXPECT(rig, UIWait(10, ^BOOL { return page.composer.attachments.count == 0; }), "Send takes the chips");
+    NSString* atMei = [mei.client openConversation:mei.anaID];
+    for (NSString* file in @[ survey, notes ]) {
+        __block NSString* incoming = nil;
+        EXPECT(rig, UIWait(20, ^BOOL {
+                   for (NSDictionary* transfer in UIItems([mei.client dataFor:atMei], @"transfer"))
+                       if ([transfer[@"state"] isEqual:@"waiting_for_you"] &&
+                           [transfer[@"file"][@"name"] isEqual:file.lastPathComponent])
+                           incoming = transfer[@"transfer_id"];
+                   return incoming != nil;
+               }), "Mei is offered %@: %@", file.lastPathComponent, [mei.client dataFor:atMei][@"items"]);
+        NSDictionary* reply = [mei.client intent:@"accept_offer" fields:@{@"transfer_id" : incoming}];
+        EXPECT(rig, [reply[@"ok"] boolValue], "Mei accepts: %@", reply);
+        __block NSString* copy = nil;
+        EXPECT(rig, UIWait(30, ^BOOL {
+                   for (NSDictionary* transfer in UIItems([mei.client dataFor:atMei], @"transfer"))
+                       if ([transfer[@"transfer_id"] isEqual:incoming] && [transfer[@"state"] isEqual:@"received"])
+                           for (NSDictionary* action in transfer[@"actions"])
+                               if ([action[@"path"] isKindOfClass:NSString.class]) copy = action[@"path"];
+                   return copy != nil;
+               }), "%@ arrives at Mei's", file.lastPathComponent);
+        EXPECT(rig, [[NSData dataWithContentsOfFile:copy] isEqual:[NSData dataWithContentsOfFile:file]],
+               "%@: the same bytes", file.lastPathComponent);
+    }
+    UIShot(rig, @"sent");
+    [mei.client intent:@"unsubscribe" fields:@{@"subscription" : atMei}];
+    CLICK(rig, page.header.backButton, @"Back");
+    EXPECT(rig, UIWait(5, ^BOOL { return rig.dropdown.currentView == SZFriendsDropdownViewList; }), "back to the list");
+    return YES;
+}
+
 static BOOL UISearch(UIRig* rig) {
     UIBeginFlow(rig, @"search");
     EXPECT(rig, UIOpenDropdown(rig), "the dropdown opens");
@@ -329,6 +401,8 @@ BOOL UIFlowTwoPeople(SZFE2EWorld* world, UIVariant* variant) {
         {@"two people: Request from Nearby, accepted", ^BOOL { return UISendRequest(rig, kenji); }},
         {@"two people: a message each way", ^BOOL { return UIMessages(rig, mei); }},
         {@"two people: a file each way", ^BOOL { return UIFiles(rig, mei, world); }},
+        {@"two people: Attach files, chosen in the open panel, sent with Send",
+         ^BOOL { return UIAttachFiles(rig, mei, world); }},
         {@"search filters the list", ^BOOL { return UISearch(rig); }},
         {@"two people: Remove from the row's menu, gone on both computers",
          ^BOOL { return UIRemoveFromList(rig, world); }},

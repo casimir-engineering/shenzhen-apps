@@ -304,8 +304,10 @@ static const NSInteger SZFriendsBlockArmSeconds = 4;
     }
     if (!spoken) spoken = [_strings spokenFragment:subtitle];
 
+    // Rows take files dragged onto them (drop.files) or held for someone chosen from the list (send.files).
     BOOL acceptsDrops = person.relation == SZFriendsPersonRelationFriend && !person.keyChangePending &&
-                        [_audience.capabilities containsObject:@"drop.files"];
+                        ([_audience.capabilities containsObject:@"drop.files"] ||
+                         [_audience.capabilities containsObject:@"send.files"]);
     NSMutableArray<NSString *> *said = [NSMutableArray arrayWithObject:title];
     if (person.unreadCount > 0) [said addObject:[_strings text:@"list.spoken.unread"]];
     if (spoken.length) [said addObject:spoken];
