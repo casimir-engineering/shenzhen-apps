@@ -107,6 +107,7 @@ import type {
   Vec3,
   ExactPair,
 } from "./core/types";
+import { logFailure, shownFailure } from "./core/failures";
 type ModelRuntime = typeof import("./core/model-runtime");
 const UpdatesDialog = lazy(() => import("./components/UpdatesDialog"));
 // Shenzhen Friends loads only where its bridge exists (the Mac app), a second after the first paint.
@@ -434,7 +435,13 @@ function App() {
       install(engine.createDemo());
     } catch (failure) {
       if (generation === loadEpoch.current)
-        setError(failure instanceof Error ? failure.message : String(failure));
+        setError(
+          shownFailure(
+            "sample model",
+            failure,
+            "The sample model couldn’t be opened. Try again.",
+          ),
+        );
     } finally {
       if (generation === loadEpoch.current) setLoading("");
     }
@@ -528,16 +535,17 @@ function App() {
             setRecent(await store.listRecent());
           })
           .catch((failure) => {
+            logFailure("recent files", failure);
             if (generation === loadEpoch.current)
-              notify(
-                `Opened file. Could not save it to recent files: ${failure instanceof Error ? failure.message : String(failure)}`,
-              );
+              notify("Opened file. It couldn’t be added to recent files.");
           });
         if (window.innerWidth < 900) setLeft(false);
       } catch (e) {
         if (generation === loadEpoch.current) {
           dropLoadingView();
-          setError(e instanceof Error ? e.message : String(e));
+          setError(
+            shownFailure("open file", e, "This file couldn’t be opened."),
+          );
         }
       } finally {
         if (generation === loadEpoch.current) setLoading("");
@@ -558,15 +566,20 @@ function App() {
           (files) => nativeLoad.current(files),
           (failure) =>
             setError(
-              failure instanceof Error ? failure.message : String(failure),
+              shownFailure(
+                "files sent to the app",
+                failure,
+                "A file sent to Shenzhen 3D couldn’t be opened. Send it again.",
+              ),
             ),
         );
         if (canceled) stop();
         else unsubscribe = stop;
       })
-      .catch((failure) => {
-        if (!canceled) setError(String(failure));
-      });
+      // Waiting for files sent from other apps: nothing the person can do about it here.
+      .catch((failure) =>
+        logFailure("waiting for files sent to the app", failure),
+      );
     return () => {
       canceled = true;
       unsubscribe?.();
@@ -579,7 +592,13 @@ function App() {
         await load(files);
       } else fileInput.current?.click();
     } catch (e) {
-      setError(String(e));
+      setError(
+        shownFailure(
+          "file picker",
+          e,
+          "The file picker didn’t open. Try again.",
+        ),
+      );
     }
   }, [load]);
   const closeDocument = () => {
@@ -779,7 +798,13 @@ function App() {
       notify("Project exported");
     } catch (failure) {
       if (!(failure instanceof DOMException && failure.name === "AbortError"))
-        setError(failure instanceof Error ? failure.message : String(failure));
+        setError(
+          shownFailure(
+            "export project",
+            failure,
+            "The project couldn’t be exported. Try again.",
+          ),
+        );
     } finally {
       setSharing(false);
     }
@@ -1099,7 +1124,7 @@ function App() {
       await saveBlob(blob, name);
     } catch (e) {
       setError(
-        "Could not save file: " + (e instanceof Error ? e.message : String(e)),
+        shownFailure("save file", e, "The file couldn’t be saved. Try again."),
       );
     }
   };
@@ -1346,7 +1371,8 @@ function App() {
               void actions.current.exportMeasurements("csv");
           }),
         )
-        .then((fn) => (unlisten = fn));
+        .then((fn) => (unlisten = fn))
+        .catch((failure) => logFailure("menu commands", failure));
     return () => {
       window.removeEventListener("keydown", key);
       unlisten?.();
@@ -2003,9 +2029,11 @@ function App() {
                             if (generation !== loadEpoch.current) return;
                             setLoading("");
                             setError(
-                              failure instanceof Error
-                                ? failure.message
-                                : String(failure),
+                              shownFailure(
+                                "open recent file",
+                                failure,
+                                "This file couldn’t be opened. Open it again with Open file.",
+                              ),
                             );
                           });
                       }}

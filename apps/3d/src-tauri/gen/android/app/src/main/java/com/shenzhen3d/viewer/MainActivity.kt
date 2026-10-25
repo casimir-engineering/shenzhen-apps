@@ -65,6 +65,8 @@ class MainActivity : TauriActivity() {
 
   override fun onWebViewCreate(webView: WebView) {
     this.webView = webView
+    // The page's calls carry its own address, even those it makes before onPageStarted (PageIpc.kt says why).
+    webView.post { PageIpc.install(webView) }
     webView.addJavascriptInterface(Bridge(), "ShenzhenInsets")
     ViewCompat.setOnApplyWindowInsetsListener(webView) { view, given ->
       val all = if (withholdIme) {

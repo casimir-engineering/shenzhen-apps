@@ -1,6 +1,7 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
 import type { Viewer } from "../core/viewer";
 import type { Pick } from "../core/types";
+import { shownFailure } from "../core/failures";
 export interface ViewportHandle {
   viewer: Viewer | undefined;
 }
@@ -46,7 +47,13 @@ export const Viewport = forwardRef<
         viewer.current = undefined;
       };
     } catch (e) {
-      onError(e instanceof Error ? e.message : "WebGL could not initialize");
+      onError(
+        shownFailure(
+          "3D view",
+          e,
+          "The 3D view couldn’t start on this device.",
+        ),
+      );
     }
   }, [ViewerClass]);
   return (

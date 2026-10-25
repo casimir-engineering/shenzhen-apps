@@ -108,6 +108,15 @@ footer's Updates button and the Updates dialog are the Mac's, with **Update to X
   preview-0.2.1 (Mac only) is. Passed on 2026-10-20 on an Android 16 arm64 emulator, headless: 0.2.0 → 0.2.9 with a
   wrong checksum refused first, data kept. The release-profile 0.2.2 build checked the real API there and found
   itself up to date.
+  `--release` runs it with release builds as people have them, the published APK included: the mock answers as
+  `https://api.github.com`, with a test certificate authority trusted and the name pointed at the computer on the
+  emulator only (adb root, a Google APIs image), undone at the end. Every step also fails the run if the page's red
+  error banner shows, through the new version's first seconds. Passed on 2026-10-25, Android 15 arm64 emulator,
+  headless: the published 0.2.2 → a test 0.2.91, data kept, no red error.
+- **The page's first calls.** `node scripts/android-ipc-origin-e2e.mjs --serial <emulator> [--apk <apk>]` starts the
+  app under a debugger and, while its page loads, makes its calls go out before onPageStarted, as a busy main thread
+  does on phones. The page must show no red error and its calls must work. Before PageIpc.kt, it showed "Command
+  plugin:event|listen not allowed by ACL", which people saw on the first launch after an update.
 - **A test build over a release.** `node scripts/friends/android-release.mjs --target aarch64 --version 0.2.2` (or
   `--version-code <n>` alone; Tauri derives 2000 from 0.2.0) builds an APK that installs over a published one
   without being a release. The footer still shows `package.json`'s version; the Updates dialog shows the installed
