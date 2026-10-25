@@ -43,9 +43,9 @@ APP="${1:-$repo_root/dist/Shenzhen Files.app}"
 # a globally increasing numeric CFBundleVersion for LaunchServices/App Store
 # cache semantics, and an explicit YY.M.DD-BUILD release tag for GitHub.
 BUNDLE_ID="com.intuition.shenzhenfiles"
-SHORT_VERSION="26.10.20"
+SHORT_VERSION="26.10.25"
 RELEASE_BUILD="1"
-BUNDLE_VERSION="26102001"
+BUNDLE_VERSION="26102501"
 # tools/release.sh builds a candidate of another version (a dry run of a throwaway one) with
 # SZF_RELEASE_VERSION=<YY.M.D>-<N>; publishing refuses a version other than the one written above.
 if [[ -n "${SZF_RELEASE_VERSION:-}" ]]; then

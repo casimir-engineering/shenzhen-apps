@@ -5,7 +5,7 @@
 
 <a href="https://github.com/casimir-engineering/shenzhen-files/releases/latest/download/ShenzhenFiles-mac-arm64.dmg"><img src="https://img.shields.io/badge/Download%20for%20macOS-Apple%20Silicon-2ea44f?style=for-the-badge&logo=apple&logoColor=white" alt="Download for macOS (Apple Silicon)" height="46"></a>
 
-<sub>Latest <b>26.10.20-1</b> · Apple Silicon</sub>
+<sub>Latest <b>26.10.25-1</b> · Apple Silicon</sub>
 
 <a href="https://github.com/casimir-engineering/shenzhen-files/releases/latest">All releases</a> · <a href="https://github.com/casimir-engineering/shenzhen-files">Source</a>
 

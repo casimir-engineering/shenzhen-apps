@@ -17,7 +17,7 @@ G_DECLARE_FINAL_TYPE(SpdfApp, spdf_app, SPDF, APP, AdwApplication)
 // Release identity, compared against GitHub release tags ("YY.M.DD-BUILD")
 // by spdf_updater.c and shown in the about dialog. cut-release.sh must bump
 // these alongside the Mac Info.plist locations.
-#define SPDF_APP_VERSION "26.10.20"
+#define SPDF_APP_VERSION "26.10.25"
 #define SPDF_APP_BUILD "1"
 #define SPDF_CLOSED_RING_CAPACITY 10
 #define SPDF_RECENT_MENU_LIMIT 10
