@@ -5,7 +5,11 @@
 // later no longer shrink the window for the keyboard; MainActivity.kt makes room for it, src/core/keyboard.ts keeps the
 // focused field in sight.
 //
-//   node scripts/friends/phones-keyboard.mjs --serial emulator-NNNN --tools <dir> [--shots <dir>]
+//   node scripts/friends/phones-keyboard.mjs --serial emulator-NNNN --tools <dir> [--shots <dir>] [--withhold-ime]
+//
+// --withhold-ime starts the app (a debug build) with the keyboard left out of the insets its window is given, as on
+// phones whose system does not report the keyboard to it (the owner's POCO F7, HyperOS on Android 15): the fields must
+// stay above the keyboard all the same.
 //
 // --tools names the core's built examples (`cargo build -p szfriends-helper --example befriend` in
 // apps/pdf/portable/friends/core-rs: target/debug/examples). The emulator must have no hardware keyboard
@@ -19,7 +23,9 @@
 //   3. the same with the phone turned sideways;
 //   4. the other fields: the conversation's search, the list's search, the name in the list's footer and on the
 //      profile page, Add by ID, the 3D viewer's own (the assembly's Find a part…, the Notes text), and last, as it
-//      resets Friends, the join page's Friends ID (its code field shows only once another device approves).
+//      resets Friends, the join page's Friends ID (its code field shows only once another device approves);
+//   5. the window asks to be resized for the keyboard (adjustResize), not panned: panning cannot bring a field of a
+//      full-screen WebView into sight, and some phones report the keyboard to a window only when it asks so.
 import { execFileSync } from "node:child_process";
 import fs from "node:fs/promises";
 import os from "node:os";
@@ -34,9 +40,10 @@ const option = (name) => {
 const serial = option("serial");
 const tools = option("tools");
 const shots = option("shots");
+const withholdIme = argv.includes("--withhold-ime");
 // Emulators only: a phone on USB is someone's.
 if (!/^emulator-\d+$/.test(serial ?? "") || !tools) {
-  console.error("usage: phones-keyboard.mjs --serial emulator-NNNN --tools <dir> [--shots <dir>]");
+  console.error("usage: phones-keyboard.mjs --serial emulator-NNNN --tools <dir> [--shots <dir>] [--withhold-ime]");
   process.exit(64);
 }
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -242,7 +249,8 @@ const setRotation = async (rotation) => {
 let failed = false;
 try {
   await setRotation(0);
-  await phone.install({ homePhone, routes, page: {}, work });
+  await phone.install({ homePhone, routes, page: {}, work,
+    extras: withholdIme ? ["--ez", "withholdIme", "true"] : [] });
   await until(() => page(helpers), "the page");
   await until(async () => (await page("return (await window.shenzhenFriends.join()).state;")) === "ready", "Friends ready");
   // A conversation with history: messages to Bo, who is away, so they stay in the history as sent.
@@ -354,13 +362,22 @@ try {
 
   // Last, as it resets this test's Friends: the join page's Friends ID field (Settings ▸ Use my existing profile…).
   await page(`document.querySelector('.mobile-close[aria-label="Close measurements"]')?.click(); return true;`);
-  await tapElement(`document.querySelector('button[title="Settings"]')`, "the Settings button");
+  // With a model open, a phone under about 410 dp wide has the header's Settings button past its right edge.
+  await page(`document.querySelector('button[title="Settings"]').click(); return true;`);
   const settings = `document.querySelector('[data-szfriends="settings"]')`;
   await tapElement(`__szk.button(${settings}, "Use my existing profile…")`, "Use my existing profile… in Settings");
   const confirmBox = `document.querySelector('[data-szfriends="settings"] [role=alertdialog]')`;
   await tapElement(`__szk.button(${confirmBox}, "Delete and Continue")`, "Delete and Continue");
   await until(() => page(`return Boolean(document.querySelector(".szf-panel .szf-join input"));`), "the join page", 60_000);
   await fieldAboveKeyboard("the join page's Friends ID", `document.querySelector(".szf-panel .szf-join input")`, "kitten");
+
+  // 5, checked last so the fields above are seen either way: resized for the keyboard, not panned.
+  const mode = shell("dumpsys", "window", "windows")
+    .split(/\n(?=\s*Window #)/)
+    .find((w) => w.includes("com.shenzhen3d.viewer/com.shenzhen3d.viewer.MainActivity"))
+    ?.match(/sim=\{adjust=(\w+)/)?.[1];
+  if (mode !== "resize") throw Error(`the window is ${mode ? `adjust=${mode}` : "not found"}, not adjust=resize`);
+  check("the window is resized for the keyboard (adjust=resize), not panned");
 } catch (error) {
   failed = true;
   console.error(String(error?.stack ?? error));

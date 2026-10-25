@@ -87,8 +87,8 @@ export function android(serial) {
     evaluate,
     adb,
     // `host`, for a test that goes online: the local host's signed list and keys (files on this computer), which
-    // the app reads from its test environment.
-    async install({ homePhone, routes, page, work, host }) {
+    // the app reads from its test environment. `extras`: `am start` arguments for the activity's intent.
+    async install({ homePhone, routes, page, work, host, extras = [] }) {
       this.config = page;
       adb("shell", "am", "force-stop", PACKAGE);
       runAs(`rm -rf files/fhome files/froutes && mkdir -p files/fhome/keys files/froutes`);
@@ -114,7 +114,7 @@ export function android(serial) {
           await wait(500);
         }
       })();
-      adb("shell", "am", "start", "-n", `${PACKAGE}/.MainActivity`);
+      adb("shell", "am", "start", "-n", `${PACKAGE}/.MainActivity`, ...extras);
       await this.reattach();
       const status = await evaluate("window.shenzhenFriends.join()");
       if (!status.available) throw Error("Friends is not available in the app");

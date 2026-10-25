@@ -35,6 +35,8 @@ export function ConversationPage({
   });
   const scroller = useRef<HTMLDivElement>(null);
   const atBottom = useRef(true);
+  // The history's size when it last kept its end in sight: a scroll while it differs comes from the layout.
+  const kept = useRef({ width: 0, height: 0 });
   const [searching, setSearching] = useState(false);
   const [menu, setMenu] = useState<{ url: string; text: string } | null>(null);
   const [card, setCard] = useState<Mention | null>(null);
@@ -59,6 +61,10 @@ export function ConversationPage({
     if (!element || typeof ResizeObserver === "undefined") return;
     const observer = new ResizeObserver(() => {
       if (atBottom.current) element.scrollTop = element.scrollHeight;
+      kept.current = {
+        width: element.clientWidth,
+        height: element.clientHeight,
+      };
     });
     observer.observe(element);
     return () => observer.disconnect();
@@ -127,6 +133,12 @@ export function ConversationPage({
             className={`szf-history ${dragging ? "drop-target" : ""}`}
             onScroll={(event) => {
               const element = event.currentTarget;
+              // Turning the phone or the keyboard coming up scrolls it before it is resized: not the reader's doing.
+              if (
+                element.clientWidth !== kept.current.width ||
+                element.clientHeight !== kept.current.height
+              )
+                return;
               atBottom.current =
                 element.scrollHeight -
                   element.scrollTop -
