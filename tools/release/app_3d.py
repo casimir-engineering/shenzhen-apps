@@ -12,6 +12,7 @@ import subprocess
 import time
 import zipfile
 
+import displayed
 from base import Release
 from common import (CACHE, IDENTITY, PROFILE, TEAM_ID, TEAM_REQUIREMENT, Failure, app_from_dmg, download_asset,
                     end_test_processes, gh_api, git, notarize, parallel, prepare_worktree, publish_release,
@@ -326,7 +327,37 @@ class ThreeDRelease(Release):
             shutil.copyfile(derived if os.path.isfile(derived) else self.notes(), path)
         return path
 
+    def check_displayed_versions(self):
+        """Every build this run made shows self.version, read from the build itself (displayed.py says where): the
+        Mac app per owner, and with --platforms all the web build, the APK, both iOS builds and the Windows and Linux
+        installers."""
+        for owner in self.owners:
+            app = os.path.join(self.notarized(owner), "mac-arm64", APP)
+            displayed.require(f"{owner}'s Mac app", self.version, displayed.mac_electron_app(app))
+        if self.opts.platforms != "all":
+            return
+        out, v = os.path.join(self.out, "platforms"), self.version
+        badging = lambda path: displayed.android_badging(  # noqa: E731
+            run([self.android_tool("aapt2"), "dump", "badging", path], log=self.log("verify"), capture=True))
+        checks = {
+            f"shenzhen-3d-{v}-web.zip": displayed.web_zip,
+            f"shenzhen-3d-{v}-android-arm64-development.apk": badging,
+            f"shenzhen-3d-{v}-ios-arm64-simulator.tar.gz": displayed.ios_simulator_tar,
+            f"shenzhen-3d-{v}-ios-registered-devices.ipa": displayed.ios_ipa,
+            f"Shenzhen-3D-{v}-Windows-x64-Setup.exe": displayed.windows_installer,
+            f"Shenzhen-3D-{v}-Windows-x64.msi": lambda path: displayed.windows_msi(
+                path, os.path.join(self.run_dir, "displayed", "msi")),
+            f"Shenzhen-3D-{v}-Linux-arm64.deb": lambda path: [("Version", displayed.deb_version(path))],
+            f"Shenzhen-3D-{v}-Linux-arm64.rpm": lambda path: [("Version", displayed.rpm_version(path))],
+        }
+        for name, read in checks.items():
+            if not os.path.isfile(os.path.join(out, name)):
+                raise Failure(f"{name} is missing from {out}")
+            displayed.require(name, v, read(os.path.join(out, name)))
+        say(f"verify: every build shows {v}")
+
     def verify(self):
+        self.check_displayed_versions()
         for owner in self.owners:
             self.update_test(owner, "verify")
         return {"files": [f for o in self.owners for f in self.final_files(o)]}
@@ -372,6 +403,14 @@ class ThreeDRelease(Release):
         open(os.path.join(out, ".complete"), "w").close()
         return out
 
+    def android_tool(self, name):
+        """A tool from the Android SDK's newest build-tools."""
+        sdk = os.environ.get("ANDROID_HOME") or os.path.expanduser("~/Library/Android/sdk")
+        tools = os.path.join(sdk, "build-tools")
+        version = sorted((d for d in os.listdir(tools) if d[:1].isdigit()),
+                         key=lambda d: [int(x) if x.isdigit() else 0 for x in re.split(r"[.-]", d)])[-1]
+        return os.path.join(tools, version, name)
+
     def android(self, out, cargo_env, no_frontend, log):
         """The release APK and AAB, the native library stripped; the APK aligned for 16 KB pages and signed with the
         Android debug key every published APK carries, then checked: that key, this version and versionCode."""
@@ -394,11 +433,7 @@ class ThreeDRelease(Release):
         aab = sorted(glob.glob(os.path.join(outputs, "bundle/**/*.aab"), recursive=True))
         if len(apk) != 1 or len(aab) != 1:
             raise Failure(f"the Android build left {len(apk)} unsigned APKs and {len(aab)} AABs under {outputs}")
-        sdk = os.environ.get("ANDROID_HOME") or os.path.expanduser("~/Library/Android/sdk")
-        tools = os.path.join(sdk, "build-tools")
-        version = sorted((d for d in os.listdir(tools) if d[:1].isdigit()),
-                         key=lambda d: [int(x) if x.isdigit() else 0 for x in re.split(r"[.-]", d)])[-1]
-        tool = lambda name: os.path.join(tools, version, name)  # noqa: E731
+        tool = self.android_tool
         keystore = os.path.expanduser("~/.android/debug.keystore")
         aligned = os.path.join(self.run_dir, "android-aligned.apk")
         signed = os.path.join(out, f"shenzhen-3d-{self.version}-android-arm64-development.apk")

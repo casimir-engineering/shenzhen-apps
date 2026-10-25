@@ -40,6 +40,14 @@ def gatekeeper_check(dmg, app_name, work, log):
     return verdict
 
 
+def check_displayed_release(release, dmg, app_name):
+    """The app in the final DMG shows release.tag in About and the update dialog (displayed.py), or the run stops."""
+    import displayed
+    app = app_from_dmg(dmg, os.path.join(release.run_dir, "displayed", "app"), app_name, release.log("verify"))
+    displayed.require(f"{app_name} in {os.path.basename(dmg)}", release.tag, displayed.mac_release_app(app))
+    say(f"verify: {app_name} shows {release.tag}")
+
+
 def latest_release_json(slug, log):
     return gh_api(f"repos/{slug}/releases/latest", log=log)
 

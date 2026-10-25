@@ -1,17 +1,22 @@
 #!/usr/bin/env python3
 """Tests for tools/release.sh's machinery that a dry run does not reach: stage stamps and resuming, test stamps, the
-source tag on a release repository, and publishing a GitHub release (against a stand-in for gh that keeps releases
-in a JSON file). Nothing leaves the machine.
+source tag on a release repository, publishing a GitHub release (against a stand-in for gh that keeps releases
+in a JSON file), and reading the version each kind of build shows (displayed.py). Nothing leaves the machine.
 
     python3 tools/release/test_release.py
 """
+import io
 import json
 import os
+import plistlib
 import shutil
+import struct
 import subprocess
 import sys
+import tarfile
 import tempfile
 import textwrap
+import zipfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.dont_write_bytecode = True  # nothing left in the worktree
@@ -22,6 +27,7 @@ os.environ["FAKE_GH_STATE"] = os.path.join(TMP, "gh-state.json")
 sys.path.insert(0, HERE)
 
 import common  # noqa: E402
+import displayed  # noqa: E402
 
 FAKE_GH = r'''#!/usr/bin/env python3
 # A stand-in for gh: releases live in $FAKE_GH_STATE; every call is appended to its "calls".
@@ -294,6 +300,113 @@ def test_publish():
         check("other bytes for a published release stop the run", True)
 
 
+def fake_asar(path, files):
+    """An app.asar holding `files` ({name or dir/name: bytes})."""
+    tree, blob = {"files": {}}, b""
+    for name, data in files.items():
+        node = tree
+        for part in name.split("/")[:-1]:
+            node = node["files"].setdefault(part, {"files": {}})
+        node["files"][name.split("/")[-1]] = {"size": len(data), "offset": str(len(blob))}
+        blob += data
+    header = json.dumps(tree).encode()
+    header += b"\0" * ((4 - len(header) % 4) % 4)
+    pickle = struct.pack("<II", len(header) + 4, len(json.dumps(tree).encode())) + header
+    with open(path, "wb") as f:
+        f.write(struct.pack("<II", 4, len(pickle)) + pickle + blob)
+
+
+def fake_version_info(version):
+    """Bytes holding a VERSIONINFO ProductVersion string, as a Windows executable's resources do."""
+    key, value = "ProductVersion".encode("utf-16-le") + b"\0\0", (version + "\0").encode("utf-16-le")
+    body = key + b"\0" * ((4 - (6 + len(key)) % 4) % 4) + value
+    return b"MZ" + b"\0" * 62 + struct.pack("<HHH", 6 + len(body), len(version) + 1, 1) + body
+
+
+def fake_rpm(path, version):
+    def header(entries):
+        index, store = b"", b""
+        for tag, value in entries:
+            index += struct.pack(">IIII", tag, 6, len(store), 1)
+            store += value.encode() + b"\0"
+        return b"\x8e\xad\xe8\x01\0\0\0\0" + struct.pack(">II", len(entries), len(store)) + index + store
+    signature = header([])
+    signature += b"\0" * ((8 - len(signature) % 8) % 8)
+    with open(path, "wb") as f:
+        f.write(b"\xed\xab\xee\xdb" + b"\0" * 92 + signature + header([(1000, "shenzhen-3d"), (1001, version)]))
+
+
+def fake_deb(path, version):
+    control = io.BytesIO()
+    with tarfile.open(fileobj=control, mode="w:gz") as tar:
+        data = f"Package: shenzhen-3d\nVersion: {version}\n".encode()
+        info = tarfile.TarInfo("./control")
+        info.size = len(data)
+        tar.addfile(info, io.BytesIO(data))
+    out = b"!<arch>\n"
+    for name, data in (("debian-binary", b"2.0\n"), ("control.tar.gz", control.getvalue())):
+        out += f"{name:<16}{0:<12}{0:<6}{0:<6}{100644:<8}{len(data):<10}`\n".encode() + data + b"\n" * (len(data) % 2)
+    open(path, "wb").write(out)
+
+
+def shows(read, version, *args):
+    """True when the artifact `read` reads shows `version` everywhere (displayed.require passes)."""
+    try:
+        displayed.require("test", version, read(*args))
+        return True
+    except common.Failure:
+        return False
+
+
+def test_displayed():
+    folder = os.path.join(TMP, "displayed")
+    os.makedirs(folder)
+    page = lambda v: f'<html><head><meta name="shenzhen-3d-version" content="{v}"></head></html>'.encode()  # noqa: E731
+
+    def mac_app(name, short, package, page_version):
+        app = os.path.join(folder, name, "Shenzhen 3D.app")
+        os.makedirs(os.path.join(app, "Contents/Resources"))
+        plistlib.dump({"CFBundleShortVersionString": short}, open(os.path.join(app, "Contents/Info.plist"), "wb"))
+        fake_asar(os.path.join(app, "Contents/Resources/app.asar"),
+                  {"package.json": json.dumps({"version": package}).encode(), "dist/index.html": page(page_version)})
+        return app
+
+    check("a Mac app that shows 0.2.3 everywhere passes",
+          shows(displayed.mac_electron_app, "0.2.3", mac_app("good", "0.2.3", "0.2.3", "0.2.3")))
+    # The Android test installs before 0.2.2: the app said 0.2.2 while the page, built from package.json, said 0.2.1.
+    check("a page built as another version stops the release",
+          not shows(displayed.mac_electron_app, "0.2.3", mac_app("stale-page", "0.2.3", "0.2.3", "0.2.2")))
+    check("an app.asar of another version stops the release",
+          not shows(displayed.mac_electron_app, "0.2.3", mac_app("stale-asar", "0.2.3", "0.2.2", "0.2.3")))
+    web = os.path.join(folder, "web.zip")
+    with zipfile.ZipFile(web, "w") as z:
+        z.writestr("index.html", b"<html></html>")
+    check("a page with no version stops the release", not shows(displayed.web_zip, "0.2.3", web))
+    ipa = os.path.join(folder, "app.ipa")
+    with zipfile.ZipFile(ipa, "w") as z:
+        z.writestr("Payload/Shenzhen 3D.app/Info.plist", plistlib.dumps({"CFBundleShortVersionString": "0.2.2"}))
+    check("an iOS build of another version stops the release", not shows(displayed.ios_ipa, "0.2.3", ipa))
+    check("the iOS build's own version passes", shows(displayed.ios_ipa, "0.2.2", ipa))
+    exe = os.path.join(folder, "setup.exe")
+    open(exe, "wb").write(fake_version_info("0.2.3"))
+    check("a Windows installer's ProductVersion is read", displayed.windows_installer(exe) == [("ProductVersion",
+                                                                                               "0.2.3")])
+    deb, rpm = os.path.join(folder, "app.deb"), os.path.join(folder, "app.rpm")
+    fake_deb(deb, "0.2.3")
+    fake_rpm(rpm, "0.2.3")
+    check("a .deb's version is read", displayed.deb_version(deb) == "0.2.3")
+    check("an .rpm's version is read", displayed.rpm_version(rpm) == "0.2.3")
+    check("badging's versionName is read",
+          displayed.android_badging("package: name='x' versionCode='2016' versionName='0.2.3'") == [("versionName",
+                                                                                                    "0.2.3")])
+    pdf = os.path.join(folder, "ShenzhenPDF.app")
+    os.makedirs(os.path.join(pdf, "Contents"))
+    plistlib.dump({"CFBundleShortVersionString": "26.10.20", "CFBundleVersion": "8", "SZFReleaseTag": "26.10.20-1"},
+                  open(os.path.join(pdf, "Contents/Info.plist"), "wb"))
+    check("ShenzhenPDF shows its release tag, not its build", shows(displayed.mac_release_app, "26.10.20-1", pdf))
+    check("a release tag other than the release stops it", not shows(displayed.mac_release_app, "26.10.25-1", pdf))
+
+
 def main():
     try:
         mono, remote, previous = setup()
@@ -303,6 +416,7 @@ def main():
         test_test_stamps(mono)
         test_source_tag(mono, remote, previous)
         test_publish()
+        test_displayed()
     finally:
         shutil.rmtree(TMP, ignore_errors=True)
     print(f"{passed} passed, {failed} failed")

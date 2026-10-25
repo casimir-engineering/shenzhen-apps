@@ -8,8 +8,8 @@ import subprocess
 
 from base import Release
 from common import CACHE, IDENTITY, JOBS, TEAM_ID, TEAM_REQUIREMENT, Failure, git, notarize, run, say, staple
-from macshared import (gatekeeper_check, latest_release_json, previous_app, publish_common, run_mac_update_e2e,
-                       write_json)
+from macshared import (check_displayed_release, gatekeeper_check, latest_release_json, previous_app, publish_common,
+                       run_mac_update_e2e, write_json)
 
 SLUG = "casimir-engineering/shenzhen-pdf"
 ASSET = "ShenzhenPDF-mac-arm64.dmg"
@@ -151,6 +151,7 @@ class PdfRelease(Release):
     def verify(self):
         """Updating from the published release to this candidate, hidden, against a local copy of GitHub."""
         dmg = os.path.join(self.out, "final", ASSET)
+        check_displayed_release(self, dmg, "ShenzhenPDF.app")
         old = previous_app(self, SLUG, ASSET, "ShenzhenPDF.app")
         run_mac_update_e2e(self, "pdf", old, dmg, old["release_json"], "verify")
         return {"files": [dmg], "previous": old["tag"]}

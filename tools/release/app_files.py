@@ -6,7 +6,8 @@ import shutil
 
 from base import Release
 from common import IDENTITY, TEAM_REQUIREMENT, Failure, git, notarize, run, say, staple
-from macshared import gatekeeper_check, latest_release_json, previous_app, publish_common, run_mac_update_e2e, write_json
+from macshared import (check_displayed_release, gatekeeper_check, latest_release_json, previous_app,
+                       publish_common, run_mac_update_e2e, write_json)
 
 SLUG = "casimir-engineering/shenzhen-files"
 ASSET = "ShenzhenFiles-mac-arm64.dmg"
@@ -136,6 +137,7 @@ class FilesRelease(Release):
 
     def verify(self):
         dmg = os.path.join(self.out, "final", ASSET)
+        check_displayed_release(self, dmg, APP)
         old = previous_app(self, SLUG, ASSET, APP)
         run_mac_update_e2e(self, "files", old, dmg, old["release_json"], "verify")
         return {"files": [dmg], "previous": old["tag"]}
