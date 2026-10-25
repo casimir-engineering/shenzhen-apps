@@ -153,7 +153,14 @@ function webviewBounds() {
   return { left, top, right, bottom };
 }
 async function screenPoint(expression, what) {
-  const at = await until(() => page(`return __szf.rect(${expression});`), what);
+  // Where it rests: the same place twice, so a keyboard or a page still moving cannot take the tap.
+  let at = null;
+  for (let i = 0; i < 20; i++) {
+    const now = await until(() => page(`return __szf.rect(${expression});`), what);
+    if (at && JSON.stringify(now) === JSON.stringify(at)) break;
+    at = now;
+    await wait(400);
+  }
   const bounds = webviewBounds();
   const scale = (bounds.bottom - bounds.top) / at.height;
   return { x: Math.round(bounds.left + at.x * scale), y: Math.round(bounds.top + at.y * scale) };
@@ -235,6 +242,8 @@ try {
   if (!chips.includes(files.survey.name) || !chips.includes(files.notes.name))
     throw Error(`the chips read ${JSON.stringify(chips)}`);
   check(`both files picked in the system's picker become chips: ${chips.join(", ")}`);
+  if (adb("shell", "dumpsys", "input_method").includes("mInputShown=true"))
+    throw Error("the keyboard came up after picking files");
   await shot("4-chips");
   tap(await screenPoint(`document.querySelector('.szf-panel .szf-composer .szf-button.primary')`, "Send"));
   await receivedByBo(items, [files.survey.name, files.notes.name]);

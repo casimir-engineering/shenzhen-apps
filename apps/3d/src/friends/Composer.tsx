@@ -247,7 +247,8 @@ export function ComposerView({
           (file) => !old.some((entry) => entry.path === file.path),
         ),
       ]);
-    editor.current?.focus();
+    // Typing goes on in the field on a computer; a phone keeps its keyboard down, so Send stays where it was.
+    if (!bridge.stagedDropLimit) editor.current?.focus();
   };
 
   const send = async () => {
