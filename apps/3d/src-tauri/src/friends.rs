@@ -75,7 +75,7 @@ pub fn plugin() -> tauri::plugin::TauriPlugin<tauri::Wry> {
     tauri_plugin_szfriends::init(tauri_plugin_szfriends::Config {
         app_id: "com.shenzhen3d.viewer".into(),
         app_name: "Shenzhen 3D".into(),
-        app_version: env!("CARGO_PKG_VERSION").into(),
+        app_version: env!("SHENZHEN_3D_VERSION").into(),
         locale: "en".into(),
         capabilities: CAPABILITIES.iter().map(|c| (*c).to_owned()).collect(),
         open_formats: OPEN_FORMATS.iter().map(|f| (*f).to_owned()).collect(),

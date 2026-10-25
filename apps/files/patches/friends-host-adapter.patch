@@ -4174,10 +4174,21 @@ index 1c72224..c9f85fb 100644
 +GtkWidget *nautilus_toolbar_get_friends_button (NautilusToolbar *self);
  G_END_DECLS
 diff --git a/src/nautilus-window.c b/src/nautilus-window.c
-index 8d17e03..ee1d326 100644
+index 8d17e03..8fd44cf 100644
 --- a/src/nautilus-window.c
 +++ b/src/nautilus-window.c
-@@ -54,6 +54,8 @@
+@@ -43,6 +43,10 @@
+ #include <malloc.h>
+ #endif
+
++#ifdef __APPLE__
++#include <CoreFoundation/CoreFoundation.h>
++#endif
++
+ #include "nautilus-application.h"
+ #include "nautilus-bookmark.h"
+ #include "nautilus-bookmark-list.h"
+@@ -54,6 +58,8 @@
  #include "nautilus-file-undo-manager.h"
  #include "nautilus-file-undo-operations.h"
  #include "nautilus-file-utilities.h"
@@ -4186,7 +4197,7 @@ index 8d17e03..ee1d326 100644
  #include "nautilus-global-preferences.h"
  #include "nautilus-metadata.h"
  #include "nautilus-network-address-bar.h"
-@@ -101,6 +103,7 @@ struct _NautilusWindow
+@@ -101,6 +107,7 @@ struct _NautilusWindow
      NautilusWindowSlot *active_slot; /* weak reference */
 
      GtkWidget *split_view;
@@ -4194,7 +4205,7 @@ index 8d17e03..ee1d326 100644
 
      /* Side Pane */
      GtkWidget *sidebar_resize_handle;
-@@ -1236,6 +1239,9 @@ nautilus_window_initialize_actions (NautilusWindow *window)
+@@ -1236,6 +1243,9 @@ nautilus_window_initialize_actions (NautilusWindow *window)
          nautilus_application_set_accelerator (app, detailed_action, accel);
      }
 
@@ -4204,7 +4215,7 @@ index 8d17e03..ee1d326 100644
      nautilus_window_on_undo_changed (nautilus_file_undo_manager_get (), window);
 
  #undef ACCELS
-@@ -1833,6 +1839,7 @@ nautilus_window_class_init (NautilusWindowClass *class)
+@@ -1833,6 +1843,7 @@ nautilus_window_class_init (NautilusWindowClass *class)
      gtk_widget_class_bind_template_child (wclass, NautilusWindow, undo_redo_section);
      gtk_widget_class_bind_template_child (wclass, NautilusWindow, toolbar);
      gtk_widget_class_bind_template_child (wclass, NautilusWindow, split_view);
@@ -4212,7 +4223,7 @@ index 8d17e03..ee1d326 100644
      gtk_widget_class_bind_template_child (wclass, NautilusWindow, sidebar_resize_handle);
      gtk_widget_class_bind_template_child (wclass, NautilusWindow, places_sidebar);
      gtk_widget_class_bind_template_child (wclass, NautilusWindow, toast_overlay);
-@@ -1857,6 +1864,23 @@ nautilus_window_class_init (NautilusWindowClass *class)
+@@ -1857,6 +1868,23 @@ nautilus_window_class_init (NautilusWindowClass *class)
                        G_TYPE_NONE, 0);
  }
 
@@ -4236,6 +4247,44 @@ index 8d17e03..ee1d326 100644
  NautilusWindow *
  nautilus_window_new (void)
  {
+@@ -1865,6 +1893,26 @@ nautilus_window_new (void)
+                          NULL);
+ }
+
++/* Shenzhen Files: the release this app is, as Check for Updates names it
++ * (Info.plist SZFReleaseTag, such as 26.10.20-1), not the Nautilus version it
++ * is built from; VERSION outside the app bundle. */
++static gchar *
++nautilus_window_release_version (void)
++{
++#ifdef __APPLE__
++    CFBundleRef bundle = CFBundleGetMainBundle ();
++    CFTypeRef tag = bundle != NULL ? CFBundleGetValueForInfoDictionaryKey (bundle, CFSTR ("SZFReleaseTag")) : NULL;
++    char text[64];
++
++    if (tag != NULL && CFGetTypeID (tag) == CFStringGetTypeID () &&
++        CFStringGetCString ((CFStringRef) tag, text, sizeof text, kCFStringEncodingUTF8) && text[0] != '\0')
++    {
++        return g_strdup (text);
++    }
++#endif
++    return g_strdup (VERSION);
++}
++
+ void
+ nautilus_window_show_about_dialog (NautilusWindow *window)
+ {
+@@ -1903,7 +1951,9 @@ nautilus_window_show_about_dialog (NautilusWindow *window)
+
+     dialog = adw_about_dialog_new_from_appdata ("/org/gnome/nautilus/appdata", NULL);
+
+-    adw_about_dialog_set_version (ADW_ABOUT_DIALOG (dialog), VERSION);
++    g_autofree gchar *version = nautilus_window_release_version ();
++
++    adw_about_dialog_set_version (ADW_ABOUT_DIALOG (dialog), version);
+     adw_about_dialog_set_debug_info (ADW_ABOUT_DIALOG (dialog), debug_info);
+     adw_about_dialog_set_copyright (ADW_ABOUT_DIALOG (dialog), "© 1999 The Files Authors");
+     adw_about_dialog_set_developers (ADW_ABOUT_DIALOG (dialog), developers);
 diff --git a/src/nautilus-window.h b/src/nautilus-window.h
 index 541fb2d..274fb4b 100644
 --- a/src/nautilus-window.h

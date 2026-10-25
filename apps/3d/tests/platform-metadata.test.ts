@@ -34,8 +34,21 @@ describe("native platform metadata", () => {
       true,
     );
   });
+  it("takes the version people see from package.json alone", () => {
+    // Tauri reads the version from package.json, so Windows, Linux, Android and iOS cannot drift from it; Android
+    // sets only its versionCode, and the Rust side gets package.json's version from build.rs.
+    expect(tauri.version).toBe("../package.json");
+    const android = JSON.parse(read("src-tauri/tauri.android.conf.json"));
+    expect(android.version).toBeUndefined();
+    expect(Number.isInteger(android.bundle.android.versionCode)).toBe(true);
+    for (const file of ["src/lib.rs", "src/friends.rs", "src/app_updates.rs"])
+      expect(read(`src-tauri/${file}`)).not.toContain("CARGO_PKG_VERSION");
+    // The footer shows the version the app runs as when it can tell (the one Updates compares).
+    const app = read("src/App.tsx");
+    expect(app).toContain("v${runningVersion ?? builtVersion} · Updates");
+    expect(app).not.toContain("package.json");
+  });
   it("keeps mobile version and build numbers aligned with the product", () => {
-    expect(tauri.version).toBe(pkg.version);
     const lock = JSON.parse(read("package-lock.json"));
     expect(lock.version).toBe(pkg.version);
     expect(lock.packages[""].version).toBe(pkg.version);

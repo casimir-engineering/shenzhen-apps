@@ -304,7 +304,7 @@ fn client() -> Result<reqwest::Client, String> {
     // Tauri's updater installs the same provider before its own requests; ours may come first.
     let _ = rustls::crypto::ring::default_provider().install_default();
     reqwest::Client::builder()
-        .user_agent(concat!("Shenzhen-3D/", env!("CARGO_PKG_VERSION")))
+        .user_agent(concat!("Shenzhen-3D/", env!("SHENZHEN_3D_VERSION")))
         .timeout(Duration::from_secs(60))
         .build()
         .map_err(|error| error.to_string())

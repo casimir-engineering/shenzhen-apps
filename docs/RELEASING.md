@@ -84,7 +84,7 @@ committed version's notes, to try the pipeline. With `--publish` the version mus
 | package | the DMG, laid out from `DMG_LAYOUT_DS_STORE`, signed | `electron/package-mac.mjs`: frontend, signed app, ZIP and DMG |
 | notarize | the DMG, and **the test suites at the same time** | every owner's DMG, and the test suites |
 | staple | the DMG; Gatekeeper checks a quarantined copy of the app | the app (zipped again for the updater) and the DMG (`electron/notarize-finalize.mjs`) |
-| verify | `tools/updater-e2e`: the published release updates itself to the candidate | the same, for every owner |
+| verify | the app in the final DMG shows the release in About and the update dialog (`SZFReleaseTag`); then `tools/updater-e2e`: the published release updates itself to the candidate | every build shows the version, read from the build itself (`tools/release/displayed.py`: the Mac app's page, `app.asar` and `Info.plist`, and with `--platforms all` the web build, APK, iOS builds, Windows exe and Linux packages); then the updater test, for every owner |
 | publish | tags, source, the GitHub release (below) | the same, for every owner |
 | live-check | the previous release updates to the published one, as GitHub now lists it | the same |
 
@@ -215,9 +215,11 @@ then the mirror's owner), notarizes its ZIP and DMG, and uploads each build to i
 draft until every asset's digest is verified. Its `prerelease` input publishes the release as a prerelease. It stops
 if the tag does not match `package.json` or the notes file is missing.
 
-The Windows, Linux and iPhone/iPad packages are built outside that job (`apps/3d/docs/PLATFORMS.md`). Raise the
-version in `apps/3d/src-tauri/tauri.conf.json` and `Cargo.toml` as well: it is the version those apps compare with
-the releases. Then, on the Mac that holds the updater key (`~/FriendsKeys/tauri-updater/`), run
+The Windows, Linux and iPhone/iPad packages are built outside that job (`apps/3d/docs/PLATFORMS.md`). They take
+their version from `package.json` too: `tauri.conf.json`'s `version` names that file, `tauri.android.conf.json` sets
+only the versionCode, and the Rust code reads it through `src-tauri/build.rs`. Raise the copies the build tools need
+literally to the same version (`Cargo.toml` and both Cargo locks, the iOS `Info.plist` and `project.yml`;
+`tests/platform-metadata.test.ts` fails until they agree). Then, on the Mac that holds the updater key (`~/FriendsKeys/tauri-updater/`), run
 `apps/3d/scripts/updates/release-updates.mjs` on the release directory: it signs the Setup, the MSI and the AppImage,
 writes `latest.json` and the iPhone's `manifest.plist`, and rewrites `SHA256SUMS.txt`. Upload those with the
 packages (not the `.sig` files). Without `latest.json`, installed Windows and Linux apps are not offered the release;

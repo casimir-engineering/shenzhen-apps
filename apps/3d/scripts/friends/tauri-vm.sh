@@ -52,7 +52,7 @@ payload() {
     mkdir -p "$stage/3d" "$stage/friends/service/identity" "$stage/ext"
     COPYFILE_DISABLE=1 tar --no-xattrs -cf - --exclude 'src-tauri/target' --exclude 'src-tauri/gen' \
         --exclude 'src-tauri/friends/bin' --exclude 'src-tauri/friends/animals' --exclude '.DS_Store' \
-        -C "$here" .cargo src-tauri dist scripts/friends/tauri-smoke.mjs scripts/friends/tauri-smoke-page.js \
+        -C "$here" .cargo package.json src-tauri dist scripts/friends/tauri-smoke.mjs scripts/friends/tauri-smoke-page.js \
         scripts/friends/tauri-package-check.sh scripts/friends/tauri-package-check.ps1 \
         scripts/friends/helper-notices.mjs scripts/friends/clock-shift.c \
         tests/fixtures/formats/triangle.stl tests/fixtures/formats/drawing.svg |

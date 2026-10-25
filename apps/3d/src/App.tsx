@@ -1,4 +1,3 @@
-import { version as appVersion } from "../package.json";
 import {
   lazy,
   Suspense,
@@ -8,6 +7,7 @@ import {
   useState,
 } from "react";
 import type { UpdateState } from "./core/updates";
+import { builtVersion } from "./core/app-version";
 import type { Vector3 } from "three";
 import { createId } from "./core/id";
 import "./core/safe-area";
@@ -198,11 +198,14 @@ function App() {
   const settings = useRef<HTMLDialogElement>(null);
   const [updatesOpen, setUpdatesOpen] = useState(false);
   const [updateStatus, setUpdateStatus] = useState<UpdateState["status"]>();
+  // The version the app itself runs as (the one Updates compares), else the one this page was built from.
+  const [runningVersion, setRunningVersion] = useState<string>();
   useEffect(
     () =>
-      window.shenzhenUpdates?.subscribe((state) =>
-        setUpdateStatus(state.status),
-      ),
+      window.shenzhenUpdates?.subscribe((state) => {
+        setUpdateStatus(state.status);
+        if (state.version) setRunningVersion(state.version);
+      }),
     [],
   );
   const [mode, setMode] = useState<SelectionMode>("point"),
@@ -2546,10 +2549,10 @@ function App() {
           >
             {updateStatus === "available" || updateStatus === "ready"
               ? "Update available"
-              : `v${appVersion} · Updates`}
+              : `v${runningVersion ?? builtVersion} · Updates`}
           </button>
         ) : (
-          <span className="version">v{appVersion}</span>
+          <span className="version">v{builtVersion}</span>
         )}
       </footer>
       {updatesOpen && (

@@ -548,7 +548,12 @@ async function main() {
   const forbiddenOwners = process.argv
     .filter((arg) => arg.startsWith("--forbid-owner="))
     .map((arg) => assertReleaseOwner(arg.slice(15)));
-  // Packaging always consumes a fresh production build, including stage-only verification.
+  // Packaging always consumes a fresh production build, including stage-only verification. A candidate of another
+  // version (--version, below) shows that version in the page too.
+  const pageVersion = process.argv
+    .find((arg) => arg.startsWith("--version="))
+    ?.slice(10);
+  if (pageVersion) process.env.SHENZHEN_3D_VERSION = pageVersion;
   await run("npm", ["run", "build"]);
   const nativeScroll =
     process.platform === "darwin"
