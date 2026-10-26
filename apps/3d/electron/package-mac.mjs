@@ -95,6 +95,23 @@ async function fingerprint(directory, relative = "", result = {}) {
   }
   return result;
 }
+/** The staged frontend's license notices name the source repository as <owner>/shenzhen-3D, where each release's
+ * source tag goes: a build for another owner names that owner's repository, as verifyOwnerIsolation requires. */
+const NOTICES = ["dist/THIRD_PARTY.txt", "dist/licenses/THIRD_PARTY.txt"];
+export async function pointNoticesAtOwner(staging, releaseOwner) {
+  if (releaseOwner === undefined || releaseOwner === null) return;
+  assertReleaseOwner(releaseOwner);
+  for (const notice of NOTICES) {
+    const file = path.join(staging, notice);
+    if (!(await exists(file))) continue;
+    const text = await fs.readFile(file, "utf8");
+    const owned = text.replace(
+      /(github\.com\/)[A-Za-z0-9-]+(\/shenzhen-3D)(?![A-Za-z0-9-])/gi,
+      `$1${releaseOwner}$2`,
+    );
+    if (owned !== text) await fs.writeFile(file, owned);
+  }
+}
 /** Stage a self-contained, lock-verified production dependency graph. */
 export async function stageRuntime(
   staging,
@@ -113,6 +130,7 @@ export async function stageRuntime(
     if (owner === releaseOwner)
       throw Error("Excluded owner cannot be the selected release owner");
   }
+  await pointNoticesAtOwner(staging, releaseOwner);
   const lockBytes = await fs.readFile(path.join(root, "package-lock.json"));
   const lock = JSON.parse(lockBytes);
   const updaterVersion = pkg.dependencies?.["electron-updater"];

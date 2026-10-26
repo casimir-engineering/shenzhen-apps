@@ -157,6 +157,42 @@ test("archive isolation rejects foreign text and repository URLs, including fron
   });
 });
 
+test("staged license notices name the release owner's source repository", async (t) => {
+  const temp = await fs.mkdtemp(path.join(os.tmpdir(), "shenzhen-notices-"));
+  t.after(() => fs.rm(temp, { recursive: true, force: true }));
+  const staging = path.join(temp, "staging");
+  const notice =
+    "The complete source code of Shenzhen 3D is at\n" +
+    "https://github.com/casimir-engineering/shenzhen-3D and in the\n" +
+    "shenzhen-apps repository at https://github.com/casimir-engineering/shenzhen-apps.\n";
+  await fs.mkdir(path.join(staging, "dist/licenses"), { recursive: true });
+  await fs.writeFile(path.join(staging, "dist/THIRD_PARTY.txt"), notice);
+  await fs.writeFile(
+    path.join(staging, "dist/licenses/THIRD_PARTY.txt"),
+    notice,
+  );
+  const { stageRuntime, verifyOwnerIsolation } =
+    await import("./package-mac.mjs");
+  await stageRuntime(staging, require("../package.json"), {
+    releaseOwner: "fixture-primary",
+  });
+  for (const file of [
+    "dist/THIRD_PARTY.txt",
+    "dist/licenses/THIRD_PARTY.txt",
+  ]) {
+    const text = await fs.readFile(path.join(staging, file), "utf8");
+    assert.match(text, /github\.com\/fixture-primary\/shenzhen-3D and/);
+    assert.match(text, /github\.com\/casimir-engineering\/shenzhen-apps\./);
+  }
+  await fs.rm(path.join(staging, ".release-verification.json"));
+  const archive = path.join(temp, "app.asar");
+  await asar.createPackage(staging, archive);
+  assert.equal(
+    verifyOwnerIsolation(archive, "fixture-primary").ownerIsolationVerified,
+    true,
+  );
+});
+
 test("local exclusion policy is rejected even without an owner scan", async (t) => {
   const temp = await fs.mkdtemp(
     path.join(os.tmpdir(), "shenzhen-private-policy-"),
