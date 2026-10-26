@@ -31,6 +31,8 @@ FOUNDATION_EXPORT NSNotificationName const SPDFCollectionStoreDidChangeNotificat
 @interface SPDFMacCollectionStore (EditableDocuments)
 - (void)recordUnavailableSourcePath:(NSString*)path documentID:(NSString*)documentID;
 - (nullable NSDictionary*)editableInfoForPath:(NSString*)path;
+// The editable copies of a document row that exist on disk (History opens a saved revision as one).
+- (NSArray<NSString*>*)editablePathsForDocument:(NSDictionary*)document;
 - (nullable NSURL*)editableVersionID:(nullable NSString*)versionID documentID:(NSString*)documentID error:(NSError**)error;
 - (nullable NSDictionary*)captureEditablePath:(NSString*)path reason:(NSString*)reason error:(NSError**)error;
 - (nullable NSURL*)renameEditablePath:(NSString*)path filename:(NSString*)filename error:(NSError**)error;

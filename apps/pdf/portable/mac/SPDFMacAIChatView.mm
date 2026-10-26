@@ -450,7 +450,7 @@ static BOOL StepRow(NSView* view) {
                 [_messages addArrangedSubview:card]; [card.widthAnchor constraintEqualToAnchor:_messages.widthAnchor].active=YES;
             } else if([role isEqual:@"user"])
                 [self addText:message[@"content"] role:@"You" messageIndex:visibleIndexes[i].unsignedIntegerValue];
-            else [self addText:message[@"content"] role:@"Assistant"];
+            else [self addAnswer:message[@"content"]];
         }
         for(;nextRow<rows.count;nextRow++)[self addActivityRow:rows[nextRow] session:session];
     }

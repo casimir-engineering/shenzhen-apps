@@ -4,6 +4,7 @@
 #import "SPDFMacAIChatSession.h"
 #import "SPDFMacAICitations.h"
 #import "SPDFMacAIDocumentLinks.h"
+#import "SPDFMacAIDocumentAvailability.h"
 #import "SPDFMacDocumentOpening.h"
 #import "SPDFMacAIChatStore.h"
 #import "SPDFMacAIChatView.h"
@@ -90,6 +91,12 @@ static char stateKey;
         };
         state.view.action=^(NSString* action) { [owner aiChatAction:action]; };
         state.view.openLink=^(NSURL* URL) { [owner aiOpenCitation:URL]; };
+        // Answers link only documents that can still be opened, and show a source card (SPDFMacAIDocumentAvailability.h).
+        state.view.documentLinkAvailable=^BOOL(NSURL* URL) { return !owner || [owner aiDocumentLinkAvailable:URL]; };
+        state.view.sourceThumbnail=^(NSURL* URL,NSInteger page,void (^done)(NSImage*)) {
+            if (owner) [owner aiSourceThumbnailForLink:URL page:page completion:done];
+        };
+        [self aiSetDocumentIndexChanged:^{ [weakState.view redisplayAnswers]; }];
         // A chart the person saves is a document the assistant made: Downloads and Collection (SPDFMacAIOutputs.h).
         state.view.saveImage=^(NSString* path,NSString* caption) {
             SPDFMacAIOutputSaveChatImage(weakState.session.activity,path,caption,SPDFMacCollectionStore.defaultStore,
@@ -398,9 +405,11 @@ static char stateKey;
     // or one it named by file name) still opens what it names, without a highlight.
     if (!args) { if (![self aiOpenDocumentLink:link]) [self aiShowMissingDocumentLink]; return; }
     // Bring the cited tab forward first, in its own group, so the highlight that
-    // follows is published to the tab the reader is looking at.
+    // follows is published to the tab the reader is looking at. A cited document whose
+    // tab has closed opens again by its exact ID (SPDFMacAIDocumentIndex), at the page.
     NSString* open=[self aiOpenTabPathForDocumentLink:link];
-    if (open) [self showDocumentsAtPaths:@[open]];
+    if (!open) { if (![self aiOpenDocumentLink:link]) [self aiShowMissingDocumentLink]; return; }
+    [self showDocumentsAtPaths:@[open]];
     [state.tools performTool:@"show_document" arguments:args completion:^(NSDictionary* result) {
         [state.view refreshActivityFromSession:state.session];
         if (!result[@"error"]) { [self->_window makeKeyAndOrderFront:nil]; return; }

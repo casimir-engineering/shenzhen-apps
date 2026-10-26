@@ -40,6 +40,7 @@ static int failures;
 #import "SPDFMacAIReasoningChecks.h"
 #import "SPDFMacAICitationRecoveryChecks.h"
 #import "SPDFMacAIDocumentLinkChecks.h"
+#import "SPDFMacAISourceLinkChecks.h"
 #import "SPDFMacAIAnswerCardChecks.h"
 #import "SPDFMacAIChatCompactionChecks.h"
 #import "SPDFMacAIChatContextRetryChecks.h"
@@ -64,6 +65,7 @@ int main(void) { @autoreleasepool {
     CheckAnswerCards([snapshotRoot URLByAppendingPathComponent:@"answer-cards"]);
     CheckCitationRecovery([snapshotRoot URLByAppendingPathComponent:@"citation-recovery"]);
     CheckDocumentLinks();
+    CheckSourceLinks();
     CheckBudgetMath();
     CheckAutomaticCompaction([snapshotRoot URLByAppendingPathComponent:@"compaction"]);
     CheckManualCompaction([snapshotRoot URLByAppendingPathComponent:@"manual-compaction"]);

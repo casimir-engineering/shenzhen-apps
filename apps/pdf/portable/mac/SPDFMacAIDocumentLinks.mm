@@ -1,6 +1,7 @@
 #import "SPDFMacAIDocumentLinks.h"
 #import "SPDFMacAICitations.h"
 #import "SPDFMacAICollectionTools.h"
+#import "SPDFMacAIDocumentAvailability.h"
 #import "SPDFMacAITools.h"
 #import "SPDFMacAIToolsReader.h"
 #import "SPDFMacCollectionIntegration.h"
@@ -54,17 +55,17 @@ static NSString* (^const Identify)(NSString*) = ^NSString*(NSString* path) { ret
         [self aiShowDocumentAtPath:open page:page];
         return YES;
     }
-    // Not open here: look in Collection and the recently opened files. Reading
-    // the Collection, and preparing a saved copy when the original is gone, stays
-    // off the main thread.
-    NSArray<NSString*>* recent = [_recentlyOpenedPaths copy] ?: @[];
+    // Not open here: look in Collection (with the editable copies History opens saved revisions from), the recently
+    // opened files and the files the assistant read. Reading the Collection, and preparing a saved copy when the
+    // original is gone, stays off the main thread.
+    NSArray<NSString*>* known = [self aiKnownDocumentPaths];
     __weak ShenzhenMacDelegate* weakSelf = self;
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
       NSMutableArray<NSString*>* existing = [NSMutableArray array];
-      for (NSString* path in recent)
+      for (NSString* path in known)
           if ([NSFileManager.defaultManager fileExistsAtPath:path]) [existing addObject:path];
-      NSDictionary* target = SPDFMacAIResolveDocumentLink(link, nil, existing,
-                                                          [SPDFMacCollectionStore.defaultStore documents], Identify);
+      NSArray* rows = SPDFMacAILinkableCollectionRows(SPDFMacCollectionStore.defaultStore);
+      NSDictionary* target = SPDFMacAIResolveDocumentLink(link, nil, existing, rows, Identify);
       NSDictionary* row = target[@"collection"];
       NSDictionary* opened = [row[@"id"] isKindOfClass:NSString.class]
           ? SPDFAICollectionOpenTarget([@"collection:" stringByAppendingString:row[@"id"]], NO, nil)

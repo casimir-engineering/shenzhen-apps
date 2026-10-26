@@ -35,6 +35,16 @@ static NSURL* CopyURL(NSURL* root, NSString* documentID, NSString* copyID, NSStr
     NSDictionary* version=[self versionID:copy[@"currentVersionID"] document:doc] ?: [doc[@"versions"] lastObject];
     return @{@"document":doc,@"version":version ?: @{},@"copyID":parts[1],@"editable":@YES};
 }
+- (NSArray<NSString*>*)editablePathsForDocument:(NSDictionary*)document {
+    NSMutableArray* paths=[NSMutableArray array];
+    NSDictionary* copies=[document[@"editableCopies"] isKindOfClass:NSDictionary.class] ? document[@"editableCopies"] : nil;
+    for (NSString* key in copies) {
+        id filename=[copies[key] isKindOfClass:NSDictionary.class] ? copies[key][@"filename"] : nil;
+        NSURL* URL=[filename isKindOfClass:NSString.class] ? CopyURL(self.rootURL,document[@"id"],key,filename) : nil;
+        if (URL && [NSFileManager.defaultManager fileExistsAtPath:URL.path]) [paths addObject:URL.path];
+    }
+    return paths;
+}
 - (NSURL*)editableVersionID:(NSString*)versionID documentID:(NSString*)documentID error:(NSError**)error {
     __block NSURL* result;
     __block NSURL* createdDirectory;

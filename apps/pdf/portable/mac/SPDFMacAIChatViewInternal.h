@@ -48,6 +48,7 @@
 - (void)focusEditor;
 - (void)validateEditForMessages:(NSArray*)messages;
 - (void)clearEdit;
+- (void)redisplayKeepingPosition;
 - (void)beginEditingMessageAtIndex:(NSUInteger)index;
 - (void)endEditing;
 - (void)commitEdit;

@@ -14,6 +14,7 @@
 #import "SPDFMacSearchFileCache.h"
 #import "SPDFMacAIPagePreview.h"
 #import "SPDFMacAIOutputs.h"
+#import "SPDFMacAIDocumentAvailability.h"
 #import "SPDFMacAIRequestContext.h"
 #import "markdown/SPDFTextDocumentFormats.h"
 #import <CommonCrypto/CommonDigest.h>
@@ -26,21 +27,24 @@ NSString* SPDFAIDocumentIdentifier(NSString* path) {
     for (NSUInteger i=0;i<sizeof(digest);i++) [result appendFormat:@"%02x",digest[i]];
     return result;
 }
-static id Externalize(id value, NSString* key) {
+// Every path becomes its doc: ID here, and `note` hears each one (SPDFMacAIDocumentAvailability.h).
+static id Externalize(id value, NSString* key, void (^note)(NSString* identifier, NSString* path)) {
     if ([value isKindOfClass:NSDictionary.class]) {
         NSMutableDictionary* result=[NSMutableDictionary dictionary];
         for (NSString* field in value) {
             // Preview metadata remains a trusted local UI side channel, stripped
             // by the session before serializing any model-facing tool result.
-            result[field]=[field isEqual:@"_localPreview"] ? value[field] : Externalize(value[field],field);
+            result[field]=[field isEqual:@"_localPreview"] ? value[field] : Externalize(value[field],field,note);
         }
         return result;
     }
     if ([value isKindOfClass:NSArray.class]) {
-        NSMutableArray* result=[NSMutableArray array]; for (id item in value) [result addObject:Externalize(item,key)]; return result;
+        NSMutableArray* result=[NSMutableArray array]; for (id item in value) [result addObject:Externalize(item,key,note)]; return result;
     }
     if ([value isKindOfClass:NSString.class] && [value isAbsolutePath] &&
-        [@[@"path",@"paths",@"beforePath",@"lastUsedPath",@"analysisDocumentID"] containsObject:key]) return SPDFAIDocumentIdentifier(value);
+        [@[@"path",@"paths",@"beforePath",@"lastUsedPath",@"analysisDocumentID"] containsObject:key]) {
+        NSString* identifier=SPDFAIDocumentIdentifier(value); if (note) note(identifier,value); return identifier;
+    }
     if ([value isKindOfClass:NSString.class] && [value isAbsolutePath] && [key isEqual:@"title"]) return [value lastPathComponent];
     return value;
 }
@@ -133,7 +137,13 @@ static NSDictionary* Definition(NSString* name, NSString* description, NSDiction
         Definition(@"undo_action",@"Undo the most recent assistant action if its result is still unchanged. Never overwrites intervening human edits.",@{},@[])
     ] arrayByAddingObjectsFromArray:SPDFChatOrganizationToolDefinitions()];
 }
-- (NSDictionary*)conversationContext {return Externalize([self.reader aiCurrentDocumentContext],@"");}
+- (NSDictionary*)conversationContext {
+    __weak ShenzhenMacDelegate* reader=self.reader;
+    NSDictionary* context=Externalize([reader aiCurrentDocumentContext],@"",^(NSString* identifier,NSString* path){
+        [reader aiNoteDocumentIdentifier:identifier path:path];
+    });
+    return [reader aiResultNotingUnavailableDocuments:context] ?: context;
+}
 - (BOOL)canUndo { return self.actions.count>0; }
 - (void)cancel {
     [self.reader aiCancelPendingCitation];
@@ -194,7 +204,11 @@ static NSDictionary* Definition(NSString* name, NSString* description, NSDiction
 // From the registry (SPDFMacAIChatToolsProvider): the request's chat, where a saved document's card goes.
 - (void)performTool:(NSString*)name arguments:(NSDictionary*)arguments context:(SPDFMacAIRequestContext*)context
          completion:(void (^)(NSDictionary*))completion {
-    self.activity=context.activity; [self performTool:name arguments:arguments completion:completion];
+    // Only the assistant's own calls report deleted documents: a citation clicked in the chat must not use the notice up.
+    self.activity=context.activity; __weak ShenzhenMacDelegate* reader=self.reader;
+    [self performTool:name arguments:arguments completion:^(NSDictionary* result) {
+        completion([reader aiResultNotingUnavailableDocuments:result] ?: result);
+    }];
 }
 - (void)performTool:(NSString*)name arguments:(NSDictionary*)arguments completion:(void (^)(NSDictionary*))completion {
     if (!NSThread.isMainThread) {
@@ -207,7 +221,7 @@ static NSDictionary* Definition(NSString* name, NSString* description, NSDiction
     if (mapped[@"path"] || [name isEqual:@"organize_groups"])
         for (NSString* path in [self.reader aiDocumentPaths]) paths[SPDFAIDocumentIdentifier(path)]=path;
     if (mapped[@"path"]) {
-        if (!paths[mapped[@"path"]]) { completion(ToolError(@"Use an opaque document ID from list_workspace.")); return; }
+        if (!paths[mapped[@"path"]]) { completion(ToolError([self.reader aiClosedDocumentMessage:mapped[@"path"]])); return; }
         mapped[@"path"]=paths[mapped[@"path"]];
     }
     if ([name isEqual:@"organize_groups"] && [mapped[@"command"] isKindOfClass:NSDictionary.class]) {
@@ -232,7 +246,11 @@ static NSDictionary* Definition(NSString* name, NSString* description, NSDiction
             NSMutableDictionary* action=[self.actions.lastObject mutableCopy];action[@"forward"]=@{@"name":name,@"arguments":[mapped copy]};
             self.actions[self.actions.count-1]=action;[self.redoActions removeAllObjects];
         }
-        completion(Externalize(result,@""));
+        __weak ShenzhenMacDelegate* reader=self.reader;
+        NSDictionary* external=Externalize(result,@"",^(NSString* identifier,NSString* path){
+            [reader aiNoteDocumentIdentifier:identifier path:path];
+        });
+        completion(external);
     }];
 }
 - (void)performInternalTool:(NSString*)name arguments:(NSDictionary*)arguments completion:(void (^)(NSDictionary*))completion {

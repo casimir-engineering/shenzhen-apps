@@ -36,7 +36,7 @@ $(AI_CHAT_VIEW_TEST): mac/tests/SPDFMacAIChatActivityViewChecks.h mac/tests/SPDF
 		mac/SPDFMacAIChatViewInternal.h \
 		mac/tests/SPDFMacAIChatRetryChecks.h \
 		mac/tests/SPDFMacAIChatViewTests.mm mac/SPDFMacAIChatView.mm mac/SPDFMacAIChatViewMessages.mm \
-		mac/SPDFMacAIAnswerCardView.mm \
+		mac/SPDFMacAIChatViewAnswers.mm mac/SPDFMacAISourceCardView.mm mac/SPDFMacAIAnswerCardView.mm \
 		mac/SPDFMacAIAnswerCard.mm mac/SPDFMacAICitations.mm mac/SPDFMacAIChatSearch.mm \
 		mac/SPDFMacSidebarNavigation.mm mac/SPDFMacSidebarModeControl.mm mac/SPDFMacPanelSearchField.mm \
 		mac/SPDFMacAIChatDock.mm mac/SPDFMacAIChatHistoryView.mm mac/SPDFMacAIChatMarkdown.mm \
@@ -45,7 +45,8 @@ $(AI_CHAT_VIEW_TEST): mac/tests/SPDFMacAIChatActivityViewChecks.h mac/tests/SPDF
 		$(patsubst %.mm,$(BUILD)/workspace-probe/%.o,$(MAC_MARKDOWN_SRCS)) $(MAC_MD4C_OBJ) $(MAC_GUMBO_OBJS) \
 		$(CORE_RECOLOR_OBJ)
 	clang++ $(MAC_TARGET_FLAGS) -std=c++17 -fobjc-arc -Imac mac/tests/SPDFMacAIChatViewTests.mm \
-		mac/SPDFMacAIChatView.mm mac/SPDFMacAIChatViewMessages.mm $(AI_CHAT_VIEW_SRCS) mac/SPDFMacAIAnswerCardView.mm \
+		mac/SPDFMacAIChatView.mm mac/SPDFMacAIChatViewMessages.mm mac/SPDFMacAIChatViewAnswers.mm \
+		mac/SPDFMacAISourceCardView.mm $(AI_CHAT_VIEW_SRCS) mac/SPDFMacAIAnswerCardView.mm \
 		mac/SPDFMacAIAnswerCard.mm mac/SPDFMacAICitations.mm mac/SPDFMacAIChatSearch.mm \
 		mac/SPDFMacSidebarNavigation.mm mac/SPDFMacSidebarModeControl.mm mac/SPDFMacPanelSearchField.mm \
 		mac/SPDFMacAIChatDock.mm mac/SPDFMacAIChatHistoryView.mm mac/SPDFMacAIChatMarkdown.mm \

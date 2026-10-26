@@ -27,7 +27,7 @@ static void CheckChatDock(void) {
     Check(dock.visible && reader.superview==dock.split && view.superview==dock.split,@"reader and chat share a split without replacing reader content");
     ChatFixture* session=[ChatFixture new];session.canUndo=YES;session.canRedo=YES;
     session.activityState=SPDFMacAIChatActivityCompleted;
-    session.chat=@{@"id":@"layout",@"messages":@[@{@"role":@"user",@"content":@"What power supply does the board need?"},@{@"role":@"assistant",@"content":@"Use a **5 V regulated supply**, rated for at least **2 A**.\n\nSee [Power requirements, page 2](spdf-ai://document?path=board.pdf&page=2)."}]};
+    session.chat=@{@"id":@"layout",@"messages":@[@{@"role":@"user",@"content":@"What power supply does the board need?"},@{@"role":@"assistant",@"content":@"Use a **5 V regulated supply**, rated for at least **2 A**.\n\nSee [Power requirements, page 2](spdf-ai://document?path=doc:board&page=2)."}]};
     [view displaySession:(id)session];
     [root layoutSubtreeIfNeeded];
     NSView* hide=Find(view,@"close"); NSView* chatIcon=nil;

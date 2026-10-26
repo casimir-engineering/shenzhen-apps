@@ -174,14 +174,7 @@ NSDictionary* SPDFMacAIResolveDocumentLink(NSDictionary* link, NSArray<NSString*
         for (NSDictionary* row in collection) if ([row[@"id"] isEqual:raw]) return @{@"collection":row};
         return nil;
     }
-    if (identifier.length && identify) {
-        for (NSString* path in openPaths) if ([identify(path) isEqual:identifier]) return @{@"path":path};
-        for (NSDictionary* row in collection)
-            if ([row[@"path"] isKindOfClass:NSString.class] && [identify(row[@"path"]) isEqual:identifier])
-                return @{@"collection":row};
-        for (NSString* path in recentPaths) if ([identify(path) isEqual:identifier]) return @{@"path":path};
-        return nil;
-    }
+    if (identifier.length && identify) return SPDFMacAIDocumentIndex(openPaths, recentPaths, collection, identify)[identifier];
     // A written file name: the exact name first, then the same name without its extension.
     // A name that may be a site ("example.com") matches only a document of exactly that name.
     for (NSNumber* stem in link[@"site"] ? @[@NO] : @[@NO, @YES]) {
@@ -195,4 +188,83 @@ NSDictionary* SPDFMacAIResolveDocumentLink(NSDictionary* link, NSArray<NSString*
         for (NSString* path in recentPaths) if (SameName(name,path.lastPathComponent,loose)) return @{@"path":path};
     }
     return nil;
+}
+
+NSDictionary<NSString*, NSDictionary*>* SPDFMacAIDocumentIndex(NSArray<NSString*>* openPaths,
+    NSArray<NSString*>* knownPaths, NSArray<NSDictionary*>* collection, NSString* (^identify)(NSString* path)) {
+    NSMutableDictionary* index=[NSMutableDictionary dictionary];
+    void (^add)(NSString*, NSDictionary*)=^(NSString* path, NSDictionary* target) {
+        if (![path isKindOfClass:NSString.class] || !path.length) return;
+        NSString* identifier=identify(path);
+        if (identifier && !index[identifier]) index[identifier]=target;
+    };
+    for (NSString* path in openPaths) add(path,@{@"path":path});
+    for (NSDictionary* row in collection) {
+        // The source and its earlier names open the Collection document; an editable copy, which History opens for
+        // a saved revision, opens that very file: the revision the assistant read.
+        add(row[@"path"],@{@"collection":row});
+        for (NSString* alias in [row[@"aliases"] isKindOfClass:NSArray.class] ? row[@"aliases"] : @[])
+            add(alias,@{@"collection":row});
+        for (NSString* copy in [row[@"editablePaths"] isKindOfClass:NSArray.class] ? row[@"editablePaths"] : @[])
+            add(copy,@{@"path":copy});
+    }
+    for (NSString* path in knownPaths) add(path,@{@"path":path});
+    return index;
+}
+// "[OV50X report · p. 3]" names the document "OV50X report"; the page comes from the link itself.
+static NSString* SourceTitle(NSString* label) {
+    NSRegularExpression* page=[NSRegularExpression regularExpressionWithPattern:
+        @"\\s*(?:[·•,–—-]\\s*)?(?:p|pp|page|pages)\\.?\\s*\\d+[\\s\\d,–-]*$" options:NSRegularExpressionCaseInsensitive error:nil];
+    NSString* title=[page stringByReplacingMatchesInString:label options:0 range:NSMakeRange(0,label.length) withTemplate:@""];
+    title=[title stringByTrimmingCharactersInSet:[NSCharacterSet characterSetWithCharactersInString:@" *_`·•,"]];
+    return title.length ? title : @"Document";
+}
+NSDictionary* SPDFMacAIAnswerPresentation(NSString* text, BOOL (^available)(NSURL* link)) {
+    if (![text isKindOfClass:NSString.class]) return @{@"text":@""};
+    if (![text containsString:@"spdf-ai://document"]) return @{@"text":text};
+    // A label may hold one level of brackets; the address runs to the closing parenthesis.
+    NSRegularExpression* links=[NSRegularExpression regularExpressionWithPattern:
+        @"\\[((?:[^\\[\\]\\n]|\\[[^\\]\\n]*\\])*)\\]\\((spdf-ai://document\\?[^\\s()<>]*)\\)" options:0 error:nil];
+    NSMutableString* shown=[text mutableCopy];
+    NSMutableArray<NSDictionary*>* cited=[NSMutableArray array];
+    NSCharacterSet* trailing=[NSCharacterSet characterSetWithCharactersInString:@".,;:!?'\""];
+    for (NSTextCheckingResult* match in [[links matchesInString:text options:0 range:NSMakeRange(0,text.length)]
+             reverseObjectEnumerator]) {
+        NSString* label=[text substringWithRange:[match rangeAtIndex:1]];
+        NSString* address=[text substringWithRange:[match rangeAtIndex:2]], *after=@"";
+        // A sentence's full stop typed inside the parentheses is not part of the address.
+        while (address.length && [trailing characterIsMember:[address characterAtIndex:address.length-1]]) {
+            after=[[address substringFromIndex:address.length-1] stringByAppendingString:after];
+            address=[address substringToIndex:address.length-1];
+        }
+        NSURL* URL=[NSURL URLWithString:address];
+        NSDictionary* link=SPDFMacAIDocumentLinkArguments(URL);
+        if (!link || (available && !available(URL))) {
+            // A document that cannot be opened is named, not linked.
+            [shown replaceCharactersInRange:match.range withString:[label stringByAppendingString:after]];
+            continue;
+        }
+        NSString* rewritten=[NSString stringWithFormat:@"[%@](%@)%@",label,address,after];
+        [shown replaceCharactersInRange:match.range withString:rewritten];
+        [cited insertObject:@{@"link":URL,@"title":SourceTitle(label),@"page":link[@"page"] ?: @1,
+            @"document":link[@"path"] ?: link[@"name"] ?: address} atIndex:0];
+    }
+    NSMutableOrderedSet* documents=[NSMutableOrderedSet orderedSet];
+    for (NSDictionary* source in cited) [documents addObject:source[@"document"]];
+    NSDictionary* card=documents.count==1 ? cited.firstObject : nil;
+    // Several documents: the model may name the one it relied on in a last "Main source:" line.
+    NSRegularExpression* main=[NSRegularExpression regularExpressionWithPattern:
+        @"\\n?[ \\t>*_]*main source[*_]*\\s*:[*_]*\\s*(\\[[^\\n]*?\\]\\(spdf-ai://document\\?[^\\s()<>]*\\))[ \\t.]*$"
+        options:NSRegularExpressionCaseInsensitive error:nil];
+    NSTextCheckingResult* line=[main firstMatchInString:shown options:0 range:NSMakeRange(0,shown.length)];
+    if (line) {
+        NSString* named=[shown substringWithRange:[line rangeAtIndex:1]];
+        NSDictionary* chosen=nil;
+        for (NSDictionary* source in cited) if ([named containsString:[source[@"link"] absoluteString]]) chosen=source;
+        if (chosen && (!card || [card[@"document"] isEqual:chosen[@"document"]])) {
+            card=chosen; [shown deleteCharactersInRange:line.range];
+        }
+    }
+    NSString* trimmed=[shown stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
+    return card ? @{@"text":trimmed,@"source":card} : @{@"text":trimmed};
 }

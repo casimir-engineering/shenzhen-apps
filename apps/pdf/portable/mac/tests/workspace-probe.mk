@@ -37,4 +37,14 @@ $(MAC_AI_README_PROBE): $(MAC_AI_README_OBJS) $(CORE_OBJS) $(YAML_OBJ) $(MAC_MD4
 mac-ai-readme-probe: $(MAC_AI_README_PROBE)
 	"$(MAC_AI_README_PROBE)" "$(WORKSPACE_EVIDENCE_DIR)"
 
+# A citation whose tab has closed: inline link and source card clicked through the real reader, chat and Collection.
+MAC_AI_SOURCE_CARD_PROBE := $(BUILD)/SPDFMacAISourceCardProbe
+MAC_AI_SOURCE_CARD_OBJS := $(filter-out $(BUILD)/workspace-probe/mac/tests/SPDFMacWorkspaceProbe.o,$(MAC_WORKSPACE_PROBE_OBJS)) $(BUILD)/workspace-probe/mac/tests/SPDFMacAISourceCardProbe.o
+-include $(MAC_AI_SOURCE_CARD_OBJS:.o=.d)
+$(MAC_AI_SOURCE_CARD_PROBE): $(MAC_AI_SOURCE_CARD_OBJS) $(CORE_OBJS) $(YAML_OBJ) $(MAC_MD4C_OBJ) $(MAC_GUMBO_OBJS) mupdf-libs
+	clang++ $(PORTABLE_TEST_OPTFLAGS) $(MAC_TARGET_FLAGS) -std=c++17 -fobjc-arc $(MAC_AI_SOURCE_CARD_OBJS) $(CORE_OBJS) $(YAML_OBJ) $(MAC_MD4C_OBJ) $(MAC_GUMBO_OBJS) $(MUPDF_LIBS) -framework Cocoa -framework QuartzCore -framework PDFKit -framework ImageIO -framework UniformTypeIdentifiers -framework CoreServices -framework Security -framework LocalAuthentication -lm -Wl,-dead_strip -o "$@"
+.PHONY: mac-ai-source-card-probe
+mac-ai-source-card-probe: $(MAC_AI_SOURCE_CARD_PROBE)
+	"$(MAC_AI_SOURCE_CARD_PROBE)" "$(WORKSPACE_EVIDENCE_DIR)"
+
 endif

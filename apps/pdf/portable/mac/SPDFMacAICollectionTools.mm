@@ -9,6 +9,8 @@ NSDictionary* SPDFAICollectionDocuments(NSString* query, NSUInteger first, NSPro
         if (progress.cancelled) return Failure(@"Cancelled.");
         NSString* title=doc[@"title"] ?: [doc[@"path"] lastPathComponent] ?: @"Document";
         if (query.length && [title rangeOfString:query options:NSCaseInsensitiveSearch|NSDiacriticInsensitiveSearch].location==NSNotFound) continue;
+        // Neither its source nor a saved copy can be opened: the assistant is never shown it.
+        if (!SPDFCollectionOriginalAvailable(doc) && ![doc[@"versions"] count]) continue;
         [filtered addObject:@{@"documentID":[@"collection:" stringByAppendingString:doc[@"id"]],@"title":title,
             @"versionCount":@([doc[@"versions"] count]),@"originalAvailable":@(SPDFCollectionOriginalAvailable(doc))}];
     }
