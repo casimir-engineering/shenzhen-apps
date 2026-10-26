@@ -98,6 +98,25 @@
   flex-direction: column;
   gap: 6px;
 }
+/* Over the bottom of a history scrolled up while the friend's messages arrived below (follow.ts): the history's last
+   child, stuck to the bottom of what shows. */
+.szf-new-messages {
+  position: sticky;
+  bottom: 4px;
+  align-self: center;
+  flex: none;
+  z-index: 2;
+  padding: 5px 14px;
+  border: none;
+  border-radius: 999px;
+  background: var(--jade);
+  color: var(--jade-ink);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 0.25);
+  cursor: pointer;
+}
 .szf-history.drop-target {
   outline: 2px dashed var(--jade);
   outline-offset: -6px;

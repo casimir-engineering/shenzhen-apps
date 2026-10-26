@@ -32,7 +32,7 @@ them is a bug; decide which and fix it in the same change.
   "Yesterday" or "Over Bluetooth, about 6 min", countdown text, badge counts and which buttons show. A view
   never sorts, counts, formats a time or a size, or decides whether a button appears. The only formatting a
   view does is filling the placeholders § Static strings names: `{name}` and `{count}` in the four drag strings,
-  `{host}` and `{shown}` in the link warning.
+  `{host}` and `{shown}` in the link warning, `{count}` in the new-messages pill.
 - **Every user-facing string comes from the helper's catalog**, written for the person reading it, about what happens to
   their message: "Sends when Mei is nearby with ShenzhenPDF, Shenzhen Files or Shenzhen 3D open", never "Queued (no
   route)". Three exceptions exist because no helper is there to supply them: the client library's connection-state
@@ -613,6 +613,11 @@ One friend's history and composer, or the request card for a pending request.
   offered, receiving, received, declined, cancelled, failed) and `event` ("You are now friends").
 - `has_earlier` says older history exists. Views then show a control above the oldest item labelled with the
   static string `load_earlier`, and may also load when the person scrolls to the top; either sends `load_earlier`.
+- Views keep a history at its end when it was there, and take it to its end when the person sends something (an
+  `out` item arrives after the newest one), from wherever they had scrolled. A history scrolled up stays put as
+  items arrive below; once messages or files from the friend (`in` items) arrive there, a pill over its bottom says
+  so with the static string `new_message`, or `new_messages` with {count}. Clicking it scrolls smoothly to the first
+  of them; the pill goes once that item is in view.
 - A failed item's `status.label` or `status_label` says why from the person's side ("Not delivered. Stopped trying
   after 30 days.", "Not sent because you removed Priya"), and it carries Try again (`retry_item`) only when trying
   again can work: not for a file that is no longer available or that the other Mac could not accept, and not while
@@ -1467,6 +1472,8 @@ over it: the helper sends only regular files, so views refuse the others there. 
 field where the person types the name friends see (the list's `name_prompt` and the footer's rename); `name_empty` is
 what that field says when Save or Return finds nothing typed, or only spaces, instead of sending `set_name`;
 `name_saved` is what shows there once the helper has the name, with `{name}` filled in by the view.
+`new_message` and `new_messages` label the pill over the bottom of a conversation scrolled up while the friend's
+messages or files arrived below; views fill `{count}` in `new_messages` with how many (§ Views, conversation).
 Friends is a beta: `beta` is the small tag beside the dropdown's title (`button_label`), `button_tooltip` is the
 Friends button's tooltip, to which a host may add its shortcut, and `beta_note` is the line under the list's
 `name_prompt` card, which shows on first run.
@@ -1500,6 +1507,8 @@ Friends button's tooltip, to which a host may add its shortcut, and `beta_note` 
 | `cancel` | Cancel |
 | `loading` | Loading… |
 | `load_earlier` | Show earlier messages |
+| `new_message` | New message ↓ |
+| `new_messages` | {count} new messages ↓ |
 | `link_open` | Open in Browser |
 | `link_open_email` | New Email |
 | `link_elsewhere` | Goes to {host}, not {shown} |
@@ -1640,6 +1649,8 @@ strings.crop_use: string
 strings.cancel: string
 strings.loading: string
 strings.load_earlier: string
+strings.new_message: string
+strings.new_messages: string
 strings.link_open: string
 strings.link_open_email: string
 strings.link_elsewhere: string

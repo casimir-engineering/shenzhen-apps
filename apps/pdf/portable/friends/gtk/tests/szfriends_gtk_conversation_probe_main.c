@@ -334,6 +334,7 @@ int main(int argc, char **argv) {
     szfg_run_conversation_route_probes();
     szfg_run_conversation_online_probes();
     szfg_run_conversation_device_probes();
+    szfg_run_conversation_follow_probes();
     szfg_clock_uninstall();
     g_unsetenv(SZFRIENDS_ENV_STATE_DIR);
     EXPECT(szfg_unexpected_warnings() == 0, "no GLib, GTK or libadwaita warnings (%d)", szfg_unexpected_warnings());

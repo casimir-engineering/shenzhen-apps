@@ -178,6 +178,8 @@ SZFriendsGtkHistory *szfriends_gtk_history_new(SZFriendsGtkConversation *convers
 GtkWidget *szfriends_gtk_history_widget(SZFriendsGtkHistory *history);
 GtkWidget *szfriends_gtk_history_list_view(SZFriendsGtkHistory *history);
 GListModel *szfriends_gtk_history_model(SZFriendsGtkHistory *history); /* holders, after Show earlier messages */
+/* The pill over the bottom counting the friend's items that arrived below while scrolled up (for the suite). */
+GtkWidget *szfriends_gtk_history_pill(SZFriendsGtkHistory *history);
 void szfriends_gtk_history_apply(SZFriendsGtkHistory *history, JsonObject *data,
                                  const SZFriendsGtkConversationSnapshot *snapshot, guint subscription);
 void szfriends_gtk_history_forget_highlight(SZFriendsGtkHistory *history);

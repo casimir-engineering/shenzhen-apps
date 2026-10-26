@@ -180,6 +180,7 @@ int main(int argc, const char *argv[]) {
 
         SZFTestLinkRouting();
         SZFTestFixtureConstruction();
+        SZFTestHistoryFollow();
         SZFTestHitTesting();
         SZFTestControls();
         SZFTestRowActions();

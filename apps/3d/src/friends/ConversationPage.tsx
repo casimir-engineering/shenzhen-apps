@@ -9,6 +9,7 @@ import { ComposerView } from "./Composer";
 import type { AttachSource } from "./Composer";
 import { dragHasFiles, filesFromDrop, sendFiles } from "./drops";
 import { ItemView, LinkMenu } from "./ConversationItems";
+import { NO_FOLLOW, noteItems, pillTitle } from "./follow";
 
 export function ConversationPage({
   conversationId,
@@ -42,6 +43,13 @@ export function ConversationPage({
   const [card, setCard] = useState<Mention | null>(null);
   const [dragging, setDragging] = useState(false);
   const [refusal, setRefusal] = useState<string | null>(null);
+  // Sending goes to the end; the friend's messages arriving below one scrolled up are counted on a pill (follow.ts).
+  const follow = useRef(NO_FOLLOW);
+  const [unseen, setUnseen] = useState(0);
+  const forgetUnseen = () => {
+    follow.current = { ...follow.current, unseen: 0, firstUnseen: null };
+    setUnseen(0);
+  };
 
   useLayoutEffect(() => {
     const element = scroller.current;
@@ -52,6 +60,10 @@ export function ConversationPage({
         ?.scrollIntoView({ block: "center" });
       return;
     }
+    const noted = noteItems(follow.current, data.items, atBottom.current);
+    follow.current = noted.follow;
+    setUnseen(noted.follow.unseen);
+    if (noted.toEnd) atBottom.current = true;
     if (atBottom.current) element.scrollTop = element.scrollHeight;
   }, [data]);
   // The last messages stay in sight when the history gets shorter: the keyboard coming up, the composer growing.
@@ -144,6 +156,20 @@ export function ConversationPage({
                   element.scrollTop -
                   element.clientHeight <
                 40;
+              // The first new message in view, or the end reached: the pill has said what it had to.
+              const first = follow.current.firstUnseen
+                ? element.querySelector(
+                    `[data-item="${CSS.escape(follow.current.firstUnseen)}"]`,
+                  )
+                : null;
+              const box = first?.getBoundingClientRect();
+              const view = element.getBoundingClientRect();
+              if (
+                follow.current.unseen &&
+                (atBottom.current ||
+                  (box && box.top < view.bottom - 30 && box.bottom > view.top))
+              )
+                forgetUnseen();
             }}
             onDragOver={(event) => {
               if (
@@ -204,7 +230,35 @@ export function ConversationPage({
               />
             ))}
             {refusal && <p className="szf-refusal">{refusal}</p>}
+            {pillTitle(strings, unseen) && (
+              <button
+                type="button"
+                className="szf-new-messages"
+                onClick={() => {
+                  const element = scroller.current;
+                  const first = follow.current.firstUnseen;
+                  const target = first
+                    ? element?.querySelector(
+                        `[data-item="${CSS.escape(first)}"]`,
+                      )
+                    : null;
+                  if (target)
+                    target.scrollIntoView({
+                      behavior: "smooth",
+                      block: "start",
+                    });
+                  else
+                    element?.scrollTo({
+                      top: element.scrollHeight,
+                      behavior: "smooth",
+                    });
+                }}
+              >
+                {pillTitle(strings, unseen)}
+              </button>
+            )}
           </div>
+
           {menu && (
             <LinkMenu
               url={menu.url}

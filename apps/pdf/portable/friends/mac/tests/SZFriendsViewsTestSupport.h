@@ -192,6 +192,7 @@ NS_ASSUME_NONNULL_BEGIN
 // Test groups, one file each.
 void SZFTestLinkRouting(void);
 void SZFTestFixtureConstruction(void);
+void SZFTestHistoryFollow(void);
 void SZFTestHitTesting(void);
 void SZFTestDropdownSession(NSString *stateDirectory);
 void SZFTestDrops(NSString *stateDirectory);

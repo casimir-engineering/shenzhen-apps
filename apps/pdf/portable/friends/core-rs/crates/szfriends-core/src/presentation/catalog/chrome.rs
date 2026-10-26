@@ -42,6 +42,9 @@ pub(super) const CORE: &[(&str, &str)] = &[
     ("static.cancel", "Cancel"),
     ("static.loading", "Loading…"),
     ("static.load_earlier", "Show earlier messages"),
+    // A pill over the bottom of a history scrolled up while messages arrived below; views fill {count}.
+    ("static.new_message", "New message ↓"),
+    ("static.new_messages", "{count} new messages ↓"),
     // The menu a click on a link in a friend's message opens. Views fill {host} with where the link really goes
     // (a host, or an email address) and {shown} with the site its words show, so a link dressed as another site
     // says so before anything opens.

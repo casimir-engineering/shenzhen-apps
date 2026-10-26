@@ -59,5 +59,6 @@ void szfg_run_conversation_card_probes(void); /* szfriends_gtk_conversation_prob
 void szfg_run_conversation_route_probes(void); /* szfriends_gtk_conversation_probe_routes.c */
 void szfg_run_conversation_online_probes(void); /* szfriends_gtk_conversation_probe_online.c */
 void szfg_run_conversation_device_probes(void); /* szfriends_gtk_conversation_probe_devices.c */
+void szfg_run_conversation_follow_probes(void); /* szfriends_gtk_conversation_probe_follow.c */
 
 #endif /* SZFRIENDS_GTK_CONVERSATION_PROBE_H */

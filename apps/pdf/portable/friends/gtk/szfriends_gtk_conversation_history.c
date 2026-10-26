@@ -4,7 +4,9 @@
  *
  * Rows are kept by item id and content between snapshots, and only the run that changed is spliced, so a progress
  * tick rebuilds one card rather than the history. A history that ends at the bottom stays there as items arrive; one
- * scrolled up stays where the person left it; earlier items arriving above keep the visible ones in place. */
+ * scrolled up stays where the person left it; earlier items arriving above keep the visible ones in place. Sending
+ * (an `out` item after the newest) takes it to its end from anywhere; the friend's items arriving below one scrolled up
+ * are counted on a pill over its bottom (new_message, new_messages), which scrolls to the first of them. */
 
 #include "gtk/szfriends_gtk_conversation.h"
 #include "gtk/szfriends_gtk_schema.h"
@@ -21,6 +23,10 @@ struct _SZFriendsGtkHistory {
     double last_value;
     char *scrolled_highlight;
     SZFriendsGtkDropVerdict verdict;
+    GtkWidget *pill;       /* "3 new messages ↓" over the bottom */
+    char *newest_id;       /* the newest item of the last snapshot */
+    char *first_unseen;    /* the first of the friend's items that arrived below while scrolled up */
+    guint unseen;
 };
 
 static const SZFriendsGtkType *item_type(void) {
@@ -155,9 +161,85 @@ static void scroll_to(SZFriendsGtkHistory *history, guint position) {
                                        GTK_LIST_SCROLL_NONE, NULL);
 }
 
+static void forget_unseen(SZFriendsGtkHistory *history) {
+    history->unseen = 0;
+    g_clear_pointer(&history->first_unseen, g_free);
+}
+
+/* The helper's words, or nothing (PROTOCOL.md § Static strings: never invent text). */
+static void update_pill(SZFriendsGtkHistory *history) {
+    if (history->unseen && at_bottom(history)) forget_unseen(history);
+    const char *one = szfriends_gtk_link_string(history->conversation->link, "new_message");
+    const char *many = szfriends_gtk_link_string(history->conversation->link, "new_messages");
+    char *title = NULL;
+    if (history->unseen == 1 && *one) title = g_strdup(one);
+    else if (history->unseen > 1 && *many) {
+        char *count = g_strdup_printf("%u", history->unseen);
+        GString *text = g_string_new(many);
+        g_string_replace(text, "{count}", count, 0);
+        title = g_string_free(text, FALSE);
+        g_free(count);
+    }
+    if (title) gtk_button_set_label(GTK_BUTTON(history->pill), title);
+    gtk_widget_set_visible(history->pill, title != NULL);
+    g_free(title);
+}
+
+/* What arrived since the last snapshot: TRUE when the person sent something (go to the end); otherwise, scrolled up,
+ * the friend's new items are counted for the pill. */
+static gboolean note_items(SZFriendsGtkHistory *history, JsonArray *items, gboolean follow) {
+    guint count = items ? json_array_get_length(items) : 0, newest = G_MAXUINT;
+    for (guint i = count; i > 0 && history->newest_id; i--) {
+        JsonNode *node = json_array_get_element(items, i - 1);
+        if (JSON_NODE_HOLDS_OBJECT(node) && g_strcmp0(json_object_get_string_member_with_default(
+                json_node_get_object(node), "item_id", ""), history->newest_id) == 0) { newest = i - 1; break; }
+    }
+    JsonNode *last = count ? json_array_get_element(items, count - 1) : NULL;
+    g_free(history->newest_id);
+    history->newest_id = last && JSON_NODE_HOLDS_OBJECT(last) ? g_strdup(json_object_get_string_member_with_default(
+                             json_node_get_object(last), "item_id", "")) : NULL;
+    if (newest == G_MAXUINT) return FALSE; /* the first snapshot, or a history replaced: nothing arrived below */
+    gboolean sent = FALSE;
+    for (guint i = newest + 1; i < count; i++) {
+        JsonNode *node = json_array_get_element(items, i);
+        if (!JSON_NODE_HOLDS_OBJECT(node)) continue;
+        JsonObject *item = json_node_get_object(node);
+        const char *direction = json_object_get_string_member_with_default(item, "direction", "");
+        const char *kind = json_object_get_string_member_with_default(item, "kind", "");
+        if (strcmp(direction, "out") == 0) sent = TRUE;
+        else if (!follow && strcmp(direction, "in") == 0 && (!strcmp(kind, "message") || !strcmp(kind, "transfer"))) {
+            history->unseen++;
+            if (!history->first_unseen)
+                history->first_unseen = g_strdup(json_object_get_string_member_with_default(item, "item_id", ""));
+        }
+    }
+    if (sent) forget_unseen(history);
+    return sent;
+}
+
+static void pill_clicked(GtkButton *button, gpointer data) {
+    (void)button;
+    SZFriendsGtkHistory *history = data;
+    for (guint i = 0; history->first_unseen && i < g_list_model_get_n_items(G_LIST_MODEL(history->store)); i++) {
+        const SZFriendsGtkConversationItem *item = szfriends_gtk_history_item(store_item(history, i));
+        if (!item || strcmp(item->item_id, history->first_unseen) != 0) continue;
+        GtkScrollInfo *info = gtk_scroll_info_new();
+        gtk_scroll_info_set_enable_vertical(info, TRUE);
+        gtk_list_view_scroll_to(GTK_LIST_VIEW(history->list_view), i, GTK_LIST_SCROLL_NONE, info);
+        break;
+    }
+    forget_unseen(history);
+    update_pill(history);
+}
+
 void szfriends_gtk_history_apply(SZFriendsGtkHistory *history, JsonObject *data,
                                  const SZFriendsGtkConversationSnapshot *snapshot, guint subscription) {
     gboolean first = g_list_model_get_n_items(G_LIST_MODEL(history->store)) == 0, follow = first || at_bottom(history);
+    JsonArray *arrived = data && json_object_has_member(data, "items") &&
+                                 JSON_NODE_HOLDS_ARRAY(json_object_get_member(data, "items"))
+                             ? json_object_get_array_member(data, "items") : NULL;
+    /* Sending takes the history to its end, from wherever the person had scrolled. */
+    if (!snapshot->request && note_items(history, arrived, follow)) follow = TRUE;
     guint old_count = g_list_model_get_n_items(G_LIST_MODEL(history->store));
     history->subscription = subscription;
     history->has_earlier = snapshot->has_earlier;
@@ -215,6 +297,7 @@ void szfriends_gtk_history_apply(SZFriendsGtkHistory *history, JsonObject *data,
         scroll_to(history, G_MAXUINT);
         history->pending_bottom = TRUE;
     }
+    update_pill(history);
 }
 
 static void sized(GtkAdjustment *adjustment, gpointer data) {
@@ -245,6 +328,7 @@ static void scrolled(GtkAdjustment *adjustment, gpointer data) {
     /* Moving up to the top with more history on the helper: the same as pressing Show earlier messages. */
     if (value < history->last_value && value <= 40) load_earlier(history);
     history->last_value = value;
+    update_pill(history);
 }
 
 /* ---- Drops: sent at once, one offer per file ----------------------------------------------------------- */
@@ -347,6 +431,15 @@ SZFriendsGtkHistory *szfriends_gtk_history_new(SZFriendsGtkConversation *convers
     gtk_widget_set_vexpand(history->drop_words, TRUE);
     gtk_box_append(GTK_BOX(history->drop_mark), history->drop_words);
     gtk_overlay_add_overlay(GTK_OVERLAY(history->root), history->drop_mark);
+    history->pill = gtk_button_new();
+    gtk_widget_add_css_class(history->pill, "suggested-action");
+    gtk_widget_add_css_class(history->pill, "szfriends-new-messages");
+    gtk_widget_set_halign(history->pill, GTK_ALIGN_CENTER);
+    gtk_widget_set_valign(history->pill, GTK_ALIGN_END);
+    gtk_widget_set_margin_bottom(history->pill, 10);
+    gtk_widget_set_visible(history->pill, FALSE);
+    g_signal_connect(history->pill, "clicked", G_CALLBACK(pill_clicked), history);
+    gtk_overlay_add_overlay(GTK_OVERLAY(history->root), history->pill);
     gsize n_types = 0;
     GType *types = szfriends_gtk_drop_types(szfriends_gtk_link_host(conversation->link), &n_types);
     GtkDropTarget *drop = gtk_drop_target_new(G_TYPE_INVALID, GDK_ACTION_COPY);
@@ -370,6 +463,10 @@ GtkWidget *szfriends_gtk_history_list_view(SZFriendsGtkHistory *history) {
     return history->list_view;
 }
 
+GtkWidget *szfriends_gtk_history_pill(SZFriendsGtkHistory *history) {
+    return history->pill;
+}
+
 GListModel *szfriends_gtk_history_model(SZFriendsGtkHistory *history) {
     return G_LIST_MODEL(history->store);
 }
@@ -383,6 +480,8 @@ void szfriends_gtk_history_free(SZFriendsGtkHistory *history) {
     g_object_unref(history->root);
     g_object_unref(history->store);
     g_free(history->scrolled_highlight);
+    g_free(history->newest_id);
+    g_free(history->first_unseen);
     szfriends_gtk_conversation_unref(history->conversation);
     g_free(history);
 }
