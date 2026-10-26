@@ -159,9 +159,11 @@ static NSBitmapImageRep* render_strip(SPDFTabStripView* strip, NSAppearance* app
 
 #include "SPDFMacTabStripScrollChecks.h"
 #include "SPDFMacEmptyTabGroupStripChecks.h"
+#include "SPDFMacTabGroupTitleHoverChecks.h"
 int main(void) {
     @autoreleasepool {
         (void)NSApplication.sharedApplication;
+        keep_hover_panels_off_screen();
         check_scrollable_group_strip(); benchmark_strip_scrolling();
         check_compact_workspace_tabs();
         check_group_reorder(YES);
@@ -170,6 +172,7 @@ int main(void) {
         check_collection_copy_outline();
         check_hidden_groups();
         check_group_creation_side();
+        check_group_title_hover();
         // With every group collapsed, gaps still resolve to their model
         // boundaries despite there being no visible document rectangles.
         SPDFGroupTestStrip* gapStrip = [[SPDFGroupTestStrip alloc] initWithFrame:NSMakeRect(0,0,900,42)];

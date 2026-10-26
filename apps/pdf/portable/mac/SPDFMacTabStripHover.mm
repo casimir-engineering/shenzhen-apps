@@ -55,6 +55,7 @@
 
 - (void)dismissHoverPanel {
     _hoverTabIndex = -1;
+    _hoverGroup = nil;
     [self setNeedsDisplay:YES];
     _hasLastHoverPoint = NO;
     if (_hoverPanel.parentWindow) [_hoverPanel.parentWindow removeChildWindow:_hoverPanel];
@@ -76,10 +77,17 @@
             break;
         }
     }
-    if ([self groupAtPoint:point headerOnly:YES]) {
-        [_hoverPanel orderOut:nil]; _hoverTabIndex = -1; [self setNeedsDisplay:YES]; return;
+    // A group's title tab gets the same full-name label as a document tab.
+    // Always repaint: the title tab draws its hide action on hover.
+    SPDFTabGroup* group = [self groupAtPoint:point headerOnly:YES];
+    if (group) {
+        [self setNeedsDisplay:YES];
+        if (group != _hoverGroup) [self showHoverPanelForGroup:group];
+        return;
     }
-    if (hovered == _hoverTabIndex) {
+    BOOL leavingGroup = _hoverGroup != nil;
+    _hoverGroup = nil;
+    if (hovered == _hoverTabIndex && !leavingGroup) {
         if (hovered >= 0 && wasOnClose != NSPointInRect(point,previousClose))
             [self setNeedsDisplayInRect:previousClose];
         return;
@@ -90,16 +98,26 @@
 }
 
 - (void)showHoverPanelForTabAtIndex:(NSInteger)index {
-    NSString* title = [self fullTitleForTabAtIndex:index];
-    if (!title.length || !self.window) {
-        [self dismissHoverPanel];
+    if (![self showHoverPanelWithTitle:[self fullTitleForTabAtIndex:index] belowRect:[self rectForTabAtIndex:index]])
         return;
-    }
+    _hoverTabIndex = index;
+}
 
-    NSRect tabRect = [self rectForTabAtIndex:index];
-    if (NSWidth(tabRect) <= 0) {
+- (void)showHoverPanelForGroup:(SPDFTabGroup*)group {
+    NSRect header = NSZeroRect;
+    for (id layout in [self groupLayouts])
+        if ([layout valueForKey:@"group"] == group) header = [[layout valueForKey:@"header"] rectValue];
+    if (![self showHoverPanelWithTitle:group.displayName belowRect:header]) return;
+    _hoverTabIndex = -1;
+    _hoverGroup = group;
+}
+
+// The full-name label under a document tab or a group's title tab: one panel,
+// one look and one position for both.
+- (BOOL)showHoverPanelWithTitle:(NSString*)title belowRect:(NSRect)tabRect {
+    if (!title.length || !self.window || NSWidth(tabRect) <= 0) {
         [self dismissHoverPanel];
-        return;
+        return NO;
     }
 
     if (!_hoverPanel) {
@@ -149,7 +167,7 @@
     // without a click. Order the bubble relative to its parent instead: it
     // becomes visible without moving the parent in the z-order.
     [_hoverPanel orderWindow:NSWindowAbove relativeTo:self.window.windowNumber];
-    _hoverTabIndex = index;
+    return YES;
 }
 
 - (void)updateHoverForEvent:(NSEvent*)event {
