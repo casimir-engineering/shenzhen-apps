@@ -120,7 +120,7 @@ static void CheckBudgets(void) {
     CHECK(seen.count == 12 && [seen[0] isEqual:@[@9000, @11]] && [seen[11] isEqual:@[@9000, @0]],
           "a task has 12 tool calls and an equal share of the tokens left, one share kept for the main assistant");
     TaskTurn* wrapUp = TaskTurnFor(chat.model, @"TASK-A");
-    CHECK(wrapUp && !wrapUp.tools && [wrapUp wireContains:@"action budget is exhausted"],
+    CHECK(wrapUp && !wrapUp.tools && [wrapUp wireContains:@"tools are off"],
           "after its 12 calls a task answers without tools");
     Reply(wrapUp, WithUsage(SeamAnswer(@"A done."), 500));
     Reply(TaskTurnFor(chat.model, @"TASK-B"), WithUsage(SeamAnswer(@"B done."), 2000));

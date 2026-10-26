@@ -44,6 +44,8 @@ BOOL SPDFMacAIPythonSandboxRefused(void);
 // Keeps a file from ./out and shows it; nil keeps none (the model is told).
 @property(nonatomic, copy, nullable) SPDFMacAIPythonOutputSaver saveOutput;
 @property(nonatomic, copy, nullable) SPDFMacAIPythonOutputPresenter showOutput;
+// Folders the code may never read although the assistant writes there (Downloads), refused by the sandbox by name.
+@property(nonatomic, copy, nullable) NSArray<NSString*>* writeOnlyDirectories;
 @end
 
 NS_ASSUME_NONNULL_END

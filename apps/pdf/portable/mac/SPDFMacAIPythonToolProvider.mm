@@ -1,6 +1,7 @@
 #import "SPDFMacAIPythonToolProvider.h"
 
 #import "SPDFMacAIChatActivity.h"
+#import "SPDFMacAIChatSessionGrants.h"
 #import "SPDFMacAIPythonResults.h"
 #import "SPDFMacAISettings.h"
 
@@ -17,7 +18,8 @@ NSString* const SPDFMacAIPythonPromptGuidance =
     @"run_python can read the documents you can see, exactly: list them in its documents argument to get each PDF "
     @"page's embedded images at native resolution, losslessly, or pages rendered at a chosen dpi, then measure "
     @"pixels, tables or data in the code yourself. Never ask the person to export files or run code you can run. Save "
-    @"files they should keep (reports, CSV, charts) in ./out.";
+    @"files they should keep, or ask you to save, in ./out (folders inside it become folders in Downloads); you can "
+    @"save any file to their Downloads folder this way, but not read Downloads.";
 
 static NSDictionary* SPDFDescribed(NSDictionary* schema, NSString* description) {
     NSMutableDictionary* described = [schema mutableCopy];
@@ -56,9 +58,12 @@ NSDictionary* SPDFMacAIPythonToolDefinition(void) {
             @"arrays. Nothing else of theirs is readable. Files you pass in files are written to the working "
             @"directory first. Print what you need (the first 64 KB is returned). PNG charts saved in the working "
             @"directory are shown in the chat; CSV files there come back as tables, other text files as text. Save "
-            @"files the person should keep (PDF or Markdown reports, CSV, PNG, any type) in ./out: each one is saved "
-            @"to their Downloads folder, PDFs and Markdown also to Collection, and the chat shows each with Open and "
-            @"Show in Finder. Every call starts fresh; nothing is kept between runs.",
+            @"files the person should keep or asks you to save (PDF or Markdown reports, CSV, PNG, any type) in ./out, "
+            @"in folders inside it if you like (out/Reports/x.csv): each one is saved to their Downloads folder under "
+            @"the same folders, never replacing a file (a taken name becomes \"name 2.ext\"), PDFs and Markdown also "
+            @"to Collection, and the chat shows each with Open and Show in Finder; the result gives each an id to read "
+            @"it back later in this chat. Downloads itself is not readable. Every call starts fresh; nothing is kept "
+            @"between runs.",
         @"parameters" : @{@"type" : @"object", @"additionalProperties" : @NO, @"required" : @[ @"code" ],
             @"properties" : @{
                 @"code" : @{@"type" : @"string", @"description" : @"The Python program."},
@@ -215,7 +220,7 @@ BOOL SPDFMacAIPythonSandboxRefused(void) { return gSandboxRefused; }
             NSMutableDictionary* model = [[owner finishRun:rest code:code step:step activity:activity
                                                    friends:friends] mutableCopy];
             if (folder) model[@"documents"] = folder.index[@"documents"];
-            if (kept.count) model[@"out"] = kept;
+            if (kept.count) model[@"out"] = [owner recordSaved:kept context:context];
             completion(model);
         };
         if (!outputs.count) { answer(nil); return; }
@@ -239,6 +244,7 @@ BOOL SPDFMacAIPythonSandboxRefused(void) { return gSandboxRefused; }
         if (folder) [activity updateEntry:step changes:@{SPDFMacAIActivityStatusKey : @"Running…"}];
         NSMutableDictionary* request = [@{@"interpreter" : owner->_environment.interpreterPath, @"code" : code,
                                           @"files" : files} mutableCopy];
+        if (owner.writeOnlyDirectories.count) request[@"write_only_dirs"] = owner.writeOnlyDirectories;
         if (folder) { request[@"documents_dir"] = folder.path; request[@"document_files"] = folder.files; }
         stop = [[owner->_runner runRequest:request completion:^(NSDictionary* result) { finish(result, folder); }]
             copy];
@@ -266,6 +272,21 @@ BOOL SPDFMacAIPythonSandboxRefused(void) { return gSandboxRefused; }
                               @"message" : failure ?: @"The documents could not be prepared."}, nil);
             });
     });
+}
+
+// Each file kept becomes this chat's to read back (SPDFMacAIChatSessionGrants.h); the model gets its id, never the
+// path. Main thread.
+- (NSArray*)recordSaved:(NSArray*)kept context:(SPDFMacAIRequestContext*)context {
+    NSMutableArray* report = [NSMutableArray array];
+    for (NSDictionary* entry in kept) {
+        NSMutableDictionary* item = [entry mutableCopy];
+        NSString* path = item[@"_path"];
+        [item removeObjectForKey:@"_path"];
+        NSString* identifier = path && context.session ? [context.session addSavedFileAtPath:path] : nil;
+        if (identifier) item[@"id"] = identifier;
+        [report addObject:item];
+    }
+    return report;
 }
 
 - (NSDictionary*)finishRun:(NSDictionary*)result code:(NSString*)code step:(NSString*)step

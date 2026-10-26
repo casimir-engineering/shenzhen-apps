@@ -1,4 +1,5 @@
 #import "SPDFMacAIAttachmentToolProvider.h"
+#import "SPDFMacAIChatSessionGrants.h"
 
 #import "SPDFMacAIChatActivity.h"
 #import "SPDFMacAIChatGrants.h"
@@ -176,11 +177,9 @@ NSDictionary* SPDFMacAIAttachmentRead(NSDictionary* arguments, NSArray<SPDFMacAI
 - (BOOL)isReadOnlyTool:(NSString*)name { return [self providesTool:name]; }
 - (void)cancel {}
 
+// The request's own attachments and the files its chat saved since it started (SPDFMacAIChatSessionGrants.h).
 static NSArray<SPDFMacAIRequestChip*>* SPDFAttachments(SPDFMacAIRequestContext* context) {
-    NSMutableArray* chips = [NSMutableArray array];
-    for (SPDFMacAIRequestChip* chip in [context chipsOfKind:SPDFMacAIChipKindAttachment])
-        if (chip.identifier.length) [chips addObject:chip];
-    return chips;
+    return SPDFMacAIRequestReadableAttachments(context);
 }
 
 - (NSArray<NSDictionary*>*)toolDefinitionsForContext:(SPDFMacAIRequestContext*)context {

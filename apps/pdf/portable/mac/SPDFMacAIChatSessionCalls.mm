@@ -28,10 +28,6 @@ static NSString* const NotRunResult=@"{\"error\":\"Not run: another call in the 
         [self retryMessageIndex]!=NSNotFound;
     [self finish:status];
 }
-- (void)finishUnusableAnswer:(NSString*)problem {
-    [self finish:[problem stringByAppendingString:_changedDocument ?
-        @" Changes made so far are kept; send a follow-up to continue." : @" Try again."] retryable:YES];
-}
 // Decided before the save that writes the calls' arguments. A call to a tool this request did not offer has no
 // provider to vouch that its arguments quote no friend.
 - (void)markRequestOnlyCalls:(NSArray*)calls offered:(NSSet*)offered {
@@ -60,7 +56,7 @@ static NSString* const NotRunResult=@"{\"error\":\"Not run: another call in the 
         if (!function || ![call[@"id"] isKindOfClass:NSString.class] || ![call[@"id"] length] ||
             [identifiers containsObject:call[@"id"]] || ![function isKindOfClass:NSDictionary.class] ||
             ![function[@"name"] isKindOfClass:NSString.class] || ![function[@"name"] length]) {
-            [self finishUnusableAnswer:@"The assistant's answer couldn't be read."]; return nil;
+            [self recoverFromUnusableReply:nil problem:@"it could not be read" generation:generation]; return nil;
         }
         [identifiers addObject:call[@"id"]];
         SPDFMacAIToolArgumentsProblem problem; BOOL repaired=NO;
@@ -72,15 +68,10 @@ static NSString* const NotRunResult=@"{\"error\":\"Not run: another call in the 
     }
     if (!problems.count) return runnable;
     // Nothing in the batch runs: its other calls may depend on the one that can't be read.
-    if (_argumentsRetried) {
-        BOOL cut=[problems.allValues containsObject:@(SPDFMacAIToolArgumentsTruncated)];
-        [self finishUnusableAnswer:cut ? @"The assistant's answer got cut off." :
-            @"The assistant's answer couldn't be read."];
-        return nil;
-    }
-    // Once per request, the model is asked again within it, at the cost of a step. The turn is kept as the provider
-    // can take it back: every call with "{}" arguments, then a result saying what to resend.
-    _argumentsRetried=YES;
+    // The model is asked again within the request, at the cost of a step, a few times in a row; then the request winds
+    // up with what it has, and Continue. The turn is kept as the provider can take it back: every call with "{}"
+    // arguments, then a result saying what to resend.
+    BOOL windUp=_argumentsRetries>=3; _argumentsRetries++;
     NSMutableArray* stubs=[NSMutableArray array];
     for (NSDictionary* call in runnable)
         [stubs addObject:@{@"id":call[@"id"],@"type":@"function",
@@ -95,7 +86,10 @@ static NSString* const NotRunResult=@"{\"error\":\"Not run: another call in the 
             RetryResult(call[@"function"][@"name"],(SPDFMacAIToolArgumentsProblem)problem.integerValue) :
             NotRunResult}];
     }
-    if ([self persist]) { [self notify]; [self nextRequest:generation]; }
+    if (![self persist]) return nil;
+    [self notify];
+    if (windUp) [self windUpWithReason:@"Your last replies' calls could not be read." generation:generation];
+    else [self nextRequest:generation];
     return nil;
 }
 @end

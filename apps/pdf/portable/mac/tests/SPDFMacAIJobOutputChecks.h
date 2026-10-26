@@ -1,5 +1,5 @@
 // document_job through the reader (mac/SPDFMacAIOutputs.h): the output goes to Downloads (this run's, never the
-// person's) under a clear name, " (2)" beside a file already there, which stays untouched; Collection keeps it with
+// person's) under a clear name, " 2" beside a file already there, which stays untouched; Collection keeps it with
 // reason "Made by the assistant" while Collection is on and not while it is off; Undo closes the tab and removes only
 // the exact file made, leaving Collection's history. Included by SPDFMacAIDocumentContextTests.mm.
 #pragma once
@@ -47,9 +47,9 @@ static void CheckJobOutputs(AIContextProbe* reader, NSString* path, SPDFTabGroup
     [@"the person's own" writeToFile:expected atomically:YES encoding:NSUTF8StringEncoding error:nil];
     result=RunExportJob(tools,path); generated=[reader visiblePath];
     Check([generated.lastPathComponent isEqual:[expected.lastPathComponent stringByReplacingOccurrencesOfString:
-        @" (copy).pdf" withString:@" (copy) (2).pdf"]] && [[NSString stringWithContentsOfFile:expected
+        @" (copy).pdf" withString:@" (copy) 2.pdf"]] && [[NSString stringWithContentsOfFile:expected
         encoding:NSUTF8StringEncoding error:nil] isEqual:@"the person's own"],
-        "beside a file already there the output gets \" (2)\" and that file is untouched");
+        "beside a file already there the output gets \" 2\" and that file is untouched");
     Check([tools undoLastAction:nil] && ![fm fileExistsAtPath:generated] && [fm fileExistsAtPath:expected],
         "Undo removes the numbered output and nothing else");
 

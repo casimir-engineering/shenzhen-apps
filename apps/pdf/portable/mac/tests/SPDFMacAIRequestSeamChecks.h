@@ -14,7 +14,7 @@ static void CheckRequestContext(void) {
                                       isEqual:@[@"c_mei"]],
           "a context keeps the chips the person sent; changing the caller's array later adds none");
     CHECK(!context.friendConversation, "only a friend's `/` names the conversation's friend");
-    CHECK(context.budget.remainingSteps == 12 && context.budget.remainingToolCalls == NSUIntegerMax &&
+    CHECK(context.budget.remainingSteps == SPDFMacAIRequestStepCeiling && context.budget.remainingToolCalls == NSUIntegerMax &&
           context.depth == 0 && context.activity == activity && context.requestID.length,
           "a context has the default budget, depth 0 and the session's activity");
     SPDFMacAIRequestContext* slash = [[SPDFMacAIRequestContext alloc] initWithText:@"send a summary" chips:nil
@@ -58,9 +58,10 @@ static void CheckRequestBudget(void) {
     SPDFMacAIRequestBudget* budget = [SPDFMacAIRequestBudget defaultRequestBudget];
     NSUInteger steps = 0;
     while ([budget consumeStep]) steps++;
-    CHECK(steps == 12 && !budget.remainingSteps && budget.usedSteps == 12, "the default request has 12 steps");
+    CHECK(steps == SPDFMacAIRequestStepCeiling && !budget.remainingSteps && budget.usedSteps == steps,
+          "the default request's ceiling is 120 steps");
     [budget returnStep];
-    CHECK(budget.usedSteps == 11 && budget.remainingSteps == 1 && [budget consumeStep] && !budget.remainingSteps,
+    CHECK(budget.usedSteps == steps - 1 && budget.remainingSteps == 1 && [budget consumeStep] && !budget.remainingSteps,
           "a step given back can be taken again");
     SPDFMacAIRequestBudget* request = [[SPDFMacAIRequestBudget alloc] initWithSteps:10 tokens:1000 toolCalls:12];
     SPDFMacAIRequestBudget* a = [request childBudgetWithSteps:50 tokens:600 toolCalls:50];

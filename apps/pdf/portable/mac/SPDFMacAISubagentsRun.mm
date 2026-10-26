@@ -217,13 +217,15 @@ static NSString* TaskMessage(NSString* instructions, NSString* question) {
     task.findings = answer.length ? SPDFMacAISubagentFindings(answer, task.session.chat) : nil;
     if (!task.row) { [self showProgress]; return; }
     BOOL answered = [outcome isEqual:kAnswered];
-    // Running out of time is a limit like running out of steps, not something the person stopped: both red.
-    BOOL failed = [outcome isEqual:kFailed] || [outcome isEqual:kOutOfBudget] || [outcome isEqual:kTimedOut];
-    NSString* status = answered ? @"Done" : [outcome isEqual:kOutOfBudget] ? @"Ran out of steps" :
-        [outcome isEqual:kTimedOut] ? @"Ran out of time" : failed ? @"Didn’t finish" : @"Stopped";
+    // A part stopped by its share of steps or time says what it found so far, which the main answer builds on: partly
+    // done, not a failure, and never the limit itself. With nothing found it didn't finish, in red.
+    BOOL limited = [outcome isEqual:kOutOfBudget] || [outcome isEqual:kTimedOut];
+    BOOL partial = limited && task.findings[@"summary"];
+    BOOL failed = [outcome isEqual:kFailed] || (limited && !partial);
+    NSString* status = answered ? @"Done" : partial ? @"Partly done" : failed ? @"Didn’t finish" : @"Stopped";
     NSMutableDictionary* changes = [@{SPDFMacAIActivityStatusKey : status,
-        SPDFMacAIActivityStateKey : answered ? SPDFMacAIActivityStateDone : failed ? SPDFMacAIActivityStateFailed :
-            SPDFMacAIActivityStateStopped} mutableCopy];
+        SPDFMacAIActivityStateKey : answered || partial ? SPDFMacAIActivityStateDone : failed ?
+            SPDFMacAIActivityStateFailed : SPDFMacAIActivityStateStopped} mutableCopy];
     NSString* summary = task.findings[@"summary"];
     NSString* detail = summary.length ? SPDFMacAISubagentPlainText(summary) : [self askedText:task];
     NSString* problem = [outcome isEqual:kFailed] ? SPDFMacAISubagentProblemLine(task.problem) : nil;

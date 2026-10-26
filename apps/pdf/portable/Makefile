@@ -928,7 +928,8 @@ MAC_AI_SESSION_SRCS := mac/SPDFMacAIChatSession.mm mac/SPDFMacAIAnswerCard.mm ma
 	mac/SPDFMacAIChatStore.mm mac/SPDFMacAIChatStoreRequestOnly.mm \
 	mac/SPDFMacAITransport.mm mac/SPDFMacAICitations.mm mac/SPDFMacAIToolRegistry.mm \
 	mac/SPDFMacAIRequestContext.mm mac/SPDFMacAIChatActivity.mm mac/SPDFMacAIChatSessionSummaries.mm \
-	mac/SPDFMacAIChatBudget.mm mac/SPDFMacAIChatSessionCalls.mm mac/SPDFMacAIToolArguments.mm
+	mac/SPDFMacAIChatBudget.mm mac/SPDFMacAIChatSessionCalls.mm mac/SPDFMacAIToolArguments.mm \
+	mac/SPDFMacAIChatSessionRecovery.mm mac/SPDFMacAIChatProgress.mm
 mac-ai-transport-tests: | $(BUILD)
 	clang++ $(MAC_TARGET_FLAGS) -std=c++17 -fobjc-arc -Wall -Wextra -Werror -Imac mac/tests/SPDFMacAITransportTests.mm mac/SPDFMacAITransport.mm mac/SPDFMacAICredentials.mm mac/SPDFMacAISettings.mm mac/SPDFMacAIOpenRouterAuth.mm mac/SPDFMacAISignInReturnWatch.mm -framework AppKit -framework Security -framework LocalAuthentication -o "$(BUILD)/SPDFMacAITransportTests"
 	"$(BUILD)/SPDFMacAITransportTests"

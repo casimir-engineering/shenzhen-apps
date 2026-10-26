@@ -20,10 +20,11 @@ static void CheckFailedRows(void) {
     broken.reply(nil, [NSError errorWithDomain:@"test" code:1 userInfo:@{NSLocalizedDescriptionKey :
         @"The model is busy. Start a new chat to continue."}]);
     NSArray* rows = Rows(chat);
-    CHECK(rows.count == 2 && [rows[0][SPDFMacAIActivityStatusKey] isEqual:@"Ran out of steps"] &&
-          [rows[0][SPDFMacAIActivityStateKey] isEqual:SPDFMacAIActivityStateFailed] &&
-          [rows[0][SPDFMacAIActivityDetailKey] isEqual:@"Asked: TASK-OUT: read everything"],
-          "a helper out of turns says it ran out of steps, under what it was asked");
+    CHECK(rows.count == 2 && [rows[0][SPDFMacAIActivityStatusKey] isEqual:@"Partly done"] &&
+          [rows[0][SPDFMacAIActivityStateKey] isEqual:SPDFMacAIActivityStateDone] &&
+          [rows[0][SPDFMacAIActivityDetailKey] hasPrefix:@"Stopped before finishing. So far 2 actions worked."] &&
+          ![rows[0][SPDFMacAIActivityDetailKey] containsString:@"Continue"],
+          "a helper out of turns is partly done and says what it did, never the limit or a Continue it hasn't");
     CHECK([rows[1][SPDFMacAIActivityStatusKey] isEqual:@"Didn’t finish"] &&
           [rows[1][SPDFMacAIActivityDetailKey] isEqual:@"Asked: TASK-FAIL: look it up\n\nThe model is busy."],
           "a failed helper adds its problem's first sentence, without advice meant for the main chat");

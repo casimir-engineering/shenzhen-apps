@@ -68,7 +68,7 @@ static NSUInteger TurnsWithTools(TaskChat chat, NSString* marker, NSString* pref
         turns++;
     }
     TaskTurn* wrapUp = TaskTurnFor(chat.model, marker);
-    CHECK(wrapUp && [wrapUp wireContains:@"action budget is exhausted"], "a task out of turns answers without tools");
+    CHECK(wrapUp && [wrapUp wireContains:@"tools are off"], "a task out of turns answers without tools");
     Reply(wrapUp, SeamAnswer(@"Partly done."));
     return turns;
 }

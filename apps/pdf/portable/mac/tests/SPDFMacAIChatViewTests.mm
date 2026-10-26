@@ -25,7 +25,7 @@ static NSEvent* pendingUp;
 @property(nonatomic) BOOL canUndo;
 @property(nonatomic) BOOL canRedo;
 @property(nonatomic) BOOL canCompact;
-@property(nonatomic) BOOL canRetry;
+@property(nonatomic) BOOL canRetry, canContinue;
 @property(nonatomic) SPDFMacAIChatActivityState activityState;
 @property(nonatomic) NSString* activityDetail;
 @end
@@ -247,7 +247,7 @@ int main(void) { @autoreleasepool {
     RunChatBannerChecks();
     RunChatAttachmentChecks();
     RunChatReopenChecks();
-    RunChatOrderChecks();
+    RunChatOrderChecks(); RunChatFollowChecks();
     RunBlankChatRowsChecks();
     RunAnswerCardViewChecks();
     RunChatActivityViewChecks();

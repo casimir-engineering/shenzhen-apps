@@ -35,8 +35,23 @@
     // Attachments (SPDFMacAIChatAttachments.mm): the paperclip, the row of chips above the composer and its note.
     NSButton* _attach; NSTextField* _attachmentNote; NSView* _attachmentRow;
     NSLayoutConstraint* _attachmentRowHeight; NSArray<NSDictionary*>* _shownAttachments;
+    // Following the end of the chat (SPDFMacAIChatViewFollow.mm): whether to stay at the end as it grows, the pill
+    // saying what is below, messages that arrived below while the person read above and the first of them (its index
+    // and its row), and whether a scroll is the view's own rather than the person's.
+    BOOL _followNewest; NSButton* _newMessagesPill; NSUInteger _unseenMessages; NSUInteger _firstUnseenIndex;
+    __weak NSView* _firstUnseenRow; BOOL _scrollingItself;
 }
 - (NSButton*)button:(NSString*)title action:(NSString*)action;
+@end
+
+@interface SPDFMacAIChatView (Follow)
+- (void)setUpFollowing;
+- (BOOL)scrolledToEnd;
+- (void)scrollToNewest;
+- (void)followNewest;
+- (void)noteUnseenMessages:(NSArray*)messages from:(NSUInteger)first;
+- (void)noteRowsFrom:(NSUInteger)rows forMessage:(NSUInteger)index;
+- (void)updateNewMessagesPill;
 @end
 
 @interface SPDFMacAIChatView (Messages)

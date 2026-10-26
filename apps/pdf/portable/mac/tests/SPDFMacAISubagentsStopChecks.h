@@ -31,12 +31,12 @@ static void CheckTimeoutReturnsPartialResults(void) {
           [tasks[1][@"summary"] isEqual:@"So far: clause 7 sets the 20th."],
           "and returns what each task has: the finished answer and the slow task's partial one");
     NSArray* rows = Rows(chat);
-    // Out of time is a limit, as out of steps is, so both rows are failures; Stopped is for the person's Stop.
+    // Out of time with something found is partly done, shown with what it had; never the limit itself.
     CHECK([rows[0][SPDFMacAIActivityStateKey] isEqual:SPDFMacAIActivityStateDone] &&
-          [rows[1][SPDFMacAIActivityStateKey] isEqual:SPDFMacAIActivityStateFailed] &&
-          [rows[1][SPDFMacAIActivityStatusKey] isEqual:@"Ran out of time"] &&
+          [rows[1][SPDFMacAIActivityStateKey] isEqual:SPDFMacAIActivityStateDone] &&
+          [rows[1][SPDFMacAIActivityStatusKey] isEqual:@"Partly done"] &&
           [rows[1][SPDFMacAIActivityDetailKey] isEqual:@"So far: clause 7 sets the 20th."],
-          "the slow task's row says it ran out of time, as a failure like running out of steps, and shows what it had");
+          "the slow task's row is partly done and shows what it had");
     NSUInteger turns = chat.model.turns.count;
     Reply(stuck, SeamAnswer(@"Too late."));
     SeamRunLoop(0.02);

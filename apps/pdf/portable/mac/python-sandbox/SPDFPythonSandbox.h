@@ -4,7 +4,7 @@
 // stdout; the helper does everything in between, so no other process ever sees the work directory:
 //
 //   request  {"interpreter": "/…/assistant-python/bin/python3", "code": "…", "files": [{"name", "text"}],
-//             "documents_dir": "/…" (optional), "document_files": ["/…"],
+//             "documents_dir": "/…" (optional), "document_files": ["/…"], "write_only_dirs": ["/…"] (Downloads),
 //             "limits": {lower limits, for tests}, "work_parent": "/…" (tests; default: the user's temp folder)}
 //   result   {"ok": true, "status": "completed" | "failed" | "stopped", "exit_code" | "signal", "limit",
 //             "seconds", "stdout", "stdout_truncated", "stderr", "stderr_truncated",
@@ -111,6 +111,9 @@ NSDictionary<NSString*, id>* _Nullable SPDFPythonSandboxPathsForInterpreter(NSSt
 
 // The SBPL profile for `paths` and the (real) work directory.
 NSString* SPDFPythonSandboxProfile(NSDictionary<NSString*, id>* paths, NSString* workDirectory);
+// The folders a run may never read (deny_read_subpaths): the home folder's Downloads and the request's
+// write_only_dirs, each as given and by its real path. Rules for this run's documents come after them and win.
+NSArray<NSString*>* SPDFPythonSandboxWriteOnlyPaths(NSArray* _Nullable requested);
 
 // The profile's sysctl rule: the named system values Python, numpy, pandas and matplotlib read, and nothing else.
 NSString* SPDFPythonSandboxSysctlRule(void);

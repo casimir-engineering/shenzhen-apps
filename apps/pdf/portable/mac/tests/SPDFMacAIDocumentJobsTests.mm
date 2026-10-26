@@ -47,8 +47,8 @@ int main(void) { @autoreleasepool {
     Check(!SPDFAIRemoveJobOutput(receipt),@"Undo preserves intervening output edits");
     NSData* edited=[NSData dataWithContentsOfFile:output];
     NSDictionary* second=SPDFAIRunPDFJob(@"export-pdf",source,downloads,@"result.pdf",@"",environment,@{},progress,&error);
-    Check([second[@"path"] isEqual:[downloads stringByAppendingPathComponent:@"result (2).pdf"]] &&
-          [edited isEqual:[NSData dataWithContentsOfFile:output]],@"a taken name gets \" (2)\"; the existing file is untouched");
+    Check([second[@"path"] isEqual:[downloads stringByAppendingPathComponent:@"result 2.pdf"]] &&
+          [edited isEqual:[NSData dataWithContentsOfFile:output]],@"a taken name gets \" 2\"; the existing file is untouched");
     Check(SPDFAIRemoveJobOutput(second) && [fm fileExistsAtPath:output],@"Undo of the second removes only the second");
     [fm removeItemAtPath:output error:nil];
 

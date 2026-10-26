@@ -11,8 +11,10 @@
 #import "SPDFMacAICapabilitiesSettingsIntegration.h"
 #import "SPDFMacAIDocumentAvailability.h"
 #import "SPDFMacAIOutputs.h"
+#import "SPDFMacAIChatSessionGrants.h"
 #import "SPDFMacAIPythonSettingsSource.h"
 #import "SPDFMacAIPythonToolProvider.h"
+#import "SPDFMacAISaveFileToolProvider.h"
 #import "SPDFMacAITools.h"
 #import "SPDFMacAIToolsReader.h"
 #import "SPDFMacCollectionAvailability.h"
@@ -20,13 +22,26 @@
 #import "SPDFMacDocumentFormats.h"
 
 // A Collection document's readable file: the original while it is there, else its latest saved version.
-static SPDFMacAIPythonDocument* SPDFCollectionDocument(NSString* identifier, NSString** problem) {
+static BOOL SPDFInsideDownloads(NSString* path) {
+    NSString* downloads = SPDFMacAIDownloadsDirectory().stringByResolvingSymlinksInPath;
+    NSString* real = path.stringByResolvingSymlinksInPath;
+    return [path isKindOfClass:NSString.class] && downloads.length &&
+        ([real isEqual:downloads] || [real hasPrefix:[downloads stringByAppendingString:@"/"]]);
+}
+
+static SPDFMacAIPythonDocument* SPDFCollectionDocument(NSString* identifier, NSSet* savedPaths, NSString** problem) {
     NSString* raw = [identifier substringFromIndex:@"collection:".length];
     SPDFMacCollectionStore* store = SPDFMacCollectionStore.defaultStore;
     NSDictionary* document = nil;
     for (NSDictionary* row in [store documents]) if ([row[@"id"] isEqual:raw]) { document = row; break; }
     if (!document) { *problem = [identifier stringByAppendingString:@" is not in Collection. Use list_collection."]; return nil; }
     NSString* title = document[@"title"] ?: [document[@"path"] lastPathComponent] ?: @"Document";
+    // A file the assistant saved to Downloads from another chat: Downloads is never read, through Collection either.
+    if ([document[@"reason"] isEqual:SPDFMacAIOutputCollectionReason] && SPDFInsideDownloads(document[@"path"]) &&
+        ![savedPaths containsObject:document[@"path"]]) {
+        *problem = [identifier stringByAppendingString:@" was saved to Downloads from another chat and can't be read here."];
+        return nil;
+    }
     if (SPDFCollectionOriginalAvailable(document) && [NSFileManager.defaultManager isReadableFileAtPath:document[@"path"]])
         return [SPDFMacAIPythonDocument documentWithIdentifier:identifier title:title path:document[@"path"]];
     NSString* version = document[@"latestVersionID"];
@@ -38,16 +53,11 @@ static SPDFMacAIPythonDocument* SPDFCollectionDocument(NSString* identifier, NSS
 
 @implementation ShenzhenMacDelegate (SPDFMacAIPythonTools)
 
-- (id<SPDFMacAIToolProvider>)aiToolProviderPython {
-    NSString* helper = SPDFMacAIPythonHelperPath(NSBundle.mainBundle);
-    if (!helper) return nil; // a build without the helper (the headless suites) has no Python tool
-    SPDFMacAIPythonToolProvider* provider =
-        [[SPDFMacAIPythonToolProvider alloc] initWithRunner:[[SPDFMacAIPythonSandboxRunner alloc]
-                                                                initWithHelperPath:helper]
-                                                environment:SPDFMacAIPythonInstaller.sharedInstaller];
+// What a doc:, collection: or attachment: id names, for run_python and save_file alike.
+- (SPDFMacAIPythonDocumentResolver)aiDocumentResolver {
     __weak ShenzhenMacDelegate* weakReader = self;
-    provider.documentResolver = ^(NSArray<NSDictionary*>* requests, SPDFMacAIRequestContext* context,
-                                  void (^completion)(NSArray<SPDFMacAIPythonDocument*>*, NSString*)) {
+    return ^(NSArray<NSDictionary*>* requests, SPDFMacAIRequestContext* context,
+             void (^completion)(NSArray<SPDFMacAIPythonDocument*>*, NSString*)) {
         // The open documents now, on the main thread; Collection is read on a worker, as its tools do.
         NSMutableDictionary* open = [NSMutableDictionary dictionary], *closed = [NSMutableDictionary dictionary];
         for (NSDictionary* candidate in [weakReader aiDocumentCandidates] ?: @[])
@@ -56,7 +66,10 @@ static SPDFMacAIPythonDocument* SPDFCollectionDocument(NSString* identifier, NSS
         for (NSDictionary* request in requests)
             if ([request[@"id"] hasPrefix:@"doc:"] && !open[request[@"id"]])
                 closed[request[@"id"]] = [weakReader aiClosedDocumentMessage:request[@"id"]] ?: @"";
-        NSArray* chips = context.chips;
+        NSArray* chips = SPDFMacAIRequestReadableAttachments(context); // given to this chat, or saved by it
+        NSMutableSet* savedPaths = [NSMutableSet set];
+        for (SPDFMacAIRequestChip* chip in chips)
+            if (SPDFMacAIChatGrantIsSaved(chip.identifier) && chip.fileURL.path) [savedPaths addObject:chip.fileURL.path];
         dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
             NSMutableArray* documents = [NSMutableArray array];
             NSString* problem = nil;
@@ -72,7 +85,7 @@ static SPDFMacAIPythonDocument* SPDFCollectionDocument(NSString* identifier, NSS
                     else problem = [closed[identifier] length] ? closed[identifier] :
                         [identifier stringByAppendingString:@" is not an open document. Use a doc: id from list_workspace."];
                 } else if ([identifier hasPrefix:@"collection:"]) {
-                    document = SPDFCollectionDocument(identifier, &problem);
+                    document = SPDFCollectionDocument(identifier, savedPaths, &problem);
                 } else {
                     document = SPDFMacAIPythonAttachmentDocument(request, chips, &problem);
                 }
@@ -82,14 +95,47 @@ static SPDFMacAIPythonDocument* SPDFCollectionDocument(NSString* identifier, NSS
             dispatch_async(dispatch_get_main_queue(), ^{ completion(problem ? nil : documents, problem); });
         });
     };
-    provider.saveOutput = ^NSDictionary*(NSData* data, NSString* name, NSError** error) {
-        return SPDFMacAIOutputSaveData(data, name, SPDFMacCollectionStore.defaultStore, error);
+}
+
+// Open shows a document in the reader, anything else in the app the Mac opens it with.
+- (SPDFMacAIOutputActions*)aiOutputActionsForPath:(NSString*)path {
+    __weak ShenzhenMacDelegate* weakReader = self;
+    SPDFMacAIOutputHandler open = nil;
+    if (SPDFReadableDocumentPath(path)) open = ^(NSString* file) { [weakReader openPath:file]; };
+    return [SPDFMacAIOutputActions actionsOpeningWith:open];
+}
+
+- (id<SPDFMacAIToolProvider>)aiToolProviderSaveFile {
+    SPDFMacAISaveFileToolProvider* provider = [SPDFMacAISaveFileToolProvider new];
+    provider.documentResolver = [self aiDocumentResolver];
+    provider.saver = ^NSDictionary*(NSData* data, NSString* folder, NSString* name, NSError** error) {
+        return SPDFMacAIOutputSaveDataIn(data, folder, name, SPDFMacCollectionStore.defaultStore, error);
     };
+    __weak ShenzhenMacDelegate* weakReader = self;
+    provider.presenter = ^(id<SPDFMacAIActivityReporting> activity, NSString* path) {
+        SPDFMacAIOutputActions* actions = [weakReader aiOutputActionsForPath:path];
+        if (actions) SPDFMacAIOutputShowSavedCard(activity, path, actions);
+    };
+    return provider;
+}
+
+- (id<SPDFMacAIToolProvider>)aiToolProviderPython {
+    NSString* helper = SPDFMacAIPythonHelperPath(NSBundle.mainBundle);
+    if (!helper) return nil; // a build without the helper (the headless suites) has no Python tool
+    SPDFMacAIPythonToolProvider* provider =
+        [[SPDFMacAIPythonToolProvider alloc] initWithRunner:[[SPDFMacAIPythonSandboxRunner alloc]
+                                                                initWithHelperPath:helper]
+                                                environment:SPDFMacAIPythonInstaller.sharedInstaller];
+    __weak ShenzhenMacDelegate* weakReader = self;
+    provider.documentResolver = [self aiDocumentResolver];
+    provider.saveOutput = ^NSDictionary*(NSData* data, NSString* name, NSError** error) {
+        return SPDFMacAIOutputSaveDataIn(data, name.stringByDeletingLastPathComponent, name.lastPathComponent,
+                                         SPDFMacCollectionStore.defaultStore, error);
+    };
+    provider.writeOnlyDirectories = @[ SPDFMacAIDownloadsDirectory() ];
     provider.showOutput = ^(id<SPDFMacAIActivityReporting> activity, NSString* path, NSString* imageEntry) {
-        // Open shows a document in the reader, anything else in the app the Mac opens it with.
-        SPDFMacAIOutputHandler open = nil;
-        if (SPDFReadableDocumentPath(path)) open = ^(NSString* file) { [weakReader openPath:file]; };
-        SPDFMacAIOutputActions* actions = [SPDFMacAIOutputActions actionsOpeningWith:open];
+        SPDFMacAIOutputActions* actions = [weakReader aiOutputActionsForPath:path];
+        if (!actions) return;
         if (imageEntry) SPDFMacAIOutputMarkEntrySaved(activity, imageEntry, path, actions);
         else SPDFMacAIOutputShowSavedCard(activity, path, actions);
     };

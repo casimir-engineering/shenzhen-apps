@@ -195,6 +195,8 @@ static void Click(NSString* identifier) {
     [NSThread sleepForTimeInterval:0.5];
 }
 
+#include "driver_long.h"
+
 static void Run(void) {
     NSDictionary* questions = gPlan[@"questions"];
     // The test profile's Collection: on, holding the report the way it would after the person kept it.
@@ -263,7 +265,7 @@ __attribute__((constructor)) static void E2EInit(void) {
         if (read) method_setImplementation(read, (IMP)StubKey);
         [NSThread detachNewThreadWithBlock:^{
             [NSThread sleepForTimeInterval:2];
-            @try { Run(); } @catch (NSException* exception) { Log([@"exception: " stringByAppendingString:exception.reason]); }
+            @try { if ([gPlan[@"scenario"] isEqual:@"long"]) RunLong(); else Run(); } @catch (NSException* exception) { Log([@"exception: " stringByAppendingString:exception.reason]); }
             NSData* json = [NSJSONSerialization dataWithJSONObject:gResult options:NSJSONWritingPrettyPrinted error:nil];
             [json writeToFile:[gOut stringByAppendingPathComponent:@"result.json"] atomically:YES];
             Log(@"done");

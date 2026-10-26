@@ -25,6 +25,9 @@ NSDictionary* _Nullable SPDFMacAIOutputKeepInCollection(NSString* path, SPDFMacC
 // Bytes saved to Downloads and kept in Collection: the install receipt ({path, identity}), or nil with `error`.
 NSDictionary* _Nullable SPDFMacAIOutputSaveData(NSData* data, NSString* name, SPDFMacCollectionStore* store,
                                                 NSError** error);
+// The same in a folder inside Downloads (`folder`, relative, may be empty; SPDFMacAIDownloadsSubfolder).
+NSDictionary* _Nullable SPDFMacAIOutputSaveDataIn(NSData* data, NSString* _Nullable folder, NSString* name,
+                                                  SPDFMacCollectionStore* store, NSError** error);
 
 typedef void (^SPDFMacAIOutputHandler)(NSString* path);
 // What Open and Show in Finder do. Production: the reader opens the file, Finder selects it.

@@ -47,9 +47,11 @@ FOUNDATION_EXPORT NSString* const SPDFMacAIChipKindAttachment; // a file the per
 // Steps (model turns), tool calls and tokens one request may still spend. A child budget is carved from its
 // parent's remaining allowance and every charge to it is charged to the parent too, so subagents together can
 // never outspend the request that started them. Safe to use from any thread.
+FOUNDATION_EXPORT const NSUInteger SPDFMacAIRequestStepCeiling; // 120
 @interface SPDFMacAIRequestBudget : NSObject
-// 12 steps (the chat's long-standing action budget), 2,000,000 estimated tokens (more than 12 full-context turns,
-// so the main chat stops on steps as before), and no separate tool-call limit.
+// A ceiling, not the usual end: SPDFMacAIRequestStepCeiling steps and 8,000,000 estimated tokens, no separate
+// tool-call limit. A request normally ends when its task is done, or earlier when it stops making progress
+// (SPDFMacAIChatProgress.h); reaching the ceiling pauses it with an answer saying what is left, and Continue.
 + (instancetype)defaultRequestBudget;
 - (instancetype)initWithSteps:(NSUInteger)steps tokens:(NSUInteger)tokens toolCalls:(NSUInteger)toolCalls;
 @property(nonatomic, readonly) NSUInteger remainingSteps;

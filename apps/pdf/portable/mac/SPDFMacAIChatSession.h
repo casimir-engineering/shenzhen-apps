@@ -102,6 +102,16 @@ typedef NS_ENUM(NSInteger, SPDFMacAIChatActivityState) {
 // the first 4 KB as the provider sent them. Memory only, never saved with the chat: for diagnosing a provider.
 @property(nonatomic, readonly) NSDictionary* lastUnreadableCall;
 @end
+// Requests that end before their task does (SPDFMacAIChatSessionRecovery.mm).
+@interface SPDFMacAIChatSession (Recovery)
+// The latest request paused before finishing (it stopped making progress, the connection stayed down, or it reached
+// the ceiling), its last answer says what was done and what is left, and Continue may resume it. The person's
+// session only.
+@property(nonatomic, readonly) BOOL canContinue;
+// Continue: a request that carries on the same work from the chat as it is (nothing is asked again or undone). Its
+// text is what the chat shows for it ("Continue"). NO when there is nothing to continue.
+- (BOOL)continueWithContext:(SPDFMacAIRequestContext*)context model:(NSString*)model apiKey:(NSString*)key;
+@end
 // Long chats and edited questions (SPDFMacAIChatSessionSummaries.mm).
 @interface SPDFMacAIChatSession (Summaries)
 // Summarize everything before the latest question so the chat can keep going.

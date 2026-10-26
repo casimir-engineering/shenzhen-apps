@@ -111,6 +111,20 @@ NSDictionary<NSString*, id>* SPDFPythonSandboxPathsForInterpreter(NSString* inte
     return paths;
 }
 
+NSArray<NSString*>* SPDFPythonSandboxWriteOnlyPaths(NSArray* requested) {
+    NSMutableOrderedSet* paths = [NSMutableOrderedSet orderedSet];
+    NSString* home = SPDFRealPath(NSHomeDirectory()) ?: NSHomeDirectory();
+    for (NSString* folder in [@[ [home stringByAppendingPathComponent:@"Downloads"] ]
+             arrayByAddingObjectsFromArray:[requested isKindOfClass:NSArray.class] ? requested : @[]]) {
+        if (![folder isKindOfClass:NSString.class] || ![folder hasPrefix:@"/"]) continue;
+        // Both spellings: the kernel reports real paths, and a folder not made yet has none.
+        [paths addObject:folder];
+        NSString* real = SPDFRealPath(folder);
+        if (real) [paths addObject:real];
+    }
+    return paths.array;
+}
+
 NSDictionary<NSString*, id>* SPDFPythonSandboxDocumentPaths(NSString* folder, NSArray* files, NSString** reason) {
     NSString* why = nil;
     NSString* home = SPDFRealPath(NSHomeDirectory()) ?: NSHomeDirectory();
@@ -165,6 +179,10 @@ NSString* SPDFPythonSandboxProfile(NSDictionary<NSString*, id>* paths, NSString*
     SPDFAppendRule(profile, @"allow process-exec", @"subpath", paths[@"exec_subpaths"]);
     SPDFAppendRule(profile, @"allow file-read*", @"literal", paths[@"read_literals"]);
     SPDFAppendRule(profile, @"allow file-read*", @"subpath", paths[@"read_subpaths"]);
+    // Downloads is the assistant's to write (through the app), never to read: refused by name even though (deny
+    // default) already refuses it, so no rule added later for the interpreter or the system can open it by accident.
+    // The document rules below come later and win: a file this chat saved, or a folder the person gave it.
+    SPDFAppendRule(profile, @"deny file-read*", @"subpath", paths[@"deny_read_subpaths"]);
     // The documents the assistant may see, read only: the folder the app prepared for this run (links to them, the
     // images it extracted, index.json) and each linked document by its exact path, never the folder it is in.
     SPDFAppendRule(profile, @"allow file-read*", @"subpath", paths[@"document_subpaths"]);

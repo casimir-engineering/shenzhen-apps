@@ -32,8 +32,10 @@ void SPDFMacAIPythonKeepOutputs(NSArray<NSDictionary*>* files, SPDFMacAIPythonOu
         NSMutableArray* report = [NSMutableArray array], *saved = [NSMutableArray array];
         for (NSDictionary* file in list) {
             NSString* name = file[@"name"];
-            // Folders inside out/ are flattened to the file's own name; Downloads gets no folders from code.
-            NSString* plain = name.lastPathComponent;
+            // Folders inside out/ become folders inside Downloads (the saver checks each part).
+            NSString* plain = [name substringFromIndex:kSPDFOutPrefix.length];
+            BOOL hidden = NO;
+            for (NSString* part in plain.pathComponents) hidden = hidden || [part hasPrefix:@"."];
             NSData* data = [file[@"data"] isKindOfClass:NSString.class]
                 ? [[NSData alloc] initWithBase64EncodedString:file[@"data"] options:0] : nil;
             if (report.count >= SPDFMacAIPythonMaxOutputs) {
@@ -41,14 +43,17 @@ void SPDFMacAIPythonKeepOutputs(NSArray<NSDictionary*>* files, SPDFMacAIPythonOu
             } else if (!data) {
                 [report addObject:@{@"file" : name, @"error" : [file[@"omitted"] isEqual:@"too_large"]
                     ? @"Not kept: the files of one run may total 10 MB." : @"Not kept: it is not a plain file."}];
-            } else if (!plain.length || [plain hasPrefix:@"."]) {
+            } else if (!plain.length || hidden) {
                 [report addObject:@{@"file" : name, @"error" : @"Not kept: give it a name that does not start with a dot."}];
             } else {
                 NSError* error = nil;
                 NSDictionary* receipt = saver(data, plain, &error);
                 if (receipt[@"path"]) {
+                    NSString* folder = [@"Downloads" stringByAppendingPathComponent:
+                        plain.stringByDeletingLastPathComponent];
+                    // _path: for the provider, which records the file as this chat's, then removes the key.
                     [report addObject:@{@"file" : name, @"saved_as" : [receipt[@"path"] lastPathComponent],
-                                        @"folder" : @"Downloads"}];
+                                        @"folder" : folder, @"_path" : receipt[@"path"]}];
                     [saved addObject:@{@"path" : receipt[@"path"], @"png" : @(SPDFIsPNG(data))}];
                 } else {
                     [report addObject:@{@"file" : name, @"error" : error.localizedDescription ?: @"Not kept."}];

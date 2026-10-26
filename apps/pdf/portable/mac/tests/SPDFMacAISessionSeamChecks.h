@@ -146,7 +146,7 @@ static void CheckSessionBudgets(void) {
     chat.model.reply(SeamToolTurn(@[SeamCall(@"b1", @"read_pages")]), nil);
     CHECK(chat.model.definitions.count, "the second step still offers tools");
     chat.model.reply(SeamToolTurn(@[SeamCall(@"b2", @"read_pages")]), nil);
-    CHECK(!chat.model.definitions && SeamWireContains(chat.model, @"action budget is exhausted") &&
+    CHECK(!chat.model.definitions && SeamWireContains(chat.model, @"tools are off") &&
           steps.usedSteps == 2,
           "after its steps a request gets one turn without tools to explain");
     chat.model.reply(SeamToolTurn(@[SeamCall(@"b3", @"read_pages")]), nil);

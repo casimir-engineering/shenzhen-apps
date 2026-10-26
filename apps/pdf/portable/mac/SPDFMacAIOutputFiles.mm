@@ -3,6 +3,8 @@
 #include <fcntl.h>
 #include <stdio.h>
 #include <sys/stat.h>
+#include <limits.h>
+#include <stdlib.h>
 
 static NSString* gDownloadsOverride;
 
@@ -27,11 +29,49 @@ static id Fail(NSError** error, NSString* message) {
     return nil;
 }
 
+static NSString* RealPath(NSString* path) {
+    char resolved[PATH_MAX];
+    return path.length && realpath(path.fileSystemRepresentation, resolved) ? @(resolved) : nil;
+}
+
+NSString* SPDFMacAIDownloadsSubfolder(NSString* relative, NSString** problem) {
+    NSString* why = nil;
+    NSString* base = SPDFMacAIDownloadsDirectory();
+    NSFileManager* fm = NSFileManager.defaultManager;
+    [fm createDirectoryAtPath:base withIntermediateDirectories:YES attributes:nil error:nil];
+    NSString* root = RealPath(base), *current = root;
+    NSArray* parts = [relative isKindOfClass:NSString.class] && relative.length ?
+        [relative componentsSeparatedByString:@"/"] : @[];
+    if (!root) why = @"The Downloads folder is not available.";
+    else if ([relative hasPrefix:@"/"] || [relative hasPrefix:@"~"] || parts.count > 4)
+        why = @"folder must be a path inside Downloads, such as \"Reports/October\", at most 4 levels.";
+    for (NSString* part in why ? @[] : parts) {
+        if (!part.length || [part hasPrefix:@"."] || [part containsString:@":"] || [part containsString:@"\\"] ||
+            part.length > 80 || [part rangeOfCharacterFromSet:NSCharacterSet.controlCharacterSet].location != NSNotFound) {
+            why = @"Each part of folder must be a plain name: no \"..\", no leading dot, no colon.";
+            break;
+        }
+        current = [current stringByAppendingPathComponent:part];
+        struct stat info;
+        if (lstat(current.fileSystemRepresentation, &info) == 0) {
+            if (!S_ISDIR(info.st_mode)) { why = @"A file or link of that name is already in the way."; break; }
+        } else if (mkdir(current.fileSystemRepresentation, 0755) != 0 && errno != EEXIST) {
+            why = [NSString stringWithFormat:@"The folder could not be made: %s.", strerror(errno)];
+            break;
+        }
+    }
+    NSString* real = why ? nil : RealPath(current);
+    if (!why && (!real || !([real isEqual:root] || [real hasPrefix:[root stringByAppendingString:@"/"]])))
+        why = @"folder must stay inside Downloads.";
+    if (problem) *problem = why;
+    return why ? nil : real;
+}
+
 NSString* SPDFMacAIOutputNumberedName(NSString* name, NSUInteger n) {
     if (n <= 1) return name;
     NSString* extension = name.pathExtension;
     NSString* base = extension.length ? name.stringByDeletingPathExtension : name;
-    NSString* numbered = [NSString stringWithFormat:@"%@ (%lu)", base, (unsigned long)n];
+    NSString* numbered = [NSString stringWithFormat:@"%@ %lu", base, (unsigned long)n];
     return extension.length ? [numbered stringByAppendingPathExtension:extension] : numbered;
 }
 

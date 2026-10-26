@@ -64,7 +64,8 @@ MAC_AI_PYTHON_TEST := $(MAC_PYTHON_SANDBOX_BUILD)/SPDFMacAIPythonTests
 MAC_AI_PYTHON_SRCS := mac/SPDFMacAIPythonToolProvider.mm mac/SPDFMacAIPythonRunner.mm mac/SPDFMacAIPythonResults.mm \
 	mac/SPDFMacAIPythonInstall.mm mac/SPDFMacAIPythonSettingsSource.mm mac/SPDFMacAIPythonDocuments.mm \
 	mac/SPDFMacAIPythonOutputs.mm mac/SPDFMacAIChatGrants.mm mac/SPDFMacAIAttachmentToolProvider.mm \
-	mac/SPDFMacAIWebPDF.mm mac/SPDFMacAIWebAddress.mm mac/SPDFMacAIChatSessionGrants.mm mac/SPDFMacAIOutputFiles.mm
+	mac/SPDFMacAIWebPDF.mm mac/SPDFMacAIWebAddress.mm mac/SPDFMacAIChatSessionGrants.mm mac/SPDFMacAIOutputFiles.mm \
+	mac/SPDFMacAISaveFileToolProvider.mm
 MAC_AI_PYTHON_PROFILE_OBJ := $(MAC_PYTHON_SANDBOX_BUILD)/SPDFPythonSandboxProfile.o
 
 .PHONY: mac-ai-python-suite

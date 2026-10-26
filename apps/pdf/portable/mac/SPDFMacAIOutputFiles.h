@@ -1,7 +1,7 @@
 #pragma once
-// Where a document the assistant makes is written: the person's Downloads folder, under a clear name. A name already
-// taken gets " (2)", " (3)"… before its extension; nothing there is ever replaced, because every install is one
-// exclusive rename of a finished file. Foundation only, so the job runner and its tests link it alone; keeping the
+// Where a document the assistant makes is written: the person's Downloads folder, or a folder inside it, under a clear
+// name. A name already taken gets " 2", " 3"… before its extension; nothing there is ever replaced, because every
+// install is one exclusive rename of a finished file. Foundation only, so the job runner and its tests link it alone; keeping the
 // file in Collection and showing it in the chat is SPDFMacAIOutputs.h.
 #import <Foundation/Foundation.h>
 
@@ -14,7 +14,11 @@ NSString* SPDFMacAIDownloadsDirectory(void);
 // Tests only: nil restores the default.
 void SPDFMacAISetDownloadsDirectoryForTesting(NSString* _Nullable directory);
 
-// `name` with " (n)" before its extension: n 1 is `name` itself.
+// A folder inside Downloads named by `relative` ("Reports/October"), made when missing: each part a plain name (no
+// "..", no leading dot, no separators or colons), at most 4 levels, and never a link, so it cannot lead out of
+// Downloads. An empty `relative` is Downloads itself. nil with a problem written for the model.
+NSString* _Nullable SPDFMacAIDownloadsSubfolder(NSString* _Nullable relative, NSString* _Nullable* _Nullable problem);
+// `name` with " n" before its extension ("Report 2.pdf"): n 1 is `name` itself.
 NSString* SPDFMacAIOutputNumberedName(NSString* name, NSUInteger n);
 // A file name made from text a person or the model gave (a chart's caption): folder separators and colons become
 // "-", control characters and leading dots go, at most 80 characters, and it ends in `extension`. Empty text gives

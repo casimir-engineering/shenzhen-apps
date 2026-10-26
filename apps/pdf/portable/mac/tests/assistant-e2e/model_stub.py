@@ -9,9 +9,17 @@ person sees as a result (numbers, files, refusals) comes from the app's real too
 Usage: model_stub.py <port file> <log file>
 """
 import json
+import os
 import re
 import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+# The owner's long requests (sorting and renaming documents, saving to Downloads) live beside this file; -I leaves the
+# script's folder off the path, so it is added for that one module.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import model_stub_long as long_tasks  # noqa: E402
+
+LONG_MARKS = long_tasks.MARKS
 
 # The code the "assistant" runs. It measures the plates the app extracted: no pixels come from anywhere else.
 MEASURE = r'''
@@ -130,6 +138,12 @@ def text(content):
 
 
 def answer(messages, tools, number):
+    users = [m for m in messages if m["role"] == "user"]
+    if not tools and messages and "plain title" in messages[0]["content"]:  # the chat's title, once it has an answer
+        return text("Documents sorted and renamed" if any(m in users[-1]["content"] for m in LONG_MARKS)
+                    else "Diffuser plates: gray levels")
+    if users and any(mark in users[-1]["content"] for mark in LONG_MARKS):
+        return long_tasks.answer(messages, tools, number)
     system = messages[0]["content"] if messages and messages[0]["role"] == "system" else ""
     if not tools:
         return text("Diffuser plates: gray levels")

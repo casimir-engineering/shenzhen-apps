@@ -18,6 +18,19 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)removeGrantWithIdentifier:(NSString*)identifier;
 // The grants as chips for a request of this chat.
 - (NSArray<SPDFMacAIRequestChip*>*)grantChips;
+// Files the assistant saved in Downloads from this chat: grants too ("saved": true, ids "attachment:saved-…"), so this
+// chat, and no other, may read them back, while the rest of Downloads stays unreadable. Not shown as chips. Returns the
+// id, or nil when the file is gone. Main thread.
+- (nullable NSString*)addSavedFileAtPath:(NSString*)path;
+// The saved files as chips, read now: a file saved earlier in the running request is readable at once.
+- (NSArray<SPDFMacAIRequestChip*>*)savedFileChips;
 @end
+
+@class SPDFMacAIRequestContext;
+// What a request may read as attachments: its own chips, and the files its chat saved since it started. A part
+// (run_subagents) has its parent's chips only.
+NSArray<SPDFMacAIRequestChip*>* SPDFMacAIRequestReadableAttachments(SPDFMacAIRequestContext* context);
+// YES for a saved file's id (attachment:saved-…).
+BOOL SPDFMacAIChatGrantIsSaved(NSString* _Nullable identifier);
 
 NS_ASSUME_NONNULL_END

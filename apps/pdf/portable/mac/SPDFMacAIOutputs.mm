@@ -24,6 +24,20 @@ NSDictionary* SPDFMacAIOutputSaveData(NSData* data, NSString* name, SPDFMacColle
     return receipt;
 }
 
+NSDictionary* SPDFMacAIOutputSaveDataIn(NSData* data, NSString* folder, NSString* name, SPDFMacCollectionStore* store,
+                                        NSError** error) {
+    NSString* problem = nil;
+    NSString* directory = SPDFMacAIDownloadsSubfolder(folder, &problem);
+    if (!directory) {
+        if (error) *error = [NSError errorWithDomain:@"ShenzhenPDF.AI.Output" code:2
+                                            userInfo:@{NSLocalizedDescriptionKey : problem ?: @"No such folder."}];
+        return nil;
+    }
+    NSDictionary* receipt = SPDFMacAIOutputWriteData(data, directory, name, error);
+    if (receipt) SPDFMacAIOutputKeepInCollection(receipt[@"path"], store);
+    return receipt;
+}
+
 @implementation SPDFMacAIOutputActions
 + (instancetype)actionsOpeningWith:(SPDFMacAIOutputHandler)open {
     SPDFMacAIOutputActions* actions = [self new];

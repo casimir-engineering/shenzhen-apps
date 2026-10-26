@@ -30,8 +30,8 @@ static BOOL Spin(BOOL (^done)(void)) {
 
 static void CheckNames(void) {
     Check([SPDFMacAIOutputNumberedName(@"Report.pdf", 1) isEqual:@"Report.pdf"] &&
-          [SPDFMacAIOutputNumberedName(@"Report.pdf", 2) isEqual:@"Report (2).pdf"] &&
-          [SPDFMacAIOutputNumberedName(@"Notes", 3) isEqual:@"Notes (3)"], "numbered names go before the extension");
+          [SPDFMacAIOutputNumberedName(@"Report.pdf", 2) isEqual:@"Report 2.pdf"] &&
+          [SPDFMacAIOutputNumberedName(@"Notes", 3) isEqual:@"Notes 3"], "numbered names go before the extension");
     Check([SPDFMacAIOutputFileName(@"../a/b:c.png", @"Chart", @"png") isEqual:@"-a-b-c.png"] &&
           [SPDFMacAIOutputFileName(@"", @"Chart", @"png") isEqual:@"Chart.png"] &&
           [SPDFMacAIOutputFileName(@".hidden", @"Chart", @"png") isEqual:@"hidden.png"] &&
@@ -59,12 +59,12 @@ static void CheckNoOverwrite(NSString* downloads) {
     [fm createDirectoryAtPath:downloads withIntermediateDirectories:YES attributes:nil error:nil];
     NSString* existing = [downloads stringByAppendingPathComponent:@"Summary.md"];
     [@"mine" writeToFile:existing atomically:YES encoding:NSUTF8StringEncoding error:nil];
-    [fm createDirectoryAtPath:[downloads stringByAppendingPathComponent:@"Summary (2).md"]
+    [fm createDirectoryAtPath:[downloads stringByAppendingPathComponent:@"Summary 2.md"]
   withIntermediateDirectories:NO attributes:nil error:nil];
     NSError* error = nil;
     NSDictionary* first = SPDFMacAIOutputWriteData([@"new" dataUsingEncoding:NSUTF8StringEncoding], downloads,
                                                    @"Summary.md", &error);
-    Check([first[@"path"] isEqual:[downloads stringByAppendingPathComponent:@"Summary (3).md"]],
+    Check([first[@"path"] isEqual:[downloads stringByAppendingPathComponent:@"Summary 3.md"]],
           "a taken name, even by a folder, moves on to the next free number");
     Check([[NSString stringWithContentsOfFile:existing encoding:NSUTF8StringEncoding error:nil] isEqual:@"mine"],
           "the person's file is never overwritten");
@@ -91,11 +91,11 @@ static void CheckCollection(NSString* root, NSString* downloads) {
           "Collection not yet chosen: saved to Downloads, nothing captured, no Collection created");
     Check([store updateSettings:@{@"choice" : @"disabled"} error:nil], "Collection turned off");
     NSDictionary* off = SPDFMacAIOutputSaveData(PNG(), @"Chart.png", store, nil);
-    Check([[off[@"path"] lastPathComponent] isEqual:@"Chart (2).png"] && ![store documentForPath:off[@"path"]],
+    Check([[off[@"path"] lastPathComponent] isEqual:@"Chart 2.png"] && ![store documentForPath:off[@"path"]],
           "Collection off: saved to Downloads, nothing captured");
     Check([store updateSettings:@{@"choice" : @"enabled"} error:nil], "Collection turned on");
     NSDictionary* on = SPDFMacAIOutputSaveData(PNG(), @"Chart.png", store, nil);
-    Check([[on[@"path"] lastPathComponent] isEqual:@"Chart (3).png"] &&
+    Check([[on[@"path"] lastPathComponent] isEqual:@"Chart 3.png"] &&
           [Reason(store, on[@"path"]) isEqual:@"Made by the assistant"],
           "Collection on: captured at once with reason \"Made by the assistant\"");
     Check(SPDFMacAIOutputRemove(on) && [store documentForPath:on[@"path"]],

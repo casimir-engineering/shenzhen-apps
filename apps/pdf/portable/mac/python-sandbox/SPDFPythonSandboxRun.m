@@ -298,6 +298,12 @@ static NSString* SPDFRequestProblem(NSDictionary* request) {
     id parent = request[@"work_parent"];
     if (parent && (![parent isKindOfClass:NSString.class] || ![parent hasPrefix:@"/"]))
         return @"work_parent must be an absolute path.";
+    id writeOnly = request[@"write_only_dirs"];
+    if (writeOnly && (![writeOnly isKindOfClass:NSArray.class] || [writeOnly count] > 4))
+        return @"write_only_dirs must be a list of at most 4 absolute paths.";
+    for (id folder in writeOnly)
+        if (![folder isKindOfClass:NSString.class] || ![folder hasPrefix:@"/"])
+            return @"write_only_dirs must be a list of at most 4 absolute paths.";
     return nil;
 }
 
@@ -307,6 +313,11 @@ NSDictionary<NSString*, id>* SPDFPythonSandboxRun(NSDictionary<NSString*, id>* r
     NSString* reason = nil;
     NSDictionary* paths = SPDFPythonSandboxPathsForInterpreter(request[@"interpreter"], &reason);
     if (!paths) return SPDFFailure(@"interpreter_unavailable", reason);
+    // Folders the assistant writes to but never reads (Downloads): refused by name, before the documents of this run
+    // are allowed, so a file the chat itself saved there, given as a document, is still read by its exact path.
+    NSMutableDictionary* denied = [paths mutableCopy];
+    denied[@"deny_read_subpaths"] = SPDFPythonSandboxWriteOnlyPaths(request[@"write_only_dirs"]);
+    paths = denied;
     if (request[@"documents_dir"]) {
         NSDictionary* documents = SPDFPythonSandboxDocumentPaths(request[@"documents_dir"],
                                                                  request[@"document_files"] ?: @[], &reason);

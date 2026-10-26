@@ -8,6 +8,9 @@
 // by its title alone, so another request never receives those answers as snippets.
 FOUNDATION_EXPORT NSString* const SPDFMacAIChatTitleSearchOnlyKey;
 
+// The most calls one saved assistant message may hold; a reply with more is never saved (the session runs at most
+// 64 of a reply's calls and asks for the rest again).
+FOUNDATION_EXPORT const NSUInteger SPDFMacAIMaximumCallsPerReply;
 @interface SPDFMacAIChatStore : NSObject
 - (instancetype)initWithDirectory:(NSURL*)directory;
 + (NSURL*)defaultDirectory;

@@ -126,6 +126,9 @@ static NSArray<NSURL*>* SPDFDroppedURLs(NSPasteboard* board) {
 
 - (void)showAttachments:(NSArray<NSDictionary*>*)grants {
     if (![grants isKindOfClass:NSArray.class]) grants = @[];
+    // Files the assistant saved are this chat's to read back, not something the person attached: no chip.
+    grants = [grants filteredArrayUsingPredicate:[NSPredicate predicateWithBlock:^BOOL(NSDictionary* grant,
+        NSDictionary* bindings) { (void)bindings; return ![grant isKindOfClass:NSDictionary.class] || ![grant[@"saved"] boolValue]; }]];
     _attach.hidden = _history;
     if ([grants isEqual:_shownAttachments]) return;
     _shownAttachments = [grants copy];

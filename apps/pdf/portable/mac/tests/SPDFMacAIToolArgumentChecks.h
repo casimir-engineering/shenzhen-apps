@@ -161,23 +161,34 @@ static void CheckToolArgumentRecovery(NSURL* root) {
     transport.reply(@{@"role":@"assistant",@"content":@"Done."},nil);
     CHECK(!session.running && session.activityState==SPDFMacAIChatActivityCompleted && !session.status.length,
         "the request then completes as if nothing had happened");
-    // Cut off twice: the person reads what happened and gets Retry, never the mechanism.
+    // Cut off again and again: the request winds up with what it has, says what is left, and offers Continue; the
+    // person never reads the mechanism, and never "Try again".
     [session newChat]; before=tools.calls;
     [session send:@"Make a nice document of the connector footprint" model:@"fake/model" apiKey:@"fixture"];
-    transport.reply(CallTurn(@[@[@"chatcmpl-tool-5",@"run_python",cut]]),nil);
-    transport.reply(CallTurn(@[@[@"chatcmpl-tool-6",@"run_python",cut]]),nil);
-    CHECK(tools.calls==before && !session.running && session.activityState==SPDFMacAIChatActivityError,
-        "a second cut-off call ends the request without running anything");
-    CHECK([session.status isEqual:@"The assistant's answer got cut off. Try again."] &&
+    for (int attempt=0;attempt<4;attempt++)
+        transport.reply(CallTurn(@[@[[NSString stringWithFormat:@"chatcmpl-cut-%d",attempt],@"run_python",cut]]),nil);
+    CHECK(tools.calls==before && session.running && !transport.definitions.count &&
+        [transport.messages.lastObject[@"content"] containsString:@"tools are off"],
+        "calls cut off again and again wind the request up with one reply without tools");
+    transport.reply(@{@"role":@"assistant",@"content":@"- Nothing was drawn yet.\n- Left: the footprint sheet."},nil);
+    CHECK(!session.running && session.activityState==SPDFMacAIChatActivityPaused && session.canContinue &&
+        !CanRetry(session) && [session.status containsString:@"Continue"] &&
+        [session.status rangeOfString:@"try again" options:NSCaseInsensitiveSearch].location==NSNotFound &&
         [session.status rangeOfString:@"JSON" options:NSCaseInsensitiveSearch].location==NSNotFound &&
-        [session.status rangeOfString:@"action" options:NSCaseInsensitiveSearch].location==NSNotFound,
-        "the person reads that the answer got cut off");
-    CHECK(CanRetry(session) && [(id<SPDFRetryProbe>)session retryMessageIndex]==0,"Retry is offered for the question");
-    sends=transport.sends;
-    [session resendFromMessageAtIndex:0 text:session.chat[@"messages"][0][@"content"] model:@"fake/model" apiKey:@"f"];
-    CHECK(transport.sends==sends+1 && session.running && [session.chat[@"messages"] count]==1 && !CanRetry(session),
-        "Retry sends the question again in place of the unfinished answer");
-    [session cancel];
+        [session.status rangeOfString:@"step" options:NSCaseInsensitiveSearch].location==NSNotFound,
+        "the person reads what is left and gets Continue, never an internal error");
+    sends=transport.sends; NSUInteger shown=[session.chat[@"messages"] count];
+    CHECK([session continueWithContext:[[SPDFMacAIRequestContext alloc] initWithText:@"Continue" chips:nil
+        origin:SPDFMacAIRequestOriginChat friendConversation:nil settings:nil budget:nil activity:session.activity]
+        model:@"fake/model" apiKey:@"f"] && transport.sends==sends+1 && session.running &&
+        [session.chat[@"messages"] count]==shown+1 && transport.definitions.count &&
+        [transport.messages.lastObject[@"content"] containsString:@"from where you stopped"],
+        "Continue resumes the same chat with tools, nothing asked again or removed");
+    transport.reply(CallTurn(@[@[@"chatcmpl-tool-6",@"run_python",loose]]),nil);
+    Answer(tools,@{@"stdout":@"saved"});
+    transport.reply(@{@"role":@"assistant",@"content":@"Done."},nil);
+    CHECK(tools.calls==before+1 && !session.running && session.activityState==SPDFMacAIChatActivityCompleted &&
+        !session.canContinue,"after Continue the task completes");
     // A batch with one unreadable call: nothing in it runs before the model sends it again.
     [session newChat]; before=tools.calls;
     [session send:@"Read page 2 and draw it" model:@"fake/model" apiKey:@"fixture"];
@@ -196,8 +207,11 @@ static void CheckToolArgumentRecovery(NSURL* root) {
     [session send:@"Rename the chapter, then draw it" model:@"fake/model" apiKey:@"fixture"];
     transport.reply(CallTurn(@[@[@"chatcmpl-tool-10",@"update_document_metadata",@"{}"]]),nil);
     Answer(tools,@{@"changed":@YES});
-    transport.reply(CallTurn(@[@[@"chatcmpl-tool-11",@"run_python",cut]]),nil);
-    transport.reply(CallTurn(@[@[@"chatcmpl-tool-12",@"run_python",cut]]),nil);
-    CHECK(!session.running && !CanRetry(session) && [session.status containsString:@"got cut off"] &&
-        [session.status containsString:@"send a follow-up"],"after a change, a follow-up is asked for, not Retry");
+    for (int attempt=0;attempt<4;attempt++)
+        transport.reply(CallTurn(@[@[[NSString stringWithFormat:@"chatcmpl-again-%d",attempt],@"run_python",cut]]),nil);
+    transport.reply(@{@"role":@"assistant",@"tool_calls":@[]},nil); // the wind-up's own reply is empty too
+    CHECK(!session.running && !CanRetry(session) && session.canContinue &&
+        [session.status containsString:@"Changes so far are kept"] &&
+        [[session.chat[@"messages"] lastObject][@"content"] containsString:@"Press Continue"],
+        "after a change, Continue is offered with an answer the app wrote, not Retry");
 }

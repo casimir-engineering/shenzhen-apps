@@ -297,6 +297,14 @@ static char stateKey;
     SPDFReaderAIState* state=[self readerAIState];
     if ([action isEqual:@"close"]) { [self closeAIChat]; return; }
     if ([action isEqual:@"compact"]) { [self aiCompactChat]; return; }
+    if ([action isEqual:@"continue"]) { // the same work carried on, with this chat's files as any request has them
+        SPDFMacAIChatSession* session=state.session; SPDFMacAISettings* settings=nil;
+        NSString* key=session.canContinue ? [self aiKeyForRequest:nil summarizing:NO settings:&settings] : nil;
+        if (key) [session continueWithContext:[[SPDFMacAIRequestContext alloc] initWithText:@"Continue"
+            chips:[session grantChips] origin:SPDFMacAIRequestOriginChat friendConversation:nil
+            settings:settings.snapshot budget:nil activity:session.activity] model:settings.model apiKey:key];
+        return;
+    }
     if ([action isEqual:@"retry"]) { // the latest question again, in place of the answer that couldn't be used
         SPDFMacAIChatSession* session=state.session; NSUInteger index=session.retryMessageIndex;
         if (session.canRetry && index!=NSNotFound)

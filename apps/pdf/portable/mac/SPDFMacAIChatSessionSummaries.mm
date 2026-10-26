@@ -143,7 +143,7 @@ static NSString* CompactionPrompt(void) {
         owner->_running=NO; owner->_key=nil; owner->_request=nil;
         owner->_activityState=ok ? SPDFMacAIChatActivityIdle : SPDFMacAIChatActivityError;
         owner->_status=ok ? @"Earlier messages summarized." :
-            @"Earlier messages could not be summarized. Your chat is unchanged; try again.";
+            @"Earlier messages couldn't be summarized. Your chat is unchanged.";
         [owner notify];
     }];
 }
@@ -191,8 +191,8 @@ static NSString* CompactionPrompt(void) {
     [self compactAt:cut generation:generation completion:^(BOOL ok) {
         __typeof__(self) owner=weakSelf; if (!owner || !owner->_running || generation!=owner->_generation) return;
         if (ok) [owner nextRequest:generation];
-        else [owner finish:@"Earlier messages could not be summarized to make room. "
-            "Your chat is saved; try again or start a new chat."];
+        else [owner pauseWithLocalSummary:@"Earlier messages couldn't be summarized to make room. Your chat is "
+            "saved; Continue tries again."];
     }];
     return YES;
 }

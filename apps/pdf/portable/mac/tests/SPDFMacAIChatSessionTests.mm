@@ -46,6 +46,7 @@ static int failures;
 #import "SPDFMacAIChatContextRetryChecks.h"
 #import "SPDFMacAIChatRewriteChecks.h"
 #import "SPDFMacAIToolArgumentChecks.h"
+#import "SPDFMacAIChatLongTaskChecks.h"
 int main(void) { @autoreleasepool {
     NSURL* citation=[NSURL URLWithString:@"spdf-ai://document?path=doc:fixture&page=2&revision=abc"];
     NSDictionary* arguments=SPDFMacAICitationArguments(citation);
@@ -60,6 +61,7 @@ int main(void) { @autoreleasepool {
     CheckStoreSnapshot([snapshotRoot URLByAppendingPathComponent:@"store"]);
     CheckSessionConflict([snapshotRoot URLByAppendingPathComponent:@"conflict"]);
     CheckChatCompletion([snapshotRoot URLByAppendingPathComponent:@"completion"]);
+    CheckLongTasks([snapshotRoot URLByAppendingPathComponent:@"long-tasks"]);
     CheckChatVision([snapshotRoot URLByAppendingPathComponent:@"vision"]);
     CheckReasoning([snapshotRoot URLByAppendingPathComponent:@"reasoning"]);
     CheckAnswerCards([snapshotRoot URLByAppendingPathComponent:@"answer-cards"]);
@@ -117,14 +119,19 @@ int main(void) { @autoreleasepool {
     CHECK([store chats].count==2,"separate chat files preserve other conversation");
     [session newChat]; [session send:@"bad shape" model:@"fake/model" apiKey:@"test"];
     transport.reply(@{@"role":@"assistant",@"tool_calls":@[@"bad"]},nil);
-    CHECK(!session.running && session.status.length,"malformed tool entries fail safely");
+    CHECK(session.running && [transport.messages.lastObject[@"content"] containsString:@"could not be read"],
+        "malformed tool entries run nothing and are asked for again");
+    transport.reply(@{@"role":@"assistant",@"content":@"Answered."},nil);
     NSUInteger callsBefore=tools.calls;
     [session send:@"bad arguments" model:@"fake/model" apiKey:@"test"];
     transport.reply(@{@"role":@"assistant",@"tool_calls":@[@{@"id":@"badargs",@"function":
         @{@"name":@"undo_action",@"arguments":@"not JSON"}}]},nil);
-    transport.reply(@{@"role":@"assistant",@"tool_calls":@[@{@"id":@"badargs2",@"function":
-        @{@"name":@"undo_action",@"arguments":@"not JSON"}}]},nil); // asked again once, then the request ends
-    CHECK(!session.running && tools.calls==callsBefore,"invalid JSON cannot invoke a zero-argument mutation");
+    for (int attempt=0;attempt<3;attempt++) // asked again three times, then the request winds up
+        transport.reply(@{@"role":@"assistant",@"tool_calls":@[@{@"id":[NSString stringWithFormat:@"badargs-%d",attempt],
+            @"function":@{@"name":@"undo_action",@"arguments":@"not JSON"}}]},nil);
+    transport.reply(@{@"role":@"assistant",@"content":@"The undo could not be sent."},nil);
+    CHECK(!session.running && tools.calls==callsBefore && session.canContinue,
+        "invalid JSON cannot invoke a zero-argument mutation");
     NSString* sharedID=NSUUID.UUID.UUIDString;
     NSDictionary* base=@{@"id":sharedID,@"messages":@[@{@"role":@"user",@"content":@"base"}]};
     [store saveChat:base error:nil];

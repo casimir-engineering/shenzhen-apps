@@ -6,7 +6,8 @@
 #import <unistd.h>
 NSString* const SPDFMacAIChatTitleSearchOnlyKey=@"titleSearchOnly";
 // Compaction keeps long conversations usable, so saved chats may hold many turns.
-static const NSUInteger ChatFileLimit=32*1024*1024, ChatMessageLimit=4096;
+static const NSUInteger ChatFileLimit=32*1024*1024, ChatMessageLimit=16384;
+const NSUInteger SPDFMacAIMaximumCallsPerReply=256;
 static BOOL ValidID(NSString* value) { return [value isKindOfClass:NSString.class] && [[NSUUID alloc] initWithUUIDString:value]; }
 static NSString* OrganizationRevision(NSDictionary* org) {
     NSData* data=org ? [NSJSONSerialization dataWithJSONObject:org options:NSJSONWritingSortedKeys error:nil] : nil;
@@ -56,7 +57,7 @@ static NSString* OrganizationRevision(NSDictionary* org) {
         }
         if (pending.count) return nil;
         id calls=message[@"tool_calls"];
-        if (calls && (![role isEqual:@"assistant"] || ![calls isKindOfClass:NSArray.class] || [calls count]>12)) return nil;
+        if (calls && (![role isEqual:@"assistant"] || ![calls isKindOfClass:NSArray.class] || [calls count]>SPDFMacAIMaximumCallsPerReply)) return nil;
         for (id call in calls) {
             if (![call isKindOfClass:NSDictionary.class] || ![call[@"id"] isKindOfClass:NSString.class] || ![call[@"id"] length] ||
                 [seen containsObject:call[@"id"]] || ![call[@"function"] isKindOfClass:NSDictionary.class]) return nil;

@@ -3,6 +3,8 @@
 
 usage: run_e2e.py --app <ShenzhenPDF.app> --document <PDF with plates on pages 4 and 5> --work <new folder>
                   [--python <assistant Python environment to copy>]
+       run_e2e.py --scenario long --app <ShenzhenPDF.app> --work <new folder>   (run_e2e_long.py: the owner's long
+                  requests, Continue, Downloads write-only, and the end of the chat)
 
 A copy of the app (its own bundle identifier, so its preferences are its own; LSUIElement and ad hoc signed so the
 harness can be inserted) runs from --work with a test profile: SPDF_STATE_DIR and a home of its own, so its chats,
@@ -26,6 +28,8 @@ import sys
 import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, HERE)
+import run_e2e_long  # noqa: E402
 REPO = os.path.abspath(os.path.join(HERE, "../../../../../.."))
 SZUT = os.path.join(REPO, "tools/updater-e2e/szut.m")
 NODIALOGS = os.path.join(REPO, "tools/updater-e2e/nodialogs.py")
@@ -167,7 +171,8 @@ def verify(out, state, result):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--app", required=True)
-    parser.add_argument("--document", required=True)
+    parser.add_argument("--document")
+    parser.add_argument("--scenario", choices=["plates", "long"], default="plates")
     parser.add_argument("--work", required=True)
     parser.add_argument("--python", default=os.path.expanduser(
         "~/Library/Application Support/ShenzhenPDF/assistant-python"))
@@ -181,10 +186,13 @@ def main():
         f.write(SETTINGS)
     # The assistant's Python for this profile: a copy, so nothing of the person's install is touched.
     shutil.copytree(args.python, os.path.join(state, "assistant-python"), symlinks=True)
-    document = os.path.join(work, "documents", os.path.basename(args.document))
-    os.makedirs(os.path.dirname(document))
-    shutil.copyfile(args.document, document)
-    plan = {"document": document, "questions": QUESTIONS, "attach": prepare_files(work)}
+    if args.scenario == "long":
+        plan = run_e2e_long.prepare(work, state)
+    else:
+        document = os.path.join(work, "documents", os.path.basename(args.document))
+        os.makedirs(os.path.dirname(document))
+        shutil.copyfile(args.document, document)
+        plan = {"document": document, "questions": QUESTIONS, "attach": prepare_files(work)}
     with open(os.path.join(work, "plan.json"), "w") as f:
         json.dump(plan, f)
     app = prepare_app(args.app, work)
@@ -223,7 +231,7 @@ def main():
         subprocess.run([sys.executable, NODIALOGS, "unregister", work])
     result_file = os.path.join(out, "result.json")
     result = json.load(open(result_file)) if os.path.exists(result_file) else {}
-    checks = verify(out, state, result)
+    checks = run_e2e_long.verify(check, out, state, result) if args.scenario == "long" else verify(out, state, result)
     with open(os.path.join(work, "checks.json"), "w") as f:
         json.dump({"seconds": round(time.time() - started), "checks": checks}, f, indent=1)
     failed = [c for c in checks if not c["pass"]]

@@ -1,3 +1,4 @@
+#import "SPDFMacAIChatFollowChecks.h" // the end of the chat as it grows: sending, following, the pill
 static NSArray<NSTextView*>* ChatBodies(SPDFMacAIChatView* view) {
     NSMutableArray* result=[NSMutableArray array];
     for(NSView* child in [(NSStackView*)[view valueForKey:@"messages"] arrangedSubviews])
