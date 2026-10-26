@@ -38,6 +38,10 @@ FOUNDATION_EXPORT NSString* const SPDFMacAIChipKindAttachment; // a file the per
                                revision:(nullable NSDictionary<NSString*, id>*)revision
                             displayName:(NSString*)displayName;
 + (instancetype)attachmentChipWithFileURL:(NSURL*)fileURL displayName:(NSString*)displayName;
+// A file or folder the person gave the chat (SPDFMacAIChatGrants.h): `identifier` is the attachment:… id the model
+// uses for it, and a folder's URL is a directory URL.
++ (instancetype)attachmentChipWithFileURL:(NSURL*)fileURL identifier:(NSString*)identifier
+                              displayName:(NSString*)displayName;
 @end
 
 // Steps (model turns), tool calls and tokens one request may still spend. A child budget is carved from its

@@ -222,6 +222,43 @@ codes and extractable text; scan-only PDFs need OCR first. Undo closes the
 generated tab and removes the output only if it is still the exact generated
 file.
 
+## Files you give a chat, and Python on your documents
+
+Drop files or folders anywhere on the chat panel, or choose them with the
+paperclip (**Attach files**) under the composer. Each one becomes a chip above
+the composer and belongs to that chat: its assistant, the parts it splits work
+into and its Python can read the file, or the folder and everything under it,
+and nothing beside them. Another chat never sees them, and removing the chip
+ends access. The chat keeps them (with a bookmark, so a moved item is still
+found) when it is reopened. The home folder itself, a folder holding it, and the
+Mac's own top-level folders (`/`, `/Users`, `/System`, `/Library`,
+`/Applications`…) are refused with a reason beside the chips. The model learns
+each item's `attachment:` id from the system prompt, and `read_attachment`
+lists a folder, reads a PDF's pages as text, shows an image to the model and
+returns text files as text (`mac/SPDFMacAIChatGrants.h`,
+`mac/SPDFMacAIAttachmentToolProvider.h`).
+
+`run_python` reads the documents the assistant can see, exactly: its
+`documents` argument names them by the ids the assistant already uses (`doc:`
+for an open document, `collection:` from `list_collection`, `attachment:` for a
+file or folder given to the chat, with `path` for a file inside an attached
+folder). For each run the app prepares a private folder the code sees as
+`./documents`, read only: a link to each document under a plain name, the images
+the listed PDF pages embed (`images_on_pages`) written at native resolution
+without resampling (PNG with the source's samples, or the original JPEG bytes),
+pages rendered whole (`render_pages`, at `dpi`), and `index.json` naming each
+file with its size, colour space and whether it is lossless. The sandbox lets
+the code read that folder and each document by its exact path; a file beside a
+document, a link leading out of an attached folder and any write there are
+refused by the sandbox itself (`mac/SPDFMacAIPythonDocuments.h`,
+`mac/python-sandbox/SPDFPythonSandbox.h`). Python still has no network.
+
+Files the code saves in `./out` (a PDF or Markdown report, CSV, PNG, any type)
+are kept: each goes to Downloads, documents also to Collection, and the chat
+shows a card with **Open** and **Show in Finder** (a PNG also as a picture).
+Only the person's own request keeps files, not a part's, and not one that
+includes Friends chats (`mac/SPDFMacAIPythonOutputs.h`).
+
 ## Where documents the assistant makes go
 
 Every document the assistant makes goes to two places:
@@ -236,8 +273,9 @@ Every document the assistant makes goes to two places:
   follows Collection's own setting: when Collection is off, or not yet chosen,
   nothing is captured and no Collection is created.
 
-This covers document jobs (OCR, translation, export), charts from Python that
-you save with **Save** under the picture, and AI translations saved from the
+This covers document jobs (OCR, translation, export), files Python saves in
+`./out`, charts from Python that you save with **Save** under the picture, and
+AI translations saved from the
 translation panel as Markdown. The chat then shows **Saved to Downloads** with
 **Open** and **Show in Finder**; a reopened chat keeps the line without the
 buttons. If the file has since been moved or removed, either button says so.

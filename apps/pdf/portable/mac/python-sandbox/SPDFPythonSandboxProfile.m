@@ -111,6 +111,42 @@ NSDictionary<NSString*, id>* SPDFPythonSandboxPathsForInterpreter(NSString* inte
     return paths;
 }
 
+NSDictionary<NSString*, id>* SPDFPythonSandboxDocumentPaths(NSString* folder, NSArray* files, NSString** reason) {
+    NSString* why = nil;
+    NSString* home = SPDFRealPath(NSHomeDirectory()) ?: NSHomeDirectory();
+    NSString* real = [folder isKindOfClass:NSString.class] && [folder hasPrefix:@"/"] ? SPDFRealPath(folder) : nil;
+    struct stat info;
+    NSMutableArray* literals = [NSMutableArray array], *subpaths = [NSMutableArray array];
+    if (!real || lstat(real.fileSystemRepresentation, &info) != 0 || !S_ISDIR(info.st_mode)) {
+        why = @"documents_dir must be an existing folder.";
+    } else if (info.st_uid != getuid() || (info.st_mode & 077)) {
+        why = @"documents_dir must be private to this user (mode 0700).";
+    } else if (SPDFPath(home, real) || real.pathComponents.count < 4) {
+        // A folder holding the home folder (or "/", "/Users") would open every file in it.
+        why = @"documents_dir must not contain the home folder.";
+    } else if (![files isKindOfClass:NSArray.class] || files.count > SPDF_PYTHON_MAX_DOCUMENTS) {
+        why = @"document_files must be a list of at most 64 paths.";
+    } else {
+        for (id file in files) {
+            NSString* path = [file isKindOfClass:NSString.class] && [file hasPrefix:@"/"] ? SPDFRealPath(file) : nil;
+            // A file by its exact path; a folder the person attached with all it holds, but never one that holds
+            // the home folder or a top-level folder of the system.
+            BOOL exists = path && lstat(path.fileSystemRepresentation, &info) == 0;
+            if (exists && S_ISREG(info.st_mode)) {
+                [literals addObject:path];
+            } else if (exists && S_ISDIR(info.st_mode) && !SPDFPath(home, path) && path.pathComponents.count >= 3) {
+                [subpaths addObject:path];
+            } else {
+                why = @"Each document must be an existing file, or a folder that does not hold the home folder.";
+                break;
+            }
+        }
+    }
+    if (reason) *reason = why;
+    return why ? nil : @{@"document_subpaths" : [@[ real ] arrayByAddingObjectsFromArray:subpaths],
+                         @"document_literals" : literals};
+}
+
 static void SPDFAppendRule(NSMutableString* profile, NSString* rule, NSString* filter, NSArray<NSString*>* paths) {
     NSMutableOrderedSet* unique = [NSMutableOrderedSet orderedSetWithArray:paths];
     if (!unique.count) return;
@@ -129,6 +165,10 @@ NSString* SPDFPythonSandboxProfile(NSDictionary<NSString*, id>* paths, NSString*
     SPDFAppendRule(profile, @"allow process-exec", @"subpath", paths[@"exec_subpaths"]);
     SPDFAppendRule(profile, @"allow file-read*", @"literal", paths[@"read_literals"]);
     SPDFAppendRule(profile, @"allow file-read*", @"subpath", paths[@"read_subpaths"]);
+    // The documents the assistant may see, read only: the folder the app prepared for this run (links to them, the
+    // images it extracted, index.json) and each linked document by its exact path, never the folder it is in.
+    SPDFAppendRule(profile, @"allow file-read*", @"subpath", paths[@"document_subpaths"]);
+    SPDFAppendRule(profile, @"allow file-read*", @"literal", paths[@"document_literals"]);
     // The system: dyld's shared cache and system libraries, time zones, locales, and the random and null devices.
     NSArray* systemRoots = @[ @"/System", @"/usr/lib", @"/usr/share", @"/private/var/db/timezone" ];
     NSArray* systemFiles = @[ @"/private/etc/localtime", @"/dev/null", @"/dev/zero", @"/dev/random", @"/dev/urandom" ];
@@ -148,8 +188,10 @@ NSString* SPDFPythonSandboxProfile(NSDictionary<NSString*, id>* paths, NSString*
     // /etc and /var are the links /etc/localtime is reached through.
     [profile appendString:@"(allow file-read-data (literal \"/\"))\n"];
     NSMutableArray* ancestors = [NSMutableArray arrayWithObjects:@"/etc", @"/var", nil];
-    NSArray* roots = [[[[paths[@"read_subpaths"] arrayByAddingObjectsFromArray:paths[@"read_literals"]]
+    NSArray* roots = [[[[[[paths[@"read_subpaths"] arrayByAddingObjectsFromArray:paths[@"read_literals"]]
         arrayByAddingObjectsFromArray:systemRoots] arrayByAddingObjectsFromArray:systemFiles]
+        arrayByAddingObjectsFromArray:paths[@"document_subpaths"] ?: @[]]
+        arrayByAddingObjectsFromArray:paths[@"document_literals"] ?: @[]]
         arrayByAddingObjectsFromArray:@[ kSPDFCryptexes, workDirectory ]];
     for (NSString* root in roots) [ancestors addObjectsFromArray:SPDFPythonSandboxAncestors(root)];
     SPDFAppendRule(profile, @"allow file-read-metadata", @"literal", ancestors);
@@ -223,7 +265,9 @@ NSDictionary<NSString*, NSString*>* SPDFPythonSandboxEnvironment(NSString* workD
 BOOL SPDFPythonSandboxValidInputName(id name) {
     if (![name isKindOfClass:NSString.class]) return NO;
     NSString* text = name;
-    if (!text.length || text.length > 100 || [text isEqual:@"main.py"] || [text hasPrefix:@"."]) return NO;
+    if (!text.length || text.length > 100 || [text isEqual:@"main.py"] || [text isEqual:@"documents"] ||
+        [text isEqual:@"out"] || [text hasPrefix:@"."])
+        return NO;
     NSCharacterSet* allowed =
         [NSCharacterSet characterSetWithCharactersInString:@"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
                                                             "0123456789._- "];

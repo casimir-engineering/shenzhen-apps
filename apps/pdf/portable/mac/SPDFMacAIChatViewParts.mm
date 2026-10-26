@@ -480,7 +480,7 @@ NSString* SPDFChatRunningToolText(NSString* tool) {
         // In progress, so each ends in an ellipsis; "parts" is what the person calls subagents' tasks.
         words = @{@"web_search" : @"Searching the web…", @"open_page" : @"Reading a page…",
                   @"run_python" : @"Running Python…", @"run_subagents" : @"Working on parts…",
-                  @"friends_send_message" : @"Preparing a message…",
+                  @"friends_send_message" : @"Preparing a message…", @"read_attachment" : @"Reading your files…",
                   @"friends_read_messages" : @"Reading your Friends chat…",
                   @"friends_search_chats" : @"Reading your Friends chat…",
                   @"search_documents" : @"Searching your documents…", @"read_pages" : @"Reading your documents…",

@@ -13,24 +13,59 @@ static NSString* const kSPDFSandboxUnavailable =
     @"Python cannot run on this Mac because its sandbox could not be applied, so the code did not run. Answer "
     @"without running code.";
 
+NSString* const SPDFMacAIPythonPromptGuidance =
+    @"run_python can read the documents you can see, exactly: list them in its documents argument to get each PDF "
+    @"page's embedded images at native resolution, losslessly, or pages rendered at a chosen dpi, then measure "
+    @"pixels, tables or data in the code yourself. Never ask the person to export files or run code you can run. Save "
+    @"files they should keep (reports, CSV, charts) in ./out.";
+
+static NSDictionary* SPDFDescribed(NSDictionary* schema, NSString* description) {
+    NSMutableDictionary* described = [schema mutableCopy];
+    described[@"description"] = description;
+    return described;
+}
+
 NSDictionary* SPDFMacAIPythonToolDefinition(void) {
     NSDictionary* file = @{@"type" : @"object", @"additionalProperties" : @NO, @"required" : @[ @"name", @"content" ],
         @"properties" : @{@"name" : @{@"type" : @"string", @"description" : @"A plain file name such as data.csv."},
                           @"content" : @{@"type" : @"string", @"description" : @"The file's text."}}};
+    NSDictionary* pages = @{@"type" : @"array", @"maxItems" : @10, @"items" : @{@"type" : @"integer", @"minimum" : @1}};
+    NSDictionary* document = @{@"type" : @"object", @"additionalProperties" : @NO, @"required" : @[ @"id" ],
+        @"properties" : @{
+            @"id" : @{@"type" : @"string", @"description" : @"doc: id from list_workspace, collection: id from "
+                                                            @"list_collection, or attachment: id of a file or folder "
+                                                            @"the person gave this chat."},
+            @"path" : @{@"type" : @"string", @"description" : @"For an attached folder: a file inside it, relative "
+                                                              @"to it, to extract images from or render."},
+            @"images_on_pages" : SPDFDescribed(pages,
+                @"PDF pages (from 1) whose embedded images to extract at native resolution, losslessly: PNG, or the "
+                @"original JPEG bytes."),
+            @"render_pages" : SPDFDescribed(pages,
+                @"PDF pages (from 1) to render whole as PNG at dpi."),
+            @"dpi" : @{@"type" : @"integer", @"minimum" : @36, @"maximum" : @600,
+                       @"description" : @"Resolution for render_pages; default 150."}}};
     return @{@"type" : @"function", @"function" : @{
         @"name" : SPDFMacAIPythonToolName,
         @"description" :
-            @"Run Python 3 code on the person's Mac in a sandbox: no network, no access to their files, at most 30 "
-            @"seconds and 512 MB of memory. numpy, pandas and matplotlib are installed. The working directory starts "
-            @"with only the files you pass; open them by name. Print what you need (the first 64 KB is returned). "
-            @"Save charts as PNG files in the working directory (matplotlib savefig): each is shown to the person in "
-            @"the chat, where they can save it. CSV files you write come back as tables, other text files as text. "
-            @"Every call starts fresh; nothing is kept between runs.",
+            @"Run Python 3 code on the person's Mac in a sandbox: numpy, pandas, matplotlib and Pillow; no network; at "
+            @"most 30 seconds and 512 MB of memory. It reads the documents you can see, exactly: list them in "
+            @"documents and they appear read only under ./documents, with ./documents/index.json saying which file "
+            @"is which (each document's own file, the images extracted from images_on_pages with their size and "
+            @"colour space, the pages rendered from render_pages). Measure pixels and data from those files yourself; "
+            @"never ask the person to export them or run code. Large images: crop first and use uint8 or float32 "
+            @"arrays. Nothing else of theirs is readable. Files you pass in files are written to the working "
+            @"directory first. Print what you need (the first 64 KB is returned). PNG charts saved in the working "
+            @"directory are shown in the chat; CSV files there come back as tables, other text files as text. Save "
+            @"files the person should keep (PDF or Markdown reports, CSV, PNG, any type) in ./out: each one is saved "
+            @"to their Downloads folder, PDFs and Markdown also to Collection, and the chat shows each with Open and "
+            @"Show in Finder. Every call starts fresh; nothing is kept between runs.",
         @"parameters" : @{@"type" : @"object", @"additionalProperties" : @NO, @"required" : @[ @"code" ],
             @"properties" : @{
                 @"code" : @{@"type" : @"string", @"description" : @"The Python program."},
                 @"files" : @{@"type" : @"array", @"maxItems" : @(kSPDFMaxFiles), @"items" : file,
-                             @"description" : @"Input files, written into the working directory first."}}}}};
+                             @"description" : @"Input files, written into the working directory first."},
+                @"documents" : @{@"type" : @"array", @"maxItems" : @8, @"items" : document,
+                                 @"description" : @"Documents the code may read under ./documents."}}}}};
 }
 
 // The same rule as the helper's SPDFPythonSandboxValidInputName, checked here so the model hears about a bad name
@@ -38,7 +73,8 @@ NSDictionary* SPDFMacAIPythonToolDefinition(void) {
 static BOOL SPDFValidFileName(id name) {
     if (![name isKindOfClass:NSString.class]) return NO;
     NSString* text = name;
-    if (!text.length || text.length > 100 || [text isEqual:@"main.py"] || [text hasPrefix:@"."] ||
+    if (!text.length || text.length > 100 || [text isEqual:@"main.py"] || [text isEqual:@"documents"] ||
+        [text isEqual:@"out"] || [text hasPrefix:@"."] ||
         [text hasSuffix:@" "])
         return NO;
     NSCharacterSet* allowed =
@@ -74,6 +110,19 @@ BOOL SPDFMacAIPythonSandboxRefused(void) { return gSandboxRefused; }
 - (BOOL)isReadOnlyTool:(NSString*)name { return [self providesTool:name]; }
 // In a request that includes Friends chats the code, written after reading them, and what it printed may quote a
 // friend: the chat file keeps only a stub of each call (SPDFMacAIToolProvider.h § 4).
+// While run_python is offered, the prompt says it reads the documents themselves, so the model measures rather than
+// asking the person to export files or run code.
+- (NSArray<NSDictionary*>*)messagesForRequest:(NSArray<NSDictionary*>*)messages
+                                      context:(SPDFMacAIRequestContext*)context {
+    NSDictionary* system = messages.firstObject;
+    if (![self toolDefinitionsForContext:context].count || ![system isKindOfClass:NSDictionary.class] ||
+        ![system[@"role"] isEqual:@"system"] || ![system[@"content"] isKindOfClass:NSString.class])
+        return messages;
+    NSMutableArray* told = [messages mutableCopy];
+    told[0] = @{@"role" : @"system",
+                @"content" : [system[@"content"] stringByAppendingFormat:@" %@", SPDFMacAIPythonPromptGuidance]};
+    return told;
+}
 - (BOOL)isRequestOnlyTool:(NSString*)name context:(SPDFMacAIRequestContext*)context {
     return [self providesTool:name] && context.includesFriendsChats;
 }
@@ -96,8 +145,10 @@ BOOL SPDFMacAIPythonSandboxRefused(void) { return gSandboxRefused; }
 
 - (NSString*)problemWithArguments:(NSDictionary*)arguments code:(NSString**)code files:(NSArray**)files {
     for (NSString* key in arguments)
-        if (![key isEqual:@"code"] && ![key isEqual:@"files"])
-            return [NSString stringWithFormat:@"Unknown argument %@. run_python takes code and files.", key];
+        if (![key isEqual:@"code"] && ![key isEqual:@"files"] && ![key isEqual:@"documents"])
+            return [NSString stringWithFormat:@"Unknown argument %@. run_python takes code, files and documents.", key];
+    NSString* documentsProblem = SPDFMacAIPythonDocumentsProblem(arguments[@"documents"]);
+    if (documentsProblem) return documentsProblem;
     id program = arguments[@"code"];
     if (![program isKindOfClass:NSString.class] || ![program length] || [program length] > kSPDFMaxCodeCharacters)
         return @"code must be the Python program, as a string of at most 60,000 characters.";
@@ -110,7 +161,7 @@ BOOL SPDFMacAIPythonSandboxRefused(void) { return gSandboxRefused; }
         if (![file isKindOfClass:NSDictionary.class] || [file count] != 2 || !SPDFValidFileName(file[@"name"]) ||
             ![file[@"content"] isKindOfClass:NSString.class] || [names containsObject:file[@"name"]])
             return @"Each file needs a unique name (letters, digits, dots, dashes, underscores and spaces; not "
-                   @"main.py, not starting with a dot) and its content as text.";
+                   @"main.py, documents or out, not starting with a dot) and its content as text.";
         [names addObject:file[@"name"]];
         [inputs addObject:@{@"name" : file[@"name"], @"text" : file[@"content"]}];
     }
@@ -136,9 +187,10 @@ BOOL SPDFMacAIPythonSandboxRefused(void) { return gSandboxRefused; }
     BOOL friends = context.includesFriendsChats;
     id<SPDFMacAIActivityReporting> activity = context.activity;
     __block dispatch_block_t stop = nil;
+    __block BOOL stopped = NO;
     NSString* step = [activity beginStepWithTitle:@"Running Python" detail:SPDFMacAIPythonClip(code, 2500)
                                           options:friends ? SPDFMacAIActivityRequestOnly : SPDFMacAIActivityOptionsNone
-                                           cancel:^{ if (stop) stop(); }];
+                                           cancel:^{ stopped = YES; if (stop) stop(); }];
     // The detail is only the code: the chat shows it in its code box. What it printed goes under its own key.
     if (step) [activity updateEntry:step changes:@{SPDFMacAIActivityDetailStyleKey : @"python"}];
     // No stored title: a step's titles are fixed words that never quote anyone, so a failed or stopped run reopens
@@ -146,18 +198,74 @@ BOOL SPDFMacAIPythonSandboxRefused(void) { return gSandboxRefused; }
     if (step && friends)
         [activity updateEntry:step changes:@{SPDFMacAIActivityStoredNoticeKey : SPDFMacAIPythonFriendsNotice}];
     NSString* runID = NSUUID.UUID.UUIDString;
-    _runs[runID] = ^{};
+    _runs[runID] = ^{ stopped = YES; };
+    [context.cancellation onCancel:^{ stopped = YES; if (stop) stop(); }];
     __weak SPDFMacAIPythonToolProvider* weakSelf = self;
-    NSDictionary* request = @{@"interpreter" : _environment.interpreterPath, @"code" : code, @"files" : files};
-    dispatch_block_t stopRun = [_runner runRequest:request completion:^(NSDictionary* result) {
+    // Output from ./out is kept only in the person's own request: not a part's (depth 1), not one with Friends chats.
+    BOOL keepOutputs = self.saveOutput && !friends && context.depth == 0;
+    void (^finish)(NSDictionary*, SPDFMacAIPythonDocumentFolder*) = ^(NSDictionary* result,
+                                                                      SPDFMacAIPythonDocumentFolder* folder) {
+        [folder remove];
         SPDFMacAIPythonToolProvider* owner = weakSelf;
         if (!owner) { completion(@{@"error" : @"The run was abandoned."}); return; }
         [owner->_runs removeObjectForKey:runID];
-        completion([owner finishRun:result code:code step:step activity:activity friends:friends]);
-    }];
-    stop = [stopRun copy];
-    if (_runs[runID]) _runs[runID] = stop;
-    [context.cancellation onCancel:^{ stop(); }];
+        NSDictionary* rest = result;
+        NSArray* outputs = [result[@"ok"] boolValue] ? SPDFMacAIPythonOutputFiles(result, &rest) : @[];
+        void (^answer)(NSArray*) = ^(NSArray* kept) {
+            NSMutableDictionary* model = [[owner finishRun:rest code:code step:step activity:activity
+                                                   friends:friends] mutableCopy];
+            if (folder) model[@"documents"] = folder.index[@"documents"];
+            if (kept.count) model[@"out"] = kept;
+            completion(model);
+        };
+        if (!outputs.count) { answer(nil); return; }
+        if (!keepOutputs) {
+            NSMutableArray* refused = [NSMutableArray array];
+            for (NSDictionary* file in outputs)
+                [refused addObject:@{@"file" : file[@"name"], @"error" : context.depth
+                    ? @"Not kept: only the main conversation keeps files. Return the result instead."
+                    : @"Not kept: files are not saved in requests that include Friends chats."}];
+            answer(refused);
+            return;
+        }
+        SPDFMacAIPythonKeepOutputs(outputs, owner.saveOutput, owner.showOutput, activity, answer);
+    };
+    void (^run)(SPDFMacAIPythonDocumentFolder*) = ^(SPDFMacAIPythonDocumentFolder* folder) {
+        SPDFMacAIPythonToolProvider* owner = weakSelf;
+        if (!owner || stopped) {
+            finish(@{@"ok" : @NO, @"error" : @"stopped", @"message" : @"The run was stopped."}, folder);
+            return;
+        }
+        if (folder) [activity updateEntry:step changes:@{SPDFMacAIActivityStatusKey : @"Running…"}];
+        NSMutableDictionary* request = [@{@"interpreter" : owner->_environment.interpreterPath, @"code" : code,
+                                          @"files" : files} mutableCopy];
+        if (folder) { request[@"documents_dir"] = folder.path; request[@"document_files"] = folder.files; }
+        stop = [[owner->_runner runRequest:request completion:^(NSDictionary* result) { finish(result, folder); }]
+            copy];
+        if (owner->_runs[runID]) owner->_runs[runID] = stop;
+    };
+    NSArray* requests = arguments[@"documents"];
+    if (!requests.count) { run(nil); return; }
+    if (!self.documentResolver) {
+        finish(@{@"ok" : @NO, @"error" : @"documents", @"message" : @"Documents can't be read in this window."}, nil);
+        return;
+    }
+    [activity updateEntry:step changes:@{SPDFMacAIActivityStatusKey : @"Getting the documents ready…"}];
+    self.documentResolver(requests, context, ^(NSArray<SPDFMacAIPythonDocument*>* documents, NSString* problem) {
+        if (!documents) {
+            finish(@{@"ok" : @NO, @"error" : @"documents", @"message" : problem ?: @"The documents were not found."},
+                   nil);
+            return;
+        }
+        [activity updateEntry:step changes:@{SPDFMacAIActivityStatusKey : [NSString stringWithFormat:
+            @"Getting %@ ready…", SPDFMacAIPythonDocumentsSummary(requests, documents)]}];
+        SPDFMacAIPythonPrepareDocuments(requests, documents, ^BOOL { return stopped; },
+            ^(SPDFMacAIPythonDocumentFolder* folder, NSString* failure) {
+                if (folder) run(folder);
+                else finish(@{@"ok" : @NO, @"error" : stopped ? @"stopped" : @"documents",
+                              @"message" : failure ?: @"The documents could not be prepared."}, nil);
+            });
+    });
 }
 
 - (NSDictionary*)finishRun:(NSDictionary*)result code:(NSString*)code step:(NSString*)step
@@ -180,6 +288,9 @@ BOOL SPDFMacAIPythonSandboxRefused(void) { return gSandboxRefused; }
         } else if ([error isEqual:@"stopped"]) {
             status = @"Stopped";
             answer = @{@"error" : @"The run was stopped before it finished."};
+        } else if ([error isEqual:@"documents"]) {
+            status = @"Didn’t run: the documents couldn’t be read";
+            answer = @{@"error" : [NSString stringWithFormat:@"The code did not run: %@", result[@"message"]]};
         } else {
             answer = @{@"error" : [NSString stringWithFormat:@"The code did not run: %@",
                                                              result[@"message"] ?: @"the sandbox failed."]};

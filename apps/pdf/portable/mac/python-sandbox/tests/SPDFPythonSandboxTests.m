@@ -8,6 +8,7 @@
 #import "SPDFPythonSandboxUnitChecks.h"
 #import "SPDFPythonSandboxRequestChecks.h"
 #import "SPDFPythonSandboxSystemChecks.h"
+#import "SPDFPythonSandboxDocumentChecks.h"
 
 int main(int argc, char** argv) {
     @autoreleasepool {
@@ -19,6 +20,7 @@ int main(int argc, char** argv) {
         CheckMappedDisk(scratch);
         CheckSharedMemoryOwnership();
         CheckRefusedProfiles(helper, scratch);
+        CheckDocumentPathRules(scratch);
         NSString* python = SandboxBasePython();
         if (!python) {
             puts("SPDFPythonSandboxTests: no Python 3 at /opt/homebrew, /usr/local or the Xcode tools, so the "
@@ -40,6 +42,7 @@ int main(int argc, char** argv) {
             CheckHiddenDisk(suite);
             CheckRequests(suite);
             CheckMatplotlib(suite);
+            CheckDocuments(suite, scratch);
             SandboxFreeSuite(suite);
         }
         [NSFileManager.defaultManager removeItemAtPath:scratch error:nil];

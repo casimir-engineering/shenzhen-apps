@@ -142,7 +142,7 @@ static void CheckEscapes(SandboxSuite* suite) {
         if (!blocked) fprintf(stderr, "  escape attempt not blocked: %s\n", name.UTF8String);
         CHECK(blocked, "every escape attempt fails inside the sandbox");
     }
-    CHECK(![out containsString:@"ESCAPED"] && [out containsString:@"CONTROL ['.matplotlib', '.tmp', 'main.py']"],
+    CHECK(![out containsString:@"ESCAPED"] && [out containsString:@"CONTROL ['.matplotlib', '.tmp', 'main.py', 'out']"],
           "nothing escaped, and the script itself ran to the end");
     NSData* everything = [NSJSONSerialization dataWithJSONObject:result options:0 error:nil];
     CHECK(![[[NSString alloc] initWithData:everything encoding:NSUTF8StringEncoding] containsString:suite.token],

@@ -239,11 +239,13 @@ static void CheckLiteralCard(NSView* card, NSTextView* body, NSString* message, 
 #import "SPDFMacAIChatLinkChecks.h"
 #import "SPDFMacAIChatWrapChecks.h"
 #import "SPDFMacAIChatRetryChecks.h"
+#import "SPDFMacAIChatAttachmentChecks.h"
 int main(void) { @autoreleasepool {
     [NSApplication sharedApplication];
     NSDate* started=[NSDate date];
     CheckNoConstraintConflicts();
     RunChatBannerChecks();
+    RunChatAttachmentChecks();
     RunChatReopenChecks();
     RunChatOrderChecks();
     RunBlankChatRowsChecks();

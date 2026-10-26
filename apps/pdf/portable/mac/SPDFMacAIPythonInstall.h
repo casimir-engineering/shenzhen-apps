@@ -34,12 +34,13 @@ static inline NSString* SPDFMacAIPythonInstallSummary(void) {
 static inline NSString* SPDFMacAIPythonInstallTitle(void) { return @"Install Python for the assistant?"; }
 static inline NSString* SPDFMacAIPythonInstallBody(void) {
     return [NSString stringWithFormat:@"To run code for you, the assistant needs its own copy of Python with numpy, "
-                                      @"pandas and matplotlib. %@ Code the assistant runs can’t use the network or "
-                                      @"open your files.", SPDFMacAIPythonInstallSummary()];
+                                      @"pandas and matplotlib. %@ Code the assistant runs can’t use the network, and "
+                                      @"reads only the documents and files the assistant can see.",
+                                      SPDFMacAIPythonInstallSummary()];
 }
 
-// ~/Library/Application Support/ShenzhenPDF/assistant-python: separate from the OCR tools' environment (python/), so
-// installing or upgrading either cannot break the other.
+// ~/Library/Application Support/ShenzhenPDF/assistant-python (SPDF_STATE_DIR/assistant-python in a private state):
+// separate from the OCR tools' environment (python/), so installing or upgrading either cannot break the other.
 NSString* SPDFMacAIPythonDefaultDirectory(void);
 
 // The installer for `directory`, run by /bin/bash without a login shell (a login shell's dotfiles choose a

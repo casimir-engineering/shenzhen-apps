@@ -13,7 +13,7 @@ every capability acts only inside a request the person typed.
 | Sending to friends | The assistant may prepare a message, and documents the person attached, for a friend the person named with an `@` chip in that request; it leaves only when the person presses Send on a card showing the exact text. Enforced in the tool layer, not the prompt |
 | Web | `web_search` and `open_page` tools; queries and fetched pages leave the Mac; on by default once AI is connected, with a Settings switch |
 | Subagents | One tool runs up to 4 read-only subagents in parallel, one level deep, within a step and token budget |
-| Python | A sandboxed interpreter with no network, no access to the person's files, strict time, memory and output limits |
+| Python | A sandboxed interpreter with no network, reading only the documents the assistant can see (by exact path) and the files and folders given to its chat, strict time, memory and output limits |
 | Markdown chat | Friend messages and AI chat render with the reader's Markdown engine at chat scale: tables, code, math and diagrams like documents; remote images load only on click |
 
 ## 1. Sending to friends on request
@@ -137,6 +137,10 @@ every capability acts only inside a request the person typed.
 - Interpreter: a dedicated virtual environment under Application Support with Python and numpy, pandas and
   matplotlib, installed on first use after consent, like the OCR tools; never global, never inherited
   environment variables (`spdf_mac_tool_environment`).
+- Documents (`documents`, 2026-10-26): the ones the assistant can see, by the ids it already uses, prepared by the
+  app as a read-only `./documents` folder with PDF pages' embedded images at native resolution and rendered pages
+  (`mac/SPDFMacAIPythonDocuments.h`); the profile adds read access to that folder and each document's exact path,
+  or the whole of a folder given to the chat. Files the code saves in `./out` are kept in Downloads and Collection.
 - Inputs are files the assistant writes into the work directory (document excerpts, tables). Outputs return as
   text, tables and images shown in the chat; images can be saved (to Downloads and Collection, as every document the
   assistant makes: document-assistant.md) or inserted into a Markdown document.

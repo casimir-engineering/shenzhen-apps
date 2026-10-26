@@ -4,6 +4,7 @@
 // stdout; the helper does everything in between, so no other process ever sees the work directory:
 //
 //   request  {"interpreter": "/…/assistant-python/bin/python3", "code": "…", "files": [{"name", "text"}],
+//             "documents_dir": "/…" (optional), "document_files": ["/…"],
 //             "limits": {lower limits, for tests}, "work_parent": "/…" (tests; default: the user's temp folder)}
 //   result   {"ok": true, "status": "completed" | "failed" | "stopped", "exit_code" | "signal", "limit",
 //             "seconds", "stdout", "stdout_truncated", "stderr", "stderr_truncated",
@@ -15,6 +16,11 @@
 //   - A fresh work directory (mkdtemp, 0700) holds main.py and the inputs; it is the code's working directory and
 //     the only place it may write. It is deleted afterwards whatever happened, without following links the code
 //     made, after clearing any flags or modes the code set to make deletion fail.
+//   - out/ in the work directory is where the code saves files for the person; they come back like the others,
+//     named out/…, and the app decides what to keep. With documents_dir, the work directory also has `documents`, a
+//     link to that folder: the app's private folder for this run, holding links to the documents the assistant may
+//     see and the images it extracted from them. The profile lets the code read that folder and each document by
+//     its exact path (SPDFPythonSandboxDocumentPaths), never write there and never the folders around a document.
 //   - The helper spawns itself with --sandboxed-exec. That process sets the rlimits (CPU, file size, open files,
 //     no core files, one process), applies the sandbox profile (SPDFPythonSandboxProfile), checks that the profile
 //     really holds (a loopback connect and opening /Users must both be refused), and only then execs the
@@ -61,6 +67,8 @@
 // Entries in the work directory before a run is stopped: deleting millions of files would outlast any limit above.
 #define SPDF_PYTHON_MAX_ENTRIES 4096
 #define SPDF_PYTHON_MAX_INPUTS 16
+// Document files one run may read by exact path (SPDFPythonSandboxDocumentPaths).
+#define SPDF_PYTHON_MAX_DOCUMENTS 64
 #define SPDF_PYTHON_MAX_REQUEST_BYTES (16 * 1024 * 1024)
 
 // Exit codes of --sandboxed-exec when the interpreter never started.
@@ -117,8 +125,16 @@ NSString* SPDFPythonSandboxQuote(NSString* text);
 // matplotlib draws without a window server.
 NSDictionary<NSString*, NSString*>* SPDFPythonSandboxEnvironment(NSString* workDirectory);
 
-// Input names: one plain file name the code can open as written, never main.py (the code) or a hidden name (the
-// helper's own .tmp and .matplotlib).
+// The documents a run may read (request keys documents_dir and document_files): the app's private folder prepared
+// for this run, by its real path, as document_subpaths, and each document file by its exact real path as
+// document_literals; a folder the person attached to the chat, listed in files, joins document_subpaths with all it
+// holds. nil with a reason for a prepared folder that is missing, not private (0700, this user's) or that contains
+// the home folder, and for anything in files that is neither a regular file nor a folder clear of the home folder.
+NSDictionary<NSString*, id>* _Nullable SPDFPythonSandboxDocumentPaths(NSString* folder, NSArray* files,
+                                                                      NSString* _Nullable* _Nullable reason);
+
+// Input names: one plain file name the code can open as written, never main.py (the code), documents or out (the
+// folders a run gets) or a hidden name (the helper's own .tmp and .matplotlib).
 BOOL SPDFPythonSandboxValidInputName(id name);
 
 // Runs one request and returns its result (the shapes above). `helperPath` is this helper's own executable, spawned

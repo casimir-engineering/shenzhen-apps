@@ -62,11 +62,13 @@ endef
 MAC_PYTHON_SANDBOX_TEST := $(MAC_PYTHON_SANDBOX_BUILD)/SPDFPythonSandboxTests
 MAC_AI_PYTHON_TEST := $(MAC_PYTHON_SANDBOX_BUILD)/SPDFMacAIPythonTests
 MAC_AI_PYTHON_SRCS := mac/SPDFMacAIPythonToolProvider.mm mac/SPDFMacAIPythonRunner.mm mac/SPDFMacAIPythonResults.mm \
-	mac/SPDFMacAIPythonInstall.mm mac/SPDFMacAIPythonSettingsSource.mm
+	mac/SPDFMacAIPythonInstall.mm mac/SPDFMacAIPythonSettingsSource.mm mac/SPDFMacAIPythonDocuments.mm \
+	mac/SPDFMacAIPythonOutputs.mm mac/SPDFMacAIChatGrants.mm mac/SPDFMacAIAttachmentToolProvider.mm \
+	mac/SPDFMacAIWebPDF.mm mac/SPDFMacAIWebAddress.mm mac/SPDFMacAIChatSessionGrants.mm mac/SPDFMacAIOutputFiles.mm
 MAC_AI_PYTHON_PROFILE_OBJ := $(MAC_PYTHON_SANDBOX_BUILD)/SPDFPythonSandboxProfile.o
 
 .PHONY: mac-ai-python-suite
-mac-ai-python-suite: $(MAC_PYTHON_SANDBOX_BIN)
+mac-ai-python-suite: $(MAC_PYTHON_SANDBOX_BIN) $(CORE_OBJS) mupdf-libs
 	bash $(MAC_PYTHON_SANDBOX_DIR)/tests/SPDFPythonSandboxPackagingTests.sh "$(MAC_PYTHON_SANDBOX_BIN)" \
 		"$(MAC_PYTHON_SANDBOX_PLIST)" "$(MAC_VERSION)"
 	rm -f "$(MAC_PYTHON_SANDBOX_TEST)" "$(MAC_AI_PYTHON_TEST)" "$(MAC_AI_PYTHON_PROFILE_OBJ)"
@@ -80,9 +82,10 @@ mac-ai-python-suite: $(MAC_PYTHON_SANDBOX_BIN)
 	# their lines checked as source text by the suite.
 	clang++ $(MAC_TARGET_FLAGS) -std=c++17 -fobjc-arc -Wall -Wextra -Werror -fsyntax-only -Imac -Icore \
 		-I$(MUPDF_DIR)/include mac/SPDFMacAIPythonIntegration.mm mac/SPDFMacAICapabilitiesSettingsIntegration.mm
-	clang++ $(MAC_TARGET_FLAGS) -std=c++17 -fobjc-arc -Wall -Wextra -Werror -Imac -Icore \
+	clang++ $(MAC_TARGET_FLAGS) -std=c++17 -fobjc-arc -Wall -Wextra -Werror -Imac -Icore -I$(MUPDF_DIR)/include \
 		-I$(MAC_PYTHON_SANDBOX_DIR) -I$(MAC_PYTHON_SANDBOX_DIR)/tests \
 		$(MAC_PYTHON_SANDBOX_DIR)/tests/SPDFMacAIPythonTests.mm $(MAC_AI_PYTHON_SRCS) $(MAC_AI_SESSION_SRCS) \
 		$(MAC_SETTINGS_WINDOW_SRCS) mac/SPDFMacAISettings.mm mac/SPDFMacToolEnvironment.mm \
-		"$(MAC_AI_PYTHON_PROFILE_OBJ)" -framework Cocoa -framework ImageIO -o "$(MAC_AI_PYTHON_TEST)"
+		"$(MAC_AI_PYTHON_PROFILE_OBJ)" $(CORE_OBJS) $(MUPDF_LIBS) -framework Cocoa -framework ImageIO \
+		-framework UniformTypeIdentifiers -lm -o "$(MAC_AI_PYTHON_TEST)"
 	"$(MAC_AI_PYTHON_TEST)" "$(MAC_PYTHON_SANDBOX_BIN)"

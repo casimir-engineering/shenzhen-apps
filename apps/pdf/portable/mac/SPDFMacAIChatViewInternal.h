@@ -32,6 +32,9 @@
     // The question being edited: its position in the chat (NSNotFound when none), its text and the draft.
     NSUInteger _editIndex,_editPlace; NSString* _editOriginal; NSString* _editDraft;
     __weak SPDFChatMessageView* _editor;
+    // Attachments (SPDFMacAIChatAttachments.mm): the paperclip, the row of chips above the composer and its note.
+    NSButton* _attach; NSTextField* _attachmentNote; NSView* _attachmentRow;
+    NSLayoutConstraint* _attachmentRowHeight; NSArray<NSDictionary*>* _shownAttachments;
 }
 - (NSButton*)button:(NSString*)title action:(NSString*)action;
 @end

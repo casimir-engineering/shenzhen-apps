@@ -2,6 +2,7 @@
 #import "SPDFMacAIAnswerCard.h"
 #import "SPDFMacAIAnswerCardView.h"
 #import "SPDFMacAIChatSession.h"
+#import "SPDFMacAIChatSessionGrants.h"
 #import "SPDFMacCollectionStyle.h"
 #import "SPDFMacAIChatMarkdown.h"
 #import "SPDFMacChatMarkdownView.h"
@@ -160,6 +161,7 @@
         _stopTrailing,
         [_stop.centerYAnchor constraintEqualToAnchor:_send.centerYAnchor]
     ]];
+    [self setUpAttachments];
     return self;
 }
 // The field grows with what is typed, a line at a time, up to its maximum; past that the text scrolls in it.
@@ -293,7 +295,7 @@
     _inputHelp.stringValue=_history ? @"Select a chat above, or start a new one." : @"↵ Send · ⇧↵ New line";
     _redo.enabled=[session respondsToSelector:@selector(canRedo)] && session.canRedo && !session.running;
     _undo.enabled=!session.running && [session respondsToSelector:@selector(canUndo)] && [[session valueForKey:@"canUndo"] boolValue];
-    _status.textColor=NSColor.labelColor;
+    _status.textColor=NSColor.labelColor; [self showAttachments:_history || ![session respondsToSelector:@selector(grants)] ? @[] : session.grants];
     NSAccessibilityPostNotification(_status,NSAccessibilityValueChangedNotification);
 }
 - (void)scrollToNewest {
@@ -476,6 +478,7 @@ static BOOL StepRow(NSView* view) {
     [self clearEdit];
     _history=YES; _send.enabled=NO; _stop.enabled=_running; _composer.editable=NO; [self clearRows]; _status.stringValue=@"Chats are saved on this Mac";
     if(_displayedSession) [self refreshActivityFromSession:_displayedSession];
+    [self showAttachments:@[]];
     [_messages addArrangedSubview:[self button:@"Return to current chat" action:@"current"]];
     NSButton* deleteAll=[self button:@"Delete all chats…" action:@"deleteAll"]; deleteAll.enabled=chats.count>0;
     [_messages addArrangedSubview:deleteAll];

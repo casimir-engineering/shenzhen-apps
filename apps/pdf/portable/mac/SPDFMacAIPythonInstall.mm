@@ -10,6 +10,9 @@
 static NSString* const kSPDFReadyMarker = @".shenzhenpdf-ready";
 
 NSString* SPDFMacAIPythonDefaultDirectory(void) {
+    // A private state (SPDF_STATE_DIR, for experiments and tests) has its own Python, as it has its own chats.
+    NSString* state = NSProcessInfo.processInfo.environment[@"SPDF_STATE_DIR"];
+    if (state.length) return [state stringByAppendingPathComponent:@"assistant-python"];
     return [NSHomeDirectory() stringByAppendingPathComponent:
         @"Library/Application Support/ShenzhenPDF/assistant-python"];
 }

@@ -19,6 +19,7 @@
 #import "SPDFMacAIWebPDF.h"
 #import "SPDFMacAIToolRegistry.h"
 #import "SPDFMacAIOutputs.h"
+#import "SPDFMacAIChatSessionGrants.h"
 #import "SPDFMacCollectionStore.h"
 #import "SPDFMacPalettePresentation.h"
 #import "SPDFMacUnifiedSettings.h"
@@ -90,6 +91,12 @@ static char stateKey;
             return [owner aiResendMessageAtIndex:index text:text authorizedKey:nil];
         };
         state.view.action=^(NSString* action) { [owner aiChatAction:action]; };
+        // Dropped or chosen files and folders: this chat's grants, its own and no other chat's.
+        state.view.attachFiles=^NSString*(NSArray<NSURL*>* URLs) {
+            NSArray* problems=[weakState.session addGrantsForURLs:URLs];
+            return problems.count ? [problems componentsJoinedByString:@"\n"] : nil;
+        };
+        state.view.removeAttachment=^(NSString* identifier) { [weakState.session removeGrantWithIdentifier:identifier]; };
         state.view.openLink=^(NSURL* URL) { [owner aiOpenCitation:URL]; };
         // Answers link only documents that can still be opened, and show a source card (SPDFMacAIDocumentAvailability.h).
         state.view.documentLinkAvailable=^BOOL(NSURL* URL) { return !owner || [owner aiDocumentLinkAvailable:URL]; };
@@ -258,7 +265,9 @@ static char stateKey;
     if(!key) return NO;
     NSUInteger before=[state.session.chat[@"messages"] count];
     // The request as the person sent it: chips read from the composer, which still holds them until this returns.
-    NSArray* chips=[state.registry requestChipsInComposerText:state.view.composer.textStorage];
+    // Plus the files and folders given to this chat: its requests alone carry them (SPDFMacAIChatGrants.h).
+    NSArray* chips=[[state.registry requestChipsInComposerText:state.view.composer.textStorage]
+        arrayByAddingObjectsFromArray:[state.session grantChips]];
     SPDFMacAIRequestContext* context=[[SPDFMacAIRequestContext alloc] initWithText:text chips:chips
         origin:SPDFMacAIRequestOriginChat friendConversation:nil settings:settings.snapshot budget:nil
         activity:state.session.activity];
@@ -272,7 +281,7 @@ static char stateKey;
     NSString* key=[self aiKeyForRequest:authorizedKey summarizing:NO settings:&settings];
     if(!key) return NO;
     state.pendingEdit=nil;
-    SPDFMacAIRequestContext* context=[[SPDFMacAIRequestContext alloc] initWithText:text chips:nil
+    SPDFMacAIRequestContext* context=[[SPDFMacAIRequestContext alloc] initWithText:text chips:[state.session grantChips]
         origin:SPDFMacAIRequestOriginChat friendConversation:nil settings:settings.snapshot budget:nil
         activity:state.session.activity];
     return [state.session resendFromMessageAtIndex:index context:context model:settings.model apiKey:key];

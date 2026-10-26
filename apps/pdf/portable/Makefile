@@ -52,7 +52,9 @@ CORE_RECOLOR_SRC := core/spdf_recolor.c
 CORE_RECOLOR_HDR := core/spdf_recolor.h
 CORE_RECOLOR_OBJ := $(BUILD)/spdf_recolor.o
 CORE_IMAGE_PROPERTIES_OBJ := $(BUILD)/spdf_image_properties.o
-CORE_OBJS := $(CORE_OBJ) $(CORE_SELECTION_OBJ) $(CORE_SELECTION_SUPPORT_OBJ) $(CORE_RECOLOR_OBJ) $(CORE_IMAGE_PROPERTIES_OBJ)
+CORE_PAGE_IMAGES_OBJ := $(BUILD)/spdf_page_images.o
+CORE_OBJS := $(CORE_OBJ) $(CORE_SELECTION_OBJ) $(CORE_SELECTION_SUPPORT_OBJ) $(CORE_RECOLOR_OBJ) $(CORE_IMAGE_PROPERTIES_OBJ) \
+	$(CORE_PAGE_IMAGES_OBJ)
 YAML_SRC := core/spdf_yaml.c
 YAML_HDR := core/spdf_yaml.h
 YAML_OBJ := $(BUILD)/spdf_yaml.o
@@ -158,6 +160,9 @@ $(CORE_OBJ): $(CORE_SRC) $(CORE_HDR) core/spdf_search_regex.h core/spdf_render_b
 	clang $(PORTABLE_OPTFLAGS) $(MAC_TARGET_FLAGS) -Icore -I$(MUPDF_DIR)/include -c "$(CORE_SRC)" -o "$(CORE_OBJ)"
 
 $(CORE_IMAGE_PROPERTIES_OBJ): core/spdf_image_properties.c core/spdf_image_properties.h Makefile | $(BUILD)
+	clang $(PORTABLE_OPTFLAGS) $(MAC_TARGET_FLAGS) -Wall -Wextra -Werror -Icore -I$(MUPDF_DIR)/include -c $< -o "$@"
+
+$(CORE_PAGE_IMAGES_OBJ): core/spdf_page_images.c core/spdf_page_images.h Makefile | $(BUILD)
 	clang $(PORTABLE_OPTFLAGS) $(MAC_TARGET_FLAGS) -Wall -Wextra -Werror -Icore -I$(MUPDF_DIR)/include -c $< -o "$@"
 
 $(CORE_SELECTION_OBJ): $(CORE_SELECTION_SRC) $(CORE_SELECTION_HDR) $(CORE_HDR) Makefile | $(BUILD)

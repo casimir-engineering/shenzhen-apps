@@ -29,6 +29,10 @@ NSString* const SPDFMacAIChipKindAttachment = @"attachment";
     return [[self alloc] initWithKind:SPDFMacAIChipKindAttachment name:name scope:nil file:fileURL identifier:nil
                              revision:nil];
 }
++ (instancetype)attachmentChipWithFileURL:(NSURL*)fileURL identifier:(NSString*)identifier displayName:(NSString*)name {
+    return [[self alloc] initWithKind:SPDFMacAIChipKindAttachment name:name scope:nil file:fileURL identifier:identifier
+                             revision:nil];
+}
 - (id)copyWithZone:(NSZone*)zone { (void)zone; return self; }
 @end
 

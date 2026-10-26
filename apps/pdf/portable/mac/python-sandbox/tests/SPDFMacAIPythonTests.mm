@@ -9,6 +9,7 @@
 #import "SPDFMacAIPythonRunChecks.h"
 #import "SPDFMacAIPythonSettingsChecks.h"
 #import "SPDFMacAIPythonStorageChecks.h"
+#import "SPDFMacAIPythonDocumentChecks.h"
 
 int main(int argc, char** argv) {
     @autoreleasepool {
@@ -29,8 +30,12 @@ int main(int argc, char** argv) {
         CheckSettingsAfterRefusal(scratch);
         CheckInstaller(scratch);
         CheckHelperPathAndTables(scratch);
+        CheckDocumentArguments();
+        CheckGrantPaths(scratch);
+        CheckSessionGrants(scratch);
         NSString* python = SandboxBasePython();
         if (python) CheckRealRunner(@(argv[1]), python);
+        if (python) CheckDocumentRuns(@(argv[1]), python, scratch);
         else puts("SPDFMacAIPythonTests: no Python 3 at /opt/homebrew, /usr/local or the Xcode tools, so the real "
                   "runner check was skipped");
         [NSFileManager.defaultManager removeItemAtPath:scratch error:nil];
