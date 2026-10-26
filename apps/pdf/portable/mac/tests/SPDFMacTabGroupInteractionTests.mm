@@ -11,6 +11,7 @@
 @property(nonatomic, copy) NSString* path;
 @property(nonatomic, copy) NSString* title;
 @property(nonatomic, copy) NSString* collectionVersionLabel;
+@property(nonatomic, copy) NSString* displayName;
 @property(nonatomic) BOOL readOnly;
 @property(nonatomic) BOOL unsavedPastedImage;
 @property(nonatomic) BOOL missingFile;

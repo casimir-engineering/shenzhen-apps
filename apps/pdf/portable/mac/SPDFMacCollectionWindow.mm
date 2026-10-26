@@ -100,7 +100,7 @@ static NSDictionary* LatestSavedVersion(NSDictionary* doc) {
                 [rows addObject:@{@"document":doc,@"version":LatestSavedVersion(doc)}];
         }
         [rows sortUsingComparator:^NSComparisonResult(NSDictionary* a, NSDictionary* b) {
-            if (sort == 2) return [a[@"document"][@"title"] localizedStandardCompare:b[@"document"][@"title"]];
+            if (sort == 2) return [SPDFCollectionDocumentTitle(a[@"document"]) ?: @"" localizedStandardCompare:SPDFCollectionDocumentTitle(b[@"document"]) ?: @""];
             NSNumber* left = a[@"version"][@"capturedAt"], *right = b[@"version"][@"capturedAt"];
             BOOL leftDated = [left isKindOfClass:NSNumber.class], rightDated = [right isKindOfClass:NSNumber.class];
             // Excluded documents and failed first captures legitimately have
@@ -178,7 +178,7 @@ static NSDictionary* LatestSavedVersion(NSDictionary* doc) {
     NSString* warnings = [version[@"assetWarnings"] isKindOfClass:NSArray.class]
         ? [version[@"assetWarnings"] componentsJoinedByString:@"\n"] : @"";
     _details.stringValue = doc ? [NSString stringWithFormat:@"%@\n%@\n%@ · %lu versions\nCaptured %@\nSource modified %@\n%@ · %@\n%@%@%@",
-        doc[@"title"],doc[@"path"],doc[@"status"] ?: @"Protected",(unsigned long)[doc[@"versions"] count],
+        SPDFCollectionDocumentTitle(doc),doc[@"path"],doc[@"status"] ?: @"Protected",(unsigned long)[doc[@"versions"] count],
         date(version[@"capturedAt"]),date(version[@"modifiedAt"]),
         [NSByteCountFormatter stringFromByteCount:[version[@"size"] longLongValue] countStyle:NSByteCountFormatterCountStyleFile],
         [version[@"keep"] boolValue] ? @"Kept version" : version[@"id"] ? @"Collection document" : @"No archived version",

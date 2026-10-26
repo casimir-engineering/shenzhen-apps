@@ -13,4 +13,7 @@
 - (void)performInternalTool:(NSString*)name arguments:(NSDictionary*)arguments completion:(void (^)(NSDictionary*))completion;
 - (NSDictionary*)redoGuardForAction:(NSDictionary*)action;
 - (void)retainUndoneAction:(NSDictionary*)action;
+- (NSDictionary*)recordResult:(NSDictionary*)result before:(NSDictionary*)snapshot;
+// organize_groups move-tab with paths (SPDFMacAIToolsGroups.mm).
+- (void)moveTabs:(NSDictionary*)command completion:(void (^)(NSDictionary*))completion;
 @end

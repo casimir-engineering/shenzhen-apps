@@ -287,7 +287,7 @@ static NSButton* Icon(NSString* symbol, NSString* title, id target, SEL action) 
 }
 - (void)syncWorkspaceChrome {
     SPDFWorkspaceChromeState* state = objc_getAssociatedObject(self,&chromeKey); if (!state) return;
-    ((SPDFSidebarNavigationControl*)_sidebarModeControl).documentTitle = [self selectedTab].path.lastPathComponent ?: _path.lastPathComponent ?: @"No document";
+    ((SPDFSidebarNavigationControl*)_sidebarModeControl).documentTitle = spdf_tab_display_name([self selectedTab]) ?: [self selectedTab].path.lastPathComponent ?: _path.lastPathComponent ?: @"No document";
     BOOL chapters = _sidebarModeControl.spdf_selectedSidebarMode == SPDFSidebarModeChapters;
     SPDFDocumentTab* tab = [self selectedTab];
     BOOL saved = [self collectionTabIsSavedVersion:tab];

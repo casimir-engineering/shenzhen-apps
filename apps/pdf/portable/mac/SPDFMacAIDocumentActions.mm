@@ -14,8 +14,20 @@
 - (NSInteger)indexOfTabForPath:(NSString*)path;
 - (void)finishTabGroupChange;
 - (void)adoptRenamedDocumentFrom:(NSString*)source to:(NSString*)destination replacingReadOnly:(BOOL)copy;
+- (void)showDisplayName:(NSString*)name forTabsAtPath:(NSString*)path;
 @end
 static NSDictionary* ActionError(NSString* message) { return @{@"error":message}; }
+// The name to show for a document whose file keeps its own: the name asked for, without the file's extension.
+NSString* SPDFAIDisplayNameForRename(NSString* path, NSString* proposed) {
+    NSString* name=[proposed isKindOfClass:NSString.class] ?
+        [proposed stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet] : @"";
+    NSString* extension=path.pathExtension;
+    if (extension.length && [name.pathExtension caseInsensitiveCompare:extension]==NSOrderedSame)
+        name=[name.stringByDeletingPathExtension stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceCharacterSet];
+    if (!name.length || name.length>240 || [name rangeOfCharacterFromSet:NSCharacterSet.newlineCharacterSet].location!=NSNotFound)
+        return nil;
+    return name;
+}
 @implementation ShenzhenMacDelegate (SPDFMacAIDocumentActions)
 - (NSString*)aiDocumentActionFingerprint {
     NSMutableArray* tabs=[NSMutableArray array],*empty=[NSMutableArray array];
@@ -94,19 +106,64 @@ static NSDictionary* ActionError(NSString* message) { return @{@"error":message}
     return @{@"opened":@YES,@"path":path,@"documentReceipt":@{@"kind":@"open",@"before":before,
         @"newTab":existed ? (id)NSNull.null : tab,@"after":[self aiDocumentActionFingerprint]}};
 }
+// Gives the document the name it shows in ShenzhenPDF, leaving its file as it is: for a file that can't or mustn't be
+// renamed (`why` says which, in the person's terms), or when the assistant was asked to keep the file's name.
+- (NSDictionary*)aiShowDocument:(NSString*)source asName:(NSString*)proposed because:(NSString*)why {
+    NSString* name=SPDFAIDisplayNameForRename(source,proposed);
+    if (!name) return ActionError(@"Give a name on one line, up to 240 characters.");
+    NSInteger index=[self indexOfTabForPath:source];
+    if (index<0 || index>=(NSInteger)_tabs.count) return ActionError(@"Document is no longer open.");
+    SPDFDocumentTab* tab=_tabs[(NSUInteger)index];
+    NSString* before=spdf_tab_display_name(tab) ?: @"";
+    NSString* filename=source.lastPathComponent;
+    if ([name isEqual:before] || (!before.length && [name isEqual:filename.stringByDeletingPathExtension]))
+        return ActionError([NSString stringWithFormat:@"Nothing to change: it already shows as “%@”.",name]);
+    // Collection keeps the name with the document's history, so it comes back when the document is opened again.
+    SPDFMacCollectionStore* store=SPDFMacCollectionStore.defaultStore;
+    NSString* identifier=tab.collectionHistoryDocumentID.length ? tab.collectionHistoryDocumentID : [store documentForPath:source][@"id"];
+    BOOL kept=identifier.length && [store setDisplayName:name documentID:identifier expectedName:nil error:nil];
+    [self showDisplayName:name forTabsAtPath:source];
+    return @{@"renamed":@YES,@"path":source,@"title":name,@"fileRenamed":@NO,@"filename":filename,
+        @"tellThePerson":[NSString stringWithFormat:@"It now shows as “%@” in its tab%@. The file itself keeps its name, %@, "
+            "because %@.",name,kept ? @" and in Collection" : @"",filename,why],
+        @"documentReceipt":@{@"kind":@"display-name",@"path":source,@"before":before,@"after":name,@"historyID":kept ? identifier : @""}};
+}
 - (NSDictionary*)aiRenameDocument:(NSDictionary*)arguments progress:(NSProgress*)progress {
     NSString* source=arguments[@"path"]; NSInteger index=[self indexOfTabForPath:source];
     if (progress.cancelled || index<0 || index>=(NSInteger)_tabs.count) return ActionError(@"Document is unavailable or rename was cancelled.");
     SPDFDocumentTab* tab=_tabs[(NSUInteger)index];
-    if (tab.readOnly || tab.unsavedPastedImage || tab.missingFile || tab.workingPath.length)
-        return ActionError(@"Use Rename in the tab menu to choose Save As for this document first.");
+    NSString* target=[arguments[@"target"] isKindOfClass:NSString.class] ? arguments[@"target"] : @"auto";
+    if (![@[@"auto",@"file",@"title"] containsObject:target]) return ActionError(@"target must be auto, file or title.");
+    // The revision read_pages and reader_state give is the one of the file the reader reads: for a read-only
+    // document, its private copy. Either that or the file's own is current.
+    NSString* revision=arguments[@"revision"];
+    BOOL current=[revision isKindOfClass:NSString.class] && ([revision isEqual:SPDFSearchFileStamp(source)] ||
+        (tab.workingPath.length && [revision isEqual:SPDFSearchFileStamp(tab.workingPath)]));
+    // Why the file keeps its name, said from the person's side; nil when the file itself can be renamed.
+    NSString* keep=nil;
+    if (tab.readOnly || tab.workingPath.length) keep=@"it is read-only";
+    else if (tab.missingFile) keep=@"the file can't be found right now";
+    else if (tab.unsavedPastedImage) keep=@"it is a pasted image that hasn't been saved as a file yet";
+    struct stat info={};
+    if (!keep && (lstat(source.fileSystemRepresentation,&info) || !S_ISREG(info.st_mode))) keep=@"it isn't a regular file";
+    SPDFMacCollectionStore* store=SPDFMacCollectionStore.defaultStore;
+    NSDictionary* editable=keep ? nil : [store editableInfoForPath:source];
+    if (!keep && !editable && ![NSFileManager.defaultManager isWritableFileAtPath:source.stringByDeletingLastPathComponent])
+        keep=@"the folder it is in can't be changed";
+    if (!keep && !editable && info.st_size>32LL*1024*1024) keep=@"the assistant doesn't move files larger than 32 MB";
+    if ([target isEqual:@"title"] && !keep) keep=@"you asked to keep the file's name";
+    if (keep) {
+        if ([target isEqual:@"file"])
+            return ActionError([NSString stringWithFormat:@"The file can't be renamed here because %@. Use target \"title\" to change the "
+                "name ShenzhenPDF shows instead, and say that the file keeps its name.",keep]);
+        if (progress.cancelled) return ActionError(@"Rename cancelled.");
+        if (revision.length && !current && !tab.missingFile && !tab.unsavedPastedImage)
+            return ActionError(@"Document revision changed. Read reader_state again.");
+        return [self aiShowDocument:source asName:arguments[@"name"] because:keep];
+    }
     NSString* destination=SPDFDocumentRenameDestination(source,arguments[@"name"]);
     if (!destination || [destination isEqual:source]) return ActionError(@"Enter a different filename without path separators.");
-    if (![arguments[@"revision"] isEqual:SPDFSearchFileStamp(source)]) return ActionError(@"Document revision changed. Read reader_state again.");
-    struct stat info={};
-    if (lstat(source.fileSystemRepresentation,&info) || !S_ISREG(info.st_mode)) return ActionError(@"Document is not a regular file.");
-    SPDFMacCollectionStore* store=SPDFMacCollectionStore.defaultStore;
-    NSDictionary* editable=[store editableInfoForPath:source];
+    if (![revision isEqual:SPDFSearchFileStamp(source)]) return ActionError(@"Document revision changed. Read reader_state again.");
     if (editable) {
         if (progress.cancelled) return ActionError(@"Rename cancelled.");
         NSError* error=nil; NSString* title=editable[@"document"][@"title"];
@@ -116,31 +173,47 @@ static NSDictionary* ActionError(NSString* message) { return @{@"error":message}
         [self adoptRenamedDocumentFrom:source to:renamed.path replacingReadOnly:NO];
         [self collectionSetVersionInfo:[store editableInfoForPath:renamed.path] forTab:tab];
         [self collectionRefreshHistory];
-        return @{@"renamed":@YES,@"path":renamed.path,@"documentReceipt":@{@"kind":@"collection-rename",
+        return @{@"renamed":@YES,@"path":renamed.path,@"fileRenamed":@YES,@"filename":renamed.lastPathComponent,
+            @"documentReceipt":@{@"kind":@"collection-rename",
             @"source":source,@"destination":renamed.path,@"historyID":editable[@"document"][@"id"],@"copyID":editable[@"copyID"],
             @"beforeTitle":title ?: source.lastPathComponent,@"afterTitle":destination.lastPathComponent,
             @"afterRevision":SPDFSearchFileStamp(renamed.path) ?: @""}};
     }
-    if (info.st_size>32LL*1024*1024 ||
-        ![NSFileManager.defaultManager isWritableFileAtPath:source.stringByDeletingLastPathComponent])
-        return ActionError(@"Assistant rename requires a writable normal file up to 32 MiB; use the tab menu for Save As or larger files.");
     NSDictionary* history=[store documentForPath:source];
-    if (progress.cancelled || ![arguments[@"revision"] isEqual:SPDFSearchFileStamp(source)]) return ActionError(@"Rename cancelled or source changed.");
+    if (progress.cancelled || ![revision isEqual:SPDFSearchFileStamp(source)]) return ActionError(@"Rename cancelled or source changed.");
     NSError* error=nil;
-    if (!SPDFRenameDocumentFile(source,destination,&error)) return ActionError(error.localizedDescription ?: @"Rename failed.");
+    if (!SPDFRenameDocumentFile(source,destination,&error)) {
+        NSError* cause=error.userInfo[NSUnderlyingErrorKey];
+        BOOL refused=error.code==NSFileWriteNoPermissionError ||
+            ([cause.domain isEqual:NSPOSIXErrorDomain] && (cause.code==EACCES || cause.code==EPERM || cause.code==EROFS));
+        if (refused && ![target isEqual:@"file"]) return [self aiShowDocument:source asName:arguments[@"name"] because:@"macOS doesn't allow renaming it"];
+        return ActionError(error.localizedDescription ?: @"Rename failed.");
+    }
     if (history[@"id"] && ![store linkDocumentID:history[@"id"] toPath:destination allowMismatch:YES error:&error]) {
         BOOL restored=SPDFRenameDocumentFile(destination,source,nil);
         return ActionError(restored ? @"Collection could not relink this rename. The original filename was restored." : @"Collection relinking and rename rollback failed. The file remains at its new name.");
     }
     [self adoptRenamedDocumentFrom:source to:destination replacingReadOnly:NO];
     [self collectionRefreshHistory];
-    return @{@"renamed":@YES,@"path":destination,@"documentReceipt":@{@"kind":@"rename",@"source":source,@"destination":destination,
+    return @{@"renamed":@YES,@"path":destination,@"fileRenamed":@YES,@"filename":destination.lastPathComponent,
+        @"documentReceipt":@{@"kind":@"rename",@"source":source,@"destination":destination,
         @"historyID":history[@"id"] ?: @"",@"afterRevision":SPDFSearchFileStamp(destination) ?: @""}};
 }
 - (BOOL)aiUndoDocumentAction:(NSDictionary*)receipt progress:(NSProgress*)progress {
     if (progress.cancelled) return NO;
     NSString* kind=receipt[@"kind"];
     if ([kind isEqual:@"job"]) return [self aiUndoDocumentJob:receipt progress:progress];
+    if ([kind isEqual:@"display-name"]) {
+        // Only while it still shows the name the assistant gave it: a later rename by the person stays.
+        NSString* path=receipt[@"path"],*after=receipt[@"after"],*before=receipt[@"before"];
+        NSInteger index=[self indexOfTabForPath:path];
+        if (index<0 || index>=(NSInteger)_tabs.count || ![spdf_tab_display_name(_tabs[(NSUInteger)index]) isEqual:after]) return NO;
+        NSString* identifier=receipt[@"historyID"];
+        if ([identifier length] && ![SPDFMacCollectionStore.defaultStore setDisplayName:before documentID:identifier
+            expectedName:after error:nil]) return NO;
+        [self showDisplayName:before forTabsAtPath:path];
+        return YES;
+    }
     if ([kind isEqual:@"collection-rename"]) {
         NSString* source=receipt[@"source"],*destination=receipt[@"destination"];
         SPDFMacCollectionStore* store=SPDFMacCollectionStore.defaultStore;

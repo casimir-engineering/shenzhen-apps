@@ -8,7 +8,7 @@ NSDictionary* SPDFAICollectionDocuments(NSString* query, NSUInteger first, NSPro
     NSArray* documents=[SPDFMacCollectionStore.defaultStore documents]; NSMutableArray* filtered=[NSMutableArray array],*sources=[NSMutableArray array];
     for (NSDictionary* doc in documents) {
         if (progress.cancelled) return Failure(@"Cancelled.");
-        NSString* title=doc[@"title"] ?: [doc[@"path"] lastPathComponent] ?: @"Document";
+        NSString* title=SPDFCollectionDocumentTitle(doc) ?: [doc[@"path"] lastPathComponent] ?: @"Document";
         if (query.length && [title rangeOfString:query options:NSCaseInsensitiveSearch|NSDiacriticInsensitiveSearch].location==NSNotFound) continue;
         // Neither its source nor a saved copy can be opened: the assistant is never shown it.
         if (!SPDFCollectionOriginalAvailable(doc) && ![doc[@"versions"] count]) continue;

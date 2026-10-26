@@ -80,7 +80,7 @@ static NSArray<NSDictionary*>* CollectionRows(NSArray<NSDictionary*>* hits, NSSt
     spdf_document* doc = tab.cachedDocument;
     if (!doc && tab == [self selectedTab] && [_path isEqualToString:tab.path]) doc = _doc;
     const char* metadata = doc ? spdf_title(doc) : NULL;
-    NSString* title = spdf_palette_document_title(tab.path, tab.collectionVersionLabel,
+    NSString* title = spdf_palette_document_title(tab.path, tab.collectionVersionLabel ?: spdf_tab_display_name(tab),
                                                   metadata ? [NSString stringWithUTF8String:metadata] : nil);
     NSMutableDictionary* item = [@{@"path":tab.path, @"title":title ?: @"", @"lastViewedAt":@(tab.lastViewedAt)}
         mutableCopy];

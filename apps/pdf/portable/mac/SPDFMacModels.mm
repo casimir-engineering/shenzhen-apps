@@ -80,6 +80,7 @@ SPDFDocumentTab* spdf_copy_document_tab(SPDFDocumentTab* source) {
     copy.group = [source.group copy];
     copy.collectionHistoryDocumentID = source.collectionHistoryDocumentID;
     copy.collectionVersionLabel = source.collectionVersionLabel;
+    copy.displayName = source.displayName;
     copy.path = source.path;
     copy.title = source.title;
     copy.lastViewedAt = source.lastViewedAt;
@@ -145,8 +146,10 @@ NSDictionary* spdf_dictionary_from_tab(SPDFDocumentTab* tab, NSInteger sourceWin
         @"roCopyModifiedAt" :
             @(tab.copiedSourceModificationDate ? tab.copiedSourceModificationDate.timeIntervalSince1970 : 0.0)
     };
-    if (!tab.group && !tab.collectionHistoryDocumentID.length && !tab.collectionVersionLabel.length && !tab.readOnlyCopyBinding.count) return result;
+    if (!tab.group && !tab.collectionHistoryDocumentID.length && !tab.collectionVersionLabel.length && !tab.readOnlyCopyBinding.count &&
+        !spdf_tab_display_name(tab)) return result;
     NSMutableDictionary* grouped = [result mutableCopy];
+    if (spdf_tab_display_name(tab)) grouped[@"displayName"] = spdf_tab_display_name(tab);
     if (tab.readOnlyCopyBinding.count) grouped[@"roCopyBinding"] = tab.readOnlyCopyBinding;
     if (tab.group) grouped[@"group"] = tab.group.dictionary;
     if (tab.collectionVersionLabel.length) grouped[@"collectionVersionLabel"] = tab.collectionVersionLabel;
@@ -163,6 +166,7 @@ SPDFDocumentTab* spdf_tab_from_dictionary(NSDictionary* item) {
     tab.path = path;
     if ([item[@"collectionVersionLabel"] isKindOfClass:NSString.class]) tab.collectionVersionLabel = item[@"collectionVersionLabel"];
     if ([item[@"collectionHistoryID"] isKindOfClass:NSString.class]) tab.collectionHistoryDocumentID = item[@"collectionHistoryID"];
+    if ([item[@"displayName"] isKindOfClass:NSString.class]) tab.displayName = item[@"displayName"];
     if ([item[@"title"] isKindOfClass:NSString.class]) tab.title = item[@"title"];
     if ([item[@"lastViewedAt"] isKindOfClass:NSNumber.class]) tab.lastViewedAt = [item[@"lastViewedAt"] doubleValue];
     tab.pageIndex = MAX(0, [item[@"page"] integerValue]);

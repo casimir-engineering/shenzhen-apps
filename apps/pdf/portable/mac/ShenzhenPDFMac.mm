@@ -6813,7 +6813,7 @@ static BOOL spdf_page_list_cache_disabled(void) {
 
 - (NSString*)displayNameForPathConsideringOpenTabs:(NSString*)path {
     if (!path.length) return @"";
-    for (SPDFDocumentTab* tab in _tabs) if ([tab.path isEqual:path] && tab.collectionVersionLabel.length) return tab.collectionVersionLabel;
+    for (SPDFDocumentTab* tab in _tabs) if ([tab.path isEqual:path] && (tab.collectionVersionLabel.length || spdf_tab_display_name(tab))) return tab.collectionVersionLabel.length ? tab.collectionVersionLabel : spdf_tab_display_name(tab);
     NSString* standardized = path.stringByStandardizingPath;
     NSArray<NSString*>* paths = [self openTabPaths];
     NSArray<NSString*>* names = spdf_disambiguated_display_names_for_paths(paths);

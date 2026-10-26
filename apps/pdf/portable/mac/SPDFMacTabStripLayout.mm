@@ -134,6 +134,7 @@
     if (index < 0 || index >= (NSInteger)self.tabs.count) return @"";
     SPDFDocumentTab* tab = self.tabs[(NSUInteger)index];
     if (tab.collectionVersionLabel.length) return tab.collectionVersionLabel;
+    if (spdf_tab_display_name(tab)) return spdf_tab_display_name(tab);
     return tab.path.length ? tab.path.lastPathComponent : tab.title ?: @"";
 }
 
@@ -141,6 +142,7 @@
     if (index < 0 || index >= (NSInteger)self.tabs.count) return @"";
     SPDFDocumentTab* tab = self.tabs[(NSUInteger)index];
     if (tab.collectionVersionLabel.length) return tab.collectionVersionLabel;
+    if (spdf_tab_display_name(tab)) return spdf_tab_display_name(tab);
     if (!tab.path.length) return spdf_display_label_without_extension(tab.title);
     if (!_displayTitles) {
         NSMutableArray<NSString*>* paths=[NSMutableArray arrayWithCapacity:self.tabs.count];

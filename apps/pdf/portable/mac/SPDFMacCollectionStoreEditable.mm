@@ -175,6 +175,24 @@ static NSURL* CopyURL(NSURL* root, NSString* documentID, NSString* copyID, NSStr
     if (installed) unlink((ok ? path : renamed.path).fileSystemRepresentation);
     return ok ? renamed : nil;
 }
+- (BOOL)setDisplayName:(NSString*)name documentID:(NSString*)documentID
+          expectedName:(NSString*)expectedName error:(NSError**)error {
+    name=[name stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
+    if (name.length>240 || [name rangeOfCharacterFromSet:NSCharacterSet.newlineCharacterSet].location!=NSNotFound) {
+        if(error)*error=SPDFCollectionError(9,@"Enter a name on one line, up to 240 characters."); return NO;
+    }
+    if (!documentID.length) { if(error)*error=SPDFCollectionError(8,@"Document history no longer exists."); return NO; }
+    return [self transaction:^BOOL(NSMutableDictionary* manifest,NSError** failure) {
+        NSMutableDictionary* doc=manifest[@"documents"][documentID];
+        if (!doc) { if(failure)*failure=SPDFCollectionError(8,@"Document history no longer exists."); return NO; }
+        NSString* current=[doc[@"displayName"] isKindOfClass:NSString.class] ? doc[@"displayName"] : @"";
+        if (expectedName && ![current isEqual:expectedName]) {
+            if(failure)*failure=SPDFCollectionError(9,@"The document's name changed since. Read it again before renaming it."); return NO;
+        }
+        if (name.length) doc[@"displayName"]=name; else [doc removeObjectForKey:@"displayName"];
+        return YES;
+    } error:error];
+}
 - (void)rememberGroup:(NSDictionary*)group documentID:(NSString*)documentID {
     if (group.count && documentID.length) [self rememberGroups:@{documentID:group}];
 }

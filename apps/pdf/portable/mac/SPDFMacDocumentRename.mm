@@ -9,14 +9,26 @@
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 
 @interface ShenzhenMacDelegate (DocumentRenameHost)
+- (void)refreshSidebarWorkspacePanel;
 - (void)rememberActiveTabState;
 - (void)repointActiveFileWatcher;
 - (void)deleteReadOnlyCopyIfUnsharedForTab:(SPDFDocumentTab*)tab;
 @end
 @implementation ShenzhenMacDelegate (DocumentRename)
+- (void)showDisplayName:(NSString*)name forTabsAtPath:(NSString*)path {
+    NSString* shown=name.length ? name : nil;
+    for (SPDFDocumentTab* open in _tabs) if ([open.path isEqual:path]) open.displayName=shown;
+    [self updateTabStrip]; [self updateControls]; [self refreshSidebarWorkspacePanel]; [self savePersistentState];
+}
 - (void)adoptRenamedDocumentFrom:(NSString*)source to:(NSString*)destination replacingReadOnly:(BOOL)copy {
     [self rememberActiveTabState];
     for (SPDFDocumentTab* open in _tabs) if ([open.path isEqual:source]) {
+        // The file now has the name the person chose, so it shows that name again rather than an older given one.
+        if (open.displayName.length) {
+            open.displayName=nil;
+            NSString* identifier=open.collectionHistoryDocumentID;
+            if (identifier.length) [SPDFMacCollectionStore.defaultStore setDisplayName:nil documentID:identifier expectedName:nil error:nil];
+        }
         if (copy) {
             [self deleteReadOnlyCopyIfUnsharedForTab:open];
             open.readOnly=NO; open.workingPath=nil; open.readOnlyCopyBinding=nil;

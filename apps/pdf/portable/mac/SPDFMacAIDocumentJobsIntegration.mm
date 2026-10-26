@@ -26,15 +26,30 @@ static BOOL Language(NSString* value, BOOL ocr) {
 - (void)aiRunDocumentJob:(NSString*)kind arguments:(NSDictionary*)arguments progress:(NSProgress*)progress
              completion:(void (^)(NSDictionary*))completion {
     NSString* source=arguments[@"path"], *revision=arguments[@"revision"];
-    if (progress.cancelled || ![source isEqual:_path] || !revision.length ||
-        ![revision isEqual:SPDFSearchFileStamp(source)]) {
-        completion(JobError(@"Show the document and read its current revision before starting this job.")); return;
+    // Any open document, shown or not. A read-only one is read from the private copy the reader made of it, and the
+    // revision read_pages and reader_state give is that copy's: comparing it with the original's own stamp refused
+    // every job on a read-only document, however often it was shown and read.
+    SPDFDocumentTab* tab=nil;
+    for (SPDFDocumentTab* open in _tabs) if ([open.path isEqual:source]) { tab=open; break; }
+    if (progress.cancelled) { completion(JobError(@"Cancelled.")); return; }
+    if (!tab || tab.missingFile) { completion(JobError(@"This document is no longer open, or its file can't be found.")); return; }
+    NSString* readPath=tab.workingPath.length ? tab.workingPath : source;
+    NSString* current=SPDFSearchFileStamp(readPath);
+    if (![revision isKindOfClass:NSString.class] || !current || !([revision isEqual:current] ||
+        (tab.workingPath.length && [revision isEqual:SPDFSearchFileStamp(source)]))) {
+        completion(JobError(@"The document changed since it was read. Read it again (read_pages or reader_state) and use the revision it gives.")); return;
     }
-    if (_doc && spdf_is_password_protected(_doc)) {
+    revision=current;  // what the job reads must stay exactly this
+    BOOL shown=[source isEqual:_path];
+    spdf_document* loaded=shown ? _doc : tab.cachedDocument;
+    if (loaded && spdf_is_password_protected(loaded)) {
         completion(JobError(@"Create an unprotected copy before exporting, OCR or translation.")); return;
     }
     NSString* name=arguments[@"name"];
-    if (!name) name=SPDFMacAIJobOutputName(source,kind,arguments[@"targetLanguage"]);
+    // A document shown under a name given in ShenzhenPDF names its output after that name, not its file's.
+    NSString* shownName=spdf_tab_display_name(tab) ? [[source.stringByDeletingLastPathComponent stringByAppendingPathComponent:
+        [spdf_tab_display_name(tab) stringByReplacingOccurrencesOfString:@"/" withString:@"-"]] stringByAppendingPathExtension:source.pathExtension] : source;
+    if (!name) name=SPDFMacAIJobOutputName(shownName,kind,arguments[@"targetLanguage"]);
     if (![name isKindOfClass:NSString.class] || !name.length || name.length>240 ||
         ![name isEqual:name.lastPathComponent] || [name containsString:@":"] ||
         ![name.pathExtension.lowercaseString isEqual:@"pdf"] || [name hasPrefix:@"."]) {
@@ -56,12 +71,13 @@ static BOOL Language(NSString* value, BOOL ocr) {
     NSDictionary* environment=spdf_mac_tool_environment(NSProcessInfo.processInfo.environment,@[tool],@{});
     // The same owned tessdata override used by the native OCR command.
     if (ocr) environment=[self ocrTaskEnvironmentWithTool:tool tesseract:[self tesseractToolPath] language:options[@"language"]];
-    SPDFMacMarkdownSession* session=[self isMarkdownActive] ? self.activeMarkdownSession : nil;
+    SPDFMacMarkdownSession* session=shown && [self isMarkdownActive] ? self.activeMarkdownSession : tab.cachedMarkdownSession;
     SPDFMarkdownPaginationPlan* plan=session.exportPaginationPlan;
     NSAttributedString* text=session.exportAttributedString;
     SPDFMarkdownPaginationPlan* livePlan=session.paginationPlan;
     if (SPDFIsRenderedTextDocumentPath(source) && (!plan || !text)) {
-        completion(JobError(@"The text document is still preparing its PDF export.")); return;
+        completion(JobError(shown ? @"The text document is still preparing its PDF export." :
+            @"Show this text document first (show_document), so its pages are laid out, then start the job.")); return;
     }
     // The person's Downloads, never replacing a file there; a private folder holds the rendition meanwhile.
     NSString* downloads=SPDFMacAIDownloadsDirectory();
@@ -72,30 +88,38 @@ static BOOL Language(NSString* value, BOOL ocr) {
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED,0), ^{
         @autoreleasepool {
             NSError* error=nil; NSDictionary* owned=nil; NSFileManager* fm=NSFileManager.defaultManager;
-            BOOL prepared=!progress.cancelled && [revision isEqual:SPDFSearchFileStamp(source)];
+            BOOL prepared=!progress.cancelled && [revision isEqual:SPDFSearchFileStamp(readPath)];
             if (prepared) prepared=[fm createDirectoryAtPath:directory withIntermediateDirectories:YES
                 attributes:@{NSFilePosixPermissions:@0700} error:&error];
-            NSString* input=source;
+            NSString* input=readPath;
             NSString* rendition=[directory stringByAppendingPathComponent:@".source.pdf"];
             if (prepared && plan) {
                 prepared=[SPDFMacMarkdownPrintAdapter writePaginationPlan:plan attributedString:text
                     toURL:[NSURL fileURLWithPath:rendition] error:&error]; input=rendition;
             } else if (prepared && ![source.pathExtension.lowercaseString isEqual:@"pdf"]) {
-                char message[1024]={}; spdf_document* doc=spdf_open(source.fileSystemRepresentation,message,sizeof(message));
+                char message[1024]={}; spdf_document* doc=spdf_open(readPath.fileSystemRepresentation,message,sizeof(message));
                 prepared=doc && !spdf_is_password_protected(doc); if (doc) spdf_close(doc);
-                if (prepared) prepared=SPDFSaveImageCopy(source,rendition,YES,&error);
+                if (prepared) prepared=SPDFSaveImageCopy(readPath,rendition,YES,&error);
                 input=rendition;
+            } else if (prepared && !loaded) {
+                // A PDF in a tab that isn't loaded: the password check the loaded document gave above.
+                char message[1024]={}; spdf_document* doc=spdf_open(readPath.fileSystemRepresentation,message,sizeof(message));
+                if (doc && spdf_is_password_protected(doc)) {
+                    prepared=NO; error=[NSError errorWithDomain:@"ShenzhenPDF.AIJob" code:1 userInfo:@{NSLocalizedDescriptionKey:
+                        @"Create an unprotected copy before exporting, OCR or translation."}];
+                }
+                if (doc) spdf_close(doc);
             }
-            if (prepared && !progress.cancelled && [revision isEqual:SPDFSearchFileStamp(source)])
+            if (prepared && !progress.cancelled && [revision isEqual:SPDFSearchFileStamp(readPath)])
                 owned=SPDFAIRunPDFJob(kind,input,downloads,name,tool,environment,options,progress,&error);
             [fm removeItemAtPath:rendition error:nil];
             rmdir(directory.fileSystemRepresentation);
             // Kept in Collection now, before its tab opens, so its history says who made it rather than "Opened".
-            if (owned && !progress.cancelled && [revision isEqual:SPDFSearchFileStamp(source)])
+            if (owned && !progress.cancelled && [revision isEqual:SPDFSearchFileStamp(readPath)])
                 SPDFMacAIOutputKeepInCollection(owned[@"path"],collection);
             dispatch_async(dispatch_get_main_queue(), ^{
                 ShenzhenMacDelegate* reader=weakSelf;
-                if (!reader || progress.cancelled || ![revision isEqual:SPDFSearchFileStamp(source)] ||
+                if (!reader || progress.cancelled || ![revision isEqual:SPDFSearchFileStamp(readPath)] ||
                     (session && session.paginationPlan!=livePlan)) {
                     if (owned) SPDFAIRemoveJobOutput(owned);
                     completion(JobError(progress.cancelled ? @"Cancelled." : @"Source document changed; output was discarded.")); return;

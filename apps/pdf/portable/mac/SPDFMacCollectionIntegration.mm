@@ -9,6 +9,9 @@
 #import "SPDFMacMarkdownDelegatePrivate.h"
 #import <objc/runtime.h>
 #import "SPDFMacTabGroups.h"
+@interface ShenzhenMacDelegate (CollectionDisplayNameHost)
+- (void)showDisplayName:(NSString*)name forTabsAtPath:(NSString*)path;  // SPDFMacDocumentRename.mm
+@end
 static char kCollectionCompanion, kCollectionImported, kCollectionSettingsObserver, kCollectionContinuity, kCollectionPendingSave;
 @implementation ShenzhenMacDelegate (SPDFMacCollectionIntegration)
 - (void)collectionAllowImportRetryAfterFailure {
@@ -115,6 +118,10 @@ static char kCollectionCompanion, kCollectionImported, kCollectionSettingsObserv
                 }
                 if (doc) {
                     if ([openedTab.path isEqual:source]) openedTab.collectionHistoryDocumentID=doc[@"id"];
+                    // A name given in ShenzhenPDF to a file that keeps its own comes back with the document.
+                    NSString* given=[doc[@"displayName"] isKindOfClass:NSString.class] ? doc[@"displayName"] : nil;
+                    if (given.length && [openedTab.path isEqual:source] && !openedTab.displayName.length)
+                        [self showDisplayName:given forTabsAtPath:source];
                     [self collectionRememberGroups];
                     [self collectionRememberPasswordForPath:source];
                 }

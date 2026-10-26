@@ -98,6 +98,7 @@ static void Check(BOOL value, const char* message) { if (!value) { fprintf(stder
 
 - (void)rememberActiveTabState {}
 - (void)updateTabStrip {}
+- (void)updateControls {}
 - (void)refreshSidebarWorkspacePanel {}
 - (void)collectionRememberGroups {}
 - (void)savePersistentState {}
@@ -142,6 +143,7 @@ static SPDFDocumentTab* Tab(NSString* path, SPDFTabGroup* group) {
 #import "SPDFMacAICollectionRenameChecks.h"
 #import "SPDFMacAIMetadataHistoryChecks.h"
 #import "SPDFMacAIJobOutputChecks.h"
+#import "SPDFMacAIDisplayNameChecks.h"
 int main(void) { @autoreleasepool {
     NSString* emojiBoundary=[[@"a" stringByPaddingToLength:63999 withString:@"a" startingAtIndex:0] stringByAppendingString:@"😀x"];
     NSString* boundedEmoji=SPDFAIBoundedText(emojiBoundary,64000);
@@ -380,6 +382,7 @@ int main(void) { @autoreleasepool {
     CheckAICollectionRename(reader,collection,captured,collectionTarget[@"readPath"],group);
     Check(SPDFAICollectionOpenTarget(@"/etc/passwd",NO,controlProgress)[@"error"]!=nil,"Collection rejects arbitrary path IDs");
     CheckJobOutputs(reader,path,group,root,collection); result=nil;
+    CheckReadOnlyNamesAndJobs(reader,path,group,root,collection);
     AIContextProbe* large=[AIContextProbe new]; NSMutableArray* many=[NSMutableArray array];
     for (NSUInteger index=0;index<1000;index++) {
         SPDFTabGroup* manyGroup=[SPDFTabGroup fromDictionary:@{@"id":[NSString stringWithFormat:@"group-%lu",(unsigned long)index],@"name":@"Many documents",@"color":@"blue"}];

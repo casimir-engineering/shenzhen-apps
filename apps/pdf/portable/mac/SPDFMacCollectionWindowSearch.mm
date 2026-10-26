@@ -51,7 +51,7 @@ static NSString* DateLabel(NSDictionary* version) {
     if (index < 0 || index >= (NSInteger)self.rows.count) return [NSView new];
     NSDictionary* row = self.rows[(NSUInteger)index], *doc = row[@"document"], *version = row[@"version"];
     NSView* cell = [NSView new]; cell.identifier = @"CollectionDocumentRow";
-    NSTextField* title = SPDFCollectionText(version[@"filename"] ?: doc[@"title"] ?: @"Document",12,NSFontWeightSemibold,NO);
+    NSTextField* title = SPDFCollectionText(version[@"filename"] ?: SPDFCollectionDocumentTitle(doc) ?: @"Document",12,NSFontWeightSemibold,NO);
     title.identifier = @"CollectionResultTitle";
     title.lineBreakMode = NSLineBreakByTruncatingMiddle; title.maximumNumberOfLines = 1; title.toolTip = doc[@"path"];
     title.translatesAutoresizingMaskIntoConstraints = NO; [cell addSubview:title];

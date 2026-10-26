@@ -175,7 +175,7 @@
             if (generation != self->_generation) return;
             NSString* selected = [self selectedVersion][@"id"];
             self->_document = found; self->_versions = versions; self->_storageLimited = storageLimited;
-            self->_title.stringValue = found[@"title"] ?: @"No protected history";
+            self->_title.stringValue = SPDFCollectionDocumentTitle(found) ?: @"No protected history";
             self->_title.toolTip = found[@"path"];
             BOOL available = SPDFCollectionOriginalAvailable(found);
             self->_missingSource = found != nil && !available;
@@ -299,7 +299,7 @@
     if (row == NSNotFound) return;
     if (previous && row+1 >= (NSInteger)_versions.count) return;
     NSDictionary* oldVersion = previous ? _versions[row+1] : selected;
-    NSString* title = _document[@"title"] ?: @"Document";
+    NSString* title = SPDFCollectionDocumentTitle(_document) ?: @"Document";
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED,0), ^{
         NSError* error = nil;
         NSURL* oldURL = [self->_store materializeVersionID:oldVersion[@"id"] documentID:self->_documentID error:&error];

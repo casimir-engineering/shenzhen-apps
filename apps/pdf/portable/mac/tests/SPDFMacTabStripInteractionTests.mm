@@ -10,6 +10,7 @@
 @property(nonatomic, copy) NSString* path;
 @property(nonatomic, copy) NSString* title;
 @property(nonatomic, copy) NSString* collectionVersionLabel;
+@property(nonatomic, copy) NSString* displayName;
 @property(nonatomic) BOOL readOnly;
 @property(nonatomic) BOOL unsavedPastedImage;
 @property(nonatomic) BOOL missingFile;
@@ -218,6 +219,18 @@ int main(void) {
         [window makeKeyWindow];
         [window displayIfNeeded];
 
+        // A name given in ShenzhenPDF to a file that keeps its own (a read-only datasheet named by a UUID) is what
+        // the tab shows, in full too; a Collection version label still wins.
+        secondTab.path = @"/tmp/2f6fa8b5ebba154de171778d8d99b38f.pdf";
+        secondTab.displayName = @"LTE-C9901 - IR emitter - datasheet";
+        strip.tabs = (id) @[ tab, secondTab ];
+        expect_true(@"a given name is the tab's title", [[strip titleForTabAtIndex:1] isEqual:secondTab.displayName] &&
+            [[strip fullTitleForTabAtIndex:1] isEqual:secondTab.displayName] && ![[strip titleForTabAtIndex:0] isEqual:secondTab.displayName]);
+        secondTab.collectionVersionLabel = @"Version of 3 Oct";
+        strip.tabs = (id) @[ tab, secondTab ];
+        expect_true(@"a Collection version label still wins", [[strip titleForTabAtIndex:1] isEqual:@"Version of 3 Oct"]);
+        secondTab.collectionVersionLabel = nil; secondTab.displayName = nil; secondTab.path = @"/tmp/beta.pdf";
+        strip.tabs = (id) @[ tab, secondTab ];
         NSPoint tabPoint = NSMakePoint(180, 21);
         NSPoint emptyPoint = NSMakePoint(820, 21);
         NSRect plusFrame = [strip plusRect];

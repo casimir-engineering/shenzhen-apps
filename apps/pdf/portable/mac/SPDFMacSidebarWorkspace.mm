@@ -108,7 +108,7 @@ static char stateKey, groupsControllerKey, emptySearchKey, saveGenerationKey, ta
             lookup[identifier] = row; [groups addObject:row];
         }
         BOOL selected = tab == [self selectedTab]; if (selected) row[@"selected"] = @YES;
-        [row[@"documents"] addObject:@{@"path":tab.path ?: @"",@"title":tab.title ?: tab.path.lastPathComponent ?: @"Document",@"selected":@(selected)}];
+        [row[@"documents"] addObject:@{@"path":tab.path ?: @"",@"title":spdf_tab_display_name(tab) ?: tab.title ?: tab.path.lastPathComponent ?: @"Document",@"selected":@(selected)}];
     }
     for (SPDFTabGroup* group in [self emptyTabGroups]) if (!lookup[group.identifier])
         [groups addObject:@{@"id":group.identifier,@"name":group.displayName,@"color":group.colorName,

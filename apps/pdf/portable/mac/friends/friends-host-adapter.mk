@@ -65,7 +65,7 @@ HOST_ADAPTER_SESSION_SRCS := mac/SPDFMacAIChatSession.mm mac/SPDFMacAIAnswerCard
 	mac/SPDFMacAIChatStore.mm mac/SPDFMacAIChatStoreRequestOnly.mm \
 	mac/SPDFMacAICitations.mm mac/SPDFMacAIToolRegistry.mm mac/SPDFMacAIRequestContext.mm \
 	mac/SPDFMacAIChatActivity.mm mac/SPDFMacAIChatSessionSummaries.mm mac/SPDFMacAIChatBudget.mm \
-	mac/SPDFMacAIChatSessionCalls.mm mac/SPDFMacAIToolArguments.mm
+	mac/SPDFMacAIChatSessionCalls.mm mac/SPDFMacAIToolArguments.mm mac/SPDFMacAIChatSessionRecovery.mm mac/SPDFMacAIChatProgress.mm
 mac-friends-scope-tests:
 	$(call HOST_ADAPTER_RUN,SPDFMacFriendsScopeTests,$(HOST_ADAPTER_DIR)/tests/SPDFMacFriendsScopeTests.mm \
 		$(HOST_ADAPTER_SCOPE_SRCS) $(HOST_ADAPTER_SESSION_SRCS) -framework Cocoa -framework ImageIO)
@@ -91,7 +91,10 @@ mac-friends-send-tests:
 # engine objects the workspace probe builds), so "every character Friends delivers is on the card" is checked on the
 # drawn row, not only on the entry. $(sort) because the session and the chat view both list the activity model.
 HOST_ADAPTER_CARD_VIEW_SRCS = $(sort $(HOST_ADAPTER_SEND_SRCS) $(HOST_ADAPTER_SCOPE_SRCS) $(HOST_ADAPTER_SESSION_SRCS) \
-	$(AI_CHAT_VIEW_SRCS) mac/SPDFMacAIChatMarkdown.mm mac/SPDFMacCollectionStyle.mm mac/SPDFMacGroupActionButton.mm)
+	$(filter-out $(HOST_ADAPTER_CHAT_VIEW_CATEGORIES),$(AI_CHAT_VIEW_SRCS)) mac/SPDFMacAIChatMarkdown.mm \
+	mac/SPDFMacCollectionStyle.mm mac/SPDFMacGroupActionButton.mm)
+# Categories of the assistant's chat view, which the card tests don't link: they need the view itself.
+HOST_ADAPTER_CHAT_VIEW_CATEGORIES := mac/SPDFMacAIChatAttachments.mm mac/SPDFMacAIChatViewFollow.mm
 mac-friends-send-card-tests: $$(MAC_CHAT_MARKDOWN_ENGINE)
 	$(call HOST_ADAPTER_RUN,SPDFMacFriendsSendCardTests,$(HOST_ADAPTER_DIR)/tests/SPDFMacFriendsSendCardTests.mm \
 		$(HOST_ADAPTER_CARD_VIEW_SRCS) $(MAC_CHAT_MARKDOWN_ENGINE) -framework Cocoa -framework ImageIO \

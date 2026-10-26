@@ -81,6 +81,7 @@ static NSArray<NSDictionary*>* SessionCandidates(id sessionObject) {
             // A saved title that is a path predates clean tab titles; name the file instead.
             NSString* saved = [Text(tab[@"title"]) containsString:@"/"] ? @"" : Text(tab[@"title"]);
             NSString* label = Text(tab[@"collectionVersionLabel"]);
+            if (!label.length) label = Text(tab[@"displayName"]);  // a name given in ShenzhenPDF (SPDFMacModels.h)
             NSMutableDictionary* row = [@{@"path":path,
                 @"title":label.length || !saved.length ? spdf_palette_document_title(path, label, nil) : saved,
                 @"focusedAt":focusedAt, @"lastViewedAt":Number(tab[@"lastViewedAt"]), @"_order":@(order++),

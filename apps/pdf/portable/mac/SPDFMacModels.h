@@ -61,6 +61,12 @@ typedef NS_ENUM(NSInteger, SPDFFitMode) {
 @property(nonatomic, strong) SPDFTabGroup* group;
 @property(nonatomic, copy) NSString* collectionHistoryDocumentID;
 @property(nonatomic, copy) NSString* collectionVersionLabel;
+// A name given to the document in ShenzhenPDF when its file keeps its own name (a read-only file, one in a folder
+// that can't be written, or one the person asked not to move): the tab, the window title, the groups sidebar,
+// Command-K and the assistant show it instead of the filename. Collection keeps it with the document's history
+// ("displayName"), so it comes back when the document is opened again. nil: the filename is the name. Persisted
+// as "displayName". A Collection version label still wins (it names an older version, not the document).
+@property(nonatomic, copy) NSString* displayName;
 @property(nonatomic, copy) NSString* path;
 @property(nonatomic, copy) NSString* title;
 @property(nonatomic) NSInteger pageIndex;
@@ -125,6 +131,12 @@ typedef NS_ENUM(NSInteger, SPDFFitMode) {
 @end
 
 SPDFDocumentTab* spdf_copy_document_tab(SPDFDocumentTab* source);
+// The name a document shows in place of its filename, or nil when it shows its filename (see displayName). Inline,
+// so the tab strip's own test binaries need no model sources.
+static inline NSString* spdf_tab_display_name(SPDFDocumentTab* tab) {
+    NSString* name = [tab.displayName stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
+    return name.length ? name : nil;
+}
 NSDictionary* spdf_dictionary_from_tab(SPDFDocumentTab* tab, NSInteger sourceWindowNumber);
 SPDFDocumentTab* spdf_tab_from_dictionary(NSDictionary* item);
 
