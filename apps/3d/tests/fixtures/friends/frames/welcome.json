@@ -58,6 +58,8 @@
     "cancel": "Cancel",
     "loading": "Loading…",
     "load_earlier": "Show earlier messages",
+    "new_message": "New message ↓",
+    "new_messages": "{count} new messages ↓",
     "link_open": "Open in Browser",
     "link_open_email": "New Email",
     "link_elsewhere": "Goes to {host}, not {shown}",
