@@ -4,6 +4,9 @@
 - (NSDictionary*)aiWorkspaceContext;
 - (NSDictionary*)aiCurrentDocumentContext;
 - (NSDictionary*)aiWorkspaceContextWithArguments:(NSDictionary*)arguments;
+// `activity`: {entries: standardized path -> SPDFMacDocumentActivity entry, recordedSince} adds each document's
+// last_opened and last_viewed and allows the notViewedSince filter; nil lists without them.
+- (NSDictionary*)aiWorkspaceContextWithArguments:(NSDictionary*)arguments activity:(NSDictionary*)activity;
 - (NSDictionary*)aiDocumentMetadataForPath:(NSString*)path;
 - (NSArray<NSString*>*)aiDocumentPaths;
 - (void)aiRememberAnalysis:(NSDictionary*)analysis forPath:(NSString*)path;

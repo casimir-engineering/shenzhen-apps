@@ -97,6 +97,11 @@ does not re-trigger the macOS access prompt.
   findable in the command palette. The list lives in `settings.yaml`.
 - **Reopen Last Closed** (<kbd>Cmd+Shift+T</kbd>) — brings a just-closed tab
   back with its view state.
+- **Last opened and last viewed** **mac** — every document the app keeps (tabs,
+  recents, Collection and History copies) remembers when it was last opened and
+  when you last looked at it: its tab in front, in the app in front, for at least
+  2 seconds. Kept in `activity.yaml`; dates from before this was recorded are
+  estimated once from older records and marked as estimates.
 - **Favorites** — star a page or a whole document, give it a name and optional
   search labels, and find it later from the command palette or *Manage
   Favorites*.
@@ -162,6 +167,7 @@ does not re-trigger the macOS access prompt.
 - Cited answers open retrieved passages with highlights. Image-capable models can inspect pages, crops and the visible document viewport on request. Brief supported answers can use pastel cards with **View evidence**; evidence provenance checks do not certify model interpretation. An answer that rests on one document shows a card under it with that page's thumbnail, the title and the page; clicking it opens the document there. A citation still opens its document after the tab is closed, including a saved revision opened from History; a document that has been deleted is named without a link.
 - One cached background request supplies a summary, keywords, up to six tags and missing chapters in the selected AI language. Authored outlines remain authoritative; only eligible latest revisions are analyzed.
 - Drop files or folders on the chat, or attach them with the paperclip: that chat's assistant can read them, and nothing beside them; other chats can't. Its sandboxed Python reads your documents exactly, including the images a PDF embeds at native resolution and pages rendered at a chosen dpi, so it measures pixels and data itself. Files it saves (reports, CSV, charts) go to Downloads with a card in the chat.
+- Ask by date: the assistant sees when each document was last opened and viewed, so "close any document I have not viewed since a week" closes exactly those tabs in one step, names the ones with no record, and one Undo reopens them all.
 - Supported group, reader, comment, rename, metadata and chat-organization actions have guarded Undo/Redo. Requested OCR, translation and PDF jobs create separate outputs. Everything the assistant makes, including charts you save, goes to Downloads under a clear name (never replacing a file) and into Collection as **Made by the assistant**. Stop cancels future work; completed changes remain until undone.
 - Four-step setup covers file access, Collection, OpenRouter and per-format default-reader choices. Keys remain in Keychain; cloud analysis waits for completed setup and a connected account. Usage spends provider credits and can be disabled.
 - The [document assistant guide](../portable/docs/document-assistant.md) specifies privacy routing, model requirements, action limits and local job dependencies. The [CLI/MCP guide](../portable/docs/agent-interface.md) is a separate interface; chat tool names are not external MCP commands.
@@ -461,7 +467,7 @@ fence the renderer cannot draw keeps its ordinary highlighted code box.
 
 - **Human-readable YAML state** you can read, diff and edit:
   `settings.yaml`, `session.yaml`, `documents.yaml`, `favorites.yaml`,
-  `bookmarks.yaml`. Existing JSON state migrates automatically, originals kept
+  `bookmarks.yaml`, `activity.yaml` (**mac**). Existing JSON state migrates automatically, originals kept
   as `.migrated-backup`.
   macOS: `~/Library/Application Support/ShenzhenPDF/` · Linux:
   `~/.config/shenzhenpdf/`

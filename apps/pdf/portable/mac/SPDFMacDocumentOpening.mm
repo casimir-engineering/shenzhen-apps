@@ -84,7 +84,7 @@ static char kSPDFShowDocumentObserverKey, kSPDFPendingHandOffsKey;
         return;
     }
 
-    [self rememberActiveTabState]; [self collectionWillOpenPaths:paths];
+    [self rememberActiveTabState]; [self collectionWillOpenPaths:paths]; [self activityDidOpenPaths:paths];
     NSInteger targetIndex = -1;
     for (NSString* path in paths) {
         if (![path isKindOfClass:NSString.class] || path.length == 0) continue;
@@ -240,6 +240,7 @@ static char kSPDFShowDocumentObserverKey, kSPDFPendingHandOffsKey;
 }
 
 - (void)listenForDocumentsOpenedInOtherWindows {
+    [self activityStartTracking]; // after the first paint, like this listener; idempotent
     if (objc_getAssociatedObject(self, &kSPDFShowDocumentObserverKey) || spdf_is_sandboxed()) return;
     __weak ShenzhenMacDelegate* weakSelf = self;
     NSDistributedNotificationCenter* center = NSDistributedNotificationCenter.defaultCenter;

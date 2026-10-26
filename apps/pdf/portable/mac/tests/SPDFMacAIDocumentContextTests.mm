@@ -18,6 +18,14 @@
 #import "SPDFMacMarkdownSession.h"
 #include <assert.h>
 #undef main
+// list_workspace reads the dates documents were last opened and viewed off the main thread, so it answers later.
+static NSDictionary* Listed(SPDFMacAITools* tools, NSDictionary* arguments) {
+    __block NSDictionary* listed=nil;
+    [tools performTool:@"list_workspace" arguments:arguments completion:^(NSDictionary* value){ listed=value; }];
+    NSDate* deadline=[NSDate dateWithTimeIntervalSinceNow:10];
+    while (!listed && deadline.timeIntervalSinceNow>0) [NSRunLoop.currentRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:.01]];
+    return listed;
+}
 static void Check(BOOL value, const char* message) { if (!value) { fprintf(stderr,"FAIL: %s\n",message); abort(); } }
 #import "SPDFMacAIPageRegionChecks.h"
 #import "SPDFMacAIAppAccessChecks.h"
@@ -227,7 +235,7 @@ int main(void) { @autoreleasepool {
     [tools performTool:@"performSelector" arguments:@{} completion:^(NSDictionary* value){ result=value; }];
     Check(result[@"error"]!=nil,"arbitrary selector rejected");
     result=nil;
-    [tools performTool:@"list_workspace" arguments:@{} completion:^(NSDictionary* value){ result=value; }];
+    result=Listed(tools,@{});
     NSString* json=[[NSString alloc] initWithData:[NSJSONSerialization dataWithJSONObject:result options:0 error:nil] encoding:NSUTF8StringEncoding];
     Check([json rangeOfString:@"/first.pdf"].location==NSNotFound && [json containsString:@"doc:"],"workspace exposes opaque IDs instead of local paths");
     CheckChatFolderTools(reader);
@@ -335,6 +343,22 @@ int main(void) { @autoreleasepool {
     closed=[workspace aiCloseDocument:first.path progress:controlProgress];
     Check([closed[@"closed"] boolValue] && ![workspace visiblePath],"last tab close leaves empty reader for Undo");
     Check([workspace aiUndoDocumentAction:closed[@"documentReceipt"] progress:controlProgress] && [[workspace visiblePath] isEqual:first.path],"last tab can reopen");
+    // "Close what I have not viewed in a week": many tabs in one call, the one in front among them; one Undo.
+    SPDFTabGroup* other=[SPDFTabGroup groupWithColor:@"blue"];
+    SPDFDocumentTab* third=Tab(@"/third.pdf",other),*fourth=Tab(@"/fourth.pdf",group);
+    [workspace seedTabs:@[first,second,fourth,third]]; [workspace selectTabAtIndex:3]; // a group's tabs sit together
+    NSDictionary* bulk=[workspace aiCloseDocuments:@[fourth.path,second.path,third.path,@"/not-open.pdf"] progress:controlProgress];
+    Check([bulk[@"closed"] integerValue]==3 && [[workspace visiblePath] isEqual:first.path] &&
+        [[workspace aiDocumentPaths] isEqual:@[first.path]],"bulk close closes exactly the open documents asked for");
+    Check([workspace aiUndoDocumentAction:bulk[@"documentReceipt"] progress:controlProgress] &&
+        [[workspace aiDocumentPaths] isEqual:(@[first.path,second.path,fourth.path,third.path])] &&
+        [[workspace visiblePath] isEqual:third.path] && [third.group.identifier isEqual:other.identifier],"one Undo reopens every closed tab in its place, group and selection");
+    NSMutableDictionary* ids=[@{@"paths":@[SPDFAIDocumentIdentifier(first.path),@"doc:gone"]} mutableCopy];
+    NSDictionary* refused=SPDFAIMapDocumentIDs(ids,@{SPDFAIDocumentIdentifier(first.path):first.path});
+    Check(refused[@"error"] && [refused[@"notOpen"] isEqual:@[@"doc:gone"]],"bulk close names the IDs that are not open");
+    ids=[@{@"paths":@[SPDFAIDocumentIdentifier(first.path)]} mutableCopy];
+    Check(!SPDFAIMapDocumentIDs(ids,@{SPDFAIDocumentIdentifier(first.path):first.path}) && [ids[@"paths"] isEqual:@[first.path]],
+        "bulk close maps IDs to the open documents");
     NSDictionary* sameOpen=[workspace aiOpenCollectionDocumentAtPath:first.path archived:NO progress:controlProgress];
     [workspace setTestPage:5];
     Check(![workspace aiUndoDocumentAction:sameOpen[@"documentReceipt"] progress:controlProgress],"document action undo preserves subsequent human page navigation");
@@ -362,7 +386,7 @@ int main(void) { @autoreleasepool {
         [many addObject:Tab([NSString stringWithFormat:@"/workspace/document-%lu.pdf",(unsigned long)index],manyGroup)];
     }
     [large seedTabs:many]; SPDFMacAITools* largeTools=[[SPDFMacAITools alloc] initWithReader:large]; result=nil;
-    [largeTools performTool:@"list_workspace" arguments:@{} completion:^(NSDictionary* value){result=value;}];
+    result=Listed(largeTools,@{});
     Check([result[@"tabs"] count]==50 && [result[@"groups"] count]==50 && [result[@"next"] integerValue]==51 &&
         [result[@"nextGroup"] integerValue]==51 && [result[@"totalDocuments"] integerValue]==1000,"workspace discovery paginates large hierarchy");
     Check(!large.candidateCalls && !large.metadataCalls,"listing does no file-stat candidate pass or per-document analysis lookup");
@@ -370,14 +394,14 @@ int main(void) { @autoreleasepool {
     Check(workspaceBytes<100000,"large workspace discovery fits tool-result budget");
     printf("1000-tab workspace first page: %lu bytes, %lu candidate passes, %lu analysis lookups\n",(unsigned long)workspaceBytes,(unsigned long)large.candidateCalls,(unsigned long)large.metadataCalls);
     NSString* firstID=result[@"tabs"][0][@"path"],*firstGroup=result[@"groups"][0][@"id"];
-    [largeTools performTool:@"list_workspace" arguments:@{@"first":@51,@"groupFirst":@51,@"count":@100} completion:^(NSDictionary* value){result=value;}];
+    result=Listed(largeTools,@{@"first":@51,@"groupFirst":@51,@"count":@100});
     Check([result[@"tabs"] count]==100 && [result[@"tabs"][0][@"index"] integerValue]==51 &&
         [result[@"next"] integerValue]==151,"workspace continuation preserves order without duplicates");
-    [largeTools performTool:@"list_workspace" arguments:@{@"groupID":firstGroup} completion:^(NSDictionary* value){result=value;}];
+    result=Listed(largeTools,@{@"groupID":firstGroup});
     Check([result[@"totalDocuments"] integerValue]==1 && [result[@"tabs"][0][@"path"] isEqual:firstID],"group scope filters document discovery");
     NSMutableString* longLabel=[NSMutableString string]; for (NSUInteger i=0;i<200;i++) [longLabel appendString:@"📖"];
     for (SPDFDocumentTab* tab in many) { tab.title=longLabel; tab.group.name=longLabel; }
-    [largeTools performTool:@"list_workspace" arguments:@{@"count":@100} completion:^(NSDictionary* value){result=value;}];
+    result=Listed(largeTools,@{@"count":@100});
     Check([NSJSONSerialization dataWithJSONObject:result options:0 error:nil].length<100000 && result[@"next"]!=NSNull.null,
         "UTF8-heavy names obey byte budget with continuation even at maximum page size");
     result=nil;
@@ -387,7 +411,7 @@ int main(void) { @autoreleasepool {
     Check(result && !result[@"error"] && large.metadataCalls==1 && !large.candidateCalls,"explicit metadata performs one lookup without eager workspace analysis");
     NSString* combining=[@"A" stringByPaddingToLength:120000 withString:@"\u0301" startingAtIndex:0];
     [many.firstObject setTitle:combining]; [[many.firstObject group] setName:combining];
-    [largeTools performTool:@"list_workspace" arguments:@{} completion:^(NSDictionary* value){result=value;}];
+    result=Listed(largeTools,@{});
     Check([result[@"tabs"][0][@"title"] length]<=200 && [result[@"groups"][0][@"displayName"] length]<=160 &&
         [NSJSONSerialization dataWithJSONObject:result options:0 error:nil].length<100000,"oversized composed character cannot escape first-row byte budget");
     SPDFMacAISettings* cacheSettings=[[SPDFMacAISettings alloc] initWithURL:[NSURL fileURLWithPath:[root stringByAppendingPathComponent:@"probe-settings.yaml"]]];

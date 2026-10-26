@@ -144,7 +144,9 @@ Click destinations are stamped as `SPDFMacMarkdownDestinationAttribute` on the
 `settings.yaml`, `session.yaml` (windows → tabs; one entry per window with
 `frame`, `selectedTab`, `focusedAt`), `documents.yaml` (per-file memory keyed
 by standardized path: panels, collapsed chapters, Markdown orientation, page
-geometry), `favorites.yaml`, `bookmarks.yaml`. Human-readable, hand-editable
+geometry), `favorites.yaml`, `bookmarks.yaml`, `activity.yaml` (last opened and
+last viewed per standardized path, merged under `activity.lock` by every window's
+process; see `SPDFMacDocumentActivity.h`). Human-readable, hand-editable
 while the app is closed. `spdf_dictionary_from_tab` / `spdf_tab_from_dictionary`
 in `SPDFMacModels.mm` are the ONLY tab codecs — a second inline writer once
 silently dropped a field for a release.

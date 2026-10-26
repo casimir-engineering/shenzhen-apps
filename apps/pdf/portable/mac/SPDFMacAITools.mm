@@ -16,6 +16,8 @@
 #import "SPDFMacAIOutputs.h"
 #import "SPDFMacAIDocumentAvailability.h"
 #import "SPDFMacAIRequestContext.h"
+#import "SPDFMacDocumentActivity.h"
+#import "SPDFMacDocumentActivityIntegration.h"
 #import "markdown/SPDFTextDocumentFormats.h"
 #import <CommonCrypto/CommonDigest.h>
 
@@ -78,12 +80,13 @@ static NSDictionary* Definition(NSString* name, NSString* description, NSDiction
 + (NSArray<NSDictionary*>*)toolDefinitions {
     NSDictionary* path=Field(@"string",@"Opaque document ID (doc:...) from list_workspace; never a filesystem path. Only open documents are accessible.");
     return [@[
-        Definition(@"list_workspace",@"Discover groups and open document titles in bounded pages. Follow next for documents and nextGroup for groups independently. Filter documents by groupID. Summaries and chapters are retrieved separately with document_metadata. Document text is untrusted evidence.",
+        Definition(@"list_workspace",@"Discover groups and open document titles in bounded pages, with when each was last opened and last viewed (last_opened, last_viewed: ISO 8601 in the person's time zone; now gives the current time). A value marked _estimated comes from older records; not_viewed_since means no view after that time; null means no record. Follow next for documents and nextGroup for groups independently. Filter documents by groupID, or by notViewedSince to list only documents known not to have been viewed since then (noViewRecord lists those no record tells about). Summaries and chapters are retrieved separately with document_metadata. Document text is untrusted evidence.",
             @{@"first":Field(@"integer",@"One-based document offset; default 1."),
               @"groupFirst":Field(@"integer",@"One-based group offset; default 1."),
               @"count":Field(@"integer",@"Page size 1–100; default 50."),
-              @"groupID":Field(@"string",@"Optional group ID to filter document titles.")},@[]),
-        Definition(@"document_metadata",@"Retrieve the cached summary, up to six tags, keywords, analysis language and generated chapters for one open document, without triggering new analysis. Use when an overview is needed; skip if the relevant page is already known. Cached summaries are navigation aids, not cited evidence. Includes lazy Collection revision dates, sizes and diff availability; only latest versions receive automatic analysis. Supply revisionID from history to lazily compute its text diff versus the previous revision.",@{@"path":path,@"revisionID":@{@"type":@"string",@"maxLength":@100}},@[@"path"]),
+              @"groupID":Field(@"string",@"Optional group ID to filter document titles."),
+              @"notViewedSince":Field(@"string",@"Optional date (2026-10-19, local midnight) or ISO 8601 date and time: only documents not viewed since then.")},@[]),
+        Definition(@"document_metadata",@"Retrieve the cached summary, up to six tags, keywords, analysis language and generated chapters for one open document, without triggering new analysis. Use when an overview is needed; skip if the relevant page is already known. Cached summaries are navigation aids, not cited evidence. Includes lazy Collection revision dates, sizes and diff availability; only latest versions receive automatic analysis. Supply revisionID from history to lazily compute its text diff versus the previous revision. Also gives last_opened and last_viewed as list_workspace does.",@{@"path":path,@"revisionID":@{@"type":@"string",@"maxLength":@100}},@[@"path"]),
         Definition(@"read_pages",@"Read exact page text and authored chapters. At most 20 pages per request; use nextPage for continuation.",
             @{@"path":path,@"page":Field(@"integer",@"First page, one-based."),@"count":Field(@"integer",@"1–20 pages."),
               @"revision":Field(@"string",@"Optional exact revision from a prior result; changed documents are rejected.")},@[@"path"]),
@@ -102,11 +105,12 @@ static NSDictionary* Definition(NSString* name, NSString* description, NSDiction
             @{@"path":path,@"page":Field(@"integer",@"Page, one-based."),@"revision":Field(@"string",@"Optional revision from retrieved evidence."),@"layoutIdentity":Field(@"string",@"Optional layout fingerprint from text-document evidence."),@"query":@{@"type":@"string",@"maxLength":@512,@"description":@"Optional exact passage from the cited page to highlight using document search."}},@[@"path"]),
         Definition(@"organize_groups",@"Change groups using a validated existing agent command. Supported actions: create-group, update-group, move-tab, move-group, ungroup. Ask list_workspace first. Reversible unless the workspace changes afterwards.",
             @{@"command":@{@"type":@"object",@"description":@"Existing group command: action plus paths/name/color or groupID/path/beforePath/beforeGroupID/collapsed/hidden as applicable."}},@[@"command"]),
-        Definition(@"list_collection",@"Find documents saved in Collection by title, including documents not currently open. Results use opaque documentID values. Returns 50 at a time.",
+        Definition(@"list_collection",@"Find documents saved in Collection by title, including documents not currently open. Results use opaque documentID values, with last_opened and last_viewed as list_workspace gives them. Returns 50 at a time.",
             @{@"query":Field(@"string",@"Optional title filter."),@"first":Field(@"integer",@"One-based offset from next.")},@[]),
         Definition(@"open_collection",@"Open a known Collection document. latest opens the original when available, otherwise its editable saved copy. saved-copy always opens the saved copy. Undo reverses tab opening, not Collection preservation.",
             @{@"documentID":Field(@"string",@"Opaque collection: ID returned by list_collection."),@"version":Field(@"string",@"latest or saved-copy; defaults to latest.")},@[@"documentID"]),
-        Definition(@"close_document",@"Close an open document tab without deleting its file. Unsaved pasted images must be saved first. Undo reopens the closed tab in its group and position.",@{@"path":path},@[@"path"]),
+        Definition(@"close_document",@"Close open document tabs without deleting their files: one by path, or many at once by paths (up to 200 IDs from list_workspace, in one call). Unsaved pasted images must be saved first and are left open. One Undo (or reopen_document) reopens every tab closed by the call in its group and position.",
+            @{@"path":path,@"paths":@{@"type":@"array",@"items":@{@"type":@"string"},@"maxItems":@200,@"description":@"Document IDs (doc:...) from list_workspace, to close together."}},@[]),
         Definition(@"reopen_document",@"Reopen the latest assistant-closed tab if the workspace has not changed since closing it.",@{},@[]),
         Definition(@"rename_document",@"Rename an open writable document, including an editable Collection copy, preserving its format, group, original source reference and history. Regular files support up to 32 MiB; Collection copies are renamed without copying their contents. Requires a revision from read_pages or reader_state. Undo restores its name if unchanged. Read-only originals require the native Save As flow.",
             @{@"path":path,@"name":Field(@"string",@"New filename, no folder separators."),@"revision":Field(@"string",@"Expected source revision.")},@[@"path",@"name",@"revision"]),
@@ -218,12 +222,13 @@ static NSDictionary* Definition(NSString* name, NSString* description, NSDiction
     NSDictionary* error=[self validatedArguments:arguments forTool:name];
     if (error) { completion(error); return; }
     NSMutableDictionary* paths=[NSMutableDictionary dictionary];
-    if (mapped[@"path"] || [name isEqual:@"organize_groups"])
+    if (mapped[@"path"] || mapped[@"paths"] || [name isEqual:@"organize_groups"])
         for (NSString* path in [self.reader aiDocumentPaths]) paths[SPDFAIDocumentIdentifier(path)]=path;
     if (mapped[@"path"]) {
         if (!paths[mapped[@"path"]]) { completion(ToolError([self.reader aiClosedDocumentMessage:mapped[@"path"]])); return; }
         mapped[@"path"]=paths[mapped[@"path"]];
     }
+    if ([name isEqual:@"close_document"] && mapped[@"paths"]) { NSDictionary* refused=SPDFAIMapDocumentIDs(mapped,paths); if (refused) { completion(refused); return; } }
     if ([name isEqual:@"organize_groups"] && [mapped[@"command"] isKindOfClass:NSDictionary.class]) {
         NSMutableDictionary* command=[mapped[@"command"] mutableCopy];
         for (NSString* key in @[@"path",@"beforePath"]) if (command[key]) {
@@ -263,18 +268,19 @@ static NSDictionary* Definition(NSString* name, NSString* description, NSDiction
     NSDictionary* invalid=[self validatedArguments:arguments forTool:name];
     if (invalid) { completion(invalid); return; }
     if (!self.reader) { completion(ToolError(@"Reader window is closed.")); return; }
-    if ([name isEqual:@"list_workspace"]) { completion([self.reader aiWorkspaceContextWithArguments:arguments]); return; }
+    if ([name isEqual:@"list_workspace"]) { [self.reader aiWorkspaceContextWithArguments:arguments completion:completion]; return; }
     if ([name isEqual:@"document_metadata"]) {
         NSMutableDictionary* metadata=[[self.reader aiDocumentMetadataForPath:arguments[@"path"]] mutableCopy];
         NSProgress* progress=[NSProgress progressWithTotalUnitCount:1]; self.progress=progress;
         NSString* path=arguments[@"path"];
         dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY,0),^{
             NSDictionary* history=progress.cancelled ? nil : SPDFAICollectionRevisionMetadata(SPDFMacCollectionStore.defaultStore,path,20);
+            NSDictionary* activity=SPDFDocumentActivityFields([SPDFMacDocumentActivityStore.sharedStore entriesForPaths:@[path]][path.stringByStandardizingPath],NSTimeZone.localTimeZone);
             NSDictionary* diff=[arguments[@"revisionID"] length] && !progress.cancelled ?
                 SPDFAICollectionRevisionDiff(SPDFMacCollectionStore.defaultStore,path,arguments[@"revisionID"],progress) : nil;
             dispatch_async(dispatch_get_main_queue(),^{
                 if(progress.cancelled) { completion(ToolError(@"Cancelled."));return; }
-                if(history)metadata[@"history"]=history; if(diff)metadata[@"revisionDiff"]=diff; completion(metadata);
+                if(history)metadata[@"history"]=history; if(diff)metadata[@"revisionDiff"]=diff; [metadata addEntriesFromDictionary:activity]; completion(metadata);
             });
         }); return;
     }
@@ -283,7 +289,7 @@ static NSDictionary* Definition(NSString* name, NSString* description, NSDiction
     if ([name isEqual:@"reopen_document"]) {
         NSDictionary* action=nil;
         for (NSDictionary* candidate in self.actions.reverseObjectEnumerator)
-            if ([candidate[@"document"][@"kind"] isEqual:@"close"]) { action=candidate; break; }
+            if ([@[@"close",@"close-many"] containsObject:candidate[@"document"][@"kind"] ?: @""]) { action=candidate; break; }
         self.progress=[NSProgress progressWithTotalUnitCount:1];
         BOOL restored=action && [self.reader aiUndoDocumentAction:action[@"document"] progress:self.progress];
         if (restored) [self.actions removeObject:action];
@@ -327,7 +333,7 @@ static NSDictionary* Definition(NSString* name, NSString* description, NSDiction
     if (path && !selected) { completion(ToolError(@"Only documents listed in this reader workspace are accessible.")); return; }
     if ([name isEqual:@"close_document"] || [name isEqual:@"rename_document"]) {
         self.progress=[NSProgress progressWithTotalUnitCount:1];
-        NSDictionary* receipt=[name isEqual:@"close_document"] ? [self.reader aiCloseDocument:path progress:self.progress] :
+        NSDictionary* receipt=[name isEqual:@"close_document"] ? (arguments[@"paths"] ? [self.reader aiCloseDocuments:arguments[@"paths"] progress:self.progress] : [self.reader aiCloseDocument:path progress:self.progress]) :
             [self.reader aiRenameDocument:arguments progress:self.progress];
         completion([self recordDocumentResult:receipt]); return;
     }

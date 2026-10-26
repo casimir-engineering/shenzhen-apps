@@ -106,6 +106,7 @@ MAC_SELECTION_CLICK_TEST := $(BUILD)/SPDFMacSelectionClickTests
 MAC_SELECTION_ADAPTER_TEST := $(BUILD)/SPDFMacSelectionAdapterTests
 MAC_LAUNCH_WORK_POLICY_TEST := $(BUILD)/SPDFMacLaunchWorkPolicyTests
 MAC_STATE_YAML_TEST := $(BUILD)/SPDFStateYamlTests
+MAC_DOCUMENT_ACTIVITY_TEST := $(BUILD)/SPDFMacDocumentActivityTests
 MAC_RELEASE_NOTES_PREVIEW := $(BUILD)/SPDFReleaseNotesPreview
 # Exclude standalone test translation units (each defines its own main()).
 MAC_MARKDOWN_SRCS := $(sort $(wildcard mac/markdown/*.mm))
@@ -516,6 +517,16 @@ $(MAC_STATE_YAML_TEST): mac/tests/SPDFStateYamlTests.mm $(YAML_OBJ) | $(BUILD)
 mac-state-yaml-tests: $(MAC_STATE_YAML_TEST)
 	"$(MAC_STATE_YAML_TEST)"
 
+# Last opened and last viewed (mac/SPDFMacDocumentActivity.h). The real-app check is mac/tests/activity-e2e.
+$(MAC_DOCUMENT_ACTIVITY_TEST): mac/tests/SPDFMacDocumentActivityTests.mm mac/SPDFMacDocumentActivity.mm \
+		mac/SPDFMacDocumentActivityValues.mm mac/SPDFMacDocumentActivity.h $(YAML_OBJ) | $(BUILD)
+	clang++ $(MAC_TARGET_FLAGS) -std=c++17 -fobjc-arc -Wall -Wextra -Werror -Imac -Icore \
+		mac/tests/SPDFMacDocumentActivityTests.mm mac/SPDFMacDocumentActivity.mm mac/SPDFMacDocumentActivityValues.mm \
+		"$(YAML_OBJ)" -framework Foundation -framework CoreServices -o "$(MAC_DOCUMENT_ACTIVITY_TEST)"
+
+mac-document-activity-tests: $(MAC_DOCUMENT_ACTIVITY_TEST)
+	"$(MAC_DOCUMENT_ACTIVITY_TEST)"
+
 $(MAC_APP_FLAGS_FILE): FORCE
 	@mkdir -p "$(@D)"
 	@printf '%s\n' '$(MAC_APP_COMPILE_FLAGS)' | cmp -s - "$@" || printf '%s\n' '$(MAC_APP_COMPILE_FLAGS)' > "$@"
@@ -642,7 +653,7 @@ TEST_BINARIES := $(CORE_OUTLINE_TEST) $(CORE_PASSWORD_TEST) $(CORE_RECOLOR_TEST)
 	$(MAC_TRANSLATION_COPY_TEST) $(MAC_CURSOR_REGION_TEST) \
 	$(MAC_TAB_LIFECYCLE_TEST) $(MAC_FILE_EXPLORER_TEST) \
 	$(MAC_SELECTION_CLICK_TEST) $(MAC_SELECTION_ADAPTER_TEST) \
-	$(MAC_LAUNCH_WORK_POLICY_TEST) $(MAC_STATE_YAML_TEST)
+	$(MAC_LAUNCH_WORK_POLICY_TEST) $(MAC_STATE_YAML_TEST) $(MAC_DOCUMENT_ACTIVITY_TEST)
 # The GTK test binaries are appended further down, once their sources are
 # globbed; the test-binaries rule itself lives at the end of this file so its
 # prerequisite list is expanded after that.

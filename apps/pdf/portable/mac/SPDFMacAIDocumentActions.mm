@@ -51,6 +51,39 @@ static NSDictionary* ActionError(NSString* message) { return @{@"error":message}
     return @{@"closed":@YES,@"path":path,@"documentReceipt":@{@"kind":@"close",@"tab":tab,@"index":@(index),
         @"before":snapshot,@"after":[self aiDocumentActionFingerprint]}};
 }
+- (NSDictionary*)aiCloseDocuments:(NSArray<NSString*>*)paths progress:(NSProgress*)progress {
+    if (!paths.count || progress.cancelled) return ActionError(@"Nothing to close, or closing was cancelled.");
+    NSMutableArray* records=[NSMutableArray array],*kept=[NSMutableArray array];
+    for (NSString* path in [NSOrderedSet orderedSetWithArray:paths]) {
+        NSInteger index=[self indexOfTabForPath:path];
+        if (index<0 || index>=(NSInteger)_tabs.count) continue;
+        if (_tabs[(NSUInteger)index].unsavedPastedImage) { [kept addObject:path]; continue; }
+        [records addObject:@{@"tab":_tabs[(NSUInteger)index],@"index":@(index)}];
+    }
+    if (!records.count) return ActionError(kept.count ? @"Save these pasted images before asking the assistant to close them." :
+        @"None of these documents is open.");
+    [records sortUsingComparator:^NSComparisonResult(NSDictionary* a, NSDictionary* b) { return [a[@"index"] compare:b[@"index"]]; }];
+    NSDictionary* snapshot=[self aiCaptureWorkspace];
+    SPDFDocumentTab* selected=[self selectedTab];
+    // Background tabs first, from the end, then the one in front: its replacement is chosen among the tabs that stay,
+    // so no tab that is about to close gets loaded. One session write for the lot.
+    NSMutableArray* order=[NSMutableArray array];
+    for (NSDictionary* record in records.reverseObjectEnumerator) if (record[@"tab"]!=selected) [order addObject:record[@"tab"]];
+    for (NSDictionary* record in records) if (record[@"tab"]==selected) [order addObject:record[@"tab"]];
+    [self performWithBatchedPersistentStateSaves:^{
+        for (SPDFDocumentTab* tab in order) {
+            NSUInteger index=[self->_tabs indexOfObjectIdenticalTo:tab];
+            if (index!=NSNotFound) [self aiCloseTabKeepingReader:(NSInteger)index];
+        }
+    }];
+    NSMutableArray* closed=[NSMutableArray array];
+    for (NSDictionary* record in records) if (![_tabs containsObject:record[@"tab"]]) [closed addObject:[record[@"tab"] path]];
+    if (closed.count!=records.count) return ActionError(@"Some documents could not be closed.");
+    NSMutableDictionary* result=[@{@"closed":@(closed.count),@"paths":closed,@"documentReceipt":@{@"kind":@"close-many",
+        @"records":records,@"before":snapshot,@"after":[self aiDocumentActionFingerprint]}} mutableCopy];
+    if (kept.count) result[@"keptOpen"]=@{@"reason":@"unsaved pasted image",@"paths":kept};
+    return result;
+}
 - (NSDictionary*)aiOpenCollectionDocumentAtPath:(NSString*)path archived:(BOOL)archived progress:(NSProgress*)progress {
     if (progress.cancelled) return ActionError(@"Cancelled.");
     NSDictionary* before=[self aiCaptureWorkspace]; BOOL existed=[self indexOfTabForPath:path]>=0;
@@ -137,7 +170,15 @@ static NSDictionary* ActionError(NSString* message) { return @{@"error":message}
     }
     if (![receipt[@"after"] isEqual:[self aiDocumentActionFingerprint]]) return NO;
     NSDictionary* before=receipt[@"before"];
-    if ([kind isEqual:@"close"]) {
+    if ([kind isEqual:@"close-many"]) {
+        NSArray* records=receipt[@"records"];
+        for (NSDictionary* record in records) if ([self indexOfTabForPath:[record[@"tab"] path]]>=0) return NO;
+        SPDFDocumentTab* current=[self selectedTab];
+        // In ascending order each tab lands where it was, the earlier ones already back before it.
+        for (NSDictionary* record in records)
+            [_tabs insertObject:record[@"tab"] atIndex:MIN([record[@"index"] unsignedIntegerValue],_tabs.count)];
+        _selectedTabIndex=current ? (NSInteger)[_tabs indexOfObjectIdenticalTo:current] : -1;
+    } else if ([kind isEqual:@"close"]) {
         SPDFDocumentTab* tab=receipt[@"tab"];
         if ([self indexOfTabForPath:tab.path]>=0) return NO;
         SPDFDocumentTab* current=[self selectedTab];
@@ -152,3 +193,18 @@ static NSDictionary* ActionError(NSString* message) { return @{@"error":message}
     return [self aiRestoreWorkspace:before expected:[self aiWorkspaceFingerprint]];
 }
 @end
+
+NSDictionary* SPDFAIMapDocumentIDs(NSMutableDictionary* arguments, NSDictionary<NSString*, NSString*>* known) {
+    NSArray* identifiers=arguments[@"paths"];
+    if (![identifiers isKindOfClass:NSArray.class] || !identifiers.count || identifiers.count>200)
+        return ActionError(@"paths must list 1 to 200 document IDs from list_workspace.");
+    NSMutableArray* paths=[NSMutableArray array],*unknown=[NSMutableArray array];
+    for (id identifier in identifiers) {
+        NSString* path=[identifier isKindOfClass:NSString.class] ? known[identifier] : nil;
+        if (path) [paths addObject:path]; else [unknown addObject:[identifier isKindOfClass:NSString.class] ? identifier : @"?"];
+    }
+    if (unknown.count) return @{@"error":@"Some IDs are not open documents: list_workspace again and leave them out.",
+        @"notOpen":unknown};
+    arguments[@"paths"]=paths;
+    return nil;
+}

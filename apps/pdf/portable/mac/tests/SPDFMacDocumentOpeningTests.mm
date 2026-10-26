@@ -23,6 +23,7 @@ void spdf_launch_profile_log(NSString* format, ...) { (void)format; }
 @property(nonatomic) NSMutableArray<NSArray*>* handOffs;
 @property(nonatomic) NSMutableArray<NSDictionary*>* requests, *confirmations;
 @property(nonatomic) NSMutableArray<NSArray*>* navigations;
+@property(nonatomic) NSArray<NSString*>* opened; // what activityDidOpenPaths: heard (last opened)
 - (void)seed:(NSArray*)tabs selected:(NSInteger)index;
 - (NSArray<SPDFDocumentTab*>*)tabs;
 - (NSInteger)selectedIndex;
@@ -44,6 +45,8 @@ void spdf_launch_profile_log(NSString* format, ...) { (void)format; }
 }
 - (void)rememberActiveTabState {}
 - (void)collectionWillOpenPaths:(NSArray*)paths { (void)paths; }
+- (void)activityDidOpenPaths:(NSArray*)paths { self.opened = [(self.opened ?: @[]) arrayByAddingObjectsFromArray:paths]; }
+- (void)activityStartTracking {}
 - (void)captureSecurityBookmarkForPath:(NSString*)path { (void)path; }
 - (NSInteger)indexOfTabForPath:(NSString*)path {
     for (NSUInteger i = 0; i < _tabs.count; ++i)
@@ -139,6 +142,8 @@ static void CheckReopenShowsTheRightGroup(void) {
            reader.selectedIndex == 0 && reader.focusCount > 0 && reader.activations == 1);
     Expect(@"the strip redraws to show the document's group", reader.stripRefreshes > strip);
     Expect(@"reopening never adds a duplicate tab", reader.tabs.count == 4);
+    Expect(@"reopening a document whose tab is open still counts as opening it (last opened)",
+           [reader.opened isEqual:@[@"/docs/a.pdf"]]);
 
     reader = BrowsingProbe(&research, &drawings, &archive);
     [reader application:NSApp openFile:@"/docs/d.pdf"];
@@ -268,6 +273,18 @@ static void CheckSourceContracts(void) {
            [coordinator containsString:@"[self showUnifiedSettingsAfterFirstPaint];\n"
                                         "                       [self listenForDocumentsOpenedInOtherWindows];"]);
     Expect(@"each window records the process that shows it", [coordinator containsString:@"@\"pid\" : @(getpid())"]);
+    NSRange load = [coordinator rangeOfString:@"- (void)loadSelectedTab {"];
+    NSString* loading = load.location == NSNotFound ? @"" :
+        [coordinator substringWithRange:NSMakeRange(load.location, MIN((NSUInteger)1200, coordinator.length - load.location))];
+    Expect(@"every tab load reports to the activity tracker (last opened, the tab in front)",
+           [loading containsString:@"[self activityTabDidLoad:tab];"]);
+    Expect(@"a closing tab tells the tracker the tab in front may change",
+           [coordinator containsString:@"[_closedDocumentPaths addObject:[path copy]]; [self activityDocumentWillClose];"]);
+    NSString* opening = read(@"../SPDFMacDocumentOpening.mm");
+    NSRange listen = [opening rangeOfString:@"- (void)listenForDocumentsOpenedInOtherWindows {\n"];
+    Expect(@"view tracking starts with the other-window listener, after the first paint",
+           listen.location != NSNotFound && [[opening substringFromIndex:NSMaxRange(listen)]
+               hasPrefix:@"    [self activityStartTracking];"]);
     NSString* browsing = read(@"../SPDFMacFileBrowsing.mm");
     Expect(@"Open... and Open Path bring the document's tab forward",
            [browsing componentsSeparatedByString:@"[self showDocumentsAtPaths:"].count == 3);

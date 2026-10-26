@@ -104,6 +104,8 @@ NSArray<ShenzhenMacDelegate*>* SPDFMacAllWindowControllers(void) { return gContr
 }
 - (void)rememberActiveTabState {}
 - (void)collectionWillOpenPaths:(NSArray*)paths { (void)paths; }
+- (void)activityDidOpenPaths:(NSArray*)paths { (void)paths; }
+- (void)activityStartTracking {}
 - (void)captureSecurityBookmarkForPath:(NSString*)path { (void)path; }
 - (NSInteger)indexOfTabForPath:(NSString*)path {
     for (NSUInteger i = 0; i < _tabs.count; ++i)

@@ -1817,7 +1817,7 @@ id spdf_state_object_from_yaml_data(NSData* data) {
 
 - (void)rememberClosedDocumentPath:(NSString*)path {
     if (path.length == 0) return;
-    [_closedDocumentPaths addObject:[path copy]];
+    [_closedDocumentPaths addObject:[path copy]]; [self activityDocumentWillClose]; // the tab in front may change
     while (_closedDocumentPaths.count > kRecentDocumentLimit) [_closedDocumentPaths removeObjectAtIndex:0];
 }
 
@@ -8209,8 +8209,8 @@ static BOOL spdf_page_list_cache_disabled(void) {
     [self dismissPendingPasswordPrompt];
     [self cancelDocumentTransientInteraction];
     [self clearToolbarFieldFocusForTabSwitch];
-    [self.tabLifecycle recordActivationOfIdentifier:tab];
-    [_launchWorkCoordinator recordActivationOfIdentifier:tab];
+    [self.tabLifecycle recordActivationOfIdentifier:tab]; [_launchWorkCoordinator recordActivationOfIdentifier:tab];
+    [self activityTabDidLoad:tab]; // last opened, and the tab in front (SPDFMacDocumentActivityIntegration.h)
     NSInteger savedFindMatchIndex = tab.findMatchIndex;
     [_renderQueue cancelAllOperations];
     [self cancelCacheRenderOperations];

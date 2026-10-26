@@ -1,10 +1,11 @@
 #import "SPDFMacAICollectionTools.h"
 #import "SPDFMacCollectionStore.h"
 #import "SPDFMacCollectionAvailability.h"
+#import "SPDFMacDocumentActivity.h"
 static NSDictionary* Failure(NSString* message) { return @{@"error":message}; }
 NSDictionary* SPDFAICollectionDocuments(NSString* query, NSUInteger first, NSProgress* progress) {
     if (progress.cancelled) return Failure(@"Cancelled.");
-    NSArray* documents=[SPDFMacCollectionStore.defaultStore documents]; NSMutableArray* filtered=[NSMutableArray array];
+    NSArray* documents=[SPDFMacCollectionStore.defaultStore documents]; NSMutableArray* filtered=[NSMutableArray array],*sources=[NSMutableArray array];
     for (NSDictionary* doc in documents) {
         if (progress.cancelled) return Failure(@"Cancelled.");
         NSString* title=doc[@"title"] ?: [doc[@"path"] lastPathComponent] ?: @"Document";
@@ -13,11 +14,29 @@ NSDictionary* SPDFAICollectionDocuments(NSString* query, NSUInteger first, NSPro
         if (!SPDFCollectionOriginalAvailable(doc) && ![doc[@"versions"] count]) continue;
         [filtered addObject:@{@"documentID":[@"collection:" stringByAppendingString:doc[@"id"]],@"title":title,
             @"versionCount":@([doc[@"versions"] count]),@"originalAvailable":@(SPDFCollectionOriginalAvailable(doc))}];
+        [sources addObject:doc];
     }
     NSUInteger start=first ? first-1 : 0;
     if (start>filtered.count) return Failure(@"Collection result offset is outside the list.");
     NSUInteger count=MIN((NSUInteger)50,filtered.count-start);
-    return @{@"documents":[filtered subarrayWithRange:NSMakeRange(start,count)],@"total":@(filtered.count),
+    // A document's original, the names it had and its History copies are one document: the latest of each date.
+    NSMutableArray* page=[NSMutableArray array],*paths=[NSMutableArray array],*groups=[NSMutableArray array];
+    for (NSDictionary* doc in [sources subarrayWithRange:NSMakeRange(start,count)]) {
+        NSMutableArray* own=[NSMutableArray array];
+        for (id path in [@[doc[@"path"] ?: @""] arrayByAddingObjectsFromArray:[doc[@"aliases"] isKindOfClass:NSArray.class] ? doc[@"aliases"] : @[]])
+            if ([path isKindOfClass:NSString.class] && [path length]) [own addObject:[path stringByStandardizingPath]];
+        for (NSString* copy in [SPDFMacCollectionStore.defaultStore editablePathsForDocument:doc]) [own addObject:copy.stringByStandardizingPath];
+        [groups addObject:own]; [paths addObjectsFromArray:own];
+    }
+    NSDictionary* entries=progress.cancelled ? @{} : [SPDFMacDocumentActivityStore.sharedStore entriesForPaths:paths];
+    for (NSUInteger index=0;index<count;index++) {
+        NSMutableArray* found=[NSMutableArray array];
+        for (NSString* path in groups[index]) if (entries[path]) [found addObject:entries[path]];
+        NSMutableDictionary* row=[filtered[start+index] mutableCopy];
+        [row addEntriesFromDictionary:SPDFDocumentActivityFields(SPDFDocumentActivityCombine(found),NSTimeZone.localTimeZone)];
+        [page addObject:row];
+    }
+    return @{@"documents":page,@"total":@(filtered.count),
         @"next":start+count<filtered.count ? @(start+count+1) : NSNull.null};
 }
 NSDictionary* SPDFAICollectionOpenTarget(NSString* identifier, BOOL savedCopy, NSProgress* progress) {

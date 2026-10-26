@@ -1,5 +1,6 @@
 #pragma once
 #import "SPDFMacDelegatePrivate.h"
+#import "SPDFMacDocumentActivityIntegration.h" // opens are recorded as they happen
 
 @interface ShenzhenMacDelegate (SPDFMacDocumentOpening)
 // Documents the reader asked for (Finder, the Dock, Open..., Open Recent, links):
