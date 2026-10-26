@@ -1,4 +1,5 @@
 #import "SPDFMacViewportRenderPriority.h"
+#import "SPDFMacTabHoverPreviewIntegration.h"
 
 @interface ShenzhenMacDelegate (SPDFMacViewportRenderPriorityAccess)
 - (void)enqueuePageRendersForGeneration:(NSUInteger)generation
@@ -110,6 +111,8 @@
                               pageIndexes:viewport
                             preferredPage:preferredPage
                         forceHighPriority:YES];
+    // The page the tab shows now: its hover thumbnail follows once it settles.
+    [self spdf_noteTabHoverPreviewSourcesChanged];
 }
 
 - (void)spdf_forgetQueuedRenderOperation:(NSOperation*)operation page:(NSNumber*)page {

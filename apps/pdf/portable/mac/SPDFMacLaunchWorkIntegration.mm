@@ -3,6 +3,7 @@
 #import "SPDFMacDelegatePrivate.h"
 #import "SPDFMacSupport.h"
 #import "SPDFMacViewportRenderPriority.h"
+#import "SPDFMacTabHoverPreviewIntegration.h"
 
 @interface ShenzhenMacDelegate (SPDFMacLaunchWorkIntegrationPrivate)
 @property(nonatomic, readonly) SPDFMacLaunchWorkCoordinator* launchWorkCoordinator;
@@ -108,6 +109,8 @@
             return;
         }
         [self preloadInactiveTabsWithCompletion:^{
+          // Their pages are in memory now: the tab hover thumbnails follow.
+          [self spdf_noteTabHoverPreviewSourcesChanged];
           [self.launchWorkCoordinator completeCycleForGeneration:generation];
         }];
     }

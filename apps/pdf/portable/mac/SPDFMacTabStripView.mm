@@ -1,6 +1,7 @@
 #import "SPDFMacTabStripViewPrivate.h"
 
 #import "SPDFMacSupport.h"
+#import "SPDFMacTabHoverPreview.h"
 #import "SPDFMacTabStripGeometry.h"
 #import "SPDFMacTabStripStyle.h"
 #import "SPDFMacTabAccessibility.h"
@@ -449,6 +450,9 @@
 }
 
 - (void)mouseEntered:(NSEvent*)event {
+    // The pointer is on its way to a tab: have every tab's thumbnail ready.
+    if ([self.reader respondsToSelector:@selector(tabHoverPreviewsWillBeNeeded)])
+        [(id)self.reader tabHoverPreviewsWillBeNeeded];
     [self updateHoverForEvent:event];
 }
 

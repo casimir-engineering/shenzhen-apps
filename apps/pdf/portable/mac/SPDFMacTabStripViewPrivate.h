@@ -24,6 +24,10 @@ static NSPasteboardType const SPDFTabDragPasteboardType = @"com.intuition.shenzh
     NSPanel* _hoverPanel;
     NSPopover* _groupPicker;
     NSTextField* _hoverLabel;
+    NSVisualEffectView* _hoverBubble;
+    // The page thumbnail under a document tab's title; built on first use.
+    NSVisualEffectView* _hoverCard;
+    NSView* _hoverThumbnail;
     NSInteger _hoverTabIndex;
     // The group whose title tab shows the hover label; nil while a document's
     // label (or none) is shown.
@@ -111,6 +115,9 @@ static NSPasteboardType const SPDFTabDragPasteboardType = @"com.intuition.shenzh
 - (void)showHoverPanelForTabAtIndex:(NSInteger)index;
 - (void)showHoverPanelForGroup:(SPDFTabGroup*)group;
 - (BOOL)showHoverPanelWithTitle:(NSString*)title belowRect:(NSRect)rect;
+- (BOOL)showHoverPanelWithTitle:(NSString*)title belowRect:(NSRect)rect
+                        preview:(id)preview fadeIn:(BOOL)fadeIn;
+- (void)hoverPreviewReady:(id)preview forTab:(SPDFDocumentTab*)tab;
 - (void)updateHoverForEvent:(NSEvent*)event;
 - (void)setTabs:(NSArray<SPDFDocumentTab*>*)tabs;
 - (void)setSelectedIndex:(NSInteger)selectedIndex;
