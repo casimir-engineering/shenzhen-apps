@@ -1,7 +1,9 @@
 // szut.m: inserted (DYLD_INSERT_LIBRARIES) into ad hoc copies of released ShenzhenPDF / Shenzhen Files builds under
 // $SZUT_ROOT, so their own updater code runs end to end against a local copy of GitHub, hidden, and touching nothing
 // outside $SZUT_ROOT:
-//   - every http(s) request is answered from $SZUT_ROUTES (a JSON map "METHOD URL" -> {status, headers, file,
+//   - a request whose address starts with a prefix in $SZUT_FORWARD ("<prefix>=<local base>", several separated by
+//     spaces) goes to that base instead, on this Mac only (a stub server a test runs: the assistant's model stub);
+//   - every other http(s) request is answered from $SZUT_ROUTES (a JSON map "METHOD URL" -> {status, headers, file,
 //     location}); anything else fails as offline, so the app reaches no real server;
 //   - no window is ordered on screen, the app never activates, no Dock icon (TransformProcessType refused);
 //     NSApp.isActive reads YES so the silent daily path shows its prompt at once instead of waiting;
@@ -44,6 +46,18 @@ static void SZLog(NSDictionary *event) {
     fclose(f);
 }
 
+static NSDictionary<NSString *, NSString *> *gForward;
+
+// The local address a forwarded request goes to, or nil. Only loopback bases are accepted, so a forward can never
+// send anything off the Mac.
+static NSURL *ForwardedURL(NSURL *url) {
+    NSString *address = url.absoluteString;
+    for (NSString *prefix in gForward)
+        if ([address hasPrefix:prefix])
+            return [NSURL URLWithString:[gForward[prefix] stringByAppendingString:[address substringFromIndex:prefix.length]]];
+    return nil;
+}
+
 static BOOL UnderRoot(NSString *path) {
     if (!path.length) return NO;
     NSString *p = path.stringByStandardizingPath;
@@ -64,8 +78,43 @@ static BOOL UnderRoot(NSString *path) {
     return [scheme isEqual:@"https"] || [scheme isEqual:@"http"];
 }
 + (NSURLRequest *)canonicalRequestForRequest:(NSURLRequest *)request { return request; }
+static IMP origDefaultConfig, origEphemeralConfig;
+- (void)forwardTo:(NSURL *)target {
+    NSMutableURLRequest *req = [self.request mutableCopy];
+    req.URL = target;
+    if (!req.HTTPBody && self.request.HTTPBodyStream) {
+        NSInputStream *stream = self.request.HTTPBodyStream;
+        NSMutableData *body = [NSMutableData data];
+        uint8_t buffer[65536];
+        [stream open];
+        for (NSInteger n; (n = [stream read:buffer maxLength:sizeof buffer]) > 0;) [body appendBytes:buffer length:(NSUInteger)n];
+        [stream close];
+        req.HTTPBody = body;
+    }
+    SZLog(@{@"event" : @"forward", @"url" : self.request.URL.absoluteString, @"to" : target.absoluteString});
+    // A plain session, without this protocol: the original ephemeral configuration, before Install replaced it.
+    NSURLSessionConfiguration *config = ((id (*)(id, SEL))origEphemeralConfig)(NSURLSessionConfiguration.class,
+                                                                             @selector(ephemeralSessionConfiguration));
+    config.protocolClasses = @[];
+    NSURLSession *session = [NSURLSession sessionWithConfiguration:config];
+    __weak SZUTURLProtocol *weakSelf = self;
+    [[session dataTaskWithRequest:req completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
+        SZUTURLProtocol *owner = weakSelf;
+        if (!owner || owner->_stopped) return;
+        if (error || !response) { [owner.client URLProtocol:owner didFailWithError:error]; return; }
+        NSHTTPURLResponse *http = (NSHTTPURLResponse *)response;
+        NSHTTPURLResponse *answer = [[NSHTTPURLResponse alloc] initWithURL:owner.request.URL statusCode:http.statusCode
+                                                               HTTPVersion:@"HTTP/1.1" headerFields:http.allHeaderFields];
+        [owner.client URLProtocol:owner didReceiveResponse:answer cacheStoragePolicy:NSURLCacheStorageNotAllowed];
+        if (data.length) [owner.client URLProtocol:owner didLoadData:data];
+        [owner.client URLProtocolDidFinishLoading:owner];
+    }] resume];
+    [session finishTasksAndInvalidate];
+}
 - (void)startLoading {
     NSURLRequest *req = self.request;
+    NSURL *forward = ForwardedURL(req.URL);
+    if (forward) { [self forwardTo:forward]; return; }
     NSString *key = [NSString stringWithFormat:@"%@ %@", req.HTTPMethod ?: @"GET", req.URL.absoluteString];
     NSDictionary *route = gRoutes[key];
     NSMutableDictionary *headers = [req.allHTTPHeaderFields mutableCopy] ?: [NSMutableDictionary dictionary];
@@ -110,7 +159,6 @@ static BOOL UnderRoot(NSString *path) {
 - (void)stopLoading { _stopped = YES; }
 @end
 
-static IMP origDefaultConfig, origEphemeralConfig;
 static NSURLSessionConfiguration *WithProtocol(NSURLSessionConfiguration *config) {
     NSMutableArray *classes = [NSMutableArray arrayWithObject:SZUTURLProtocol.class];
     for (Class c in config.protocolClasses ?: @[]) if (c != SZUTURLProtocol.class) [classes addObject:c];
@@ -396,6 +444,13 @@ __attribute__((constructor)) static void SZUTInit(void) {
                     [path.stringByResolvingSymlinksInPath hasPrefix:gRealRoot];
         if (!ours) return; // hdiutil, ditto, xattr and the rest run untouched
         gActive = YES;
+        NSMutableDictionary *forward = [NSMutableDictionary dictionary];
+        for (NSString *pair in [@(getenv("SZUT_FORWARD") ?: "") componentsSeparatedByString:@" "]) {
+            NSRange equal = [pair rangeOfString:@"="];
+            NSString *base = equal.location == NSNotFound ? nil : [pair substringFromIndex:NSMaxRange(equal)];
+            if ([base hasPrefix:@"http://127.0.0.1:"]) forward[[pair substringToIndex:equal.location]] = base;
+        }
+        gForward = forward;
         const char *routes = getenv("SZUT_ROUTES");
         if (routes) {
             gRoutesDir = [@(routes) stringByDeletingLastPathComponent];
