@@ -21,7 +21,12 @@ import {
   layoutMeasurementLabels,
 } from "./measurement-overlay";
 import { createInstancedEdges } from "./gpu-edges";
-import { clippingRange } from "./view-clipping";
+import {
+  clippingRange,
+  isDecal,
+  nearFloor,
+  VisibleDepth,
+} from "./view-clipping";
 import {
   PartHighlight,
   SelectionMarker,
@@ -172,6 +177,12 @@ export class Viewer {
   private hoveredPartId?: string;
   private normalFaceKey?: string;
   private clipCenter = new T.Vector3();
+  private clipForward = new T.Vector3();
+  private clipOrigin = new T.Vector3();
+  private clipBox = new T.Box3();
+  private clipMatrix = new T.Matrix4();
+  private clipFrustum = new T.Frustum();
+  private visibleDepth = new VisibleDepth();
   private partHighlight = new PartHighlight();
   private selectedPartIds: string[] = [];
   private selectionBounds = new T.Box3();
@@ -472,17 +483,43 @@ export class Viewer {
     const center = this.clipCenter
       .copy(this.center)
       .applyMatrix4(camera.matrixWorldInverse);
+    const orthographic = camera instanceof T.OrthographicCamera;
     const { near, far } = clippingRange({
-      orthographic: camera instanceof T.OrthographicCamera,
+      orthographic,
       viewDistance: camera.position.distanceTo(this.controls.target),
       centerDistance: center.length(),
       centerDepth: -center.z,
       radius: this.radius,
+      visible: this.model ? this.visibleDepthRange(orthographic) : undefined,
     });
     if (camera.near === near && camera.far === far) return;
     camera.near = near;
     camera.far = far;
     camera.updateProjectionMatrix();
+  }
+  /** Depth of what is drawn in the current view: parts, grid and measurement overlays. */
+  private visibleDepthRange(orthographic: boolean) {
+    const camera = this.camera,
+      depth = this.visibleDepth;
+    // Side planes do not depend on near/far, so the current projection serves.
+    this.clipFrustum.setFromProjectionMatrix(
+      this.clipMatrix.multiplyMatrices(
+        camera.projectionMatrix,
+        camera.matrixWorldInverse,
+      ),
+      T.WebGLCoordinateSystem,
+    );
+    depth.reset(
+      this.clipFrustum.planes,
+      camera.getWorldDirection(this.clipForward),
+      this.clipOrigin.setFromMatrixPosition(camera.matrixWorld),
+      !orthographic,
+    );
+    this.pickingIndex.addVisibleDepth(depth, !orthographic);
+    for (const object of [this.grid, this.overlay])
+      if (object.visible && (object === this.grid || object.children.length))
+        depth.addBox(this.clipBox.setFromObject(object));
+    return depth;
   }
   private renderScene(overlaysOnly: boolean) {
     this.syncClipping();
@@ -699,6 +736,9 @@ export class Viewer {
     const pixelHeight = this.renderer.domElement.height;
     this.camera.updateMatrixWorld();
     const viewCenter = new T.Vector3();
+    const nearest = nearFloor(
+      this.camera.position.distanceTo(this.controls.target),
+    );
     for (const [original, rendered] of this.renderBatches?.renderedInstances ??
       []) {
       const lod = this.navigationLods.get(rendered);
@@ -707,14 +747,16 @@ export class Viewer {
       if (navigating) {
         const sphere = original.boundingSphere;
         const scale = original.userData.maxInstanceScale ?? 1;
+        // Not camera.near: that follows the nearest geometry in view, and a
+        // batch's bounds may reach nearer, outside the view.
         const nearDistance = sphere
           ? Math.max(
-              this.camera.near,
+              nearest,
               -viewCenter
                 .copy(sphere.center)
                 .applyMatrix4(this.camera.matrixWorldInverse).z - sphere.radius,
             )
-          : this.camera.near;
+          : nearest;
         const worldPerPixel =
           this.camera instanceof T.PerspectiveCamera
             ? (2 *
@@ -824,8 +866,15 @@ export class Viewer {
           /* malformed imported geometry remains selectable by standard raycaster */
         }
       }
+      // Thin parts lying on another part's face; see isDecal.
+      const decal = !data.lines && isDecal(geo.boundingBox!);
       const materials = data.materials.map((m) => {
         const cloned = m.clone();
+        if (decal && !cloned.polygonOffset) {
+          cloned.polygonOffset = true;
+          cloned.polygonOffsetFactor = -1;
+          cloned.polygonOffsetUnits = -1;
+        }
         cloned.userData.sourceOpacity = m.opacity;
         cloned.userData.sourceTransparent = m.transparent;
         cloned.userData.sourceDepthWrite = m.depthWrite;

@@ -1,6 +1,8 @@
 import { describe, it, expect, vi } from "vitest";
 import * as T from "three";
 import { Viewer } from "../src/core/viewer";
+import { ScenePickingIndex } from "../src/core/scene-picking";
+import { VisibleDepth } from "../src/core/view-clipping";
 import type { GeometryData, Pick } from "../src/core/types";
 function fixture(matrix = new T.Matrix4().makeTranslation(10, 20, 30)) {
   const positions = new Float32Array([
@@ -45,6 +47,15 @@ function fixture(matrix = new T.Matrix4().makeTranslation(10, 20, 30)) {
     glide: { cancel: vi.fn() },
     center: new T.Vector3(),
     clipCenter: new T.Vector3(),
+    clipForward: new T.Vector3(),
+    clipOrigin: new T.Vector3(),
+    clipBox: new T.Box3(),
+    clipMatrix: new T.Matrix4(),
+    clipFrustum: new T.Frustum(),
+    visibleDepth: new VisibleDepth(),
+    pickingIndex: new ScenePickingIndex(),
+    grid: new T.Group(),
+    overlay: new T.Group(),
     radius: 100,
   });
   const pick: Pick = {

@@ -11,6 +11,7 @@ import {
   Vector3,
 } from 'three';
 import type { Intersection } from 'three';
+import type { VisibleDepth } from './view-clipping';
 
 type Pickable = InstancedMesh | Line;
 
@@ -166,6 +167,41 @@ export class ScenePickingIndex {
       }
     }
     return hits.sort((a, b) => a.distance - b.distance);
+  }
+
+  /**
+   * Widen `depth` by the occurrences in view (their world bounds clipped to the
+   * view's sides). `nearestOnly` finds just the nearest depth, skipping
+   * everything that cannot be nearer: a perspective view needs no more.
+   */
+  addVisibleDepth(depth: VisibleDepth, nearestOnly: boolean): void {
+    if (!this.nodes.length) return;
+    const stack = this.stack;
+    stack.length = 0;
+    stack.push(0);
+    while (stack.length) {
+      const node = this.nodes[stack.pop()!];
+      if (nearestOnly && depth.lowerBound(node.bounds) >= depth.min) continue;
+      const where = depth.classify(node.bounds);
+      if (where < 0) continue;
+      if (where > 0 && !nearestOnly) {
+        depth.addBounds(node.bounds);
+        continue;
+      }
+      if (node.left === -1) {
+        for (let i = node.start; i < node.end; i++) {
+          const occurrence = this.occurrences[i];
+          if (nearestOnly && depth.lowerBound(occurrence.bounds) >= depth.min) continue;
+          if (isVisible(occurrence.object)) depth.addBox(occurrence.bounds);
+        }
+        continue;
+      }
+      // Nearer child last, so it is searched first and prunes the other.
+      const left = this.nodes[node.left], right = this.nodes[node.right];
+      if (depth.lowerBound(left.bounds) <= depth.lowerBound(right.bounds)) stack.push(node.right, node.left);
+      else stack.push(node.left, node.right);
+    }
+    stack.length = 0;
   }
 
   private addOccurrence(object: Pickable, bounds: Box3, matrix: Matrix4, linePadding: number, instanceId?: number): void {
