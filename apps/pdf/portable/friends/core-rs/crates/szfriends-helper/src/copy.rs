@@ -49,11 +49,51 @@ impl EmbeddedHelper {
     }
 }
 
+/// Why the per-user copy cannot be run: it was made, or found, and then its executable was gone. Antivirus software
+/// does this when it quarantines a file (Microsoft Defender removes it and leaves the directory), so the copy is made
+/// again once per process; when it is gone again the error carries this, which [`is_blocked`] recognises.
+#[derive(Debug)]
+pub struct CopyRemoved(pub PathBuf);
+
+impl std::fmt::Display for CopyRemoved {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{} was removed after it was made, as security software removes a file it blocks", self.0.display())
+    }
+}
+
+impl std::error::Error for CopyRemoved {}
+
+/// Whether `error` says security software stopped the helper: Windows refused the file as infected or potentially
+/// unwanted (`ERROR_VIRUS_INFECTED`, `ERROR_VIRUS_DELETED`), or the copy was removed again after it was made.
+pub fn is_blocked(error: &io::Error) -> bool {
+    const ERROR_VIRUS_INFECTED: i32 = 225;
+    const ERROR_VIRUS_DELETED: i32 = 226;
+    matches!(error.raw_os_error(), Some(ERROR_VIRUS_INFECTED | ERROR_VIRUS_DELETED))
+        || error.get_ref().is_some_and(|inner| inner.is::<CopyRemoved>())
+}
+
+/// Copy directories whose missing executable this process already wrote again: once each, so security software that
+/// removes the file every time is not handed a new one every few seconds.
+fn rewritten() -> &'static std::sync::Mutex<std::collections::HashSet<PathBuf>> {
+    static REWRITTEN: std::sync::OnceLock<std::sync::Mutex<std::collections::HashSet<PathBuf>>> =
+        std::sync::OnceLock::new();
+    REWRITTEN.get_or_init(Default::default)
+}
+
 /// The copy of `embedded` in the state directory, made if missing. An existing copy whose digest differs is refused,
-/// never rewritten: a running helper's file is never touched.
+/// never rewritten: a running helper's file is never touched. A copy directory whose executable is gone (quarantined
+/// by antivirus software, or deleted by hand) runs nothing, so its executable is written again, once per process.
 pub fn ensure_copy(state: &StateDir, embedded: &EmbeddedHelper) -> io::Result<PathBuf> {
     let directory = embedded.copy_dir(state)?;
     let executable = directory.join(helper_executable(Platform::current()));
+    if directory.is_dir() && !executable.exists() {
+        let first = rewritten().lock().unwrap_or_else(|e| e.into_inner()).insert(directory.clone());
+        if !first {
+            return Err(io::Error::new(ErrorKind::NotFound, CopyRemoved(executable)));
+        }
+        log!("{} is missing; writing it again", executable.display());
+        rewrite_executable(&embedded.path, &executable)?;
+    }
     if !directory.exists() {
         let parent = directory.parent().ok_or_else(|| io::Error::from(ErrorKind::InvalidInput))?;
         crate::state::create_private_dir(&state.path)?;
@@ -74,10 +114,31 @@ pub fn ensure_copy(state: &StateDir, embedded: &EmbeddedHelper) -> io::Result<Pa
             let _ = handle.sync_all();
         }
     }
-    if sha256_of(&executable)? != embedded.digest {
+    let digest = match sha256_of(&executable) {
+        Ok(digest) => digest,
+        // Made a moment ago and gone already: removed by something else, not by us.
+        Err(error) if error.kind() == ErrorKind::NotFound => {
+            return Err(io::Error::new(ErrorKind::NotFound, CopyRemoved(executable)))
+        }
+        Err(error) => return Err(error),
+    };
+    if digest != embedded.digest {
         return Err(io::Error::new(ErrorKind::InvalidData, format!("{} is not this helper", executable.display())));
     }
     Ok(executable)
+}
+
+/// Writes the executable of an existing copy directory again: under a temporary name beside it, synced, then renamed
+/// into place, so a helper started meanwhile never runs half a file.
+fn rewrite_executable(source: &Path, executable: &Path) -> io::Result<()> {
+    let directory = executable.parent().ok_or_else(|| io::Error::from(ErrorKind::InvalidInput))?;
+    let mut random = [0u8; 8];
+    szfriends_crypto::random_bytes(&mut random);
+    let incoming = directory.join(format!(".incoming-{}", hex(&random)));
+    let written = write_copy(source, &incoming, helper_executable(Platform::current()))
+        .and_then(|()| fs::rename(incoming.join(helper_executable(Platform::current())), executable));
+    let _ = fs::remove_dir_all(&incoming);
+    written
 }
 
 fn write_copy(source: &Path, directory: &Path, file_name: &str) -> io::Result<()> {
@@ -169,4 +230,64 @@ pub fn executable_carries_build(executable: &Path, build: u64) -> bool {
         let name = entry.file_name();
         name.to_str().is_some_and(|n| n.starts_with("szfriends-helper")) && carries(&entry.path())
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A state directory of the test's own, removed afterwards.
+    struct Home(PathBuf);
+
+    impl Home {
+        fn new(name: &str) -> Self {
+            let mut random = [0u8; 8];
+            szfriends_crypto::random_bytes(&mut random);
+            Self(std::env::temp_dir().join(format!("szf-copy-{name}-{}", hex(&random))))
+        }
+    }
+
+    impl Drop for Home {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.0);
+        }
+    }
+
+    /// This test binary carries the build stamp, so it stands in for the helper an app embeds.
+    fn embedded() -> EmbeddedHelper {
+        EmbeddedHelper::inspect(&std::env::current_exe().unwrap()).expect("the test binary carries a stamp")
+    }
+
+    #[test]
+    fn a_copy_whose_executable_was_removed_is_made_again_once() {
+        let home = Home::new("removed");
+        let state = StateDir::new(home.0.clone());
+        let embedded = embedded();
+        let executable = ensure_copy(&state, &embedded).expect("the first copy");
+        assert_eq!(sha256_of(&executable).unwrap(), embedded.digest);
+
+        // What a quarantine leaves: the directory, without the file.
+        fs::remove_file(&executable).unwrap();
+        let again = ensure_copy(&state, &embedded).expect("the copy is made again");
+        assert_eq!(again, executable);
+        assert_eq!(sha256_of(&again).unwrap(), embedded.digest, "the whole helper, as embedded");
+        let leftovers: Vec<_> =
+            fs::read_dir(executable.parent().unwrap()).unwrap().map(|e| e.unwrap().file_name()).collect();
+        assert_eq!(leftovers.len(), 1, "nothing but the executable is left: {leftovers:?}");
+
+        // Removed again in the same run: not written a third time, and the error says it was blocked.
+        fs::remove_file(&executable).unwrap();
+        let error = ensure_copy(&state, &embedded).expect_err("not made a third time");
+        assert!(is_blocked(&error), "{error}");
+        assert!(!executable.exists());
+    }
+
+    #[test]
+    fn only_security_refusals_count_as_blocked() {
+        assert!(is_blocked(&io::Error::from_raw_os_error(225)));
+        assert!(is_blocked(&io::Error::from_raw_os_error(226)));
+        assert!(!is_blocked(&io::Error::from(ErrorKind::NotFound)));
+        assert!(!is_blocked(&io::Error::from(ErrorKind::PermissionDenied)));
+        assert!(is_blocked(&io::Error::new(ErrorKind::NotFound, CopyRemoved(PathBuf::from("x")))));
+    }
 }

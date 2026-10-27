@@ -533,6 +533,11 @@ class ThreeDRelease(Release):
             if len(found) != 1 or f"{v}" not in os.path.basename(found[0]):
                 raise Failure(f"the VM builds left {found or 'no file'} for {pattern} in {keep}")
             shutil.copyfile(found[0], os.path.join(out, name))
+        # What Friends needs from the Windows installers (scripts/friends/windows-installer-check.mjs): the helper
+        # beside the app in both, for x64, with this tree's build stamp and no Visual C++ runtime DLL to find.
+        run(["node", "scripts/friends/windows-installer-check.mjs",
+             "--setup", os.path.join(out, f"Shenzhen-3D-{v}-Windows-x64-Setup.exe"),
+             "--msi", os.path.join(out, f"Shenzhen-3D-{v}-Windows-x64.msi")], cwd=app_dir, log=log)
         # The updater key signs the installers the Windows and Linux apps install in place; latest.json and
         # manifest.plist announce them. The key stays where it is: release-updates.mjs reads it, nothing prints it.
         updates = os.path.join(app_dir, "scripts/updates/release-updates.mjs")

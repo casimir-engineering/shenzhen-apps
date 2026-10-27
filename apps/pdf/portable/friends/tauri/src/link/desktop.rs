@@ -6,11 +6,11 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use szfriends_helper::client::{connect, connect_or_spawn, ClientConnection, ConnectError};
-use szfriends_helper::copy::EmbeddedHelper;
+use szfriends_helper::copy::{is_blocked, EmbeddedHelper};
 use szfriends_helper::stamp::Stamp;
 use szfriends_helper::state::StateDir;
 
-use super::{Connector, NotConnected};
+use super::{Connector, NotConnected, Trouble};
 
 /// How long one connection attempt spawns and waits for a helper before the link backs off and tries again.
 const PATIENCE: Duration = Duration::from_secs(10);
@@ -49,8 +49,13 @@ impl Connector for HelperConnector {
             None => connect(&self.state),
         };
         connected.map_err(|error| match error {
-            ConnectError::NoHelper => NotConnected("no helper is running".into()),
-            other => NotConnected(other.to_string()),
+            ConnectError::NoHelper => NotConnected::because("no helper is running"),
+            ConnectError::Io(error) if is_blocked(&error) => NotConnected(error.to_string(), Trouble::Blocked),
+            // This app's integrity is above the running helper's: it runs as administrator, the helper does not.
+            ConnectError::Refused(code @ "peer_lower_integrity") => {
+                NotConnected(format!("refused: {code}"), Trouble::Elevated)
+            }
+            other => NotConnected::because(other.to_string()),
         })
     }
 

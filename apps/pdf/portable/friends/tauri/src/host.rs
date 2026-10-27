@@ -126,7 +126,7 @@ impl<R: Runtime> Host<R> {
             "enabled": state.enabled != Some(false),
             "attached": state.link.is_some(),
             "state": link_state.name(),
-            "text": state_text(link_state, &self.config.app_name),
+            "text": state_text(link_state, &self.config.app_name, state.link.as_ref().map(Link::trouble).unwrap_or_default()),
             "strings": welcome.map_or(Value::Null, |w| w["strings"].clone()),
             "capabilities": welcome.map_or(json!([]), |w| w.get("capabilities").cloned().unwrap_or(json!([]))),
             "limits": welcome.map_or(Value::Null, |w| w.get("limits").cloned().unwrap_or(Value::Null)),

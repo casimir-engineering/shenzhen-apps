@@ -121,6 +121,104 @@ fn turning_friends_off_tells_the_service() {
         matches!(lifecycle.recv_timeout(Duration::from_millis(100)), Ok(szfriends_helper::lifecycle::Event::Disable))
     });
     assert!(disabled, "the helper heard disable");
-    assert_eq!(state_text(LinkState::Waiting, "Test"), "Reconnecting to Friends…");
-    assert!(state_text(LinkState::Incompatible, "Test").ends_with("Update Test to use Friends."));
+    assert_eq!(state_text(LinkState::Waiting, "Test", Trouble::Other), "Reconnecting to Friends…");
+    assert!(state_text(LinkState::Incompatible, "Test", Trouble::Other).ends_with("Update Test to use Friends."));
+}
+
+/// A connector that never connects, for the reason given.
+struct Failing(Trouble);
+
+impl Connector for Failing {
+    fn connect(&self) -> Result<ClientConnection, NotConnected> {
+        Err(NotConnected("the helper was not reached".into(), self.0))
+    }
+}
+
+fn start_failing(trouble: Trouble, stuck_after: Duration) -> (Link, Receiver<LinkEvent>) {
+    let (sender, events) = channel();
+    let sender = Mutex::new(sender);
+    let sink: Sink = Arc::new(move |event| {
+        let _ = sender.lock().unwrap().send(event);
+    });
+    let link = Link(Arc::new(Inner {
+        connector: Arc::new(Failing(trouble)),
+        app: app(),
+        sink,
+        shared: Mutex::new(Shared::default()),
+        write: Mutex::new(()),
+        wake: Condvar::new(),
+        stopped: AtomicBool::new(false),
+        next_id: AtomicU64::new(1),
+    }));
+    let running = link.clone();
+    std::thread::spawn(move || running.run_with(stuck_after));
+    (link, events)
+}
+
+#[test]
+fn a_helper_that_never_answers_ends_in_unavailable_not_endless_starting() {
+    let (link, events) = start_failing(Trouble::Other, Duration::from_millis(300));
+    wait_for(&events, "connecting", |e| *e == LinkEvent::State(LinkState::Connecting));
+    wait_for(&events, "unavailable", |e| *e == LinkEvent::State(LinkState::Unavailable));
+    assert_eq!(link.state(), LinkState::Unavailable);
+    // It keeps trying, but the panel's line no longer flips back to "Starting Friends…".
+    let flips = (0..20).filter_map(|_| events.recv_timeout(Duration::from_millis(100)).ok()).count();
+    assert_eq!(flips, 0, "no state changes while it retries");
+    assert_eq!(link.state(), LinkState::Unavailable);
+    let text = state_text(link.state(), "Shenzhen 3D", link.trouble());
+    assert_eq!(text, "Friends didn't start. Quit Shenzhen 3D and open it again.");
+    link.stop(false);
+}
+
+#[test]
+fn security_software_and_administrator_runs_say_so_at_once() {
+    for (trouble, words) in [(Trouble::Blocked, "Security software"), (Trouble::Elevated, "runs as administrator")] {
+        let (link, events) = start_failing(trouble, Duration::from_secs(3600));
+        wait_for(&events, "unavailable", |e| *e == LinkEvent::State(LinkState::Unavailable));
+        assert_eq!(link.trouble(), trouble);
+        let text = state_text(LinkState::Unavailable, "Shenzhen 3D", trouble);
+        assert!(text.contains(words), "{text}");
+        assert!(!text.contains("Starting"), "{text}");
+        link.stop(false);
+    }
+}
+
+/// Fails its first `failures` attempts, then connects to the in-memory helper.
+struct Late(std::sync::atomic::AtomicUsize, Arc<Memory>);
+
+impl Connector for Late {
+    fn connect(&self) -> Result<ClientConnection, NotConnected> {
+        if self.0.fetch_sub(1, Ordering::SeqCst) > 0 {
+            return Err(NotConnected::because("not yet"));
+        }
+        MemoryConnector(self.1.clone()).connect()
+    }
+}
+
+#[test]
+fn a_link_that_becomes_ready_leaves_unavailable() {
+    let memory = memory();
+    let (sender, events) = channel();
+    let sender = Mutex::new(sender);
+    let sink: Sink = Arc::new(move |event| {
+        let _ = sender.lock().unwrap().send(event);
+    });
+    // Fails for about a second (the backoff doubles from 50 ms), past a 200 ms patience.
+    let connector = Late(std::sync::atomic::AtomicUsize::new(6), memory.clone());
+    let link = Link(Arc::new(Inner {
+        connector: Arc::new(connector),
+        app: app(),
+        sink,
+        shared: Mutex::new(Shared::default()),
+        write: Mutex::new(()),
+        wake: Condvar::new(),
+        stopped: AtomicBool::new(false),
+        next_id: AtomicU64::new(1),
+    }));
+    let running = link.clone();
+    std::thread::spawn(move || running.run_with(Duration::from_millis(200)));
+    wait_for(&events, "unavailable", |e| *e == LinkEvent::State(LinkState::Unavailable));
+    wait_for(&events, "ready", |e| *e == LinkEvent::State(LinkState::Ready));
+    assert_eq!(state_text(link.state(), "Test", link.trouble()), "");
+    link.stop(false);
 }

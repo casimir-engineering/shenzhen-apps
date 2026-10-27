@@ -517,6 +517,8 @@ export type FriendsStatus = {
     | "ready"
     | "waiting"
     | "incompatible"
+    // Tauri: not ready for a while, or stopped by security software or an administrator run; `text` says what to do.
+    | "unavailable"
     | string;
   /** The client library's line for this state ("Starting Friends…"), "" when nothing needs saying. */
   text: string;

@@ -107,33 +107,33 @@ impl MacConnector {
     }
 
     fn socket(&self) -> Result<PathBuf, NotConnected> {
-        let temp = user_temp_dir().ok_or_else(|| NotConnected("no user temporary directory".into()))?;
+        let temp = user_temp_dir().ok_or_else(|| NotConnected::because("no user temporary directory"))?;
         socket_path(&self.state.canonical, &temp, SUN_PATH_MAX)
             .map(|(path, _)| PathBuf::from(path))
-            .ok_or_else(|| NotConnected("no socket path fits".into()))
+            .ok_or_else(|| NotConnected::because("no socket path fits"))
     }
 
     /// One attempt; `Ok(None)` when no helper answers.
     fn try_connect(&self) -> Result<Option<UnixStream>, NotConnected> {
         let path = self.socket()?;
-        let directory = path.parent().ok_or_else(|| NotConnected("no socket directory".into()))?;
+        let directory = path.parent().ok_or_else(|| NotConnected::because("no socket directory"))?;
         match std::fs::symlink_metadata(directory) {
             Ok(m) if m.is_dir() && m.uid() == own_uid() && m.permissions().mode() & 0o077 == 0 => {}
-            Ok(_) => return Err(NotConnected("unsafe_directory".into())),
+            Ok(_) => return Err(NotConnected::because("unsafe_directory")),
             Err(e) if e.kind() == ErrorKind::NotFound => return Ok(None),
-            Err(e) => return Err(NotConnected(e.to_string())),
+            Err(e) => return Err(NotConnected::because(e.to_string())),
         }
         let stream = match UnixStream::connect(&path) {
             Ok(stream) => stream,
             Err(e) if matches!(e.kind(), ErrorKind::NotFound | ErrorKind::ConnectionRefused) => return Ok(None),
-            Err(e) => return Err(NotConnected(e.to_string())),
+            Err(e) => return Err(NotConnected::because(e.to_string())),
         };
         if peer_uid(&stream) != Some(own_uid()) {
-            return Err(NotConnected("peer_uid".into()));
+            return Err(NotConnected::because("peer_uid"));
         }
         if let Some(team) = &self.team {
             if !crate::mac_signing::peer_signed_by(&stream, team) {
-                return Err(NotConnected("peer_signature".into()));
+                return Err(NotConnected::because("peer_signature"));
             }
         }
         Ok(Some(stream))
@@ -163,11 +163,11 @@ impl Connector for MacConnector {
             if let Some(stream) = self.try_connect()? {
                 return Ok(ClientConnection::new(Arc::new(stream)));
             }
-            let Some(helper) = &self.helper else { return Err(NotConnected("no helper is running".into())) };
+            let Some(helper) = &self.helper else { return Err(NotConnected::because("no helper is running")) };
             // Any number of apps may spawn at once; the helper's lock lets one win. Once per attempt is enough:
             // a duplicate exits at once.
             if !spawned {
-                self.spawn(helper).map_err(|e| NotConnected(format!("cannot start the helper: {e}")))?;
+                self.spawn(helper).map_err(|e| NotConnected::because(format!("cannot start the helper: {e}")))?;
                 spawned = true;
             }
             let mut random = [0u8; 4];
@@ -175,7 +175,7 @@ impl Connector for MacConnector {
             let (delay, next) = backoff(base, u32::from_le_bytes(random));
             base = next;
             if Instant::now() + delay > deadline {
-                return Err(NotConnected("the helper did not answer".into()));
+                return Err(NotConnected::because("the helper did not answer"));
             }
             std::thread::sleep(delay);
         }
