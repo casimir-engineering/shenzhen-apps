@@ -27,6 +27,12 @@
 //                smaller than its minimum size; a window that earlier versions saved a few pixels tall (they lost the
 //                menu bar's height on every launch) opens at a usable size again. The signed-in user's saved window
 //                bounds are put back afterwards.
+//   minimized    the window is minimized, as its title bar's button does, then closed: by Close window (the taskbar's
+//                menu and thumbnail, and Alt+F4, send the window SC_CLOSE), by WM_CLOSE, and by taskkill, which sends
+//                WM_CLOSE to the app's first visible window (one of its hidden ones while the main one is minimized).
+//                The app ends each time, and its Friends helper stays for other apps and answers the next launch. Then
+//                the app is opened again while it runs minimized: the second launch hands over and ends, and the
+//                window comes back.
 //
 // The firewall scenarios need the firewall and the network set first, which takes an administrator:
 // windows-installer-smoke.sh sets them between runs of this script (--scenarios, --installed, --keep, --uninstall).
@@ -51,8 +57,9 @@ const option = (name) => {
   return path.resolve(given);
 };
 const work = option("work");
+fs.mkdirSync(work, { recursive: true });
 const keptHome = value("home") && path.resolve(value("home"));
-const ALL = ["fresh", "quarantined", "broken", "lingering", "wedged", "bounds"];
+const ALL = ["fresh", "quarantined", "broken", "lingering", "wedged", "bounds", "minimized"];
 const scenarios = (value("scenarios") ?? ALL.join(",")).split(",").filter(Boolean);
 const PORT = 9333;
 const FRIENDS_PORTS = [48250, 48257];
@@ -305,6 +312,58 @@ async function measure(local) {
   return shown;
 }
 
+/** The app's main window (class "Tauri Window") of process `pid`: minimizes it or closes it as Windows' own commands
+ * do, and says whether it is minimized. Through a small C# tool built with csc. */
+function mainWindow(pid, action = "state") {
+  const tool = path.join(work, "mainwindow.exe");
+  if (!fs.existsSync(tool)) {
+    const source = path.join(work, "mainwindow.cs");
+    fs.writeFileSync(
+      source,
+      `using System; using System.Text; using System.Runtime.InteropServices;
+class MainWindow { delegate bool F(IntPtr h, IntPtr p);
+  [DllImport("user32.dll")] static extern bool EnumWindows(F f, IntPtr p);
+  [DllImport("user32.dll")] static extern int GetWindowThreadProcessId(IntPtr h, out int pid);
+  [DllImport("user32.dll")] static extern bool IsWindowVisible(IntPtr h);
+  [DllImport("user32.dll")] static extern bool IsIconic(IntPtr h);
+  [DllImport("user32.dll")] static extern bool PostMessage(IntPtr h, int m, IntPtr w, IntPtr l);
+  [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int GetClassName(IntPtr h, StringBuilder s, int n);
+  static int Main(string[] a) { int want = int.Parse(a[0]); IntPtr found = IntPtr.Zero;
+    EnumWindows((h, p) => { int pid; GetWindowThreadProcessId(h, out pid); var c = new StringBuilder(64); GetClassName(h, c, 64);
+      if (pid != want || !IsWindowVisible(h) || c.ToString() != "Tauri Window") return true; found = h; return false; }, IntPtr.Zero);
+    if (found == IntPtr.Zero) return 1;
+    // WM_SYSCOMMAND SC_MINIMIZE and SC_CLOSE, as the title bar, the taskbar and Alt+F4 send them; or WM_CLOSE itself.
+    if (a[1] == "minimize") PostMessage(found, 0x112, new IntPtr(0xF020), IntPtr.Zero);
+    else if (a[1] == "sysclose") PostMessage(found, 0x112, new IntPtr(0xF060), IntPtr.Zero);
+    else if (a[1] == "close") PostMessage(found, 0x10, IntPtr.Zero, IntPtr.Zero);
+    Console.WriteLine(IsIconic(found) ? "minimized" : "shown"); return 0; } }`,
+    );
+    const csc = path.join(process.env.WINDIR, "Microsoft.NET", "Framework64", "v4.0.30319", "csc.exe");
+    spawnSync(csc, ["/nologo", `/out:${tool}`, source]);
+  }
+  const shown = spawnSync(tool, [String(pid), action], { encoding: "utf8" });
+  return shown.status === 0 ? shown.stdout.trim() : undefined;
+}
+
+/** Waits up to `ms` for process `pid` of `image` to end; whether it did. */
+async function ends(image, pid, ms) {
+  for (let waited = 0; waited < ms && running(image).includes(pid); waited += 250) await sleep(250);
+  return !running(image).includes(pid);
+}
+
+/** The apps `launched` opened, ended by force if a scenario stops before closing them. */
+const started = new Set();
+
+/** Opens the installed app in `local` and waits for its main window and its page's Friends (the helper started). */
+async function launched(local) {
+  const child = spawn(app, [], { env: { ...process.env, LOCALAPPDATA: local }, detached: true, stdio: "ignore" });
+  child.unref();
+  started.add(child.pid);
+  for (let i = 0; i < 120 && !mainWindow(child.pid); i++) await sleep(250);
+  await sleep(6000); // the page loads and joins Friends, which starts the helper
+  return child.pid;
+}
+
 /** The process holding a Friends home's helper lock. */
 const lockHolder = (local) => {
   const lock = path.join(local, "Shenzhen Friends", "ipc", "helper.lock");
@@ -467,6 +526,52 @@ try {
       } finally {
         files.forEach((file, i) => (kept[i] ? fs.writeFileSync(file, kept[i]) : fs.rmSync(file, { force: true })));
       }
+    } else if (name === "minimized") {
+      const local = homeFor("minimized", true);
+      const routes = {
+        sysclose: "Close window (SC_CLOSE)",
+        close: "WM_CLOSE",
+        taskkill: "taskkill (WM_CLOSE to its first visible window)",
+      };
+      for (const [route, label] of Object.entries(routes)) {
+        const pid = await launched(local);
+        mainWindow(pid, "minimize");
+        await sleep(1500);
+        const state = mainWindow(pid);
+        if (route === "taskkill") spawnSync("taskkill", ["/pid", String(pid)]);
+        else mainWindow(pid, route);
+        if (state === "minimized" && (await ends("shenzhen-3d.exe", pid, 10_000)))
+          ok(`minimized: closed by ${label} while minimized, the app ends`);
+        else {
+          notOk(`minimized: closed by ${label} while ${state ?? "without a window"}, the app still runs after 10 s`);
+          spawnSync("taskkill", ["/f", "/pid", String(pid)]);
+          await ends("shenzhen-3d.exe", pid, 5000);
+        }
+      }
+      // The helper is left as any closed app leaves it: running for other apps until idle, and answering.
+      const holder = lockHolder(local);
+      const after = await open("minimized", local);
+      if (holder && after.shown && ready(after.shown))
+        ok(`minimized: the Friends helper stays for other apps, and the next launch's Friends is ready in ${(after.waited / 1000).toFixed(1)} s`);
+      else notOk(`minimized: after the closes, Friends shows ${JSON.stringify(after.shown)} (helper ${holder})`);
+      // Opened again while it runs minimized: the second launch hands over and ends, and the window comes back.
+      const first = await launched(local);
+      mainWindow(first, "minimize");
+      await sleep(1500);
+      const second = spawn(app, [], { env: { ...process.env, LOCALAPPDATA: local }, detached: true, stdio: "ignore" });
+      second.unref();
+      const handedOver = await ends("shenzhen-3d.exe", second.pid, 15_000);
+      let state;
+      for (let i = 0; i < 20 && (state = mainWindow(first)) !== "shown"; i++) await sleep(250);
+      if (handedOver && state === "shown" && running("shenzhen-3d.exe").includes(first))
+        ok("minimized: opened again while minimized, the window comes back and no second app stays");
+      else notOk(`minimized: opened again while minimized: window ${state}, second launch ${handedOver ? "ended" : "still runs"}`);
+      if (!handedOver) spawnSync("taskkill", ["/f", "/pid", String(second.pid)]);
+      mainWindow(first, "close");
+      if (!(await ends("shenzhen-3d.exe", first, 10_000))) {
+        notOk("minimized: the app did not end when its window was closed");
+        spawnSync("taskkill", ["/f", "/pid", String(first)]);
+      }
     } else notOk(`unknown scenario ${name}`);
   }
   // The friends the kept home already has show in every state: they do not depend on the local network.
@@ -479,6 +584,8 @@ try {
 } catch (error) {
   notOk(String(error?.stack ?? error));
 } finally {
+  for (const pid of started)
+    if (running("shenzhen-3d.exe").includes(pid)) spawnSync("taskkill", ["/f", "/pid", String(pid)]);
   if (!flag("keep") && !value("installed")) await uninstall();
 }
 console.log(failures ? `windows-installer-smoke: FAILED (${failures})` : "windows-installer-smoke: passed");

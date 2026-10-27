@@ -6,6 +6,8 @@ mod app_updates;
 mod friends;
 #[cfg(feature = "friends")]
 mod friends_links;
+#[cfg(windows)]
+mod hidden_windows;
 mod native_open;
 #[cfg(any(windows, target_os = "linux", target_os = "ios", test))]
 mod release_feed;
@@ -231,6 +233,9 @@ pub fn run() {
         .on_page_load(smoke::page_loaded);
     builder
         .setup(|_app| {
+            // A close aimed at the app's hidden windows closes its windows instead (src/hidden_windows.rs).
+            #[cfg(windows)]
+            hidden_windows::pass_on(_app.handle());
             #[cfg(desktop)]
             desktop_menu(_app)?;
             // After the menu: on Windows the menu bar is part of the frame the window is sized with.

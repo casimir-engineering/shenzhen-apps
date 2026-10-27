@@ -41,7 +41,17 @@ where
             log::warn!("Not a Friends link this app can open");
         }
     }
-    if let (true, Some(window)) = (opened, app.get_webview_window("main")) {
+    if opened {
+        bring_forward(app);
+    }
+}
+
+/// Shows the main window (or another of the app's windows when it has been closed), restored and in front.
+fn bring_forward(app: &tauri::AppHandle) {
+    let window = app
+        .get_webview_window("main")
+        .or_else(|| app.webview_windows().into_values().next());
+    if let Some(window) = window {
         let _ = window.show();
         #[cfg(desktop)]
         let _ = window.unminimize();
@@ -62,9 +72,23 @@ pub fn plugins(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<tauri::Wry
 }
 
 /// A second launch on Windows or Linux, which ends once it has handed over: its links open their cards and its files
-/// open in the window in front, as the Electron app does.
+/// open in the window in front, as the Electron app does. A launch with neither (the app opened again from its
+/// shortcut) brings the main window forward, restored if it was minimized.
 #[cfg(any(windows, target_os = "linux"))]
 fn second_launch(app: &tauri::AppHandle, argv: Vec<String>, cwd: String) {
+    let (links, files) = handed_over(argv, &cwd);
+    if links.is_empty() && files.is_empty() {
+        bring_forward(app);
+        return;
+    }
+    crate::native_open::queue(app, files);
+    open(app, links);
+}
+
+/// What a second launch hands over: its Friends links, and the files it was asked to open (relative to its working
+/// directory); not its own path, nor options.
+#[cfg_attr(not(any(windows, target_os = "linux")), allow(dead_code))]
+fn handed_over(argv: Vec<String>, cwd: &str) -> (Vec<String>, Vec<std::path::PathBuf>) {
     let (links, others): (Vec<String>, Vec<String>) = argv.into_iter().skip(1).partition(|arg| is_link(arg));
     let cwd = std::path::PathBuf::from(cwd);
     let files = others
@@ -72,8 +96,7 @@ fn second_launch(app: &tauri::AppHandle, argv: Vec<String>, cwd: String) {
         .filter(|arg| !arg.starts_with('-'))
         .map(|arg| cwd.join(arg))
         .collect();
-    crate::native_open::queue(app, files);
-    open(app, links);
+    (links, files)
 }
 
 /// At setup: the link the app was started with, and on Android every later one.
@@ -96,7 +119,7 @@ pub fn listen(app: &tauri::AppHandle) {
 
 #[cfg(test)]
 mod tests {
-    use super::{is_link, SCHEME};
+    use super::{handed_over, is_link, SCHEME};
 
     fn config(file: &str) -> serde_json::Value {
         let path = format!("{}/friends/{file}", env!("CARGO_MANIFEST_DIR"));
@@ -118,6 +141,21 @@ mod tests {
         ] {
             assert!(!is_link(other), "{other}");
         }
+    }
+
+    #[test]
+    fn a_second_launch_hands_over_its_links_and_files() {
+        let cwd = if cfg!(windows) { "C:\\Users\\a" } else { "/home/a" };
+        let argv = |args: &[&str]| args.iter().map(|a| a.to_string()).collect::<Vec<_>>();
+        // Opened again from its shortcut: nothing to hand over, so the window is brought forward.
+        let (links, files) = handed_over(argv(&["shenzhen-3d.exe"]), cwd);
+        assert!(links.is_empty() && files.is_empty());
+        let (links, files) = handed_over(
+            argv(&["shenzhen-3d.exe", "--flag", "Gearbox.step", "shenzhen3d://friends/link#d.AQ"]),
+            cwd,
+        );
+        assert_eq!(links, ["shenzhen3d://friends/link#d.AQ"]);
+        assert_eq!(files, [std::path::Path::new(cwd).join("Gearbox.step")]);
     }
 
     #[test]
