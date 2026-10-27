@@ -5,7 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 export type Command = {
   id: string;
   title: string;
-  /** As the platform writes it, e.g. "⌘J". */
+  /** As the platform writes it (core/shortcuts.ts), e.g. "⌘J" or "Ctrl+J"; none on a phone without a keyboard. */
   shortcut?: string;
   /** Other words people look for it by, e.g. "chat" for Open Friends. */
   keywords?: string[];

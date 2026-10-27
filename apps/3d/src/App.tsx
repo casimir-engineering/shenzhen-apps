@@ -1,4 +1,5 @@
 import {
+  Fragment,
   lazy,
   Suspense,
   useCallback,
@@ -23,8 +24,8 @@ import {
   friendsShortcutLabel,
   isFriendsShortcut,
   isPaletteShortcut,
-  shortcutLabel,
 } from "./friends/requests";
+import { modifierLabel, shortcutLabel, useKeyHints } from "./core/shortcuts";
 import {
   Box,
   Upload,
@@ -736,6 +737,18 @@ function App() {
   // Whether Friends runs here and is on: its commands and its shortcut's line in Help show only then.
   const [friendsOn, setFriendsOn] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  // Shortcuts are named on computers, and on phones and tablets once a keyboard is used (core/shortcuts.ts).
+  const keyHints = useKeyHints();
+  const keys = (key: string) => (keyHints ? shortcutLabel(key) : undefined);
+  // Panning by right-drag or trackpad swipe takes ⌘ or Ctrl on a Mac, Ctrl elsewhere.
+  const panKeys = Array.from(new Set([modifierLabel(), "Ctrl"]));
+  const panModifiers = panKeys.join(" or ");
+  const panKeyHint = panKeys.map((key, index) => (
+    <Fragment key={key}>
+      {index > 0 && " or "}
+      <kbd>{key}</kbd>
+    </Fragment>
+  ));
   const friendsState = useRef({ loaded: false, on: false });
   friendsState.current = { loaded: friendsLoaded, on: friendsOn };
   // Cmd/Ctrl+K and Cmd/Ctrl+J work while typing too (Cmd+J closes Friends from its own search field), so they are
@@ -1391,7 +1404,7 @@ function App() {
     {
       id: "open",
       title: "Open file…",
-      shortcut: shortcutLabel("O"),
+      shortcut: keys("O"),
       keywords: ["model", "drawing", "import"],
       run: () => void actions.current.open(),
     },
@@ -1400,21 +1413,21 @@ function App() {
           {
             id: "share",
             title: "Share commented project",
-            shortcut: shortcutLabel("S"),
+            shortcut: keys("S"),
             keywords: ["save", "sz3d", "export"],
             run: () => void actions.current.shareProject(),
           },
           {
             id: "search-assembly",
             title: "Search assembly",
-            shortcut: shortcutLabel("F"),
+            shortcut: keys("F"),
             keywords: ["find", "part", "tree"],
             run: showSearchAssembly,
           },
           {
             id: "fit",
             title: "Fit model",
-            shortcut: "F",
+            shortcut: keyHints ? "F" : undefined,
             keywords: ["zoom", "view"],
             run: () => viewer.current?.fit(),
           },
@@ -1425,7 +1438,7 @@ function App() {
           {
             id: "friends-open",
             title: "Open Friends",
-            shortcut: friendsShortcutLabel,
+            shortcut: keyHints ? friendsShortcutLabel : undefined,
             keywords: [
               "friend",
               "nearby",
@@ -1471,14 +1484,14 @@ function App() {
     {
       id: "settings",
       title: "Settings…",
-      shortcut: shortcutLabel(","),
+      shortcut: keys(","),
       keywords: ["preferences", "units", "theme"],
       run: () => settings.current?.showModal(),
     },
     {
       id: "help",
       title: "Help & shortcuts",
-      shortcut: "?",
+      shortcut: keyHints ? "?" : undefined,
       keywords: ["keyboard", "controls"],
       run: () => help.current?.showModal(),
     },
@@ -1590,7 +1603,7 @@ function App() {
         >
           <FolderOpen size={16} />
           <span>Open file</span>
-          <kbd>⌘ O</kbd>
+          {keyHints && <kbd>{shortcutLabel("O")}</kbd>}
         </button>
         {doc && (
           <IconButton
@@ -2442,7 +2455,8 @@ function App() {
                 )}
                 {points.length > 0 && (
                   <button className="clear-button" onClick={clear}>
-                    <RotateCcw size={14} /> Clear measurement <kbd>Esc</kbd>
+                    <RotateCcw size={14} /> Clear measurement{" "}
+                    {keyHints && <kbd>Esc</kbd>}
                   </button>
                 )}
                 <details className="units-details">
@@ -2601,7 +2615,7 @@ function App() {
           <span className="status-navigation">
             {usingNavigationDetail
               ? "Navigation detail · full detail when still"
-              : "Drag to pan · right-drag to orbit, or to pan with ⌘ or Ctrl held · swipe, pinch or wheel to zoom"}
+              : `Drag to pan · right-drag to orbit${keyHints ? `, or to pan with ${panModifiers} held` : ""} · swipe, pinch or wheel to zoom`}
           </span>
         )}
         {doc && (
@@ -2677,10 +2691,18 @@ function App() {
               </dd>
               <dt>Pan</dt>
               <dd>
-                Left-drag or middle-drag · right-drag or two-finger click-drag
-                while holding <kbd>⌘</kbd> or <kbd>Ctrl</kbd> · two-finger touch
-                · two-finger trackpad swipe while holding <kbd>⌘</kbd> or{" "}
-                <kbd>Ctrl</kbd>
+                Left-drag or middle-drag
+                {keyHints && (
+                  <>
+                    {" "}
+                    · right-drag or two-finger click-drag while holding{" "}
+                    {panKeyHint}
+                  </>
+                )}{" "}
+                · two-finger touch
+                {keyHints && (
+                  <> · two-finger trackpad swipe while holding {panKeyHint}</>
+                )}
               </dd>
               <dt>Zoom</dt>
               <dd>Two-finger trackpad swipe · mouse wheel · pinch</dd>
@@ -2690,64 +2712,72 @@ function App() {
                   <dd>Two-finger trackpad twist</dd>
                 </>
               )}
-              <dt>Fit model</dt>
-              <dd>
-                <kbd>F</kbd>
-              </dd>
-              <dt>Fit selection</dt>
-              <dd>
-                <kbd>Shift F</kbd>
-              </dd>
-              <dt>Standard views</dt>
-              <dd>
-                <kbd>Shift 1</kbd>–<kbd>Shift 7</kbd>
-                <small className="shortcut-detail">
-                  Front, back, left, right, top, bottom, isometric
-                </small>
-              </dd>
-              <dt>Normal to face</dt>
-              <dd>
-                <kbd>N</kbd> · repeat to flip
-              </dd>
-              <dt>Section</dt>
-              <dd>
-                <kbd>Shift X</kbd>
-              </dd>
-              <dt>Hide selection / show all</dt>
-              <dd>
-                <kbd>Y</kbd> / <kbd>Shift Y</kbd>
-              </dd>
+              {keyHints && (
+                <>
+                  <dt>Fit model</dt>
+                  <dd>
+                    <kbd>F</kbd>
+                  </dd>
+                  <dt>Fit selection</dt>
+                  <dd>
+                    <kbd>Shift F</kbd>
+                  </dd>
+                  <dt>Standard views</dt>
+                  <dd>
+                    <kbd>Shift 1</kbd>–<kbd>Shift 7</kbd>
+                    <small className="shortcut-detail">
+                      Front, back, left, right, top, bottom, isometric
+                    </small>
+                  </dd>
+                  <dt>Normal to face</dt>
+                  <dd>
+                    <kbd>N</kbd> · repeat to flip
+                  </dd>
+                  <dt>Section</dt>
+                  <dd>
+                    <kbd>Shift X</kbd>
+                  </dd>
+                  <dt>Hide selection / show all</dt>
+                  <dd>
+                    <kbd>Y</kbd> / <kbd>Shift Y</kbd>
+                  </dd>
+                </>
+              )}
             </dl>
           </div>
           <div>
             <h3>Measurement</h3>
             <dl>
-              <dt>Point mode</dt>
-              <dd>
-                <kbd>P</kbd> · Pick on geometry
-              </dd>
-              <dt>Feature mode</dt>
-              <dd>
-                <kbd>E</kbd> · Edges, faces, vertices
-              </dd>
-              <dt>Clear selections</dt>
-              <dd>
-                <kbd>Esc</kbd>
-              </dd>
-              <dt>Open file</dt>
-              <dd>
-                <kbd>⌘ / Ctrl O</kbd>
-              </dd>
-              <dt>Find a command</dt>
-              <dd>
-                <kbd>⌘ / Ctrl K</kbd>
-              </dd>
-              {friendsOn && (
+              {keyHints && (
                 <>
-                  <dt>Open or close Friends</dt>
+                  <dt>Point mode</dt>
                   <dd>
-                    <kbd>⌘ / Ctrl J</kbd>
+                    <kbd>P</kbd> · Pick on geometry
                   </dd>
+                  <dt>Feature mode</dt>
+                  <dd>
+                    <kbd>E</kbd> · Edges, faces, vertices
+                  </dd>
+                  <dt>Clear selections</dt>
+                  <dd>
+                    <kbd>Esc</kbd>
+                  </dd>
+                  <dt>Open file</dt>
+                  <dd>
+                    <kbd>{shortcutLabel("O")}</kbd>
+                  </dd>
+                  <dt>Find a command</dt>
+                  <dd>
+                    <kbd>{shortcutLabel("K")}</kbd>
+                  </dd>
+                  {friendsOn && (
+                    <>
+                      <dt>Open or close Friends</dt>
+                      <dd>
+                        <kbd>{friendsShortcutLabel}</kbd>
+                      </dd>
+                    </>
+                  )}
                 </>
               )}
               <dt>Angle</dt>
@@ -2758,10 +2788,20 @@ function App() {
           </div>
         </div>
         <p className="help-note">
-          Use <kbd>C</kbd> or the Notes tab to attach a comment to a point,
-          feature or part. <kbd>⌘ / Ctrl S</kbd> shares a project containing the
-          original model, notes and saved measurements. Open that .sz3d file to
-          continue the review.
+          {keyHints ? (
+            <>
+              Use <kbd>C</kbd> or the Notes tab to attach a comment to a point,
+              feature or part. <kbd>{shortcutLabel("S")}</kbd> shares a project
+              containing the original model, notes and saved measurements.
+            </>
+          ) : (
+            <>
+              Use the Notes tab to attach a comment to a point, feature or part.
+              Share commented project makes a project containing the original
+              model, notes and saved measurements.
+            </>
+          )}{" "}
+          Open that .sz3d file to continue the review.
         </p>
         <p className="help-note">
           STEP, IGES and BREP retain CAD topology for exact feature queries.

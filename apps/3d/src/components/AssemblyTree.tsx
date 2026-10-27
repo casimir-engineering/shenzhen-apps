@@ -15,6 +15,7 @@ import {
   nodePath,
   type PartSelection,
 } from "../core/assembly-selection";
+import { shortcutLabel, useKeyHints } from "../core/shortcuts";
 export { nodeParts };
 interface Props {
   doc: ModelDocument;
@@ -41,6 +42,7 @@ export const AssemblyTree = memo(function AssemblyTree({
     () => new Set(doc.roots.map((n) => n.id)),
   );
   const [search, setSearch] = useState("");
+  const keyHints = useKeyHints();
   const [scroll, setScroll] = useState(0);
   const container = useRef<HTMLDivElement>(null);
   const rows = useMemo(() => {
@@ -106,7 +108,7 @@ export const AssemblyTree = memo(function AssemblyTree({
             if (container.current) container.current.scrollTop = 0;
           }}
         />
-        <kbd>⌘ F</kbd>
+        {keyHints && <kbd>{shortcutLabel("F")}</kbd>}
       </div>
       <div
         className="tree-scroll"

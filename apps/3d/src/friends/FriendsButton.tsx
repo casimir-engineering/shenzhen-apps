@@ -28,6 +28,7 @@ import {
   friendsShortcutLabel,
   type FriendsRequest,
 } from "./requests";
+import { ariaShortcut, useKeyHints } from "../core/shortcuts";
 import "./button.css";
 
 const FriendsPanel = lazy(() => import("./FriendsPanel"));
@@ -173,6 +174,7 @@ const recentFiles: RecentFiles = {
 export function FriendsButton({ attach }: { attach: AttachSource | null }) {
   const status = useFriendsStatus();
   const bridge = friendsBridge();
+  const keyHints = useKeyHints();
   const [open, setOpen] = useState(false);
   const [outgoing, setOutgoing] = useState<Outgoing | null>(null);
   const [link, setLink] = useState<string | null>(null);
@@ -322,16 +324,17 @@ export function FriendsButton({ attach }: { attach: AttachSource | null }) {
       <button
         type="button"
         className={`icon-button friends-button ${open ? "active" : ""} ${dragging ? "drop-target" : ""}`}
-        // "Friends (Beta) · ⌘J": the tooltip says Friends is a beta; an older helper gives the plain name.
+        // "Friends (Beta) · ⌘J" or "· Ctrl+J" (core/shortcuts.ts), and no shortcut on a phone without a keyboard:
+        // the tooltip says Friends is a beta; an older helper gives the plain name.
         title={
           strings.button_tooltip || strings.button_label
-            ? `${strings.button_tooltip || strings.button_label} · ${friendsShortcutLabel}`
+            ? keyHints
+              ? `${strings.button_tooltip || strings.button_label} · ${friendsShortcutLabel}`
+              : strings.button_tooltip || strings.button_label
             : undefined
         }
         aria-label={label}
-        aria-keyshortcuts={
-          friendsShortcutLabel.startsWith("⌘") ? "Meta+J" : "Control+J"
-        }
+        aria-keyshortcuts={ariaShortcut("J")}
         aria-expanded={open}
         data-szfriends="button"
         onClick={() => {

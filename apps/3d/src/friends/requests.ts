@@ -1,6 +1,7 @@
 // What the rest of the app asks of the Friends button: the Cmd/Ctrl+J shortcut, the command palette's Friends
 // commands and View ▸ Friends in the Mac app's menu. App.tsx imports this file in its first chunk, so it imports
 // nothing of Friends; FriendsButton.tsx (loaded with Friends) carries the requests out.
+import { isPrimaryShortcut, shortcutLabel } from "../core/shortcuts";
 
 /** toggle: Cmd/Ctrl+J. open: Open Friends. add_by_id: the profile page, where Add by ID is. visible: Nearby, made
  * visible. join: the join view, from Settings' "Use my existing profile…". */
@@ -29,10 +30,6 @@ export const friendsRequests = {
   },
 };
 
-const mac =
-  typeof navigator !== "undefined" &&
-  /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
-
 /** Cmd+J on a Mac, Ctrl+J on Windows and Linux. */
 export function isFriendsShortcut(event: KeyboardEvent) {
   return isPrimaryShortcut(event, "j");
@@ -41,20 +38,6 @@ export function isFriendsShortcut(event: KeyboardEvent) {
 export function isPaletteShortcut(event: KeyboardEvent) {
   return isPrimaryShortcut(event, "k");
 }
-function isPrimaryShortcut(event: KeyboardEvent, letter: string) {
-  const primary = mac
-    ? event.metaKey && !event.ctrlKey
-    : event.ctrlKey && !event.metaKey;
-  return (
-    primary &&
-    !event.altKey &&
-    !event.shiftKey &&
-    (event.key.toLowerCase() === letter ||
-      event.code === `Key${letter.toUpperCase()}`)
-  );
-}
 
-/** The shortcut as this platform writes it: "⌘J" or "Ctrl+J". */
-export const shortcutLabel = (letter: string) =>
-  mac ? `⌘${letter}` : `Ctrl+${letter}`;
+/** Friends' shortcut as this platform writes it: "⌘J" or "Ctrl+J" (core/shortcuts.ts). */
 export const friendsShortcutLabel = shortcutLabel("J");
