@@ -192,3 +192,27 @@ pub fn connect(state: &StateDir) -> Result<PipeStream, ConnectError> {
         }
     }
 }
+
+/// Ends the helper that holds this state directory's lock, when the app found it no longer answering (a hello or an
+/// intent left unanswered past the client's patience): `Ok(true)` once it is gone. Only a process of this user's
+/// running a helper copy from this directory's `helper` folder is ended; the next connect starts a new helper. The
+/// store survives it as it survives a crash (SQLite's journal).
+pub fn end_unresponsive(state: &StateDir) -> io::Result<bool> {
+    let Some(pid) = read_shared(&lock_path(&state.path)).ok().and_then(|text| lock_owner(&text)) else {
+        return Ok(false);
+    };
+    if pid == token::current_process_id() {
+        return Ok(false);
+    }
+    let Some(image) = token::process_image(pid) else { return Ok(false) };
+    let copies = state.path.join("helper").to_string_lossy().to_lowercase();
+    let running = image.to_string_lossy().to_lowercase();
+    let is_helper = image.file_name().is_some_and(|name| name.eq_ignore_ascii_case("szfriends-helper.exe"));
+    if !is_helper || !running.starts_with(&copies) {
+        log!("not ending process {pid} ({}): not a helper copy of this Friends home", image.display());
+        return Ok(false);
+    }
+    token::terminate(pid)?;
+    log!("ended helper {pid}: it stopped answering");
+    Ok(true)
+}

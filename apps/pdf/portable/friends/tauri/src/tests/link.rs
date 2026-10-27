@@ -63,9 +63,12 @@ fn start(memory: &Arc<Memory>) -> (Link, Receiver<LinkEvent>) {
     (Link::start(Arc::new(MemoryConnector(memory.clone())), app(), sink), events)
 }
 
+/// The first event that matches within 10 s, however many others come meanwhile (a link that cycles).
 fn wait_for(events: &Receiver<LinkEvent>, what: &str, matches: impl Fn(&LinkEvent) -> bool) -> LinkEvent {
+    let deadline = std::time::Instant::now() + Duration::from_secs(10);
     loop {
-        match events.recv_timeout(Duration::from_secs(5)) {
+        let left = deadline.saturating_duration_since(std::time::Instant::now());
+        match events.recv_timeout(left) {
             Ok(event) if matches(&event) => return event,
             Ok(_) => continue,
             Err(_) => panic!("no {what}"),
@@ -151,7 +154,7 @@ fn start_failing(trouble: Trouble, stuck_after: Duration) -> (Link, Receiver<Lin
         next_id: AtomicU64::new(1),
     }));
     let running = link.clone();
-    std::thread::spawn(move || running.run_with(stuck_after));
+    std::thread::spawn(move || running.run_with(Patience { stuck_after, ..Patience::DEFAULT }));
     (link, events)
 }
 
@@ -216,9 +219,171 @@ fn a_link_that_becomes_ready_leaves_unavailable() {
         next_id: AtomicU64::new(1),
     }));
     let running = link.clone();
-    std::thread::spawn(move || running.run_with(Duration::from_millis(200)));
+    std::thread::spawn(move || {
+        running.run_with(Patience { stuck_after: Duration::from_millis(200), ..Patience::DEFAULT })
+    });
     wait_for(&events, "unavailable", |e| *e == LinkEvent::State(LinkState::Unavailable));
     wait_for(&events, "ready", |e| *e == LinkEvent::State(LinkState::Ready));
     assert_eq!(state_text(link.state(), "Test", link.trouble()), "");
+    link.stop(false);
+}
+
+fn link_with(connector: Arc<dyn Connector>, patience: Patience) -> (Link, Receiver<LinkEvent>) {
+    let (sender, events) = channel();
+    let sender = Mutex::new(sender);
+    let sink: Sink = Arc::new(move |event| {
+        let _ = sender.lock().unwrap().send(event);
+    });
+    let link = Link(Arc::new(Inner {
+        connector,
+        app: app(),
+        sink,
+        shared: Mutex::new(Shared::default()),
+        write: Mutex::new(()),
+        wake: Condvar::new(),
+        stopped: AtomicBool::new(false),
+        next_id: AtomicU64::new(1),
+    }));
+    let running = link.clone();
+    std::thread::spawn(move || running.run_with(patience));
+    (link, events)
+}
+
+const QUICK: Patience = Patience {
+    stuck_after: Duration::from_millis(600),
+    hello: Duration::from_millis(300),
+    intent: Duration::from_millis(300),
+    heartbeat: Duration::from_millis(100),
+};
+
+/// A helper that takes every connection and never says a word (a wedged one, left from an earlier launch): it is
+/// ended once, then a working one answers.
+struct Silent {
+    connections: Mutex<Vec<Arc<MemoryEnd>>>,
+    ended: std::sync::atomic::AtomicUsize,
+    then: Arc<Memory>,
+}
+
+impl Connector for Silent {
+    fn connect(&self) -> Result<ClientConnection, NotConnected> {
+        if self.ended.load(Ordering::SeqCst) > 0 {
+            return MemoryConnector(self.then.clone()).connect();
+        }
+        let (ours, theirs) = memory_pair();
+        self.connections.lock().unwrap().push(theirs);
+        Ok(ClientConnection::new(ours))
+    }
+
+    fn end_unresponsive(&self) -> bool {
+        self.ended.fetch_add(1, Ordering::SeqCst);
+        true
+    }
+}
+
+#[test]
+fn a_helper_that_never_answers_its_hello_is_ended_and_replaced() {
+    let silent = Arc::new(Silent { connections: Mutex::default(), ended: Default::default(), then: memory() });
+    let (link, events) = link_with(silent.clone(), QUICK);
+    wait_for(&events, "handshaking", |e| *e == LinkEvent::State(LinkState::Handshaking));
+    wait_for(&events, "ready with a new helper", |e| *e == LinkEvent::State(LinkState::Ready));
+    assert_eq!(silent.ended.load(Ordering::SeqCst), 1, "the silent helper was ended once");
+    link.stop(false);
+}
+
+/// Always silent, and nothing to end: the panel must still stop saying "Starting Friends…".
+struct AlwaysSilent(Mutex<Vec<Arc<MemoryEnd>>>);
+
+impl Connector for AlwaysSilent {
+    fn connect(&self) -> Result<ClientConnection, NotConnected> {
+        let (ours, theirs) = memory_pair();
+        self.0.lock().unwrap().push(theirs);
+        Ok(ClientConnection::new(ours))
+    }
+}
+
+#[test]
+fn a_hello_that_is_never_answered_ends_in_unavailable() {
+    let (link, events) = link_with(Arc::new(AlwaysSilent(Mutex::default())), QUICK);
+    wait_for(&events, "unavailable", |e| *e == LinkEvent::State(LinkState::Unavailable));
+    assert_eq!(
+        state_text(link.state(), "Shenzhen 3D", link.trouble()),
+        "Friends didn't start. Quit Shenzhen 3D and open it again."
+    );
+    link.stop(false);
+}
+
+/// Welcomes, then closes at once, every time (a helper that crashes right after its hello).
+struct Crashing(Arc<Memory>);
+
+impl Connector for Crashing {
+    fn connect(&self) -> Result<ClientConnection, NotConnected> {
+        let connection = MemoryConnector(self.0.clone()).connect()?;
+        let end = self.0.ends.lock().unwrap().last().unwrap().clone();
+        std::thread::spawn(move || {
+            std::thread::sleep(Duration::from_millis(30));
+            end.close();
+        });
+        Ok(connection)
+    }
+}
+
+#[test]
+fn a_helper_that_leaves_after_every_welcome_ends_in_unavailable() {
+    // Each connection is ready for a moment; the old timer started again at every ready and never fired.
+    let (link, events) =
+        link_with(Arc::new(Crashing(memory())), Patience { heartbeat: Duration::from_secs(60), ..QUICK });
+    wait_for(&events, "ready once", |e| *e == LinkEvent::State(LinkState::Ready));
+    wait_for(&events, "unavailable", |e| *e == LinkEvent::State(LinkState::Unavailable));
+    link.stop(false);
+}
+
+/// Welcomes, then never answers an intent (its service stopped): what showed "Loading…" without end.
+struct Deaf(Mutex<Vec<Arc<MemoryEnd>>>, std::sync::atomic::AtomicUsize);
+
+impl Connector for Deaf {
+    fn connect(&self) -> Result<ClientConnection, NotConnected> {
+        let (ours, theirs) = memory_pair();
+        self.0.lock().unwrap().push(theirs.clone());
+        // Answers the hello only.
+        std::thread::spawn(move || {
+            let mut buffer = [0u8; 4096];
+            if theirs.read(&mut buffer).unwrap_or(0) > 0 {
+                let welcome = json!({"type": "welcome", "re": "1", "protocol": {"major": 1, "minor": 0},
+                    "helper": {"version": "1", "build_number": 1}, "capabilities": [], "strings": {}});
+                let mut line = serde_json::to_vec(&welcome).unwrap();
+                line.push(b'\n');
+                let _ = theirs.write_all(&line);
+            }
+            while theirs.read(&mut buffer).unwrap_or(0) > 0 {}
+        });
+        Ok(ClientConnection::new(ours))
+    }
+
+    fn end_unresponsive(&self) -> bool {
+        self.1.fetch_add(1, Ordering::SeqCst);
+        false
+    }
+}
+
+#[test]
+fn a_ready_helper_that_stops_answering_is_dropped_and_ends_in_unavailable() {
+    let deaf = Arc::new(Deaf(Mutex::default(), Default::default()));
+    let (link, events) = link_with(deaf.clone(), QUICK);
+    wait_for(&events, "ready", |e| *e == LinkEvent::State(LinkState::Ready));
+    let mut fields = Map::new();
+    fields.insert("view".into(), json!("list"));
+    assert!(link.send("subscribe", &fields).is_some());
+    wait_for(&events, "unavailable", |e| *e == LinkEvent::State(LinkState::Unavailable));
+    assert!(deaf.1.load(Ordering::SeqCst) >= 1, "the link asked to end the silent helper");
+    link.stop(false);
+}
+
+#[test]
+fn a_working_link_sends_its_heartbeat_and_stays_ready() {
+    let memory = memory();
+    let (link, events) = link_with(Arc::new(MemoryConnector(memory.clone())), QUICK);
+    wait_for(&events, "ready", |e| *e == LinkEvent::State(LinkState::Ready));
+    std::thread::sleep(Duration::from_millis(1500));
+    assert_eq!(link.state(), LinkState::Ready, "answered heartbeats keep it ready past every patience");
     link.stop(false);
 }

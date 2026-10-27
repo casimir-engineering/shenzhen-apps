@@ -18,6 +18,8 @@ type Held = {
   filter: string;
   users: number;
   generation: number;
+  /** Failed opens in a row, for the retry's backoff. */
+  failures: number;
 };
 
 export const IDLE_STATUS: FriendsStatus = {
@@ -157,10 +159,14 @@ export class FriendsStore {
   private async open(held: Held) {
     if (!this.ready || held.id) return;
     const generation = ++held.generation;
-    const { reply, snapshot } = await this.bridge.send(
-      held.intent.type,
-      held.intent.fields,
-    );
+    let answer: Awaited<ReturnType<FriendsBridge["send"]>>;
+    try {
+      answer = await this.bridge.send(held.intent.type, held.intent.fields);
+    } catch {
+      this.openAgain(held, generation);
+      return;
+    }
+    const { reply, snapshot } = answer;
     if (generation !== held.generation || !this.held.has(held.key)) {
       // Released or re-opened meanwhile: drop this subscription.
       const id = reply.ok
@@ -169,9 +175,15 @@ export class FriendsStore {
       if (id) void this.bridge.send("unsubscribe", { subscription: id });
       return;
     }
-    if (!reply.ok) return;
+    if (!reply.ok) {
+      // Not opened (the helper was still starting, or the connection changed under it): asked again, so a view
+      // never stays on "Loading…" while Friends is ready.
+      this.openAgain(held, generation);
+      return;
+    }
     const id = reply.result?.subscription;
     if (typeof id !== "string") return;
+    held.failures = 0;
     held.id = id;
     held.rev = 0;
     this.byId.set(id, held);
@@ -183,6 +195,17 @@ export class FriendsStore {
         subscription: id,
         query: held.filter,
       });
+  }
+
+  /** Opens `held` again after a failed open, backing off to 10 s, while it is still held and nothing newer ran. */
+  private openAgain(held: Held, generation: number) {
+    held.failures++;
+    const delay = Math.min(10_000, 250 * 2 ** Math.min(held.failures, 6));
+    setTimeout(() => {
+      if (this.held.get(held.key) !== held || held.generation !== generation)
+        return;
+      void this.open(held);
+    }, delay);
   }
 
   /** Holds a view while a component shows it. Returns a release function. */
@@ -197,6 +220,7 @@ export class FriendsStore {
         filter: "",
         users: 0,
         generation: 0,
+        failures: 0,
       };
       this.held.set(key, held);
       void this.open(held);

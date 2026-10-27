@@ -62,4 +62,8 @@ impl Connector for HelperConnector {
     fn embedded(&self) -> Option<Stamp> {
         self.embedded.as_ref().map(|e| e.stamp.clone())
     }
+
+    fn end_unresponsive(&self) -> bool {
+        szfriends_helper::client::end_unresponsive(&self.state)
+    }
 }

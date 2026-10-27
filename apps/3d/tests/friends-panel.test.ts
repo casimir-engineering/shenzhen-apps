@@ -174,6 +174,35 @@ describe("Friends view details", () => {
     });
   });
 
+  it("asks again for a view the helper did not open, so the list never stays on Loading…", async () => {
+    const frame = json("snapshots/list.json");
+    const bridge = fakeBridge({ list: frame });
+    const send = bridge.send.bind(bridge);
+    let refusals = 2;
+    bridge.send = async (type: string, fields?: Record<string, unknown>) => {
+      if (type === "subscribe" && refusals > 0) {
+        refusals--;
+        if (refusals === 0) throw Error("the bridge went away");
+        return {
+          reply: {
+            type: "reply",
+            re: null,
+            ok: false,
+            error: { code: "not_ready", message: null, retryable: true, details: {} },
+          },
+        };
+      }
+      return send(type, fields);
+    };
+    const store = new FriendsStore(bridge, status);
+    store.hold("list", { type: "subscribe", fields: { view: "list" } });
+    for (let i = 0; i < 40 && !store.subscriptionId("list"); i++)
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(refusals).toBe(0);
+    expect(store.subscriptionId("list")).toBe("s_1");
+    expect(store.data("list")).toBeDefined();
+  });
+
   it("Save received files to shows the folder, and Change… sends the folder the picker gave", async () => {
     const frame = json("snapshots/settings.json");
     const setup = pageFor("settings.json", frame)!;

@@ -13,6 +13,8 @@ use std::process::ExitCode;
 use szfriends_helper::stamp;
 
 fn main() -> ExitCode {
+    // A panic ends the helper (release builds abort): its log says where, since a Windows helper has no console.
+    std::panic::set_hook(Box::new(|info| szfriends_helper::log!("panic: {info}")));
     let own = stamp::own();
     let argument = std::env::args().nth(1);
     if argument.as_deref() == Some("--version") {

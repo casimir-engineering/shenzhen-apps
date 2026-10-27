@@ -118,3 +118,17 @@ fn app_container(token: &Handle) -> Option<bool> {
     // SAFETY: TokenIsAppContainer writes one DWORD.
     Some(unsafe { *(buffer.as_ptr() as *const u32) } != 0)
 }
+
+/// Ends process `pid` at once (`TerminateProcess`); for a helper of this user's that stopped answering, after the
+/// caller checked what it runs.
+pub fn terminate(pid: u32) -> std::io::Result<()> {
+    use windows_sys::Win32::System::Threading::{TerminateProcess, PROCESS_TERMINATE};
+    // SAFETY: plain call; a failure returns 0, which Handle::new refuses.
+    let process =
+        Handle::new(unsafe { OpenProcess(PROCESS_TERMINATE, 0, pid) }).ok_or_else(std::io::Error::last_os_error)?;
+    // SAFETY: a live handle opened with PROCESS_TERMINATE.
+    if unsafe { TerminateProcess(process.raw(), 1) } == 0 {
+        return Err(std::io::Error::last_os_error());
+    }
+    Ok(())
+}

@@ -44,12 +44,20 @@ pub trait Presentation: Send + Sync + 'static {
 /// zero badge PROTOCOL.md specifies, other views and intents are not served yet.
 #[derive(Debug, Default)]
 pub struct StubPresentation {
+    /// Standing in for a service that could not start: the welcome says so (`"service": "not_started"`), so an app
+    /// says Friends did not start rather than waiting for views that never come.
+    failed: bool,
     next_subscription: AtomicU64,
     subscriptions: Mutex<HashSet<(u64, String)>>,
     events: Mutex<Vec<SystemEvent>>,
 }
 
 impl StubPresentation {
+    /// The stub for a helper whose Friends service could not start (the identity or the store would not open).
+    pub fn failed() -> Self {
+        Self { failed: true, ..Self::default() }
+    }
+
     /// The system events received so far (for tests and the log).
     pub fn system_events(&self) -> Vec<SystemEvent> {
         self.events.lock().unwrap_or_else(|e| e.into_inner()).clone()
@@ -69,6 +77,9 @@ impl StubPresentation {
 
 impl Presentation for StubPresentation {
     fn welcome(&self, _client: &ClientInfo) -> Value {
+        if self.failed {
+            return json!({"capabilities": [], "strings": {}, "service": "not_started"});
+        }
         json!({"capabilities": [], "strings": {}})
     }
 

@@ -193,7 +193,7 @@ impl Running {
             Ok(service) => Self::Service(service),
             Err(error) => {
                 log!("Friends service not started: {error}");
-                Self::Stub(Arc::default())
+                Self::Stub(Arc::new(StubPresentation::failed()))
             }
         }
     }
@@ -213,6 +213,9 @@ pub struct Resettable {
     received: ReceivedDefaults,
     running: RwLock<Running>,
     connections: Connections,
+    /// When the service last failed to start; it is tried again as apps connect, at most every few seconds (a store
+    /// another program held for a moment, a key store that answered late).
+    failed_at: std::sync::Mutex<Option<std::time::Instant>>,
 }
 
 impl std::fmt::Debug for Resettable {
@@ -223,8 +226,33 @@ impl std::fmt::Debug for Resettable {
 
 impl Resettable {
     pub fn start(state_dir: PathBuf, keys: KeyStores, received: ReceivedDefaults) -> Arc<Self> {
-        let running = RwLock::new(Running::start(&state_dir, &keys, &received));
-        Arc::new(Self { state_dir, keys, received, running, connections: Connections::default() })
+        let first = Running::start(&state_dir, &keys, &received);
+        let failed_at = std::sync::Mutex::new(first.service().is_none().then(std::time::Instant::now));
+        let running = RwLock::new(first);
+        Arc::new(Self { state_dir, keys, received, running, connections: Connections::default(), failed_at })
+    }
+
+    /// While the stub serves, starts the service again (not more often than every 2 s); the connections already
+    /// made are handed to it.
+    fn start_again(&self) {
+        if self.service().is_some() {
+            return;
+        }
+        {
+            let mut failed_at = self.failed_at.lock().unwrap_or_else(|e| e.into_inner());
+            if failed_at.is_some_and(|at| at.elapsed() < std::time::Duration::from_secs(2)) {
+                return;
+            }
+            *failed_at = Some(std::time::Instant::now());
+        }
+        let started = Running::start(&self.state_dir, &self.keys, &self.received);
+        let Some(service) = started.service() else { return };
+        log!("Friends service started on a later try");
+        *self.running.write().unwrap_or_else(|e| e.into_inner()) = started;
+        *self.failed_at.lock().unwrap_or_else(|e| e.into_inner()) = None;
+        for connection in self.connections.all() {
+            service.connected(&connection);
+        }
     }
 
     /// The running service; `None` while the stub serves.
@@ -239,6 +267,7 @@ impl Resettable {
 
 impl Presentation for Resettable {
     fn welcome(&self, client: &ClientInfo) -> Value {
+        self.start_again();
         self.presentation().welcome(client)
     }
 

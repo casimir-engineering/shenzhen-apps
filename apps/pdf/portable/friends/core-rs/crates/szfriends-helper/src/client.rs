@@ -192,6 +192,27 @@ pub fn connect_or_spawn(
     }
 }
 
+/// Ends the running helper of `state` that stopped answering (Windows: the lock holder, when it runs a helper copy of
+/// this home), so the next connect starts a new one; `false` where nothing was ended (elsewhere, or nothing safe to
+/// end).
+pub fn end_unresponsive(state: &StateDir) -> bool {
+    #[cfg(windows)]
+    {
+        return match crate::windows::ipc::end_unresponsive(state) {
+            Ok(ended) => ended,
+            Err(error) => {
+                crate::log!("could not end the unresponsive helper: {error}");
+                false
+            }
+        };
+    }
+    #[allow(unreachable_code)]
+    {
+        let _ = state;
+        false
+    }
+}
+
 /// What `--handover` found.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Handover {
