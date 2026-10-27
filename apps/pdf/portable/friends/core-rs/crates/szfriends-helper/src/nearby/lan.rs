@@ -17,6 +17,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use szfriends_core::nearby::callbacks::window;
+use szfriends_core::nearby::firewall::Inbound;
 use szfriends_core::nearby::txt::{self, random_instance_name};
 use szfriends_core::nearby::{AdapterState, Method, Sighting, Tag};
 use szfriends_core::store::unix_now;
@@ -34,8 +35,9 @@ const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 /// A failing browser or listener is set up again after this.
 const RETRY_DELAY: Duration = Duration::from_secs(5);
 
-/// Reads where listeners may bind now (Windows: the firewall's current policy).
-pub type Rebind = Box<dyn Fn() -> Binding + Send>;
+/// Reads where listeners may bind now, and why nobody nearby can connect when nowhere (Windows: the firewall's
+/// current policy).
+pub type Rebind = Box<dyn Fn() -> (Binding, Inbound) + Send>;
 
 struct Entry {
     listener: Option<Listener>,
@@ -47,6 +49,8 @@ struct Entry {
 pub struct LanAdapter {
     backend: Box<dyn DnsSd>,
     binding: Binding,
+    /// Why nobody nearby can connect while the binding is nowhere.
+    inbound: Inbound,
     rebind: Option<Rebind>,
     sink: Arc<Sink>,
     running: bool,
@@ -81,6 +85,7 @@ impl LanAdapter {
     pub fn new(backend: Box<dyn DnsSd>, binding: Binding, sink: Arc<Sink>) -> Self {
         Self {
             backend,
+            inbound: if binding == Binding::Nowhere { Inbound::NoRule } else { Inbound::Open },
             binding,
             rebind: None,
             sink,
@@ -103,17 +108,23 @@ impl LanAdapter {
 
     /// Decides the binding again before each new hidden listener and each set-up.
     pub fn with_rebind(mut self, rebind: Rebind) -> Self {
-        self.binding = rebind();
+        (self.binding, self.inbound) = rebind();
         self.rebind = Some(rebind);
         self
     }
 
     /// Reads the binding again; entries made under another one leave the air with their listeners.
     fn rebind(&mut self) {
-        let Some(binding) = self.rebind.as_ref().map(|rebind| rebind()) else { return };
+        let Some((binding, inbound)) = self.rebind.as_ref().map(|rebind| rebind()) else { return };
         if binding == self.binding {
+            if inbound != self.inbound {
+                // Same binding, another reason (a network that became public): the Nearby line follows.
+                self.inbound = inbound;
+                self.report_state();
+            }
             return;
         }
+        self.inbound = inbound;
         log!("nearby network: listening {}", if binding == Binding::Nowhere { "nowhere now" } else { "again" });
         self.binding = binding;
         for entry in [self.hidden.take(), self.public.take()].into_iter().flatten() {
@@ -389,12 +400,27 @@ impl Adapter for LanAdapter {
 
     fn refresh(&mut self) {
         if self.running {
+            // A firewall rule may have just been added (Allow on Private Networks): listen at once if it admits.
+            let before = self.binding.clone();
+            self.rebind();
+            if self.binding != before {
+                self.update_hidden();
+                self.update_public();
+            }
             self.backend.refresh();
         }
     }
 
     fn listening(&self) -> bool {
         self.binding != Binding::Nowhere
+    }
+
+    fn inbound(&self) -> Inbound {
+        if self.listening() {
+            Inbound::Open
+        } else {
+            self.inbound
+        }
     }
 
     fn tick(&mut self) {

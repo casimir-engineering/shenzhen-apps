@@ -6,6 +6,7 @@ use std::sync::{Arc, Mutex};
 
 use super::*;
 use crate::nearby::Adapter;
+use szfriends_core::nearby::firewall::Inbound;
 
 type Registered = Arc<Mutex<Vec<String>>>;
 
@@ -34,8 +35,13 @@ fn adapter(blocked: &Arc<AtomicBool>) -> (LanAdapter, Registered) {
     let registered = Registered::default();
     let sink: Arc<Sink> = Arc::new(Box::new(|_| {}));
     let blocked = blocked.clone();
-    let rebind: Rebind =
-        Box::new(move || if blocked.load(Ordering::SeqCst) { Binding::Nowhere } else { Binding::Loopback });
+    let rebind: Rebind = Box::new(move || {
+        if blocked.load(Ordering::SeqCst) {
+            (Binding::Nowhere, Inbound::NoRule)
+        } else {
+            (Binding::Loopback, Inbound::Open)
+        }
+    });
     let lan = LanAdapter::new(Box::new(Recorder(registered.clone())), Binding::Network, sink).with_rebind(rebind);
     (lan, registered)
 }

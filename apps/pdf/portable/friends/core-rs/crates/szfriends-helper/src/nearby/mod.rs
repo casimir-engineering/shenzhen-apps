@@ -41,6 +41,7 @@ pub mod windows_dnssd;
 use std::net::{SocketAddr, TcpStream};
 use std::path::{Path, PathBuf};
 
+use szfriends_core::nearby::firewall::Inbound;
 use szfriends_core::nearby::{AdapterState, Method, Permission, Sighting, Tag};
 use szfriends_core::wire::RouteMethod;
 
@@ -50,19 +51,20 @@ pub const ENV_TEST_NETWORK: &str = "SZFRIENDS_TEST_LOOPBACK";
 /// A test service type for the system's DNS-SD on loopback (`$SZFRIENDS_TEST_SERVICE_TYPE`, in a test home only).
 pub const ENV_TEST_SERVICE_TYPE: &str = "SZFRIENDS_TEST_SERVICE_TYPE";
 /// Whether a test home on the test network accepts connections (`$SZFRIENDS_TEST_INBOUND`): `blocked` never, as a
-/// computer whose firewall admits nothing; `firewall` as this computer's firewall decides (Windows), still on loopback
+/// computer whose firewall admits nothing (`public`: as one on a public network with Friends' rule); `firewall` as this computer's firewall decides (Windows), still on loopback
 /// only when it admits. Unset: on loopback. Read again before every hidden listener and every set-up.
 pub const ENV_TEST_INBOUND: &str = "SZFRIENDS_TEST_INBOUND";
 
 /// The binding a test home's test network listens with.
-fn test_binding(state_dir: &Path) -> lan::Binding {
+fn test_binding(state_dir: &Path) -> (lan::Binding, Inbound) {
     match std::env::var(ENV_TEST_INBOUND).as_deref() {
-        Ok("blocked") => lan::Binding::Nowhere,
+        Ok("blocked") => (lan::Binding::Nowhere, Inbound::NoRule),
+        Ok("public") => (lan::Binding::Nowhere, Inbound::PublicNetwork),
         Ok("firewall") => match firewall::binding(state_dir) {
-            lan::Binding::Nowhere => lan::Binding::Nowhere,
-            _ => lan::Binding::Loopback,
+            (lan::Binding::Nowhere, why) => (lan::Binding::Nowhere, why),
+            _ => (lan::Binding::Loopback, Inbound::Open),
         },
-        _ => lan::Binding::Loopback,
+        _ => (lan::Binding::Loopback, Inbound::Open),
     }
 }
 
@@ -128,6 +130,14 @@ pub trait Adapter: Send {
     /// Whether this computer accepts connections nearby (the Nearby page's line when it does not).
     fn listening(&self) -> bool {
         true
+    }
+    /// Why nobody nearby can connect, while not listening.
+    fn inbound(&self) -> Inbound {
+        if self.listening() {
+            Inbound::Open
+        } else {
+            Inbound::NoRule
+        }
     }
     /// Periodic work: listeners past their overlap close, a failed method sets itself up again.
     fn tick(&mut self) {}

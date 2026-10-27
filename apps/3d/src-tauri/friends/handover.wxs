@@ -1,16 +1,30 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Shenzhen Friends in the MSI (docs/FRIENDS.md § Tauri, ADR 0015 § 14). The app runs the helper from a per-user
+<!-- Shenzhen Friends in the MSI (docs/FRIENDS.md § Tauri, ADR 0015 § 14, § 15). The app runs the helper from a per-user
      copy, never from the install folder, so this install replaces szfriends-helper.exe even while a helper runs.
      After the files are in place the new helper asks a running older one to step aside through the protocol's
      handover, as the installing user and unelevated, as the helper and the apps always run. Nothing is stopped by
-     name or process id; a failure changes nothing about the install. -->
+     name or process id; a failure changes nothing about the install.
+     This per-machine install also adds Friends' firewall rule (people on the same private network can then find this
+     PC; ports and name as szfriends-core's nearby/firewall.rs), elevated, and removes it on uninstall. -->
 <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
   <Fragment>
     <CustomAction Id="SzfriendsHandoverAction" Directory="INSTALLDIR"
                   ExeCommand="&quot;[INSTALLDIR]szfriends-helper.exe&quot; --handover"
                   Execute="deferred" Impersonate="yes" Return="ignore" />
+    <CustomAction Id="SzfriendsFirewallRemoveOld" Directory="INSTALLDIR"
+                  ExeCommand="&quot;[System64Folder]netsh.exe&quot; advfirewall firewall delete rule name=&quot;Shenzhen Friends (people nearby)&quot;"
+                  Execute="deferred" Impersonate="no" Return="ignore" />
+    <CustomAction Id="SzfriendsFirewallAdd" Directory="INSTALLDIR"
+                  ExeCommand="&quot;[System64Folder]netsh.exe&quot; advfirewall firewall add rule name=&quot;Shenzhen Friends (people nearby)&quot; dir=in action=allow protocol=TCP localport=48250-48257 remoteip=localsubnet profile=private,domain"
+                  Execute="deferred" Impersonate="no" Return="ignore" />
+    <CustomAction Id="SzfriendsFirewallRemove" Directory="INSTALLDIR"
+                  ExeCommand="&quot;[System64Folder]netsh.exe&quot; advfirewall firewall delete rule name=&quot;Shenzhen Friends (people nearby)&quot;"
+                  Execute="deferred" Impersonate="no" Return="ignore" />
     <InstallExecuteSequence>
       <Custom Action="SzfriendsHandoverAction" After="InstallFiles">NOT REMOVE</Custom>
+      <Custom Action="SzfriendsFirewallRemoveOld" After="SzfriendsHandoverAction">NOT REMOVE</Custom>
+      <Custom Action="SzfriendsFirewallAdd" After="SzfriendsFirewallRemoveOld">NOT REMOVE</Custom>
+      <Custom Action="SzfriendsFirewallRemove" Before="RemoveFiles">REMOVE="ALL" AND NOT UPGRADINGPRODUCTCODE</Custom>
     </InstallExecuteSequence>
     <ComponentGroup Id="SzfriendsHandover" />
   </Fragment>

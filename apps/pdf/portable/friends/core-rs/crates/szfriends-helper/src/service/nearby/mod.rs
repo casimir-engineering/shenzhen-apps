@@ -224,6 +224,8 @@ impl State {
             }
             self.start_adapter(index);
         }
+        // Started ones look again; the LAN reads the firewall again (a rule just allowed listens at once).
+        self.nearby.adapters.iter_mut().for_each(|adapter| adapter.refresh());
         self.schedule_reconsider();
         self.changed();
     }

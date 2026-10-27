@@ -133,6 +133,10 @@ impl Adapter for Held {
         self.inner.listening()
     }
 
+    fn inbound(&self) -> szfriends_core::nearby::firewall::Inbound {
+        self.inner.inbound()
+    }
+
     fn tick(&mut self) {
         self.follow();
         self.inner.tick();

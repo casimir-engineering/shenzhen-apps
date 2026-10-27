@@ -252,6 +252,12 @@ impl<R: Runtime> Host<R> {
         }
     }
 
+    /// Nearby looks again and reads the firewall again (after Friends' rule was added).
+    #[cfg_attr(not(windows), allow(dead_code))]
+    pub fn refresh_nearby(&self) {
+        self.send_from_host("activate", json!({}));
+    }
+
     fn send_from_host(&self, kind: &str, fields: Value) {
         let mut state = self.lock();
         let Some(link) = state.link.clone() else { return };

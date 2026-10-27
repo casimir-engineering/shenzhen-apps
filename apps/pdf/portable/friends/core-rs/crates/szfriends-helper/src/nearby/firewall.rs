@@ -5,6 +5,8 @@
 
 use std::path::Path;
 
+use szfriends_core::nearby::firewall::Inbound;
+
 use super::listeners::Binding;
 
 /// The firewall facts in `szfriends-core`'s terms, from Windows' policy.
@@ -37,31 +39,35 @@ pub fn facts(policy: &szfriends_helper_sys::firewall::Policy) -> szfriends_core:
     }
 }
 
-/// The binding for this computer, read again each time the LAN adapter asks (each window, each set-up).
+/// The binding for this computer, read again each time the LAN adapter asks (each window, each set-up, each
+/// refresh).
 pub fn rebind(state_dir: &Path) -> super::lan::Rebind {
     let state_dir = state_dir.to_path_buf();
     Box::new(move || binding(&state_dir))
 }
 
-/// The binding for this computer now.
-pub fn binding(state_dir: &Path) -> Binding {
+/// The binding for this computer now, and why nobody nearby can connect when it is nowhere.
+pub fn binding(state_dir: &Path) -> (Binding, Inbound) {
     let _ = state_dir;
     #[cfg(windows)]
     {
-        use szfriends_core::nearby::firewall::{listen_plan, Listen};
+        use szfriends_core::nearby::firewall::{inbound, listen_plan, Listen};
         let program = std::env::current_exe().map(|p| p.to_string_lossy().into_owned()).unwrap_or_default();
         return match szfriends_helper_sys::firewall::policy() {
-            Ok(policy) => match listen_plan(&facts(&policy), &program) {
-                Listen::Anywhere => Binding::Network,
-                Listen::Within(ranges) => Binding::Within(ranges),
-                Listen::Nowhere => Binding::Nowhere,
-            },
+            Ok(policy) => {
+                let facts = facts(&policy);
+                match listen_plan(&facts, &program) {
+                    Listen::Anywhere => (Binding::Network, Inbound::Open),
+                    Listen::Within(ranges) => (Binding::Within(ranges), Inbound::Open),
+                    Listen::Nowhere => (Binding::Nowhere, inbound(&facts, &program)),
+                }
+            }
             Err(error) => {
                 crate::log!("firewall policy unreadable, connecting outbound only: {error}");
-                Binding::Nowhere
+                (Binding::Nowhere, Inbound::NoRule)
             }
         };
     }
     #[allow(unreachable_code)]
-    Binding::Network
+    (Binding::Network, Inbound::Open)
 }

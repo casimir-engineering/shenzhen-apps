@@ -76,9 +76,54 @@ fn same_program(rule: &str, program: &str) -> bool {
     rule.is_empty() || rule.eq_ignore_ascii_case(program)
 }
 
+/// The TCP ports the Windows installer's rule opens for people nearby, on private and domain networks only
+/// ([`RULE_NAME`]): the hidden listener moves within them. A per-user install can add no rule by itself, so the
+/// installer asks Windows once (an administrator's confirmation) and the Nearby page offers the same step later.
+pub const FRIENDS_PORTS: (u16, u16) = (48_250, 48_257);
+/// The installer's rule, by the name Windows Defender Firewall lists it under.
+pub const RULE_NAME: &str = "Shenzhen Friends (people nearby)";
+
+/// The `netsh` arguments that add the installer's rule: inbound TCP on [`FRIENDS_PORTS`], from the local subnet,
+/// on private and domain networks, for any program (each helper build runs from a copy of its own, so a rule naming
+/// one path would not outlive an update).
+pub fn rule_arguments() -> String {
+    format!(
+        "advfirewall firewall add rule name=\"{RULE_NAME}\" dir=in action=allow protocol=TCP localport={}-{} \
+         remoteip=localsubnet profile=private,domain",
+        FRIENDS_PORTS.0, FRIENDS_PORTS.1
+    )
+}
+
+/// Why nobody nearby can connect to this computer, when the helper does not listen.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Inbound {
+    /// It listens: people nearby connect.
+    #[default]
+    Open,
+    /// No rule admits Friends: the installer's step was declined or never ran.
+    NoRule,
+    /// A rule admits Friends on private networks, and this network is public.
+    PublicNetwork,
+    /// The firewall is set to block every incoming connection on this network.
+    BlockedAll,
+    /// An enabled Block rule covers Friends (Windows applies it over any Allow rule).
+    BlockRule,
+}
+
+fn covers(rule: &Rule, profile: Profile, port: u16, program: &str) -> bool {
+    rule.enabled
+        && rule.profiles & profile.bit() != 0
+        && matches!(rule.protocol, 6 | 256)
+        && port_listed(&rule.local_ports, port)
+        && same_program(&rule.application, program)
+        && rule.service.trim().is_empty()
+        && rule.package.trim().is_empty()
+        && rule.user.trim().is_empty()
+}
+
 /// `true` when listening on `port` from `program` meets no prompt and no block: every current profile's firewall is
-/// off, or admits the port by an enabled Allow rule for TCP that names this program or none. A profile that blocks all
-/// inbound traffic admits nothing.
+/// off, or admits the port by an enabled Allow rule for TCP that names this program or none, and no enabled Block
+/// rule covers it (Windows lets a Block rule win). A profile that blocks all inbound traffic admits nothing.
 pub fn may_listen(facts: &Facts, port: u16, program: &str) -> bool {
     if facts.profiles.is_empty() {
         return false; // nothing known: fail closed (no prompt)
@@ -90,18 +135,30 @@ pub fn may_listen(facts: &Facts, port: u16, program: &str) -> bool {
         if facts.block_all_inbound.contains(profile) {
             return false;
         }
-        facts.inbound_rules.iter().any(|rule| {
-            rule.enabled
-                && rule.allow
-                && rule.profiles & profile.bit() != 0
-                && matches!(rule.protocol, 6 | 256)
-                && port_listed(&rule.local_ports, port)
-                && same_program(&rule.application, program)
-                && rule.service.trim().is_empty()
-                && rule.package.trim().is_empty()
-                && rule.user.trim().is_empty()
-        })
+        let rules = || facts.inbound_rules.iter().filter(|rule| covers(rule, *profile, port, program));
+        rules().any(|rule| rule.allow) && !rules().any(|rule| !rule.allow)
     })
+}
+
+/// Why `program` cannot listen, for the Nearby page's line; [`Inbound::Open`] when [`listen_plan`] lets it.
+pub fn inbound(facts: &Facts, program: &str) -> Inbound {
+    if listen_plan(facts, program) != Listen::Nowhere {
+        return Inbound::Open;
+    }
+    let on: Vec<Profile> = facts.profiles.iter().copied().filter(|p| facts.enabled.contains(p)).collect();
+    if on.iter().any(|p| facts.block_all_inbound.contains(p)) {
+        return Inbound::BlockedAll;
+    }
+    let port = FRIENDS_PORTS.0;
+    let blocking = |p: Profile| facts.inbound_rules.iter().any(|r| !r.allow && covers(r, p, port, program));
+    if on.iter().any(|p| blocking(*p)) {
+        return Inbound::BlockRule;
+    }
+    let private_allows = facts.inbound_rules.iter().any(|r| r.allow && covers(r, Profile::Private, port, program));
+    if on.contains(&Profile::Public) && private_allows {
+        return Inbound::PublicNetwork;
+    }
+    Inbound::NoRule
 }
 
 /// Where the helper may listen (the hidden listener moves to a fresh port every window, ADR 0004 Review amendments,
@@ -246,6 +303,34 @@ mod tests {
         assert!(!may_listen(&blocked, 47_810, HELPER));
         let unknown = Facts { profiles: vec![], enabled: vec![], block_all_inbound: vec![], inbound_rules: vec![] };
         assert!(!may_listen(&unknown, 47_810, HELPER));
+    }
+
+    #[test]
+    fn a_block_rule_wins_over_an_allow_rule() {
+        let mut block = rule(0x2, "48250-48257");
+        block.allow = false;
+        let both = facts(&[Profile::Private], vec![rule(0x2, "48250-48257"), block]);
+        assert!(!may_listen(&both, 48_250, HELPER));
+        assert_eq!(listen_plan(&both, HELPER), Listen::Nowhere);
+        assert_eq!(inbound(&both, HELPER), Inbound::BlockRule);
+    }
+
+    #[test]
+    fn why_nobody_nearby_can_connect() {
+        let ours = || rule(0x3, &format!("{}-{}", FRIENDS_PORTS.0, FRIENDS_PORTS.1));
+        assert_eq!(inbound(&facts(&[Profile::Private], vec![]), HELPER), Inbound::NoRule);
+        assert_eq!(inbound(&facts(&[Profile::Private], vec![ours()]), HELPER), Inbound::Open);
+        assert_eq!(listen_plan(&facts(&[Profile::Private], vec![ours()]), HELPER), Listen::Within(vec![FRIENDS_PORTS]));
+        let mut public = facts(&[Profile::Public], vec![ours()]);
+        public.profiles = vec![Profile::Public];
+        assert_eq!(inbound(&public, HELPER), Inbound::PublicNetwork);
+        public.inbound_rules.clear();
+        assert_eq!(inbound(&public, HELPER), Inbound::NoRule);
+        let mut shields = facts(&[Profile::Private], vec![ours()]);
+        shields.block_all_inbound = vec![Profile::Private];
+        assert_eq!(inbound(&shields, HELPER), Inbound::BlockedAll);
+        assert!(rule_arguments().contains("localport=48250-48257"));
+        assert!(rule_arguments().contains("profile=private,domain"));
     }
 
     #[test]

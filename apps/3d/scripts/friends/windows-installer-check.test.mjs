@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { readPe, readStamp, treeStamp } from "./windows-installer-check.mjs";
+import { firewallRuleDifferences, readPe, readStamp, treeStamp } from "./windows-installer-check.mjs";
 
 /** A minimal PE32+ file: one section holding an import directory that names `dlls`. */
 function pe({ machine = 0x8664, subsystem = 2, dlls = [] } = {}) {
@@ -61,4 +61,8 @@ test("the expected stamp comes from apps/pdf's MAC_VERSION and MAC_BUILD", () =>
   fs.writeFileSync(path.join(root, "Makefile"), "X ?= 1\nMAC_VERSION ?= 2026.10.7\nMAC_BUILD ?= 3\n");
   assert.deepEqual(treeStamp(root), { version: "26.10.7", build: 26100703 });
   fs.rmSync(root, { recursive: true });
+});
+
+test("the installers add Friends' firewall rule as szfriends-core defines it", () => {
+  assert.deepEqual(firewallRuleDifferences(), []);
 });

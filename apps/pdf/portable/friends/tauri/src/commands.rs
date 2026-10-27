@@ -330,7 +330,19 @@ pub async fn open_settings<R: Runtime>(
     friends: State<'_, Friends<R>>,
     target: Value,
 ) -> Answer<bool> {
-    available(&app, &friends, &webview)?;
+    let host = available(&app, &friends, &webview)?;
+    // Windows: Nearby's Allow on Private Networks adds Friends' firewall rule, which Windows asks an administrator to
+    // confirm; Nearby then reads the firewall again and listens at once.
+    #[cfg(windows)]
+    if target.as_str() == Some("firewall_allow") {
+        let owner = webview.window().hwnd().map_or(0, |hwnd| hwnd.0 as isize);
+        let allowed = blocking(move || crate::firewall::allow_nearby(owner)).await?;
+        if allowed {
+            host.refresh_nearby();
+        }
+        return Ok(allowed);
+    }
+    let _ = &host;
     let Some(url) = target.as_str().and_then(crate::urls::settings_url) else { return Ok(false) };
     let url = url.to_owned();
     blocking(move || system_open(&app, &url)).await

@@ -3,3 +3,8 @@
 
 pub mod ipc;
 pub mod keystore;
+
+/// Friends' firewall rule, which only an administrator's yes can add (ADR 0015 § 15).
+pub mod firewall {
+    pub use szfriends_helper_sys::firewall::netsh_elevated;
+}

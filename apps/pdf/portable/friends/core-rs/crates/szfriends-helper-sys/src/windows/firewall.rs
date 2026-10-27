@@ -203,3 +203,47 @@ pub fn policy() -> io::Result<Policy> {
     }
     Ok(Policy { current_profiles, enabled, block_all_inbound, inbound_rules })
 }
+
+/// Runs `netsh <arguments>` elevated, as Windows asks the person to confirm (User Account Control), and waits for it:
+/// `Ok(true)` when it ran and succeeded, `Ok(false)` when the person declined or it failed. `owner` is the window
+/// the confirmation belongs to (0 for none). Used for Friends' one inbound rule, which a per-user install cannot add
+/// without an administrator's yes.
+pub fn netsh_elevated(arguments: &str, owner: isize) -> io::Result<bool> {
+    use windows_sys::Win32::Foundation::{CloseHandle, WAIT_OBJECT_0};
+    use windows_sys::Win32::System::Threading::{GetExitCodeProcess, WaitForSingleObject};
+    use windows_sys::Win32::UI::Shell::{
+        ShellExecuteExW, SEE_MASK_NOCLOSEPROCESS, SEE_MASK_NO_CONSOLE, SHELLEXECUTEINFOW,
+    };
+    use windows_sys::Win32::UI::WindowsAndMessaging::SW_HIDE;
+
+    let windows = std::env::var_os("SystemRoot").unwrap_or_else(|| "C:\\Windows".into());
+    let program = super::wide(std::path::Path::new(&windows).join("System32").join("netsh.exe"));
+    let verb = super::wide("runas");
+    let parameters = super::wide(arguments);
+    // SAFETY: an all-zero SHELLEXECUTEINFOW is valid before its fields are set.
+    let mut info: SHELLEXECUTEINFOW = unsafe { std::mem::zeroed() };
+    info.cbSize = std::mem::size_of::<SHELLEXECUTEINFOW>() as u32;
+    info.fMask = SEE_MASK_NOCLOSEPROCESS | SEE_MASK_NO_CONSOLE;
+    info.hwnd = owner;
+    info.lpVerb = verb.as_ptr();
+    info.lpFile = program.as_ptr();
+    info.lpParameters = parameters.as_ptr();
+    info.nShow = SW_HIDE;
+    // SAFETY: every string is NUL-terminated and alive for the call; the call fills hProcess on success.
+    if unsafe { ShellExecuteExW(&mut info) } == 0 {
+        let error = io::Error::last_os_error();
+        // ERROR_CANCELLED: the person said no.
+        return if error.raw_os_error() == Some(1223) { Ok(false) } else { Err(error) };
+    }
+    if info.hProcess == 0 {
+        return Ok(false);
+    }
+    // SAFETY: a process handle we own; waited for, read and closed once.
+    unsafe {
+        let finished = WaitForSingleObject(info.hProcess, 60_000) == WAIT_OBJECT_0;
+        let mut code = 1u32;
+        let read = finished && GetExitCodeProcess(info.hProcess, &mut code) != 0;
+        CloseHandle(info.hProcess);
+        Ok(read && code == 0)
+    }
+}

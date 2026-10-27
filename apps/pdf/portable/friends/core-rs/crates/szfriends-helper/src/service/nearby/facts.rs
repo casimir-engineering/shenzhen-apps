@@ -2,6 +2,7 @@
 //! matched by tag, strangers whose public entry told us who they are), each method's state, the visibility deadline,
 //! and whether this computer accepts connections nearby.
 
+use szfriends_core::nearby::firewall::Inbound;
 use szfriends_core::nearby::merger::Candidate;
 use szfriends_core::nearby::visibility::Instant;
 use szfriends_core::nearby::Method;
@@ -137,7 +138,8 @@ impl State {
             searching: [network, bluetooth].contains(&szfriends_core::nearby::AdapterState::Working),
             working_since: self.nearby.working_since(),
             people: self.nearby_people(),
-            inbound_blocked: !self.nearby.listening(),
+            // Why nobody nearby can connect to this computer, if so.
+            inbound: self.nearby.adapters.iter().map(|a| a.inbound()).find(|i| *i != Inbound::Open).unwrap_or_default(),
             bluetooth_absent: !self.nearby.has_adapter(Method::Bluetooth),
             phone: cfg!(any(target_os = "android", target_os = "ios")),
         }

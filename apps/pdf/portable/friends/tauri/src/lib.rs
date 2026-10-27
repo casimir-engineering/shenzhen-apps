@@ -16,6 +16,8 @@
 mod commands;
 mod drops;
 mod files;
+#[cfg(windows)]
+mod firewall;
 mod host;
 mod link;
 #[cfg(target_os = "macos")]

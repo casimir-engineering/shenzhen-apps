@@ -101,7 +101,13 @@ fn the_catalog_is_the_helpers() {
     }
     // Words only the portable helper says: no Mac has a Windows firewall (ADR 0015 § 15).
     const PORTABLE_ONLY: &[&str] = &[
-        "nearby_inbound_blocked",
+        "nearby_inbound.no_rule",
+        "nearby_inbound.allow",
+        "nearby_inbound.public",
+        "nearby_inbound.open_network",
+        "nearby_inbound.blocked_all",
+        "nearby_inbound.block_rule",
+        "nearby_inbound.open_firewall",
         "visibility.unavailable.firewall",
         "visibility.unavailable.access.phone",
         "alert.network_denied.body.phone",

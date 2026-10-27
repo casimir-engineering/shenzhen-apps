@@ -294,9 +294,14 @@ stopped by name or process id. Linux packages (deb, rpm) behave like the AppImag
   account the prompt needs an administrator, and dismissing it leaves block rules for that program's path (and
   every versioned copy would prompt again). So the helper listens for LAN connections only when the firewall
   already admits them: it reads the current profile with `INetFwPolicy2` (read-only, no elevation) and listens when
-  that profile's firewall is off or an enabled inbound rule covers the helper's port. The per-user NSIS installer
-  (Tauri's default) adds no rule. An administrator's per-machine install (MSI) adds one inbound TCP rule for a fixed
-  port on the Private profile only, removed on uninstall. Discovery uses the Windows DNS-SD API
+  that profile's firewall is off or an enabled inbound rule covers the helper's port, and no enabled Block rule
+  does (Windows lets a Block rule win). Friends' rule, "Shenzhen Friends (people nearby)", admits TCP 48250-48257
+  from the local subnet on private and domain networks, for any program (each helper build runs from a copy of its
+  own, so a rule for one path would not outlive an update); the hidden listener moves within those ports. The
+  per-user NSIS installer asks for it once, through User Account Control (`netsh`, from Microsoft): declined, or
+  skipped by a silent install, nothing else changes, and the Nearby page offers the same step (Allow on Private
+  Networks). An administrator's per-machine install (MSI) adds it without asking and removes it on uninstall; the
+  NSIS uninstaller removes it too, asking again. Discovery uses the Windows DNS-SD API
   (`DnsServiceBrowse`, `DnsServiceRegister`, Windows 10 1809 and later), served by the system's DNS client with its
   built-in mDNS rules, not mdns-sd's own UDP 5353 socket; the helper announces a port only while it listens.
   Only rules for any program or for the helper's own path count: a rule scoped to a service, an app package or one
@@ -313,9 +318,12 @@ stopped by name or process id. Linux packages (deb, rpm) behave like the AppImag
   every friend that can; two such computers on one network reach each other through the online route, whose ICE
   host candidates work because each side's own outbound packets open its stateful firewall for the reply.
 - *Nearby page.* When the Windows helper does not listen, the Nearby page shows one line under the visibility
-  setting, for the person at that PC wondering whether something is wrong: "Windows Firewall blocks incoming
-  connections, so this PC connects to friends nearby itself. You don't need to change anything." (string catalog
-  key `nearby_inbound_blocked`). Linux shows nothing: the helper cannot tell a blocked port from an empty network.
+  setting, for the person at that PC wondering why people nearby cannot find it and what to do, with the one step
+  that changes it (`szfriends-core` `nearby::firewall::Inbound`, catalog keys `nearby_inbound.*`): no rule (Allow on
+  Private Networks), a Public network with the rule (how to make the network Private; Open Network Settings), all
+  incoming connections blocked or a Block rule (Open Firewall Settings). Each says that friends already added still
+  reach this PC over the internet. (The first version said only "You don't need to change anything", which read as a
+  missing permission.) Linux shows nothing: the helper cannot tell a blocked port from an empty network.
 - *Tests* (wave 4): unit tests of the listen decision from firewall facts (profile off, rule present, disabled,
   other profile, other port); in the Windows 11 VM with the firewall on and no rule, the helper runs without adding
   a firewall rule (`Get-NetFirewallRule` before and after) and a Mac on the Objective-C helper exchanges messages

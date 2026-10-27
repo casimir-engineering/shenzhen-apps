@@ -390,9 +390,9 @@ pub struct NearbyFacts {
     /// When the first method started working since Nearby last started; None while none works.
     pub working_since: Option<f64>,
     pub people: Vec<NearbyPersonFacts>,
-    /// This computer accepts no connections nearby (a Windows firewall without a rule for it): it reaches friends
-    /// itself, and nobody nearby can see it.
-    pub inbound_blocked: bool,
+    /// Whether this computer accepts connections nearby, and why not (a Windows firewall): when it does not, it
+    /// reaches friends itself, and nobody nearby can see it.
+    pub inbound: crate::nearby::firewall::Inbound,
     /// This computer has no Bluetooth route at all (Windows): Nearby says nothing of Bluetooth.
     pub bluetooth_absent: bool,
     /// A phone: access is changed in its Settings app, not a computer's System Settings.

@@ -11,6 +11,7 @@ use super::facts::{AdapterState, IdentityState, NearbyFacts, NearbyPersonFacts, 
 use super::text::{non_empty_trimmed, trim};
 use super::time::rfc3339;
 use super::SnapshotBuilder;
+use crate::nearby::firewall::Inbound;
 
 fn state_name(state: AdapterState) -> &'static str {
     match state {
@@ -66,7 +67,7 @@ impl SnapshotBuilder {
     fn visibility(&self, nearby: &NearbyFacts, now: f64) -> Value {
         let s = &self.strings;
         let remaining = nearby.visibility_deadline.map_or(0.0, |deadline| deadline - now);
-        if nearby.inbound_blocked && nearby.bluetooth_absent {
+        if nearby.inbound != Inbound::Open && nearby.bluetooth_absent {
             // Nothing nearby can reach this computer, so nothing would see the person.
             return json!({
                 "state": "unavailable", "title": null, "body": s.text("visibility.unavailable.firewall"),
@@ -152,17 +153,25 @@ impl SnapshotBuilder {
         }
     }
 
+    /// Why people nearby cannot connect to this PC, and the one step that changes it (Windows' firewall).
+    fn inbound_note(&self, inbound: Inbound) -> Value {
+        let s = &self.strings;
+        let (text, action) = match inbound {
+            Inbound::Open => return Value::Null,
+            Inbound::NoRule => ("nearby_inbound.no_rule", ("firewall_allow", "nearby_inbound.allow")),
+            Inbound::PublicNetwork => ("nearby_inbound.public", ("network", "nearby_inbound.open_network")),
+            Inbound::BlockedAll => ("nearby_inbound.blocked_all", ("firewall", "nearby_inbound.open_firewall")),
+            Inbound::BlockRule => ("nearby_inbound.block_rule", ("firewall", "nearby_inbound.open_firewall")),
+        };
+        json!({"text": s.text(text), "action": self.settings_action(action.0, action.1, "link")})
+    }
+
     fn note(&self, nearby: &NearbyFacts, alert: bool) -> Value {
         let s = &self.strings;
         let app = [("app", self.audience().app_name.as_str())];
         if nearby.bluetooth_absent {
             // No Bluetooth to speak of; the one line left says why nobody nearby can see this computer.
-            let blocked = nearby.inbound_blocked && !alert;
-            return if blocked {
-                json!({"text": s.text("nearby_inbound_blocked"), "action": null})
-            } else {
-                Value::Null
-            };
+            return if alert { Value::Null } else { self.inbound_note(nearby.inbound) };
         }
         if alert {
             // The card explains the network and has its one fix. Bluetooth is worth a line only while it still finds

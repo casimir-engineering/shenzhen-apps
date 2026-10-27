@@ -42,6 +42,9 @@ pub fn settings_url(target: &str) -> Option<&'static str> {
             "bluetooth" => Some("ms-settings:bluetooth"),
             "wifi" => Some("ms-settings:network-wifi"),
             "notifications" => Some("ms-settings:notifications"),
+            // Where a network's profile (Public or Private) is set, and Windows Security's firewall page.
+            "network" => Some("ms-settings:network-status"),
+            "firewall" => Some("windowsdefender://network/"),
             _ => None,
         };
     }

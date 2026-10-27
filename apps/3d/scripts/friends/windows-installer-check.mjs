@@ -37,6 +37,28 @@ export function treeStamp(root = path.resolve(here, "../../../pdf/portable")) {
 }
 
 /** The stamp a helper binary carries (src/stamp.rs: magic, 24 bytes of version, 20 digits of build), or null. */
+/** Friends' firewall rule as szfriends-core defines it (nearby/firewall.rs: RULE_NAME, FRIENDS_PORTS), and as the
+ * NSIS hooks and the MSI fragment add it: the same name and ports everywhere, or the Nearby page and the installers
+ * disagree about what admits people nearby. Returns the differences (none when they agree). */
+export function firewallRuleDifferences(
+  friends = path.resolve(here, "../../../pdf/portable/friends"),
+  tauri = path.resolve(here, "../../src-tauri/friends"),
+) {
+  const core = fs.readFileSync(path.join(friends, "core-rs/crates/szfriends-core/src/nearby/firewall.rs"), "utf8");
+  const name = core.match(/pub const RULE_NAME: &str = "([^"]+)";/)?.[1];
+  const ports = core.match(/pub const FRIENDS_PORTS: \(u16, u16\) = \(([\d_]+), ([\d_]+)\);/);
+  const range = ports && `${ports[1].replaceAll("_", "")}-${ports[2].replaceAll("_", "")}`;
+  const differences = [];
+  if (!name || !range) return ["szfriends-core's RULE_NAME or FRIENDS_PORTS was not found"];
+  for (const file of ["installer-hooks.nsh", "handover.wxs"]) {
+    const text = fs.readFileSync(path.join(tauri, file), "utf8").replaceAll("&quot;", '"');
+    if (!text.includes(name)) differences.push(`${file} does not name the rule "${name}"`);
+    if (!text.includes(`localport=${range}`)) differences.push(`${file} does not open ports ${range}`);
+    if (!text.includes("profile=private,domain")) differences.push(`${file} does not limit the rule to private networks`);
+  }
+  return differences;
+}
+
 export function readStamp(bytes) {
   for (let at = bytes.indexOf(STAMP_MAGIC); at >= 0; at = bytes.indexOf(STAMP_MAGIC, at + 1)) {
     const field = bytes.subarray(at + 20, at + 44);
@@ -165,6 +187,9 @@ function main(argv) {
   const msi = option("msi");
   if (msi) digests.push(checkInstaller(msi, "msi", expected));
   if (new Set(digests).size !== 1) throw Error("the Setup and the MSI carry different helpers");
+  const rule = firewallRuleDifferences();
+  if (rule.length) throw Error(`Friends' firewall rule: ${rule.join("; ")}`);
+  console.log("ok both installers add Friends' firewall rule as szfriends-core defines it");
   console.log("windows-installer-check: passed");
 }
 

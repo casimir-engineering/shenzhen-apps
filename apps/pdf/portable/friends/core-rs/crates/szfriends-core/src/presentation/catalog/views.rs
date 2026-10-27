@@ -121,13 +121,33 @@ pub(super) const NEARBY: &[(&str, &str)] = &[
         "visibility.hidden.body",
         "Friends you’ve added show up here on their own. Other people need to make themselves visible.",
     ),
-    // Windows only (ADR 0015 § 15): with no firewall rule for Friends, this PC accepts no connections nearby.
+    // Windows only (ADR 0015 § 15): the firewall admits no connection to Friends here, so people nearby cannot
+    // reach this PC. One line says why and what fixes it; friends already added still connect over the internet.
     ("visibility.unavailable.firewall", "People nearby can’t see this PC."),
     (
-        "nearby_inbound_blocked",
-        "Windows Firewall blocks incoming connections, so this PC connects to friends nearby itself. You don’t need \
-         to change anything.",
+        "nearby_inbound.no_rule",
+        "Windows Firewall keeps people on this network from finding this PC. Click Allow on Private Networks, then \
+         confirm in Windows. Friends you’ve added still reach you over the internet.",
     ),
+    ("nearby_inbound.allow", "Allow on Private Networks"),
+    (
+        "nearby_inbound.public",
+        "Windows treats this network as public, so people on it can’t find this PC. If you trust this network, \
+         set its network profile to Private in Settings › Network & internet. Friends you’ve added still reach you \
+         over the internet.",
+    ),
+    ("nearby_inbound.open_network", "Open Network Settings"),
+    (
+        "nearby_inbound.blocked_all",
+        "Windows Firewall blocks all incoming connections on this network, so people on it can’t find this PC. Friends \
+         you’ve added still reach you over the internet.",
+    ),
+    (
+        "nearby_inbound.block_rule",
+        "A Windows Firewall rule blocks Friends on this network, so people on it can’t find this PC. Friends \
+         you’ve added still reach you over the internet.",
+    ),
+    ("nearby_inbound.open_firewall", "Open Firewall Settings"),
     ("method.network.not_asked", "Starts when you open Friends"),
     ("method.network.starting", "Starting…"),
     ("method.network.working", "Looking on your network and over Wi-Fi"),
