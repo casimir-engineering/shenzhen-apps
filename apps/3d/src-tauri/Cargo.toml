@@ -83,5 +83,4 @@ minisign-verify = "0.3"
 sha2 = "0.10"
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
-tauri-plugin-window-state = "2"
 tauri-plugin-log = "2"

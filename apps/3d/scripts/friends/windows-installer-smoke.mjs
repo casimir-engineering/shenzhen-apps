@@ -23,6 +23,10 @@
 //   allowed      Friends' rule is there, the network is Private: no firewall line, and the helper listens on one of
 //                Friends' ports.
 //   blocked      a Block rule covers Friends' ports: Nearby says a firewall rule blocks Friends.
+//   bounds       the window is opened and closed five times and keeps the same position and size each time, never
+//                smaller than its minimum size; a window that earlier versions saved a few pixels tall (they lost the
+//                menu bar's height on every launch) opens at a usable size again. The signed-in user's saved window
+//                bounds are put back afterwards.
 //
 // The firewall scenarios need the firewall and the network set first, which takes an administrator:
 // windows-installer-smoke.sh sets them between runs of this script (--scenarios, --installed, --keep, --uninstall).
@@ -48,7 +52,7 @@ const option = (name) => {
 };
 const work = option("work");
 const keptHome = value("home") && path.resolve(value("home"));
-const ALL = ["fresh", "quarantined", "broken", "lingering", "wedged"];
+const ALL = ["fresh", "quarantined", "broken", "lingering", "wedged", "bounds"];
 const scenarios = (value("scenarios") ?? ALL.join(",")).split(",").filter(Boolean);
 const PORT = 9333;
 const FRIENDS_PORTS = [48250, 48257];
@@ -251,6 +255,56 @@ async function open(name, local, { prepare, settled = ready, timeout = 60_000, t
   }
 }
 
+/** The app's top-level window as Windows has it, in physical pixels: through a small C# tool built with csc. */
+function windowOf(pid) {
+  const tool = path.join(work, "bounds.exe");
+  if (!fs.existsSync(tool)) {
+    const source = path.join(work, "bounds.cs");
+    fs.writeFileSync(
+      source,
+      `using System; using System.Runtime.InteropServices;
+class Bounds { [StructLayout(LayoutKind.Sequential)] struct R { public int L, T, Ri, B; }
+  delegate bool F(IntPtr h, IntPtr p);
+  [DllImport("user32.dll")] static extern bool EnumWindows(F f, IntPtr p);
+  [DllImport("user32.dll")] static extern int GetWindowThreadProcessId(IntPtr h, out int pid);
+  [DllImport("user32.dll")] static extern bool IsWindowVisible(IntPtr h);
+  [DllImport("user32.dll")] static extern bool IsIconic(IntPtr h);
+  [DllImport("user32.dll")] static extern bool GetWindowRect(IntPtr h, out R r);
+  [DllImport("user32.dll")] static extern bool GetClientRect(IntPtr h, out R r);
+  [DllImport("user32.dll")] static extern uint GetDpiForWindow(IntPtr h);
+  [DllImport("user32.dll")] static extern bool SetProcessDpiAwarenessContext(IntPtr c);
+  static int Main(string[] a) { SetProcessDpiAwarenessContext(new IntPtr(-4)); int want = int.Parse(a[0]); int found = 1;
+    EnumWindows((h, p) => { int pid; GetWindowThreadProcessId(h, out pid); if (pid != want || !IsWindowVisible(h)) return true;
+      R w, c; GetWindowRect(h, out w); GetClientRect(h, out c); if (c.Ri < 50 && c.B < 50 && w.Ri - w.L < 200) return true;
+      Console.WriteLine("{\\"x\\":" + w.L + ",\\"y\\":" + w.T + ",\\"width\\":" + (w.Ri - w.L) + ",\\"height\\":" + (w.B - w.T) +
+        ",\\"content\\":[" + c.Ri + "," + c.B + "],\\"dpi\\":" + GetDpiForWindow(h) + ",\\"minimized\\":" + (IsIconic(h) ? "true" : "false") + "}");
+      found = 0; return false; }, IntPtr.Zero); return found; } }`,
+    );
+    const csc = path.join(process.env.WINDIR, "Microsoft.NET", "Framework64", "v4.0.30319", "csc.exe");
+    spawnSync(csc, ["/nologo", `/out:${tool}`, source]);
+  }
+  const shown = spawnSync(tool, [String(pid)], { encoding: "utf8" });
+  return shown.status === 0 ? JSON.parse(shown.stdout) : undefined;
+}
+
+/** Opens the installed app in `local`, waits for its window to settle, measures it and closes it as a person does. */
+async function measure(local) {
+  const child = spawn(app, [], { env: { ...process.env, LOCALAPPDATA: local }, detached: true, stdio: "ignore" });
+  child.unref();
+  let shown;
+  for (let i = 0; i < 120 && !shown; i++) {
+    await sleep(250);
+    shown = windowOf(child.pid);
+  }
+  await sleep(3000); // the page loads; nothing may move the window meanwhile
+  shown = windowOf(child.pid) ?? shown;
+  spawnSync("taskkill", ["/pid", String(child.pid)]);
+  for (let i = 0; i < 80 && running("shenzhen-3d.exe").includes(child.pid); i++) await sleep(250);
+  if (running("shenzhen-3d.exe").includes(child.pid)) spawnSync("taskkill", ["/f", "/pid", String(child.pid)]);
+  await sleep(500);
+  return shown;
+}
+
 /** The process holding a Friends home's helper lock. */
 const lockHolder = (local) => {
   const lock = path.join(local, "Shenzhen Friends", "ipc", "helper.lock");
@@ -386,6 +440,33 @@ try {
       if (name === "allowed" ? ours.length > 0 : ports.length === 0)
         ok(`${name}: the helper ${ours.length ? `listens on port ${ours.join(", ")}` : "listens on no port"}`);
       else notOk(`${name}: the helper listens on ${JSON.stringify(ports)}`);
+    } else if (name === "bounds") {
+      // Tauri keeps window bounds in the Roaming AppData known folder, whatever %APPDATA% says: the signed-in user's.
+      const config = path.join(process.env.APPDATA, "com.shenzhen3d.viewer");
+      const files = ["window-bounds.json", ".window-state.json"].map((file) => path.join(config, file));
+      const kept = files.map((file) => (fs.existsSync(file) ? fs.readFileSync(file) : undefined));
+      const local = homeFor("bounds", true);
+      const minimum = (shown) => [360, 560].map((size) => Math.round((size * shown.dpi) / 96));
+      try {
+        // As 0.2.3 left it after many launches: 9 px of content, in the old file only.
+        fs.mkdirSync(config, { recursive: true });
+        fs.rmSync(files[0], { force: true });
+        const shrunk = { width: 1600, height: 9, x: 120, y: 80, prev_x: 0, prev_y: 0, maximized: false, visible: true };
+        fs.writeFileSync(files[1], JSON.stringify({ main: { ...shrunk, decorated: true, fullscreen: false } }));
+        const healed = await measure(local);
+        const [minWidth, minHeight] = healed ? minimum(healed) : [];
+        if (healed && healed.content[0] >= minWidth && healed.content[1] >= minHeight && !healed.minimized)
+          ok(`bounds: a window saved 9 px tall opens with ${healed.content.join(" × ")} px of content (minimum ${minWidth} × ${minHeight})`);
+        else notOk(`bounds: a window saved 9 px tall opens as ${JSON.stringify(healed)}`);
+        const launches = [];
+        for (let i = 0; i < 5; i++) launches.push(await measure(local));
+        const key = (shown) => shown && `${shown.x},${shown.y} ${shown.width}×${shown.height} (content ${shown.content.join("×")})`;
+        if (launches.every((shown) => shown && key(shown) === key(launches[0])))
+          ok(`bounds: five launches in a row open at the same place and size: ${key(launches[0])}`);
+        else notOk(`bounds: the window moves or changes size between launches: ${launches.map(key).join(" | ")}`);
+      } finally {
+        files.forEach((file, i) => (kept[i] ? fs.writeFileSync(file, kept[i]) : fs.rmSync(file, { force: true })));
+      }
     } else notOk(`unknown scenario ${name}`);
   }
   // The friends the kept home already has show in every state: they do not depend on the local network.

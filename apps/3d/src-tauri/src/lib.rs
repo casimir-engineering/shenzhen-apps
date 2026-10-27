@@ -11,6 +11,8 @@ mod native_open;
 mod release_feed;
 #[cfg(feature = "friends-smoke")]
 mod smoke;
+#[cfg(any(desktop, test))]
+mod window_bounds;
 #[cfg(desktop)]
 use tauri::{Emitter, Manager};
 
@@ -213,7 +215,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init());
     #[cfg(desktop)]
-    let builder = builder.plugin(tauri_plugin_window_state::Builder::default().build());
+    let builder = builder.plugin(window_bounds::plugin());
     #[cfg(feature = "friends")]
     let builder = builder.plugin(friends::plugin());
     #[cfg(feature = "friends-smoke")]
@@ -231,6 +233,9 @@ pub fn run() {
         .setup(|_app| {
             #[cfg(desktop)]
             desktop_menu(_app)?;
+            // After the menu: on Windows the menu bar is part of the frame the window is sized with.
+            #[cfg(desktop)]
+            window_bounds::restore(_app.handle());
             #[cfg(all(feature = "friends", any(windows, target_os = "linux", target_os = "android")))]
             friends_links::listen(_app.handle());
             #[cfg(desktop)]
