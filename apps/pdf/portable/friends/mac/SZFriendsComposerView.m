@@ -1,6 +1,6 @@
-// SZFriendsComposerView: Return sends, Shift+Return inserts a line, `#` attaches, the paperclip (Attach files) and
-// dropped files become chips, and
-// `/` turns the field into a command for the host's assistant (SZFriendsComposerCommand.m).
+// SZFriendsComposerView: Return sends, Shift+Return inserts a line, `#` attaches, the paperclip (Attach files), pasted
+// and dropped files become chips (SZFriendsComposerAttach.m), and `/` turns the field into a command for the host's
+// assistant (SZFriendsComposerCommand.m).
 
 #import "mac/SZFriendsComposerInternal.h"
 #import "mac/SZFriendsMentionViews.h"
@@ -84,6 +84,11 @@
             composer.onOpenMentionPicker();
     };
     _input.onSlash = ^BOOL { return [weakSelf.command begin]; };
+    _input.pasteboard = context.pasteboard;
+    _input.onPaste = ^BOOL(NSPasteboard *pasteboard) { return [weakSelf pasteAttachmentsFromPasteboard:pasteboard]; };
+    _input.canPasteAttachments = ^BOOL(NSPasteboard *pasteboard) {
+        return [weakSelf canPasteAttachmentsFromPasteboard:pasteboard];
+    };
     _input.onDeleteAtStart = ^BOOL {
         SZFriendsComposerView *composer = weakSelf;
         if (composer.commandState != SZFriendsCommandStateEditing) return NO;
@@ -248,31 +253,15 @@
 }
 
 - (void)chooseFiles {
-    if (!_enabled || _sending || !_context.chooseFiles) return;
-    __weak SZFriendsComposerView *weakSelf = self;
-    _context.chooseFiles(self.window, ^(NSArray<NSURL *> *files) {
-        SZFriendsComposerView *composer = weakSelf;
-        if (!composer || !files.count) return;
-        SZFriendsDropVerdict verdict = SZFriendsDropVerdictNone;
-        NSArray<SZFriendsAttachableItem *> *items = [SZFriendsDrops itemsForChosenFiles:files verdict:&verdict];
-        NSString *refusal = SZFriendsDropRefusalKey(verdict);
-        if (refusal) {
-            // As a drop says it: a folder or a link chosen sends nothing, in the helper's words.
-            [composer showError:[composer->_context string:refusal]];
-            [composer->_context announce:[composer->_context string:refusal]];
-            return;
-        }
-        NSMutableArray<SZFriendsAttachableItem *> *fresh = [NSMutableArray array];
-        for (SZFriendsAttachableItem *item in items) {
-            BOOL there = NO;
-            for (SZFriendsAttachableItem *old in composer->_items)
-                there = there || (old.fileURL && [old.fileURL isEqual:item.fileURL]);
-            if (!there) [fresh addObject:item];
-        }
-        [composer showError:nil];
-        if (fresh.count) [composer addAttachments:fresh];
-        [composer.window makeFirstResponder:composer->_input];
-    });
+    [self chooseFilesToAttach];
+}
+
+- (SZFriendsContext *)composerContext {
+    return _context;
+}
+
+- (BOOL)takesAttachments {
+    return _enabled && !_sending && _acceptsDrops;
 }
 
 - (void)removeAttachmentAtIndex:(NSUInteger)index {

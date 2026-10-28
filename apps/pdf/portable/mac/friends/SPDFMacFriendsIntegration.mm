@@ -205,6 +205,7 @@ static void* kSearchHiddenContext = &kSearchHiddenContext;
         if (!tab.path.length) continue;
         NSMutableDictionary* document = [spdf_dictionary_from_tab(tab, _window.windowNumber) mutableCopy];
         document[@"inThisWindow"] = @YES;
+        if (tab == selected) document[@"current"] = @YES;
         [documents addObject:document];
     }
     return documents;

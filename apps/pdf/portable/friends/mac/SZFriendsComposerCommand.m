@@ -41,6 +41,22 @@
     if ([typed isEqualToString:@"#"] && atWordStart && self.onHash) self.onHash();
     if ([typed isEqualToString:@"@"] && atWordStart && !self.hasMarkedText && self.onAt) self.onAt();
 }
+- (void)paste:(id)sender {
+    NSPasteboard *pasteboard = self.pasteboard ?: NSPasteboard.generalPasteboard;
+    if (self.isEditable && self.onPaste && self.onPaste(pasteboard)) return;
+    if (pasteboard == NSPasteboard.generalPasteboard) [super paste:sender];
+    else if (self.isEditable) [self readSelectionFromPasteboard:pasteboard];
+}
+- (BOOL)pastesAttachments:(SEL)action {
+    return action == @selector(paste:) && self.isEditable && self.canPasteAttachments &&
+           self.canPasteAttachments(self.pasteboard ?: NSPasteboard.generalPasteboard);
+}
+- (BOOL)validateMenuItem:(NSMenuItem *)item {
+    return [self pastesAttachments:item.action] || [super validateMenuItem:item];
+}
+- (BOOL)validateUserInterfaceItem:(id<NSValidatedUserInterfaceItem>)item {
+    return [self pastesAttachments:item.action] || [super validateUserInterfaceItem:item];
+}
 - (void)drawRect:(NSRect)dirtyRect {
     [super drawRect:dirtyRect];
     if (self.string.length || !self.placeholder.length) return;

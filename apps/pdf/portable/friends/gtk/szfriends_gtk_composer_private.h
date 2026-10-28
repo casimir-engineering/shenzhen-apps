@@ -1,5 +1,6 @@
-/* Shenzhen Friends GTK views: the composer's state, shared by szfriends_gtk_composer.c (typing, sending, building)
- * and szfriends_gtk_composer_chips.c (chips, drafts, drops). Internal to the conversation's files. */
+/* Shenzhen Friends GTK views: the composer's state, shared by szfriends_gtk_composer.c (typing, sending, building),
+ * szfriends_gtk_composer_chips.c (chips, drafts, drops) and szfriends_gtk_composer_paste.c. Internal to the
+ * conversation's files. */
 
 #ifndef SZFRIENDS_GTK_COMPOSER_PRIVATE_H
 #define SZFRIENDS_GTK_COMPOSER_PRIVATE_H
@@ -31,6 +32,10 @@ void szfriends_gtk_composer_restore_draft(SZFriendsGtkComposerView *composer);
 GArray *szfriends_gtk_composer_pieces(SZFriendsGtkComposerView *composer, GPtrArray *strings);
 /* The drop target that turns dropped files into chips. */
 void szfriends_gtk_composer_add_drop_target(SZFriendsGtkComposerView *composer, GtkWidget *widget);
+/* Files chosen or pasted (GFile *): chips, or the helper's words for a folder or a link among them. */
+void szfriends_gtk_composer_attach_files(SZFriendsGtkComposerView *composer, GSList *files);
+/* Paste (Ctrl+V, Cmd+V on a Mac) in the text: files and images become chips, text stays text. */
+void szfriends_gtk_composer_add_paste(SZFriendsGtkComposerView *composer);
 
 G_END_DECLS
 

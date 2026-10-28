@@ -1,6 +1,7 @@
 /* The composer (szfriends_gtk_conversation.h; mirrors mac/SZFriendsComposerView.m): Return sends, Shift+Return breaks
  * the line, `#` opens the host's items, `@` the friends who may be mentioned, and files chosen with the paperclip
- * (Attach files) or dropped become chips that go with the next Send; nothing is sent until then.
+ * (Attach files), pasted (szfriends_gtk_composer_paste.c) or dropped become chips that go with the next Send;
+ * nothing is sent until then.
  *
  * An @ chip is a child anchor in the text, which GTK counts as U+FFFC: the message goes out with one U+FFFC per chip
  * and one `mentions` entry per chip in the same order, and the helper writes each mention itself (PROTOCOL.md
@@ -80,30 +81,32 @@ static void send_clicked(GtkButton *button, gpointer data) {
 
 /* ---- Attach files ---------------------------------------------------------------------------------------- */
 
-static void files_chosen(GSList *files, gpointer data) {
-    SZFriendsGtkComposerView *composer = data;
-    if (composer->root && files) {
-        SZFriendsGtkLink *link = composer->conversation->link;
-        SZFriendsGtkDropVerdict verdict = szfriends_gtk_drop_verdict_for_files(files);
-        if (szfriends_gtk_drop_refused(verdict)) {
-            szfriends_gtk_composer_set_error(composer, szfriends_gtk_drop_refusal(link, verdict));
-        } else if (verdict == SZFRIENDS_GTK_DROP_ACCEPT) {
-            GValue value = G_VALUE_INIT;
-            g_value_init(&value, GDK_TYPE_FILE_LIST);
-            g_value_take_boxed(&value, gdk_file_list_new_from_list(files));
-            SZFriendsGtkDropVerdict taken = SZFRIENDS_GTK_DROP_NONE;
-            GPtrArray *items = szfriends_gtk_drop_items(szfriends_gtk_link_host(link), &value, &taken);
-            szfriends_gtk_composer_set_error(composer, NULL);
-            if (items->len) {
-                szfriends_gtk_composer_add_items(composer, items);
-                szfriends_gtk_composer_save_draft(composer);
-            }
-            g_ptr_array_unref(items);
-            g_value_unset(&value);
-            gtk_widget_grab_focus(composer->text_view);
+void szfriends_gtk_composer_attach_files(SZFriendsGtkComposerView *composer, GSList *files) {
+    if (!composer->root || !files) return;
+    SZFriendsGtkLink *link = composer->conversation->link;
+    SZFriendsGtkDropVerdict verdict = szfriends_gtk_drop_verdict_for_files(files);
+    if (szfriends_gtk_drop_refused(verdict)) {
+        szfriends_gtk_composer_set_error(composer, szfriends_gtk_drop_refusal(link, verdict));
+    } else if (verdict == SZFRIENDS_GTK_DROP_ACCEPT) {
+        GValue value = G_VALUE_INIT;
+        g_value_init(&value, GDK_TYPE_FILE_LIST);
+        g_value_take_boxed(&value, gdk_file_list_new_from_list(files));
+        SZFriendsGtkDropVerdict taken = SZFRIENDS_GTK_DROP_NONE;
+        GPtrArray *items = szfriends_gtk_drop_items(szfriends_gtk_link_host(link), &value, &taken);
+        szfriends_gtk_composer_set_error(composer, NULL);
+        if (items->len) {
+            szfriends_gtk_composer_add_items(composer, items);
+            szfriends_gtk_composer_save_draft(composer);
         }
+        g_ptr_array_unref(items);
+        g_value_unset(&value);
+        gtk_widget_grab_focus(composer->text_view);
     }
-    composer_unref(composer);
+}
+
+static void files_chosen(GSList *files, gpointer data) {
+    szfriends_gtk_composer_attach_files(data, files);
+    composer_unref(data);
 }
 
 static void attach_clicked(GtkButton *button, gpointer data) {
@@ -277,6 +280,7 @@ GtkWidget *szfriends_gtk_composer_new(SZFriendsGtkConversation *conversation) {
     szfriends_gtk_composer_add_items(composer, NULL);
 
     szfriends_gtk_composer_add_drop_target(composer, root);
+    szfriends_gtk_composer_add_paste(composer);
     conversation->composer = composer;
     return root;
 }

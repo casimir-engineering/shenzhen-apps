@@ -28,6 +28,7 @@ static void attachable_items(gpointer host_data, GtkWindow *window, const char *
         if (strstr(title, wanted)) {
             char *path = g_build_filename(g_get_tmp_dir(), titles[i][0], NULL);
             g_ptr_array_add(items, szfriends_gtk_host_item_new(titles[i][0], titles[i][1], titles[i][2], path, NULL));
+            if (i == 0) ((SZFriendsGtkHostItem *)g_ptr_array_index(items, items->len - 1))->badge = g_strdup("Current");
             g_free(path);
         }
         g_free(title);

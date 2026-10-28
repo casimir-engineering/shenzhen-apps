@@ -80,6 +80,9 @@ NS_ASSUME_NONNULL_BEGIN
 // PROTOCOL.md file.revision object (source, document_id, revision_id, label, sha256, size), or nil for a
 // plain file whose current bytes are what the person means.
 @property(nonatomic, copy, nullable) NSDictionary<NSString *, id> *revision;
+// The host's word for the document open in front ("Current"), drawn as a small pill beside the title in the `#`
+// picker. Only that one item has it, and it comes first; nil for every other item.
+@property(nonatomic, copy, nullable) NSString *badge;
 @end
 
 #pragma mark - Optional Markdown rendering

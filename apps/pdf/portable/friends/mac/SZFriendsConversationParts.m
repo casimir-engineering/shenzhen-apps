@@ -154,6 +154,7 @@
 @property(nonatomic, copy) NSString *glyphLabel;   // nil: no document glyph
 @property(nonatomic, copy) NSString *firstLine;
 @property(nonatomic, copy) NSString *firstLineTrailing;
+@property(nonatomic, copy) NSString *badge; // a pill right after the first line ("Current"); nil: none
 @property(nonatomic, copy) NSAttributedString *secondLine;
 @end
 
@@ -182,8 +183,21 @@
     CGFloat trailingWidth = self.firstLineTrailing.length
                                 ? ceil([self.firstLineTrailing sizeWithAttributes:trailing].width) + 8 : 0;
     CGFloat width = NSWidth(self.bounds) - x - 8;
-    [self.firstLine drawWithRect:NSMakeRect(x, 6, width - trailingWidth, 18)
+    // The badge follows the title, which gives up room for it: a long name is cut short, never the badge.
+    NSDictionary *badge = @{NSFontAttributeName : SZFriendsSemibold(appearance.captionFont),
+                            NSForegroundColorAttributeName : appearance.accentColor};
+    CGFloat badgeWidth = self.badge.length ? ceil([self.badge sizeWithAttributes:badge].width) + 12 : 0;
+    CGFloat titleRoom = width - trailingWidth - (badgeWidth ? badgeWidth + 6 : 0);
+    CGFloat titleWidth = MIN(titleRoom, ceil([self.firstLine sizeWithAttributes:first].width));
+    [self.firstLine drawWithRect:NSMakeRect(x, 6, titleRoom, 18)
                          options:NSStringDrawingUsesLineFragmentOrigin attributes:first];
+    if (badgeWidth) {
+        NSRect pill = NSMakeRect(x + titleWidth + 6, 7, badgeWidth, 16);
+        [[appearance.accentColor colorWithAlphaComponent:0.16] setFill];
+        [[NSBezierPath bezierPathWithRoundedRect:pill xRadius:8 yRadius:8] fill];
+        NSSize text = [self.badge sizeWithAttributes:badge];
+        [self.badge drawAtPoint:NSMakePoint(NSMinX(pill) + 6, NSMidY(pill) - text.height / 2) withAttributes:badge];
+    }
     if (trailingWidth) [self.firstLineTrailing drawAtPoint:NSMakePoint(NSWidth(self.bounds) - trailingWidth, 8)
                                             withAttributes:trailing];
     NSMutableAttributedString *second = [self.secondLine mutableCopy];
@@ -262,11 +276,13 @@
                                                                   appearance:self->_context.appearance];
         row.glyphLabel = item.kindLabel ?: @"";
         row.firstLine = item.title;
+        row.badge = item.badge;
         row.secondLine = [[NSAttributedString alloc]
             initWithString:item.detail ?: @""
                 attributes:@{NSFontAttributeName : self->_context.appearance.secondaryFont,
                              NSForegroundColorAttributeName : self->_context.appearance.secondaryTextColor}];
         row.accessibilityLabel = item.title;
+        row.accessibilityValue = item.badge;
         row.onPress = ^(SZFriendsButton *button) {
             (void)button;
             weakSelf.selectedIndex = (NSInteger)index;

@@ -78,7 +78,9 @@ static void row_clicked(GtkButton *button, gpointer data) {
     choose(data, GPOINTER_TO_INT(g_object_get_data(G_OBJECT(button), "szfriends-index")));
 }
 
-static GtkWidget *two_lines(const char *first, const char *second) {
+/* The title, with the host's badge ("Current") as a small pill right after it, and the detail under it. A long
+ * title is cut short; the badge never is. */
+static GtkWidget *two_lines(const char *first, const char *second, const char *badge) {
     GtkWidget *box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 1);
     gtk_widget_set_hexpand(box, TRUE);
     gtk_widget_set_valign(box, GTK_ALIGN_CENTER);
@@ -89,7 +91,16 @@ static GtkWidget *two_lines(const char *first, const char *second) {
         gtk_widget_add_css_class(label, line ? "szfriends-secondary" : "szfriends-row-title");
         gtk_label_set_xalign(GTK_LABEL(label), 0);
         gtk_label_set_ellipsize(GTK_LABEL(label), PANGO_ELLIPSIZE_END);
-        gtk_box_append(GTK_BOX(box), label);
+        if (line || !badge || !*badge) {
+            gtk_box_append(GTK_BOX(box), label);
+            continue;
+        }
+        GtkWidget *title = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 6), *pill = gtk_label_new(badge);
+        gtk_widget_add_css_class(pill, "szfriends-badge-pill");
+        gtk_widget_set_valign(pill, GTK_ALIGN_CENTER);
+        gtk_box_append(GTK_BOX(title), label);
+        gtk_box_append(GTK_BOX(title), pill);
+        gtk_box_append(GTK_BOX(box), title);
     }
     return box;
 }
@@ -108,7 +119,7 @@ static void show_rows(SZFriendsGtkPicker *picker) {
             GtkWidget *avatar = szfriends_gtk_avatar_new(link, 28);
             szfriends_gtk_avatar_set(avatar, &choice->avatar);
             gtk_box_append(GTK_BOX(box), avatar);
-            gtk_box_append(GTK_BOX(box), two_lines(choice->name, NULL));
+            gtk_box_append(GTK_BOX(box), two_lines(choice->name, NULL, NULL));
             name = choice->name;
         } else {
             SZFriendsGtkHostItem *item = g_ptr_array_index(picker->choices, i);
@@ -116,8 +127,10 @@ static void show_rows(SZFriendsGtkPicker *picker) {
             gtk_widget_add_css_class(glyph, "szfriends-file-glyph");
             gtk_label_set_yalign(GTK_LABEL(glyph), 1);
             gtk_box_append(GTK_BOX(box), glyph);
-            gtk_box_append(GTK_BOX(box), two_lines(item->title, item->detail));
+            gtk_box_append(GTK_BOX(box), two_lines(item->title, item->detail, item->badge));
             name = item->title;
+            if (item->badge && *item->badge)
+                gtk_accessible_update_property(GTK_ACCESSIBLE(row), GTK_ACCESSIBLE_PROPERTY_DESCRIPTION, item->badge, -1);
         }
         gtk_button_set_child(GTK_BUTTON(row), box);
         gtk_accessible_update_property(GTK_ACCESSIBLE(row), GTK_ACCESSIBLE_PROPERTY_LABEL, name, -1);

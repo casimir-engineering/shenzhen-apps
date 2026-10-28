@@ -24,6 +24,8 @@ typedef struct {
     char *kind_label;    /* "PDF" */
     char *path;          /* readable file holding exactly the bytes meant */
     char *revision_json; /* PROTOCOL.md file.revision as a JSON object, NULL for a plain file */
+    char *badge;         /* "Current": a pill beside the title in `#`, for what is open in front (first); NULL: none.
+                          * The host sets it (g_strdup) after szfriends_gtk_host_item_new(); the item frees it. */
 } SZFriendsGtkHostItem;
 
 SZFriendsGtkHostItem *szfriends_gtk_host_item_new(const char *title, const char *detail, const char *kind_label,

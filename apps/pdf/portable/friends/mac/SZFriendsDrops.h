@@ -44,6 +44,22 @@ FOUNDATION_EXPORT NSString *_Nullable SZFriendsDropRefusalKey(SZFriendsDropVerdi
 + (nullable NSArray<SZFriendsAttachableItem *> *)itemsForChosenFiles:(NSArray<NSURL *> *)urls
                                                              verdict:(SZFriendsDropVerdict *)verdict;
 
+// Paste (Cmd+V) in the composer. What it attaches, in this order: the host's own items (a reader tab), files copied
+// in Finder or Shenzhen Files, and an image (a screenshot, a picture copied from a page) when no words come with it
+// but a link. Text, and anything else, pastes as text: NO. A pasteboard holding files is judged as a drop of them
+// (folders, links and special files refused); one holding an image is Accept.
++ (BOOL)pasteboardHoldsAttachments:(NSPasteboard *)pasteboard host:(nullable id<SZFriendsHost>)host;
++ (SZFriendsDropVerdict)pasteVerdictForPasteboard:(NSPasteboard *)pasteboard host:(nullable id<SZFriendsHost>)host;
+// The pasted attachments as items: files from where they are, an image written as a PNG named for when it was
+// pasted ("Pasted image 2026-10-28 at 14.02.05.png") in a new private folder like a drop's promised files. Files are
+// never read here. `completion` runs once on the main thread, with no items when the verdict is not Accept.
++ (void)readPastedItemsFromPasteboard:(NSPasteboard *)pasteboard
+                                 host:(nullable id<SZFriendsHost>)host
+                     promiseDirectory:(nullable NSString *)promiseDirectory
+                           completion:(void (^)(NSArray<SZFriendsAttachableItem *> *items))completion;
+// "Pasted image <date> at <time>.png" for `date`, in the format Finder gives screenshots.
+FOUNDATION_EXPORT NSString *SZFriendsPastedImageName(NSDate *date, NSUInteger number);
+
 // A new private folder for one drop's promised files, in "Shenzhen Friends drops" inside `promiseDirectory`
 // (NSTemporaryDirectory() when nil). Folders of earlier drops older than SZFriendsPromiseLifetime are removed first,
 // so a reader that quit before its timer fired leaves nothing behind for long.

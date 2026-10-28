@@ -4,6 +4,7 @@
 #include <sys/stat.h>
 
 NSString* const SPDFMacFriendsAttachPlaceholder = @"Search open and Collection documents";
+NSString* const SPDFMacFriendsAttachCurrentBadge = @"Current";
 const NSUInteger SPDFMacFriendsAttachItemLimit = 30;
 
 static BOOL Matches(NSString* query, NSString* title, NSString* path) {
@@ -108,7 +109,9 @@ NSArray<SZFriendsAttachableItem*>* SPDFMacFriendsAttachItems(NSString* query, NS
             ? SPDFMacFriendsRevisionForFile(displayed, lookup, SPDFMacFriendsBackgroundHashLimit, now) : nil;
         if (!revision) continue;  // gone, unreadable, a folder or a link: nothing that could be sent
         NSString* place = [document[@"inThisWindow"] boolValue] ? @"Open in this window" : @"Open in another window";
-        [items addObject:Item(path.lastPathComponent, WithLabel(place, revision), displayed, revision)];
+        SZFriendsAttachableItem* item = Item(path.lastPathComponent, WithLabel(place, revision), displayed, revision);
+        if ([document[@"current"] boolValue] && !items.count) item.badge = SPDFMacFriendsAttachCurrentBadge;
+        [items addObject:item];
     }
     AddCollectionItems(items, trimmed, openPaths, lookup, now);
     return items;

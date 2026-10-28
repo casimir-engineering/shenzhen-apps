@@ -149,7 +149,10 @@ SZFriendsGtkHostItem *szfriends_gtk_host_item_new(const char *title, const char 
 
 SZFriendsGtkHostItem *szfriends_gtk_host_item_copy(const SZFriendsGtkHostItem *item) {
     if (!item) return NULL;
-    return szfriends_gtk_host_item_new(item->title, item->detail, item->kind_label, item->path, item->revision_json);
+    SZFriendsGtkHostItem *copy =
+        szfriends_gtk_host_item_new(item->title, item->detail, item->kind_label, item->path, item->revision_json);
+    copy->badge = g_strdup(item->badge);
+    return copy;
 }
 
 void szfriends_gtk_host_item_free(SZFriendsGtkHostItem *item) {
@@ -159,5 +162,6 @@ void szfriends_gtk_host_item_free(SZFriendsGtkHostItem *item) {
     g_free(item->kind_label);
     g_free(item->path);
     g_free(item->revision_json);
+    g_free(item->badge);
     g_free(item);
 }

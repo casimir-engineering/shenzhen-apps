@@ -172,6 +172,114 @@ static SZFriendsDropVerdict SZFVerdictForURLs(NSArray<NSURL *> *urls) {
     });
 }
 
+#pragma mark - Paste
+
+static NSArray<NSPasteboardType> *SZFImageTypes(void) {
+    return @[ NSPasteboardTypePNG, NSPasteboardTypeTIFF, @"public.jpeg", @"public.heic" ];
+}
+
+// Words that come with an image are what the person copied, unless they are only the image's own link (a browser's
+// Copy Image) or a file's name.
+static BOOL SZFHoldsWords(NSPasteboard *pasteboard) {
+    NSString *text = [[pasteboard stringForType:NSPasteboardTypeString]
+        stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
+    if (!text.length) return NO;
+    if ([text rangeOfCharacterFromSet:NSCharacterSet.whitespaceAndNewlineCharacterSet].location != NSNotFound)
+        return YES;
+    NSURL *link = [NSURL URLWithString:text];
+    return !(link.scheme.length && link.host.length);
+}
+
+static BOOL SZFHoldsImage(NSPasteboard *pasteboard) {
+    return [pasteboard availableTypeFromArray:SZFImageTypes()] != nil && !SZFHoldsWords(pasteboard);
+}
+
++ (BOOL)pasteboardHoldsAttachments:(NSPasteboard *)pasteboard host:(id<SZFriendsHost>)host {
+    return [self carriesHostItems:pasteboard host:host] || SZFFileURLs(pasteboard).count || SZFHoldsImage(pasteboard);
+}
+
++ (SZFriendsDropVerdict)pasteVerdictForPasteboard:(NSPasteboard *)pasteboard host:(id<SZFriendsHost>)host {
+    if ([self carriesHostItems:pasteboard host:host] || SZFFileURLs(pasteboard).count)
+        return [self verdictForPasteboard:pasteboard host:host];
+    return SZFHoldsImage(pasteboard) ? SZFriendsDropVerdictAccept : SZFriendsDropVerdictNone;
+}
+
+NSString *SZFriendsPastedImageName(NSDate *date, NSUInteger number) {
+    NSDateFormatter *format = [NSDateFormatter new];
+    format.locale = [NSLocale localeWithLocaleIdentifier:@"en_US_POSIX"];
+    format.dateFormat = @"yyyy-MM-dd 'at' HH.mm.ss";
+    NSString *name = [@"Pasted image " stringByAppendingString:[format stringFromDate:date]];
+    if (number > 1) name = [name stringByAppendingFormat:@" %lu", (unsigned long)number];
+    return [name stringByAppendingPathExtension:@"png"];
+}
+
+// Each pasted image as its type and bytes, read on the main thread (the pasteboard is not for other threads); made
+// PNG (as it came, or converted) and written off it.
+static NSArray<NSArray *> *SZFPastedImages(NSPasteboard *pasteboard) {
+    NSMutableArray *images = [NSMutableArray array];
+    for (NSPasteboardItem *item in pasteboard.pasteboardItems) {
+        NSString *type = [item availableTypeFromArray:SZFImageTypes()];
+        NSData *data = type ? [item dataForType:type] : nil;
+        if (data.length) [images addObject:@[ type, data ]];
+    }
+    return images;
+}
+
+static NSData *SZFPNGData(NSString *type, NSData *data) {
+    if ([type isEqualToString:NSPasteboardTypePNG]) return data;
+    NSBitmapImageRep *bitmap = [NSBitmapImageRep imageRepWithData:data];
+    if (!bitmap) {
+        NSImage *image = [[NSImage alloc] initWithData:data];
+        CGImageRef cg = [image CGImageForProposedRect:NULL context:nil hints:nil];
+        bitmap = cg ? [[NSBitmapImageRep alloc] initWithCGImage:cg] : nil;
+    }
+    return [bitmap representationUsingType:NSBitmapImageFileTypePNG properties:@{}];
+}
+
++ (void)readPastedItemsFromPasteboard:(NSPasteboard *)pasteboard
+                                 host:(id<SZFriendsHost>)host
+                     promiseDirectory:(NSString *)promiseDirectory
+                           completion:(void (^)(NSArray<SZFriendsAttachableItem *> *))completion {
+    if ([self pasteVerdictForPasteboard:pasteboard host:host] != SZFriendsDropVerdictAccept) {
+        completion(@[]);
+        return;
+    }
+    if ([self carriesHostItems:pasteboard host:host]) {
+        completion([self hostItems:pasteboard host:host]);
+        return;
+    }
+    NSArray<NSURL *> *urls = SZFFileURLs(pasteboard);
+    if (urls.count) {
+        NSMutableArray *items = [NSMutableArray array];
+        for (NSURL *url in urls) [items addObject:SZFItemForURL(url)];
+        completion(items);
+        return;
+    }
+    NSArray *images = SZFPastedImages(pasteboard);
+    NSURL *folder = images.count ? [self promiseFolderInDirectory:promiseDirectory] : nil;
+    if (!folder) {
+        completion(@[]);
+        return;
+    }
+    NSDate *now = NSDate.date;
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+        NSMutableArray *items = [NSMutableArray array];
+        [images enumerateObjectsUsingBlock:^(NSArray *image, NSUInteger index, BOOL *stop) {
+            (void)stop;
+            NSData *png = SZFPNGData(image[0], image[1]);
+            NSURL *file = [folder URLByAppendingPathComponent:SZFriendsPastedImageName(now, index + 1)];
+            if (png && [png writeToURL:file options:NSDataWritingWithoutOverwriting error:nil]) {
+                [NSFileManager.defaultManager setAttributes:@{NSFilePosixPermissions : @0600} ofItemAtPath:file.path
+                                                      error:nil];
+                [items addObject:SZFItemForURL(file)];
+            }
+        }];
+        dispatch_async(dispatch_get_main_queue(), ^{ completion(items); });
+    });
+}
+
+#pragma mark - Chosen and promised files
+
 + (NSArray<SZFriendsAttachableItem *> *)itemsForChosenFiles:(NSArray<NSURL *> *)urls
                                                     verdict:(SZFriendsDropVerdict *)verdict {
     SZFriendsDropVerdict judged = SZFVerdictForURLs(urls);
