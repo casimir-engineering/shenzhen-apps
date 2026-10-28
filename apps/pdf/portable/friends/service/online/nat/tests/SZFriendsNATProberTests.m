@@ -306,12 +306,12 @@ static void TestRefusalsAndBudget(void) {
     c.portRangeLow = base;
     c.portRangeHigh = (uint16_t)(base + 63);
     c.probeMax = 20;
-    c.duration = 0.6;
+    c.duration = getenv("CI") ? 1.5 : 0.6; // a CI runner's throttled timer sent only 17 in 0.6 s
     SZFriendsNATProber *capped = [[SZFriendsNATProber alloc] initWithConfiguration:c];
     __block ProbeOutcome outcome = {nil, nil, NO, NO};
     dispatch_semaphore_t done = dispatch_semaphore_create(0);
     Start(capped, SZFTestQueue("szf.test.cap"), &outcome, done);
-    CHECK(SZFTestWait(done, 3) && capped.probesSent == 20, "probeMax holds (%lu)", (unsigned long)capped.probesSent);
+    CHECK(SZFTestWait(done, 4) && capped.probesSent == 20, "probeMax holds (%lu)", (unsigned long)capped.probesSent);
     for (NSNumber *fd in held) close(fd.intValue);
 
     __block NSTimeInterval now = 0;

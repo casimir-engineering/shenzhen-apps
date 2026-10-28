@@ -342,7 +342,10 @@ static int SZFHRun(NSString *tool, NSArray<NSString *> *arguments) {
     frame[@"type"] = type;
     frame[@"id"] = identifier;
     if (![self sendFrame:frame]) return nil;
-    NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:5];
+    // 10 s (the longest wait for one frame), not 5: on a 3-core CI runner, opening 140 messages of 32 KB (link
+    // detection on each, twice when the first snapshot is too big) takes over 5 s; 1.3 s on the owner's Mac and 4.5 s
+    // on it at background priority. The app waits for replies without a limit.
+    NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:10];
     while (deadline.timeIntervalSinceNow > 0) {
         NSDictionary *next = [self nextFrameWithTimeout:deadline.timeIntervalSinceNow];
         if (next == nil) return nil;

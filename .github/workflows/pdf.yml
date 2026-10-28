@@ -25,8 +25,8 @@ jobs:
           fetch-depth: 0   # the launch gate builds the previous pdf/ release, when there is one
       - name: Every header and source the builds name is committed
         run: ../../../tools/check-pdf-missing-files.py
-      - name: Tools the tests use (qpdf for the password fixtures, coturn for the Friends relay, GTK for Friends' GTK views)
-        run: brew install qpdf coturn pkgconf gtk4 libadwaita json-glib
+      - name: Tools the tests use (qpdf for the password fixtures, coturn for the Friends relay, GTK and its MIME data for Friends' GTK views)
+        run: brew install qpdf coturn pkgconf gtk4 libadwaita json-glib shared-mime-info
       - run: make -j"$(sysctl -n hw.ncpu)" mac-app
       - run: make -j"$(sysctl -n hw.ncpu)" test-binaries
       # -k: every suite is built and run even after one fails, so one failure never hides another.

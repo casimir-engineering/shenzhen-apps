@@ -87,6 +87,8 @@ static void CheckCollectionLiveRefresh(void) {
     Expect(@"refresh retains settings destination",[manager.destination isEqual:@"Settings"]);
     Expect(@"refresh retains pending settings input",[manager.limitField.stringValue isEqual:@"77"]);
     Expect(@"refresh retains first responder",manager.window.firstResponder==responder);
+    // The capture's store change and the pipe's refresh can leave one trailing reload queued; let it finish first.
+    RefreshWait(^BOOL{return !manager.loadingResults && !manager.storeRefreshPending;});
     NSUInteger generation=manager.generation;
     for(NSUInteger i=0;i<100;i++)[runtime receive:@{@"kind":@"refresh"}];
     Expect(@"refresh burst finishes",RefreshWait(^BOOL{return manager.generation>generation && !manager.loadingResults && !manager.storeRefreshPending;}));

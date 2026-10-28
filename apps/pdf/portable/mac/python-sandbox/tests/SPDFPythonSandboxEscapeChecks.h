@@ -226,7 +226,11 @@ static void CheckBoobyTraps(SandboxSuite* suite) {
          "print('planted')\n", suite.secret, suite.secret];
     NSDictionary* result = SuiteRun(suite, code, nil);
     NSData* everything = [NSJSONSerialization dataWithJSONObject:result options:0 error:nil];
-    CHECK([result[@"stdout"] isEqual:@"planted\n"] &&
-          ![[[NSString alloc] initWithData:everything encoding:NSUTF8StringEncoding] containsString:suite.token],
-          "planted links, FIFOs, locks and deep trees neither leak nor stop the cleanup");
+    NSString* returned = [[NSString alloc] initWithData:everything encoding:NSUTF8StringEncoding] ?: @"";
+    BOOL planted = [result[@"stdout"] isEqual:@"planted\n"], leaked = [returned containsString:suite.token];
+    CHECK(planted && !leaked, "planted links, FIFOs, locks and deep trees neither leak nor stop the cleanup");
+    // Seen once on a CI runner only: say which half failed and what the run returned.
+    if (!planted || leaked)
+        fprintf(stderr, "  planted %d, leaked %d: %s\n", planted, leaked,
+                [returned substringToIndex:MIN((NSUInteger)2000, returned.length)].UTF8String);
 }
