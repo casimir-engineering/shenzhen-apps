@@ -109,10 +109,16 @@ def proper_name(words):
     return re.sub(r"[^A-Za-z0-9 .\-]", "", words)[:60].strip() + ".pdf"
 
 
+def stuck_on(result):
+    """A rename the model is not satisfied with: refused, or (a read-only file) only the tab's title changed while the
+    file kept its UUID name."""
+    return "error" in result[2] or result[2].get("fileRenamed") is False
+
+
 def rename_uuids(messages, tools, results, number):
     if not tools:  # the app wound the request up: say what was done and what is left
-        renamed = [r for r in results if r[0] == "rename_document" and "error" not in r[2]]
-        stuck = {r[1]["path"] for r in results if r[0] == "rename_document" and "error" in r[2]}
+        stuck = {r[1]["path"] for r in results if r[0] == "rename_document" and stuck_on(r)}
+        renamed = {r[1]["path"] for r in results if r[0] == "rename_document"} - stuck
         return text(f"- Renamed {len(renamed)} documents that were named by a UUID.\n"
                     f"- Left: {len(stuck)} read-only document still has its UUID name; renaming it needs a copy.")
     _, workspace = latest(results, "list_workspace")
@@ -127,7 +133,7 @@ def rename_uuids(messages, tools, results, number):
         return call_batch([("rename_document", {"path": args["path"], "name": proper_name(first_text(result)),
                                                 "revision": result.get("revision", "")})
                            for _, args, result in reads if "error" not in result], number)
-    failed = [r for r in renames if "error" in r[2]]
+    failed = [r for r in renames if stuck_on(r)]
     if failed:  # the runaway: the read-only one again, whatever the app says
         return call_batch([("rename_document", failed[-1][1])], number)
     return text("Renamed every document that was named by a UUID.")
