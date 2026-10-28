@@ -68,6 +68,107 @@ export async function filesFromDrop(
   };
 }
 
+/** "Pasted image 2026-10-28 at 14.02.05.png", as a Mac names a screenshot; numbered after the first. */
+export function pastedImageName(date: Date, number = 1): string {
+  const two = (value: number) => String(value).padStart(2, "0");
+  const day = `${date.getFullYear()}-${two(date.getMonth() + 1)}-${two(date.getDate())}`;
+  const time = `${two(date.getHours())}.${two(date.getMinutes())}.${two(date.getSeconds())}`;
+  return `Pasted image ${day} at ${time}${number > 1 ? ` ${number}` : ""}.png`;
+}
+
+/** Words, unless they are only a link (a browser's Copy Image puts the picture's address beside it) or nothing. */
+export function holdsWords(text: string): boolean {
+  const trimmed = text.trim();
+  if (!trimmed) return false;
+  if (/\s/.test(trimmed)) return true;
+  try {
+    return !["http:", "https:", "file:"].includes(new URL(trimmed).protocol);
+  } catch {
+    return true;
+  }
+}
+
+/** A picture as PNG bytes: PNG as it came, anything else drawn once and saved as PNG. */
+async function pngBytes(file: File): Promise<Uint8Array> {
+  if (file.type === "image/png")
+    return new Uint8Array(await file.arrayBuffer());
+  const bitmap = await createImageBitmap(file);
+  const canvas = document.createElement("canvas");
+  canvas.width = bitmap.width;
+  canvas.height = bitmap.height;
+  canvas.getContext("2d")?.drawImage(bitmap, 0, 0);
+  bitmap.close();
+  const blob = await new Promise<Blob | null>((done) =>
+    canvas.toBlob(done, "image/png"),
+  );
+  if (!blob) throw new Error("Could not read the picture");
+  return new Uint8Array(await blob.arrayBuffer());
+}
+
+/**
+ * What a paste in the composer attaches, as a drop's result: files copied in Finder, Explorer or a file manager go
+ * from where they are (desktops) or as staged copies (phones), refused in the helper's words as a drop is when one is
+ * a folder or a link; a picture on the clipboard (a screenshot) is staged as a PNG named for when it was pasted.
+ * Null when the paste is text: nothing but words, or a picture that came with words of its own.
+ */
+export async function filesFromPaste(
+  bridge: FriendsBridge,
+  strings: Strings,
+  files: File[],
+  text: string,
+): Promise<DropResult | null> {
+  // The system's own list first: Finder also puts a picture of each file's icon beside the files it copies.
+  const copied =
+    !bridge.stagedDropLimit && bridge.clipboardFiles
+      ? await bridge.clipboardFiles().catch(() => [])
+      : [];
+  if (copied.length) return filesFromPaths(bridge, strings, copied);
+  if (!files.length) return null;
+  const paths = bridge.stagedDropLimit ? [] : await bridge.pathsForFiles(files);
+  if (paths.length === files.length && paths.every(Boolean))
+    return filesFromDrop(bridge, strings, files);
+  if (files.every((file) => file.type.startsWith("image/"))) {
+    if (holdsWords(text)) return null;
+    const now = new Date();
+    const staged: OutgoingFile[] = [];
+    try {
+      for (const [index, file] of files.entries()) {
+        const name = pastedImageName(now, index + 1);
+        staged.push({
+          path: await bridge.stage(name, await pngBytes(file)),
+          display_name: name,
+        });
+      }
+    } catch {
+      return { files: [], refusal: strings.drop_not_a_file ?? null };
+    }
+    return { files: staged, refusal: null };
+  }
+  // A phone stages what was pasted, as it does a drop; a desktop with no path for them refuses them.
+  return filesFromDrop(bridge, strings, files);
+}
+
+/** Paths the system named, checked as a drop's files are. */
+async function filesFromPaths(
+  bridge: FriendsBridge,
+  strings: Strings,
+  paths: string[],
+): Promise<DropResult> {
+  const list = paths.slice(0, 100);
+  const kinds = await bridge.classify(list);
+  if (kinds.includes("folder"))
+    return { files: [], refusal: strings.drop_folders_refused ?? null };
+  if (kinds.some((kind) => kind !== "file"))
+    return { files: [], refusal: strings.drop_not_a_file ?? null };
+  return {
+    files: list.map((path) => ({
+      path,
+      display_name: path.split(/[\\/]/).pop() || path,
+    })),
+    refusal: null,
+  };
+}
+
 /** Shown on a phone when a dropped file is larger than the app can stage. */
 export const tooLargeToStage = (name: string, limit: number) =>
   `${name} is too large to send from this device. Files you drop here can be up to ${Math.floor(limit / 1e6)} MB.`;

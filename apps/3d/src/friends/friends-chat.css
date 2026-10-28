@@ -404,6 +404,31 @@
 .szf-picker button small {
   color: var(--muted);
 }
+/* The title and, for what is open in front, its pill: the title gives up room first, never the pill. */
+.szf-picker button span.szf-picker-title {
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.szf-picker button span.szf-picker-name {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+.szf-picker button span.szf-badge-pill {
+  display: inline-block;
+  flex: none;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--jade) 16%, transparent);
+  color: var(--jade);
+  font-size: 10.5px;
+  font-weight: 600;
+  line-height: 16px;
+}
 .szf-picker button.selected {
   background: var(--jade-wash);
 }

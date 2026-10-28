@@ -418,13 +418,14 @@ function createFriendsHost({
     pendingOpen = undefined;
   }
 
-  // The open model as a project file, written where only this app looks, for send_files, `#` or a download link.
+  // The open model as a project file, or a picture pasted in the composer as a PNG, written where only this app
+  // looks, for send_files, `#` or a download link.
   async function stage(name, bytes) {
     if (
       typeof name !== "string" ||
       path.basename(name) !== name ||
       name.startsWith(".") ||
-      !/\.sz3d$/i.test(name) ||
+      !/\.(sz3d|png)$/i.test(name) ||
       Buffer.byteLength(name) > 200 ||
       name.includes("\0")
     )

@@ -128,6 +128,7 @@ export function attachSource({
           title: projectName,
           detail: "The open model, with its notes and measurements",
           kind_label: "SZ3D",
+          badge: "Current",
           file: stageProject,
         });
       const time = now();

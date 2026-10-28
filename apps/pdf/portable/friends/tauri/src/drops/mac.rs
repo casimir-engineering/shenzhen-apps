@@ -41,6 +41,11 @@ pub async fn dragging<R: Runtime>(app: &AppHandle<R>) -> Option<isize> {
     .flatten()
 }
 
+/// The files on the general pasteboard (copied in Finder), for a paste in a composer.
+pub async fn general_pasteboard<R: Runtime>(app: &AppHandle<R>) -> Vec<PathBuf> {
+    on_main_thread(app, || read_board(&NSPasteboard::generalPasteboard())).await.unwrap_or_default()
+}
+
 async fn on_main_thread<R: Runtime, T: Send + 'static>(
     app: &AppHandle<R>,
     work: impl FnOnce() -> T + Send + 'static,

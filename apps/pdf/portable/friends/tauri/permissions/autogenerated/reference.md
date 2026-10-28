@@ -1,7 +1,7 @@
 ## Default Permission
 
 Everything the Friends panel needs: joining, status, intents to the Friends service, previews and pictures, the
-animal set, dropped, staged, picked and shared files, opening received files and links. Grant it to the app's main window only,
+animal set, dropped, pasted, staged, picked and shared files, opening received files and links. Grant it to the app's main window only,
 in a capability with no remote URLs, so no other window, frame or page can reach Friends.
 
 #### This default permission set includes the following:
@@ -25,6 +25,7 @@ in a capability with no remote URLs, so no other window, frame or page can reach
 - `allow-drag-over`
 - `allow-choose-files`
 - `allow-shared-files`
+- `allow-clipboard-files`
 
 ## Permission Table
 
@@ -135,6 +136,32 @@ Enables the classify command without any pre-configured scope.
 <td>
 
 Denies the classify command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`szfriends:allow-clipboard-files`
+
+</td>
+<td>
+
+Enables the clipboard_files command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`szfriends:deny-clipboard-files`
+
+</td>
+<td>
+
+Denies the clipboard_files command without any pre-configured scope.
 
 </td>
 </tr>

@@ -65,6 +65,9 @@ export interface FriendsBridge {
    * chosen, or null when cancelled. Electron's (paths), and on phones the plugin's, which copies each file for
    * sending as it reads it, never whole into memory. Tauri desktops use the dialog plugin (drops.ts chooseFiles). */
   chooseFiles?(): Promise<OutgoingFile[] | null>;
+  /** Paste in a composer: the files on the system clipboard (copied in Finder or a file manager), by path; empty for
+   * text or a picture. Tauri's; Electron and WebView2 hand the page pasted files with their paths themselves. */
+  clipboardFiles?(): Promise<string[]>;
   /** Phones: files another app shared with this one through the system's share sheet, copied for sending; each
    * share is handed over once. */
   sharedFiles?(): Promise<OutgoingFile[]>;

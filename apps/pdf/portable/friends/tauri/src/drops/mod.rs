@@ -173,6 +173,30 @@ pub struct Wanted {
     size: u64,
 }
 
+/// Paste in a composer: the files on the system clipboard (copied in Finder or a Linux file manager), as their
+/// paths, whatever they are (the page classifies them as it does a drop's); none for text or a picture. Windows has
+/// none here: WebView2 hands the page pasted files with their paths itself, as it does dropped ones.
+#[tauri::command]
+pub async fn clipboard_files<R: Runtime>(
+    app: AppHandle<R>,
+    webview: Webview<R>,
+    friends: State<'_, Friends<R>>,
+) -> Result<Vec<String>, String> {
+    if !friends.windows.iter().any(|window| window == webview.label()) {
+        return Err("Friends request is not allowed".into());
+    }
+    #[cfg(target_os = "macos")]
+    let paths = mac::general_pasteboard(&app).await;
+    #[cfg(target_os = "linux")]
+    let paths = linux::clipboard_paths(&app).await;
+    #[cfg(not(any(target_os = "macos", target_os = "linux")))]
+    let paths: Vec<PathBuf> = {
+        let _ = &app;
+        Vec::new()
+    };
+    Ok(paths.into_iter().take(MAX_FILES).filter_map(|path| path.to_str().map(str::to_owned)).collect())
+}
+
 /// The paths of files just dropped on this window, by their names and sizes as the page sees them, in order; None
 /// when the system did not report every one of them (a phone, or a drop from an app that gives no file).
 #[tauri::command]

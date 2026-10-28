@@ -118,6 +118,13 @@
       const paths = await invoke("drop_paths", { files: wanted, ticket }).catch(() => null);
       return Array.isArray(paths) && paths.length === list.length ? paths : none;
     },
+    // Paste in a composer: the files on the system clipboard (copied in Finder or a file manager), by path; none on
+    // phones, and on Windows, where WebView2 gives pasted files their paths through pathsForFiles.
+    clipboardFiles: async () => {
+      if (STAGED_DROP_LIMIT > 0) return [];
+      const paths = await invoke("clipboard_files").catch(() => null);
+      return Array.isArray(paths) ? paths.filter((path) => typeof path === "string") : [];
+    },
     // Phones: the most the panel stages of one dropped file. Absent on desktops, where a file without a path
     // cannot be sent.
     ...(STAGED_DROP_LIMIT > 0 ? { stagedDropLimit: STAGED_DROP_LIMIT } : {}),

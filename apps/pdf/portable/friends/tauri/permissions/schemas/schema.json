@@ -343,6 +343,18 @@
           "markdownDescription": "Denies the classify command without any pre-configured scope."
         },
         {
+          "description": "Enables the clipboard_files command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-clipboard-files",
+          "markdownDescription": "Enables the clipboard_files command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the clipboard_files command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-clipboard-files",
+          "markdownDescription": "Denies the clipboard_files command without any pre-configured scope."
+        },
+        {
           "description": "Enables the drag_over command without any pre-configured scope.",
           "type": "string",
           "const": "allow-drag-over",
@@ -523,10 +535,10 @@
           "markdownDescription": "Denies the token command without any pre-configured scope."
         },
         {
-          "description": "Everything the Friends panel needs: joining, status, intents to the Friends service, previews and pictures, the\nanimal set, dropped, staged, picked and shared files, opening received files and links. Grant it to the app's main window only,\nin a capability with no remote URLs, so no other window, frame or page can reach Friends.\n\n#### This default permission set includes:\n\n- `allow-join`\n- `allow-status`\n- `allow-send`\n- `allow-set-enabled`\n- `allow-image`\n- `allow-animal`\n- `allow-animals`\n- `allow-classify`\n- `allow-stage`\n- `allow-token`\n- `allow-open-file`\n- `allow-show-file`\n- `allow-open-settings`\n- `allow-open-url`\n- `allow-shareable`\n- `allow-drop-paths`\n- `allow-drag-over`\n- `allow-choose-files`\n- `allow-shared-files`",
+          "description": "Everything the Friends panel needs: joining, status, intents to the Friends service, previews and pictures, the\nanimal set, dropped, pasted, staged, picked and shared files, opening received files and links. Grant it to the app's main window only,\nin a capability with no remote URLs, so no other window, frame or page can reach Friends.\n\n#### This default permission set includes:\n\n- `allow-join`\n- `allow-status`\n- `allow-send`\n- `allow-set-enabled`\n- `allow-image`\n- `allow-animal`\n- `allow-animals`\n- `allow-classify`\n- `allow-stage`\n- `allow-token`\n- `allow-open-file`\n- `allow-show-file`\n- `allow-open-settings`\n- `allow-open-url`\n- `allow-shareable`\n- `allow-drop-paths`\n- `allow-drag-over`\n- `allow-choose-files`\n- `allow-shared-files`\n- `allow-clipboard-files`",
           "type": "string",
           "const": "default",
-          "markdownDescription": "Everything the Friends panel needs: joining, status, intents to the Friends service, previews and pictures, the\nanimal set, dropped, staged, picked and shared files, opening received files and links. Grant it to the app's main window only,\nin a capability with no remote URLs, so no other window, frame or page can reach Friends.\n\n#### This default permission set includes:\n\n- `allow-join`\n- `allow-status`\n- `allow-send`\n- `allow-set-enabled`\n- `allow-image`\n- `allow-animal`\n- `allow-animals`\n- `allow-classify`\n- `allow-stage`\n- `allow-token`\n- `allow-open-file`\n- `allow-show-file`\n- `allow-open-settings`\n- `allow-open-url`\n- `allow-shareable`\n- `allow-drop-paths`\n- `allow-drag-over`\n- `allow-choose-files`\n- `allow-shared-files`"
+          "markdownDescription": "Everything the Friends panel needs: joining, status, intents to the Friends service, previews and pictures, the\nanimal set, dropped, pasted, staged, picked and shared files, opening received files and links. Grant it to the app's main window only,\nin a capability with no remote URLs, so no other window, frame or page can reach Friends.\n\n#### This default permission set includes:\n\n- `allow-join`\n- `allow-status`\n- `allow-send`\n- `allow-set-enabled`\n- `allow-image`\n- `allow-animal`\n- `allow-animals`\n- `allow-classify`\n- `allow-stage`\n- `allow-token`\n- `allow-open-file`\n- `allow-show-file`\n- `allow-open-settings`\n- `allow-open-url`\n- `allow-shareable`\n- `allow-drop-paths`\n- `allow-drag-over`\n- `allow-choose-files`\n- `allow-shared-files`\n- `allow-clipboard-files`"
         }
       ]
     }

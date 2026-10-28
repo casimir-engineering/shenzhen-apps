@@ -347,6 +347,7 @@ pub fn init<R: Runtime>(config: Config<R>) -> TauriPlugin<R> {
             commands::choose_files,
             commands::shared_files,
             drops::drop_paths,
+            drops::clipboard_files,
             drops::drag_over,
         ])
         .setup(move |app, _api| {

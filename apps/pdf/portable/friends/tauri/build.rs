@@ -21,6 +21,7 @@ const COMMANDS: &[&str] = &[
     "open_url",
     "shareable",
     "drop_paths",
+    "clipboard_files",
     "drag_over",
     "choose_files",
     "shared_files",
