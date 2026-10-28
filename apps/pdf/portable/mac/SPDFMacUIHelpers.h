@@ -5,6 +5,19 @@
 
 @class SPDFDocumentTab;
 
+// Width for a page-number field beside "/ total": room for as many digits as
+// the total has (counted in totalText, e.g. "/ 1455"), so a page number of that
+// length can be typed in full without the field scrolling or the row moving.
+// Digits are measured in the field's own font, which should have tabular digits.
+static inline CGFloat spdf_page_field_width_for_total(NSTextField* field, NSString* totalText) {
+    NSUInteger digits = 0;
+    for (NSUInteger i = 0; i < totalText.length; i++)
+        if ([NSCharacterSet.decimalDigitCharacterSet characterIsMember:[totalText characterAtIndex:i]]) digits++;
+    NSTextFieldCell* probe = [field.cell copy];
+    probe.stringValue = [@"" stringByPaddingToLength:MAX(digits, (NSUInteger)1) withString:@"0" startingAtIndex:0];
+    return ceil(probe.cellSize.width) + 1; // + the insertion point after the last digit
+}
+
 void spdf_activate_window_for_view(NSView* view);
 void spdf_set_menu_item_system_symbol(NSMenuItem* item, NSString* symbolName);
 void spdf_apply_system_icons_to_menu(NSMenu* menu);

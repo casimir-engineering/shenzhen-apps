@@ -1,5 +1,6 @@
 #import "SPDFMacCollectionCompareViews.h"
 #import "SPDFMacCollectionStyle.h"
+#import "SPDFMacUIHelpers.h"
 
 @implementation SPDFCollectionCompareRail
 - (BOOL)isFlipped { return YES; }
@@ -38,6 +39,7 @@ static NSButton* button(NSString* title, id target, SEL action) {
 @implementation SPDFCollectionComparePane {
     NSTextField* _pageField;
     NSTextField* _pageCount;
+    NSLayoutConstraint* _pageFieldWidth;
     NSTextField* _searchCount;
     NSSearchField* _search;
     NSMutableArray<PDFSelection*>* _matches;
@@ -65,8 +67,11 @@ static NSButton* button(NSString* title, id target, SEL action) {
     _pageField.target = self; _pageField.action = @selector(pageEntered:);
     _pageField.alignment = NSTextAlignmentCenter;
     [_pageField setAccessibilityLabel:@"Comparison page"];
-    [_pageField.widthAnchor constraintEqualToConstant:42].active = YES;
+    _pageField.font = [NSFont monospacedDigitSystemFontOfSize:NSFont.systemFontSize weight:NSFontWeightRegular];
+    _pageFieldWidth = [_pageField.widthAnchor constraintEqualToConstant:42];
+    _pageFieldWidth.active = YES;
     _pageCount = [NSTextField labelWithString:@"/ —"];
+    _pageCount.font = _pageField.font;
     NSStackView* navigation = [NSStackView stackViewWithViews:@[
         button(@"‹", self, @selector(previous:)), _pageField, _pageCount,
         button(@"›", self, @selector(next:)), button(@"−", self, @selector(zoomOut:)),
@@ -169,6 +174,8 @@ static NSButton* button(NSString* title, id target, SEL action) {
     if (slot == NSNotFound) slot = 0;
     _pageField.stringValue = [NSString stringWithFormat:@"%lu",slot+1];
     NSInteger source = slot < self.sourcePages.count ? self.sourcePages[slot].integerValue : (NSInteger)slot;
+    _pageFieldWidth.constant = spdf_page_field_width_for_total(_pageField,
+        [NSString stringWithFormat:@"%lu",self.reader.document.pageCount]);
     _pageCount.stringValue = [NSString stringWithFormat:@"/ %lu · %@",self.reader.document.pageCount,
         source < 0 ? @"No counterpart" : [NSString stringWithFormat:@"source %ld",source+1]];
 }

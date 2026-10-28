@@ -328,9 +328,11 @@ static NSButton* Icon(NSString* symbol, NSString* title, id target, SEL action) 
     _sidebarToggleButton.hidden = _sidebarVisible;
     _minimapToggleButton.hidden = _presentationMode;
     _toolbarOverflowButton.hidden = YES;
-    CGFloat pageWidth = ceil([_pageField.stringValue sizeWithAttributes:@{NSFontAttributeName:_pageField.font}].width)+4;
+    // Sized by the total, not the current number, so typing a page number of
+    // the total's length shows every digit and nothing beside it moves.
+    CGFloat pageWidth = spdf_page_field_width_for_total(_pageField,_pageCountLabel.stringValue);
     for (NSLayoutConstraint* c in _pageField.constraints)
-        if (c.firstAttribute==NSLayoutAttributeWidth && !c.secondItem) c.constant=MAX(12,pageWidth);
+        if (c.firstAttribute==NSLayoutAttributeWidth && !c.secondItem) c.constant=pageWidth;
     state.previous.enabled = [_pageSegments isEnabledForSegment:0];
     state.next.enabled = [_pageSegments isEnabledForSegment:1];
     state.print.enabled = [self hasActiveDocument];

@@ -157,7 +157,7 @@ static void update_page_controls(SpdfWindow* win) {
         gtk_editable_set_text(GTK_EDITABLE(win->page_entry), "");
         gtk_label_set_text(win->page_total_label, "/ –");
     }
-    gtk_widget_set_sensitive(GTK_WIDGET(win->page_entry), total > 0);
+    spdf_page_counter_fit(GTK_EDITABLE(win->page_entry), GTK_WIDGET(win->page_total_label), total);
 
     if (tab && tab->view) {
         g_snprintf(text, sizeof(text), "%.0f%%", spdf_doc_view_get_zoom(tab->view) * 100.0);
@@ -1069,7 +1069,7 @@ static GtkWidget* header_bar_new(SpdfWindow* self) {
     }
     self->page_entry = GTK_ENTRY(gtk_entry_new());
     gtk_entry_set_input_purpose(self->page_entry, GTK_INPUT_PURPOSE_DIGITS);
-    gtk_editable_set_width_chars(GTK_EDITABLE(self->page_entry), 4);
+    gtk_editable_set_width_chars(GTK_EDITABLE(self->page_entry), 1);
     gtk_editable_set_alignment(GTK_EDITABLE(self->page_entry), 1.0f);
     gtk_widget_set_tooltip_text(GTK_WIDGET(self->page_entry), "Current page (Ctrl+L)");
     gtk_widget_set_sensitive(GTK_WIDGET(self->page_entry), FALSE);

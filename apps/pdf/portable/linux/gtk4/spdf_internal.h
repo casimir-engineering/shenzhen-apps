@@ -180,4 +180,17 @@ SpdfState* spdf_state_load(void);           // cheap; must stay off the hot laun
 void spdf_state_save_session(SpdfState* s); // coalesced, async write
 void spdf_state_flush(SpdfState* s);
 
+// The page entry beside "/ total" holds as many digits as the total, in tabular
+// figures like the total, so a page number of that length can be typed in full
+// and nothing beside the entry moves while typing. Off with no document.
+static inline void spdf_page_counter_fit(GtkEditable* entry, GtkWidget* total_label, int total) {
+    int digits = 1;
+    for (int n = total; n >= 10; n /= 10) digits++;
+    gtk_editable_set_width_chars(entry, digits);
+    gtk_editable_set_max_width_chars(entry, digits);
+    gtk_widget_add_css_class(GTK_WIDGET(entry), "numeric");
+    gtk_widget_add_css_class(total_label, "numeric");
+    gtk_widget_set_sensitive(GTK_WIDGET(entry), total > 0);
+}
+
 G_END_DECLS
