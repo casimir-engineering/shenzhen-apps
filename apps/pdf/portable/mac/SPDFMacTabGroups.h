@@ -23,6 +23,15 @@
 @end
 
 NSArray<NSString*>* spdf_tab_group_colors(void);
+// The palettes the colours can be drawn from (Settings › Appearance › Tab group colors), and the one in use: read
+// from appearance.yaml in the reader's state the first time a group is drawn, Neon when none was chosen.
+NSArray<NSString*>* spdf_tab_group_palettes(void);
+NSString* spdf_tab_group_palette(void);
+// A palette's chip colours in hue order, red to pink, as 0xRRGGBB numbers: for previews.
+NSArray<NSNumber*>* spdf_tab_group_palette_fills(NSString* palette);
+// Saves the choice and recolours every window at once, this process's and the reader's other windows. NO for an
+// unknown palette, or when the choice could not be saved (it is still shown until the reader quits).
+BOOL spdf_tab_group_set_palette(NSString* palette);
 // The group's colour: its title tab, the bar under an open group, swatches.
 NSColor* spdf_tab_group_accent(NSString* color);
 // Text and icons drawn on the accent: white or near-black, 4.5:1 or more.

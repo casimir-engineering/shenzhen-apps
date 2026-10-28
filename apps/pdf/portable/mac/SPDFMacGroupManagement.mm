@@ -19,9 +19,11 @@
 @interface SPDFGroupManagementRow : NSTableRowView
 @property(nonatomic, weak) NSTableView* ownerTable;
 @property(nonatomic) NSInteger nextSectionRow;
-@property(nonatomic, strong) NSColor* groupAccent;
+@property(nonatomic, copy) NSString* groupColor;
+@property(nonatomic, readonly) NSColor* groupAccent; // from the palette in use, as it is drawn
 @end
 @implementation SPDFGroupManagementRow
+- (NSColor*)groupAccent { return spdf_tab_group_accent(self.groupColor); }
 - (NSRect)sectionConstrainedFrame:(NSRect)frame {
     // Native floating rows otherwise overlap the next heading. Clamp each
     // placement at its section boundary, including AppKit's scroll updates.
@@ -292,7 +294,7 @@ static SPDFGroupActionButton* Icon(NSString* symbol, NSString* help, id target, 
 - (NSTableRowView*)tableView:(NSTableView*)table rowViewForRow:(NSInteger)row {
     SPDFGroupManagementRow* view = [SPDFGroupManagementRow new];
     view.ownerTable = table; view.nextSectionRow = -1;
-    view.groupAccent = spdf_tab_group_accent(_rows[row][@"group"][@"color"]);
+    view.groupColor = _rows[row][@"group"][@"color"];
     if (!_rows[row][@"document"]) for (NSUInteger index=row+1;index<_rows.count;index++) {
         if (!_rows[index][@"document"]) { view.nextSectionRow = index; break; }
     }

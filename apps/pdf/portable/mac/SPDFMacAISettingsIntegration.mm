@@ -7,6 +7,7 @@
 #import "SPDFMacAIModelCatalog.h"
 #import "SPDFMacDefaultFormats.h"
 #import "SPDFMacCollectionStore.h"
+#import "SPDFMacTabGroups.h"
 #import "SPDFMacCollectionIntegration.h"
 #import <objc/runtime.h>
 #import <sys/file.h>
@@ -92,7 +93,10 @@ static SPDFMacAISettings* AnalysisSettings(SPDFMacAISettings* settings) {
         @"collectionChoiceMade":@([@[@"enabled",@"disabled"] containsObject:collection[@"choice"] ?: @""]),
         @"showShortcutsOnLaunch":@(_showShortcutHelpOnLaunch),@"keepImageColors":@(_darkThemePreservesImagesDefault)}
         mutableCopy];
-    [state addEntriesFromDictionary:[self aiCapabilitiesSettingsState:ai]]; return state;
+    [state addEntriesFromDictionary:[self aiCapabilitiesSettingsState:ai]];
+    NSMutableArray* palettes=[NSMutableArray array];
+    for (NSString* name in spdf_tab_group_palettes()) [palettes addObject:@{@"name":name,@"fills":spdf_tab_group_palette_fills(name)}];
+    state[@"tabGroupPalettes"]=palettes; state[@"tabGroupPalette"]=spdf_tab_group_palette(); return state;
 }
 - (void)showUnifiedSettings:(id)sender {
     (void)sender; [self showUnifiedSettingsMode:NO];
@@ -184,6 +188,8 @@ static SPDFMacAISettings* AnalysisSettings(SPDFMacAISettings* settings) {
         [(SPDFMacUnifiedSettingsController*)objc_getAssociatedObject(self,&settingsControllerKey) updateState:[self unifiedSettingsState]];
     }
     if (changes[@"keepImageColors"]) { _darkThemePreservesImagesDefault=[changes[@"keepImageColors"] boolValue]; [self savePersistentState]; }
+    if (changes[@"tabGroupPalette"] && !spdf_tab_group_set_palette(changes[@"tabGroupPalette"]))
+        error=[NSError errorWithDomain:@"ShenzhenPDF.Appearance" code:1 userInfo:@{NSLocalizedDescriptionKey:@"The tab group colors could not be saved. They will go back to the previous colors when ShenzhenPDF restarts."}];
     if (changes[@"showShortcutsOnLaunch"]) { _showShortcutHelpOnLaunch=[changes[@"showShortcutsOnLaunch"] boolValue]; [self savePersistentState]; }
     [self configureAIAnalysis:AnalysisSettings(ReadSettings())];
     if (![ai allowsRequestsForSetupRevision:SPDFUnifiedSettingsExperienceVersion]) [self cancelAIChat];

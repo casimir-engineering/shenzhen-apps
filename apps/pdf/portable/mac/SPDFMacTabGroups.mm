@@ -68,30 +68,193 @@ static NSColor* RGB(unsigned rgb) {
     return [NSColor colorWithSRGBRed:((rgb >> 16) & 255) / 255.0 green:((rgb >> 8) & 255) / 255.0
                               blue:(rgb & 255) / 255.0 alpha:1];
 }
-// Group colours: the neon palette the owner chose, with labels as before: white on red, pink, purple, blue and indigo,
-// near-black on the light colours. Names are what sessions store, so a group keeps its colour name across this change:
-// Coral is red, Orange orange, Amber yellow, Green green, Slate mint, Teal cyan, Blue blue, Indigo indigo, Purple purple,
-// Plum magenta, Rose pink. Per colour:
-//   fill   the title tab ("chip") and the bar under an open group, the same in light and dark;
-//   label  white or near-black #111111, whichever reaches 4.5:1 on the fill (every pair is 4.5:1 or more);
-//   edge   the chip's 1 pt outline, light then dark: the fill itself where the fill already stands 3:1 from the tab
-//          bar (#eaeaea / #282828), else the nearest shade of the same hue that does (the light chips get a darker
-//          outline in light mode).
-// Gray is General's, and the colour of tabs outside any group.
-typedef struct { const char* name; unsigned fill; BOOL whiteLabel; unsigned edgeLight, edgeDark; } SPDFGroupColor;
-static const SPDFGroupColor kGroupColors[] = {
-    {"Purple", 0xb026ff, YES, 0xb026ff, 0xb026ff}, {"Green", 0x39ff14, NO, 0x189b00, 0x39ff14},
-    {"Blue", 0x146dff, YES, 0x146dff, 0x146dff},   {"Teal", 0x00f0ff, NO, 0x00959e, 0x00f0ff},
-    {"Rose", 0xe80063, YES, 0xe80063, 0xe80063},   {"Coral", 0xee0000, YES, 0xee0000, 0xee0000},
-    {"Amber", 0xfff200, NO, 0x8f8800, 0xfff200},   {"Indigo", 0x4d2bff, YES, 0x4d2bff, 0x6f54ff},
-    {"Plum", 0xd800af, YES, 0xd800af, 0xd800af},   {"Slate", 0x00ff9f, NO, 0x00995f, 0x00ff9f},
-    {"Orange", 0xff8c00, NO, 0xc96f00, 0xff8c00},  {"Gray", 0x6e6e6e, YES, 0x6e6e6e, 0x717171},
+// Group colours come from one of the palettes below, chosen in Settings › Appearance (Neon unless chosen). Each
+// palette lists one base colour per stored colour name, in hue order: Coral red, Orange, Amber yellow, Green, Slate
+// mint, Teal cyan, Blue, Indigo, Purple, Plum magenta, Rose pink. Sessions store the name, so a group keeps its place
+// in the hues whichever palette is shown. Where a palette has fewer colours than names, a name repeats its nearest
+// hue. Gray is General's, and the colour of tabs outside any group, in every palette. Per colour, worked out from the
+// base when a palette is first used:
+//   fill   the title tab ("chip") and the bar under an open group, the same in light and dark. Where white on the
+//          base reaches 2.6:1, the base deepened in HSL lightness (0.01 steps) just until white reaches 4.5:1, with a
+//          white label; otherwise the base itself with a near-black #111111 label.
+//   edge   the chip's 1 pt outline, light then dark: the fill itself where it already stands 3:1 from the tab bar
+//          (#eaeaea / #282828), else the nearest shade of the same hue that does (0.005 steps: the pale chips get a
+//          darker outline in light mode).
+// For Neon this gives the colours the owner approved: white on Coral #ee0000, Blue #146dff, Indigo #4d2bff, Purple
+// #b026ff, Plum #d800af and Rose #e80063, near-black on the rest.
+typedef struct { const char* name; unsigned base[11]; } SPDFGroupPalette;
+static const char* const kHueOrder[11] = {"Coral", "Orange", "Amber", "Green", "Slate", "Teal", "Blue", "Indigo",
+                                          "Purple", "Plum", "Rose"};
+static const SPDFGroupPalette kPalettes[] = {
+    // Indigo #4d2bff is not one of the ten neons: an electric indigo in their style, as installed before.
+    {"Neon", {0xff3131, 0xff8c00, 0xfff200, 0x39ff14, 0x00ff9f, 0x00f0ff, 0x2d7dff, 0x4d2bff, 0xb026ff, 0xff2bd6, 0xff4f9a}},
+    // No blue: Blue repeats Teal.
+    {"Coolors vivid", {0xf42a45, 0xff6b00, 0xffc445, 0xf0f000, 0x00e65e, 0x00a695, 0x00a695, 0xc2add9, 0xcf6dcf, 0xc961a5,
+                       0xd17b92}},
+    // Eight colours: Slate repeats Teal, Plum repeats Purple, Rose repeats Coral.
+    {"Coolors pastel rainbow", {0xffadad, 0xffd6a5, 0xfdffb6, 0xcaffbf, 0x9bf6ff, 0x9bf6ff, 0xa0c4ff, 0xbdb2ff, 0xffc6ff,
+                                0xffc6ff, 0xffadad}},
+    // No green: Green repeats Amber.
+    {"Cyberpunk", {0xff003c, 0xf5a524, 0xfcee0a, 0xfcee0a, 0x0abdc6, 0x00f0ff, 0x05d9e8, 0x7b61ff, 0x9d4edd, 0xea00d9,
+                   0xff2a6d}},
+    // Nine colours: Slate repeats Green, Indigo repeats Purple.
+    {"Pastel", {0xfec89a, 0xffe5a8, 0xb5e48c, 0x99d98c, 0x99d98c, 0xbde0fe, 0xa2d2ff, 0xcdb4db, 0xcdb4db, 0xffc8dd,
+                0xffafcc}},
+    // No red: Coral is the warmest pink; Plum repeats Rose.
+    {"Pastel but vibrant", {0xff7aa2, 0xffa94d, 0xffd43b, 0x69db7c, 0x63e6be, 0x38d9a9, 0x4dabf7, 0x748ffc, 0xb197fc,
+                            0xf783ac, 0xf783ac}},
+    // Plum repeats Purple.
+    {"Apple system", {0xff3b30, 0xff9500, 0xffcc00, 0x34c759, 0x00c7be, 0x30b0c7, 0x007aff, 0x5856d6, 0xaf52de, 0xaf52de,
+                      0xff2d55}},
+    // The vivid chips of c24eca17, in the family of Codex's own icons.
+    {"Codex", {0xe1292f, 0xf76b15, 0xffc205, 0x2fb26a, 0x59779a, 0x0ea5b0, 0x1a6ae6, 0x4f46e5, 0xa03ae0, 0xd01fb0,
+               0xe11969}},
 };
+static const size_t kPaletteCount = sizeof kPalettes / sizeof kPalettes[0];
+static const unsigned kGray = 0x6e6e6e;
+
+static double Linear(unsigned channel) {
+    double c = channel / 255.0;
+    return c <= 0.04045 ? c / 12.92 : pow((c + 0.055) / 1.055, 2.4);
+}
+static double Luminance(unsigned rgb) {
+    return 0.2126 * Linear((rgb >> 16) & 255) + 0.7152 * Linear((rgb >> 8) & 255) + 0.0722 * Linear(rgb & 255);
+}
+static double Contrast(unsigned a, unsigned b) {
+    double la = Luminance(a), lb = Luminance(b);
+    return (MAX(la, lb) + 0.05) / (MIN(la, lb) + 0.05);
+}
+// HSL as Python's colorsys works it, so the values match the ones worked out (and approved) with it.
+static void ToHSL(unsigned rgb, double* h, double* l, double* s) {
+    double r = ((rgb >> 16) & 255) / 255.0, g = ((rgb >> 8) & 255) / 255.0, b = (rgb & 255) / 255.0;
+    double hi = MAX(r, MAX(g, b)), lo = MIN(r, MIN(g, b)), range = hi - lo;
+    *l = (hi + lo) / 2;
+    if (hi == lo) { *h = 0; *s = 0; return; }
+    *s = *l <= 0.5 ? range / (hi + lo) : range / (2.0 - hi - lo);
+    double rc = (hi - r) / range, gc = (hi - g) / range, bc = (hi - b) / range;
+    double hue = r == hi ? bc - gc : g == hi ? 2.0 + rc - bc : 4.0 + gc - rc;
+    *h = fmod(fmod(hue / 6.0, 1.0) + 1.0, 1.0);
+}
+static double HueChannel(double m1, double m2, double hue) {
+    hue = fmod(fmod(hue, 1.0) + 1.0, 1.0);
+    if (hue < 1.0 / 6) return m1 + (m2 - m1) * hue * 6;
+    if (hue < 0.5) return m2;
+    if (hue < 2.0 / 3) return m1 + (m2 - m1) * (2.0 / 3 - hue) * 6;
+    return m1;
+}
+static unsigned FromHSL(double h, double l, double s) {
+    double m2 = l <= 0.5 ? l * (1 + s) : l + s - l * s, m1 = 2 * l - m2;
+    double channels[3] = {HueChannel(m1, m2, h + 1.0 / 3), HueChannel(m1, m2, h), HueChannel(m1, m2, h - 1.0 / 3)};
+    if (s == 0) channels[0] = channels[1] = channels[2] = l;
+    unsigned rgb = 0;
+    for (double c : channels) rgb = rgb << 8 | (unsigned)lround(MAX(0.0, MIN(1.0, c)) * 255);
+    return rgb;
+}
+// The same hue stepped lighter (step > 0) or darker until it stands target:1 from against.
+static unsigned Shade(unsigned rgb, double target, unsigned against, double step) {
+    double h, l, s;
+    ToHSL(rgb, &h, &l, &s);
+    for (int n = 0; Contrast(rgb, against) < target && n < 400; n++) rgb = FromHSL(h, l += step, s);
+    return rgb;
+}
+typedef struct { unsigned fill; BOOL whiteLabel; unsigned edgeLight, edgeDark; } SPDFGroupColor;
+static SPDFGroupColor Worked(unsigned base) {
+    SPDFGroupColor entry;
+    entry.whiteLabel = Contrast(base, 0xffffff) >= 2.6;
+    entry.fill = entry.whiteLabel ? Shade(base, 4.5, 0xffffff, -0.01) : base;
+    entry.edgeLight = Shade(entry.fill, 3, 0xeaeaea, -0.005);
+    entry.edgeDark = Shade(entry.fill, 3, 0x282828, 0.005);
+    return entry;
+}
+// The active palette's worked colours by name, Gray last. Nothing is read or worked out until a group is drawn.
+static size_t gPalette = SIZE_MAX;
+static SPDFGroupColor gColors[12];
+static NSString* PaletteFile(void) {
+    NSString* root = NSProcessInfo.processInfo.environment[@"SPDF_STATE_DIR"];
+    if (!root.length) root = [NSHomeDirectory() stringByAppendingPathComponent:@"Library/Application Support/ShenzhenPDF"];
+    return [root stringByAppendingPathComponent:@"appearance.yaml"];
+}
+// To the reader's other windows (each its own process) sharing this state, and no other copy of the app.
+static NSString* PaletteChanged(void) { return [@"ShenzhenPDFTabGroupPaletteChanged:" stringByAppendingString:PaletteFile()]; }
+static size_t PaletteIndex(NSString* name) {
+    for (size_t i = 0; i < kPaletteCount; i++)
+        if ([name isEqualToString:@(kPalettes[i].name)]) return i;
+    return SIZE_MAX;
+}
+static void Recolor(void);
+static void UsePalette(size_t index) {
+    gPalette = index < kPaletteCount ? index : 0;
+    for (size_t i = 0; i < 11; i++) gColors[i] = Worked(kPalettes[gPalette].base[i]);
+    gColors[11] = Worked(kGray);
+}
+static void LoadPalette(void) {
+    if (gPalette != SIZE_MAX) return;
+    NSString* text = [NSString stringWithContentsOfFile:PaletteFile() encoding:NSUTF8StringEncoding error:nil];
+    size_t index = 0;
+    for (NSString* line in [text componentsSeparatedByString:@"\n"])
+        if ([line hasPrefix:@"tabGroupColors:"])
+            index = PaletteIndex([[line substringFromIndex:15] stringByTrimmingCharactersInSet:
+                                                                 NSCharacterSet.whitespaceCharacterSet]);
+    UsePalette(index);
+    // Another window of the reader switched palettes in Settings.
+    [NSDistributedNotificationCenter.defaultCenter addObserverForName:PaletteChanged() object:nil queue:NSOperationQueue.mainQueue
+                                                           usingBlock:^(NSNotification* note) {
+        size_t chosen = PaletteIndex(note.object);
+        if (chosen == SIZE_MAX || chosen == gPalette) return;
+        UsePalette(chosen);
+        Recolor();
+    }];
+}
 static const SPDFGroupColor& GroupColor(NSString* color) {
-    const size_t count = sizeof kGroupColors / sizeof kGroupColors[0];
-    for (size_t i = 0; i < count; i++)
-        if (color && !strcmp(kGroupColors[i].name, color.UTF8String)) return kGroupColors[i];
-    return kGroupColors[count - 1];
+    LoadPalette();
+    if (color)
+        for (size_t i = 0; i < 11; i++)
+            if (!strcmp(kHueOrder[i], color.UTF8String)) return gColors[i];
+    return gColors[11];
+}
+static void Redraw(NSView* view) {
+    view.needsDisplay = YES;
+    if ([view isKindOfClass:NSImageView.class]) [((NSImageView*)view).image recache];
+    for (NSView* child in view.subviews) Redraw(child);
+}
+// Every window of this process at once: the tab bars, the group picker and Groups draw from the table.
+static void Recolor(void) {
+    for (NSWindow* window in NSApp.windows) {
+        NSView* frame = window.contentView.superview ?: window.contentView;
+        if (frame) Redraw(frame);
+    }
+}
+NSArray<NSString*>* spdf_tab_group_palettes(void) {
+    NSMutableArray* names = [NSMutableArray array];
+    for (size_t i = 0; i < kPaletteCount; i++) [names addObject:@(kPalettes[i].name)];
+    return names;
+}
+NSString* spdf_tab_group_palette(void) {
+    LoadPalette();
+    return @(kPalettes[gPalette].name);
+}
+NSArray<NSNumber*>* spdf_tab_group_palette_fills(NSString* palette) {
+    size_t index = PaletteIndex(palette);
+    NSMutableArray* fills = [NSMutableArray array];
+    if (index != SIZE_MAX)
+        for (size_t i = 0; i < 11; i++) [fills addObject:@(Worked(kPalettes[index].base[i]).fill)];
+    return fills;
+}
+BOOL spdf_tab_group_set_palette(NSString* palette) {
+    size_t index = PaletteIndex(palette);
+    if (index == SIZE_MAX) return NO;
+    LoadPalette();
+    NSString* text = [NSString stringWithFormat:@"tabGroupColors: %@\n", palette];
+    [NSFileManager.defaultManager createDirectoryAtPath:PaletteFile().stringByDeletingLastPathComponent
+                            withIntermediateDirectories:YES attributes:nil error:nil];
+    BOOL saved = [text writeToFile:PaletteFile() atomically:YES encoding:NSUTF8StringEncoding error:nil];
+    if (index != gPalette) {
+        UsePalette(index);
+        Recolor();
+    }
+    [NSDistributedNotificationCenter.defaultCenter postNotificationName:PaletteChanged() object:palette userInfo:nil
+                                                     deliverImmediately:YES];
+    return saved;
 }
 static BOOL IsDark(NSAppearance* appearance) {
     return [[appearance bestMatchFromAppearancesWithNames:@[ NSAppearanceNameAqua, NSAppearanceNameDarkAqua ]]

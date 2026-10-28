@@ -945,7 +945,7 @@ mac-ai-tool-seam-tests: | $(BUILD)
 		-o "$(BUILD)/SPDFMacAIToolSeamTests"
 	"$(BUILD)/SPDFMacAIToolSeamTests"
 # The Settings window as its tests link it: the controller and the pages it builds.
-MAC_SETTINGS_WINDOW_SRCS := mac/SPDFMacUnifiedSettings.mm mac/SPDFMacAICapabilitiesSettings.mm \
+MAC_SETTINGS_WINDOW_SRCS := mac/SPDFMacUnifiedSettings.mm mac/SPDFMacAppearanceSettings.mm mac/SPDFMacAICapabilitiesSettings.mm \
 	mac/SPDFMacSearchablePicker.mm mac/SPDFMacCollectionStyle.mm mac/SPDFMacGroupActionButton.mm \
 	mac/friends/SPDFMacFriendsSettingsPage.mm mac/friends/SPDFMacFriendsSettingsPane.mm
 mac-unified-settings-tests: | $(BUILD)
