@@ -104,3 +104,57 @@ static void check_group_title_hover(void) {
     expect(!hover_label_shown(strip) && [strip valueForKey:@"hoverGroup"] == nil, @"dismiss leaves the group label");
     expect(!window.visible, @"group hover check must never display a window");
 }
+
+// The owner's report (26.10.25-3): in a group whose documents scroll, the pointer between the group's title tab
+// and the "+N" badge sat over a document scrolled under the badge and showed that document's label. A label shows
+// only over the part of a tab that is drawn; every gap dismisses it at once.
+static void check_gap_hover(void) {
+    NSWindow* window = [[NSWindow alloc] initWithContentRect:NSMakeRect(0, 0, 1000, 44)
+                                                   styleMask:NSWindowStyleMaskBorderless
+                                                     backing:NSBackingStoreBuffered defer:NO];
+    SPDFGroupTestStrip* strip = [[SPDFGroupTestStrip alloc] initWithFrame:window.contentView.bounds];
+    strip.reader = (id)[SPDFGroupFakeReader new];
+    [window.contentView addSubview:strip];
+    SPDFTabGroup* active = SPDFTabGroup.generalGroup;
+    active.collapsed = NO;
+    SPDFTabGroup* other = [SPDFTabGroup groupWithColor:@"Teal"];
+    other.collapsed = YES;
+    NSMutableArray* fixture = [NSMutableArray array];
+    for (NSUInteger i = 0; i < 40; i++) [fixture addObject:tab([NSString stringWithFormat:@"Sheet %02lu", (unsigned long)i], active)];
+    [fixture addObject:tab(@"Other", other)];
+    strip.tabs = (id)fixture;
+    strip.selectedIndex = 0;
+    NSRect header = [[layout_for_group(strip, active) valueForKey:@"header"] rectValue];
+    // Scroll until a document is cut by the left badge.
+    NSInteger cut = -1;
+    for (int step = 0; step < 200 && cut < 0; step++) {
+        [strip scrollTabStripBy:7];
+        NSRect badge = [strip tabScrollHiddenCountOnLeft:YES] > 0 ? [strip tabScrollIndicatorRectOnLeft:YES] : NSZeroRect;
+        for (NSInteger i = 0; i < 40 && !NSIsEmptyRect(badge); i++) {
+            NSRect r = [strip rectForTabAtIndex:i], v = [strip visibleRectForTabAtIndex:i];
+            if (NSMinX(r) < NSMaxX(header) && NSWidth(v) >= 40 && NSWidth(v) < NSWidth(r)) cut = i;
+        }
+    }
+    expect(cut >= 0, @"no document scrolled half under the left badge");
+    NSRect badge = [strip tabScrollIndicatorRectOnLeft:YES], visible = [strip visibleRectForTabAtIndex:cut];
+    expect(NSMinX(visible) >= NSMaxX(badge), @"a tab's visible part reaches under the badge");
+    NSPoint onVisible = NSMakePoint(NSMidX(visible), NSMidY(visible));
+    NSArray* gaps = @[ [NSValue valueWithPoint:NSMakePoint((NSMaxX(header) + NSMinX(badge)) / 2, NSMidY(badge))],
+                       [NSValue valueWithPoint:NSMakePoint(NSMidX(badge), NSMidY(badge))],
+                       [NSValue valueWithPoint:NSMakePoint(NSMidX(visible), NSMaxY(visible) + 2)],
+                       [NSValue valueWithPoint:NSMakePoint(NSMaxX(visible) + 2, NSMidY(visible))],
+                       [NSValue valueWithPoint:NSMakePoint([strip leftInset] - 8, NSMidY(visible))] ];
+    for (NSValue* gap in gaps) {
+        [strip updateHoverForPoint:onVisible];
+        expect(hover_label_shown(strip) && [[strip valueForKey:@"hoverTabIndex"] integerValue] == cut,
+               @"the visible part of a cut tab shows no label");
+        [strip updateHoverForPoint:gap.pointValue];
+        expect(!hover_label_shown(strip) && [[strip valueForKey:@"hoverTabIndex"] integerValue] == -1,
+               [@"a label over an empty place at " stringByAppendingString:NSStringFromPoint(gap.pointValue)]);
+    }
+    // The label hangs under the part of the tab that shows.
+    [strip updateHoverForPoint:onVisible];
+    expect(fabs(NSMinX(hover_label_offset(strip, visible))) <= 1, @"a cut tab's label is not under its visible part");
+    [strip dismissHoverPanel];
+    expect(!window.visible, @"gap hover check must never display a window");
+}

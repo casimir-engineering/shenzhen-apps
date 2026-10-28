@@ -10,10 +10,16 @@ driver.m moves the pointer over the tab bar through the strip's own event handle
   first     opens a document, goes to page 5 and turns it clockwise, opens a document with a long name and puts it
             in a group with a long name through the tab menu and the name prompt; hovers the turned tab, the long
             document tab and the group's title tab (expanded, then collapsed), then empty tab bar and outside the
-            tab bar, in light and dark; opens 28 more documents and measures memory and hover time.
+            tab bar, in light and dark; opens a Markdown file, an image and a text file and hovers each next to the
+            turned PDF, in light and dark; opens 28 more documents and measures memory and hover time; then moves
+            the pointer from a tab onto every kind of empty place in the full tab bar (between tabs, above and below
+            one, between groups, between a title tab and its first tab or the "+N" badge, the badges, either end of
+            the bar), in light and dark; hovers a tab scrolled half under the "+N" badge; and moves a tab, closes
+            one and narrows the window under a pointer that stays put.
   restored  relaunches on that session: 30 tabs, only one shown since launch. Hovers a tab never shown (title
             first, thumbnail rendered from the file and faded in), then waits for the rest to be made in the
-            background and measures memory and hover time again.
+            background and measures memory and hover time again. Hovers the Markdown, image and text tabs, never shown:
+            their pages come from their files.
   memory-*  with --compare-app: the same restored session left alone for 16 s, this build and the earlier one twice
             each, interleaved: memory and CPU, so what the thumbnails cost shows against the same work without them.
 
@@ -67,12 +73,12 @@ def prepare_app(app, work):
     return copy
 
 
-def run_phase(app, work, state, home, phase, documents):
+def run_phase(app, work, state, home, phase, documents, extras):
     out = os.path.join(work, phase, "out")
     os.makedirs(out)
     plan = os.path.join(work, phase, "plan.json")
     with open(plan, "w") as f:
-        json.dump({"phase": phase, "documents": documents, "group": GROUP}, f)
+        json.dump({"phase": phase, "documents": documents, "extras": extras, "group": GROUP}, f)
     env = {"PATH": "/usr/bin:/bin", "HOME": home, "CFFIXED_USER_HOME": home, "TMPDIR": os.environ.get("TMPDIR", "/tmp"),
            "SPDF_STATE_DIR": state, "SPDF_NO_ACTIVATE": "1", "SZUT_ROOT": work,
            "SZUT_LOG": os.path.join(work, "szut.jsonl"), "SZUT_ROUTES": os.path.join(work, "routes.json"),
@@ -103,8 +109,68 @@ def turned_page_five(o):
     return w > h and o.get("right_edge") == "red" and o.get("left_edge") != "red" and o.get("top_left") == "dark"
 
 
+A4_PORTRAIT = 595.0 / 842.0
+
+
+def page_ok(kind, shot):
+    """A thumbnail of the right page: the right shape and something drawn on it (never a blank box)."""
+    page = shot.get("page", {})
+    aspect, ink = page.get("aspect", 0), page.get("ink", 0)
+    if not shot.get("card") or not shot.get("shown"):
+        return False
+    if kind in ("markdown", "text"):
+        return abs(aspect - A4_PORTRAIT) < 0.02 and ink > 0.004
+    if kind == "image":
+        return abs(aspect - 400 / 250) < 0.03 and page.get("top_edge") == "red" and page.get("bottom_left") == "dark"
+    return turned_page_five(page)
+
+
+def summary(shot):
+    return json.dumps({k: shot.get(k) for k in ("label", "card", "card_ms", "page")})
+
+
+def gaps_ok(gaps):
+    return gaps and all(g.get("shown_before") and not g.get("shown") for g in gaps if g.get("inside_strip"))
+
+
 def verify(first, restored):
     c = []
+    names = {"markdown": "Camera flex bring-up notes.md", "image": "Flex photo, top side.png",
+             "text": "Sensor register dump.txt", "pdf": "Plates for rotation.pdf"}
+    for look in ("light", "dark"):
+        types = first.get(f"types_{look}", {})
+        for kind in ("markdown", "image", "text", "pdf"):
+            shot = types.get(kind, {})
+            check(c, f"{look}: a {kind} tab shown since launch shows its name and its page", shot.get("label") == names[kind]
+                  and page_ok(kind, shot) and shot.get("card_at_hover"), summary(shot))
+        gaps = first.get(f"gaps_{look}", [])
+        check(c, f"{look}: no label over any empty place in the tab bar ({len(gaps)} places)", gaps_ok(gaps),
+              json.dumps([g for g in gaps if g.get("shown") or not g.get("shown_before")]))
+        check(c, f"{look}: the place between a title tab and the +N badge is among them",
+              any(g.get("gap") == "between a title tab and the +N badge" for g in gaps))
+    part = first.get("partly_hidden", {})
+    placement = part.get("placement", {})
+    check(c, "a tab half under the +N badge: its label under the part that shows, none over the part that does not",
+          part.get("label") == part.get("expected") and abs(placement.get("centre_offset", 99)) <= 1 and
+          not part.get("hidden_part", {}).get("shown", True), json.dumps({k: part.get(k) for k in
+          ("label", "expected", "placement", "tab_rect", "visible_rect", "hidden_part")}))
+    changes = first.get("layout_changes", [])
+    for change in changes:
+        if "gaps" in change:
+            check(c, "a narrower window: no label over any empty place", gaps_ok(change["gaps"]),
+                  json.dumps([g for g in change["gaps"] if g.get("shown") or not g.get("shown_before")]))
+            continue
+        after, again = change.get("after", {}), change.get("rehover", {})
+        check(c, f"{change.get('change')}: the label is the tab's under the pointer, or none, then the tab's again",
+              not change.get("skipped") and change.get("before") and
+              (not after.get("shown") or after.get("label") == after.get("under")) and
+              again.get("label") == again.get("under") and bool(again.get("shown")) == bool(again.get("under")),
+              json.dumps(change))
+    cold_types = restored.get("cold_types", {})
+    for kind in ("markdown", "image", "text"):
+        shot = cold_types.get(kind, {})
+        check(c, f"a {kind} tab never shown since launch: its page from the file", shot.get("label") == names[kind] and
+              page_ok(kind, shot) and 0 <= shot.get("card_ms", -1) < 1500, summary(shot))
     for look in ("light", "dark"):
         doc, rot = first.get(f"document_{look}", {}), first.get(f"rotated_{look}", {})
         exp, col = first.get(f"group_expanded_{look}", {}), first.get(f"group_collapsed_{look}", {})
@@ -131,8 +197,8 @@ def verify(first, restored):
     check(c, "a cached thumbnail shows with the title within one frame (16.7 ms)",
           cached.get("card") and 0 <= cached.get("median_ms", 99) < 16.7, json.dumps(cached))
     mem = first.get("memory_30_tabs", {})
-    check(c, "30 tabs: thumbnails stay within their 24 MB budget",
-          first.get("tab_count") == 30 and mem.get("entries", 0) >= 29 and mem.get("bytes", 1 << 40) <= 24 << 20,
+    check(c, "33 tabs: thumbnails stay within their 24 MB budget",
+          first.get("tab_count") == 33 and mem.get("entries", 0) >= 32 and mem.get("bytes", 1 << 40) <= 24 << 20,
           json.dumps(mem))
     cold = restored.get("cold", {})
     # This is the first label of the session, hovered while the app is still launching: it builds the panel, as it
@@ -176,15 +242,16 @@ def main():
     documents_dir = os.path.join(os.path.expanduser("~/Library/Caches/shenzhen-build/tab-hover-e2e"),
                                  os.path.basename(work))
     documents = fixtures.make_documents(documents_dir)
+    extras = fixtures.make_text_documents(documents_dir)
     app = prepare_app(args.app, work)
     build(SZUT, os.path.join(work, "szut.dylib"), "AppKit", "CoreServices", "Security")
     build(os.path.join(HERE, "driver.m"), os.path.join(work, "driver.dylib"), "AppKit", "QuartzCore")
     started = time.time()
     try:
-        first = run_phase(app, work, state, home, "first", documents)
+        first = run_phase(app, work, state, home, "first", documents, extras)
         saved = os.path.join(work, "state-after-first")
         shutil.copytree(state, saved)
-        restored = run_phase(app, work, state, home, "restored", documents)
+        restored = run_phase(app, work, state, home, "restored", documents, extras)
         memory = {}
         if args.compare_app:
             earlier = prepare_app(args.compare_app, os.path.join(work, "compare"))
@@ -192,7 +259,7 @@ def main():
                                 ("memory-earlier-2", earlier)):
                 copy = os.path.join(work, "state-" + name)
                 shutil.copytree(saved, copy)
-                memory[name] = run_phase(which, work, copy, home, name, documents)
+                memory[name] = run_phase(which, work, copy, home, name, documents, extras)
             print(json.dumps(memory, indent=1))
     finally:
         subprocess.run([sys.executable, NODIALOGS, "unregister", work])

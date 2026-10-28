@@ -122,7 +122,8 @@ does not re-trigger the macOS access prompt.
   overflowing group names remain reachable by scrolling. Long titles keep their beginning and
   ending visible with a middle ellipsis; hovering reveals the close button without moving the title.
 - **Tab hover preview** — hovering a document tab shows its full name and, under it, the page you were on,
-  turned the way you turned it, the moment the pointer arrives. Hovering a group's name shows the group's full name.
+  turned the way you turned it, the moment the pointer arrives: a PDF, an image, an Office document, a Markdown,
+  text or code file alike. Hovering a group's name shows the group's full name. The gaps between tabs show nothing.
 - **Drag to reorder**, drag out to **detach into a new window**, drag back to
   **reattach**. A detached tab keeps its page, zoom, scroll and search.
   Dropping a tab between groups joins the existing General group, revealing it

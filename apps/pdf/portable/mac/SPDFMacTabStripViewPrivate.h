@@ -29,6 +29,11 @@ static NSPasteboardType const SPDFTabDragPasteboardType = @"com.intuition.shenzh
     NSVisualEffectView* _hoverCard;
     NSView* _hoverThumbnail;
     NSInteger _hoverTabIndex;
+    // The tab whose label shows and the rect the label hangs under: a label
+    // follows its tab, not its index, when tabs move, close or scroll.
+    __weak SPDFDocumentTab* _hoverTab;
+    NSRect _hoverAnchorRect;
+    BOOL _hoverRefreshScheduled;
     // The group whose title tab shows the hover label; nil while a document's
     // label (or none) is shown.
     SPDFTabGroup* _hoverGroup;
@@ -112,6 +117,9 @@ static NSPasteboardType const SPDFTabDragPasteboardType = @"com.intuition.shenzh
 - (NSString*)view:(NSView*)view stringForToolTip:(NSToolTipTag)tag point:(NSPoint)point userData:(void*)userData;
 - (void)dismissHoverPanel;
 - (void)updateHoverForPoint:(NSPoint)point;
+- (NSRect)visibleRectForTabAtIndex:(NSInteger)index;
+- (NSInteger)hoverTabIndexAtPoint:(NSPoint)point;
+- (void)refreshHoverAfterLayoutChange;
 - (void)showHoverPanelForTabAtIndex:(NSInteger)index;
 - (void)showHoverPanelForGroup:(SPDFTabGroup*)group;
 - (BOOL)showHoverPanelWithTitle:(NSString*)title belowRect:(NSRect)rect;

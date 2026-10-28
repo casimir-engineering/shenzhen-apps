@@ -174,6 +174,7 @@ int main(void) {
         check_hidden_groups();
         check_group_creation_side();
         check_group_title_hover();
+        check_gap_hover();
         // With every group collapsed, gaps still resolve to their model
         // boundaries despite there being no visible document rectangles.
         SPDFGroupTestStrip* gapStrip = [[SPDFGroupTestStrip alloc] initWithFrame:NSMakeRect(0,0,900,42)];

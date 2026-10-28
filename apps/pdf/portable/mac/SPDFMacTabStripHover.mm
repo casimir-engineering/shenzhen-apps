@@ -53,6 +53,8 @@ static NSVisualEffectView* SPDFHoverMaterialView(NSRect frame) {
         NSRect dotRect = [self readOnlyDotRectForTabRect:tabRect
                                                 diameter:kReadOnlyDotDiameter
                                                leftInset:kReadOnlyDotLeftInset];
+        // A dot scrolled under a "+N" badge or out of the tab bar is not there to hover.
+        if (!NSContainsRect([self visibleRectForTabAtIndex:i], dotRect)) continue;
         // Pad the hit area so the small dot is easy to hover.
         [self addToolTipRect:NSInsetRect(dotRect, -3.0, -3.0) owner:self userData:NULL];
     }
@@ -75,6 +77,8 @@ static NSVisualEffectView* SPDFHoverMaterialView(NSRect frame) {
 
 - (void)dismissHoverPanel {
     _hoverTabIndex = -1;
+    _hoverTab = nil;
+    _hoverAnchorRect = NSZeroRect;
     _hoverGroup = nil;
     [self setNeedsDisplay:YES];
     _hasLastHoverPoint = NO;
@@ -82,32 +86,85 @@ static NSVisualEffectView* SPDFHoverMaterialView(NSRect frame) {
     [_hoverPanel orderOut:nil];
 }
 
+// The part of a tab that is drawn: its pill, cut to the lane tabs show in and
+// never under a "+N" badge, which is drawn over the tabs it stands for. A tab
+// scrolled half out of view is only hoverable where it can be seen.
+- (NSRect)visibleRectForTabAtIndex:(NSInteger)index {
+    NSRect rect = [self rectForTabAtIndex:index];
+    if (NSIsEmptyRect(rect)) return NSZeroRect;
+    CGFloat left = [self leftInset], right = [self tabAreaRightWithOverflow:YES];
+    if ([self hasTabGroups]) {
+        NSRect viewport = [self tabViewportRect];
+        left = NSMinX(viewport);
+        right = NSMaxX(viewport);
+        if ([self tabScrollHiddenCountOnLeft:YES] > 0) left = MAX(left, NSMaxX([self tabScrollIndicatorRectOnLeft:YES]));
+        if ([self tabScrollHiddenCountOnLeft:NO] > 0) right = MIN(right, NSMinX([self tabScrollIndicatorRectOnLeft:NO]));
+    }
+    if (right <= left) return NSZeroRect;
+    return NSIntersectionRect(rect, NSMakeRect(left, NSMinY(rect), right - left, NSHeight(rect)));
+}
+
+// The document tab under the pointer: on its visible pill, never in the gaps
+// around and between tabs and groups, the strip above and below them, or the
+// part of a tab hidden under a badge or past the tab bar's ends.
+- (NSInteger)hoverTabIndexAtPoint:(NSPoint)point {
+    if ([self isPointOnHiddenTabsIndicator:point]) return -1;
+    for (NSInteger i = 0; i < (NSInteger)self.tabs.count; ++i) {
+        NSRect visible = [self visibleRectForTabAtIndex:i];
+        if (NSWidth(visible) >= 40.0 && NSPointInRect(point, visible)) return i;
+    }
+    return -1;
+}
+
+- (NSRect)headerRectForGroup:(SPDFTabGroup*)group {
+    for (id layout in [self groupLayouts])
+        if ([layout valueForKey:@"group"] == group) return [[layout valueForKey:@"header"] rectValue];
+    return NSZeroRect;
+}
+
+// Tabs were added, closed, moved, scrolled or resized under a pointer that has
+// not moved: the label shows for what is under it now, or goes. Once the
+// reader's update is done (it sets the tabs and the selection one after the
+// other), so the layout is worked out once, for both.
+- (void)refreshHoverAfterLayoutChange {
+    if (_hoverRefreshScheduled || (!_hasLastHoverPoint && !_hoverPanel.parentWindow && _hoverTabIndex < 0 && !_hoverGroup))
+        return;
+    _hoverRefreshScheduled = YES;
+    __weak SPDFTabStripView* weakSelf = self;
+    dispatch_async(dispatch_get_main_queue(), ^{
+        SPDFTabStripView* strip = weakSelf;
+        if (!strip) return;
+        strip->_hoverRefreshScheduled = NO;
+        if (strip->_hasLastHoverPoint && NSPointInRect(strip->_lastHoverPoint, strip.bounds) && !strip.hidden)
+            [strip updateHoverForPoint:strip->_lastHoverPoint];
+        else
+            [strip dismissHoverPanel];
+    });
+}
+
 - (void)updateHoverForPoint:(NSPoint)point {
-    if ([self isPointOnHiddenTabsIndicator:point]) { [self dismissHoverPanel]; return; }
-    NSInteger hovered = -1;
     NSRect previousClose = _hoverTabIndex >= 0 ? [self closeCircleRectForTabRect:[self rectForTabAtIndex:_hoverTabIndex]] : NSZeroRect;
     BOOL wasOnClose = _hasLastHoverPoint && NSPointInRect(_lastHoverPoint,previousClose);
+    if ([self isPointOnHiddenTabsIndicator:point]) { [self dismissHoverPanel]; return; }
     _lastHoverPoint = point;
     _hasLastHoverPoint = YES;
-    for (NSInteger i = 0; i < (NSInteger)self.tabs.count; ++i) {
-        NSRect tabRect = [self rectForTabAtIndex:i];
-        if (NSWidth(tabRect) < 40.0) continue;
-        if (NSPointInRect(point, tabRect)) {
-            hovered = i;
-            break;
-        }
-    }
+    BOOL shown = _hoverPanel.parentWindow == self.window && self.window;
     // A group's title tab gets the same full-name label as a document tab.
     // Always repaint: the title tab draws its hide action on hover.
     SPDFTabGroup* group = [self groupAtPoint:point headerOnly:YES];
     if (group) {
         [self setNeedsDisplay:YES];
-        if (group != _hoverGroup) [self showHoverPanelForGroup:group];
+        if (group != _hoverGroup || !shown || !NSEqualRects([self headerRectForGroup:group], _hoverAnchorRect))
+            [self showHoverPanelForGroup:group];
         return;
     }
+    NSInteger hovered = [self hoverTabIndexAtPoint:point];
+    SPDFDocumentTab* tab = hovered >= 0 ? self.tabs[(NSUInteger)hovered] : nil;
     BOOL leavingGroup = _hoverGroup != nil;
     _hoverGroup = nil;
-    if (hovered == _hoverTabIndex && !leavingGroup) {
+    // The same tab, in the same place, still showing: only the close button's hover state can change.
+    if (!leavingGroup && hovered == _hoverTabIndex && tab == _hoverTab &&
+        (hovered < 0 || (shown && NSEqualRects([self visibleRectForTabAtIndex:hovered], _hoverAnchorRect)))) {
         if (hovered >= 0 && wasOnClose != NSPointInRect(point,previousClose))
             [self setNeedsDisplayInRect:previousClose];
         return;
@@ -129,10 +186,13 @@ static NSVisualEffectView* SPDFHoverMaterialView(NSRect frame) {
                 [weakSelf hoverPreviewReady:ready forTab:tab];
             }];
     }
-    if (![self showHoverPanelWithTitle:[self fullTitleForTabAtIndex:index] belowRect:[self rectForTabAtIndex:index]
-                               preview:preview fadeIn:NO])
+    // Under the part of the tab that can be seen: all of it, unless it is scrolled half under a badge.
+    NSRect anchor = [self visibleRectForTabAtIndex:index];
+    if (![self showHoverPanelWithTitle:[self fullTitleForTabAtIndex:index] belowRect:anchor preview:preview fadeIn:NO])
         return;
     _hoverTabIndex = index;
+    _hoverTab = index >= 0 && index < (NSInteger)self.tabs.count ? self.tabs[(NSUInteger)index] : nil;
+    _hoverAnchorRect = anchor;
 }
 
 // A thumbnail that was not ready on hover (a tab not shown since launch) fades
@@ -142,18 +202,18 @@ static NSVisualEffectView* SPDFHoverMaterialView(NSRect frame) {
     if (!preview || index < 0 || index >= (NSInteger)self.tabs.count || self.tabs[(NSUInteger)index] != tab ||
         _hoverPanel.parentWindow != self.window)
         return;
-    [self showHoverPanelWithTitle:[self fullTitleForTabAtIndex:index] belowRect:[self rectForTabAtIndex:index]
+    [self showHoverPanelWithTitle:[self fullTitleForTabAtIndex:index] belowRect:_hoverAnchorRect
                           preview:preview fadeIn:_hoverCard.hidden];
 }
 
 - (void)showHoverPanelForGroup:(SPDFTabGroup*)group {
-    NSRect header = NSZeroRect;
-    for (id layout in [self groupLayouts])
-        if ([layout valueForKey:@"group"] == group) header = [[layout valueForKey:@"header"] rectValue];
+    NSRect header = [self headerRectForGroup:group];
     // A group's title tab shows its name only: a group holds several documents,
     // and one page of one of them would say less about it than its name does.
     if (![self showHoverPanelWithTitle:group.displayName belowRect:header preview:nil fadeIn:NO]) return;
     _hoverTabIndex = -1;
+    _hoverTab = nil;
+    _hoverAnchorRect = header;
     _hoverGroup = group;
 }
 

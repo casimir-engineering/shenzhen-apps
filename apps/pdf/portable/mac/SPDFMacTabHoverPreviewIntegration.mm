@@ -13,12 +13,21 @@
 // the reading theme) is remade at once from those pixels; a tab with none yet
 // (hovered before the preload reached it) shows its title alone and its page
 // fades in when a render from its file lands, about 0.1 s later.
+//
+// A text tab (Markdown, plain text, code) gets its current page as the reader
+// lays it out: drawn from the tab's live layout once it has been shown, from
+// its file before that (SPDFMacTabHoverPreviewText.h). Every other document
+// the reader opens (images, Office files, EPUB, XPS) has pages like a PDF and
+// goes the PDF way.
 #import "SPDFMacTabHoverPreviewIntegration.h"
 #import "SPDFMacLaunchPrerenderPrivate.h"
 #import "SPDFMacMarkdownDelegatePrivate.h"
 #import "SPDFMacTabPreviewCache.h"
+#import "SPDFMacTabHoverPreviewText.h"
+#import "SPDFMacMarkdownSessionPrivate.h"
 #import "markdown/SPDFTextDocumentFormats.h"
 #import <objc/runtime.h>
+#include <sys/stat.h>
 
 static const NSTimeInterval kPreviewSettleDelay = 0.4;
 static const NSTimeInterval kPreviewIdleArmDelay = 5.0;
@@ -48,11 +57,22 @@ static const NSTimeInterval kPreviewIdleArmDelay = 5.0;
 @property(nonatomic, strong) NSImage* image; // whole-page pixels in memory, or nil
 @property(nonatomic) unsigned renderFlags;
 @property(nonatomic, copy) NSString* fileStamp;
+// A text tab: how it is laid out now, and that layout in memory when the tab
+// has one that matches (the plan and the text it draws), else nil.
+@property(nonatomic) BOOL text;
+@property(nonatomic) SPDFTabPreviewTextLayout textLayout;
+@property(nonatomic, strong) SPDFMarkdownPaginationPlan* textPlan;
+@property(nonatomic, strong) NSAttributedString* textString;
 @end
 @implementation SPDFTabPreviewSourceInfo
 @end
 
 static char kStateKey;
+
+static unsigned long long SPDFTabPreviewTextFileSize(NSString* path) {
+    struct stat info;
+    return path.length && lstat(path.fileSystemRepresentation, &info) == 0 ? (unsigned long long)info.st_size : ULLONG_MAX;
+}
 
 static NSBitmapImageRep* BitmapRep(NSImage* image) {
     for (NSImageRep* rep in image.representations)
@@ -140,8 +160,36 @@ static NSBitmapImageRep* BitmapRep(NSImage* image) {
 
 // The page a tab shows and the best whole-page pixels of it in memory: for
 // the selected tab the live view, for another tab what it held when left.
+// A text tab's page: the reader's own layout of it when it has one in the
+// theme, type size and paper it would show now, else its file and that layout.
+- (SPDFTabPreviewSourceInfo*)spdf_textPreviewSourceForTab:(SPDFDocumentTab*)tab {
+    SPDFTabPreviewSourceInfo* info = [SPDFTabPreviewSourceInfo new];
+    info.text = YES;
+    SPDFTabPreviewTextLayout layout = {self.markdownThemeVariant, tab.preservesImageColors, _markdownFontScale,
+                                       tab.markdownLandscape};
+    info.textLayout = layout;
+    info.renderFlags = (unsigned)layout.variant;
+    info.fileStamp = SPDFTabPreviewTextStamp(tab.path, layout);
+    SPDFMacMarkdownSession* session = tab.cachedMarkdownSession;
+    BOOL live = session && session == [self activeMarkdownSession] && tab == [self selectedTab];
+    info.pageIndex = MAX(0, live ? session.currentPageIndex : tab.pageIndex);
+    SPDFMarkdownPaginationPlan* plan = session.paginationPlan;
+    NSAttributedString* string = session.renderedDocument.attributedString;
+    SPDFMarkdownPageConfiguration* paper = plan.configuration;
+    BOOL turned = paper.paperSize.width > paper.paperSize.height;
+    if (plan.pages.count && string && paper.themeVariant == layout.variant &&
+        session.fontScale == SPDFMacMarkdownClampFontScale(layout.fontScale) && turned == layout.landscape &&
+        (layout.variant != SPDFMarkdownThemeVariantDark || paper.preservesImageColors == layout.preservesImageColors)) {
+        info.textPlan = plan;
+        info.textString = string;
+        info.pageSize = paper.paperSize;
+    }
+    return info;
+}
+
 - (SPDFTabPreviewSourceInfo*)spdf_previewSourceForTab:(SPDFDocumentTab*)tab {
-    if (!tab.path.length || tab.missingFile || SPDFIsRenderedTextDocumentPath(tab.path)) return nil;
+    if (!tab.path.length || tab.missingFile) return nil;
+    if (SPDFIsRenderedTextDocumentPath(tab.path)) return [self spdf_textPreviewSourceForTab:tab];
     BOOL selected = tab == [self selectedTab] && _doc;
     SPDFTabPreviewSourceInfo* info = [SPDFTabPreviewSourceInfo new];
     NSArray<SPDFRenderedPage*>* pages = selected ? _renderedPages : tab.cachedRenderedPages;
@@ -179,12 +227,13 @@ static NSBitmapImageRep* BitmapRep(NSImage* image) {
     if (exact) *exact = NO;
     if (!entry || !info || entry.pageIndex != info.pageIndex || entry.renderFlags != info.renderFlags) return NO;
     if (!info.fileStamp || ![entry.fileStamp isEqualToString:info.fileStamp]) return NO;
-    if (!info.image) {
+    id live = info.image ?: info.textPlan;
+    if (!live) {
         if (exact) *exact = YES;
         return YES;
     }
     if (!NSEqualSizes(entry.pageSize, info.pageSize)) return NO;
-    if (exact) *exact = entry.source == info.image;
+    if (exact) *exact = entry.source == live;
     return YES;
 }
 
@@ -201,6 +250,15 @@ static NSBitmapImageRep* BitmapRep(NSImage* image) {
     entry.renderFlags = info.renderFlags;
     entry.fileStamp = info.fileStamp;
     entry.source = info.image;
+    return entry;
+}
+
+// A text tab's page drawn from its layout in memory. Any thread.
+static SPDFTabPreviewEntry* TextEntryFromLayout(SPDFTabPreviewSourceInfo* info, CGFloat scale) {
+    SPDFTabPreviewEntry* entry = SPDFTabPreviewEntryForTextPage(info.textPlan, info.textString, info.pageIndex, scale);
+    entry.renderFlags = info.renderFlags;
+    entry.fileStamp = info.fileStamp;
+    entry.source = info.textPlan;
     return entry;
 }
 
@@ -227,6 +285,15 @@ static NSBitmapImageRep* BitmapRep(NSImage* image) {
                           ready:(void (^)(id<SPDFTabHoverPreview>))ready {
     SPDFTabHoverPreviewState* state = [self spdf_tabPreviewState];
     if (![self spdf_beginPreviewForTab:tab ready:ready]) return;
+    if (info.textPlan) {
+        CGFloat scale = state.lastScale;
+        __weak ShenzhenMacDelegate* weakSelf = self;
+        dispatch_async(state.scaleQueue, ^{
+            SPDFTabPreviewEntry* entry = TextEntryFromLayout(info, scale);
+            dispatch_async(dispatch_get_main_queue(), ^{ [weakSelf spdf_finishPreview:entry forTab:tab]; });
+        });
+        return;
+    }
     CGImageRef source = SPDFTabPreviewCreateImageReadingRep(BitmapRep(info.image));
     if (!source) {
         [self spdf_finishPreview:nil forTab:tab];
@@ -249,6 +316,10 @@ static NSBitmapImageRep* BitmapRep(NSImage* image) {
                                   ready:(void (^)(id<SPDFTabHoverPreview>))ready {
     SPDFTabHoverPreviewState* state = [self spdf_tabPreviewState];
     if (!info.fileStamp || [state.failedStamps containsObject:info.fileStamp]) return;
+    if (info.text) {
+        [self spdf_renderTextPreviewFromFileForTab:tab info:info ready:ready];
+        return;
+    }
     NSString* source = tab.path;
     NSString* opened = source;
     if (tab.readOnly) {
@@ -303,6 +374,32 @@ static NSBitmapImageRep* BitmapRep(NSImage* image) {
     });
 }
 
+// A text tab not shown since launch: laid out from its file, on the file
+// queue, under the layout the reader would give it. Never a cloud file.
+- (void)spdf_renderTextPreviewFromFileForTab:(SPDFDocumentTab*)tab info:(SPDFTabPreviewSourceInfo*)info
+                                       ready:(void (^)(id<SPDFTabHoverPreview>))ready {
+    SPDFTabHoverPreviewState* state = [self spdf_tabPreviewState];
+    NSString* path = tab.path;
+    if ([self pathIsOnCloudStorage:path] || ![self spdf_beginPreviewForTab:tab ready:ready]) return;
+    [self ensureSecurityAccessForPath:path];
+    CGFloat scale = state.lastScale;
+    NSInteger pageIndex = info.pageIndex;
+    SPDFTabPreviewTextLayout layout = info.textLayout;
+    unsigned flags = info.renderFlags;
+    NSString* stamp = info.fileStamp;
+    __weak ShenzhenMacDelegate* weakSelf = self;
+    dispatch_async(state.fileQueue, ^{
+        SPDFTabPreviewEntry* entry = SPDFTabPreviewEntryForTextFile(path, pageIndex, layout, scale);
+        entry.renderFlags = flags;
+        entry.fileStamp = stamp;
+        dispatch_async(dispatch_get_main_queue(), ^{
+            ShenzhenMacDelegate* mainSelf = weakSelf;
+            if (!entry) [[mainSelf spdf_tabPreviewState].failedStamps addObject:stamp];
+            [mainSelf spdf_finishPreview:entry forTab:tab];
+        });
+    });
+}
+
 - (void)spdf_prepareTabHoverPreviews {
     SPDFTabHoverPreviewState* state = [self spdf_tabPreviewState];
     if (!state.armed) return;
@@ -323,7 +420,10 @@ static NSBitmapImageRep* BitmapRep(NSImage* image) {
         // A tab with no page in memory yet is left to the reader's own preload
         // of inactive tabs, which calls back here when it is done; a hover
         // before then renders that one tab from its file.
-        if (info.image) [self spdf_scalePreviewForTab:tab info:info ready:nil];
+        if (info.image || info.textPlan) [self spdf_scalePreviewForTab:tab info:info ready:nil];
+        // A text tab has no preload: a short one is laid out from its file now.
+        else if (info.text && SPDFTabPreviewTextFileSize(tab.path) <= kSPDFTabPreviewTextPrepareMaxBytes)
+            [self spdf_renderPreviewFromFileForTab:tab info:info ready:nil];
     }
 }
 
@@ -352,6 +452,13 @@ static NSBitmapImageRep* BitmapRep(NSImage* image) {
         CGImageRef source = SPDFTabPreviewCreateImageReadingRep(BitmapRep(info.image));
         entry = source ? [self spdf_previewEntryFromImage:source info:info scale:state.lastScale] : nil;
         if (source) CGImageRelease(source);
+        if (entry) [state.cache setEntry:entry forTab:tab];
+        return entry;
+    }
+    if (info.textPlan) {
+        // Another page or a new layout of a text tab shown since launch: drawn
+        // here from that layout, as the reader draws it.
+        entry = TextEntryFromLayout(info, state.lastScale);
         if (entry) [state.cache setEntry:entry forTab:tab];
         return entry;
     }

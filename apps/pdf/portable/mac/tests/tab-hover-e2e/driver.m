@@ -8,6 +8,7 @@
 // SPDF_E2E_PLAN: {"phase": "first" | "restored" | "memory-...", "documents": [...], "group": name}; SPDF_E2E_OUT:
 // pictures and result.json. The steps themselves are in hover_harness.h.
 #include "hover_harness.h"
+#include "gap_and_type_steps.h"
 
 #import <malloc/malloc.h>
 #import <sys/resource.h>
@@ -88,12 +89,22 @@ static void RunFirst(void) {
     }
     Appearance(NSAppearanceNameAqua);
 
+    // A Markdown file, an image and a text file, each shown once, hovered next to the turned PDF.
+    NSArray* extras = gPlan[@"extras"];
+    for (NSString* path in extras) Open(path);
+    for (NSString* look in @[ NSAppearanceNameAqua, NSAppearanceNameDarkAqua ]) {
+        BOOL dark = [look isEqual:NSAppearanceNameDarkAqua];
+        Appearance(look);
+        gResult[dark ? @"types_dark" : @"types_light"] = HoverTypes(extras, rotation, dark ? @"8-dark" : @"8-light", 3);
+    }
+    Appearance(NSAppearanceNameAqua);
+
     // Thirty tabs, each shown once: memory once their thumbnails are made.
     gResult[@"memory_before_more_tabs"] = CacheStats();
     for (NSUInteger i = 2; i < documents.count; i++) Open(documents[i]);
     Select(TabIndexForName(longName.lastPathComponent));
     Hover(Centre(TabRect(0)), YES);
-    WaitFor(15, ^BOOL { return [CacheStats()[@"entries"] integerValue] >= (NSInteger)documents.count - 1; });
+    WaitFor(15, ^BOOL { return [CacheStats()[@"entries"] integerValue] >= (NSInteger)Tabs().count - 1; });
     Wait(1.0);
     gResult[@"memory_30_tabs"] = CacheStats();
     gResult[@"tab_count"] = @(Tabs().count);
@@ -102,7 +113,20 @@ static void RunFirst(void) {
     Reveal(rotationTab);
     gResult[@"cached_latency"] = HoverLatency(rotationTab, VisibleNeighbour(rotationTab), 30);
     gResult[@"cached_orientation"] = Orientation();
+
+    // Every empty place in a full tab bar, in light and dark; a tab half under the "+N" badge; tabs moved, closed
+    // and the window narrowed under a pointer that stays put.
+    for (NSString* look in @[ NSAppearanceNameAqua, NSAppearanceNameDarkAqua ]) {
+        BOOL dark = [look isEqual:NSAppearanceNameDarkAqua];
+        Appearance(look);
+        gResult[dark ? @"gaps_dark" : @"gaps_light"] = HoverGaps(dark ? @"dark" : @"light");
+    }
+    Appearance(NSAppearanceNameAqua);
+    gResult[@"partly_hidden"] = HoverPartlyHiddenTab();
+    gResult[@"layout_changes"] = LayoutChanges();
     Leave();
+    // The session is restored with General open, as the restored phase expects.
+    Expand(@"General");
     Main(^id { ((void (*)(id, SEL))objc_msgSend)(Delegate(), NSSelectorFromString(@"savePersistentState")); return nil; });
     Wait(1.0);
 }
@@ -131,6 +155,8 @@ static void RunRestored(void) {
     Wait(0.3);
     gResult[@"cold_after"] = Shot(@"6-cold-thumbnail-faded-in");
     gResult[@"cold_orientation"] = Orientation();
+    // Text documents not shown since launch: laid out from their files.
+    gResult[@"cold_types"] = HoverTypes(gPlan[@"extras"], nil, @"9-not-shown", 3);
     Leave();
     // Left alone, the rest are made from the reader's preload of inactive tabs, after the idle start.
     Wait(10);
