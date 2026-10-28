@@ -27,9 +27,12 @@
 #   4. install    meson install -C build --no-rebuild  (prefix <repo>/install,
 #                 which package/make-app.sh reads)
 #
-# Never deletes or resets an existing nautilus/. A tree whose files differ from
-# the patch's post-images (local work in progress) stops the script, unless
-# --allow-modified is given, in which case it is configured and built as is.
+# Never deletes or resets an existing nautilus/. A tree that is exactly what an
+# earlier committed revision of the patches made (the release's cached tree after
+# the patches changed) is brought to today's patches by reversing those and
+# applying these. A tree whose files differ from the patch's post-images
+# otherwise (local work in progress) stops the script, unless --allow-modified
+# is given, in which case it is configured and built as is.
 #
 # Usage: tools/setup-nautilus-tree.sh [--check | --tree-only] [--allow-modified]
 #   --check           verify nautilus/ against the patches; change nothing
@@ -165,6 +168,51 @@ apply_adapter() {
   fi
 }
 
+# A tree made by this script from an earlier committed revision of the patches, untouched since (the release's
+# cached worktree after the patches changed): prints that revision's commit and exits 0, or exits 1. Only exact
+# matches count, so local work is never mistaken for an old tree.
+old_patch() { git -C "$repo_root" show "$1:./patches/$2" 2>/dev/null; }
+find_older_patches() {
+  local rev
+  git -C "$repo_root" rev-parse --git-dir >/dev/null 2>&1 || return 1
+  for rev in $(git -C "$repo_root" log --format=%H -n 40 -- patches/macos-port-full.patch patches/friends-host-adapter.patch); do
+    old_patch "$rev" macos-port-full.patch >/dev/null || continue
+    if old_patch "$rev" friends-host-adapter.patch >/dev/null; then
+      verify_tree "$TREE" <(old_patch "$rev" macos-port-full.patch) <(old_patch "$rev" friends-host-adapter.patch) \
+        >/dev/null || continue
+    else
+      verify_tree "$TREE" <(old_patch "$rev" macos-port-full.patch) >/dev/null || continue
+    fi
+    echo "$rev"
+    return 0
+  done
+  return 1
+}
+
+# Takes a tree from find_older_patches back to the base commit by reversing that revision's patches, then applies
+# today's, and checks the result.
+update_older_tree() {
+  local rev="$1" problems
+  log "nautilus/ was made from the patches at ${rev:0:12}; bringing it to today's patches"
+  if old_patch "$rev" friends-host-adapter.patch >/dev/null; then
+    old_patch "$rev" friends-host-adapter.patch | git -C "$TREE" apply -R --whitespace=nowarn -
+  fi
+  old_patch "$rev" macos-port-full.patch | git -C "$TREE" apply -R --whitespace=nowarn -
+  if [[ -n "$(git -C "$TREE" status --porcelain=v1 --untracked-files=all)" ]]; then
+    echo "error: reversing the patches at ${rev:0:12} did not give the base commit back" >&2
+    exit 1
+  fi
+  log "applying $(basename "$PORT_PATCH")"
+  git -C "$TREE" apply --whitespace=nowarn "$PORT_PATCH"
+  if [[ ${#PATCHES[@]} -gt 1 ]]; then
+    apply_adapter "$TREE"
+  elif ! problems="$(verify_tree "$TREE" "${PATCHES[@]}")"; then
+    echo "error: patched tree does not match the patches' post-images:" >&2
+    printf '  %s\n' "$problems" >&2
+    exit 1
+  fi
+}
+
 check_existing_tree() {
   local head problems
   head="$(git -C "$TREE" rev-parse HEAD 2>/dev/null || echo none)"
@@ -180,6 +228,17 @@ check_existing_tree() {
       return 1
     fi
     apply_adapter "$TREE"
+    log "nautilus/ matches the patches (HEAD $FIXUP_COMMIT)"
+    return 0
+  fi
+  # Exactly what an earlier revision of the patches made: brought up to date (the release's cached tree).
+  local older
+  if [[ "$head" == "$FIXUP_COMMIT" ]] && older="$(find_older_patches)"; then
+    if [[ "$mode" == check ]]; then
+      echo "nautilus/ was made from the patches at ${older:0:12}; run without --check to update it" >&2
+      return 1
+    fi
+    update_older_tree "$older"
     log "nautilus/ matches the patches (HEAD $FIXUP_COMMIT)"
     return 0
   fi
