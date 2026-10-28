@@ -215,6 +215,9 @@ int main(void) {
         reader.hostWindow = window;
         reader.tabStrip = strip;
         reader.documentKeyView = documentView;
+        // Realized (sendEvent: needs an ordered-in window) but transparent and far off every screen.
+        window.alphaValue = 0;
+        [window setFrameOrigin:NSMakePoint(-10000, -10000)];
         [window orderFront:nil];
         [window makeKeyWindow];
         [window displayIfNeeded];

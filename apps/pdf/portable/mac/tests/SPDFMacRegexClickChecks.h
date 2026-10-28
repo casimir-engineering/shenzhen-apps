@@ -19,7 +19,10 @@ static void CheckRegexClick(NSWindow* window,NSButton* button,NSSearchField* fie
         NSControlStateValue before=button.state; NSUInteger calls=sink.calls;
         NSTimeInterval time=NSProcessInfo.processInfo.systemUptime;
         NSEvent* down=[NSEvent mouseEventWithType:NSEventTypeLeftMouseDown location:p modifierFlags:0 timestamp:time windowNumber:window.windowNumber context:nil eventNumber:1 clickCount:2 pressure:1];
-        NSEvent* up=[NSEvent mouseEventWithType:NSEventTypeLeftMouseUp location:p modifierFlags:0 timestamp:time+.01 windowNumber:window.windowNumber context:nil eventNumber:2 clickCount:2 pressure:0];
+        NSEvent* up=[NSEvent mouseEventWithType:NSEventTypeLeftMouseUp location:p modifierFlags:0 timestamp:time+.01 windowNumber:0 context:nil eventNumber:2 clickCount:2 pressure:0];
+        // The mouse-up is queued without a window number: one with a window number has its location rebased on the
+        // window server's frame for that window, which goes stale once an invisible fixture has been ordered in and
+        // out off screen, so the press would end ~10000 pt away. The button reads the location in window coordinates.
         [NSApp postEvent:up atStart:YES];
         BOOL routed=spdf_window_route_button_press(window,down);
 

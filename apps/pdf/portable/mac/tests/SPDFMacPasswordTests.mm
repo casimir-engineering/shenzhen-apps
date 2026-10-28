@@ -5,6 +5,25 @@
 
 static int failures;
 
+// A parent that takes the sheet without presenting it. AppKit moves a sheet's parent onto a screen to show the sheet,
+// even a transparent parent placed far off screen, so a real one would appear on the desktop of whoever runs the
+// tests. The controller's own flow (attach, retry, dismiss, cancel once) is what is checked here.
+@interface SPDFUnpresentedParentWindow : NSWindow
+@property(nonatomic, strong) NSWindow* heldSheet;
+@end
+@implementation SPDFUnpresentedParentWindow
+- (void)beginSheet:(NSWindow*)sheet completionHandler:(void (^)(NSModalResponse))handler {
+    (void)handler;
+    self.heldSheet = sheet;
+}
+- (void)endSheet:(NSWindow*)sheet {
+    if (sheet == self.heldSheet) self.heldSheet = nil;
+}
+- (NSWindow*)attachedSheet {
+    return self.heldSheet;
+}
+@end
+
 #define CHECK(condition, message)                                                                                       \
     do {                                                                                                                \
         if (!(condition)) {                                                                                             \
@@ -49,11 +68,10 @@ static void submit_password(SPDFPasswordSheetController* controller, NSString* p
 
 static void test_password_sheet_retry_success_and_cancel(void) {
     [NSApplication sharedApplication];
-    NSWindow* parent = [[NSWindow alloc] initWithContentRect:NSMakeRect(100, 100, 640, 480)
-                                                   styleMask:NSWindowStyleMaskTitled
-                                                     backing:NSBackingStoreBuffered
-                                                       defer:NO];
-    [parent orderFront:nil];
+    NSWindow* parent = [[SPDFUnpresentedParentWindow alloc] initWithContentRect:NSMakeRect(100, 100, 640, 480)
+                                                                      styleMask:NSWindowStyleMaskTitled
+                                                                        backing:NSBackingStoreBuffered
+                                                                          defer:YES];
 
     __block NSInteger attempts = 0;
     __block BOOL cancelled = NO;
@@ -114,7 +132,6 @@ static void test_password_sheet_retry_success_and_cancel(void) {
     [cancelledController cancel];
     CHECK(spin_until(^BOOL { return parent.attachedSheet == nil; }, 1.0), "cancel did not dismiss the sheet");
     CHECK(cancelCount == 1, "cancel handler did not run exactly once");
-    [parent orderOut:nil];
 }
 
 int main(void) {
