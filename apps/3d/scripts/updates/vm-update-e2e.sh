@@ -43,8 +43,8 @@ printf '{"version":"%s"}' "$old" >"$work/old.json"
 printf '{"version":"%s"}' "$new" >"$work/new.json"
 printf '{"build": {"beforeBuildCommand": ""}}' >"$work/no-frontend-build.json"
 COPYFILE_DISABLE=1 tar --no-xattrs -czf "$work/payload.tgz" --exclude 'src-tauri/target' --exclude 'src-tauri/gen' \
-    --exclude 'src-tauri/friends/bin' --exclude '.DS_Store' -C "$here" .cargo src-tauri dist scripts/updates \
-    tests/updates
+    --exclude 'src-tauri/friends/bin' --exclude '.DS_Store' -C "$here" package.json .cargo src-tauri dist \
+    scripts/updates tests/updates
 status=0
 step() { echo "== $*"; }
 
