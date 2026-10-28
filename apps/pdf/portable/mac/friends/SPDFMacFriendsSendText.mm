@@ -266,13 +266,14 @@ static SPDFCodePoints Normalized(const SPDFCodePoints& points) {
 // Compatibility spellings that draw exactly like the plain letters they stand for, measured in the card's font: the
 // ligatures ﬁ and ﬂ, the micro sign µ beside Greek μ, Latin digraphs such as ǆ and ĳ, Tibetan's deprecated vowel
 // signs, and Arabic and Hebrew presentation forms beside the letters they show (an isolated form draws the letter on
-// its own, a contextual one the letter where it stands). Each would be a hidden bit, so they become their
-// compatibility decomposition (NFKC), which shaping draws the same. Not all of NFKC: x², ½, ①, ™ and fullwidth
-// letters look different from what they fold to, and folding them would change what the message says.
+// its own, a contextual one the letter where it stands), and the radical ⺟ beside 母 in macOS 15's fonts. Each
+// would be a hidden bit, so they become their compatibility decomposition (NFKC), which shaping draws the same. Not
+// all of NFKC: x², ½, ①, ™ and fullwidth letters look different from what they fold to, and folding them would
+// change what the message says.
 static BOOL FoldsToCompatibility(UTF32Char point) {
     return point == 0x00B5 || InRange(point, 0x0132, 0x0133) || InRange(point, 0x013F, 0x0140) || point == 0x0149 ||
         InRange(point, 0x01C4, 0x01CC) || InRange(point, 0x01F1, 0x01F3) || point == 0x0F77 || point == 0x0F79 ||
-        InRange(point, 0xFB00, 0xFDFF) || InRange(point, 0xFE70, 0xFEFE);
+        point == 0x2E9F || InRange(point, 0xFB00, 0xFDFF) || InRange(point, 0xFE70, 0xFEFE);
 }
 
 // One spelling where two draw the same and say the same: the folds above; the hyphen U+2010 and the non-breaking
