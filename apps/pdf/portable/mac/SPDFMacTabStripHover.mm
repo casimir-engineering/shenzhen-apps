@@ -170,18 +170,23 @@ static NSView* SPDFHoverMaterialView(NSRect frame) {
     SPDFTabGroup* group = [self groupAtPoint:point headerOnly:YES];
     if (group) {
         [self setNeedsDisplay:YES];
-        if (group != _hoverGroup || !shown || !NSEqualRects([self headerRectForGroup:group], _hoverAnchorRect))
-            [self showHoverPanelForGroup:group];
+        NSRect header = [self headerRectForGroup:group];
+        if (group != _hoverGroup || !shown) [self showHoverPanelForGroup:group];
+        else if (!NSEqualRects(header, _hoverAnchorRect)) [self moveHoverPanelBelowRect:header];
         return;
     }
     NSInteger hovered = [self hoverTabIndexAtPoint:point];
     SPDFDocumentTab* tab = hovered >= 0 ? self.tabs[(NSUInteger)hovered] : nil;
     BOOL leavingGroup = _hoverGroup != nil;
     _hoverGroup = nil;
-    // The same tab, in the same place, still showing: only the close button's hover state can change.
-    if (!leavingGroup && hovered == _hoverTabIndex && tab == _hoverTab &&
-        (hovered < 0 || (shown && NSEqualRects([self visibleRectForTabAtIndex:hovered], _hoverAnchorRect)))) {
-        if (hovered >= 0 && wasOnClose != NSPointInRect(point,previousClose))
+    // The same tab, still showing: only the close button's hover state can change, or, when the tab bar scrolled
+    // or the tabs moved, where the label hangs. Its title and page stay as they are.
+    if (!leavingGroup && hovered == _hoverTabIndex && tab == _hoverTab && (hovered < 0 || shown)) {
+        NSRect anchor = hovered >= 0 ? [self visibleRectForTabAtIndex:hovered] : NSZeroRect;
+        if (hovered >= 0 && !NSEqualRects(anchor, _hoverAnchorRect)) {
+            [self setNeedsDisplay:YES];
+            [self moveHoverPanelBelowRect:anchor];
+        } else if (hovered >= 0 && wasOnClose != NSPointInRect(point,previousClose))
             [self setNeedsDisplayInRect:previousClose];
         return;
     }
@@ -301,15 +306,7 @@ static NSView* SPDFHoverMaterialView(NSRect frame) {
                                        preview.pointSize.height + 2 * kHoverCardInset) : NSZeroSize;
     CGFloat width = MAX(titleWidth, card.width);
     CGFloat height = kHoverTitleHeight + (preview ? kHoverCardGap + card.height : 0);
-    // The title sits where it always has, 5 pt under the tab; the page hangs
-    // under the title.
-    NSRect tabScreenRect = [self.window convertRectToScreen:[self convertRect:tabRect toView:nil]];
-    NSRect frame = NSMakeRect(floor(NSMidX(tabScreenRect) - width / 2.0),
-                              floor(NSMinY(tabScreenRect) - kHoverTitleGap) - height, width, height);
-    // A wide label under a tab near the screen's edge stays on the screen.
-    NSRect screen = self.window.screen.visibleFrame;
-    if (!NSIsEmptyRect(screen) && width < NSWidth(screen))
-        frame.origin.x = MAX(NSMinX(screen) + 4, MIN(NSMinX(frame), NSMaxX(screen) - width - 4));
+    NSRect frame = [self hoverPanelFrameWithSize:NSMakeSize(width, height) belowRect:tabRect];
     _hoverBubble.frame = NSMakeRect(floor((width - titleWidth) / 2.0), height - kHoverTitleHeight, titleWidth,
                                     kHoverTitleHeight);
     _hoverCard.hidden = preview == nil;
@@ -344,6 +341,29 @@ static NSView* SPDFHoverMaterialView(NSRect frame) {
     // becomes visible without moving the parent in the z-order.
     [_hoverPanel orderWindow:NSWindowAbove relativeTo:self.window.windowNumber];
     return YES;
+}
+
+// The title sits where it always has, 5 pt under the tab, centred under it; the page hangs under the title.
+- (NSRect)hoverPanelFrameWithSize:(NSSize)size belowRect:(NSRect)tabRect {
+    NSRect tabScreenRect = [self.window convertRectToScreen:[self convertRect:tabRect toView:nil]];
+    NSRect frame = NSMakeRect(floor(NSMidX(tabScreenRect) - size.width / 2.0),
+                              floor(NSMinY(tabScreenRect) - kHoverTitleGap) - size.height, size.width, size.height);
+    // A wide label under a tab near the screen's edge stays on the screen.
+    NSRect screen = self.window.screen.visibleFrame;
+    if (!NSIsEmptyRect(screen) && size.width < NSWidth(screen))
+        frame.origin.x = MAX(NSMinX(screen) + 4, MIN(NSMinX(frame), NSMaxX(screen) - size.width - 4));
+    return frame;
+}
+
+// The hovered tab moved under the pointer (the tab bar scrolled, or a cut tab
+// shows more or less of itself): the label follows it as it is, nothing remade.
+- (void)moveHoverPanelBelowRect:(NSRect)tabRect {
+    if (NSWidth(tabRect) <= 0 || !self.window) {
+        [self dismissHoverPanel];
+        return;
+    }
+    _hoverAnchorRect = tabRect;
+    [_hoverPanel setFrameOrigin:[self hoverPanelFrameWithSize:_hoverPanel.frame.size belowRect:tabRect].origin];
 }
 
 - (void)updateHoverForEvent:(NSEvent*)event {

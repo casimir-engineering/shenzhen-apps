@@ -124,6 +124,7 @@ does not re-trigger the macOS access prompt.
 - **Tab hover preview** — hovering a document tab shows its full name and, under it, the page you were on,
   turned the way you turned it, the moment the pointer arrives: a PDF, an image, an Office document, a Markdown,
   text or code file alike. Hovering a group's name shows the group's full name. The gaps between tabs show nothing.
+  Scroll the tab bar without moving the pointer and the preview follows each tab as it passes under it.
 - **Drag to reorder**, drag out to **detach into a new window**, drag back to
   **reattach**. A detached tab keeps its page, zoom, scroll and search.
   Dropping a tab between groups joins the existing General group, revealing it

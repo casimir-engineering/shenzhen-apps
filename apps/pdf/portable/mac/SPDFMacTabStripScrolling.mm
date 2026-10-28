@@ -36,11 +36,22 @@
     _tabScrollOffset = next; _groupLayout = nil; _revealSelectedTab = NO;
     if (self.tabScrollDidChange) self.tabScrollDidChange(next);
     _accessibilityChildrenSnapshot = nil;
-    [self dismissHoverPanel]; [self rebuildReadOnlyTooltips]; [self setNeedsDisplay:YES];
+    // The tabs slid under a pointer that stays put: the label moves to the tab now under it, or goes over a gap or a
+    // badge. Worked out once per pass of the run loop, before the frame is drawn, however many scroll events came.
+    [self refreshHoverAfterLayoutChange]; [self rebuildReadOnlyTooltips]; [self setNeedsDisplay:YES];
 }
 - (void)scrollWheel:(NSEvent*)event {
     // Trackpads supply pixel deltas and momentum; a vertical mouse wheel is
     // equally useful over this horizontal-only surface. Never select a tab.
+    // Where the pointer is now: no mouse-moved or entered event comes while
+    // only the tabs move, and a gap or badge that passed under it cleared it.
+    // (An event with no window carries its location on the screen.)
+    NSPoint screen = event.window ? [event.window convertPointToScreen:event.locationInWindow] : event.locationInWindow;
+    NSPoint point = [self convertPoint:[self.window convertPointFromScreen:screen] fromView:nil];
+    if (self.window && NSPointInRect(point, self.bounds)) {
+        _lastHoverPoint = point;
+        _hasLastHoverPoint = YES;
+    }
     CGFloat delta = fabs(event.scrollingDeltaX)>fabs(event.scrollingDeltaY)
         ? event.scrollingDeltaX : event.scrollingDeltaY;
     [self scrollTabStripBy:-delta*(event.hasPreciseScrollingDeltas ? 1 : 20)];

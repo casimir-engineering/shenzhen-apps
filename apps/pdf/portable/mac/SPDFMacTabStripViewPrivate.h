@@ -122,6 +122,8 @@ static NSPasteboardType const SPDFTabDragPasteboardType = @"com.intuition.shenzh
 - (void)refreshHoverAfterLayoutChange;
 - (void)showHoverPanelForTabAtIndex:(NSInteger)index;
 - (void)showHoverPanelForGroup:(SPDFTabGroup*)group;
+- (NSRect)hoverPanelFrameWithSize:(NSSize)size belowRect:(NSRect)tabRect;
+- (void)moveHoverPanelBelowRect:(NSRect)tabRect;
 - (BOOL)showHoverPanelWithTitle:(NSString*)title belowRect:(NSRect)rect;
 - (BOOL)showHoverPanelWithTitle:(NSString*)title belowRect:(NSRect)rect
                         preview:(id)preview fadeIn:(BOOL)fadeIn;
