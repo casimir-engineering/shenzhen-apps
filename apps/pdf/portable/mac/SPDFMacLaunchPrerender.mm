@@ -225,7 +225,7 @@ void spdf_discard_launch_prerender(void) {
               persistedCopyModifiedAt = [tab[@"roCopyModifiedAt"] doubleValue];
               pageIndex = MAX(0, [tab[@"page"] integerValue]);
               // Replicates loadSelectedTab zoom selection exactly for the two
-              // viewport-independent fit modes; other modes stay open-only.
+              // viewport-independent fit modes; the fit modes predict the saved zoom.
               NSInteger fitMode = [tab[@"fitMode"] integerValue];
               if (fitMode == SPDFFitModeCustom) {
                   double customZoom = [tab[@"customZoom"] doubleValue];
@@ -234,6 +234,13 @@ void spdf_discard_launch_prerender(void) {
                   predictedZoom = MAX(kMinZoom, MIN(kMaxZoom, remembered));
               } else if (fitMode == SPDFFitModeActual) {
                   predictedZoom = 1.0;
+              } else if ([tab[@"zoom"] doubleValue] > 0) {
+                  // A fit zoom depends on the viewport, which a relaunch restores exactly (same frame, same sidebar
+                  // and minimap widths), so the zoom the tab was saved with is the one it gets back, to the bit:
+                  // state YAML writes doubles with 17 digits. Adoption still compares exactly, so a changed window
+                  // only wastes this background render. On the 100-tab profile it moved the 13-19 ms synchronous
+                  // render of the selected page off the main thread before the first frame.
+                  predictedZoom = MAX(kMinZoom, MIN(kMaxZoom, [tab[@"zoom"] doubleValue]));
               }
           }
       }

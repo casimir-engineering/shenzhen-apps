@@ -2,6 +2,7 @@
 #import "SPDFMacDocumentActivity.h"
 #import "SPDFMacAIToolsReader.h"
 #import "SPDFMacCollectionStore.h"
+#import "SPDFMacQuitFinishing.h"
 #import <objc/runtime.h>
 
 // Seconds a tab must stay in front to count as viewed, between stamps of a long view, and without input before the
@@ -62,13 +63,15 @@ static void Record(NSArray<NSDictionary*>* stamps) {
     observe(workspace, NSWorkspaceScreensDidWakeNotification, nil, ^{ weakTracker.screensAsleep = NO; });
     observe(workspace, NSWorkspaceSessionDidResignActiveNotification, nil, ^{ weakTracker.sessionInactive = YES; });
     observe(workspace, NSWorkspaceSessionDidBecomeActiveNotification, nil, ^{ weakTracker.sessionInactive = NO; });
-    // Quitting ends the view in front, and what is unsaved is written before the process goes.
-    [tracker.observers addObject:[center addObserverForName:NSApplicationWillTerminateNotification object:nil
-        queue:NSOperationQueue.mainQueue usingBlock:^(NSNotification* note) {
-            (void)note;
-            Record([weakTracker.clock showPath:nil at:Now() idle:IdleSeconds()]);
-            [SPDFMacDocumentActivityStore.sharedStore flushNow];
-        }]];
+    // Quitting ends the view in front, and what is unsaved is written before the process goes. A quit that finishes
+    // out of sight exits without AppKit's will-terminate notification and posts its own (SPDFMacQuitFinishing.h).
+    for (NSNotificationName name in @[ NSApplicationWillTerminateNotification, SPDFMacQuitWillExitNotification ])
+        [tracker.observers addObject:[center addObserverForName:name object:nil queue:nil
+            usingBlock:^(NSNotification* note) {
+                (void)note;
+                Record([weakTracker.clock showPath:nil at:Now() idle:IdleSeconds()]);
+                [SPDFMacDocumentActivityStore.sharedStore flushNow];
+            }]];
     SPDFMacDocumentActivityStore* store = SPDFMacDocumentActivityStore.sharedStore;
     if (!store.backfillSources) store.backfillSources = ^NSDictionary* {
         // Collection is only read here, on the activity queue, the first time this profile is backfilled.

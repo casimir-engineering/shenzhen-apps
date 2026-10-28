@@ -3,6 +3,7 @@
 #import "SPDFMacCollectionIntegration.h"
 #import "SPDFMacCollectionReaderNavigation.h"
 #import "SPDFMacCollectionStore.h"
+#import "SPDFMacQuitFinishing.h"
 #import "SPDFMacCollectionAvailability.h"
 #import "SPDFMacCollectionWindow.h"
 #import "SPDFMacCollectionCompanion.h"
@@ -73,7 +74,7 @@ static char kCollectionCompanion, kCollectionImported, kCollectionSettingsObserv
     }
     NSMutableDictionary* pending = objc_getAssociatedObject(self, &kCollectionContinuity);
     NSString* continuingID = pending[source]; [pending removeObjectForKey:source];
-    dispatch_async(dispatch_get_main_queue(), ^{
+    spdf_mac_after_first_paint(^{
         SPDFMacCollectionStore* store = [SPDFMacCollectionStore defaultStore];
         if ([store isArchivePath:source]) {
             NSDictionary* info = [store archiveInfoForPath:source];

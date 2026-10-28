@@ -897,11 +897,6 @@ mac-pasted-image-state-tests: mupdf-libs $(CORE_OBJ) $(CORE_RECOLOR_OBJ) | $(BUI
 	clang++ $(MAC_TARGET_FLAGS) -std=c++17 -fobjc-arc -Wall -Wextra -Werror -Wno-incomplete-implementation -Wno-protocol -Imac -Icore -I$(MUPDF_DIR)/include mac/tests/SPDFMacPastedImageStateTests.mm mac/SPDFMacImageSaveIntegration.mm mac/SPDFMacImageSave.mm mac/SPDFMacDocumentToolInput.mm mac/SPDFMacModels.mm mac/SPDFMacTabGroups.mm $(CORE_OBJ) $(CORE_RECOLOR_OBJ) $(MUPDF_LIBS) -framework Cocoa -framework UniformTypeIdentifiers -lm -o "$(BUILD)/SPDFMacPastedImageStateTests"
 	"$(BUILD)/SPDFMacPastedImageStateTests"
 
-.PHONY: mac-unsaved-image-close-tests
-mac-unsaved-image-close-tests: mupdf-libs $(CORE_OBJ) $(CORE_RECOLOR_OBJ) | $(BUILD)
-	clang++ $(MAC_TARGET_FLAGS) -std=c++17 -fobjc-arc -Wall -Wextra -Werror -Wno-incomplete-implementation -Wno-protocol -Wno-objc-protocol-method-implementation -Imac -Icore -I$(MUPDF_DIR)/include mac/tests/SPDFMacUnsavedImageCloseTests.mm mac/SPDFMacUnsavedImageClose.mm mac/SPDFMacTabGroupIntegration.mm mac/SPDFMacModels.mm mac/SPDFMacTabGroups.mm $(CORE_OBJ) $(CORE_RECOLOR_OBJ) $(MUPDF_LIBS) -framework Cocoa -lm -o "$(BUILD)/SPDFMacUnsavedImageCloseTests"
-	"$(BUILD)/SPDFMacUnsavedImageCloseTests"
-
 .PHONY: mac-page-pdf-copy-tests
 mac-page-pdf-copy-tests: core/spdf_document_export.h mupdf-libs $(CORE_OBJ) $(CORE_RECOLOR_OBJ) | $(BUILD)
 	clang++ $(MAC_TARGET_FLAGS) -std=c++17 -fobjc-arc -Wall -Wextra -Werror -Imac -Icore -I$(MUPDF_DIR)/include mac/tests/SPDFMacPagePDFCopyTests.mm mac/SPDFMacPagePDFCopy.mm $(CORE_OBJ) $(CORE_RECOLOR_OBJ) $(MUPDF_LIBS) -framework Cocoa -framework ImageIO -framework PDFKit -lm -o "$(BUILD)/SPDFMacPagePDFCopyTests"

@@ -2,7 +2,9 @@
 #import "SPDFMacReadOnlyCopy.h"
 #import "SPDFMacMenuText.h"
 #import "SPDFMacClipboardIntegration.h"
-#import "SPDFMacUnsavedImageClose.h"
+#import "SPDFMacQuitFinishing.h"
+#import "SPDFMacStatePrefetch.h"
+#import "SPDFMacWritableCopy.h"
 #import "SPDFMacShortcutHelpStyle.h"
 #import "SPDFMacFindContext.h"
 #import "SPDFMacFindExecution.h"
@@ -559,7 +561,7 @@ static char kSPDFPasswordPromptClosesNewTabKey;
 
 - (void)applicationDidFinishLaunching:(NSNotification*)notification {
     (void)notification;
-    spdf_launch_profile_log(@"applicationDidFinishLaunching enter");
+    spdf_mac_launch_began(); // logs "applicationDidFinishLaunching enter"
     // Quit-for-update IPC: every process (primary and restored siblings) listens
     // for the driver's distributed request so it can exit WITHOUT re-cascading
     // terminate to all other processes (the N-squared storm). Non-sandboxed only.
@@ -795,6 +797,7 @@ static char kSPDFPasswordPromptClosesNewTabKey;
       [self->_pageScrollView displayIfNeeded];
       dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kAfterFirstPaintDelay * NSEC_PER_SEC)),
                      dispatch_get_main_queue(), ^{
+                       spdf_mac_first_paint_done(); // Collection's launch capture, after the first frame
                        [self resumePersistentStateSavesAfterLaunch];
                        [self showUnifiedSettingsAfterFirstPaint];
                        [self listenForDocumentsOpenedInOtherWindows];
@@ -888,19 +891,18 @@ static char kSPDFPasswordPromptClosesNewTabKey;
     return YES;
 }
 
+// Every change is saved as it is made, so a quit asks nothing: hide, then write (SPDFMacQuitFinishing.mm).
 - (NSApplicationTerminateReply)applicationShouldTerminate:(NSApplication*)sender {
-    (void)sender;
-    if ([self deferUnsavedImageTermination]) return NSTerminateCancel;
-    if (!_suppressSessionWriteOnTerminate) [self writeSessionStateForCurrentWindow];
+    if (![self beginQuit]) return (void)sender, NSTerminateLater; // already finishing
     if (!_terminateOnlyThisProcess && !gSPDFTerminatingAllWindows) {
         gSPDFTerminatingAllWindows = YES;
         for (NSRunningApplication* app in [self otherRunningShenzhenApplications]) [app terminate];
     }
-    return NSTerminateNow;
+    return [self finishQuitAfterHiding];
 }
 
 - (void)applicationWillTerminate:(NSNotification*)notification {
-    (void)notification;
+    if ((void)notification, ![self quitClaimFinalWrites]) return [self quitRelaunchIfRequested];
     [self dismissPendingPasswordPrompt];
     [SPDFPasswordCredentialStore.sharedStore removeAllCredentials];
     [self stopKeyboardScrollAnimation];
@@ -929,6 +931,7 @@ static char kSPDFPasswordPromptClosesNewTabKey;
     [self clearActiveMetadata];
     [self closeActiveDocumentIfUnowned];
     spdf_teardown_inactive_magnify_tap();
+    [self quitRelaunchIfRequested];
 }
 
 - (void)applicationDidResignActive:(NSNotification*)notification {
@@ -944,15 +947,13 @@ static char kSPDFPasswordPromptClosesNewTabKey;
 
 - (BOOL)windowShouldClose:(NSWindow*)sender {
     if (sender != _window) return YES;
-    [self dismissTabHoverPanel];
-    [self rememberActiveTabState];
     // The red close button quits the entire app, exactly like Cmd+Q: cascade
     // terminate to every sibling window and write the normal session so the next
-    // launch restores all windows. Do not special-case other open windows.
+    // launch restores all windows. Do not special-case other open windows. The
+    // window leaves the screen now; the quit writes the session out of sight.
     _terminateOnlyThisProcess = NO;
     _suppressSessionWriteOnTerminate = NO;
-    [self resumePersistentStateSavesAfterLaunch];
-    [self savePersistentState];
+    [self hideWindowsForQuit];
     dispatch_async(dispatch_get_main_queue(), ^{
       [NSApp terminate:self];
     });
@@ -1087,13 +1088,15 @@ id spdf_state_object_from_yaml_data(NSData* data) {
 
 - (id)stateObjectFromFile:(NSString*)name {
     double launchStart = spdf_launch_profile_enabled() ? spdf_zoom_profile_now_ms() : 0.0;
-    NSData* data = [NSData dataWithContentsOfFile:[self pathForStateFile:name]];
-    if (!data) {
+    NSString* path = [self pathForStateFile:name];
+    id object = spdf_mac_take_prefetched_state(path); // parsed while AppKit started (SPDFMacStatePrefetch.mm)
+    NSData* data = object ? nil : [NSData dataWithContentsOfFile:path];
+    if (!object && !data) {
         if (launchStart > 0.0)
             spdf_launch_profile_log(@"state %@ missing %.1fms", name, spdf_zoom_profile_now_ms() - launchStart);
         return nil;
     }
-    id object = spdf_state_object_from_yaml_data(data);
+    if (!object) object = spdf_state_object_from_yaml_data(data);
     if (launchStart > 0.0) {
         spdf_launch_profile_log(@"state %@ %lu bytes %.1fms", name, (unsigned long)data.length,
                                 spdf_zoom_profile_now_ms() - launchStart);
@@ -2121,11 +2124,9 @@ id spdf_state_object_from_yaml_data(NSData* data) {
     // lookups). Menu-item icons are only visible once a submenu is opened,
     // which cannot happen before the first paint, so build them just after
     // launch instead of on the critical path. The menu bar itself (titles
-    // only) is identical either way.
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kAfterFirstPaintDelay * NSEC_PER_SEC)),
-                   dispatch_get_main_queue(), ^{
-                     spdf_apply_system_icons_to_main_menu_contents(mainMenu);
-                   });
+    // only) is identical either way. Not a dispatch_after from here: its timer
+    // fired while launch still ran and queued the block ahead of the first frame.
+    spdf_mac_after_first_paint(^{ spdf_apply_system_icons_to_main_menu_contents(mainMenu); });
 }
 
 - (NSString*)displayVersion {
@@ -2821,10 +2822,7 @@ id spdf_state_object_from_yaml_data(NSData* data) {
     // path (same policy as the main-menu SF symbols in buildMenu). If the
     // menu is somehow opened sooner, it works identically minus icons for
     // one open.
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kAfterFirstPaintDelay * NSEC_PER_SEC)),
-                   dispatch_get_main_queue(), ^{
-                     spdf_apply_system_icons_to_menu(sidebarMenu);
-                   });
+    spdf_mac_after_first_paint(^{ spdf_apply_system_icons_to_menu(sidebarMenu); });
     _sidebarTable.menu = sidebarMenu;
     NSTableColumn* column = [[NSTableColumn alloc] initWithIdentifier:@"title"];
     column.title = @"Title";
@@ -7774,7 +7772,8 @@ static BOOL spdf_page_list_cache_disabled(void) {
 }
 
 - (BOOL)ensureActivePDFCanBeModifiedForOperation:(NSString*)operationName {
-    if (SPDFMacPathIsCollectionArchive(_path)) return [self collectionProtectPath:_path operation:operationName];
+    // A Collection backup is never written: the edit goes to a writable copy, as for a read-only file.
+    if (SPDFMacPathIsCollectionArchive(_path)) return [self moveActivePDFToWritableCopyForOperation:operationName];
     if (spdf_is_password_protected(_doc)) {
         BOOL annotationOperation =
             [operationName rangeOfString:@"comment" options:NSCaseInsensitiveSearch].location != NSNotFound;
@@ -7787,30 +7786,9 @@ static BOOL spdf_page_list_cache_disabled(void) {
             return NO;
         }
     }
-    NSString* reason = nil;
-    if (![self activePDFNeedsSaveAsBeforeModificationWithReason:&reason])
+    if (![self activePDFNeedsSaveAsBeforeModificationWithReason:NULL])
         return [self collectionProtectPath:_path operation:operationName];
-
-    while (YES) {
-        NSAlert* alert = [[NSAlert alloc] init];
-        alert.messageText =
-            [NSString stringWithFormat:@"Save a writable copy before %@?", operationName ?: @"modifying"];
-        alert.informativeText = [NSString
-            stringWithFormat:@"%@ Shenzhen PDF needs a normal writable PDF file for this operation.", reason ?: @""];
-        [alert addButtonWithTitle:@"Save As..."];
-        [alert addButtonWithTitle:@"Cancel"];
-        alert.alertStyle = NSAlertStyleInformational;
-        if ([alert runModal] != NSAlertFirstButtonReturn) return NO;
-
-        NSString* status = [NSString stringWithFormat:@"Writable copy saved for %@.", operationName ?: @"modification"];
-        if (![self saveActiveDocumentAsWithPanelTitle:@"Save Writable PDF As" statusMessage:status]) return NO;
-        reason = nil;
-        if (![self activePDFNeedsSaveAsBeforeModificationWithReason:&reason])
-        return [self collectionProtectPath:_path operation:operationName];
-        [self showError:@"Choose another location"
-                 detail:[NSString stringWithFormat:@"%@ Save the PDF outside temporary or read-only folders.",
-                                                   reason ?: @"The saved PDF is still not writable."]];
-    }
+    return [self moveActivePDFToWritableCopyForOperation:operationName]; // never asks (SPDFMacWritableCopy.mm)
 }
 
 - (void)activateCachedSelectedTab:(SPDFDocumentTab*)tab
@@ -8495,7 +8473,6 @@ static BOOL spdf_page_list_cache_disabled(void) {
 }
 
 - (void)closeTabAtIndex:(NSInteger)index preferMostRecentActive:(BOOL)preferMostRecentActive {
-    if ([self deferClosingUnsavedImageAtIndex:index preferMostRecentActive:preferMostRecentActive]) return;
     if (index < 0 || index >= (NSInteger)_tabs.count) return;
     BOOL closingActive = index == _selectedTabIndex;
     if (closingActive) [self cancelDocumentTransientInteraction];
@@ -8543,9 +8520,10 @@ static BOOL spdf_page_list_cache_disabled(void) {
         [_renderedPages removeAllObjects];
         [self rebuildSidebar];
         if (shouldCloseThisWindow) {
-            [self removeSessionStateForCurrentWindow];
             _suppressSessionWriteOnTerminate = YES;
             _terminateOnlyThisProcess = YES;
+            [self hideWindowsForQuit];
+            [self removeSessionStateForCurrentWindow];
             dispatch_async(dispatch_get_main_queue(), ^{
               [NSApp terminate:self];
             });
@@ -14657,6 +14635,7 @@ int main(int argc, const char* argv[]) {
         // Start the document prerender before NSApplication init so the
         // background open/render overlaps AppKit startup and window build.
         [delegate startLaunchPrerender];
+        spdf_mac_prefetch_launch_state();
 
         NSApplication* app = [NSApplication sharedApplication];
         spdf_launch_profile_log(@"NSApplication sharedApplication done");

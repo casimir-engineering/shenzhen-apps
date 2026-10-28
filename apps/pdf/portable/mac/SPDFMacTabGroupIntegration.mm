@@ -1,4 +1,4 @@
-#import "SPDFMacUnsavedImageClose.h"
+#import "SPDFMacDelegatePrivate.h"
 #import "SPDFMacTabGroupIntegration.h"
 #import "SPDFMacTabDetach.h"
 #import "SPDFMacSidebarWorkspace.h"
@@ -276,14 +276,10 @@ BOOL SPDFSessionHasEmptyTabGroups(id windowState) {
         [self finishTabGroupChange]; return;
     }
     NSArray* members = spdf_tab_group_members(_tabs, group);
-    void (^closeMembers)(void) = ^{
-        for (SPDFDocumentTab* tab in [members reverseObjectEnumerator]) {
-            NSUInteger index = [self->_tabs indexOfObjectIdenticalTo:tab];
-            if (index != NSNotFound) [self closeTabAtIndex:(NSInteger)index];
-        }
-    };
-    if ([self deferClosingImageTabs:members action:closeMembers]) return;
-    closeMembers();
+    for (SPDFDocumentTab* tab in [members reverseObjectEnumerator]) {
+        NSUInteger index = [_tabs indexOfObjectIdenticalTo:tab];
+        if (index != NSNotFound) [self closeTabAtIndex:(NSInteger)index];
+    }
 }
 - (void)moveTabGroup:(SPDFTabGroup*)group toIndex:(NSInteger)index {
     NSArray* members = spdf_tab_group_members(_tabs, group);
