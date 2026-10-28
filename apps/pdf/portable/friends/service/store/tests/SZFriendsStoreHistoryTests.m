@@ -167,11 +167,12 @@ static void TestDeleteHistoryLeavesNoTrace(void) {
     }
     // Deleted rows leave their trigrams in the index's old segments until a merge, which would keep most of the
     // text recoverable; the index after deleting must be exactly what a rebuild from the remaining rows gives.
-    NSNumber *indexBytes = SZFTScalar(store, @"SELECT sum(length(block)) FROM search_data", @[]);
+    NSString *indexSize = SZFTIndexExpected() ? @"SELECT sum(length(block)) FROM search_data" : @"SELECT 0";
+    NSNumber *indexBytes = SZFTScalar(store, indexSize, @[]);
     [store performWrite:^BOOL(SZFriendsStoreDB *db, NSError **inner) {
         return SZFriendsStoreRebuildSearch(db, inner);
     } error:NULL];
-    NSNumber *rebuiltBytes = SZFTScalar(store, @"SELECT sum(length(block)) FROM search_data", @[]);
+    NSNumber *rebuiltBytes = SZFTScalar(store, indexSize, @[]);
     SZFTExpect([indexBytes isEqual:rebuiltBytes], @"no index remnants: %@ bytes, %@ after a rebuild", indexBytes,
                rebuiltBytes);
     SZFTExpect([store deleteHistoryInConversation:nil error:&error], @"delete all: %@", error);

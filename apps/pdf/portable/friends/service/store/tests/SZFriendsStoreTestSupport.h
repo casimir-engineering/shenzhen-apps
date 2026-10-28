@@ -21,6 +21,9 @@ extern NSString *SZFTFixturesDirectory;
 // A fresh directory under the suite's temporary root (removed when the suite ends), never the real state directory.
 NSString *SZFTTemporaryDirectory(NSString *label);
 void SZFTRemoveTemporaryRoot(void);
+// Whether this SQLite keeps the trigram index: FTS5 is innocuous (usable from triggers with trusted_schema=OFF) from
+// 3.44 on, so macOS 15 and earlier scan instead (ADR 0003 § FTS probe).
+static inline BOOL SZFTIndexExpected(void) { return sqlite3_libversion_number() >= 3044000; }
 SZFriendsStore *SZFTOpenStore(NSString *directory);
 SZFriendsStore *_Nullable SZFTOpenStoreWithOptions(NSString *directory, SZFriendsStoreOptions *_Nullable options,
                                                   NSError *_Nullable *_Nullable error);

@@ -35,7 +35,7 @@ static void TestOpenIsPrivateDurableAndSingleWriter(void) {
     SZFTExpect(queryOnly.intValue == 1 && !readerWrote, @"the read connection must not write");
     SZFTExpect([SZFTScalar(store, @"SELECT value FROM meta WHERE key = 'min_reader_version'", @[]) isEqual:@"2"],
                @"min_reader_version (v2 raised it)");
-    SZFTExpect(store.searchUsesIndex, @"system SQLite has the trigram tokenizer");
+    SZFTExpect(store.searchUsesIndex == SZFTIndexExpected(), @"system SQLite keeps the trigram index from 3.44 on");
     [store close];
     NSError *error = nil;
     SZFriendsPersonRecord *person = [[SZFriendsPersonRecord alloc] init];

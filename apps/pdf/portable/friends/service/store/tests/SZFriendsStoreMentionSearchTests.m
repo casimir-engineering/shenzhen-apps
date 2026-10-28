@@ -93,7 +93,7 @@ static void SZFTTestMentionsFoldToLabels(void) {
     NSString *directory = SZFTTemporaryDirectory(@"mention-search");
     SZFriendsStore *store = SZFTOpenStore(directory);
     SZFTSeedMentions(store);
-    SZFTExpect(store.searchUsesIndex, @"index");
+    SZFTExpect(store.searchUsesIndex == SZFTIndexExpected(), @"index");
     SZFTCheckMentionQueries(store, @"index");
     NSNumber *leaks = SZFTScalar(store, @"SELECT count(*) FROM messages WHERE folded LIKE '%szfriends%' OR folded "
                                         @"LIKE '%jasmine-street%' OR folded LIKE '%otterotter%'", @[]);

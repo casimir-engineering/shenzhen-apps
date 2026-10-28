@@ -99,13 +99,19 @@ static NSUInteger SZFriendsCodePoints(NSString *text) {
 
 BOOL SZFriendsStorePrepareSearch(SZFriendsStoreDB *db, BOOL allowTrigram, BOOL *usesIndex, NSError **error) {
     *usesIndex = NO;
-    // ADR 0003 § FTS probe: SQLite before 3.34 has no trigram tokenizer. The probe runs in temp so it leaves the
-    // file untouched either way.
+    // ADR 0003 § FTS probe: SQLite before 3.34 has no trigram tokenizer, and before 3.44 (macOS 15 and earlier) an
+    // FTS5 table is not innocuous, so with trusted_schema=OFF the triggers below would fail every write to messages.
+    // The probe fills a trigram table from a trigger, in temp so it leaves the file untouched either way.
     BOOL trigram = allowTrigram &&
-        [db exec:@"CREATE VIRTUAL TABLE temp.szf_probe USING fts5(x, tokenize='trigram'); DROP TABLE temp.szf_probe"
+        [db exec:@"CREATE VIRTUAL TABLE temp.szf_probe USING fts5(x, tokenize='trigram');"
+                 @"CREATE TEMP TABLE szf_probe_rows(x);"
+                 @"CREATE TEMP TRIGGER szf_probe_ai AFTER INSERT ON szf_probe_rows BEGIN "
+                 @"INSERT INTO szf_probe(x) VALUES (new.x); END;"
+                 @"INSERT INTO szf_probe_rows VALUES ('probe')"
             error:NULL];
+    [db exec:@"DROP TABLE IF EXISTS temp.szf_probe_rows; DROP TABLE IF EXISTS temp.szf_probe" error:NULL];
     if (!trigram) {
-        NSLog(@"Friends store: SQLite has no FTS5 trigram tokenizer; search scans messages instead");
+        NSLog(@"Friends store: SQLite cannot keep an FTS5 trigram index here; search scans messages instead");
         // Writes made without the index mark it stale, so a helper that has trigram rebuilds it before trusting it.
         NSString *stale = @"INSERT INTO meta(key, value) VALUES ('search_stale', '1') "
                           @"ON CONFLICT(key) DO UPDATE SET value = '1'";

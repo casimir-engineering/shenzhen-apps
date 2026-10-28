@@ -22,8 +22,10 @@ adapters and Shenzhen Files ask the helper.
 drive's cache; FULL with `F_FULLFSYNC` is what makes a durable ACK (ADR 0001) true after a power cut.
 Messages are few, so the per-commit cost is acceptable; transfer progress is batched (below).
 
-**FTS probe.** At open the helper tries `CREATE VIRTUAL TABLE temp.probe USING fts5(x, tokenize='trigram')`.
-If it fails (SQLite before 3.34.0), search runs on the substring scan alone: slower, never wrong, logged once.
+**FTS probe.** At open the helper creates `temp.probe USING fts5(x, tokenize='trigram')` and fills it from a temp
+trigger. If that fails (SQLite before 3.34.0 has no trigram; before 3.44, macOS 15 and earlier, FTS5 is not
+innocuous, so `trusted_schema=OFF` refuses it inside a trigger), search runs on the substring scan alone: slower,
+never wrong, logged once.
 The M0 check on macOS 12 decides whether the helper vendors the amalgamation; that is a deps change with no
 schema change. No trigram options newer than the macOS 12 library (such as `remove_diacritics`).
 

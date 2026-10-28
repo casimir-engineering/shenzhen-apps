@@ -79,7 +79,7 @@ static void TestSearchWithIndexAndWithScan(void) {
     NSString *directory = SZFTTemporaryDirectory(@"search");
     SZFriendsStore *store = SZFTOpenStore(directory);
     Seed(store);
-    SZFTExpect(store.searchUsesIndex, @"index");
+    SZFTExpect(store.searchUsesIndex == SZFTIndexExpected(), @"index");
     CheckQueries(store, @"index");
     [store close];
     SZFriendsStore *reopened = SZFTOpenStore(directory);
@@ -98,7 +98,8 @@ static void TestSearchWithIndexAndWithScan(void) {
     [scanning close];
     SZFriendsStore *indexed = SZFTOpenStore(directory);
     SZFTExpect([Hits(indexed, @"without", nil, 5) isEqual:@[ @"late" ]], @"the stale index was rebuilt");
-    SZFTExpect(!SZFTScalar(indexed, @"SELECT value FROM meta WHERE key = 'search_stale'", @[]), @"stale flag cleared");
+    SZFTExpect(!SZFTIndexExpected() || !SZFTScalar(indexed, @"SELECT value FROM meta WHERE key = 'search_stale'", @[]),
+               @"stale flag cleared");
 }
 
 static void TestExcerpts(void) {
