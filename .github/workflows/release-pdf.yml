@@ -39,7 +39,7 @@ jobs:
         run: ../../../tools/check-friends-number.sh
       - name: Release tests
         run: |
-          brew install coturn
+          brew install qpdf coturn
           . release/release-common.sh
           make -j"$(sysctl -n hw.ncpu)" test-binaries
           # Until this repository has a pdf/ release before this one, the launch gate compares with the latest
