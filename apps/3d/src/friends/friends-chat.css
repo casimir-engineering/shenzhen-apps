@@ -349,8 +349,7 @@
   gap: 4px;
 }
 .szf-hint,
-.szf-composer-note,
-.szf-picker-hint {
+.szf-composer-note {
   color: var(--muted);
   font-size: 10.5px;
 }
@@ -431,6 +430,12 @@
 }
 .szf-picker button.selected {
   background: var(--jade-wash);
+}
+/* The `#` picker's row when nothing matches: where a row's title would be. */
+.szf-picker-empty {
+  color: var(--secondary);
+  padding: 8px 10px;
+  font-size: 12px;
 }
 .szf-picker-note {
   color: var(--muted);

@@ -107,14 +107,8 @@ describe("# in a Shenzhen 3D conversation", () => {
     expect(matchesQuery("  ", "anything")).toBe(true);
   });
 
-  it("says what # searches, and offers nothing when there is nothing to attach", () => {
-    expect(source({ projectName: "Open" })!.placeholder).toBe(
-      "Attach the open model or a recent file",
-    );
-    expect(source()!.placeholder).toBe("Attach a recent file");
-    expect(source({ projectName: "Open", recent: [] })!.placeholder).toBe(
-      "Attach the open model",
-    );
+  it("says when nothing matches, and offers nothing when there is nothing to attach", () => {
+    expect(source({ projectName: "Open" })!.empty).toBe("No matching files");
     expect(source({ recent: [] })).toBeNull();
   });
 

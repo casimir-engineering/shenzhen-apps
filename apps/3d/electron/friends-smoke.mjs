@@ -476,9 +476,8 @@ try {
     "Opened just now",
   );
   await expect(options.filter({ hasText: "bracket.svg" })).toContainText("SVG");
-  await expect(panel.locator(".szf-picker-hint")).toHaveText(
-    "Attach the open model or a recent file",
-  );
+  // What is typed after `#` in the composer is the search: no field of its own.
+  await expect(picker.locator("input")).toHaveCount(0);
   if (process.env.SZF3D_SMOKE_SHOTS)
     await page.screenshot({
       path: path.join(process.env.SZF3D_SMOKE_SHOTS, "electron-recents.png"),

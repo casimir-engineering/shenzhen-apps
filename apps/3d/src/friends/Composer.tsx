@@ -28,8 +28,9 @@ export type AttachItem = {
   file(): Promise<OutgoingFile | OutgoingFile[]>;
 };
 export type AttachSource = {
-  /** The host's words for what `#` searches (PROTOCOL.md § Principles: the host's own placeholder). */
-  placeholder: string;
+  /** The `#` picker's one row when nothing matches what was typed after `#`, in the host's words for what it offers
+   * (PROTOCOL.md § Principles). */
+  empty: string;
   items(query: string): AttachItem[];
 };
 
@@ -343,8 +344,11 @@ export function ComposerView({
           ]);
       }}
     >
-      {picker && count > 0 && (
+      {picker && (count > 0 || picker.kind === "#") && (
         <div className="szf-picker" role="listbox">
+          {picker.kind === "#" && count === 0 && attach && (
+            <div className="szf-picker-empty">{attach.empty}</div>
+          )}
           {picker.kind === "@"
             ? candidates.map((row, index) => (
                 <button
@@ -390,9 +394,6 @@ export function ComposerView({
                   .join(" · ")}
           </small>
         </div>
-      )}
-      {picker?.kind === "#" && attach && (
-        <small className="szf-picker-hint">{attach.placeholder}</small>
       )}
       {attachments.length > 0 && (
         <div className="szf-attachments">
@@ -465,6 +466,17 @@ export function ComposerView({
             });
           }}
           onKeyDown={(event) => {
+            // Return is the `#` picker's while it is open, rows or not: it never also sends the message.
+            if (
+              picker?.kind === "#" &&
+              event.key === "Enter" &&
+              !event.shiftKey &&
+              !event.nativeEvent.isComposing
+            ) {
+              event.preventDefault();
+              if (count > 0) void choose(selected);
+              return;
+            }
             if (picker && count > 0) {
               if (event.key === "ArrowDown" || event.key === "ArrowUp") {
                 event.preventDefault();
