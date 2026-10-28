@@ -60,7 +60,8 @@ Once an app has a release tag here, its gate finds the previous release by tag a
    The rule and why: [FRIENDS.md](FRIENDS.md#the-helper-build-number). Every release job runs the same check.
    The check fails until the first ShenzhenPDF release prepared in this repository (see above). Prepare it before
    releasing Shenzhen Files or Shenzhen 3D.
-2. Update the app's README "Latest" marker and its release notes, as each app's own guide says.
+2. Update the app's README "Latest" marker and its release notes, as each app's own guide says. Write the notes by
+   [RELEASE-NOTES.md](RELEASE-NOTES.md): only what someone on the last published release will notice.
 3. Merge to `main`, with a clean tree.
 
 ## One command per app
