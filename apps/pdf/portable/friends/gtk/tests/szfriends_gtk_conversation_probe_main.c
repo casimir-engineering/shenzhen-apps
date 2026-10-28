@@ -72,7 +72,7 @@ SZFGHarness *szfg_conv_harness(const char *label, const char *capabilities_json)
     harness->host.app_name = "Shenzhen Files";
     harness->host.app_version = "26.10.13";
     harness->host.reveal_in_name = "Shenzhen Files";
-    harness->host.attach_placeholder = "Search the selection and this folder";
+    harness->host.attach_empty = "No matching files";
     harness->host.attachable_items = attachable_items;
     harness->host.reveal_file = reveal_file;
     harness->host.animals_manifest_path = szfg_manifest;

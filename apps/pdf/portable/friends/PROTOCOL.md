@@ -36,8 +36,8 @@ them is a bug; decide which and fix it in the same change.
 - **Every user-facing string comes from the helper's catalog**, written for the person reading it, about what happens to
   their message: "Sends when Mei is nearby with ShenzhenPDF, Shenzhen Files or Shenzhen 3D open", never "Queued (no
   route)". Three exceptions exist because no helper is there to supply them: the client library's connection-state
-  lines, the host adapter's Settings checkbox and disclosure (shown while Friends is off), and the host's `#` picker
-  placeholder, which names what that host offers.
+  lines, the host adapter's Settings checkbox and disclosure (shown while Friends is off), and the `#` picker's row
+  when nothing matches what was typed after the `#`, which names what that host offers ("No matching documents").
 - **Strings are plain text.** Names, messages and file names come from other people. Views never interpret any
   string as markup (Pango markup, HTML, attributed-string formats). The only formatting is the rich-text
   segment array (§ Shared objects). Text may contain line breaks; render them as line breaks. One exception: a

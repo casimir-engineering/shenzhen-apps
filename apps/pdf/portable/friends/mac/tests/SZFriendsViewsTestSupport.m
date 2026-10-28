@@ -67,8 +67,8 @@ NSPasteboardType const SZFTestTabPasteboardType = @"com.example.friends-views-te
             [matches addObject:item];
     dispatch_async(dispatch_get_main_queue(), ^{ completion(matches); });
 }
-- (NSString *)friendsAttachPlaceholder {
-    return @"Search open and Collection documents";
+- (NSString *)friendsAttachEmptyLabel {
+    return @"No matching documents";
 }
 - (NSSet<NSString *> *)friendsFormatsOpenedInPlace {
     return [NSSet setWithObjects:@"pdf", @"md", nil];

@@ -275,9 +275,16 @@ typedef void (^SZFriendsScopeReadCompletion)(NSDictionary<NSString *, id> *_Null
 // `#`: items matching `query` (ShenzhenPDF: open and Collection documents), best first. May complete later.
 - (void)friendsAttachableItemsMatching:(NSString *)query
                             completion:(void (^)(NSArray<SZFriendsAttachableItem *> *items))completion;
-// The `#` picker's search placeholder, which names what the host offers ("Search open and Collection
-// documents"); host-specific, so it cannot come from the helper's catalog.
-@property(nonatomic, readonly, copy) NSString *friendsAttachPlaceholder;
+@optional
+// Rows the `#` picker can show on the frame `#` is typed, before friendsAttachableItemsMatching: answers,
+// from what the host knows without reading files (names, where they are, the Current pill), in the order that answer
+// will have. Cheap enough for the main thread. They are only shown: choosing one waits for the answer, whose items
+// then take their places (and fill in their details).
+- (NSArray<SZFriendsAttachableItem *> *)friendsAttachableItemsAtOnceMatching:(NSString *)query;
+@required
+// The `#` picker's one row when nothing matches what was typed after `#`, in the host's words for what it offers
+// ("No matching documents"); host-specific, so it cannot come from the helper's catalog.
+@property(nonatomic, readonly, copy) NSString *friendsAttachEmptyLabel;
 
 // Received files: lowercase extensions opened in place (hello.open_formats); Open for those, Show in Finder for
 // the rest. Opening goes through the host's own rules (ShenzhenPDF: Collection consent and capture) and never

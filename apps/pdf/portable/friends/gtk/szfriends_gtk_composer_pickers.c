@@ -1,7 +1,9 @@
-/* The composer's pickers (szfriends_gtk_conversation.h; mirrors SZFriendsAttachPicker in mac/): a searchable panel
- * over the history, just above the composer. Up and Down move, Return chooses, Escape closes it and only it.
+/* The composer's pickers (szfriends_gtk_conversation.h; mirrors SZFriendsAttachPicker in mac/): a panel over the
+ * history, just above the composer. Up and Down move, Return chooses, Escape closes it and only it.
  *
- *   `#` lists the host's items for what is typed (attachable_items); choosing one adds a chip and sends nothing.
+ *   `#` lists the host's items (attachable_items) for what is typed after the `#` in the composer, which keeps the
+ *       focus; a space, a new line or moving away from that word closes it. When nothing matches, one row in the
+ *       host's words says so. Choosing one puts a chip in place of the `#` and what followed it, and sends nothing.
  *   `@` lists the friends who may be mentioned: a second `list` subscription, filtered with set_filter as the person
  *       types, showing rows whose `mentionable` is true, with the composer's mention_note under them saying what the
  *       friend will get (PROTOCOL.md § Mentions). Choosing one puts an @ chip in the text. */
@@ -20,8 +22,11 @@ typedef struct {
 typedef struct {
     SZFriendsGtkComposerView *composer;
     gboolean mentions;
-    GtkWidget *panel, *entry, *rows;
+    GtkWidget *panel, *entry, *rows, *empty; /* `#` has no entry; only `#` has the empty row */
     GPtrArray *choices; /* SZFriendsGtkHostItem * for `#`, SZFriendsGtkMentionChoice * for `@` */
+    char *query;        /* `#`: what followed the `#` when the host was last asked */
+    gboolean waiting;   /* `#`: the rows are the host's at-once ones until attachable_items answers */
+    gboolean choose_when_answered; /* Return or a click came meanwhile */
     int selected;
     GCancellable *cancellable;
     guint request, subscription;
@@ -41,6 +46,10 @@ static void choice_free(gpointer data) {
     g_free(choice);
 }
 
+static GtkTextBuffer *buffer_of(SZFriendsGtkComposerView *composer) {
+    return gtk_text_view_get_buffer(GTK_TEXT_VIEW(szfriends_gtk_composer_get_text_view(composer)));
+}
+
 static SZFriendsGtkPicker *picker_of(GtkWidget *panel) {
     return panel ? g_object_get_data(G_OBJECT(panel), "szfriends-picker") : NULL;
 }
@@ -54,8 +63,31 @@ static void select_row(SZFriendsGtkPicker *picker, int index) {
         else gtk_widget_remove_css_class(row, "szfriends-selected");
 }
 
+/* `#`: the `#` that opened the picker (the composer marks it as it is typed) and what follows it up to the insertion
+ * point. FALSE when the `#` is gone, the insertion point left the word, or a space or a new line ended it. */
+static gboolean typed_range(SZFriendsGtkPicker *picker, GtkTextIter *start, GtkTextIter *end) {
+    GtkTextBuffer *buffer = buffer_of(picker->composer);
+    GtkTextMark *hash = gtk_text_buffer_get_mark(buffer, SZFRIENDS_GTK_HASH_MARK);
+    if (picker->mentions || !hash) return FALSE;
+    gtk_text_buffer_get_iter_at_mark(buffer, start, hash);
+    gtk_text_buffer_get_iter_at_mark(buffer, end, gtk_text_buffer_get_insert(buffer));
+    if (gtk_text_buffer_get_has_selection(buffer) || gtk_text_iter_get_char(start) != '#' ||
+        gtk_text_iter_compare(end, start) <= 0)
+        return FALSE;
+    GtkTextIter at = *start;
+    while (gtk_text_iter_forward_char(&at) && gtk_text_iter_compare(&at, end) < 0)
+        if (g_unichar_isspace(gtk_text_iter_get_char(&at))) return FALSE;
+    return TRUE;
+}
+
 static void choose(SZFriendsGtkPicker *picker, int index) {
     if (index < 0 || index >= (int)picker->choices->len) return;
+    /* An at-once row: what attachable_items answers, a moment later, is what gets attached. */
+    if (!picker->mentions && picker->waiting) {
+        picker->selected = index;
+        picker->choose_when_answered = TRUE;
+        return;
+    }
     SZFriendsGtkComposerView *composer = picker->composer;
     gpointer choice = g_ptr_array_index(picker->choices, index);
     if (picker->mentions) {
@@ -68,7 +100,11 @@ static void choose(SZFriendsGtkPicker *picker, int index) {
         g_free(label);
     } else {
         SZFriendsGtkHostItem *item = szfriends_gtk_host_item_copy(choice);
-        szfriends_gtk_composer_close_picker(composer);
+        GtkTextIter start, end;
+        gboolean typed = typed_range(picker, &start, &end);
+        szfriends_gtk_composer_close_picker(composer); /* frees the picker */
+        /* The `#` and what was typed after it become the chip. */
+        if (typed) gtk_text_buffer_delete(buffer_of(composer), &start, &end);
         szfriends_gtk_composer_attach(composer, item);
         szfriends_gtk_host_item_free(item);
     }
@@ -105,7 +141,15 @@ static GtkWidget *two_lines(const char *first, const char *second, const char *b
     return box;
 }
 
+/* `selected`: the row to choose (the first, the document on screen, unless the host's answer takes the places of
+ * its at-once rows and the person had moved). */
+static void show_rows_selecting(SZFriendsGtkPicker *picker, int selected);
+
 static void show_rows(SZFriendsGtkPicker *picker) {
+    show_rows_selecting(picker, 0);
+}
+
+static void show_rows_selecting(SZFriendsGtkPicker *picker, int selected) {
     GtkWidget *child;
     while ((child = gtk_widget_get_first_child(picker->rows))) gtk_box_remove(GTK_BOX(picker->rows), child);
     SZFriendsGtkLink *link = szfriends_gtk_composer_conversation(picker->composer)->link;
@@ -139,20 +183,39 @@ static void show_rows(SZFriendsGtkPicker *picker) {
         gtk_box_append(GTK_BOX(picker->rows), row);
     }
     gtk_widget_set_visible(picker->rows, picker->choices->len > 0);
-    select_row(picker, 0);
+    select_row(picker, selected);
+}
+
+static void show_empty(SZFriendsGtkPicker *picker, gboolean answered) {
+    if (picker->empty)
+        gtk_widget_set_visible(picker->empty, answered && !picker->choices->len &&
+                                                  *gtk_label_get_text(GTK_LABEL(picker->empty)));
 }
 
 /* ---- `#`: the host's items -------------------------------------------------------------------------- */
+
+static void fill(SZFriendsGtkPicker *picker, GPtrArray *items) {
+    g_ptr_array_set_size(picker->choices, 0);
+    for (guint i = 0; items && i < items->len && i < SZFRIENDS_GTK_PICKER_ROWS; i++)
+        g_ptr_array_add(picker->choices, szfriends_gtk_host_item_copy(g_ptr_array_index(items, i)));
+}
 
 static void items_ready(GPtrArray *items, gpointer data) {
     SZFriendsGtkPicker *picker = pending_pickers ? g_hash_table_lookup(pending_pickers, data) : NULL;
     if (pending_pickers) g_hash_table_remove(pending_pickers, data);
     /* A slower answer to an older query must not replace a newer one. */
     if (picker && GPOINTER_TO_UINT(data) == picker->request) {
-        g_ptr_array_set_size(picker->choices, 0);
-        for (guint i = 0; items && i < items->len && i < SZFRIENDS_GTK_PICKER_ROWS; i++)
-            g_ptr_array_add(picker->choices, szfriends_gtk_host_item_copy(g_ptr_array_index(items, i)));
-        show_rows(picker);
+        gboolean replaces = picker->waiting && picker->choices->len;
+        picker->waiting = FALSE;
+        fill(picker, items);
+        show_rows_selecting(picker, replaces ? picker->selected : 0);
+        show_empty(picker, TRUE);
+        if (picker->choose_when_answered) {
+            picker->choose_when_answered = FALSE;
+            if (items) g_ptr_array_unref(items);
+            choose(picker, picker->selected); /* may free the picker */
+            return;
+        }
     }
     if (items) g_ptr_array_unref(items);
 }
@@ -169,6 +232,17 @@ static void ask_host(SZFriendsGtkPicker *picker, const char *query) {
     picker->request = ++next_request;
     g_hash_table_insert(pending_pickers, GUINT_TO_POINTER(picker->request), picker);
     GtkWindow *window = conversation->dropdown ? szfriends_gtk_dropdown_get_window(conversation->dropdown) : NULL;
+    /* The rows the host has at once, on this frame; without any, the rows shown stay until it answers. */
+    GPtrArray *at_once = host->attachable_items_at_once
+                             ? host->attachable_items_at_once(host->host_data, window, query) : NULL;
+    picker->waiting = TRUE;
+    picker->choose_when_answered = FALSE;
+    if (at_once && at_once->len) {
+        fill(picker, at_once);
+        show_rows(picker);
+        show_empty(picker, FALSE);
+    }
+    if (at_once) g_ptr_array_unref(at_once);
     host->attachable_items(host->host_data, window, query, picker->cancellable, items_ready,
                            GUINT_TO_POINTER(picker->request));
 }
@@ -200,10 +274,27 @@ static void list_arrived(JsonObject *data, gint64 rev, gpointer user_data) {
 
 static void query_changed(GtkSearchEntry *entry, gpointer data) {
     SZFriendsGtkPicker *picker = data;
-    const char *query = gtk_editable_get_text(GTK_EDITABLE(entry));
     SZFriendsGtkLink *link = szfriends_gtk_composer_conversation(picker->composer)->link;
-    if (picker->mentions) szfriends_gtk_link_set_filter(link, picker->subscription, query);
-    else ask_host(picker, query);
+    szfriends_gtk_link_set_filter(link, picker->subscription, gtk_editable_get_text(GTK_EDITABLE(entry)));
+}
+
+void szfriends_gtk_picker_follow(GtkWidget *panel) {
+    SZFriendsGtkPicker *picker = picker_of(panel);
+    if (!picker || picker->mentions) return;
+    GtkTextIter start, end;
+    if (!typed_range(picker, &start, &end)) {
+        szfriends_gtk_composer_close_picker(picker->composer);
+        return;
+    }
+    gtk_text_iter_forward_char(&start);
+    char *query = gtk_text_iter_get_text(&start, &end);
+    if (g_strcmp0(query, picker->query) == 0) {
+        g_free(query);
+        return;
+    }
+    g_free(picker->query);
+    picker->query = query;
+    ask_host(picker, query);
 }
 
 static void activated(GtkSearchEntry *entry, gpointer data) {
@@ -215,6 +306,14 @@ static void activated(GtkSearchEntry *entry, gpointer data) {
 gboolean szfriends_gtk_picker_key(GtkWidget *panel, guint keyval) {
     SZFriendsGtkPicker *picker = picker_of(panel);
     if (!picker) return FALSE;
+    gboolean enter = keyval == GDK_KEY_Return || keyval == GDK_KEY_KP_Enter || keyval == GDK_KEY_ISO_Enter;
+    /* Return is the `#` picker's while it is open, rows or not: it never also sends the message. */
+    if (enter && !picker->mentions) {
+        choose(picker, picker->selected);
+        return TRUE;
+    }
+    /* With no rows the arrows stay the composer's: they move the insertion point. */
+    if (!picker->choices->len) return FALSE;
     if (keyval == GDK_KEY_Down || keyval == GDK_KEY_KP_Down) select_row(picker, picker->selected + 1);
     else if (keyval == GDK_KEY_Up || keyval == GDK_KEY_KP_Up) select_row(picker, picker->selected - 1);
     else if (keyval == GDK_KEY_Return || keyval == GDK_KEY_KP_Enter) choose(picker, picker->selected);
@@ -256,22 +355,38 @@ GtkWidget *szfriends_gtk_picker_new(SZFriendsGtkComposerView *composer, gboolean
     gtk_widget_add_css_class(picker->panel, "szfriends-picker");
     gtk_widget_set_valign(picker->panel, GTK_ALIGN_END);
     g_object_set_data(G_OBJECT(picker->panel), "szfriends-picker", picker);
-    picker->entry = gtk_search_entry_new();
-    /* What the field searches: the helper's words for friends (AppKit's picker shows the same), the host's for `#`. */
-    const char *placeholder = mentions ? szfriends_gtk_link_string(link, "search_placeholder")
-                                       : szfriends_gtk_link_host(link)->attach_placeholder;
-    if (placeholder && *placeholder)
-        gtk_search_entry_set_placeholder_text(GTK_SEARCH_ENTRY(picker->entry), placeholder);
-    gtk_search_entry_set_search_delay(GTK_SEARCH_ENTRY(picker->entry), 100);
-    g_signal_connect(picker->entry, "search-changed", G_CALLBACK(query_changed), picker);
-    g_signal_connect(picker->entry, "activate", G_CALLBACK(activated), picker);
-    GtkEventController *keys = gtk_event_controller_key_new();
-    gtk_event_controller_set_propagation_phase(keys, GTK_PHASE_CAPTURE);
-    g_signal_connect(keys, "key-pressed", G_CALLBACK(entry_key), picker);
-    gtk_widget_add_controller(picker->entry, keys);
-    gtk_box_append(GTK_BOX(picker->panel), picker->entry);
+    if (mentions) {
+        /* `@` searches in its own field, in the helper's words (AppKit's picker shows the same). */
+        picker->entry = gtk_search_entry_new();
+        const char *placeholder = szfriends_gtk_link_string(link, "search_placeholder");
+        if (placeholder && *placeholder)
+            gtk_search_entry_set_placeholder_text(GTK_SEARCH_ENTRY(picker->entry), placeholder);
+        gtk_search_entry_set_search_delay(GTK_SEARCH_ENTRY(picker->entry), 100);
+        g_signal_connect(picker->entry, "search-changed", G_CALLBACK(query_changed), picker);
+        g_signal_connect(picker->entry, "activate", G_CALLBACK(activated), picker);
+        GtkEventController *keys = gtk_event_controller_key_new();
+        gtk_event_controller_set_propagation_phase(keys, GTK_PHASE_CAPTURE);
+        g_signal_connect(keys, "key-pressed", G_CALLBACK(entry_key), picker);
+        gtk_widget_add_controller(picker->entry, keys);
+        gtk_box_append(GTK_BOX(picker->panel), picker->entry);
+    }
     picker->rows = gtk_box_new(GTK_ORIENTATION_VERTICAL, 2);
     gtk_box_append(GTK_BOX(picker->panel), picker->rows);
+    if (!mentions) {
+        const char *empty = szfriends_gtk_link_host(link)->attach_empty;
+        picker->empty = gtk_label_new(empty ? empty : "");
+        gtk_widget_add_css_class(picker->empty, "szfriends-secondary");
+        gtk_label_set_xalign(GTK_LABEL(picker->empty), 0);
+        gtk_label_set_ellipsize(GTK_LABEL(picker->empty), PANGO_ELLIPSIZE_END);
+        /* Where a row's title would be. */
+        gtk_widget_set_margin_start(picker->empty, 8);
+        gtk_widget_set_margin_end(picker->empty, 8);
+        gtk_widget_set_margin_top(picker->empty, 8);
+        gtk_widget_set_margin_bottom(picker->empty, 8);
+        gtk_widget_set_visible(picker->empty, FALSE);
+        gtk_box_append(GTK_BOX(picker->panel), picker->empty);
+        picker->query = g_strdup("");
+    }
     GtkWidget *footer = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8);
     if (mentions) {
         /* What the friend gets, written from the sender's side by the helper. */
@@ -292,22 +407,25 @@ void szfriends_gtk_picker_free_state(GtkWidget *panel) {
     if (!picker) return;
     g_object_set_data(G_OBJECT(panel), "szfriends-picker", NULL);
     /* The entry's delayed search-changed, and anything still queued for the rows, must not find this state. */
-    g_signal_handlers_disconnect_by_data(picker->entry, picker);
     for (GtkWidget *row = gtk_widget_get_first_child(picker->rows); row; row = gtk_widget_get_next_sibling(row))
         g_signal_handlers_disconnect_by_data(row, picker);
-    GListModel *controllers = gtk_widget_observe_controllers(picker->entry);
-    for (guint i = 0; i < g_list_model_get_n_items(controllers); i++) {
-        GObject *controller = g_list_model_get_item(controllers, i);
-        g_signal_handlers_disconnect_by_data(controller, picker);
-        g_object_unref(controller);
+    if (picker->entry) {
+        g_signal_handlers_disconnect_by_data(picker->entry, picker);
+        GListModel *controllers = gtk_widget_observe_controllers(picker->entry);
+        for (guint i = 0; i < g_list_model_get_n_items(controllers); i++) {
+            GObject *controller = g_list_model_get_item(controllers, i);
+            g_signal_handlers_disconnect_by_data(controller, picker);
+            g_object_unref(controller);
+        }
+        g_object_unref(controllers);
     }
-    g_object_unref(controllers);
     SZFriendsGtkLink *link = szfriends_gtk_composer_conversation(picker->composer)->link;
     if (picker->subscription) szfriends_gtk_link_unsubscribe(link, picker->subscription);
     if (picker->request && pending_pickers) g_hash_table_remove(pending_pickers, GUINT_TO_POINTER(picker->request));
     if (picker->cancellable) g_cancellable_cancel(picker->cancellable);
     g_clear_object(&picker->cancellable);
     g_ptr_array_unref(picker->choices);
+    g_free(picker->query);
     g_free(picker);
 }
 
@@ -320,7 +438,9 @@ static void open_picker(SZFriendsGtkComposerView *composer, gboolean mentions) {
     GtkWidget *panel = szfriends_gtk_picker_new(composer, mentions);
     szfriends_gtk_composer_set_picker(composer, panel);
     gtk_overlay_add_overlay(GTK_OVERLAY(conversation->content), panel);
-    gtk_widget_grab_focus(picker_of(panel)->entry);
+    /* `@` types in its field; `#` follows what is typed in the composer, which keeps the focus. */
+    if (mentions) gtk_widget_grab_focus(picker_of(panel)->entry);
+    else szfriends_gtk_picker_follow(panel);
 }
 
 void szfriends_gtk_composer_open_attach_picker(SZFriendsGtkComposerView *composer) {
@@ -339,7 +459,7 @@ void szfriends_gtk_composer_close_picker(SZFriendsGtkComposerView *composer) {
     GtkWidget *overlay = gtk_widget_get_parent(panel);
     if (overlay) gtk_overlay_remove_overlay(GTK_OVERLAY(overlay), panel);
     GtkWidget *text = szfriends_gtk_composer_get_text_view(composer);
-    if (gtk_widget_get_mapped(text)) gtk_widget_grab_focus(text);
+    if (gtk_widget_get_mapped(text) && !gtk_widget_has_focus(text)) gtk_widget_grab_focus(text);
 }
 
 gboolean szfriends_gtk_composer_escape(SZFriendsGtkComposerView *composer) {

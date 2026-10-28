@@ -51,7 +51,7 @@ typedef struct {
     guint64 helper_build_number; /* the pinned Friends build's number, never the host's own release date */
     const char *const *capabilities; /* NULL-terminated; NULL: derived from the members the host implements */
     const char *const *open_formats; /* NULL-terminated lowercase extensions opened in place; NULL: none */
-    const char *attach_placeholder;  /* the `#` field's words, naming what it offers */
+    const char *attach_empty;        /* the `#` picker's row when nothing matches, naming what it offers */
 
     /* Placement, used by szfriends_gtk_link_add_window(): one button per window. */
     void (*install_button)(gpointer host_data, GtkWindow *window, GtkWidget *button);
@@ -92,6 +92,12 @@ typedef struct {
      * ("shenzhenfiles"), so a notification's click opens <scheme>://friends/conversation/<id> in this app. The host
      * routes those URLs to szfriends_gtk_show_conversation(). NULL: not sent, and clicks open another app. */
     const char *url_scheme;
+
+    /* Optional `#` rows for the frame `#` is typed: what the host has in memory already (Files: the selection and the
+     * folder the tab has listed), in the order attachable_items will answer with, as SZFriendsGtkHostItem *, full;
+     * NULL when it has nothing at once. The views show them until attachable_items answers, which takes their places,
+     * and a choice made meanwhile waits for that answer. */
+    GPtrArray *(*attachable_items_at_once)(gpointer host_data, GtkWindow *window, const char *query);
 } SZFriendsGtkHost;
 
 /* The smallest struct_size the views accept: everything up to and including reveal_in_name. */

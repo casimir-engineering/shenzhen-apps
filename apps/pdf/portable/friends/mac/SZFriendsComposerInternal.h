@@ -12,6 +12,9 @@ NS_ASSUME_NONNULL_BEGIN
 @property(nonatomic) CGFloat placeholderIndent; // the `/` tag's room at the start of the first line
 @property(nonatomic, copy, nullable) void (^onReturn)(void);
 @property(nonatomic, copy, nullable) void (^onHash)(void);
+// Up, Down and Return (without Shift) as moveUp:, moveDown: and insertNewline:, offered first to an open `#` picker:
+// YES when it took the key.
+@property(nonatomic, copy, nullable) BOOL (^onPickerKey)(SEL command);
 @property(nonatomic, copy, nullable) void (^onAt)(void); // `@` where a word starts, as `#`
 // `/` typed into an empty field: YES when it opened the command field, and the `/` is then not inserted.
 @property(nonatomic, copy, nullable) BOOL (^onSlash)(void);
@@ -37,6 +40,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 // Attach files and Paste: chips, never an immediate send (SZFriendsComposerAttach.m).
 @interface SZFriendsComposerView (SZFriendsAttach)
+- (void)connectPickers; // the text view's `#`, `@` and picker keys, at init
 - (void)chooseFilesToAttach; // the paperclip: the context's chooseFiles, then chips
 // Files chosen, pasted or dropped, judged by `verdict`: a refusal shows in the helper's words (drop_folders_refused,
 // drop_not_a_file) and attaches nothing; otherwise the items not attached yet become chips.

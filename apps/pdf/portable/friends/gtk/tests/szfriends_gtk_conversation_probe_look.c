@@ -112,21 +112,20 @@ static guint32 drawn_colour(SZFGConv *conv, const char *prefix, guint length) {
 
 typedef struct {
     guint32 mention;
-    guint8 panel[3], entry[3], selected[3];
+    guint8 panel[3], selected[3];
 } SZFGDarkLook;
 
 static void copy_pixel(guint8 *to, const SZFGPixels *pixels, double x, double y) {
     memcpy(to, szfg_pixel(pixels, (int)(x * 2), (int)(y * 2)), 3);
 }
 
-/* The mention's colour, and the `#` picker's panel, search field and chosen row where nothing is written. */
+/* The mention's colour, and the `#` picker's panel and chosen row where nothing is written. */
 static SZFGDarkLook dark_look(SZFGConv *conv, const char *name) {
-    SZFGDarkLook look = {drawn_colour(conv, "@Leo Park can review", strlen("@Leo Park")), {0}, {0}, {0}};
+    SZFGDarkLook look = {drawn_colour(conv, "@Leo Park can review", strlen("@Leo Park")), {0}, {0}};
     GtkWidget *picker = szfriends_gtk_composer_get_picker(composer_of(conv));
-    GtkWidget *entry = picker ? gtk_widget_get_first_child(picker) : NULL;
-    GtkWidget *rows = entry ? gtk_widget_get_next_sibling(entry) : NULL;
-    graphene_rect_t panel_box, entry_box, row_box;
-    gboolean placed = bounds(picker, conv, &panel_box) && bounds(entry, conv, &entry_box) &&
+    GtkWidget *rows = picker ? gtk_widget_get_first_child(picker) : NULL;
+    graphene_rect_t panel_box, row_box;
+    gboolean placed = bounds(picker, conv, &panel_box) &&
                       bounds(rows ? gtk_widget_get_first_child(rows) : NULL, conv, &row_box);
     EXPECT(placed, "%s: the # picker is laid out", name);
     GdkTexture *texture = szfg_render(conv->probe_window, 400, 640, name);
@@ -134,8 +133,6 @@ static SZFGDarkLook dark_look(SZFGConv *conv, const char *name) {
     if (placed) {
         copy_pixel(look.panel, &pixels, panel_box.origin.x + panel_box.size.width / 2,
                    panel_box.origin.y + panel_box.size.height - 3);
-        copy_pixel(look.entry, &pixels, entry_box.origin.x + entry_box.size.width - 8,
-                   entry_box.origin.y + entry_box.size.height / 2);
         copy_pixel(look.selected, &pixels, row_box.origin.x + row_box.size.width - 8,
                    row_box.origin.y + row_box.size.height / 2);
     }
@@ -165,13 +162,11 @@ static void test_live_switch(SZFGHarness *harness) {
            fresh.mention, light);
     EXPECT(live.mention == fresh.mention, "after a live switch, mentions take the dark accent too (#%06x, fresh "
            "#%06x): read once the dark stylesheet is in, not inside notify::dark", live.mention, fresh.mention);
-    EXPECT(same_pixel(live.panel, fresh.panel) && same_pixel(live.entry, fresh.entry) &&
-               same_pixel(live.selected, fresh.selected),
+    EXPECT(same_pixel(live.panel, fresh.panel) && same_pixel(live.selected, fresh.selected),
            "the # picker open across the switch looks as one opened in dark: panel #%02x%02x%02x (#%02x%02x%02x), "
-           "field #%02x%02x%02x (#%02x%02x%02x), chosen row #%02x%02x%02x (#%02x%02x%02x)", live.panel[0],
-           live.panel[1], live.panel[2], fresh.panel[0], fresh.panel[1], fresh.panel[2], live.entry[0], live.entry[1],
-           live.entry[2], fresh.entry[0], fresh.entry[1], fresh.entry[2], live.selected[0], live.selected[1],
-           live.selected[2], fresh.selected[0], fresh.selected[1], fresh.selected[2]);
+           "chosen row #%02x%02x%02x (#%02x%02x%02x)", live.panel[0], live.panel[1], live.panel[2], fresh.panel[0],
+           fresh.panel[1], fresh.panel[2], live.selected[0], live.selected[1], live.selected[2], fresh.selected[0],
+           fresh.selected[1], fresh.selected[2]);
 }
 
 /* ---- Weights, the chevron and the `@` picker's words ----------------------------------------------------- */

@@ -64,7 +64,7 @@ static void copy_host(SZFriendsGtkLink *link, const SZFriendsGtkHost *host) {
     h->reveal_in_name = own_string(link, h->reveal_in_name);
     h->helper_path = own_string(link, h->helper_path);
     h->helper_version = own_string(link, h->helper_version);
-    h->attach_placeholder = own_string(link, h->attach_placeholder);
+    h->attach_empty = own_string(link, h->attach_empty);
     h->appearance_css = own_string(link, h->appearance_css);
     h->animals_manifest_path = own_string(link, h->animals_manifest_path);
     h->url_scheme = own_string(link, h->url_scheme);

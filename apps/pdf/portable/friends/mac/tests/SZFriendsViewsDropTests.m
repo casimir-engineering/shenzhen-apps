@@ -146,8 +146,6 @@ void SZFTestDrops(NSString *stateDirectory) {
     [page.composer.textView insertText:@"#" replacementRange:NSMakeRange(0, 0)];
     SZFExpect(page.attachPicker != nil, @"`#` opened the picker");
     SZFExpect(SZFTestWaitUntil(10, ^BOOL { return page.attachPicker.items.count == 1; }), @"host items listed");
-    SZFExpect([page.attachPicker.searchField.placeholderString isEqualToString:@"Search open and Collection documents"],
-              @"host placeholder");
     [page.attachPicker chooseSelected];
     SZFExpect(page.attachPicker == nil && page.composer.attachments.count == 2, @"chip added, picker closed");
     SZFExpect(![page.composer.textView.string containsString:@"#"], @"the `#` became the chip");

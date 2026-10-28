@@ -23,7 +23,7 @@ rules are specified in
 - **Every user-facing string comes from one catalog in the service** (`service/presentation/`), with three
   exceptions that exist because no helper is running to supply them or because only the host knows the words:
   the client library's connection-state lines, the host adapter's Settings checkbox and disclosure, and the
-  host's `#` picker placeholder.
+  host's `#` picker row for when nothing matches ("No matching documents").
 - **Write for the person reading the text, not about the mechanism.** "Sends when Mei is nearby with ShenzhenPDF,
   Shenzhen Files or Shenzhen 3D open", never "Queued (no route)". Before adding a string, name who reads it and what
   they are wondering right there, check it answers that and is true from their side, and say nothing when nothing needs

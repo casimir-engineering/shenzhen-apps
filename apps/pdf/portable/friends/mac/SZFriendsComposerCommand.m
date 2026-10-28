@@ -7,8 +7,14 @@
 @implementation SZFriendsComposerTextView
 - (void)keyDown:(NSEvent *)event {
     BOOL returnKey = event.keyCode == 36 || event.keyCode == 76;
+    BOOL shift = (event.modifierFlags & NSEventModifierFlagShift) != 0;
+    SEL pickerCommand = event.keyCode == 125 ? @selector(moveDown:)
+                        : event.keyCode == 126 ? @selector(moveUp:)
+                        : returnKey && !shift  ? @selector(insertNewline:)
+                                               : NULL;
+    if (pickerCommand && !self.hasMarkedText && self.onPickerKey && self.onPickerKey(pickerCommand)) return;
     if (returnKey && !self.hasMarkedText) {
-        if (event.modifierFlags & NSEventModifierFlagShift) {
+        if (shift) {
             [self insertText:@"\n" replacementRange:self.selectedRange];
         } else if (self.onReturn) {
             self.onReturn();

@@ -30,18 +30,30 @@ NS_ASSUME_NONNULL_BEGIN
 @property(nonatomic, copy, nullable) void (^onDropItems)(NSArray<SZFriendsAttachableItem *> *items);
 @end
 
-// `#`: a searchable list of the host's attachable items over the composer. Selecting one adds a chip; it sends
-// nothing. Up and Down move, Return attaches, Escape closes it (and only it).
+// The `#` picker's row that Return takes: the accent at 14 %, clear in light and dark.
+NSColor *SZFriendsPickerChoiceColor(SZFriendsAppearance *appearance);
+
+// `#`: the host's attachable items over the composer, for what is typed after the `#` in the composer, which keeps
+// the focus. Selecting one adds a chip; it sends nothing. Up and Down move, Return attaches, Escape closes it (and
+// only it); when nothing matches, one row in the host's words says so.
 @interface SZFriendsAttachPicker : SZFriendsFlippedView
 - (instancetype)initWithContext:(SZFriendsContext *)context;
-@property(nonatomic, strong, readonly) NSSearchField *searchField;
 @property(nonatomic, copy, readonly) NSArray<SZFriendsAttachableItem *> *items;
+// The row shown when the host answered with nothing (friendsAttachEmptyLabel); hidden otherwise.
+@property(nonatomic, strong, readonly) NSTextField *emptyLabel;
 @property(nonatomic, copy, readonly) NSArray<SZFriendsButton *> *itemButtons;
 @property(nonatomic) NSInteger selectedIndex;
 @property(nonatomic, copy, nullable) void (^onChoose)(SZFriendsAttachableItem *item);
 @property(nonatomic, copy, nullable) void (^onClose)(void);
 - (void)reloadForQuery:(NSString *)query;
 - (void)chooseSelected;
+// The composer's Up (moveUp:), Down (moveDown:) and Return (insertNewline:) while the picker is open: YES when the
+// picker took it. Return is always the picker's (it never sends the message); with no rows the arrows still move the
+// caret.
+- (BOOL)handleCommand:(SEL)command;
+// YES from a query until the host answers it: the rows shown, if any, are its at-once ones
+// (friendsAttachableItemsAtOnceMatching:), and choosing waits for the answer.
+@property(nonatomic, readonly) BOOL waitingForHost;
 - (CGFloat)preferredHeight;
 @end
 
@@ -81,6 +93,10 @@ typedef NS_ENUM(NSInteger, SZFriendsCommandState) {
 @property(nonatomic, strong, readonly) SZFriendsFlippedView *inputBox;
 @property(nonatomic, strong, readonly) NSTextField *hintLabel;
 @property(nonatomic, copy, nullable) void (^onOpenAttachPicker)(void);
+// While the `#` picker is open: Up, Down and Return go to it first (YES when it took the key), and every change to the
+// text or the insertion point is reported, so the picker follows what is typed after the `#`.
+@property(nonatomic, copy, nullable) BOOL (^onPickerKey)(SEL command);
+@property(nonatomic, copy, nullable) void (^onTextChange)(void);
 // `@` typed where a word starts, while the composer is enabled, holds a message and the helper takes mentions.
 @property(nonatomic, copy, nullable) void (^onOpenMentionPicker)(void);
 @property(nonatomic, copy, readonly, nullable) NSString *mentionNote; // composer.mention_note, under the `@` picker
@@ -121,8 +137,12 @@ typedef NS_ENUM(NSInteger, SZFriendsCommandState) {
 @property(nonatomic, strong, readonly, nullable) SZFriendsSearchResultsView *searchResults;
 @property(nonatomic, readonly) BOOL holdsSubscription;
 - (void)highlightMessage:(NSString *)messageID;
-- (void)openAttachPicker;
 - (void)runSearch;
+@end
+
+// `#` (SZFriendsConversationAttach.m): what `#` typed in the composer opens.
+@interface SZFriendsConversationPage (SZFriendsAttachPicker)
+- (void)openAttachPicker;
 @end
 
 NS_ASSUME_NONNULL_END

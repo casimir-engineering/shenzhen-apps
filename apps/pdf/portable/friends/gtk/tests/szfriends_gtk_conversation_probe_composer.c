@@ -126,19 +126,18 @@ static void test_attaching_and_drafts(SZFGHarness *harness, const char *file, co
     EXPECT(picker && szfriends_gtk_picker_row_count(picker) == 3, "all of them for nothing typed");
     EXPECT(szfg_find_label(picker, "Current"), "what is open in front comes first, with its Current pill");
     szfg_conv_render(conv, "composer-attach-picker");
-    GtkWidget *entry = gtk_widget_get_first_child(picker);
-    gtk_editable_set_text(GTK_EDITABLE(entry), "pricing");
-    szfg_pump_for(300);
-    EXPECT(szfriends_gtk_picker_row_count(picker) == 1, "what is typed narrows them");
+    type(conv, "pricing");
+    szfg_pump_for(50);
+    EXPECT(szfriends_gtk_picker_row_count(picker) == 1, "what is typed after the # narrows them");
     EXPECT(szfg_find_label(picker, "Attaching sends nothing yet"), "the picker says attaching sends nothing");
     szfriends_gtk_dropdown_escape(conv->dropdown);
     EXPECT(!szfriends_gtk_composer_get_picker(composer) && szfriends_gtk_dropdown_is_open(conv->dropdown),
            "Escape closes the picker, and only the picker");
-    type(conv, "#");
+    type(conv, " #");
     EXPECT(szfg_pump_until(picker_shows_rows, conv, 3000), "# opens it again");
     picker = szfriends_gtk_composer_get_picker(composer);
-    gtk_editable_set_text(GTK_EDITABLE(gtk_widget_get_first_child(picker)), "pricing");
-    szfg_pump_for(300);
+    type(conv, "pricing");
+    szfg_pump_for(50);
     szfriends_gtk_picker_key(picker, GDK_KEY_Return);
     GtkWidget *chips = szfriends_gtk_composer_get_chips(composer);
     EXPECT(!szfriends_gtk_composer_get_picker(composer) && szfg_count_type(chips, GTK_TYPE_BUTTON) == 1,
@@ -146,7 +145,7 @@ static void test_attaching_and_drafts(SZFGHarness *harness, const char *file, co
     GtkTextIter start, end;
     gtk_text_buffer_get_bounds(buffer_of(conv), &start, &end);
     char *text = gtk_text_buffer_get_text(buffer_of(conv), &start, &end, FALSE);
-    EXPECT(strcmp(text, "Plan #") == 0, "and the # typed to open the picker goes: \"%s\"", text);
+    EXPECT(strcmp(text, "Plan #pricing ") == 0, "and the # with what was typed after it goes: \"%s\"", text);
     g_free(text);
 
     GValue *files = szfg_files_value((const char *[]){file, NULL});
@@ -190,7 +189,7 @@ static void test_attaching_and_drafts(SZFGHarness *harness, const char *file, co
     composer = composer_of(conv);
     gtk_text_buffer_get_bounds(buffer_of(conv), &start, &end);
     text = gtk_text_buffer_get_slice(buffer_of(conv), &start, &end, TRUE);
-    EXPECT(composer && strcmp(text, "Plan #\xEF\xBF\xBC has it") == 0 &&
+    EXPECT(composer && strcmp(text, "Plan #pricing \xEF\xBF\xBC has it") == 0 &&
                szfriends_gtk_composer_mention_count(composer) == 1 &&
                szfg_count_type(szfriends_gtk_composer_get_chips(composer), GTK_TYPE_BUTTON) == 2,
            "the draft comes back with its chips: \"%s\"", text);

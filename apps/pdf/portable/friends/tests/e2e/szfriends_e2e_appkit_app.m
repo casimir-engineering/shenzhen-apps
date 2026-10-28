@@ -76,7 +76,7 @@ static pid_t SZFOHelperPeer(void) {
     (void)query;
     completion(@[]);
 }
-- (NSString *)friendsAttachPlaceholder { return @"Search open documents"; }
+- (NSString *)friendsAttachEmptyLabel { return @"No matching documents"; }
 - (NSSet<NSString *> *)friendsFormatsOpenedInPlace { return [NSSet setWithObject:@"pdf"]; }
 - (void)friendsOpenReceivedFileAtURL:(NSURL *)fileURL { (void)fileURL; }
 - (void)friendsRevealFileAtURL:(NSURL *)fileURL { (void)fileURL; }

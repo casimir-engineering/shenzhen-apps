@@ -117,7 +117,7 @@ static void SZFTestFlatButtons(void) {
     (void)window;
 }
 
-// `#` picker rows: the keyboard's choice in the selection colour, the pointer's in the hover colour.
+// `#` picker rows: the keyboard's choice in a wash of the accent, the pointer's in the hover colour.
 static void SZFTestPickerHover(void) {
     SZFTestHost *host = [SZFTestHost new];
     SZFriendsAttachableItem *first = [SZFriendsAttachableItem new], *second = [SZFriendsAttachableItem new];
@@ -133,11 +133,15 @@ static void SZFTestPickerHover(void) {
     SZFriendsButton *chosen = picker.itemButtons.firstObject, *other = picker.itemButtons.lastObject;
     other.hovered = YES;
     NSPoint corner = NSMakePoint(NSWidth(other.bounds) - 6, 3);
+    // The keyboard's choice in the accent's wash: neither the hover colour nor the panel's own.
+    uint32_t panel = SZFTestResolved(context.appearance.controlColor, NSAppearanceNameAqua);
     SZFExpect(SZFTestSameColor(SZFTestPixelAt(other, corner),
                                SZFTestResolved(context.appearance.hoverColor, NSAppearanceNameAqua), 3) &&
-                  SZFTestSameColor(SZFTestPixelAt(chosen, corner),
-                                   SZFTestResolved(context.appearance.selectionColor, NSAppearanceNameAqua), 3),
-              @"hover %06x, selection %06x", SZFTestPixelAt(other, corner), SZFTestPixelAt(chosen, corner));
+                  !SZFTestSameColor(SZFTestPixelAt(chosen, corner), SZFTestPixelAt(other, corner), 6) &&
+                  !SZFTestSameColor(SZFTestPixelAt(chosen, corner), panel, 6) &&
+                  (SZFTestPixelAt(chosen, corner) & 0xff) > ((SZFTestPixelAt(chosen, corner) >> 16) & 0xff),
+              @"hover %06x, choice %06x, panel %06x", SZFTestPixelAt(other, corner), SZFTestPixelAt(chosen, corner),
+              panel);
     (void)window;
 }
 

@@ -304,7 +304,7 @@ GtkWidget *szfriends_gtk_composer_get_chips(SZFriendsGtkComposerView *composer);
 GtkWidget *szfriends_gtk_composer_get_attach_button(SZFriendsGtkComposerView *composer);
 void szfriends_gtk_composer_send(SZFriendsGtkComposerView *composer);
 void szfriends_gtk_composer_add_items(SZFriendsGtkComposerView *composer, GPtrArray *items); /* NULL: redraw */
-/* A `#` item chosen: the `#` typed before the cursor becomes its chip. */
+/* A `#` item chosen: its chip (the picker has taken out the `#` and what was typed after it). */
 void szfriends_gtk_composer_attach(SZFriendsGtkComposerView *composer, const SZFriendsGtkHostItem *item);
 /* What its drop target calls, open to the suite: files hovering (NULL when they leave), and the drop (chips). */
 void szfriends_gtk_composer_drag_value(SZFriendsGtkComposerView *composer, const GValue *value);
@@ -317,17 +317,23 @@ void szfriends_gtk_composer_insert_mention(SZFriendsGtkComposerView *composer, c
 guint szfriends_gtk_composer_mention_count(SZFriendsGtkComposerView *composer);
 /* Escape: closes an open picker; TRUE when one was open. */
 gboolean szfriends_gtk_composer_escape(SZFriendsGtkComposerView *composer);
-/* The pickers: `#` lists the host's items (attachable_items), `@` the friends a list subscription filtered by what
- * is typed says may be mentioned. Each sits over the history above the composer and closes on Escape. */
+/* The pickers: `#` lists the host's items (attachable_items) for what is typed after the `#` in the composer, `@` the
+ * friends a list subscription filtered by what is typed in its field says may be mentioned. Each sits over the history
+ * above the composer and closes on Escape. The composer keeps the `#` last typed under this mark (right gravity, so
+ * it stays before that `#`). */
+#define SZFRIENDS_GTK_HASH_MARK "szfriends-hash"
 void szfriends_gtk_composer_open_attach_picker(SZFriendsGtkComposerView *composer);
 void szfriends_gtk_composer_open_mention_picker(SZFriendsGtkComposerView *composer);
 GtkWidget *szfriends_gtk_composer_get_picker(SZFriendsGtkComposerView *composer); /* NULL when none is open */
 void szfriends_gtk_composer_set_picker(SZFriendsGtkComposerView *composer, GtkWidget *picker);
 void szfriends_gtk_composer_close_picker(SZFriendsGtkComposerView *composer);
-/* szfriends_gtk_composer_pickers.c builds the panel; the composer owns it. Keys are Up, Down and Return. */
+/* szfriends_gtk_composer_pickers.c builds the panel; the composer owns it. Keys are Up, Down and Return: TRUE when
+ * the picker took the key (never with no rows). */
 GtkWidget *szfriends_gtk_picker_new(SZFriendsGtkComposerView *composer, gboolean mentions);
 void szfriends_gtk_picker_free_state(GtkWidget *picker);
 gboolean szfriends_gtk_picker_key(GtkWidget *picker, guint keyval);
+/* `#`: the composer's text or insertion point changed; asks the host for what now follows the `#`, or closes. */
+void szfriends_gtk_picker_follow(GtkWidget *picker);
 guint szfriends_gtk_picker_row_count(GtkWidget *picker);
 
 G_END_DECLS

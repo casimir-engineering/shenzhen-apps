@@ -158,13 +158,18 @@
 @property(nonatomic, copy) NSAttributedString *secondLine;
 @end
 
+NSColor *SZFriendsPickerChoiceColor(SZFriendsAppearance *appearance) {
+    return [appearance.accentColor colorWithAlphaComponent:0.14];
+}
+
 @implementation SZFriendsTwoLineButton
 - (void)drawRect:(NSRect)dirtyRect {
     (void)dirtyRect;
     SZFriendsAppearance *appearance = self.theme;
-    // The keyboard's selection in the selection colour; the pointer's hover in the host's hover colour.
+    // The keyboard's choice in a wash of the accent, plain in light and dark (the host's selection colour can be
+    // too close to the picker's own to see which row Return takes); the pointer's hover in the host's hover colour.
     if (self.selectedLook || self.hovered || self.cell.isHighlighted) {
-        [(self.selectedLook ? appearance.selectionColor : appearance.hoverColor) setFill];
+        [(self.selectedLook ? SZFriendsPickerChoiceColor(appearance) : appearance.hoverColor) setFill];
         [[NSBezierPath bezierPathWithRoundedRect:self.bounds xRadius:7 yRadius:7] fill];
     }
     CGFloat x = 8;
@@ -209,9 +214,6 @@
 
 #pragma mark - `#` picker
 
-@interface SZFriendsAttachPicker () <NSSearchFieldDelegate>
-@end
-
 @implementation SZFriendsAttachPicker {
     SZFriendsContext *_context;
     NSTextField *_keys;
@@ -219,6 +221,7 @@
     NSMutableArray<SZFriendsTwoLineButton *> *_rows;
     NSArray<SZFriendsAttachableItem *> *_items;
     NSUInteger _generation;
+    BOOL _chooseWhenAnswered; // Return or a click came while the rows were the host's at-once ones
 }
 
 - (instancetype)initWithContext:(SZFriendsContext *)context {
@@ -228,13 +231,10 @@
     self.fillColor = appearance.controlColor;
     self.strokeColor = appearance.controlBorderColor;
     self.cornerRadius = 10;
-    _searchField = [[NSSearchField alloc] initWithFrame:NSMakeRect(10, 10, 360, 28)];
-    _searchField.bezelStyle = NSTextFieldRoundedBezel;
-    _searchField.font = appearance.bodyFont;
-    _searchField.sendsSearchStringImmediately = YES;
-    _searchField.delegate = self;
-    _searchField.placeholderString = context.host.friendsAttachPlaceholder;
-    [self addSubview:_searchField];
+    _emptyLabel = SZFriendsLabel(context.host.friendsAttachEmptyLabel ?: @"", appearance.secondaryFont,
+                                 appearance.secondaryTextColor);
+    _emptyLabel.hidden = YES;
+    [self addSubview:_emptyLabel];
     _keys = SZFriendsLabel([context string:@"attach_keys"], appearance.captionFont, appearance.secondaryTextColor);
     _note = SZFriendsLabel([context string:@"attach_note"], appearance.captionFont, appearance.secondaryTextColor);
     _note.alignment = NSTextAlignmentRight;
@@ -255,17 +255,39 @@
 
 - (void)reloadForQuery:(NSString *)query {
     NSUInteger generation = ++_generation;
+    _chooseWhenAnswered = NO;
+    // The rows the host can name at once, on this frame; its answer takes their places (SZFriendsHost.h). Without
+    // any, the rows already shown stay until the answer.
+    id<SZFriendsHost> host = _context.host;
+    NSArray<SZFriendsAttachableItem *> *atOnce =
+        [host respondsToSelector:@selector(friendsAttachableItemsAtOnceMatching:)]
+            ? [host friendsAttachableItemsAtOnceMatching:query ?: @""] : nil;
+    _waitingForHost = YES;
+    if (atOnce.count) [self showItems:atOnce keepSelection:NO];
     __weak SZFriendsAttachPicker *weakSelf = self;
-    [_context.host friendsAttachableItemsMatching:query ?: @""
-                                       completion:^(NSArray<SZFriendsAttachableItem *> *items) {
-                                           SZFriendsAttachPicker *picker = weakSelf;
-                                           // A slower answer to an older query must not replace a newer one.
-                                           if (!picker || generation != picker->_generation) return;
-                                           [picker showItems:items ?: @[]];
-                                       }];
+    [host friendsAttachableItemsMatching:query ?: @""
+                              completion:^(NSArray<SZFriendsAttachableItem *> *items) {
+                                  SZFriendsAttachPicker *picker = weakSelf;
+                                  // A slower answer to an older query must not replace a newer one.
+                                  if (!picker || generation != picker->_generation) return;
+                                  BOOL fromAtOnce = atOnce.count > 0;
+                                  picker->_waitingForHost = NO;
+                                  [picker showItems:items ?: @[] keepSelection:fromAtOnce];
+                                  if (picker->_chooseWhenAnswered) {
+                                      picker->_chooseWhenAnswered = NO;
+                                      [picker chooseSelected];
+                                  }
+                              }];
 }
 
 - (void)showItems:(NSArray<SZFriendsAttachableItem *> *)items {
+    [self showItems:items keepSelection:NO];
+}
+
+// `keepSelection`: the host's answer taking the places of its at-once rows, so the row the person moved to stays
+// chosen; otherwise the first row is (the document on screen, with its Current pill).
+- (void)showItems:(NSArray<SZFriendsAttachableItem *> *)items keepSelection:(BOOL)keepSelection {
+    NSInteger selected = keepSelection ? _selectedIndex : 0;
     _items = [items subarrayWithRange:NSMakeRange(0, MIN(items.count, 6u))];
     for (NSView *row in _rows) [row removeFromSuperview];
     [_rows removeAllObjects];
@@ -291,7 +313,9 @@
         [self->_rows addObject:row];
         [self addSubview:row];
     }];
-    self.selectedIndex = 0;
+    self.selectedIndex = selected;
+    // "Nothing matches" only once the host has answered: its at-once rows are not all it has.
+    _emptyLabel.hidden = _rows.count > 0 || _waitingForHost || !_emptyLabel.stringValue.length;
     if (self.superview) [self.superview setNeedsLayout:YES];
     [self setNeedsLayout:YES];
 }
@@ -306,39 +330,51 @@
 
 - (void)chooseSelected {
     if (_selectedIndex < 0 || _selectedIndex >= (NSInteger)_items.count) return;
+    // An at-once row has no exact revision yet: the host's answer, a moment later, is what gets attached.
+    if (_waitingForHost) {
+        _chooseWhenAnswered = YES;
+        return;
+    }
     if (self.onChoose) self.onChoose(_items[(NSUInteger)_selectedIndex]);
 }
 
+// The rows (or the one empty row), then the keys and the note. Rows start 6 points down, as far as they sit from the
+// sides.
+- (CGFloat)listHeight {
+    if (_rows.count) return _rows.count * 46 + 4;
+    return _emptyLabel.hidden ? 0 : 40;
+}
+
 - (CGFloat)preferredHeight {
-    return 10 + 28 + 8 + _rows.count * 46 + (_rows.count ? 4 : 0) + 18 + 10;
+    return 6 + [self listHeight] + 18 + 10;
 }
 
 - (void)layout {
     [super layout];
     CGFloat width = NSWidth(self.bounds);
-    _searchField.frame = NSMakeRect(10, 10, width - 20, 28);
-    CGFloat y = 46;
+    CGFloat y = 6;
     for (SZFriendsTwoLineButton *row in _rows) {
         row.frame = NSMakeRect(6, y, width - 12, 44);
         y += 46;
     }
-    y += _rows.count ? 4 : 0;
+    // As a row's title sits: level with where a row's glyph starts, in the middle of a row's height.
+    _emptyLabel.frame = NSMakeRect(14, 6 + 12, width - 28, 18);
+    y = 6 + [self listHeight];
     CGFloat half = floor((width - 28) / 2);
     _keys.frame = NSMakeRect(14, y, half, 16);
     _note.frame = NSMakeRect(14 + half, y, width - 28 - half, 16);
 }
 
-- (void)controlTextDidChange:(NSNotification *)notification {
-    (void)notification;
-    [self reloadForQuery:_searchField.stringValue];
-}
-
-- (BOOL)control:(NSControl *)control textView:(NSTextView *)textView doCommandBySelector:(SEL)command {
-    (void)control, (void)textView;
+- (BOOL)handleCommand:(SEL)command {
+    // Return is the picker's while it is open, rows or not: it never also sends the message.
+    if (command == @selector(insertNewline:)) {
+        [self chooseSelected];
+        return YES;
+    }
+    if (!_rows.count) return NO;
     if (command == @selector(moveDown:)) self.selectedIndex += 1;
     else if (command == @selector(moveUp:)) self.selectedIndex -= 1;
     else if (command == @selector(insertNewline:)) [self chooseSelected];
-    else if (command == @selector(cancelOperation:)) SZFriendsForwardEscape(self);
     else return NO;
     return YES;
 }

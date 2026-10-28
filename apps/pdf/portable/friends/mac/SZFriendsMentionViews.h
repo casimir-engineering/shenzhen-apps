@@ -97,7 +97,6 @@ void SZFriendsOpenMentionLink(SZFriendsContext *_Nullable context, id _Nullable 
 @interface SZFriendsConversationPage ()
 @property(nonatomic, strong, nullable) SZFriendsMentionPicker *mentionPicker;
 @property(nonatomic, strong, nullable) SZFriendsMentionCardView *mentionCard;
-- (void)closeAttachPicker; // one picker over the composer at a time
 @end
 
 @interface SZFriendsConversationPage (SZFriendsMentionViews)

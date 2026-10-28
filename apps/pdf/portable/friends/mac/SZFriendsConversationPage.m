@@ -3,7 +3,7 @@
 // The open_conversation subscription marks the conversation read while it exists, so it is held only while this
 // page is on screen (brief § Interface; PROTOCOL.md open_conversation) and released when the dropdown closes.
 
-#import "mac/SZFriendsConversationPage.h"
+#import "mac/SZFriendsConversationAttach.h"
 
 #import "mac/SZFriendsArming.h"
 #import "mac/SZFriendsHistoryFollow.h"
@@ -100,6 +100,11 @@ static const NSTimeInterval SZFResizeSettleDelay = 0.3;
 
     _composer = [[SZFriendsComposerView alloc] initWithContext:context conversationID:conversationID];
     _composer.onOpenAttachPicker = ^{ [weakSelf openAttachPicker]; };
+    _composer.onPickerKey = ^BOOL(SEL command) {
+        SZFriendsConversationPage *page = weakSelf;
+        return page && page->_attachPicker && [page->_attachPicker handleCommand:command];
+    };
+    _composer.onTextChange = ^{ [weakSelf followAttachQuery]; };
     _composer.onOpenMentionPicker = ^{ [weakSelf openMentionPicker]; };
     _composer.onHeightChange = ^{ [weakSelf composerResized]; };
     [self addSubview:_composer];
@@ -296,36 +301,6 @@ static const NSTimeInterval SZFResizeSettleDelay = 0.3;
                                 (void)result;
                                 if (!error) [SZFriendsPromiseCopies discardCopiesForItems:items after:0];
                             }];
-}
-
-- (void)openAttachPicker {
-    if (_attachPicker || !self.context.host) return;
-    [self closeMentionPicker];
-    _attachPicker = [[SZFriendsAttachPicker alloc] initWithContext:self.context];
-    __weak SZFriendsConversationPage *weakSelf = self;
-    _attachPicker.onChoose = ^(SZFriendsAttachableItem *item) {
-        SZFriendsConversationPage *page = weakSelf;
-        if (!page) return;
-        // The `#` typed to open the picker becomes the chip.
-        NSTextView *text = page.composer.textView;
-        NSRange selection = text.selectedRange;
-        if (selection.location > 0 && [[text.string substringWithRange:NSMakeRange(selection.location - 1, 1)]
-                                          isEqualToString:@"#"])
-            [text insertText:@"" replacementRange:NSMakeRange(selection.location - 1, 1)];
-        [page.composer addAttachments:@[ item ]];
-        [page closeAttachPicker];
-    };
-    [self addSubview:_attachPicker];
-    [_attachPicker reloadForQuery:@""];
-    [self layout];
-    [self.window makeFirstResponder:_attachPicker.searchField];
-}
-
-- (void)closeAttachPicker {
-    if (!_attachPicker) return;
-    [_attachPicker removeFromSuperview];
-    _attachPicker = nil;
-    if (self.window && !_composer.hidden) [self.window makeFirstResponder:_composer.textView];
 }
 
 - (void)closeSearchResults {

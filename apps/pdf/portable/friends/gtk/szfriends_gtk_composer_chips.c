@@ -259,11 +259,6 @@ void szfriends_gtk_composer_insert_mention(SZFriendsGtkComposerView *composer, c
 }
 
 void szfriends_gtk_composer_attach(SZFriendsGtkComposerView *composer, const SZFriendsGtkHostItem *item) {
-    GtkTextIter cursor, before;
-    gtk_text_buffer_get_iter_at_mark(composer->buffer, &cursor, gtk_text_buffer_get_insert(composer->buffer));
-    before = cursor;
-    if (gtk_text_iter_backward_char(&before) && gtk_text_iter_get_char(&before) == '#')
-        gtk_text_buffer_delete(composer->buffer, &before, &cursor);
     g_ptr_array_add(composer->draft->items, szfriends_gtk_host_item_copy(item));
     szfriends_gtk_composer_add_items(composer, NULL);
     szfriends_gtk_composer_save_draft(composer);

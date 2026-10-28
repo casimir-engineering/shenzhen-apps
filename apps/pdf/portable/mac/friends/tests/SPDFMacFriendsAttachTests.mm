@@ -186,9 +186,9 @@ static void TestHostObject(void) {
                                                                   formats:[NSSet setWithArray:@[@"PDF", @"md"]]];
     Expect([host.friendsAppName isEqual:@"ShenzhenPDF"] && [host.friendsRevealInName isEqual:@"Finder"] &&
            [host.friendsHelperPath isEqual:@""] && host.friendsAssistantReadsChats &&
-           [host.friendsAttachPlaceholder isEqual:@"Search open and Collection documents"] &&
+           [host.friendsAttachEmptyLabel isEqual:@"No matching documents"] &&
            [host.friendsURLScheme isEqual:@"shenzhenpdf"],
-           @"identity strings, URL scheme or placeholder are wrong");
+           @"identity strings, URL scheme or empty label are wrong");
     NSSet* lowercase = [NSSet setWithArray:@[@"pdf", @"md"]];
     Expect([host.friendsFormatsOpenedInPlace isEqual:lowercase], @"formats must be lowercase");
     Expect(([host.friendsExtraPasteboardTypes isEqual:@[SPDFMacFriendsTabPasteboardType]]), @"extra pasteboard types");

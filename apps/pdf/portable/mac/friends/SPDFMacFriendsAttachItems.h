@@ -24,7 +24,11 @@ NSArray<SZFriendsAttachableItem*>* SPDFMacFriendsAttachItems(NSString* query, NS
                                                             id<SPDFMacFriendsCollectionLookup> _Nullable lookup,
                                                             NSDate* now);
 
-// The picker's search placeholder: the one `#` string the host supplies (PROTOCOL.md § Principles).
+// The open documents among them, at once, from the tab list alone (no file is read or hashed): what the picker shows
+// on the frame `#` is typed, in the order SPDFMacFriendsAttachItems will answer with, without revisions. Main thread.
+NSArray<SZFriendsAttachableItem*>* SPDFMacFriendsAttachPreview(NSString* query, NSArray<NSDictionary*>* openDocuments);
+
+// What AI chat's `#` searches, named for its file field.
 FOUNDATION_EXPORT NSString* const SPDFMacFriendsAttachPlaceholder;
 // The pill on the tab on screen, which the picker lists first: "Current".
 FOUNDATION_EXPORT NSString* const SPDFMacFriendsAttachCurrentBadge;

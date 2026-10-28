@@ -2,6 +2,7 @@
 
 #import "mac/SZFriendsItemViewsInternal.h"
 #import "mac/SZFriendsMentionViews.h"
+#import "mac/SZFriendsConversationAttach.h"
 
 // The card's room in the page: the card under its link, and around it a clear layer that takes a click or a scroll
 // elsewhere and only closes the card, as a click outside a popover does. WHY not an NSPopover: the dropdown is one

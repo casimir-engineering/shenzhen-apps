@@ -93,7 +93,11 @@
 
 #pragma mark - `#`
 
-- (NSString*)friendsAttachPlaceholder { return SPDFMacFriendsAttachPlaceholder; }
+- (NSString*)friendsAttachEmptyLabel { return @"No matching documents"; }
+
+- (NSArray<SZFriendsAttachableItem*>*)friendsAttachableItemsAtOnceMatching:(NSString*)query {
+    return SPDFMacFriendsAttachPreview(query ?: @"", [_bridge friendsBridgeOpenDocuments] ?: @[]);
+}
 
 - (void)friendsAttachableItemsMatching:(NSString*)query
                             completion:(void (^)(NSArray<SZFriendsAttachableItem*>* items))completion {

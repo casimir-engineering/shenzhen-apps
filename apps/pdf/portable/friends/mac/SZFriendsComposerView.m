@@ -72,17 +72,7 @@
         if (composer.commandState == SZFriendsCommandStateEditing) [composer.command run];
         else [composer send];
     };
-    _input.onHash = ^{
-        SZFriendsComposerView *composer = weakSelf;
-        if (composer.onOpenAttachPicker) composer.onOpenAttachPicker();
-    };
-    _input.onAt = ^{
-        SZFriendsComposerView *composer = weakSelf;
-        // Not inside a `/` command, where `@` means something else to the assistant (brief § Interface). A disabled
-        // composer takes no typing; the page decides whether the helper takes mentions.
-        if (composer.commandState == SZFriendsCommandStateOff && composer.onOpenMentionPicker)
-            composer.onOpenMentionPicker();
-    };
+    [self connectPickers];
     _input.onSlash = ^BOOL { return [weakSelf.command begin]; };
     _input.pasteboard = context.pasteboard;
     _input.onPaste = ^BOOL(NSPasteboard *pasteboard) { return [weakSelf pasteAttachmentsFromPasteboard:pasteboard]; };
