@@ -27,6 +27,14 @@ class PdfRelease(Release):
         self.version, self.build_number = m.group(1), m.group(2)
         self.tag = version
 
+    def preflight(self):
+        """Also, before anything is built: every header and source the app's and its test suites' builds name is
+        committed (a file left only on the disk it was written on fails every suite that compiles it)."""
+        result = super().preflight()
+        run([os.path.join(self.repo, "tools", "check-pdf-missing-files.py"), "--rev", self.commit], cwd=self.repo,
+            log=self.log("preflight"))
+        return result
+
     def committed_version(self):
         makefile = git(self.repo, "show", f"{self.commit}:apps/pdf/portable/Makefile")
         values = dict(re.findall(r"^(MAC_VERSION|MAC_BUILD) \?= (\S+)$", makefile, re.M))

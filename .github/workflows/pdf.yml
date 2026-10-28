@@ -22,14 +22,17 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0   # the launch gate builds the previous pdf/ release, when there is one
+      - name: Every header and source the builds name is committed
+        run: ../../../tools/check-pdf-missing-files.py
       - name: Build tools for the Friends relay tests
         run: brew install coturn
       - run: make -j"$(sysctl -n hw.ncpu)" mac-app
       - run: make -j"$(sysctl -n hw.ncpu)" test-binaries
+      # -k: every suite is built and run even after one fails, so one failure never hides another.
       - name: Release tests, as cut-release.sh runs them
         run: |
           . release/release-common.sh
-          make $(spdf_discover_test_targets Makefile | grep -v -x mac-launch-performance-tests)
+          make -k $(spdf_discover_test_targets Makefile | grep -v -x mac-launch-performance-tests)
         env:
           FRIENDS_TEST_COTURN: /opt/homebrew/bin/turnserver
       - name: Launch performance against the previous release

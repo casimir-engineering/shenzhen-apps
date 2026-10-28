@@ -230,6 +230,42 @@ def test_tests_leave_apps_alone():
           out.stdout + out.stderr)
 
 
+def test_pdf_missing_files():
+    """A header or source a build names must be committed: one only on disk, or deleted, is reported."""
+    guard = os.path.join(os.path.dirname(HERE), "check-pdf-missing-files.py")
+    root = os.path.join(TMP, "pdf-files")
+    portable = os.path.join(root, "apps/pdf/portable")
+    os.makedirs(os.path.join(portable, "mac/tests"))
+    os.makedirs(os.path.join(root, "apps/pdf/ext/md4c"))
+    write = lambda path, text: open(os.path.join(root, path), "w").write(text)  # noqa: E731
+    write("apps/pdf/ext/md4c/md4c.h", "")
+    write("apps/pdf/portable/mac/Close.h", "")
+    write("apps/pdf/portable/mac/Close.mm", '#import "Close.h"\n#include "../../ext/md4c/md4c.h"\n')
+    write("apps/pdf/portable/mac/tests/Checks.h", '#import "Close.h"\n#include <Cocoa/Cocoa.h>\n')
+    write("apps/pdf/portable/Makefile", "t-tests:\n\tclang++ -Imac mac/tests/Checks.h mac/Close.mm $(X)/y.mm\n")
+    sh("git", "init", "-q", root)
+    commit = lambda: sh("git", "-C", root, "add", "-A", ".", env=git_identity()) or sh(  # noqa: E731
+        "git", "-C", root, "commit", "-q", "--allow-empty", "-m", "x", env=git_identity())
+    result = lambda: subprocess.run([guard], cwd=portable, capture_output=True, text=True)  # noqa: E731
+    commit()
+    check("committed includes and sources pass", result().returncode == 0, result().stderr)
+    sh("git", "-C", root, "rm", "-q", "--cached", "apps/pdf/portable/mac/Close.h")
+    sh("git", "-C", root, "commit", "-q", "-m", "forgot the header", env=git_identity())
+    out = result()
+    check("a header left only on disk is reported where it is included",
+          out.returncode == 1 and 'mac/tests/Checks.h:1: includes "Close.h"' in out.stderr
+          and 'mac/Close.mm:1: includes "Close.h"' in out.stderr, out.stderr)
+    write("apps/pdf/portable/mac/Close.h", "")
+    os.remove(os.path.join(portable, "mac/Close.mm"))
+    commit()
+    out = result()
+    check("a deleted source a makefile still names is reported",
+          out.returncode == 1 and "apps/pdf/portable/Makefile:2: names mac/Close.mm" in out.stderr, out.stderr)
+    out = subprocess.run([guard, "--rev", "HEAD~1"], cwd=portable, capture_output=True, text=True)
+    check("--rev reads that commit", out.returncode == 1 and "Close.h" in out.stderr and "Makefile" not in out.stderr,
+          out.stderr)
+
+
 def test_test_stamps(mono):
     stamp = os.path.join(mono, "tools/test-stamp.sh")
     ok = lambda *args: subprocess.run([stamp, *args], cwd=mono, capture_output=True).returncode == 0  # noqa: E731
@@ -413,6 +449,7 @@ def main():
         test_stages()
         test_interrupted_command()
         test_tests_leave_apps_alone()
+        test_pdf_missing_files()
         test_test_stamps(mono)
         test_source_tag(mono, remote, previous)
         test_publish()
