@@ -48,6 +48,17 @@ static void Call(id target, NSString* selector, id argument) {
 static NSString* gCommentText;
 static NSString* AnswerPrompt(id, SEL, NSString*) { return gCommentText; }
 
+// The test's own folder (documents, state, records) is an ordinary folder, wherever the worktree is: from /tmp every
+// document would count as "in a temporary folder", go to a writable copy that is in a temporary folder too, and no
+// edit could be kept. Every other temporary location is still one.
+static IMP gTemporaryLocation;
+static NSString* gWorkFolder;
+static BOOL TemporaryOutsideTest(id reader, SEL selector, NSString* path) {
+    NSString* resolved = path.stringByStandardizingPath.stringByResolvingSymlinksInPath;
+    if (gWorkFolder.length && [resolved hasPrefix:gWorkFolder]) return NO;
+    return ((BOOL (*)(id, SEL, NSString*))gTemporaryLocation)(reader, selector, path);
+}
+
 static NSDictionary* LiveState(id reader) {
     NSMutableArray* tabs = [NSMutableArray array];
     for (id tab in Ivar_(reader, "_tabs")) {
@@ -139,6 +150,10 @@ void SPDFProbeRunIntegrityRound(id reader) {
            atomically:YES];
 
     Class cls = object_getClass(reader);
+    gWorkFolder = [record.stringByDeletingLastPathComponent.stringByStandardizingPath.stringByResolvingSymlinksInPath
+        stringByAppendingString:@"/"];
+    gTemporaryLocation = method_setImplementation(
+        class_getInstanceMethod(cls, NSSelectorFromString(@"pathIsInTemporaryLocation:")), (IMP)TemporaryOutsideTest);
     method_setImplementation(class_getInstanceMethod(cls, NSSelectorFromString(@"promptForCommentTextWithDefault:")),
                              (IMP)AnswerPrompt);
     NSMutableArray* tabs = Ivar_(reader, "_tabs");
