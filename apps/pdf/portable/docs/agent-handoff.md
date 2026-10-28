@@ -79,6 +79,21 @@ probe (`mac/tests/launch/SPDFMacLaunchPerformanceProbe.mm`, a library inserted i
 both apps) also measures idle
 CPU and wakeups (`PROBE_MODE=idle`), document opens and page jumps.
 
+**Quitting hides first.** Cmd+Q, the close button and a window's last tab take the
+windows off the screen before anything else (a key monitor sees Cmd+Q before the menu
+highlight), answer `NSTerminateLater`, write out of sight and `exit(0)`, skipping AppKit's
+~300 ms pasteboard wait unless this process last wrote the general pasteboard
+(`SPDFMacQuitFinishing.mm`). A Dock click or document open while finishing starts a fresh
+launch once the writes are done. Nothing on close or quit ever asks: edits to a read-only,
+temporary or Collection-backup PDF go to a writable copy under `Edited Copies`
+(`SPDFMacWritableCopy.mm`). Work that must wait for the first frame goes through
+`spdf_mac_after_first_paint`, not a `dispatch_after` from launch code (its timer fires
+before the first frame). `make -C portable mac-quit-performance-tests` (budgets for the
+first frame and for the window leaving on quit, on a synthetic 100-tab profile; pass
+`--baseline-app` to `run-quit-performance.py budget` for a before/after table) and
+`mac-quit-integrity-tests` (20 quit-and-relaunch rounds with edits; nothing lost, nothing
+asked). Instruments shows `Launch` and `Quit` signposts (category Lifecycle).
+
 **Extraction over cleverness, and pictures over prose.** The readme is
 picture-first; a feature earns a cropped screenshot, not a paragraph.
 

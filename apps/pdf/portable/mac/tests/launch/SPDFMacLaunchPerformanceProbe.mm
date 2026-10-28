@@ -44,6 +44,10 @@ bool SPDFLaunchPerformanceWriteDrawingSet(const char* path, long pages, long cur
 void SPDFLaunchSpawnGuardInstall(void);
 void SPDFLaunchSpawnGuardFrameDrawn(void);
 long SPDFLaunchSpawnGuardReport(char* out, size_t size);
+// SPDFMacLaunchQuitProbe.mm (first page, interactive, quit timings) and SPDFMacLaunchProfileSeed.mm (PROBE_MODE=profile)
+void SPDFProbeTrackLaunch(id reader, double spawnMs), SPDFProbeFrameDrawn(void), SPDFProbeModal(id alert);
+void SPDFProbeOrderedOut(NSWindow* window), SPDFProbeAddResults(NSMutableDictionary* out), SPDFProbeSeedProfile(id);
+BOOL SPDFProbeRunQuitMode(const char* mode, id reader);
 
 static double gSpawnMs;
 static double gOrderMs = -1, gDflEnterMs = -1, gDflEndMs = -1, gFrameMs = -1;
@@ -201,7 +205,8 @@ static void TimedFriendsAfterFirstPaint(id delegate, SEL sel) {
     gFriendsAfterPaintCpuMs = ThreadCpuMs() - c0;
 }
 static void RefuseOrder(id window, SEL sel, NSInteger place, NSInteger other) {
-    if (place == NSWindowOut) ((void (*)(id, SEL, NSInteger, NSInteger))gOrderWindow)(window, sel, place, other);
+    if (place != NSWindowOut) return;
+    SPDFProbeOrderedOut(window), ((void (*)(id, SEL, NSInteger, NSInteger))gOrderWindow)(window, sel, place, other);
 }
 static void ProhibitedPolicy(id app, SEL sel, NSInteger policy) {
     (void)policy;
@@ -212,7 +217,7 @@ static void InertBool(id self, SEL _cmd, BOOL flag) { (void)self; (void)_cmd; (v
 static void InertObject(id self, SEL _cmd, id object) { (void)self; (void)_cmd; (void)object; }
 static NSModalResponse NoModal(id self, SEL _cmd) {
     (void)self; (void)_cmd;
-    gModals++;
+    gModals++, SPDFProbeModal(self);
     return NSAlertSecondButtonReturn;
 }
 static CGFloat Retina(id self, SEL _cmd) { (void)self; (void)_cmd; return 2.0; }
@@ -289,7 +294,7 @@ static pid_t HelperPid(void) {
 
 static NSWindow* MainWindow(void) { return Ivar_(gDelegate, "_window"); }
 
-static void Finish(NSDictionary* extra) {
+void SPDFProbeFinish(NSDictionary* extra) {
     Usage self_ = UsageOf(getpid());
     NSMutableDictionary* out = [@{
         @"mode" : @(gMode),
@@ -325,6 +330,7 @@ static void Finish(NSDictionary* extra) {
     char spawns[2048];
     out[@"main_spawns_before_frame"] = @(SPDFLaunchSpawnGuardReport(spawns, sizeof(spawns)));
     out[@"main_spawns_before_frame_calls"] = @(spawns);
+    SPDFProbeAddResults(out);
     [out addEntriesFromDictionary:extra ?: @{}];
     NSData* json = [NSJSONSerialization dataWithJSONObject:out options:NSJSONWritingSortedKeys error:nil];
     fprintf(stdout, "PROBE %s\n", [[NSString alloc] initWithData:json encoding:NSUTF8StringEncoding].UTF8String);
@@ -407,16 +413,20 @@ static void AfterFrame(void) {
         extra[@"jump_sharp_ms"] = @(ok ? NowMs() - t0 : -1);
         RunUntil(60.0, ^{ return QueuesIdle(gDelegate); });
         extra[@"pages_footprint_mb"] = @(UsageOf(getpid()).footprint / 1048576.0);
+    } else if (!strcmp(gMode, "profile")) {
+        SPDFProbeSeedProfile(gDelegate);
+    } else if (SPDFProbeRunQuitMode(gMode, gDelegate)) {
     } else if (!strcmp(gMode, "seed")) {
         ((void (*)(id, SEL))objc_msgSend)(gDelegate, NSSelectorFromString(@"savePersistentState"));
         RunFor(0.5);
     }
-    Finish(extra);
+    SPDFProbeFinish(extra);
 }
 
 static void WrappedDidFinishLaunching(id delegate, SEL sel, NSNotification* note) {
     gDelegate = delegate;
     gDflEnterMs = NowMs();
+    SPDFProbeTrackLaunch(delegate, gSpawnMs);
     ((void (*)(id, SEL, id))gDidFinishLaunching)(delegate, sel, note);
     gDflEndMs = NowMs();
     gDflEndCpuMs = ThreadCpuMs();
@@ -430,6 +440,7 @@ static void WrappedDidFinishLaunching(id delegate, SEL sel, NSNotification* note
       if (rep) [content cacheDisplayInRect:content.bounds toBitmapImageRep:rep];
       gFrameMs = NowMs();
       SPDFLaunchSpawnGuardFrameDrawn();
+      SPDFProbeFrameDrawn();
       StopSamplerAndReport();
       gFrameDrawMs = gFrameMs - d0;
       gFrameCpuMs = ThreadCpuMs();

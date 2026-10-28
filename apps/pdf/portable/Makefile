@@ -1132,6 +1132,9 @@ mac-page-display-tests: mac-page-display-acceptance
 
 # Registered here so release discovery includes the launch performance gate (this tree against the previous release).
 include mac/tests/launch/launch-performance-tests.mk
+.PHONY: mac-quit-performance-tests mac-quit-integrity-tests
+mac-quit-performance-tests: mac-quit-performance-gate
+mac-quit-integrity-tests: mac-quit-integrity-gate
 .PHONY: mac-launch-performance-tests
 mac-launch-performance-tests: mac-launch-performance-gate
 	$(if $(LAUNCH_PERF_ROUNDS),@:,$(call spdf_test_stamp,mac-launch-performance-tests))
