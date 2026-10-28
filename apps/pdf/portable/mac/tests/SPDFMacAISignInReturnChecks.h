@@ -17,10 +17,11 @@ static void CheckSignInReturnWatch(void) {
     __block NSInteger resets=0;
     SPDFMacAISignInReturnWatch* watch=[[SPDFMacAISignInReturnWatch alloc] initWithSignIn:signIn delay:.1
         lostWayBack:^{ resets++; }];
-    Post(NSApplicationDidBecomeActiveNotification); Settle(.03);
+    // Posting runs the observers at once, so no settle between the posts: a slow runner's run loop can overrun one.
+    Post(NSApplicationDidBecomeActiveNotification);
     Post(NSApplicationDidResignActiveNotification); Settle(.25);
     Check(resets==0,"a brief look back at the app while signing in changes nothing");
-    Post(NSApplicationDidBecomeActiveNotification); Settle(.03);
+    Post(NSApplicationDidBecomeActiveNotification);
     Check(resets==0,"nothing changes right away on coming back");
     Settle(.25);
     Check(resets==1,"staying in the app with nothing received puts the connection back to idle");

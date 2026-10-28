@@ -4,13 +4,25 @@ set -euo pipefail
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="$(cd "$script_dir/.." && pwd)"
 
-command -v magick >/dev/null 2>&1 || { echo "error: ImageMagick not found" >&2; exit 1; }
+# Sizes read straight from the files (PNG header, ICO directory), so nothing beyond python3 is needed.
+image_sizes() {
+    python3 -I -c '
+import struct, sys
+data = open(sys.argv[1], "rb").read()
+if data[:8] == b"\x89PNG\r\n\x1a\n":
+    print("%dx%d" % struct.unpack(">II", data[16:24]))
+else:
+    for i in range(struct.unpack("<H", data[4:6])[0]):
+        w, h = data[6 + 16 * i], data[7 + 16 * i]
+        print("%dx%d" % (w or 256, h or 256))
+' "$1"
+}
 
 assert_png_size() {
     local path="$1"
     local expected="$2"
     local actual
-    actual="$(magick identify -format '%wx%h' "$path")"
+    actual="$(image_sizes "$path")"
     [[ "$actual" == "$expected" ]] || {
         echo "wrong dimensions for $path: expected $expected, got $actual" >&2
         exit 1
@@ -28,7 +40,7 @@ done
 
 expected_frames=$'16x16\n32x32\n48x48\n64x64\n128x128\n256x256'
 for icon in SumatraPDF.ico SumatraPDF-smaller.ico PdfDoc.ico pdf-32bit.ico; do
-    actual_frames="$(magick identify -format '%wx%h\n' "$script_dir/$icon")"
+    actual_frames="$(image_sizes "$script_dir/$icon")"
     [[ "$actual_frames" == "$expected_frames" ]] || {
         echo "unexpected frame set in $script_dir/$icon" >&2
         printf 'expected:\n%s\nactual:\n%s\n' "$expected_frames" "$actual_frames" >&2

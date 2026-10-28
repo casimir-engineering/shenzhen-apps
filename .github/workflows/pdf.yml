@@ -16,7 +16,8 @@ defaults:
     working-directory: apps/pdf/portable
 jobs:
   mac:
-    runs-on: macos-15
+    # The macOS the suites are written and run on (fonts, AppKit drawing and SQLite as on the owner's Mac).
+    runs-on: macos-26
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
@@ -24,15 +25,21 @@ jobs:
           fetch-depth: 0   # the launch gate builds the previous pdf/ release, when there is one
       - name: Every header and source the builds name is committed
         run: ../../../tools/check-pdf-missing-files.py
-      - name: Tools the tests use (qpdf for the password fixtures, coturn for the Friends relay)
-        run: brew install qpdf coturn
+      - name: Tools the tests use (qpdf for the password fixtures, coturn for the Friends relay, GTK for Friends' GTK views)
+        run: brew install qpdf coturn pkgconf gtk4 libadwaita json-glib
       - run: make -j"$(sysctl -n hw.ncpu)" mac-app
       - run: make -j"$(sysctl -n hw.ncpu)" test-binaries
       # -k: every suite is built and run even after one fails, so one failure never hides another.
+      # Left to cut-release.sh on the owner's Mac, as their budgets assume its cores and a quiet machine:
+      #   mac-launch-performance-tests  run in the next step, against the previous release
+      #   mac-page-load-tests           three pages rendering side by side; the runner's 3 cores give two renderers
+      #   mac-quit-performance-tests    launch and quit budgets in milliseconds
+      #   mac-quit-integrity-tests      a Dock reopen 10 ms into a quit, which a shared runner cannot time
       - name: Release tests, as cut-release.sh runs them
         run: |
           . release/release-common.sh
-          make -k $(spdf_discover_test_targets Makefile | grep -v -x mac-launch-performance-tests)
+          make -k $(spdf_discover_test_targets Makefile | grep -v -x -e mac-launch-performance-tests \
+            -e mac-page-load-tests -e mac-quit-performance-tests -e mac-quit-integrity-tests)
         env:
           FRIENDS_TEST_COTURN: /opt/homebrew/bin/turnserver
       - name: Launch performance against the previous release

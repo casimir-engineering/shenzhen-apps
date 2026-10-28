@@ -145,6 +145,8 @@ static void SZTestFormats(void) {
     for (NSString *type in @[ @"com.compuserve.gif", @"public.tiff", @"public.avif" ]) {
         NSError *error = nil;
         NSData *data = SZTestEncode(image, type, nil);
+        // A Mac without an AV1 encoder (a virtual one) writes no AVIF, so there is nothing to refuse.
+        if (data.length == 0 && [type isEqual:@"public.avif"]) continue;
         NSData *output = [SZFriendsPicturePipeline normalizedImageFromData:data crop:NSZeroRect error:&error];
         SZ_CHECK(data.length > 0 && !output && error.code == SZFriendsPictureErrorUnreadable &&
                      [SZTestProtocolCode(error) isEqual:@"picture_invalid"],

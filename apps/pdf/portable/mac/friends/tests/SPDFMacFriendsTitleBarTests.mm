@@ -42,13 +42,12 @@ static void TestModelMatchesTheReader(void) {
     // Groups, Friends and Search are one row of icons in one colour (the owner's report of 2026-10-20: Groups was
     // labelColor, a translucent grey beside the other two). Friends takes it through its appearance
     // (SPDFMacFriendsIntegrationTests), Search through SPDFWorkspaceIconCell, Groups here.
-    Expect([Source(@"mac/SPDFMacTabStripDrawing.mm") containsString:@"@\"square.3.layers.3d\" "
-            "accessibilityDescription:@\"All Groups\"];"] &&
-               [Source(@"mac/SPDFMacTabStripDrawing.mm") containsString:@"configurationWithPaletteColors:"
-            "@[SPDFChromeIconColor(YES)]]];"],
+    Expect([Source(@"mac/SPDFMacTabStripDrawing.mm") containsString:@"SPDFChromeSymbol(@\"square.3.layers.3d\","
+            "SPDFToolbarSymbolPointSize,NSFontWeightRegular,\n                                            "
+            "SPDFChromeIconColor(YES))"],
            @"the Groups icon no longer takes the title bar's icon colour");
-    Expect([Source(@"mac/SPDFMacWorkspaceChrome.mm") containsString:@"configurationWithPaletteColors:"
-            "@[SPDFChromeIconColor(self.enabled)]]] ?: image;"], @"Search no longer takes the title bar's icon colour");
+    Expect([Source(@"mac/SPDFMacWorkspaceChrome.mm") containsString:@"SPDFToolbarSymbolPointSize,NSFontWeightRegular,"
+            "SPDFChromeIconColor(self.enabled));"], @"Search no longer takes the title bar's icon colour");
 }
 
 static Bar MakeBar(CGFloat width) {

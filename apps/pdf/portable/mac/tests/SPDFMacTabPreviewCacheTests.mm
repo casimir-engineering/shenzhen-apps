@@ -126,7 +126,7 @@ static void check_in_place_pixels(void) {
         [pages addObject:rep];
     }
     double before = FootprintMB();
-    for (NSBitmapImageRep* rep in pages) {
+    for (NSBitmapImageRep* rep in pages) @autoreleasepool { // what is kept, not what waits for the pool to drain
         CGImageRef source = SPDFTabPreviewCreateImageReadingRep(rep);
         expect(source != NULL, @"an 8-bit RGBA page image is read");
         CGImageRef thumbnail = SPDFTabPreviewCreateThumbnail(source, 155, 220);
