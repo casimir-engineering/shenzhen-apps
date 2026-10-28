@@ -1,10 +1,14 @@
 #import "SPDFMacAICitations.h"
 #import <PDFKit/PDFKit.h>
+#import <unistd.h>
+#import "SPDFMacLaunchPrerenderPrivate.h"
 // Real PDF find pipeline and AI retrieval/navigation, with only window rendering
 // and persistence suppressed. No user document, app window or network is used.
 @interface AICitationReaderProbe : ShenzhenMacDelegate
 @property(nonatomic) BOOL deferNextSelection;
 @property(nonatomic) BOOL restoreSavedViewport;
+// Holds Find's page workers before they open their copy of the document, so a citation's extraction stays queued.
+@property(atomic) BOOL findHeld;
 - (void)finishLoading;
 - (void)seedPaths:(NSArray<NSString*>*)paths;
 - (BOOL)hasCitationHighlights;
@@ -37,6 +41,11 @@
     dispatch_async(dispatch_get_main_queue(),^{
         if ([self selectedTab]==tab) self->_pageIndex=origin ? (NSInteger)origin.pointValue.y : self->_pageIndex;
     });
+}
+- (spdf_document*)openSpdfDocumentAtPath:(NSString*)path sourcePath:(NSString*)sourcePath status:(spdf_open_status*)status
+                                   error:(char*)err errorLength:(size_t)errLen {
+    if (!NSThread.isMainThread) while (self.findHeld) usleep(1000);
+    return [super openSpdfDocumentAtPath:path sourcePath:sourcePath status:status error:err errorLength:errLen];
 }
 - (BOOL)hasCitationHighlights { return !_findSearchInProgress && _findMatches.count>0 && [_findHighlights[@0] count]>0; }
 - (void)goToPage:(NSInteger)page preserveSinglePagePosition:(BOOL)preserve { (void)preserve;_pageIndex=page; }
@@ -128,7 +137,7 @@ static void CheckCitationNavigation(NSString* path,NSString* root) {
     }
     for(NSString* mode in @[@"complete",@"manual-page",@"manual-search",@"multiline",@"cancel",@"later-tool-cancel",@"source-change",@"undo"]) {
         AICitationReaderProbe* extracting=[AICitationReaderProbe new];[extracting seedPaths:@[multiPath]];
-        NSOperationQueue* queue=[extracting valueForKey:@"findQueue"];queue.suspended=YES;
+        extracting.findHeld=YES;
         SPDFMacAITools* delayed=[[SPDFMacAITools alloc] initWithReader:extracting];
         NSDictionary* value=CitationTool(delayed,@"show_document",@{@"path":SPDFAIDocumentIdentifier(multiPath),@"page":@1,@"query":@"Audio amplifier"});
         Check([value[@"opened"] boolValue] && [[extracting valueForKey:@"findSearchInProgress"] boolValue],"citation extraction is queued before intervention");
@@ -142,9 +151,9 @@ static void CheckCitationNavigation(NSString* path,NSString* root) {
         if([mode isEqual:@"later-tool-cancel"]) CitationTool(delayed,@"read_pages",@{@"path":SPDFAIDocumentIdentifier(multiPath)});
         if([mode isEqual:@"cancel"] || [mode isEqual:@"later-tool-cancel"]) [delayed cancel];
         if([mode isEqual:@"undo"]) Check([delayed undoLastAction:nil],"Undo supersedes queued extraction");
-        queue.suspended=NO;
+        extracting.findHeld=NO;
         NSDate* extractionDeadline=[NSDate dateWithTimeIntervalSinceNow:5];
-        while((queue.operationCount || [[extracting valueForKey:@"findSearchInProgress"] boolValue]) && extractionDeadline.timeIntervalSinceNow>0)
+        while(([[extracting valueForKey:@"findSearchInProgress"] boolValue]) && extractionDeadline.timeIntervalSinceNow>0)
             [NSRunLoop.currentRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:.01]];
         Check(![[extracting valueForKey:@"findSearchInProgress"] boolValue],"discarded extraction clears busy state");
         if([mode isEqual:@"complete"]) Check(extracting.hasCitationHighlights,"uninterrupted queued citation publishes highlights");
