@@ -231,6 +231,9 @@ FOUNDATION_EXPORT BOOL SPDFMacMarkdownCopyCodeSource(SPDFMarkdownDocumentModel* 
 // match (fraction = match center Y / canvas height), the shape
 // [reader findScrollbarMarkers] serves to SPDFFindMarkerScroller.
 - (NSArray<NSDictionary*>*)searchScrollbarMarkers;
+// How much of the document the running search has covered, 0...1; 1 when no
+// search is running.
+@property(nonatomic, readonly) double searchProgress;
 - (void)invalidateSearchScrollbarMarkers;
 @end
 

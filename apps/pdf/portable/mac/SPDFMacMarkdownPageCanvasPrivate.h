@@ -13,6 +13,8 @@
 @interface SPDFMacMarkdownPageCanvas ()
 @property(nonatomic, readonly) SPDFMarkdownPaginationPlan* plan;
 @property(nonatomic, readonly) NSAttributedString* attributedString;
+// The search highlights' overlap index, rebuilt when searchRanges changes.
+@property(nonatomic, readonly) SPDFMarkdownRangeIndex* searchRangeIndex;
 // YES while a left-button selection drag is in flight (forces the I-beam in
 // updateCursorForPointInWindow:, matching the PDF view's selection drag).
 @property(nonatomic, readonly, getter=isDraggingSelection) BOOL draggingSelection;

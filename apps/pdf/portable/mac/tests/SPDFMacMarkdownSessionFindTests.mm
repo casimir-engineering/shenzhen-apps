@@ -222,6 +222,46 @@ int main(void) {
         [session deactivate];
         assert(session.rootView.superview == nil);
         [NSFileManager.defaultManager removeItemAtPath:path error:nil];
+
+        // A one-letter query on a ~500-page document finds 100,000+ matches.
+        // Mapping each match against every page on the main thread froze the
+        // app for minutes (a 1,455-page file hung it): the search now maps
+        // matches page by page on background workers and shows them as found.
+        NSMutableString* huge = [NSMutableString string];
+        for (NSUInteger i = 0; i < 12000; ++i)
+            [huge appendFormat:@"Paragraph %lu tests that the text stays put.\n\n", (unsigned long)i];
+        NSString* hugePath = WriteMarkdown(huge);
+        SPDFMacMarkdownSession* big = [[SPDFMacMarkdownSession alloc] initWithDocumentURL:[NSURL fileURLWithPath:hugePath]];
+        __block BOOL bigLoaded = NO;
+        [big activateInHostView:host workQueue:sessionQueue scrollOrigin:NSZeroPoint selectedRange:NSMakeRange(0, 0)
+                      pageIndex:0 zoom:1.0 fitMode:SPDFMacMarkdownPageFitWidth anchor:nil
+                     completion:^(BOOL success, NSError* error) {
+                       assert(success && !error);
+                       bigLoaded = YES;
+                     }];
+        assert(SpinUntil(^BOOL { return bigLoaded; }, 60.0));
+        assert(big.pageCount > 300);
+        __block NSUInteger shownWhileSearching = 0, total = NSNotFound;
+        __block NSInteger selectedWhileSearching = -1;
+        big.searchUpdateHandler = ^(NSUInteger count, NSInteger index, BOOL searching) {
+          if (searching && count) {
+              shownWhileSearching = MAX(shownWhileSearching, count);
+              if (index >= 0 && selectedWhileSearching < 0) selectedWhileSearching = index;
+          }
+          if (!searching) total = count;
+        };
+        NSDate* started = NSDate.date;
+        [big searchForQuery:@"t" regex:NO preferredIndex:-1 jumpToNearest:NO reveal:YES];
+        assert(SpinUntil(^BOOL { return total != NSNotFound; }, 60.0));
+        assert(-started.timeIntervalSinceNow < 10.0);
+        assert(total == 12000 * 9 && big.searchMatches.count == total);
+        assert(shownWhileSearching > 0);     // matches were shown before the search ended
+        assert(selectedWhileSearching == 0);  // and the first one was picked
+        NSArray<SPDFMarkdownSearchMatch*>* found = big.searchMatches;
+        for (NSUInteger i = 1; i < found.count; ++i) assert(found[i - 1].range.location < found[i].range.location);
+        assert(big.searchScrollbarMarkers.count > 0);
+        [big deactivate];
+        [NSFileManager.defaultManager removeItemAtPath:hugePath error:nil];
         puts("SPDFMacMarkdownSessionFindTests passed");
     }
     return 0;

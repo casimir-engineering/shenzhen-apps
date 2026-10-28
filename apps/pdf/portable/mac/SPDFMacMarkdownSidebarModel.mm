@@ -1,5 +1,6 @@
 #import "SPDFMacMarkdownSidebarModel.h"
 #import "SPDFSearchSnippet.h"
+#import "SPDFMacProgressiveSearch.h"
 
 #import "markdown/SPDFMarkdownPaginator.h"
 
@@ -69,7 +70,8 @@ static NSDictionary<NSString*, id>* SPDFMarkdownSidebarItem(NSString* kind, NSSt
 
     NSMutableArray<NSDictionary<NSString*, id>*>* items = [NSMutableArray array];
     NSDictionary<NSString*, id>* previousChapter = nil;
-    for (NSUInteger index = 0; index < matches.count; ++index) {
+    NSUInteger listed = MIN(matches.count, SPDFSearchSidebarListLimit);
+    for (NSUInteger index = 0; index < listed; ++index) {
         SPDFMarkdownSearchMatch* match = matches[index];
         NSInteger matchPage = [self pageIndexForRange:match.range];
         NSDictionary<NSString*, id>* chapter = [self chapterItemPrecedingAttributedLocation:match.range.location
@@ -91,6 +93,9 @@ static NSDictionary<NSString*, id>* SPDFMarkdownSidebarItem(NSString* kind, NSSt
             (NSInteger)index,0,match.range) mutableCopy];
         result[@"matchRanges"]=snippet[@"matchRanges"]; [items addObject:result];
     }
+    if (listed < matches.count)
+        [items addObject:SPDFMarkdownSidebarItem(@"findStatus", SPDFSearchSidebarOverflowTitle(matches.count), @"",
+                                                 query, -1, -1, 0, NSMakeRange(NSNotFound, 0))];
     return [items copy];
 }
 
@@ -123,16 +128,8 @@ static NSDictionary<NSString*, id>* SPDFMarkdownSidebarItem(NSString* kind, NSSt
 }
 
 - (NSInteger)pageIndexForRange:(NSRange)range {
-    for (SPDFMarkdownPage* page in self.paginationPlan.pages) {
-        for (SPDFMarkdownPageFragment* fragment in page.fragments) {
-            NSRange fragmentRange = fragment.attributedRange;
-            if ((range.length > 0 && NSIntersectionRange(range, fragmentRange).length > 0) ||
-                (range.length == 0 && range.location >= fragmentRange.location &&
-                 range.location <= NSMaxRange(fragmentRange))) {
-                return (NSInteger)page.pageIndex;
-            }
-        }
-    }
+    NSInteger intersecting = [self.paginationPlan firstPageIndexIntersectingRange:range];
+    if (intersecting >= 0) return intersecting;
 
     NSInteger nearestPage = -1;
     NSUInteger nearestLocation = 0;

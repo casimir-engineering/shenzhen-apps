@@ -3,6 +3,7 @@
 #import "SPDFMacUIHelpers.h"
 
 @class SPDFMarkdownPaginationPlan;
+@class SPDFMarkdownSearchGeometry;
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -69,6 +70,11 @@ typedef NS_ENUM(NSInteger, SPDFMacMarkdownPageFitMode) {
 // documentPageRects / documentVisibleRect). NSZeroRect when unmapped — search
 // match geometry for scrollbar markers and nearest-match selection.
 - (NSRect)firstRectForRange:(NSRange)range;
+// The plan and text the pages are drawn from, for mapping search matches to
+// page rects on a background queue.
+@property(nonatomic, readonly) SPDFMarkdownSearchGeometry* searchGeometry;
+// Canvas-space frame of a page (documentPageRects without building the array).
+- (NSRect)frameForPageAtIndex:(NSUInteger)pageIndex;
 - (void)centerAtDocumentPoint:(NSPoint)point;
 - (void)centerOnPageAtIndex:(NSInteger)pageIndex xFraction:(CGFloat)xFraction yFraction:(CGFloat)yFraction;
 - (void)scrollByDocumentDeltaX:(CGFloat)deltaX deltaY:(CGFloat)deltaY;

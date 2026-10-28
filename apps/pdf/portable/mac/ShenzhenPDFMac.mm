@@ -922,6 +922,7 @@ static char kSPDFPasswordPromptClosesNewTabKey;
     [_inactiveTabPreloadQueue cancelAllOperations];
     [_launchWorkCoordinator stop];
     [_findQueue cancelAllOperations];
+    [self cancelProgressiveFind];
     [self rememberActiveTabState];
     // If the app terminates before the post-first-paint resume ran, lift the
     // launch save suspension so this final save cannot be swallowed.
@@ -2726,7 +2727,10 @@ id spdf_state_object_from_yaml_data(NSData* data) {
     _findCountLabel.alignment = NSTextAlignmentCenter;
     _findCountLabel.textColor = SPDFCollectionColor(@"secondary");
     _findCountLabel.font = [NSFont monospacedDigitSystemFontOfSize:12 weight:NSFontWeightRegular];
-    [_findCountLabel.widthAnchor constraintEqualToConstant:64].active = YES;
+    // Wide enough for "1,234 / 5,678" and "12,345 matches…" while a search runs.
+    [_findCountLabel.widthAnchor constraintGreaterThanOrEqualToConstant:64].active = YES;
+    [_findCountLabel setContentHuggingPriority:NSLayoutPriorityRequired
+                                forOrientation:NSLayoutConstraintOrientationHorizontal];
 
     _ocrSeparator = [[NSBox alloc] init];
     _ocrSeparator.boxType = NSBoxSeparator;
@@ -8897,127 +8901,6 @@ static BOOL spdf_page_list_cache_disabled(void) {
     return title.length ? title : @"Document";
 }
 
-// Attributes a search match to the outline heading that precedes it in reading
-// order. `pt` is the top-left of the match rect in the app's TOP-DOWN page space
-// (origin top-left, y increases downward), i.e. the same convention search rects
-// use. Outline dest coordinates (spdf_outline_item.dest_x/dest_y) were determined
-// empirically to ALSO be top-down on this corpus (a heading visually at the top of
-// the page has the smallest dest_y, matching search rect y0), so no axis flip is
-// needed and page height is not required to compare them. When the page has no
-// outline entry with a usable dest that precedes the match, this falls back to the
-// cross-page chapter carried over from earlier pages (today's page-only behavior),
-// preserving correctness for single-heading-per-page docs and PDFs whose outline
-// lacks coordinates.
-- (NSString*)chapterTitleForMatchOnPage:(NSInteger)pageIndex atPagePoint:(NSPoint)pt {
-    if (_outline.count <= 0) return @"";
-
-    // Cross-page candidate: the last heading (document order) on the largest page
-    // strictly before matchPage. This is the chapter that carried over onto the
-    // match's page from earlier in the document. Mirrors chapterTitleForPage:'s
-    // tie-break on level for same-page entries.
-    NSString* carryTitle = @"";
-    NSInteger carryPage = -1;
-    NSInteger carryLevel = -1;
-
-    // On-page candidate: among headings on matchPage that have a usable dest and
-    // are at-or-before the match in reading order (y first with a tolerance, then
-    // x), pick the latest one in reading order.
-    const CGFloat yTol = 1.0; // small tolerance so a heading on the match's own line still counts
-    BOOL haveOnPage = NO;
-    NSString* onPageTitle = @"";
-    CGFloat bestY = -CGFLOAT_MAX;
-    CGFloat bestX = -CGFLOAT_MAX;
-
-    for (int i = 0; i < _outline.count; ++i) {
-        spdf_outline_item item = _outline.items[i];
-        if (item.page_index < 0) continue;
-        NSString* itemTitle = item.title && *item.title ? [NSString stringWithUTF8String:item.title] : @"Untitled";
-        NSInteger level = MAX(0, item.level);
-
-        if (item.page_index < pageIndex) {
-            if (item.page_index < carryPage) continue;
-            if (item.page_index == carryPage && level < carryLevel) continue;
-            carryPage = item.page_index;
-            carryLevel = level;
-            carryTitle = itemTitle;
-            continue;
-        }
-        if (item.page_index > pageIndex) continue;
-
-        // Same page as the match. Only usable if the heading carries a position.
-        if (!item.has_dest) continue;
-        CGFloat hy = (CGFloat)item.dest_y;
-        CGFloat hx = (CGFloat)item.dest_x;
-        // Heading must be at-or-before the match in reading order.
-        BOOL precedes = (hy < pt.y + yTol) && (fabs(hy - pt.y) > yTol || hx <= pt.x);
-        if (!precedes) continue;
-        // Among those, keep the latest in reading order (largest y, then x).
-        if (hy > bestY + yTol || (fabs(hy - bestY) <= yTol && hx >= bestX)) {
-            bestY = hy;
-            bestX = hx;
-            onPageTitle = itemTitle;
-            haveOnPage = YES;
-        }
-    }
-
-    if (haveOnPage && onPageTitle.length) return onPageTitle;
-    if (carryTitle.length) return carryTitle;
-    // No heading precedes the match anywhere: fall back to page-only grouping
-    // (handles PDFs whose outline lacks dest coordinates entirely).
-    NSString* fallback = [self chapterTitleForPage:pageIndex];
-    return fallback.length ? fallback : @"Document";
-}
-
-- (void)rebuildSearchSidebarItems {
-    if (!_doc || ![self hasSearchSidebar]) return;
-    NSString* query = _searchField.stringValue ?: @"";
-    if (_findSearchInProgress && _findMatches.count == 0) {
-        [_sidebarItems addObject:@{
-            @"kind" : @"findStatus",
-            @"page" : @(-1),
-            @"title" : [NSString stringWithFormat:@"Searching for \"%@\"...", query]
-        }];
-        return;
-    }
-    if (self.findFailureMessage.length) {
-        [_sidebarItems addObject:@{@"kind":@"findStatus",@"page":@(-1),@"title":self.findFailureMessage}];
-        if (!_findMatches.count) return;
-    }
-    if (_findMatches.count == 0) {
-        NSString* title =
-            query.length ? [NSString stringWithFormat:@"No matches for \"%@\"", query] : @"No search results";
-        [_sidebarItems addObject:@{@"kind" : @"findStatus", @"page" : @(-1), @"title" : title}];
-        return;
-    }
-
-    NSString* previousChapter = nil;
-    for (NSInteger i = 0; i < (NSInteger)_findMatches.count; ++i) {
-        NSDictionary* match = _findMatches[(NSUInteger)i];
-        NSInteger page = [match[@"page"] integerValue];
-        NSRect matchRect = [match[@"rect"] rectValue];
-        // Top-left of the match in top-down page space (origin top-left).
-        NSPoint matchTopLeft = NSMakePoint(NSMinX(matchRect), NSMinY(matchRect));
-        NSString* chapter = [self chapterTitleForMatchOnPage:page atPagePoint:matchTopLeft];
-        if (chapter.length > 0 && ![chapter isEqualToString:previousChapter]) {
-            [_sidebarItems addObject:@{@"kind" : @"findDivider", @"title" : chapter, @"page" : @(-1)}];
-            previousChapter = chapter;
-        }
-
-        NSString* context = match[@"context"];
-        if (![context isKindOfClass:NSString.class] || context.length == 0) context = query.length ? query : @"Match";
-        NSString* subtitle = [NSString
-            stringWithFormat:@"Page %ld - match %ld of %ld", (long)page + 1, (long)i + 1, (long)_findMatches.count];
-        [_sidebarItems addObject:@{
-            @"kind" : @"findResult",
-            @"title" : context, @"matchRanges":match[@"matchRanges"] ?: @[],
-            @"subtitle" : subtitle,
-            @"query" : query,
-            @"page" : @(page),
-            @"findIndex" : @(i)
-        }];
-    }
-}
-
 - (void)rebuildSidebar {
     [self syncSidebarNavigationAvailability];
     if ([self showSidebarWorkspacePanel] || [self collectionShowSelectedHistoryPanel]) return;
@@ -9803,6 +9686,7 @@ static const NSTimeInterval kKeyScrollTickInterval = 1.0 / 60.0;
 - (void)clearFindResults {
     [self setFindFailureMessage:nil];
     [_findQueue cancelAllOperations];
+    [self cancelProgressiveFind];
     _findGeneration++;
     [_findFlashTimer invalidate];
     _findFlashTimer = nil;

@@ -154,6 +154,16 @@ FOUNDATION_EXPORT NSAttributedStringKey const SPDFMarkdownCodeLanguageAttribute;
                                                         regex:(BOOL)regex
                                             cancellationToken:(nullable SPDFMarkdownCancellationToken*)cancellationToken
                                                         error:(NSError* _Nullable* _Nullable)error;
+// One slice of a search that is spread over several workers: the matches that
+// START inside `owned`, in text order. A match may run past the slice. A plain
+// query uses the same comparison as the whole-document search; a non-nil
+// `expression` runs that regex instead, seeing the text around the slice for
+// anchors and lookaround. Cancelled searches return @[].
+- (NSArray<SPDFMarkdownSearchMatch*>*)searchMatchesForQuery:(NSString*)query
+                                              caseSensitive:(BOOL)caseSensitive
+                                                 expression:(nullable NSRegularExpression*)expression
+                                            startingInRange:(NSRange)owned
+                                          cancellationToken:(nullable SPDFMarkdownCancellationToken*)cancellationToken;
 @end
 
 @interface SPDFMarkdownRenderer : NSObject

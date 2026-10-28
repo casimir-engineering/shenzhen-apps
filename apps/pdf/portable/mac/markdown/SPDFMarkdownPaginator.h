@@ -168,6 +168,15 @@ FOUNDATION_EXPORT NSString* SPDFMarkdownPageFooterText(NSUInteger pageIndex, NSU
 // not depend on it, so toggling the setting costs a redraw rather than a
 // re-render of the whole document.
 - (void)setPreservesImageColors:(BOOL)preservesImageColors;
+
+// Location lookups in O(log n), built once with the plan: the page (and
+// fragment) of the first fragment, in plan order, that ends after `location`
+// or starts at or after it. nil when the plan has no such fragment.
+- (nullable SPDFMarkdownPage*)pageForAttributedLocation:(NSUInteger)location
+                                               fragment:(SPDFMarkdownPageFragment* _Nullable* _Nullable)fragment;
+// The page of the first fragment, in plan order, that a non-empty range
+// overlaps, or whose span holds an empty range's location; -1 when none.
+- (NSInteger)firstPageIndexIntersectingRange:(NSRange)range;
 @end
 
 // Concrete-palette page drawing, implemented in SPDFMarkdownPaginatorDrawing.mm.

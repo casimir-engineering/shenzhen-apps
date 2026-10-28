@@ -91,6 +91,7 @@ $ROOT/portable/mac/markdown/SPDFMarkdownTableDecorations.mm
 $ROOT/portable/mac/markdown/SPDFMarkdownTableLayout.mm
 $ROOT/portable/mac/markdown/SPDFMarkdownImageRowBand.mm
 $ROOT/portable/mac/markdown/SPDFMarkdownPaginator.mm
+$ROOT/portable/mac/markdown/SPDFMarkdownPlanLocationIndex.mm
 $ROOT/portable/mac/markdown/SPDFMarkdownPaginatorDrawing.mm
 $ROOT/portable/mac/markdown/SPDFMarkdownImageRecolor.mm
 $ROOT/portable/mac/markdown/SPDFMarkdownAsync.mm

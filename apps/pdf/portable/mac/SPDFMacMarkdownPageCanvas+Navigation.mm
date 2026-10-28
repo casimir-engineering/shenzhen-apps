@@ -16,14 +16,8 @@
 // location, then to the last page.
 - (SPDFMarkdownPage*)pageContainingAttributedLocation:(NSUInteger)location
                                              fragment:(SPDFMarkdownPageFragment**)outFragment {
-    for (SPDFMarkdownPage* page in self.plan.pages) {
-        for (SPDFMarkdownPageFragment* fragment in page.fragments) {
-            if (location < NSMaxRange(fragment.attributedRange) || fragment.attributedRange.location >= location) {
-                if (outFragment) *outFragment = fragment;
-                return page;
-            }
-        }
-    }
+    SPDFMarkdownPage* found = [self.plan pageForAttributedLocation:location fragment:outFragment];
+    if (found) return found;
     SPDFMarkdownPage* last = self.plan.pages.lastObject;
     if (outFragment) *outFragment = last.fragments.lastObject;
     return last;

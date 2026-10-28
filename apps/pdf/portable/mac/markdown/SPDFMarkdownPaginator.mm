@@ -4,6 +4,7 @@
 
 #import "SPDFMarkdownDiagramBand.h"
 #import "SPDFMarkdownImageRowBand.h"
+#import "SPDFMarkdownPlanLocationIndex.h"
 #import "SPDFMarkdownRenderInternal.h"
 #import "SPDFMarkdownTableDecorations.h"
 #import "SPDFMarkdownTableLayout.h"
@@ -203,7 +204,9 @@ static const CGFloat kSPDFMarkdownA4Margin = 61.2;
                                 items:(NSArray<SPDFMarkdownPaginationItem*>*)items
                                 pages:(NSArray<SPDFMarkdownPage*>*)pages;
 @end
-@implementation SPDFMarkdownPaginationPlan
+@implementation SPDFMarkdownPaginationPlan {
+    SPDFMarkdownPlanLocationIndex* _locationIndex;
+}
 - (instancetype)initWithConfiguration:(SPDFMarkdownPageConfiguration*)configuration
                                 items:(NSArray<SPDFMarkdownPaginationItem*>*)items
                                 pages:(NSArray<SPDFMarkdownPage*>*)pages {
@@ -212,8 +215,17 @@ static const CGFloat kSPDFMarkdownA4Margin = 61.2;
         _configuration = [configuration copy];
         _items = [items copy];
         _pages = [pages copy];
+        _locationIndex = [[SPDFMarkdownPlanLocationIndex alloc] initWithPages:_pages];
     }
     return self;
+}
+
+- (SPDFMarkdownPage*)pageForAttributedLocation:(NSUInteger)location fragment:(SPDFMarkdownPageFragment**)fragment {
+    return [_locationIndex pageForAttributedLocation:location fragment:fragment];
+}
+
+- (NSInteger)firstPageIndexIntersectingRange:(NSRange)range {
+    return [_locationIndex firstPageIndexIntersectingRange:range];
 }
 
 - (void)setPreservesImageColors:(BOOL)preservesImageColors {

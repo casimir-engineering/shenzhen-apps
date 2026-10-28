@@ -155,6 +155,12 @@ static NSColor* SPDFMacMarkdownGutterColor(SPDFMarkdownPaginationPlan* plan) {
 - (NSRect)firstRectForRange:(NSRange)range {
     return [_canvas firstRectForRange:range];
 }
+- (SPDFMarkdownSearchGeometry*)searchGeometry {
+    return _canvas.searchGeometry;
+}
+- (NSRect)frameForPageAtIndex:(NSUInteger)pageIndex {
+    return [_canvas frameForPageAtIndex:pageIndex];
+}
 - (NSString*)selectedText {
     NSRange range = self.selectedRange;
     if (!range.length || NSMaxRange(range) > _attributedString.length) return @"";

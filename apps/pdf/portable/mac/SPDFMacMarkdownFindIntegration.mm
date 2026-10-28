@@ -1,5 +1,6 @@
 #import "SPDFMacMarkdownDelegatePrivate.h"
 #import "SPDFMacFindExecution.h"
+#import "SPDFMacFindFailure.h"
 
 #import "SPDFMacMarkdownSidebarModel.h"
 #import "markdown/SPDFMarkdown.h"
@@ -56,6 +57,20 @@
                                 currentIndex:(NSInteger)currentIndex
                                    searching:(BOOL)searching {
     _findSearchInProgress = searching;
+    self.findLiveMatchCount = searching ? count : 0;
+    [self setFindProgress:searching ? session.searchProgress : 1.0];
+    _findMatchIndex = currentIndex;
+    tab.findMatchIndex = currentIndex;
+    // While matches stream in, the match table and the list are rebuilt at
+    // most twice a second: each rebuild walks every match found so far.
+    static CFTimeInterval lastRebuild = 0;
+    CFTimeInterval now = CFAbsoluteTimeGetCurrent();
+    if (searching && count > 0 && now - lastRebuild < 0.5) {
+        [self updateFindControls];
+        [self updateMarkdownMinimap];
+        return;
+    }
+    lastRebuild = now;
     [_findMatches removeAllObjects];
     SPDFMacMarkdownSidebarModel* sidebarModel = session.sidebarModel;
     NSArray<SPDFMarkdownSearchMatch*>* matches = session.searchMatches;

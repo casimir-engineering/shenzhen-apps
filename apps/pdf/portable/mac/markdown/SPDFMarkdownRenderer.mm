@@ -300,6 +300,58 @@ NSAttributedStringKey const SPDFMarkdownCodeLanguageAttribute = @"SPDFMarkdownCo
     return cancellationToken.isCancelled ? @[] : matches;
 }
 
+- (NSArray<SPDFMarkdownSearchMatch*>*)searchMatchesForQuery:(NSString*)query
+                                              caseSensitive:(BOOL)caseSensitive
+                                                 expression:(NSRegularExpression*)expression
+                                            startingInRange:(NSRange)owned
+                                          cancellationToken:(SPDFMarkdownCancellationToken*)cancellationToken {
+    static const NSUInteger maximumInteractiveQueryLength = 4096;
+    NSString* canonical = self.attributedString.string;
+    if (query.length == 0 || query.length > maximumInteractiveQueryLength || owned.location >= canonical.length)
+        return @[];
+    owned.length = MIN(owned.length, canonical.length - owned.location);
+    NSMutableArray<SPDFMarkdownSearchMatch*>* matches = [NSMutableArray array];
+    NSUInteger ownedEnd = NSMaxRange(owned);
+    if (expression) {
+        // A match may run on past the slice; a regex match longer than this
+        // overhang is cut at it rather than rescanning the rest of the document.
+        static const NSUInteger overhang = 4096;
+        NSRange scan = NSMakeRange(owned.location, MIN(canonical.length, ownedEnd + overhang) - owned.location);
+        [expression enumerateMatchesInString:canonical
+                                     options:NSMatchingReportProgress | NSMatchingWithTransparentBounds |
+                                             NSMatchingWithoutAnchoringBounds
+                                       range:scan
+                                  usingBlock:^(NSTextCheckingResult* result, NSMatchingFlags flags, BOOL* stop) {
+                                    (void)flags;
+                                    if (cancellationToken.isCancelled) {
+                                        *stop = YES;
+                                        return;
+                                    }
+                                    if (!result) return;
+                                    if (result.range.location >= ownedEnd) {
+                                        *stop = YES;
+                                        return;
+                                    }
+                                    if (result.range.length == 0) return;
+                                    [self appendSearchMatch:result.range canonical:canonical matches:matches];
+                                  }];
+        return cancellationToken.isCancelled ? @[] : matches;
+    }
+    NSStringCompareOptions options =
+        caseSensitive ? NSLiteralSearch : NSCaseInsensitiveSearch | NSDiacriticInsensitiveSearch;
+    NSUInteger searchEnd = MIN(canonical.length, ownedEnd + query.length - 1);
+    NSRange remaining = NSMakeRange(owned.location, searchEnd - owned.location);
+    while (remaining.length) {
+        if (cancellationToken.isCancelled) return @[];
+        NSRange found = [canonical rangeOfString:query options:options range:remaining];
+        if (found.location == NSNotFound || found.location >= ownedEnd) break;
+        [self appendSearchMatch:found canonical:canonical matches:matches];
+        NSUInteger next = MAX(NSMaxRange(found), found.location + 1);
+        remaining = next < searchEnd ? NSMakeRange(next, searchEnd - next) : NSMakeRange(searchEnd, 0);
+    }
+    return matches;
+}
+
 - (NSArray<SPDFMarkdownSearchMatch*>*)searchForQuery:(NSString*)query caseSensitive:(BOOL)caseSensitive {
     return [self searchForQuery:query caseSensitive:caseSensitive cancellationToken:nil];
 }

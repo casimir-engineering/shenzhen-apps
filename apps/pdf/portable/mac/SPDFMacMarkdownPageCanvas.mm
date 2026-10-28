@@ -24,6 +24,7 @@ static const CGFloat kSPDFMarkdownCanvasInset = 24.0;
 // SPDFMacMarkdownPageCanvasPrivate.h).
 @synthesize plan = _plan;
 @synthesize attributedString = _attributedString;
+@synthesize searchRangeIndex = _searchRangeIndex;
 
 - (instancetype)initWithPaginationPlan:(SPDFMarkdownPaginationPlan*)plan
                       attributedString:(NSAttributedString*)attributedString {
@@ -35,6 +36,7 @@ static const CGFloat kSPDFMarkdownCanvasInset = 24.0;
     _attributedString = [attributedString copy];
     _selectedRange = NSMakeRange(0, 0);
     _searchRanges = @[];
+    _searchRangeIndex = [[SPDFMarkdownRangeIndex alloc] initWithRanges:@[]];
     _activeSearchRange = NSMakeRange(0, 0);
     _activeSearchAlpha = 0.0;
     self.wantsLayer = YES;
@@ -75,6 +77,7 @@ static const CGFloat kSPDFMarkdownCanvasInset = 24.0;
 
 - (void)setSearchRanges:(NSArray<NSValue*>*)searchRanges {
     _searchRanges = [searchRanges copy] ?: @[];
+    _searchRangeIndex = [[SPDFMarkdownRangeIndex alloc] initWithRanges:_searchRanges];
     [self setNeedsDisplay:YES];
 }
 

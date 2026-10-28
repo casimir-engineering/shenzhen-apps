@@ -77,6 +77,7 @@ $PORTABLE/mac/markdown/SPDFMarkdownTableDecorations.mm
 $PORTABLE/mac/markdown/SPDFMarkdownTableLayout.mm
 $PORTABLE/mac/markdown/SPDFMarkdownImageRowBand.mm
 $PORTABLE/mac/markdown/SPDFMarkdownPaginator.mm
+$PORTABLE/mac/markdown/SPDFMarkdownPlanLocationIndex.mm
 $PORTABLE/mac/markdown/SPDFMarkdownPaginatorDrawing.mm
 $PORTABLE/mac/markdown/SPDFMarkdownImageRecolor.mm
 $PORTABLE/mac/markdown/SPDFMarkdownAsync.mm
@@ -146,6 +147,8 @@ $PORTABLE/mac/SPDFMacMarkdownSession+Paper.mm
 $PORTABLE/mac/SPDFMacMarkdownSession+Reload.mm
 $PORTABLE/mac/SPDFMacMarkdownSession+RemoteImages.mm
 $PORTABLE/mac/SPDFMacMarkdownSession+Search.mm
+$PORTABLE/mac/SPDFMacMarkdownSession+SearchResults.mm
+$PORTABLE/mac/SPDFMacProgressiveSearch.mm
 $PORTABLE/mac/SPDFMacMarkdownSession+ViewSwap.mm
 $PORTABLE/mac/SPDFMacMarkdownSessionImageLoader.mm
 "

@@ -33,7 +33,10 @@
     self = [super init];
     if (!self) return nil;
     _documentURL = [URL copy];
-    _searchMatches = @[];
+    _searchMatches = [NSMutableArray array];
+    _searchMatchGeometry = [NSMutableData data];
+    _searchPageRects = [NSMutableDictionary dictionary];
+    _searchedPages = [NSMutableIndexSet indexSet];
     _currentMatchIndex = -1;
     _languageOverrides = [NSMutableDictionary dictionary];
     _fontScale = SPDFMacMarkdownClampFontScale(fontScale);
@@ -115,7 +118,7 @@
     return nil;
 }
 - (NSArray<SPDFMarkdownSearchMatch*>*)searchMatches {
-    return _searchMatches ?: @[];
+    return [_searchMatches copy] ?: @[];
 }
 - (NSInteger)currentMatchIndex {
     return _currentMatchIndex;
@@ -328,6 +331,8 @@
 - (void)cancelAllOperations {
     BOOL searchWasRunning = _searchToken != nil;
     [_searchToken cancel];
+    [_search cancel];
+    _search = nil;
     [_renderToken cancel];
     _searchToken = nil;
     _renderToken = nil;

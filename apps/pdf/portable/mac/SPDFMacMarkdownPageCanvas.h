@@ -5,6 +5,7 @@
 #import "SPDFMacCursorRegions.h"
 
 @class SPDFMarkdownPaginationPlan;
+@class SPDFMarkdownSearchGeometry;
 @protocol SPDFMacUIReader;
 
 NS_ASSUME_NONNULL_BEGIN
@@ -118,6 +119,33 @@ NS_ASSUME_NONNULL_BEGIN
 // orientation as the canvas), using the same CTLine mapping as highlight
 // drawing. Pages without a match are absent.
 - (NSDictionary<NSNumber*, NSArray<NSValue*>*>*)pageLocalRectsForRanges:(NSArray<NSValue*>*)ranges;
+// The canvas's plan and text, for computing search rects off the main thread.
+@property(nonatomic, readonly) SPDFMarkdownSearchGeometry* searchGeometry;
+@end
+
+// Ranges sorted for overlap lookups, so mapping N matches onto F fragments
+// costs F log N instead of F x N. Immutable; usable on any thread.
+@interface SPDFMarkdownRangeIndex : NSObject
+- (instancetype)initWithRanges:(NSArray<NSValue*>*)ranges;
+- (instancetype)initWithRangeBuffer:(const NSRange*)ranges count:(NSUInteger)count NS_DESIGNATED_INITIALIZER;
+- (instancetype)init NS_UNAVAILABLE;
+@property(nonatomic, readonly) NSUInteger count;
+@end
+
+// A plan and its text: range-to-rect mapping with the canvas's CTLine
+// measurement. Immutable; usable on any thread.
+@interface SPDFMarkdownSearchGeometry : NSObject
+- (instancetype)initWithPaginationPlan:(SPDFMarkdownPaginationPlan*)plan
+                      attributedString:(NSAttributedString*)attributedString NS_DESIGNATED_INITIALIZER;
+- (instancetype)init NS_UNAVAILABLE;
+@property(nonatomic, readonly) SPDFMarkdownPaginationPlan* plan;
+@property(nonatomic, readonly) NSAttributedString* attributedString;
+// PAGE-LOCAL rects of every portion of the indexed ranges rendered on the page
+// at `pageIndex`, in fragment order. `rangeIndex` is the range's position in
+// the array the index was built from.
+- (void)enumerateRectsForRanges:(SPDFMarkdownRangeIndex*)ranges
+                  onPageAtIndex:(NSUInteger)pageIndex
+                     usingBlock:(void (^)(NSUInteger rangeIndex, NSRect rect))block;
 @end
 
 NS_ASSUME_NONNULL_END

@@ -4,6 +4,7 @@
 
 #import "SPDFMacMarkdownMinimapModel.h"
 #import "SPDFMacMarkdownPagedView.h"
+#import "SPDFMacProgressiveSearch.h"
 #import "markdown/SPDFMarkdown.h"
 
 @class SPDFMacMarkdownLanguagePickerController;
@@ -70,8 +71,26 @@ NS_ASSUME_NONNULL_BEGIN
     NSString* _Nullable _pendingAnchor;
     NSMutableDictionary<NSNumber*, NSString*>* _languageOverrides;
     SPDFMacMarkdownLanguagePickerController* _Nullable _languagePicker;
-    NSArray<SPDFMarkdownSearchMatch*>* _searchMatches;
+    // Matches in text order, growing while a search runs. _searchMatchGeometry
+    // holds one SPDFMarkdownMatchGeometry per match (its page and first
+    // page-local rect) and _searchPageRects the minimap rects per page.
+    NSMutableArray<SPDFMarkdownSearchMatch*>* _searchMatches;
+    NSMutableData* _searchMatchGeometry;
+    NSMutableDictionary<NSNumber*, NSArray<NSValue*>*>* _searchPageRects;
     NSInteger _currentMatchIndex;
+    // The running search: its workers, the pages done so far, and how the
+    // first match gets picked while it runs.
+    SPDFMacProgressiveSearch* _Nullable _search;
+    NSMutableIndexSet* _searchedPages;
+    NSData* _Nullable _searchSlices;  // NSRange per searched slice (page)
+    NSUInteger _searchOrderPrefix;
+    NSUInteger _searchStartLocation;
+    BOOL _searchPicksFirstMatch;
+    BOOL _searchRevealsFirstMatch;
+    // A re-run of the shown query (the text was re-rendered): the old matches
+    // stay up until the new search is done, then are replaced at once.
+    BOOL _searchReplacesPrevious;
+    NSMutableArray* _Nullable _searchPendingPages;
     // The live query/regex flag, kept so a font-scale or language re-render can
     // re-run the search against the freshly rendered attributed string instead
     // of reapplying stale ranges.
@@ -96,12 +115,39 @@ NS_ASSUME_NONNULL_BEGIN
 @property(nonatomic, strong, nullable) SPDFMarkdownRenderedDocument* renderedDocument;
 @end
 
+// A search match's place: its page and first page-local rect.
+typedef struct {
+    NSInteger page;  // -1 when the match has no rect (no page geometry)
+    NSRect rect;     // first page-local rect
+} SPDFMarkdownMatchGeometry;
+
+@interface SPDFMarkdownPageSearchHits : NSObject
+@property(nonatomic, copy) NSArray<SPDFMarkdownSearchMatch*>* matches;
+@property(nonatomic, copy) NSData* geometry;  // SPDFMarkdownMatchGeometry per match
+@property(nonatomic, copy) NSArray<NSValue*>* pageRects;
+@property(nonatomic) NSInteger pageIndex;
+@end
+
+// Merging and selecting search results, implemented in
+// SPDFMacMarkdownSession+SearchResults.mm.
+@interface SPDFMacMarkdownSession (SearchResults)
+- (NSUInteger)searchMatchIndexForLocation:(NSUInteger)location;
+- (void)mergeSearchPages:(NSArray<SPDFMacSearchPageResult*>*)pages;
+- (void)finishSearchWithPreferredIndex:(NSInteger)preferredIndex jumpToNearest:(BOOL)jumpToNearest reveal:(BOOL)reveal;
+- (SPDFMarkdownMatchGeometry)geometryOfSearchMatchAtIndex:(NSUInteger)index;
+- (CGFloat)documentCenterYOfSearchMatchAtIndex:(NSUInteger)index page:(nullable NSInteger*)outPage;
+@end
+
 // Search internals the lifecycle half calls across the file split; implemented
 // in SPDFMacMarkdownSession+Search.mm.
 @interface SPDFMacMarkdownSession (SearchInternal)
 - (void)applySearchHighlights;
 - (void)removeSearchHighlights;
 - (void)clearMatchFlash;
+- (void)publishSearchHighlights;
+- (void)resetSearchMatches;
+- (void)revealCurrentMatch;
+- (NSInteger)nearestMatchIndexToViewport;
 @end
 
 // Lifecycle internals the interaction half calls across the file split;
