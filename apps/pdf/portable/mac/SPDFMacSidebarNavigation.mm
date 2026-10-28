@@ -201,7 +201,11 @@ static NSString* Symbol(NSInteger mode) {
         }
         // Keep the complete target on device pixels. Fractional panel widths
         // otherwise place cached glyphs between pixels (especially at 1x).
-        row.frame = [self backingAlignedRect:frame options:NSAlignAllEdgesNearest];
+        // At 1x, rounding Groups' trailing edge to the nearest pixel can put it
+        // half a point past the strip; such an edge moves in to the pixel inside.
+        NSRect aligned = [self backingAlignedRect:frame options:NSAlignAllEdgesNearest];
+        row.frame = NSContainsRect(self.bounds, aligned) ? aligned
+            : [self backingAlignedRect:NSIntersectionRect(aligned, self.bounds) options:NSAlignAllEdgesInward];
     }
 }
 - (void)drawRect:(NSRect)dirty {
