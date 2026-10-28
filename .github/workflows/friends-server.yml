@@ -1,10 +1,6 @@
 name: Friends host
+# Started by hand only: every test runs locally through tools/release.sh (docs/RELEASING.md).
 on:
-  push:
-    branches: [main]
-    paths: ['apps/pdf/portable/server/friends/**', '.github/workflows/friends-server.yml']
-  pull_request:
-    paths: ['apps/pdf/portable/server/friends/**', '.github/workflows/friends-server.yml']
   workflow_dispatch:
 permissions:
   contents: read

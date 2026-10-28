@@ -1,10 +1,6 @@
 name: ShenzhenPDF
+# Started by hand only: every test runs locally through tools/release.sh (docs/RELEASING.md).
 on:
-  push:
-    branches: [main]
-    paths: ['apps/pdf/**', '!apps/pdf/portable/server/**', '.github/workflows/pdf.yml']
-  pull_request:
-    paths: ['apps/pdf/**', '!apps/pdf/portable/server/**', '.github/workflows/pdf.yml']
   workflow_dispatch:
 permissions:
   contents: read

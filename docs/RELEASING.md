@@ -246,13 +246,13 @@ Deploy only with the owner's approval.
 
 ## Release jobs
 
-The `release-*.yml` and `deploy-friends-server.yml` workflows start only by hand (Actions, Run workflow), for an
-existing tag of their own (`pdf/*`, `files/*`, `3d/*`, `friends-server/*`), and only in the `casimir-engineering`
-organization. Pushing a tag starts nothing. The build and
-test workflows (`pdf.yml`, `files.yml`, `3d.yml`, `friends-server.yml`) run on pull requests and pushes that touch
-their app: `apps/<app>/**`, and for Files and 3D also what their Friends build reads from ShenzhenPDF:
-`apps/pdf/portable/friends/**`, `apps/pdf/portable/Makefile` and the libraries Friends links in `apps/pdf/ext/`
-(cjson, libdatachannel, libjuice, libsodium, mbedtls, miniupnpc, plog, usrsctp).
+Nothing runs on GitHub. Every test runs locally through `tools/release.sh`, which builds, signs and notarizes on the
+Mac and only uploads the release assets. GitHub Actions is turned off in `shenzhen-apps`, `shenzhen-pdf` and
+`shenzhen-3D` (each workflow disabled; `gh workflow enable` turns one back on), and no workflow here starts on a push,
+a pull request or a tag: the build and test workflows (`pdf.yml`, `files.yml`, `3d.yml`, `friends-server.yml`), the
+`release-*.yml` jobs and `deploy-friends-server.yml` start only by hand, once enabled. The release jobs act only on an
+existing tag of their own (`pdf/*`, `files/*`, `3d/*`, `friends-server/*`) and only in the `casimir-engineering`
+organization.
 
 Secrets and variables, set on this repository:
 

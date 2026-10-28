@@ -1,19 +1,7 @@
 name: Shenzhen 3D
 # Friends is built from apps/pdf: its sources, the Makefile that builds it and the ext/ libraries it links.
+# Started by hand only: every test runs locally through tools/release.sh (docs/RELEASING.md).
 on:
-  push:
-    branches: [main]
-    paths: [
-      'apps/3d/**', 'apps/pdf/portable/friends/**', 'apps/pdf/portable/Makefile',
-      'apps/pdf/ext/cjson/**', 'apps/pdf/ext/libdatachannel/**', 'apps/pdf/ext/libjuice/**', 'apps/pdf/ext/libsodium/**',
-      'apps/pdf/ext/mbedtls/**', 'apps/pdf/ext/miniupnpc/**', 'apps/pdf/ext/plog/**', 'apps/pdf/ext/usrsctp/**',
-      '.github/workflows/3d.yml']
-  pull_request:
-    paths: [
-      'apps/3d/**', 'apps/pdf/portable/friends/**', 'apps/pdf/portable/Makefile',
-      'apps/pdf/ext/cjson/**', 'apps/pdf/ext/libdatachannel/**', 'apps/pdf/ext/libjuice/**', 'apps/pdf/ext/libsodium/**',
-      'apps/pdf/ext/mbedtls/**', 'apps/pdf/ext/miniupnpc/**', 'apps/pdf/ext/plog/**', 'apps/pdf/ext/usrsctp/**',
-      '.github/workflows/3d.yml']
   workflow_dispatch:
 permissions:
   contents: read
