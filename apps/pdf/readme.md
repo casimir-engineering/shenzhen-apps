@@ -1,68 +1,95 @@
 # Shenzhen PDF Reader
 
-A fast, free, open-source reader for macOS. Organize documents in groups and keep them in Collection, your local document library. Search and AI help you find information, compare documents and check the sources.
+A fast, free, open-source document reader for the Mac. Keep your documents in colourful tab groups, find anything in them, and ask the assistant about them. Collection, your own document library on your Mac, keeps every version.
 
-Supports PDF, EPUB, Markdown, text, code and images.
+Reads PDF, EPUB, Markdown, plain text, code and images.
 
 **[Download for Mac](https://github.com/casimir-engineering/shenzhen-pdf/releases/latest/download/ShenzhenPDF-mac-arm64.dmg)** · Apple Silicon · macOS 12+ · Signed and notarized
 
 <sub>Latest <b>26.10.29-1</b></sub> · [Release notes](https://github.com/casimir-engineering/shenzhen-pdf/releases/latest) · [Website](https://casimir-engineering.github.io/shenzhen-pdf/) · [中文](https://casimir-engineering.github.io/shenzhen-pdf/zh/)
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/portable/readme-reader-dark.png">
+  <img src="docs/images/portable/readme-reader-light.png" alt="ShenzhenPDF with a desk lamp guide open, its chapters on the left and colourful tab groups across the top">
+</picture>
+
+<sub>All screenshots use made-up sample documents.</sub>
+
+## Tabs and groups
+
+- **Tab groups.** Put documents into named, coloured groups. Collapse a group to its name, open it again with a click, and drag tabs between groups and windows.
+- **Page previews.** Hover a tab to see its current page under its full name, for every kind of document.
+- **Your colours.** Pick the group colours in **Settings › Appearance**: Pastel but vibrant, Neon, Pastel, Cyberpunk, Apple system and more. Keep ShenzhenPDF light or dark, or follow your Mac.
+- **Picks up where you left off.** Tabs, groups, windows, pages and zoom come back when you open the app again. It opens quickly, quits at once, and never asks you to save.
+
+![Hovering a tab shows its page under its full name](docs/images/portable/readme-hover-dark.png)
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/portable/readme-settings-dark.png">
+  <img src="docs/images/portable/readme-settings-light.png" alt="Settings, Appearance: Light or dark, and the tab group colours" width="600">
+</picture>
+
 ## Ask about your documents
 
-- Ask questions across open documents. Click source links to open and highlight the cited passages.
-- Brief answers can include a card with a **View evidence** button.
-- Inspect page images, crops and the current document view with image-capable models.
-- Generate summaries, up to six tags and missing chapters in your selected language.
-- Save chats in folders; search, resume and rename them. Supported agent edits have Undo/Redo.
+- **Answers with sources.** Ask about the documents you have open or in Collection. Source links open the right document at the right page and highlight the passage.
+- **Long tasks.** Ask it to sort dozens of documents into groups, rename them or close the ones you haven't looked at for a week. If a task is long, **Continue** picks up where it stopped. Undo puts things back.
+- **Measures and makes files.** The assistant can work on your documents' pages and pictures to measure and calculate, and save tables, charts and reports to your Downloads folder and to Collection.
+- **Drop files or folders into a chat** to ask about them. Only that chat can read them.
+- **Summaries, tags and chapters** in your language, and chats you can save in folders, search and pick up again.
 
-![Document comparison with citations, an answer card and source evidence](docs/images/portable/macos-ai-chat.png)
+![The assistant answering a question about a desk lamp guide, beside a search for “hinge”](docs/images/portable/readme-assistant.png)
 
-*Scripted UI example using fictional plans.*
-
-Requires an OpenRouter account and credits. Retrieved content is sent to the provider. Chat and automatic analysis can be disabled separately. Models can misinterpret documents: verify the cited evidence. [AI guide](portable/docs/document-assistant.md) · [Six-model benchmark](portable/docs/journals/ai-reader/model-benchmark-2026-10-11.md)
+The assistant needs an [OpenRouter](https://openrouter.ai) account with credits. What it reads from your documents is sent to the model you choose. You can turn off the chat and the automatic analysis separately. Models can misread documents: check the sources it links. [Assistant guide](portable/docs/document-assistant.md)
 
 ## Markdown and code
 
-Paginated Markdown with native vector diagrams, math, tables and syntax highlighting. Configurable paper size, margins and page breaks. External edits reload automatically. Text and code support font-size adjustment; HTML opens as source.
+Markdown opens as pages, with diagrams, maths, tables and highlighted code. Choose the paper size, margins and page breaks. When the file changes on disk, the pages and chapter list follow. Text and code files open with adjustable font size.
 
-![Native Markdown rendering with diagrams and tables](docs/images/portable/macos-markdown.webp)
+![A Markdown file with a table, a checklist and a diagram](docs/images/portable/readme-markdown.png)
 
-## Search and navigation
+## Search
 
-Type in the reader to search. Results include chapter context, page highlights and map markers. **⌘K** searches open documents and Collection; an empty palette lists recently viewed documents. The document map supports direct page navigation. **⌘J** opens or closes Friends (beta), the people button in the title bar; ⌘K finds its commands too, such as Add by ID.
+Start typing in a document to search it. Results are grouped by chapter, highlighted on the page and marked along the scroll bar, and even documents of thousands of pages show matches as they are found. **⌘K** searches every open document and Collection; with nothing typed, it lists what you read last.
 
-![Document search with context and highlights](docs/images/portable/macos-search-highlights.webp)
+## Collection
 
-## Groups and Collection
+- Your document library on your Mac, with a saved copy of every version.
+- Compare versions, reconnect a document whose file moved, and choose how much space Collection may use.
+- Saved copies stay readable and editable when the original file is gone.
 
-- Colored tab groups, drag-and-drop organization and multiple windows.
-- Restore tabs, groups, window positions, page, zoom and search state from YAML.
-- Collection is your local document library, with saved copies and version history. Available copies remain editable when originals disappear.
-- Compare revisions, reconnect missing originals, and set dynamic, fixed or unlimited storage.
-- Identical content is deduplicated. Changed versions are full copies, without delta storage.
+## Friends (Beta)
 
-![Document groups and reader controls](docs/images/portable/macos-groups.webp)
+Message people nearby or by their Friends ID, and send them documents. Friends also works in Shenzhen Files and Shenzhen 3D.
 
-## Local tools
+- Type **#** in a message to attach a document: the one on screen comes first, marked **Current**.
+- Paste (⌘V) to attach files copied in Finder, or a screenshot.
+- Drop files on the Friends button to send them.
 
-- **OCR:** searchable PDFs from scans and images using OCRmyPDF and Tesseract.
-- **Translation:** selected text or documents using Argos Translate.
-- **Images:** paste, rotate, save as image/PDF and copy as PDF.
-- **Reading:** dark theme with per-document image-color settings, printing and PDF export.
+![A Friends chat with the # list open, the document on screen marked Current](docs/images/portable/readme-friends-hash.png)
 
-OCR and translation run locally after their tools and language packs are downloaded. [Full feature list](docs/features.md)
+## Tools that run on your Mac
 
-## Automation and platforms
+- **OCR** makes scans and photos searchable (OCRmyPDF and Tesseract).
+- **Translation** of a selection or a whole document (Argos Translate).
+- **Images:** paste, rotate, save as an image or PDF, copy as PDF.
+- **Reading:** a dark reading theme, printing and PDF export.
 
-[CLI/MCP and Markdown authoring guide](portable/docs/agent-interface.md): open and inspect documents, organize saved groups while the app is closed, navigate/highlight content, and control Markdown layout.
+OCR and translation run on your Mac once their tools and languages are downloaded. [Full feature list](docs/features.md)
 
-- **macOS:** native AppKit app; signed Apple Silicon download above.
-- **Linux:** GTK4 frontend; feature availability differs.
-- **Windows:** native Win32 frontend; build from source, no published binary.
+## Links from websites
 
-[Build instructions and architecture](portable/README.md) · [Benchmark runner](tools/ai-model-benchmark/README.md) · [Report an issue](https://github.com/casimir-engineering/shenzhen-pdf/issues)
+A website can link straight to a document in ShenzhenPDF, at a page, section or heading. The page shows while the rest downloads, and the document stays available offline. [How to make such links](docs/szpdf-links.md)
+
+## Automation and other systems
+
+[Command line, MCP and Markdown authoring guide](portable/docs/agent-interface.md): open and inspect documents, organize groups while the app is closed, go to and highlight passages, and control Markdown layout.
+
+- **macOS:** the download above.
+- **Linux:** a GTK 4 version; some features differ.
+- **Windows:** a native version you can build from source; there is no download yet.
+
+[Building and architecture](portable/README.md) · [Report an issue](https://github.com/casimir-engineering/shenzhen-pdf/issues)
 
 ## License
 
-See [COPYING](COPYING), [COPYING.BSD](COPYING.BSD) and [NOTICE.md](NOTICE.md). Dependencies retain their own licenses. ShenzhenPDF is a separate project inspired by SumatraPDF, with no affiliation.
+See [COPYING](COPYING), [COPYING.BSD](COPYING.BSD) and [NOTICE.md](NOTICE.md). Dependencies keep their own licenses. ShenzhenPDF is a separate project inspired by SumatraPDF, with no affiliation.

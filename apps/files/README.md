@@ -15,24 +15,25 @@
 
 ---
 
-## What the port adds on macOS
+## What it does on a Mac
 
-- **Native menu bar** — the full GNOME Files menu rendered as a real NSMenu bar (File · Edit · View · Go · Window · Help), with working key equivalents.
-- **Search commands with Cmd-K** — type a few letters to find a command (New Folder, Show Hidden Files, Preferences…, and Friends' own), move with the arrow keys, and press Return to run it. Each command shows its shortcut. Also in Help ▸ Search Commands….
-- **Friends (beta) with Cmd-J** — opens Shenzhen Friends with the cursor in its search field, and closes it again, even from that field. Also in View ▸ Friends (Beta) and in the Friends button's tooltip; does nothing while Friends is off.
-- **Finder-like Dock lifecycle** — closing the last window keeps the app alive; clicking the Dock icon or pressing Cmd-T opens a new window, while Cmd-T adds a tab when a window exists.
-- **Mounted drives in the sidebar** — the startup disk, external disks, disk images, and network volumes appear under mounts with native eject or unmount controls and automatic hot-plug refresh. Ejecting a volume that is open in Shenzhen Files first returns every affected window and tab to Home, releases its directory handles, and then safely ejects it.
-- **QuickLook everywhere** — real macOS thumbnails in the grid, space-bar preview, and LaunchServices file-type icons for anything QuickLook can't draw.
-- **Finder-compatible clipboard** — copying in Finder and pasting in Shenzhen Files transfers the original files, including from read-only locations, instead of mistaking Finder's preview image for the file.
-- **Spotlight-backed search** — the search field streams results from Spotlight, scoped to the folder you're in; plain text entered in the location field searches there, while paths and addresses still navigate.
-- **System integration, strictly opt-in** — open folders by default, sync Finder's sidebar favorites, hide the Finder desktop. Everything is off by default, revertible, and records the prior system state before changing anything.
-- **Native Trash and permanent delete** — regular deletion moves items to the system Trash; Shift+Delete asks for confirmation before permanently deleting them. Show in Finder, Open in Terminal, and "Open With" are also bridged to native macOS services.
-- **Useful Open With chooser** — installed apps show their real macOS icons, and apps explicitly chosen for a file type are promoted into a private, bounded Frequently Used section.
-- **Full Disk Access onboarding** — a one-time walkthrough for the TCC grant that browsing the Trash needs.
-- **Native-sized macOS icon** — the blue folder and legible 深圳 mark use the LaunchServices-rendered enclosure and optical safe area, matching neighboring Dock icons without a nested tile or oversized raw canvas.
-- **Auto-update** — a silent daily check against GitHub releases plus a "Check for Updates…" menu item; updates download into persistent secure staging, verify offline (Developer ID + notarization, pinned Team ID and bundle id), atomically swap the bundle, refresh the app icon, and relaunch the exact new build in place.
-- **Production-path updater testing** — release packaging exercises the signed helper through Foundation's real process-launch path, forces a genuinely different old-to-new version swap, and repeats the complete installed update through GitHub HTTPS with the notarized DMG. Final identity reads the `Info.plist` bytes on disk instead of a path-cached bundle object.
-- **Retina installer artwork** — the DMG background carries native 1x and 2x representations, keeping its logo, wordmark, instructions, and arrow sharp on Retina displays.
+- **Feels at home on the Mac.** A real menu bar with the usual shortcuts, Quick Look thumbnails and the space bar preview, real app icons in Open With, the system Trash, and Show in Finder or Open in Terminal.
+- **Tabs, grid and list views, stars and batch rename,** as in GNOME Files.
+- **Drives in the sidebar.** The startup disk, external disks, disk images and network volumes appear as you plug them in, with an eject button. Ejecting a drive that is open first takes its windows back to Home.
+- **Search as you type.** The search field finds files with Spotlight in the folder you are in. Plain words typed in the location field search too; paths and addresses still go there.
+- **Copy and paste with Finder.** Files copied in Finder paste as the files themselves, even from read-only places.
+- **⌘K finds any command** and shows its shortcut, such as New Folder or Show Hidden Files.
+- **Stays open like Finder.** Closing the last window keeps the app running; click the Dock icon or press ⌘T for a new window.
+- **Only changes your Mac when you ask.** Opening folders with Shenzhen Files by default, syncing Finder's sidebar favourites and hiding the Finder desktop are all off until you turn them on, and can be turned off again.
+- **Updates itself.** It checks once a day, or when you choose **Check for Updates…**, and installs an update only once it has checked its signature and Apple's notarization.
+
+## Friends (Beta)
+
+Message people nearby or by their Friends ID, and send them files. **⌘J** opens and closes Friends. It is the same Friends as in ShenzhenPDF and Shenzhen 3D.
+
+- Type **#** in a message to attach a file: the files selected in the front window come first, marked **Current**, then the folder's other files.
+- Paste (⌘V) to attach files copied in Finder, or a screenshot.
+- When new messages arrive while you read older ones, **New message ↓** takes you to them.
 
 ## Install
 
