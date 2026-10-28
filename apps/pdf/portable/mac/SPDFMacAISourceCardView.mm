@@ -1,5 +1,6 @@
 #import "SPDFMacAISourceCardView.h"
 #import "SPDFMacCollectionStyle.h"
+#import "SPDFMacIconGeometry.h"
 
 static const CGFloat kCardHeight = 68, kThumbWidth = 38, kThumbHeight = 50;
 
@@ -57,15 +58,8 @@ static const CGFloat kCardHeight = 68, kThumbWidth = 38, kThumbHeight = 50;
         [SPDFCollectionColor(@"line") setStroke];
         [NSBezierPath strokeRect:NSInsetRect(NSIntegralRect(page), .5, .5)];
     } else {
-        NSImageSymbolConfiguration* config = [[NSImageSymbolConfiguration configurationWithPointSize:22
-            weight:NSFontWeightLight] configurationByApplyingConfiguration:[NSImageSymbolConfiguration
-            configurationWithPaletteColors:@[ SPDFCollectionColor(@"secondary") ]]];
-        NSImage* symbol = [[NSImage imageWithSystemSymbolName:@"doc.text" accessibilityDescription:nil]
-            imageWithSymbolConfiguration:config];
-        NSRect box = NSMakeRect(NSMidX(thumb) - symbol.size.width / 2, NSMidY(thumb) - symbol.size.height / 2,
-                                symbol.size.width, symbol.size.height);
-        [symbol drawInRect:box fromRect:NSZeroRect operation:NSCompositingOperationSourceOver fraction:1
-            respectFlipped:YES hints:nil];
+        SPDFDrawVectorIcon(SPDFChromeSymbol(@"doc.text", 22, NSFontWeightLight, SPDFCollectionColor(@"secondary")),
+                           thumb, YES);
     }
     CGFloat left = NSMaxX(thumb) + 12, width = MAX(20, NSWidth(self.bounds) - left - 34);
     NSMutableParagraphStyle* truncate = [NSMutableParagraphStyle new];
@@ -76,14 +70,8 @@ static const CGFloat kCardHeight = 68, kThumbWidth = 38, kThumbHeight = 50;
     [_pageLabel drawInRect:NSMakeRect(left, 36, width, 16) withAttributes:@{
         NSFontAttributeName : [NSFont systemFontOfSize:11], NSForegroundColorAttributeName : SPDFCollectionColor(@"secondary"),
         NSParagraphStyleAttributeName : truncate}];
-    NSImageSymbolConfiguration* arrowStyle = [[NSImageSymbolConfiguration configurationWithPointSize:11
-        weight:NSFontWeightMedium] configurationByApplyingConfiguration:[NSImageSymbolConfiguration
-        configurationWithPaletteColors:@[ SPDFCollectionColor(@"secondary") ]]];
-    NSImage* arrow = [[NSImage imageWithSystemSymbolName:@"arrow.up.forward" accessibilityDescription:nil]
-        imageWithSymbolConfiguration:arrowStyle];
-    [arrow drawInRect:NSMakeRect(NSWidth(self.bounds) - 24, (kCardHeight - arrow.size.height) / 2, arrow.size.width,
-                                 arrow.size.height) fromRect:NSZeroRect operation:NSCompositingOperationSourceOver
-             fraction:1 respectFlipped:YES hints:nil];
+    NSImage* arrow = SPDFChromeSymbol(@"arrow.up.forward", 11, NSFontWeightMedium, SPDFCollectionColor(@"secondary"));
+    SPDFDrawVectorIcon(arrow, NSMakeRect(NSWidth(self.bounds) - 24, 0, arrow.size.width, kCardHeight), YES);
 }
 - (BOOL)isAccessibilityElement { return YES; }
 - (NSAccessibilityRole)accessibilityRole { return NSAccessibilityButtonRole; }

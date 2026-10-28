@@ -1,6 +1,7 @@
 #import "SPDFMacAIChatViewParts.h"
 #import "SPDFMacAIChatActivity.h"
 #import "SPDFMacCollectionStyle.h"
+#import "SPDFMacIconGeometry.h"
 NSTrackingArea* SPDFChatHoverArea(NSView* owner) {
     return [[NSTrackingArea alloc] initWithRect:NSZeroRect options:NSTrackingMouseEnteredAndExited|
         NSTrackingActiveInKeyWindow|NSTrackingInVisibleRect owner:owner userInfo:nil];
@@ -21,13 +22,6 @@ NSTrackingArea* SPDFChatHoverArea(NSView* owner) {
     if(self.image) return NSMakeSize(28,28);
     return NSMakeSize(ceil([self.title sizeWithAttributes:@{NSFontAttributeName:self.font}].width)+20,28);
 }
-- (NSRect)rectForSymbol:(NSImage*)icon {
-    NSRect available=NSInsetRect(self.bounds,6,6); NSSize size=icon.size;
-    if(size.width<=0 || size.height<=0) return NSZeroRect;
-    CGFloat scale=MIN(NSWidth(available)/size.width,NSHeight(available)/size.height);
-    return NSMakeRect(NSMidX(available)-size.width*scale/2,NSMidY(available)-size.height*scale/2,
-        size.width*scale,size.height*scale);
-}
 - (void)drawRect:(NSRect)dirty {
     (void)dirty;
     NSBezierPath* shape=[NSBezierPath bezierPathWithRoundedRect:NSInsetRect(self.bounds,.5,.5) xRadius:5 yRadius:5];
@@ -37,12 +31,8 @@ NSTrackingArea* SPDFChatHoverArea(NSView* owner) {
     }
     NSColor* ink=SPDFCollectionColor(self.enabled ? @"text" : @"secondary");
     if(self.image) {
-        NSImageSymbolConfiguration* configuration=[[NSImageSymbolConfiguration configurationWithPointSize:16
-            weight:NSFontWeightMedium] configurationByApplyingConfiguration:
-            [NSImageSymbolConfiguration configurationWithPaletteColors:@[ink]]];
-        NSImage* icon=[self.image imageWithSymbolConfiguration:configuration];
-        [icon drawInRect:[self rectForSymbol:icon] fromRect:NSZeroRect operation:NSCompositingOperationSourceOver
-            fraction:self.enabled ? 1 : .65 respectFlipped:YES hints:nil];
+        NSImage* icon=SPDFChromeSymbolImage(self.image,SPDFToolbarSymbolPointSize,NSFontWeightMedium,ink);
+        SPDFDrawVectorIconWithFraction(icon,NSInsetRect(self.bounds,3,3),YES,self.enabled ? 1 : .65);
         if(self.state==NSControlStateValueOn) { [SPDFCollectionColor(@"focus") setStroke]; [shape stroke]; }
     } else {
         NSMutableParagraphStyle* p=[NSMutableParagraphStyle new];

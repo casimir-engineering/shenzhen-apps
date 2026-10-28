@@ -66,11 +66,9 @@
 
 - (void)drawRect:(NSRect)dirtyRect {
     (void)dirtyRect;
-    NSImage* image = [NSImage imageWithSystemSymbolName:[self.title isEqualToString:@"Map"] ? @"sidebar.right" : @"sidebar.left"
-                              accessibilityDescription:nil];
-    image = [image imageWithSymbolConfiguration:[NSImageSymbolConfiguration configurationWithPointSize:14 weight:NSFontWeightRegular]];
-    image = [image imageWithSymbolConfiguration:[NSImageSymbolConfiguration configurationWithPaletteColors:@[SPDFChromeIconColor(self.enabled)]]];
-    SPDFDrawVectorIcon(image,NSMakeRect(floor((NSWidth(self.bounds)-16)/2),floor((NSHeight(self.bounds)-16)/2),16,16),NO);
+    NSImage* image = SPDFChromeSymbol([self.title isEqualToString:@"Map"] ? @"sidebar.right" : @"sidebar.left",
+                                      SPDFToolbarSymbolPointSize,NSFontWeightRegular,SPDFChromeIconColor(self.enabled));
+    SPDFDrawVectorIcon(image,NSInsetRect(self.bounds,1,1),NO);
 }
 
 @end

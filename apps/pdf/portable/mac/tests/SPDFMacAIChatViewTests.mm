@@ -7,11 +7,9 @@
 #import "../SPDFMacAIChatActivity.h"
 #import "../SPDFMacChatMarkdownView.h"
 #import "../SPDFMacAIChatViewParts.h"
+#import "../SPDFMacIconGeometry.h"
 static int failures;
 static NSEvent* pendingUp;
-@interface NSButton (AIChatSymbolProbe)
-- (NSRect)rectForSymbol:(NSImage*)image;
-@end
 @interface NSWindow (AIChatProbe)
 - (NSEvent*)chatProbeEvent:(NSEventMask)mask;
 @end
@@ -330,9 +328,10 @@ int main(void) { @autoreleasepool {
     for(NSString* key in @[@"close",@"new",@"undo",@"redo",@"settings"]) {
         NSButton* button=(id)Find(view,key);
         Check(button.image && button.toolTip.length,@"panel actions have vector symbols and hover help");
-        NSRect icon=[button rectForSymbol:button.image];
-        Check(NSContainsRect(NSInsetRect(button.bounds,6,6),icon) &&
-            fabs(NSWidth(icon)/NSHeight(icon)-button.image.size.width/button.image.size.height)<.0001,@"symbols keep fixed aspect ratio");
+        NSImage* symbol=SPDFChromeSymbolImage(button.image,SPDFToolbarSymbolPointSize,NSFontWeightMedium,nil);
+        NSRect icon=SPDFIconAspectFitRect(symbol,NSInsetRect(button.bounds,3,3));
+        Check(NSContainsRect(NSInsetRect(button.bounds,3,3),icon) && NSEqualSizes(icon.size,symbol.size),
+            @"symbols are drawn at their natural size and aspect ratio");
         Click(window,button,NSMakePoint(2,2));
         Click(window,button,NSMakePoint(NSWidth(button.bounds)-2,NSHeight(button.bounds)-2));
     }

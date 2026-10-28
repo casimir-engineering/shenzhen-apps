@@ -6,7 +6,6 @@
 #import <Cocoa/Cocoa.h>
 #import "SPDFMacGroupActionButton.h"
 @interface SPDFChatButton : SPDFGroupActionButton
-- (NSRect)rectForSymbol:(NSImage*)icon;
 // Shown only while the pointer is over its message, or while it has keyboard focus.
 @property(nonatomic) BOOL revealOnHover;
 - (void)setRevealed:(BOOL)revealed;

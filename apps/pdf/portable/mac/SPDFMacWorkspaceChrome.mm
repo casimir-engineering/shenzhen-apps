@@ -57,9 +57,8 @@ static char chromeKey;
 - (void)drawWithFrame:(NSRect)frame inView:(NSView*)view {
     NSBezierPath* shape = [NSBezierPath bezierPathWithRoundedRect:NSInsetRect(frame,1,1) xRadius:6 yRadius:6];
     if (self.highlighted) { [SPDFCollectionColor(@"selected") setFill]; [shape fill]; }
-    NSImage* image = [self.image imageWithSymbolConfiguration:[NSImageSymbolConfiguration configurationWithPointSize:16 weight:NSFontWeightRegular]] ?: self.image;
-    image = [image imageWithSymbolConfiguration:[NSImageSymbolConfiguration configurationWithPaletteColors:@[SPDFChromeIconColor(self.enabled)]]] ?: image;
-    SPDFDrawVectorIcon(image,NSMakeRect(floor(NSMidX(frame)-8),floor(NSMidY(frame)-8),16,16),view.isFlipped);
+    NSImage* image = SPDFChromeSymbolImage(self.image,SPDFToolbarSymbolPointSize,NSFontWeightRegular,SPDFChromeIconColor(self.enabled));
+    SPDFDrawVectorIcon(image,NSInsetRect(frame,1,1),view.isFlipped);
     if (view.window.firstResponder == view) {
         [NSGraphicsContext saveGraphicsState]; NSSetFocusRingStyle(NSFocusRingOnly); [shape fill]; [NSGraphicsContext restoreGraphicsState];
     }

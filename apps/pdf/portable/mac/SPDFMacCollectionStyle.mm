@@ -94,10 +94,9 @@ NSColor* SPDFCollectionColor(NSString* token) {
 
     NSRect titleRect = NSInsetRect(self.bounds,9,3);
     if (self.image) {
-        NSRect icon = NSMakeRect(NSMinX(titleRect),floor(NSMidY(self.bounds)-7.5),15,15);
-        NSImage* symbol = self.image;
-        if (@available(macOS 12.0,*)) symbol = [symbol imageWithSymbolConfiguration:
-            [NSImageSymbolConfiguration configurationWithPaletteColors:@[chosen ? SPDFCollectionColor(@"window") : SPDFChromeIconColor(self.enabled)]]] ?: symbol;
+        NSRect icon = NSMakeRect(NSMinX(titleRect)-2,NSMidY(self.bounds)-9,19,18);
+        NSImage* symbol = SPDFChromeSymbolImage(self.image,12,NSFontWeightRegular,
+            chosen ? SPDFCollectionColor(@"window") : SPDFChromeIconColor(self.enabled));
         SPDFDrawVectorIcon(symbol,icon,YES);
         titleRect.origin.x += 24; titleRect.size.width -= 24;
     }
@@ -138,10 +137,8 @@ NSColor* SPDFCollectionColor(NSString* token) {
     NSMutableParagraphStyle* paragraph = [NSMutableParagraphStyle new]; paragraph.lineBreakMode = NSLineBreakByTruncatingTail;
     NSDictionary* attributes = @{NSFontAttributeName:self.font ?: [NSFont systemFontOfSize:13],NSForegroundColorAttributeName:SPDFCollectionColor(@"text"),NSParagraphStyleAttributeName:paragraph};
     [self.title drawInRect:NSMakeRect(9,floor((NSHeight(self.bounds)-16)/2),NSWidth(self.bounds)-32,18) withAttributes:attributes];
-    NSImage* image = [NSImage imageWithSystemSymbolName:@"chevron.down" accessibilityDescription:nil];
-    if (@available(macOS 12.0,*)) image = [image imageWithSymbolConfiguration:
-        [NSImageSymbolConfiguration configurationWithPaletteColors:@[SPDFCollectionColor(@"text")]]] ?: image;
-    SPDFDrawVectorIcon(image,NSMakeRect(NSWidth(self.bounds)-20,floor(NSMidY(self.bounds)-5),10,10),YES);
+    SPDFDrawVectorIcon(SPDFChromeSymbol(@"chevron.down",8,NSFontWeightMedium,SPDFCollectionColor(@"text")),
+                       NSMakeRect(NSWidth(self.bounds)-20,NSMidY(self.bounds)-5,10,10),YES);
     if (self.window.firstResponder == self) { [NSGraphicsContext saveGraphicsState]; NSSetFocusRingStyle(NSFocusRingOnly); [shape fill]; [NSGraphicsContext restoreGraphicsState]; }
 }
 @end

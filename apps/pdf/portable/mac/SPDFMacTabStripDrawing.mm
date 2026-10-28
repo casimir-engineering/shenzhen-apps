@@ -166,11 +166,9 @@
     }
     NSRect overflowRect = [self overflowRect];
     if (!NSIsEmptyRect(overflowRect)) {
-        NSImage* icon = [NSImage imageWithSystemSymbolName:@"square.3.layers.3d" accessibilityDescription:@"All Groups"];
-        // The title bar's icon colour, as Search and Friends beside it use: labelColor is translucent and read as a
-        // lighter grey next to them.
-        icon = [icon imageWithSymbolConfiguration:[NSImageSymbolConfiguration configurationWithPaletteColors:@[SPDFChromeIconColor(YES)]]];
-        SPDFDrawVectorIcon(icon,NSInsetRect(overflowRect,6,6),YES);
+        // The title bar's icon colour and size, as Search and Friends beside it use.
+        SPDFDrawVectorIcon(SPDFChromeSymbol(@"square.3.layers.3d",SPDFToolbarSymbolPointSize,NSFontWeightRegular,
+                                            SPDFChromeIconColor(YES)),NSInsetRect(overflowRect,2,2),YES);
     }
 
     NSRect plusRect = [self plusRect];

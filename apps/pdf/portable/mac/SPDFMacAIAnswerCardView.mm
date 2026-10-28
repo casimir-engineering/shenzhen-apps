@@ -27,10 +27,8 @@
     NSDictionary* attributes=@{NSFontAttributeName:[NSFont systemFontOfSize:12 weight:NSFontWeightMedium],NSForegroundColorAttributeName:text};
     NSSize size=[self.title sizeWithAttributes:attributes];
     [self.title drawAtPoint:NSMakePoint(13,round((NSHeight(self.bounds)-size.height)/2)) withAttributes:attributes];
-    NSImageSymbolConfiguration* config=[[NSImageSymbolConfiguration configurationWithPointSize:12 weight:NSFontWeightMedium]
-        configurationByApplyingConfiguration:[NSImageSymbolConfiguration configurationWithPaletteColors:@[text]]];
-    NSImage* arrow=[[NSImage imageWithSystemSymbolName:@"arrow.right" accessibilityDescription:nil] imageWithSymbolConfiguration:config];
-    SPDFDrawVectorIcon(arrow,NSMakeRect(NSWidth(self.bounds)-26,(NSHeight(self.bounds)-12)/2,12,12),YES);
+    SPDFDrawVectorIcon(SPDFChromeSymbol(@"arrow.right",10,NSFontWeightMedium,text),
+                       NSMakeRect(NSWidth(self.bounds)-26,(NSHeight(self.bounds)-12)/2,12,12),YES);
     if(self.window.firstResponder==self) {
         [NSGraphicsContext saveGraphicsState]; NSSetFocusRingStyle(NSFocusRingOnly); [shape fill]; [NSGraphicsContext restoreGraphicsState];
     }

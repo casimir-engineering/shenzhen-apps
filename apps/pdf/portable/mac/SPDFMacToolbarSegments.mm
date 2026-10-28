@@ -60,8 +60,9 @@
             NSRectFillUsingOperation(NSMakeRect(NSMinX(frame),NSMinY(bounds)+5,.5,NSHeight(bounds)-10),NSCompositingOperationSourceOver); }
 
         NSColor* color = SPDFChromeIconColor(self.enabled && [self isEnabledForSegment:segment]);
-        NSImage* image = [self imageForSegment:segment];
-        NSRect slot=NSMakeRect(floor(NSMidX(frame)-8),floor(NSMidY(frame)-8),16,16);
+        // Symbols at the toolbar's point size; drawing-handler icons keep their own size.
+        NSImage* image = SPDFChromeSymbolImage([self imageForSegment:segment],SPDFToolbarSymbolPointSize,NSFontWeightRegular,nil);
+        NSRect slot=NSInsetRect(frame,1,2);
         // Tint in the destination context, without a size-specific NSImage cache.
         [NSGraphicsContext saveGraphicsState];
         CGContextRef context=NSGraphicsContext.currentContext.CGContext;
