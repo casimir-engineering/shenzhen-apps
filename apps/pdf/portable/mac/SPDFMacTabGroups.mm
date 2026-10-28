@@ -73,11 +73,11 @@ static NSColor* RGB(unsigned rgb) {
     return [NSColor colorWithSRGBRed:((rgb >> 16) & 255) / 255.0 green:((rgb >> 8) & 255) / 255.0
                               blue:(rgb & 255) / 255.0 alpha:1];
 }
-// Group colours come from one of the palettes below, chosen in Settings › Appearance (Neon unless chosen). Each
-// palette lists one base colour per stored colour name, in hue order: Coral red, Orange, Amber yellow, Green, Slate
-// mint, Teal cyan, Blue, Indigo, Purple, Plum magenta, Rose pink. Sessions store the name, so a group keeps its place
-// in the hues whichever palette is shown. Where a palette has fewer colours than names, a name repeats its nearest
-// hue. tab-group-palettes.json, beside appearance.yaml, can replace any of them or add more by name (see
+// Group colours come from one of the palettes below, chosen in Settings › Appearance (Pastel but vibrant unless
+// chosen). Each palette lists one base colour per stored colour name, in hue order: Coral red, Orange, Amber yellow,
+// Green, Slate mint, Teal cyan, Blue, Indigo, Purple, Plum magenta, Rose pink. Sessions store the name, so a group
+// keeps its place in the hues whichever palette is shown. Where a palette has fewer colours than names, a name repeats
+// its nearest hue. tab-group-palettes.json, beside appearance.yaml, can replace any of them or add more by name (see
 // apps/pdf/docs/tab-group-palettes.md); it is read with the choice and reread whenever it changes. Gray is General's, and the colour of tabs outside any group, in every palette. Per colour, worked out from the
 // base when a palette is first used:
 //   fill   the title tab ("chip") and the bar under an open group, the same in light and dark. Where white on the
@@ -236,8 +236,8 @@ static void ReadPalettes(void) {
 }
 static NSString* gChosen; // the palette saved in appearance.yaml, which may be one the file no longer has
 static void Recolor(void);
-static void UsePalette(size_t index) {
-    gPalette = index < gPalettes.size() ? index : 0;
+static void UsePalette(size_t index) { // never chosen, or gone: Pastel but vibrant, built in and so always listed
+    gPalette = index < gPalettes.size() ? index : PaletteIndex(@"Pastel but vibrant");
     for (size_t i = 0; i < 11; i++) gColors[i] = Worked(gPalettes[gPalette].base[i]);
     gColors[11] = Worked(kGray);
 }

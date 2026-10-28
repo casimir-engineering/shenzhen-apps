@@ -40,6 +40,6 @@ ignored and the built-in palettes are shown. The reason is logged, so it shows i
     log show --last 5m --predicate 'process == "ShenzhenPDF"' | grep "tab group palettes"
 
 Fix the file and save it again. Removing the file brings the built-in palettes back. If the palette chosen in Settings
-was one the file added and it is gone, Neon is shown until it comes back.
+was one the file added and it is gone, Pastel but vibrant is shown until it comes back.
 
 The built-in palettes live in `portable/mac/SPDFMacTabGroups.mm` (`kBuiltIn`); move a palette there once it's final.

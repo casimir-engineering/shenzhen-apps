@@ -24,8 +24,8 @@
 
 NSArray<NSString*>* spdf_tab_group_colors(void);
 // The palettes the colours can be drawn from (Settings › Appearance › Tab group colors), and the one in use: read
-// from appearance.yaml in the reader's state the first time a group is drawn, Neon when none was chosen. The built-in
-// palettes, as replaced or added to by tab-group-palettes.json in the same folder; when that file changes, every
+// from appearance.yaml in the reader's state the first time a group is drawn, Pastel but vibrant when none was
+// chosen. The built-in palettes, as replaced or added to by tab-group-palettes.json in the same folder; when that file changes, every
 // window of this process is recoloured and SPDFTabGroupPalettesChangedNotification is posted (default center).
 extern NSString* const SPDFTabGroupPalettesChangedNotification;
 NSArray<NSString*>* spdf_tab_group_palettes(void);
