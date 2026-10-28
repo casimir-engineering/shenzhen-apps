@@ -11,7 +11,9 @@
 
 #include "spdf_app.h"
 #include "spdf_minimap.h"
+#include "spdf_link_open.h"
 #include "spdf_resident.h"
+#include "spdf_resident_warmup.h"
 #include "spdf_updater.h"
 #include "spdf_watcher.h"
 #include "spdf_window.h"
@@ -576,46 +578,6 @@ static void spdf_app_activate(GApplication* app) {
     restore_session_or_open_empty(self);
 }
 
-// Resident warmup (see the resident-start branch below): realize a throwaway
-// shell window (never mapped) and push one text render node through its GSK
-// renderer, forcing the process-global first-frame work — font map, glyph
-// rasterization + atlas upload, CSS, icon theme, shader compilation — to
-// happen at login instead of on the user's first open.
-static gboolean resident_warmup_teardown(gpointer win) {
-    gtk_window_destroy(GTK_WINDOW(win));
-    spdf_launch_mark("resident-warmup-done");
-    return G_SOURCE_REMOVE;
-}
-
-static void resident_warmup_mapped(GtkWidget* warm, gpointer user_data) {
-    (void)user_data;
-    // Destroy from an idle, after the frame that mapping produced — that
-    // frame is exactly the warmup payload.
-    g_idle_add_full(G_PRIORITY_LOW, resident_warmup_teardown, warm, NULL);
-}
-
-static gboolean resident_warmup_idle(gpointer user_data) {
-    SpdfApp* self = SPDF_APP(user_data);
-    GtkWidget* warm;
-    GskRenderer* renderer;
-
-    // A real open raced us and already paid the bill.
-    if (gtk_application_get_windows(GTK_APPLICATION(self))) return G_SOURCE_REMOVE;
-
-    warm = GTK_WIDGET(spdf_window_new(ADW_APPLICATION(self)));
-    g_object_set_data(G_OBJECT(warm), "spdf-warmup", GINT_TO_POINTER(1));
-    (void)renderer;
-    // Realize alone rasterizes nothing (measured: the first real present
-    // still blocked ~220 ms). The full bill is only paid by an actual first
-    // frame of a real widget tree, so present the throwaway window fully
-    // transparent and tear it down right after it maps. This happens only on
-    // the --resident login start, before any user-visible window exists.
-    gtk_widget_set_opacity(warm, 0.0);
-    g_signal_connect(warm, "map", G_CALLBACK(resident_warmup_mapped), self);
-    gtk_window_present(GTK_WINDOW(warm));
-    return G_SOURCE_REMOVE;
-}
-
 static int spdf_app_command_line(GApplication* app, GApplicationCommandLine* cmdline) {
     SpdfApp* self = SPDF_APP(app);
     int argc = 0;
@@ -635,6 +597,12 @@ static int spdf_app_command_line(GApplication* app, GApplicationCommandLine* cmd
             continue;
         }
         if (argv[i][0] == '-') continue;
+        if (spdf_link_open_is_link(argv[i])) { // a browser's szpdf: link (spdf_link_open.h)
+            if (!win) win = ensure_window_for_documents(self);
+            gtk_window_present(GTK_WINDOW(win));
+            spdf_link_open(win, argv[i]);
+            continue;
+        }
         // Resolve against the invoker's cwd — this runs in the primary
         // instance even when a second process forwarded the arguments.
         file = g_application_command_line_create_file_for_arg(cmdline, argv[i]);
@@ -675,7 +643,7 @@ static int spdf_app_command_line(GApplication* app, GApplicationCommandLine* cmd
             // shell window off-screen pays that bill so the first real open
             // presents instantly. Deferred to an idle: keeps resident-start
             // itself cheap and off the login critical path.
-            g_idle_add_full(G_PRIORITY_LOW, resident_warmup_idle, g_object_ref(self), g_object_unref);
+            g_idle_add_full(G_PRIORITY_LOW, spdf_resident_warmup_idle, g_object_ref(self), g_object_unref);
         }
     } else {
         g_application_activate(app);
