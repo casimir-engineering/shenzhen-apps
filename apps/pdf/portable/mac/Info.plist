@@ -220,6 +220,16 @@
 				<string>shenzhenpdf</string>
 			</array>
 		</dict>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>CFBundleURLName</key>
+			<string>com.intuition.shenzhenpdf.document-link</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>szpdf</string>
+			</array>
+		</dict>
 	</array>
 	<key>CFBundleVersion</key>
 	<string>1</string>

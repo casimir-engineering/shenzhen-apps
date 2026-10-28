@@ -1,3 +1,4 @@
+#include "spdf_progressive.h"
 #import "SPDFMacAIIntegration.h"
 #import "SPDFMacAISettings.h"
 #import "SPDFMacAIAnalysisService.h"
@@ -175,6 +176,7 @@ static BOOL SameCandidate(NSDictionary* before,NSDictionary* after) {
     // This branch precedes even queue/cache creation. Opening a document without
     // opted-in background analysis has no AI disk, extraction or network work.
     if (!settings.enabled || !settings.automaticAnalysis || !path.length) return;
+    if (spdf_progressive_path_is_active(path.fileSystemRepresentation)) return; // analysed once it has downloaded
     NSMutableDictionary* candidate=[Candidate(self,path) mutableCopy];
     if (!candidate) return;
     if(CollectionCopyCandidate(candidate))candidate[@"collectionGeneration"]=@([self aiObserveCollectionAnalysisRevisions:candidate].generation);

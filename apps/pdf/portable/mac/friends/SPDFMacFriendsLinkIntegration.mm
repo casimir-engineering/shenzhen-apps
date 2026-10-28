@@ -11,6 +11,7 @@
 #import "SPDFMacMarkdownDelegatePrivate.h"
 #import "SPDFMacFriendsLinkURL.h"
 #import "SPDFMacFriendsShareMenu.h"
+#import "SPDFMacRemoteLinks.h"
 
 static NSString* const SPDFMacFriendsLinkScheme = @"shenzhenpdf";
 
@@ -47,6 +48,7 @@ static BOOL SPDFMacFriendsCanShare(NSString* path) {
 #pragma mark - Opening a link
 
 - (void)application:(NSApplication*)application openURLs:(NSArray<NSURL*>*)urls {
+    urls = [self openRemoteLinksAmongURLs:urls]; // szpdf: links from web pages (SPDFMacRemoteLinks.h)
     NSMutableArray<NSString*>* paths = [NSMutableArray array];
     NSMutableArray<NSString*>* payloads = [NSMutableArray array];
     NSMutableArray<NSString*>* routes = [NSMutableArray array];

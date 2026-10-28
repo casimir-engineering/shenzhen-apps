@@ -10,6 +10,7 @@
 #import "SPDFMacMarkdownDelegatePrivate.h"
 #import <objc/runtime.h>
 #import "SPDFMacTabGroups.h"
+#include "spdf_progressive.h"
 @interface ShenzhenMacDelegate (CollectionDisplayNameHost)
 - (void)showDisplayName:(NSString*)name forTabsAtPath:(NSString*)path;  // SPDFMacDocumentRename.mm
 @end
@@ -60,7 +61,8 @@ static char kCollectionCompanion, kCollectionImported, kCollectionSettingsObserv
     if (identifier) saves[path] = identifier; else [saves removeObjectForKey:path];
 }
 - (void)collectionDidOpenPath:(NSString*)path {
-    if (!path.length) return;
+    // A linked document still downloading is captured when it completes and its tab reopens (SPDFMacRemoteLinks.h).
+    if (!path.length || spdf_progressive_path_is_active(path.fileSystemRepresentation)) return;
     [self collectionObserveSettings];
     // Only called after a document has opened. Neither main nor empty launch instantiates the store.
     NSString* source = [path copy];
