@@ -53,8 +53,12 @@ CORE_RECOLOR_HDR := core/spdf_recolor.h
 CORE_RECOLOR_OBJ := $(BUILD)/spdf_recolor.o
 CORE_IMAGE_PROPERTIES_OBJ := $(BUILD)/spdf_image_properties.o
 CORE_PAGE_IMAGES_OBJ := $(BUILD)/spdf_page_images.o
+# szpdf: links and documents read while they download (core/spdf_link.h, core/spdf_progressive.h).
+CORE_LINK_OBJ := $(BUILD)/spdf_link.o
+CORE_PROGRESSIVE_OBJ := $(BUILD)/spdf_progressive.o
+CORE_DESTINATION_OBJ := $(BUILD)/spdf_destination.o
 CORE_OBJS := $(CORE_OBJ) $(CORE_SELECTION_OBJ) $(CORE_SELECTION_SUPPORT_OBJ) $(CORE_RECOLOR_OBJ) $(CORE_IMAGE_PROPERTIES_OBJ) \
-	$(CORE_PAGE_IMAGES_OBJ)
+	$(CORE_PAGE_IMAGES_OBJ) $(CORE_LINK_OBJ) $(CORE_PROGRESSIVE_OBJ) $(CORE_DESTINATION_OBJ)
 YAML_SRC := core/spdf_yaml.c
 YAML_HDR := core/spdf_yaml.h
 YAML_OBJ := $(BUILD)/spdf_yaml.o
@@ -71,6 +75,7 @@ MAC_TOOL_ENV_TEST := $(BUILD)/SPDFMacToolEnvironmentTests
 MAC_OCR_VALIDATION_TEST := $(BUILD)/SPDFMacOCRValidationTests
 MAC_OCR_COMMAND_TEST := $(BUILD)/SPDFMacOCRCommandTests
 CORE_PASSWORD_TEST := $(BUILD)/SPDFCorePasswordTests
+CORE_LINK_TEST := $(BUILD)/SPDFCoreLinkTests
 CORE_RECOLOR_TEST := $(BUILD)/SPDFCoreRecolorTests
 CORE_RENDER_THEME_TEST := $(BUILD)/SPDFCoreRenderThemeTests
 CORE_RECOLOR_PROBE := $(BUILD)/SPDFRecolorProbe
@@ -146,7 +151,7 @@ endif
 .PHONY: mac
 mac: mac-app
 
-.PHONY: all mac-app core-outline-tests core-password-tests core-recolor-tests core-render-theme-tests core-recolor-probe core-selection-tests icon-tests mac-window-shortcut-tests mac-window-chrome-tests mac-password-tests mac-minimap-window-tests mac-tab-strip-geometry-tests mac-tab-strip-interaction-tests mac-tab-strip-style-tests mac-reading-theme-chrome-tests mac-palette-results-tests mac-find-nearest-tests mac-updater-tests mac-properties-format-tests mac-translation-filter-tests mac-translation-copy-tests mac-cursor-region-tests mac-state-yaml-tests mac-tab-lifecycle-tests mac-tab-state-tests mac-sidebar-outline-tests mac-page-wheel-tests mac-file-explorer-tests mac-selection-click-tests mac-selection-adapter-tests mac-launch-work-policy-tests mac-markdown-tests linux-password-tests file-size-ratchet-tests release-pipeline-tests test-binaries release-notes-preview print-release-config dmg notarize staple release-dmg release-dmg-artifact verify-mac-release verify-mac-unsigned print-mac-signing-identities install clean mupdf-libs linux
+.PHONY: all mac-app core-outline-tests core-link-tests core-password-tests core-recolor-tests core-render-theme-tests core-recolor-probe core-selection-tests icon-tests mac-window-shortcut-tests mac-window-chrome-tests mac-password-tests mac-minimap-window-tests mac-tab-strip-geometry-tests mac-tab-strip-interaction-tests mac-tab-strip-style-tests mac-reading-theme-chrome-tests mac-palette-results-tests mac-find-nearest-tests mac-updater-tests mac-properties-format-tests mac-translation-filter-tests mac-translation-copy-tests mac-cursor-region-tests mac-state-yaml-tests mac-tab-lifecycle-tests mac-tab-state-tests mac-sidebar-outline-tests mac-page-wheel-tests mac-file-explorer-tests mac-selection-click-tests mac-selection-adapter-tests mac-launch-work-policy-tests mac-markdown-tests linux-password-tests file-size-ratchet-tests release-pipeline-tests test-binaries release-notes-preview print-release-config dmg notarize staple release-dmg release-dmg-artifact verify-mac-release verify-mac-unsigned print-mac-signing-identities install clean mupdf-libs linux
 
 all: mac-app
 
@@ -157,7 +162,8 @@ mupdf-libs:
 $(BUILD):
 	mkdir -p "$(BUILD)"
 
-$(CORE_OBJ): $(CORE_SRC) $(CORE_HDR) core/spdf_search_regex.h core/spdf_render_bitmap.h Makefile | $(BUILD)
+$(CORE_OBJ): $(CORE_SRC) $(CORE_HDR) core/spdf_search_regex.h core/spdf_render_bitmap.h core/spdf_document_info.h \
+		core/spdf_core_document.h Makefile | $(BUILD)
 	clang $(PORTABLE_OPTFLAGS) $(MAC_TARGET_FLAGS) -Icore -I$(MUPDF_DIR)/include -c "$(CORE_SRC)" -o "$(CORE_OBJ)"
 
 $(CORE_IMAGE_PROPERTIES_OBJ): core/spdf_image_properties.c core/spdf_image_properties.h Makefile | $(BUILD)
@@ -165,6 +171,21 @@ $(CORE_IMAGE_PROPERTIES_OBJ): core/spdf_image_properties.c core/spdf_image_prope
 
 $(CORE_PAGE_IMAGES_OBJ): core/spdf_page_images.c core/spdf_page_images.h Makefile | $(BUILD)
 	clang $(PORTABLE_OPTFLAGS) $(MAC_TARGET_FLAGS) -Wall -Wextra -Werror -Icore -I$(MUPDF_DIR)/include -c $< -o "$@"
+
+$(CORE_LINK_OBJ): core/spdf_link.c core/spdf_link.h Makefile | $(BUILD)
+	clang $(PORTABLE_OPTFLAGS) $(MAC_TARGET_FLAGS) -Wall -Wextra -Werror -Icore -c $< -o "$@"
+
+$(CORE_PROGRESSIVE_OBJ): core/spdf_progressive.c core/spdf_progressive.h core/spdf_core_document.h Makefile | $(BUILD)
+	clang $(PORTABLE_OPTFLAGS) $(MAC_TARGET_FLAGS) -Wall -Wextra -Werror -Icore -I$(MUPDF_DIR)/include -c $< -o "$@"
+
+$(CORE_DESTINATION_OBJ): core/spdf_destination.c core/spdf_destination.h core/spdf_core_document.h Makefile | $(BUILD)
+	clang $(PORTABLE_OPTFLAGS) $(MAC_TARGET_FLAGS) -Wall -Wextra -Werror -Icore -I$(MUPDF_DIR)/include -c $< -o "$@"
+
+$(CORE_LINK_TEST): core/tests/SPDFCoreLinkTests.c $(CORE_LINK_OBJ) | $(BUILD)
+	clang $(PORTABLE_TEST_OPTFLAGS) $(MAC_TARGET_FLAGS) -Wall -Wextra -Werror -Icore $< "$(CORE_LINK_OBJ)" -o "$@"
+
+core-link-tests: $(CORE_LINK_TEST)
+	"$(CORE_LINK_TEST)"
 
 $(CORE_SELECTION_OBJ): $(CORE_SELECTION_SRC) $(CORE_SELECTION_HDR) $(CORE_HDR) Makefile | $(BUILD)
 	clang $(PORTABLE_OPTFLAGS) $(MAC_TARGET_FLAGS) -Icore -I$(MUPDF_DIR)/include -c "$(CORE_SELECTION_SRC)" -o "$(CORE_SELECTION_OBJ)"
@@ -647,7 +668,7 @@ verify-mac-unsigned: dmg
 # spread over all cores while the test log stays in a deterministic order.
 # Running the *-tests targets themselves under -j would interleave their
 # output: the make shipped with macOS is 3.81, which has no --output-sync.
-TEST_BINARIES := $(CORE_OUTLINE_TEST) $(CORE_PASSWORD_TEST) $(CORE_RECOLOR_TEST) \
+TEST_BINARIES := $(CORE_OUTLINE_TEST) $(CORE_PASSWORD_TEST) $(CORE_RECOLOR_TEST) $(CORE_LINK_TEST) \
 	$(CORE_RENDER_THEME_TEST) $(CORE_SELECTION_TEST) $(CORE_CJK_SELECTION_TEST) \
 	$(MAC_WINDOW_SHORTCUT_TEST) $(MAC_WINDOW_CHROME_TEST) $(MAC_PASSWORD_TEST) \
 	$(MAC_MINIMAP_WINDOW_TEST) $(MAC_TAB_STRIP_GEOMETRY_TEST) \
@@ -681,7 +702,7 @@ install: mac-app
 LINUX_GTK4_SRCS := $(sort $(wildcard linux/gtk4/*.c))
 
 linux-gtk4: mupdf-libs | $(BUILD)
-	$(CC) $(PORTABLE_OPTFLAGS) -Wall -Icore -Ilinux/gtk4 -I$(MUPDF_DIR)/include $$(pkg-config --cflags gtk4 libadwaita-1) "$(CORE_SRC)" "$(CORE_SELECTION_SRC)" "$(CORE_SELECTION_SUPPORT_SRC)" "$(CORE_RECOLOR_SRC)" "$(YAML_SRC)" $(LINUX_GTK4_SRCS) $(MUPDF_LIBS) $$(pkg-config --libs gtk4 libadwaita-1 openssl) -lm -o "$(BUILD)/ShenzhenPDF-gtk4"
+	$(CC) $(PORTABLE_OPTFLAGS) -Wall -Icore -Ilinux/gtk4 -I$(MUPDF_DIR)/include $$(pkg-config --cflags gtk4 libadwaita-1) "$(CORE_SRC)" "$(CORE_SELECTION_SRC)" "$(CORE_SELECTION_SUPPORT_SRC)" "$(CORE_RECOLOR_SRC)" "$(YAML_SRC)" core/spdf_link.c $(LINUX_GTK4_SRCS) $(MUPDF_LIBS) $$(pkg-config --libs gtk4 libadwaita-1 openssl) -lm -o "$(BUILD)/ShenzhenPDF-gtk4"
 
 LINUX_GTK4_TEST_SRCS := $(sort $(wildcard linux/gtk4/tests/*_test.c))
 LINUX_GTK4_TEST_BINS := $(patsubst linux/gtk4/tests/%.c,$(BUILD)/%,$(LINUX_GTK4_TEST_SRCS))

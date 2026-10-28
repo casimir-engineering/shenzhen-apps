@@ -68,6 +68,20 @@ struct spdf_document {
      * the dark reading theme itself is a per-render flag, not document state. */
     spdf_recolor_page_cache recolor_pages;
     int picture_document; /* -1 unknown; 0 document; 1 picture (honors preserve-images) */
+    /* Opened while still downloading (spdf_progressive.h): every render runs with a cookie, and one that drew
+     * without some of its bytes fails with SPDF_NOT_DOWNLOADED instead of showing a wrong page. */
+    int progressive;
+    int rendering; /* inside a render: its page-size lookup asks for the bytes it waits on (see spdf_page_size) */
 };
+
+/* Documents read while they download. spdf_progressive.c installs these on its first registration; a frontend that
+ * never downloads a document never links it, and every open then goes straight to fz_open_document. `open` returns
+ * NULL for a path that is not downloading; `set_quiet` stops this thread's page-size lookups asking for bytes. */
+typedef struct spdf_core_progressive_hooks {
+    fz_document* (*open)(fz_context* ctx, const char* path);
+    void (*set_quiet)(int on);
+} spdf_core_progressive_hooks;
+void spdf_core_set_progressive_hooks(const spdf_core_progressive_hooks* hooks);
+#define SPDF_NOT_DOWNLOADED "This page has not downloaded yet."
 
 #endif /* SPDF_CORE_DOCUMENT_H */

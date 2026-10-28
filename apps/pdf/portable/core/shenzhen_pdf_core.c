@@ -25,6 +25,9 @@
 /* struct spdf_document and its page caches live in spdf_core_document.h. */
 #include "spdf_core_document.h"
 
+static spdf_core_progressive_hooks progressive_hooks; /* zero unless a frontend downloads documents */
+void spdf_core_set_progressive_hooks(const spdf_core_progressive_hooks* hooks) { progressive_hooks = *hooks; }
+
 /* Which rendition a render draws, and what colour its paper is cleared to.
  * doc->dark_doc is NULL for every format but Markdown (see the header). */
 static fz_document* render_document(const spdf_document* doc, unsigned flags) {
@@ -59,6 +62,15 @@ void spdf_render_token_free(spdf_render_token* token) {
 
 static fz_cookie* token_cookie(spdf_render_token* token) {
     return token ? &token->cookie : NULL;
+}
+
+/* A downloading document renders with a cookie even when the caller passed none: it is how a page drawn without
+ * all its bytes (a font still missing) is noticed and failed rather than shown wrong. */
+static spdf_render_token* progressive_token(const spdf_document* doc, spdf_render_token* token,
+                                            spdf_render_token* local) {
+    if (token || !doc->progressive) return token;
+    memset(local, 0, sizeof(*local));
+    return local;
 }
 
 static int token_canceled(const spdf_render_token* token) {
@@ -120,7 +132,7 @@ spdf_document* spdf_open_with_password(const char* path, const char* password, s
     fz_document* doc = NULL;
     spdf_open_status open_status = SPDF_OPEN_OK;
     spdf_authentication auth_result = SPDF_AUTHENTICATION_NOT_REQUIRED;
-    int password_protected = 0;
+    int password_protected = 0, opened_progressive = 0;
     char title[512];
 
     set_error(err, err_len, "");
@@ -139,7 +151,9 @@ spdf_document* spdf_open_with_password(const char* path, const char* password, s
 
     fz_try(ctx) {
         fz_register_document_handlers(ctx);
-        doc = fz_open_document(ctx, path);
+        doc = progressive_hooks.open ? progressive_hooks.open(ctx, path) : NULL; /* a path still downloading */
+        if (!doc) doc = fz_open_document(ctx, path);
+        else opened_progressive = 1;
         password_protected = fz_needs_password(ctx, doc) != 0;
         if (password_protected && !password) {
             open_status = SPDF_OPEN_PASSWORD_REQUIRED;
@@ -156,6 +170,7 @@ spdf_document* spdf_open_with_password(const char* path, const char* password, s
             opened->doc = doc;
             opened->password_protected = password_protected;
             opened->authentication = auth_result;
+            opened->progressive = opened_progressive;
             spdf_recolor_page_cache_reset(&opened->recolor_pages);
             opened->picture_document = spdf_recolor_path_is_picture(path) ? 1 : -1;
             opened->page_count = fz_count_pages(ctx, doc);
@@ -242,53 +257,7 @@ const char* spdf_title(spdf_document* doc) {
     return doc && doc->title ? doc->title : "";
 }
 
-int spdf_lookup_metadata(spdf_document* doc, const char* key, char* buf, size_t buf_len) {
-    int found = 0;
-
-    if (!buf || buf_len == 0) return 0;
-    buf[0] = '\0';
-    if (!doc || !doc->doc || !key || !*key) return 0;
-
-    fz_try(doc->ctx) {
-        found = fz_lookup_metadata(doc->ctx, doc->doc, key, buf, buf_len) > 0;
-    }
-    fz_catch(doc->ctx) {
-        buf[0] = '\0';
-        found = 0;
-    }
-    if (!found || !buf[0]) {
-        buf[0] = '\0';
-        return 0;
-    }
-    return 1;
-}
-
-int spdf_has_permission(spdf_document* doc, int permission) {
-    int allowed = doc && doc->password_protected ? 0 : 1;
-    /* FZ_PERMISSION_COPY is deliberately never consulted; see the header. */
-    if (!doc || !doc->doc || permission == FZ_PERMISSION_COPY) return 1;
-    fz_try(doc->ctx) {
-        allowed = fz_has_permission(doc->ctx, doc->doc, (fz_permission)permission) != 0;
-    }
-    fz_catch(doc->ctx) {
-        /* An authenticated protected document must never gain a permission
-         * because its handler failed to answer the permission query. */
-        allowed = doc->password_protected ? 0 : 1;
-    }
-    return allowed;
-}
-
-int spdf_is_password_protected(const spdf_document* doc) {
-    return doc ? doc->password_protected : 0;
-}
-
-spdf_authentication spdf_authentication_result(const spdf_document* doc) {
-    return doc ? doc->authentication : SPDF_AUTHENTICATION_NOT_REQUIRED;
-}
-
-int spdf_needs_password(spdf_document* doc) {
-    return spdf_is_password_protected(doc);
-}
+#include "spdf_document_info.h"
 
 int spdf_set_page_size_cache(spdf_document* doc, int page_index, float width, float height) {
     spdf_page_size_cache* cached;
@@ -321,6 +290,7 @@ int spdf_page_size(spdf_document* doc, int page_index, float* width, float* heig
         return 1;
     }
 
+    if (doc->progressive && !doc->rendering) progressive_hooks.set_quiet(1);
     fz_try(doc->ctx) {
         page = fz_load_page(doc->ctx, doc->doc, page_index);
         bounds = fz_bound_page(doc->ctx, page);
@@ -333,6 +303,9 @@ int spdf_page_size(spdf_document* doc, int page_index, float* width, float* heig
         if (height) *height = bounds.y1 - bounds.y0;
         fz_drop_page(doc->ctx, page);
         page = NULL;
+    }
+    fz_always(doc->ctx) {
+        if (doc->progressive && !doc->rendering) progressive_hooks.set_quiet(0);
     }
     fz_catch(doc->ctx) {
         set_error(err, err_len, fz_caught_message(doc->ctx));
@@ -481,10 +454,11 @@ static fz_display_list* get_or_build_page_list(spdf_document* doc, int page_inde
     build_ms = spdf_monotonic_ms() - build_start;
 
     /* A cookie abort stops fz_run_page without throwing, leaving a PARTIAL
-     * list: take the never-cache-on-error path so it can never be replayed. */
-    if (token_canceled(token)) {
+     * list: take the never-cache-on-error path so it can never be replayed.
+     * So does a page of a downloading document drawn without all its bytes. */
+    if (token_canceled(token) || (token && token->cookie.incomplete)) {
         fz_drop_display_list(doc->ctx, list);
-        set_error(err, err_len, "Render canceled.");
+        set_error(err, err_len, token_canceled(token) ? "Render canceled." : SPDF_NOT_DOWNLOADED);
         return NULL;
     }
 
@@ -517,6 +491,8 @@ int spdf_render_page_rgba_opts(spdf_document* doc, int page_index, float zoom, u
     fz_matrix ctm;
     float page_width;
     float page_height;
+    int sized;
+    spdf_render_token local_token;
 
     set_error(err, err_len, "");
     if (!out) {
@@ -535,7 +511,11 @@ int spdf_render_page_rgba_opts(spdf_document* doc, int page_index, float zoom, u
         return 0;
     }
     if (zoom <= 0.01f) zoom = 0.01f;
-    if (!spdf_page_size(doc, page_index, &page_width, &page_height, err, err_len)) return 0;
+    token = progressive_token(doc, token, &local_token);
+    doc->rendering = 1; /* a render asks for the page's bytes; a bare size lookup does not */
+    sized = spdf_page_size(doc, page_index, &page_width, &page_height, err, err_len);
+    doc->rendering = 0;
+    if (!sized) return 0;
     if (!render_page_size_allowed(page_width, page_height, zoom, err, err_len)) return 0;
 
     if (token_canceled(token)) {
@@ -607,9 +587,9 @@ int spdf_render_page_rgba_opts(spdf_document* doc, int page_index, float zoom, u
         return 0;
     }
 
-    if (token_canceled(token)) {
+    if (token_canceled(token) || (token && token->cookie.incomplete)) {
         spdf_free_bitmap(out);
-        set_error(err, err_len, "Render canceled.");
+        set_error(err, err_len, token_canceled(token) ? "Render canceled." : SPDF_NOT_DOWNLOADED);
         return 0;
     }
 
@@ -635,6 +615,8 @@ int spdf_render_page_region_rgba_opts(spdf_document* doc, int page_index, float 
     fz_matrix ctm;
     float page_width;
     float page_height;
+    int sized;
+    spdf_render_token local_token;
 
     set_error(err, err_len, "");
     if (!out) {
@@ -653,7 +635,11 @@ int spdf_render_page_region_rgba_opts(spdf_document* doc, int page_index, float 
         return 0;
     }
     if (zoom <= 0.01f) zoom = 0.01f;
-    if (!spdf_page_size(doc, page_index, &page_width, &page_height, err, err_len)) return 0;
+    token = progressive_token(doc, token, &local_token);
+    doc->rendering = 1; /* a render asks for the page's bytes; a bare size lookup does not */
+    sized = spdf_page_size(doc, page_index, &page_width, &page_height, err, err_len);
+    doc->rendering = 0;
+    if (!sized) return 0;
 
     region.x0 = fmaxf(0.0f, fminf(region.x0, page_width));
     region.x1 = fmaxf(0.0f, fminf(region.x1, page_width));
@@ -731,9 +717,9 @@ int spdf_render_page_region_rgba_opts(spdf_document* doc, int page_index, float 
         return 0;
     }
 
-    if (token_canceled(token)) {
+    if (token_canceled(token) || (token && token->cookie.incomplete)) {
         spdf_free_bitmap(out);
-        set_error(err, err_len, "Render canceled.");
+        set_error(err, err_len, token_canceled(token) ? "Render canceled." : SPDF_NOT_DOWNLOADED);
         return 0;
     }
 

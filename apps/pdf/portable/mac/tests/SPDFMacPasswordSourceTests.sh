@@ -8,6 +8,8 @@ password_header="$root/portable/mac/SPDFMacPassword.h"
 app_impl="$root/portable/mac/ShenzhenPDFMac.mm"
 properties_impl="$root/portable/mac/SPDFMacPropertiesPanel.mm"
 core_impl="$root/portable/core/shenzhen_pdf_core.c"
+# The permission and password accessors live in spdf_document_info.h, compiled inside shenzhen_pdf_core.c.
+core_info="$root/portable/core/spdf_document_info.h"
 core_header="$root/portable/core/shenzhen_pdf_core.h"
 file_actions_impl="$root/portable/mac/SPDFMacMarkdownFileActions.mm"
 translation_impl="$root/portable/mac/SPDFMacTranslationEnablement.mm"
@@ -48,7 +50,7 @@ fi
 # the core exempts it (see shenzhen_pdf_core.h). This guard used to require the
 # frontend to enforce that flag; it now pins the exemption instead, so the
 # "Copying is not allowed" dialog cannot come back by way of the core.
-grep -q 'permission == FZ_PERMISSION_COPY) return 1;' "$core_impl" || {
+grep -q 'permission == FZ_PERMISSION_COPY) return 1;' "$core_info" || {
     echo "the core must grant copy permission unconditionally" >&2
     exit 1
 }
@@ -57,7 +59,7 @@ grep -q "copy must be allowed even for a restricted user" "$root/portable/core/t
     exit 1
 }
 # The other permissions are still read from the document.
-grep -q "allowed = fz_has_permission(doc->ctx, doc->doc, (fz_permission)permission) != 0;" "$core_impl" || {
+grep -q "allowed = fz_has_permission(doc->ctx, doc->doc, (fz_permission)permission) != 0;" "$core_info" || {
     echo "print/edit/annotate must still consult the document's own flags" >&2
     exit 1
 }
@@ -72,8 +74,8 @@ if grep -q 'Copying is not allowed' "$app_impl" "$file_actions_impl"; then
     echo "the 'Copying is not allowed' dialog must not come back" >&2
     exit 1
 fi
-grep -q "allowed = doc->password_protected ? 0 : 1;" "$core_impl"
-if grep -q 'spdf_save_decrypted_copy' "$core_impl" "$core_header" "$app_impl"; then
+grep -q "allowed = doc->password_protected ? 0 : 1;" "$core_info"
+if grep -q 'spdf_save_decrypted_copy' "$core_impl" "$core_info" "$core_header" "$app_impl"; then
     echo "password support must not create plaintext decrypted copies" >&2
     exit 1
 fi
