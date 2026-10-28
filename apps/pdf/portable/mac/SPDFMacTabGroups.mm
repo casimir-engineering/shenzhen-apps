@@ -68,22 +68,24 @@ static NSColor* RGB(unsigned rgb) {
     return [NSColor colorWithSRGBRed:((rgb >> 16) & 255) / 255.0 green:((rgb >> 8) & 255) / 255.0
                               blue:(rgb & 255) / 255.0 alpha:1];
 }
-// Group colours: vivid chips in the family of Codex's own round icons (its blue download button #3983f7 and yellow
-// avatar #ffc205), hues after Radix Colors' step 9 (MIT, https://www.radix-ui.com/colors), each darkened just enough
-// for its label. Names are what sessions store, so a group keeps its colour across this change. Per colour:
+// Group colours: the neon palette the owner chose, with labels as before: white on red, pink, purple, blue and indigo,
+// near-black on the light colours. Names are what sessions store, so a group keeps its colour name across this change:
+// Coral is red, Orange orange, Amber yellow, Green green, Slate mint, Teal cyan, Blue blue, Indigo indigo, Purple purple,
+// Plum magenta, Rose pink. Per colour:
 //   fill   the title tab ("chip") and the bar under an open group, the same in light and dark;
-//   label  white where it reaches 4.5:1 on the fill, else near-black #111111 (every pair is 4.6:1 or more);
+//   label  white or near-black #111111, whichever reaches 4.5:1 on the fill (every pair is 4.5:1 or more);
 //   edge   the chip's 1 pt outline, light then dark: the fill itself where the fill already stands 3:1 from the tab
-//          bar (#eaeaea / #282828), else the nearest shade of the same hue that does.
+//          bar (#eaeaea / #282828), else the nearest shade of the same hue that does (the light chips get a darker
+//          outline in light mode).
 // Gray is General's, and the colour of tabs outside any group.
 typedef struct { const char* name; unsigned fill; BOOL whiteLabel; unsigned edgeLight, edgeDark; } SPDFGroupColor;
 static const SPDFGroupColor kGroupColors[] = {
-    {"Purple", 0xa03ae0, YES, 0xa03ae0, 0xa23ee1}, {"Green", 0x2fb26a, NO, 0x28995b, 0x2fb26a},
-    {"Blue", 0x1a6ae6, YES, 0x1a6ae6, 0x1b6be6},   {"Teal", 0x0ea5b0, NO, 0x0d959f, 0x0ea5b0},
-    {"Rose", 0xe11969, YES, 0xe11969, 0xe11969},   {"Coral", 0xe1292f, YES, 0xe1292f, 0xe1292f},
-    {"Amber", 0xffc205, NO, 0xa98000, 0xffc205},   {"Indigo", 0x4f46e5, YES, 0x4f46e5, 0x655de8},
-    {"Plum", 0xd01fb0, YES, 0xd01fb0, 0xd01fb0},   {"Slate", 0x59779a, YES, 0x59779a, 0x59779a},
-    {"Orange", 0xf76b15, NO, 0xe45b08, 0xf76b15},  {"Gray", 0x6e6e6e, YES, 0x6e6e6e, 0x717171},
+    {"Purple", 0xb026ff, YES, 0xb026ff, 0xb026ff}, {"Green", 0x39ff14, NO, 0x189b00, 0x39ff14},
+    {"Blue", 0x146dff, YES, 0x146dff, 0x146dff},   {"Teal", 0x00f0ff, NO, 0x00959e, 0x00f0ff},
+    {"Rose", 0xe80063, YES, 0xe80063, 0xe80063},   {"Coral", 0xee0000, YES, 0xee0000, 0xee0000},
+    {"Amber", 0xfff200, NO, 0x8f8800, 0xfff200},   {"Indigo", 0x4d2bff, YES, 0x4d2bff, 0x6f54ff},
+    {"Plum", 0xd800af, YES, 0xd800af, 0xd800af},   {"Slate", 0x00ff9f, NO, 0x00995f, 0x00ff9f},
+    {"Orange", 0xff8c00, NO, 0xc96f00, 0xff8c00},  {"Gray", 0x6e6e6e, YES, 0x6e6e6e, 0x717171},
 };
 static const SPDFGroupColor& GroupColor(NSString* color) {
     const size_t count = sizeof kGroupColors / sizeof kGroupColors[0];
@@ -118,9 +120,11 @@ NSImage* spdf_tab_group_swatch_image(NSString* color) {
     }];
 }
 // The selected tab of a group: its colour over the tab bar, strong enough to read as selected and light enough
-// (dark enough in Dark Aqua) that the tab's ordinary title colour keeps 5:1 or more on it.
+// (dark enough in Dark Aqua) that the tab's ordinary title colour keeps 5:1 or more on it. The light colours are
+// thinner in Dark Aqua, where a stronger tint would brighten the tab under its white title.
 NSColor* spdf_tab_group_selected_fill(NSString* color, BOOL dark) {
-    return [spdf_tab_group_accent(color) colorWithAlphaComponent:dark ? 0.42 : 0.30];
+    const CGFloat darkAlpha = GroupColor(color).whiteLabel ? 0.42 : 0.36;
+    return [spdf_tab_group_accent(color) colorWithAlphaComponent:dark ? darkAlpha : 0.30];
 }
 NSString* spdf_tab_group_unused_color(NSArray<SPDFDocumentTab*>* tabs) {
     NSMutableArray* available = [spdf_tab_group_colors() mutableCopy];
