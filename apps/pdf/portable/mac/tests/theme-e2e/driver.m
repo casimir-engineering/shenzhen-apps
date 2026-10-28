@@ -206,7 +206,8 @@ static void Run(void) {
 
 __attribute__((constructor)) static void E2EInit(void) {
     const char* plan = getenv("SPDF_E2E_PLAN"), *out = getenv("SPDF_E2E_OUT");
-    if (!plan || !out) return;
+    // Only in the reader: its helpers (the Collection window, Friends) inherit DYLD_INSERT_LIBRARIES too.
+    if (!plan || !out || strcmp(getprogname(), "ShenzhenPDF") != 0) return;
     gPlan = [NSJSONSerialization JSONObjectWithData:[NSData dataWithContentsOfFile:@(plan)] options:0 error:nil];
     gOut = @(out);
     gResult = [@{@"log" : [NSMutableArray array], @"pictures" : [NSMutableArray array]} mutableCopy];
