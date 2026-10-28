@@ -266,14 +266,16 @@ static SPDFCodePoints Normalized(const SPDFCodePoints& points) {
 // Compatibility spellings that draw exactly like the plain letters they stand for, measured in the card's font: the
 // ligatures ﬁ and ﬂ, the micro sign µ beside Greek μ, Latin digraphs such as ǆ and ĳ, Tibetan's deprecated vowel
 // signs, Arabic and Hebrew presentation forms beside the letters they show (an isolated form draws the letter on its
-// own, a contextual one the letter where it stands), and the radicals ⺟ and ⻳ beside 母 and 龟 where a Mac's fonts
-// draw them alike (macOS 15, CI runners). Each would be a hidden bit, so they become their compatibility
-// decomposition (NFKC), which shaping draws the same. Not all of NFKC: x², ½, ①, ™ and fullwidth letters look
-// different from what they fold to, and folding them would change what the message says.
+// own, a contextual one the letter where it stands), and the CJK radicals that decompose to an ideograph (⺟ 母, ⻳ 龟
+// and the Kangxi radicals, ⼀ 一 to ⿕ 龠), which some Macs' fonts draw alike: macOS 15's and CI runners' did, one
+// pair per run. Each would be a hidden bit, so they become their compatibility decomposition (NFKC), which shaping
+// draws the same. Not all of NFKC: x², ½, ①, ™ and fullwidth letters look different from what they fold to, and
+// folding them would change what the message says.
 static BOOL FoldsToCompatibility(UTF32Char point) {
     return point == 0x00B5 || InRange(point, 0x0132, 0x0133) || InRange(point, 0x013F, 0x0140) || point == 0x0149 ||
         InRange(point, 0x01C4, 0x01CC) || InRange(point, 0x01F1, 0x01F3) || point == 0x0F77 || point == 0x0F79 ||
-        point == 0x2E9F || point == 0x2EF3 || InRange(point, 0xFB00, 0xFDFF) || InRange(point, 0xFE70, 0xFEFE);
+        point == 0x2E9F || point == 0x2EF3 || InRange(point, 0x2F00, 0x2FD5) ||
+        InRange(point, 0xFB00, 0xFDFF) || InRange(point, 0xFE70, 0xFEFE);
 }
 
 // One spelling where two draw the same and say the same: the folds above; the hyphen U+2010 and the non-breaking
