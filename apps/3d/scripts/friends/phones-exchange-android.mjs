@@ -146,8 +146,9 @@ export function android(serial) {
       const config = this.config;
       return evaluate(`window.__SZF_PHONE__ = ${JSON.stringify(config)};\n${script}`);
     },
+    // A test home keeps received files in its own Downloads folder (the core's ReceivedDefaults::contained).
     async received(name) {
-      return adbBytes("exec-out", "run-as", PACKAGE, "cat", `files/fhome/received/${name}`).toString("utf8");
+      return adbBytes("exec-out", "run-as", PACKAGE, "cat", `files/fhome/Downloads/${name}`).toString("utf8");
     },
     async screenshot(file) {
       await fs.mkdir(path.dirname(file), { recursive: true });

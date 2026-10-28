@@ -59,8 +59,9 @@ export function ios(udid) {
       const lines = [...log.matchAll(/SMOKE (.*)$/gm)].map((m) => m[1]);
       return { ok: log.includes("SMOKE-PASSED"), lines };
     },
+    // A test home keeps received files in its own Downloads folder (the core's ReceivedDefaults::contained).
     async received(name) {
-      return fs.readFile(path.join(home, "received", name), "utf8");
+      return fs.readFile(path.join(home, "Downloads", name), "utf8");
     },
     async screenshot(file) {
       await fs.mkdir(path.dirname(file), { recursive: true });
