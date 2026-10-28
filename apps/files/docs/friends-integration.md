@@ -143,7 +143,7 @@ typedef struct {
     guint64 helper_build_number;
     const char *const *capabilities;   /* NULL-terminated: Shenzhen Files sends "attach.items", "drop.files" */
     const char *const *open_formats;   /* NULL-terminated lowercase extensions; empty in Shenzhen Files */
-    const char *attach_placeholder;    /* names what `#` offers */
+    const char *attach_empty;          /* the `#` row when nothing matches */
     /* placement: one button per window */
     void (*install_button) (gpointer host_data, GtkWindow *window, GtkWidget *button);
     void (*remove_button)  (gpointer host_data, GtkWindow *window, GtkWidget *button);
@@ -235,7 +235,7 @@ A separate patch so the port patch stays Friends-free and the two rebase indepen
   - Identity: `app_id` `com.intuition.shenzhenfiles`, `app_name` "Shenzhen Files", `toolkit` `gtk4`, `reveal_in`
     "Shenzhen Files".
   - `/`, Markdown and search export: NULL.
-- Host strings (README § Four layers): `#` placeholder "Search selected files and this folder"; Settings switch
+- Host strings (README § Four layers): `#` row when nothing matches "No matching files"; Settings switch
   "Enable Shenzhen Friends". Disclosure (M1): "Shenzhen Files connects to the Friends server whenever it is open
   and Friends is on. The server sees your network address, your Friends ID and when Shenzhen Files is open. It
   never sees your name, messages or files." What the server sees and what it never sees are two sentences, in
