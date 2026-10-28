@@ -4,7 +4,6 @@
 // NSApplication native forwarding without activating a user-visible app.
 #import "SPDFMacPalettePresentation.h"
 #import "SPDFMacAIChatDock.h"
-#import "SPDFMacUnsavedImageClose.h"
 @interface ShenzhenMacDelegate (ChatWindowMenuProbe)
 - (void)closeDocument:(id)sender;
 - (id)readerAIHistoryState;

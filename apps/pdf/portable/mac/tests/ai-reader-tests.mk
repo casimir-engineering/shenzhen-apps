@@ -25,7 +25,7 @@ $(AI_ANALYSIS_TEST): $(AI_READER_BASE_OBJS) $(BUILD)/workspace-probe/mac/tests/S
 		$(MAC_MD4C_OBJ) $(MAC_GUMBO_OBJS) $(MUPDF_LIBS) -framework Cocoa -framework QuartzCore -framework \
 		PDFKit -framework ImageIO -framework UniformTypeIdentifiers -framework CoreServices -framework \
 		Security -framework LocalAuthentication -lm -Wl,-dead_strip -o "$@"
-AI_CHAT_VIEW_SRCS := mac/SPDFMacAIChatViewParts.mm mac/SPDFMacCollectionStyle.mm mac/SPDFMacAIChatActivityView.mm mac/SPDFMacAIChatActivity.mm \
+AI_CHAT_VIEW_SRCS := mac/SPDFMacAIChatViewParts.mm mac/SPDFMacAIChatActivityView.mm mac/SPDFMacAIChatActivity.mm \
 	mac/SPDFMacAIChatBudget.mm mac/SPDFMacAIChatAttachments.mm mac/SPDFMacAIChatViewFollow.mm \
 	$(MAC_CHAT_MARKDOWN_SRCS)
 $(AI_CHAT_VIEW_TEST): mac/tests/SPDFMacAIChatActivityViewChecks.h mac/tests/SPDFMacAIChatActivityStepChecks.h \
@@ -41,7 +41,7 @@ $(AI_CHAT_VIEW_TEST): mac/tests/SPDFMacAIChatActivityViewChecks.h mac/tests/SPDF
 		mac/SPDFMacSidebarNavigation.mm mac/SPDFMacSidebarModeControl.mm mac/SPDFMacPanelSearchField.mm \
 		mac/SPDFMacAIChatDock.mm mac/SPDFMacAIChatHistoryView.mm mac/SPDFMacAIChatMarkdown.mm \
 		mac/SPDFMacAIChatStore.mm mac/SPDFMacAIChatStoreRequestOnly.mm \
-		mac/SPDFMacCollectionStyle.mm mac/SPDFMacGroupActionButton.mm \
+		mac/SPDFMacGroupActionButton.mm \
 		$(patsubst %.mm,$(BUILD)/workspace-probe/%.o,$(MAC_MARKDOWN_SRCS)) $(MAC_MD4C_OBJ) $(MAC_GUMBO_OBJS) \
 		$(CORE_RECOLOR_OBJ)
 	clang++ $(MAC_TARGET_FLAGS) -std=c++17 -fobjc-arc -Imac mac/tests/SPDFMacAIChatViewTests.mm \
@@ -51,7 +51,7 @@ $(AI_CHAT_VIEW_TEST): mac/tests/SPDFMacAIChatActivityViewChecks.h mac/tests/SPDF
 		mac/SPDFMacSidebarNavigation.mm mac/SPDFMacSidebarModeControl.mm mac/SPDFMacPanelSearchField.mm \
 		mac/SPDFMacAIChatDock.mm mac/SPDFMacAIChatHistoryView.mm mac/SPDFMacAIChatMarkdown.mm \
 		mac/SPDFMacAIChatStore.mm mac/SPDFMacAIChatStoreRequestOnly.mm \
-		mac/SPDFMacCollectionStyle.mm mac/SPDFMacGroupActionButton.mm \
+		mac/SPDFMacGroupActionButton.mm \
 		$(patsubst %.mm,$(BUILD)/workspace-probe/%.o,$(MAC_MARKDOWN_SRCS)) $(MAC_MD4C_OBJ) $(MAC_GUMBO_OBJS) \
 		$(CORE_RECOLOR_OBJ) -framework Cocoa -framework QuartzCore -framework ImageIO -Wl,-dead_strip -o "$@"
 .PHONY: mac-ai-reader-acceptance
