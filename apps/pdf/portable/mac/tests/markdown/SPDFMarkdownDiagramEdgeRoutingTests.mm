@@ -199,6 +199,9 @@ int main(void) {
         SPDFExpect(fence.length > 0, @"the power-tree fixture carries one mermaid fence");
         if (!fence.length) return SPDFFinishTests(@"SPDFMarkdownDiagramEdgeRoutingTests");
 
+        // Warm the text system first, as SPDFMarkdownDiagramLayoutTests does: on a fresh CI runner a cold Core Text
+        // spent the layout's deadline filling the font cache, and the layout declined.
+        (void)SPDFRoutingLayOut(fence, NULL);
         SPDFMarkdownDiagramLayout* layout = nil;
         SPDFMarkdownDiagramGraph* graph = SPDFRoutingLayOut(fence, &layout);
         SPDFExpect(graph != nil, @"the power-tree fixture lays out");
