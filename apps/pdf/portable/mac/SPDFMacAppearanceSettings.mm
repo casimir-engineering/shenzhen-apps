@@ -37,20 +37,43 @@ static NSImage* PaletteStrip(NSArray<NSNumber*>* fills) {
 - (void)buildAppearance {
     [self text:@"Appearance" size:24 bold:YES secondary:NO];
     [self divider];
+    NSPopUpButton* mode = [[NSPopUpButton alloc] initWithFrame:NSZeroRect pullsDown:NO];
+    mode.identifier = @"appearanceMode";
+    mode.accessibilityLabel = @"Light or dark";
+    mode.font = [NSFont systemFontOfSize:13];
+    [mode.widthAnchor constraintEqualToConstant:340].active = YES;
+    NSArray* modes = @[ @[ @"system", @"Follow system" ], @[ @"light", @"Light" ], @[ @"dark", @"Dark" ] ];
+    for (NSArray* choice in modes) {
+        [mode addItemWithTitle:choice[1]];
+        mode.lastItem.representedObject = choice[0];
+        if ([choice[0] isEqual:self.state[@"appearanceMode"] ?: @"system"]) [mode selectItem:mode.lastItem];
+    }
+    mode.target = self;
+    mode.action = @selector(modeChosen:);
+    self.controls[@"appearanceMode"] = mode;
+    [self row:@"Light or dark" detail:@"Documents keep their own reading theme." control:mode];
     NSPopUpButton* palettes = [[NSPopUpButton alloc] initWithFrame:NSZeroRect pullsDown:NO];
     palettes.identifier = @"tabGroupPalette";
     palettes.accessibilityLabel = @"Tab group colors";
     palettes.font = [NSFont systemFontOfSize:13];
     [palettes.widthAnchor constraintEqualToConstant:340].active = YES;
+    palettes.target = self;
+    palettes.action = @selector(paletteChosen:);
+    self.controls[@"tabGroupPalette"] = palettes;
+    [self refreshAppearance];
+    [self row:@"Tab group colors" detail:@"Every window changes right away." control:palettes];
+}
+- (void)refreshAppearance {
+    NSPopUpButton* palettes = (NSPopUpButton*)self.controls[@"tabGroupPalette"];
+    [palettes removeAllItems];
     for (NSDictionary* palette in self.state[@"tabGroupPalettes"]) {
         [palettes addItemWithTitle:palette[@"name"]];
         palettes.lastItem.image = PaletteStrip(palette[@"fills"]);
     }
     if (self.state[@"tabGroupPalette"]) [palettes selectItemWithTitle:self.state[@"tabGroupPalette"]];
-    palettes.target = self;
-    palettes.action = @selector(paletteChosen:);
-    self.controls[@"tabGroupPalette"] = palettes;
-    [self row:@"Tab group colors" detail:@"Every window changes right away." control:palettes];
+}
+- (void)modeChosen:(NSPopUpButton*)sender {
+    if (sender.selectedItem.representedObject) [self emit:@{@"appearanceMode" : sender.selectedItem.representedObject}];
 }
 - (void)paletteChosen:(NSPopUpButton*)sender {
     if (sender.titleOfSelectedItem.length) [self emit:@{@"tabGroupPalette" : sender.titleOfSelectedItem}];

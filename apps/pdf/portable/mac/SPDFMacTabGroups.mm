@@ -1,6 +1,11 @@
 #import "SPDFMacTabGroups.h"
 #import "SPDFMacModels.h"
 #import "SPDFMacCollectionTabIdentity.h"
+#include <fcntl.h>
+#include <string>
+#include <sys/stat.h>
+#include <unistd.h>
+#include <vector>
 
 @implementation SPDFTabGroup
 @synthesize colorName = _colorName;
@@ -72,7 +77,8 @@ static NSColor* RGB(unsigned rgb) {
 // palette lists one base colour per stored colour name, in hue order: Coral red, Orange, Amber yellow, Green, Slate
 // mint, Teal cyan, Blue, Indigo, Purple, Plum magenta, Rose pink. Sessions store the name, so a group keeps its place
 // in the hues whichever palette is shown. Where a palette has fewer colours than names, a name repeats its nearest
-// hue. Gray is General's, and the colour of tabs outside any group, in every palette. Per colour, worked out from the
+// hue. tab-group-palettes.json, beside appearance.yaml, can replace any of them or add more by name (see
+// apps/pdf/docs/tab-group-palettes.md); it is read with the choice and reread whenever it changes. Gray is General's, and the colour of tabs outside any group, in every palette. Per colour, worked out from the
 // base when a palette is first used:
 //   fill   the title tab ("chip") and the bar under an open group, the same in light and dark. Where white on the
 //          base reaches 2.6:1, the base deepened in HSL lightness (0.01 steps) just until white reaches 4.5:1, with a
@@ -85,7 +91,7 @@ static NSColor* RGB(unsigned rgb) {
 typedef struct { const char* name; unsigned base[11]; } SPDFGroupPalette;
 static const char* const kHueOrder[11] = {"Coral", "Orange", "Amber", "Green", "Slate", "Teal", "Blue", "Indigo",
                                           "Purple", "Plum", "Rose"};
-static const SPDFGroupPalette kPalettes[] = {
+static const SPDFGroupPalette kBuiltIn[] = {
     // Indigo #4d2bff is not one of the ten neons: an electric indigo in their style, as installed before.
     {"Neon", {0xff3131, 0xff8c00, 0xfff200, 0x39ff14, 0x00ff9f, 0x00f0ff, 0x2d7dff, 0x4d2bff, 0xb026ff, 0xff2bd6, 0xff4f9a}},
     // No blue: Blue repeats Teal.
@@ -100,9 +106,9 @@ static const SPDFGroupPalette kPalettes[] = {
     // Nine colours: Slate repeats Green, Indigo repeats Purple.
     {"Pastel", {0xfec89a, 0xffe5a8, 0xb5e48c, 0x99d98c, 0x99d98c, 0xbde0fe, 0xa2d2ff, 0xcdb4db, 0xcdb4db, 0xffc8dd,
                 0xffafcc}},
-    // No red: Coral is the warmest pink; Plum repeats Rose.
-    {"Pastel but vibrant", {0xff7aa2, 0xffa94d, 0xffd43b, 0x69db7c, 0x63e6be, 0x38d9a9, 0x4dabf7, 0x748ffc, 0xb197fc,
-                            0xf783ac, 0xf783ac}},
+    // No red: Coral is a light coral; Plum is violet and Rose a deep pink, so no two groups share a colour.
+    {"Pastel but vibrant", {0xffa8a8, 0xffa94d, 0xffd43b, 0x69db7c, 0x63e6be, 0x38d9a9, 0x4dabf7, 0x748ffc, 0xb197fc,
+                            0xbe4bdb, 0xe64980}},
     // Plum repeats Purple. Slate is a greener mint than Apple's #00c7be and Teal is Apple's cyan, as Apple's mint and
     // teal were too close to tell apart side by side.
     {"Apple system", {0xff3b30, 0xff9500, 0xffcc00, 0x34c759, 0x2ed3b7, 0x32ade6, 0x007aff, 0x5856d6, 0xaf52de, 0xaf52de,
@@ -111,9 +117,10 @@ static const SPDFGroupPalette kPalettes[] = {
     {"Codex", {0xe1292f, 0xf76b15, 0xffc205, 0x2fb26a, 0x59779a, 0x0ea5b0, 0x1a6ae6, 0x4f46e5, 0xa03ae0, 0xd01fb0,
                0xe11969}},
 };
-static const size_t kPaletteCount = sizeof kPalettes / sizeof kPalettes[0];
+// The palettes in use: the built-in ones, each replaced by the file's palette of the same name, then the file's others.
+struct SPDFPalette { std::string name; unsigned base[11]; };
+static std::vector<SPDFPalette> gPalettes;
 static const unsigned kGray = 0x6e6e6e;
-
 static double Linear(unsigned channel) {
     double c = channel / 255.0;
     return c <= 0.04045 ? c / 12.92 : pow((c + 0.055) / 1.055, 2.4);
@@ -177,31 +184,119 @@ static NSString* PaletteFile(void) {
 }
 // To the reader's other windows (each its own process) sharing this state, and no other copy of the app.
 static NSString* PaletteChanged(void) { return [@"ShenzhenPDFTabGroupPaletteChanged:" stringByAppendingString:PaletteFile()]; }
+static NSString* OverrideFile(void) {
+    return [PaletteFile().stringByDeletingLastPathComponent stringByAppendingPathComponent:@"tab-group-palettes.json"];
+}
 static size_t PaletteIndex(NSString* name) {
-    for (size_t i = 0; i < kPaletteCount; i++)
-        if ([name isEqualToString:@(kPalettes[i].name)]) return i;
+    for (size_t i = 0; name && i < gPalettes.size(); i++)
+        if (gPalettes[i].name == name.UTF8String) return i;
     return SIZE_MAX;
 }
+static BOOL ParseHex(id value, unsigned* rgb) {
+    if (![value isKindOfClass:NSString.class]) return NO;
+    NSString* hex = [value hasPrefix:@"#"] ? [value substringFromIndex:1] : value;
+    if (hex.length != 6 || [hex rangeOfCharacterFromSet:[NSCharacterSet characterSetWithCharactersInString:
+            @"0123456789abcdefABCDEF"].invertedSet].location != NSNotFound) return NO;
+    *rgb = (unsigned)strtoul(hex.UTF8String, NULL, 16);
+    return YES;
+}
+// The built-in palettes, then the file's: {"palettes": [{"name": "...", "colors": [11 × "#rrggbb", Coral to Rose]}]}.
+// A file that is not exactly that is left out as a whole, with a line in the log.
+static void ReadPalettes(void) {
+    gPalettes.clear();
+    for (const SPDFGroupPalette& builtIn : kBuiltIn) {
+        gPalettes.push_back(SPDFPalette{builtIn.name, {}});
+        memcpy(gPalettes.back().base, builtIn.base, sizeof builtIn.base);
+    }
+    NSData* data = [NSData dataWithContentsOfFile:OverrideFile()];
+    id json = data.length && data.length <= (1 << 20) ? [NSJSONSerialization JSONObjectWithData:data options:0 error:nil] : nil;
+    NSArray* list = [json isKindOfClass:NSDictionary.class] ? json[@"palettes"] : nil;
+    if (!data) return;
+    NSString* problem = [list isKindOfClass:NSArray.class] ? nil : @"it is not JSON of the form {\"palettes\": [...]}";
+    std::vector<SPDFPalette> read;
+    for (NSUInteger n = 0; !problem && n < list.count; n++) {
+        NSDictionary* item = [list[n] isKindOfClass:NSDictionary.class] ? list[n] : nil;
+        NSString* name = item[@"name"];
+        NSArray* colors = item[@"colors"];
+        BOOL ok = [name isKindOfClass:NSString.class] && name.length && name.length <= 60 &&
+                  [name isEqualToString:[name stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceCharacterSet]] &&
+                  [name rangeOfCharacterFromSet:NSCharacterSet.newlineCharacterSet].location == NSNotFound &&
+                  [colors isKindOfClass:NSArray.class] && colors.count == 11;
+        SPDFPalette entry{ok ? name.UTF8String : "", {}};
+        for (NSUInteger i = 0; ok && i < 11; i++) ok = ParseHex(colors[i], &entry.base[i]);
+        if (!ok) problem = [NSString stringWithFormat:@"palette %lu needs a one-line \"name\" and \"colors\": 11 colours "
+                                                      @"like \"#2ed3b7\"", (unsigned long)n + 1];
+        read.push_back(entry);
+    }
+    if (problem) return (void)NSLog(@"ShenzhenPDF: tab group palettes in %@ are ignored: %@", OverrideFile(), problem);
+    for (const SPDFPalette& entry : read) {
+        size_t i = PaletteIndex(@(entry.name.c_str()));
+        i == SIZE_MAX ? gPalettes.push_back(entry) : (void)(gPalettes[i] = entry);
+    }
+}
+static NSString* gChosen; // the palette saved in appearance.yaml, which may be one the file no longer has
 static void Recolor(void);
 static void UsePalette(size_t index) {
-    gPalette = index < kPaletteCount ? index : 0;
-    for (size_t i = 0; i < 11; i++) gColors[i] = Worked(kPalettes[gPalette].base[i]);
+    gPalette = index < gPalettes.size() ? index : 0;
+    for (size_t i = 0; i < 11; i++) gColors[i] = Worked(gPalettes[gPalette].base[i]);
     gColors[11] = Worked(kGray);
+}
+// The file is watched from when the palettes are first read: its folder, for a file saved by replacing it, created
+// or removed, and the file itself, for one written in place. Each change is read once things settle.
+static dispatch_source_t gFolderWatch, gFileWatch;
+static struct stat gSeen;
+static void FileMaybeChanged(void);
+static dispatch_source_t Watch(NSString* path, unsigned long mask) {
+    int fd = open(path.fileSystemRepresentation, O_EVTONLY);
+    if (fd < 0) return nil;
+    dispatch_source_t source = dispatch_source_create(DISPATCH_SOURCE_TYPE_VNODE, (uintptr_t)fd, mask,
+                                                      dispatch_get_main_queue());
+    dispatch_source_set_event_handler(source, ^{ FileMaybeChanged(); });
+    dispatch_source_set_cancel_handler(source, ^{ close(fd); });
+    dispatch_resume(source);
+    return source;
+}
+static BOOL Seen(void) {
+    struct stat now = {};
+    if (stat(OverrideFile().fileSystemRepresentation, &now) != 0) memset(&now, 0, sizeof now);
+    BOOL same = now.st_ino == gSeen.st_ino && now.st_dev == gSeen.st_dev && now.st_size == gSeen.st_size &&
+                now.st_mtimespec.tv_sec == gSeen.st_mtimespec.tv_sec && now.st_mtimespec.tv_nsec == gSeen.st_mtimespec.tv_nsec;
+    BOOL replaced = now.st_ino != gSeen.st_ino || now.st_dev != gSeen.st_dev;
+    gSeen = now;
+    if (replaced && gFileWatch) dispatch_source_cancel(gFileWatch);
+    if (replaced) gFileWatch = now.st_ino ? Watch(OverrideFile(), DISPATCH_VNODE_WRITE | DISPATCH_VNODE_EXTEND |
+                                                                 DISPATCH_VNODE_DELETE | DISPATCH_VNODE_RENAME) : nil;
+    return same;
+}
+static void FileMaybeChanged(void) {
+    static BOOL pending;
+    if (pending) return;
+    pending = YES;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 200 * NSEC_PER_MSEC), dispatch_get_main_queue(), ^{
+        pending = NO;
+        if (Seen()) return;
+        ReadPalettes();
+        UsePalette(PaletteIndex(gChosen));
+        Recolor();
+        [NSNotificationCenter.defaultCenter postNotificationName:SPDFTabGroupPalettesChangedNotification object:nil];
+    });
 }
 static void LoadPalette(void) {
     if (gPalette != SIZE_MAX) return;
     NSString* text = [NSString stringWithContentsOfFile:PaletteFile() encoding:NSUTF8StringEncoding error:nil];
-    size_t index = 0;
     for (NSString* line in [text componentsSeparatedByString:@"\n"])
         if ([line hasPrefix:@"tabGroupColors:"])
-            index = PaletteIndex([[line substringFromIndex:15] stringByTrimmingCharactersInSet:
-                                                                 NSCharacterSet.whitespaceCharacterSet]);
-    UsePalette(index);
+            gChosen = [[line substringFromIndex:15] stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceCharacterSet];
+    Seen();
+    gFolderWatch = Watch(PaletteFile().stringByDeletingLastPathComponent, DISPATCH_VNODE_WRITE);
+    ReadPalettes();
+    UsePalette(PaletteIndex(gChosen));
     // Another window of the reader switched palettes in Settings.
     [NSDistributedNotificationCenter.defaultCenter addObserverForName:PaletteChanged() object:nil queue:NSOperationQueue.mainQueue
                                                            usingBlock:^(NSNotification* note) {
         size_t chosen = PaletteIndex(note.object);
         if (chosen == SIZE_MAX || chosen == gPalette) return;
+        gChosen = note.object;
         UsePalette(chosen);
         Recolor();
     }];
@@ -225,27 +320,35 @@ static void Recolor(void) {
         if (frame) Redraw(frame);
     }
 }
+NSString* const SPDFTabGroupPalettesChangedNotification = @"SPDFTabGroupPalettesChanged";
 NSArray<NSString*>* spdf_tab_group_palettes(void) {
+    LoadPalette();
     NSMutableArray* names = [NSMutableArray array];
-    for (size_t i = 0; i < kPaletteCount; i++) [names addObject:@(kPalettes[i].name)];
+    for (const SPDFPalette& palette : gPalettes) [names addObject:@(palette.name.c_str())];
     return names;
 }
 NSString* spdf_tab_group_palette(void) {
     LoadPalette();
-    return @(kPalettes[gPalette].name);
+    return @(gPalettes[gPalette].name.c_str());
 }
 NSArray<NSNumber*>* spdf_tab_group_palette_fills(NSString* palette) {
+    LoadPalette();
     size_t index = PaletteIndex(palette);
     NSMutableArray* fills = [NSMutableArray array];
     if (index != SIZE_MAX)
-        for (size_t i = 0; i < 11; i++) [fills addObject:@(Worked(kPalettes[index].base[i]).fill)];
+        for (size_t i = 0; i < 11; i++) [fills addObject:@(Worked(gPalettes[index].base[i]).fill)];
     return fills;
 }
 BOOL spdf_tab_group_set_palette(NSString* palette) {
+    LoadPalette();
     size_t index = PaletteIndex(palette);
     if (index == SIZE_MAX) return NO;
-    LoadPalette();
-    NSString* text = [NSString stringWithFormat:@"tabGroupColors: %@\n", palette];
+    gChosen = palette;
+    // appearance.yaml's other lines (the light or dark choice) stay as they are.
+    NSString* old = [NSString stringWithContentsOfFile:PaletteFile() encoding:NSUTF8StringEncoding error:nil];
+    NSMutableString* text = [NSMutableString stringWithFormat:@"tabGroupColors: %@\n", palette];
+    for (NSString* line in [old componentsSeparatedByString:@"\n"])
+        if (line.length && ![line hasPrefix:@"tabGroupColors:"]) [text appendFormat:@"%@\n", line];
     [NSFileManager.defaultManager createDirectoryAtPath:PaletteFile().stringByDeletingLastPathComponent
                             withIntermediateDirectories:YES attributes:nil error:nil];
     BOOL saved = [text writeToFile:PaletteFile() atomically:YES encoding:NSUTF8StringEncoding error:nil];
