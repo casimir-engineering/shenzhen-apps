@@ -103,8 +103,9 @@ static const SPDFGroupPalette kPalettes[] = {
     // No red: Coral is the warmest pink; Plum repeats Rose.
     {"Pastel but vibrant", {0xff7aa2, 0xffa94d, 0xffd43b, 0x69db7c, 0x63e6be, 0x38d9a9, 0x4dabf7, 0x748ffc, 0xb197fc,
                             0xf783ac, 0xf783ac}},
-    // Plum repeats Purple.
-    {"Apple system", {0xff3b30, 0xff9500, 0xffcc00, 0x34c759, 0x00c7be, 0x30b0c7, 0x007aff, 0x5856d6, 0xaf52de, 0xaf52de,
+    // Plum repeats Purple. Slate is a greener mint than Apple's #00c7be and Teal is Apple's cyan, as Apple's mint and
+    // teal were too close to tell apart side by side.
+    {"Apple system", {0xff3b30, 0xff9500, 0xffcc00, 0x34c759, 0x2ed3b7, 0x32ade6, 0x007aff, 0x5856d6, 0xaf52de, 0xaf52de,
                       0xff2d55}},
     // The vivid chips of c24eca17, in the family of Codex's own icons.
     {"Codex", {0xe1292f, 0xf76b15, 0xffc205, 0x2fb26a, 0x59779a, 0x0ea5b0, 0x1a6ae6, 0x4f46e5, 0xa03ae0, 0xd01fb0,

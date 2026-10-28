@@ -39,7 +39,7 @@ BASES = {
     "Cyberpunk": "ff003c f5a524 fcee0a fcee0a 0abdc6 00f0ff 05d9e8 7b61ff 9d4edd ea00d9 ff2a6d",
     "Pastel": "fec89a ffe5a8 b5e48c 99d98c 99d98c bde0fe a2d2ff cdb4db cdb4db ffc8dd ffafcc",
     "Pastel but vibrant": "ff7aa2 ffa94d ffd43b 69db7c 63e6be 38d9a9 4dabf7 748ffc b197fc f783ac f783ac",
-    "Apple system": "ff3b30 ff9500 ffcc00 34c759 00c7be 30b0c7 007aff 5856d6 af52de af52de ff2d55",
+    "Apple system": "ff3b30 ff9500 ffcc00 34c759 2ed3b7 32ade6 007aff 5856d6 af52de af52de ff2d55",
     "Codex": "e1292f f76b15 ffc205 2fb26a 59779a 0ea5b0 1a6ae6 4f46e5 a03ae0 d01fb0 e11969",
 }
 # The owner's group names, in hue order; Indigo is left out to keep to ten.
