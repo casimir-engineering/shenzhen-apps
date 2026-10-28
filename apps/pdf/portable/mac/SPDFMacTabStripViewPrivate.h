@@ -24,9 +24,9 @@ static NSPasteboardType const SPDFTabDragPasteboardType = @"com.intuition.shenzh
     NSPanel* _hoverPanel;
     NSPopover* _groupPicker;
     NSTextField* _hoverLabel;
-    NSVisualEffectView* _hoverBubble;
+    NSView* _hoverBubble;
     // The page thumbnail under a document tab's title; built on first use.
-    NSVisualEffectView* _hoverCard;
+    NSView* _hoverCard;
     NSView* _hoverThumbnail;
     NSInteger _hoverTabIndex;
     // The tab whose label shows and the rect the label hangs under: a label

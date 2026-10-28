@@ -1,4 +1,5 @@
 #import "SPDFMacSearchablePicker.h"
+#import "SPDFMacCollectionStyle.h"
 @interface SPDFMacSearchablePicker () <NSTableViewDataSource,NSTableViewDelegate,NSTextFieldDelegate,NSSearchFieldDelegate>
 @property(nonatomic) NSPopover* popover;
 @property(nonatomic) NSSearchField* search;
@@ -64,13 +65,13 @@
         // A typed query must not disguise a loading/failed catalogue as a search miss.
         label.stringValue=self.choices.count && self.search.stringValue.length ? [@"No matching " stringByAppendingString:self.itemName] :
             (self.emptyMessage ?: [NSString stringWithFormat:@"No %@ available",self.itemName]);
-        label.textColor=NSColor.secondaryLabelColor; return label;
+        label.textColor=SPDFCollectionColor(@"secondary"); return label;
     }
     NSDictionary* choice=self.filtered[(NSUInteger)row];
     NSString* name=choice[@"name"] ?: choice[@"id"];
     NSMutableAttributedString* text=[[NSMutableAttributedString alloc] initWithString:name attributes:@{NSFontAttributeName:[NSFont systemFontOfSize:13 weight:NSFontWeightMedium]}];
     [text appendAttributedString:[[NSAttributedString alloc] initWithString:[@"\n" stringByAppendingString:choice[@"id"]]
-        attributes:@{NSFontAttributeName:[NSFont systemFontOfSize:11],NSForegroundColorAttributeName:NSColor.secondaryLabelColor}]];
+        attributes:@{NSFontAttributeName:[NSFont systemFontOfSize:11],NSForegroundColorAttributeName:SPDFCollectionColor(@"secondary")}]];
     label.attributedStringValue=text; label.lineBreakMode=NSLineBreakByTruncatingTail; label.maximumNumberOfLines=2; return label;
 }
 - (void)controlTextDidChange:(NSNotification*)note { (void)note; [self refreshChoices]; }

@@ -20,12 +20,12 @@ static char versionInfoKey, versionIndicatorKey, versionIndicatorRowKey, version
     (void)dirty;
     NSRect bounds = NSInsetRect(self.bounds,.5,.5);
     NSBezierPath* shape = [NSBezierPath bezierPathWithRoundedRect:bounds xRadius:NSHeight(bounds)/2 yRadius:NSHeight(bounds)/2];
-    NSColor* accent=self.missing ? NSColor.systemRedColor : NSColor.controlAccentColor;
+    NSColor* accent=self.missing ? SPDFCollectionColor(@"destructive") : SPDFCollectionColor(@"focus");
     [[accent colorWithAlphaComponent:self.highlighted ? .25 : .14] setFill]; [shape fill];
     [[accent colorWithAlphaComponent:.55] setStroke]; [shape stroke];
     NSMutableParagraphStyle* style = [NSMutableParagraphStyle new];
     style.alignment = NSTextAlignmentCenter; style.lineBreakMode = NSLineBreakByTruncatingMiddle;
-    NSDictionary* attributes = @{NSFontAttributeName:self.font,NSForegroundColorAttributeName:NSColor.labelColor,
+    NSDictionary* attributes = @{NSFontAttributeName:self.font,NSForegroundColorAttributeName:SPDFCollectionColor(@"text"),
                                  NSParagraphStyleAttributeName:style};
     CGFloat height = [self.title sizeWithAttributes:attributes].height;
     NSString* title = [self.title sizeWithAttributes:attributes].width > NSWidth(self.bounds)-20 ? self.compactTitle : self.title;
@@ -46,9 +46,9 @@ static char versionInfoKey, versionIndicatorKey, versionIndicatorRowKey, version
 - (void)drawRect:(NSRect)dirty {
     (void)dirty;
     NSBezierPath* shape=[NSBezierPath bezierPathWithRoundedRect:NSInsetRect(self.bounds,.5,.5) xRadius:5 yRadius:5];
-    [[NSColor.labelColor colorWithAlphaComponent:self.highlighted ? .12 : .05] setFill]; [shape fill];
-    [[NSColor.labelColor colorWithAlphaComponent:.09] setStroke]; [shape stroke];
-    NSDictionary* attributes=@{NSFontAttributeName:self.font,NSForegroundColorAttributeName:NSColor.labelColor};
+    [[SPDFCollectionColor(@"text") colorWithAlphaComponent:self.highlighted ? .12 : .05] setFill]; [shape fill];
+    [[SPDFCollectionColor(@"text") colorWithAlphaComponent:.09] setStroke]; [shape stroke];
+    NSDictionary* attributes=@{NSFontAttributeName:self.font,NSForegroundColorAttributeName:SPDFCollectionColor(@"text")};
     NSSize size=[self.title sizeWithAttributes:attributes];
     [self.title drawAtPoint:NSMakePoint(floor((NSWidth(self.bounds)-size.width)/2),floor((NSHeight(self.bounds)-size.height)/2)) withAttributes:attributes];
     if (self.window.firstResponder==self) {

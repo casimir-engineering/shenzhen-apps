@@ -310,7 +310,7 @@ static NSButton* SPDFOutlineToggleControl(ShenzhenMacDelegate* self, SEL action)
     button.showsBorderOnlyWhileMouseInside = YES;
     button.controlSize = NSControlSizeSmall;
     button.imagePosition = NSImageOnly;
-    button.contentTintColor = NSColor.secondaryLabelColor;
+    button.contentTintColor = SPDFCollectionColor(@"secondary");
     button.toolTip = @"Collapse All";
     button.tag = kSPDFOutlineToggleTag;
     button.translatesAutoresizingMaskIntoConstraints = NO;

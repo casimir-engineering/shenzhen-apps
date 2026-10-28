@@ -43,7 +43,7 @@ NSTrackingArea* SPDFChatHoverArea(NSView* owner) {
         NSImage* icon=[self.image imageWithSymbolConfiguration:configuration];
         [icon drawInRect:[self rectForSymbol:icon] fromRect:NSZeroRect operation:NSCompositingOperationSourceOver
             fraction:self.enabled ? 1 : .65 respectFlipped:YES hints:nil];
-        if(self.state==NSControlStateValueOn) { [NSColor.controlAccentColor setStroke]; [shape stroke]; }
+        if(self.state==NSControlStateValueOn) { [SPDFCollectionColor(@"focus") setStroke]; [shape stroke]; }
     } else {
         NSMutableParagraphStyle* p=[NSMutableParagraphStyle new];
         p.alignment=self.alignment; p.lineBreakMode=NSLineBreakByTruncatingTail;
@@ -66,7 +66,7 @@ NSTrackingArea* SPDFChatHoverArea(NSView* owner) {
     [super drawRect:dirty];
     if(self.editable) {
         NSBezierPath* outline=[NSBezierPath bezierPathWithRoundedRect:NSInsetRect(self.bounds,1,1) xRadius:7 yRadius:7];
-        outline.lineWidth=2; [NSColor.keyboardFocusIndicatorColor setStroke]; [outline stroke];
+        outline.lineWidth=2; [SPDFCollectionColor(@"focus") setStroke]; [outline stroke];
     }
 }
 - (void)viewDidChangeEffectiveAppearance { [super viewDidChangeEffectiveAppearance]; self.needsDisplay=YES; }
@@ -159,7 +159,7 @@ NSTextField* SPDFChatSummaryMarker(void) {
     [super drawRect:dirty];
     NSBezierPath* outline=[NSBezierPath bezierPathWithRoundedRect:NSInsetRect(self.bounds,1,1) xRadius:7 yRadius:7];
     outline.lineWidth=[self composerFocused] ? 2 : 1;
-    [([self composerFocused] ? NSColor.keyboardFocusIndicatorColor : SPDFCollectionColor(@"line")) setStroke];
+    [([self composerFocused] ? SPDFCollectionColor(@"focus") : SPDFCollectionColor(@"line")) setStroke];
     [outline stroke];
 }
 - (void)updateBorder {
@@ -167,7 +167,7 @@ NSTextField* SPDFChatSummaryMarker(void) {
     BOOL focused=[self.window.firstResponder isKindOfClass:NSTextView.class] &&
         [(NSView*)self.window.firstResponder isDescendantOf:self];
     self.layer.borderWidth=focused ? 2 : 1;
-    self.layer.borderColor=(focused ? NSColor.keyboardFocusIndicatorColor : SPDFCollectionColor(@"line")).CGColor;
+    self.layer.borderColor=(focused ? SPDFCollectionColor(@"focus") : SPDFCollectionColor(@"line")).CGColor;
 }
 - (void)viewDidChangeEffectiveAppearance { [super viewDidChangeEffectiveAppearance]; [self updateBorder]; }
 - (void)viewDidMoveToWindow { [super viewDidMoveToWindow]; [self updateBorder]; }
@@ -242,17 +242,8 @@ NSButton* SPDFChatMakeSymbolButton(NSString* symbol, NSString* identifier, id ta
     [b.widthAnchor constraintEqualToConstant:side].active=YES;
     [b.heightAnchor constraintEqualToConstant:side].active=YES; return b;
 }
-static NSColor* Dynamic(NSString* name, unsigned light, unsigned dark) {
-    return [NSColor colorWithName:name dynamicProvider:^NSColor*(NSAppearance* appearance) {
-        BOOL isDark=[[appearance bestMatchFromAppearancesWithNames:@[NSAppearanceNameAqua,NSAppearanceNameDarkAqua]]
-            isEqual:NSAppearanceNameDarkAqua];
-        unsigned value=isDark ? dark : light;
-        return [NSColor colorWithSRGBRed:((value>>16)&255)/255.0 green:((value>>8)&255)/255.0 blue:(value&255)/255.0
-                                   alpha:1];
-    }];
-}
-// About #C4271D on white (5.7:1) and #FF6961 on the dark panel (5.0:1).
-NSColor* SPDFChatFailureColor(void) { return Dynamic(@"SPDFChat.failure",0xC4271D,0xFF6961); }
+// The chrome's destructive colour: #ba2623 on white is 6.2:1, #ff6b66 on the dark panel 6.4:1.
+NSColor* SPDFChatFailureColor(void) { return SPDFCollectionColor(@"destructive"); }
 @implementation SPDFChatPillButton {
     NSTrackingArea* _hoverArea;
 }
@@ -285,10 +276,9 @@ NSColor* SPDFChatFailureColor(void) { return Dynamic(@"SPDFChat.failure",0xC4271
             ofColor:dark ? NSColor.whiteColor : NSColor.blackColor];
         [fill setFill]; [shape fill]; ink=SPDFCollectionColor(@"window");
     } else {
-        // The Markdown pills' light colours (SPDFMarkdownTheme code controls), lifted in dark to show on the panel.
-        [(self.highlighted ? SPDFCollectionColor(@"selected") : self.hovered ?
-            Dynamic(@"SPDFChat.pillHover",0xDDE3E9,0x44484E) : Dynamic(@"SPDFChat.pill",0xEAEEF2,0x393D42)) setFill];
-        [shape fill]; [Dynamic(@"SPDFChat.pillLine",0xD0D7DE,0x4F535A) setStroke]; [shape stroke];
+        // The chrome's secondary button: a grey fill that deepens under the pointer, with a hairline.
+        [SPDFCollectionColor(self.highlighted ? @"lineStrong" : self.hovered ? @"line" : @"control") setFill];
+        [shape fill]; [SPDFCollectionColor(@"lineStrong") setStroke]; [shape stroke];
         ink=SPDFCollectionColor(@"text");
     }
     if(!self.enabled) ink=[ink colorWithAlphaComponent:.5];
@@ -372,7 +362,7 @@ SPDFChatMessageView* SPDFChatLiteralTextView(NSString* text, CGFloat width, BOOL
     view.editable = NO; view.selectable = YES; view.drawsBackground = NO;
     // Nothing turns into a link or a detected date: the person reads characters, not what they might mean.
     view.automaticLinkDetectionEnabled = NO; view.automaticDataDetectionEnabled = NO;
-    view.backgroundColor = SPDFCollectionColor(@"control");  // the message tint, filled as a rounded panel
+    view.backgroundColor = SPDFCollectionColor(@"card");  // the message tint, filled as a rounded panel
     view.verticallyResizable = NO; view.horizontallyResizable = NO;
     view.textContainerInset = NSMakeSize(10, 8); view.textContainer.lineFragmentPadding = 0;
     view.textContainer.widthTracksTextView = YES;

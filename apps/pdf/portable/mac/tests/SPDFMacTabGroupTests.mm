@@ -1,4 +1,5 @@
 #import <Cocoa/Cocoa.h>
+#import "SPDFMacCollectionStyle.h"
 #import <objc/runtime.h>
 #import "SPDFMacModels.h"
 #import "SPDFMacTabGroups.h"
@@ -29,11 +30,6 @@ static NSMutableArray* RoundTrip(NSArray* tabs) {
     for (NSDictionary* item in decoded) [result addObject:spdf_tab_from_dictionary(item)];
     spdf_tab_groups_normalize(result);
     return result;
-}
-static double Luminance(NSColor* value) {
-    NSColor* c = [value colorUsingColorSpace:NSColorSpace.sRGBColorSpace];
-    auto linear = [](double n) { return n <= 0.04045 ? n / 12.92 : pow((n + .055) / 1.055, 2.4); };
-    return .2126 * linear(c.redComponent) + .7152 * linear(c.greenComponent) + .0722 * linear(c.blueComponent);
 }
 int main(void) {
     @autoreleasepool {
@@ -151,14 +147,36 @@ int main(void) {
         Expect(@"malformed optional values use safe defaults", [malformed.colorName isEqualToString:@"Purple"]
             && !malformed.collapsed);
         Expect(@"palette includes Orange", spdf_tab_group_colors().count == 11 && [spdf_tab_group_colors() containsObject:@"Orange"]);
+        // Group colours against the chrome palette's tab bar ("titlebar") and tab title ("text"), light then dark.
+        auto channel = [](unsigned hex, int shift) { return ((hex >> shift) & 255) / 255.0; };
+        auto lum = [&](double r, double g, double b) {
+            auto linear = [](double n) { return n <= 0.04045 ? n / 12.92 : pow((n + .055) / 1.055, 2.4); };
+            return .2126 * linear(r) + .7152 * linear(g) + .0722 * linear(b);
+        };
+        auto hexLum = [&](unsigned hex) { return lum(channel(hex, 16), channel(hex, 8), channel(hex, 0)); };
+        auto ratio = [](double a, double b) { return (MAX(a, b) + .05) / (MIN(a, b) + .05); };
+        Expect(@"the palette keeps every stored colour name, so a group keeps its colour",
+            [spdf_tab_group_colors() isEqualToArray:(@[@"Purple", @"Green", @"Blue", @"Teal", @"Rose", @"Coral",
+                                                      @"Amber", @"Indigo", @"Plum", @"Slate", @"Orange"])]);
         for (NSString* color in [spdf_tab_group_colors() arrayByAddingObject:@"Gray"]) {
+            unsigned fill = spdf_tab_group_hex(color, 0, NO), label = spdf_tab_group_hex(color, 1, NO);
+            Expect([NSString stringWithFormat:@"%@ chip label reaches 4.5:1 (WCAG AA)", color],
+                   ratio(hexLum(fill), hexLum(label)) >= 4.5);
             for (NSNumber* dark in @[@NO, @YES]) {
-                double fillLuminance = Luminance(spdf_tab_group_selected_fill(color, dark.boolValue));
-                // labelColor is the SAME foreground on selected/unselected
-                // titles: black in Aqua and white in Dark Aqua.
-                double contrast = dark.boolValue ? 1.05 / (fillLuminance + .05)
-                                                  : (fillLuminance + .05) / .05;
-                Expect([NSString stringWithFormat:@"%@ selected label contrast exceeds 4.5:1", color], contrast >= 4.5);
+                unsigned bar = 0, text = 0;
+                SPDFChromeHex(@"titlebar", dark.boolValue, &bar); SPDFChromeHex(@"text", dark.boolValue, &text);
+                unsigned edge = spdf_tab_group_hex(color, 2, dark.boolValue);
+                Expect([NSString stringWithFormat:@"%@ chip outline stands 3:1 from the %@ tab bar", color,
+                           dark.boolValue ? @"dark" : @"light"], ratio(hexLum(edge), hexLum(bar)) >= 3.0);
+                // The selected tab's fill is the group colour over the tab bar at the fill's alpha.
+                NSColor* selected = [spdf_tab_group_selected_fill(color, dark.boolValue)
+                                        colorUsingColorSpace:NSColorSpace.sRGBColorSpace];
+                double alpha = selected.alphaComponent;
+                double r = channel(bar, 16) + (selected.redComponent - channel(bar, 16)) * alpha;
+                double g = channel(bar, 8) + (selected.greenComponent - channel(bar, 8)) * alpha;
+                double b = channel(bar, 0) + (selected.blueComponent - channel(bar, 0)) * alpha;
+                Expect([NSString stringWithFormat:@"%@ selected tab title keeps 4.5:1 in %@", color,
+                           dark.boolValue ? @"dark" : @"light"], ratio(lum(r, g, b), hexLum(text)) >= 4.5);
             }
         }
         NSString* dir = @(__FILE__).stringByDeletingLastPathComponent;

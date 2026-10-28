@@ -109,12 +109,12 @@
     (void)dirtyRect;
     NSRect bounds = NSInsetRect(self.bounds, 1.0, 2.0);
     CGFloat alpha = self.enabled ? 1.0 : 0.42;
-    NSColor* fill = self.highlighted ? [NSColor.labelColor colorWithAlphaComponent:0.13 * alpha]
-                                     : [NSColor.labelColor colorWithAlphaComponent:0.06 * alpha];
+    NSColor* fill = self.highlighted ? [SPDFCollectionColor(@"text") colorWithAlphaComponent:0.13 * alpha]
+                                     : [SPDFCollectionColor(@"text") colorWithAlphaComponent:0.06 * alpha];
     [fill setFill];
     [[NSBezierPath bezierPathWithRoundedRect:bounds xRadius:8.0 yRadius:8.0] fill];
 
-    [[NSColor.separatorColor colorWithAlphaComponent:0.30 * alpha] setStroke];
+    [[SPDFCollectionColor(@"line") colorWithAlphaComponent:0.30 * alpha] setStroke];
     NSBezierPath* outline = [NSBezierPath bezierPathWithRoundedRect:bounds xRadius:8.0 yRadius:8.0];
     outline.lineWidth = 1.0;
     [outline stroke];

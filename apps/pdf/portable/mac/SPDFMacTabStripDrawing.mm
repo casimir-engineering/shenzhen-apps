@@ -20,11 +20,19 @@
     BOOL dark = [[self.effectiveAppearance bestMatchFromAppearancesWithNames:
         @[NSAppearanceNameAqua, NSAppearanceNameDarkAqua]] isEqualToString:NSAppearanceNameDarkAqua];
     NSColor* accent = spdf_tab_group_accent(tab.group.colorName);
-    NSColor* fill = missing ? [NSColor.systemRedColor colorWithAlphaComponent:selected ? 0.36 : 0.22]
+    NSColor* fill = missing ? [SPDFCollectionColor(@"destructive") colorWithAlphaComponent:selected ? 0.36 : 0.22]
         : selected ? spdf_tab_group_selected_fill(tab.group.colorName, dark)
         : [accent colorWithAlphaComponent:hovered ? 0.27 : 0.16];
     [fill setFill];
     [[NSBezierPath bezierPathWithRoundedRect:tabRect xRadius:6 yRadius:6] fill];
+    if (selected && !missing) {
+        // The selected tab is outlined in its group's colour, so it reads as selected in a group of any colour.
+        [spdf_tab_group_edge(tab.group.colorName) setStroke];
+        NSBezierPath* outline = [NSBezierPath bezierPathWithRoundedRect:NSInsetRect(tabRect, 0.75, 0.75)
+                                                                xRadius:5.25 yRadius:5.25];
+        outline.lineWidth = 1.5;
+        [outline stroke];
+    }
 
     if (SPDFTabIsCollectionCopy(tab)) {
         // Pale provenance is independent of membership: an ordinary Orange
@@ -52,7 +60,7 @@
         NSRect dotRect = [self readOnlyDotRectForTabRect:tabRect
                                                 diameter:kReadOnlyDotDiameter
                                                leftInset:kReadOnlyDotLeftInset];
-        [(tab.unsavedPastedImage ? NSColor.systemRedColor : NSColor.systemOrangeColor) setFill];
+        [(tab.unsavedPastedImage ? SPDFCollectionColor(@"destructive") : NSColor.systemOrangeColor) setFill];
         [[NSBezierPath bezierPathWithOvalInRect:dotRect] fill];
         // Reserve space so the (middle-ellipsis) title sits just right of the dot.
         leftInset = kReadOnlyDotLeftInset + kReadOnlyDotDiameter + kReadOnlyDotTitleGap;
@@ -85,13 +93,13 @@
 
     NSRect closeRect = [self closeCircleRectForTabRect:tabRect];
     NSBezierPath* closeCircle = [NSBezierPath bezierPathWithRoundedRect:closeRect xRadius:4 yRadius:4];
-    NSColor* closeFill = selected ? [NSColor.labelColor colorWithAlphaComponent:0.13]
-                                  : [NSColor.secondaryLabelColor colorWithAlphaComponent:0.13];
+    NSColor* closeFill = selected ? [SPDFCollectionColor(@"text") colorWithAlphaComponent:0.13]
+                                  : [SPDFCollectionColor(@"secondary") colorWithAlphaComponent:0.13];
     [closeFill setFill];
     if (_hasLastHoverPoint && NSPointInRect(_lastHoverPoint,closeRect)) [closeCircle fill];
 
-    NSColor* closeStroke = selected ? [NSColor.labelColor colorWithAlphaComponent:0.90]
-                                    : [NSColor.secondaryLabelColor colorWithAlphaComponent:0.82];
+    NSColor* closeStroke = selected ? [SPDFCollectionColor(@"text") colorWithAlphaComponent:0.90]
+                                    : [SPDFCollectionColor(@"secondary") colorWithAlphaComponent:0.82];
     [closeStroke setStroke];
     NSBezierPath* closeX = [NSBezierPath bezierPath];
     closeX.lineWidth = 1.35;
@@ -110,14 +118,14 @@
     NSParagraphStyle* tabTitleStyle = SPDFTabTitleParagraphStyle();
     NSDictionary* attrs = @{
         NSFontAttributeName : [NSFont systemFontOfSize:12 weight:NSFontWeightRegular],
-        NSForegroundColorAttributeName : NSColor.labelColor,
+        NSForegroundColorAttributeName : SPDFCollectionColor(@"text"),
         NSParagraphStyleAttributeName : tabTitleStyle
     };
     // Kept as a separate argument while older callers/tests use the drawing
     // seam; it deliberately has the exact same foreground as attrs.
     NSDictionary* dimAttrs = @{
         NSFontAttributeName : [NSFont systemFontOfSize:12],
-        NSForegroundColorAttributeName : NSColor.labelColor,
+        NSForegroundColorAttributeName : SPDFCollectionColor(@"text"),
         NSParagraphStyleAttributeName : tabTitleStyle
     };
 
@@ -149,11 +157,11 @@
         NSInteger count = [self tabScrollHiddenCountOnLeft:left.boolValue];
         if (count <= 0) continue;
         NSRect indicator = [self tabScrollIndicatorRectOnLeft:left.boolValue];
-        [[NSColor.labelColor colorWithAlphaComponent:.07] setFill];
+        [[SPDFCollectionColor(@"text") colorWithAlphaComponent:.07] setFill];
         [[NSBezierPath bezierPathWithRoundedRect:indicator xRadius:6 yRadius:6] fill];
         NSString* label = [NSString stringWithFormat:@"+%ld",(long)count];
         [label drawInRect:NSInsetRect(indicator,1,4) withAttributes:@{
-            NSFontAttributeName:[NSFont systemFontOfSize:12],NSForegroundColorAttributeName:NSColor.labelColor,
+            NSFontAttributeName:[NSFont systemFontOfSize:12],NSForegroundColorAttributeName:SPDFCollectionColor(@"text"),
             NSParagraphStyleAttributeName:SPDFTabTitleParagraphStyle()}];
     }
     NSRect overflowRect = [self overflowRect];
@@ -169,7 +177,7 @@
 
     NSDictionary* plusAttrs = @{
         NSFontAttributeName : [NSFont systemFontOfSize:16 weight:NSFontWeightRegular],
-        NSForegroundColorAttributeName : NSColor.labelColor
+        NSForegroundColorAttributeName : SPDFCollectionColor(@"text")
     };
     NSSize plusSize = [@"+" sizeWithAttributes:plusAttrs];
     [@"+" drawAtPoint:NSMakePoint(floor(NSMidX(plusRect) - plusSize.width / 2.0),
@@ -191,7 +199,7 @@
         if (!isnan(centerX)) {
             NSRect anyTabRect = [self rectForTabAtIndex:arrayIndexes[0]];
             NSRect lineRect = NSMakeRect(floor(centerX) - 1.0, NSMinY(anyTabRect), 2.0, NSHeight(anyTabRect));
-            [NSColor.systemYellowColor setFill];
+            [SPDFCollectionColor(@"focus") setFill];
             [[NSBezierPath bezierPathWithRoundedRect:lineRect xRadius:1.0 yRadius:1.0] fill];
         }
     }

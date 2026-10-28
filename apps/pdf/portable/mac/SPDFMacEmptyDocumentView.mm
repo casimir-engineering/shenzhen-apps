@@ -1,4 +1,5 @@
 #import "SPDFMacEmptyDocumentView.h"
+#import "SPDFMacCollectionStyle.h"
 #import <objc/runtime.h>
 #import "SPDFMacModels.h"
 @interface NSObject (EmptyDocumentState)
@@ -12,7 +13,7 @@
 - (void)drawRect:(NSRect)dirty {
     (void)dirty;
     NSBezierPath* shape=[NSBezierPath bezierPathWithRoundedRect:NSInsetRect(self.bounds,1,1) xRadius:8 yRadius:8];
-    [(self.highlighted ? NSColor.selectedControlColor : NSColor.controlAccentColor) setFill]; [shape fill];
+    [(self.highlighted ? [SPDFCollectionColor(@"accentFill") blendedColorWithFraction:.18 ofColor:NSColor.blackColor] : SPDFCollectionColor(@"accentFill")) setFill]; [shape fill];
     NSString* label=[self.title isEqual:@"Locate document"] ? self.title : @"＋  Open document";
     NSDictionary* attributes=@{NSFontAttributeName:[NSFont systemFontOfSize:13 weight:NSFontWeightSemibold],
         NSForegroundColorAttributeName:NSColor.whiteColor};
@@ -43,12 +44,12 @@
 - (NSTextField*)label:(NSString*)text size:(CGFloat)size weight:(NSFontWeight)weight {
     NSTextField* label=[NSTextField wrappingLabelWithString:text];
     label.font=[NSFont systemFontOfSize:size weight:weight]; label.alignment=NSTextAlignmentCenter;
-    label.textColor=NSColor.secondaryLabelColor; [self addSubview:label]; return label;
+    label.textColor=SPDFCollectionColor(@"secondary"); [self addSubview:label]; return label;
 }
 - (instancetype)initWithFrame:(NSRect)frame {
     if ((self=[super initWithFrame:frame])) {
         self.titleLabel=[self label:@"Your next document" size:22 weight:NSFontWeightSemibold];
-        self.titleLabel.textColor=NSColor.labelColor;
+        self.titleLabel.textColor=SPDFCollectionColor(@"text");
         self.hint=[self label:@"Drop a file here to start reading" size:13 weight:NSFontWeightRegular];
         self.formats=[self label:@"PDF · Markdown · Text & code\nImages · EPUB · Office documents" size:12 weight:NSFontWeightRegular];
         self.shortcut=[self label:@"or press ⌘O" size:11 weight:NSFontWeightRegular];
@@ -75,11 +76,11 @@
     for (NSNumber* offset in @[@-1,@1,@0]) {
         NSInteger i=offset.integerValue;
         NSRect page=NSMakeRect(cx-22+i*22,y+8+labs(i)*6,44,58);
-        [[NSColor.labelColor colorWithAlphaComponent:i==0 ?.09:.035] setFill];
+        [[SPDFCollectionColor(@"text") colorWithAlphaComponent:i==0 ?.09:.035] setFill];
         NSBezierPath* shape=[NSBezierPath bezierPathWithRoundedRect:page xRadius:6 yRadius:6]; [shape fill];
-        [[NSColor.controlAccentColor colorWithAlphaComponent:i==0 ?.65:.18] setStroke]; shape.lineWidth=1; [shape stroke];
+        [[SPDFCollectionColor(@"focus") colorWithAlphaComponent:i==0 ?.65:.18] setStroke]; shape.lineWidth=1; [shape stroke];
         for (NSInteger line=0;i==0 && line<3;line++) {
-            [[NSColor.secondaryLabelColor colorWithAlphaComponent:.4] setFill];
+            [[SPDFCollectionColor(@"secondary") colorWithAlphaComponent:.4] setFill];
             NSRectFillUsingOperation(NSMakeRect(NSMinX(page)+10,NSMinY(page)+18+line*8,line==2 ? 16:24,2),NSCompositingOperationSourceOver);
         }
     }

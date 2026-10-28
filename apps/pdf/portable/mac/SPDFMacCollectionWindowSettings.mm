@@ -45,7 +45,7 @@
     self.limitField = [NSTextField new]; self.limitField.placeholderString = @"0";
     self.limitField.doubleValue = [self.store.settings[@"storageLimitBytes"] doubleValue]/1e9;
     self.limitField.font = [NSFont systemFontOfSize:13]; self.limitField.textColor = SPDFCollectionColor(@"text");
-    self.limitField.backgroundColor = SPDFCollectionColor(@"pane");
+    self.limitField.backgroundColor = SPDFCollectionColor(@"field");
     self.limitField.accessibilityLabel = @"Storage limit in GB; zero means unlimited";
     self.limitField.target = self; self.limitField.action = @selector(changeLimit:); self.limitField.delegate = (id)self;
     [self.limitField.widthAnchor constraintEqualToConstant:70].active = YES; [cap addArrangedSubview:self.limitField];

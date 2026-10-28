@@ -3,7 +3,7 @@ SPDF_CHAT_MARKDOWN_TESTS_INCLUDED := 1
 # Markdown in chats (mac/SPDFMacChatMarkdown.h): the renderer AI chat and Friends messages share, and its suites.
 # Included from mac/tests/ai-reader-tests.mk, whose chat view suite links the same sources. Make runs in portable/.
 include mac/tests/workspace-probe.mk
-MAC_CHAT_MARKDOWN_SRCS := mac/SPDFMacChatMarkdown.mm mac/SPDFMacChatMarkdownBlocks.mm mac/SPDFMacChatMarkdownBudget.mm \
+MAC_CHAT_MARKDOWN_SRCS := mac/SPDFMacChatMarkdown.mm mac/SPDFMacCollectionStyle.mm mac/SPDFMacChatMarkdownBlocks.mm mac/SPDFMacChatMarkdownBudget.mm \
 	mac/SPDFMacChatMarkdownCells.mm mac/SPDFMacChatMarkdownDiagrams.mm mac/SPDFMacChatMarkdownImages.mm \
 	mac/SPDFMacChatMarkdownLinks.mm mac/SPDFMacChatMarkdownStyle.mm mac/SPDFMacChatMarkdownView.mm \
 	mac/SPDFMacMarkdownSessionImageLoader.mm mac/SPDFMacMarkdownCache.mm

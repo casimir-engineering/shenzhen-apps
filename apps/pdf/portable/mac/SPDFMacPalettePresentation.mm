@@ -181,7 +181,7 @@ static CGFloat Clamp(CGFloat value, CGFloat low, CGFloat high) { return MIN(MAX(
                 subtitle.identifier = @"subtitle";
                 subtitle.lineBreakMode = NSLineBreakByTruncatingMiddle;
                 subtitle.font = [NSFont systemFontOfSize:11];
-                subtitle.textColor = NSColor.secondaryLabelColor;
+                subtitle.textColor = SPDFCollectionColor(@"secondary");
                 [cell addSubview:subtitle];
 
                 deleteWidth = [deleteButton.widthAnchor constraintEqualToConstant:28];
@@ -211,7 +211,7 @@ static CGFloat Clamp(CGFloat value, CGFloat low, CGFloat high) { return MIN(MAX(
             deleteWidth.constant = armed ? 116.0 : 28.0;
             NSString* deleteTitle = armed ? @"Confirm Delete" : @"\u00D7";
             NSDictionary* attributes = @{
-                NSForegroundColorAttributeName : armed ? NSColor.systemRedColor : NSColor.secondaryLabelColor,
+                NSForegroundColorAttributeName : armed ? SPDFCollectionColor(@"destructive") : SPDFCollectionColor(@"secondary"),
                 NSFontAttributeName : [NSFont systemFontOfSize:armed ? 11.0 : 17.0
                                                         weight:armed ? NSFontWeightSemibold : NSFontWeightRegular]
             };
@@ -223,9 +223,9 @@ static CGFloat Clamp(CGFloat value, CGFloat low, CGFloat high) { return MIN(MAX(
 
             cell.textField.stringValue = result[@"title"] ?: @"";
             cell.textField.font = [NSFont systemFontOfSize:13 weight:NSFontWeightMedium];
-            cell.textField.textColor = NSColor.labelColor;
+            cell.textField.textColor = SPDFCollectionColor(@"text");
             subtitle.stringValue = result[@"subtitle"] ?: @"";
-            subtitle.textColor = NSColor.secondaryLabelColor;
+            subtitle.textColor = SPDFCollectionColor(@"secondary");
             return cell;
         }
 

@@ -84,10 +84,10 @@ NSPasteboardType const SZFTestTabPasteboardType = @"com.example.friends-views-te
     if (!self.readerTokens) return appearance;
     // As ShenzhenPDF's host adapter builds its appearance: named dynamic colours from the reader's Collection palette.
     NSDictionary<NSString *, NSArray<NSNumber *> *> *palette = @{
-        @"window" : @[ @0xffffff, @0x292b2e ], @"text" : @[ @0x26282b, @0xeceef1 ],
-        @"secondary" : @[ @0x61666d, @0xb3b7be ], @"line" : @[ @0xdddfdf, @0x414448 ],
-        @"selected" : @[ @0xdbe5f0, @0x374b61 ], @"accent" : @[ @0x286398, @0xa1c9ed ],
-        @"control" : @[ @0xf6f6f5, @0x232426 ], @"hover" : @[ @0xe8ebed, @0x393d42 ],
+        @"window" : @[ @0xffffff, @0x181818 ], @"text" : @[ @0x0d0d0d, @0xffffff ],
+        @"secondary" : @[ @0x5d5d5d, @0xb4b4b4 ], @"line" : @[ @0xe3e3e3, @0x313131 ],
+        @"selected" : @[ @0xececec, @0x313131 ], @"accent" : @[ @0x1f62d6, @0x83c3ff ],
+        @"control" : @[ @0xebebeb, @0x303030 ], @"hover" : @[ @0xf2f2f2, @0x292929 ],
     };
     NSColor * (^token)(NSString *) = ^NSColor *(NSString *name) {
         NSArray<NSNumber *> *pair = palette[name];

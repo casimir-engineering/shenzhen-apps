@@ -1,4 +1,5 @@
 #import "SPDFMacFriendsComposerText.h"
+#import "../SPDFMacCollectionStyle.h"
 
 NSString* const SPDFMacFriendsAllChatsChoiceID = @"all";
 
@@ -11,9 +12,9 @@ static NSAttributedString* Chip(NSTextAttachment* token, NSString* text, NSFont*
     // Drawn on demand, so the chip follows the composer's light or dark appearance like the text around it.
     token.image = [NSImage imageWithSize:size flipped:NO drawingHandler:^BOOL(NSRect rect) {
         NSBezierPath* shape = [NSBezierPath bezierPathWithRoundedRect:NSInsetRect(rect, 0.5, 0.5) xRadius:5 yRadius:5];
-        [[NSColor.controlAccentColor colorWithAlphaComponent:0.16] setFill];
+        [[SPDFCollectionColor(@"focus") colorWithAlphaComponent:0.16] setFill];
         [shape fill];
-        NSDictionary* drawn = @{NSFontAttributeName : chipFont, NSForegroundColorAttributeName : NSColor.labelColor};
+        NSDictionary* drawn = @{NSFontAttributeName : chipFont, NSForegroundColorAttributeName : SPDFCollectionColor(@"text")};
         [text drawAtPoint:NSMakePoint(6.0, floor((NSHeight(rect) - textSize.height) / 2.0)) withAttributes:drawn];
         return YES;
     }];

@@ -1,4 +1,5 @@
 #import "SPDFMacUIHelpers.h"
+#import "SPDFMacCollectionStyle.h"
 #import "SPDFMacPaneDividerGeometry.h"
 
 @implementation SPDFPaneDividerView {
@@ -18,8 +19,8 @@
 - (void)drawRect:(NSRect)dirtyRect {
     (void)dirtyRect;
     NSRect gutter=NSMakeRect(floor(NSMidX(self.bounds)-2.5),0,5,NSHeight(self.bounds));
-    [NSColor.windowBackgroundColor setFill]; NSRectFill(gutter);
-    [NSColor.separatorColor setFill];
+    [SPDFCollectionColor(@"window") setFill]; NSRectFill(gutter);
+    [SPDFCollectionColor(@"line") setFill];
     NSRectFill(NSMakeRect(floor(NSMidX(self.bounds)),0,1,NSHeight(self.bounds)));
 }
 - (void)mouseDown:(NSEvent*)event {

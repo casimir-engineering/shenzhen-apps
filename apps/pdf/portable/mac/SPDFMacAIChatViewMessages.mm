@@ -47,7 +47,7 @@
         view.editAction=^{ [weakSelf beginEditingMessageAtIndex:index]; };
     }
     view.delegate=self; view.accessibilityLabel=role;
-    view.backgroundColor=SPDFCollectionColor([role isEqual:@"You"] ? @"selected" : @"control");
+    view.backgroundColor=SPDFCollectionColor([role isEqual:@"You"] ? @"bubble" : @"card");
     [_messages addArrangedSubview:view];
     [view.widthAnchor constraintEqualToAnchor:_messages.widthAnchor].active=YES; view.contentHeight.active=YES;
     [_messages setCustomSpacing:16 afterView:view];
@@ -78,7 +78,7 @@
 }
 - (void)addEditorWithRole:(NSString*)role {
     NSDictionary* attributes=@{NSFontAttributeName:[NSFont systemFontOfSize:13],
-        NSForegroundColorAttributeName:NSColor.labelColor};
+        NSForegroundColorAttributeName:SPDFCollectionColor(@"text")};
     NSTextField* label=SPDFCollectionText(role,11,NSFontWeightSemibold,YES); [_messages addArrangedSubview:label];
     SPDFChatMessageView* view=[[SPDFChatMessageView alloc]
         initWithFrame:NSMakeRect(0,0,MAX(120,self.bounds.size.width-48),40)];
@@ -94,7 +94,7 @@
     view.contentHeight=[view.heightAnchor constraintEqualToConstant:MAX(18,height)+2*view.textContainerInset.height];
     view.contentHeight.active=YES;
     _editor=view; view.identifier=@"messageEditor"; view.editable=YES; view.richText=NO; view.allowsUndo=YES;
-    view.typingAttributes=attributes; view.backgroundColor=NSColor.textBackgroundColor;
+    view.typingAttributes=attributes; view.backgroundColor=SPDFCollectionColor(@"window");
     view.accessibilityLabel=@"Edit your message. Return sends; Escape cancels.";
     BOOL later=_editIndex+1<[_displayedSession.chat[@"messages"] count];
     NSTextField* help=SPDFCollectionText(later ? @"Sending removes the messages below and asks again from here." : @"",

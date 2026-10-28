@@ -18,10 +18,12 @@ static void SZFTestDefaultTokens(void) {
     // ships. Light, then dark.
     SZFriendsAppearance *defaults = [SZFriendsAppearance new];
     NSDictionary<NSString *, NSArray<NSNumber *> *> *expected = @{
-        @"backgroundColor" : @[ @0xffffff, @0x292b2e ], @"primaryTextColor" : @[ @0x26282b, @0xeceef1 ],
-        @"secondaryTextColor" : @[ @0x61666d, @0xb3b7be ], @"separatorColor" : @[ @0xdddfdf, @0x414448 ],
-        @"selectionColor" : @[ @0xdbe5f0, @0x374b61 ], @"accentColor" : @[ @0x286398, @0xa1c9ed ],
-        @"controlColor" : @[ @0xf6f6f5, @0x232426 ], @"hoverColor" : @[ @0xe8ebed, @0x393d42 ],
+        @"backgroundColor" : @[ @0xffffff, @0x181818 ], @"primaryTextColor" : @[ @0x0d0d0d, @0xffffff ],
+        @"secondaryTextColor" : @[ @0x5d5d5d, @0xb4b4b4 ], @"separatorColor" : @[ @0xe3e3e3, @0x313131 ],
+        @"selectionColor" : @[ @0xececec, @0x313131 ], @"accentColor" : @[ @0x1f62d6, @0x83c3ff ],
+        @"controlColor" : @[ @0xebebeb, @0x303030 ], @"hoverColor" : @[ @0xf2f2f2, @0x292929 ],
+        @"fieldBackgroundColor" : @[ @0xebebeb, @0x303030 ], @"controlBorderColor" : @[ @0xcfcfcf, @0x454545 ],
+        @"primaryButtonColor" : @[ @0x1a6ae6, @0x1a6ae6 ], @"destructiveColor" : @[ @0xba2623, @0xff6b66 ],
     };
     for (NSString *key in expected) {
         NSColor *color = [defaults valueForKey:key];

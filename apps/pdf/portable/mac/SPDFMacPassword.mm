@@ -1,4 +1,5 @@
 #import "SPDFMacPassword.h"
+#import "SPDFMacCollectionStyle.h"
 #import "SPDFMacCollectionCredentialIntegration.h"
 
 spdf_document* SPDFOpenDocumentWithCredential(NSString* openPath, SPDFPasswordCredential* credential,
@@ -93,7 +94,7 @@ spdf_document* SPDFOpenDocumentWithStoredCredential(NSString* openPath, NSString
 
     _statusField = [NSTextField labelWithString:@""];
     _statusField.translatesAutoresizingMaskIntoConstraints = NO;
-    _statusField.textColor = NSColor.systemRedColor;
+    _statusField.textColor = SPDFCollectionColor(@"destructive");
     _statusField.font = [NSFont systemFontOfSize:12];
     [content addSubview:_statusField];
 

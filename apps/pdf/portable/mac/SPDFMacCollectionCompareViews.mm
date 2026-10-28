@@ -1,4 +1,5 @@
 #import "SPDFMacCollectionCompareViews.h"
+#import "SPDFMacCollectionStyle.h"
 
 @implementation SPDFCollectionCompareRail
 - (BOOL)isFlipped { return YES; }
@@ -6,7 +7,7 @@
 - (NSString*)accessibilityRole { return NSAccessibilityGroupRole; }
 - (NSString*)accessibilityLabel { return @"Change markers. Use Previous change and Next change to navigate."; }
 - (void)drawRect:(NSRect)dirtyRect {
-    [[NSColor separatorColor] setFill];
+    [SPDFCollectionColor(@"line") setFill];
     NSRectFill(NSInsetRect(self.bounds, 5, 0));
     [self.markerColor setFill];
     for (NSNumber* slot in self.slots) {
@@ -86,7 +87,7 @@ static NSButton* button(NSString* title, id target, SEL action) {
     self.reader.autoScales = YES;
     self.reader.minScaleFactor = .15;
     self.reader.maxScaleFactor = 6;
-    self.reader.backgroundColor = [NSColor windowBackgroundColor];
+    self.reader.backgroundColor = SPDFCollectionColor(@"window");
     self.reader.displaysPageBreaks = YES;
     self.rail = [SPDFCollectionCompareRail new];
     self.rail.markerColor = badge.textColor;

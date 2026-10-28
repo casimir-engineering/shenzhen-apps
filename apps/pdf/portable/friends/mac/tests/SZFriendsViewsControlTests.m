@@ -120,8 +120,8 @@ static void SZFTestMutedRows(void) {
 
 static void SZFTestTitleBarIconColor(void) {
     SZFriendsAppearance *defaults = [SZFriendsAppearance new];
-    SZFExpect(SZFResolved(defaults.titleBarIconColor, NSAppearanceNameAqua) == 0x26282b &&
-                  SZFResolved(defaults.titleBarIconColor, NSAppearanceNameDarkAqua) == 0xeceef1,
+    SZFExpect(SZFResolved(defaults.titleBarIconColor, NSAppearanceNameAqua) == 0x333333 &&
+                  SZFResolved(defaults.titleBarIconColor, NSAppearanceNameDarkAqua) == 0xdcdcdc,
               @"defaults to ShenzhenPDF's chrome icon color: %06x / %06x",
               SZFResolved(defaults.titleBarIconColor, NSAppearanceNameAqua),
               SZFResolved(defaults.titleBarIconColor, NSAppearanceNameDarkAqua));
@@ -153,8 +153,8 @@ static void SZFTestTitleBarIconColor(void) {
                 darkest = (uint32_t)((r << 16) | (g << 8) | b);
             }
         }
-    int dr = (int)(darkest >> 16) - 0x26, dg = (int)((darkest >> 8) & 255) - 0x28, db = (int)(darkest & 255) - 0x2b;
-    SZFExpect(abs(dr) <= 6 && abs(dg) <= 6 && abs(db) <= 6, @"idle icon drawn in #26282b, darkest pixel %06x", darkest);
+    int dr = (int)(darkest >> 16) - 0x33, dg = (int)((darkest >> 8) & 255) - 0x33, db = (int)(darkest & 255) - 0x33;
+    SZFExpect(abs(dr) <= 6 && abs(dg) <= 6 && abs(db) <= 6, @"idle icon drawn in #333333, darkest pixel %06x", darkest);
     (void)window;
 }
 

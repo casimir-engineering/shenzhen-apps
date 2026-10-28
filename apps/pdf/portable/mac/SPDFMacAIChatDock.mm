@@ -1,4 +1,5 @@
 #import "SPDFMacAIChatDock.h"
+#import "SPDFMacCollectionStyle.h"
 @interface SPDFChatSplitView : NSSplitView
 @property BOOL trackingDivider;
 @end
@@ -9,7 +10,7 @@
     self.trackingDivider=NSPointInRect(point,divider);
     @try {[super mouseDown:event];} @finally {self.trackingDivider=NO;}
 }
-- (void)drawDividerInRect:(NSRect)rect {[NSColor.separatorColor setFill];NSRectFill(rect);}
+- (void)drawDividerInRect:(NSRect)rect {[SPDFCollectionColor(@"line") setFill];NSRectFill(rect);}
 @end
 @interface SPDFMacAIChatDock ()
 @property NSSplitView* split;

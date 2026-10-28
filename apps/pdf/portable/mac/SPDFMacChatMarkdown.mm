@@ -1,4 +1,5 @@
 #import "SPDFMacChatMarkdownParts.h"
+#import "SPDFMacCollectionStyle.h"
 
 #import "markdown/SPDFMarkdownDiagram.h"
 #import "markdown/SPDFMarkdownMathTypesetter.h"
@@ -27,17 +28,19 @@ static NSString* const kAliasPrefix = @"https://spdf-chat.invalid/";
     self.dark = NO;
     return self;
 }
-// The reader's chrome palette (SPDFMacCollectionStyle.mm "text", "secondary", "accent"), the same values the
-// Friends views default to, as concrete sRGB: the engine bakes colours into the text it lays out.
+// The reader's chrome palette (SPDFMacCollectionStyle.mm "text", "secondary", "accent"), as concrete sRGB: the
+// engine bakes colours into the text it lays out.
 static NSColor* RGB(unsigned value) {
     return [NSColor colorWithSRGBRed:((value >> 16) & 0xff) / 255.0 green:((value >> 8) & 0xff) / 255.0
                                 blue:(value & 0xff) / 255.0 alpha:1];
 }
 - (void)setDark:(BOOL)dark {
     _dark = dark;
-    self.textColor = RGB(dark ? 0xeceef1 : 0x26282b);
-    self.secondaryTextColor = RGB(dark ? 0xb3b7be : 0x61666d);
-    self.linkColor = RGB(dark ? 0xa1c9ed : 0x286398);
+    unsigned text = 0, secondary = 0, link = 0;
+    SPDFChromeHex(@"text", dark, &text); SPDFChromeHex(@"secondary", dark, &secondary); SPDFChromeHex(@"accent", dark, &link);
+    self.textColor = RGB(text);
+    self.secondaryTextColor = RGB(secondary);
+    self.linkColor = RGB(link);
 }
 - (id)copyWithZone:(NSZone*)zone {
     SPDFMacChatMarkdownOptions* copy = [[SPDFMacChatMarkdownOptions allocWithZone:zone] init];

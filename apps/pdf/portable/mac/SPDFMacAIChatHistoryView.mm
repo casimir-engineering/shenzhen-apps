@@ -24,7 +24,7 @@ static NSAttributedString* HistoryText(NSString* text, NSString* query, NSFont* 
         while(remaining.length) {
             NSRange match=[result.string rangeOfString:query options:NSCaseInsensitiveSearch|NSDiacriticInsensitiveSearch range:remaining];
             if(match.location==NSNotFound)break;
-            [result addAttributes:@{NSBackgroundColorAttributeName:[NSColor.controlAccentColor colorWithAlphaComponent:.25],NSForegroundColorAttributeName:SPDFCollectionColor(@"text")} range:match];
+            [result addAttributes:@{NSBackgroundColorAttributeName:[SPDFCollectionColor(@"focus") colorWithAlphaComponent:.25],NSForegroundColorAttributeName:SPDFCollectionColor(@"text")} range:match];
             remaining=NSMakeRange(NSMaxRange(match),result.length-NSMaxRange(match));
         }
     }

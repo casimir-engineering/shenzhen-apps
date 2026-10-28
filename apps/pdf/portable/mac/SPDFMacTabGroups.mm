@@ -68,32 +68,59 @@ static NSColor* RGB(unsigned rgb) {
     return [NSColor colorWithSRGBRed:((rgb >> 16) & 255) / 255.0 green:((rgb >> 8) & 255) / 255.0
                               blue:(rgb & 255) / 255.0 alpha:1];
 }
-NSColor* spdf_tab_group_accent(NSString* color) {
-    NSArray* names = spdf_tab_group_colors();
-    NSUInteger index = [names indexOfObject:color ?: @""];
-    const unsigned values[] = {0xc4a0fa, 0x86d9ac, 0x85c5fa, 0x6cd8d1, 0xf1a0c4,
-                               0xffaa94, 0xf1cd78, 0xaab5ff, 0xdca5e9, 0xabc5d8, 0xffbc83};
-    return RGB(index < names.count ? values[index] : 0xb5b5be);
+// Group colours: vivid chips in the family of Codex's own round icons (its blue download button #3983f7 and yellow
+// avatar #ffc205), hues after Radix Colors' step 9 (MIT, https://www.radix-ui.com/colors), each darkened just enough
+// for its label. Names are what sessions store, so a group keeps its colour across this change. Per colour:
+//   fill   the title tab ("chip") and the bar under an open group, the same in light and dark;
+//   label  white where it reaches 4.5:1 on the fill, else near-black #111111 (every pair is 4.6:1 or more);
+//   edge   the chip's 1 pt outline, light then dark: the fill itself where the fill already stands 3:1 from the tab
+//          bar (#eaeaea / #282828), else the nearest shade of the same hue that does.
+// Gray is General's, and the colour of tabs outside any group.
+typedef struct { const char* name; unsigned fill; BOOL whiteLabel; unsigned edgeLight, edgeDark; } SPDFGroupColor;
+static const SPDFGroupColor kGroupColors[] = {
+    {"Purple", 0xa03ae0, YES, 0xa03ae0, 0xa23ee1}, {"Green", 0x2fb26a, NO, 0x28995b, 0x2fb26a},
+    {"Blue", 0x1a6ae6, YES, 0x1a6ae6, 0x1b6be6},   {"Teal", 0x0ea5b0, NO, 0x0d959f, 0x0ea5b0},
+    {"Rose", 0xe11969, YES, 0xe11969, 0xe11969},   {"Coral", 0xe1292f, YES, 0xe1292f, 0xe1292f},
+    {"Amber", 0xffc205, NO, 0xa98000, 0xffc205},   {"Indigo", 0x4f46e5, YES, 0x4f46e5, 0x655de8},
+    {"Plum", 0xd01fb0, YES, 0xd01fb0, 0xd01fb0},   {"Slate", 0x59779a, YES, 0x59779a, 0x59779a},
+    {"Orange", 0xf76b15, NO, 0xe45b08, 0xf76b15},  {"Gray", 0x6e6e6e, YES, 0x6e6e6e, 0x717171},
+};
+static const SPDFGroupColor& GroupColor(NSString* color) {
+    const size_t count = sizeof kGroupColors / sizeof kGroupColors[0];
+    for (size_t i = 0; i < count; i++)
+        if (color && !strcmp(kGroupColors[i].name, color.UTF8String)) return kGroupColors[i];
+    return kGroupColors[count - 1];
+}
+static BOOL IsDark(NSAppearance* appearance) {
+    return [[appearance bestMatchFromAppearancesWithNames:@[ NSAppearanceNameAqua, NSAppearanceNameDarkAqua ]]
+        isEqualToString:NSAppearanceNameDarkAqua];
+}
+NSColor* spdf_tab_group_accent(NSString* color) { return RGB(GroupColor(color).fill); }
+NSColor* spdf_tab_group_label(NSString* color) { return RGB(GroupColor(color).whiteLabel ? 0xffffff : 0x111111); }
+NSColor* spdf_tab_group_edge(NSString* color) {
+    const SPDFGroupColor& entry = GroupColor(color);
+    return IsDark(NSAppearance.currentDrawingAppearance) ? RGB(entry.edgeDark) : RGB(entry.edgeLight);
+}
+unsigned spdf_tab_group_hex(NSString* color, int part, BOOL dark) {
+    const SPDFGroupColor& entry = GroupColor(color);
+    return part == 0 ? entry.fill : part == 1 ? (entry.whiteLabel ? 0xffffff : 0x111111)
+                                              : (dark ? entry.edgeDark : entry.edgeLight);
 }
 NSImage* spdf_tab_group_swatch_image(NSString* color) {
     NSString* label = color.length ? color : @"Gray";
     return [NSImage imageWithSize:NSMakeSize(12, 12) flipped:NO drawingHandler:^BOOL(NSRect rect) {
+      NSBezierPath* dot = [NSBezierPath bezierPathWithOvalInRect:NSInsetRect(rect, 1.5, 1.5)];
       [spdf_tab_group_accent(label) setFill];
-      [[NSBezierPath bezierPathWithOvalInRect:NSInsetRect(rect, 1, 1)] fill];
+      [dot fill];
+      [spdf_tab_group_edge(label) setStroke];
+      [dot stroke];
       return YES;
     }];
 }
+// The selected tab of a group: its colour over the tab bar, strong enough to read as selected and light enough
+// (dark enough in Dark Aqua) that the tab's ordinary title colour keeps 5:1 or more on it.
 NSColor* spdf_tab_group_selected_fill(NSString* color, BOOL dark) {
-    if (!color.length || [color isEqualToString:@"Gray"]) return RGB(dark ? 0x50535c : 0xc6c8ce);
-    NSUInteger index = [spdf_tab_group_colors() indexOfObject:color ?: @""];
-    // Aqua uses labelColor (black) for every tab title, so selected fills are
-    // pale tints. Dark Aqua keeps the deep fills below for white labelColor.
-    const unsigned light[] = {0xd6b9fa, 0xa4e3bd, 0xb1d9fc, 0x9ce1da, 0xf5bbd5,
-                              0xffc2af, 0xf5dda0, 0xc5ccff, 0xe8c0f0, 0xc0d8e8, 0xffc18a};
-    const unsigned night[] = {0x72539b, 0x347456, 0x396f9b, 0x267773, 0x965274,
-                              0x985b4b, 0x826a32, 0x5b65a2, 0x85558e, 0x526f83, 0x8f603a};
-    return RGB(index < spdf_tab_group_colors().count ? (dark ? night[index] : light[index])
-                                                    : (dark ? 0x16161b : 0x41414a));
+    return [spdf_tab_group_accent(color) colorWithAlphaComponent:dark ? 0.42 : 0.30];
 }
 NSString* spdf_tab_group_unused_color(NSArray<SPDFDocumentTab*>* tabs) {
     NSMutableArray* available = [spdf_tab_group_colors() mutableCopy];

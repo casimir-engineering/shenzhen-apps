@@ -1,4 +1,5 @@
 #import "SPDFMacShortcutHelpStyle.h"
+#import "SPDFMacCollectionStyle.h"
 #import "SPDFMacDelegatePrivate.h"
 
 @implementation ShenzhenMacDelegate (ShortcutHelp)
@@ -33,14 +34,14 @@
         _shortcutHelpPanel.hidesOnDeactivate = NO;
         _shortcutHelpPanel.hasShadow = YES;
         _shortcutHelpPanel.title = @"Keyboard Shortcuts";
-        _shortcutHelpPanel.backgroundColor = NSColor.windowBackgroundColor;
+        _shortcutHelpPanel.backgroundColor = SPDFCollectionColor(@"window");
 
         NSView* content = SPDFShortcutHelpSurface(frame);
         _shortcutHelpPanel.contentView = content;
         NSTextField* title = [NSTextField labelWithString:@"Find a shortcut by action or key."];
         title.translatesAutoresizingMaskIntoConstraints = NO;
         title.font = [NSFont systemFontOfSize:13];
-        title.textColor = NSColor.secondaryLabelColor;
+        title.textColor = SPDFCollectionColor(@"secondary");
         [content addSubview:title];
 
         _shortcutHelpSearchField = [[NSSearchField alloc] init];
@@ -82,7 +83,7 @@
         NSTextField* hint = [NSTextField labelWithString:@"⌘ Command    ⌥ Option    ⇧ Shift    ↩ Return"];
         hint.translatesAutoresizingMaskIntoConstraints = NO;
         hint.font = [NSFont systemFontOfSize:11 weight:NSFontWeightRegular];
-        hint.textColor = NSColor.secondaryLabelColor;
+        hint.textColor = SPDFCollectionColor(@"secondary");
         [content addSubview:hint];
 
         [NSLayoutConstraint activateConstraints:@[

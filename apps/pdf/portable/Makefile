@@ -205,7 +205,7 @@ core-partial-ocr-tests: $(CORE_PARTIAL_OCR_TEST)
 	"$(CORE_PARTIAL_OCR_TEST)"
 
 $(MAC_OCR_INSTALL_TEST): mac/tests/SPDFMacOCRInstallTests.mm mac/SPDFMacOCRInstall.mm mac/SPDFMacOCRInstall.h mac/SPDFMacToolEnvironment.mm mac/SPDFMacSupport.mm mac/SPDFMacToolbarSegments.mm | $(BUILD)
-	clang++ $(MAC_TARGET_FLAGS) -std=c++17 -fobjc-arc -Wall -Wextra -Werror -Imac -Icore mac/tests/SPDFMacOCRInstallTests.mm mac/SPDFMacOCRInstall.mm mac/SPDFMacToolEnvironment.mm mac/SPDFMacSupport.mm mac/SPDFMacToolbarSegments.mm -framework Cocoa -framework UniformTypeIdentifiers -o "$@"
+	clang++ $(MAC_TARGET_FLAGS) -std=c++17 -fobjc-arc -Wall -Wextra -Werror -Imac -Icore mac/tests/SPDFMacOCRInstallTests.mm mac/SPDFMacOCRInstall.mm mac/SPDFMacToolEnvironment.mm mac/SPDFMacSupport.mm mac/SPDFMacToolbarSegments.mm mac/SPDFMacCollectionStyle.mm -framework Cocoa -framework UniformTypeIdentifiers -o "$@"
 
 mac-ocr-install-tests: $(MAC_OCR_INSTALL_TEST)
 	"$(MAC_OCR_INSTALL_TEST)"
@@ -277,7 +277,7 @@ mac-window-chrome-tests: $(MAC_WINDOW_CHROME_TEST)
 	"$(MAC_WINDOW_CHROME_TEST)"
 
 $(MAC_PASSWORD_TEST): mac/tests/SPDFMacPasswordTests.mm mac/SPDFMacPassword.mm mac/SPDFMacPasswordCredentials.mm mac/SPDFMacPassword.h $(CORE_OBJ) $(CORE_RECOLOR_OBJ) mupdf-libs | $(BUILD)
-	clang++ $(MAC_TARGET_FLAGS) -std=c++17 -fobjc-arc -Imac -Icore -I$(MUPDF_DIR)/include mac/tests/SPDFMacPasswordTests.mm mac/SPDFMacPassword.mm mac/SPDFMacPasswordCredentials.mm "$(CORE_OBJ)" "$(CORE_RECOLOR_OBJ)" $(MUPDF_LIBS) -framework Cocoa -lm -o "$(MAC_PASSWORD_TEST)"
+	clang++ $(MAC_TARGET_FLAGS) -std=c++17 -fobjc-arc -Imac -Icore -I$(MUPDF_DIR)/include mac/tests/SPDFMacPasswordTests.mm mac/SPDFMacPassword.mm mac/SPDFMacCollectionStyle.mm mac/SPDFMacPasswordCredentials.mm "$(CORE_OBJ)" "$(CORE_RECOLOR_OBJ)" $(MUPDF_LIBS) -framework Cocoa -lm -o "$(MAC_PASSWORD_TEST)"
 
 mac-password-tests: $(MAC_PASSWORD_TEST)
 	"$(MAC_PASSWORD_TEST)"
@@ -303,28 +303,28 @@ $(MAC_TAB_STRIP_INTERACTION_TEST): mac/tests/SPDFMacTabStripInteractionTests.mm 
 	mac/SPDFMacTabAccessibility.mm mac/SPDFMacTabStripView.h mac/SPDFMacTabStripGeometry.mm \
 	mac/SPDFMacTabStripGeometry.h mac/SPDFMacTabStripStyle.mm mac/SPDFMacTabStripStyle.h \
 	mac/SPDFMacWindowChrome.mm mac/SPDFMacWindowChrome.h | $(BUILD)
-	clang++ $(MAC_TARGET_FLAGS) -std=c++17 -fobjc-arc -Wall -Wextra -Werror -Imac -Icore -I$(MUPDF_DIR)/include mac/tests/SPDFMacTabStripInteractionTests.mm mac/SPDFMacTabStripLayout.mm mac/SPDFMacTabStripScrolling.mm mac/SPDFMacTabStripHover.mm mac/SPDFMacTabStripMenus.mm mac/SPDFMacTabGroupPicker.mm mac/SPDFMacTabStripDrawing.mm mac/SPDFMacTabStripDrag.mm mac/SPDFMacTabGroupLayout.mm mac/SPDFMacTabGroupInteraction.mm mac/SPDFMacTabGroupNamePrompt.mm mac/SPDFMacTabGroups.mm mac/SPDFMacTabStripView.mm mac/SPDFMacTabAccessibility.mm mac/SPDFMacTabStripGeometry.mm mac/SPDFMacTabStripStyle.mm mac/SPDFMacWindowChrome.mm -framework Cocoa -o "$(MAC_TAB_STRIP_INTERACTION_TEST)"
+	clang++ $(MAC_TARGET_FLAGS) -std=c++17 -fobjc-arc -Wall -Wextra -Werror -Imac -Icore -I$(MUPDF_DIR)/include mac/tests/SPDFMacTabStripInteractionTests.mm mac/SPDFMacTabStripLayout.mm mac/SPDFMacTabStripScrolling.mm mac/SPDFMacTabStripHover.mm mac/SPDFMacTabStripMenus.mm mac/SPDFMacTabGroupPicker.mm mac/SPDFMacTabStripDrawing.mm mac/SPDFMacCollectionStyle.mm mac/SPDFMacTabStripDrag.mm mac/SPDFMacTabGroupLayout.mm mac/SPDFMacTabGroupInteraction.mm mac/SPDFMacTabGroupNamePrompt.mm mac/SPDFMacTabGroups.mm mac/SPDFMacTabStripView.mm mac/SPDFMacTabAccessibility.mm mac/SPDFMacTabStripGeometry.mm mac/SPDFMacTabStripStyle.mm mac/SPDFMacWindowChrome.mm -framework Cocoa -o "$(MAC_TAB_STRIP_INTERACTION_TEST)"
 
 mac-tab-strip-interaction-tests: $(MAC_TAB_STRIP_INTERACTION_TEST)
 	"$(MAC_TAB_STRIP_INTERACTION_TEST)"
 
 .PHONY: mac-tab-group-tests
 mac-tab-group-tests: $(CORE_OBJ) $(CORE_RECOLOR_OBJ) mupdf-libs | $(BUILD)
-	clang++ $(MAC_TARGET_FLAGS) -std=c++17 -fobjc-arc -Wall -Wextra -Werror -Imac -Icore -I$(MUPDF_DIR)/include mac/tests/SPDFMacTabGroupTests.mm mac/SPDFMacModels.mm mac/SPDFMacTabGroups.mm "$(CORE_OBJ)" "$(CORE_RECOLOR_OBJ)" $(MUPDF_LIBS) -framework Cocoa -lm -o "$(BUILD)/SPDFMacTabGroupTests"
+	clang++ $(MAC_TARGET_FLAGS) -std=c++17 -fobjc-arc -Wall -Wextra -Werror -Imac -Icore -I$(MUPDF_DIR)/include mac/tests/SPDFMacTabGroupTests.mm mac/SPDFMacModels.mm mac/SPDFMacTabGroups.mm mac/SPDFMacCollectionStyle.mm "$(CORE_OBJ)" "$(CORE_RECOLOR_OBJ)" $(MUPDF_LIBS) -framework Cocoa -lm -o "$(BUILD)/SPDFMacTabGroupTests"
 	"$(BUILD)/SPDFMacTabGroupTests"
-	clang++ $(MAC_TARGET_FLAGS) -std=c++17 -fobjc-arc -Wall -Wextra -Werror -Imac -Icore -I$(MUPDF_DIR)/include mac/tests/SPDFMacTabGroupIntegrationTests.mm mac/SPDFMacModels.mm mac/SPDFMacTabGroups.mm mac/SPDFMacTabGroupIntegration.mm "$(CORE_OBJ)" "$(CORE_RECOLOR_OBJ)" $(MUPDF_LIBS) -framework Cocoa -lm -o "$(BUILD)/SPDFMacTabGroupIntegrationTests"
+	clang++ $(MAC_TARGET_FLAGS) -std=c++17 -fobjc-arc -Wall -Wextra -Werror -Imac -Icore -I$(MUPDF_DIR)/include mac/tests/SPDFMacTabGroupIntegrationTests.mm mac/SPDFMacModels.mm mac/SPDFMacTabGroups.mm mac/SPDFMacCollectionStyle.mm mac/SPDFMacTabGroupIntegration.mm "$(CORE_OBJ)" "$(CORE_RECOLOR_OBJ)" $(MUPDF_LIBS) -framework Cocoa -lm -o "$(BUILD)/SPDFMacTabGroupIntegrationTests"
 	"$(BUILD)/SPDFMacTabGroupIntegrationTests"
 
 .PHONY: mac-document-opening-tests
 mac-document-opening-tests: $(CORE_OBJ) $(CORE_RECOLOR_OBJ) mupdf-libs | $(BUILD)
-	clang++ $(MAC_TARGET_FLAGS) -std=c++17 -fobjc-arc -Wall -Wextra -Werror -Wno-objc-protocol-method-implementation -Imac -Icore -I$(MUPDF_DIR)/include mac/tests/SPDFMacDocumentOpeningTests.mm mac/SPDFMacDocumentOpening.mm mac/SPDFMacOpenRouting.mm mac/SPDFMacModels.mm mac/SPDFMacTabGroups.mm mac/SPDFMacTabGroupIntegration.mm "$(CORE_OBJ)" "$(CORE_RECOLOR_OBJ)" $(MUPDF_LIBS) -framework Cocoa -lm -o "$(BUILD)/SPDFMacDocumentOpeningTests"
+	clang++ $(MAC_TARGET_FLAGS) -std=c++17 -fobjc-arc -Wall -Wextra -Werror -Wno-objc-protocol-method-implementation -Imac -Icore -I$(MUPDF_DIR)/include mac/tests/SPDFMacDocumentOpeningTests.mm mac/SPDFMacDocumentOpening.mm mac/SPDFMacOpenRouting.mm mac/SPDFMacModels.mm mac/SPDFMacTabGroups.mm mac/SPDFMacCollectionStyle.mm mac/SPDFMacTabGroupIntegration.mm "$(CORE_OBJ)" "$(CORE_RECOLOR_OBJ)" $(MUPDF_LIBS) -framework Cocoa -lm -o "$(BUILD)/SPDFMacDocumentOpeningTests"
 	"$(BUILD)/SPDFMacDocumentOpeningTests"
 
 .PHONY: mac-tab-group-integration-tests mac-tab-group-interaction-tests
 mac-tab-group-integration-tests: mac-tab-group-tests
 
 mac-tab-group-interaction-tests: | $(BUILD)
-	clang++ $(MAC_TARGET_FLAGS) -std=c++17 -fobjc-arc -Wall -Wextra -Werror -Imac -Icore -I$(MUPDF_DIR)/include mac/tests/SPDFMacTabGroupInteractionTests.mm mac/SPDFMacTabStripLayout.mm mac/SPDFMacTabStripScrolling.mm mac/SPDFMacTabStripHover.mm mac/SPDFMacTabStripMenus.mm mac/SPDFMacTabGroupPicker.mm mac/SPDFMacTabStripDrawing.mm mac/SPDFMacTabStripDrag.mm mac/SPDFMacTabGroupLayout.mm mac/SPDFMacTabGroupInteraction.mm mac/SPDFMacTabGroupNamePrompt.mm mac/SPDFMacTabGroups.mm mac/SPDFMacTabStripView.mm mac/SPDFMacTabAccessibility.mm mac/SPDFMacTabStripGeometry.mm mac/SPDFMacTabStripStyle.mm mac/SPDFMacWindowChrome.mm -framework Cocoa -o "$(BUILD)/SPDFMacTabGroupInteractionTests"
+	clang++ $(MAC_TARGET_FLAGS) -std=c++17 -fobjc-arc -Wall -Wextra -Werror -Imac -Icore -I$(MUPDF_DIR)/include mac/tests/SPDFMacTabGroupInteractionTests.mm mac/SPDFMacTabStripLayout.mm mac/SPDFMacTabStripScrolling.mm mac/SPDFMacTabStripHover.mm mac/SPDFMacTabStripMenus.mm mac/SPDFMacTabGroupPicker.mm mac/SPDFMacTabStripDrawing.mm mac/SPDFMacCollectionStyle.mm mac/SPDFMacTabStripDrag.mm mac/SPDFMacTabGroupLayout.mm mac/SPDFMacTabGroupInteraction.mm mac/SPDFMacTabGroupNamePrompt.mm mac/SPDFMacTabGroups.mm mac/SPDFMacTabStripView.mm mac/SPDFMacTabAccessibility.mm mac/SPDFMacTabStripGeometry.mm mac/SPDFMacTabStripStyle.mm mac/SPDFMacWindowChrome.mm -framework Cocoa -o "$(BUILD)/SPDFMacTabGroupInteractionTests"
 	"$(BUILD)/SPDFMacTabGroupInteractionTests"
 
 .PHONY: mac-tab-hover-preview-tests
@@ -334,7 +334,7 @@ mac-tab-hover-preview-tests: $(CORE_OBJ) $(CORE_RECOLOR_OBJ) mupdf-libs | $(BUIL
 
 .PHONY: mac-tab-gap-drop-tests
 mac-tab-gap-drop-tests: $(CORE_OBJ) $(CORE_RECOLOR_OBJ) mupdf-libs | $(BUILD)
-	clang++ $(MAC_TARGET_FLAGS) -std=c++17 -fobjc-arc -Wall -Wextra -Werror -Imac -Icore -I$(MUPDF_DIR)/include mac/tests/SPDFMacTabGapDropTests.mm mac/SPDFMacModels.mm mac/SPDFMacTabGroupIntegration.mm mac/SPDFMacTabStripLayout.mm mac/SPDFMacTabStripScrolling.mm mac/SPDFMacTabStripHover.mm mac/SPDFMacTabStripMenus.mm mac/SPDFMacTabGroupPicker.mm mac/SPDFMacTabStripDrawing.mm mac/SPDFMacTabStripDrag.mm mac/SPDFMacTabGroupLayout.mm mac/SPDFMacTabGroupInteraction.mm mac/SPDFMacTabGroupNamePrompt.mm mac/SPDFMacTabGroups.mm mac/SPDFMacTabStripView.mm mac/SPDFMacTabAccessibility.mm mac/SPDFMacTabStripGeometry.mm mac/SPDFMacTabStripStyle.mm mac/SPDFMacWindowChrome.mm "$(CORE_OBJ)" "$(CORE_RECOLOR_OBJ)" $(MUPDF_LIBS) -framework Cocoa -lm -o "$(BUILD)/SPDFMacTabGapDropTests"
+	clang++ $(MAC_TARGET_FLAGS) -std=c++17 -fobjc-arc -Wall -Wextra -Werror -Imac -Icore -I$(MUPDF_DIR)/include mac/tests/SPDFMacTabGapDropTests.mm mac/SPDFMacModels.mm mac/SPDFMacTabGroupIntegration.mm mac/SPDFMacTabStripLayout.mm mac/SPDFMacTabStripScrolling.mm mac/SPDFMacTabStripHover.mm mac/SPDFMacTabStripMenus.mm mac/SPDFMacTabGroupPicker.mm mac/SPDFMacTabStripDrawing.mm mac/SPDFMacCollectionStyle.mm mac/SPDFMacTabStripDrag.mm mac/SPDFMacTabGroupLayout.mm mac/SPDFMacTabGroupInteraction.mm mac/SPDFMacTabGroupNamePrompt.mm mac/SPDFMacTabGroups.mm mac/SPDFMacTabStripView.mm mac/SPDFMacTabAccessibility.mm mac/SPDFMacTabStripGeometry.mm mac/SPDFMacTabStripStyle.mm mac/SPDFMacWindowChrome.mm "$(CORE_OBJ)" "$(CORE_RECOLOR_OBJ)" $(MUPDF_LIBS) -framework Cocoa -lm -o "$(BUILD)/SPDFMacTabGapDropTests"
 	"$(BUILD)/SPDFMacTabGapDropTests"
 
 .PHONY: mac-agent-pdf-inspection-tests
@@ -369,7 +369,7 @@ mac-tab-strip-style-tests: $(MAC_TAB_STRIP_STYLE_TEST)
 # SPDFDocumentView, the single-segment toolbar pill, and the Translate
 # enablement policy. Links the AppKit half only - no mupdf, and no markdown
 # pipeline beyond the palette itself.
-MAC_READING_THEME_CHROME_SRCS := mac/tests/SPDFMacReadingThemeChromeTests.mm mac/SPDFMacDocumentView.mm mac/SPDFMacEmptyDocumentView.mm \
+MAC_READING_THEME_CHROME_SRCS := mac/tests/SPDFMacReadingThemeChromeTests.mm mac/SPDFMacDocumentView.mm mac/SPDFMacEmptyDocumentView.mm mac/SPDFMacCollectionStyle.mm \
 	mac/SPDFMacPageRendering.mm mac/SPDFMacRenderedPage.mm mac/SPDFMacDelayedLinkActivation.mm \
 	mac/SPDFMacDocumentViewTheme.mm mac/SPDFMacSupport.mm mac/SPDFMacToolbarSegments.mm mac/SPDFMacSelectionClick.mm mac/SPDFMacInactiveZoom.mm mac/SPDFMacUIHelpers.mm mac/SPDFMacPaneDividers.mm mac/SPDFMacPageWheel.mm \
 	mac/SPDFMacCursorRegions.mm mac/SPDFMacWindowChrome.mm mac/SPDFMacTranslationPolicy.mm \
@@ -395,7 +395,7 @@ MAC_PALETTE_NAME_SRCS := mac/SPDFMacPaletteDocumentNames.mm mac/SPDFMacCollectio
 mac-palette-document-names-tests: | $(BUILD)
 	clang++ $(MAC_TARGET_FLAGS) -std=c++17 -fobjc-arc -Wall -Wextra -Werror -Imac -Icore \
 		mac/tests/SPDFMacPaletteDocumentNamesTests.mm $(MAC_PALETTE_NAME_SRCS) mac/SPDFMacSupport.mm \
-		mac/SPDFMacToolbarSegments.mm -framework Cocoa -framework UniformTypeIdentifiers \
+		mac/SPDFMacToolbarSegments.mm mac/SPDFMacCollectionStyle.mm -framework Cocoa -framework UniformTypeIdentifiers \
 		-o "$(BUILD)/SPDFMacPaletteDocumentNamesTests"
 	"$(BUILD)/SPDFMacPaletteDocumentNamesTests"
 
@@ -403,7 +403,7 @@ mac-palette-activation-tests: $(CORE_OBJ) $(CORE_RECOLOR_OBJ) mupdf-libs | $(BUI
 	clang++ $(MAC_TARGET_FLAGS) -std=c++17 -fobjc-arc -Wall -Wextra -Werror -Wno-objc-protocol-method-implementation \
 		-Imac -Icore -I$(MUPDF_DIR)/include mac/tests/SPDFMacPaletteActivationTests.mm mac/SPDFMacPaletteActivation.mm \
 		$(MAC_PALETTE_NAME_SRCS) mac/SPDFMacDocumentOpening.mm mac/SPDFMacOpenRouting.mm mac/SPDFMacModels.mm \
-		mac/SPDFMacTabGroups.mm mac/SPDFMacTabGroupIntegration.mm "$(CORE_OBJ)" "$(CORE_RECOLOR_OBJ)" $(MUPDF_LIBS) \
+		mac/SPDFMacTabGroups.mm mac/SPDFMacCollectionStyle.mm mac/SPDFMacTabGroupIntegration.mm "$(CORE_OBJ)" "$(CORE_RECOLOR_OBJ)" $(MUPDF_LIBS) \
 		-framework Cocoa -lm -o "$(BUILD)/SPDFMacPaletteActivationTests"
 	"$(BUILD)/SPDFMacPaletteActivationTests"
 
@@ -414,7 +414,7 @@ mac-find-nearest-tests: $(MAC_FIND_NEAREST_TEST)
 	"$(MAC_FIND_NEAREST_TEST)"
 
 $(MAC_UPDATER_TEST): mac/SPDFUpdaterTests.mm mac/SPDFUpdater.mm mac/SPDFUpdaterDownloadBounds.mm mac/SPDFUpdaterRelease.mm mac/SPDFMacFileExplorerPreference.mm mac/SPDFMacSupport.mm mac/SPDFMacToolbarSegments.mm mac/SPDFUpdater.h mac/SPDFUpdaterDownloadBounds.h mac/SPDFUpdaterRelease.h mac/SPDFMacFileExplorerPreference.h mac/SPDFMacSupport.h | $(BUILD)
-	clang++ $(MAC_TARGET_FLAGS) -std=c++17 -fobjc-arc -Imac mac/SPDFUpdaterTests.mm mac/SPDFUpdater.mm mac/SPDFUpdaterDownloadBounds.mm mac/SPDFUpdaterRelease.mm mac/SPDFMacFileExplorerPreference.mm mac/SPDFMacSupport.mm mac/SPDFMacToolbarSegments.mm -framework Cocoa -framework Security -framework UniformTypeIdentifiers -o "$(MAC_UPDATER_TEST)"
+	clang++ $(MAC_TARGET_FLAGS) -std=c++17 -fobjc-arc -Imac mac/SPDFUpdaterTests.mm mac/SPDFUpdater.mm mac/SPDFUpdaterDownloadBounds.mm mac/SPDFUpdaterRelease.mm mac/SPDFMacFileExplorerPreference.mm mac/SPDFMacSupport.mm mac/SPDFMacToolbarSegments.mm mac/SPDFMacCollectionStyle.mm -framework Cocoa -framework Security -framework UniformTypeIdentifiers -o "$(MAC_UPDATER_TEST)"
 
 mac-updater-tests: $(MAC_UPDATER_TEST)
 	"$(MAC_UPDATER_TEST)"
@@ -475,13 +475,13 @@ mac-tab-lifecycle-tests: $(MAC_TAB_LIFECYCLE_TEST)
 # It links the core and recolor objects, so it builds them: a fresh BUILD has neither.
 $(MAC_TAB_STATE_TEST): mac/tests/SPDFMacTabStateTests.mm mac/SPDFMacTabGroups.mm mac/SPDFMacModels.mm \
 	mac/SPDFMacModels.h $(CORE_OBJ) $(CORE_RECOLOR_OBJ) mupdf-libs | $(BUILD)
-	clang++ $(MAC_TARGET_FLAGS) -std=c++17 -fobjc-arc -Wall -Wextra -Werror -Imac -Icore -I$(MUPDF_DIR)/include mac/tests/SPDFMacTabStateTests.mm mac/SPDFMacTabGroups.mm mac/SPDFMacModels.mm "$(CORE_OBJ)" "$(CORE_RECOLOR_OBJ)" $(MUPDF_LIBS) -framework Cocoa -lm -o "$(MAC_TAB_STATE_TEST)"
+	clang++ $(MAC_TARGET_FLAGS) -std=c++17 -fobjc-arc -Wall -Wextra -Werror -Imac -Icore -I$(MUPDF_DIR)/include mac/tests/SPDFMacTabStateTests.mm mac/SPDFMacTabGroups.mm mac/SPDFMacCollectionStyle.mm mac/SPDFMacModels.mm "$(CORE_OBJ)" "$(CORE_RECOLOR_OBJ)" $(MUPDF_LIBS) -framework Cocoa -lm -o "$(MAC_TAB_STATE_TEST)"
 
 mac-tab-state-tests: $(MAC_TAB_STATE_TEST)
 	"$(MAC_TAB_STATE_TEST)"
 
 $(MAC_SIDEBAR_OUTLINE_TEST): mac/tests/SPDFMacSidebarOutlineTests.mm mac/SPDFMacSidebarOutline.mm mac/SPDFMacSidebarOutline.h mac/SPDFMacSidebarModeControl.mm mac/SPDFMacSidebarNavigation.mm mac/SPDFMacSidebarModeControl.h | $(BUILD)
-	clang++ $(MAC_TARGET_FLAGS) -std=c++17 -fobjc-arc -Wall -Wextra -Werror -Imac mac/tests/SPDFMacSidebarOutlineTests.mm mac/SPDFMacSidebarOutline.mm mac/SPDFMacSidebarModeControl.mm mac/SPDFMacSidebarNavigation.mm -framework Cocoa -o "$(MAC_SIDEBAR_OUTLINE_TEST)"
+	clang++ $(MAC_TARGET_FLAGS) -std=c++17 -fobjc-arc -Wall -Wextra -Werror -Imac mac/tests/SPDFMacSidebarOutlineTests.mm mac/SPDFMacSidebarOutline.mm mac/SPDFMacSidebarModeControl.mm mac/SPDFMacSidebarNavigation.mm mac/SPDFMacCollectionStyle.mm -framework Cocoa -o "$(MAC_SIDEBAR_OUTLINE_TEST)"
 
 mac-sidebar-outline-tests: $(MAC_SIDEBAR_OUTLINE_TEST)
 	"$(MAC_SIDEBAR_OUTLINE_TEST)"
@@ -499,7 +499,7 @@ mac-file-explorer-tests: $(MAC_FILE_EXPLORER_TEST)
 	"$(MAC_FILE_EXPLORER_TEST)"
 
 $(MAC_SELECTION_CLICK_TEST): mac/tests/SPDFMacSelectionClickTests.mm mac/SPDFMacDocumentView.mm mac/SPDFMacEmptyDocumentView.mm mac/SPDFMacDocumentView.h mac/SPDFMacPageRendering.mm mac/SPDFMacPageRendering.h mac/SPDFMacSelectionClick.mm mac/SPDFMacSelectionClick.h mac/SPDFMacDelayedLinkActivation.mm mac/SPDFMacDelayedLinkActivation.h mac/SPDFMacCursorRegions.mm mac/SPDFMacCursorRegions.h | $(BUILD)
-	clang++ $(MAC_TARGET_FLAGS) -std=c++17 -fobjc-arc -Wall -Wextra -Werror -Imac -Icore -I$(MUPDF_DIR)/include mac/tests/SPDFMacSelectionClickTests.mm mac/SPDFMacDocumentView.mm mac/SPDFMacEmptyDocumentView.mm mac/SPDFMacPageRendering.mm mac/SPDFMacSelectionClick.mm mac/SPDFMacDelayedLinkActivation.mm mac/SPDFMacCursorRegions.mm -framework Cocoa -o "$(MAC_SELECTION_CLICK_TEST)"
+	clang++ $(MAC_TARGET_FLAGS) -std=c++17 -fobjc-arc -Wall -Wextra -Werror -Imac -Icore -I$(MUPDF_DIR)/include mac/tests/SPDFMacSelectionClickTests.mm mac/SPDFMacDocumentView.mm mac/SPDFMacEmptyDocumentView.mm mac/SPDFMacCollectionStyle.mm mac/SPDFMacPageRendering.mm mac/SPDFMacSelectionClick.mm mac/SPDFMacDelayedLinkActivation.mm mac/SPDFMacCursorRegions.mm -framework Cocoa -o "$(MAC_SELECTION_CLICK_TEST)"
 
 mac-selection-click-tests: $(MAC_SELECTION_CLICK_TEST)
 	"$(MAC_SELECTION_CLICK_TEST)"
@@ -731,7 +731,7 @@ mac-collection-compare-tests: | $(BUILD)
 	"$(BUILD)/SPDFMacCollectionCompareTests"
 
 mac-previous-tab-tests: $(CORE_OBJ) $(CORE_RECOLOR_OBJ) mupdf-libs | $(BUILD)
-	clang++ $(MAC_TARGET_FLAGS) -std=c++17 -fobjc-arc -Wall -Wextra -Werror -Imac -Icore -I$(MUPDF_DIR)/include mac/tests/SPDFMacPreviousTabTests.mm mac/SPDFMacPreviousTab.mm mac/SPDFMacModels.mm mac/SPDFMacTabGroups.mm "$(CORE_OBJ)" "$(CORE_RECOLOR_OBJ)" $(MUPDF_LIBS) -framework Cocoa -lm -o "$(BUILD)/SPDFMacPreviousTabTests"
+	clang++ $(MAC_TARGET_FLAGS) -std=c++17 -fobjc-arc -Wall -Wextra -Werror -Imac -Icore -I$(MUPDF_DIR)/include mac/tests/SPDFMacPreviousTabTests.mm mac/SPDFMacPreviousTab.mm mac/SPDFMacModels.mm mac/SPDFMacTabGroups.mm mac/SPDFMacCollectionStyle.mm "$(CORE_OBJ)" "$(CORE_RECOLOR_OBJ)" $(MUPDF_LIBS) -framework Cocoa -lm -o "$(BUILD)/SPDFMacPreviousTabTests"
 	"$(BUILD)/SPDFMacPreviousTabTests"
 
 mac-viewport-checkpoint-tests: | $(BUILD)
@@ -763,42 +763,42 @@ mac-collection-companion-tests: | $(BUILD)
 
 .PHONY: mac-collection-credentials-tests
 mac-collection-credentials-tests: $(CORE_OBJ) $(CORE_RECOLOR_OBJ) mupdf-libs | $(BUILD)
-	clang++ $(MAC_TARGET_FLAGS) -std=c++17 -fobjc-arc -Wall -Wextra -Werror -Imac -Icore -I$(MUPDF_DIR)/include mac/tests/SPDFMacCollectionCredentialsTests.mm mac/SPDFMacCollectionCredentials.mm mac/SPDFMacPassword.mm mac/SPDFMacPasswordCredentials.mm "$(CORE_OBJ)" "$(CORE_RECOLOR_OBJ)" $(MUPDF_LIBS) -framework Cocoa -framework Security -framework LocalAuthentication -lm -o "$(BUILD)/SPDFMacCollectionCredentialsTests"
+	clang++ $(MAC_TARGET_FLAGS) -std=c++17 -fobjc-arc -Wall -Wextra -Werror -Imac -Icore -I$(MUPDF_DIR)/include mac/tests/SPDFMacCollectionCredentialsTests.mm mac/SPDFMacCollectionCredentials.mm mac/SPDFMacPassword.mm mac/SPDFMacCollectionStyle.mm mac/SPDFMacPasswordCredentials.mm "$(CORE_OBJ)" "$(CORE_RECOLOR_OBJ)" $(MUPDF_LIBS) -framework Cocoa -framework Security -framework LocalAuthentication -lm -o "$(BUILD)/SPDFMacCollectionCredentialsTests"
 	"$(BUILD)/SPDFMacCollectionCredentialsTests"
 
 .PHONY: mac-collection-password-open-tests
 mac-collection-password-open-tests: $(CORE_OBJ) $(CORE_RECOLOR_OBJ) $(MAC_COLLECTION_PARSER_LIBS) mupdf-libs | $(BUILD)
-	clang++ $(MAC_TARGET_FLAGS) -std=c++17 -fobjc-arc -Wall -Wextra -Werror -Wno-incomplete-implementation -Wno-objc-protocol-method-implementation -Imac -Icore -I$(MUPDF_DIR)/include mac/tests/SPDFMacCollectionPasswordOpenTests.mm mac/SPDFMacCollectionCredentials.mm mac/SPDFMacCollectionCredentialIntegration.mm mac/SPDFMacPassword.mm mac/SPDFMacPasswordCredentials.mm mac/SPDFMacCollectionStore*.mm mac/SPDFMacSearchFileCache.mm $(MAC_COLLECTION_PARSER_SRCS) $(MAC_COLLECTION_PARSER_LIBS) "$(CORE_OBJ)" "$(CORE_RECOLOR_OBJ)" $(MUPDF_LIBS) -framework Cocoa -framework PDFKit -framework ImageIO -framework Security -framework LocalAuthentication -lm -o "$(BUILD)/SPDFMacCollectionPasswordOpenTests"
+	clang++ $(MAC_TARGET_FLAGS) -std=c++17 -fobjc-arc -Wall -Wextra -Werror -Wno-incomplete-implementation -Wno-objc-protocol-method-implementation -Imac -Icore -I$(MUPDF_DIR)/include mac/tests/SPDFMacCollectionPasswordOpenTests.mm mac/SPDFMacCollectionCredentials.mm mac/SPDFMacCollectionCredentialIntegration.mm mac/SPDFMacPassword.mm mac/SPDFMacCollectionStyle.mm mac/SPDFMacPasswordCredentials.mm mac/SPDFMacCollectionStore*.mm mac/SPDFMacSearchFileCache.mm $(MAC_COLLECTION_PARSER_SRCS) $(MAC_COLLECTION_PARSER_LIBS) "$(CORE_OBJ)" "$(CORE_RECOLOR_OBJ)" $(MUPDF_LIBS) -framework Cocoa -framework PDFKit -framework ImageIO -framework Security -framework LocalAuthentication -lm -o "$(BUILD)/SPDFMacCollectionPasswordOpenTests"
 	"$(BUILD)/SPDFMacCollectionPasswordOpenTests"
 
 .PHONY: mac-agent-group-tests
 mac-agent-group-tests: $(YAML_OBJ) $(CORE_OBJ) $(CORE_RECOLOR_OBJ) mupdf-libs | $(BUILD)
-	clang++ $(MAC_TARGET_FLAGS) -std=c++17 -fobjc-arc -Wall -Wextra -Werror -Imac -Icore -I$(MUPDF_DIR)/include mac/tests/SPDFMacAgentGroupTests.mm mac/SPDFMacAgentSavedSession.mm "$(YAML_OBJ)" mac/SPDFMacAgentGroups.mm mac/SPDFMacAgentValidation.mm mac/SPDFMacModels.mm mac/SPDFMacTabGroups.mm mac/SPDFMacTabGroupIntegration.mm "$(CORE_OBJ)" "$(CORE_RECOLOR_OBJ)" $(MUPDF_LIBS) -framework Cocoa -lm -o "$(BUILD)/SPDFMacAgentGroupTests"
+	clang++ $(MAC_TARGET_FLAGS) -std=c++17 -fobjc-arc -Wall -Wextra -Werror -Imac -Icore -I$(MUPDF_DIR)/include mac/tests/SPDFMacAgentGroupTests.mm mac/SPDFMacAgentSavedSession.mm "$(YAML_OBJ)" mac/SPDFMacAgentGroups.mm mac/SPDFMacAgentValidation.mm mac/SPDFMacModels.mm mac/SPDFMacTabGroups.mm mac/SPDFMacCollectionStyle.mm mac/SPDFMacTabGroupIntegration.mm "$(CORE_OBJ)" "$(CORE_RECOLOR_OBJ)" $(MUPDF_LIBS) -framework Cocoa -lm -o "$(BUILD)/SPDFMacAgentGroupTests"
 	"$(BUILD)/SPDFMacAgentGroupTests"
 
 .PHONY: mac-panel-search-rendering-tests
 mac-panel-search-rendering-tests: | $(BUILD)
-	clang++ $(MAC_TARGET_FLAGS) -std=c++17 -fobjc-arc -Wall -Wextra -Werror -Imac mac/tests/SPDFMacPanelSearchRenderingTests.mm mac/SPDFMacPanelSearchField.mm -framework Cocoa -framework QuartzCore -o "$(BUILD)/SPDFMacPanelSearchRenderingTests"
+	clang++ $(MAC_TARGET_FLAGS) -std=c++17 -fobjc-arc -Wall -Wextra -Werror -Imac mac/tests/SPDFMacPanelSearchRenderingTests.mm mac/SPDFMacPanelSearchField.mm mac/SPDFMacCollectionStyle.mm -framework Cocoa -framework QuartzCore -o "$(BUILD)/SPDFMacPanelSearchRenderingTests"
 	"$(BUILD)/SPDFMacPanelSearchRenderingTests"
 
 .PHONY: mac-icon-rendering-tests
 mac-icon-rendering-tests: | $(BUILD)
-	clang++ $(MAC_TARGET_FLAGS) -std=c++17 -fobjc-arc -Wall -Wextra -Werror -Imac -Icore mac/tests/SPDFMacIconRenderingTests.mm mac/SPDFMacGroupActionButton.mm mac/SPDFMacSidebarModeControl.mm mac/SPDFMacSidebarNavigation.mm mac/SPDFMacSupport.mm mac/SPDFMacToolbarSegments.mm -framework Cocoa -framework QuartzCore -framework UniformTypeIdentifiers -o "$(BUILD)/SPDFMacIconRenderingTests"
+	clang++ $(MAC_TARGET_FLAGS) -std=c++17 -fobjc-arc -Wall -Wextra -Werror -Imac -Icore mac/tests/SPDFMacIconRenderingTests.mm mac/SPDFMacGroupActionButton.mm mac/SPDFMacSidebarModeControl.mm mac/SPDFMacSidebarNavigation.mm mac/SPDFMacCollectionStyle.mm mac/SPDFMacSupport.mm mac/SPDFMacToolbarSegments.mm -framework Cocoa -framework QuartzCore -framework UniformTypeIdentifiers -o "$(BUILD)/SPDFMacIconRenderingTests"
 	"$(BUILD)/SPDFMacIconRenderingTests"
 
 .PHONY: mac-sidebar-navigation-tests
 mac-sidebar-navigation-tests: | $(BUILD)
-	clang++ $(MAC_TARGET_FLAGS) -std=c++17 -fobjc-arc -Wall -Wextra -Werror -Imac mac/tests/SPDFMacSidebarNavigationTests.mm mac/SPDFMacSidebarModeControl.mm mac/SPDFMacSidebarNavigation.mm -framework Cocoa -o "$(BUILD)/SPDFMacSidebarNavigationTests"
+	clang++ $(MAC_TARGET_FLAGS) -std=c++17 -fobjc-arc -Wall -Wextra -Werror -Imac mac/tests/SPDFMacSidebarNavigationTests.mm mac/SPDFMacSidebarModeControl.mm mac/SPDFMacSidebarNavigation.mm mac/SPDFMacCollectionStyle.mm -framework Cocoa -o "$(BUILD)/SPDFMacSidebarNavigationTests"
 	"$(BUILD)/SPDFMacSidebarNavigationTests"
 
 .PHONY: mac-group-management-tests
 mac-group-management-tests: | $(BUILD)
-	clang++ $(MAC_TARGET_FLAGS) -std=c++17 -fobjc-arc -Wall -Wextra -Werror -Imac -Icore -I$(MUPDF_DIR)/include mac/tests/SPDFMacGroupManagementTests.mm mac/SPDFMacGroupManagement.mm mac/SPDFMacGroupActionButton.mm mac/SPDFMacPanelSearchField.mm mac/SPDFMacGroupManagementTable.mm mac/SPDFMacTabGroupNamePrompt.mm mac/SPDFMacSidebarModeControl.mm mac/SPDFMacSidebarNavigation.mm mac/SPDFMacTabGroups.mm -framework Cocoa -o "$(BUILD)/SPDFMacGroupManagementTests"
+	clang++ $(MAC_TARGET_FLAGS) -std=c++17 -fobjc-arc -Wall -Wextra -Werror -Imac -Icore -I$(MUPDF_DIR)/include mac/tests/SPDFMacGroupManagementTests.mm mac/SPDFMacGroupManagement.mm mac/SPDFMacGroupActionButton.mm mac/SPDFMacPanelSearchField.mm mac/SPDFMacCollectionStyle.mm mac/SPDFMacGroupManagementTable.mm mac/SPDFMacTabGroupNamePrompt.mm mac/SPDFMacSidebarModeControl.mm mac/SPDFMacSidebarNavigation.mm mac/SPDFMacTabGroups.mm -framework Cocoa -o "$(BUILD)/SPDFMacGroupManagementTests"
 	"$(BUILD)/SPDFMacGroupManagementTests"
 
 .PHONY: mac-sidebar-workspace-tests
 mac-sidebar-workspace-tests: $(CORE_OBJ) $(CORE_RECOLOR_OBJ) $(YAML_OBJ) mupdf-libs | $(BUILD)
-	clang++ $(MAC_TARGET_FLAGS) -std=c++17 -fobjc-arc -Wall -Wextra -Werror -Imac -Icore -I$(MUPDF_DIR)/include mac/tests/SPDFMacSidebarWorkspaceTests.mm mac/SPDFMacSidebarWorkspace.mm mac/SPDFMacGroupManagement.mm mac/SPDFMacGroupActionButton.mm mac/SPDFMacPanelSearchField.mm mac/SPDFMacGroupManagementTable.mm mac/SPDFMacTabGroupNamePrompt.mm mac/SPDFMacSidebarModeControl.mm mac/SPDFMacSidebarNavigation.mm mac/SPDFMacModels.mm mac/SPDFMacTabGroups.mm mac/SPDFMacTabGroupIntegration.mm "$(YAML_OBJ)" "$(CORE_OBJ)" "$(CORE_RECOLOR_OBJ)" $(MUPDF_LIBS) -framework Cocoa -lm -o "$(BUILD)/SPDFMacSidebarWorkspaceTests"
+	clang++ $(MAC_TARGET_FLAGS) -std=c++17 -fobjc-arc -Wall -Wextra -Werror -Imac -Icore -I$(MUPDF_DIR)/include mac/tests/SPDFMacSidebarWorkspaceTests.mm mac/SPDFMacSidebarWorkspace.mm mac/SPDFMacGroupManagement.mm mac/SPDFMacGroupActionButton.mm mac/SPDFMacPanelSearchField.mm mac/SPDFMacCollectionStyle.mm mac/SPDFMacGroupManagementTable.mm mac/SPDFMacTabGroupNamePrompt.mm mac/SPDFMacSidebarModeControl.mm mac/SPDFMacSidebarNavigation.mm mac/SPDFMacModels.mm mac/SPDFMacTabGroups.mm mac/SPDFMacTabGroupIntegration.mm "$(YAML_OBJ)" "$(CORE_OBJ)" "$(CORE_RECOLOR_OBJ)" $(MUPDF_LIBS) -framework Cocoa -lm -o "$(BUILD)/SPDFMacSidebarWorkspaceTests"
 	"$(BUILD)/SPDFMacSidebarWorkspaceTests"
 
 .PHONY: mac-tab-group-performance
@@ -808,7 +808,7 @@ mac-collection-thumbnail-delivery-tests: | $(BUILD)
 	"$(BUILD)/SPDFMacCollectionThumbnailDeliveryTests"
 
 mac-tab-group-performance: | $(BUILD)
-	clang++ $(MAC_TARGET_FLAGS) -O2 -std=c++17 -fobjc-arc -Wall -Wextra -Werror -Imac -Icore -I$(MUPDF_DIR)/include mac/tests/SPDFMacTabGroupPerformance.mm mac/SPDFMacTabGroups.mm -framework Cocoa -o "$(BUILD)/SPDFMacTabGroupPerformance"
+	clang++ $(MAC_TARGET_FLAGS) -O2 -std=c++17 -fobjc-arc -Wall -Wextra -Werror -Imac -Icore -I$(MUPDF_DIR)/include mac/tests/SPDFMacTabGroupPerformance.mm mac/SPDFMacTabGroups.mm mac/SPDFMacCollectionStyle.mm -framework Cocoa -o "$(BUILD)/SPDFMacTabGroupPerformance"
 	"$(BUILD)/SPDFMacTabGroupPerformance" --verify
 
 # The companion's sources are reader sources compiled with the same flags, so it links the reader's objects.
@@ -835,13 +835,13 @@ mac-sidebar-presentation-tests: | $(BUILD)
 .PHONY: mac-document-format-tests
 mac-document-format-tests: mupdf-libs $(CORE_OBJ) $(CORE_RECOLOR_OBJ)
 	@mkdir -p "$(BUILD)"
-	clang++ $(MAC_TARGET_FLAGS) -std=c++17 -fobjc-arc -Wall -Wextra -Werror -Imac -Icore -I$(MUPDF_DIR)/include mac/tests/SPDFMacDocumentFormatsTests.mm mac/SPDFMacSupport.mm mac/SPDFMacToolbarSegments.mm "$(CORE_OBJ)" "$(CORE_RECOLOR_OBJ)" $(MUPDF_LIBS) -framework Cocoa -framework UniformTypeIdentifiers -framework PDFKit -framework ImageIO -lm -o "$(BUILD)/SPDFMacDocumentFormatsTests"
+	clang++ $(MAC_TARGET_FLAGS) -std=c++17 -fobjc-arc -Wall -Wextra -Werror -Imac -Icore -I$(MUPDF_DIR)/include mac/tests/SPDFMacDocumentFormatsTests.mm mac/SPDFMacSupport.mm mac/SPDFMacToolbarSegments.mm mac/SPDFMacCollectionStyle.mm "$(CORE_OBJ)" "$(CORE_RECOLOR_OBJ)" $(MUPDF_LIBS) -framework Cocoa -framework UniformTypeIdentifiers -framework PDFKit -framework ImageIO -lm -o "$(BUILD)/SPDFMacDocumentFormatsTests"
 	@fixture_dir=$$(mktemp -d); trap 'rm -rf "$$fixture_dir"' EXIT; \
 	python3 mac/tests/make-format-fixtures.py "$$fixture_dir" && "$(BUILD)/SPDFMacDocumentFormatsTests" "$$fixture_dir" "$(abspath ..)"
 
 .PHONY: mac-find-interaction-tests
 mac-find-interaction-tests: | $(BUILD)
-	clang++ $(MAC_TARGET_FLAGS) -std=c++17 -fobjc-arc -Wall -Wextra -Werror -Imac -Icore -I$(MUPDF_DIR)/include mac/tests/SPDFMacFindInteractionTests.mm mac/SPDFMacFindInteraction.mm mac/SPDFMacSidebarModeControl.mm mac/SPDFMacSidebarNavigation.mm -framework Cocoa -o "$(BUILD)/SPDFMacFindInteractionTests"
+	clang++ $(MAC_TARGET_FLAGS) -std=c++17 -fobjc-arc -Wall -Wextra -Werror -Imac -Icore -I$(MUPDF_DIR)/include mac/tests/SPDFMacFindInteractionTests.mm mac/SPDFMacFindInteraction.mm mac/SPDFMacSidebarModeControl.mm mac/SPDFMacSidebarNavigation.mm mac/SPDFMacCollectionStyle.mm -framework Cocoa -o "$(BUILD)/SPDFMacFindInteractionTests"
 	"$(BUILD)/SPDFMacFindInteractionTests"
 
 .PHONY: mac-find-context-tests
@@ -858,7 +858,7 @@ $(BUILD)/SPDFMacImagePropertiesTests: mac/tests/SPDFMacImagePropertiesTests.mm m
 
 .PHONY: mac-properties-model-tests
 mac-properties-model-tests: $(CORE_OBJ) $(CORE_RECOLOR_OBJ) $(CORE_IMAGE_PROPERTIES_OBJ) mupdf-libs | $(BUILD)
-	clang++ $(MAC_TARGET_FLAGS) -std=c++17 -fobjc-arc -Wall -Wextra -Werror -Imac -Icore -I$(MUPDF_DIR)/include mac/tests/SPDFMacPropertiesModelTests.mm mac/SPDFMacPropertiesModel.mm mac/SPDFMacPropertiesPanel.mm mac/SPDFMacPropertiesFormat.mm mac/SPDFMacImageProperties.mm mac/SPDFMacPassword.mm mac/SPDFMacPasswordCredentials.mm $(CORE_OBJ) $(CORE_RECOLOR_OBJ) $(CORE_IMAGE_PROPERTIES_OBJ) $(MUPDF_LIBS) -framework Cocoa -framework ImageIO -lm -o "$(BUILD)/SPDFMacPropertiesModelTests"
+	clang++ $(MAC_TARGET_FLAGS) -std=c++17 -fobjc-arc -Wall -Wextra -Werror -Imac -Icore -I$(MUPDF_DIR)/include mac/tests/SPDFMacPropertiesModelTests.mm mac/SPDFMacPropertiesModel.mm mac/SPDFMacPropertiesPanel.mm mac/SPDFMacCollectionStyle.mm mac/SPDFMacPropertiesFormat.mm mac/SPDFMacImageProperties.mm mac/SPDFMacPassword.mm mac/SPDFMacPasswordCredentials.mm $(CORE_OBJ) $(CORE_RECOLOR_OBJ) $(CORE_IMAGE_PROPERTIES_OBJ) $(MUPDF_LIBS) -framework Cocoa -framework ImageIO -lm -o "$(BUILD)/SPDFMacPropertiesModelTests"
 	"$(BUILD)/SPDFMacPropertiesModelTests" "$(abspath ..)"
 
 .PHONY: mac-group-name-prompt-tests
@@ -874,7 +874,7 @@ mac-document-tool-input-tests: core/spdf_document_export.h mupdf-libs $(CORE_OBJ
 
 .PHONY: mac-shortcut-help-tests
 mac-shortcut-help-tests: | $(BUILD)
-	clang++ $(MAC_TARGET_FLAGS) -std=c++17 -fobjc-arc -Wall -Wextra -Werror -Wno-incomplete-implementation -Wno-protocol -Imac -Icore -I$(MUPDF_DIR)/include mac/tests/SPDFMacShortcutHelpTests.mm mac/ShenzhenMacDelegate+ShortcutHelp.mm mac/SPDFMacShortcutHelpStyle.mm mac/SPDFKeycapLabel.mm -framework Cocoa -o "$(BUILD)/SPDFMacShortcutHelpTests"
+	clang++ $(MAC_TARGET_FLAGS) -std=c++17 -fobjc-arc -Wall -Wextra -Werror -Wno-incomplete-implementation -Wno-protocol -Imac -Icore -I$(MUPDF_DIR)/include mac/tests/SPDFMacShortcutHelpTests.mm mac/ShenzhenMacDelegate+ShortcutHelp.mm mac/SPDFMacShortcutHelpStyle.mm mac/SPDFMacCollectionStyle.mm mac/SPDFKeycapLabel.mm -framework Cocoa -o "$(BUILD)/SPDFMacShortcutHelpTests"
 	"$(BUILD)/SPDFMacShortcutHelpTests"
 
 .PHONY: mac-image-save-tests
@@ -894,7 +894,7 @@ mac-clipboard-routing-tests: | $(BUILD)
 
 .PHONY: mac-pasted-image-state-tests
 mac-pasted-image-state-tests: mupdf-libs $(CORE_OBJ) $(CORE_RECOLOR_OBJ) | $(BUILD)
-	clang++ $(MAC_TARGET_FLAGS) -std=c++17 -fobjc-arc -Wall -Wextra -Werror -Wno-incomplete-implementation -Wno-protocol -Imac -Icore -I$(MUPDF_DIR)/include mac/tests/SPDFMacPastedImageStateTests.mm mac/SPDFMacImageSaveIntegration.mm mac/SPDFMacImageSave.mm mac/SPDFMacDocumentToolInput.mm mac/SPDFMacModels.mm mac/SPDFMacTabGroups.mm $(CORE_OBJ) $(CORE_RECOLOR_OBJ) $(MUPDF_LIBS) -framework Cocoa -framework UniformTypeIdentifiers -lm -o "$(BUILD)/SPDFMacPastedImageStateTests"
+	clang++ $(MAC_TARGET_FLAGS) -std=c++17 -fobjc-arc -Wall -Wextra -Werror -Wno-incomplete-implementation -Wno-protocol -Imac -Icore -I$(MUPDF_DIR)/include mac/tests/SPDFMacPastedImageStateTests.mm mac/SPDFMacImageSaveIntegration.mm mac/SPDFMacImageSave.mm mac/SPDFMacDocumentToolInput.mm mac/SPDFMacModels.mm mac/SPDFMacTabGroups.mm mac/SPDFMacCollectionStyle.mm $(CORE_OBJ) $(CORE_RECOLOR_OBJ) $(MUPDF_LIBS) -framework Cocoa -framework UniformTypeIdentifiers -lm -o "$(BUILD)/SPDFMacPastedImageStateTests"
 	"$(BUILD)/SPDFMacPastedImageStateTests"
 
 .PHONY: mac-page-pdf-copy-tests

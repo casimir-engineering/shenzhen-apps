@@ -16,7 +16,7 @@ static NSArray<NSURL*>* SPDFDroppedURLs(NSPasteboard* board) {
 - (void)drawRect:(NSRect)dirty {
     (void)dirty;
     NSBezierPath* shape = [NSBezierPath bezierPathWithRoundedRect:NSInsetRect(self.bounds, .5, .5) xRadius:6 yRadius:6];
-    [SPDFCollectionColor(@"pane") setFill];
+    [SPDFCollectionColor(@"field") setFill];
     [shape fill];
     [SPDFCollectionColor(@"line") setStroke];
     [shape stroke];
@@ -157,7 +157,7 @@ static NSArray<NSURL*>* SPDFDroppedURLs(NSPasteboard* board) {
     chip.translatesAutoresizingMaskIntoConstraints = YES;
     NSImageView* symbol = [NSImageView imageViewWithImage:
         [NSImage imageWithSystemSymbolName:folder ? @"folder" : @"doc" accessibilityDescription:nil]];
-    symbol.contentTintColor = NSColor.secondaryLabelColor;
+    symbol.contentTintColor = SPDFCollectionColor(@"secondary");
     NSTextField* label = SPDFCollectionText(name, 12, NSFontWeightRegular, NO);
     label.maximumNumberOfLines = 1;
     label.lineBreakMode = NSLineBreakByTruncatingMiddle;

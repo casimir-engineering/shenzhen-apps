@@ -1,4 +1,5 @@
 #import "SPDFMacIconGeometry.h"
+#import "SPDFMacCollectionStyle.h"
 #import "SPDFMacTabStripViewPrivate.h"
 
 // Transient popovers dismiss before the anchor's mouseDown is delivered. Let
@@ -25,7 +26,7 @@
 @implementation SPDFTabGroupPickerContent
 - (void)drawRect:(NSRect)dirty {
     (void)dirty;
-    [NSColor.windowBackgroundColor setFill]; NSRectFill(self.bounds);
+    [SPDFCollectionColor(@"window") setFill]; NSRectFill(self.bounds);
 }
 @end
 
@@ -48,24 +49,24 @@
     BOOL hovered = self.window && NSPointInRect([self convertPoint:self.window.mouseLocationOutsideOfEventStream
         fromView:nil],self.bounds);
     if (hovered || self.highlighted || (self.group && !self.group.collapsed && !self.group.hidden)) {
-        [[NSColor.labelColor colorWithAlphaComponent:0.07] setFill];
+        [[SPDFCollectionColor(@"text") colorWithAlphaComponent:0.07] setFill];
         [[NSBezierPath bezierPathWithRoundedRect:self.bounds xRadius:5 yRadius:5] fill];
     }
     NSImage* icon = [NSImage imageWithSystemSymbolName:self.group.collectionBackups ? @"books.vertical" : self.group ? @"square.3.layers.3d" : @"slider.horizontal.3"
                             accessibilityDescription:nil];
-    NSColor* color = self.group ? spdf_tab_group_accent(self.group.colorName) : NSColor.secondaryLabelColor;
+    NSColor* color = self.group ? spdf_tab_group_accent(self.group.colorName) : SPDFCollectionColor(@"secondary");
     icon = [icon imageWithSymbolConfiguration:[NSImageSymbolConfiguration configurationWithPaletteColors:@[color]]];
     SPDFDrawVectorIcon(icon,NSMakeRect(8,8,16,16),YES);
     NSMutableParagraphStyle* paragraph = [NSMutableParagraphStyle new];
     paragraph.lineBreakMode = NSLineBreakByTruncatingTail;
     NSDictionary* attributes = @{NSFontAttributeName:[NSFont systemFontOfSize:12],
-        NSForegroundColorAttributeName:NSColor.labelColor,NSParagraphStyleAttributeName:paragraph};
+        NSForegroundColorAttributeName:SPDFCollectionColor(@"text"),NSParagraphStyleAttributeName:paragraph};
     CGFloat detailWidth = self.detail.length ? [self.detail sizeWithAttributes:attributes].width : 0;
     [self.title drawInRect:NSMakeRect(32,8,NSWidth(self.bounds)-48-detailWidth,16) withAttributes:attributes];
     if (self.detail.length) [self.detail drawInRect:NSMakeRect(NSWidth(self.bounds)-8-detailWidth,8,detailWidth,16)
-        withAttributes:@{NSFontAttributeName:[NSFont systemFontOfSize:11],NSForegroundColorAttributeName:NSColor.secondaryLabelColor}];
+        withAttributes:@{NSFontAttributeName:[NSFont systemFontOfSize:11],NSForegroundColorAttributeName:SPDFCollectionColor(@"secondary")}];
     if (self.window.firstResponder == self) {
-        [NSColor.keyboardFocusIndicatorColor setStroke];
+        [SPDFCollectionColor(@"focus") setStroke];
         NSBezierPath* focus = [NSBezierPath bezierPathWithRoundedRect:NSInsetRect(self.bounds,1,1) xRadius:5 yRadius:5];
         focus.lineWidth=2; [focus stroke];
     }
@@ -76,7 +77,7 @@ static void StylePickerEye(NSButton* button,SPDFTabGroup* group) {
     SPDFConfigureIconButtonRendering(button);
     button.image=[NSImage imageWithSystemSymbolName:group.hidden ? @"eye.slash" : @"eye" accessibilityDescription:nil];
     button.image=SPDFUncachedVectorIcon(button.image); [button.image setTemplate:YES];
-    button.contentTintColor=group.hidden ? NSColor.secondaryLabelColor : NSColor.labelColor;
+    button.contentTintColor=group.hidden ? SPDFCollectionColor(@"secondary") : SPDFCollectionColor(@"text");
     button.toolTip=group.hidden ? @"Show group in tab bar" : @"Hide group from tab bar";
     button.accessibilityLabel=[NSString stringWithFormat:@"%@ %@",group.hidden ? @"Show" : @"Hide",group.displayName];
 }
@@ -84,7 +85,7 @@ static void StylePickerEye(NSButton* button,SPDFTabGroup* group) {
 static void StylePickerCollapse(NSButton* button,SPDFTabGroup* group) {
     SPDFConfigureIconButtonRendering(button);
     button.image=[NSImage imageWithSystemSymbolName:group.collapsed ? @"arrow.left.and.right" : @"arrow.right.and.line.vertical.and.arrow.left" accessibilityDescription:nil];
-    button.image=SPDFUncachedVectorIcon(button.image); [button.image setTemplate:YES]; button.contentTintColor=NSColor.labelColor;
+    button.image=SPDFUncachedVectorIcon(button.image); [button.image setTemplate:YES]; button.contentTintColor=SPDFCollectionColor(@"text");
     button.toolTip=[NSString stringWithFormat:@"%@ group in tab bar",group.collapsed ? @"Expand" : @"Collapse"];
     button.accessibilityLabel=[NSString stringWithFormat:@"%@ %@",group.collapsed ? @"Expand" : @"Collapse",group.displayName];
 }

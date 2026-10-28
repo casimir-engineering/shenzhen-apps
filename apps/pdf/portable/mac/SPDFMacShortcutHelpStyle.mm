@@ -1,4 +1,5 @@
 #import "SPDFMacShortcutHelpStyle.h"
+#import "SPDFMacCollectionStyle.h"
 #import "SPDFKeycapLabel.h"
 
 NSArray<NSDictionary*>* SPDFShortcutHelpCatalog(void) {
@@ -87,9 +88,9 @@ NSArray<NSDictionary*>* SPDFShortcutHelpRows(NSString* query) {
 @end
 @implementation SPDFShortcutSurface
 - (void)drawRect:(NSRect)rect {
-    [NSColor.windowBackgroundColor setFill]; NSRectFill(rect);
+    [SPDFCollectionColor(@"window") setFill]; NSRectFill(rect);
     if (self.highlighted) {
-        [[NSColor.controlAccentColor colorWithAlphaComponent:.09] setFill];
+        [[SPDFCollectionColor(@"focus") colorWithAlphaComponent:.09] setFill];
         [[NSBezierPath bezierPathWithRoundedRect:NSInsetRect(self.bounds,0,1) xRadius:6 yRadius:6] fill];
     }
 }
@@ -101,8 +102,8 @@ NSView* SPDFShortcutHelpSurface(NSRect frame) { return [[SPDFShortcutSurface all
 @implementation SPDFShortcutKeycap
 - (void)drawRect:(NSRect)dirtyRect {
     NSBezierPath* path = [NSBezierPath bezierPathWithRoundedRect:NSInsetRect(self.bounds,.5,.5) xRadius:4 yRadius:4];
-    [[NSColor.labelColor colorWithAlphaComponent:.055] setFill]; [path fill];
-    [[NSColor.labelColor colorWithAlphaComponent:.12] setStroke]; [path stroke];
+    [[SPDFCollectionColor(@"text") colorWithAlphaComponent:.055] setFill]; [path fill];
+    [[SPDFCollectionColor(@"text") colorWithAlphaComponent:.12] setStroke]; [path stroke];
     [super drawRect:dirtyRect];
 }
 @end
@@ -118,7 +119,7 @@ NSView* SPDFShortcutHelpKeycaps(NSArray<NSString*>* keys) {
         NSTextField* cap = [SPDFShortcutKeycap labelWithString:symbols[key] ?: key];
         cap.translatesAutoresizingMaskIntoConstraints = NO;
         cap.alignment = NSTextAlignmentCenter;
-        cap.font = [NSFont systemFontOfSize:12 weight:NSFontWeightMedium]; cap.textColor = NSColor.labelColor;
+        cap.font = [NSFont systemFontOfSize:12 weight:NSFontWeightMedium]; cap.textColor = SPDFCollectionColor(@"text");
         cap.accessibilityLabel = key; cap.toolTip = key;
         [cap.widthAnchor constraintEqualToConstant:MAX(24,ceil(cap.intrinsicContentSize.width)+12)].active = YES;
         [cap.heightAnchor constraintEqualToConstant:24].active = YES;
@@ -141,7 +142,7 @@ NSView* SPDFShortcutHelpRowView(NSDictionary* row) {
     NSTextField* title = [NSTextField labelWithString:row[@"title"] ?: @""];
     title.translatesAutoresizingMaskIntoConstraints = NO;
     title.font = [NSFont systemFontOfSize:header ? 12 : 13 weight:header ? NSFontWeightSemibold : NSFontWeightRegular];
-    title.textColor = header && view.highlighted ? NSColor.controlAccentColor : NSColor.labelColor;
+    title.textColor = header && view.highlighted ? SPDFCollectionColor(@"accent") : SPDFCollectionColor(@"text");
     title.lineBreakMode = NSLineBreakByTruncatingTail; title.toolTip = row[@"title"];
     [view addSubview:title];
     [title.leadingAnchor constraintEqualToAnchor:view.leadingAnchor constant:12].active = YES;
@@ -161,7 +162,7 @@ NSView* SPDFShortcutHelpRowView(NSDictionary* row) {
     } else {
         NSTextField* subtitle = [NSTextField labelWithString:row[@"subtitle"]];
         subtitle.translatesAutoresizingMaskIntoConstraints = NO; subtitle.font = [NSFont systemFontOfSize:11];
-        subtitle.textColor = NSColor.secondaryLabelColor; subtitle.lineBreakMode = NSLineBreakByTruncatingTail;
+        subtitle.textColor = SPDFCollectionColor(@"secondary"); subtitle.lineBreakMode = NSLineBreakByTruncatingTail;
         subtitle.toolTip = row[@"subtitle"]; [view addSubview:subtitle];
         [NSLayoutConstraint activateConstraints:@[
             [title.topAnchor constraintEqualToAnchor:view.topAnchor constant:7],

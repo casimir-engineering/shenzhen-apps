@@ -1,4 +1,5 @@
 #import "SPDFMacGroupManagementTable.h"
+#import "SPDFMacCollectionStyle.h"
 @implementation SPDFGroupManagementTable {
     NSTimer* _dragScrollTimer;
 }
@@ -71,10 +72,10 @@
 @implementation SPDFGroupExtensionBadge
 - (void)drawRect:(NSRect)dirty {
     (void)dirty;
-    [[NSColor.labelColor colorWithAlphaComponent:.055] setFill];
+    [[SPDFCollectionColor(@"text") colorWithAlphaComponent:.055] setFill];
     [[NSBezierPath bezierPathWithRoundedRect:self.bounds xRadius:4 yRadius:4] fill];
     NSDictionary* attributes=@{NSFontAttributeName:[NSFont monospacedSystemFontOfSize:10 weight:NSFontWeightMedium],
-        NSForegroundColorAttributeName:NSColor.labelColor};
+        NSForegroundColorAttributeName:SPDFCollectionColor(@"text")};
     NSSize size=[self.text sizeWithAttributes:attributes];
     [self.text drawAtPoint:NSMakePoint(floor((NSWidth(self.bounds)-size.width)/2),floor((NSHeight(self.bounds)-size.height)/2))
         withAttributes:attributes];

@@ -23,7 +23,14 @@
 @end
 
 NSArray<NSString*>* spdf_tab_group_colors(void);
+// The group's colour: its title tab, the bar under an open group, swatches.
 NSColor* spdf_tab_group_accent(NSString* color);
+// Text and icons drawn on the accent: white or near-black, 4.5:1 or more.
+NSColor* spdf_tab_group_label(NSString* color);
+// The title tab's outline in the current drawing appearance, 3:1 or more against the tab bar.
+NSColor* spdf_tab_group_edge(NSString* color);
+// For tests: part 0 fill, 1 label, 2 edge, as 0xRRGGBB.
+unsigned spdf_tab_group_hex(NSString* color, int part, BOOL dark);
 NSColor* spdf_tab_group_selected_fill(NSString* color, BOOL dark);
 NSImage* spdf_tab_group_swatch_image(NSString* color);
 NSString* spdf_tab_group_unused_color(NSArray<SPDFDocumentTab*>* tabs);

@@ -1,4 +1,5 @@
 #import "SPDFMacTabStripViewPrivate.h"
+#import "SPDFMacCollectionStyle.h"
 #import "SPDFMacDocumentFormats.h"
 #import "SPDFMacTabDragSignature.h"
 
@@ -29,7 +30,7 @@ static NSDictionary* spdf_tab_strip_json_dictionary_from_string(NSString* string
     NSRect tabRect = [self rectForTabAtIndex:_draggedTabIndex];
     NSImage* image = [[NSImage alloc] initWithSize:tabRect.size];
     [image lockFocus];
-    [[NSColor.controlAccentColor colorWithAlphaComponent:0.22] setFill];
+    [[SPDFCollectionColor(@"focus") colorWithAlphaComponent:0.22] setFill];
     [[NSBezierPath bezierPathWithRoundedRect:NSMakeRect(0, 0, NSWidth(tabRect), NSHeight(tabRect)) xRadius:7
                                      yRadius:7] fill];
     NSString* title = [self titleForTabAtIndex:_draggedTabIndex];
@@ -38,7 +39,7 @@ static NSDictionary* spdf_tab_strip_json_dictionary_from_string(NSString* string
     style.lineBreakMode = NSLineBreakByTruncatingMiddle;
     NSDictionary* attrs = @{
         NSFontAttributeName : [NSFont systemFontOfSize:12 weight:NSFontWeightRegular],
-        NSForegroundColorAttributeName : NSColor.labelColor,
+        NSForegroundColorAttributeName : SPDFCollectionColor(@"text"),
         NSParagraphStyleAttributeName : style
     };
     [title drawWithRect:NSInsetRect(NSMakeRect(0, 0, NSWidth(tabRect), NSHeight(tabRect)), 18, 7)

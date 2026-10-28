@@ -65,7 +65,7 @@
     _title.lineBreakMode = NSLineBreakByTruncatingMiddle; _title.hidden = !_showsDocumentTitle;
     _status = [NSTextField wrappingLabelWithString:@"Open a version to read or edit it."];
     _status.font = [NSFont systemFontOfSize:11];
-    _status.textColor = NSColor.secondaryLabelColor;
+    _status.textColor = SPDFCollectionColor(@"secondary");
     _table = [NSTableView new]; _table.headerView = nil; _table.rowHeight = 56;
     _table.dataSource = self; _table.delegate = self;
     _table.style = NSTableViewStylePlain; _table.backgroundColor = NSColor.clearColor;
@@ -107,7 +107,7 @@
     NSButton* save = [NSButton buttonWithTitle:@"Save New Copy As…" target:self action:@selector(saveLatestAs:)];
     for (NSButton* button in @[find,save]) {
         button.bordered = NO; button.alignment = NSTextAlignmentLeft;
-        button.contentTintColor = NSColor.controlAccentColor;
+        button.contentTintColor = SPDFCollectionColor(@"accent");
         button.font = [NSFont systemFontOfSize:11];
         [button.heightAnchor constraintEqualToConstant:24].active = YES;
     }
@@ -208,12 +208,12 @@
     NSString* size = [NSByteCountFormatter stringFromByteCount:[version[@"size"] longLongValue]
         countStyle:NSByteCountFormatterCountStyleFile];
     NSTextField* label = [NSTextField labelWithString:missing ? @"Missing document" : date];
-    if (missing) label.textColor=NSColor.systemRedColor;
+    if (missing) label.textColor=SPDFCollectionColor(@"destructive");
     label.font = [NSFont systemFontOfSize:12 weight:NSFontWeightMedium];
     label.lineBreakMode = NSLineBreakByTruncatingTail;
     label.identifier = @"HistoryVersionDate";
     NSTextField* clock = [NSTextField labelWithString:missing ? @"Original source unavailable" : time];
-    clock.font = [NSFont systemFontOfSize:11]; clock.textColor = NSColor.secondaryLabelColor;
+    clock.font = [NSFont systemFontOfSize:11]; clock.textColor = SPDFCollectionColor(@"secondary");
     NSView* spacer = [NSView new];
     // Dates retain a whole line even with always-visible scrollbars at 176pt.
     NSStackView* title = [NSStackView stackViewWithViews:!missing && SPDFCollectionVersionIsLatest(_document,version)
@@ -222,7 +222,7 @@
     NSTextField* detail = [NSTextField labelWithString:[NSString stringWithFormat:@"%@%@ · %@",
         [version[@"keep"] boolValue] ? @"★ " : @"",version[@"reason"] ?: @"Saved version",size]];
     if (missing) detail.stringValue=@"Locate document to reconnect";
-    detail.font = [NSFont systemFontOfSize:10]; detail.textColor = NSColor.secondaryLabelColor;
+    detail.font = [NSFont systemFontOfSize:10]; detail.textColor = SPDFCollectionColor(@"secondary");
     detail.lineBreakMode = NSLineBreakByTruncatingTail;
     NSStackView* lines = [NSStackView stackViewWithViews:@[label,title,detail]];
     lines.orientation = NSUserInterfaceLayoutOrientationVertical;

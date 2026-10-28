@@ -1,3 +1,4 @@
+#import "SPDFMacCollectionStyle.h"
 #import "SPDFMacTabStripViewPrivate.h"
 #import "SPDFMacTabHoverPreview.h"
 #import <QuartzCore/CALayer.h>
@@ -9,14 +10,29 @@ static const CGFloat kHoverTitleGap = 5.0;
 static const CGFloat kHoverCardGap = 6.0;
 static const CGFloat kHoverCardInset = 6.0;
 
-static NSVisualEffectView* SPDFHoverMaterialView(NSRect frame) {
-    NSVisualEffectView* view = [[NSVisualEffectView alloc] initWithFrame:frame];
-    view.material = NSVisualEffectMaterialPopover;
-    view.blendingMode = NSVisualEffectBlendingModeBehindWindow;
-    view.state = NSVisualEffectStateActive;
+// The label's surface: the chrome palette's solid popover colour with a hairline edge, as Codex draws its menus and
+// tooltips, rather than a translucent material that takes its colour from whatever is behind the window.
+@interface SPDFHoverSurfaceView : NSView
+@end
+@implementation SPDFHoverSurfaceView
+- (BOOL)isOpaque { return NO; }
+- (void)drawRect:(NSRect)dirty {
+    (void)dirty;
+    CGFloat hairline = 1.0 / (self.window.backingScaleFactor ?: 2.0);
+    NSBezierPath* shape = [NSBezierPath bezierPathWithRoundedRect:NSInsetRect(self.bounds, hairline / 2, hairline / 2)
+                                                          xRadius:8.0 yRadius:8.0];
+    [SPDFCollectionColor(@"popover") setFill];
+    [shape fill];
+    [SPDFCollectionColor(@"lineStrong") setStroke];
+    shape.lineWidth = hairline;
+    [shape stroke];
+}
+- (void)viewDidChangeEffectiveAppearance { [super viewDidChangeEffectiveAppearance]; self.needsDisplay = YES; }
+@end
+
+static NSView* SPDFHoverMaterialView(NSRect frame) {
+    NSView* view = [[SPDFHoverSurfaceView alloc] initWithFrame:frame];
     view.wantsLayer = YES;
-    view.layer.cornerRadius = 8.0;
-    view.layer.masksToBounds = YES;
     return view;
 }
 
@@ -241,6 +257,7 @@ static NSVisualEffectView* SPDFHoverMaterialView(NSRect frame) {
     _hoverLabel.translatesAutoresizingMaskIntoConstraints = NO;
     _hoverLabel.lineBreakMode = NSLineBreakByTruncatingMiddle;
     _hoverLabel.font = [NSFont systemFontOfSize:12 weight:NSFontWeightMedium];
+    _hoverLabel.textColor = SPDFCollectionColor(@"text");
     [_hoverBubble addSubview:_hoverLabel];
     [NSLayoutConstraint activateConstraints:@[
         [_hoverLabel.leadingAnchor constraintEqualToAnchor:_hoverBubble.leadingAnchor constant:10],
@@ -305,7 +322,7 @@ static NSVisualEffectView* SPDFHoverMaterialView(NSRect frame) {
         layer.contents = (__bridge id)preview.image;
         layer.borderWidth = 1.0 / scale;
         __block CGColorRef edge = NULL;
-        [_hoverPanel.appearance performAsCurrentDrawingAppearance:^{ edge = NSColor.separatorColor.CGColor; }];
+        [_hoverPanel.appearance performAsCurrentDrawingAppearance:^{ edge = SPDFCollectionColor(@"line").CGColor; }];
         layer.borderColor = edge;
     }
     [_hoverPanel setFrame:frame display:NO];

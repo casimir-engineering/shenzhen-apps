@@ -87,11 +87,11 @@
     [doc addSubview:_messages]; _scroll.documentView=doc; [self addSubview:_scroll];
     _chatFind=[[SPDFMacAIChatSearch alloc] initWithScrollView:_scroll messages:_messages];
     SPDFChatInputScrollView* input=[SPDFChatInputScrollView new]; _input=input; input.translatesAutoresizingMaskIntoConstraints=NO;
-    input.borderType=NSNoBorder; input.contentInsets=NSEdgeInsetsMake(2,2,2,2); input.drawsBackground=YES; input.backgroundColor=NSColor.textBackgroundColor;
+    input.borderType=NSNoBorder; input.contentInsets=NSEdgeInsetsMake(2,2,2,2); input.drawsBackground=YES; input.backgroundColor=SPDFCollectionColor(@"window");
     input.wantsLayer=YES; input.layer.cornerRadius=8; input.hasVerticalScroller=YES; [input updateBorder];
     _composer=[[SPDFChatComposer alloc] initWithFrame:NSMakeRect(0,0,500,64)];
-    _composer.font=[NSFont systemFontOfSize:13]; _composer.textColor=NSColor.labelColor;
-    _composer.backgroundColor=NSColor.textBackgroundColor; _composer.richText=NO; _composer.allowsUndo=YES;
+    _composer.font=[NSFont systemFontOfSize:13]; _composer.textColor=SPDFCollectionColor(@"text");
+    _composer.backgroundColor=SPDFCollectionColor(@"window"); _composer.richText=NO; _composer.allowsUndo=YES;
     _composer.textContainerInset=NSMakeSize(8,8); _composer.autoresizingMask=NSViewWidthSizable;
     _composer.textContainer.widthTracksTextView=YES; _composer.horizontallyResizable=NO;
     _composer.accessibilityLabel=@"Message your document assistant. Enter sends; Shift Enter adds a line.";
@@ -297,7 +297,7 @@
     _inputHelp.stringValue=_history ? @"Select a chat above, or start a new one." : @"↵ Send · ⇧↵ New line";
     _redo.enabled=[session respondsToSelector:@selector(canRedo)] && session.canRedo && !session.running;
     _undo.enabled=!session.running && [session respondsToSelector:@selector(canUndo)] && [[session valueForKey:@"canUndo"] boolValue];
-    _status.textColor=NSColor.labelColor; [self showAttachments:_history || ![session respondsToSelector:@selector(grants)] ? @[] : session.grants];
+    _status.textColor=SPDFCollectionColor(@"text"); [self showAttachments:_history || ![session respondsToSelector:@selector(grants)] ? @[] : session.grants];
     NSAccessibilityPostNotification(_status,NSAccessibilityValueChangedNotification); [self updateNewMessagesPill];
 }
 static NSUInteger ActivityAnchor(NSDictionary* row) {

@@ -4,16 +4,53 @@
 static NSColor* Hex(unsigned value) {
     return [NSColor colorWithSRGBRed:((value>>16)&255)/255.0 green:((value>>8)&255)/255.0 blue:(value&255)/255.0 alpha:1];
 }
+// The app chrome's one palette, light and dark: the reader, its sidebar and tab bar, the assistant, the Collection,
+// Settings, popovers and the Friends dropdown all take their colours from here (documents and pages never do).
+// Neutral greys and a blue accent after the Codex desktop app: its default theme (surface #ffffff / #181818, ink
+// #1a1c1f / #ffffff, accent #339cff) and the greys measured from its Settings window.
+//   titlebar   the window frame: title bar, tab bar, toolbars
+//   window     content beside the page: the assistant, the Collection, Settings
+//   sidebar    side panels (pane: the same, for panels inside them); field: search and text fields, chips;
+//              control: buttons and pop-ups
+//   selected   the selected row; hover: a row under the pointer
+//   text, secondary (4.5:1 on every background here), tertiary (icons and hints only, 3:1)
+//   line       separators; lineStrong: outlines of controls and tabs
+//   icon, iconOff  title-bar and toolbar icons, enabled and unavailable
+//   accent     links and accent text (4.5:1); accentFill: filled buttons with white text (4.9:1); focus: focus rings;
+//              accentSoft: a tint behind ordinary text (Codex's accent background), e.g. a message one sent
+//   destructive Block, Delete, a missing file; highlight: search matches in chrome
+//   popover    hover labels, menus and popovers; bubble: the person's own chat message; card: the assistant's answer
+static const struct { const char* token; unsigned light, dark; } kSPDFChromePalette[] = {
+    {"titlebar",0xeaeaea,0x282828}, {"window",0xffffff,0x181818}, {"sidebar",0xf8f8f8,0x1f1f1f},
+    {"pane",0xf8f8f8,0x1f1f1f}, {"field",0xebebeb,0x303030}, {"control",0xebebeb,0x303030}, {"selected",0xececec,0x313131},
+    {"hover",0xf2f2f2,0x292929}, {"text",0x0d0d0d,0xffffff}, {"secondary",0x5d5d5d,0xb4b4b4},
+    {"tertiary",0x8f8f8f,0x8f8f8f}, {"line",0xe3e3e3,0x313131}, {"lineStrong",0xcfcfcf,0x454545},
+    {"icon",0x333333,0xdcdcdc}, {"iconOff",0x9a9a9a,0x7a7a7a}, {"accent",0x1f62d6,0x83c3ff},
+    {"accentFill",0x1a6ae6,0x1a6ae6}, {"accentSoft",0xe5f2ff,0x0d273f}, {"onAccent",0xffffff,0xffffff}, {"focus",0x3983f7,0x3983f7},
+    {"destructive",0xba2623,0xff6b66}, {"highlight",0xffe59a,0x685521}, {"popover",0xffffff,0x2b2b2b},
+    {"bubble",0xf0f0f0,0x2f2f2f}, {"card",0xf8f8f8,0x1f1f1f},
+};
+BOOL SPDFChromeHex(NSString* token, BOOL dark, unsigned* hex) {
+    for (const auto& entry : kSPDFChromePalette)
+        if (!strcmp(entry.token, token.UTF8String ?: "")) { if (hex) *hex = dark ? entry.dark : entry.light; return YES; }
+    return NO;
+}
 NSColor* SPDFCollectionColor(NSString* token) {
-    NSDictionary* palette = @{@"titlebar":@[@0xe8e8eb,@0x202125],@"window":@[@0xffffff,@0x292b2e],@"sidebar":@[@0xf6f6f5,@0x232426],
-        @"pane":@[@0xf6f6f5,@0x232426],@"text":@[@0x26282b,@0xeceef1],@"secondary":@[@0x61666d,@0xb3b7be],
-        @"line":@[@0xdddfdf,@0x414448],@"control":@[@0xf6f6f5,@0x232426],@"selected":@[@0xdbe5f0,@0x374b61],
-        @"accent":@[@0x286398,@0xa1c9ed],@"hover":@[@0xe8ebed,@0x393d42],@"highlight":@[@0xffe59a,@0x685521]};
-    NSArray* pair = palette[token] ?: palette[@"text"];
-    return [NSColor colorWithName:[@"Collection." stringByAppendingString:token] dynamicProvider:^NSColor*(NSAppearance* appearance) {
-        BOOL dark = [[appearance bestMatchFromAppearancesWithNames:@[NSAppearanceNameAqua,NSAppearanceNameDarkAqua]] isEqual:NSAppearanceNameDarkAqua];
-        return Hex([pair[dark ? 1 : 0] unsignedIntValue]);
-    }];
+    static NSDictionary<NSString*,NSColor*>* colors; static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        NSMutableDictionary* made = [NSMutableDictionary dictionary];
+        for (const auto& entry : kSPDFChromePalette) {
+            unsigned light = entry.light, dark = entry.dark;
+            NSString* name = [@"Chrome." stringByAppendingString:@(entry.token)];
+            made[@(entry.token)] = [NSColor colorWithName:name dynamicProvider:^NSColor*(NSAppearance* appearance) {
+                BOOL isDark = [[appearance bestMatchFromAppearancesWithNames:@[NSAppearanceNameAqua,NSAppearanceNameDarkAqua]]
+                    isEqual:NSAppearanceNameDarkAqua];
+                return Hex(isDark ? dark : light);
+            }];
+        }
+        colors = made;
+    });
+    return colors[token] ?: colors[@"text"];
 }
 @interface SPDFCollectionSurfaceView : NSView
 @property(nonatomic) NSString* token;
@@ -47,16 +84,20 @@ NSColor* SPDFCollectionColor(NSString* token) {
 - (void)viewDidChangeEffectiveAppearance { [super viewDidChangeEffectiveAppearance]; self.needsDisplay = YES; }
 - (void)drawRect:(NSRect)dirty {
     (void)dirty; BOOL quiet = ![self.kind isEqual:@"normal"];
-    BOOL selected = self.state == NSControlStateValueOn || self.highlighted;
+    // The chosen one of a set (a Settings page, a filter) is a solid ink pill, as Codex marks its current choice;
+    // pressed and hovered buttons deepen the grey.
+    BOOL chosen = self.state == NSControlStateValueOn;
     NSBezierPath* shape = [NSBezierPath bezierPathWithRoundedRect:NSInsetRect(self.bounds,.5,.5) xRadius:5 yRadius:5];
-    if (!quiet || selected || self.hovered) { [SPDFCollectionColor(selected ? @"selected" : self.hovered ? @"hover" : @"control") setFill]; [shape fill]; }
+    NSString* fill = chosen ? @"text" : self.highlighted ? @"lineStrong" : self.hovered ? (quiet ? @"selected" : @"line")
+        : quiet ? nil : @"control";
+    if (fill) { [SPDFCollectionColor(fill) setFill]; [shape fill]; }
 
     NSRect titleRect = NSInsetRect(self.bounds,9,3);
     if (self.image) {
         NSRect icon = NSMakeRect(NSMinX(titleRect),floor(NSMidY(self.bounds)-7.5),15,15);
         NSImage* symbol = self.image;
         if (@available(macOS 12.0,*)) symbol = [symbol imageWithSymbolConfiguration:
-            [NSImageSymbolConfiguration configurationWithPaletteColors:@[SPDFChromeIconColor(self.enabled)]]] ?: symbol;
+            [NSImageSymbolConfiguration configurationWithPaletteColors:@[chosen ? SPDFCollectionColor(@"window") : SPDFChromeIconColor(self.enabled)]]] ?: symbol;
         SPDFDrawVectorIcon(symbol,icon,YES);
         titleRect.origin.x += 24; titleRect.size.width -= 24;
     }
@@ -71,7 +112,8 @@ NSColor* SPDFCollectionColor(NSString* token) {
         [title addAttribute:NSParagraphStyleAttributeName value:paragraph range:NSMakeRange(0,title.length)];
     } else {
         [title addAttributes:@{NSFontAttributeName:self.font ?: [NSFont systemFontOfSize:13],
-            NSForegroundColorAttributeName:(self.enabled ? SPDFCollectionColor([self.kind isEqual:@"link"] ? @"accent" : @"text") : SPDFChromeIconColor(NO)),
+            NSForegroundColorAttributeName:(!self.enabled ? SPDFChromeIconColor(NO) : chosen ? SPDFCollectionColor(@"window")
+                : SPDFCollectionColor([self.kind isEqual:@"link"] ? @"accent" : @"text")),
             NSParagraphStyleAttributeName:paragraph} range:NSMakeRange(0,title.length)];
     }
     NSRect measured = [title boundingRectWithSize:titleRect.size options:NSStringDrawingUsesLineFragmentOrigin];
@@ -111,9 +153,8 @@ static NSBezierPath* SearchShape(NSRect bounds) {
 @end
 @implementation SPDFCollectionSearchCell
 - (void)drawWithFrame:(NSRect)frame inView:(NSView*)view {
-    NSBezierPath* shape = SearchShape(frame);
-    [SPDFCollectionColor(@"pane") setFill]; [shape fill];
-    [SPDFCollectionColor(@"line") setStroke]; [shape stroke];
+    // A filled field with no outline, as Codex draws its search field.
+    [SPDFCollectionColor(@"field") setFill]; [SearchShape(frame) fill];
     [super drawWithFrame:frame inView:view];
 }
 - (NSRect)focusRingMaskBoundsForFrame:(NSRect)frame inView:(NSView*)view { (void)view; return frame; }

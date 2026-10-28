@@ -1,4 +1,5 @@
 #import "SPDFMacFriendsGrantBar.h"
+#import "../SPDFMacCollectionStyle.h"
 
 NSString* const SPDFMacFriendsGrantBarIdentifier = @"szfriends.chatAccessBar";
 
@@ -82,7 +83,7 @@ static NSString* const kDetail = @"Until then, the assistant may read any of you
 }
 
 - (void)updateLayer {
-    self.layer.backgroundColor = [NSColor.controlAccentColor colorWithAlphaComponent:0.14].CGColor;
+    self.layer.backgroundColor = [SPDFCollectionColor(@"focus") colorWithAlphaComponent:0.14].CGColor;
 }
 
 - (BOOL)wantsUpdateLayer { return YES; }

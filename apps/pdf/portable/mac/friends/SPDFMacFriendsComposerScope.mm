@@ -1,4 +1,5 @@
 #import "SPDFMacFriendsComposerScope.h"
+#import "../SPDFMacCollectionStyle.h"
 #import "SPDFMacFriendsComposerText.h"
 
 NSString* const SPDFMacFriendsScopePickerIdentifier = @"szfriends.scopePicker";
@@ -51,7 +52,7 @@ static NSString* const kLengthTitle = @"Let the assistant read all your Friends 
     _note = [NSTextField wrappingLabelWithString:@""];
     _note.identifier = @"friendsScopeNote";
     _note.font = [NSFont systemFontOfSize:11];
-    _note.textColor = NSColor.secondaryLabelColor;
+    _note.textColor = SPDFCollectionColor(@"secondary");
     _note.maximumNumberOfLines = 2;
     _note.hidden = YES;
     NSScrollView* input = composer.enclosingScrollView;
@@ -142,7 +143,7 @@ static NSString* const kLengthTitle = @"Let the assistant read all your Friends 
                                              : [SPDFMacFriendsScopeToken chipWithScope:scope font:font]) mutableCopy];
     // A plain space after the chip, so typing continues in ordinary text rather than inheriting the attachment.
     [chip appendAttributedString:[[NSAttributedString alloc] initWithString:@" " attributes:@{
-        NSFontAttributeName : font, NSForegroundColorAttributeName : composer.textColor ?: NSColor.labelColor}]];
+        NSFontAttributeName : font, NSForegroundColorAttributeName : composer.textColor ?: SPDFCollectionColor(@"text")}]];
     NSString* text = composer.string;
     NSRange range = NSMakeRange(MIN(composer.selectedRange.location, text.length), 0);
     unichar trigger = file ? '#' : '@';

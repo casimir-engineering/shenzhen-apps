@@ -1,4 +1,5 @@
 #import "SPDFMacMarkdownSessionPrivate.h"
+#import "SPDFMacCollectionStyle.h"
 #import "SPDFMacMarkdownSourceRevision.h"
 
 #import "SPDFMacMarkdownSidebarModel.h"
@@ -92,7 +93,7 @@
     _placeholder = [NSTextField labelWithString:@"Loading text..."];
     _placeholder.translatesAutoresizingMaskIntoConstraints = NO;
     _placeholder.alignment = NSTextAlignmentCenter;
-    _placeholder.textColor = NSColor.secondaryLabelColor;
+    _placeholder.textColor = SPDFCollectionColor(@"secondary");
     [_rootView addSubview:_placeholder];
     [NSLayoutConstraint activateConstraints:@[
         [_placeholder.centerXAnchor constraintEqualToAnchor:_rootView.centerXAnchor],

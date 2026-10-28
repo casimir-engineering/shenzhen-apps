@@ -57,8 +57,7 @@ static NSString* Symbol(NSInteger mode) {
     NSRect bounds = NSInsetRect(self.bounds,.5,.5);
     NSBezierPath* shape = [NSBezierPath bezierPathWithRoundedRect:bounds xRadius:7 yRadius:7];
     if (self.mode != -1 && (selected || self.highlighted || _hovered)) {
-        BOOL dark = [[self.effectiveAppearance bestMatchFromAppearancesWithNames:@[NSAppearanceNameAqua,NSAppearanceNameDarkAqua]] isEqual:NSAppearanceNameDarkAqua];
-        NSColor* fill = selected ? (dark ? [NSColor colorWithSRGBRed:.216 green:.294 blue:.380 alpha:1] : [NSColor colorWithSRGBRed:.859 green:.898 blue:.941 alpha:1]) : [NSColor.labelColor colorWithAlphaComponent:self.highlighted ? .065 : .035];
+        NSColor* fill = selected ? SPDFCollectionColor(@"selected") : [SPDFCollectionColor(@"text") colorWithAlphaComponent:self.highlighted ? .065 : .035];
         [fill setFill]; [shape fill];
     }
     if (selected && self.window.firstResponder == self.superview) {
@@ -207,7 +206,7 @@ static NSString* Symbol(NSInteger mode) {
     }
 }
 - (void)drawRect:(NSRect)dirty {
-    (void)dirty; [[NSColor.labelColor colorWithAlphaComponent:.13] setFill];
+    (void)dirty; [[SPDFCollectionColor(@"text") colorWithAlphaComponent:.13] setFill];
     NSRectFill(NSMakeRect(-8,35,NSWidth(self.bounds)+16,.5));
     SPDFSidebarNavigationRow* group = [self visualRows].firstObject;
     NSRectFill(NSMakeRect((_chats ? NSMinX(_chats.frame) : NSMinX(group.frame))-8,10,.5,16));
@@ -216,7 +215,7 @@ static NSString* Symbol(NSInteger mode) {
         NSMutableParagraphStyle* style = [NSMutableParagraphStyle new]; style.lineBreakMode = NSLineBreakByTruncatingMiddle;
         [_documentTitle ?: @"No document" drawInRect:NSMakeRect(4,45,MAX(0,NSWidth(self.bounds)-8),16)
             withAttributes:@{NSFontAttributeName:[NSFont systemFontOfSize:11],
-                NSForegroundColorAttributeName:NSColor.secondaryLabelColor,NSParagraphStyleAttributeName:style}];
+                NSForegroundColorAttributeName:SPDFCollectionColor(@"secondary"),NSParagraphStyleAttributeName:style}];
     }
 }
 

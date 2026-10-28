@@ -2225,7 +2225,7 @@ id spdf_state_object_from_yaml_data(NSData* data) {
         NSTextField* versionLabel =
             [NSTextField labelWithString:[NSString stringWithFormat:@"Version %@", [self displayVersion]]];
         versionLabel.font = [NSFont systemFontOfSize:13.0 weight:NSFontWeightRegular];
-        versionLabel.textColor = NSColor.secondaryLabelColor;
+        versionLabel.textColor = SPDFCollectionColor(@"secondary");
         versionLabel.alignment = NSTextAlignmentCenter;
 
         NSTextField* aboutLabel =
@@ -2245,7 +2245,7 @@ id spdf_state_object_from_yaml_data(NSData* data) {
             updateLink.bezelStyle = NSBezelStyleInline;
             updateLink.bordered = NO;
             updateLink.font = [NSFont systemFontOfSize:12.0 weight:NSFontWeightRegular];
-            updateLink.contentTintColor = NSColor.linkColor;
+            updateLink.contentTintColor = SPDFCollectionColor(@"accent");
             updateLink.translatesAutoresizingMaskIntoConstraints = NO;
             updateLink.accessibilityRole = NSAccessibilityButtonRole;
             updateLink.accessibilityLabel = @"Check for Updates";
@@ -2365,7 +2365,7 @@ id spdf_state_object_from_yaml_data(NSData* data) {
     button.attributedTitle = [[NSAttributedString alloc] initWithString:button.title
                                                              attributes:@{
                                                                  NSFontAttributeName : font,
-                                                                 NSForegroundColorAttributeName : NSColor.labelColor,
+                                                                 NSForegroundColorAttributeName : SPDFCollectionColor(@"text"),
                                                                  NSParagraphStyleAttributeName : style,
                                                              }];
 }
@@ -2724,7 +2724,7 @@ id spdf_state_object_from_yaml_data(NSData* data) {
     _findCountLabel = [SPDFToolbarDragLabel labelWithString:@""];
     _findCountLabel.translatesAutoresizingMaskIntoConstraints = NO;
     _findCountLabel.alignment = NSTextAlignmentCenter;
-    _findCountLabel.textColor = NSColor.secondaryLabelColor;
+    _findCountLabel.textColor = SPDFCollectionColor(@"secondary");
     _findCountLabel.font = [NSFont monospacedDigitSystemFontOfSize:12 weight:NSFontWeightRegular];
     [_findCountLabel.widthAnchor constraintEqualToConstant:64].active = YES;
 
@@ -7319,7 +7319,7 @@ static BOOL spdf_page_list_cache_disabled(void) {
         _commentLabel = [NSTextField wrappingLabelWithString:@""];
         _commentLabel.translatesAutoresizingMaskIntoConstraints = NO;
         _commentLabel.font = [NSFont systemFontOfSize:12];
-        _commentLabel.textColor = NSColor.labelColor;
+        _commentLabel.textColor = SPDFCollectionColor(@"text");
         [bubble addSubview:_commentLabel];
         [NSLayoutConstraint activateConstraints:@[
             [_commentLabel.leadingAnchor constraintEqualToAnchor:bubble.leadingAnchor constant:10],
@@ -11653,13 +11653,13 @@ static const int kSPDFCursorRegionMaxLinkRects = 512;
     NSString* text = context ?: @"";
     NSDictionary* baseAttributes = @{
         NSFontAttributeName : [NSFont systemFontOfSize:11.0],
-        NSForegroundColorAttributeName : NSColor.secondaryLabelColor
+        NSForegroundColorAttributeName : SPDFCollectionColor(@"secondary")
     };
     NSMutableAttributedString* attributed = [[NSMutableAttributedString alloc] initWithString:text
                                                                                    attributes:baseAttributes];
     NSDictionary* matchAttributes = @{
         NSFontAttributeName : [NSFont systemFontOfSize:11.0 weight:NSFontWeightSemibold],
-        NSForegroundColorAttributeName : NSColor.labelColor
+        NSForegroundColorAttributeName : SPDFCollectionColor(@"text")
     };
     for (NSValue* value in [self rangesOfPaletteQuery:query inString:text limit:0])
         [attributed addAttributes:matchAttributes range:value.rangeValue];
@@ -11669,7 +11669,7 @@ static const int kSPDFCursorRegionMaxLinkRects = 512;
 - (NSAttributedString*)paletteFindTitleAttributedStringForResult:(NSDictionary*)result {
     NSString* text = result[@"title"] ?: @"";
     NSDictionary* baseAttributes =
-        @{NSFontAttributeName : [NSFont systemFontOfSize:13.0], NSForegroundColorAttributeName : NSColor.labelColor};
+        @{NSFontAttributeName : [NSFont systemFontOfSize:13.0], NSForegroundColorAttributeName : SPDFCollectionColor(@"text")};
     NSMutableAttributedString* attributed = [[NSMutableAttributedString alloc] initWithString:text
                                                                                    attributes:baseAttributes];
     NSUInteger boldLength = [result[@"titleBoldLength"] respondsToSelector:@selector(unsignedIntegerValue)]
@@ -12538,7 +12538,7 @@ static NSString* SPDFLastMeaningfulOCRLine(NSString* text) {
     if (!_translationInstallLog || text.length == 0) return;
     NSTextStorage* storage = _translationInstallLog.textStorage;
     NSDictionary* attrs = @{
-        NSForegroundColorAttributeName : NSColor.labelColor,
+        NSForegroundColorAttributeName : SPDFCollectionColor(@"text"),
         NSFontAttributeName : _translationInstallLog.font
             ?: [NSFont monospacedSystemFontOfSize:11 weight:NSFontWeightRegular]
     };
@@ -12580,8 +12580,8 @@ static NSString* SPDFLastMeaningfulOCRLine(NSString* text) {
         _translationInstallLog.selectable = YES;
         _translationInstallLog.font = [NSFont monospacedSystemFontOfSize:11 weight:NSFontWeightRegular];
         _translationInstallLog.drawsBackground = YES;
-        _translationInstallLog.backgroundColor = NSColor.textBackgroundColor;
-        _translationInstallLog.textColor = NSColor.labelColor;
+        _translationInstallLog.backgroundColor = SPDFCollectionColor(@"window");
+        _translationInstallLog.textColor = SPDFCollectionColor(@"text");
         scroll.documentView = _translationInstallLog;
 
         [NSLayoutConstraint activateConstraints:@[
@@ -13171,7 +13171,7 @@ static NSString* SPDFTranslationBatchScope(NSArray<NSDictionary*>* items, NSUInt
     if (!_ocrInstallLog || text.length == 0) return;
     NSTextStorage* storage = _ocrInstallLog.textStorage;
     NSDictionary* attrs = @{
-        NSForegroundColorAttributeName : NSColor.labelColor,
+        NSForegroundColorAttributeName : SPDFCollectionColor(@"text"),
         NSFontAttributeName : _ocrInstallLog.font ?: [NSFont monospacedSystemFontOfSize:11 weight:NSFontWeightRegular]
     };
     [storage appendAttributedString:[[NSAttributedString alloc] initWithString:text attributes:attrs]];
@@ -13212,8 +13212,8 @@ static NSString* SPDFTranslationBatchScope(NSArray<NSDictionary*>* items, NSUInt
         _ocrInstallLog.selectable = YES;
         _ocrInstallLog.font = [NSFont monospacedSystemFontOfSize:11 weight:NSFontWeightRegular];
         _ocrInstallLog.drawsBackground = YES;
-        _ocrInstallLog.backgroundColor = NSColor.textBackgroundColor;
-        _ocrInstallLog.textColor = NSColor.labelColor;
+        _ocrInstallLog.backgroundColor = SPDFCollectionColor(@"window");
+        _ocrInstallLog.textColor = SPDFCollectionColor(@"text");
         scroll.documentView = _ocrInstallLog;
 
         [NSLayoutConstraint activateConstraints:@[
@@ -13940,7 +13940,7 @@ static NSString* SPDFTranslationBatchScope(NSArray<NSDictionary*>* items, NSUInt
 
     NSTextField* whyLabel = [NSTextField wrappingLabelWithString:why];
     whyLabel.font = [NSFont systemFontOfSize:11.5];
-    whyLabel.textColor = NSColor.secondaryLabelColor;
+    whyLabel.textColor = SPDFCollectionColor(@"secondary");
     whyLabel.translatesAutoresizingMaskIntoConstraints = NO;
 
     NSButton* openButton = [NSButton buttonWithTitle:@"Open Settings" target:self action:settingsAction];
@@ -13995,7 +13995,7 @@ static NSString* SPDFTranslationBatchScope(NSArray<NSDictionary*>* items, NSUInt
             wrappingLabelWithString:@"Granting these once lets ShenzhenPDF open PDFs from any location and zoom "
                                     @"unfocused windows without repeated macOS prompts."];
         introLabel.font = [NSFont systemFontOfSize:12.0];
-        introLabel.textColor = NSColor.secondaryLabelColor;
+        introLabel.textColor = SPDFCollectionColor(@"secondary");
         introLabel.translatesAutoresizingMaskIntoConstraints = NO;
 
         NSView* axRow = [self
@@ -14022,7 +14022,7 @@ static NSString* SPDFTranslationBatchScope(NSArray<NSDictionary*>* items, NSUInt
                                     @"If a “data from other apps” prompt still appears, granting Full Disk Access "
                                     @"above resolves it."];
         noteLabel.font = [NSFont systemFontOfSize:11.0];
-        noteLabel.textColor = NSColor.tertiaryLabelColor;
+        noteLabel.textColor = SPDFCollectionColor(@"secondary");
         noteLabel.translatesAutoresizingMaskIntoConstraints = NO;
 
         NSButton* doneButton = [NSButton buttonWithTitle:@"Done" target:self action:@selector(permissionsWizardDone:)];

@@ -1,4 +1,5 @@
 #import <Cocoa/Cocoa.h>
+#import "SPDFMacCollectionStyle.h"  // the chrome palette, for every view that includes the helpers
 
 #import "SPDFMacCursorRegions.h"
 

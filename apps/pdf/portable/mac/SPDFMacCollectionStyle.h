@@ -1,7 +1,10 @@
 #pragma once
 #import <Cocoa/Cocoa.h>
-// Collection chrome only. These appearance-aware colors never enter document rendering.
+// The app chrome's palette (tokens and values in SPDFMacCollectionStyle.mm). These appearance-aware colors never
+// enter document rendering.
 NSColor* SPDFCollectionColor(NSString* token);
+// A token's sRGB value in one appearance, for tests and contrast checks. NO for an unknown token.
+BOOL SPDFChromeHex(NSString* token, BOOL dark, unsigned* hex);
 NSButton* SPDFCollectionButton(NSString* title, id target, SEL action, NSString* kind);
 NSPopUpButton* SPDFCollectionPopUp(void);
 NSSearchField* SPDFCollectionSearchField(void);

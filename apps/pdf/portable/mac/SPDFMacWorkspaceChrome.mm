@@ -137,7 +137,7 @@ static NSButton* Icon(NSString* symbol, NSString* title, id target, SEL action) 
         [sidebarHeader.topAnchor constraintEqualToAnchor:_sidebarContainer.topAnchor],
         [sidebarHeader.bottomAnchor constraintEqualToAnchor:_sidebarModeControl.bottomAnchor]]];
     for (NSView* host in @[_sidebarContainer,_toolbar]) {
-        NSView* surface = SPDFCollectionSurface(@"window"); surface.translatesAutoresizingMaskIntoConstraints = NO;
+        NSView* surface = SPDFCollectionSurface(host == _sidebarContainer ? @"sidebar" : @"window"); surface.translatesAutoresizingMaskIntoConstraints = NO;
         [host addSubview:surface positioned:NSWindowBelow relativeTo:nil];
         [NSLayoutConstraint activateConstraints:@[[surface.leadingAnchor constraintEqualToAnchor:host.leadingAnchor],
             [surface.trailingAnchor constraintEqualToAnchor:host.trailingAnchor],

@@ -1,4 +1,5 @@
 #import "SPDFMacAITranslationPanel.h"
+#import "SPDFMacCollectionStyle.h"
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 #import "SPDFMacAITranslation.h"
 #import "SPDFMacAITransport.h"
@@ -34,8 +35,8 @@ BOOL SPDFMacAITranslationCanSaveToURL(NSURL* destination, NSString* sourcePath) 
     _source=[NSTextView new];_result=[NSTextView new];
     NSMutableArray* scrolls=[NSMutableArray array];
     for(NSTextView* text in @[_source,_result]) {
-        text.richText=NO;text.font=[NSFont systemFontOfSize:13];text.textColor=NSColor.labelColor;
-        text.backgroundColor=NSColor.textBackgroundColor;text.textContainerInset=NSMakeSize(8,8);
+        text.richText=NO;text.font=[NSFont systemFontOfSize:13];text.textColor=SPDFCollectionColor(@"text");
+        text.backgroundColor=SPDFCollectionColor(@"window");text.textContainerInset=NSMakeSize(8,8);
         text.autoresizingMask=NSViewWidthSizable;text.verticallyResizable=YES;text.horizontallyResizable=NO;
         text.textContainer.widthTracksTextView=YES;
         NSScrollView* scroll=[NSScrollView new];scroll.documentView=text;scroll.hasVerticalScroller=YES;scroll.borderType=NSBezelBorder;

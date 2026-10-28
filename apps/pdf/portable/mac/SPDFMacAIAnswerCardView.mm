@@ -1,7 +1,7 @@
 #import "SPDFMacAIAnswerCardView.h"
 #import "SPDFMacGroupActionButton.h"
 #import "SPDFMacIconGeometry.h"
-static NSColor* AnswerColor(CGFloat r,CGFloat g,CGFloat b) { return [NSColor colorWithSRGBRed:r/255 green:g/255 blue:b/255 alpha:1]; }
+#import "SPDFMacCollectionStyle.h"
 @interface SPDFAnswerEvidenceButton : SPDFGroupActionButton @end
 @implementation SPDFAnswerEvidenceButton {
     NSTrackingArea* _hoverArea; BOOL _hovered;
@@ -19,8 +19,11 @@ static NSColor* AnswerColor(CGFloat r,CGFloat g,CGFloat b) { return [NSColor col
 - (void)drawRect:(NSRect)dirty {
     (void)dirty;
     NSBezierPath* shape=[NSBezierPath bezierPathWithRoundedRect:NSInsetRect(self.bounds,1,1) xRadius:14 yRadius:14];
-    [(self.highlighted ? AnswerColor(38,28,52) : _hovered ? AnswerColor(79,64,101) : AnswerColor(59,48,77)) setFill]; [shape fill];
-    NSColor* text=AnswerColor(250,247,255);
+    // The chrome's filled button: white on the accent fill (4.9:1), darker under the pointer and when pressed.
+    NSColor* fill=SPDFCollectionColor(@"accentFill");
+    if(self.highlighted || _hovered) fill=[fill blendedColorWithFraction:self.highlighted ? .25 : .12 ofColor:NSColor.blackColor];
+    [fill setFill]; [shape fill];
+    NSColor* text=SPDFCollectionColor(@"onAccent");
     NSDictionary* attributes=@{NSFontAttributeName:[NSFont systemFontOfSize:12 weight:NSFontWeightMedium],NSForegroundColorAttributeName:text};
     NSSize size=[self.title sizeWithAttributes:attributes];
     [self.title drawAtPoint:NSMakePoint(13,round((NSHeight(self.bounds)-size.height)/2)) withAttributes:attributes];
@@ -45,11 +48,11 @@ static NSColor* AnswerColor(CGFloat r,CGFloat g,CGFloat b) { return [NSColor col
     self.textContainer.widthTracksTextView=YES;
     NSMutableParagraphStyle* labelStyle=[NSMutableParagraphStyle new]; labelStyle.paragraphSpacing=7;
     NSMutableAttributedString* text=[[NSMutableAttributedString alloc] initWithString:[card[@"label"] stringByAppendingString:@"\n"]
-        attributes:@{NSFontAttributeName:[NSFont systemFontOfSize:12 weight:NSFontWeightMedium],NSForegroundColorAttributeName:AnswerColor(101,85,116),NSParagraphStyleAttributeName:labelStyle}];
+        attributes:@{NSFontAttributeName:[NSFont systemFontOfSize:12 weight:NSFontWeightMedium],NSForegroundColorAttributeName:SPDFCollectionColor(@"secondary"),NSParagraphStyleAttributeName:labelStyle}];
     _valueRange=NSMakeRange(text.length,[card[@"value"] length]);
     [text appendAttributedString:[[NSAttributedString alloc] initWithString:card[@"value"]
         attributes:@{NSFontAttributeName:[NSFont systemFontOfSize:_valueRange.length>24 ? 28 : _valueRange.length>14 ? 34 : 36 weight:NSFontWeightSemibold],
-            NSForegroundColorAttributeName:AnswerColor(46,37,63)}]];
+            NSForegroundColorAttributeName:SPDFCollectionColor(@"text")}]];
     [self.textStorage setAttributedString:text];
     self.accessibilityLabel=[NSString stringWithFormat:@"Answer: %@, %@",card[@"label"],card[@"value"]];
     _citation=[NSURL URLWithString:card[@"citation"]]; _openLink=[openLink copy];
@@ -71,9 +74,9 @@ static NSColor* AnswerColor(CGFloat r,CGFloat g,CGFloat b) { return [NSColor col
     return children;
 }
 - (void)drawRect:(NSRect)dirty {
-    BOOL dark=[[self.effectiveAppearance bestMatchFromAppearancesWithNames:@[NSAppearanceNameAqua,NSAppearanceNameDarkAqua]] isEqual:NSAppearanceNameDarkAqua];
-    [(dark ? AnswerColor(216,205,233) : AnswerColor(238,232,247)) setFill];
-    [[NSBezierPath bezierPathWithRoundedRect:self.bounds xRadius:12 yRadius:12] fill];
+    NSBezierPath* card=[NSBezierPath bezierPathWithRoundedRect:NSInsetRect(self.bounds,.5,.5) xRadius:12 yRadius:12];
+    [SPDFCollectionColor(@"card") setFill]; [card fill];
+    [SPDFCollectionColor(@"line") setStroke]; [card stroke];
     [super drawRect:dirty];
 }
 - (void)viewDidChangeEffectiveAppearance { [super viewDidChangeEffectiveAppearance]; self.needsDisplay=YES; }

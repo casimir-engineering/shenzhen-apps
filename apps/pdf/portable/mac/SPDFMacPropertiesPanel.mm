@@ -1,4 +1,5 @@
 #import "SPDFMacPropertiesPanel.h"
+#import "SPDFMacCollectionStyle.h"
 
 #import "SPDFMacPassword.h"
 #import "SPDFMacPropertiesFormat.h"
@@ -130,7 +131,7 @@ static NSString* spdf_properties_grouped(NSUInteger value) {
     field.selectable = YES;
     field.editable = NO;
     field.font = [NSFont systemFontOfSize:13];
-    field.textColor = NSColor.labelColor;
+    field.textColor = SPDFCollectionColor(@"text");
     NSString* tooltip = row[@"tooltip"];
     field.toolTip = tooltip.length ? tooltip : nil;
     [field.widthAnchor constraintLessThanOrEqualToConstant:kPropertiesValueMaxWidth].active = YES;
@@ -169,7 +170,7 @@ static NSString* spdf_properties_grouped(NSUInteger value) {
     NSTextField* nameField = [NSTextField labelWithString:displayName];
     nameField.translatesAutoresizingMaskIntoConstraints = NO;
     nameField.font = [NSFont systemFontOfSize:15 weight:NSFontWeightSemibold];
-    nameField.textColor = NSColor.labelColor;
+    nameField.textColor = SPDFCollectionColor(@"text");
     nameField.lineBreakMode = NSLineBreakByTruncatingMiddle;
     nameField.selectable = YES;
     nameField.toolTip = sourcePath.length ? sourcePath : nil;
@@ -180,7 +181,7 @@ static NSString* spdf_properties_grouped(NSUInteger value) {
     NSTextField* subtitleField = [NSTextField labelWithString:[self headerSubtitle]];
     subtitleField.translatesAutoresizingMaskIntoConstraints = NO;
     subtitleField.font = [NSFont systemFontOfSize:12];
-    subtitleField.textColor = NSColor.secondaryLabelColor;
+    subtitleField.textColor = SPDFCollectionColor(@"secondary");
     [content addSubview:subtitleField];
 
     NSBox* headerSeparator = [[NSBox alloc] initWithFrame:NSZeroRect];
@@ -202,7 +203,7 @@ static NSString* spdf_properties_grouped(NSUInteger value) {
         NSTextField* header = [NSTextField labelWithString:[section[@"title"] uppercaseString]];
         header.translatesAutoresizingMaskIntoConstraints = NO;
         header.font = [NSFont systemFontOfSize:11 weight:NSFontWeightSemibold];
-        header.textColor = NSColor.secondaryLabelColor;
+        header.textColor = SPDFCollectionColor(@"secondary");
         NSGridRow* headerRow = [grid addRowWithViews:@[ header ]];
         [headerRow mergeCellsInRange:NSMakeRange(0, 2)];
         // The merged cell inherits the label column's trailing placement.
@@ -215,7 +216,7 @@ static NSString* spdf_properties_grouped(NSUInteger value) {
             NSTextField* label = [NSTextField labelWithString:row[@"label"] ?: @""];
             label.translatesAutoresizingMaskIntoConstraints = NO;
             label.font = [NSFont systemFontOfSize:13];
-            label.textColor = NSColor.secondaryLabelColor;
+            label.textColor = SPDFCollectionColor(@"secondary");
             label.alignment = NSTextAlignmentRight;
             NSTextField* value = [self valueFieldForRow:row];
             if (row == _textStatsRow) _textStatsField = value;

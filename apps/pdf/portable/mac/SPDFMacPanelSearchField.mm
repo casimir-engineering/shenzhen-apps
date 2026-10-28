@@ -1,4 +1,5 @@
 #import "SPDFMacPanelSearchField.h"
+#import "SPDFMacCollectionStyle.h"
 @implementation SPDFPanelSearchCell
 - (NSRect)searchTextRectForBounds:(NSRect)bounds {
     NSRect rect=[super searchTextRectForBounds:bounds];
@@ -12,6 +13,13 @@
     return self.stringValue.length ? [super drawingRectForBounds:bounds]
                                    : [self searchTextRectForBounds:bounds];
 }
+// A filled pill with no outline, as Codex draws its search field; the text, placeholder and icons are AppKit's.
+- (void)drawWithFrame:(NSRect)frame inView:(NSView*)view {
+    [SPDFCollectionColor(@"field") setFill];
+    [[NSBezierPath bezierPathWithRoundedRect:NSInsetRect(frame,.5,.5)
+        xRadius:NSHeight(frame)/2 yRadius:NSHeight(frame)/2] fill];
+    [self drawInteriorWithFrame:frame inView:view];
+}
 - (void)drawFocusRingMaskWithFrame:(NSRect)frame inView:(NSView*)view {
     (void)view;
     [[NSBezierPath bezierPathWithRoundedRect:NSInsetRect(frame,.5,.5)
@@ -23,7 +31,7 @@ void SPDFConfigurePanelSearchField(NSSearchField* field) {
     field.cell=[[SPDFPanelSearchCell alloc] initTextCell:text ?: @""];
     field.placeholderString=placeholder; field.bordered=YES; field.bezeled=YES;
     field.bezelStyle=NSTextFieldRoundedBezel; field.editable=YES; field.selectable=YES;
-    field.font=[NSFont systemFontOfSize:13]; field.textColor=NSColor.labelColor;
+    field.font=[NSFont systemFontOfSize:13]; field.textColor=SPDFCollectionColor(@"text");
     field.focusRingType=NSFocusRingTypeExterior; field.sendsSearchStringImmediately=YES;
     field.cell.usesSingleLineMode=YES; field.cell.scrollable=YES;
     field.cell.wraps=NO; field.cell.lineBreakMode=NSLineBreakByClipping;
