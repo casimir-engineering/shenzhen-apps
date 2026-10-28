@@ -77,6 +77,10 @@ static NSPasteboardType const SPDFTabDragPasteboardType = @"com.intuition.shenzh
     CGFloat _tabContentWidth;
     NSRect _tabPinnedViewport;
     BOOL _revealSelectedTab;
+    // The trackpad gesture under way: how far the fingers have moved it on each axis, and the axis it and its
+    // momentum follow (0 not yet, 1 across, 2 up and down).
+    CGFloat _scrollGestureX, _scrollGestureY;
+    NSInteger _scrollGestureAxis;
     SPDFTabGroup* _pressedGroupAction;
     id _groupLayout;
     NSRect _groupLayoutBounds;
@@ -201,6 +205,9 @@ static NSPasteboardType const SPDFTabDragPasteboardType = @"com.intuition.shenzh
 - (NSRect)tabScrollIndicatorRectOnLeft:(BOOL)left;
 - (NSInteger)tabScrollHiddenCountOnLeft:(BOOL)left;
 - (void)scrollTabStripBy:(CGFloat)delta;
+- (CGFloat)tabScrollIndicatorReserve;
+- (CGFloat)tabScrollOffsetRevealingStart:(CGFloat)start end:(CGFloat)end offset:(CGFloat)offset
+                           viewportWidth:(CGFloat)width contentWidth:(CGFloat)content;
 - (BOOL)handleTabScrollMouseDown:(NSEvent*)event;
 - (BOOL)isPointOnHiddenTabsIndicator:(NSPoint)point;
 - (NSMenu*)hiddenTabsMenuOnLeft:(BOOL)left;

@@ -110,7 +110,7 @@
 
 - (void)setSelectedIndex:(NSInteger)selectedIndex {
     _groupLayout = nil;
-    _revealSelectedTab = _selectedIndex != selectedIndex || !_tabs.count;
+    _revealSelectedTab = _revealSelectedTab || _selectedIndex != selectedIndex || !_tabs.count; // a pending one stays
     _selectedIndex = selectedIndex;
     _preferredTabWidths = nil;
     _ungroupedVisibleIndexes = nil;

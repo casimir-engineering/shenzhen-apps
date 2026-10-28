@@ -67,11 +67,15 @@
     });
 }
 - (void)revealTabGroup:(SPDFTabGroup*)group {
+    // Title tabs scroll only when every group scrolls; beside a pinned lane they always show.
+    if (!NSIsEmptyRect(_tabPinnedViewport)) return;
     for (id layout in self.groupLayouts) if ([layout valueForKey:@"group"] == group) {
         NSRect header = [[layout valueForKey:@"header"] rectValue];
-        CGFloat left = [self leftInset], right = [self tabAreaRightWithOverflow:YES];
-        if (NSMinX(header) < left) [self scrollTabStripBy:NSMinX(header)-left];
-        else if (NSMaxX(header) > right) [self scrollTabStripBy:NSMaxX(header)-right];
+        NSRect viewport = [self tabViewportRect];
+        CGFloat origin = NSMinX(viewport) - _tabScrollOffset;
+        CGFloat target = [self tabScrollOffsetRevealingStart:NSMinX(header)-origin end:NSMaxX(header)-origin
+            offset:_tabScrollOffset viewportWidth:NSWidth(viewport) contentWidth:_tabContentWidth];
+        [self scrollTabStripBy:target-_tabScrollOffset];
         break;
     }
 }

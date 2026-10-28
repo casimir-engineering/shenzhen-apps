@@ -121,8 +121,9 @@ does not re-trigger the macOS access prompt.
 
 - **Compact tab strip** — every tab outlined, same-named files disambiguated by
   their folder. Grouped tabs scroll horizontally with mouse-wheel or two-finger
-  trackpad input. Left/right `+N` tabs overlay fading edges and open lists of
-  offscreen documents without moving the strip. Collapsed group
+  trackpad input; a diagonal or wobbly swipe moves them steadily along the way it mostly goes. Left/right `+N`
+  tabs overlay fading edges and open lists of offscreen documents without moving the strip. A tab selected
+  anywhere (its tab, a `+N` list, the sidebar) scrolls into view whole, clear of the `+N` tabs. Collapsed group
   names stay visible beside the expanded document lane when space permits;
   overflowing group names remain reachable by scrolling. Long titles keep their beginning and
   ending visible with a middle ellipsis; hovering reveals the close button without moving the title.

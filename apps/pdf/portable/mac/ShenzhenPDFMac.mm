@@ -8460,7 +8460,7 @@ static BOOL spdf_page_list_cache_disabled(void) {
         // Re-clicking the active tab still plants keyboard focus on the document.
         [self focusActiveDocumentViewAfterTabSelection];
         if (_tabs[(NSUInteger)index].group) [self savePersistentState];
-        return;
+        [_tabStrip revealSelectedTab]; return;
     }
     [self clearToolbarFieldFocusForTabSwitch];
     [self rememberActiveTabState];
@@ -8469,7 +8469,7 @@ static BOOL spdf_page_list_cache_disabled(void) {
     [self normalizeTabGroups];
     [self loadSelectedTab];
     [self savePersistentState];
-    [self focusActiveDocumentViewAfterTabSelection];
+    [self focusActiveDocumentViewAfterTabSelection]; [_tabStrip revealSelectedTab];
 }
 
 - (void)closeTabAtIndex:(NSInteger)index {

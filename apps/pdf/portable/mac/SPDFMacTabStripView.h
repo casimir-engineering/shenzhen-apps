@@ -26,6 +26,12 @@
                    parkedResponders:(NSArray<NSResponder*>*)parkedResponders;
 @end
 
+@interface SPDFTabStripView (Scrolling)
+// Scrolls the selected tab into view, whole and clear of the "+N" badges. The reader calls it for every selection,
+// including one of the tab already selected (chosen from a "+N" list, or its group reopened).
+- (void)revealSelectedTab;
+@end
+
 @interface SPDFTabStripView (Hover)
 - (void)dismissHoverPanel;
 @end

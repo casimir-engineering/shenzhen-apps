@@ -13,6 +13,27 @@
     return NSMakeRect(left ? NSMinX(viewport) : NSMaxX(viewport)-width,
         floor((NSHeight(self.bounds)-24)/2),width,24);
 }
+// The width of a "+N" badge, sized for the largest count the bar could show.
+- (CGFloat)tabScrollIndicatorReserve {
+    NSString* label=[NSString stringWithFormat:@"+%lu",(unsigned long)MAX((NSUInteger)1,self.tabs.count+self.emptyGroups.count)];
+    return MAX(36,ceil([label sizeWithAttributes:@{NSFontAttributeName:[NSFont systemFontOfSize:12]}].width)+12);
+}
+// The offset that shows content from start to end (lane coordinates) whole: past the badge, and its 12 pt fade
+// (fadeTabScrollEdges) when there is room for it, on a side where anything is still hidden; flush with the end
+// where nothing is. A tab wider than the room between the badges keeps its start in view.
+- (CGFloat)tabScrollOffsetRevealingStart:(CGFloat)start end:(CGFloat)end offset:(CGFloat)offset
+                           viewportWidth:(CGFloat)width contentWidth:(CGFloat)content {
+    CGFloat badge=[self tabScrollIndicatorReserve];
+    BOOL hiddenBefore=start>.5, hiddenAfter=end<content-.5;
+    CGFloat before=0, after=0;
+    for (CGFloat fade=12; fade>=0; fade-=12) {
+        before=hiddenBefore ? badge+fade : 0; after=hiddenAfter ? badge+fade : 0;
+        if (end-start+before+after<=width) break;
+    }
+    if (start-before<offset) offset=start-before;
+    else if (end+after>offset+width) offset=MIN(end+after-width,start-before);
+    return MIN(MAX(0,offset),MAX(0,content-width));
+}
 - (NSInteger)tabScrollHiddenCountOnLeft:(BOOL)left {
     if (![self hasTabGroups]) return 0;
     NSInteger count = 0; NSRect viewport = [self tabViewportRect];
@@ -27,6 +48,10 @@
         }
     }
     return count;
+}
+- (void)revealSelectedTab {
+    _revealSelectedTab = YES; _groupLayout = nil; _accessibilityChildrenSnapshot = nil;
+    [self setNeedsDisplay:YES]; [self rebuildReadOnlyTooltips]; [self refreshHoverAfterLayoutChange];
 }
 - (void)scrollTabStripBy:(CGFloat)delta {
     if (![self hasTabGroups] || fabs(delta)<.01) return;
@@ -52,8 +77,29 @@
         _lastHoverPoint = point;
         _hasLastHoverPoint = YES;
     }
-    CGFloat delta = fabs(event.scrollingDeltaX)>fabs(event.scrollingDeltaY)
-        ? event.scrollingDeltaX : event.scrollingDeltaY;
+    // Across moves the tabs with the fingers, and up and down moves them as a page scrolls (natural scrolling or
+    // not: the deltas already follow the setting). While the fingers move, the bar follows the way the gesture has
+    // gone so far, across unless clearly up or down (half as far again on that axis), so a diagonal or wobbly swipe
+    // moves it steadily: drift or a twitch on the other axis never cancels or reverses it. Its momentum keeps that
+    // axis. Judging each event by its larger axis let a swipe drifting down while moving left stall short of the end.
+    CGFloat dx = event.scrollingDeltaX, dy = event.scrollingDeltaY, delta;
+    if (event.phase & (NSEventPhaseBegan | NSEventPhaseMayBegin)) {
+        _scrollGestureX = _scrollGestureY = 0;
+        _scrollGestureAxis = 0;
+    }
+    if (event.phase != NSEventPhaseNone) {
+        _scrollGestureX += dx; _scrollGestureY += dy;
+        if (_scrollGestureX != 0 || _scrollGestureY != 0)
+            _scrollGestureAxis = fabs(_scrollGestureY) > 1.5 * fabs(_scrollGestureX) ? 2 : 1;
+        delta = _scrollGestureAxis == 2 ? dy : dx;
+    } else if (event.momentumPhase != NSEventPhaseNone) {
+        // Momentum with no gesture seen (it began elsewhere) takes the axis of its first step.
+        if (!_scrollGestureAxis && (dx != 0 || dy != 0)) _scrollGestureAxis = fabs(dy) > 1.5 * fabs(dx) ? 2 : 1;
+        delta = _scrollGestureAxis == 2 ? dy : dx;
+    } else {
+        // A wheel turns on one axis (Shift turns a vertical one across).
+        delta = fabs(dx) > fabs(dy) ? dx : dy;
+    }
     [self scrollTabStripBy:-delta*(event.hasPreciseScrollingDeltas ? 1 : 20)];
 }
 - (BOOL)isPointOnHiddenTabsIndicator:(NSPoint)point {

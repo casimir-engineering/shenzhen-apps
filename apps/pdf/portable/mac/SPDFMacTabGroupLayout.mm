@@ -125,9 +125,9 @@ static SPDFTabGroupLayout* EmptyLayout(SPDFTabGroup* group, NSInteger firstIndex
             NSValue* selected = layout.tabRects[@(self.selectedIndex)];
             if (!selected) continue;
             NSRect rect = selected.rectValue;
-            CGFloat start = NSMinX(rect)-contentStart, end = NSMaxX(rect)-contentStart;
-            if (start < _tabScrollOffset) _tabScrollOffset = start;
-            if (end > _tabScrollOffset+NSWidth(viewport)) _tabScrollOffset = end-NSWidth(viewport);
+            // The whole tab, clear of the "+N" badge on either side of it.
+            _tabScrollOffset = [self tabScrollOffsetRevealingStart:NSMinX(rect)-contentStart end:NSMaxX(rect)-contentStart
+                offset:_tabScrollOffset viewportWidth:NSWidth(viewport) contentWidth:_tabContentWidth];
         }
         _revealSelectedTab = NO;
     }
