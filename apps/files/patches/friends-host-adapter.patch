@@ -1227,10 +1227,10 @@ index 0000000..7f4d5c6
 +}
 diff --git a/src/nautilus-friends-items.c b/src/nautilus-friends-items.c
 new file mode 100644
-index 0000000..b7fa38e
+index 0000000..a0edea7
 --- /dev/null
 +++ b/src/nautilus-friends-items.c
-@@ -0,0 +1,217 @@
+@@ -0,0 +1,224 @@
 +/*
 + * nautilus-friends-items.c: the files `#` offers in Shenzhen Files.
 + *
@@ -1381,6 +1381,7 @@ index 0000000..b7fa38e
 +    g_autofree char *folder = NULL;
 +    g_autofree char *detail = NULL;
 +    g_autofree char *kind = NULL;
++    SZFriendsGtkHostItem *item;
 +    const char *title;
 +
 +    if (nautilus_file_is_directory (file) || (path = sendable_path (file)) == NULL)
@@ -1392,7 +1393,13 @@ index 0000000..b7fa38e
 +    /* Says why each file is offered: the person picked it, or it sits in the folder they are looking at. */
 +    detail = selected ? g_strdup_printf (_("Selected in %s"), folder) : g_strdup_printf (_("In %s"), folder);
 +    kind = nautilus_friends_kind_label (title);
-+    g_ptr_array_add (items, szfriends_gtk_host_item_new (title, detail, kind, path, NULL));
++    item = szfriends_gtk_host_item_new (title, detail, kind, path, NULL);
++    /* What the person has selected in front of them comes first, with the pill ShenzhenPDF gives its open tab. */
++    if (selected)
++    {
++        item->badge = g_strdup (_("Current"));
++    }
++    g_ptr_array_add (items, item);
 +}
 +
 +static gint
