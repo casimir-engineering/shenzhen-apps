@@ -114,6 +114,9 @@
       }
       // Only now is the incoming view showing what the reader was looking at.
       [self revealPagedView:self->_pagedView replacing:outgoingPagedView];
+      // After the restore, so rows rebuilt from the new model select the page
+      // actually shown. A first install has no rows yet; its opener builds them.
+      if (outgoingPagedView && self.sidebarModelReplacedHandler) self.sidebarModelReplacedHandler();
     });
 }
 

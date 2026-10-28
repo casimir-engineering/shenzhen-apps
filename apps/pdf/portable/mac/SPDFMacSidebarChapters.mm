@@ -292,6 +292,18 @@ static NSLayoutConstraint* SPDFIndentConstraint(NSView* cell) {
         (unsigned long)count,count == 1 ? @"chapter" : @"chapters"];
 }
 
+// The summary above reads the session's live model; the rows are copies taken
+// when the sidebar was last built. A file reread in place swapped the model and
+// left the rows behind: "7 chapters" over a list of the old 5.
+- (void)rebuildChaptersWhenSidebarModelReplacedInSession:(SPDFMacMarkdownSession*)session {
+    __weak ShenzhenMacDelegate* weakSelf = self;
+    __weak SPDFMacMarkdownSession* weakSession = session;
+    session.sidebarModelReplacedHandler = ^{
+      ShenzhenMacDelegate* strongSelf = weakSelf;
+      if (strongSelf && weakSession && [strongSelf activeMarkdownSession] == weakSession) [strongSelf rebuildSidebar];
+    };
+}
+
 #pragma mark - The expand / collapse all control
 
 // One button, on the filter field's own row at the trailing edge, showing the

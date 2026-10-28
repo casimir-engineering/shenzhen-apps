@@ -2,6 +2,8 @@
 
 #import "SPDFMacDelegatePrivate.h"
 
+@class SPDFMacMarkdownSession;
+
 // The chapter list's nesting: the disclosure triangles, the expand/collapse
 // button beside the filter field, and the per-document memory of what is
 // collapsed.
@@ -19,6 +21,10 @@
 // Hide the rows under a collapsed chapter, then reload. Replaces a bare
 // -reloadData at the end of both sidebar builders.
 - (void)applyChapterNestingAndReload;
+
+// Rebuild the rows whenever the session swaps its sidebar model in place (a
+// file reloaded from disk, a theme, text size or paper change).
+- (void)rebuildChaptersWhenSidebarModelReplacedInSession:(SPDFMacMarkdownSession*)session;
 
 // The one expand / collapse all button, on the filter field's row.
 - (void)installChapterOutlineControls;

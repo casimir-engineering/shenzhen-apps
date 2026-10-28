@@ -167,6 +167,7 @@ static CGFloat spdf_mac_clamped_markdown_font_scale(CGFloat scale) {
 - (void)configureMarkdownSession:(SPDFMacMarkdownSession*)session forTab:(SPDFDocumentTab*)tab {
     session.reader = (id<SPDFMacUIReader>)self;
     [self configureAIAnalysisForMarkdownSession:session path:tab.path];
+    [self rebuildChaptersWhenSidebarModelReplacedInSession:session];
     __weak ShenzhenMacDelegate* weakSelf = self;
     __weak SPDFMacMarkdownSession* weakSession = session;
     session.statusHandler = ^(NSString* status) {

@@ -1151,6 +1151,11 @@ include mac/tests/page-display-tests.mk
 .PHONY: mac-page-display-tests
 mac-page-display-tests: mac-page-display-acceptance
 
+# Registered here so release discovery includes the production-linked Markdown reload suite.
+include mac/tests/markdown-reload-tests.mk
+.PHONY: mac-markdown-reload-tests
+mac-markdown-reload-tests: mac-markdown-reload-acceptance
+
 # Registered here so release discovery includes the launch performance gate (this tree against the previous release).
 include mac/tests/launch/launch-performance-tests.mk
 .PHONY: mac-quit-performance-tests mac-quit-integrity-tests

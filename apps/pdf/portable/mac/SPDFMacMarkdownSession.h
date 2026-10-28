@@ -97,6 +97,10 @@ typedef NS_ENUM(NSInteger, SPDFMacMarkdownSessionState) {
 @property(nonatomic, copy, nullable) void (^statusHandler)(NSString* status);
 // Optional consumer notified only after a completed rerender has installed its live layout.
 @property(nonatomic, copy, nullable) void (^renderInstalledHandler)(void);
+// Fired once an in-place rerender (a reload from disk, theme, text size, paper)
+// has put a new sidebarModel on screen. The window's chapter rows are copies of
+// the previous model, so without this a reloaded file listed its old headings.
+@property(nonatomic, copy, nullable) void (^sidebarModelReplacedHandler)(void);
 @property(nonatomic, copy, nullable) void (^searchUpdateHandler)
     (NSUInteger count, NSInteger currentIndex, BOOL searching);
 // Fired by next/previous/explicit match jumps (never by searchUpdateHandler's
