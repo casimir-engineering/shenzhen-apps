@@ -426,10 +426,11 @@ if (requests.some((url) => /mac|draft/.test(url)))
 await wait(2_000);
 shot("old-version");
 lookingFor = "the update";
-// The footer button reads "Update available"; its accessible name is "Updates".
+// The footer button reads "Update available"; its accessible name is "Updates", which the WebView hands Android as
+// the node's text or, where the words on the button differ from it, as its content description.
 await tap(
   "Updates in the footer",
-  (n) => n.pkg === PACKAGE && n.text === "Updates",
+  (n) => n.pkg === PACKAGE && (n.text === "Updates" || n.desc === "Updates"),
   40_000,
 );
 
@@ -515,7 +516,7 @@ const marker = readMarker();
 if (marker !== "kept") fail("the app's data did not survive the update");
 await tap(
   "Updates in the footer",
-  (n) => n.pkg === PACKAGE && n.text === "Updates",
+  (n) => n.pkg === PACKAGE && (n.text === "Updates" || n.desc === "Updates"),
   40_000,
 );
 const shown = await find(
