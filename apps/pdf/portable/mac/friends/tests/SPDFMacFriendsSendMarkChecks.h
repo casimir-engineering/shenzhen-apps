@@ -37,6 +37,21 @@ static NSData* DrawnText(NSString* text, CGFloat size) {
     return [NSData dataWithBytes:bitmap.bitmapData length:(NSUInteger)(width * height * 4)];
 }
 
+// Whether any of `text` falls back to the LastResort font, which draws one placeholder for a whole Unicode block: two
+// such characters "draw alike" without either having a real glyph (a CI runner's cold or missing fonts).
+static BOOL DrawsPlaceholder(NSString* text) {
+    NSTextStorage* storage = [[NSTextStorage alloc] initWithString:text
+                                                        attributes:@{NSFontAttributeName : [NSFont systemFontOfSize:13]}];
+    [storage fixFontAttributeInRange:NSMakeRange(0, storage.length)];
+    __block BOOL placeholder = NO;
+    [storage enumerateAttribute:NSFontAttributeName inRange:NSMakeRange(0, storage.length) options:0
+                     usingBlock:^(NSFont* font, NSRange range, BOOL* stop) {
+        (void)range;
+        if ([font.fontName isEqualToString:@"LastResort"]) placeholder = *stop = YES;
+    }];
+    return placeholder;
+}
+
 static BOOL DrawsAlike(NSString* one, NSString* other) {
     return [DrawnText(one, 13) isEqual:DrawnText(other, 13)] && [DrawnText(one, 20) isEqual:DrawnText(other, 20)];
 }
@@ -237,7 +252,7 @@ static void CheckCompatibilitySpellings(void) {
         if ([written isEqual:folded]) continue;
         NSString* one = [NSString stringWithFormat:@"x%@x", written];
         NSString* other = [NSString stringWithFormat:@"x%@x", folded];
-        if (!DrawsAlike(one, other)) continue;
+        if (DrawsPlaceholder(written) || DrawsPlaceholder(folded) || !DrawsAlike(one, other)) continue;
         alike++;
         NSString* sent = Visible(one), *sentOther = Visible(other);
         Expect((!sent && !sentOther) || [sent isEqual:sentOther], @"U+%04X draws like %@ yet goes as itself: %@",
