@@ -17,6 +17,7 @@ mod chunk;
 mod closing;
 mod code;
 mod handshake;
+pub mod lanes;
 mod liveness;
 mod replay;
 mod transport;
