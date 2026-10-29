@@ -106,7 +106,9 @@ Ranges are pairs of u32be (first block, count), ascending, not overlapping, at m
 field; HAVE ranges are what changed since the last HAVE, so HAVEs on different lanes simply add up. A PART lies inside
 one block, and that block must be wanted and not yet complete; anything else is the unsolicited chunk of ADR 0001 and
 closes the session, except a part for a block that completed meanwhile or a transfer that just ended, which is late
-and dropped (a block sent on two lanes, § 6). In fast mode DONE is not sent: the receiver knows when every block is
+and dropped (a block sent on two lanes, § 6). The first late part of a block on each lane is answered with a HAVE
+naming that block on that lane: the HAVE that announced it may have gone with a lane that fell silent, and the sender,
+having given the block to another lane, would otherwise wait for it forever (found by WP2's simulator). In fast mode DONE is not sent: the receiver knows when every block is
 durable, runs the publish check (§ 5) and sends the ACK of ADR 0001 with the transfer's id, as today.
 
 Per transfer at most 64 blocks, and at most 64 MiB, may be wanted, partly received and not complete at once; a sender

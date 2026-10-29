@@ -12,12 +12,15 @@ pub mod blockset;
 pub mod copies;
 pub mod frames;
 pub mod geometry;
+pub mod scheduler;
 pub mod serve;
 pub mod sidecar;
+pub mod sim;
 pub mod tree;
 
 pub use assembly::{AssemblyError, BlockAssembly, PartOutcome};
 pub use blockset::BlockSet;
 pub use geometry::Geometry;
+pub use scheduler::{Action, Scheduler};
 pub use serve::{BlockServe, ServeError};
 pub use tree::{FileHash, Leaf};
