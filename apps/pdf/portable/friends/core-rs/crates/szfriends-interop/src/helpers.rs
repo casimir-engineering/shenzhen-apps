@@ -146,7 +146,8 @@ impl Client {
         panic!("{}: no {what}", self.name)
     }
 
-    fn intent(&mut self, kind: &str, fields: Value) -> Value {
+    /// An intent whatever its outcome: the whole reply.
+    pub fn intent(&mut self, kind: &str, fields: Value) -> Value {
         self.next += 1;
         let id = self.next.to_string();
         let mut frame = fields;

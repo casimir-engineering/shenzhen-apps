@@ -22,6 +22,11 @@ impl State {
                 copying.insert(transfer.to_owned(), fraction);
             }
         }
+        if let Some(current) = &self.pulls.current {
+            if let Some(fraction) = self.pull_fraction(&current.transfer_id) {
+                copying.insert(current.transfer_id.clone(), fraction);
+            }
+        }
         let mut files = BTreeMap::new();
         for file in sync_files::sync_files(conn).unwrap_or_default() {
             let row = sync_files::transfer(conn, &file.transfer_id).ok().flatten();
@@ -80,6 +85,7 @@ impl State {
         self.pump_sync();
         // The computer holding it is dialed, nearby or online.
         self.schedule_reconsider();
+        self.reconsider_pulls();
         self.changed();
         Ok(())
     }

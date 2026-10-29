@@ -188,6 +188,9 @@ impl State {
         }
         self.after_policy();
         self.sessions.map.retain(|_, s| !s.finished);
+        if self.pulls.current.is_some() {
+            self.reconsider_pulls();
+        }
     }
 
     pub(super) fn service(&mut self, id: u64) {
@@ -501,7 +504,7 @@ impl State {
     /// The next time the service should look at its sessions.
     pub fn next_wakeup(&self) -> Duration {
         let now = monotonic_now();
-        let timers = self.sessions.map.values().filter_map(|s| s.channel.poll_timeout()).min();
+        let timers = self.sessions.map.values().filter_map(|s| s.channel.poll_timeout()).chain(self.pull_due()).min();
         let flush = self
             .sessions
             .map
@@ -527,6 +530,7 @@ impl State {
     /// Periodic work: nearby's timers, friends online could reach, and what waited too long in the outbox.
     pub fn tick(&mut self) {
         self.nearby_tick();
+        self.reconsider_pulls();
         self.join_tick(unix_now());
         self.sync_tick(unix_now());
         self.reach_online();

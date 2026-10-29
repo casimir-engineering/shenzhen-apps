@@ -54,6 +54,7 @@ pub struct ServeBlocks {
     pub transfer_id: String,
     pub serve: crate::transfer::BlockServe,
     pub path: PathBuf,
+    pub root: [u8; 32],
 }
 
 pub struct SyncExchange {
@@ -71,6 +72,8 @@ pub struct SyncExchange {
     fast: bool,
     /// This device asks for its copies by blocks (and the other answers them).
     request_blocks: bool,
+    /// The helper copies by blocks from every holder at once (`pulled`): this exchange starts no copy of its own.
+    pulled: bool,
     /// HAVE frames of a copy by blocks, and files to serve by blocks, for the session to send.
     frames: Vec<szfriends_wire::Frame>,
     serve_blocks: Vec<ServeBlocks>,
@@ -133,6 +136,7 @@ impl SyncExchange {
             serving: None,
             fast: false,
             request_blocks: false,
+            pulled: false,
             frames: Vec::new(),
             serve_blocks: Vec::new(),
         }
@@ -143,6 +147,20 @@ impl SyncExchange {
     pub fn set_fast(&mut self, fast: bool, request_blocks: bool) {
         self.fast = fast;
         self.request_blocks = fast && request_blocks;
+    }
+
+    /// The helper pulls this device's copies from every holder at once (ADR 0018 § 9.6): no copy starts here.
+    pub fn set_pulled(&mut self, pulled: bool) {
+        self.pulled = pulled;
+    }
+
+    /// A copy elsewhere finished this file: one in progress here stops (what arrived waits, as after Cancel).
+    pub fn stop_copy(&mut self, transfer_id: &str) {
+        if self.copy.as_ref().is_some_and(|c| c.file.transfer_id == transfer_id) {
+            if let Some(blocks) = self.copy.take().and_then(|c| c.blocks) {
+                blocks.pause();
+            }
+        }
     }
 
     /// HAVE frames for the copy by blocks, to send after the messages.
@@ -360,7 +378,7 @@ impl SyncExchange {
     }
 
     fn start_next_copy(&mut self, engine: &SyncEngine, store: &Store) {
-        if self.copy.is_some() || self.stopped {
+        if self.copy.is_some() || self.stopped || self.pulled {
             return;
         }
         for file in engine.files_wanted(store) {
@@ -534,13 +552,19 @@ impl SyncExchange {
         match CopyMessage::decode_sync(message).ok_or(SyncError::Malformed("a block message that does not decode"))? {
             CopyMessage::WantBlocks { id, shift, ranges } => {
                 let path = engine.local_path_of_file(store, &id);
+                let record = sync_files::transfer(&store.conn, &id).ok().flatten();
                 let size =
                     path.as_ref().and_then(|_| sync_files::transfer(&store.conn, &id).ok().flatten()).map(|t| t.size);
                 let served = (|| {
                     let (path, size) = (path?, size?);
                     let geometry = crate::transfer::Geometry::new(size, shift)?;
                     let file = std::fs::File::open(&path).ok()?;
-                    let hashed = crate::transfer::tree::hash_file(&file, &geometry, false).ok()?;
+                    // The digest in the same read: a copy here that changed (a stale version) is not served, so
+                    // every holder a requester pulls from has the same tree.
+                    let hashed = crate::transfer::tree::hash_file(&file, &geometry, true).ok()?;
+                    if hashed.digest.map(|d| d.to_vec()) != record.as_ref().map(|r| r.digest.clone()) {
+                        return None;
+                    }
                     let wire = hex::decode(&id).ok()?;
                     let mut serve =
                         crate::transfer::BlockServe::new(&wire, geometry, hashed.leaves, FILE_PART_MAX, 8 << 20);
@@ -554,7 +578,7 @@ impl SyncExchange {
                             self.outgoing.push(follow);
                         }
                         self.serving = Some((id.clone(), 0.0));
-                        self.serve_blocks.push(ServeBlocks { transfer_id: id, serve, path });
+                        self.serve_blocks.push(ServeBlocks { transfer_id: id, serve, path, root });
                     }
                     None => {
                         let mut none = vec![NONE];

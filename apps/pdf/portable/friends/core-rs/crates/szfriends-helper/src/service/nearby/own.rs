@@ -261,10 +261,13 @@ impl State {
         }
         let mut exchange = SyncExchange::new(remote);
         exchange.set_fast(self.fast_session(id), self.copies_by_blocks);
+        // Copies by blocks are pulled from every holder at once (pulls.rs), not by this exchange.
+        exchange.set_pulled(self.pulls_copies(id));
         self.devices.engine.capture_local_changes(&self.store);
         exchange.start(&self.devices.engine, &self.store);
         self.devices.exchanges.insert(id, exchange);
         self.flush_exchange(id);
+        self.reconsider_pulls();
         self.changed();
     }
 
@@ -277,6 +280,32 @@ impl State {
             FrameType::Chain => self.own_chain_frame(id, frame.get(tag::CHAIN).unwrap_or_default()),
             FrameType::Sync => {
                 let message = frame.get(tag::SYNC).unwrap_or_default().to_vec();
+                // A holder's answer to a pull from several holders (pulls.rs).
+                if let Some((transfer, answer)) = crate::service::pulls::sync_pull_message(&message) {
+                    if self.pull_message(id, &transfer, answer) {
+                        return true;
+                    }
+                }
+                // More blocks of a file already served by blocks on this session (a pull asks bit by bit): the same
+                // serve takes them; its tree and leaves go again, for a requester that started over.
+                use szfriends_core::transfer::copies::CopyMessage;
+                if let Some(CopyMessage::WantBlocks { id: transfer, ranges, shift }) =
+                    CopyMessage::decode_sync(&message)
+                {
+                    if let Some(serving) = self.again.serving.get_mut(&(id, transfer.clone())) {
+                        if serving.serve.geometry().shift == shift && serving.serve.want(&ranges).is_ok() {
+                            let (hashes, root) = (serving.serve.hashes_frames(), serving.root);
+                            if let Some(bytes) = (CopyMessage::BlocksFollow { id: transfer, root, shift }).encode_sync()
+                            {
+                                self.send_on(id, &Frame::new(FrameType::Sync).with(tag::SYNC, bytes));
+                            }
+                            for frame in hashes {
+                                self.send_on(id, &frame);
+                            }
+                            return true;
+                        }
+                    }
+                }
                 let exchange = self.devices.exchanges.get_mut(&id).expect("checked");
                 let result = exchange.receive(&mut self.devices.engine, &self.store, &message);
                 self.flush_exchange(id);
@@ -343,7 +372,12 @@ impl State {
             for frame in blocks.serve.hashes_frames() {
                 self.send_on(id, &frame);
             }
-            let serving = crate::service::again::Serving { serve: blocks.serve, path: blocks.path, sync: true };
+            let serving = crate::service::again::Serving {
+                serve: blocks.serve,
+                path: blocks.path,
+                sync: true,
+                root: blocks.root,
+            };
             self.again.serving.insert((id, blocks.transfer_id), serving);
         }
         if !self.devices.engine.take_changes().is_empty() {

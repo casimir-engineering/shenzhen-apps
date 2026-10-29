@@ -35,7 +35,7 @@ pub const COPY_KEEP_SECONDS: u64 = 30 * 24 * 3600;
 /// their maps): the recovery sweep keeps these until [`COPY_KEEP_SECONDS`] passed without a change.
 pub fn is_copy_file(name: &str) -> bool {
     let stem = name.strip_suffix(".map").unwrap_or(name);
-    let id = stem.strip_prefix("again-").or_else(|| stem.strip_prefix("sync-"));
+    let id = stem.strip_prefix("again-").or_else(|| stem.strip_prefix("sync-")).or_else(|| stem.strip_prefix("pull-"));
     id.is_some_and(|id| !id.is_empty() && id.len() <= 64 && id.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_'))
 }
 
@@ -295,6 +295,13 @@ impl BlockCopy {
             let _ = std::fs::remove_file(&self.partial);
             None
         }
+    }
+
+    /// The file is gone at its source: the staging file and the map go.
+    pub fn discard(self) {
+        let partial = self.partial.clone();
+        drop(self);
+        remove_copy(&partial);
     }
 
     /// Stops without deleting: what arrived waits for the next copy.

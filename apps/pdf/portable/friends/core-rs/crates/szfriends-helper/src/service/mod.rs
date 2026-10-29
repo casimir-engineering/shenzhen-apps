@@ -45,6 +45,7 @@ mod online;
 #[cfg(not(feature = "online"))]
 #[path = "online_off.rs"]
 mod online;
+pub(crate) mod pulls;
 pub mod reset;
 mod room;
 pub mod seed;
@@ -386,6 +387,8 @@ pub(crate) struct State {
     pub devices: devices::DeviceArea,
     /// Get again: giving friends files again, and copying files again from them.
     pub again: again::AgainArea,
+    /// A file pulled from every device that holds it at once (`pulls.rs`).
+    pub pulls: pulls::PullArea,
     /// System notifications: what was seen, focus, this device's switches, the notifier.
     pub notify: notifications::NotifyArea,
     /// Something changed since the views were last brought up to date.
@@ -467,6 +470,7 @@ impl State {
             route_silence: test_home.then(|| std::env::var_os(ENV_TEST_ROUTE_SILENCE).map(Into::into)).flatten(),
             devices,
             again: again::AgainArea::default(),
+            pulls: pulls::PullArea::default(),
             notify,
             dirty: false,
             stopped: None,

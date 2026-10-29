@@ -43,6 +43,8 @@ pub struct AgainRequester {
     fast: bool,
     /// HAVE frames for a copy by blocks, to send in order after the AGAIN messages.
     frames: Vec<szfriends_wire::Frame>,
+    /// The helper pulls copies from every holder at once (ADR 0018 § 9.6): this requester starts none.
+    pub pulled: bool,
 }
 
 impl AgainRequester {
@@ -59,6 +61,7 @@ impl AgainRequester {
             outgoing: Vec::new(),
             fast,
             frames: Vec::new(),
+            pulled: false,
         }
     }
 
@@ -97,7 +100,7 @@ impl AgainRequester {
 
     /// Starts the oldest asked file this session has not been told "not now" about, unless one is copying.
     pub fn start_next(&mut self, engine: &SyncEngine, store: &Store) {
-        if self.copy.is_some() {
+        if self.copy.is_some() || self.pulled {
             return;
         }
         for file in AgainFile::asked(store, &self.conversation_id) {
