@@ -286,3 +286,80 @@ usual feature-branch-then-main flow, one package per branch.
   repeated.
 - The default of `transfers.fast` in the first release that carries it: on, once the matrix passes, or off for one
   release with a test switch.
+
+## WP3: the cipher build, liveness and disk work (Rust core and helper)
+
+Measured on the same Mac with `make friends-transfer-bench` (WP5) and `examples/transport-speed` (szfriends-crypto),
+while other packages built in parallel: load averages around 7, so single runs of the same case vary by up to 30 %;
+CPU seconds per GB and the silence timings are steadier than MB/s.
+
+**1. The ciphers at full speed** (ADR 0018 § 9.2). The release and phone profiles build the ciphers and hashes at
+opt-level 3 (snow, szfriends-crypto and the generic RustCrypto crates too: a generic cipher's code is generated in
+the crate that instantiates it, so the cipher crates alone gave 740 MB/s, and szfriends-crypto made the rest), and
+arm64 builds pass `--cfg chacha20_force_neon`, `aes_armv8` and `polyval_armv8` from a `cfg(target_arch = "aarch64")`
+section of `.cargo/config.toml` (Windows and Linux helpers: `setup-tauri-friends.mjs` passes that file) and
+`phone.toml` (Android and iOS: `platform-build.mjs` passes it). A cfg section because cargo joins it with the
+`CARGO_TARGET_<TRIPLE>_RUSTFLAGS` the Tauri CLI sets for Android (checked: chacha20's rustc line carries both).
+Shenzhen 3D's `phones-profile.toml` follows. `tests/build_flags.rs` checks both files agree and the build had them.
+
+| Session transport, one core, 60 KiB frames | Encrypt | Decrypt |
+|---|---|---|
+| Release profile before (opt-level "s") | 537 MB/s | 543 MB/s |
+| opt-level 3 only, no NEON | 591 MB/s | 598 MB/s |
+| Now (opt-level 3 and NEON), release and phone profiles alike | 883 MB/s | 923 MB/s |
+
+The phase 1 figure of 225 MB/s came from the bare crate without LTO; through the session transport, with thin LTO,
+the release build already gave 537. Android embedded size with online: 5.100 MB before, 5.118 MB after (+17 KB); main
+was already 0.1 MB over ADR 0015's 5 MB budget, which this package does not fix. iOS 3.10 MB, nearby only 1.76 and
+2.99 MB.
+
+**2. Liveness** (ADR 0018 § 7). While a transfer runs on a session, the channel sends PING after a second without
+sending, and closes the session (`SessionError::Silent`, no CLOSE) after 8 s without hearing a byte, 12 s when the
+initiator declared Bluetooth; the helper redials and resumes as after a cut. Watching follows
+`transfer_liveness()`: only while the peer owes something it sends anyway (PROGRESS for unconfirmed bytes, the rest
+of a file whose chunks are arriving), so a released peer is judged by its own traffic, never during an offer's wait,
+before a released sender's first chunk (it may hash first) or between DONE and ACK. A gap over 2 s between timer
+runs is this side's own stall and restarts the count.
+
+| Route silenced mid-transfer (the proxy stops forwarding, sockets open) | Before | Now |
+|---|---|---|
+| LAN, 100 MiB, Rust → Rust / Rust → Objective-C / Objective-C → Rust | not noticed in 45 s | 8.00 / 7.98 / 8.00 s |
+| Bluetooth, 4 MiB, the same three pairs | not noticed in 45 s | 11.91 / 11.89 / 11.92 s |
+
+Recovery (redial to moving again) follows within 0.03 to 0.08 s; 0.2 MB sent twice. In Objective-C → Rust the Rust
+receiver notices a sender that never pings, which is the released-peer case. The Objective-C helper (WP4) still
+needs the same rule for Objective-C → Objective-C.
+
+**3. Disk work** (ADR 0018 § 9.1). Snapshots are cloned (`fclonefileat`, `FICLONE`; `copy_file_range` or a copy
+otherwise) and not flushed, as the Objective-C helper already does; the sender opens a snapshot once and reads each
+chunk at its offset into one buffer. `store/disk.rs` also has the two halves of a durability batch for WP1's block
+map: `order_writes` (a plain `fsync` on Apple systems, `fdatasync` elsewhere) and `make_durable` (`F_FULLFSYNC`,
+`fsync`), so a batch costs one full flush, not two. The CHUNK path keeps a full flush per 4 MiB batch, because
+PROGRESS there means durable and released senders resume from it; the window stops waiting on the disk only on fast
+sessions (WP1's HAVE).
+
+| Rust sender | Before | Now |
+|---|---|---|
+| Preparing 2 GiB to send | 2.61 to 2.75 s | 1.58 to 1.63 s (the Objective-C helper: 1.50 to 1.54 s) |
+| Preparing 300 × 10 KiB | 8.7 s | 3.9 to 7.4 s (per-file transactions remain: WP1's batches) |
+| Loopback 2 GiB, Rust → Rust | 137.6 MB/s, 3.7 + 3.2 CPU-s/GB | 159.9 MB/s, 3.0 + 3.1 CPU-s/GB |
+| LAN (1 GbE emulated) 2 GiB, Rust → Rust | 72.9 MB/s, 62 % | 76.4 MB/s, 65 % |
+
+What remains per byte is one serial loop per side (decrypt, parse, write, PROGRESS); lanes (below) are what will put a
+transfer on several cores.
+
+**4. Lanes, first part** (ADR 0018 § 6). `session/lanes.rs`: a `LaneGroup` per first session with one device, without
+IO. It gives an outbound lane its index and token, admits an inbound lane whose token names a free index (compared in
+constant time against all fifteen), keeps the limits (4 lanes per route and 8 per group opened by this side; one
+session of the group on the relay and on Bluetooth, the first included), ends with the first session, and names the
+lane for control frames (route order, then lowest index). The scheduler's side of it: `LaneEvent::Up { lane, index,
+route }` and `Down { lane }` in, `LaneRequest::Open { route }` and `Close { lane }` out; the driver dials, admits and
+closes. Tokens are passed in (`transfer::lane_token`, WP1), so the group builds before WP1's wire work lands.
+
+Not done in this package, in order: the Lane field in IK message 1 and the responder's check (CLOSE reason 6 after
+the handshake, so a refusal stays quiet before it), on WP1's payload field; groups in the helper's session table
+(lanes exempt from the race, control frames on the group's control lane); LAN and direct Wi-Fi lanes (a second TCP
+connection to the endpoint the first session used), the test air's and BlueZ's L2CAP lane; online lanes as more data
+channels with 8 MiB buffering and usrsctp's buffers raised (the bench's internet route is a TCP proxy, so this needs a
+data-channel run with delay first); the AWDL rule and Bluetooth's 16 KiB parts. Each lane runs its own cipher state,
+so with lanes the cipher figures above become per lane, not per transfer.
