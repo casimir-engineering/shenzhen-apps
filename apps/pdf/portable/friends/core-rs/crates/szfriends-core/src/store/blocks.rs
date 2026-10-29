@@ -453,7 +453,12 @@ impl Store {
             map.durable = download.durable.clone();
             write_sidecar(&map_path, &map.encode())?;
             download.map = Some(open_rw(&map_path, false)?);
-            if download.assembly.is_complete() {
+            let reused = self.reuse_previous_version(transfer_id);
+            if !reused.is_empty() {
+                self.flush_blocks(transfer_id)?;
+            }
+            let download = self.receiving.blocks.get_mut(transfer_id).expect("opened");
+            if geometry.size == 0 && download.assembly.is_complete() {
                 // An empty file: its one block is complete and nothing needs writing.
                 download.durable.insert(0);
                 download.unreported_complete.push(0);
@@ -609,6 +614,107 @@ impl Store {
             partial: download.partial,
             streamed: download.streamed,
         })
+    }
+
+    /// A file this computer holds that has the offered bytes: received from the same friend (or copied here from
+    /// another of the person's computers), still where it was saved at its size, and still hashing to the digest.
+    /// Never another friend's file: a friend learns at most that the person kept what that friend sent (§ 8).
+    fn held_copy(&self, record: &TransferRecord) -> Option<PathBuf> {
+        let candidates = transfers::rows(
+            &self.conn,
+            "WHERE conversation_id = ?1 AND outgoing = 0 AND state = ?2 AND size = ?3 AND digest = ?4 \
+             AND transfer_id != ?5 ORDER BY updated_at DESC LIMIT 4",
+            &[
+                &record.conversation_id,
+                &(TransferState::Received as i64),
+                &(record.size as i64),
+                &record.digest.to_vec(),
+                &record.transfer_id,
+            ],
+        )
+        .ok()?;
+        candidates.into_iter().filter_map(|r| r.received_path).find(|path| {
+            fs::metadata(path).is_ok_and(|m| m.is_file() && m.len() == record.size)
+                && super::file_digest(path, u64::MAX).ok() == Some(record.digest)
+        })
+    }
+
+    /// After acceptance: when this computer holds the offered file, its bytes go into the staging file and become
+    /// the durable count, so the transfer completes without them crossing the route. `true` when it did.
+    pub fn fill_from_held_copy(&mut self, transfer_id: &str) -> Result<bool> {
+        let record = load(&self.conn, transfer_id)?.ok_or(StoreError::NotFound)?;
+        if record.outgoing || record.state != TransferState::Receiving || record.size == 0 {
+            return Ok(false);
+        }
+        let Some(source) = self.held_copy(&record) else { return Ok(false) };
+        let partial = partial_path(&self.conn, transfer_id)?.ok_or(StoreError::Invalid("no staging file"))?;
+        let mut out = open_rw(&partial, false)?;
+        out.set_len(0)?;
+        std::io::copy(&mut File::open(&source)?, &mut out)?;
+        if self.batch.is_some() {
+            super::disk::order_writes(&out)?;
+        } else {
+            super::disk::make_durable(&out)?;
+        }
+        if out.metadata()?.len() != record.size {
+            out.set_len(0)?;
+            return Ok(false);
+        }
+        self.receiving.forget(transfer_id);
+        self.write(|conn| set_column(conn, transfer_id, "verified_bytes", &(record.size as i64)))?;
+        Ok(true)
+    }
+
+    /// Whether a download's bytes are all here already (filled locally): it finishes by CHUNK's DONE, not by blocks.
+    pub fn whole_file_held(&self, transfer_id: &str) -> bool {
+        load(&self.conn, transfer_id).ok().flatten().is_some_and(|r| !r.outgoing && r.verified_bytes == r.size)
+    }
+
+    /// The blocks a new version can take from the version the same friend sent before (§ 9.5): the newest file of
+    /// the same name received from them, still here, hashed at this geometry; a block whose leaf matches at the same
+    /// position is copied into the staging file and counts as arrived. Returns the blocks taken.
+    fn reuse_previous_version(&mut self, transfer_id: &str) -> Vec<u32> {
+        let Ok(Some(record)) = load(&self.conn, transfer_id) else { return Vec::new() };
+        let previous = transfers::rows(
+            &self.conn,
+            "WHERE conversation_id = ?1 AND outgoing = 0 AND state = ?2 AND file_name = ?3 AND transfer_id != ?4 \
+             ORDER BY updated_at DESC LIMIT 1",
+            &[&record.conversation_id, &(TransferState::Received as i64), &record.file_name, &record.transfer_id],
+        )
+        .ok()
+        .and_then(|mut rows| rows.pop())
+        .and_then(|r| r.received_path);
+        let Some(download) = self.receiving.blocks.get_mut(transfer_id) else { return Vec::new() };
+        let Some(old) = previous.and_then(|p| File::open(p).ok()) else { return Vec::new() };
+        let Some(leaves) = download.assembly.leaves().map(<[_]>::to_vec) else { return Vec::new() };
+        let geometry = *download.assembly.geometry();
+        let old_size = old.metadata().map_or(0, |m| m.len());
+        let mut taken = Vec::new();
+        for block in 0..geometry.blocks {
+            let (offset, length) = geometry.span(block);
+            if download.assembly.complete().contains(block) || offset + length as u64 > old_size || length == 0 {
+                continue;
+            }
+            let mut buffer = vec![0u8; length];
+            if read_exact_at(&old, &mut buffer, offset).is_err() || tree::leaf(block, &buffer) != leaves[block as usize]
+            {
+                continue;
+            }
+            if write_all_at(&download.file, &buffer, offset).is_ok() && download.assembly.mark_complete(block) {
+                download.unsynced.push(block);
+                download.unsynced_bytes += length as u64;
+                download.first_unsynced.get_or_insert_with(Instant::now);
+                download.unreported_complete.push(block);
+                download.streamed.advance(
+                    &download.file,
+                    &geometry,
+                    download.assembly.complete(),
+                    Some((block, &buffer)),
+                );
+                taken.push(block);
+            }
+        }
+        taken
     }
 
     /// Whether a download's check is quick enough to run on the caller's thread (at most 16 MiB).

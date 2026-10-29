@@ -40,7 +40,11 @@ fn fraction(data: &Value, transfer: &str) -> Option<f64> {
 
 fn offer(from: &mut Client, conversation: &str, to: &mut Client, chat: &str, name: &str, size: usize) -> String {
     let path = from.make_file(name, size);
-    let files = json!({"conversation_id": conversation, "files": [{"path": path}], "client_token": "fast0123fast4567"});
+    // Each send its own token: the same token is a retry of the same press.
+    let mut token = [0u8; 8];
+    szfriends_core::crypto::random_bytes(&mut token);
+    let token: String = token.iter().map(|b| format!("{b:02x}")).collect();
+    let files = json!({"conversation_id": conversation, "files": [{"path": path}], "client_token": token});
     let transfer = from.send("send_files", files)["transfer_ids"][0].as_str().expect("a transfer").to_owned();
     to.snapshot(chat, "the offer", |d| item(d, &transfer).is_some_and(|i| i.to_string().contains("accept_offer")));
     transfer
@@ -124,4 +128,27 @@ fn a_new_helper_and_a_released_one_move_files_as_before_both_ways() {
     assert!(!map_of(&cat_home, &to_cat).exists(), "an offer from it carries no tree either");
     cat.send("accept_offer", json!({"transfer_id": to_cat}));
     received(&mut cat, &cat_chat, &to_cat);
+    // The same file again, both ways: filled from the copy each already holds, by the flow each side knows.
+    let again = offer(&mut cat, &dov_in_cat, &mut dov, &dov_chat, "To the old one.bin", 3 << 20);
+    dov.send("accept_offer", json!({"transfer_id": again}));
+    received(&mut dov, &dov_chat, &again);
+    let again = offer(&mut dov, &cat_in_dov, &mut cat, &cat_chat, "From the old one.bin", 3 << 20);
+    cat.send("accept_offer", json!({"transfer_id": again}));
+    received(&mut cat, &cat_chat, &again);
+}
+
+#[test]
+fn a_file_sent_again_between_new_helpers_is_filled_from_the_copy_already_there() {
+    let (eve_home, fay_home, net) =
+        (TempHome::new("again-eve"), TempHome::new("again-fay"), TempHome::new("again-net"));
+    let mut eve = start("Eve", &eve_home, &net, true, None);
+    let mut fay = start("Fay", &fay_home, &net, true, None);
+    nearby::start(&mut eve, "Eve", &mut fay, "Fay");
+    let (fay_in_eve, eve_in_fay) = befriend(&mut eve, "Eve", &mut fay, "Fay");
+    let chat = fay.open(&eve_in_fay);
+    for _ in 0..2 {
+        let transfer = offer(&mut eve, &fay_in_eve, &mut fay, &chat, "Drawing.step", 20 << 20);
+        fay.send("accept_offer", json!({"transfer_id": transfer}));
+        received(&mut fay, &chat, &transfer);
+    }
 }

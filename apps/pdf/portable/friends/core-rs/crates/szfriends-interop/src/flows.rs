@@ -129,11 +129,13 @@ impl State {
             return true;
         }
         let route = self.sessions[&id].channel.initiator_route();
-        let Some(receiver) = ChunkReceiver::for_route(&id_bytes, size, 0, route) else { return true };
+        // From what is here already: nothing, or all of it when the same file was held here (ADR 0018 § 9.5).
+        let held = self.store.transfer(&offer).ok().flatten().map_or(0, |r| r.verified_bytes);
+        let Some(receiver) = ChunkReceiver::for_route(&id_bytes, size, held, route) else { return true };
         self.sessions.get_mut(&id).expect("live").receivers.insert(offer.clone(), receiver);
         self.send(id, &id_frame(FrameType::Ack, &id_bytes));
         let reply =
-            id_frame(FrameType::OfferReply, &id_bytes).with(tag::ACCEPT, [1]).with(tag::OFFSET, 0u64.to_be_bytes());
+            id_frame(FrameType::OfferReply, &id_bytes).with(tag::ACCEPT, [1]).with(tag::OFFSET, held.to_be_bytes());
         self.send(id, &reply);
         self.emit(json!({ "event": "offer", "session": id, "transfer": offer, "size": size }));
         true

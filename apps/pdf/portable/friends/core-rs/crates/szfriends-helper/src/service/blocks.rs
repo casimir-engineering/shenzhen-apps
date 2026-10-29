@@ -27,7 +27,8 @@ const BULK_SMALL_FRAMES: usize = 64;
 fn bulk_has_room(channel: &szfriends_core::session::SecureChannel) -> bool {
     let frames = channel.queued_frames().1;
     frames < BULK_DEPTH
-        || (frames < BULK_SMALL_FRAMES && channel.queued_bulk_bytes() < BULK_DEPTH * szfriends_core::wire::consts::PART_BYTES_MAX)
+        || (frames < BULK_SMALL_FRAMES
+            && channel.queued_bulk_bytes() < BULK_DEPTH * szfriends_core::wire::consts::PART_BYTES_MAX)
 }
 /// The serve's own window; the scheduler sizes what each lane holds (2 × rate × round trip), within § 3's limits.
 const WINDOW_BYTES: u64 = 64 << 20;
@@ -80,6 +81,11 @@ impl State {
             }
             return None;
         }
+        // Filled locally from the same file held here (§ 9.5): the CHUNK reply at its full size, and only DONE follows.
+        if self.store.whole_file_held(transfer) {
+            self.store.drop_blocks(transfer);
+            return None;
+        }
         if !self.store.begin_blocks(transfer, conversation).ok()? {
             return None;
         }
@@ -95,6 +101,10 @@ impl State {
                 self.store.drop_blocks(&record.transfer_id);
             }
             return false;
+        }
+        if record.verified_bytes == record.size && !self.store.has_block_map(&record.transfer_id) {
+            self.store.drop_blocks(&record.transfer_id);
+            return false; // every byte is here already: PROGRESS at the full size, and DONE follows
         }
         if !self.store.begin_blocks(&record.transfer_id, &record.conversation_id).unwrap_or(false) {
             return false;

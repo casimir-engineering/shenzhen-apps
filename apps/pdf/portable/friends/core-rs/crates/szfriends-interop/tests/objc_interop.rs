@@ -90,6 +90,16 @@ fn two_hundred_mib_objc_to_rust() {
     eprintln!("200 MiB Objective-C to Rust: {:.1} s", moved.seconds);
 }
 
+/// The same file twice from a released Objective-C sender: the Rust receiver holds it after the first, answers the
+/// second at its full size (ADR 0018 § 9.5), and the sender, as released, sends only DONE.
+#[test]
+fn the_same_file_again_objc_to_rust() {
+    let Some(mut p) = pair("rust", "objc") else { return };
+    transfer(&mut p.objc, &mut p.rust, 8 * MIB, 16 * MIB, None);
+    let again = transfer(&mut p.objc, &mut p.rust, 8 * MIB, 16 * MIB, None);
+    assert!(again.resumed_at.is_none());
+}
+
 #[test]
 fn resume_after_a_cut_rust_to_objc() {
     let Some(mut p) = pair("alice", "bob") else { return };

@@ -208,6 +208,15 @@ impl BlockAssembly {
         Ok(PartOutcome::Complete { block, data: partial.data })
     }
 
+    /// A block taken from elsewhere (an earlier version of the file) whose bytes matched its leaf: complete. `true`
+    /// when it was not complete before.
+    pub fn mark_complete(&mut self, block: u32) -> bool {
+        if let Some(partial) = self.partial.remove(&block) {
+            self.partial_bytes -= partial.data.len() as u64;
+        }
+        self.complete.insert(block)
+    }
+
     /// A complete block could not be written: wanted again.
     pub fn unwritten(&mut self, block: u32) {
         self.complete.remove(block);

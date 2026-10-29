@@ -31,6 +31,7 @@ impl Drop for Scratch {
 }
 
 fn friend(store: &mut Store) -> String {
+    // One friend per store in these tests.
     let mut person = Person::new(Relation::Friend);
     person.identity_key = Some([4; 32]);
     person.static_key = Some([0xfb; 32]);
@@ -194,4 +195,85 @@ fn fast_transfers_are_on_unless_the_setting_says_no() {
     assert!(!store.fast_transfers_enabled(), "kept across a restart");
     store.set_fast_transfers_enabled(true).unwrap();
     assert!(store.fast_transfers_enabled());
+}
+
+fn receive_by_chunks(store: &mut Store, id: &str, conversation: &str, name: &str, data: &[u8]) -> PathBuf {
+    let digest = digest_of(data);
+    store.record_incoming_offer(id, conversation, name, None, data.len() as u64, &digest, 0.0).unwrap();
+    store.accept_transfer(id).unwrap();
+    let from = store.transfer(id).unwrap().unwrap().verified_bytes as usize;
+    for start in (from..data.len()).step_by(61_440) {
+        store.append_chunk(id, start as u64, &data[start..(start + 61_440).min(data.len())], conversation).unwrap();
+    }
+    store.finish_transfer(id, &digest, conversation).unwrap()
+}
+
+fn digest_of(data: &[u8]) -> [u8; 32] {
+    use blake2::digest::{Update, VariableOutput};
+    let mut hasher = blake2::Blake2bVar::new(32).unwrap();
+    hasher.update(data);
+    let mut out = [0u8; 32];
+    hasher.finalize_variable(&mut out).unwrap();
+    out
+}
+
+#[test]
+fn a_file_already_received_from_the_same_friend_is_filled_locally_and_no_other_friends() {
+    let scratch = Scratch::new("held");
+    let mut store = Store::open(scratch.state()).unwrap();
+    let mei = friend(&mut store);
+    let mut other = Person::new(Relation::Friend);
+    other.identity_key = Some([9; 32]);
+    other.static_key = Some([0xf6; 32]);
+    store.save_person(&other).unwrap();
+    let data = content(300_000);
+    receive_by_chunks(&mut store, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", &mei, "plan.pdf", &data);
+    // Offered again by Mei: every byte is here at acceptance, so only DONE has to come.
+    let digest = digest_of(&data);
+    store
+        .record_incoming_offer("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", &mei, "plan.pdf", None, 300_000, &digest, 0.0)
+        .unwrap();
+    store.accept_transfer("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb").unwrap();
+    assert!(store.whole_file_held("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"));
+    let again = store.finish_transfer("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", &digest, &mei).unwrap();
+    assert_eq!(std::fs::read(again).unwrap(), data);
+    // The same bytes from someone else come over the route: nothing of Mei's is used for them.
+    let id = "cccccccccccccccccccccccccccccccc";
+    store.record_incoming_offer(id, &other.conversation_id, "plan.pdf", None, 300_000, &digest, 0.0).unwrap();
+    store.accept_transfer(id).unwrap();
+    assert_eq!(store.transfer(id).unwrap().unwrap().verified_bytes, 0);
+}
+
+#[test]
+fn a_new_version_takes_the_unchanged_blocks_of_the_one_the_friend_sent_before() {
+    let scratch = Scratch::new("version");
+    let mut store = Store::open(scratch.state()).unwrap();
+    let mei = friend(&mut store);
+    let old = content(5 * (1 << 20));
+    receive_by_chunks(&mut store, "dddddddddddddddddddddddddddddddd", &mei, "Gearbox.step", &old);
+    // The new version changes block 2 and grows by a block.
+    let mut new = old.clone();
+    new[(2 << 20) + 100] ^= 0xff;
+    new.extend(content(1 << 20));
+    let geometry = Geometry::for_size(new.len() as u64).unwrap();
+    let leaves: Vec<tree::Leaf> = (0..geometry.blocks)
+        .map(|i| {
+            let (o, l) = geometry.span(i);
+            tree::leaf(i, &new[o as usize..o as usize + l])
+        })
+        .collect();
+    let id = "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
+    store.record_incoming_offer(id, &mei, "Gearbox.step", None, new.len() as u64, &digest_of(&new), 0.0).unwrap();
+    store.record_offered_tree(id, &mei, geometry, tree::root_of(&geometry, &leaves).unwrap()).unwrap();
+    store.accept_transfer(id).unwrap();
+    assert!(store.begin_blocks(id, &mei).unwrap());
+    assert!(store.block_hashes(id, &mei, 0, &leaves.concat()).unwrap());
+    assert_eq!(store.block_missing(id), vec![(2, 1), (5, 1)], "only the changed block and the new one");
+    let (complete, _) = store.take_block_have(id);
+    assert_eq!(complete, vec![(0, 2), (3, 2)]);
+    for block in [2, 5] {
+        send_block(&mut store, id, &mei, &new, &geometry, block);
+    }
+    let path = store.finish_block_transfer(id, &mei).unwrap();
+    assert!(std::fs::read(path).unwrap() == new);
 }

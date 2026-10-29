@@ -342,7 +342,11 @@ impl Store {
             let staging = create_staging_file(&partial_directory)?;
             set_column(conn, transfer_id, "partial_path", &staging.to_string_lossy().into_owned())?;
             apply_event(conn, transfer_id, TransferEvent::Accepted, None).map(|_| ())
-        })
+        })?;
+        // The same file from the same friend, still here: filled locally (ADR 0018 § 9.5); the sender is answered
+        // with the whole file durable and sends only DONE.
+        let _ = self.fill_from_held_copy(transfer_id);
+        Ok(())
     }
 
     /// Their device acknowledged our OFFER.

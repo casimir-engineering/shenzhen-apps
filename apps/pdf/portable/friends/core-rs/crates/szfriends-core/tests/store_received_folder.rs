@@ -67,8 +67,10 @@ fn receive(store: &mut Store, conversation: &str, name: &str, data: &[u8]) -> (S
     let digest = digest_of(data);
     store.record_incoming_offer(&id, conversation, name, None, data.len() as u64, &digest, 0.0).unwrap();
     store.accept_transfer(&id).unwrap();
-    if !data.is_empty() {
-        store.append_chunk(&id, 0, data, conversation).unwrap();
+    // The same bytes from the same friend are filled locally at acceptance (ADR 0018 § 9.5): the rest only.
+    let held = store.transfer(&id).unwrap().unwrap().verified_bytes as usize;
+    if held < data.len() {
+        store.append_chunk(&id, held as u64, &data[held..], conversation).unwrap();
     }
     let published = store.finish_transfer(&id, &digest, conversation).unwrap();
     assert_eq!(store.transfer(&id).unwrap().unwrap().state, TransferState::Received);
