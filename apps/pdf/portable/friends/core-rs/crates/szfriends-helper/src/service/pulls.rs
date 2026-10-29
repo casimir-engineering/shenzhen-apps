@@ -202,6 +202,12 @@ impl State {
         if decide(Some(running), again.is_some(), None) != Decision::Preempt {
             return;
         }
+        self.stop_pull();
+    }
+
+    /// The running pull stops: what arrived stays in its map, and its holders hear to stop (a HAVE of every block,
+    /// so their serves end and their You rows stop saying the file is being copied).
+    fn stop_pull(&mut self) {
         let Some(current) = self.pulls.current.take() else { return };
         if let Some(wire) = super::unhex(&current.transfer_id) {
             let blocks = Geometry::new(current.copy_size(), current.copy.shift()).map_or(1, |g| g.blocks);
@@ -215,6 +221,21 @@ impl State {
         }
         current.copy.pause();
         self.changed();
+    }
+
+    /// Cancel: the pull of a file nobody waits on anymore stops (a copy that runs by itself goes on).
+    pub(crate) fn pull_not_wanted(&mut self, transfer_id: &str) {
+        let Some(current) = self.pulls.current.as_ref().filter(|c| c.transfer_id == transfer_id) else { return };
+        let wanted = match &current.origin {
+            Origin::Again(_) => false,
+            Origin::Own(_) => {
+                self.devices.engine.files_wanted(&self.store).iter().any(|f| f.transfer_id == transfer_id)
+            }
+        };
+        if !wanted {
+            self.stop_pull();
+            self.reconsider_pulls();
+        }
     }
 
     fn start_pull(&mut self) {

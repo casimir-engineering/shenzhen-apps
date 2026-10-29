@@ -35,13 +35,9 @@ impl State {
             for frame in blocks.serve.hashes_frames() {
                 self.send_on(id, &frame);
             }
-            let serving = crate::service::again::Serving {
-                serve: blocks.serve,
-                path: blocks.path,
-                sync: true,
-                root: blocks.root,
-            };
+            let serving = crate::service::again::Serving::new(blocks.serve, blocks.path, true, blocks.root);
             self.again.serving.insert((id, blocks.transfer_id), serving);
+            self.changed(); // the You row says it is being copied
         }
         if !self.devices.engine.take_changes().is_empty() {
             // Friends, chats and the profile another of our devices changed: tags, sessions, the outbox follow.

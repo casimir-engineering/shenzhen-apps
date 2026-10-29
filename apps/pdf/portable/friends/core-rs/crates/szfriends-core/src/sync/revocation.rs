@@ -270,6 +270,34 @@ impl SyncEngine {
         })
     }
 
+    /// The items of `conversation` every other authorized device of ours holds (the You row's "On all your
+    /// computers"): an event that carried the item reached each, and for a file, each holds its bytes.
+    pub fn items_on_every_device(&self, store: &Store, conversation: &str) -> BTreeSet<String> {
+        let others = self.other_device_keys(store);
+        let Some(held) = others.iter().map(|device| self.vector_held_by(store, device)).collect::<Option<Vec<_>>>()
+        else {
+            return BTreeSet::new(); // a device that never said what it holds holds nothing we know of
+        };
+        let origins = sync_history::origins_in_conversation(&store.conn, conversation).unwrap_or_default();
+        let mut everywhere: BTreeSet<String> = origins
+            .into_iter()
+            .filter(|(_, origins)| {
+                held.iter().all(|v| origins.iter().any(|(author, seq)| vector_covers(v, author, *seq)))
+            })
+            .map(|(item, _)| item)
+            .collect();
+        for file in sync_files::sync_files(&store.conn).unwrap_or_default() {
+            let Some(item) = file.item_id.filter(|_| file.conversation_id == conversation) else { continue };
+            // A file is there once its bytes are, not when its record is.
+            if others.iter().all(|d| file.holders.contains(d)) {
+                everywhere.insert(item);
+            } else {
+                everywhere.remove(&item);
+            }
+        }
+        everywhere
+    }
+
     pub fn file_reached_every_device(&self, store: &Store, transfer_id: &str) -> bool {
         let Some(file) = sync_files::sync_file(&store.conn, transfer_id).ok().flatten() else { return false };
         self.other_device_keys(store).iter().all(|d| file.holders.contains(d))

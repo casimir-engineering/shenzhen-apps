@@ -378,6 +378,7 @@ impl State {
         self.nearby_tick();
         self.boost_tick();
         self.reconsider_pulls();
+        self.serving_tick();
         self.join_tick(unix_now());
         self.sync_tick(unix_now());
         self.reach_online();

@@ -96,6 +96,7 @@ impl State {
             return false;
         }
         let _ = self.devices.engine.cancel_file_request(&self.store, transfer_id);
+        self.pull_not_wanted(transfer_id);
         self.pump_sync();
         self.changed();
         true

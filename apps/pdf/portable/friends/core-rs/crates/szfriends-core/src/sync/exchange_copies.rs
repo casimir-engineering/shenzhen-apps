@@ -219,7 +219,7 @@ impl SyncExchange {
                         {
                             self.outgoing.push(follow);
                         }
-                        self.serving = Some((id.clone(), 0.0));
+                        // The session serves it from here on, and says how far it is (the helper's `you_copying`).
                         self.serve_blocks.push(ServeBlocks { transfer_id: id, serve, path, root });
                     }
                     None => {

@@ -28,15 +28,7 @@ pub struct AgainArea {
     pub serving: HashMap<(u64, String), Serving>,
 }
 
-/// A file this computer serves by blocks on one session: Get again for a friend, or a copy for our own device.
-#[derive(Debug)]
-pub struct Serving {
-    pub serve: szfriends_core::transfer::BlockServe,
-    pub path: std::path::PathBuf,
-    pub sync: bool,
-    /// The tree's root, for BLOCKS FOLLOW sent again.
-    pub root: [u8; 32],
-}
+pub use super::serving::Serving;
 
 /// A devices intent's not_found in its own words ("fetch", "again").
 pub(crate) fn worded(error: IntentError, reason: &'static str) -> IntentError {
@@ -78,6 +70,7 @@ impl State {
         if let AgainMessage::WantBlocks { id: transfer, ranges, shift } = &message {
             if let Some(serving) = self.again.serving.get_mut(&(id, transfer.clone())) {
                 if serving.serve.geometry().shift == *shift && serving.serve.want(ranges).is_ok() {
+                    serving.heard();
                     let (hashes, root) = (serving.serve.hashes_frames(), serving.root);
                     let follow = AgainMessage::BlocksFollow { id: transfer.clone(), root, shift: *shift };
                     if let Some(bytes) = follow.encode() {
@@ -107,7 +100,7 @@ impl State {
                         AgainMessage::BlocksFollow { root, .. } => *root,
                         _ => [0; 32],
                     };
-                    let serving = Serving { serve: blocks.serve, path: blocks.path, sync: false, root };
+                    let serving = Serving::new(blocks.serve, blocks.path, false, root);
                     self.again.serving.insert((id, message.id().to_owned()), serving);
                 }
                 Err(answers) => {
@@ -161,8 +154,13 @@ impl State {
                 let Some(serving) = self.again.serving.get_mut(&(id, transfer.clone())) else { return false };
                 let ranges = szfriends_core::transfer::frames::ranges_of(frame, tag::RANGES).unwrap_or_default();
                 let _ = serving.serve.have(&ranges);
+                serving.heard();
+                let sync = serving.sync;
                 if serving.serve.all_acknowledged() {
                     self.again.serving.remove(&(id, transfer));
+                }
+                if sync {
+                    self.changed(); // the You row says how far the copy is
                 }
                 true
             }
@@ -233,8 +231,10 @@ impl State {
                 let read = std::fs::File::open(&*path)
                     .and_then(|f| szfriends_core::transfer::tree::read_exact_at(&f, &mut data, offset));
                 if read.is_err() || serve.load_block(block, data).is_err() {
-                    // Changed or gone since it was checked: the other side hears it is gone.
+                    // Changed or gone since it was checked: the other side hears it is gone (and the You row stops
+                    // saying it is being copied).
                     self.again.serving.remove(&key);
+                    self.changed();
                     if sync {
                         let mut none = vec![6u8, key.1.len() as u8];
                         none.extend_from_slice(key.1.as_bytes());
@@ -327,6 +327,7 @@ impl State {
             return false;
         }
         let _ = set_again_state(&self.store, transfer_id, AgainState::None);
+        self.pull_not_wanted(transfer_id);
         let ids: Vec<u64> = self.again.requesters.keys().copied().collect();
         for id in ids {
             if let Some(requester) = self.again.requesters.get_mut(&id) {

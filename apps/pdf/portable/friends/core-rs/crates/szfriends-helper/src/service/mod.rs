@@ -50,6 +50,7 @@ pub(crate) mod pulls;
 pub mod reset;
 mod room;
 pub mod seed;
+mod serving;
 mod sessions;
 mod transfers;
 mod views;

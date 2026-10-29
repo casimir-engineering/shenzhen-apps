@@ -116,15 +116,21 @@ impl BlockServe {
         self.part_bytes = part_bytes.clamp(1, PART_BYTES_MAX);
     }
 
-    /// Every block acknowledged.
     /// Bytes of the file the receiver has not acknowledged yet (ADR 0019 weighs the boost by them).
     pub fn remaining_bytes(&self) -> u64 {
         let acknowledged: u64 = self.acknowledged.iter().map(|block| self.geometry.span(block).1 as u64).sum();
         self.geometry.size.saturating_sub(acknowledged)
     }
 
+    /// Every block acknowledged.
     pub fn all_acknowledged(&self) -> bool {
         self.acknowledged.is_full()
+    }
+
+    /// Blocks wanted and not yet acknowledged: queued, being cut into parts, or sent and waiting for a HAVE. A serve
+    /// that is not busy gave everything it was asked for (a receiver resuming asks for the blocks it misses only).
+    pub fn busy(&self) -> bool {
+        !self.idle() || !self.in_flight.is_empty()
     }
 
     /// Nothing queued or being cut into parts.

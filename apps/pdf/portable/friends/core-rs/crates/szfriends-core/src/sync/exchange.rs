@@ -212,6 +212,8 @@ impl SyncExchange {
         })
     }
 
+    /// The file this exchange streams to the other device now (PART after PART), and how much of it went. A file
+    /// served by blocks is the session's to report (`take_serve_blocks`).
     pub fn serving(&self) -> Option<(&str, f64)> {
         self.serving.as_ref().map(|(id, fraction)| (id.as_str(), *fraction))
     }

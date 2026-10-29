@@ -1618,3 +1618,27 @@ area today (the rare stall and copies from several holders).
 Checks: `cargo test -p szfriends-core` (the scheduler's units, the table, the sweep, 150 random scenarios),
 `make friends-transfer-check` (the same table through the Objective-C port, identical row for row),
 `make friends-store-check`, and `szfriends-interop`'s `fast_lanes` and `fast_transfers`.
+
+## The You row while a copy goes by blocks (Rust helper)
+
+After 18e999d8 fixed the Mac's You row staying at "Copying to your other computers · 0%", the Rust helper turned out
+worse off: it never filled the You row's facts at all (`you_copying`, `you_items_everywhere`), so a You file said
+"Copies to your other computers when they connect" before, during and after the copy, and the sync exchange marked a
+file served by blocks as copying at 0 % and never cleared it (nothing read it yet). `szfriends-interop`'s new
+`you_copies` test reproduced it (the row never left "queued") and now passes.
+
+- `service/serving.rs`: a file served by blocks to another of our computers shows on the You row with how much that
+  computer acknowledged, until every block is acknowledged (the requester's last HAVE), the serve fails (NONE), the
+  session ends, or the serve goes quiet: 2 s with nothing asked left (a computer resuming asks only for the blocks it
+  misses, so its last HAVE need not cover the file) or 30 s waiting on a HAVE (the other computer stopped or took
+  the rest from another holder). Streamed copies keep the exchange's own `serving()`.
+- `items_on_every_device` (core), as the Mac's `itemsOnEveryDeviceInConversation:`: the row says "On all your
+  computers" once every other computer holds the item and, for a file, its bytes.
+- Cancel (Get, Get again) now stops the running pull when nobody waits on the file any more, and its holders hear a
+  HAVE of every block, so their rows clear at once.
+
+**For WP4 (Objective-C):** `endServe` runs only when `allAcknowledged`. A requester that resumed (asked for its
+missing blocks only) and whose last HAVE covers only those leaves the Mac serve, and its "Copying… 0%", in place
+until the session ends. A Rust requester pulling from several holders sends a HAVE of every block at the end, so it
+clears the Mac row; a resumed single-holder copy, or the Mac's own requester, may not. The Mac's `servingFraction`
+also stays at 0 for copies by blocks (the Rust row now rises with the acknowledged blocks).

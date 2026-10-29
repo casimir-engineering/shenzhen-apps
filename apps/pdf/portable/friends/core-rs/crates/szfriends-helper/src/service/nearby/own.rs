@@ -294,6 +294,7 @@ impl State {
                 {
                     if let Some(serving) = self.again.serving.get_mut(&(id, transfer.clone())) {
                         if serving.serve.geometry().shift == shift && serving.serve.want(&ranges).is_ok() {
+                            serving.heard();
                             let (hashes, root) = (serving.serve.hashes_frames(), serving.root);
                             if let Some(bytes) = (CopyMessage::BlocksFollow { id: transfer, root, shift }).encode_sync()
                             {
