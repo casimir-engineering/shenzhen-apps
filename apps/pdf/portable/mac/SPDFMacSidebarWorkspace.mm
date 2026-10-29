@@ -25,7 +25,9 @@ static char stateKey, groupsControllerKey, emptySearchKey, saveGenerationKey, ta
 - (NSDictionary*)sidebarWorkspaceSnapshot {
     [self syncEmptyTabGroups];
     NSMutableDictionary* state = [[self sidebarWorkspaceState] mutableCopy];
-    if (_sidebarModeControl) state[@"mode"] = @(_sidebarModeControl.spdf_selectedSidebarMode);
+    // The panel the person chose (rememberSidebarWorkspaceMode), not the one shown: a document whose comments or
+    // chapters are still loading shows another for a moment, and a quit then must not keep that one.
+    if (_sidebarModeControl && !state[@"mode"]) state[@"mode"] = @(_sidebarModeControl.spdf_selectedSidebarMode);
     if (_tabStrip && _tabStrip.tabScrollDidChange) state[@"tabStripScroll"] = @(_tabStrip.tabScrollOffset);
     state[@"width"] = @(_sidebarWidth); state[@"visible"] = @(_sidebarPreferredVisible);
     return state;

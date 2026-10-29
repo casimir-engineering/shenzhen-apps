@@ -73,6 +73,10 @@ typedef NS_ENUM(NSInteger, SPDFFitMode) {
 @property(nonatomic) CGFloat zoom;
 @property(nonatomic) CGFloat customZoom;
 @property(nonatomic) SPDFFitMode fitMode;
+// The page a fit mode's zoom was computed for (-1: the current page). Pages of different sizes fit at different
+// zooms, and paging does not refit, so the zoom on screen can belong to another page than the one shown; scrollOrigin
+// is only right at that zoom. Persisted as "fitPage".
+@property(nonatomic) NSInteger fitPageIndex;
 @property(nonatomic) NSPoint scrollOrigin;
 @property(nonatomic) BOOL hasScrollOrigin;
 @property(nonatomic, copy) NSString* searchText;
@@ -138,6 +142,9 @@ static inline NSString* spdf_tab_display_name(SPDFDocumentTab* tab) {
     return name.length ? name : nil;
 }
 NSDictionary* spdf_dictionary_from_tab(SPDFDocumentTab* tab, NSInteger sourceWindowNumber);
+// The page a tab's fit zoom is computed for when it is shown again: the one it was fitted to, so the zoom comes back as
+// it was and its saved scroll origin shows the page that was shown. A tab with no saved place fits `page`.
+NSInteger spdf_tab_fit_page_index(SPDFDocumentTab* tab, NSInteger page, NSInteger pageCount);
 SPDFDocumentTab* spdf_tab_from_dictionary(NSDictionary* item);
 
 // The file a tab detach hands its reading position over in, named from the

@@ -21,6 +21,7 @@
         _zoom = 1.0;
         _customZoom = 1.0;
         _fitMode = SPDFFitModePage;
+        _fitPageIndex = -1;
         _searchText = @"";
         _searchRegexMultiline = YES;
         _findMatchIndex = -1;
@@ -88,6 +89,7 @@ SPDFDocumentTab* spdf_copy_document_tab(SPDFDocumentTab* source) {
     copy.zoom = source.zoom;
     copy.customZoom = source.customZoom;
     copy.fitMode = source.fitMode;
+    copy.fitPageIndex = source.fitPageIndex;
     copy.scrollOrigin = source.scrollOrigin;
     copy.hasScrollOrigin = source.hasScrollOrigin;
     copy.searchText = source.searchText;
@@ -111,6 +113,10 @@ SPDFDocumentTab* spdf_copy_document_tab(SPDFDocumentTab* source) {
     return copy;
 }
 
+NSInteger spdf_tab_fit_page_index(SPDFDocumentTab* tab, NSInteger page, NSInteger pageCount) {
+    return tab.hasScrollOrigin && tab.fitPageIndex >= 0 && tab.fitPageIndex < pageCount ? tab.fitPageIndex : page;
+}
+
 NSDictionary* spdf_dictionary_from_tab(SPDFDocumentTab* tab, NSInteger sourceWindowNumber) {
     if (!tab) return @{};
     NSDictionary* result = @{
@@ -121,6 +127,7 @@ NSDictionary* spdf_dictionary_from_tab(SPDFDocumentTab* tab, NSInteger sourceWin
         @"zoom" : @(tab.zoom),
         @"customZoom" : @(tab.customZoom),
         @"fitMode" : @(tab.fitMode),
+        @"fitPage" : @(tab.fitPageIndex),
         /* The app is always continuous now. Single-page view mode was removed;
          * keep emitting viewMode=1 (continuous) so older app versions reading
          * this session still open these tabs in the correct mode. */
@@ -173,6 +180,7 @@ SPDFDocumentTab* spdf_tab_from_dictionary(NSDictionary* item) {
     tab.zoom = [item[@"zoom"] doubleValue] > 0 ? [item[@"zoom"] doubleValue] : 1.0;
     tab.customZoom = [item[@"customZoom"] doubleValue] > 0 ? [item[@"customZoom"] doubleValue] : tab.zoom;
     if (item[@"fitMode"]) tab.fitMode = (SPDFFitMode)MAX(0, MIN(4, [item[@"fitMode"] integerValue]));
+    tab.fitPageIndex = item[@"fitPage"] ? MAX(-1, [item[@"fitPage"] integerValue]) : -1;
     /* viewMode is intentionally ignored: single-page view mode was removed and
      * the app is always continuous. Old sessions that stored viewMode=0 (single)
      * open fine as continuous. */

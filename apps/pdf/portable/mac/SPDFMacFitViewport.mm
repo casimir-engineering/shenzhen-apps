@@ -55,4 +55,20 @@ extern const CGFloat kMaxZoom;
                    fallbackZoom:_zoom];
 }
 
+- (CGFloat)zoomForFitMode:(SPDFFitMode)fitMode
+                 pageSize:(NSSize)pageSize
+                 clipSize:(NSSize)clipSize
+             fallbackZoom:(CGFloat)fallbackZoom {
+    fallbackZoom = fallbackZoom > 0 ? fallbackZoom : 1.0;
+    if (fitMode == SPDFFitModeCustom) return MAX(kMinZoom, MIN(kMaxZoom, fallbackZoom));
+    if (fitMode == SPDFFitModeActual) return 1.0;
+    if (pageSize.width <= 0.0 || pageSize.height <= 0.0 || clipSize.width <= 0.0 || clipSize.height <= 0.0)
+        return MAX(kMinZoom, MIN(kMaxZoom, fallbackZoom));
+
+    CGFloat widthZoom = clipSize.width / pageSize.width;
+    CGFloat heightZoom = clipSize.height / pageSize.height;
+    if (fitMode == SPDFFitModeWidth) return MAX(kMinZoom, MIN(kMaxZoom, widthZoom));
+    if (fitMode == SPDFFitModeHeight) return MAX(kMinZoom, MIN(kMaxZoom, heightZoom));
+    return MAX(kMinZoom, MIN(kMaxZoom, MIN(widthZoom, heightZoom)));
+}
 @end

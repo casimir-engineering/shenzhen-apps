@@ -35,6 +35,14 @@ int main(void) {
         fresh.lastViewedAt=12345;
         Expect("last-viewed order survives session restoration",spdf_tab_from_dictionary(RoundTrip(fresh)).lastViewedAt==12345);
         Expect("last-viewed timestamp survives tab copies",spdf_copy_document_tab(fresh).lastViewedAt==12345);
+        // The page a fit zoom was computed for: without it a relaunch refits to the page shown and its saved scroll
+        // origin lands on another page when the two differ in size.
+        Expect("a fresh tab fits the page it shows", fresh.fitPageIndex == -1 &&
+               spdf_tab_from_dictionary(@{@"path" : @"/tmp/old.pdf"}).fitPageIndex == -1);
+        fresh.fitPageIndex=2;
+        Expect("the fitted page survives restoration",spdf_tab_from_dictionary(RoundTrip(fresh)).fitPageIndex==2);
+        Expect("the fitted page survives tab copies",spdf_copy_document_tab(fresh).fitPageIndex==2);
+        fresh.fitPageIndex=-1;
         Expect("a new document keeps image colors by default", fresh.preservesImageColors);
 
         // --- It is written, and read back --------------------------------

@@ -14,7 +14,9 @@
 // quit-cmdq presses Cmd+Q, quit-close clicks the window's close button, quit-lasttab closes every tab
 // with the File menu's Close (Cmd+W) in a window that has another window beside it, which closes only that window.
 // PROBE_REOPEN=<ms> sends the reader a reopen Apple event that long after the trigger, as a Dock click while it is
-// finishing does: relaunch_requested reports that it asked Launch Services for a fresh launch (never started here).
+// finishing does, and no earlier than the finishing step (a timer on a busy machine could fire after the process had
+// gone, a click that never happened while it was finishing): relaunch_requested reports that it asked Launch Services
+// for a fresh launch (never started here).
 
 #import <Cocoa/Cocoa.h>
 #import <objc/message.h>
@@ -179,6 +181,34 @@ static void DispatchEvents(NSTimeInterval quiet) {
         [NSApp sendEvent:event];
     }
 }
+// A Dock click while the reader finishes: Launch Services sends the running process a reopen Apple event, queued on
+// the main thread's event port as Launch Services' is. Sent from another thread once the quit is that old, and before
+// the finishing step goes on.
+static IMP gFinishQuit;
+static double gReopenAfter = -1;
+static void FinishQuitAfterReopen(id reader, SEL sel) {
+    if (gReopenAfter >= 0) {
+        double after = gReopenAfter;
+        gReopenAfter = -1;
+        dispatch_semaphore_t sent = dispatch_semaphore_create(0);
+        __block double sentAt = -1;
+        __block OSStatus status = 0;
+        dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INTERACTIVE, 0), ^{
+            while (Now() - gQuit < after) usleep(500);
+            NSAppleEventDescriptor* event = [NSAppleEventDescriptor
+                appleEventWithEventClass:kCoreEventClass eventID:kAEReopenApplication
+                        targetDescriptor:[NSAppleEventDescriptor descriptorWithProcessIdentifier:getpid()]
+                                returnID:kAutoGenerateReturnID transactionID:kAnyTransactionID];
+            sentAt = Now() - gQuit;
+            status = AESendMessage(event.aeDesc, NULL, kAENoReply | kAENeverInteract, kAEDefaultTimeout);
+            dispatch_semaphore_signal(sent);
+        });
+        dispatch_semaphore_wait(sent, DISPATCH_TIME_FOREVER);
+        gQuitExtra[@"reopen_sent_ms"] = @(sentAt);
+        gQuitExtra[@"reopen_send_status"] = @(status);
+    }
+    ((void (*)(id, SEL))gFinishQuit)(reader, sel);
+}
 static IMP gShouldTerminate;
 static NSApplicationTerminateReply TimedShouldTerminate(id reader, SEL sel, id app) {
     if (gQuit >= 0 && !gQuitExtra[@"should_terminate_ms"]) gQuitExtra[@"should_terminate_ms"] = @(Now() - gQuit);
@@ -211,21 +241,10 @@ BOOL SPDFProbeRunQuitMode(const char* mode, id reader) {
     if (!strcmp(mode, "quit-integrity")) SPDFProbeRunIntegrityRound(reader);
     gQuit = Now();
     if (getenv("PROBE_REOPEN")) {
-        // A Dock click while the reader finishes: Launch Services sends the running process a reopen Apple event. Sent
-        // here from another thread, so it arrives through the main thread's event queue as Launch Services' does.
-        double after = atof(getenv("PROBE_REOPEN"));
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(after * NSEC_PER_MSEC)), dispatch_get_global_queue(0, 0), ^{
-            NSAppleEventDescriptor* event = [NSAppleEventDescriptor
-                appleEventWithEventClass:kCoreEventClass eventID:kAEReopenApplication
-                        targetDescriptor:[NSAppleEventDescriptor descriptorWithProcessIdentifier:getpid()]
-                                returnID:kAutoGenerateReturnID transactionID:kAnyTransactionID];
-            double sent = Now() - gQuit;
-            OSStatus status = AESendMessage(event.aeDesc, NULL, kAENoReply | kAENeverInteract, kAEDefaultTimeout);
-            CFRunLoopPerformBlock(CFRunLoopGetMain(), kCFRunLoopCommonModes, ^{
-                gQuitExtra[@"reopen_sent_ms"] = @(sent);
-                gQuitExtra[@"reopen_send_status"] = @(status);
-            });
-        });
+        gReopenAfter = atof(getenv("PROBE_REOPEN"));
+        gFinishQuit = method_setImplementation(
+            class_getInstanceMethod(object_getClass(reader), NSSelectorFromString(@"quitFinishWhenImageCopyWritten")),
+            (IMP)FinishQuitAfterReopen);
     }
     // quit-integrity quits as PROBE_QUIT_HOW says: cmdq (default) or close.
     const char* how = getenv("PROBE_QUIT_HOW") ?: "cmdq";

@@ -172,10 +172,17 @@ void SPDFProbeRunIntegrityRound(id reader) {
     ((void (*)(id, SEL, NSInteger, BOOL))objc_msgSend)(reader, NSSelectorFromString(@"goToPage:preserveSinglePagePosition:"),
                                                        page, NO);
     WaitLoaded(reader);
+    // The page turned must stay turned: the tab switch's own layout passes, which can land after it on a busy
+    // machine, and the comment (on a read-only document, a reload from the writable copy) must not move the view.
+    if (IvarInteger(reader, "_pageIndex") != page)
+        Problem(@"turned to page %ld right after switching tabs, showing page %ld", (long)page,
+                (long)IvarInteger(reader, "_pageIndex"));
     gCommentText = [NSString stringWithFormat:@"Round %ld", round];
     *(NSInteger*)IvarAddress(reader, "_contextPageIndex") = IvarInteger(reader, "_pageIndex");
     *(NSPoint*)IvarAddress(reader, "_contextPagePoint") = NSMakePoint(72, 72);
     Call(reader, @"addComment:", nil);
+    if (IvarInteger(reader, "_pageIndex") != page)
+        Problem(@"page %ld showed page %ld once commented", (long)page, (long)IvarInteger(reader, "_pageIndex"));
     NSString* after = [tabs[target] valueForKey:@"path"];
     if (round == 3 && [after isEqual:before]) Problem(@"the read-only document did not move to a writable copy");
     if (![after isEqual:before] && edits[before]) edits[after] = edits[before], [edits removeObjectForKey:before];

@@ -265,6 +265,7 @@
     NSUInteger _visibleCropRenderSequence;
     NSTimeInterval _lastDocumentPanLiveCropRenderTime;
     NSUInteger _viewportMovementGeneration;
+    NSInteger _fitPageIndex; // the page the fit-mode zoom on screen was computed for (SPDFDocumentTab.fitPageIndex)
     BOOL _minimapPrecisionViewportDragActive;
     // Horizontal scroll lock: narrow pages (width <= viewport) block horizontal
     // panning and stay centered; wide pages unlock it. Crossing from a wide page

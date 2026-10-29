@@ -2992,23 +2992,6 @@ id spdf_state_object_from_yaml_data(NSData* data) {
     return size;
 }
 
-- (CGFloat)zoomForFitMode:(SPDFFitMode)fitMode
-                 pageSize:(NSSize)pageSize
-                 clipSize:(NSSize)clipSize
-             fallbackZoom:(CGFloat)fallbackZoom {
-    fallbackZoom = fallbackZoom > 0 ? fallbackZoom : 1.0;
-    if (fitMode == SPDFFitModeCustom) return MAX(kMinZoom, MIN(kMaxZoom, fallbackZoom));
-    if (fitMode == SPDFFitModeActual) return 1.0;
-    if (pageSize.width <= 0.0 || pageSize.height <= 0.0 || clipSize.width <= 0.0 || clipSize.height <= 0.0)
-        return MAX(kMinZoom, MIN(kMaxZoom, fallbackZoom));
-
-    CGFloat widthZoom = clipSize.width / pageSize.width;
-    CGFloat heightZoom = clipSize.height / pageSize.height;
-    if (fitMode == SPDFFitModeWidth) return MAX(kMinZoom, MIN(kMaxZoom, widthZoom));
-    if (fitMode == SPDFFitModeHeight) return MAX(kMinZoom, MIN(kMaxZoom, heightZoom));
-    return MAX(kMinZoom, MIN(kMaxZoom, MIN(widthZoom, heightZoom)));
-}
-
 - (SPDFRenderedPage*)renderedPageAtIndex:(NSInteger)pageIndex
                                 document:(spdf_document*)doc
                                     zoom:(CGFloat)zoom
@@ -4872,10 +4855,15 @@ static BOOL spdf_page_list_cache_disabled(void) {
     _visibleCropRenderSequence++;
     _renderGeneration++;
     NSUInteger generation = _renderGeneration;
-    _zoom = [self zoomForFitMode:_fitMode pageIndex:MAX(0, pageIndex)];
     NSMutableArray<SPDFRenderedPage*>* pages = [NSMutableArray arrayWithCapacity:(NSUInteger)spdf_page_count(_doc)];
     char err[1024];
     NSInteger pageCount = spdf_page_count(_doc);
+    // A re-render that keeps the view (restoreOrigin: a comment, a theme, a tab's saved place) keeps the page the zoom
+    // was fitted to: refitting to the page shown changes the zoom when pages differ in size, and the origin would then
+    // show another page (SPDFDocumentTab.fitPageIndex). Anything else fits the page it goes to.
+    BOOL keepFit = restoreOrigin && _fitPageIndex >= 0 && _fitPageIndex < pageCount;
+    _fitPageIndex = keepFit ? _fitPageIndex : MAX(0, pageIndex);
+    _zoom = [self zoomForFitMode:_fitMode pageIndex:_fitPageIndex];
     pageIndex = MAX(0, MIN(pageIndex, pageCount - 1));
     double launchRenderStart = spdf_launch_profile_enabled() ? spdf_zoom_profile_now_ms() : 0.0;
     SPDFRenderedPage* preferredPage = nil;
@@ -5046,6 +5034,7 @@ static BOOL spdf_page_list_cache_disabled(void) {
         CGFloat newZoom = [self zoomForFitMode:_fitMode pageIndex:_pageIndex];
         if (isfinite(newZoom) && newZoom > 0.0 && fabs(newZoom - _zoom) > 0.0001) {
             _zoom = newZoom;
+            _fitPageIndex = _pageIndex;
             _pageView.zoom = _zoom;
         }
     }
@@ -6085,6 +6074,7 @@ static BOOL spdf_page_list_cache_disabled(void) {
     tab.zoom = _zoom;
     tab.customZoom = _rememberedCustomZoom > 0 ? _rememberedCustomZoom : _zoom;
     tab.fitMode = _fitMode;
+    tab.fitPageIndex = _fitPageIndex;
     tab.showSidebar = _sidebarPreferredVisible;
     tab.showMinimap = _minimapPreferredVisible;
     tab.hasMinimapPreference = YES;
@@ -6904,6 +6894,7 @@ static BOOL spdf_page_list_cache_disabled(void) {
         SPDFMacInactivePreload* preloadResult = [SPDFMacInactivePreload new];
         _preloadResults[standardized] = preloadResult;
         NSInteger preferredPage = MAX(0, tab.pageIndex);
+        NSInteger fitPage = spdf_tab_fit_page_index(tab, preferredPage, NSIntegerMax);
         SPDFFitMode fitMode = tab.fitMode;
         CGFloat fallbackZoom = tab.customZoom > 0 ? tab.customZoom : (tab.zoom > 0 ? tab.zoom : 1.0);
         NSSize clipSize = [self documentClipSizeForLayout];
@@ -7048,8 +7039,11 @@ static BOOL spdf_page_list_cache_disabled(void) {
                       spdf_close(doc);
                   return;
               }
+              float fitWidth = pageWidth, fitHeight = pageHeight; // the zoom it will show: spdf_tab_fit_page_index
+              if (fitPage != pageIndex && fitPage < pageCount)
+                  spdf_page_size(doc, (int)fitPage, &fitWidth, &fitHeight, err, sizeof(err));
               CGFloat zoom = [self zoomForFitMode:fitMode
-                                         pageSize:NSMakeSize(pageWidth, pageHeight)
+                                         pageSize:NSMakeSize(fitWidth, fitHeight)
                                          clipSize:clipSize
                                      fallbackZoom:fallbackZoom];
               err[0] = '\0';
@@ -7803,9 +7797,10 @@ static BOOL spdf_page_list_cache_disabled(void) {
     [self prepareSelectedTabViewState:tab path:path];
     [self loadInitialSidebarMetadataForSelectedTabIfNeeded];
     _pageIndex = MAX(0, MIN(tab.pageIndex, pageCount - 1));
+    _fitPageIndex = spdf_tab_fit_page_index(tab, _pageIndex, pageCount);
     _fitMode = tab.fitMode;
     _rememberedCustomZoom = tab.customZoom > 0 ? tab.customZoom : (tab.zoom > 0 ? tab.zoom : 1.0);
-    _zoom = [self zoomForFitMode:_fitMode pageIndex:_pageIndex];
+    _zoom = [self zoomForFitMode:_fitMode pageIndex:_fitPageIndex];
     _renderGeneration++;
     // Bumping the generation invalidates any minimap thumbnail renders that were
     // enqueued for the outgoing tab (or earlier in this switch) — their
@@ -7866,7 +7861,7 @@ static BOOL spdf_page_list_cache_disabled(void) {
           // reads "Fit Page" while the rendered zoom is stale. Custom/Actual
           // don't depend on clip width, so they're left untouched.
           if ([self isAutoFitMode:self->_fitMode]) {
-              CGFloat fit = [self zoomForFitMode:self->_fitMode pageIndex:self->_pageIndex];
+              CGFloat fit = [self zoomForFitMode:self->_fitMode pageIndex:self->_fitPageIndex];
               if (isfinite(fit) && fit > 0.0 && fabs(fit - self->_zoom) > 0.0001) {
                   self->_zoom = fit;
                   self->_pageView.zoom = self->_zoom;
@@ -8323,10 +8318,11 @@ static BOOL spdf_page_list_cache_disabled(void) {
         [self loadInitialSidebarMetadataForSelectedTabIfNeeded];
     }
     _pageIndex = MAX(0, MIN(tab.pageIndex, pageCount - 1));
+    _fitPageIndex = spdf_tab_fit_page_index(tab, _pageIndex, pageCount);
     _renderGeneration++;
     _rememberedCustomZoom = tab.customZoom > 0 ? tab.customZoom : (tab.zoom > 0 ? tab.zoom : 1.0);
     _fitMode = tab.fitMode;
-    _zoom = [self zoomForFitMode:_fitMode pageIndex:_pageIndex];
+    _zoom = [self zoomForFitMode:_fitMode pageIndex:_fitPageIndex];
 
     _statusLabel.stringValue = @"Opening...";
     NSClipView* clipView = _pageScrollView.contentView;
@@ -8373,7 +8369,11 @@ static BOOL spdf_page_list_cache_disabled(void) {
                                           alignTop:YES
                                         generation:layoutGeneration
                                               path:layoutPath];
+    // Once more after the run loop has laid the window out, unless the view moved since: a page turned right after
+    // the switch (this pass can come tens of ms later on a busy machine) is where the person is, not the tab's place.
+    NSPoint settledOrigin = _pageScrollView.contentView.bounds.origin;
     dispatch_async(dispatch_get_main_queue(), ^{
+      if (!NSEqualPoints(self->_pageScrollView.contentView.bounds.origin, settledOrigin)) return;
       [self stabilizeDocumentLayoutWithRestoreOrigin:restoreOrigin
                                             alignTop:YES
                                           generation:layoutGeneration
