@@ -62,6 +62,7 @@ def run(cmd, *, cwd=None, env=None, log=None, check=True, capture=False, timeout
         else:
             full[key] = str(value)
     out = open(log, "a") if log else open(os.devnull, "w")
+    started = time.time()
     with out:
         out.write(f"\n$ {shlex.join(str(c) for c in cmd)}\n")
         out.flush()
@@ -71,6 +72,10 @@ def run(cmd, *, cwd=None, env=None, log=None, check=True, capture=False, timeout
         except subprocess.TimeoutExpired:
             raise Failure(f"{os.path.basename(str(cmd[0]))} took longer than {timeout} s" +
                           (f"; log: {log}" if log else ""))
+        finally:
+            if log:
+                note_command(log, cmd, started)
+        out.write(f"# exit {p.returncode} after {time.time() - started:.1f} s\n")
     if p.returncode in (-signal.SIGINT, 128 + signal.SIGINT):
         # Ctrl-C, or SIGINT to the run's process group, reaches the command first: that stops the run, it is not
         # the command failing. Raised in a parallel() job too, so a test sweep stops instead of calling the
@@ -81,6 +86,18 @@ def run(cmd, *, cwd=None, env=None, log=None, check=True, capture=False, timeout
         raise Failure(f"{' '.join(os.path.basename(str(c)) if i == 0 else str(c) for i, c in enumerate(cmd[:3]))}"
                       f"{' ...' if len(cmd) > 3 else ''} exited with {p.returncode}{detail}")
     return p.stdout if capture else p.returncode
+
+
+def note_command(log, cmd, started):
+    """One line per command in commands.tsv beside its log: when it started, how long it took, the log and the
+    command. The run's timing table (Stages.summary) says how long each stage took; this says where the time went
+    inside it."""
+    seconds = time.time() - started
+    line = "\t".join((time.strftime("%H:%M:%S", time.localtime(started)), f"{seconds:.1f}", os.path.basename(log),
+                      shlex.join(str(c) for c in cmd)[:400].replace("\t", " ").replace("\n", " ")))
+    with _print_lock:
+        with open(os.path.join(os.path.dirname(log), "commands.tsv"), "a") as f:
+            f.write(line + "\n")
 
 
 def end_test_processes(path, log):
