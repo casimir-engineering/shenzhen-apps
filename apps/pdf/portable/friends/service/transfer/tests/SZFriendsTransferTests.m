@@ -91,7 +91,12 @@ static void TestLaneGroup(void) {
     [dialer laneUp:2];
     NSArray<SZFriendsLaneEvent *> *events = [dialer takeEvents];
     CHECK(events.count == 2 && events[0].index == 0 && events[1].up && events[1].lane == 2, @"up events");
-    CHECK(![dialer laneDown:2] && [dialer laneDown:1], @"the first session's end ends the group");
+    CHECK(![dialer laneDown:2] && [dialer laneDown:1], @"the last live lane's end ends the group");
+    SZFriendsLaneGroup *group = [[SZFriendsLaneGroup alloc] initWithFirst:1 handshakeHash:h initiator:YES
+                                                                    route:SZFriendsRouteMethodLAN];
+    [group reserve:7 route:SZFriendsRouteMethodPeerToPeerWiFi token:NULL];
+    [group laneUp:7];
+    CHECK(![group laneDown:1] && group.first == 7, @"the group outlives its first session: lane 7 leads it");
 }
 
 int main(int argc, const char *argv[]) {

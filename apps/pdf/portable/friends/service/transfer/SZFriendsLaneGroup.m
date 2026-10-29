@@ -59,7 +59,14 @@ typedef struct {
 }
 
 - (SZFriendsLaneID)first {
-    return _slots[0].lane;
+    if (_slots[0].used) return _slots[0].lane;
+    for (int i = 1; i <= SZFriendsLaneIndexMax; i++) {
+        if (_slots[i].used && _slots[i].live) return _slots[i].lane;
+    }
+    for (int i = 1; i <= SZFriendsLaneIndexMax; i++) {
+        if (_slots[i].used) return _slots[i].lane;
+    }
+    return 0;
 }
 
 - (int)slotOf:(SZFriendsLaneID)lane {
@@ -152,7 +159,10 @@ typedef struct {
     if (slot < 0) return NO;
     if (_slots[slot].live) [_events addObject:[SZFriendsLaneEvent down:lane]];
     _slots[slot].used = NO;
-    return slot == 0;
+    for (int i = 0; i <= SZFriendsLaneIndexMax; i++) {
+        if (_slots[i].used && _slots[i].live) return NO;
+    }
+    return YES;
 }
 
 - (NSArray<SZFriendsLaneEvent *> *)takeEvents {

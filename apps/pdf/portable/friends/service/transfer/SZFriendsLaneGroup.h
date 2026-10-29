@@ -7,7 +7,8 @@
 // The rules: index 0 is the first session, lanes take 1 to 15, each once per group; this side opens at most 4 lanes per
 // route and 8 per group, and the side that dialed the first session opens odd indexes, the other even ones (a local
 // rule, so lanes both sides open at once never collide; any free index is admitted); at most one session of the
-// group, the first included, on the relay and on Bluetooth; a lane never races; the first session's end ends the group.
+// group, the first included, on the relay and on Bluetooth; a lane never races; the group ends with its last live
+// session, not with its first.
 
 #import <Foundation/Foundation.h>
 
@@ -49,6 +50,7 @@ typedef NS_ENUM(NSInteger, SZFriendsLaneRefusal) {
                      initiator:(BOOL)initiator
                          route:(SZFriendsRouteMethod)route NS_DESIGNATED_INITIALIZER;
 - (instancetype)init NS_UNAVAILABLE;
+// The first session's id, or once it has gone, the live lane with the lowest index (the group goes on).
 @property(nonatomic, readonly) SZFriendsLaneID first;
 - (BOOL)contains:(SZFriendsLaneID)lane;
 // Outbound: the index (and its token) for one more lane on `route`, reserved until -laneUp: or -laneDown:; 0 past
@@ -64,7 +66,8 @@ typedef NS_ENUM(NSInteger, SZFriendsLaneRefusal) {
 - (uint8_t)indexOf:(SZFriendsLaneID)lane; // 0 for the first session or a lane it does not hold
 - (NSArray<NSNumber *> *)lanesOnly;       // every lane id but the first, live or not
 - (void)laneUp:(SZFriendsLaneID)lane;
-// YES when that ends the group (it was the first session).
+// YES when that ends the group: no live lane is left. The first session's end alone does not (ADR 0018 § 6); its
+// driver moves what the first session held to -first.
 - (BOOL)laneDown:(SZFriendsLaneID)lane;
 - (NSArray<SZFriendsLaneEvent *> *)takeEvents;
 @end

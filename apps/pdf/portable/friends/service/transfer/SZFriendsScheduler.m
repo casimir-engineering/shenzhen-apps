@@ -9,6 +9,10 @@ const double SZFriendsDirectWiFiHelpsBelow = 25e6;
 static const double SZFSampleWindow = 10;
 // A silent lane: no block completed and no write finished for this long, or 3 round trips if longer.
 static const double SZFSilentAfter = 1, SZFSilentAfterBluetooth = 2;
+// A lane holding blocks that hears nothing from the peer this long is silent (the peer pings every second).
+static const double SZFUnheardAfter = 2.5, SZFUnheardAfterBluetooth = 3.5;
+// A lane slower than this many seconds per block holds one block at a time.
+static const double SZFSlowBlockSeconds = 1.0;
 // A silent lane is closed after this long without a byte from the peer.
 static const double SZFCloseSilentAfter = 10;
 // In flight per lane at most.
@@ -109,6 +113,11 @@ static void SZFTypical(SZFriendsRouteMethod route, double *rate, double *rtt) {
 }
 - (BOOL)working {
     return !silent && !closing && !unused;
+}
+// Silent by what it hears: both ends of a fast session ping every second while a file moves (ADR 0018 § 7), so a lane
+// holding blocks that hears nothing for this long has lost its route, however long its measured round trip.
+- (double)unheardAfter {
+    return route == SZFriendsRouteMethodBluetooth ? SZFUnheardAfterBluetooth : SZFUnheardAfter;
 }
 static void SZFPrune(NSMutableArray<NSArray<NSNumber *> *> *samples, double now) {
     while (samples.count && now - samples.firstObject[0].doubleValue > SZFSampleWindow) [samples removeObjectAtIndex:0];
@@ -378,7 +387,8 @@ static BOOL SZFRangesFit(NSData *ranges, uint32_t blocks) {
     now += 1e-9;
     for (NSNumber *laneID in self.laneIDs) {
         SZFLane *lane = _lanes[laneID];
-        if (!lane->silent && lane->inFlight > 0 && now - lane->progressAt >= lane.silentAfter) {
+        BOOL unheard = now - lane->heardAt >= lane.unheardAfter;
+        if (!lane->silent && lane->inFlight > 0 && (now - lane->progressAt >= lane.silentAfter || unheard)) {
             [self goSilent:laneID.unsignedLongLongValue];
         }
         if (lane->silent && !lane->closing && lane->index != 0 && now - lane->heardAt >= SZFCloseSilentAfter) {
@@ -395,7 +405,9 @@ static BOOL SZFRangesFit(NSData *ranges, uint32_t blocks) {
     double next = -1;
     for (SZFLane *lane in _lanes.allValues) {
         double at = -1;
-        if (!lane->silent && lane->inFlight > 0) at = lane->progressAt + lane.silentAfter;
+        if (!lane->silent && lane->inFlight > 0) {
+            at = MIN(lane->progressAt + lane.silentAfter, lane->heardAt + lane.unheardAfter);
+        }
         else if (lane->silent && !lane->closing && lane->index != 0) at = lane->heardAt + SZFCloseSilentAfter;
         if (at >= 0 && (next < 0 || at < next)) next = at;
     }
@@ -434,7 +446,12 @@ static BOOL SZFRangesFit(NSData *ranges, uint32_t blocks) {
 - (uint64_t)cap:(SZFLane *)lane blockBytes:(uint64_t)blockBytes {
     uint64_t max = _phone ? SZFLaneBytesMaxPhone : SZFLaneBytesMax;
     uint64_t bdp2 = (uint64_t)(2.0 * lane->rate * lane->rtt);
-    return MIN(MAX(bdp2, 2 * blockBytes), max);
+    // A lane beside a faster one that needs longer than a second per block (Bluetooth beside a slow LAN) holds one: a
+    // second one queued behind it would push its expected finish past what the faster lanes need for the rest.
+    BOOL faster = NO;
+    for (SZFLane *other in _lanes.allValues) faster |= other.working && other->rate > lane->rate * 2.0;
+    BOOL slow = faster && (double)blockBytes / MAX(lane->rate, 1.0) > SZFSlowBlockSeconds;
+    return MIN(MAX(bdp2, (slow ? 1 : 2) * blockBytes), max);
 }
 
 - (BOOL)room:(SZFLane *)lane bytes:(uint64_t)bytes blockBytes:(uint64_t)blockBytes {
