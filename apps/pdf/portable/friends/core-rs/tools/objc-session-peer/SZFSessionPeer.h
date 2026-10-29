@@ -62,8 +62,13 @@ NS_ASSUME_NONNULL_BEGIN
 - (NSDictionary *)dialWithCommand:(NSDictionary *)command;
 @end
 
-@interface SZFPeer (Flows)
+// Block exchanges (SZFSessionPeerBlocks.m).
+@interface SZFPeer (Blocks)
 - (nullable SZFriendsBlockExchange *)blocksOf:(SZFPeerSession *)session;
+- (void)wireBlocks:(SZFriendsBlockExchange *)blocks toSession:(SZFPeerSession *)session;
+@end
+
+@interface SZFPeer (Flows)
 - (void)attachChannel:(SZFriendsSecureChannel *)channel toSession:(SZFPeerSession *)session;
 - (NSDictionary *)sendFileWithCommand:(NSDictionary *)command;
 - (NSDictionary *)requestByIDWithCommand:(NSDictionary *)command;

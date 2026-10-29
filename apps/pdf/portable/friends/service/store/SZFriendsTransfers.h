@@ -394,6 +394,10 @@ typedef NS_ENUM(NSInteger, SZFriendsBlockPartResult) {
 // A session ended with these downloads open. Partly received blocks are kept (ADR 0018 § 3): the next session wants
 // only their missing pieces, or the blocks whole from a peer without pieces.
 - (void)blocksSessionEnded:(NSArray<NSString *> *)transferIDs session:(id)session;
+@end
+
+// A download by blocks checked before it is saved, and our offers served by blocks (SZFriendsBlockCheck.m).
+@interface SZFriendsTransfers (BlockCheck)
 // Every block durable: the file read back through the descriptor that wrote it, tree and BLAKE2b digest in one pass,
 // and published only when both match the offer; otherwise deleted and failed (DigestMismatch). The three steps below
 // in one call, on the caller's thread.

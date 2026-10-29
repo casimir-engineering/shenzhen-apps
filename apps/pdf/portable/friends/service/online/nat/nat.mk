@@ -51,7 +51,7 @@ $(FRIENDS_UPNP_LIB): $(FRIENDS_UPNP_OBJS)
 # --- The techniques ------------------------------------------------------------------------------------------------
 FRIENDS_NAT_SRCS := $(sort $(wildcard $(FRIENDS_NAT_DIR)/*.m))
 FRIENDS_NAT_HDRS := $(sort $(wildcard $(FRIENDS_NAT_DIR)/*.h)) friends/service/online/SZFriendsOnlineTransport.h \
-	friends/service/online/transport/SZFriendsOnlineDataChannelTransport.h friends/service/session/SZFriendsSession.h \
+	friends/service/online/transport/SZFriendsOnlineDataChannelTransport.h friends/service/session/SZFriendsSession.h friends/service/session/SZFriendsFrames.h \
 	friends/service/discovery/SZFriendsDiscovery.h
 FRIENDS_NAT_OBJS := $(patsubst $(FRIENDS_NAT_DIR)/%.m,$(FRIENDS_NAT_BUILD)/%.o,$(FRIENDS_NAT_SRCS))
 FRIENDS_NAT_LIBS := $(FRIENDS_UPNP_LIB)

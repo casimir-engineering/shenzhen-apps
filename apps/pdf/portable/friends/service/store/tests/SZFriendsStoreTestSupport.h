@@ -58,6 +58,13 @@ void SZFTRunTransferCheckTests(void);
 void SZFTRunTransferTests(void);
 void SZFTRunReceiveTests(void);
 void SZFTRunTransferBlockTests(void);
+// SZFriendsBlockExchangeTests.m, run by SZFTRunTransferBlockTests.
+void SZFTRunBlockExchangeTests(void);
+void SZFTRunBlockPiecesTests(void);
+// SZFriendsTransferBlockTests.m's, for the exchange tests: a store's transfers with room to spare, and whether
+// pairs of u32 are these.
+SZFriendsTransfers *SZFTBlockTransfers(SZFriendsStore *store);
+BOOL SZFTPairsAre(NSData *pairs, NSArray<NSNumber *> *expected);
 void SZFTRunReceivedFolderTests(void);
 void SZFTRunTransferSafetyTests(void);
 void SZFTRunKeyTests(void);

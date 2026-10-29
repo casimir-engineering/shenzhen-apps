@@ -1,9 +1,7 @@
 // The scheduler's simulator (SZFriendsSchedulerSim.h), event for event the Rust core's transfer/sim.rs.
 
-#import "SZFriendsSchedulerSim.h"
+#import "SZFriendsSchedulerSimInternal.h"
 
-static const uint64_t SZFGranule = 4096;
-static const SZFriendsTransferKey SZFKey = 1;
 
 NSString *SZFSimRouteName(SZFriendsRouteMethod route) {
     switch (route) {
@@ -127,70 +125,14 @@ static SZFriendsRouteMethod SZFRouteNamed(NSString *name) {
 }
 @end
 
-typedef NS_ENUM(int, SZFEv) { SZFEvUp, SZFEvCut, SZFEvNotice, SZFEvTxDone, SZFEvArrive, SZFEvBack, SZFEvPing,
-                               SZFEvHeard, SZFEvTimer };
-
-typedef struct {
-    double t;
-    uint64_t seq;
-    SZFEv kind;
-    int lane;
-    uint32_t epoch, block;
-    uint64_t from, to;
-    BOOL want;
-} SZFEvent;
-
-typedef struct {
-    uint32_t block;
-    uint64_t from, to;
-    BOOL last;
-} SZFPart;
-
-typedef NS_ENUM(int, SZFLaneState) { SZFIdle, SZFDialing, SZFUp, SZFGone };
-
-@interface SZFSimLane : NSObject {
-  @public
-    SZFSimLaneProfile *profile;
-    SZFriendsLaneID lane;
-    SZFLaneState state;
-    uint32_t epoch;
-    NSMutableData *queue; // SZFPart
-    NSUInteger head;
-    BOOL busy;
-    SZFPart current;
-    // With a socket buffer: parts written, not yet across (the one crossing included), and their bytes.
-    NSMutableData *buffered; // SZFPart
-    NSUInteger bufferedHead;
-    uint64_t bufferedBytes;
-}
-@end
 @implementation SZFSimLane
 - (NSUInteger)queued {
     return queue.length / sizeof(SZFPart) - head;
 }
 @end
 
-@interface SZFSim : NSObject
-@end
 
-@implementation SZFSim {
-  @public
-    SZFriendsBlockGeometry _geometry;
-    double _now;
-    uint64_t _seq;
-    SZFEvent *_heap;
-    NSUInteger _count, _capacity;
-    BOOL _timerArmed;
-    double _timerAt;
-    NSMutableArray<SZFSimLane *> *_lanes;
-    SZFriendsLaneGroup *_group;
-    SZFriendsScheduler *_scheduler;
-    NSMutableArray<NSMutableData *> *_covered;
-    NSMutableData *_complete;
-    NSMutableSet<NSNumber *> *_answered;
-    uint64_t _random;
-    SZFSimOutcome *_out;
-}
+@implementation SZFSim
 
 - (void)dealloc {
     free(_heap);
@@ -235,13 +177,6 @@ static BOOL SZFBefore(const SZFEvent *a, const SZFEvent *b) {
         i = m;
     }
     return YES;
-}
-
-static SZFEvent SZFMake(SZFEv kind, int lane) {
-    SZFEvent event = {0};
-    event.kind = kind;
-    event.lane = lane;
-    return event;
 }
 
 - (double)nextRandom {
@@ -457,124 +392,6 @@ static SZFEvent SZFMake(SZFEv kind, int lane) {
     event.block = block;
     event.want = want;
     [self at:t event:event];
-}
-
-- (void)handle:(SZFEvent)ev {
-    int i = ev.lane;
-    SZFSimLane *lane = i >= 0 && (NSUInteger)i < _lanes.count ? _lanes[i] : nil;
-    switch (ev.kind) {
-    case SZFEvUp:
-        if (lane->state == SZFIdle && [_group reserve:lane->lane route:lane->profile.route token:NULL] == 0) return;
-        lane->state = SZFUp;
-        [_group laneUp:lane->lane];
-        [self at:_now + 1 event:SZFMake(SZFEvPing, i)];
-        [self feedGroup];
-        [self act];
-        return;
-    case SZFEvCut:
-        if (lane->state == SZFUp) {
-            [self cut:i];
-            [self at:_now + lane->profile.detect event:SZFMake(SZFEvNotice, i)];
-        }
-        return;
-    case SZFEvNotice: [self notice:i]; return;
-    case SZFEvTxDone: {
-        if (lane->epoch != ev.epoch || !lane->busy) return;
-        SZFPart part = lane->current;
-        lane->busy = NO;
-        _out.laneSentBytes[i] = @([_out.laneSentBytes[i] unsignedLongLongValue] + part.to - part.from);
-        _out.laneLastWrite[i] = @(_now);
-        double arrive = [lane->profile advance:_now by:lane->profile.rtt / 2];
-        SZFEvent event = SZFMake(SZFEvArrive, i);
-        event.epoch = ev.epoch;
-        event.block = part.block;
-        event.from = part.from;
-        event.to = part.to;
-        [self at:arrive event:event];
-        if (lane->profile.buffer > 0) {
-            // Written when it went into the buffer.
-            lane->bufferedBytes -= part.to - part.from;
-            if (++lane->bufferedHead == lane->buffered.length / sizeof(SZFPart)) {
-                lane->buffered = [NSMutableData data];
-                lane->bufferedHead = 0;
-            }
-        } else {
-            [_scheduler written:lane->lane now:_now];
-            if (part.last) [_scheduler sent:lane->lane transfer:SZFKey block:part.block now:_now];
-        }
-        [self transmit:i];
-        [self act];
-        return;
-    }
-    case SZFEvArrive: {
-        if (lane->epoch != ev.epoch) return;
-        uint8_t *complete = _complete.mutableBytes;
-        if (complete[ev.block]) {
-            // A late copy: dropped, and answered with a HAVE for that block once per lane, as the HAVE that said so
-            // may have gone with a lane that fell silent.
-            _out.wastedBytes += ev.to - ev.from;
-            if (![_answered containsObject:@(((uint64_t)i << 32) | ev.block)]) {
-                [_answered addObject:@(((uint64_t)i << 32) | ev.block)];
-                [self sendBack:i block:ev.block want:NO];
-            }
-            return;
-        }
-        uint64_t start = 0;
-        NSUInteger length = 0;
-        SZFriendsGeometrySpan(_geometry, ev.block, &start, &length);
-        uint64_t *bits = _covered[ev.block].mutableBytes;
-        BOOL fresh = NO;
-        uint64_t end = (ev.to - start + SZFGranule - 1) / SZFGranule;
-        for (uint64_t g = (ev.from - start) / SZFGranule; g < end; g++) {
-            fresh |= (bits[g / 64] & (1ull << (g % 64))) == 0;
-            bits[g / 64] |= 1ull << (g % 64);
-        }
-        if (!fresh) _out.wastedBytes += ev.to - ev.from;
-        uint64_t needed = MAX((length + SZFGranule - 1) / SZFGranule, (uint64_t)1), have = 0;
-        for (NSUInteger w = 0; w < _covered[ev.block].length / 8; w++) have += (uint64_t)__builtin_popcountll(bits[w]);
-        if (have >= needed) {
-            complete[ev.block] = 1;
-            [self sendBack:i block:ev.block want:NO];
-        }
-        return;
-    }
-    case SZFEvBack:
-        if (lane->epoch != ev.epoch) {
-            [self sendBack:i block:ev.block want:ev.want];
-            return;
-        }
-        [_scheduler heard:lane->lane now:_now];
-        if (ev.want) {
-            [_scheduler want:SZFKey ranges:SZFriendsRange(ev.block, 1) now:_now];
-            [self act];
-            return;
-        }
-        [_scheduler have:SZFKey ranges:SZFriendsRange(ev.block, 1) now:_now];
-        if ([_scheduler isDone:SZFKey]) {
-            _out.doneAt = _now;
-            return;
-        }
-        [self act];
-        return;
-    case SZFEvPing: {
-        if (lane->state != SZFUp) return;
-        SZFEvent heard = SZFMake(SZFEvHeard, i);
-        heard.epoch = lane->epoch;
-        [self at:[lane->profile advance:_now by:lane->profile.rtt / 2] event:heard];
-        [self at:_now + 1 event:SZFMake(SZFEvPing, i)];
-        return;
-    }
-    case SZFEvHeard:
-        if (lane->epoch == ev.epoch && lane->state == SZFUp) [_scheduler heard:lane->lane now:_now];
-        return;
-    case SZFEvTimer:
-        if (_timerArmed && _timerAt == _now) {
-            _timerArmed = NO;
-            [_scheduler tick:_now];
-            [self act];
-        }
-        return;
-    }
 }
 
 @end

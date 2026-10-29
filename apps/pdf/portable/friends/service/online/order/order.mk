@@ -9,7 +9,7 @@ FRIENDS_ORDER_BUILD := $(FRIENDS_BUILD)/online/order
 FRIENDS_ORDER_SRCS := $(sort $(wildcard $(FRIENDS_ORDER_DIR)/*.m))
 FRIENDS_ORDER_HDRS := $(sort $(wildcard $(FRIENDS_ORDER_DIR)/*.h)) friends/service/online/SZFriendsOnlineTransport.h \
 	friends/service/online/nat/SZFriendsNAT.h friends/service/discovery/SZFriendsDiscovery.h \
-	friends/service/session/SZFriendsSession.h
+	friends/service/session/SZFriendsSession.h friends/service/session/SZFriendsFrames.h
 FRIENDS_ORDER_OBJS := $(patsubst $(FRIENDS_ORDER_DIR)/%.m,$(FRIENDS_ORDER_BUILD)/%.o,$(FRIENDS_ORDER_SRCS))
 
 FRIENDS_SERVICE_OBJS += $(FRIENDS_ORDER_OBJS)

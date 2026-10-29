@@ -14,7 +14,7 @@ FRIENDS_ONLINE_TRANSPORT_DIR := $(FRIENDS_ONLINE_DIR)/transport
 FRIENDS_ONLINE_BUILD := $(FRIENDS_BUILD)/online
 FRIENDS_ONLINE_TRANSPORT_SRCS := $(sort $(wildcard $(FRIENDS_ONLINE_TRANSPORT_DIR)/*.m))
 FRIENDS_ONLINE_TRANSPORT_HDRS := $(sort $(wildcard $(FRIENDS_ONLINE_TRANSPORT_DIR)/*.h)) \
-	$(FRIENDS_ONLINE_DIR)/SZFriendsOnlineTransport.h friends/service/session/SZFriendsSession.h \
+	$(FRIENDS_ONLINE_DIR)/SZFriendsOnlineTransport.h friends/service/session/SZFriendsSession.h friends/service/session/SZFriendsFrames.h \
 	friends/service/discovery/SZFriendsDiscovery.h
 FRIENDS_ONLINE_TRANSPORT_OBJS := $(patsubst $(FRIENDS_ONLINE_TRANSPORT_DIR)/%.m,$(FRIENDS_ONLINE_BUILD)/transport/%.o,\
 	$(FRIENDS_ONLINE_TRANSPORT_SRCS))

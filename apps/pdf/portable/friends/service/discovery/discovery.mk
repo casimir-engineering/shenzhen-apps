@@ -29,7 +29,7 @@ FRIENDS_DISCOVERY_SRCS := $(addprefix $(FRIENDS_DISCOVERY_DIR)/, \
 	SZFriendsTestAirRadio.m \
 	SZFriendsRunLoopByteStream.m)
 # The session header is included for SZFriendsByteStream only; no session object is linked.
-FRIENDS_DISCOVERY_HDRS := $(wildcard $(FRIENDS_DISCOVERY_DIR)/*.h) friends/service/session/SZFriendsSession.h
+FRIENDS_DISCOVERY_HDRS := $(wildcard $(FRIENDS_DISCOVERY_DIR)/*.h) friends/service/session/SZFriendsSession.h friends/service/session/SZFriendsFrames.h
 FRIENDS_DISCOVERY_OBJS := \
 	$(patsubst $(FRIENDS_DISCOVERY_DIR)/%.m,$(FRIENDS_DISCOVERY_BUILD)/%.o,$(FRIENDS_DISCOVERY_SRCS))
 FRIENDS_DISCOVERY_FRAMEWORKS := -framework Foundation -framework Network -framework CoreBluetooth

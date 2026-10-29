@@ -206,6 +206,21 @@ NSString *_Nullable SZFriendsTransferRowPartialPath(SZFriendsStoreDB *db, NSStri
 @interface SZFriendsTransfers ()
 @property(nonatomic, readonly) SZFriendsTransferReceiver *receiver; // tests drive its clock
 @property(nonatomic, readonly) SZFriendsStore *store;              // for the Thumbnails category
+@property(nonatomic, readonly) NSString *partialDirectory;         // received/.partial
+@end
+
+// SZFriendsTransfers+Accepting.m.
+@interface SZFriendsTransfers (Accepting)
+- (BOOL)acceptIn:(SZFriendsStoreDB *)db
+        transfer:(NSString *)transferID
+   automatically:(BOOL)automatically
+       freeBytes:(uint64_t)freeBytes
+           error:(NSError **)error;
+- (nullable NSString *)heldCopyIn:(SZFriendsStoreDB *)db record:(SZFriendsTransferRecord *)record;
+- (BOOL)fillFromHeldCopyIn:(SZFriendsStoreDB *)db
+                    record:(SZFriendsTransferRecord *)record
+                   partial:(NSString *)partial
+                 freeBytes:(uint64_t)freeBytes;
 @end
 
 // File previews (SZFriendsTransferThumbnails.m). After a transfer's state changes inside a write: the picture of an
