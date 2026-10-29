@@ -25,3 +25,12 @@ LIBSQLITE3_FLAGS = """\
 -DSQLITE_OMIT_SHARED_CACHE -DSQLITE_OMIT_PROGRESS_CALLBACK -DSQLITE_OMIT_COMPLETE -DSQLITE_OMIT_GET_TABLE \
 -DSQLITE_OMIT_TCL_VARIABLE -DSQLITE_OMIT_DECLTYPE -DSQLITE_DEFAULT_MEMSTATUS=0 -DSQLITE_MAX_EXPR_DEPTH=0 \
 -DSQLITE_LIKE_DOESNT_MATCH_BLOBS"""
+
+# C compiled through the cc crate on Android (the bundled SQLite, BLAKE3's NEON) without unwind tables, as
+# szfriends-datachannel-sys builds its C libraries: about 125 KB of an arm64 library, SQLite's nearly all of it.
+# Nothing unwinds through that C: a panic aborts (the phone profile, and the apps' phone builds), and no C++ calls it.
+# A build that sets its own CFLAGS for the target keeps them (cargo's [env] does not override the environment).
+CFLAGS_aarch64_linux_android = "-fno-asynchronous-unwind-tables -fno-unwind-tables"
+CFLAGS_armv7_linux_androideabi = "-fno-asynchronous-unwind-tables -fno-unwind-tables"
+CFLAGS_i686_linux_android = "-fno-asynchronous-unwind-tables -fno-unwind-tables"
+CFLAGS_x86_64_linux_android = "-fno-asynchronous-unwind-tables -fno-unwind-tables"
