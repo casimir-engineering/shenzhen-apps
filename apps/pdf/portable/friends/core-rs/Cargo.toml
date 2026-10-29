@@ -101,6 +101,10 @@ opt-level = 3
 opt-level = 3
 [profile.release.package.blake2]
 opt-level = 3
+# BLAKE3, the tree hash over every block of a file (ADR 0018 § 2): its Rust and the C and NEON that its build compiles
+# at the package's opt-level.
+[profile.release.package.blake3]
+opt-level = 3
 
 # Phones (ADR 0015 § 12's 5 MB): the release profile made smaller, at the cost of speed a phone's radio never misses;
 # the ciphers above keep their opt-level 3.

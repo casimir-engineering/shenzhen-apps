@@ -80,9 +80,9 @@ can call them.
 - **Size.** Phones are nearby only unless the app turns on this crate's `online` feature (the host connection and the
   data-channel stack). With it, the core fits ADR 0015 § 12's 5 MB when the app builds its phones as
   `core-rs/tools/embedded-size.sh` measures: the `phone` profile's settings (`core-rs/Cargo.toml`: opt-level "z", fat
-  LTO, aborting panics) in its release profile and `--config core-rs/phone.toml` (the bundled SQLite's flags). Measured
-  on 2026-10-19: Android arm64 4.95 MB with online (2.48 MB deflated), 2.82 MB nearby only; iOS arm64 2.97 MB and
-  1.62 MB. What an app adds around it is the app's: on 2026-10-17 Shenzhen 3D's `phones-size.sh` measured 4.13 MB for
+  LTO, aborting panics) in its release profile and `--config core-rs/phone.toml` (the bundled SQLite's flags, the
+  ciphers' arm64 backends, packed relocations on Android). Measured on 2026-10-29: Android arm64 4.85 MB with online
+  (2.56 MB deflated), 3.10 MB nearby only; iOS arm64 3.14 MB and 1.92 MB. What an app adds around it is the app's: on 2026-10-17 Shenzhen 3D's `phones-size.sh` measured 4.13 MB for
   Friends without online once Friends' capability is declared in `capabilities/` instead of added at run time
   (`Manager::add_capability` links Tauri's capability parser, regex and URL patterns, 2.2 MB on its own).
 

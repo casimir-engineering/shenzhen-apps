@@ -129,7 +129,9 @@ From `portable/`:
   builds; `.cargo/config.toml` gives the helper and the suites the same), against the 5 MB budget (3 MB deflated
   for Android). On phones the hard-NAT prober is left out (a friend behind a hard NAT is reached through the relay);
   everywhere the data-channel stack's Mbed TLS keeps only what DTLS and the host connection use
-  (`szfriends-datachannel-sys/src/mbedtls_trim.h`), its C carries no unwind tables and libdatachannel no logging.
+  (`szfriends-datachannel-sys/src/mbedtls_trim.h`), its C carries no unwind tables, and neither libdatachannel's
+  logging nor Mbed TLS's and usrsctp's debug messages are compiled in (on phones not libjuice's either). Android
+  libraries are linked with packed relocations (`phone.toml`).
 - `tools/run-device-tests.sh ios-sim <UDID>` or `android [serial]`: the same suites in a booted iOS simulator or on an
   Android emulator or device.
 - `tools/run-device-tests.sh windows-vm` or `linux-vm` (`make friends-core-rs-vm-check` runs both): the suites built

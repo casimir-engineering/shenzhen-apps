@@ -24,6 +24,10 @@ impl Target {
     fn windows(&self) -> bool {
         self.os == "windows"
     }
+
+    fn phone(&self) -> bool {
+        matches!(self.os.as_str(), "android" | "ios")
+    }
 }
 
 fn main() {
@@ -72,6 +76,11 @@ fn ext_dir() -> PathBuf {
         .expect("ext/libdatachannel not found above the crate; set SZFRIENDS_EXT_DIR")
 }
 
+// SZFRIENDS_DATACHANNEL_LOGGING=1: the stack's own logging compiled in, for log_to_stderr while debugging.
+fn logging() -> bool {
+    env::var_os("SZFRIENDS_DATACHANNEL_LOGGING").is_some_and(|v| v == "1")
+}
+
 // The .c or .cpp files directly in `dir`, sorted, so the archive's member order is stable.
 fn sources(dir: &Path, extension: &str) -> Vec<PathBuf> {
     let mut files: Vec<PathBuf> = fs::read_dir(dir)
@@ -91,8 +100,11 @@ fn sources(dir: &Path, extension: &str) -> Vec<PathBuf> {
 // from a cdylib); and no compiler warnings in cargo's output, since the sources are upstream's unmodified.
 fn base(target: &Target) -> cc::Build {
     let mut build = cc::Build::new();
-    let phone = matches!(target.os.as_str(), "android" | "ios");
-    build.opt_level_str(if phone { "z" } else { "2" }).warnings(false).extra_warnings(false).cargo_warnings(false);
+    build
+        .opt_level_str(if target.phone() { "z" } else { "2" })
+        .warnings(false)
+        .extra_warnings(false)
+        .cargo_warnings(false);
     if target.msvc {
         build.flag("/wd4005").define("_CRT_SECURE_NO_WARNINGS", None).define("_WINSOCK_DEPRECATED_NO_WARNINGS", None);
     } else {
@@ -145,8 +157,13 @@ fn build_usrsctp(target: &Target, dir: &Path) {
         build.std("c99").flag_if_supported("-Wno-address-of-packed-member");
     }
     build.include(dir).define("NDEBUG", None);
-    for name in ["__Userspace__", "SCTP_SIMPLE_ALLOCATOR", "SCTP_PROCESS_LEVEL_LOCKS", "SCTP_DEBUG"] {
+    for name in ["__Userspace__", "SCTP_SIMPLE_ALLOCATOR", "SCTP_PROCESS_LEVEL_LOCKS"] {
         build.define(name, None);
+    }
+    // usrsctp's debug printing only with the stack's logging (build_datachannel): libdatachannel never turns it on
+    // otherwise, so without it the messages are code and text no build prints.
+    if logging() {
+        build.define("SCTP_DEBUG", None);
     }
     let checks: &[&str] = match target.os.as_str() {
         "macos" | "ios" => &[
@@ -204,7 +221,21 @@ fn build_juice(target: &Target, dir: &Path) {
         .define("JUICE_EXPORTS", None)
         .define("RELEASE", "1")
         .define("USE_NETTLE", "0");
-    build.files(sources(&dir.join("src"), "c"));
+    let mut files = sources(&dir.join("src"), "c");
+    // Phones: libjuice's log messages compiled out, unless the stack's logging is on. They go to libdatachannel's log,
+    // which is not compiled in, so they were formatted for nothing. Its log.h stands in for itself, empty, everywhere
+    // but in log.c (built as upstream has it: libdatachannel still sets the level and handler); the messages'
+    // arguments are values only, so leaving them unevaluated changes nothing.
+    if target.phone() && !logging() {
+        let mut log = build.clone();
+        files.retain(|file| file.file_name().is_none_or(|name| name != "log.c"));
+        log.file(dir.join("src/log.c")).compile("szfdc_juice_log");
+        build.define("JUICE_LOG_H", None);
+        for level in ["VERBOSE", "DEBUG", "INFO", "WARN", "ERROR", "FATAL"] {
+            build.define(&format!("JLOG_{level}(...)"), "((void)0)").define(&format!("JLOG_{level}_ENABLED"), "0");
+        }
+    }
+    build.files(files);
     build.compile("szfdc_juice");
 }
 
@@ -239,7 +270,7 @@ fn build_datachannel(target: &Target, ext: &Path) {
     mbedtls_config(&mut build);
     // No logging compiled in: nothing reads the stack's log, and each message is code at its call site.
     // SZFRIENDS_DATACHANNEL_LOGGING=1 keeps it, for log_to_stderr while debugging.
-    if env::var_os("SZFRIENDS_DATACHANNEL_LOGGING").is_none_or(|v| v != "1") {
+    if !logging() {
         build.define("PLOG_DISABLE_LOGGING", "1");
     }
     if target.windows() {
@@ -280,6 +311,12 @@ fn build_tls(target: &Target, dir: &Path) {
 }
 
 fn link_system(target: &Target) {
+    if target.os == "android" {
+        let mut build = c_base(target);
+        build.file("src/no_demangle.c");
+        println!("cargo:rerun-if-changed=src/no_demangle.c");
+        build.compile("szfdc_no_demangle");
+    }
     let libs: &[&str] = match target.os.as_str() {
         "windows" => &["ws2_32", "iphlpapi", "bcrypt", "crypt32"],
         "android" => &["c++abi"],

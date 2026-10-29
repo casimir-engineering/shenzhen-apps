@@ -77,12 +77,14 @@
 #undef MBEDTLS_PK_RSA_ALT_SUPPORT
 #undef MBEDTLS_LMS_C
 
-/* Nothing kept on disk, no self tests, no feature or error text. */
+/* Nothing kept on disk, no self tests, no feature, error or debug text (nothing here sets a debug callback, so the
+ * debug messages were never printed). */
 #undef MBEDTLS_PSA_CRYPTO_STORAGE_C
 #undef MBEDTLS_PSA_ITS_FILE_C
 #undef MBEDTLS_SELF_TEST
 #undef MBEDTLS_VERSION_FEATURES
 #undef MBEDTLS_ERROR_C
+#undef MBEDTLS_DEBUG_C
 #undef MBEDTLS_PKCS7_C
 #undef MBEDTLS_PADLOCK_C
 #undef MBEDTLS_AESNI_C

@@ -11,7 +11,12 @@ and a small safe Rust interface over its C API.
   features neither DTLS nor the host connection uses (`src/mbedtls_trim.h`, read by everything that includes Mbed
   TLS; the interop suites run it against the helper's default configuration), the C libraries' unwind tables, and
   libdatachannel's logging (`SZFRIENDS_DATACHANNEL_LOGGING=1` keeps it for `log_to_stderr` while debugging). On
-  Android, with the core's other phone settings, they took the whole embedded core from 5.62 to 4.95 MB.
+  Android, with the core's other phone settings, they took the whole embedded core from 5.62 to 4.95 MB. Nor does it
+  keep the debug messages nothing prints: Mbed TLS's (`MBEDTLS_DEBUG_C`; no debug callback is ever set), usrsctp's
+  (`SCTP_DEBUG`, only with the logging) and, on phones, libjuice's (its `JLOG_*` calls compiled out). On Android,
+  `src/no_demangle.c` answers the C++ runtime's `__cxa_demangle`, so the 120 KB demangler it uses only to name an
+  uncaught exception's type is left out. With packed relocations (`phone.toml`), these took the embedded core from
+  5.33 to 4.85 MB on 2026-10-29.
   `SZFRIENDS_DATACHANNEL_NO_NATIVE=1` skips the native build for `cargo check` of targets this machine has no
   compiler for; `SZFRIENDS_EXT_DIR` points at `ext/` when it is not above the crate.
 - `src/connection.rs`: `PeerConnection` (local and remote descriptions, trickled candidates, the selected pair) and
