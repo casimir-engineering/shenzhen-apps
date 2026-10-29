@@ -33,6 +33,7 @@ friends-transfer-check: $(FRIENDS_SODIUM_LIB) $(FRIENDS_BLAKE3_LIB)
 		$(FRIENDS_TRANSFER_DIR)/SZFriendsTransferBlocks.m $(FRIENDS_TRANSFER_DIR)/SZFriendsBlockSidecars.m \
 		friends/service/session/SZFriendsSessionLimits.m \
 		$(FRIENDS_TRANSFER_DIR)/SZFriendsDirectWiFiBoost.m $(FRIENDS_TRANSFER_DIR)/SZFriendsDirectWiFiCoordinator.m \
+		$(FRIENDS_TRANSFER_DIR)/SZFriendsDirectWiFiRejoin.m \
 		friends/service/session/SZFriendsFrame.m friends/service/session/SZFriendsFrameSchema.m \
 		$(FRIENDS_SODIUM_LIB) $(FRIENDS_BLAKE3_LIB) -framework Foundation -o "$(FRIENDS_TRANSFER_TEST)"
 	"$(FRIENDS_TRANSFER_TEST)" friends/fixtures/scheduler/scenarios.json

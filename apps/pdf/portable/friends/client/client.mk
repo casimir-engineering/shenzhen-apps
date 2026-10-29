@@ -16,9 +16,11 @@ FRIENDS_CLIENT_SRCS := \
 	friends/client/szfriends_spawn.c \
 	friends/client/szfriends_client.c \
 	friends/client/szfriends_client_io.c \
-	friends/client/szfriends_intents.c
+	friends/client/szfriends_intents.c \
+	friends/client/szfriends_intents_links.c
 FRIENDS_CLIENT_LIB_OBJS := $(patsubst friends/client/%.c,$(FRIENDS_BUILD)/client/%.o,$(FRIENDS_CLIENT_SRCS))
-FRIENDS_CLIENT_HDRS := friends/client/szfriends_client.h friends/client/szfriends_client_internal.h
+FRIENDS_CLIENT_HDRS := friends/client/szfriends_client.h friends/client/szfriends_client_internal.h \
+	friends/client/szfriends_intent_build.h
 FRIENDS_CLIENT_OBJS += $(FRIENDS_CLIENT_LIB_OBJS)
 
 FRIENDS_FAKE_HELPER_SRCS := \

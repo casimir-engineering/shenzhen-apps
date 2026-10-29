@@ -4,29 +4,10 @@
  * name holds a quote. Each builder mirrors its schema block; the tests rebuild every line of
  * fixtures/intents.jsonl with them, so a builder that drifts from the document fails there. */
 
-#include "client/szfriends_client_internal.h"
-
-#include "cJSON.h"
+#include "client/szfriends_intent_build.h"
 
 #include <stdlib.h>
 #include <string.h>
-
-struct szfriends_intent {
-    char type[32];
-    cJSON *fields;
-};
-
-static szfriends_intent *intent_new(const char *type) {
-    szfriends_intent *intent = (szfriends_intent *)calloc(1, sizeof *intent);
-    if (!intent) return NULL;
-    strncpy(intent->type, type, sizeof intent->type - 1);
-    intent->fields = cJSON_CreateObject();
-    if (!intent->fields) {
-        free(intent);
-        return NULL;
-    }
-    return intent;
-}
 
 void szfriends_intent_free(szfriends_intent *intent) {
     if (!intent) return;
@@ -57,29 +38,6 @@ szfriends_status szfriends_client_send_intent(szfriends_client *client, szfriend
     free(fields);
     szfriends_intent_free(intent);
     return status;
-}
-
-/* Adds a string, or fails the whole intent when cJSON runs out of memory; NULL values are the caller's bug. */
-static bool add_string(szfriends_intent *intent, const char *key, const char *value) {
-    return value && cJSON_AddStringToObject(intent->fields, key, value) != NULL;
-}
-
-static szfriends_intent *finish(szfriends_intent *intent, bool ok) {
-    if (ok) return intent;
-    szfriends_intent_free(intent);
-    return NULL;
-}
-
-/* An intent whose only field is one required string, which is most of them. */
-static szfriends_intent *one_string(const char *type, const char *key, const char *value) {
-    szfriends_intent *intent;
-    if (!value) return NULL;
-    intent = intent_new(type);
-    return intent ? finish(intent, add_string(intent, key, value)) : NULL;
-}
-
-static szfriends_intent *no_fields(const char *type) {
-    return intent_new(type);
 }
 
 szfriends_intent *szfriends_intent_ping(void) { return no_fields("ping"); }
@@ -149,47 +107,6 @@ szfriends_intent *szfriends_intent_open_conversation(const char *conversation_id
 
 szfriends_intent *szfriends_intent_load_earlier(const char *subscription) {
     return one_string("load_earlier", "subscription", subscription);
-}
-
-static cJSON *file_object(const szfriends_file *file) {
-    cJSON *object;
-    if (!file || !file->path) return NULL;
-    object = cJSON_CreateObject();
-    if (!object) return NULL;
-    cJSON_AddStringToObject(object, "path", file->path);
-    if (file->display_name) cJSON_AddStringToObject(object, "display_name", file->display_name);
-    if (file->revision) {
-        const szfriends_revision *r = file->revision;
-        cJSON *revision;
-        if (!r->source || !r->document_id || !r->revision_id) {
-            cJSON_Delete(object);
-            return NULL;
-        }
-        revision = cJSON_AddObjectToObject(object, "revision");
-        cJSON_AddStringToObject(revision, "source", r->source);
-        cJSON_AddStringToObject(revision, "document_id", r->document_id);
-        cJSON_AddStringToObject(revision, "revision_id", r->revision_id);
-        if (r->label) cJSON_AddStringToObject(revision, "label", r->label);
-        if (r->sha256) cJSON_AddStringToObject(revision, "sha256", r->sha256);
-        cJSON_AddNumberToObject(revision, "size", (double)r->size);
-    } else {
-        cJSON_AddNullToObject(object, "revision");
-    }
-    return object;
-}
-
-static bool add_files(szfriends_intent *intent, const char *key, const szfriends_file *files, size_t count) {
-    cJSON *array;
-    size_t i;
-    if (count > 0 && !files) return false;
-    array = cJSON_AddArrayToObject(intent->fields, key);
-    if (!array) return false;
-    for (i = 0; i < count; i++) {
-        cJSON *object = file_object(&files[i]);
-        if (!object) return false;
-        cJSON_AddItemToArray(array, object);
-    }
-    return true;
 }
 
 szfriends_intent *szfriends_intent_send_message(const char *conversation_id, const char *text,
@@ -464,70 +381,4 @@ szfriends_intent *szfriends_intent_delete_history(const char *conversation_id_or
 
 szfriends_intent *szfriends_intent_reset_friends(void) {
     return one_string("reset_friends", "confirm", "reset");
-}
-
-/* Links (PROTOCOL.md § Links). Payloads go as the app received them; the helper parses them again. */
-szfriends_intent *szfriends_intent_open_link(const char *payload) {
-    return one_string("open_link", "payload", payload);
-}
-
-szfriends_intent *szfriends_intent_add_from_link(const char *payload) {
-    return one_string("add_from_link", "payload", payload);
-}
-
-szfriends_intent *szfriends_intent_receive_link(const char *payload) {
-    return one_string("receive_link", "payload", payload);
-}
-
-szfriends_intent *szfriends_intent_make_download_link(const szfriends_file *file, int64_t expires_days) {
-    szfriends_intent *intent;
-    cJSON *object;
-    if (expires_days != 1 && expires_days != 7 && expires_days != 30) return NULL;
-    object = file_object(file);
-    if (!object) return NULL;
-    intent = intent_new("make_download_link");
-    if (!intent) {
-        cJSON_Delete(object);
-        return NULL;
-    }
-    cJSON_AddItemToObject(intent->fields, "file", object);
-    return finish(intent, cJSON_AddNumberToObject(intent->fields, "expires_days", (double)expires_days) != NULL);
-}
-
-szfriends_intent *szfriends_intent_reset_friend_link(void) {
-    return no_fields("reset_friend_link");
-}
-
-szfriends_intent *szfriends_intent_revoke_link(const char *link_id) {
-    return one_string("revoke_link", "link_id", link_id);
-}
-
-/* One profile on several computers (PROTOCOL.md § Devices, § Joining): the helper reads the ID and the code as a
- * person typed them, and the ids come back as the snapshot gave them. */
-szfriends_intent *szfriends_intent_join_profile(const char *id) {
-    return one_string("join_profile", "friends_id", id);
-}
-szfriends_intent *szfriends_intent_enter_join_code(const char *code) {
-    return one_string("enter_join_code", "code", code);
-}
-szfriends_intent *szfriends_intent_cancel_join(void) { return no_fields("cancel_join"); }
-szfriends_intent *szfriends_intent_approve_join(const char *id) { return one_string("approve_join", "join_id", id); }
-szfriends_intent *szfriends_intent_deny_join(const char *id) { return one_string("deny_join", "join_id", id); }
-szfriends_intent *szfriends_intent_revoke_device(const char *id) {
-    return one_string("revoke_device", "device_id", id);
-}
-szfriends_intent *szfriends_intent_rename_device(const char *name) {
-    return one_string("rename_device", "name", name);
-}
-szfriends_intent *szfriends_intent_fetch_from_device(const char *id) {
-    return one_string("fetch_from_device", "transfer_id", id);
-}
-szfriends_intent *szfriends_intent_fetch_from_friend(const char *id) {
-    return one_string("fetch_from_friend", "transfer_id", id);
-}
-szfriends_intent *szfriends_intent_boost_transfer(const char *id) {
-    return one_string("boost_transfer", "transfer_id", id);
-}
-szfriends_intent *szfriends_intent_skip_boost(const char *id) {
-    return one_string("skip_boost", "transfer_id", id);
 }

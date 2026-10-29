@@ -73,8 +73,8 @@ NS_ASSUME_NONNULL_BEGIN
             payload:(nullable NSDictionary<NSString *, id> *)payload;
 @end
 
-// History (SZFriendsIntentRouter+Content.m).
-@interface SZFriendsIntentRouter (Content)
+// History (SZFriendsIntentRouter+History.m).
+@interface SZFriendsIntentRouter (History)
 // delete_history's deletion of one conversation's history, or all of it for nil: on every computer of the person's
 // when sync runs. NO when it failed.
 - (BOOL)eraseHistoryInConversation:(nullable NSString *)conversationID;

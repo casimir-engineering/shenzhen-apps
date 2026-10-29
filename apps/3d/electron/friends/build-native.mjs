@@ -34,6 +34,7 @@ export const CLIENT_SOURCES = [
   "szfriends_client.c",
   "szfriends_client_io.c",
   "szfriends_intents.c",
+  "szfriends_intents_links.c",
 ].map((name) => `portable/friends/client/${name}`);
 const CJSON = "ext/cjson/cJSON.c";
 // The binding: the module with its promise-returning calls, and the client object; the header they share.

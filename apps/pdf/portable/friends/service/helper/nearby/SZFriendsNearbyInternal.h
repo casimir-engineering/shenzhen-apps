@@ -95,12 +95,8 @@ extern const NSTimeInterval SZFriendsNearbyConnectingTimeout;
 - (void)changed;
 // Progress-only changes, at most 4 per second (PROTOCOL.md § Snapshots).
 - (void)progressChanged;
-- (void)refreshAdvertisement;
-- (void)rebuildTagMatcher;
-- (NSData *)localIdentityKey;
-// The name, Friends ID and picture friends see, as PROFILE fields (also the public entry's profile).
-- (NSDictionary<NSNumber *, NSData *> *)profileFields;
-- (int64_t)currentWindow;
+// Has a store and an identity, and is neither stopping, resetting nor removed from its profile: may send.
+- (BOOL)ready;
 @end
 
 // One connection attempt: which sighting, why, for whom, with what handshake, after what stagger.
@@ -341,30 +337,6 @@ void SZFriendsNearbyRecordEvent(SZFriendsStore *store, NSString *eventKind, NSSt
 - (void)onlineOutboxChangedForConversation:(NSString *)conversationID;
 @end
 
-@interface SZFriendsNearbyService (Inbound)
-- (void)link:(SZFriendsPeerLink *)link receivedFrame:(SZFriendsFrame *)frame;
-// Our request to this conversation arrived (an answer, or a callback presenting its token): Delivered.
-- (void)acknowledgeRequestEntriesOfConversation:(NSString *)conversationID;
-// An outbox entry with no history item (answers, presence secrets), as the router queues them.
-- (void)enqueueKind:(SZFriendsOutboxKind)kind
-     conversationID:(NSString *)conversationID
-            payload:(nullable NSDictionary *)payload;
-@end
-
-// Messages, offers, presence secrets and profiles from a friend (SZFriendsNearbyService+InboundContent.m).
-@interface SZFriendsNearbyService (InboundContent)
-- (void)link:(SZFriendsPeerLink *)link person:(SZFriendsPersonRecord *)person receivedMessage:(SZFriendsFrame *)frame;
-- (void)link:(SZFriendsPeerLink *)link person:(SZFriendsPersonRecord *)person receivedOffer:(SZFriendsFrame *)frame;
-- (void)link:(SZFriendsPeerLink *)link
-                person:(SZFriendsPersonRecord *)person
-    receivedOfferReply:(SZFriendsFrame *)frame;
-- (void)link:(SZFriendsPeerLink *)link person:(SZFriendsPersonRecord *)person
-    receivedPresenceSecret:(SZFriendsFrame *)frame;
-- (void)link:(SZFriendsPeerLink *)link receivedProfile:(SZFriendsFrame *)frame;
-- (void)applyProfile:(NSDictionary<NSNumber *, NSData *> *)fields toPerson:(SZFriendsPersonRecord *)person;
-// Name, Friends ID and picture from PROFILE fields (or a public profile), cleaned and validated; not saved.
-- (void)updatePerson:(SZFriendsPersonRecord *)person withProfile:(NSDictionary<NSNumber *, NSData *> *)fields;
-@end
 
 @interface SZFriendsNearbyService (Transfers)
 // A link was adopted: one receiver per unfinished inbound transfer, each announcing its durable offset.
@@ -510,3 +482,6 @@ SZFriendsAnswerAttestation SZFriendsJudgeAnswerAttestation(NSData *_Nullable pre
 @end
 
 NS_ASSUME_NONNULL_END
+
+// The Advertising, Inbound and InboundContent categories.
+#import "service/helper/nearby/SZFriendsNearbyParts.h"

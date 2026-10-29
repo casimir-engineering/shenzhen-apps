@@ -44,6 +44,7 @@ FRIENDS_HELPER_CORE_NAMES := SZFriendsStatePaths SZFriendsInstanceLock SZFriends
 # The dispatch layer and startup, which reach every other area through its header.
 FRIENDS_HELPER_DISPATCH_NAMES := SZFriendsHelperServices SZFriendsHelperFacts SZFriendsSubscriptions \
 	SZFriendsIntentRouter SZFriendsIntentRouter+Profile SZFriendsIntentRouter+People SZFriendsIntentRouter+Content \
+	SZFriendsIntentRouter+History \
 	SZFriendsIntentRouter+Cancel SZFriendsIntentRouter+Mentions SZFriendsIntentRouter+Links SZFriendsHelperLinks \
 	SZFriendsIntentRouter+Join SZFriendsIntentRouter+Devices SZFriendsIntentRouter+Reset \
 	SZFriendsIntentRouter+Notifications SZFriendsHostCheckIn SZFriendsHelperMain

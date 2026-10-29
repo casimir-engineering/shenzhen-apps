@@ -33,7 +33,6 @@ portable/win/mupdf-gen-ninja-native.sh	523	exception	Mechanical translator from 
 tools/efi/Dia2Subset.h	571	exception	Intentional minimal DIA SDK subset kept local for the EFI diagnostic tool.
 tools/efi/main.cpp	663	exception	Cohesive EFI diagnostic command-line tool.
 tools/sizer/pdbfile.cpp	715	exception	Cohesive PDB parsing component for the size-analysis tool.
-portable/friends/client/szfriends_intents.c	527	exception	Cohesive table of one JSON builder per PROTOCOL.md intent, mirrored line for line by fixtures/intents.jsonl; the notification intents brought it past 500.
 portable/friends/core-rs/crates/szfriends-core/tests/presentation_devices.rs	532	exception	Cohesive fixture suite rebuilding every devices-*, online-* and phone-* snapshot from one shared world of facts; splitting it would duplicate that world.
 portable/friends/core-rs/crates/szfriends-helper/src/service/notifications.rs	682	exception	Cohesive notification decision pass (ADR 0017): store deltas, the never-rules, coalescing and withdrawal share one cursor state; posters live in their own crates.
 portable/friends/gtk/szfriends_gtk_link.c	514	exception	Cohesive GLib main-loop driver for the C client: callback queue, reconnect watch and dispatch share private state that must not re-enter the library.
