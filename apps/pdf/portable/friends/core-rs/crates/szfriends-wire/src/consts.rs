@@ -41,6 +41,11 @@ pub const REKEY_AFTER_SECONDS: u64 = 900;
 pub const SESSION_MAX_AGE_SECONDS: u64 = 86_400;
 /// A handshake not live this long after it started closes.
 pub const HANDSHAKE_TIMEOUT_SECONDS: u64 = 10;
+/// While a transfer runs (ADR 0018 § 7): PING after this long without sending anything, so the peer always hears us.
+pub const KEEPALIVE_MILLISECONDS: u64 = 1_000;
+/// While a transfer runs: a session that heard nothing this long is closed locally and redialed (Bluetooth: longer).
+pub const SILENCE_MILLISECONDS: u64 = 8_000;
+pub const SILENCE_BLUETOOTH_MILLISECONDS: u64 = 12_000;
 /// Every refusal before the responder's first reply closes exactly this long after the deciding bytes arrived.
 pub const REFUSAL_DELAY_MILLISECONDS: u64 = 1_500;
 /// How long a responder remembers message 1's ephemeral key against replay.

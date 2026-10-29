@@ -6,7 +6,7 @@
 use std::collections::{HashMap, HashSet};
 use std::time::{Duration, Instant};
 
-use szfriends_core::session::{monotonic_now, ChunkReceiver, Event, SecureChannel};
+use szfriends_core::session::{monotonic_now, transfer_liveness, ChunkReceiver, Event, SecureChannel};
 use szfriends_core::store::{
     unix_now, Direction, Item, ItemKind, OutboxEntry, OutboxEvent, OutboxKind, Person, Relation,
 };
@@ -173,6 +173,8 @@ impl State {
     fn service(&mut self, id: u64) {
         let now = monotonic_now();
         if let Some(s) = self.sessions.map.get_mut(&id) {
+            let (keepalive, watch) = transfer_liveness(s.senders.values().map(|o| &o.sender), s.receivers.values());
+            s.channel.set_liveness(keepalive, watch, now);
             s.channel.handle_timeout(now);
         }
         loop {

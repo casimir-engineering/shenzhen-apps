@@ -130,6 +130,7 @@ pub struct SecureChannel {
     pub(super) presented_token: Option<Vec<u8>>,
     pub(super) handshake_hash: Option<[u8; 64]>,
     pub(super) negotiated_minor: u16,
+    pub(super) liveness: super::liveness::Liveness,
 }
 
 impl std::fmt::Debug for SecureChannel {
@@ -190,6 +191,7 @@ impl SecureChannel {
             presented_token: None,
             handshake_hash: None,
             negotiated_minor: 0,
+            liveness: Default::default(),
         }
     }
 
@@ -330,7 +332,10 @@ impl SecureChannel {
         match self.state {
             State::Idle | State::Closed => None,
             State::Refusing => self.refusal_deadline,
-            State::Established | State::Closing => Some(self.established_at + self.config.max_age),
+            State::Established | State::Closing => {
+                let age = self.established_at + self.config.max_age;
+                Some(self.liveness_deadline().map_or(age, |at| at.min(age)))
+            }
             _ => Some(self.started_at + self.config.handshake_timeout),
         }
     }
@@ -344,7 +349,9 @@ impl SecureChannel {
                 }
             }
             State::Established | State::Closing => {
-                self.check_session_age(now);
+                if self.check_session_age(now) {
+                    self.check_liveness(now);
+                }
             }
             State::Idle | State::Closed => {}
             _ => {
@@ -377,6 +384,7 @@ impl SecureChannel {
         }
         // Before any work on these bytes: a refusal they cause closes a fixed time after this moment.
         self.input_arrived_at = now;
+        self.note_heard(now);
         self.inbound.extend_from_slice(bytes);
         let mut offset = 0;
         while !matches!(self.state, State::Closed | State::Refusing) {

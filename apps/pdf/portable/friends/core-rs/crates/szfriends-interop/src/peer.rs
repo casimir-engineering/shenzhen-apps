@@ -12,8 +12,8 @@ use std::time::Duration;
 use serde_json::{json, Value};
 use szfriends_core::identity::Identity;
 use szfriends_core::session::{
-    monotonic_now, ChannelConfig, ChannelIdentity, ChunkReceiver, ChunkSender, Event, HandshakeOptions, SecureChannel,
-    SessionError,
+    monotonic_now, transfer_liveness, ChannelConfig, ChannelIdentity, ChunkReceiver, ChunkSender, Event,
+    HandshakeOptions, SecureChannel, SessionError,
 };
 use szfriends_core::store::{Person, Relation, Store, TransferRecord};
 use szfriends_core::wire::{tag, CloseReason, Fields, Frame, Pattern, RouteMethod};
@@ -427,6 +427,8 @@ impl State {
     fn service(&mut self, id: u64) {
         let now = monotonic_now();
         if let Some(s) = self.sessions.get_mut(&id) {
+            let (keepalive, watch) = transfer_liveness(s.senders.values().map(|o| &o.sender), s.receivers.values());
+            s.channel.set_liveness(keepalive, watch, now);
             s.channel.handle_timeout(now);
         }
         loop {

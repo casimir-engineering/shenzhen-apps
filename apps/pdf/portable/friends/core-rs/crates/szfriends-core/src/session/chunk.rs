@@ -176,6 +176,7 @@ impl ChunkSender {
 pub struct ChunkReceiver {
     offer_id: [u8; 16],
     size: u64,
+    started: u64,
     received: u64,
     reported: u64,
     chunk_bytes: usize,
@@ -189,6 +190,7 @@ impl ChunkReceiver {
         parameters_valid(offer_id, size, verified_offset, chunk_bytes, window).then(|| Self {
             offer_id: offer_id.try_into().expect("16 bytes"),
             size,
+            started: verified_offset,
             received: verified_offset,
             reported: verified_offset,
             chunk_bytes,
@@ -216,6 +218,11 @@ impl ChunkReceiver {
 
     pub fn complete(&self) -> bool {
         self.received == self.size
+    }
+
+    /// Chunks arrived on this session and more are due: the sender is sending (its PROGRESS-driven window included).
+    pub fn arriving(&self) -> bool {
+        self.received > self.started && !self.complete()
     }
 
     pub fn resume_progress_frame(&self) -> Frame {
@@ -261,4 +268,25 @@ impl ChunkReceiver {
         }
         Ok(digest.try_into().expect("the codec checked 32 bytes"))
     }
+}
+
+/// What a session carrying these transfers asks of [`super::SecureChannel::set_liveness`] (ADR 0018 § 7): keepalive
+/// while any runs, and watching while the peer owes this side something it sends anyway, even a released peer that
+/// never pings: PROGRESS for bytes sent and not yet confirmed, or the rest of a file whose chunks are arriving. Not
+/// while an offer waits for its answer, nor between DONE and its ACK, when a released receiver checks the whole file
+/// in silence.
+pub fn transfer_liveness<'a>(
+    senders: impl IntoIterator<Item = &'a ChunkSender>,
+    receivers: impl IntoIterator<Item = &'a ChunkReceiver>,
+) -> (bool, bool) {
+    let (mut keepalive, mut watch) = (false, false);
+    for sender in senders {
+        keepalive = true;
+        watch |= sender.sent > sender.durable;
+    }
+    for receiver in receivers {
+        keepalive = true;
+        watch |= receiver.arriving();
+    }
+    (keepalive, watch)
 }

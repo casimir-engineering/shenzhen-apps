@@ -142,6 +142,7 @@ impl SecureChannel {
         bytes.extend_from_slice(&message);
         self.in_flight += bytes.len();
         self.transmit.push_back(Transmit { bytes, counted: true });
+        self.note_sent(now);
         true
     }
 
