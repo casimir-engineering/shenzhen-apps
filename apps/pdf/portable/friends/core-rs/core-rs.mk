@@ -120,10 +120,19 @@ friends-vectors-export: friends-vectors-tool
 	@mkdir -p "$(FRIENDS_VECTORS_DIR)"
 	"$(FRIENDS_VECTORS_TOOL)" "$(FRIENDS_VECTORS_DIR)" "$(FRIENDS_VECTORS_STORE_FIXTURE)"
 
+# The other lock files that build the core still fit its manifests: the fuzz workspace's, the Tauri plugin's and, in
+# the Shenzhen repository, Shenzhen 3D's Friends-build lock (the plugin's tools/host-build.sh check). A dependency the
+# core gains reaches them only when they are made again, and a stale one fails a --locked build on another machine.
+FRIENDS_CORE_RS_3D := $(abspath ../../3d)
 .PHONY: friends-core-rs-check
 friends-core-rs-check:
 	CARGO_TARGET_DIR="$(abspath $(FRIENDS_CORE_RS_BUILD))/target" \
 		cargo test $(FRIENDS_CORE_RS_MANIFEST) --workspace --locked
+	cargo metadata --manifest-path $(FRIENDS_CORE_RS_DIR)/fuzz/Cargo.toml --locked --format-version 1 >/dev/null
+	cargo metadata --manifest-path friends/tauri/Cargo.toml --locked --format-version 1 >/dev/null
+	if [ -f "$(FRIENDS_CORE_RS_3D)/src-tauri/friends/Cargo.lock" ]; then \
+		cd "$(FRIENDS_CORE_RS_3D)" && bash "$(abspath friends/tauri)/tools/host-build.sh" check src-tauri \
+			src-tauri/friends/Cargo.lock; fi
 
 # Every target a Shenzhen 3D build ships the core on, plus the GNU Windows ABI so a MinGW host stays possible.
 FRIENDS_CORE_RS_TARGETS := x86_64-pc-windows-msvc aarch64-pc-windows-msvc x86_64-pc-windows-gnu \
