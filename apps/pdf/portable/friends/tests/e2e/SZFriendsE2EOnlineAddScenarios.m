@@ -199,7 +199,8 @@ BOOL SZFE2EOnlineScenarioFriendLink(SZFE2EWorld *world) {
               "%@", sent);
         CHECK(SZFE2EWaitUntil(20, ^BOOL {
                   return Row(pair.b, pair.listB, ^BOOL(NSDictionary *row) {
-                             return IsFriend(row) && [row[@"subtitle"] isEqual:@"Added through your link"];
+                             // Events such as "Added through your link" no longer lead the line (b383ffd2).
+                             return IsFriend(row) && [row[@"subtitle"] isEqual:@"No messages yet"];
                          }) != nil;
               }),
               "accepted at once on Ben's Mac: %@", Data(pair.b, pair.listB)[@"rows"]);
@@ -222,7 +223,7 @@ BOOL SZFE2EOnlineScenarioLinkKeyMismatch(SZFE2EWorld *world) {
         CHECK([[pair.a intent:@"add_from_link" fields:@{@"payload" : forged ?: @""}][@"ok"] isEqual:@YES], "sent");
         CHECK(SZFE2EWaitUntil(20, ^BOOL {
                   return Row(pair.b, pair.listB, ^BOOL(NSDictionary *row) {
-                             return [row[@"subtitle"] isEqual:@"Added through your link"];
+                             return IsFriend(row) && [row[@"subtitle"] isEqual:@"No messages yet"];
                          }) != nil;
               }),
               "the request reached the ID's holder, whose link accepted it: %@", Data(pair.b, pair.listB)[@"rows"]);

@@ -133,7 +133,7 @@ static BOOL SZFE2ESharedChats(SZFE2EWorld *world, SZFE2ETwoApps *apps) {
               NSDictionary *atFiles = SZFE2ERowWithID(apps.files.list, ben);
               return [atPDF[@"unread"] boolValue] && [atFiles[@"unread"] boolValue] &&
                      [atPDF[@"title"] isEqual:@"Ben"] && [atPDF[@"title"] isEqual:atFiles[@"title"]] &&
-                     [atPDF[@"subtitle"] isEqual:@"Pages 3–5 are ready"] &&
+                     [atPDF[@"subtitle"] isEqual:@"Ben: Pages 3–5 are ready"] &&
                      [atPDF[@"subtitle"] isEqual:atFiles[@"subtitle"]];
           }),
           "both apps list Ben's conversation, unread: %@ / %@", apps.pdf.list, apps.files.list);
