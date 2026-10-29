@@ -766,3 +766,70 @@ CHUNK, because the Objective-C session peer does not run blocks or report `fast`
 **Left.** The multi-route cases run once lanes land (WP3 for Rust, WP4 for the Objective-C helper) and the peers
 take `lane_of`; then their numbers go here. Hardware runs with `tools/transfer-devices.sh` when the owner's second Mac
 or phone is at hand; BLAKE3 on the phone with `tools/tree-hash-bench.sh android` the same day.
+
+## WP3, second part: lanes in the Rust helper, driven by WP2's scheduler
+
+On WP1's wire and store and WP2's scheduler (4548360c).
+
+- **Handshake.** `HandshakeOptions::lane` puts the 16-byte token in IK message 1's encrypted payload (field 46, IK
+  only, never beside an Add by ID token); the responder reads it before HELLO (`presented_lane`). Admission happens
+  once the lane is live: the token must name a free index of a live fast group with the same identity and static key,
+  or the lane closes with CLOSE 6 (`LaneRefused`). The side that dialed the first session opens odd indexes, the
+  other even ones, so lanes both open at once never collide (a local rule; any free index is admitted).
+  `tests/session_lanes.rs`: the token arrives encrypted, both sides derive the same fifteen, XX refuses one.
+- **Groups in the session table** (`service/lanes.rs`). A first session that negotiated fast transfers forms a group
+  when adopted. Lanes never race, carry no conversation of their own and never count against the person's backoff;
+  every frame on a lane is handled as the first session's, except that a PART's HAVE goes back on the lane that
+  carried it; the first session's end closes its lanes.
+- **The scheduler drives it.** One `Scheduler` per group, made when the group first sends by blocks and kept until the
+  group ends: it hears the group's lane events (seeded with the lanes live when it is made), WANT and HAVE, each write
+  completed (`written`) and each byte heard (`heard`) on every lane, a block's last part handed out (`sent`), and
+  `tick` on every pass. `Send` reads the block through the leaf check and cuts it into that lane's parts (16 KiB on
+  Bluetooth, § 9.8); `Cancel` drops a block's unsent parts; `Lane(Open)` dials the friend's device where it is seen on
+  that route (LAN, direct Wi-Fi, Bluetooth; online lanes are not built yet), `Lane(Close)` closes the lane. Parts go on
+  lanes only after the receiver's first HAVE or WANT, since they could otherwise overtake HASHES. Direct Wi-Fi keeps
+  the device on its network only on Apple systems, so elsewhere the scheduler never asks for it.
+- **The late-part rule** (ADR 0018 § 3, from WP2's simulator): the receiver answers the first late part of a block on
+  each lane with a HAVE naming that block, on that lane, so a block whose first HAVE was lost with a silent lane is
+  still acknowledged.
+- **One flush per durability batch** (also done by WP4's commit for the Rust helper's batch): `disk::order_writes`, then
+  one `make_durable` (F_FULLFSYNC): about 6 ms per batch instead of 9.8, from the phase 1 primitives.
+- **Emulated routes for whole helpers.** `SZFRIENDS_TEST_ROUTE_RATES` (`lan=1250000,bluetooth=175000`, test homes
+  only) paces each link's writes at its route's rate, so two helpers on the loopback network and the test air are
+  measured with several routes at once; `SZFRIENDS_TEST_LANES=0` turns lanes off.
+
+| Two Rust helpers, `tests/fast_lanes.rs` | Network alone | With lanes |
+|---|---|---|
+| 12 MiB, LAN 1 MB/s, Bluetooth 1 MB/s | 13.3 to 13.4 s | 7.8 s with the scheduler (11.2 s with the first, fixed rule) |
+| 32 MiB, LAN 10 Mbit/s, Bluetooth 175 KB/s (`lanes_bench`, ignored) | 28.8 s, 1.16 MB/s | 26.0 to 26.1 s, 1.29 MB/s: Bluetooth adds 68 to 75 % of its rate |
+
+The target is 80 % of Bluetooth's rate. What is missing at 175 KB/s is the time before the scheduler asks for the lane
+(its rule wants 4 s of work left and a measured rate), the lane's dial and handshake over the paced radio, and the last
+blocks kept off it. One run in three of `lanes_bench` failed earlier, before any transfer, in befriending over the paced
+routes (the comparison code never appeared); the transfers themselves did not fail.
+
+**Liveness on block transfers** (found by WP5's bench: on a minor 4 transfer by blocks a silenced route went
+unnoticed for 20 s, because `transfer_liveness` saw only CHUNK flows). The helper's sessions and lanes, and the interop
+crate's Rust peer, now ping and watch while a file moves by blocks in the group: watching while a sent block awaits its
+HAVE or a received file is not yet durable (both sides of a fast session ping, so watching is safe there). `make
+friends-transfer-bench`, Rust to Rust by blocks (minor 4): LAN silenced noticed after 8.00 s, Bluetooth after 11.26 s,
+moving again 0.01 and 0.06 s later, files intact. A lane silenced this way closes and the scheduler hands its blocks
+to the others.
+
+**Bluetooth resume costs a block.** Those runs sent 1.06 MB twice: after a cut or silence the receiver's WANT names
+whole blocks, so the partly received 1 MiB block goes again, about 6 s of Bluetooth. Parts that arrived stay written
+(the assembly keeps them) but nothing tells the sender which. Two ways, both protocol changes for the ADR rather than
+this package: WANT naming part ranges within a block on Bluetooth lanes (16 KiB granularity, a new field), or a
+smaller block shift for files sent over Bluetooth (§ 2 fixes shift 20 as the minimum, so the tree would change).
+Proposed for WP6.
+
+Found while wiring it: a scheduler made when the group was already live must be told which lanes are up (the group's
+events had gone to an earlier scheduler), or the second file of a session is never scheduled.
+
+Still open, for the next package: lanes in the interop crate's Rust peer (`hello` with `"lanes": true`, `dial` with
+`lane_of`), which WP5's multi-route bench cases need and list as skipped until then; online lanes (more data channels
+in one peer connection, one only on the relay) with 8 MiB buffering and usrsctp's buffers raised, measured first with
+delay and loss; Bluetooth lanes on BlueZ and phones (the test air's code path, untested on radios); the AWDL rule on two
+Macs (WP4); `cpu_bound`, which the helper never reports because it decrypts on one thread. `make
+friends-core-rs-cross-check` fails on Windows targets since WP1 added BLAKE3 (its build script wants a C compiler for
+the MSVC targets); WP3 did not change it.

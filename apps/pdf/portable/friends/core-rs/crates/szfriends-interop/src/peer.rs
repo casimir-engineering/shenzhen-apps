@@ -434,7 +434,9 @@ impl State {
         let now = monotonic_now();
         if let Some(s) = self.sessions.get_mut(&id) {
             let (keepalive, watch) = transfer_liveness(s.senders.values().map(|o| &o.sender), s.receivers.values());
-            s.channel.set_liveness(keepalive, watch, now);
+            // Files by blocks too (ADR 0018 § 7), as the helper's `block_liveness`: both sides of a fast session ping.
+            let (blocks, owed) = s.blocks.liveness(&self.store);
+            s.channel.set_liveness(keepalive || blocks, watch || owed, now);
             s.channel.handle_timeout(now);
         }
         loop {

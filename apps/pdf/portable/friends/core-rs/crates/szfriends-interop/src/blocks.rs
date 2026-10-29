@@ -34,6 +34,17 @@ pub(crate) struct Blocks {
     pub(crate) receivers: std::collections::HashSet<String>,
 }
 
+impl Blocks {
+    /// Whether a file moves by blocks on this session, and whether the peer owes us something (a HAVE for blocks
+    /// sent, or the rest of a file being received): the liveness the channel keeps (ADR 0018 § 7).
+    pub(crate) fn liveness(&self, store: &szfriends_core::store::Store) -> (bool, bool) {
+        let active = !self.senders.is_empty() || !self.receivers.is_empty();
+        let owed = self.senders.values().any(|s| !s.serve.all_acknowledged())
+            || self.receivers.iter().any(|t| !store.blocks_all_durable(t));
+        (active, owed)
+    }
+}
+
 impl State {
     pub(crate) fn fast_session(&self, id: u64) -> bool {
         self.sessions.get(&id).is_some_and(|s| s.channel.fast_transfers())

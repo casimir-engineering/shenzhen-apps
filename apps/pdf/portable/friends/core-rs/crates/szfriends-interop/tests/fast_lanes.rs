@@ -37,19 +37,36 @@ fn start(name: &str, home: &TempHome, net: &TempHome, room: &Room, rates: &str, 
     rust_helper_with(name, &home.path().join("state"), &env)
 }
 
+/// Two friends; befriending again when the nearby request raced a merge of the two routes' sightings (the person's
+/// nearby id changed between finding them and asking: "This isn't here anymore"), which is not what this measures.
 fn pair(tag: &str, rates: &str, lanes: bool) -> Pair {
+    for _ in 0..2 {
+        let made = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| befriended(tag, rates, lanes)));
+        if let Ok(pair) = made {
+            return pair;
+        }
+    }
+    befriended(tag, rates, lanes)
+}
+
+fn befriended(tag: &str, rates: &str, lanes: bool) -> Pair {
     let homes = (
         TempHome::new(&format!("{tag}-ann")),
         TempHome::new(&format!("{tag}-ben")),
         TempHome::new(&format!("{tag}-net")),
     );
     let room = Room::new(homes.2.path(), false);
-    let mut ann = start("Ann", &homes.0, &homes.2, &room, rates, lanes);
-    let mut ben = start("Ben", &homes.1, &homes.2, &room, rates, lanes);
+    // Friends first at full speed (the request and its code are not what is measured), then both helpers again with
+    // the routes held to their rates.
+    let mut ann = start("Ann", &homes.0, &homes.2, &room, "", lanes);
+    let mut ben = start("Ben", &homes.1, &homes.2, &room, "", lanes);
     nearby::start(&mut ann, "Ann", &mut ben, "Ben");
     nearby::visible_request(&mut ann, "Ann", &mut ben, "Ben");
     let (ben_in_ann, ann_in_ben) =
         (routes::conversation_with(&mut ann, "Ben"), routes::conversation_with(&mut ben, "Ann"));
+    drop((ann, ben));
+    let ann = start("Ann", &homes.0, &homes.2, &room, rates, lanes);
+    let ben = start("Ben", &homes.1, &homes.2, &room, rates, lanes);
     Pair { ann, ben, ben_in_ann, ann_in_ben, _homes: homes, _room: room }
 }
 
