@@ -75,3 +75,5 @@
 {"type":"allow_notifications","id":"76"}
 {"type":"dismiss_banner","id":"77","kind":"notifications"}
 {"type":"test_notification_response","id":"78","key":"message:i_81f2","action":"reply","text":"On it"}
+{"type":"boost_transfer","id":"79","transfer_id":"t_5a90c3e1"}
+{"type":"skip_boost","id":"80","transfer_id":"t_5a90c3e1"}
