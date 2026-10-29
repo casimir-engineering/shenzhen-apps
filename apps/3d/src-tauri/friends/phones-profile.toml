@@ -1,5 +1,6 @@
 # Shenzhen Friends on phones: its crates built for size against ADR 0015 § 12 (opt-level "z", one codegen unit;
-# "s" for the ciphers and hashes, which carry every transferred byte), without changing how the viewer's own crates
+# 3 for the ciphers and hashes, which carry every transferred byte: ADR 0018 § 9.2, as the core's own Cargo.toml has
+# it, with the arm64 SIMD backends that the core's phone.toml switches on), without changing how the viewer's own crates
 # are optimised. The online part (szfriends-online, the data channels' C and C++, which szfriends-datachannel-sys
 # compiles at -Oz for phones by itself) is built the same way. A cargo --config file, passed by
 # scripts/platform-build.mjs for Friends phone builds and by scripts/friends/phones-size.sh. The whole library is
@@ -26,7 +27,7 @@ opt-level = "z"
 codegen-units = 1
 
 [profile.release.package.szfriends-crypto]
-opt-level = "z"
+opt-level = 3
 codegen-units = 1
 
 [profile.release.package.szfriends-wire]
@@ -58,7 +59,7 @@ opt-level = "z"
 codegen-units = 1
 
 [profile.release.package.snow]
-opt-level = "s"
+opt-level = 3
 codegen-units = 1
 
 [profile.release.package.curve25519-dalek]
@@ -70,19 +71,19 @@ opt-level = "s"
 codegen-units = 1
 
 [profile.release.package.chacha20poly1305]
-opt-level = "s"
+opt-level = 3
 codegen-units = 1
 
 [profile.release.package.chacha20]
-opt-level = "s"
+opt-level = 3
 codegen-units = 1
 
 [profile.release.package.poly1305]
-opt-level = "s"
+opt-level = 3
 codegen-units = 1
 
 [profile.release.package.blake2]
-opt-level = "s"
+opt-level = 3
 codegen-units = 1
 
 [profile.release.package.sha2]
@@ -90,15 +91,35 @@ opt-level = "s"
 codegen-units = 1
 
 [profile.release.package.aes]
-opt-level = "s"
+opt-level = 3
 codegen-units = 1
 
 [profile.release.package.aes-gcm]
-opt-level = "s"
+opt-level = 3
 codegen-units = 1
 
 [profile.release.package.ghash]
-opt-level = "s"
+opt-level = 3
+codegen-units = 1
+
+[profile.release.package.aead]
+opt-level = 3
+codegen-units = 1
+
+[profile.release.package.cipher]
+opt-level = 3
+codegen-units = 1
+
+[profile.release.package.universal-hash]
+opt-level = 3
+codegen-units = 1
+
+[profile.release.package.ctr]
+opt-level = 3
+codegen-units = 1
+
+[profile.release.package.polyval]
+opt-level = 3
 codegen-units = 1
 
 [profile.release.package.hmac]

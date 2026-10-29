@@ -2,6 +2,12 @@
 # `--config <path>`, beside the `phone` profile's settings (Cargo.toml) in the app's own release profile.
 # tools/embedded-size.sh measures with it, and run-device-tests.sh runs the Android suites with it.
 #
+# The ciphers' arm64 backends (ADR 0018 § 9.2): chacha20 0.9's NEON code, and the ARMv8 AES and PMULL code of aes and
+# polyval, are switched on by these flags only (x86_64 picks AVX2 or SSE2 at run time by itself). A cfg section, so
+# cargo joins it with a target's own rustflags (the Tauri CLI sets CARGO_TARGET_<TRIPLE>_RUSTFLAGS for Android).
+[target.'cfg(target_arch = "aarch64")']
+rustflags = ["--cfg", "chacha20_force_neon", "--cfg", "aes_armv8", "--cfg", "polyval_armv8"]
+
 # The bundled SQLite (Android; iOS uses the system's) without what the store never asks of it: FTS3, R*Tree, dbstat,
 # STAT4, soundex, column metadata, extensions, JSON, shared cache, progress callbacks and declared types, with some of
 # SQLite's own recommended trims. FTS5, for the trigram search index, stays. The same value is in .cargo/config.toml,

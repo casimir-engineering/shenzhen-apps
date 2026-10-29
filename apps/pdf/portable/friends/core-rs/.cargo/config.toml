@@ -4,6 +4,12 @@
 [target.'cfg(all(windows, target_env = "msvc"))']
 rustflags = ["-C", "target-feature=+crt-static"]
 
+# The ciphers' arm64 backends (ADR 0018 § 9.2): chacha20 0.9's NEON code, and the ARMv8 AES and PMULL code of aes and
+# polyval, are switched on by these flags only (x86_64 picks AVX2 or SSE2 at run time by itself). A cfg section, so
+# cargo joins it with a target's own rustflags (the Tauri CLI sets CARGO_TARGET_<TRIPLE>_RUSTFLAGS for Android).
+[target.'cfg(target_arch = "aarch64")']
+rustflags = ["--cfg", "chacha20_force_neon", "--cfg", "aes_armv8", "--cfg", "polyval_armv8"]
+
 # The bundled SQLite as phones build it (phone.toml, which an app passes for its phone builds): the helper on Windows
 # and Linux and every suite here use the same one.
 [env]

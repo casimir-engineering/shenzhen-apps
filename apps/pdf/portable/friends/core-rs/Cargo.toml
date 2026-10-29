@@ -48,6 +48,8 @@ rusqlite = { version = "0.40", default-features = false }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
+# The ciphers' arm64 backends (.cargo/config.toml, phone.toml), which tests/build_flags.rs checks.
+unexpected_cfgs = { level = "warn", check-cfg = ["cfg(chacha20_force_neon)", "cfg(aes_armv8)", "cfg(polyval_armv8)"] }
 missing_debug_implementations = "warn"
 
 [workspace.lints.clippy]
@@ -65,7 +67,41 @@ codegen-units = 1
 panic = "abort"
 strip = "symbols"
 
-# Phones (ADR 0015 § 12's 5 MB): the release profile made smaller, at the cost of speed a phone's radio never misses.
+# The ciphers and hashes that carry every transferred byte (ADR 0018 § 9.2): full speed, 1.7 times a size-optimised
+# build's through a session's transport (examples/transport-speed in szfriends-crypto). snow, szfriends-crypto and the
+# generic crates are listed too, because a generic cipher's code is generated in the crate that instantiates it. The
+# phone profile inherits these. Their SIMD backends on arm64 are switched on in .cargo/config.toml and phone.toml.
+[profile.release.package.szfriends-crypto]
+opt-level = 3
+[profile.release.package.snow]
+opt-level = 3
+[profile.release.package.chacha20poly1305]
+opt-level = 3
+[profile.release.package.chacha20]
+opt-level = 3
+[profile.release.package.poly1305]
+opt-level = 3
+[profile.release.package.aead]
+opt-level = 3
+[profile.release.package.cipher]
+opt-level = 3
+[profile.release.package.universal-hash]
+opt-level = 3
+[profile.release.package.aes-gcm]
+opt-level = 3
+[profile.release.package.aes]
+opt-level = 3
+[profile.release.package.ctr]
+opt-level = 3
+[profile.release.package.ghash]
+opt-level = 3
+[profile.release.package.polyval]
+opt-level = 3
+[profile.release.package.blake2]
+opt-level = 3
+
+# Phones (ADR 0015 § 12's 5 MB): the release profile made smaller, at the cost of speed a phone's radio never misses;
+# the ciphers above keep their opt-level 3.
 # An app embedding the core sets the same in its own release profile for its phone builds (tools/embedded-size.sh
 # measures with it); szfriends-datachannel-sys compiles its C and C++ at -Oz on phones by itself.
 [profile.phone]
