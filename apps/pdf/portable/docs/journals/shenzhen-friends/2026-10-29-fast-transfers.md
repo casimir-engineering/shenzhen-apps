@@ -590,3 +590,60 @@ routes yet, and none of today's measured transfers changed. When WP3 lands group
 - `Open` and `Close` through the group.
 
 Then WP5's bench gains a two-route case, with two proxies (one per lane), and the scenarios above are measured for real.
+
+## WP4, part 1: liveness, disk work and speed checks in the Objective-C helper (2026-10-29)
+
+Measured on the same Mac with `make friends-transfer-bench` (WP5), before and after, one run each, with other
+packages building alongside (load average 5 to 7): MB/s varies by up to 30 % from run to run, the silence timings and
+CPU seconds per GB much less. The Rust peer is the same build in both runs.
+
+**1. Liveness** (ADR 0018 § 7, as fe4e9e04 gave the Rust core). `SZFriendsSecureChannel+Liveness.m`: while a
+transfer runs on a session the channel sends PING after a second without sending, and closes the session
+(`SZFriendsSessionErrorSilent`, no CLOSE) after 8 s without hearing a byte, 12 s when the initiator declared
+Bluetooth. `SZFriendsTransferLiveness` decides, as `transfer_liveness()` does: keepalive while any flow runs, watching
+only while the peer owes PROGRESS for bytes sent or the rest of a file whose chunks are arriving, so a released peer is
+judged by its own traffic. A gap of more than two keepalives between timer runs (a busy helper queue, sleep) restarts
+the count. The nearby service and the interop peer call it whenever a flow changes; redial and resume are the ones a
+cut already used.
+
+| Route silenced mid-transfer (proxy stops forwarding, sockets open) | Before | Now |
+|---|---|---|
+| LAN, 100 MiB, Objective-C → Objective-C | not noticed in 20 s | 8.00 s, moving again 0.007 s later |
+| LAN, Objective-C → Rust / Rust → Objective-C | 8.00 / 7.98 s (the Rust side noticed) | 8.00 / 7.96 s |
+| Bluetooth, 4 MiB, Objective-C → Objective-C | not noticed in 20 s | 11.93 s |
+| Bluetooth, Objective-C → Rust | 11.92 s | 11.92 s |
+
+A cut on LAN (100 MiB, at half) is noticed at once in every pair and moves again within 12 ms, as before.
+
+**2. Disk work** (ADR 0018 § 9.1, as 3fed69c6). Snapshots were already clones (`fclonefileat`), read once for their
+digests and never flushed. What changed: a received batch made the partial file durable with F_FULLFSYNC and then
+committed its count, whose WAL commit runs F_FULLFSYNC again; it now orders the file's writes with F_BARRIERFSYNC and
+lets the commit's flush cover both (the partial file and the store share the state directory's volume), one full
+flush per 4 MiB instead of two, with the same guarantee: the database never claims a byte the disk could lose.
+`SZFriendsOrderWrites` and `SZFriendsMakeDurable` are the two halves the block map's batches will use. The sender opens
+a snapshot once per transfer with read-ahead on and reads each chunk with one `pread`.
+
+| Objective-C → Objective-C | Before | Now |
+|---|---|---|
+| 300 × 10 KiB, loopback / LAN | 5.99 / 6.37 s | 4.46 / 5.13 s |
+| 2 GiB, loopback | 199.8 MB/s, 2.43 + 3.66 CPU-s/GB | 205.4 MB/s, 2.49 + 3.76 CPU-s/GB |
+| 2 GiB, LAN (1 GbE emulated) | 70.5 MB/s, 60 %, receiver 5.90 CPU-s/GB | 79.6 MB/s, 68 %, receiver 4.46 CPU-s/GB |
+| 2 GiB, LAN, Rust → Objective-C | 67.7 MB/s | 71.1 MB/s |
+
+**3. Speed checks on the Mac side** (a scratch program against the helper's own objects, one core):
+
+| | Throughput |
+|---|---|
+| libsodium ChaCha20-Poly1305 through `szfriends_cipher_encrypt`, 4 KiB / 16 KiB / 60 KiB messages | 0.78 / 0.77 / 0.77 GB/s |
+| The same, encrypt then decrypt | 0.38 to 0.40 GB/s |
+| libsodium BLAKE2b-256 | 1.57 GB/s |
+| Two channels on one queue over memory streams, 1 GiB of 60 KiB CHUNKs (codec, queues, encryption, decryption) | 0.34 GB/s, 2.94 CPU-s/GB for both sides |
+
+The cipher is 2.5 of those 2.94 CPU-s/GB: the channel's framing, copies and queues add 15 %, so batching several
+Noise messages per write would save little CPU on this side, and it was not done. libsodium has no NEON ChaCha20, so
+one Objective-C lane tops out near 0.77 GB/s encrypting; what puts a transfer on more cores is lanes (part 2) and,
+later, AES-GCM lanes (WP6, 8.5 GB/s in phase 1). A `sample` of the receiving peer 6 s into a 2 GiB loopback transfer
+agrees: of its busy time, ChaCha20 and Poly1305 take 47 %, the running BLAKE2b digest 24 %, `pwrite` 13 %, the
+barrier flushes 10 % and copies 6 %; the store's per-chunk row check and the framing do not show. With blocks (part 2)
+the running digest goes away (each block is checked against its BLAKE3 leaf, on any core, and the publish check reads
+the file once).
