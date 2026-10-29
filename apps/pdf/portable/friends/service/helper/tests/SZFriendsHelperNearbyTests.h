@@ -51,6 +51,7 @@ SZFriendsPersonRecord *SZFNSavePerson(SZFriendsStore *store, SZFriendsRelation r
 // Liveness while a transfer runs (ADR 0018 § 7): a fake link never goes silent, so this does nothing.
 - (void)setLivenessKeepalive:(BOOL)keepalive watch:(BOOL)watch;
 @property(nonatomic, readonly) BOOL fastTransfers; // NO: fakes move files by CHUNK
+@property(nonatomic, readonly, nullable) NSData *presentedLane; // nil: fakes are never lanes
 @end
 
 // A link for a fake channel, as a listener would have accepted it.

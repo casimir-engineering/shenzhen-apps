@@ -131,6 +131,10 @@
         else [self closeLink:link after:SZFriendsByIDSessionLife]; // a responder waits briefly for REQUEST_BY_ID
         return;
     }
+    if (!channel.isInitiator && channel.presentedLane != nil) {
+        [self admitLane:link]; // another session with a device we already have one with (+Blocks)
+        return;
+    }
     if ([self chainRefusesLiveLink:link]) return; // a device its owner removed, whichever side dialed (+Chain)
     if ([self syncAdoptsLiveLink:link]) return;   // another device of ours: it carries sync, nothing else (+Sync)
     NSData *remoteKey = channel.remoteIdentityKey;
@@ -367,6 +371,13 @@ static BOOL SZFriendsEndWasSupersededByPeer(NSError *error) {
     link.closed = YES;
     [link cancelTimers];
     [self.links removeObject:link];
+    if (link.lane) {
+        // A lane ends alone: the group goes on with its first session (ADR 0018 § 6).
+        [link.laneHead.lanes removeObject:link];
+        if (link.dialKey != nil) [self.dialing removeObject:link.dialKey];
+        return;
+    }
+    for (SZFriendsPeerLink *lane in link.lanes.allObjects) [lane.channel closeWithReason:SZFriendsCloseReasonNormal];
     [self syncLinkClosed:link];
     [link.againExchange stop];
     // Faults only, and never a key, name or address: which kind of session ended, on which route, and why.

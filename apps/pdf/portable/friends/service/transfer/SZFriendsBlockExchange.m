@@ -4,7 +4,8 @@
 
 #import "service/transfer/SZFriendsBlockFlow.h"
 
-// What one session keeps sent and not yet in a HAVE (one lane; the scheduler sizes this per lane with lanes).
+// What one session keeps sent and not yet in a HAVE (one lane; the scheduler sizes this per lane with lanes), as the
+// Rust helper's.
 static const uint64_t SZFriendsBlockWindow = 16ull << 20;
 static const uint64_t SZFriendsBlockWindowBluetooth = 2ull << 20;
 

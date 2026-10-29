@@ -122,6 +122,13 @@ NSData *_Nullable SZFriendsLinkBytesFromHex(NSString *_Nullable hex); // nil unl
 // Files by blocks on this session (ADR 0018), when it negotiated fast transfers with a friend (+Blocks).
 @property(nonatomic, strong, nullable) SZFriendsBlockExchange *blocks;
 @property(nonatomic) BOOL blockFlushScheduled;
+// A lane (ADR 0018 § 6): another session with the same device, admitted by its token into the group of `laneHead`,
+// the first session. A lane never races and carries no conversation of its own: its frames count as the head's.
+@property(nonatomic, weak, nullable) SZFriendsPeerLink *laneHead;
+@property(nonatomic) uint8_t laneIndex;
+@property(nonatomic) BOOL lane;
+// The head's admitted lanes.
+@property(nonatomic, readonly) NSHashTable<SZFriendsPeerLink *> *lanes;
 @property(nonatomic) BOOL pumpScheduled;
 // Chunk pacing (SZFriendsHelperTestHooks.chunkBytesPerSecond): bytes handed out since paceStart.
 @property(nonatomic) CFAbsoluteTime paceStart;

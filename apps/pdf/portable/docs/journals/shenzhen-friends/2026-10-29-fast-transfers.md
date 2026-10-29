@@ -833,3 +833,74 @@ delay and loss; Bluetooth lanes on BlueZ and phones (the test air's code path, u
 Macs (WP4); `cpu_bound`, which the helper never reports because it decrypts on one thread. `make
 friends-core-rs-cross-check` fails on Windows targets since WP1 added BLAKE3 (its build script wants a C compiler for
 the MSVC targets); WP3 did not change it.
+## WP4, part 2: minor 4 and files by blocks in the Objective-C helper (2026-10-29)
+
+**The wire** (pushed as 792a6cb4 with build 26102911). Session minor 4, frames 28 to 31, fields 37 to 46, capability
+bits, CLOSE reason 6 and the Lane field, with the same gate as the Rust channel: minor-4 frames refused and the tree's
+OFFER fields stripped toward any peer without bit 0, and a minor-4 frame received outside a fast session closes it.
+`service/transfer/` holds the geometry, the BLAKE3 tree (C, vendored from the crate Cargo.lock pins), block sets,
+ranges, sidecars and the SYNC and AGAIN messages. `tools/objc-vectors` writes `fixtures/vectors/transfer/*.json` from
+this code in WP1's exact layout, and `friends-vectors-check` compares them byte for byte: **all five files match**.
+The helper's own vectors moved to minor 4, so `objc_vectors.rs` and the transcript replay require equal minors again.
+
+**Files by blocks.** `SZFriendsBlockExchange` (transfer area) is the Rust helper's `service/blocks.rs` for one
+session: tree in OFFER, Blocks in OFFER_REPLY, HASHES then PARTs, HAVE as blocks check and become durable, ACK after
+the publish check, WANT with exactly the missing blocks on every new session, a corrupt block wanted again alone, a
+changed snapshot failing before a byte of the changed block leaves. The nearby service and the interop peer both
+drive it. The store (`SZFriendsBlockDownloads.m`) keeps the map beside the staging file, preallocates the accepted
+size, writes blocks at their offsets, makes them durable in batches (barrier, bitmap, one full flush, then the prefix
+in `verified_bytes` for older helpers), re-checks every block a map claims when a download reopens, and publishes
+after one read-back computing the tree on every core and the BLAKE2b digest beside it. Staging now hashes the leaves
+on every core in the same pass as the digest and writes `outgoing/<id>.tree`, so an OFFER never waits for the tree.
+The recovery sweep keeps the sidecars of open transfers, and no longer cuts a download by blocks back to its prefix.
+Fast transfers are on unless the settings key `transfers.fast` holds 0 (read as the helper starts) or a test home sets
+`SZFRIENDS_TEST_FAST_TRANSFERS=0`.
+
+The late rule of ADR 0018 § 3: a PART for a block already complete, or for a file of that friend's that just ended
+here, is dropped; a HAVE for one of our transfers that ended here is dropped; anything naming another transfer closes
+the session as unsolicited.
+
+Two faults found by the bench and fixed before landing: a session that ended dropped the partly received blocks of a
+download a newer session had already taken over (the Bluetooth silence case stalled); each 60 KiB part was a copy of
+its block into a freshly faulted allocation, as costly as encrypting it (parts are now views of the block).
+
+| `make friends-transfer-bench`, by blocks now (one run, other agents' benches running alongside) | Before WP4 | Part 1 | Part 2 |
+|---|---|---|---|
+| LAN 1 GbE, 2 GiB, Objective-C → Objective-C | 70.5 MB/s, 60 % | 79.6 MB/s, 68 % | 98.4 MB/s, 84 % |
+| LAN, 2 GiB, Objective-C → Rust / Rust → Objective-C | 77.2 / 67.7 MB/s | 75.4 / 71.1 MB/s | 106.3 / 99.3 MB/s (90 / 84 %) |
+| Loopback, 2 GiB, Objective-C → Objective-C | 199.8 MB/s | 205.4 MB/s | 233.2 MB/s, 3.3 + 3.7 CPU-s/GB |
+| Loopback, 2 GiB, Objective-C → Rust | 173.5 MB/s | 183.6 MB/s | 240.2 MB/s |
+| LAN cut at half, Objective-C pairs: noticed / moving again | 0.4 to 0.5 s / 1 ms | | 0.003 to 0.005 s / 5 to 8 ms |
+| LAN silenced, the three Objective-C pairs | not noticed (Obj-C → Obj-C) | 8.0 s | 8.03 to 8.05 s |
+| Bluetooth silenced, Obj-C → Obj-C / Obj-C → Rust / Rust → Obj-C | not noticed / 11.9 / 11.9 s | | 11.6 / 7.3 / 12.0 s |
+| Bluetooth 4 MiB cut at half, the three pairs | | | 30.3 s, 79 % of the emulated rate |
+
+The window no longer waits on the disk (HAVE reports checked blocks; durability follows in batches), which is what
+lifted LAN from 68 to 84–90 %. What still limits one session is one core per side (the cipher at 0.77 GB/s); lanes
+put a transfer on more cores.
+
+**Released apps.** `make friends-transfer-interop` (LAN and Bluetooth, a transfer and a cut at half each): every pair
+with a released peer (`pdf/26.10.29-1` Objective-C, `3d/preview-0.2.4` Rust), both ways, negotiates minor 3 and
+passes as before; today's Objective-C with today's Rust or Objective-C, both ways, negotiates minor 4 with fast
+transfers (`INTEROP_EXPECT_FAST=1`) and passes, resuming by blocks after the cut. `make friends-e2e-check`, two real
+helpers: every transfer scenario passes by blocks (kill -9 mid-transfer, Bluetooth then the network mid-file); the
+one failure, "two apps, one helper", expects a list subtitle without the "Ben: " prefix that b383ffd2 added, and does
+not involve transfers.
+
+**Lanes, the responder's half.** Since the Rust helper now opens lanes (9a62d210), the Objective-C helper admits
+them: a session whose IK message 1 carries a Lane token joins the group of the live fast session with the same device
+whose handshake hash and a free index (1 to 15, every index compared in constant time) make that token, never races,
+pings while it lives, and its frames count as the first session's; any other is closed with CLOSE `LaneRefused`. A
+lane ends alone; the first session's end ends its lanes. Without this a Rust helper's lane would have entered the
+session race against its own first session.
+
+**A close that lost its CLOSE.** The interop suite's route migration (Objective-C sender, Rust receiver, the old route
+throttled to 4 MiB/s) failed one run in two by blocks: after its CLOSE and FIN the network stream cancelled the
+connection, the receiver's next HAVE was answered with a reset, and the reset made the throttling proxy drop what it
+had not read yet, the CLOSE among it. The stream now reads and drops to the peer's FIN before it lets go (5 s at
+most); 8 runs out of 8 pass. HAVEs make this likely; it was possible before with PROGRESS.
+
+**Left for WP4.** Lanes from this side: groups opened here (the LAN, direct Wi-Fi and Bluetooth lanes, one
+CBPeripheralManager per L2CAP channel) and the WP2 scheduler spreading blocks across them, mirroring WP3's helper side; Get again and own-device copies by blocks (messages ready, flows not); "Finishing…" while a large
+file's check runs (the check runs synchronously on the store queue today); staging and publishing small files in
+batches (300 × 10 KiB is unchanged by blocks).

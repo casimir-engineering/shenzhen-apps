@@ -5,6 +5,8 @@
 
 #import "service/helper/nearby/SZFriendsNearbyInternal.h"
 
+#import <sodium.h>
+
 // A durability batch comes due at most a second after a block was written (SZFriendsBlockDownloads.m).
 static const NSTimeInterval SZFriendsBlockFlushDelay = 0.5;
 
@@ -71,6 +73,45 @@ static const NSTimeInterval SZFriendsBlockFlushDelay = 0.5;
         if (!strongLink.closed) [strongLink.blocks flushDue];
         [self progressChanged];
     });
+}
+
+#pragma mark - Lanes
+
+// At most 15 lanes per group, indexes 1 to 15 (ADR 0018 § 6).
+static const uint8_t SZFriendsLaneIndexMax = 15;
+
+- (void)admitLane:(SZFriendsPeerLink *)link {
+    SZFriendsSecureChannel *channel = link.channel;
+    NSData *token = channel.presentedLane;
+    for (SZFriendsPeerLink *head in self.links) {
+        if (head == link || head.lane || !head.live || head.closed || head.superseded || head.conversationID == nil ||
+            !head.channel.fastTransfers || !channel.fastTransfers ||
+            ![head.channel.remoteStaticKey isEqualToData:channel.remoteStaticKey] ||
+            ![head.channel.remoteIdentityKey isEqualToData:channel.remoteIdentityKey]) {
+            continue;
+        }
+        NSMutableIndexSet *used = [NSMutableIndexSet indexSet];
+        for (SZFriendsPeerLink *lane in head.lanes) [used addIndex:lane.laneIndex];
+        // Every index is tried, so how long this takes says nothing about which one matched.
+        uint8_t found = 0;
+        for (uint8_t index = 1; index <= SZFriendsLaneIndexMax; index++) {
+            NSData *expected = SZFriendsLaneToken(head.channel.handshakeHash ?: [NSData data], index);
+            BOOL same = expected.length == 16 && token.length == 16 &&
+                        sodium_memcmp(expected.bytes, token.bytes, 16) == 0;
+            if (same && ![used containsIndex:index] && found == 0) found = index;
+        }
+        if (found == 0) continue;
+        link.lane = YES;
+        link.laneHead = head;
+        link.laneIndex = found;
+        link.conversationID = head.conversationID;
+        [head.lanes addObject:link];
+        // The lane's peer always hears something from it while the group lasts, so it never takes it for silent.
+        [channel setLivenessKeepalive:YES watch:NO];
+        return;
+    }
+    SZFriendsHelperLog(@"lane refused: no live session with that device and a free index matches its token");
+    [channel closeWithReason:SZFriendsCloseReasonLaneRefused];
 }
 
 - (void)link:(SZFriendsPeerLink *)link receivedBlockFrame:(SZFriendsFrame *)frame {

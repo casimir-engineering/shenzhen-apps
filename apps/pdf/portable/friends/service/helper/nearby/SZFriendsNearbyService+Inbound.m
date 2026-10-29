@@ -75,6 +75,12 @@ static BOOL SZFriendsCreatesFriendship(SZFriendsFrameType type) {
 
 - (void)link:(SZFriendsPeerLink *)link receivedFrame:(SZFriendsFrame *)frame {
     if (link.closed) return;
+    if (link.lane) {
+        // Any application frame may come on any lane of a group; it counts as the first session's (ADR 0018 § 6).
+        SZFriendsPeerLink *head = link.laneHead;
+        if (head == nil || head.closed) return;
+        link = head;
+    }
     [self noteFrame:frame onLink:link];
     if (link.ownDevice) {
         [self link:link receivedOwnDeviceFrame:frame]; // CHAIN and SYNC between our own devices (+Sync)

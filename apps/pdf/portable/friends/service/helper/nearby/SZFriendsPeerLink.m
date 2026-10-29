@@ -51,6 +51,7 @@ NSData *SZFriendsLinkBytesFromHex(NSString *hex) {
         _thumbnailsSent = [NSMutableSet set];
         _rateStart = [NSMutableDictionary dictionary];
         _sources = [NSMutableDictionary dictionary];
+        _lanes = [NSHashTable weakObjectsHashTable];
     }
     return self;
 }

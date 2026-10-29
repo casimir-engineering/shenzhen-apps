@@ -18,6 +18,9 @@ static char SZFNHashKey, SZFNSentKey, SZFNAttestationKey;
 - (BOOL)fastTransfers {
     return NO;
 }
+- (NSData *)presentedLane {
+    return nil;
+}
 - (NSData *)remoteAttestation {
     return objc_getAssociatedObject(self, &SZFNAttestationKey);
 }

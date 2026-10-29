@@ -7,7 +7,19 @@
 static const uint32_t kReceiveMaximum = 65536;
 // After a local close, the FIN normally goes out at once; this bounds how long a peer that stopped reading can
 // keep the connection (and its buffers) alive.
-static const NSTimeInterval kGracefulCloseTimeout = 2;
+static const NSTimeInterval kGracefulCloseTimeout = 5;
+
+// After a local close: whatever the peer still sends is read and dropped until its FIN, and only then is the
+// connection let go. Cancelling at once would answer the peer's next bytes with a reset, and a reset makes the peer's
+// side (or a relay between us) drop what it had not read yet: the session's CLOSE among it.
+static void SZFriendsDrainUntilPeerFinishes(nw_connection_t connection) {
+    nw_connection_receive(connection, 1, kReceiveMaximum,
+                          ^(dispatch_data_t content, nw_content_context_t context, bool isComplete, nw_error_t error) {
+                              (void)content, (void)context;
+                              if (error || isComplete) nw_connection_cancel(connection);
+                              else SZFriendsDrainUntilPeerFinishes(connection);
+                          });
+}
 
 BOOL SZFriendsNetworkErrorIsPolicyDenied(nw_error_t error) {
     return error && nw_error_get_error_domain(error) == nw_error_domain_dns &&
@@ -164,6 +176,12 @@ static NSData *CopyDispatchData(dispatch_data_t content) {
                           ^(dispatch_data_t content, nw_content_context_t context, bool isComplete, nw_error_t error) {
                               (void)context;
                               SZFriendsNetworkStream *strongSelf = weakSelf;
+                              if (strongSelf && strongSelf->_closedLocally) {
+                                  // Closed here meanwhile: drain to the peer's FIN (see the function above).
+                                  if (error || isComplete) nw_connection_cancel(strongSelf->_connection);
+                                  else SZFriendsDrainUntilPeerFinishes(strongSelf->_connection);
+                                  return;
+                              }
                               if (!strongSelf || strongSelf->_closed) return;
                               if (content && dispatch_data_get_size(content) > 0) {
                                   NSData *data = CopyDispatchData(content);
@@ -224,11 +242,12 @@ static NSData *CopyDispatchData(dispatch_data_t content) {
             [self finishReady:SZFriendsDiscoveryMakeError(SZFriendsDiscoveryErrorCancelled, @"closed")];
             return;
         }
-        // FIN after everything already queued (the session's CLOSE frame), then let go.
+        // FIN after everything already queued (the session's CLOSE frame); the connection goes once the peer's FIN
+        // arrives (the receive already waiting drains to it, or one starts now), or at the timeout.
         nw_connection_send(connection, NULL, NW_CONNECTION_FINAL_MESSAGE_CONTEXT, true, ^(nw_error_t error) {
-            (void)error;
-            nw_connection_cancel(connection);
+            if (error) nw_connection_cancel(connection);
         });
+        if (!self->_receiving) SZFriendsDrainUntilPeerFinishes(connection);
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kGracefulCloseTimeout * NSEC_PER_SEC)),
                        self->_connectionQueue, ^{
                            nw_connection_cancel(connection);

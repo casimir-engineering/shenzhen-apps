@@ -373,6 +373,9 @@ void SZFriendsNearbyRecordEvent(SZFriendsStore *store, NSString *eventKind, NSSt
 // The link's exchange, made on first use; nil unless the link is a live friend's session that negotiated them.
 - (nullable SZFriendsBlockExchange *)blocksOnLink:(SZFriendsPeerLink *)link;
 - (void)link:(SZFriendsPeerLink *)link receivedBlockFrame:(SZFriendsFrame *)frame;
+// A responder's session whose IK message 1 carried a Lane token: admitted into the group of the live session with the
+// same device whose handshake hash and a free index make that token, or closed with CLOSE LaneRefused.
+- (void)admitLane:(SZFriendsPeerLink *)link;
 @end
 
 // File previews (brief § Transfers, Thumbnails before acceptance; SZFriendsNearbyService+Thumbnails.m).
