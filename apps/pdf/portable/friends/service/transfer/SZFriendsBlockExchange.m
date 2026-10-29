@@ -33,6 +33,7 @@ const SZFriendsLaneID SZFriendsHeadLane = 0;
         _finishing = [NSMutableDictionary dictionary];
         _pieceBytes = [NSMutableDictionary dictionary];
         _early = [NSMutableDictionary dictionary];
+        _pieceLane = [NSMutableDictionary dictionary];
         _directWiFiKeepsInternet = YES;
         _clock = ^double {
             return (double)clock_gettime_nsec_np(CLOCK_MONOTONIC) / 1e9;
@@ -392,10 +393,18 @@ const SZFriendsLaneID SZFriendsHeadLane = 0;
     if (!self.pieces) return;
     BOOL bluetooth = _links[@(lane)].route == SZFriendsRouteMethodBluetooth;
     NSUInteger count = _pieceBytes[transferID].unsignedIntegerValue + bytes;
+    _pieceLane[transferID] = @(lane);
     if (!bluetooth && count < SZFriendsPieceHaveBytes) {
+        // Below the threshold: sent anyway at the next flush, so a stream that pauses (a few pieces sent again after
+        // a cut) is still acknowledged, and its sender, which waits for them, goes on.
         _pieceBytes[transferID] = @(count);
+        if (self.onFlushNeeded) self.onFlushNeeded();
         return;
     }
+    [self sendPieceHave:transferID lane:lane];
+}
+
+- (void)sendPieceHave:(NSString *)transferID lane:(SZFriendsLaneID)lane {
     _pieceBytes[transferID] = @0;
     NSData *pieces = [_transfers takePieceHave:transferID];
     for (SZFriendsFrame *have in SZFriendsHaveFramesWithPieces(SZFriendsBlockBytes(transferID), [NSData data],
@@ -409,6 +418,11 @@ const SZFriendsLaneID SZFriendsHeadLane = 0;
 - (void)flushDue {
     for (NSString *transferID in [_transfers flushDueBlocks:NO]) {
         if ([_receivers containsObject:transferID]) [self progressed:transferID lane:_control];
+    }
+    // Pieces still unreported below the 256 KiB threshold (§ 3 says "at least every 256 KiB").
+    for (NSString *transferID in _pieceBytes.allKeys) {
+        if (_pieceBytes[transferID].unsignedIntegerValue == 0 || ![_receivers containsObject:transferID]) continue;
+        [self sendPieceHave:transferID lane:_pieceLane[transferID].unsignedLongLongValue];
     }
     if (_transfers.blocksPending && self.onFlushNeeded) self.onFlushNeeded();
 }

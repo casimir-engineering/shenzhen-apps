@@ -94,6 +94,7 @@ static const double SZFriendsFinishingAfter = 1.0;
     NSMutableDictionary<NSString *, NSNumber *> *_finishing; // transfer id -> when its check began (clock)
     NSMutableDictionary<NSString *, NSNumber *> *_pieceBytes; // transfer id -> part bytes since its last piece HAVE
     NSMutableDictionary<NSString *, NSMutableIndexSet *> *_early; // transfer id -> blocks whose parts came before leaves
+    NSMutableDictionary<NSString *, NSNumber *> *_pieceLane; // transfer id -> the lane its last parts came on
 }
 - (void)changed;
 - (BOOL)sendOn:(SZFriendsLaneID)lane frame:(SZFriendsFrame *)frame;

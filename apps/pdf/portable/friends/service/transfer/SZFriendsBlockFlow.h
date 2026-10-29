@@ -78,6 +78,8 @@ NSData *SZFriendsIndexesAsRanges(NSIndexSet *indexes);
 // Blocks the receiver checked and wrote. NO for ranges past the file.
 - (BOOL)have:(NSData *)ranges;
 @property(nonatomic, readonly) BOOL allAcknowledged;
+// Bytes of the blocks the receiver acknowledged (a copy's progress as the other side sees it).
+@property(nonatomic, readonly) uint64_t acknowledgedBytes;
 @property(nonatomic, readonly) BOOL idle; // nothing queued or being cut into parts
 // The block to read next, when no block is being sent and the window has room; NO otherwise.
 - (BOOL)nextBlock:(uint32_t *)block;

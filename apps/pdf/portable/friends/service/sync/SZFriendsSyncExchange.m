@@ -284,6 +284,10 @@ NSData *_Nullable SZFriendsCopyRangesDecode(const uint8_t *bytes, NSUInteger len
     _servingFraction = 0;
 }
 
+- (void)servingProgress:(NSString *)transferID fraction:(double)fraction {
+    if ([_servingTransferID isEqualToString:transferID]) _servingFraction = fraction;
+}
+
 - (void)finishedServing:(NSString *)transferID {
     if ([_servingTransferID isEqualToString:transferID]) _servingTransferID = nil;
 }

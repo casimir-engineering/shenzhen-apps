@@ -6,6 +6,7 @@
 // and, before the file counts, its whole digest. Trees are kept per file while it is unchanged.
 
 #import <fcntl.h>
+#import <time.h>
 #import <sys/stat.h>
 #import <unistd.h>
 
@@ -19,6 +20,10 @@ static const NSUInteger SZFriendsCopyPartBytes = 48 * 1024;
 static const uint64_t SZFriendsCopyWindowBytes = 8ull << 20;
 // The channel's bulk queue is kept this shallow, as the block exchange keeps it.
 static const NSUInteger SZFriendsCopyBulkDepth = 4;
+// A serve with nothing asked left ends after this long (a computer resuming asks only for the blocks it misses, so
+// its last HAVE need not cover the file); one waiting this long on a HAVE ends too (the other computer stopped, or
+// took the rest from another holder). As the Rust helper's serving.rs.
+static const double SZFriendsCopyIdleEnd = 2, SZFriendsCopyHaveWait = 30;
 // While serving, the copies are pumped at least this often (writes completing pump them sooner).
 static const NSTimeInterval SZFriendsCopyTick = 0.25;
 static const NSUInteger SZFriendsCopyTreesKept = 16;
@@ -31,6 +36,8 @@ static const NSUInteger SZFriendsCopyTreesKept = 16;
 @property(nonatomic, strong) SZFriendsBlockServe *serve;
 @property(nonatomic) BOOL sync;
 @property(nonatomic, copy) NSData *root;
+@property(nonatomic) uint64_t size;
+@property(nonatomic) double lastActivity; // monotonic seconds: last ask or HAVE
 @end
 
 @implementation SZFriendsCopyServe
@@ -48,6 +55,10 @@ static NSMutableDictionary<NSString *, NSArray<NSData *> *> *SZFriendsCopyTrees(
     static NSMutableDictionary *trees;
     if (trees == nil) trees = [NSMutableDictionary dictionary];
     return trees;
+}
+
+static double SZFriendsCopyNow(void) {
+    return (double)clock_gettime_nsec_np(CLOCK_MONOTONIC) / 1e9;
 }
 
 @implementation SZFriendsNearbyService (Copies)
@@ -76,6 +87,7 @@ static NSMutableDictionary<NSString *, NSArray<NSData *> *> *SZFriendsCopyTrees(
     if (existing != nil && existing.serve.geometry.shift == shift && existing.serve.geometry.size == size) {
         close(fd);
         if (![existing.serve want:ranges]) return NO;
+        existing.lastActivity = SZFriendsCopyNow();
         [self sendFollowOf:existing transfer:transferID onLink:link];
         [self pumpCopiesOnLink:link];
         return YES;
@@ -111,6 +123,8 @@ static NSMutableDictionary<NSString *, NSArray<NSData *> *> *SZFriendsCopyTrees(
     served.serve = serve;
     served.sync = sync;
     served.root = tree[1];
+    served.size = size;
+    served.lastActivity = SZFriendsCopyNow();
     if (link.servedCopies == nil) link.servedCopies = [NSMutableDictionary dictionary];
     link.servedCopies[transferID] = served;
     [self sendFollowOf:served transfer:transferID onLink:link];
@@ -178,9 +192,18 @@ static NSMutableDictionary<NSString *, NSArray<NSData *> *> *SZFriendsCopyTrees(
         link.servedCopies = nil;
         return;
     }
+    double now = SZFriendsCopyNow();
     for (NSString *transferID in link.servedCopies.allKeys) {
         SZFriendsCopyServe *served = link.servedCopies[transferID];
         SZFriendsBlockServe *serve = served.serve;
+        // Quiet: every block asked for was acknowledged and nothing more came for a while, or a HAVE never came.
+        BOOL done = serve.idle && !serve.awaitingHave && now - served.lastActivity >= SZFriendsCopyIdleEnd;
+        BOOL stuck = serve.awaitingHave && now - served.lastActivity >= SZFriendsCopyHaveWait;
+        if (done || stuck) {
+            [self endServe:transferID onLink:link];
+            [self changed];
+            continue;
+        }
         while (link.channel.queuedBulkFrames < SZFriendsCopyBulkDepth) {
             SZFriendsFrame *part = [serve nextPart];
             if (part != nil) {
@@ -246,6 +269,13 @@ static NSMutableDictionary<NSString *, NSArray<NSData *> *> *SZFriendsCopyTrees(
     if (served == nil) return NO;
     NSData *ranges = SZFriendsFrameRanges(frame, SZFriendsFieldRanges);
     if (ranges != nil) [served.serve have:ranges];
+    served.lastActivity = SZFriendsCopyNow();
+    // The You row rises with what the other computer acknowledged.
+    if (served.sync && served.size > 0) {
+        [link.syncExchange servingProgress:transferID
+                                  fraction:(double)served.serve.acknowledgedBytes / (double)served.size];
+        [self progressChanged];
+    }
     if (served.serve.allAcknowledged) [self endServe:transferID onLink:link];
     [self pumpCopiesOnLink:link];
     return YES;

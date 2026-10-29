@@ -1160,6 +1160,20 @@ The fix, in both assemblies (`SZFriendsBlockFlow.m` and `assembly.rs`): a part a
 that is whole, new or not. Parts never overlap otherwise, so nothing else changes. Both test suites gained the case.
 Rust's receiver had the same gap.
 
+**A third gap, the same family.** With duplicates acknowledged, a run of the direct-Wi-Fi cut stalled once more. The
+LAN was the Rust sender's only lane left, "silent" holding two re-sent slices; the receiver held their pieces but had
+not said so. It reports pieces once 256 KiB of parts have come since its last pieces HAVE, and the re-sent pieces were
+fewer than that. Nothing more came, so the HAVE never went. ADR 0018 § 3 asks for "at least every 256 KiB", so
+pending pieces now also go at the next durability flush, within half a second. Rust's receiver has the same
+threshold and no flush; this is for WP3.
+
+**The You row while a copy goes by blocks (as a7628e64).** A file this Mac serves by blocks to another of its
+computers shows "Copying to your other computers · N%" with what that computer acknowledged. The row ends when every
+block is acknowledged, the serve fails, the session ends, or the serve goes quiet: 2 s with nothing asked left (a
+resumed copy asks only for what it misses), or 30 s waiting on a HAVE. "On all your computers" was already the Mac's.
+Cancel (Get, Get again) stops the running pull once nobody waits on the file, and its holders hear a HAVE of every
+block.
+
 **Left for WP4:** WP6's work. Not tried on two real Macs: the direct Wi-Fi and Bluetooth lanes
 are exercised through the bench's emulated routes and the helper's fake channels only.
 

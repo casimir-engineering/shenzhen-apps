@@ -303,6 +303,18 @@ NSData *SZFriendsIndexesAsRanges(NSIndexSet *indexes) {
     return _acknowledged.full;
 }
 
+- (uint64_t)acknowledgedBytes {
+    uint64_t total = 0;
+    for (uint32_t block = 0; block < _geometry.blocks; block++) {
+        if (![_acknowledged contains:block]) continue;
+        uint64_t offset = 0;
+        NSUInteger length = 0;
+        SZFriendsGeometrySpan(_geometry, block, &offset, &length);
+        total += length;
+    }
+    return total;
+}
+
 - (BOOL)idle {
     return _queue.count == 0 && _currentData == nil;
 }

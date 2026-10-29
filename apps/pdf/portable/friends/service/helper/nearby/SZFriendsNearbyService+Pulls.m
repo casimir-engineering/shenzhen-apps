@@ -94,6 +94,7 @@ static uint32_t SZFriendsNthBlock(NSData *ranges, uint32_t n) {
 
 - (void)reconsiderPulls {
     if (self.shutDown) return;
+    [self dropUnwantedPull];
     [self preemptForAsked];
     if (self.currentPull == nil) [self startPull];
     [self attachHolders];
@@ -151,6 +152,21 @@ static uint32_t SZFriendsNthBlock(NSData *ranges, uint32_t n) {
         }
     }
     return nil;
+}
+
+// Cancel (Get again, or Get) stopped the file being pulled, and nobody waits on it any more: the pull stops, what
+// arrived stays in its map, and its holders hear a HAVE of every block, so they stop and their rows clear at once.
+- (void)dropUnwantedPull {
+    SZFriendsPullCopy *current = self.currentPull;
+    if (current == nil) return;
+    BOOL wanted = current.again != nil ? [self againStateOfTransfer:current.transferID] == SZFriendsAgainAsked
+                                       : [[self.syncEngine.filesWanted valueForKey:@"transferID"]
+                                             containsObject:current.transferID];
+    if (wanted) return;
+    [self stopHoldersOf:current];
+    [current.blockCopy pause];
+    self.pullCurrent = nil;
+    [self changed];
 }
 
 // A Get again the person asked for, waiting behind a copy that runs by itself: the copy steps aside (what arrived
