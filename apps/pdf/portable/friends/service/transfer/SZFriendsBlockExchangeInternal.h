@@ -95,6 +95,7 @@ static const double SZFriendsFinishingAfter = 1.0;
     NSMutableDictionary<NSString *, NSNumber *> *_pieceBytes; // transfer id -> part bytes since its last piece HAVE
     NSMutableDictionary<NSString *, NSMutableIndexSet *> *_early; // transfer id -> blocks whose parts came before leaves
     NSMutableDictionary<NSString *, NSNumber *> *_pieceLane; // transfer id -> the lane its last parts came on
+    NSString *_lastRefusal; // -lastRefusal's, set where frames are taken
 }
 - (void)changed;
 - (BOOL)sendOn:(SZFriendsLaneID)lane frame:(SZFriendsFrame *)frame;
@@ -102,11 +103,17 @@ static const double SZFriendsFinishingAfter = 1.0;
 - (void)feedScheduler;
 - (SZFriendsScheduler *)scheduler;
 - (void)runActions;
+@end
+
+// Downloads (SZFriendsBlockExchange+Receiving.m).
+@interface SZFriendsBlockExchange (Receiving)
+- (BOOL)startIncoming:(SZFriendsTransferRecord *)record want:(BOOL)want;
 - (void)progressed:(NSString *)transferID lane:(SZFriendsLaneID)lane;
 - (void)checked:(NSString *)transferID saved:(BOOL)saved error:(nullable NSError *)error;
 - (BOOL)hashes:(SZFriendsFrame *)frame transfer:(NSString *)transferID;
 - (BOOL)part:(SZFriendsFrame *)frame transfer:(NSString *)transferID lane:(SZFriendsLaneID)lane;
 - (void)piecesArrived:(NSString *)transferID lane:(SZFriendsLaneID)lane bytes:(NSUInteger)bytes;
+- (void)sendPieceHave:(NSString *)transferID lane:(SZFriendsLaneID)lane;
 @end
 
 @interface SZFriendsBlockExchange (Sending)
