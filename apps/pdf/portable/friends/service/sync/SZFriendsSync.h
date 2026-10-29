@@ -303,6 +303,8 @@ extern const NSUInteger SZFriendsSyncWindow; // 4 EVENTS messages in flight
 - (void)sendNone:(NSString *)transferID;
 // Sends a message the owner built (8 BLOCKS FOLLOW), marking that file as served.
 - (void)sendServing:(NSString *)transferID message:(NSData *)message;
+// That file's serve by blocks is done or given up: it is no longer shown as being copied from here.
+- (void)finishedServing:(NSString *)transferID;
 // The session ended: partial copies stay for the next one.
 - (void)stop;
 @end

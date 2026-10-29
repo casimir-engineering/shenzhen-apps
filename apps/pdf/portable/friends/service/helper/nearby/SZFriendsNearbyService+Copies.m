@@ -135,11 +135,15 @@ static NSMutableDictionary<NSString *, NSArray<NSData *> *> *SZFriendsCopyTrees(
     for (SZFriendsFrame *frame in served.serve.hashesFrames) [link.channel sendFrame:frame];
 }
 
-// A file served by blocks on this link is done or given up: a friend's Get again slot is free again at once.
+// A file served by blocks on this link is done or given up: a friend's Get again slot is free again at once, and a
+// copy to another of our computers is no longer shown as being copied.
 - (void)endServe:(NSString *)transferID onLink:(SZFriendsPeerLink *)link {
     SZFriendsCopyServe *served = link.servedCopies[transferID];
     [link.servedCopies removeObjectForKey:transferID];
-    if (served != nil && !served.sync) [link.againExchange finishedServing:transferID];
+    if (served == nil) return;
+    // A copy to another of our computers: the You row stops saying it is being copied from here.
+    if (served.sync) [link.syncExchange finishedServing:transferID];
+    else [link.againExchange finishedServing:transferID];
 }
 
 // Writes completing on the link pump the copies (after whatever else listens), and a tick does while any is served.
