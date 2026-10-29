@@ -284,6 +284,28 @@ impl State {
                 crate::online::stop(self);
                 json!({})
             }
+            // What each group's scheduler and each file sent by blocks hold now (the bench asks when a transfer
+            // stalls, for its transcripts).
+            "debug" => {
+                let groups: serde_json::Map<String, Value> = self
+                    .lanes
+                    .groups
+                    .iter()
+                    .map(|(head, group)| (head.to_string(), json!(format!("{:?}", group.scheduler))))
+                    .collect();
+                let senders: serde_json::Map<String, Value> = self
+                    .sessions
+                    .iter()
+                    .flat_map(|(id, session)| {
+                        session.blocks.senders.iter().map(move |(transfer, send)| {
+                            let queues: serde_json::Map<String, Value> =
+                                send.lanes.iter().map(|(lane, q)| (lane.to_string(), json!(q.len()))).collect();
+                            (format!("{id}:{transfer}"), json!({ "queued": queues, "state": send.debug_state() }))
+                        })
+                    })
+                    .collect();
+                json!({ "groups": groups, "senders": senders, "head_of": format!("{:?}", self.lanes.head_of) })
+            }
             other => self
                 .device_command(other, command)
                 .unwrap_or_else(|| json!({ "error": format!("{other} failed or is unknown") })),

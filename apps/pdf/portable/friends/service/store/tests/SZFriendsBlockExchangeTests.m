@@ -277,7 +277,7 @@ static void TestAPartBeforeTheLeavesIsWantedAgain(void) {
     SZFriendsStore *receiverStore = SZFTOpenStore(SZFTTemporaryDirectory(@"early-receive"));
     SZFTAddPerson(senderStore, @"mei", 1, SZFriendsRelationFriend, 1000);
     SZFTAddPerson(receiverStore, @"ken", 3, SZFriendsRelationFriend, 1000);
-    SZFriendsTransfers *sending = Transfers(senderStore), *receiving = Transfers(receiverStore);
+    SZFriendsTransfers *sending = SZFTBlockTransfers(senderStore), *receiving = SZFTBlockTransfers(receiverStore);
     NSData *contents = SZFTRandomData(3 * MiB + 1);
     NSString *source = [SZFTTemporaryDirectory(@"early-source") stringByAppendingPathComponent:@"Early.step"];
     [contents writeToFile:source atomically:YES];

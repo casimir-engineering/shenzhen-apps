@@ -208,6 +208,14 @@ const SZFriendsLaneID SZFriendsHeadLane = 0;
 #pragma mark - Receiving
 
 - (BOOL)resumeIncoming:(SZFriendsTransferRecord *)record {
+    return [self startIncoming:record want:YES];
+}
+
+- (BOOL)beginIncoming:(SZFriendsTransferRecord *)record {
+    return [self startIncoming:record want:NO];
+}
+
+- (BOOL)startIncoming:(SZFriendsTransferRecord *)record want:(BOOL)want {
     NSString *transferID = record.transferID;
     if (![_transfers hasOfferedTree:transferID]) return NO;
     NSError *error = nil;
@@ -223,7 +231,9 @@ const SZFriendsLaneID SZFriendsHeadLane = 0;
     NSData *pieces = [NSData data];
     NSData *missing = self.pieces ? [_transfers blocksMissing:transferID pieces:&pieces]
                                   : [_transfers blocksMissing:transferID];
-    for (SZFriendsFrame *frame in SZFriendsWantFramesWithPieces(wire, missing, pieces)) [self sendOnHead:frame];
+    if (want) {
+        for (SZFriendsFrame *frame in SZFriendsWantFramesWithPieces(wire, missing, pieces)) [self sendOnHead:frame];
+    }
     // Every block arrived before the last session ended: the check and the ACK are all that is left.
     if (missing.length == 0 && pieces.length == 0) [self progressed:transferID lane:_control];
     return YES;
@@ -424,6 +434,40 @@ const SZFriendsLaneID SZFriendsHeadLane = 0;
     if ([self startSending:transferID] == nil) return NO;
     [self pump];
     return YES;
+}
+
+- (NSDictionary *)debugState {
+    NSMutableDictionary *lanes = [NSMutableDictionary dictionary];
+    for (NSNumber *lane in _links) {
+        SZFriendsLaneLink *link = _links[lane];
+        lanes[lane.stringValue] = @{@"route" : @(link.route), @"queued" : @(link.queued ? link.queued() : 0),
+                                    @"in_flight" : @([_scheduler inFlightOfLane:lane.unsignedLongLongValue]),
+                                    @"scheduled" : @([_scheduler hasLane:lane.unsignedLongLongValue])};
+    }
+    NSMutableDictionary *receiving = [NSMutableDictionary dictionary];
+    for (NSString *transferID in _receivers) {
+        NSData *pieces = [NSData data];
+        NSData *missing = [_transfers blocksMissing:transferID pieces:&pieces];
+        receiving[transferID] = @{@"missing_block_ranges" : @(missing.length / 8),
+                                  @"first_missing" : missing.length ? @(((const uint32_t *)missing.bytes)[0]) : @(-1),
+                                  @"missing_piece_ranges" : @(pieces.length / 8),
+                                  @"partial_blocks" : @([_transfers blocksPartlyReceived:transferID]),
+                                  @"all_durable" : @([_transfers blocksAllDurable:transferID]),
+                                  @"early" : @(_early[transferID].count)};
+    }
+    NSMutableDictionary *sending = [NSMutableDictionary dictionary];
+    for (NSString *transferID in _senders) {
+        SZFriendsBlockSend *send = _senders[transferID];
+        uint64_t bytes = 0;
+        NSUInteger open = [_scheduler openBlocks:send.key bytes:&bytes];
+        NSMutableDictionary *queues = [NSMutableDictionary dictionary];
+        for (NSNumber *lane in send.lanes) queues[lane.stringValue] = @(send.lanes[lane].count);
+        sending[transferID] = @{@"open_units" : @(open), @"open_bytes" : @(bytes), @"lanes_ok" : @(send.lanesOK),
+                                @"queued_parts" : queues, @"done" : @([_scheduler isDone:send.key]),
+                                @"all_acknowledged" : @(send.serve.allAcknowledged)};
+    }
+    return @{@"control" : @(_control), @"lanes" : lanes, @"receiving" : receiving, @"sending" : sending,
+             @"finishing" : _finishing.allKeys, @"next_timer" : @([self nextTimer])};
 }
 
 - (BOOL)handleFrame:(SZFriendsFrame *)frame {

@@ -174,6 +174,15 @@ static NSData *SZFDerive(NSString *label) {
         return [self openLinkWithCommand:command];
     } else if ([name isEqualToString:@"quit"] || [name isEqualToString:@"abort"]) {
         return @{};
+    } else if ([name isEqualToString:@"debug"]) {
+        // Each session's block exchange as it stands (the bench asks when a transfer stalls).
+        NSMutableDictionary *sessions = [NSMutableDictionary dictionary];
+        for (NSNumber *key in self.sessions) {
+            SZFPeerSession *session = self.sessions[key];
+            sessions[key.stringValue] = @{@"lane_of" : session.laneHead ? @(session.laneHead.sessionID) : [NSNull null],
+                                          @"blocks" : session.blocks ? [session.blocks debugState] : [NSNull null]};
+        }
+        return @{@"sessions" : sessions};
     }
     NSDictionary *device = [self deviceCommand:command];
     if (device != nil) return device;

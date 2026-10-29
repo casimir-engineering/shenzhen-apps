@@ -37,7 +37,8 @@ static void SZFriendsUpdateLiveness(SZFriendsPeerLink *link) {
         }
         // By blocks on a fast session, from exactly what is missing (ADR 0018 § 4); on any other, the map goes and
         // the CHUNK flow resumes from the durable prefix.
-        if ([blocks resumeIncoming:record]) {
+        BOOL answered = [link.answeredByBlocks containsObject:record.transferID];
+        if (answered ? [blocks beginIncoming:record] : [blocks resumeIncoming:record]) {
             [link.endedTransfers removeObject:record.transferID];
             continue;
         }

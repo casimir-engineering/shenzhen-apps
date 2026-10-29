@@ -65,6 +65,13 @@ pub(crate) struct Blocks {
     pub(crate) receivers: std::collections::HashSet<String>,
 }
 
+impl BlockSend {
+    /// For the bench's `debug`: whether lanes may carry parts and what the receiver acknowledged.
+    pub(crate) fn debug_state(&self) -> String {
+        format!("lanes_ok {}, all acknowledged {}", self.lanes_ok, self.serve.all_acknowledged())
+    }
+}
+
 impl Blocks {
     /// Whether a file moves by blocks on this session, and whether the peer owes us something (a HAVE for blocks
     /// sent, or the rest of a file being received): the liveness the channel keeps (ADR 0018 § 7).

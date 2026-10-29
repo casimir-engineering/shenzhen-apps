@@ -235,14 +235,14 @@ impl BlockAssembly {
         let partial = self.partial.get_mut(&block).expect("inserted");
         let start = (offset - block_offset) as usize;
         let end = start + data.len();
-        let fresh: Vec<usize> = (start / PIECE * PIECE..end)
-            .step_by(PIECE)
-            .filter(|&p| !partial.has(p, (p + PIECE).min(block_length)))
-            .collect();
         partial.data[start..end].copy_from_slice(data);
         partial.cover(start, end);
+        // Every piece this part touches that is whole now goes in the next HAVE's Pieces (§ 3), new or not: a piece
+        // sent again (its first HAVE went with a lane that was cut) is acknowledged again, or the sender, which never
+        // resends an acknowledged piece but waits for this one, would wait forever (WP4's Rust → Objective-C stall).
+        // Parts do not overlap otherwise, so each piece is reported once.
         let first = (block_offset >> szfriends_wire::consts::PIECE_SHIFT) as u32;
-        for p in fresh {
+        for p in (start / PIECE * PIECE..end).step_by(PIECE) {
             if partial.has(p, (p + PIECE).min(block_length)) {
                 self.arrived.push(first + (p / PIECE) as u32);
             }
@@ -314,6 +314,9 @@ mod tests {
         assert_eq!(assembly.accept_part(odd as u64, &bytes[odd..odd + piece]), Ok(PartOutcome::Pending));
         assert_eq!(assembly.take_arrived_pieces(), vec![(64, 2)]);
         assert!(assembly.take_arrived_pieces().is_empty(), "reported once");
+        // Sent again (its HAVE went with a cut lane): acknowledged again, or the sender would wait for it forever.
+        assembly.accept_part(at, &bytes[at as usize..at as usize + piece]).unwrap();
+        assert_eq!(assembly.take_arrived_pieces(), vec![(64, 1)], "a piece sent again is acknowledged again");
         // The rest of piece 66 arrives.
         let rest = at as usize + 2 * piece + 100;
         assembly.accept_part(rest as u64, &bytes[rest..at as usize + 3 * piece]).unwrap();

@@ -149,21 +149,19 @@ NSData *SZFriendsIndexesAsRanges(NSIndexSet *indexes) {
         _partialBytes += blockLength;
     }
     NSRange range = NSMakeRange((NSUInteger)(offset - blockOffset), data.length);
-    // The pieces this part may complete, those not whole before it (§ 3: reported in HAVE's Pieces).
-    NSMutableIndexSet *fresh = [NSMutableIndexSet indexSet];
-    for (NSUInteger p = range.location / SZFriendsPieceBytes * SZFriendsPieceBytes; p < NSMaxRange(range);
-         p += SZFriendsPieceBytes) {
-        if (![partial has:NSMakeRange(p, MIN(SZFriendsPieceBytes, blockLength - p))]) [fresh addIndex:p];
-    }
     [partial.data replaceBytesInRange:range withBytes:data.bytes];
     [partial cover:range];
+    // Every piece this part touches that is whole now goes in the next HAVE's Pieces (§ 3), new or not: a piece sent
+    // again (its first HAVE went with a lane that was cut) is acknowledged again, or the sender, which never resends
+    // an acknowledged piece but waits for this one, would wait forever. Parts do not overlap otherwise, so each piece
+    // is reported once.
     NSUInteger firstPiece = (NSUInteger)(blockOffset / SZFriendsPieceBytes);
-    [fresh enumerateIndexesUsingBlock:^(NSUInteger p, BOOL *stop) {
-        (void)stop;
+    for (NSUInteger p = range.location / SZFriendsPieceBytes * SZFriendsPieceBytes; p < NSMaxRange(range);
+         p += SZFriendsPieceBytes) {
         if ([partial has:NSMakeRange(p, MIN(SZFriendsPieceBytes, blockLength - p))]) {
-            [self->_arrived addIndex:firstPiece + p / SZFriendsPieceBytes];
+            [_arrived addIndex:firstPiece + p / SZFriendsPieceBytes];
         }
-    }];
+    }
     if (partial.filled < blockLength) return SZFriendsPartPending;
     [_partial removeObjectForKey:@(block)];
     _partialBytes -= blockLength;

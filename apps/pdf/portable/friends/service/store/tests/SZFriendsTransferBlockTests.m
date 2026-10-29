@@ -380,6 +380,9 @@ static void TestPiecesThatArrivedAndPiecesStillMissing(void) {
     [assembly acceptPart:[bytes subdataWithRange:NSMakeRange(odd, piece)] offset:odd block:&block data:&data];
     SZFTExpect(SZFTPairsAre([assembly takeArrivedPieces], @[ @64, @2 ]), @"pieces 64 and 65 arrived");
     SZFTExpect([assembly takeArrivedPieces].length == 0, @"reported once");
+    // Sent again (its HAVE went with a cut lane): acknowledged again, or the sender would wait for it forever.
+    [assembly acceptPart:[bytes subdataWithRange:NSMakeRange(at, piece)] offset:at block:&block data:&data];
+    SZFTExpect(SZFTPairsAre([assembly takeArrivedPieces], @[ @64, @1 ]), @"a piece sent again is acknowledged again");
     NSUInteger rest = at + 2 * piece + 100;
     [assembly acceptPart:[bytes subdataWithRange:NSMakeRange(rest, at + 3 * piece - rest)] offset:rest block:&block
                     data:&data];

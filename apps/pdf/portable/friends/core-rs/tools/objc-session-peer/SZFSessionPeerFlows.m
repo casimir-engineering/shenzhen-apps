@@ -254,7 +254,8 @@ static void SZFUpdateLiveness(SZFPeerSession *session) {
         return YES;
     }
     if (byBlocks) {
-        [session.blocks resumeIncoming:[self.transfers transferWithID:offer]];
+        // The sender starts with every block on this reply: no WANT here (one would resend what is in flight).
+        [session.blocks beginIncoming:[self.transfers transferWithID:offer]];
         [self emit:@{@"event" : @"offer", @"session" : @(session.sessionID), @"transfer" : offer, @"size" : @(size)}];
         return YES;
     }

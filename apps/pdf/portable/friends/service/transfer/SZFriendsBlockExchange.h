@@ -102,6 +102,9 @@ extern const SZFriendsLaneID SZFriendsHeadLane; // 0
                transfers:(SZFriendsTransfers *)transfers;
 // A new session and an unfinished download: YES when it resumes by blocks (WANT sent); NO for CHUNK.
 - (BOOL)resumeIncoming:(SZFriendsTransferRecord *)record;
+// The same on the session that just accepted it by blocks (OFFER_REPLY with Blocks): no WANT, since the sender starts
+// with every block on that reply, and a WANT for blocks already in flight would have them sent again.
+- (BOOL)beginIncoming:(SZFriendsTransferRecord *)record;
 // OFFER_REPLY accepting with Blocks: YES when the file now goes by blocks.
 - (BOOL)offerTakenByBlocks:(NSString *)transferID;
 
@@ -110,6 +113,8 @@ extern const SZFriendsLaneID SZFriendsHeadLane; // 0
 // HASHES, WANT, PART or HAVE that came on `lane`: NO when it is unsolicited (close that session as a protocol error).
 - (BOOL)handleFrame:(SZFriendsFrame *)frame lane:(SZFriendsLaneID)lane;
 - (BOOL)handleFrame:(SZFriendsFrame *)frame; // on -controlLane
+// What the exchange holds now, for a stalled transfer's diagnosis: lanes, files received and sent, the scheduler's view.
+- (NSDictionary *)debugState;
 // Why the last frame was refused (-handleFrame: returned NO), for the driver's log.
 @property(nonatomic, readonly, copy, nullable) NSString *lastRefusal;
 // A write on `lane` completed (its bulk queue shortened): the lane is moving, and more parts may go.

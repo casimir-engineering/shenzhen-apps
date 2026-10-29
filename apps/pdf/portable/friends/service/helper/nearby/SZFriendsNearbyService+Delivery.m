@@ -112,6 +112,10 @@ static BOOL SZFriendsIsRequestAnswer(SZFriendsOutboxEntry *entry) {
             continue;
         }
         [link.inFlightEntries addObject:entry.entryID];
+        if (frame.type == SZFriendsFrameTypeOfferReply && [frame dataForTag:SZFriendsFieldBlocks] != nil) {
+            if (link.answeredByBlocks == nil) link.answeredByBlocks = [NSMutableSet set];
+            [link.answeredByBlocks addObject:wireID];
+        }
         [link expectAckForID:wireID token:entry.entryID];
         moved = YES;
     }

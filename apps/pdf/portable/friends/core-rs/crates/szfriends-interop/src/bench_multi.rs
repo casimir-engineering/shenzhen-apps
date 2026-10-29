@@ -158,9 +158,14 @@ pub(super) fn measure_multi(
         result["noticed_s"] = json!(noticed);
     }
     for id in &ids {
-        log_r
-            .wait(&mut receiver, 0, long, |e| e["event"] == "received_file" && e["transfer"] == id.as_str())
-            .ok_or_else(|| format!("{id} not received within {long:?}"))?;
+        if log_r.wait(&mut receiver, 0, long, |e| e["event"] == "received_file" && e["transfer"] == id.as_str()).is_none()
+        {
+            // What each side holds now, for the transcripts (peers without "debug" answer that they do not know it).
+            for peer in [&mut sender, &mut receiver] {
+                peer.command(json!({ "cmd": "debug" }));
+            }
+            return Err(format!("{id} not received within {long:?}"));
+        }
     }
     let seconds = started.elapsed().as_secs_f64();
     let (cpu_s, cpu_r) = (cpu_seconds(pid_s) - cpu_s0, cpu_seconds(pid_r) - cpu_r0);

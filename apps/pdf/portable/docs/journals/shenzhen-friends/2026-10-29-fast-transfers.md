@@ -1134,6 +1134,32 @@ Fixes:
   its block is wanted again as soon as the leaves check.
 - An exchange test puts a PART ahead of the HASHES: the file arrives whole.
 
+**Rust → Objective-C's resend (45aac850's finding), fixed.** The Mac receiver accepted a file by blocks with its
+OFFER_REPLY and then at once sent a WANT for every block. A sender starts with every block on that reply, and a WANT
+for blocks already in flight has them sent again: two slices, 508,372 bytes, whenever the sender was quicker than the
+WANT. The Rust receiver sends no WANT on the session where it accepted, and the Mac's now does the same. The session
+peer and the helper begin such a download without one (`beginIncoming:`, `answeredByBlocks`); a later session still
+asks with a WANT. `slowlan`, 16 MiB, Rust → Objective-C, 8 runs each: before, 7 resent 508,372 bytes (13.92 s);
+after, none (13.51 to 13.67 s).
+
+**A second, different stall, found.** Rust → Objective-C on three routes, the LAN (the first session) cut half-way,
+about 1 run in 30-60. Nothing was closed or refused: the transfer stopped after the cut. The bench now asks both peers
+for their block state (`debug`) before reporting "not received"; the Rust bench peer gained the command too.
+
+Its state showed the cause:
+- The Rust sender's two remaining lanes were both "silent", holding the slices the LAN had been carrying, though both
+  were still heard every second.
+- The Mac receiver held the blocks those slices belong to, partly.
+- Before the cut, the LAN had delivered pieces of those slices. The receiver acknowledged them in a HAVE on the LAN,
+  and that HAVE was lost with it.
+- The sender then sent those pieces again on the other lanes. The receiver already had them, and reported only pieces
+  that were new, so it never acknowledged them again.
+- The sender, which never resends an acknowledged piece but waits for this one, waited forever.
+
+The fix, in both assemblies (`SZFriendsBlockFlow.m` and `assembly.rs`): a part acknowledges every piece it touches
+that is whole, new or not. Parts never overlap otherwise, so nothing else changes. Both test suites gained the case.
+Rust's receiver had the same gap.
+
 **Left for WP4:** WP6's work. Not tried on two real Macs: the direct Wi-Fi and Bluetooth lanes
 are exercised through the bench's emulated routes and the helper's fake channels only.
 
