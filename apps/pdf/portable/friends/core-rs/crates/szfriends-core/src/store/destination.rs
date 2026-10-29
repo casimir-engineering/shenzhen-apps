@@ -208,6 +208,20 @@ pub(crate) fn rename_no_replace(from: &Path, to: &Path) -> io::Result<()> {
 pub(crate) type Claim<'a> = &'a mut dyn FnMut(Option<&str>) -> Result<()>;
 
 impl Places {
+    /// The folder a batch publishes into without asking anyone: the chosen folder, else the default one when no
+    /// external publisher comes first. `None` when a file must go through [`Places::publish`] (and its fallbacks).
+    pub(crate) fn batch_folder(&self) -> Option<PathBuf> {
+        let folder = match &self.chosen {
+            Some(chosen) => chosen.clone(),
+            None if self.defaults.external.is_none() => self.defaults.folder.clone()?,
+            None => return None,
+        };
+        if self.chosen.is_none() {
+            let _ = fs::create_dir_all(&folder); // the default folder is made when missing; a chosen one never is
+        }
+        fs::metadata(&folder).is_ok_and(|m| m.is_dir()).then_some(folder)
+    }
+
     /// Publishes the checked file at `staged` as `name`; returns where it went (a path, or an external location)
     /// and its name there. The staged file is gone afterwards. A file that could not go where it was meant to is
     /// remembered ([`super::RECEIVED_FALLBACK_FILE`]); one that did clears that.

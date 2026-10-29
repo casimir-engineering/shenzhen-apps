@@ -282,7 +282,8 @@ impl State {
         };
         session.receivers.remove(&offer);
         let wire = frame.get(tag::ID).unwrap_or_default().to_vec();
-        if self.store.finish_transfer(&offer, &digest, conversation).is_ok() {
+        // Published at once, or at the end of the store batch, which acknowledges it then.
+        if self.store.finish_transfer(&offer, &digest, conversation).is_ok_and(|path| !path.as_os_str().is_empty()) {
             self.send_on(id, &id_frame(FrameType::Ack, &wire));
         }
         self.changed();

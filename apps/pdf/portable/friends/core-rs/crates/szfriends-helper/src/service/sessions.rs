@@ -191,6 +191,10 @@ impl State {
 
     pub(super) fn service(&mut self, id: u64) {
         let now = monotonic_now();
+        // What a friend's session brings now is handled in one store batch (ADR 0018 § 9.3: offers, answers, files),
+        // committed before that session sends. Joining, our own devices' sync and strangers' sessions keep one
+        // transaction per write.
+        let mut batched = self.batches_files(id) && self.store.begin_batch().is_ok();
         if let Some(s) = self.sessions.map.get_mut(&id) {
             let (keepalive, watch) = transfer_liveness(s.senders.values().map(|o| &o.sender), s.receivers.values());
             let (blocks, owed) = self.block_liveness(id);
@@ -199,8 +203,8 @@ impl State {
             s.channel.handle_timeout(now);
         }
         loop {
-            let Some(s) = self.sessions.map.get_mut(&id) else { return };
-            while let Some(write) = s.channel.poll_transmit() {
+            let Some(s) = self.sessions.map.get_mut(&id) else { break };
+            while let Some(write) = (!batched).then(|| s.channel.poll_transmit()).flatten() {
                 s.link.write(write.bytes);
             }
             let Some(event) = s.channel.poll_event() else { break };
@@ -213,13 +217,24 @@ impl State {
                 }
                 Event::Frame(frame) => self.frame(self.head_of(id), frame),
                 Event::Code(result) => self.code_finished(id, result),
-                Event::Closed(error) => self.closed(id, error),
+                Event::Closed(error) => {
+                    // What it committed and queued (its CLOSE among them) leaves before the session is let go.
+                    if batched {
+                        self.end_store_batch();
+                        self.flush_writes(id);
+                    }
+                    self.closed(id, error);
+                    batched = false;
+                }
             }
         }
         self.flush_if_due(id);
         self.flush_blocks_if_due();
         self.pump(id);
         self.pump_blocks(id);
+        if batched {
+            self.end_store_batch();
+        }
         let Some(s) = self.sessions.map.get_mut(&id) else { return };
         while let Some(write) = s.channel.poll_transmit() {
             s.link.write(write.bytes);
@@ -227,6 +242,38 @@ impl State {
         if s.channel.is_closed() && !s.finished {
             s.finished = true;
             s.link.finish();
+        }
+    }
+
+    /// A friend's IK session, not one with our own devices: what may carry many files at once.
+    fn batches_files(&self, id: u64) -> bool {
+        let Some(s) = self.sessions.map.get(&id) else { return false };
+        s.channel.is_established()
+            && s.channel.pattern() == szfriends_core::wire::Pattern::IK
+            && s.conversation.is_some()
+            && !self.devices.exchanges.contains_key(&id)
+    }
+
+    /// Ends the store batch; each file it published is acknowledged now, on its friend's live session.
+    pub(super) fn end_store_batch(&mut self) {
+        let published = match self.store.end_batch() {
+            Ok(published) => published,
+            Err(error) => return log!("a store batch did not commit: {error}"),
+        };
+        for file in published {
+            match file.result {
+                Ok(_) => {
+                    let (Some(id), Some(wire)) =
+                        (self.sessions.live_for(&file.conversation_id), unhex(&file.transfer_id))
+                    else {
+                        continue;
+                    };
+                    self.send_ack(id, &wire);
+                    self.flush_writes(id);
+                }
+                Err(error) => log!("a received file could not be saved: {error}"),
+            }
+            self.changed();
         }
     }
 

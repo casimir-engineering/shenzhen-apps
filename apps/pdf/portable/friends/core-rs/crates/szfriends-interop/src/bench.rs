@@ -315,10 +315,22 @@ fn measure(case: &Case, sender_spec: &PeerSpec, receiver_spec: &PeerSpec, result
     let (cpu_s0, cpu_r0) = (cpu_seconds(pid_s), cpu_seconds(pid_r));
     let started = Instant::now();
     let mut ids = Vec::new();
-    for path in &paths {
-        let offer = sender.command(json!({ "cmd": "send_file", "session": session, "path": path.to_string_lossy() }));
-        let id = offer["transfer"].as_str().ok_or_else(|| format!("send_file failed: {offer}"))?.to_owned();
-        ids.push(id);
+    // Many files go as a person sends them, together (send_files, one store batch), where the peer can; one by one
+    // otherwise.
+    if paths.len() > 1 {
+        let all: Vec<String> = paths.iter().map(|p| p.to_string_lossy().into_owned()).collect();
+        let offers = sender.command(json!({ "cmd": "send_files", "session": session, "paths": all }));
+        for offer in offers["transfers"].as_array().into_iter().flatten() {
+            ids.push(offer["transfer"].as_str().ok_or_else(|| format!("send_files failed: {offers}"))?.to_owned());
+        }
+    }
+    if ids.is_empty() {
+        for path in &paths {
+            let offer =
+                sender.command(json!({ "cmd": "send_file", "session": session, "path": path.to_string_lossy() }));
+            let id = offer["transfer"].as_str().ok_or_else(|| format!("send_file failed: {offer}"))?.to_owned();
+            ids.push(id);
+        }
     }
     result["offer_seconds"] = json!(started.elapsed().as_secs_f64());
     let expected = case.route.expected_bytes_per_second().map_or(60.0, |rate| total as f64 / rate);

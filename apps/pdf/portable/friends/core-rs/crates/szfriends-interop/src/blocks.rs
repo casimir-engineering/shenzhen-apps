@@ -21,6 +21,15 @@ use crate::peer::State;
 /// As the helper: parts queued in the channel ahead of the link; the serve's own window (the scheduler sizes each
 /// lane's share within § 3's limits).
 const BULK_DEPTH: usize = 4;
+/// Many small parts (small files) queue by bytes, up to this many frames: a burst fills the other side's reads.
+const BULK_SMALL_FRAMES: usize = 64;
+
+/// Room for another part: fewer than four frames queued, or more but all of them small.
+fn bulk_has_room(channel: &szfriends_core::session::SecureChannel) -> bool {
+    let frames = channel.queued_frames().1;
+    frames < BULK_DEPTH
+        || (frames < BULK_SMALL_FRAMES && channel.queued_bulk_bytes() < BULK_DEPTH * szfriends_core::wire::consts::PART_BYTES_MAX)
+}
 const WINDOW_BYTES: u64 = 64 << 20;
 
 /// One of our files going by blocks on one session's group.
@@ -342,6 +351,7 @@ impl State {
             session.blocks.receivers.remove(transfer);
         }
         match self.store.finish_block_transfer(transfer, conversation) {
+            Ok(path) if path.as_os_str().is_empty() => {}
             Ok(path) => {
                 self.send_frame(id, &Frame::new(FrameType::Ack).with(tag::ID, wire));
                 let path = path.to_string_lossy().into_owned();
@@ -413,7 +423,7 @@ impl State {
                     let room = self
                         .sessions
                         .get(&lane)
-                        .is_some_and(|s| s.channel.is_established() && s.channel.queued_frames().1 < BULK_DEPTH);
+                        .is_some_and(|s| s.channel.is_established() && bulk_has_room(&s.channel));
                     if !room {
                         break;
                     }

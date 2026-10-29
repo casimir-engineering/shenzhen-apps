@@ -71,6 +71,10 @@ pub(crate) struct State {
     pub(crate) devices: crate::devices::Devices,
     /// Lane groups (ADR 0018 § 6, `lanes.rs`).
     pub(crate) lanes: crate::lanes::Lanes,
+    /// While a store batch is open nothing is written to a link: what it acknowledges is committed first.
+    holding: bool,
+    /// An input taken while gathering link bytes into a batch, handled next.
+    later: std::collections::VecDeque<Input>,
 }
 
 /// A Rust peer with its own state directory (a temporary home) and identity, listening only on loopback.
@@ -106,6 +110,8 @@ impl RustPeer {
             online: None,
             devices,
             lanes: Default::default(),
+            holding: false,
+            later: std::collections::VecDeque::new(),
         };
         let thread = std::thread::spawn(move || run(state, inbox));
         Self { input, events, thread: Some(thread) }
@@ -147,21 +153,51 @@ fn run(mut state: State, inbox: Receiver<Input>) {
             .filter_map(|s| s.channel.poll_timeout())
             .min()
             .map_or(Duration::from_millis(50), |at| at.saturating_sub(now).min(Duration::from_millis(50)));
-        match inbox.recv_timeout(wait) {
+        // What arrived is handled in one store batch (ADR 0018 § 9.3), committed before any byte of what it
+        // acknowledges is written, as the Rust helper does. One input per batch: a TCP read carries many frames.
+        let next = match state.later.pop_front() {
+            Some(input) => Ok(input),
+            None => inbox.recv_timeout(wait),
+        };
+        state.holding = state.store.begin_batch().is_ok();
+        match next {
             Ok(Input::Command(command, reply)) => {
                 let quit = command["cmd"] == "quit";
                 let answer = state.command(&command);
                 let _ = reply.send(answer);
                 if quit {
+                    state.end_batch();
                     return;
                 }
             }
             Ok(Input::Accepted(stream)) => state.accept(stream),
-            Ok(Input::Link(event)) => state.link_event(event),
+            Ok(Input::Link(event)) => {
+                state.link_event(event);
+                // Bytes already read from the links join the same batch, so a burst of small files costs one flush.
+                let mut deferred = None;
+                for _ in 0..64 {
+                    match inbox.try_recv() {
+                        Ok(Input::Link(event)) => state.link_event(event),
+                        Ok(other) => {
+                            deferred = Some(other);
+                            break;
+                        }
+                        Err(_) => break,
+                    }
+                }
+                if let Some(input) = deferred {
+                    state.later.push_back(input);
+                }
+            }
             Ok(Input::Online(event)) => crate::online::event(&mut state, event),
             Err(RecvTimeoutError::Timeout) => {}
-            Err(RecvTimeoutError::Disconnected) => return,
+            Err(RecvTimeoutError::Disconnected) => {
+                state.end_batch();
+                return;
+            }
         }
+        state.service_all();
+        state.end_batch();
         state.service_all();
     }
 }
@@ -237,6 +273,7 @@ impl State {
             }
             "request_by_id" => self.request_by_id(session, command),
             "send_file" => self.send_file(session, command),
+            "send_files" => self.send_files(session, command),
             "transfer" => self.transfer(command),
             "online" => crate::online::start(self, command, self.input.clone()),
             "reach" => crate::online::reach(self, command),
@@ -443,6 +480,32 @@ impl State {
         }
     }
 
+    /// Commits the store batch, then acknowledges and reports each file it saved.
+    fn end_batch(&mut self) {
+        if !std::mem::replace(&mut self.holding, false) {
+            return;
+        }
+        for file in self.store.end_batch().unwrap_or_default() {
+            let session = self.sessions.iter().find(|(_, s)| s.conversation.as_deref() == Some(&file.conversation_id));
+            let session = session.map(|(id, _)| *id);
+            match file.result {
+                Ok(path) => {
+                    if let (Some(id), Ok(wire)) = (session, hex::decode(&file.transfer_id)) {
+                        let ack = Frame::new(szfriends_core::wire::FrameType::Ack).with(tag::ID, wire);
+                        if let Some(s) = self.sessions.get_mut(&id) {
+                            s.channel.send_frame(&ack, monotonic_now());
+                        }
+                    }
+                    let path = path.to_string_lossy().into_owned();
+                    self.emit(json!({ "event": "received_file", "transfer": file.transfer_id, "path": path }));
+                }
+                Err(error) => self.emit(
+                    json!({ "event": "transfer_failed", "transfer": file.transfer_id, "why": error.to_string() }),
+                ),
+            }
+        }
+    }
+
     fn service_all(&mut self) {
         let ids: Vec<u64> = self.sessions.keys().copied().collect();
         for id in ids {
@@ -463,9 +526,11 @@ impl State {
             s.channel.set_liveness(keepalive || blocks, watch || owed, now);
             s.channel.handle_timeout(now);
         }
+        let holding = self.holding;
         loop {
             let Some(s) = self.sessions.get_mut(&id) else { return };
-            while let Some(write) = s.channel.poll_transmit() {
+            // Only while not holding: a write taken from the channel must reach the link.
+            while let Some(write) = (!holding).then(|| s.channel.poll_transmit()).flatten() {
                 s.link.write(write.bytes);
             }
             let Some(event) = s.channel.poll_event() else { break };
@@ -476,10 +541,10 @@ impl State {
         self.pump(id);
         self.pump_blocks(id);
         let Some(s) = self.sessions.get_mut(&id) else { return };
-        while let Some(write) = s.channel.poll_transmit() {
+        while let Some(write) = (!holding).then(|| s.channel.poll_transmit()).flatten() {
             s.link.write(write.bytes);
         }
-        if s.channel.is_closed() && !s.finished {
+        if !holding && s.channel.is_closed() && !s.finished {
             s.finished = true;
             s.link.finish();
         }

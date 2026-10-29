@@ -79,6 +79,12 @@ impl SecureChannel {
         (self.control_queue.len(), self.bulk_queue.len())
     }
 
+    /// The plaintext bytes waiting in the bulk queue: a sender of many small parts keeps the queue shallow in bytes,
+    /// not in frames, so a burst of small files fills a read at the other end.
+    pub fn queued_bulk_bytes(&self) -> usize {
+        self.bulk_queue.iter().map(Vec::len).sum()
+    }
+
     pub(super) fn enqueue_channel_frame(&mut self, frame: &Frame) {
         if let Ok(plaintext) = frame.encode() {
             self.control_queue.push_back(plaintext);

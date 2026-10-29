@@ -20,6 +20,15 @@ use super::{hex, unhex, State};
 const FINISHING_AFTER: std::time::Duration = std::time::Duration::from_secs(1);
 /// Parts queued in the channel ahead of the link, as for CHUNKs: a message still overtakes them.
 const BULK_DEPTH: usize = 4;
+/// Many small parts (small files) queue by bytes, up to this many frames: a burst fills the other side's reads.
+const BULK_SMALL_FRAMES: usize = 64;
+
+/// Room for another part: fewer than four frames queued, or more but all of them small.
+fn bulk_has_room(channel: &szfriends_core::session::SecureChannel) -> bool {
+    let frames = channel.queued_frames().1;
+    frames < BULK_DEPTH
+        || (frames < BULK_SMALL_FRAMES && channel.queued_bulk_bytes() < BULK_DEPTH * szfriends_core::wire::consts::PART_BYTES_MAX)
+}
 /// The serve's own window; the scheduler sizes what each lane holds (2 × rate × round trip), within § 3's limits.
 const WINDOW_BYTES: u64 = 64 << 20;
 
@@ -312,6 +321,16 @@ impl State {
         if self.finishing.contains_key(transfer) {
             return;
         }
+        // A small file's check takes no time: here, in the store batch, which publishes and acknowledges it.
+        if self.store.block_check_is_quick(transfer) {
+            let checked = self.store.begin_block_check(transfer, conversation).map(|check| check.run());
+            match checked.and_then(|checked| self.store.complete_block_check(checked)) {
+                Ok(path) if !path.as_os_str().is_empty() => self.send_ack(id, &wire),
+                Ok(_) => {}
+                Err(error) => crate::log!("a file received by blocks did not check: {error}"),
+            }
+            return self.changed();
+        }
         // The check before saving runs on a thread of its own; past a second the row says "Finishing…".
         let check = match self.store.begin_block_check(transfer, conversation) {
             Ok(check) => check,
@@ -446,7 +465,7 @@ impl State {
                         .sessions
                         .map
                         .get(&lane)
-                        .is_some_and(|s| s.channel.is_established() && s.channel.queued_frames().1 < BULK_DEPTH);
+                        .is_some_and(|s| s.channel.is_established() && bulk_has_room(&s.channel));
                     if !room {
                         break;
                     }

@@ -211,6 +211,18 @@ fn delete_rows(
             let _ = std::fs::remove_file(path);
         }
     }
+    // Freed pages are scrubbed now, or, inside a store batch (which VACUUM cannot run in), right after it commits.
+    if conn.is_autocommit() {
+        vacuum(conn)?;
+    } else {
+        conn.execute("INSERT OR REPLACE INTO meta(key, value) VALUES ('vacuum_pending', '1')", [])?;
+    }
+    Ok(())
+}
+
+/// Rewrites the file without the deleted rows' pages, and empties the WAL that still held them.
+pub(crate) fn vacuum(conn: &Connection) -> Result<()> {
+    conn.execute("DELETE FROM meta WHERE key = 'vacuum_pending'", [])?;
     conn.execute_batch("VACUUM")?;
     conn.query_row("PRAGMA wal_checkpoint(TRUNCATE)", [], |_| Ok(()))?;
     Ok(())

@@ -134,7 +134,12 @@ impl Store {
         if download.durable == download.written {
             return Ok(());
         }
-        download.file.sync_all()?;
+        // In a batch, the batch's commit flushes the drive for this file too (ADR 0018 § 9.3).
+        if self.batch.is_some() {
+            super::disk::order_writes(&download.file)?;
+        } else {
+            download.file.sync_all()?;
+        }
         let written = download.written;
         self.write(|conn| set_column(conn, transfer_id, "verified_bytes", &(written as i64)))?;
         if let Some(download) = self.receiving.open.get_mut(transfer_id) {
@@ -209,7 +214,7 @@ impl Store {
             && staged_file_matches(&mut download.file, &download.partial, &record);
         drop(download.file);
         if matches {
-            return self.publish(&record, &download.partial);
+            return self.publish_or_defer(&record, &download.partial);
         }
         let _ = fs::remove_file(&download.partial);
         self.write(|conn| fail_mismatched(conn, transfer_id))?;
@@ -228,7 +233,12 @@ impl Store {
 
     /// Publishes to the folder received files go to (`destination.rs`), recording each name before it is taken, so
     /// a crash between move and commit is finished at the next start; nothing is ever overwritten.
+    /// Publishes a checked file: now, or at the end of the open batch (`batch.rs`).
     pub(super) fn publish_received(&mut self, record: &TransferRecord, partial: &Path) -> Result<PathBuf> {
+        self.publish_or_defer(record, partial)
+    }
+
+    pub(super) fn publish_now(&mut self, record: &TransferRecord, partial: &Path) -> Result<PathBuf> {
         self.publish(record, partial)
     }
 
@@ -363,7 +373,7 @@ impl Store {
     }
 }
 
-fn mark_received(conn: &Connection, record: &TransferRecord, destination: &str) -> Result<()> {
+pub(super) fn mark_received(conn: &Connection, record: &TransferRecord, destination: &str) -> Result<()> {
     mark_published(conn, &record.transfer_id, None)?;
     set_column(conn, &record.transfer_id, "received_path", &destination)?;
     set_column(conn, &record.transfer_id, "publishing", &0)?;

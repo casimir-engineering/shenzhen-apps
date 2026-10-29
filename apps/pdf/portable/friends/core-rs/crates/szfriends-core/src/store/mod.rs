@@ -8,6 +8,7 @@
 
 mod add_by_id;
 pub mod attestation;
+mod batch;
 mod blocks;
 pub mod destination;
 pub mod devices;
@@ -43,6 +44,7 @@ pub use add_by_id::{
     IdRequest, ID_REQUEST_LIFETIME_SECONDS, ID_REQUEST_MAX_ANSWERS, ID_REQUEST_MAX_PENDING,
     ID_REQUEST_MAX_UNATTESTED_ANSWERS,
 };
+pub use batch::Published;
 pub use blocks::{BlockCheck, BlockPart, CheckedFile, SETTING_FAST_TRANSFERS};
 pub use destination::{
     ExternalPublisher, FolderRefusal, PhoneFolder, ReceivedDefaults, ReceivedFile, ReceivedSource, ENV_DOWNLOADS_DIR,
@@ -156,6 +158,8 @@ pub struct Store {
     search_uses_index: bool,
     pub(crate) receiving: receive::Receiving,
     received_defaults: destination::ReceivedDefaults,
+    /// An open batch (`batch.rs`): writes are savepoints in its one transaction.
+    pub(crate) batch: Option<batch::Batch>,
 }
 
 impl fmt::Debug for Store {
@@ -216,6 +220,7 @@ impl Store {
             schema_version,
             search_uses_index,
             receiving: Default::default(),
+            batch: None,
             received_defaults,
         };
         store.recover_transfers()?;
@@ -301,8 +306,22 @@ impl Store {
         &self.conn
     }
 
-    /// `BEGIN IMMEDIATE` ... `COMMIT`; an error from `body` rolls everything back.
+    /// `BEGIN IMMEDIATE` ... `COMMIT`; an error from `body` rolls everything back. Inside a batch, a savepoint: an
+    /// error rolls back this write only, and the batch's commit makes it durable.
     pub(crate) fn write<T>(&mut self, body: impl FnOnce(&Connection) -> Result<T>) -> Result<T> {
+        if self.batch.is_some() {
+            self.conn.execute_batch("SAVEPOINT store_write")?;
+            return match body(&self.conn) {
+                Ok(value) => {
+                    self.conn.execute_batch("RELEASE store_write")?;
+                    Ok(value)
+                }
+                Err(error) => {
+                    let _ = self.conn.execute_batch("ROLLBACK TO store_write; RELEASE store_write");
+                    Err(error)
+                }
+            };
+        }
         let transaction = self.conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
         let value = body(&transaction)?;
         transaction.commit()?;

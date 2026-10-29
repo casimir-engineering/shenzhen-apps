@@ -194,11 +194,12 @@ fn open_rw(path: &Path, create: bool) -> std::io::Result<File> {
     options.open(path)
 }
 
+/// Writes a map without flushing it: nothing in it counts until a durability batch, whose flush covers it too (the
+/// map written at OFFER only remembers the offer's tree; lost, the file goes by CHUNK).
 fn write_sidecar(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
     let mut file = open_rw(path, true)?;
     file.set_len(0)?;
-    file.write_all(bytes)?;
-    file.sync_all()
+    file.write_all(bytes)
 }
 
 /// The sender's tree is a cache, checked against its root and the row's digest whenever it is read: not flushed.
@@ -528,7 +529,11 @@ impl Store {
         let geometry = *download.assembly.geometry();
         let bitmap_offset = (HEADER_BYTES + 32 * geometry.blocks as usize) as u64;
         write_all_at(map, &download.durable.to_bitmap(), bitmap_offset)?;
-        super::disk::make_durable(map)?;
+        if self.batch.is_some() {
+            super::disk::order_writes(map)?; // the batch's commit flushes the drive
+        } else {
+            super::disk::make_durable(map)?;
+        }
         download.unreported_durable.append(&mut download.unsynced);
         download.unsynced_bytes = 0;
         download.first_unsynced = None;
@@ -604,6 +609,11 @@ impl Store {
             partial: download.partial,
             streamed: download.streamed,
         })
+    }
+
+    /// Whether a download's check is quick enough to run on the caller's thread (at most 16 MiB).
+    pub fn block_check_is_quick(&self, transfer_id: &str) -> bool {
+        self.receiving.blocks.get(transfer_id).is_some_and(|d| d.assembly.geometry().size <= 16 << 20)
     }
 
     /// Saves a file whose check passed, or deletes it and fails the transfer (DigestMismatch). A transfer cancelled

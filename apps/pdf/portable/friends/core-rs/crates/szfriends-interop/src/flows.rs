@@ -235,6 +235,8 @@ impl State {
         session.receivers.remove(&offer);
         let offer_id = frame.get(tag::ID).unwrap_or_default().to_vec();
         match self.store.finish_transfer(&offer, &digest, &conversation) {
+            // Saved at the end of the store batch, which acknowledges and reports it.
+            Ok(path) if path.as_os_str().is_empty() => {}
             Ok(path) => {
                 self.send(id, &id_frame(FrameType::Ack, &offer_id));
                 let path = path.to_string_lossy().into_owned();
@@ -365,6 +367,19 @@ impl State {
         let offer = self.with_tree(id, &record, offer);
         self.send(id, &offer);
         json!({ "transfer": record.transfer_id, "size": record.size, "digest": hex::encode(record.digest) })
+    }
+
+    /// Several files at once, as the helper's send_files: staged in the same store batch, offered back to back.
+    pub(crate) fn send_files(&mut self, id: u64, command: &Value) -> Value {
+        let mut transfers = Vec::new();
+        for path in command["paths"].as_array().cloned().unwrap_or_default() {
+            let answer = self.send_file(id, &json!({ "path": path }));
+            if answer.get("error").is_some() {
+                return answer;
+            }
+            transfers.push(answer);
+        }
+        json!({ "transfers": transfers })
     }
 
     pub(crate) fn request_by_id(&mut self, id: u64, command: &Value) -> Value {

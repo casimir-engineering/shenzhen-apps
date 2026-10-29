@@ -493,12 +493,33 @@ fn run(mut state: State, inbox: Receiver<Input>) {
     #[cfg(feature = "online")]
     state.refresh_links();
     state.start_nearby();
+    let mut later = std::collections::VecDeque::new();
     loop {
         let wait = state.next_wakeup().min(Duration::from_millis(250));
-        match inbox.recv_timeout(wait) {
+        let next = match later.pop_front() {
+            Some(input) => Ok(input),
+            None => inbox.recv_timeout(wait),
+        };
+        match next {
             Ok(input) => {
+                let link = matches!(input, Input::Link(_));
                 if !state.handle(input) {
                     break;
+                }
+                // Bytes already read from the links are handled before the sessions run, so what they carry (a
+                // burst of small files) shares one store batch and one flush per session (ADR 0018 § 9.3).
+                for _ in 0..64 {
+                    if !link {
+                        break;
+                    }
+                    match inbox.try_recv() {
+                        Ok(Input::Link(event)) => state.link_event(event),
+                        Ok(other) => {
+                            later.push_back(other);
+                            break;
+                        }
+                        Err(_) => break,
+                    }
                 }
             }
             Err(RecvTimeoutError::Timeout) => state.tick(),

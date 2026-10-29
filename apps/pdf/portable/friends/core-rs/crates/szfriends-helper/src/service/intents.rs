@@ -289,13 +289,24 @@ impl State {
             }
             Intent::SendFiles { conversation_id, files, client_token, .. } => {
                 self.friend(&conversation_id)?;
-                let mut transfers = Vec::new();
+                // Files sent together are staged together: one store batch, one flush (ADR 0018 § 9.3), committed
+                // before their offers go.
+                let _ = self.store.begin_batch();
+                let mut staged = Ok(Vec::new());
                 for (index, file) in files.iter().enumerate() {
                     // The token on the first offer: a retry of this press finds it (PROTOCOL.md § Intents).
                     let token = (index == 0).then(|| client_token.clone());
                     let path = Path::new(&file.path);
-                    transfers.push(self.offer_file(&conversation_id, path, file.display_name.as_deref(), token)?);
+                    match self.offer_file(&conversation_id, path, file.display_name.as_deref(), token) {
+                        Ok(transfer) => staged.as_mut().map(|t: &mut Vec<_>| t.push(transfer)).unwrap_or(()),
+                        Err(error) => {
+                            staged = Err(error);
+                            break;
+                        }
+                    }
                 }
+                self.end_store_batch();
+                let transfers = staged?;
                 self.after_send(&conversation_id);
                 Ok(json!({"transfer_ids": transfers}))
             }
