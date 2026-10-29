@@ -30,6 +30,7 @@ static const NSUInteger SZFriendsCopyTreesKept = 16;
 }
 @property(nonatomic, strong) SZFriendsBlockServe *serve;
 @property(nonatomic) BOOL sync;
+@property(nonatomic, copy) NSData *root;
 @end
 
 @implementation SZFriendsCopyServe
@@ -69,6 +70,16 @@ static NSMutableDictionary<NSString *, NSArray<NSData *> *> *SZFriendsCopyTrees(
         if (fd >= 0) close(fd);
         return NO;
     }
+    // A WANT BLOCKS for a file already served on this session adds to that serve, and its tree goes again (a pull
+    // asks bit by bit: what it asked before stays asked).
+    SZFriendsCopyServe *existing = link.servedCopies[transferID];
+    if (existing != nil && existing.serve.geometry.shift == shift && existing.serve.geometry.size == size) {
+        close(fd);
+        if (![existing.serve want:ranges]) return NO;
+        [self sendFollowOf:existing transfer:transferID onLink:link];
+        [self pumpCopiesOnLink:link];
+        return YES;
+    }
     NSString *key = [NSString stringWithFormat:@"%@|%@|%llu|%ld.%09ld|%u", transferID, path, size,
                                                (long)info.st_mtimespec.tv_sec, info.st_mtimespec.tv_nsec, shift];
     NSArray<NSData *> *tree = SZFriendsCopyTrees()[key];
@@ -99,22 +110,36 @@ static NSMutableDictionary<NSString *, NSArray<NSData *> *> *SZFriendsCopyTrees(
     served->fd = fd;
     served.serve = serve;
     served.sync = sync;
+    served.root = tree[1];
     if (link.servedCopies == nil) link.servedCopies = [NSMutableDictionary dictionary];
     link.servedCopies[transferID] = served;
-    if (sync) {
-        NSData *follow = SZFriendsSyncBlocksFollow(transferID, tree[1], shift);
+    [self sendFollowOf:served transfer:transferID onLink:link];
+    [self watchWritesOfLink:link];
+    [self pumpCopiesOnLink:link];
+    return YES;
+}
+
+// BLOCKS FOLLOW (AGAIN 5 or SYNC 8) with the file's tree, then its leaves.
+- (void)sendFollowOf:(SZFriendsCopyServe *)served transfer:(NSString *)transferID onLink:(SZFriendsPeerLink *)link {
+    uint8_t shift = served.serve.geometry.shift;
+    if (served.sync) {
+        NSData *follow = SZFriendsSyncBlocksFollow(transferID, served.root, shift);
         if (follow) [link.syncExchange sendServing:transferID message:follow];
     } else {
-        NSData *follow = SZFriendsAgainBlocksFollow(transferID, tree[1], shift);
+        NSData *follow = SZFriendsAgainBlocksFollow(transferID, served.root, shift);
         if (follow) {
             [link.channel sendFrame:[SZFriendsFrame frameWithType:SZFriendsFrameTypeAgain
                                                           fields:@{@(SZFriendsFieldAgain) : follow}]];
         }
     }
-    for (SZFriendsFrame *frame in serve.hashesFrames) [link.channel sendFrame:frame];
-    [self watchWritesOfLink:link];
-    [self pumpCopiesOnLink:link];
-    return YES;
+    for (SZFriendsFrame *frame in served.serve.hashesFrames) [link.channel sendFrame:frame];
+}
+
+// A file served by blocks on this link is done or given up: a friend's Get again slot is free again at once.
+- (void)endServe:(NSString *)transferID onLink:(SZFriendsPeerLink *)link {
+    SZFriendsCopyServe *served = link.servedCopies[transferID];
+    [link.servedCopies removeObjectForKey:transferID];
+    if (served != nil && !served.sync) [link.againExchange finishedServing:transferID];
 }
 
 // Writes completing on the link pump the copies (after whatever else listens), and a tick does while any is served.
@@ -167,7 +192,7 @@ static NSMutableDictionary<NSString *, NSArray<NSData *> *> *SZFriendsCopyTrees(
             ssize_t got = length ? pread(served->fd, data.mutableBytes, length, (off_t)offset) : 0;
             if (got != (ssize_t)length || ![serve loadBlock:block data:data]) {
                 // Changed or gone since it was checked: the other side hears it is gone.
-                [link.servedCopies removeObjectForKey:transferID];
+                [self endServe:transferID onLink:link];
                 if (served.sync) [link.syncExchange sendNone:transferID];
                 else [link.againExchange sendNone:transferID reason:SZFriendsAgainAnswerNotHere];
                 break;
@@ -216,7 +241,7 @@ static NSMutableDictionary<NSString *, NSArray<NSData *> *> *SZFriendsCopyTrees(
     if (served == nil) return NO;
     NSData *ranges = SZFriendsFrameRanges(frame, SZFriendsFieldRanges);
     if (ranges != nil) [served.serve have:ranges];
-    if (served.serve.allAcknowledged) [link.servedCopies removeObjectForKey:transferID];
+    if (served.serve.allAcknowledged) [self endServe:transferID onLink:link];
     [self pumpCopiesOnLink:link];
     return YES;
 }

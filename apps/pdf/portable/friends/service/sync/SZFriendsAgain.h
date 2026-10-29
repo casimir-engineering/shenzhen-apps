@@ -58,6 +58,8 @@ void SZFriendsRemoveCopy(NSString *path);
 // The same checks as a WANT's (one file at a time, -servePath): the path to serve and its size, marked as the file
 // being served; nil after answering NONE.
 - (nullable NSString *)beginServingBlocks:(NSString *)transferID size:(uint64_t *)size;
+// A file served by blocks is done (every block acknowledged, or the serve ended): another may be served at once.
+- (void)finishedServing:(NSString *)transferID;
 // NONE for that file (0 not here, 1 not now).
 - (void)sendNone:(NSString *)transferID reason:(SZFriendsAgainAnswer)reason;
 // Requester by blocks (ADR 0018 § 4): set on a session that negotiated fast transfers, so copies go by blocks (4 WANT

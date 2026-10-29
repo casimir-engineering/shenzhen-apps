@@ -108,10 +108,9 @@ fn decide(running: Option<Running>, again_waiting: bool, own: Option<bool>) -> D
 
 /// A file no holder could give is tried again after this long.
 const NOT_NOW: Duration = Duration::from_secs(5);
-/// A copy from the person's own devices asks the friend who sent the file too only from this size: a smaller file
-/// gains nothing from a second holder, and the friend's computer keeps its Get again budget (one file at a time,
-/// twenty checks an hour) for the person's own asks.
-const FRIEND_HELPS_FROM: u64 = 8 << 20;
+/// A copy from the person's own devices asks the friend who sent the file too from this size: every file, now that
+/// both helpers free a friend's one-file-at-a-time slot as soon as a copy by blocks is acknowledged (WP4).
+const FRIEND_HELPS_FROM: u64 = 0;
 
 impl Origin {
     fn transfer_id(&self) -> &str {

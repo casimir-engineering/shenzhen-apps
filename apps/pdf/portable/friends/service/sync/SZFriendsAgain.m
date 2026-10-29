@@ -405,6 +405,10 @@ static NSMutableData *SZFriendsAgainHead(SZFriendsAgainMessage type, NSData *ide
     return path;
 }
 
+- (void)finishedServing:(NSString *)transferID {
+    if ([_servingID isEqualToString:transferID]) _servingDone = YES;
+}
+
 - (void)sendNone:(NSString *)transferID reason:(SZFriendsAgainAnswer)reason {
     NSData *identifier = SZFriendsAgainID(transferID);
     if (identifier == nil) return;

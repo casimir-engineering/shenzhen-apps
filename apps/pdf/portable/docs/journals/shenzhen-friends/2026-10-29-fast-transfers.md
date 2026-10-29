@@ -1089,7 +1089,15 @@ in that run, 7.1 s into a 10 s transfer. The next 12 runs of that case, and 8 mo
 The bench keeps no peer output, so the cause is not known yet. The suspect is the receiver's limit of 64 partly
 received blocks: with slices, blocks stay partial longer, and a PART refused at that limit ends the session.
 
-**Left for WP4:** that stall; WP6's work as its journal section lands. Not tried on two real Macs: the direct Wi-Fi and Bluetooth lanes
+**The Mac's Get again slot, and repeated asks (after 41b62049).** Two Mac-side faults explain the Get again refusals
+WP1 saw when the Rust helper pulled small own-device copies from the Mac friend. First, a file served by blocks never
+released the friend's one-file-at-a-time slot, so for 60 s any other file was answered "not now"; the slot is now free
+once every block is acknowledged, or when the serve ends. Second, a second WANT BLOCKS for a file already being served
+replaced that serve, dropping blocks asked for earlier; it now adds to the serve and sends the tree again, as Rust's
+servers do since 41b62049. With the Rust helper's `FRIEND_HELPS_FROM` at 0 (it was 8 MiB), the Objective-C Get again
+suite fails one case without these fixes and passes all seven with them. All interop suites pass.
+
+**Left for WP4:** the Mac as a requester pulling from several holders (c41d58e8); the stall above; WP6's work. Not tried on two real Macs: the direct Wi-Fi and Bluetooth lanes
 are exercised through the bench's emulated routes and the helper's fake channels only.
 
 ## WP1, part 2: copies, small files, the check before saving, Finishing and the switch (2026-10-29)
