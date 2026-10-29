@@ -42,6 +42,8 @@ static NSDictionary<NSString *, NSString *> *SZFActionIDs(void) {
             @"join_profile" : @"", @"cancel_join" : @"",
             // Get again on a file a friend sent (PROTOCOL.md § Getting a file again): fetched by its transfer_id.
             @"fetch_from_friend" : @"transfer_id",
+            // The Wi-Fi Direct boost's question on a transfer (PROTOCOL.md § Fast transfers): Go faster, Not now.
+            @"boost_transfer" : @"transfer_id", @"skip_boost" : @"transfer_id",
             // The notifications card's and Settings' Turn On / Allow (PROTOCOL.md § Notifications): the helper asks
             // the system, which shows its own prompt.
             @"allow_notifications" : @"",

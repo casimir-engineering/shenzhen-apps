@@ -37,6 +37,38 @@ pub(super) const TRANSFERS_AND_CONVERSATIONS: &[(&str, &str)] = &[
     // Every block arrived; the whole file is checked before it is saved (PROTOCOL.md § Fast transfers).
     ("transfer.finishing", "Finishing…"),
     ("transfer.progress.finishing", "Finishing"),
+    // The Wi-Fi Direct boost (ADR 0019): the question on a device that would lose its only Internet, and the notes after.
+    (
+        "transfer.boost.ask",
+        "Go faster? {first} isn’t on your Wi-Fi, so this is going over Bluetooth ({slow}). Leave {network} for {fast} \
+         to connect to {first} directly. Your {device} rejoins it by itself when it’s done.",
+    ),
+    ("transfer.boost.network", "“{name}”"),
+    ("transfer.boost.your_wifi", "your Wi-Fi"),
+    ("transfer.boost.go", "Go faster"),
+    ("transfer.boost.not_now", "Not now"),
+    ("transfer.boost.connecting", "Connecting directly to {first}…"),
+    ("transfer.boost.direct", "Going directly over Wi-Fi"),
+    ("transfer.boost.direct.away", "Going directly over Wi-Fi. Your {device} rejoins {network} when it’s done."),
+    (
+        "transfer.boost.direct.ethernet",
+        "Going directly over Wi-Fi. Your {device} stays online over Ethernet meanwhile, and rejoins {network} when \
+         it’s done.",
+    ),
+    ("transfer.boost.rejoining", "Rejoining {network}…"),
+    ("transfer.boost.rejoin_failed", "Your {device} didn’t get back on {network} by itself. Choose it in {place}."),
+    ("transfer.boost.device.mac", "Mac"),
+    ("transfer.boost.device.computer", "computer"),
+    ("transfer.boost.place.mac", "the Wi-Fi menu"),
+    ("transfer.boost.place.computer", "Wi-Fi settings"),
+    // Phones only (the core in the app): no Mac says these.
+    ("transfer.boost.device.phone", "phone"),
+    ("transfer.boost.ask.join", "{text} Then choose Join."),
+    (
+        "transfer.boost.direct.mobile",
+        "Going directly over Wi-Fi. Your phone stays online over mobile data meanwhile, and rejoins {network} when \
+         it’s done.",
+    ),
     ("transfer.spoken.in.finishing", "{sender} sent {file}, {kind}, {size}{auto}, finishing"),
     ("transfer.spoken.in.waiting_for_you", "{sender} wants to send you {file}, {kind}, {size}{note}{extra}"),
     (

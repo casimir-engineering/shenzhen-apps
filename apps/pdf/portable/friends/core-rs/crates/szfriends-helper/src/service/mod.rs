@@ -25,6 +25,7 @@
 
 mod again;
 mod blocks;
+mod boost;
 mod device_files;
 mod devices;
 mod facts;
@@ -373,6 +374,8 @@ pub(crate) struct State {
     pub session_capabilities: u32,
     /// Files received by blocks whose check before saving is running, since when (`blocks.rs`).
     pub finishing: HashMap<String, std::time::Instant>,
+    /// ADR 0019: the Wi-Fi Direct boost (`boost.rs`).
+    pub(crate) boost: boost::BoostArea,
     /// Get again and own-device copies asked for by blocks on fast sessions (ADR 0018 § 4), which both helpers
     /// answer. Served by blocks whenever asked; asked for by offset only in a test home that says so
     /// (`SZFRIENDS_TEST_COPIES_BY_BLOCKS=0`).
@@ -431,6 +434,12 @@ impl State {
             fast_setting && !(test_home && std::env::var_os(ENV_TEST_FAST_TRANSFERS).is_some_and(|v| v == "0"));
         let switched_off = |name: &str| test_home && std::env::var_os(name).is_some_and(|v| v == "0");
         let mut session_capabilities = szfriends_core::session::local_capabilities(fast_transfers);
+        // ADR 0019: the Wi-Fi Direct boost, where this device can host or join a direct link.
+        let boost = boost::BoostArea::new(store.state_dir(), test_home);
+        let lanes = !(test_home && std::env::var_os(ENV_TEST_LANES).is_some_and(|v| v == "0"));
+        if fast_transfers && lanes && boost.available() {
+            session_capabilities |= szfriends_core::wire::consts::CAPABILITY_DIRECT_WIFI_BOOST;
+        }
         if switched_off(ENV_TEST_AES_LANES) {
             session_capabilities &= !szfriends_core::wire::consts::CAPABILITY_AES_LANES;
         }
@@ -461,7 +470,8 @@ impl State {
             copies_by_blocks: !(test_home && std::env::var_os(ENV_TEST_COPIES_BY_BLOCKS).is_some_and(|v| v == "0")),
             // The settings key `transfers.fast` (on unless it holds 0), read as the helper starts.
             session_capabilities,
-            lanes: !(test_home && std::env::var_os(ENV_TEST_LANES).is_some_and(|v| v == "0")),
+            lanes,
+            boost,
             route_rates: if test_home {
                 route_rates(&std::env::var(ENV_TEST_ROUTE_RATES).unwrap_or_default())
             } else {
@@ -506,6 +516,7 @@ impl State {
             Input::Online(event) => self.online_event(event),
             Input::Deferred(work) => work(self),
             Input::Shutdown(done) => {
+                self.boost_quitting();
                 drop(self.online.take());
                 let _ = self.store.flush_progress();
                 self.stop_nearby();
@@ -536,6 +547,7 @@ impl State {
 fn run(mut state: State, inbox: Receiver<Input>) {
     #[cfg(feature = "online")]
     state.refresh_links();
+    state.boost_launched();
     state.start_nearby();
     let mut later = std::collections::VecDeque::new();
     loop {

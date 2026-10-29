@@ -196,6 +196,14 @@ pub enum Intent {
     FetchFromFriend {
         transfer_id: String,
     },
+    /// ADR 0019: the person said Go faster on a transfer's Wi-Fi Direct question.
+    BoostTransfer {
+        transfer_id: String,
+    },
+    /// ADR 0019: Not now; never asked again for that transfer.
+    SkipBoost {
+        transfer_id: String,
+    },
     Block {
         conversation_id: String,
     },
@@ -429,6 +437,8 @@ pub fn parse(frame: &Value, state: &dyn IntentState) -> Result<Intent> {
         "revoke_device" => Intent::RevokeDevice { device_id: required(frame, "device_id", 64)? },
         "fetch_from_device" => Intent::FetchFromDevice { transfer_id: required(frame, "transfer_id", 64)? },
         "fetch_from_friend" => Intent::FetchFromFriend { transfer_id: required(frame, "transfer_id", 64)? },
+        "boost_transfer" => Intent::BoostTransfer { transfer_id: required(frame, "transfer_id", 64)? },
+        "skip_boost" => Intent::SkipBoost { transfer_id: required(frame, "transfer_id", 64)? },
         "join_profile" => {
             // The ID typed, read as the word list reads it (U+2011, spaces and case as people type them).
             let typed = required(frame, "friends_id", 100)?;

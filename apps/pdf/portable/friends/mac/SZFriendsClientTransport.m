@@ -67,10 +67,12 @@ void SZFriendsSpawnHelperInBackground(id<SZFriendsHost> host) {
     // person was found (SZFriendsRowView.h); `files.again`: a file's Get again sends fetch_from_friend.
     // `notifications.focus`: the dropdown tells the helper which conversation it shows while focused, so that one is
     // not notified; `notifications.ask`: the list shows the helper's Turn On card with Not Now (PROTOCOL.md §
-    // Notifications). Every AppKit host is a Mac, where the system asks once.
+    // Notifications). Every AppKit host is a Mac, where the system asks once. `transfers.boost`: a transfer's Go
+    // faster and Not now (the Wi-Fi Direct boost's question, PROTOCOL.md § Fast transfers) are ordinary actions.
     NSMutableArray *capabilities = [NSMutableArray arrayWithObjects:@"attach.items", @"drop.files", @"mentions",
                                                                     @"list.menu", @"nearby.found", @"files.again",
-                                                                    @"notifications.focus", @"notifications.ask", nil];
+                                                                    @"notifications.focus", @"notifications.ask",
+                                                                    @"transfers.boost", nil];
     if (host.friendsExtraPasteboardTypes.count) [capabilities addObject:@"drop.tabs"];
     if ([host respondsToSelector:@selector(friendsAssistant)] && host.friendsAssistant)
         [capabilities addObject:@"assistant.drafts"];

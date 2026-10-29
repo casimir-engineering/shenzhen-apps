@@ -75,6 +75,8 @@ szfriends_intent *szft_intent_from_fixture(const cJSON *line) {
     ONE(rename_device, "name");
     ONE(fetch_from_device, "transfer_id");
     ONE(fetch_from_friend, "transfer_id");
+    ONE(boost_transfer, "transfer_id");
+    ONE(skip_boost, "transfer_id");
     ONE(set_received_folder, "path");
 #undef ONE
     if (strcmp(type, "remove_friend") == 0) {

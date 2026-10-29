@@ -83,7 +83,7 @@ pub struct Groups {
 }
 
 impl Groups {
-    fn provisional(&mut self) -> u64 {
+    pub(crate) fn provisional(&mut self) -> u64 {
         self.next_provisional += 1;
         u64::MAX - self.next_provisional
     }
@@ -145,6 +145,7 @@ impl State {
 
     /// The first session ended or lost the race: its lanes close with it.
     pub(crate) fn end_group(&mut self, head: u64) {
+        self.boost_group_ended(head);
         self.sessions.groups.schedules.remove(&head);
         let Some(group) = self.sessions.groups.by_head.remove(&head) else { return };
         for lane in group.lanes.lanes_only() {
@@ -262,6 +263,7 @@ impl State {
         if let Some(schedule) = self.sessions.groups.schedules.remove(&id) {
             self.sessions.groups.schedules.insert(head, schedule);
         }
+        self.boost_group_moved(id, head);
         self.sessions.groups.late_answered.retain(|(lane, _, _)| *lane != id);
         log!("lane {head} carries the conversation: its first session {id} ended");
         if conversation.is_some() {
@@ -274,6 +276,9 @@ impl State {
     /// A lane's dial did not connect.
     pub(crate) fn lane_dial_failed(&mut self, plan: &DialPlan) {
         let Some((head, provisional)) = plan.lane else { return };
+        if plan.route == RouteMethod::Lan {
+            self.boost_network_dial_failed(head);
+        }
         self.sessions.groups.head_of.remove(&provisional);
         if let Some(group) = self.sessions.groups.by_head.get_mut(&head) {
             group.lanes.lane_down(provisional);

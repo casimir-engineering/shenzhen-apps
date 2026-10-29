@@ -68,7 +68,7 @@ impl IntentState for Context<'_> {
     }
 }
 
-type Answer = Result<Value, IntentError>;
+pub(crate) type Answer = Result<Value, IntentError>;
 
 fn refused(code: &'static str) -> Answer {
     Err(IntentError::new(code))
@@ -165,6 +165,9 @@ impl State {
             Intent::FetchFromFriend { transfer_id } => {
                 self.device_intent(|s| s.fetch_from_friend(&transfer_id)).map_err(|e| worded(e, "again"))
             }
+            // ADR 0019: the answer to the boost's question; a question already gone is stale.
+            Intent::BoostTransfer { transfer_id } => self.answer_boost(&transfer_id, true),
+            Intent::SkipBoost { transfer_id } => self.answer_boost(&transfer_id, false),
             Intent::ResetFriendLink => self.reset_friend_link(),
             // A reset replaces the service, so whoever runs it answers before it gets here (`reset.rs`).
             Intent::ResetFriends => refused("unavailable"),

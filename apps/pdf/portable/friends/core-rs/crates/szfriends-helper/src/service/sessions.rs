@@ -532,6 +532,7 @@ impl State {
     /// Periodic work: nearby's timers, friends online could reach, and what waited too long in the outbox.
     pub fn tick(&mut self) {
         self.nearby_tick();
+        self.boost_tick();
         self.reconsider_pulls();
         self.join_tick(unix_now());
         self.sync_tick(unix_now());

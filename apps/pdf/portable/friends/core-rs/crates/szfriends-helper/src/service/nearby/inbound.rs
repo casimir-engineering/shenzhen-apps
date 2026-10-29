@@ -109,6 +109,7 @@ impl State {
             {
                 self.block_frame(id, &frame, &conversation)
             }
+            FrameType::Boost if person.relation == Relation::Friend => self.boost_frame(id, &frame),
             _ => {}
         }
     }

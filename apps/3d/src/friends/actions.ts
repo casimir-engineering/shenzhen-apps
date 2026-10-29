@@ -42,6 +42,8 @@ export function actionIntent(
     case "cancel_transfer":
     case "fetch_from_device":
     case "fetch_from_friend":
+    case "boost_transfer":
+    case "skip_boost":
       return context.transfer_id
         ? { type: action.action, fields: { transfer_id: context.transfer_id } }
         : null;

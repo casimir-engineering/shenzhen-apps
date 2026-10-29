@@ -525,3 +525,9 @@ szfriends_intent *szfriends_intent_fetch_from_device(const char *id) {
 szfriends_intent *szfriends_intent_fetch_from_friend(const char *id) {
     return one_string("fetch_from_friend", "transfer_id", id);
 }
+szfriends_intent *szfriends_intent_boost_transfer(const char *id) {
+    return one_string("boost_transfer", "transfer_id", id);
+}
+szfriends_intent *szfriends_intent_skip_boost(const char *id) {
+    return one_string("skip_boost", "transfer_id", id);
+}

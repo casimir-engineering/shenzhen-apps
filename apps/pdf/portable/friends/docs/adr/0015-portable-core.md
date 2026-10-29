@@ -223,8 +223,11 @@ judged by `szfriends-wire::route::rank`, which agrees with the helper's rank (ve
 - *Peer-to-peer Wi-Fi*: Apple platforms only (AWDL). Wi-Fi Direct and Wi-Fi Aware do not interoperate with it, so
   Windows, Linux and Android have no such class; their nearby routes are LAN and Bluetooth. Whatever the platform,
   peer-to-peer Wi-Fi is used only where the device stays on its Wi-Fi network at the same time, so a transfer never
-  cuts its Internet connection; otherwise, or when unsure, the racer skips it for the next route (`P2pWifi`,
-  `p2p_wifi_usable`; ADR 0011 § Route rank says what a Wi-Fi Direct implementation would have to check).
+  cuts its Internet connection without the person's word; otherwise, or when unsure, the racer skips it for the next
+  route (`P2pWifi`, `p2p_wifi_usable`; ADR 0011 § Route rank says what a Wi-Fi Direct implementation would have to
+  check). The exception is ADR 0019's Wi-Fi Direct boost: an Android phone hosts a direct link for one large transfer
+  with a device it met only by Bluetooth, and a device that would lose its Internet joins only after its person said Go
+  faster, rejoining its own network by itself afterwards.
 - *Bluetooth*: ADR 0004's service UUIDs, characteristic and an unencrypted L2CAP channel carrying Noise. iOS:
   CoreBluetooth, peripheral and central, L2CAP. Android 10+ (API 29): `BluetoothLeAdvertiser`, scanning and
   `listenUsingInsecureL2capChannel`; Android 7 to 9 have no L2CAP channels, so there Bluetooth only finds friends

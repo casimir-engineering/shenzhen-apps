@@ -21,6 +21,7 @@
 pub mod bluetooth;
 #[cfg(all(target_os = "linux", feature = "bluetooth"))]
 pub mod bluez;
+pub mod direct_wifi;
 #[cfg(target_os = "macos")]
 pub mod dns_sd_cli;
 pub mod dnssd;

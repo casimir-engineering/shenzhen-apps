@@ -48,8 +48,10 @@ number: `shouldStartAttempt` and `decisionForCompletedRoute` in `SZFriendsRouteR
 instead of Bluetooth's (`DialDelayForRoute`). Within the Internet class the first path to go live carries the
 session; a later direct path of the same class does not replace it, but any direct path replaces the relay.
 
-**Peer-to-peer Wi-Fi keeps the device online.** A transfer never costs a device its Internet connection, a
-computer's above all (a phone has cellular, but its Wi-Fi Internet is kept too). Peer-to-peer Wi-Fi is dialed only
+**Peer-to-peer Wi-Fi keeps the device online.** A transfer never costs a device its Internet connection without its
+person's word, a computer's above all (a phone has cellular, but its Wi-Fi Internet is kept too). The one exception is
+ADR 0019's Wi-Fi Direct boost: a device may leave its Wi-Fi network for a direct link after its person said Go faster on
+that device, for that transfer, and it rejoins the network by itself when the transfer ends. Peer-to-peer Wi-Fi is dialed only
 where the platform keeps its Wi-Fi network connection up beside the direct link: one check per helper,
 `p2p_wifi_usable` (`szfriends-core::nearby::p2p_wifi`) and `SZFriendsPeerToPeerWiFiUsable`, which the racers apply
 before dialing. Apple's AWDL qualifies and is the only implementation. A future Wi-Fi Direct route qualifies only

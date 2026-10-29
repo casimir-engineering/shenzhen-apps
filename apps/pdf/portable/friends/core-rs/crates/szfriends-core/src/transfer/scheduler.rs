@@ -69,7 +69,7 @@ pub struct Config {
     pub phone: bool,
     /// Direct Wi-Fi leaves this device on its Wi-Fi network (AWDL on Macs and iPhones). Without it, direct Wi-Fi is
     /// never asked for and a direct Wi-Fi lane that comes up anyway is closed unused: a transfer never costs a device
-    /// its Internet connection.
+    /// its Internet connection without its person's word ([`Scheduler::allow_direct_wifi`], ADR 0019's boost).
     pub direct_wifi_keeps_internet: bool,
 }
 
@@ -223,6 +223,9 @@ pub struct Scheduler {
     actions: Vec<Action>,
     requested: BTreeMap<u8, Duration>,
     seq: u64,
+    /// ADR 0019: a direct Wi-Fi lane this device's person agreed to (the boost) is kept even where direct Wi-Fi costs
+    /// the Internet connection.
+    direct_wifi_allowed: bool,
 }
 
 impl Scheduler {
@@ -234,7 +237,35 @@ impl Scheduler {
             actions: Vec::new(),
             requested: BTreeMap::new(),
             seq: 0,
+            direct_wifi_allowed: false,
         }
+    }
+
+    /// ADR 0019's boost: while `allowed`, a direct Wi-Fi lane is kept where [`Config::direct_wifi_keeps_internet`]
+    /// would close it; when the boost ends, such lanes close at once (their blocks go back to the others).
+    pub fn allow_direct_wifi(&mut self, allowed: bool) {
+        self.direct_wifi_allowed = allowed;
+        if allowed || self.config.direct_wifi_keeps_internet {
+            return;
+        }
+        let closing: Vec<LaneId> = self
+            .lanes
+            .iter()
+            .filter(|(_, l)| l.route == RouteMethod::PeerToPeerWifi && l.index != 0 && !l.closing)
+            .map(|(id, _)| *id)
+            .collect();
+        for lane in closing {
+            if let Some(l) = self.lanes.get_mut(&lane) {
+                l.closing = true;
+            }
+            self.actions.push(Action::Lane(LaneRequest::Close { lane }));
+        }
+    }
+
+    /// What the lanes on `route` measure together, in bytes per second (0 before any measured): how the boost knows
+    /// whether its lane beats Bluetooth.
+    pub fn route_rate(&self, route: RouteMethod) -> f64 {
+        self.lanes.values().filter(|l| l.route == route && l.measured && l.working()).map(|l| l.rate).sum()
     }
 
     /// What to do since the last call.
@@ -250,8 +281,10 @@ impl Scheduler {
             LaneEvent::Up { lane, index, route } => {
                 let (rate, rtt) = typical(route);
                 // The first session is wherever the route racer put it; only a lane can be refused.
-                let unused =
-                    route == RouteMethod::PeerToPeerWifi && !self.config.direct_wifi_keeps_internet && index != 0;
+                let unused = route == RouteMethod::PeerToPeerWifi
+                    && !self.config.direct_wifi_keeps_internet
+                    && !self.direct_wifi_allowed
+                    && index != 0;
                 if unused {
                     self.actions.push(Action::Lane(LaneRequest::Close { lane }));
                 }
@@ -885,6 +918,26 @@ mod tests {
         awdl.add_transfer(1, Geometry::for_size(512 * MIB).unwrap());
         awdl.want(1, &[(0, 512)], Duration::ZERO).unwrap();
         assert!(awdl.take_actions().contains(&Action::Lane(LaneRequest::Open { route: RouteMethod::PeerToPeerWifi })));
+    }
+
+    #[test]
+    fn a_boost_the_person_agreed_to_keeps_its_direct_lane_until_it_ends() {
+        let mut s = Scheduler::new(Config::default());
+        up(&mut s, 1, 0, RouteMethod::Bluetooth);
+        s.allow_direct_wifi(true);
+        up(&mut s, 2, 1, RouteMethod::PeerToPeerWifi);
+        assert!(s.take_actions().is_empty(), "kept: the person said Go faster");
+        s.add_transfer(1, Geometry::for_size(64 * MIB).unwrap());
+        s.want(1, &[(0, 64)], Duration::ZERO).unwrap();
+        let first = sends(&s.take_actions());
+        assert!(first.iter().any(|(l, _)| *l == 2), "the direct lane carries blocks: {first:?}");
+        s.allow_direct_wifi(false);
+        assert!(s.take_actions().contains(&Action::Lane(LaneRequest::Close { lane: 2 })), "the boost ended");
+        // Already allowed by the platform (AWDL): ending a boost closes nothing.
+        let mut awdl = Scheduler::new(Config { direct_wifi_keeps_internet: true, ..Config::default() });
+        up(&mut awdl, 2, 1, RouteMethod::PeerToPeerWifi);
+        awdl.allow_direct_wifi(false);
+        assert!(awdl.take_actions().is_empty());
     }
 
     #[test]

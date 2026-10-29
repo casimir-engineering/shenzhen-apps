@@ -117,6 +117,12 @@ impl BlockServe {
     }
 
     /// Every block acknowledged.
+    /// Bytes of the file the receiver has not acknowledged yet (ADR 0019 weighs the boost by them).
+    pub fn remaining_bytes(&self) -> u64 {
+        let acknowledged: u64 = self.acknowledged.iter().map(|block| self.geometry.span(block).1 as u64).sum();
+        self.geometry.size.saturating_sub(acknowledged)
+    }
+
     pub fn all_acknowledged(&self) -> bool {
         self.acknowledged.is_full()
     }

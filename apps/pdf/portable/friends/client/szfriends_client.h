@@ -435,6 +435,10 @@ szfriends_intent *szfriends_intent_fetch_from_device(const char *transfer_id);
 /* Get again (PROTOCOL.md § Getting a file again), when the helper announces "files.again": the transfer item's
  * transfer_id. */
 szfriends_intent *szfriends_intent_fetch_from_friend(const char *transfer_id);
+/* The Wi-Fi Direct boost's question on a transfer (PROTOCOL.md § Fast transfers), for a client that declared
+ * "transfers.boost": Go faster and Not now, with the transfer item's transfer_id. */
+szfriends_intent *szfriends_intent_boost_transfer(const char *transfer_id);
+szfriends_intent *szfriends_intent_skip_boost(const char *transfer_id);
 
 #ifdef __cplusplus
 }

@@ -6,7 +6,7 @@ use super::{IntentError, Wording};
 
 /// Every intent of protocol 1.0 this helper implements. The assistant_* family needs `assistant.scopes`, which no
 /// helper announces yet, so those are unknown_intent.
-pub const KNOWN_INTENTS: [&str; 55] = [
+pub const KNOWN_INTENTS: [&str; 57] = [
     "ping",
     "activate",
     "subscribe",
@@ -57,6 +57,8 @@ pub const KNOWN_INTENTS: [&str; 55] = [
     "rename_device",
     "fetch_from_device",
     "fetch_from_friend",
+    "boost_transfer",
+    "skip_boost",
     "set_received_folder",
     "set_focus",
     "set_notifications",

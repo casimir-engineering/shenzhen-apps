@@ -170,6 +170,7 @@ impl State {
             // By blocks (ADR 0018), what checked so far, in any order; otherwise the durable prefix.
             item.bytes_done = self.store.block_progress(&transfer.transfer_id).unwrap_or(transfer.verified_bytes);
             item.finishing = !transfer.outgoing && self.shows_finishing(&transfer.transfer_id);
+            item.boost = self.boost_facts(&transfer.transfer_id);
             item.transfer_state = Some(transfer.state);
             item.failure_reason = transfer.failure_reason.clone();
             item.local_path = transfer.received_path.as_ref().map(|p| p.to_string_lossy().into_owned());

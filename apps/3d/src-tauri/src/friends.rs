@@ -9,7 +9,8 @@ use std::sync::Arc;
 /// What the panel implements (PROTOCOL.md § Capabilities), as the Electron host says it: `#` offers the open
 /// model, files may be dropped, `@` mentions friends, a list row's menu opens on right-click (a long press on
 /// phones), people nearby show how they were found, a friend's file can be fetched from them again (Get again),
-/// and the panel says which conversation the person is looking at, so it does not notify (`notifications.focus`).
+/// the panel says which conversation the person is looking at, so it does not notify (`notifications.focus`), and
+/// a transfer may carry the Wi-Fi Direct boost's Go faster and Not now (`transfers.boost`).
 /// Phones have nothing to drop files from, so their composer does not suggest it; they still hold files for a
 /// friend chosen from the list (shared from another app, Send project to a friend), so their rows take files
 /// (`send.files`). The list's card that asks to turn notifications on is for a Mac and an iPhone
@@ -23,6 +24,7 @@ const CAPABILITIES: &[&str] = &[
     "list.menu",
     "nearby.found",
     "files.again",
+    "transfers.boost",
     "notifications.focus",
     #[cfg(target_os = "macos")]
     "notifications.ask",
@@ -35,6 +37,7 @@ const CAPABILITIES: &[&str] = &[
     "list.menu",
     "nearby.found",
     "files.again",
+    "transfers.boost",
     "notifications.focus",
     "notifications.ask",
 ];
@@ -46,6 +49,7 @@ const CAPABILITIES: &[&str] = &[
     "list.menu",
     "nearby.found",
     "files.again",
+    "transfers.boost",
     "notifications.focus",
     "background.reachable",
 ];

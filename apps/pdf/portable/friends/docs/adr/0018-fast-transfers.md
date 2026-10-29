@@ -203,7 +203,8 @@ the friend's **group** with that device:
 
 **Per route.** LAN and direct Wi-Fi: TCP connections to the friend's listener. Direct Wi-Fi keeps its rule: used only
 where the device stays on its Wi-Fi network at the same time (AWDL on Macs and iPhones), so a transfer never costs a
-device its Internet connection. Internet: more data channels in the same peer connection, opened in-band, so no new
+device its Internet connection without its person's word; the one exception, a direct link a person agreed to for one
+transfer and left by itself afterwards, is ADR 0019's Wi-Fi Direct boost, whose lane joins the group like any other. Internet: more data channels in the same peer connection, opened in-band, so no new
 signalling and nothing for the host (more TCP connections through a NAT would each need their own punching, which
 would). Relay: one lane at most (a data channel in the existing peer connection), so the relay's 5 Mbit/s cap, its
 cost and what it sees are unchanged.

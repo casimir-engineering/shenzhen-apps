@@ -68,8 +68,9 @@ static inline BOOL SZFriendsRouteIsBetter(SZFriendsRouteMethod route, SZFriendsR
 }
 
 // What this device's peer-to-peer Wi-Fi does to its normal Wi-Fi connection (the Rust core's P2pWifi). A transfer
-// never costs the device its Internet connection: peer-to-peer Wi-Fi is dialed only where the Wi-Fi connection stays
-// up beside it (ADR 0011 § Route rank). Unsure is Unknown, which is not used.
+// never costs the device its Internet connection without the person's word: peer-to-peer Wi-Fi is dialed only where
+// the Wi-Fi connection stays up beside it (ADR 0011 § Route rank). Unsure is Unknown, which is not used. The one
+// exception, a link the person agreed to for one transfer, is ADR 0019's boost (SZFriendsDirectWiFiBoost.h).
 typedef NS_ENUM(NSInteger, SZFriendsPeerToPeerWiFi) {
     SZFriendsPeerToPeerWiFiUnsupported = 0,
     SZFriendsPeerToPeerWiFiConcurrentWithStation = 1, // AWDL: runs beside the Wi-Fi connection

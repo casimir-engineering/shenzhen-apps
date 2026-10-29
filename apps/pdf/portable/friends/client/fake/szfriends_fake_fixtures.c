@@ -22,7 +22,8 @@ static const char *const known_intents[] = {
     "assistant_search", "assistant_read", "assistant_close_scope", "delete_history", "reset_friends", "disable",
     "cancel_message", "add_from_mention", "open_link", "add_from_link", "receive_link", "make_download_link",
     "reset_friend_link", "revoke_link", "join_profile", "enter_join_code", "cancel_join", "approve_join", "deny_join",
-    "revoke_device", "rename_device", "fetch_from_device", "fetch_from_friend", "set_received_folder",
+    "revoke_device", "rename_device", "fetch_from_device", "fetch_from_friend", "boost_transfer", "skip_boost",
+    "set_received_folder",
     "set_focus", "set_notifications", "allow_notifications", "test_notification_response",
 };
 

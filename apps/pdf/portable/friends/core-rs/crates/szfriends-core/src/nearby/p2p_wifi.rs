@@ -1,6 +1,8 @@
 //! Whether peer-to-peer Wi-Fi may be used here (ADR 0011 § Route rank, PROTOCOL.md § Routes).
 //!
-//! The rule: a transfer never costs the device its Internet connection. Peer-to-peer Wi-Fi is used only where the
+//! The rule: a transfer never costs the device its Internet connection without its person's word (the one exception is
+//! ADR 0019's Wi-Fi Direct boost, `transfer::boost`, which asks first and comes back by itself; it does not go through
+//! the racer). Peer-to-peer Wi-Fi is used only where the
 //! platform keeps its normal Wi-Fi connection (the station link to the access point) up at the same time. Anywhere
 //! that is unknown, or where the radio would leave the network to make the direct link, the route is skipped and the
 //! racer dials the next one in the owner's order (Internet, Bluetooth, relay). Pure: probes hand their answers in.
@@ -17,7 +19,8 @@
 //!   NetworkManager or wpa_supplicant reconfiguration of the station interface).
 //! - Android: `PackageManager.FEATURE_WIFI_DIRECT` and `WifiP2pManager`, on a device with documented STA + P2P
 //!   concurrency. Never `LocalOnlyHotspot`, `WifiNetworkSpecifier` or anything that drops the station link; a phone
-//!   has cellular, but its Wi-Fi Internet is kept too.
+//!   has cellular, but its Wi-Fi Internet is kept too. (The boost hosts and joins Wi-Fi Direct groups for one
+//!   transfer at a time; it is not a route the racer dials.)
 //!
 //! Unsure means [`P2pWifi::Unknown`], which is not used.
 

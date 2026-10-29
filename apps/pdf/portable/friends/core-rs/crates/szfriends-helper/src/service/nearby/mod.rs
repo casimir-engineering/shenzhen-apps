@@ -174,7 +174,7 @@ impl Nearby {
         self.working_since
     }
 
-    fn next_dial_id(&mut self) -> u64 {
+    pub(crate) fn next_dial_id(&mut self) -> u64 {
         self.next_dial += 1;
         self.next_dial
     }
