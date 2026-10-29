@@ -42,6 +42,10 @@ pub struct LaneProfile {
     pub detect: Duration,
     /// Nothing moves either way during these.
     pub silences: Vec<(Duration, Duration)>,
+    /// The sender's socket buffer: a write completes once its part is in it, before the part crosses (0: a write
+    /// completes as its part crosses). A path with a deep buffer looks busy, and a block all written, while its
+    /// route is silent.
+    pub buffer: u64,
 }
 
 impl LaneProfile {
@@ -58,6 +62,7 @@ impl LaneProfile {
             cut_at: None,
             detect: Duration::from_millis(400),
             silences: Vec::new(),
+            buffer: 0,
         }
     }
 
@@ -105,6 +110,9 @@ pub struct Scenario {
     pub lanes: Vec<LaneProfile>,
     pub seed: u64,
     pub limit: Duration,
+    /// The scheduler's unit: `None` for the file's blocks (WP2's rows), `Some(18)` for 256 KiB slices, as the helpers
+    /// schedule with a peer that has pieces.
+    pub unit_shift: Option<u8>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -221,6 +229,9 @@ struct SimLane {
     epoch: u32,
     queue: VecDeque<Part>,
     current: Option<Part>,
+    /// With a socket buffer: parts written, not yet across (the one crossing included), and their bytes.
+    buffered: VecDeque<Part>,
+    buffered_bytes: u64,
 }
 
 struct Random(u64);
@@ -280,7 +291,11 @@ pub fn run_with_bytes(scenario: &Scenario, damage: &[u32]) -> Outcome {
 }
 
 fn simulate(scenario: &Scenario, bytes: Option<Bytes>) -> Outcome {
-    let geometry = Geometry::for_size(scenario.size).expect("a size with a geometry");
+    let blocks = Geometry::for_size(scenario.size).expect("a size with a geometry");
+    let geometry = match scenario.unit_shift {
+        Some(unit) if bytes.is_none() => super::slices::unit_geometry(&blocks, unit.min(blocks.shift)),
+        _ => blocks,
+    };
     let first = &scenario.lanes[0];
     assert_eq!(first.up_at, Some(Duration::ZERO), "the first lane is up at 0");
     let lanes: Vec<SimLane> = scenario
@@ -294,6 +309,8 @@ fn simulate(scenario: &Scenario, bytes: Option<Bytes>) -> Outcome {
             epoch: 0,
             queue: VecDeque::new(),
             current: None,
+            buffered: VecDeque::new(),
+            buffered_bytes: 0,
         })
         .collect();
     let granules = geometry.block_bytes().div_ceil(GRANULE).div_ceil(64) as usize;
@@ -394,7 +411,17 @@ impl Sim {
     }
 
     fn act(&mut self) {
-        for action in self.scheduler.take_actions() {
+        loop {
+            let actions = self.scheduler.take_actions();
+            if actions.is_empty() {
+                return;
+            }
+            self.act_on(actions);
+        }
+    }
+
+    fn act_on(&mut self, actions: Vec<Action>) {
+        for action in actions {
             match action {
                 Action::Send { lane, block, .. } => {
                     let Some(i) = self.lane_of(lane) else { continue };
@@ -426,7 +453,7 @@ impl Sim {
                         }
                         from = to;
                     }
-                    if self.lanes[i].current.is_none() {
+                    if self.lanes[i].current.is_none() || self.lanes[i].profile.buffer > 0 {
                         self.transmit(i);
                     }
                 }
@@ -463,10 +490,46 @@ impl Sim {
     }
 
     fn transmit(&mut self, i: usize) {
+        if self.lanes[i].profile.buffer > 0 {
+            return self.transmit_buffered(i);
+        }
         let Some(part) = self.lanes[i].queue.pop_front() else {
             self.lanes[i].current = None;
             return;
         };
+        let profile = &self.lanes[i].profile;
+        let mut seconds = (part.to - part.from) as f64 / profile.rate;
+        if profile.loss > 0.0 && self.random.next() < profile.loss {
+            seconds += profile.rtt.as_secs_f64();
+        }
+        let done = profile.advance(self.now, Duration::from_secs_f64(seconds));
+        self.lanes[i].current = Some(part);
+        let epoch = self.lanes[i].epoch;
+        self.at(done, Ev::TxDone(i, epoch));
+    }
+
+    /// With a socket buffer: parts go into it while it has room, each a completed write, and cross one by one.
+    fn transmit_buffered(&mut self, i: usize) {
+        let id = self.lanes[i].id;
+        loop {
+            let lane = &mut self.lanes[i];
+            let Some(next) = lane.queue.front() else { break };
+            let bytes = next.to - next.from;
+            if lane.buffered_bytes > 0 && lane.buffered_bytes + bytes > lane.profile.buffer {
+                break;
+            }
+            let part = lane.queue.pop_front().expect("a front");
+            lane.buffered_bytes += bytes;
+            lane.buffered.push_back(part);
+            self.scheduler.written(id, self.now);
+            if part.last {
+                self.scheduler.sent(id, KEY, part.block, self.now);
+            }
+        }
+        if self.lanes[i].current.is_some() {
+            return;
+        }
+        let Some(&part) = self.lanes[i].buffered.front() else { return };
         let profile = &self.lanes[i].profile;
         let mut seconds = (part.to - part.from) as f64 / profile.rate;
         if profile.loss > 0.0 && self.random.next() < profile.loss {
@@ -487,6 +550,8 @@ impl Sim {
         lane.epoch += 1;
         lane.queue.clear();
         lane.current = None;
+        lane.buffered.clear();
+        lane.buffered_bytes = 0;
     }
 
     fn notice(&mut self, i: usize) {
@@ -572,9 +637,15 @@ impl Sim {
                 let arrive = self.lanes[i].profile.advance(self.now, self.lanes[i].profile.rtt / 2);
                 let (block, from, to, flip) = (part.block, part.from, part.to, part.flip);
                 self.at(arrive, Ev::Arrive { lane: i, epoch, block, from, to, flip });
-                self.scheduler.written(id, self.now);
-                if part.last {
-                    self.scheduler.sent(id, KEY, part.block, self.now);
+                if self.lanes[i].profile.buffer > 0 {
+                    // Written when it went into the buffer.
+                    self.lanes[i].buffered.pop_front();
+                    self.lanes[i].buffered_bytes -= to - from;
+                } else {
+                    self.scheduler.written(id, self.now);
+                    if part.last {
+                        self.scheduler.sent(id, KEY, part.block, self.now);
+                    }
                 }
                 self.transmit(i);
                 self.act();
@@ -689,7 +760,8 @@ fn ms(value: &Value) -> Option<Duration> {
 
 impl LaneProfile {
     /// `{"route": "lan", "mbit": 940, "rtt_ms": 2, "loss": 0, "part_bytes": 61440, "up_ms": 0 | null, "dial_ms",
-    /// "cut_ms", "detect_ms", "silences_ms": [[from, to]], "flapping_ms": {"from", "period", "off", "until"}}`.
+    /// "cut_ms", "detect_ms", "silences_ms": [[from, to]], "flapping_ms": {"from", "period", "off", "until"},
+    /// "buffer_kib"}`.
     /// Missing fields take [`LaneProfile::new`]'s values; `"up_ms": null` means only when asked for.
     pub fn from_json(value: &Value) -> Option<Self> {
         let route = route_named(value.get("route")?.as_str()?)?;
@@ -699,6 +771,9 @@ impl LaneProfile {
         }
         if let Some(bytes) = value.get("part_bytes").and_then(Value::as_u64) {
             lane.part_bytes = bytes;
+        }
+        if let Some(kib) = value.get("buffer_kib").and_then(Value::as_u64) {
+            lane.buffer = kib << 10;
         }
         if let Some(up) = value.get("up_ms") {
             lane.up_at = ms(up);
@@ -724,7 +799,8 @@ impl LaneProfile {
 }
 
 impl Scenario {
-    /// `{"name", "mib": size in MiB, "seed", "limit_s", "phone", "direct_wifi_keeps_internet", "lanes": [...]}`.
+    /// `{"name", "mib": size in MiB, "seed", "limit_s", "phone", "direct_wifi_keeps_internet", "unit_kib": 256 for
+    /// slices, "lanes": [...]}`.
     pub fn from_json(value: &Value) -> Option<Self> {
         let flag = |k: &str| value.get(k).and_then(Value::as_bool).unwrap_or(false);
         Some(Self {
@@ -734,6 +810,7 @@ impl Scenario {
             lanes: value.get("lanes")?.as_array()?.iter().map(LaneProfile::from_json).collect::<Option<_>>()?,
             seed: value.get("seed").and_then(Value::as_u64).unwrap_or(1),
             limit: Duration::from_secs(value.get("limit_s").and_then(Value::as_u64).unwrap_or(3600)),
+            unit_shift: value.get("unit_kib").and_then(Value::as_u64).map(|kib| (kib * 1024).trailing_zeros() as u8),
         })
     }
 }
@@ -756,6 +833,7 @@ mod tests {
             lanes,
             seed: 7,
             limit: Duration::from_secs(3600),
+            unit_shift: None,
         }
     }
 
@@ -869,6 +947,43 @@ mod tests {
                 let gone = run(&scenario("cut", size, vec![base, cut])).done_at.unwrap();
                 let slack = quiet.as_secs_f64() - gone.as_secs_f64();
                 assert!(slack <= detect + 0.1, "{route:?} silent at {at} s: {quiet:?} against {gone:?}");
+            }
+        }
+    }
+
+    #[test]
+    fn bluetooth_never_makes_a_transfer_slower_than_the_lan_alone() {
+        // The owner's rule: whatever Bluetooth does beside a slow LAN, going out of range, cut or flapping at any
+        // moment, at any share of the LAN's rate, the transfer ends no later than on the LAN alone. Socket buffers
+        // make a silent lane look busy (its last block all written) until its silence is noticed.
+        let mut lan = LaneProfile::new(RouteMethod::Lan, mbit(10.0), 4);
+        lan.buffer = 128 << 10;
+        for unit in [None, Some(18)] {
+            let base = Scenario { unit_shift: unit, ..scenario("alone", 16 * MIB, vec![lan.clone()]) };
+            let alone = run(&base).done_at.unwrap();
+            for rate in [0.1, 0.5, 1.4, 2.0] {
+                let mut at = Duration::ZERO;
+                while at < alone {
+                    let s = Duration::from_secs_f64;
+                    let mut bluetooth = LaneProfile::new(RouteMethod::Bluetooth, mbit(rate), 30);
+                    bluetooth.buffer = 256 << 10;
+                    let t = at.as_secs_f64();
+                    let mut cut = bluetooth.clone();
+                    cut.cut_at = Some(at.max(s(0.001)));
+                    for (what, lane) in [
+                        ("silent", bluetooth.clone().silent_from(at)),
+                        ("cut", cut),
+                        ("flapping", bluetooth.clone().flapping(at, s(1.0 + t % 3.0), s(0.5 + t % 2.0), s(60.0))),
+                    ] {
+                        let both = Scenario { lanes: vec![lan.clone(), lane], ..base.clone() };
+                        let took = run(&both).done_at.unwrap();
+                        assert!(
+                            took <= alone,
+                            "{unit:?}, Bluetooth {rate} Mbit/s {what} at {t:.2} s: {took:?} against {alone:?}"
+                        );
+                    }
+                    at += Duration::from_millis(250);
+                }
             }
         }
     }

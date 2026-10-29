@@ -599,6 +599,8 @@ pub struct MultiCase {
     pub files: Vec<u64>,
     /// Which route (index into `routes`) and what happens to it.
     pub lost: Option<(usize, Loss)>,
+    /// A route that flaps from its connection on: up this long, then silent that long, again and again.
+    pub flap: Option<(usize, Duration, Duration)>,
 }
 
 impl MultiCase {
@@ -657,6 +659,9 @@ fn measure_multi(
             proxy
         })
         .collect();
+    if let Some((which, up, down)) = case.flap {
+        proxies[which].set(Tamper { flap: Some((up, down)), ..case.routes[which].tamper() });
+    }
     let step = Duration::from_secs(30);
     let dial = |proxy: &Proxy, route: &RouteProfile| {
         json!({ "cmd": "dial", "port": proxy.port(), "pattern": "IK", "remote_static": remote.static_key,

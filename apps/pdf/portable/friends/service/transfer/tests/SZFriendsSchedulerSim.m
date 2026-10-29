@@ -39,6 +39,7 @@ static SZFriendsRouteMethod SZFRouteNamed(NSString *name) {
     lane.upAt = up == nil ? 0 : (up == [NSNull null] ? -1 : [up doubleValue] / 1000.0);
     lane.dial = json[@"dial_ms"] ? [json[@"dial_ms"] doubleValue] / 1000.0
                                  : (route == SZFriendsRouteMethodBluetooth ? 1.0 : 0.1);
+    lane.buffer = [json[@"buffer_kib"] unsignedLongLongValue] << 10;
     lane.cutAt = json[@"cut_ms"] ? [json[@"cut_ms"] doubleValue] / 1000.0 : -1;
     lane.detect = json[@"detect_ms"] ? [json[@"detect_ms"] doubleValue] / 1000.0 : 0.4;
     lane.silences = [NSMutableArray array];
@@ -54,6 +55,14 @@ static SZFriendsRouteMethod SZFRouteNamed(NSString *name) {
     [lane.silences sortUsingComparator:^NSComparisonResult(NSArray *a, NSArray *b) {
         return [a[0] compare:b[0]];
     }];
+    return lane;
+}
+
+- (instancetype)copyUpFromStart {
+    SZFSimLaneProfile *lane = [[SZFSimLaneProfile alloc] init];
+    lane.route = _route, lane.rate = _rate, lane.rtt = _rtt, lane.loss = _loss, lane.partBytes = _partBytes;
+    lane.upAt = 0, lane.dial = _dial, lane.cutAt = _cutAt, lane.detect = _detect, lane.buffer = _buffer;
+    lane.silences = [_silences mutableCopy];
     return lane;
 }
 
@@ -91,7 +100,17 @@ static SZFriendsRouteMethod SZFRouteNamed(NSString *name) {
     scenario.lanes = lanes;
     scenario.seed = json[@"seed"] ? [json[@"seed"] unsignedLongLongValue] : 1;
     scenario.limit = json[@"limit_s"] ? [json[@"limit_s"] doubleValue] : 3600;
+    uint64_t unit = [json[@"unit_kib"] unsignedLongLongValue] << 10;
+    scenario.unitShift = unit ? (uint8_t)__builtin_ctzll(unit) : 0;
     return scenario.name && scenario.lanes.count ? scenario : nil;
+}
+
+- (instancetype)copyWithLanes:(NSArray<SZFSimLaneProfile *> *)lanes {
+    SZFSimScenario *scenario = [[SZFSimScenario alloc] init];
+    scenario.name = _name, scenario.size = _size, scenario.phone = _phone;
+    scenario.directWiFiKeepsInternet = _directWiFiKeepsInternet, scenario.lanes = lanes, scenario.seed = _seed;
+    scenario.limit = _limit, scenario.unitShift = _unitShift;
+    return scenario;
 }
 @end
 
@@ -139,6 +158,10 @@ typedef NS_ENUM(int, SZFLaneState) { SZFIdle, SZFDialing, SZFUp, SZFGone };
     NSUInteger head;
     BOOL busy;
     SZFPart current;
+    // With a socket buffer: parts written, not yet across (the one crossing included), and their bytes.
+    NSMutableData *buffered; // SZFPart
+    NSUInteger bufferedHead;
+    uint64_t bufferedBytes;
 }
 @end
 @implementation SZFSimLane
@@ -276,7 +299,15 @@ static SZFEvent SZFMake(SZFEv kind, int lane) {
 }
 
 - (void)act {
-    for (SZFriendsScheduleAction *action in [_scheduler takeActions]) {
+    while (YES) {
+        NSArray<SZFriendsScheduleAction *> *actions = [_scheduler takeActions];
+        if (actions.count == 0) return;
+        [self actOn:actions];
+    }
+}
+
+- (void)actOn:(NSArray<SZFriendsScheduleAction *> *)actions {
+    for (SZFriendsScheduleAction *action in actions) {
         switch (action.kind) {
         case SZFriendsScheduleSend: {
             int i = [self laneOf:action.lane];
@@ -296,7 +327,7 @@ static SZFEvent SZFMake(SZFEv kind, int lane) {
                 if (to == start + length) break;
                 from = to;
             }
-            if (!lane->busy) [self transmit:i];
+            if (!lane->busy || lane->profile.buffer > 0) [self transmit:i];
             break;
         }
         case SZFriendsScheduleCancel: {
@@ -340,6 +371,10 @@ static SZFEvent SZFMake(SZFEv kind, int lane) {
 
 - (void)transmit:(int)i {
     SZFSimLane *lane = _lanes[i];
+    if (lane->profile.buffer > 0) {
+        [self transmitBuffered:i];
+        return;
+    }
     if (lane.queued == 0) {
         lane->busy = NO;
         lane->queue = [NSMutableData data];
@@ -347,6 +382,35 @@ static SZFEvent SZFMake(SZFEv kind, int lane) {
         return;
     }
     SZFPart part = ((const SZFPart *)lane->queue.bytes)[lane->head++];
+    double seconds = (double)(part.to - part.from) / lane->profile.rate;
+    if (lane->profile.loss > 0 && [self nextRandom] < lane->profile.loss) seconds += lane->profile.rtt;
+    double done = [lane->profile advance:_now by:seconds];
+    lane->busy = YES;
+    lane->current = part;
+    SZFEvent event = SZFMake(SZFEvTxDone, i);
+    event.epoch = lane->epoch;
+    [self at:done event:event];
+}
+
+// With a socket buffer: parts go into it while it has room, each a completed write, and cross one by one.
+- (void)transmitBuffered:(int)i {
+    SZFSimLane *lane = _lanes[i];
+    while (lane.queued > 0) {
+        SZFPart part = ((const SZFPart *)lane->queue.bytes)[lane->head];
+        uint64_t bytes = part.to - part.from;
+        if (lane->bufferedBytes > 0 && lane->bufferedBytes + bytes > lane->profile.buffer) break;
+        lane->head++;
+        lane->bufferedBytes += bytes;
+        [lane->buffered appendBytes:&part length:sizeof part];
+        [_scheduler written:lane->lane now:_now];
+        if (part.last) [_scheduler sent:lane->lane transfer:SZFKey block:part.block now:_now];
+    }
+    if (lane.queued == 0) {
+        lane->queue = [NSMutableData data];
+        lane->head = 0;
+    }
+    if (lane->busy || lane->bufferedHead == lane->buffered.length / sizeof(SZFPart)) return;
+    SZFPart part = ((const SZFPart *)lane->buffered.bytes)[lane->bufferedHead];
     double seconds = (double)(part.to - part.from) / lane->profile.rate;
     if (lane->profile.loss > 0 && [self nextRandom] < lane->profile.loss) seconds += lane->profile.rtt;
     double done = [lane->profile advance:_now by:seconds];
@@ -365,6 +429,9 @@ static SZFEvent SZFMake(SZFEv kind, int lane) {
     lane->queue = [NSMutableData data];
     lane->head = 0;
     lane->busy = NO;
+    lane->buffered = [NSMutableData data];
+    lane->bufferedHead = 0;
+    lane->bufferedBytes = 0;
 }
 
 - (void)notice:(int)i {
@@ -424,8 +491,17 @@ static SZFEvent SZFMake(SZFEv kind, int lane) {
         event.from = part.from;
         event.to = part.to;
         [self at:arrive event:event];
-        [_scheduler written:lane->lane now:_now];
-        if (part.last) [_scheduler sent:lane->lane transfer:SZFKey block:part.block now:_now];
+        if (lane->profile.buffer > 0) {
+            // Written when it went into the buffer.
+            lane->bufferedBytes -= part.to - part.from;
+            if (++lane->bufferedHead == lane->buffered.length / sizeof(SZFPart)) {
+                lane->buffered = [NSMutableData data];
+                lane->bufferedHead = 0;
+            }
+        } else {
+            [_scheduler written:lane->lane now:_now];
+            if (part.last) [_scheduler sent:lane->lane transfer:SZFKey block:part.block now:_now];
+        }
         [self transmit:i];
         [self act];
         return;
@@ -506,12 +582,18 @@ static SZFEvent SZFMake(SZFEv kind, int lane) {
 SZFSimOutcome *SZFSimRun(SZFSimScenario *scenario) {
     SZFSim *sim = [[SZFSim alloc] init];
     SZFriendsGeometryForSize(scenario.size, &sim->_geometry);
+    if (scenario.unitShift && scenario.unitShift < sim->_geometry.shift) {
+        // Slices: units of 2^unitShift bytes, as SZFriendsSliceSend gives the scheduler.
+        sim->_geometry.shift = scenario.unitShift;
+        sim->_geometry.blocks = (uint32_t)MAX((scenario.size + (1ull << scenario.unitShift) - 1) >> scenario.unitShift, 1ull);
+    }
     sim->_lanes = [NSMutableArray array];
     for (NSUInteger i = 0; i < scenario.lanes.count; i++) {
         SZFSimLane *lane = [[SZFSimLane alloc] init];
         lane->profile = scenario.lanes[i];
         lane->lane = 100 + i;
         lane->queue = [NSMutableData data];
+        lane->buffered = [NSMutableData data];
         [sim->_lanes addObject:lane];
     }
     sim->_group = [[SZFriendsLaneGroup alloc] initWithFirst:sim->_lanes[0]->lane

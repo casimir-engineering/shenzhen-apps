@@ -3,7 +3,8 @@
 // way) and a cut (closed, noticed a little later). Lanes come and go through SZFriendsLaneGroup, so its limits apply.
 // The receiver counts 4 KiB granules, answers each completed block with a HAVE on the lane that completed it (or the
 // quickest live lane if that one is gone), answers the first late part of a block on each lane with a HAVE, and pings
-// each lane every second. Scenarios come from friends/fixtures/scheduler/scenarios.json.
+// each lane every second. With a lane's socket buffer, a write completes once its part is in the buffer. Scenarios
+// come from friends/fixtures/scheduler/scenarios.json.
 
 #import <Foundation/Foundation.h>
 
@@ -22,7 +23,10 @@ NS_ASSUME_NONNULL_BEGIN
 @property(nonatomic) double cutAt; // negative: never
 @property(nonatomic) double detect;
 @property(nonatomic, strong) NSMutableArray<NSArray<NSNumber *> *> *silences; // (from, to), sorted
+// The sender's socket buffer: a write completes once its part is in it, before the part crosses (0: as it crosses).
+@property(nonatomic) uint64_t buffer;
 + (nullable instancetype)profileWithJSON:(NSDictionary *)json;
+- (instancetype)copyUpFromStart; // the same lane, up at 0
 @end
 
 @interface SZFSimScenario : NSObject
@@ -32,7 +36,9 @@ NS_ASSUME_NONNULL_BEGIN
 @property(nonatomic, strong) NSArray<SZFSimLaneProfile *> *lanes;
 @property(nonatomic) uint64_t seed;
 @property(nonatomic) double limit;
+@property(nonatomic) uint8_t unitShift; // the scheduler's unit: 0 for the file's blocks, 18 for 256 KiB slices
 + (nullable instancetype)scenarioWithJSON:(NSDictionary *)json;
+- (instancetype)copyWithLanes:(NSArray<SZFSimLaneProfile *> *)lanes;
 @end
 
 @interface SZFSimOutcome : NSObject

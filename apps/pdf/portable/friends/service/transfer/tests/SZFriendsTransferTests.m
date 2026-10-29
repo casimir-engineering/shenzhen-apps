@@ -17,12 +17,23 @@ int SZFriendsDirectWiFiBoostTests(void); // SZFriendsDirectWiFiBoostTests.m
         }                                                                                                             \
     } while (0)
 
+// The best any one of the scenario's lanes does alone, up from the start with everything else it does (silences,
+// flapping, a cut): what "never slower than without the extra lanes" compares with. Negative when none finishes.
+static double BestAlone(SZFSimScenario *scenario) {
+    double best = -1;
+    for (SZFSimLaneProfile *lane in scenario.lanes) {
+        double done = SZFSimRun([scenario copyWithLanes:@[ [lane copyUpFromStart] ]]).doneAt;
+        if (done >= 0 && (best < 0 || done < best)) best = done;
+    }
+    return best;
+}
+
 static void TestScenarios(NSString *path) {
     NSDictionary *table = [NSJSONSerialization JSONObjectWithData:[NSData dataWithContentsOfFile:path] options:0
                                                             error:NULL];
     CHECK([table[@"scenarios"] count] > 0, @"the scenario table at %@", path);
-    printf("| Scenario | Lanes (Mbit/s) | Time | MB/s | Of the lanes' sum | Per route (MiB sent) | Sent twice | "
-           "Fastest lane idle at the end |\n|---|---|---|---|---|---|---|---|\n");
+    printf("| Scenario | Lanes (Mbit/s) | Time | MB/s | Of the lanes' sum | Of the best lane alone | Per route (MiB sent) | "
+           "Sent twice | Fastest lane idle at the end |\n|---|---|---|---|---|---|---|---|---|\n");
     for (NSDictionary *entry in table[@"scenarios"]) {
         SZFSimScenario *scenario = [SZFSimScenario scenarioWithJSON:entry];
         CHECK(scenario != nil, @"a scenario: %@", entry);
@@ -43,13 +54,22 @@ static void TestScenarios(NSString *path) {
                                                            [out.laneSentBytes[i] doubleValue] / (1 << 20)]];
         }
         double tail = [out tailFor:scenario];
-        printf("| %s | %s | %.2f s | %.1f | %.0f %% | %s | %.1f MiB | %.0f ms |\n", name.UTF8String,
+        NSDictionary *expect = entry[@"expect"];
+        // Time alone over time with every lane: 1.000 or more is never slower.
+        double alone = expect[@"max_of_alone"] ? BestAlone(scenario) : -1, speed = alone / out.doneAt;
+        NSString *ofAlone = alone >= 0 ? [NSString stringWithFormat:@"%.3f", speed] : @"—";
+        printf("| %s | %s | %.2f s | %.1f | %.0f %% | %s | %s | %.1f MiB | %.0f ms |\n", name.UTF8String,
                [lanes componentsJoinedByString:@", "].UTF8String, out.doneAt, mbit / 8, 100 * mbit / sum,
-               [perRoute componentsJoinedByString:@", "].UTF8String, (double)out.wastedBytes / (1 << 20), tail * 1000);
+               ofAlone.UTF8String, [perRoute componentsJoinedByString:@", "].UTF8String,
+               (double)out.wastedBytes / (1 << 20), tail * 1000);
         CHECK(wall < 10, @"%@: the simulator took %.1f s", name, wall);
         CHECK(out.maxOpenBlocks <= 64 && out.maxOpenBytes <= (64ull << 20) && !out.laneCapExceeded,
               @"%@: § 3 or a lane's cap exceeded", name);
-        NSDictionary *expect = entry[@"expect"];
+        if (alone >= 0) {
+            CHECK(1 / speed <= [expect[@"max_of_alone"] doubleValue],
+                  @"%@: %.3f of the best lane alone's speed, at least %.3f", name, speed,
+                  1 / [expect[@"max_of_alone"] doubleValue]);
+        }
         if (expect[@"mbit"]) CHECK(mbit >= [expect[@"mbit"] doubleValue], @"%@: %.1f Mbit/s, expected at least %@", name, mbit, expect[@"mbit"]);
         if (expect[@"max_s"]) CHECK(out.doneAt <= [expect[@"max_s"] doubleValue], @"%@: %.2f s, at most %@", name, out.doneAt, expect[@"max_s"]);
         if (expect[@"max_tail_ms"]) CHECK(tail * 1000 <= [expect[@"max_tail_ms"] doubleValue], @"%@: idle %.0f ms at the end", name, tail * 1000);

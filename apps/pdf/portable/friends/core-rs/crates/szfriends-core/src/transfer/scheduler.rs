@@ -19,9 +19,13 @@
 //!   Bluetooth) neither completed one nor finished a write is silent: its blocks go to the others at once, it gets
 //!   nothing new until it moves again, and it is closed after 10 s without a byte from the peer.
 //! - Endgame: when nothing is unassigned, a lane with room takes a second copy of the in-flight block whose lane would
-//!   finish it last, when it would finish it sooner; the first copy to complete wins and the other is cancelled.
+//!   finish it last, when it would finish it sooner; the first copy to complete wins and the other is cancelled. The
+//!   fastest lane takes such copies whatever it expects to gain, so it never waits on another lane: a transfer is
+//!   never slower with more lanes than on its fastest lane alone (the owner's rule).
 //! - Bluetooth carries blocks only while the other lanes together measure below 4 MB/s, or alone; the relay only while
 //!   no other lane works. Direct Wi-Fi is asked for (and kept) only where it leaves the device on its Wi-Fi network.
+//!   A lane under 3 % of the fastest's rate carries nothing, and one slower than the fastest holds at most what the
+//!   fastest sends in a second.
 //!
 //! The driver turns [`Action::Send`] into PARTs with the lane's part size, reading the block through
 //! [`BlockServe`](super::BlockServe)'s leaf check, and reports back with [`Scheduler::written`], [`Scheduler::sent`],
@@ -62,6 +66,12 @@ pub const LANE_BYTES_MAX_PHONE: u64 = 8 << 20;
 pub const REQUEST_AGAIN_AFTER: Duration = Duration::from_secs(10);
 /// A lane is worth asking for only when the work left would take the current lanes longer than this.
 const WORTH_A_LANE: f64 = 4.0;
+/// A lane slower than the fastest takes blocks only while it measures at least this share of the fastest: below it,
+/// what it adds is less than what it costs (its encryption and HAVEs, a block the fastest may end up sending again).
+pub const HELPS_FROM_SHARE: f64 = 0.03;
+/// A lane slower than the fastest holds at most what the fastest sends in this long (one block at least), so what a
+/// lost lane leaves the fastest to send again is little.
+const SLOWER_LANE_SECONDS: f64 = 1.0;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Config {
@@ -550,7 +560,11 @@ impl Scheduler {
     // ----- the decisions -----
 
     fn cap(&self, lane: &Lane, block_bytes: u64) -> u64 {
-        let max = if self.config.phone { LANE_BYTES_MAX_PHONE } else { LANE_BYTES_MAX };
+        let mut max = if self.config.phone { LANE_BYTES_MAX_PHONE } else { LANE_BYTES_MAX };
+        let fastest = self.lanes.values().filter(|l| l.working()).map(|l| l.rate).fold(0.0, f64::max);
+        if lane.rate < fastest {
+            max = max.min(((fastest * SLOWER_LANE_SECONDS) as u64).max(block_bytes));
+        }
         let bdp2 = (2.0 * lane.rate * lane.rtt.as_secs_f64()) as u64;
         // A lane beside a faster one that needs longer than a second per block (Bluetooth beside a slow LAN: 6 s per
         // MiB) holds one: a second one queued behind it would push its expected finish past what the faster lanes
@@ -572,16 +586,18 @@ impl Scheduler {
     }
 
     /// Lanes that may take blocks now: working ones; the relay only when nothing else works; Bluetooth only alone or
-    /// while the others measure below 4 MB/s together.
+    /// while the others measure below 4 MB/s together; none under 3 % of the fastest.
     fn eligible(&self) -> Vec<LaneId> {
         let working: Vec<(&LaneId, &Lane)> = self.lanes.iter().filter(|(_, l)| l.working()).collect();
         let direct: Vec<_> = working.iter().filter(|(_, l)| l.route != RouteMethod::Relay).copied().collect();
         let lanes = if direct.is_empty() { working } else { direct };
         let others: f64 = lanes.iter().filter(|(_, l)| l.route != RouteMethod::Bluetooth).map(|(_, l)| l.rate).sum();
         let only_bluetooth = lanes.iter().all(|(_, l)| l.route == RouteMethod::Bluetooth);
+        let fastest = lanes.iter().map(|(_, l)| l.rate).fold(0.0, f64::max);
         lanes
             .into_iter()
             .filter(|(_, l)| l.route != RouteMethod::Bluetooth || only_bluetooth || others < BLUETOOTH_HELPS_BELOW)
+            .filter(|(_, l)| l.rate >= fastest * HELPS_FROM_SHARE)
             .map(|(id, _)| *id)
             .collect()
     }
@@ -709,8 +725,13 @@ impl Scheduler {
         now.as_secs_f64() + ahead as f64 / lane.rate + rtt
     }
 
-    /// Nothing unassigned: lanes with room take second copies of the blocks that would otherwise finish last.
+    /// Nothing unassigned: lanes with room take second copies of the blocks that would otherwise finish last. The
+    /// fastest lane takes them whatever it expects to gain: it has nothing else to do, and a lane that went quiet with
+    /// a block all written (in its socket's buffer, as far as this side can tell) looks on time until its silence is
+    /// noticed, seconds later. So the transfer ends no later than on the fastest lane alone.
     fn endgame(&mut self, eligible: &[LaneId], now: Duration) {
+        let fastest =
+            eligible.iter().copied().reduce(|a, b| if self.lanes[&b].rate > self.lanes[&a].rate { b } else { a });
         let only_bluetooth = eligible.iter().all(|id| self.lanes[id].route == RouteMethod::Bluetooth);
         let helpers: Vec<LaneId> = eligible
             .iter()
@@ -733,7 +754,8 @@ impl Scheduler {
                             continue;
                         }
                         let gain = finish - (now.as_secs_f64() + lane.eta(t.bytes(block)));
-                        if gain > lane.rtt.as_secs_f64().max(0.005) && best.is_none_or(|b| gain > b.0) {
+                        let worth = gain > lane.rtt.as_secs_f64().max(0.005) || Some(id) == fastest;
+                        if worth && best.is_none_or(|b| gain > b.0) {
                             best = Some((gain, at, block, id));
                         }
                     }

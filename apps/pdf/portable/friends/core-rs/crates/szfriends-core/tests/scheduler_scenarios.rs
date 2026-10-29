@@ -5,8 +5,22 @@
 use std::path::PathBuf;
 
 use serde_json::Value;
+use std::time::Duration;
 use szfriends_core::session::lanes::LaneRequest;
 use szfriends_core::transfer::sim::{self, route_name, Scenario};
+
+/// The best any one of the scenario's lanes does alone, up from the start with everything else it does (silences,
+/// flapping, a cut): what "never slower than without the extra lanes" compares with.
+fn best_alone(scenario: &Scenario) -> Option<f64> {
+    (0..scenario.lanes.len())
+        .filter_map(|i| {
+            let mut lane = scenario.lanes[i].clone();
+            lane.up_at = Some(Duration::ZERO);
+            let alone = Scenario { lanes: vec![lane], ..scenario.clone() };
+            sim::run(&alone).done_at.map(|t| t.as_secs_f64())
+        })
+        .min_by(f64::total_cmp)
+}
 
 fn table() -> Value {
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../fixtures/scheduler/scenarios.json");
@@ -17,8 +31,8 @@ fn table() -> Value {
 fn every_scenario_meets_its_expectations() {
     let table = table();
     let mut failures = Vec::new();
-    println!("| Scenario | Lanes (Mbit/s) | Time | MB/s | Of the lanes' sum | Per route (MiB sent) | Sent twice | Fastest lane idle at the end |");
-    println!("|---|---|---|---|---|---|---|---|");
+    println!("| Scenario | Lanes (Mbit/s) | Time | MB/s | Of the lanes' sum | Of the best lane alone | Per route (MiB sent) | Sent twice | Fastest lane idle at the end |");
+    println!("|---|---|---|---|---|---|---|---|---|");
     for entry in table["scenarios"].as_array().expect("scenarios") {
         let scenario = Scenario::from_json(entry).unwrap_or_else(|| panic!("a scenario: {entry}"));
         let started = std::time::Instant::now();
@@ -40,18 +54,26 @@ fn every_scenario_meets_its_expectations() {
             .collect();
         let lanes: Vec<String> =
             scenario.lanes.iter().map(|l| format!("{} {}", route_name(l.route), l.rate * 8.0 / 1e6)).collect();
+        let expect = &entry["expect"];
+        // Time alone over time with every lane: 1.00 or more is never slower.
+        let alone = expect["max_of_alone"].as_f64().and_then(|max| Some((max, best_alone(&scenario)? / secs)));
         println!(
-            "| {name} | {} | {secs:.2} s | {:.1} | {:.0} % | {} | {:.1} MiB | {} ms |",
+            "| {name} | {} | {secs:.2} s | {:.1} | {:.0} % | {} | {} | {:.1} MiB | {} ms |",
             lanes.join(", "),
             mbit / 8.0,
             100.0 * mbit / sum,
+            alone.map_or("—".to_owned(), |(_, speed)| format!("{speed:.3}")),
             per_route.join(", "),
             out.wasted_bytes as f64 / (1 << 20) as f64,
             tail.as_millis(),
         );
         assert!(wall.as_secs() < 5, "{name}: the simulator took {wall:?}");
         assert!(out.max_open_blocks <= 64 && out.max_open_bytes <= 64 << 20 && !out.lane_cap_exceeded, "{name}");
-        let expect = &entry["expect"];
+        if let Some((max, speed)) = alone {
+            if 1.0 / speed > max {
+                failures.push(format!("{name}: {speed:.3} of the best lane alone's speed, at least {:.3}", 1.0 / max));
+            }
+        }
         if let Some(min) = expect["mbit"].as_f64() {
             if mbit < min {
                 failures.push(format!("{name}: {mbit:.1} Mbit/s, expected at least {min}"));

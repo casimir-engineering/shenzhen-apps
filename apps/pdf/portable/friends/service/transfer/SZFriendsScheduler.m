@@ -21,6 +21,11 @@ static const uint64_t SZFLaneBytesMax = 32ull << 20, SZFLaneBytesMaxPhone = 8ull
 static const double SZFRequestAgainAfter = 10;
 // A lane is worth asking for only when the work left would take the current lanes longer than this.
 static const double SZFWorthALane = 4.0;
+// A lane slower than the fastest takes blocks only while it measures at least this share of the fastest: below it,
+// what it adds is less than what it costs (its encryption and HAVEs, a block the fastest may end up sending again).
+static const double SZFHelpsFromShare = 0.03;
+// A lane slower than the fastest holds at most what the fastest sends in this long (one block at least).
+static const double SZFSlowerLaneSeconds = 1.0;
 
 @implementation SZFriendsScheduleAction
 + (instancetype)kind:(SZFriendsScheduleKind)kind lane:(SZFriendsLaneID)lane transfer:(SZFriendsTransferKey)transfer
@@ -453,6 +458,11 @@ static BOOL SZFRangesFit(NSData *ranges, uint32_t blocks) {
 
 - (uint64_t)cap:(SZFLane *)lane blockBytes:(uint64_t)blockBytes {
     uint64_t max = _phone ? SZFLaneBytesMaxPhone : SZFLaneBytesMax;
+    double fastest = 0;
+    for (SZFLane *other in _lanes.allValues) {
+        if (other.working) fastest = MAX(fastest, other->rate);
+    }
+    if (lane->rate < fastest) max = MIN(max, MAX((uint64_t)(fastest * SZFSlowerLaneSeconds), blockBytes));
     uint64_t bdp2 = (uint64_t)(2.0 * lane->rate * lane->rtt);
     // A lane beside a faster one that needs longer than a second per block (Bluetooth beside a slow LAN) holds one: a
     // second one queued behind it would push its expected finish past what the faster lanes need for the rest.
@@ -481,7 +491,7 @@ static BOOL SZFRangesFit(NSData *ranges, uint32_t blocks) {
 }
 
 // Lanes that may take blocks now: working ones; the relay only when nothing else works; Bluetooth only alone or while
-// the others measure below 4 MB/s together.
+// the others measure below 4 MB/s together; none under 3 % of the fastest.
 - (NSArray<NSNumber *> *)eligible {
     NSMutableArray<NSNumber *> *working = [NSMutableArray array], *direct = [NSMutableArray array];
     for (NSNumber *laneID in self.laneIDs) {
@@ -491,10 +501,11 @@ static BOOL SZFRangesFit(NSData *ranges, uint32_t blocks) {
         if (lane->route != SZFriendsRouteMethodRelay) [direct addObject:laneID];
     }
     NSArray<NSNumber *> *lanes = direct.count ? direct : working;
-    double others = 0;
+    double others = 0, fastest = 0;
     BOOL onlyBluetooth = YES;
     for (NSNumber *laneID in lanes) {
         SZFLane *lane = _lanes[laneID];
+        fastest = MAX(fastest, lane->rate);
         if (lane->route != SZFriendsRouteMethodBluetooth) {
             others += lane->rate;
             onlyBluetooth = NO;
@@ -503,9 +514,9 @@ static BOOL SZFRangesFit(NSData *ranges, uint32_t blocks) {
     NSMutableArray<NSNumber *> *out = [NSMutableArray array];
     for (NSNumber *laneID in lanes) {
         SZFLane *lane = _lanes[laneID];
-        if (lane->route != SZFriendsRouteMethodBluetooth || onlyBluetooth || others < SZFriendsBluetoothHelpsBelow) {
-            [out addObject:laneID];
-        }
+        BOOL bluetoothOK =
+            lane->route != SZFriendsRouteMethodBluetooth || onlyBluetooth || others < SZFriendsBluetoothHelpsBelow;
+        if (bluetoothOK && lane->rate >= fastest * SZFHelpsFromShare) [out addObject:laneID];
     }
     return out;
 }
@@ -642,8 +653,15 @@ static BOOL SZFRangesFit(NSData *ranges, uint32_t blocks) {
     return now + (double)ahead / lane->rate + lane->rtt;
 }
 
-// Nothing unassigned: lanes with room take second copies of the blocks that would otherwise finish last.
+// Nothing unassigned: lanes with room take second copies of the blocks that would otherwise finish last. The fastest
+// lane takes them whatever it expects to gain: it has nothing else to do, and a lane that went quiet with a block all
+// written (in its socket's buffer, as far as this side can tell) looks on time until its silence is noticed, seconds
+// later. So the transfer ends no later than on the fastest lane alone.
 - (void)endgame:(NSArray<NSNumber *> *)eligible now:(double)now {
+    NSNumber *fastest = nil;
+    for (NSNumber *laneID in eligible) {
+        if (fastest == nil || _lanes[laneID]->rate > _lanes[fastest]->rate) fastest = laneID;
+    }
     BOOL onlyBluetooth = YES;
     for (NSNumber *laneID in eligible) onlyBluetooth &= _lanes[laneID]->route == SZFriendsRouteMethodBluetooth;
     NSMutableArray<NSNumber *> *helpers = [NSMutableArray array];
@@ -672,7 +690,8 @@ static BOOL SZFRangesFit(NSData *ranges, uint32_t blocks) {
                         continue;
                     }
                     double gain = finish - (now + [lane eta:bytes]);
-                    if (gain > MAX(lane->rtt, 0.005) && (bestLane == nil || gain > bestGain)) {
+                    BOOL worth = gain > MAX(lane->rtt, 0.005) || [laneID isEqual:fastest];
+                    if (worth && (bestLane == nil || gain > bestGain)) {
                         bestGain = gain, bestTransfer = transfer, bestBlock = block.unsignedIntValue, bestLane = laneID;
                     }
                 }

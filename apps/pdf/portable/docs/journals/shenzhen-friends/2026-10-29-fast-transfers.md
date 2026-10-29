@@ -1513,3 +1513,108 @@ networksetup -getairportnetwork en0
 **Left.** "Always for Mei" with its switch in a friend's details; Linux hosting through NetworkManager; joining tried
 on two real Android phones and with an iPhone; Known Networks after a Mac's join; a release that carries ADR 0019 on
 both helpers (capability bit 5 is off until a helper has a Wi-Fi to use, so mixed pairs never see BOOST).
+
+## Never slower with Bluetooth than without (2026-10-29)
+
+The owner's rule, about the slow network with Bluetooth: "Is it slower than without bluetooth? Then don't do it." A
+transfer with an extra lane must never end later than on its best lane alone: in steady state, with the extra lane
+going out of range or silent at any moment, flapping, or too slow to matter, and at the end of the transfer.
+
+**Why the table could not see it.** In both simulators a write completed only as its part crossed the route, so a
+lane that went out of range stopped writing at once and its block looked late. Real paths do not: the socket's
+buffer (and the bench's proxy) takes a 256 KiB slice at once, so the slice looks all written and its HAVE due within a
+round trip. If that lane then went quiet, the endgame's estimate said the slice was about to land, so the LAN, with
+nothing else to send, waited until the silence was noticed (2 to 3.5 s on Bluetooth). Both simulators now model the
+sender's socket buffer (`buffer_kib` on a lane: a write completes when its part is in the buffer) and schedule 256 KiB
+slices as the helpers do (`unit_kib`). With them, the old scheduler loses up to 26 % with Bluetooth flapping, and
+15 % with Bluetooth going out of range in the last quarter of the transfer; with whole blocks and no buffers, which is
+all the table had, it never lost.
+
+**What changed** (`transfer/scheduler.rs` and `SZFriendsScheduler.m`, line for line):
+
+- **The fastest lane never waits on another.** In the endgame (nothing unassigned) the fastest lane takes a second copy
+  of a slice another lane holds whatever it expects to gain: it has nothing else to send, so the copy costs no time,
+  and the transfer ends no later than the fastest lane alone could end it. The first copy to complete wins; pieces
+  already acknowledged are not sent again. Other lanes keep the old rule (a copy only when it gains more than a round
+  trip).
+- **A lane under 3 % of the fastest carries nothing** (`HELPS_FROM_SHARE`). Bluetooth at 1 % of the LAN gets one slice
+  to measure itself and then nothing; at 5 % it adds 2 %.
+- **A lane slower than the fastest holds at most what the fastest sends in a second** (one slice at least), so what a
+  lost lane leaves to send again is small. Bluetooth already held one slice beside a slow LAN; this bounds faster
+  extra lanes too.
+
+Not done, and why:
+
+- *Give the extra lane the slices the LAN would reach last.* With the first rule, where the extra lane's slices lie
+  no longer changes when the transfer ends: the LAN copies whatever is still out once it runs out of work. Keeping the
+  order keeps the receiver's writes and its partly received blocks together.
+- *Copy an extra lane's slices onto the LAN as soon as it goes quiet, before the silence timeout.* Before the end the
+  LAN is busy with slices it would send anyway, so an early copy only reorders its work and wastes Bluetooth's if the
+  lane comes back (flapping). At the end the first rule copies at once, which is the moment that matters.
+- *A CPU rule.* Bluetooth only takes slices beside lanes measuring under 4 MB/s in all, and the relay only when
+  nothing else works, so the lanes that compress (zstd level 1, hundreds of MB/s) never sit beside a lane the CPU
+  limits: at Bluetooth's 175 KB/s, compressing costs well under 1 % of one core. The bench measures no difference in
+  the sender's CPU per GB with Bluetooth or without (5.4 to 7.2 s/GB either way, the resolution of `ps` over a 13 s
+  run). Nothing reports `cpu_bound` today; if a phone driver ever does, that is where such a rule would go.
+
+**The table** (`friends/fixtures/scheduler/scenarios.json`): a new expectation, `max_of_alone`, runs each lane of the
+scenario alone (up from the start, with its silences, flapping or cut) and requires the transfer to end no later than
+the best of them; every multi-lane row now has it except the two where a rule keeps the faster route unused on
+purpose (direct Wi-Fi without its own network, the relay coming first). New rows mirror the bench: 16 MiB over a
+10 Mbit/s LAN beside Bluetooth, with slices and socket buffers (LAN 128 KiB, Bluetooth 256 KiB). Both simulators give
+the same table, row for row. "Of the LAN alone" is time alone over time with Bluetooth: 1.000 or more is never slower.
+
+| Scenario (16 MiB, 10 Mbit/s LAN) | Before | After |
+|---|---|---|
+| Bluetooth 1.4 Mbit/s throughout | 1.103 | 1.103 |
+| … out of range at 10 % / 50 % / 90 % | 1.000 / 1.067 / 1.103 | 1.000 / 1.067 / 1.103 |
+| … flapping (out 1.9 s of every 2.4 s) | **0.744** | 1.016 |
+| … flapping fast (out 0.5 s of every 1 s) | 1.032 | 1.032 |
+| … at 5 % of the LAN, out of range at 90 % | **0.854** | 1.016 |
+| … at 1 % / 5 % / 20 % of the LAN | 1.000 / 1.032 / 1.164 | 1.000 / 1.032 / 1.164 |
+| … connected and silent from the start | 1.000 | 1.000 |
+
+The older rows are unchanged but for "two lanes on the lan", which now sends 0.4 MiB twice (the endgame's copies)
+in the same 1.08 s. A property test (`sim.rs`, `bluetooth_never_makes_a_transfer_slower_than_the_lan_alone`) puts
+Bluetooth at 1, 5, 14 and 20 % of the LAN going out of range, cut, or flapping (periods of 1 to 4 s) at every quarter
+second of the transfer, with whole blocks and with slices: the transfer never ends later than on the LAN alone. The old
+scheduler fails it at 0.25 s.
+
+**On the bench** (`make friends-transfer-bench` with the new `BENCH_MULTI` cases: `slowlan` alone, then Bluetooth
+beside it; 16 MiB over 10 Mbit/s with Bluetooth's 175 KB/s; three runs of each, before and after interleaved). Each
+figure is the median of the LAN alone's time over the case's time, worst run in brackets:
+
+| Case | Rust → Rust | Rust → Objective-C | Objective-C → Rust |
+|---|---|---|---|
+| Bluetooth throughout | 1.102 (1.100) | 1.101 (1.097) | 1.103 (1.102) |
+| … out of range at 10 % of the bytes | 1.009 (1.006) | 1.008 (1.000) | 1.007 (1.006) |
+| … at 50 % | 1.057 (1.055) | 1.057 (1.051) | 1.059 (1.051) |
+| … at 90 % | 1.100 (1.096) | 1.096 (1.091) | 1.099 (1.095) |
+| … flapping, up 0.6 s and out 1.8 s | 1.016 (1.014) | 1.020 (1.013) | 1.019 (0.999) |
+| … flapping, up 0.5 s and out 1.9 s | 1.014 (1.014) | 1.015 (1.015) | 1.003 (1.001) |
+| … connected and silent from the start | 1.000 (0.998) | 0.999 (0.998) | 1.001 (0.998) |
+| Bluetooth at 1 % of the LAN | 0.999 (0.997) | 0.997 (0.995) | 1.000 (0.992) |
+| … at 5 % | 1.022 (1.018) | 1.022 (1.020) | 1.021 (1.019) |
+| … at 5 %, out of range at 90 % | 1.020 (1.019) | 1.022 (1.020) | 1.019 (1.019) |
+| … at 20 % | 1.163 (1.162) | 1.164 (1.156) | 1.163 (1.163) |
+
+The LAN alone takes 13.48 s Rust to Rust (99.6 % of its 1.25 MB/s), 13.50 s from Objective-C. Every case is within
+1 % of the LAN alone or faster; the worst single run is 0.992 (0.1 s in 13.5 s: Bluetooth at 1 % of the LAN, whose
+one slice to measure itself the LAN sends again at the end). The old scheduler gives the same medians on the bench,
+within 0.01: these runs did not land in the windows the simulator finds (silences start at a count of bytes, flapping
+at the lane's connection, and the proxy buffers less than the 256 KiB modelled). So the bench confirms nothing got
+slower, and the simulator's sweep shows the windows closed.
+
+**Found on the way, for WP4 and whoever owns the Objective-C receiver: Rust → Objective-C sends 0.5 MB twice in
+about half the runs, Bluetooth or not.** In those runs the LAN carries 17,303,203 bytes instead of 16,794,831 for the
+same 16 MiB (two slices' worth again), and the transfer takes 13.92 s instead of 13.52 s, 3 % slower. It happens with
+the LAN alone too, before and after this change, and never Rust to Rust or Objective-C to Rust. It looks like the
+Objective-C receiver wanting slices again that were already in flight (a second WANT, or pieces not acknowledged). The
+"0.95 to 0.99 of the LAN alone" recorded earlier for Bluetooth dropping is this resend plus a comparison with the
+LAN's nominal rate; measured like for like (runs with the resend against the LAN alone with it), Bluetooth dropping
+leaves Rust → Objective-C at 1.000 to 1.096. Not chased here: the Objective-C helper's exchange is another agent's
+area today (the rare stall and copies from several holders).
+
+Checks: `cargo test -p szfriends-core` (the scheduler's units, the table, the sweep, 150 random scenarios),
+`make friends-transfer-check` (the same table through the Objective-C port, identical row for row),
+`make friends-store-check`, and `szfriends-interop`'s `fast_lanes` and `fast_transfers`.

@@ -12,7 +12,10 @@
 //!   BENCH_MULTI        several routes at once between the same two peers, the first carrying the session and the
 //!                      others lanes of it (ADR 0018 § 6): lan+p2p, lan+p2p-cut-p2p, lan+p2p-silence-lan,
 //!                      slowlan+bt, slowlan+bt-cut-bt, slowlan+bt-silence-bt, lan+p2p+bt, lan+p2p+bt-cut-lan,
-//!                      loopback+loopback (default: all; "none" for none). Skipped, and said so, until the peers open
+//!                      loopback+loopback (default: all; "none" for none); and, for "never slower with Bluetooth",
+//!                      slowlan (alone), slowlan+bt-silence-bt-0 (connected and silent), -10, -90, slowlan+bt-flap,
+//!                      slowlan+bt1, slowlan+bt5, slowlan+bt20 (Bluetooth at that % of the LAN),
+//!                      slowlan+bt5-silence-bt-90, slowlan+bt-flap-mostly-off, not in the default list. Skipped, and said so, until the peers open
 //!                      lanes. SZFRIENDS_TEST_AES_LANES=0 and SZFRIENDS_TEST_COMPRESSED_PARTS=0 run the Rust peers
 //!                      without AES-GCM lanes or compressed parts (ADR 0018 § 9.2, § 9.4), for before and after;
 //!                      SZFRIENDS_TEST_ZSTD=0 plays a phone that compresses with LZ4 only.
@@ -63,7 +66,42 @@ fn loss_case(name: &str, silence_wait: Duration) -> Option<Case> {
     Some(Case { name: name.to_owned(), route, files, loss, silence_wait })
 }
 
+/// Bluetooth at `share` of the slow LAN's rate.
+fn bluetooth_at(share: f64) -> RouteProfile {
+    RouteProfile { bytes_per_second: LAN_SLOW.bytes_per_second.map(|r| (r as f64 * share) as u64), ..BLUETOOTH }
+}
+
 fn multi_case(name: &str) -> Option<MultiCase> {
+    // Never slower with Bluetooth than without (the owner's rule): the slow LAN alone, then Bluetooth beside it out of
+    // range at 10, 50 and 90 % of the bytes, connected and silent from the start, flapping, and at 1, 5 and 20 % of the
+    // LAN's rate. Compare each with "slowlan".
+    let flap = |up: f64, down: f64| Some((1, Duration::from_secs_f64(up), Duration::from_secs_f64(down)));
+    let (routes, files, lost, flap) = match name {
+        "slowlan" => (vec![LAN_SLOW], vec![16 * MIB], None, None),
+        "slowlan+bt-silence-bt-0" => (vec![LAN_SLOW, BLUETOOTH], vec![16 * MIB], Some((1, Loss::Silence(0.0))), None),
+        "slowlan+bt-silence-bt-10" => (vec![LAN_SLOW, BLUETOOTH], vec![16 * MIB], Some((1, Loss::Silence(0.1))), None),
+        "slowlan+bt-silence-bt-90" => (vec![LAN_SLOW, BLUETOOTH], vec![16 * MIB], Some((1, Loss::Silence(0.9))), None),
+        "slowlan+bt-flap" => (vec![LAN_SLOW, BLUETOOTH], vec![16 * MIB], None, flap(0.6, 1.8)),
+        "slowlan+bt1" => (vec![LAN_SLOW, bluetooth_at(0.01)], vec![16 * MIB], None, None),
+        "slowlan+bt5" => (vec![LAN_SLOW, bluetooth_at(0.05)], vec![16 * MIB], None, None),
+        "slowlan+bt20" => (vec![LAN_SLOW, bluetooth_at(0.2)], vec![16 * MIB], None, None),
+        // Where the scheduler before "never slower" lost most in the simulator: the extra lane's last slice all
+        // written into socket buffers when it goes out of range, and a lane mostly out of range.
+        "slowlan+bt5-silence-bt-90" => {
+            (vec![LAN_SLOW, bluetooth_at(0.05)], vec![16 * MIB], Some((1, Loss::Silence(0.9))), None)
+        }
+        "slowlan+bt-flap-mostly-off" => (vec![LAN_SLOW, BLUETOOTH], vec![16 * MIB], None, flap(0.5, 1.9)),
+        _ => {
+            let (routes, files, lost) = older_multi_case(name)?;
+            (routes, files, lost, None)
+        }
+    };
+    Some(MultiCase { name: name.to_owned(), routes, files, lost, flap })
+}
+
+type MultiRoutes = (Vec<RouteProfile>, Vec<u64>, Option<(usize, Loss)>);
+
+fn older_multi_case(name: &str) -> Option<MultiRoutes> {
     let (routes, files, lost) = match name {
         "lan+p2p" => (vec![LAN, P2P_WIFI], vec![1024 * MIB], None),
         // Two connections over loopback, the second a lane: what lanes and their cipher (AES-256-GCM where both sides
@@ -78,7 +116,7 @@ fn multi_case(name: &str) -> Option<MultiCase> {
         "lan+p2p+bt-cut-lan" => (vec![LAN, P2P_WIFI, BLUETOOTH], vec![1024 * MIB], Some((0, Loss::Cut(0.5)))),
         _ => return None,
     };
-    Some(MultiCase { name: name.to_owned(), routes, files, lost })
+    Some((routes, files, lost))
 }
 
 fn main() {
