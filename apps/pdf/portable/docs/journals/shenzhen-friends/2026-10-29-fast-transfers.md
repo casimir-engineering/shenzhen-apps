@@ -1081,3 +1081,8 @@ are exercised through the bench's emulated routes and the helper's fake channels
 **Left:** turn on copies by blocks once WP4 answers them; the phone measurement of BLAKE3; a Windows VM run of the
 helper build; a resume-after-restart test of copies by blocks across a helper restart (the recovery sweep deletes
 `again-*` and `sync-*` partials at start, as before, so their resume holds within a run).
+
+**WP1, copies across a restart.** The Rust store's recovery sweep keeps `again-<id>` and `sync-<id>` staging files and
+their maps (they were deleted at every start), so a Get again or own-device copy resumes from what arrived after a
+restart; one untouched for 30 days goes, and a copy goes at once when the friend says the file is gone. The
+Objective-C helper's sweep needs the same rule once its copies go by blocks (WP4).
