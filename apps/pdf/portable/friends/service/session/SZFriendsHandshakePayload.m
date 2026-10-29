@@ -73,6 +73,9 @@ BOOL SZFriendsNegotiateMinor(uint16_t localMin, uint16_t localMax, uint16_t remo
         fields[@(SZFriendsFieldRouteClass)] = [SZFriendsFrame fieldWithUInt64:_routeClass
                                                                           tag:SZFriendsFieldRouteClass];
     }
+    if (_lane) {
+        fields[@(SZFriendsFieldLane)] = _lane;
+    }
     NSMutableData *output = [NSMutableData data];
     return SZFriendsAppendFields(output, fields, SZFriendsHandshakePayloadRules(), error) ? output : nil;
 }
@@ -117,6 +120,7 @@ static uint64_t SZFriendsBigEndian(NSData *data) {
         }
     }
     payload.profile = profile.count ? profile : nil;
+    payload.lane = fields[@(SZFriendsFieldLane)];
     return payload;
 }
 
@@ -132,6 +136,7 @@ static uint64_t SZFriendsBigEndian(NSData *data) {
     copy.expectedIdentityKey = _expectedIdentityKey;
     copy.requestToken = _requestToken;
     copy.browseOnly = _browseOnly;
+    copy.lane = _lane;
     return copy;
 }
 

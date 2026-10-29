@@ -59,11 +59,33 @@ static const SZFriendsFieldRule kOffer[] = {
     RULE(SZFriendsFieldSize, 8, 8, REQ),
     RULE(SZFriendsFieldDigest, 32, 32, REQ),
     RULE(SZFriendsFieldViaAssistant, 1, 1, SZFriendsFieldRuleBoolean),
+    RULE(SZFriendsFieldTreeRoot, 32, 32, 0),
+    RULE(SZFriendsFieldBlockShift, 1, 1, 0),
 };
 static const SZFriendsFieldRule kOfferReply[] = {
     ID_RULE,
     RULE(SZFriendsFieldAccept, 1, 1, REQ | SZFriendsFieldRuleBoolean),
     RULE(SZFriendsFieldOffset, 8, 8, 0),
+    RULE(SZFriendsFieldBlocks, 1, 1, SZFriendsFieldRuleBoolean),
+};
+// Minor 4 (ADR 0018 § 3). Whole leaves and whole ranges; how many and which is the transfer area's check.
+static const SZFriendsFieldRule kHashes[] = {
+    ID_RULE,
+    RULE(SZFriendsFieldIndex, 4, 4, REQ),
+    RULE(SZFriendsFieldHashes, 32, 64000, REQ | SZFriendsFieldRuleMultipleOf32), // 2,000 leaves
+};
+static const SZFriendsFieldRule kWant[] = {ID_RULE, RULE(SZFriendsFieldRanges, 8, 64000, REQ | SZFriendsFieldRuleMultipleOf8)};
+static const SZFriendsFieldRule kPart[] = {
+    ID_RULE,
+    RULE(SZFriendsFieldOffset, 8, 8, REQ),
+    RULE(SZFriendsFieldData, 1, 61440, REQ),
+    RULE(SZFriendsFieldCodec, 1, 1, 0),
+    RULE(SZFriendsFieldLength, 4, 4, 0),
+};
+static const SZFriendsFieldRule kHave[] = {
+    ID_RULE,
+    RULE(SZFriendsFieldRanges, 8, 64000, SZFriendsFieldRuleMultipleOf8),
+    RULE(SZFriendsFieldDurable, 8, 64000, SZFriendsFieldRuleMultipleOf8),
 };
 static const SZFriendsFieldRule kChunk[] = {
     ID_RULE,
@@ -103,6 +125,7 @@ static const SZFriendsFieldRule kHandshakePayload[] = {
     RULE(SZFriendsFieldCapabilities, 4, 4, 0),
     RULE(SZFriendsFieldRouteClass, 1, 1, 0),
     RULE(SZFriendsFieldAttestation, 1, kAttestationMax, 0),
+    RULE(SZFriendsFieldLane, 16, 16, 0),
 };
 
 #define RULES(array) ((SZFriendsFieldRules){(array), sizeof(array) / sizeof((array)[0])})
@@ -139,6 +162,10 @@ BOOL SZFriendsFrameRulesForType(uint8_t type, SZFriendsFieldRules *rules) {
     case SZFriendsFrameTypeJoin: *rules = RULES(kJoin); return YES;
     case SZFriendsFrameTypeSync: *rules = RULES(kSync); return YES;
     case SZFriendsFrameTypeAgain: *rules = RULES(kAgain); return YES;
+    case SZFriendsFrameTypeHashes: *rules = RULES(kHashes); return YES;
+    case SZFriendsFrameTypeWant: *rules = RULES(kWant); return YES;
+    case SZFriendsFrameTypePart: *rules = RULES(kPart); return YES;
+    case SZFriendsFrameTypeHave: *rules = RULES(kHave); return YES;
     }
     return NO;
 }
@@ -166,6 +193,12 @@ static BOOL SZFriendsFieldBytesAllowed(const SZFriendsFieldRule *rule, const uin
     if ((rule->flags & SZFriendsFieldRuleMultipleOf16) && length % 16 != 0) {
         return NO;
     }
+    if ((rule->flags & SZFriendsFieldRuleMultipleOf32) && length % 32 != 0) {
+        return NO;
+    }
+    if ((rule->flags & SZFriendsFieldRuleMultipleOf8) && length % 8 != 0) {
+        return NO;
+    }
     return YES;
 }
 
@@ -180,6 +213,8 @@ NSUInteger SZFriendsIntegerFieldWidth(uint8_t tag) {
     case SZFriendsFieldOffset:
         return 8;
     case SZFriendsFieldCapabilities:
+    case SZFriendsFieldIndex:
+    case SZFriendsFieldLength:
         return 4;
     case SZFriendsFieldPictureSet:
     case SZFriendsFieldPictureIndex:
@@ -192,6 +227,9 @@ NSUInteger SZFriendsIntegerFieldWidth(uint8_t tag) {
     case SZFriendsFieldReason:
     case SZFriendsFieldRouteClass:
     case SZFriendsFieldViaAssistant:
+    case SZFriendsFieldBlockShift:
+    case SZFriendsFieldBlocks:
+    case SZFriendsFieldCodec:
         return 1;
     default:
         return 0;

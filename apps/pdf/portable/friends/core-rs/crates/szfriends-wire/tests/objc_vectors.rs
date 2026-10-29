@@ -56,10 +56,7 @@ fn handshake_payloads_match() {
     let vectors = load("objc-frames.json");
     let all = cases(&vectors, "handshake_payloads");
     let local = all.iter().find(|c| c["name"] == "local").expect("local");
-    // The helper's own range: equal to this build's once it speaks minor 4 too (ADR 0018, WP4).
-    let helper_minor = number(&vectors, "session_minor") as u16;
-    let ours = HandshakePayload { minor_range: Some((0, helper_minor)), ..HandshakePayload::local() };
-    assert_eq!(hex(&ours.encode().expect("local")), text(local, "encoded"));
+    assert_eq!(hex(&HandshakePayload::local().encode().expect("local")), text(local, "encoded"));
     let empty = all.iter().find(|c| c["name"] == "empty").expect("empty");
     assert_eq!(hex(&HandshakePayload::default().encode().expect("empty")), text(empty, "encoded"));
     for case in all {
@@ -90,11 +87,7 @@ fn minor_negotiation_matches() {
         let expected = case["negotiated"].as_u64().map(|n| n as u16);
         assert_eq!(negotiate_minor(pair("local"), pair("remote")), expected, "{case}");
     }
-    // The helper exports minor 3 until its fast transfers land (ADR 0018 WP4); this build speaks 4 already, which only
-    // a peer that also sets the capability bit uses.
-    let helper_minor = number(&vectors, "session_minor") as u16;
-    let ours = szfriends_wire::consts::SESSION_MINOR;
-    assert!(helper_minor == ours || helper_minor + 1 == szfriends_wire::consts::FAST_TRANSFERS_MINOR, "{helper_minor}");
+    assert_eq!(number(&vectors, "session_minor"), u64::from(szfriends_wire::consts::SESSION_MINOR));
     assert_eq!(number(&vectors, "plaintext_max"), szfriends_wire::consts::FRAME_PLAINTEXT_MAX as u64);
 }
 

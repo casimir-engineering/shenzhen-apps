@@ -69,8 +69,8 @@ static void SZFTestMinorNegotiation(void) {
     uint16_t negotiated = 99;
     SZF_CHECK(SZFriendsNegotiateMinor(0, SZFriendsSessionMinor, 0, 0, &negotiated) && negotiated == 0,
               @"a minor-0 peer negotiates 0, so it is never sent a THUMBNAIL");
-    SZF_CHECK(SZFriendsNegotiateMinor(0, SZFriendsSessionMinor, 0, 7, &negotiated) && negotiated == 3,
-              @"a newer peer meets us at 3");
+    SZF_CHECK(SZFriendsNegotiateMinor(0, SZFriendsSessionMinor, 0, 7, &negotiated) && negotiated == 4,
+              @"a newer peer meets us at 4");
     SZF_CHECK(SZFriendsNegotiateMinor(0, SZFriendsSessionMinor, 0, 1, &negotiated) && negotiated == 1,
               @"a minor-1 peer negotiates 1: THUMBNAIL but never a CHAIN");
 }

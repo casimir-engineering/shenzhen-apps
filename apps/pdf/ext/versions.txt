@@ -117,3 +117,8 @@ miniupnpc       2.3.3      2025-05-27 with a local patch to miniwget.c
   http://miniupnp.free.fr/files/miniupnpc-2.3.3.tar.gz
   sha256 d52a0afa614ad6c088cc9ddff1ae7d29c8c595ac5fdd321170a05f41e634bd1a
   Shenzhen Friends' UPnP port mapping; see ext/miniupnpc/VENDORED.md
+
+BLAKE3 (C)      1.8.5      the C sources of the blake3 crate core-rs pins
+  https://static.crates.io/crates/blake3/blake3-1.8.5.crate
+  sha256 0aa83c34e62843d924f905e0f5c866eb1dd6545fc4d719e803d9ba6030371fce (Cargo.lock's checksum)
+  Shenzhen Friends' transfer tree (ADR 0018 § 2); see ext/blake3/README.shenzhen.md

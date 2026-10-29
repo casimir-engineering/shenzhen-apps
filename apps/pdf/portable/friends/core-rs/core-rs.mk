@@ -63,24 +63,24 @@ FRIENDS_VECTORS_OUT := $(FRIENDS_CORE_RS_BUILD)/vectors
 
 # What the exporter calls: the Noise state machine, frame codec and secure channel (session), identity, CPace, join
 # tags and Friends IDs (identity), presence tags and the session race (discovery; the racer needs the TXT helpers),
-# the Bluetooth presence value, the store with what it links (the mention form, pictures, previews), and sync.
-# Production sources, not copies.
+# the Bluetooth presence value, the store with what it links (the mention form, pictures, previews), sync, and the
+# fast-transfer area with BLAKE3 (its vectors go to transfer/ beside the others). Production sources, not copies.
 FRIENDS_VECTORS_SRCS = $(wildcard $(FRIENDS_VECTORS_TOOL_DIR)/*.m) $(FRIENDS_SESSION_C_SRCS) \
 	$(FRIENDS_SESSION_M_SRCS) $(FRIENDS_IDENTITY_SRCS) \
 	friends/service/discovery/SZFriendsPresence.m friends/service/discovery/SZFriendsRouteRacer.m \
 	friends/service/discovery/SZFriendsNetworkTXT.m friends/service/discovery/SZFriendsBluetoothPresence.m \
-	$(FRIENDS_STORE_SRCS) $(FRIENDS_SYNC_SRCS) \
+	$(FRIENDS_STORE_SRCS) $(FRIENDS_SYNC_SRCS) $(FRIENDS_TRANSFER_SRCS) \
 	friends/service/presentation/SZFriendsMentions.m friends/avatars/SZFriendsPicture.m \
 	friends/avatars/SZFriendsAnimalSet.m friends/avatars/SZFriendsPictureErrors.m
 FRIENDS_VECTORS_STORE_FIXTURE := friends/service/store/tests/fixtures/store-v1.sql
 
 .PHONY: friends-vectors-tool
-friends-vectors-tool: $(FRIENDS_SODIUM_LIB) $$(FRIENDS_IDENTITY_WORDS_O)
+friends-vectors-tool: $(FRIENDS_SODIUM_LIB) $(FRIENDS_BLAKE3_LIB) $$(FRIENDS_IDENTITY_WORDS_O)
 	@mkdir -p "$(FRIENDS_CORE_RS_BUILD)"
 	@rm -f "$(FRIENDS_VECTORS_TOOL)"
-	clang $(PORTABLE_TEST_OPTFLAGS) $(FRIENDS_OBJC_FLAGS) $(FRIENDS_SODIUM_CFLAGS) -Wno-missing-prototypes \
-		-x objective-c $(filter %.m,$(FRIENDS_VECTORS_SRCS)) -x c $(filter %.c,$(FRIENDS_VECTORS_SRCS)) -x none \
-		$(FRIENDS_IDENTITY_WORDS_O) $(FRIENDS_SODIUM_LIB) -framework Foundation $(FRIENDS_IDENTITY_LIBS) \
+	clang $(PORTABLE_TEST_OPTFLAGS) $(FRIENDS_OBJC_FLAGS) $(FRIENDS_SODIUM_CFLAGS) $(FRIENDS_BLAKE3_CFLAGS) \
+		-Wno-missing-prototypes -x objective-c $(filter %.m,$(FRIENDS_VECTORS_SRCS)) -x c $(filter %.c,$(FRIENDS_VECTORS_SRCS)) -x none \
+		$(FRIENDS_IDENTITY_WORDS_O) $(FRIENDS_SODIUM_LIB) $(FRIENDS_BLAKE3_LIB) -framework Foundation $(FRIENDS_IDENTITY_LIBS) \
 		$(FRIENDS_STORE_LIBS) -o "$(FRIENDS_VECTORS_TOOL)"
 
 FRIENDS_TEST_TARGETS += friends-vectors-check
@@ -93,6 +93,11 @@ friends-vectors-check: friends-vectors-tool
 		cmp -s "$$file" "$(FRIENDS_VECTORS_DIR)/$$(basename "$$file")" || { \
 			echo "$$(basename "$$file") differs from the helper's behaviour:" \
 				"run make friends-vectors-export, then make friends-core-rs-check" >&2; exit 1; }; \
+	done
+	@# ADR 0018's vectors were written from the record by the Rust core first: the helper must give the same bytes.
+	@for file in "$(FRIENDS_VECTORS_DIR)"/transfer/*.json; do \
+		cmp -s "$$file" "$(FRIENDS_VECTORS_OUT)/transfer/$$(basename "$$file")" || { \
+			echo "transfer/$$(basename "$$file"): the helper does not give these bytes (ADR 0018)" >&2; exit 1; }; \
 	done
 	@# A committed objc-*.json the exporter no longer writes would keep feeding the Rust suites stale vectors.
 	@for file in "$(FRIENDS_VECTORS_DIR)"/objc-*.json; do \

@@ -34,6 +34,7 @@ int main(int argc, char **argv) {
             @[ @"faults", ^{ SZFRunChannelFaultTests(); } ],
             @[ @"lifetime", ^{ SZFRunChannelLifetimeTests(); } ],
             @[ @"liveness", ^{ SZFRunChannelLivenessTests(); } ],
+            @[ @"fast transfers", ^{ SZFRunFastTransferTests(); } ],
             @[ @"refusals", ^{ SZFRunChannelRefusalTests(); } ],
             @[ @"peer identity", ^{ SZFRunChannelIdentityTests(); } ],
             @[ @"scripted peer", ^{ SZFRunScriptedPeerTests(); } ],

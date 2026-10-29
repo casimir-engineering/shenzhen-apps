@@ -276,7 +276,7 @@ int main(int argc, const char *argv[]) {
                   SZFWrite(@{@"scenarios" : SZFExportSessionScenarios()}, directory, @"objc-session.json") &&
                   SZFWrite(SZFExportStore([NSString stringWithUTF8String:argv[2]]), directory, @"objc-store.json") &&
                   SZFWrite(SZFExportChain(), directory, @"objc-chain.json") &&
-                  SZFWrite(SZFExportSync(), directory, @"objc-sync.json");
+                  SZFWrite(SZFExportSync(), directory, @"objc-sync.json") && SZFExportTransfer(directory);
         return ok ? 0 : 1;
     }
 }

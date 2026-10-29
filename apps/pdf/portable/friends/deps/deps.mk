@@ -1,10 +1,13 @@
-# Vendored third-party libraries for Shenzhen Friends: libsodium (ext/libsodium) and cJSON (ext/cjson).
+# Vendored third-party libraries for Shenzhen Friends: libsodium (ext/libsodium), cJSON (ext/cjson) and BLAKE3
+# (ext/blake3).
 #
 # Other Friends areas build against these four variables and nothing else:
 #   FRIENDS_SODIUM_CFLAGS  include path and defines for #include <sodium.h>
 #   FRIENDS_SODIUM_LIB     static libsodium archive to link
 #   FRIENDS_CJSON_CFLAGS   include path for #include "cJSON.h"
 #   FRIENDS_CJSON_OBJ      cJSON object file to link
+#   FRIENDS_BLAKE3_CFLAGS  include path for #include "blake3.h"
+#   FRIENDS_BLAKE3_LIB     static BLAKE3 archive to link
 # List FRIENDS_SODIUM_LIB / FRIENDS_CJSON_OBJ as prerequisites so make builds them first.
 #
 # Make runs with cwd portable/, so every path here is relative to portable/.
@@ -96,6 +99,34 @@ $(FRIENDS_SODIUM_LIB): $(FRIENDS_SODIUM_OBJS)
 	@rm -f "$@"
 	ar rcs "$@" $(FRIENDS_SODIUM_OBJS)
 
+# BLAKE3's C implementation (ADR 0018 § 2, the transfer tree). Its dispatcher picks NEON on arm64 (always present)
+# and the widest of SSE2, SSE4.1, AVX2 and AVX-512 an Intel Mac has at run time; each x86 intrinsics file is compiled
+# for its own instruction set, and none of them on arm64. Hidden visibility, as for libsodium.
+FRIENDS_BLAKE3_DIR := ../ext/blake3/c
+FRIENDS_BLAKE3_CFLAGS := -I$(FRIENDS_BLAKE3_DIR)
+FRIENDS_BLAKE3_LIB := $(FRIENDS_DEPS_BUILD)/libblake3.a
+FRIENDS_BLAKE3_NAMES_arm64 := blake3 blake3_dispatch blake3_portable blake3_neon
+FRIENDS_BLAKE3_NAMES_x86_64 := blake3 blake3_dispatch blake3_portable blake3_sse2 blake3_sse41 blake3_avx2 \
+	blake3_avx512
+FRIENDS_BLAKE3_OBJS = $(patsubst %,$(FRIENDS_DEPS_BUILD)/blake3/%.o,$(FRIENDS_BLAKE3_NAMES_$(MAC_ARCH)))
+FRIENDS_BLAKE3_DEFINES_arm64 := -DBLAKE3_USE_NEON=1
+FRIENDS_BLAKE3_DEFINES_x86_64 :=
+FRIENDS_BLAKE3_BUILD_FLAGS = $(PORTABLE_OPTFLAGS) $(MAC_TARGET_FLAGS) -fvisibility=hidden -Wno-unused-function \
+	$(FRIENDS_BLAKE3_DEFINES_$(MAC_ARCH))
+
+$(FRIENDS_DEPS_BUILD)/blake3/blake3_sse2.o: FRIENDS_BLAKE3_ISA := -msse2
+$(FRIENDS_DEPS_BUILD)/blake3/blake3_sse41.o: FRIENDS_BLAKE3_ISA := -msse4.1
+$(FRIENDS_DEPS_BUILD)/blake3/blake3_avx2.o: FRIENDS_BLAKE3_ISA := -mavx2
+$(FRIENDS_DEPS_BUILD)/blake3/blake3_avx512.o: FRIENDS_BLAKE3_ISA := -mavx512f -mavx512vl
+
+$(FRIENDS_DEPS_BUILD)/blake3/%.o: $(FRIENDS_BLAKE3_DIR)/%.c $(wildcard $(FRIENDS_BLAKE3_DIR)/*.h) friends/deps/deps.mk
+	@mkdir -p "$(@D)"
+	clang $(FRIENDS_BLAKE3_BUILD_FLAGS) $(FRIENDS_BLAKE3_ISA) -c "$<" -o "$@"
+
+$(FRIENDS_BLAKE3_LIB): $(FRIENDS_BLAKE3_OBJS)
+	@rm -f "$@"
+	ar rcs "$@" $(FRIENDS_BLAKE3_OBJS)
+
 # Hidden visibility for the same reason as SODIUM_STATIC; cJSON exports nothing unless CJSON_API_VISIBILITY
 # is defined. C99 because the Friends client library that links it is C99.
 $(FRIENDS_CJSON_OBJ): $(FRIENDS_CJSON_DIR)/cJSON.c $(FRIENDS_CJSON_DIR)/cJSON.h friends/deps/deps.mk
@@ -104,7 +135,7 @@ $(FRIENDS_CJSON_OBJ): $(FRIENDS_CJSON_DIR)/cJSON.c $(FRIENDS_CJSON_DIR)/cJSON.h 
 		$(FRIENDS_CJSON_CFLAGS) -c "$<" -o "$@"
 
 .PHONY: friends-deps friends-deps-check
-friends-deps: $(FRIENDS_SODIUM_LIB) $(FRIENDS_CJSON_OBJ)
+friends-deps: $(FRIENDS_SODIUM_LIB) $(FRIENDS_CJSON_OBJ) $(FRIENDS_BLAKE3_LIB)
 
 FRIENDS_DEPS_TEST := $(FRIENDS_DEPS_BUILD)/SZFriendsDepsTests
 FRIENDS_DEPS_TEST_SRC := friends/deps/tests/SZFriendsDepsTests.c

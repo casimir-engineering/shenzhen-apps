@@ -31,6 +31,7 @@ const char SZFriendsPrologueLabel[18] = "SZFriends session"; // the array's 18th
         _keepaliveInterval = SZFriendsKeepaliveInterval;
         _silenceLimit = SZFriendsSilenceLimit;
         _silenceLimitBluetooth = SZFriendsSilenceLimitBluetooth;
+        _localCapabilities = SZFriendsDefaultCapabilities();
         // CLOCK_MONOTONIC keeps counting while the Mac sleeps, so a session that slept through the night is old.
         _clock = ^NSTimeInterval {
             return (NSTimeInterval)clock_gettime_nsec_np(CLOCK_MONOTONIC) / 1e9;
@@ -217,6 +218,12 @@ const char SZFriendsPrologueLabel[18] = "SZFriends session"; // the array's 18th
 
 - (void)runComparisonCodeExchange:(void (^)(NSString *_Nullable code, NSError *_Nullable error))completion {
     [self startCodeExchange:completion];
+}
+
+- (BOOL)fastTransfers {
+    return self.negotiatedMinor >= SZFriendsFastTransfersMinor &&
+           (self.localCapabilities & SZFriendsCapabilityFastTransfers) &&
+           (self.remoteCapabilities & SZFriendsCapabilityFastTransfers);
 }
 
 - (void)setLivenessKeepalive:(BOOL)keepalive watch:(BOOL)watch {

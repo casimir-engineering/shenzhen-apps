@@ -135,16 +135,12 @@ fn build(scenario: &Value, side: &str, strict: bool) -> Replay {
     };
     let draws = setup["random"].as_array().map(|draws| draws.iter().map(bytes).collect()).unwrap_or_default();
     channel.set_random(Box::new(Draws(draws)));
-    // The helper's own minor and capabilities, as it recorded these sessions: minor 3 without fast transfers until it
-    // exports minor 4 (ADR 0018 WP4).
-    let minor_max = number(&szfriends_vectors::load("objc-frames.json"), "session_minor") as u16;
-    let capabilities = if minor_max >= 4 { szfriends_core::wire::consts::CAPABILITY_FAST_TRANSFERS } else { 0 };
-    channel.set_config(ChannelConfig {
-        rekey_after_bytes: number(scenario, "rekey_after_bytes"),
-        capabilities,
-        minor_max,
-        ..Default::default()
-    });
+    // The helper recorded these sessions at its own minor, which is this build's, with fast transfers on.
+    assert_eq!(
+        number(&szfriends_vectors::load("objc-frames.json"), "session_minor"),
+        u64::from(szfriends_core::wire::consts::SESSION_MINOR)
+    );
+    channel.set_config(ChannelConfig { rekey_after_bytes: number(scenario, "rekey_after_bytes"), ..Default::default() });
     channel.set_local_attestation(setup.get("attestation").map(bytes));
     Replay { channel, log, output: Vec::new(), now: Duration::from_secs(number(scenario, "start_seconds")) }
 }

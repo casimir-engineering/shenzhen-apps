@@ -29,5 +29,7 @@ NSDictionary *SZFExportStore(NSString *fixturePath);
 NSDictionary *SZFExportChain(void);
 // Sync between own devices (ADR 0014).
 NSDictionary *SZFExportSync(void);
+// ADR 0018's fast-transfer vectors: writes transfer/*.json under `directory` in WP1's exact layout.
+BOOL SZFExportTransfer(NSString *directory);
 
 NS_ASSUME_NONNULL_END

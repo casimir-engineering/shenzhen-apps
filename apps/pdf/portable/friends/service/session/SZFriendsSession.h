@@ -93,8 +93,19 @@ extern const NSTimeInterval SZFriendsRefusalDelay;      // 1.5 s
 // How long a responder remembers the initiator ephemeral keys of IK and NN message 1 (SZFriendsReplayCache).
 extern const NSTimeInterval SZFriendsReplayWindow;      // 600 s
 // The highest minor version this build speaks; it accepts peers whose range overlaps 0...this. Minor 1 adds THUMBNAIL,
-// minor 2 adds CHAIN, JOIN and SYNC, minor 3 adds AGAIN.
-extern const uint16_t SZFriendsSessionMinor;            // 3
+// minor 2 adds CHAIN, JOIN and SYNC, minor 3 adds AGAIN, minor 4 fast transfers (HASHES, WANT, PART, HAVE; ADR 0018),
+// used only when both sides also set SZFriendsCapabilityFastTransfers.
+extern const uint16_t SZFriendsSessionMinor;            // 4
+extern const uint16_t SZFriendsFastTransfersMinor;      // 4
+// Handshake capability bits (SZFriendsFieldCapabilities). A side uses what a bit names only when both set it and the
+// negotiated minor knows it; unknown bits are ignored.
+typedef NS_OPTIONS(uint32_t, SZFriendsCapabilities) {
+    SZFriendsCapabilityFastTransfers = 1u << 0, // blocks, the tree, WANT and HAVE (ADR 0018)
+    SZFriendsCapabilityAESLanes = 1u << 1,      // reserved for AES-GCM lanes (ADR 0018 § 9.2): never sent yet
+    SZFriendsCapabilityCompressedParts = 1u << 2, // compressed PARTs (ADR 0018 § 9.4): never sent yet
+};
+// What a new channel sets: fast transfers unless SZFRIENDS_TEST_FAST_TRANSFERS=0 plays a released helper.
+SZFriendsCapabilities SZFriendsDefaultCapabilities(void);
 // Liveness while a transfer runs (ADR 0018 § 7, -setLivenessKeepalive:watch:): PING after this long without sending
 // anything, and a session that heard nothing for the silence limit closes (SZFriendsSessionErrorSilent) and is
 // redialed. A route that goes out of range stays open to TCP and L2CAP for minutes; this is what notices it.
@@ -138,6 +149,7 @@ typedef NS_ENUM(uint8_t, SZFriendsCloseReason) {
     SZFriendsCloseReasonExpired = 3,       // SZFriendsSessionMaxAge reached; the helper redials
     SZFriendsCloseReasonShuttingDown = 4,  // helper exit, handover or Friends turned off
     SZFriendsCloseReasonCodeMismatch = 5,  // comparison-code commitment failed
+    SZFriendsCloseReasonLaneRefused = 6,   // a lane the responder would not admit (ADR 0018 § 6)
 };
 
 #pragma mark - Frames (pure codec)
@@ -189,6 +201,13 @@ typedef NS_ENUM(uint8_t, SZFriendsFrameType) {
     // Minor 3: Again (one message of getting a file again, ADR 0016, opaque here): between a person and a friend who
     // sent them a file, IK or XX, as often as the exchange needs; never in NN. It travels in the CHUNK queue.
     SZFriendsFrameTypeAgain = 27,
+    // Minor 4, and only on a session where both sides set SZFriendsCapabilityFastTransfers (ADR 0018 § 3): the channel
+    // refuses to send them to anyone else and closes on one received outside such a session. HASHES and PART travel in
+    // the CHUNK queue.
+    SZFriendsFrameTypeHashes = 28, // ID, Index, Hashes: the leaves, after acceptance
+    SZFriendsFrameTypeWant = 29,   // ID, Ranges: blocks missing, send them
+    SZFriendsFrameTypePart = 30,   // ID, Offset, Data (1 to 61,440 bytes); Codec and Length when compressed
+    SZFriendsFrameTypeHave = 31,   // ID, Ranges (blocks checked and written), Durable (blocks made durable)
 };
 
 // Field tags, one namespace for every type so a value means the same thing wherever it appears. Unknown tag:
@@ -244,6 +263,17 @@ typedef NS_ENUM(uint8_t, SZFriendsFieldTag) {
     SZFriendsFieldSync = 35,
     // AGAIN: 1 to SZFriendsFrameAgainMax bytes, one again message (SZFriendsAgainExchange).
     SZFriendsFieldAgain = 36,
+    // Fast transfers only (ADR 0018): never sent to a peer that did not negotiate them; the channel strips them.
+    SZFriendsFieldTreeRoot = 37,   // OFFER: 32 bytes, the root of the file's hash tree
+    SZFriendsFieldBlockShift = 38, // OFFER: u8, blocks of 2^shift bytes
+    SZFriendsFieldIndex = 39,      // HASHES: u32be, the first leaf's index
+    SZFriendsFieldHashes = 40,     // HASHES: 32 to 64,000 bytes of leaves
+    SZFriendsFieldRanges = 41,     // WANT and HAVE: pairs of u32be (first block, count), at most 8,000
+    SZFriendsFieldDurable = 42,    // HAVE: the same, for blocks made durable
+    SZFriendsFieldBlocks = 43,     // OFFER_REPLY: u8 1, the receiver takes the file by blocks
+    SZFriendsFieldCodec = 44,      // PART: u8, 1 is zstd
+    SZFriendsFieldLength = 45,     // PART: u32be, what compressed data expands to
+    SZFriendsFieldLane = 46,       // handshake payload, IK message 1 of a lane: 16 bytes (SZFriendsLaneToken)
 };
 
 // One decoded frame: its type and raw field values. Typed accessors return nil / NO for an absent or
@@ -288,7 +318,14 @@ SZFriendsFrame *_Nullable SZFriendsDecodeFrame(NSData *plaintext, NSError **erro
 // XX against a public entry: stop after message 2 (the responder's profile) without revealing ourselves, unless
 // the person sends a request; then message 3 completes the handshake.
 @property(nonatomic) BOOL browseOnly;
+// IK: a lane of a live session with the same device (ADR 0018 § 6): SZFriendsLaneToken of that session's handshake
+// hash and the lane's index, carried in message 1's encrypted payload. Nil for an ordinary session.
+@property(nonatomic, copy, nullable) NSData *lane;
 @end
+
+// A lane's token: keyed BLAKE2b-128, the first session's handshake hash h (64 bytes) as the key, over
+// "SZFriends lane v1" || u8 index (1 to 15). Nil for a hash that is not 64 bytes.
+NSData *_Nullable SZFriendsLaneToken(NSData *handshakeHash, uint8_t index);
 
 // The responder's view of message 1 (IK and NN) or message 3 (XX), before any reply or application frame: whether
 // this remote may continue. Unknown keys pass only for XX on a public entry or with a pending request token;
@@ -407,6 +444,14 @@ typedef BOOL (^SZFriendsRemoteKeyPolicy)(NSData *_Nullable remoteIdentityKey, SZ
 @property(nonatomic, readonly, nullable) NSData *presentedRequestToken; // responder: the IK callback's token
 @property(nonatomic, readonly, nullable) NSData *handshakeHash;         // h, 64 bytes
 @property(nonatomic, readonly) NSUInteger negotiatedMinor;
+// The capability bits this side sets in its handshake, set before -start; SZFriendsDefaultCapabilities() at first.
+@property(nonatomic) SZFriendsCapabilities localCapabilities;
+@property(nonatomic, readonly) SZFriendsCapabilities remoteCapabilities; // valid once established
+// ADR 0018 § 1: minor 4 or more negotiated and both sides set SZFriendsCapabilityFastTransfers. Otherwise nothing of
+// fast transfers is sent (frames refused, OFFER fields stripped) and nothing of them is accepted.
+@property(nonatomic, readonly) BOOL fastTransfers;
+// Responder: the Lane field of IK message 1, unchecked (the helper checks it against its live sessions); nil when none.
+@property(nonatomic, readonly, nullable) NSData *presentedLane;
 @end
 
 #pragma mark - Comparison codes (pure, ADR 0001 § Comparison codes)

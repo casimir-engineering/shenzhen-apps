@@ -215,6 +215,8 @@ static void SZFAsSide(NSInteger side, dispatch_block_t block) {
                                                                   identity:SZFVectorIdentity(name)
                                                                    options:options
                                                                      queue:_queue];
+    // Recorded as a helper that runs fast transfers (ADR 0018 § 1): the bit is part of every payload with a range.
+    _initiator.localCapabilities = SZFriendsCapabilityFastTransfers;
     [self attach:_initiator side:SZFSideInitiator];
     if (options.browseOnly) _initiator.onPublicProfile = nil;
     NSMutableDictionary *setup = _setup[0];
@@ -246,6 +248,7 @@ static void SZFAsSide(NSInteger side, dispatch_block_t block) {
                                                                  keyPolicy:recorded
                                                                      queue:_queue];
     _responder.replayCache = _replay;
+    _responder.localCapabilities = SZFriendsCapabilityFastTransfers;
     [self attach:_responder side:SZFSideResponder];
     setup[@"identity"] = name;
     if (profile) {

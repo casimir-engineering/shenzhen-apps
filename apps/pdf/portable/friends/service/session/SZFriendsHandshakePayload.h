@@ -25,10 +25,11 @@ NS_ASSUME_NONNULL_BEGIN
 @property(nonatomic) uint32_t capabilities;
 @property(nonatomic) BOOL hasRouteClass;
 @property(nonatomic) uint8_t routeClass;
+@property(nonatomic, copy, nullable) NSData *lane; // SZFriendsFieldLane, IK message 1 of a lane (ADR 0018 § 6)
 // Profile fields only (Name, FriendsID, PictureSet, PictureIndex, Data); nil when the payload has none.
 @property(nonatomic, copy, nullable) NSDictionary<NSNumber *, NSData *> *profile;
 
-// This build's range (0...SZFriendsSessionMinor) and capabilities (none in M1).
+// This build's range (0...SZFriendsSessionMinor), no capabilities: the channel sets the ones it allows.
 + (instancetype)localPayload;
 - (nullable NSData *)encodedDataWithError:(NSError **)error;
 // Unknown tags are ignored; duplicates and out-of-limit values fail.

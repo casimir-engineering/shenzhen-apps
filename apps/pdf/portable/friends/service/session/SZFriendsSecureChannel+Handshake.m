@@ -42,6 +42,7 @@
 
 - (SZFriendsHandshakePayload *)localPayloadWithCertificate:(BOOL)withCertificate {
     SZFriendsHandshakePayload *payload = [SZFriendsHandshakePayload localPayload];
+    payload.capabilities = self.localCapabilities;
     if (withCertificate) {
         payload.certificate = _identity.staticCertificate;
         // The attestation names our identity, so it goes only where the certificate already does.
@@ -136,6 +137,7 @@
         payload.hasRouteClass = YES;
         payload.routeClass = (uint8_t)self.initiatorRoute;
         payload.requestToken = token;
+        payload.lane = _options.lane;
     }
     NSData *message = [self framedHandshakeMessage:payload];
     if (message == nil) {
@@ -247,6 +249,7 @@
         return;
     }
     self.presentedRequestToken = token;
+    self.presentedLane = pattern == SZFriendsHandshakeIK ? payload.lane : nil;
     if (pattern != SZFriendsHandshakeNN) {
         [self adoptRemoteIdentity:identityKey payload:payload];
         // Known now: IK message 1 is fresh (the replay cache refused any repeat before the payload) and proves the
@@ -391,6 +394,7 @@
         return NO;
     }
     self.negotiatedMinor = negotiated;
+    self.remoteCapabilities = payload.capabilities;
     return YES;
 }
 

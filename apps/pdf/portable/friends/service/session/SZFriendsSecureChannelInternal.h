@@ -105,6 +105,8 @@ extern const char SZFriendsPrologueLabel[18];
 @property(nonatomic, readwrite, nullable) NSData *presentedRequestToken;
 @property(nonatomic, readwrite, nullable) NSData *handshakeHash;
 @property(nonatomic, readwrite) NSUInteger negotiatedMinor;
+@property(nonatomic, readwrite) SZFriendsCapabilities remoteCapabilities;
+@property(nonatomic, readwrite, nullable) NSData *presentedLane;
 
 // SZFriendsSecureChannel.m
 - (NSTimeInterval)now;
