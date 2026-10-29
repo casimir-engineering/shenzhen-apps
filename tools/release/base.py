@@ -4,7 +4,8 @@ import os
 import shutil
 import time
 
-from common import CACHE, Failure, Lock, Stages, git, parallel, prepare_worktree, run, say
+from common import CACHE, Background, Failure, Lock, Stages, git, label, prepare_worktree, run, say
+from jobs import POOL
 
 
 class Release:
@@ -15,6 +16,12 @@ class Release:
     order = ("build", "sign", "package", "notarize", "staple", "platforms", "verify", "publish", "live-check")
     # The stages before notarization, in the order they run (Shenzhen 3D signs while packaging, then checks).
     before_notarize = ("build", "sign", "package")
+    # {stage: [stages whose output it uses]}, when that is not simply every stage before it in `order` (Stages).
+    needs = None
+    # The stage after which the test suites start (beside the stages that follow it).
+    tests_after = "build"
+    # What a stage holds of the machine's pool (jobs.py) while it runs: {stage: (cores, GB)}; the others hold nothing.
+    stage_load = {"build": (8, 6), "sign": (2, 1), "package": (2, 2), "staple": (2, 1)}
 
     def __init__(self, repo, version, opts):
         self.repo, self.opts = repo, opts
@@ -28,9 +35,11 @@ class Release:
         os.makedirs(self.logs, exist_ok=True)
         self.wt = os.path.join(CACHE, "worktrees", self.app)
         self.stages = Stages(os.path.join(self.run_dir, "stamps"), self.order,
-                             f"{self.app} {self.tag} {self.commit} {opts.platforms} {int(opts.private_copy)}")
+                             f"{self.app} {self.tag} {self.commit} {opts.platforms} {int(opts.private_copy)}",
+                             needs=self.needs)
         self.test_failures = []
         self.problems = []
+        self.flaky = []  # suites that failed beside other work and passed on a second run
 
     def log(self, stage):
         return os.path.join(self.logs, stage + ".log")
@@ -91,7 +100,12 @@ class Release:
                 raise Failure(f"the release notes are missing: {path}")
             fallback = self.notes_path(self.committed_version())
             if not os.path.isfile(fallback):
-                raise Failure(f"no release notes: neither {path} nor {fallback}")
+                # A commit that raised its version before its notes were written (a Friends helper build number):
+                # a dry run goes on with notes that say so.
+                with open(copy, "w") as f:
+                    f.write(f"Dry run of {self.title} {self.tag} from {self.short}: no release notes yet.\n")
+                say(f"preflight: no notes for {self.tag} or {self.committed_version()}; the dry run says so instead")
+                return copy
             say(f"preflight: no notes for {self.tag}; the dry run uses {os.path.relpath(fallback, self.repo)}")
             path = fallback
         shutil.copyfile(path, copy)
@@ -119,6 +133,33 @@ class Release:
         return run([stamp, "run", suite, "--", *cmd], cwd=cwd, env=env, log=log or self.log("tests"),
                    check=False) == 0
 
+    # Suites that must not run beside the updater tests (macshared.gatekeeper_window): {suite: lock}.
+    suite_locks = {}
+
+    def run_suites(self, suites, cwd, env, folder):
+        """[(suite, command)] one after the other, each holding two cores of the pool; one that fails runs once more
+        at the end, holding a third of the pool (as a rerun of the release would run it, on a quieter machine), and
+        fails the release only if it fails again. Returns the suites that failed."""
+        failed = []
+        for name, cmd in suites:
+            log = os.path.join(folder, name.split("/")[1] + ".log")
+            with POOL.take(cpus=2, mem=2, locks=self.suite_locks.get(name, ())):
+                ok = self.stamped(name, cmd, cwd, env=env, log=log)
+            if not ok:
+                say(f"tests: {name} FAILED ({log}); it runs again at the end")
+                failed.append((name, cmd, log))
+        still = []
+        for name, cmd, log in failed:
+            with POOL.take(cpus=POOL.cpus // 3, mem=4, locks=self.suite_locks.get(name, ())):
+                ok = self.stamped(name, cmd, cwd, env=env, log=log)
+            if ok:
+                say(f"tests: {name} passed on its second run, on a quieter machine: it failed beside other work")
+                self.flaky.append(name)
+            else:
+                say(f"tests: {name} FAILED again ({log})")
+                still.append(name)
+        return still
+
     def missing(self, suites):
         """The suites that have not passed on this commit (the build worktree holds it, clean)."""
         stamp = os.path.join(self.wt, "tools", "test-stamp.sh")
@@ -128,35 +169,67 @@ class Release:
     # ---- the flow ----------------------------------------------------------------------------------------------
 
     def flow(self):
+        """build, then everything that needs only the build at once: the test suites, and Shenzhen 3D's other
+        platforms (alongside()); meanwhile sign, package, notarize (Apple's verdict takes minutes of waiting on the
+        network) and staple. verify waits for staple and the other platforms; the test suites must have passed before
+        anything is published."""
         s = self.stages
         s.run("preflight", self.preflight, stamp=False)
         s.run("worktree", self.worktree, stamp=False)
-        for name in self.before_notarize:
-            s.run(name, getattr(self, name))
-        # Apple's verdict takes minutes of waiting on the network: the test suites run meanwhile.
-        parallel({"notarize": lambda: s.run("notarize", self.notarize),
-                  "tests": lambda: s.run("tests", self.tests_stage, stamp=False)})
+        s.run("build", self.held("build", self.build))
+        side = dict(self.alongside())
+        background = Background(side)
+        try:
+            if self.tests_after == "build":
+                background.start("tests", lambda: s.run("tests", self.tests_stage, stamp=False))
+            for name in self.before_notarize:
+                if name == "build":
+                    continue
+                s.run(name, self.held(name, getattr(self, name)))
+                if name == self.tests_after:
+                    background.start("tests", lambda: s.run("tests", self.tests_stage, stamp=False))
+            s.run("notarize", self.notarize)
+            s.run("staple", self.held("staple", self.staple))
+            if side:
+                background.wait(*side)
+            try:
+                s.run("verify", self.verify)
+            except Failure as error:
+                # A dry run reports every check it can; a publish stops at the first.
+                if self.opts.publish:
+                    raise
+                self.problems.append(f"verify: {error}")
+                say(f"verify: FAILED: {error}")
+            background.wait("tests")
+            background.wait()
+        finally:
+            background.join()
         if self.test_failures and self.opts.publish:
             raise Failure(f"test suites failed: {', '.join(self.test_failures)}; nothing was published")
-        s.run("staple", self.staple)
-        if self.opts.platforms == "all":
-            s.run("platforms", self.platforms)
-        try:
-            s.run("verify", self.verify)
-        except Failure as error:
-            # A dry run reports every check it can; a publish stops at the first.
-            if self.opts.publish:
-                raise
-            self.problems.append(f"verify: {error}")
-            say(f"verify: FAILED: {error}")
         if not self.opts.publish:
             s.skip("publish", "dry run")
             return
         s.run("publish", self.publish)
         s.run("live-check", self.live_check)
 
+    def held(self, name, fn):
+        cpus, mem = self.stage_load.get(name, (0, 0))
+        if not cpus:
+            return fn
+
+        def wrapped():
+            # The app's own stages are its longest path: served before any test suite or platform build waiting.
+            with POOL.take(cpus=cpus, mem=mem, priority=-1000):
+                return fn()
+        return wrapped
+
+    def alongside(self):
+        """{stage: fn} to run beside sign, package, notarize and staple once the build is done (3d: platforms)."""
+        return {}
+
     def main(self):
         start = time.time()
+        self.wall = 0.0
         ok = False
         say(f"{self.title} {self.tag} from {self.short}" + (" (publishing)" if self.opts.publish else " (dry run)"))
         say(f"work and logs: {self.run_dir}")
@@ -169,7 +242,11 @@ class Release:
         except KeyboardInterrupt:
             say("interrupted; run the same command again to resume")
         finally:
-            print(self.stages.summary(time.time() - start), flush=True)
+            self.wall = time.time() - start
+            table = self.stages.summary(self.wall, start).replace("\n", "\n" + label() + "  ")
+            say(f"{self.title} {self.tag}:{table}")
+        if self.flaky:
+            say(f"passed only on a second run (look into them): {', '.join(self.flaky)}")
         if self.test_failures:
             say(f"not releasable: test suites failed: {', '.join(self.test_failures)}")
         for problem in self.problems:

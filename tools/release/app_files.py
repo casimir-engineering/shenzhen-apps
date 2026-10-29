@@ -17,6 +17,7 @@ APP = "Shenzhen Files.app"
 class FilesRelease(Release):
     app = "files"
     title = "Shenzhen Files"
+    stage_load = {"build": (4, 4), "sign": (2, 1), "package": (2, 2), "staple": (2, 1)}
 
     def parse_version(self, version):
         m = re.fullmatch(r"(\d{2}\.[1-9]\d*\.[1-9]\d*)-([1-9]\d*)", version)
@@ -125,15 +126,8 @@ class FilesRelease(Release):
             + (f"; running {len(missing)}" if missing else ""))
         folder = os.path.join(self.logs, "tests")
         os.makedirs(folder, exist_ok=True)
-        failed = []
-        for name, cmd in self.SUITES:
-            if name not in missing:
-                continue
-            log = os.path.join(folder, name.split("/")[1] + ".log")
-            if not self.stamped(name, cmd, self.files_dir, env={"MAKEFLAGS": None, "MFLAGS": None}, log=log):
-                failed.append(name)
-                say(f"tests: {name} FAILED ({log})")
-        return failed
+        return self.run_suites([(name, cmd) for name, cmd in self.SUITES if name in missing], self.files_dir,
+                               {"MAKEFLAGS": None, "MFLAGS": None}, folder)
 
     def verify(self):
         dmg = os.path.join(self.out, "final", ASSET)

@@ -25,15 +25,34 @@ TOOLS = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 GIT_URL_BASE = os.environ.get("SHENZHEN_RELEASE_GIT_URL_BASE") or "https://github.com/"
 
 _print_lock = threading.Lock()
+_label = threading.local()
 
 
 class Failure(Exception):
     """A stage could not do its job; the message says what and where its log is."""
 
 
+def label(text=None):
+    """The prefix say() puts on this thread's lines ("pdf: " when tools/release.sh all runs the apps at once);
+    without an argument, the current one. Threads started by inherit() keep their starter's."""
+    if text is not None:
+        _label.value = text
+    return getattr(_label, "value", "")
+
+
+def inherit(fn):
+    """fn, run with the label of the thread that wraps it."""
+    prefix = label()
+
+    def wrapped(*args, **kwargs):
+        label(prefix)
+        return fn(*args, **kwargs)
+    return wrapped
+
+
 def say(text):
     with _print_lock:
-        print(f"[{time.strftime('%H:%M:%S')}] {text}", flush=True)
+        print(f"[{time.strftime('%H:%M:%S')}] {label()}{text}", flush=True)
 
 
 def sha256(path):
@@ -52,23 +71,86 @@ def tail(path, lines=25):
         return ""
 
 
-def run(cmd, *, cwd=None, env=None, log=None, check=True, capture=False, timeout=None):
-    """Runs `cmd` (a list) with nothing on stdin, so nothing ever waits on a prompt. Its output is appended to `log`
-    (stdout is returned instead when `capture`). `env` adds to the environment; a value of None removes the name."""
+def with_env(env):
+    """The environment with `env` added; a value of None removes the name."""
     full = dict(os.environ)
     for key, value in (env or {}).items():
         if value is None:
             full.pop(key, None)
         else:
             full[key] = str(value)
+    return full
+
+
+_durations_lock = threading.Lock()
+
+
+def durations(app):
+    """How long each test job took when it last ran ({job: seconds}), so the longest start first."""
+    try:
+        with open(os.path.join(CACHE, "test-durations.json")) as f:
+            return json.load(f).get(app, {})
+    except (OSError, ValueError):
+        return {}
+
+
+def record_duration(app, job, seconds):
+    path = os.path.join(CACHE, "test-durations.json")
+    with _durations_lock:
+        try:
+            with open(path) as f:
+                data = json.load(f)
+        except (OSError, ValueError):
+            data = {}
+        data.setdefault(app, {})[job] = round(seconds, 1)
+        os.makedirs(CACHE, exist_ok=True)
+        tmp = f"{path}.{os.getpid()}.tmp"
+        with open(tmp, "w") as f:
+            json.dump(data, f, indent=1, sort_keys=True)
+        os.replace(tmp, path)
+
+
+def wait_for_load(limit, longest):
+    """Waits until the 1-minute load average is below `limit`, or `longest` seconds; returns the seconds waited."""
+    start = time.time()
+    while os.getloadavg()[0] >= limit and time.time() - start < longest:
+        time.sleep(5)
+    return time.time() - start
+
+
+def _run_stamped(cmd, cwd, env, out, started, timeout):
+    """The command with each line of its output preceded by the seconds since it started."""
+    p = subprocess.Popen([str(c) for c in cmd], cwd=cwd, env=env, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                         stderr=subprocess.STDOUT, text=True, errors="replace")
+    for line in p.stdout:
+        out.write(f"[{time.time() - started:7.1f}] {line}")
+        if timeout and time.time() - started > timeout:
+            p.kill()
+            p.wait()
+            raise subprocess.TimeoutExpired(cmd, timeout)
+    p.wait()
+    return p
+
+
+def run(cmd, *, cwd=None, env=None, log=None, check=True, capture=False, timeout=None, nice=0, stamp=False):
+    """Runs `cmd` (a list) with nothing on stdin, so nothing ever waits on a prompt. Its output is appended to `log`
+    (stdout is returned instead when `capture`). `env` adds to the environment; a value of None removes the name.
+    `nice` lowers its priority (work off the longest path, so the apps' own stages get the cores first); `stamp` puts
+    the seconds since it started before each line of its log."""
+    full = with_env(env)
+    if nice:
+        cmd = ["nice", "-n", str(nice), *cmd]
     out = open(log, "a") if log else open(os.devnull, "w")
     started = time.time()
     with out:
         out.write(f"\n$ {shlex.join(str(c) for c in cmd)}\n")
         out.flush()
         try:
-            p = subprocess.run([str(c) for c in cmd], cwd=cwd, env=full, stdin=subprocess.DEVNULL,
-                               stdout=subprocess.PIPE if capture else out, stderr=out, text=True, timeout=timeout)
+            if stamp and not capture:
+                p = _run_stamped(cmd, cwd, full, out, started, timeout)
+            else:
+                p = subprocess.run([str(c) for c in cmd], cwd=cwd, env=full, stdin=subprocess.DEVNULL,
+                                   stdout=subprocess.PIPE if capture else out, stderr=out, text=True, timeout=timeout)
         except subprocess.TimeoutExpired:
             raise Failure(f"{os.path.basename(str(cmd[0]))} took longer than {timeout} s" +
                           (f"; log: {log}" if log else ""))
@@ -172,10 +254,12 @@ class Lock:
 class Stages:
     """Stage stamps and timings for one run: run/<stage>.json records a finished stage with the files it made and their
     sha256, so a rerun skips it while those files are intact. Running a stage again drops the stamps of the stages
-    after it in `order`, which consumed what it made."""
+    that consumed what it made: those after it in `order`, or, with `needs` ({stage: [stages it uses]}), those that
+    use it directly or through others (Shenzhen 3D's platforms use only the build, so packaging again keeps them)."""
 
-    def __init__(self, folder, order, identity):
+    def __init__(self, folder, order, identity, needs=None):
         self.folder, self.order, self.identity = folder, list(order), identity
+        self.needs = needs
         os.makedirs(folder, exist_ok=True)
         self.timings = []
         self.lock = threading.Lock()
@@ -195,18 +279,29 @@ class Stages:
                 return None
         return data
 
+    def consumers(self, name):
+        if self.needs is None:
+            return self.order[self.order.index(name) + 1:] if name in self.order else []
+        out, stack = [], [name]
+        while stack:
+            current = stack.pop()
+            for stage, uses in self.needs.items():
+                if current in uses and stage not in out:
+                    out.append(stage)
+                    stack.append(stage)
+        return out
+
     def drop_after(self, name):
-        if name not in self.order:
-            return
-        for later in self.order[self.order.index(name) + 1:]:
+        for later in self.consumers(name):
             try:
                 os.remove(self._path(later))
             except FileNotFoundError:
                 pass
 
-    def note(self, name, status, seconds, earlier=None):
+    def note(self, name, status, seconds, earlier=None, start=None):
         with self.lock:
-            self.timings.append({"stage": name, "status": status, "seconds": seconds, "earlier": earlier})
+            self.timings.append({"stage": name, "status": status, "seconds": seconds, "earlier": earlier,
+                                 "start": start if start is not None else time.time() - seconds})
 
     def run(self, name, fn, *, stamp=True):
         """Runs `fn` as stage `name` unless an earlier run finished it; returns what it returned (a dict whose "files"
@@ -223,10 +318,10 @@ class Stages:
         try:
             result = fn() or {}
         except BaseException:
-            self.note(name, "FAILED", time.time() - start)
+            self.note(name, "FAILED", time.time() - start, start=start)
             raise
         seconds = time.time() - start
-        self.note(name, "ran", seconds)
+        self.note(name, "ran", seconds, start=start)
         say(f"{name}: done in {seconds:.0f} s")
         if stamp:
             files = {path: (sha256(path) if os.path.isfile(path) else "") for path in result.get("files", [])}
@@ -241,15 +336,53 @@ class Stages:
     def skip(self, name, why):
         self.note(name, f"not run: {why}", 0.0)
 
-    def summary(self, total):
-        lines = ["", "Stage                 Status            Seconds"]
+    def summary(self, total, began=None):
+        """The table a run ends with: each stage, from when (minutes:seconds into the run) and for how long; stages
+        that run at once (the tests beside notarization, Shenzhen 3D's platforms beside everything) overlap."""
+        began = began if began is not None else min((t["start"] for t in self.timings), default=time.time())
+        lines = ["", "Stage                 Status             From   Seconds"]
         for t in self.timings:
             seconds = f"{t['seconds']:8.0f}"
             if t["status"] == "done earlier" and t["earlier"] is not None:
                 seconds = f"{0:8.0f}  (took {t['earlier']:.0f} s in an earlier run)"
-            lines.append(f"{t['stage']:<21} {t['status']:<17} {seconds}")
-        lines.append(f"{'total':<21} {'':<17} {total:8.0f}")
+            at = max(0, t["start"] - began)
+            lines.append(f"{t['stage']:<21} {t['status']:<17} {int(at // 60):3d}:{int(at % 60):02d} {seconds}")
+        lines.append(f"{'total':<21} {'':<17} {'':6} {total:8.0f}")
         return "\n".join(lines)
+
+
+class Background:
+    """{name: fn} started at once in threads of their own. wait(*names) waits for those (all without names) and
+    raises the first failure among them, by name order, once; join() only waits."""
+
+    def __init__(self, jobs=None):
+        self.errors, self.raised = {}, set()
+        self.threads = {}
+        for name, fn in (jobs or {}).items():
+            self.start(name, fn)
+
+    def start(self, name, fn):
+        def body():
+            try:
+                fn()
+            except BaseException as error:  # noqa: BLE001 -- raised by wait()
+                self.errors[name] = error
+        thread = threading.Thread(target=inherit(body), name=f"stage:{name}", daemon=True)
+        thread.start()
+        self.threads[name] = thread
+
+    def wait(self, *names):
+        names = [n for n in (names or tuple(self.threads)) if n in self.threads]
+        for name in names:
+            self.threads[name].join()
+        for name in sorted(names):
+            if name in self.errors and name not in self.raised:
+                self.raised.add(name)
+                raise self.errors[name]
+
+    def join(self):
+        for thread in self.threads.values():
+            thread.join()
 
 
 def parallel(jobs):
@@ -257,7 +390,7 @@ def parallel(jobs):
     errors = {}
     results = {}
     with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, len(jobs))) as pool:
-        futures = {pool.submit(fn): name for name, fn in jobs.items()}
+        futures = {pool.submit(inherit(fn)): name for name, fn in jobs.items()}
         for future in concurrent.futures.as_completed(futures):
             name = futures[future]
             try:
@@ -272,10 +405,19 @@ def parallel(jobs):
 
 # ---- the build worktree -------------------------------------------------------------------------------------------
 
+_worktree_lock = threading.Lock()
+
+
 def prepare_worktree(repo, path, commit, log):
     """A worktree of `repo` at `path`, detached at `commit`, that stays between releases with its ignored build
     output: switching commits rewrites only the files that differ, so make, ninja and cargo rebuild only what changed.
-    Untracked files that are not ignored are removed; nothing else is."""
+    Untracked files that are not ignored are removed; nothing else is. One at a time: git worktree add and prune
+    change the repository's list of worktrees."""
+    with _worktree_lock:
+        return _prepare_worktree(repo, path, commit, log)
+
+
+def _prepare_worktree(repo, path, commit, log):
     os.makedirs(os.path.dirname(path), exist_ok=True)
     if not os.path.exists(os.path.join(path, ".git")):
         git(repo, "worktree", "prune")

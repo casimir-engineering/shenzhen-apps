@@ -1,4 +1,5 @@
 import fs from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import { spawn, execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -65,9 +66,9 @@ export function nativeCodeHash(bytes) {
   Buffer.concat(commands).copy(normalized, 32);
   return hash(normalized);
 }
-const run = (command, args) =>
+const run = (command, args, env = process.env) =>
   new Promise((resolve, reject) => {
-    const child = spawn(command, args, { cwd: root, stdio: "inherit" });
+    const child = spawn(command, args, { cwd: root, stdio: "inherit", env });
     child.on("error", reject);
     child.on("exit", (code, signal) =>
       code === 0
@@ -567,12 +568,18 @@ async function main() {
     .filter((arg) => arg.startsWith("--forbid-owner="))
     .map((arg) => assertReleaseOwner(arg.slice(15)));
   // Packaging always consumes a fresh production build, including stage-only verification. A candidate of another
-  // version (--version, below) shows that version in the page too.
+  // version (--version, below) shows that version in the page too. --frontend-built: the caller has just made that
+  // build (tools/release.sh, whose other platforms read the same dist/ meanwhile, so it is built once, before them).
   const pageVersion = process.argv
     .find((arg) => arg.startsWith("--version="))
     ?.slice(10);
   if (pageVersion) process.env.SHENZHEN_3D_VERSION = pageVersion;
-  await run("npm", ["run", "build"]);
+  if (!process.argv.includes("--frontend-built"))
+    await run("npm", ["run", "build"]);
+  else if (!(await exists(path.join(root, "dist/index.html"))))
+    throw Error(
+      "--frontend-built, but dist/index.html is missing: npm run build first",
+    );
   const nativeScroll =
     process.platform === "darwin"
       ? await (
@@ -671,30 +678,65 @@ async function main() {
     root,
     "node_modules/electron-builder/out/cli/cli.js",
   );
-  await run(process.execPath, [
-    builder,
-    "--projectDir",
-    staging,
-    "--config",
-    path.join(root, "electron-builder.cjs"),
-    "--config.publish.owner",
-    releaseOwner,
-    // Private feeds make the app send the connected credential; public feeds
-    // are read without one.
-    "--config.publish.private",
-    String(runtime.releaseAccess === "private"),
-    "--config.directories.output",
-    output,
-    "--config.electronVersion",
-    pkg.devDependencies.electron,
-    // --ad-hoc: a local test build, signed ad hoc (the app and the Friends helper) even where the release identity
-    // is in the keychain, to be signed afterwards or tried on this Mac only.
-    ...(process.argv.includes("--ad-hoc") ? ["--config.mac.identity=-"] : []),
-    "--mac",
-    "--arm64",
-    "--publish",
-    "never",
-  ]);
+  // SZF_PARALLEL_CODESIGN (tools/release.sh): electron-builder's signing pass, several signatures at once
+  // (electron/codesign-parallel.py, first on its PATH as codesign); the same signatures, in an order that still signs
+  // what a bundle holds before the bundle.
+  const parallelSign = process.env.SZF_PARALLEL_CODESIGN === "1";
+  const signing = parallelSign
+    ? await fs.mkdtemp(path.join(os.tmpdir(), "szf-codesign-"))
+    : undefined;
+  const builderEnv = { ...process.env };
+  if (signing) {
+    await fs.mkdir(path.join(signing, "bin"));
+    await fs.mkdir(path.join(signing, "state"));
+    await fs.symlink(
+      path.join(root, "electron/codesign-parallel.py"),
+      path.join(signing, "bin/codesign"),
+    );
+    builderEnv.PATH = `${path.join(signing, "bin")}${path.delimiter}${process.env.PATH}`;
+    builderEnv.SZF_CODESIGN_STATE = path.join(signing, "state");
+  }
+  try {
+    await run(
+      process.execPath,
+      [
+        builder,
+        "--projectDir",
+        staging,
+        "--config",
+        path.join(root, "electron-builder.cjs"),
+        "--config.publish.owner",
+        releaseOwner,
+        // Private feeds make the app send the connected credential; public feeds
+        // are read without one.
+        "--config.publish.private",
+        String(runtime.releaseAccess === "private"),
+        "--config.directories.output",
+        output,
+        "--config.electronVersion",
+        pkg.devDependencies.electron,
+        // --ad-hoc: a local test build, signed ad hoc (the app and the Friends helper) even where the release identity
+        // is in the keychain, to be signed afterwards or tried on this Mac only.
+        ...(process.argv.includes("--ad-hoc")
+          ? ["--config.mac.identity=-"]
+          : []),
+        "--mac",
+        "--arm64",
+        "--publish",
+        "never",
+      ],
+      builderEnv,
+    );
+    // Every signature started has finished, and none failed.
+    if (signing)
+      await run(
+        path.join(signing, "bin/codesign"),
+        ["--szf-drain"],
+        builderEnv,
+      );
+  } finally {
+    if (signing) await fs.rm(signing, { recursive: true, force: true });
+  }
   const config = require("../electron-builder.cjs");
   await recompressDmg(
     output,

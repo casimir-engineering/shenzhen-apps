@@ -5,15 +5,31 @@ import os
 import re
 import shutil
 import subprocess
+import time
 
+import pdfsuites
 from base import Release
-from common import CACHE, IDENTITY, JOBS, TEAM_ID, TEAM_REQUIREMENT, Failure, git, notarize, run, say, staple
+from common import (CACHE, IDENTITY, JOBS, TEAM_ID, TEAM_REQUIREMENT, Failure, durations, git, notarize,
+                    record_duration, run, say, staple, wait_for_load, with_env)
+from jobs import POOL, Job, graph
 from macshared import (check_displayed_release, gatekeeper_check, latest_release_json, previous_app, publish_common,
                        run_mac_update_e2e, write_json)
 
 SLUG = "casimir-engineering/shenzhen-pdf"
 ASSET = "ShenzhenPDF-mac-arm64.dmg"
 VOLUME = "Shenzhen PDF"
+# A timed suite (pdfsuites.TIMED) runs after every other suite holding most of the pool (TIMED_CPUS), so little the run
+# starts (another app's build, a VM, a phone build) runs beside it; holding it, it also waits until the load average is
+# below this many runnable threads, for TIMED_WAIT seconds at most (other work on this Mac). It is not run a second
+# time when it fails: its budgets need a quiet machine, which a second run at the end would not have either; rerunning
+# the release runs it again.
+TIMED_LOAD = float(os.environ.get("SHENZHEN_TIMED_LOAD") or (os.cpu_count() or 8) * 0.6)
+TIMED_WAIT = 60
+TIMED_CPUS = POOL.cpus * 2 // 3
+# What one suite holds of the pool: a suite compiles, then runs a test that often starts helpers of its own.
+SUITE_CPUS = 2
+# What a suite run a second time holds: a third of the pool, so at most three run again at once, on a quiet machine.
+RETRY_CPUS = POOL.cpus // 3
 
 
 class PdfRelease(Release):
@@ -130,6 +146,9 @@ class PdfRelease(Release):
         return [s for s in out.split() if s]
 
     def tests(self):
+        """The suites that have not passed on this commit, side by side (pdfsuites.py plans them from the Makefile):
+        first one make -j builds everything their makes would build, then each suite runs in a make of its own, as
+        many at once as the pool allows, longest first. friends-tests runs as its parts at once."""
         suites = self.suites()
         missing = self.missing([f"pdf/{s}" for s in suites])
         say(f"tests: {len(suites) - len(missing)} of {len(suites)} suites passed on this commit already"
@@ -145,15 +164,75 @@ class PdfRelease(Release):
             env["GH_TOKEN"] = token
         folder = os.path.join(self.logs, "tests")
         os.makedirs(folder, exist_ok=True)
-        run(["make", "-C", self.portable, f"-j{JOBS}", "test-binaries"], env=env,
-            log=os.path.join(folder, "test-binaries.log"), check=False)
-        failed = []
-        for suite in missing:
-            name = suite.split("/", 1)[1]
-            if not self.stamped(suite, ["make", name], self.portable, env=env,
-                                log=os.path.join(folder, name + ".log")):
-                failed.append(name)
-                say(f"tests: {name} FAILED ({os.path.join(folder, name + '.log')})")
+        names = [s.split("/", 1)[1] for s in missing]
+        plan = pdfsuites.Plan(self.portable, suites, with_env(env), run=names)
+        # Everything the suites' makes would build before running anything, built once: two suites never write the
+        # same object at the same time.
+        with POOL.take(cpus=JOBS * 2 // 3, mem=8, priority=-500):
+            run(["make", "-C", self.portable, f"-j{JOBS}", "-k", "test-binaries", "mupdf-libs", *plan.prebuild],
+                env=env, log=os.path.join(folder, "test-binaries.log"), check=False)
+        history = durations("pdf")
+        passed, ran = {}, set()
+
+        def job(name, spec, alone=False):
+            def fn():
+                late = [d for d in spec["after"] if not passed.get(d)]
+                log = os.path.join(folder, name.replace("/", "--") + ".log")
+                if late:
+                    passed[name] = False
+                    with open(log, "a") as f:
+                        f.write(f"not run: {', '.join(late)} did not pass\n")
+                    return
+                ran.add(name)
+                cmd = ["make", *[a for o in spec["old"] for a in ("-o", o)], *spec["goals"]]
+                start = time.time()
+                if name == spec["suite"]:
+                    ok = self.stamped(f"pdf/{name}", cmd, self.portable, env=env, log=log)
+                else:
+                    ok = run(cmd, cwd=self.portable, env=env, log=log, check=False) == 0
+                if not alone:
+                    record_duration("pdf", name, time.time() - start)
+                passed[name] = ok
+                if not ok:
+                    say(f"tests: {name} FAILED{' again' if alone else ''} ({log})")
+                elif alone:
+                    say(f"tests: {name} passed on its second run, on a quieter machine: it failed beside other work")
+                    self.flaky.append(name)
+            locks = [spec["lock"]] if spec["lock"] else []
+            if alone:
+                return Job(fn, deps=[d for d in spec["after"] if d in again], cpus=RETRY_CPUS, mem=4, locks=locks)
+            if spec["suite"] in pdfsuites.TIMED:
+                return Job(quiet(fn), deps=[d for d in plan.jobs if plan.jobs[d]["suite"] not in pdfsuites.TIMED],
+                           cpus=TIMED_CPUS, mem=4, locks=locks)
+            return Job(fn, deps=spec["after"], cpus=SUITE_CPUS, mem=1, locks=locks,
+                       priority=-history.get(name, 60.0))
+
+        def quiet(fn):
+            def wrapped():
+                waited = wait_for_load(TIMED_LOAD, TIMED_WAIT)
+                say(f"tests: a timed suite starts with the load average at {os.getloadavg()[0]:.1f}"
+                    + (f", after {waited:.0f} s waiting for it to fall" if waited >= 1 else ""))
+                return fn()
+            return wrapped
+
+        again = {}
+        graph({name: job(name, spec) for name, spec in plan.jobs.items()})
+        # A suite that failed beside the others runs once more, three at most at a time, as a rerun of the release
+        # would run it, with the jobs that did not run because it failed; still failing, it fails the release.
+        retry = {name for name in plan.jobs if name in ran and not passed.get(name)
+                 and plan.jobs[name]["suite"] not in pdfsuites.TIMED}
+        if retry:
+            again.update({name: plan.jobs[name] for name in retry})
+            grew = True
+            while grew:  # what waits on those, through any number of jobs
+                grew = False
+                for name in plan.jobs:
+                    if name not in again and name not in ran and any(d in again for d in plan.jobs[name]["after"]):
+                        again[name] = plan.jobs[name]
+                        grew = True
+            say(f"tests: running {', '.join(sorted(retry))} again, three at most at a time")
+            graph({name: job(name, spec, alone=True) for name, spec in again.items()})
+        failed = sorted(name for name in names if not passed.get(name))
         return failed
 
     def verify(self):

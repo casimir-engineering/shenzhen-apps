@@ -443,10 +443,94 @@ def test_displayed():
     check("a release tag other than the release stops it", not shows(displayed.mac_release_app, "26.10.25-1", pdf))
 
 
+def test_scheduler():
+    """jobs.py: priorities, a big job not starved by small ones, locks, failures returned; Stages with `needs`."""
+    import threading
+    import time
+    import jobs
+    pool = jobs.Pool(cpus=4, mem=8)
+    order, lock = [], threading.Lock()
+
+    def job(name, seconds=0.05, fail=False):
+        def fn():
+            with lock:
+                order.append(name)
+            time.sleep(seconds)
+            if fail:
+                raise common.Failure(name)
+        return fn
+    graph = {f"small{i}": jobs.Job(job(f"small{i}"), cpus=1, priority=-i) for i in range(6)}
+    graph["big"] = jobs.Job(job("big"), cpus=4, priority=-3.5)
+    graph["after"] = jobs.Job(job("after"), deps=["small0"], cpus=1, locks=["x"])
+    graph["bad"] = jobs.Job(job("bad", fail=True), cpus=1, locks=["x"])
+    results = jobs.graph(graph, pool=pool)
+    check("waiting jobs start by priority", order.index("small5") < order.index("small4") < order.index("big"), order)
+    check("a big job is not overtaken by smaller ones that would keep it waiting",
+          order.index("big") < order.index("small3") and order.index("big") < order.index("small0"), order)
+    check("a dependency runs first", order.index("small0") < order.index("after"), order)
+    check("a failing job is reported, the others still run",
+          not results["bad"][0] and all(ok for name, (ok, _, _) in results.items() if name != "bad"), results)
+    check("the pool is whole again afterwards", (pool.free_cpus, pool.free_mem, pool.held) == (4, 8, set()))
+    stages = common.Stages(os.path.join(TMP, "needs"), ("build", "platforms", "package", "verify"), "id",
+                           needs={"platforms": ["build"], "package": ["build"], "verify": ["package", "platforms"]})
+    check("packaging again keeps what needs only the build", stages.consumers("package") == ["verify"],
+          stages.consumers("package"))
+    check("building again drops everything after it", sorted(stages.consumers("build")) ==
+          ["package", "platforms", "verify"], stages.consumers("build"))
+
+
+def test_pdf_plan():
+    """pdfsuites.py on a small Makefile: what is built first, what splits, what takes turns."""
+    import pdfsuites
+    folder = os.path.join(TMP, "plan")
+    os.makedirs(folder)
+    with open(os.path.join(folder, "Makefile"), "w") as f:
+        f.write(textwrap.dedent("""\
+            .PHONY: one-tests two-tests all-tests part-a part-b part-c gather tool mupdf-libs
+            one-tests: build/one mupdf-libs
+            \tbuild/one
+            two-tests: one-tests
+            build/one: one.c
+            \tcc one.c -o build/one
+            all-tests: gather part-c
+            \t@echo recorded
+            gather: part-a part-b
+            \t@echo parts named right
+            part-a: tool
+            \trun-a
+            part-b:
+            \trun-b --work "$(CURDIR)/w"
+            part-c:
+            \trun-c --work "$(CURDIR)/w"
+            tool:
+            \tcc tool.c -o build/tool
+            mupdf-libs:
+            \t@:
+            """))
+    open(os.path.join(folder, "one.c"), "w").close()
+    plan = pdfsuites.Plan(folder, ["one-tests", "two-tests", "all-tests"], dict(os.environ, MAKEFLAGS=""),
+                          run=["one-tests", "two-tests", "all-tests"])
+    check("what a suite's make builds first is built once, before", plan.prebuild == ["build/one"], plan.prebuild)
+    check("a suite naming another waits for it and skips it with -o",
+          plan.jobs["two-tests"]["after"] == ["one-tests"] and plan.jobs["two-tests"]["old"] == ["one-tests"],
+          plan.jobs["two-tests"])
+    check("a suite of several parts runs them as jobs of their own, through what only gathers them",
+          sorted(j for j in plan.jobs if j.startswith("all-tests/")) ==
+          ["all-tests/part-a", "all-tests/part-b", "all-tests/part-c"], sorted(plan.jobs))
+    check("its last job gives every part as -o", plan.jobs["all-tests"]["old"] == ["part-a", "part-b", "part-c"],
+          plan.jobs["all-tests"])
+    check("parts writing the same path take turns",
+          plan.jobs["all-tests/part-b"]["lock"] and
+          plan.jobs["all-tests/part-b"]["lock"] == plan.jobs["all-tests/part-c"]["lock"] and
+          not plan.jobs["all-tests/part-a"]["lock"], plan.jobs)
+
+
 def main():
     try:
         mono, remote, previous = setup()
         test_stages()
+        test_scheduler()
+        test_pdf_plan()
         test_interrupted_command()
         test_tests_leave_apps_alone()
         test_pdf_missing_files()

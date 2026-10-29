@@ -7,6 +7,7 @@ import time
 
 from common import (CACHE, Failure, app_from_dmg, download_asset, end_test_processes, forget_registrations, gh_api, git,
                     publish_release, push_source_tag, run, say)
+from jobs import POOL
 
 
 def write_json(path, data):
@@ -15,9 +16,24 @@ def write_json(path, data):
     return path
 
 
+def gatekeeper_window(cpus=0):
+    """What an updater test or a Gatekeeper check holds while it runs: the updater tests fail on any Gatekeeper prompt
+    the unified log shows during their run, whichever process it was for (tools/updater-e2e/nodialogs.py), so the
+    apps' tests of that kind, and the checks that hand Gatekeeper a quarantined copy, take turns when tools/release.sh
+    builds several apps at once. An updater test also holds `cpus` of the pool (none for a check made inside a stage
+    that holds some already)."""
+    # An updater test is on its app's longest path: served before the test suites and platform builds waiting.
+    return POOL.take(cpus=cpus, mem=cpus / 2, locks=("gatekeeper",), priority=-1000 if cpus else 0)
+
+
 def gatekeeper_check(dmg, app_name, work, log):
     """A browser download, simulated: the app copied out of the stapled DMG (attached hidden), quarantined, must be
     accepted by Gatekeeper as Notarized Developer ID."""
+    with gatekeeper_window():
+        return _gatekeeper_check(dmg, app_name, work, log)
+
+
+def _gatekeeper_check(dmg, app_name, work, log):
     run(["spctl", "-a", "-t", "open", "--context", "context:primary-signature", "-vv", dmg], log=log)
     shutil.rmtree(work, ignore_errors=True)
     mount = os.path.join(work, "volume")
@@ -74,13 +90,14 @@ def run_mac_update_e2e(release, kind, old, new_dmg, shape, stage):
     work = os.path.join(release.run_dir, "updater-e2e", f"{stage}-{time.strftime('%H%M%S')}")
     os.makedirs(os.path.dirname(work), exist_ok=True)
     log = release.log(stage)
-    say(f"{stage}: {kind} {old['tag']} updates to {release.tag} (tools/updater-e2e)")
-    try:
-        code = run(["python3", "-I", os.path.join(release.wt, "tools/updater-e2e/mac-update-e2e.py"), "--kind", kind,
-                    "--old-app", old["app"], "--new-dmg", new_dmg, "--notes", release.notes(), "--tag", release.tag,
-                    "--shape", shape, "--work", work], log=log, check=False)
-    finally:
-        end_test_processes(work, log)
+    with gatekeeper_window(cpus=4):
+        say(f"{stage}: {kind} {old['tag']} updates to {release.tag} (tools/updater-e2e)")
+        try:
+            code = run(["python3", "-I", os.path.join(release.wt, "tools/updater-e2e/mac-update-e2e.py"), "--kind",
+                        kind, "--old-app", old["app"], "--new-dmg", new_dmg, "--notes", release.notes(), "--tag",
+                        release.tag, "--shape", shape, "--work", work], log=log, check=False)
+        finally:
+            end_test_processes(work, log)
     if code != 0:
         raise Failure(f"updating from {old['tag']} to {release.tag} failed: {os.path.join(work, 'result.json')}")
     return work

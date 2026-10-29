@@ -76,21 +76,38 @@ It releases the commit checked out where it runs (`HEAD`, committed, on `origin/
 one at the keyboard: nothing appears on screen, nothing asks a question, Finder is never scripted. Without
 `--publish` it is a dry run: everything up to publishing, including the real notarization (Apple keeps the
 submission; nothing is published, no tag is pushed), which also runs for a version the commit does not set, with the
-committed version's notes, to try the pipeline. With `--publish` the version must be the committed one.
+committed version's notes, to try the pipeline (notes that say there are none yet, when the committed version has
+none either). With `--publish` the version must be the committed one.
+
+Every app at once, every platform, in one process:
+
+```sh
+tools/release.sh all --platforms all                                  # a dry run of the versions the commit sets
+tools/release.sh all --pdf 26.10.29-1 --files 26.10.29-1 --3d preview-0.2.4 --platforms all
+```
+
+Each app goes through its own stages, stamps, logs and lock, exactly as when it runs alone (`--publish` publishes
+each one when its own checks have passed); its lines start with `pdf:`, `files:` or `3d:`, and the run ends with each
+app's timing table and the wall time of the whole. [All apps at once](#all-apps-at-once) says how it shares the machine
+and how long it takes.
 
 | Stage | ShenzhenPDF and Shenzhen Files | Shenzhen 3D |
 | --- | --- | --- |
-| build | the app: `make mac-app` in release mode; Friends, Nautilus and `package/make-app.sh` | `node_modules`, the Friends helper and addon |
+| build | the app: `make mac-app` in release mode; Friends, Nautilus and `package/make-app.sh` | `node_modules`, the Friends helper and addon, the frontend (`dist/`, once for every platform) |
+| tests | **from the end of the build**, beside the stages below: the suites that have not passed on this commit (below) | from the end of packaging, beside notarization (packaging rebuilds the Friends addon `test:friends` loads) |
+| platforms | | with `--platforms all`, **from the end of the build**, beside the Mac stages: the web build, Android, iOS, Linux and Windows, each in a lane of its own ([below](#shenzhen-3d)) |
 | sign | every bundle inside out with the Developer ID, hardened runtime, secure timestamp, then checked | checked (signed by `package`) |
-| package | the DMG, laid out from `DMG_LAYOUT_DS_STORE`, signed | `electron/package-mac.mjs`: frontend, signed app, ZIP and DMG |
-| notarize | the DMG, and **the test suites at the same time** | every owner's DMG, and the test suites |
+| package | the DMG, laid out from `DMG_LAYOUT_DS_STORE`, signed | `electron/package-mac.mjs`: signed app, ZIP and DMG, from the build's `dist/` |
+| notarize | the DMG | every owner's DMG |
 | staple | the DMG; Gatekeeper checks a quarantined copy of the app | the app (zipped again for the updater) and the DMG (`electron/notarize-finalize.mjs`) |
-| verify | the app in the final DMG shows the release in About and the update dialog (`SZFReleaseTag`); then `tools/updater-e2e`: the published release updates itself to the candidate | every build shows the version, read from the build itself (`tools/release/displayed.py`: the Mac app's page, `app.asar` and `Info.plist`, and with `--platforms all` the web build, APK, iOS builds, Windows exe and Linux packages); then the updater test, for every owner |
+| verify | the app in the final DMG shows the release in About and the update dialog (`SZFReleaseTag`); then `tools/updater-e2e`: the published release updates itself to the candidate | once the platforms are done: every build shows the version, read from the build itself (`tools/release/displayed.py`: the Mac app's page, `app.asar` and `Info.plist`, and with `--platforms all` the web build, APK, iOS builds, Windows exe and Linux packages); then the updater test, for every owner |
 | publish | tags, source, the GitHub release (below) | the same, for every owner |
 | live-check | the previous release updates to the published one, as GitHub now lists it | the same |
 
-At the end it prints how long each stage took. The output, logs and stamps of a run are in
-`~/Library/Caches/shenzhen-build/runs/<app>/<version>/<commit>/` (`SHENZHEN_BUILD_CACHE` moves the whole cache).
+At the end it prints when each stage started and how long it took. The output, logs and stamps of a run are in
+`~/Library/Caches/shenzhen-build/runs/<app>/<version>/<commit>/` (`SHENZHEN_BUILD_CACHE` moves the whole cache); each
+log ends every command with its exit status and seconds, and `commands.tsv` beside it lists every command with when it
+started and how long it took.
 
 **Resuming.** A finished stage writes a stamp for that commit and version with the digests of what it made. Running
 the same command again skips every stage whose output is intact and starts at the first one that is not: after a
@@ -104,9 +121,27 @@ is recorded by `tools/test-stamp.sh` for the commit, and a suite that passed on 
 whoever ran it: `make -C apps/pdf/portable friends-tests` and `mac-launch-performance-tests`, `cut-release.sh`'s sweep
 and the Files test scripts record themselves too. A stamp is filed under the sources the app's suites build from
 (`apps/pdf`; `apps/files` or `apps/3d` with `apps/pdf`), so a commit that changes none of them, such as another app's
-release, keeps it; a worktree with uncommitted changes records nothing. The missing suites run while Apple notarizes. A
-failed suite stops a publish before anything is published; a dry run carries on and says the candidate is not
-releasable. The launch performance gate runs once, against the previous release's DMG.
+release, keeps it; a worktree with uncommitted changes records nothing. The missing suites start as soon as the build
+is done (Shenzhen 3D's once the app is packaged) and run beside the stages that follow.
+
+ShenzhenPDF's suites run side by side (`tools/release/pdfsuites.py` plans them from make's own database, so a suite
+added to the Makefile needs nothing here). One `make -j` first builds everything their makes would build; then each
+suite runs in a make of its own, as many at once as the machine allows, longest first (`test-durations.json`).
+`friends-tests` runs as its parts at once (each `friends-*-check`, each host adapter suite, the UI end-to-end flows),
+then once more with the parts given as `-o`, which records it. Suites whose makes would run the same `.PHONY` target or
+write the same file take turns, and so do the ones `RUN_APART` names. The quit performance gate (`TIMED`), whose budgets
+are milliseconds measured on a quiet machine, runs last: once every other suite is done and the load average is below
+six tenths of the cores (`SHENZHEN_TIMED_LOAD`; a minute at most), holding two thirds of the pool, so little else
+the run starts goes beside it. Other work on this Mac still counts: under another build's load it fails, and it is not
+given a second run (that would not be quieter); rerunning the release runs it again. The launch performance gate runs
+with the others: it compares this tree with the previous release in interleaved rounds, so the load reaches both alike;
+it runs once, against the previous release's DMG.
+
+A suite that fails beside other work runs once more at the end, on a quieter machine (a third of the pool each, so at
+most three at once), as rerunning the release would run it; the run names it ("passed only on a second run") so it can
+be looked into, and it fails the release only if it fails again. Shenzhen Files' and Shenzhen 3D's suites run one after
+the other, with the same second chance. A failed suite stops a
+publish before anything is published; a dry run carries on and says the candidate is not releasable.
 
 **Caches**, in `~/Library/Caches/shenzhen-build`, shared by every worktree and kept between releases:
 
@@ -117,10 +152,21 @@ releasable. The launch performance gate runs once, against the previous release'
   content of `apps/pdf/ext` and `apps/pdf/mupdf`.
 - `node_modules/3d-<lock>`: Shenzhen 3D's `node_modules` for one `package-lock.json`, cloned copy-on-write into a
   worktree that needs it; npm's own cache serves `npm ci`.
+- `worktrees/3d-android`, `3d-ios-simulator`, `3d-ios-devices`: a worktree each for Shenzhen 3D's phone builds, with
+  their cargo, Gradle and Xcode output (`platform-build.mjs` swaps `src-tauri/Cargo.lock` and generated project files
+  while it builds, so two builds never share a tree; and a cargo output shared between trees would not write the
+  generated Android sources into a new one).
+- `cargo-vendor/3d-<lock>`: the crates the Linux guest builds from, per Friends lock.
 - `releases/<owner>/<repo>/<tag>`: previous releases' DMGs and apps, for the updater test and the launch gate.
-- `test-stamps/<content>`: the suites that passed.
+- `test-stamps/<content>`: the suites that passed; `test-durations.json`: how long each ShenzhenPDF test job last took,
+  so the longest start first.
 
-No ccache or sccache is used: neither is installed here, and the release tool installs nothing.
+In the VMs, `/var/tmp/szf3d-release` (Linux) and `C:\szf3d-release` (Windows) keep the tree the guest builds from and
+cargo's output between releases ([below](#shenzhen-3d)).
+
+No ccache or sccache is used: neither is installed here, and the release tool installs nothing. They would save little:
+cargo keeps its output per target and in the VMs, MuPDF and Friends' libraries are cached by their sources, and
+ShenzhenPDF's own code, built from scratch each run, takes about half a minute, off the longest path.
 
 **Publishing**, with `--publish`, after every check above has passed:
 
@@ -148,6 +194,13 @@ the ShenzhenPDF archive of a release from the same commit, or the prefixed tag h
 
 ### Shenzhen 3D
 
+- `electron-builder` signs every file of the app, some seven hundred, each with a secure timestamp from Apple's
+  server, one after the other: three minutes of waiting on the network. The release runs `package-mac.mjs` with
+  `SZF_PARALLEL_CODESIGN=1`, which puts `electron/codesign-parallel.py` first on `electron-builder`'s `PATH` as
+  `codesign`: `@electron/osx-sign`'s signatures run eight at once, a bundle still only after everything it holds and
+  never two on the same file (a framework's `Versions/Current`); its own verification, and every other `codesign`,
+  waits for them and fails if one failed. The signatures are the same (the same files, identifiers, flags, authority
+  and entitlements), in about forty seconds.
 - Only the DMG is notarized. Apple's ticket for a submission covers every piece of code in it, so the app inside
   staples from the DMG's ticket and is zipped again for the updater; the ZIP is never uploaded to Apple. The DMG ships
   as it was submitted, holding the app as signed, and its own stapled ticket covers that app, as ShenzhenPDF's and
@@ -162,13 +215,66 @@ the ShenzhenPDF archive of a release from the same commit, or the prefixed tag h
   carries, which the stage checks with its version) and AAB, and the iOS Simulator app and registered-devices `.ipa`;
   and the Linux and Windows installers in the Parallels VMs with `scripts/friends/tauri-vm.sh` (Linux: `package`, from
   a `cargo vendor` kept in the cache, since the guest's clock may be wrong; Windows: `installers`, through cmd.exe
-  only). Each VM has its own settings in `app_3d.py`, which `SZF_VM_LINUX_*` and `SZF_VM_WINDOWS_*` override (for
-  `SZF_VM_ENV`, `SZF_VM_TAURI_CLI` and so on); a VM that was suspended is resumed for the build and suspended after,
+  only). They start once the build is done, beside the Mac app's packaging, notarization and tests, all at once: the
+  web ZIP, Android, the Simulator app and the `.ipa` each in a lane and a worktree of their own, each VM in a lane of
+  its own. Each VM keeps its build between releases (`SZF_VM_PERSIST`): `scripts/friends/vm-sync.py` sends the guest
+  only the files whose sha256 changed since the last one, removes the ones that are gone and checks what it sent
+  against its sha256 in the guest (Linux), and a fresh copy of that tree is built at the same path each time, with
+  cargo's output kept, so cargo compiles only what changed (the installers of the last run are removed first). Each VM
+  has its own settings in `app_3d.py`, which `SZF_VM_LINUX_*` and `SZF_VM_WINDOWS_*` override (for `SZF_VM_ENV`,
+  `SZF_VM_TAURI_CLI`, `SZF_VM_PERSIST` and so on); a VM that was suspended is resumed for the build and suspended after,
   one already running stays running. `release-updates.mjs` then signs the Setup, MSI and AppImage with the updater key
   and writes `latest.json` and `manifest.plist`. Everything is published with the Mac assets and a `SHA256SUMS.txt`
   (the `.sig` files are not). The Android build needs a JDK: `JAVA_HOME`, or Homebrew's `openjdk@17`.
 - If notarytool's upload is reset, the stage tries again without S3 acceleration; `NOTARY_NO_S3_ACCELERATION=1`
   starts without it.
+
+## All apps at once
+
+`tools/release.sh all` runs the three releases in one process, so one scheduler (`tools/release/jobs.py`) shares the
+machine between them: each heavy job (a build, a test suite, a phone build, a VM, an updater test) declares the cores
+and memory it needs and waits until they are free. Waiting jobs are served by priority (the apps' own stages and
+updater tests first, then ShenzhenPDF's longest suites), then in the order they asked, and a later job starts ahead of
+a waiting one only if both fit, so a big job is never starved by small ones.
+`SHENZHEN_BUILD_CPUS` and `SHENZHEN_BUILD_MEM_GB` size the pool (default: one and a half times the cores, since most
+jobs wait part of the time, and three quarters of the memory: other work shares this Mac). The phone builds run niced,
+yielding the cores to the rest. A single app's release uses the same scheduler.
+
+What runs at once, and what never does:
+
+- **Beside each other:** the three apps; in each, the test suites and Shenzhen 3D's platforms from the end of its
+  build, beside its signing, packaging, notarization and stapling; the phone builds and both VMs; ShenzhenPDF's suites
+  (above). Apple's notarization waits on the network and holds nothing.
+- **One at a time:** the updater tests and the Gatekeeper checks of every app (`gatekeeper_window` in
+  `macshared.py`), and Shenzhen 3D's `test:electron` and `test:friends`: an updater test fails on any Gatekeeper
+  prompt the unified log shows while it runs, whichever process it was for (`tools/updater-e2e/nodialogs.py`), and
+  while those two suites run the log can show a Gatekeeper rejection of a process they start (it failed a Shenzhen
+  Files updater test twice when they overlapped), so none of these overlap. The nodialogs checks are unchanged.
+- **With most of the pool, last:** ShenzhenPDF's quit performance gate (above).
+
+### How long it takes
+
+Dry runs of every app on every platform, notarization included, on this Mac (18 cores, 64 GB) on 2026-10-29, with
+other agents building and testing beside them (load average 6 to 40). Before: the three releases started at once as
+separate commands, each as it ran then. After: `tools/release.sh all --platforms all`, with the caches of the previous
+commit (a change, not a rerun of the same commit).
+
+| Stage | Before (Friends core change) | After: app change | After: Friends core change |
+| --- | ---: | ---: | ---: |
+| ShenzhenPDF: build, sign, package | 56 s | 54 s | 59 s |
+| ShenzhenPDF: test suites | 1653 s, one after another (`friends-tests` stopped at its first failure; whole, about 2200 s) | 935 s | 835 s |
+| Shenzhen Files: build, sign, package | 57 s | 85 s | 87 s |
+| Shenzhen 3D: packaging (of it, signing) | 215 s (177 s) | 115 s | 115 s (48 s) |
+| Notarization (upload and Apple), each app | 133 to 198 s | 135 to 216 s | 97 to 225 s |
+| Shenzhen 3D: platforms | 1340 s, after stapling: Android 111, iOS 84 + 57, Linux VM 639, Windows VM 427 | 260 s, beside the Mac stages | 356 s: Android 171, iOS 124 and 121, Linux VM 353, Windows VM 244 |
+| Shenzhen 3D: Mac app done (verified) | 32 min 40 s | 8 min 22 s | 11 min 10 s |
+| **Every app, every platform** | **33 min** (39 with a whole `friends-tests`) | **17 min 30 s** | **14 min 41 s** |
+
+The longest path is now ShenzhenPDF's suites: about seven minutes side by side, then the quit performance gate on its
+own (four to five minutes), then the second runs of the suites that failed. Next comes Shenzhen 3D's Mac app: its
+packaging, the upload of its DMG to Apple and Apple's verdict (three to four minutes on this connection), stapling and
+the updater test. The VMs and phones finish well inside it. A `--publish` adds the uploads to GitHub after that, as
+before.
 
 ## Installer images without Finder
 

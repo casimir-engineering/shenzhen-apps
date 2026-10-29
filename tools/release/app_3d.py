@@ -15,11 +15,15 @@ import zipfile
 import displayed
 from base import Release
 from common import (CACHE, IDENTITY, PROFILE, TEAM_ID, TEAM_REQUIREMENT, Failure, app_from_dmg, download_asset,
-                    end_test_processes, gh_api, git, notarize, parallel, prepare_worktree, publish_release,
+                    end_test_processes, gh_api, git, notarize, prepare_worktree, publish_release,
                     push_source_tag, retry, run, say, sha256)
-from macshared import push_monorepo_tag, write_json
+from jobs import Job, graph, raise_first
+from macshared import gatekeeper_window, push_monorepo_tag, write_json
 
 OWNER = "casimir-engineering"
+# The phone builds are not on the release's longest path (the Mac app's packaging and notarization are): they yield
+# the cores to it.
+PHONE_NICE = 10
 APP = "Shenzhen 3D.app"
 
 
@@ -30,8 +34,16 @@ def file_name(version, ext):
 class ThreeDRelease(Release):
     app = "3d"
     title = "Shenzhen 3D"
-    order = ("build", "package", "sign", "notarize", "staple", "platforms", "verify", "publish", "live-check")
+    order = ("build", "platforms", "package", "sign", "notarize", "staple", "verify", "publish", "live-check")
     before_notarize = ("build", "package", "sign")
+    stage_load = {"build": (4, 4), "package": (6, 4), "sign": (1, 1), "staple": (2, 2)}
+    # The suites start once the app is packaged, beside notarization: packaging rebuilds the Friends addon that
+    # test:friends loads, in the same tree.
+    tests_after = "package"
+    # The other platforms use only the build (node_modules, the frontend): packaging the Mac app again keeps them.
+    needs = {"platforms": ["build"], "package": ["build"], "sign": ["package"], "notarize": ["sign"],
+             "staple": ["notarize"], "verify": ["staple", "platforms"], "publish": ["verify"],
+             "live-check": ["publish"]}
 
     def parse_version(self, version):
         m = re.fullmatch(r"(preview-|v)?(\d+\.\d+\.\d+)", version)
@@ -108,10 +120,10 @@ class ThreeDRelease(Release):
         run(["git", "-C", tree, "commit", "--quiet", "--no-verify", "-m", self.tag], env=env, log=log)
         return tree
 
-    def node_modules(self, owner, log):
+    def node_modules(self, owner, log, app_dir=None):
         """node_modules for package-lock.json, cloned (APFS copy-on-write) from the cache when another worktree or run
         installed the same lock already; otherwise npm ci from npm's own cache, and kept for the next."""
-        app_dir = self.app_dir(owner)
+        app_dir = app_dir or self.app_dir(owner)
         lock = hashlib.sha256(open(os.path.join(app_dir, "package-lock.json"), "rb").read()).hexdigest()[:16]
         modules = os.path.join(app_dir, "node_modules")
         marker = os.path.join(modules, ".shenzhen-lock")
@@ -146,14 +158,19 @@ class ThreeDRelease(Release):
     # ---- stages ------------------------------------------------------------------------------------------------
 
     def build(self):
-        """node_modules (by lock), the Friends helper and the client addon built from apps/pdf in the same tree."""
+        """node_modules (by lock), the Friends helper and the client addon built from apps/pdf in the same tree, and
+        the frontend (dist/, npm run build, showing this version): packaging and every other platform use this one
+        build of it, so nothing rewrites dist/ while they read it."""
         log = self.log("build")
+        files = []
         for owner in self.owners:
             if owner != OWNER:
                 self.derive_private(log)
             self.node_modules(owner, log)
             run(["scripts/friends/setup-friends.sh"], cwd=self.app_dir(owner), env={"MAKEFLAGS": None}, log=log)
-        return {}
+            run(["npm", "run", "build"], cwd=self.app_dir(owner), env={"SHENZHEN_3D_VERSION": self.version}, log=log)
+            files.append(os.path.join(self.app_dir(owner), "dist", "index.html"))
+        return {"files": files}
 
     def package(self):
         """electron/package-mac.mjs per owner: the frontend build, the native addons, the signed app (Developer ID,
@@ -168,8 +185,12 @@ class ThreeDRelease(Release):
                 if os.path.basename(folder).startswith("release-") and self.short not in folder:
                     shutil.rmtree(folder, ignore_errors=True)
             forbid = [f"--forbid-owner={o}" for o in {OWNER, self.mirror} - {owner, None}]
-            run(["node", "electron/package-mac.mjs", f"--release-owner={owner}", *forbid,
-                 f"--version={self.version}", f"--output={out}"], cwd=self.app_dir(owner), log=log)
+            # SZF_PARALLEL_CODESIGN: electron-builder's seven hundred signatures several at once
+            # (electron/codesign-parallel.py): three minutes of waiting on Apple's timestamp server becomes forty
+            # seconds; the same signatures.
+            run(["node", "electron/package-mac.mjs", f"--release-owner={owner}", *forbid, "--frontend-built",
+                 f"--version={self.version}", f"--output={out}"], cwd=self.app_dir(owner),
+                env={"SZF_PARALLEL_CODESIGN": "1"}, log=log, stamp=True)
             files += [os.path.join(out, file_name(self.version, e)) for e in ("zip", "dmg")]
         return {"files": files}
 
@@ -212,6 +233,10 @@ class ThreeDRelease(Release):
 
     SUITES = (("3d/unit", ["npm", "test"]), ("3d/electron", ["npm", "run", "test:electron"]),
               ("3d/friends", ["npm", "run", "test:friends"]))
+    # test:electron and test:friends start Electron copies of their own; while they run, the unified log can show a
+    # Gatekeeper rejection ("Terminating process due to Gatekeeper rejection"), which fails any updater test running
+    # at the same time (seen twice when the apps were released at once): they never overlap one.
+    suite_locks = {"3d/electron": ("gatekeeper",), "3d/friends": ("gatekeeper",)}
 
     def tests(self):
         names = [n for n, _ in self.SUITES]
@@ -220,14 +245,8 @@ class ThreeDRelease(Release):
             + (f"; running {len(missing)}" if missing else ""))
         folder = os.path.join(self.logs, "tests")
         os.makedirs(folder, exist_ok=True)
-        failed = []
-        for name, cmd in self.SUITES:
-            if name in missing:
-                log = os.path.join(folder, name.split("/")[1] + ".log")
-                if not self.stamped(name, cmd, self.app_dir(OWNER), env={"MAKEFLAGS": None}, log=log):
-                    failed.append(name)
-                    say(f"tests: {name} FAILED ({log})")
-        return failed
+        return self.run_suites([(name, cmd) for name, cmd in self.SUITES if name in missing], self.app_dir(OWNER),
+                               {"MAKEFLAGS": None}, folder)
 
     def sign_for_test(self, app, log):
         """Signs a test copy inside out with the Developer ID, as the release is signed: the Friends helper on its own
@@ -306,15 +325,16 @@ class ThreeDRelease(Release):
         self.sign_for_test(relaunch, log)
         access = "public" if owner == OWNER else "private"
         notes = self.notes() if owner == OWNER else self.private_notes()
-        say(f"{stage}: {owner}'s {old['tag']} updates to {self.tag} (tools/updater-e2e)")
-        try:
-            code = run(["node", os.path.join(self.wt, "tools/updater-e2e/update-e2e-3d.mjs"), f"--owner={owner}",
-                        f"--fixture={fixture}", f"--artifacts={self.notarized(owner)}", f"--shape={shape}",
-                        f"--notes={notes}", f"--work={os.path.join(work_root, 'run')}", f"--expect-access={access}",
-                        f"--relaunch-app={relaunch}"] + (["--live"] if live else []), cwd=app_dir, log=log,
-                       check=False)
-        finally:
-            end_test_processes(work_root, log)
+        with gatekeeper_window(cpus=4):
+            say(f"{stage}: {owner}'s {old['tag']} updates to {self.tag} (tools/updater-e2e)")
+            try:
+                code = run(["node", os.path.join(self.wt, "tools/updater-e2e/update-e2e-3d.mjs"), f"--owner={owner}",
+                            f"--fixture={fixture}", f"--artifacts={self.notarized(owner)}", f"--shape={shape}",
+                            f"--notes={notes}", f"--work={os.path.join(work_root, 'run')}",
+                            f"--expect-access={access}", f"--relaunch-app={relaunch}"] + (["--live"] if live else []),
+                           cwd=app_dir, log=log, check=False)
+            finally:
+                end_test_processes(work_root, log)
         if code != 0:
             raise Failure(f"{owner}: updating from {old['tag']} to {self.tag} failed: "
                           f"{os.path.join(work_root, 'run', 'result.json')}")
@@ -411,24 +431,25 @@ class ThreeDRelease(Release):
                          key=lambda d: [int(x) if x.isdigit() else 0 for x in re.split(r"[.-]", d)])[-1]
         return os.path.join(tools, version, name)
 
-    def android(self, out, cargo_env, no_frontend, log):
+    def android(self, app_dir, out, cargo_env, no_frontend, log):
         """The release APK and AAB, the native library stripped; the APK aligned for 16 KB pages and signed with the
         Android debug key every published APK carries, then checked: that key, this version and versionCode."""
-        app_dir = self.app_dir(OWNER)
         # Gradle and apksigner need a JDK (17, docs/PLATFORMS.md); macOS has none of its own.
-        if not os.environ.get("JAVA_HOME"):
+        java = os.environ.get("JAVA_HOME")
+        if not java:
             jdks = [p for p in ("/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home",
                                 "/Applications/Android Studio.app/Contents/jbr/Contents/Home")
                     if os.path.isfile(os.path.join(p, "bin/java"))]
             if not jdks:
                 raise Failure("no JDK for the Android build: set JAVA_HOME (JDK 17)")
-            os.environ["JAVA_HOME"] = jdks[0]
-        os.environ["PATH"] = os.path.join(os.environ["JAVA_HOME"], "bin") + os.pathsep + os.environ["PATH"]
+            java = jdks[0]
+        java_env = {"JAVA_HOME": java, "PATH": os.path.join(java, "bin") + os.pathsep + os.environ["PATH"]}
         outputs = os.path.join(app_dir, "src-tauri/gen/android/app/build/outputs")
         shutil.rmtree(outputs, ignore_errors=True)
         run(["node", "scripts/platform-build.mjs", "android", "--friends", "--apk", "--aab", "--target", "aarch64",
              "--ci", "--config", no_frontend], cwd=app_dir,
-            env={**cargo_env, "CARGO_PROFILE_RELEASE_STRIP": "symbols"}, log=log)
+            env={**cargo_env, **java_env, "CARGO_PROFILE_RELEASE_STRIP": "symbols"}, log=log,
+            nice=PHONE_NICE)
         apk = sorted(glob.glob(os.path.join(outputs, "apk/**/*-release-unsigned.apk"), recursive=True))
         aab = sorted(glob.glob(os.path.join(outputs, "bundle/**/*.aab"), recursive=True))
         if len(apk) != 1 or len(aab) != 1:
@@ -441,11 +462,12 @@ class ThreeDRelease(Release):
         # The debug key's well-known passwords. No JAR (v1) signature: Android reads v2 and v3 from API 24, the app's
         # floor, and the v1 files were a digest of every entry (about 55 KB of the APK).
         run([tool("apksigner"), "sign", "--v1-signing-enabled", "false", "--ks", keystore, "--ks-pass", "pass:android",
-             "--ks-key-alias", "androiddebugkey", "--key-pass", "pass:android", "--out", signed, aligned], log=log)
+             "--ks-key-alias", "androiddebugkey", "--key-pass", "pass:android", "--out", signed, aligned], env=java_env,
+            log=log)
         os.remove(aligned)
         for leftover in glob.glob(signed + ".idsig"):
             os.remove(leftover)
-        certs = run([tool("apksigner"), "verify", "--print-certs", signed], log=log, capture=True)
+        certs = run([tool("apksigner"), "verify", "--print-certs", signed], env=java_env, log=log, capture=True)
         if f"SHA-256 digest: {self.ANDROID_CERT}" not in certs:
             raise Failure(f"{signed} is not signed with the Android debug key the published APKs carry")
         badging = run([tool("aapt2"), "dump", "badging", signed], log=log, capture=True)
@@ -455,75 +477,133 @@ class ThreeDRelease(Release):
         say(f"platforms: Android {self.version} (versionCode {m.group(1)}), signed with the debug key")
         shutil.copyfile(aab[0], os.path.join(out, f"shenzhen-3d-{self.version}-android-arm64-unsigned.aab"))
 
-    def ios(self, out, cargo_env, no_frontend, log):
-        """The simulator app (tar.gz, modes kept) and the registered-devices .ipa, signed for development with the
-        team's profile, which lists the devices it installs on."""
-        app_dir = self.app_dir(OWNER)
+    def ios_simulator(self, app_dir, out, cargo_env, no_frontend, log):
+        """The simulator app, as a tar.gz that keeps its modes."""
         build = os.path.join(app_dir, "src-tauri/gen/apple/build")
         shutil.rmtree(build, ignore_errors=True)
         run(["node", "scripts/platform-build.mjs", "ios", "--friends", "--target", "aarch64-sim", "--ci",
-             "--archive-only", "--config", no_frontend], cwd=app_dir, env=cargo_env("aarch64-apple-ios-sim"), log=log)
+             "--archive-only", "--config", no_frontend], cwd=app_dir, env=cargo_env("aarch64-apple-ios-sim"), log=log,
+            nice=PHONE_NICE)
         sims = sorted(glob.glob(os.path.join(build, "**/*.app"), recursive=True), key=len)
         if not sims:
             raise Failure(f"the iOS Simulator build left no .app under {build}")
         run(["tar", "-czf", os.path.join(out, f"shenzhen-3d-{self.version}-ios-arm64-simulator.tar.gz"), "-C",
              os.path.dirname(sims[0]), os.path.basename(sims[0])], log=log)
+
+    def ios_devices(self, app_dir, out, cargo_env, no_frontend, log):
+        """The registered-devices .ipa, signed for development with the team's profile, which lists the devices it
+        installs on."""
+        build = os.path.join(app_dir, "src-tauri/gen/apple/build")
         shutil.rmtree(build, ignore_errors=True)
         run(["node", "scripts/platform-build.mjs", "ios", "--friends", "--target", "aarch64", "--ci",
              "--export-method", "debugging", "--config", no_frontend], cwd=app_dir,
-            env={**cargo_env("aarch64-apple-ios"), "APPLE_DEVELOPMENT_TEAM": TEAM_ID}, log=log)
+            env={**cargo_env("aarch64-apple-ios"), "APPLE_DEVELOPMENT_TEAM": TEAM_ID}, log=log, nice=PHONE_NICE)
         ipas = glob.glob(os.path.join(build, "**/*.ipa"), recursive=True)
         if len(ipas) != 1:
             raise Failure(f"the iOS device build left {len(ipas)} .ipa files under {build}")
         shutil.copyfile(ipas[0], os.path.join(out, f"shenzhen-3d-{self.version}-ios-registered-devices.ipa"))
 
-    def platforms(self):
-        """--platforms all: the web build, Android, iOS (simulator and registered devices), and the Linux and Windows
-        installers built in the Parallels VMs (resumed for the build and suspended again) by
-        scripts/friends/tauri-vm.sh; then release-updates.mjs signs the Windows and Linux installers with the updater
-        key and writes latest.json and manifest.plist. Files land in the run's platforms/ folder under their release
-        names."""
-        log = self.log("platforms")
+    # The guest directories tauri-vm.sh keeps between releases (SZF_VM_PERSIST): the tree, synced by what changed,
+    # and cargo's output, so a release compiles only what changed since the last one.
+    VM_PERSIST = {"linux": "/var/tmp/szf3d-release", "windows": "C:\\szf3d-release"}
+
+    def phone_tree(self, name, log):
+        """A worktree of its own for a phone build (Android, iOS), at this commit, with node_modules and this run's
+        dist/: platform-build.mjs swaps src-tauri/Cargo.lock and the generated projects' files while it builds, so two
+        builds never share a tree. Kept in the cache between releases with their Gradle and Xcode output."""
+        tree = os.path.join(CACHE, "worktrees", f"3d-{name}")
+        prepare_worktree(self.repo, tree, self.commit, log)
+        app_dir = os.path.join(tree, "apps/3d")
+        self.node_modules(OWNER, log, app_dir=app_dir)
+        dist = os.path.join(app_dir, "dist")
+        shutil.rmtree(dist, ignore_errors=True)
+        run(["cp", "-c", "-R", os.path.join(self.app_dir(OWNER), "dist"), dist], log=log)
+        return app_dir
+
+    def vm_build(self, kind, keep, vendor, log):
+        """The Linux or Windows installers in their Parallels VM: one that was suspended is resumed for the build and
+        suspended after, one already running stays running."""
         app_dir = self.app_dir(OWNER)
+        platform, vm, mode, _ = self.VMS[kind]
+        env = self.vm_env(kind, keep)
+        env.setdefault("SZF_VM_PERSIST", os.environ.get(f"SZF_VM_{kind.upper()}_PERSIST", self.VM_PERSIST[kind]))
+        if kind == "linux":
+            env["SZF_VM_VENDOR"] = vendor
+        was_running = run(["prlctl", "status", vm], log=log, capture=True).strip().endswith(" running")
+        if not was_running:
+            say(f"platforms: {vm}: resumed for the {kind} installers")
+            run(["prlctl", "resume", vm], log=log, check=False)
+        try:
+            retry(f"platforms: {kind} installers", lambda: run(
+                ["scripts/friends/tauri-vm.sh", mode, platform, os.path.join(self.wt, "apps/pdf"), vm], cwd=app_dir,
+                env=env, log=log), attempts=2)
+        finally:
+            if not was_running:
+                run(["prlctl", "suspend", vm], log=log, check=False)
+
+    def platforms(self):
+        """--platforms all: the web build, Android, the iOS Simulator app, the registered-devices .ipa, and the Linux
+        and Windows installers built in the Parallels VMs by scripts/friends/tauri-vm.sh, all at once, each in a lane of
+        its own (each phone build in a worktree of its own, each VM with its build kept between releases); then
+        release-updates.mjs signs the Windows and Linux installers with the updater key and writes latest.json and
+        manifest.plist. Files land in the run's platforms/ folder under their release names. Runs beside the Mac
+        app's packaging, notarization and tests: it needs only the build."""
         out = os.path.join(self.out, "platforms")
         shutil.rmtree(out, ignore_errors=True)
         os.makedirs(out)
         v = self.version
-        web = os.path.join(out, f"shenzhen-3d-{v}-web.zip")
-        dist = os.path.join(app_dir, "dist")
-        with zipfile.ZipFile(web, "w", zipfile.ZIP_DEFLATED) as z:
-            for folder, _, names in os.walk(dist):
-                for name in sorted(names):
-                    full = os.path.join(folder, name)
-                    z.write(full, os.path.relpath(full, dist))
+        dist = os.path.join(self.app_dir(OWNER), "dist")
         no_frontend = write_json(os.path.join(self.run_dir, "no-frontend-build.json"),
                                  {"build": {"beforeBuildCommand": ""}})
-        # Cargo's output is kept per target in the cache, shared by every worktree.
-        cargo = lambda triple: {"CARGO_TARGET_DIR": os.path.join(CACHE, "cargo", triple)}  # noqa: E731
-        self.android(out, cargo("aarch64-linux-android"), no_frontend, log)
-        self.ios(out, cargo, no_frontend, log)
+        # Cargo's output stays in each phone build's own worktree (src-tauri/target), one Rust target each: a target
+        # directory shared with another tree would not run again the build scripts that write the generated Android
+        # sources (TauriActivity.kt) into the tree.
+        cargo = lambda triple: {"CARGO_TARGET_DIR": None}  # noqa: E731
         keep = os.path.join(self.run_dir, "vm-installers")
         shutil.rmtree(keep, ignore_errors=True)
         os.makedirs(keep)
-        pdf = os.path.join(self.wt, "apps/pdf")
-        vendor = self.vendor(log)
-        for kind in ("linux", "windows"):
-            platform, vm, mode, _ = self.VMS[kind]
-            env = self.vm_env(kind, keep)
-            if kind == "linux":
-                env["SZF_VM_VENDOR"] = vendor
-            # A VM already running stays running; one that was not is resumed for the build and suspended after.
-            was_running = run(["prlctl", "status", vm], log=log, capture=True).strip().endswith(" running")
-            if not was_running:
-                say(f"platforms: {vm}: resumed for the {kind} installers")
-                run(["prlctl", "resume", vm], log=log, check=False)
-            try:
-                retry(f"platforms: {kind} installers", lambda: run(
-                    ["scripts/friends/tauri-vm.sh", mode, platform, pdf, vm], cwd=app_dir, env=env, log=log),
-                    attempts=2)
-            finally:
-                if not was_running:
-                    run(["prlctl", "suspend", vm], log=log, check=False)
+
+        def web():
+            with zipfile.ZipFile(os.path.join(out, f"shenzhen-3d-{v}-web.zip"), "w", zipfile.ZIP_DEFLATED) as z:
+                for folder, _, names in os.walk(dist):
+                    for name in sorted(names):
+                        full = os.path.join(folder, name)
+                        z.write(full, os.path.relpath(full, dist))
+
+        def android():
+            log = self.log("platforms-android")
+            self.android(self.phone_tree("android", log), out, cargo("aarch64-linux-android"), no_frontend, log)
+
+        def ios_simulator():
+            log = self.log("platforms-ios-simulator")
+            self.ios_simulator(self.phone_tree("ios-simulator", log), out, cargo, no_frontend, log)
+
+        def ios_devices():
+            log = self.log("platforms-ios-devices")
+            self.ios_devices(self.phone_tree("ios-devices", log), out, cargo, no_frontend, log)
+
+        def vendor():
+            self.vendored = self.vendor(self.log("platforms-linux"))
+
+        # The VMs first: their builds are the longest. The phones hold three cores each (they run niced: the Mac app's
+        # stages and ShenzhenPDF's suites come first), the Windows VM four of its eight.
+        lanes = {
+            "web": Job(web, cpus=1, mem=0.5),
+            "android": Job(android, cpus=3, mem=6),
+            "ios-simulator": Job(ios_simulator, cpus=3, mem=6),
+            "ios-devices": Job(ios_devices, cpus=3, mem=6),
+            "vendor": Job(vendor, cpus=1, mem=1, priority=-2),
+            "linux": Job(lambda: self.vm_build("linux", keep, self.vendored, self.log("platforms-linux")),
+                         deps=["vendor"], cpus=2, mem=3, priority=-2),
+            "windows": Job(lambda: self.vm_build("windows", keep, None, self.log("platforms-windows")),
+                           cpus=4, mem=16, priority=-2),
+        }
+        results = graph(lanes)
+        for name, (ok, value, seconds) in sorted(results.items()):
+            say(f"platforms: {name} {'done' if ok else 'FAILED'} in {seconds:.0f} s")
+        raise_first(results)
+        log = self.log("platforms")
+        app_dir = self.app_dir(OWNER)
         names = {"*_x64-setup.exe": f"Shenzhen-3D-{v}-Windows-x64-Setup.exe",
                  "*_x64_en-US.msi": f"Shenzhen-3D-{v}-Windows-x64.msi",
                  "*_aarch64.AppImage": f"Shenzhen-3D-{v}-Linux-arm64.AppImage",
@@ -547,6 +627,11 @@ class ThreeDRelease(Release):
         files = sorted(f for f in glob.glob(os.path.join(out, "*"))
                        if not f.endswith(".sig") and os.path.basename(f) != "SHA256SUMS.txt")
         return {"files": files}
+
+    def alongside(self):
+        if self.opts.platforms != "all":
+            return {}
+        return {"platforms": lambda: self.stages.run("platforms", self.platforms)}
 
     def release_files(self, owner):
         files = list(self.final_files(owner))

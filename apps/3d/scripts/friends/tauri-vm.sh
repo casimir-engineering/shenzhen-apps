@@ -29,6 +29,12 @@
 #               crates.io's certificate).
 # Starts, resumes and suspends nothing: the VM must already be running. A run cut short (Ctrl-C, a failed copy) still
 # removes its directory in the guest and, on Linux, stops what it started there.
+#
+#   SZF_VM_PERSIST  a directory in the guest kept between runs instead of a temporary one (tools/release.sh sets it:
+#               /var/tmp/szf3d-release, C:\szf3d-release): the tree is synced into <dir>/src by vm-sync.py, which sends
+#               only the files whose sha256 changed, then copied to a fresh <dir>/run, where the build runs; cargo's
+#               output (<dir>/target-core, <dir>/target-app) and, on Linux, its home stay, so the next build compiles
+#               only what changed. A path without spaces, under /var/tmp/szf3d- or C:\szf3d-.
 set -euo pipefail
 guest_cleanup=()
 cleanup_guest() {
@@ -46,9 +52,8 @@ friends="$friends_root/portable/friends"
 [ -f "$here/dist/index.html" ] || { echo "dist/ is missing: npm run build first" >&2; exit 1; }
 [ -f "$friends/tauri/Cargo.toml" ] || { echo "$friends has no tauri plugin" >&2; exit 1; }
 
-payload() {
-    local stage
-    stage=$(mktemp -d "${TMPDIR:-/tmp}/szf3d-vm-payload.XXXXXX")
+payload_tree() { # the directory to fill: the tree the guest builds from
+    local stage=$1
     mkdir -p "$stage/3d" "$stage/friends/service/identity" "$stage/ext"
     COPYFILE_DISABLE=1 tar --no-xattrs -cf - --exclude 'src-tauri/target' --exclude 'src-tauri/gen' \
         --exclude 'src-tauri/friends/bin' --exclude 'src-tauri/friends/animals' --exclude '.DS_Store' \
@@ -63,14 +68,33 @@ payload() {
     # The online stack's C and C++ sources, which szfriends-datachannel-sys finds in an ext/ above the crate.
     COPYFILE_DISABLE=1 tar --no-xattrs -cf - --exclude '.git' --exclude '.DS_Store' -C "$friends_root/ext" \
         libdatachannel libjuice usrsctp plog mbedtls | tar -xf - -C "$stage/ext"
-    local vendor=()
     if [ -n "${SZF_VM_VENDOR:-}" ]; then
         mkdir "$stage/vendor"
         COPYFILE_DISABLE=1 tar --no-xattrs -cf - -C "$SZF_VM_VENDOR" . | tar -xf - -C "$stage/vendor"
-        vendor=(vendor)
     fi
+}
+# The staging directory, removed (by its path from mktemp, never a pattern).
+remove_stage() { python3 -I -c 'import shutil, sys; shutil.rmtree(sys.argv[1])' "$1"; }
+
+payload() {
+    local stage
+    stage=$(mktemp -d "${TMPDIR:-/tmp}/szf3d-vm-payload.XXXXXX")
+    payload_tree "$stage"
+    local vendor=()
+    [ -d "$stage/vendor" ] && vendor=(vendor)
     COPYFILE_DISABLE=1 tar --no-xattrs -czf - -C "$stage" 3d friends ext ${vendor[@]+"${vendor[@]}"} | base64
-    rm -rf "$stage"
+    remove_stage "$stage"
+}
+
+# SZF_VM_PERSIST: the tree synced into <root>/src (vm-sync.py), for the caller to copy to <root>/run.
+sync_persistent() { # linux|windows, VM name, guest root, extra vm-sync.py arguments
+    local platform=$1 vm=$2 root=$3 stage status=0
+    shift 3
+    stage=$(mktemp -d "${TMPDIR:-/tmp}/szf3d-vm-payload.XXXXXX")
+    payload_tree "$stage"
+    python3 -I "$here/scripts/friends/vm-sync.py" "$platform" "$vm" "$root" "$stage" "$@" || status=$?
+    remove_stage "$stage"
+    return "$status"
 }
 
 # The installers with Friends, as tauri-package-check.ps1 builds them, by a batch file cmd.exe runs: the Rust helper
@@ -130,13 +154,32 @@ run_windows() { # VM name
     local target=${SZF_VM_TARGET:-aarch64-pc-windows-msvc}
     # cmd.exe only to set up: PowerShell can hang in a guest that otherwise answers. The payload goes over in lines
     # findstr copies unchanged ('#' is not in base64), and certutil decodes it.
-    dir="$("${exec[@]}" cmd /c "echo %TEMP%" | tr -d '\r\n')\\szf3d-tauri-$(openssl rand -hex 8)"
-    case "$dir" in *' '* | %*) echo "windows-vm: no usable temporary directory ($dir)" >&2; return 1 ;; esac
-    "${exec[@]}" cmd /c "mkdir $dir" || { echo "windows-vm: no temporary directory ($dir)" >&2; return 1; }
-    guest_cleanup=("${exec[@]}" cmd /c "rmdir /s /q $dir")
-    payload | base64 -d | base64 -b 76 | "${exec[@]}" cmd /c "findstr /v /c:# > $dir\\tree.b64"
-    "${exec[@]}" cmd /c "certutil -decode $dir\\tree.b64 $dir\\tree.tgz > nul && del $dir\\tree.b64"
-    "${exec[@]}" cmd /c "tar -xzf $dir\\tree.tgz -C $dir"
+    if [ -n "${SZF_VM_PERSIST:-}" ]; then
+        local root=$SZF_VM_PERSIST
+        case "$root" in
+        'C:\szf3d-'*) ;;
+        *) echo "windows-vm: SZF_VM_PERSIST must start with C:\\szf3d-" >&2; return 1 ;;
+        esac
+        case "$root" in *' '* | *'&'* | *'%'*) echo "windows-vm: no usable directory ($root)" >&2; return 1 ;; esac
+        sync_persistent windows "$vm" "$root" || return 1
+        # A fresh copy of the tree each run (robocopy /MIR removes what the last run added) at the same path, with
+        # cargo's output kept beside it and joined in: the same paths every run, so cargo reuses what did not change.
+        dir="$root\\run"
+        "${exec[@]}" cmd /c "(for %t in (target-core target-app) do if not exist $root\\%t mkdir $root\\%t) & \
+robocopy $root\\src $dir /MIR /XD $dir\\target-core $dir\\target-app /NFL /NDL /NJH /NJS /NP >nul & \
+(for %t in (target-core target-app) do if not exist $dir\\%t mklink /J $dir\\%t $root\\%t >nul) & \
+if exist $root\\target-app\\$target\\release\\bundle rmdir /s /q $root\\target-app\\$target\\release\\bundle"
+        "${exec[@]}" cmd /c "if not exist $dir\\3d\\package.json exit 1" ||
+            { echo "windows-vm: $dir was not made from $root\\src" >&2; return 1; }
+    else
+        dir="$("${exec[@]}" cmd /c "echo %TEMP%" | tr -d '\r\n')\\szf3d-tauri-$(openssl rand -hex 8)"
+        case "$dir" in *' '* | %*) echo "windows-vm: no usable temporary directory ($dir)" >&2; return 1 ;; esac
+        "${exec[@]}" cmd /c "mkdir $dir" || { echo "windows-vm: no temporary directory ($dir)" >&2; return 1; }
+        guest_cleanup=("${exec[@]}" cmd /c "rmdir /s /q $dir")
+        payload | base64 -d | base64 -b 76 | "${exec[@]}" cmd /c "findstr /v /c:# > $dir\\tree.b64"
+        "${exec[@]}" cmd /c "certutil -decode $dir\\tree.b64 $dir\\tree.tgz > nul && del $dir\\tree.b64"
+        "${exec[@]}" cmd /c "tar -xzf $dir\\tree.tgz -C $dir"
+    fi
     if [ "$mode" = check ]; then
         local cargo='%USERPROFILE%\.cargo\bin\cargo.exe' features
         local plugin="${dir//\\//}/friends/tauri"
@@ -187,13 +230,36 @@ run_linux() { # VM name
     local exec=(prlctl exec "$vm")
     [ "${SZF_VM_AS_ROOT:-0}" = 1 ] || exec+=(--current-user)
     local setup=${SZF_VM_ENV:+. $SZF_VM_ENV &&}
-    dir=$("${exec[@]}" "mktemp -d /tmp/szf3d-tauri.XXXXXX")
-    case "$dir" in /tmp/szf3d-tauri.*) ;; *) echo "linux-vm: no temporary directory ($dir)" >&2; return 1 ;; esac
-    # The bracket keeps the pattern from matching the shell that runs it.
-    guest_cleanup=("${exec[@]}" "for pid in \$(pgrep -f '/tmp/[s]${dir#/tmp/s}/'); do kill -9 \$pid; done; rm -rf $dir")
-    payload | "${exec[@]}" "base64 -d | tar -xzf - -C $dir"
+    if [ -n "${SZF_VM_PERSIST:-}" ]; then
+        local root=$SZF_VM_PERSIST
+        case "$root" in
+        /var/tmp/szf3d-*) ;;
+        *) echo "linux-vm: SZF_VM_PERSIST must start with /var/tmp/szf3d-" >&2; return 1 ;;
+        esac
+        case "$root" in *' '* | *"'"* | *'"'*) echo "linux-vm: no usable directory ($root)" >&2; return 1 ;; esac
+        local as_root=()
+        [ "${SZF_VM_AS_ROOT:-0}" = 1 ] && as_root=(--as-root)
+        sync_persistent linux "$vm" "$root" ${as_root[@]+"${as_root[@]}"} || return 1
+        # A fresh copy of the tree each run (rsync --delete removes what the last run added) at the same path, with
+        # cargo's output and home kept beside it and linked in: the same paths every run, so cargo reuses what did not
+        # change. The installers of the last run go first, so none is taken for this one's.
+        dir=$root/run
+        "${exec[@]}" "mkdir -p $root/target-core $root/target-app $root/cargo-home $dir && \
+rsync -a --delete --exclude=/target-core --exclude=/target-app --exclude=/cargo-home $root/src/ $dir/ && \
+for t in target-core target-app cargo-home; do ln -sfn $root/\$t $dir/\$t; done && \
+rm -rf $root/target-app/release/bundle && test -f $dir/3d/package.json"
+        # What the last run started there stops with this one; the directory stays. The bracket keeps the pattern from
+        # matching the shell that runs it.
+        guest_cleanup=("${exec[@]}" "for pid in \$(pgrep -f '${dir%?}[${dir: -1}]/'); do kill -9 \$pid; done")
+    else
+        dir=$("${exec[@]}" "mktemp -d /tmp/szf3d-tauri.XXXXXX")
+        case "$dir" in /tmp/szf3d-tauri.*) ;; *) echo "linux-vm: no temporary directory ($dir)" >&2; return 1 ;; esac
+        # The bracket keeps the pattern from matching the shell that runs it.
+        guest_cleanup=("${exec[@]}" "for pid in \$(pgrep -f '/tmp/[s]${dir#/tmp/s}/'); do kill -9 \$pid; done; rm -rf $dir")
+        payload | "${exec[@]}" "base64 -d | tar -xzf - -C $dir"
+    fi
     if [ -n "${SZF_VM_VENDOR:-}" ]; then
-        "${exec[@]}" "mkdir $dir/cargo-home && printf '%s\\n' '[source.crates-io]' 'replace-with = \"vendored\"' \
+        "${exec[@]}" "mkdir -p $dir/cargo-home && printf '%s\\n' '[source.crates-io]' 'replace-with = \"vendored\"' \
 '[source.vendored]' 'directory = \"$dir/vendor\"' > $dir/cargo-home/config.toml"
     fi
     if [ "$mode" = check ]; then
