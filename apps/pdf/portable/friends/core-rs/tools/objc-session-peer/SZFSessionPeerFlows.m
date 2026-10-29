@@ -40,9 +40,10 @@ static void SZFUpdateLiveness(SZFPeerSession *session) {
         SZFPeer *strongSelf = weakSelf;
         SZFPeerSession *strongSession = weakSession;
         if (strongSelf == nil || strongSession == nil) return;
+        [strongSession.laneHead.blocks laneDown:strongSession.sessionID];
         [strongSelf devicesClosed:strongSession];
         [strongSelf.transfers flushProgressWithError:NULL];
-        [strongSession.blocks sessionEnded];
+        if (![strongSelf handOverGroupOf:strongSession]) [strongSession.blocks sessionEnded];
         for (NSFileHandle *source in strongSession.sources.allValues) [source closeFile];
         NSNumber *reason = error.userInfo[SZFriendsSessionCloseReasonKey];
         SZFriendsSecureChannel *closing = strongSession.channel;
@@ -53,16 +54,87 @@ static void SZFUpdateLiveness(SZFPeerSession *session) {
     };
 }
 
+// The first session of a group closed while lanes live (ADR 0018 § 6: the group goes on), as the Rust peer: the lowest
+// live lane takes over its conversation and its files by blocks, and the other lanes are its lanes now.
+- (BOOL)handOverGroupOf:(SZFPeerSession *)old {
+    SZFriendsBlockExchange *blocks = old.blocks;
+    if (blocks.group == nil || [blocks laneDown:blocks.controlLane]) return NO;
+    SZFPeerSession *head = self.sessions[@(blocks.controlLane)];
+    if (head == nil) return NO;
+    for (SZFPeerSession *lane in self.sessions.allValues) {
+        if (lane.laneHead == old) lane.laneHead = head;
+    }
+    head.laneHead = nil;
+    head.conversationID = old.conversationID;
+    head.blocks = blocks;
+    old.blocks = nil;
+    [self wireBlocks:blocks toSession:head];
+    SZFUpdateLiveness(head);
+    return YES;
+}
+
+// A lane went live: ours joins its head's group, theirs is admitted by its token or refused (ADR 0018 § 6). YES when
+// the session is a lane (or was refused as one).
+- (BOOL)laneEstablished:(SZFPeerSession *)session event:(NSDictionary *)event {
+    SZFriendsSecureChannel *channel = session.channel;
+    SZFPeerSession *head = session.laneHead;
+    if (head == nil && !channel.isInitiator && channel.presentedLane != nil) {
+        for (SZFPeerSession *candidate in self.sessions.allValues) {
+            if (candidate == session || candidate.laneHead != nil || candidate.blocks == nil ||
+                ![candidate.channel.remoteIdentityKey isEqualToData:channel.remoteIdentityKey]) {
+                continue;
+            }
+            if ([candidate.blocks admitLane:session.sessionID token:channel.presentedLane
+                                      route:channel.initiatorRoute] == SZFriendsLaneAdmitted) {
+                head = candidate;
+                session.laneHead = head;
+                break;
+            }
+        }
+        if (head == nil || !channel.fastTransfers) {
+            [channel closeWithReason:SZFriendsCloseReasonLaneRefused];
+            return YES;
+        }
+    }
+    if (head == nil) return NO;
+    if (!channel.fastTransfers || head.blocks == nil) {
+        [head.blocks laneDown:session.sessionID];
+        [channel closeWithReason:SZFriendsCloseReasonNormal];
+        return YES;
+    }
+    __weak SZFPeerSession *weakSession = session;
+    __weak SZFriendsBlockExchange *weakBlocks = head.blocks;
+    uint64_t lane = session.sessionID;
+    channel.onWritten = ^{
+        [weakBlocks written:lane];
+    };
+    [head.blocks laneUp:lane
+                   send:^BOOL(SZFriendsFrame *frame) {
+                       return [weakSession.channel sendFrame:frame];
+                   }
+                 queued:^NSUInteger {
+                     return weakSession.channel.queuedBulkFrames;
+                 }];
+    // The lane's peer hears it every second while the group lasts.
+    [channel setLivenessKeepalive:YES watch:NO];
+    NSMutableDictionary *laneEvent = [event mutableCopy];
+    laneEvent[@"lane_of"] = @(head.sessionID);
+    [self emit:laneEvent];
+    return YES;
+}
+
 - (void)establishedSession:(SZFPeerSession *)session {
     SZFriendsSecureChannel *channel = session.channel;
-    [self emit:@{
+    NSDictionary *established = @{
         @"event" : @"established", @"session" : @(session.sessionID), @"initiator" : @(channel.isInitiator),
         @"pattern" : SZFPatternNames[channel.pattern],
         @"remote_identity" : channel.remoteIdentityKey ? SZFHex(channel.remoteIdentityKey) : [NSNull null],
         @"token" : channel.presentedRequestToken ? SZFHex(channel.presentedRequestToken) : [NSNull null],
         @"route" : @(channel.initiatorRoute), @"minor" : @(channel.negotiatedMinor),
         @"fast" : @(channel.fastTransfers),
-    }];
+    };
+    if ([self laneEstablished:session event:established]) return;
+    [self emit:established];
     [self devicesEstablished:session];
     SZFriendsPersonRecord *person =
         channel.remoteIdentityKey ? [self.store personWithIdentityKey:channel.remoteIdentityKey] : nil;
@@ -88,6 +160,20 @@ static void SZFUpdateLiveness(SZFPeerSession *session) {
 }
 
 - (void)session:(SZFPeerSession *)session receivedFrame:(SZFriendsFrame *)frame {
+    if (session.laneHead != nil) {
+        // Frames on a lane are its head's; block frames keep their lane, so a PART's HAVE goes back where it came from.
+        SZFPeerSession *head = session.laneHead;
+        [head.blocks heard:session.sessionID];
+        if (frame.type == SZFriendsFrameTypeHashes || frame.type == SZFriendsFrameTypeWant ||
+            frame.type == SZFriendsFrameTypePart || frame.type == SZFriendsFrameTypeHave) {
+            if (head.blocks == nil || ![head.blocks handleFrame:frame lane:session.sessionID]) {
+                [self closeForProtocol:session];
+            }
+            return;
+        }
+        session = head;
+    }
+    [session.blocks heard:session.blocks.controlLane];
     if ([self devicesSession:session frame:frame]) return;
     NSData *wire = [frame dataForTag:SZFriendsFieldID];
     NSString *offer = wire ? SZFHex(wire) : nil;
@@ -346,14 +432,46 @@ static void SZFUpdateLiveness(SZFPeerSession *session) {
     if (session.blocks != nil) return session.blocks;
     if (session.conversationID == nil || !session.channel.fastTransfers) return nil;
     __weak SZFPeerSession *weakSession = session;
-    __weak SZFPeer *weakSelf = self;
     SZFriendsBlockExchange *blocks = [[SZFriendsBlockExchange alloc]
         initWithTransfers:self.transfers
            conversationID:session.conversationID
                     route:session.channel.initiatorRoute
                      send:^BOOL(SZFriendsFrame *frame) {
                          return [weakSession.channel sendFrame:frame];
-                     }];
+                     }
+                   queued:^NSUInteger {
+                       return weakSession.channel.queuedBulkFrames;
+                   }];
+    __weak SZFriendsBlockExchange *weakBlocks = blocks;
+    session.channel.onWritten = ^{
+        [weakBlocks written:SZFriendsHeadLane];
+    };
+    [self wireBlocks:blocks toSession:session];
+    if (session.channel.handshakeHash.length == 64) {
+        [blocks formGroupWithHandshakeHash:session.channel.handshakeHash initiator:session.channel.isInitiator];
+    }
+    session.blocks = blocks;
+    return blocks;
+}
+
+// The scheduler's timers (a lane gone silent, a lane given up), every 0.25 s while the session holds the exchange, as
+// the helper's block tick.
+- (void)tickBlocksOf:(SZFPeerSession *)session {
+    __weak SZFPeerSession *weakSession = session;
+    __weak SZFPeer *weakSelf = self;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.25 * NSEC_PER_SEC)), self.queue, ^{
+        SZFPeerSession *strongSession = weakSession;
+        if (strongSession.blocks == nil || strongSession.channel == nil) return;
+        [strongSession.blocks tick];
+        [weakSelf tickBlocksOf:strongSession];
+    });
+}
+
+// The exchange's events, for the session that holds it (its first session, or the lane that took over).
+- (void)wireBlocks:(SZFriendsBlockExchange *)blocks toSession:(SZFPeerSession *)session {
+    __weak SZFPeerSession *weakSession = session;
+    __weak SZFPeer *weakSelf = self;
+    [self tickBlocksOf:session];
     blocks.onReceived = ^(NSString *transferID) {
         NSString *path = [weakSelf.transfers transferWithID:transferID].receivedPath ?: @"";
         [weakSelf emit:@{@"event" : @"received_file", @"transfer" : transferID, @"path" : path}];
@@ -373,8 +491,6 @@ static void SZFUpdateLiveness(SZFPeerSession *session) {
             [strongSession.blocks flushDue];
         });
     };
-    session.blocks = blocks;
-    return blocks;
 }
 
 - (NSDictionary *)sendFileWithCommand:(NSDictionary *)command {

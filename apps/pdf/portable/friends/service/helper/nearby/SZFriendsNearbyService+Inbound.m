@@ -76,11 +76,19 @@ static BOOL SZFriendsCreatesFriendship(SZFriendsFrameType type) {
 - (void)link:(SZFriendsPeerLink *)link receivedFrame:(SZFriendsFrame *)frame {
     if (link.closed) return;
     if (link.lane) {
-        // Any application frame may come on any lane of a group; it counts as the first session's (ADR 0018 § 6).
+        // Any application frame may come on any lane of a group; it counts as the first session's (ADR 0018 § 6),
+        // except that block frames keep their lane, so a PART's HAVE goes back where it came from.
         SZFriendsPeerLink *head = link.laneHead;
         if (head == nil || head.closed) return;
+        [head.blocks heard:link.laneSerial];
+        if (frame.type == SZFriendsFrameTypeHashes || frame.type == SZFriendsFrameTypeWant ||
+            frame.type == SZFriendsFrameTypePart || frame.type == SZFriendsFrameTypeHave) {
+            [self link:link receivedBlockFrame:frame];
+            return;
+        }
         link = head;
     }
+    [link.blocks heard:SZFriendsHeadLane];
     [self noteFrame:frame onLink:link];
     if (link.ownDevice) {
         [self link:link receivedOwnDeviceFrame:frame]; // CHAIN and SYNC between our own devices (+Sync)

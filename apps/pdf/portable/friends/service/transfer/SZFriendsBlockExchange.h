@@ -1,25 +1,38 @@
-// Fast transfers on one session (ADR 0018, PROTOCOL.md § Fast transfers), as the Rust helper's service/blocks.rs: on a
-// session that negotiated them, our OFFER announces the tree, the friend's helper takes the file by blocks
-// (OFFER_REPLY with Blocks), we send the leaves (HASHES) and then the blocks it wants as PARTs, and it answers with
-// HAVE as blocks check and become durable, and with ACK once the whole file checked and was saved. On every new
-// session it asks for exactly what is still missing (WANT). With anyone else nothing here runs and the CHUNK flow
-// moves the file as before. One exchange per session; the nearby service and the interop peer both drive it, on the
-// queue the session's callbacks run on.
+// Fast transfers on one friend's group of sessions (ADR 0018, PROTOCOL.md § Fast transfers), as the Rust helper's
+// service/blocks.rs and service/lanes.rs: on a session that negotiated them, our OFFER announces the tree, the friend's
+// helper takes the file by blocks (OFFER_REPLY with Blocks), we send the leaves (HASHES) and then the blocks it wants
+// as PARTs, and it answers with HAVE as blocks check and become durable, and with ACK once the whole file checked and
+// was saved. On every new session it asks for exactly what is still missing (WANT).
+//
+// One exchange per first session ("the head", lane 0). Lanes (more sessions with the same device, ADR 0018 § 6) join
+// it: those this side opens, which the scheduler asks for, and those the friend opens, admitted by their token. The
+// scheduler (WP2, SZFriendsScheduler) says which lane carries which block; each block is read through its leaf check
+// and cut into that lane's parts (16 KiB on Bluetooth), which go out while the lane's queue is shallow. A PART's HAVE
+// goes back on the lane that carried it, and the first late part of a block on a lane is answered with a HAVE there
+// (§ 3). Control frames (HASHES, WANT, ACK) go on the head, and once it closed, on the lowest live lane (§ 6: the group
+// goes on; the interop peer moves the head's files there, the helper ends the group with its first session). With anyone else nothing here runs and the CHUNK flow moves
+// the file as before. The nearby service and the interop peer drive it, on the queue the sessions' callbacks run on.
 
 #import <Foundation/Foundation.h>
 
 #import "service/session/SZFriendsSession.h"
 #import "service/store/SZFriendsStore.h"
 #import "service/store/SZFriendsTransfers.h"
+#import "service/transfer/SZFriendsLaneGroup.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
+// The head's lane id within its exchange.
+extern const SZFriendsLaneID SZFriendsHeadLane; // 0
+
 @interface SZFriendsBlockExchange : NSObject
-// `send` queues a frame on the session (YES when queued). `route` sizes parts and the window.
+// `send` queues a frame on the head session (YES when queued); `queued` says how many bulk frames wait in it (nil:
+// never wait). `route` is the head's route.
 - (instancetype)initWithTransfers:(SZFriendsTransfers *)transfers
                    conversationID:(NSString *)conversationID
                             route:(SZFriendsRouteMethod)route
-                             send:(BOOL (^)(SZFriendsFrame *frame))send NS_DESIGNATED_INITIALIZER;
+                             send:(BOOL (^)(SZFriendsFrame *frame))send
+                           queued:(nullable NSUInteger (^)(void))queued NS_DESIGNATED_INITIALIZER;
 - (instancetype)init NS_UNAVAILABLE;
 
 // Something visible changed (a transfer's state or progress).
@@ -32,10 +45,40 @@ NS_ASSUME_NONNULL_BEGIN
 // whether this session resumes a transfer an earlier one began.
 @property(nonatomic, copy, nullable) void (^onWanted)(NSString *transferID, uint64_t offset, BOOL resumed);
 // Tests' rate cap (SZFriendsHelperTestHooks.chunkBytesPerSecond): YES holds this part back, and the caller pumps
-// again once it may go; NO counts it as sent.
+// again once it may; NO counts it as sent.
 @property(nonatomic, copy, nullable) BOOL (^pace)(NSUInteger bytes);
 // A batch is waiting to become durable: call -flushDue within a second.
 @property(nonatomic, copy, nullable) void (^onFlushNeeded)(void);
+// The scheduler asks for one more lane on `route` (dial the friend's device there with -reserveLane:) or gives one up.
+@property(nonatomic, copy, nullable) void (^onOpenLane)(SZFriendsRouteMethod route);
+@property(nonatomic, copy, nullable) void (^onCloseLane)(SZFriendsLaneID lane);
+// Monotonic seconds (tests replace it).
+@property(nonatomic, copy) double (^clock)(void);
+// Whether a direct Wi-Fi lane leaves this device on its Wi-Fi network (AWDL on Macs): YES by default here.
+@property(nonatomic) BOOL directWiFiKeepsInternet;
+
+#pragma mark Lanes
+
+// The head negotiated fast transfers: lanes may join, by tokens from its handshake hash `h`. `initiator`: this side
+// dialed the head (it opens odd lane indexes, the friend even ones).
+- (void)formGroupWithHandshakeHash:(NSData *)h initiator:(BOOL)initiator;
+@property(nonatomic, readonly, nullable) SZFriendsLaneGroup *group;
+// Outbound: an index and token for a lane on `route`, reserved for `lane` until -laneUp: or -laneDown:; 0 past the
+// limits.
+- (uint8_t)reserveLane:(SZFriendsLaneID)lane route:(SZFriendsRouteMethod)route token:(NSData *_Nullable *_Nullable)token;
+// Inbound: the lane the friend opened, whose token must name a free index (CLOSE LaneRefused otherwise).
+- (SZFriendsLaneRefusal)admitLane:(SZFriendsLaneID)lane token:(NSData *)token route:(SZFriendsRouteMethod)route;
+// A reserved or admitted lane went live: parts may go on it.
+- (void)laneUp:(SZFriendsLaneID)lane
+          send:(BOOL (^)(SZFriendsFrame *frame))send
+        queued:(nullable NSUInteger (^)(void))queued;
+// A session of the group closed or a lane's dial failed: its blocks go to the others. YES when the group is over (no
+// live lane is left, or there is no group and the head closed); NO when it goes on, on -controlLane.
+- (BOOL)laneDown:(SZFriendsLaneID)lane;
+// Where control frames go: the head, or the lane that took over from it.
+@property(nonatomic, readonly) SZFriendsLaneID controlLane;
+
+#pragma mark Offers and replies
 
 // Our OFFER: adds the tree's fields when the snapshot's tree is known (the channel strips them for older peers).
 + (void)addTreeOfTransfer:(SZFriendsTransferRecord *)record
@@ -49,21 +92,31 @@ NS_ASSUME_NONNULL_BEGIN
                transfers:(SZFriendsTransfers *)transfers;
 // A new session and an unfinished download: YES when it resumes by blocks (WANT sent); NO for CHUNK.
 - (BOOL)resumeIncoming:(SZFriendsTransferRecord *)record;
-// OFFER_REPLY accepting with Blocks: YES when the file now goes by blocks on this session.
+// OFFER_REPLY accepting with Blocks: YES when the file now goes by blocks.
 - (BOOL)offerTakenByBlocks:(NSString *)transferID;
-// HASHES, WANT, PART or HAVE: NO when it is unsolicited (close the session with a protocol error).
-- (BOOL)handleFrame:(SZFriendsFrame *)frame;
-// The next parts of every file going by blocks, within each one's window.
+
+#pragma mark Frames and time
+
+// HASHES, WANT, PART or HAVE that came on `lane`: NO when it is unsolicited (close that session as a protocol error).
+- (BOOL)handleFrame:(SZFriendsFrame *)frame lane:(SZFriendsLaneID)lane;
+- (BOOL)handleFrame:(SZFriendsFrame *)frame; // on -controlLane
+// A write on `lane` completed (its bulk queue shortened): the lane is moving, and more parts may go.
+- (void)written:(SZFriendsLaneID)lane;
+// A byte from the friend on `lane` (any frame).
+- (void)heard:(SZFriendsLaneID)lane;
+// The scheduler's timers (silent lanes): call at -nextTimer, or every second while it carries transfers.
+- (void)tick;
+@property(nonatomic, readonly) double nextTimer; // negative for none
+// The next parts of every file going by blocks, within each lane's queue.
 - (void)pump;
 // Durability batches that came due; their HAVEs, and the check and ACK of files now complete.
 - (void)flushDue;
-// The session ended: what was written becomes durable, partly received blocks are dropped.
+// The head session ended: what was written becomes durable, partly received blocks are dropped.
 - (void)sessionEnded;
 // Stops carrying a transfer (cancelled, declined, finished elsewhere).
 - (void)endTransfer:(NSString *)transferID;
 @property(nonatomic, readonly) BOOL carriesTransfers; // keepalive (ADR 0018 § 7)
-// Watch for silence: a HAVE is due for blocks sent, or blocks are wanted from the peer.
-@property(nonatomic, readonly) BOOL awaitingPeer;
+@property(nonatomic, readonly) BOOL awaitingPeer;     // watch for silence: a HAVE due, or blocks wanted from the peer
 @property(nonatomic, readonly) NSSet<NSString *> *receiving;
 @property(nonatomic, readonly) NSSet<NSString *> *sending;
 @end

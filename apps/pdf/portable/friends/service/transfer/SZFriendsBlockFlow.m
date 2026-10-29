@@ -263,6 +263,10 @@ static BOOL SZFriendsLeafMatches(uint32_t block, NSData *data, NSData *leaves) {
     return YES;
 }
 
+- (void)setPartBytes:(NSUInteger)partBytes {
+    _partBytes = MIN(MAX(partBytes, (NSUInteger)1), SZFriendsPartBytesMax);
+}
+
 - (NSUInteger)nextPartLength {
     return _currentData ? MIN(_currentSent + _partBytes, _currentData.length) - _currentSent : 0;
 }

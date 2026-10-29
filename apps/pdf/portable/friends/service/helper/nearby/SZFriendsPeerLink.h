@@ -125,7 +125,8 @@ NSData *_Nullable SZFriendsLinkBytesFromHex(NSString *_Nullable hex); // nil unl
 // A lane (ADR 0018 § 6): another session with the same device, admitted by its token into the group of `laneHead`,
 // the first session. A lane never races and carries no conversation of its own: its frames count as the head's.
 @property(nonatomic, weak, nullable) SZFriendsPeerLink *laneHead;
-@property(nonatomic) uint8_t laneIndex;
+@property(nonatomic) uint64_t laneSerial; // its id in the head's exchange
+@property(nonatomic) BOOL blockTickScheduled;
 @property(nonatomic) BOOL lane;
 // The head's admitted lanes.
 @property(nonatomic, readonly) NSHashTable<SZFriendsPeerLink *> *lanes;

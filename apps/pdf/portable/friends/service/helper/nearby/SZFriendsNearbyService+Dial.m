@@ -286,9 +286,12 @@ BOOL SZFriendsNearbyDialIsPointless(SZFriendsRouteMethod live, SZFriendsRouteMet
         } else if (plan.purpose == SZFriendsLinkPurposeOwnDevice && plan.ownDeviceHex != nil) {
             live = [strongSelf liveSyncLinkForDeviceHex:plan.ownDeviceHex]; // the session carrying our sync with it
         }
-        BOOL pointless = live != nil && SZFriendsNearbyDialIsPointless(live.raceRoute, sighting.route);
-        if (strongSelf.shutDown || pointless) {
+        // A lane goes beside the live session, never instead of it: the race does not apply.
+        BOOL pointless = plan.laneHead == nil && live != nil &&
+                         SZFriendsNearbyDialIsPointless(live.raceRoute, sighting.route);
+        if (strongSelf.shutDown || pointless || (plan.laneHead != nil && plan.laneHead.closed)) {
             [strongSelf.dialing removeObject:key];
+            if (plan.laneHead != nil) [plan.laneHead.blocks laneDown:plan.laneSerial];
             return;
         }
         [adapter openStreamToEndpoint:sighting.endpointID
@@ -306,6 +309,10 @@ BOOL SZFriendsNearbyDialIsPointless(SZFriendsRouteMethod live, SZFriendsRouteMet
     if (stream == nil || self.shutDown) {
         [self.dialing removeObject:key];
         [stream close];
+        if (plan.laneHead != nil) {
+            [plan.laneHead.blocks laneDown:plan.laneSerial]; // the scheduler asks again later if it still wants one
+            return;
+        }
         // Unreachable endpoints are normal (a device that just left); only a person's own attempts back off.
         if (plan.purpose == SZFriendsLinkPurposeBrowse) {
             [self browseOfEndpointFailed:plan.sighting.endpointID];
@@ -322,6 +329,10 @@ BOOL SZFriendsNearbyDialIsPointless(SZFriendsRouteMethod live, SZFriendsRouteMet
     }
     SZFriendsPeerLink *link = [self linkForInitiatorStream:stream plan:plan];
     link.dialKey = key;
+    if (plan.laneHead != nil) {
+        link.laneHead = plan.laneHead;
+        link.laneSerial = plan.laneSerial;
+    }
     link.attemptKey = plan.attemptKey;
     [self startLink:link];
 }

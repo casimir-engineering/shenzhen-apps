@@ -957,3 +957,50 @@ of the tree, of checking and of durability. Senders schedule 256 KiB slices.
 For WP1 (vectors: a WANT with Pieces only, with both, a HAVE with Pieces and Ranges; the WANT rule "at least one of
 Ranges and Pieces") and WP4 (a3ffa2ff7a362dcb5, the Objective-C helper: field 47 in both frames, the receiver's
 piece HAVEs and WANT, the sender's slices): this section and the ADR are the spec; WP3 builds the Rust side next.
+
+## WP4, part 3: lanes and the scheduler in the Objective-C helper (2026-10-29)
+
+- **WP2's scheduler, ported** (`service/transfer/SZFriendsScheduler.m`, line by line from `scheduler.rs` with
+  43062d06's hearing rule and one-block slow lanes) with its simulator (`tests/SZFriendsSchedulerSim.m`).
+  `make friends-transfer-check` runs WP2's 19 scenarios from `fixtures/scheduler/scenarios.json`: all pass, with the
+  same times and per-route bytes as the Rust table. One port detail: a timer due at exactly `progress_at +
+  silent_after` could land a hair early in doubles and fire forever; `tick` adds a nanosecond.
+- **Lane groups** (`SZFriendsLaneGroup.m`, as `session/lanes.rs`): odd or even indexes by who dialed, 4 per route and
+  8 per group, one session at most on Bluetooth and the relay, tokens compared in constant time, and the group ends
+  with its last live lane (the lowest live lane leads once the first session has gone).
+- **The exchange spans the group.** `SZFriendsBlockExchange` now takes its lanes' sessions: the scheduler decides
+  which lane carries each block, parts are cut per route (16 KiB on Bluetooth) and go out while that session's bulk
+  queue is under 4 frames; a PART's HAVE goes back on its lane, and control frames (HASHES, WANT, ACK) go on the first
+  session, or on the lane that took over from it. The secure channel reports writes (`onWritten`) and its bulk depth.
+- **The nearby service opens lanes** when the scheduler asks: it dials the friend's device on the asked route with a
+  reserved token (LAN; direct Wi-Fi only while it keeps the Mac's internet, which AWDL does; Bluetooth through the
+  radio, whose every L2CAP channel already has its own CBPeripheralManager), ticks the scheduler every 0.25 s while it
+  sends, and closes lanes the scheduler gives up. As in the Rust helper, its group still ends with the first session
+  and the next session resumes by WANT.
+- **The interop session peer** says `"lanes": true`, dials `"lane_of"`, admits lanes, and when the first session
+  closes hands its conversation and files to the lowest live lane, as the Rust peer does. A store test covers the
+  hand-over (the first session's route gone after 40 parts; the file finishes on the lane, intact and acknowledged).
+
+`make friends-transfer-bench` with `BENCH_MULTI`, the three Objective-C pairs (one run, other packages' work
+alongside; every file intact). Before the hand-over, the LAN-silenced case failed for all three ("not received within
+156 s"); the Rust to Rust figures are WP3's above.
+
+| Case | Obj-C → Obj-C | Obj-C → Rust | Rust → Obj-C | Per route (MB) |
+|---|---|---|---|---|
+| LAN 1 GbE + direct Wi-Fi 300 Mbit/s, 1 GiB | 8.7 s, 80 % | 7.9 s, 87 % | 8.7 s, 80 % | 817 + 258 |
+| … direct Wi-Fi cut half-way | 9.9 s | 9.0 s | 10.0 s | 944 + 132 |
+| … the LAN (the first session's route) silenced half-way | 20.2 s | 19.3 s | 20.9 s | 400 + 675, noticed at 8.0 s |
+| 10 Mbit/s LAN + Bluetooth, 16 MiB | 13.9 s, 85 % | 13.5 s, 87 % | 13.4 s, 88 % | 17 + 2.1 |
+| … Bluetooth cut half-way | 13.9 s | 13.5 s | 14.0 s | 17 + 0.9 |
+| … Bluetooth silenced half-way | 14.1 s | 13.7 s | 14.0 s | 17 + 0.9 |
+| LAN + direct Wi-Fi + Bluetooth, 1 GiB | 8.8 s, 78 % | 12.6 s, 55 % | 10.1 s, 68 % | Bluetooth unused at LAN rates |
+| … the LAN cut half-way | 23.7 s | 33.7 s | 22.1 s | finished on direct Wi-Fi |
+
+LAN plus direct Wi-Fi is 1.05 to 1.15 times the LAN alone, as Rust to Rust (1.15). Bluetooth dropping leaves the slow
+LAN at 0.95 to 0.99 of its speed alone. The three-route rows vary most between runs (CPU at 8 to 9 s/GB on the
+loaded machine); the LAN-silenced case is bound by the session's own 8 s silence limit, as in Rust.
+
+**Left for WP4:** Pieces (field 47) and 256 KiB slices once WP3 lands them with WP1's vectors; Get again and
+own-device copies by blocks; "Finishing…" while a large file's check runs; small files staged and published in
+batches; skipping blocks the receiver already holds. Not tried on two real Macs: the direct Wi-Fi and Bluetooth lanes
+are exercised through the bench's emulated routes and the helper's fake channels only.

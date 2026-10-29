@@ -135,6 +135,17 @@
         [self admitLane:link]; // another session with a device we already have one with (+Blocks)
         return;
     }
+    if (channel.isInitiator && link.laneHead != nil) {
+        // One of our lanes (+Blocks): it joins its group, never the race.
+        SZFriendsPeerLink *head = link.laneHead;
+        if (head.closed || !channel.fastTransfers || head.blocks == nil) {
+            [head.blocks laneDown:link.laneSerial];
+            [channel closeWithReason:SZFriendsCloseReasonNormal];
+            return;
+        }
+        [self joinLane:link toHead:head];
+        return;
+    }
     if ([self chainRefusesLiveLink:link]) return; // a device its owner removed, whichever side dialed (+Chain)
     if ([self syncAdoptsLiveLink:link]) return;   // another device of ours: it carries sync, nothing else (+Sync)
     NSData *remoteKey = channel.remoteIdentityKey;
@@ -371,9 +382,10 @@ static BOOL SZFriendsEndWasSupersededByPeer(NSError *error) {
     link.closed = YES;
     [link cancelTimers];
     [self.links removeObject:link];
-    if (link.lane) {
+    if (link.lane || link.laneHead != nil) {
         // A lane ends alone: the group goes on with its first session (ADR 0018 § 6).
         [link.laneHead.lanes removeObject:link];
+        [link.laneHead.blocks laneDown:link.laneSerial];
         if (link.dialKey != nil) [self.dialing removeObject:link.dialKey];
         return;
     }

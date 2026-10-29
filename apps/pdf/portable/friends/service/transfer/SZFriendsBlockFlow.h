@@ -69,6 +69,8 @@ typedef NS_ENUM(NSInteger, SZFriendsPartOutcome) {
 - (BOOL)nextBlock:(uint32_t *)block;
 // That block as read from the snapshot: NO when it does not match its leaf (the snapshot changed).
 - (BOOL)loadBlock:(uint32_t)block data:(NSData *)data;
+// The part size from now on (each lane its route's).
+- (void)setPartBytes:(NSUInteger)partBytes;
 // The data length of the next PART (0 when there is none), without taking it.
 @property(nonatomic, readonly) NSUInteger nextPartLength;
 // The next PART of the block being sent, or nil.

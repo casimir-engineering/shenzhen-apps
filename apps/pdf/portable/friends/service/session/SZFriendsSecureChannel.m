@@ -234,6 +234,10 @@ const char SZFriendsPrologueLabel[18] = "SZFriends session"; // the array's 18th
     return _watchSilence;
 }
 
+- (NSUInteger)queuedBulkFrames {
+    return _bulkQueue.count;
+}
+
 #pragma mark - Closing
 
 - (void)close {
@@ -343,6 +347,7 @@ const char SZFriendsPrologueLabel[18] = "SZFriends session"; // the array's 18th
     self.onFrame = nil;
     self.onEstablished = nil;
     self.onPublicProfile = nil;
+    self.onWritten = nil;
     _keyPolicy = nil;
     if (onClose) {
         onClose(error);

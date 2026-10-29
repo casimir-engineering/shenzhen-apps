@@ -418,6 +418,10 @@ typedef BOOL (^SZFriendsRemoteKeyPolicy)(NSData *_Nullable remoteIdentityKey, SZ
 // repeating the same values changes nothing.
 - (void)setLivenessKeepalive:(BOOL)keepalive watch:(BOOL)watch;
 @property(nonatomic, readonly) BOOL watchingLiveness;
+// File data (CHUNK, DONE, THUMBNAIL, AGAIN, HASHES, PART) queued and not yet encrypted: how far a sender may run ahead.
+@property(nonatomic, readonly) NSUInteger queuedBulkFrames;
+// After each write the link completed (bytes left this side): the session is moving, and room opened.
+@property(nonatomic, copy, nullable) void (^onWritten)(void);
 
 // Runs CODE_COMMIT / CODE_NONCE / CODE_REVEAL once, in the session that creates the friendship; both sides call
 // it, in either order, before or after the session is live. Completion gets six ASCII digits ("418270"), or an

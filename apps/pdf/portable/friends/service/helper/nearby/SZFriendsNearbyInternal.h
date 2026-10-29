@@ -116,6 +116,9 @@ extern const NSTimeInterval SZFriendsNearbyConnectingTimeout;
 @property(nonatomic, copy, nullable) NSData *requestToken;  // NN: the Add by ID request to carry
 @property(nonatomic, copy, nullable) NSString *attemptKey;  // NN: its one-shot entry in `attempts`
 @property(nonatomic, copy, nullable) NSString *ownDeviceHex; // IK to one of our devices: which (+Sync)
+// A lane of `laneHead`'s group (ADR 0018 § 6), reserved in its exchange as `laneSerial` (+Blocks).
+@property(nonatomic, weak, nullable) SZFriendsPeerLink *laneHead;
+@property(nonatomic) uint64_t laneSerial;
 @end
 
 // Explicit rank (ADR 0011 § Route rank): dialing a friend at `sighting` is pointless while a live session runs on
@@ -376,6 +379,8 @@ void SZFriendsNearbyRecordEvent(SZFriendsStore *store, NSString *eventKind, NSSt
 // A responder's session whose IK message 1 carried a Lane token: admitted into the group of the live session with the
 // same device whose handshake hash and a free index make that token, or closed with CLOSE LaneRefused.
 - (void)admitLane:(SZFriendsPeerLink *)link;
+// One of our lanes went live: it joins its head's group.
+- (void)joinLane:(SZFriendsPeerLink *)link toHead:(SZFriendsPeerLink *)head;
 @end
 
 // File previews (brief § Transfers, Thumbnails before acceptance; SZFriendsNearbyService+Thumbnails.m).

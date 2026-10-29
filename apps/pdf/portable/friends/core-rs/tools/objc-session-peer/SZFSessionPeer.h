@@ -31,6 +31,8 @@ NS_ASSUME_NONNULL_BEGIN
 // Files by blocks, on a session that negotiated fast transfers with a friend (ADR 0018), as the helper does.
 @property(nonatomic, nullable) SZFriendsBlockExchange *blocks;
 @property(nonatomic) BOOL blockFlushArmed;
+// A lane of `laneHead`'s group (ADR 0018 § 6): its frames are the head's, its id in the head's exchange its sessionID.
+@property(nonatomic, weak, nullable) SZFPeerSession *laneHead;
 @end
 
 @interface SZFPeer : NSObject

@@ -124,7 +124,9 @@ static NSData *SZFDerive(NSString *label) {
         return @{
             @"identity_key" : SZFHex(_identity.publicKey),
             @"static_key" : SZFHex(_identity.staticPublicKey),
-            @"session_minor" : @(SZFriendsSessionMinor)
+            @"session_minor" : @(SZFriendsSessionMinor),
+            // `dial` takes "lane_of" (ADR 0018 § 6), and lanes are admitted.
+            @"lanes" : @YES,
         };
     } else if ([name isEqualToString:@"listen"]) {
         return [self listenOnAnyInterface:[command[@"any"] boolValue]];

@@ -200,6 +200,8 @@ static BOOL SZFriendsTypeAllowed(SZFriendsFrameType type, SZFriendsHandshakePatt
         return;
     }
     [self pumpWrites];
+    void (^onWritten)(void) = self.onWritten;
+    if (onWritten && _state == SZFriendsChannelStateEstablished) onWritten();
 }
 
 #pragma mark - Session lifetime

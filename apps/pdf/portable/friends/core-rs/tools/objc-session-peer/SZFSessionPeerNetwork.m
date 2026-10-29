@@ -110,6 +110,17 @@ static nw_parameters_t SZFLoopbackParameters(void) {
     NSData *attestation = SZFBytes(command[@"attestation"]);
     SZFPeerSession *session = [[SZFPeerSession alloc] init];
     session.sessionID = [self nextSessionID];
+    if (command[@"lane_of"] != nil) {
+        // A lane of a fast session (ADR 0018 § 6): its token from that session's handshake hash, in IK message 1.
+        SZFPeerSession *head = self.sessions[@([command[@"lane_of"] unsignedLongLongValue])];
+        NSData *token = nil;
+        if (head.blocks == nil ||
+            [head.blocks reserveLane:session.sessionID route:options.route token:&token] == 0) {
+            return @{@"error" : @"no fast session to add a lane to, or past the lanes' limits"};
+        }
+        options.lane = token;
+        session.laneHead = head;
+    }
     NSString *port = [command[@"port"] stringValue];
     NSString *host = [command[@"host"] isKindOfClass:[NSString class]] ? command[@"host"] : nil;
     nw_endpoint_t endpoint = nw_endpoint_create_host(host ? host.UTF8String : "127.0.0.1", port.UTF8String);

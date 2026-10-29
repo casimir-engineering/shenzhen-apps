@@ -181,7 +181,8 @@ static SZFriendsBlockExchange *Exchange(SZFriendsTransfers *transfers, NSString 
                                                         send:^BOOL(SZFriendsFrame *frame) {
                                                             [outbox addObject:frame];
                                                             return YES;
-                                                        }];
+                                                        }
+                                                      queued:nil];
 }
 
 // Moves frames both ways until neither side has anything to say; flips the first byte of the `corrupt`th PART.
@@ -305,8 +306,131 @@ static void TestTwoExchangesWithACorruptPartAndACut(void) {
                @"a late PART for a file already received is dropped");
 }
 
+// One session between the two exchanges: what each side has sent the other on it, by lane id on each side.
+@interface SZFTRoute : NSObject
+@property(nonatomic) SZFriendsLaneID senderLane, receiverLane;
+@property(nonatomic, strong) NSMutableArray<SZFriendsFrame *> *toReceiver, *toSender;
+@property(nonatomic) BOOL gone;
+@end
+@implementation SZFTRoute
+@end
+
+static SZFTRoute *Route(SZFriendsLaneID senderLane, SZFriendsLaneID receiverLane) {
+    SZFTRoute *route = [[SZFTRoute alloc] init];
+    route.senderLane = senderLane;
+    route.receiverLane = receiverLane;
+    route.toReceiver = [NSMutableArray array];
+    route.toSender = [NSMutableArray array];
+    return route;
+}
+
+static BOOL (^Into(SZFTRoute *route, BOOL toReceiver))(SZFriendsFrame *) {
+    return ^BOOL(SZFriendsFrame *frame) {
+        if (route.gone) return NO;
+        [toReceiver ? route.toReceiver : route.toSender addObject:frame];
+        return YES;
+    };
+}
+
+// Moves frames on every route still there until nothing moves; stops once `parts` PARTs have arrived (0: never).
+static NSUInteger Move(SZFriendsBlockExchange *sender, SZFriendsBlockExchange *receiver, NSArray<SZFTRoute *> *routes,
+                       NSUInteger parts, BOOL *acknowledged) {
+    NSUInteger arrived = 0;
+    for (BOOL moved = YES; moved;) {
+        moved = NO;
+        for (SZFTRoute *route in routes) {
+            if (route.gone) continue;
+            while (route.toReceiver.count) {
+                SZFriendsFrame *frame = route.toReceiver.firstObject;
+                [route.toReceiver removeObjectAtIndex:0];
+                moved = YES;
+                SZFTExpect([receiver handleFrame:frame lane:route.receiverLane], @"the receiver takes %u", frame.type);
+                if (frame.type == SZFriendsFrameTypePart && ++arrived == parts) return arrived;
+            }
+            while (route.toSender.count) {
+                SZFriendsFrame *frame = route.toSender.firstObject;
+                [route.toSender removeObjectAtIndex:0];
+                moved = YES;
+                if (frame.type == SZFriendsFrameTypeAck) {
+                    *acknowledged = YES;
+                    continue;
+                }
+                SZFTExpect([sender handleFrame:frame lane:route.senderLane], @"the sender takes %u", frame.type);
+            }
+        }
+        [receiver flushDue];
+        [sender pump];
+    }
+    return arrived;
+}
+
+// ADR 0018 § 6: the first session's route goes away mid-file while a lane lives; the group goes on, control frames
+// move to the lane, and the file finishes on it without a new session.
+static void TestTheGroupOutlivesItsFirstSession(void) {
+    SZFriendsStore *senderStore = SZFTOpenStore(SZFTTemporaryDirectory(@"group-send"));
+    SZFriendsStore *receiverStore = SZFTOpenStore(SZFTTemporaryDirectory(@"group-receive"));
+    SZFTAddPerson(senderStore, @"mei", 1, SZFriendsRelationFriend, 1000);
+    SZFTAddPerson(receiverStore, @"ken", 3, SZFriendsRelationFriend, 1000);
+    SZFriendsTransfers *sending = Transfers(senderStore), *receiving = Transfers(receiverStore);
+    NSData *contents = SZFTRandomData(5 * MiB + 7);
+    NSString *source = [SZFTTemporaryDirectory(@"group-source") stringByAppendingPathComponent:@"Board.kicad_pcb"];
+    [contents writeToFile:source atomically:YES];
+    SZFriendsTransferRecord *record = [sending stageOutgoingFileAtPath:source revision:nil conversationID:@"mei"
+                                                                 error:NULL];
+    NSString *transferID = record.transferID;
+    NSMutableDictionary *fields = [@{@(SZFriendsFieldSize) : [SZFriendsFrame fieldWithUInt64:record.size
+                                                                                          tag:SZFriendsFieldSize]}
+        mutableCopy];
+    [SZFriendsBlockExchange addTreeOfTransfer:record toFields:fields transfers:sending];
+    [sending markOfferDelivered:transferID fromConversation:@"mei" error:NULL];
+
+    // The head (lane 0 on both sides) and a lane, id 7 at the sender and 9 at the receiver.
+    SZFTRoute *head = Route(SZFriendsHeadLane, SZFriendsHeadLane), *lane = Route(7, 9);
+    SZFriendsBlockExchange *sender =
+        [[SZFriendsBlockExchange alloc] initWithTransfers:sending conversationID:@"mei" route:SZFriendsRouteMethodLAN
+                                                     send:Into(head, YES) queued:nil];
+    SZFriendsBlockExchange *receiver =
+        [[SZFriendsBlockExchange alloc] initWithTransfers:receiving conversationID:@"ken" route:SZFriendsRouteMethodLAN
+                                                     send:Into(head, NO) queued:nil];
+    NSData *h = SZFTBytes(5, 64);
+    [sender formGroupWithHandshakeHash:h initiator:YES];
+    [receiver formGroupWithHandshakeHash:h initiator:NO];
+    NSData *token = nil;
+    SZFTExpect([sender reserveLane:7 route:SZFriendsRouteMethodPeerToPeerWiFi token:&token] == 1 && token.length == 16,
+               @"the dialer's first lane takes index 1");
+    SZFTExpect([receiver admitLane:9 token:token route:SZFriendsRouteMethodPeerToPeerWiFi] == SZFriendsLaneAdmitted,
+               @"its token admits it");
+    [sender laneUp:7 send:Into(lane, YES) queued:nil];
+    [receiver laneUp:9 send:Into(lane, NO) queued:nil];
+
+    [receiving recordIncomingOfferWithID:transferID conversationID:@"ken" fileName:@"Board.kicad_pcb" uniformType:nil
+                                    size:record.size contentDigest:record.contentDigest sentAt:[NSDate date]
+                                   error:NULL];
+    [receiver noteOffer:[SZFriendsFrame frameWithType:SZFriendsFrameTypeOffer fields:fields] transferID:transferID];
+    [receiving acceptTransfer:transferID automatically:NO error:NULL];
+    SZFTExpect([receiver resumeIncoming:[receiving transferWithID:transferID]], @"WANT for every block");
+    SZFTExpect([sender offerTakenByBlocks:transferID], @"the sender starts");
+    BOOL acknowledged = NO;
+    NSArray *routes = @[ head, lane ];
+    SZFTExpect(Move(sender, receiver, routes, 40, &acknowledged) == 40 && !acknowledged, @"under way");
+
+    // The head's route goes, with what was on it.
+    head.gone = YES;
+    SZFTExpect(![sender laneDown:SZFriendsHeadLane] && sender.controlLane == 7, @"the sender's group goes on, on 7");
+    SZFTExpect(![receiver laneDown:SZFriendsHeadLane] && receiver.controlLane == 9,
+               @"the receiver's group goes on, on 9");
+    // The blocks that were on the head's route go to the lane: the scheduler hears the head go down.
+    Move(sender, receiver, routes, 0, &acknowledged);
+    SZFriendsTransferRecord *received = [receiving transferWithID:transferID];
+    SZFTExpect(acknowledged && received.state == SZFriendsTransferStateReceived &&
+                   [[NSData dataWithContentsOfFile:received.receivedPath] isEqualToData:contents],
+               @"finished on the lane, intact and acknowledged");
+    SZFTExpect([sender laneDown:7], @"the last lane's end ends the group");
+}
+
 void SZFTRunTransferBlockTests(void) {
     TestReceiveByBlocksThroughARestart();
     TestTheSenderSideFromStaging();
     TestTwoExchangesWithACorruptPartAndACut();
+    TestTheGroupOutlivesItsFirstSession();
 }
