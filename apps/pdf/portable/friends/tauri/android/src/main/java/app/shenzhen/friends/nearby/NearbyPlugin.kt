@@ -94,6 +94,12 @@ class OpenArgs {
 }
 
 @InvokeArg
+class LinkArgs {
+    var network: String = ""
+    var passphrase: String = ""
+}
+
+@InvokeArg
 class StreamArgs {
     var stream: Long = 0
     var data: String = ""
@@ -111,6 +117,7 @@ private const val NO_DIALOG_MS = 700L
 open class NearbyPlugin(private val activity: Activity) : Plugin(activity) {
     private val nsd = NsdDiscovery(activity.applicationContext)
     private val radio = BleRadio(activity.applicationContext)
+    private val directWifi = DirectWifi(activity.applicationContext)
     private val handler = Handler(Looper.getMainLooper())
     /** A request is out, since when, and whether the app paused for it (a dialog, or the activity that would show one). */
     @Volatile private var asking = false
@@ -141,6 +148,60 @@ open class NearbyPlugin(private val activity: Activity) : Plugin(activity) {
     @Command
     fun nearbyCapabilities(invoke: Invoke) {
         invoke.resolve(JSObject().put("ownsConnections", false).put("bluetooth", radio.present))
+    }
+
+    // ----- the Wi-Fi Direct boost (ADR 0019, DirectWifi.kt) -----
+
+    @Command
+    fun directWifiAbilities(invoke: Invoke) {
+        val available = directWifi.available()
+        val keeps = available && directWifi.keepsWifi()
+        invoke.resolve(
+            JSObject().put("supported", directWifi.supported()).put("host", available).put("join", available)
+                .put("hostKeepsWifi", keeps).put("joinKeepsWifi", keeps).put("systemAsks", false)
+        )
+    }
+
+    @Command
+    fun directWifiConnectivity(invoke: Invoke) {
+        val (onWifi, mobile, wired) = directWifi.connectivity()
+        // The network's name needs location on Android: never read. "wifi" only says there is one to come back to.
+        invoke.resolve(
+            JSObject().put("onWifi", onWifi).put("mobile", mobile).put("wired", wired)
+                .put("network", if (onWifi) "wifi" else null)
+        )
+    }
+
+    @Command
+    fun directWifiHost(invoke: Invoke) {
+        val args = invoke.parseArgs(LinkArgs::class.java)
+        handler.post {
+            directWifi.host(args.network, args.passphrase) { address, why ->
+                if (address != null) invoke.resolve(JSObject().put("address", address)) else invoke.reject(why ?: "failed")
+            }
+        }
+    }
+
+    @Command
+    fun directWifiStopHosting(invoke: Invoke) {
+        handler.post { directWifi.leave { invoke.resolve() } }
+    }
+
+    @Command
+    fun directWifiJoin(invoke: Invoke) {
+        val args = invoke.parseArgs(LinkArgs::class.java)
+        handler.post { directWifi.join(args.network, args.passphrase) { invoke.resolve(JSObject().put("joined", it)) } }
+    }
+
+    /** Leaves a joined group: the phone's own Wi-Fi stayed (or the system rejoins its saved network by itself). */
+    @Command
+    fun directWifiRejoin(invoke: Invoke) {
+        handler.post { directWifi.leave { invoke.resolve(JSObject().put("ok", true)) } }
+    }
+
+    @Command
+    fun directWifiOnline(invoke: Invoke) {
+        invoke.resolve(JSObject().put("online", directWifi.online()))
     }
 
     @Command
@@ -244,7 +305,14 @@ open class NearbyPlugin(private val activity: Activity) : Plugin(activity) {
         askingNotifications = notifications
         askedAt = SystemClock.elapsedRealtime()
         dialogShown = false
-        val permissions = (if (bluetooth) needed() else emptyArray()) +
+        // Wi-Fi Direct's permission (ADR 0019) belongs to the same "Nearby devices" permission as Bluetooth's on
+        // Android 13 and later, so it rides along; granted() still asks only about Bluetooth.
+        val wifiDirect = if (bluetooth && Build.VERSION.SDK_INT >= 33) {
+            arrayOf(Manifest.permission.NEARBY_WIFI_DEVICES)
+        } else {
+            emptyArray()
+        }
+        val permissions = (if (bluetooth) needed() + wifiDirect else emptyArray()) +
             (if (notifications) arrayOf(Manifest.permission.POST_NOTIFICATIONS) else emptyArray())
         if (notifications) Notifications.markAsked(activity)
         try {

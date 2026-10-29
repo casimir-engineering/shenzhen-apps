@@ -55,6 +55,15 @@ struct OpenArgs: Decodable {
   let dial: UInt64
 }
 
+struct LinkArgs: Decodable {
+  let network: String
+  let passphrase: String
+}
+
+struct RejoinArgs: Decodable {
+  let joined: String
+}
+
 struct StreamArgs: Decodable {
   let stream: UInt64
   let data: String?
@@ -74,9 +83,52 @@ private func bytes(_ hex: String) -> Data {
 class NearbyPlugin: Plugin {
   private let network = NetworkDiscovery()
   private let radio = BluetoothRadio()
+  private let directWifi = DirectWifi()
 
   @objc public func nearbyCapabilities(_ invoke: Invoke) {
     invoke.resolve(["ownsConnections": true, "bluetooth": true])
+  }
+
+  // ----- the Wi-Fi Direct boost (ADR 0019, DirectWifi.swift): joins only, and iOS asks the person itself -----
+
+  /// Joining needs the Hotspot Configuration entitlement, which the app's profile must carry first: the app's
+  /// Info.plist says so with SZFriendsDirectWifiJoin, set together with the entitlement. Without it, no boost.
+  @objc public func directWifiAbilities(_ invoke: Invoke) {
+    let entitled = Bundle.main.object(forInfoDictionaryKey: "SZFriendsDirectWifiJoin") as? Bool == true
+    invoke.resolve([
+      "supported": entitled, "host": false, "join": entitled, "hostKeepsWifi": false, "joinKeepsWifi": false,
+      "systemAsks": true,
+    ])
+  }
+
+  @objc public func directWifiConnectivity(_ invoke: Invoke) {
+    let now = directWifi.connectivity()
+    // The name needs location: never read. "wifi" only says there is a network to come back to.
+    invoke.resolve([
+      "onWifi": now.onWifi, "mobile": now.mobile, "wired": now.wired, "network": now.onWifi ? "wifi" : NSNull(),
+    ])
+  }
+
+  @objc public func directWifiHost(_ invoke: Invoke) {
+    invoke.reject("an iPhone cannot host")
+  }
+
+  @objc public func directWifiStopHosting(_ invoke: Invoke) {
+    invoke.resolve()
+  }
+
+  @objc public func directWifiJoin(_ invoke: Invoke) throws {
+    let args = try invoke.parseArgs(LinkArgs.self)
+    directWifi.join(network: args.network, passphrase: args.passphrase) { invoke.resolve(["joined": $0]) }
+  }
+
+  @objc public func directWifiRejoin(_ invoke: Invoke) throws {
+    let args = try invoke.parseArgs(RejoinArgs.self)
+    directWifi.leave(joined: args.joined) { invoke.resolve(["ok": $0]) }
+  }
+
+  @objc public func directWifiOnline(_ invoke: Invoke) {
+    invoke.resolve(["online": directWifi.online()])
   }
 
   @objc public func nearbyRegister(_ invoke: Invoke) throws {

@@ -16,6 +16,9 @@ use std::sync::Arc;
 use base64::engine::general_purpose::STANDARD;
 use base64::Engine;
 use serde_json::{json, Value};
+use szfriends_core::presentation::facts::BoostDevice;
+use szfriends_core::transfer::boost::{Abilities, Connectivity, Link};
+use szfriends_helper::nearby::direct_wifi::{self, DirectWifi, Done};
 use szfriends_helper::nearby::platform::{self, PlatformDiscovery, Reports};
 use szfriends_helper::nearby::radio::{Permission, Power, Radio, RadioEvent, RadioReports};
 use szfriends_helper::nearby::stream::{LinkStream, PlatformStream};
@@ -283,6 +286,94 @@ impl<R: Runtime> Radio for MobileRadio<R> {
     }
 }
 
+/// The Wi-Fi Direct boost (ADR 0019): Android hosts and joins (`DirectWifi.kt`), iOS joins (`DirectWifi.swift`).
+/// Installed where the hardware (and on iOS the entitlement) allows it; abilities are read each time, since Android's
+/// permission may come later. Hosting, joining and leaving answer on a thread of their own, since the plugin resolves
+/// them only once the platform did it.
+struct PhoneDirectWifi<R: Runtime> {
+    native: Arc<Native<R>>,
+    system_asks: bool,
+}
+
+fn abilities_of(answer: &Value) -> Abilities {
+    let flag = |key: &str| answer[key].as_bool().unwrap_or(false);
+    Abilities {
+        host: flag("host"),
+        join: flag("join"),
+        host_keeps_wifi: flag("hostKeepsWifi"),
+        join_keeps_wifi: flag("joinKeepsWifi"),
+    }
+}
+
+impl<R: Runtime> PhoneDirectWifi<R> {
+    fn later(&self, command: &'static str, payload: Value, done: impl FnOnce(io::Result<Value>) + Send + 'static) {
+        let native = self.native.clone();
+        std::thread::spawn(move || done(native.call(command, payload)));
+    }
+}
+
+impl<R: Runtime> DirectWifi for PhoneDirectWifi<R> {
+    fn abilities(&self) -> Abilities {
+        abilities_of(&self.native.call("directWifiAbilities", json!({})).unwrap_or_default())
+    }
+
+    fn connectivity(&self) -> Connectivity {
+        let now = self.native.call("directWifiConnectivity", json!({})).unwrap_or_default();
+        let flag = |key: &str| now[key].as_bool().unwrap_or(false);
+        // Phones never read the network's name (it needs location): the question says "your Wi-Fi".
+        Connectivity { on_wifi: flag("onWifi"), wifi_name: None, wired: flag("wired"), mobile: flag("mobile") }
+    }
+
+    fn current_network(&self) -> Option<String> {
+        let now = self.native.call("directWifiConnectivity", json!({})).unwrap_or_default();
+        now["network"].as_str().map(str::to_owned)
+    }
+
+    fn device(&self) -> BoostDevice {
+        BoostDevice::Phone
+    }
+
+    fn system_asks_too(&self) -> bool {
+        self.system_asks
+    }
+
+    fn host(&self, link: &Link, done: Done<Result<std::net::IpAddr, String>>) {
+        let payload = json!({"network": link.network, "passphrase": link.passphrase});
+        self.later("directWifiHost", payload, move |answer| {
+            done(match answer {
+                Ok(value) => {
+                    value["address"].as_str().and_then(|a| a.parse().ok()).ok_or_else(|| "no address".to_owned())
+                }
+                Err(error) => Err(error.to_string()),
+            })
+        });
+    }
+
+    fn stop_hosting(&self) {
+        self.native.tell("directWifiStopHosting", json!({}));
+    }
+
+    fn join(&self, link: &Link, done: Done<bool>) {
+        let payload = json!({"network": link.network, "passphrase": link.passphrase});
+        self.later("directWifiJoin", payload, move |answer| {
+            done(answer.ok().and_then(|v| v["joined"].as_bool()).unwrap_or(false))
+        });
+    }
+
+    fn rejoin(&self, network: Option<&str>, joined: &str, done: Done<bool>) {
+        let payload = json!({"network": network, "joined": joined});
+        self.later("directWifiRejoin", payload, move |answer| {
+            done(answer.ok().and_then(|v| v["ok"].as_bool()).unwrap_or(false))
+        });
+    }
+
+    fn online(&self, done: Done<bool>) {
+        self.later("directWifiOnline", json!({}), move |answer| {
+            done(answer.ok().and_then(|v| v["online"].as_bool()).unwrap_or(false))
+        });
+    }
+}
+
 /// Installs the platform's discovery and radio for the core (once per process), through the plugin's one native
 /// half: Tauri keeps a single Kotlin or Swift plugin per Tauri plugin, so Nearby's commands live on the class that
 /// `phone::native` registers (FriendsPlugin extends NearbyPlugin), and a second registration would replace it.
@@ -292,6 +383,11 @@ pub fn install<R: Runtime>(handle: PluginHandle<R>) {
     let owns_connections = capabilities["ownsConnections"].as_bool().unwrap_or(false);
     let bluetooth = capabilities["bluetooth"].as_bool().unwrap_or(false);
     platform::install(Arc::new(Discovery { native: native.clone(), owns_connections }));
+    let boost = native.call("directWifiAbilities", json!({})).unwrap_or_default();
+    if boost["supported"].as_bool().unwrap_or(false) {
+        let system_asks = boost["systemAsks"].as_bool().unwrap_or(false);
+        direct_wifi::install(Arc::new(PhoneDirectWifi { native: native.clone(), system_asks }));
+    }
     if bluetooth {
         let factory = move || -> Box<dyn Radio> { Box::new(MobileRadio { native: native.clone() }) };
         platform::install_radio(Box::new(factory));

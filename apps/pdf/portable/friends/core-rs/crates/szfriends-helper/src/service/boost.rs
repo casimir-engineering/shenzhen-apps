@@ -79,7 +79,7 @@ impl BoostArea {
 
     /// Whether this helper sets capability bit 5: it can host or join.
     pub fn available(&self) -> bool {
-        self.platform.as_ref().is_some_and(|p| p.abilities().any())
+        self.platform.is_some()
     }
 }
 
@@ -324,6 +324,10 @@ impl State {
             let (Some(platform), Some(bytes)) = (self.boost.platform.clone(), transfer_bytes(&transfer)) else {
                 continue;
             };
+            // Android's permission may not be there (yet): nothing to propose.
+            if !platform.abilities().any() {
+                continue;
+            }
             log!(
                 "direct Wi-Fi: proposed for a file {:.0} s over Bluetooth, {:.0} s direct",
                 estimate.bluetooth_seconds,

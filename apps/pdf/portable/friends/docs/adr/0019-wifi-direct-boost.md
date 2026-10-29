@@ -149,12 +149,18 @@ more than happens.
 
 ### 7. Platforms
 
-- **Android** (the core in Shenzhen 3D, through the plugin's Kotlin): hosts (`createGroup`, persistent mode off, any
-  band) and joins Android hosts as a Wi-Fi Direct client. Abilities say whether each keeps its Wi-Fi from the
-  hardware's concurrency. Connectivity from `ConnectivityManager` (Wi-Fi, mobile data, validated).
-- **iPhone** (the core in Shenzhen 3D, through the plugin's Swift): joins with `NEHotspotConfiguration` (`joinOnce`)
-  and comes back with `removeConfiguration(forSSID:)`, after which iOS rejoins its own network. Needs the Hotspot
-  Configuration entitlement in the app's profile.
+- **Android 13 and later** (the core in Shenzhen 3D, through the plugin's Kotlin, `DirectWifi.kt`): hosts
+  (`createGroup`, persistent mode off, any band) and joins Android hosts as a Wi-Fi Direct client. Its permission,
+  `NEARBY_WIFI_DEVICES`, belongs to the same "Nearby devices" permission as Bluetooth's and is asked with it; a phone
+  that granted Bluetooth before this release gets no boost until it is asked again. Android 10 to 12 would need
+  precise location for Wi-Fi Direct, which Friends never asks for: no boost there. Whether the phone keeps its Wi-Fi:
+  station plus access point concurrency, or the phone kept its Wi-Fi validated the last time it hosted (learned);
+  otherwise its Wi-Fi counts as lost. The network's name is never read (it needs location): "your Wi-Fi".
+- **iPhone** (the core in Shenzhen 3D, through the plugin's Swift, `DirectWifi.swift`): joins with
+  `NEHotspotConfiguration` (`joinOnce`) and comes back with `removeConfiguration(forSSID:)`, after which iOS rejoins
+  its own network. Needs the Hotspot Configuration entitlement, which the app's provisioning profile must carry
+  first: until the owner adds the capability to the app's identifier and sets `SZFriendsDirectWifiJoin` in the app's
+  Info.plist with the entitlement, an iPhone reports no abilities and is never part of a boost.
 - **Mac** (the Objective-C helper): joins with CoreWLAN behind `SZFriendsWiFiJoining`, comes back by associating with
   the network it wrote down (the system's saved password), and checks with `nw_path_monitor`. Tests use a mock; no
   test ever touches the Mac's real Wi-Fi.
