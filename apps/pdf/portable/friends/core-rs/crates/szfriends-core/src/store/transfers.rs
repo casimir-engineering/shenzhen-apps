@@ -208,7 +208,7 @@ impl Store {
         let staged = directory.join(&transfer_id);
         // Before the copy, so a change during it shows later.
         let source_mtime_ns = super::transfer_files::modified_ns(source);
-        let (size, digest) = snapshot(source, &staged).map_err(|e| match e.kind() {
+        let (size, digest, tree) = snapshot(source, &staged).map_err(|e| match e.kind() {
             std::io::ErrorKind::NotFound => StoreError::FileMissing,
             _ => StoreError::from(e),
         })?;
@@ -246,6 +246,12 @@ impl Store {
             };
             insert_item(conn, &item).map(|_| ())
         });
+        if let (Ok(()), Some(hashed)) = (&result, tree) {
+            let geometry = crate::transfer::Geometry::for_size(size).expect("hashed by blocks");
+            let header = crate::transfer::sidecar::Header { geometry, root: hashed.root, digest };
+            let tree = crate::transfer::sidecar::SenderTree { header, leaves: hashed.leaves };
+            super::blocks::write_tree_cache(&self.sender_tree_path(&record.transfer_id), &tree);
+        }
         if result.is_err() {
             let _ = std::fs::remove_file(&staged);
         }

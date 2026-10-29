@@ -37,10 +37,76 @@ pub enum BlockPart {
     Late,
 }
 
+/// The file's BLAKE2b-256 content digest computed while its blocks arrive (ADR 0018 § 5), on a thread of its own, so
+/// the check before saving does not wait for one single-threaded pass over the whole file. Blocks go in in order:
+/// each as it completes when it is the next one, and any later blocks that completed earlier read back from the file.
+/// It covers the bytes as they arrived and were checked against their leaves; the tree read back before saving
+/// covers the disk, so the two together prove the file on disk has the offered digest.
+#[derive(Debug)]
+struct StreamedDigest {
+    sender: Option<std::sync::mpsc::Sender<Vec<u8>>>,
+    handle: Option<std::thread::JoinHandle<[u8; 32]>>,
+    next: u32,
+}
+
+impl StreamedDigest {
+    fn new() -> Self {
+        let (sender, receiver) = std::sync::mpsc::channel::<Vec<u8>>();
+        let handle = std::thread::Builder::new()
+            .name("szfriends-digest".into())
+            .spawn(move || {
+                use blake2::digest::{Update, VariableOutput};
+                let mut hasher = blake2::Blake2bVar::new(32).expect("32-byte output");
+                for block in receiver {
+                    hasher.update(&block);
+                }
+                let mut out = [0u8; 32];
+                hasher.finalize_variable(&mut out).expect("length matches");
+                out
+            })
+            .ok();
+        Self { sender: handle.as_ref().map(|_| sender), handle, next: 0 }
+    }
+
+    /// Feeds every block from `next` that is complete: `fresh` (just completed, still in memory) when it is the next,
+    /// the others read back from `file`.
+    fn advance(&mut self, file: &File, geometry: &Geometry, complete: &BlockSet, fresh: Option<(u32, &[u8])>) {
+        let Some(sender) = &self.sender else { return };
+        while complete.contains(self.next) {
+            let data = match fresh {
+                Some((block, data)) if block == self.next => data.to_vec(),
+                _ => {
+                    let (offset, length) = geometry.span(self.next);
+                    let mut buffer = vec![0u8; length];
+                    if read_exact_at(file, &mut buffer, offset).is_err() {
+                        self.sender = None; // the check before saving reads the file whole instead
+                        return;
+                    }
+                    buffer
+                }
+            };
+            if sender.send(data).is_err() {
+                self.sender = None;
+                return;
+            }
+            self.next += 1;
+        }
+    }
+
+    /// The digest once every block went in; `None` when streaming stopped (the caller hashes the file).
+    fn finish(mut self, blocks: u32) -> Option<[u8; 32]> {
+        let complete = self.next == blocks && self.sender.is_some();
+        self.sender = None;
+        let digest = self.handle.take()?.join().ok()?;
+        complete.then_some(digest)
+    }
+}
+
 /// One download by blocks: its assembly, staging file and map.
 #[derive(Debug)]
 pub(crate) struct BlockDownload {
     assembly: BlockAssembly,
+    streamed: StreamedDigest,
     digest: [u8; 32],
     file: File,
     partial: PathBuf,
@@ -69,6 +135,14 @@ fn write_sidecar(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
     file.set_len(0)?;
     file.write_all(bytes)?;
     file.sync_all()
+}
+
+/// The sender's tree is a cache, checked against its root and the row's digest whenever it is read: not flushed.
+pub(super) fn write_tree_cache(path: &Path, tree: &SenderTree) {
+    let _ = open_rw(path, true).and_then(|mut file| {
+        file.set_len(0)?;
+        file.write_all(&tree.encode())
+    });
 }
 
 fn ranges(blocks: &mut Vec<u32>) -> Vec<(u32, u32)> {
@@ -227,6 +301,7 @@ impl Store {
             transfer_id.to_owned(),
             BlockDownload {
                 assembly,
+                streamed: StreamedDigest::new(),
                 digest: record.digest,
                 file,
                 partial,
@@ -331,6 +406,13 @@ impl Store {
                     download.assembly.unwritten(block);
                     return Err(error.into());
                 }
+                let geometry = *download.assembly.geometry();
+                download.streamed.advance(
+                    &download.file,
+                    &geometry,
+                    download.assembly.complete(),
+                    Some((block, &data)),
+                );
                 download.unsynced.push(block);
                 download.unsynced_bytes += data.len() as u64;
                 download.first_unsynced.get_or_insert_with(Instant::now);
@@ -357,14 +439,14 @@ impl Store {
         }
         let Some(map) = download.map.as_ref() else { return Ok(()) };
         // Blocks ordered before the bitmap that claims them (F_BARRIERFSYNC's job; a plain fsync elsewhere).
-        download.file.sync_data()?;
+        super::disk::order_writes(&download.file)?;
         for &block in &download.unsynced {
             download.durable.insert(block);
         }
         let geometry = *download.assembly.geometry();
         let bitmap_offset = (HEADER_BYTES + 32 * geometry.blocks as usize) as u64;
         write_all_at(map, &download.durable.to_bitmap(), bitmap_offset)?;
-        map.sync_all()?;
+        super::disk::make_durable(map)?;
         download.unreported_durable.append(&mut download.unsynced);
         download.unsynced_bytes = 0;
         download.first_unsynced = None;
@@ -441,8 +523,13 @@ impl Store {
             }
             _ => false,
         };
-        let hashed = same_file.then(|| tree::hash_file(&download.file, &geometry, true).ok()).flatten();
-        let matches = hashed.is_some_and(|h| h.root == *download.assembly.root() && h.digest == Some(record.digest));
+        // The tree read back on every core; the digest streamed as the blocks arrived (or, after a restart, read here).
+        let mut streamed = download.streamed;
+        streamed.advance(&download.file, &geometry, download.assembly.complete(), None);
+        let streamed = streamed.finish(geometry.blocks);
+        let hashed = same_file.then(|| tree::hash_file(&download.file, &geometry, streamed.is_none()).ok()).flatten();
+        let digest = streamed.or_else(|| hashed.as_ref().and_then(|h| h.digest));
+        let matches = hashed.is_some_and(|h| h.root == *download.assembly.root()) && digest == Some(record.digest);
         drop(download.file);
         drop(download.map);
         let _ = fs::remove_file(self.block_map_path(transfer_id));
@@ -476,7 +563,7 @@ impl Store {
         let tree =
             SenderTree { header: Header { geometry, root: hashed.root, digest: record.digest }, leaves: hashed.leaves };
         // A cache: a write that fails only costs hashing again.
-        let _ = write_sidecar(&path, &tree.encode());
+        write_tree_cache(&path, &tree);
         Ok(tree)
     }
 

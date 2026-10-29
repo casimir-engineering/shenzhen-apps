@@ -151,7 +151,7 @@ pub fn write_all_at(file: &File, data: &[u8], offset: u64) -> io::Result<()> {
 pub fn hash_file(file: &File, geometry: &Geometry, digest: bool) -> io::Result<FileHash> {
     let block_bytes = geometry.block_bytes() as usize;
     let per_batch = (BATCH_BYTES / block_bytes).max(1);
-    let mut buffer = vec![0u8; per_batch * block_bytes.min(geometry.size.max(1) as usize)];
+    let mut buffer = vec![0u8; (per_batch * block_bytes).min(geometry.size as usize)];
     let mut hasher = digest.then(|| blake2::Blake2bVar::new(32).expect("32-byte output"));
     let mut leaves = Vec::with_capacity(geometry.blocks as usize);
     let mut index = 0u32;
@@ -171,6 +171,15 @@ pub fn hash_file(file: &File, geometry: &Geometry, digest: bool) -> io::Result<F
                 &data[start.min(length)..(start + block_bytes).min(length)]
             })
             .collect();
+        if count == 1 {
+            // One block (every small file): no thread is worth starting.
+            if let Some(h) = hasher.as_mut() {
+                h.update(data);
+            }
+            leaves.push(leaf(index, data));
+            index += 1;
+            continue;
+        }
         let batch = std::thread::scope(|scope| {
             let streamed = hasher.as_mut().map(|h| scope.spawn(move || h.update(data)));
             let batch = leaves_parallel(&blocks, index);

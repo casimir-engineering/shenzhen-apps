@@ -244,12 +244,22 @@ pub fn unique_destination(directory: &Path, name: &str) -> PathBuf {
 /// Clones `source` into `destination` as the immutable snapshot an offer is bound to (a copy where the volume cannot
 /// clone; `disk::clone_snapshot`), and returns its size and digest as read back from it. Not flushed: before any resume
 /// the snapshot is checked against this digest again, so one a crash damaged fails instead of being sent.
-pub(super) fn snapshot(source: &Path, destination: &Path) -> io::Result<(u64, [u8; 32])> {
+/// Also returns the snapshot's fast-transfer tree (ADR 0018 § 2), hashed on every core in the same read as the digest,
+/// so an offer on a fast session needs no second pass (`None` for a file too large for blocks).
+pub(super) fn snapshot(
+    source: &Path,
+    destination: &Path,
+) -> io::Result<(u64, [u8; 32], Option<crate::transfer::FileHash>)> {
     super::disk::clone_snapshot(source, destination)?;
     let mut file = File::open(destination)?;
     let size = file.metadata()?.len();
     super::disk::read_ahead(&file, size);
-    Ok((size, digest_prefix(&mut file, u64::MAX)?))
+    if let Some(geometry) = crate::transfer::Geometry::for_size(size) {
+        let hashed = crate::transfer::tree::hash_file(&file, &geometry, true)?;
+        let digest = hashed.digest.expect("asked for");
+        return Ok((size, digest, Some(hashed)));
+    }
+    Ok((size, digest_prefix(&mut file, u64::MAX)?, None))
 }
 
 /// A file's modification time in nanoseconds since 1970, or 0 when it cannot be read.
