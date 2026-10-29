@@ -164,6 +164,87 @@ static void TestTheSenderSideFromStaging(void) {
 }
 
 
+#pragma mark - Bytes already here (ADR 0018 § 9.5)
+
+static NSString *ReceiveByChunks(SZFriendsTransfers *transfers, NSString *transferID, NSString *conversation,
+                                 NSString *name, NSData *data) {
+    NSError *error = nil;
+    [transfers recordIncomingOfferWithID:transferID conversationID:conversation fileName:name uniformType:nil
+                                    size:data.length contentDigest:SZFTBlake2b(data) sentAt:[NSDate date] error:NULL];
+    [transfers acceptTransfer:transferID automatically:NO error:NULL];
+    for (NSUInteger at = (NSUInteger)[transfers transferWithID:transferID].verifiedBytes; at < data.length;
+         at += 61440) {
+        [transfers appendChunk:[data subdataWithRange:NSMakeRange(at, MIN(61440, data.length - at))] atOffset:at
+                    toTransfer:transferID fromConversation:conversation error:NULL];
+    }
+    SZFTExpect([transfers finishTransfer:transferID finalDigest:SZFTBlake2b(data) fromConversation:conversation
+                                   error:&error], @"received %@: %@", transferID, error);
+    return [transfers transferWithID:transferID].receivedPath;
+}
+
+static void TestAFileHeldIsFilledLocallyAndNoOtherFriends(void) {
+    SZFriendsStore *store = SZFTOpenStore(SZFTTemporaryDirectory(@"held"));
+    SZFTAddPerson(store, @"mei", 1, SZFriendsRelationFriend, 1000);
+    SZFTAddPerson(store, @"kenji", 2, SZFriendsRelationFriend, 1000);
+    SZFriendsTransfers *transfers = Transfers(store);
+    NSData *data = SZFTRandomData(300000);
+    ReceiveByChunks(transfers, @"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", @"mei", @"plan.pdf", data);
+    // Offered again by Mei: every byte is here at acceptance, so only DONE has to come.
+    NSString *again = @"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+    [transfers recordIncomingOfferWithID:again conversationID:@"mei" fileName:@"plan.pdf" uniformType:nil
+                                    size:data.length contentDigest:SZFTBlake2b(data) sentAt:[NSDate date] error:NULL];
+    [transfers acceptTransfer:again automatically:NO error:NULL];
+    SZFTExpect([transfers transferWithID:again].verifiedBytes == data.length, @"filled locally at acceptance");
+    NSError *error = nil;
+    SZFTExpect([transfers finishTransfer:again finalDigest:SZFTBlake2b(data) fromConversation:@"mei" error:&error] &&
+                   [[NSData dataWithContentsOfFile:[transfers transferWithID:again].receivedPath] isEqualToData:data],
+               @"DONE alone publishes it: %@", error);
+    // The same bytes from someone else come over the route: nothing of Mei's is used for them.
+    NSString *other = @"cccccccccccccccccccccccccccccccc";
+    [transfers recordIncomingOfferWithID:other conversationID:@"kenji" fileName:@"plan.pdf" uniformType:nil
+                                    size:data.length contentDigest:SZFTBlake2b(data) sentAt:[NSDate date] error:NULL];
+    [transfers acceptTransfer:other automatically:NO error:NULL];
+    SZFTExpect([transfers transferWithID:other].verifiedBytes == 0, @"never another friend's file");
+}
+
+static void TestANewVersionTakesTheUnchangedBlocks(void) {
+    SZFriendsStore *store = SZFTOpenStore(SZFTTemporaryDirectory(@"version"));
+    SZFTAddPerson(store, @"mei", 1, SZFriendsRelationFriend, 1000);
+    SZFriendsTransfers *transfers = Transfers(store);
+    NSData *old = SZFTRandomData(5 * MiB);
+    ReceiveByChunks(transfers, @"dddddddddddddddddddddddddddddddd", @"mei", @"Gearbox.step", old);
+    // The new version changes block 2 and grows by a block.
+    NSMutableData *changed = [old mutableCopy];
+    ((uint8_t *)changed.mutableBytes)[2 * MiB + 100] ^= 0xff;
+    [changed appendData:SZFTRandomData(MiB)];
+    SZFriendsBlockGeometry geometry;
+    SZFriendsGeometryForSize(changed.length, &geometry);
+    NSData *leaves = Leaves(changed, geometry);
+    [transfers recordIncomingOfferWithID:@"b1" conversationID:@"mei" fileName:@"Gearbox.step" uniformType:nil
+                                    size:changed.length contentDigest:SZFTBlake2b(changed) sentAt:[NSDate date]
+                                   error:NULL];
+    [transfers recordOfferedTree:@"b1" conversation:@"mei" geometry:geometry
+                            root:SZFriendsTreeRootOfLeaves(geometry, leaves)];
+    [transfers acceptTransfer:@"b1" automatically:NO error:NULL];
+    SZFTExpect([transfers beginBlocks:@"b1" conversation:@"mei" error:NULL] &&
+                   [transfers acceptBlockHashes:leaves index:0 forTransfer:@"b1" fromConversation:@"mei" error:NULL],
+               @"by blocks, leaves in");
+    SZFTExpect(MissingIs(transfers, @[ @2, @1, @5, @1 ]), @"only the changed block and the new one");
+    NSData *complete = nil, *durable = nil;
+    [transfers takeBlockHave:@"b1" complete:&complete durable:&durable];
+    const uint32_t *have = complete.bytes;
+    SZFTExpect(complete.length == 16 && have[0] == 0 && have[1] == 2 && have[2] == 3 && have[3] == 2,
+               @"HAVE: blocks 0-1 and 3-4 taken from the version before");
+    SendBlock(transfers, changed, geometry, 2, NO);
+    SendBlock(transfers, changed, geometry, 5, NO);
+    NSError *error = nil;
+    SZFTExpect([transfers blocksAllDurable:@"b1"] &&
+                   [transfers finishBlockTransfer:@"b1" fromConversation:@"mei" error:&error] &&
+                   [[NSData dataWithContentsOfFile:[transfers transferWithID:@"b1"].receivedPath]
+                       isEqualToData:changed],
+               @"the new version, whole: %@", error);
+}
+
 #pragma mark - Two exchanges, one session between them
 
 // Frames from one side wait here until the other side takes them.
@@ -433,4 +514,6 @@ void SZFTRunTransferBlockTests(void) {
     TestTheSenderSideFromStaging();
     TestTwoExchangesWithACorruptPartAndACut();
     TestTheGroupOutlivesItsFirstSession();
+    TestAFileHeldIsFilledLocallyAndNoOtherFriends();
+    TestANewVersionTakesTheUnchangedBlocks();
 }

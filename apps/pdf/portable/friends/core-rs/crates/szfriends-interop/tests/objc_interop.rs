@@ -100,6 +100,16 @@ fn the_same_file_again_objc_to_rust() {
     assert!(again.resumed_at.is_none());
 }
 
+/// The same file twice to the Objective-C peer: it holds it after the first, fills the second from that copy at
+/// acceptance and answers at its full size (ADR 0018 § 9.5), so only DONE follows and the file still checks.
+#[test]
+fn the_same_file_again_rust_to_objc() {
+    let Some(mut p) = pair("rust", "objc") else { return };
+    transfer(&mut p.rust, &mut p.objc, 8 * MIB, 16 * MIB, None);
+    let again = transfer(&mut p.rust, &mut p.objc, 8 * MIB, 16 * MIB, None);
+    assert!(again.resumed_at.is_none());
+}
+
 #[test]
 fn resume_after_a_cut_rust_to_objc() {
     let Some(mut p) = pair("alice", "bob") else { return };

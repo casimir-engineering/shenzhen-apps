@@ -143,6 +143,17 @@ static BOOL SZFriendsLeafMatches(uint32_t block, NSData *data, NSData *leaves) {
     [_complete remove:block];
 }
 
+- (BOOL)markComplete:(uint32_t)block {
+    SZFriendsPartialBlock *partial = _partial[@(block)];
+    if (partial != nil) {
+        _partialBytes -= partial.data.length;
+        [_partial removeObjectForKey:@(block)];
+    }
+    if ([_complete contains:block]) return NO;
+    [_complete insert:block];
+    return YES;
+}
+
 - (void)dropPartial {
     [_partial removeAllObjects];
     _partialBytes = 0;

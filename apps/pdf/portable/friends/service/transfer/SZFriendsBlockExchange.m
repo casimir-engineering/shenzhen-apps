@@ -258,6 +258,12 @@ static NSUInteger SZFriendsPartBytesFor(SZFriendsRouteMethod route) {
              forTransfer:(NSString *)transferID
                transfers:(SZFriendsTransfers *)transfers {
     if (![transfers hasOfferedTree:transferID]) return;
+    // Filled locally from the same file held here (§ 9.5): the CHUNK reply at its full size, and only DONE follows.
+    SZFriendsTransferRecord *record = [transfers transferWithID:transferID];
+    if (record != nil && !record.outgoing && record.verifiedBytes == record.size) {
+        [transfers dropBlocks:transferID];
+        return;
+    }
     uint8_t one = 1;
     fields[@(SZFriendsFieldBlocks)] = [NSData dataWithBytes:&one length:1];
 }

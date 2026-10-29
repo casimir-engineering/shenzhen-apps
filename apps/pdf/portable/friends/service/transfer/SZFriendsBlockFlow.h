@@ -42,6 +42,9 @@ typedef NS_ENUM(NSInteger, SZFriendsPartOutcome) {
                               data:(NSData *_Nullable *_Nonnull)blockData;
 // A complete block could not be written: wanted again.
 - (void)unwritten:(uint32_t)block;
+// A block taken from elsewhere (an earlier version of the file) whose bytes matched its leaf: complete. YES when it
+// was not complete before.
+- (BOOL)markComplete:(uint32_t)block;
 // Drops every partly received block: the session ended, and the next one sends them whole.
 - (void)dropPartial;
 @end

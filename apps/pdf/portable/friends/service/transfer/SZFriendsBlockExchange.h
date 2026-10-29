@@ -86,7 +86,8 @@ extern const SZFriendsLaneID SZFriendsHeadLane; // 0
                 transfers:(SZFriendsTransfers *)transfers;
 // Their OFFER (already recorded): keeps the tree it announced for when the person accepts.
 - (void)noteOffer:(SZFriendsFrame *)offer transferID:(NSString *)transferID;
-// Our OFFER_REPLY accepting: takes the file by blocks when its tree is known.
+// Our OFFER_REPLY accepting: takes the file by blocks when its tree is known, unless every byte is here already (the
+// same file held here, ADR 0018 § 9.5): then the reply's Offset is the whole file and only DONE follows.
 + (void)addBlocksToReply:(NSMutableDictionary<NSNumber *, NSData *> *)fields
              forTransfer:(NSString *)transferID
                transfers:(SZFriendsTransfers *)transfers;

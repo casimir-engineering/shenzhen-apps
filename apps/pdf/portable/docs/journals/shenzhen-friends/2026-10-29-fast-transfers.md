@@ -1005,7 +1005,15 @@ refused with neither, the paired builders and the piece shift: `friends-vectors-
 `frames.json` cases byte for byte. Until the sender schedules slices, a WANT's missing pieces are served as their whole
 blocks (the receiver drops what it already holds), and a HAVE's Pieces are accepted and not yet used.
 
+**Bytes already here, as 0305ad64 (§ 9.5).** Accepting a file this Mac already received from the same friend (still
+where it was saved, at its size, hashing to the offered digest) clones it into the staging file, durable, so the
+reply's Offset is the whole file and the sender, released ones included, sends only DONE; never another friend's
+file. A new version of a file the same friend sent before (the newest of that name received from them) takes every
+block whose leaf matches at the same position once the leaves arrive, reported in a HAVE, so only changed and new
+blocks cross. Store tests mirror WP1's (the held copy and none from another friend; a 6 MiB version with one block
+changed and one added: two blocks wanted), and `the_same_file_again_rust_to_objc` joins the interop suite.
+
 **Left for WP4:** the receiver's piece HAVEs and WANTs and the sender's 256 KiB slices, once WP3 lands them; Get again and
-own-device copies by blocks; "Finishing…" while a large file's check runs; small files staged and published in
-batches; skipping blocks the receiver already holds. Not tried on two real Macs: the direct Wi-Fi and Bluetooth lanes
+own-device copies by blocks; "Finishing…" while a large file's check runs; the helper's group outliving its first
+session. Not tried on two real Macs: the direct Wi-Fi and Bluetooth lanes
 are exercised through the bench's emulated routes and the helper's fake channels only.

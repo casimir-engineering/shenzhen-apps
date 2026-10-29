@@ -338,7 +338,10 @@ static uint64_t SZFriendsDurablePrefix(SZFriendsBlockGeometry geometry, SZFriend
             return SZFriendsFail(inner, SZFriendsBlockError(SZFriendsStoreErrorDatabase, @"cannot write the map"));
         }
         download->mapFD = SZFriendsOpenPrivate(mapPath, NO);
-        if (download.assembly.complete.full && download.durable.members == 0) {
+        if (download->mapFD >= 0 && [self reusePreviousVersion:download transfer:transferID db:db] > 0) {
+            [self flushBlocks:download transfer:transferID db:db error:NULL];
+        }
+        if (download.assembly.complete.full && download.durable.members == 0 && geometry.size == 0) {
             // An empty file: its one block is complete and nothing needs writing.
             [download.durable insert:0];
             [download.unreportedComplete addIndex:0];
@@ -346,6 +349,50 @@ static uint64_t SZFriendsDurablePrefix(SZFriendsBlockGeometry geometry, SZFriend
         }
         return download->mapFD >= 0;
     } error:error];
+}
+
+// The blocks a new version takes from the version the same friend sent before (ADR 0018 § 9.5): the newest file of
+// the same name received from them, still here; a block whose leaf matches at the same position is copied into the
+// staging file and counts as arrived, reported in the next HAVE, so the sender sends only changed and new blocks.
+- (NSUInteger)reusePreviousVersion:(SZFriendsBlockDownload *)download
+                          transfer:(NSString *)transferID
+                                db:(SZFriendsStoreDB *)db {
+    SZFriendsTransferRecord *record = SZFriendsTransferRowLoad(db, transferID);
+    if (record == nil) return 0;
+    NSString *previous = SZFriendsTransferRows(db,
+                                               @"WHERE conversation_id = ? AND outgoing = 0 AND state = ? AND "
+                                               @"file_name = ? AND transfer_id != ? ORDER BY updated_at DESC LIMIT 1",
+                                               @[ record.conversationID, @(SZFriendsTransferStateReceived),
+                                                  record.fileName, transferID ])
+                             .firstObject.receivedPath;
+    NSData *leaves = download.assembly.leaves;
+    if (previous == nil || leaves == nil) return 0;
+    int old = open(previous.fileSystemRepresentation, O_RDONLY | O_NOFOLLOW | O_CLOEXEC);
+    if (old < 0) return 0;
+    struct stat info;
+    uint64_t oldSize = fstat(old, &info) == 0 && S_ISREG(info.st_mode) ? (uint64_t)info.st_size : 0;
+    SZFriendsBlockGeometry geometry = download.assembly.geometry;
+    NSUInteger taken = 0;
+    for (uint32_t block = 0; block < geometry.blocks; block++) {
+        uint64_t offset = 0;
+        NSUInteger length = 0;
+        SZFriendsGeometrySpan(geometry, block, &offset, &length);
+        if ([download.assembly.complete contains:block] || length == 0 || offset + length > oldSize) continue;
+        NSData *bytes = SZFriendsReadAt(old, offset, length);
+        uint8_t leaf[32];
+        if (bytes == nil) continue;
+        SZFriendsTreeLeaf(block, bytes.bytes, bytes.length, leaf);
+        if (memcmp(leaf, (const uint8_t *)leaves.bytes + 32 * (NSUInteger)block, 32) != 0) continue;
+        if (!SZFriendsWriteAll(download->fd, bytes.bytes, bytes.length, offset)) continue;
+        if (![download.assembly markComplete:block]) continue;
+        [download.unsynced addIndex:block];
+        download.unsyncedBytes += length;
+        if (download.firstUnsynced == nil) download.firstUnsynced = [NSDate date];
+        [download.unreportedComplete addIndex:block];
+        taken++;
+    }
+    close(old);
+    return taken;
 }
 
 - (BOOL)flushBlocks:(SZFriendsBlockDownload *)download transfer:(NSString *)transferID db:(SZFriendsStoreDB *)db

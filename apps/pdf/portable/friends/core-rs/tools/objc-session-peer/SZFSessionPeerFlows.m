@@ -229,15 +229,18 @@ static void SZFUpdateLiveness(SZFPeerSession *session) {
                                                                           error:&error];
     if (record != nil) [session.blocks noteOffer:frame transferID:offer];
     BOOL accepted = record != nil && [self.transfers acceptTransfer:offer automatically:NO error:&error];
+    // From what is here already: nothing, or all of it when the same file was held here (ADR 0018 § 9.5).
+    uint64_t held = accepted ? [self.transfers transferWithID:offer].verifiedBytes : 0;
+    if (accepted && held == size) [self.transfers dropBlocks:offer];
     BOOL byBlocks = accepted && session.blocks != nil && [self.transfers hasOfferedTree:offer];
     SZFriendsChunkReceiver *receiver =
-        accepted && !byBlocks ? [[SZFriendsChunkReceiver alloc] initWithOfferID:wire size:size verifiedOffset:0
+        accepted && !byBlocks ? [[SZFriendsChunkReceiver alloc] initWithOfferID:wire size:size verifiedOffset:held
                                                                            route:session.channel.initiatorRoute]
                               : nil;
     [session.channel sendFrame:SZFIDFrame(SZFriendsFrameTypeAck, wire, nil)];
     NSMutableDictionary *reply = [@{@(SZFriendsFieldAccept) : [SZFriendsFrame fieldWithUInt64:accepted
                                                                                          tag:SZFriendsFieldAccept],
-                                    @(SZFriendsFieldOffset) : [SZFriendsFrame fieldWithUInt64:0
+                                    @(SZFriendsFieldOffset) : [SZFriendsFrame fieldWithUInt64:held
                                                                                          tag:SZFriendsFieldOffset]}
         mutableCopy];
     if (byBlocks) [SZFriendsBlockExchange addBlocksToReply:reply forTransfer:offer transfers:self.transfers];
