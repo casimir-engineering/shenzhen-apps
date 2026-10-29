@@ -103,6 +103,9 @@ typedef NS_OPTIONS(uint32_t, SZFriendsCapabilities) {
     SZFriendsCapabilityFastTransfers = 1u << 0, // blocks, the tree, WANT and HAVE (ADR 0018)
     SZFriendsCapabilityAESLanes = 1u << 1,      // reserved for AES-GCM lanes (ADR 0018 § 9.2): never sent yet
     SZFriendsCapabilityCompressedParts = 1u << 2, // compressed PARTs (ADR 0018 § 9.4): never sent yet
+    // Pieces (field 47) in WANT and HAVE (ADR 0018 § 3): sent only to a peer that sets it; to one that does not, a
+    // partly received block is wanted whole and the sender schedules whole blocks.
+    SZFriendsCapabilityPieces = 1u << 3,
 };
 // What a new channel sets: fast transfers, unless the helper switched them off (settings key transfers.fast, read as
 // it starts) or SZFRIENDS_TEST_FAST_TRANSFERS=0 plays a released helper in a test home.
@@ -457,6 +460,8 @@ typedef BOOL (^SZFriendsRemoteKeyPolicy)(NSData *_Nullable remoteIdentityKey, SZ
 // ADR 0018 § 1: minor 4 or more negotiated and both sides set SZFriendsCapabilityFastTransfers. Otherwise nothing of
 // fast transfers is sent (frames refused, OFFER fields stripped) and nothing of them is accepted.
 @property(nonatomic, readonly) BOOL fastTransfers;
+// Both sides set capability bit 3 on a fast session: Pieces go to this peer (ADR 0018 § 3).
+@property(nonatomic, readonly) BOOL pieces;
 // Responder: the Lane field of IK message 1, unchecked (the helper checks it against its live sessions); nil when none.
 @property(nonatomic, readonly, nullable) NSData *presentedLane;
 @end

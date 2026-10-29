@@ -220,6 +220,11 @@ const char SZFriendsPrologueLabel[18] = "SZFriends session"; // the array's 18th
     [self startCodeExchange:completion];
 }
 
+- (BOOL)pieces {
+    return self.fastTransfers && (self.localCapabilities & SZFriendsCapabilityPieces) &&
+           (self.remoteCapabilities & SZFriendsCapabilityPieces);
+}
+
 - (BOOL)fastTransfers {
     return self.negotiatedMinor >= SZFriendsFastTransfersMinor &&
            (self.localCapabilities & SZFriendsCapabilityFastTransfers) &&

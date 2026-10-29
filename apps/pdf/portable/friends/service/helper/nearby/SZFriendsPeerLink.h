@@ -106,6 +106,9 @@ NSData *_Nullable SZFriendsLinkBytesFromHex(NSString *_Nullable hex); // nil unl
 // transfer id prefixed "done:" for the ACK that follows DONE. The peer acknowledges in the order it processes
 // frames, so the oldest token for an ID is the one an ACK answers.
 - (void)expectAckForID:(NSString *)wireID token:(NSString *)token;
+// The ACKs of files sent by blocks this link awaits ("done:" tokens), handed to the lane that carries its group on
+// (ADR 0018 § 6): the friend acknowledges them there.
+- (void)moveFileAcksTo:(SZFriendsPeerLink *)other;
 - (nullable NSString *)takeAckForID:(NSString *)wireID;
 // Whether an ACK for this wire ID would acknowledge something this link sent (without taking it).
 - (BOOL)expectsAckForID:(NSString *)wireID;

@@ -10,6 +10,8 @@
 
 #import "service/transfer/SZFriendsBlockCopy.h"
 #import "service/transfer/SZFriendsBlockExchange.h"
+#import "service/transfer/SZFriendsBlockFlow.h"
+#import "service/transfer/SZFriendsSlices.h"
 #import "service/transfer/SZFriendsTransferBlocks.h"
 
 static const NSUInteger MiB = 1 << 20;
@@ -347,6 +349,101 @@ static void TestACopyByBlocksResumesFromItsMap(void) {
                @"the file whole, its map gone");
 }
 
+#pragma mark - Pieces and slices (ADR 0018 § 3, as ac8317b0's tests)
+
+static BOOL PairsAre(NSData *pairs, NSArray<NSNumber *> *expected) {
+    if (pairs.length / 4 != expected.count) return NO;
+    const uint32_t *got = pairs.bytes;
+    for (NSUInteger i = 0; i < expected.count; i++) {
+        if (got[i] != expected[i].unsignedIntValue) return NO;
+    }
+    return YES;
+}
+
+static void TestPiecesThatArrivedAndPiecesStillMissing(void) {
+    NSData *bytes = SZFTRandomData(3 * MiB);
+    SZFriendsBlockGeometry geometry;
+    SZFriendsGeometryForSize(bytes.length, &geometry);
+    NSData *leaves = Leaves(bytes, geometry);
+    SZFriendsBlockAssembly *assembly =
+        [[SZFriendsBlockAssembly alloc] initWithGeometry:geometry root:SZFriendsTreeRootOfLeaves(geometry, leaves)];
+    BOOL done = NO;
+    [assembly acceptHashes:leaves index:0 done:&done];
+    NSUInteger piece = 16384, at = MiB;
+    uint32_t block = 0;
+    NSData *data = nil;
+    // Block 1: pieces 64 and 65 whole, 66 half; a part across pieces 69 and 70 completes neither.
+    SZFTExpect([assembly acceptPart:[bytes subdataWithRange:NSMakeRange(at, 2 * piece + 100)] offset:at block:&block
+                               data:&data] == SZFriendsPartPending, @"pending");
+    NSUInteger odd = at + 5 * piece + 10;
+    [assembly acceptPart:[bytes subdataWithRange:NSMakeRange(odd, piece)] offset:odd block:&block data:&data];
+    SZFTExpect(PairsAre([assembly takeArrivedPieces], @[ @64, @2 ]), @"pieces 64 and 65 arrived");
+    SZFTExpect([assembly takeArrivedPieces].length == 0, @"reported once");
+    NSUInteger rest = at + 2 * piece + 100;
+    [assembly acceptPart:[bytes subdataWithRange:NSMakeRange(rest, at + 3 * piece - rest)] offset:rest block:&block
+                    data:&data];
+    SZFTExpect(PairsAre([assembly takeArrivedPieces], @[ @66, @1 ]), @"the rest of piece 66");
+    SZFTExpect(PairsAre([assembly missingBlocksBesidesPartial], @[ @0, @1, @2, @1 ]), @"blocks 0 and 2 whole");
+    SZFTExpect(PairsAre([assembly missingPieces], @[ @67, @61 ]), @"in block 1, everything but pieces 64 to 66");
+    for (NSUInteger offset = at + 3 * piece; offset < 2 * MiB;) {
+        NSUInteger end = MIN(offset + 60000, 2 * MiB);
+        [assembly acceptPart:[bytes subdataWithRange:NSMakeRange(offset, end - offset)] offset:offset block:&block
+                        data:&data];
+        offset = end;
+    }
+    SZFTExpect([assembly.complete contains:1] && [assembly takeArrivedPieces].length == 0 &&
+                   [assembly missingPieces].length == 0,
+               @"block 1 complete: no pieces left to report or want");
+}
+
+static NSArray<NSArray<NSNumber *> *> *Offsets(NSArray<SZFriendsFrame *> *frames) {
+    NSMutableArray *out = [NSMutableArray array];
+    for (SZFriendsFrame *frame in frames) {
+        uint64_t offset = 0;
+        [frame getUInt64:&offset forTag:SZFriendsFieldOffset];
+        [out addObject:@[ @(offset), @([frame dataForTag:SZFriendsFieldData].length) ]];
+    }
+    return out;
+}
+
+static void TestSlicesAndPiecesMapOntoBlocks(void) {
+    SZFriendsBlockGeometry blocks;
+    SZFriendsGeometryForSize(3 * MiB + 7, &blocks);
+    SZFriendsSliceSend *send = [[SZFriendsSliceSend alloc] initWithGeometry:blocks pieces:YES];
+    uint32_t a[] = {1, 2}, b[] = {3, 1}, c[] = {15, 2, 64, 1};
+    SZFTExpect(send.units.blocks == 13, @"13 slices");
+    SZFTExpect(PairsAre([send unitsOfBlocks:[NSData dataWithBytes:a length:8]], @[ @4, @8 ]), @"blocks 1-2");
+    SZFTExpect(PairsAre([send unitsOfBlocks:[NSData dataWithBytes:b length:8]], @[ @12, @1 ]), @"the short last block");
+    SZFTExpect(PairsAre([send unitsOfPieces:[NSData dataWithBytes:c length:16]], @[ @0, @2, @4, @1 ]), @"pieces");
+    SZFTExpect([send blockOfUnit:7] == 1, @"slice 7 is in block 1");
+    SZFriendsSliceSend *whole = [[SZFriendsSliceSend alloc] initWithGeometry:blocks pieces:NO];
+    SZFTExpect(whole.units.blocks == 4 && PairsAre([whole unitsOfBlocks:[NSData dataWithBytes:a length:8]], @[ @1, @2 ]),
+               @"a peer without pieces: whole blocks");
+}
+
+static void TestAcknowledgedPiecesAreNotSentAgain(void) {
+    SZFriendsBlockGeometry blocks;
+    SZFriendsGeometryForSize(2 * MiB, &blocks);
+    SZFriendsSliceSend *send = [[SZFriendsSliceSend alloc] initWithGeometry:blocks pieces:YES];
+    NSData *id_ = SZFTBytes(1, 16);
+    [send keepBlock:0 data:SZFTBytes(9, MiB)];
+    SZFTExpect([send partsOfUnit:1 transferID:id_ partBytes:61440].count == 5, @"256 KiB in 60 KiB parts");
+    uint32_t some[] = {16, 4, 31, 1}, rest[] = {20, 11}, again[] = {30, 2}, block0[] = {0, 1};
+    SZFTExpect([send havePieces:[NSData dataWithBytes:some length:16]].length == 0, @"slice 1 not whole yet");
+    NSArray *left = Offsets([send partsOfUnit:1 transferID:id_ partBytes:16384]);
+    SZFTExpect(left.count == 11 && [left[0] isEqual:(@[ @(20 * 16384), @16384 ])], @"the rest of slice 1: %@", left);
+    SZFTExpect(PairsAre([send havePieces:[NSData dataWithBytes:rest length:8]], @[ @1, @1 ]), @"slice 1 acknowledged");
+    SZFTExpect([send partsOfUnit:1 transferID:id_ partBytes:16384].count == 0, @"nothing left of it");
+    [send wantBlocks:[NSData data] pieces:[NSData dataWithBytes:again length:8]];
+    SZFTExpect([Offsets([send partsOfUnit:1 transferID:id_ partBytes:61440]) isEqual:(@[ @[ @(30 * 16384), @32768 ] ])],
+               @"wanted again: pieces 30 and 31 go again");
+    [send wantBlocks:[NSData dataWithBytes:block0 length:8] pieces:[NSData data]];
+    NSArray *all = Offsets([send partsOfUnit:1 transferID:id_ partBytes:MiB]);
+    NSUInteger total = 0;
+    for (NSArray *part in all) total += [part[1] unsignedIntegerValue];
+    SZFTExpect([all[0][0] unsignedLongLongValue] == (1u << 18) && total == (1u << 18), @"parts at most 60 KiB");
+}
+
 #pragma mark - Two exchanges, one session between them
 
 // Frames from one side wait here until the other side takes them.
@@ -357,15 +454,21 @@ static void TestACopyByBlocksResumesFromItsMap(void) {
 @implementation SZFTPipe
 @end
 
+// Both ends set capability bit 3 (pieces in WANT and HAVE, slices) while this is YES.
+static BOOL gPieces = NO;
+
 static SZFriendsBlockExchange *Exchange(SZFriendsTransfers *transfers, NSString *conversation,
                                         NSMutableArray<SZFriendsFrame *> *outbox) {
-    return [[SZFriendsBlockExchange alloc] initWithTransfers:transfers conversationID:conversation
-                                                       route:SZFriendsRouteMethodLAN
-                                                        send:^BOOL(SZFriendsFrame *frame) {
-                                                            [outbox addObject:frame];
-                                                            return YES;
-                                                        }
-                                                      queued:nil];
+    SZFriendsBlockExchange *exchange =
+        [[SZFriendsBlockExchange alloc] initWithTransfers:transfers conversationID:conversation
+                                                    route:SZFriendsRouteMethodLAN
+                                                     send:^BOOL(SZFriendsFrame *frame) {
+                                                         [outbox addObject:frame];
+                                                         return YES;
+                                                     }
+                                                   queued:nil];
+    exchange.pieces = gPieces;
+    return exchange;
 }
 
 // Moves frames both ways until neither side has anything to say; flips the first byte of the `corrupt`th PART.
@@ -615,10 +718,16 @@ void SZFTRunTransferBlockTests(void) {
     TestReceiveByBlocksThroughARestart();
     TestTheSenderSideFromStaging();
     TestTwoExchangesWithACorruptPartAndACut();
+    gPieces = YES; // the same with pieces and slices: the cut costs only what was in flight
+    TestTwoExchangesWithACorruptPartAndACut();
+    gPieces = NO;
     TestTheGroupOutlivesItsFirstSession();
     TestAFileHeldIsFilledLocallyAndNoOtherFriends();
     TestANewVersionTakesTheUnchangedBlocks();
     TestTheCheckInThreeSteps();
     TestCopiesSurviveARestart();
     TestACopyByBlocksResumesFromItsMap();
+    TestPiecesThatArrivedAndPiecesStillMissing();
+    TestSlicesAndPiecesMapOntoBlocks();
+    TestAcknowledgedPiecesAreNotSentAgain();
 }

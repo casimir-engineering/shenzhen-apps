@@ -55,6 +55,9 @@ extern const SZFriendsLaneID SZFriendsHeadLane; // 0
 @property(nonatomic, copy, nullable) void (^onCloseLane)(SZFriendsLaneID lane);
 // Monotonic seconds (tests replace it).
 @property(nonatomic, copy) double (^clock)(void);
+// Both sides set capability bit 3 (SZFriendsSecureChannel.pieces, ADR 0018 § 3): WANT and HAVE carry Pieces, and
+// our files go out in 256 KiB slices whose acknowledged pieces are never sent again. Set before the first transfer.
+@property(nonatomic) BOOL pieces;
 // Whether a direct Wi-Fi lane leaves this device on its Wi-Fi network (AWDL on Macs): YES by default here.
 @property(nonatomic) BOOL directWiFiKeepsInternet;
 // The queue the exchange is driven on. When set, the check before a received file is saved runs on a queue of its

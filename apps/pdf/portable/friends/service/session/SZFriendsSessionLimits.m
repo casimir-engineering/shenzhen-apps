@@ -54,7 +54,7 @@ void SZFriendsSetFastTransfersEnabled(BOOL enabled) {
 SZFriendsCapabilities SZFriendsDefaultCapabilities(void) {
     const char *test = getenv("SZFRIENDS_TEST_FAST_TRANSFERS");
     if (SZFriendsFastTransfersOff || (test != NULL && strcmp(test, "0") == 0)) return 0;
-    return SZFriendsCapabilityFastTransfers;
+    return SZFriendsCapabilityFastTransfers | SZFriendsCapabilityPieces;
 }
 
 NSData *SZFriendsLaneToken(NSData *handshakeHash, uint8_t index) {

@@ -445,6 +445,7 @@ static void SZFUpdateLiveness(SZFPeerSession *session) {
                    queued:^NSUInteger {
                        return weakSession.channel.queuedBulkFrames;
                    }];
+    blocks.pieces = session.channel.pieces;
     __weak SZFriendsBlockExchange *weakBlocks = blocks;
     session.channel.onWritten = ^{
         [weakBlocks written:SZFriendsHeadLane];

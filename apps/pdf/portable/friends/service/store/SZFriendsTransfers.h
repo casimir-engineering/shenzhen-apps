@@ -365,6 +365,11 @@ typedef NS_ENUM(NSInteger, SZFriendsBlockPartResult) {
 - (BOOL)isReceivingBlocks:(NSString *)transferID;
 // Blocks still missing, for WANT (SZFriendsTransferBlocks.h's packed ranges).
 - (NSData *)blocksMissing:(NSString *)transferID;
+// With a peer that has pieces (ADR 0018 § 3): the blocks to WANT besides those partly received, and in `*pieces` the
+// pieces still missing from those.
+- (NSData *)blocksMissing:(NSString *)transferID pieces:(NSData *_Nullable *_Nonnull)pieces;
+// Pieces arrived since the last call in blocks not yet complete (HAVE's Pieces).
+- (NSData *)takePieceHave:(NSString *)transferID;
 // Leaves from a HASHES frame; once all are here and check, the map gains them.
 - (BOOL)acceptBlockHashes:(NSData *)hashes
                     index:(uint32_t)index
@@ -386,8 +391,8 @@ typedef NS_ENUM(NSInteger, SZFriendsBlockPartResult) {
 - (BOOL)blocksAllDurable:(NSString *)transferID;
 // The session receiving a download's parts now (any object standing for it): a later session takes it over.
 - (void)claimBlocks:(NSString *)transferID forSession:(id)session;
-// Drops what was partly received of these transfers' blocks, for those `session` still holds: it ended, and the next
-// session sends those blocks whole. One that a newer session took over meanwhile keeps its parts.
+// A session ended with these downloads open. Partly received blocks are kept (ADR 0018 § 3): the next session wants
+// only their missing pieces, or the blocks whole from a peer without pieces.
 - (void)blocksSessionEnded:(NSArray<NSString *> *)transferIDs session:(id)session;
 // Every block durable: the file read back through the descriptor that wrote it, tree and BLAKE2b digest in one pass,
 // and published only when both match the offer; otherwise deleted and failed (DigestMismatch). The three steps below

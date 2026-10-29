@@ -18,6 +18,14 @@ static BOOL SZFriendsLeafMatches(uint32_t block, NSData *data, NSData *leaves) {
 @end
 
 @implementation SZFriendsPartialBlock
+// Whether `range` lies inside one received interval.
+- (BOOL)has:(NSRange)range {
+    for (NSValue *value in _covered) {
+        NSRange covered = value.rangeValue;
+        if (covered.location <= range.location && NSMaxRange(range) <= NSMaxRange(covered)) return YES;
+    }
+    return NO;
+}
 - (NSUInteger)filled {
     NSUInteger total = 0;
     for (NSValue *range in _covered) total += range.rangeValue.length;
@@ -49,6 +57,19 @@ static BOOL SZFriendsLeafMatches(uint32_t block, NSData *data, NSData *leaves) {
     BOOL _leavesChecked;
     NSMutableDictionary<NSNumber *, SZFriendsPartialBlock *> *_partial;
     uint64_t _partialBytes;
+    NSMutableIndexSet *_arrived; // pieces arrived whole in blocks not yet complete, not yet in a HAVE
+}
+
+static const NSUInteger SZFriendsPieceBytes = 1u << 14;
+
+NSData *SZFriendsIndexesAsRanges(NSIndexSet *indexes) {
+    NSMutableData *pairs = [NSMutableData data];
+    [indexes enumerateRangesUsingBlock:^(NSRange range, BOOL *stop) {
+        (void)stop;
+        uint32_t pair[2] = {(uint32_t)range.location, (uint32_t)range.length};
+        [pairs appendBytes:pair length:sizeof pair];
+    }];
+    return pairs;
 }
 
 - (instancetype)initWithGeometry:(SZFriendsBlockGeometry)geometry root:(NSData *)root {
@@ -58,6 +79,7 @@ static BOOL SZFriendsLeafMatches(uint32_t block, NSData *data, NSData *leaves) {
         _gathered = [NSMutableData data];
         _complete = [[SZFriendsBlockSet alloc] initWithCount:geometry.blocks];
         _partial = [NSMutableDictionary dictionary];
+        _arrived = [NSMutableIndexSet indexSet];
     }
     return self;
 }
@@ -127,8 +149,21 @@ static BOOL SZFriendsLeafMatches(uint32_t block, NSData *data, NSData *leaves) {
         _partialBytes += blockLength;
     }
     NSRange range = NSMakeRange((NSUInteger)(offset - blockOffset), data.length);
+    // The pieces this part may complete, those not whole before it (§ 3: reported in HAVE's Pieces).
+    NSMutableIndexSet *fresh = [NSMutableIndexSet indexSet];
+    for (NSUInteger p = range.location / SZFriendsPieceBytes * SZFriendsPieceBytes; p < NSMaxRange(range);
+         p += SZFriendsPieceBytes) {
+        if (![partial has:NSMakeRange(p, MIN(SZFriendsPieceBytes, blockLength - p))]) [fresh addIndex:p];
+    }
     [partial.data replaceBytesInRange:range withBytes:data.bytes];
     [partial cover:range];
+    NSUInteger firstPiece = (NSUInteger)(blockOffset / SZFriendsPieceBytes);
+    [fresh enumerateIndexesUsingBlock:^(NSUInteger p, BOOL *stop) {
+        (void)stop;
+        if ([partial has:NSMakeRange(p, MIN(SZFriendsPieceBytes, blockLength - p))]) {
+            [self->_arrived addIndex:firstPiece + p / SZFriendsPieceBytes];
+        }
+    }];
     if (partial.filled < blockLength) return SZFriendsPartPending;
     [_partial removeObjectForKey:@(block)];
     _partialBytes -= blockLength;
@@ -157,6 +192,42 @@ static BOOL SZFriendsLeafMatches(uint32_t block, NSData *data, NSData *leaves) {
 - (void)dropPartial {
     [_partial removeAllObjects];
     _partialBytes = 0;
+    [_arrived removeAllIndexes];
+}
+
+- (NSData *)missingBlocksBesidesPartial {
+    SZFriendsBlockSet *wanted = [_complete copy];
+    for (NSNumber *block in _partial) [wanted insert:block.unsignedIntValue];
+    return wanted.missingRanges;
+}
+
+- (NSData *)missingPieces {
+    NSMutableIndexSet *pieces = [NSMutableIndexSet indexSet];
+    for (NSNumber *key in _partial) {
+        uint32_t block = key.unsignedIntValue;
+        SZFriendsPartialBlock *partial = _partial[key];
+        uint64_t offset = 0;
+        NSUInteger length = 0;
+        SZFriendsGeometrySpan(_geometry, block, &offset, &length);
+        NSUInteger first = (NSUInteger)(offset / SZFriendsPieceBytes);
+        for (NSUInteger start = 0; start < length; start += SZFriendsPieceBytes) {
+            if (![partial has:NSMakeRange(start, MIN(SZFriendsPieceBytes, length - start))]) {
+                [pieces addIndex:first + start / SZFriendsPieceBytes];
+            }
+        }
+    }
+    return SZFriendsIndexesAsRanges(pieces);
+}
+
+- (NSData *)takeArrivedPieces {
+    uint8_t shift = _geometry.shift - 14;
+    NSMutableIndexSet *pieces = [NSMutableIndexSet indexSet];
+    [_arrived enumerateIndexesUsingBlock:^(NSUInteger p, BOOL *stop) {
+        (void)stop;
+        if (![self->_complete contains:(uint32_t)(p >> shift)]) [pieces addIndex:p];
+    }];
+    [_arrived removeAllIndexes];
+    return SZFriendsIndexesAsRanges(pieces);
 }
 
 @end
@@ -259,6 +330,14 @@ static BOOL SZFriendsLeafMatches(uint32_t block, NSData *data, NSData *leaves) {
     if (_inFlight.count > 0 && [self inFlightBytes] + length > _windowBytes) return NO;
     *block = first;
     return YES;
+}
+
+- (BOOL)checkBlock:(uint32_t)block data:(NSData *)data {
+    uint64_t offset = 0;
+    NSUInteger length = 0;
+    if (block >= _geometry.blocks) return NO;
+    SZFriendsGeometrySpan(_geometry, block, &offset, &length);
+    return data.length == length && SZFriendsLeafMatches(block, data, _leaves);
 }
 
 - (BOOL)loadBlock:(uint32_t)block data:(NSData *)data {

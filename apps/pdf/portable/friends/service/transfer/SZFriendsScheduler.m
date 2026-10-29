@@ -460,13 +460,14 @@ static BOOL SZFRangesFit(NSData *ranges, uint32_t blocks) {
 
 - (uint64_t)unassignedBytes {
     uint64_t total = 0;
+    // Every unit is whole but the file's last: counted, not walked (slices make thousands of them).
     for (SZFTransfer *transfer in _transfers) {
-        __block uint64_t sum = 0;
-        [transfer->unassigned enumerateIndexesUsingBlock:^(NSUInteger block, BOOL *stop) {
-            (void)stop;
-            sum += [transfer bytes:(uint32_t)block];
-        }];
-        total += sum;
+        NSUInteger count = transfer->unassigned.count;
+        if (count == 0) continue;
+        uint64_t unit = 1ull << transfer->geometry.shift;
+        uint32_t last = transfer->geometry.blocks - 1;
+        total += count * unit;
+        if ([transfer->unassigned containsIndex:last]) total -= unit - [transfer bytes:last];
     }
     return total;
 }
@@ -548,13 +549,12 @@ static BOOL SZFRangesFit(NSData *ranges, uint32_t blocks) {
 // transfer within § 3's limits.
 - (nullable SZFTransfer *)nextBlock:(uint32_t *)blockOut {
     for (SZFTransfer *transfer in _transfers) {
-        __block NSUInteger found = NSNotFound;
-        [transfer->unassigned enumerateIndexesUsingBlock:^(NSUInteger block, BOOL *stop) {
-            if (transfer->open[@(block)] != nil) {
-                found = block;
-                *stop = YES;
-            }
-        }];
+        // The lowest open block with no live placement: through the open ones (64 at most), not every unassigned.
+        NSUInteger found = NSNotFound;
+        for (NSNumber *open in transfer->open) {
+            NSUInteger block = open.unsignedIntegerValue;
+            if (block < found && [transfer->unassigned containsIndex:block]) found = block;
+        }
         if (found != NSNotFound) {
             *blockOut = (uint32_t)found;
             return transfer;

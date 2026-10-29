@@ -38,6 +38,7 @@ static uint64_t SZFriendsNextLaneSerial = 0;
         [weakBlocks written:SZFriendsHeadLane];
     };
     blocks.queue = self.queue;
+    blocks.pieces = link.channel.pieces;
     [self wireBlocks:blocks toLink:link];
     link.blocks = blocks;
     return blocks;
@@ -123,6 +124,7 @@ static uint64_t SZFriendsNextLaneSerial = 0;
     [head.lanes removeAllObjects];
     heir.blocks = blocks;
     head.blocks = nil;
+    [head moveFileAcksTo:heir]; // the files' ACKs come on the heir now
     [self wireBlocks:blocks toLink:heir];
     [self scheduleBlockTickOnLink:heir];
     SZFriendsHelperLog(@"the first session of a group ended: a lane on route %ld carries it on",

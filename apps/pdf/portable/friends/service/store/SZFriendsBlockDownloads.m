@@ -328,6 +328,29 @@ static uint64_t SZFriendsDurablePrefix(SZFriendsBlockGeometry geometry, SZFriend
     return missing;
 }
 
+- (NSData *)blocksMissing:(NSString *)transferID pieces:(NSData **)pieces {
+    __block NSData *missing = [NSData data], *wantedPieces = [NSData data];
+    [self.store performOnWriter:^(SZFriendsStoreDB *_Nullable db) {
+        (void)db;
+        SZFriendsBlockDownload *download = self.receiver.blockDownloads[transferID];
+        if (download == nil) return;
+        missing = download.assembly.missingBlocksBesidesPartial;
+        wantedPieces = download.assembly.missingPieces;
+    }];
+    *pieces = wantedPieces;
+    return missing;
+}
+
+- (NSData *)takePieceHave:(NSString *)transferID {
+    __block NSData *pieces = [NSData data];
+    [self.store performOnWriter:^(SZFriendsStoreDB *_Nullable db) {
+        (void)db;
+        SZFriendsBlockDownload *download = self.receiver.blockDownloads[transferID];
+        pieces = [download.assembly takeArrivedPieces] ?: [NSData data];
+    }];
+    return pieces;
+}
+
 - (BOOL)acceptBlockHashes:(NSData *)hashes
                     index:(uint32_t)index
               forTransfer:(NSString *)transferID
@@ -567,14 +590,12 @@ static uint64_t SZFriendsDurablePrefix(SZFriendsBlockGeometry geometry, SZFriend
     }];
 }
 
+// Since pieces (ADR 0018 § 3), partly received blocks are kept when a group ends: the next session's WANT names only
+// their missing pieces (or, to a peer without pieces, the blocks whole). Only a restart loses them (they live in
+// memory).
 - (void)blocksSessionEnded:(NSArray<NSString *> *)transferIDs session:(id)session {
-    [self.store performOnWriter:^(SZFriendsStoreDB *_Nullable db) {
-        (void)db;
-        for (NSString *transferID in transferIDs) {
-            SZFriendsBlockDownload *download = self.receiver.blockDownloads[transferID];
-            if (download.owner == nil || download.owner == session) [download.assembly dropPartial];
-        }
-    }];
+    (void)transferIDs;
+    (void)session;
 }
 
 // ADR 0018 § 5: every block durable, the file is read back through the descriptor that wrote it, its tree and BLAKE2b

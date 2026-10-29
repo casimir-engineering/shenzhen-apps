@@ -1052,8 +1052,44 @@ In the interop suites against the Rust helper, a probe (since removed) saw the M
 Get again from a Rust friend, and files from a Rust computer of the same profile. The e2e suites (two Mac helpers)
 pass with both sides by blocks.
 
-**Left for WP4:** WP3's ac8317b0 (pieces with capability bit 3, 256 KiB slices, the helper's lane takeover on a cut or a
-silence); WP6's work as its journal section lands. Not tried on two real Macs: the direct Wi-Fi and Bluetooth lanes
+**Pieces and slices in the Mac helper (as ac8317b0).** The Mac sets capability bit 3, so pieces go between it and any
+helper that sets it too.
+- As receiver: the assembly reports the 16 KiB pieces that arrived whole in blocks not yet complete, in a HAVE on the
+  lane that carried them, at least every 256 KiB of parts and after every part on Bluetooth. Partly received blocks
+  stay when a session ends. The next WANT names the missing blocks and, inside partly received blocks, the missing
+  pieces. To a peer without the bit, those blocks are wanted whole.
+- As sender (`SZFriendsSliceSend`, a port of `slices.rs`): the scheduler works in 256 KiB slices. Each block is read and
+  checked against its leaf once, then kept (16 at most) for its other slices. A piece acknowledged in a HAVE is never
+  sent again.
+- WP3's unit cases are ported to the store suite. The two-exchange cut test also runs with pieces on.
+
+**The helper's takeover carries the files' ACKs.** When a lane takes over from the first session, the ACKs of files
+sent by blocks that the first session awaited move to the lane, as in Rust. Before this, the friend's ACK arriving on
+the lane was dropped and the file stayed "Sending".
+
+Four times as many scheduling units exposed two linear scans in the scheduler port. Picking the next unit walked
+every unassigned one looking for an open one, and the unassigned bytes were summed one unit at a time. Together they
+took the Mac sender to 16 CPU-s/GB and 60 MB/s. Both now cost what Rust's do, and WP2's table is unchanged, row for row.
+
+`make friends-transfer-bench`, multi-route, pieces on between all three pairs (one run; then 8 more of the two cut
+cases):
+
+| Case | Obj-C → Obj-C | Obj-C → Rust | Rust → Obj-C |
+|---|---|---|---|
+| LAN + direct Wi-Fi, 1 GiB | 105.2 MB/s | 118.3 MB/s | 107.6 MB/s |
+| … direct Wi-Fi cut half-way | 73.7 MB/s; 108–110 MB/s in 8 repeats | 107.6 MB/s | failed once (below); 101–110 MB/s in 12 repeats |
+| … the LAN silenced half-way | 20.7 s | 19.5 s | 21.4 s |
+| 10 Mbit/s LAN + Bluetooth, 16 MiB | 93 % | 95 % | 93 % |
+| … Bluetooth cut / silenced half-way | 89 / 90 % | 92 / 92 % | 89 / 89 % |
+| LAN + direct Wi-Fi + Bluetooth, 1 GiB | 124.0 MB/s | 136.2 MB/s | 121.5 MB/s |
+| … the LAN cut half-way | 19.6 s | 18.8 s | 20.4 s |
+
+Open: one Rust → Objective-C run of the direct-Wi-Fi cut case stalled ("not received within 156 s"). The cut came late
+in that run, 7.1 s into a 10 s transfer. The next 12 runs of that case, and 8 more of the three-route cut, passed.
+The bench keeps no peer output, so the cause is not known yet. The suspect is the receiver's limit of 64 partly
+received blocks: with slices, blocks stay partial longer, and a PART refused at that limit ends the session.
+
+**Left for WP4:** that stall; WP6's work as its journal section lands. Not tried on two real Macs: the direct Wi-Fi and Bluetooth lanes
 are exercised through the bench's emulated routes and the helper's fake channels only.
 
 ## WP1, part 2: copies, small files, the check before saving, Finishing and the switch (2026-10-29)

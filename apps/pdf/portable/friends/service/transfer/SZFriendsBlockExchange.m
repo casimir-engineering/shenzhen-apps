@@ -6,6 +6,7 @@
 
 #import "service/transfer/SZFriendsBlockFlow.h"
 #import "service/transfer/SZFriendsScheduler.h"
+#import "service/transfer/SZFriendsSlices.h"
 
 const SZFriendsLaneID SZFriendsHeadLane = 0;
 
@@ -56,7 +57,8 @@ static NSUInteger SZFriendsPartBytesFor(SZFriendsRouteMethod route) {
 
 // One of our files going by blocks on this group.
 @interface SZFriendsBlockSend : NSObject
-@property(nonatomic, strong) SZFriendsBlockServe *serve; // the leaves, the leaf check and the cutting into parts
+@property(nonatomic, strong) SZFriendsBlockServe *serve; // the leaves, the leaf check and what was acknowledged
+@property(nonatomic, strong) SZFriendsSliceSend *slices; // the scheduler's units, acknowledged pieces, checked blocks
 @property(nonatomic, strong) SZFriendsTransferRecord *record;
 @property(nonatomic) SZFriendsTransferKey key;
 @property(nonatomic) BOOL resumed; // began on an earlier session
@@ -79,6 +81,20 @@ static NSUInteger SZFriendsPartBytesFor(SZFriendsRouteMethod route) {
     NSMutableSet<NSString *> *_lateAnswered; // "lane:transfer:block"
     SZFriendsLaneID _control;                // the lane control frames go on: the head, or once it closed, -group.first
     NSMutableDictionary<NSString *, NSNumber *> *_finishing; // transfer id -> when its check began (clock)
+    NSMutableDictionary<NSString *, NSNumber *> *_pieceBytes; // transfer id -> part bytes since its last piece HAVE
+}
+
+// Pieces are reported at least every 256 KiB of parts, after every part on Bluetooth (ADR 0018 § 3).
+static const NSUInteger SZFriendsPieceHaveBytes = 256 << 10;
+
+// Packed pairs merged into sorted, disjoint pairs.
+static NSData *SZFriendsMergedRanges(NSArray<NSData *> *lists) {
+    NSMutableIndexSet *set = [NSMutableIndexSet indexSet];
+    for (NSData *list in lists) {
+        const uint32_t *pairs = list.bytes;
+        for (NSUInteger i = 0; i < list.length / 8; i++) [set addIndexesInRange:NSMakeRange(pairs[2 * i], pairs[2 * i + 1])];
+    }
+    return SZFriendsIndexesAsRanges(set);
 }
 
 // A check shorter than this shows nothing: the row goes from the last block straight to saved.
@@ -101,6 +117,7 @@ static const double SZFriendsFinishingAfter = 1.0;
         _receivers = [NSMutableSet set];
         _lateAnswered = [NSMutableSet set];
         _finishing = [NSMutableDictionary dictionary];
+        _pieceBytes = [NSMutableDictionary dictionary];
         _directWiFiKeepsInternet = YES;
         _clock = ^double {
             return (double)clock_gettime_nsec_np(CLOCK_MONOTONIC) / 1e9;
@@ -287,10 +304,13 @@ static const double SZFriendsFinishingAfter = 1.0;
     [_receivers addObject:transferID];
     [_transfers claimBlocks:transferID forSession:self];
     NSData *wire = SZFriendsBlockBytes(transferID);
-    NSData *missing = [_transfers blocksMissing:transferID];
-    for (SZFriendsFrame *frame in SZFriendsWantFrames(wire, missing)) [self sendOnHead:frame];
+    // With pieces, partly received blocks are wanted by their missing pieces; to a peer without, whole (§ 3).
+    NSData *pieces = [NSData data];
+    NSData *missing = self.pieces ? [_transfers blocksMissing:transferID pieces:&pieces]
+                                  : [_transfers blocksMissing:transferID];
+    for (SZFriendsFrame *frame in SZFriendsWantFramesWithPieces(wire, missing, pieces)) [self sendOnHead:frame];
     // Every block arrived before the last session ended: the check and the ACK are all that is left.
-    if (missing.length == 0) [self progressed:transferID lane:_control];
+    if (missing.length == 0 && pieces.length == 0) [self progressed:transferID lane:_control];
     return YES;
 }
 
@@ -389,7 +409,7 @@ static const double SZFriendsFinishingAfter = 1.0;
     switch ([_transfers acceptBlockPart:data atOffset:offset forTransfer:transferID fromConversation:_conversationID
                                   block:&block error:&error]) {
     case SZFriendsBlockPartRefused: return NO;
-    case SZFriendsBlockPartPending: return YES;
+    case SZFriendsBlockPartPending: [self piecesArrived:transferID lane:lane bytes:data.length]; return YES;
     case SZFriendsBlockPartLate: {
         // The first late part of a block on each lane is answered with a HAVE naming it, on that lane (§ 3): when the
         // lane that completed it went silent with its HAVE, the copy sent again elsewhere would otherwise wait forever.
@@ -417,6 +437,24 @@ static const double SZFriendsFinishingAfter = 1.0;
         return YES;
     }
     return NO;
+}
+
+// Pieces that arrived in blocks not yet complete, reported on the lane that carried them at least every 256 KiB of
+// parts, after every part on Bluetooth (§ 3), so a lost lane or route costs only what was in flight.
+- (void)piecesArrived:(NSString *)transferID lane:(SZFriendsLaneID)lane bytes:(NSUInteger)bytes {
+    if (!self.pieces) return;
+    BOOL bluetooth = _links[@(lane)].route == SZFriendsRouteMethodBluetooth;
+    NSUInteger count = _pieceBytes[transferID].unsignedIntegerValue + bytes;
+    if (!bluetooth && count < SZFriendsPieceHaveBytes) {
+        _pieceBytes[transferID] = @(count);
+        return;
+    }
+    _pieceBytes[transferID] = @0;
+    NSData *pieces = [_transfers takePieceHave:transferID];
+    for (SZFriendsFrame *have in SZFriendsHaveFramesWithPieces(SZFriendsBlockBytes(transferID), [NSData data],
+                                                               [NSData data], pieces)) {
+        [self sendOn:lane frame:have];
+    }
 }
 
 #pragma mark - Sending
@@ -448,11 +486,14 @@ static const double SZFriendsFinishingAfter = 1.0;
                                                           leaves:leaves
                                                        partBytes:SZFriendsPartBytesMax
                                                      windowBytes:SZFriendsBytesInFlightMax];
+    // The scheduler works in slices with a peer that has pieces, in whole blocks otherwise (§ 3, § 7).
+    send.slices = [[SZFriendsSliceSend alloc] initWithGeometry:geometry pieces:self.pieces];
     send.key = ++_nextKey;
     for (SZFriendsFrame *frame in send.serve.hashesFrames) [self sendOnHead:frame];
     _senders[transferID] = send;
-    [self.scheduler addTransfer:send.key geometry:geometry];
-    if (first) [_scheduler want:send.key ranges:SZFriendsRange(0, geometry.blocks) now:self.clock()];
+    SZFriendsBlockGeometry units = send.slices.units;
+    [self.scheduler addTransfer:send.key geometry:units];
+    if (first) [_scheduler want:send.key ranges:SZFriendsRange(0, units.blocks) now:self.clock()];
     if (self.onSending) self.onSending(transferID);
     [self runActions];
     [self changed];
@@ -478,18 +519,26 @@ static const double SZFriendsFinishingAfter = 1.0;
     }
     SZFriendsBlockSend *send = [self startSending:transferID];
     if (send == nil) return YES; // the transfer failed here (snapshot gone); it says so itself
-    // Missing pieces (ADR 0018 § 3) are served as their whole blocks for now: the receiver drops what it holds.
-    if (pieces.length > 0) ranges = SZFriendsBlocksWithPieces(send.serve.geometry, ranges, pieces);
-    if (ranges.length == 0 || ![send.serve want:ranges]) return NO;
+    SZFriendsBlockGeometry geometry = send.serve.geometry;
+    if (ranges.length > 0 && ![send.serve want:ranges]) return NO;
+    // Pieces past the file are refused, as blocks past it are.
+    uint64_t pieceCount = MAX((geometry.size + (1u << 14) - 1) >> 14, 1);
+    const uint32_t *piecePairs = pieces.bytes;
+    for (NSUInteger i = 0; i < pieces.length / 8; i++) {
+        if ((uint64_t)piecePairs[2 * i] + piecePairs[2 * i + 1] > pieceCount) return NO;
+    }
     send.lanesOK = YES;
+    [send.slices wantBlocks:ranges pieces:pieces];
     if (self.onWanted) {
-        uint64_t offset = 0;
-        NSUInteger length = 0;
-        SZFriendsGeometrySpan(send.serve.geometry, ((const uint32_t *)ranges.bytes)[0], &offset, &length);
+        // The first byte wanted, whether a block's or a piece's.
+        uint64_t offset = UINT64_MAX;
+        if (ranges.length) offset = (uint64_t)((const uint32_t *)ranges.bytes)[0] << geometry.shift;
+        if (pieces.length) offset = MIN(offset, (uint64_t)piecePairs[0] << 14);
         self.onWanted(transferID, offset, send.resumed);
     }
-    // Copies of a block wanted again are cancelled by the scheduler (it failed its check, or a restart lost it).
-    if (![_scheduler want:send.key ranges:ranges now:self.clock()]) return NO;
+    // Copies of a slice wanted again are cancelled by the scheduler (it failed its check, or a restart lost it).
+    NSData *units = SZFriendsMergedRanges(@[ [send.slices unitsOfBlocks:ranges], [send.slices unitsOfPieces:pieces] ]);
+    if (![_scheduler want:send.key ranges:units now:self.clock()]) return NO;
     [self runActions];
     [self pump];
     return YES;
@@ -497,7 +546,8 @@ static const double SZFriendsFinishingAfter = 1.0;
 
 - (BOOL)have:(SZFriendsFrame *)frame transfer:(NSString *)transferID {
     NSData *complete = SZFriendsFrameRanges(frame, SZFriendsFieldRanges);
-    if (complete == nil || SZFriendsFrameRanges(frame, SZFriendsFieldDurable) == nil) return NO;
+    NSData *pieces = SZFriendsFrameRanges(frame, SZFriendsFieldPieces);
+    if (complete == nil || pieces == nil || SZFriendsFrameRanges(frame, SZFriendsFieldDurable) == nil) return NO;
     SZFriendsBlockSend *send = _senders[transferID];
     if (send == nil) {
         // ADR 0018 § 3: a HAVE for one of our transfers that ended here meanwhile is late; for anything else it is
@@ -505,9 +555,11 @@ static const double SZFriendsFinishingAfter = 1.0;
         SZFriendsTransferRecord *record = [_transfers transferWithID:transferID];
         return record != nil && record.outgoing && [record.conversationID isEqualToString:_conversationID];
     }
-    if (![send.serve have:complete]) return NO;
+    if (complete.length > 0 && ![send.serve have:complete]) return NO;
     send.lanesOK = YES;
-    [_scheduler have:send.key ranges:complete now:self.clock()];
+    [send.slices haveBlocks:complete];
+    NSData *done = SZFriendsMergedRanges(@[ [send.slices unitsOfBlocks:complete], [send.slices havePieces:pieces] ]);
+    [_scheduler have:send.key ranges:done now:self.clock()];
     [self runActions];
     [self changed];
     [self pump];
@@ -534,15 +586,23 @@ static const double SZFriendsFinishingAfter = 1.0;
 
 // The scheduler gave `block` of transfer `key` to `lane`: read it, check it against its leaf, cut it into the lane's
 // parts. A block that fails its leaf means the snapshot changed: the transfer fails, as a missing source does.
-- (void)assignBlock:(uint32_t)block transfer:(SZFriendsTransferKey)key lane:(SZFriendsLaneID)lane {
+// The scheduler gave `unit` (a slice, or a whole block) of transfer `key` to `lane`: its block read and checked
+// against its leaf once and kept for its other slices, its pieces not yet acknowledged cut into the lane's parts.
+- (void)assignBlock:(uint32_t)unit transfer:(SZFriendsTransferKey)key lane:(SZFriendsLaneID)lane {
     SZFriendsBlockSend *send = nil;
     NSString *transferID = nil;
     for (NSString *candidate in _senders) {
         if (_senders[candidate].key == key) send = _senders[candidate], transferID = candidate;
     }
     if (send == nil) return;
-    NSData *data = [_transfers readOutgoingBlock:block ofTransfer:send.record geometry:send.serve.geometry];
-    if (data == nil || ![send.serve loadBlock:block data:data]) {
+    uint32_t block = [send.slices blockOfUnit:unit];
+    NSData *data = [send.slices cachedBlock:block];
+    if (data == nil) {
+        data = [_transfers readOutgoingBlock:block ofTransfer:send.record geometry:send.serve.geometry];
+        if (data != nil && [send.serve checkBlock:block data:data]) [send.slices keepBlock:block data:data];
+        else data = nil;
+    }
+    if (data == nil) {
         [_senders removeObjectForKey:transferID];
         [_scheduler removeTransfer:key];
         [_scheduler takeActions];
@@ -550,19 +610,20 @@ static const double SZFriendsFinishingAfter = 1.0;
         [self changed];
         return;
     }
-    [send.serve setPartBytes:SZFriendsPartBytesFor(_links[@(lane)].route)];
     NSMutableArray<SZFriendsQueuedPart *> *queue = send.lanes[@(lane)];
     if (queue == nil) send.lanes[@(lane)] = queue = [NSMutableArray array];
-    SZFriendsFrame *frame = nil;
-    while ((frame = [send.serve nextPart]) != nil) {
+    NSArray<SZFriendsFrame *> *parts = [send.slices partsOfUnit:unit transferID:SZFriendsBlockBytes(transferID)
+                                                      partBytes:SZFriendsPartBytesFor(_links[@(lane)].route)];
+    for (SZFriendsFrame *frame in parts) {
         SZFriendsQueuedPart *part = [[SZFriendsQueuedPart alloc] init];
-        part.block = block;
+        part.block = unit;
         part.frame = frame;
         [queue addObject:part];
     }
-    if (data.length == 0) {
-        // An empty file's one block has no part: it is complete at the receiver as soon as the leaves check.
-        [_scheduler sent:lane transfer:key block:block now:self.clock()];
+    if (parts.count == 0) {
+        // Every piece of it acknowledged already, or an empty file's one block (complete at the receiver as soon as
+        // the leaves check): nothing to send.
+        [_scheduler sent:lane transfer:key block:unit now:self.clock()];
         return;
     }
     queue.lastObject.last = YES;

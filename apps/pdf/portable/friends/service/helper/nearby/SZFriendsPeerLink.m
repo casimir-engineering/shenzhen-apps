@@ -71,6 +71,18 @@ NSData *SZFriendsLinkBytesFromHex(NSString *hex) {
     [queue addObject:token];
 }
 
+- (void)moveFileAcksTo:(SZFriendsPeerLink *)other {
+    for (NSString *wireID in _acks.allKeys) {
+        NSMutableArray<NSString *> *queue = _acks[wireID];
+        for (NSString *token in queue.copy) {
+            if (![token hasPrefix:@"done:"]) continue;
+            [other expectAckForID:wireID token:token];
+            [queue removeObject:token];
+        }
+        if (queue.count == 0) [_acks removeObjectForKey:wireID];
+    }
+}
+
 - (nullable NSString *)takeAckForID:(NSString *)wireID {
     NSMutableArray<NSString *> *queue = _acks[wireID];
     if (queue.count == 0) return nil;

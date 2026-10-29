@@ -47,7 +47,16 @@ typedef NS_ENUM(NSInteger, SZFriendsPartOutcome) {
 - (BOOL)markComplete:(uint32_t)block;
 // Drops every partly received block: the session ended, and the next one sends them whole.
 - (void)dropPartial;
+// Pieces (ADR 0018 § 3), as packed (first, count) pairs over 16 KiB pieces of the file. The blocks to WANT besides
+// those partly received (whose missing pieces are wanted instead); the pieces missing from partly received blocks;
+// and the pieces that arrived whole since the last call in blocks not yet complete (HAVE's Pieces).
+- (NSData *)missingBlocksBesidesPartial;
+- (NSData *)missingPieces;
+- (NSData *)takeArrivedPieces;
 @end
+
+// Sorted indexes as packed (first, count) pairs.
+NSData *SZFriendsIndexesAsRanges(NSIndexSet *indexes);
 
 // The sender's side.
 @interface SZFriendsBlockServe : NSObject
@@ -72,6 +81,8 @@ typedef NS_ENUM(NSInteger, SZFriendsPartOutcome) {
 - (BOOL)nextBlock:(uint32_t *)block;
 // That block as read from the snapshot: NO when it does not match its leaf (the snapshot changed).
 - (BOOL)loadBlock:(uint32_t)block data:(NSData *)data;
+// Whether `data` is that block as the leaves say (the snapshot unchanged), without taking it to send.
+- (BOOL)checkBlock:(uint32_t)block data:(NSData *)data;
 // The part size from now on (each lane its route's).
 - (void)setPartBytes:(NSUInteger)partBytes;
 // The data length of the next PART (0 when there is none), without taking it.
