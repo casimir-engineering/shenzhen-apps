@@ -15,6 +15,30 @@ use super::geometry::Geometry;
 use super::sidecar::{BlockMap, Header};
 use super::tree::{self, read_exact_at, write_all_at, Leaf};
 
+/// A copy's staging file and the map beside it go together: the source said the file is gone, or it did not check.
+pub fn remove_copy(partial: &Path) {
+    let _ = std::fs::remove_file(partial);
+    let _ = std::fs::remove_file(map_of(partial));
+}
+
+/// `<partial>.map`, where a copy keeps what arrived.
+pub fn map_of(partial: &Path) -> PathBuf {
+    let mut name = partial.as_os_str().to_owned();
+    name.push(".map");
+    PathBuf::from(name)
+}
+
+/// Copies kept across restarts are given up after this long without a byte arriving.
+pub const COPY_KEEP_SECONDS: u64 = 30 * 24 * 3600;
+
+/// Whether a file in `received/.partial/` belongs to a copy that is not an offer (`again-<id>`, `sync-<id>`, and
+/// their maps): the recovery sweep keeps these until [`COPY_KEEP_SECONDS`] passed without a change.
+pub fn is_copy_file(name: &str) -> bool {
+    let stem = name.strip_suffix(".map").unwrap_or(name);
+    let id = stem.strip_prefix("again-").or_else(|| stem.strip_prefix("sync-"));
+    id.is_some_and(|id| !id.is_empty() && id.len() <= 64 && id.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_'))
+}
+
 /// Blocks made durable together.
 const BATCH_BYTES: u64 = 8 << 20;
 

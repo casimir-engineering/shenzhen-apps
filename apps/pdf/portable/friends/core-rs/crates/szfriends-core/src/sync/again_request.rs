@@ -13,7 +13,7 @@ use super::engine::SyncEngine;
 use super::exchange::matches_digest;
 use crate::presentation::AgainState;
 use crate::store::Store;
-use crate::transfer::block_copy::{BlockCopy, CopyPart};
+use crate::transfer::block_copy::{remove_copy, BlockCopy, CopyPart};
 
 const PARTS_PER_WANT: u16 = 8;
 /// HAVE after this many bytes of blocks at most, so the serving side's window keeps moving.
@@ -162,7 +162,7 @@ impl AgainRequester {
                     self.not_now.insert(copy.file.transfer_id);
                 } else {
                     drop(copy.handle);
-                    let _ = std::fs::remove_file(&copy.path);
+                    remove_copy(&copy.path);
                     let _ = set_again_state(store, id, AgainState::Gone);
                 }
                 self.start_next(engine, store);
@@ -268,7 +268,7 @@ impl AgainRequester {
         if bad || copy.handle.write_all(bytes).is_err() {
             let copy = self.copy.take().expect("present");
             drop(copy.handle);
-            let _ = std::fs::remove_file(&copy.path);
+            remove_copy(&copy.path);
             if bad {
                 // Not the file it was offered as: start over on the next session.
                 self.not_now.insert(copy.file.transfer_id);
@@ -292,7 +292,7 @@ impl AgainRequester {
                 self.not_now.insert(copy.file.transfer_id.clone());
             }
         } else {
-            let _ = std::fs::remove_file(&copy.path);
+            remove_copy(&copy.path);
             let _ = set_again_state(store, id, AgainState::Gone);
         }
         self.start_next(engine, store);

@@ -364,13 +364,25 @@ impl Store {
         referenced.extend(self.live_sidecars()?);
         for directory in [partial_directory.to_path_buf(), self.state_dir().join("outgoing")] {
             for entry in fs::read_dir(&directory).into_iter().flatten().flatten() {
-                if !referenced.contains(&entry.path()) {
-                    let _ = fs::remove_file(entry.path());
+                if referenced.contains(&entry.path()) || is_recent_copy(&directory, partial_directory, &entry) {
+                    continue;
                 }
+                let _ = fs::remove_file(entry.path());
             }
         }
         Ok(())
     }
+}
+
+/// Get again's and own-device copies' staging files and maps (`again-<id>`, `sync-<id>`) survive a restart, so a
+/// copy resumes from what arrived; one untouched for `COPY_KEEP_SECONDS` is given up.
+fn is_recent_copy(directory: &Path, partial_directory: &Path, entry: &fs::DirEntry) -> bool {
+    use crate::transfer::block_copy::{is_copy_file, COPY_KEEP_SECONDS};
+    if directory != partial_directory || !is_copy_file(&entry.file_name().to_string_lossy()) {
+        return false;
+    }
+    let age = entry.metadata().and_then(|m| m.modified()).ok().and_then(|t| t.elapsed().ok());
+    age.is_some_and(|age| age.as_secs() < COPY_KEEP_SECONDS)
 }
 
 pub(super) fn mark_received(conn: &Connection, record: &TransferRecord, destination: &str) -> Result<()> {

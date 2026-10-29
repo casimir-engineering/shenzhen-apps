@@ -277,3 +277,57 @@ fn a_new_version_takes_the_unchanged_blocks_of_the_one_the_friend_sent_before() 
     let path = store.finish_block_transfer(id, &mei).unwrap();
     assert!(std::fs::read(path).unwrap() == new);
 }
+
+#[test]
+fn a_copy_by_blocks_survives_a_restart_and_an_old_one_is_given_up() {
+    use szfriends_core::transfer::block_copy::{BlockCopy, CopyPart};
+    let scratch = Scratch::new("copy-restart");
+    let partial_dir = scratch.state().join("received/.partial");
+    drop(Store::open(scratch.state()).unwrap());
+    std::fs::create_dir_all(&partial_dir).unwrap();
+    let data = content(3 * (1 << 20) + 5);
+    let geometry = Geometry::for_size(data.len() as u64).unwrap();
+    let leaves: Vec<tree::Leaf> = (0..geometry.blocks)
+        .map(|i| {
+            let (o, l) = geometry.span(i);
+            tree::leaf(i, &data[o as usize..o as usize + l])
+        })
+        .collect();
+    let root = tree::root_of(&geometry, &leaves).unwrap();
+    let id = "0123456789abcdef0123456789abcdef";
+    let path = partial_dir.join(format!("again-{id}"));
+    let open = || {
+        BlockCopy::open(
+            data.len() as u64,
+            digest_of(&data),
+            path.clone(),
+            szfriends_core::transfer::block_copy::map_of(&path),
+        )
+    };
+    let mut copy = open().unwrap();
+    copy.follow(root, geometry.shift);
+    copy.hashes(0, &leaves.concat());
+    for block in [0, 2] {
+        let (o, l) = geometry.span(block);
+        assert!(matches!(copy.part(o, &data[o as usize..o as usize + l]), CopyPart::Written(_)));
+    }
+    copy.pause();
+    // A stray file and an old copy beside it.
+    std::fs::write(partial_dir.join("stray"), b"x").unwrap();
+    let old = partial_dir.join("sync-ffffffffffffffffffffffffffffffff");
+    std::fs::write(&old, b"old").unwrap();
+    let month_ago = std::time::SystemTime::now() - std::time::Duration::from_secs(31 * 24 * 3600);
+    std::fs::File::options().write(true).open(&old).unwrap().set_modified(month_ago).unwrap();
+    // The helper restarts: its recovery sweep keeps the copy and its map, and gives up the old one.
+    drop(Store::open(scratch.state()).unwrap());
+    assert!(!partial_dir.join("stray").exists() && !old.exists());
+    let mut copy = open().unwrap();
+    assert_eq!(copy.missing(), vec![(1, 1), (3, 1)], "it asks only for what did not arrive");
+    assert!(copy.follow(root, geometry.shift));
+    for block in [1, 3] {
+        let (o, l) = geometry.span(block);
+        copy.part(o, &data[o as usize..o as usize + l]);
+    }
+    let whole = copy.finish().unwrap();
+    assert!(std::fs::read(whole).unwrap() == data);
+}

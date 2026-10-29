@@ -24,7 +24,7 @@ use super::{label_is_valid, SyncError, BODY_MAX, FILE_PART_MAX, MESSAGE_MAX, WIN
 use crate::store::sync_files::{self, SyncFile};
 use crate::store::sync_log::Vector;
 use crate::store::Store;
-use crate::transfer::block_copy::{BlockCopy, CopyPart};
+use crate::transfer::block_copy::{remove_copy, BlockCopy, CopyPart};
 use crate::transfer::copies::{self, CopyMessage};
 
 const COPY_PARTS: u16 = 8;
@@ -505,7 +505,7 @@ impl SyncExchange {
         if matches_digest(&copy.path, copy.file.size, &copy.file.digest) {
             let _ = engine.adopt_copied_file(store, &id, &copy.path);
         } else {
-            let _ = std::fs::remove_file(&copy.path);
+            remove_copy(&copy.path);
             self.unavailable.insert(id);
         }
         self.start_next_copy(engine, store);
@@ -641,7 +641,7 @@ impl SyncExchange {
     fn abandon_copy(&mut self, discard: bool) {
         if let Some(copy) = self.copy.take() {
             if discard {
-                let _ = std::fs::remove_file(&copy.path);
+                remove_copy(&copy.path);
             }
             self.unavailable.insert(copy.file.transfer_id);
         }
