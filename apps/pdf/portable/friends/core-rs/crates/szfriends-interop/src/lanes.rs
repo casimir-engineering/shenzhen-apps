@@ -120,7 +120,10 @@ impl State {
         } else if let Some(token) = channel.presented_lane().copied() {
             let (identity, route) = (channel.remote_identity().copied(), channel.initiator_route());
             let head = self.lanes.groups.iter().find(|(_, g)| Some(*g.lanes.identity()) == identity).map(|(h, _)| *h);
-            let admitted = head.filter(|_| fast).and_then(|head| {
+            // An AES-GCM lane only into a group whose first session agreed to them (both set bit 1).
+            let aes = channel.cipher() == szfriends_core::wire::NoiseCipher::AesGcm;
+            let cipher_ok = |head: &u64| !aes || self.sessions.get(head).is_some_and(|s| s.channel.aes_lanes());
+            let admitted = head.filter(|h| fast && cipher_ok(h)).and_then(|head| {
                 let group = self.lanes.groups.get_mut(&head)?;
                 group.lanes.admit(id, &token, route).ok().map(|_| head)
             });

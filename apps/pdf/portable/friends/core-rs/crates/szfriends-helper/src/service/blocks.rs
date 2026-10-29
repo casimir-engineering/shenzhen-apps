@@ -12,7 +12,7 @@ use szfriends_core::session::lanes::LaneRequest;
 use szfriends_core::store::{BlockPart, StoreError, TransferRecord};
 use szfriends_core::transfer::scheduler::Action;
 use szfriends_core::transfer::slices::SliceSend;
-use szfriends_core::transfer::{frames, BlockServe, ServeError};
+use szfriends_core::transfer::{compress, frames, BlockServe, ServeError};
 use szfriends_core::wire::{tag, CloseReason, Frame, FrameType, RouteMethod};
 
 use super::{hex, unhex, State};
@@ -309,12 +309,15 @@ impl State {
     }
 
     fn part(&mut self, id: u64, lane: u64, frame: &Frame, conversation: &str, transfer: &str) {
-        if frame.get(tag::CODEC).is_some() {
-            // Compressed parts are capability bit 2, which this build does not set.
+        // Compressed parts only where that session negotiated them (bit 2), and only if they expand exactly (§ 9.4).
+        if compress::is_compressed(frame) && !self.sessions.map.get(&lane).is_some_and(|s| s.channel.compressed_parts())
+        {
             return self.unsolicited(id);
         }
+        let Ok(data) = compress::part_data(frame) else { return self.unsolicited(id) };
         let receiving = self.sessions.map.get(&id).is_some_and(|s| s.block_receivers.contains(transfer));
-        let (Some(offset), Some(data)) = (frame.integer(tag::OFFSET), frame.get(tag::DATA)) else { return };
+        let Some(offset) = frame.integer(tag::OFFSET) else { return };
+        let data = data.as_ref();
         if !receiving {
             // Late for a transfer that just ended here (§ 3); unsolicited otherwise.
             let ended = self
@@ -579,7 +582,13 @@ impl State {
     /// leaf means the snapshot changed: the transfer fails, as a missing source does.
     fn assign_block(&mut self, head: u64, lane: u64, transfer: u64, slice: u32) {
         let Some(offer) = self.sessions.groups.schedules.get(&head).and_then(|s| s.name(transfer)) else { return };
-        let route = self.sessions.groups.route_of(head, lane).unwrap_or(RouteMethod::Lan);
+        // The lane's route; a session without a group is its own lane.
+        let route = (self.sessions.groups.route_of(head, lane))
+            .or_else(|| self.sessions.map.get(&lane).map(|s| s.meta.race_route(&s.channel)))
+            .unwrap_or(RouteMethod::Lan);
+        // Compressed on Bluetooth and relay lanes that negotiated it, when the block's sample says it pays (§ 9.4).
+        let compressing = compress::route_compresses(route)
+            && self.sessions.map.get(&lane).is_some_and(|s| s.channel.compressed_parts());
         let Some(send) = self.sessions.map.get_mut(&head).and_then(|s| s.block_senders.get_mut(&offer)) else { return };
         let geometry = *send.serve.geometry();
         let block = send.slices.block_of_unit(&geometry, slice);
@@ -600,8 +609,10 @@ impl State {
         }
         let wire = unhex(&offer).unwrap_or_default();
         let parts = send.slices.parts(&wire, &geometry, slice, super::lanes::part_bytes(route));
+        let worth = compressing && send.slices.cached(block).is_some_and(|data| compress::worth(data));
         let queue = send.lanes.entry(lane).or_default();
-        queue.extend(parts.into_iter().map(|part| (slice, part, false)));
+        let parts = parts.into_iter().map(|part| if worth { compress::compress_part(part, route) } else { part });
+        queue.extend(parts.map(|part| (slice, part, false)));
         if let Some(last) = queue.back_mut() {
             last.2 = true;
         }

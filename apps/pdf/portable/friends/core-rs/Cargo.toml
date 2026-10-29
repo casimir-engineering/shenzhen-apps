@@ -27,7 +27,7 @@ szfriends-vectors = { path = "crates/szfriends-vectors" }
 # One curve25519-dalek for snow, CPace and the identity keys (snow 0.10 pins the 4.x line). Not snow's "std": in 0.10
 # it enables ring, a second crypto library with its own C and assembly build for every target.
 snow = { version = "0.10", default-features = false, features = [
-    "default-resolver", "use-chacha20poly1305", "use-blake2", "use-curve25519", "use-getrandom",
+    "default-resolver", "use-chacha20poly1305", "use-blake2", "use-curve25519", "use-getrandom", "use-aes-gcm",
 ] }
 curve25519-dalek = { version = "4.1.3", default-features = false, features = [
     "alloc", "zeroize", "precomputed-tables",
@@ -36,6 +36,10 @@ ed25519-dalek = { version = "2.1", default-features = false, features = ["std", 
 blake2 = "0.10"
 # ADR 0018 § 2: the fast-transfer tree. Pinned; the decision and its measurements are in the fast-transfers journal.
 blake3 = "=1.8.5"
+# ADR 0018 § 9.4: compressed parts on Bluetooth and relay lanes. The C library (zstd-sys), as the Objective-C helper
+# vendors it; no legacy formats, no dictionary builder, and its size-optimised build ("thin": -Oz, the small decoders),
+# which still runs far faster than the routes it is for (the fast-transfers journal, WP6).
+zstd = { version = "=0.13.3", default-features = false, features = ["thin"] }
 sha2 = "0.10"
 hmac = "0.12"
 subtle = "2.6"

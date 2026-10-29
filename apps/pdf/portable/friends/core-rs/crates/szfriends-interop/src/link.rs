@@ -49,7 +49,7 @@ impl Link {
         let reader_events = events.clone();
         let reader_finishing = finishing.clone();
         std::thread::spawn(move || {
-            let mut buffer = vec![0u8; 65_536];
+            let mut buffer = vec![0u8; 262_144];
             loop {
                 match reader.read(&mut buffer) {
                     Ok(0) => break,

@@ -5,10 +5,10 @@ use std::time::Duration;
 
 use szfriends_crypto::noise::{dummy_dh, Handshake, HandshakeKeys, NoiseError, DH_LEN};
 use szfriends_identity::identity::identity_key_from_certificate;
-use szfriends_wire::consts::{PROLOGUE_LABEL, SESSION_MINOR};
+use szfriends_wire::consts::{CAPABILITY_AES_LANES, PROLOGUE_LABEL, SESSION_MINOR};
 use szfriends_wire::payload::negotiate_minor;
 use szfriends_wire::stream::Preamble;
-use szfriends_wire::{HandshakePayload, Pattern, RouteMethod};
+use szfriends_wire::{HandshakePayload, NoiseCipher, Pattern, RouteMethod};
 use zeroize::Zeroizing;
 
 use super::channel::{Role, SecureChannel, State, Transmit};
@@ -38,7 +38,7 @@ impl SecureChannel {
         }
         let mut prologue = PROLOGUE_LABEL.to_vec();
         prologue.extend_from_slice(&preamble);
-        match Handshake::new(pattern, self.is_initiator(), &prologue, &keys) {
+        match Handshake::with_cipher(pattern, self.cipher, self.is_initiator(), &prologue, &keys) {
             Ok(handshake) => {
                 self.handshake = Some(handshake);
                 true
@@ -121,15 +121,17 @@ impl SecureChannel {
         let (pattern, route) = (options.pattern, options.route);
         let token = options.request_token.clone();
         let lane = options.lane;
+        // AES-GCM is for lanes only (ADR 0018 § 9.2): a first session must stay what released apps speak.
         let fits = (pattern == Pattern::NN || route_is_known(route))
             && (pattern != Pattern::IK || options.remote_static.is_some())
             && token.as_ref().is_none_or(|token| pattern == Pattern::IK && token.len() == 16)
-            && (lane.is_none() || (pattern == Pattern::IK && token.is_none()));
+            && (lane.is_none() || (pattern == Pattern::IK && token.is_none()))
+            && (self.cipher == NoiseCipher::ChaChaPoly || lane.is_some());
         if !fits {
             self.fail(SessionError::HandshakeFailed, now);
             return;
         }
-        let preamble = Self::preamble_bytes(pattern);
+        let preamble = Self::preamble_bytes(pattern, self.cipher);
         if !self.initialize_handshake(preamble) {
             self.fail(SessionError::HandshakeFailed, now);
             return;
@@ -199,6 +201,13 @@ impl SecureChannel {
             return false;
         };
         self.pattern = preamble.pattern;
+        self.cipher = preamble.cipher;
+        // An AES-GCM lane only where this side offers them (capability bit 1, hardware AES), refused before any
+        // Diffie-Hellman; whether the friend's first session agreed is the group's check once the lane is live.
+        if self.cipher == NoiseCipher::AesGcm && self.config.capabilities & CAPABILITY_AES_LANES == 0 {
+            self.fail(SessionError::Rejected, now);
+            return false;
+        }
         // A hidden listener answers only IK and NN; XX would hand a stranger our static key and profile.
         let public = matches!(&self.role, Role::Responder { public_profile: Some(_), .. });
         if self.pattern == Pattern::XX && !public {
@@ -254,6 +263,11 @@ impl SecureChannel {
         // A lane's token (IK only; anything else in that field is ignored, and a wrong length refused as a lane).
         if pattern == Pattern::IK {
             self.presented_lane = payload.lane.as_deref().map(|l| l.try_into().unwrap_or([0; 16]));
+        }
+        // AES-GCM carries lanes only: a session without a lane token on it is refused.
+        if self.cipher == NoiseCipher::AesGcm && self.presented_lane.is_none() {
+            self.fail(SessionError::Rejected, now);
+            return;
         }
         if let Some(identity) = identity {
             self.adopt_remote_identity(identity, &payload);

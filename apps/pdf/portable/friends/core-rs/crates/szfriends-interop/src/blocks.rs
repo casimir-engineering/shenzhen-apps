@@ -13,7 +13,7 @@ use szfriends_core::session::{chunk_bytes_for_route, monotonic_now};
 use szfriends_core::store::{BlockPart, StoreError, TransferRecord, TransferState};
 use szfriends_core::transfer::scheduler::Action;
 use szfriends_core::transfer::slices::SliceSend;
-use szfriends_core::transfer::{frames, BlockServe};
+use szfriends_core::transfer::{compress, frames, BlockServe};
 use szfriends_core::wire::{tag, Frame, FrameType, RouteMethod};
 
 use crate::hex_bytes;
@@ -347,11 +347,14 @@ impl State {
     }
 
     fn part(&mut self, id: u64, lane: u64, frame: &Frame, conversation: &str, transfer: &str) {
-        if frame.get(tag::CODEC).is_some() {
+        // Compressed parts only where that session negotiated them (bit 2), and only if they expand exactly (§ 9.4).
+        if compress::is_compressed(frame) && !self.sessions.get(&lane).is_some_and(|s| s.channel.compressed_parts()) {
             return self.unsolicited(id);
         }
+        let Ok(data) = compress::part_data(frame) else { return self.unsolicited(id) };
         let receiving = self.sessions.get(&id).is_some_and(|s| s.blocks.receivers.contains(transfer));
-        let (Some(offset), Some(data)) = (frame.integer(tag::OFFSET), frame.get(tag::DATA)) else { return };
+        let Some(offset) = frame.integer(tag::OFFSET) else { return };
+        let data = data.as_ref();
         if !receiving {
             let ended = self
                 .store
@@ -517,6 +520,9 @@ impl State {
     fn assign_block(&mut self, head: u64, lane: u64, transfer: u64, slice: u32) {
         let Some(offer) = self.lanes.groups.get(&head).and_then(|g| g.name(transfer)) else { return };
         let route = self.lane_route(head, lane);
+        // Compressed on Bluetooth and relay lanes that negotiated it, when the block's sample says it pays (§ 9.4).
+        let compressing =
+            compress::route_compresses(route) && self.sessions.get(&lane).is_some_and(|s| s.channel.compressed_parts());
         let Some(send) = self.sessions.get_mut(&head).and_then(|s| s.blocks.senders.get_mut(&offer)) else { return };
         let geometry = *send.serve.geometry();
         let block = send.slices.block_of_unit(&geometry, slice);
@@ -532,8 +538,10 @@ impl State {
         }
         let wire = hex_bytes(&offer).unwrap_or_default();
         let parts = send.slices.parts(&wire, &geometry, slice, part_bytes(route));
+        let worth = compressing && send.slices.cached(block).is_some_and(|data| compress::worth(data));
         let queue = send.lanes.entry(lane).or_default();
-        queue.extend(parts.into_iter().map(|part| (slice, part, false)));
+        let parts = parts.into_iter().map(|part| if worth { compress::compress_part(part, route) } else { part });
+        queue.extend(parts.map(|part| (slice, part, false)));
         if let Some(last) = queue.back_mut() {
             last.2 = true;
         }

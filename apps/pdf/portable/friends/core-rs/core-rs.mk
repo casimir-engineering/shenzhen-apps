@@ -99,6 +99,15 @@ friends-vectors-check: friends-vectors-tool
 		cmp -s "$$file" "$(FRIENDS_VECTORS_OUT)/transfer/$$(basename "$$file")" || { \
 			echo "transfer/$$(basename "$$file"): the helper does not give these bytes (ADR 0018)" >&2; exit 1; }; \
 	done
+	@# ADR 0018's later additions (WP6), also written by the Rust core first: aes_lane.json must be what the helper
+	@# exports once it exports it (until then the check says it is still to mirror, WP4). compressed_parts.json is read
+	@# by the helper's tests instead, since zstd's bytes depend on its version.
+	@for file in "$(FRIENDS_VECTORS_DIR)"/transfer-more/aes_lane.json; do \
+		out="$(FRIENDS_VECTORS_OUT)/transfer-more/$$(basename "$$file")"; \
+		if [ ! -f "$$out" ]; then echo "transfer-more/$$(basename "$$file"): not exported by the helper yet"; \
+		elif ! cmp -s "$$file" "$$out"; then \
+			echo "transfer-more/$$(basename "$$file"): the helper does not give these bytes (ADR 0018)" >&2; exit 1; fi; \
+	done
 	@# A committed objc-*.json the exporter no longer writes would keep feeding the Rust suites stale vectors.
 	@for file in "$(FRIENDS_VECTORS_DIR)"/objc-*.json; do \
 		[ -f "$(FRIENDS_VECTORS_OUT)/$$(basename "$$file")" ] || { \

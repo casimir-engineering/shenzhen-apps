@@ -7,12 +7,16 @@
 //! `make friends-transfer-bench` builds and runs it; on demand only, no suite runs it. Choose with:
 //!   BENCH_PAIRS        rust-rust,rust-objc,objc-rust,objc-objc (default: all; objc ones need SZFRIENDS_OBJC_PEER)
 //!   BENCH_ROUTES       loopback,lan,p2p_wifi,internet,internet_lossy,relay,bluetooth (default: all)
-//!   BENCH_SIZES        1m,100m,2g,small (default: all)
+//!   BENCH_SIZES        1m,4m,16m,100m,2g,small (default: 1m,100m,2g,small)
 //!   BENCH_LOSS         lan-cut,lan-silence,bluetooth-cut,bluetooth-silence (default: all; "none" for none)
 //!   BENCH_MULTI        several routes at once between the same two peers, the first carrying the session and the
 //!                      others lanes of it (ADR 0018 § 6): lan+p2p, lan+p2p-cut-p2p, lan+p2p-silence-lan,
-//!                      slowlan+bt, slowlan+bt-cut-bt, slowlan+bt-silence-bt, lan+p2p+bt, lan+p2p+bt-cut-lan
-//!                      (default: all; "none" for none). Skipped, and said so, until the peers open lanes.
+//!                      slowlan+bt, slowlan+bt-cut-bt, slowlan+bt-silence-bt, lan+p2p+bt, lan+p2p+bt-cut-lan,
+//!                      loopback+loopback (default: all; "none" for none). Skipped, and said so, until the peers open
+//!                      lanes. SZFRIENDS_TEST_AES_LANES=0 and SZFRIENDS_TEST_COMPRESSED_PARTS=0 run the Rust peers
+//!                      without AES-GCM lanes or compressed parts (ADR 0018 § 9.2, § 9.4), for before and after.
+//!   BENCH_CORPUS       a directory whose files, one after another, make up each case's files instead of
+//!                      pseudo-random bytes (which do not compress): for compressed parts (ADR 0018 § 9.4)
 //!   BENCH_MAX_SECONDS  skip a case the route would need longer than this for at its rate (default 120)
 //!   BENCH_SILENCE_WAIT seconds a silent route may go unnoticed before the route comes back anyway (default 20)
 //! `transfer_bench --table <file.jsonl>` prints the table of earlier results.
@@ -22,7 +26,7 @@ use std::time::Duration;
 
 use serde_json::{json, Value};
 use szfriends_interop::bench::{
-    self, Case, Loss, MultiCase, PeerSpec, RouteProfile, BLUETOOTH, LAN, LAN_SLOW, MIB, P2P_WIFI, ROUTES,
+    self, Case, Loss, MultiCase, PeerSpec, RouteProfile, BLUETOOTH, LAN, LAN_SLOW, LOOPBACK, MIB, P2P_WIFI, ROUTES,
 };
 
 fn list(name: &str, default: &str) -> Vec<String> {
@@ -38,6 +42,8 @@ fn number(name: &str, default: f64) -> f64 {
 fn files(size: &str) -> Option<Vec<u64>> {
     Some(match size {
         "1m" => vec![MIB],
+        "4m" => vec![4 * MIB],
+        "16m" => vec![16 * MIB],
         "100m" => vec![100 * MIB],
         "2g" => vec![2048 * MIB],
         "small" => vec![10 * 1024; 300],
@@ -59,6 +65,9 @@ fn loss_case(name: &str, silence_wait: Duration) -> Option<Case> {
 fn multi_case(name: &str) -> Option<MultiCase> {
     let (routes, files, lost) = match name {
         "lan+p2p" => (vec![LAN, P2P_WIFI], vec![1024 * MIB], None),
+        // Two connections over loopback, the second a lane: what lanes and their cipher (AES-256-GCM where both sides
+        // have hardware AES, ADR 0018 § 9.2) give when the computer, not the route, is the limit.
+        "loopback+loopback" => (vec![LOOPBACK, LOOPBACK], vec![2048 * MIB], None),
         "lan+p2p-cut-p2p" => (vec![LAN, P2P_WIFI], vec![1024 * MIB], Some((1, Loss::Cut(0.5)))),
         "lan+p2p-silence-lan" => (vec![LAN, P2P_WIFI], vec![1024 * MIB], Some((0, Loss::Silence(0.5)))),
         "slowlan+bt" => (vec![LAN_SLOW, BLUETOOTH], vec![16 * MIB], None),
@@ -138,7 +147,7 @@ fn main() {
     let multi = list(
         "BENCH_MULTI",
         "lan+p2p,lan+p2p-cut-p2p,lan+p2p-silence-lan,slowlan+bt,slowlan+bt-cut-bt,slowlan+bt-silence-bt,lan+p2p+bt,\
-         lan+p2p+bt-cut-lan",
+         lan+p2p+bt-cut-lan,loopback+loopback",
     );
     for case in multi.iter().filter_map(|name| multi_case(name)) {
         for (sender, receiver) in &pairs {

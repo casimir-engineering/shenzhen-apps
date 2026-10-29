@@ -31,6 +31,16 @@ impl Pattern {
         }
     }
 
+    /// The Noise protocol name with `cipher`: `Noise_IK_25519_AESGCM_BLAKE2b` for an AES-GCM lane (ADR 0018 § 9.2).
+    pub fn protocol_name_with(self, cipher: NoiseCipher) -> &'static str {
+        match (self, cipher) {
+            (_, NoiseCipher::ChaChaPoly) => self.protocol_name(),
+            (Self::XX, NoiseCipher::AesGcm) => "Noise_XX_25519_AESGCM_BLAKE2b",
+            (Self::IK, NoiseCipher::AesGcm) => "Noise_IK_25519_AESGCM_BLAKE2b",
+            (Self::NN, NoiseCipher::AesGcm) => "Noise_NN_25519_AESGCM_BLAKE2b",
+        }
+    }
+
     /// Handshake messages in the pattern.
     pub fn message_count(self) -> usize {
         match self {
@@ -38,6 +48,16 @@ impl Pattern {
             Self::IK | Self::NN => 2,
         }
     }
+}
+
+/// The AEAD under a session's Noise protocol. ChaChaPoly everywhere (ADR 0001); AES-256-GCM only on a lane whose
+/// group's first session had both sides set capability bit 1, hardware AES (ADR 0018 § 9.2). The preamble's pattern
+/// byte carries it as bit 7 ([`crate::stream::Preamble`]), so the responder knows the protocol name before message 1.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum NoiseCipher {
+    #[default]
+    ChaChaPoly,
+    AesGcm,
 }
 
 /// Transport frame types. Senders use only types the peer's negotiated minor knows; an unknown type closes.

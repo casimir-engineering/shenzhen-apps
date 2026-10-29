@@ -38,6 +38,7 @@ impl State {
             "route": channel.initiator_route() as u8,
             "minor": channel.negotiated_minor(),
             "fast": channel.fast_transfers(),
+            "cipher": format!("{:?}", channel.cipher()),
         });
         let route = channel.initiator_route();
         if self.lane_established(id, &event) {

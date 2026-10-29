@@ -309,7 +309,7 @@ fn measure(case: &Case, sender_spec: &PeerSpec, receiver_spec: &PeerSpec, result
     let mut paths = Vec::new();
     for (index, size) in case.files.iter().enumerate() {
         let path = homes.2.path().join(format!("file-{index}.bin"));
-        digests.push(write_content(&path, &format!("bench {} {index}", case.name), *size));
+        digests.push(bench_content(&path, &format!("bench {} {index}", case.name), *size));
         paths.push(path);
     }
     let (cpu_s0, cpu_r0) = (cpu_seconds(pid_s), cpu_seconds(pid_r));
@@ -370,6 +370,8 @@ fn measure(case: &Case, sender_spec: &PeerSpec, receiver_spec: &PeerSpec, result
     if let Some(rate) = case.route.expected_bytes_per_second() {
         result["link_share"] = json!(total as f64 / seconds / rate);
     }
+    // What crossed the route toward the receiver: more than the file without compression, less with it (§ 9.4).
+    result["route_bytes"] = json!(proxy.counts().0);
     result["cpu_sender_s"] = json!(cpu_s);
     result["cpu_receiver_s"] = json!(cpu_r);
     result["cpu_sender_s_per_gb"] = json!(cpu_s / (total as f64 / 1e9));
@@ -466,6 +468,39 @@ pub fn append(path: &Path, value: &Value) {
 }
 
 /// "1 MiB", "300 × 10 KiB": a case's payload for tables.
+/// A case's file: the usual pseudo-random bytes, or with `BENCH_CORPUS` set (a directory), its files one after another
+/// over and over, cut at `size`: real documents for what compression gives (ADR 0018 § 9.4). Pseudo-random bytes do
+/// not compress at all, so without a corpus compressed parts change nothing and cost one sample per block.
+fn bench_content(path: &Path, label: &str, size: u64) -> [u8; 32] {
+    let Some(corpus) = std::env::var_os("BENCH_CORPUS") else { return write_content(path, label, size) };
+    use blake2::digest::{Update, VariableOutput};
+    use std::io::Write;
+    let mut sources: Vec<PathBuf> = std::fs::read_dir(&corpus)
+        .expect("BENCH_CORPUS is a directory")
+        .filter_map(|entry| Some(entry.ok()?.path()))
+        .filter(|path| path.is_file())
+        .collect();
+    sources.sort();
+    assert!(!sources.is_empty(), "BENCH_CORPUS holds no files");
+    let mut file = std::io::BufWriter::new(std::fs::File::create(path).expect("content file"));
+    let mut digest = blake2::Blake2bVar::new(32).expect("32 bytes");
+    let mut written = 0u64;
+    for source in sources.iter().cycle() {
+        if written >= size {
+            break;
+        }
+        let bytes = std::fs::read(source).expect("a corpus file");
+        let take = bytes.len().min((size - written) as usize);
+        file.write_all(&bytes[..take]).expect("written");
+        digest.update(&bytes[..take]);
+        written += take as u64;
+    }
+    file.flush().expect("flushed");
+    let mut out = [0u8; 32];
+    digest.finalize_variable(&mut out).expect("32 bytes");
+    out
+}
+
 pub fn payload(files: &[u64]) -> String {
     let size = |b: u64| match b {
         b if b >= 1 << 30 && b % (1 << 30) == 0 => format!("{} GiB", b >> 30),
@@ -641,13 +676,20 @@ fn measure_multi(
             return Err(format!("lane {index} ({}) refused: {reply}", route.name));
         }
         let from = log_s.events.len();
-        log_s.wait(&mut sender, from, step, is("established")).ok_or_else(|| format!("lane {index} never came up"))?;
+        let (_, up) = log_s
+            .wait(&mut sender, from, step, is("established"))
+            .ok_or_else(|| format!("lane {index} never came up"))?;
+        // Each lane's cipher (ADR 0018 § 9.2), where the peer says it.
+        if !up["cipher"].is_null() {
+            let ciphers = result["lane_ciphers"].as_array().cloned().unwrap_or_default();
+            result["lane_ciphers"] = json!([ciphers, vec![up["cipher"].clone()]].concat());
+        }
     }
     let mut digests = Vec::new();
     let mut paths = Vec::new();
     for (index, size) in case.files.iter().enumerate() {
         let path = homes.2.path().join(format!("file-{index}.bin"));
-        digests.push(write_content(&path, &format!("multi {} {index}", case.name), *size));
+        digests.push(bench_content(&path, &format!("multi {} {index}", case.name), *size));
         paths.push(path);
     }
     let (cpu_s0, cpu_r0) = (cpu_seconds(pid_s), cpu_seconds(pid_r));

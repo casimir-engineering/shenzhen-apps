@@ -326,9 +326,16 @@ impl State {
     }
 
     fn channel_config(&self) -> ChannelConfig {
-        let mut config = ChannelConfig::default();
-        // As the helper: Pieces (ADR 0018 § 3) with peers that have them.
-        config.capabilities |= szfriends_core::wire::consts::CAPABILITY_PIECES;
+        let mut config =
+            ChannelConfig { capabilities: szfriends_core::session::local_capabilities(true), ..Default::default() };
+        // The helper's test switches (ADR 0018 § 9.2, § 9.4), so the bench measures with and without.
+        let off = |name: &str| std::env::var_os(name).is_some_and(|v| v == "0");
+        if off("SZFRIENDS_TEST_AES_LANES") {
+            config.capabilities &= !szfriends_core::wire::consts::CAPABILITY_AES_LANES;
+        }
+        if off("SZFRIENDS_TEST_COMPRESSED_PARTS") {
+            config.capabilities &= !szfriends_core::wire::consts::CAPABILITY_COMPRESSED_PARTS;
+        }
         if let Some(bytes) = self.rekey_after {
             config.rekey_after_bytes = bytes;
         }
@@ -405,7 +412,13 @@ impl State {
         let lane = command["lane_of"].as_u64().map(|head| (head, u64::MAX - self.next_session));
         if let Some((head, provisional)) = lane {
             match self.reserve_lane(head, provisional, route) {
-                Some(token) => options.lane = Some(token),
+                Some(token) => {
+                    options.lane = Some(token);
+                    // ADR 0018 § 9.2: AES-256-GCM when both first handshakes said hardware AES.
+                    if self.sessions.get(&head).is_some_and(|s| s.channel.aes_lanes()) {
+                        options.cipher = szfriends_core::wire::NoiseCipher::AesGcm;
+                    }
+                }
                 None => return json!({ "error": "no lane: no fast group, or its limits" }),
             }
         }

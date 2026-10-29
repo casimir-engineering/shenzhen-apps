@@ -1,4 +1,5 @@
-//! Noise revision 34, `Noise_{XX,IK,NN}_25519_ChaChaPoly_BLAKE2b`, as ADR 0001 specifies it, on `snow`.
+//! Noise revision 34, `Noise_{XX,IK,NN}_25519_ChaChaPoly_BLAKE2b`, as ADR 0001 specifies it, on `snow`; and
+//! `Noise_IK_25519_AESGCM_BLAKE2b` for lanes where both sides have hardware AES (ADR 0018 § 9.2).
 //!
 //! What this adds to `snow`, each a rule the Objective-C helper's C state machine (`szfriends_noise.h`) enforces:
 //!
@@ -19,7 +20,7 @@ use subtle::ConstantTimeEq;
 use zeroize::{Zeroize, Zeroizing};
 
 use szfriends_wire::consts::{FRAME_PLAINTEXT_MAX, NOISE_MESSAGE_MAX, NOISE_TAG_LEN};
-use szfriends_wire::Pattern;
+use szfriends_wire::{NoiseCipher, Pattern};
 
 pub const DH_LEN: usize = 32;
 pub const HASH_LEN: usize = 64;
@@ -204,12 +205,26 @@ impl std::fmt::Debug for Handshake {
 impl Handshake {
     /// Initialize(): protocol name, MixHash(prologue), then IK's pre-message.
     pub fn new(pattern: Pattern, initiator: bool, prologue: &[u8], keys: &HandshakeKeys) -> Result<Self, NoiseError> {
+        Self::with_cipher(pattern, NoiseCipher::ChaChaPoly, initiator, prologue, keys)
+    }
+
+    /// The same with `cipher`: AES-256-GCM only for IK lanes (ADR 0018 § 9.2).
+    pub fn with_cipher(
+        pattern: Pattern,
+        cipher: NoiseCipher,
+        initiator: bool,
+        prologue: &[u8],
+        keys: &HandshakeKeys,
+    ) -> Result<Self, NoiseError> {
+        if cipher == NoiseCipher::AesGcm && pattern != Pattern::IK {
+            return Err(NoiseError::Argument);
+        }
         let needs_static = pattern != Pattern::NN;
         let needs_remote = pattern == Pattern::IK && initiator;
         if keys.local_static.is_some() != needs_static || keys.remote_static.is_some() != needs_remote {
             return Err(NoiseError::Argument);
         }
-        let params = pattern.protocol_name().parse().map_err(map_error)?;
+        let params = pattern.protocol_name_with(cipher).parse().map_err(map_error)?;
         let dh_count = Arc::new(AtomicUsize::new(0));
         let resolver = FriendsResolver { dh_count: Some(dh_count.clone()) };
         let mut builder = snow::Builder::with_resolver(params, Box::new(resolver));
@@ -300,45 +315,133 @@ impl Handshake {
         if !state.is_handshake_finished() {
             return Err(NoiseError::State);
         }
-        Ok(Transport { state: state.into_transport_mode().map_err(map_error)? })
+        Ok(Transport { state: state.into_stateless_transport_mode().map_err(map_error)?, sending: 0, receiving: 0 })
     }
 }
 
-/// The two CipherStates after Split(), oriented so `encrypt` uses this side's sending key.
+/// The two CipherStates after Split(), oriented so `encrypt` uses this side's sending key. The nonces are counted here
+/// (snow's stateless transport takes them explicitly), so a batch of messages can be sealed or opened on several cores
+/// at once ([`Transport::encrypt_many`], [`Transport::decrypt_many`]) with exactly the nonces one at a time would use.
 pub struct Transport {
-    state: snow::TransportState,
+    state: snow::StatelessTransportState,
+    sending: u64,
+    receiving: u64,
 }
 
 impl std::fmt::Debug for Transport {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Transport")
-            .field("sending_nonce", &self.state.sending_nonce())
-            .field("receiving_nonce", &self.state.receiving_nonce())
+            .field("sending_nonce", &self.sending)
+            .field("receiving_nonce", &self.receiving)
             .finish()
     }
 }
 
+/// A batch goes to other cores only when it is worth a thread: at least two messages and this many bytes.
+const PARALLEL_MIN_BYTES: usize = 96 * 1024;
+/// Threads for one batch at most, the caller's included.
+const PARALLEL_THREADS: usize = 4;
+
+/// Runs `work` over `items` in order, on up to [`PARALLEL_THREADS`] threads when the batch is large enough.
+fn map_batch<T: Sync, R: Send>(items: &[T], bytes: usize, work: impl Fn(usize, &T) -> R + Sync) -> Vec<R> {
+    let threads = std::thread::available_parallelism().map_or(1, |n| n.get()).min(PARALLEL_THREADS).min(items.len());
+    if threads < 2 || bytes < PARALLEL_MIN_BYTES {
+        return items.iter().enumerate().map(|(n, item)| work(n, item)).collect();
+    }
+    let per = items.len().div_ceil(threads);
+    std::thread::scope(|scope| {
+        let work = &work;
+        let mut chunks = items.chunks(per).enumerate();
+        let (_, first) = chunks.next().expect("at least one item");
+        let handles: Vec<_> = chunks
+            .map(|(c, chunk)| {
+                scope.spawn(move || {
+                    chunk.iter().enumerate().map(|(n, item)| work(c * per + n, item)).collect::<Vec<R>>()
+                })
+            })
+            .collect();
+        let mut out: Vec<R> = first.iter().enumerate().map(|(n, item)| work(n, item)).collect();
+        for handle in handles {
+            out.extend(handle.join().expect("cipher thread"));
+        }
+        out
+    })
+}
+
 impl Transport {
-    /// One frame's plaintext, at most 65,519 bytes, to one transport message.
-    pub fn encrypt(&mut self, plaintext: &[u8]) -> Result<Vec<u8>, NoiseError> {
+    fn seal(&self, nonce: u64, plaintext: &[u8]) -> Result<Vec<u8>, NoiseError> {
         if plaintext.len() > FRAME_PLAINTEXT_MAX {
             return Err(NoiseError::Size);
         }
         let mut out = vec![0u8; plaintext.len() + NOISE_TAG_LEN];
-        let length = self.state.write_message(plaintext, &mut out).map_err(map_error)?;
+        let length = self.state.write_message(nonce, plaintext, &mut out).map_err(map_error)?;
         out.truncate(length);
         Ok(out)
     }
 
-    /// Any failure closes the session: there is no resynchronisation.
-    pub fn decrypt(&mut self, message: &[u8]) -> Result<Vec<u8>, NoiseError> {
+    fn open(&self, nonce: u64, message: &[u8]) -> Result<Vec<u8>, NoiseError> {
         if message.len() > NOISE_MESSAGE_MAX || message.len() < NOISE_TAG_LEN {
             return Err(NoiseError::Size);
         }
         let mut out = vec![0u8; message.len()];
-        let length = self.state.read_message(message, &mut out).map_err(map_error)?;
+        let length = self.state.read_message(nonce, message, &mut out).map_err(map_error)?;
         out.truncate(length);
         Ok(out)
+    }
+
+    /// One frame's plaintext, at most 65,519 bytes, to one transport message.
+    pub fn encrypt(&mut self, plaintext: &[u8]) -> Result<Vec<u8>, NoiseError> {
+        let message = self.seal(self.sending, plaintext)?;
+        self.sending += 1;
+        Ok(message)
+    }
+
+    /// Several frames to their messages, in order, with the nonces one call each would use; on several cores when the
+    /// batch is large (ADR 0018 § 9.2: a lane's parts are sealed in batches). All or nothing: on an error no nonce is
+    /// used.
+    pub fn encrypt_many(&mut self, plaintexts: &[&[u8]]) -> Result<Vec<Vec<u8>>, NoiseError> {
+        let bytes = plaintexts.iter().map(|p| p.len()).sum();
+        let first = self.sending;
+        let sealed = map_batch(plaintexts, bytes, |n, plaintext| self.seal(first + n as u64, plaintext));
+        let sealed: Vec<Vec<u8>> = sealed.into_iter().collect::<Result<_, _>>()?;
+        self.sending += sealed.len() as u64;
+        Ok(sealed)
+    }
+
+    /// Any failure closes the session: there is no resynchronisation.
+    pub fn decrypt(&mut self, message: &[u8]) -> Result<Vec<u8>, NoiseError> {
+        let plaintext = self.open(self.receiving, message)?;
+        self.receiving += 1;
+        Ok(plaintext)
+    }
+
+    /// Several messages in order, opened on several cores when the batch is large, as one [`Transport::decrypt`] each
+    /// would: the results stop after the first failure, or after the first plaintext `stop` names (a REKEY, after
+    /// which the next message is under the new key and must wait for [`Transport::rekey_incoming`]). Only the
+    /// messages returned used a nonce; the caller feeds the rest again.
+    pub fn decrypt_many(
+        &mut self,
+        messages: &[&[u8]],
+        stop: impl Fn(&[u8]) -> bool,
+    ) -> Vec<Result<Vec<u8>, NoiseError>> {
+        let bytes = messages.iter().map(|m| m.len()).sum();
+        let first = self.receiving;
+        let opened = map_batch(messages, bytes, |n, message| self.open(first + n as u64, message));
+        let mut out = Vec::with_capacity(opened.len());
+        for result in opened {
+            let ends = match &result {
+                Ok(plaintext) => {
+                    self.receiving += 1;
+                    stop(plaintext)
+                }
+                Err(_) => true,
+            };
+            out.push(result);
+            if ends {
+                break;
+            }
+        }
+        out
     }
 
     /// After sending REKEY: `k = first 32 bytes of ENCRYPT(k, 2^64-1, empty, zeros)`; the nonce is kept.
@@ -352,11 +455,29 @@ impl Transport {
     }
 
     pub fn sending_nonce(&self) -> u64 {
-        self.state.sending_nonce()
+        self.sending
     }
 
     pub fn receiving_nonce(&self) -> u64 {
-        self.state.receiving_nonce()
+        self.receiving
+    }
+}
+
+/// Whether this processor encrypts AES-256-GCM in hardware (ARMv8 AES and PMULL, or AES-NI and PCLMULQDQ): the
+/// condition for setting capability bit 1 (ADR 0018 § 9.2). Without it AES-GCM is slower than ChaChaPoly and not
+/// constant-time, so a side without it never offers AES lanes.
+pub fn hardware_aes() -> bool {
+    #[cfg(target_arch = "aarch64")]
+    {
+        std::arch::is_aarch64_feature_detected!("aes") && std::arch::is_aarch64_feature_detected!("pmull")
+    }
+    #[cfg(target_arch = "x86_64")]
+    {
+        std::arch::is_x86_feature_detected!("aes") && std::arch::is_x86_feature_detected!("pclmulqdq")
+    }
+    #[cfg(not(any(target_arch = "aarch64", target_arch = "x86_64")))]
+    {
+        false
     }
 }
 

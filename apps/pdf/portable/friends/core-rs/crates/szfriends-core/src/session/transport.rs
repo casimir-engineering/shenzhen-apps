@@ -108,6 +108,18 @@ impl SecureChannel {
             if self.in_flight > 0 && self.in_flight + next.len() > self.in_flight_budget() {
                 return;
             }
+            if !from_control && self.bulk_queue.len() > 1 && self.config.crypto_batches {
+                // While writes are on the link, bulk frames wait until two fit, so they are sealed together.
+                let two: usize = self.bulk_queue.iter().take(2).map(|f| f.len() + NOISE_TAG_LEN + 2).sum();
+                if self.in_flight > 0 && self.in_flight + two > self.in_flight_budget() {
+                    return;
+                }
+                match self.write_bulk_batch(now) {
+                    Some(true) => continue,
+                    Some(false) => return,
+                    None => {} // a rekey is due: one at a time below
+                }
+            }
             let plaintext = if from_control { self.control_queue.pop_front() } else { self.bulk_queue.pop_front() };
             let plaintext = plaintext.expect("checked above");
             let is_close = plaintext[0] == FrameType::Close as u8;
@@ -119,6 +131,49 @@ impl SecureChannel {
             }
         }
         self.finish_closing_if_drained();
+    }
+
+    /// Several bulk frames sealed in one batch, on several cores when large (ADR 0018 § 9.2), and handed to the link
+    /// as one write: as many as fit the in-flight budget, the first always. `None` when a rekey is due before the batch
+    /// would end (the caller goes one frame at a time), `Some(false)` after failing the channel.
+    fn write_bulk_batch(&mut self, now: Duration) -> Option<bool> {
+        let budget = self.in_flight_budget();
+        let mut count = 0;
+        let mut bytes = 0usize;
+        for frame in &self.bulk_queue {
+            let framed = frame.len() + NOISE_TAG_LEN + 2;
+            if count > 0 && self.in_flight + bytes + framed > budget {
+                break;
+            }
+            count += 1;
+            bytes += framed;
+        }
+        let plaintext: usize = self.bulk_queue.iter().take(count).map(Vec::len).sum();
+        if count < 2
+            || self.rekey_due(now)
+            || self.bytes_since_send_rekey + plaintext as u64 >= self.config.rekey_after_bytes
+        {
+            return None;
+        }
+        if !self.check_session_age(now) {
+            return Some(false);
+        }
+        let frames: Vec<Vec<u8>> = self.bulk_queue.drain(..count).collect();
+        let refs: Vec<&[u8]> = frames.iter().map(Vec::as_slice).collect();
+        let Some(Ok(messages)) = self.transport.as_mut().map(|t| t.encrypt_many(&refs)) else {
+            self.fail(SessionError::Expired, now);
+            return Some(false);
+        };
+        let mut out = Vec::with_capacity(bytes);
+        for message in &messages {
+            out.extend_from_slice(&(message.len() as u16).to_be_bytes());
+            out.extend_from_slice(message);
+        }
+        self.in_flight += out.len();
+        self.transmit.push_back(Transmit { bytes: out, counted: true });
+        self.bytes_since_send_rekey += plaintext as u64;
+        self.note_sent(now);
+        Some(true)
     }
 
     fn finish_closing_if_drained(&mut self) {
@@ -216,6 +271,31 @@ impl SecureChannel {
             return;
         }
         let decrypted = self.transport.as_mut().map(|transport| transport.decrypt(message));
+        self.handle_decrypted(decrypted, now);
+    }
+
+    /// Several complete transport messages at once (ADR 0018 § 9.2): opened together, on several cores when large,
+    /// then handled one by one exactly as [`Self::handle_transport_message`] would. Returns how many were handled; the
+    /// rest (after a REKEY, whose successors need the new key) go round again.
+    pub(super) fn handle_transport_messages(&mut self, messages: &[&[u8]], now: Duration) -> usize {
+        if messages.iter().any(|m| m.len() < NOISE_TAG_LEN) {
+            self.handle_transport_message(messages[0], now);
+            return 1;
+        }
+        let rekey = FrameType::Rekey as u8;
+        let Some(transport) = self.transport.as_mut() else { return 0 };
+        let opened = transport.decrypt_many(messages, |plaintext| plaintext.first() == Some(&rekey));
+        let count = opened.len();
+        for result in opened {
+            if matches!(self.state, State::Closed | State::Refusing | State::Closing) {
+                break;
+            }
+            self.handle_decrypted(Some(result), now);
+        }
+        count
+    }
+
+    fn handle_decrypted(&mut self, decrypted: Option<Result<Vec<u8>, NoiseError>>, now: Duration) {
         let plaintext = match decrypted {
             Some(Ok(plaintext)) => plaintext,
             // Tampered, replayed, reordered or truncated: there is no resynchronisation, and nothing said back would

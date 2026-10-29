@@ -12,7 +12,8 @@ pub const FAST_TRANSFERS_MINOR: u16 = 4;
 /// knows it; unknown bits are ignored.
 /// Bit 0: this side runs ADR 0018's transfers (blocks, the tree, WANT and HAVE).
 pub const CAPABILITY_FAST_TRANSFERS: u32 = 1 << 0;
-/// Bit 1: AES-GCM lanes (ADR 0018 § 9.2). Reserved: not sent until that work lands.
+/// Bit 1: AES-GCM lanes (ADR 0018 § 9.2): this side has hardware AES; lanes of a group whose two sides set it run
+/// `Noise_IK_25519_AESGCM_BLAKE2b`.
 pub const CAPABILITY_AES_LANES: u32 = 1 << 1;
 /// Bit 2: compressed parts (ADR 0018 § 9.4).
 pub const CAPABILITY_COMPRESSED_PARTS: u32 = 1 << 2;

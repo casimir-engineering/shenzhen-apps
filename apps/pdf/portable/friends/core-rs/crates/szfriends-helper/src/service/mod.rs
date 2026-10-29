@@ -303,6 +303,10 @@ pub const ENV_TEST_FAST_TRANSFERS: &str = "SZFRIENDS_TEST_FAST_TRANSFERS";
 pub const ENV_TEST_COPIES_BY_BLOCKS: &str = "SZFRIENDS_TEST_COPIES_BY_BLOCKS";
 /// A test home's switch for lanes (ADR 0018 § 6): "0" opens and admits none.
 pub const ENV_TEST_LANES: &str = "SZFRIENDS_TEST_LANES";
+/// A test home's switches for AES-GCM lanes and compressed parts (ADR 0018 § 9.2, § 9.4): "0" leaves that bit out of
+/// the handshake, so the pair runs without it (the bench's before and after).
+pub const ENV_TEST_AES_LANES: &str = "SZFRIENDS_TEST_AES_LANES";
+pub const ENV_TEST_COMPRESSED_PARTS: &str = "SZFRIENDS_TEST_COMPRESSED_PARTS";
 /// A test home's emulated route rates, `lan=1250000,bluetooth=175000` (bytes per second each side writes at), so
 /// lanes over several routes can be measured on one computer (WP5's bench emulates one route at a time).
 pub const ENV_TEST_ROUTE_RATES: &str = "SZFRIENDS_TEST_ROUTE_RATES";
@@ -362,9 +366,10 @@ pub(crate) struct State {
     pub next_receipt: u64,
     /// What this helper announces.
     pub capabilities: Vec<String>,
-    /// ADR 0018: fast transfers with peers that have them too; off only in a test home that plays a released helper
-    /// (`SZFRIENDS_TEST_FAST_TRANSFERS=0`).
-    pub fast_transfers: bool,
+    /// The handshake's capability bits ([`szfriends_core::session::local_capabilities`]): none without fast
+    /// transfers, which are off only in a test home that plays a released helper (`SZFRIENDS_TEST_FAST_TRANSFERS=0`)
+    /// or by the settings key; less a test home's other switches.
+    pub session_capabilities: u32,
     /// Files received by blocks whose check before saving is running, since when (`blocks.rs`).
     pub finishing: HashMap<String, std::time::Instant>,
     /// Get again and own-device copies asked for by blocks on fast sessions (ADR 0018 § 4), which both helpers
@@ -419,6 +424,16 @@ impl State {
         if online.is_some() {
             capabilities.push("links".to_owned());
         }
+        let fast_transfers =
+            fast_setting && !(test_home && std::env::var_os(ENV_TEST_FAST_TRANSFERS).is_some_and(|v| v == "0"));
+        let switched_off = |name: &str| test_home && std::env::var_os(name).is_some_and(|v| v == "0");
+        let mut session_capabilities = szfriends_core::session::local_capabilities(fast_transfers);
+        if switched_off(ENV_TEST_AES_LANES) {
+            session_capabilities &= !szfriends_core::wire::consts::CAPABILITY_AES_LANES;
+        }
+        if switched_off(ENV_TEST_COMPRESSED_PARTS) {
+            session_capabilities &= !szfriends_core::wire::consts::CAPABILITY_COMPRESSED_PARTS;
+        }
         Self {
             identity,
             store,
@@ -441,8 +456,7 @@ impl State {
             finishing: HashMap::new(),
             copies_by_blocks: !(test_home && std::env::var_os(ENV_TEST_COPIES_BY_BLOCKS).is_some_and(|v| v == "0")),
             // The settings key `transfers.fast` (on unless it holds 0), read as the helper starts.
-            fast_transfers: fast_setting
-                && !(test_home && std::env::var_os(ENV_TEST_FAST_TRANSFERS).is_some_and(|v| v == "0")),
+            session_capabilities,
             lanes: !(test_home && std::env::var_os(ENV_TEST_LANES).is_some_and(|v| v == "0")),
             route_rates: if test_home {
                 route_rates(&std::env::var(ENV_TEST_ROUTE_RATES).unwrap_or_default())

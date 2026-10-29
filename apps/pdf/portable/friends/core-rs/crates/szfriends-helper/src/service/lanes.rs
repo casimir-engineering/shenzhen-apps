@@ -176,8 +176,11 @@ impl State {
             Some(*group.lanes.identity()) == identity
                 && self.sessions.map.get(head).and_then(|s| s.channel.remote_static().copied()) == static_key
         });
+        // An AES-GCM lane only into a group whose first session agreed to them (both set bit 1).
+        let aes = session.channel.cipher() == szfriends_core::wire::NoiseCipher::AesGcm;
+        let cipher_ok = |head: &u64| !aes || self.sessions.map.get(head).is_some_and(|s| s.channel.aes_lanes());
         let admitted = match head {
-            Some((head, _)) if fast && self.lanes => {
+            Some((head, _)) if fast && self.lanes && cipher_ok(head) => {
                 let head = *head;
                 let group = self.sessions.groups.by_head.get_mut(&head).expect("found");
                 group.lanes.admit(id, &token, route).map(|index| (head, index))
@@ -381,6 +384,10 @@ impl State {
         options.expected_identity = Some(identity);
         options.request_token = None;
         options.lane = Some(token);
+        // ADR 0018 § 9.2: AES-256-GCM when both first handshakes said hardware AES; ChaChaPoly otherwise.
+        if self.sessions.map.get(&head).is_some_and(|s| s.channel.aes_lanes()) {
+            options.cipher = szfriends_core::wire::NoiseCipher::AesGcm;
+        }
         let plan = DialPlan {
             method,
             endpoint: endpoint.clone(),

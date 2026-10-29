@@ -29,4 +29,4 @@ pub use fields::Fields;
 pub use frame::Frame;
 pub use payload::HandshakePayload;
 pub use route::RouteMethod;
-pub use types::{tag, CloseReason, FrameType, Pattern};
+pub use types::{tag, CloseReason, FrameType, NoiseCipher, Pattern};

@@ -124,11 +124,7 @@ impl State {
         meta: LinkMeta,
     ) -> Option<u64> {
         let mut channel = channel;
-        let capabilities = if self.fast_transfers {
-            szfriends_core::wire::consts::CAPABILITY_FAST_TRANSFERS | szfriends_core::wire::consts::CAPABILITY_PIECES
-        } else {
-            0
-        };
+        let capabilities = self.session_capabilities;
         channel.set_config(szfriends_core::session::ChannelConfig { capabilities, ..Default::default() });
         let rate = self.route_rates.get(&meta.dialed_route).copied();
         let silence = self.route_silence.clone().map(|path| (path, super::route_name(meta.dialed_route).to_owned()));

@@ -108,7 +108,7 @@ fn streams_split_into_the_helpers_messages() {
     let vectors = load("objc-noise.json");
     for handshake in cases(&vectors, "handshakes") {
         let pattern = Pattern::from_byte(number(handshake, "pattern_byte") as u8).expect("pattern");
-        let preamble = Preamble { pattern };
+        let preamble = Preamble::new(pattern);
         assert_eq!(hex(&preamble.bytes()), text(handshake, "preamble"));
         assert_eq!(hex(&prologue(preamble)), text(handshake, "prologue"));
         let messages: Vec<Vec<u8>> = cases(handshake, "messages").iter().map(|m| field(m, "ciphertext")).collect();

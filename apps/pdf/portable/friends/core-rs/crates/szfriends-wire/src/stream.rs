@@ -4,26 +4,43 @@
 
 use crate::consts::{NOISE_MESSAGE_MAX, PROLOGUE_LABEL, SESSION_MAJOR};
 use crate::error::WireError;
-use crate::types::Pattern;
+use crate::types::{NoiseCipher, Pattern};
 
-/// `'S' 'Z' major pattern`, sent by the initiator before message 1.
+/// `'S' 'Z' major pattern`, sent by the initiator before message 1. Bit 7 of the pattern byte says the session runs
+/// AES-256-GCM instead of ChaChaPoly (ADR 0018 § 9.2): sent only for IK lanes to a peer whose first session set
+/// capability bit 1, so a released app, which refuses an unknown pattern byte, never sees it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Preamble {
     pub pattern: Pattern,
+    pub cipher: NoiseCipher,
 }
+
+/// The pattern byte's AES-GCM flag.
+pub const PREAMBLE_AES_GCM: u8 = 0x80;
 
 impl Preamble {
     pub const LEN: usize = 4;
 
-    pub fn bytes(self) -> [u8; 4] {
-        [b'S', b'Z', SESSION_MAJOR, self.pattern as u8]
+    /// The preamble of every session but an AES-GCM lane.
+    pub fn new(pattern: Pattern) -> Self {
+        Self { pattern, cipher: NoiseCipher::ChaChaPoly }
     }
 
-    /// An unknown major or pattern closes the connection.
+    pub fn bytes(self) -> [u8; 4] {
+        let flag = if self.cipher == NoiseCipher::AesGcm { PREAMBLE_AES_GCM } else { 0 };
+        [b'S', b'Z', SESSION_MAJOR, self.pattern as u8 | flag]
+    }
+
+    /// An unknown major or pattern closes the connection; AES-GCM goes only with IK.
     pub fn parse(bytes: &[u8]) -> Result<Self, WireError> {
         match bytes {
-            [b'S', b'Z', major, pattern] if *major == SESSION_MAJOR => {
-                Pattern::from_byte(*pattern).map(|pattern| Self { pattern }).ok_or(WireError::Preamble)
+            [b'S', b'Z', major, byte] if *major == SESSION_MAJOR => {
+                let cipher = if byte & PREAMBLE_AES_GCM != 0 { NoiseCipher::AesGcm } else { NoiseCipher::ChaChaPoly };
+                let pattern = Pattern::from_byte(byte & !PREAMBLE_AES_GCM).ok_or(WireError::Preamble)?;
+                if cipher == NoiseCipher::AesGcm && pattern != Pattern::IK {
+                    return Err(WireError::Preamble);
+                }
+                Ok(Self { pattern, cipher })
             }
             _ => Err(WireError::Preamble),
         }

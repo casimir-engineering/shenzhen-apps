@@ -148,6 +148,9 @@ pub struct ChannelConfig {
     /// The handshake's capability bits this side sets (`szfriends_wire::consts::CAPABILITY_*`): fast transfers, unless
     /// the helper switches them off (ADR 0018 § 1; a test home plays a peer without them).
     pub capabilities: u32,
+    /// Bulk frames sealed, and complete messages opened, together on several cores (ADR 0018 § 9.2); off seals and
+    /// opens one at a time (the measurement's before).
+    pub crypto_batches: bool,
     /// The highest session minor this side offers: [`consts::SESSION_MINOR`]; a test plays an older peer with less.
     pub minor_max: u16,
 }
@@ -165,6 +168,7 @@ impl Default for ChannelConfig {
             silence: Duration::from_millis(consts::SILENCE_MILLISECONDS),
             silence_bluetooth: Duration::from_millis(consts::SILENCE_BLUETOOTH_MILLISECONDS),
             capabilities: consts::CAPABILITY_FAST_TRANSFERS,
+            crypto_batches: true,
             minor_max: consts::SESSION_MINOR,
         }
     }
@@ -200,6 +204,21 @@ pub type PublicProfile = Fields;
 
 /// Time since an arbitrary origin that keeps counting while the device sleeps: `CLOCK_BOOTTIME` on Linux and
 /// Android, `CLOCK_MONOTONIC` on Apple systems (which counts sleep there), the performance counter on Windows.
+/// The capability bits this build sets in its handshakes (ADR 0018 § 1): none without fast transfers; with them, bit 0,
+/// bit 1 where this processor has hardware AES (§ 9.2), bit 2, compressed parts (§ 9.4), and bit 3, pieces (§ 3). A test home plays a
+/// peer without AES lanes or compression with `SZFRIENDS_TEST_AES_LANES=0` or `SZFRIENDS_TEST_COMPRESSED_PARTS=0`:
+/// the helper and the interop peer read them and clear those bits in [`ChannelConfig::capabilities`].
+pub fn local_capabilities(fast_transfers: bool) -> u32 {
+    if !fast_transfers {
+        return 0;
+    }
+    let mut bits = consts::CAPABILITY_FAST_TRANSFERS | consts::CAPABILITY_COMPRESSED_PARTS | consts::CAPABILITY_PIECES;
+    if szfriends_crypto::noise::hardware_aes() {
+        bits |= consts::CAPABILITY_AES_LANES;
+    }
+    bits
+}
+
 pub fn monotonic_now() -> Duration {
     clock::now()
 }

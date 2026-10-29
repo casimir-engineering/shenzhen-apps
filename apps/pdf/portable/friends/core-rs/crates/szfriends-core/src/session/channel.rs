@@ -7,9 +7,12 @@ use std::time::Duration;
 
 use szfriends_crypto::noise::{Handshake, Transport};
 use szfriends_wire::consts::{RESPONDER_HANDSHAKE_MAX, SESSION_MAJOR};
-use szfriends_wire::{Fields, Pattern, RouteMethod};
+use szfriends_wire::{Fields, NoiseCipher, Pattern, RouteMethod};
 
 use super::{ChannelConfig, ChannelIdentity, Event, PublicProfile, ReplayCache, SessionError, SessionRandom};
+
+/// Complete transport messages opened together at most (ADR 0018 § 9.2).
+const BATCH_MESSAGES: usize = 8;
 
 /// The responder's view of IK or NN message 1, or XX message 3, before any reply: whether this remote may continue
 /// (`SZFriendsRemoteKeyPolicy`). Arguments: the remote identity key (none for NN), the pattern, and the token an IK
@@ -51,6 +54,9 @@ pub struct HandshakeOptions {
     pub browse_only: bool,
     /// IK: a lane of a live session's group (ADR 0018 § 6), its 16-byte token in message 1's payload.
     pub lane: Option<[u8; 16]>,
+    /// A lane's cipher: AES-256-GCM when the group's first session had both sides set capability bit 1 (ADR 0018
+    /// § 9.2, [`SecureChannel::aes_lanes`]); ChaChaPoly for everything else.
+    pub cipher: NoiseCipher,
 }
 
 impl HandshakeOptions {
@@ -63,6 +69,7 @@ impl HandshakeOptions {
             request_token: None,
             browse_only: false,
             lane: None,
+            cipher: NoiseCipher::ChaChaPoly,
         }
     }
 }
@@ -102,6 +109,7 @@ pub struct SecureChannel {
     pub(super) hooks: Option<Box<dyn ListenerHooks>>,
     pub(super) state: State,
     pub(super) pattern: Pattern,
+    pub(super) cipher: NoiseCipher,
     pub(super) handshake: Option<Handshake>,
     pub(super) transport: Option<Transport>,
     pub(super) inbound: Vec<u8>,
@@ -166,6 +174,7 @@ impl SecureChannel {
             hooks: None,
             state: State::Idle,
             pattern,
+            cipher: NoiseCipher::ChaChaPoly,
             handshake: None,
             transport: None,
             inbound: Vec::new(),
@@ -210,8 +219,10 @@ impl SecureChannel {
     }
 
     pub fn initiator(identity: ChannelIdentity, options: HandshakeOptions) -> Self {
-        let (pattern, route) = (options.pattern, options.route);
-        Self::with_role(Role::Initiator { options, on_profile: None }, identity, pattern, route)
+        let (pattern, route, cipher) = (options.pattern, options.route, options.cipher);
+        let mut channel = Self::with_role(Role::Initiator { options, on_profile: None }, identity, pattern, route);
+        channel.cipher = cipher;
+        channel
     }
 
     /// `public_profile`: PROFILE fields served in XX message 2 while this listener's public entry is on; `None` for a
@@ -320,6 +331,27 @@ impl SecureChannel {
     /// The capability bits the peer's handshake set.
     pub fn remote_capabilities(&self) -> u32 {
         self.remote_capabilities
+    }
+
+    /// The session's Noise cipher: AES-256-GCM only on an AES lane (ADR 0018 § 9.2).
+    pub fn cipher(&self) -> NoiseCipher {
+        self.cipher
+    }
+
+    /// A fast session where both sides also set `bit`.
+    fn fast_with(&self, bit: u32) -> bool {
+        self.fast_transfers() && self.config.capabilities & bit != 0 && self.remote_capabilities & bit != 0
+    }
+
+    /// ADR 0018 § 9.2: this group's lanes run AES-256-GCM (both sides have hardware AES and set bit 1).
+    pub fn aes_lanes(&self) -> bool {
+        self.fast_with(szfriends_wire::consts::CAPABILITY_AES_LANES)
+    }
+
+    /// ADR 0018 § 9.4: PARTs on this session may be compressed (both sides set bit 2). Only Bluetooth and relay lanes
+    /// send them compressed; any lane accepts them.
+    pub fn compressed_parts(&self) -> bool {
+        self.fast_with(szfriends_wire::consts::CAPABILITY_COMPRESSED_PARTS)
     }
 
     /// ADR 0018 § 1: this session runs fast transfers when its negotiated minor is 4 or more and both sides set bit 0.
@@ -456,6 +488,30 @@ impl SecureChannel {
             if available < 2 + length {
                 break;
             }
+            if self.state == State::Established && self.config.crypto_batches {
+                // Every complete message here, opened together (`handle_transport_messages`).
+                let mut spans = vec![(offset + 2, length)];
+                let mut next = offset + 2 + length;
+                while spans.len() < BATCH_MESSAGES && self.inbound.len() >= next + 2 {
+                    let length = usize::from(u16::from_be_bytes([self.inbound[next], self.inbound[next + 1]]));
+                    if length == 0 || self.inbound.len() < next + 2 + length {
+                        break;
+                    }
+                    spans.push((next + 2, length));
+                    next += 2 + length;
+                }
+                if spans.len() > 1 {
+                    let inbound = std::mem::take(&mut self.inbound);
+                    let messages: Vec<&[u8]> = spans.iter().map(|&(at, length)| &inbound[at..at + length]).collect();
+                    let handled = self.handle_transport_messages(&messages, now);
+                    self.inbound = inbound;
+                    if handled == 0 {
+                        break;
+                    }
+                    offset = spans.get(handled).map_or(next, |&(at, _)| at - 2);
+                    continue;
+                }
+            }
             let message = self.inbound[offset + 2..offset + 2 + length].to_vec();
             offset += 2 + length;
             match self.state {
@@ -470,7 +526,9 @@ impl SecureChannel {
         self.inbound.drain(..offset);
     }
 
-    pub(super) fn preamble_bytes(pattern: Pattern) -> [u8; 4] {
-        [b'S', b'Z', SESSION_MAJOR, pattern as u8]
+    pub(super) fn preamble_bytes(pattern: Pattern, cipher: NoiseCipher) -> [u8; 4] {
+        let preamble = szfriends_wire::stream::Preamble { pattern, cipher }.bytes();
+        debug_assert_eq!(preamble[2], SESSION_MAJOR);
+        preamble
     }
 }
