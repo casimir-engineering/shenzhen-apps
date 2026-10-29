@@ -46,6 +46,10 @@ static void CheckCollectionPDFWorkspace(SPDFMacCollectionWindow* manager, SPDFMa
     while (![manager.thumbnailCache objectForKey:preview.identifier] && deadline.timeIntervalSinceNow>0)
         [NSRunLoop.currentRunLoop runMode:NSDefaultRunLoopMode beforeDate:[NSDate dateWithTimeIntervalSinceNow:.01]];
     Expect(@"readable saved PDF produces an actual lazy page preview",[manager.thumbnailCache objectForKey:preview.identifier] != nil);
+    // A finished thumbnail goes to the cell the table shows; the one made on request above may have been a stand-in.
+    cell = [manager.table viewAtColumn:0 row:0 makeIfNecessary:YES]; [cell layoutSubtreeIfNeeded];
+    preview = (id)Descendant(cell,NSImageView.class);
+    Expect(@"the row shows its page, not the placeholder",preview.image && !preview.image.isTemplate);
     NSString* evidence = NSProcessInfo.processInfo.environment[@"SPDF_COLLECTION_WINDOW_EVIDENCE"];
     for (NSString* appearance in @[NSAppearanceNameAqua,NSAppearanceNameDarkAqua]) {
         manager.window.appearance = [NSAppearance appearanceNamed:appearance];

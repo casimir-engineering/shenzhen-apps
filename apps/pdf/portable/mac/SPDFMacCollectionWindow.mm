@@ -5,6 +5,7 @@
 #import "SPDFMacCollectionWindowHistory.h"
 #import "SPDFMacCollectionManagerWindow.h"
 #import "SPDFMacCollectionStyle.h"
+#import <QuartzCore/QuartzCore.h>
 
 static BOOL MatchesDocumentView(NSDictionary* doc, NSInteger view) {
     if (view == 2) return !SPDFCollectionOriginalAvailable(doc);
@@ -211,7 +212,17 @@ static NSDictionary* LatestSavedVersion(NSDictionary* doc) {
     }
 }
 - (void)managerWindowWillClose:(NSNotification*)notification {
-    (void)notification; [self persistManagerPreferences];
+    (void)notification;
+    // Gone from the screen before anything else, committed now rather than on a later run-loop pass that the
+    // companion's exit may never reach (SPDFMacCollectionCompanionRuntime.mm). Transparent first: AppKit's order-out
+    // asks the window server for every window to pick the next key one, 13 ms measured, and the window showed
+    // throughout. The alpha comes back once it is out, for a later reopening in this process.
+    NSWindow* window = self.window;
+    window.alphaValue = 0; [CATransaction flush];
+    [window orderOut:nil]; window.alphaValue = 1;
+    // Queued thumbnails are dropped; the list's place is written in the background.
+    [self cancelThumbnails];
+    [self persistManagerPreferences];
 }
 - (void)dealloc { [NSNotificationCenter.defaultCenter removeObserver:self]; }
 - (void)showError:(NSError*)error { if (error) [self.window presentError:error]; }

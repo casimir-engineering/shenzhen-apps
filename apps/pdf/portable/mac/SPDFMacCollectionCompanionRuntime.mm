@@ -3,6 +3,8 @@
 #import "SPDFMacCollectionStore.h"
 #import "SPDFMacCollectionWindowPrivate.h"
 #import "SPDFMacPassword.h"
+#import "SPDFMacPasteboardOwnership.h"
+#import <QuartzCore/QuartzCore.h>
 static SPDFCollectionCompanionRuntime* activeRuntime;
 @interface SPDFCollectionCompanionRuntime () <NSApplicationDelegate>
 @property(nonatomic) SPDFCollectionPipe* pipe;
@@ -104,6 +106,27 @@ static SPDFCollectionCompanionRuntime* activeRuntime;
     [_pipe send:@{@"kind":@"settings",@"storageLimitOnly":@([notification.userInfo[@"storageLimitOnly"] boolValue])}];
 }
 - (BOOL)applicationShouldTerminateAfterLastWindowClosed:(NSApplication*)application { (void)application; return YES; }
+// Closing the window ends this process. AppKit's terminate held it ~330 ms in CFPasteboardResolveAllPromisedData,
+// and a close soon after a scroll often left the window on screen for all of it: its order-out was not committed
+// before terminate blocked the main thread. Off screen on a 310-document Collection, closing right after a scroll:
+// window gone after ~20 ms or only with the process at ~370 ms (4 runs of 6), process gone ~370 ms. Now the window is
+// committed off the screen first (managerWindowWillClose:), and the process saves the list's place and exits at
+// once, as the reader's quit does (SPDFMacQuitFinishing.mm).
+- (NSApplicationTerminateReply)applicationShouldTerminate:(NSApplication*)application {
+    // Quit Collection with the window open: transparent at once, as a close does (managerWindowWillClose:).
+    NSArray<NSWindow*>* shown = [application.windows filteredArrayUsingPredicate:
+        [NSPredicate predicateWithFormat:@"visible == YES"]];
+    for (NSWindow* window in shown) window.alphaValue = 0;
+    [CATransaction flush];
+    for (NSWindow* window in shown) [window orderOut:nil];
+    if (spdf_mac_general_pasteboard_may_hold_our_data()) return NSTerminateNow;
+    dispatch_async(dispatch_get_main_queue(), ^{
+        if (self.manager) dispatch_sync(self.manager.preferenceQueue, ^{}); // the browse state written on close
+        [self.pipe close];
+        exit(0);
+    });
+    return NSTerminateLater;
+}
 - (void)applicationWillTerminate:(NSNotification*)notification { (void)notification; [_pipe close]; }
 @end
 int SPDFRunCollectionCompanion(void) {

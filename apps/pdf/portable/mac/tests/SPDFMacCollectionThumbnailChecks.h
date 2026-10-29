@@ -1,4 +1,6 @@
 #import "SPDFMacCollectionThumbnail.h"
+#import "SPDFMacCollectionThumbnailLoader.h"
+#import "SPDFMacMarkdownCache.h"
 
 static NSData* CollectionThumbnailFixture(void) {
     NSMutableData* data = [NSMutableData data];
@@ -23,17 +25,21 @@ static void CheckCollectionThumbnails(void) {
     PDFDocument* ownerRestricted = [[PDFDocument alloc] initWithURL:restricted];
     Expect(@"fixture encrypted but readable without a user password",ownerRestricted.isEncrypted && !ownerRestricted.isLocked);
     __block BOOL prompted = NO;
-    NSImage* image = SPDFCollectionPDFThumbnail(restricted,1,^(PDFDocument* pdf) { (void)pdf; prompted = YES; },nil);
+    NSImage* image = SPDFCollectionPDFThumbnail(restricted,1,NSMakeSize(260,300),^(PDFDocument* pdf) { (void)pdf; prompted = YES; },nil);
     Expect(@"encrypted readable PDF gets a real page thumbnail without prompting",image != nil && !prompted);
     NSURL* locked = [NSURL fileURLWithPath:[directory stringByAppendingPathComponent:@"Locked.pdf"]];
     Expect(@"write locked PDF",[plain writeToURL:locked withOptions:@{
         PDFDocumentOwnerPasswordOption:@"owner-secret",PDFDocumentUserPasswordOption:@"reader-secret"}]);
     NSError* error = nil;
-    Expect(@"locked copy remains private without a credential",SPDFCollectionPDFThumbnail(locked,1,nil,&error)==nil && error.code==2);
-    image = SPDFCollectionPDFThumbnail(locked,1,^(PDFDocument* pdf) { [pdf unlockWithPassword:@"reader-secret"]; },nil);
+    Expect(@"locked copy remains private without a credential",SPDFCollectionPDFThumbnail(locked,1,NSMakeSize(260,300),nil,&error)==nil && error.code==2);
+    image = SPDFCollectionPDFThumbnail(locked,1,NSMakeSize(260,300),^(PDFDocument* pdf) { [pdf unlockWithPassword:@"reader-secret"]; },nil);
     Expect(@"already authenticated copy can render using a memory credential",image != nil);
     Expect(@"rendering does not decrypt or rewrite archived bytes",[[[PDFDocument alloc] initWithURL:locked] isLocked]);
-    Expect(@"out of bounds result pages clamp to a real page",SPDFCollectionPDFThumbnail(restricted,999,nil,nil)!=nil);
+    Expect(@"out of bounds result pages clamp to a real page",SPDFCollectionPDFThumbnail(restricted,999,NSMakeSize(260,300),nil,nil)!=nil);
+    NSImage* well = SPDFCollectionThumbnailFromPixels([image CGImageForProposedRect:NULL context:nil hints:nil],2);
+    CGImageRef pixels = [well CGImageForProposedRect:NULL context:nil hints:nil];
+    Expect(@"a list thumbnail is the page well's pixels at 2x, not 260 x 300 pt",pixels && CGImageGetWidth(pixels)==130 &&
+        CGImageGetHeight(pixels)==130 && NSEqualSizes(well.size,NSMakeSize(65,65)));
     [fm removeItemAtPath:directory error:nil];
 }
 
@@ -64,6 +70,23 @@ static void CheckCollectionThumbnailRequests(SPDFMacCollectionWindow* manager) {
     while ([manager.pendingThumbnails containsObject:key] && deadline.timeIntervalSinceNow > 0)
         [NSRunLoop.currentRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:.01]];
     Expect(@"encrypted list thumbnail resolves to page pixels",[manager.thumbnailCache objectForKey:key]!=nil);
+    // Every Collection window is a new process: what a window rendered, the next one reads from disk.
+    CGFloat scale = MAX(1,manager.window.backingScaleFactor);
+    NSURL* cache = manager.thumbnails.directory;
+    Expect(@"thumbnails go to the private state's cache under test",[cache.path hasPrefix:@(getenv("SPDF_STATE_DIR") ?: "/-")]);
+    Expect(@"a readable saved PDF's thumbnail is kept on disk",spdf_mac_markdown_image_cache_read(cache,
+        SPDFCollectionThumbnailDiskKey(@{@"document":document,@"version":version},0,scale))!=nil);
+    CGImageRef listed = [[manager.thumbnailCache objectForKey:key] CGImageForProposedRect:NULL context:nil hints:nil];
+    Expect(@"the list renders for its page well only",listed && CGImageGetWidth(listed)<=65*scale &&
+        CGImageGetHeight(listed)<=88*scale);
+    NSUInteger renders = manager.thumbnails.renderCount;
+    [manager.thumbnailCache removeAllObjects];
+    (void)[manager resultCellForRow:0];
+    deadline = [NSDate dateWithTimeIntervalSinceNow:1];
+    while ([manager.pendingThumbnails containsObject:key] && deadline.timeIntervalSinceNow > 0)
+        [NSRunLoop.currentRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:.01]];
+    Expect(@"a thumbnail on disk shows again without rendering its page",[manager.thumbnailCache objectForKey:key]!=nil &&
+        manager.thumbnails.renderCount==renders);
     // Imported metadata can exist before a document has ever been captured.
     NSDictionary* imported = @{@"id":@"uncaptured",@"path":path,@"title":@"Restricted.pdf"};
     manager.rows = @[@{@"document":imported}];
@@ -78,6 +101,10 @@ static void CheckCollectionThumbnailRequests(SPDFMacCollectionWindow* manager) {
     while ([manager.pendingThumbnails containsObject:originalKey] && deadline.timeIntervalSinceNow > 0)
         [NSRunLoop.currentRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:.01]];
     Expect(@"uncaptured original has a real preview",[manager.thumbnailCache objectForKey:originalKey]!=nil);
+    NSString* unchanged = SPDFCollectionThumbnailDiskKey(@{@"document":imported},0,scale);
+    [fm setAttributes:@{NSFileModificationDate:[NSDate dateWithTimeIntervalSinceNow:-60]} ofItemAtPath:path error:nil];
+    Expect(@"an edited original misses its old thumbnail on disk",unchanged &&
+        ![unchanged isEqual:SPDFCollectionThumbnailDiskKey(@{@"document":imported},0,scale)]);
     BOOL labeledOriginal=NO;
     for (NSView* child in originalCell.subviews)
         if ([child.identifier isEqual:originalKey]) labeledOriginal=[child.accessibilityLabel isEqual:@"Original document preview"];

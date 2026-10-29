@@ -43,6 +43,8 @@ static NSView* Identified(NSView* view,NSString* identifier) {
 #import "SPDFMacCollectionStorageControlsChecks.h"
 int main(void) {
     @autoreleasepool {
+        // Thumbnails go to a scratch cache, never the user's (SPDFCollectionThumbnailDirectory).
+        setenv("SPDF_STATE_DIR",[NSTemporaryDirectory() stringByAppendingPathComponent:NSUUID.UUID.UUIDString].UTF8String,1);
         [NSApplication sharedApplication];
         [NSApp setActivationPolicy:NSApplicationActivationPolicyProhibited];
         CheckCollectionThumbnails();

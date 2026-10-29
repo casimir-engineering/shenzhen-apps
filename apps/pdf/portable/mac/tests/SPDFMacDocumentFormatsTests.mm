@@ -74,7 +74,7 @@ int main(int argc, const char* argv[]) {
                 spdf_free_bitmap(&dark);
             }
             if ([@[@"png",@"jpg",@"tiff",@"bmp",@"gif",@"jp2"] containsObject:path.pathExtension]) {
-                NSImage* thumbnail=SPDFCollectionImageThumbnail([NSURL fileURLWithPath:path],1);
+                NSImage* thumbnail=SPDFCollectionImageThumbnail([NSURL fileURLWithPath:path],1,300);
                 Check(thumbnail!=nil,[@"Collection image preview " stringByAppendingString:filename]);
                 Check(thumbnail.size.width<=300 && thumbnail.size.height<=300,@"bounded thumbnail dimensions");
                 Check(spdf_recolor_path_is_picture(path.UTF8String),@"pictures retain original colors");

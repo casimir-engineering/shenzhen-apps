@@ -3,6 +3,9 @@
 #import "SPDFMacCollectionWindowPrivate.h"
 #import "SPDFMacCollectionStore.h"
 #import "SPDFMacPassword.h"
+#import "SPDFMacCollectionThumbnail.h"
+#import "SPDFMacCollectionThumbnailLoader.h"
+#import "SPDFMacMarkdownCache.h"
 #import <PDFKit/PDFKit.h>
 #import <objc/runtime.h>
 
@@ -39,6 +42,8 @@ static NSImage* Thumbnail(SPDFMacCollectionWindow* manager,NSDictionary* row,NSS
 #import "SPDFMacCollectionScrollChecks.h"
 int main(void) {
     @autoreleasepool {
+        // Thumbnails go to a scratch cache, never the user's (SPDFCollectionThumbnailDirectory).
+        setenv("SPDF_STATE_DIR",[NSTemporaryDirectory() stringByAppendingPathComponent:NSUUID.UUID.UUIDString].UTF8String,1);
         Expect(@"helper links its runtime without activating it",NSClassFromString(@"SPDFCollectionCompanionRuntime")!=nil &&
             [SPDFCollectionCompanionRuntime activeRuntime]==nil);
         Expect(@"reader and persistent-password backend are absent from helper",
@@ -109,6 +114,8 @@ int main(void) {
         NSDictionary* encryptedRow=CaptureRow(store,encrypted);
         image=Thumbnail(manager,encryptedRow,@"encrypted-pipe");
         Expect(@"encrypted PDF preview authenticates through private credential pipe",image!=nil && requests==1);
+        Expect(@"a PDF opened with a password keeps its preview off disk",!spdf_mac_markdown_image_cache_read(
+            manager.thumbnails.directory,SPDFCollectionThumbnailDiskKey(encryptedRow,0,MAX(1,manager.window.backingScaleFactor))));
         NSURL* archived=[store materializeVersionID:encryptedRow[@"version"][@"id"]
             documentID:encryptedRow[@"document"][@"id"] error:nil];
         Expect(@"rendering leaves saved encrypted bytes locked",[[[PDFDocument alloc] initWithURL:archived] isLocked]);

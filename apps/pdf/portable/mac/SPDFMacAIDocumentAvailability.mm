@@ -143,9 +143,10 @@ NSArray<NSDictionary*>* SPDFMacAILinkableCollectionRows(SPDFMacCollectionStore* 
       dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
         NSURL* file = [NSURL fileURLWithPath:path];
         NSString* extension = path.pathExtension.lowercaseString;
-        NSImage* image = [extension isEqual:@"pdf"] ? SPDFCollectionPDFThumbnail(file, MAX(1, page), nil, NULL)
+        NSImage* image = [extension isEqual:@"pdf"]
+            ? SPDFCollectionPDFThumbnail(file, MAX(1, page), NSMakeSize(260, 300), nil, NULL)
             : [@[ @"png", @"jpg", @"jpeg", @"heic", @"tif", @"tiff", @"gif", @"webp" ] containsObject:extension]
-            ? SPDFCollectionImageThumbnail(file, 1) : nil;
+            ? SPDFCollectionImageThumbnail(file, 1, 300) : nil;
         dispatch_async(dispatch_get_main_queue(), ^{
           if (image) [cache setObject:image forKey:key];
           completion(image);

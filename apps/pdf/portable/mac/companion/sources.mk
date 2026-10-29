@@ -11,6 +11,8 @@ MAC_COLLECTION_SRCS := $(MAC_MARKDOWN_SRCS) \
     mac/SPDFMacCollectionCompareLatest.mm mac/SPDFMacCollectionLocate.mm \
     mac/SPDFMacCollectionPipe.mm mac/SPDFMacCollectionCompanionRuntime.mm \
     mac/SPDFMacPasswordCredentials.mm mac/SPDFMacMarkdownPrinting.mm \
-    mac/SPDFMacFileExplorerPreference.mm mac/SPDFMacSearchFileCache.mm
+    mac/SPDFMacFileExplorerPreference.mm mac/SPDFMacSearchFileCache.mm \
+    mac/SPDFMacCollectionThumbnailLoader.mm mac/SPDFMacMarkdownCache.mm mac/SPDFMacTabPreviewCache.mm \
+    mac/SPDFMacPasteboardOwnership.mm
 MAC_COLLECTION_FRAMEWORKS := -framework Cocoa -framework QuartzCore -framework PDFKit \
     -framework UniformTypeIdentifiers -framework CoreServices -framework ImageIO
