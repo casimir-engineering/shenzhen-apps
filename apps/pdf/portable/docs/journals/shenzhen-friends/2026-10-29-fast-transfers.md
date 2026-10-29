@@ -1396,3 +1396,16 @@ On loopback every holder shares this Mac's cores, so two holders gain only about
 planner's simulation predicts (WP6: 4.15 s for three LAN holders against 6.71 s from the fastest alone) needs holders
 on separate devices and routes. `make friends-core-rs-interop-check` passes with the Objective-C helper asking and
 serving copies by blocks (WP4).
+
+**Order of pulls.** A Get again the person asked for starts before copies between own devices waiting in line, and
+pre-empts a copy that runs by itself (the copy keeps what arrived and resumes after); a copy the person asked for
+with Get is not pre-empted.
+
+**For WP4: the Objective-C helper refuses a later Get again after small own-device asks.** When the Rust helper asked
+the Objective-C friend for small files (180 KB) by AGAIN 4 as an extra holder of copies between the person's own
+devices, the friend answered the person's own Get again of a file a few seconds later with NONE "not now"
+(`objc_again`'s `a_friends_file_comes_back_from_either_computer_then_from_an_objc_friend`, 4 of 4 runs), apparently
+counting those asks against its one-file-at-a-time or checks-an-hour budget even after every block was acknowledged
+by HAVE. The Rust pull therefore asks the friend for own-device copies only from 8 MiB (`FRIEND_HELPS_FROM` in
+`service/pulls.rs`). Once the Mac side releases its budget when a copy's blocks are all acknowledged (or does not count
+asks for files the person's own devices also hold), the threshold can drop to 0.
