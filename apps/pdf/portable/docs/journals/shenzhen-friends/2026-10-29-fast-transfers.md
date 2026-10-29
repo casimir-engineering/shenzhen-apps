@@ -904,3 +904,43 @@ most); 8 runs out of 8 pass. HAVEs make this likely; it was possible before with
 CBPeripheralManager per L2CAP channel) and the WP2 scheduler spreading blocks across them, mirroring WP3's helper side; Get again and own-device copies by blocks (messages ready, flows not); "Finishing…" while a large
 file's check runs (the check runs synchronously on the store queue today); staging and publishing small files in
 batches (300 × 10 KiB is unchanged by blocks).
+
+## WP3, third part: lanes in the bench's Rust peer, and the silence and Bluetooth rules measured
+
+- **The interop Rust peer opens and admits lanes** (`szfriends-interop/src/lanes.rs`), as the helper does: `hello`
+  says `"lanes": true`, `dial` takes `"lane_of"`, and blocks are given to lanes by WP2's scheduler. WP5's
+  multi-route cases now run Rust to Rust. The Objective-C session peer does not say `"lanes"` yet, so its pairs are
+  still skipped.
+- **A group outlives its first session** (ADR 0018 § 6): `LaneGroup::lane_down` ends a group only with its last live
+  lane, and the peer moves the first session's conversation and files to the lowest live lane. The helper still ends
+  its group with the first session and redials, as its session table expects; moving it there is open.
+- **Silence by hearing.** In the bench a silenced Bluetooth lane went unnoticed by the scheduler for 11 s: the
+  proxy (and a deep socket buffer on a real slow path) let the block's parts be "written" at once, so the measured
+  round trip became the block's whole 6 s and `silent_after` (3 round trips) 18 s. Both ends ping every second
+  while a file moves, so a lane holding blocks that hears nothing for 2.5 s (3.5 s on Bluetooth) is now silent. Also,
+  a write counts as progress only while the lane carries parts, not for a PING.
+- **Bluetooth beside a faster lane holds one block, not two**, when it needs over a second per block: the second
+  one counted in its expected finish and cut it off the transfer early. WP2's scenario table still passes.
+
+`make friends-transfer-bench` with `BENCH_MULTI`, Rust to Rust (load around 5 to 7 from other packages):
+
+| Case | Time | Of what the routes carry together | Of the fastest alone | Per route (MB) |
+|---|---|---|---|---|
+| LAN 1 GbE + direct Wi-Fi 300 Mbit/s, 1 GiB | 7.9 to 8.2 s | 85 to 88 % | 1.15 | 818 + 257 |
+| … direct Wi-Fi cut half-way | 9.0 s | 77 % | 1.01 | 946 + 130 |
+| … the LAN (the session's own route) silenced half-way | 19.2 s | 36 % | 0.48 | 401 + 674 (finished on direct Wi-Fi) |
+| 10 Mbit/s LAN + Bluetooth, 16 MiB | 13.0 s | 91 to 93 % | 1.03 to 1.06 | 15.7 + 2.1 |
+| … Bluetooth cut half-way | 13.5 s | 87 % | 0.99 | 16.8 + 0.9 |
+| … Bluetooth silenced half-way | 13.5 s (18.0 s before) | 87 % | 0.99 | 16.8 + 0.9 |
+| LAN + direct Wi-Fi + Bluetooth, 1 GiB | 8.0 to 9.1 s | 76 to 87 % | 1.01 to 1.15 | Bluetooth unused at LAN rates |
+| … the LAN cut half-way | 18.9 s | 37 % | 0.48 | finished on direct Wi-Fi |
+
+The ADR's "no slower than LAN alone when Bluetooth drops" holds (0.99). Two helpers (`tests/fast_lanes.rs`, links
+paced at their routes' rates): 12 MiB over LAN 1 MB/s with Bluetooth 1 MB/s, 13.4 s alone, 7.8 s with lanes; 32 MiB
+over 10 Mbit/s LAN, Bluetooth adds 71 % of its 175 KB/s; 96 MiB, 76 %. The remaining gap to 80 % is block
+granularity, not overhead: a 1 MiB block takes 6 s on Bluetooth, and the last blocks stay on the faster lane, so a
+32 MiB file gives Bluetooth three or four blocks; the share grows with the file. The LAN alone reaches 93 % of its
+emulated rate in the same runs, so against what each route delivers alone, Bluetooth adds about 82 %. Smaller blocks on
+Bluetooth (the WP6 proposal above) would close it on short files too.
+
+Online data-channel lanes and 8 MiB buffering are not done: they need a data-channel bench with delay first.
