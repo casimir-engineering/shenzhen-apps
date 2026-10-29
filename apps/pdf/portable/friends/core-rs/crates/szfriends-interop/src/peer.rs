@@ -327,6 +327,8 @@ impl State {
 
     fn channel_config(&self) -> ChannelConfig {
         let mut config = ChannelConfig::default();
+        // As the helper: Pieces (ADR 0018 § 3) with peers that have them.
+        config.capabilities |= szfriends_core::wire::consts::CAPABILITY_PIECES;
         if let Some(bytes) = self.rekey_after {
             config.rekey_after_bytes = bytes;
         }

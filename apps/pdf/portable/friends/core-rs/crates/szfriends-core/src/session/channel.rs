@@ -331,6 +331,12 @@ impl SecureChannel {
             && self.remote_capabilities & bit != 0
     }
 
+    /// ADR 0018 § 3: Pieces in WANT and HAVE go to this peer (both set capability bit 3 on a fast session).
+    pub fn pieces(&self) -> bool {
+        let bit = szfriends_wire::consts::CAPABILITY_PIECES;
+        self.fast_transfers() && self.config.capabilities & bit != 0 && self.remote_capabilities & bit != 0
+    }
+
     pub fn rekeys(&self) -> (u64, u64) {
         (self.rekeys_sent, self.rekeys_received)
     }

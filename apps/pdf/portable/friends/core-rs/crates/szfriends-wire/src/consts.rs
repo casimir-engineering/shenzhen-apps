@@ -16,6 +16,9 @@ pub const CAPABILITY_FAST_TRANSFERS: u32 = 1 << 0;
 pub const CAPABILITY_AES_LANES: u32 = 1 << 1;
 /// Bit 2: compressed parts (ADR 0018 § 9.4).
 pub const CAPABILITY_COMPRESSED_PARTS: u32 = 1 << 2;
+/// Bit 3: Pieces (field 47) in WANT and HAVE (ADR 0018 § 3). Sent only to a peer that sets it, so helpers built before
+/// pieces (minor 4 never shipped without them, but development builds did) keep working with whole blocks.
+pub const CAPABILITY_PIECES: u32 = 1 << 3;
 
 /// Every Noise message, handshake or transport, including the 16-byte tag.
 pub const NOISE_MESSAGE_MAX: usize = 65_535;

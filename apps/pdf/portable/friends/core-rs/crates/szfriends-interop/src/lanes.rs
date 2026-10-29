@@ -63,6 +63,8 @@ pub(crate) struct Lanes {
     pub(crate) groups: HashMap<u64, Group>,
     pub(crate) head_of: HashMap<u64, u64>,
     pub(crate) late_answered: HashSet<(u64, String, u32)>,
+    /// Receiving: bytes of parts since the last HAVE naming pieces, by transfer.
+    pub(crate) piece_bytes: HashMap<String, usize>,
 }
 
 impl State {

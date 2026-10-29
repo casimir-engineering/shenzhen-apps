@@ -23,6 +23,11 @@ struct Pair {
     _room: Room,
 }
 
+/// The file that silences routes in this pair's test homes (`SZFRIENDS_TEST_ROUTE_SILENCE`).
+fn silence_file(net: &TempHome) -> std::path::PathBuf {
+    net.path().join("silenced-routes")
+}
+
 fn start(name: &str, home: &TempHome, net: &TempHome, room: &Room, rates: &str, lanes: bool) -> Client {
     let _guard = START.lock().unwrap_or_else(|e| e.into_inner());
     std::env::set_var("SZFRIENDS_STATE_DIR", home.path());
@@ -30,6 +35,7 @@ fn start(name: &str, home: &TempHome, net: &TempHome, room: &Room, rates: &str, 
     std::env::remove_var("SZFRIENDS_TEST_SERVICE_TYPE");
     let mut env: Vec<(&str, String)> = room.env();
     env.push(("SZFRIENDS_TEST_ROUTE_RATES", rates.to_owned()));
+    env.push(("SZFRIENDS_TEST_ROUTE_SILENCE", silence_file(net).to_string_lossy().into_owned()));
     if !lanes {
         env.push(("SZFRIENDS_TEST_LANES", "0".into()));
     }
@@ -40,7 +46,7 @@ fn start(name: &str, home: &TempHome, net: &TempHome, room: &Room, rates: &str, 
 /// Two friends; befriending again when the nearby request raced a merge of the two routes' sightings (the person's
 /// nearby id changed between finding them and asking: "This isn't here anymore"), which is not what this measures.
 fn pair(tag: &str, rates: &str, lanes: bool) -> Pair {
-    for _ in 0..2 {
+    for _ in 0..4 {
         let made = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| befriended(tag, rates, lanes)));
         if let Ok(pair) = made {
             return pair;
@@ -105,6 +111,20 @@ fn a_slow_network_gets_a_bluetooth_lane_and_the_file_arrives_sooner() {
     let with_lanes = send(&mut with, "Together.step", size, |_| {});
     eprintln!("12 MiB, LAN 1 MB/s with Bluetooth 1 MB/s: {without:.1} s alone, {with_lanes:.1} s with lanes");
     assert!(with_lanes < without * 0.85, "lanes helped: {with_lanes:.1} s against {without:.1} s");
+}
+
+#[test]
+fn the_network_going_silent_leaves_the_file_to_bluetooth() {
+    // The first session is on the network; its route goes silent 3 s in (out of range: nothing written, sockets
+    // open), its session closes after 8 s of silence, and the Bluetooth lane carries the conversation and the rest.
+    let mut lanes = pair("lanes-lost", SLOW_LAN, true);
+    let silence = silence_file(&lanes._homes.2);
+    let seconds = send(&mut lanes, "Rest.step", 16 << 20, |_| {
+        std::thread::sleep(Duration::from_secs(3));
+        std::fs::write(&silence, "lan").unwrap();
+    });
+    eprintln!("16 MiB, the network silent after 3 s: {seconds:.1} s");
+    assert!(seconds < 40.0, "Bluetooth carried the rest without a redial: {seconds:.1} s");
 }
 
 #[test]

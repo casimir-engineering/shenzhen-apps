@@ -45,7 +45,15 @@ struct Partial {
     covered: Vec<(usize, usize)>,
 }
 
+/// A piece's bytes (ADR 0018 § 3).
+const PIECE: usize = 1 << szfriends_wire::consts::PIECE_SHIFT;
+
 impl Partial {
+    /// Whether `[start, end)` lies inside one received interval.
+    fn has(&self, start: usize, end: usize) -> bool {
+        self.covered.iter().any(|&(s, e)| s <= start && end <= e)
+    }
+
     fn filled(&self) -> usize {
         self.covered.iter().map(|(start, end)| end - start).sum()
     }
@@ -74,6 +82,8 @@ pub struct BlockAssembly {
     complete: BlockSet,
     partial: BTreeMap<u32, Partial>,
     partial_bytes: u64,
+    /// Pieces that arrived in blocks not yet complete and that no HAVE reported yet (§ 3).
+    arrived: Vec<u32>,
 }
 
 impl BlockAssembly {
@@ -87,6 +97,7 @@ impl BlockAssembly {
             complete,
             partial: BTreeMap::new(),
             partial_bytes: 0,
+            arrived: Vec::new(),
         }
     }
 
@@ -124,7 +135,36 @@ impl BlockAssembly {
 
     /// What to WANT: every block not complete.
     pub fn missing_ranges(&self) -> Vec<(u32, u32)> {
-        self.complete.missing_ranges()
+        let mut wanted = self.complete.clone();
+        for &block in self.partial.keys() {
+            wanted.insert(block);
+        }
+        wanted.missing_ranges()
+    }
+
+    /// What to WANT besides: in blocks partly received, the pieces still missing (§ 3), as piece ranges.
+    pub fn missing_pieces(&self) -> Vec<(u32, u32)> {
+        let mut pieces = Vec::new();
+        for (&block, partial) in &self.partial {
+            let (offset, length) = self.geometry.span(block);
+            let first = (offset >> szfriends_wire::consts::PIECE_SHIFT) as u32;
+            for (n, start) in (0..length).step_by(PIECE).enumerate() {
+                if !partial.has(start, (start + PIECE).min(length)) {
+                    pieces.push(first + n as u32);
+                }
+            }
+        }
+        to_ranges(&pieces)
+    }
+
+    /// Pieces arrived since the last call, in blocks still incomplete, as piece ranges (HAVE's Pieces).
+    pub fn take_arrived_pieces(&mut self) -> Vec<(u32, u32)> {
+        let shift = self.geometry.shift - szfriends_wire::consts::PIECE_SHIFT;
+        let mut pieces = std::mem::take(&mut self.arrived);
+        pieces.retain(|p| !self.complete.contains(p >> shift));
+        pieces.sort_unstable();
+        pieces.dedup();
+        to_ranges(&pieces)
     }
 
     /// Leaves from one HASHES frame. They arrive in order from 0; a new group may start them again from 0. `true`
@@ -194,8 +234,19 @@ impl BlockAssembly {
         }
         let partial = self.partial.get_mut(&block).expect("inserted");
         let start = (offset - block_offset) as usize;
-        partial.data[start..start + data.len()].copy_from_slice(data);
-        partial.cover(start, start + data.len());
+        let end = start + data.len();
+        let fresh: Vec<usize> = (start / PIECE * PIECE..end)
+            .step_by(PIECE)
+            .filter(|&p| !partial.has(p, (p + PIECE).min(block_length)))
+            .collect();
+        partial.data[start..end].copy_from_slice(data);
+        partial.cover(start, end);
+        let first = (block_offset >> szfriends_wire::consts::PIECE_SHIFT) as u32;
+        for p in fresh {
+            if partial.has(p, (p + PIECE).min(block_length)) {
+                self.arrived.push(first + (p / PIECE) as u32);
+            }
+        }
         if partial.filled() < block_length {
             return Ok(PartOutcome::Pending);
         }
@@ -226,6 +277,7 @@ impl BlockAssembly {
     pub fn drop_partial(&mut self) {
         self.partial.clear();
         self.partial_bytes = 0;
+        self.arrived.clear();
     }
 }
 
@@ -244,6 +296,45 @@ mod tests {
             .collect();
         let root = tree::root_of(&geometry, &leaves).unwrap();
         (geometry, bytes, leaves, root)
+    }
+
+    #[test]
+    fn pieces_that_arrived_and_pieces_still_missing() {
+        let (geometry, bytes, leaves, root) = file(3 * (1 << 20));
+        let mut assembly = BlockAssembly::new(geometry, root);
+        assembly.accept_hashes(0, &leaves.concat()).unwrap();
+        let piece = 16_384;
+        // Block 1: pieces 64 and 65 whole, 66 half; a part across pieces 69 and 70 completes neither.
+        let at = 1 << 20;
+        assert_eq!(
+            assembly.accept_part(at, &bytes[at as usize..at as usize + 2 * piece + 100]),
+            Ok(PartOutcome::Pending)
+        );
+        let odd = at as usize + 5 * piece + 10;
+        assert_eq!(assembly.accept_part(odd as u64, &bytes[odd..odd + piece]), Ok(PartOutcome::Pending));
+        assert_eq!(assembly.take_arrived_pieces(), vec![(64, 2)]);
+        assert!(assembly.take_arrived_pieces().is_empty(), "reported once");
+        // The rest of piece 66 arrives.
+        let rest = at as usize + 2 * piece + 100;
+        assembly.accept_part(rest as u64, &bytes[rest..at as usize + 3 * piece]).unwrap();
+        assert_eq!(assembly.take_arrived_pieces(), vec![(66, 1)]);
+        // WANT: blocks 0 and 2 whole, and in block 1 everything but pieces 64 to 66.
+        assert_eq!(assembly.missing_ranges(), vec![(0, 1), (2, 1)]);
+        assert_eq!(assembly.missing_pieces(), vec![(67, 61)]);
+        // Completing block 1 out of order: no pieces left to report for it.
+        let tail = at as usize + 3 * piece;
+        assert!(matches!(assembly.accept_part(tail as u64, &bytes[tail..tail + 60_000]), Ok(PartOutcome::Pending)));
+        let mut offset = tail + 60_000;
+        while offset < 2 << 20 {
+            let end = (offset + 60_000).min(2 << 20);
+            let outcome = assembly.accept_part(offset as u64, &bytes[offset..end]).unwrap();
+            offset = end;
+            if offset == 2 << 20 {
+                assert!(matches!(outcome, PartOutcome::Complete { block: 1, .. }));
+            }
+        }
+        assert!(assembly.take_arrived_pieces().is_empty());
+        assert!(assembly.missing_pieces().is_empty());
     }
 
     #[test]
@@ -308,4 +399,16 @@ mod tests {
         assert_eq!(assembly.accept_hashes(0, &leaves.concat()), Ok(true));
         assert!(assembly.is_complete());
     }
+}
+
+/// Sorted indexes to `(first, count)` ranges.
+fn to_ranges(sorted: &[u32]) -> Vec<(u32, u32)> {
+    let mut out: Vec<(u32, u32)> = Vec::new();
+    for &i in sorted {
+        match out.last_mut() {
+            Some((first, count)) if *first + *count == i => *count += 1,
+            _ => out.push((i, 1)),
+        }
+    }
+    out
 }

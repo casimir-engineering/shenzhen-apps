@@ -17,6 +17,7 @@ pub mod scheduler;
 pub mod serve;
 pub mod sidecar;
 pub mod sim;
+pub mod slices;
 pub mod tree;
 
 pub use assembly::{AssemblyError, BlockAssembly, PartOutcome};

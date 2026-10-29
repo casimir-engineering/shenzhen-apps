@@ -140,6 +140,13 @@ impl BlockServe {
             .then_some(block)
     }
 
+    /// Whether `data` is block `block` as the leaves say (the snapshot unchanged), without taking it to send.
+    pub fn check_block(&self, block: u32, data: &[u8]) -> Result<(), ServeError> {
+        let fits = data.len() == self.geometry.span(block).1
+            && self.leaves.get(block as usize).is_some_and(|leaf| tree::leaf(block, data) == *leaf);
+        fits.then_some(()).ok_or(ServeError::Changed)
+    }
+
     /// The block `next_block` named, as read from the snapshot.
     pub fn load_block(&mut self, block: u32, data: Vec<u8>) -> Result<(), ServeError> {
         if data.len() != self.geometry.span(block).1 || tree::leaf(block, &data) != self.leaves[block as usize] {

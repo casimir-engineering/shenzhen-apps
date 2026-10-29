@@ -1086,3 +1086,42 @@ helper build; a resume-after-restart test of copies by blocks across a helper re
 their maps (they were deleted at every start), so a Get again or own-device copy resumes from what arrived after a
 restart; one untouched for 30 days goes, and a copy goes at once when the friend says the file is gone. The
 Objective-C helper's sweep needs the same rule once its copies go by blocks (WP4).
+
+## WP3, fourth part: pieces built, and the helper's lane taking over
+
+**Pieces (ADR 0018 § 3), Rust side.** Field 47 in the codec (a WANT with neither Ranges nor Pieces is refused, as
+WP1's vector `want_without_ranges` expects); the receiver's assembly reports pieces that arrived and pieces missing;
+partly received blocks stay in memory across sessions (no longer dropped when a group ends); HAVE Pieces at least
+every 256 KiB of parts, after every part on Bluetooth; WANT names missing blocks and, in partly received blocks,
+missing pieces, in one frame. The sender (`transfer/slices.rs`, helper and bench peer) schedules 256 KiB slices,
+reads and checks each 1 MiB block once (kept for its other slices), and never sends an acknowledged piece again.
+
+**Capability bit 3, `pieces`** (added to the ADR): Pieces go only to a peer that sets it; to one that does not (the
+Objective-C helper until WP4 builds pieces), partly received blocks are wanted whole and the sender schedules whole
+blocks, since that peer acknowledges whole blocks only (with slices, a lane holding two slices of a block would wait
+for a HAVE that never came: found by the interop suite).
+
+**The helper's lane takes over.** When the first session's route is cut or goes silent while lanes live, the lowest
+live lane carries the conversation, its files by blocks and the ACKs they await; what was written on the first session
+and not acknowledged goes again on it. A superseded first session still ends its group. Test homes gain
+`SZFRIENDS_TEST_ROUTE_SILENCE` (a file naming routes whose links write nothing, as out of range) and
+`tests/fast_lanes.rs` silences the network 3 s into 16 MiB: the session closes after 8 s of silence, the Bluetooth
+lane takes over, and the file arrives in 17.0 s with no redial.
+
+| Rust to Rust | Before pieces | With pieces |
+|---|---|---|
+| Bluetooth cut half-way, 4 MiB: sent twice | 1.06 MB | 0 |
+| Bluetooth silenced half-way: sent twice | 1.06 MB | 591 bytes |
+| LAN cut at 50 MiB of 100: sent twice | 205 KB | 0 |
+| 10 Mbit/s LAN + Bluetooth, 16 MiB (bench, of the two routes together) | 91 to 93 % | 96 % |
+| … Bluetooth cut or silenced half-way (of LAN alone) | 0.99 | 1.05 |
+| Two helpers, 32 MiB, LAN 10 Mbit/s + Bluetooth 175 KB/s: Bluetooth's share of its rate | 71 % | 87 % (target 80 %) |
+| Two helpers, 12 MiB, LAN 1 MB/s + Bluetooth 1 MB/s | 7.8 s | 7.2 s |
+
+LAN + direct Wi-Fi at 1 GiB is unchanged (8.2 s); sending CPU rose from about 3.5 to 4.3 to 4.7 CPU-s/GB with four
+times as many scheduling units and a HAVE per 256 KiB.
+
+For WP4: the Objective-C helper has field 47 on the wire (2919fcb8); it should also set capability bit 3 once its
+receiver sends piece HAVEs and WANTs and its sender honours them: until it does, the Rust side talks to it in whole
+blocks (correct, just without piece-level resume). WP1's vectors for Pieces landed with its part 2, and the Rust codec
+here is theirs.

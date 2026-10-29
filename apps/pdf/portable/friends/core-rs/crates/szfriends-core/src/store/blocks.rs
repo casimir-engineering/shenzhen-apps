@@ -419,6 +419,21 @@ impl Store {
         self.receiving.blocks.get(transfer_id).map(|d| d.assembly.missing_ranges()).unwrap_or_default()
     }
 
+    /// For a peer without Pieces: every block not complete, partly received ones included (they go again whole).
+    pub fn block_missing_whole(&self, transfer_id: &str) -> Vec<(u32, u32)> {
+        self.receiving.blocks.get(transfer_id).map(|d| d.assembly.complete().missing_ranges()).unwrap_or_default()
+    }
+
+    /// The pieces still missing from blocks partly received (WANT's Pieces, ADR 0018 § 3).
+    pub fn block_missing_pieces(&self, transfer_id: &str) -> Vec<(u32, u32)> {
+        self.receiving.blocks.get(transfer_id).map(|d| d.assembly.missing_pieces()).unwrap_or_default()
+    }
+
+    /// Pieces arrived since the last call in blocks not yet complete (HAVE's Pieces).
+    pub fn take_piece_have(&mut self, transfer_id: &str) -> Vec<(u32, u32)> {
+        self.receiving.blocks.get_mut(transfer_id).map(|d| d.assembly.take_arrived_pieces()).unwrap_or_default()
+    }
+
     /// Leaves from a HASHES frame; once all are here and check, the map gains them. `Ok(true)` when they completed.
     pub fn block_hashes(
         &mut self,
@@ -580,14 +595,11 @@ impl Store {
         Some(download.assembly.complete().iter().map(|b| geometry.span(b).1 as u64).sum())
     }
 
-    /// Drops what was partly received of every block (a group ended); the next sends those blocks whole.
-    pub fn blocks_session_ended(&mut self, transfers: &[String]) {
-        for transfer in transfers {
-            if let Some(download) = self.receiving.blocks.get_mut(transfer) {
-                download.assembly.drop_partial();
-            }
-        }
-    }
+    /// A group ended with these downloads open.
+    ///
+    /// Since pieces (ADR 0018 § 3), partly received blocks are kept: the next session's WANT names only their missing
+    /// pieces. Only a restart loses them (they live in memory).
+    pub fn blocks_session_ended(&mut self, _transfers: &[String]) {}
 
     /// ADR 0018 § 5, in one call: [`Store::begin_block_check`], [`BlockCheck::run`], [`Store::complete_block_check`].
     pub fn finish_block_transfer(&mut self, transfer_id: &str, conversation_id: &str) -> Result<PathBuf> {

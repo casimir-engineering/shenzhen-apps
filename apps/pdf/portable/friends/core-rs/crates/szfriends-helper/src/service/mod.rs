@@ -306,6 +306,21 @@ pub const ENV_TEST_LANES: &str = "SZFRIENDS_TEST_LANES";
 /// A test home's emulated route rates, `lan=1250000,bluetooth=175000` (bytes per second each side writes at), so
 /// lanes over several routes can be measured on one computer (WP5's bench emulates one route at a time).
 pub const ENV_TEST_ROUTE_RATES: &str = "SZFRIENDS_TEST_ROUTE_RATES";
+/// A test home's file: while it names a route (`lan`, `bluetooth`, …), links on it write nothing (out of range).
+pub const ENV_TEST_ROUTE_SILENCE: &str = "SZFRIENDS_TEST_ROUTE_SILENCE";
+
+/// The names `SZFRIENDS_TEST_ROUTE_RATES` and `SZFRIENDS_TEST_ROUTE_SILENCE` use.
+pub(crate) fn route_name(route: szfriends_core::wire::RouteMethod) -> &'static str {
+    use szfriends_core::wire::RouteMethod;
+    match route {
+        RouteMethod::Lan => "lan",
+        RouteMethod::PeerToPeerWifi => "p2p_wifi",
+        RouteMethod::Bluetooth => "bluetooth",
+        RouteMethod::Internet => "internet",
+        RouteMethod::Relay => "relay",
+        RouteMethod::None => "none",
+    }
+}
 
 fn route_rates(text: &str) -> HashMap<szfriends_core::wire::RouteMethod, f64> {
     use szfriends_core::wire::RouteMethod;
@@ -360,6 +375,8 @@ pub(crate) struct State {
     pub lanes: bool,
     /// A test home's emulated routes: bytes per second each route's links write at (`SZFRIENDS_TEST_ROUTE_RATES`).
     pub route_rates: HashMap<szfriends_core::wire::RouteMethod, f64>,
+    /// A test home's file naming routes to silence (`SZFRIENDS_TEST_ROUTE_SILENCE`), as out of range.
+    pub route_silence: Option<std::path::PathBuf>,
     /// One profile on several computers: the join state and the sync engine.
     pub devices: devices::DeviceArea,
     /// Get again: giving friends files again, and copying files again from them.
@@ -432,6 +449,7 @@ impl State {
             } else {
                 HashMap::new()
             },
+            route_silence: test_home.then(|| std::env::var_os(ENV_TEST_ROUTE_SILENCE).map(Into::into)).flatten(),
             devices,
             again: again::AgainArea::default(),
             notify,

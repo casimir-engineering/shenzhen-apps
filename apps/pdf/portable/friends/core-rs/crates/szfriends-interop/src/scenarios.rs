@@ -195,7 +195,13 @@ pub fn transfer(
         active = again;
         let resumed = wait_for(sender, &mut seen_s, STEP, "the resume", is_event("sending", again));
         let offset = resumed["offset"].as_u64().unwrap();
-        assert_eq!(offset, verified, "the sender continues from the receiver's durable count");
+        if resumed["blocks"] == true {
+            // By blocks (ADR 0018 § 3): from the first byte still missing, which the durable count may trail by
+            // blocks complete but not yet durable, and pieces of a block that arrived.
+            assert!(offset >= verified, "the sender continues past the receiver's durable count: {offset} {verified}");
+        } else {
+            assert_eq!(offset, verified, "the sender continues from the receiver's durable count");
+        }
         resumed_at = Some(offset);
     }
     let long = Duration::from_secs(600);

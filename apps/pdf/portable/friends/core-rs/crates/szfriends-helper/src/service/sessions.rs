@@ -124,11 +124,16 @@ impl State {
         meta: LinkMeta,
     ) -> Option<u64> {
         let mut channel = channel;
-        let capabilities =
-            if self.fast_transfers { szfriends_core::wire::consts::CAPABILITY_FAST_TRANSFERS } else { 0 };
+        let capabilities = if self.fast_transfers {
+            szfriends_core::wire::consts::CAPABILITY_FAST_TRANSFERS | szfriends_core::wire::consts::CAPABILITY_PIECES
+        } else {
+            0
+        };
         channel.set_config(szfriends_core::session::ChannelConfig { capabilities, ..Default::default() });
         let rate = self.route_rates.get(&meta.dialed_route).copied();
-        let link = match Link::start(id, stream, self.input.clone(), Input::Link, rate) {
+        let silence = self.route_silence.clone().map(|path| (path, super::route_name(meta.dialed_route).to_owned()));
+        let emulated = (rate.is_some() || silence.is_some()).then_some((rate, silence));
+        let link = match Link::start(id, stream, self.input.clone(), Input::Link, emulated) {
             Ok(link) => link,
             Err(error) => {
                 log!("session link: {error}");

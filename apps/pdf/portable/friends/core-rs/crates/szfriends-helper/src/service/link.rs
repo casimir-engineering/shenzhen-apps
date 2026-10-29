@@ -29,15 +29,28 @@ pub enum LinkEvent {
 
 /// A test home's emulated route (`SZFRIENDS_TEST_ROUTE_RATES`): the writer holds each write's bytes for as long as
 /// the route's rate would take to carry them, so the session's in-flight budget and window see a slow route.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 struct Pace {
     bytes_per_second: f64,
     free_at: Instant,
+    /// A test home's silenced route (`SZFRIENDS_TEST_ROUTE_SILENCE`): while this file names the route, nothing is
+    /// written, as a route out of range.
+    silence: Option<(std::path::PathBuf, String)>,
 }
 
 impl Pace {
-    fn new(rate: Option<f64>) -> Option<Self> {
-        rate.map(|bytes_per_second| Self { bytes_per_second, free_at: Instant::now() })
+    fn new(emulated: Option<(Option<f64>, Option<(std::path::PathBuf, String)>)>) -> Option<Self> {
+        let (rate, silence) = emulated?;
+        let bytes_per_second = rate.unwrap_or(f64::INFINITY);
+        Some(Self { bytes_per_second, free_at: Instant::now(), silence })
+    }
+
+    /// Before a write: nothing leaves while the route is silenced.
+    fn silenced(pace: &Option<Self>) {
+        let Some((path, route)) = pace.as_ref().and_then(|p| p.silence.as_ref()) else { return };
+        while std::fs::read_to_string(path).is_ok_and(|named| named.split_whitespace().any(|n| n == route)) {
+            std::thread::sleep(Duration::from_millis(100));
+        }
     }
 
     fn carried(pace: &mut Option<Self>, bytes: usize) {
@@ -62,16 +75,16 @@ pub struct Link {
 }
 
 impl Link {
-    /// Starts both threads for `stream`; events go to `events` wrapped by `wrap`. `rate`: a test home's emulated
-    /// route, in bytes per second this side writes at; `None` everywhere else.
+    /// Starts both threads for `stream`; events go to `events` wrapped by `wrap`. `emulated`: a test home's emulated
+    /// route, the bytes per second this side writes at and the file that silences it; `None` everywhere else.
     pub fn start<E: Send + 'static>(
         id: u64,
         stream: LinkStream,
         events: Sender<E>,
         wrap: fn(LinkEvent) -> E,
-        rate: Option<f64>,
+        emulated: Option<(Option<f64>, Option<(std::path::PathBuf, String)>)>,
     ) -> std::io::Result<Self> {
-        let pace = Pace::new(rate);
+        let pace = Pace::new(emulated);
         match stream {
             LinkStream::Tcp(stream) => Self::start_tcp(id, stream, events, wrap, pace),
             LinkStream::Platform(stream) => Ok(Self::start_platform(id, stream, events, wrap, pace)),
@@ -103,6 +116,7 @@ impl Link {
                 match message {
                     WriterMessage::Bytes(bytes) => {
                         let length = bytes.len();
+                        Pace::silenced(&pace);
                         outgoing(Some(bytes));
                         Pace::carried(&mut pace, length);
                         if events.send(wrap(LinkEvent::Written(id))).is_err() {
@@ -157,6 +171,7 @@ impl Link {
             while let Ok(message) = inbox.recv() {
                 match message {
                     WriterMessage::Bytes(bytes) => {
+                        Pace::silenced(&pace);
                         if out.write_all(&bytes).is_err() {
                             let _ = events.send(wrap(LinkEvent::Eof(id)));
                             return;
@@ -202,6 +217,7 @@ impl Link {
             while let Ok(message) = inbox.recv() {
                 match message {
                     WriterMessage::Bytes(bytes) => {
+                        Pace::silenced(&pace);
                         if !out.write(&bytes) {
                             let _ = events.send(wrap(LinkEvent::Eof(id)));
                             return;

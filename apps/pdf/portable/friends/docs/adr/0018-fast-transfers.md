@@ -49,6 +49,8 @@ handshake range 0 to 4). The handshake's capability bits (field 26, u32be, none 
 - bit 0 `fast transfers`: this side runs this record's transfers;
 - bit 1 `AES lanes` (reserved for § 9.2; not sent until that package lands);
 - bit 2 `compressed parts` (§ 9.4).
+- bit 3 `pieces`: Pieces (field 47) in WANT and HAVE (§ 3). Sent only to a peer that sets it, so development builds
+  from before pieces keep working with whole blocks: to such a peer a partly received block is wanted whole.
 
 A session uses anything below only when its negotiated minor is 4 or more **and** both sides set bit 0. Otherwise
 everything stays exactly as ADR 0001 has it: OFFER with the BLAKE2b digest, CHUNK in order, PROGRESS, DONE, ACK, one

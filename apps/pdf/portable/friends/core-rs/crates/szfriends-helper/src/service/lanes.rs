@@ -73,6 +73,8 @@ pub struct Groups {
     pub by_head: HashMap<u64, Group>,
     /// The scheduler of each first session sending files by blocks.
     pub schedules: HashMap<u64, Schedule>,
+    /// Receiving: bytes of parts since the last HAVE naming pieces, by transfer (§ 3).
+    pub piece_bytes: HashMap<String, usize>,
     /// Receiving: (lane, transfer, block) whose late part was answered with a HAVE (§ 3: once per block per lane).
     pub late_answered: std::collections::HashSet<(u64, String, u32)>,
     /// Each lane's first session (dialing lanes under a provisional id until their session exists).
@@ -199,9 +201,11 @@ impl State {
 
     /// A session ended: a lane leaves its group and its blocks go back to the others; a first session ends its group.
     pub(crate) fn lane_closed(&mut self, id: u64) {
-        self.sessions.groups.schedules.remove(&id);
         if self.sessions.groups.by_head.contains_key(&id) {
-            self.end_group(id);
+            let superseded = self.sessions.map.get(&id).is_none_or(|s| s.meta.superseded);
+            if superseded || !self.promote_lane(id) {
+                self.end_group(id);
+            }
             return;
         }
         let Some(head) = self.sessions.groups.head_of.remove(&id) else { return };
@@ -213,6 +217,55 @@ impl State {
             }
         }
         self.lane_lost(head, id);
+    }
+
+    /// The first session's route went (cut or silent) while lanes live (ADR 0018 § 6: the group goes on with the
+    /// rest): the lowest live lane carries the conversation from now on, with its files by blocks and the ACKs they
+    /// await; what was written on the first session and not acknowledged goes again on it. `false` when no lane is
+    /// live, and the group ends.
+    fn promote_lane(&mut self, id: u64) -> bool {
+        let Some(mut group) = self.sessions.groups.by_head.remove(&id) else { return false };
+        if group.lanes.lane_down(id) {
+            self.sessions.groups.by_head.insert(id, group);
+            return false;
+        }
+        let head = group.lanes.first();
+        let Some(old) = self.sessions.map.get_mut(&id) else { return false };
+        let conversation = old.conversation.take();
+        let adopted = std::mem::take(&mut old.meta.adopted);
+        let carried = (
+            std::mem::take(&mut old.block_senders),
+            std::mem::take(&mut old.block_receivers),
+            std::mem::take(&mut old.expecting),
+            std::mem::take(&mut old.senders),
+            std::mem::take(&mut old.receivers),
+        );
+        let lost: Vec<String> = old.in_flight.drain().collect();
+        for entry in lost {
+            let _ = self.store.apply_outbox_event(&entry, szfriends_core::store::OutboxEvent::SessionLost);
+        }
+        let Some(new) = self.sessions.map.get_mut(&head) else { return false };
+        new.conversation = conversation.clone();
+        new.meta.adopted = adopted;
+        (new.block_senders, new.block_receivers, new.expecting, new.senders, new.receivers) = carried;
+        for send in new.block_senders.values_mut() {
+            send.lanes.remove(&id);
+        }
+        self.sessions.groups.head_of.remove(&head);
+        for first in self.sessions.groups.head_of.values_mut() {
+            *first = head;
+        }
+        self.sessions.groups.by_head.insert(head, group);
+        if let Some(schedule) = self.sessions.groups.schedules.remove(&id) {
+            self.sessions.groups.schedules.insert(head, schedule);
+        }
+        self.sessions.groups.late_answered.retain(|(lane, _, _)| *lane != id);
+        log!("lane {head} carries the conversation: its first session {id} ended");
+        if conversation.is_some() {
+            self.deliver_pending(head);
+        }
+        self.changed();
+        true
     }
 
     /// A lane's dial did not connect.

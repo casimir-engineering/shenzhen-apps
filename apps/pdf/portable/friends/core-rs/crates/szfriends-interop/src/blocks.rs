@@ -12,6 +12,7 @@ use szfriends_core::session::lanes::LaneRequest;
 use szfriends_core::session::{chunk_bytes_for_route, monotonic_now};
 use szfriends_core::store::{BlockPart, StoreError, TransferRecord, TransferState};
 use szfriends_core::transfer::scheduler::Action;
+use szfriends_core::transfer::slices::SliceSend;
 use szfriends_core::transfer::{frames, BlockServe};
 use szfriends_core::wire::{tag, Frame, FrameType, RouteMethod};
 
@@ -41,7 +42,12 @@ pub(crate) struct BlockSend {
     pub(crate) lanes: HashMap<u64, VecDeque<(u32, Frame, bool)>>,
     /// The receiver has the leaves (a HAVE or WANT came back): parts may go on lanes.
     lanes_ok: bool,
+    /// Pieces acknowledged and checked blocks, for slices (ADR 0018 § 3).
+    slices: SliceSend,
 }
+
+/// As the helper: pieces reported at least every 256 KiB of parts, after every part on Bluetooth.
+const PIECE_HAVE_BYTES: usize = 256 << 10;
 
 /// Parts of a block cut for a lane on this route (16 KiB on Bluetooth, ADR 0018 § 9.8), as the helper does.
 fn part_bytes(route: RouteMethod) -> usize {
@@ -139,14 +145,19 @@ impl State {
             return false;
         }
         let Some(wire) = hex_bytes(&record.transfer_id) else { return false };
-        let missing = self.store.block_missing(&record.transfer_id);
+        let with_pieces = self.sessions.get(&id).is_some_and(|s| s.channel.pieces());
+        let (missing, pieces) = if with_pieces {
+            (self.store.block_missing(&record.transfer_id), self.store.block_missing_pieces(&record.transfer_id))
+        } else {
+            (self.store.block_missing_whole(&record.transfer_id), Vec::new())
+        };
         if let Some(session) = self.sessions.get_mut(&id) {
             session.blocks.receivers.insert(record.transfer_id.clone());
         }
-        for frame in frames::want(&wire, &missing) {
+        for frame in frames::want_with_pieces(&wire, &missing, &pieces) {
             self.send_frame(id, &frame);
         }
-        if missing.is_empty() {
+        if missing.is_empty() && pieces.is_empty() {
             self.blocks_progressed(id, &record.transfer_id, &record.conversation_id);
         }
         true
@@ -170,14 +181,17 @@ impl State {
         let group = self.lanes.groups.get_mut(&id)?;
         group.sync();
         let key = group.key(offer);
-        group.scheduler.add_transfer(key, geometry);
+        let pieces = self.sessions.get(&id).is_some_and(|s| s.channel.pieces());
+        let slice_send = SliceSend::new(&geometry, pieces);
+        let slices = slice_send.units(&geometry);
+        group.scheduler.add_transfer(key, slices);
         if first {
-            let _ = group.scheduler.want(key, &[(0, geometry.blocks)], monotonic_now());
+            let _ = group.scheduler.want(key, &[(0, slices.blocks)], monotonic_now());
         }
         for frame in serve.hashes_frames() {
             self.send_frame(id, &frame);
         }
-        let send = BlockSend { serve, record, lanes: HashMap::new(), lanes_ok: false };
+        let send = BlockSend { serve, record, lanes: HashMap::new(), lanes_ok: false, slices: slice_send };
         self.sessions.get_mut(&id)?.blocks.senders.insert(offer.to_owned(), send);
         Some(true)
     }
@@ -227,9 +241,14 @@ impl State {
     }
 
     fn want(&mut self, id: u64, frame: &Frame, conversation: &str, transfer: &str) {
-        let Some(ranges) = frames::ranges_of(frame, tag::RANGES).filter(|r| !r.is_empty()) else {
+        let (Some(ranges), Some(pieces)) =
+            (frames::ranges_of(frame, tag::RANGES), frames::ranges_of(frame, tag::PIECES))
+        else {
             return self.unsolicited(id);
         };
+        if ranges.is_empty() && pieces.is_empty() {
+            return self.unsolicited(id);
+        }
         let ours = self
             .store
             .transfer(transfer)
@@ -244,18 +263,28 @@ impl State {
             return self.unsolicited(id);
         }
         send.lanes_ok = true;
-        let block_bytes = send.serve.geometry().block_bytes();
+        let geometry = *send.serve.geometry();
+        send.slices.want(&geometry, &ranges, &pieces);
+        let mut slices = send.slices.units_of_blocks(&geometry, &ranges);
+        slices.extend(send.slices.units_of_pieces(&geometry, &pieces));
+        slices.sort_unstable();
         if let Some(group) = self.lanes.groups.get_mut(&id) {
             let key = group.key(transfer);
-            let _ = group.scheduler.want(key, &ranges, monotonic_now());
+            let _ = group.scheduler.want(key, &slices, monotonic_now());
         }
-        // The bench reads the resume point here, as it reads a CHUNK resume's offset.
-        let offset = u64::from(ranges[0].0) * block_bytes;
+        // The bench reads the resume point here, as it reads a CHUNK resume's offset: the first byte wanted.
+        let first_block = ranges.first().map(|r| u64::from(r.0) * geometry.block_bytes());
+        let first_piece = pieces.first().map(|p| u64::from(p.0) << szfriends_core::wire::consts::PIECE_SHIFT);
+        let offset = first_block.into_iter().chain(first_piece).min().unwrap_or(0);
         self.emit(json!({ "event": "sending", "session": id, "transfer": transfer, "offset": offset, "blocks": true }));
     }
 
     fn have(&mut self, id: u64, frame: &Frame, transfer: &str) {
-        let Some(complete) = frames::ranges_of(frame, tag::RANGES) else { return self.unsolicited(id) };
+        let (Some(complete), Some(pieces)) =
+            (frames::ranges_of(frame, tag::RANGES), frames::ranges_of(frame, tag::PIECES))
+        else {
+            return self.unsolicited(id);
+        };
         let Some(send) = self.sessions.get_mut(&id).and_then(|s| s.blocks.senders.get_mut(transfer)) else {
             let ours = self.store.transfer(transfer).ok().flatten().is_some_and(|r| r.outgoing);
             if !ours {
@@ -267,9 +296,35 @@ impl State {
             return self.unsolicited(id);
         }
         send.lanes_ok = true;
+        let geometry = *send.serve.geometry();
+        send.slices.have_blocks(&geometry, &complete);
+        let mut done = send.slices.units_of_blocks(&geometry, &complete);
+        done.extend(send.slices.have_pieces(&geometry, &pieces));
+        done.sort_unstable();
         if let Some(group) = self.lanes.groups.get_mut(&id) {
             let key = group.key(transfer);
-            let _ = group.scheduler.have(key, &complete, monotonic_now());
+            let _ = group.scheduler.have(key, &done, monotonic_now());
+        }
+    }
+
+    /// As the helper's: pieces arrived, reported at least every 256 KiB, after every part on Bluetooth (§ 3).
+    fn pieces_arrived(&mut self, id: u64, lane: u64, transfer: &str, bytes: usize) {
+        if !self.sessions.get(&id).is_some_and(|s| s.channel.pieces()) {
+            return;
+        }
+        let bluetooth = self.sessions.get(&lane).is_some_and(|s| s.channel.initiator_route() == RouteMethod::Bluetooth);
+        let count = self.lanes.piece_bytes.entry(transfer.to_owned()).or_default();
+        *count += bytes;
+        if !bluetooth && *count < PIECE_HAVE_BYTES {
+            return;
+        }
+        *count = 0;
+        let pieces = self.store.take_piece_have(transfer);
+        let to = self.reply_lane(id, lane);
+        if let Some(wire) = hex_bytes(transfer) {
+            for frame in frames::have_with_pieces(&wire, &[], &[], &pieces) {
+                self.send_frame(to, &frame);
+            }
         }
     }
 
@@ -310,7 +365,7 @@ impl State {
             return;
         }
         match self.store.block_part(transfer, conversation, offset, data) {
-            Ok(BlockPart::Pending) => {}
+            Ok(BlockPart::Pending) => self.pieces_arrived(id, lane, transfer, data.len()),
             Ok(BlockPart::Late) => {
                 // The first late part of a block on each lane gets a HAVE for that block (§ 3), so a block whose HAVE
                 // went with a silent lane is still acknowledged.
@@ -457,25 +512,28 @@ impl State {
         }
     }
 
-    /// The scheduler gave `block` of `transfer` to `lane`: read, checked against its leaf, cut into the lane's parts.
-    fn assign_block(&mut self, head: u64, lane: u64, transfer: u64, block: u32) {
+    /// The scheduler gave `slice` of `transfer` to `lane`: its block read and checked against its leaf once, its pieces
+    /// not yet acknowledged cut into the lane's parts.
+    fn assign_block(&mut self, head: u64, lane: u64, transfer: u64, slice: u32) {
         let Some(offer) = self.lanes.groups.get(&head).and_then(|g| g.name(transfer)) else { return };
         let route = self.lane_route(head, lane);
         let Some(send) = self.sessions.get_mut(&head).and_then(|s| s.blocks.senders.get_mut(&offer)) else { return };
         let geometry = *send.serve.geometry();
-        let read = self.store.read_outgoing_block(&send.record, &geometry, block);
-        let loaded = read.ok().map(|data| send.serve.load_block(block, data));
-        if !matches!(loaded, Some(Ok(()))) {
-            self.sessions.get_mut(&head).expect("live").blocks.senders.remove(&offer);
-            let _ = self.store.snapshot_changed(&offer);
-            self.emit(json!({ "event": "transfer_failed", "transfer": offer, "why": "the snapshot changed" }));
-            return;
+        let block = send.slices.block_of_unit(&geometry, slice);
+        if send.slices.cached(block).is_none() {
+            let read = self.store.read_outgoing_block(&send.record, &geometry, block).ok();
+            let Some(data) = read.filter(|data| send.serve.check_block(block, data).is_ok()) else {
+                self.sessions.get_mut(&head).expect("live").blocks.senders.remove(&offer);
+                let _ = self.store.snapshot_changed(&offer);
+                self.emit(json!({ "event": "transfer_failed", "transfer": offer, "why": "the snapshot changed" }));
+                return;
+            };
+            send.slices.keep(block, data);
         }
-        send.serve.set_part_bytes(part_bytes(route));
+        let wire = hex_bytes(&offer).unwrap_or_default();
+        let parts = send.slices.parts(&wire, &geometry, slice, part_bytes(route));
         let queue = send.lanes.entry(lane).or_default();
-        while let Some(part) = send.serve.next_part() {
-            queue.push_back((block, part, false));
-        }
+        queue.extend(parts.into_iter().map(|part| (slice, part, false)));
         if let Some(last) = queue.back_mut() {
             last.2 = true;
         }
