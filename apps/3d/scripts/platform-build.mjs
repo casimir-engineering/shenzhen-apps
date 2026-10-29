@@ -64,16 +64,28 @@ function friendsArguments() {
 if (platform === 'web') run('run', 'build');
 else if (friends) {
   const { tauri, cargo } = friendsArguments();
-  // Put back afterwards: Cargo.lock, the iOS project's Info.plist, into which the build merges Friends' keys, and
-  // the Android manifest, to which it adds the intent filter for Friends links.
+  // Android: the library alone (below), with the manifest's crate types narrowed to it.
+  const crateTypes = /^crate-type = \[.*\]$/m;
+  const appManifest = readFileSync('src-tauri/Cargo.toml', 'utf8');
+  if (platform === 'android' && !crateTypes.test(appManifest)) {
+    console.error('error: src-tauri/Cargo.toml has no crate-type line to build the Android library alone');
+    process.exit(1);
+  }
+  // Put back afterwards: Cargo.lock, the iOS project's Info.plist, into which the build merges Friends' keys, the
+  // Android manifest, to which it adds the intent filter for Friends links, and Cargo.toml (below).
   const kept = [
     'src-tauri/Cargo.lock',
+    'src-tauri/Cargo.toml',
     'src-tauri/gen/apple/shenzhen-3d_iOS/Info.plist',
     'src-tauri/gen/android/app/src/main/AndroidManifest.xml',
   ].filter(existsSync);
   for (const file of kept) copyFileSync(file, `${file}.friends-backup`);
   copyFileSync(friendsLock, 'src-tauri/Cargo.lock');
   if (platform === 'android') {
+    // Android loads the library as one shared object, so it is built as that alone: rustc runs no LTO at all while
+    // the crate types include an rlib (which the desktop binary links), and the phone profile's LTO is what lets it
+    // drop the code that the viewer and Friends never call (scripts/friends/phones-size.sh builds the same way).
+    writeFileSync('src-tauri/Cargo.toml', appManifest.replace(crateTypes, 'crate-type = ["cdylib"]'));
     // Friends links: the intent filter, written every time (scripts/friends/android-links.mjs says why).
     const { withLinkFilters } = await import('./friends/android-links.mjs');
     const manifest = 'src-tauri/gen/android/app/src/main/AndroidManifest.xml';

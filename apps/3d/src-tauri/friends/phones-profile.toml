@@ -4,11 +4,17 @@
 # are optimised. The online part (szfriends-online, the data channels' C and C++, which szfriends-datachannel-sys
 # compiles at -Oz for phones by itself) is built the same way. A cargo --config file, passed by
 # scripts/platform-build.mjs for Friends phone builds and by scripts/friends/phones-size.sh. The whole library is
-# linked with thin LTO in one codegen unit, so code the viewer and Friends share is not carried twice.
+# linked with fat LTO in one codegen unit, so code the viewer and Friends share is not carried twice and what neither
+# calls is dropped. On Android that needs the library built alone (platform-build.mjs narrows the crate types to
+# cdylib): with an rlib among them, rustc runs no LTO at all. A panic aborts the app, as it does the Friends helper
+# (the core's own release profile): nothing in the app or the plugin recovers from one, and one already ends the app
+# wherever Java calls into it. The unwinding tables and landing pads were about a sixth of the library.
 
 [profile.release]
-lto = "thin"
+lto = "fat"
 codegen-units = 1
+panic = "abort"
+strip = "symbols"
 
 [profile.release.package.tauri-plugin-szfriends]
 opt-level = "z"
@@ -83,6 +89,10 @@ opt-level = 3
 codegen-units = 1
 
 [profile.release.package.blake2]
+opt-level = 3
+codegen-units = 1
+
+[profile.release.package.blake3]
 opt-level = 3
 codegen-units = 1
 

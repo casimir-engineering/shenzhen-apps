@@ -3,7 +3,8 @@
 # libapp_lib.so built in release without Friends and with it as phone builds have it (the `friends-online` feature:
 # nearby and online), both stripped, and the difference. Friends' crates are built for size
 # (src-tauri/friends/phones-profile.toml) with the core's phone.toml (the bundled SQLite's flags), as Friends phone
-# builds are, and from src-tauri/friends/Cargo.lock with --locked, as platform-build.mjs builds them.
+# builds are, and from src-tauri/friends/Cargo.lock with --locked, as platform-build.mjs builds them: the library alone
+# (crate type cdylib), so that the profile's LTO runs.
 #
 #   scripts/friends/phones-size.sh [rust targets…]   default: aarch64-linux-android
 #
@@ -45,7 +46,7 @@ for target in "${targets[@]}"; do
     cp "$here/src-tauri/friends/Cargo.lock" "$here/src-tauri/Cargo.lock"
     for features in "" "--features friends-online"; do
         # shellcheck disable=SC2086
-        cargo build --release --locked --lib --quiet --target "$target" $features --config "$config" \
+        cargo rustc --release --locked --lib --crate-type cdylib --quiet --target "$target" $features --config "$config" \
             --config "$here/src-tauri/friends/phones-profile.toml" --config "$plugin/../core-rs/phone.toml" \
             --manifest-path "$here/src-tauri/Cargo.toml"
         "$bin/llvm-strip" -o "$work/stripped.so" "$CARGO_TARGET_DIR/$target/release/libapp_lib.so"

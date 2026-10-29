@@ -499,7 +499,11 @@ Friends' crates built for size and thin LTO), down from 5.28 MB since Friends' c
 built (`src-tauri/build.rs`) rather than added at launch, which linked Tauri's capability parser. With online on
 (`friends-online`, the core's `phone.toml`, the online crates built for size, from the Friends lock) it measured
 6.56 MB added on arm64 on 2026-10-19 (the library 6.32 MB without Friends, 12.88 MB with it): 1.56 MB over the
-budget, and `phones-size.sh` says so by failing. Fat LTO instead of thin changed nothing. The core alone measures
+budget, and `phones-size.sh` says so by failing. Fat LTO instead of thin changed nothing then, because no LTO ran at
+all: rustc links without LTO while the crate types include an rlib. Since 2026-10-29 `platform-build.mjs` builds the
+Android library as a cdylib alone, `phones-profile.toml` asks for fat LTO and aborting panics, and the core is smaller:
+`phones-size.sh` measures 5.18 MB added on arm64 (4.49 MB without Friends, 9.68 MB with it; it was 7.26 MB that
+morning, 6.37 and 13.63) and 5.91 MB on x86_64 (8.32 MB before). The core alone measures
 4.95 MB with online (the plugin's README); the rest is the plugin's phone half and what Tauri links for it. Not yet
 tried: a real phone, Android 11 or earlier, iPad, the iOS share sheet's choices.
 
