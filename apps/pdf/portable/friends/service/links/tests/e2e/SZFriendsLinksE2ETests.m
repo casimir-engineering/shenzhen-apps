@@ -145,6 +145,12 @@ static NSDictionary *RowWhere(SZFE2EClient *client, NSString *list, BOOL (^match
     return nil;
 }
 
+// Whether a conversation's view says `text` anywhere (its events and files, as JSON).
+static BOOL Says(SZFE2EClient *client, NSString *subscription, NSString *text) {
+    NSData *json = [NSJSONSerialization dataWithJSONObject:Data(client, subscription) options:0 error:NULL];
+    return json != nil && [[[NSString alloc] initWithData:json encoding:NSUTF8StringEncoding] containsString:text];
+}
+
 BOOL SZFLScenarioApps(SZFE2EWorld *world) {
     NSString *why = nil;
     SZFE2EOnlineHost *host = [SZFE2EOnlineHost startInWorld:world relay:NO skip:&why];
@@ -183,14 +189,18 @@ BOOL SZFLScenarioApps(SZFE2EWorld *world) {
     NSData *bytes = [NSData dataWithContentsOfFile:path];
     CHECK(SZFE2EWaitUntil(15, ^BOOL { return [[NSData dataWithContentsOfFile:received] isEqualToData:bytes]; }),
           "the file arrives in the received folder");
+    // The row shows the file as the conversation's newest item; the conversation says it came through a link.
     NSString *list = [app subscribe:@"list" params:nil];
     CHECK(SZFE2EWaitUntil(10, ^BOOL {
               return RowWhere(app, list, ^BOOL(NSDictionary *row) {
                          return [row[@"conversation_id"] isEqual:conversation] &&
-                                [row[@"subtitle"] isEqual:@"Sent you Site photos.pdf through a link"];
+                                [row[@"subtitle"] isEqual:@"Mei: \U0001F4CE Site photos.pdf"];
                      }) != nil;
           }),
           "the sender's row: %@", Data(app, list)[@"rows"]);
+    NSString *chat = [app openConversation:conversation];
+    CHECK(SZFE2EWaitUntil(10, ^BOOL { return Says(app, chat, @"Sent you Site photos.pdf through a link"); }),
+          "the sender's conversation: %@", Data(app, chat));
     // The friend link: Mei's Mac accepts the request at once, and both say how they met.
     NSString *profile = [mei subscribe:@"profile" params:nil];
     CHECK(SZFE2EWaitUntil(10, ^BOOL { return Data(mei, profile)[@"links"][@"friend"][@"url"] != nil; }), "a link");
@@ -200,20 +210,19 @@ BOOL SZFLScenarioApps(SZFE2EWorld *world) {
     reply = [app intent:@"add_from_link" fields:@{@"payload" : friendPayload}];
     CHECK([reply[@"ok"] isEqual:@YES], "%@", reply);
     NSString *meiList = [mei subscribe:@"list" params:nil];
+    __block NSString *meiChat = nil;
     CHECK(SZFE2EWaitUntil(45, ^BOOL {
-              return RowWhere(mei, meiList, ^BOOL(NSDictionary *row) {
-                         return [row[@"subtitle"] isEqual:@"Added through your link"];
-                     }) != nil;
+              NSDictionary *row = RowWhere(mei, meiList, ^BOOL(NSDictionary *candidate) {
+                  return [candidate[@"kind"] isEqual:@"person"];
+              });
+              if (row != nil && meiChat == nil) meiChat = [mei openConversation:row[@"conversation_id"]];
+              return meiChat != nil && Says(mei, meiChat, @"Added through your link");
           }),
           "accepted at once on Mei's Mac: %@", Data(mei, meiList)[@"rows"]);
     CHECK(SZFE2EWaitUntil(30, ^BOOL {
-              return RowWhere(app, list, ^BOOL(NSDictionary *row) {
-                         return [row[@"conversation_id"] isEqual:conversation] &&
-                                ([row[@"subtitle"] isEqual:@"Added through Mei’s link"] ||
-                                 [row[@"subtitle"] isEqual:@"You are now friends"]);
-                     }) != nil;
+              return Says(app, chat, @"Added through Mei’s link") || Says(app, chat, @"You are now friends");
           }),
-          "friends on the other Mac too: %@", Data(app, list)[@"rows"]);
+          "friends on the other Mac too: %@", Data(app, chat));
     [mei close];
     [app close];
     [host stop];
