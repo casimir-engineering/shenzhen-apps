@@ -338,6 +338,8 @@ impl State {
                 for session in self.sessions.map.values_mut() {
                     session.senders.remove(&transfer_id);
                     session.receivers.remove(&transfer_id);
+                    session.block_senders.remove(&transfer_id);
+                    session.block_receivers.remove(&transfer_id);
                 }
                 self.queue_answer(&record.conversation_id, json!({"frame": "cancel", "transfer_id": transfer_id}));
                 self.changed();

@@ -163,7 +163,12 @@ pub(super) fn set_column(
 }
 
 /// The transfer only when `conversation_id` owns it: the lookup for an id a peer named.
-fn owned(conn: &Connection, transfer_id: &str, conversation_id: &str, outgoing: bool) -> Result<TransferRecord> {
+pub(super) fn owned(
+    conn: &Connection,
+    transfer_id: &str,
+    conversation_id: &str,
+    outgoing: bool,
+) -> Result<TransferRecord> {
     match load(conn, transfer_id)? {
         Some(record)
             if !conversation_id.is_empty()

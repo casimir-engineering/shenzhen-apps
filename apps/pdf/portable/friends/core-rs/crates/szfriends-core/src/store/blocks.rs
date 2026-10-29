@@ -1,0 +1,549 @@
+//! Fast transfers on disk (ADR 0018 § 4 and 5): the receiver's block map beside its staging file, blocks written at
+//! their offsets and made durable in batches, the read-back that checks the tree and the BLAKE2b digest in one pass
+//! before publishing; the sender's tree beside its snapshot. No schema change: `verified_bytes` keeps meaning the
+//! contiguous durable prefix, so an older helper that meets the same partial file resumes from that prefix, and its
+//! recovery sweep deletes both sidecars (they are named by no row), which this one then rebuilds.
+//!
+//! Sidecars are named by the transfer id: `received/.partial/<id>.map` and `outgoing/<id>.tree`.
+
+use std::fs::{self, File, OpenOptions};
+use std::io::Write;
+use std::path::{Path, PathBuf};
+use std::time::{Duration, Instant};
+
+use super::receive::partial_path;
+use super::transfers::{self, apply_event, load, owned, set_column, TransferEvent, TransferRecord, TransferState};
+use super::{Result, Store, StoreError};
+use crate::transfer::sidecar::{BlockMap, Header, SenderTree, HEADER_BYTES};
+use crate::transfer::tree::{self, read_exact_at, write_all_at};
+use crate::transfer::{AssemblyError, BlockAssembly, BlockSet, Geometry, PartOutcome};
+
+/// A durability batch (ADR 0018 § 4): every 8 MiB or every second of received blocks.
+const BATCH_BYTES: u64 = 8 << 20;
+const BATCH_INTERVAL: Duration = Duration::from_secs(1);
+
+/// Block ranges `(first, count)`.
+pub type Ranges = Vec<(u32, u32)>;
+
+/// What one PART did, for the helper to answer.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BlockPart {
+    Pending,
+    /// The block checked and is written; a HAVE reports it.
+    Written(u32),
+    /// The block failed its leaf and is wanted again.
+    Corrupt(u32),
+    /// For a block already complete: dropped.
+    Late,
+}
+
+/// One download by blocks: its assembly, staging file and map.
+#[derive(Debug)]
+pub(crate) struct BlockDownload {
+    assembly: BlockAssembly,
+    digest: [u8; 32],
+    file: File,
+    partial: PathBuf,
+    map: Option<File>,
+    durable: BlockSet,
+    unsynced: Vec<u32>,
+    unsynced_bytes: u64,
+    first_unsynced: Option<Instant>,
+    unreported_complete: Vec<u32>,
+    unreported_durable: Vec<u32>,
+}
+
+fn open_rw(path: &Path, create: bool) -> std::io::Result<File> {
+    let mut options = OpenOptions::new();
+    options.read(true).write(true).create(create);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.mode(0o600).custom_flags(rustix::fs::OFlags::NOFOLLOW.bits() as i32);
+    }
+    options.open(path)
+}
+
+fn write_sidecar(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
+    let mut file = open_rw(path, true)?;
+    file.set_len(0)?;
+    file.write_all(bytes)?;
+    file.sync_all()
+}
+
+fn ranges(blocks: &mut Vec<u32>) -> Vec<(u32, u32)> {
+    blocks.sort_unstable();
+    blocks.dedup();
+    let mut out: Vec<(u32, u32)> = Vec::new();
+    for &block in blocks.iter() {
+        match out.last_mut() {
+            Some((first, count)) if *first + *count == block => *count += 1,
+            _ => out.push((block, 1)),
+        }
+    }
+    blocks.clear();
+    out
+}
+
+/// Blocks of `claimed` whose bytes in `file` match their leaves; read and hashed on every core.
+fn recheck(file: &File, geometry: &Geometry, leaves: &[tree::Leaf], claimed: &BlockSet) -> BlockSet {
+    let mut intact = BlockSet::new(geometry.blocks);
+    let wanted: Vec<u32> = claimed.iter().collect();
+    for batch in wanted.chunks(64) {
+        let mut buffers = Vec::with_capacity(batch.len());
+        for &block in batch {
+            let (offset, length) = geometry.span(block);
+            let mut buffer = vec![0u8; length];
+            buffers.push(read_exact_at(file, &mut buffer, offset).is_ok().then_some(buffer));
+        }
+        let readable: Vec<(u32, &[u8])> =
+            batch.iter().zip(&buffers).filter_map(|(b, data)| Some((*b, data.as_deref()?))).collect();
+        let hashed: Vec<tree::Leaf> = std::thread::scope(|scope| {
+            let handles: Vec<_> =
+                readable.iter().map(|(block, data)| scope.spawn(move || tree::leaf(*block, data))).collect();
+            handles.into_iter().map(|h| h.join().expect("leaf thread")).collect()
+        });
+        for ((block, _), leaf) in readable.iter().zip(hashed) {
+            if leaf == leaves[*block as usize] {
+                intact.insert(*block);
+            }
+        }
+    }
+    intact
+}
+
+/// The contiguous durable prefix in bytes: what `verified_bytes` records.
+fn durable_prefix(geometry: &Geometry, durable: &BlockSet) -> u64 {
+    let blocks = durable.prefix();
+    if blocks == geometry.blocks {
+        geometry.size
+    } else {
+        u64::from(blocks) << geometry.shift
+    }
+}
+
+fn receiving(conn: &rusqlite::Connection, transfer_id: &str, conversation_id: &str) -> Result<TransferRecord> {
+    match load(conn, transfer_id)? {
+        Some(r) if !r.outgoing && r.state == TransferState::Receiving && r.conversation_id == conversation_id => Ok(r),
+        Some(r) if !r.outgoing && r.conversation_id == conversation_id => Err(StoreError::Stale),
+        _ => Err(StoreError::Invalid("not this friend's transfer")),
+    }
+}
+
+impl Store {
+    fn partial_directory(&self) -> PathBuf {
+        self.state_dir().join("received").join(".partial")
+    }
+
+    /// `received/.partial/<id>.map`.
+    pub fn block_map_path(&self, transfer_id: &str) -> PathBuf {
+        self.partial_directory().join(format!("{transfer_id}.map"))
+    }
+
+    /// `outgoing/<id>.tree`.
+    pub fn sender_tree_path(&self, transfer_id: &str) -> PathBuf {
+        self.state_dir().join("outgoing").join(format!("{transfer_id}.tree"))
+    }
+
+    /// The tree a friend's OFFER announced, kept for when the person accepts (perhaps after a restart). Only for an
+    /// offer recorded from that friend and not yet answered; the offered size and digest are the row's.
+    pub fn record_offered_tree(
+        &mut self,
+        transfer_id: &str,
+        conversation_id: &str,
+        geometry: Geometry,
+        root: tree::Leaf,
+    ) -> Result<()> {
+        let record = load(&self.conn, transfer_id)?.ok_or(StoreError::NotFound)?;
+        if record.outgoing || record.conversation_id != conversation_id || record.size != geometry.size {
+            return Err(StoreError::Invalid("not this friend's offer"));
+        }
+        if record.state != TransferState::WaitingForYou || self.offered_tree(transfer_id).is_some() {
+            return Ok(());
+        }
+        super::transfer_files::ensure_private_directory(&self.partial_directory())?;
+        let map = BlockMap::new(Header { geometry, root, digest: record.digest });
+        write_sidecar(&self.block_map_path(transfer_id), &map.encode())?;
+        Ok(())
+    }
+
+    fn read_map(&self, transfer_id: &str) -> Option<BlockMap> {
+        let bytes = fs::read(self.block_map_path(transfer_id)).ok()?;
+        BlockMap::decode(&bytes)
+    }
+
+    /// The offered tree's header, when the map exists and matches the row.
+    pub fn offered_tree(&self, transfer_id: &str) -> Option<Header> {
+        let record = load(&self.conn, transfer_id).ok().flatten()?;
+        let map = self.read_map(transfer_id)?;
+        (map.header.geometry.size == record.size && map.header.digest == record.digest).then_some(map.header)
+    }
+
+    /// Whether this download is by blocks with its leaves known: a restart resumes it by WANT, not by prefix.
+    pub fn has_block_map(&self, transfer_id: &str) -> bool {
+        self.read_map(transfer_id).is_some_and(|m| m.leaves.is_some())
+    }
+
+    /// Opens a download by blocks: the staging file at its full size, the map, and every block the map claims
+    /// re-read and checked before it counts (after an unclean exit the map may run ahead of the disk).
+    fn open_blocks(&mut self, transfer_id: &str, conversation_id: &str) -> Result<()> {
+        if self.receiving.blocks.contains_key(transfer_id) {
+            return Ok(());
+        }
+        let record = receiving(&self.conn, transfer_id, conversation_id)?;
+        let map = self.read_map(transfer_id).ok_or(StoreError::Invalid("no offered tree"))?;
+        if map.header.geometry.size != record.size || map.header.digest != record.digest {
+            return Err(StoreError::Invalid("tree does not match the offer"));
+        }
+        let partial = partial_path(&self.conn, transfer_id)?.ok_or(StoreError::Invalid("no staging file"))?;
+        let file = open_rw(&partial, false).map_err(|_| StoreError::FileMissing)?;
+        // The CHUNK flow left nothing past its prefix; anything there now came from this map's blocks.
+        if file.metadata()?.len() < record.size {
+            file.set_len(record.size)?;
+        }
+        let geometry = map.header.geometry;
+        let bitmap_offset = map.bitmap_offset() as u64;
+        let (assembly, durable, handle) = match map.leaves {
+            Some(leaves) => {
+                let intact = recheck(&file, &geometry, &leaves, &map.durable);
+                let assembly = BlockAssembly::resumed(geometry, map.header.root, leaves, intact.clone())
+                    .ok_or(StoreError::Invalid("map does not check"))?;
+                let handle = open_rw(&self.block_map_path(transfer_id), false)?;
+                if intact != map.durable {
+                    write_all_at(&handle, &intact.to_bitmap(), bitmap_offset)?;
+                    handle.sync_all()?;
+                }
+                (assembly, intact, Some(handle))
+            }
+            None => (BlockAssembly::new(geometry, map.header.root), BlockSet::new(geometry.blocks), None),
+        };
+        // Until the leaves are here, a prefix the CHUNK flow made durable stands (block_hashes re-checks it).
+        let prefix = durable_prefix(&geometry, &durable);
+        if handle.is_some() && prefix != record.verified_bytes {
+            self.write(|conn| set_column(conn, transfer_id, "verified_bytes", &(prefix as i64)))?;
+        }
+        self.receiving.forget(transfer_id); // the CHUNK flow's open file, if it had one
+        self.receiving.blocks.insert(
+            transfer_id.to_owned(),
+            BlockDownload {
+                assembly,
+                digest: record.digest,
+                file,
+                partial,
+                map: handle,
+                durable,
+                unsynced: Vec::new(),
+                unsynced_bytes: 0,
+                first_unsynced: None,
+                unreported_complete: Vec::new(),
+                unreported_durable: Vec::new(),
+            },
+        );
+        Ok(())
+    }
+
+    /// Starts or resumes a download by blocks; `Ok(false)` when there is no offered tree for it (it goes by CHUNK).
+    pub fn begin_blocks(&mut self, transfer_id: &str, conversation_id: &str) -> Result<bool> {
+        if self.read_map(transfer_id).is_none() {
+            return Ok(false);
+        }
+        self.open_blocks(transfer_id, conversation_id).map(|()| true)
+    }
+
+    /// Stops treating a download as blocks (a session without fast transfers resumes it by CHUNK from the prefix): the
+    /// map goes, and the CHUNK flow truncates to the prefix as it reopens.
+    pub fn drop_blocks(&mut self, transfer_id: &str) {
+        self.receiving.blocks.remove(transfer_id);
+        let _ = fs::remove_file(self.block_map_path(transfer_id));
+    }
+
+    /// Blocks still missing, for WANT.
+    pub fn block_missing(&self, transfer_id: &str) -> Vec<(u32, u32)> {
+        self.receiving.blocks.get(transfer_id).map(|d| d.assembly.missing_ranges()).unwrap_or_default()
+    }
+
+    /// Leaves from a HASHES frame; once all are here and check, the map gains them. `Ok(true)` when they completed.
+    pub fn block_hashes(
+        &mut self,
+        transfer_id: &str,
+        conversation_id: &str,
+        index: u32,
+        hashes: &[u8],
+    ) -> Result<bool> {
+        self.open_blocks(transfer_id, conversation_id)?;
+        let map_path = self.block_map_path(transfer_id);
+        let verified = load(&self.conn, transfer_id)?.map_or(0, |r| r.verified_bytes);
+        let download = self.receiving.blocks.get_mut(transfer_id).expect("opened");
+        let done = download.assembly.accept_hashes(index, hashes).map_err(|_| StoreError::Invalid("bad leaves"))?;
+        if done && download.map.is_none() {
+            let geometry = *download.assembly.geometry();
+            let header = Header { geometry, root: *download.assembly.root(), digest: download.digest };
+            // A download begun by CHUNK: the whole blocks of its durable prefix count once they check (§ 1).
+            let whole = if verified >= geometry.size { geometry.blocks } else { (verified >> geometry.shift) as u32 };
+            if whole > 0 && download.durable.is_empty() {
+                let leaves = download.assembly.leaves().expect("checked").to_vec();
+                let intact =
+                    recheck(&download.file, &geometry, &leaves, &BlockSet::full(whole).widened(geometry.blocks));
+                download.assembly = BlockAssembly::resumed(geometry, header.root, leaves, intact.clone())
+                    .ok_or(StoreError::Invalid("map does not check"))?;
+                // Reported at once, so the sender drops them from what it was asked for before the leaves arrived.
+                download.unreported_complete.extend(intact.iter());
+                download.unreported_durable.extend(intact.iter());
+                download.durable = intact;
+            }
+            let mut map = BlockMap::new(header);
+            map.leaves = download.assembly.leaves().map(<[_]>::to_vec);
+            map.durable = download.durable.clone();
+            write_sidecar(&map_path, &map.encode())?;
+            download.map = Some(open_rw(&map_path, false)?);
+            if download.assembly.is_complete() {
+                // An empty file: its one block is complete and nothing needs writing.
+                download.durable.insert(0);
+                download.unreported_complete.push(0);
+                download.unreported_durable.push(0);
+            }
+        }
+        Ok(done)
+    }
+
+    /// One PART: gathered, and when its block completes, checked and written at its offset.
+    pub fn block_part(
+        &mut self,
+        transfer_id: &str,
+        conversation_id: &str,
+        offset: u64,
+        data: &[u8],
+    ) -> Result<BlockPart> {
+        self.open_blocks(transfer_id, conversation_id)?;
+        let download = self.receiving.blocks.get_mut(transfer_id).expect("opened");
+        let outcome = match download.assembly.accept_part(offset, data) {
+            Ok(outcome) => outcome,
+            Err(AssemblyError::TooManyInFlight) => return Err(StoreError::Invalid("too many blocks in flight")),
+            Err(_) => return Err(StoreError::Invalid("part out of place")),
+        };
+        match outcome {
+            PartOutcome::Pending => Ok(BlockPart::Pending),
+            PartOutcome::Late => Ok(BlockPart::Late),
+            PartOutcome::Corrupt { block } => Ok(BlockPart::Corrupt(block)),
+            PartOutcome::Complete { block, data } => {
+                let (block_offset, _) = download.assembly.geometry().span(block);
+                if let Err(error) = write_all_at(&download.file, &data, block_offset) {
+                    download.assembly.unwritten(block);
+                    return Err(error.into());
+                }
+                download.unsynced.push(block);
+                download.unsynced_bytes += data.len() as u64;
+                download.first_unsynced.get_or_insert_with(Instant::now);
+                download.unreported_complete.push(block);
+                let due = download.unsynced_bytes >= BATCH_BYTES || download.assembly.is_complete();
+                if due {
+                    self.flush_blocks(transfer_id)?;
+                }
+                Ok(BlockPart::Written(block))
+            }
+        }
+    }
+
+    /// When the oldest written block not yet durable became so overdue that a batch should run now.
+    pub fn block_flush_due(&self) -> Option<Instant> {
+        self.receiving.blocks.values().filter_map(|d| d.first_unsynced).min().map(|at| at + BATCH_INTERVAL)
+    }
+
+    /// A durability batch: the blocks, then the map's bitmap, then both durable at once; then the prefix committed.
+    pub fn flush_blocks(&mut self, transfer_id: &str) -> Result<()> {
+        let Some(download) = self.receiving.blocks.get_mut(transfer_id) else { return Ok(()) };
+        if download.unsynced.is_empty() {
+            return Ok(());
+        }
+        let Some(map) = download.map.as_ref() else { return Ok(()) };
+        // Blocks ordered before the bitmap that claims them (F_BARRIERFSYNC's job; a plain fsync elsewhere).
+        download.file.sync_data()?;
+        for &block in &download.unsynced {
+            download.durable.insert(block);
+        }
+        let geometry = *download.assembly.geometry();
+        let bitmap_offset = (HEADER_BYTES + 32 * geometry.blocks as usize) as u64;
+        write_all_at(map, &download.durable.to_bitmap(), bitmap_offset)?;
+        map.sync_all()?;
+        download.unreported_durable.append(&mut download.unsynced);
+        download.unsynced_bytes = 0;
+        download.first_unsynced = None;
+        let prefix = durable_prefix(&geometry, &download.durable);
+        self.write(|conn| set_column(conn, transfer_id, "verified_bytes", &(prefix as i64)))
+    }
+
+    /// Every download by blocks whose batch is due (or all of them, at a session's end or exit).
+    pub fn flush_due_blocks(&mut self, all: bool) -> Result<Vec<String>> {
+        let now = Instant::now();
+        let due: Vec<String> = self
+            .receiving
+            .blocks
+            .iter()
+            .filter(|(_, d)| d.first_unsynced.is_some_and(|at| all || now >= at + BATCH_INTERVAL))
+            .map(|(id, _)| id.clone())
+            .collect();
+        for id in &due {
+            self.flush_blocks(id)?;
+        }
+        Ok(due)
+    }
+
+    /// What changed since the last HAVE: blocks written, blocks made durable.
+    pub fn take_block_have(&mut self, transfer_id: &str) -> (Ranges, Ranges) {
+        let Some(download) = self.receiving.blocks.get_mut(transfer_id) else { return (Vec::new(), Vec::new()) };
+        (ranges(&mut download.unreported_complete), ranges(&mut download.unreported_durable))
+    }
+
+    /// Every block durable: ready for the publish check.
+    pub fn blocks_all_durable(&self, transfer_id: &str) -> bool {
+        self.receiving.blocks.get(transfer_id).is_some_and(|d| d.durable.is_full())
+    }
+
+    /// The blocks complete so far, as a fraction of the file's bytes (the item's progress).
+    pub fn block_progress(&self, transfer_id: &str) -> Option<u64> {
+        let download = self.receiving.blocks.get(transfer_id)?;
+        let geometry = download.assembly.geometry();
+        Some(download.assembly.complete().iter().map(|b| geometry.span(b).1 as u64).sum())
+    }
+
+    /// Drops what was partly received of every block (a group ended); the next sends those blocks whole.
+    pub fn blocks_session_ended(&mut self, transfers: &[String]) {
+        for transfer in transfers {
+            if let Some(download) = self.receiving.blocks.get_mut(transfer) {
+                download.assembly.drop_partial();
+            }
+        }
+    }
+
+    /// ADR 0018 § 5: every block durable, the file is read back through the descriptor that wrote it, its tree and
+    /// BLAKE2b digest computed in one pass, and it is published only when both match the offer. Otherwise it is
+    /// deleted and the transfer fails (DigestMismatch), as a CHUNK transfer whose digest differs.
+    pub fn finish_block_transfer(&mut self, transfer_id: &str, conversation_id: &str) -> Result<PathBuf> {
+        let record = receiving(&self.conn, transfer_id, conversation_id)?;
+        self.flush_blocks(transfer_id)?;
+        if !self.blocks_all_durable(transfer_id) {
+            return Err(StoreError::Invalid("file is incomplete"));
+        }
+        let download = self.receiving.blocks.remove(transfer_id).expect("checked");
+        let geometry = *download.assembly.geometry();
+        let named = fs::symlink_metadata(&download.partial).ok();
+        let opened = download.file.metadata().ok();
+        let same_file = match (&named, &opened) {
+            (Some(named), Some(opened)) => {
+                #[cfg(unix)]
+                let same = {
+                    use std::os::unix::fs::MetadataExt;
+                    named.dev() == opened.dev() && named.ino() == opened.ino()
+                };
+                #[cfg(not(unix))]
+                let same = true;
+                named.is_file() && same && opened.len() == record.size
+            }
+            _ => false,
+        };
+        let hashed = same_file.then(|| tree::hash_file(&download.file, &geometry, true).ok()).flatten();
+        let matches = hashed.is_some_and(|h| h.root == *download.assembly.root() && h.digest == Some(record.digest));
+        drop(download.file);
+        drop(download.map);
+        let _ = fs::remove_file(self.block_map_path(transfer_id));
+        if matches {
+            return self.publish_received(&record, &download.partial);
+        }
+        let _ = fs::remove_file(&download.partial);
+        self.fail_received_transfer(transfer_id)?;
+        Err(StoreError::DigestMismatch)
+    }
+
+    /// The sender's tree for one of our offers: from `outgoing/<id>.tree` when it matches the row, else computed from
+    /// the snapshot (whose digest must still be the offered one) and kept there.
+    pub fn sender_tree(&self, record: &TransferRecord) -> Result<SenderTree> {
+        let path = self.sender_tree_path(&record.transfer_id);
+        if let Some(tree) = fs::read(&path).ok().and_then(|b| SenderTree::decode(&b)) {
+            if tree.header.digest == record.digest && tree.header.geometry.size == record.size {
+                return Ok(tree);
+            }
+        }
+        let geometry = Geometry::for_size(record.size).ok_or(StoreError::Invalid("too large for blocks"))?;
+        let snapshot = record.staged_path.as_ref().ok_or(StoreError::FileMissing)?;
+        let file = File::open(snapshot).map_err(|_| StoreError::FileMissing)?;
+        if file.metadata()?.len() != record.size {
+            return Err(StoreError::FileMissing);
+        }
+        let hashed = tree::hash_file(&file, &geometry, true)?;
+        if hashed.digest != Some(record.digest) {
+            return Err(StoreError::FileMissing);
+        }
+        let tree =
+            SenderTree { header: Header { geometry, root: hashed.root, digest: record.digest }, leaves: hashed.leaves };
+        // A cache: a write that fails only costs hashing again.
+        let _ = write_sidecar(&path, &tree.encode());
+        Ok(tree)
+    }
+
+    /// They took our offer by blocks (OFFER_REPLY with Blocks, or a WANT on a later session): Sending, without hashing
+    /// the whole snapshot first, since every block is checked against its leaf as it is read (§ 4). Returns the record
+    /// and whether this was the first acceptance (then every block is wanted, before any WANT).
+    pub fn peer_took_blocks(&mut self, transfer_id: &str, conversation_id: &str) -> Result<(TransferRecord, bool)> {
+        self.write(|conn| {
+            let record = owned(conn, transfer_id, conversation_id, true)?;
+            let first = match record.state {
+                TransferState::Sending => false,
+                state if TransferEvent::Accepted.next_state(true, state) == TransferState::Sending => true,
+                _ => return Err(StoreError::Stale),
+            };
+            if record.staged_path.as_ref().is_none_or(|p| fs::metadata(p).map(|m| m.len()).ok() != Some(record.size)) {
+                apply_event(conn, transfer_id, TransferEvent::Failed, Some(super::outbox::FAILURE_SOURCE_MISSING))?;
+                return Err(StoreError::FileMissing);
+            }
+            if first {
+                apply_event(conn, transfer_id, TransferEvent::Accepted, None)?;
+            }
+            Ok((load(conn, transfer_id)?.ok_or(StoreError::NotFound)?, first))
+        })
+    }
+
+    /// Our snapshot no longer matches its tree: the transfer fails as a missing source does.
+    pub fn snapshot_changed(&mut self, transfer_id: &str) -> Result<()> {
+        self.write(|conn| {
+            apply_event(conn, transfer_id, TransferEvent::Failed, Some(super::outbox::FAILURE_SOURCE_MISSING))
+                .map(|_| ())
+        })
+    }
+
+    /// Reads block `index` of an outgoing transfer's snapshot whole, for the sender to check against its leaf.
+    pub fn read_outgoing_block(&self, record: &TransferRecord, geometry: &Geometry, index: u32) -> Result<Vec<u8>> {
+        let path = record.staged_path.as_ref().ok_or(StoreError::FileMissing)?;
+        let file = File::open(path).map_err(|_| StoreError::FileMissing)?;
+        let (offset, length) = geometry.span(index);
+        let mut buffer = vec![0u8; length];
+        read_exact_at(&file, &mut buffer, offset).map_err(|_| StoreError::FileMissing)?;
+        Ok(buffer)
+    }
+
+    /// Sidecars whose transfer still needs them; the recovery sweep keeps these and deletes the rest.
+    pub(super) fn live_sidecars(&self) -> Result<Vec<PathBuf>> {
+        let open = transfers::rows(
+            &self.conn,
+            "WHERE state IN (?1, ?2, ?3, ?4, ?5)",
+            &[
+                &(TransferState::Queued as i64),
+                &(TransferState::Offered as i64),
+                &(TransferState::WaitingForYou as i64),
+                &(TransferState::Sending as i64),
+                &(TransferState::Receiving as i64),
+            ],
+        )?;
+        Ok(open
+            .iter()
+            .map(
+                |r| {
+                    if r.outgoing {
+                        self.sender_tree_path(&r.transfer_id)
+                    } else {
+                        self.block_map_path(&r.transfer_id)
+                    }
+                },
+            )
+            .collect())
+    }
+}

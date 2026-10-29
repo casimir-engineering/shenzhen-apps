@@ -24,6 +24,7 @@
 //! so whoever runs it answers that ([`reset`]).
 
 mod again;
+mod blocks;
 mod device_files;
 mod devices;
 mod facts;
@@ -295,6 +296,9 @@ pub(crate) struct Client {
 }
 
 /// Everything the service's thread owns.
+/// A test home's switch for fast transfers (ADR 0018 § 1): "0" plays a helper without them.
+pub const ENV_TEST_FAST_TRANSFERS: &str = "SZFRIENDS_TEST_FAST_TRANSFERS";
+
 pub(crate) struct State {
     pub identity: Identity,
     pub store: Store,
@@ -317,6 +321,9 @@ pub(crate) struct State {
     pub next_receipt: u64,
     /// What this helper announces.
     pub capabilities: Vec<String>,
+    /// ADR 0018: fast transfers with peers that have them too; off only in a test home that plays a released helper
+    /// (`SZFRIENDS_TEST_FAST_TRANSFERS=0`).
+    pub fast_transfers: bool,
     /// One profile on several computers: the join state and the sync engine.
     pub devices: devices::DeviceArea,
     /// Get again: giving friends files again, and copying files again from them.
@@ -377,6 +384,7 @@ impl State {
             #[cfg(feature = "online")]
             next_receipt: 0,
             capabilities,
+            fast_transfers: !(test_home && std::env::var_os(ENV_TEST_FAST_TRANSFERS).is_some_and(|v| v == "0")),
             devices,
             again: again::AgainArea::default(),
             notify,

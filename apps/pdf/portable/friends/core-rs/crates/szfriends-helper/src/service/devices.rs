@@ -408,6 +408,8 @@ impl State {
         for session in self.sessions.map.values_mut() {
             session.senders.retain(|transfer, _| kept(transfer));
             session.receivers.retain(|transfer, _| kept(transfer));
+            session.block_senders.retain(|transfer, _| kept(transfer));
+            session.block_receivers.retain(|transfer| kept(transfer));
         }
         self.pump_sync();
         self.changed();

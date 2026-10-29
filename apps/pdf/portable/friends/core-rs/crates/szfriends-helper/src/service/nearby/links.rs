@@ -396,6 +396,9 @@ impl State {
         session.meta.adopted = false;
         session.senders.clear();
         session.receivers.clear();
+        session.block_senders.clear();
+        let receiving: Vec<String> = session.block_receivers.drain().collect();
+        self.store.blocks_session_ended(&receiving);
         self.close(id, CloseReason::Superseded);
     }
 
@@ -411,6 +414,9 @@ impl State {
         }
         session.senders.clear();
         session.receivers.clear();
+        session.block_senders.clear();
+        let receiving: Vec<String> = session.block_receivers.drain().collect();
+        self.store.blocks_session_ended(&receiving);
         let meta = session.meta.clone();
         let conversation = session.conversation.clone();
         let (initiator, was_adopted) = (session.channel.is_initiator(), session.meta.adopted);

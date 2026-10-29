@@ -85,6 +85,9 @@ impl State {
         if !kind.is_empty() {
             frame = frame.with(tag::FILE_TYPE, kind.as_bytes().to_vec());
         }
+        if let Some(id) = self.sessions.live_for(&record.conversation_id) {
+            frame = self.with_tree(id, &record, frame);
+        }
         Some((record.transfer_id, frame))
     }
 
@@ -113,6 +116,9 @@ impl State {
                 let record = self.store.transfer(&transfer).ok().flatten()?;
                 // Receiving from here: the chunks that follow have somewhere to go.
                 let id = self.sessions.live_for(&entry.conversation_id)?;
+                if let Some(reply) = self.blocks_reply(id, &transfer, &entry.conversation_id) {
+                    return Some((transfer, reply));
+                }
                 let route = self.chunk_route(id);
                 let receiver = ChunkReceiver::for_route(&wire, record.size, record.verified_bytes, route)?;
                 self.sessions.map.get_mut(&id)?.receivers.insert(transfer.clone(), receiver);
@@ -137,6 +143,9 @@ impl State {
         let file_type = frame.text(tag::FILE_TYPE);
         let recorded =
             self.store.record_incoming_offer(&wire, conversation, name, file_type, size, &digest, unix_now());
+        if recorded.is_ok() {
+            self.offered_tree(id, frame, conversation, &wire);
+        }
         let bytes = frame.get(tag::ID).unwrap_or_default().to_vec();
         self.send_on(id, &id_frame(FrameType::Ack, &bytes));
         let Ok(record) = recorded else {
@@ -205,6 +214,12 @@ impl State {
     pub fn offer_reply(&mut self, id: u64, frame: &Frame, offer: String) {
         let accepted = frame.integer(tag::ACCEPT) == Some(1);
         let offset = frame.integer(tag::OFFSET).unwrap_or(0);
+        if accepted && szfriends_core::transfer::frames::takes_blocks(frame) && self.offer_taken_by_blocks(id, &offer) {
+            if let Some(wire) = unhex(&offer) {
+                self.send_ack(id, &wire);
+            }
+            return self.changed();
+        }
         // A late or replayed answer (the receiver's outbox sends it again on a new session until we acknowledge it)
         // is stale and changes nothing; it is acknowledged all the same, as the Objective-C helper does, or every new
         // session would carry it again.
@@ -278,6 +293,8 @@ impl State {
             for session in self.sessions.map.values_mut() {
                 session.senders.remove(offer);
                 session.receivers.remove(offer);
+                session.block_senders.remove(offer);
+                session.block_receivers.remove(offer);
             }
             self.changed();
         }
@@ -288,7 +305,9 @@ impl State {
         if self.store.peer_verified_transfer(offer, conversation).is_ok() {
             if let Some(session) = self.sessions.map.get_mut(&id) {
                 session.senders.remove(offer);
+                session.block_senders.remove(offer);
             }
+            let _ = std::fs::remove_file(self.store.sender_tree_path(offer));
             self.changed();
         }
     }
@@ -304,6 +323,9 @@ impl State {
         let now = monotonic_now();
         let route = self.chunk_route(id);
         for record in self.store.unfinished_incoming_transfers(conversation).unwrap_or_default() {
+            if self.resume_blocks(id, &record) {
+                continue;
+            }
             let offer = unhex(&record.transfer_id).unwrap_or_default();
             let Some(receiver) = ChunkReceiver::for_route(&offer, record.size, record.verified_bytes, route) else {
                 continue;

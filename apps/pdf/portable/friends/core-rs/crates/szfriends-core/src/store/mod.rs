@@ -8,6 +8,7 @@
 
 mod add_by_id;
 pub mod attestation;
+mod blocks;
 pub mod destination;
 pub mod devices;
 pub mod disk;
@@ -42,6 +43,7 @@ pub use add_by_id::{
     IdRequest, ID_REQUEST_LIFETIME_SECONDS, ID_REQUEST_MAX_ANSWERS, ID_REQUEST_MAX_PENDING,
     ID_REQUEST_MAX_UNATTESTED_ANSWERS,
 };
+pub use blocks::BlockPart;
 pub use destination::{
     ExternalPublisher, FolderRefusal, PhoneFolder, ReceivedDefaults, ReceivedFile, ReceivedSource, ENV_DOWNLOADS_DIR,
     RECEIVED_FOLDER_FILE,

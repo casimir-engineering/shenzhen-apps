@@ -97,6 +97,11 @@ impl State {
             FrameType::Chunk => self.chunk(id, &frame, &conversation, wire),
             FrameType::Progress => self.progress(id, &frame, wire),
             FrameType::Done => self.done(id, &frame, &conversation, wire),
+            FrameType::Hashes | FrameType::Want | FrameType::Part | FrameType::Have
+                if person.relation == Relation::Friend =>
+            {
+                self.block_frame(id, &frame, &conversation)
+            }
             _ => {}
         }
     }

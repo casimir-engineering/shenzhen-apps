@@ -24,6 +24,9 @@ pub struct Session {
     pub conversation: Option<String>,
     pub senders: HashMap<String, Outgoing>,
     pub receivers: HashMap<String, ChunkReceiver>,
+    /// Fast transfers (ADR 0018, `blocks.rs`): our files this session sends by blocks, and theirs it receives so.
+    pub block_senders: HashMap<String, super::blocks::BlockSend>,
+    pub block_receivers: HashSet<String>,
     pub flush_due: Option<Instant>,
     /// Wire id (hex) → what its ACK confirms: an outbox entry, or `done:<transfer>`.
     pub expecting: HashMap<String, String>,
@@ -72,7 +75,12 @@ impl Sessions {
 
     /// Whether any file is moving: a handover waits for it (at most 5 seconds).
     pub fn moving(&self) -> bool {
-        self.map.values().any(|s| !s.senders.is_empty() || !s.receivers.is_empty())
+        self.map.values().any(|s| {
+            !s.senders.is_empty()
+                || !s.receivers.is_empty()
+                || !s.block_senders.is_empty()
+                || !s.block_receivers.is_empty()
+        })
     }
 }
 
@@ -113,6 +121,10 @@ impl State {
         stream: crate::nearby::stream::LinkStream,
         meta: LinkMeta,
     ) -> Option<u64> {
+        let mut channel = channel;
+        let capabilities =
+            if self.fast_transfers { szfriends_core::wire::consts::CAPABILITY_FAST_TRANSFERS } else { 0 };
+        channel.set_config(szfriends_core::session::ChannelConfig { capabilities, ..Default::default() });
         let link = match Link::start(id, stream, self.input.clone(), Input::Link) {
             Ok(link) => link,
             Err(error) => {
@@ -126,6 +138,8 @@ impl State {
             conversation: None,
             senders: HashMap::new(),
             receivers: HashMap::new(),
+            block_senders: HashMap::new(),
+            block_receivers: HashSet::new(),
             flush_due: None,
             expecting: HashMap::new(),
             in_flight: HashSet::new(),
@@ -191,7 +205,9 @@ impl State {
             }
         }
         self.flush_if_due(id);
+        self.flush_blocks_if_due();
         self.pump(id);
+        self.pump_blocks(id);
         let Some(s) = self.sessions.map.get_mut(&id) else { return };
         while let Some(write) = s.channel.poll_transmit() {
             s.link.write(write.bytes);
@@ -363,7 +379,18 @@ impl State {
     /// The ACK for something this session sent.
     pub(super) fn acknowledged(&mut self, id: u64, conversation: &str, wire: String) {
         let Some(session) = self.sessions.map.get_mut(&id) else { return };
-        let Some(token) = session.expecting.remove(&wire) else { return };
+        let Some(token) = session.expecting.remove(&wire) else {
+            // The ACK of a file received by blocks, on a later session than the one that carried its last block.
+            let by_blocks = self.store.transfer(&wire).ok().flatten().is_some_and(|r| {
+                r.outgoing
+                    && r.state == szfriends_core::store::TransferState::Sending
+                    && r.conversation_id == conversation
+            }) && self.store.sender_tree_path(&wire).exists();
+            if by_blocks {
+                self.transfer_acknowledged(id, &wire, conversation);
+            }
+            return;
+        };
         if let Some(transfer) = token.strip_prefix("done:") {
             self.transfer_acknowledged(id, transfer, conversation);
             return;
@@ -407,7 +434,7 @@ impl State {
     pub fn next_wakeup(&self) -> Duration {
         let now = monotonic_now();
         let timers = self.sessions.map.values().filter_map(|s| s.channel.poll_timeout()).min();
-        let flush = self.sessions.map.values().filter_map(|s| s.flush_due).min();
+        let flush = self.sessions.map.values().filter_map(|s| s.flush_due).chain(self.store.block_flush_due()).min();
         let mut wait = timers.map_or(Duration::from_millis(250), |at| at.saturating_sub(now));
         if let Some(at) = flush {
             wait = wait.min(at.saturating_duration_since(Instant::now()));

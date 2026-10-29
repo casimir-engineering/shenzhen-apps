@@ -34,12 +34,15 @@ struct Download {
 #[derive(Default)]
 pub(crate) struct Receiving {
     open: HashMap<String, Download>,
+    /// Downloads by blocks (ADR 0018, `blocks.rs`).
+    pub(super) blocks: HashMap<String, super::blocks::BlockDownload>,
     pub(super) verified_snapshots: HashSet<String>,
 }
 
 impl Receiving {
     pub(super) fn forget(&mut self, transfer_id: &str) {
         self.open.remove(transfer_id);
+        self.blocks.remove(transfer_id);
     }
 }
 
@@ -51,7 +54,7 @@ fn open_rw(path: &Path) -> std::io::Result<File> {
     options.open(path)
 }
 
-fn partial_path(conn: &Connection, transfer_id: &str) -> Result<Option<PathBuf>> {
+pub(super) fn partial_path(conn: &Connection, transfer_id: &str) -> Result<Option<PathBuf>> {
     let path: Option<String> =
         conn.query_row("SELECT partial_path FROM transfers WHERE transfer_id = ?1", [transfer_id], |r| r.get(0))?;
     Ok(path.map(PathBuf::from))
@@ -180,7 +183,7 @@ impl Store {
         for transfer_id in open {
             self.commit(&transfer_id)?;
         }
-        Ok(())
+        self.flush_due_blocks(true).map(|_| ())
     }
 
     /// DONE: publishes into `received/` only when the sender's final digest, the streamed digest and the staged file
@@ -225,6 +228,10 @@ impl Store {
 
     /// Publishes to the folder received files go to (`destination.rs`), recording each name before it is taken, so
     /// a crash between move and commit is finished at the next start; nothing is ever overwritten.
+    pub(super) fn publish_received(&mut self, record: &TransferRecord, partial: &Path) -> Result<PathBuf> {
+        self.publish(record, partial)
+    }
+
     fn publish(&mut self, record: &TransferRecord, partial: &Path) -> Result<PathBuf> {
         let places = self.places();
         let id = record.transfer_id.clone();
@@ -311,7 +318,10 @@ impl Store {
             self.receiving.forget(&record.transfer_id);
             let present =
                 partial_path(&self.conn, &record.transfer_id)?.is_some_and(|p| fs::symlink_metadata(p).is_ok());
-            if present {
+            if present && self.has_block_map(&record.transfer_id) {
+                // By blocks (ADR 0018): the map says which blocks beyond the prefix are durable; they are re-read and
+                // checked when the download next opens.
+            } else if present {
                 // Truncates past the durable count and corrects a count the disk no longer backs.
                 self.download(&record)?;
             } else {
@@ -339,6 +349,9 @@ impl Store {
         for (staged, partial) in paths.flatten() {
             referenced.extend(staged.into_iter().chain(partial).map(PathBuf::from));
         }
+        drop(statement);
+        // ADR 0018's sidecars, while their transfer is still open.
+        referenced.extend(self.live_sidecars()?);
         for directory in [partial_directory.to_path_buf(), self.state_dir().join("outgoing")] {
             for entry in fs::read_dir(&directory).into_iter().flatten().flatten() {
                 if !referenced.contains(&entry.path()) {
