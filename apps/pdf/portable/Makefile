@@ -127,7 +127,7 @@ MAC_APP_OBJS := $(patsubst %.mm,$(MAC_APP_OBJ_DIR)/%.o,$(MAC_SRCS))
 MAC_APP_COMPILE_FLAGS = $(PORTABLE_OPTFLAGS) $(MAC_TARGET_FLAGS) -std=c++17 -fobjc-arc -Imac -Icore -I$(MUPDF_DIR)/include
 MAC_APP_FLAGS_FILE := $(MAC_APP_OBJ_DIR)/compile-flags
 MAC_VERSION ?= 26.10.29
-MAC_BUILD ?= 10
+MAC_BUILD ?= 11
 # The release this app is, as people see it and the updater compares it (mac/Info.plist SZFReleaseTag, which
 # cut-release.sh sets). MAC_BUILD alone is not it: Friends changes raise MAC_BUILD between releases.
 MAC_RELEASE_TAG ?=
