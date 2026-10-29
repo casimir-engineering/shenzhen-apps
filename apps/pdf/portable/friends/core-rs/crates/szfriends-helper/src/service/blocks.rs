@@ -609,7 +609,7 @@ impl State {
         }
         let wire = unhex(&offer).unwrap_or_default();
         let parts = send.slices.parts(&wire, &geometry, slice, super::lanes::part_bytes(route));
-        let worth = compressing && send.slices.cached(block).is_some_and(|data| compress::worth(data));
+        let worth = compressing && send.slices.cached(block).is_some_and(compress::worth);
         let queue = send.lanes.entry(lane).or_default();
         let parts = parts.into_iter().map(|part| if worth { compress::compress_part(part, route) } else { part });
         queue.extend(parts.map(|part| (slice, part, false)));
