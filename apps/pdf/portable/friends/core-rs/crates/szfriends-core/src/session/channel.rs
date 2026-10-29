@@ -348,10 +348,19 @@ impl SecureChannel {
         self.fast_with(szfriends_wire::consts::CAPABILITY_AES_LANES)
     }
 
-    /// ADR 0018 § 9.4: PARTs on this session may be compressed (both sides set bit 2). Only Bluetooth and relay lanes
-    /// send them compressed; any lane accepts them.
-    pub fn compressed_parts(&self) -> bool {
-        self.fast_with(szfriends_wire::consts::CAPABILITY_COMPRESSED_PARTS)
+    /// ADR 0018 § 9.4: the codec this session's compressed PARTs use, zstd when both sides read it (bit 2), else LZ4
+    /// (bit 4). Only Bluetooth and relay lanes send them compressed.
+    pub fn part_codec(&self) -> Option<u8> {
+        if !self.fast_transfers() {
+            return None;
+        }
+        crate::transfer::compress::codec_for(self.config.capabilities & self.remote_capabilities)
+    }
+
+    /// Whether a PART compressed with `codec` may arrive on this session: both sides set its bit.
+    pub fn reads_codec(&self, codec: u8) -> bool {
+        let bit = crate::transfer::compress::codec_bit(codec);
+        bit != 0 && self.fast_with(bit)
     }
 
     /// ADR 0018 § 1: this session runs fast transfers when its negotiated minor is 4 or more and both sides set bit 0.

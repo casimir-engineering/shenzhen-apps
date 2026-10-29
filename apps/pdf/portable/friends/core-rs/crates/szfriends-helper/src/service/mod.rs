@@ -432,7 +432,8 @@ impl State {
             session_capabilities &= !szfriends_core::wire::consts::CAPABILITY_AES_LANES;
         }
         if switched_off(ENV_TEST_COMPRESSED_PARTS) {
-            session_capabilities &= !szfriends_core::wire::consts::CAPABILITY_COMPRESSED_PARTS;
+            use szfriends_core::wire::consts::{CAPABILITY_COMPRESSED_PARTS, CAPABILITY_LZ4_PARTS};
+            session_capabilities &= !(CAPABILITY_COMPRESSED_PARTS | CAPABILITY_LZ4_PARTS);
         }
         Self {
             identity,

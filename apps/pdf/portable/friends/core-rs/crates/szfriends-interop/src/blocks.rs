@@ -347,8 +347,9 @@ impl State {
     }
 
     fn part(&mut self, id: u64, lane: u64, frame: &Frame, conversation: &str, transfer: &str) {
-        // Compressed parts only where that session negotiated them (bit 2), and only if they expand exactly (§ 9.4).
-        if compress::is_compressed(frame) && !self.sessions.get(&lane).is_some_and(|s| s.channel.compressed_parts()) {
+        // Compressed parts only in a codec that session negotiated, and only if they expand exactly (§ 9.4).
+        let negotiated = |codec: u8| self.sessions.get(&lane).is_some_and(|s| s.channel.reads_codec(codec));
+        if compress::codec_of(frame).is_some_and(|codec| !negotiated(codec)) {
             return self.unsolicited(id);
         }
         let Ok(data) = compress::part_data(frame) else { return self.unsolicited(id) };
@@ -520,9 +521,13 @@ impl State {
     fn assign_block(&mut self, head: u64, lane: u64, transfer: u64, slice: u32) {
         let Some(offer) = self.lanes.groups.get(&head).and_then(|g| g.name(transfer)) else { return };
         let route = self.lane_route(head, lane);
-        // Compressed on Bluetooth and relay lanes that negotiated it, when the block's sample says it pays (§ 9.4).
-        let compressing =
-            compress::route_compresses(route) && self.sessions.get(&lane).is_some_and(|s| s.channel.compressed_parts());
+        // Compressed on Bluetooth (and relay, zstd only) lanes in the codec both read, when the block's sample says
+        // it pays (§ 9.4).
+        let codec = self
+            .sessions
+            .get(&lane)
+            .and_then(|s| s.channel.part_codec())
+            .filter(|&c| compress::route_compresses(route, c));
         let Some(send) = self.sessions.get_mut(&head).and_then(|s| s.blocks.senders.get_mut(&offer)) else { return };
         let geometry = *send.serve.geometry();
         let block = send.slices.block_of_unit(&geometry, slice);
@@ -538,9 +543,12 @@ impl State {
         }
         let wire = hex_bytes(&offer).unwrap_or_default();
         let parts = send.slices.parts(&wire, &geometry, slice, part_bytes(route));
-        let worth = compressing && send.slices.cached(block).is_some_and(compress::worth);
+        let codec = codec.filter(|&c| send.slices.cached(block).is_some_and(|data| compress::worth(data, c)));
         let queue = send.lanes.entry(lane).or_default();
-        let parts = parts.into_iter().map(|part| if worth { compress::compress_part(part, route) } else { part });
+        let parts = parts.into_iter().map(|part| match codec {
+            Some(c) => compress::compress_part(part, route, c),
+            None => part,
+        });
         queue.extend(parts.map(|part| (slice, part, false)));
         if let Some(last) = queue.back_mut() {
             last.2 = true;

@@ -15,11 +15,14 @@ pub const CAPABILITY_FAST_TRANSFERS: u32 = 1 << 0;
 /// Bit 1: AES-GCM lanes (ADR 0018 § 9.2): this side has hardware AES; lanes of a group whose two sides set it run
 /// `Noise_IK_25519_AESGCM_BLAKE2b`.
 pub const CAPABILITY_AES_LANES: u32 = 1 << 1;
-/// Bit 2: compressed parts (ADR 0018 § 9.4).
+/// Bit 2: compressed parts, zstd (ADR 0018 § 9.4): this side reads PARTs with Codec 1.
 pub const CAPABILITY_COMPRESSED_PARTS: u32 = 1 << 2;
 /// Bit 3: Pieces (field 47) in WANT and HAVE (ADR 0018 § 3). Sent only to a peer that sets it, so helpers built before
 /// pieces (minor 4 never shipped without them, but development builds did) keep working with whole blocks.
 pub const CAPABILITY_PIECES: u32 = 1 << 3;
+/// Bit 4: compressed parts, LZ4 block format (ADR 0018 § 9.4): this side reads PARTs with Codec 2. Phones whose
+/// library has no room for zstd set this one alone.
+pub const CAPABILITY_LZ4_PARTS: u32 = 1 << 4;
 
 /// Every Noise message, handshake or transport, including the 16-byte tag.
 pub const NOISE_MESSAGE_MAX: usize = 65_535;
@@ -86,5 +89,7 @@ pub const BYTES_IN_FLIGHT_MAX: u64 = 64 << 20;
 /// Pieces (WANT and HAVE's Pieces field) are 2^14 = 16 KiB of the file; piece p covers bytes p × 16,384 up to the
 /// next multiple or the end of the file.
 pub const PIECE_SHIFT: u8 = 14;
-/// PART's Codec values: 1 is zstd (§ 9.4).
+/// PART's Codec values (§ 9.4): 1 is zstd.
 pub const CODEC_ZSTD: u8 = 1;
+/// PART's Codec 2: the LZ4 block format (no frame), Bluetooth lanes only.
+pub const CODEC_LZ4: u8 = 2;

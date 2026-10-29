@@ -40,6 +40,9 @@ blake3 = "=1.8.5"
 # vendors it; no legacy formats, no dictionary builder, and its size-optimised build ("thin": -Oz, the small decoders),
 # which still runs far faster than the routes it is for (the fast-transfers journal, WP6).
 zstd = { version = "=0.13.3", default-features = false, features = ["thin"] }
+# The same parts in LZ4's block format, pure Rust and a few kilobytes: what Android builds compress with, having no
+# room for zstd under ADR 0015's 5 MB (the fast-transfers journal, WP6). Safe code only.
+lz4_flex = { version = "=0.11.6", default-features = false, features = ["safe-encode", "safe-decode"] }
 sha2 = "0.10"
 hmac = "0.12"
 subtle = "2.6"

@@ -14,7 +14,8 @@
 //!                      slowlan+bt, slowlan+bt-cut-bt, slowlan+bt-silence-bt, lan+p2p+bt, lan+p2p+bt-cut-lan,
 //!                      loopback+loopback (default: all; "none" for none). Skipped, and said so, until the peers open
 //!                      lanes. SZFRIENDS_TEST_AES_LANES=0 and SZFRIENDS_TEST_COMPRESSED_PARTS=0 run the Rust peers
-//!                      without AES-GCM lanes or compressed parts (ADR 0018 § 9.2, § 9.4), for before and after.
+//!                      without AES-GCM lanes or compressed parts (ADR 0018 § 9.2, § 9.4), for before and after;
+//!                      SZFRIENDS_TEST_ZSTD=0 plays a phone that compresses with LZ4 only.
 //!   BENCH_CORPUS       a directory whose files, one after another, make up each case's files instead of
 //!                      pseudo-random bytes (which do not compress): for compressed parts (ADR 0018 § 9.4)
 //!   BENCH_MAX_SECONDS  skip a case the route would need longer than this for at its rate (default 120)

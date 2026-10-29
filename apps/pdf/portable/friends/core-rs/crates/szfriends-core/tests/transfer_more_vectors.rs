@@ -7,8 +7,8 @@
 
 use serde_json::{json, Value};
 use szfriends_core::crypto::noise::{Handshake, HandshakeKeys};
-use szfriends_core::wire::stream::{prologue, Preamble};
 use szfriends_core::transfer::{compress, frames};
+use szfriends_core::wire::stream::{prologue, Preamble};
 use szfriends_core::wire::{tag, FrameType, NoiseCipher, Pattern, RouteMethod};
 use zeroize::Zeroizing;
 
@@ -99,14 +99,17 @@ fn aes_lane_vectors() -> Value {
 /// Compressed parts as a receiver must take or refuse them. zstd's output depends on its version, so these are read
 /// by the other helper's tests, not exported: each case is a PART's fields and what it expands to, or "refused".
 fn compressed_part_vectors() -> Value {
-    let text: Vec<u8> = b"ISO-10303-21;\n#42=CARTESIAN_POINT('',(0.,12.5,3.));\n".iter().copied().cycle().take(2_000).collect();
+    let text: Vec<u8> =
+        b"ISO-10303-21;\n#42=CARTESIAN_POINT('',(0.,12.5,3.));\n".iter().copied().cycle().take(2_000).collect();
     let packed = zstd::bulk::compress(&text, compress::LEVEL).unwrap();
     let id = [0x5au8; 16];
     // On the relay a part is padded to 8 KiB, so it must be longer than that to go compressed.
     let long: Vec<u8> = text.iter().copied().cycle().take(12_000).collect();
-    let relay = compress::compress_part(frames::part(&id, 4_096, &long), RouteMethod::Relay);
+    let relay = compress::compress_part(frames::part(&id, 4_096, &long), RouteMethod::Relay, 1);
     assert_eq!(relay.get(tag::DATA).map(<[u8]>::len), Some(compress::RELAY_PAD_BYTES));
     let bomb = zstd::bulk::compress(&vec![0u8; 1 << 20], compress::LEVEL).unwrap();
+    let lz4 = lz4_flex::block::compress(&text);
+    let lz4_bomb = lz4_flex::block::compress(&vec![0u8; 1 << 20]);
     let case = |name: &str, data: &[u8], codec: Option<u8>, length: Option<u32>, expect: Option<&[u8]>| {
         let mut frame = frames::part(&id, 4_096, data);
         if let Some(codec) = codec {
@@ -124,17 +127,24 @@ fn compressed_part_vectors() -> Value {
     };
     let relay_data = relay.get(tag::DATA).unwrap().to_vec();
     json!({
-        "construction": "PART (type 30) with Codec (44) = 1, zstd, and Length (45, u32be): Data must expand to exactly \
-                         Length bytes, 1 to 61,440, on a session where both set capability bit 2; a relay lane pads \
-                         Data to a multiple of 8 KiB with a zstd skippable frame (magic 0x184D2A50, little-endian)",
+        "construction": "PART (type 30) with Codec (44) and Length (45, u32be): Data must expand to exactly Length \
+                         bytes, 1 to 61,440. Codec 1 is zstd, on a session where both set capability bit 2 (a relay \
+                         lane pads Data to a multiple of 8 KiB with a zstd skippable frame, magic 0x184D2A50 \
+                         little-endian); Codec 2 is the LZ4 block format, where both set bit 4 and only on Bluetooth \
+                         lanes. zstd when both read it, else LZ4",
         "sender": {
-            "routes": ["bluetooth", "relay"], "level": compress::LEVEL, "sample_bytes": compress::SAMPLE_BYTES,
+            "routes": {"zstd": ["bluetooth", "relay"], "lz4": ["bluetooth"]}, "level": compress::LEVEL, "sample_bytes": compress::SAMPLE_BYTES,
             "worth_when_sample_at_most": "90 % of its size", "relay_pad_bytes": compress::RELAY_PAD_BYTES,
         },
         "parts": [
             case("plain", &text, None, None, Some(&text)),
             case("zstd", &packed, Some(1), Some(2_000), Some(&text)),
             case("zstd padded for the relay", &relay_data, Some(1), Some(12_000), Some(&long)),
+            case("lz4", &lz4, Some(2), Some(2_000), Some(&text)),
+            case("lz4 expands to more than Length", &lz4, Some(2), Some(1_999), None),
+            case("lz4 expands to less than Length", &lz4, Some(2), Some(2_001), None),
+            case("lz4 truncated", &lz4[..lz4.len() - 1], Some(2), Some(2_000), None),
+            case("lz4 bomb: 1 MiB of zeros said to be 61,440 bytes", &lz4_bomb, Some(2), Some(61_440), None),
             case("expands to more than Length", &packed, Some(1), Some(1_999), None),
             case("expands to less than Length", &packed, Some(1), Some(2_001), None),
             case("unknown codec", &packed, Some(2), Some(2_000), None),

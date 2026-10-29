@@ -20,11 +20,15 @@ szfriends-contract.workspace = true
 zeroize.workspace = true
 blake2.workspace = true
 blake3.workspace = true
-zstd.workspace = true
+lz4_flex.workspace = true
 sha2.workspace = true
 unicode-normalization.workspace = true
 serde_json.workspace = true
 hex.workspace = true
+
+# zstd for compressed parts everywhere but Android (ADR 0018 § 9.4; Android reads and writes LZ4 only).
+[target.'cfg(not(target_os = "android"))'.dependencies]
+zstd.workspace = true
 
 [target.'cfg(not(target_os = "ios"))'.dependencies]
 rusqlite = { workspace = true, features = ["bundled"] }

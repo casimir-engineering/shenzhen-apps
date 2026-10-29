@@ -330,11 +330,16 @@ impl State {
             ChannelConfig { capabilities: szfriends_core::session::local_capabilities(true), ..Default::default() };
         // The helper's test switches (ADR 0018 § 9.2, § 9.4), so the bench measures with and without.
         let off = |name: &str| std::env::var_os(name).is_some_and(|v| v == "0");
+        use szfriends_core::wire::consts;
         if off("SZFRIENDS_TEST_AES_LANES") {
-            config.capabilities &= !szfriends_core::wire::consts::CAPABILITY_AES_LANES;
+            config.capabilities &= !consts::CAPABILITY_AES_LANES;
         }
         if off("SZFRIENDS_TEST_COMPRESSED_PARTS") {
-            config.capabilities &= !szfriends_core::wire::consts::CAPABILITY_COMPRESSED_PARTS;
+            config.capabilities &= !(consts::CAPABILITY_COMPRESSED_PARTS | consts::CAPABILITY_LZ4_PARTS);
+        }
+        // A phone without zstd: LZ4 only.
+        if off("SZFRIENDS_TEST_ZSTD") {
+            config.capabilities &= !consts::CAPABILITY_COMPRESSED_PARTS;
         }
         if let Some(bytes) = self.rekey_after {
             config.rekey_after_bytes = bytes;

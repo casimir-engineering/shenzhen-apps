@@ -1224,12 +1224,15 @@ channel measurement above, not yet end to end; the case should be run again on a
 `SZFRIENDS_TEST_AES_LANES=0`). In the peers both lanes share one thread, so the end-to-end gain is bounded by the
 leaf checks, the digest and the disk on that thread, which batches do not touch.
 
-**3. Compressed parts (capability bit 2, ADR 0018 § 9.4).** zstd 1.5.7 (the `zstd` crate, C, level 1, no legacy
-formats or dictionary builder) on Bluetooth and relay lanes. Per block a 64 KiB sample decides (at least 10 % saved),
+**3. Compressed parts (capability bits 2 and 4, ADR 0018 § 9.4).** zstd 1.5.7 (the `zstd` crate, C, level 1, no
+legacy formats or dictionary builder; Codec 1, bit 2) on Bluetooth and relay lanes, and LZ4's block format
+(`lz4_flex`, pure Rust, safe code only; Codec 2, bit 4) on Bluetooth lanes, for Android (below). A pair uses zstd when
+both read it, else LZ4. Per block a 64 KiB sample decides (at least 10 % saved),
 so photos, video and archives cost one sample; each part is then compressed on its own and goes plain when it would not
 shrink. On the relay every compressed part is padded to a multiple of 8 KiB with a zstd skippable frame, so the relay
 sees one of seven sizes per 60 KiB part, not exact ratios (ADR § 8 says what it can still tell). The receiver expands a
-part only on a session that negotiated bit 2, into at most Length bytes (window at most 128 KiB), and refuses it
+part only in a codec its session negotiated (that codec's bit on both sides), into at most Length bytes (zstd's
+window at most 128 KiB), and refuses it
 unless it expands to exactly Length; anything else closes the session as a malformed part.
 
 Ratios on typical files (one core, `zstd` level 1 against the pure-Rust `ruzstd` the C library won over; speeds of
@@ -1254,6 +1257,10 @@ Rust to Rust, `SZFRIENDS_TEST_COMPRESSED_PARTS=0` for before:
 | Bluetooth, 4 MiB of PDFs | 24.1 s | 21.1 s (1.14×) | 4.21 → 3.67 MB |
 | Bluetooth, 4 MiB of photos | 24.2 s | 24.2 s | unchanged |
 | Relay (5 Mbit/s), 16 MiB mix (photos, Markdown, PDFs, STEP) | 27.1 s | 19.4 s (1.4×) | 16.8 → 12.0 MB (11.4 unpadded) |
+
+The same with LZ4 (`SZFRIENDS_TEST_ZSTD=0`, a pair with an Android phone): Bluetooth 4 MiB of STEP 8.6 s (2.8×, 1.49 MB
+on the route), Markdown 14.3 s (1.7×), PDFs 21.3 s (1.14×), photos 24.1 s; the relay plain (27.1 s). LZ4 ratios on
+the files above: STEP 33 % of the bytes in 16 KiB parts, Markdown 58 to 65 %, PDFs 66 and 92 %, at 800 MB/s and more.
 
 **4. A block index (ADR 0018 § 9.5).** WP1 (0305ad64) takes unchanged blocks from the newest file of the same name
 the same friend sent. WP6 adds `store/block_index.rs`: one small file per file received by blocks or sent to a friend
@@ -1281,16 +1288,20 @@ second holder only when it would finish sooner. The scheduler's lane requests do
 | 256 MiB from two at 40 MB/s, one gone after 1 s | 6.44 s | 6.71 s from one alone |
 | 32 MiB from a Mac at 2 MB/s and a phone on Bluetooth | 16.9 s (Bluetooth took one block) | 16.8 s from the Mac alone |
 
-**Size on phones** (`tools/embedded-size.sh`, main at 16b2f89b → with WP6): Android with online 5.36 → 5.55 MB
-(deflated 2.71 → 2.82), nearby only 3.23 → 3.43 MB; iOS with online 3.29 → 3.40 MB. zstd is most of it, built with its
-size-optimised options (`thin`: -Oz and the small decoders; without them it added 0.35 MB). Leaving zstd's unused
-block compressors out of phone builds (`ZSTD_EXCLUDE_*` through phone.toml's CFLAGS) saved only 38 KB more and would
-reach every C library a phone build compiles, so it was not kept. Note for the owner: Android with online was already
-over ADR 0015's 5 MB before this package (5.36 MB at 16b2f89b).
+**Size on phones, and why Android compresses with LZ4** (`tools/embedded-size.sh`, Android arm64 with online, main at
+d2b92b6b, after 06e8c112 brought it to 4.90 MB): with zstd, 5.08 MB, over ADR 0015's 5 MB; zstd's decoder alone (no
+compressing on Android), 4.98 MB; LZ4 in place of zstd on Android, **4.95 MB** (+54 KB for all of WP6: AES-GCM lanes,
+batches, the index, the pull planner and LZ4; deflated 2.59 → 2.62 MB, nearby only 3.15 → 3.21 MB). Per byte of
+library LZ4 gives the most: about half zstd's gain, in both directions, against zstd's decoder for 21 KB more and a
+gain only when the phone receives. So Android sets bit 4 alone; desktops and iPhones (iOS with online 3.32 MB) read
+and write both. zstd is built with its size-optimised options (`thin`: -Oz and the small decoders; 0.35 MB without).
+Leaving zstd's unused block compressors out through phone.toml's CFLAGS saved only 38 KB and would reach every C
+library a phone build compiles, so it was not kept. Shenzhen 3D's own `phones-size.sh` check, still over before this
+package, is 54 KB further from its budget.
 
 **For WP4 (Objective-C) to mirror** (the Rust core is the reference; frames and bits must match, tuning may differ):
 
-1. Capability bits: bit 1 when `crypto_aead_aes256gcm_is_available()`, bit 2 with fast transfers; a test home's
+1. Capability bits: bit 1 when `crypto_aead_aes256gcm_is_available()`, bits 2 and 4 with fast transfers; a test home's
    `SZFRIENDS_TEST_AES_LANES=0` and `SZFRIENDS_TEST_COMPRESSED_PARTS=0` clear them (the session peer too, so the bench
    measures before and after). Until then a Rust peer simply never uses either with the Mac helper.
 2. `Noise_IK_25519_AESGCM_BLAKE2b` in `szfriends_noise`: AES-256-GCM with the 96-bit nonce 4 zero bytes then the
@@ -1303,12 +1314,14 @@ over ADR 0015's 5 MB before this package (5.36 MB at 16b2f89b).
    preamble); `friends-vectors-check` then compares it byte for byte.
 3. Batches (local tuning, not wire): sealing the bulk frames that fit the in-flight budget, and opening the messages one
    read delivered, together with explicit nonces (`dispatch_apply`), stopping a batch at a REKEY.
-4. Compressed parts: zstd 1.5.7 vendored by `friends/deps` (lib/common, compress, decompress; no legacy). Sender, on a
-   Bluetooth or relay lane of a session with bit 2: per block, level 1 on its first 64 KiB; when that is at most 90 %,
+4. Compressed parts: zstd 1.5.7 vendored by `friends/deps` (lib/common, compress, decompress; no legacy), and LZ4's
+   block format from Apple's own libcompression (`COMPRESSION_LZ4_RAW`), so bits 2 and 4. The codec: zstd when both
+   set bit 2, else LZ4 when both set bit 4; LZ4 on Bluetooth lanes only, unpadded. Sender, on a Bluetooth or relay
+   lane of a session with zstd: per block, level 1 on its first 64 KiB; when that is at most 90 %,
    each part compressed alone and sent with Codec 1 and Length when smaller; on the relay, padded with a skippable
    frame (magic 0x184D2A50 little-endian, then the filler's length as u32 little-endian) to the next multiple of 8,192
-   bytes, and sent plain when that is not smaller. Receiver: a part with Codec or Length on a session without bit 2,
-   Codec other than 1, Length missing, 0 or over 61,440, or Data that does not expand to exactly Length (decoder window
+   bytes, and sent plain when that is not smaller. Receiver: a part with Codec or Length in a codec the session did not
+   negotiate (its bit on both sides), Codec other than 1 or 2, Length missing, 0 or over 61,440, or Data that does not expand to exactly Length (decoder window
    at most 2^17) closes the session as an unsolicited part. The helper's tests read
    `fixtures/vectors/transfer-more/compressed_parts.json` (each case: an encoded PART and what it expands to, or
    "refused"); it is not exported, since zstd's bytes depend on its version.

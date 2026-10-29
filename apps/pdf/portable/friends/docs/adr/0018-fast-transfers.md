@@ -48,9 +48,10 @@ handshake range 0 to 4). The handshake's capability bits (field 26, u32be, none 
 
 - bit 0 `fast transfers`: this side runs this record's transfers;
 - bit 1 `AES lanes` (§ 9.2): this side has hardware AES and accepts AES-256-GCM lanes;
-- bit 2 `compressed parts` (§ 9.4): this side reads compressed PARTs;
+- bit 2 `compressed parts` (§ 9.4): this side reads zstd PARTs (Codec 1);
 - bit 3 `pieces`: Pieces (field 47) in WANT and HAVE (§ 3). Sent only to a peer that sets it, so development builds
-  from before pieces keep working with whole blocks: to such a peer a partly received block is wanted whole.
+  from before pieces keep working with whole blocks: to such a peer a partly received block is wanted whole;
+- bit 4 `LZ4 parts` (§ 9.4): this side reads LZ4 PARTs (Codec 2).
 
 A session uses anything below only when its negotiated minor is 4 or more **and** both sides set bit 0. Otherwise
 everything stays exactly as ADR 0001 has it: OFFER with the BLAKE2b digest, CHUNK in order, PROGRESS, DONE, ACK, one
@@ -312,13 +313,17 @@ Each with its cost and benefit; the journal keeps the full list, including those
    F_FULLFSYNC for the batch (on Apple storage it flushes the whole drive cache, 3.6 ms each here), and the receiver
    publishes a batch the same way. Their OFFERs go back to back and a receiver accepting them answers them back to back,
    so 300 small files cost a few round trips, not 300. A file that fits one block is one block.
-4. **Compressing only when it helps (adopted for Bluetooth and relay lanes, capability bit 2; WP6).** Per block, zstd
-   level 1 on a 64 KiB sample; the block is sent compressed only when that saves at least 10 %, which leaves out
+4. **Compressing only when it helps (adopted for Bluetooth and relay lanes, capability bits 2 and 4; WP6).** Two
+   codecs: zstd level 1 (Codec 1, bit 2) on Bluetooth and relay lanes, and LZ4's block format (Codec 2, bit 4) on
+   Bluetooth lanes only, since it cannot be padded for the relay. A pair uses zstd when both read it, else LZ4. Android
+   builds carry LZ4 alone: zstd would put the embedded library over ADR 0015's 5 MB (4.90 MB before WP6, 5.08 with
+   zstd, 4.98 with its decoder alone, 4.95 with LZ4 instead), and LZ4 gives about half zstd's gain in both directions
+   for a few kilobytes. Per block, the codec on a 64 KiB sample; the block is sent compressed only when that saves at least 10 %, which leaves out
    what is already compressed (photos, video, archives, most PDFs) at the cost of one sample. Each part is compressed
-   on its own and goes plain when it would not shrink, so a part stays one piece on Bluetooth. STEP and text compress
-   four- to sevenfold, and Bluetooth and the relay are where bytes cost most; on the relay each compressed part is
+   on its own and goes plain when it would not shrink, so a part stays one piece on Bluetooth. STEP compresses about
+   fivefold and text twofold with zstd (three- and 1.5-fold with LZ4), and Bluetooth and the relay are where bytes cost most; on the relay each zstd part is
    padded to a multiple of 8 KiB (§ 8). Not on other routes: there it costs more CPU than it saves. The receiver
-   expands a part only on a session that negotiated bit 2, into at most Length bytes, and refuses it unless it
+   expands a part only in a codec its session negotiated (that codec's bit on both sides), into at most Length bytes, and refuses it unless it
    expands to exactly Length.
 5. **Skipping blocks the receiver already has (adopted, WP1 for whole files, WP6 for blocks).** An OFFER whose Digest
    matches a file this computer received from the same friend, or that the person's own devices hold, is answered as
