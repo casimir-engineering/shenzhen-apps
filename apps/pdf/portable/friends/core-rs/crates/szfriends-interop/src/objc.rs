@@ -7,6 +7,7 @@ use std::io::{BufRead, BufReader, Write};
 use std::path::Path;
 use std::process::{Child, ChildStdin, Command, Stdio};
 use std::sync::mpsc::{channel, Receiver};
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use serde_json::{json, Value};
@@ -19,6 +20,20 @@ pub struct ObjcPeer {
     stdin: ChildStdin,
     replies: Receiver<Value>,
     events: Receiver<Value>,
+    transcript: Transcript,
+}
+
+/// Everything a peer was told and said, in order ("> " commands, "< " output, "! " its standard error), for a bench
+/// case that fails (`bench::keep_logs`). The oldest half goes once it holds `TRANSCRIPT_MAX` lines.
+pub type Transcript = Arc<Mutex<Vec<String>>>;
+const TRANSCRIPT_MAX: usize = 400_000;
+
+fn note(transcript: &Transcript, line: String) {
+    let Ok(mut lines) = transcript.lock() else { return };
+    if lines.len() >= TRANSCRIPT_MAX {
+        lines.drain(..TRANSCRIPT_MAX / 2);
+    }
+    lines.push(line);
 }
 
 impl ObjcPeer {
@@ -42,16 +57,29 @@ impl ObjcPeer {
         let mut child = command
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
-            .stderr(Stdio::inherit())
+            .stderr(Stdio::piped())
             .spawn()
             .expect("the Objective-C peer starts");
         let stdin = child.stdin.take().expect("piped");
         let stdout = child.stdout.take().expect("piped");
+        let stderr = child.stderr.take().expect("piped");
+        let transcript: Transcript = Arc::default();
+        let errors = transcript.clone();
+        // Its standard error still reaches ours, and is kept in its transcript too.
+        std::thread::spawn(move || {
+            for line in BufReader::new(stderr).lines() {
+                let Ok(line) = line else { return };
+                eprintln!("{line}");
+                note(&errors, format!("! {line}"));
+            }
+        });
         let (reply_tx, replies) = channel();
         let (event_tx, events) = channel();
+        let said = transcript.clone();
         std::thread::spawn(move || {
             for line in BufReader::new(stdout).lines() {
                 let Ok(line) = line else { return };
+                note(&said, format!("< {line}"));
                 let Ok(value) = serde_json::from_str::<Value>(&line) else {
                     eprintln!("objc peer: not JSON: {line}");
                     continue;
@@ -65,7 +93,12 @@ impl ObjcPeer {
                 }
             }
         });
-        Self { child, stdin, replies, events }
+        Self { child, stdin, replies, events, transcript }
+    }
+
+    /// What it was told and said so far.
+    pub fn transcript(&self) -> Transcript {
+        self.transcript.clone()
     }
 
     /// The child's process id, for its CPU time.
@@ -77,6 +110,7 @@ impl ObjcPeer {
 impl Peer for ObjcPeer {
     fn command(&mut self, command: Value) -> Value {
         let line = serde_json::to_string(&command).expect("JSON");
+        note(&self.transcript, format!("> {line}"));
         writeln!(self.stdin, "{line}").expect("the peer reads its commands");
         self.stdin.flush().expect("flushed");
         self.replies.recv_timeout(Duration::from_secs(120)).unwrap_or_else(|_| panic!("no reply to {line}"))

@@ -30,6 +30,7 @@ friends-transfer-check: $(FRIENDS_SODIUM_LIB) $(FRIENDS_BLAKE3_LIB)
 		-I$(FRIENDS_TRANSFER_DIR)/tests $(wildcard $(FRIENDS_TRANSFER_DIR)/tests/*.m) \
 		$(FRIENDS_TRANSFER_DIR)/SZFriendsScheduler.m "$(FRIENDS_TRANSFER_DIR)/SZFriendsScheduler+Decisions.m" \
 		$(FRIENDS_TRANSFER_DIR)/SZFriendsLaneGroup.m \
+		$(FRIENDS_TRANSFER_DIR)/SZFriendsPull.m $(FRIENDS_TRANSFER_DIR)/SZFriendsBlockFlow.m \
 		$(FRIENDS_TRANSFER_DIR)/SZFriendsTransferBlocks.m $(FRIENDS_TRANSFER_DIR)/SZFriendsBlockSidecars.m \
 		friends/service/session/SZFriendsSessionLimits.m \
 		$(FRIENDS_TRANSFER_DIR)/SZFriendsDirectWiFiBoost.m $(FRIENDS_TRANSFER_DIR)/SZFriendsDirectWiFiCoordinator.m \

@@ -5,6 +5,8 @@
 #import "service/helper/nearby/SZFriendsNearbyInternal.h"
 #import "service/presentation/SZFriendsPresentationDevices.h"
 
+@class SZFriendsAgainExchange, SZFriendsAgainFile;
+
 NS_ASSUME_NONNULL_BEGIN
 
 // device_id in snapshots and revoke_device: "d_" and the first 8 bytes of the device key in hex.
@@ -66,6 +68,12 @@ NSString *SZFriendsDeviceIDForKey(NSData *deviceKey);
 // A session with a friend became theirs (+Sessions): what is asked for starts.
 - (void)startAgainOnLink:(SZFriendsPeerLink *)link;
 - (void)link:(SZFriendsPeerLink *)link person:(SZFriendsPersonRecord *)person receivedAgainFrame:(SZFriendsFrame *)frame;
+// For the pulls (+Pulls): the session's Get again exchange, what the person asked of a friend, and what a copy that
+// arrived whole (or a friend's "not here") becomes.
+- (nullable SZFriendsAgainExchange *)againExchangeForLink:(SZFriendsPeerLink *)link;
+- (NSArray<SZFriendsAgainFile *> *)againFilesWantedInConversation:(NSString *)conversationID;
+- (void)adoptAgainCopy:(SZFriendsAgainFile *)file path:(NSString *)path;
+- (void)againFileNotThere:(NSString *)transferID;
 @end
 
 NS_ASSUME_NONNULL_END

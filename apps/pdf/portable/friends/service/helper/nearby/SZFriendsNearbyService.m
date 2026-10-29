@@ -207,6 +207,7 @@ static const NSTimeInterval SZFriendsShutdownFlush = 1.0;
 
 - (void)changed {
     [self scheduleSyncCapture]; // what changed reaches our other devices while a session with one is live (+Sync)
+    [self schedulePullReconsider]; // a file to pull may be wanted now, or a holder reached (+Pulls)
     if (_changeScheduled) return;
     _changeScheduled = YES;
     // One publish per turn however many frames arrived in it; the publisher rate-limits per subscription too.

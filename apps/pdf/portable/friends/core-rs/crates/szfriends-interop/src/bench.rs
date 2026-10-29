@@ -251,7 +251,43 @@ pub fn run(case: &Case, sender: &PeerSpec, receiver: &PeerSpec) -> Value {
     if let Err(error) = measure(case, sender, receiver, &mut result) {
         result["error"] = json!(error);
     }
+    keep_logs(&mut result);
     result
+}
+
+thread_local! {
+    /// The transcripts of the case running on this thread, by role, until it ends.
+    static TRANSCRIPTS: std::cell::RefCell<Vec<(&'static str, crate::objc::Transcript)>> =
+        const { std::cell::RefCell::new(Vec::new()) };
+}
+
+pub(super) fn watch(role: &'static str, peer: &ObjcPeer) {
+    TRANSCRIPTS.with(|t| t.borrow_mut().push((role, peer.transcript())));
+}
+
+/// A case that failed keeps both peers' transcripts (every command, event and line of standard error) in
+/// `$BENCH_LOGS` (default `bench-logs/`), named in its result's "logs"; one that passed keeps nothing.
+pub(super) fn keep_logs(result: &mut Value) {
+    let transcripts = TRANSCRIPTS.with(|t| std::mem::take(&mut *t.borrow_mut()));
+    if result.get("error").is_none() {
+        return;
+    }
+    let dir = PathBuf::from(std::env::var("BENCH_LOGS").unwrap_or_else(|_| "bench-logs".into()));
+    if std::fs::create_dir_all(&dir).is_err() {
+        return;
+    }
+    let stamp = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_millis());
+    let label = |key: &str| result[key].as_str().unwrap_or("").replace(['/', ' '], "_");
+    let mut paths = Vec::new();
+    for (role, transcript) in transcripts {
+        let name = format!("{}-{}-{}-{stamp}-{role}.log", label("case"), label("sender"), label("receiver"));
+        let path = dir.join(name);
+        let lines = transcript.lock().map(|l| l.join("\n")).unwrap_or_default();
+        if std::fs::write(&path, lines + "\n").is_ok() {
+            paths.push(path.to_string_lossy().into_owned());
+        }
+    }
+    result["logs"] = json!(paths);
 }
 
 /// Runs `case` with panics caught, so one broken pair never stops a matrix.

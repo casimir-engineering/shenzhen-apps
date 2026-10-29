@@ -43,6 +43,7 @@ pub fn run_multi(case: &MultiCase, sender: &PeerSpec, receiver: &PeerSpec) -> Va
         Ok(Err(why)) => result["error"] = json!(why),
         Err(_) => result["error"] = json!("panicked"),
     }
+    keep_logs(&mut result);
     result
 }
 
@@ -56,6 +57,8 @@ pub(super) fn measure_multi(
     let homes = (TempHome::new("multi-s"), TempHome::new("multi-r"), TempHome::new("multi-content"));
     let mut sender = sender_spec.start(&homes.0.path().join("state"), "Sender");
     let mut receiver = receiver_spec.start(&homes.1.path().join("state"), "Receiver");
+    watch("sender", &sender);
+    watch("receiver", &receiver);
     let lanes = |peer: &mut ObjcPeer| peer.command(json!({ "cmd": "hello" }))["lanes"] == true;
     if !lanes(&mut sender) || !lanes(&mut receiver) {
         return Err("skip: these peers open no lanes yet (ADR 0018 WP3)".into());

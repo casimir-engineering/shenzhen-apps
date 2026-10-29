@@ -84,7 +84,8 @@ static void TestReceiveByBlocksThroughARestart(void) {
                    [transfers hasOfferedTree:@"b1"], @"the offered tree is kept");
     [transfers acceptTransfer:@"b1" automatically:NO error:NULL];
     SZFTExpect([transfers beginBlocks:@"b1" conversation:@"mei" error:&error], @"by blocks: %@", error);
-    SZFTExpect(SendBlock(transfers, contents, geometry, 0, NO) == SZFriendsBlockPartRefused, @"no part before leaves");
+    SZFTExpect(SendBlock(transfers, contents, geometry, 0, NO) == SZFriendsBlockPartEarly,
+               @"a part before the leaves is dropped (a lane overtook HASHES), not taken");
     NSData *head = [leaves subdataWithRange:NSMakeRange(0, 3 * 32)];
     NSData *tail = [leaves subdataWithRange:NSMakeRange(3 * 32, leaves.length - 3 * 32)];
     SZFTExpect(![transfers acceptBlockHashes:tail index:2 forTransfer:@"b1" fromConversation:@"mei" error:NULL],

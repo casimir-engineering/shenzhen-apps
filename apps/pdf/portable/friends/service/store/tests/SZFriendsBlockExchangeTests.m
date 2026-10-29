@@ -270,6 +270,58 @@ static NSUInteger Move(SZFriendsBlockExchange *sender, SZFriendsBlockExchange *r
     return arrived;
 }
 
+// A PART that overtook HASHES (a lane faster than the first session, a sender that took the WANT for the leaves'
+// arrival): dropped rather than ending the session, and its block wanted again once the leaves check.
+static void TestAPartBeforeTheLeavesIsWantedAgain(void) {
+    SZFriendsStore *senderStore = SZFTOpenStore(SZFTTemporaryDirectory(@"early-send"));
+    SZFriendsStore *receiverStore = SZFTOpenStore(SZFTTemporaryDirectory(@"early-receive"));
+    SZFTAddPerson(senderStore, @"mei", 1, SZFriendsRelationFriend, 1000);
+    SZFTAddPerson(receiverStore, @"ken", 3, SZFriendsRelationFriend, 1000);
+    SZFriendsTransfers *sending = Transfers(senderStore), *receiving = Transfers(receiverStore);
+    NSData *contents = SZFTRandomData(3 * MiB + 1);
+    NSString *source = [SZFTTemporaryDirectory(@"early-source") stringByAppendingPathComponent:@"Early.step"];
+    [contents writeToFile:source atomically:YES];
+    SZFriendsTransferRecord *record = [sending stageOutgoingFileAtPath:source revision:nil conversationID:@"mei"
+                                                                 error:NULL];
+    NSString *transferID = record.transferID;
+    NSMutableDictionary *fields = [@{@(SZFriendsFieldSize) : [SZFriendsFrame fieldWithUInt64:record.size
+                                                                                          tag:SZFriendsFieldSize]}
+        mutableCopy];
+    [SZFriendsBlockExchange addTreeOfTransfer:record toFields:fields transfers:sending];
+    [sending markOfferDelivered:transferID fromConversation:@"mei" error:NULL];
+    SZFTPipe *pipe = [[SZFTPipe alloc] init];
+    pipe.toReceiver = [NSMutableArray array];
+    pipe.toSender = [NSMutableArray array];
+    SZFriendsBlockExchange *sender = Exchange(sending, @"mei", pipe.toReceiver);
+    SZFriendsBlockExchange *receiver = Exchange(receiving, @"ken", pipe.toSender);
+    [receiving recordIncomingOfferWithID:transferID conversationID:@"ken" fileName:@"Early.step" uniformType:nil
+                                    size:record.size contentDigest:record.contentDigest sentAt:[NSDate date]
+                                   error:NULL];
+    [receiver noteOffer:[SZFriendsFrame frameWithType:SZFriendsFrameTypeOffer fields:fields] transferID:transferID];
+    [receiving acceptTransfer:transferID automatically:NO error:NULL];
+    [receiver resumeIncoming:[receiving transferWithID:transferID]];
+    [sender offerTakenByBlocks:transferID];
+    // The first PART goes ahead of the HASHES.
+    NSUInteger firstPart = NSNotFound;
+    for (NSUInteger i = 0; i < pipe.toReceiver.count; i++) {
+        if (pipe.toReceiver[i].type == SZFriendsFrameTypePart) {
+            firstPart = i;
+            break;
+        }
+    }
+    SZFTExpect(firstPart != NSNotFound, @"parts queued");
+    SZFriendsFrame *early = pipe.toReceiver[firstPart];
+    [pipe.toReceiver removeObjectAtIndex:firstPart];
+    [pipe.toReceiver insertObject:early atIndex:0];
+    BOOL acknowledged = NO;
+    Run(sender, receiver, pipe, 0, -1, &acknowledged);
+    SZFriendsTransferRecord *received = [receiving transferWithID:transferID];
+    SZFTExpect(acknowledged && received.state == SZFriendsTransferStateReceived &&
+                   [[NSData dataWithContentsOfFile:received.receivedPath] isEqualToData:contents],
+               @"the session goes on, and the file arrives whole");
+}
+
+
 // ADR 0018 § 6: the first session's route goes away mid-file while a lane lives; the group goes on, control frames
 // move to the lane, and the file finishes on it without a new session.
 static void TestTheGroupOutlivesItsFirstSession(void) {
@@ -340,6 +392,7 @@ void SZFTRunBlockExchangeTests(void) {
     TestTwoExchangesWithACorruptPartAndACut();
     gPieces = NO;
     TestTheGroupOutlivesItsFirstSession();
+    TestAPartBeforeTheLeavesIsWantedAgain();
 }
 
 void SZFTRunBlockPiecesTests(void) {

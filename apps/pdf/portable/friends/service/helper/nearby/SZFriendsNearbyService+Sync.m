@@ -188,8 +188,14 @@ static NSData *_Nullable SZFriendsKeyFromHex(NSString *hex) {
             [weakExchange sendNone:transferID];
         }
     };
+    exchange.pulls = [self pullsOnLink:link];
+    exchange.pullAnswer = ^BOOL(NSString *transferID, NSData *root, uint8_t shift, BOOL gone) {
+        SZFriendsPeerLink *strongLink = weakLink;
+        return strongLink != nil && [weakSelf link:strongLink pullAnswer:transferID root:root shift:shift gone:gone];
+    };
     link.syncExchange = exchange;
     [engine captureLocalChanges];
+    [self schedulePullReconsider];
     [exchange start];
     [self changed];
 }

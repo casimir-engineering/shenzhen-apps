@@ -206,6 +206,7 @@ static NSMutableDictionary<NSString *, NSArray<NSData *> *> *SZFriendsCopyTrees(
 }
 
 - (BOOL)link:(SZFriendsPeerLink *)link receivedCopyFrame:(SZFriendsFrame *)frame {
+    if ([self link:link receivedPullFrame:frame]) return YES; // a file pulled from several holders (+Pulls)
     NSString *again = link.againExchange.copyingByBlocks, *sync = link.syncExchange.copyingByBlocks;
     if (again == nil && sync == nil) return NO;
     NSData *wire = [frame dataForTag:SZFriendsFieldID];

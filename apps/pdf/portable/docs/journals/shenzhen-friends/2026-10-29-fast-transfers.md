@@ -1097,7 +1097,44 @@ replaced that serve, dropping blocks asked for earlier; it now adds to the serve
 servers do since 41b62049. With the Rust helper's `FRIEND_HELPS_FROM` at 0 (it was 8 MiB), the Objective-C Get again
 suite fails one case without these fixes and passes all seven with them. All interop suites pass.
 
-**Left for WP4:** the Mac as a requester pulling from several holders (c41d58e8); the stall above; WP6's work. Not tried on two real Macs: the direct Wi-Fi and Bluetooth lanes
+**The Mac pulls one file from every holder at once (as 41b62049).** `SZFriendsPull` ports WP6's planner and
+`SZFriendsNearbyService+Pulls.m` ports the Rust helper's `pulls.rs`.
+- One copy at a time (`pull-<id>`, resumed from its map; the sweep keeps it), fed by every fast session that holds the
+  file: the person's other devices by SYNC 7/8, and the friend who sent it by AGAIN 4/5.
+- Each holder is first asked for one block, so it sends its tree. A holder that answers NONE, or whose tree is not the
+  copy's, is left out. One that leaves gives its blocks back to the others.
+- A friend's "not here" ends Get again as gone. When nobody can serve, the file is tried again after 5 s.
+- A copy running by itself steps aside for a Get again the person asked for (a5a7d001).
+- On fast sessions, the per-session requesters start no copy. On others they copy by offset as before.
+- `pull.rs`'s three planner cases are ported to the transfer suite. The three-holder case gives 4.15 s, as in WP6's
+  journal.
+- Interop (`objc_again`): the Mac as the second computer pulls 64 MiB from its Rust computer and their Rust friend at
+  once in 0.73 s. Its log: "own device 27, friend 37". With the Rust computer's copy changed, that holder is left out
+  and the friend serves all 64 blocks (0.50 s).
+
+**The bench keeps the peers' transcripts of a failed case.** Every command, event and line of standard error, written
+to `$BENCH_LOGS` (default `bench-logs/`) and named in the result's `logs`. The Objective-C peer now says why it closes
+a session for a protocol fault (a `protocol_close` event). For a PART it refused, that includes how many blocks were
+partly received, so a stall at the in-flight limit would show.
+
+**The stall, found.** With the transcripts kept, it reproduced in the first round of a loop of the cut cases, Rust →
+Objective-C on three routes. It was not the in-flight limit: the receiver's last words were "PART refused at 524288
+on lane 2: part out of place; 0 blocks partly received", at the very start of the file. A part on the direct Wi-Fi
+lane had overtaken the HASHES on the first session.
+
+Both senders allowed lanes as soon as a WANT came back, but the receiver sends its WANT as it accepts, before the
+leaves arrive. So a lane faster than the first session could deliver parts before the leaves; the receiver took that
+as a protocol fault and closed the lane, and the transfer waited forever. The cut was incidental: the race depends on
+which route is quicker at the start.
+
+Fixes:
+- Senders (the Mac helper, the Rust helper and the Rust bench peer): lanes wait for a HAVE, which only comes once the
+  leaves checked.
+- The Mac receiver: a part before the leaves is dropped (`SZFriendsBlockPartEarly`) instead of ending the session, and
+  its block is wanted again as soon as the leaves check.
+- An exchange test puts a PART ahead of the HASHES: the file arrives whole.
+
+**Left for WP4:** WP6's work. Not tried on two real Macs: the direct Wi-Fi and Bluetooth lanes
 are exercised through the bench's emulated routes and the helper's fake channels only.
 
 ## WP1, part 2: copies, small files, the check before saving, Finishing and the switch (2026-10-29)

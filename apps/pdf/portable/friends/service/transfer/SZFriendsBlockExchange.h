@@ -110,6 +110,8 @@ extern const SZFriendsLaneID SZFriendsHeadLane; // 0
 // HASHES, WANT, PART or HAVE that came on `lane`: NO when it is unsolicited (close that session as a protocol error).
 - (BOOL)handleFrame:(SZFriendsFrame *)frame lane:(SZFriendsLaneID)lane;
 - (BOOL)handleFrame:(SZFriendsFrame *)frame; // on -controlLane
+// Why the last frame was refused (-handleFrame: returned NO), for the driver's log.
+@property(nonatomic, readonly, copy, nullable) NSString *lastRefusal;
 // A write on `lane` completed (its bulk queue shortened): the lane is moving, and more parts may go.
 - (void)written:(SZFriendsLaneID)lane;
 // A byte from the friend on `lane` (any frame).

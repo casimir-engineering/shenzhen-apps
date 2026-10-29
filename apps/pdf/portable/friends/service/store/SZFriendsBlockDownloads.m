@@ -188,6 +188,26 @@ static const NSTimeInterval SZFriendsBlockBatchInterval = 1.0;
     return missing;
 }
 
+- (BOOL)blockLeavesKnown:(NSString *)transferID {
+    __block BOOL known = NO;
+    [self.store performOnWriter:^(SZFriendsStoreDB *_Nullable db) {
+        (void)db;
+        SZFriendsBlockDownload *download = self.receiver.blockDownloads[transferID];
+        known = download.assembly.leaves != nil;
+    }];
+    return known;
+}
+
+- (NSUInteger)blocksPartlyReceived:(NSString *)transferID {
+    __block NSUInteger count = 0;
+    [self.store performOnWriter:^(SZFriendsStoreDB *_Nullable db) {
+        (void)db;
+        SZFriendsBlockDownload *download = self.receiver.blockDownloads[transferID];
+        count = download.assembly.partialCount;
+    }];
+    return count;
+}
+
 - (NSData *)takePieceHave:(NSString *)transferID {
     __block NSData *pieces = [NSData data];
     [self.store performOnWriter:^(SZFriendsStoreDB *_Nullable db) {
@@ -342,6 +362,13 @@ static const NSTimeInterval SZFriendsBlockBatchInterval = 1.0;
             return NO;
         }
         NSData *blockData = nil;
+        if (download.assembly.leaves == nil) {
+            SZFriendsBlockGeometry geometry = download.assembly.geometry;
+            if (data.length == 0 || offset >= geometry.size) return NO;
+            block = (uint32_t)(offset >> geometry.shift);
+            result = SZFriendsBlockPartEarly;
+            return YES;
+        }
         switch ([download.assembly acceptPart:data offset:offset block:&block data:&blockData]) {
         case SZFriendsPartRefused: return NO;
         case SZFriendsPartPending: result = SZFriendsBlockPartPending; return YES;

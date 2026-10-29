@@ -59,8 +59,8 @@ static inline NSUInteger SZFriendsPartBytesFor(SZFriendsRouteMethod route) {
 @property(nonatomic, strong) SZFriendsTransferRecord *record;
 @property(nonatomic) SZFriendsTransferKey key;
 @property(nonatomic) BOOL resumed; // began on an earlier session
-// The friend's helper has the leaves (a HAVE or WANT came back): parts may go on lanes, which could otherwise
-// overtake HASHES on the head.
+// The friend's helper has the leaves (a HAVE came back): parts may go on lanes, which could otherwise overtake
+// HASHES on the head. A WANT proves nothing: the receiver sends one as it accepts, before the leaves arrive.
 @property(nonatomic) BOOL lanesOK;
 @property(nonatomic, strong) NSMutableDictionary<NSNumber *, NSMutableArray<SZFriendsQueuedPart *> *> *lanes;
 @end
@@ -93,6 +93,7 @@ static const double SZFriendsFinishingAfter = 1.0;
     SZFriendsLaneID _control;                // the lane control frames go on: the head, or once it closed, -group.first
     NSMutableDictionary<NSString *, NSNumber *> *_finishing; // transfer id -> when its check began (clock)
     NSMutableDictionary<NSString *, NSNumber *> *_pieceBytes; // transfer id -> part bytes since its last piece HAVE
+    NSMutableDictionary<NSString *, NSMutableIndexSet *> *_early; // transfer id -> blocks whose parts came before leaves
 }
 - (void)changed;
 - (BOOL)sendOn:(SZFriendsLaneID)lane frame:(SZFriendsFrame *)frame;

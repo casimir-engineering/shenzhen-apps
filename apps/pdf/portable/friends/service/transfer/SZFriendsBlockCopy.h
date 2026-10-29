@@ -37,6 +37,8 @@ typedef NS_ENUM(NSInteger, SZFriendsCopyPart) {
 - (BOOL)acceptHashes:(NSData *)hashes index:(uint32_t)index done:(BOOL *)done;
 - (SZFriendsCopyPart)acceptPart:(NSData *)data offset:(uint64_t)offset block:(uint32_t *)block;
 @property(nonatomic, readonly) BOOL complete;
+// The leaves are here and checked against the announced root (this session's HASHES, or the map's).
+@property(nonatomic, readonly) BOOL leavesKnown;
 // Blocks written and not yet in a HAVE, and those blocks as packed pairs (taken).
 @property(nonatomic, readonly) NSUInteger unreportedCount;
 - (NSData *)takeHave;

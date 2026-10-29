@@ -32,6 +32,7 @@ const SZFriendsLaneID SZFriendsHeadLane = 0;
         _lateAnswered = [NSMutableSet set];
         _finishing = [NSMutableDictionary dictionary];
         _pieceBytes = [NSMutableDictionary dictionary];
+        _early = [NSMutableDictionary dictionary];
         _directWiFiKeepsInternet = YES;
         _clock = ^double {
             return (double)clock_gettime_nsec_np(CLOCK_MONOTONIC) / 1e9;
@@ -300,6 +301,14 @@ const SZFriendsLaneID SZFriendsHeadLane = 0;
             [_receivers addObject:transferID];
             [_transfers claimBlocks:transferID forSession:self];
         }
+        NSMutableIndexSet *early = _early[transferID];
+        if (early.count > 0 && [_transfers blockLeavesKnown:transferID]) {
+            [_early removeObjectForKey:transferID];
+            for (SZFriendsFrame *want in SZFriendsWantFrames(SZFriendsBlockBytes(transferID),
+                                                            SZFriendsIndexesAsRanges(early))) {
+                [self sendOnHead:want];
+            }
+        }
         [self progressed:transferID lane:_control];
         return YES;
     }
@@ -322,7 +331,13 @@ const SZFriendsLaneID SZFriendsHeadLane = 0;
     NSError *error = nil;
     switch ([_transfers acceptBlockPart:data atOffset:offset forTransfer:transferID fromConversation:_conversationID
                                   block:&block error:&error]) {
-    case SZFriendsBlockPartRefused: return NO;
+    case SZFriendsBlockPartRefused:
+        _lastRefusal = [NSString stringWithFormat:@"PART refused at %llu (%lu bytes) on lane %llu: %@; %lu blocks partly "
+                                                  @"received",
+                                                  offset, (unsigned long)data.length, lane,
+                                                  error.localizedDescription ?: @"?",
+                                                  (unsigned long)[_transfers blocksPartlyReceived:transferID]];
+        return NO;
     case SZFriendsBlockPartPending: [self piecesArrived:transferID lane:lane bytes:data.length]; return YES;
     case SZFriendsBlockPartLate: {
         // The first late part of a block on each lane is answered with a HAVE naming it, on that lane (§ 3): when the
@@ -338,6 +353,14 @@ const SZFriendsLaneID SZFriendsHeadLane = 0;
         return YES;
     }
     case SZFriendsBlockPartStale: [_receivers removeObject:transferID]; return YES;
+    case SZFriendsBlockPartEarly: {
+        // A part on a lane overtook HASHES on the first session (a sender that took a WANT for the leaves' arrival):
+        // dropped, and its block wanted again once the leaves check, so the transfer goes on rather than ending.
+        NSMutableIndexSet *early = _early[transferID];
+        if (early == nil) _early[transferID] = early = [NSMutableIndexSet indexSet];
+        [early addIndex:block];
+        return YES;
+    }
     case SZFriendsBlockPartCorrupt: {
         // Fetched again alone; the file does not restart.
         for (SZFriendsFrame *want in SZFriendsWantFrames(SZFriendsBlockBytes(transferID), SZFriendsRange(block, 1))) {
@@ -408,6 +431,7 @@ const SZFriendsLaneID SZFriendsHeadLane = 0;
 }
 
 - (BOOL)handleFrame:(SZFriendsFrame *)frame lane:(SZFriendsLaneID)lane {
+    _lastRefusal = [NSString stringWithFormat:@"frame %u refused on lane %llu", frame.type, lane];
     [self heard:lane];
     NSData *wire = [frame dataForTag:SZFriendsFieldID];
     if (wire.length != 16) return NO;

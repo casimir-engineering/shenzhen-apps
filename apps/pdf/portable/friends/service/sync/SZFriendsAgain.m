@@ -150,7 +150,7 @@ static NSMutableData *SZFriendsAgainHead(SZFriendsAgainMessage type, NSData *ide
 #pragma mark - Requester
 
 - (void)pump {
-    if (_copy != nil || _stopped || self.wanted == nil) return;
+    if (_copy != nil || _stopped || self.wanted == nil || self.pulls) return;
     NSFileManager *files = NSFileManager.defaultManager;
     for (SZFriendsAgainFile *file in self.wanted()) {
         NSData *identifier = SZFriendsAgainID(file.transferID);
@@ -438,6 +438,7 @@ static NSMutableData *SZFriendsAgainHead(SZFriendsAgainMessage type, NSData *ide
         return YES;
     case SZFriendsAgainMessageNone:
         if (message.length != 18) return NO;
+        if (self.pullAnswer && self.pullAnswer(transferID, nil, 0, p[17] == SZFriendsAgainAnswerNotHere)) return YES;
         // A reason this side does not know yet reads as "not now": nothing is concluded from it.
         [self receiveNone:transferID reason:p[17] == SZFriendsAgainAnswerNotHere ? SZFriendsAgainAnswerNotHere
                                                                                  : SZFriendsAgainAnswerNotNow];
@@ -451,6 +452,9 @@ static NSMutableData *SZFriendsAgainHead(SZFriendsAgainMessage type, NSData *ide
     }
     case SZFriendsAgainMessageBlocksFollow: {
         if (message.length != 17 + 33) return NO;
+        if (self.pullAnswer && self.pullAnswer(transferID, [message subdataWithRange:NSMakeRange(17, 32)], p[49], NO)) {
+            return YES;
+        }
         if (_copy.blocks == nil || ![_copy.file.transferID isEqualToString:transferID]) return YES; // late
         if (![_copy.blocks followRoot:[message subdataWithRange:NSMakeRange(17, 32)] shift:p[49]]) {
             [self stopBlocksCopy]; // a tree that cannot be this file's: tried again on the next session

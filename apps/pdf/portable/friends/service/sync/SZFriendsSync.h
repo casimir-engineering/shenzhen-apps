@@ -283,6 +283,12 @@ extern const NSUInteger SZFriendsSyncWindow; // 4 EVENTS messages in flight
 // The file the peer is copying from this side (its latest WANT), and how far that copy has got; nil once done.
 @property(nonatomic, readonly, nullable) NSString *servingTransferID;
 @property(nonatomic, readonly) double servingFraction;
+// Copies from several holders at once (ADR 0018 § 9.6, the helper's pulls): when set, this side's own requester starts
+// no copy on this session, and the answers to a pull's asks go to `pullAnswer` first: BLOCKS FOLLOW with the holder's
+// tree (`root` set), or NONE (`root` nil; `gone` for "not here"). YES when it was the pull's.
+@property(nonatomic) BOOL pulls;
+@property(nonatomic, copy, nullable) BOOL (^pullAnswer)(NSString *transferID, NSData *_Nullable root, uint8_t shift,
+                                                       BOOL gone);
 // Requester by blocks (ADR 0018 § 4): set on a session that negotiated fast transfers, so this side's copies go by
 // blocks (7 WANT BLOCKS, resumed from the map beside the partial copy); otherwise by offset (4 WANT).
 @property(nonatomic) BOOL fast;

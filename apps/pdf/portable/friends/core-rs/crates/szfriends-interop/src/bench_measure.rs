@@ -12,6 +12,8 @@ pub(super) fn measure(
     let homes = (TempHome::new("bench-s"), TempHome::new("bench-r"), TempHome::new("bench-content"));
     let mut sender = sender_spec.start(&homes.0.path().join("state"), "Sender");
     let mut receiver = receiver_spec.start(&homes.1.path().join("state"), "Receiver");
+    watch("sender", &sender);
+    watch("receiver", &receiver);
     let (pid_s, pid_r) = (sender.pid(), receiver.pid());
     befriend(&mut sender, &mut receiver, ("Sender", "Receiver"));
     let (keys_s, keys_r) = (keys(&mut sender), keys(&mut receiver));

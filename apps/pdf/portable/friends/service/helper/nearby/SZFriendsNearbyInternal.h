@@ -90,6 +90,13 @@ extern const NSTimeInterval SZFriendsNearbyConnectingTimeout;
 // ("path|size|mtime" as checked), and when each person's checks ran in the last hour, by conversation.
 @property(nonatomic, strong, nullable) NSMutableDictionary<NSString *, NSString *> *againVerified;
 @property(nonatomic, strong, nullable) NSMutableDictionary<NSString *, NSMutableArray<NSDate *> *> *againChecks;
+// One file pulled from every holder at once (+Pulls, ADR 0018 § 9.6): the pull running now, files no holder could
+// give and when they may be tried again, its timer, and when a copy running by itself last looked for a Get again.
+@property(nonatomic, strong, nullable) id pullCurrent;
+@property(nonatomic, strong, nullable) NSMutableDictionary<NSString *, NSDate *> *pullNotBefore;
+@property(nonatomic) BOOL pullTickScheduled;
+@property(nonatomic) BOOL pullReconsiderScheduled;
+@property(nonatomic, copy, nullable) NSDate *pullCheckedAt;
 
 // Core.
 - (void)changed;
@@ -385,6 +392,23 @@ void SZFriendsNearbyRecordEvent(SZFriendsStore *store, NSString *eventKind, NSSt
 - (void)link:(SZFriendsPeerLink *)link receivedBoostFrame:(SZFriendsFrame *)frame;
 - (void)boostLinkClosed:(SZFriendsPeerLink *)link;
 - (void)boostLaneDialFailedOnLink:(nullable SZFriendsPeerLink *)head route:(SZFriendsRouteMethod)route;
+@end
+
+// Get again and own-device copies pulled from every holder at once (ADR 0018 § 9.6; SZFriendsNearbyService+Pulls.m).
+@interface SZFriendsNearbyService (Pulls)
+// Copies on this session are the pull's to make (it negotiated fast transfers).
+- (BOOL)pullsOnLink:(SZFriendsPeerLink *)link;
+// Looks again, soon, at what to pull and who holds it (coalesced to four times a second).
+- (void)schedulePullReconsider;
+- (void)reconsiderPulls;
+// A holder's answer to a pull's ask: BLOCKS FOLLOW (`root`) or NONE. YES when it was the pull's.
+- (BOOL)link:(SZFriendsPeerLink *)link pullAnswer:(NSString *)transferID root:(nullable NSData *)root
+       shift:(uint8_t)shift gone:(BOOL)gone;
+// HASHES or a PART for the file being pulled: YES when it was.
+- (BOOL)link:(SZFriendsPeerLink *)link receivedPullFrame:(SZFriendsFrame *)frame;
+- (void)pullLinkClosed:(SZFriendsPeerLink *)link;
+// The share of a file the pull has, when it is the one being pulled.
+- (BOOL)pullFractionOfTransfer:(NSString *)transferID fraction:(double *)fraction;
 @end
 
 // Get again and own-device copies served by blocks (ADR 0018 § 4; SZFriendsNearbyService+Copies.m).

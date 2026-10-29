@@ -41,8 +41,8 @@ pub struct BlockSend {
     pub record: TransferRecord,
     /// Each lane's parts not yet handed to its channel: (block, part, the block's last part).
     pub lanes: HashMap<u64, VecDeque<(u32, Frame, bool)>>,
-    /// The receiver has the leaves (a HAVE or WANT came back): parts may go on lanes, which could overtake
-    /// HASHES on the first session.
+    /// The receiver has the leaves (a HAVE came back): parts may go on lanes, which could overtake HASHES on the
+    /// first session.
     pub lanes_ok: bool,
     /// Pieces acknowledged, and the checked blocks slices are cut from (ADR 0018 § 3; the scheduler's units are
     /// slices).
@@ -251,7 +251,8 @@ impl State {
         if send.serve.want(&ranges).is_err() || !pieces_fit {
             return self.unsolicited(id);
         }
-        send.lanes_ok = true;
+        // A WANT proves nothing about the leaves: the receiver sends one as it accepts, before HASHES arrive, so
+        // lanes wait for a HAVE (a PART on a lane would otherwise overtake HASHES and end the session).
         send.slices.want(&geometry, &ranges, &pieces);
         let mut slices = send.slices.units_of_blocks(&geometry, &ranges);
         slices.extend(send.slices.units_of_pieces(&geometry, &pieces));

@@ -79,6 +79,73 @@ mod mac {
         nearby::visible_request(f, "Fay", a, "Ada");
         again::received_everywhere(a, b, f, "Fay", "Ada");
     }
+
+    fn path_when(client: &mut Client, conversation: &str, transfer: &str, what: &str) -> String {
+        let found = again::item_when(client, conversation, transfer, what, |i| {
+            i["file"]["path"].as_str().is_some_and(|p| std::path::Path::new(p).is_file())
+        });
+        found["file"]["path"].as_str().expect("checked").to_owned()
+    }
+
+    /// Deletes the copy on `second`, asks for it with Get, and returns the seconds until it is back, checked whole.
+    fn get_back(second: &mut Client, conversation: &str, transfer: &str, original: &[u8]) -> f64 {
+        let path = path_when(second, conversation, transfer, "the copy here");
+        std::fs::remove_file(&path).expect("deleted on the second computer");
+        again::item_when(second, conversation, transfer, "Get offered", |i| {
+            i["actions"].as_array().is_some_and(|a| a.iter().any(|a| a["action"] == "fetch_from_device"))
+        });
+        let started = std::time::Instant::now();
+        second.send("fetch_from_device", serde_json::json!({"transfer_id": transfer}));
+        let back = path_when(second, conversation, transfer, "the copy back");
+        let seconds = started.elapsed().as_secs_f64();
+        assert!(std::fs::read(&back).expect("readable") == original, "the same bytes");
+        seconds
+    }
+
+    /// ADR 0018 § 9.6 with the Objective-C helper asking (as tests/pulls.rs between Rust helpers): its profile's
+    /// Rust computer and their Rust friend both hold a file the friend sent, and the Objective-C computer pulls it from
+    /// both at once; with the Rust computer's copy changed, the friend serves it all. Its log names each holder's
+    /// share.
+    pub fn pull_onto_objc() {
+        let mib: usize = std::env::var("SZF_PULL_MIB").ok().and_then(|v| v.parse().ok()).unwrap_or(64);
+        let Some(mut h) = helpers(&[("Ada", true), ("Ada's Mac", false), ("Fay", true)]) else { return };
+        let mac_log = h._homes[1].path().join("state").join("helper.log");
+        let (a, rest) = h.clients.split_at_mut(1);
+        let (b, f) = rest.split_at_mut(1);
+        let (first, second, friend) = (&mut a[0], &mut b[0], &mut f[0]);
+        nearby_devices::join(first, second);
+        nearby::visible_request(friend, "Fay", first, "Ada");
+        let fay_in_first = again::conversation_titled(first, "Fay");
+        let ada_in_fay = again::conversation_titled(friend, "Ada");
+        let fay_in_second = again::conversation_titled(second, "Fay");
+        let source = friend.make_file("Scan.step", mib << 20);
+        let original = std::fs::read(&source).unwrap();
+        let files = serde_json::json!({"conversation_id": ada_in_fay, "files": [{"path": source}],
+                                       "client_token": "aaaa0000bbbb1111cccc2222dddd3333"});
+        let transfer = friend.send("send_files", files)["transfer_ids"][0].as_str().unwrap().to_owned();
+        again::item_when(first, &fay_in_first, &transfer, "the offer", |i| i.to_string().contains("accept_offer"));
+        first.send("accept_offer", serde_json::json!({"transfer_id": transfer}));
+        let on_first = path_when(first, &fay_in_first, &transfer, "received on the first computer");
+        again::item_when(second, &fay_in_second, &transfer, "on the first computer", |i| {
+            i["actions"].as_array().is_some_and(|a| a.iter().any(|a| a["action"] == "fetch_from_device"))
+        });
+        second.send("fetch_from_device", serde_json::json!({"transfer_id": transfer}));
+        path_when(second, &fay_in_second, &transfer, "the first copy");
+
+        let both = get_back(second, &fay_in_second, &transfer, &original);
+        println!("{}", serde_json::json!({"bench": "pull onto objc", "case": "two holders", "mib": mib, "seconds": both}));
+        let mut stale = original.clone();
+        stale[12_345] ^= 0xff;
+        std::fs::write(&on_first, &stale).unwrap();
+        let with_stale = get_back(second, &fay_in_second, &transfer, &original);
+        println!("{}", serde_json::json!({"bench": "pull onto objc", "case": "a stale holder", "mib": mib,
+                                         "seconds": with_stale}));
+        let log = std::fs::read_to_string(&mac_log).unwrap_or_default();
+        for line in log.lines().filter(|l| l.contains("pulled a file from")) {
+            println!("objc helper: {line}");
+        }
+        assert!(log.contains("pulled a file from 2 holders"), "the Objective-C helper pulled from both holders");
+    }
 }
 
 #[test]
@@ -121,4 +188,10 @@ fn a_friends_file_comes_back_from_either_computer_then_from_an_objc_friend() {
 fn a_friends_file_on_a_rust_profile_comes_back_from_an_objc_friend() {
     #[cfg(target_os = "macos")]
     mac::received_everywhere(true, false);
+}
+
+#[test]
+fn the_objc_helper_pulls_a_file_from_its_rust_computer_and_their_rust_friend_at_once() {
+    #[cfg(target_os = "macos")]
+    mac::pull_onto_objc();
 }

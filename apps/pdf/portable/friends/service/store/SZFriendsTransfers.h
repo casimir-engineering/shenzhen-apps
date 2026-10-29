@@ -330,12 +330,15 @@ typedef NS_ENUM(NSInteger, SZFriendsReceivedSource) {
 
 // What one PART did (ADR 0018 § 3), for the helper to answer.
 typedef NS_ENUM(NSInteger, SZFriendsBlockPartResult) {
-    SZFriendsBlockPartRefused = 0, // out of place, before the leaves, past the limits, or not stored: close
+    SZFriendsBlockPartRefused = 0, // out of place, past the limits, or not stored: close
     SZFriendsBlockPartPending,     // stored; its block still misses bytes
     SZFriendsBlockPartWritten,     // its block checked and is written; a HAVE reports it
     SZFriendsBlockPartCorrupt,     // its block failed its leaf: want it again, alone
     SZFriendsBlockPartLate,        // for a block already complete: dropped
     SZFriendsBlockPartStale,       // the transfer was cancelled or finished meanwhile: dropped
+    // Before the leaves are here: a part on a lane overtook HASHES on the first session. Dropped, and its block is
+    // wanted again once the leaves check.
+    SZFriendsBlockPartEarly,
 };
 
 // Fast transfers on disk (ADR 0018 § 4 and 5; SZFriendsBlockDownloads.m). The receiver keeps the offered tree and
@@ -368,6 +371,10 @@ typedef NS_ENUM(NSInteger, SZFriendsBlockPartResult) {
 // With a peer that has pieces (ADR 0018 § 3): the blocks to WANT besides those partly received, and in `*pieces` the
 // pieces still missing from those.
 - (NSData *)blocksMissing:(NSString *)transferID pieces:(NSData *_Nullable *_Nonnull)pieces;
+// The leaves of a download by blocks are here and checked.
+- (BOOL)blockLeavesKnown:(NSString *)transferID;
+// Blocks partly received now (diagnostics: a PART refused at the in-flight limit).
+- (NSUInteger)blocksPartlyReceived:(NSString *)transferID;
 // Pieces arrived since the last call in blocks not yet complete (HAVE's Pieces).
 - (NSData *)takePieceHave:(NSString *)transferID;
 // Leaves from a HASHES frame; once all are here and check, the map gains them.

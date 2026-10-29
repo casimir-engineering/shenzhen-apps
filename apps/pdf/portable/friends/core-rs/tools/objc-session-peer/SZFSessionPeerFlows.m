@@ -204,6 +204,10 @@ static void SZFUpdateLiveness(SZFPeerSession *session) {
 }
 
 - (void)closeForProtocol:(SZFPeerSession *)session {
+    // Why, for the transcript a failed bench case keeps.
+    SZFriendsBlockExchange *blocks = session.laneHead.blocks ?: session.blocks;
+    [self emit:@{@"event" : @"protocol_close", @"session" : @(session.sessionID),
+                 @"why" : blocks.lastRefusal ?: @"not a block frame"}];
     [session.channel closeWithReason:SZFriendsCloseReasonProtocolError];
 }
 

@@ -6,6 +6,7 @@
 #import <Foundation/Foundation.h>
 
 #import "SZFriendsSchedulerSim.h"
+#import "service/transfer/SZFriendsPull.h"
 
 static int failures = 0;
 int SZFriendsDirectWiFiBoostTests(void); // SZFriendsDirectWiFiBoostTests.m
@@ -152,6 +153,110 @@ static void TestPieces(void) {
           @"a piece past the file");
 }
 
+// ADR 0018 § 9.6, as pull.rs's tests: the planner in virtual time, each source serving what it was asked in order at
+// its rate after a delay each way (block_bytes / rate per block), pinging every half second.
+typedef struct {
+    SZFriendsRouteMethod route;
+    double rate, delay, lostAt; // bytes/s, seconds, seconds (negative: never)
+} SZFTPullSource;
+
+static double SimulatePull(uint64_t size, const SZFTPullSource *sources, int count, uint64_t *served, uint64_t *twice) {
+    SZFriendsBlockGeometry geometry;
+    SZFriendsGeometryForSize(size, &geometry);
+    double now = 0, step = 0.001;
+    SZFriendsPull *pull = [[SZFriendsPull alloc] initWithGeometry:geometry missing:SZFriendsRange(0, geometry.blocks)
+                                                              now:now];
+    for (int i = 0; i < count; i++) [pull sourceUp:(uint64_t)i route:sources[i].route now:now];
+    NSMutableIndexSet *have = [NSMutableIndexSet indexSet];
+    NSMutableArray<NSMutableArray<NSNumber *> *> *queues = [NSMutableArray array];
+    NSMutableArray<NSArray *> *requests = [NSMutableArray array]; // (arrives at, action)
+    double busyUntil[8] = {0};
+    long serving[8];
+    BOOL live[8];
+    for (int i = 0; i < count; i++) [queues addObject:[NSMutableArray array]], serving[i] = -1, live[i] = YES, served[i] = 0;
+    *twice = 0;
+    for (long tick = 0; !pull.done; tick++) {
+        if (now > 600) return -1;
+        for (SZFriendsPullAction *action in [pull takeActions]) {
+            [requests addObject:@[ @(now + sources[action.source].delay), action ]];
+        }
+        NSMutableArray *later = [NSMutableArray array];
+        for (NSArray *request in requests) {
+            if ([request[0] doubleValue] > now) {
+                [later addObject:request];
+                continue;
+            }
+            SZFriendsPullAction *action = request[1];
+            NSMutableArray<NSNumber *> *queue = queues[action.source];
+            const uint32_t *pairs = action.ranges.bytes;
+            for (NSUInteger p = 0; p < action.ranges.length / 8; p++) {
+                for (uint32_t b = pairs[2 * p]; b < pairs[2 * p] + pairs[2 * p + 1]; b++) {
+                    if (action.want) [queue addObject:@(b)];
+                    else [queue removeObject:@(b)];
+                }
+            }
+        }
+        requests = later;
+        for (int i = 0; i < count; i++) {
+            if (!live[i]) continue;
+            if (sources[i].lostAt >= 0 && now >= sources[i].lostAt) {
+                live[i] = NO;
+                [pull sourceDown:(uint64_t)i now:now];
+                continue;
+            }
+            if (serving[i] >= 0 && now >= busyUntil[i] + sources[i].delay) {
+                uint32_t block = (uint32_t)serving[i];
+                serving[i] = -1;
+                served[i]++;
+                [pull heard:(uint64_t)i now:now];
+                if ([have containsIndex:block]) {
+                    (*twice)++;
+                } else {
+                    [have addIndex:block];
+                    [pull arrived:(uint64_t)i block:block now:now];
+                }
+            }
+            if (serving[i] < 0) {
+                if (queues[i].count) {
+                    uint32_t block = queues[i].firstObject.unsignedIntValue;
+                    [queues[i] removeObjectAtIndex:0];
+                    uint64_t offset = 0;
+                    NSUInteger length = 0;
+                    SZFriendsGeometrySpan(geometry, block, &offset, &length);
+                    busyUntil[i] = now + (double)length / sources[i].rate;
+                    serving[i] = block;
+                }
+            } else if (tick % 500 == 0) {
+                [pull heard:(uint64_t)i now:now]; // its pings
+            }
+        }
+        [pull tick:now];
+        now += step;
+    }
+    return now;
+}
+
+static void TestPulls(void) {
+    const double MiB = 1 << 20;
+    uint64_t served[8], twice = 0;
+    SZFTPullSource three[] = {{SZFriendsRouteMethodLAN, 40e6, 0.002, -1}, {SZFriendsRouteMethodLAN, 20e6, 0.002, -1},
+                              {SZFriendsRouteMethodLAN, 10e6, 0.003, -1}};
+    double seconds = SimulatePull(256 * MiB, three, 3, served, &twice);
+    double together = 256 * MiB / 70e6;
+    CHECK(seconds > 0 && seconds < together * 1.15 && served[0] && served[1] && served[2] && twice <= 4,
+          @"three holders fill one copy at about their sum: %.2f s against %.2f s, %llu/%llu/%llu, %llu twice",
+          seconds, together, served[0], served[1], served[2], twice);
+    SZFTPullSource leaving[] = {{SZFriendsRouteMethodLAN, 40e6, 0.002, -1}, {SZFriendsRouteMethodLAN, 40e6, 0.002, 1}};
+    seconds = SimulatePull(256 * MiB, leaving, 2, served, &twice);
+    CHECK(seconds > 0 && seconds < 256 * MiB / 40e6 && served[0] + served[1] >= 256,
+          @"a holder that leaves half-way costs only its share: %.2f s", seconds);
+    SZFTPullSource slow[] = {{SZFriendsRouteMethodLAN, 2e6, 0.002, -1}, {SZFriendsRouteMethodBluetooth, 0.17e6, 0.03, -1}};
+    seconds = SimulatePull(32 * MiB, slow, 2, served, &twice);
+    CHECK(seconds > 0 && seconds <= 32 * MiB / 2e6 + 1, @"a slow holder never holds up the end: %.2f s", seconds);
+    NSLog(@"pulls: three holders %.2f s (%.2f at their sum)", SimulatePull(256 * MiB, three, 3, served, &twice),
+          together);
+}
+
 int main(int argc, const char *argv[]) {
     @autoreleasepool {
         if (argc < 2) {
@@ -161,6 +266,7 @@ int main(int argc, const char *argv[]) {
         TestLaneGroup();
         TestPieces();
         failures += SZFriendsDirectWiFiBoostTests(); // ADR 0019
+        TestPulls();
         TestScenarios(@(argv[1]));
         if (failures) {
             fprintf(stderr, "SZFriendsTransferTests: %d check(s) failed\n", failures);

@@ -22,6 +22,7 @@
 //!   BENCH_CORPUS       a directory whose files, one after another, make up each case's files instead of
 //!                      pseudo-random bytes (which do not compress): for compressed parts (ADR 0018 § 9.4)
 //!   BENCH_MAX_SECONDS  skip a case the route would need longer than this for at its rate (default 120)
+//!   BENCH_LOGS         where a failed case keeps both peers' transcripts (default bench-logs/)
 //!   BENCH_SILENCE_WAIT seconds a silent route may go unnoticed before the route comes back anyway (default 20)
 //! `transfer_bench --table <file.jsonl>` prints the table of earlier results.
 

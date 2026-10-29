@@ -62,6 +62,12 @@ void SZFriendsRemoveCopy(NSString *path);
 - (void)finishedServing:(NSString *)transferID;
 // NONE for that file (0 not here, 1 not now).
 - (void)sendNone:(NSString *)transferID reason:(SZFriendsAgainAnswer)reason;
+// Copies from several holders at once (ADR 0018 § 9.6, the helper's pulls): when set, this side's own requester starts
+// no copy on this session, and the answers to a pull's asks go to `pullAnswer` first: BLOCKS FOLLOW with the holder's
+// tree (`root` set), or NONE (`root` nil; `gone` for "not here"). YES when it was the pull's.
+@property(nonatomic) BOOL pulls;
+@property(nonatomic, copy, nullable) BOOL (^pullAnswer)(NSString *transferID, NSData *_Nullable root, uint8_t shift,
+                                                       BOOL gone);
 // Requester by blocks (ADR 0018 § 4): set on a session that negotiated fast transfers, so copies go by blocks (4 WANT
 // BLOCKS, resumed from the map beside the partial copy); otherwise by offset (1 WANT), as any helper serves.
 @property(nonatomic) BOOL fast;

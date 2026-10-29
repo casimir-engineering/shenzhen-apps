@@ -11,7 +11,7 @@ NS_ASSUME_NONNULL_BEGIN
 #pragma mark - Files
 
 - (void)startNextCopy {
-    if (_copy != nil || _stopped) return;
+    if (_copy != nil || _stopped || self.pulls) return;
     for (SZFriendsSyncFileRecord *file in [_engine filesWanted]) {
         if (![file.holders containsObject:_peerKey] || [_unavailable containsObject:file.transferID]) continue;
         NSString *partial = [_engine.receivedDirectory stringByAppendingPathComponent:@".partial"];
@@ -139,8 +139,12 @@ NS_ASSUME_NONNULL_BEGIN
     if (transferID == nil || offset + 33 != message.length) {
         return SZFriendsSyncFail(error, SZFriendsSyncErrorMalformed, @"a BLOCKS FOLLOW that does not decode");
     }
-    if (_copy.blocks == nil || ![_copy.file.transferID isEqualToString:transferID]) return YES; // late
     const uint8_t *p = message.bytes;
+    if (self.pullAnswer && self.pullAnswer(transferID, [message subdataWithRange:NSMakeRange(offset, 32)],
+                                           p[offset + 32], NO)) {
+        return YES;
+    }
+    if (_copy.blocks == nil || ![_copy.file.transferID isEqualToString:transferID]) return YES; // late
     if (![_copy.blocks followRoot:[message subdataWithRange:NSMakeRange(offset, 32)] shift:p[offset + 32]]) {
         [self stopBlocksCopy]; // a tree that cannot be this file's: tried again on the next session
     }
@@ -215,6 +219,7 @@ NS_ASSUME_NONNULL_BEGIN
     if (transferID == nil || offset != message.length) {
         return SZFriendsSyncFail(error, SZFriendsSyncErrorMalformed, @"a NONE that does not decode");
     }
+    if (self.pullAnswer && self.pullAnswer(transferID, nil, 0, YES)) return YES;
     [_unavailable addObject:transferID];
     if ([_copy.file.transferID isEqualToString:transferID]) [self abandonCopy:NO];
     [self startNextCopy];

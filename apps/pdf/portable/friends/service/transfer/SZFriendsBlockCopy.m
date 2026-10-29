@@ -217,6 +217,10 @@ static SZFriendsBlockSet *SZFriendsCopyRecheck(int fd, SZFriendsBlockGeometry ge
     return complete ? SZFriendsCopyPartComplete : SZFriendsCopyPartWritten;
 }
 
+- (BOOL)leavesKnown {
+    return _assembly.leaves != nil;
+}
+
 - (BOOL)complete {
     return _assembly.leaves != nil && _assembly.complete.full;
 }

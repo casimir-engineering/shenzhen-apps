@@ -93,12 +93,14 @@ NS_ASSUME_NONNULL_BEGIN
 // Copies kept across restarts are given up after this long without a byte arriving (ADR 0018 § 4).
 static const NSTimeInterval SZFriendsCopyKeepSeconds = 30 * 24 * 3600;
 
-// A Get again or own-device copy's partial file or received-blocks record (again-<id>, sync-<id>, and <…>.map), changed
+// A Get again, own-device or several-holder copy's partial file or received-blocks record (again-<id>, sync-<id>,
+// pull-<id>, and <…>.map), changed
 // within SZFriendsCopyKeepSeconds: it stays, so the copy resumes from what arrived.
 static BOOL SZFriendsIsRecentCopy(NSString *path, NSString *name) {
     NSString *stem = [name hasSuffix:@".map"] ? [name substringToIndex:name.length - 4] : name;
-    NSString *identifier = [stem hasPrefix:@"again-"] ? [stem substringFromIndex:6]
+    NSString *identifier = [stem hasPrefix:@"again-"]  ? [stem substringFromIndex:6]
                            : [stem hasPrefix:@"sync-"] ? [stem substringFromIndex:5]
+                           : [stem hasPrefix:@"pull-"] ? [stem substringFromIndex:5]
                                                        : nil;
     if (identifier.length == 0 || identifier.length > 64) return NO;
     for (NSUInteger i = 0; i < identifier.length; i++) {

@@ -292,6 +292,10 @@ NSString *SZFriendsDeviceIDForKey(NSData *deviceKey) {
         NSString *transferID = link.syncExchange.copyingTransferID;
         if (transferID != nil) copying[transferID] = @(link.syncExchange.copyingFraction);
     }
+    for (SZFriendsSyncFileRecord *file in [store syncFiles]) {
+        double fraction = 0;
+        if ([self pullFractionOfTransfer:file.transferID fraction:&fraction]) copying[file.transferID] = @(fraction);
+    }
     NSMutableDictionary<NSString *, SZFriendsDeviceFileFacts *> *files = [NSMutableDictionary dictionary];
     for (SZFriendsSyncFileRecord *file in [store syncFiles]) {
         if ([here containsObject:file.transferID]) continue;

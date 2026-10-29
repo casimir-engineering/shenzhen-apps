@@ -195,6 +195,10 @@ NSData *SZFriendsIndexesAsRanges(NSIndexSet *indexes) {
     [_arrived removeAllIndexes];
 }
 
+- (NSUInteger)partialCount {
+    return _partial.count;
+}
+
 - (NSData *)missingBlocksBesidesPartial {
     SZFriendsBlockSet *wanted = [_complete copy];
     for (NSNumber *block in _partial) [wanted insert:block.unsignedIntValue];

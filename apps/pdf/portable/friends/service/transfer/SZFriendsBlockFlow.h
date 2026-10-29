@@ -51,6 +51,8 @@ typedef NS_ENUM(NSInteger, SZFriendsPartOutcome) {
 // those partly received (whose missing pieces are wanted instead); the pieces missing from partly received blocks;
 // and the pieces that arrived whole since the last call in blocks not yet complete (HAVE's Pieces).
 - (NSData *)missingBlocksBesidesPartial;
+// Blocks partly received now (at most SZFriendsBlocksInFlightMax).
+@property(nonatomic, readonly) NSUInteger partialCount;
 - (NSData *)missingPieces;
 - (NSData *)takeArrivedPieces;
 @end

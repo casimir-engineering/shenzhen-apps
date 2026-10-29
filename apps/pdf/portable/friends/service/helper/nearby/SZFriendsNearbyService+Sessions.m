@@ -382,6 +382,7 @@ static BOOL SZFriendsEndWasSupersededByPeer(NSError *error) {
     link.closed = YES;
     [link cancelTimers];
     [self.links removeObject:link];
+    [self pullLinkClosed:link]; // a holder of the file being pulled leaves (+Pulls)
     if (link.lane || link.laneHead != nil) {
         // A lane ends alone: the group goes on with its first session (ADR 0018 § 6).
         [link.laneHead.lanes removeObject:link];

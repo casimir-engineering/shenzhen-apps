@@ -46,6 +46,7 @@ static NSString *SZFriendsAgainKey(NSString *transferID) {
 }
 
 - (BOOL)againCopyingTransfer:(NSString *)transferID fraction:(double *)fraction {
+    if ([self pullFractionOfTransfer:transferID fraction:fraction]) return YES;
     for (SZFriendsPeerLink *link in self.links) {
         if (link.closed || ![link.againExchange.copyingTransferID isEqualToString:transferID]) continue;
         if (fraction) *fraction = link.againExchange.copyingFraction;
@@ -87,6 +88,7 @@ static NSString *SZFriendsAgainKey(NSString *transferID) {
     [self setAgainState:SZFriendsAgainAsked ofTransfer:transferID];
     SZFriendsPeerLink *live = [self liveLinkForConversation:conversationID];
     if (live != nil) [[self againExchangeForLink:live] pump];
+    [self schedulePullReconsider];
     [self scheduleReconsider]; // the friend is dialed nearby, and reached online
     [self changed];
     return nil;
@@ -221,12 +223,20 @@ static NSString *SZFriendsAgainKey(NSString *transferID) {
             [strongExchange sendNone:transferID reason:SZFriendsAgainAnswerNotHere];
         }
     };
+    // On a fast session, copies are the pulls' (+Pulls): this exchange's requester starts none, and the answers to a
+    // pull's asks go there first.
+    exchange.pulls = [self pullsOnLink:link];
+    exchange.pullAnswer = ^BOOL(NSString *transferID, NSData *root, uint8_t shift, BOOL gone) {
+        SZFriendsPeerLink *strongLink = weakLink;
+        return strongLink != nil && [weakSelf link:strongLink pullAnswer:transferID root:root shift:shift gone:gone];
+    };
     link.againExchange = exchange;
     return exchange;
 }
 
 - (void)startAgainOnLink:(SZFriendsPeerLink *)link {
     [[self againExchangeForLink:link] pump];
+    [self schedulePullReconsider];
 }
 
 - (void)link:(SZFriendsPeerLink *)link person:(SZFriendsPersonRecord *)person receivedAgainFrame:(SZFriendsFrame *)frame {

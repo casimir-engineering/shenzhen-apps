@@ -69,7 +69,6 @@
     for (NSUInteger i = 0; i < pieces.length / 8; i++) {
         if ((uint64_t)piecePairs[2 * i] + piecePairs[2 * i + 1] > pieceCount) return NO;
     }
-    send.lanesOK = YES;
     [send.slices wantBlocks:ranges pieces:pieces];
     if (self.onWanted) {
         // The first byte wanted, whether a block's or a piece's.
