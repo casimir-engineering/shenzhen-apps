@@ -9,6 +9,7 @@
 mod add_by_id;
 pub mod attestation;
 mod batch;
+mod block_index;
 mod blocks;
 pub mod destination;
 pub mod devices;

@@ -371,12 +371,18 @@ impl Scheduler {
                 transfer.unassigned.remove(&block);
                 let Some(placements) = transfer.open.remove(&block) else { continue };
                 transfer.open_bytes -= transfer.bytes(block);
-                // The copy that finished: the one whose last part was written first, else the first assigned.
+                // The copy that finished: the one whose last part was written first, else the first assigned. When
+                // no copy was sent whole, the receiver had the block from elsewhere (its own earlier version, another
+                // source, or parts of two copies, WP6): what is left of every copy is dropped, the winner's too.
                 let winner = placements.iter().min_by_key(|p| (p.sent_at.is_none(), p.sent_at, p.seq)).map(|p| p.seq);
+                let elsewhere = placements.iter().all(|p| p.sent_at.is_none());
                 for p in placements {
                     let Some(lane) = self.lanes.get_mut(&p.lane) else { continue };
                     lane.holds.remove(&p.seq);
                     lane.in_flight -= p.bytes;
+                    if elsewhere && Some(p.seq) == winner {
+                        self.actions.push(Action::Cancel { lane: p.lane, transfer: key, block });
+                    }
                     if Some(p.seq) != winner {
                         self.actions.push(Action::Cancel { lane: p.lane, transfer: key, block });
                         continue;

@@ -480,6 +480,10 @@ impl Store {
                 download.unreported_durable.push(0);
             }
         }
+        if done {
+            // Blocks this computer already holds from the same friend are not wanted from them (§ 9.5).
+            self.reuse_blocks(transfer_id, conversation_id)?;
+        }
         Ok(done)
     }
 
@@ -738,10 +742,19 @@ impl Store {
     /// while it was checked keeps nothing.
     pub fn complete_block_check(&mut self, checked: CheckedFile) -> Result<PathBuf> {
         let CheckedFile { record, partial, matches } = checked;
+        let map = self.read_map(&record.transfer_id);
         let _ = fs::remove_file(self.block_map_path(&record.transfer_id));
         let still = receiving(&self.conn, &record.transfer_id, &record.conversation_id).is_ok();
         if matches && still {
-            return self.publish_received(&record, &partial);
+            let published = self.publish_received(&record, &partial)?;
+            // Its leaves, for blocks of a later version from the same friend (§ 9.5).
+            if let Some(leaves) =
+                map.as_ref().and_then(|m| m.leaves.as_deref()).filter(|_| !published.as_os_str().is_empty())
+            {
+                let geometry = map.as_ref().expect("read").header.geometry;
+                self.index_blocks(&record.conversation_id, &record.transfer_id, &published, &geometry, leaves);
+            }
+            return Ok(published);
         }
         let _ = fs::remove_file(&partial);
         if !still {
@@ -757,6 +770,7 @@ impl Store {
         let path = self.sender_tree_path(&record.transfer_id);
         if let Some(tree) = fs::read(&path).ok().and_then(|b| SenderTree::decode(&b)) {
             if tree.header.digest == record.digest && tree.header.geometry.size == record.size {
+                self.index_sent_blocks(record, &tree);
                 return Ok(tree);
             }
         }
@@ -774,7 +788,51 @@ impl Store {
             SenderTree { header: Header { geometry, root: hashed.root, digest: record.digest }, leaves: hashed.leaves };
         // A cache: a write that fails only costs hashing again.
         write_tree_cache(&path, &tree);
+        self.index_sent_blocks(record, &tree);
         Ok(tree)
+    }
+
+    /// A file this person sends a friend: its leaves and the file they chose, for blocks of a version that friend may
+    /// send back (§ 9.5). Every block found there is checked against the new file's leaf before it counts, so a file
+    /// edited since costs only a failed check.
+    fn index_sent_blocks(&self, record: &TransferRecord, tree: &SenderTree) {
+        if let Some(source) = &record.source_path {
+            self.index_blocks(
+                &record.conversation_id,
+                &record.transfer_id,
+                source,
+                &tree.header.geometry,
+                &tree.leaves,
+            );
+        }
+    }
+
+    /// Blocks of a download whose leaves an indexed file of the same friend holds at the same position: read there,
+    /// and taken exactly as if they had arrived (checked against their leaves, written, reported in the next HAVE), so
+    /// the sender skips them. Returns how many.
+    fn reuse_blocks(&mut self, transfer_id: &str, conversation_id: &str) -> Result<u32> {
+        let Some(download) = self.receiving.blocks.get(transfer_id) else { return Ok(0) };
+        let Some(leaves) = download.assembly.leaves().map(<[_]>::to_vec) else { return Ok(0) };
+        let geometry = *download.assembly.geometry();
+        let complete = download.assembly.complete().clone();
+        let found = self.reusable_blocks(conversation_id, &geometry, &leaves, |b| !complete.contains(b));
+        let mut reused = 0;
+        let mut open: Option<(PathBuf, File)> = None;
+        for (block, path) in found {
+            if open.as_ref().is_none_or(|(p, _)| *p != path) {
+                open = File::open(&path).ok().map(|f| (path.clone(), f));
+            }
+            let Some((_, file)) = &open else { continue };
+            let (offset, length) = geometry.span(block);
+            let mut data = vec![0u8; length];
+            if read_exact_at(file, &mut data, offset).is_err() {
+                continue;
+            }
+            if let BlockPart::Written(_) = self.block_part(transfer_id, conversation_id, offset, &data)? {
+                reused += 1;
+            }
+        }
+        Ok(reused)
     }
 
     /// They took our offer by blocks (OFFER_REPLY with Blocks, or a WANT on a later session): Sending, without hashing
