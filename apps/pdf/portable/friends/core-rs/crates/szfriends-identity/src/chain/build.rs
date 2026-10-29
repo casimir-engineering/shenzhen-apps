@@ -34,7 +34,7 @@ fn canonical_order(links: Vec<ChainLink>) -> Option<Vec<ChainLink>> {
         unique.insert(link.hash, link);
     }
     let mut waiting: Vec<ChainLink> = unique.into_values().collect();
-    waiting.sort_by_key(|l| l.hash);
+    szfriends_wire::order::sort_by_key(&mut waiting, |l| l.hash);
     let mut placed: HashSet<[u8; 32]> = HashSet::new();
     let mut ordered = Vec::with_capacity(waiting.len());
     while !waiting.is_empty() {

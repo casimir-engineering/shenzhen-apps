@@ -140,7 +140,7 @@ impl Racer {
             seen.push(endpoint);
             attempts.push(Attempt { sighting: sighting.clone(), delay: dial_delay(sighting.route) });
         }
-        attempts.sort_by(|a, b| a.delay.total_cmp(&b.delay)); // stable: equal delays keep best-route-first
+        szfriends_wire::order::sort_by(&mut attempts, |a, b| a.delay.total_cmp(&b.delay)); // stable: equal delays keep best-route-first
         attempts
     }
 
@@ -173,7 +173,7 @@ impl Racer {
             return;
         }
         let mut by_end: Vec<(String, f64)> = self.backoffs.iter().map(|(k, b)| (k.clone(), b.until)).collect();
-        by_end.sort_by(|a, b| a.1.total_cmp(&b.1));
+        szfriends_wire::order::sort_by(&mut by_end, |a, b| a.1.total_cmp(&b.1));
         for (key, _) in by_end.iter().take(by_end.len() - BACKOFF_ENTRIES_MAX) {
             self.backoffs.remove(key);
         }

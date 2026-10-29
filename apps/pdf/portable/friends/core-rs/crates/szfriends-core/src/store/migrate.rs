@@ -52,7 +52,7 @@ fn back_up(conn: &Connection, database: &Path, target: i64) -> Result<()> {
 pub(super) fn migrate(conn: &Connection, database: &Path, migrations: &[Migration]) -> Result<i64> {
     let (mut current, _) = read_versions(conn)?;
     let mut pending: Vec<&Migration> = migrations.iter().filter(|m| m.version > current).collect();
-    pending.sort_by_key(|m| m.version);
+    szfriends_wire::order::sort_by_key(&mut pending, |m| m.version);
     let Some(last) = pending.last() else { return Ok(current) };
     // A version-0 file is new and empty: nothing to protect yet.
     if current > 0 {

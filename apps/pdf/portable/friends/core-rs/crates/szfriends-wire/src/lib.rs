@@ -17,6 +17,7 @@ pub mod consts;
 pub mod error;
 pub mod fields;
 pub mod frame;
+pub mod order;
 pub mod payload;
 pub mod ranges;
 pub mod route;

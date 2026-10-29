@@ -251,7 +251,9 @@ impl Approver {
             self.free_slot(&key);
         }
         let mut rows: Vec<WaitingRequest> = self.requests.values().cloned().collect();
-        rows.sort_by(|a, b| a.received_at.total_cmp(&b.received_at).then(a.request_id.cmp(&b.request_id)));
+        szfriends_wire::order::sort_by(&mut rows, |a, b| {
+            a.received_at.total_cmp(&b.received_at).then(a.request_id.cmp(&b.request_id))
+        });
         rows
     }
 

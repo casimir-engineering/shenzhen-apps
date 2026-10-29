@@ -220,7 +220,9 @@ impl AgainFile {
             .filter_map(|(key, _)| Self::of(store, key.strip_prefix("again/")?))
             .filter(|file| file.conversation_id == conversation_id)
             .collect();
-        files.sort_by(|a, b| a.created_at.total_cmp(&b.created_at).then(a.transfer_id.cmp(&b.transfer_id)));
+        szfriends_wire::order::sort_by(&mut files, |a, b| {
+            a.created_at.total_cmp(&b.created_at).then(a.transfer_id.cmp(&b.transfer_id))
+        });
         files
     }
 }

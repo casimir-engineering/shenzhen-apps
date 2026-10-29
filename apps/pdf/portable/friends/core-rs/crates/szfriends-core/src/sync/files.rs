@@ -91,8 +91,8 @@ impl SyncEngine {
         }
         let older =
             |a: &SyncFile, b: &SyncFile| a.created_at.total_cmp(&b.created_at).then(a.transfer_id.cmp(&b.transfer_id));
-        asked.sort_by(older);
-        automatic.sort_by(older);
+        szfriends_wire::order::sort_by(&mut asked, older);
+        szfriends_wire::order::sort_by(&mut automatic, older);
         asked.extend(automatic);
         asked
     }

@@ -157,7 +157,7 @@ impl HostList {
         if ids.len() != entries.len() {
             return None;
         }
-        entries.sort_by(|a, b| a.priority.cmp(&b.priority).then_with(|| a.id.cmp(&b.id)));
+        szfriends_wire::order::sort_by(&mut entries, |a, b| a.priority.cmp(&b.priority).then_with(|| a.id.cmp(&b.id)));
         let rendezvous: Vec<&HostEntry> = entries.iter().filter(|e| e.rendezvous).collect();
         if rendezvous.is_empty() || (rendezvous.len() > 1 && rendezvous[0].priority == rendezvous[1].priority) {
             return None;

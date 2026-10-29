@@ -169,7 +169,7 @@ impl SnapshotBuilder {
     ) -> Vec<Value> {
         let s = &self.strings;
         let mut ordered: Vec<&ItemFacts> = items.iter().collect();
-        ordered.sort_by(|a, b| {
+        szfriends_wire::order::sort_by(&mut ordered, |a, b| {
             a.sent_at
                 .partial_cmp(&b.sent_at)
                 .unwrap_or(std::cmp::Ordering::Equal)

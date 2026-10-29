@@ -50,7 +50,7 @@ impl State {
         let friend_url = self.friend_link_url(&origin, &profile.friends_id, &name);
         let mut records = self.store.download_links();
         records.retain(|link| link.expires_at > now);
-        records.sort_by(|a, b| b.created_at.total_cmp(&a.created_at));
+        szfriends_core::wire::order::sort_by(&mut records, |a, b| b.created_at.total_cmp(&a.created_at));
         let downloads = records
             .iter()
             .map(|link| szfriends_core::presentation::DownloadLinkFacts {

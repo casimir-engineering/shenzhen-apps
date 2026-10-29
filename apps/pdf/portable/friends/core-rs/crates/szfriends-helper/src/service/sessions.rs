@@ -363,7 +363,9 @@ impl State {
             // Until our acceptance reaches an Add by ID requester, they know us only by its token and keep nothing else
             // we send: it goes first. A friend who removed us and asked again by ID finds what we wrote meanwhile
             // queued ahead of it (PROTOCOL.md remove_friend).
-            pending.sort_by_key(|e| !(is_request_answer(e) && answer_kind(e) == "accept"));
+            szfriends_core::wire::order::sort_by_key(&mut pending, |e| {
+                !(is_request_answer(e) && answer_kind(e) == "accept")
+            });
         }
         for entry in pending {
             if busy.contains(&entry.entry_id) || !deliverable(&entry, &person) {

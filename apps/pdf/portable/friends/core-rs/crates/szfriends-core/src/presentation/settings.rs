@@ -217,7 +217,7 @@ impl SnapshotBuilder {
         let length = units.len();
         let mut ranges: Vec<(usize, usize)> =
             hit.match_ranges.iter().copied().filter(|(start, len)| *len > 0 && start + len <= length).collect();
-        ranges.sort_by_key(|(start, _)| *start);
+        szfriends_wire::order::sort_by_key(&mut ranges, |(start, _)| *start);
         let (mut start, mut end) = (0, length);
         if let Some(first) = ranges.first().filter(|_| length > 2 * EXCERPT_CONTEXT) {
             start = first.0.saturating_sub(EXCERPT_CONTEXT);

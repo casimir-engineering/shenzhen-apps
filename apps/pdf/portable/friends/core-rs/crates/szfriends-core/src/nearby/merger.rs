@@ -246,7 +246,7 @@ impl Merger {
             .iter()
             .map(|(group, members)| (group.clone(), self.oldest_prior(members, &none).map(|id| self.sequence[&id])))
             .collect();
-        order.sort_by(|a, b| match (a.1, b.1) {
+        szfriends_wire::order::sort_by(&mut order, |a, b| match (a.1, b.1) {
             (Some(x), Some(y)) if x != y => x.cmp(&y),
             (Some(_), None) => Ordering::Less,
             (None, Some(_)) => Ordering::Greater,
@@ -257,7 +257,7 @@ impl Merger {
         let mut signature = String::new();
         for (group, _) in order {
             let mut members = groups.remove(&group).unwrap_or_default();
-            members.sort_by(|a, b| compare(&self.entries[a], &self.entries[b]));
+            szfriends_wire::order::sort_by(&mut members, |a, b| compare(&self.entries[a], &self.entries[b]));
             let id = match self.oldest_prior(&members, &claimed) {
                 Some(id) => id,
                 None => self.new_candidate_id(),
@@ -295,8 +295,8 @@ impl Merger {
         }
         self.sequence.retain(|id, _| claimed.contains(id));
         let by_sequence = |c: &Candidate| self.sequence.get(&c.id).copied().unwrap_or(u64::MAX);
-        candidates.sort_by_key(by_sequence);
-        unmatched.sort_by_key(by_sequence);
+        szfriends_wire::order::sort_by_key(&mut candidates, by_sequence);
+        szfriends_wire::order::sort_by_key(&mut unmatched, by_sequence);
         self.candidates = candidates;
         self.unmatched = unmatched;
         if signature != self.signature {

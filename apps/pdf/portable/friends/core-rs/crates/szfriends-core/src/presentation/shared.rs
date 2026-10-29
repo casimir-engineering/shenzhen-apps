@@ -107,7 +107,7 @@ impl SnapshotBuilder {
     /// Latest interaction first; ties by conversation id, so two snapshots of the same facts never reorder rows.
     pub(crate) fn people_by_latest_interaction<'a>(&self, people: &'a [PersonFacts]) -> Vec<&'a PersonFacts> {
         let mut sorted: Vec<&PersonFacts> = people.iter().collect();
-        sorted.sort_by(|a, b| {
+        szfriends_wire::order::sort_by(&mut sorted, |a, b| {
             b.last_interaction_at
                 .partial_cmp(&a.last_interaction_at)
                 .unwrap_or(std::cmp::Ordering::Equal)

@@ -47,7 +47,7 @@ pub struct TagMatcher {
 impl TagMatcher {
     pub fn new<'a>(secrets: impl IntoIterator<Item = (&'a str, &'a [u8])>, now: f64) -> Self {
         let mut pairs: Vec<(&str, &[u8])> = secrets.into_iter().collect();
-        pairs.sort_by(|a, b| a.0.cmp(b.0));
+        szfriends_wire::order::sort_by(&mut pairs, |a, b| a.0.cmp(b.0));
         let mut table = HashMap::new();
         let w = window(now);
         for (conversation, secret) in pairs {
@@ -125,7 +125,7 @@ impl PendingCallback {
 pub fn tags_to_advertise(pending: &[PendingCallback], now: f64) -> Vec<Tag> {
     let mut live: Vec<&PendingCallback> =
         pending.iter().filter(|p| p.advertise_end().is_some_and(|end| now < end)).collect();
-    live.sort_by(|a, b| b.created_at.total_cmp(&a.created_at));
+    szfriends_wire::order::sort_by(&mut live, |a, b| b.created_at.total_cmp(&a.created_at));
     let w = window(now);
     live.iter().take(CALLBACK_TAGS_MAX).map(|p| presence::tag(&p.secret, w)).collect()
 }

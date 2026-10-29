@@ -565,7 +565,7 @@ impl Scheduler {
         if starts.is_empty() {
             return f64::INFINITY;
         }
-        starts.sort_by(|a, b| a.0.total_cmp(&b.0));
+        szfriends_wire::order::sort_by(&mut starts, |a, b| a.0.total_cmp(&b.0));
         let (mut left, mut slope, mut time) = (bytes as f64, 0.0, starts[0].0);
         for (i, &(start, rate)) in starts.iter().enumerate() {
             if slope > 0.0 && left <= slope * (start - time) {

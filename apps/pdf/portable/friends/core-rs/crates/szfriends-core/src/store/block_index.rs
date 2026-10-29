@@ -137,7 +137,7 @@ impl Store {
                 meta.is_file().then(|| (meta.modified().unwrap_or(std::time::UNIX_EPOCH), meta.len(), e.path()))
             })
             .collect();
-        entries.sort_by_key(|entry| std::cmp::Reverse(entry.0));
+        szfriends_wire::order::sort_by_key(&mut entries, |entry| std::cmp::Reverse(entry.0));
         let mut total = 0u64;
         for (index, (_, length, path)) in entries.iter().enumerate() {
             total += length;

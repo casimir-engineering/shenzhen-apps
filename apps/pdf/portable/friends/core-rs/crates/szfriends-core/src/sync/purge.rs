@@ -109,7 +109,7 @@ impl SyncEngine {
             }
             return;
         }
-        candidates.sort_by(|a, b| a.lamport.cmp(&b.lamport).then(a.author.cmp(&b.author)));
+        szfriends_wire::order::sort_by(&mut candidates, |a, b| a.lamport.cmp(&b.lamport).then(a.author.cmp(&b.author)));
         for event in &candidates {
             self.apply_event(store, event);
         }

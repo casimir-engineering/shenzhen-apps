@@ -71,7 +71,7 @@ pub fn fold_item(body: &str, is_message: bool) -> String {
 
 /// Sorted, with overlapping ranges joined.
 fn merged(mut found: Vec<(usize, usize)>) -> Vec<(usize, usize)> {
-    found.sort_by_key(|(start, _)| *start);
+    szfriends_wire::order::sort_by_key(&mut found, |(start, _)| *start);
     let mut merged: Vec<(usize, usize)> = Vec::new();
     for (start, length) in found {
         match merged.last_mut() {

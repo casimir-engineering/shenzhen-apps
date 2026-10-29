@@ -252,7 +252,9 @@ impl State {
                 others.push(record);
             }
         }
-        others.sort_by(|a, b| a.added_at.total_cmp(&b.added_at).then(a.device_key.cmp(&b.device_key)));
+        szfriends_core::wire::order::sort_by(&mut others, |a, b| {
+            a.added_at.total_cmp(&b.added_at).then(a.device_key.cmp(&b.device_key))
+        });
         let mut computers = vec![this];
         computers.extend(others.iter().map(|d| DeviceFacts {
             device_id: device_id(&d.device_key),

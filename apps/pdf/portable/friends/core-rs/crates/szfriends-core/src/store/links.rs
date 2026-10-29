@@ -133,7 +133,7 @@ fn add_tombstones(conn: &Connection, ended: &[(&DownloadLinkRecord, f64)], reaso
             list.push(LinkTombstone { link_hash: link_tombstone_hash(&link.link_id), reason, until: *until });
         }
     }
-    list.sort_by(|a, b| b.until.total_cmp(&a.until));
+    szfriends_wire::order::sort_by(&mut list, |a, b| b.until.total_cmp(&a.until));
     let mut out = Vec::with_capacity(list.len().min(LINK_TOMBSTONES_MAX) * TOMBSTONE_BYTES);
     for tombstone in list.iter().take(LINK_TOMBSTONES_MAX) {
         out.extend_from_slice(&tombstone.link_hash);
