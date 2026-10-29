@@ -252,6 +252,10 @@ fn measure(case: &Case, sender_spec: &PeerSpec, receiver_spec: &PeerSpec, result
     let (pid_s, pid_r) = (sender.pid(), receiver.pid());
     befriend(&mut sender, &mut receiver, ("Sender", "Receiver"));
     let (keys_s, keys_r) = (keys(&mut sender), keys(&mut receiver));
+    // The newest minor each side speaks; peers before WP5 do not say (released apps speak 3).
+    for (key, peer) in [("sender_session_minor", &mut sender), ("receiver_session_minor", &mut receiver)] {
+        result[key] = peer.command(json!({ "cmd": "hello" }))["session_minor"].clone();
+    }
     let (mut log_s, mut log_r) = (Log::new(), Log::new());
     let total: u64 = case.files.iter().sum();
     // A peer that declares its route dials, so the session's class is the emulated route's.

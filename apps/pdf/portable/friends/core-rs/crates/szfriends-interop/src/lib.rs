@@ -7,6 +7,7 @@
 
 pub mod again;
 pub mod bench;
+mod blocks;
 pub mod bridge;
 pub mod device_scenarios;
 mod devices;

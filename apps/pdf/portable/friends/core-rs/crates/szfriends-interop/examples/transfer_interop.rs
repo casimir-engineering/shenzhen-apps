@@ -6,9 +6,9 @@
 //! `tools/released-peers.sh` builds the released ones in worktrees of their tags; `make friends-transfer-interop` does
 //! all of it. Every ordered pair with at least one of today's peers runs; released with released is how they shipped.
 //!
-//! A run passes when the file arrives intact, both sides agree on the minor, a pair with a released peer negotiates at
-//! most the minor that release knows (3) and a pair of today's peers this core's `SESSION_MINOR`, and after the cut
-//! the sender resumes past the start. INTEROP_EXPECT_FAST=1 also requires today's pairs to report fast transfers.
+//! A run passes when the file arrives intact, both sides agree on the minor, that minor is the newest both speak (each
+//! peer's `hello` says its own; a released one speaks 3), and after the cut the sender resumes past the start (or, by
+//! blocks, sends a file of one block again). INTEROP_EXPECT_FAST=1 also requires today's pairs to report fast transfers.
 //! INTEROP_SILENCE=1 adds the route going silent halfway (out of range, sockets open), which passes only when a side
 //! notices within ADR 0018's 8 s (12 s on Bluetooth): today's code does not, so it fails until WP3 and WP4 land.
 //! Choose with INTEROP_ROUTES (lan,p2p_wifi,internet,relay,bluetooth) and INTEROP_PAIRS (e.g. rust-objc-26.10.29-1).
@@ -39,17 +39,20 @@ fn check(result: &Value, sender: &PeerSpec, receiver: &PeerSpec, loss: Loss) -> 
     }
     let minor = result["minor"].as_u64().ok_or("no minor reported")?;
     let released = sender.released || receiver.released;
-    let today = u64::from(szfriends_core::wire::consts::SESSION_MINOR);
+    let speaks = |key: &str| result[key].as_u64().unwrap_or(RELEASED_MINOR);
+    let both = speaks("sender_session_minor").min(speaks("receiver_session_minor"));
     if released && minor > RELEASED_MINOR {
         return Err(format!("minor {minor} with a released peer"));
     }
-    if !released && minor != today {
-        return Err(format!("minor {minor}, not {today}"));
+    if minor != both {
+        return Err(format!("minor {minor}, not {both}, the newest both speak"));
     }
     if !released && std::env::var("INTEROP_EXPECT_FAST").as_deref() == Ok("1") && result["fast"] != true {
         return Err("no fast transfers between today's peers".into());
     }
-    if loss != Loss::None && result["resume_offset"].as_u64().unwrap_or(0) == 0 {
+    // By blocks, a file of one block (1 MiB) resumes by sending that block again, which is not starting over.
+    let one_block = result["fast"] == true && result["bytes"].as_u64().unwrap_or(0) <= MIB;
+    if loss != Loss::None && result["resume_offset"].as_u64().unwrap_or(0) == 0 && !one_block {
         return Err("started again from zero after the route came back".into());
     }
     if let Loss::Silence(_) = loss {

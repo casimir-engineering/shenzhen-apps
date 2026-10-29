@@ -52,6 +52,8 @@ pub(crate) struct Session {
     pub(crate) receivers: HashMap<String, ChunkReceiver>,
     /// When received bytes not yet reported must be flushed (`flows.rs`).
     pub(crate) flush_due: Option<std::time::Instant>,
+    /// Files going by blocks on this session (`blocks.rs`).
+    pub(crate) blocks: crate::blocks::Blocks,
     finished: bool,
 }
 
@@ -181,6 +183,7 @@ impl State {
             "hello" => json!({
                 "identity_key": hex(&self.identity.public_key()),
                 "static_key": hex(&self.identity.static_public_key()),
+                "session_minor": szfriends_core::wire::consts::SESSION_MINOR,
             }),
             "listen" => self.listen(command),
             "public_profile" => {
@@ -329,6 +332,7 @@ impl State {
             senders: HashMap::new(),
             receivers: HashMap::new(),
             flush_due: None,
+            blocks: crate::blocks::Blocks::default(),
             finished: false,
         };
         self.sessions.insert(id, session);
@@ -442,7 +446,9 @@ impl State {
             self.handle_event(id, event);
         }
         self.flush_if_due(id);
+        self.flush_blocks_if_due();
         self.pump(id);
+        self.pump_blocks(id);
         let Some(s) = self.sessions.get_mut(&id) else { return };
         while let Some(write) = s.channel.poll_transmit() {
             s.link.write(write.bytes);

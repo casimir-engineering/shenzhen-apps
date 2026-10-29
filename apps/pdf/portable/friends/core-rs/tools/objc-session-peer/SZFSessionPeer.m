@@ -121,7 +121,11 @@ static NSData *SZFDerive(NSString *label) {
     NSString *name = command[@"cmd"];
     SZFPeerSession *session = _sessions[@([command[@"session"] unsignedLongLongValue])];
     if ([name isEqualToString:@"hello"]) {
-        return @{@"identity_key" : SZFHex(_identity.publicKey), @"static_key" : SZFHex(_identity.staticPublicKey)};
+        return @{
+            @"identity_key" : SZFHex(_identity.publicKey),
+            @"static_key" : SZFHex(_identity.staticPublicKey),
+            @"session_minor" : @(SZFriendsSessionMinor)
+        };
     } else if ([name isEqualToString:@"listen"]) {
         return [self listenOnAnyInterface:[command[@"any"] boolValue]];
     } else if ([name isEqualToString:@"public_profile"]) {
