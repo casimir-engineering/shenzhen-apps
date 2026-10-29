@@ -47,8 +47,8 @@ Session minor 4 adds frames 28 to 31 (`SZFriendsSessionMinor` and `szfriends_wir
 handshake range 0 to 4). The handshake's capability bits (field 26, u32be, none defined until now) gain:
 
 - bit 0 `fast transfers`: this side runs this record's transfers;
-- bit 1 `AES lanes` (reserved for § 9.2; not sent until that package lands);
-- bit 2 `compressed parts` (§ 9.4).
+- bit 1 `AES lanes` (§ 9.2): this side has hardware AES and accepts AES-256-GCM lanes;
+- bit 2 `compressed parts` (§ 9.4): this side reads compressed PARTs;
 - bit 3 `pieces`: Pieces (field 47) in WANT and HAVE (§ 3). Sent only to a peer that sets it, so development builds
   from before pieces keep working with whole blocks: to such a peer a partly received block is wanted whole.
 
@@ -263,10 +263,12 @@ scheduler expects it to finish them before the faster lane; it never carries the
   byte. The lane token is derived from h, which only the two ends know, and is sent inside IK message 1's encrypted
   payload; a replayed message 1 is refused by the replay cache and could not complete the handshake anyway.
 - **Nothing new to the relay or the host.** No new host messages; online lanes are data channels inside the existing
-  DTLS association; at most one lane uses the relay; compressed parts never go through it (§ 9.4). The relay sees
-  the same kind of encrypted traffic as today, and less of it when a direct lane carries a share; the only new pattern
-  is the liveness PING (§ 7), at most one small message a second in a direction that is otherwise quiet during a
-  transfer, the size of an ACK, while ICE already sends its own consent checks every few seconds.
+  DTLS association; at most one lane uses the relay. The relay sees the same kind of encrypted traffic as today, and
+  less of it when a direct lane carries a share. Two new patterns: the liveness PING (§ 7), at most one small message
+  a second in a direction that is otherwise quiet during a transfer, the size of an ACK, while ICE already sends its
+  own consent checks every few seconds; and compressed parts (§ 9.4, decided 2026-10-29), whose sizes tell the relay
+  roughly how compressible the file is (text and CAD files from photos), never their content. Each compressed part on
+  the relay is padded to a multiple of 8 KiB, so it sees one of seven sizes per 60 KiB part rather than exact ratios.
   Someone on the local network can see more TCP connections between the same two devices, which reveals no more than
   that the two talk, already visible.
 - **What a peer can make us store.** At most 2 MiB of leaves per transfer and only after acceptance; at most § 3's 64
@@ -293,29 +295,48 @@ Each with its cost and benefit; the journal keeps the full list, including those
 2. **The fastest cipher on each platform.** (a) Adopted now (WP3): the release profiles compile the cipher and hash
    crates at opt-level 3 with their NEON and ARMv8 AES backends (`chacha20` 0.93 GB/s instead of 0.225, AES-256-GCM
    1.7 instead of 0.17, measured); phones keep `opt-level = "z"` for everything else, and `tools/embedded-size.sh`
-   checks the result against ADR 0015's 5 MB before it lands. (b) Later (WP6, behind capability bit 1): a lane may run
-   `Noise_IK_25519_AESGCM_BLAKE2b` when both sides report hardware AES (libsodium measured 8.5 GB/s against
-   ChaCha20-Poly1305's 0.77 on the same core). Noise names that suite and cacophony has its vectors, but it is a
-   second cipher in two stacks to review; first sessions stay `25519_ChaChaPoly_BLAKE2b`, so nothing changes for
-   released apps. AEGIS-128L (21 GB/s) is not a Noise cipher and is not adopted.
+   checks the result against ADR 0015's 5 MB before it lands. (b) Adopted (WP6, capability bit 1): a lane runs
+   `Noise_IK_25519_AESGCM_BLAKE2b` when both first handshakes set bit 1, which a side sets only with hardware AES
+   (ARMv8 AES and PMULL, or AES-NI and PCLMULQDQ; libsodium measured 8.5 GB/s against ChaCha20-Poly1305's 0.77 on
+   the same core, the Rust core 1.9 against 0.75). The initiator says so in the preamble: bit 7 of the pattern byte
+   (`SZ 01 81`), only with IK, so the responder knows the protocol name before message 1 and the prologue binds it.
+   A responder that does not set bit 1 refuses that preamble before any Diffie-Hellman; an AES-GCM session without a
+   Lane token is refused; a lane is admitted only into a group whose first session agreed to bit 1. Nonces are Noise's
+   AESGCM ones (4 zero bytes, then the counter big-endian); REKEY is unchanged. First sessions stay
+   `25519_ChaChaPoly_BLAKE2b`, so nothing changes for released apps; vectors in
+   `fixtures/vectors/transfer-more/aes_lane.json`. With either cipher a session seals the bulk frames it may send and
+   opens the complete messages a read delivered in batches, on up to four cores (§ 6's "lanes on several cores" within
+   one lane), with the nonces one at a time would use; a batch stops at a REKEY. AEGIS-128L (21 GB/s) is not a Noise
+   cipher and is not adopted.
 3. **Batching (adopted).** Files sent together are staged together: one transaction, fsync per file and one
    F_FULLFSYNC for the batch (on Apple storage it flushes the whole drive cache, 3.6 ms each here), and the receiver
    publishes a batch the same way. Their OFFERs go back to back and a receiver accepting them answers them back to back,
    so 300 small files cost a few round trips, not 300. A file that fits one block is one block.
-4. **Compressing only when it helps (adopted for Bluetooth lanes, capability bit 2).** Per block, zstd level 1 on a
-   64 KiB sample; the block is sent compressed only when that saves at least 10 %, never for types already compressed
-   (images, video, archives). STEP, OBJ and text compress severalfold and Bluetooth is where bytes cost most. Not on
-   other routes for now: on the relay it would show the relay how compressible each block is, which it cannot see
-   today; on fast routes it costs more CPU than it saves. Extending it is a later decision.
+4. **Compressing only when it helps (adopted for Bluetooth and relay lanes, capability bit 2; WP6).** Per block, zstd
+   level 1 on a 64 KiB sample; the block is sent compressed only when that saves at least 10 %, which leaves out
+   what is already compressed (photos, video, archives, most PDFs) at the cost of one sample. Each part is compressed
+   on its own and goes plain when it would not shrink, so a part stays one piece on Bluetooth. STEP and text compress
+   four- to sevenfold, and Bluetooth and the relay are where bytes cost most; on the relay each compressed part is
+   padded to a multiple of 8 KiB (§ 8). Not on other routes: there it costs more CPU than it saves. The receiver
+   expands a part only on a session that negotiated bit 2, into at most Length bytes, and refuses it unless it
+   expands to exactly Length.
 5. **Skipping blocks the receiver already has (adopted, WP1 for whole files, WP6 for blocks).** An OFFER whose Digest
    matches a file this computer received from the same friend, or that the person's own devices hold, is answered as
    accepted and filled locally; a new version of a file that friend sent before reuses the blocks whose leaves match at the same position.
+   Beyond the file of the same name (WP1), a local index (`blocks-index/`, newest 1,024 files and 64 MiB of leaves,
+   never sent anywhere, one prefix per friend so a lookup reads only that friend's entries) finds matching blocks in
+   any file that friend sent, or that this person sent them (WP6). Every block found is read and checked against the
+   new leaf before it counts, and reported in a HAVE, which stops the sender's copies of it.
    Fixed blocks only find edits that do not shift the file; content-defined chunking would find more, but it breaks the
    simple map and tree, and is not adopted.
 6. **All of one person's devices at once (adopted in this form, WP6).** Sending the whole file to each device would
    multiply the sender's upload. Instead the device that accepted pulls the file, and the person's other devices pull
    blocks from both that device (SYNC, § 4) and the friend (AGAIN, which ADR 0016 already lets any of the person's
    devices ask), so each block crosses the sender's link about once and every device fills from every holder.
+   The receiver drives § 7's scheduler with each holder as a lane (`transfer/pull.rs`): a block it gives a holder is
+   asked of it (WANT BLOCKS), a block that completes is credited to the holder whose part completed it, a copy the
+   scheduler cancels is reported to that holder in a HAVE, and a holder that leaves gives its blocks back. Every
+   holder must announce the same root in BLOCKS FOLLOW. Nothing new on the wire.
 7. **Apple's peer-to-peer Wi-Fi (kept, tuned in WP3).** AWDL is already used where available. It shares the radio with
    the infrastructure network by time-slicing, so a lane on each rarely beats one: the scheduler measures, and an AWDL
    lane is opened beside a LAN lane only when the LAN lane is below 25 MB/s. Wi-Fi Aware on iPhone and Android is noted

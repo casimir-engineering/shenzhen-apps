@@ -190,16 +190,16 @@ cipher. The Rust process's hottest frames are stripped release code in the ciphe
 | Memory-mapped reads | Not adopted | little gain over `pread` for sequential reads; SIGBUS on I/O errors |
 | Cloning snapshots everywhere (`clonefile`, `FICLONE`, `copy_file_range`, ReFS block clone); no fsync of a private snapshot | Adopted (§ 9.1) | Rust copies and fsyncs 2 GiB today (2.6 s) |
 | opt-level 3 and NEON / ARMv8 AES backends for the crypto crates | Adopted now (§ 9.2) | 4× the cipher on the Rust side, no protocol change |
-| AES-256-GCM lanes (`Noise_IK_25519_AESGCM_BLAKE2b`) where both have hardware AES | Later (WP6, capability bit 1) | 10× less CPU per byte; second suite to review |
+| AES-256-GCM lanes (`Noise_IK_25519_AESGCM_BLAKE2b`) where both have hardware AES | Adopted (WP6, capability bit 1) | 2.6× the cipher on arm64 in Rust, 10× in libsodium; second suite to review |
 | AEGIS-128L | Not adopted | not a Noise cipher, no vectors |
 | Batches: staging, transactions and one F_FULLFSYNC per batch; offers and replies back to back | Adopted (§ 9.3) | 300 small files from 8.5 to 14.3 s to under 1.5 s |
 | One ACK frame for many files | Not adopted | an ACK is a 38-byte message, already pipelined |
-| zstd per block when a sample saves 10 % | Adopted on Bluetooth lanes only (capability bit 2) | STEP and text compress severalfold; on the relay it would reveal compressibility |
+| zstd per block when a sample saves 10 % | Adopted on Bluetooth and relay lanes (capability bit 2, WP6), relay parts padded to 8 KiB | STEP 5.2× and text 2.4× faster on Bluetooth; the relay learns only rough compressibility |
 | Skipping files the receiver already has (same friend or own devices) | Adopted (WP1) | instant for a re-sent file; limited so a friend learns only that the person kept what they sent |
-| Reusing matching blocks of an earlier version from the same friend | Later (WP6) | big for iterated CAD files; needs a local leaf index |
+| Reusing matching blocks of an earlier version from the same friend | Adopted (WP1 by name, WP6 by a local index of that friend's files) | big for iterated CAD files |
 | Content-defined chunking | Not adopted | finds shifted edits but breaks the fixed map and tree |
 | Sending the whole file to each of a person's devices | Not adopted as such | multiplies the sender's upload |
-| Multi-source pulls: the person's devices fetch blocks from each other and from the friend | Later (WP6) | each block crosses the sender's link about once |
+| Multi-source pulls: the person's devices fetch blocks from each other and from the friend | Adopted (WP6: the planner; wiring into the requesters left) | each block crosses the sender's link about once |
 | Apple peer-to-peer Wi-Fi beside the LAN | Kept, AWDL lane beside LAN only below 25 MB/s (WP3 measures) | AWDL time-slices the same radio |
 | Wi-Fi Aware (iPhone, Android) | Noted for later | a direct route between phones; out of scope here |
 | Bluetooth: 16 KiB parts, 64 KiB write budget, Android high priority and 2M PHY, BlueZ the same | Adopted (§ 9.8) | 0.25 % overhead instead of 1 %, a quarter of the writes |
@@ -1172,3 +1172,153 @@ neither is in this package.
 **Online lanes are not built either.** More data channels in one peer connection share one SCTP association, so one
 congestion window and one path (ADR 0018 § 6 says as much): they would add cores, not bandwidth, and the Rust helper
 decrypts on one thread, so it would gain nothing. They remain the ADR's rule for when a helper reports `cpu_bound`.
+## WP6: AES-GCM lanes, batched ciphers, compressed parts, a block index and pulls from several holders (2026-10-29)
+
+Protocol 4 has not shipped, so these are additions to it, each behind a handshake capability bit or entirely local.
+Measured on the same M5 Max, release builds, with other packages building alongside (load 11 to 21): wall-clock
+figures move by 30 % or more from run to run; the in-process channel figures and the bytes on the route much less.
+
+**1. AES-256-GCM lanes (capability bit 1, ADR 0018 § 9.2).** A side sets bit 1 when its processor has hardware AES
+(ARMv8 AES and PMULL, or AES-NI and PCLMULQDQ). When both first handshakes set it, every lane of that group runs
+`Noise_IK_25519_AESGCM_BLAKE2b`; the first session stays ChaChaPoly, so released apps see nothing new. The initiator
+names the cipher in the preamble, bit 7 of the pattern byte (`SZ 01 81`, IK only), so the responder knows the protocol
+name before message 1, and the prologue binds it (a flipped bit fails the handshake: tested both ways). A responder
+without bit 1 refuses that preamble before any Diffie-Hellman; an AES-GCM session without a Lane token is refused; a
+lane is admitted only into a group whose first session agreed to bit 1 (helper and interop peer).
+`SZFRIENDS_TEST_AES_LANES=0` plays a side without it.
+
+Why it pays here: profiling the Rust peers on loopback (`sample`, symbols on) showed the session cipher as about 70 %
+of the sender's busy time, and within it Poly1305 runs its portable code on arm64 (the `poly1305` crate has no NEON
+backend), so ChaCha20-Poly1305 tops out at 0.75 GB/s while AES-GCM uses the ARMv8 AES and PMULL instructions:
+
+| One core, 60 KiB frames (`examples/transport-speed`) | Seal | Open |
+|---|---|---|
+| ChaCha20-Poly1305 | 745 MB/s | 683 MB/s |
+| AES-256-GCM | 1,925 MB/s | 1,948 MB/s |
+
+**2. Batched sealing and opening.** `Transport` now counts its own nonces over snow's stateless transport, so a batch
+of messages is sealed or opened on up to four cores with exactly the nonces one at a time would use
+(`encrypt_many`, `decrypt_many`; a batch stops after a REKEY, whose successors need the new key, and at the first
+failure, whose nonce stays unused). The channel seals the bulk frames that fit its in-flight budget together and hands
+them to the link as one write (while writes are on the link, bulk frames wait until two fit); on receipt it opens every
+complete message a read delivered together. Link reads grew from 64 to 256 KiB so a read holds several messages.
+`ChannelConfig::crypto_batches` turns it off. One session through the channel, in one process (`examples/
+channel_speed`, both ends on one thread, best of five, CPU time of the process):
+
+| 1 GiB of 60 KiB PARTs | One at a time | Batches |
+|---|---|---|
+| ChaCha20-Poly1305 | 349 MB/s, 2.86 CPU-s/GB | 470 MB/s, 3.47 CPU-s/GB |
+| AES-256-GCM | 448 MB/s, 1.81 CPU-s/GB | 1,031 MB/s, 1.58 CPU-s/GB |
+
+Kept: AES-GCM with batches moves 2.3 times what ChaChaPoly one at a time moved through the same channel, on less
+CPU. With ChaChaPoly batches cost a fifth more CPU for a third more speed: kept too, since a first session is never
+AES and the extra CPU is spent only while a transfer is limited by this computer.
+
+Through `make friends-transfer-bench` (Rust to Rust, 2 GiB, four interleaved rounds of main at 16b2f89b, WP6 with
+`SZFRIENDS_TEST_AES_LANES=0`, and WP6; `loopback+loopback` is a new multi case, the session and one lane both on
+loopback), the machine was too loaded to tell them apart (load 16 to 25 from other packages' builds): the same build
+ranged 59 to 200 MB/s between rounds. Best rounds: one session 200 (main), 179 (WP6 without AES lanes), 137 MB/s
+(WP6); session and lane 170, 216 and 182 MB/s, the lane AES-GCM in every WP6 round. So the gain is shown by the
+channel measurement above, not yet end to end; the case should be run again on an idle machine
+(`BENCH_ROUTES=loopback BENCH_SIZES=2g BENCH_LOSS=none BENCH_MULTI=loopback+loopback`, and the same with
+`SZFRIENDS_TEST_AES_LANES=0`). In the peers both lanes share one thread, so the end-to-end gain is bounded by the
+leaf checks, the digest and the disk on that thread, which batches do not touch.
+
+**3. Compressed parts (capability bit 2, ADR 0018 § 9.4).** zstd 1.5.7 (the `zstd` crate, C, level 1, no legacy
+formats or dictionary builder) on Bluetooth and relay lanes. Per block a 64 KiB sample decides (at least 10 % saved),
+so photos, video and archives cost one sample; each part is then compressed on its own and goes plain when it would not
+shrink. On the relay every compressed part is padded to a multiple of 8 KiB with a zstd skippable frame, so the relay
+sees one of seven sizes per 60 KiB part, not exact ratios (ADR § 8 says what it can still tell). The receiver expands a
+part only on a session that negotiated bit 2, into at most Length bytes (window at most 128 KiB), and refuses it
+unless it expands to exactly Length; anything else closes the session as a malformed part.
+
+Ratios on typical files (one core, `zstd` level 1 against the pure-Rust `ruzstd` the C library won over; speeds of
+the full-speed build, while the size-optimised build that ships compresses STEP at 246 to 322 MB/s and Markdown at 122
+to 153 MB/s, and expands them at 861 and 646 MB/s, still hundreds of times the Bluetooth and relay rates):
+
+| File | Size | 16 KiB parts (Bluetooth) | 60 KiB parts (relay) | ruzstd, 16 KiB |
+|---|---|---|---|---|
+| STEP assembly | 5.4 MB | 17 % of the bytes, 730 MB/s | 15 %, 950 MB/s | 26 %, 160 MB/s |
+| Markdown | 70 KB | 45 % | 43 % | 51 % |
+| PDF (drawings) | 1.3 MB | 64 % | 65 % | 65 % |
+| PDF (report with photos) | 1.1 MB | 90 % | 91 % | 91 % |
+| JPEG, PNG | 3.9, 1.0 MB | 99 to 100 % (sent plain after the sample) | | |
+
+`make friends-transfer-bench` with `BENCH_CORPUS` (new: a directory of real files instead of pseudo-random bytes),
+Rust to Rust, `SZFRIENDS_TEST_COMPRESSED_PARTS=0` for before:
+
+| Case | Before | After | On the route |
+|---|---|---|---|
+| Bluetooth (1.4 Mbit/s), 4 MiB of STEP | 24.1 s | 4.7 s (5.2×) | 4.21 → 0.80 MB |
+| Bluetooth, 4 MiB of Markdown | 24.2 s | 10.1 s (2.4×) | 4.21 → 1.74 MB |
+| Bluetooth, 4 MiB of PDFs | 24.1 s | 21.1 s (1.14×) | 4.21 → 3.67 MB |
+| Bluetooth, 4 MiB of photos | 24.2 s | 24.2 s | unchanged |
+| Relay (5 Mbit/s), 16 MiB mix (photos, Markdown, PDFs, STEP) | 27.1 s | 19.4 s (1.4×) | 16.8 → 12.0 MB (11.4 unpadded) |
+
+**4. A block index (ADR 0018 § 9.5).** WP1 (0305ad64) takes unchanged blocks from the newest file of the same name
+the same friend sent. WP6 adds `store/block_index.rs`: one small file per file received by blocks or sent to a friend
+(`blocks-index/<friend prefix>-<transfer>.leaves`: where the file is, its shift and leaves), the newest 1,024 files and
+64 MiB at most, 0600, never sent. The prefix is 8 bytes of BLAKE2b over the conversation id, so a lookup reads only
+that friend's entries and the directory names nobody. After WP1's same-name pass, the blocks still missing whose leaf
+any of that friend's indexed files holds at the same position are read there and taken through `block_part`, so each
+is checked against the new leaf and reported in the next HAVE. Files this person sent that friend count too (the file
+they chose, from the row's `source_path`), for a model sent, edited by the friend and sent back. An entry whose file
+is gone is dropped; a block changed since fails its leaf and is asked for. The scheduler now also stops the rest of a
+copy when a HAVE names a block none of whose copies was sent whole (it came from elsewhere): before, the first window
+of a reused block still went out on its lane.
+
+**5. Pulls from several holders (ADR 0018 § 9.6).** `transfer/pull.rs`: the receiver drives WP2's scheduler with
+each device that holds the file (the same root in BLOCKS FOLLOW) as a lane. A block the scheduler gives a holder is
+asked of it (one WANT BLOCKS per holder per round); a block that completes is credited to the holder whose part
+completed it (`sent` then `have`, which measures its rate); a copy the scheduler cancels becomes a HAVE to that holder,
+so it drops what it has not sent; a holder whose session ends or falls silent gives its blocks back; the endgame asks a
+second holder only when it would finish sooner. The scheduler's lane requests do not apply to holders. Simulated
+(virtual time; each holder serves what it is asked, in order, at its rate, after its delay each way):
+
+| Holders | Time | Against |
+|---|---|---|
+| 256 MiB from three LAN holders at 40, 20 and 10 MB/s | 4.15 s (143, 75 and 38 blocks) | 3.83 s at their sum, 6.71 s from the fastest alone |
+| 256 MiB from two at 40 MB/s, one gone after 1 s | 6.44 s | 6.71 s from one alone |
+| 32 MiB from a Mac at 2 MB/s and a phone on Bluetooth | 16.9 s (Bluetooth took one block) | 16.8 s from the Mac alone |
+
+**Size on phones** (`tools/embedded-size.sh`, main at 16b2f89b → with WP6): Android with online 5.36 → 5.55 MB
+(deflated 2.71 → 2.82), nearby only 3.23 → 3.43 MB; iOS with online 3.29 → 3.40 MB. zstd is most of it, built with its
+size-optimised options (`thin`: -Oz and the small decoders; without them it added 0.35 MB). Leaving zstd's unused
+block compressors out of phone builds (`ZSTD_EXCLUDE_*` through phone.toml's CFLAGS) saved only 38 KB more and would
+reach every C library a phone build compiles, so it was not kept. Note for the owner: Android with online was already
+over ADR 0015's 5 MB before this package (5.36 MB at 16b2f89b).
+
+**For WP4 (Objective-C) to mirror** (the Rust core is the reference; frames and bits must match, tuning may differ):
+
+1. Capability bits: bit 1 when `crypto_aead_aes256gcm_is_available()`, bit 2 with fast transfers; a test home's
+   `SZFRIENDS_TEST_AES_LANES=0` and `SZFRIENDS_TEST_COMPRESSED_PARTS=0` clear them (the session peer too, so the bench
+   measures before and after). Until then a Rust peer simply never uses either with the Mac helper.
+2. `Noise_IK_25519_AESGCM_BLAKE2b` in `szfriends_noise`: AES-256-GCM with the 96-bit nonce 4 zero bytes then the
+   counter big-endian (libsodium's `crypto_aead_aes256gcm_*`, the precomputed-key form for speed), REKEY as the Noise
+   spec has it (encrypt 32 zero bytes at nonce 2^64-1, keep the first 32). The preamble: pattern byte 0x81 is IK with
+   AES-GCM; 0x80, 0x82 and 0x83 are refused; a responder without bit 1 refuses 0x81 at the preamble (before any DH, as
+   XX on a hidden listener); an AES-GCM session without a Lane token is refused; lanes are dialed with 0x81 when the
+   group's first session negotiated bit 1 on both sides, and an AES-GCM lane is admitted only into such a group. The
+   exporter writes `fixtures/vectors/transfer-more/aes_lane.json` (the IK vector's keys and payloads with the 0x81
+   preamble); `friends-vectors-check` then compares it byte for byte.
+3. Batches (local tuning, not wire): sealing the bulk frames that fit the in-flight budget, and opening the messages one
+   read delivered, together with explicit nonces (`dispatch_apply`), stopping a batch at a REKEY.
+4. Compressed parts: zstd 1.5.7 vendored by `friends/deps` (lib/common, compress, decompress; no legacy). Sender, on a
+   Bluetooth or relay lane of a session with bit 2: per block, level 1 on its first 64 KiB; when that is at most 90 %,
+   each part compressed alone and sent with Codec 1 and Length when smaller; on the relay, padded with a skippable
+   frame (magic 0x184D2A50 little-endian, then the filler's length as u32 little-endian) to the next multiple of 8,192
+   bytes, and sent plain when that is not smaller. Receiver: a part with Codec or Length on a session without bit 2,
+   Codec other than 1, Length missing, 0 or over 61,440, or Data that does not expand to exactly Length (decoder window
+   at most 2^17) closes the session as an unsolicited part. The helper's tests read
+   `fixtures/vectors/transfer-more/compressed_parts.json` (each case: an encoded PART and what it expands to, or
+   "refused"); it is not exported, since zstd's bytes depend on its version.
+5. The block index is local, so its format is the Mac helper's own; the rules are the ones above: per friend, files
+   received by blocks and files sent to them, bounded, checked through the ordinary part path, never sent.
+6. The scheduler: a HAVE for a block none of whose copies was sent whole cancels every copy, the winner's too.
+7. Pulls from several holders, when the Mac helper's copies by blocks ask more than one session.
+
+**Left.** Wiring `transfer/pull.rs` into the requesters: WP1's Get again and own-device copies (5854050c) ask one
+session per copy; asking every session that holds the same root (the friend's devices, the person's own) needs their
+requesters to keep several sessions per copy, with `Pull` saying which blocks each is asked for. That touches the
+flows WP1 is still changing, so it is left to WP1 with the planner and its tests in place. Real devices: none of this
+was run on radios or two machines; `tools/transfer-devices.sh` runs the same peers there.
