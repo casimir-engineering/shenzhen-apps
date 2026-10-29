@@ -1,6 +1,7 @@
 #import "SPDFMacTranslationEnablement.h"
 
 #import "SPDFMacMarkdownDelegatePrivate.h"
+#import "SPDFMacTranslationChoice.h"
 
 // Defined in ShenzhenPDFMac.mm.
 @interface ShenzhenMacDelegate (SPDFMacTranslationEnablementPrivate)
@@ -30,7 +31,9 @@
 
 - (BOOL)beginTranslateCommandForSender:(id)sender {
     spdf_translation_context context = [self translationContext];
-    if (spdf_translation_selection_enabled(context)) {
+    // The picker asked for the whole document (SPDFMacTranslationChoice.h): a selection doesn't change that.
+    BOOL wholeDocument = [self localTranslationRequest] != nil;
+    if (!wholeDocument && spdf_translation_selection_enabled(context)) {
         [self showSelectionTranslationPanel:sender];
         return NO;
     }

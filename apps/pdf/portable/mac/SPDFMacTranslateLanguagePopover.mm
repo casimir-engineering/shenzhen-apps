@@ -2,6 +2,7 @@
 #import "SPDFMacAILanguage.h"
 
 static NSString* const RecentKey=@"SPDFTranslateRecentLanguages";
+static NSString* const EngineKey=@"SPDFTranslateEngine";  // "this-mac" or "ai"; "this-mac" until AI is chosen
 
 NSArray<NSString*>* SPDFMacTranslateRecentLanguages(void) {
     NSArray* stored=[NSUserDefaults.standardUserDefaults arrayForKey:RecentKey];
@@ -32,8 +33,10 @@ void SPDFMacTranslateRememberLanguage(NSString* language) {
 @interface SPDFMacTranslateLanguagePopover () <NSTableViewDataSource, NSTableViewDelegate, NSSearchFieldDelegate, NSPopoverDelegate>
 @end
 @implementation SPDFMacTranslateLanguagePopover {
-    void (^_translate)(NSString*);
-    NSArray<NSDictionary*>* _languages; // {language: "French", title: "French · Français", code}
+    void (^_translate)(NSString*, NSString*);
+    NSArray<NSDictionary*>* _languages; // the engine's: {language: "French", title: "French · Français", code}
+    NSArray<NSDictionary*>* _localLanguages, *_aiLanguages;
+    id _keyMonitor;                     // ⌘1 and ⌘2 while the picker is open
     NSArray<NSDictionary*>* _rows;      // languages, and {header: "Recent"} between them when nothing is typed
     NSTableView* _table; NSTextField* _hint;
     NSString* _chosen;                  // set by Return on a typed search: the next Return translates into it
@@ -42,36 +45,74 @@ void SPDFMacTranslateRememberLanguage(NSString* language) {
 static SPDFMacTranslateLanguagePopover* gShown;  // the popover on screen keeps its controller
 
 + (instancetype)shownPicker { return gShown; }
-+ (instancetype)showRelativeToView:(NSView*)anchor translate:(void (^)(NSString*))translate {
++ (instancetype)showRelativeToView:(NSView*)anchor localLanguages:(NSArray<NSDictionary<NSString*,NSString*>*>*)localLanguages
+                         translate:(void (^)(NSString*, NSString*))translate {
     [gShown close];
-    SPDFMacTranslateLanguagePopover* picker=[[self alloc] initWithTranslate:translate];
+    SPDFMacTranslateLanguagePopover* picker=[[self alloc] initWithLocalLanguages:localLanguages translate:translate];
     gShown=picker;
     [picker.popover showRelativeToRect:anchor.bounds ofView:anchor preferredEdge:NSRectEdgeMaxY];
     [picker.field.window makeFirstResponder:picker.field];
+    __weak SPDFMacTranslateLanguagePopover* weakPicker=picker;
+    picker->_keyMonitor=[NSEvent addLocalMonitorForEventsMatchingMask:NSEventMaskKeyDown handler:^NSEvent*(NSEvent* event) {
+        SPDFMacTranslateLanguagePopover* shown=weakPicker;
+        NSEventModifierFlags flags=event.modifierFlags & NSEventModifierFlagDeviceIndependentFlagsMask;
+        if (!shown || gShown!=shown || flags!=NSEventModifierFlagCommand) return event;
+        if ([event.charactersIgnoringModifiers isEqual:@"1"]) { [shown chooseOnThisMac:YES]; return nil; }
+        if ([event.charactersIgnoringModifiers isEqual:@"2"]) { [shown chooseOnThisMac:NO]; return nil; }
+        return event;
+    }];
     return picker;
 }
-- (instancetype)initWithTranslate:(void (^)(NSString*))translate {
+// "French · Français" for a language the Mac's translator has; Chinese is the simplified script it writes.
+static NSArray<NSDictionary*>* LocalRows(NSArray<NSDictionary<NSString*,NSString*>*>* languages) {
+    NSMutableArray* rows=[NSMutableArray array]; NSDictionary* names=SPDFMacAILanguageNames();
+    for (NSDictionary* language in languages) {
+        NSString* code=language[@"code"]; if (!code.length) continue;
+        NSString* locale=[code isEqual:@"zh"] ? @"zh-Hans" : code;
+        NSString* english=names[locale] ?: language[@"name"] ?: code;
+        NSString* native=[[[NSLocale alloc] initWithLocaleIdentifier:locale] localizedStringForLocaleIdentifier:locale];
+        NSString* title=native.length && ![native isEqual:english] ? [NSString stringWithFormat:@"%@ · %@",english,native] : english;
+        [rows addObject:@{@"language":english,@"title":title,@"code":code}];
+    }
+    return [rows sortedArrayUsingComparator:^NSComparisonResult(NSDictionary* a,NSDictionary* b){return [a[@"title"] compare:b[@"title"]];}];
+}
+- (instancetype)initWithLocalLanguages:(NSArray<NSDictionary<NSString*,NSString*>*>*)localLanguages
+                             translate:(void (^)(NSString*, NSString*))translate {
     if (!(self=[super init])) return nil;
     _translate=[translate copy];
     NSMutableArray* languages=[NSMutableArray array];
     for (NSDictionary* choice in SPDFMacAILanguageChoices())
         [languages addObject:@{@"language":SPDFMacAILanguageName(choice[@"id"]),@"title":choice[@"name"],@"code":choice[@"id"]}];
-    _languages=languages;
+    _aiLanguages=languages;
+    _localLanguages=LocalRows(localLanguages);
+    _onThisMac=![[NSUserDefaults.standardUserDefaults stringForKey:EngineKey] isEqual:@"ai"];
+    _languages=_onThisMac ? _localLanguages : _aiLanguages;
 
-    NSView* content=[[NSView alloc] initWithFrame:NSMakeRect(0,0,280,330)];
+    NSView* content=[[NSView alloc] initWithFrame:NSMakeRect(0,0,280,360)];
+    _engine=[NSSegmentedControl segmentedControlWithLabels:@[@"On this Mac",@"AI"] trackingMode:NSSegmentSwitchTrackingSelectOne
+        target:self action:@selector(engineClicked:)];
+    _engine.segmentDistribution=NSSegmentDistributionFillEqually; _engine.refusesFirstResponder=YES;
+    _engine.accessibilityLabel=@"Translate with";
+    [_engine setToolTip:@"Translated on this Mac, offline (Tab or ⌘1)" forSegment:0];
+    [_engine setToolTip:@"Translated by the assistant, with OpenRouter (Tab or ⌘2)" forSegment:1];
+    _engine.selectedSegment=_onThisMac ? 0 : 1;
     _field=[NSSearchField new]; _field.placeholderString=@"Type a language"; _field.delegate=self;
     _field.accessibilityLabel=@"Translate into"; _field.sendsSearchStringImmediately=YES;
     _hint=[NSTextField labelWithString:@""]; _hint.lineBreakMode=NSLineBreakByTruncatingTail;
     NSScrollView* scroll=[NSScrollView new]; scroll.hasVerticalScroller=YES; scroll.drawsBackground=NO;
     _table=[NSTableView new]; _table.headerView=nil; _table.rowHeight=22; _table.intercellSpacing=NSMakeSize(0,2);
     _table.backgroundColor=NSColor.clearColor; _table.style=NSTableViewStyleSourceList;
+    _table.floatsGroupRows=NO;  // "Recent" and "All languages" scroll with their rows
     [_table addTableColumn:[[NSTableColumn alloc] initWithIdentifier:@"language"]];
     _table.dataSource=self; _table.delegate=self; _table.target=self; _table.action=@selector(clicked:);
     _table.refusesFirstResponder=YES; _table.accessibilityLabel=@"Languages";
     scroll.documentView=_table;
-    for (NSView* view in @[_field,_hint,scroll]) { view.translatesAutoresizingMaskIntoConstraints=NO; [content addSubview:view]; }
+    for (NSView* view in @[_engine,_field,_hint,scroll]) { view.translatesAutoresizingMaskIntoConstraints=NO; [content addSubview:view]; }
     [NSLayoutConstraint activateConstraints:@[
-        [_field.topAnchor constraintEqualToAnchor:content.topAnchor constant:12],
+        [_engine.topAnchor constraintEqualToAnchor:content.topAnchor constant:12],
+        [_engine.leadingAnchor constraintEqualToAnchor:content.leadingAnchor constant:12],
+        [_engine.trailingAnchor constraintEqualToAnchor:content.trailingAnchor constant:-12],
+        [_field.topAnchor constraintEqualToAnchor:_engine.bottomAnchor constant:10],
         [_field.leadingAnchor constraintEqualToAnchor:content.leadingAnchor constant:12],
         [_field.trailingAnchor constraintEqualToAnchor:content.trailingAnchor constant:-12],
         [_hint.topAnchor constraintEqualToAnchor:_field.bottomAnchor constant:7],
@@ -87,16 +128,34 @@ static SPDFMacTranslateLanguagePopover* gShown;  // the popover on screen keeps 
     [self refresh];
     return self;
 }
-- (void)close { [_popover close]; if (gShown==self) gShown=nil; }
-- (void)popoverDidClose:(NSNotification*)note { (void)note; if (gShown==self) gShown=nil; }
+- (void)stopKeys { if (_keyMonitor) [NSEvent removeMonitor:_keyMonitor]; _keyMonitor=nil; }
+- (void)close { [_popover close]; [self stopKeys]; if (gShown==self) gShown=nil; }
+- (void)popoverDidClose:(NSNotification*)note { (void)note; [self stopKeys]; if (gShown==self) gShown=nil; }
+
+#pragma mark Engine
+- (void)chooseOnThisMac:(BOOL)onThisMac {
+    _engine.selectedSegment=onThisMac ? 0 : 1;
+    if (_onThisMac==onThisMac) return;
+    _onThisMac=onThisMac; _languages=onThisMac ? _localLanguages : _aiLanguages;
+    [NSUserDefaults.standardUserDefaults setObject:onThisMac ? @"this-mac" : @"ai" forKey:EngineKey];
+    // A language chosen that this engine can't do is chosen no longer.
+    if (_chosen && onThisMac && ![self rowForLanguage:_chosen]) _chosen=nil;
+    [self refresh];
+}
+- (void)switchEngine { [self chooseOnThisMac:!_onThisMac]; }
+- (void)engineClicked:(id)sender {
+    (void)sender; [self chooseOnThisMac:_engine.selectedSegment==0];
+    [_field.window makeFirstResponder:_field];
+}
 
 #pragma mark Rows
 - (NSString*)query {
     return [_field.stringValue stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
 }
+// The engine's row for a language; one made of the name for AI, nil when this Mac doesn't have it.
 - (NSDictionary*)rowForLanguage:(NSString*)language {
     for (NSDictionary* row in _languages) if ([row[@"language"] isEqual:language]) return row;
-    return @{@"language":language,@"title":language};
+    return _onThisMac ? nil : @{@"language":language,@"title":language};
 }
 // 0 for a name starting with the query, 1 for a word in it starting with it, 2 for the query anywhere, NSNotFound none.
 static NSUInteger Match(NSDictionary* row, NSString* query) {
@@ -110,7 +169,7 @@ static NSUInteger Match(NSDictionary* row, NSString* query) {
 - (void)refresh {
     NSString* query=[self query]; NSMutableArray* rows=[NSMutableArray array];
     NSMutableArray* recent=[NSMutableArray array];
-    for (NSString* language in SPDFMacTranslateRecentLanguages()) [recent addObject:[self rowForLanguage:language]];
+    for (NSString* language in SPDFMacTranslateRecentLanguages()) { NSDictionary* row=[self rowForLanguage:language]; if (row) [recent addObject:row]; }
     NSInteger highlighted=-1;
     if (!query.length) {
         if (recent.count) { [rows addObject:@{@"header":@"Recent"}]; [rows addObjectsFromArray:recent];
@@ -129,8 +188,8 @@ static NSUInteger Match(NSDictionary* row, NSString* query) {
         }
         for (NSArray* tier in tiers) [rows addObjectsFromArray:tier];
         // Nothing in the list: the name as typed, so any language can be asked for.
-        if (!rows.count) [rows addObject:@{@"language":query,@"title":[NSString stringWithFormat:@"Use “%@”",query],@"typed":@YES}];
-        highlighted=0;
+        if (!rows.count && !_onThisMac) [rows addObject:@{@"language":query,@"title":[NSString stringWithFormat:@"Use “%@”",query],@"typed":@YES}];
+        highlighted=rows.count ? 0 : -1;
         if (_chosen) for (NSUInteger i=0;i<rows.count;i++) if ([rows[i][@"language"] isEqual:_chosen]) { highlighted=(NSInteger)i; break; }
     }
     _rows=rows; [_table reloadData];
@@ -151,7 +210,13 @@ static NSUInteger Match(NSDictionary* row, NSString* query) {
     NSFont* font=[NSFont systemFontOfSize:12];
     NSMutableAttributedString* hint=[[NSMutableAttributedString alloc] initWithString:@"⏎ " attributes:@{
         NSFontAttributeName:font,NSForegroundColorAttributeName:NSColor.secondaryLabelColor}];
-    if (!language) { _hint.attributedStringValue=hint; return; }
+    if (!language) {
+        // Typed a language this Mac's translator doesn't have.
+        if (_onThisMac && [self query].length) [hint appendAttributedString:[[NSAttributedString alloc] initWithString:
+            @"Not on this Mac. Tab translates with AI." attributes:@{NSFontAttributeName:font,
+            NSForegroundColorAttributeName:NSColor.secondaryLabelColor}]];
+        _hint.attributedStringValue=hint; return;
+    }
     BOOL translates=[self returnTranslates];
     [hint appendAttributedString:[[NSAttributedString alloc] initWithString:translates ? @"translates into " : @"chooses "
         attributes:@{NSFontAttributeName:font,NSForegroundColorAttributeName:NSColor.secondaryLabelColor}]];
@@ -164,7 +229,7 @@ static NSUInteger Match(NSDictionary* row, NSString* query) {
 #pragma mark Keyboard and clicks
 - (void)pressReturn {
     NSDictionary* row=[self highlighted]; if (!row) { NSBeep(); return; }
-    if ([self returnTranslates]) { [self translateInto:row[@"language"]]; return; }
+    if ([self returnTranslates]) { [self translateInto:row]; return; }
     _chosen=row[@"language"];
     _settingField=YES; _field.stringValue=_chosen; _settingField=NO;
     [[_field currentEditor] setSelectedRange:NSMakeRange(_field.stringValue.length,0)];
@@ -183,13 +248,13 @@ static NSUInteger Match(NSDictionary* row, NSString* query) {
 - (void)clicked:(id)sender {
     (void)sender; NSInteger row=_table.clickedRow;
     if (row<0 || row>=(NSInteger)_rows.count || _rows[(NSUInteger)row][@"header"]) return;
-    [self translateInto:_rows[(NSUInteger)row][@"language"]];
+    [self translateInto:_rows[(NSUInteger)row]];
 }
-- (void)translateInto:(NSString*)language {
-    void (^translate)(NSString*)=_translate; _translate=nil;
+- (void)translateInto:(NSDictionary*)row {
+    void (^translate)(NSString*, NSString*)=_translate; _translate=nil;
     SPDFMacTranslateLanguagePopover* keep=self; [self close];
-    SPDFMacTranslateRememberLanguage(language);
-    if (translate) translate(language);
+    SPDFMacTranslateRememberLanguage(row[@"language"]);
+    if (translate) translate(row[@"language"],_onThisMac ? row[@"code"] : nil);
     (void)keep;
 }
 - (void)controlTextDidChange:(NSNotification*)note {
@@ -202,6 +267,7 @@ static NSUInteger Match(NSDictionary* row, NSString* query) {
     if (command==@selector(cancelOperation:)) { [self close]; return YES; }
     if (command==@selector(moveDown:)) { [self moveSelection:1]; return YES; }
     if (command==@selector(moveUp:)) { [self moveSelection:-1]; return YES; }
+    if (command==@selector(insertTab:) || command==@selector(insertBacktab:)) { [self switchEngine]; return YES; }
     return NO;
 }
 

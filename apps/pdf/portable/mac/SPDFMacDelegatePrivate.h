@@ -334,6 +334,8 @@
     BOOL _needsDeferredPersistentStateSave;
     BOOL _updatingSidebarFilterField;
     NSArray<NSDictionary*>* _pendingTranslationItems;
+    NSArray<NSDictionary*>* _pendingTranslationChapters;
+    BOOL _translatingMadePDF;  // the local translation works on a PDF made from a Markdown, text or EPUB document  // written as the translation's outline (SPDFMacTranslateChapters.h)
     BOOL _restoringSidebarLayout;
     BOOL _allowSidebarWidthPersistence;
     CGFloat _sidebarWidth;

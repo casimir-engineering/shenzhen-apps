@@ -14,6 +14,8 @@
 #import "SPDFMacAITransport.h"
 #import "SPDFMacAISettings.h"
 #import "SPDFMacAICredentials.h"
+#import "SPDFMacAIIntegration.h"
+#import "SPDFMacTranslateChapters.h"
 #include "shenzhen_pdf_core.h"
 #include <unistd.h>
 @interface ShenzhenMacDelegate (AIJobsHost)
@@ -80,6 +82,8 @@ static BOOL Language(NSString* value, BOOL ocr) {
         translator=[[SPDFMacAIJobTranslator alloc] initWithTransport:[[SPDFMacAITransport alloc]
             initWithConfiguration:NSURLSessionConfiguration.ephemeralSessionConfiguration] model:settings.model key:key language:language];
         options[@"translator"]=translator;
+        // A PDF without an outline keeps the chapters generated for it (SPDFMacTranslateChapters.h).
+        if (!textTranslation) options[@"chapters"]=SPDFMacTranslateChaptersFromAnalysis([self aiAnalysisForPath:source][@"chapters"]);
     }
     NSString* tool=ocr ? [spdf_mac_tool_venv_bin_path() stringByAppendingPathComponent:@"ocrmypdf"] : @"";
     if (ocr && ![NSFileManager.defaultManager isExecutableFileAtPath:tool]) {
@@ -116,7 +120,11 @@ static BOOL Language(NSString* value, BOOL ocr) {
                     toURL:[NSURL fileURLWithPath:rendition] error:&error]; input=rendition;
             } else if (prepared && !textTranslation && ![source.pathExtension.lowercaseString isEqual:@"pdf"]) {
                 char message[1024]={}; spdf_document* doc=spdf_open(readPath.fileSystemRepresentation,message,sizeof(message));
-                prepared=doc && !spdf_is_password_protected(doc); if (doc) spdf_close(doc);
+                prepared=doc && !spdf_is_password_protected(doc);
+                // The PDF made from it has no outline: an EPUB's table of contents goes into the translation instead.
+                NSArray* contents=translate && prepared ? SPDFMacTranslateChaptersFromOutline(doc) : @[];
+                if (contents.count) options[@"chapters"]=contents;
+                if (doc) spdf_close(doc);
                 if (prepared) prepared=SPDFSaveImageCopy(readPath,rendition,YES,&error);
                 input=rendition;
             } else if (prepared && !loaded) {

@@ -414,23 +414,25 @@ fence the renderer cannot draw keeps its ordinary highlighted code box.
 
 <p align="center"><img src="images/portable/macos-translate.webp" alt="A whole PDF translated offline from English to Chinese, opened beside the original" width="880"></p>
 
-- **macOS: Translate asks one thing, the language.** The field is ready to type in and English is highlighted, so
-  Return translates into English. Typing narrows the list (your recent languages first); Return chooses the first
-  match and Return again translates. A language that isn't listed works too: type it and choose **Use “Breton”**.
-  Arrows move through the list and Escape cancels.
-- **The assistant translates the whole document** with your OpenRouter model and makes
-  **“<name> (<Language>)”** in the same format: a PDF stays a PDF with each line translated in its place, a Markdown
-  or text document stays Markdown or text. It opens in a new tab right after the original, in its group, and is saved
-  to Downloads and kept in Collection like everything the assistant makes. The chat beside the document shows how far
-  it has got, with Cancel; you can keep reading meanwhile. Read-only documents work too.
-- **Argos Translate**, running locally across ~19 languages including Chinese, for a
-  selection (and the whole document on Linux). Text never leaves the machine.
-- **Translate a selection** into a panel, or **a whole document**. On macOS this
-  includes Markdown, plain text, source code, EPUB and other readable text documents.
-  Non-PDF documents are rendered to a separate PDF before translation; the source stays unchanged.
-- **Local whole-document mode writes a real PDF** (`<name>_<lang>.pdf`) with the
-  translated text overlaid at each source line's position, and opens it when it
-  finishes.
+- **macOS: Translate asks for the language, and who translates.** At the top, **On this Mac | AI**: Tab, ⌘1 and ⌘2
+  switch, and the choice is kept for next time (On this Mac the first time). The field is ready to type in and English
+  is highlighted, so Return translates into English. Typing narrows the list (your recent languages first); Return
+  chooses the first match and Return again translates. Arrows move through the list and Escape cancels.
+- **On this Mac**, Argos Translate translates the whole document offline (~19 languages, including Chinese); the text
+  never leaves the Mac, and the list shows only the languages it has. The language the document is in is found from
+  its text. A PDF stays a PDF with each line translated in its place; a Markdown, text or EPUB document is translated
+  as the PDF it prints to. The result, **“<name> (<Language>).pdf”**, is saved beside the original (in Downloads when
+  that folder can't take it) and opens in a new tab right after it.
+- **AI**: the assistant translates the whole document with your OpenRouter model, into any language (type one that
+  isn't listed and choose **Use “Breton”**), and makes **“<name> (<Language>)”** in the same format: a PDF stays a PDF
+  with each line translated in its place, a Markdown or text document stays Markdown or text. It opens in a new tab
+  right after the original, in its group, and is saved to Downloads and kept in Collection like everything the
+  assistant makes. The chat beside the document shows how far it has got, with Cancel; you can keep reading meanwhile.
+  Read-only documents work too.
+- **Chapters come along, translated**, with either: a PDF's outline keeps its levels and where each chapter points;
+  a PDF without one keeps the chapters generated for it, an EPUB its table of contents and a Markdown document its
+  headings. Links, named destinations, page labels, form fields and comments (translated) stay as they were.
+- **Translate a selection** into a panel (Argos, on macOS and Linux), or a whole document on Linux.
 - **Cancellable mid-run**, with the same one-click toolchain install as OCR.
 
 ## <a id="export"></a>Printing and export

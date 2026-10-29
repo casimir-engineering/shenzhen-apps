@@ -2867,3 +2867,5 @@ int spdf_document_has_text(spdf_document* doc, int max_pages, char* err, size_t 
 
     return found;
 }
+
+#include "spdf_outline_write.h"

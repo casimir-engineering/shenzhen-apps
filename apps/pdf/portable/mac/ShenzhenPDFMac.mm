@@ -57,6 +57,7 @@
 #import "SPDFMacMarkdownDelegatePrivate.h"
 #import "SPDFMacTranslationEnablement.h"
 #import "SPDFMacTranslationChoice.h"
+#import "SPDFMacTranslateChapters.h"
 #import "SPDFMacMarkdownRouting.h"
 #import "SPDFMacPaletteResults.h"
 #import "SPDFMacPaletteActivation.h"
@@ -10575,7 +10576,9 @@ static const int kSPDFCursorRegionMaxLinkRects = 512;
 
 - (NSString*)currentTextForTranslationUsingSelection:(BOOL*)usingSelection error:(NSString**)errorOut {
     _pendingTranslationItems = nil;
-    BOOL hasSelection = _selectedText.length > 0 && _selectionPageIndex >= 0 && [self currentSelectionRects].count > 0;
+    _pendingTranslationChapters = nil;
+    // The picker translates the whole document, whatever is selected.
+    BOOL hasSelection = ![self localTranslationRequest] && _selectedText.length > 0 && _selectionPageIndex >= 0 && [self currentSelectionRects].count > 0;
     if (hasSelection) {
         NSRect bounds = NSZeroRect;
         BOOL hasBounds = NO;
@@ -10689,7 +10692,9 @@ static const int kSPDFCursorRegionMaxLinkRects = 512;
 
     spdf_outline outline;
     memset(&outline, 0, sizeof(outline));
+    BOOL authoredOutline = NO;
     if (spdf_load_outline(_doc, &outline, err, sizeof(err))) {
+        authoredOutline = outline.count > 0;
         for (int i = 0; i < outline.count; ++i) {
             NSString* title = outline.items[i].title ? [NSString stringWithUTF8String:outline.items[i].title] : nil;
             title = SPDFTextByCollapsingWhitespace(title ?: @"");
@@ -10700,6 +10705,18 @@ static const int kSPDFCursorRegionMaxLinkRects = 512;
             [text appendString:@"\n"];
         }
         spdf_free_outline(&outline);
+    }
+    // No outline of its own: the chapters generated for it become the translation's outline, their titles
+    // translated with the rest (SPDFMacTranslateChapters.h).
+    _pendingTranslationChapters =
+        authoredOutline ? nil : SPDFMacTranslateChaptersFromAnalysis([self aiAnalysisForPath:_path][@"chapters"]);
+    for (NSUInteger i = 0; i < _pendingTranslationChapters.count; ++i) {
+        NSString* title = SPDFTextByCollapsingWhitespace(_pendingTranslationChapters[i][@"title"] ?: @"");
+        if (title.length == 0) continue;
+        if (!spdf_translation_should_translate(title.UTF8String, sourceScript, targetScript)) continue;
+        [items addObject:@{@"kind" : @"chapter", @"index" : @(i), @"page" : @(pageCount)}];
+        [text appendString:title];
+        [text appendString:@"\n"];
     }
 
     spdf_comments comments;
@@ -10767,10 +10784,15 @@ static const int kSPDFCursorRegionMaxLinkRects = 512;
     NSUInteger lineCount = 0;
     NSUInteger outlineCount = 0;
     NSUInteger commentCount = 0;
+    NSMutableArray<NSString*>* chapterTitles = [NSMutableArray array];
+    for (NSUInteger i = 0; i < _pendingTranslationChapters.count; ++i) [chapterTitles addObject:@""];
     for (NSUInteger i = 0; i < count; ++i) {
         NSDictionary* item = _pendingTranslationItems[i];
         NSString* kind = item[@"kind"];
-        if ([kind isEqualToString:@"outline"]) {
+        if ([kind isEqualToString:@"chapter"]) {
+            NSUInteger index = [item[@"index"] unsignedIntegerValue];
+            if (index < chapterTitles.count) chapterTitles[index] = SPDFTextByCollapsingWhitespace(mappedText[i]);
+        } else if ([kind isEqualToString:@"outline"]) {
             // Titles must stay single-line; keep the original when Argos
             // produced nothing for this line.
             NSString* title = SPDFTextByCollapsingWhitespace(mappedText[i]);
@@ -10809,6 +10831,11 @@ static const int kSPDFCursorRegionMaxLinkRects = 512;
     free(lines);
     free(outlineTitles);
     free(commentTexts);
+    NSString* chapterFailure = nil;
+    if (ok && !SPDFMacTranslateWriteChapters(outputPath, _pendingTranslationChapters, chapterTitles, &chapterFailure)) {
+        ok = NO;
+        snprintf(err, sizeof(err), "%s", chapterFailure.UTF8String ?: "The chapters could not be written.");
+    }
     if (!ok && errorOut) {
         NSString* detail = [NSString stringWithUTF8String:err[0] ? err : "Could not save translated PDF."];
         *errorOut =
@@ -12785,6 +12812,9 @@ static NSString* SPDFTranslationBatchScope(NSArray<NSDictionary*>* items, NSUInt
     _translationCancelRequested = NO;
     _translateButton.enabled = NO;
     _statusLabel.stringValue = @"Translating with Argos...";
+    NSString* besidePath = [_path copy];
+    // A Markdown, text or EPUB document was translated as a PDF made from it: said so when it is done.
+    BOOL fromRendition = _translatingMadePDF;
 
     NSArray<NSDictionary*>* items = [_pendingTranslationItems copy] ?: @[];
     NSUInteger totalUnits = MAX((NSUInteger)1, items.count);
@@ -12945,9 +12975,10 @@ static NSString* SPDFTranslationBatchScope(NSArray<NSDictionary*>* items, NSUInt
         }
 
         [strongSelf finishTranslationProgressWithDetail:@"Translation complete." keepVisible:NO];
-        [strongSelf openPath:outputPath];
+        [strongSelf openTranslation:outputPath besidePath:besidePath];
         strongSelf->_statusLabel.stringValue =
-            [NSString stringWithFormat:@"Translation saved: %@", outputPath.lastPathComponent];
+            [NSString stringWithFormat:fromRendition ? @"Translation saved as a PDF: %@" : @"Translation saved: %@",
+                                       outputPath.lastPathComponent];
       });
     });
 }
@@ -13005,9 +13036,28 @@ static NSString* SPDFTranslationBatchScope(NSArray<NSDictionary*>* items, NSUInt
                          }];
 }
 - (void)translateDocumentLocally:(id)sender {
-    if (![self beginTranslateCommandForSender:sender]) return;
+    // From the picker (SPDFMacTranslationChoice.h): the whole document into its language, named "<name> (<Language>)".
+    NSDictionary* request = [self localTranslationRequest];
+    if (![self beginTranslateCommandForSender:sender]) {
+        [self clearLocalTranslationRequest];
+        return;
+    }
+    // A Markdown or EPUB document is translated as a PDF made from it; this runs again once that is open, with the
+    // request still there.
     if ([self beginWholeDocumentTranslationForMarkdown] || [self beginNativeDocumentTranslation]) return;
-    if (![self ensureActivePDFCanBeModifiedForOperation:@"translation"]) return;
+    [self clearLocalTranslationRequest];
+    _translatingMadePDF = [request[@"madePDF"] boolValue];
+    if (request) {
+        // The document itself is only read: a read-only one stays where it is. Only its permissions can refuse.
+        if (spdf_is_password_protected(_doc) && !spdf_has_permission(_doc, 'e')) {
+            [self showError:@"Operation is not allowed"
+                     detail:@"This PDF's user permissions do not allow translation. Open it with the owner password to "
+                            @"continue."];
+            return;
+        }
+    } else if (![self ensureActivePDFCanBeModifiedForOperation:@"translation"]) {
+        return;
+    }
 
     BOOL usingSelection = NO;
     NSString* textError = nil;
@@ -13020,7 +13070,22 @@ static NSString* SPDFTranslationBatchScope(NSArray<NSDictionary*>* items, NSUInt
     // and comments may still be translatable, so keep going until the
     // per-item filter below has seen them too.
 
-    NSDictionary* options = [self promptForTranslationOptionsUsingSelection:usingSelection];
+    NSDictionary* options = nil;
+    if (request) {
+        NSString* target = request[@"target"];
+        NSString* source = [self localTranslationSourceForText:sourceText target:target];
+        if (!source) {
+            [self showError:@"Nothing to translate"
+                     detail:[NSString stringWithFormat:@"This document already seems to be in %@.", request[@"language"]]];
+            return;
+        }
+        _translationSourceLanguage = source;
+        _translationTargetLanguage = target;
+        [self savePersistentState];
+        options = @{@"source" : source, @"target" : target};
+    } else {
+        options = [self promptForTranslationOptionsUsingSelection:usingSelection];
+    }
     if (!options) return;
 
     NSString* sourceLanguage = options[@"source"];
@@ -13042,7 +13107,9 @@ static NSString* SPDFTranslationBatchScope(NSArray<NSDictionary*>* items, NSUInt
             return;
         }
     }
-    NSString* outputPath = [self translatedOutputPathForPath:_path targetLanguage:targetLanguage];
+    NSString* outputPath = request ? [self localTranslationOutputPathInDirectory:[self localTranslationDirectory]
+                                                                         request:request]
+                                   : [self translatedOutputPathForPath:_path targetLanguage:targetLanguage];
     [self runArgosTranslationWithTool:[self argosToolPath]
                            sourceText:sourceText
                        sourceLanguage:sourceLanguage

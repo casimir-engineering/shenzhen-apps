@@ -236,13 +236,16 @@ by the chat's own model (`mac/SPDFMacAIJobTranslator.h`) into any language, name
 code or name (`fr`, `French`, `Breton`): a PDF's lines go to the model in batches as JSON
 arrays and come back one for one, drawn where each line was; a Markdown or text document
 goes part by part and comes back as the same format. The output is `<name> (<Language>)`,
-opened right after the original in its group, and a chat row says how far it has got. It
-needs extractable text; scan-only PDFs need OCR first. Undo closes the generated tab and
+opened right after the original in its group, and a chat row says how far it has got. A
+PDF keeps its outline with the titles translated; one without an outline gets the chapters
+generated for it, and a PDF made from an EPUB its table of contents
+(`mac/SPDFMacTranslateChapters.h`). It needs extractable text; scan-only PDFs need OCR first. Undo closes the generated tab and
 removes the output only if it is still the exact generated file.
 
-The Translate button asks only for the language (`mac/SPDFMacTranslateLanguagePopover.h`)
-and then sends "Translate “<name>” to <Language>." in a new chat, which the assistant
-answers with `document_job` translate.
+The Translate button asks for the language and the engine (`mac/SPDFMacTranslateLanguagePopover.h`).
+With **AI** it sends "Translate “<name>” to <Language>." in a new chat, which the assistant
+answers with `document_job` translate; **On this Mac** translates with Argos instead, without
+the assistant (`mac/SPDFMacTranslationChoice.h`).
 
 ## Files you give a chat, and Python on your documents
 

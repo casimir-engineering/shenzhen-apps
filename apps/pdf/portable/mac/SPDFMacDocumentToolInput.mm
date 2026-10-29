@@ -1,3 +1,4 @@
+#import "SPDFMacTranslateChapters.h"
 #import "SPDFMacDocumentToolInput.h"
 #include "spdf_document_export.h"
 #include <fcntl.h>
@@ -41,6 +42,8 @@ NSString* SPDFCreateToolPDF(NSString* source, NSString* suffix, NSError** error,
         if (errno != EEXIST) break;
     }
     BOOL success = output && spdf_document_export_pdf(document, output.fileSystemRepresentation, -1, message, sizeof(message));
+    // The PDF made from an EPUB keeps its table of contents as chapters (translated with the rest).
+    if (success) SPDFMacTranslateWriteChapters(output, SPDFMacTranslateChaptersFromOutline(document), nil, nil);
     spdf_close(document);
     if (!success) {
         if (output) [NSFileManager.defaultManager removeItemAtPath:output error:nil];

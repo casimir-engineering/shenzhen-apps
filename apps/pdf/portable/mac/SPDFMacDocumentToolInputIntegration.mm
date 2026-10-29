@@ -65,6 +65,7 @@
 - (BOOL)beginNativeDocumentTranslation {
     if (!_doc || [_path.pathExtension.lowercaseString isEqualToString:@"pdf"]) return NO;
     __weak ShenzhenMacDelegate* weakSelf = self;
+    [self noteLocalTranslationMakesPDF];
     [self prepareDocumentToolPDFWithSuffix:@"translation-source" completion:^{ [weakSelf translateDocumentLocally:nil]; }];
     return YES;
 }

@@ -306,6 +306,11 @@ typedef struct spdf_translated_text {
     int index;
     const char* text;
 } spdf_translated_text;
+/* Chapters for a PDF that has none: `items` in reading order, each with its level (0 for a top chapter), page and,
+ * when has_dest, its point on the page as spdf_load_outline gives it (otherwise the top of the page). Writes them as
+ * the PDF's outline, open, and saves the file in place, keeping everything else in it. A PDF that already has an
+ * outline is left as it is. Returns 1 on success (also for none to add), 0 with err filled. */
+int spdf_pdf_add_outline(const char* path, const spdf_outline_item* items, int count, char* err, size_t err_len);
 /* Like spdf_save_translated_copy, additionally replacing the titles of the
  * given outline entries and the text contents of the given comments in the
  * written copy. Outline structure, destinations and expansion state are

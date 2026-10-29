@@ -4,6 +4,8 @@
 #import "SPDFMacMarkdownDelegatePrivate.h"
 #import "SPDFMacMarkdownPrinting.h"
 #import "SPDFMacMarkdownSession.h"
+#import "SPDFMacMarkdownSidebarModel.h"
+#import "SPDFMacTranslateChapters.h"
 
 // Defined in ShenzhenPDFMac.mm.
 @interface ShenzhenMacDelegate (SPDFMacMarkdownTranslatePrivate)
@@ -28,7 +30,8 @@
 
 - (BOOL)beginWholeDocumentTranslationForMarkdown {
     if (![self isMarkdownActive]) return NO;
-    if ([self trimmedSelectedTextForCommand].length > 0) return NO;  // a selection translates on its own
+    // A selection translates on its own, unless the picker asked for the whole document.
+    if ([self trimmedSelectedTextForCommand].length > 0 && ![self localTranslationRequest]) return NO;
 
     SPDFMacMarkdownSession* session = self.activeMarkdownSession;
     SPDFMarkdownPaginationPlan* plan = session.exportPaginationPlan;
@@ -48,6 +51,16 @@
                             ?: @"Shenzhen PDF could not render it to a PDF to translate."];
         return YES;  // handled: the caller must not fall through to the PDF path
     }
+
+    // Its headings become its chapters, on the pages they print on, so the translation keeps them (translated).
+    NSMutableArray* chapters = [NSMutableArray array];
+    SPDFMacMarkdownSidebarModel* printed = session.renderedDocument
+        ? [[SPDFMacMarkdownSidebarModel alloc] initWithRenderedDocument:session.renderedDocument paginationPlan:plan] : nil;
+    for (NSDictionary* item in printed.chapterItems)
+        if ([item[@"page"] integerValue] >= 0)
+            [chapters addObject:@{@"title" : item[@"title"] ?: @"", @"page" : item[@"page"], @"level" : item[@"level"] ?: @0}];
+    SPDFMacTranslateWriteChapters(rendition, chapters, nil, nil);
+    [self noteLocalTranslationMakesPDF];
 
     // Opening it makes it the active tab, so the whole-document pipeline runs
     // against real page geometry with nothing about it made Markdown-aware.

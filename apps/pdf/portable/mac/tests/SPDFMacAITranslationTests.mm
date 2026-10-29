@@ -4,7 +4,7 @@
 #import "../SPDFMacAIOutputFiles.h"
 #import "../SPDFMacTranslateLanguagePopover.h"
 @interface SPDFMacTranslateLanguagePopover (Tests)
-- (instancetype)initWithTranslate:(void (^)(NSString*))translate;
+- (instancetype)initWithLocalLanguages:(NSArray*)localLanguages translate:(void (^)(NSString*,NSString*))translate;
 - (void)controlTextDidChange:(NSNotification*)note;
 @end
 static int failures=0,requests=0,mode=0;
@@ -88,26 +88,45 @@ int main(){@autoreleasepool {
     Check(!text && progress.cancelled,"Stop ends a request the model never answers");
 
     // The language picker, from the keyboard only.
-    __block NSString* chosen=nil;
+    __block NSString* chosen=nil; __block NSString* local=nil;
+    NSArray* argos=@[@{@"code":@"zh",@"name":@"Chinese (Simplified)"},@{@"code":@"en",@"name":@"English"},
+                     @{@"code":@"fr",@"name":@"French"},@{@"code":@"de",@"name":@"German"}];
+    SPDFMacTranslateLanguagePopover* (^Picker)(void)=^SPDFMacTranslateLanguagePopover*{
+        chosen=nil; local=nil;
+        return [[SPDFMacTranslateLanguagePopover alloc] initWithLocalLanguages:argos translate:^(NSString* l,NSString* code){chosen=l;local=code;}];
+    };
     [NSUserDefaults.standardUserDefaults removeObjectForKey:@"SPDFTranslateRecentLanguages"];
-    SPDFMacTranslateLanguagePopover* picker=[[SPDFMacTranslateLanguagePopover alloc] initWithTranslate:^(NSString* l){chosen=l;}];
+    [NSUserDefaults.standardUserDefaults removeObjectForKey:@"SPDFTranslateEngine"];
+    // On this Mac the first time: the Mac's own translator, with its languages only.
+    SPDFMacTranslateLanguagePopover* picker=Picker();
+    Check(picker.onThisMac && picker.engine.selectedSegment==0,"the first time, the picker translates on this Mac");
     [picker pressReturn];
-    Check([chosen isEqual:@"English"],"Return straight away translates into English");
-    chosen=nil;picker=[[SPDFMacTranslateLanguagePopover alloc] initWithTranslate:^(NSString* l){chosen=l;}];
+    Check([chosen isEqual:@"English"] && [local isEqual:@"en"],"Return straight away translates into English on this Mac");
+    picker=Picker();
     Type(picker,@"fr");[picker pressReturn];
     Check(!chosen && [picker.field.stringValue isEqual:@"French"],"typing narrows to French and Return chooses it");
     [picker pressReturn];
-    Check([chosen isEqual:@"French"],"a second Return translates into French");
-    chosen=nil;picker=[[SPDFMacTranslateLanguagePopover alloc] initWithTranslate:^(NSString* l){chosen=l;}];
-    Type(picker,@"Breton");[picker pressReturn];[picker pressReturn];
-    Check([chosen isEqual:@"Breton"],"a language not in the list is used as typed");
+    Check([chosen isEqual:@"French"] && [local isEqual:@"fr"],"a second Return translates into French on this Mac");
+    picker=Picker();
+    Type(picker,@"Breton");[picker pressReturn];
+    Check(!chosen,"on this Mac a language its translator doesn't have can't be chosen");
+    // Tab: AI, where any language works; the choice is kept for next time.
+    [picker switchEngine];
+    Check(!picker.onThisMac && [[NSUserDefaults.standardUserDefaults stringForKey:@"SPDFTranslateEngine"] isEqual:@"ai"],"Tab switches to AI and it is remembered");
+    [picker pressReturn];[picker pressReturn];
+    Check([chosen isEqual:@"Breton"] && !local,"with AI a language not in the list is used as typed");
     Check([SPDFMacTranslateRecentLanguages() isEqual:(@[@"Breton",@"French",@"English"])],"chosen languages are remembered, latest first");
-    chosen=nil;picker=[[SPDFMacTranslateLanguagePopover alloc] initWithTranslate:^(NSString* l){chosen=l;}];
+    picker=Picker();
+    Check(!picker.onThisMac,"the picker opens on the engine used last");
     [picker moveSelection:-1];[picker moveSelection:1];[picker moveSelection:1];[picker pressReturn];
-    Check(chosen.length && ![chosen isEqual:@"English"],"arrows move through the list");
-    chosen=nil;picker=[[SPDFMacTranslateLanguagePopover alloc] initWithTranslate:^(NSString* l){chosen=l;}];
+    Check(chosen.length && ![chosen isEqual:@"English"] && !local,"arrows move through the list");
+    picker=Picker();
+    [picker chooseOnThisMac:YES];[picker pressReturn];
+    Check([chosen isEqual:@"English"] && [local isEqual:@"en"],"⌘1 goes back to this Mac");
+    picker=Picker();
     Type(picker,@"ger");[picker pressReturn];[picker close];
     Check(!chosen,"closing translates nothing");
     [NSUserDefaults.standardUserDefaults removeObjectForKey:@"SPDFTranslateRecentLanguages"];
+    [NSUserDefaults.standardUserDefaults removeObjectForKey:@"SPDFTranslateEngine"];
     NSLog(@"AI translation tests: %d failures",failures);return failures ? 1:0;
 }}
