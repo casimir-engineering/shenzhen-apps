@@ -68,6 +68,42 @@ pub struct PullArea {
     pub current: Option<PullCopy>,
     /// Files no holder could give just now, and when they may be tried again.
     not_before: BTreeMap<String, std::time::Instant>,
+    /// When a running background copy last looked for a Get again waiting behind it.
+    checked_at: Option<std::time::Instant>,
+}
+
+/// How often a copy running by itself looks for a Get again the person asked for meanwhile.
+const PREEMPT_CHECK: Duration = Duration::from_millis(250);
+
+/// What runs now.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Running {
+    /// Get again, or a copy the person asked for with Get.
+    Asked,
+    /// A copy between own devices that runs by itself.
+    Background,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Decision {
+    Keep,
+    /// The background copy steps aside for a Get again the person asked for.
+    Preempt,
+    StartAgain,
+    StartOwn,
+}
+
+/// The order people wait in: a Get again they asked for first, then copies from their own devices (asked for before
+/// those that copy by themselves, which `files_wanted` already orders); a Get again asked while a copy runs by
+/// itself pre-empts it. `own` is `Some(asked)` when an own-device copy waits.
+fn decide(running: Option<Running>, again_waiting: bool, own: Option<bool>) -> Decision {
+    match running {
+        Some(Running::Background) if again_waiting => Decision::Preempt,
+        Some(_) => Decision::Keep,
+        None if again_waiting => Decision::StartAgain,
+        None if own.is_some() => Decision::StartOwn,
+        None => Decision::Keep,
+    }
 }
 
 /// A file no holder could give is tried again after this long.
@@ -113,6 +149,7 @@ impl State {
         if !self.copies_by_blocks {
             return;
         }
+        self.preempt_for_asked();
         if self.pulls.current.is_none() {
             self.start_pull();
         }
@@ -120,11 +157,17 @@ impl State {
         self.drive_pull();
     }
 
-    fn start_pull(&mut self) {
-        // Own devices' copies first (the person asked for Get, or they copy by themselves), then Get again.
+    /// What could be pulled now, by who waits on it: a Get again the person asked a friend for, and the first copy
+    /// from the person's own devices (asked for with Get, or copying by itself).
+    fn candidates(&mut self) -> (Option<AgainFile>, Option<(SyncFile, bool)>) {
         let now = std::time::Instant::now();
         self.pulls.not_before.retain(|_, at| *at > now);
         let waiting = |id: &str| self.pulls.not_before.contains_key(id);
+        let ids: Vec<u64> = self.sessions.map.keys().copied().collect();
+        let again = ids.into_iter().filter(|id| self.pulls_copies(*id)).find_map(|id| {
+            let conversation = self.again_session_conversation(id)?;
+            AgainFile::asked(&self.store, &conversation).into_iter().find(|f| !waiting(&f.transfer_id))
+        });
         let own = self.devices.engine.files_wanted(&self.store).into_iter().find(|file| {
             !waiting(&file.transfer_id)
                 && self
@@ -133,16 +176,56 @@ impl State {
                     .iter()
                     .any(|(id, e)| self.pulls_copies(*id) && file.holders.contains(e.peer_key()))
         });
-        let origin = own.map(Origin::Own).or_else(|| {
-            let ids: Vec<u64> = self.sessions.map.keys().copied().collect();
-            ids.into_iter().filter(|id| self.pulls_copies(*id)).find_map(|id| {
-                let conversation = self.again_session_conversation(id)?;
-                AgainFile::asked(&self.store, &conversation)
-                    .into_iter()
-                    .find(|f| !waiting(&f.transfer_id))
-                    .map(Origin::Again)
-            })
+        let own = own.map(|file| {
+            let asked = self.devices.engine.is_file_requested(&self.store, &file.transfer_id);
+            (file, asked)
         });
+        (again, own)
+    }
+
+    /// A Get again the person asked for, waiting behind a copy that runs by itself: the copy steps aside (what
+    /// arrived stays in its map, its holders stop) and is pulled again afterwards. Looked at four times a second.
+    fn preempt_for_asked(&mut self) {
+        let Some(current) = self.pulls.current.as_ref() else { return };
+        let running = match &current.origin {
+            Origin::Own(file) if !self.devices.engine.is_file_requested(&self.store, &file.transfer_id) => {
+                Running::Background
+            }
+            _ => Running::Asked,
+        };
+        let now = std::time::Instant::now();
+        // Only a copy running by itself can step aside; the lookup it needs runs at most four times a second.
+        if running == Running::Asked || self.pulls.checked_at.is_some_and(|at| now.duration_since(at) < PREEMPT_CHECK) {
+            return;
+        }
+        self.pulls.checked_at = Some(now);
+        let (again, _) = self.candidates();
+        if decide(Some(running), again.is_some(), None) != Decision::Preempt {
+            return;
+        }
+        let Some(current) = self.pulls.current.take() else { return };
+        if let Some(wire) = super::unhex(&current.transfer_id) {
+            let blocks = Geometry::new(current.copy_size(), current.copy.shift()).map_or(1, |g| g.blocks);
+            for (holder, state) in &current.holders {
+                if !state.out {
+                    for frame in frames::have(&wire, &[(0, blocks)], &[]) {
+                        self.send_on(*holder, &frame);
+                    }
+                }
+            }
+        }
+        current.copy.pause();
+        self.changed();
+    }
+
+    fn start_pull(&mut self) {
+        let (again, own) = self.candidates();
+        let asked_own = own.as_ref().map(|(_, asked)| *asked);
+        let origin = match decide(None, again.is_some(), asked_own) {
+            Decision::StartAgain => again.map(Origin::Again),
+            Decision::StartOwn => own.map(|(file, _)| Origin::Own(file)),
+            Decision::Keep | Decision::Preempt => None,
+        };
         let Some(origin) = origin else { return };
         let (size, Some(digest)) = origin.size_digest() else { return };
         let again_path = self.devices.engine.again_partial_path(origin.transfer_id());
@@ -504,4 +587,22 @@ pub(crate) fn sync_pull_message(message: &[u8]) -> Option<(String, PullAnswer)> 
     let (&length, rest) = rest.split_first()?;
     (kind == 6 && rest.len() == usize::from(length))
         .then(|| (String::from_utf8_lossy(rest).into_owned(), PullAnswer::Gone))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_get_again_the_person_asked_for_goes_before_copies_waiting_in_line() {
+        // A copy between own devices waits in line, then the person asks a friend for a file again: Get again starts.
+        assert_eq!(decide(None, true, Some(false)), Decision::StartAgain);
+        assert_eq!(decide(None, true, Some(true)), Decision::StartAgain);
+        assert_eq!(decide(None, false, Some(false)), Decision::StartOwn);
+        // A copy running by itself steps aside for it; one the person asked for (Get) or a Get again runs on.
+        assert_eq!(decide(Some(Running::Background), true, Some(false)), Decision::Preempt);
+        assert_eq!(decide(Some(Running::Asked), true, Some(false)), Decision::Keep);
+        assert_eq!(decide(Some(Running::Background), false, Some(false)), Decision::Keep);
+        assert_eq!(decide(None, false, None), Decision::Keep);
+    }
 }
