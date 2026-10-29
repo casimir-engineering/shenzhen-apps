@@ -118,6 +118,8 @@ try {
   // The debug key's well-known passwords; this key signs nothing published.
   execFileSync(tool("apksigner"), [
     "sign",
+    // As release builds are signed: v2 and v3 only, which Android reads from API 24, the app's floor.
+    ...["--v1-signing-enabled", "false"],
     ...[
       "--ks",
       keystore,

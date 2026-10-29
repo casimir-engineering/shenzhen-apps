@@ -438,9 +438,10 @@ class ThreeDRelease(Release):
         aligned = os.path.join(self.run_dir, "android-aligned.apk")
         signed = os.path.join(out, f"shenzhen-3d-{self.version}-android-arm64-development.apk")
         run([tool("zipalign"), "-P", "16", "-f", "4", apk[0], aligned], log=log)
-        # The debug key's well-known passwords.
-        run([tool("apksigner"), "sign", "--ks", keystore, "--ks-pass", "pass:android", "--ks-key-alias",
-             "androiddebugkey", "--key-pass", "pass:android", "--out", signed, aligned], log=log)
+        # The debug key's well-known passwords. No JAR (v1) signature: Android reads v2 and v3 from API 24, the app's
+        # floor, and the v1 files were a digest of every entry (about 55 KB of the APK).
+        run([tool("apksigner"), "sign", "--v1-signing-enabled", "false", "--ks", keystore, "--ks-pass", "pass:android",
+             "--ks-key-alias", "androiddebugkey", "--key-pass", "pass:android", "--out", signed, aligned], log=log)
         os.remove(aligned)
         for leftover in glob.glob(signed + ".idsig"):
             os.remove(leftover)
