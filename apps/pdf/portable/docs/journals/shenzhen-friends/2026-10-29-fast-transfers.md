@@ -1139,3 +1139,27 @@ For WP4: the Objective-C helper has field 47 on the wire (2919fcb8); it should a
 receiver sends piece HAVEs and WANTs and its sender honours them: until it does, the Rust side talks to it in whole
 blocks (correct, just without piece-level resume). WP1's vectors for Pieces landed with its part 2, and the Rust codec
 here is theirs.
+
+## WP3, fifth part: data channels on a delayed, lossy path, measured before adopting 8 MiB
+
+ADR 0018 § 9.9 said "adopted, measured first". The measurement: `szfriends-datachannel-sys/tests/path_bench.rs`
+(ignored; `cargo test --release -p szfriends-datachannel-sys --test path_bench -- --ignored --nocapture`), two peers
+in one process whose UDP passes a shaper: one-way delay, random loss, a 100 Mbit/s (12.5 MB/s) bottleneck with a
+drop-tail queue of 100 ms, as a home router has. `set_sctp_settings` (new, over `rtcSetSctpSettings`) sets usrsctp's
+buffers and congestion control; the channel's own buffering is the bench's high-water mark. 32 MiB per run:
+
+| Path | 1 MiB buffers, 1 MiB buffered (today) | 8 MiB and 8 MiB | 8 MiB, H-TCP |
+|---|---|---|---|
+| 80 ms round trip, no loss | 8.7 MB/s (70 %) | 4.8 MB/s (38 %) | 8.1 MB/s (65 %) |
+| 80 ms, 1 % loss | 0.17 MB/s | 0.17 MB/s | 0.06 MB/s |
+| 300 ms, no loss | 2.0 MB/s (16 %) | 0.16 MB/s | 0.14 MB/s |
+
+**Not adopted.** Larger buffers let usrsctp's window overshoot the bottleneck's queue, and its recovery from the burst
+of losses that follows is slow enough to lose far more than the larger window gains; H-TCP does not fix it. At 1 %
+loss every setting sits at what the Mathis bound gives 1,200-byte packets at 80 ms (about 0.18 MB/s). Today's 1 MiB
+stays. What would help long paths is pacing in the sender (usrsctp has none) or a second direct route as a lane;
+neither is in this package.
+
+**Online lanes are not built either.** More data channels in one peer connection share one SCTP association, so one
+congestion window and one path (ADR 0018 § 6 says as much): they would add cores, not bandwidth, and the Rust helper
+decrypts on one thread, so it would gain nothing. They remain the ADR's rule for when a helper reports `cpu_bound`.

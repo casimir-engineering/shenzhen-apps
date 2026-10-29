@@ -179,6 +179,28 @@ pub fn set_thread_pool_size(count: u32) {
     unsafe { ffi::rtcSetThreadPoolSize(count) };
 }
 
+/// usrsctp's buffers and congestion control for peer connections created from now on (ADR 0018 § 9.9). `None` keeps
+/// the stack's default for that setting (1 MiB buffers, RFC 4960's congestion control).
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub struct SctpSettings {
+    pub receive_buffer: Option<u32>,
+    pub send_buffer: Option<u32>,
+    /// 0 RFC 2581/4960, 1 HighSpeed TCP, 2 H-TCP, 3 RTCC.
+    pub congestion_control: Option<u8>,
+}
+
+pub fn set_sctp_settings(settings: SctpSettings) {
+    let size = |v: Option<u32>| v.map_or(0, |v| c_int::try_from(v).unwrap_or(c_int::MAX));
+    let raw = ffi::rtcSctpSettings {
+        recvBufferSize: size(settings.receive_buffer),
+        sendBufferSize: size(settings.send_buffer),
+        congestionControlModule: settings.congestion_control.map_or(0, c_int::from),
+        ..ffi::rtcSctpSettings::default()
+    };
+    // SAFETY: `raw` outlives the call, which copies the settings.
+    unsafe { ffi::rtcSetSctpSettings(&raw) };
+}
+
 /// The Mbed TLS version compiled into the archive ("3.6.7").
 pub fn mbedtls_version() -> String {
     let mut buffer = [0 as c_char; 18];

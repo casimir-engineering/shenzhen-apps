@@ -8,6 +8,24 @@
 
 use std::ffi::{c_char, c_int, c_uint, c_void};
 
+/// rtc.h's `rtcSctpSettings`: twelve ints, no padding on any target.
+#[repr(C)]
+#[derive(Debug, Default, Clone, Copy)]
+pub struct rtcSctpSettings {
+    pub recvBufferSize: c_int,
+    pub sendBufferSize: c_int,
+    pub maxChunksOnQueue: c_int,
+    pub initialCongestionWindow: c_int,
+    pub maxBurst: c_int,
+    pub congestionControlModule: c_int,
+    pub delayedSackTimeMs: c_int,
+    pub minRetransmitTimeoutMs: c_int,
+    pub maxRetransmitTimeoutMs: c_int,
+    pub initialRetransmitTimeoutMs: c_int,
+    pub maxRetransmitAttempts: c_int,
+    pub heartbeatIntervalMs: c_int,
+}
+
 pub const RTC_ERR_SUCCESS: c_int = 0;
 pub const RTC_ERR_INVALID: c_int = -1;
 pub const RTC_ERR_FAILURE: c_int = -2;
@@ -115,6 +133,7 @@ extern "C" {
     pub fn rtcGetDataChannelReliability(dc: c_int, reliability: *mut rtcReliability) -> c_int;
 
     pub fn rtcSetThreadPoolSize(count: c_uint) -> c_int;
+    pub fn rtcSetSctpSettings(settings: *const rtcSctpSettings) -> c_int;
     pub fn rtcCleanup();
 
     // From Mbed TLS, for the version check: the archive and the pinned header agree.
