@@ -118,7 +118,9 @@ const HASHES: &[FieldRule] = &[
     rule(tag::INDEX, 4, 4, REQUIRED),
     rule(tag::HASHES, LEAF_BYTES, HASHES_PER_FRAME * LEAF_BYTES, REQUIRED | MULTIPLE_OF_32),
 ];
-const WANT: &[FieldRule] = &[ID, rule(tag::RANGES, 8, RANGES_MAX, REQUIRED | MULTIPLE_OF_8)];
+/// WANT carries Ranges, Pieces or both: at least one ([`requires_one_of`]).
+const WANT: &[FieldRule] =
+    &[ID, rule(tag::RANGES, 8, RANGES_MAX, MULTIPLE_OF_8), rule(tag::PIECES, 8, RANGES_MAX, MULTIPLE_OF_8)];
 const PART: &[FieldRule] = &[
     ID,
     rule(tag::OFFSET, 8, 8, REQUIRED),
@@ -126,8 +128,20 @@ const PART: &[FieldRule] = &[
     rule(tag::CODEC, 1, 1, 0),
     rule(tag::LENGTH, 4, 4, 0),
 ];
-const HAVE: &[FieldRule] =
-    &[ID, rule(tag::RANGES, 8, RANGES_MAX, MULTIPLE_OF_8), rule(tag::DURABLE, 8, RANGES_MAX, MULTIPLE_OF_8)];
+const HAVE: &[FieldRule] = &[
+    ID,
+    rule(tag::RANGES, 8, RANGES_MAX, MULTIPLE_OF_8),
+    rule(tag::DURABLE, 8, RANGES_MAX, MULTIPLE_OF_8),
+    rule(tag::PIECES, 8, RANGES_MAX, MULTIPLE_OF_8),
+];
+
+/// Fields of which a type needs at least one, beyond each field's own rule: WANT names blocks, pieces or both.
+pub fn requires_one_of(frame_type: FrameType) -> &'static [u8] {
+    match frame_type {
+        FrameType::Want => &[tag::RANGES, tag::PIECES],
+        _ => &[],
+    }
+}
 
 /// Every field any handshake payload may carry; which ones a given message needs is the channel's check.
 pub const HANDSHAKE_PAYLOAD: &[FieldRule] = &[

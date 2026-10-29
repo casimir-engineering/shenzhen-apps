@@ -51,6 +51,10 @@ impl Frame {
     }
 
     pub fn encode(&self) -> Result<Vec<u8>, WireError> {
+        let one_of = rules::requires_one_of(self.frame_type);
+        if let Some(&first) = one_of.first().filter(|_| !one_of.iter().any(|t| self.fields.contains_key(t))) {
+            return Err(WireError::MissingField(first));
+        }
         let mut output = vec![self.frame_type as u8];
         fields::append(&mut output, &self.fields, rules::for_type(self.frame_type))?;
         if output.len() > FRAME_PLAINTEXT_MAX {
@@ -65,6 +69,10 @@ impl Frame {
         }
         let frame_type = FrameType::from_byte(plaintext[0]).ok_or(WireError::UnknownType(plaintext[0]))?;
         let fields = fields::decode(plaintext, 1, rules::for_type(frame_type))?;
+        let one_of = rules::requires_one_of(frame_type);
+        if let Some(&first) = one_of.first().filter(|_| !one_of.iter().any(|t| fields.contains_key(t))) {
+            return Err(WireError::MissingField(first));
+        }
         Ok(Self { frame_type, fields })
     }
 }

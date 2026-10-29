@@ -79,5 +79,8 @@ pub const PART_BYTES_MAX: usize = 61_440;
 /// Per transfer: blocks wanted, partly received and not complete at once, and their bytes.
 pub const BLOCKS_IN_FLIGHT_MAX: usize = 64;
 pub const BYTES_IN_FLIGHT_MAX: u64 = 64 << 20;
+/// Pieces (WANT and HAVE's Pieces field) are 2^14 = 16 KiB of the file; piece p covers bytes p × 16,384 up to the
+/// next multiple or the end of the file.
+pub const PIECE_SHIFT: u8 = 14;
 /// PART's Codec values: 1 is zstd (§ 9.4).
 pub const CODEC_ZSTD: u8 = 1;

@@ -186,10 +186,12 @@ pub mod tag {
     pub const LENGTH: u8 = 45;
     /// Handshake payload: a lane's token (§ 6).
     pub const LANE: u8 = 46;
+    /// WANT and HAVE: 16 KiB pieces of the file (`consts::PIECE_SHIFT`), in the Ranges format (ADR 0018 § 3).
+    pub const PIECES: u8 = 47;
 
     /// The tags only a fast-transfers session carries: never sent to a peer that did not negotiate them.
     pub fn is_fast_transfers(tag: u8) -> bool {
-        (TREE_ROOT..=LANE).contains(&tag)
+        (TREE_ROOT..=PIECES).contains(&tag)
     }
 
     /// The tags a public profile may carry, in XX message 2 and in PROFILE.

@@ -184,6 +184,19 @@ fn frame_vectors() -> Value {
         ),
         encode_case("have", szfriends_core::transfer::frames::have(&id, &[(0, 3)], &[(0, 1)]).remove(0)),
         encode_case("have_durable_only", szfriends_core::transfer::frames::have(&id, &[], &[(1, 2)]).remove(0)),
+        // Pieces (field 47): 16 KiB units counted from the start of the file (ADR 0018 § 3).
+        encode_case(
+            "want_pieces_only",
+            szfriends_core::transfer::frames::want_with_pieces(&id, &[], &[(70, 6), (130, 2)]).remove(0),
+        ),
+        encode_case(
+            "want_blocks_and_pieces",
+            szfriends_core::transfer::frames::want_with_pieces(&id, &[(2, 1)], &[(70, 6)]).remove(0),
+        ),
+        encode_case(
+            "have_pieces_and_ranges",
+            szfriends_core::transfer::frames::have_with_pieces(&id, &[(0, 1)], &[(0, 1)], &[(64, 16)]).remove(0),
+        ),
     ];
     let id_field = (tag::ID, id.clone());
     let decode = vec![
@@ -209,6 +222,22 @@ fn frame_vectors() -> Value {
         ),
         decode_case("want_without_ranges", raw(FrameType::Want, std::slice::from_ref(&id_field)), false),
         decode_case("want_half_a_range", raw(FrameType::Want, &[id_field.clone(), (tag::RANGES, vec![0; 4])]), false),
+        // WANT carries Ranges, Pieces or both: at least one ("want_without_ranges" has neither).
+        decode_case(
+            "want_pieces_half_a_range",
+            raw(FrameType::Want, &[id_field.clone(), (tag::PIECES, vec![0; 4])]),
+            false,
+        ),
+        decode_case(
+            "want_pieces_only",
+            raw(FrameType::Want, &[id_field.clone(), (tag::PIECES, pairs(&[(3, 2)]))]),
+            true,
+        ),
+        decode_case(
+            "have_pieces_only",
+            raw(FrameType::Have, &[id_field.clone(), (tag::PIECES, pairs(&[(3, 2)]))]),
+            true,
+        ),
         decode_case(
             "want_8001_ranges",
             raw(FrameType::Want, &[id_field.clone(), (tag::RANGES, vec![0; 64_008])]),
@@ -292,6 +321,7 @@ fn frame_vectors() -> Value {
     .collect();
     json!({
         "session_minor": szfriends_core::wire::consts::SESSION_MINOR,
+        "piece_shift": szfriends_core::wire::consts::PIECE_SHIFT,
         "capabilities": {"fast_transfers": 1, "aes_lanes": 2, "compressed_parts": 4},
         "close_lane_refused": szfriends_core::wire::CloseReason::LaneRefused as u8,
         "encode": encode, "decode": decode, "ranges": range_cases, "handshake_payloads": payloads,
