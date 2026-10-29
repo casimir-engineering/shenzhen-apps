@@ -1336,3 +1336,27 @@ session per copy; asking every session that holds the same root (the friend's de
 requesters to keep several sessions per copy, with `Pull` saying which blocks each is asked for. That touches the
 flows WP1 is still changing, so it is left to WP1 with the planner and its tests in place. Real devices: none of this
 was run on radios or two machines; `tools/transfer-devices.sh` runs the same peers there.
+
+## WP1 with WP6's planner: copies from every holder at once (2026-10-29)
+
+The Rust helper's Get again and own-device copies now pull one file from every live fast session that holds it
+(`service/pulls.rs` driving `transfer::pull`): the person's other devices by SYNC 7/8 and the friend who sent it by
+AGAIN 4/5 (for copies between own devices only from 8 MiB: small files gain nothing from a second holder, and the
+interop suites showed the Objective-C friend answering a later Get again "not now" when its budget had gone to such
+asks). Holders serve a copy by blocks only after checking their bytes against the digest, so a stale version answers
+NONE and is left out. Copies stay block-level (WANT BLOCKS carries no pieces); a holder that leaves gives its blocks
+back to the others, and the copy resumes from its map after a cut or a restart.
+
+Measured with `tests/pulls.rs` (three Rust helpers in one process on loopback, release dependencies, debug test
+code), 256 MiB, two runs each:
+
+| Case | Seconds | Blocks served |
+|---|---|---|
+| Two holders (own device, friend) | 1.18 to 1.30 | 100 to 150 each |
+| The own device's copy stale | 1.39 to 1.51 | friend 256, own device left out |
+| The own device gone at 25 % | 1.41 to 1.52 | friend about 240 after the drop |
+
+On loopback every holder shares this Mac's cores, so two holders gain only about 15 % over one; the gain the
+planner's simulation predicts (WP6: 4.15 s for three LAN holders against 6.71 s from the fastest alone) needs holders
+on separate devices and routes. `make friends-core-rs-interop-check` passes with the Objective-C helper asking and
+serving copies by blocks (WP4).
