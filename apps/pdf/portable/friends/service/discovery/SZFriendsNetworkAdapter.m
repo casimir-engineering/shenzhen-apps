@@ -355,6 +355,30 @@ static NSString *AdmissionKey(nw_connection_t connection) {
     }
 }
 
+- (void)openStreamToHost:(NSString *)host port:(uint16_t)port completion:(void (^)(id<SZFriendsByteStream>))completion {
+    void (^done)(id<SZFriendsByteStream>) = [completion copy];
+    char portText[8];
+    snprintf(portText, sizeof portText, "%u", port);
+    nw_endpoint_t endpoint = nw_endpoint_create_host(host.UTF8String, portText);
+    if (!_running || _options.loopbackOnly || endpoint == nil) {
+        dispatch_async(_queue, ^{
+            done(nil);
+        });
+        return;
+    }
+    nw_connection_t connection = nw_connection_create(endpoint, [self parameters]);
+    SZFriendsNetworkStream *stream = [[SZFriendsNetworkStream alloc] initWithConnection:connection
+                                                                        connectionQueue:_queue];
+    [_connecting addObject:stream];
+    __weak SZFriendsNetworkAdapter *weakSelf = self;
+    [stream connectWithTimeout:_options.connectTimeout
+                         ready:^(NSError *error) {
+                             SZFriendsNetworkAdapter *strongSelf = weakSelf;
+                             if (strongSelf) [strongSelf->_connecting removeObject:stream];
+                             done(error ? nil : stream);
+                         }];
+}
+
 - (void)openStreamToEndpoint:(NSString *)endpointID
                   completion:(void (^)(id<SZFriendsByteStream> _Nullable, NSError *_Nullable))completion {
     void (^done)(id<SZFriendsByteStream>, NSError *) = [completion copy];
@@ -381,6 +405,15 @@ static NSString *AdmissionKey(nw_connection_t connection) {
 }
 
 @end
+
+void SZFriendsNetworkAdapterOpenStreamToHost(id<SZFriendsDiscoveryAdapter> adapter, NSString *host, uint16_t port,
+                                             void (^done)(id<SZFriendsByteStream> _Nullable stream)) {
+    if (![adapter isKindOfClass:[SZFriendsNetworkAdapter class]]) {
+        done(nil);
+        return;
+    }
+    [(SZFriendsNetworkAdapter *)adapter openStreamToHost:host port:port completion:done];
+}
 
 NSArray<NSNumber *> *SZFriendsNetworkAdapterHiddenPorts(id<SZFriendsDiscoveryAdapter> adapter) {
     return [adapter isKindOfClass:[SZFriendsNetworkAdapter class]] ? [(SZFriendsNetworkAdapter *)adapter hiddenPorts]

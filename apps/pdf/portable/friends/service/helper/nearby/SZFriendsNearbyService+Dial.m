@@ -311,6 +311,7 @@ BOOL SZFriendsNearbyDialIsPointless(SZFriendsRouteMethod live, SZFriendsRouteMet
         [stream close];
         if (plan.laneHead != nil) {
             [plan.laneHead.blocks laneDown:plan.laneSerial]; // the scheduler asks again later if it still wants one
+            [self boostLaneDialFailedOnLink:plan.laneHead route:plan.sighting.route]; // the network's chances (§ 1)
             return;
         }
         // Unreachable endpoints are normal (a device that just left); only a person's own attempts back off.

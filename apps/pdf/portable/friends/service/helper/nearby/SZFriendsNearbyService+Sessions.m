@@ -394,6 +394,7 @@ static BOOL SZFriendsEndWasSupersededByPeer(NSError *error) {
     // The group goes on without its first session when a lane lives (ADR 0018 § 6): that lane becomes the
     // conversation's session below; otherwise the lanes end with it.
     SZFriendsPeerLink *heir = wasActive && link.live && !link.superseded ? [self handOverGroupOfLink:link] : nil;
+    [self boostLinkClosed:link]; // ADR 0019: a boost of this group ends here (the Mac comes back)
     if (heir == nil) {
         for (SZFriendsPeerLink *lane in link.lanes.allObjects) [lane.channel closeWithReason:SZFriendsCloseReasonNormal];
     }

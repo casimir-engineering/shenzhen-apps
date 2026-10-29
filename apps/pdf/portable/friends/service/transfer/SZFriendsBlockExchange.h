@@ -129,6 +129,8 @@ extern const SZFriendsLaneID SZFriendsHeadLane; // 0
 @property(nonatomic, readonly) BOOL awaitingPeer;     // watch for silence: a HAVE due, or blocks wanted from the peer
 @property(nonatomic, readonly) NSSet<NSString *> *receiving;
 @property(nonatomic, readonly) NSSet<NSString *> *sending;
+// The scheduler's measured rate on `route` (bytes per second; 0 while nothing is measured or nothing is sent).
+- (double)rateOfRoute:(SZFriendsRouteMethod)route;
 @end
 
 NS_ASSUME_NONNULL_END

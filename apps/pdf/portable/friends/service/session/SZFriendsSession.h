@@ -106,11 +106,17 @@ typedef NS_OPTIONS(uint32_t, SZFriendsCapabilities) {
     // Pieces (field 47) in WANT and HAVE (ADR 0018 § 3): sent only to a peer that sets it; to one that does not, a
     // partly received block is wanted whole and the sender schedules whole blocks.
     SZFriendsCapabilityPieces = 1u << 3,
+    // Bit 4 is the Rust core's LZ4 parts, never set here. Bit 5: the Wi-Fi Direct boost (ADR 0019): BOOST may go to a
+    // peer that sets it, on a fast session; the helper sets it where it can join a direct link (a Mac).
+    SZFriendsCapabilityDirectWiFiBoost = 1u << 5,
 };
 // What a new channel sets: fast transfers, unless the helper switched them off (settings key transfers.fast, read as
 // it starts) or SZFRIENDS_TEST_FAST_TRANSFERS=0 plays a released helper in a test home.
 SZFriendsCapabilities SZFriendsDefaultCapabilities(void);
 void SZFriendsSetFastTransfersEnabled(BOOL enabled);
+// ADR 0019: new channels also set SZFriendsCapabilityDirectWiFiBoost (with fast transfers) once the helper can join a
+// link (a person's own home on a Mac, with CoreWLAN); off at first, and in every test home.
+void SZFriendsSetDirectWiFiBoostEnabled(BOOL enabled);
 // Liveness while a transfer runs (ADR 0018 § 7, -setLivenessKeepalive:watch:): PING after this long without sending
 // anything, and a session that heard nothing for the silence limit closes (SZFriendsSessionErrorSilent) and is
 // redialed. A route that goes out of range stays open to TCP and L2CAP for minutes; this is what notices it.
@@ -213,6 +219,9 @@ typedef NS_ENUM(uint8_t, SZFriendsFrameType) {
     SZFriendsFrameTypeWant = 29,   // ID, Ranges: blocks missing, send them
     SZFriendsFrameTypePart = 30,   // ID, Offset, Data (1 to 61,440 bytes); Codec and Length when compressed
     SZFriendsFrameTypeHave = 31,   // ID, Ranges (blocks checked and written), Durable (blocks made durable)
+    // Minor 4, and only on a fast session where both sides set SZFriendsCapabilityDirectWiFiBoost (ADR 0019): ID,
+    // Step and, by step, Abilities, the link (Network, Passphrase, Address, Port) or Reason.
+    SZFriendsFrameTypeBoost = 32,
 };
 
 // Field tags, one namespace for every type so a value means the same thing wherever it appears. Unknown tag:
@@ -280,6 +289,13 @@ typedef NS_ENUM(uint8_t, SZFriendsFieldTag) {
     SZFriendsFieldLength = 45,     // PART: u32be, what compressed data expands to
     SZFriendsFieldLane = 46,       // handshake payload, IK message 1 of a lane: 16 bytes (SZFriendsLaneToken)
     SZFriendsFieldPieces = 47,     // WANT and HAVE: the Ranges format over 16 KiB pieces of the file (ADR 0018 § 3)
+    // BOOST only (ADR 0019).
+    SZFriendsFieldStep = 48,       // u8: 1 PROPOSE, 2 READY, 3 HOST, 4 END, 5 DECLINE
+    SZFriendsFieldAbilities = 49,  // u8: host, join, hosting keeps Wi-Fi, joining keeps Wi-Fi
+    SZFriendsFieldNetwork = 50,    // 1 to 32 bytes: the link's network name
+    SZFriendsFieldPassphrase = 51, // 8 to 63 bytes: its one-time passphrase
+    SZFriendsFieldAddress = 52,    // 4 or 16 bytes: the host's address on the link
+    SZFriendsFieldPort = 53,       // u16be: its lane listener
 };
 
 // One decoded frame: its type and raw field values. Typed accessors return nil / NO for an absent or
@@ -462,6 +478,8 @@ typedef BOOL (^SZFriendsRemoteKeyPolicy)(NSData *_Nullable remoteIdentityKey, SZ
 @property(nonatomic, readonly) BOOL fastTransfers;
 // Both sides set capability bit 3 on a fast session: Pieces go to this peer (ADR 0018 § 3).
 @property(nonatomic, readonly) BOOL pieces;
+// Both sides set capability bit 5 on a fast session: BOOST may go either way (ADR 0019).
+@property(nonatomic, readonly) BOOL directWiFiBoost;
 // Responder: the Lane field of IK message 1, unchecked (the helper checks it against its live sessions); nil when none.
 @property(nonatomic, readonly, nullable) NSData *presentedLane;
 @end

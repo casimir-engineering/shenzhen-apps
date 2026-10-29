@@ -12,6 +12,7 @@
 #import "service/session/SZFriendsFrameSchema.h"
 #import "service/session/SZFriendsHandshakePayload.h"
 #import "service/session/SZFriendsSession.h"
+#import "service/transfer/SZFriendsDirectWiFiBoost.h"
 #import "service/transfer/SZFriendsTransferBlocks.h"
 
 static const uint64_t kMiB = 1ull << 20;
@@ -320,6 +321,18 @@ static NSDictionary *SZFFrameVectors(void) {
         SZFEncodeCase(@"have_pieces_and_ranges",
                       SZFriendsHaveFramesWithPieces(id_, SZFRanges(block0, 1), SZFRanges(block0, 1),
                                                     SZFRanges(havePieces, 1)).firstObject),
+        // BOOST (ADR 0019), the Wi-Fi Direct boost's five steps; the link is the one 64 bytes of 0x2a make.
+        SZFEncodeCase(@"boost_propose", [[SZFriendsBoostMessage propose:SZFriendsBoostCanJoin] frameForTransfer:id_]),
+        SZFEncodeCase(@"boost_ready",
+                      [[SZFriendsBoostMessage ready:SZFriendsBoostCanHost | SZFriendsBoostCanJoin |
+                                                    SZFriendsBoostHostKeepsWiFi | SZFriendsBoostJoinKeepsWiFi]
+                          frameForTransfer:id_]),
+        SZFEncodeCase(@"boost_host", [[SZFriendsBoostMessage host:[SZFriendsBoostLink linkFromRandom:SZFRepeat(0x2a, 64)]
+                                                          address:[NSData dataWithBytes:(const uint8_t[]){192, 168, 49, 1} length:4]
+                                                             port:49200] frameForTransfer:id_]),
+        SZFEncodeCase(@"boost_end", [[SZFriendsBoostMessage end:SZFriendsBoostReasonSlower] frameForTransfer:id_]),
+        SZFEncodeCase(@"boost_decline",
+                      [[SZFriendsBoostMessage decline:SZFriendsBoostReasonNotNow] frameForTransfer:id_]),
     ];
     NSData *threeTwoField = SZFriendsRangesEncode(SZFRanges(threeTwo, 1)).firstObject;
     NSArray *idField = @[ @(SZFriendsFieldID), id_ ];
@@ -360,6 +373,13 @@ static NSDictionary *SZFFrameVectors(void) {
             idField, @[ @(SZFriendsFieldName), SZFUTF8(@"a") ], @[ @(SZFriendsFieldSize), SZFRepeat(0, 8) ],
             @[ @(SZFriendsFieldDigest), SZFRepeat(0, 32) ], @[ @(SZFriendsFieldTreeRoot), SZFRepeat(0, 31) ]
         ])),
+        SZFDecodeCase(@"boost_without_step", SZFRaw(SZFriendsFrameTypeBoost, @[ idField ])),
+        SZFDecodeCase(@"boost_network_33_bytes", SZFRaw(SZFriendsFrameTypeBoost, @[
+            idField, @[ @(SZFriendsFieldStep), SZFRepeat(3, 1) ], @[ @(SZFriendsFieldNetwork), SZFRepeat('D', 33) ] ])),
+        SZFDecodeCase(@"boost_passphrase_7_bytes", SZFRaw(SZFriendsFrameTypeBoost, @[
+            idField, @[ @(SZFriendsFieldStep), SZFRepeat(3, 1) ], @[ @(SZFriendsFieldPassphrase), SZFRepeat('p', 7) ] ])),
+        SZFDecodeCase(@"boost_port_one_byte", SZFRaw(SZFriendsFrameTypeBoost, @[
+            idField, @[ @(SZFriendsFieldStep), SZFRepeat(3, 1) ], @[ @(SZFriendsFieldPort), SZFRepeat(1, 1) ] ])),
         SZFDecodeCase(@"chunk_ignores_part_fields", SZFRaw(SZFriendsFrameTypeChunk, @[
             idField, @[ @(SZFriendsFieldOffset), SZFRepeat(0, 8) ], @[ @(SZFriendsFieldData), SZFRepeat(1, 1) ],
             @[ @(SZFriendsFieldCodec), SZFRepeat(1, 1) ]

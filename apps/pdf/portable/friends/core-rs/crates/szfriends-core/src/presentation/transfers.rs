@@ -58,10 +58,10 @@ impl SnapshotBuilder {
     fn boost_note(&self, item: &ItemFacts, first: &str) -> Option<String> {
         let s = &self.strings;
         let boost = &item.boost;
+        // A computer is a computer, never "Mac", in words every app shares (the catalog's rule).
         let device = s.text(match boost.device {
-            BoostDevice::Mac => "transfer.boost.device.mac",
             BoostDevice::Phone => "transfer.boost.device.phone",
-            BoostDevice::Computer => "transfer.boost.device.computer",
+            BoostDevice::Mac | BoostDevice::Computer => "transfer.boost.device.computer",
         });
         let network = match boost.network.as_deref().filter(|n| !n.is_empty()) {
             Some(name) => s.text_with("transfer.boost.network", &[("name", name)]),
@@ -93,7 +93,7 @@ impl SnapshotBuilder {
             BoostStage::Rejoining => Some(s.text_with("transfer.boost.rejoining", &values)),
             BoostStage::RejoinFailed => {
                 let place = s.text(if boost.device == BoostDevice::Mac {
-                    "transfer.boost.place.mac"
+                    "transfer.boost.place.menu"
                 } else {
                     "transfer.boost.place.computer"
                 });

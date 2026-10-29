@@ -61,6 +61,9 @@ extern const double SZFriendsDirectWiFiHelpsBelow; // 25 MB/s
 - (BOOL)isDone:(SZFriendsTransferKey)key;
 - (NSUInteger)openBlocks:(SZFriendsTransferKey)key bytes:(uint64_t *_Nullable)bytes;
 - (uint64_t)inFlightOfLane:(SZFriendsLaneID)lane;
+// What the working lanes on `route` measure together, in bytes per second (0 before any measured): how the Wi-Fi
+// Direct boost knows whether its lane beats Bluetooth (ADR 0019 § 5).
+- (double)rateOfRoute:(SZFriendsRouteMethod)route;
 - (uint64_t)capOfLane:(SZFriendsLaneID)lane blockBytes:(uint64_t)blockBytes;
 - (BOOL)hasLane:(SZFriendsLaneID)lane;
 @end

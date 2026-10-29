@@ -176,6 +176,14 @@ typedef NS_ENUM(NSInteger, SZFriendsAgainState) {
 // Every block arrived and the whole file has been checked for over a second before it is saved (PROTOCOL.md § Fast
 // transfers): "Finishing…".
 @property(nonatomic) BOOL finishing;
+// The Wi-Fi Direct boost (ADR 0019) on this Mac, for this transfer: 0 none, 1 asking (Go faster, Not now), 2
+// connecting, 3 direct, 4 rejoining, 5 did not get back on its Wi-Fi by itself (SZFriendsBoostStage's values).
+@property(nonatomic) NSInteger boostStage;
+@property(nonatomic, copy, nullable) NSString *boostNetwork; // this Mac's Wi-Fi by name, when it knows it
+@property(nonatomic) BOOL boostLeavesWiFi;
+@property(nonatomic) BOOL boostOverEthernet;
+@property(nonatomic) double boostBluetoothSeconds;
+@property(nonatomic) double boostDirectSeconds;
 @property(nonatomic, copy, nullable) NSString *localPath;   // received file, once published
 // Where a received file was saved, for its "Saved to {folder}": the default Downloads, else the name of the folder it
 // is in; neither (older files, or kept in the helper's own folder) keeps "Received".

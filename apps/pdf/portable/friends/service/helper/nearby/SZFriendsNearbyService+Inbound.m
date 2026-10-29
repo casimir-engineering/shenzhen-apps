@@ -182,6 +182,9 @@ static BOOL SZFriendsCreatesFriendship(SZFriendsFrameType type) {
     case SZFriendsFrameTypeHave:
         [self link:link receivedBlockFrame:frame]; // only on a fast session: the channel refuses them elsewhere
         break;
+    case SZFriendsFrameTypeBoost:
+        [self link:link receivedBoostFrame:frame]; // only where both set bit 5: the channel refuses it elsewhere
+        break;
     default:
         break;
     }

@@ -22,6 +22,10 @@
 <key>NSBonjourServices</key><array><string>_szfriends._tcp</string></array>
 <key>NSBluetoothAlwaysUsageDescription</key>
 <string>Friends uses Bluetooth to find people near you, and to reach them when Wi-Fi can't.</string>
+<key>NSLocationUsageDescription</key>
+<string>Friends uses this only to find the Wi-Fi network a friend’s phone makes when you choose Go faster. Your location is never stored or sent.</string>
+<key>NSLocationWhenInUseUsageDescription</key>
+<string>Friends uses this only to find the Wi-Fi network a friend’s phone makes when you choose Go faster. Your location is never stored or sent.</string>
 <key>NSDownloadsFolderUsageDescription</key>
 <string>Friends saves the files you receive in your Downloads folder.</string>
 <key>NSDocumentsFolderUsageDescription</key>

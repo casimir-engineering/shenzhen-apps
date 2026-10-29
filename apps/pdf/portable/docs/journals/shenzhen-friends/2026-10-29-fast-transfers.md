@@ -1417,3 +1417,99 @@ counting those asks against its one-file-at-a-time or checks-an-hour budget even
 by HAVE. The Rust pull therefore asks the friend for own-device copies only from 8 MiB (`FRIEND_HELPS_FROM` in
 `service/pulls.rs`). Once the Mac side releases its budget when a copy's blocks are all acknowledged (or does not count
 asks for files the person's own devices also hold), the threshold can drop to 0.
+
+## Wi-Fi Direct boost (ADR 0019, 2026-10-29)
+
+**The owner's change of rule.** When two devices found each other by Bluetooth only, and are verified not to be on
+the same network, a Wi-Fi Direct link may be negotiated; a device already on a Wi-Fi network asks before it leaves it,
+and reconnects it at the end. Until now direct Wi-Fi was never allowed to cost a device its Internet connection. Now
+it may, only after the person said Go faster on that device, for that transfer, and the device rejoins its network by
+itself; without that answer the old rule holds. Multi-band concurrent Wi-Fi was rejected by the owner and is not used.
+ADR 0011, 0015, 0018, PROTOCOL.md and the code comments say so now.
+
+**What landed.**
+
+- `szfriends-wire`: BOOST (frame 32), fields 48 to 53 (Step, Abilities, Network, Passphrase, Address, Port), capability
+  bit 5; the channel sends and accepts BOOST only on a fast session where both set it. Vectors `boost_*` in
+  `fixtures/vectors/transfer/frames.json`, written by the Rust core and reproduced byte for byte by the Objective-C
+  exporter (`friends-vectors-check`).
+- `szfriends-core/src/transfer/boost.rs`: when (Bluetooth alone for 10 s with the device nowhere on the network, or 3
+  lane dials there failed; at least 20 s saved at the measured Bluetooth rate against 8 MB/s plus 15 s of setup), who
+  hosts (fewer devices off their Wi-Fi, then key order), who is asked (only a device whose Wi-Fi is its only way
+  online), the negotiation (PROPOSE, READY, HOST, END, DECLINE), never slower (6 s after the lane is up it must beat
+  Bluetooth), and Rejoin (the record written before leaving, 3 tries 3 s apart, an online check every 2 s for 20 s,
+  the person told otherwise; a crash record brings the device back at the next launch).
+- Rust helper (`service/boost.rs`, `nearby/direct_wifi.rs`): watches groups, carries BOOST, hosts behind a listener of
+  its own on the link, joins and dials the link's lane as an ordinary lane of the group (the token binds it to the
+  Bluetooth session), keeps it in the scheduler only while the boost lasts (`allow_direct_wifi`), and the way back.
+- Phones: Android 13 and later hosts and joins (`DirectWifi.kt`, `NEARBY_WIFI_DEVICES` asked with Bluetooth's);
+  iPhone joins (`DirectWifi.swift`, `NEHotspotConfiguration`), gated on the Hotspot Configuration entitlement.
+- Mac (Objective-C helper): the same decisions and negotiation (`SZFriendsDirectWiFiBoost`), the coordinator, CoreWLAN
+  joining (`SZFriendsCoreWLANWiFi`, Location Services for names, asked after Go faster), the lane dialed to the host's
+  address through Network.framework, presentation and intents. Never created in a test home.
+- Client protocol: `boost_transfer` and `skip_boost`, client capability `transfers.boost` (AppKit views, Shenzhen 3D's
+  panel, the C client, the Tauri validator); the question is the transfer's note with Go faster and Not now.
+
+**The words** (a Mac on its only Wi-Fi, a phone sending 100 MB over Bluetooth):
+
+> Go faster? Mei isn’t on your Wi-Fi, so this is going over Bluetooth (about 12 min). Leave “HomeWiFi” for about 30 s
+> to connect to Mei directly. Your computer rejoins it by itself when it’s done.
+>
+> **Go faster** · Not now
+
+Then "Connecting directly to Mei…", "Going directly over Wi-Fi. Your computer rejoins “HomeWiFi” when it’s done.",
+"Rejoining “HomeWiFi”…", and only if it did not: "Your computer didn’t get back on “HomeWiFi” by itself. Choose it in the
+Wi-Fi menu." A phone on mobile data is not asked: "Going directly over Wi-Fi. Your phone stays online over mobile data
+meanwhile, and rejoins your Wi-Fi when it’s done." An iPhone's question ends "Then choose Join." (iOS asks again).
+"Always for Mei" is not offered: it needs a switch in Mei's details to undo it, a separate change.
+
+**What was exercised, and how.**
+
+| Where | Real or mocked | Result |
+|---|---|---|
+| Rust core | unit tests (26) | decisions, roles, cost, links, frames, negotiation incl. crossing proposals and a hostile HOST, Rejoin incl. crash recovery |
+| Two Rust helpers, test Bluetooth air at 150 kB/s, a pretend radio on loopback (`tests/direct_wifi_boost.rs`) | real sessions, lanes and scheduler; mocked radio | 10 MiB: proposed after 10 s on Bluetooth, asked on the side that would lose its only Wi-Fi only, Go faster, lane up about 3 s later, file whole about 15 s after the offer (about 70 s over Bluetooth alone); back on "HomeWiFi" and record deleted; Not now final; a crash record brings the device back at launch |
+| Objective-C helper (`friends-transfer-check`) | mocked Wi-Fi; CoreWLAN never linked into the test | the same decisions and vectors byte for byte, the negotiation, Rejoin, the coordinator joining, dialing, ending and coming back, a crash record at launch, Not now |
+| Headless Android 16 emulator (API 36), a probe app making DirectWifi.kt's calls | real API | `createGroup` with our name and passphrase formed `DIRECT-…` at 192.168.49.1 on `p2p-wlan0-0`, 2437 MHz like the station; a listener bound there; the emulator's Wi-Fi stayed validated throughout and after `removeGroup`; `isStaApConcurrencySupported` false, hence the learned flag |
+| Android joining | not exercised | one emulator cannot join its own group, and two emulators share no radio |
+| DirectWifi.kt in the app | compiled | in the app's Gradle project (`compileDebugKotlin`); the app itself was not built or run |
+| iOS | type-checked | the plugin's Rust and Swift for `aarch64-apple-ios`; not run (the entitlement is the owner's step) |
+| Mac CoreWLAN | built and linked only | never run: no test touches this Mac's Wi-Fi |
+| Windows | nothing to exercise | no Bluetooth route on Windows, so the trigger cannot fire there; the VM was not used |
+
+**Owner actions.**
+
+- iPhone: add the Hotspot Configuration capability to Shenzhen 3D's identifier and profile, then add
+  `com.apple.developer.networking.HotspotConfiguration` to `shenzhen-3d_iOS.entitlements` and `SZFriendsDirectWifiJoin`
+  (true) to the app's Info.plist in the same change. Until then iPhones never take part.
+- Android phones that granted Bluetooth before this release are asked for "Nearby devices" again only when Friends
+  asks for Bluetooth again; until then they take no part.
+
+**Real-device script** (the owner's Android phone and a Mac; then an iPhone once entitled; nothing here runs from an
+agent):
+
+```sh
+# 1. Builds: Shenzhen 3D debug on the phone (Android 13 or later), ShenzhenPDF from this commit on the Mac.
+# 2. Put them on different networks: the Mac on its usual Wi-Fi; the phone's Wi-Fi off, mobile data on. Bluetooth on.
+#    Friends open on both; they show each other "Nearby, over Bluetooth".
+# 3. Logs:
+log stream --style compact --predicate 'process == "Shenzhen Friends"' | grep -i "direct Wi-Fi"   # Mac
+adb logcat | grep -i "direct Wi-Fi"                                                               # phone
+# 4. Send a 100 MB file from the phone to the Mac. After about 10 s the Mac's row asks "Go faster? …".
+#    Choose Go faster. The first time, macOS asks for Location Services for Shenzhen Friends: Allow.
+#    Expect "the lane is up" in both logs, the row "Going directly over Wi-Fi…", and the file in well under a minute.
+# 5. After it arrives: the Mac is back on its network and online.
+networksetup -getairportnetwork en0
+#    Check System Settings > Wi-Fi > Known Networks for a "DIRECT-…" entry (whether CoreWLAN kept the link) and note it.
+# 6. Crash: start another 100 MB transfer, choose Go faster, and while the row says "Going directly…" force-quit
+#    "Shenzhen Friends" in Activity Monitor. Open ShenzhenPDF again: the Mac rejoins its network within seconds and
+#    ~/Library/Application\ Support/Shenzhen\ Friends/direct-wifi.json is gone.
+# 7. Not now: another transfer, choose Not now: it carries on over Bluetooth and is not asked again.
+# 8. Other way round: send 100 MB from the Mac to the phone; same question on the Mac.
+# 9. Two Android phones on different networks: neither is asked if both keep their Wi-Fi; the file goes direct.
+# 10. iPhone (once entitled): from the Android phone to the iPhone; the iPhone asks, then iOS asks to join.
+```
+
+**Left.** "Always for Mei" with its switch in a friend's details; Linux hosting through NetworkManager; joining tried
+on two real Android phones and with an iPhone; Known Networks after a Mac's join; a release that carries ADR 0019 on
+both helpers (capability bit 5 is off until a helper has a Wi-Fi to use, so mixed pairs never see BOOST).

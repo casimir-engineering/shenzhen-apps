@@ -301,6 +301,30 @@ static const NSUInteger SZFriendsSearchLimitMax = 50;
     return transfer;
 }
 
+// The Wi-Fi Direct boost's question (ADR 0019, PROTOCOL.md § Fast transfers): Go faster or Not now on the transfer.
+// Stale once the question is gone (answered, or the transfer moved on).
+- (void)answerBoost:(NSDictionary *)intent goFaster:(BOOL)goFaster connection:(SZFriendsIPCConnection *)connection
+              reply:(SZFriendsIntentReply)reply {
+    NSString *transferID = [self requiredString:@"transfer_id" in:intent maxLength:64 reply:reply
+                                     connection:connection];
+    if (transferID == nil) return;
+    if (![self.services.nearby answerBoostForTransfer:transferID goFaster:goFaster]) {
+        [self fail:reply code:@"stale" details:nil connection:connection];
+        return;
+    }
+    [self succeed:reply result:nil];
+}
+
+- (void)intent_boost_transfer:(NSDictionary *)intent connection:(SZFriendsIPCConnection *)connection
+                        reply:(SZFriendsIntentReply)reply {
+    [self answerBoost:intent goFaster:YES connection:connection reply:reply];
+}
+
+- (void)intent_skip_boost:(NSDictionary *)intent connection:(SZFriendsIPCConnection *)connection
+                    reply:(SZFriendsIntentReply)reply {
+    [self answerBoost:intent goFaster:NO connection:connection reply:reply];
+}
+
 - (void)intent_cancel_transfer:(NSDictionary *)intent connection:(SZFriendsIPCConnection *)connection
                          reply:(SZFriendsIntentReply)reply {
     // Cancel after Get: the file stays on the computer that has it (+Devices).

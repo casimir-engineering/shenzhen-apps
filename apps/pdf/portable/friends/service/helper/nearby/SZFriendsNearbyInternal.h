@@ -18,6 +18,7 @@
 #import "service/session/SZFriendsSession.h"
 #import "service/thumbnails/SZFriendsThumbnails.h"
 #import "service/transfer/SZFriendsBlockExchange.h"
+#import "service/transfer/SZFriendsDirectWiFiBoost.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -384,6 +385,22 @@ void SZFriendsNearbyRecordEvent(SZFriendsStore *store, NSString *eventKind, NSSt
 // The head is closing while lanes live (ADR 0018 § 6: the group goes on): its lowest live lane takes the group, as the
 // link to adopt in its place; nil when none can (the caller ends the group as before).
 - (nullable SZFriendsPeerLink *)handOverGroupOfLink:(SZFriendsPeerLink *)head;
+// The scheduler's timers while the group sends (and the boost's, while one runs).
+- (void)scheduleBlockTickOnLink:(SZFriendsPeerLink *)link;
+@end
+
+// The Wi-Fi Direct boost (ADR 0019; SZFriendsNearbyService+Boost.m): a Mac joins a friend's phone's link.
+@interface SZFriendsNearbyService (Boost)
+@property(nonatomic, readonly, nullable) SZFriendsDirectWiFiCoordinator *directWiFi;
+// At launch, for a person's own home only: CoreWLAN, and the way back from a link a crashed run left the Mac on.
+- (void)startDirectWiFiForOwnHome;
+// Tests: a mocked Wi-Fi instead (never CoreWLAN).
+- (void)useDirectWiFi:(id<SZFriendsWiFiJoining>)wifi;
+- (void)stopDirectWiFi;
+- (void)boostTickOnLink:(SZFriendsPeerLink *)head;
+- (void)link:(SZFriendsPeerLink *)link receivedBoostFrame:(SZFriendsFrame *)frame;
+- (void)boostLinkClosed:(SZFriendsPeerLink *)link;
+- (void)boostLaneDialFailedOnLink:(nullable SZFriendsPeerLink *)head route:(SZFriendsRouteMethod)route;
 @end
 
 // Get again and own-device copies served by blocks (ADR 0018 § 4; SZFriendsNearbyService+Copies.m).

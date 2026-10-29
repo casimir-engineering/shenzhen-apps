@@ -1490,12 +1490,12 @@ Wi-Fi Direct boost (last item) adds two intents and a client capability.
   can host a direct Wi-Fi link that the other device joins. A device that would leave the Wi-Fi network that is its only
   way online asks first, on the transfer, and only in views that declared `transfers.boost`: `route_note` is the
   question ("Go faster? Mei isn’t on your Wi-Fi, so this is going over Bluetooth (about 12 min). Leave “HomeWiFi” for
-  about 1 min to connect to Mei directly. Your Mac rejoins it by itself when it’s done.", catalog `transfer.boost.ask`;
+  about 1 min to connect to Mei directly. Your computer rejoins it by itself when it’s done.", catalog `transfer.boost.ask`;
   phones that ask again with a system prompt add "Then choose Join.") and `actions` start with Go faster
   (`boost_transfer`, primary) and Not now (`skip_boost`, secondary) before Cancel. Views show them as any action and
   note. Not now is final for that transfer. Afterwards `route_note` says what happens: "Connecting directly to Mei…",
-  "Going directly over Wi-Fi. Your Mac rejoins “HomeWiFi” when it’s done." (or, on a device that stays online another
-  way, that it does), "Rejoining “HomeWiFi”…", and if it did not get back by itself "Your Mac didn’t get back on
+  "Going directly over Wi-Fi. Your computer rejoins “HomeWiFi” when it’s done." (or, on a device that stays online another
+  way, that it does), "Rejoining “HomeWiFi”…", and if it did not get back by itself "Your computer didn’t get back on
   “HomeWiFi” by itself. Choose it in the Wi-Fi menu." A device that keeps its Wi-Fi on the link is never asked.
 
 ## Static strings

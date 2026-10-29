@@ -7,6 +7,7 @@
 #import "service/sync/SZFriendsSync.h"
 
 #import "service/helper/nearby/SZFriendsNearbyDevices.h"
+#import "service/transfer/SZFriendsDirectWiFiBoost.h"
 #import "service/store/SZFriendsTransferThumbnails.h"
 #import "service/thumbnails/SZFriendsThumbnails.h"
 
@@ -100,6 +101,15 @@ SZFriendsItemFacts *SZFriendsItemFactsFromRecord(SZFriendsItemRecord *record, SZ
                 if (live.bytesPerSecond > 0) facts.bytesPerSecond = live.bytesPerSecond;
             }
             facts.finishing = !transfer.outgoing && [services.nearby transferShowsFinishing:record.transferID];
+            SZFriendsBoostRow *boost = [services.nearby boostRowForTransfer:record.transferID];
+            if (boost != nil) {
+                facts.boostStage = boost.stage;
+                facts.boostNetwork = boost.network;
+                facts.boostLeavesWiFi = boost.leavesWiFi;
+                facts.boostOverEthernet = boost.overEthernet;
+                facts.boostBluetoothSeconds = boost.bluetoothSeconds;
+                facts.boostDirectSeconds = boost.directSeconds;
+            }
         } else {
             // A file another device of ours has (sync): its record is here at once, its bytes when copied.
             SZFriendsSyncFileRecord *file = [services.store syncFileWithID:record.transferID];

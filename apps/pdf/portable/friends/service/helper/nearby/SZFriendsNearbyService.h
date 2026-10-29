@@ -133,6 +133,15 @@ typedef struct SZFriendsLiveTransfer {
 - (BOOL)transferShowsFinishing:(NSString *)transferID;
 @end
 
+@class SZFriendsBoostRow;
+// The Wi-Fi Direct boost (ADR 0019; SZFriendsNearbyService+Boost.m), for facts and intents.
+@interface SZFriendsNearbyService (BoostFacts)
+// Where the boost stands for this transfer's row on this Mac; nil when this helper has none.
+- (nullable SZFriendsBoostRow *)boostRowForTransfer:(NSString *)transferID;
+// boost_transfer and skip_boost: NO when the question is no longer there.
+- (BOOL)answerBoostForTransfer:(NSString *)transferID goFaster:(BOOL)goFaster;
+@end
+
 // Mentions (SZFriendsNearbyService+Mentions.m, ADR 0007). An Add from a mention is an Add by ID that only the mentioned
 // identity key may answer: its request token is this keyed hash of that key under the request's own callback secret,
 // so the binding lives in what the store already keeps, and anyone else presenting the token is refused.

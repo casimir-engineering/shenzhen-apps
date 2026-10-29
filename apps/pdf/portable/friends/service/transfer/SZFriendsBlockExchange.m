@@ -713,4 +713,8 @@ static const double SZFriendsFinishingAfter = 1.0;
     [_scheduler takeActions]; // its cancels concern parts dropped with it
 }
 
+- (double)rateOfRoute:(SZFriendsRouteMethod)route {
+    return _scheduler ? [_scheduler rateOfRoute:route] : 0;
+}
+
 @end

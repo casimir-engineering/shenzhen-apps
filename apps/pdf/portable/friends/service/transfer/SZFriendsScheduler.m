@@ -427,6 +427,14 @@ static BOOL SZFRangesFit(NSData *ranges, uint32_t blocks) {
     return transfer ? transfer->open.count : 0;
 }
 
+- (double)rateOfRoute:(SZFriendsRouteMethod)route {
+    double sum = 0;
+    for (SZFLane *lane in _lanes.allValues) {
+        if (lane->route == route && lane->measured && [lane working]) sum += lane->rate;
+    }
+    return sum;
+}
+
 - (uint64_t)inFlightOfLane:(SZFriendsLaneID)laneID {
     SZFLane *lane = _lanes[@(laneID)];
     return lane ? lane->inFlight : 0;

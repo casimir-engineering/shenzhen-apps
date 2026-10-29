@@ -245,6 +245,39 @@ static void TestAFileBeingCheckedSaysFinishing(void) {
     SZPExpect([row[@"accessibility_label"] hasSuffix:@", finishing"], @"spoken: %@", row[@"accessibility_label"]);
 }
 
+// ADR 0019: the Wi-Fi Direct boost's question, only for views that declared transfers.boost, and the words after.
+static void TestTheBoostAsksOnlyWhereTheViewKnowsIt(void) {
+    SZFriendsItemFacts *sending = SZPTransfer(@"t_b", YES, @"2026-10-12 09:00", @"Site survey.mp4", 100000000,
+                                              SZFriendsTransferStateSending);
+    sending.boostStage = 1;
+    sending.boostNetwork = @"HomeWiFi";
+    sending.boostLeavesWiFi = YES;
+    sending.boostBluetoothSeconds = 700;
+    sending.boostDirectSeconds = 28;
+    SZFriendsAudience *audience = OnlineAudience();
+    audience.capabilities = [audience.capabilities setByAddingObject:@"transfers.boost"];
+    NSDictionary *row = Item(Conversation(audience, SZPPeople()[@"c_mei"], @[ sending ], @"boost"), @"t_b");
+    NSString *note = row[@"route_note"];
+    SZPExpect([note isEqual:@"Go faster? Mei isn’t on your Wi-Fi, so this is going over Bluetooth (about 12 min). "
+                            @"Leave “HomeWiFi” for about 30 s to connect to Mei directly. Your computer rejoins it "
+                            @"by itself when it’s done."],
+              @"the question: %@", note);
+    NSArray *names = [row[@"actions"] valueForKey:@"action"];
+    NSArray *expected = @[ @"boost_transfer", @"skip_boost", @"cancel_transfer" ];
+    SZPExpect([names isEqual:expected], @"Go faster, Not now: %@",
+              row[@"actions"]);
+    NSDictionary *old = Item(Conversation(OnlineAudience(), SZPPeople()[@"c_mei"], @[ sending ], @"no boost"), @"t_b");
+    id oldNote = old[@"route_note"];
+    SZPExpect(![[old[@"actions"] valueForKey:@"action"] containsObject:@"boost_transfer"] &&
+                  !([oldNote isKindOfClass:[NSString class]] && [oldNote hasPrefix:@"Go faster"]),
+              @"a view without transfers.boost is never asked: %@", old);
+    sending.boostStage = 5;
+    row = Item(Conversation(audience, SZPPeople()[@"c_mei"], @[ sending ], @"rejoin failed"), @"t_b");
+    SZPExpect([row[@"route_note"] isEqual:@"Your computer didn’t get back on “HomeWiFi” by itself. Choose it in the "
+                                          @"Wi-Fi menu."],
+              @"the way back failed: %@", row[@"route_note"]);
+}
+
 void SZPRunOnlineTests(void) {
     TestFixtures();
     TestNothingOnlineWithoutCapability();
@@ -253,4 +286,5 @@ void SZPRunOnlineTests(void) {
     TestUnreachableAndOffline();
     TestRelayEstimates();
     TestAFileBeingCheckedSaysFinishing();
+    TestTheBoostAsksOnlyWhereTheViewKnowsIt();
 }

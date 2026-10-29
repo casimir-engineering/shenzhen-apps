@@ -57,9 +57,8 @@ pub(super) const TRANSFERS_AND_CONVERSATIONS: &[(&str, &str)] = &[
     ),
     ("transfer.boost.rejoining", "Rejoining {network}…"),
     ("transfer.boost.rejoin_failed", "Your {device} didn’t get back on {network} by itself. Choose it in {place}."),
-    ("transfer.boost.device.mac", "Mac"),
     ("transfer.boost.device.computer", "computer"),
-    ("transfer.boost.place.mac", "the Wi-Fi menu"),
+    ("transfer.boost.place.menu", "the Wi-Fi menu"),
     ("transfer.boost.place.computer", "Wi-Fi settings"),
     // Phones only (the core in the app): no Mac says these.
     ("transfer.boost.device.phone", "phone"),

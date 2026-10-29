@@ -225,6 +225,11 @@ const char SZFriendsPrologueLabel[18] = "SZFriends session"; // the array's 18th
            (self.remoteCapabilities & SZFriendsCapabilityPieces);
 }
 
+- (BOOL)directWiFiBoost {
+    return self.fastTransfers && (self.localCapabilities & SZFriendsCapabilityDirectWiFiBoost) &&
+           (self.remoteCapabilities & SZFriendsCapabilityDirectWiFiBoost);
+}
+
 - (BOOL)fastTransfers {
     return self.negotiatedMinor >= SZFriendsFastTransfersMinor &&
            (self.localCapabilities & SZFriendsCapabilityFastTransfers) &&

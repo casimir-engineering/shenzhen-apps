@@ -69,6 +69,10 @@ static BOOL SZFriendsTypeAllowed(SZFriendsFrameType type, SZFriendsHandshakePatt
     if (!fast && SZFriendsIsFastTransferFrame(frame.type)) {
         return NO;
     }
+    // ADR 0019: BOOST only to a peer that set the boost's bit.
+    if (frame.type == SZFriendsFrameTypeBoost && !self.directWiFiBoost) {
+        return NO;
+    }
     if (!fast) {
         NSMutableDictionary *plain = nil;
         for (NSNumber *tag in frame.fields) {
@@ -333,7 +337,8 @@ static BOOL SZFriendsTypeAllowed(SZFriendsFrameType type, SZFriendsHandshakePatt
         break;
     }
     if (!SZFriendsTypeAllowed(type, self.pattern, !self.isInitiator) ||
-        (SZFriendsIsFastTransferFrame(type) && !self.fastTransfers)) {
+        (SZFriendsIsFastTransferFrame(type) && !self.fastTransfers) ||
+        (type == SZFriendsFrameTypeBoost && !self.directWiFiBoost)) {
         [self protocolFailure:SZFriendsSessionErrorProtocol reason:@"frame type not allowed in this pattern"];
         return;
     }

@@ -216,6 +216,41 @@ static BOOL EndsSentence(NSString *text) {
     return actions;
 }
 
+// ADR 0019: the question shows only in views that declared transfers.boost, which know its two actions.
+- (BOOL)asksBoost:(SZFriendsItemFacts *)item {
+    return item.boostStage == 1 && [self.audience.capabilities containsObject:@"transfers.boost"];
+}
+
+// The Wi-Fi Direct boost's words for the transfer's note, or nil to keep the usual one (same keys as the Rust core).
+- (nullable NSString *)boostNoteForItem:(SZFriendsItemFacts *)item first:(NSString *)first {
+    SZFriendsStrings *s = self.strings;
+    NSString *network = item.boostNetwork.length
+                            ? [s text:@"transfer.boost.network" values:@{@"name" : item.boostNetwork}]
+                            : [s text:@"transfer.boost.your_wifi"];
+    NSMutableDictionary *values = [@{
+        @"first" : first,
+        @"device" : [s text:@"transfer.boost.device.computer"], // a computer, never "Mac", in shared words
+        @"network" : network,
+    } mutableCopy];
+    switch (item.boostStage) {
+    case 1:
+        if (![self asksBoost:item]) return nil;
+        values[@"slow"] = [s durationLabelForSeconds:item.boostBluetoothSeconds];
+        values[@"fast"] = [s durationLabelForSeconds:item.boostDirectSeconds];
+        return [s text:@"transfer.boost.ask" values:values];
+    case 2: return [s text:@"transfer.boost.connecting" values:values];
+    case 3:
+        if (!item.boostLeavesWiFi) return [s text:@"transfer.boost.direct"];
+        return [s text:item.boostOverEthernet ? @"transfer.boost.direct.ethernet" : @"transfer.boost.direct.away"
+                values:values];
+    case 4: return [s text:@"transfer.boost.rejoining" values:values];
+    case 5:
+        values[@"place"] = [s text:@"transfer.boost.place.menu"];
+        return [s text:@"transfer.boost.rejoin_failed" values:values];
+    default: return nil;
+    }
+}
+
 - (NSArray *)actionsForTransfer:(SZFriendsItemFacts *)item person:(SZFriendsPersonFacts *)person {
     SZFriendsStrings *s = self.strings;
     // A file this person sent from another of their computers, copied here: it is here to open, nothing to send.
@@ -230,6 +265,10 @@ static BOOL EndsSentence(NSString *text) {
     case SZFriendsTransferStateOffered:
     case SZFriendsTransferStateSending:
     case SZFriendsTransferStateReceiving:
+        if ([self asksBoost:item]) {
+            [actions addObject:[self action:@"boost_transfer" label:[s text:@"transfer.boost.go"] style:@"primary"]];
+            [actions addObject:[self action:@"skip_boost" label:[s text:@"transfer.boost.not_now"] style:@"secondary"]];
+        }
         [actions addObject:[self action:@"cancel_transfer" label:[s text:@"static.cancel"] style:@"link"]];
         break;
     case SZFriendsTransferStateReceived:
@@ -289,10 +328,11 @@ static BOOL EndsSentence(NSString *text) {
     double rate = [s estimateBytesPerSecond:item.bytesPerSecond route:item.transferRoute];
     NSString *verb = state == SZFriendsTransferStateSending ? @"sending" : @"receiving";
     NSString *direction = item.outgoing ? @"out" : @"in";
-    NSString *note = (waiting || moving) ? [s transferEstimateForRemainingBytes:remaining
-                                                                 bytesPerSecond:item.bytesPerSecond
-                                                                          route:item.transferRoute]
-                                         : nil;
+    NSString *note = [self boostNoteForItem:item first:[self firstNameForPerson:person]];
+    if (note == nil && (waiting || moving)) {
+        note = [s transferEstimateForRemainingBytes:remaining bytesPerSecond:item.bytesPerSecond
+                                              route:item.transferRoute];
+    }
     NSString *noteSpoken = waiting ? [s transferEstimateAccessibilityForRemainingBytes:remaining
                                                                         bytesPerSecond:item.bytesPerSecond
                                                                                  route:item.transferRoute]

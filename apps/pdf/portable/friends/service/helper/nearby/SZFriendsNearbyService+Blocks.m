@@ -134,7 +134,9 @@ static uint64_t SZFriendsNextLaneSerial = 0;
 
 // The scheduler's timers while the group sends: a lane that stopped moving is noticed and its blocks go elsewhere.
 - (void)scheduleBlockTickOnLink:(SZFriendsPeerLink *)link {
-    if (link.blockTickScheduled || link.closed || link.blocks.sending.count == 0) return;
+    // A boost (ADR 0019) keeps the tick going on a group that only receives, so its lane and its end are seen.
+    BOOL boosting = [self.directWiFi hasBoostForGroup:[NSValue valueWithNonretainedObject:link]];
+    if (link.blockTickScheduled || link.closed || (link.blocks.sending.count == 0 && !boosting)) return;
     link.blockTickScheduled = YES;
     __weak SZFriendsPeerLink *weakLink = link;
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(SZFriendsBlockTickInterval * NSEC_PER_SEC)), self.queue,
@@ -144,6 +146,7 @@ static uint64_t SZFriendsNextLaneSerial = 0;
                        strongLink.blockTickScheduled = NO;
                        if (strongLink.closed) return;
                        [strongLink.blocks tick];
+                       [self boostTickOnLink:strongLink];
                        [self scheduleBlockTickOnLink:strongLink];
                    });
 }

@@ -93,6 +93,17 @@ static const SZFriendsFieldRule kHave[] = {
     RULE(SZFriendsFieldDurable, 8, 64000, SZFriendsFieldRuleMultipleOf8),
     RULE(SZFriendsFieldPieces, 8, 64000, SZFriendsFieldRuleMultipleOf8),
 };
+// ADR 0019: which fields a step needs is the boost's own check.
+static const SZFriendsFieldRule kBoost[] = {
+    ID_RULE,
+    RULE(SZFriendsFieldReason, 1, 1, 0),
+    RULE(SZFriendsFieldStep, 1, 1, REQ),
+    RULE(SZFriendsFieldAbilities, 1, 1, 0),
+    RULE(SZFriendsFieldNetwork, 1, 32, 0),
+    RULE(SZFriendsFieldPassphrase, 8, 63, 0),
+    RULE(SZFriendsFieldAddress, 4, 16, 0),
+    RULE(SZFriendsFieldPort, 2, 2, 0),
+};
 static const SZFriendsFieldRule kChunk[] = {
     ID_RULE,
     RULE(SZFriendsFieldOffset, 8, 8, REQ),
@@ -172,6 +183,7 @@ BOOL SZFriendsFrameRulesForType(uint8_t type, SZFriendsFieldRules *rules) {
     case SZFriendsFrameTypeWant: *rules = RULES(kWant); return YES;
     case SZFriendsFrameTypePart: *rules = RULES(kPart); return YES;
     case SZFriendsFrameTypeHave: *rules = RULES(kHave); return YES;
+    case SZFriendsFrameTypeBoost: *rules = RULES(kBoost); return YES;
     }
     return NO;
 }

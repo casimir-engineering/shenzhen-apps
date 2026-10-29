@@ -71,7 +71,7 @@ $(FRIENDS_HELPER_BUILD)/obj/%.o: $(FRIENDS_HELPER_DIR)/%.m $(FRIENDS_HELPER_HDRS
 # IOKit for sleep and wake (nearby/SZFriendsWakeMonitor.m): the helper links no UI toolkit, so no NSWorkspace.
 # UserNotifications posts its notifications and CoreServices' LaunchServices opens their clicks (service/notify/).
 FRIENDS_HELPER_FRAMEWORKS := -framework Foundation -framework Security -framework IOKit -framework UserNotifications \
-	-framework CoreServices
+	-framework CoreServices -framework CoreWLAN -framework CoreLocation
 FRIENDS_HELPER_EXE := $(FRIENDS_HELPER_BUILD)/szfriends-helper
 $(FRIENDS_HELPER_EXE): $(FRIENDS_HELPER_OBJS) $(FRIENDS_HELPER_MAIN_OBJ) $(FRIENDS_SODIUM_LIB) $(FRIENDS_CJSON_OBJ) \
 		$$(FRIENDS_SERVICE_OBJS) $$(FRIENDS_CLIENT_OBJS)

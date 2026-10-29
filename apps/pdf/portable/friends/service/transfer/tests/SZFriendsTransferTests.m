@@ -8,6 +8,7 @@
 #import "SZFriendsSchedulerSim.h"
 
 static int failures = 0;
+int SZFriendsDirectWiFiBoostTests(void); // SZFriendsDirectWiFiBoostTests.m
 #define CHECK(condition, ...)                                                                                         \
     do {                                                                                                              \
         if (!(condition)) {                                                                                           \
@@ -139,6 +140,7 @@ int main(int argc, const char *argv[]) {
         }
         TestLaneGroup();
         TestPieces();
+        failures += SZFriendsDirectWiFiBoostTests(); // ADR 0019
         TestScenarios(@(argv[1]));
         if (failures) {
             fprintf(stderr, "SZFriendsTransferTests: %d check(s) failed\n", failures);

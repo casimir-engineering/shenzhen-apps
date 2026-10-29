@@ -85,6 +85,7 @@ static const NSTimeInterval SZFriendsShutdownFlush = 1.0;
     if (self.coordinator != nil) [_wakeMonitor start];
     [self scheduleReconsider];
     [self resumeSecretRenewalAfterStart]; // a while later (+Devices)
+    [self startDirectWiFiForOwnHome];     // ADR 0019; never in a test home (+Boost)
 }
 
 - (void)activate {
@@ -125,6 +126,7 @@ static const NSTimeInterval SZFriendsShutdownFlush = 1.0;
     }
     // Durable first: whatever happens to the CLOSE frames, the next helper resumes from every received byte.
     [self.services.transfers flushProgressWithError:NULL];
+    [self stopDirectWiFi]; // END to the friend while the sessions can carry it; the Mac goes back to its network
     for (SZFriendsPeerLink *link in self.links.allObjects) {
         [link cancelTimers];
         [link.channel closeWithReason:SZFriendsCloseReasonShuttingDown];

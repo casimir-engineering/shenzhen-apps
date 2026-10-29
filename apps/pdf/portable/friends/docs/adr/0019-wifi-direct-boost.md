@@ -98,7 +98,7 @@ online another way is not asked; its transfer's note says so ("…Your phone sta
 It appears on the transfer's row in the conversation (PROTOCOL.md § Fast transfers), as its note and two buttons:
 
 > Go faster? Mei isn’t on your Wi-Fi, so this is going over Bluetooth (about 12 min). Leave “HomeWiFi” for about 1 min
-> to connect to Mei directly. Your Mac rejoins it by itself when it’s done.
+> to connect to Mei directly. Your computer rejoins it by itself when it’s done.
 >
 > **Go faster** · Not now
 
@@ -118,7 +118,7 @@ app quits. If the helper crashed or was killed, the next launch finds the record
 Rejoining is tried 3 times, 3 s apart; then the device checks that it is online again (the platform's own path
 monitor, no traffic of ours) every 2 s for up to 20 s. Back online, the record is deleted. Otherwise the record is
 deleted too (the person decides from then on, and a later launch must not fight them) and the transfer's note says:
-"Your Mac didn’t get back on “HomeWiFi” by itself. Choose it in the Wi-Fi menu." (on a phone: "…in Wi-Fi settings.").
+"Your computer didn’t get back on “HomeWiFi” by itself. Choose it in the Wi-Fi menu." (on a phone: "…in Wi-Fi settings.").
 The host takes its link down at the same moments.
 
 ### 5. Speed: one more lane
@@ -161,9 +161,11 @@ more than happens.
   its own network. Needs the Hotspot Configuration entitlement, which the app's provisioning profile must carry
   first: until the owner adds the capability to the app's identifier and sets `SZFriendsDirectWifiJoin` in the app's
   Info.plist with the entitlement, an iPhone reports no abilities and is never part of a boost.
-- **Mac** (the Objective-C helper): joins with CoreWLAN behind `SZFriendsWiFiJoining`, comes back by associating with
-  the network it wrote down (the system's saved password), and checks with `nw_path_monitor`. Tests use a mock; no
-  test ever touches the Mac's real Wi-Fi.
+- **Mac** (the Objective-C helper): joins with CoreWLAN behind `SZFriendsWiFiJoining` (`SZFriendsCoreWLANWiFi`),
+  comes back by leaving the link (only the link: never a network the person chose meanwhile), giving macOS 8 s to
+  rejoin its preferred network by itself, then associating with the network it wrote down (the system's saved
+  password); checks with `nw_path_monitor`. Created only for a person's own home, never in a test home; tests use a
+  mock, and no test ever touches the Mac's real Wi-Fi.
 - **Windows, Linux:** not built. Windows cannot meet the trigger (no Bluetooth route); Linux could host through
   NetworkManager later. Both keep capability bit 5 clear, so nobody proposes to them.
 

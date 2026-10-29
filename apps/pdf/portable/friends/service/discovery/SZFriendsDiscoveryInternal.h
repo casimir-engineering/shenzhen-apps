@@ -48,6 +48,10 @@ NSUInteger SZFriendsNetworkObjectsCreated(void);
 // Tests, on the adapter's queue: the hidden listeners' ports, the advertised one first, then any still in their
 // overlap (0 for one not ready yet).
 NSArray<NSNumber *> *SZFriendsNetworkAdapterHiddenPorts(id<SZFriendsDiscoveryAdapter> adapter);
+// The Wi-Fi Direct boost (ADR 0019): a TCP stream to `host`:`port` on a joined link, with the adapter's parameters;
+// nil when it does not connect (or `adapter` is not a network adapter). `done` runs once, on the adapter's queue.
+void SZFriendsNetworkAdapterOpenStreamToHost(id<SZFriendsDiscoveryAdapter> adapter, NSString *host, uint16_t port,
+                                             void (^done)(id<SZFriendsByteStream> _Nullable stream));
 
 // TXT record of the hidden entry (v=1, t=<hex tag>, c=<hex tags concatenated>) or the public one (v=1, p=1, and
 // nothing else: a public entry carries no tag). Hex because TXT values are shown verbatim by Bonjour tools and
