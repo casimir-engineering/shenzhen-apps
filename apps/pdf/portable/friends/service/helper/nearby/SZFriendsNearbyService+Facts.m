@@ -149,6 +149,13 @@ static NSArray<NSNumber *> *SZFriendsFoundMethods(NSArray<SZFriendsSighting *> *
     return stranger;
 }
 
+- (BOOL)transferShowsFinishing:(NSString *)transferID {
+    for (SZFriendsPeerLink *link in self.links) {
+        if ([link.blocks showsFinishing:transferID]) return YES;
+    }
+    return NO;
+}
+
 - (BOOL)liveTransfer:(NSString *)transferID state:(SZFriendsLiveTransfer *)state {
     for (SZFriendsPeerLink *link in self.links) {
         if (link.closed || link.superseded) continue;

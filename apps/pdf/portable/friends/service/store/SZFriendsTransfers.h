@@ -343,6 +343,13 @@ typedef NS_ENUM(NSInteger, SZFriendsBlockPartResult) {
 // makes them durable in batches of 8 MiB or a second; verified_bytes keeps the contiguous durable prefix for older
 // helpers. The sender keeps its tree beside the snapshot (outgoing/<id>.tree) and checks every block against it as it
 // reads it.
+// A file received by blocks being read back before it is saved (-beginBlockCheck:).
+@interface SZFriendsBlockCheck : NSObject
+@property(nonatomic, readonly) NSString *transferID;
+@property(nonatomic, readonly) NSString *conversationID;
+- (void)run; // reads the whole file: tree and digest
+@end
+
 @interface SZFriendsTransfers (Blocks)
 // The tree a friend's OFFER announced, kept for when the person accepts (perhaps after a restart). Only for an offer
 // from that friend still waiting for an answer, whose size matches.
@@ -383,9 +390,18 @@ typedef NS_ENUM(NSInteger, SZFriendsBlockPartResult) {
 // session sends those blocks whole. One that a newer session took over meanwhile keeps its parts.
 - (void)blocksSessionEnded:(NSArray<NSString *> *)transferIDs session:(id)session;
 // Every block durable: the file read back through the descriptor that wrote it, tree and BLAKE2b digest in one pass,
-// and published only when both match the offer; otherwise deleted and failed (DigestMismatch).
+// and published only when both match the offer; otherwise deleted and failed (DigestMismatch). The three steps below
+// in one call, on the caller's thread.
 - (BOOL)finishBlockTransfer:(NSString *)transferID fromConversation:(NSString *)conversationID
                       error:(NSError **)error;
+// The same check in three steps, so the long one runs off the store's queue ("Finishing…", PROTOCOL.md § Fast
+// transfers): begun once every block is durable (nil while the file is incomplete or already being checked), run on
+// any thread, then completed: saved, or deleted and failed. The map stays until then, so a helper that stops during
+// the check runs it again at its next start.
+- (nullable SZFriendsBlockCheck *)beginBlockCheck:(NSString *)transferID
+                                 fromConversation:(NSString *)conversationID
+                                            error:(NSError **)error;
+- (BOOL)completeBlockCheck:(SZFriendsBlockCheck *)check error:(NSError **)error;
 
 // The sender's tree for one of our offers, from outgoing/<id>.tree when it matches the row, else (with `compute`)
 // computed from the snapshot, whose digest must still be the offered one, and kept there. NO when it cannot be had.

@@ -1013,7 +1013,22 @@ block whose leaf matches at the same position once the leaves arrive, reported i
 blocks cross. Store tests mirror WP1's (the held copy and none from another friend; a 6 MiB version with one block
 changed and one added: two blocks wanted), and `the_same_file_again_rust_to_objc` joins the interop suite.
 
+**"Finishing…" in the Mac helper, as 0c0855b7.** The check before a file received by blocks is saved now runs in three
+steps: begun on the store's queue once every block is durable, the whole-file read on a utility queue, then saved (or
+deleted and failed) back on the store's queue. Past a second, the row stays Receiving with a full bar and says
+"Finishing…" (spoken "…, finishing"), from the catalog strings WP1 added. The map stays until the check completes,
+so a helper that stops meanwhile checks again at its next start. A second check of the same file is refused while one
+runs. When the session that received the file ended during the check, the ACK goes on the friend's live session.
+The interop peer still checks in place.
+
+**The helper's group outlives its first session.** When the conversation's first session closes while one of its
+lanes lives, that lane takes the group (the exchange's control lane moves to it) and is adopted as the conversation's
+session, which resumes what the first session carried, as a new session would. Without a live lane, or when the first
+session lost the race, the lanes end with it as before. Exercised at the exchange level (the store test above) and
+through the interop peer's bench runs. No two-helper harness drives Objective-C helpers over lanes yet: the per-route
+rate emulation (`SZFRIENDS_TEST_ROUTE_RATES`) is the Rust helper's only.
+
 **Left for WP4:** the receiver's piece HAVEs and WANTs and the sender's 256 KiB slices, once WP3 lands them; Get again and
-own-device copies by blocks; "Finishing…" while a large file's check runs; the helper's group outliving its first
-session. Not tried on two real Macs: the direct Wi-Fi and Bluetooth lanes
+own-device copies by blocks once WP1's Rust flows land (messages ready, flows not); WP6's work as its journal
+section lands. Not tried on two real Macs: the direct Wi-Fi and Bluetooth lanes
 are exercised through the bench's emulated routes and the helper's fake channels only.

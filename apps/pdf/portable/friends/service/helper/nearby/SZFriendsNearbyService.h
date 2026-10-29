@@ -129,6 +129,8 @@ typedef struct SZFriendsLiveTransfer {
 // order LAN, peer-to-peer Wi-Fi, Bluetooth), across all of that person's devices.
 - (NSDictionary<NSString *, NSArray<NSNumber *> *> *)foundMethodsByConversation;
 - (BOOL)liveTransfer:(NSString *)transferID state:(SZFriendsLiveTransfer *)state;
+// Whether a file received by blocks has been checked for over a second before it is saved ("Finishing…").
+- (BOOL)transferShowsFinishing:(NSString *)transferID;
 @end
 
 // Mentions (SZFriendsNearbyService+Mentions.m, ADR 0007). An Add from a mention is an Add by ID that only the mentioned

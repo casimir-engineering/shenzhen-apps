@@ -228,6 +228,23 @@ static void TestRelayEstimates(void) {
     SZPExpect([item[@"status_label"] isEqual:@"Receiving · 0% · about 30 s left"], @"relay time left: %@", item);
 }
 
+// PROTOCOL.md § Fast transfers: every block arrived, the whole file's check runs for more than a second.
+static void TestAFileBeingCheckedSaysFinishing(void) {
+    SZFriendsItemFacts *finishing = SZPTransfer(@"t_f", NO, @"2026-10-12 09:00", @"Scan.step", 8000000000,
+                                                SZFriendsTransferStateReceiving);
+    finishing.bytesDone = 8000000000;
+    finishing.bytesPerSecond = 90000000;
+    finishing.finishing = YES;
+    NSDictionary *row = Item(Conversation(OnlineAudience(), SZPPeople()[@"c_mei"], @[ finishing ], @"finishing"),
+                             @"t_f");
+    SZPExpect([row[@"state"] isEqual:@"receiving"] && [row[@"status_label"] isEqual:@"Finishing…"],
+              @"the row says Finishing…: %@", row);
+    SZPExpect([row[@"progress"][@"fraction"] doubleValue] == 1.0 &&
+                  [row[@"progress"][@"accessibility_label"] isEqual:@"Finishing"],
+              @"a full bar: %@", row[@"progress"]);
+    SZPExpect([row[@"accessibility_label"] hasSuffix:@", finishing"], @"spoken: %@", row[@"accessibility_label"]);
+}
+
 void SZPRunOnlineTests(void) {
     TestFixtures();
     TestNothingOnlineWithoutCapability();
@@ -235,4 +252,5 @@ void SZPRunOnlineTests(void) {
     TestConnecting();
     TestUnreachableAndOffline();
     TestRelayEstimates();
+    TestAFileBeingCheckedSaysFinishing();
 }

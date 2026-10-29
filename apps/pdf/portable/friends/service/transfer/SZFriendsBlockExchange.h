@@ -37,7 +37,8 @@ extern const SZFriendsLaneID SZFriendsHeadLane; // 0
 
 // Something visible changed (a transfer's state or progress).
 @property(nonatomic, copy, nullable) void (^onChanged)(void);
-// A file received by blocks checked and was saved, and its ACK went out.
+// A file received by blocks checked and was saved, and its ACK went out (when the session that received it still
+// lives: the driver acknowledges it on the friend's live session otherwise).
 @property(nonatomic, copy, nullable) void (^onReceived)(NSString *transferID);
 // One of our files started going by blocks: its ACK will say their device checked it.
 @property(nonatomic, copy, nullable) void (^onSending)(NSString *transferID);
@@ -56,6 +57,11 @@ extern const SZFriendsLaneID SZFriendsHeadLane; // 0
 @property(nonatomic, copy) double (^clock)(void);
 // Whether a direct Wi-Fi lane leaves this device on its Wi-Fi network (AWDL on Macs): YES by default here.
 @property(nonatomic) BOOL directWiFiKeepsInternet;
+// The queue the exchange is driven on. When set, the check before a received file is saved runs on a queue of its
+// own and its result comes back here; nil runs it in place (tests, the interop peer).
+@property(nonatomic, strong, nullable) dispatch_queue_t queue;
+// Whether a received file's check has run for over a second: its row says "Finishing…" (onChanged says when).
+- (BOOL)showsFinishing:(NSString *)transferID;
 
 #pragma mark Lanes
 

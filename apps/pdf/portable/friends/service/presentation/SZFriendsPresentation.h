@@ -173,6 +173,9 @@ typedef NS_ENUM(NSInteger, SZFriendsAgainState) {
 @property(nonatomic) BOOL askedBecauseDiskLow;
 @property(nonatomic) SZFriendsRouteMethod transferRoute;
 @property(nonatomic) double bytesPerSecond;                 // measured on the current route; 0 when unknown
+// Every block arrived and the whole file has been checked for over a second before it is saved (PROTOCOL.md § Fast
+// transfers): "Finishing…".
+@property(nonatomic) BOOL finishing;
 @property(nonatomic, copy, nullable) NSString *localPath;   // received file, once published
 // Where a received file was saved, for its "Saved to {folder}": the default Downloads, else the name of the folder it
 // is in; neither (older files, or kept in the helper's own folder) keeps "Received".

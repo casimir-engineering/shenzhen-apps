@@ -245,6 +245,40 @@ static void TestANewVersionTakesTheUnchangedBlocks(void) {
                @"the new version, whole: %@", error);
 }
 
+// The check before saving in its three steps ("Finishing…"): not before every block is here, one at a time, and
+// nothing saved before it completes.
+static void TestTheCheckInThreeSteps(void) {
+    SZFriendsStore *store = SZFTOpenStore(SZFTTemporaryDirectory(@"check"));
+    SZFTAddPerson(store, @"mei", 1, SZFriendsRelationFriend, 1000);
+    SZFriendsTransfers *transfers = Transfers(store);
+    NSData *contents = SZFTRandomData(2 * MiB + 5);
+    SZFriendsBlockGeometry geometry;
+    SZFriendsGeometryForSize(contents.length, &geometry);
+    NSData *leaves = Leaves(contents, geometry);
+    [transfers recordIncomingOfferWithID:@"b1" conversationID:@"mei" fileName:@"Board.kicad_pcb" uniformType:nil
+                                    size:contents.length contentDigest:SZFTBlake2b(contents) sentAt:[NSDate date]
+                                   error:NULL];
+    [transfers recordOfferedTree:@"b1" conversation:@"mei" geometry:geometry
+                            root:SZFriendsTreeRootOfLeaves(geometry, leaves)];
+    [transfers acceptTransfer:@"b1" automatically:NO error:NULL];
+    [transfers beginBlocks:@"b1" conversation:@"mei" error:NULL];
+    [transfers acceptBlockHashes:leaves index:0 forTransfer:@"b1" fromConversation:@"mei" error:NULL];
+    SZFTExpect([transfers beginBlockCheck:@"b1" fromConversation:@"mei" error:NULL] == nil, @"not before every block");
+    for (uint32_t block = 0; block < geometry.blocks; block++) SendBlock(transfers, contents, geometry, block, NO);
+    NSError *error = nil;
+    SZFriendsBlockCheck *check = [transfers beginBlockCheck:@"b1" fromConversation:@"mei" error:&error];
+    SZFTExpect(check != nil, @"begun: %@", error);
+    SZFTExpect([transfers beginBlockCheck:@"b1" fromConversation:@"mei" error:&error] == nil &&
+                   error.code == SZFriendsStoreErrorStale,
+               @"one check at a time");
+    [check run];
+    SZFTExpect([transfers transferWithID:@"b1"].state == SZFriendsTransferStateReceiving, @"not saved before it ends");
+    SZFTExpect([transfers completeBlockCheck:check error:&error] &&
+                   [[NSData dataWithContentsOfFile:[transfers transferWithID:@"b1"].receivedPath]
+                       isEqualToData:contents],
+               @"saved once it completes: %@", error);
+}
+
 #pragma mark - Two exchanges, one session between them
 
 // Frames from one side wait here until the other side takes them.
@@ -516,4 +550,5 @@ void SZFTRunTransferBlockTests(void) {
     TestTheGroupOutlivesItsFirstSession();
     TestAFileHeldIsFilledLocallyAndNoOtherFriends();
     TestANewVersionTakesTheUnchangedBlocks();
+    TestTheCheckInThreeSteps();
 }

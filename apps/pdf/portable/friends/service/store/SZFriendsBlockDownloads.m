@@ -40,6 +40,37 @@ static NSError *SZFriendsBlockError(SZFriendsStoreError code, NSString *why) {
 @property(nonatomic, strong) NSMutableIndexSet *unreportedComplete;
 @property(nonatomic, strong) NSMutableIndexSet *unreportedDurable;
 @property(nonatomic, weak) id owner; // the session receiving its parts now
+@property(nonatomic) BOOL checking;  // read back before it is saved (SZFriendsBlockCheck)
+@end
+
+@interface SZFriendsBlockCheck () {
+  @public
+    int fd; // a duplicate of the download's, so the check reads what was written
+}
+@property(nonatomic, copy) NSString *transferID;
+@property(nonatomic, copy) NSString *conversationID;
+@property(nonatomic, weak) SZFriendsBlockDownload *download;
+@property(nonatomic) SZFriendsBlockGeometry geometry;
+@property(nonatomic, copy) NSData *root;
+@property(nonatomic, copy) NSData *digest;
+@property(nonatomic) BOOL same; // the descriptor still names the staging file, at the offered size
+@property(nonatomic) BOOL matches;
+@end
+
+@implementation SZFriendsBlockCheck
+- (instancetype)init {
+    if ((self = [super init])) fd = -1;
+    return self;
+}
+- (void)dealloc {
+    if (fd >= 0) close(fd);
+}
+- (void)run {
+    NSData *leaves = nil, *digest = nil;
+    _matches = _same && fd >= 0 && SZFriendsHashFileTree(fd, _geometry, &leaves, &digest) &&
+               [SZFriendsTreeRootOfLeaves(_geometry, leaves) isEqualToData:_root] && digest.length == 32 &&
+               _digest.length == 32 && sodium_memcmp(digest.bytes, _digest.bytes, 32) == 0;
+}
 @end
 
 @implementation SZFriendsBlockDownload
@@ -551,30 +582,63 @@ static uint64_t SZFriendsDurablePrefix(SZFriendsBlockGeometry geometry, SZFriend
 // deleted and the transfer fails (DigestMismatch), as a CHUNK transfer whose digest differs.
 - (BOOL)finishBlockTransfer:(NSString *)transferID fromConversation:(NSString *)conversationID
                       error:(NSError **)error {
-    __block BOOL mismatch = NO;
-    NSString *mapPath = [self blockMapPathForTransfer:transferID];
+    SZFriendsBlockCheck *check = [self beginBlockCheck:transferID fromConversation:conversationID error:error];
+    if (check == nil) return NO;
+    [check run];
+    return [self completeBlockCheck:check error:error];
+}
+
+- (nullable SZFriendsBlockCheck *)beginBlockCheck:(NSString *)transferID
+                                 fromConversation:(NSString *)conversationID
+                                            error:(NSError **)error {
+    __block SZFriendsBlockCheck *check = nil;
     BOOL ok = [self.receiver onWriter:^BOOL(SZFriendsStoreDB *db, NSError **inner) {
         SZFriendsBlockDownload *download = [self openBlocks:transferID conversation:conversationID db:db error:inner];
         if (download == nil || ![self flushBlocks:download transfer:transferID db:db error:inner]) return NO;
+        if (download.checking) {
+            return SZFriendsFail(inner, SZFriendsBlockError(SZFriendsStoreErrorStale, @"being checked"));
+        }
         if (!download.durable.full) {
             return SZFriendsFail(inner, SZFriendsBlockError(SZFriendsStoreErrorInvalid, @"file is incomplete"));
         }
         SZFriendsTransferRecord *record = SZFriendsTransferRowLoad(db, transferID);
         struct stat opened, named;
-        BOOL same = fstat(download->fd, &opened) == 0 && lstat(download.partial.fileSystemRepresentation, &named) == 0 &&
-                    S_ISREG(named.st_mode) && opened.st_dev == named.st_dev && opened.st_ino == named.st_ino &&
-                    (uint64_t)opened.st_size == record.size;
-        NSData *leaves = nil, *digest = nil;
-        SZFriendsBlockGeometry geometry = download.assembly.geometry;
-        BOOL matches = same && SZFriendsHashFileTree(download->fd, geometry, &leaves, &digest) &&
-                       [SZFriendsTreeRootOfLeaves(geometry, leaves) isEqualToData:download.assembly.root] &&
-                       digest.length == 32 && record.contentDigest.length == 32 &&
-                       sodium_memcmp(digest.bytes, record.contentDigest.bytes, 32) == 0;
+        check = [[SZFriendsBlockCheck alloc] init];
+        check.same = fstat(download->fd, &opened) == 0 &&
+                     lstat(download.partial.fileSystemRepresentation, &named) == 0 && S_ISREG(named.st_mode) &&
+                     opened.st_dev == named.st_dev && opened.st_ino == named.st_ino &&
+                     (uint64_t)opened.st_size == record.size;
+        check->fd = dup(download->fd);
+        check.transferID = transferID;
+        check.conversationID = conversationID;
+        check.download = download;
+        check.geometry = download.assembly.geometry;
+        check.root = download.assembly.root;
+        check.digest = record.contentDigest ?: [NSData data];
+        download.checking = YES;
+        return YES;
+    } error:error];
+    return ok ? check : nil;
+}
+
+- (BOOL)completeBlockCheck:(SZFriendsBlockCheck *)check error:(NSError **)error {
+    __block BOOL mismatch = NO;
+    NSString *transferID = check.transferID;
+    NSString *mapPath = [self blockMapPathForTransfer:transferID];
+    BOOL ok = [self.receiver onWriter:^BOOL(SZFriendsStoreDB *db, NSError **inner) {
+        SZFriendsBlockDownload *download = self.receiver.blockDownloads[transferID];
+        if (download == nil || download != check.download) {
+            // Cancelled or declined while it was read: nothing to save.
+            return SZFriendsFail(inner, SZFriendsBlockError(SZFriendsStoreErrorStale, @"no longer receiving"));
+        }
+        download.checking = NO;
+        SZFriendsTransferRecord *record = SZFriendsTransferRowLoad(db, transferID);
+        NSString *partial = download.partial;
         [self.receiver.blockDownloads removeObjectForKey:transferID]; // closes both descriptors
         unlink(mapPath.fileSystemRepresentation);
-        if (matches) return [self.receiver publish:record from:download.partial db:db error:inner];
+        if (check.matches && record != nil) return [self.receiver publish:record from:partial db:db error:inner];
         mismatch = YES;
-        return [self.receiver failMismatched:transferID partial:download.partial db:db error:inner];
+        return [self.receiver failMismatched:transferID partial:partial db:db error:inner];
     } error:error];
     if (ok && mismatch) {
         return SZFriendsFail(error, SZFriendsBlockError(SZFriendsStoreErrorDigestMismatch, @"digest mismatch"));

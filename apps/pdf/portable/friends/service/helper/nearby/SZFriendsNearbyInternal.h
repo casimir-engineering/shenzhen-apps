@@ -381,6 +381,9 @@ void SZFriendsNearbyRecordEvent(SZFriendsStore *store, NSString *eventKind, NSSt
 - (void)admitLane:(SZFriendsPeerLink *)link;
 // One of our lanes went live: it joins its head's group.
 - (void)joinLane:(SZFriendsPeerLink *)link toHead:(SZFriendsPeerLink *)head;
+// The head is closing while lanes live (ADR 0018 § 6: the group goes on): its lowest live lane takes the group, as the
+// link to adopt in its place; nil when none can (the caller ends the group as before).
+- (nullable SZFriendsPeerLink *)handOverGroupOfLink:(SZFriendsPeerLink *)head;
 @end
 
 // File previews (brief § Transfers, Thumbnails before acceptance; SZFriendsNearbyService+Thumbnails.m).

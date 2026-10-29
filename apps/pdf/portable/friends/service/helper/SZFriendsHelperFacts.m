@@ -99,6 +99,7 @@ SZFriendsItemFacts *SZFriendsItemFactsFromRecord(SZFriendsItemRecord *record, SZ
                 facts.transferRoute = live.route;
                 if (live.bytesPerSecond > 0) facts.bytesPerSecond = live.bytesPerSecond;
             }
+            facts.finishing = !transfer.outgoing && [services.nearby transferShowsFinishing:record.transferID];
         } else {
             // A file another device of ours has (sync): its record is here at once, its bytes when copied.
             SZFriendsSyncFileRecord *file = [services.store syncFileWithID:record.transferID];

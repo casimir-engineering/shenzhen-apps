@@ -19,7 +19,6 @@ static uint64_t SZFriendsNextLaneSerial = 0;
     if (link.lane) return [self blocksOnLink:link.laneHead];
     if (link.blocks != nil) return link.blocks;
     if (!link.live || link.closed || link.conversationID == nil || !link.channel.fastTransfers) return nil;
-    __weak SZFriendsNearbyService *weakSelf = self;
     __weak SZFriendsPeerLink *weakLink = link;
     SZFriendsBlockExchange *blocks = [[SZFriendsBlockExchange alloc]
         initWithTransfers:self.services.transfers
@@ -38,6 +37,16 @@ static uint64_t SZFriendsNextLaneSerial = 0;
     link.channel.onWritten = ^{
         [weakBlocks written:SZFriendsHeadLane];
     };
+    blocks.queue = self.queue;
+    [self wireBlocks:blocks toLink:link];
+    link.blocks = blocks;
+    return blocks;
+}
+
+// The exchange's events, for the link that holds it: the first session, or the lane that took over from it.
+- (void)wireBlocks:(SZFriendsBlockExchange *)blocks toLink:(SZFriendsPeerLink *)link {
+    __weak SZFriendsNearbyService *weakSelf = self;
+    __weak SZFriendsPeerLink *weakLink = link;
     blocks.onChanged = ^{
         [weakSelf changed];
     };
@@ -49,6 +58,17 @@ static uint64_t SZFriendsNextLaneSerial = 0;
     };
     blocks.onReceived = ^(NSString *transferID) {
         SZFriendsNearbyService *strongSelf = weakSelf;
+        SZFriendsPeerLink *strongLink = weakLink;
+        if (strongLink == nil || strongLink.closed) {
+            // The session that received it ended during the check: acknowledged on the friend's live one.
+            NSString *conversationID = [strongSelf.services.transfers transferWithID:transferID].conversationID;
+            SZFriendsPeerLink *live = conversationID ? [strongSelf liveLinkForConversation:conversationID] : nil;
+            NSData *wire = SZFriendsLinkBytesFromHex(transferID);
+            if (live != nil && wire != nil) {
+                [live.channel sendFrame:[SZFriendsFrame frameWithType:SZFriendsFrameTypeAck
+                                                               fields:@{@(SZFriendsFieldID) : wire}]];
+            }
+        }
         // The file is what it claimed to be: our own preview of it now replaces the sender's (+Thumbnails).
         [strongSelf makeLocalThumbnailForReceivedTransfer:transferID];
         [strongSelf.services.notifier noteTransferReceived:transferID];
@@ -82,8 +102,32 @@ static uint64_t SZFriendsNextLaneSerial = 0;
             if (member.laneSerial == lane) [member.channel closeWithReason:SZFriendsCloseReasonNormal];
         }
     };
-    link.blocks = blocks;
-    return blocks;
+}
+
+- (nullable SZFriendsPeerLink *)handOverGroupOfLink:(SZFriendsPeerLink *)head {
+    SZFriendsBlockExchange *blocks = head.blocks;
+    if (blocks.group == nil || head.lane || head.lanes.count == 0) return nil;
+    if ([blocks laneDown:blocks.controlLane]) return nil; // no live lane left
+    SZFriendsPeerLink *heir = nil;
+    for (SZFriendsPeerLink *lane in head.lanes.allObjects) {
+        if (lane.laneSerial == blocks.controlLane && lane.live && !lane.closed) heir = lane;
+    }
+    if (heir == nil) return nil;
+    [head.lanes removeObject:heir];
+    heir.lane = NO;
+    heir.laneHead = nil;
+    for (SZFriendsPeerLink *lane in head.lanes.allObjects) {
+        lane.laneHead = heir;
+        [heir.lanes addObject:lane];
+    }
+    [head.lanes removeAllObjects];
+    heir.blocks = blocks;
+    head.blocks = nil;
+    [self wireBlocks:blocks toLink:heir];
+    [self scheduleBlockTickOnLink:heir];
+    SZFriendsHelperLog(@"the first session of a group ended: a lane on route %ld carries it on",
+                       (long)heir.raceRoute);
+    return heir;
 }
 
 // The scheduler's timers while the group sends: a lane that stopped moving is noticed and its blocks go elsewhere.
@@ -193,7 +237,7 @@ static uint64_t SZFriendsNextLaneSerial = 0;
 
 - (void)link:(SZFriendsPeerLink *)link receivedBlockFrame:(SZFriendsFrame *)frame {
     SZFriendsBlockExchange *blocks = [self blocksOnLink:link];
-    SZFriendsLaneID lane = link.lane ? link.laneSerial : SZFriendsHeadLane;
+    SZFriendsLaneID lane = link.lane ? link.laneSerial : blocks.controlLane;
     if (blocks == nil || ![blocks handleFrame:frame lane:lane]) {
         // ADR 0001: nothing moves outside an accepted transfer; a block frame that names none closes the session.
         SZFriendsHelperLog(@"a block frame out of place: closing the session");

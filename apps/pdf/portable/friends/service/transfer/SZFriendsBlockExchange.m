@@ -78,7 +78,11 @@ static NSUInteger SZFriendsPartBytesFor(SZFriendsRouteMethod route) {
     NSMutableSet<NSString *> *_receivers;
     NSMutableSet<NSString *> *_lateAnswered; // "lane:transfer:block"
     SZFriendsLaneID _control;                // the lane control frames go on: the head, or once it closed, -group.first
+    NSMutableDictionary<NSString *, NSNumber *> *_finishing; // transfer id -> when its check began (clock)
 }
+
+// A check shorter than this shows nothing: the row goes from the last block straight to saved.
+static const double SZFriendsFinishingAfter = 1.0;
 
 - (instancetype)initWithTransfers:(SZFriendsTransfers *)transfers
                    conversationID:(NSString *)conversationID
@@ -96,6 +100,7 @@ static NSUInteger SZFriendsPartBytesFor(SZFriendsRouteMethod route) {
         _senders = [NSMutableDictionary dictionary];
         _receivers = [NSMutableSet set];
         _lateAnswered = [NSMutableSet set];
+        _finishing = [NSMutableDictionary dictionary];
         _directWiFiKeepsInternet = YES;
         _clock = ^double {
             return (double)clock_gettime_nsec_np(CLOCK_MONOTONIC) / 1e9;
@@ -299,14 +304,55 @@ static NSUInteger SZFriendsPartBytesFor(SZFriendsRouteMethod route) {
     if (complete.length || durable.length) [self changed];
     if (![_transfers blocksAllDurable:transferID]) return;
     [_receivers removeObject:transferID];
+    if (_finishing[transferID] != nil) return;
     NSError *error = nil;
-    if ([_transfers finishBlockTransfer:transferID fromConversation:_conversationID error:&error]) {
+    if (self.queue == nil) {
+        BOOL saved = [_transfers finishBlockTransfer:transferID fromConversation:_conversationID error:&error];
+        [self checked:transferID saved:saved error:error];
+        return;
+    }
+    // The check reads the whole file: off the store's queue and this one; past a second the row says "Finishing…".
+    SZFriendsBlockCheck *check = [_transfers beginBlockCheck:transferID fromConversation:_conversationID error:&error];
+    if (check == nil) {
+        if (error.code != SZFriendsStoreErrorStale) [self checked:transferID saved:NO error:error];
+        return;
+    }
+    _finishing[transferID] = @(self.clock());
+    dispatch_queue_t queue = self.queue;
+    SZFriendsTransfers *transfers = _transfers;
+    __weak SZFriendsBlockExchange *weakSelf = self;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(SZFriendsFinishingAfter * NSEC_PER_SEC)), queue, ^{
+        [weakSelf changed];
+    });
+    // The exchange lives until its check completes, so the file is announced (and acknowledged, when its session
+    // still lives) even if the session ended meanwhile.
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
+        [check run];
+        dispatch_async(queue, ^{
+            NSError *failure = nil;
+            BOOL saved = [transfers completeBlockCheck:check error:&failure];
+            [self->_finishing removeObjectForKey:transferID];
+            [self checked:transferID saved:saved error:failure];
+        });
+    });
+    [self changed];
+}
+
+// The check before saving finished: saved and acknowledged, or deleted and failed.
+- (void)checked:(NSString *)transferID saved:(BOOL)saved error:(nullable NSError *)error {
+    if (saved) {
+        NSData *wire = SZFriendsBlockBytes(transferID);
         [self sendOnHead:[SZFriendsFrame frameWithType:SZFriendsFrameTypeAck fields:@{@(SZFriendsFieldID) : wire}]];
         if (self.onReceived) self.onReceived(transferID);
     } else {
         NSLog(@"Friends: a file received by blocks did not check: %@", error.localizedDescription);
     }
     [self changed];
+}
+
+- (BOOL)showsFinishing:(NSString *)transferID {
+    NSNumber *since = _finishing[transferID];
+    return since != nil && self.clock() - since.doubleValue >= SZFriendsFinishingAfter;
 }
 
 - (BOOL)hashes:(SZFriendsFrame *)frame transfer:(NSString *)transferID {

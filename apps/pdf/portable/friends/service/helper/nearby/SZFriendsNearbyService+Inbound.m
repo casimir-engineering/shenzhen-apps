@@ -88,7 +88,7 @@ static BOOL SZFriendsCreatesFriendship(SZFriendsFrameType type) {
         }
         link = head;
     }
-    [link.blocks heard:SZFriendsHeadLane];
+    [link.blocks heard:link.blocks.controlLane];
     [self noteFrame:frame onLink:link];
     if (link.ownDevice) {
         [self link:link receivedOwnDeviceFrame:frame]; // CHAIN and SYNC between our own devices (+Sync)

@@ -389,7 +389,14 @@ static BOOL SZFriendsEndWasSupersededByPeer(NSError *error) {
         if (link.dialKey != nil) [self.dialing removeObject:link.dialKey];
         return;
     }
-    for (SZFriendsPeerLink *lane in link.lanes.allObjects) [lane.channel closeWithReason:SZFriendsCloseReasonNormal];
+    NSString *conversationID = link.conversationID;
+    BOOL wasActive = conversationID != nil && self.activeLinks[conversationID] == link;
+    // The group goes on without its first session when a lane lives (ADR 0018 § 6): that lane becomes the
+    // conversation's session below; otherwise the lanes end with it.
+    SZFriendsPeerLink *heir = wasActive && link.live && !link.superseded ? [self handOverGroupOfLink:link] : nil;
+    if (heir == nil) {
+        for (SZFriendsPeerLink *lane in link.lanes.allObjects) [lane.channel closeWithReason:SZFriendsCloseReasonNormal];
+    }
     [self syncLinkClosed:link];
     [link.againExchange stop];
     // Faults only, and never a key, name or address: which kind of session ended, on which route, and why.
@@ -403,8 +410,6 @@ static BOOL SZFriendsEndWasSupersededByPeer(NSError *error) {
                                : @"");
     }
     if (link.dialKey != nil) [self.dialing removeObject:link.dialKey];
-    NSString *conversationID = link.conversationID;
-    BOOL wasActive = conversationID != nil && self.activeLinks[conversationID] == link;
     if (wasActive) [self.activeLinks removeObjectForKey:conversationID];
     // Every received byte durable before anything resumes elsewhere (ADR 0003 § Durable progress; ADR 0018 § 4).
     if (link.receivers.count > 0) [self.services.transfers flushProgressWithError:NULL];
@@ -427,10 +432,13 @@ static BOOL SZFriendsEndWasSupersededByPeer(NSError *error) {
         if (link.live) [self noteEndOfLink:link];
         else if (link.channel.isInitiator) [self noteFailureForConversation:conversationID];
     }
-    if (wasActive) {
+    if (heir != nil) {
+        [self adoptLink:heir]; // what the first session carried resumes on it, as on any new session
+    } else if (wasActive) {
         // A standby session (the responder's copy of a double dial) takes over at once.
         for (SZFriendsPeerLink *other in self.links) {
-            if (other.live && !other.superseded && [other.conversationID isEqualToString:conversationID]) {
+            if (other.live && !other.superseded && !other.lane &&
+                [other.conversationID isEqualToString:conversationID]) {
                 [self adoptLink:other];
                 break;
             }

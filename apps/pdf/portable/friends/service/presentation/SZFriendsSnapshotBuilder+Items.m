@@ -318,7 +318,10 @@ static BOOL EndsSentence(NSString *text) {
     }
 
     NSString *statusKey = [@"transfer.status." stringByAppendingString:TransferStateName(state)];
-    if (moving) {
+    BOOL finishing = item.finishing && state == SZFriendsTransferStateReceiving;
+    if (finishing) {
+        statusKey = @"transfer.finishing";
+    } else if (moving) {
         statusKey = [NSString stringWithFormat:@"transfer.status.%@%@", verb, timed ? @"_timed" : @""];
     } else if (state == SZFriendsTransferStateWaitingForYou && item.askedBecauseDiskLow) {
         statusKey = @"transfer.status.disk_low";
@@ -342,6 +345,7 @@ static BOOL EndsSentence(NSString *text) {
     NSString *spokenKey = [NSString stringWithFormat:@"transfer.spoken.%@.%@", direction, TransferStateName(state)];
     if (failed) spokenKey = [self key:spokenKey forFailure:item.failureReason person:person];
     if (saved) spokenKey = @"transfer.spoken.in.received.saved";
+    if (finishing) spokenKey = @"transfer.spoken.in.finishing";
     NSString *assistant = [self assistantLabelForItem:item person:person];
     // Every spoken template lists "{file}, {kind}, {size}", so the assistant is said right after the file's facts.
     NSMutableDictionary<NSString *, NSString *> *said = [values mutableCopy];
@@ -352,7 +356,13 @@ static BOOL EndsSentence(NSString *text) {
     if (automatic)
         meta = [s text:@"preview.with_status" values:@{@"text" : meta, @"status" : [s text:@"transfer.auto"]}];
     id progress = [NSNull null];
-    if (moving)
+    if (finishing)
+        progress = @{
+            @"fraction" : @1.0,
+            @"determinate" : SZFriendsBool(YES),
+            @"accessibility_label" : [s text:@"transfer.progress.finishing"]
+        };
+    else if (moving)
         progress = @{
             @"fraction" : @(percent / 100.0),
             @"determinate" : SZFriendsBool(item.fileSize > 0),
