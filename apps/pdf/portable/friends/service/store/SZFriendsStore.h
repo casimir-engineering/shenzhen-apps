@@ -296,6 +296,9 @@ NSString *SZFriendsSearchExcerpt(NSString *text, NSArray<NSValue *> *matchRanges
 // Helper-wide settings (table settings), shared by every app that hosts Friends.
 // Whether Nearby permissions were requested: adapters start at launch only once the user has been asked.
 @property(nonatomic) BOOL nearbyPermissionsRequested;
+// ADR 0018 § 1, settings key transfers.fast: fast transfers on unless it holds 0. No app shows it; it is the way
+// back for a release. Read as the helper starts.
+@property(nonatomic, readonly) BOOL fastTransfersEnabled;
 // Our 32-byte presence secret, sent to each friend on acceptance; replaced on every remove or block (ADR 0004).
 @property(nonatomic, copy, nullable) NSData *ownPresenceSecret;
 // Absolute end of the person's 5 minutes of public visibility, or nil. Stored so a restart, sleep or a second

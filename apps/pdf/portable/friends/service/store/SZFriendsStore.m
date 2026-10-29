@@ -362,6 +362,10 @@ static BOOL SZFriendsOpenFailure(NSError **error, NSString *why) {
 }
 
 - (BOOL)nearbyPermissionsRequested { return [[self setting:@"nearby_permissions_requested"] boolValue]; }
+- (BOOL)fastTransfersEnabled {
+    id value = [self setting:@"transfers.fast"];
+    return value == nil || [value integerValue] != 0;
+}
 - (void)setNearbyPermissionsRequested:(BOOL)value {
     [self setSetting:@(value ? 1 : 0) forKey:@"nearby_permissions_requested"];
 }

@@ -8,7 +8,8 @@ FRIENDS_STORE_OBJS := $(patsubst $(FRIENDS_STORE_DIR)/%.m,$(FRIENDS_STORE_BUILD)
 # The identity header: a static-key change is accepted only with a certificate the identity area verifies. The
 # mention form: search indexes each mention as the label a reader sees, never its ID or key (ADR 0007).
 FRIENDS_STORE_HDRS := $(wildcard $(FRIENDS_STORE_DIR)/*.h) friends/avatars/SZFriendsAvatars.h \
-	friends/service/identity/SZFriendsIdentity.h friends/service/presentation/SZFriendsMentions.h
+	friends/service/identity/SZFriendsIdentity.h friends/service/presentation/SZFriendsMentions.h \
+	$(wildcard friends/service/transfer/*.h)
 FRIENDS_STORE_MENTIONS_OBJ := $(FRIENDS_BUILD)/presentation/SZFriendsMentions.o
 # System libraries only: SQLite costs no binary size (ADR 0003); UniformTypeIdentifiers names offered file types.
 FRIENDS_STORE_LIBS := -lsqlite3 -framework UniformTypeIdentifiers
@@ -31,12 +32,13 @@ FRIENDS_STORE_TEST_SRCS := $(sort $(wildcard $(FRIENDS_STORE_DIR)/tests/*.m))
 
 FRIENDS_STORE_TEST_LINK = clang $(PORTABLE_TEST_OPTFLAGS) $(FRIENDS_OBJC_FLAGS) $(FRIENDS_SODIUM_CFLAGS) \
 	$(FRIENDS_STORE_TEST_SRCS) $(FRIENDS_STORE_OBJS) $(FRIENDS_STORE_MENTIONS_OBJ) $(FRIENDS_IDENTITY_OBJS) \
-	$(FRIENDS_SODIUM_LIB) -framework Foundation $(FRIENDS_STORE_LIBS) $(FRIENDS_IDENTITY_LIBS) \
+	$(FRIENDS_TRANSFER_OBJS) $(FRIENDS_SESSION_OBJS) $(FRIENDS_SODIUM_LIB) $(FRIENDS_BLAKE3_LIB) -framework Foundation $(FRIENDS_STORE_LIBS) $(FRIENDS_IDENTITY_LIBS) \
 	-o "$(FRIENDS_STORE_TEST)"
 
 FRIENDS_TEST_TARGETS += friends-store-check
 .PHONY: friends-store-check friends-store-v1-fixture
-friends-store-check: $(FRIENDS_STORE_OBJS) $(FRIENDS_STORE_MENTIONS_OBJ) $$(FRIENDS_IDENTITY_OBJS) $(FRIENDS_SODIUM_LIB)
+friends-store-check: $(FRIENDS_STORE_OBJS) $(FRIENDS_STORE_MENTIONS_OBJ) $$(FRIENDS_IDENTITY_OBJS) $(FRIENDS_SODIUM_LIB) \
+		$$(FRIENDS_TRANSFER_OBJS) $$(FRIENDS_SESSION_OBJS)
 	@mkdir -p "$(FRIENDS_STORE_BUILD)"
 	@rm -f "$(FRIENDS_STORE_TEST)"
 	$(FRIENDS_STORE_TEST_LINK)
@@ -45,6 +47,7 @@ friends-store-check: $(FRIENDS_STORE_OBJS) $(FRIENDS_STORE_MENTIONS_OBJ) $$(FRIE
 # Regenerated the committed v1 fixture while v1 was the newest schema. Schema v2 exists now, so store-v1.sql is the
 # record of what v1 helpers wrote and never changes again: the generator refuses and says so.
 friends-store-v1-fixture: $(FRIENDS_STORE_OBJS) $(FRIENDS_STORE_MENTIONS_OBJ) $$(FRIENDS_IDENTITY_OBJS) \
+		$$(FRIENDS_TRANSFER_OBJS) $$(FRIENDS_SESSION_OBJS) \
 		$(FRIENDS_SODIUM_LIB)
 	@mkdir -p "$(FRIENDS_STORE_BUILD)"
 	@rm -f "$(FRIENDS_STORE_TEST)"

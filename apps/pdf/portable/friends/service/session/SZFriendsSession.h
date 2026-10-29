@@ -104,8 +104,10 @@ typedef NS_OPTIONS(uint32_t, SZFriendsCapabilities) {
     SZFriendsCapabilityAESLanes = 1u << 1,      // reserved for AES-GCM lanes (ADR 0018 § 9.2): never sent yet
     SZFriendsCapabilityCompressedParts = 1u << 2, // compressed PARTs (ADR 0018 § 9.4): never sent yet
 };
-// What a new channel sets: fast transfers unless SZFRIENDS_TEST_FAST_TRANSFERS=0 plays a released helper.
+// What a new channel sets: fast transfers, unless the helper switched them off (settings key transfers.fast, read as
+// it starts) or SZFRIENDS_TEST_FAST_TRANSFERS=0 plays a released helper in a test home.
 SZFriendsCapabilities SZFriendsDefaultCapabilities(void);
+void SZFriendsSetFastTransfersEnabled(BOOL enabled);
 // Liveness while a transfer runs (ADR 0018 § 7, -setLivenessKeepalive:watch:): PING after this long without sending
 // anything, and a session that heard nothing for the silence limit closes (SZFriendsSessionErrorSilent) and is
 // redialed. A route that goes out of range stays open to TCP and L2CAP for minutes; this is what notices it.

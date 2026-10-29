@@ -17,6 +17,7 @@
 #import "service/online/driver/SZFriendsOnlineDriver.h"
 #import "service/session/SZFriendsSession.h"
 #import "service/thumbnails/SZFriendsThumbnails.h"
+#import "service/transfer/SZFriendsBlockExchange.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -361,6 +362,17 @@ void SZFriendsNearbyRecordEvent(SZFriendsStore *store, NSString *eventKind, NSSt
 // Moves every receiver's bytes to disk and reports what became durable.
 - (void)flushProgressOnLink:(SZFriendsPeerLink *)link;
 - (BOOL)transfersInFlight;
+// YES when `bytes` more would go faster than the tests' cap: the pump runs again once they may.
+- (BOOL)paceLink:(SZFriendsPeerLink *)link bytes:(NSUInteger)bytes rate:(double)rate;
+// PING and silence for whatever the link carries now (ADR 0018 § 7).
+- (void)updateLivenessOnLink:(SZFriendsPeerLink *)link;
+@end
+
+// Files by blocks on fast sessions (ADR 0018; SZFriendsNearbyService+Blocks.m).
+@interface SZFriendsNearbyService (Blocks)
+// The link's exchange, made on first use; nil unless the link is a live friend's session that negotiated them.
+- (nullable SZFriendsBlockExchange *)blocksOnLink:(SZFriendsPeerLink *)link;
+- (void)link:(SZFriendsPeerLink *)link receivedBlockFrame:(SZFriendsFrame *)frame;
 @end
 
 // File previews (brief § Transfers, Thumbnails before acceptance; SZFriendsNearbyService+Thumbnails.m).

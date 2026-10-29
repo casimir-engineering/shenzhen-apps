@@ -206,6 +206,8 @@ static BOOL SZFriendsIsRequestAnswer(SZFriendsOutboxEntry *entry) {
     if (item.viaAssistant) {
         fields[@(SZFriendsFieldViaAssistant)] = [SZFriendsFrame fieldWithUInt64:1 tag:SZFriendsFieldViaAssistant];
     }
+    // The tree, for a friend whose helper runs fast transfers (ADR 0018 § 2); the session strips it for any other.
+    [SZFriendsBlockExchange addTreeOfTransfer:transfer toFields:fields transfers:self.services.transfers];
     return [SZFriendsFrame frameWithType:SZFriendsFrameTypeOffer fields:fields];
 }
 
@@ -237,6 +239,8 @@ static BOOL SZFriendsIsRequestAnswer(SZFriendsOutboxEntry *entry) {
         if (accept) {
             fields[@(SZFriendsFieldOffset)] = [SZFriendsFrame fieldWithUInt64:transfer.verifiedBytes
                                                                           tag:SZFriendsFieldOffset];
+            // By blocks when its offer announced a tree on a fast session (stripped on any other).
+            [SZFriendsBlockExchange addBlocksToReply:fields forTransfer:transferID transfers:self.services.transfers];
         }
         return [SZFriendsFrame frameWithType:SZFriendsFrameTypeOfferReply fields:fields];
     }

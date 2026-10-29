@@ -22,6 +22,8 @@ static SZFriendsFrame *SZFIDFrame(SZFriendsFrameType type, NSData *offerID, NSDi
 static void SZFUpdateLiveness(SZFPeerSession *session) {
     BOOL keepalive = NO, watch = NO;
     SZFriendsTransferLiveness(session.senders.allValues, session.receivers.allValues, &keepalive, &watch);
+    keepalive |= session.blocks.carriesTransfers;
+    watch |= session.blocks.awaitingPeer;
     [session.channel setLivenessKeepalive:keepalive watch:watch];
 }
 
@@ -40,6 +42,7 @@ static void SZFUpdateLiveness(SZFPeerSession *session) {
         if (strongSelf == nil || strongSession == nil) return;
         [strongSelf devicesClosed:strongSession];
         [strongSelf.transfers flushProgressWithError:NULL];
+        [strongSession.blocks sessionEnded];
         for (NSFileHandle *source in strongSession.sources.allValues) [source closeFile];
         NSNumber *reason = error.userInfo[SZFriendsSessionCloseReasonKey];
         SZFriendsSecureChannel *closing = strongSession.channel;
@@ -58,16 +61,22 @@ static void SZFUpdateLiveness(SZFPeerSession *session) {
         @"remote_identity" : channel.remoteIdentityKey ? SZFHex(channel.remoteIdentityKey) : [NSNull null],
         @"token" : channel.presentedRequestToken ? SZFHex(channel.presentedRequestToken) : [NSNull null],
         @"route" : @(channel.initiatorRoute), @"minor" : @(channel.negotiatedMinor),
+        @"fast" : @(channel.fastTransfers),
     }];
     [self devicesEstablished:session];
     SZFriendsPersonRecord *person =
         channel.remoteIdentityKey ? [self.store personWithIdentityKey:channel.remoteIdentityKey] : nil;
     if (person == nil) return;
     session.conversationID = person.conversationID;
+    [self blocksOf:session];
     NSArray *unfinished = [self.transfers unfinishedIncomingTransfersForConversation:person.conversationID];
     if (unfinished.count) [self.transfers flushProgressWithError:NULL];
     for (SZFriendsTransferRecord *__strong record in unfinished) {
         record = [self.transfers transferWithID:record.transferID] ?: record;
+        if ([session.blocks resumeIncoming:record]) continue; // from exactly what is missing (ADR 0018 § 4)
+        if (session.blocks == nil && [self.transfers hasOfferedTree:record.transferID]) {
+            [self.transfers dropBlocks:record.transferID];
+        }
         SZFriendsChunkReceiver *receiver =
             [[SZFriendsChunkReceiver alloc] initWithOfferID:SZFBytes(record.transferID) size:record.size
                                              verifiedOffset:record.verifiedBytes route:channel.initiatorRoute];
@@ -91,6 +100,13 @@ static void SZFUpdateLiveness(SZFPeerSession *session) {
     case SZFriendsFrameTypeDone: handled = [self session:session done:frame id:offer]; break;
     case SZFriendsFrameTypeAck: handled = [self session:session acknowledged:offer]; break;
     case SZFriendsFrameTypeRequestByID: handled = [self session:session requestByID:frame]; break;
+    case SZFriendsFrameTypeHashes:
+    case SZFriendsFrameTypeWant:
+    case SZFriendsFrameTypePart:
+    case SZFriendsFrameTypeHave:
+        if (session.blocks == nil || ![session.blocks handleFrame:frame]) [self closeForProtocol:session];
+        handled = YES;
+        break;
     default: break;
     }
     if (handled) {
@@ -125,18 +141,28 @@ static void SZFUpdateLiveness(SZFPeerSession *session) {
                                                                   contentDigest:digest
                                                                          sentAt:[NSDate date]
                                                                           error:&error];
+    if (record != nil) [session.blocks noteOffer:frame transferID:offer];
     BOOL accepted = record != nil && [self.transfers acceptTransfer:offer automatically:NO error:&error];
+    BOOL byBlocks = accepted && session.blocks != nil && [self.transfers hasOfferedTree:offer];
     SZFriendsChunkReceiver *receiver =
-        accepted ? [[SZFriendsChunkReceiver alloc] initWithOfferID:wire size:size verifiedOffset:0
-                                                              route:session.channel.initiatorRoute]
-                 : nil;
+        accepted && !byBlocks ? [[SZFriendsChunkReceiver alloc] initWithOfferID:wire size:size verifiedOffset:0
+                                                                           route:session.channel.initiatorRoute]
+                              : nil;
     [session.channel sendFrame:SZFIDFrame(SZFriendsFrameTypeAck, wire, nil)];
-    NSDictionary *reply = @{@(SZFriendsFieldAccept) : [SZFriendsFrame fieldWithUInt64:receiver != nil
-                                                                                  tag:SZFriendsFieldAccept],
-                            @(SZFriendsFieldOffset) : [SZFriendsFrame fieldWithUInt64:0 tag:SZFriendsFieldOffset]};
+    NSMutableDictionary *reply = [@{@(SZFriendsFieldAccept) : [SZFriendsFrame fieldWithUInt64:accepted
+                                                                                         tag:SZFriendsFieldAccept],
+                                    @(SZFriendsFieldOffset) : [SZFriendsFrame fieldWithUInt64:0
+                                                                                         tag:SZFriendsFieldOffset]}
+        mutableCopy];
+    if (byBlocks) [SZFriendsBlockExchange addBlocksToReply:reply forTransfer:offer transfers:self.transfers];
     [session.channel sendFrame:SZFIDFrame(SZFriendsFrameTypeOfferReply, wire, reply)];
-    if (receiver == nil) {
+    if (!accepted) {
         [self emit:@{@"event" : @"transfer_failed", @"transfer" : offer, @"why" : error.localizedDescription ?: @""}];
+        return YES;
+    }
+    if (byBlocks) {
+        [session.blocks resumeIncoming:[self.transfers transferWithID:offer]];
+        [self emit:@{@"event" : @"offer", @"session" : @(session.sessionID), @"transfer" : offer, @"size" : @(size)}];
         return YES;
     }
     session.receivers[offer] = receiver;
@@ -173,9 +199,15 @@ static void SZFUpdateLiveness(SZFPeerSession *session) {
 }
 
 - (BOOL)session:(SZFPeerSession *)session offerReply:(SZFriendsFrame *)frame id:(NSString *)offer {
-    uint64_t accept = 0, offset = 0;
+    uint64_t accept = 0, offset = 0, blocks = 0;
     [frame getUInt64:&accept forTag:SZFriendsFieldAccept];
     [frame getUInt64:&offset forTag:SZFriendsFieldOffset];
+    if (accept == 1 && offer != nil && [frame getUInt64:&blocks forTag:SZFriendsFieldBlocks] && blocks == 1 &&
+        [session.blocks offerTakenByBlocks:offer]) {
+        [self emit:@{@"event" : @"sending", @"session" : @(session.sessionID), @"transfer" : offer, @"offset" : @0,
+                     @"blocks" : @YES}];
+        return YES;
+    }
     if (offer == nil || ![self session:session startSending:offer accepted:accept == 1 offset:offset]) {
         [self closeForProtocol:session];
     }
@@ -265,6 +297,7 @@ static void SZFUpdateLiveness(SZFPeerSession *session) {
         [session.senders removeObjectForKey:offer];
         [session.sources[offer] closeFile];
         [session.sources removeObjectForKey:offer];
+        [session.blocks endTransfer:offer];
         [self emit:@{@"event" : @"delivered", @"transfer" : offer}];
     }
     return YES;
@@ -304,7 +337,44 @@ static void SZFUpdateLiveness(SZFPeerSession *session) {
             }
         }
     }
+    [session.blocks pump];
     SZFUpdateLiveness(session);
+}
+
+// The session's block exchange, made once it is a friend's session that negotiated fast transfers.
+- (nullable SZFriendsBlockExchange *)blocksOf:(SZFPeerSession *)session {
+    if (session.blocks != nil) return session.blocks;
+    if (session.conversationID == nil || !session.channel.fastTransfers) return nil;
+    __weak SZFPeerSession *weakSession = session;
+    __weak SZFPeer *weakSelf = self;
+    SZFriendsBlockExchange *blocks = [[SZFriendsBlockExchange alloc]
+        initWithTransfers:self.transfers
+           conversationID:session.conversationID
+                    route:session.channel.initiatorRoute
+                     send:^BOOL(SZFriendsFrame *frame) {
+                         return [weakSession.channel sendFrame:frame];
+                     }];
+    blocks.onReceived = ^(NSString *transferID) {
+        NSString *path = [weakSelf.transfers transferWithID:transferID].receivedPath ?: @"";
+        [weakSelf emit:@{@"event" : @"received_file", @"transfer" : transferID, @"path" : path}];
+    };
+    // The bench reads the resume point here, as it reads a CHUNK resume's offset.
+    blocks.onWanted = ^(NSString *transferID, uint64_t offset, BOOL resumed) {
+        (void)resumed;
+        [weakSelf emit:@{@"event" : @"sending", @"session" : @(weakSession.sessionID), @"transfer" : transferID,
+                         @"offset" : @(offset), @"blocks" : @YES}];
+    };
+    blocks.onFlushNeeded = ^{
+        SZFPeerSession *strongSession = weakSession;
+        if (strongSession == nil || strongSession.blockFlushArmed) return;
+        strongSession.blockFlushArmed = YES;
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), weakSelf.queue, ^{
+            strongSession.blockFlushArmed = NO;
+            [strongSession.blocks flushDue];
+        });
+    };
+    session.blocks = blocks;
+    return blocks;
 }
 
 - (NSDictionary *)sendFileWithCommand:(NSDictionary *)command {
@@ -324,6 +394,7 @@ static void SZFUpdateLiveness(SZFPeerSession *session) {
     if (record.uniformType) {
         fields[@(SZFriendsFieldFileType)] = [record.uniformType dataUsingEncoding:NSUTF8StringEncoding];
     }
+    [SZFriendsBlockExchange addTreeOfTransfer:record toFields:fields transfers:self.transfers];
     [session.channel sendFrame:SZFIDFrame(SZFriendsFrameTypeOffer, SZFBytes(record.transferID), fields)];
     return @{@"transfer" : record.transferID, @"size" : @(record.size), @"digest" : SZFHex(record.contentDigest)};
 }

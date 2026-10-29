@@ -9,6 +9,7 @@
 #import <unistd.h>
 
 #import "service/store/SZFriendsStoreInternal.h"
+#import "service/transfer/SZFriendsTransferBlocks.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -95,6 +96,19 @@ static BOOL SZFriendsHashPrefix(int fd, uint64_t length, crypto_generichash_stat
     NSString *_receivedDirectory;
     NSString *_partialDirectory;
     NSMutableDictionary<NSString *, SZFriendsReceiving *> *_open; // touched only on the store queue
+    NSMutableDictionary<NSString *, id> *_blockDownloads;          // the same (SZFriendsBlockDownloads.m)
+}
+
+- (SZFriendsStore *)store {
+    return _store;
+}
+
+- (NSString *)partialDirectory {
+    return _partialDirectory;
+}
+
+- (NSMutableDictionary<NSString *, id> *)blockDownloads {
+    return _blockDownloads;
 }
 
 - (instancetype)initWithStore:(SZFriendsStore *)store stateDirectory:(NSString *)stateDirectory {
@@ -104,6 +118,7 @@ static BOOL SZFriendsHashPrefix(int fd, uint64_t length, crypto_generichash_stat
         _receivedDirectory = [stateDirectory stringByAppendingPathComponent:@"received"];
         _partialDirectory = [_receivedDirectory stringByAppendingPathComponent:@".partial"];
         _open = [NSMutableDictionary dictionary];
+        _blockDownloads = [NSMutableDictionary dictionary];
         _clock = ^NSDate * { return [NSDate date]; };
     }
     return self;
@@ -402,6 +417,12 @@ static BOOL SZFriendsHashPrefix(int fd, uint64_t length, crypto_generichash_stat
             }
             continue;
         }
+        // A download by blocks keeps blocks beyond its durable prefix: its map re-checks them as it reopens (ADR 0018
+        // § 4), so nothing is cut here.
+        NSString *map = [_partialDirectory stringByAppendingPathComponent:
+                                               [record.transferID stringByAppendingString:@".map"]];
+        NSData *mapBytes = [NSData dataWithContentsOfFile:map];
+        if (mapBytes && [SZFriendsBlockMap mapWithData:mapBytes].leaves != nil) continue;
         // Opening truncates past the durable count and corrects a count the disk no longer backs.
         [_open removeObjectForKey:record.transferID];
         BOOL opened = [db transaction:^BOOL(NSError **inner) {
@@ -431,6 +452,22 @@ static BOOL SZFriendsHashPrefix(int fd, uint64_t length, crypto_generichash_stat
             if (path) [referenced addObject:path.stringByStandardizingPath];
         }
     } error:error];
+    if (!ok) return NO;
+    // ADR 0018 § 4: the sidecars of transfers still open stay (received/.partial/<id>.map, outgoing/<id>.tree); a
+    // released helper's sweep deletes them, and this one then rebuilds them.
+    NSString *outgoingDirectory = [_stateDirectory stringByAppendingPathComponent:@"outgoing"];
+    ok = [db run:@"SELECT transfer_id, outgoing FROM transfers WHERE state IN (0, 1, 2, 3, 4)" binds:nil
+             row:^(sqlite3_stmt *s) {
+                 NSString *transferID = SZFriendsColumnText(s, 0);
+                 if (transferID == nil) return;
+                 NSString *path = SZFriendsColumnInt(s, 1)
+                                      ? [outgoingDirectory stringByAppendingPathComponent:
+                                                               [transferID stringByAppendingString:@".tree"]]
+                                      : [self->_partialDirectory stringByAppendingPathComponent:
+                                                                     [transferID stringByAppendingString:@".map"]];
+                 [referenced addObject:path.stringByStandardizingPath];
+             }
+           error:error];
     if (!ok) return NO;
     NSMutableArray<NSString *> *orphans = [NSMutableArray array];
     NSString *outgoing = [_stateDirectory stringByAppendingPathComponent:@"outgoing"];

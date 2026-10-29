@@ -67,7 +67,7 @@ BOOL SZFriendsHashFileTree(int fd, SZFriendsBlockGeometry geometry, NSData *_Nul
 - (instancetype)init NS_UNAVAILABLE;
 // From a bitmap of exactly the right length whose padding bits are clear; nil otherwise.
 + (nullable instancetype)setWithCount:(uint32_t)count bitmap:(NSData *)bitmap;
-@property(nonatomic, readonly) uint32_t count;   // the blocks the set ranges over
+@property(nonatomic, readonly) uint32_t blockCount; // the blocks the set ranges over
 @property(nonatomic, readonly) uint32_t members;
 @property(nonatomic, readonly) BOOL full;
 - (BOOL)contains:(uint32_t)index;

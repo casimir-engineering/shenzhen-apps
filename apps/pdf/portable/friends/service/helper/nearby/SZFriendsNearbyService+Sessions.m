@@ -383,8 +383,9 @@ static BOOL SZFriendsEndWasSupersededByPeer(NSError *error) {
     NSString *conversationID = link.conversationID;
     BOOL wasActive = conversationID != nil && self.activeLinks[conversationID] == link;
     if (wasActive) [self.activeLinks removeObjectForKey:conversationID];
-    // Every received byte durable before anything resumes elsewhere (ADR 0003 § Durable progress).
+    // Every received byte durable before anything resumes elsewhere (ADR 0003 § Durable progress; ADR 0018 § 4).
     if (link.receivers.count > 0) [self.services.transfers flushProgressWithError:NULL];
+    [link.blocks sessionEnded];
     [self requeueEntriesOfLink:link];
     if (link.purpose == SZFriendsLinkPurposeBrowse && error != nil && link.endpointID != nil) {
         [self browseOfEndpointFailed:link.endpointID];

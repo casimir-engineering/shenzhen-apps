@@ -13,6 +13,7 @@
 #import <unistd.h>
 
 #import "service/store/SZFriendsStoreInternal.h"
+#import "service/transfer/SZFriendsTransferBlocks.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -204,6 +205,32 @@ static int SZFriendsOpenSnapshotSource(NSString *source, struct stat *info, NSEr
     return fd;
 }
 
+// The digest and the tree in one pass; NO (nothing written) when the file has no block geometry or cannot be read,
+// and the plain digest pass runs instead.
+static BOOL SZFriendsHashSnapshotWithTree(NSString *path, uint64_t *size, NSData *_Nullable *_Nonnull digest) {
+    int fd = open(path.fileSystemRepresentation, O_RDONLY | O_NOFOLLOW | O_CLOEXEC);
+    if (fd < 0) return NO;
+    struct stat info;
+    SZFriendsBlockGeometry geometry;
+    NSData *leaves = nil, *hashed = nil;
+    BOOL ok = fstat(fd, &info) == 0 && SZFriendsGeometryForSize((uint64_t)info.st_size, &geometry) &&
+              SZFriendsHashFileTree(fd, geometry, &leaves, &hashed);
+    close(fd);
+    if (!ok) return NO;
+    NSData *root = SZFriendsTreeRootOfLeaves(geometry, leaves);
+    NSData *tree = SZFriendsSenderTreeEncode(geometry, root, hashed, leaves);
+    NSString *treePath = [path stringByAppendingString:@".tree"];
+    int out = open(treePath.fileSystemRepresentation, O_WRONLY | O_CREAT | O_TRUNC | O_NOFOLLOW | O_CLOEXEC, 0600);
+    if (out >= 0) {
+        // A cache: a short write leaves a sidecar that does not decode, and the tree is computed again when needed.
+        if (write(out, tree.bytes, tree.length) != (ssize_t)tree.length) ftruncate(out, 0);
+        close(out);
+    }
+    *size = geometry.size;
+    *digest = hashed;
+    return YES;
+}
+
 BOOL SZFriendsSnapshotFile(NSString *source, NSString *destination, uint64_t freeBytes, uint64_t *size,
                            NSData *_Nullable *_Nonnull digest, NSData *_Nullable *_Nullable sha256,
                            NSError **error) {
@@ -237,6 +264,9 @@ BOOL SZFriendsSnapshotFile(NSString *source, NSString *destination, uint64_t fre
     }
     close(sourceFD);
     chmod(destination.fileSystemRepresentation, 0600);
+    // Without a revision to check, one pass gives the digest and the transfer tree's leaves on every core (ADR 0018
+    // § 2): the tree is kept beside the snapshot (<snapshot>.tree), so an OFFER can announce it at once.
+    if (sha256 == NULL && SZFriendsHashSnapshotWithTree(destination, size, digest)) return YES;
     if (!SZFriendsHashSnapshot(destination, size, digest, sha256, error)) {
         unlink(destination.fileSystemRepresentation);
         return NO;

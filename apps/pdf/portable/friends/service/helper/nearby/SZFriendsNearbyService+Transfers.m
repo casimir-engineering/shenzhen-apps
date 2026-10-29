@@ -9,11 +9,14 @@
 static const NSTimeInterval SZFriendsProgressFlushDelay = 0.5;
 
 // ADR 0018 § 7: PING while this link carries a transfer, and close it when the friend's Mac owes something (PROGRESS,
-// the rest of a file) and nothing at all arrived for the silence limit. Called whenever a flow on the link changes.
+// the rest of a file, a HAVE for blocks sent) and nothing at all arrived for the silence limit. Called whenever a
+// flow on the link changes.
 static void SZFriendsUpdateLiveness(SZFriendsPeerLink *link) {
     if (link.closed) return;
     BOOL keepalive = NO, watch = NO;
     SZFriendsTransferLiveness(link.senders.allValues, link.receivers.allValues, &keepalive, &watch);
+    keepalive |= link.blocks.carriesTransfers;
+    watch |= link.blocks.awaitingPeer;
     [link.channel setLivenessKeepalive:keepalive watch:watch];
 }
 
@@ -27,8 +30,20 @@ static void SZFriendsUpdateLiveness(SZFriendsPeerLink *link) {
     NSArray<SZFriendsTransferRecord *> *unfinished =
         [self.services.transfers unfinishedIncomingTransfersForConversation:conversationID];
     BOOL flushed = NO;
+    SZFriendsBlockExchange *blocks = [self blocksOnLink:link];
     for (SZFriendsTransferRecord *__strong record in unfinished) {
-        if (link.receivers[record.transferID] != nil) continue;
+        if (link.receivers[record.transferID] != nil || [link.blocks.receiving containsObject:record.transferID]) {
+            continue;
+        }
+        // By blocks on a fast session, from exactly what is missing (ADR 0018 § 4); on any other, the map goes and
+        // the CHUNK flow resumes from the durable prefix.
+        if ([blocks resumeIncoming:record]) {
+            [link.endedTransfers removeObject:record.transferID];
+            continue;
+        }
+        if (blocks == nil && [self.services.transfers hasOfferedTree:record.transferID]) {
+            [self.services.transfers dropBlocks:record.transferID];
+        }
         NSData *wire = SZFriendsLinkBytesFromHex(record.transferID);
         if (wire == nil) continue;
         if (!flushed) {
@@ -68,6 +83,11 @@ static void SZFriendsUpdateLiveness(SZFriendsPeerLink *link) {
     [link.doneSent removeObject:transferID];
     [link.rateStart removeObjectForKey:transferID];
     [link.endedTransfers addObject:transferID];
+    [link.blocks endTransfer:transferID];
+    SZFriendsUpdateLiveness(link);
+}
+
+- (void)updateLivenessOnLink:(SZFriendsPeerLink *)link {
     SZFriendsUpdateLiveness(link);
 }
 
@@ -269,6 +289,7 @@ static void SZFriendsUpdateLiveness(SZFriendsPeerLink *link) {
             }
         }
     }
+    [link.blocks pump];
     SZFriendsUpdateLiveness(link);
 }
 
@@ -310,6 +331,7 @@ static void SZFriendsUpdateLiveness(SZFriendsPeerLink *link) {
 - (BOOL)transfersInFlight {
     for (SZFriendsPeerLink *link in self.links) {
         if (link.closed) continue;
+        if (link.blocks.carriesTransfers) return YES;
         for (SZFriendsChunkSender *sender in link.senders.allValues) {
             if (sender.sentOffset > sender.durableOffset) return YES;
         }

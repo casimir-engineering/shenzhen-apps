@@ -192,6 +192,15 @@ NSString *_Nullable SZFriendsTransferRowPartialPath(SZFriendsStoreDB *db, NSStri
 // ADR 0003 § Crash recovery for files: finish publishing, truncate staging files to their durable count, delete
 // files no row references.
 - (BOOL)recoverWithError:(NSError **)error;
+// Shared with the block downloads (SZFriendsBlockDownloads.m), on the store queue.
+@property(nonatomic, readonly) SZFriendsStore *store;
+@property(nonatomic, readonly) NSString *partialDirectory;
+@property(nonatomic, readonly) NSMutableDictionary<NSString *, id> *blockDownloads; // transfer id -> download
+- (BOOL)onWriter:(BOOL (^)(SZFriendsStoreDB *db, NSError **error))body error:(NSError **)error;
+- (BOOL)publish:(SZFriendsTransferRecord *)record from:(NSString *)partial db:(SZFriendsStoreDB *)db
+          error:(NSError **)error;
+- (BOOL)failMismatched:(NSString *)transferID partial:(NSString *)partial db:(SZFriendsStoreDB *)db
+                 error:(NSError **)error;
 @end
 
 @interface SZFriendsTransfers ()

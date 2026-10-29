@@ -263,6 +263,7 @@ int main(int argc, const char *argv[]) {
         SZFTRunTransferCheckTests();
         SZFTRunTransferTests();
         SZFTRunReceiveTests();
+        SZFTRunTransferBlockTests();
         SZFTRunReceivedFolderTests();
         SZFTRunTransferSafetyTests();
         SZFTRunKeyTests();

@@ -13,6 +13,7 @@ NS_ASSUME_NONNULL_BEGIN
 @class SZFriendsSyncExchange;
 @class SZFriendsAgainExchange;
 @class SZFriendsDeviceChain;
+@class SZFriendsBlockExchange;
 
 // Why a link exists. A responder link starts as Incoming and is classified by its handshake.
 typedef NS_ENUM(NSInteger, SZFriendsLinkPurpose) {
@@ -118,6 +119,9 @@ NSData *_Nullable SZFriendsLinkBytesFromHex(NSString *_Nullable hex); // nil unl
 // Open snapshots of outgoing files being sent on this link, by transfer id.
 @property(nonatomic, readonly) NSMutableDictionary<NSString *, NSFileHandle *> *sources;
 @property(nonatomic, nullable) dispatch_source_t progressTimer;
+// Files by blocks on this session (ADR 0018), when it negotiated fast transfers with a friend (+Blocks).
+@property(nonatomic, strong, nullable) SZFriendsBlockExchange *blocks;
+@property(nonatomic) BOOL blockFlushScheduled;
 @property(nonatomic) BOOL pumpScheduled;
 // Chunk pacing (SZFriendsHelperTestHooks.chunkBytesPerSecond): bytes handed out since paceStart.
 @property(nonatomic) CFAbsoluteTime paceStart;

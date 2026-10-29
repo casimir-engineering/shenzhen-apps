@@ -45,9 +45,16 @@ const NSUInteger SZFriendsAttestationMax = 512;
 // 750 bytes at most today (SZFriendsSession.h); the rest is room for a few more payload fields, still bounded.
 const NSUInteger SZFriendsResponderHandshakeMax = 1024;
 
+static BOOL SZFriendsFastTransfersOff = NO;
+
+void SZFriendsSetFastTransfersEnabled(BOOL enabled) {
+    SZFriendsFastTransfersOff = !enabled;
+}
+
 SZFriendsCapabilities SZFriendsDefaultCapabilities(void) {
-    // Not yet: the helper sets fast transfers once it moves files by blocks (ADR 0018 WP4).
-    return 0;
+    const char *test = getenv("SZFRIENDS_TEST_FAST_TRANSFERS");
+    if (SZFriendsFastTransfersOff || (test != NULL && strcmp(test, "0") == 0)) return 0;
+    return SZFriendsCapabilityFastTransfers;
 }
 
 NSData *SZFriendsLaneToken(NSData *handshakeHash, uint8_t index) {

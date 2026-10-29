@@ -57,6 +57,7 @@ void SZFTRunOutboxTests(void);
 void SZFTRunTransferCheckTests(void);
 void SZFTRunTransferTests(void);
 void SZFTRunReceiveTests(void);
+void SZFTRunTransferBlockTests(void);
 void SZFTRunReceivedFolderTests(void);
 void SZFTRunTransferSafetyTests(void);
 void SZFTRunKeyTests(void);

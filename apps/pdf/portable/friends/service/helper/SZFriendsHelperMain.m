@@ -115,6 +115,7 @@ int SZFriendsHelperMain(int argc, const char *_Nonnull argv[_Nonnull]) {
                                                                                environment:environment
                                                                                  resources:resources];
         [services open];
+        SZFriendsSetFastTransfersEnabled(services.store.fastTransfersEnabled);
 
         // (5) Bind and serve.
         if (![paths prepareDirectoriesWithError:&error]) {

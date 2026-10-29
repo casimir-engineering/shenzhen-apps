@@ -179,14 +179,14 @@ BOOL SZFriendsHashFileTree(int fd, SZFriendsBlockGeometry geometry, NSData **lea
 
 - (instancetype)initWithCount:(uint32_t)count {
     if ((self = [super init])) {
-        _count = count;
+        _blockCount = count;
         _bits = [NSMutableData dataWithLength:(((NSUInteger)count + 63) / 64) * 8];
     }
     return self;
 }
 
 - (id)copyWithZone:(NSZone *)zone {
-    SZFriendsBlockSet *copy = [[SZFriendsBlockSet allocWithZone:zone] initWithCount:_count];
+    SZFriendsBlockSet *copy = [[SZFriendsBlockSet allocWithZone:zone] initWithCount:_blockCount];
     copy->_bits = [_bits mutableCopy];
     copy->_members = _members;
     return copy;
@@ -208,16 +208,16 @@ BOOL SZFriendsHashFileTree(int fd, SZFriendsBlockGeometry geometry, NSData **lea
 }
 
 - (BOOL)full {
-    return _members == _count;
+    return _members == _blockCount;
 }
 
 - (BOOL)contains:(uint32_t)index {
     const uint64_t *words = _bits.bytes;
-    return index < _count && (words[index / 64] & (1ull << (index % 64))) != 0;
+    return index < _blockCount && (words[index / 64] & (1ull << (index % 64))) != 0;
 }
 
 - (BOOL)insert:(uint32_t)index {
-    if (index >= _count || [self contains:index]) return NO;
+    if (index >= _blockCount || [self contains:index]) return NO;
     ((uint64_t *)_bits.mutableBytes)[index / 64] |= 1ull << (index % 64);
     _members++;
     return YES;
@@ -231,14 +231,14 @@ BOOL SZFriendsHashFileTree(int fd, SZFriendsBlockGeometry geometry, NSData **lea
 }
 
 - (void)insertFirst:(uint32_t)first count:(uint32_t)count {
-    uint64_t end = MIN((uint64_t)first + count, (uint64_t)_count);
+    uint64_t end = MIN((uint64_t)first + count, (uint64_t)_blockCount);
     for (uint64_t index = first; index < end; index++) [self insert:(uint32_t)index];
 }
 
 - (BOOL)fitsRanges:(NSData *)ranges {
     const uint32_t *pairs = ranges.bytes;
     for (NSUInteger i = 0; i < ranges.length / 8; i++) {
-        if ((uint64_t)pairs[2 * i] + pairs[2 * i + 1] > _count) return NO;
+        if ((uint64_t)pairs[2 * i] + pairs[2 * i + 1] > _blockCount) return NO;
     }
     return YES;
 }
@@ -246,7 +246,7 @@ BOOL SZFriendsHashFileTree(int fd, SZFriendsBlockGeometry geometry, NSData **lea
 - (NSData *)runsWhere:(BOOL)present {
     NSMutableData *out = [NSMutableData data];
     uint32_t run[2] = {0, 0};
-    for (uint32_t index = 0; index < _count; index++) {
+    for (uint32_t index = 0; index < _blockCount; index++) {
         if ([self contains:index] != present) continue;
         if (run[1] > 0 && run[0] + run[1] == index) {
             run[1]++;
@@ -269,16 +269,16 @@ BOOL SZFriendsHashFileTree(int fd, SZFriendsBlockGeometry geometry, NSData **lea
 }
 
 - (uint32_t)prefix {
-    for (uint32_t index = 0; index < _count; index++) {
+    for (uint32_t index = 0; index < _blockCount; index++) {
         if (![self contains:index]) return index;
     }
-    return _count;
+    return _blockCount;
 }
 
 - (NSData *)bitmap {
-    NSMutableData *out = [NSMutableData dataWithLength:((NSUInteger)_count + 7) / 8];
+    NSMutableData *out = [NSMutableData dataWithLength:((NSUInteger)_blockCount + 7) / 8];
     uint8_t *bytes = out.mutableBytes;
-    for (uint32_t index = 0; index < _count; index++) {
+    for (uint32_t index = 0; index < _blockCount; index++) {
         if ([self contains:index]) bytes[index / 8] |= (uint8_t)(0x80 >> (index % 8));
     }
     return out;

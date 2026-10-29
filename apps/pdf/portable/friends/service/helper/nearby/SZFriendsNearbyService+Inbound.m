@@ -155,6 +155,12 @@ static BOOL SZFriendsCreatesFriendship(SZFriendsFrameType type) {
     case SZFriendsFrameTypeChain:
         [self link:link person:person receivedChain:frame];
         break;
+    case SZFriendsFrameTypeHashes:
+    case SZFriendsFrameTypeWant:
+    case SZFriendsFrameTypePart:
+    case SZFriendsFrameTypeHave:
+        [self link:link receivedBlockFrame:frame]; // only on a fast session: the channel refuses them elsewhere
+        break;
     default:
         break;
     }
@@ -391,6 +397,8 @@ static BOOL SZFriendsCreatesFriendship(SZFriendsFrameType type) {
                                              contentDigest:[frame dataForTag:SZFriendsFieldDigest] ?: [NSData data]
                                                     sentAt:[NSDate date]
                                                      error:&error];
+    // The tree it announced, kept for when the person accepts (ADR 0018 § 2).
+    if (record != nil) [[self blocksOnLink:link] noteOffer:frame transferID:transferID];
     // Marked before the ACK, so a crash between the two writes leaves the sender to offer it again and mark it then.
     uint64_t assistant = 0;
     if (record != nil && [frame getUInt64:&assistant forTag:SZFriendsFieldViaAssistant] && assistant == 1) {
@@ -428,6 +436,14 @@ static BOOL SZFriendsCreatesFriendship(SZFriendsFrameType type) {
     if (wire == nil || ![frame getUInt64:&accept forTag:SZFriendsFieldAccept]) return;
     [frame getUInt64:&offset forTag:SZFriendsFieldOffset];
     NSString *transferID = SZFriendsLinkHex(wire);
+    uint64_t blocks = 0;
+    if (accept == 1 && [frame getUInt64:&blocks forTag:SZFriendsFieldBlocks] && blocks == 1 &&
+        [[self blocksOnLink:link] offerTakenByBlocks:transferID]) {
+        // By blocks (ADR 0018): every block is checked against its leaf as it is read, so no whole-file hash first.
+        [self sendAckForID:wire onLink:link];
+        [self changed];
+        return;
+    }
     // A late or replayed answer is stale and changes nothing; the snapshot is checked against the digest here.
     BOOL done = [self.services.transfers peerAnsweredTransfer:transferID accepted:accept == 1 offset:offset
                                              fromConversation:person.conversationID error:NULL];
