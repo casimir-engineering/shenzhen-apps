@@ -131,7 +131,7 @@ impl State {
                 let offer_id = hex_bytes(offer).unwrap_or_default();
                 match ChunkSender::for_route(&offer_id, record.size, offset, route) {
                     Some(sender) => {
-                        let outgoing = Outgoing { sender, record, done_sent: false };
+                        let outgoing = Outgoing { sender, record, done_sent: false, file: None, buffer: Vec::new() };
                         self.sessions.get_mut(&id).expect("live").senders.insert(offer.to_owned(), outgoing);
                         self.emit(json!({ "event": "sending", "session": id, "transfer": offer, "offset": offset }));
                         true
@@ -304,8 +304,15 @@ impl State {
                 }
                 let outgoing = session.senders.get_mut(&offer).expect("listed");
                 if let Some((offset, length)) = outgoing.sender.next_chunk() {
-                    let Ok(data) = self.store.read_outgoing(&outgoing.record, offset, length) else { return };
-                    let frame = outgoing.sender.chunk_frame(&data).expect("the range it gave");
+                    if outgoing.file.is_none() {
+                        outgoing.file = self.store.open_outgoing(&outgoing.record).ok();
+                    }
+                    let Some(file) = &outgoing.file else { return };
+                    outgoing.buffer.resize(length, 0);
+                    if file.read_at(offset, &mut outgoing.buffer).is_err() {
+                        return;
+                    }
+                    let frame = outgoing.sender.chunk_frame(&outgoing.buffer).expect("the range it gave");
                     session.channel.send_frame(&frame, now);
                     continue;
                 }

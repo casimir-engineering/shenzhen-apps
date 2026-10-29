@@ -403,6 +403,12 @@ impl Store {
         Ok(())
     }
 
+    /// An outgoing transfer's snapshot, opened once for all its chunks.
+    pub fn open_outgoing(&self, record: &TransferRecord) -> Result<super::disk::OutgoingFile> {
+        let path = record.staged_path.as_ref().ok_or(StoreError::FileMissing)?;
+        super::disk::OutgoingFile::open(path, record.size).map_err(|_| StoreError::FileMissing)
+    }
+
     /// Reads `length` bytes at `offset` from an outgoing transfer's snapshot, for its next CHUNK.
     pub fn read_outgoing(&self, record: &TransferRecord, offset: u64, length: usize) -> Result<Vec<u8>> {
         use std::io::{Read, Seek, SeekFrom};

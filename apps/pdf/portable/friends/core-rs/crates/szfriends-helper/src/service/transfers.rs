@@ -8,6 +8,7 @@ use std::time::{Duration, Instant};
 
 use serde_json::json;
 use szfriends_core::session::{monotonic_now, ChunkReceiver, ChunkSender};
+use szfriends_core::store::disk::OutgoingFile;
 use szfriends_core::store::{new_identifier, unix_now, OutboxEntry, OutboxKind, OutboxState, TransferRecord};
 use szfriends_core::wire::{tag, CloseReason, Frame, FrameType};
 
@@ -22,6 +23,9 @@ pub struct Outgoing {
     pub sender: ChunkSender,
     pub record: TransferRecord,
     pub done_sent: bool,
+    /// The snapshot, opened at the first chunk and read at offsets into one buffer.
+    file: Option<OutgoingFile>,
+    buffer: Vec<u8>,
 }
 
 fn id_frame(frame_type: FrameType, id: &[u8]) -> Frame {
@@ -187,7 +191,10 @@ impl State {
                     return false;
                 };
                 let session = self.sessions.map.get_mut(&id).expect("live");
-                session.senders.insert(offer.to_owned(), Outgoing { sender, record, done_sent: false });
+                session.senders.insert(
+                    offer.to_owned(),
+                    Outgoing { sender, record, done_sent: false, file: None, buffer: Vec::new() },
+                );
                 true
             }
             Ok(_) => true,
@@ -347,8 +354,15 @@ impl State {
                 }
                 let outgoing = session.senders.get_mut(&offer).expect("listed");
                 if let Some((offset, length)) = outgoing.sender.next_chunk() {
-                    let Ok(data) = self.store.read_outgoing(&outgoing.record, offset, length) else { return };
-                    let Some(frame) = outgoing.sender.chunk_frame(&data) else { return };
+                    if outgoing.file.is_none() {
+                        outgoing.file = self.store.open_outgoing(&outgoing.record).ok();
+                    }
+                    let Some(file) = &outgoing.file else { return };
+                    outgoing.buffer.resize(length, 0);
+                    if file.read_at(offset, &mut outgoing.buffer).is_err() {
+                        return;
+                    }
+                    let Some(frame) = outgoing.sender.chunk_frame(&outgoing.buffer) else { return };
                     session.channel.send_frame(&frame, now);
                     continue;
                 }

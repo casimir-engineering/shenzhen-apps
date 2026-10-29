@@ -134,7 +134,7 @@ pub fn file_digest(path: &Path, length: u64) -> io::Result<[u8; 32]> {
 
 pub(super) fn digest_prefix(reader: &mut impl Read, length: u64) -> io::Result<[u8; 32]> {
     let mut hasher = blake2::Blake2bVar::new(32).expect("32-byte output");
-    let mut buffer = vec![0u8; 1 << 16];
+    let mut buffer = vec![0u8; 1 << 20];
     let mut remaining = length;
     while remaining > 0 {
         let want = buffer.len().min(usize::try_from(remaining).unwrap_or(usize::MAX));
@@ -241,21 +241,15 @@ pub fn unique_destination(directory: &Path, name: &str) -> PathBuf {
     directory.join(named(new_identifier()))
 }
 
-/// Copies `source` into `destination` as the immutable snapshot an offer is bound to; returns its size and digest as
-/// read back from the copy.
+/// Clones `source` into `destination` as the immutable snapshot an offer is bound to (a copy where the volume cannot
+/// clone; `disk::clone_snapshot`), and returns its size and digest as read back from it. Not flushed: before any resume
+/// the snapshot is checked against this digest again, so one a crash damaged fails instead of being sent.
 pub(super) fn snapshot(source: &Path, destination: &Path) -> io::Result<(u64, [u8; 32])> {
-    let metadata = fs::metadata(source)?;
-    if !metadata.is_file() {
-        return Err(io::Error::new(io::ErrorKind::InvalidInput, "not a file"));
-    }
-    let mut options = OpenOptions::new();
-    options.write(true).create_new(true);
-    private_options(&mut options);
-    let mut out = options.open(destination)?;
-    io::copy(&mut File::open(source)?, &mut out)?;
-    out.sync_all()?;
-    let size = fs::metadata(destination)?.len();
-    Ok((size, file_digest(destination, u64::MAX)?))
+    super::disk::clone_snapshot(source, destination)?;
+    let mut file = File::open(destination)?;
+    let size = file.metadata()?.len();
+    super::disk::read_ahead(&file, size);
+    Ok((size, digest_prefix(&mut file, u64::MAX)?))
 }
 
 /// A file's modification time in nanoseconds since 1970, or 0 when it cannot be read.

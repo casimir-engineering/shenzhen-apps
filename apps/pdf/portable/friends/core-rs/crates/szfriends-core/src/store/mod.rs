@@ -10,6 +10,7 @@ mod add_by_id;
 pub mod attestation;
 pub mod destination;
 pub mod devices;
+pub mod disk;
 mod friend_links;
 pub mod links;
 mod migrate;

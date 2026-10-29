@@ -40,6 +40,8 @@ pub(crate) struct Outgoing {
     pub(crate) sender: ChunkSender,
     pub(crate) record: TransferRecord,
     pub(crate) done_sent: bool,
+    pub(crate) file: Option<szfriends_core::store::disk::OutgoingFile>,
+    pub(crate) buffer: Vec<u8>,
 }
 
 pub(crate) struct Session {
