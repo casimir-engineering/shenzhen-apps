@@ -169,6 +169,9 @@ struct Direction {
 }
 
 const SEGMENT: f64 = 1448.0;
+/// How far pacing may catch up after the thread slept too long (macOS oversleeps by tens of microseconds, which at
+/// LAN rates and 16 KiB steps cost a quarter of the rate).
+const BURST: Duration = Duration::from_millis(5);
 
 /// A Reno-like congestion window for one direction (see the module's note).
 struct Window {
@@ -279,7 +282,8 @@ fn forward(mut from: TcpStream, to: TcpStream, rules: Direction, counter: Arc<At
         if let Some(window) = window.as_mut() {
             busy = busy.max(window.pass(piece.len()));
         }
-        next_free = next_free.max(now) + busy;
+        // A bucket of BURST: time lost oversleeping is made up, time the sender was idle is not.
+        next_free = next_free.max(now.checked_sub(BURST).unwrap_or(now)) + busy;
         let sent = match (&line, writer.as_mut()) {
             (Some(line), _) => line.send((next_free + delay, piece.to_vec())).is_ok(),
             (None, Some(to)) => to.write_all(piece).is_ok(),
@@ -316,5 +320,41 @@ mod tests {
         let rate = bytes as f64 / seconds;
         assert!((rate / mathis - 1.0).abs() < 0.34, "{rate:.0} B/s against {mathis:.0}");
         assert!(Window::new(&Tamper::default(), true).is_none(), "no window without loss");
+    }
+
+    /// What the proxy carries at a route's rate and delay, one way, as fast as a socket can feed it. Not run by the
+    /// suites (a second of wall time); run it with `--ignored` after changing the pacing.
+    #[test]
+    #[ignore]
+    fn paced_routes_carry_their_rate() {
+        for (rate, delay) in [(117_500_000u64, 1u64), (37_500_000, 2), (6_250_000, 20), (175_000, 15)] {
+            let sink = TcpListener::bind("127.0.0.1:0").unwrap();
+            let port = sink.local_addr().unwrap().port();
+            let proxy = Proxy::start(port);
+            proxy.set(Tamper {
+                bytes_per_second: Some(rate),
+                one_way_delay: Some(Duration::from_millis(delay)),
+                ..Tamper::default()
+            });
+            let total = (rate / 2) as usize;
+            let reader = std::thread::spawn(move || {
+                let (mut stream, _) = sink.accept().unwrap();
+                let mut buffer = vec![0u8; 1 << 16];
+                // Timed from the first read, so the bytes of that read are not counted.
+                let (mut got, mut first) = (0, None);
+                while got < total {
+                    let n = stream.read(&mut buffer).unwrap();
+                    first.get_or_insert((Instant::now(), n));
+                    got += n;
+                }
+                let (start, early) = first.unwrap();
+                ((total - early) as f64, start.elapsed())
+            });
+            let mut stream = TcpStream::connect(("127.0.0.1", proxy.port())).unwrap();
+            stream.write_all(&vec![7u8; total]).unwrap();
+            let (bytes, elapsed) = reader.join().unwrap();
+            let share = bytes / elapsed.as_secs_f64() / rate as f64;
+            assert!(share > 0.95 && share < 1.05, "{rate} B/s carried at {:.0} %", share * 100.0);
+        }
     }
 }
