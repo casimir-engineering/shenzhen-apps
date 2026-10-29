@@ -2,6 +2,7 @@
 //! (the capability already grants them to the main window only; this is the second lock). Everything that touches
 //! the disk or a process runs off the main thread.
 
+use std::any::Any;
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -33,11 +34,17 @@ fn available<R: Runtime>(app: &AppHandle<R>, friends: &Friends<R>, webview: &Web
     }
 }
 
+/// `work` on a blocking thread. Every command's work goes through the same task type, its closure and result behind a
+/// `dyn`: a task per closure was about 2.5 KB of a phone's library each (ADR 0015 § 12).
 async fn blocking<T: Send + 'static>(work: impl FnOnce() -> T + Send + 'static) -> Answer<T> {
+    let done = run_blocking(Box::new(move || Box::new(work()) as Box<dyn Any + Send>)).await?;
+    Ok(*done.downcast::<T>().expect("the work's own result"))
+}
+
+async fn run_blocking(work: Box<dyn FnOnce() -> Box<dyn Any + Send> + Send>) -> Answer<Box<dyn Any + Send>> {
     tauri::async_runtime::spawn_blocking(work).await.map_err(|e| e.to_string())
 }
 
-#[tauri::command]
 pub async fn join<R: Runtime>(
     app: AppHandle<R>,
     webview: Webview<R>,
@@ -49,7 +56,6 @@ pub async fn join<R: Runtime>(
     blocking(move || host.join(&label, events)).await
 }
 
-#[tauri::command]
 pub async fn status<R: Runtime>(
     app: AppHandle<R>,
     webview: Webview<R>,
@@ -59,7 +65,6 @@ pub async fn status<R: Runtime>(
     Ok(host.status())
 }
 
-#[tauri::command]
 pub async fn send<R: Runtime>(
     app: AppHandle<R>,
     webview: Webview<R>,
@@ -71,7 +76,6 @@ pub async fn send<R: Runtime>(
     Ok(host.send(webview.label(), &kind, &fields).await)
 }
 
-#[tauri::command]
 pub async fn set_enabled<R: Runtime>(
     app: AppHandle<R>,
     webview: Webview<R>,
@@ -84,7 +88,6 @@ pub async fn set_enabled<R: Runtime>(
 
 /// A preview or a picture from the Friends state directory, as a small JSON header (kind, width, height) and the
 /// image's bytes; nothing when it fails any check.
-#[tauri::command]
 pub async fn image<R: Runtime>(
     app: AppHandle<R>,
     webview: Webview<R>,
@@ -105,7 +108,6 @@ pub async fn image<R: Runtime>(
     Ok(Response::new(body))
 }
 
-#[tauri::command]
 pub async fn animal<R: Runtime>(
     app: AppHandle<R>,
     webview: Webview<R>,
@@ -117,7 +119,6 @@ pub async fn animal<R: Runtime>(
     blocking(move || host.animals().and_then(|a| a.animal(&set, &index)).unwrap_or(Value::Null)).await
 }
 
-#[tauri::command]
 pub async fn animals<R: Runtime>(
     app: AppHandle<R>,
     webview: Webview<R>,
@@ -127,7 +128,6 @@ pub async fn animals<R: Runtime>(
     blocking(move || host.animals().and_then(|a| a.list()).unwrap_or(Value::Null)).await
 }
 
-#[tauri::command]
 pub async fn classify<R: Runtime>(
     app: AppHandle<R>,
     webview: Webview<R>,
@@ -149,7 +149,6 @@ pub async fn classify<R: Runtime>(
 
 /// A project the page made, or the bytes of files dropped without a path: written privately for sending. The
 /// bytes come as the request's body, the name in its `szfriends-name` header.
-#[tauri::command]
 pub async fn stage<R: Runtime>(
     app: AppHandle<R>,
     webview: Webview<R>,
@@ -201,7 +200,6 @@ fn percent_decode(text: &str) -> String {
     String::from_utf8_lossy(&out).into_owned()
 }
 
-#[tauri::command]
 pub async fn token<R: Runtime>(
     app: AppHandle<R>,
     webview: Webview<R>,
@@ -216,7 +214,6 @@ pub async fn token<R: Runtime>(
 /// Attach files on a phone: the system's own picker for any files, several at once, each copied for sending as it is
 /// read (a large file never crosses into the page or into memory whole). The files chosen as send_files' file
 /// objects, or null when cancelled. Desktops send from paths the page's dialog gives and never call this.
-#[tauri::command]
 pub async fn choose_files<R: Runtime>(
     app: AppHandle<R>,
     webview: Webview<R>,
@@ -228,7 +225,6 @@ pub async fn choose_files<R: Runtime>(
 
 /// Android: files another app shared with this one through the system's share sheet, copied for sending, each share
 /// handed over once; an empty list when there are none.
-#[tauri::command]
 pub async fn shared_files<R: Runtime>(
     app: AppHandle<R>,
     webview: Webview<R>,
@@ -270,7 +266,6 @@ async fn phone_copies<R: Runtime>(app: &AppHandle<R>, host: &Arc<Host<R>>, comma
 }
 
 /// Opens a received file in the app: only a file the service offered to open, in a format the app opens.
-#[tauri::command]
 pub async fn open_file<R: Runtime>(
     app: AppHandle<R>,
     webview: Webview<R>,
@@ -294,7 +289,6 @@ pub async fn open_file<R: Runtime>(
     Ok(true)
 }
 
-#[tauri::command]
 pub async fn show_file<R: Runtime>(
     app: AppHandle<R>,
     webview: Webview<R>,
@@ -323,7 +317,6 @@ pub async fn show_file<R: Runtime>(
     }
 }
 
-#[tauri::command]
 pub async fn open_settings<R: Runtime>(
     app: AppHandle<R>,
     webview: Webview<R>,
@@ -348,7 +341,6 @@ pub async fn open_settings<R: Runtime>(
     blocking(move || system_open(&app, &url)).await
 }
 
-#[tauri::command]
 pub async fn open_url<R: Runtime>(
     app: AppHandle<R>,
     webview: Webview<R>,
@@ -375,7 +367,6 @@ fn system_open<R: Runtime>(app: &AppHandle<R>, url: &str) -> bool {
 }
 
 /// Whether this window has a model open, for File ▸ Copy Download Link in the app's menu (`share.rs`).
-#[tauri::command]
 pub async fn shareable<R: Runtime>(
     app: AppHandle<R>,
     webview: Webview<R>,

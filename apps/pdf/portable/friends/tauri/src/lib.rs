@@ -19,6 +19,7 @@ mod files;
 #[cfg(windows)]
 mod firewall;
 mod host;
+mod invoke;
 mod link;
 #[cfg(target_os = "macos")]
 mod mac_signing;
@@ -328,28 +329,7 @@ pub fn init<R: Runtime>(config: Config<R>) -> TauriPlugin<R> {
         .replace("__SZFRIENDS_SHARES__", if cfg!(target_os = "android") { "true" } else { "false" });
     Builder::new("szfriends")
         .js_init_script(guest)
-        .invoke_handler(tauri::generate_handler![
-            commands::join,
-            commands::status,
-            commands::send,
-            commands::set_enabled,
-            commands::image,
-            commands::animal,
-            commands::animals,
-            commands::classify,
-            commands::stage,
-            commands::token,
-            commands::open_file,
-            commands::show_file,
-            commands::open_settings,
-            commands::open_url,
-            commands::shareable,
-            commands::choose_files,
-            commands::shared_files,
-            drops::drop_paths,
-            drops::clipboard_files,
-            drops::drag_over,
-        ])
+        .invoke_handler(invoke::handle)
         .setup(move |app, _api| {
             // Phones: the plugin's Kotlin or Swift half, registered once (Tauri keeps one per plugin). It answers calls
             // for the key store, backups and sharing, and Nearby's, which find people for the core; nothing starts here.

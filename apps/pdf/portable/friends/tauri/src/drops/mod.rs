@@ -176,7 +176,6 @@ pub struct Wanted {
 /// Paste in a composer: the files on the system clipboard (copied in Finder or a Linux file manager), as their
 /// paths, whatever they are (the page classifies them as it does a drop's); none for text or a picture. Windows has
 /// none here: WebView2 hands the page pasted files with their paths itself, as it does dropped ones.
-#[tauri::command]
 pub async fn clipboard_files<R: Runtime>(
     app: AppHandle<R>,
     webview: Webview<R>,
@@ -199,7 +198,6 @@ pub async fn clipboard_files<R: Runtime>(
 
 /// The paths of files just dropped on this window, by their names and sizes as the page sees them, in order; None
 /// when the system did not report every one of them (a phone, or a drop from an app that gives no file).
-#[tauri::command]
 pub async fn drop_paths<R: Runtime>(
     app: AppHandle<R>,
     webview: Webview<R>,
@@ -236,7 +234,6 @@ pub async fn drop_paths<R: Runtime>(
 
 /// The page saw files dragged over this window (a Mac only; elsewhere nothing to do): if the system agrees, with the
 /// mouse button down and the pointer inside the window, that drag's drop may be asked about.
-#[tauri::command]
 pub async fn drag_over<R: Runtime>(
     app: AppHandle<R>,
     webview: Webview<R>,
