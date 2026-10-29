@@ -280,6 +280,9 @@ static NSUInteger CheckFixtures(NSString *directory, SZFSchemas *schemas, NSMuta
         // vectors/ holds the helper's exported test vectors for the Rust core (objc-*.json), not frames either; their
         // own check is friends-vectors-check, which regenerates them and compares byte for byte.
         if ([relativePath hasPrefix:@"vectors/"]) continue;
+        // scheduler/ holds the transfer scheduler's scenarios, which the Rust simulator and the helper's scheduler
+        // tests both replay (ADR 0018 WP2): inputs to a planner, not frames.
+        if ([relativePath hasPrefix:@"scheduler/"]) continue;
         NSData *data = [NSData dataWithContentsOfFile:fullPath];
         NSString *extension = relativePath.pathExtension;
         if ([extension isEqualToString:@"json"]) {
