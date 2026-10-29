@@ -40,6 +40,8 @@ pub struct Session {
 #[derive(Default)]
 pub struct Sessions {
     pub map: HashMap<u64, Session>,
+    /// Lanes and their groups (ADR 0018 § 6, `lanes.rs`).
+    pub groups: super::lanes::Groups,
     next: u64,
 }
 
@@ -125,7 +127,8 @@ impl State {
         let capabilities =
             if self.fast_transfers { szfriends_core::wire::consts::CAPABILITY_FAST_TRANSFERS } else { 0 };
         channel.set_config(szfriends_core::session::ChannelConfig { capabilities, ..Default::default() });
-        let link = match Link::start(id, stream, self.input.clone(), Input::Link) {
+        let rate = self.route_rates.get(&meta.dialed_route).copied();
+        let link = match Link::start(id, stream, self.input.clone(), Input::Link, rate) {
             Ok(link) => link,
             Err(error) => {
                 log!("session link: {error}");
@@ -160,6 +163,7 @@ impl State {
                 if let Some(s) = self.sessions.map.get_mut(&id) {
                     s.channel.receive(&bytes, now);
                 }
+                self.lane_written(id, true);
             }
             LinkEvent::Eof(id) => {
                 if let Some(s) = self.sessions.map.get_mut(&id) {
@@ -170,6 +174,7 @@ impl State {
                 if let Some(s) = self.sessions.map.get_mut(&id) {
                     s.channel.write_completed(now);
                 }
+                self.lane_written(id, false);
             }
         }
     }
@@ -188,7 +193,9 @@ impl State {
         let now = monotonic_now();
         if let Some(s) = self.sessions.map.get_mut(&id) {
             let (keepalive, watch) = transfer_liveness(s.senders.values().map(|o| &o.sender), s.receivers.values());
-            s.channel.set_liveness(keepalive, watch, now);
+            let (blocks, owed) = self.block_liveness(id);
+            let s = self.sessions.map.get_mut(&id).expect("looked up");
+            s.channel.set_liveness(keepalive || blocks, watch || owed, now);
             s.channel.handle_timeout(now);
         }
         loop {
@@ -199,7 +206,12 @@ impl State {
             let Some(event) = s.channel.poll_event() else { break };
             match event {
                 Event::Established => self.went_live(id),
-                Event::Frame(frame) => self.frame(id, frame),
+                // A lane's frames are its group's first session's (lanes.rs); a PART's HAVE goes back on its lane.
+                Event::Frame(frame) if frame.frame_type == szfriends_core::wire::FrameType::Part => {
+                    let head = self.head_of(id);
+                    self.part_on(head, id, &frame);
+                }
+                Event::Frame(frame) => self.frame(self.head_of(id), frame),
                 Event::Code(result) => self.code_finished(id, result),
                 Event::Closed(error) => self.closed(id, error),
             }
@@ -215,6 +227,14 @@ impl State {
         if s.channel.is_closed() && !s.finished {
             s.finished = true;
             s.link.finish();
+        }
+    }
+
+    /// Hands a session's queued writes to its link now (parts a group's first session queued on a lane).
+    pub(crate) fn flush_writes(&mut self, id: u64) {
+        let Some(s) = self.sessions.map.get_mut(&id) else { return };
+        while let Some(write) = s.channel.poll_transmit() {
+            s.link.write(write.bytes);
         }
     }
 

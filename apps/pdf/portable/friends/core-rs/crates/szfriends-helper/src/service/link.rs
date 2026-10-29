@@ -10,7 +10,7 @@ use std::net::{Shutdown, TcpStream};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{channel, Sender};
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 #[cfg(feature = "online")]
 use szfriends_online::transport::{ChannelStream, StreamInput};
@@ -27,6 +27,29 @@ pub enum LinkEvent {
     Written(u64),
 }
 
+/// A test home's emulated route (`SZFRIENDS_TEST_ROUTE_RATES`): the writer holds each write's bytes for as long as
+/// the route's rate would take to carry them, so the session's in-flight budget and window see a slow route.
+#[derive(Clone, Copy, Debug)]
+struct Pace {
+    bytes_per_second: f64,
+    free_at: Instant,
+}
+
+impl Pace {
+    fn new(rate: Option<f64>) -> Option<Self> {
+        rate.map(|bytes_per_second| Self { bytes_per_second, free_at: Instant::now() })
+    }
+
+    fn carried(pace: &mut Option<Self>, bytes: usize) {
+        let Some(pace) = pace else { return };
+        let now = Instant::now();
+        pace.free_at = pace.free_at.max(now) + Duration::from_secs_f64(bytes as f64 / pace.bytes_per_second);
+        if pace.free_at > now {
+            std::thread::sleep(pace.free_at - now);
+        }
+    }
+}
+
 enum WriterMessage {
     Bytes(Vec<u8>),
     Finish,
@@ -39,18 +62,21 @@ pub struct Link {
 }
 
 impl Link {
-    /// Starts both threads for `stream`; events go to `events` wrapped by `wrap`.
+    /// Starts both threads for `stream`; events go to `events` wrapped by `wrap`. `rate`: a test home's emulated
+    /// route, in bytes per second this side writes at; `None` everywhere else.
     pub fn start<E: Send + 'static>(
         id: u64,
         stream: LinkStream,
         events: Sender<E>,
         wrap: fn(LinkEvent) -> E,
+        rate: Option<f64>,
     ) -> std::io::Result<Self> {
+        let pace = Pace::new(rate);
         match stream {
-            LinkStream::Tcp(stream) => Self::start_tcp(id, stream, events, wrap),
-            LinkStream::Platform(stream) => Ok(Self::start_platform(id, stream, events, wrap)),
+            LinkStream::Tcp(stream) => Self::start_tcp(id, stream, events, wrap, pace),
+            LinkStream::Platform(stream) => Ok(Self::start_platform(id, stream, events, wrap, pace)),
             #[cfg(feature = "online")]
-            LinkStream::Online(stream) => Ok(Self::start_online(id, stream, events, wrap)),
+            LinkStream::Online(stream) => Ok(Self::start_online(id, stream, events, wrap, pace)),
         }
     }
 
@@ -59,6 +85,7 @@ impl Link {
         stream: PlatformStream,
         events: Sender<E>,
         wrap: fn(LinkEvent) -> E,
+        mut pace: Option<Pace>,
     ) -> Self {
         let PlatformStream { incoming, mut outgoing } = stream;
         let reader_events = events.clone();
@@ -75,7 +102,9 @@ impl Link {
             while let Ok(message) = inbox.recv() {
                 match message {
                     WriterMessage::Bytes(bytes) => {
+                        let length = bytes.len();
                         outgoing(Some(bytes));
+                        Pace::carried(&mut pace, length);
                         if events.send(wrap(LinkEvent::Written(id))).is_err() {
                             return;
                         }
@@ -93,6 +122,7 @@ impl Link {
         stream: TcpStream,
         events: Sender<E>,
         wrap: fn(LinkEvent) -> E,
+        mut pace: Option<Pace>,
     ) -> std::io::Result<Self> {
         stream.set_nodelay(true)?;
         let finishing = Arc::new(AtomicBool::new(false));
@@ -131,6 +161,7 @@ impl Link {
                             let _ = events.send(wrap(LinkEvent::Eof(id)));
                             return;
                         }
+                        Pace::carried(&mut pace, bytes.len());
                         if events.send(wrap(LinkEvent::Written(id))).is_err() {
                             return;
                         }
@@ -154,6 +185,7 @@ impl Link {
         stream: ChannelStream,
         events: Sender<E>,
         wrap: fn(LinkEvent) -> E,
+        mut pace: Option<Pace>,
     ) -> Self {
         let ChannelStream { incoming, writer: out } = stream;
         let reader_events = events.clone();
@@ -174,6 +206,7 @@ impl Link {
                             let _ = events.send(wrap(LinkEvent::Eof(id)));
                             return;
                         }
+                        Pace::carried(&mut pace, bytes.len());
                         if events.send(wrap(LinkEvent::Written(id))).is_err() {
                             return;
                         }

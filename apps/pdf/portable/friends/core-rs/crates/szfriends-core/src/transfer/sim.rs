@@ -303,7 +303,7 @@ fn simulate(scenario: &Scenario, bytes: Option<Bytes>) -> Outcome {
         seq: 0,
         queue: BTreeMap::new(),
         timer_at: None,
-        group: LaneGroup::new(lanes[0].id, [0; 32], first.route, |i| [i; 16]),
+        group: LaneGroup::new(lanes[0].id, [0; 32], true, first.route, |i| [i; 16]),
         lanes,
         scheduler: Scheduler::new(scenario.config),
         covered: vec![vec![0; granules]; geometry.blocks as usize],

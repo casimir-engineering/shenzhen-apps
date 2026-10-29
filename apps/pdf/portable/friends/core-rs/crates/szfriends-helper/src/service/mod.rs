@@ -30,6 +30,7 @@ mod devices;
 mod facts;
 mod friend_links;
 mod intents;
+mod lanes;
 mod link;
 #[cfg(feature = "online")]
 mod link_open;
@@ -298,6 +299,29 @@ pub(crate) struct Client {
 /// Everything the service's thread owns.
 /// A test home's switch for fast transfers (ADR 0018 § 1): "0" plays a helper without them.
 pub const ENV_TEST_FAST_TRANSFERS: &str = "SZFRIENDS_TEST_FAST_TRANSFERS";
+/// A test home's switch for lanes (ADR 0018 § 6): "0" opens and admits none.
+pub const ENV_TEST_LANES: &str = "SZFRIENDS_TEST_LANES";
+/// A test home's emulated route rates, `lan=1250000,bluetooth=175000` (bytes per second each side writes at), so
+/// lanes over several routes can be measured on one computer (WP5's bench emulates one route at a time).
+pub const ENV_TEST_ROUTE_RATES: &str = "SZFRIENDS_TEST_ROUTE_RATES";
+
+fn route_rates(text: &str) -> HashMap<szfriends_core::wire::RouteMethod, f64> {
+    use szfriends_core::wire::RouteMethod;
+    text.split(',')
+        .filter_map(|pair| {
+            let (name, rate) = pair.split_once('=')?;
+            let route = match name.trim() {
+                "lan" => RouteMethod::Lan,
+                "p2p_wifi" => RouteMethod::PeerToPeerWifi,
+                "bluetooth" => RouteMethod::Bluetooth,
+                "internet" => RouteMethod::Internet,
+                "relay" => RouteMethod::Relay,
+                _ => return None,
+            };
+            Some((route, rate.trim().parse::<f64>().ok().filter(|r| *r > 0.0)?))
+        })
+        .collect()
+}
 
 pub(crate) struct State {
     pub identity: Identity,
@@ -326,6 +350,10 @@ pub(crate) struct State {
     pub fast_transfers: bool,
     /// Files received by blocks whose check before saving is running, since when (`blocks.rs`).
     pub finishing: HashMap<String, std::time::Instant>,
+    /// ADR 0018 § 6: lanes beside a fast session; off only in a test home (`SZFRIENDS_TEST_LANES=0`).
+    pub lanes: bool,
+    /// A test home's emulated routes: bytes per second each route's links write at (`SZFRIENDS_TEST_ROUTE_RATES`).
+    pub route_rates: HashMap<szfriends_core::wire::RouteMethod, f64>,
     /// One profile on several computers: the join state and the sync engine.
     pub devices: devices::DeviceArea,
     /// Get again: giving friends files again, and copying files again from them.
@@ -391,6 +419,12 @@ impl State {
             // The settings key `transfers.fast` (on unless it holds 0), read as the helper starts.
             fast_transfers: fast_setting
                 && !(test_home && std::env::var_os(ENV_TEST_FAST_TRANSFERS).is_some_and(|v| v == "0")),
+            lanes: !(test_home && std::env::var_os(ENV_TEST_LANES).is_some_and(|v| v == "0")),
+            route_rates: if test_home {
+                route_rates(&std::env::var(ENV_TEST_ROUTE_RATES).unwrap_or_default())
+            } else {
+                HashMap::new()
+            },
             devices,
             again: again::AgainArea::default(),
             notify,

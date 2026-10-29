@@ -519,7 +519,8 @@ impl Store {
             return Ok(());
         }
         let Some(map) = download.map.as_ref() else { return Ok(()) };
-        // Blocks ordered before the bitmap that claims them (F_BARRIERFSYNC's job; a plain fsync elsewhere).
+        // Blocks ordered before the bitmap that claims them, without the drive cache flush (`disk::order_writes`);
+        // the map's full flush below then makes both durable at once: one F_FULLFSYNC per batch on Apple systems.
         super::disk::order_writes(&download.file)?;
         for &block in &download.unsynced {
             download.durable.insert(block);

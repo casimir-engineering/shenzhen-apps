@@ -120,9 +120,11 @@ impl SecureChannel {
         let Role::Initiator { options, .. } = &self.role else { return };
         let (pattern, route) = (options.pattern, options.route);
         let token = options.request_token.clone();
+        let lane = options.lane;
         let fits = (pattern == Pattern::NN || route_is_known(route))
             && (pattern != Pattern::IK || options.remote_static.is_some())
-            && token.as_ref().is_none_or(|token| pattern == Pattern::IK && token.len() == 16);
+            && token.as_ref().is_none_or(|token| pattern == Pattern::IK && token.len() == 16)
+            && (lane.is_none() || (pattern == Pattern::IK && token.is_none()));
         if !fits {
             self.fail(SessionError::HandshakeFailed, now);
             return;
@@ -140,6 +142,7 @@ impl SecureChannel {
                 let mut payload = self.local_payload(true);
                 payload.route_class = Some(route as u8);
                 payload.request_token = token;
+                payload.lane = lane.map(|l| l.to_vec());
                 Some(payload)
             }
         };
@@ -248,6 +251,10 @@ impl SecureChannel {
             return;
         }
         self.presented_token = token;
+        // A lane's token (IK only; anything else in that field is ignored, and a wrong length refused as a lane).
+        if pattern == Pattern::IK {
+            self.presented_lane = payload.lane.as_deref().map(|l| l.try_into().unwrap_or([0; 16]));
+        }
         if let Some(identity) = identity {
             self.adopt_remote_identity(identity, &payload);
             // Known now: IK message 1 is fresh (the replay cache refused any repeat) and proves the initiator's static

@@ -49,11 +49,21 @@ pub struct HandshakeOptions {
     pub request_token: Option<Vec<u8>>,
     /// XX against a public entry: stop after message 2 unless a [`ProfileDecision`] says to continue.
     pub browse_only: bool,
+    /// IK: a lane of a live session's group (ADR 0018 § 6), its 16-byte token in message 1's payload.
+    pub lane: Option<[u8; 16]>,
 }
 
 impl HandshakeOptions {
     pub fn new(pattern: Pattern, route: RouteMethod) -> Self {
-        Self { pattern, route, remote_static: None, expected_identity: None, request_token: None, browse_only: false }
+        Self {
+            pattern,
+            route,
+            remote_static: None,
+            expected_identity: None,
+            request_token: None,
+            browse_only: false,
+            lane: None,
+        }
     }
 }
 
@@ -128,6 +138,7 @@ pub struct SecureChannel {
     pub(super) remote_attestation: Option<Vec<u8>>,
     pub(super) remote_static: Option<[u8; 32]>,
     pub(super) presented_token: Option<Vec<u8>>,
+    pub(super) presented_lane: Option<[u8; 16]>,
     pub(super) handshake_hash: Option<[u8; 64]>,
     pub(super) negotiated_minor: u16,
     pub(super) liveness: super::liveness::Liveness,
@@ -190,6 +201,7 @@ impl SecureChannel {
             remote_attestation: None,
             remote_static: None,
             presented_token: None,
+            presented_lane: None,
             handshake_hash: None,
             negotiated_minor: 0,
             liveness: Default::default(),
@@ -289,6 +301,12 @@ impl SecureChannel {
     /// Responder: the token an IK callback presented.
     pub fn presented_token(&self) -> Option<&[u8]> {
         self.presented_token.as_deref()
+    }
+
+    /// Responder: the lane token IK message 1 presented (ADR 0018 § 6). The driver admits the lane into the group it
+    /// names once the session is live, or closes it with CLOSE `LaneRefused`; a lane never enters the session race.
+    pub fn presented_lane(&self) -> Option<&[u8; 16]> {
+        self.presented_lane.as_ref()
     }
 
     pub fn handshake_hash(&self) -> Option<&[u8; 64]> {

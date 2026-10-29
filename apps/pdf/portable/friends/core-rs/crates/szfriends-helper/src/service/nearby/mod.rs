@@ -70,6 +70,8 @@ pub struct DialPlan {
     pub request_token: Option<[u8; 16]>,
     pub attempt_key: Option<String>,
     pub dial_key: String,
+    /// A lane (ADR 0018 § 6): its group's first session, and the provisional id it is reserved under.
+    pub lane: Option<(u64, u64)>,
 }
 
 /// Everything nearby keeps besides the sessions themselves.

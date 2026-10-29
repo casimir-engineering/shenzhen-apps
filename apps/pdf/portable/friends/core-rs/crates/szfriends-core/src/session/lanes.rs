@@ -83,6 +83,9 @@ struct Lane {
 /// The first session with one device of a friend, and its lanes.
 pub struct LaneGroup {
     identity: [u8; 32],
+    /// The side that dialed the first session opens lanes with odd indexes, the other with even ones, so lanes both
+    /// sides open at once never claim the same index (a local rule: the responder admits any free index).
+    odd: bool,
     tokens: [[u8; 16]; LANE_INDEX_MAX as usize],
     lanes: BTreeMap<u8, Lane>,
     events: Vec<LaneEvent>,
@@ -98,7 +101,13 @@ impl LaneGroup {
     /// The group of a live first session (one that negotiated fast transfers) with the device whose identity key is
     /// `identity`. `token` derives lane `index`'s token from that session's handshake hash
     /// (`transfer::lane_token(h, index)`); all fifteen are derived now, so admission compares in constant time.
-    pub fn new(first: LaneId, identity: [u8; 32], route: RouteMethod, token: impl Fn(u8) -> [u8; 16]) -> Self {
+    pub fn new(
+        first: LaneId,
+        identity: [u8; 32],
+        initiator: bool,
+        route: RouteMethod,
+        token: impl Fn(u8) -> [u8; 16],
+    ) -> Self {
         let mut tokens = [[0u8; 16]; LANE_INDEX_MAX as usize];
         for (slot, index) in tokens.iter_mut().zip(1..=LANE_INDEX_MAX) {
             *slot = token(index);
@@ -106,7 +115,7 @@ impl LaneGroup {
         let mut lanes = BTreeMap::new();
         lanes.insert(0, Lane { id: first, route, live: true, outbound: false });
         let events = vec![LaneEvent::Up { lane: first, index: 0, route }];
-        Self { identity, tokens, lanes, events }
+        Self { identity, odd: initiator, tokens, lanes, events }
     }
 
     pub fn identity(&self) -> &[u8; 32] {
@@ -134,7 +143,7 @@ impl LaneGroup {
         if opened >= LANES_OPENED_PER_GROUP || on_route >= LANES_PER_ROUTE || self.route_taken(route) {
             return None;
         }
-        let index = (1..=LANE_INDEX_MAX).find(|i| !self.lanes.contains_key(i))?;
+        let index = (1..=LANE_INDEX_MAX).find(|i| (i % 2 == 1) == self.odd && !self.lanes.contains_key(i))?;
         self.lanes.insert(index, Lane { id: lane, route, live: false, outbound: true });
         Some((index, self.tokens[usize::from(index) - 1]))
     }
@@ -157,6 +166,28 @@ impl LaneGroup {
         }
         self.lanes.insert(found, Lane { id: lane, route, live: false, outbound: false });
         Ok(found)
+    }
+
+    /// A reserved lane's driver id changed (reserved under its dial's id, live under its session's).
+    pub fn rename(&mut self, from: LaneId, to: LaneId) {
+        if let Some(entry) = self.lanes.values_mut().find(|l| l.id == from) {
+            entry.id = to;
+        }
+    }
+
+    /// The route a lane runs on.
+    pub fn route_of(&self, lane: LaneId) -> Option<RouteMethod> {
+        self.lanes.values().find(|l| l.id == lane).map(|l| l.route)
+    }
+
+    /// Whether this route already has a lane of this group, live or being opened.
+    pub fn has_route(&self, route: RouteMethod) -> bool {
+        self.lanes.values().any(|l| l.route == route)
+    }
+
+    /// Every lane id of the group but the first, live or not.
+    pub fn lanes_only(&self) -> Vec<LaneId> {
+        self.lanes.iter().filter(|(i, _)| **i != 0).map(|(_, l)| l.id).collect()
     }
 
     /// A reserved or admitted lane went live (its session established).
@@ -203,7 +234,7 @@ mod tests {
     }
 
     fn group() -> LaneGroup {
-        LaneGroup::new(100, [7; 32], RouteMethod::Lan, token)
+        LaneGroup::new(100, [7; 32], true, RouteMethod::Lan, token)
     }
 
     #[test]
@@ -211,19 +242,19 @@ mod tests {
         let mut group = group();
         assert_eq!(group.take_events(), vec![LaneEvent::Up { lane: 100, index: 0, route: RouteMethod::Lan }]);
         let lan: Vec<_> = (0..5).map(|i| group.reserve(200 + i, RouteMethod::Lan)).collect();
-        assert_eq!(lan[..4].iter().map(|r| r.unwrap().0).collect::<Vec<_>>(), vec![1, 2, 3, 4]);
+        assert_eq!(lan[..4].iter().map(|r| r.unwrap().0).collect::<Vec<_>>(), vec![1, 3, 5, 7], "odd: we dialed");
         assert_eq!(lan[0].unwrap().1, token(1));
         assert_eq!(lan[4], None, "four per route");
-        assert_eq!(group.reserve(300, RouteMethod::Relay).map(|r| r.0), Some(5));
+        assert_eq!(group.reserve(300, RouteMethod::Relay).map(|r| r.0), Some(9));
         assert_eq!(group.reserve(301, RouteMethod::Relay), None, "one on the relay");
-        assert_eq!(group.reserve(302, RouteMethod::Bluetooth).map(|r| r.0), Some(6));
+        assert_eq!(group.reserve(302, RouteMethod::Bluetooth).map(|r| r.0), Some(11));
         assert_eq!(group.reserve(303, RouteMethod::Bluetooth), None, "one on Bluetooth");
         assert!(group.reserve(304, RouteMethod::PeerToPeerWifi).is_some());
         assert!(group.reserve(305, RouteMethod::PeerToPeerWifi).is_some());
         assert_eq!(group.reserve(306, RouteMethod::Internet), None, "eight per group");
         // A failed dial frees its index for the next.
         assert!(!group.lane_down(201));
-        assert_eq!(group.reserve(307, RouteMethod::Internet).map(|r| r.0), Some(2));
+        assert_eq!(group.reserve(307, RouteMethod::Internet).map(|r| r.0), Some(3));
         assert!(group.take_events().is_empty(), "nothing went live");
     }
 

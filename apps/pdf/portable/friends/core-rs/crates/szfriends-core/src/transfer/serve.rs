@@ -105,6 +105,17 @@ impl BlockServe {
         Ok(())
     }
 
+    /// Blocks waiting to be sent (wanted, not in flight).
+    pub fn queued(&self) -> usize {
+        self.queue.len()
+    }
+
+    /// The part size for the parts cut from now on: each lane cuts its blocks at its own route's size (ADR 0018
+    /// § 9.8: 16 KiB on Bluetooth).
+    pub fn set_part_bytes(&mut self, part_bytes: usize) {
+        self.part_bytes = part_bytes.clamp(1, PART_BYTES_MAX);
+    }
+
     /// Every block acknowledged.
     pub fn all_acknowledged(&self) -> bool {
         self.acknowledged.is_full()

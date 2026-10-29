@@ -59,6 +59,7 @@ impl State {
             request_token: None,
             attempt_key: None,
             dial_key: dial_key(purpose, candidate_sighting.method, &candidate_sighting.endpoint),
+            lane: None,
         }
     }
 
@@ -295,7 +296,7 @@ impl State {
     }
 
     /// Stages a dial after `delay`; `false` when one for that purpose and endpoint already runs.
-    pub(super) fn dial(&mut self, plan: DialPlan, delay: f64) -> bool {
+    pub(crate) fn dial(&mut self, plan: DialPlan, delay: f64) -> bool {
         if self.nearby.dialing.contains(&plan.dial_key) || !self.nearby.has_adapter(plan.method) {
             return false;
         }
@@ -336,6 +337,7 @@ impl State {
 
     /// Unreachable endpoints are normal (a device that just left); only a person's own attempts back off.
     pub(crate) fn dial_failed(&mut self, plan: &DialPlan) {
+        self.lane_dial_failed(plan);
         match (&plan.purpose, &plan.attempt_key, &plan.conversation) {
             (Purpose::Browse, _, _) => self.browse_failed(&plan.endpoint),
             (_, Some(key), _) => self.by_id_attempt_failed(key),

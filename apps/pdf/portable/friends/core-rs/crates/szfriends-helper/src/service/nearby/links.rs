@@ -30,6 +30,8 @@ pub enum Purpose {
     Join,
     /// IK to another of our own devices, to sync.
     OwnDevice,
+    /// IK to a friend's device we have a live first session with: one more lane of its group (ADR 0018 § 6).
+    Lane,
 }
 
 /// What the service tracks of one session beside its channel (`SZFriendsPeerLink`).
@@ -167,6 +169,7 @@ impl State {
             ..LinkMeta::default()
         };
         let id = self.reserve_session_id();
+        self.lane_dialed(&plan, id);
         if plan.purpose == Purpose::Browse {
             // Browsing ends before message 3 would reveal who we are; what the entry served is kept for when the
             // channel closes (`browsed`).
@@ -213,6 +216,9 @@ impl State {
                 self.close_after(id, szfriends_core::nearby::limits::BY_ID_SESSION_LIFE_SECONDS);
             }
             return;
+        }
+        if self.lane_went_live(id) {
+            return; // a lane of a group (lanes.rs): never raced, never a conversation of its own
         }
         if self.chain_refuses_live(id) || self.own_device_live(id) {
             return; // a removed device (chain.rs), or another of our devices: sync (own.rs)
@@ -380,6 +386,7 @@ impl State {
         let Some(conversation) = session.conversation.clone() else { return };
         self.nearby.failures.remove(&conversation);
         self.nearby.retry_after.remove(&conversation);
+        self.form_group(id);
         self.send_profile(id);
         self.store_comparison_code(id);
         // Resume and route migration are one mechanism: unfinished downloads announce their durable offsets.
@@ -405,6 +412,7 @@ impl State {
     /// A session ended: what it had in flight goes back to Queued; failures count against the person's backoff.
     pub(crate) fn closed(&mut self, id: u64, error: Option<SessionError>) {
         let _ = self.store.flush_progress();
+        self.lane_closed(id);
         self.nearby.admission.lock().unwrap_or_else(|e| e.into_inner()).release(id);
         self.nearby.policy.lock().unwrap_or_else(|e| e.into_inner()).strangers.remove(&id);
         self.session_closed_elsewhere(id);
