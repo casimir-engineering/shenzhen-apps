@@ -647,3 +647,122 @@ agrees: of its busy time, ChaCha20 and Poly1305 take 47 %, the running BLAKE2b d
 barrier flushes 10 % and copies 6 %; the store's per-chunk row check and the framing do not show. With blocks (part 2)
 the running digest goes away (each block is checked against its BLAKE3 leaf, on any core, and the publish check reads
 the file once).
+
+## WP5: the bench, the interop matrix and the device script (2026-10-29)
+
+Landed on main: 0350a20a (the harness), 04ac7e4e (the emulator carries its whole rate), 86549886 (the Rust peer by
+blocks), e92e1ac1 (several routes at once). Helper numbers 26102903, 26102906 and 26102910 were raised only because the
+check counts Friends test code; the helper itself did not change in this package. Everything here runs on demand; no
+suite runs it, so `friends-suite`, `friends-core-rs-check` and `friends-core-rs-interop-check` stay as lean as they
+were (the interop suites that use the proxy and the Rust peer still pass: `rust_loopback` 16, `objc_interop` 7).
+
+**What there is.**
+
+- **The route emulator** (`szfriends-interop/src/proxy.rs`). Per direction: rate, one-way delay, loss, silence and cut,
+  plus the byte flips the tamper tests already used. Silence stops reading and delivering with both sockets open, as
+  a route out of range looks to TCP; for good, for a while, one way, or flapping; and `cut_now` / `silence_now` lose
+  a route at a moment the caller picks. Loss is modelled, not real (loopback TCP never loses; dummynet needs root):
+  each direction keeps a Reno-like window over 1,448-byte segments, which gives TCP's throughput under loss (Mathis:
+  117 KB/s at 150 ms and 1 %; a unit test holds the model within a third of it). CUBIC with SACK does better on real
+  paths, so the lossy figures are a floor.
+- **The emulator now carries its whole rate.** Pacing restarted from the moment its thread woke, so every oversleep
+  (tens of microseconds on macOS against 139 µs per 16 KiB at 1 GbE) was lost: the emulated LAN carried 77 % of its
+  rate. Phase 1's shaper had the same flaw, so **its LAN shares (68 to 82 %) and this package's first baseline read
+  low**; a 5 ms bucket fixes it, and an ignored test (`cargo test -p szfriends-interop --lib -- --ignored`) checks
+  LAN, direct Wi-Fi, internet and Bluetooth carry 95 to 105 % of their rates. The tables below are all after the fix.
+- **Peers as processes.** `examples/session_peer.rs` runs the Rust peer behind the Objective-C peer's protocol, so each
+  side's CPU is its own process's (phase 1's Rust figures included the proxy), the same file builds the released Rust
+  core's peer, and it runs on a phone. Both peers' `dial` takes `route` (the class the initiator declares) and `host`,
+  `listen` takes `any`, and `hello` says `session_minor`.
+- **The Rust peer moves files by blocks** (`src/blocks.rs`) exactly as the Rust helper's `service/blocks.rs` wires the
+  store (tree in OFFER, Blocks, HASHES, WANT on each new session, PART, HAVE, publish check, ACK), CHUNK otherwise;
+  without it the bench could not see WP1. One difference: the peer runs the publish check inline, the helper (since
+  c5e94d3a) on a thread. Its `established` event says `fast`.
+- **`make -C apps/pdf/portable friends-transfer-bench`** (`examples/transfer_bench.rs`): the four pairings of today's
+  Rust and Objective-C peers send 1 MiB, 100 MiB, 2 GiB and 300 × 10 KiB through loopback, LAN (940 Mbit/s, 2 ms),
+  direct Wi-Fi (300 Mbit/s, 4 ms), internet (50 Mbit/s, 40 ms), internet_lossy (150 ms, 1 %), relay (5 Mbit/s, 80 ms)
+  and Bluetooth (1.4 Mbit/s, 30 ms), then a cut and a silence half-way on LAN (100 MiB) and Bluetooth (4 MiB). A case
+  a route would need more than 120 s for is listed as skipped (`BENCH_MAX_SECONDS`). It prints MB/s, share of the
+  link, CPU s/GB per side, when the loss was noticed and the recovery (from the loss until the sender sends again on
+  the route that came back; the harness redials when a side reports the session closed, or after 20 s). JSON lines go
+  to `build/friends/core-rs/transfer-bench.jsonl`; `transfer_bench --table <file>` reprints them. `BENCH_PAIRS`,
+  `BENCH_ROUTES`, `BENCH_SIZES`, `BENCH_LOSS`, `BENCH_MULTI` narrow it: `BENCH_ROUTES=loopback,lan BENCH_SIZES=2g
+  BENCH_LOSS=none BENCH_MULTI=none` measures a change in a minute. Point `SZFRIENDS_RUST_PEER` and
+  `SZFRIENDS_OBJC_PEER` at other builds to compare (the "before" column below is the peers at 0350a20a, built with
+  `SZFRIENDS_MAC_TAG=0350a20a SZFRIENDS_RUST_TAG=0350a20a tools/released-peers.sh <dir>`).
+- **Several routes at once** (`BENCH_MULTI`): LAN + direct Wi-Fi (1 GiB), a 10 Mbit/s LAN + Bluetooth (16 MiB), all
+  three, and in each one route cut or silenced when the whole transfer is half done (direct Wi-Fi cut; the session's
+  own LAN route silenced; Bluetooth cut or silenced beside the slow LAN; LAN cut among three). Each route is its own
+  proxy; the first carries the session, the others are dialed as lanes of it. Reported: MB/s, share of what the routes
+  carry together, share of the fastest alone, bytes per route, when the lost lane was noticed. **Not run yet:** the
+  peers open no lanes, so each case says "skipped: these peers open no lanes yet". What a peer needs, once WP3's lanes
+  are in the helper: `hello` answers `"lanes": true`, and `dial` with `"lane_of": <session>` opens a lane of that
+  session on the given port and route class (an `established` event follows). WP5 wires that into the Rust peer as it
+  did blocks, when WP3 lands; WP4 into the Objective-C peer.
+- **`make -C apps/pdf/portable friends-transfer-interop`** (`examples/transfer_interop.rs`): `tools/released-peers.sh`
+  builds the Objective-C session peer against the helper at `pdf/26.10.29-1` and the Rust peer at `3d/preview-0.2.4`
+  (one commit, 52e08c73), in a worktree under `build/friends/core-rs/released/`, about 40 s once. Then every ordered
+  pair with at least one of today's peers (12) on LAN, direct Wi-Fi, internet, relay and Bluetooth: a transfer (64,
+  32, 8, 1, 0.5 MiB) and one cut at 50 % that must resume past zero (or, by blocks, send a one-block file's block
+  again). A run checks the bytes, that both sides agree on the minor, and that it is the newest both speak (from
+  `hello`; released peers speak 3). `INTEROP_EXPECT_FAST=1` also requires today's pairs to report `fast`;
+  `INTEROP_SILENCE=1` adds a silent route that must be noticed within 8 s (12 s on Bluetooth).
+- **`tools/transfer-devices.sh`** for real devices: `mac <ssh host> [address]` copies both peers to `~/szf-bench` on
+  another Apple silicon Mac and runs the Objective-C one there over ssh (`BENCH_REMOTE_PEER=rust` for the Rust core);
+  `android <phone address> [serial]` cross-builds the Rust peer with the NDK (it builds), pushes it to
+  `/data/local/tmp/szf` and runs it with `adb shell -T`. This Mac dials the device (Wi-Fi or Ethernet address;
+  `fe80::…%awdl0` with `BENCH_ROUTE_CLASS=p2p_wifi` for AWDL); each payload goes there and the device's copy comes
+  back and is checked here, so nothing is prepared on the device. For the share of the link, measure one TCP connection
+  with `iperf3` and pass `BENCH_LINK_BYTES_PER_SECOND`. Dry run on one Mac: `BENCH_REMOTE_LOOPBACK=1` (done: 1 MiB and
+  300 × 10 KiB both ways). Not covered: Bluetooth between real devices (these peers speak TCP; it needs the helpers'
+  lanes) and iPhones (no peer process). A Mac's firewall may ask once on the remote side.
+
+**Numbers.** One M5 Max, release builds, while other packages built in parallel (load around 7): single runs of a
+case vary by up to 30 % on loopback, less on emulated routes, which pace. Before: the peers at 0350a20a (no WP
+package yet). After: main at 2950f2bc (WP1's blocks, WP3's ciphers, cloning and liveness, WP4 part 1's liveness).
+
+| Case (each cell: before → after) | Rust → Rust | Rust → Objective-C | Objective-C → Rust | Objective-C → Objective-C |
+|---|---|---|---|---|
+| Loopback 2 GiB | 72 → 248 MB/s | 89 → 206 MB/s | 122 → 179 MB/s | 192 → 245 MB/s |
+| CPU-s/GB, loopback 2 GiB (send + receive) | 4.5 + 4.2 → 3.4 + 3.4 | 5.1 + 4.6 → 3.5 + 3.6 | 2.5 + 3.9 → 2.5 + 3.3 | 2.5 + 3.6 → 2.4 + 3.6 |
+| LAN 100 MiB | 63 MB/s, 53 % → 102, 87 % | 57, 49 % → 91, 78 % | 76, 65 % → 97, 82 % | 76, 65 % → 97, 82 % |
+| LAN 2 GiB | 87 MB/s, 74 % → 106, 91 % | 83, 71 % → 94, 80 % | 90, 77 % → 101, 86 % | 101, 86 % → 101, 86 % |
+| Direct Wi-Fi 2 GiB | 91 % → 97 % | 91 % → 92 % | 95 % → 93 % | 95 % → 91 % |
+| Internet 100 MiB | 97 % → 99 % | 98 % → 98 % | 98 % → 98 % | 98 % → 98 % |
+| LAN, 300 × 10 KiB | 13.6 → 15.4 s | 8.2 → 7.1 s | 8.8 → 8.5 s | 6.6 → 3.7 s |
+| LAN cut at 50 %: noticed, moving again | 0.004 s, 0.01 s → the same | the same | the same | the same |
+| LAN silent at 50 %: noticed | not in 20 s → **not in 20 s** | not in 20 s → 8.0 s | not in 20 s → 8.0 s | not in 20 s → 8.0 s |
+| Bluetooth silent at 50 %: noticed | not in 20 s → **not in 20 s** | → 11.9 s | → 11.9 s | → 11.9 s |
+
+The rest of the after run, all four pairs alike within a few percent: 1 MiB takes 50 to 90 ms on every fast route
+(the fixed cost per file; the 190 to 210 ms phase 1 saw in two Objective-C receiver runs did not recur in about 40
+runs here); internet 1 MiB 62 to 66 %; the lossy path 78 % of TCP's rate under loss for 1 MiB, 31 s for 300 small
+files; relay 1 MiB 90 %, Bluetooth 1 MiB 97 %, 300 small files over Bluetooth 18.3 s (96 %); a cut on Bluetooth is
+noticed in 5 ms and moving again in 0.06 s, but Rust → Rust by blocks resends up to a 1 MiB block on the slow route
+(4 MiB took 30.3 s, 79 %, against 24.6 s, 98 %, by CHUNK). The first baseline, before the emulator fix and before any
+package, is in `build/` only: its LAN shares (46 to 68 %) are the emulator's, not the peers'.
+
+**Interop matrix**, run three times: on 0350a20a, on 2950f2bc (after WP1 and WP3) and on 792a6cb4 (after WP4 gave the
+Objective-C helper minor 4): **120 of 120 runs pass each time.** Every pair with a released peer (`objc-26.10.29-1`,
+`rust-0.2.4`) negotiates minor 3, moves the file intact on all five routes and resumes after the cut (41 to 50 %).
+Today's pairs negotiate minor 4 on 792a6cb4; Rust ↔ Rust is fast (blocks) and resumes from its blocks (38 to 48 %; a
+one-block file on the relay and Bluetooth sends its block again); pairs with today's Objective-C peer still move by
+CHUNK, because the Objective-C session peer does not run blocks or report `fast` yet.
+
+**Findings for the other packages.**
+
+1. **A silent route is not noticed during a transfer by blocks (WP1, WP3).** `transfer_liveness` (the Rust helper's
+   `service/sessions.rs`, and the Rust peer, which copies it) looks only at CHUNK senders and receivers, so a fast
+   session carrying blocks never sets keepalive or watch: LAN and Bluetooth silenced half-way are not noticed in 20 s
+   between today's Rust peers, while every CHUNK pair notices at 8.0 s and 11.9 s. The block sender (blocks sent and
+   not in a HAVE) and receiver (blocks wanted, parts arriving) need the same rule.
+2. **Bluetooth resume by blocks resends up to a block** (1 MiB, about 6 s at 175 KB/s). ADR 0018's part size for
+   Bluetooth is 16 KiB but the block, the unit of resume, stays 1 MiB; a durable partial block, or smaller blocks on
+   Bluetooth-only transfers, would keep the resend near CHUNK's (0.05 MB).
+3. **WP4:** the Objective-C session peer needs blocks and `fast` in `established` (as `src/blocks.rs` does for Rust) for
+   the bench and matrix to measure its block path; then run the matrix with `INTEROP_EXPECT_FAST=1`.
+4. **300 small files** are still 3.7 to 15.4 s (target 1.5 s); Rust → Rust is the slowest pair (WP1's batches).
+
+**Left.** The multi-route cases run once lanes land (WP3 for Rust, WP4 for the Objective-C helper) and the peers
+take `lane_of`; then their numbers go here. Hardware runs with `tools/transfer-devices.sh` when the owner's second Mac
+or phone is at hand; BLAKE3 on the phone with `tools/tree-hash-bench.sh android` the same day.
