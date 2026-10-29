@@ -40,6 +40,13 @@ impl State {
                 return;
             }
         }
+        // Copies by blocks between our own devices (ADR 0018 § 4) travel in HASHES, PART and HAVE on their session.
+        if matches!(frame.frame_type, FrameType::Hashes | FrameType::Have)
+            && self.devices.exchanges.contains_key(&id)
+            && self.again_block_frame(id, &frame)
+        {
+            return;
+        }
         // Joining on NN sessions, the chain and sync between our own devices (join.rs, own.rs); a friend's chain, or
         // a stranger's before their request (chain.rs).
         let devices = match frame.frame_type {

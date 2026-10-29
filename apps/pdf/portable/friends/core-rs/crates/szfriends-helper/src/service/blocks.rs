@@ -24,7 +24,7 @@ const BULK_DEPTH: usize = 4;
 const BULK_SMALL_FRAMES: usize = 64;
 
 /// Room for another part: fewer than four frames queued, or more but all of them small.
-fn bulk_has_room(channel: &szfriends_core::session::SecureChannel) -> bool {
+pub(crate) fn bulk_has_room(channel: &szfriends_core::session::SecureChannel) -> bool {
     let frames = channel.queued_frames().1;
     frames < BULK_DEPTH
         || (frames < BULK_SMALL_FRAMES
@@ -177,6 +177,9 @@ impl State {
 
     /// HASHES, WANT, PART and HAVE (minor 4; the channel lets them in only on a fast session).
     pub(crate) fn block_frame(&mut self, id: u64, frame: &Frame, conversation: &str) {
+        if self.again_block_frame(id, frame) {
+            return; // a Get again copy by blocks (again.rs)
+        }
         let Some(transfer) = Self::block_wire(frame) else { return };
         match frame.frame_type {
             FrameType::Hashes => self.hashes(id, frame, conversation, &transfer),
@@ -260,6 +263,9 @@ impl State {
     /// A PART that came on `lane` of `id`'s group (`id` itself without lanes): its HAVE goes back on that lane, so it
     /// follows the parts and the sender measures that lane's round trip (§ 3, § 7).
     pub(crate) fn part_on(&mut self, id: u64, lane: u64, frame: &Frame) {
+        if self.again_block_frame(id, frame) {
+            return;
+        }
         let (Some(transfer), Some(conversation)) = (Self::block_wire(frame), self.conversation_of(id)) else { return };
         self.part(id, lane, frame, &conversation, &transfer);
     }

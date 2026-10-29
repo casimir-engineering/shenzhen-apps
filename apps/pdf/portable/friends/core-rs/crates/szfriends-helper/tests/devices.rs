@@ -21,6 +21,8 @@ fn start(homes: &[&Temp], network: &Temp) -> Vec<Client> {
     let _guard = START.lock().unwrap_or_else(|e| e.into_inner());
     std::env::set_var(ENV_STATE_DIR, &homes[0].0);
     std::env::set_var(ENV_TEST_LOOPBACK, &network.0);
+    // Own-device copies between Rust helpers go by blocks (ADR 0018 § 4).
+    std::env::set_var(szfriends_helper::service::ENV_TEST_COPIES_BY_BLOCKS, "1");
     homes.iter().map(|home| Client::connect(&home.0)).collect()
 }
 

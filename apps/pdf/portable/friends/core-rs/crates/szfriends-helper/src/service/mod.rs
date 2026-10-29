@@ -299,6 +299,8 @@ pub(crate) struct Client {
 /// Everything the service's thread owns.
 /// A test home's switch for fast transfers (ADR 0018 § 1): "0" plays a helper without them.
 pub const ENV_TEST_FAST_TRANSFERS: &str = "SZFRIENDS_TEST_FAST_TRANSFERS";
+/// A test home's switch for Get again and own-device copies by blocks: "1" asks for them so.
+pub const ENV_TEST_COPIES_BY_BLOCKS: &str = "SZFRIENDS_TEST_COPIES_BY_BLOCKS";
 /// A test home's switch for lanes (ADR 0018 § 6): "0" opens and admits none.
 pub const ENV_TEST_LANES: &str = "SZFRIENDS_TEST_LANES";
 /// A test home's emulated route rates, `lan=1250000,bluetooth=175000` (bytes per second each side writes at), so
@@ -350,6 +352,10 @@ pub(crate) struct State {
     pub fast_transfers: bool,
     /// Files received by blocks whose check before saving is running, since when (`blocks.rs`).
     pub finishing: HashMap<String, std::time::Instant>,
+    /// Get again and own-device copies asked for by blocks (ADR 0018 § 4). Served by blocks whenever asked; asked
+    /// for so only once the Objective-C helper answers them too (WP4): until then a test home turns it on
+    /// (`SZFRIENDS_TEST_COPIES_BY_BLOCKS=1`).
+    pub copies_by_blocks: bool,
     /// ADR 0018 § 6: lanes beside a fast session; off only in a test home (`SZFRIENDS_TEST_LANES=0`).
     pub lanes: bool,
     /// A test home's emulated routes: bytes per second each route's links write at (`SZFRIENDS_TEST_ROUTE_RATES`).
@@ -416,6 +422,7 @@ impl State {
             next_receipt: 0,
             capabilities,
             finishing: HashMap::new(),
+            copies_by_blocks: test_home && std::env::var_os(ENV_TEST_COPIES_BY_BLOCKS).is_some_and(|v| v == "1"),
             // The settings key `transfers.fast` (on unless it holds 0), read as the helper starts.
             fast_transfers: fast_setting
                 && !(test_home && std::env::var_os(ENV_TEST_FAST_TRANSFERS).is_some_and(|v| v == "0")),

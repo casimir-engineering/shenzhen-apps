@@ -13,8 +13,11 @@ use super::engine::SyncEngine;
 use super::exchange::matches_digest;
 use crate::presentation::AgainState;
 use crate::store::Store;
+use crate::transfer::block_copy::{BlockCopy, CopyPart};
 
 const PARTS_PER_WANT: u16 = 8;
+/// HAVE after this many bytes of blocks at most, so the serving side's window keeps moving.
+const HAVE_EVERY_BLOCKS: usize = 1;
 const PARTS_AHEAD: u64 = 16;
 
 #[derive(Debug)]
@@ -24,6 +27,8 @@ struct Copy {
     handle: std::fs::File,
     received: u64,
     requested: u64,
+    /// On a session with fast transfers (ADR 0018 § 4): by blocks, resumed from its map; `handle` is then unused.
+    blocks: Option<crate::transfer::block_copy::BlockCopy>,
 }
 
 /// What one session with a friend copies again from them.
@@ -34,17 +39,44 @@ pub struct AgainRequester {
     /// Answered "not now" on this session: tried again on the next one.
     not_now: BTreeSet<String>,
     outgoing: Vec<AgainMessage>,
+    /// Copies by blocks: on a session that negotiated fast transfers.
+    fast: bool,
+    /// HAVE frames for a copy by blocks, to send in order after the AGAIN messages.
+    frames: Vec<szfriends_wire::Frame>,
 }
 
 impl AgainRequester {
     pub fn new(conversation_id: &str) -> Self {
-        Self { conversation_id: conversation_id.to_owned(), copy: None, not_now: BTreeSet::new(), outgoing: Vec::new() }
+        Self::with_blocks(conversation_id, false)
+    }
+
+    /// `fast`: the session negotiated fast transfers, so copies go by blocks (ADR 0018 § 4).
+    pub fn with_blocks(conversation_id: &str, fast: bool) -> Self {
+        Self {
+            conversation_id: conversation_id.to_owned(),
+            copy: None,
+            not_now: BTreeSet::new(),
+            outgoing: Vec::new(),
+            fast,
+            frames: Vec::new(),
+        }
+    }
+
+    /// Session frames (HAVE) for copies by blocks, to send after [`AgainRequester::take_messages`].
+    pub fn take_frames(&mut self) -> Vec<szfriends_wire::Frame> {
+        std::mem::take(&mut self.frames)
+    }
+
+    /// The transfer copying by blocks now, whose HASHES and PARTs this requester takes.
+    pub fn copying_by_blocks(&self) -> Option<&str> {
+        self.copy.as_ref().filter(|c| c.blocks.is_some()).map(|c| c.file.transfer_id.as_str())
     }
 
     /// The file copying now and how much of it is here.
     pub fn copying(&self) -> Option<(&str, f64)> {
         self.copy.as_ref().map(|c| {
-            let fraction = if c.file.size > 0 { c.received as f64 / c.file.size as f64 } else { 0.0 };
+            let received = c.blocks.as_ref().map_or(c.received, |b| b.received_bytes());
+            let fraction = if c.file.size > 0 { received as f64 / c.file.size as f64 } else { 0.0 };
             (c.file.transfer_id.as_str(), fraction)
         })
     }
@@ -57,7 +89,9 @@ impl AgainRequester {
     /// Cancel: the copy stops; what arrived waits for another Get again.
     pub fn stop_copy(&mut self, transfer_id: &str) {
         if self.copy.as_ref().is_some_and(|c| c.file.transfer_id == transfer_id) {
-            self.copy = None;
+            if let Some(blocks) = self.copy.take().and_then(|c| c.blocks) {
+                blocks.pause();
+            }
         }
     }
 
@@ -74,6 +108,17 @@ impl AgainRequester {
             if path.parent().is_none_or(|p| std::fs::create_dir_all(p).is_err()) {
                 continue;
             }
+            if self.fast {
+                let digest: Option<[u8; 32]> = file.digest.clone().try_into().ok();
+                let map = path.with_file_name(format!("again-{}.map", file.transfer_id));
+                let opened = digest.and_then(|d| BlockCopy::open(file.size, d, path.clone(), map).ok());
+                let Some(blocks) = opened else { continue };
+                let Ok(handle) = std::fs::File::open(&path) else { continue };
+                let (id, shift, ranges) = (file.transfer_id.clone(), blocks.shift(), blocks.missing());
+                self.outgoing.push(AgainMessage::WantBlocks { id, shift, ranges });
+                self.copy = Some(Copy { file, path, handle, received: 0, requested: 0, blocks: Some(blocks) });
+                return;
+            }
             let options = std::fs::OpenOptions::new().create(true).truncate(false).read(true).write(true).open(&path);
             let Ok(mut handle) = options else { continue };
             let mut held = handle.seek(SeekFrom::End(0)).unwrap_or(0);
@@ -82,7 +127,7 @@ impl AgainRequester {
                 let _ = handle.seek(SeekFrom::Start(0));
                 held = 0;
             }
-            self.copy = Some(Copy { file, path, handle, received: held, requested: held });
+            self.copy = Some(Copy { file, path, handle, received: held, requested: held, blocks: None });
             self.request_more();
             return;
         }
@@ -123,7 +168,85 @@ impl AgainRequester {
                 self.start_next(engine, store);
                 true
             }
-            AgainMessage::Want { .. } => false,
+            AgainMessage::BlocksFollow { id, root, shift } => {
+                let Some(copy) = self.copy.as_mut().filter(|c| c.file.transfer_id == *id) else { return false };
+                if copy.blocks.as_mut().is_some_and(|b| b.follow(*root, *shift)) {
+                    return false;
+                }
+                // A tree that cannot be this file's: tried again on the next session.
+                self.stop_copy(id);
+                self.not_now.insert(id.clone());
+                self.start_next(engine, store);
+                true
+            }
+            AgainMessage::Want { .. } | AgainMessage::WantBlocks { .. } => false,
+        }
+    }
+
+    /// HASHES for the copy by blocks; `false` when this requester is not copying `id` by blocks.
+    pub fn hashes(&mut self, id: &str, index: u32, hashes: &[u8]) -> bool {
+        let Some(copy) = self.copy.as_mut().filter(|c| c.file.transfer_id == id) else { return false };
+        let Some(blocks) = copy.blocks.as_mut() else { return false };
+        if blocks.hashes(index, hashes).is_none() {
+            self.stop_copy(id);
+            self.not_now.insert(id.to_owned());
+            return true;
+        }
+        self.queue_have(id);
+        true
+    }
+
+    fn queue_have(&mut self, id: &str) {
+        let Some(blocks) = self.copy.as_mut().and_then(|c| c.blocks.as_mut()) else { return };
+        let have = blocks.take_have();
+        if let Ok(wire) = hex::decode(id) {
+            self.frames.extend(crate::transfer::frames::have(&wire, &have, &[]));
+        }
+    }
+
+    /// A PART for the copy by blocks; `false` when this requester is not copying `id` by blocks. `true` in the
+    /// second value when what the views show changed (a copy finished or stopped).
+    pub fn part(&mut self, engine: &mut SyncEngine, store: &Store, id: &str, offset: u64, data: &[u8]) -> (bool, bool) {
+        let Some(copy) = self.copy.as_mut().filter(|c| c.file.transfer_id == id) else { return (false, false) };
+        let Some(blocks) = copy.blocks.as_mut() else { return (false, false) };
+        match blocks.part(offset, data) {
+            CopyPart::Pending | CopyPart::Late => (true, false),
+            CopyPart::Written(_) => {
+                if blocks.unreported_count() >= HAVE_EVERY_BLOCKS {
+                    self.queue_have(id);
+                }
+                (true, false)
+            }
+            CopyPart::Corrupt(block) => {
+                let shift = blocks.shift();
+                self.outgoing.push(AgainMessage::WantBlocks { id: id.to_owned(), shift, ranges: vec![(block, 1)] });
+                (true, false)
+            }
+            CopyPart::Refused => {
+                self.stop_copy(id);
+                self.not_now.insert(id.to_owned());
+                self.start_next(engine, store);
+                (true, true)
+            }
+            CopyPart::Complete => {
+                self.queue_have(id);
+                let copy = self.copy.take().expect("present");
+                let blocks = copy.blocks.expect("by blocks");
+                drop(copy.handle);
+                match blocks.finish() {
+                    Some(path) => {
+                        if engine.adopt_again_file(store, &copy.file, &path).is_err() {
+                            self.not_now.insert(copy.file.transfer_id.clone());
+                        }
+                    }
+                    // Not the file it was offered as: gone, as a copy by offset that did not match.
+                    None => {
+                        let _ = set_again_state(store, id, AgainState::Gone);
+                    }
+                }
+                self.start_next(engine, store);
+                (true, true)
+            }
         }
     }
 

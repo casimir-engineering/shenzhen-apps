@@ -55,6 +55,8 @@ fn a_deleted_file_comes_back_from_the_friend_who_sent_it() {
     let (a, b, routes) = (Temp::new("again-a"), Temp::new("again-b"), Temp::new("again-routes"));
     std::env::set_var(ENV_STATE_DIR, &a.0);
     std::env::set_var(ENV_TEST_LOOPBACK, &routes.0);
+    // Both Rust helpers copy again by blocks (ADR 0018 § 4); the interop suites cover the Objective-C helper.
+    std::env::set_var(szfriends_helper::service::ENV_TEST_COPIES_BY_BLOCKS, "1");
     let (bo_in_a, ada_in_b) = seed::befriend(&a.0, &b.0, ("Ada", "Bo")).expect("befriended");
     let mut ada = Client::connect_with(&a.0, &["drop.files", "files.again"]);
     let mut bo = Client::connect_with(&b.0, &["drop.files", "files.again"]);

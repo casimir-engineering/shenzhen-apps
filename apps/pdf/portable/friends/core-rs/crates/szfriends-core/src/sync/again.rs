@@ -7,6 +7,8 @@
 //! 1 WANT   id (16) | offset u64 | parts u16       send these parts of the file offered under id
 //! 2 PART   id (16) | offset u64 | last u8 | bytes at most 48 KiB, in order from offset
 //! 3 NONE   id (16) | reason u8                    0: this computer does not have it; 1: not now
+//! 4 WANT BLOCKS    id (16) | shift u8 | ranges     these blocks (ADR 0018 § 4; fast-transfer sessions only)
+//! 5 BLOCKS FOLLOW  id (16) | root (32) | shift u8  this tree; HASHES and PARTs follow on the session
 //! ```
 
 use std::path::Path;
@@ -34,9 +36,32 @@ const NONE: u8 = 3;
 /// One message of the AGAIN exchange.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum AgainMessage {
-    Want { id: String, offset: u64, parts: u16 },
-    Part { id: String, offset: u64, last: bool, bytes: Vec<u8> },
-    None { id: String, reason: u8 },
+    Want {
+        id: String,
+        offset: u64,
+        parts: u16,
+    },
+    Part {
+        id: String,
+        offset: u64,
+        last: bool,
+        bytes: Vec<u8>,
+    },
+    None {
+        id: String,
+        reason: u8,
+    },
+    /// ADR 0018 § 4, only on sessions that negotiated fast transfers (`transfer::copies`).
+    WantBlocks {
+        id: String,
+        shift: u8,
+        ranges: Vec<(u32, u32)>,
+    },
+    BlocksFollow {
+        id: String,
+        root: [u8; 32],
+        shift: u8,
+    },
 }
 
 fn id_bytes(id: &str) -> Option<[u8; 16]> {
@@ -49,12 +74,27 @@ fn id_bytes(id: &str) -> Option<[u8; 16]> {
 impl AgainMessage {
     pub fn id(&self) -> &str {
         match self {
-            Self::Want { id, .. } | Self::Part { id, .. } | Self::None { id, .. } => id,
+            Self::Want { id, .. }
+            | Self::Part { id, .. }
+            | Self::None { id, .. }
+            | Self::WantBlocks { id, .. }
+            | Self::BlocksFollow { id, .. } => id,
         }
     }
 
     /// The AGAIN field's bytes; `None` for an id that is not 16 bytes of lowercase hex, which nothing sends.
     pub fn encode(&self) -> Option<Vec<u8>> {
+        use crate::transfer::copies::CopyMessage;
+        match self {
+            Self::WantBlocks { id, shift, ranges } => {
+                let message = CopyMessage::WantBlocks { id: id.clone(), shift: *shift, ranges: ranges.clone() };
+                return message.encode_again();
+            }
+            Self::BlocksFollow { id, root, shift } => {
+                return CopyMessage::BlocksFollow { id: id.clone(), root: *root, shift: *shift }.encode_again();
+            }
+            _ => {}
+        }
         let id = id_bytes(self.id())?;
         let mut out = Vec::new();
         match self {
@@ -79,6 +119,7 @@ impl AgainMessage {
                 out.extend_from_slice(&id);
                 out.push(*reason);
             }
+            Self::WantBlocks { .. } | Self::BlocksFollow { .. } => return None,
         }
         Some(out)
     }
@@ -97,7 +138,14 @@ impl AgainMessage {
                 Some(Self::Part { id, offset: u64_at(0)?, last: rest[8] == 1, bytes: rest[9..].to_vec() })
             }
             NONE if rest.len() == 1 => Some(Self::None { id, reason: rest[0] }),
-            _ => None,
+            _ => match crate::transfer::copies::CopyMessage::decode_again(data)? {
+                crate::transfer::copies::CopyMessage::WantBlocks { id, shift, ranges } => {
+                    Some(Self::WantBlocks { id, shift, ranges })
+                }
+                crate::transfer::copies::CopyMessage::BlocksFollow { id, root, shift } => {
+                    Some(Self::BlocksFollow { id, root, shift })
+                }
+            },
         }
     }
 }

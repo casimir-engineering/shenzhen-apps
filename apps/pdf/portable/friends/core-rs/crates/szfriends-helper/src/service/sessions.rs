@@ -202,8 +202,7 @@ impl State {
             s.channel.set_liveness(keepalive || blocks, watch || owed, now);
             s.channel.handle_timeout(now);
         }
-        loop {
-            let Some(s) = self.sessions.map.get_mut(&id) else { break };
+        while let Some(s) = self.sessions.map.get_mut(&id) {
             while let Some(write) = (!batched).then(|| s.channel.poll_transmit()).flatten() {
                 s.link.write(write.bytes);
             }
@@ -232,6 +231,7 @@ impl State {
         self.flush_blocks_if_due();
         self.pump(id);
         self.pump_blocks(id);
+        self.pump_again(id);
         if batched {
             self.end_store_batch();
         }

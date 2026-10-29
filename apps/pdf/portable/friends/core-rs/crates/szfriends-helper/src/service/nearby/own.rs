@@ -260,6 +260,7 @@ impl State {
             self.send_on(id, &Frame::new(FrameType::Chain).with(tag::CHAIN, chain.encoded().to_vec()));
         }
         let mut exchange = SyncExchange::new(remote);
+        exchange.set_fast(self.fast_session(id), self.copies_by_blocks);
         self.devices.engine.capture_local_changes(&self.store);
         exchange.start(&self.devices.engine, &self.store);
         self.devices.exchanges.insert(id, exchange);
@@ -322,10 +323,28 @@ impl State {
         }
     }
 
+    /// What an exchange has to send now (`again.rs` calls it after a copy by blocks moved).
+    pub(crate) fn flush_own_exchange(&mut self, id: u64) {
+        self.flush_exchange(id);
+    }
+
     fn flush_exchange(&mut self, id: u64) {
         let messages = self.devices.exchanges.get_mut(&id).map(SyncExchange::take_messages).unwrap_or_default();
         for message in messages {
             self.send_on(id, &Frame::new(FrameType::Sync).with(tag::SYNC, message));
+        }
+        // Copies by blocks (ADR 0018 § 4): HAVEs for ours, and files the other device asked for by blocks.
+        let frames = self.devices.exchanges.get_mut(&id).map(SyncExchange::take_frames).unwrap_or_default();
+        for frame in frames {
+            self.send_on(id, &frame);
+        }
+        let served = self.devices.exchanges.get_mut(&id).map(SyncExchange::take_serve_blocks).unwrap_or_default();
+        for blocks in served {
+            for frame in blocks.serve.hashes_frames() {
+                self.send_on(id, &frame);
+            }
+            let serving = crate::service::again::Serving { serve: blocks.serve, path: blocks.path, sync: true };
+            self.again.serving.insert((id, blocks.transfer_id), serving);
         }
         if !self.devices.engine.take_changes().is_empty() {
             // Friends, chats and the profile another of our devices changed: tags, sessions, the outbox follow.

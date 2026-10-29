@@ -8,6 +8,7 @@
 //! [`szfriends_wire::consts::CAPABILITY_FAST_TRANSFERS`]; everything else stays ADR 0001's CHUNK flow.
 
 pub mod assembly;
+pub mod block_copy;
 pub mod blockset;
 pub mod copies;
 pub mod frames;
