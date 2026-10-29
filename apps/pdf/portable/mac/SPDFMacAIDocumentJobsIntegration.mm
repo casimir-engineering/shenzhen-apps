@@ -9,6 +9,11 @@
 #import "SPDFMacMarkdownDelegatePrivate.h"
 #import "SPDFMacMarkdownPrinting.h"
 #import "markdown/SPDFTextDocumentFormats.h"
+#import "markdown/SPDFTextDocumentParser.h"
+#import "SPDFMacAIJobTranslator.h"
+#import "SPDFMacAITransport.h"
+#import "SPDFMacAISettings.h"
+#import "SPDFMacAICredentials.h"
 #include "shenzhen_pdf_core.h"
 #include <unistd.h>
 @interface ShenzhenMacDelegate (AIJobsHost)
@@ -46,27 +51,39 @@ static BOOL Language(NSString* value, BOOL ocr) {
         completion(JobError(@"Create an unprotected copy before exporting, OCR or translation.")); return;
     }
     NSString* name=arguments[@"name"];
+    BOOL ocr=[kind isEqual:@"ocr"], translate=[kind isEqual:@"translate"];
+    // A Markdown or text document is translated as the text it is, into the same format; everything else as a PDF.
+    BOOL textTranslation=translate && SPDFIsRenderedTextDocumentPath(source);
+    NSString* extension=textTranslation ? (source.pathExtension.length ? source.pathExtension : @"md") : @"pdf";
     // A document shown under a name given in ShenzhenPDF names its output after that name, not its file's.
     NSString* shownName=spdf_tab_display_name(tab) ? [[source.stringByDeletingLastPathComponent stringByAppendingPathComponent:
         [spdf_tab_display_name(tab) stringByReplacingOccurrencesOfString:@"/" withString:@"-"]] stringByAppendingPathExtension:source.pathExtension] : source;
-    if (!name) name=SPDFMacAIJobOutputName(shownName,kind,arguments[@"targetLanguage"]);
+    if (!name) name=[SPDFMacAIJobOutputName(shownName,kind,arguments[@"targetLanguage"]).stringByDeletingPathExtension
+        stringByAppendingPathExtension:extension];
     if (![name isKindOfClass:NSString.class] || !name.length || name.length>240 ||
         ![name isEqual:name.lastPathComponent] || [name containsString:@":"] ||
-        ![name.pathExtension.lowercaseString isEqual:@"pdf"] || [name hasPrefix:@"."]) {
-        completion(JobError(@"Choose a PDF filename without folder separators.")); return;
+        ![name.pathExtension.lowercaseString isEqual:extension.lowercaseString] || [name hasPrefix:@"."]) {
+        completion(JobError([NSString stringWithFormat:@"Choose a .%@ filename without folder separators.",extension])); return;
     }
-    BOOL ocr=[kind isEqual:@"ocr"], translate=[kind isEqual:@"translate"];
     if (!ocr && !translate && ![kind isEqual:@"export-pdf"]) { completion(JobError(@"Unknown document job.")); return; }
     NSMutableDictionary* options=[arguments mutableCopy];
     if (ocr && !options[@"language"]) options[@"language"]=@"eng";
-    if ((ocr && !Language(options[@"language"],YES)) ||
-        (translate && (!Language(options[@"sourceLanguage"],NO) || !Language(options[@"targetLanguage"],NO)))) {
-        completion(JobError(@"Supply valid local OCR or translation language codes.")); return;
+    if (ocr && !Language(options[@"language"],YES)) { completion(JobError(@"Supply a valid local OCR language code.")); return; }
+    SPDFMacAIJobTranslator* translator=nil;
+    if (translate) {
+        // Translated by the assistant's own model, any language it can write: no local tools.
+        NSString* language=SPDFMacAITranslationLanguageName(options[@"targetLanguage"]);
+        if (!language) { completion(JobError(@"Give targetLanguage as a language name or code, such as French or fr.")); return; }
+        SPDFMacAISettings* settings=[[SPDFMacAISettings alloc] initWithURL:SPDFMacAISettings.defaultURL];
+        NSError* problem=nil; NSString* key=[settings load:&problem] ? [SPDFMacAICredentials APIKeyWithError:&problem] : nil;
+        if (!key.length || !settings.model.length) { completion(JobError(@"Connect OpenRouter in AI settings to translate.")); return; }
+        translator=[[SPDFMacAIJobTranslator alloc] initWithTransport:[[SPDFMacAITransport alloc]
+            initWithConfiguration:NSURLSessionConfiguration.ephemeralSessionConfiguration] model:settings.model key:key language:language];
+        options[@"translator"]=translator;
     }
-    NSString* tool=ocr || translate ? [spdf_mac_tool_venv_bin_path()
-        stringByAppendingPathComponent:ocr ? @"ocrmypdf" : @"argos-translate"] : @"";
-    if ((ocr || translate) && ![NSFileManager.defaultManager isExecutableFileAtPath:tool]) {
-        completion(JobError(@"Install local OCR or translation support using the reader first. This action installs nothing.")); return;
+    NSString* tool=ocr ? [spdf_mac_tool_venv_bin_path() stringByAppendingPathComponent:@"ocrmypdf"] : @"";
+    if (ocr && ![NSFileManager.defaultManager isExecutableFileAtPath:tool]) {
+        completion(JobError(@"Install local OCR support using the reader first. This action installs nothing.")); return;
     }
     NSDictionary* environment=spdf_mac_tool_environment(NSProcessInfo.processInfo.environment,@[tool],@{});
     // The same owned tessdata override used by the native OCR command.
@@ -75,7 +92,8 @@ static BOOL Language(NSString* value, BOOL ocr) {
     SPDFMarkdownPaginationPlan* plan=session.exportPaginationPlan;
     NSAttributedString* text=session.exportAttributedString;
     SPDFMarkdownPaginationPlan* livePlan=session.paginationPlan;
-    if (SPDFIsRenderedTextDocumentPath(source) && (!plan || !text)) {
+    if (textTranslation) { plan=nil; session=nil; }  // read from its file: how it is laid out on screen doesn't matter
+    if (SPDFIsRenderedTextDocumentPath(source) && !textTranslation && (!plan || !text)) {
         completion(JobError(shown ? @"The text document is still preparing its PDF export." :
             @"Show this text document first (show_document), so its pages are laid out, then start the job.")); return;
     }
@@ -96,7 +114,7 @@ static BOOL Language(NSString* value, BOOL ocr) {
             if (prepared && plan) {
                 prepared=[SPDFMacMarkdownPrintAdapter writePaginationPlan:plan attributedString:text
                     toURL:[NSURL fileURLWithPath:rendition] error:&error]; input=rendition;
-            } else if (prepared && ![source.pathExtension.lowercaseString isEqual:@"pdf"]) {
+            } else if (prepared && !textTranslation && ![source.pathExtension.lowercaseString isEqual:@"pdf"]) {
                 char message[1024]={}; spdf_document* doc=spdf_open(readPath.fileSystemRepresentation,message,sizeof(message));
                 prepared=doc && !spdf_is_password_protected(doc); if (doc) spdf_close(doc);
                 if (prepared) prepared=SPDFSaveImageCopy(readPath,rendition,YES,&error);
@@ -110,7 +128,15 @@ static BOOL Language(NSString* value, BOOL ocr) {
                 }
                 if (doc) spdf_close(doc);
             }
-            if (prepared && !progress.cancelled && [revision isEqual:SPDFSearchFileStamp(readPath)])
+            if (prepared && textTranslation && !progress.cancelled) {
+                NSData* data=[NSData dataWithContentsOfFile:readPath options:NSDataReadingMappedIfSafe error:&error];
+                NSString* original=data.length>2000000 ? nil : data ? SPDFDecodeSourceDocument(data,&error) : nil;
+                if (data.length>2000000) error=[NSError errorWithDomain:@"ShenzhenPDF.AIJob" code:1 userInfo:@{NSLocalizedDescriptionKey:
+                    @"This document is too large to translate at once."}];
+                NSString* translated=original ? [translator translateText:original progress:progress error:&error] : nil;
+                if (translated && !progress.cancelled && [revision isEqual:SPDFSearchFileStamp(readPath)])
+                    owned=SPDFMacAIOutputWriteData([translated dataUsingEncoding:NSUTF8StringEncoding],downloads,name,&error);
+            } else if (prepared && !progress.cancelled && [revision isEqual:SPDFSearchFileStamp(readPath)])
                 owned=SPDFAIRunPDFJob(kind,input,downloads,name,tool,environment,options,progress,&error);
             [fm removeItemAtPath:rendition error:nil];
             rmdir(directory.fileSystemRepresentation);
@@ -128,7 +154,8 @@ static BOOL Language(NSString* value, BOOL ocr) {
                     completion(JobError(error.localizedDescription ?: @"Document could not be prepared for this job.")); return;
                 }
                 NSString* destination=owned[@"path"];
-                NSDictionary* opened=[reader aiOpenCollectionDocumentAtPath:destination archived:NO progress:progress];
+                // Beside the document it was made from, in its group.
+                NSDictionary* opened=[reader aiOpenCollectionDocumentAtPath:destination archived:NO afterPath:source progress:progress];
                 if (progress.cancelled && opened[@"documentReceipt"]) {
                     [reader aiUndoDocumentAction:opened[@"documentReceipt"] progress:[NSProgress progressWithTotalUnitCount:1]];
                     SPDFAIRemoveJobOutput(owned);

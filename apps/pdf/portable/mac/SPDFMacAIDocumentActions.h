@@ -6,6 +6,9 @@
 // holding an unsaved pasted image stay open and are listed as kept.
 - (NSDictionary*)aiCloseDocuments:(NSArray<NSString*>*)paths progress:(NSProgress*)progress;
 - (NSDictionary*)aiOpenCollectionDocumentAtPath:(NSString*)path archived:(BOOL)archived progress:(NSProgress*)progress;
+// The same, and a tab it opens goes right after the open document `neighbour`, in its group (nil: where it opens).
+- (NSDictionary*)aiOpenCollectionDocumentAtPath:(NSString*)path archived:(BOOL)archived afterPath:(NSString*)neighbour
+                                       progress:(NSProgress*)progress;
 // rename_document: renames the file when it can be (and target isn't "title"); otherwise the document keeps its
 // file name and shows the new name in ShenzhenPDF (SPDFDocumentTab.displayName, kept in Collection), and the result
 // says so (fileRenamed NO, tellThePerson). Undo restores the previous name while it is unchanged.

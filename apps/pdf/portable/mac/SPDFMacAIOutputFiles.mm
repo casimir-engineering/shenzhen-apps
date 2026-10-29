@@ -1,4 +1,5 @@
 #import "SPDFMacAIOutputFiles.h"
+#import "SPDFMacAILanguage.h"
 #import <CommonCrypto/CommonDigest.h>
 #include <fcntl.h>
 #include <stdio.h>
@@ -96,8 +97,12 @@ NSString* SPDFMacAIJobOutputName(NSString* source, NSString* kind, NSString* tar
     NSString* label = nil;
     if ([kind isEqual:@"ocr"]) label = @"OCR";
     else if ([kind isEqual:@"translate"]) {
-        NSLocale* english = [NSLocale localeWithLocaleIdentifier:@"en"];
-        label = [english localizedStringForLanguageCode:targetLanguage ?: @""] ?: targetLanguage;
+        // "fr" or "French" is "French"; a language not in the list keeps the name it was given ("Breton").
+        NSDictionary* names = SPDFMacAILanguageNames();
+        label = [targetLanguage stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
+        for (NSString* code in names)
+            if ([code caseInsensitiveCompare:label ?: @""] == NSOrderedSame ||
+                [names[code] caseInsensitiveCompare:label ?: @""] == NSOrderedSame) label = names[code];
     } else if ([source.pathExtension.lowercaseString isEqual:@"pdf"]) label = @"copy";
     NSString* name = label.length ? [NSString stringWithFormat:@"%@ (%@)", base, label] : base;
     return SPDFMacAIOutputFileName(name, @"Document", @"pdf");

@@ -274,6 +274,16 @@ static char stateKey;
     [state.session sendContext:context model:settings.model apiKey:key];
     return [state.session.chat[@"messages"] count]>before;
 }
+- (BOOL)aiSendRequestInNewChat:(NSString*)text {
+    SPDFReaderAIState* state=[self readerAIState]; NSResponder* reading=_window.firstResponder;
+    if(state.session.running) { [self showAIChatForQuery:nil]; [_window makeFirstResponder:reading]; NSBeep(); return NO; }
+    if([state.session.chat[@"messages"] count] || state.view.composer.string.length) [self aiChatAction:@"new"];
+    else [self showAIChatForQuery:nil];
+    BOOL sent=[self aiSendText:text];
+    if(!sent) state.view.composer.string=text;
+    else [_window makeFirstResponder:reading];
+    return sent;
+}
 - (BOOL)aiResendMessageAtIndex:(NSUInteger)index text:(NSString*)text authorizedKey:(NSString*)authorizedKey {
     SPDFReaderAIState* state=[self readerAIState];
     state.pendingEdit=@{@"index":@(index),@"text":[text copy] ?: @""};

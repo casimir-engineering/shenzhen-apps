@@ -229,13 +229,20 @@ Collection items and document jobs return action receipts for safe Undo. Group
 or control Undo is refused if the relevant state has changed. File Undo checks
 the resulting file identity/content before restoring or removing anything.
 
-OCR, translation and export make a new PDF; the source stays unchanged. OCR and translation
-need their local tools already installed. Assistant jobs do not install tools
-or ask to install them, and protected PDFs must first be made into an
-unprotected copy. Translation requires supported source and target language
-codes and extractable text; scan-only PDFs need OCR first. Undo closes the
-generated tab and removes the output only if it is still the exact generated
-file.
+OCR, translation and export make a new document; the source stays unchanged. OCR needs
+its local tools already installed; assistant jobs do not install tools or ask to install
+them, and protected PDFs must first be made into an unprotected copy. Translation is done
+by the chat's own model (`mac/SPDFMacAIJobTranslator.h`) into any language, named by
+code or name (`fr`, `French`, `Breton`): a PDF's lines go to the model in batches as JSON
+arrays and come back one for one, drawn where each line was; a Markdown or text document
+goes part by part and comes back as the same format. The output is `<name> (<Language>)`,
+opened right after the original in its group, and a chat row says how far it has got. It
+needs extractable text; scan-only PDFs need OCR first. Undo closes the generated tab and
+removes the output only if it is still the exact generated file.
+
+The Translate button asks only for the language (`mac/SPDFMacTranslateLanguagePopover.h`)
+and then sends "Translate “<name>” to <Language>." in a new chat, which the assistant
+answers with `document_job` translate.
 
 ## Files you give a chat, and Python on your documents
 
@@ -301,9 +308,7 @@ Every document the assistant makes goes to two places:
   nothing is captured and no Collection is created.
 
 This covers document jobs (OCR, translation, export), files Python saves in
-`./out`, charts from Python that you save with **Save** under the picture, and
-AI translations saved from the
-translation panel as Markdown. The chat then shows **Saved to Downloads** with
+`./out`, and charts from Python that you save with **Save** under the picture. The chat then shows **Saved to Downloads** with
 **Open** and **Show in Finder**; a reopened chat keeps the line without the
 buttons. If the file has since been moved or removed, either button says so.
 
@@ -428,8 +433,8 @@ Other current boundaries:
   app commands can open normal reader dialogs, subject to macOS permissions.
   The assistant cannot run shell commands or access other apps; it reaches the
   web only through `web_search` and `open_page` (above).
-- OCR and translation are local jobs, but the assistant does not install or
-  configure their dependencies. Encrypted PDFs are not supported by assistant
+- OCR is a local job, but the assistant does not install or configure its
+  dependencies. Encrypted PDFs are not supported by assistant
   export/OCR/translation jobs.
 - Safe rename supports regular writable files up to 32 MiB in their current
   folder. Collection working copies can also be renamed directly, with Undo;

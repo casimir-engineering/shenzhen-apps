@@ -1,13 +1,6 @@
 #pragma once
 #import <Foundation/Foundation.h>
-@class SPDFMacAITransport;
-// No credential, document or network work until translateText is explicitly called.
-@interface SPDFMacAITranslation : NSObject
-- (instancetype)initWithTransport:(SPDFMacAITransport*)transport;
-- (void)translateText:(NSString*)text language:(NSString*)language model:(NSString*)model key:(NSString*)key
-    progress:(void (^)(NSUInteger completed, NSUInteger total))progress
-    completion:(void (^)(NSString* translation, NSError* error))completion;
-- (void)cancel;
-@end
+// A whole text document cut into parts the model translates one at a time (SPDFMacAIJobTranslator.h): at most 3,000
+// characters, ending at a line break where one falls in the second half, never inside a character. Nothing is
+// dropped: the parts joined are the text. nil with *error for no text or more than 500,000 characters.
 FOUNDATION_EXPORT NSArray<NSString*>* SPDFMacAITranslationChunks(NSString* text, NSError** error);
-FOUNDATION_EXPORT BOOL SPDFMacAITranslationAppendLine(NSMutableString* text, NSString* line, NSProgress* preparation, NSError** error);

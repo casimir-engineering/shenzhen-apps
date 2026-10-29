@@ -414,12 +414,17 @@ fence the renderer cannot draw keeps its ordinary highlighted code box.
 
 <p align="center"><img src="images/portable/macos-translate.webp" alt="A whole PDF translated offline from English to Chinese, opened beside the original" width="880"></p>
 
-- **macOS: choose Local or AI** from the menu below Translate. Local keeps the existing Argos workflow.
-- **AI translation** uses your OpenRouter connection and model. Review the source text, choose a searchable target language (your AI language by default), then send explicitly. Selection and whole-document text are supported; scanned pages need OCR first.
-- AI results are editable and saved as a **new Markdown copy** in Downloads (kept in Collection when it is on), not a layout-preserving PDF. Nothing is overwritten. Progress and Cancel are available; failed or cancelled requests do not save partial files.
-- AI requests run sequentially in small text chunks. Documents above 500,000 characters are rejected with a request to select a smaller passage, never silently truncated.
-- **Argos Translate**, running locally across ~19 languages including Chinese.
-  Text never leaves the machine.
+- **macOS: Translate asks one thing, the language.** The field is ready to type in and English is highlighted, so
+  Return translates into English. Typing narrows the list (your recent languages first); Return chooses the first
+  match and Return again translates. A language that isn't listed works too: type it and choose **Use “Breton”**.
+  Arrows move through the list and Escape cancels.
+- **The assistant translates the whole document** with your OpenRouter model and makes
+  **“<name> (<Language>)”** in the same format: a PDF stays a PDF with each line translated in its place, a Markdown
+  or text document stays Markdown or text. It opens in a new tab right after the original, in its group, and is saved
+  to Downloads and kept in Collection like everything the assistant makes. The chat beside the document shows how far
+  it has got, with Cancel; you can keep reading meanwhile. Read-only documents work too.
+- **Argos Translate**, running locally across ~19 languages including Chinese, for a
+  selection (and the whole document on Linux). Text never leaves the machine.
 - **Translate a selection** into a panel, or **a whole document**. On macOS this
   includes Markdown, plain text, source code, EPUB and other readable text documents.
   Non-PDF documents are rendered to a separate PDF before translation; the source stays unchanged.

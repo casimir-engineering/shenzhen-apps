@@ -5,8 +5,8 @@ static inline NSDictionary<NSString*,NSString*>* SPDFMacAILanguageNames(void) {
     static NSDictionary* names; static dispatch_once_t once;
     dispatch_once(&once,^{ names=@{
         @"en":@"English",@"fr":@"French",@"de":@"German",@"es":@"Spanish",@"it":@"Italian",
-        @"pt":@"Portuguese",@"pt-BR":@"Portuguese (Brazil)",@"zh-Hans":@"Chinese (Simplified)",
-        @"zh-Hant":@"Chinese (Traditional)",@"ja":@"Japanese",@"ko":@"Korean",@"ar":@"Arabic",
+        @"pt":@"Portuguese",@"pt-BR":@"Brazilian Portuguese",@"zh-Hans":@"Simplified Chinese",
+        @"zh-Hant":@"Traditional Chinese",@"ja":@"Japanese",@"ko":@"Korean",@"ar":@"Arabic",
         @"hi":@"Hindi",@"bn":@"Bengali",@"ur":@"Urdu",@"ru":@"Russian",@"uk":@"Ukrainian",
         @"pl":@"Polish",@"nl":@"Dutch",@"sv":@"Swedish",@"da":@"Danish",@"no":@"Norwegian",
         @"fi":@"Finnish",@"is":@"Icelandic",@"el":@"Greek",@"tr":@"Turkish",@"he":@"Hebrew",

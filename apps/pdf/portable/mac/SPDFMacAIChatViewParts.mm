@@ -472,7 +472,7 @@ NSString* SPDFChatRunningToolText(NSString* tool) {
                   @"organize_chats" : @"Organizing your chats…",
                   @"update_document_metadata" : @"Updating document details…",
                   @"rename_document" : @"Renaming a document…", @"show_document" : @"Showing a page…",
-                  @"open_collection" : @"Opening a document…", @"document_job" : @"Making a new PDF…",
+                  @"open_collection" : @"Opening a document…", @"document_job" : @"Making a new document…",
                   @"organize_groups" : @"Organizing your tabs…", @"reader_control" : @"Changing the view…",
                   @"app_controls" : @"Using the app’s controls…", @"undo_action" : @"Undoing…"};
     });

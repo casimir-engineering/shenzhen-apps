@@ -2705,7 +2705,7 @@ id spdf_state_object_from_yaml_data(NSData* data) {
     _translateButton = [self buttonWithTitle:@"" action:@selector(translateDocument:)];
     _translateButton.image = spdf_translate_toolbar_image();
     _translateButton.imagePosition = NSImageOnly;
-    _translateButton.toolTip = @"Translate selected text or the document";
+    _translateButton.toolTip = @"Translate this document";
     _translateButton.accessibilityLabel = @"Translate Document";
     [_translateButton.widthAnchor constraintEqualToConstant:32].active = YES;
     [_translateButton setContentHuggingPriority:NSLayoutPriorityRequired

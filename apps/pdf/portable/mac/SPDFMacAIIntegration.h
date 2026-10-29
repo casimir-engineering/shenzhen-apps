@@ -14,6 +14,10 @@
 - (void)preparePaletteForSearch;
 // Opens the chat; typed Cmd+K text (nil for none) starts a new chat about it.
 - (void)showAIChatForQuery:(NSString*)query;
+// A request made elsewhere in the reader (Translate): sent at once in a new chat, shown beside the document while
+// the keyboard stays where it was. NO when it could not start: the assistant is still answering (never interrupted),
+// or setup is missing, which the chat says, with the request left in the composer.
+- (BOOL)aiSendRequestInNewChat:(NSString*)text;
 @end
 @interface ShenzhenMacDelegate (SPDFMacAISettingsIntegration)
 - (void)showUnifiedSettings:(id)sender;

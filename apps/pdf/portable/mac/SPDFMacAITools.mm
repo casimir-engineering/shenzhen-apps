@@ -5,6 +5,7 @@
 #import "SPDFMacAIReaderControls.h"
 #import "SPDFMacAIDocumentActions.h"
 #import "SPDFMacAIDocumentJobsIntegration.h"
+#import "SPDFMacAIJobTranslator.h"
 #import "SPDFMacAICollectionTools.h"
 #import "SPDFMacAIRevisionContext.h"
 #import "SPDFMacCollectionStore.h"
@@ -115,13 +116,12 @@ static NSDictionary* Definition(NSString* name, NSString* description, NSDiction
         Definition(@"rename_document",@"Give an open document a new name, keeping its format, group, original source reference and history. Works for every open document: when its file can be renamed (a writable file up to 32 MB, or an editable Collection copy) the file is renamed; when it can't (read-only, in a folder that can't be changed, larger, missing, or a pasted image not saved yet) the file keeps its name and ShenzhenPDF shows the new name instead, in its tab and in Collection. The result says which (fileRenamed); when the file kept its name, tell the person in the words of tellThePerson. No Save As or app_controls needed. Requires a revision from read_pages or reader_state. Undo restores the previous name if unchanged.",
             @{@"path":path,@"name":Field(@"string",@"New name, no folder separators; the file's extension is kept."),@"revision":Field(@"string",@"Expected source revision."),
               @"target":@{@"type":@"string",@"enum":@[@"auto",@"file",@"title"],@"description":@"auto (default): rename the file when it can be renamed, otherwise only the name ShenzhenPDF shows. title: only the name ShenzhenPDF shows; the file keeps its name (when the person doesn't want files renamed or moved). file: rename the file or fail."}},@[@"path",@"name",@"revision"]),
-        Definition(@"document_job",@"Create a separate OCR, translated or exported PDF from an open document (shown or not, read-only included; use the revision read_pages or reader_state gave). Explicitly user-requested only. The source is unchanged. Jobs can be stopped; Undo closes the generated tab and deletes only an unchanged generated file. OCR/translation require installed local tools and never install them silently.",
+        Definition(@"document_job",@"Make a new document from an open one (shown or not, read-only included; use the revision read_pages or reader_state gave): ocr (a PDF with recognized text), translate (the whole document translated into targetLanguage, in the same format: a PDF stays a PDF with each line where it was, Markdown or text stays Markdown or text; named \"<name> (<Language>)\" and opened next to the original), or export-pdf. Explicitly user-requested only; for a translation request, call it once with the whole document rather than translating the text yourself. The source is unchanged. Jobs can be stopped; Undo closes the generated tab and deletes only an unchanged generated file. OCR requires installed local tools and never installs them silently.",
             @{@"path":path,@"kind":@{@"type":@"string",@"enum":@[@"ocr",@"translate",@"export-pdf"]},
               @"revision":Field(@"string",@"Expected source revision from retrieval."),
               @"name":Field(@"string",@"Optional output filename, no folder separators. Saved to the person's Downloads folder and kept in Collection; a taken name gets a number."),
               @"language":Field(@"string",@"OCR language code; defaults to eng."),
-              @"sourceLanguage":Field(@"string",@"Translation source language code."),
-              @"targetLanguage":Field(@"string",@"Required target language code for translation.")},@[@"path",@"kind",@"revision"]),
+              @"targetLanguage":Field(@"string",@"For translate: the language to translate into, as the person named it (French, Breton) or its code (fr). Any language.")},@[@"path",@"kind",@"revision"]),
         Definition(@"current_view",@"See the current document viewport exactly as displayed, including zoom, scroll, selected text and highlights. Use when the user refers to what they are looking at. Captures only the reader content, on demand; does not navigate or capture other applications.",@{},@[]),
         Definition(@"reader_state",@"Discover the current document's page, zoom, reading appearance, panels and all supported reader-control choices.",@{},@[]),
         Definition(@"reader_control",@"Reversibly control the displayed document. Read reader_state first. Controls: page, zoom, theme, keep-image-colors, text-size, sidebar, map, find, rotate. Value is a choice string or numeric percentage/page written as a string. PDF rotation requires revision.",
@@ -345,10 +345,12 @@ static NSDictionary* Definition(NSString* name, NSString* description, NSDiction
         }
         NSProgress* progress=[NSProgress progressWithTotalUnitCount:1]; self.progress=progress;
         id<SPDFMacAIActivityReporting> activity=self.activity; __weak ShenzhenMacDelegate* reader=self.reader;
+        void (^ended)(BOOL)=SPDFMacAITranslationStep(activity,arguments,progress);
         // The adapter owns cancellation until commit and always returns a receipt
         // for any installed output, so a late Stop never loses its Undo action.
         [self.reader aiRunDocumentJob:arguments[@"kind"] arguments:arguments progress:progress completion:^(NSDictionary* result) {
             dispatch_block_t finish=^{
+                if (ended) ended(result[@"error"]!=nil);
                 if (!result[@"error"] && [result[@"path"] isKindOfClass:NSString.class])
                     SPDFMacAIOutputShowSavedCard(activity,result[@"path"],[SPDFMacAIOutputActions
                         actionsOpeningWith:^(NSString* path){ [reader openPath:path]; }]);

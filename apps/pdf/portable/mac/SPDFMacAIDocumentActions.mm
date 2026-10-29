@@ -9,6 +9,7 @@
 #import "SPDFMacDocumentRename.h"
 #import "SPDFMacSearchFileCache.h"
 #import "SPDFMacMarkdownDelegatePrivate.h"
+#import "SPDFMacTabGroups.h"
 @interface ShenzhenMacDelegate (AIDocumentActionsHost)
 - (void)closeTabAtIndex:(NSInteger)index;
 - (NSInteger)indexOfTabForPath:(NSString*)path;
@@ -97,10 +98,21 @@ NSString* SPDFAIDisplayNameForRename(NSString* path, NSString* proposed) {
     return result;
 }
 - (NSDictionary*)aiOpenCollectionDocumentAtPath:(NSString*)path archived:(BOOL)archived progress:(NSProgress*)progress {
+    return [self aiOpenCollectionDocumentAtPath:path archived:archived afterPath:nil progress:progress];
+}
+- (NSDictionary*)aiOpenCollectionDocumentAtPath:(NSString*)path archived:(BOOL)archived afterPath:(NSString*)neighbour
+                                       progress:(NSProgress*)progress {
     if (progress.cancelled) return ActionError(@"Cancelled.");
     NSDictionary* before=[self aiCaptureWorkspace]; BOOL existed=[self indexOfTabForPath:path]>=0;
     [self collectionOpenPath:path archived:archived];
-    NSInteger index=[self indexOfTabForPath:path];
+    NSInteger index=[self indexOfTabForPath:path], beside=neighbour.length ? [self indexOfTabForPath:neighbour] : -1;
+    // A new tab goes right after `neighbour`, in its group, where the person will look for it.
+    if (!existed && index>=0 && beside>=0 && index!=beside+1 && [self respondsToSelector:@selector(moveTabAtIndex:toGroup:atIndex:)])
+        [(id<SPDFTabGroupReader>)self moveTabAtIndex:index toGroup:_tabs[(NSUInteger)beside].group atIndex:beside+1];
+    else if (!existed && index==beside+1 && beside>=0 && _tabs[(NSUInteger)index].group!=_tabs[(NSUInteger)beside].group &&
+        [self respondsToSelector:@selector(moveTabAtIndex:toGroup:atIndex:)])
+        [(id<SPDFTabGroupReader>)self moveTabAtIndex:index toGroup:_tabs[(NSUInteger)beside].group atIndex:index];
+    index=[self indexOfTabForPath:path];
     if (index<0 || index>=(NSInteger)_tabs.count) return ActionError(@"The Collection document could not be opened.");
     SPDFDocumentTab* tab=_tabs[(NSUInteger)index];
     return @{@"opened":@YES,@"path":path,@"documentReceipt":@{@"kind":@"open",@"before":before,
