@@ -92,6 +92,11 @@ static BOOL SZFriendsCreatesFriendship(SZFriendsFrameType type) {
     [self noteFrame:frame onLink:link];
     // A HAVE for a file this side gives again or copies to another of our devices by blocks (+Copies).
     if (frame.type == SZFriendsFrameTypeHave && [self link:link receivedCopyHave:frame]) return;
+    // HASHES and PARTs of a copy this side asked for by blocks (+Copies).
+    if ((frame.type == SZFriendsFrameTypeHashes || frame.type == SZFriendsFrameTypePart) &&
+        [self link:link receivedCopyFrame:frame]) {
+        return;
+    }
     if (link.ownDevice) {
         [self link:link receivedOwnDeviceFrame:frame]; // CHAIN and SYNC between our own devices (+Sync)
         return;

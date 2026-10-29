@@ -202,6 +202,12 @@ static NSString *SZFriendsAgainKey(NSString *transferID) {
     exchange.servePath = ^NSString *_Nullable(NSString *transferID, uint64_t *size, SZFriendsAgainAnswer *answer) {
         return [weakSelf againPathToServe:transferID conversation:conversationID size:size answer:answer];
     };
+    // Our copies by blocks on a fast session (ADR 0018 § 4), by offset otherwise; their HAVEs go on this session.
+    exchange.fast = link.channel.fastTransfers;
+    exchange.sendFrame = ^(SZFriendsFrame *frame) {
+        SZFriendsPeerLink *strongLink = weakLink;
+        if (strongLink != nil && !strongLink.closed) [strongLink.channel sendFrame:frame];
+    };
     // A copy by blocks (AGAIN 4, ADR 0018 § 4): the same checks, then the file's tree and the blocks asked for.
     __weak SZFriendsAgainExchange *weakExchange = exchange;
     exchange.wantBlocks = ^(NSString *transferID, uint8_t shift, NSData *ranges) {

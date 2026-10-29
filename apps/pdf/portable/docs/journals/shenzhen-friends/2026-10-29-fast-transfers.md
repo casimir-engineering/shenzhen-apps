@@ -1043,8 +1043,17 @@ the first time a file is asked for, as in Rust.
 from what arrived; an older one goes. A copy given up for good (the friend says the file is gone, or it does not
 check) goes at once with its record.
 
-**Left for WP4:** the receiver's piece HAVEs and WANTs and the sender's 256 KiB slices, once WP3 lands them; the Mac
-helper asking for its own copies by blocks; WP6's work as its journal section lands. Not tried on two real Macs: the direct Wi-Fi and Bluetooth lanes
+**The Mac helper asks for its own copies by blocks.** On a session with fast transfers, Get again and own-device
+copies go by blocks (AGAIN 4, SYNC 7), through `SZFriendsBlockCopy`, a port of `block_copy.rs`. It keeps a map beside
+the partial copy, so the next session, or the next start, asks only for the blocks still missing. It takes the whole
+blocks of a prefix an earlier copy by offset left, checks each block against its leaf, and checks the whole file
+against the BLAKE2b digest before it counts. With a peer without fast transfers (minor 3), copies still go by offset.
+In the interop suites against the Rust helper, a probe (since removed) saw the Mac finish both kinds of copy by blocks:
+Get again from a Rust friend, and files from a Rust computer of the same profile. The e2e suites (two Mac helpers)
+pass with both sides by blocks.
+
+**Left for WP4:** WP3's ac8317b0 (pieces with capability bit 3, 256 KiB slices, the helper's lane takeover on a cut or a
+silence); WP6's work as its journal section lands. Not tried on two real Macs: the direct Wi-Fi and Bluetooth lanes
 are exercised through the bench's emulated routes and the helper's fake channels only.
 
 ## WP1, part 2: copies, small files, the check before saving, Finishing and the switch (2026-10-29)

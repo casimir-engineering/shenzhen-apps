@@ -399,6 +399,9 @@ void SZFriendsNearbyRecordEvent(SZFriendsStore *store, NSString *eventKind, NSSt
                    sync:(BOOL)sync;
 // A HAVE for a file served by blocks on this link: YES when it was one.
 - (BOOL)link:(SZFriendsPeerLink *)link receivedCopyHave:(SZFriendsFrame *)frame;
+// HASHES or a PART of a file this side copies by blocks on this link (Get again, or from another of our devices): YES
+// when it was one.
+- (BOOL)link:(SZFriendsPeerLink *)link receivedCopyFrame:(SZFriendsFrame *)frame;
 @end
 
 // File previews (brief § Transfers, Thumbnails before acceptance; SZFriendsNearbyService+Thumbnails.m).

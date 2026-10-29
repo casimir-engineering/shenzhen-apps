@@ -19,6 +19,8 @@
 
 #import <Foundation/Foundation.h>
 
+@class SZFriendsFrame;
+
 #import "service/store/SZFriendsStoreSync.h"
 
 NS_ASSUME_NONNULL_BEGIN
@@ -281,6 +283,16 @@ extern const NSUInteger SZFriendsSyncWindow; // 4 EVENTS messages in flight
 // The file the peer is copying from this side (its latest WANT), and how far that copy has got; nil once done.
 @property(nonatomic, readonly, nullable) NSString *servingTransferID;
 @property(nonatomic, readonly) double servingFraction;
+// Requester by blocks (ADR 0018 § 4): set on a session that negotiated fast transfers, so this side's copies go by
+// blocks (7 WANT BLOCKS, resumed from the map beside the partial copy); otherwise by offset (4 WANT).
+@property(nonatomic) BOOL fast;
+// Session frames for a copy by blocks (HAVE), sent in order after the SYNC messages.
+@property(nonatomic, copy, nullable) void (^sendFrame)(SZFriendsFrame *frame);
+// The file copying by blocks now, whose HASHES and PARTs on this session are its own.
+@property(nonatomic, readonly, nullable) NSString *copyingByBlocks;
+// HASHES or a PART of the copy by blocks: NO when this exchange is not copying that file by blocks.
+- (BOOL)receiveHashes:(NSData *)hashes index:(uint32_t)index forTransfer:(NSString *)transferID;
+- (BOOL)receivePart:(NSData *)data offset:(uint64_t)offset forTransfer:(NSString *)transferID;
 // The peer asks for a file by blocks (7 WANT BLOCKS, ADR 0018 § 4, on sessions with fast transfers): the file held
 // here at `path`, its size, the block shift and the blocks wanted (packed (first, count) pairs). The owner serves it
 // (8 BLOCKS FOLLOW, then HASHES and PARTs on the session), or answers -sendNone:. A file not held here is answered

@@ -8,6 +8,7 @@
 
 #import "SZFriendsStoreTestSupport.h"
 
+#import "service/transfer/SZFriendsBlockCopy.h"
 #import "service/transfer/SZFriendsBlockExchange.h"
 #import "service/transfer/SZFriendsTransferBlocks.h"
 
@@ -305,6 +306,47 @@ static void TestCopiesSurviveARestart(void) {
                @"a month-old copy and a stray file go");
 }
 
+// A copy by blocks (Get again, own devices) resumes from its map and checks the digest, as block_copy.rs's test.
+static void TestACopyByBlocksResumesFromItsMap(void) {
+    NSData *data = SZFTRandomData(3 * MiB + 9);
+    SZFriendsBlockGeometry geometry;
+    SZFriendsGeometryForSize(data.length, &geometry);
+    NSData *leaves = Leaves(data, geometry), *root = SZFriendsTreeRootOfLeaves(geometry, leaves);
+    NSString *partial = [SZFTTemporaryDirectory(@"block-copy") stringByAppendingPathComponent:@"again-x"];
+    NSString *map = [partial stringByAppendingString:@".map"];
+    SZFriendsBlockCopy *copy = [SZFriendsBlockCopy openWithSize:data.length digest:SZFTBlake2b(data) partial:partial];
+    const uint32_t *missing = copy.missing.bytes;
+    SZFTExpect(copy.missing.length == 8 && missing[0] == 0 && missing[1] == 4, @"every block, before a tree");
+    uint32_t block = 0;
+    SZFTExpect([copy acceptPart:[data subdataWithRange:NSMakeRange(0, 10)] offset:0 block:&block] ==
+                   SZFriendsCopyPartRefused, @"nothing before the tree");
+    BOOL done = NO;
+    SZFTExpect([copy followRoot:root shift:geometry.shift] && [copy acceptHashes:leaves index:0 done:&done] && done,
+               @"the tree and its leaves");
+    SZFTExpect([copy acceptPart:[data subdataWithRange:NSMakeRange(MiB, MiB)] offset:MiB block:&block] ==
+                   SZFriendsCopyPartWritten && block == 1, @"block 1 written");
+    [copy pause];
+    copy = nil;
+    // A later session: block 1 is here, the rest is asked for.
+    copy = [SZFriendsBlockCopy openWithSize:data.length digest:SZFTBlake2b(data) partial:partial];
+    missing = copy.missing.bytes;
+    SZFTExpect(copy.missing.length == 16 && missing[0] == 0 && missing[1] == 1 && missing[2] == 2 && missing[3] == 2,
+               @"block 1 kept, the rest asked for");
+    SZFTExpect([copy followRoot:root shift:geometry.shift], @"the same tree keeps what arrived");
+    for (uint32_t b = 0; b < geometry.blocks; b++) {
+        if (b == 1) continue;
+        uint64_t offset = 0;
+        NSUInteger length = 0;
+        SZFriendsGeometrySpan(geometry, b, &offset, &length);
+        [copy acceptPart:[data subdataWithRange:NSMakeRange(offset, length)] offset:offset block:&block];
+    }
+    SZFTExpect(copy.complete, @"complete");
+    NSString *path = [copy finish];
+    SZFTExpect(path != nil && [[NSData dataWithContentsOfFile:path] isEqualToData:data] &&
+                   ![NSFileManager.defaultManager fileExistsAtPath:map],
+               @"the file whole, its map gone");
+}
+
 #pragma mark - Two exchanges, one session between them
 
 // Frames from one side wait here until the other side takes them.
@@ -578,4 +620,5 @@ void SZFTRunTransferBlockTests(void) {
     TestANewVersionTakesTheUnchangedBlocks();
     TestTheCheckInThreeSteps();
     TestCopiesSurviveARestart();
+    TestACopyByBlocksResumesFromItsMap();
 }

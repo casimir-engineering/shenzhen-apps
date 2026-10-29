@@ -12,6 +12,8 @@
 
 #import <Foundation/Foundation.h>
 
+@class SZFriendsFrame;
+
 NS_ASSUME_NONNULL_BEGIN
 
 typedef NS_ENUM(uint8_t, SZFriendsAgainAnswer) {
@@ -58,6 +60,16 @@ void SZFriendsRemoveCopy(NSString *path);
 - (nullable NSString *)beginServingBlocks:(NSString *)transferID size:(uint64_t *)size;
 // NONE for that file (0 not here, 1 not now).
 - (void)sendNone:(NSString *)transferID reason:(SZFriendsAgainAnswer)reason;
+// Requester by blocks (ADR 0018 § 4): set on a session that negotiated fast transfers, so copies go by blocks (4 WANT
+// BLOCKS, resumed from the map beside the partial copy); otherwise by offset (1 WANT), as any helper serves.
+@property(nonatomic) BOOL fast;
+// Session frames for a copy by blocks (HAVE), sent in order after the AGAIN messages.
+@property(nonatomic, copy, nullable) void (^sendFrame)(SZFriendsFrame *frame);
+// The file copying by blocks now, whose HASHES and PARTs on this session are its own.
+@property(nonatomic, readonly, nullable) NSString *copyingByBlocks;
+// HASHES or a PART of the copy by blocks: NO when this exchange is not copying that file by blocks.
+- (BOOL)receiveHashes:(NSData *)hashes index:(uint32_t)index forTransfer:(NSString *)transferID;
+- (BOOL)receivePart:(NSData *)data offset:(uint64_t)offset forTransfer:(NSString *)transferID;
 // Starts the next wanted copy when none runs (after a Get again, or once the session is live).
 - (void)pump;
 // A message from the peer. NO: it does not decode; end the session.

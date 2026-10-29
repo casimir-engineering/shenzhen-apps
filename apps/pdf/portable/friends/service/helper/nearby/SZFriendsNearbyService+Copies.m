@@ -176,6 +176,36 @@ static NSMutableDictionary<NSString *, NSArray<NSData *> *> *SZFriendsCopyTrees(
     }
 }
 
+- (BOOL)link:(SZFriendsPeerLink *)link receivedCopyFrame:(SZFriendsFrame *)frame {
+    NSString *again = link.againExchange.copyingByBlocks, *sync = link.syncExchange.copyingByBlocks;
+    if (again == nil && sync == nil) return NO;
+    NSData *wire = [frame dataForTag:SZFriendsFieldID];
+    if (wire.length != 16) return NO;
+    NSMutableString *transferID = [NSMutableString stringWithCapacity:32];
+    for (NSUInteger i = 0; i < 16; i++) [transferID appendFormat:@"%02x", ((const uint8_t *)wire.bytes)[i]];
+    BOOL handled = NO;
+    if (frame.type == SZFriendsFrameTypeHashes) {
+        NSData *index = [frame dataForTag:SZFriendsFieldIndex], *hashes = [frame dataForTag:SZFriendsFieldHashes];
+        if (index.length != 4 || hashes == nil) return NO;
+        const uint8_t *b = index.bytes;
+        uint32_t first = ((uint32_t)b[0] << 24) | ((uint32_t)b[1] << 16) | ((uint32_t)b[2] << 8) | b[3];
+        handled = [again isEqualToString:transferID]
+                      ? [link.againExchange receiveHashes:hashes index:first forTransfer:transferID]
+                      : [sync isEqualToString:transferID] &&
+                            [link.syncExchange receiveHashes:hashes index:first forTransfer:transferID];
+    } else {
+        uint64_t offset = 0;
+        NSData *data = [frame dataForTag:SZFriendsFieldData];
+        if (![frame getUInt64:&offset forTag:SZFriendsFieldOffset] || data == nil) return NO;
+        handled = [again isEqualToString:transferID]
+                      ? [link.againExchange receivePart:data offset:offset forTransfer:transferID]
+                      : [sync isEqualToString:transferID] &&
+                            [link.syncExchange receivePart:data offset:offset forTransfer:transferID];
+    }
+    if (handled) [self progressChanged];
+    return handled;
+}
+
 - (BOOL)link:(SZFriendsPeerLink *)link receivedCopyHave:(SZFriendsFrame *)frame {
     if (link.servedCopies.count == 0) return NO;
     NSData *wire = [frame dataForTag:SZFriendsFieldID];

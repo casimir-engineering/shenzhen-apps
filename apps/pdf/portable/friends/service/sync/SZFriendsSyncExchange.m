@@ -16,6 +16,7 @@
 
 #import "service/sync/SZFriendsSyncInternal.h"
 #import "service/sync/SZFriendsAgain.h"
+#import "service/transfer/SZFriendsBlockCopy.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -42,6 +43,7 @@ typedef NS_ENUM(uint8_t, SZFriendsSyncMessage) {
 @property(nonatomic, strong) NSFileHandle *handle;
 @property(nonatomic) uint64_t received;
 @property(nonatomic) uint64_t requested;
+@property(nonatomic, strong, nullable) SZFriendsBlockCopy *blocks; // by blocks: `handle` is then unused
 @end
 
 @implementation SZFriendsSyncCopy
@@ -79,6 +81,19 @@ NSData *_Nullable SZFriendsCopyRangesDecode(const uint8_t *bytes, NSUInteger len
         if (i % 2 == 1 && out[i] == 0) return nil;
     }
     return pairs;
+}
+
+// A transfer id's 16 bytes, as session frames name it; nil unless 32 hex digits.
+static NSData *_Nullable SZFriendsSyncHexBytes(NSString *transferID) {
+    if (transferID.length != 32) return nil;
+    NSMutableData *bytes = [NSMutableData dataWithLength:16];
+    for (NSUInteger i = 0; i < 16; i++) {
+        unsigned value = 0;
+        NSScanner *scanner = [NSScanner scannerWithString:[transferID substringWithRange:NSMakeRange(2 * i, 2)]];
+        if (![scanner scanHexInt:&value] || !scanner.isAtEnd) return nil;
+        ((uint8_t *)bytes.mutableBytes)[i] = (uint8_t)value;
+    }
+    return bytes;
 }
 
 static BOOL SZFriendsSyncFileMatchesDigest(NSString *path, uint64_t size, NSData *digest) {
@@ -149,13 +164,24 @@ static BOOL SZFriendsSyncFileMatchesDigest(NSString *path, uint64_t size, NSData
 }
 
 - (double)copyingFraction {
-    return _copy.file.size > 0 ? (double)_copy.received / (double)_copy.file.size : 0;
+    uint64_t received = _copy.blocks ? _copy.blocks.receivedBytes : _copy.received;
+    return _copy.file.size > 0 ? (double)received / (double)_copy.file.size : 0;
+}
+
+- (nullable NSString *)copyingByBlocks {
+    return _copy.blocks ? _copy.file.transferID : nil;
+}
+
+// Ends the current copy, keeping what arrived for a later one.
+- (void)endCopy {
+    [_copy.handle closeFile];
+    [_copy.blocks pause];
+    _copy = nil;
 }
 
 - (void)stop {
     _stopped = YES;
-    [_copy.handle closeFile];
-    _copy = nil;
+    [self endCopy];
 }
 
 #pragma mark - Receiving
@@ -174,7 +200,7 @@ static BOOL SZFriendsSyncFileMatchesDigest(NSString *path, uint64_t size, NSData
     case SZFriendsSyncMessagePart: return [self receivePart:message error:error];
     case SZFriendsSyncMessageNone: return [self receiveNone:message error:error];
     case SZFriendsSyncMessageWantBlocks: return [self receiveWantBlocks:message error:error];
-    case SZFriendsSyncMessageBlocksFollow: return YES; // this side asks for its copies by offset, never by blocks
+    case SZFriendsSyncMessageBlocksFollow: return [self receiveBlocksFollow:message error:error];
     default: return SZFriendsSyncFail(error, SZFriendsSyncErrorMalformed, @"an unknown sync message");
     }
 }
@@ -298,8 +324,7 @@ static BOOL SZFriendsSyncFileMatchesDigest(NSString *path, uint64_t size, NSData
     }
     // A copy nobody wants any more (Cancel after Get) stops; what arrived waits for another Get.
     if (_copy != nil && ![[[_engine filesWanted] valueForKey:@"transferID"] containsObject:_copy.file.transferID]) {
-        [_copy.handle closeFile];
-        _copy = nil;
+        [self endCopy];
     }
     [self startNextCopy];
 }
@@ -314,6 +339,20 @@ static BOOL SZFriendsSyncFileMatchesDigest(NSString *path, uint64_t size, NSData
         [NSFileManager.defaultManager createDirectoryAtPath:partial withIntermediateDirectories:YES
                                                  attributes:@{NSFilePosixPermissions : @0700} error:NULL];
         NSString *path = [partial stringByAppendingPathComponent:[@"sync-" stringByAppendingString:file.transferID]];
+        if (self.fast) {
+            // By blocks, from what the map beside the copy says is here (ADR 0018 § 4).
+            SZFriendsBlockCopy *blocks = [SZFriendsBlockCopy openWithSize:file.size digest:file.contentDigest
+                                                                  partial:path];
+            NSData *want = blocks ? SZFriendsSyncWantBlocks(file.transferID, blocks.shift, blocks.missing) : nil;
+            if (want == nil) continue;
+            SZFriendsSyncCopy *copy = [[SZFriendsSyncCopy alloc] init];
+            copy.file = file;
+            copy.path = path;
+            copy.blocks = blocks;
+            _copy = copy;
+            _send(want);
+            return;
+        }
         if (![NSFileManager.defaultManager fileExistsAtPath:path]) {
             [NSFileManager.defaultManager createFileAtPath:path contents:nil
                                                 attributes:@{NSFilePosixPermissions : @0600}];
@@ -417,6 +456,80 @@ static BOOL SZFriendsSyncFileMatchesDigest(NSString *path, uint64_t size, NSData
     return YES;
 }
 
+#pragma mark - Requester by blocks
+
+- (BOOL)receiveBlocksFollow:(NSData *)message error:(NSError **)error {
+    NSUInteger offset = 1;
+    NSString *transferID = SZFriendsSyncGetID(message, &offset);
+    if (transferID == nil || offset + 33 != message.length) {
+        return SZFriendsSyncFail(error, SZFriendsSyncErrorMalformed, @"a BLOCKS FOLLOW that does not decode");
+    }
+    if (_copy.blocks == nil || ![_copy.file.transferID isEqualToString:transferID]) return YES; // late
+    const uint8_t *p = message.bytes;
+    if (![_copy.blocks followRoot:[message subdataWithRange:NSMakeRange(offset, 32)] shift:p[offset + 32]]) {
+        [self stopBlocksCopy]; // a tree that cannot be this file's: tried again on the next session
+    }
+    return YES;
+}
+
+- (void)sendHave {
+    NSData *have = [_copy.blocks takeHave];
+    NSData *wire = SZFriendsSyncHexBytes(_copy.file.transferID);
+    if (have.length == 0 || wire == nil || self.sendFrame == nil) return;
+    for (SZFriendsFrame *frame in SZFriendsHaveFrames(wire, have, [NSData data])) self.sendFrame(frame);
+}
+
+- (void)stopBlocksCopy {
+    NSString *transferID = _copy.file.transferID;
+    [self endCopy];
+    if (transferID) [_unavailable addObject:transferID];
+    [self startNextCopy];
+}
+
+- (void)finishBlocksCopy {
+    SZFriendsSyncCopy *copy = _copy;
+    _copy = nil;
+    NSString *path = [copy.blocks finish];
+    if (path != nil) [_engine adoptCopiedFile:copy.file.transferID atPath:path error:NULL];
+    else [_unavailable addObject:copy.file.transferID];
+    [self startNextCopy];
+}
+
+- (BOOL)receiveHashes:(NSData *)hashes index:(uint32_t)index forTransfer:(NSString *)transferID {
+    if (_copy.blocks == nil || ![_copy.file.transferID isEqualToString:transferID]) return NO;
+    BOOL done = NO;
+    if (![_copy.blocks acceptHashes:hashes index:index done:&done]) {
+        [self stopBlocksCopy];
+        return YES;
+    }
+    [self sendHave];
+    if (done && _copy.blocks.complete) [self finishBlocksCopy];
+    return YES;
+}
+
+- (BOOL)receivePart:(NSData *)data offset:(uint64_t)offset forTransfer:(NSString *)transferID {
+    if (_copy.blocks == nil || ![_copy.file.transferID isEqualToString:transferID]) return NO;
+    uint32_t block = 0;
+    switch ([_copy.blocks acceptPart:data offset:offset block:&block]) {
+    case SZFriendsCopyPartPending:
+    case SZFriendsCopyPartLate: break;
+    case SZFriendsCopyPartWritten: [self sendHave]; break;
+    case SZFriendsCopyPartCorrupt: {
+        uint32_t pair[2] = {block, 1};
+        NSData *want = SZFriendsSyncWantBlocks(transferID, _copy.blocks.shift,
+                                               [NSData dataWithBytes:pair length:sizeof pair]);
+        if (want) _send(want);
+        break;
+    }
+    case SZFriendsCopyPartRefused: [self stopBlocksCopy]; break;
+    case SZFriendsCopyPartComplete:
+        [self sendHave];
+        [self finishBlocksCopy];
+        break;
+    }
+    return YES;
+}
+
 - (void)sendNone:(NSString *)transferID {
     NSMutableData *none = [NSMutableData dataWithBytes:(uint8_t[]){SZFriendsSyncMessageNone} length:1];
     SZFriendsSyncPutID(none, transferID);
@@ -442,7 +555,10 @@ static BOOL SZFriendsSyncFileMatchesDigest(NSString *path, uint64_t size, NSData
     NSData *bytes = [message subdataWithRange:NSMakeRange(offset + 9, message.length - offset - 9)];
     SZFriendsSyncCopy *copy = _copy;
     // A part of a copy this side gave up, or one already written: nothing to do.
-    if (copy == nil || ![copy.file.transferID isEqualToString:transferID] || at != copy.received) return YES;
+    if (copy == nil || copy.blocks != nil || ![copy.file.transferID isEqualToString:transferID] ||
+        at != copy.received) {
+        return YES;
+    }
     if (copy.received + bytes.length > copy.file.size || (last && copy.received + bytes.length != copy.file.size)) {
         [self abandonCopy:YES];
         return YES;
@@ -485,8 +601,7 @@ static BOOL SZFriendsSyncFileMatchesDigest(NSString *path, uint64_t size, NSData
 
 - (void)abandonCopy:(BOOL)discard {
     SZFriendsSyncCopy *copy = _copy;
-    _copy = nil;
-    [copy.handle closeFile];
+    [self endCopy];
     if (discard) SZFriendsRemoveCopy(copy.path);
     if (copy) [_unavailable addObject:copy.file.transferID];
 }
