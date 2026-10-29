@@ -1172,6 +1172,7 @@ neither is in this package.
 **Online lanes are not built either.** More data channels in one peer connection share one SCTP association, so one
 congestion window and one path (ADR 0018 § 6 says as much): they would add cores, not bandwidth, and the Rust helper
 decrypts on one thread, so it would gain nothing. They remain the ADR's rule for when a helper reports `cpu_bound`.
+
 ## WP6: AES-GCM lanes, batched ciphers, compressed parts, a block index and pulls from several holders (2026-10-29)
 
 Protocol 4 has not shipped, so these are additions to it, each behind a handshake capability bit or entirely local.
