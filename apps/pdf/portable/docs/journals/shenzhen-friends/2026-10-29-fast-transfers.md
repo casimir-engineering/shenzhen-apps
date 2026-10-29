@@ -442,3 +442,151 @@ CHUNK flow: blocks themselves are tested between whole Rust helpers, above.)
 - WP4 must reproduce `fixtures/vectors/transfer/*.json` byte for byte (the exporter, then a parity check); then
   `objc_vectors.rs` and the transcript replay go back to requiring equal minors.
 - Phone measurement of BLAKE3 (script above).
+
+## WP2: the multi-route scheduler (Rust core)
+
+**What landed.** `szfriends-core/src/transfer/scheduler.rs`: one `Scheduler` per lane group, sans-IO, for every
+transfer this side sends to that device. In: `LaneEvent::Up`/`Down` from WP3's `LaneGroup`, WANT and HAVE ranges,
+`written` (a write on a lane completed), `sent` (a block's last part written), `heard` (a byte from the peer),
+`cpu_bound` (a lane's encrypting thread is the limit), `tick` at `next_timer()`. Out: `Action::Send { lane,
+transfer, block }`, `Cancel` (another copy completed: drop its unwritten parts), `Lane(LaneRequest::Open/Close)`.
+Blocks are WP1's `Geometry`; the driver reads each block through the same leaf check as `BlockServe::load_block` and
+cuts it into the lane's parts. `transfer/sim.rs`: a virtual-time event simulator (lanes with rate, round trip, part
+loss, silences, cuts noticed after a delay, lanes that come up only when asked for), lanes managed by the real
+`LaneGroup`, and a mode that moves real bytes through WP1's tree and `BlockAssembly` with damaged blocks.
+`friends/fixtures/scheduler/scenarios.json`: the scenario table with expectations, for WP4's port to meet as well.
+
+**How it decides** (ADR 0018 § 7; what the ADR left open, decided here):
+
+- Rate: BBR's delivery-rate sample per HAVE (bytes the lane delivered since the block was assigned, over the time since
+  the lane's previous delivery, or since it went busy from idle), the largest in the last 10 s. Round trip: the smallest
+  from a block's last part written to its HAVE in the last 10 s. Until measured, a route's typical figures (LAN 40 MB/s
+  5 ms, direct Wi-Fi 20 MB/s 5 ms, Internet 4 MB/s 50 ms, relay 0.5 MB/s 100 ms, Bluetooth 0.15 MB/s 40 ms).
+- "Expected to finish first": each lane's ETA is (in flight + block) / rate + round trip. The block goes to the lane
+  with room and the lowest ETA. If a better lane exists but is full, the lane with room takes the block only when its
+  ETA is no later than the time the other lanes would need to finish everything still unassigned, filled like water
+  across them. So a slow lane adds its share while much is left and stops taking blocks as the end nears, with no
+  special case for Bluetooth.
+- In flight per lane: 2 × rate × round trip, at least two blocks, at most 32 MiB (8 MiB on phones). Per transfer, at
+  most 64 open blocks and 64 MiB (§ 3). A block whose lane went away stays open, since the receiver may hold parts of it,
+  and goes before any new block.
+- Bluetooth carries blocks when it is the only working lane, or while the others together measure below 4 MB/s (the
+  ADR says "another lane's"; the sum is what matters when there are several). The relay is used only when nothing
+  else works, Bluetooth included, following the owner's route order (Bluetooth before the relay).
+- Direct Wi-Fi: `Config::direct_wifi_keeps_internet` says whether this platform keeps its Wi-Fi network beside it
+  (AWDL). Without that, direct Wi-Fi is never asked for, and a direct Wi-Fi lane that comes up anyway is closed unused.
+  The first session is exempt, because the route racer already chose it.
+- Lane requests: Bluetooth while the direct lanes measure below 4 MB/s and more than 4 s of work is left; direct Wi-Fi
+  while the LAN lanes measure below 25 MB/s (only where it keeps the network); one more lane on a route when
+  `cpu_bound` says so (never the relay or Bluetooth, at most 4 per route). The same request is not repeated within 10 s.
+- A WANT for a block that is open means it failed its check: its copies are cancelled and it goes first.
+- Endgame: when nothing is unassigned, a lane with room takes a second copy of the block that would otherwise finish
+  last, when it would finish it sooner by more than its own round trip. Bluetooth never takes second copies unless it is
+  the only lane. One second copy per block at most.
+
+**Found by the simulator: a HAVE lost with a silent lane stalls the transfer.** The receiver sends a HAVE on the lane that
+completed the block. If that lane then goes silent, the sender gives the block to another lane, and the receiver drops
+the second copy as late. The block is never acknowledged, and the transfer waits until the group ends. Fix, added to ADR
+0018 § 3: the first late part of a block on each lane is answered with a HAVE naming that block on that lane. This
+makes no difference with one session per friend, which is what the Rust helper runs today. WP3, when it builds groups
+in the helper's session table, and WP4 must both do it. The helper should send HAVE on the lane that completed the block (not the
+control lane), so the HAVE follows its parts and the round trip measures that lane.
+
+**Results** (deterministic; the whole table runs in 0.08 s in a release build, 1.3 s in debug). "Of the lanes' sum"
+is over every lane in the scenario, including those the rules keep idle; "sent twice" counts bytes that reached the
+receiver for something it already had; "idle at the end" is how long the fastest lane still up had nothing to do
+before the last HAVE.
+
+| Scenario | Lanes (Mbit/s) | Time | MB/s | Of the lanes' sum | Per route (MiB sent) | Sent twice | Fastest lane idle at the end |
+|---|---|---|---|---|---|---|---|
+| lan | lan 940 | 9.14 s | 117.5 | 100 % | lan 1024.0 | 0.0 MiB | 2 ms |
+| lan and direct wifi | lan 940, direct-wifi 300 | 6.94 s | 154.8 | 100 % | lan 777.0, direct-wifi 247.0 | 0.0 MiB | 2 ms |
+| lan, direct wifi and internet | lan 100, direct-wifi 300, internet 50 | 9.57 s | 56.1 | 100 % | lan 114.0, direct-wifi 342.1, internet 56.0 | 0.1 MiB | 1 ms |
+| two lanes on the lan | lan 4000, lan 4000 | 1.08 s | 998.8 | 100 % | lan 512.0, lan 512.0 | 0.0 MiB | 1 ms |
+| slow lan and bluetooth | lan 16, bluetooth 1.4 | 48.49 s | 2.2 | 99 % | lan 92.5, bluetooth 8.0 | 0.5 MiB | 5 ms |
+| slow lan, bluetooth asked for | lan 16, bluetooth 1.4 | 48.76 s | 2.2 | 99 % | lan 93.0, bluetooth 7.0 | 0.0 MiB | 5 ms |
+| slow lan, bluetooth lossy | lan 16, bluetooth 1.4 | 48.76 s | 2.2 | 99 % | lan 93.0, bluetooth 7.0 | 0.0 MiB | 5 ms |
+| slow lan, bluetooth out of range half-way | lan 16, bluetooth 1.4 | 50.34 s | 2.1 | 96 % | lan 96.0, bluetooth 4.1 | 0.1 MiB | 5 ms |
+| slow lan, bluetooth flapping | lan 16, bluetooth 1.4 | 52.43 s | 2.0 | 92 % | lan 100.0, bluetooth 3.0 | 2.7 MiB | 5 ms |
+| fast lan, bluetooth unused | lan 940, bluetooth 1.4 | 2.29 s | 117.4 | 100 % | lan 256.0, bluetooth 0.0 | 0.0 MiB | 2 ms |
+| bluetooth alone | bluetooth 1.4 | 24.00 s | 0.2 | 100 % | bluetooth 4.0 | 0.0 MiB | 30 ms |
+| internet, relay unused | internet 50, relay 5 | 16.82 s | 6.2 | 91 % | internet 100.0, relay 0.0 | 0.0 MiB | 40 ms |
+| relay alone | relay 5 | 26.92 s | 0.6 | 100 % | relay 16.0 | 0.0 MiB | 80 ms |
+| relay, then the lan | relay 5, lan 940 | 4.27 s | 62.9 | 53 % | relay 2.5, lan 254.0 | 0.5 MiB | 2 ms |
+| direct wifi without its own network stays unused | lan 100, direct-wifi 300 | 21.48 s | 12.5 | 25 % | lan 256.0, direct-wifi 0.0 | 0.0 MiB | 2 ms |
+| direct wifi cut half-way | lan 940, direct-wifi 300 | 8.03 s | 133.8 | 86 % | lan 899.0, direct-wifi 125.1 | 0.1 MiB | 2 ms |
+| direct wifi silent half-way | lan 940, direct-wifi 300 | 8.03 s | 133.8 | 86 % | lan 899.0, direct-wifi 125.1 | 0.1 MiB | 2 ms |
+| lan flapping beside direct wifi | lan 940, direct-wifi 300 | 4.98 s | 107.7 | 70 % | lan 334.1, direct-wifi 178.0 | 0.1 MiB | 1 ms |
+| phone, lan and direct wifi | lan 400, direct-wifi 200 | 7.18 s | 74.8 | 100 % | lan 342.0, direct-wifi 170.0 | 0.0 MiB | 6 ms |
+
+What these show:
+
+- **Throughput reaches the sum of the lanes.** LAN plus direct Wi-Fi gives 154.8 MB/s of 155.0 (100 %). Three routes
+  give 56.1 of 56.25. Two 4 Gbit/s lanes give 998.8 MB/s. A slow 16 Mbit/s LAN with Bluetooth beside it gives 99 % of
+  the two together, against 92 % for the LAN alone. A fast LAN leaves Bluetooth unused.
+- **Bluetooth never stalls a transfer.** Lossy (5 % of parts cost a round trip each), out of range half-way, or
+  flapping 2.5 s out of every 4 s: the transfer still finishes sooner than the LAN alone would (52.4 s), and the
+  fastest lane is idle at most 5 ms at the end.
+- **Losing a lane.** Direct Wi-Fi cut or silent half-way through 1 GiB: 8.03 s, against 6.94 s with both lanes
+  throughout and 9.14 s on the LAN alone, with 0.1 MiB sent twice. Silence costs nothing over a cut here because the
+  LAN is busy while it is being noticed.
+- **The tail is short.** In every multi-lane scenario, the LAN flapping included, the fastest lane is idle only 1 to
+  6 ms before completion: about its own round trip, waiting for the last HAVE. The last blocks never wait on Bluetooth
+  or on a slower route.
+- **The relay comes last.** Beside the Internet route it carries nothing. Alone it runs at its cap. When the LAN comes
+  up 2 s in, the relay's last 2.5 MiB drain while the LAN takes everything new.
+
+Properties, tested every run: 150 random scenarios (1 to 4 lanes of any route, rates from Bluetooth's to 900 Mbit/s,
+round trips up to 80 ms, part loss up to 5 %, lanes cut, silent or flapping at random times; the first lane always
+survives). In every one, every byte arrives, § 3 and the per-lane caps hold, and nothing hangs. A silent lane never
+delays completion by more than its detection time compared with the same lane cut at the same moment (direct Wi-Fi,
+Bluetooth and LAN, at 0.5, 2 and 4 s). With real bytes through WP1's `BlockAssembly`, a damaged block is wanted again
+alone and the file that arrives is the file sent, with direct Wi-Fi cut and Bluetooth silent along the way.
+
+**For WP4: the scheduler in pseudo-code** (the scenario table is the test; tuning may differ, frames may not):
+
+```text
+per lane: rate, rtt (route's typical until measured), in_flight, delivered, delivered_at, progress_at, heard_at,
+          silent, holds (FIFO of placements)
+per transfer: wanted (not in a HAVE), unassigned (wanted, no placement on a working lane), open (block -> placements)
+eta(L, b)  = (L.in_flight + b) / L.rate + L.rtt
+cap(L)     = clamp(2 * L.rate * L.rtt, 2 * block_size, 32 MiB or 8 MiB on phones); room if in_flight == 0 or +b <= cap
+eligible   = working lanes (not silent, not closing, not unused direct Wi-Fi);
+             drop the relay if any other is working; drop Bluetooth unless alone or the others sum < 4 MB/s
+fill():
+  while block = (an open unassigned block) or (lowest unassigned, if open < 64 blocks and 64 MiB):
+    best = argmin eta over eligible; cand = argmin eta over eligible with room; none -> stop
+    if cand != best and eta(cand) > finish_time(eligible - cand, all unassigned bytes): stop
+    assign(block, cand): if cand idle then delivered_at = progress_at = now; record (delivered, delivered_at);
+                         in_flight += b; Send
+  if nothing unassigned anywhere: endgame: repeat
+    for each open block with exactly one working placement P, for each helper lane H with room (Bluetooth only if alone):
+      gain = expected(P) - (now + eta(H, b)); take the largest gain > max(H.rtt, 5 ms); assign a second copy
+  ask for lanes (Bluetooth, direct Wi-Fi) as above, at most every 10 s per route
+finish_time(lanes, R): smallest T with sum over lanes of max(0, rate * (T - rtt) - in_flight) >= R
+expected(P): sent ? max(sent_at + rtt, now) : now + (unsent bytes on its lane up to P) / rate + rtt
+HAVE(block): winner = placement written first (else assigned first); others Cancel; winner's lane:
+             delivered += b; rate sample (delivered - P.delivered) / (now - P.delivered_at); rtt sample now - sent_at;
+             delivered_at = progress_at = now; un-silence
+written(L) / sent(L): progress_at = now if L has blocks; un-silence (its blocks are no longer unassigned)
+Down(L): its placements removed; blocks without another working placement -> unassigned (still open); fill()
+tick: L with blocks and no progress for max(3 rtt, 1 s; 2 s on Bluetooth) -> silent: its blocks unassigned, fill();
+      silent L (not the first session) with nothing heard for 10 s -> Close
+WANT(block) for an open block -> Cancel every copy, unassigned, goes first
+```
+
+**Not done, and why.** Multi-route runs in the real helpers need WP3's groups in the helper's session table, with
+lanes on LAN, direct Wi-Fi and the test air. That has not landed: the Rust helper still runs one session per friend,
+with WP1's `BlockServe` and its fixed 16 MiB window (2 MiB on Bluetooth). WP5's bench now moves files by blocks
+(86549886), but over one session and one proxy per transfer. So there is no bench number for the scheduler over two
+routes yet, and none of today's measured transfers changed. When WP3 lands groups, the driver is:
+
+- one `Scheduler` per group;
+- a per-lane part queue fed by `Send` (each block read and checked as `load_block` does), pumped while the lane's bulk
+  queue is shallow, with `written` on each write completion and `sent` after a block's last part;
+- `heard` on every received frame;
+- `have` and `want` from the frames, whichever lane they arrive on;
+- `tick` on the helper's timer;
+- `Open` and `Close` through the group.
+
+Then WP5's bench gains a two-route case, with two proxies (one per lane), and the scenarios above are measured for real.
