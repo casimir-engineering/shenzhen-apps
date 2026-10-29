@@ -131,6 +131,7 @@ pub struct SecureChannel {
     pub(super) handshake_hash: Option<[u8; 64]>,
     pub(super) negotiated_minor: u16,
     pub(super) liveness: super::liveness::Liveness,
+    pub(super) remote_capabilities: u32,
 }
 
 impl std::fmt::Debug for SecureChannel {
@@ -192,6 +193,7 @@ impl SecureChannel {
             handshake_hash: None,
             negotiated_minor: 0,
             liveness: Default::default(),
+            remote_capabilities: 0,
         }
     }
 
@@ -295,6 +297,20 @@ impl SecureChannel {
 
     pub fn negotiated_minor(&self) -> u16 {
         self.negotiated_minor
+    }
+
+    /// The capability bits the peer's handshake set.
+    pub fn remote_capabilities(&self) -> u32 {
+        self.remote_capabilities
+    }
+
+    /// ADR 0018 § 1: this session runs fast transfers when its negotiated minor is 4 or more and both sides set bit 0.
+    /// Otherwise nothing of them is sent, and nothing of them is accepted.
+    pub fn fast_transfers(&self) -> bool {
+        let bit = szfriends_wire::consts::CAPABILITY_FAST_TRANSFERS;
+        self.negotiated_minor >= szfriends_wire::consts::FAST_TRANSFERS_MINOR
+            && self.config.capabilities & bit != 0
+            && self.remote_capabilities & bit != 0
     }
 
     pub fn rekeys(&self) -> (u64, u64) {

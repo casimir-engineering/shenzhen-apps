@@ -1,0 +1,15 @@
+{
+  "construction": "keyed BLAKE2b-128, key h (64 bytes), over \"SZFriends lane v1\" || u8 index",
+  "lanes": [
+    {
+      "h": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f",
+      "index": 1,
+      "token": "fe730edb4c165970d64d6a647c36caad"
+    },
+    {
+      "h": "a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+      "index": 15,
+      "token": "cdfa73582410a8e563fbfc25ed3bc244"
+    }
+  ]
+}

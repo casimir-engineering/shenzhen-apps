@@ -2,8 +2,20 @@
 
 /// The preamble's major version.
 pub const SESSION_MAJOR: u8 = 1;
-/// The highest session minor this build speaks: 1 added THUMBNAIL, 2 CHAIN (and JOIN, SYNC), 3 AGAIN.
-pub const SESSION_MINOR: u16 = 3;
+/// The highest session minor this build speaks: 1 added THUMBNAIL, 2 CHAIN (and JOIN, SYNC), 3 AGAIN, 4 fast transfers
+/// (HASHES, WANT, PART, HAVE; ADR 0018), used only when both sides also set [`CAPABILITY_FAST_TRANSFERS`].
+pub const SESSION_MINOR: u16 = 4;
+/// The minor that brought fast transfers.
+pub const FAST_TRANSFERS_MINOR: u16 = 4;
+
+/// Handshake capability bits (field 26). A side uses what a bit names only when both set it and the negotiated minor
+/// knows it; unknown bits are ignored.
+/// Bit 0: this side runs ADR 0018's transfers (blocks, the tree, WANT and HAVE).
+pub const CAPABILITY_FAST_TRANSFERS: u32 = 1 << 0;
+/// Bit 1: AES-GCM lanes (ADR 0018 § 9.2). Reserved: not sent until that work lands.
+pub const CAPABILITY_AES_LANES: u32 = 1 << 1;
+/// Bit 2: compressed parts (ADR 0018 § 9.4).
+pub const CAPABILITY_COMPRESSED_PARTS: u32 = 1 << 2;
 
 /// Every Noise message, handshake or transport, including the 16-byte tag.
 pub const NOISE_MESSAGE_MAX: usize = 65_535;
@@ -50,3 +62,22 @@ pub const SILENCE_BLUETOOTH_MILLISECONDS: u64 = 12_000;
 pub const REFUSAL_DELAY_MILLISECONDS: u64 = 1_500;
 /// How long a responder remembers message 1's ephemeral key against replay.
 pub const REPLAY_WINDOW_SECONDS: u64 = 600;
+
+/// Fast transfers (ADR 0018 § 2 and 3): block sizes are 2^shift bytes, shift 20 (1 MiB) to 24 (16 MiB).
+pub const BLOCK_SHIFT_MIN: u8 = 20;
+pub const BLOCK_SHIFT_MAX: u8 = 24;
+/// Blocks in one file at most; a file needing more at 16 MiB (over 1 TiB) goes by CHUNK.
+pub const BLOCKS_MAX: u32 = 65_536;
+/// One leaf hash.
+pub const LEAF_BYTES: usize = 32;
+/// A HASHES frame's leaves at most (64,000 bytes).
+pub const HASHES_PER_FRAME: usize = 2_000;
+/// Range pairs `(first u32be, count u32be)` in one Ranges or Durable field at most (64,000 bytes).
+pub const RANGES_PER_FIELD: usize = 8_000;
+/// Data in one PART at most, and what a compressed part may expand to.
+pub const PART_BYTES_MAX: usize = 61_440;
+/// Per transfer: blocks wanted, partly received and not complete at once, and their bytes.
+pub const BLOCKS_IN_FLIGHT_MAX: usize = 64;
+pub const BYTES_IN_FLIGHT_MAX: u64 = 64 << 20;
+/// PART's Codec values: 1 is zstd (§ 9.4).
+pub const CODEC_ZSTD: u8 = 1;

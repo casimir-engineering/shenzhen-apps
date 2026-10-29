@@ -49,6 +49,8 @@ impl SecureChannel {
 
     fn local_payload(&self, with_certificate: bool) -> HandshakePayload {
         let mut payload = HandshakePayload::local();
+        payload.minor_range = Some((0, self.config.minor_max.min(SESSION_MINOR)));
+        payload.capabilities = self.config.capabilities;
         if with_certificate {
             payload.certificate = Some(self.identity.certificate.to_vec());
             // The attestation names our identity, so it goes only where the certificate already does.
@@ -370,9 +372,11 @@ impl SecureChannel {
     }
 
     fn accept_minor_range(&mut self, payload: &HandshakePayload, now: Duration) -> bool {
-        match payload.minor_range.and_then(|range| negotiate_minor((0, SESSION_MINOR), range)) {
+        let local = (0, self.config.minor_max.min(SESSION_MINOR));
+        match payload.minor_range.and_then(|range| negotiate_minor(local, range)) {
             Some(minor) => {
                 self.negotiated_minor = minor;
+                self.remote_capabilities = payload.capabilities;
                 true
             }
             None => {

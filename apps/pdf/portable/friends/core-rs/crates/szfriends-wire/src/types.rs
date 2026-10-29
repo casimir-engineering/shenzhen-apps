@@ -74,10 +74,15 @@ pub enum FrameType {
     Sync = 26,
     /// Session minor 3.
     Again = 27,
+    /// Session minor 4, and only when both sides set the fast-transfers capability (ADR 0018 § 3).
+    Hashes = 28,
+    Want = 29,
+    Part = 30,
+    Have = 31,
 }
 
 impl FrameType {
-    pub const ALL: [FrameType; 27] = [
+    pub const ALL: [FrameType; 31] = [
         Self::Hello,
         Self::Profile,
         Self::PresenceSecret,
@@ -105,6 +110,10 @@ impl FrameType {
         Self::Join,
         Self::Sync,
         Self::Again,
+        Self::Hashes,
+        Self::Want,
+        Self::Part,
+        Self::Have,
     ];
 
     pub fn from_byte(byte: u8) -> Option<Self> {
@@ -117,6 +126,7 @@ impl FrameType {
             Self::Thumbnail => 1,
             Self::Chain | Self::Join | Self::Sync => 2,
             Self::Again => 3,
+            Self::Hashes | Self::Want | Self::Part | Self::Have => 4,
             _ => 0,
         }
     }
@@ -160,6 +170,27 @@ pub mod tag {
     pub const JOIN: u8 = 34;
     pub const SYNC: u8 = 35;
     pub const AGAIN: u8 = 36;
+    /// Session minor 4, fast transfers only (ADR 0018). OFFER: the tree's root and the block shift.
+    pub const TREE_ROOT: u8 = 37;
+    pub const BLOCK_SHIFT: u8 = 38;
+    /// HASHES: the first leaf's index, then the leaves.
+    pub const INDEX: u8 = 39;
+    pub const HASHES: u8 = 40;
+    /// WANT and HAVE: block ranges, pairs of u32be `(first, count)`; HAVE's blocks made durable.
+    pub const RANGES: u8 = 41;
+    pub const DURABLE: u8 = 42;
+    /// OFFER_REPLY: the receiver takes the file by blocks.
+    pub const BLOCKS: u8 = 43;
+    /// PART, compressed: the codec and the length the data expands to.
+    pub const CODEC: u8 = 44;
+    pub const LENGTH: u8 = 45;
+    /// Handshake payload: a lane's token (§ 6).
+    pub const LANE: u8 = 46;
+
+    /// The tags only a fast-transfers session carries: never sent to a peer that did not negotiate them.
+    pub fn is_fast_transfers(tag: u8) -> bool {
+        (TREE_ROOT..=LANE).contains(&tag)
+    }
 
     /// The tags a public profile may carry, in XX message 2 and in PROFILE.
     pub fn is_profile(tag: u8) -> bool {
@@ -170,9 +201,9 @@ pub mod tag {
     pub fn integer_width(tag: u8) -> usize {
         match tag {
             SENT_AT | SIZE | OFFSET => 8,
-            CAPABILITIES => 4,
+            CAPABILITIES | INDEX | LENGTH => 4,
             PICTURE_SET | PICTURE_INDEX | MINOR_MIN | MINOR_MAX | WIDTH | HEIGHT => 2,
-            ACCEPT | REASON | ROUTE_CLASS | VIA_ASSISTANT => 1,
+            ACCEPT | REASON | ROUTE_CLASS | VIA_ASSISTANT | BLOCK_SHIFT | BLOCKS | CODEC => 1,
             _ => 0,
         }
     }
@@ -192,6 +223,8 @@ pub enum CloseReason {
     ShuttingDown = 4,
     /// The comparison-code commitment did not verify.
     CodeMismatch = 5,
+    /// A lane the responder would not admit (ADR 0018 § 6).
+    LaneRefused = 6,
 }
 
 impl CloseReason {
@@ -204,6 +237,7 @@ impl CloseReason {
             3 => Some(Self::Expired),
             4 => Some(Self::ShuttingDown),
             5 => Some(Self::CodeMismatch),
+            6 => Some(Self::LaneRefused),
             _ => None,
         }
     }

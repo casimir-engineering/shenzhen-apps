@@ -15,6 +15,11 @@ fn is_channel_frame(frame_type: FrameType) -> bool {
     matches!(frame_type, Hello | CodeCommit | CodeNonce | CodeReveal | Rekey | Ping | Close)
 }
 
+/// Minor 4's frames (ADR 0018 § 3): only on a session that negotiated fast transfers, either way.
+fn is_fast_transfer_frame(frame_type: FrameType) -> bool {
+    matches!(frame_type, FrameType::Hashes | FrameType::Want | FrameType::Part | FrameType::Have)
+}
+
 /// NN exists only for Add by ID and joining: REQUEST_BY_ID one way, RECEIVED the other, JOIN either way, nothing else;
 /// they never travel in XX or IK, where the peer's identity is already known.
 fn type_allowed(frame_type: FrameType, pattern: Pattern, from_initiator: bool) -> bool {
@@ -44,8 +49,23 @@ impl SecureChannel {
         if is_channel_frame(frame_type) || !type_allowed(frame_type, self.pattern, self.is_initiator()) {
             return false;
         }
-        let Ok(plaintext) = frame.encode() else { return false };
-        if matches!(frame_type, FrameType::Chunk | FrameType::Done | FrameType::Thumbnail) {
+        // ADR 0018 § 1: a peer that did not negotiate fast transfers never receives a frame or field of them.
+        let fast = self.fast_transfers();
+        if !fast && is_fast_transfer_frame(frame_type) {
+            return false;
+        }
+        let encoded = if !fast && frame.fields.keys().any(|t| tag::is_fast_transfers(*t)) {
+            let mut plain = frame.clone();
+            plain.fields.retain(|t, _| !tag::is_fast_transfers(*t));
+            plain.encode()
+        } else {
+            frame.encode()
+        };
+        let Ok(plaintext) = encoded else { return false };
+        if matches!(
+            frame_type,
+            FrameType::Chunk | FrameType::Done | FrameType::Thumbnail | FrameType::Hashes | FrameType::Part
+        ) {
             self.bulk_queue.push_back(plaintext);
         } else {
             self.control_queue.push_back(plaintext);
@@ -237,7 +257,9 @@ impl SecureChannel {
             }
             _ => {}
         }
-        if !type_allowed(frame_type, self.pattern, !self.is_initiator()) {
+        if !type_allowed(frame_type, self.pattern, !self.is_initiator())
+            || (is_fast_transfer_frame(frame_type) && !self.fast_transfers())
+        {
             self.protocol_failure(SessionError::Protocol);
             return;
         }

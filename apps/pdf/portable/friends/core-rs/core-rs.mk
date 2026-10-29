@@ -163,7 +163,7 @@ friends-core-rs-vm-check:
 # entries and any crash land in the build tree, never in the source tree. rustup's stable toolchain and cargo-fuzz.
 FRIENDS_FUZZ_SECONDS ?= 600
 FRIENDS_CORE_RS_FUZZ_TARGETS := frame handshake_payload stream channel_responder chunk_flow json_lines device_chain \
-	join_message sync_message
+	join_message sync_message block_flow
 FRIENDS_CORE_RS_FUZZ_SEEDS := friends/service/thumbnails/fuzz/corpus/frame
 
 .PHONY: friends-core-rs-fuzz

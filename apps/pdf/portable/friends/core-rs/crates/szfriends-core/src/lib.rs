@@ -23,6 +23,7 @@ pub mod presentation;
 pub mod session;
 pub mod store;
 pub mod sync;
+pub mod transfer;
 
 pub use szfriends_contract as contract;
 pub use szfriends_crypto as crypto;

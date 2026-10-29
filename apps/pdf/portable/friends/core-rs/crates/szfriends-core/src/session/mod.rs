@@ -145,6 +145,11 @@ pub struct ChannelConfig {
     /// initiator declared Bluetooth, `silence_bluetooth`.
     pub silence: Duration,
     pub silence_bluetooth: Duration,
+    /// The handshake's capability bits this side sets (`szfriends_wire::consts::CAPABILITY_*`): fast transfers, unless
+    /// the helper switches them off (ADR 0018 § 1; a test home plays a peer without them).
+    pub capabilities: u32,
+    /// The highest session minor this side offers: [`consts::SESSION_MINOR`]; a test plays an older peer with less.
+    pub minor_max: u16,
 }
 
 impl Default for ChannelConfig {
@@ -159,6 +164,8 @@ impl Default for ChannelConfig {
             keepalive: Duration::from_millis(consts::KEEPALIVE_MILLISECONDS),
             silence: Duration::from_millis(consts::SILENCE_MILLISECONDS),
             silence_bluetooth: Duration::from_millis(consts::SILENCE_BLUETOOTH_MILLISECONDS),
+            capabilities: consts::CAPABILITY_FAST_TRANSFERS,
+            minor_max: consts::SESSION_MINOR,
         }
     }
 }

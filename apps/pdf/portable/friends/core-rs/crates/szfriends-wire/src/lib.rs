@@ -18,6 +18,7 @@ pub mod error;
 pub mod fields;
 pub mod frame;
 pub mod payload;
+pub mod ranges;
 pub mod route;
 pub mod rules;
 pub mod stream;

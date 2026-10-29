@@ -13,6 +13,7 @@ szfriends-identity.workspace = true
 szfriends-contract.workspace = true
 zeroize.workspace = true
 blake2.workspace = true
+blake3.workspace = true
 sha2.workspace = true
 unicode-normalization.workspace = true
 serde_json.workspace = true

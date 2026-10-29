@@ -22,15 +22,17 @@ pub struct HandshakePayload {
     pub attestation: Option<Vec<u8>>,
     /// `(min, max)`; only both tags together count as a range.
     pub minor_range: Option<(u16, u16)>,
-    /// Capability bits; none defined yet, unknown bits ignored.
+    /// Capability bits (`consts::CAPABILITY_*`); unknown bits ignored.
     pub capabilities: u32,
     pub route_class: Option<u8>,
+    /// IK message 1 of a lane (ADR 0018 § 6): the token tying it to a live session's handshake hash.
+    pub lane: Option<Vec<u8>>,
     /// Profile fields only (name, Friends ID, picture set and index, own picture).
     pub profile: Fields,
 }
 
 impl HandshakePayload {
-    /// This build's range (0 to the session minor) and capabilities (none).
+    /// This build's range (0 to the session minor), no capabilities: the channel sets the ones its config allows.
     pub fn local() -> Self {
         Self { minor_range: Some((0, SESSION_MINOR)), ..Self::default() }
     }
@@ -61,6 +63,9 @@ impl HandshakePayload {
         if let Some(route) = self.route_class {
             out.insert(tag::ROUTE_CLASS, vec![route]);
         }
+        if let Some(lane) = &self.lane {
+            out.insert(tag::LANE, lane.clone());
+        }
         let mut output = Vec::new();
         fields::append(&mut output, &out, HANDSHAKE_PAYLOAD)?;
         Ok(output)
@@ -83,6 +88,7 @@ impl HandshakePayload {
             minor_range,
             capabilities,
             route_class,
+            lane: decoded.remove(&tag::LANE),
             profile: decoded.into_iter().filter(|(t, _)| tag::is_profile(*t)).collect(),
         })
     }
@@ -97,6 +103,7 @@ impl std::fmt::Debug for HandshakePayload {
             .field("minor_range", &self.minor_range)
             .field("capabilities", &self.capabilities)
             .field("route_class", &self.route_class)
+            .field("lane", &self.lane.is_some())
             .field("profile_tags", &self.profile.keys().collect::<Vec<_>>())
             .finish()
     }
