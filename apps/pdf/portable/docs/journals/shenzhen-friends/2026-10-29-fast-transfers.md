@@ -1032,3 +1032,52 @@ rate emulation (`SZFRIENDS_TEST_ROUTE_RATES`) is the Rust helper's only.
 own-device copies by blocks once WP1's Rust flows land (messages ready, flows not); WP6's work as its journal
 section lands. Not tried on two real Macs: the direct Wi-Fi and Bluetooth lanes
 are exercised through the bench's emulated routes and the helper's fake channels only.
+
+## WP1, part 2: copies, small files, the check before saving, Finishing and the switch (2026-10-29)
+
+**Numbers** (this Mac, release builds of the bench's Rust peers, `make friends-transfer-bench`):
+
+| | Before | After |
+|---|---|---|
+| 300 files of 10 KiB, loopback | 12.7 s | 0.46 s (0.50 s after WP2's scheduler landed) |
+| 300 files of 10 KiB, emulated LAN | 13.1 s | 0.47 s (0.65 s after WP2's scheduler landed) |
+| Staging those 300 files | 6.9 s | 0.10 s |
+| Check before saving 1 GiB received by blocks | 0.93 s | 0.12 s |
+
+**What landed:**
+
+- **Store batches** (§ 9.3): a friend's session handles what arrived in one store transaction per pass, savepoint per
+  write, one flush per batch; the bytes already read from the links join it; files sent together are staged
+  together. A file's name is claimed in the batch's commit before it takes it, then the files move, then one more
+  commit records them received; only then are they acknowledged. Joining, own-device sync and strangers keep one
+  transaction per write (sync's history deletion runs VACUUM, which no transaction may hold; inside a batch it runs
+  right after the commit). Gathering every kind of input into a batch, not only link bytes, stalled the bench peer's
+  rekey scenario now and then under load; gathering link bytes only did not, in 8 parallel runs.
+- **The digest no longer bounds the check**: it is streamed on its own thread as blocks arrive in order (blocks that
+  completed early are read back when the gap fills); only the tree is read back before saving, on every core. Staging
+  hashes the tree and the digest in one read, and keeps the tree.
+- **Files and blocks already here** (§ 9.5): an offer whose bytes this computer holds from the same friend is filled
+  locally at acceptance and answered at its full size, so any sender, released ones included (tested against the
+  Objective-C session peer), sends only DONE. A new version of a file the same friend sent takes the blocks whose
+  leaves match at the same position.
+- **"Finishing…"**: the check runs off the helper's thread; past a second the row says "Finishing…" with a full bar
+  (`transfer.finishing`, spoken "…, finishing"), in both catalogs. The apps show `status_label` as the helper writes
+  it, so ShenzhenPDF, Shenzhen Files and Shenzhen 3D need no change.
+- **`transfers.fast`**: on unless the settings key holds 0, read as the helper starts. None of the apps has an advanced
+  Friends settings area, so no toggle.
+- **Get again and own-device copies by blocks** (§ 4): AGAIN 4/5 and SYNC 7/8 in the requester, the sync exchange and
+  the server; a copy cut off asks the next session for what is missing, and the BLAKE2b digest is checked before the
+  file counts. Served whenever a fast session asks; **asked for only behind `SZFRIENDS_TEST_COPIES_BY_BLOCKS=1`**,
+  because today's Objective-C helper (minor 4, bit 0) does not answer AGAIN 4 or SYNC 7 yet: with the switch on, the
+  interop suites' Get again and own-device cases against it failed. Once WP4 builds them, the default turns on (one
+  line in `service/mod.rs`).
+- **Pieces** (field 47) on the wire with their vectors; WANT needs Ranges or Pieces.
+- **Windows MSVC cross-check**: blake3 compiles assembly and NEON C there, which a Mac cannot; the check now builds
+  it with szfriends-core's `blake3-pure` feature, as it links SQLite instead of building it. Release builds leave it
+  off. What pure would cost, per core: Arm64 1.34 GB/s instead of 2.49 (below BLAKE2b's 1.66), x86_64 under Rosetta
+  2.19 instead of 2.25 and no AVX-512. The Windows VM build (`apps/3d/scripts/friends/tauri-vm.sh`) was not run: the
+  "Windows 11" VM is suspended and the script resumes nothing; it compiles BLAKE3's C with MSVC as it does SQLite's.
+
+**Left:** turn on copies by blocks once WP4 answers them; the phone measurement of BLAKE3; a Windows VM run of the
+helper build; a resume-after-restart test of copies by blocks across a helper restart (the recovery sweep deletes
+`again-*` and `sync-*` partials at start, as before, so their resume holds within a run).
