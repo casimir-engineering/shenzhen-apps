@@ -6,8 +6,8 @@ mod presentation;
 
 use std::collections::HashMap;
 
-use presentation::world::*;
 use presentation::items::preview_items;
+use presentation::world::*;
 use presentation::{expect_fixture, expect_no_missing_keys, through_store, validate_snapshot};
 use serde_json::json;
 use szfriends_core::presentation::{NotificationFacts, NotifyPermission, PeopleNotice, ProfileFacts};
@@ -165,7 +165,11 @@ fn the_shared_fixtures() {
     let b = builder(notifying(&["notifications.focus", "notifications.ask"]));
     let list = b.list(&all, &preview_items(), &with_notifications(not_asked), "", now());
     expect_fixture(&list, "views-notifications-list.json", "list");
-    let denied =
-        NotificationFacts { permission: NotifyPermission::Denied, preview: false, activated: true, ..Default::default() };
+    let denied = NotificationFacts {
+        permission: NotifyPermission::Denied,
+        preview: false,
+        activated: true,
+        ..Default::default()
+    };
     expect_fixture(&b.settings(&with_notifications(denied), &all), "views-notifications-settings.json", "settings");
 }

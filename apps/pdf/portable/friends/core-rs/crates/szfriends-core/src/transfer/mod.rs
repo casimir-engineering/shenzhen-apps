@@ -10,6 +10,7 @@
 pub mod assembly;
 pub mod block_copy;
 pub mod blockset;
+pub mod boost;
 pub mod compress;
 pub mod copies;
 pub mod frames;

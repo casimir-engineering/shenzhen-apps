@@ -23,6 +23,9 @@ pub const CAPABILITY_PIECES: u32 = 1 << 3;
 /// Bit 4: compressed parts, LZ4 block format (ADR 0018 § 9.4): this side reads PARTs with Codec 2. Phones whose
 /// library has no room for zstd set this one alone.
 pub const CAPABILITY_LZ4_PARTS: u32 = 1 << 4;
+/// Bit 5: the Wi-Fi Direct boost (ADR 0019): this side understands BOOST (frame 32) and may host or join a direct
+/// Wi-Fi link for a transfer that would otherwise crawl over Bluetooth. BOOST is sent only to a peer that sets it.
+pub const CAPABILITY_DIRECT_WIFI_BOOST: u32 = 1 << 5;
 
 /// Every Noise message, handshake or transport, including the 16-byte tag.
 pub const NOISE_MESSAGE_MAX: usize = 65_535;
@@ -93,3 +96,48 @@ pub const PIECE_SHIFT: u8 = 14;
 pub const CODEC_ZSTD: u8 = 1;
 /// PART's Codec 2: the LZ4 block format (no frame), Bluetooth lanes only.
 pub const CODEC_LZ4: u8 = 2;
+
+/// BOOST's Step values (ADR 0019 § 2), in the order a boost goes through them.
+pub mod boost_step {
+    /// The side that saw a transfer crawl over Bluetooth asks for a direct link; Abilities says what it can do.
+    pub const PROPOSE: u8 = 1;
+    /// This side agrees (its person said Go faster, or nothing needed asking); Abilities says what it can do.
+    pub const READY: u8 = 2;
+    /// The host's link is up: Network, Passphrase, Address and Port for the joining side, inside the session only.
+    pub const HOST: u8 = 3;
+    /// The boost is over (Reason says why); the host takes its link down and each side rejoins its own Wi-Fi.
+    pub const END: u8 = 4;
+    /// Not this time (Reason says why); never proposed again for this transfer.
+    pub const DECLINE: u8 = 5;
+}
+/// BOOST's Abilities bits.
+pub mod boost_ability {
+    /// This device can host a direct Wi-Fi link others join (an Android group owner).
+    pub const HOST: u8 = 1 << 0;
+    /// This device can join a direct Wi-Fi link by its name and passphrase.
+    pub const JOIN: u8 = 1 << 1;
+    /// Hosting leaves this device on its own Wi-Fi network (station and group at once).
+    pub const HOST_KEEPS_WIFI: u8 = 1 << 2;
+    /// Joining leaves this device on its own Wi-Fi network (a Wi-Fi Direct client beside the station).
+    pub const JOIN_KEEPS_WIFI: u8 = 1 << 3;
+}
+/// BOOST's Reason values for END and DECLINE (logs, and whether to ask again).
+pub mod boost_reason {
+    pub const DONE: u8 = 0;
+    /// The person said Not now: never again for this transfer.
+    pub const NOT_NOW: u8 = 1;
+    /// No pairing of roles works between these two devices.
+    pub const UNSUPPORTED: u8 = 2;
+    /// Hosting or joining failed, or the lane never came up.
+    pub const FAILED: u8 = 3;
+    /// The direct lane measured no faster than Bluetooth.
+    pub const SLOWER: u8 = 4;
+    /// The transfer ended (finished, cancelled or failed).
+    pub const TRANSFER_ENDED: u8 = 5;
+    /// The app is quitting.
+    pub const QUITTING: u8 = 6;
+}
+/// A direct Wi-Fi network's name: 1 to 32 bytes (802.11); a WPA2 passphrase: 8 to 63 characters.
+pub const BOOST_NETWORK_MAX: usize = 32;
+pub const BOOST_PASSPHRASE_MIN: usize = 8;
+pub const BOOST_PASSPHRASE_MAX: usize = 63;

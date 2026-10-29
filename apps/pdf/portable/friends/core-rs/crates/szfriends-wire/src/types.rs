@@ -99,10 +99,12 @@ pub enum FrameType {
     Want = 29,
     Part = 30,
     Have = 31,
+    /// Session minor 4, and only when both sides set the Wi-Fi Direct boost capability (ADR 0019).
+    Boost = 32,
 }
 
 impl FrameType {
-    pub const ALL: [FrameType; 31] = [
+    pub const ALL: [FrameType; 32] = [
         Self::Hello,
         Self::Profile,
         Self::PresenceSecret,
@@ -134,6 +136,7 @@ impl FrameType {
         Self::Want,
         Self::Part,
         Self::Have,
+        Self::Boost,
     ];
 
     pub fn from_byte(byte: u8) -> Option<Self> {
@@ -146,7 +149,7 @@ impl FrameType {
             Self::Thumbnail => 1,
             Self::Chain | Self::Join | Self::Sync => 2,
             Self::Again => 3,
-            Self::Hashes | Self::Want | Self::Part | Self::Have => 4,
+            Self::Hashes | Self::Want | Self::Part | Self::Have | Self::Boost => 4,
             _ => 0,
         }
     }
@@ -208,6 +211,13 @@ pub mod tag {
     pub const LANE: u8 = 46;
     /// WANT and HAVE: 16 KiB pieces of the file (`consts::PIECE_SHIFT`), in the Ranges format (ADR 0018 § 3).
     pub const PIECES: u8 = 47;
+    /// BOOST (ADR 0019): the step, what this side can do, and the host's link for the joining side.
+    pub const STEP: u8 = 48;
+    pub const ABILITIES: u8 = 49;
+    pub const NETWORK: u8 = 50;
+    pub const PASSPHRASE: u8 = 51;
+    pub const ADDRESS: u8 = 52;
+    pub const PORT: u8 = 53;
 
     /// The tags only a fast-transfers session carries: never sent to a peer that did not negotiate them.
     pub fn is_fast_transfers(tag: u8) -> bool {
@@ -224,8 +234,8 @@ pub mod tag {
         match tag {
             SENT_AT | SIZE | OFFSET => 8,
             CAPABILITIES | INDEX | LENGTH => 4,
-            PICTURE_SET | PICTURE_INDEX | MINOR_MIN | MINOR_MAX | WIDTH | HEIGHT => 2,
-            ACCEPT | REASON | ROUTE_CLASS | VIA_ASSISTANT | BLOCK_SHIFT | BLOCKS | CODEC => 1,
+            PICTURE_SET | PICTURE_INDEX | MINOR_MIN | MINOR_MAX | WIDTH | HEIGHT | PORT => 2,
+            ACCEPT | REASON | ROUTE_CLASS | VIA_ASSISTANT | BLOCK_SHIFT | BLOCKS | CODEC | STEP | ABILITIES => 1,
             _ => 0,
         }
     }

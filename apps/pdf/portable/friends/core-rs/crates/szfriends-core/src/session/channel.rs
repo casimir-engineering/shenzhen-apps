@@ -378,6 +378,11 @@ impl SecureChannel {
         self.fast_transfers() && self.config.capabilities & bit != 0 && self.remote_capabilities & bit != 0
     }
 
+    /// ADR 0019: BOOST may go to this peer and come from it (both set capability bit 5 on a fast session).
+    pub fn direct_wifi_boost(&self) -> bool {
+        self.fast_with(szfriends_wire::consts::CAPABILITY_DIRECT_WIFI_BOOST)
+    }
+
     pub fn rekeys(&self) -> (u64, u64) {
         (self.rekeys_sent, self.rekeys_received)
     }

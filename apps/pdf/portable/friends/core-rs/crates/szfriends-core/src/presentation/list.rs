@@ -94,8 +94,7 @@ impl SnapshotBuilder {
             (preview.visual, preview.spoken)
         };
 
-        let accepts_drops =
-            person.relation == Relation::Friend && !person.key_change_pending && self.rows_take_files();
+        let accepts_drops = person.relation == Relation::Friend && !person.key_change_pending && self.rows_take_files();
         let mut said = vec![title.clone()];
         if person.unread_count > 0 {
             said.push(s.text("list.spoken.unread"));

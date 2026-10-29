@@ -2,9 +2,9 @@
 //! what no honest peer sends before anything is allocated; the store and presentation apply product rules later.
 
 use crate::consts::{
-    ATTESTATION_MAX, CHUNK_BYTES_WIFI, FRAME_AGAIN_MAX, FRAME_CHAIN_MAX, FRAME_JOIN_MAX, FRAME_PICTURE_MAX,
-    FRAME_SYNC_MAX, FRAME_TEXT_MAX, FRAME_THUMBNAIL_MAX, HASHES_PER_FRAME, LEAF_BYTES, PART_BYTES_MAX,
-    RANGES_PER_FIELD,
+    ATTESTATION_MAX, BOOST_NETWORK_MAX, BOOST_PASSPHRASE_MAX, BOOST_PASSPHRASE_MIN, CHUNK_BYTES_WIFI, FRAME_AGAIN_MAX,
+    FRAME_CHAIN_MAX, FRAME_JOIN_MAX, FRAME_PICTURE_MAX, FRAME_SYNC_MAX, FRAME_TEXT_MAX, FRAME_THUMBNAIL_MAX,
+    HASHES_PER_FRAME, LEAF_BYTES, PART_BYTES_MAX, RANGES_PER_FIELD,
 };
 use crate::types::{tag, FrameType};
 
@@ -134,6 +134,18 @@ const HAVE: &[FieldRule] = &[
     rule(tag::DURABLE, 8, RANGES_MAX, MULTIPLE_OF_8),
     rule(tag::PIECES, 8, RANGES_MAX, MULTIPLE_OF_8),
 ];
+/// BOOST (ADR 0019): the transfer it is for, the step, and per step what it carries (HOST: the link; END and
+/// DECLINE: why). Which fields a step needs is the boost's own check; the codec bounds each one.
+const BOOST: &[FieldRule] = &[
+    ID,
+    rule(tag::REASON, 1, 1, 0),
+    rule(tag::STEP, 1, 1, REQUIRED),
+    rule(tag::ABILITIES, 1, 1, 0),
+    rule(tag::NETWORK, 1, BOOST_NETWORK_MAX, 0),
+    rule(tag::PASSPHRASE, BOOST_PASSPHRASE_MIN, BOOST_PASSPHRASE_MAX, 0),
+    rule(tag::ADDRESS, 4, 16, 0),
+    rule(tag::PORT, 2, 2, 0),
+];
 
 /// Fields of which a type needs at least one, beyond each field's own rule: WANT names blocks, pieces or both.
 pub fn requires_one_of(frame_type: FrameType) -> &'static [u8] {
@@ -190,6 +202,7 @@ pub fn for_type(frame_type: FrameType) -> &'static [FieldRule] {
         Want => WANT,
         Part => PART,
         Have => HAVE,
+        Boost => BOOST,
     }
 }
 

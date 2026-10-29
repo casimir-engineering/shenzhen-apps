@@ -198,6 +198,22 @@ fn frame_vectors() -> Value {
             szfriends_core::transfer::frames::have_with_pieces(&id, &[(0, 1)], &[(0, 1)], &[(64, 16)]).remove(0),
         ),
     ];
+    // BOOST (ADR 0019): the Wi-Fi Direct boost's five steps; the link is the one 64 bytes of 0x2a make.
+    let mut encode = encode;
+    {
+        use szfriends_core::transfer::boost::{encode as boost, Abilities, Link, Message};
+        use szfriends_wire::consts::boost_reason;
+        let transfer: [u8; 16] = id.clone().try_into().unwrap();
+        let link = Link::from_random(&[0x2a; 64]);
+        let address = std::net::IpAddr::V4(std::net::Ipv4Addr::new(192, 168, 49, 1));
+        encode.extend([
+            encode_case("boost_propose", boost(&transfer, &Message::Propose { abilities: Abilities::joins_only() })),
+            encode_case("boost_ready", boost(&transfer, &Message::Ready { abilities: Abilities::android(true) })),
+            encode_case("boost_host", boost(&transfer, &Message::Host { link, address, port: 49_200 })),
+            encode_case("boost_end", boost(&transfer, &Message::End { reason: boost_reason::SLOWER })),
+            encode_case("boost_decline", boost(&transfer, &Message::Decline { reason: boost_reason::NOT_NOW })),
+        ]);
+    }
     let id_field = (tag::ID, id.clone());
     let decode = vec![
         decode_case(
@@ -275,6 +291,22 @@ fn frame_vectors() -> Value {
                     (tag::TREE_ROOT, vec![0; 31]),
                 ],
             ),
+            false,
+        ),
+        decode_case("boost_without_step", raw(FrameType::Boost, std::slice::from_ref(&id_field)), false),
+        decode_case(
+            "boost_network_33_bytes",
+            raw(FrameType::Boost, &[id_field.clone(), (tag::STEP, vec![3]), (tag::NETWORK, vec![b'D'; 33])]),
+            false,
+        ),
+        decode_case(
+            "boost_passphrase_7_bytes",
+            raw(FrameType::Boost, &[id_field.clone(), (tag::STEP, vec![3]), (tag::PASSPHRASE, vec![b'p'; 7])]),
+            false,
+        ),
+        decode_case(
+            "boost_port_one_byte",
+            raw(FrameType::Boost, &[id_field.clone(), (tag::STEP, vec![3]), (tag::PORT, vec![1])]),
             false,
         ),
         decode_case(

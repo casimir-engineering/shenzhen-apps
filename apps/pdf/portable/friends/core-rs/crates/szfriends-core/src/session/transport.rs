@@ -54,6 +54,10 @@ impl SecureChannel {
         if !fast && is_fast_transfer_frame(frame_type) {
             return false;
         }
+        // ADR 0019: BOOST only to a peer that set the boost's bit.
+        if frame_type == FrameType::Boost && !self.direct_wifi_boost() {
+            return false;
+        }
         let encoded = if !fast && frame.fields.keys().any(|t| tag::is_fast_transfers(*t)) {
             let mut plain = frame.clone();
             plain.fields.retain(|t, _| !tag::is_fast_transfers(*t));
@@ -345,6 +349,7 @@ impl SecureChannel {
         }
         if !type_allowed(frame_type, self.pattern, !self.is_initiator())
             || (is_fast_transfer_frame(frame_type) && !self.fast_transfers())
+            || (frame_type == FrameType::Boost && !self.direct_wifi_boost())
         {
             self.protocol_failure(SessionError::Protocol);
             return;

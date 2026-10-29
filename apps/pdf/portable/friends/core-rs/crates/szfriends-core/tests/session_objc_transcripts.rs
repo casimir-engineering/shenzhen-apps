@@ -140,7 +140,8 @@ fn build(scenario: &Value, side: &str, strict: bool) -> Replay {
         number(&szfriends_vectors::load("objc-frames.json"), "session_minor"),
         u64::from(szfriends_core::wire::consts::SESSION_MINOR)
     );
-    channel.set_config(ChannelConfig { rekey_after_bytes: number(scenario, "rekey_after_bytes"), ..Default::default() });
+    channel
+        .set_config(ChannelConfig { rekey_after_bytes: number(scenario, "rekey_after_bytes"), ..Default::default() });
     channel.set_local_attestation(setup.get("attestation").map(bytes));
     Replay { channel, log, output: Vec::new(), now: Duration::from_secs(number(scenario, "start_seconds")) }
 }
