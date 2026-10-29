@@ -293,6 +293,9 @@ static NSDictionary *SZFFrameVectors(void) {
         @(SZFriendsFieldBlockShift) : [NSData dataWithBytes:&shift length:1],
     };
     uint32_t want[] = {0, 2, 2, 1, 5, 1}, haveRanges[] = {0, 3}, haveDurable[] = {0, 1}, durableOnly[] = {1, 2};
+    // Pieces (field 47): 16 KiB units counted from the start of the file (ADR 0018 § 3).
+    uint32_t wantPieces[] = {70, 6, 130, 2}, block2[] = {2, 1}, block0[] = {0, 1}, havePieces[] = {64, 16},
+             threeTwo[] = {3, 2};
     uint8_t compressed[] = {0x28, 0xb5, 0x2f, 0xfd};
     NSArray *encode = @[
         SZFEncodeCase(@"offer_with_tree", SZFFrame(SZFriendsFrameTypeOffer, offer)),
@@ -310,7 +313,15 @@ static NSDictionary *SZFFrameVectors(void) {
             @(SZFriendsFieldCodec) : [NSData dataWithBytes:&codec length:1], @(SZFriendsFieldLength) : SZFU32(61440)})),
         SZFEncodeCase(@"have", SZFriendsHaveFrames(id_, SZFRanges(haveRanges, 1), SZFRanges(haveDurable, 1)).firstObject),
         SZFEncodeCase(@"have_durable_only", SZFriendsHaveFrames(id_, [NSData data], SZFRanges(durableOnly, 1)).firstObject),
+        SZFEncodeCase(@"want_pieces_only",
+                      SZFriendsWantFramesWithPieces(id_, [NSData data], SZFRanges(wantPieces, 2)).firstObject),
+        SZFEncodeCase(@"want_blocks_and_pieces",
+                      SZFriendsWantFramesWithPieces(id_, SZFRanges(block2, 1), SZFRanges(wantPieces, 1)).firstObject),
+        SZFEncodeCase(@"have_pieces_and_ranges",
+                      SZFriendsHaveFramesWithPieces(id_, SZFRanges(block0, 1), SZFRanges(block0, 1),
+                                                    SZFRanges(havePieces, 1)).firstObject),
     ];
+    NSData *threeTwoField = SZFriendsRangesEncode(SZFRanges(threeTwo, 1)).firstObject;
     NSArray *idField = @[ @(SZFriendsFieldID), id_ ];
     NSArray *decode = @[
         SZFDecodeCase(@"hashes_not_whole_leaves", SZFRaw(SZFriendsFrameTypeHashes, @[
@@ -324,6 +335,13 @@ static NSDictionary *SZFFrameVectors(void) {
         SZFDecodeCase(@"want_without_ranges", SZFRaw(SZFriendsFrameTypeWant, @[ idField ])),
         SZFDecodeCase(@"want_half_a_range",
                       SZFRaw(SZFriendsFrameTypeWant, @[ idField, @[ @(SZFriendsFieldRanges), SZFRepeat(0, 4) ] ])),
+        // WANT carries Ranges, Pieces or both: at least one ("want_without_ranges" has neither).
+        SZFDecodeCase(@"want_pieces_half_a_range",
+                      SZFRaw(SZFriendsFrameTypeWant, @[ idField, @[ @(SZFriendsFieldPieces), SZFRepeat(0, 4) ] ])),
+        SZFDecodeCase(@"want_pieces_only",
+                      SZFRaw(SZFriendsFrameTypeWant, @[ idField, @[ @(SZFriendsFieldPieces), threeTwoField ] ])),
+        SZFDecodeCase(@"have_pieces_only",
+                      SZFRaw(SZFriendsFrameTypeHave, @[ idField, @[ @(SZFriendsFieldPieces), threeTwoField ] ])),
         SZFDecodeCase(@"want_8001_ranges",
                       SZFRaw(SZFriendsFrameTypeWant, @[ idField, @[ @(SZFriendsFieldRanges), SZFRepeat(0, 64008) ] ])),
         SZFDecodeCase(@"part_61441_bytes", SZFRaw(SZFriendsFrameTypePart, @[
@@ -371,6 +389,7 @@ static NSDictionary *SZFFrameVectors(void) {
                             @"aes_lanes" : @(SZFriendsCapabilityAESLanes),
                             @"compressed_parts" : @(SZFriendsCapabilityCompressedParts)},
         @"close_lane_refused" : @(SZFriendsCloseReasonLaneRefused),
+        @"piece_shift" : @(SZFriendsPieceShift),
         @"encode" : encode,
         @"decode" : decode,
         @"ranges" : ranges,

@@ -415,7 +415,8 @@ static NSUInteger SZFriendsPartBytesFor(SZFriendsRouteMethod route) {
 
 - (BOOL)want:(SZFriendsFrame *)frame transfer:(NSString *)transferID {
     NSData *ranges = SZFriendsFrameRanges(frame, SZFriendsFieldRanges);
-    if (ranges.length == 0) return NO;
+    NSData *pieces = SZFriendsFrameRanges(frame, SZFriendsFieldPieces);
+    if (ranges == nil || pieces == nil || ranges.length + pieces.length == 0) return NO;
     // A WANT only for an offer this side made to that person and they accepted (§ 8).
     SZFriendsTransferRecord *record = [_transfers transferWithID:transferID];
     if (record == nil || !record.outgoing || ![record.conversationID isEqualToString:_conversationID] ||
@@ -425,7 +426,9 @@ static NSUInteger SZFriendsPartBytesFor(SZFriendsRouteMethod route) {
     }
     SZFriendsBlockSend *send = [self startSending:transferID];
     if (send == nil) return YES; // the transfer failed here (snapshot gone); it says so itself
-    if (![send.serve want:ranges]) return NO;
+    // Missing pieces (ADR 0018 § 3) are served as their whole blocks for now: the receiver drops what it holds.
+    if (pieces.length > 0) ranges = SZFriendsBlocksWithPieces(send.serve.geometry, ranges, pieces);
+    if (ranges.length == 0 || ![send.serve want:ranges]) return NO;
     send.lanesOK = YES;
     if (self.onWanted) {
         uint64_t offset = 0;

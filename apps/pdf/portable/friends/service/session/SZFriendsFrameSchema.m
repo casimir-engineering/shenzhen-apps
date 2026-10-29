@@ -74,7 +74,12 @@ static const SZFriendsFieldRule kHashes[] = {
     RULE(SZFriendsFieldIndex, 4, 4, REQ),
     RULE(SZFriendsFieldHashes, 32, 64000, REQ | SZFriendsFieldRuleMultipleOf32), // 2,000 leaves
 };
-static const SZFriendsFieldRule kWant[] = {ID_RULE, RULE(SZFriendsFieldRanges, 8, 64000, REQ | SZFriendsFieldRuleMultipleOf8)};
+// WANT names missing blocks, missing pieces of partly received blocks, or both: at least one.
+static const SZFriendsFieldRule kWant[] = {
+    ID_RULE,
+    RULE(SZFriendsFieldRanges, 8, 64000, SZFriendsFieldRuleOneOf | SZFriendsFieldRuleMultipleOf8),
+    RULE(SZFriendsFieldPieces, 8, 64000, SZFriendsFieldRuleOneOf | SZFriendsFieldRuleMultipleOf8),
+};
 static const SZFriendsFieldRule kPart[] = {
     ID_RULE,
     RULE(SZFriendsFieldOffset, 8, 8, REQ),
@@ -86,6 +91,7 @@ static const SZFriendsFieldRule kHave[] = {
     ID_RULE,
     RULE(SZFriendsFieldRanges, 8, 64000, SZFriendsFieldRuleMultipleOf8),
     RULE(SZFriendsFieldDurable, 8, 64000, SZFriendsFieldRuleMultipleOf8),
+    RULE(SZFriendsFieldPieces, 8, 64000, SZFriendsFieldRuleMultipleOf8),
 };
 static const SZFriendsFieldRule kChunk[] = {
     ID_RULE,
@@ -282,12 +288,19 @@ NSDictionary<NSNumber *, NSData *> *SZFriendsDecodeFields(NSData *data, NSUInteg
         }
         position += fieldLength;
     }
+    int oneOf = -1; // the first field of a one-of set, while none of the set is present
     for (size_t i = 0; i < rules.count; i++) {
         uint8_t tag = rules.rules[i].tag;
-        if ((rules.rules[i].flags & SZFriendsFieldRuleRequired) && !(seen[tag >> 3] & (1u << (tag & 7)))) {
+        BOOL present = (seen[tag >> 3] & (1u << (tag & 7))) != 0;
+        if ((rules.rules[i].flags & SZFriendsFieldRuleRequired) && !present) {
             return SZFriendsFail(error, [NSString stringWithFormat:@"missing field %u", tag]);
         }
+        if (rules.rules[i].flags & SZFriendsFieldRuleOneOf) {
+            if (present) oneOf = 256;
+            else if (oneOf < 0) oneOf = tag;
+        }
     }
+    if (oneOf >= 0 && oneOf < 256) return SZFriendsFail(error, [NSString stringWithFormat:@"missing field %d", oneOf]);
 
     NSMutableDictionary<NSNumber *, NSData *> *fields = [NSMutableDictionary dictionary];
     for (NSUInteger position = offset; position < length;) {
@@ -315,10 +328,19 @@ BOOL SZFriendsAppendFields(NSMutableData *output, NSDictionary<NSNumber *, NSDat
             return SZFriendsRefuse(error, [NSString stringWithFormat:@"field %ld outside its limits", (long)tag]);
         }
     }
+    int oneOf = -1;
     for (size_t i = 0; i < rules.count; i++) {
-        if ((rules.rules[i].flags & SZFriendsFieldRuleRequired) && fields[@(rules.rules[i].tag)] == nil) {
+        BOOL present = fields[@(rules.rules[i].tag)] != nil;
+        if ((rules.rules[i].flags & SZFriendsFieldRuleRequired) && !present) {
             return SZFriendsRefuse(error, [NSString stringWithFormat:@"missing field %u", rules.rules[i].tag]);
         }
+        if (rules.rules[i].flags & SZFriendsFieldRuleOneOf) {
+            if (present) oneOf = 256;
+            else if (oneOf < 0) oneOf = rules.rules[i].tag;
+        }
+    }
+    if (oneOf >= 0 && oneOf < 256) {
+        return SZFriendsRefuse(error, [NSString stringWithFormat:@"missing field %d", oneOf]);
     }
     NSArray<NSNumber *> *tags = [fields.allKeys sortedArrayUsingSelector:@selector(compare:)];
     for (NSNumber *key in tags) {

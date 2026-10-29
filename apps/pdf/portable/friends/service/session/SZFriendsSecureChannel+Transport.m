@@ -26,9 +26,9 @@ static BOOL SZFriendsIsFastTransferFrame(SZFriendsFrameType type) {
            type == SZFriendsFrameTypeHave;
 }
 
-// The fields only a fast-transfers session carries (TreeRoot through Lane).
+// The fields only a fast-transfers session carries (TreeRoot through Pieces).
 static BOOL SZFriendsIsFastTransferTag(NSInteger tag) {
-    return tag >= SZFriendsFieldTreeRoot && tag <= SZFriendsFieldLane;
+    return tag >= SZFriendsFieldTreeRoot && tag <= SZFriendsFieldPieces;
 }
 
 // NN exists only for Add by ID (ADR 0004) and joining a profile: REQUEST_BY_ID one way, RECEIVED the other, and JOIN

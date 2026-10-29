@@ -99,6 +99,18 @@ NSArray<SZFriendsFrame *> *SZFriendsHashesFrames(NSData *transferID, NSData *lea
 NSArray<SZFriendsFrame *> *SZFriendsWantFrames(NSData *transferID, NSData *missing);
 // HAVE frames for blocks newly complete and newly durable; none when neither changed.
 NSArray<SZFriendsFrame *> *SZFriendsHaveFrames(NSData *transferID, NSData *complete, NSData *durable);
+// The same with Pieces (field 47, ADR 0018 § 3): missing pieces of partly received blocks in WANT, pieces arrived in
+// blocks not yet complete in HAVE. As many frames as the longest field needs; none when every field is empty.
+NSArray<SZFriendsFrame *> *SZFriendsWantFramesWithPieces(NSData *transferID, NSData *blocks, NSData *pieces);
+NSArray<SZFriendsFrame *> *SZFriendsHaveFramesWithPieces(NSData *transferID, NSData *complete, NSData *durable,
+                                                         NSData *pieces);
+// Pieces are 2^14 = 16 KiB of the file; piece p covers bytes p × 16,384 up to the next multiple or the file's end.
+extern const uint8_t SZFriendsPieceShift; // 14
+// The whole pieces within file bytes [start, end) of a `size`-byte file; NO when there is none.
+BOOL SZFriendsWholePieces(uint64_t start, uint64_t end, uint64_t size, uint32_t *first, uint32_t *count);
+// The blocks holding the pieces `pieces` (packed pairs) names, merged with `blocks`: sorted, disjoint pairs; nil when
+// a piece lies past the file.
+NSData *_Nullable SZFriendsBlocksWithPieces(SZFriendsBlockGeometry geometry, NSData *blocks, NSData *pieces);
 SZFriendsFrame *SZFriendsPartFrame(NSData *transferID, uint64_t offset, NSData *data);
 // A Ranges or Durable field decoded: empty when the frame lacks it, nil when it is malformed.
 NSData *_Nullable SZFriendsFrameRanges(SZFriendsFrame *frame, SZFriendsFieldTag tag);

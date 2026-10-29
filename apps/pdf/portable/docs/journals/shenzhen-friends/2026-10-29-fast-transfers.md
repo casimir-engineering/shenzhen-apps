@@ -1000,7 +1000,12 @@ LAN plus direct Wi-Fi is 1.05 to 1.15 times the LAN alone, as Rust to Rust (1.15
 LAN at 0.95 to 0.99 of its speed alone. The three-route rows vary most between runs (CPU at 8 to 9 s/GB on the
 loaded machine); the LAN-silenced case is bound by the session's own 8 s silence limit, as in Rust.
 
-**Left for WP4:** Pieces (field 47) and 256 KiB slices once WP3 lands them with WP1's vectors; Get again and
+**Pieces on the wire (after 08e49dc9).** Field 47 in WANT and HAVE, WANT valid with Ranges, Pieces or both and
+refused with neither, the paired builders and the piece shift: `friends-vectors-check` matches WP1's new
+`frames.json` cases byte for byte. Until the sender schedules slices, a WANT's missing pieces are served as their whole
+blocks (the receiver drops what it already holds), and a HAVE's Pieces are accepted and not yet used.
+
+**Left for WP4:** the receiver's piece HAVEs and WANTs and the sender's 256 KiB slices, once WP3 lands them; Get again and
 own-device copies by blocks; "Finishing…" while a large file's check runs; small files staged and published in
 batches; skipping blocks the receiver already holds. Not tried on two real Macs: the direct Wi-Fi and Bluetooth lanes
 are exercised through the bench's emulated routes and the helper's fake channels only.

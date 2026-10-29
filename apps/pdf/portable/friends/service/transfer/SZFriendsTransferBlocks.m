@@ -376,16 +376,76 @@ NSArray<SZFriendsFrame *> *SZFriendsWantFrames(NSData *transferID, NSData *missi
     return frames;
 }
 
-NSArray<SZFriendsFrame *> *SZFriendsHaveFrames(NSData *transferID, NSData *complete, NSData *durable) {
-    NSArray<NSData *> *completeFields = SZFriendsRangesEncode(complete), *durableFields = SZFriendsRangesEncode(durable);
+// Frames of `type` carrying each field's ranges, as many as the longest field needs (szfriends-core frames::paired).
+static NSArray<SZFriendsFrame *> *SZFriendsPairedFrames(SZFriendsFrameType type, NSData *transferID,
+                                                        NSArray<NSNumber *> *tags, NSArray<NSData *> *ranges) {
+    NSMutableArray<NSArray<NSData *> *> *encoded = [NSMutableArray array];
+    NSUInteger frameCount = 0;
+    for (NSData *pairs in ranges) {
+        NSArray<NSData *> *fields = SZFriendsRangesEncode(pairs);
+        [encoded addObject:fields];
+        frameCount = MAX(frameCount, fields.count);
+    }
     NSMutableArray<SZFriendsFrame *> *frames = [NSMutableArray array];
-    for (NSUInteger i = 0; i < MAX(completeFields.count, durableFields.count); i++) {
+    for (NSUInteger i = 0; i < frameCount; i++) {
         NSMutableDictionary *fields = [NSMutableDictionary dictionaryWithObject:transferID forKey:@(SZFriendsFieldID)];
-        if (i < completeFields.count) fields[@(SZFriendsFieldRanges)] = completeFields[i];
-        if (i < durableFields.count) fields[@(SZFriendsFieldDurable)] = durableFields[i];
-        [frames addObject:[SZFriendsFrame frameWithType:SZFriendsFrameTypeHave fields:fields]];
+        for (NSUInteger f = 0; f < tags.count; f++) {
+            if (i < encoded[f].count) fields[tags[f]] = encoded[f][i];
+        }
+        [frames addObject:[SZFriendsFrame frameWithType:type fields:fields]];
     }
     return frames;
+}
+
+NSArray<SZFriendsFrame *> *SZFriendsHaveFrames(NSData *transferID, NSData *complete, NSData *durable) {
+    return SZFriendsPairedFrames(SZFriendsFrameTypeHave, transferID,
+                                 @[ @(SZFriendsFieldRanges), @(SZFriendsFieldDurable) ], @[ complete, durable ]);
+}
+
+NSArray<SZFriendsFrame *> *SZFriendsWantFramesWithPieces(NSData *transferID, NSData *blocks, NSData *pieces) {
+    return SZFriendsPairedFrames(SZFriendsFrameTypeWant, transferID,
+                                 @[ @(SZFriendsFieldRanges), @(SZFriendsFieldPieces) ], @[ blocks, pieces ]);
+}
+
+NSArray<SZFriendsFrame *> *SZFriendsHaveFramesWithPieces(NSData *transferID, NSData *complete, NSData *durable,
+                                                         NSData *pieces) {
+    return SZFriendsPairedFrames(SZFriendsFrameTypeHave, transferID,
+                                 @[ @(SZFriendsFieldRanges), @(SZFriendsFieldDurable), @(SZFriendsFieldPieces) ],
+                                 @[ complete, durable, pieces ]);
+}
+
+const uint8_t SZFriendsPieceShift = 14;
+
+BOOL SZFriendsWholePieces(uint64_t start, uint64_t end, uint64_t size, uint32_t *first, uint32_t *count) {
+    uint64_t piece = 1ull << SZFriendsPieceShift;
+    uint64_t from = (start + piece - 1) >> SZFriendsPieceShift;
+    uint64_t to = end >= size ? (size + piece - 1) >> SZFriendsPieceShift : end >> SZFriendsPieceShift;
+    if (to <= from) return NO;
+    *first = (uint32_t)from;
+    *count = (uint32_t)(to - from);
+    return YES;
+}
+
+NSData *SZFriendsBlocksWithPieces(SZFriendsBlockGeometry geometry, NSData *blocks, NSData *pieces) {
+    NSMutableIndexSet *set = [NSMutableIndexSet indexSet];
+    const uint32_t *pairs = blocks.bytes;
+    for (NSUInteger i = 0; i < blocks.length / 8; i++) [set addIndexesInRange:NSMakeRange(pairs[2 * i], pairs[2 * i + 1])];
+    uint64_t pieceCount = (geometry.size + (1ull << SZFriendsPieceShift) - 1) >> SZFriendsPieceShift;
+    pairs = pieces.bytes;
+    for (NSUInteger i = 0; i < pieces.length / 8; i++) {
+        uint64_t first = pairs[2 * i], count = pairs[2 * i + 1];
+        if (count == 0 || first + count > MAX(pieceCount, 1)) return nil;
+        uint64_t firstBlock = (first << SZFriendsPieceShift) >> geometry.shift;
+        uint64_t lastBlock = (((first + count) << SZFriendsPieceShift) - 1) >> geometry.shift;
+        [set addIndexesInRange:NSMakeRange((NSUInteger)firstBlock, (NSUInteger)(lastBlock - firstBlock + 1))];
+    }
+    NSMutableData *out = [NSMutableData data];
+    [set enumerateRangesUsingBlock:^(NSRange range, BOOL *stop) {
+        (void)stop;
+        uint32_t pair[2] = {(uint32_t)range.location, (uint32_t)range.length};
+        [out appendBytes:pair length:sizeof pair];
+    }];
+    return out;
 }
 
 SZFriendsFrame *SZFriendsPartFrame(NSData *transferID, uint64_t offset, NSData *data) {

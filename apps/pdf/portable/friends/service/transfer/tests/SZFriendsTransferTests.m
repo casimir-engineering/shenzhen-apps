@@ -99,6 +99,38 @@ static void TestLaneGroup(void) {
     CHECK(![group laneDown:1] && group.first == 7, @"the group outlives its first session: lane 7 leads it");
 }
 
+// Pieces (ADR 0018 § 3), as szfriends-core's frames tests: whole 16 KiB units, the shorter last one, and the blocks
+// a WANT's pieces name.
+static void TestPieces(void) {
+    uint32_t first = 0, count = 0;
+    CHECK(SZFriendsWholePieces(0, 16384, 100000, &first, &count) && first == 0 && count == 1, @"one whole piece");
+    CHECK(SZFriendsWholePieces(1, 40000, 100000, &first, &count) && first == 1 && count == 1,
+          @"a piece counts once every byte of it arrived");
+    CHECK(SZFriendsWholePieces(98304, 100000, 100000, &first, &count) && first == 6 && count == 1,
+          @"the last piece is shorter");
+    CHECK(!SZFriendsWholePieces(10, 20, 100000, &first, &count), @"no whole piece");
+    NSData *id_ = [NSMutableData dataWithLength:16];
+    uint32_t pieces[] = {4, 2};
+    NSArray<SZFriendsFrame *> *want =
+        SZFriendsWantFramesWithPieces(id_, [NSData data], [NSData dataWithBytes:pieces length:8]);
+    CHECK(want.count == 1 && [want[0] dataForTag:SZFriendsFieldRanges] == nil &&
+              [want[0] dataForTag:SZFriendsFieldPieces] != nil,
+          @"a WANT with pieces only");
+    CHECK(SZFriendsWantFramesWithPieces(id_, [NSData data], [NSData data]).count == 0, @"nothing missing, no WANT");
+
+    SZFriendsBlockGeometry geometry = {3 * (1u << 20) + 7, 20, 4};
+    uint32_t blocks[] = {3, 1}, across[] = {63, 2}, last[] = {192, 1}, past[] = {192, 2};
+    NSData *merged = SZFriendsBlocksWithPieces(geometry, [NSData dataWithBytes:blocks length:8],
+                                               [NSData dataWithBytes:across length:8]);
+    const uint32_t *pairs = merged.bytes;
+    CHECK(merged.length == 16 && pairs[0] == 0 && pairs[1] == 2 && pairs[2] == 3 && pairs[3] == 1,
+          @"pieces 63 and 64 lie in blocks 0 and 1, beside block 3");
+    merged = SZFriendsBlocksWithPieces(geometry, [NSData data], [NSData dataWithBytes:last length:8]);
+    CHECK(merged.length == 8 && ((const uint32_t *)merged.bytes)[0] == 3, @"the file's last piece is in its last block");
+    CHECK(SZFriendsBlocksWithPieces(geometry, [NSData data], [NSData dataWithBytes:past length:8]) == nil,
+          @"a piece past the file");
+}
+
 int main(int argc, const char *argv[]) {
     @autoreleasepool {
         if (argc < 2) {
@@ -106,6 +138,7 @@ int main(int argc, const char *argv[]) {
             return 2;
         }
         TestLaneGroup();
+        TestPieces();
         TestScenarios(@(argv[1]));
         if (failures) {
             fprintf(stderr, "SZFriendsTransferTests: %d check(s) failed\n", failures);

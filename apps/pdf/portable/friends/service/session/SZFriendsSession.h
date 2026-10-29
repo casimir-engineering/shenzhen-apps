@@ -276,6 +276,7 @@ typedef NS_ENUM(uint8_t, SZFriendsFieldTag) {
     SZFriendsFieldCodec = 44,      // PART: u8, 1 is zstd
     SZFriendsFieldLength = 45,     // PART: u32be, what compressed data expands to
     SZFriendsFieldLane = 46,       // handshake payload, IK message 1 of a lane: 16 bytes (SZFriendsLaneToken)
+    SZFriendsFieldPieces = 47,     // WANT and HAVE: the Ranges format over 16 KiB pieces of the file (ADR 0018 § 3)
 };
 
 // One decoded frame: its type and raw field values. Typed accessors return nil / NO for an absent or
