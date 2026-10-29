@@ -14,6 +14,7 @@ pub mod compress;
 pub mod copies;
 pub mod frames;
 pub mod geometry;
+pub mod pull;
 pub mod scheduler;
 pub mod serve;
 pub mod sidecar;
