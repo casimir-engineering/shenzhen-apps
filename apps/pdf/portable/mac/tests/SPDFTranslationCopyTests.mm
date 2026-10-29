@@ -362,16 +362,16 @@ int main(int argc, char** argv) {
             }
             spdf_free_comments(&outComments);
 
-            // Body overlays: translated text drawn on pages 1-2, Latin/digit
-            // blocks untouched, no overlay on page 3; the original Han text
-            // stays under the semi-transparent overlay.
+            // Body text: translated text replaces the original on pages 1-2,
+            // Latin/digit blocks untouched, nothing written on page 3; the
+            // original Han glyphs are gone from the content stream.
             NSString* outPage1 = page_text(out, 0);
             EXPECT([outPage1 rangeOfString:@"EN-BODY-P1"].location != NSNotFound, "page 1 overlay text present");
             EXPECT([outPage1 rangeOfString:@"Hardware Design Manual"].location != NSNotFound,
                    "page 1 Latin heading untouched");
             EXPECT([outPage1 rangeOfString:@"3.3 100 42"].location != NSNotFound, "page 1 digits block untouched");
-            EXPECT([outPage1 rangeOfString:[NSString stringWithUTF8String:kHanBlock1]].location != NSNotFound,
-                   "page 1 original Han text remains under the overlay");
+            EXPECT([outPage1 rangeOfString:[NSString stringWithUTF8String:kHanBlock1]].location == NSNotFound,
+                   "page 1 original Han text is removed, not covered");
             NSString* outPage2 = page_text(out, 1);
             EXPECT([outPage2 rangeOfString:@"EN-BODY-P2"].location != NSNotFound, "page 2 overlay text present");
             EXPECT([outPage2 rangeOfString:@"Purely Latin caption"].location != NSNotFound,

@@ -2433,77 +2433,6 @@ static fz_rect normalized_public_rect(const spdf_rect* rect) {
     return fz_make_rect(x0, y0, x1, y1);
 }
 
-/* 1 = CJK script (mupdf sets these in a full-width CJK fallback font),
- * 0 = other strong script, -1 = common/neutral (digits, punctuation, spaces)
- * which inherits the surrounding script, mirroring mupdf's text walker in
- * pdf-appearance.c. */
-static int rune_script_class(int rune) {
-    if ((rune >= 0x2E80 && rune <= 0x2FDF) || (rune >= 0x3040 && rune <= 0x31FF) ||
-        (rune >= 0x3400 && rune <= 0x4DBF) || (rune >= 0x4E00 && rune <= 0x9FFF) ||
-        (rune >= 0xA000 && rune <= 0xA4CF) || (rune >= 0xAC00 && rune <= 0xD7AF) ||
-        (rune >= 0xF900 && rune <= 0xFAFF) || (rune >= 0x1100 && rune <= 0x11FF) ||
-        (rune >= 0x20000 && rune <= 0x2FA1F))
-        return 1;
-    if ((rune >= 'A' && rune <= 'Z') || (rune >= 'a' && rune <= 'z') || (rune >= 0x00C0 && rune <= 0x024F) ||
-        (rune >= 0x0370 && rune <= 0x04FF))
-        return 0;
-    return -1;
-}
-
-/* Estimated width of the text in ems at the size the overlay appearance will
- * use. Mirrors mupdf's measurement (pdf-appearance.c text walker): Latin text
- * is measured with real Helvetica advances, CJK glyphs are full-width (one
- * em), and neutral characters inherit the script of the surrounding text.
- * When in doubt this over-estimates, which only shrinks the text slightly --
- * an under-estimate would make mupdf wrap the line and clip it. */
-static float translated_text_ems(fz_context* ctx, const char* text) {
-    fz_font* font = NULL;
-    float ems = 0.0f;
-
-    if (!text || !*text) return 0.0f;
-    fz_var(font);
-    fz_try(ctx) {
-        const char* p = text;
-        int context_class = 0;
-
-        while (*p) {
-            int c;
-            int cls;
-            p += fz_chartorune(&c, p);
-            cls = rune_script_class(c);
-            if (cls >= 0) {
-                context_class = cls;
-                break;
-            }
-        }
-        font = fz_new_base14_font(ctx, "Helvetica");
-        p = text;
-        while (*p) {
-            int c;
-            int cls;
-            p += fz_chartorune(&c, p);
-            cls = rune_script_class(c);
-            if (cls >= 0) context_class = cls;
-            if (cls == 1 || (cls < 0 && context_class == 1)) {
-                ems += 1.0f;
-            } else {
-                int gid = fz_encode_character(ctx, font, c);
-                if (gid > 0)
-                    ems += fz_advance_glyph(ctx, font, gid, 0);
-                else
-                    ems += 1.0f;
-            }
-        }
-    }
-    fz_always(ctx) {
-        fz_drop_font(ctx, font);
-    }
-    fz_catch(ctx) {
-        fz_rethrow(ctx);
-    }
-    return ems;
-}
-
 static char* translated_text_single_line(const char* text) {
     size_t len;
     char* out;
@@ -2530,39 +2459,6 @@ static char* translated_text_single_line(const char* text) {
     }
     *dst = 0;
     return out;
-}
-
-static float translated_line_font_size(fz_context* ctx, const spdf_translated_line* line, fz_rect rect,
-                                       const char* text) {
-    float size = line->font_size;
-    float rect_width = rect.x1 - rect.x0;
-    float rect_height = rect.y1 - rect.y0;
-    float ems = translated_text_ems(ctx, text);
-
-    if (size <= 0.0f) size = rect_height * 0.8f;
-    if (rect_height > 1.0f && size > rect_height * 0.78f) size = rect_height * 0.78f;
-    /* Shrink to fit the original bounding box; the box is never widened for
-     * long text (that would overflow neighboring content). The 0.96 slack
-     * keeps mupdf's own measurement from wrapping into a clipped second
-     * line. */
-    if (ems > 0.0f && rect_width > 2.0f) {
-        float fit_size = (rect_width * 0.96f) / ems;
-        if (fit_size > 0.0f && fit_size < size) size = fit_size;
-    }
-    if (size < 2.0f) size = 2.0f;
-    if (size > 96.0f) size = 96.0f;
-    return size;
-}
-
-static fz_rect translated_line_annotation_rect(const spdf_translated_line* line, float font_size) {
-    fz_rect rect = normalized_public_rect(&line->bounds);
-    float min_height = font_size * 1.15f;
-    float pad = font_size * 0.10f;
-
-    if (pad > 1.0f) pad = 1.0f;
-    if (rect.x1 - rect.x0 < font_size) rect.x1 = rect.x0 + font_size;
-    if (rect.y1 - rect.y0 < min_height) rect.y1 = rect.y0 + min_height;
-    return fz_expand_rect(rect, pad);
 }
 
 static void append_page_content_stream(fz_context* ctx, pdf_document* pdf, pdf_obj* page_obj, fz_buffer* buf) {
@@ -2600,17 +2496,13 @@ static pdf_obj* ensure_page_resources(fz_context* ctx, pdf_obj* page_obj) {
     return res;
 }
 
-/* Appended overlay streams run after the page's original content, so a page
- * whose content stream leaves the graphics state unbalanced (missing or
- * excess Q -- common in CAD-exported PDFs) would draw every overlay under a
- * stale transform, typically scaled into a corner. Mirror pdf_bake_page():
- * count the q/Q balance and wrap the original content with enough q's in
- * front and Q's at the end that appended streams start from the initial
- * page state. Must run once per page before the first overlay is appended. */
+/* An appended stream runs after the page's original content, so a page whose
+ * content leaves the graphics state unbalanced (common in CAD exports) would
+ * draw it under a stale transform. Wrap the original content in enough q/Q
+ * that the appended stream starts from the initial page state. */
 static void balance_page_contents_for_overlays(fz_context* ctx, pdf_document* pdf, pdf_obj* page_obj, pdf_obj* res) {
     pdf_obj* contents = pdf_dict_get(ctx, page_obj, PDF_NAME(Contents));
     pdf_obj* new_contents = NULL;
-    pdf_obj* prologue = NULL;
     fz_buffer* buf = NULL;
     int prepend = 0;
     int append = 0;
@@ -2619,7 +2511,6 @@ static void balance_page_contents_for_overlays(fz_context* ctx, pdf_document* pd
         pdf_count_q_balance(ctx, pdf, res, contents, &prepend, &append);
     }
     fz_catch(ctx) {
-        /* Content too broken to parse: keep today's behavior. */
         fz_report_error(ctx);
         return;
     }
@@ -2634,26 +2525,15 @@ static void balance_page_contents_for_overlays(fz_context* ctx, pdf_document* pd
             pdf_dict_put(ctx, page_obj, PDF_NAME(Contents), new_contents);
             contents = new_contents;
         }
-        if (prepend > 0) {
-            buf = fz_new_buffer(ctx, 64);
-            while (prepend-- > 0) fz_append_string(ctx, buf, "q\n");
-            prologue = pdf_add_stream(ctx, pdf, buf, NULL, 0);
-            fz_drop_buffer(ctx, buf);
-            buf = NULL;
-            pdf_array_insert_drop(ctx, contents, prologue, 0);
-            prologue = NULL;
-        }
-        if (append > 0) {
-            buf = fz_new_buffer(ctx, 64);
-            while (append-- > 0) fz_append_string(ctx, buf, "Q\n");
-            pdf_array_push_drop(ctx, contents, pdf_add_stream(ctx, pdf, buf, NULL, 0));
-            fz_drop_buffer(ctx, buf);
-            buf = NULL;
-        }
+        buf = fz_new_buffer(ctx, 64);
+        while (prepend-- > 0) fz_append_string(ctx, buf, "q\n");
+        if (buf->len) pdf_array_insert_drop(ctx, contents, pdf_add_stream(ctx, pdf, buf, NULL, 0), 0);
+        fz_clear_buffer(ctx, buf);
+        while (append-- > 0) fz_append_string(ctx, buf, "Q\n");
+        if (buf->len) pdf_array_push_drop(ctx, contents, pdf_add_stream(ctx, pdf, buf, NULL, 0));
     }
     fz_always(ctx) {
         fz_drop_buffer(ctx, buf);
-        pdf_drop_obj(ctx, prologue);
         pdf_drop_obj(ctx, new_contents);
     }
     fz_catch(ctx) {
@@ -2661,174 +2541,8 @@ static void balance_page_contents_for_overlays(fz_context* ctx, pdf_document* pd
     }
 }
 
-static fz_matrix annot_xobject_transform(fz_context* ctx, pdf_obj* annot_obj, pdf_obj* ap) {
-    fz_rect rect = pdf_dict_get_rect(ctx, annot_obj, PDF_NAME(Rect));
-    fz_rect bbox = pdf_dict_get_rect(ctx, ap, PDF_NAME(BBox));
-    fz_matrix transform = pdf_dict_get_matrix(ctx, ap, PDF_NAME(Matrix));
-    float w;
-    float h;
-    float x;
-    float y;
-
-    bbox = fz_transform_rect(bbox, transform);
-    if (fz_is_empty_rect(rect) || fz_is_empty_rect(bbox) || bbox.x1 == bbox.x0 || bbox.y1 == bbox.y0)
-        fz_throw(ctx, FZ_ERROR_FORMAT, "Annotation appearance has invalid bounds");
-
-    w = (rect.x1 - rect.x0) / (bbox.x1 - bbox.x0);
-    h = (rect.y1 - rect.y0) / (bbox.y1 - bbox.y0);
-    x = rect.x0 - bbox.x0 * w;
-    y = rect.y0 - bbox.y0 * h;
-    return fz_make_matrix(w, 0, 0, h, x, y);
-}
-
-static void remove_page_annotation(fz_context* ctx, pdf_obj* page_obj, pdf_obj* annot_obj) {
-    pdf_obj* annots = pdf_dict_get(ctx, page_obj, PDF_NAME(Annots));
-    int annot_num = pdf_to_num(ctx, annot_obj);
-    int i;
-
-    for (i = 0; i < pdf_array_len(ctx, annots); ++i) {
-        pdf_obj* item = pdf_array_get(ctx, annots, i);
-        if (item == annot_obj || (annot_num != 0 && pdf_to_num(ctx, item) == annot_num)) {
-            pdf_array_delete(ctx, annots, i);
-            return;
-        }
-    }
-}
-
-/* Alpha of the white rectangle painted under each translated line. */
-#define SPDF_TRANSLATION_BACKGROUND_ALPHA 0.95f
-#define SPDF_TRANSLATION_BACKGROUND_GS "SPDFTrBG95"
-
-static void ensure_background_extgstate(fz_context* ctx, pdf_obj* res) {
-    pdf_obj* extgstates = pdf_dict_get(ctx, res, PDF_NAME(ExtGState));
-    pdf_obj* gs;
-
-    if (!extgstates) extgstates = pdf_dict_put_dict(ctx, res, PDF_NAME(ExtGState), 4);
-    if (pdf_dict_gets(ctx, extgstates, SPDF_TRANSLATION_BACKGROUND_GS)) return;
-    gs = pdf_dict_puts_dict(ctx, extgstates, SPDF_TRANSLATION_BACKGROUND_GS, 3);
-    pdf_dict_put(ctx, gs, PDF_NAME(Type), PDF_NAME(ExtGState));
-    pdf_dict_put_real(ctx, gs, PDF_NAME(ca), SPDF_TRANSLATION_BACKGROUND_ALPHA);
-    pdf_dict_put_real(ctx, gs, PDF_NAME(CA), SPDF_TRANSLATION_BACKGROUND_ALPHA);
-}
-
-static void bake_overlay_annotation(fz_context* ctx, pdf_document* pdf, pdf_page* page, pdf_annot* annot,
-                                    int draw_background) {
-    pdf_obj* page_obj = page->obj;
-    pdf_obj* annot_obj = pdf_annot_obj(ctx, annot);
-    pdf_obj* ap;
-    pdf_obj* res;
-    pdf_obj* xobjects;
-    fz_buffer* buf = NULL;
-    fz_matrix matrix;
-    char name[32];
-
-    fz_var(buf);
-    fz_try(ctx) {
-        ap = pdf_annot_ap(ctx, annot);
-        if (!ap || !pdf_is_stream(ctx, ap)) fz_throw(ctx, FZ_ERROR_FORMAT, "Could not generate translation overlay");
-
-        res = ensure_page_resources(ctx, page_obj);
-        xobjects = pdf_dict_get(ctx, res, PDF_NAME(XObject));
-        if (!xobjects) xobjects = pdf_dict_put_dict(ctx, res, PDF_NAME(XObject), 8);
-
-        snprintf(name, sizeof(name), "SPDFTr%d", pdf_to_num(ctx, annot_obj));
-        pdf_dict_puts(ctx, xobjects, name, ap);
-        pdf_dict_put(ctx, ap, PDF_NAME(Type), PDF_NAME(XObject));
-        pdf_dict_put(ctx, ap, PDF_NAME(Subtype), PDF_NAME(Form));
-
-        matrix = annot_xobject_transform(ctx, annot_obj, ap);
-        buf = fz_new_buffer(ctx, 256);
-        if (draw_background) {
-            /* White box under the text, 95% alpha so the original stays
-             * faintly visible: an overlay, not a redaction. Drawn as page
-             * content (not inside the FreeText appearance) so the black text
-             * keeps full opacity. */
-            fz_rect rect = pdf_dict_get_rect(ctx, annot_obj, PDF_NAME(Rect));
-            ensure_background_extgstate(ctx, res);
-            fz_append_printf(ctx, buf, "q\n/%s gs\n1 1 1 rg\n%g %g %g %g re\nf\nQ\n", SPDF_TRANSLATION_BACKGROUND_GS,
-                             rect.x0, rect.y0, rect.x1 - rect.x0, rect.y1 - rect.y0);
-        }
-        fz_append_printf(ctx, buf, "q\n%g %g %g %g %g %g cm\n/%s Do\nQ\n", matrix.a, matrix.b, matrix.c, matrix.d,
-                         matrix.e, matrix.f, name);
-        append_page_content_stream(ctx, pdf, page_obj, buf);
-        remove_page_annotation(ctx, page_obj, annot_obj);
-        fz_drop_buffer(ctx, buf);
-        buf = NULL;
-    }
-    fz_catch(ctx) {
-        if (buf) fz_drop_buffer(ctx, buf);
-        fz_rethrow(ctx);
-    }
-}
-
-static void compute_image_backed_pages(fz_context* ctx, fz_document* doc, int page_count, int* image_backed) {
-    fz_stext_page* text = NULL;
-    fz_stext_options opts;
-    int i;
-
-    fz_var(text);
-    memset(&opts, 0, sizeof(opts));
-    opts.flags = FZ_STEXT_PRESERVE_IMAGES;
-    fz_try(ctx) {
-        for (i = 0; i < page_count; ++i) {
-            text = fz_new_stext_page_from_page_number(ctx, doc, i, &opts);
-            image_backed[i] = text_page_is_image_backed(text);
-            fz_drop_stext_page(ctx, text);
-            text = NULL;
-        }
-    }
-    fz_catch(ctx) {
-        if (text) fz_drop_stext_page(ctx, text);
-        fz_rethrow(ctx);
-    }
-}
-
-static void add_translated_line_overlay(fz_context* ctx, pdf_document* pdf, const spdf_translated_line* line,
-                                        const int* image_backed) {
-    static const float black[3] = {0.0f, 0.0f, 0.0f};
-    pdf_page* page = NULL;
-    pdf_annot* annot = NULL;
-    fz_rect raw_rect;
-    fz_rect annot_rect;
-    float font_size;
-    int draw_background;
-    char* text = NULL;
-
-    if (!line->text || !*line->text) return;
-
-    text = translated_text_single_line(line->text);
-    if (!text || !*text) {
-        free(text);
-        return;
-    }
-
-    draw_background = line->opaque_background == SPDF_TRANSLATION_BACKGROUND_OPAQUE ||
-                      line->opaque_background == SPDF_TRANSLATION_BACKGROUND_AUTO;
-    (void)image_backed;
-
-    fz_var(page);
-    fz_try(ctx) {
-        raw_rect = normalized_public_rect(&line->bounds);
-        font_size = translated_line_font_size(ctx, line, raw_rect, text);
-        annot_rect = translated_line_annotation_rect(line, font_size);
-        page = pdf_load_page(ctx, pdf, line->page_index);
-        annot = pdf_create_annot(ctx, page, PDF_ANNOT_FREE_TEXT);
-        pdf_set_annot_rect(ctx, annot, annot_rect);
-        pdf_set_annot_border_width(ctx, annot, 0.0f);
-        pdf_set_annot_contents(ctx, annot, text);
-        pdf_set_annot_default_appearance(ctx, annot, "Helv", font_size, 3, black);
-        pdf_update_annot(ctx, annot);
-        bake_overlay_annotation(ctx, pdf, page, annot, draw_background);
-        pdf_drop_page(ctx, page);
-        page = NULL;
-    }
-    fz_catch(ctx) {
-        free(text);
-        if (page) pdf_drop_page(ctx, page);
-        fz_rethrow(ctx);
-    }
-    free(text);
-}
+#include "spdf_translate_redact.h"
+#include "spdf_translate_write.h"
 
 /* Clone the current in-memory state of a PDF document by writing it into a
  * buffer and reopening that buffer. Unlike grafting individual pages (which
@@ -2996,9 +2710,6 @@ int spdf_save_translated_copy_full(spdf_document* doc, const char* path, const s
     pdf_document* source_pdf = NULL;
     pdf_document* out_pdf = NULL;
     pdf_write_options options;
-    int* image_backed = NULL;
-    char* balanced_pages = NULL;
-    int needs_image_backed = 0;
     int i;
 
     set_error(err, err_len, "");
@@ -3021,28 +2732,13 @@ int spdf_save_translated_copy_full(spdf_document* doc, const char* path, const s
         return 0;
     }
 
-    balanced_pages = (char*)calloc((size_t)(doc->page_count > 0 ? doc->page_count : 1), 1);
-    if (!balanced_pages) {
-        set_error(err, err_len, "Out of memory");
-        return 0;
-    }
-
     fz_var(out_pdf);
-    fz_var(image_backed);
     fz_try(doc->ctx) {
         source_pdf = pdf_specifics(doc->ctx, doc->doc);
         if (!source_pdf) fz_throw(doc->ctx, FZ_ERROR_FORMAT, "Only PDF documents can be translated.");
-
-        for (i = 0; i < line_count; ++i) {
+        for (i = 0; i < line_count; ++i)
             if (lines[i].page_index < 0 || lines[i].page_index >= doc->page_count)
                 fz_throw(doc->ctx, FZ_ERROR_FORMAT, "Translated line page index is out of range");
-            if (lines[i].opaque_background == SPDF_TRANSLATION_BACKGROUND_AUTO) needs_image_backed = 1;
-        }
-        if (needs_image_backed) {
-            image_backed = (int*)calloc((size_t)(doc->page_count > 0 ? doc->page_count : 1), sizeof(int));
-            if (!image_backed) fz_throw(doc->ctx, FZ_ERROR_SYSTEM, "Out of memory");
-            compute_image_backed_pages(doc->ctx, doc->doc, doc->page_count, image_backed);
-        }
 
         /* Clone the whole document (not a page-by-page graft) so the outline
          * tree, annotations and links survive into the translated copy. */
@@ -3052,35 +2748,18 @@ int spdf_save_translated_copy_full(spdf_document* doc, const char* path, const s
             apply_outline_title_updates(doc->ctx, out_pdf, outline_titles, outline_title_count);
         if (comment_text_count > 0)
             apply_comment_text_updates(doc->ctx, out_pdf, doc->page_count, comment_texts, comment_text_count);
+        tr_replace_lines(doc->ctx, out_pdf, doc->doc, lines, line_count);
 
-        for (i = 0; i < line_count; ++i) {
-            int page_index = lines[i].page_index;
-            if (!balanced_pages[page_index]) {
-                pdf_page* page = pdf_load_page(doc->ctx, out_pdf, page_index);
-                balanced_pages[page_index] = 1;
-                fz_try(doc->ctx) {
-                    balance_page_contents_for_overlays(doc->ctx, out_pdf, page->obj,
-                                                       ensure_page_resources(doc->ctx, page->obj));
-                }
-                fz_always(doc->ctx) {
-                    pdf_drop_page(doc->ctx, page);
-                }
-                fz_catch(doc->ctx) {
-                    fz_rethrow(doc->ctx);
-                }
-            }
-            add_translated_line_overlay(doc->ctx, out_pdf, &lines[i], image_backed);
-        }
-
+        /* Garbage-collect so the replaced content streams (with the original
+         * text) and unsubsetted fonts are not left in the file as orphans. */
         options = pdf_default_write_options;
+        options.do_garbage = 1;
         options.do_compress = 1;
         options.do_compress_images = 1;
         options.do_compress_fonts = 1;
         pdf_save_document(doc->ctx, out_pdf, path, &options);
     }
     fz_always(doc->ctx) {
-        free(balanced_pages);
-        free(image_backed);
         if (out_pdf) pdf_drop_document(doc->ctx, out_pdf);
         spdf_drop_page_list_cache(doc, -1);
     }

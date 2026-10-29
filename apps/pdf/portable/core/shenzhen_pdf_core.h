@@ -112,6 +112,7 @@ typedef struct spdf_text_lines {
     int image_backed;
 } spdf_text_lines;
 
+/* Unused: the original text is removed, so no background is drawn. */
 typedef enum spdf_translation_background {
     SPDF_TRANSLATION_BACKGROUND_NONE = -1,
     SPDF_TRANSLATION_BACKGROUND_AUTO = 0,
@@ -291,6 +292,9 @@ int spdf_rotate_page(spdf_document* doc, int page_index, int degrees, char* err,
 int spdf_delete_all_text(spdf_document* doc, const char* path, char* err, size_t err_len);
 int spdf_save_document(spdf_document* doc, const char* path, char* err, size_t err_len);
 int spdf_document_has_text(spdf_document* doc, int max_pages, char* err, size_t err_len);
+/* Writes a copy with each line's original glyphs removed (scan pixels under
+ * an OCR layer set to their background) and its translation written as
+ * embedded, searchable text fitted to the line's box. */
 int spdf_save_translated_copy(spdf_document* doc, const char* path, const spdf_translated_line* lines, int line_count,
                               char* err, size_t err_len);
 /* Replacement text for one outline entry or one comment in the translated
