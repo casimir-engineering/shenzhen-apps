@@ -334,8 +334,8 @@
     BOOL _needsDeferredPersistentStateSave;
     BOOL _updatingSidebarFilterField;
     NSArray<NSDictionary*>* _pendingTranslationItems;
-    NSArray<NSDictionary*>* _pendingTranslationChapters;
-    BOOL _translatingMadePDF;  // the local translation works on a PDF made from a Markdown, text or EPUB document  // written as the translation's outline (SPDFMacTranslateChapters.h)
+    NSArray<NSDictionary*>* _pendingTranslationChapters;  // written as the translation's outline (SPDFMacTranslateChapters.h)
+    BOOL _translatingMadePDF;  // the local translation works on a PDF made from a Markdown, text or EPUB document
     BOOL _restoringSidebarLayout;
     BOOL _allowSidebarWidthPersistence;
     CGFloat _sidebarWidth;
@@ -610,8 +610,6 @@
 @end
 
 @interface ShenzhenMacDelegate (SPDFMacUIReaderConformance) <SPDFMacDocumentViewReader>
-- (BOOL)documentTypeToSearchKeyDown:(NSEvent*)event;
-- (BOOL)documentEscapeKeyDown:(NSEvent*)event;
 @end
 
 // Implemented in SPDFMacLinkNavigation.mm: instant, reversible in-document link
