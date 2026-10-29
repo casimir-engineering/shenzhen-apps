@@ -944,3 +944,16 @@ emulated rate in the same runs, so against what each route delivers alone, Bluet
 Bluetooth (the WP6 proposal above) would close it on short files too.
 
 Online data-channel lanes and 8 MiB buffering are not done: they need a data-channel bench with delay first.
+
+## Decision: pieces in WANT and HAVE (2026-10-29, before minor 4 shipped)
+
+The coordinator decided, with the owner's go-ahead to change protocol 4 freely because no released app speaks it, to
+bring Bluetooth resume and slow-lane scheduling below the 1 MiB block now rather than in WP6. ADR 0018 § 3 and § 7 have
+the rule: **Pieces** (field 47, the Ranges format, counting 16 KiB pieces from the start of the file) in HAVE (pieces
+arrived in blocks not yet complete; at least every 256 KiB of a lane's parts, after every PART on Bluetooth) and in
+WANT (pieces still missing from partly received blocks; a WANT carries Ranges, Pieces or both). Blocks stay the unit
+of the tree, of checking and of durability. Senders schedule 256 KiB slices.
+
+For WP1 (vectors: a WANT with Pieces only, with both, a HAVE with Pieces and Ranges; the WANT rule "at least one of
+Ranges and Pieces") and WP4 (a3ffa2ff7a362dcb5, the Objective-C helper: field 47 in both frames, the receiver's
+piece HAVEs and WANT, the sender's slices): this section and the ADR are the spec; WP3 builds the Rust side next.

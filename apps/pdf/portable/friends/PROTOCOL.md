@@ -1466,7 +1466,7 @@ change: the contract adds no intent, view, field or capability, only these rules
 
 - **Progress.** A transfer's `progress` counts the blocks that arrived and were checked, so it only ever goes up, and
   it keeps its value through a route change, sleep or a restart of either computer: a transfer that stops and starts
-  again carries on from where it was. Blocks may arrive out of order; `progress` is still a fraction of the file.
+  again carries on from where it was, and after a route change only what was on the way is sent again. Blocks may arrive out of order; `progress` is still a fraction of the file.
 - **Several routes.** `route_note` keeps its rule (only when the file moves slowly enough that the time left helps
   the person decide) and names the routes that carry the file. When Bluetooth helps a slow network, "Over your network
   and Bluetooth, about 2 min" (catalog `estimate.network_and_bluetooth`, through `estimate.with_time`). When Bluetooth

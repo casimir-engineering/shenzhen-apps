@@ -98,9 +98,9 @@ with the same prefixes and nothing else in this record changes.
 | Type | Name | Fields | Direction |
 |---|---|---|---|
 | 28 | HASHES | ID, Index (39), Hashes (40) | sender to receiver, after acceptance |
-| 29 | WANT | ID, Ranges (41) | receiver to sender: these blocks are missing, send them |
+| 29 | WANT | ID, Ranges (41), Pieces (47) | receiver to sender: these blocks, and these pieces of partly received blocks, are missing |
 | 30 | PART | ID, Offset (8, u64be file offset), Data (9, 1 to 61,440 bytes); Codec (44, u8) and Length (45, u32be) when compressed | sender to receiver |
-| 31 | HAVE | ID, Ranges (41): blocks complete, checked and written; Durable (42): blocks made durable | receiver to sender |
+| 31 | HAVE | ID, Ranges (41): blocks complete, checked and written; Durable (42): blocks made durable; Pieces (47): pieces arrived in blocks not yet complete | receiver to sender |
 
 Ranges are pairs of u32be (first block, count), ascending, not overlapping, at most 8,000 pairs (64,000 bytes) per
 field; HAVE ranges are what changed since the last HAVE, so HAVEs on different lanes simply add up. A PART lies inside
@@ -110,6 +110,24 @@ and dropped (a block sent on two lanes, § 6). The first late part of a block on
 naming that block on that lane: the HAVE that announced it may have gone with a lane that fell silent, and the sender,
 having given the block to another lane, would otherwise wait for it forever (found by WP2's simulator). In fast mode DONE is not sent: the receiver knows when every block is
 durable, runs the publish check (§ 5) and sends the ACK of ADR 0001 with the transfer's id, as today.
+
+**Pieces** (field 47, decided 2026-10-29 before minor 4 shipped, so without a version change). Pieces are the
+16 KiB (2^14) units of the file: piece p covers bytes p × 16,384 up to the next multiple or the end of the file, and
+the field uses the Ranges format counting pieces from the start of the file. Blocks stay the unit of the tree, of
+checking and of durability; pieces only say what arrived and what is missing, so a lost lane, an ended session or a
+route change costs the pieces that were in flight, not a whole block (a 1 MiB block is 6 s of Bluetooth):
+
+- HAVE may carry Pieces: the pieces that arrived on that lane since its last HAVE, in blocks not yet complete. The
+  receiver sends them at least every 256 KiB of a lane's parts, and after every PART on a Bluetooth lane, where a
+  part is one piece. The HAVE that names a block in Ranges covers its pieces.
+- WANT carries Ranges, Pieces or both, at least one non-empty: whole blocks with nothing received in Ranges, and in
+  Pieces the pieces still missing from blocks partly received. The sender sends exactly those.
+- A block is checked against its leaf only when complete, and one that fails is wanted again whole (Ranges); pieces
+  never count toward durability. A receiver keeps partly received blocks in memory, so after it restarts it wants
+  whole blocks again (the map holds checked blocks only); after a route change, a lost lane or sleep, only pieces.
+- A PART still lies inside one block and need not be aligned to pieces; a piece has arrived once every byte of it
+  has. A sender may give the pieces of one block to several lanes: the Rust helper schedules 256 KiB slices (§ 7), so
+  a Bluetooth lane takes 1.5 s of work at a time and the last slices never wait behind it.
 
 Per transfer at most 64 blocks, and at most 64 MiB, may be wanted, partly received and not complete at once; a sender
 that goes past it is closed. That bounds what a peer can make a receiver hold whether it buffers blocks in memory
@@ -127,7 +145,7 @@ exit the receiver re-checks every block the map claims before trusting it (2 GiB
 all cores), so the ordering above is about saving work, not about correctness.
 
 On every new session or lane group with the sender, and whenever it wants something again, the receiver sends WANT
-with exactly the missing ranges. This replaces the resume PROGRESS for fast transfers and is the same mechanism after
+with exactly the missing blocks and, in blocks partly received, the missing pieces (§ 3). This replaces the resume PROGRESS for fast transfers and is the same mechanism after
 a restart, after sleep, after a route change and after a failed block: the sender serves what is asked. It is not
 required to re-hash its snapshot first any more; instead it checks each block against its own leaf as it reads it to
 send (a changed snapshot fails at the first changed block, never after sending it), and fails the transfer as today
@@ -195,6 +213,10 @@ their own cipher state and thread, which is how one transfer uses several cores.
 share one SCTP association and so one congestion controller: more of them add cores, not shares of the path.
 
 ### 7. Scheduling across lanes and the congestion-control choice
+
+The scheduler's unit is a **slice**: 256 KiB, a quarter of a 1 MiB block (16 pieces, § 3); "block" below means a
+slice where the sender schedules slices. Pieces acknowledged in HAVE count as delivered, so rates and round trips are
+measured per slice, and a lane that goes away gives back only its unacknowledged pieces.
 
 Each lane keeps a delivery rate (the largest bytes-per-second over HAVEs in the last 10 s), a round-trip time (the
 smallest time from a block's last part to its HAVE in the last 10 s) and its bytes in flight (blocks assigned and not in
