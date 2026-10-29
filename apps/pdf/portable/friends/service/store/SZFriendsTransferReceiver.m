@@ -435,6 +435,27 @@ static BOOL SZFriendsHashPrefix(int fd, uint64_t length, crypto_generichash_stat
 
 // Staging files no row references (a download cancelled mid-crash, a snapshot staged and never offered) hold
 // document bytes nobody will use; they go. Rows staged but never offered go with them.
+// Copies kept across restarts are given up after this long without a byte arriving (ADR 0018 § 4).
+static const NSTimeInterval SZFriendsCopyKeepSeconds = 30 * 24 * 3600;
+
+// A Get again or own-device copy's partial file or received-blocks record (again-<id>, sync-<id>, and <…>.map), changed
+// within SZFriendsCopyKeepSeconds: it stays, so the copy resumes from what arrived.
+static BOOL SZFriendsIsRecentCopy(NSString *path, NSString *name) {
+    NSString *stem = [name hasSuffix:@".map"] ? [name substringToIndex:name.length - 4] : name;
+    NSString *identifier = [stem hasPrefix:@"again-"] ? [stem substringFromIndex:6]
+                           : [stem hasPrefix:@"sync-"] ? [stem substringFromIndex:5]
+                                                       : nil;
+    if (identifier.length == 0 || identifier.length > 64) return NO;
+    for (NSUInteger i = 0; i < identifier.length; i++) {
+        unichar c = [identifier characterAtIndex:i];
+        BOOL allowed = (c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_';
+        if (!allowed) return NO;
+    }
+    struct stat info;
+    if (lstat(path.fileSystemRepresentation, &info) != 0 || !S_ISREG(info.st_mode)) return NO;
+    return [NSDate date].timeIntervalSince1970 - (double)info.st_mtimespec.tv_sec < SZFriendsCopyKeepSeconds;
+}
+
 - (BOOL)removeOrphansIn:(SZFriendsStoreDB *)db error:(NSError **)error {
     BOOL ok = [db transaction:^BOOL(NSError **inner) {
         return [db run:@"DELETE FROM transfers WHERE outgoing = 1 AND state = 0 AND transfer_id NOT IN "
@@ -474,7 +495,9 @@ static BOOL SZFriendsHashPrefix(int fd, uint64_t length, crypto_generichash_stat
     for (NSString *directory in @[ _partialDirectory, outgoing ]) {
         for (NSString *name in [NSFileManager.defaultManager contentsOfDirectoryAtPath:directory error:NULL]) {
             NSString *path = [directory stringByAppendingPathComponent:name];
-            if (![referenced containsObject:path.stringByStandardizingPath]) [orphans addObject:path];
+            if ([referenced containsObject:path.stringByStandardizingPath]) continue;
+            if ([directory isEqualToString:_partialDirectory] && SZFriendsIsRecentCopy(path, name)) continue;
+            [orphans addObject:path];
         }
     }
     SZFriendsRemovePrivateFiles(_stateDirectory, orphans);

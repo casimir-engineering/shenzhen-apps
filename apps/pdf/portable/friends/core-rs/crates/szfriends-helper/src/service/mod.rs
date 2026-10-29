@@ -299,7 +299,7 @@ pub(crate) struct Client {
 /// Everything the service's thread owns.
 /// A test home's switch for fast transfers (ADR 0018 § 1): "0" plays a helper without them.
 pub const ENV_TEST_FAST_TRANSFERS: &str = "SZFRIENDS_TEST_FAST_TRANSFERS";
-/// A test home's switch for Get again and own-device copies by blocks: "1" asks for them so.
+/// A test home's switch for Get again and own-device copies by blocks: "0" asks for them by offset.
 pub const ENV_TEST_COPIES_BY_BLOCKS: &str = "SZFRIENDS_TEST_COPIES_BY_BLOCKS";
 /// A test home's switch for lanes (ADR 0018 § 6): "0" opens and admits none.
 pub const ENV_TEST_LANES: &str = "SZFRIENDS_TEST_LANES";
@@ -367,9 +367,9 @@ pub(crate) struct State {
     pub fast_transfers: bool,
     /// Files received by blocks whose check before saving is running, since when (`blocks.rs`).
     pub finishing: HashMap<String, std::time::Instant>,
-    /// Get again and own-device copies asked for by blocks (ADR 0018 § 4). Served by blocks whenever asked; asked
-    /// for so only once the Objective-C helper answers them too (WP4): until then a test home turns it on
-    /// (`SZFRIENDS_TEST_COPIES_BY_BLOCKS=1`).
+    /// Get again and own-device copies asked for by blocks on fast sessions (ADR 0018 § 4), which both helpers
+    /// answer. Served by blocks whenever asked; asked for by offset only in a test home that says so
+    /// (`SZFRIENDS_TEST_COPIES_BY_BLOCKS=0`).
     pub copies_by_blocks: bool,
     /// ADR 0018 § 6: lanes beside a fast session; off only in a test home (`SZFRIENDS_TEST_LANES=0`).
     pub lanes: bool,
@@ -439,7 +439,7 @@ impl State {
             next_receipt: 0,
             capabilities,
             finishing: HashMap::new(),
-            copies_by_blocks: test_home && std::env::var_os(ENV_TEST_COPIES_BY_BLOCKS).is_some_and(|v| v == "1"),
+            copies_by_blocks: !(test_home && std::env::var_os(ENV_TEST_COPIES_BY_BLOCKS).is_some_and(|v| v == "0")),
             // The settings key `transfers.fast` (on unless it holds 0), read as the helper starts.
             fast_transfers: fast_setting
                 && !(test_home && std::env::var_os(ENV_TEST_FAST_TRANSFERS).is_some_and(|v| v == "0")),

@@ -1028,9 +1028,23 @@ session lost the race, the lanes end with it as before. Exercised at the exchang
 through the interop peer's bench runs. No two-helper harness drives Objective-C helpers over lanes yet: the per-route
 rate emulation (`SZFRIENDS_TEST_ROUTE_RATES`) is the Rust helper's only.
 
-**Left for WP4:** the receiver's piece HAVEs and WANTs and the sender's 256 KiB slices, once WP3 lands them; Get again and
-own-device copies by blocks once WP1's Rust flows land (messages ready, flows not); WP6's work as its journal
-section lands. Not tried on two real Macs: the direct Wi-Fi and Bluetooth lanes
+**The Mac helper answers copies by blocks (AGAIN 4, SYNC 7), and the Rust helper asks for them by default.** A
+friend's Get again (AGAIN 4 WANT BLOCKS) gets the same checks as a WANT: one file at a time, a file this Mac sent them,
+unchanged. Another of our devices (SYNC 7) gets a file this device holds. The answer is BLOCKS FOLLOW (AGAIN 5 or SYNC
+8) with the file's tree at the asked shift, kept per file while it is unchanged. Then come the leaves, and the blocks
+asked for as 48 KiB PARTs: each block is read from the file and checked against its leaf, sent while the session's
+bulk queue holds fewer than four frames, within 8 MiB not yet in a HAVE. A block that no longer matches answers NONE.
+The Rust helper's `copies_by_blocks` is now on unless a test home sets `SZFRIENDS_TEST_COPIES_BY_BLOCKS=0`. The Mac
+helper still asks for its own copies by offset, which every helper serves. The tree is hashed on the helper's queue
+the first time a file is asked for, as in Rust.
+
+**Copies resume across a restart on the Mac too (as 58cd7d62).** The store's sweep at start keeps `again-<id>` and
+`sync-<id>` in `received/.partial` (and any `.map` beside them) while they changed within 30 days, so a copy resumes
+from what arrived; an older one goes. A copy given up for good (the friend says the file is gone, or it does not
+check) goes at once with its record.
+
+**Left for WP4:** the receiver's piece HAVEs and WANTs and the sender's 256 KiB slices, once WP3 lands them; the Mac
+helper asking for its own copies by blocks; WP6's work as its journal section lands. Not tried on two real Macs: the direct Wi-Fi and Bluetooth lanes
 are exercised through the bench's emulated routes and the helper's fake channels only.
 
 ## WP1, part 2: copies, small files, the check before saving, Finishing and the switch (2026-10-29)

@@ -3,6 +3,7 @@
 // restart that keeps blocks past the prefix and re-checks them, the publish check, and the sender's tree from staging.
 
 #import <fcntl.h>
+#import <sys/time.h>
 #import <unistd.h>
 
 #import "SZFriendsStoreTestSupport.h"
@@ -279,6 +280,31 @@ static void TestTheCheckInThreeSteps(void) {
                @"saved once it completes: %@", error);
 }
 
+// ADR 0018 § 4, as 58cd7d62: Get again and own-device copies (and their received-blocks records) survive the
+// recovery sweep at start, so they resume; a copy untouched for 30 days goes, and so does a stray file.
+static void TestCopiesSurviveARestart(void) {
+    NSString *directory = SZFTTemporaryDirectory(@"copies");
+    SZFriendsStore *store = SZFTOpenStore(directory);
+    Transfers(store); // makes received/.partial
+    NSString *partial = [[store.stateDirectory stringByAppendingPathComponent:@"received"]
+        stringByAppendingPathComponent:@".partial"];
+    NSString *again = [partial stringByAppendingPathComponent:@"again-0123456789abcdef0123456789abcdef"];
+    NSString *againMap = [again stringByAppendingString:@".map"];
+    NSString *sync = [partial stringByAppendingPathComponent:@"sync-fedcba9876543210fedcba9876543210"];
+    NSString *old = [partial stringByAppendingPathComponent:@"again-00000000000000000000000000000000"];
+    NSString *stray = [partial stringByAppendingPathComponent:@"leftover"];
+    for (NSString *path in @[ again, againMap, sync, old, stray ]) [SZFTRandomData(100) writeToFile:path atomically:NO];
+    struct timeval month[2] = {{time(NULL) - 31 * 24 * 3600, 0}, {time(NULL) - 31 * 24 * 3600, 0}};
+    utimes(old.fileSystemRepresentation, month);
+    [store close];
+    Transfers(SZFTOpenStore(directory)); // the sweep at start
+    NSFileManager *files = NSFileManager.defaultManager;
+    SZFTExpect([files fileExistsAtPath:again] && [files fileExistsAtPath:againMap] && [files fileExistsAtPath:sync],
+               @"recent copies and their records stay");
+    SZFTExpect(![files fileExistsAtPath:old] && ![files fileExistsAtPath:stray],
+               @"a month-old copy and a stray file go");
+}
+
 #pragma mark - Two exchanges, one session between them
 
 // Frames from one side wait here until the other side takes them.
@@ -551,4 +577,5 @@ void SZFTRunTransferBlockTests(void) {
     TestAFileHeldIsFilledLocallyAndNoOtherFriends();
     TestANewVersionTakesTheUnchangedBlocks();
     TestTheCheckInThreeSteps();
+    TestCopiesSurviveARestart();
 }

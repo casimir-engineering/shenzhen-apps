@@ -185,8 +185,21 @@ static void TestServerLimits(void) {
     SZFSExpect(![server receiveMessage:[want subdataWithRange:NSMakeRange(0, 20)]], @"a short WANT ends the session");
 }
 
+// A copy given up for good (the file is gone, or it did not check) goes with its received-blocks record (58cd7d62).
+static void TestACopyGivenUpGoesWhole(void) {
+    NSString *copy = [SZFSTemporaryDirectory(@"copy-gone") stringByAppendingPathComponent:@"again-00ff"];
+    NSString *map = [copy stringByAppendingString:@".map"];
+    [[NSData dataWithBytes:"x" length:1] writeToFile:copy atomically:NO];
+    [[NSData dataWithBytes:"y" length:1] writeToFile:map atomically:NO];
+    SZFriendsRemoveCopy(copy);
+    SZFSExpect(![NSFileManager.defaultManager fileExistsAtPath:copy] &&
+                   ![NSFileManager.defaultManager fileExistsAtPath:map],
+               @"the copy and its record go together");
+}
+
 void SZFSRunAgainTests(void) {
     TestCopiesWholeAndResumes();
     TestAnswersAndChanges();
     TestServerLimits();
+    TestACopyGivenUpGoesWhole();
 }

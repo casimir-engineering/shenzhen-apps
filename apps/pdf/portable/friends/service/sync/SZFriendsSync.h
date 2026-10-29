@@ -281,8 +281,22 @@ extern const NSUInteger SZFriendsSyncWindow; // 4 EVENTS messages in flight
 // The file the peer is copying from this side (its latest WANT), and how far that copy has got; nil once done.
 @property(nonatomic, readonly, nullable) NSString *servingTransferID;
 @property(nonatomic, readonly) double servingFraction;
+// The peer asks for a file by blocks (7 WANT BLOCKS, ADR 0018 § 4, on sessions with fast transfers): the file held
+// here at `path`, its size, the block shift and the blocks wanted (packed (first, count) pairs). The owner serves it
+// (8 BLOCKS FOLLOW, then HASHES and PARTs on the session), or answers -sendNone:. A file not held here is answered
+// NONE before this is called.
+@property(nonatomic, copy, nullable) void (^wantBlocks)(NSString *transferID, NSString *path, uint64_t size,
+                                                         uint8_t shift, NSData *ranges);
+// 6 NONE for that file: this side cannot give its bytes.
+- (void)sendNone:(NSString *)transferID;
+// Sends a message the owner built (8 BLOCKS FOLLOW), marking that file as served.
+- (void)sendServing:(NSString *)transferID message:(NSData *)message;
 // The session ended: partial copies stay for the next one.
 - (void)stop;
 @end
+
+// The ranges of a WANT BLOCKS (u32be pairs, first and count, none empty) as packed host-order pairs; nil when
+// malformed.
+NSData *_Nullable SZFriendsCopyRangesDecode(const uint8_t *bytes, NSUInteger length);
 
 NS_ASSUME_NONNULL_END

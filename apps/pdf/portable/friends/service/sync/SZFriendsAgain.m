@@ -14,6 +14,8 @@ typedef NS_ENUM(uint8_t, SZFriendsAgainMessage) {
     SZFriendsAgainMessageWant = 1,
     SZFriendsAgainMessagePart = 2,
     SZFriendsAgainMessageNone = 3,
+    SZFriendsAgainMessageWantBlocks = 4,
+    SZFriendsAgainMessageBlocksFollow = 5,
 };
 
 static const uint16_t SZFriendsAgainParts = 8;           // parts per WANT
@@ -41,6 +43,11 @@ BOOL SZFriendsFileHasDigest(NSString *path, uint64_t size, NSData *digest) {
     uint8_t computed[32];
     crypto_generichash_final(&state, computed, sizeof computed);
     return total == size && sodium_memcmp(computed, digest.bytes, 32) == 0;
+}
+
+void SZFriendsRemoveCopy(NSString *path) {
+    [NSFileManager.defaultManager removeItemAtPath:path error:NULL];
+    [NSFileManager.defaultManager removeItemAtPath:[path stringByAppendingString:@".map"] error:NULL];
 }
 
 static NSData *_Nullable SZFriendsAgainID(NSString *transferID) {
@@ -194,7 +201,7 @@ static NSMutableData *SZFriendsAgainHead(SZFriendsAgainMessage type, NSData *ide
         if (self.arrived) self.arrived(copy.file, copy.path);
     } else {
         // Not the bytes it was sent as: the friend's file changed while it was read.
-        [NSFileManager.defaultManager removeItemAtPath:copy.path error:NULL];
+        SZFriendsRemoveCopy(copy.path);
         if (self.notThere) self.notThere(copy.file.transferID);
     }
 }
@@ -206,14 +213,14 @@ static NSMutableData *SZFriendsAgainHead(SZFriendsAgainMessage type, NSData *ide
     if (copy.received + bytes.length > copy.file.size || (last && copy.received + bytes.length != copy.file.size)) {
         _copy = nil;
         [copy.handle closeFile];
-        [NSFileManager.defaultManager removeItemAtPath:copy.path error:NULL];
+        SZFriendsRemoveCopy(copy.path);
         [_unavailable addObject:transferID];
         return;
     }
     if (![copy.handle writeData:bytes error:NULL]) {
         _copy = nil;
         [copy.handle closeFile];
-        [NSFileManager.defaultManager removeItemAtPath:copy.path error:NULL];
+        SZFriendsRemoveCopy(copy.path);
         if (self.noRoom) self.noRoom(transferID);
         [self pump];
         return;
@@ -231,7 +238,7 @@ static NSMutableData *SZFriendsAgainHead(SZFriendsAgainMessage type, NSData *ide
     BOOL copying = [_copy.file.transferID isEqualToString:transferID];
     if (copying) {
         [_copy.handle closeFile];
-        if (reason == SZFriendsAgainAnswerNotHere) [NSFileManager.defaultManager removeItemAtPath:_copy.path error:NULL];
+        if (reason == SZFriendsAgainAnswerNotHere) SZFriendsRemoveCopy(_copy.path);
         _copy = nil;
     }
     [_unavailable addObject:transferID];
@@ -285,6 +292,34 @@ static NSMutableData *SZFriendsAgainHead(SZFriendsAgainMessage type, NSData *ide
     _servingDone = at >= size;
 }
 
+- (nullable NSString *)beginServingBlocks:(NSString *)transferID size:(uint64_t *)size {
+    BOOL busy = _servingID != nil && ![_servingID isEqualToString:transferID] && !_servingDone &&
+                [[NSDate date] timeIntervalSinceDate:_servingAt] < SZFriendsAgainOneAtATime;
+    if (busy) {
+        [self sendNone:transferID reason:SZFriendsAgainAnswerNotNow];
+        return nil;
+    }
+    SZFriendsAgainAnswer answer = SZFriendsAgainAnswerNotHere;
+    NSString *path = self.servePath ? self.servePath(transferID, size, &answer) : nil;
+    if (path == nil) {
+        [self sendNone:transferID reason:answer];
+        return nil;
+    }
+    _servingID = transferID;
+    _servingAt = [NSDate date];
+    _servingDone = NO;
+    return path;
+}
+
+- (void)sendNone:(NSString *)transferID reason:(SZFriendsAgainAnswer)reason {
+    NSData *identifier = SZFriendsAgainID(transferID);
+    if (identifier == nil) return;
+    NSMutableData *message = SZFriendsAgainHead(SZFriendsAgainMessageNone, identifier);
+    uint8_t byte = reason;
+    [message appendBytes:&byte length:1];
+    _send(message);
+}
+
 #pragma mark - Messages
 
 - (BOOL)receiveMessage:(NSData *)message {
@@ -309,6 +344,15 @@ static NSMutableData *SZFriendsAgainHead(SZFriendsAgainMessage type, NSData *ide
         [self receiveNone:transferID reason:p[17] == SZFriendsAgainAnswerNotHere ? SZFriendsAgainAnswerNotHere
                                                                                  : SZFriendsAgainAnswerNotNow];
         return YES;
+    case SZFriendsAgainMessageWantBlocks: {
+        NSData *ranges = message.length > 18 ? SZFriendsCopyRangesDecode(p + 18, message.length - 18) : nil;
+        if (ranges == nil) return NO;
+        if (self.wantBlocks) self.wantBlocks(transferID, p[17], ranges);
+        else [self sendNone:transferID reason:SZFriendsAgainAnswerNotNow];
+        return YES;
+    }
+    case SZFriendsAgainMessageBlocksFollow:
+        return YES; // this side asks for its copies by offset, never by blocks
     default:
         return YES; // a later kind of message this side does not know: nothing to do
     }

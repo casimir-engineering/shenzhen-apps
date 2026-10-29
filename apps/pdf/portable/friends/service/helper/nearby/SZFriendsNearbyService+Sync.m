@@ -172,6 +172,16 @@ static NSData *_Nullable SZFriendsKeyFromHex(NSString *hex) {
                       [strongLink.channel sendFrame:[SZFriendsFrame frameWithType:SZFriendsFrameTypeSync
                                                                            fields:@{@(SZFriendsFieldSync) : message}]];
                   }];
+    // A copy by blocks (SYNC 7, ADR 0018 § 4) of a file this device holds.
+    __weak SZFriendsNearbyService *weakSelf = self;
+    __weak SZFriendsSyncExchange *weakExchange = exchange;
+    exchange.wantBlocks = ^(NSString *transferID, NSString *path, uint64_t size, uint8_t shift, NSData *ranges) {
+        SZFriendsPeerLink *strongLink = weakLink;
+        if (strongLink == nil || ![weakSelf serveCopyOnLink:strongLink transfer:transferID path:path size:size
+                                                      shift:shift ranges:ranges sync:YES]) {
+            [weakExchange sendNone:transferID];
+        }
+    };
     link.syncExchange = exchange;
     [engine captureLocalChanges];
     [exchange start];

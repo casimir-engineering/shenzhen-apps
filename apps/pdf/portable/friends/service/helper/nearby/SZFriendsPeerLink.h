@@ -70,6 +70,10 @@ NSData *_Nullable SZFriendsLinkBytesFromHex(NSString *_Nullable hex); // nil unl
 @property(nonatomic, copy, nullable) NSString *syncDeviceHex;
 // A session with a friend at session minor 3 or later (+Again): files asked for again, either way.
 @property(nonatomic, strong, nullable) SZFriendsAgainExchange *againExchange;
+// Files this computer serves by blocks on this session (ADR 0018 § 4): Get again for a friend, or a copy for one of
+// our own devices, by transfer id (SZFriendsNearbyService+Copies.m).
+@property(nonatomic, strong, nullable) NSMutableDictionary<NSString *, id> *servedCopies;
+@property(nonatomic) BOOL servedCopiesTickScheduled;
 // Responder of an IK callback presenting our Add by ID token: the Friends ID that request asked for, and whether the
 // answer showed the host's attestation for it. An ACCEPT the host did not vouch for becomes a request the person
 // accepts (+Inbound), never a friendship by itself (wave-4 security re-check).

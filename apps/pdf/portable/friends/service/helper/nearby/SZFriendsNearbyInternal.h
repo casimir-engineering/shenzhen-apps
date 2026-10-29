@@ -386,6 +386,21 @@ void SZFriendsNearbyRecordEvent(SZFriendsStore *store, NSString *eventKind, NSSt
 - (nullable SZFriendsPeerLink *)handOverGroupOfLink:(SZFriendsPeerLink *)head;
 @end
 
+// Get again and own-device copies served by blocks (ADR 0018 § 4; SZFriendsNearbyService+Copies.m).
+@interface SZFriendsNearbyService (Copies)
+// Serves the file at `path` by blocks on the link: BLOCKS FOLLOW (AGAIN 5, or SYNC 8 when `sync`) with its tree at
+// `shift`, then the leaves and the blocks in `ranges`. NO when it cannot (the caller answers NONE).
+- (BOOL)serveCopyOnLink:(SZFriendsPeerLink *)link
+               transfer:(NSString *)transferID
+                   path:(NSString *)path
+                   size:(uint64_t)size
+                  shift:(uint8_t)shift
+                 ranges:(NSData *)ranges
+                   sync:(BOOL)sync;
+// A HAVE for a file served by blocks on this link: YES when it was one.
+- (BOOL)link:(SZFriendsPeerLink *)link receivedCopyHave:(SZFriendsFrame *)frame;
+@end
+
 // File previews (brief § Transfers, Thumbnails before acceptance; SZFriendsNearbyService+Thumbnails.m).
 @interface SZFriendsNearbyService (ThumbnailFrames)
 // After the outbox entries: our previews of offers already on this link or delivered, to a peer that knows THUMBNAIL.

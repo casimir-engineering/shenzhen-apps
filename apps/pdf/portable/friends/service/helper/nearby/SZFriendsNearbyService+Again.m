@@ -202,6 +202,19 @@ static NSString *SZFriendsAgainKey(NSString *transferID) {
     exchange.servePath = ^NSString *_Nullable(NSString *transferID, uint64_t *size, SZFriendsAgainAnswer *answer) {
         return [weakSelf againPathToServe:transferID conversation:conversationID size:size answer:answer];
     };
+    // A copy by blocks (AGAIN 4, ADR 0018 § 4): the same checks, then the file's tree and the blocks asked for.
+    __weak SZFriendsAgainExchange *weakExchange = exchange;
+    exchange.wantBlocks = ^(NSString *transferID, uint8_t shift, NSData *ranges) {
+        SZFriendsAgainExchange *strongExchange = weakExchange;
+        SZFriendsPeerLink *strongLink = weakLink;
+        uint64_t size = 0;
+        NSString *path = [strongExchange beginServingBlocks:transferID size:&size];
+        if (path == nil || strongLink == nil) return;
+        if (![weakSelf serveCopyOnLink:strongLink transfer:transferID path:path size:size shift:shift ranges:ranges
+                                  sync:NO]) {
+            [strongExchange sendNone:transferID reason:SZFriendsAgainAnswerNotHere];
+        }
+    };
     link.againExchange = exchange;
     return exchange;
 }
