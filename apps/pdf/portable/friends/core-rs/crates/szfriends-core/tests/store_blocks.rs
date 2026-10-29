@@ -182,3 +182,16 @@ fn the_sender_keeps_its_tree_and_a_changed_snapshot_fails_at_its_first_changed_b
     let store = Store::open(scratch.state()).unwrap();
     assert!(store.sender_tree_path(&record.transfer_id).exists() && !stray.exists());
 }
+
+#[test]
+fn fast_transfers_are_on_unless_the_setting_says_no() {
+    let scratch = Scratch::new("setting");
+    let mut store = Store::open(scratch.state()).unwrap();
+    assert!(store.fast_transfers_enabled(), "on by default");
+    store.set_fast_transfers_enabled(false).unwrap();
+    drop(store);
+    let mut store = Store::open(scratch.state()).unwrap();
+    assert!(!store.fast_transfers_enabled(), "kept across a restart");
+    store.set_fast_transfers_enabled(true).unwrap();
+    assert!(store.fast_transfers_enabled());
+}

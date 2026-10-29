@@ -40,6 +40,10 @@ static NSDictionary<NSString *, NSString *> *TransferAndConversationEntries(void
         @"transfer.status.failed.in.digest_mismatch" : @"Arrived damaged, so it wasn’t saved",
         @"transfer.progress.sending" : @"Sending, {percent} percent",
         @"transfer.progress.receiving" : @"Receiving, {percent} percent",
+        // Every block arrived; the whole file is checked before it is saved (PROTOCOL.md § Fast transfers).
+        @"transfer.finishing" : @"Finishing…",
+        @"transfer.progress.finishing" : @"Finishing",
+        @"transfer.spoken.in.finishing" : @"{sender} sent {file}, {kind}, {size}{auto}, finishing",
         @"transfer.spoken.in.waiting_for_you" : @"{sender} wants to send you {file}, {kind}, {size}{note}{extra}",
         @"transfer.spoken.in.receiving" : @"{sender} is sending {file}, {kind}, {size}{auto}, {percent} percent "
                                           @"received{left}",

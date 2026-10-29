@@ -184,7 +184,7 @@ impl State {
         self.sessions.map.retain(|_, s| !s.finished);
     }
 
-    fn service(&mut self, id: u64) {
+    pub(super) fn service(&mut self, id: u64) {
         let now = monotonic_now();
         if let Some(s) = self.sessions.map.get_mut(&id) {
             let (keepalive, watch) = transfer_liveness(s.senders.values().map(|o| &o.sender), s.receivers.values());
@@ -434,7 +434,14 @@ impl State {
     pub fn next_wakeup(&self) -> Duration {
         let now = monotonic_now();
         let timers = self.sessions.map.values().filter_map(|s| s.channel.poll_timeout()).min();
-        let flush = self.sessions.map.values().filter_map(|s| s.flush_due).chain(self.store.block_flush_due()).min();
+        let flush = self
+            .sessions
+            .map
+            .values()
+            .filter_map(|s| s.flush_due)
+            .chain(self.store.block_flush_due())
+            .chain(self.finishing_due())
+            .min();
         let mut wait = timers.map_or(Duration::from_millis(250), |at| at.saturating_sub(now));
         if let Some(at) = flush {
             wait = wait.min(at.saturating_duration_since(Instant::now()));

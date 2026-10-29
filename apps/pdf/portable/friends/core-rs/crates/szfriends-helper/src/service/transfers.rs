@@ -323,7 +323,7 @@ impl State {
         let now = monotonic_now();
         let route = self.chunk_route(id);
         for record in self.store.unfinished_incoming_transfers(conversation).unwrap_or_default() {
-            if self.resume_blocks(id, &record) {
+            if self.finishing.contains_key(&record.transfer_id) || self.resume_blocks(id, &record) {
                 continue;
             }
             let offer = unhex(&record.transfer_id).unwrap_or_default();

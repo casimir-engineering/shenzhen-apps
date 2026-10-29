@@ -297,6 +297,9 @@ pub struct ItemFacts {
     pub transfer_state: Option<TransferState>,
     pub accepted_automatically: bool,
     pub asked_because_disk_low: bool,
+    /// Every block arrived and the whole file is being checked before it is saved, for longer than a second
+    /// (PROTOCOL.md § Fast transfers): "Finishing…".
+    pub finishing: bool,
     pub transfer_route: RouteMethod,
     /// Measured on the current route; 0 when unknown.
     pub bytes_per_second: f64,

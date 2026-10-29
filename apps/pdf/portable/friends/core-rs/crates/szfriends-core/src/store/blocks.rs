@@ -102,6 +102,70 @@ impl StreamedDigest {
     }
 }
 
+/// The check before saving a file received by blocks (ADR 0018 § 5), detached from the store so it can run on a
+/// thread of its own: the file read back through the descriptor that wrote it, its tree on every core, and the digest
+/// streamed as it arrived (or read here, after a restart).
+#[derive(Debug)]
+pub struct BlockCheck {
+    record: TransferRecord,
+    file: File,
+    partial: PathBuf,
+    geometry: Geometry,
+    root: tree::Leaf,
+    complete: BlockSet,
+    streamed: StreamedDigest,
+}
+
+/// What [`BlockCheck::run`] found.
+#[derive(Debug)]
+pub struct CheckedFile {
+    record: TransferRecord,
+    partial: PathBuf,
+    matches: bool,
+}
+
+impl CheckedFile {
+    pub fn transfer_id(&self) -> &str {
+        &self.record.transfer_id
+    }
+
+    pub fn conversation_id(&self) -> &str {
+        &self.record.conversation_id
+    }
+}
+
+impl BlockCheck {
+    pub fn transfer_id(&self) -> &str {
+        &self.record.transfer_id
+    }
+
+    /// Reads the file back and checks it: the tree against the offered root, the digest against the offered one.
+    pub fn run(self) -> CheckedFile {
+        let Self { record, file, partial, geometry, root, complete, mut streamed } = self;
+        let named = fs::symlink_metadata(&partial).ok();
+        let opened = file.metadata().ok();
+        let same_file = match (&named, &opened) {
+            (Some(named), Some(opened)) => {
+                #[cfg(unix)]
+                let same = {
+                    use std::os::unix::fs::MetadataExt;
+                    named.dev() == opened.dev() && named.ino() == opened.ino()
+                };
+                #[cfg(not(unix))]
+                let same = true;
+                named.is_file() && same && opened.len() == record.size
+            }
+            _ => false,
+        };
+        streamed.advance(&file, &geometry, &complete, None);
+        let streamed = streamed.finish(geometry.blocks);
+        let hashed = same_file.then(|| tree::hash_file(&file, &geometry, streamed.is_none()).ok()).flatten();
+        let digest = streamed.or_else(|| hashed.as_ref().and_then(|h| h.digest));
+        let matches = hashed.is_some_and(|h| h.root == root) && digest == Some(record.digest);
+        CheckedFile { record, partial, matches }
+    }
+}
+
 /// One download by blocks: its assembly, staging file and map.
 #[derive(Debug)]
 pub(crate) struct BlockDownload {
@@ -204,7 +268,24 @@ fn receiving(conn: &rusqlite::Connection, transfer_id: &str, conversation_id: &s
     }
 }
 
+/// The settings key that switches fast transfers (ADR 0018 § 1): on unless it holds 0. No view shows it; it is the way
+/// back for a release without a protocol change.
+pub const SETTING_FAST_TRANSFERS: &str = "transfers.fast";
+
 impl Store {
+    /// Whether this helper offers fast transfers to peers that have them too ([`SETTING_FAST_TRANSFERS`]).
+    pub fn fast_transfers_enabled(&self) -> bool {
+        !matches!(
+            super::sync_settings::setting(&self.conn, SETTING_FAST_TRANSFERS),
+            Ok(rusqlite::types::Value::Integer(0))
+        )
+    }
+
+    pub fn set_fast_transfers_enabled(&mut self, enabled: bool) -> Result<()> {
+        let value = if enabled { rusqlite::types::Value::Null } else { rusqlite::types::Value::Integer(0) };
+        self.write(|conn| super::sync_settings::set_setting(conn, SETTING_FAST_TRANSFERS, value))
+    }
+
     fn partial_directory(&self) -> PathBuf {
         self.state_dir().join("received").join(".partial")
     }
@@ -497,47 +578,47 @@ impl Store {
         }
     }
 
-    /// ADR 0018 § 5: every block durable, the file is read back through the descriptor that wrote it, its tree and
-    /// BLAKE2b digest computed in one pass, and it is published only when both match the offer. Otherwise it is
-    /// deleted and the transfer fails (DigestMismatch), as a CHUNK transfer whose digest differs.
+    /// ADR 0018 § 5, in one call: [`Store::begin_block_check`], [`BlockCheck::run`], [`Store::complete_block_check`].
     pub fn finish_block_transfer(&mut self, transfer_id: &str, conversation_id: &str) -> Result<PathBuf> {
+        let check = self.begin_block_check(transfer_id, conversation_id)?;
+        self.complete_block_check(check.run())
+    }
+
+    /// Every block durable: the check before saving, handed out so it can run off the helper's thread (large files
+    /// show "Finishing…" meanwhile). The download leaves the open set; its map stays until the check completes, so a
+    /// helper that stops meanwhile runs the check again at its next start.
+    pub fn begin_block_check(&mut self, transfer_id: &str, conversation_id: &str) -> Result<BlockCheck> {
         let record = receiving(&self.conn, transfer_id, conversation_id)?;
         self.flush_blocks(transfer_id)?;
         if !self.blocks_all_durable(transfer_id) {
             return Err(StoreError::Invalid("file is incomplete"));
         }
         let download = self.receiving.blocks.remove(transfer_id).expect("checked");
-        let geometry = *download.assembly.geometry();
-        let named = fs::symlink_metadata(&download.partial).ok();
-        let opened = download.file.metadata().ok();
-        let same_file = match (&named, &opened) {
-            (Some(named), Some(opened)) => {
-                #[cfg(unix)]
-                let same = {
-                    use std::os::unix::fs::MetadataExt;
-                    named.dev() == opened.dev() && named.ino() == opened.ino()
-                };
-                #[cfg(not(unix))]
-                let same = true;
-                named.is_file() && same && opened.len() == record.size
-            }
-            _ => false,
-        };
-        // The tree read back on every core; the digest streamed as the blocks arrived (or, after a restart, read here).
-        let mut streamed = download.streamed;
-        streamed.advance(&download.file, &geometry, download.assembly.complete(), None);
-        let streamed = streamed.finish(geometry.blocks);
-        let hashed = same_file.then(|| tree::hash_file(&download.file, &geometry, streamed.is_none()).ok()).flatten();
-        let digest = streamed.or_else(|| hashed.as_ref().and_then(|h| h.digest));
-        let matches = hashed.is_some_and(|h| h.root == *download.assembly.root()) && digest == Some(record.digest);
-        drop(download.file);
-        drop(download.map);
-        let _ = fs::remove_file(self.block_map_path(transfer_id));
-        if matches {
-            return self.publish_received(&record, &download.partial);
+        Ok(BlockCheck {
+            geometry: *download.assembly.geometry(),
+            root: *download.assembly.root(),
+            complete: download.assembly.complete().clone(),
+            record,
+            file: download.file,
+            partial: download.partial,
+            streamed: download.streamed,
+        })
+    }
+
+    /// Saves a file whose check passed, or deletes it and fails the transfer (DigestMismatch). A transfer cancelled
+    /// while it was checked keeps nothing.
+    pub fn complete_block_check(&mut self, checked: CheckedFile) -> Result<PathBuf> {
+        let CheckedFile { record, partial, matches } = checked;
+        let _ = fs::remove_file(self.block_map_path(&record.transfer_id));
+        let still = receiving(&self.conn, &record.transfer_id, &record.conversation_id).is_ok();
+        if matches && still {
+            return self.publish_received(&record, &partial);
         }
-        let _ = fs::remove_file(&download.partial);
-        self.fail_received_transfer(transfer_id)?;
+        let _ = fs::remove_file(&partial);
+        if !still {
+            return Err(StoreError::Stale);
+        }
+        self.fail_received_transfer(&record.transfer_id)?;
         Err(StoreError::DigestMismatch)
     }
 

@@ -12,6 +12,8 @@ use szfriends_core::wire::{tag, CloseReason, Frame, FrameType};
 
 use super::{hex, unhex, State};
 
+/// A check shorter than this shows nothing: the row goes from the last block straight to saved.
+const FINISHING_AFTER: std::time::Duration = std::time::Duration::from_secs(1);
 /// Parts queued in the channel ahead of the link, as for CHUNKs: a message still overtakes them.
 const BULK_DEPTH: usize = 4;
 /// What one session keeps sent and not yet in a HAVE (one lane; the scheduler of WP2 sizes this per lane later).
@@ -263,11 +265,52 @@ impl State {
         if let Some(session) = self.sessions.map.get_mut(&id) {
             session.block_receivers.remove(transfer);
         }
-        match self.store.finish_block_transfer(transfer, conversation) {
-            Ok(_) => self.send_ack(id, &wire),
+        if self.finishing.contains_key(transfer) {
+            return;
+        }
+        // The check before saving runs on a thread of its own; past a second the row says "Finishing…".
+        let check = match self.store.begin_block_check(transfer, conversation) {
+            Ok(check) => check,
+            Err(error) => return crate::log!("a file received by blocks could not be checked: {error}"),
+        };
+        self.finishing.insert(transfer.to_owned(), std::time::Instant::now());
+        let input = self.input.clone();
+        let spawned = std::thread::Builder::new().name("szfriends-check".into()).spawn(move || {
+            let checked = check.run();
+            let _ =
+                input.send(super::Input::Deferred(Box::new(move |state: &mut State| state.block_check_done(checked))));
+        });
+        if spawned.is_err() {
+            self.finishing.remove(transfer);
+        }
+        self.changed();
+    }
+
+    /// The check before saving finished: saved and acknowledged, or deleted and failed.
+    fn block_check_done(&mut self, checked: szfriends_core::store::CheckedFile) {
+        let (transfer, conversation) = (checked.transfer_id().to_owned(), checked.conversation_id().to_owned());
+        self.finishing.remove(&transfer);
+        match self.store.complete_block_check(checked) {
+            Ok(_) => {
+                // Acknowledged on the friend's live session; without one, their next WANT finds it saved.
+                if let (Some(id), Some(wire)) = (self.sessions.live_for(&conversation), unhex(&transfer)) {
+                    self.send_ack(id, &wire);
+                    self.service(id);
+                }
+            }
             Err(error) => crate::log!("a file received by blocks did not check: {error}"),
         }
         self.changed();
+    }
+
+    /// Whether a transfer's row says "Finishing…": its check has run for more than a second.
+    pub(crate) fn shows_finishing(&self, transfer: &str) -> bool {
+        self.finishing.get(transfer).is_some_and(|since| since.elapsed() >= FINISHING_AFTER)
+    }
+
+    /// When a running check first needs the row to say "Finishing…".
+    pub(crate) fn finishing_due(&self) -> Option<std::time::Instant> {
+        self.finishing.values().map(|since| *since + FINISHING_AFTER).filter(|at| *at > std::time::Instant::now()).min()
     }
 
     /// Durability batches that came due while parts paused; their HAVEs go on the session receiving them.

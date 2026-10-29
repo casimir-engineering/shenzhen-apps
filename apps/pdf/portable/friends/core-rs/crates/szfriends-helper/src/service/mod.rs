@@ -324,6 +324,8 @@ pub(crate) struct State {
     /// ADR 0018: fast transfers with peers that have them too; off only in a test home that plays a released helper
     /// (`SZFRIENDS_TEST_FAST_TRANSFERS=0`).
     pub fast_transfers: bool,
+    /// Files received by blocks whose check before saving is running, since when (`blocks.rs`).
+    pub finishing: HashMap<String, std::time::Instant>,
     /// One profile on several computers: the join state and the sync engine.
     pub devices: devices::DeviceArea,
     /// Get again: giving friends files again, and copying files again from them.
@@ -339,6 +341,7 @@ pub(crate) struct State {
 impl State {
     fn new(identity: Identity, mut store: Store, input: Sender<Input>, busy: Arc<AtomicBool>) -> Self {
         let test_home = std::env::var_os(crate::state::ENV_STATE_DIR).is_some();
+        let fast_setting = store.fast_transfers_enabled();
         let adapters = crate::nearby::adapters(store.state_dir(), test_home, nearby::sink(input.clone()));
         let nearby = nearby::Nearby::new(adapters, store.visibility_deadline());
         let mut capabilities = capabilities(nearby.has_adapter(szfriends_core::nearby::Method::Bluetooth));
@@ -384,7 +387,10 @@ impl State {
             #[cfg(feature = "online")]
             next_receipt: 0,
             capabilities,
-            fast_transfers: !(test_home && std::env::var_os(ENV_TEST_FAST_TRANSFERS).is_some_and(|v| v == "0")),
+            finishing: HashMap::new(),
+            // The settings key `transfers.fast` (on unless it holds 0), read as the helper starts.
+            fast_transfers: fast_setting
+                && !(test_home && std::env::var_os(ENV_TEST_FAST_TRANSFERS).is_some_and(|v| v == "0")),
             devices,
             again: again::AgainArea::default(),
             notify,

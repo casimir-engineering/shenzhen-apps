@@ -176,6 +176,26 @@ fn relay_estimates() {
 }
 
 #[test]
+fn a_file_being_checked_before_it_is_saved_says_finishing() {
+    if presentation::tree_missing() {
+        return;
+    }
+    // PROTOCOL.md § Fast transfers: every block arrived, the whole file's check runs for more than a second.
+    let mut finishing =
+        transfer("t_f", false, "2026-10-12 09:00", "Scan.step", 8_000_000_000, TransferState::Receiving);
+    finishing.bytes_done = 8_000_000_000;
+    finishing.bytes_per_second = 90_000_000.0;
+    finishing.finishing = true;
+    let data = conversation(online_audience(), &people()["c_mei"], &[finishing], "finishing");
+    let row = item(&data, "t_f");
+    assert_eq!(row["state"], "receiving");
+    assert_eq!(row["status_label"], "Finishing…");
+    assert_eq!(row["progress"]["fraction"], 1.0);
+    assert_eq!(row["progress"]["accessibility_label"], "Finishing");
+    assert!(row["accessibility_label"].as_str().unwrap().ends_with(", finishing"), "{}", row["accessibility_label"]);
+}
+
+#[test]
 fn joining_in_every_state() {
     if presentation::tree_missing() {
         return;

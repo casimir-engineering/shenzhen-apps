@@ -143,7 +143,10 @@ impl SnapshotBuilder {
         }
         let mut extra = String::new();
         let mut status_key = format!("transfer.status.{}", transfer_state_name(state));
-        if moving {
+        let finishing = item.finishing && state == TransferState::Receiving;
+        if finishing {
+            status_key = "transfer.finishing".into();
+        } else if moving {
             status_key = format!("transfer.status.{verb}{}", if timed { "_timed" } else { "" });
         } else if state == TransferState::WaitingForYou && item.asked_because_disk_low {
             status_key = "transfer.status.disk_low".into();
@@ -196,6 +199,9 @@ impl SnapshotBuilder {
         if folder.is_some() {
             spoken_key = "transfer.spoken.in.received.saved".into();
         }
+        if finishing {
+            spoken_key = "transfer.spoken.in.finishing".into();
+        }
         let assistant = self.assistant_label(item, person);
         // Every spoken template lists "{file}, {kind}, {size}", so the assistant is said right after the file's facts.
         let said_size = assistant.as_ref().map(|a| format!("{size}, {}", s.spoken_fragment(a)));
@@ -209,7 +215,9 @@ impl SnapshotBuilder {
         if automatic {
             meta = s.text_with("preview.with_status", &[("text", &meta), ("status", &s.text("transfer.auto"))]);
         }
-        let progress = if moving {
+        let progress = if finishing {
+            json!({"fraction": 1.0, "determinate": true, "accessibility_label": s.text("transfer.progress.finishing")})
+        } else if moving {
             json!({
                 "fraction": percent as f64 / 100.0,
                 "determinate": item.file_size > 0,
