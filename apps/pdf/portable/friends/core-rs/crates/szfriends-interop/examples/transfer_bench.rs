@@ -9,6 +9,10 @@
 //!   BENCH_ROUTES       loopback,lan,p2p_wifi,internet,internet_lossy,relay,bluetooth (default: all)
 //!   BENCH_SIZES        1m,100m,2g,small (default: all)
 //!   BENCH_LOSS         lan-cut,lan-silence,bluetooth-cut,bluetooth-silence (default: all; "none" for none)
+//!   BENCH_MULTI        several routes at once between the same two peers, the first carrying the session and the
+//!                      others lanes of it (ADR 0018 § 6): lan+p2p, lan+p2p-cut-p2p, lan+p2p-silence-lan,
+//!                      slowlan+bt, slowlan+bt-cut-bt, slowlan+bt-silence-bt, lan+p2p+bt, lan+p2p+bt-cut-lan
+//!                      (default: all; "none" for none). Skipped, and said so, until the peers open lanes.
 //!   BENCH_MAX_SECONDS  skip a case the route would need longer than this for at its rate (default 120)
 //!   BENCH_SILENCE_WAIT seconds a silent route may go unnoticed before the route comes back anyway (default 20)
 //! `transfer_bench --table <file.jsonl>` prints the table of earlier results.
@@ -17,7 +21,9 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use serde_json::{json, Value};
-use szfriends_interop::bench::{self, Case, Loss, PeerSpec, RouteProfile, BLUETOOTH, LAN, MIB, ROUTES};
+use szfriends_interop::bench::{
+    self, Case, Loss, MultiCase, PeerSpec, RouteProfile, BLUETOOTH, LAN, LAN_SLOW, MIB, P2P_WIFI, ROUTES,
+};
 
 fn list(name: &str, default: &str) -> Vec<String> {
     let value = std::env::var(name).unwrap_or_default();
@@ -48,6 +54,21 @@ fn loss_case(name: &str, silence_wait: Duration) -> Option<Case> {
         _ => return None,
     };
     Some(Case { name: name.to_owned(), route, files, loss, silence_wait })
+}
+
+fn multi_case(name: &str) -> Option<MultiCase> {
+    let (routes, files, lost) = match name {
+        "lan+p2p" => (vec![LAN, P2P_WIFI], vec![1024 * MIB], None),
+        "lan+p2p-cut-p2p" => (vec![LAN, P2P_WIFI], vec![1024 * MIB], Some((1, Loss::Cut(0.5)))),
+        "lan+p2p-silence-lan" => (vec![LAN, P2P_WIFI], vec![1024 * MIB], Some((0, Loss::Silence(0.5)))),
+        "slowlan+bt" => (vec![LAN_SLOW, BLUETOOTH], vec![16 * MIB], None),
+        "slowlan+bt-cut-bt" => (vec![LAN_SLOW, BLUETOOTH], vec![16 * MIB], Some((1, Loss::Cut(0.5)))),
+        "slowlan+bt-silence-bt" => (vec![LAN_SLOW, BLUETOOTH], vec![16 * MIB], Some((1, Loss::Silence(0.5)))),
+        "lan+p2p+bt" => (vec![LAN, P2P_WIFI, BLUETOOTH], vec![1024 * MIB], None),
+        "lan+p2p+bt-cut-lan" => (vec![LAN, P2P_WIFI, BLUETOOTH], vec![1024 * MIB], Some((0, Loss::Cut(0.5)))),
+        _ => return None,
+    };
+    Some(MultiCase { name: name.to_owned(), routes, files, lost })
 }
 
 fn main() {
@@ -109,6 +130,21 @@ fn main() {
             if case.loss != Loss::None {
                 result["silence_wait_s"] = json!(silence_wait.as_secs_f64());
             }
+            eprintln!("bench: {result}");
+            bench::append(&out, &result);
+            results.push(result);
+        }
+    }
+    let multi = list(
+        "BENCH_MULTI",
+        "lan+p2p,lan+p2p-cut-p2p,lan+p2p-silence-lan,slowlan+bt,slowlan+bt-cut-bt,slowlan+bt-silence-bt,lan+p2p+bt,\
+         lan+p2p+bt-cut-lan",
+    );
+    for case in multi.iter().filter_map(|name| multi_case(name)) {
+        for (sender, receiver) in &pairs {
+            eprintln!("bench: {} {} → {}", case.name, sender.label, receiver.label);
+            let mut result = bench::run_multi(&case, sender, receiver);
+            result["payload"] = json!(bench::payload(&case.files));
             eprintln!("bench: {result}");
             bench::append(&out, &result);
             results.push(result);

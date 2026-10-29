@@ -12,7 +12,7 @@
 
 use std::io::{Read, Write};
 use std::net::{Shutdown, TcpListener, TcpStream};
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{mpsc, Arc, Mutex};
 use std::time::{Duration, Instant};
 
@@ -51,6 +51,7 @@ pub struct Proxy {
     to_listener: Arc<AtomicU64>,
     to_dialer: Arc<AtomicU64>,
     lost_at: Arc<Mutex<Option<Instant>>>,
+    current: Arc<Mutex<Option<Arc<Route>>>>,
 }
 
 impl Proxy {
@@ -61,7 +62,9 @@ impl Proxy {
         let tamper = Arc::new(Mutex::new(Tamper::default()));
         let (to_listener, to_dialer) = (Arc::new(AtomicU64::new(0)), Arc::new(AtomicU64::new(0)));
         let lost_at = Arc::new(Mutex::new(None));
+        let current = Arc::new(Mutex::new(None));
         let (shared, up, down, lost) = (tamper.clone(), to_listener.clone(), to_dialer.clone(), lost_at.clone());
+        let now_current = current.clone();
         std::thread::spawn(move || {
             for dialer in listener.incoming().flatten() {
                 let Ok(upstream) = TcpStream::connect(("127.0.0.1", target)) else { continue };
@@ -74,10 +77,12 @@ impl Proxy {
                     started: Instant::now(),
                     rules,
                     dark_since: Mutex::new(None),
+                    forced_dark: AtomicBool::new(false),
                     lost_at: lost.clone(),
                     ends: (dialer.try_clone().unwrap(), upstream.try_clone().unwrap()),
                     passed: (up.clone(), down.clone()),
                 });
+                *now_current.lock().unwrap() = Some(route.clone());
                 let pair = (dialer.try_clone().unwrap(), upstream.try_clone().unwrap());
                 let up_rules =
                     Direction { flip: rules.flip_to_listener, cut: rules.cut_to_listener_after, to_listener: true };
@@ -88,7 +93,7 @@ impl Proxy {
                 std::thread::spawn(move || forward(pair.1, pair.0, down_rules, counter_down, &route));
             }
         });
-        Self { port, tamper, to_listener, to_dialer, lost_at }
+        Self { port, tamper, to_listener, to_dialer, lost_at, current }
     }
 
     pub fn port(&self) -> u16 {
@@ -109,6 +114,21 @@ impl Proxy {
     pub fn lost_at(&self) -> Option<Instant> {
         *self.lost_at.lock().unwrap()
     }
+
+    /// Cuts the current connection now (one route of several lost at a moment the caller chooses).
+    pub fn cut_now(&self) {
+        if let Some(route) = self.current.lock().unwrap().as_ref() {
+            route.cut();
+        }
+    }
+
+    /// Silences the current connection now, both ways, until it ends.
+    pub fn silence_now(&self) {
+        if let Some(route) = self.current.lock().unwrap().as_ref() {
+            route.forced_dark.store(true, Ordering::SeqCst);
+            route.lost();
+        }
+    }
 }
 
 struct Route {
@@ -116,9 +136,17 @@ struct Route {
     rules: Tamper,
     /// When the one-time silence began.
     dark_since: Mutex<Option<Instant>>,
+    /// Silenced by [`Proxy::silence_now`].
+    forced_dark: AtomicBool,
     lost_at: Arc<Mutex<Option<Instant>>>,
     ends: (TcpStream, TcpStream),
     passed: (Arc<AtomicU64>, Arc<AtomicU64>),
+}
+
+impl std::fmt::Debug for Route {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("Route")
+    }
 }
 
 impl Route {
@@ -135,6 +163,9 @@ impl Route {
 
     /// Whether this direction is silent now.
     fn dark(&self, to_listener: bool) -> bool {
+        if self.forced_dark.load(Ordering::SeqCst) {
+            return true;
+        }
         if self.rules.silence_one_way && !to_listener {
             return false;
         }
