@@ -6,6 +6,12 @@ edition.workspace = true
 rust-version.workspace = true
 publish.workspace = true
 
+[features]
+# BLAKE3 without its C and assembly (Rust intrinsics on x86, portable code on Arm): for checking a target from a
+# machine without that target's C toolchain (the MSVC targets on a Mac, friends-core-rs-cross-check). Release builds
+# leave it off: they compile BLAKE3's C where they compile SQLite's.
+blake3-pure = ["blake3/pure"]
+
 [dependencies]
 szfriends-wire.workspace = true
 szfriends-crypto.workspace = true

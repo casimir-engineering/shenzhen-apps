@@ -128,8 +128,8 @@ FRIENDS_CORE_RS_WASM_CRATES := -p szfriends-wire -p szfriends-contract
 # The store bundles SQLite's C everywhere but on Apple systems (ADR 0015 § 7), so checking a target compiles C for it:
 # the NDK's clang for Android (the newest NDK under the SDK, or FRIENDS_ANDROID_NDK), `zig cc` for Linux
 # (tools/zig-cc.sh), MinGW for Windows GNU. No MSVC headers exist on a Mac, so the MSVC targets check against a linked
-# SQLite instead (LIBSQLITE3_SYS_USE_PKG_CONFIG): the Rust is checked the same, and the bundled C is built for MSVC in
-# the Windows VM (friends-core-rs-vm-check).
+# SQLite instead (LIBSQLITE3_SYS_USE_PKG_CONFIG) and BLAKE3 without its C and assembly (szfriends-core's blake3-pure):
+# the Rust is checked the same, and the C of both is built for MSVC in the Windows VM (friends-core-rs-vm-check).
 FRIENDS_ANDROID_NDK ?= $(lastword $(sort $(wildcard $(HOME)/Library/Android/sdk/ndk/*)))
 FRIENDS_ANDROID_NDK_BIN = $(FRIENDS_ANDROID_NDK)/toolchains/llvm/prebuilt/darwin-x86_64/bin
 
@@ -138,9 +138,9 @@ friends-core-rs-cross-check:
 	@toolchain=$$(rustup run stable rustc --print sysroot) && \
 	export RUSTC="$$toolchain/bin/rustc" CARGO_TARGET_DIR="$(abspath $(FRIENDS_CORE_RS_BUILD))/cross-target" && \
 	for target in $(FRIENDS_CORE_RS_TARGETS); do \
-		triple=$$(echo "$$target" | tr '-' '_'); \
+		triple=$$(echo "$$target" | tr '-' '_'); features=; \
 		case "$$target" in \
-		*-windows-msvc) set -- LIBSQLITE3_SYS_USE_PKG_CONFIG=1 ;; \
+		*-windows-msvc) set -- LIBSQLITE3_SYS_USE_PKG_CONFIG=1; features="--features szfriends-core/blake3-pure" ;; \
 		*-unknown-linux-gnu) set -- "CC_$$triple=$(abspath $(FRIENDS_CORE_RS_DIR))/tools/zig-cc.sh" \
 			"AR_$$triple=zig ar" "SZFRIENDS_ZIG_TARGET=$${target%%-unknown-linux-gnu}-linux-gnu" ;; \
 		*-android*) clang=$$(echo "$$target" | sed 's/^armv7-/armv7a-/'); \
@@ -150,7 +150,7 @@ friends-core-rs-cross-check:
 		esac; \
 		echo "cargo check --target $$target"; \
 		env SZFRIENDS_DATACHANNEL_NO_NATIVE=1 "$$@" "$$toolchain/bin/cargo" check \
-			$(FRIENDS_CORE_RS_MANIFEST) --workspace --all-targets --locked \
+			$(FRIENDS_CORE_RS_MANIFEST) --workspace --all-targets --locked $$features \
 			--target "$$target" --quiet || exit 1; \
 	done && \
 	echo "cargo check --target wasm32-unknown-unknown" && \
