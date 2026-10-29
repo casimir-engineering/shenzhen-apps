@@ -156,11 +156,14 @@ static BOOL SZFriendsHashPrefix(int fd, uint64_t length, crypto_generichash_stat
     return receiving;
 }
 
-// F_FULLFSYNC first, commit second: the database never claims a byte the disk could still lose (ADR 0003).
+// The bytes ordered first, the commit second, and the commit's own F_FULLFSYNC makes both durable: the database never
+// claims a byte the disk could still lose (ADR 0003), and a batch costs one full flush of the drive, not two (ADR 0018
+// § 4; F_FULLFSYNC flushes the whole drive cache, so flushing the file first and the commit again only repeated it;
+// the partial file and the database both live in the state directory, on one volume).
 - (BOOL)commit:(SZFriendsReceiving *)receiving transfer:(NSString *)transferID db:(SZFriendsStoreDB *)db
          error:(NSError **)error {
     if (receiving->durable == receiving->written) return YES;
-    if (fcntl(receiving->fd, F_FULLFSYNC) != 0 && fsync(receiving->fd) != 0) {
+    if (!SZFriendsOrderWrites(receiving->fd)) {
         return SZFriendsFail(error, SZFriendsReceiveError(SZFriendsStoreErrorDatabase, @"fsync failed"));
     }
     uint64_t written = receiving->written;

@@ -17,6 +17,14 @@ static SZFriendsFrame *SZFIDFrame(SZFriendsFrameType type, NSData *offerID, NSDi
     return [SZFriendsFrame frameWithType:type fields:fields];
 }
 
+// As the helper does (ADR 0018 § 7): PING while the session carries a transfer, and close it after the silence limit
+// while the other side owes PROGRESS or the rest of a file.
+static void SZFUpdateLiveness(SZFPeerSession *session) {
+    BOOL keepalive = NO, watch = NO;
+    SZFriendsTransferLiveness(session.senders.allValues, session.receivers.allValues, &keepalive, &watch);
+    [session.channel setLivenessKeepalive:keepalive watch:watch];
+}
+
 @implementation SZFPeer (Flows)
 
 - (void)attachChannel:(SZFriendsSecureChannel *)channel toSession:(SZFPeerSession *)session {
@@ -67,6 +75,7 @@ static SZFriendsFrame *SZFIDFrame(SZFriendsFrameType type, NSData *offerID, NSDi
         session.receivers[record.transferID] = receiver;
         [channel sendFrame:[receiver resumeProgressFrame]];
     }
+    SZFUpdateLiveness(session);
 }
 
 - (void)session:(SZFPeerSession *)session receivedFrame:(SZFriendsFrame *)frame {
@@ -84,7 +93,10 @@ static SZFriendsFrame *SZFIDFrame(SZFriendsFrameType type, NSData *offerID, NSDi
     case SZFriendsFrameTypeRequestByID: handled = [self session:session requestByID:frame]; break;
     default: break;
     }
-    if (handled) return;
+    if (handled) {
+        SZFUpdateLiveness(session);
+        return;
+    }
     [self emit:@{@"event" : @"frame", @"session" : @(session.sessionID), @"type" : @(frame.type),
                  @"frame" : SZFHex(SZFriendsEncodeFrame(frame, NULL))}];
 }
@@ -148,7 +160,7 @@ static SZFriendsFrame *SZFIDFrame(SZFriendsFrameType type, NSData *offerID, NSDi
         return YES;
     }
     SZFriendsTransferRecord *record = [self.transfers transferWithID:offer];
-    NSFileHandle *source = record.stagedPath ? [NSFileHandle fileHandleForReadingAtPath:record.stagedPath] : nil;
+    NSFileHandle *source = record.stagedPath ? SZFriendsOpenSnapshotForSending(record.stagedPath) : nil;
     SZFriendsChunkSender *sender = [[SZFriendsChunkSender alloc] initWithOfferID:SZFBytes(offer) size:record.size
                                                                     resumeOffset:offset
                                                                            route:session.channel.initiatorRoute];
@@ -280,8 +292,7 @@ static SZFriendsFrame *SZFIDFrame(SZFriendsFrameType type, NSData *offerID, NSDi
         uint64_t offset = 0;
         NSUInteger length = 0;
         while ([sender getNextChunkOffset:&offset length:&length]) {
-            [source seekToFileOffset:offset];
-            NSData *data = [source readDataOfLength:length];
+            NSData *data = SZFriendsReadSnapshotAt(source, offset, length);
             SZFriendsFrame *chunk = [sender chunkFrameWithData:data];
             if (chunk == nil || ![session.channel sendFrame:chunk]) return;
         }
@@ -293,6 +304,7 @@ static SZFriendsFrame *SZFIDFrame(SZFriendsFrameType type, NSData *offerID, NSDi
             }
         }
     }
+    SZFUpdateLiveness(session);
 }
 
 - (NSDictionary *)sendFileWithCommand:(NSDictionary *)command {

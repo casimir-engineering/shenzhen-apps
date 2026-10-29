@@ -9,6 +9,7 @@ void SZFRunChannelTests(void);
 void SZFRunChannelPolicyTests(void);
 void SZFRunChannelFaultTests(void);
 void SZFRunChannelLifetimeTests(void);
+void SZFRunChannelLivenessTests(void);
 void SZFRunScriptedPeerTests(void);
 void SZFRunCodeTests(void);
 void SZFRunChunkFlowTests(void);

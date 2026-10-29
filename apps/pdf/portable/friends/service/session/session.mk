@@ -10,7 +10,8 @@ FRIENDS_SESSION_C_SRCS := $(FRIENDS_SESSION_DIR)/szfriends_noise_symmetric.c \
 	$(FRIENDS_SESSION_DIR)/szfriends_noise_handshake.c
 FRIENDS_SESSION_M_SRCS := $(addprefix $(FRIENDS_SESSION_DIR)/,SZFriendsSessionLimits.m SZFriendsFrameSchema.m \
 	SZFriendsFrame.m SZFriendsHandshakePayload.m SZFriendsSecureChannel.m SZFriendsSecureChannel+Handshake.m \
-	SZFriendsSecureChannel+Transport.m SZFriendsSecureChannel+Code.m SZFriendsChunkFlow.m SZFriendsRequestByID.m \
+	SZFriendsSecureChannel+Transport.m SZFriendsSecureChannel+Code.m \
+	SZFriendsSecureChannel+Liveness.m SZFriendsChunkFlow.m SZFriendsRequestByID.m \
 	SZFriendsReplayCache.m SZFriendsSignaling.m SZFriendsSignalingNoise.m SZFriendsSignalingRecord.m \
 	SZFriendsSignalingLink.m)
 FRIENDS_SESSION_HDRS := $(wildcard $(FRIENDS_SESSION_DIR)/*.h) friends/service/identity/SZFriendsIdentity.h \

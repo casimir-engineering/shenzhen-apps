@@ -131,6 +131,7 @@ static SZFriendsFrame *SZFriendsProgressFrame(NSData *offerID, uint64_t offset) 
 
 @implementation SZFriendsChunkReceiver {
     uint64_t _size;
+    uint64_t _startedOffset;
     NSUInteger _chunkBytes;
     uint64_t _window;
 }
@@ -148,6 +149,7 @@ static SZFriendsFrame *SZFriendsProgressFrame(NSData *offerID, uint64_t offset) 
         _size = size;
         _receivedOffset = verifiedOffset;
         _reportedOffset = verifiedOffset;
+        _startedOffset = verifiedOffset;
         _chunkBytes = chunkBytes;
         _window = window;
     }
@@ -167,6 +169,10 @@ static SZFriendsFrame *SZFriendsProgressFrame(NSData *offerID, uint64_t offset) 
 
 - (BOOL)complete {
     return _receivedOffset == _size;
+}
+
+- (BOOL)arriving {
+    return _receivedOffset > _startedOffset && !self.complete;
 }
 
 - (SZFriendsFrame *)resumeProgressFrame {
@@ -220,3 +226,18 @@ static SZFriendsFrame *SZFriendsProgressFrame(NSData *offerID, uint64_t offset) 
 }
 
 @end
+
+void SZFriendsTransferLiveness(NSArray<SZFriendsChunkSender *> *senders, NSArray<SZFriendsChunkReceiver *> *receivers,
+                               BOOL *keepalive, BOOL *watch) {
+    BOOL ping = NO, due = NO;
+    for (SZFriendsChunkSender *sender in senders) {
+        ping = YES;
+        due |= sender.sentOffset > sender.durableOffset;
+    }
+    for (SZFriendsChunkReceiver *receiver in receivers) {
+        ping = YES;
+        due |= receiver.arriving;
+    }
+    *keepalive = ping;
+    *watch = due;
+}

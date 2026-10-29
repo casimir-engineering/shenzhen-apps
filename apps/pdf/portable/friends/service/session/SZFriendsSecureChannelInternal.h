@@ -2,7 +2,8 @@
 //
 // The channel is split by concern so each file stays reviewable on its own: SZFriendsSecureChannel.m (lifecycle,
 // stream bytes, length framing, closing), +Handshake (preamble, Noise messages, payloads, the key policy),
-// +Transport (send queues, encryption, rekey, session age, frame dispatch) and +Code (comparison codes).
+// +Transport (send queues, encryption, rekey, session age, frame dispatch), +Code (comparison codes) and +Liveness
+// (PING and silence while a transfer runs).
 
 #import "service/session/SZFriendsSession.h"
 
@@ -77,12 +78,18 @@ extern const char SZFriendsPrologueLabel[18];
     NSData *_Nullable _peerCodeCommitment;
     BOOL _sentCodeCommit, _receivedCodeCommit, _sentCodeNonce, _receivedCodeNonce, _receivedCodeReveal;
 
+    // Liveness (+Liveness): what the driver asked for, when this side last wrote and heard anything, and when the
+    // timer last ran (0: not since watching started).
+    BOOL _keepalive, _watchSilence, _livenessTimerArmed;
+    NSTimeInterval _lastSentAt, _lastHeardAt, _livenessCheckedAt;
+
     // Configuration tests shorten; production uses the SZFriendsSession.h constants.
     uint64_t _rekeyAfterBytes;
     NSTimeInterval _rekeyAfterInterval;
     NSTimeInterval _maxAge;
     NSTimeInterval _handshakeTimeout;
     NSTimeInterval _refusalDelay;
+    NSTimeInterval _keepaliveInterval, _silenceLimit, _silenceLimitBluetooth;
     NSTimeInterval (^_clock)(void);
     void (^_scheduler)(NSTimeInterval delay, dispatch_block_t block); // runs `block` on _queue after `delay`
     NSUInteger _rekeysSent;
@@ -130,6 +137,14 @@ extern const char SZFriendsPrologueLabel[18];
 - (BOOL)checkSessionAge;
 @end
 
+@interface SZFriendsSecureChannel (Liveness)
+// When a message is handed to the stream (+Transport) and when bytes arrive (SZFriendsSecureChannel.m).
+- (void)applyLivenessKeepalive:(BOOL)keepalive watch:(BOOL)watch; // -setLivenessKeepalive:watch:
+- (void)noteSent:(NSTimeInterval)now;
+- (void)noteHeard:(NSTimeInterval)now;
+- (void)armLivenessTimer;
+@end
+
 @interface SZFriendsSecureChannel (Code)
 - (void)startCodeExchange:(void (^)(NSString *_Nullable code, NSError *_Nullable error))completion;
 - (void)advanceCodeExchange;
@@ -143,6 +158,8 @@ extern const char SZFriendsPrologueLabel[18];
 - (void)setMaxAge:(NSTimeInterval)maxAge;
 - (void)setHandshakeTimeout:(NSTimeInterval)timeout;
 - (void)setRefusalDelay:(NSTimeInterval)delay;
+- (void)setKeepaliveInterval:(NSTimeInterval)keepalive silence:(NSTimeInterval)silence
+                   bluetooth:(NSTimeInterval)bluetooth;
 - (void)setClock:(NSTimeInterval (^)(void))clock;
 // Replaces dispatch_after for the refusal deadline, so a test with an injected clock decides when it fires.
 - (void)setScheduler:(void (^)(NSTimeInterval delay, dispatch_block_t block))scheduler;

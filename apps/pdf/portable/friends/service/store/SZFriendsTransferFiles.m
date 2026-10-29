@@ -244,6 +244,37 @@ BOOL SZFriendsSnapshotFile(NSString *source, NSString *destination, uint64_t fre
     return YES;
 }
 
+NSFileHandle *_Nullable SZFriendsOpenSnapshotForSending(NSString *path) {
+    int fd = open(path.fileSystemRepresentation, O_RDONLY | O_NOFOLLOW | O_CLOEXEC);
+    if (fd < 0) return nil;
+    fcntl(fd, F_RDAHEAD, 1);
+    return [[NSFileHandle alloc] initWithFileDescriptor:fd closeOnDealloc:YES];
+}
+
+NSData *_Nullable SZFriendsReadSnapshotAt(NSFileHandle *snapshot, uint64_t offset, NSUInteger length) {
+    uint8_t *bytes = malloc(MAX(length, (NSUInteger)1));
+    if (bytes == NULL) return nil;
+    NSUInteger done = 0;
+    while (done < length) {
+        ssize_t got = pread(snapshot.fileDescriptor, bytes + done, length - done, (off_t)(offset + done));
+        if (got < 0 && errno == EINTR) continue;
+        if (got <= 0) {
+            free(bytes);
+            return nil;
+        }
+        done += (NSUInteger)got;
+    }
+    return [NSData dataWithBytesNoCopy:bytes length:length freeWhenDone:YES];
+}
+
+BOOL SZFriendsOrderWrites(int fd) {
+    return fcntl(fd, F_BARRIERFSYNC) == 0 || fsync(fd) == 0;
+}
+
+BOOL SZFriendsMakeDurable(int fd) {
+    return fcntl(fd, F_FULLFSYNC) == 0 || fsync(fd) == 0;
+}
+
 void SZFriendsRemovePrivateFiles(NSString *stateDirectory, NSArray<NSString *> *paths) {
     // Both sides standardized the same way: stringByStandardizingPath also drops a leading /private, so comparing a
     // standardized path with a raw prefix would refuse every file under /private/var.

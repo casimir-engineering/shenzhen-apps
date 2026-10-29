@@ -154,6 +154,7 @@ static BOOL SZFriendsTypeAllowed(SZFriendsFrameType type, SZFriendsHandshakePatt
     bytes[1] = (uint8_t)written;
     NSUInteger length = message.length;
     _inFlightBytes += length;
+    [self noteSent:[self now]];
     __weak typeof(self) weakSelf = self;
     [_stream writeData:message
             completion:^(NSError *error) {
@@ -193,6 +194,7 @@ static BOOL SZFriendsTypeAllowed(SZFriendsFrameType type, SZFriendsHandshakePatt
     if (_state != SZFriendsChannelStateEstablished) {
         return;
     }
+    [self armLivenessTimer]; // a driver may have asked for liveness while the handshake ran
     void (^onEstablished)(void) = self.onEstablished;
     if (onEstablished) {
         onEstablished();

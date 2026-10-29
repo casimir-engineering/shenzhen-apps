@@ -48,6 +48,8 @@ SZFriendsPersonRecord *SZFNSavePerson(SZFriendsStore *store, SZFriendsRelation r
 // The Attestation field of the payload the key policy is asked about (nil unless a test sets one).
 @property(nonatomic, copy, nullable) NSData *remoteAttestation;
 - (BOOL)sendFrame:(SZFriendsFrame *)frame;
+// Liveness while a transfer runs (ADR 0018 § 7): a fake link never goes silent, so this does nothing.
+- (void)setLivenessKeepalive:(BOOL)keepalive watch:(BOOL)watch;
 @end
 
 // A link for a fake channel, as a listener would have accepted it.

@@ -95,6 +95,12 @@ extern const NSTimeInterval SZFriendsReplayWindow;      // 600 s
 // The highest minor version this build speaks; it accepts peers whose range overlaps 0...this. Minor 1 adds THUMBNAIL,
 // minor 2 adds CHAIN, JOIN and SYNC, minor 3 adds AGAIN.
 extern const uint16_t SZFriendsSessionMinor;            // 3
+// Liveness while a transfer runs (ADR 0018 § 7, -setLivenessKeepalive:watch:): PING after this long without sending
+// anything, and a session that heard nothing for the silence limit closes (SZFriendsSessionErrorSilent) and is
+// redialed. A route that goes out of range stays open to TCP and L2CAP for minutes; this is what notices it.
+extern const NSTimeInterval SZFriendsKeepaliveInterval;      // 1 s
+extern const NSTimeInterval SZFriendsSilenceLimit;           // 8 s
+extern const NSTimeInterval SZFriendsSilenceLimitBluetooth;  // 12 s, when the initiator declared Bluetooth
 // Largest Attestation field (SZFriendsFieldAttestation) a handshake payload or PROFILE may carry.
 extern const NSUInteger SZFriendsAttestationMax;        // 512 bytes
 // Longest handshake message a responder reads (IK and NN message 1, XX messages 1 and 3). The largest honest one, IK
@@ -120,6 +126,7 @@ typedef NS_ERROR_ENUM(SZFriendsSessionErrorDomain, SZFriendsSessionError) {
     SZFriendsSessionErrorCodeMismatch = 9,    // the comparison-code commitment did not verify
     SZFriendsSessionErrorTimedOut = 10,       // the handshake did not go live within SZFriendsHandshakeTimeout
     SZFriendsSessionErrorReplayed = 11,       // message 1 repeated an initiator ephemeral key seen within the window
+    SZFriendsSessionErrorSilent = 12,         // while a transfer ran, nothing arrived for the silence limit: redial
 };
 extern NSString *const SZFriendsSessionCloseReasonKey; // NSNumber (SZFriendsCloseReason) in PeerClosed errors
 
@@ -362,6 +369,17 @@ typedef BOOL (^SZFriendsRemoteKeyPolicy)(NSData *_Nullable remoteIdentityKey, SZ
 - (void)close;
 - (void)closeWithReason:(SZFriendsCloseReason)reason;
 
+// Liveness while a transfer runs (ADR 0018 § 7). `keepalive`: a transfer runs on this session, so PING whenever this
+// side sent nothing for SZFriendsKeepaliveInterval, and the peer always hears something. `watch`: something from the
+// peer is due (SZFriendsTransferLiveness), so hearing nothing for the silence limit, counted from when watching
+// starts, closes the session without CLOSE (SZFriendsSessionErrorSilent) and the helper redials. Every minor knows
+// PING and ignores it, so a released peer simply receives it; against one, which never pings, watching is on only
+// while its own traffic is due. A gap of more than two keepalives between this side's timer runs (a busy queue,
+// sleep) is this side's stall, not the peer's silence: the count starts again. Call it whenever either changes;
+// repeating the same values changes nothing.
+- (void)setLivenessKeepalive:(BOOL)keepalive watch:(BOOL)watch;
+@property(nonatomic, readonly) BOOL watchingLiveness;
+
 // Runs CODE_COMMIT / CODE_NONCE / CODE_REVEAL once, in the session that creates the friendship; both sides call
 // it, in either order, before or after the session is live. Completion gets six ASCII digits ("418270"), or an
 // error when the commitment does not verify (which closes the channel), when the channel closes first, for NN, or
@@ -472,6 +490,8 @@ uint64_t SZFriendsSendWindowForRoute(SZFriendsRouteMethod route);
 @property(nonatomic, readonly) uint64_t receivedOffset; // bytes accepted from CHUNKs
 @property(nonatomic, readonly) uint64_t reportedOffset; // the last PROGRESS sent
 @property(nonatomic, readonly) BOOL complete;           // every byte received
+// Chunks arrived on this session and more are due: the sender is sending (its PROGRESS-driven window included).
+@property(nonatomic, readonly) BOOL arriving;
 - (SZFriendsFrame *)resumeProgressFrame;
 // Checks a CHUNK against this transfer: same offer, offset exactly receivedOffset, 1 to chunkBytes bytes, inside
 // the declared size and inside the window past the last PROGRESS. Returns the data and advances; nil with an
@@ -484,5 +504,13 @@ uint64_t SZFriendsSendWindowForRoute(SZFriendsRouteMethod route);
 // error for an early DONE or another offer: close the session.
 - (nullable NSData *)acceptDoneFrame:(SZFriendsFrame *)frame error:(NSError **)error;
 @end
+
+// What a session carrying these transfers asks of -setLivenessKeepalive:watch: (ADR 0018 § 7): keepalive while any
+// runs, and watching while the peer owes this side something it sends anyway, even a released peer that never pings:
+// PROGRESS for bytes sent and not yet confirmed, or the rest of a file whose chunks are arriving. Not while an offer
+// waits for its answer, before a released sender's first chunk (it may hash the snapshot first), nor between DONE and
+// its ACK, when a released receiver checks the whole file in silence.
+void SZFriendsTransferLiveness(NSArray<SZFriendsChunkSender *> *senders, NSArray<SZFriendsChunkReceiver *> *receivers,
+                               BOOL *keepalive, BOOL *watch);
 
 NS_ASSUME_NONNULL_END

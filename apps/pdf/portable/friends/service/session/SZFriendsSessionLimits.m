@@ -32,6 +32,10 @@ const NSTimeInterval SZFriendsHandshakeTimeout = 10;
 const NSTimeInterval SZFriendsRefusalDelay = 1.5;
 const NSTimeInterval SZFriendsReplayWindow = 600;
 const uint16_t SZFriendsSessionMinor = 3;
+// ADR 0018 § 7, as szfriends_wire::consts (KEEPALIVE_MILLISECONDS, SILENCE_MILLISECONDS, SILENCE_BLUETOOTH_...).
+const NSTimeInterval SZFriendsKeepaliveInterval = 1;
+const NSTimeInterval SZFriendsSilenceLimit = 8;
+const NSTimeInterval SZFriendsSilenceLimitBluetooth = 12;
 // A host signature (64 bytes), the identity key (32), the Friends ID (at most 64) and a few dates and key ids fit in
 // well under half of this; the rest leaves the host area room to grow the format without a session change.
 const NSUInteger SZFriendsAttestationMax = 512;

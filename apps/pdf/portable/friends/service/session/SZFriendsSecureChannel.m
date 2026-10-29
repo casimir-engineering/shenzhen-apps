@@ -28,6 +28,9 @@ const char SZFriendsPrologueLabel[18] = "SZFriends session"; // the array's 18th
         _maxAge = SZFriendsSessionMaxAge;
         _handshakeTimeout = SZFriendsHandshakeTimeout;
         _refusalDelay = SZFriendsRefusalDelay;
+        _keepaliveInterval = SZFriendsKeepaliveInterval;
+        _silenceLimit = SZFriendsSilenceLimit;
+        _silenceLimitBluetooth = SZFriendsSilenceLimitBluetooth;
         // CLOCK_MONOTONIC keeps counting while the Mac sleeps, so a session that slept through the night is old.
         _clock = ^NSTimeInterval {
             return (NSTimeInterval)clock_gettime_nsec_np(CLOCK_MONOTONIC) / 1e9;
@@ -129,6 +132,7 @@ const char SZFriendsPrologueLabel[18] = "SZFriends session"; // the array's 18th
     }
     // Before any work on these bytes: a refusal they cause closes a fixed time after this moment.
     _inputArrivedAt = [self now];
+    [self noteHeard:_inputArrivedAt];
     [_inbound appendData:data];
     // Held locally: a callback run from a message handler may close the channel, which replaces _inbound, and the
     // handler is still reading the message out of this buffer.
@@ -213,6 +217,14 @@ const char SZFriendsPrologueLabel[18] = "SZFriends session"; // the array's 18th
 
 - (void)runComparisonCodeExchange:(void (^)(NSString *_Nullable code, NSError *_Nullable error))completion {
     [self startCodeExchange:completion];
+}
+
+- (void)setLivenessKeepalive:(BOOL)keepalive watch:(BOOL)watch {
+    [self applyLivenessKeepalive:keepalive watch:watch];
+}
+
+- (BOOL)watchingLiveness {
+    return _watchSilence;
 }
 
 #pragma mark - Closing
@@ -349,6 +361,13 @@ const char SZFriendsPrologueLabel[18] = "SZFriends session"; // the array's 18th
 
 - (void)setRefusalDelay:(NSTimeInterval)delay {
     _refusalDelay = delay;
+}
+
+- (void)setKeepaliveInterval:(NSTimeInterval)keepalive silence:(NSTimeInterval)silence
+                   bluetooth:(NSTimeInterval)bluetooth {
+    _keepaliveInterval = keepalive;
+    _silenceLimit = silence;
+    _silenceLimitBluetooth = bluetooth;
 }
 
 - (void)setScheduler:(void (^)(NSTimeInterval delay, dispatch_block_t block))scheduler {

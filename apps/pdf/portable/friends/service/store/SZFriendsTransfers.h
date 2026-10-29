@@ -169,6 +169,20 @@ NSString *_Nullable SZFriendsPublishReceivedFile(NSString *staged, NSString *fil
 // The hidden file a copy across volumes writes before it takes `finalPath`: ".<name>.part" beside it.
 NSString *SZFriendsReceivedPartPath(NSString *finalPath);
 
+// Sending a staged snapshot (ADR 0018 § 9.1): opened once per transfer and session, read-only, read-ahead on, so each
+// chunk is one pread at its offset instead of a seek and a read. Nil when the snapshot is gone.
+NSFileHandle *_Nullable SZFriendsOpenSnapshotForSending(NSString *path);
+// Exactly `length` bytes at `offset`, or nil (the snapshot shrank or vanished: nothing true can be sent from it).
+NSData *_Nullable SZFriendsReadSnapshotAt(NSFileHandle *snapshot, uint64_t offset, NSUInteger length);
+
+// The two halves of a durability batch (ADR 0018 § 4, as szfriends-core's store/disk.rs). OrderWrites: the file's
+// writes reach the drive before anything written after it (F_BARRIERFSYNC; fsync where that is refused), without
+// flushing the drive's cache. MakeDurable: everything written so far survives a power cut (F_FULLFSYNC, which on Apple
+// storage flushes the drive's whole cache; fsync where that is refused). A batch orders its data, writes what records
+// it, and flushes once: a commit to the store, which runs F_FULLFSYNC itself, is that one flush.
+BOOL SZFriendsOrderWrites(int fd);
+BOOL SZFriendsMakeDurable(int fd);
+
 // Offer metadata a peer sent (the helper reads it from the OFFER frame; the session codec has already checked
 // field lengths), checked before any buffer is allocated: name, declared size, digest length, and the number of
 // offers this friend has pending (floods). Returns NO with a reason for the log; the peer learns only that the
