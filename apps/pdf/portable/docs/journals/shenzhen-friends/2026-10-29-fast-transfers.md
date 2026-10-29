@@ -363,3 +363,82 @@ connection to the endpoint the first session used), the test air's and BlueZ's L
 channels with 8 MiB buffering and usrsctp's buffers raised (the bench's internet route is a TCP proxy, so this needs a
 data-channel run with delay first); the AWDL rule and Bluetooth's 16 KiB parts. Each lane runs its own cipher state,
 so with lanes the cipher figures above become per lane, not per transfer.
+
+## WP1: negotiation, blocks, the tree and resume in the Rust core (2026-10-29)
+
+**BLAKE3 against BLAKE2b (ADR 0018 § 2), measured first.** One core, 1 MiB leaves with the tree's 26-byte prefix,
+release builds, three interleaved runs each, on the M5 Max:
+
+| | BLAKE3 (`blake3` 1.8.5, NEON) | BLAKE2b-256, `blake2` crate | BLAKE2b-256, libsodium (the helper's) | Ratio |
+|---|---|---|---|---|
+| arm64, native | 2.22 to 2.30 GiB/s | 1.45 to 1.49 GiB/s | 1.34 to 1.51 GiB/s | 1.53× (crate), 1.52 to 1.66× (libsodium) |
+| x86_64, Rosetta 2 | 2.09 GiB/s | 1.05 GiB/s | 0.49 GiB/s | 2.0× (crate), 4.3× (libsodium) |
+
+The opt-levels the core ships (`s` on desktops, `z` on phones) give the same arm64 numbers (2.27 and 2.30 GiB/s), since
+BLAKE3's NEON code is C. x86_64 is emulated here: indicative only, and real AVX2 and AVX-512 machines are faster still
+for BLAKE3. **Decision: BLAKE3 is adopted** (at least 1.5× on both architectures, as the rule asked); the arm64 margin
+is thin, so the slowest supported phone is still to be measured with `core-rs/tools/tree-hash-bench.sh android
+[serial]` when the owner's phone is connected, and the vectors stay as written unless that run falls under 1.5×.
+Hashing a whole 1 GiB file (in the page cache) on every core with its BLAKE2b digest in the same pass: 0.93 s
+(1.16 GB/s, 18 cores), bound by the one-thread BLAKE2b digest, not by the tree.
+
+**What landed** (`portable/friends/core-rs`):
+
+- `szfriends-wire`: session minor 4; frames HASHES, WANT, PART and HAVE (28 to 31); fields 37 to 46 with their limits
+  (whole leaves, whole ranges, at most 2,000 leaves and 8,000 ranges per field, parts up to 61,440 bytes); capability
+  bits 0 to 2; CLOSE reason 6; the Lane payload field; `ranges` (ascending, disjoint, non-empty).
+- Negotiation in the channel: `fast_transfers()` when the negotiated minor is 4 or more and both handshakes set bit 0.
+  The channel itself refuses to send a minor-4 frame to a peer without them and strips the tree's fields from an OFFER
+  (so a released app never sees one even if a caller forgets), and closes on one received outside such a session. The
+  helper sets the bit unless a test home sets `SZFRIENDS_TEST_FAST_TRANSFERS=0` (playing a released helper); the
+  `transfers.fast` settings key is not wired yet.
+- `szfriends-core/src/transfer/`: geometry (an empty file is one empty block, so every file has a tree), the tree with
+  the read-back hashing tree and digest in one pass on every core, block sets, both sidecar formats, the receiver's
+  assembly (nothing before checked leaves, at most 64 blocks and 64 MiB partly received, each block checked as it
+  completes, a bad one dropped and wanted alone), the sender's side (serves WANTed blocks in order within a window,
+  checks each block against its own leaf as it reads it), the frame helpers, and the SYNC 7/8 and AGAIN 4/5 messages
+  and the lane token.
+- `store/blocks.rs`: the map written at OFFER (so an acceptance after a restart still goes by blocks), blocks written
+  at their offsets, durability batches every 8 MiB or second (blocks, then bitmap, then one full sync), the durable
+  prefix kept in `verified_bytes` for older helpers, every block a map claims re-read and checked when a download
+  reopens, a CHUNK prefix turned into blocks once the leaves arrive (and reported at once in a HAVE), the publish check
+  (tree and digest in one pass through the descriptor that wrote the file), the sender's tree beside its snapshot,
+  and recovery sweeps that keep the sidecars of open transfers and delete the rest.
+- The Rust helper: OFFER carries the tree on a fast session; the receiver answers with Blocks; the sender sends the
+  leaves and, at a first acceptance, every block; HAVE as blocks check and become durable; ACK after the publish check;
+  WANT with exactly the missing blocks on every new session; a corrupt block wanted again alone; a changed snapshot
+  fails the transfer before a byte of the changed block leaves. One session per friend: lanes are WP3, the scheduler
+  WP2.
+- Vectors, written from the ADR (`friends/fixtures/vectors/transfer/`): trees and leaves (and every node above them
+  for up to 8 blocks) for 0, 1, 1 MiB − 1, 1 MiB, 1 MiB + 1, 3 MiB + 7 bytes at shifts 20 and 21 and 1 GiB at shifts
+  20 and 21, of the file `byte(i) = i mod 251`; every minor-4 frame and the OFFER and OFFER_REPLY fields, refusals
+  included; ranges; lane tokens; both sidecars; the SYNC and AGAIN messages. The small trees were checked against an
+  independent pure-Python BLAKE3, and the lane tokens against Python's keyed BLAKE2b. `transfer_vectors.rs` fails when
+  the files differ from what the core computes; WP4's exporter must write the same bytes.
+- Tests: the codecs and assembly (unit), negotiation and stripping (`session_fast_transfers.rs`), the store by blocks
+  with a crash, a block changed on disk, a corrupt block and the digest check (`store_blocks.rs`), and two whole
+  helpers (`szfriends-interop/tests/fast_transfers.rs`): a 96 MiB file by blocks over the test air, the receiver
+  restarted half-way and resuming from the blocks it kept; a new helper with one playing a released helper, files both
+  ways with no tree sent. A `block_flow` fuzz target (one minute clean).
+
+**Released apps.** Session code is unchanged since `pdf/26.10.29-1` and `files/26.10.29-1`, so the interop suites run
+against the Objective-C session peer and helper built from this tree are the released behaviour: with them the Rust core
+negotiates minor 3 and sends nothing new. `make friends-core-rs-interop-check` passed (38 tests: sessions, nearby,
+Get again, routes against the Objective-C peer and helper). WP5's `make friends-transfer-interop` with this core: every
+pair with a released peer (`pdf/26.10.29-1` Objective-C, `3d/preview-0.2.4` Rust) negotiates minor 3 and passes on all
+five emulated routes, including resume after a cut; today's Rust with today's Rust negotiates minor 4; the 30 rows that
+pair today's Rust or Objective-C with today's Objective-C fail only the matrix's expectation of minor 4, which WP4
+brings. The Objective-C transcripts replay at the helper's own minor 3 until WP4 exports minor 4. (WP5's peers run the
+CHUNK flow: blocks themselves are tested between whole Rust helpers, above.)
+
+**Left for the next packages.**
+
+- Get again and own-device copies by blocks: the messages, vectors and the store's map are ready; the flows in
+  `sync/again_*.rs` and `sync/exchange.rs` (requesting WANT BLOCKS, serving BLOCKS FOLLOW, HASHES and PARTs for a
+  file that is not an offer) are not built. They still resume from their contiguous prefix, as before.
+- WP1's store items outside this pass: cloned snapshots without fsync, staging and publishing in batches,
+  preallocation beyond the sparse `set_len`, skipping files already held; and the 300-small-files target.
+- "Finishing…" (`transfer.finishing`) while the publish check runs; progress already counts checked blocks.
+- WP4 must reproduce `fixtures/vectors/transfer/*.json` byte for byte (the exporter, then a parity check); then
+  `objc_vectors.rs` and the transcript replay go back to requiring equal minors.
+- Phone measurement of BLAKE3 (script above).
