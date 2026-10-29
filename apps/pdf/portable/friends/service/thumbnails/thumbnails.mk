@@ -33,7 +33,8 @@ $(FRIENDS_THUMBNAILS_BUILD)/%.o: $(FRIENDS_THUMBNAILS_DIR)/%.m $(FRIENDS_THUMBNA
 
 # The suite and the corpus replay compile every source again with AddressSanitizer and UndefinedBehaviorSanitizer,
 # inside the phony target (make skips a rebuild when source and binary share an mtime second). The frame target needs
-# the session codec, which is Foundation-only: its sources are compiled in rather than linked from the session area.
+# the session codec: its sources are compiled in rather than linked from the session area, with libsodium, which the
+# limits file's lane tokens hash with (ADR 0018 § 6).
 FRIENDS_THUMBNAILS_SANITIZE := -fsanitize=address,undefined -fno-sanitize-recover=undefined -fno-omit-frame-pointer
 FRIENDS_THUMBNAILS_TEST := $(FRIENDS_THUMBNAILS_BUILD)/SZFriendsThumbnailTests
 FRIENDS_THUMBNAILS_TEST_SRCS = $(sort $(wildcard $(FRIENDS_THUMBNAILS_DIR)/tests/*.m))
@@ -44,7 +45,7 @@ FRIENDS_THUMBNAILS_FRAME_SRCS := $(addprefix friends/service/session/,SZFriendsS
 FRIENDS_THUMBNAILS_FUZZ_QOI := $(FRIENDS_THUMBNAILS_BUILD)/szfriends-fuzz-qoi
 FRIENDS_THUMBNAILS_FUZZ_FRAME := $(FRIENDS_THUMBNAILS_BUILD)/szfriends-fuzz-frame
 FRIENDS_THUMBNAILS_FUZZ_LIBS := -framework Foundation -framework UniformTypeIdentifiers -framework CoreGraphics \
-	-framework QuickLookThumbnailing
+	-framework QuickLookThumbnailing $(FRIENDS_SODIUM_LIB)
 
 # The two fuzz targets, built by $(1) with $(2) as the sanitizer flags and $(3) as the driver (empty for libFuzzer).
 # The build directory first: a fuzz run whose FRIENDS_FUZZ_WORK is outside BUILD would otherwise link into nowhere.
@@ -53,7 +54,7 @@ define FRIENDS_THUMBNAILS_BUILD_FUZZERS
 	$(1) $(PORTABLE_TEST_OPTFLAGS) $(MAC_TARGET_FLAGS) -std=c99 $(FRIENDS_INCLUDES) -g $(2) \
 		$(FRIENDS_THUMBNAILS_FUZZ_DIR)/szfriends_fuzz_qoi.c $(FRIENDS_THUMBNAILS_C_SRCS) $(3) \
 		-o "$(FRIENDS_THUMBNAILS_FUZZ_QOI)"
-	$(1) $(PORTABLE_TEST_OPTFLAGS) $(MAC_TARGET_FLAGS) $(FRIENDS_INCLUDES) -g $(2) -fobjc-arc \
+	$(1) $(PORTABLE_TEST_OPTFLAGS) $(MAC_TARGET_FLAGS) $(FRIENDS_INCLUDES) $(FRIENDS_SODIUM_CFLAGS) -g $(2) -fobjc-arc \
 		$(FRIENDS_THUMBNAILS_FUZZ_DIR)/SZFriendsFuzzFrame.m $(FRIENDS_THUMBNAILS_FRAME_SRCS) \
 		$(FRIENDS_THUMBNAILS_M_SRCS) $(FRIENDS_THUMBNAILS_C_SRCS) $(3) $(FRIENDS_THUMBNAILS_FUZZ_LIBS) \
 		-o "$(FRIENDS_THUMBNAILS_FUZZ_FRAME)"
@@ -61,7 +62,7 @@ endef
 
 FRIENDS_TEST_TARGETS += friends-thumbnails-check
 .PHONY: friends-thumbnails-check friends-thumbnails-fuzz friends-thumbnails-fuzz-seeds
-friends-thumbnails-check:
+friends-thumbnails-check: $(FRIENDS_SODIUM_LIB)
 	@mkdir -p "$(FRIENDS_THUMBNAILS_BUILD)"
 	@rm -f "$(FRIENDS_THUMBNAILS_TEST)" "$(FRIENDS_THUMBNAILS_FUZZ_QOI)" "$(FRIENDS_THUMBNAILS_FUZZ_FRAME)"
 	clang $(PORTABLE_TEST_OPTFLAGS) $(FRIENDS_OBJC_FLAGS) $(FRIENDS_THUMBNAILS_SANITIZE) \
@@ -96,7 +97,7 @@ friends-thumbnails-fuzz:
 	fi
 
 .PHONY: friends-thumbnails-fuzz-libfuzzer friends-thumbnails-fuzz-driver
-friends-thumbnails-fuzz-libfuzzer:
+friends-thumbnails-fuzz-libfuzzer: $(FRIENDS_SODIUM_LIB)
 	$(call FRIENDS_THUMBNAILS_BUILD_FUZZERS,"$(FRIENDS_FUZZ_CLANG)" -isysroot "$$(xcrun --show-sdk-path)",\
 		-fsanitize=fuzzer$(FRIENDS_THUMBNAILS_COMMA)address$(FRIENDS_THUMBNAILS_COMMA)undefined \
 		-fno-sanitize-recover=undefined,)
@@ -107,7 +108,7 @@ friends-thumbnails-fuzz-libfuzzer:
 		-artifact_prefix="$(FRIENDS_FUZZ_WORK)/crashes/frame-" "$(FRIENDS_FUZZ_WORK)/frame" \
 		"$(FRIENDS_THUMBNAILS_CORPUS)/frame"
 
-friends-thumbnails-fuzz-driver:
+friends-thumbnails-fuzz-driver: $(FRIENDS_SODIUM_LIB)
 	$(call FRIENDS_THUMBNAILS_BUILD_FUZZERS,clang,$(FRIENDS_THUMBNAILS_SANITIZE),\
 		$(FRIENDS_THUMBNAILS_FUZZ_DIR)/szfriends_fuzz_driver.c)
 	"$(FRIENDS_THUMBNAILS_FUZZ_QOI)" -seconds $(FRIENDS_FUZZ_SECONDS) -crashes "$(FRIENDS_FUZZ_WORK)/crashes" \
@@ -117,10 +118,11 @@ friends-thumbnails-fuzz-driver:
 
 # Regenerates the seed corpus after a format change (the committed files are this program's output).
 FRIENDS_THUMBNAILS_SEEDS := $(FRIENDS_THUMBNAILS_BUILD)/SZFriendsFuzzSeeds
-friends-thumbnails-fuzz-seeds:
+friends-thumbnails-fuzz-seeds: $(FRIENDS_SODIUM_LIB)
 	@mkdir -p "$(FRIENDS_THUMBNAILS_BUILD)"
 	@rm -f "$(FRIENDS_THUMBNAILS_SEEDS)"
-	clang $(PORTABLE_TEST_OPTFLAGS) $(FRIENDS_OBJC_FLAGS) $(FRIENDS_THUMBNAILS_FUZZ_DIR)/SZFriendsFuzzSeeds.m \
+	clang $(PORTABLE_TEST_OPTFLAGS) $(FRIENDS_OBJC_FLAGS) $(FRIENDS_SODIUM_CFLAGS) \
+		$(FRIENDS_THUMBNAILS_FUZZ_DIR)/SZFriendsFuzzSeeds.m \
 		$(FRIENDS_THUMBNAILS_FRAME_SRCS) $(FRIENDS_THUMBNAILS_M_SRCS) $(FRIENDS_THUMBNAILS_C_SRCS) \
 		$(FRIENDS_THUMBNAILS_FUZZ_LIBS) -o "$(FRIENDS_THUMBNAILS_SEEDS)"
 	"$(FRIENDS_THUMBNAILS_SEEDS)" "$(FRIENDS_THUMBNAILS_CORPUS)/qoi" "$(FRIENDS_THUMBNAILS_CORPUS)/frame"
