@@ -180,7 +180,7 @@ impl State {
                 "identity_key": hex(&self.identity.public_key()),
                 "static_key": hex(&self.identity.static_public_key()),
             }),
-            "listen" => self.listen(),
+            "listen" => self.listen(command),
             "public_profile" => {
                 let mut fields = Fields::new();
                 fields.insert(tag::NAME, command["name"].as_str().unwrap_or_default().as_bytes().to_vec());
@@ -243,8 +243,10 @@ impl State {
         }
     }
 
-    fn listen(&mut self) -> Value {
-        let listener = TcpListener::bind("127.0.0.1:0").expect("a loopback port");
+    /// On loopback, or on every interface with `"any": true` (the device runs of `tools/transfer-devices.sh`).
+    fn listen(&mut self, command: &Value) -> Value {
+        let address = if command["any"] == true { "0.0.0.0:0" } else { "127.0.0.1:0" };
+        let listener = TcpListener::bind(address).expect("a port");
         let port = listener.local_addr().expect("bound").port();
         let input = self.input.clone();
         std::thread::spawn(move || {
@@ -336,11 +338,22 @@ impl State {
             Some("IK") => Pattern::IK,
             _ => Pattern::NN,
         };
-        let mut options = HandshakeOptions::new(pattern, RouteMethod::Lan);
+        // The route class this side declares as the initiator (it sets chunk size and window); LAN by default.
+        let route = match command["route"].as_str() {
+            Some("p2p_wifi") => RouteMethod::PeerToPeerWifi,
+            Some("bluetooth") => RouteMethod::Bluetooth,
+            Some("internet") => RouteMethod::Internet,
+            Some("relay") => RouteMethod::Relay,
+            _ => RouteMethod::Lan,
+        };
+        let mut options = HandshakeOptions::new(pattern, route);
         options.remote_static = key(&command["remote_static"]);
         options.expected_identity = key(&command["expected_identity"]);
         options.request_token = command["token"].as_str().and_then(hex_bytes);
-        let Ok(stream) = TcpStream::connect(("127.0.0.1", command["port"].as_u64().unwrap_or(0) as u16)) else {
+        let Ok(stream) = TcpStream::connect((
+            command["host"].as_str().unwrap_or("127.0.0.1"),
+            command["port"].as_u64().unwrap_or(0) as u16,
+        )) else {
             return json!({ "error": "connect failed" });
         };
         let mut channel = SecureChannel::initiator(ChannelIdentity::new(&self.identity), options);

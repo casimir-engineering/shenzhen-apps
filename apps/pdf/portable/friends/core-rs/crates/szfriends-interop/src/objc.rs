@@ -30,9 +30,16 @@ impl ObjcPeer {
     /// Starts the peer with `home` as its state directory and the identity derived from `name` (seeds as in the
     /// vector exporter: BLAKE2b-256 of "<name> seed" and "<name> static").
     pub fn start(binary: &Path, home: &Path, name: &str) -> Self {
-        let mut child = Command::new(binary)
-            .arg(home)
-            .arg(name)
+        let mut command = Command::new(binary);
+        command.arg(home).arg(name);
+        Self::spawn(command)
+    }
+
+    /// Any process that speaks this peer's protocol on its standard input and output: the Rust peer of
+    /// `examples/session_peer.rs`, a peer built from a release tag, or one on another device through `ssh` or
+    /// `adb shell` (the transfer bench and interop matrix).
+    pub fn spawn(mut command: Command) -> Self {
+        let mut child = command
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::inherit())
@@ -59,6 +66,11 @@ impl ObjcPeer {
             }
         });
         Self { child, stdin, replies, events }
+    }
+
+    /// The child's process id, for its CPU time.
+    pub fn pid(&self) -> u32 {
+        self.child.id()
     }
 }
 

@@ -2,9 +2,11 @@
 //! Rust core ([`RustPeer`]) or the Objective-C helper's own session, store and transfer code in a process of its own
 //! ([`ObjcPeer`], `tools/objc-session-peer`); both take the same JSON commands and report the same JSON events, so one
 //! scenario runs Rust against Rust everywhere and Rust against the helper on a Mac. [`Proxy`] sits between two peers
-//! to cut a route or flip a byte. Nothing leaves loopback; every peer has its own temporary home.
+//! to emulate a route (rate, delay, loss, silence), cut it or flip a byte; [`bench`] measures transfers through it.
+//! Nothing leaves loopback; every peer has its own temporary home.
 
 pub mod again;
+pub mod bench;
 pub mod bridge;
 pub mod device_scenarios;
 mod devices;

@@ -1,0 +1,122 @@
+//! The transfer bench (ADR 0018 § Verification): today's peers, Rust (`examples/session_peer.rs`) and the
+//! Objective-C helper's own session, store and transfer code (`$SZFRIENDS_OBJC_PEER`), each in a process of its own,
+//! send 1 MiB, 100 MiB, 2 GiB and 300 files of 10 KiB through each emulated route, then lose a route mid-transfer.
+//! Appends one JSON line per case to `$BENCH_OUT` and prints a table: MB/s, share of the link, CPU seconds per GB on
+//! each side, and for a cut or silence when it was noticed and how long until the transfer moved again.
+//!
+//! `make friends-transfer-bench` builds and runs it; on demand only, no suite runs it. Choose with:
+//!   BENCH_PAIRS        rust-rust,rust-objc,objc-rust,objc-objc (default: all; objc ones need SZFRIENDS_OBJC_PEER)
+//!   BENCH_ROUTES       loopback,lan,p2p_wifi,internet,internet_lossy,relay,bluetooth (default: all)
+//!   BENCH_SIZES        1m,100m,2g,small (default: all)
+//!   BENCH_LOSS         lan-cut,lan-silence,bluetooth-cut,bluetooth-silence (default: all; "none" for none)
+//!   BENCH_MAX_SECONDS  skip a case the route would need longer than this for at its rate (default 120)
+//!   BENCH_SILENCE_WAIT seconds a silent route may go unnoticed before the route comes back anyway (default 20)
+//! `transfer_bench --table <file.jsonl>` prints the table of earlier results.
+
+use std::path::PathBuf;
+use std::time::Duration;
+
+use serde_json::{json, Value};
+use szfriends_interop::bench::{self, Case, Loss, PeerSpec, RouteProfile, BLUETOOTH, LAN, MIB, ROUTES};
+
+fn list(name: &str, default: &str) -> Vec<String> {
+    let value = std::env::var(name).unwrap_or_default();
+    let value = if value.trim().is_empty() { default.to_owned() } else { value };
+    value.split(',').map(|s| s.trim().to_owned()).filter(|s| !s.is_empty() && s != "none").collect()
+}
+
+fn number(name: &str, default: f64) -> f64 {
+    std::env::var(name).ok().and_then(|v| v.parse().ok()).unwrap_or(default)
+}
+
+fn files(size: &str) -> Option<Vec<u64>> {
+    Some(match size {
+        "1m" => vec![MIB],
+        "100m" => vec![100 * MIB],
+        "2g" => vec![2048 * MIB],
+        "small" => vec![10 * 1024; 300],
+        _ => return None,
+    })
+}
+
+fn loss_case(name: &str, silence_wait: Duration) -> Option<Case> {
+    let (route, files, loss): (RouteProfile, _, _) = match name {
+        "lan-cut" => (LAN, vec![100 * MIB], Loss::Cut(0.5)),
+        "lan-silence" => (LAN, vec![100 * MIB], Loss::Silence(0.5)),
+        "bluetooth-cut" => (BLUETOOTH, vec![4 * MIB], Loss::Cut(0.5)),
+        "bluetooth-silence" => (BLUETOOTH, vec![4 * MIB], Loss::Silence(0.5)),
+        _ => return None,
+    };
+    Some(Case { name: name.to_owned(), route, files, loss, silence_wait })
+}
+
+fn main() {
+    let args: Vec<String> = std::env::args().collect();
+    if args.get(1).map(String::as_str) == Some("--table") {
+        let text = std::fs::read_to_string(args.get(2).expect("a results file")).expect("readable");
+        let results: Vec<Value> = text.lines().filter_map(|l| serde_json::from_str(l).ok()).collect();
+        print!("{}", bench::table(&results));
+        return;
+    }
+    let out = PathBuf::from(std::env::var("BENCH_OUT").unwrap_or_else(|_| "transfer-bench.jsonl".into()));
+    let rust = PeerSpec::local("rust", &bench::rust_peer_binary().expect("examples/session_peer is built"), false);
+    let objc = szfriends_interop::ObjcPeer::binary().map(|b| PeerSpec::local("objc", &b, false));
+    let max_seconds = number("BENCH_MAX_SECONDS", 120.0);
+    let silence_wait = Duration::from_secs_f64(number("BENCH_SILENCE_WAIT", 20.0));
+    let mut pairs = Vec::new();
+    for pair in list("BENCH_PAIRS", "rust-rust,rust-objc,objc-rust,objc-objc") {
+        let pick = |name: &str| match name {
+            "rust" => Some(rust.clone()),
+            "objc" => objc.clone(),
+            _ => None,
+        };
+        match pair.split_once('-').map(|(s, r)| (pick(s), pick(r))) {
+            Some((Some(s), Some(r))) => pairs.push((s, r)),
+            _ => eprintln!("bench: skipping {pair} (unknown, or SZFRIENDS_OBJC_PEER not set)"),
+        }
+    }
+    let mut cases = Vec::new();
+    for route in list("BENCH_ROUTES", &ROUTES.map(|r| r.name).join(",")) {
+        let Some(profile) = RouteProfile::named(&route) else {
+            eprintln!("bench: no route {route}");
+            continue;
+        };
+        for size in list("BENCH_SIZES", "1m,100m,2g,small") {
+            let Some(files) = files(&size) else { continue };
+            cases.push(Case { name: format!("{route}-{size}"), route: profile, files, loss: Loss::None, silence_wait });
+        }
+    }
+    cases.extend(
+        list("BENCH_LOSS", "lan-cut,lan-silence,bluetooth-cut,bluetooth-silence")
+            .iter()
+            .filter_map(|name| loss_case(name, silence_wait)),
+    );
+    let mut results = Vec::new();
+    for case in &cases {
+        for (sender, receiver) in &pairs {
+            let total: u64 = case.files.iter().sum();
+            let payload = bench::payload(&case.files);
+            let expected = case.route.expected_bytes_per_second().map_or(0.0, |rate| total as f64 / rate);
+            let mut result = if expected > max_seconds {
+                json!({ "case": case.name, "sender": sender.label, "receiver": receiver.label,
+                        "route": case.route.name, "files": case.files.len(), "bytes": total,
+                        "skipped": format!("about {:.0} s at this rate (BENCH_MAX_SECONDS={max_seconds})", expected) })
+            } else {
+                eprintln!("bench: {} {} → {}", case.name, sender.label, receiver.label);
+                bench::run_caught(case, sender, receiver)
+            };
+            result["payload"] = json!(payload);
+            if case.loss != Loss::None {
+                result["silence_wait_s"] = json!(silence_wait.as_secs_f64());
+            }
+            eprintln!("bench: {result}");
+            bench::append(&out, &result);
+            results.push(result);
+        }
+    }
+    print!("{}", bench::table(&results));
+    println!("results appended to {}", out.display());
+    if results.iter().any(|r| !r["error"].is_null()) {
+        std::process::exit(1);
+    }
+}

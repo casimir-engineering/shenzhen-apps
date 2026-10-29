@@ -41,6 +41,14 @@
 #   friends-datachannel-rs-check
 #                           szfriends-datachannel-sys against the helper: its suite with a Rust peer talking to the
 #                           helper's own online transport (tools/objc-dc-peer) over 127.0.0.1. macOS; needs cargo.
+#   friends-transfer-bench  on demand, not in any suite: the transfer bench of ADR 0018 (examples/transfer_bench.rs):
+#                           Rust and Objective-C peers, each its own process, through a proxy emulating each route's
+#                           rate, delay and loss, then a cut and a silence; JSON lines to transfer-bench.jsonl in the
+#                           build tree and a table (MB/s, share of the link, CPU s/GB, recovery). BENCH_* narrow it.
+#   friends-transfer-interop
+#                           on demand, not in any suite: the interop matrix (examples/transfer_interop.rs): peers
+#                           built from the release tags (tools/released-peers.sh) against today's, and today's against
+#                           each other, on each emulated route, with resume after a cut. INTEROP_* narrow it.
 
 FRIENDS_CORE_RS_DIR := friends/core-rs
 # Cargo reads a workspace's .cargo/config.toml only when it runs from inside it; these targets run from portable/, so
@@ -261,3 +269,25 @@ friends-datachannel-rs-check: $$(FRIENDS_DATACHANNEL_LIBS)
 	CARGO_TARGET_DIR="$(abspath $(FRIENDS_CORE_RS_BUILD))/target" \
 		SZFRIENDS_DC_OBJC_PEER="$(abspath $(FRIENDS_DC_PEER))" \
 		cargo test $(FRIENDS_CORE_RS_MANIFEST) -p szfriends-datachannel-sys --locked
+
+# The transfer bench and the interop matrix (ADR 0018 § Verification, WP5). Release builds, as the helpers ship; on
+# demand only. Loopback; temporary homes; the released peers' worktrees and builds stay under the build tree.
+FRIENDS_TRANSFER_EXAMPLES = $(abspath $(FRIENDS_CORE_RS_BUILD))/target/release/examples
+
+.PHONY: friends-transfer-examples
+friends-transfer-examples:
+	CARGO_TARGET_DIR="$(abspath $(FRIENDS_CORE_RS_BUILD))/target" cargo build $(FRIENDS_CORE_RS_MANIFEST) --locked \
+		--release -p szfriends-interop --example session_peer --example transfer_bench --example transfer_interop
+
+.PHONY: friends-transfer-bench
+friends-transfer-bench: friends-session-peer friends-transfer-examples
+	SZFRIENDS_OBJC_PEER="$(abspath $(FRIENDS_SESSION_PEER))" \
+		BENCH_OUT="$${BENCH_OUT:-$(abspath $(FRIENDS_CORE_RS_BUILD))/transfer-bench.jsonl}" \
+		"$(FRIENDS_TRANSFER_EXAMPLES)/transfer_bench"
+
+.PHONY: friends-transfer-interop
+friends-transfer-interop: friends-session-peer friends-transfer-examples
+	eval "$$($(FRIENDS_CORE_RS_DIR)/tools/released-peers.sh "$(FRIENDS_CORE_RS_BUILD)/released")" && \
+		SZFRIENDS_OBJC_PEER="$(abspath $(FRIENDS_SESSION_PEER))" \
+		INTEROP_OUT="$${INTEROP_OUT:-$(abspath $(FRIENDS_CORE_RS_BUILD))/transfer-interop.jsonl}" \
+		"$(FRIENDS_TRANSFER_EXAMPLES)/transfer_interop"

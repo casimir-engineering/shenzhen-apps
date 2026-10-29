@@ -123,7 +123,7 @@ static NSData *SZFDerive(NSString *label) {
     if ([name isEqualToString:@"hello"]) {
         return @{@"identity_key" : SZFHex(_identity.publicKey), @"static_key" : SZFHex(_identity.staticPublicKey)};
     } else if ([name isEqualToString:@"listen"]) {
-        return [self listen];
+        return [self listenOnAnyInterface:[command[@"any"] boolValue]];
     } else if ([name isEqualToString:@"public_profile"]) {
         self.publicProfile = @{@(SZFriendsFieldName) : [command[@"name"] dataUsingEncoding:NSUTF8StringEncoding]};
         return @{};

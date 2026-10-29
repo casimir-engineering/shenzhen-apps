@@ -52,7 +52,7 @@ NS_ASSUME_NONNULL_BEGIN
 @end
 
 @interface SZFPeer (Network)
-- (NSDictionary *)listen;
+- (NSDictionary *)listenOnAnyInterface:(BOOL)any;
 - (NSDictionary *)dialWithCommand:(NSDictionary *)command;
 @end
 
