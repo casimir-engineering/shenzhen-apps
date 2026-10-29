@@ -108,3 +108,10 @@ and 0007 (search no longer holds mentions' IDs and keys).
   person's own other devices; clicks open `<scheme>://friends/conversation/<id>` in the app last used; the ask card on
   macOS and iOS, POST_NOTIFICATIONS with Bluetooth on Android, a foreground service for background reach; a JSON-lines
   sink in test homes.
+- [0018 Fast transfers](0018-fast-transfers.md) (Proposed): session minor 4 and capability bit 0, negotiated in the
+  handshake so released apps keep today's transfers; files in blocks under a BLAKE3 tree announced in the offer and
+  checked on arrival; a block map in sidecar files that resumes exactly what is missing after restarts, sleep and route
+  changes, for SYNC copies and Get again too; lanes (more IK sessions bound to the first) on several routes, scheduled
+  by measured speed, with a lost or silent lane's blocks reassigned at once; PING liveness on every session; nothing
+  new for the host or the relay. Measurements and work packages: the journal,
+  `portable/docs/journals/shenzhen-friends/2026-10-29-fast-transfers.md`.

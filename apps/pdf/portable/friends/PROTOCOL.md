@@ -21,6 +21,7 @@ them is a bug; decide which and fix it in the same change.
 - [Links](#links)
 - [Devices](#devices)
 - [Notifications](#notifications)
+- [Fast transfers](#fast-transfers)
 - [Static strings](#static-strings)
 - [Limits](#limits)
 - [Schemas](#schemas)
@@ -1452,6 +1453,29 @@ never syncs.
 appends each request, withdrawal, ask and routed click as JSON lines to `<state dir>/notifications.jsonl`, reads its
 permission from `SZFRIENDS_NOTIFY_PERMISSION`, and accepts `test_notification_response`. Elsewhere that intent fails
 with `unknown_intent`. ADR 0017 gives the request's fields.
+
+## Fast transfers
+
+Proposed in [ADR 0018](docs/adr/0018-fast-transfers.md) and not built yet: until a helper ships it, nothing here
+appears. Between two devices whose helpers both have it, files move in checked blocks over several connections and
+routes at once and resume from exactly what arrived; with anyone else, files move as they do today. Views need no
+change: the contract adds no intent, view, field or capability, only these rules on fields that exist.
+
+- **Progress.** A transfer's `progress` counts the blocks that arrived and were checked, so it only ever goes up, and
+  it keeps its value through a route change, sleep or a restart of either computer: a transfer that stops and starts
+  again carries on from where it was. Blocks may arrive out of order; `progress` is still a fraction of the file.
+- **Several routes.** `route_note` keeps its rule (only when the file moves slowly enough that the time left helps
+  the person decide) and names the routes that carry the file. When Bluetooth helps a slow network, "Over your network
+  and Bluetooth, about 2 min" (catalog `estimate.network_and_bluetooth`, through `estimate.with_time`). When Bluetooth
+  drops out, the words go back to the ones for the network alone and nothing else changes: the file does not pause.
+- **Finishing.** After the last block, the receiving helper checks the whole file before it is saved. When that takes
+  more than a second (large files), the item stays `receiving` with `progress` 1 and `status_label` "Finishing…"
+  (catalog `transfer.finishing`); its `accessibility_label` ends ", finishing". Then it is `received` as today.
+- **Nothing to choose.** There is no setting for routes, connections or compression. A file that fails a check is
+  fetched again block by block by the helpers; the person sees `failed` only when the file cannot be completed at all
+  (the sender no longer has it, or it changed), with today's words and Try again.
+- **Getting a file again and copies from the person's own computers** (§ Getting a file again, § Devices) resume from
+  the blocks they already have in the same way: "Copying from Mei Lin · 90%" carries on at 90 %.
 
 ## Static strings
 
