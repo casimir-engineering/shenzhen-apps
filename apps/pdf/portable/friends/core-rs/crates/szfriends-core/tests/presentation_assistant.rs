@@ -213,7 +213,7 @@ fn cancel_while_nothing_has_left() {
     );
     assert_eq!(
         builder.row_preview(&cancelled, &people["c_mei"]),
-        ("Cancelled · Wrong page".to_owned(), "you said Wrong page, cancelled".to_owned())
+        ("Cancelled · You: Wrong page".to_owned(), "you said Wrong page, cancelled".to_owned())
     );
     let s = builder.strings();
     let mut details: Map<String, Value> =

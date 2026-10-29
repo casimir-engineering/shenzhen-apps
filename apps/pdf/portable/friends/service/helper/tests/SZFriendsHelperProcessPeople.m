@@ -226,8 +226,8 @@ static BOOL SZFHIncoming(SZFriendsStore *store, NSString *conversationID, NSStri
 
 // Integration review, wave 6b: the helper keyed each row's newest item by conversation id while the builder looks it
 // up by item id, so in a real helper every row's subtitle was "" in both apps. The presentation tests key their world
-// by item id and missed it. Rows built from a real store describe each conversation's newest item: a message's text,
-// and a waiting offer's file.
+// by item id and missed it. Rows built from a real store describe each conversation's newest message or file: a
+// message's text after its sender's name, and a waiting offer's file.
 BOOL SZFHTestListRowsDescribeNewestItem(SZFHHarness *harness) {
     if (sodium_init() < 0) return NO;
     NSString *state = [harness makeDirectory];
@@ -252,7 +252,9 @@ BOOL SZFHTestListRowsDescribeNewestItem(SZFHHarness *harness) {
     NSDictionary *mei = SZFHRowFor(client, @"c_mei"), *kenji = SZFHRowFor(client, @"c_kenji");
     kill(pid, SIGTERM);
     CHECK([harness waitForExit:pid timeout:3 status:NULL]);
-    CHECK([mei[@"subtitle"] isEqual:@"Can you check pages 3–5 before Friday?"], "Mei's newest message: %@", mei);
+    // Unnamed, Mei's first name is her Friends ID, as the row's title shows it.
+    NSString *meiSaid = [mei[@"title"] stringByAppendingString:@": Can you check pages 3–5 before Friday?"];
+    CHECK([mei[@"subtitle"] isEqual:meiSaid], "Mei's newest message: %@", mei);
     CHECK([kenji[@"subtitle"] isEqual:@"Sent you Site photos.pdf"], "Kenji's offer: %@", kenji);
     return YES;
 }

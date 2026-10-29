@@ -92,6 +92,9 @@ static SZFriendsPersonFacts *Person(NSString *conversationID, NSString *name, NS
     person.routeMethod = method;
     person.lastInteractionAt = SZPHongKong(lastInteraction);
     person.lastPreviewItemID = previewItemID;
+    // The world's previews are a message or a file, apart from events (e_...), which a row never shows.
+    if (![previewItemID hasPrefix:@"e_"]) person.lastMessageItemID = previewItemID;
+    person.lastMessageFileCount = [previewItemID hasPrefix:@"t_"] ? 1 : 0;
     return person;
 }
 

@@ -1,16 +1,19 @@
-//! Words items and list rows share (`SZFriendsSnapshotBuilder+Previews.m`): the row's preview of the latest item
-//! ("Sends when Priya is nearby · Supplier contract v3.pdf"), event text, the outgoing status a row and a spoken label
+//! Words items and list rows share (`SZFriendsSnapshotBuilder+Previews.m`): the row's preview of the latest message
+//! ("You: 📎 Supplier contract v3.pdf", "Mei: Can you check pages 3–5?"), event text, the outgoing status a row and a spoken label
 //! share, which failures Try again can still change, and why a row refuses dragged files.
 
 use serde_json::{json, Value};
 
-use super::facts::{failure, ItemFacts, ItemKind, OutboxState, PersonFacts, Relation, TransferState};
+use super::facts::{event, failure, ItemFacts, ItemKind, OutboxState, PersonFacts, Relation, TransferState};
 use super::mention_view::MentionDirectory;
 use super::text::{composed_range16, from_utf16, is_space_or_newline, utf16};
 use super::SnapshotBuilder;
 
 /// Long previews are cut so a list snapshot never carries whole 32 KB messages; views truncate visually anyway.
 const PREVIEW_LENGTH: usize = 120;
+
+/// The statuses a list row shows: the item did not arrive. Those still under way say nothing there.
+const SHOWN_STATUSES: [&str; 5] = ["failed", "didnt_arrive", "declined_by_them", "declined_by_you", "cancelled"];
 
 /// A list row's subtitle, its spoken form, and whether it already says the friend is not reachable (a queued item).
 pub(crate) struct Preview {
@@ -63,16 +66,6 @@ impl SnapshotBuilder {
         format!("{}…", from_utf16(&units[start..end]))
     }
 
-    /// A catalog phrase inside a spoken label, lowered only when it does not open with the person's name or ID.
-    pub(crate) fn spoken_phrase(&self, phrase: &str, person: &PersonFacts) -> String {
-        let first = self.first_name_for_person(person);
-        let opens_with_id = person.friends_id.as_deref().is_some_and(|id| !id.is_empty() && phrase.starts_with(id));
-        if (!first.is_empty() && phrase.starts_with(&first)) || opens_with_id {
-            return phrase.to_owned();
-        }
-        self.strings.spoken_fragment(phrase)
-    }
-
     /// Only kinds with a catalog entry are shown.
     pub(crate) fn event_text(&self, item: &ItemFacts, person: &PersonFacts) -> Option<String> {
         let key = format!("event.{}", item.event_kind.as_deref().unwrap_or(""));
@@ -118,6 +111,9 @@ impl SnapshotBuilder {
         })
     }
 
+    /// A friend's list row: their latest message or file, as "You: …" or "Mei: …" (a file as "📎 name", several sent
+    /// together as "3 files"), or "No messages yet". Only a status saying it did not arrive shows, first so a narrow
+    /// row keeps it; the route icons already say whether the friend is reachable. Spoken, every status follows.
     pub(crate) fn preview(
         &self,
         item: Option<&ItemFacts>,
@@ -127,43 +123,50 @@ impl SnapshotBuilder {
         let s = &self.strings;
         let first = self.first_name_for_person(person);
         let who = [("first", first.as_str())];
-        let Some(item) = item else {
-            return Preview { visual: String::new(), spoken: String::new(), explains_route: false };
+        let link_file = item.and_then(|item| {
+            let link = item.kind == ItemKind::Event && item.event_kind.as_deref() == Some(event::RECEIVED_LINK_FILE);
+            link.then(|| item.event_arguments.get("file").cloned().unwrap_or_default())
+        });
+        let Some(item) = item.filter(|item| item.kind != ItemKind::Event || link_file.is_some()) else {
+            let text = s.text("list.subtitle.no_messages");
+            return Preview { spoken: s.spoken_fragment(&text), visual: text, explains_route: false };
         };
-        if item.kind == ItemKind::Event {
-            let text = self.event_text(item, person).unwrap_or_default();
-            let spoken = self.spoken_phrase(&text, person);
-            return Preview { visual: text, spoken, explains_route: false };
-        }
         let message = item.kind == ItemKind::Message;
         // A mention previews as "@Name", never as its link.
-        let content = if message {
-            self.preview_text(&self.plain_text_of(item.text.as_deref().unwrap_or(""), directory))
+        let (content, said_content) = if message {
+            let text = self.preview_text(&self.plain_text_of(item.text.as_deref().unwrap_or(""), directory));
+            (text.clone(), text)
+        } else if person.last_message_files > 1 {
+            let text = s.text_with("preview.files", &[("count", &person.last_message_files.to_string())]);
+            (text.clone(), text)
         } else {
-            item.file_name.clone().unwrap_or_default()
+            let name = link_file.clone().or_else(|| item.file_name.clone()).unwrap_or_default();
+            (s.text_with("preview.file", &[("file", &name)]), name)
         };
-        let mut status = self.status_key(item);
+        let status = if link_file.is_some() { None } else { self.status_key(item).filter(|s| *s != "waiting") };
         let explains_route = status == Some("queued");
-        let mut visual = content.clone();
-        let mut said = content.clone();
-        if item.outgoing {
-            visual = s.text_with("preview.you", &[("text", &content)]);
-            let key = if message { "preview.you_said" } else { "preview.you_sent" };
-            said = s.text_with(key, &[("text", &content)]);
-        } else if !message && status == Some("waiting") {
-            visual = s.text_with("list.subtitle.offer", &[("file", &content)]);
-            said = s.spoken_fragment(&visual);
-            status = None;
-        }
+        let said_key = match (item.outgoing, message) {
+            (true, true) => "preview.you_said",
+            (true, false) => "preview.you_sent",
+            (false, true) => "preview.they_said",
+            (false, false) => "preview.they_sent",
+        };
+        let mut said = s.text_with(said_key, &[("first", &first), ("text", &said_content)]);
+        let mut visual = if item.outgoing {
+            s.text_with("preview.you", &[("text", &content)])
+        } else {
+            s.text_with("preview.them", &[("first", &first), ("text", &content)])
+        };
         if let Some(status) = status {
-            // Status first, so a narrow row cut short still says whether it went; spoken, it follows the content.
             let key = if status == "queued" {
                 self.waiting_key("preview.status", person)
             } else {
                 format!("preview.status.{status}")
             };
-            let shown = s.text_with(&key, &who);
-            visual = s.text_with("preview.status_first", &[("status", &shown), ("text", &content)]);
+            if SHOWN_STATUSES.contains(&status) {
+                let shown = s.text_with(&key, &who);
+                visual = s.text_with("preview.status_first", &[("status", &shown), ("text", &visual)]);
+            }
             let said_status = s.text_with(&format!("{key}.spoken"), &who);
             said = s.text_with("preview.with_status.spoken", &[("text", &said), ("status", &said_status)]);
         }

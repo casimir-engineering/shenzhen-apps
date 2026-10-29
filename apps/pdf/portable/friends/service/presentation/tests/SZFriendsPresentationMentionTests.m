@@ -217,7 +217,7 @@ static void TestComposingMentions(void) {
 static void TestPreviews(void) {
     NSMutableDictionary *people = [SZPPeople() mutableCopy];
     SZFriendsPersonFacts *daniel = people[@"c_daniel"];
-    daniel.lastPreviewItemID = @"m_d0a1";
+    daniel.lastMessageItemID = @"m_d0a1";
     daniel.lastInteractionAt = SZPHongKong(@"2026-10-12 14:45");
     NSMutableDictionary *previews = [SZPPreviewItems() mutableCopy];
     previews[@"m_d0a1"] = SZPItemsFor(@"c_daniel")[0];
@@ -227,8 +227,8 @@ static void TestPreviews(void) {
     NSDictionary *row = nil;
     for (NSDictionary *candidate in list[@"rows"])
         if ([candidate[@"conversation_id"] isEqual:@"c_daniel"]) row = candidate;
-    SZPExpect([row[@"subtitle"] isEqual:@"@Mei Lin has the bracket drawing. Ask her for rev B."], @"preview: %@",
-              row[@"subtitle"]);
+    SZPExpect([row[@"subtitle"] isEqual:@"Daniel: @Mei Lin has the bracket drawing. Ask her for rev B."],
+              @"preview: %@", row[@"subtitle"]);
     SZPExpect([row[@"accessibility_label"] containsString:@"@Mei Lin has"], @"%@", row[@"accessibility_label"]);
 }
 

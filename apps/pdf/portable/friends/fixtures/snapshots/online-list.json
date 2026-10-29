@@ -75,7 +75,7 @@
           "color": "#3f6b4f"
         },
         "title": "Mei Lin",
-        "subtitle": "Can you check pages 3–5 before Friday?",
+        "subtitle": "Mei: Can you check pages 3–5 before Friday?",
         "time_label": "14:32",
         "route": {
           "kind": "online",
@@ -90,7 +90,7 @@
         "style": "normal",
         "drop_label": "Send to Mei",
         "drop_refusal": null,
-        "accessibility_label": "Mei Lin, unread, Can you check pages 3–5 before Friday?, 14:32, online, direct",
+        "accessibility_label": "Mei Lin, unread, Mei said Can you check pages 3–5 before Friday?, 14:32, online, direct",
         "actions": []
       },
       {
@@ -134,7 +134,7 @@
           "color": "#7a5a34"
         },
         "title": "Daniel Ortiz",
-        "subtitle": "Accepted automatically · Enclosure assembly guide.pdf",
+        "subtitle": "Daniel: 📎 Enclosure assembly guide.pdf",
         "time_label": "11:05",
         "route": {
           "kind": "online",
@@ -149,7 +149,7 @@
         "style": "normal",
         "drop_label": "Send to Daniel",
         "drop_refusal": null,
-        "accessibility_label": "Daniel Ortiz, Enclosure assembly guide.pdf, accepted automatically, 11:05, online, through the Friends relay",
+        "accessibility_label": "Daniel Ortiz, Daniel sent Enclosure assembly guide.pdf, accepted automatically, 11:05, online, through the Friends relay",
         "actions": []
       },
       {
@@ -162,7 +162,7 @@
           "color": "#4f4f86"
         },
         "title": "Priya Raman",
-        "subtitle": "Connecting to Priya… · Supplier contract v3.pdf",
+        "subtitle": "You: 📎 Supplier contract v3.pdf",
         "time_label": "Yesterday",
         "route": {
           "kind": "connecting",
@@ -190,7 +190,7 @@
           "color": "#6a4a6a"
         },
         "title": "tulip‑canyon",
-        "subtitle": "You are now friends",
+        "subtitle": "No messages yet",
         "time_label": "3 Oct",
         "route": {
           "kind": "offline",
@@ -205,7 +205,7 @@
         "style": "normal",
         "drop_label": "Send to tulip‑canyon",
         "drop_refusal": null,
-        "accessibility_label": "tulip‑canyon, you are now friends, 3 October, not connected right now, ID confirmed",
+        "accessibility_label": "tulip‑canyon, no messages yet, 3 October, not connected right now, ID confirmed",
         "actions": []
       },
       {

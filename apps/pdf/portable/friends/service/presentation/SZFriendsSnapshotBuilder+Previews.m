@@ -1,6 +1,7 @@
-// Shenzhen Friends snapshot builder: the words items and list rows share. The list row's preview of the latest item
-// ("Sends when Priya is nearby · Supplier contract v3.pdf"), event text, the outgoing status a row and a spoken label
-// share, and which failures Try again can still change. Split from +Items so each file stays under the size cap.
+// Shenzhen Friends snapshot builder: the words items and list rows share. The list row's preview of the latest
+// message ("You: 📎 Supplier contract v3.pdf", "Mei: Can you check pages 3–5?"), event text, the outgoing status a row
+// and a spoken label share, and which failures Try again can still change. Split from +Items so each file stays under
+// the size cap.
 
 #import "service/presentation/SZFriendsPresentationPrivate.h"
 #import "service/store/SZFriendsOutbox.h"
@@ -54,15 +55,6 @@ static BOOL RetryCanWork(NSString *failureReason) {
     return [[collapsed substringWithRange:keep] stringByAppendingString:@"…"];
 }
 
-// A catalog phrase inside a spoken label, lowered only when it does not open with the person's name or ID:
-// "You are now friends" becomes "you are now friends", "Mei's key changed" stays as it is.
-- (NSString *)spokenPhrase:(NSString *)phrase person:(SZFriendsPersonFacts *)person {
-    NSString *first = [self firstNameForPerson:person];
-    if ((first.length && [phrase hasPrefix:first]) || (person.friendsID.length && [phrase hasPrefix:person.friendsID]))
-        return phrase;
-    return [self.strings spokenFragment:phrase];
-}
-
 - (NSString *)eventTextForItem:(SZFriendsItemFacts *)item person:(SZFriendsPersonFacts *)person {
     NSString *kind = item.eventKind ?: @"";
     // Only kinds with a catalog entry are shown; the header makes a new kind add its words here first.
@@ -97,44 +89,57 @@ static BOOL RetryCanWork(NSString *failureReason) {
     }
 }
 
+// A friend's list row: their latest message or file, as "You: …" or "Mei: …" (a file as "📎 name", several sent
+// together as "3 files"), or "No messages yet". Only a status saying it did not arrive shows, first so a narrow row
+// keeps it ("Not sent · You: …"); the route icons already say whether the friend is reachable. Spoken, every status
+// follows the content.
 - (NSString *)previewForItem:(SZFriendsItemFacts *)item
                       person:(SZFriendsPersonFacts *)person
                       spoken:(NSString **)spoken
                explainsRoute:(BOOL *)explainsRoute {
     SZFriendsStrings *s = self.strings;
-    NSDictionary *who = @{@"first" : [self firstNameForPerson:person]};
+    NSString *first = [self firstNameForPerson:person];
+    NSDictionary *who = @{@"first" : first};
     *explainsRoute = NO;
-    if (!item) {
-        *spoken = @"";
-        return @"";
+    NSString *linkFile = nil;
+    if (item.kind == SZFriendsItemFactsKindEvent && [item.eventKind isEqualToString:SZFriendsEventReceivedLinkFile]) {
+        NSString *file = item.eventArguments[@"file"];
+        linkFile = [file isKindOfClass:NSString.class] ? file : @"";
     }
-    if (item.kind == SZFriendsItemFactsKindEvent) {
-        NSString *text = [self eventTextForItem:item person:person] ?: @"";
-        *spoken = [self spokenPhrase:text person:person];
+    if (!item || (item.kind == SZFriendsItemFactsKindEvent && !linkFile)) {
+        NSString *text = [s text:@"list.subtitle.no_messages"];
+        *spoken = [s spokenFragment:text];
         return text;
     }
     BOOL message = item.kind == SZFriendsItemFactsKindMessage;
-    // A mention previews as "@Name", never as its link (PROTOCOL.md § Mentions).
-    NSString *content = message ? [self previewText:[self plainTextOf:item.text ?: @""]] : (item.fileName ?: @"");
-    NSString *status = [self statusKeyForItem:item];
-    *explainsRoute = [status isEqualToString:@"queued"];
-    NSString *visual = content, *said = content;
-    if (item.outgoing) {
-        visual = [s text:@"preview.you" values:@{@"text" : content}];
-        said = [s text:message ? @"preview.you_said" : @"preview.you_sent" values:@{@"text" : content}];
-    } else if (!message && [status isEqualToString:@"waiting"]) {
-        visual = [s text:@"list.subtitle.offer" values:@{@"file" : content}];
-        said = [s spokenFragment:visual];
-        status = nil;
+    NSString *content, *saidContent;
+    if (message) {
+        // A mention previews as "@Name", never as its link (PROTOCOL.md § Mentions).
+        content = saidContent = [self previewText:[self plainTextOf:item.text ?: @""]];
+    } else if (person.lastMessageFileCount > 1) {
+        NSString *count = [NSString stringWithFormat:@"%ld", (long)person.lastMessageFileCount];
+        content = saidContent = [s text:@"preview.files" values:@{@"count" : count}];
+    } else {
+        saidContent = linkFile ?: item.fileName ?: @"";
+        content = [s text:@"preview.file" values:@{@"file" : saidContent}];
     }
+    NSString *status = linkFile ? nil : [self statusKeyForItem:item];
+    if ([status isEqualToString:@"waiting"]) status = nil; // the row waits, and says so in its own words
+    *explainsRoute = [status isEqualToString:@"queued"];
+    NSString *saidKey = item.outgoing ? (message ? @"preview.you_said" : @"preview.you_sent")
+                                      : (message ? @"preview.they_said" : @"preview.they_sent");
+    NSString *said = [s text:saidKey values:@{@"first" : first, @"text" : saidContent}];
+    NSString *visual = item.outgoing ? [s text:@"preview.you" values:@{@"text" : content}]
+                                     : [s text:@"preview.them" values:@{@"first" : first, @"text" : content}];
     if (status) {
-        // Status first, so a narrow row cut short still says whether it went; the status also says whose it is,
-        // so "You:" goes ("Sends when Priya is nearby · Supplier contract v3.pdf"). Spoken, it follows the content.
         NSString *statusKey = [status isEqualToString:@"queued"]
                                   ? [self waitingKeyInFamily:@"preview.status" person:person]
                                   : [@"preview.status." stringByAppendingString:status];
-        visual = [s text:@"preview.status_first" values:@{@"status" : [s text:statusKey values:who],
-                                                           @"text" : content}];
+        NSArray<NSString *> *shown = @[ @"failed", @"didnt_arrive", @"declined_by_them", @"declined_by_you",
+                                         @"cancelled" ];
+        if ([shown containsObject:status])
+            visual = [s text:@"preview.status_first" values:@{@"status" : [s text:statusKey values:who],
+                                                               @"text" : visual}];
         NSString *saidStatus = [s text:[statusKey stringByAppendingString:@".spoken"] values:who];
         said = [s text:@"preview.with_status.spoken" values:@{@"text" : said, @"status" : saidStatus}];
     }

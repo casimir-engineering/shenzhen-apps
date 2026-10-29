@@ -1,6 +1,6 @@
 // Shenzhen Friends views tests: how a nearby person was found (PROTOCOL.md found, capability nearby.found). Nearby rows
-// and a nearby friend's list row draw one route icon per method and the helper's label before the subtitle; a row
-// without `found` (not nearby, or an older helper) draws neither. The snapshots are written here as the spec gives them.
+// draw one route icon per method and the helper's label before the subtitle, and a nearby friend's list row the icons
+// alone; a row without `found` (not nearby, or an older helper) draws neither. The snapshots are written here as the spec gives them.
 
 #import "SZFriendsViewsTestSupport.h"
 

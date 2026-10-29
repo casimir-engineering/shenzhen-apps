@@ -98,6 +98,7 @@ impl State {
             .optional()
             .ok()
             .flatten();
+        (facts.last_message_item_id, facts.last_message_files) = self.last_message(&person.conversation_id);
         let verified: Option<(i64, Option<f64>)> = conn
             .query_row(
                 "SELECT verified, verified_at FROM friends WHERE conversation_id = ?1",
@@ -218,16 +219,43 @@ impl State {
         (items, has_earlier)
     }
 
-    /// The items the list's rows describe.
+    /// The items the list's rows describe: each person's newest item, and their newest message or file.
     pub fn preview_items(&self, people: &[PersonFacts]) -> HashMap<String, ItemFacts> {
         let mut items = HashMap::new();
         for person in people {
-            let Some(id) = person.last_preview_item_id.as_deref() else { continue };
-            if let Some(row) = item_row(&self.store, &person.conversation_id, id) {
-                items.insert(id.to_owned(), self.item_facts(row));
+            for id in [&person.last_preview_item_id, &person.last_message_item_id].into_iter().flatten() {
+                if items.contains_key(id) {
+                    continue;
+                }
+                if let Some(row) = item_row(&self.store, &person.conversation_id, id) {
+                    items.insert(id.clone(), self.item_facts(row));
+                }
             }
         }
         items
+    }
+
+    /// The newest message or file of a conversation (a file received through a link counts; other events do not),
+    /// and how many files went with it: the same kind from the same side, each within a minute of the next.
+    fn last_message(&self, conversation_id: &str) -> (Option<String>, i64) {
+        let clause = format!(
+            "WHERE conversation_id = ?1 AND (kind != 2 OR event_kind = '{}')",
+            szfriends_core::presentation::event::RECEIVED_LINK_FILE
+        );
+        let rows = item_rows(&self.store, &clause, conversation_id, 50);
+        let Some(newest) = rows.first() else { return (None, 0) };
+        let mut files = 0;
+        if newest.kind != 0 {
+            let mut later = newest.sent_at;
+            for row in rows.iter().take_while(|r| r.kind == newest.kind && r.direction == newest.direction) {
+                if later - row.sent_at > 60.0 {
+                    break;
+                }
+                later = row.sent_at;
+                files += 1;
+            }
+        }
+        (Some(newest.item_id.clone()), files)
     }
 
     /// This person's own profile; a first start draws a Friends ID (unreserved until a Friends host confirms it).

@@ -401,7 +401,8 @@ static CGFloat SZFPill(NSString *text, CGFloat right, CGFloat y, NSFont *font, N
 
     CGFloat textX = avatarX + 34 + 10;
     CGFloat textWidth = MAX(0, right - (rightWidth ? rightWidth + 10 : 0) - textX);
-    NSColor *subtitleColor = _waitingLabel ? appearance.accentColor : appearance.secondaryTextColor;
+    NSColor *subtitleColor = _waitingLabel ? appearance.accentColor // unread: a friend's message, in the text colour
+                             : _unread ? appearance.primaryTextColor : appearance.secondaryTextColor;
     NSFont *titleFont = SZFriendsSemibold(appearance.bodyFont);
     CGFloat checkSpace = _idConfirmed ? 14 : 0;
     CGFloat titleWidth = MIN(SZFriendsTextWidth(_rowTitle, titleFont), MAX(0, textWidth - checkSpace));
@@ -410,11 +411,10 @@ static CGFloat SZFPill(NSString *text, CGFloat right, CGFloat y, NSFont *font, N
     // The small check beside a Friends ID the server confirmed is this person's.
     _idConfirmedRect = _idConfirmed ? NSMakeRect(textX + titleWidth + 3, midY - 14, 10, 10) : NSZeroRect;
     if (_idConfirmed) SZFriendsDrawCheckIcon(_idConfirmedRect, appearance.successColor);
-    // How they were found leads the line; the subtitle follows after a dot, in what room is left.
-    CGFloat foundWidth = SZFriendsDrawFound(_foundMethods, _foundLabel, NSMakeRect(textX, midY + 1, textWidth, 17),
-                                            appearance);
-    NSString *subtitle = _subtitle;
-    if (foundWidth > 0 && subtitle.length) subtitle = [@" · " stringByAppendingString:subtitle];
+    CGFloat foundWidth = SZFriendsDrawFound(_foundMethods, _listRow ? nil : _foundLabel, // SZFriendsRowFound.m
+                                            NSMakeRect(textX, midY + 1, textWidth, 17), appearance);
+    NSString *subtitle = _listRow || !foundWidth || !_subtitle.length ? _subtitle
+                                                                       : [@" · " stringByAppendingString:_subtitle];
     SZFDrawLine(subtitle, NSMakeRect(textX + foundWidth, midY + 1, MAX(0, textWidth - foundWidth), 17),
                 appearance.secondaryFont, subtitleColor, NSTextAlignmentLeft);
 }

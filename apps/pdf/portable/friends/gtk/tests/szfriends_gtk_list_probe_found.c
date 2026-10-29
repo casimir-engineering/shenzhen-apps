@@ -70,8 +70,9 @@ static guint shown_glyphs(GtkWidget *row, SZFriendsGtkGlyphKind *kinds) {
     return count;
 }
 
+/* A Nearby row says how in words too (`spelled`); a friend's list row shows the icons alone, the words its tooltip. */
 static void expect_found(GtkWidget *row, const char *name, const char *label, SZFriendsGtkGlyphKind first,
-                         SZFriendsGtkGlyphKind second) {
+                         SZFriendsGtkGlyphKind second, gboolean spelled) {
     SZFriendsGtkGlyphKind kinds[3] = {0};
     guint count = row ? shown_glyphs(row, kinds) : 0;
     GtkWidget *words = row ? szfriends_gtk_row_get_part(row, SZFRIENDS_GTK_ROW_PART_FOUND) : NULL;
@@ -82,8 +83,9 @@ static void expect_found(GtkWidget *row, const char *name, const char *label, SZ
         return;
     }
     EXPECT(shown && !g_strcmp0(gtk_label_get_text(GTK_LABEL(words)), label) &&
-               !g_strcmp0(gtk_widget_get_tooltip_text(gtk_widget_get_parent(words)), label),
-           "%s: says \"%s\"", name, label);
+               !g_strcmp0(gtk_widget_get_tooltip_text(gtk_widget_get_parent(words)), label) &&
+               gtk_widget_get_visible(words) == spelled,
+           "%s: says \"%s\"%s", name, label, spelled ? "" : " in its tooltip only");
     EXPECT(count == want && kinds[0] == first && (want < 2 || kinds[1] == second),
            "%s: one route icon per method (%u)", name, count);
 }
@@ -95,12 +97,13 @@ static void test_list_rows(SZFGHarness *harness) {
     szfriends_fake_helper_set_view_data(harness->fake, "list", szfg_list_found);
     EXPECT(szfg_list_wait_snapshot(list, seen) && szfg_list_wait_rows(list, 4), "the friends seen nearby arrive");
     expect_found(szfg_list_row(list, "c_mei"), "Mei", "Local network", SZFRIENDS_GTK_GLYPH_ROUTE_LAN,
-                 SZFRIENDS_GTK_GLYPH_NONE);
+                 SZFRIENDS_GTK_GLYPH_NONE, FALSE);
     expect_found(szfg_list_row(list, "c_jonas"), "Jonas", "Bluetooth", SZFRIENDS_GTK_GLYPH_ROUTE_BLUETOOTH,
-                 SZFRIENDS_GTK_GLYPH_NONE);
+                 SZFRIENDS_GTK_GLYPH_NONE, FALSE);
     expect_found(szfg_list_row(list, "c_kenji"), "Kenji", "Local network and Bluetooth",
-                 SZFRIENDS_GTK_GLYPH_ROUTE_LAN, SZFRIENDS_GTK_GLYPH_ROUTE_BLUETOOTH);
-    expect_found(szfg_list_row(list, "c_lena"), "Lena", NULL, SZFRIENDS_GTK_GLYPH_NONE, SZFRIENDS_GTK_GLYPH_NONE);
+                 SZFRIENDS_GTK_GLYPH_ROUTE_LAN, SZFRIENDS_GTK_GLYPH_ROUTE_BLUETOOTH, FALSE);
+    expect_found(szfg_list_row(list, "c_lena"), "Lena", NULL, SZFRIENDS_GTK_GLYPH_NONE, SZFRIENDS_GTK_GLYPH_NONE,
+                 FALSE);
     /* Rows are reused by position: the next snapshot's people never keep the last one's icons. */
     seen = list->parts->list_snapshots;
     szfriends_fake_helper_set_view_fixture(harness->fake, "list", "list.json");
@@ -132,13 +135,13 @@ static void test_nearby_people(SZFGHarness *harness) {
     GPtrArray *rows = parts->rows;
     if (rows->len == 4) {
         expect_found(g_ptr_array_index(rows, 0), "Kenji (a friend)", "Local network", SZFRIENDS_GTK_GLYPH_ROUTE_LAN,
-                     SZFRIENDS_GTK_GLYPH_NONE);
+                     SZFRIENDS_GTK_GLYPH_NONE, TRUE);
         expect_found(g_ptr_array_index(rows, 1), "Lena", "Bluetooth", SZFRIENDS_GTK_GLYPH_ROUTE_BLUETOOTH,
-                     SZFRIENDS_GTK_GLYPH_NONE);
+                     SZFRIENDS_GTK_GLYPH_NONE, TRUE);
         expect_found(g_ptr_array_index(rows, 2), "Tomás", "Local network and Bluetooth",
-                     SZFRIENDS_GTK_GLYPH_ROUTE_LAN, SZFRIENDS_GTK_GLYPH_ROUTE_BLUETOOTH);
+                     SZFRIENDS_GTK_GLYPH_ROUTE_LAN, SZFRIENDS_GTK_GLYPH_ROUTE_BLUETOOTH, TRUE);
         expect_found(g_ptr_array_index(rows, 3), "coral-lagoon", NULL, SZFRIENDS_GTK_GLYPH_NONE,
-                     SZFRIENDS_GTK_GLYPH_NONE);
+                     SZFRIENDS_GTK_GLYPH_NONE, TRUE);
     }
     szfriends_fake_helper_set_view_fixture(harness->fake, "nearby", "nearby-visible-bluetooth-off.json");
     szfg_list_close(list);

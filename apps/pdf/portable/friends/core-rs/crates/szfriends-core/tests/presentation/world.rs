@@ -104,6 +104,9 @@ fn person(
         route_method: method,
         last_interaction_at: hk(last),
         last_preview_item_id: preview.map(str::to_owned),
+        // The world's previews are a message or a file, apart from events (e_...), which a row never shows.
+        last_message_item_id: preview.filter(|id| !id.starts_with("e_")).map(str::to_owned),
+        last_message_files: preview.map_or(0, |id| id.starts_with("t_") as i64),
         ..Default::default()
     }
 }

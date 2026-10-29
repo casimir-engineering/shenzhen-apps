@@ -176,7 +176,7 @@ impl SnapshotBuilder {
         self.notifications_banner(profile).unwrap_or(Value::Null)
     }
 
-    /// The list. `preview_items` is keyed by item id: each row describes `preview_items[person.last_preview_item_id]`.
+    /// The list. `preview_items` is keyed by item id: each row describes `preview_items[person.last_message_item_id]`.
     /// Previews resolve mentions against the very people and profile this list shows.
     pub fn list(
         &self,
@@ -195,7 +195,7 @@ impl SnapshotBuilder {
             if person.left_list || !self.matches_query(person.name.as_deref(), person.friends_id.as_deref(), query) {
                 continue;
             }
-            let item = person.last_preview_item_id.as_ref().and_then(|id| preview_items.get(id));
+            let item = person.last_message_item_id.as_ref().and_then(|id| preview_items.get(id));
             let mut row = self.row(person, item, &directory, now);
             if let (Some(mentionable), Value::Object(map)) = (self.mentionable(person), &mut row) {
                 map.insert("mentionable".into(), json!(mentionable)); // the @ picker's people

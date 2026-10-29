@@ -216,13 +216,13 @@ fn composing_mentions_and_previews() {
     assert!(lena["composer"]["mention_note"].is_null(), "no note where nothing can be sent");
     // List previews read "@Name", resolved against the people the list shows, never the link.
     let daniel = people.get_mut("c_daniel").unwrap();
-    daniel.last_preview_item_id = Some("m_d0a1".into());
+    daniel.last_message_item_id = Some("m_d0a1".into());
     daniel.last_interaction_at = hk("2026-10-12 14:45");
     let mut previews = preview_items();
     previews.insert("m_d0a1".into(), items_for("c_daniel")[0].clone());
     let list = presentation::world::builder(audience()).list(&everyone(&people), &previews, &profile_raph(), "", now());
     let row = list["rows"].as_array().unwrap().iter().find(|r| r["conversation_id"] == "c_daniel").unwrap();
-    assert_eq!(row["subtitle"], "@Mei Lin has the bracket drawing. Ask her for rev B.");
+    assert_eq!(row["subtitle"], "Daniel: @Mei Lin has the bracket drawing. Ask her for rev B.");
     assert!(row["accessibility_label"].as_str().unwrap().contains("@Mei Lin has"));
 }
 

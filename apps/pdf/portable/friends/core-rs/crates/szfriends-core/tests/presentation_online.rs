@@ -225,9 +225,10 @@ fn the_sender_of_a_link_file() {
     let mut link_event = event_item("e_link", "2026-10-12 14:40", event::RECEIVED_LINK_FILE);
     link_event.event_arguments.insert("file".into(), "Site photos.pdf".into());
     mei.last_preview_item_id = Some("e_link".into());
+    mei.last_message_item_id = Some("e_link".into());
     let previews = HashMap::from([("e_link".to_owned(), link_event.clone())]);
     let row = builder.list(std::slice::from_ref(&mei), &previews, &profile_raph(), "", now())["rows"][0].clone();
-    assert_eq!(row["subtitle"], "Sent you Site photos.pdf through a link");
+    assert_eq!(row["subtitle"], "Mei: 📎 Site photos.pdf");
     let file = transfer("t_link", false, "2026-10-12 14:39", "Site photos.pdf", 2_516_582, TransferState::Received);
     let data = builder.conversation(&mei, &[file, link_event.clone()], false, None, 0, now());
     validate_snapshot(&data, "conversation", "link contact");

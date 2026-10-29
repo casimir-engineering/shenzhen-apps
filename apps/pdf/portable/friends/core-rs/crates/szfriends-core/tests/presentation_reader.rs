@@ -11,8 +11,8 @@ use presentation::world::*;
 use serde_json::{json, Value};
 use szfriends_core::presentation::catalog;
 use szfriends_core::presentation::{
-    AdapterState, IdentityState, ItemFacts, NearbyFacts, OutboxState, PersonFacts, Picture, ProfileFacts, Relation,
-    RouteKind, RouteMethod, TransferState,
+    AdapterState, IdentityState, ItemFacts, ItemKind, NearbyFacts, OutboxState, PersonFacts, Picture, ProfileFacts,
+    Relation, RouteKind, RouteMethod, TransferState,
 };
 
 fn person(id: &str, name: Option<&str>, friends_id: Option<&str>) -> PersonFacts {
@@ -45,6 +45,8 @@ fn list_row(person: &PersonFacts, preview: Option<ItemFacts>) -> Value {
     let mut items = HashMap::new();
     if let Some(preview) = preview {
         person.last_preview_item_id = Some(preview.item_id.clone());
+        person.last_message_item_id = Some(preview.item_id.clone());
+        person.last_message_files = (preview.kind == ItemKind::Transfer) as i64;
         items.insert(preview.item_id.clone(), preview);
     }
     let list = builder(audience()).list(&[person.clone()], &items, &profile_raph(), "", now());
@@ -218,13 +220,13 @@ fn status_first_subtitles() {
     let priya = person("c_p", Some("Priya Raman"), Some("silver-ocean"));
     let row =
         list_row(&priya, Some(transfer("t_q", true, "2026-10-12 09:00", "Plan.pdf", 1000, TransferState::Queued)));
-    assert_eq!(row["subtitle"], "Sends when Priya is nearby · Plan.pdf");
+    assert_eq!(row["subtitle"], "You: 📎 Plan.pdf");
     assert!(row["accessibility_label"].as_str().unwrap().contains("you sent Plan.pdf, it sends when Priya is nearby"));
     let mut automatic = transfer("t_a", false, "2026-10-12 09:00", "Guide.pdf", 1000, TransferState::Received);
     automatic.accepted_automatically = true;
-    assert_eq!(list_row(&priya, Some(automatic))["subtitle"], "Accepted automatically · Guide.pdf");
+    assert_eq!(list_row(&priya, Some(automatic))["subtitle"], "Priya: 📎 Guide.pdf");
     let failed = message("m_f", true, "2026-10-12 09:00", "hello", Some(OutboxState::Failed));
-    assert_eq!(list_row(&priya, Some(failed))["subtitle"], "Not sent · hello");
+    assert_eq!(list_row(&priya, Some(failed))["subtitle"], "Not sent · You: hello");
     let delivered = message("m_d", true, "2026-10-12 09:00", "hi", Some(OutboxState::Delivered));
     assert_eq!(list_row(&priya, Some(delivered))["subtitle"], "You: hi");
 }

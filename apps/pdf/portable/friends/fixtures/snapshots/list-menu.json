@@ -131,7 +131,7 @@
         }
       },
       {
-        "accessibility_label": "Mei Lin, unread, Can you check pages 3–5 before Friday?, 14:32, nearby, on your network",
+        "accessibility_label": "Mei Lin, unread, Mei said Can you check pages 3–5 before Friday?, 14:32, nearby, on your network",
         "actions": [],
         "avatar": {
           "color": "#3f6b4f",
@@ -173,14 +173,14 @@
           "method": "lan"
         },
         "style": "normal",
-        "subtitle": "Can you check pages 3–5 before Friday?",
+        "subtitle": "Mei: Can you check pages 3–5 before Friday?",
         "time_label": "14:32",
         "title": "Mei Lin",
         "unread": true,
         "waiting": null
       },
       {
-        "accessibility_label": "Daniel Ortiz, Enclosure assembly guide.pdf, accepted automatically, 11:05, nearby, over direct Wi-Fi",
+        "accessibility_label": "Daniel Ortiz, Daniel sent Enclosure assembly guide.pdf, accepted automatically, 11:05, nearby, over direct Wi-Fi",
         "actions": [],
         "avatar": {
           "color": "#7a5a34",
@@ -222,7 +222,7 @@
           "method": "p2p_wifi"
         },
         "style": "normal",
-        "subtitle": "Accepted automatically · Enclosure assembly guide.pdf",
+        "subtitle": "Daniel: 📎 Enclosure assembly guide.pdf",
         "time_label": "11:05",
         "title": "Daniel Ortiz",
         "unread": false,

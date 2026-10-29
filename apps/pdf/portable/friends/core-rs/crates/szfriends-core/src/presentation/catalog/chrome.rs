@@ -230,6 +230,8 @@ pub(super) const CORE: &[(&str, &str)] = &[
     ("list.subtitle.offers.other", "Sent you {count} files"),
     ("list.subtitle.blocked", "Blocked"),
     ("list.subtitle.removed", "No longer friends"),
+    // A friend's row before either of you has sent a message or a file.
+    ("list.subtitle.no_messages", "No messages yet"),
     // A request row's own buttons: icons only, so these are their tooltips and accessible names.
     ("list.action.accept", "Accept {title}’s request"),
     ("list.action.decline", "Decline {title}’s request"),
@@ -258,6 +260,13 @@ pub(super) const CORE: &[(&str, &str)] = &[
     ("preview.you", "You: {text}"),
     ("preview.you_said", "you said {text}"),
     ("preview.you_sent", "you sent {text}"),
+    // What the friend sent, after their first name.
+    ("preview.them", "{first}: {text}"),
+    ("preview.they_said", "{first} said {text}"),
+    ("preview.they_sent", "{first} sent {text}"),
+    // A file in a row's preview, and several sent together.
+    ("preview.file", "📎 {file}"),
+    ("preview.files", "{count} files"),
     ("preview.with_status", "{text} · {status}"),
     // A row's subtitle leads with its status, so the part that changes survives truncation in a narrow row.
     ("preview.status_first", "{status} · {text}"),

@@ -174,8 +174,12 @@ pub struct PersonFacts {
     /// Incoming offers waiting for this person's answer.
     pub offers_waiting: i64,
     pub last_interaction_at: f64,
-    /// The item the row's subtitle describes.
+    /// The conversation's newest item of any kind (an event too): whether it has history at all.
     pub last_preview_item_id: Option<String>,
+    /// The newest message or file (a file received through a link included), which a friend's list row shows.
+    pub last_message_item_id: Option<String>,
+    /// How many files went together with that file: sent or received one after the other, a minute apart at most.
+    pub last_message_files: i64,
     pub request_at: Option<f64>,
     pub request_found_nearby: bool,
     /// An answer to our own Add by ID the host could not confirm: the ID we asked for.
@@ -213,6 +217,8 @@ impl Default for PersonFacts {
             offers_waiting: 0,
             last_interaction_at: 0.0,
             last_preview_item_id: None,
+            last_message_item_id: None,
+            last_message_files: 0,
             request_at: None,
             request_found_nearby: false,
             unconfirmed_answer_id: None,

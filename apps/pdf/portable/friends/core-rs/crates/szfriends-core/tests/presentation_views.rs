@@ -121,24 +121,27 @@ fn list_rows() {
     assert_eq!(by_id["c_key"]["subtitle"], "Key changed. Check it’s really Kim");
     assert_eq!(by_id["c_offers"]["subtitle"], "Sent you 3 files");
 
-    // Previews: a queued message says when it goes and drops the route; long text is cut to one line.
-    let mei = PersonFacts { last_preview_item_id: Some("m_q".into()), ..friend("c_mei2", Some("Mei Lin")) };
+    // Previews: a queued message shows as sent (the route icon says Mei is away; spoken, it says when it goes and
+    // drops the route); long text is cut to one line.
+    let mei = PersonFacts { last_message_item_id: Some("m_q".into()), ..friend("c_mei2", Some("Mei Lin")) };
     let preview = |item: ItemFacts| {
         let items = HashMap::from([("m_q".to_owned(), item)]);
         list(std::slice::from_ref(&mei), &items, "")["rows"][0].clone()
     };
     let row = preview(message("m_q", true, "2026-10-12 10:00", "hi", Some(OutboxState::Queued)));
-    assert_eq!(row["subtitle"], "Sends when Mei is nearby · hi");
+    assert_eq!(row["subtitle"], "You: hi");
     assert_eq!(row["accessibility_label"], "Mei Lin, you said hi, it sends when Mei is nearby, 10:00");
     let long_text: String = "word \n".chars().cycle().take(300).collect();
     let row = preview(message("m_q", false, "2026-10-12 10:00", &long_text, None));
-    let subtitle = row["subtitle"].as_str().unwrap();
+    let subtitle = row["subtitle"].as_str().unwrap().strip_prefix("Mei: ").unwrap();
     assert!(
         subtitle.encode_utf16().count() <= 121 && subtitle.ends_with('…') && !subtitle.contains('\n'),
         "{subtitle}"
     );
+    // An event is never the row's message: with nothing else, the row says there are none yet.
     let row = preview(event_item("e_k", "2026-10-12 10:00", event::KEY_CHANGED));
-    assert!(row["accessibility_label"].as_str().unwrap().starts_with("Mei Lin, Mei’s key changed"));
+    assert_eq!(row["subtitle"], "No messages yet");
+    assert!(row["accessibility_label"].as_str().unwrap().starts_with("Mei Lin, no messages yet"));
 
     // Without drop.files the rows refuse drops.
     let no_drops = Audience { capabilities: Default::default(), ..audience() };

@@ -173,6 +173,7 @@ NSArray<NSString *> *SZFriendsHelperCapabilityList(SZFriendsHelperServices *serv
     SZFriendsHelperServices *_services;
     NSArray<SZFriendsPersonRecord *> *_records;
     NSMutableDictionary<NSString *, SZFriendsItemRecord *> *_newest;
+    NSMutableDictionary<NSString *, SZFriendsItemRecord *> *_messages; // each person's newest message or file, by id
     NSArray<SZFriendsPersonFacts *> *_people;
     NSDictionary<NSString *, SZFriendsPersonFacts *> *_peopleByConversation;
     NSDictionary<NSString *, SZFriendsItemFacts *> *_previewItems;
@@ -196,6 +197,7 @@ NSArray<NSString *> *SZFriendsHelperCapabilityList(SZFriendsHelperServices *serv
         _services = services;
         _now = now;
         _newest = [NSMutableDictionary dictionary];
+        _messages = [NSMutableDictionary dictionary];
     }
     return self;
 }
@@ -208,6 +210,42 @@ NSArray<NSString *> *SZFriendsHelperCapabilityList(SZFriendsHelperServices *serv
     SZFriendsItemRecord *newest = [_services.store itemsInConversation:conversationID beforeItemID:nil limit:1
                                                             hasEarlier:&hasEarlier].lastObject;
     _newest[conversationID] = newest ?: (id)[NSNull null];
+    return newest;
+}
+
+// The newest message or file of a conversation (a file received through a link counts; other events do not), and how
+// many files went with it: the same kind from the same side, each within a minute of the next (at most 50, as the
+// Rust helper counts).
+- (nullable SZFriendsItemRecord *)lastMessageInConversation:(NSString *)conversationID
+                                                  fileCount:(NSInteger *)fileCount {
+    *fileCount = 0;
+    SZFriendsItemRecord *newest = nil, *later = nil;
+    NSString *before = nil;
+    for (BOOL more = YES; more;) {
+        BOOL hasEarlier = NO;
+        NSArray<SZFriendsItemRecord *> *page = [_services.store itemsInConversation:conversationID beforeItemID:before
+                                                                              limit:50
+                                                                         hasEarlier:&hasEarlier];
+        for (SZFriendsItemRecord *record in page.reverseObjectEnumerator) {
+            if (before && [record.itemID isEqualToString:before]) continue; // a page ends at the one before it
+            if (record.kind == SZFriendsItemKindEvent &&
+                ![record.eventKind isEqualToString:SZFriendsEventReceivedLinkFile])
+                continue;
+            if (newest == nil) {
+                newest = later = record;
+                if (record.kind == SZFriendsItemKindMessage) return newest;
+                *fileCount = 1;
+                continue;
+            }
+            if (record.kind != newest.kind || record.direction != newest.direction || *fileCount >= 50 ||
+                [later.sentAt timeIntervalSinceDate:record.sentAt] > 60)
+                return newest;
+            later = record;
+            (*fileCount)++;
+        }
+        more = hasEarlier && page.count > (before ? 1 : 0);
+        before = page.firstObject.itemID;
+    }
     return newest;
 }
 
@@ -249,6 +287,11 @@ NSArray<NSString *> *SZFriendsHelperCapabilityList(SZFriendsHelperServices *serv
     facts.offersWaiting = (NSInteger)[transfers pendingIncomingOfferCountForConversation:record.conversationID];
     facts.lastInteractionAt = record.lastInteractionAt ?: [NSDate dateWithTimeIntervalSince1970:0];
     facts.lastPreviewItemID = [self newestItemInConversation:record.conversationID].itemID;
+    NSInteger files = 0;
+    SZFriendsItemRecord *message = [self lastMessageInConversation:record.conversationID fileCount:&files];
+    facts.lastMessageItemID = message.itemID;
+    facts.lastMessageFileCount = files;
+    if (message != nil) _messages[message.itemID] = message;
     facts.requestAt = record.requestAt;
     facts.requestFoundNearby = record.requestFoundNearby;
     facts.unconfirmedAnswerID = record.unconfirmedAnswerID;
@@ -301,8 +344,12 @@ NSArray<NSString *> *SZFriendsHelperCapabilityList(SZFriendsHelperServices *serv
         NSMutableDictionary *previews = [NSMutableDictionary dictionary];
         for (SZFriendsPersonFacts *person in self.people) {
             SZFriendsItemRecord *newest = [self newestItemInConversation:person.conversationID];
-            // Keyed by item id, as the builder looks each row's item up by its lastPreviewItemID.
+            // Keyed by item id: each row's newest item, and the message or file the builder looks up by its
+            // lastMessageItemID.
             if (newest != nil) previews[newest.itemID] = SZFriendsItemFactsFromRecord(newest, _services);
+            SZFriendsItemRecord *message = person.lastMessageItemID ? _messages[person.lastMessageItemID] : nil;
+            if (message != nil && previews[message.itemID] == nil)
+                previews[message.itemID] = SZFriendsItemFactsFromRecord(message, _services);
         }
         _previewItems = previews;
     }

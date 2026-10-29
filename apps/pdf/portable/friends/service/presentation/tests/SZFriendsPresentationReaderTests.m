@@ -35,7 +35,8 @@ static NSDictionary *Conversation(SZFriendsPersonFacts *person, NSArray *items) 
 }
 
 static NSDictionary *ListRow(SZFriendsPersonFacts *person, SZFriendsItemFacts *preview) {
-    if (preview) person.lastPreviewItemID = preview.itemID;
+    if (preview) person.lastPreviewItemID = person.lastMessageItemID = preview.itemID;
+    person.lastMessageFileCount = preview.kind == SZFriendsItemFactsKindTransfer ? 1 : 0;
     NSDictionary *list = [SZPBuilder(SZPAudience()) listWithPeople:@[ person ]
                                                       previewItems:preview ? @{preview.itemID : preview} : @{}
                                                            profile:SZPProfileRaph() query:@"" now:SZPNow()];
@@ -207,16 +208,16 @@ static void TestStatusFirstSubtitles(void) {
     SZFriendsItemFacts *queued = SZPTransfer(@"t_q", YES, @"2026-10-12 09:00", @"Plan.pdf", 1000,
                                              SZFriendsTransferStateQueued);
     NSDictionary *row = ListRow(priya, queued);
-    SZPExpect([row[@"subtitle"] isEqual:@"Sends when Priya is nearby · Plan.pdf"] &&
+    SZPExpect([row[@"subtitle"] isEqual:@"You: 📎 Plan.pdf"] &&
                   [row[@"accessibility_label"] containsString:@"you sent Plan.pdf, it sends when Priya is nearby"],
               @"queued file: %@", row);
     SZFriendsItemFacts *automatic = SZPTransfer(@"t_a", NO, @"2026-10-12 09:00", @"Guide.pdf", 1000,
                                                 SZFriendsTransferStateReceived);
     automatic.acceptedAutomatically = YES;
-    SZPExpect([ListRow(priya, automatic)[@"subtitle"] isEqual:@"Accepted automatically · Guide.pdf"],
+    SZPExpect([ListRow(priya, automatic)[@"subtitle"] isEqual:@"Priya: 📎 Guide.pdf"],
               @"automatic file");
     SZFriendsItemFacts *failed = SZPMessage(@"m_f", YES, @"2026-10-12 09:00", @"hello", SZFriendsOutboxStateFailed);
-    SZPExpect([ListRow(priya, failed)[@"subtitle"] isEqual:@"Not sent · hello"], @"failed message");
+    SZPExpect([ListRow(priya, failed)[@"subtitle"] isEqual:@"Not sent · You: hello"], @"failed message");
     SZFriendsItemFacts *delivered = SZPMessage(@"m_d", YES, @"2026-10-12 09:00", @"hi", SZFriendsOutboxStateDelivered);
     SZPExpect([ListRow(priya, delivered)[@"subtitle"] isEqual:@"You: hi"], @"no status: who said it");
 }

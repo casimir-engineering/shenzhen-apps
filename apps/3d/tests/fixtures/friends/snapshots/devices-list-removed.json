@@ -51,7 +51,7 @@
           "color": "#3f6b4f"
         },
         "title": "Mei Lin",
-        "subtitle": "Can you check pages 3–5 before Friday?",
+        "subtitle": "Mei: Can you check pages 3–5 before Friday?",
         "time_label": "14:32",
         "route": {
           "kind": "none",
@@ -66,7 +66,7 @@
         "style": "normal",
         "drop_label": null,
         "drop_refusal": "This computer can’t send anymore",
-        "accessibility_label": "Mei Lin, unread, Can you check pages 3–5 before Friday?, 14:32",
+        "accessibility_label": "Mei Lin, unread, Mei said Can you check pages 3–5 before Friday?, 14:32",
         "actions": [],
         "kind": "person"
       }

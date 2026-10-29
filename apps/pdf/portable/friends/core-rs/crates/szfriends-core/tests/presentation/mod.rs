@@ -207,6 +207,8 @@ pub fn through_store(people: &HashMap<String, PersonFacts>) -> HashMap<String, P
             key_change_pending: scripted.key_change_pending,
             offers_waiting: scripted.offers_waiting,
             last_preview_item_id: scripted.last_preview_item_id.clone(),
+            last_message_item_id: scripted.last_message_item_id.clone(),
+            last_message_files: scripted.last_message_files,
             request_at: scripted.request_at,
             request_found_nearby: scripted.request_found_nearby,
             unconfirmed_answer_id: scripted.unconfirmed_answer_id.clone(),

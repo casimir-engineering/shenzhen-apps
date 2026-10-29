@@ -85,7 +85,7 @@ static void test_fixture_rows(SZFGHarness *harness) {
     GtkWidget *mei = szfg_list_row(list, "c_mei"), *kenji = szfg_list_row(list, "c_kenji");
     EXPECT(!g_strcmp0(part_text(mei, SZFRIENDS_GTK_ROW_PART_TITLE), "Mei Lin") &&
                !g_strcmp0(part_text(mei, SZFRIENDS_GTK_ROW_PART_SUBTITLE),
-                          "Can you check pages 3–5 before Friday?") &&
+                          "Mei: Can you check pages 3–5 before Friday?") &&
                !g_strcmp0(part_text(mei, SZFRIENDS_GTK_ROW_PART_TIME), "14:32"), "name, preview and time");
     EXPECT(!g_strcmp0(gtk_widget_get_tooltip_text(szfriends_gtk_row_get_part(mei, SZFRIENDS_GTK_ROW_PART_ROUTE)),
                       "Nearby, on your network"), "the route icon's tooltip says how Mei is reached");

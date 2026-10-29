@@ -496,10 +496,12 @@ acceptance). There is no separate inbox; requests and offers are rows.
 
 - `rows[].waiting` is set when the row waits for this person's answer; views show `waiting.label` in place of the
   route icon and emphasise the subtitle. `subtitle` says what is waiting ("Wants to be friends", "Answered your
-  request for tulip‑canyon" for an Add by ID answer no host confirmed, "Sent you Site photos.pdf") or previews the
-  last message or transfer. A preview with a status leads with it ("Sends when Priya is nearby · Supplier contract
-  v3.pdf", "Accepted automatically · Enclosure assembly guide.pdf"), so truncating a narrow row cuts the file name,
-  never whether it went; views truncate at the end.
+  request for tulip‑canyon" for an Add by ID answer no host confirmed, "Sent you Site photos.pdf") or shows the
+  latest message or file, never an event: "You: Sent the drawings", "Mei: Can you check pages 3–5?", a file as
+  "You: 📎 report.pdf", several sent together (a minute apart at most) as "Mei: 3 files", and "No messages yet" when
+  there is none. Only a status saying it did not arrive shows, and leads ("Not sent · You: hello"), so truncating a
+  narrow row never cuts it; the route icon already says whether the friend is reachable. Views truncate at the end
+  and draw the line of a row with `unread` in the text colour (or heavier) rather than the secondary one.
 - `rows[].id_confirmed` is true when the Friends host confirmed that this person holds the Friends ID (ADR 0005,
   attestation): several people may answer one Add by ID, and only the holder's answer carries it. Views mark the
   row (a small check beside the title) with `id_confirmed_label` as its tooltip and accessible name; it is `null`
@@ -597,7 +599,8 @@ The Nearby tab: the visibility action, then people as each method reports them.
   route icon per method (the same icons as `route`, § Shared objects) and the label on the row. It is `null` when
   no method sees the person, and the row's `accessibility_label` then ends without it; otherwise it ends "Found over
   Local network and Bluetooth". A friend's `list` row carries the same `found` while they are nearby, and `null`
-  otherwise, as every other row does. Without `nearby.found` neither carries the key.
+  otherwise, as every other row does; there views draw the icons alone before the subtitle, with `label` as their
+  tooltip, so the latest message keeps the line. Without `nearby.found` neither carries the key.
 
 ### `conversation`
 

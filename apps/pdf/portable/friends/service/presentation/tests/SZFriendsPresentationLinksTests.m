@@ -94,11 +94,11 @@ static void TestTheSenderOfALinkFile(void) {
     mei.identityKey = SZPKey(SZPKeyMei);
     SZFriendsItemFacts *event = SZPEvent(@"e_link", @"2026-10-12 14:40", @"received_through_link");
     event.eventArguments = @{@"file" : @"Site photos.pdf"};
-    mei.lastPreviewItemID = event.itemID;
+    mei.lastPreviewItemID = mei.lastMessageItemID = event.itemID;
     NSDictionary *list = [builder listWithPeople:@[ mei ] previewItems:@{event.itemID : event}
                                          profile:SZPProfileRaph() query:@"" now:SZPNow()];
     NSDictionary *row = [list[@"rows"] firstObject];
-    SZPExpect([row[@"subtitle"] isEqual:@"Sent you Site photos.pdf through a link"], @"row: %@", row[@"subtitle"]);
+    SZPExpect([row[@"subtitle"] isEqual:@"Mei: 📎 Site photos.pdf"], @"row: %@", row[@"subtitle"]);
     SZFriendsItemFacts *file = SZPTransfer(@"t_link", NO, @"2026-10-12 14:39", @"Site photos.pdf", 2516582,
                                            SZFriendsTransferStateReceived);
     NSDictionary *conversation = [builder conversationForPerson:mei items:@[ file, event ] hasEarlier:NO

@@ -35,6 +35,9 @@ static const char list_css[] =
     ".szfriends-row-title { font-weight: 600; }\n"
     ".szfriends-row-subtitle, .szfriends-row-status, .szfriends-row-found-label {\n"
     "  color: @szfriends_secondary_text; }\n"
+    /* A friend's message not read yet stands out in weight: a colour set on it here would keep the light theme's
+     * value after a live switch to dark (szfriends_gtk_list_probe_live.c). */
+    ".szfriends-row-subtitle.unread { font-weight: 600; }\n"
     ".szfriends-row-subtitle.waiting { color: @szfriends_accent; }\n"
     ".szfriends-row-time { color: @szfriends_secondary_text; font-size: 0.85em; }\n"
     ".szfriends-row-bar { background-color: @szfriends_accent; border-radius: 2px; min-width: 3px; }\n"

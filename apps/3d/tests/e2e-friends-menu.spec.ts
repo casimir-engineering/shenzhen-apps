@@ -292,9 +292,11 @@ test('rows say how each person nearby was found, with the route icon of each met
   const bluetooth = await routeIcon('Daniel Ortiz');
   expect(lan).not.toEqual(bluetooth);
 
-  expect(await shown(row(page, 'Mei Lin'))).toEqual([{text: 'Local network', icons: [lan]}]);
-  expect(await shown(row(page, 'Kenji Sato'))).toEqual([{text: 'Local network and Bluetooth', icons: [lan, bluetooth]}]);
-  expect(await shown(row(page, 'Daniel Ortiz'))).toEqual([{text: 'Bluetooth', icons: [bluetooth]}]);
+  // In the Friends list the icons alone say it, before the latest message; the words are their tooltip.
+  expect(await shown(row(page, 'Mei Lin'))).toEqual([{text: '', icons: [lan]}]);
+  expect(await shown(row(page, 'Kenji Sato'))).toEqual([{text: '', icons: [lan, bluetooth]}]);
+  expect(await shown(row(page, 'Daniel Ortiz'))).toEqual([{text: '', icons: [bluetooth]}]);
+  await expect(row(page, 'Kenji Sato').locator('.szf-found')).toHaveAttribute('title', 'Local network and Bluetooth');
   // Friends not nearby say nothing about it.
   await expect(row(page, 'Priya Raman').locator('.szf-found')).toHaveCount(0);
   await expect(row(page, 'Mei Lin').locator('.szf-row-subtitle')).toBeVisible();

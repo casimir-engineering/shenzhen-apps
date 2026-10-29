@@ -227,7 +227,7 @@ static void TestCancelWhileNothingLeft(void) {
     NSString *spoken = nil;
     BOOL route = NO;
     SZPExpect([[builder previewForItem:cancelled person:people[@"c_mei"] spoken:&spoken explainsRoute:&route]
-                  isEqual:@"Cancelled · Wrong page"] && [spoken isEqual:@"you said Wrong page, cancelled"],
+                  isEqual:@"Cancelled · You: Wrong page"] && [spoken isEqual:@"you said Wrong page, cancelled"],
               @"the row leads with it: %@", spoken);
     SZFriendsStrings *s = builder.strings;
     NSDictionary *mine = @{@"field" : @"message_id", @"name" : @"Mei Lin", @"friends_id" : @"orchid-summit"};

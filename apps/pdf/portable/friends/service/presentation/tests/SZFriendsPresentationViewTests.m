@@ -102,23 +102,27 @@ static void TestListRows(void) {
               @"key change row: %@", byID[@"c_key"]);
     SZPExpect([byID[@"c_offers"][@"subtitle"] isEqual:@"Sent you 3 files"], @"several offers");
 
-    // Previews: an outgoing queued message says when it goes and drops the route; long text is cut to one line.
+    // Previews: an outgoing queued message shows as sent (the route icon says Mei is away; spoken, it says when it
+    // goes and drops the route); long text is cut to one line.
     SZFriendsPersonFacts *mei = Friend(@"c_mei2", @"Mei Lin");
-    mei.lastPreviewItemID = @"m_q";
+    mei.lastMessageItemID = @"m_q";
     SZFriendsItemFacts *queued = SZPMessage(@"m_q", YES, @"2026-10-12 10:00", @"hi", SZFriendsOutboxStateQueued);
     NSDictionary *row = List(@[ mei ], @{@"m_q" : queued}, @"")[@"rows"][0];
-    SZPExpect([row[@"subtitle"] isEqual:@"Sends when Mei is nearby · hi"] &&
+    SZPExpect([row[@"subtitle"] isEqual:@"You: hi"] &&
                   [row[@"accessibility_label"] isEqual:@"Mei Lin, you said hi, it sends when Mei is nearby, 10:00"],
               @"queued message preview: %@", row);
     NSString *longText = [@"" stringByPaddingToLength:300 withString:@"word \n" startingAtIndex:0];
     row = List(@[ mei ], @{@"m_q" : SZPMessage(@"m_q", NO, @"2026-10-12 10:00", longText, 0)}, @"")[@"rows"][0];
-    SZPExpect([row[@"subtitle"] length] <= 121 && [row[@"subtitle"] hasSuffix:@"…"] &&
-                  ![row[@"subtitle"] containsString:@"\n"],
-              @"long preview cut to one line (%lu)", (unsigned long)[row[@"subtitle"] length]);
+    NSString *cut = [row[@"subtitle"] substringFromIndex:@"Mei: ".length];
+    SZPExpect([row[@"subtitle"] hasPrefix:@"Mei: "] && cut.length <= 121 && [cut hasSuffix:@"…"] &&
+                  ![cut containsString:@"\n"],
+              @"long preview cut to one line (%lu)", (unsigned long)cut.length);
     SZFriendsItemFacts *keyEvent = SZPEvent(@"e_k", @"2026-10-12 10:00", SZFriendsEventKeyChanged);
+    // An event is never the row's message: with nothing else, the row says there are none yet.
     row = List(@[ mei ], @{@"m_q" : keyEvent}, @"")[@"rows"][0];
-    SZPExpect([row[@"accessibility_label"] hasPrefix:@"Mei Lin, Mei’s key changed"], @"a name keeps its capital: %@",
-              row[@"accessibility_label"]);
+    SZPExpect([row[@"subtitle"] isEqual:@"No messages yet"] &&
+                  [row[@"accessibility_label"] hasPrefix:@"Mei Lin, no messages yet"],
+              @"an event alone: %@", row[@"accessibility_label"]);
 
     // Without drop.files the rows refuse drops.
     SZFriendsAudience *noDrops = SZPAudience();

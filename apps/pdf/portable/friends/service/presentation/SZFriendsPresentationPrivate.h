@@ -252,7 +252,6 @@ typedef NS_ENUM(NSInteger, SZFriendsShownRoute) {
                       spoken:(NSString *_Nullable *_Nonnull)spoken
                explainsRoute:(BOOL *)explainsRoute;
 - (nullable NSString *)eventTextForItem:(SZFriendsItemFacts *)item person:(SZFriendsPersonFacts *)person;
-- (NSString *)spokenPhrase:(NSString *)phrase person:(SZFriendsPersonFacts *)person;
 // `key` with a failure's own words when the catalog has them, else `key` itself.
 - (NSString *)key:(NSString *)key forFailure:(nullable NSString *)failureReason person:(SZFriendsPersonFacts *)person;
 // Whether Try again can still work for this failure toward this person.

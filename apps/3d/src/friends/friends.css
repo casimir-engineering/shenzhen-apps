@@ -249,6 +249,19 @@
   color: var(--ink);
   font-weight: 550;
 }
+/* A friend's row: how they were found nearby (icons only), then their latest message, on one line. */
+.szf-row-line {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+.szf-row-line .szf-row-subtitle {
+  min-width: 0;
+}
+.szf-row-subtitle.unread {
+  color: var(--ink);
+}
 .szf-row-meta {
   display: flex;
   flex-direction: column;
@@ -301,7 +314,8 @@
   color: var(--jade);
   display: inline-flex;
 }
-/* How a person nearby was found: the method icons, then their words, under the subtitle. */
+/* How a person nearby was found: the method icons, then their words, under the subtitle (in the Friends list, the
+   icons alone, before the latest message). */
 .szf-found {
   display: flex;
   align-items: center;
@@ -316,6 +330,9 @@
   text-overflow: ellipsis;
 }
 .szf-found svg {
+  flex-shrink: 0;
+}
+.szf-found.icons-only {
   flex-shrink: 0;
 }
 .szf-route {

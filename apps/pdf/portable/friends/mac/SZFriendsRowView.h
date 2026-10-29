@@ -94,7 +94,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 // The known methods of a PROTOCOL.md found object, in its order; none without a label (SZFriendsRowFound.m).
 NSArray<NSString *> *SZFriendsFoundMethods(NSDictionary *_Nullable found);
-// Draws the methods' icons and `label` from the left of `line`; returns the width used (0 without a label).
+// Draws the methods' icons and `label` (nil: the icons alone) from the left of `line`; returns the width used.
 CGFloat SZFriendsDrawFound(NSArray<NSString *> *methods, NSString *_Nullable label, NSRect line,
                            SZFriendsAppearance *appearance);
 

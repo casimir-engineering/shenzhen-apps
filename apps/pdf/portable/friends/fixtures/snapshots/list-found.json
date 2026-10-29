@@ -83,7 +83,7 @@
         "waiting": null,
         "style": "normal",
         "drop_label": "Send to Mei",
-        "subtitle": "Can you check pages 3–5 before Friday?",
+        "subtitle": "Mei: Can you check pages 3–5 before Friday?",
         "time_label": "14:32",
         "blocked": false,
         "actions": [],
@@ -110,7 +110,7 @@
           "label": "Nearby, on your network"
         },
         "drop_refusal": null,
-        "accessibility_label": "Mei Lin, unread, Can you check pages 3–5 before Friday?, 14:32, nearby, on your network, Found over Local network and Bluetooth",
+        "accessibility_label": "Mei Lin, unread, Mei said Can you check pages 3–5 before Friday?, 14:32, nearby, on your network, Found over Local network and Bluetooth",
         "id_confirmed": false,
         "unread": true
       },
@@ -155,7 +155,7 @@
         "waiting": null,
         "style": "normal",
         "drop_label": "Send to Daniel",
-        "subtitle": "Accepted automatically · Enclosure assembly guide.pdf",
+        "subtitle": "Daniel: 📎 Enclosure assembly guide.pdf",
         "time_label": "11:05",
         "blocked": false,
         "actions": [],
@@ -176,7 +176,7 @@
           "label": "Nearby, over direct Wi-Fi"
         },
         "drop_refusal": null,
-        "accessibility_label": "Daniel Ortiz, Enclosure assembly guide.pdf, accepted automatically, 11:05, nearby, over direct Wi-Fi",
+        "accessibility_label": "Daniel Ortiz, Daniel sent Enclosure assembly guide.pdf, accepted automatically, 11:05, nearby, over direct Wi-Fi",
         "id_confirmed": false,
         "unread": false
       },
@@ -184,7 +184,7 @@
         "waiting": null,
         "style": "normal",
         "drop_label": "Send to Priya",
-        "subtitle": "Sends when Priya is nearby · Supplier contract v3.pdf",
+        "subtitle": "You: 📎 Supplier contract v3.pdf",
         "time_label": "Yesterday",
         "blocked": false,
         "actions": [],
@@ -213,7 +213,7 @@
         "waiting": null,
         "style": "normal",
         "drop_label": "Send to tulip‑canyon",
-        "subtitle": "You are now friends",
+        "subtitle": "No messages yet",
         "time_label": "3 Oct",
         "blocked": false,
         "actions": [],
@@ -234,7 +234,7 @@
           "label": "Not nearby right now"
         },
         "drop_refusal": null,
-        "accessibility_label": "tulip‑canyon, you are now friends, 3 October, not nearby right now, ID confirmed",
+        "accessibility_label": "tulip‑canyon, no messages yet, 3 October, not nearby right now, ID confirmed",
         "id_confirmed": true,
         "unread": false
       },

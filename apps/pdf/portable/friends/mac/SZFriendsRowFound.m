@@ -1,5 +1,6 @@
 // How a nearby person was found (PROTOCOL.md found, capability nearby.found): the route icon of each method that sees
-// them, then the helper's label ("Local network and Bluetooth"), at the start of the row's second line.
+// them, then the helper's label ("Local network and Bluetooth"), at the start of the row's second line. A friend's
+// row in the Friends list draws the icons alone, so their latest message keeps the line.
 
 #import "mac/SZFriendsRowView.h"
 
@@ -16,7 +17,7 @@ NSArray<NSString *> *SZFriendsFoundMethods(NSDictionary *found) {
 }
 
 CGFloat SZFriendsDrawFound(NSArray<NSString *> *methods, NSString *label, NSRect line, SZFriendsAppearance *appearance) {
-    if (!label.length || NSWidth(line) <= 0) return 0;
+    if ((!label.length && !methods.count) || NSWidth(line) <= 0) return 0;
     CGFloat x = NSMinX(line), right = NSMaxX(line);
     NSColor *iconColor = SZFriendsRouteColor(appearance, @"local");
     for (NSString *method in methods) {
@@ -25,6 +26,7 @@ CGFloat SZFriendsDrawFound(NSArray<NSString *> *methods, NSString *label, NSRect
         SZFriendsDrawRouteIcon(method, icon, iconColor);
         x += SZFFoundIconSide + SZFFoundIconGap;
     }
+    if (!label.length) return x - NSMinX(line);
     if (methods.count) x += 1;
     NSFont *font = appearance.secondaryFont;
     CGFloat width = MIN(SZFriendsTextWidth(label, font), MAX(0, right - x));

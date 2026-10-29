@@ -527,12 +527,19 @@ function Row({
               </span>
             )}
           </span>
-          <span
-            className={`szf-row-subtitle ${row.waiting || refusal ? "emphasis" : ""}`}
-          >
-            {subtitle}
+          {/* How a friend nearby was found, as icons, then their latest message. Unread, the message stands out. */}
+          <span className="szf-row-line">
+            <FoundLine found={row.found} iconsOnly />
+            <span
+              className={`szf-row-subtitle ${row.waiting || refusal ? "emphasis" : ""} ${
+                row.unread && !row.waiting && !refusal && row.style !== "muted"
+                  ? "unread"
+                  : ""
+              }`}
+            >
+              {subtitle}
+            </span>
           </span>
-          <FoundLine found={row.found} />
         </span>
         {!row.actions.length && (
           <span className="szf-row-meta">

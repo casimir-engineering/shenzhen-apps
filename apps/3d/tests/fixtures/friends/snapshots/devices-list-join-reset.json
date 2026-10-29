@@ -47,7 +47,7 @@
     "removed": null,
     "rows": [
       {
-        "accessibility_label": "Mei Lin, unread, Can you check pages 3–5 before Friday?, 14:32, nearby, on your network",
+        "accessibility_label": "Mei Lin, unread, Mei said Can you check pages 3–5 before Friday?, 14:32, nearby, on your network",
         "actions": [],
         "avatar": {
           "color": "#3f6b4f",
@@ -69,7 +69,7 @@
           "method": "lan"
         },
         "style": "normal",
-        "subtitle": "Can you check pages 3–5 before Friday?",
+        "subtitle": "Mei: Can you check pages 3–5 before Friday?",
         "time_label": "14:32",
         "title": "Mei Lin",
         "unread": true,

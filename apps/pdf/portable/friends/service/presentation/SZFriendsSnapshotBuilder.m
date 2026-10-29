@@ -386,7 +386,7 @@ static const NSInteger SZFriendsBlockArmSeconds = 4;
         if (person.leftList) continue; // taken off the list; their conversation still opens from search
         listed++;
         if (![self name:person.name friendsID:person.friendsID matchesQuery:query]) continue;
-        SZFriendsItemFacts *item = person.lastPreviewItemID ? previewItems[person.lastPreviewItemID] : nil;
+        SZFriendsItemFacts *item = person.lastMessageItemID ? previewItems[person.lastMessageItemID] : nil;
         NSMutableDictionary *row = [[self rowForPerson:person previewItem:item now:now] mutableCopy];
         row[@"mentionable"] = [self mentionableForPerson:person]; // the @ picker's people, where a client has one
         if (menus) row[@"menu"] = [self rowMenuForPerson:person];

@@ -203,18 +203,32 @@ const FOUND_GLYPHS: Record<string, GlyphName> = {
   p2p_wifi: "p2p_wifi",
   bluetooth: "bluetooth",
 };
-/** How a person nearby was found: the route icon of each method that sees them, then the helper's words. */
-export function FoundLine({ found }: { found: Found | null | undefined }) {
+/**
+ * How a person nearby was found: the route icon of each method that sees them, then the helper's words. A friend's
+ * row in the Friends list shows the icons alone (`iconsOnly`), before their latest message; the words are the tooltip.
+ */
+export function FoundLine({
+  found,
+  iconsOnly = false,
+}: {
+  found: Found | null | undefined;
+  iconsOnly?: boolean;
+}) {
   if (!found?.label) return null;
   const glyphs = found.methods
     .map((method) => FOUND_GLYPHS[method])
     .filter((name): name is GlyphName => Boolean(name));
+  if (iconsOnly && !glyphs.length) return null;
   return (
-    <span className="szf-found" data-methods={found.methods.join(" ")}>
+    <span
+      className={`szf-found ${iconsOnly ? "icons-only" : ""}`}
+      data-methods={found.methods.join(" ")}
+      title={iconsOnly ? found.label : undefined}
+    >
       {glyphs.map((name) => (
         <Glyph key={name} name={name} size={11} />
       ))}
-      <span>{found.label}</span>
+      {!iconsOnly && <span>{found.label}</span>}
     </span>
   );
 }

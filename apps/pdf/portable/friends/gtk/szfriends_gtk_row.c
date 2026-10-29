@@ -41,6 +41,8 @@ void szfriends_gtk_row_refresh(SZFriendsGtkRow *row) {
     set_class(widget, "drop-accept", row->drop == SZFRIENDS_GTK_ROW_DROP_ACCEPT);
     set_class(widget, "drop-refuse", row->drop == SZFRIENDS_GTK_ROW_DROP_REFUSE && row->drop_label);
     set_class(row->subtitle, "waiting", row->facts.waiting);
+    /* A friend's message not read yet stands out (szfriends_gtk_list_style.c). */
+    set_class(row->subtitle, "unread", look.unread_dot && !row->facts.waiting && !look.muted);
     gtk_widget_set_visible(row->time_box, look.right == SZFRIENDS_GTK_ROW_RIGHT_TIME);
     gtk_widget_set_visible(row->pill, look.waiting_pill);
     /* The route line keeps its height without an icon, so the time stays on the title's line in every row. */
@@ -76,8 +78,9 @@ static void set_name(SZFriendsGtkRow *row, const char *accessibility_label, cons
     gtk_accessible_update_property(GTK_ACCESSIBLE(row), GTK_ACCESSIBLE_PROPERTY_LABEL, name ? name : "", -1);
 }
 
-/* PROTOCOL.md found: one route icon per method seeing the person now, then the helper's words for them. */
-static void set_found(SZFriendsGtkRow *row, const SZFriendsGtkFound *found) {
+/* PROTOCOL.md found: one route icon per method seeing the person now, then the helper's words for them. A friend's
+ * row in the Friends list shows the icons alone, so their latest message keeps the line; the words stay its tooltip. */
+static void set_found(SZFriendsGtkRow *row, const SZFriendsGtkFound *found, gboolean words) {
     static const struct { const char *name; SZFriendsGtkRouteMethod method; } methods[] = {
         {"lan", SZFRIENDS_GTK_METHOD_LAN}, {"p2p_wifi", SZFRIENDS_GTK_METHOD_P2P_WIFI},
         {"bluetooth", SZFRIENDS_GTK_METHOD_BLUETOOTH}};
@@ -96,8 +99,8 @@ static void set_found(SZFriendsGtkRow *row, const SZFriendsGtkFound *found) {
     for (; glyph; glyph = gtk_widget_get_next_sibling(glyph)) gtk_widget_set_visible(glyph, FALSE);
     const char *label = found && found->label ? found->label : "";
     gtk_label_set_text(GTK_LABEL(row->found_label), label);
-    gtk_widget_set_visible(row->found_label, *label != '\0');
-    gtk_widget_set_visible(row->found, shown || *label);
+    gtk_widget_set_visible(row->found_label, words && *label != '\0');
+    gtk_widget_set_visible(row->found, shown || (words && *label));
     gtk_widget_set_tooltip_text(row->found, *label ? label : NULL);
 }
 
@@ -133,7 +136,7 @@ void szfriends_gtk_row_set_list_row(GtkWidget *widget, const SZFriendsGtkListRow
     szfriends_gtk_avatar_set(row->avatar, &list_row->avatar);
     gtk_label_set_text(GTK_LABEL(row->title), list_row->title);
     gtk_label_set_text(GTK_LABEL(row->subtitle), list_row->subtitle);
-    set_found(row, list_row->found);
+    set_found(row, list_row->found, FALSE);
     gtk_label_set_text(GTK_LABEL(row->time), list_row->time_label);
     gtk_label_set_text(GTK_LABEL(row->pill), list_row->waiting ? list_row->waiting->label : "");
     replace(&row->route_label, list_row->route.label);
@@ -173,7 +176,7 @@ void szfriends_gtk_row_set_nearby_person(GtkWidget *widget, const SZFriendsGtkNe
     szfriends_gtk_avatar_set(row->avatar, &person->avatar);
     gtk_label_set_text(GTK_LABEL(row->title), person->title);
     gtk_label_set_text(GTK_LABEL(row->subtitle), person->subtitle);
-    set_found(row, person->found);
+    set_found(row, person->found, TRUE);
     gtk_label_set_text(GTK_LABEL(row->status), person->status_label ? person->status_label : "");
     row->facts.has_status = person->status_label && *person->status_label;
     szfriends_gtk_row_actions_apply(row->actions, NULL, 0);
