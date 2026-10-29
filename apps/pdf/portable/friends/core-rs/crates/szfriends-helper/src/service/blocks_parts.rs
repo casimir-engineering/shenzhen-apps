@@ -142,6 +142,19 @@ impl State {
 
     /// Durability batches that came due while parts paused; their HAVEs go on the session receiving them.
     pub(crate) fn flush_blocks_if_due(&mut self) {
+        let now = std::time::Instant::now();
+        let due: Vec<(String, u64, u64)> = self
+            .sessions
+            .groups
+            .piece_due
+            .iter()
+            .filter(|(_, (at, _, _))| *at <= now)
+            .map(|(transfer, (_, id, lane))| (transfer.clone(), *id, *lane))
+            .collect();
+        for (transfer, id, lane) in due {
+            let id = self.head_of(id);
+            self.send_pieces(id, lane, &transfer);
+        }
         let Ok(flushed) = self.store.flush_due_blocks(false) else { return };
         for transfer in flushed {
             let found = self
@@ -170,10 +183,22 @@ impl State {
         let count = self.sessions.groups.piece_bytes.entry(transfer.to_owned()).or_default();
         *count += bytes;
         if !bluetooth && *count < PIECE_HAVE_BYTES {
+            // Within half a second anyway, as the durability batch's flush (§ 3: "at least every 256 KiB").
+            let due = std::time::Instant::now() + PIECE_HAVE_DELAY;
+            self.sessions.groups.piece_due.entry(transfer.to_owned()).or_insert((due, id, lane));
             return;
         }
-        *count = 0;
+        self.send_pieces(id, lane, transfer);
+    }
+
+    /// The pieces not yet reported, in a HAVE on `lane` (the group's first session when it is gone).
+    fn send_pieces(&mut self, id: u64, lane: u64, transfer: &str) {
+        self.sessions.groups.piece_bytes.insert(transfer.to_owned(), 0);
+        self.sessions.groups.piece_due.remove(transfer);
         let pieces = self.store.take_piece_have(transfer);
+        if pieces.is_empty() {
+            return;
+        }
         let Some(wire) = unhex(transfer) else { return };
         let to = if self.sessions.map.get(&lane).is_some_and(|s| s.channel.is_established()) { lane } else { id };
         for frame in frames::have_with_pieces(&wire, &[], &[], &pieces) {

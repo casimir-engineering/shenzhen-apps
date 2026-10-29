@@ -75,6 +75,9 @@ pub struct Groups {
     pub schedules: HashMap<u64, Schedule>,
     /// Receiving: bytes of parts since the last HAVE naming pieces, by transfer (§ 3).
     pub piece_bytes: HashMap<String, usize>,
+    /// Receiving: pieces not yet reported go by this time anyway (the group's first session and the lane they came
+    /// on): re-sent pieces after a cut may never add up to 256 KiB (WP4's third stall).
+    pub piece_due: HashMap<String, (std::time::Instant, u64, u64)>,
     /// Receiving: (lane, transfer, block) whose late part was answered with a HAVE (§ 3: once per block per lane).
     pub late_answered: std::collections::HashSet<(u64, String, u32)>,
     /// Each lane's first session (dialing lanes under a provisional id until their session exists).

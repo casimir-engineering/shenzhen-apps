@@ -65,6 +65,8 @@ pub(crate) struct Lanes {
     pub(crate) late_answered: HashSet<(u64, String, u32)>,
     /// Receiving: bytes of parts since the last HAVE naming pieces, by transfer.
     pub(crate) piece_bytes: HashMap<String, usize>,
+    /// As the helper's: pieces not yet reported go by this time anyway.
+    pub(crate) piece_due: HashMap<String, (std::time::Instant, u64, u64)>,
 }
 
 impl State {

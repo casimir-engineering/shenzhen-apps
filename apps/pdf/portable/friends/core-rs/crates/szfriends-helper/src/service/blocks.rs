@@ -51,6 +51,8 @@ pub struct BlockSend {
 
 /// A receiver reports the pieces that arrived at least every 256 KiB of parts (after every part on Bluetooth).
 const PIECE_HAVE_BYTES: usize = 256 << 10;
+/// ... and within this long of the first unreported one, however few: re-sent pieces after a cut may be fewer.
+const PIECE_HAVE_DELAY: std::time::Duration = std::time::Duration::from_millis(500);
 
 impl State {
     /// Whether this session runs fast transfers (ADR 0018 § 1).

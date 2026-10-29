@@ -29,6 +29,9 @@ pub enum LinkEvent {
 
 /// A test home's emulated route (`SZFRIENDS_TEST_ROUTE_RATES`): the writer holds each write's bytes for as long as
 /// the route's rate would take to carry them, so the session's in-flight budget and window see a slow route.
+/// A test home's emulated route: the rate this side writes at, and the file (and route name) that silences it.
+pub type Emulated = (Option<f64>, Option<(std::path::PathBuf, String)>);
+
 #[derive(Clone, Debug)]
 struct Pace {
     bytes_per_second: f64,
@@ -39,7 +42,7 @@ struct Pace {
 }
 
 impl Pace {
-    fn new(emulated: Option<(Option<f64>, Option<(std::path::PathBuf, String)>)>) -> Option<Self> {
+    fn new(emulated: Option<Emulated>) -> Option<Self> {
         let (rate, silence) = emulated?;
         let bytes_per_second = rate.unwrap_or(f64::INFINITY);
         Some(Self { bytes_per_second, free_at: Instant::now(), silence })
@@ -82,7 +85,7 @@ impl Link {
         stream: LinkStream,
         events: Sender<E>,
         wrap: fn(LinkEvent) -> E,
-        emulated: Option<(Option<f64>, Option<(std::path::PathBuf, String)>)>,
+        emulated: Option<Emulated>,
     ) -> std::io::Result<Self> {
         let pace = Pace::new(emulated);
         match stream {
