@@ -61,8 +61,8 @@ typedef enum {
     SZFRIENDS_GTK_ACTION_FETCH_FROM_FRIEND,
     /* Client-side: the join page (PROTOCOL.md § Joining, Offering it) */
     SZFRIENDS_GTK_ACTION_OPEN_JOIN,
-    /* Ask the system for permission to show notifications (PROTOCOL.md § Notifications) */
-    SZFRIENDS_GTK_ACTION_ALLOW_NOTIFICATIONS
+    /* Notifications' permission (PROTOCOL.md § Notifications); the Wi-Fi Direct boost's Go faster, Not now (ADR 0019) */
+    SZFRIENDS_GTK_ACTION_ALLOW_NOTIFICATIONS, SZFRIENDS_GTK_ACTION_BOOST_TRANSFER, SZFRIENDS_GTK_ACTION_SKIP_BOOST
 } SZFriendsGtkActionKind;
 /* What a reset_friends action shows once the reset succeeded; never sent. */
 typedef enum { SZFRIENDS_GTK_THEN_NONE, SZFRIENDS_GTK_THEN_OPEN_JOIN } SZFriendsGtkActionThen;

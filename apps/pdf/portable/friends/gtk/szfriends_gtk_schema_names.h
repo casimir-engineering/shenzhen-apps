@@ -10,7 +10,7 @@ NAMES(actions, NULL, "accept_request", "decline_request", "cancel_request", "blo
       "reset_friends", "delete_history", "open_file", "show_file", "open_settings", "add_from_link", "receive_link",
       "reset_friend_link", "revoke_link", "revoke_device", "fetch_from_device", "join_profile", "cancel_join",
       "approve_join", "deny_join", "activate", "choose_received_folder", "fetch_from_friend", "open_join",
-      "allow_notifications");
+      "allow_notifications", "boost_transfer", "skip_boost");
 NAMES(action_thens, NULL, "open_join");
 NAMES(confirm_option_names, NULL, "delete_history");
 NAMES(styles, NULL, "primary", "secondary", "link", "destructive");
