@@ -9,8 +9,9 @@
 //! - lane index 0 is the first session; lanes take 1 to 15, each index once per group;
 //! - this side opens at most 4 lanes per route and 8 per group, and admits any of the 15 indexes; at most one session
 //!   of the group, the first included, on the relay and on Bluetooth;
-//! - a lane never races and never supersedes anything; when one closes the group goes on with the rest, and when the
-//!   first session closes, the group ends (resume takes over on whatever session comes next);
+//! - a lane never races and never supersedes anything; when one closes, the first session included, the group goes on
+//!   with the rest (its driver moves what the first session held to [`LaneGroup::first`]), and when the last closes,
+//!   the group ends and resume takes over on whatever session comes next;
 //! - control frames and messages go on the best-ranked live lane: the route order, then the lowest index.
 
 use std::collections::BTreeMap;
@@ -123,8 +124,13 @@ impl LaneGroup {
     }
 
     /// The first session's id.
+    /// The first session's id, or once it has gone, the live lane with the lowest index (the group goes on).
     pub fn first(&self) -> LaneId {
-        self.lanes[&0].id
+        self.lanes
+            .get(&0)
+            .or_else(|| self.lanes.values().find(|l| l.live))
+            .or_else(|| self.lanes.values().next())
+            .map_or(0, |l| l.id)
     }
 
     pub fn contains(&self, lane: LaneId) -> bool {
@@ -198,14 +204,16 @@ impl LaneGroup {
         }
     }
 
-    /// A lane closed or its dial failed; `true` when that ends the group (it was the first session).
+    /// A lane closed or its dial failed; `true` when that ends the group: no live lane is left. The first session's
+    /// end alone does not (ADR 0018 § 6: the group goes on with the rest); its driver moves what the first session
+    /// held to [`LaneGroup::first`].
     pub fn lane_down(&mut self, lane: LaneId) -> bool {
         let Some(index) = self.lanes.iter().find(|(_, l)| l.id == lane).map(|(i, _)| *i) else { return false };
         let entry = self.lanes.remove(&index).expect("found");
         if entry.live {
             self.events.push(LaneEvent::Down { lane });
         }
-        index == 0
+        !self.lanes.values().any(|l| l.live)
     }
 
     /// Live lanes: (id, index, route), in index order.
@@ -299,7 +307,12 @@ mod tests {
         assert!(!group.lane_down(200));
         assert_eq!(group.control_lane(rank), 100);
         assert_eq!(group.live().map(|l| l.1).collect::<Vec<_>>(), vec![0, 9]);
-        assert!(group.lane_down(100), "the first session ends the group");
-        assert_eq!(group.take_events(), vec![LaneEvent::Down { lane: 200 }, LaneEvent::Down { lane: 100 }]);
+        assert!(!group.lane_down(100), "the group goes on without its first session");
+        assert_eq!(group.first(), 300);
+        assert!(group.lane_down(300), "the last lane ends it");
+        assert_eq!(
+            group.take_events(),
+            vec![LaneEvent::Down { lane: 200 }, LaneEvent::Down { lane: 100 }, LaneEvent::Down { lane: 300 }]
+        );
     }
 }

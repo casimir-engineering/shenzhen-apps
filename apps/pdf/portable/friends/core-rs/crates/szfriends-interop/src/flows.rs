@@ -40,6 +40,9 @@ impl State {
             "fast": channel.fast_transfers(),
         });
         let route = channel.initiator_route();
+        if self.lane_established(id, &event) {
+            return; // a lane of a group (lanes.rs): never a conversation of its own
+        }
         let conversation = remote
             .and_then(|key| self.store.person_with_identity_key(&key).ok().flatten())
             .map(|person| person.conversation_id);

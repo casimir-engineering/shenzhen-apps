@@ -273,6 +273,15 @@ impl State {
     /// A write on a session's link completed, or bytes arrived from its peer: the scheduler of its group hears it.
     pub(crate) fn lane_written(&mut self, id: u64, heard: bool) {
         let head = self.head_of(id);
+        // A write counts as the lane moving only while it carries parts: a PING's (sent every second while a file
+        // moves) would keep a lane whose route went silent looking alive until the session's own 8 or 12 s.
+        let carrying = self.sessions.map.get(&id).is_some_and(|s| s.channel.queued_frames().1 > 0)
+            || self.sessions.map.get(&head).is_some_and(|s| {
+                s.block_senders.values().any(|send| send.lanes.get(&id).is_some_and(|q| !q.is_empty()))
+            });
+        if !heard && !carrying {
+            return;
+        }
         let Some(schedule) = self.sessions.groups.schedules.get_mut(&head) else { return };
         let now = szfriends_core::session::monotonic_now();
         if heard {

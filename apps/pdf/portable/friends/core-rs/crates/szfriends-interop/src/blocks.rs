@@ -5,26 +5,41 @@
 //! negotiate them, the CHUNK flow of `flows.rs` runs as before. The store does the work; this is the helper's wiring,
 //! kept in step with it so the transfer bench and the interop matrix measure what the helper does.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 
 use serde_json::json;
+use szfriends_core::session::lanes::LaneRequest;
 use szfriends_core::session::{chunk_bytes_for_route, monotonic_now};
 use szfriends_core::store::{BlockPart, StoreError, TransferRecord, TransferState};
+use szfriends_core::transfer::scheduler::Action;
 use szfriends_core::transfer::{frames, BlockServe};
 use szfriends_core::wire::{tag, Frame, FrameType, RouteMethod};
 
 use crate::hex_bytes;
 use crate::peer::State;
 
-/// As the helper: parts queued in the channel ahead of the link, and what one session keeps sent and not in a HAVE.
+/// As the helper: parts queued in the channel ahead of the link; the serve's own window (the scheduler sizes each
+/// lane's share within § 3's limits).
 const BULK_DEPTH: usize = 4;
-const WINDOW_BYTES: u64 = 16 << 20;
-const WINDOW_BYTES_BLUETOOTH: u64 = 2 << 20;
+const WINDOW_BYTES: u64 = 64 << 20;
 
-/// One of our files going by blocks on one session.
+/// One of our files going by blocks on one session's group.
 pub(crate) struct BlockSend {
     serve: BlockServe,
     record: TransferRecord,
+    /// Each lane's parts not yet handed to its channel: (block, part, the block's last part).
+    pub(crate) lanes: HashMap<u64, VecDeque<(u32, Frame, bool)>>,
+    /// The receiver has the leaves (a HAVE or WANT came back): parts may go on lanes.
+    lanes_ok: bool,
+}
+
+/// Parts of a block cut for a lane on this route (16 KiB on Bluetooth, ADR 0018 § 9.8), as the helper does.
+fn part_bytes(route: RouteMethod) -> usize {
+    if route == RouteMethod::Bluetooth {
+        16 * 1024
+    } else {
+        chunk_bytes_for_route(route)
+    }
 }
 
 /// What a session does by blocks: files it sends, and files it receives.
@@ -126,17 +141,25 @@ impl State {
         let (record, first) = self.store.peer_took_blocks(offer, conversation).ok()?;
         let tree = self.store.sender_tree(&record).ok()?;
         let route = self.sessions.get(&id)?.channel.initiator_route();
-        let window = if route == RouteMethod::Bluetooth { WINDOW_BYTES_BLUETOOTH } else { WINDOW_BYTES };
         let wire = hex_bytes(offer)?;
-        let mut serve = BlockServe::new(&wire, tree.header.geometry, tree.leaves, chunk_bytes_for_route(route), window);
+        let geometry = tree.header.geometry;
+        let mut serve = BlockServe::new(&wire, geometry, tree.leaves, chunk_bytes_for_route(route), WINDOW_BYTES);
         if first {
             serve.want_all();
             self.emit(json!({ "event": "sending", "session": id, "transfer": offer, "offset": 0, "blocks": true }));
         }
+        let group = self.lanes.groups.get_mut(&id)?;
+        group.sync();
+        let key = group.key(offer);
+        group.scheduler.add_transfer(key, geometry);
+        if first {
+            let _ = group.scheduler.want(key, &[(0, geometry.blocks)], monotonic_now());
+        }
         for frame in serve.hashes_frames() {
             self.send_frame(id, &frame);
         }
-        self.sessions.get_mut(&id)?.blocks.senders.insert(offer.to_owned(), BlockSend { serve, record });
+        let send = BlockSend { serve, record, lanes: HashMap::new(), lanes_ok: false };
+        self.sessions.get_mut(&id)?.blocks.senders.insert(offer.to_owned(), send);
         Some(true)
     }
 
@@ -159,7 +182,7 @@ impl State {
         match frame.frame_type {
             FrameType::Hashes => self.hashes(id, frame, &conversation, &transfer),
             FrameType::Want => self.want(id, frame, &conversation, &transfer),
-            FrameType::Part => self.part(id, frame, &conversation, &transfer),
+            FrameType::Part => self.part(id, id, frame, &conversation, &transfer),
             _ => self.have(id, frame, &transfer),
         }
         true
@@ -201,8 +224,14 @@ impl State {
         if send.serve.want(&ranges).is_err() {
             return self.unsolicited(id);
         }
+        send.lanes_ok = true;
+        let block_bytes = send.serve.geometry().block_bytes();
+        if let Some(group) = self.lanes.groups.get_mut(&id) {
+            let key = group.key(transfer);
+            let _ = group.scheduler.want(key, &ranges, monotonic_now());
+        }
         // The bench reads the resume point here, as it reads a CHUNK resume's offset.
-        let offset = u64::from(ranges[0].0) * send.serve.geometry().block_bytes();
+        let offset = u64::from(ranges[0].0) * block_bytes;
         self.emit(json!({ "event": "sending", "session": id, "transfer": transfer, "offset": offset, "blocks": true }));
     }
 
@@ -216,11 +245,34 @@ impl State {
             return;
         };
         if send.serve.have(&complete).is_err() {
-            self.unsolicited(id);
+            return self.unsolicited(id);
+        }
+        send.lanes_ok = true;
+        if let Some(group) = self.lanes.groups.get_mut(&id) {
+            let key = group.key(transfer);
+            let _ = group.scheduler.have(key, &complete, monotonic_now());
         }
     }
 
-    fn part(&mut self, id: u64, frame: &Frame, conversation: &str, transfer: &str) {
+    /// A PART that came on `lane` of `id`'s group: its HAVE goes back on that lane (ADR 0018 § 3, § 7).
+    pub(crate) fn part_on(&mut self, id: u64, lane: u64, frame: &Frame) {
+        let conversation = self.sessions.get(&id).and_then(|s| s.conversation.clone());
+        let (Some(transfer), Some(conversation)) = (frame.get(tag::ID).map(hex::encode), conversation) else {
+            return self.close_for_protocol(lane);
+        };
+        self.part(id, lane, frame, &conversation, &transfer);
+    }
+
+    /// Where a HAVE for `lane`'s parts goes: that lane while it is live, else the first session.
+    fn reply_lane(&self, id: u64, lane: u64) -> u64 {
+        if self.sessions.get(&lane).is_some_and(|s| s.channel.is_established()) {
+            lane
+        } else {
+            id
+        }
+    }
+
+    fn part(&mut self, id: u64, lane: u64, frame: &Frame, conversation: &str, transfer: &str) {
         if frame.get(tag::CODEC).is_some() {
             return self.unsolicited(id);
         }
@@ -239,8 +291,22 @@ impl State {
             return;
         }
         match self.store.block_part(transfer, conversation, offset, data) {
-            Ok(BlockPart::Pending | BlockPart::Late) => {}
-            Ok(BlockPart::Written(_)) => self.blocks_progressed(id, transfer, conversation),
+            Ok(BlockPart::Pending) => {}
+            Ok(BlockPart::Late) => {
+                // The first late part of a block on each lane gets a HAVE for that block (§ 3), so a block whose HAVE
+                // went with a silent lane is still acknowledged.
+                let Some(header) = self.store.offered_tree(transfer) else { return };
+                let block = header.geometry.block_of(offset);
+                if self.lanes.late_answered.insert((lane, transfer.to_owned(), block)) {
+                    let to = self.reply_lane(id, lane);
+                    if let Some(wire) = hex_bytes(transfer) {
+                        for frame in frames::have(&wire, &[(block, 1)], &[]) {
+                            self.send_frame(to, &frame);
+                        }
+                    }
+                }
+            }
+            Ok(BlockPart::Written(_)) => self.blocks_progressed_on(id, lane, transfer, conversation),
             Ok(BlockPart::Corrupt(block)) => {
                 if let Some(wire) = hex_bytes(transfer) {
                     for frame in frames::want(&wire, &[(block, 1)]) {
@@ -259,10 +325,15 @@ impl State {
 
     /// HAVE for what changed; once every block is durable, the check before saving, the ACK and `received_file`.
     fn blocks_progressed(&mut self, id: u64, transfer: &str, conversation: &str) {
+        self.blocks_progressed_on(id, id, transfer, conversation);
+    }
+
+    fn blocks_progressed_on(&mut self, id: u64, lane: u64, transfer: &str, conversation: &str) {
         let (complete, durable) = self.store.take_block_have(transfer);
         let Some(wire) = hex_bytes(transfer) else { return };
+        let to = self.reply_lane(id, lane);
         for frame in frames::have(&wire, &complete, &durable) {
-            self.send_frame(id, &frame);
+            self.send_frame(to, &frame);
         }
         if !self.store.blocks_all_durable(transfer) {
             return;
@@ -297,35 +368,96 @@ impl State {
         }
     }
 
-    /// The next parts of every file this session sends by blocks, while the channel's bulk queue is shallow.
-    pub(crate) fn pump_blocks(&mut self, id: u64) {
-        let offers: Vec<String> = match self.sessions.get(&id) {
-            Some(s) if s.channel.is_established() => s.blocks.senders.keys().cloned().collect(),
+    /// Every file this session's group sends by blocks, as the helper does: the scheduler (WP2) gives each block to a
+    /// lane; the block is read through its leaf check and cut into the lane's parts, which go out while the lane's
+    /// queue is shallow, and a block's last part tells the scheduler it was sent.
+    pub(crate) fn pump_blocks(&mut self, head: u64) {
+        let offers: Vec<String> = match self.sessions.get(&head) {
+            Some(s) if s.channel.is_established() && !s.blocks.senders.is_empty() => {
+                s.blocks.senders.keys().cloned().collect()
+            }
             _ => return,
         };
-        for offer in offers {
-            loop {
-                let Some(session) = self.sessions.get_mut(&id) else { return };
-                if session.channel.queued_frames().1 >= BULK_DEPTH {
-                    return;
+        let now = monotonic_now();
+        let Some(group) = self.lanes.groups.get_mut(&head) else { return };
+        group.sync();
+        group.retain(&offers);
+        group.scheduler.tick(now);
+        let actions = group.scheduler.take_actions();
+        let lanes: Vec<u64> = group.lanes.live().map(|(id, _, _)| id).collect();
+        for action in actions {
+            match action {
+                Action::Send { lane, transfer, block } => self.assign_block(head, lane, transfer, block),
+                Action::Cancel { lane, transfer, block } => {
+                    let name = self.lanes.groups.get(&head).and_then(|g| g.name(transfer));
+                    let send = name.and_then(|n| self.sessions.get_mut(&head)?.blocks.senders.get_mut(&n));
+                    if let Some(queue) = send.and_then(|s| s.lanes.get_mut(&lane)) {
+                        queue.retain(|(b, _, _)| *b != block);
+                    }
                 }
-                let Some(send) = session.blocks.senders.get_mut(&offer) else { break };
-                if let Some(part) = send.serve.next_part() {
-                    session.channel.send_frame(&part, monotonic_now());
-                    continue;
-                }
-                let Some(block) = send.serve.next_block() else { break };
-                let geometry = *send.serve.geometry();
-                let read = self.store.read_outgoing_block(&send.record, &geometry, block);
-                let send = self.sessions.get_mut(&id).and_then(|s| s.blocks.senders.get_mut(&offer)).expect("listed");
-                let loaded = read.ok().map(|data| send.serve.load_block(block, data));
-                if !matches!(loaded, Some(Ok(()))) {
-                    self.sessions.get_mut(&id).expect("live").blocks.senders.remove(&offer);
-                    let _ = self.store.snapshot_changed(&offer);
-                    self.emit(json!({ "event": "transfer_failed", "transfer": offer, "why": "the snapshot changed" }));
-                    break;
+                // The bench dials every lane itself; one it no longer wants closes.
+                Action::Lane(LaneRequest::Open { .. }) => {}
+                Action::Lane(LaneRequest::Close { lane }) => {
+                    if lane != head {
+                        if let Some(s) = self.sessions.get_mut(&lane) {
+                            s.channel.close_with_reason(szfriends_core::wire::CloseReason::Normal, now);
+                        }
+                    }
                 }
             }
+        }
+        for offer in &offers {
+            let key = self.lanes.groups.get_mut(&head).map(|g| g.key(offer));
+            for &lane in &lanes {
+                loop {
+                    let room = self
+                        .sessions
+                        .get(&lane)
+                        .is_some_and(|s| s.channel.is_established() && s.channel.queued_frames().1 < BULK_DEPTH);
+                    if !room {
+                        break;
+                    }
+                    let Some(send) = self.sessions.get_mut(&head).and_then(|s| s.blocks.senders.get_mut(offer)) else {
+                        break;
+                    };
+                    if lane != head && !send.lanes_ok {
+                        break;
+                    }
+                    let Some((block, part, last)) = send.lanes.get_mut(&lane).and_then(VecDeque::pop_front) else {
+                        break;
+                    };
+                    if let Some(s) = self.sessions.get_mut(&lane) {
+                        s.channel.send_frame(&part, now);
+                    }
+                    if let (true, Some(key), Some(group)) = (last, key, self.lanes.groups.get_mut(&head)) {
+                        group.scheduler.sent(lane, key, block, now);
+                    }
+                }
+            }
+        }
+    }
+
+    /// The scheduler gave `block` of `transfer` to `lane`: read, checked against its leaf, cut into the lane's parts.
+    fn assign_block(&mut self, head: u64, lane: u64, transfer: u64, block: u32) {
+        let Some(offer) = self.lanes.groups.get(&head).and_then(|g| g.name(transfer)) else { return };
+        let route = self.lane_route(head, lane);
+        let Some(send) = self.sessions.get_mut(&head).and_then(|s| s.blocks.senders.get_mut(&offer)) else { return };
+        let geometry = *send.serve.geometry();
+        let read = self.store.read_outgoing_block(&send.record, &geometry, block);
+        let loaded = read.ok().map(|data| send.serve.load_block(block, data));
+        if !matches!(loaded, Some(Ok(()))) {
+            self.sessions.get_mut(&head).expect("live").blocks.senders.remove(&offer);
+            let _ = self.store.snapshot_changed(&offer);
+            self.emit(json!({ "event": "transfer_failed", "transfer": offer, "why": "the snapshot changed" }));
+            return;
+        }
+        send.serve.set_part_bytes(part_bytes(route));
+        let queue = send.lanes.entry(lane).or_default();
+        while let Some(part) = send.serve.next_part() {
+            queue.push_back((block, part, false));
+        }
+        if let Some(last) = queue.back_mut() {
+            last.2 = true;
         }
     }
 }

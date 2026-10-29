@@ -111,7 +111,10 @@ fn a_slow_network_gets_a_bluetooth_lane_and_the_file_arrives_sooner() {
 #[ignore = "a bench: minutes at Bluetooth's rate"]
 fn lanes_bench() {
     let rates = "lan=1250000,bluetooth=175000";
-    let size = 32 << 20;
+    // LANES_BENCH_MIB: another size (Bluetooth's share grows with the file: its blocks take 6 s each, and the last
+    // ones stay on the faster lane).
+    let mib: usize = std::env::var("LANES_BENCH_MIB").ok().and_then(|v| v.parse().ok()).unwrap_or(32);
+    let size = mib << 20;
     let mut alone = pair("bench-off", rates, false);
     let without = send(&mut alone, "Alone.step", size, |_| {});
     drop(alone);

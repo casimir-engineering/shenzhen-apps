@@ -69,6 +69,8 @@ pub(crate) struct State {
     events: Sender<Value>,
     pub(crate) online: Option<crate::online::OnlinePart>,
     pub(crate) devices: crate::devices::Devices,
+    /// Lane groups (ADR 0018 § 6, `lanes.rs`).
+    pub(crate) lanes: crate::lanes::Lanes,
 }
 
 /// A Rust peer with its own state directory (a temporary home) and identity, listening only on loopback.
@@ -103,6 +105,7 @@ impl RustPeer {
             events: events_tx,
             online: None,
             devices,
+            lanes: Default::default(),
         };
         let thread = std::thread::spawn(move || run(state, inbox));
         Self { input, events, thread: Some(thread) }
@@ -184,6 +187,8 @@ impl State {
                 "identity_key": hex(&self.identity.public_key()),
                 "static_key": hex(&self.identity.static_public_key()),
                 "session_minor": szfriends_core::wire::consts::SESSION_MINOR,
+                // `dial` takes "lane_of" (ADR 0018 § 6), and lanes are admitted.
+                "lanes": true,
             }),
             "listen" => self.listen(command),
             "public_profile" => {
@@ -356,10 +361,22 @@ impl State {
         options.remote_static = key(&command["remote_static"]);
         options.expected_identity = key(&command["expected_identity"]);
         options.request_token = command["token"].as_str().and_then(hex_bytes);
+        // A lane of a live fast session (ADR 0018 § 6): its token, reserved under a provisional id until the session
+        // exists.
+        let lane = command["lane_of"].as_u64().map(|head| (head, u64::MAX - self.next_session));
+        if let Some((head, provisional)) = lane {
+            match self.reserve_lane(head, provisional, route) {
+                Some(token) => options.lane = Some(token),
+                None => return json!({ "error": "no lane: no fast group, or its limits" }),
+            }
+        }
         let Ok(stream) = TcpStream::connect((
             command["host"].as_str().unwrap_or("127.0.0.1"),
             command["port"].as_u64().unwrap_or(0) as u16,
         )) else {
+            if let Some((head, provisional)) = lane {
+                self.lane_dial_failed(head, provisional);
+            }
             return json!({ "error": "connect failed" });
         };
         let mut channel = SecureChannel::initiator(ChannelIdentity::new(&self.identity), options);
@@ -369,6 +386,9 @@ impl State {
             channel.set_profile_decision(Box::new(|_| true));
         }
         let id = self.new_session(channel, stream);
+        if let Some((head, provisional)) = lane {
+            self.lane_dialed(head, provisional, id);
+        }
         let now = monotonic_now();
         self.sessions.get_mut(&id).expect("just made").channel.start(now);
         json!({ "session": id })
@@ -407,6 +427,7 @@ impl State {
                 if let Some(s) = self.sessions.get_mut(&id) {
                     s.channel.receive(&bytes, now);
                 }
+                self.lane_activity(id, true);
             }
             LinkEvent::Eof(id) => {
                 if let Some(s) = self.sessions.get_mut(&id) {
@@ -417,6 +438,7 @@ impl State {
                 if let Some(s) = self.sessions.get_mut(&id) {
                     s.channel.write_completed(now);
                 }
+                self.lane_activity(id, false);
             }
         }
     }
@@ -432,10 +454,12 @@ impl State {
     /// Timers, then writes and events until the session has nothing more to say, then the transfers' next chunks.
     fn service(&mut self, id: u64) {
         let now = monotonic_now();
+        // Files by blocks too (ADR 0018 § 7), as the helper's `block_liveness`, on the group's every lane: both sides
+        // of a fast session ping.
+        let head = self.head_of(id);
+        let (blocks, owed) = self.sessions.get(&head).map_or((false, false), |s| s.blocks.liveness(&self.store));
         if let Some(s) = self.sessions.get_mut(&id) {
             let (keepalive, watch) = transfer_liveness(s.senders.values().map(|o| &o.sender), s.receivers.values());
-            // Files by blocks too (ADR 0018 § 7), as the helper's `block_liveness`: both sides of a fast session ping.
-            let (blocks, owed) = s.blocks.liveness(&self.store);
             s.channel.set_liveness(keepalive || blocks, watch || owed, now);
             s.channel.handle_timeout(now);
         }
@@ -467,12 +491,18 @@ impl State {
                 self.established(id);
                 self.devices_established(id);
             }
-            Event::Frame(frame) => self.frame(id, frame),
+            // A lane's frames are its first session's; a PART's HAVE goes back on its lane.
+            Event::Frame(frame) if frame.frame_type == szfriends_core::wire::FrameType::Part => {
+                let head = self.head_of(id);
+                self.part_on(head, id, &frame);
+            }
+            Event::Frame(frame) => self.frame(self.head_of(id), frame),
             Event::Code(result) => match result {
                 Ok(code) => self.emit(json!({ "event": "code", "session": id, "code": code })),
                 Err(error) => self.emit(json!({ "event": "code", "session": id, "error": error.code() })),
             },
             Event::Closed(error) => {
+                self.lane_closed(id);
                 self.devices_closed(id);
                 let _ = self.store.flush_progress();
                 let reason = match error {

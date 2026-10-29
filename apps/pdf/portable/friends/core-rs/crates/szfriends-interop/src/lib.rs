@@ -15,6 +15,7 @@ mod devices_join;
 mod flows;
 pub mod helpers;
 pub mod host;
+mod lanes;
 mod link;
 pub mod link_scenarios;
 pub mod nearby;

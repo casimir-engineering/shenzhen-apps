@@ -48,8 +48,13 @@ pub const DIRECT_WIFI_HELPS_BELOW: f64 = 25e6;
 /// A silent lane: no block completed and no write finished for this long, or 3 round trips if longer.
 pub const SILENT_AFTER: Duration = Duration::from_secs(1);
 pub const SILENT_AFTER_BLUETOOTH: Duration = Duration::from_secs(2);
+/// A lane holding blocks that hears nothing from the peer this long is silent (the peer pings every second).
+pub const UNHEARD_AFTER: Duration = Duration::from_millis(2_500);
+pub const UNHEARD_AFTER_BLUETOOTH: Duration = Duration::from_millis(3_500);
 /// A silent lane is closed after this long without a byte from the peer.
 pub const CLOSE_SILENT_AFTER: Duration = Duration::from_secs(10);
+/// A lane slower than this many seconds per block holds one block at a time.
+const SLOW_BLOCK_SECONDS: f64 = 1.0;
 /// In flight per lane at most.
 pub const LANE_BYTES_MAX: u64 = 32 << 20;
 pub const LANE_BYTES_MAX_PHONE: u64 = 8 << 20;
@@ -173,6 +178,17 @@ impl Lane {
     fn silent_after(&self) -> Duration {
         let floor = if self.route == RouteMethod::Bluetooth { SILENT_AFTER_BLUETOOTH } else { SILENT_AFTER };
         floor.max(self.rtt * 3)
+    }
+
+    /// Silent by what it hears: both ends of a fast session ping every second while a file moves (ADR 0018 § 7), so
+    /// a lane holding blocks that hears nothing for this long has lost its route, however long its measured round
+    /// trip (a deep buffer in the path inflates that, and with it `silent_after`).
+    fn unheard_after(&self) -> Duration {
+        if self.route == RouteMethod::Bluetooth {
+            UNHEARD_AFTER_BLUETOOTH
+        } else {
+            UNHEARD_AFTER
+        }
     }
 
     fn working(&self) -> bool {
@@ -427,7 +443,11 @@ impl Scheduler {
         let ids: Vec<LaneId> = self.lanes.keys().copied().collect();
         for id in ids {
             let lane = &self.lanes[&id];
-            if !lane.silent && lane.in_flight > 0 && now.saturating_sub(lane.progress_at) >= lane.silent_after() {
+            let unheard = now.saturating_sub(lane.heard_at) >= lane.unheard_after();
+            if !lane.silent
+                && lane.in_flight > 0
+                && (now.saturating_sub(lane.progress_at) >= lane.silent_after() || unheard)
+            {
                 self.go_silent(id);
             }
             let lane = self.lanes.get_mut(&id).expect("listed");
@@ -449,7 +469,7 @@ impl Scheduler {
             .values()
             .filter_map(|l| {
                 if !l.silent && l.in_flight > 0 {
-                    Some(l.progress_at + l.silent_after())
+                    Some((l.progress_at + l.silent_after()).min(l.heard_at + l.unheard_after()))
                 } else if l.silent && !l.closing && l.index != 0 {
                     Some(l.heard_at + CLOSE_SILENT_AFTER)
                 } else {
@@ -493,7 +513,15 @@ impl Scheduler {
     fn cap(&self, lane: &Lane, block_bytes: u64) -> u64 {
         let max = if self.config.phone { LANE_BYTES_MAX_PHONE } else { LANE_BYTES_MAX };
         let bdp2 = (2.0 * lane.rate * lane.rtt.as_secs_f64()) as u64;
-        bdp2.max(2 * block_bytes).min(max)
+        // A lane beside a faster one that needs longer than a second per block (Bluetooth beside a slow LAN: 6 s per
+        // MiB) holds one: a second one queued behind it would push its expected finish past what the faster lanes
+        // need for the rest, so it would stop taking blocks early, while the round trip a second block saves is a
+        // small part of a block's time on it (WP3, measured: Bluetooth's share of its rate 68 % with two, see the
+        // journal).
+        let faster = self.lanes.values().any(|l| l.working() && l.rate > lane.rate * 2.0);
+        let slow = faster && block_bytes as f64 / lane.rate.max(1.0) > SLOW_BLOCK_SECONDS;
+        let blocks = if slow { 1 } else { 2 };
+        bdp2.max(blocks * block_bytes).min(max)
     }
 
     fn room(&self, lane: &Lane, bytes: u64, block_bytes: u64) -> bool {
