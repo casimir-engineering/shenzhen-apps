@@ -6,6 +6,7 @@
     NSString *_newestID;   // the newest item of the last snapshot
     NSString *_firstUnseen;
     BOOL _scrolling;       // the pill's own smooth scroll
+    NSUInteger _scrolls;   // which one: a later scroll, or the end of this one, makes an earlier one's ending moot
 }
 
 - (instancetype)initWithList:(NSScrollView *)list host:(NSView *)host context:(SZFriendsContext *)context {
@@ -101,17 +102,36 @@ static BOOL SZFFromFriend(NSDictionary *item) {
     NSScrollView *list = _list;
     NSView *view = _firstUnseen ? [self viewForItem:_firstUnseen] : nil;
     CGFloat end = MAX(0, NSHeight(list.documentView.frame) - NSHeight(list.contentView.bounds));
-    CGFloat target = view ? MIN(end, MAX(0, NSMinY(view.frame) - 8)) : end;
+    NSPoint target = NSMakePoint(0, view ? MIN(end, MAX(0, NSMinY(view.frame) - 8)) : end);
+    // Smoothly only where it can be seen: an animation advances with the display, so in a window that is hidden,
+    // occluded or on a sleeping display it may never finish, and the pill would stay. With Reduce Motion, at once.
+    BOOL visible = (list.window.occlusionState & NSWindowOcclusionStateVisible) != 0;
+    if (!visible || NSWorkspace.sharedWorkspace.accessibilityDisplayShouldReduceMotion) {
+        [self finishScrollAt:target];
+        return;
+    }
     _scrolling = YES;
+    NSUInteger scroll = ++_scrolls;
     [NSAnimationContext runAnimationGroup:^(NSAnimationContext *animation) {
         animation.duration = 0.25;
         animation.allowsImplicitAnimation = YES;
-        [list.contentView.animator setBoundsOrigin:NSMakePoint(0, target)];
+        [list.contentView.animator setBoundsOrigin:target];
     } completionHandler:^{
-        self->_scrolling = NO;
-        [list reflectScrolledClipView:list.contentView];
-        [self refresh];
+        if (scroll == self->_scrolls) [self finishScrollAt:target];
     }];
+    // The display may stop before the animation ends (the window hidden, the display asleep): the scroll ends anyway.
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        if (scroll == self->_scrolls && self->_scrolling) [self finishScrollAt:target];
+    });
+}
+
+- (void)finishScrollAt:(NSPoint)target {
+    NSScrollView *list = _list;
+    _scrolling = NO;
+    _scrolls++;
+    [list.contentView setBoundsOrigin:target];
+    [list reflectScrolledClipView:list.contentView];
+    [self refresh];
 }
 
 @end
