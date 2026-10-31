@@ -47,6 +47,15 @@ Markdown opens as pages, with diagrams, maths, tables and highlighted code. Choo
 
 ![A Markdown file with a table, a checklist and a diagram](docs/images/portable/readme-markdown.png)
 
+## Translate
+
+**Translate** asks only for the language. English is highlighted, so Return translates at once; type a few letters to pick another, and your recent languages come first. Translate **On this Mac**, offline, or with **AI**, in any language you type. The translation opens next to the original, named after the language (“Datasheet (French).pdf”), keeps its chapters and shows only the translated text.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/portable/readme-translate-dark.png">
+  <img src="docs/images/portable/readme-translate-light.png" alt="Translate's language list: On this Mac or AI, French and Japanese as recent languages, English highlighted" width="280">
+</picture>
+
 ## Search
 
 Start typing in a document to search it. Results are grouped by chapter, highlighted on the page and marked along the scroll bar, and even documents of thousands of pages show matches as they are found. **⌘K** searches every open document and Collection; with nothing typed, it lists what you read last.
@@ -56,6 +65,7 @@ Start typing in a document to search it. Results are grouped by chapter, highlig
 - Your document library on your Mac, with a saved copy of every version.
 - Compare versions, reconnect a document whose file moved, and choose how much space Collection may use.
 - Saved copies stay readable and editable when the original file is gone.
+- **Move to Trash** from a tab, the page or Collection: the file goes to the Trash, where you can still put it back.
 
 ## Friends (Beta)
 
@@ -64,6 +74,13 @@ Message people nearby or by their Friends ID, and send them documents. Friends a
 - Type **#** in a message to attach a document: the one on screen comes first, marked **Current**.
 - Paste (⌘V) to attach files copied in Finder, or a screenshot.
 - Drop files on the Friends button to send them.
+- Each friend's row shows the latest message in your conversation.
+- Files go over every connection you share at once, such as your network and Bluetooth, and pick up where they stopped.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/portable/readme-friends-list-dark.png">
+  <img src="docs/images/portable/readme-friends-list-light.png" alt="The Friends list: each friend with the latest message, such as “Mei: Can you check pages 3–5 before Friday?”" width="400">
+</picture>
 
 ![A Friends chat with the # list open, the document on screen marked Current](docs/images/portable/readme-friends-hash.png)
 

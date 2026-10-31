@@ -37,7 +37,7 @@ A free viewer for CAD models, meshes and drawings: open an assembly, find a part
 
 ## Friends (Beta)
 
-Message people nearby or by their Friends ID, and send them models and projects, in every version except the browser one. It is the same Friends as in ShenzhenPDF and Shenzhen Files. Type **#** to attach the open model, marked **Current**, or paste copied files and pictures. [Shenzhen Friends](docs/FRIENDS.md)
+Message people nearby or by their Friends ID, and send them models and projects, in every version except the browser one. It is the same Friends as in ShenzhenPDF and Shenzhen Files. Type **#** to attach the open model, marked **Current**, or paste copied files and pictures. Each friend's row shows the latest message in your conversation, and files go over every connection you share at once, such as your network and Bluetooth. On Android, a large file can go over direct Wi-Fi when only Bluetooth reaches a friend. [Shenzhen Friends](docs/FRIENDS.md)
 
 ## Download
 

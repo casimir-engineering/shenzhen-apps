@@ -34,6 +34,8 @@ Message people nearby or by their Friends ID, and send them files. **⌘J** open
 - Type **#** in a message to attach a file: the files selected in the front window come first, marked **Current**, then the folder's other files.
 - Paste (⌘V) to attach files copied in Finder, or a screenshot.
 - When new messages arrive while you read older ones, **New message ↓** takes you to them.
+- Each friend's row shows the latest message in your conversation.
+- Files go over every connection you share at once, such as your network and Bluetooth, and pick up where they stopped.
 
 ## Install
 
