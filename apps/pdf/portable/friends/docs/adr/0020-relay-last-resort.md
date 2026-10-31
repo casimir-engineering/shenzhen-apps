@@ -90,7 +90,7 @@ with while a direct one works.
 ## Verification
 
 `make -C apps/pdf/portable friends-relay-rule-check` (in `friends-suite`, and in Shenzhen Files' and Shenzhen 3D's
-release suites), about 45 s once built:
+release suites), about a minute and a half once built:
 
 - the scheduler's scenario table (`friends/fixtures/scheduler/scenarios.json`, rows "relay rule: …", both schedulers;
   the Objective-C one through `friends-transfer-check`): a lane, LAN, direct Internet or Bluetooth, coming up beside
@@ -104,4 +104,8 @@ release suites), about 45 s once built:
   session that wins the race, or a LAN, direct Wi-Fi or Bluetooth lane; the relay beside a LAN from the start, the LAN
   cut and back. It fails when the relay carried more than 512 KiB beside a working direct route (what was already in
   its socket; 33 to 263 KB measured), more than 64 KiB beside a LAN that worked from the start, or when a new route
-  carried its first part more than a second after it came up.
+  carried its first part more than a second after it came up;
+- two whole Rust helpers through the local host and a real coturn (`szfriends-helper`'s `online`, `route_order` and
+  `profile_routes` tests): friends reached only through the relay, then directly as soon as that works; nearby and
+  online in the owner's order; one person's computers whose sync leaves the relay once a direct connection works. The
+  gate never skips them: without Node.js or a coturn it fails (`SZFRIENDS_TEST_RELAY_REQUIRED`).

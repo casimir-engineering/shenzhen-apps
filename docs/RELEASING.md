@@ -64,8 +64,9 @@ Once an app has a release tag here, its gate finds the previous release by tag a
    the owner's rule; release-blocking). `make -C apps/pdf/portable friends-relay-rule-check` must pass: the relay
    carries a file only when no direct route works, and a direct route that appears while it does carries the file
    within about a second. Every app's release runs it (ShenzhenPDF in `friends-tests`, Shenzhen Files and Shenzhen 3D
-   as `files/friends-relay-rule` and `3d/friends-relay-rule`); it needs `cargo`. A breach found after a release
-   needs a fix release.
+   as `files/friends-relay-rule` and `3d/friends-relay-rule`); it needs `cargo`, Node.js 22.16 and a coturn
+   (`brew install coturn`; Homebrew's is found by itself, `FRIENDS_TEST_COTURN` names another), and fails rather than
+   skip without them. A breach found after a release needs a fix release.
 3. Update the app's README "Latest" marker and its release notes, as each app's own guide says. Write the notes by
    [RELEASE-NOTES.md](RELEASE-NOTES.md): only what someone on the last published release will notice.
 4. Merge to `main`, with a clean tree.

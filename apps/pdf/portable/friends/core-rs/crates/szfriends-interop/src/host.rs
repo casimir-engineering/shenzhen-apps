@@ -100,8 +100,17 @@ fn key_pem(seed: &[u8; 32]) -> String {
     format!("-----BEGIN PRIVATE KEY-----\n{body}\n-----END PRIVATE KEY-----\n")
 }
 
-/// Why the host cannot run here, or `None`.
+/// Why the host cannot run here, or `None`. With `SZFRIENDS_TEST_RELAY_REQUIRED` set (the relay-rule gate), a reason
+/// fails the test instead of skipping it.
 pub fn unavailable(server: &Path, relay: bool) -> Option<String> {
+    let why = unavailable_because(server, relay);
+    if let Some(why) = &why {
+        assert!(std::env::var_os("SZFRIENDS_TEST_RELAY_REQUIRED").is_none(), "the relay rule's gate cannot run: {why}");
+    }
+    why
+}
+
+fn unavailable_because(server: &Path, relay: bool) -> Option<String> {
     if !server.join("node_modules/ws/package.json").exists() {
         return Some("the host service's node_modules are missing (npm ci in server/friends)".into());
     }

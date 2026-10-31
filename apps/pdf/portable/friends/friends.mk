@@ -24,6 +24,11 @@ FRIENDS_C_FLAGS = $(MAC_TARGET_FLAGS) -std=c99 -Wall -Wextra -Werror -pedantic $
 
 FRIENDS_TEST_TARGETS :=
 
+# The relay scenarios (the helpers' online suites, the transport's and driver's relay cases, the NAT matrix's
+# symmetric pairs) need a coturn; they skip without one. Homebrew's (`brew install coturn`) is found by itself, so on a
+# Mac that has it they run in every suite and release; FRIENDS_TEST_COTURN= (empty) skips them on purpose.
+export FRIENDS_TEST_COTURN ?= $(firstword $(wildcard /opt/homebrew/bin/turnserver /usr/local/bin/turnserver))
+
 # Public headers compiled on their own by friends-containment-check. Areas append new public headers.
 FRIENDS_PUBLIC_HEADERS :=
 
