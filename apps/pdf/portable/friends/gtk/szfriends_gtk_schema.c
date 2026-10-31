@@ -210,9 +210,21 @@ static const SZFriendsGtkField mention_fields[] = {STR(T, url), ENUM(T, kind, me
                                                    OBJN(T, card, mention_card)};
 #undef T
 TYPE(static, mention, "type.mention", SZFriendsGtkMention);
+#define T SZFriendsGtkTransferRoute
+static const SZFriendsGtkField transfer_route_fields[] = {ENUM(T, method, route_methods), BOOL(T, active),
+                                                          STR(T, label)};
+#undef T
+TYPE(static, transfer_route, "type.transfer_route", SZFriendsGtkTransferRoute);
+#define T SZFriendsGtkTransferSegment
+static const SZFriendsGtkField transfer_segment_fields[] = {ENUM(T, method, route_methods), NUM(T, fraction)};
+#undef T
+TYPE(static, transfer_segment, "type.transfer_segment", SZFriendsGtkTransferSegment);
 #define T SZFriendsGtkProgress
 static const SZFriendsGtkField progress_fields[] = {NUM(T, fraction), BOOL(T, determinate),
-                                                    STR(T, accessibility_label)};
+                                                    STR(T, accessibility_label), ARR(T, routes, transfer_route),
+                                                    ARR(T, segments, transfer_segment), STR(T, amount_label),
+                                                    STRN(T, time_left_label), STRN(T, detail_label),
+                                                    BOOL(T, finishing)};
 #undef T
 TYPE(static, progress, "type.progress", SZFriendsGtkProgress);
 #define T SZFriendsGtkConversationItem
@@ -414,7 +426,7 @@ const SZFriendsGtkType *const szfriends_gtk_named_types[] = {
     &szfriends_gtk_type_badge_snapshot, &banner, &name_prompt, &row_action, &waiting, &list_row,
     &szfriends_gtk_type_list_snapshot, &visibility, &method_state, &alert, &note, &status, &nearby_person,
     &szfriends_gtk_type_nearby_snapshot, &header, &message_status, &file_info, &thumbnail, &mention_card, &mention,
-    &progress, &item, &request_card,
+    &transfer_route, &transfer_segment, &progress, &item, &request_card,
     &composer, &szfriends_gtk_type_conversation_snapshot, &verification, &auto_accept, &received, &key_change,
     &szfriends_gtk_type_details_snapshot, &szfriends_gtk_type_profile_snapshot, &szfriends_gtk_type_settings_snapshot,
     &szfriends_gtk_type_message_status_snapshot, &szfriends_gtk_type_welcome, &szfriends_gtk_type_error,

@@ -2,6 +2,7 @@
 
 #import "mac/SZFriendsArming.h"
 #import "mac/SZFriendsItemViewsInternal.h"
+#import "mac/SZFriendsTransferProgress.h"
 
 @interface SZFriendsDayItemView : SZFriendsItemView
 @end
@@ -167,6 +168,12 @@
     SZFriendsFlippedView *_routeIcon; // the route's icon before its words, as the conversation header draws it
     NSTextField *_time;
     SZFriendsProgressBar *_progress;
+    // Progress by route (PROTOCOL.md § Fast transfers), when the snapshot carries it: the route icons beside the name,
+    // the split bar, the amount and time left under it, and the detail line with the status line's links.
+    BOOL _byRoute;
+    SZFriendsSplitProgressBar *_split;
+    NSMutableArray<SZFriendsTransferRouteIcon *> *_routeIcons;
+    NSTextField *_amount, *_left, *_detail;
 }
 - (NSTextField *)timeLabel {
     return _time;
@@ -211,6 +218,23 @@
     _progress = [SZFriendsProgressBar new];
     _progress.theme = appearance;
     [_card addSubview:_progress];
+    _split = [SZFriendsSplitProgressBar new];
+    _split.theme = appearance;
+    [_card addSubview:_split];
+    _routeIcons = [NSMutableArray array];
+    // Tabular digits, so the figures do not shuffle the line as they change.
+    NSFont *digits = [NSFont monospacedDigitSystemFontOfSize:appearance.secondaryFont.pointSize weight:NSFontWeightRegular];
+    _amount = SZFriendsLabel(@"", digits, appearance.secondaryTextColor);
+    _left = SZFriendsLabel(@"", digits, appearance.secondaryTextColor);
+    _left.alignment = NSTextAlignmentRight;
+    _detail = SZFriendsLabel(@"", appearance.secondaryFont, appearance.secondaryTextColor);
+    for (NSTextField *label in @[ _amount, _left, _detail ]) {
+        label.maximumNumberOfLines = 1;
+        label.cell.lineBreakMode = NSLineBreakByTruncatingTail;
+        [_card addSubview:label];
+    }
+    _detail.maximumNumberOfLines = 2;
+    _detail.cell.lineBreakMode = NSLineBreakByWordWrapping;
     _preview = [[SZFriendsFilePreviewView alloc] initWithFrame:NSMakeRect(12, 10, 28, 34)];
     _preview.theme = appearance;
     [_card addSubview:_preview];
@@ -247,23 +271,68 @@
     _time.stringValue = SZFStr(item, @"time_label") ?: @"";
     _card.strokeColor = self.highlighted ? appearance.accentColor : appearance.separatorColor;
     NSDictionary *progress = SZFDict(item, @"progress");
-    _progress.hidden = progress == nil;
+    _byRoute = SZFStr(progress, @"amount_label").length > 0;
+    _progress.hidden = progress == nil || _byRoute;
     _progress.fraction = SZFNum(progress, @"fraction");
     _progress.determinate = SZFBool(progress, @"determinate");
     _progress.accessibilityLabel = SZFStr(progress, @"accessibility_label");
     _progress.needsDisplay = YES;
-    self.progressView = progress ? _progress : nil;
+    _split.hidden = !_byRoute;
+    _split.fraction = SZFNum(progress, @"fraction");
+    _split.determinate = SZFBool(progress, @"determinate");
+    _split.segments = SZFArr(progress, @"segments");
+    _split.finishing = _byRoute && SZFBool(progress, @"finishing");
+    _split.accessibilityLabel = SZFStr(progress, @"accessibility_label");
+    _split.needsDisplay = YES;
+    self.progressView = progress ? (_byRoute ? _split : _progress) : nil;
+    _amount.stringValue = _byRoute ? SZFStr(progress, @"amount_label") : @"";
+    _left.stringValue = _byRoute ? SZFStr(progress, @"time_left_label") ?: @"" : @"";
+    _detail.stringValue = _byRoute ? SZFStr(progress, @"detail_label") ?: @"" : @"";
+    NSArray *routes = _byRoute ? SZFArr(progress, @"routes") : @[];
+    while (_routeIcons.count > routes.count) {
+        [_routeIcons.lastObject removeFromSuperview];
+        [_routeIcons removeLastObject];
+    }
+    while (_routeIcons.count < routes.count) {
+        SZFriendsTransferRouteIcon *icon = [SZFriendsTransferRouteIcon new];
+        icon.theme = appearance;
+        [_card addSubview:icon];
+        [_routeIcons addObject:icon];
+    }
+    [routes enumerateObjectsUsingBlock:^(NSDictionary *route, NSUInteger i, BOOL *stop) {
+      (void)stop;
+      SZFriendsTransferRouteIcon *icon = self->_routeIcons[i];
+      icon.method = [route isKindOfClass:NSDictionary.class] ? SZFStr(route, @"method") : nil;
+      icon.active = [route isKindOfClass:NSDictionary.class] && SZFBool(route, @"active");
+      icon.toolTip = [route isKindOfClass:NSDictionary.class] ? SZFStr(route, @"label") : nil;
+      icon.accessibilityLabel = icon.toolTip;
+      icon.needsDisplay = YES;
+    }];
+    // The lines under the bar say what the status line would (the routes, the amount); its links stay.
+    _status.hidden = _byRoute;
+    if (_byRoute) _routeLabel.hidden = _routeIcon.hidden = YES;
     for (SZFriendsButton *button in [self buttonsForActions:SZFArr(item, @"actions")])
         if (button.superview != _card) [_card addSubview:button];
 }
 - (CGFloat)layoutForWidth:(CGFloat)width apply:(BOOL)apply {
-    CGFloat cardWidth = MIN(280, width - 40);
+    // Wider with progress by route, so the amount, the percentage and the speed fit beside the time left.
+    CGFloat cardWidth = MIN(_byRoute ? 340 : 280, width - 40);
     CGFloat inner = cardWidth - 24;
     // The preview, or the type's icon, leads; name and size sit beside it. The preview's slot comes from the
     // snapshot's width and height, so the card keeps its shape when the picture arrives.
     NSSize slot = _preview.size;
     CGFloat textX = 12 + slot.width + 10, textWidth = cardWidth - textX - 12;
+    // The route icons sit at the name's right, 24 points each with 4 between.
+    CGFloat iconsWidth = _routeIcons.count ? _routeIcons.count * 28 - 4 : 0;
+    if (iconsWidth) textWidth -= iconsWidth + 8;
     CGFloat y = 10;
+    if (apply) {
+        CGFloat x = cardWidth - 12 - iconsWidth;
+        for (SZFriendsTransferRouteIcon *icon in _routeIcons) {
+            icon.frame = NSMakeRect(x, y + MAX(0, (slot.height - 24) / 2), 24, 24);
+            x += 28;
+        }
+    }
     CGFloat nameHeight = SZFriendsFieldHeight(_name, textWidth), metaHeight = SZFriendsFieldHeight(_meta, textWidth);
     if (apply) {
         _preview.frame = NSMakeRect(12, y, slot.width, slot.height);
@@ -282,6 +351,24 @@
         if (apply) _progress.frame = NSMakeRect(12, y, inner, 5);
         y += 5;
     }
+    if (_byRoute) {
+        // The split bar, then the amount on the left and the time left on the right, as the approved design.
+        y += 10;
+        if (apply) _split.frame = NSMakeRect(12, y, inner, 8);
+        y += 8 + 6;
+        CGFloat leftWidth = _left.stringValue.length ? SZFriendsTextWidth(_left.stringValue, _left.font) + 6 : 0;
+        if (apply) {
+            _amount.frame = NSMakeRect(12, y, inner - leftWidth - 6, 16);
+            _left.frame = NSMakeRect(12 + inner - leftWidth, y, leftWidth, 16);
+        }
+        _left.hidden = leftWidth == 0;
+        y += 16;
+    } else if (apply) {
+        _amount.hidden = YES;
+        _left.hidden = YES;
+        _detail.hidden = YES;
+    }
+    if (apply) _amount.hidden = !_byRoute;
     // Link actions (Cancel, Show in Finder) share the status line, right-aligned; buttons get their own row.
     NSMutableArray *links = [NSMutableArray array], *buttons = [NSMutableArray array];
     for (SZFriendsButton *button in self.actionButtons)
@@ -289,7 +376,26 @@
             addObject:button];
     CGFloat linksWidth = 0;
     for (SZFriendsButton *button in links) linksWidth += [button fittingWidth] + 8;
-    if (_status.stringValue.length || links.count) {
+    if (_byRoute && (_detail.stringValue.length || links.count)) {
+        // "Via Same Wi-Fi + Bluetooth · …", with Cancel at its right.
+        y += 2;
+        CGFloat detailWidth = MAX(40, inner - linksWidth);
+        CGFloat detailHeight = _detail.stringValue.length ? MAX(16, SZFriendsFieldHeight(_detail, detailWidth)) : 16;
+        if (apply) {
+            _detail.hidden = _detail.stringValue.length == 0;
+            _detail.frame = NSMakeRect(12, y, detailWidth, detailHeight);
+            CGFloat x = cardWidth - 12;
+            for (SZFriendsButton *button in links.reverseObjectEnumerator) {
+                CGFloat buttonWidth = [button fittingWidth];
+                x -= buttonWidth;
+                button.frame = NSMakeRect(x, y - 1, buttonWidth, 18);
+                x -= 8;
+            }
+        }
+        y += detailHeight;
+    } else if (_byRoute) {
+        if (apply) _detail.hidden = YES;
+    } else if (_status.stringValue.length || links.count) {
         y += 6;
         CGFloat statusWidth = MAX(40, inner - linksWidth);
         CGFloat statusHeight = MAX(16, SZFriendsFieldHeight(_status, statusWidth));

@@ -293,8 +293,19 @@ typedef struct { SZFriendsGtkPresence present; char *title, *id_label, *status_l
                  SZFriendsGtkAction *actions; gsize n_actions; } SZFriendsGtkMentionCard;
 typedef struct { SZFriendsGtkPresence present; char *url; SZFriendsGtkMentionKind kind; char *label, *tooltip,
                  *conversation_id; SZFriendsGtkMentionCard *card; } SZFriendsGtkMention;
+/* Progress by route (PROTOCOL.md § Fast transfers), for a view that declared transfers.progress: one route that
+ * carried the file (`active` while it carries it now), and one share of the bar. */
+typedef struct { SZFriendsGtkPresence present; SZFriendsGtkRouteMethod method; gboolean active; char *label; }
+    SZFriendsGtkTransferRoute;
+typedef struct { SZFriendsGtkPresence present; SZFriendsGtkRouteMethod method; double fraction; }
+    SZFriendsGtkTransferSegment;
 typedef struct { SZFriendsGtkPresence present; double fraction; gboolean determinate;
-                 char *accessibility_label; } SZFriendsGtkProgress;
+                 char *accessibility_label;
+                 SZFriendsGtkTransferRoute *routes; gsize n_routes;
+                 SZFriendsGtkTransferSegment *segments; gsize n_segments;
+                 char *amount_label;    /* "" without transfers.progress: the card then draws the plain bar */
+                 char *time_left_label, *detail_label;
+                 gboolean finishing; } SZFriendsGtkProgress;
 /* One history item. Which fields apply depends on `kind` (PROTOCOL.md type.item); the rest stay empty. */
 typedef struct {
     SZFriendsGtkPresence present;

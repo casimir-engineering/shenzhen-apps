@@ -103,9 +103,9 @@ static void test_hello_and_strings(void) {
     EXPECT(hello && json_object_get_null_member(hello, "embedded_helper"), "no embedded helper: never wins handover");
     JsonArray *capabilities = hello ? json_object_get_array_member(hello, "capabilities") : NULL;
 #ifdef __APPLE__
-    const guint claimed = 7; /* and the ask: macOS asks before notifications show */
+    const guint claimed = 8; /* and the ask: macOS asks before notifications show */
 #else
-    const guint claimed = 6;
+    const guint claimed = 7;
 #endif
     EXPECT(capabilities && json_array_get_length(capabilities) == claimed &&
                strcmp(json_array_get_string_element(capabilities, 0), "drop.files") == 0 &&
@@ -113,12 +113,13 @@ static void test_hello_and_strings(void) {
                strcmp(json_array_get_string_element(capabilities, 2), "list.menu") == 0 &&
                strcmp(json_array_get_string_element(capabilities, 3), "nearby.found") == 0 &&
                strcmp(json_array_get_string_element(capabilities, 4), "files.again") == 0 &&
-               strcmp(json_array_get_string_element(capabilities, 5), "notifications.focus") == 0,
-           "a host without # items or tabs claims drop.files, and mentions, list.menu, nearby.found, files.again and "
-           "notifications.focus, which the views draw");
+               strcmp(json_array_get_string_element(capabilities, 5), "notifications.focus") == 0 &&
+               strcmp(json_array_get_string_element(capabilities, 6), "transfers.progress") == 0,
+           "a host without # items or tabs claims drop.files, and mentions, list.menu, nearby.found, files.again, "
+           "notifications.focus and transfers.progress, which the views draw");
 #ifdef __APPLE__
-    EXPECT(capabilities && json_array_get_length(capabilities) > 6 &&
-               strcmp(json_array_get_string_element(capabilities, 6), "notifications.ask") == 0,
+    EXPECT(capabilities && json_array_get_length(capabilities) > 7 &&
+               strcmp(json_array_get_string_element(capabilities, 7), "notifications.ask") == 0,
            "on macOS the views show the notifications ask, so they claim it");
 #endif
     EXPECT(client && !json_object_has_member(client, "url_scheme"), "a host without a URL scheme sends none");

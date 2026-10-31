@@ -195,6 +195,9 @@ void szfriends_gtk_history_free(SZFriendsGtkHistory *history);
 /* The widget for one history item; it keeps a reference to `conversation` (and a bubble to `holder`, for clicks). */
 GtkWidget *szfriends_gtk_message_row_new(SZFriendsGtkConversation *conversation, GObject *holder,
                                          const SZFriendsGtkConversationItem *item);
+/* Progress by route (szfriends_gtk_transfer_progress.c): the route icons beside a card's name, and the split bar. */
+GtkWidget *szfriends_gtk_transfer_routes_new(const SZFriendsGtkProgress *progress);
+GtkWidget *szfriends_gtk_split_bar_new(const SZFriendsGtkProgress *progress);
 GtkWidget *szfriends_gtk_transfer_row_new(SZFriendsGtkConversation *conversation,
                                           const SZFriendsGtkConversationItem *item);
 /* The colour class of a route's icon and words, in the header and on a copying file (conversation_page.c). */

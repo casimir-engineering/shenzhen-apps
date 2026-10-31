@@ -211,6 +211,18 @@ export type Mention = {
     actions: Action[];
   } | null;
 };
+/** PROTOCOL.md type.progress; the fields after the first three come with the capability transfers.progress. */
+export type TransferProgress = {
+  fraction: number;
+  determinate: boolean;
+  accessibility_label: string;
+  routes?: { method: string; active: boolean; label: string }[];
+  segments?: { method: string; fraction: number }[];
+  amount_label?: string;
+  time_left_label?: string | null;
+  detail_label?: string | null;
+  finishing?: boolean;
+};
 export type Item = {
   kind: "day" | "message" | "transfer" | "event" | string;
   item_id: string;
@@ -230,11 +242,7 @@ export type Item = {
   route_note?: string | null;
   /** a transfer copying here from another of the person's computers: the route it comes by */
   route?: Route | null;
-  progress?: {
-    fraction: number;
-    determinate: boolean;
-    accessibility_label: string;
-  } | null;
+  progress?: TransferProgress | null;
   thumbnail?: Thumbnail | null;
   actions?: Action[];
   mentions?: Mention[];

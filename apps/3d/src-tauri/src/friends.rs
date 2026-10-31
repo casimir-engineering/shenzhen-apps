@@ -10,7 +10,8 @@ use std::sync::Arc;
 /// model, files may be dropped, `@` mentions friends, a list row's menu opens on right-click (a long press on
 /// phones), people nearby show how they were found, a friend's file can be fetched from them again (Get again),
 /// the panel says which conversation the person is looking at, so it does not notify (`notifications.focus`), and
-/// a transfer may carry the Wi-Fi Direct boost's Go faster and Not now (`transfers.boost`).
+/// a transfer may carry the Wi-Fi Direct boost's Go faster and Not now (`transfers.boost`), and a moving transfer
+/// draws its routes and the bar split by route (`transfers.progress`).
 /// Phones have nothing to drop files from, so their composer does not suggest it; they still hold files for a
 /// friend chosen from the list (shared from another app, Send project to a friend), so their rows take files
 /// (`send.files`). The list's card that asks to turn notifications on is for a Mac and an iPhone
@@ -25,6 +26,7 @@ const CAPABILITIES: &[&str] = &[
     "nearby.found",
     "files.again",
     "transfers.boost",
+    "transfers.progress",
     "notifications.focus",
     #[cfg(target_os = "macos")]
     "notifications.ask",
@@ -38,6 +40,7 @@ const CAPABILITIES: &[&str] = &[
     "nearby.found",
     "files.again",
     "transfers.boost",
+    "transfers.progress",
     "notifications.focus",
     "notifications.ask",
 ];
@@ -50,6 +53,7 @@ const CAPABILITIES: &[&str] = &[
     "nearby.found",
     "files.again",
     "transfers.boost",
+    "transfers.progress",
     "notifications.focus",
     "background.reachable",
 ];

@@ -101,6 +101,8 @@ static GPtrArray *derived_capabilities(const SZFriendsGtkHost *host) {
     g_ptr_array_add(list, "files.again");
     /* set_focus while a focused window's dropdown shows a conversation (szfriends_gtk_focus.c). */
     g_ptr_array_add(list, "notifications.focus");
+    /* A moving transfer's routes and the bar split by route (szfriends_gtk_transfer_progress.c). */
+    g_ptr_array_add(list, "transfers.progress");
 #ifdef __APPLE__
     /* macOS asks before showing notifications: the list's banner with Turn On and Not Now
      * (szfriends_gtk_list_notices.c). Linux needs no permission, so no ask. */

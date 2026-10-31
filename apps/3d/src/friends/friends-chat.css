@@ -442,3 +442,84 @@
   padding: 4px 8px 2px;
   font-size: 10.5px;
 }
+/* Progress by route (PROTOCOL.md § Fast transfers): the approved design's card, route icons, split bar and lines. */
+.szf-transfer-body.by-route {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 7px;
+  min-width: min(300px, 100%);
+}
+.szf-transfer-top {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  min-width: 0;
+}
+.szf-transfer-top .szf-transfer-text {
+  flex: 1;
+}
+.szf-routes {
+  display: flex;
+  gap: 4px;
+  flex: none;
+}
+.szf-route-icon {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  display: grid;
+  place-items: center;
+  color: #fff;
+}
+.szf-route-icon svg {
+  width: 16px;
+  height: 16px;
+}
+.szf-route-icon.off {
+  background: transparent;
+  color: var(--muted);
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+}
+.szf-split-bar {
+  height: 8px;
+  border-radius: 4px;
+  background: var(--inset);
+  overflow: hidden;
+  display: flex;
+}
+.szf-split-bar span {
+  height: 100%;
+  transition: width 0.3s;
+}
+.szf-finishing {
+  background: linear-gradient(
+    90deg,
+    #3983f7 0%,
+    color-mix(in srgb, #3983f7 60%, #fff) 50%,
+    #3983f7 100%
+  );
+  background-size: 200% 100%;
+  animation: szf-finishing 1.4s linear infinite;
+}
+@keyframes szf-finishing {
+  to {
+    background-position: -200% 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .szf-finishing {
+    animation: none;
+  }
+  .szf-split-bar span {
+    transition: none;
+  }
+}
+.szf-transfer-lines {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--secondary);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  flex-wrap: wrap;
+}

@@ -133,6 +133,7 @@ test("the host attaches after first paint, says who it is, and routes a window's
     "files.again",
     "notifications.focus",
     "notifications.ask",
+    "transfers.progress",
   ]);
   assert.equal(
     client.config.urlScheme,

@@ -69,10 +69,11 @@ void SZFriendsSpawnHelperInBackground(id<SZFriendsHost> host) {
     // not notified; `notifications.ask`: the list shows the helper's Turn On card with Not Now (PROTOCOL.md §
     // Notifications). Every AppKit host is a Mac, where the system asks once. `transfers.boost`: a transfer's Go
     // faster and Not now (the Wi-Fi Direct boost's question, PROTOCOL.md § Fast transfers) are ordinary actions.
+    // `transfers.progress`: a moving transfer's card draws its routes and the bar split by route.
     NSMutableArray *capabilities = [NSMutableArray arrayWithObjects:@"attach.items", @"drop.files", @"mentions",
                                                                     @"list.menu", @"nearby.found", @"files.again",
                                                                     @"notifications.focus", @"notifications.ask",
-                                                                    @"transfers.boost", nil];
+                                                                    @"transfers.boost", @"transfers.progress", nil];
     if (host.friendsExtraPasteboardTypes.count) [capabilities addObject:@"drop.tabs"];
     if ([host respondsToSelector:@selector(friendsAssistant)] && host.friendsAssistant)
         [capabilities addObject:@"assistant.drafts"];

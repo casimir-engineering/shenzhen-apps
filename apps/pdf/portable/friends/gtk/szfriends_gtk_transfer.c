@@ -414,9 +414,27 @@ GtkWidget *szfriends_gtk_transfer_row_new(SZFriendsGtkConversation *conversation
     gtk_box_append(GTK_BOX(texts), name);
     gtk_box_append(GTK_BOX(texts), label(item->meta_label, "szfriends-secondary"));
     gtk_box_append(GTK_BOX(top), texts);
+    /* Progress by route (PROTOCOL.md § Fast transfers): the routes beside the name, the split bar, the amount and
+     * time left under it, then the detail line, which takes the status line's place and its links. */
+    const SZFriendsGtkProgress *by_route = item->progress && *item->progress->amount_label ? item->progress : NULL;
+    if (by_route) gtk_box_append(GTK_BOX(top), szfriends_gtk_transfer_routes_new(by_route));
     gtk_box_append(GTK_BOX(card), top);
     gtk_box_append(GTK_BOX(card), label(item->route_note, NULL));
-    if (item->progress) {
+    if (by_route) {
+        gtk_box_append(GTK_BOX(card), szfriends_gtk_split_bar_new(by_route));
+        GtkWidget *amounts = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8);
+        GtkWidget *amount = label(by_route->amount_label, "szfriends-secondary");
+        gtk_label_set_wrap(GTK_LABEL(amount), FALSE);
+        gtk_label_set_ellipsize(GTK_LABEL(amount), PANGO_ELLIPSIZE_END);
+        gtk_widget_add_css_class(amount, "numeric");
+        gtk_widget_set_hexpand(amount, TRUE);
+        gtk_box_append(GTK_BOX(amounts), amount);
+        GtkWidget *left = label(by_route->time_left_label, "szfriends-secondary");
+        gtk_label_set_wrap(GTK_LABEL(left), FALSE);
+        gtk_widget_add_css_class(left, "numeric");
+        gtk_box_append(GTK_BOX(amounts), left);
+        gtk_box_append(GTK_BOX(card), amounts);
+    } else if (item->progress) {
         GtkWidget *bar = gtk_progress_bar_new();
         if (item->progress->determinate)
             gtk_progress_bar_set_fraction(GTK_PROGRESS_BAR(bar), CLAMP(item->progress->fraction, 0, 1));
@@ -429,12 +447,13 @@ GtkWidget *szfriends_gtk_transfer_row_new(SZFriendsGtkConversation *conversation
 
     /* Link actions (Cancel, Show in Shenzhen Files) share the status line, right-aligned; buttons get their own row. */
     GtkWidget *status_line = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8);
-    GtkWidget *status = status_new(item);
+    GtkWidget *status = by_route ? label(by_route->detail_label, "szfriends-secondary") : status_new(item);
     gtk_widget_set_hexpand(status, TRUE);
     gtk_box_append(GTK_BOX(status_line), status);
     GtkWidget *buttons = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8);
     SZFriendsGtkActionIds ids = {.transfer_id = item->transfer_id, .item_id = item->item_id};
-    gboolean cancels = szfriends_gtk_conversation_helper_cancels(conversation), status_shown = *item->status_label;
+    gboolean cancels = szfriends_gtk_conversation_helper_cancels(conversation);
+    gboolean status_shown = by_route ? by_route->detail_label && *by_route->detail_label : *item->status_label;
     for (gsize i = 0; i < item->n_actions; i++) {
         const SZFriendsGtkAction *action = &item->actions[i];
         if (!szfriends_gtk_item_shows_action(action, cancels)) continue;

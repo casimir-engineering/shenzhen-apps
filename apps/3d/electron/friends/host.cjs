@@ -33,8 +33,9 @@ const EVENT = "shenzhen-friends-event";
 // What Shenzhen 3D's panel shows and does (PROTOCOL.md § Capabilities): `#` offers the open model, files may be
 // dropped, `@` mentions friends, a list row's menu opens on right-click, people nearby show how they were found, a
 // file a friend sent that is on none of the person's computers can be fetched from them again, the panel says which
-// conversation the person is looking at (no notification for it) and the list shows the card that asks to turn
-// notifications on (a Mac, where this app runs Friends). No assistant, no global search.
+// conversation the person is looking at (no notification for it), the list shows the card that asks to turn
+// notifications on (a Mac, where this app runs Friends), and a moving transfer draws its routes and the bar split by
+// route. No assistant, no global search.
 const CAPABILITIES = [
   "attach.items",
   "drop.files",
@@ -44,6 +45,7 @@ const CAPABILITIES = [
   "files.again",
   "notifications.focus",
   "notifications.ask",
+  "transfers.progress",
 ];
 // Where a notification's click opens this app: shenzhen3d://friends/conversation/<id> (launch.cjs, openLink below).
 const URL_SCHEME = "shenzhen3d";
