@@ -39,7 +39,7 @@
     // saying what is below, messages that arrived below while the person read above and the first of them (its index
     // and its row), and whether a scroll is the view's own rather than the person's.
     BOOL _followNewest; NSButton* _newMessagesPill; NSUInteger _unseenMessages; NSUInteger _firstUnseenIndex;
-    __weak NSView* _firstUnseenRow; BOOL _scrollingItself;
+    __weak NSView* _firstUnseenRow; BOOL _scrollingItself; NSUInteger _jumps;
 }
 - (NSButton*)button:(NSString*)title action:(NSString*)action;
 @end

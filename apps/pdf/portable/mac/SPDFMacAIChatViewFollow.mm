@@ -132,17 +132,36 @@
     if (_unseenMessages && row.superview)
         target = MIN(end, MAX(0, NSMinY([row convertRect:row.bounds toView:_scroll.documentView]) - 8));
     _followNewest = target >= end - 1;
+    // Smoothly only where it can be seen: an animation advances with the display, so in a hidden or occluded window,
+    // or on a sleeping display, it may never finish and the pill would stay. With Reduce Motion, at once.
+    BOOL visible = (self.window.occlusionState & NSWindowOcclusionStateVisible) != 0;
+    if (!visible || NSWorkspace.sharedWorkspace.accessibilityDisplayShouldReduceMotion) {
+        [self finishJumpAt:target];
+        return;
+    }
     _scrollingItself = YES;
+    NSUInteger jump = ++_jumps;
     [NSAnimationContext runAnimationGroup:^(NSAnimationContext* context) {
         context.duration = 0.25;
         context.allowsImplicitAnimation = YES;
         [self->_scroll.contentView.animator setBoundsOrigin:NSMakePoint(0, target)];
     } completionHandler:^{
-        self->_scrollingItself = NO;
-        [self->_scroll reflectScrolledClipView:self->_scroll.contentView];
-        if (self->_followNewest) [self scrollToNewest];
-        [self updateNewMessagesPill];
+        if (jump == self->_jumps) [self finishJumpAt:target];
     }];
+    // The display may stop before the animation ends: the jump ends at its place anyway.
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        if (jump == self->_jumps && self->_scrollingItself) [self finishJumpAt:target];
+    });
+}
+
+- (void)finishJumpAt:(CGFloat)target {
+    _jumps++;
+    _scrollingItself = YES;
+    [_scroll.contentView setBoundsOrigin:NSMakePoint(0, target)];
+    [_scroll reflectScrolledClipView:_scroll.contentView];
+    _scrollingItself = NO;
+    if (_followNewest) [self scrollToNewest];
+    [self updateNewMessagesPill];
 }
 
 @end
