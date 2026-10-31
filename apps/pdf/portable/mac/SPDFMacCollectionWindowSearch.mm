@@ -181,6 +181,11 @@ static NSString* DateLabel(NSDictionary* version) {
         NSMenuItem* item = [[NSMenuItem alloc] initWithTitle:command.title action:command.action keyEquivalent:@""];
         item.target = self; item.enabled = command.enabled; item.toolTip = command.toolTip; [menu addItem:item];
     }
+    if (!self.deleteHandler || [self.destination isEqual:@"History"]) return;
+    [menu addItem:NSMenuItem.separatorItem];
+    NSMenuItem* remove = [menu addItemWithTitle:@"Remove from Disk and Collection…"
+                                         action:@selector(removeFromDiskAndCollection:) keyEquivalent:@""];
+    remove.target = self; remove.enabled = self.table.selectedRowIndexes.count > 0 && !self.mutationPending;
 }
 - (void)historyForRow:(NSControl*)sender {
     NSInteger index = sender.tag; if (index < 0 || index >= (NSInteger)self.rows.count) return;

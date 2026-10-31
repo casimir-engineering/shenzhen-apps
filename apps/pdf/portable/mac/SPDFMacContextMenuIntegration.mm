@@ -4,6 +4,7 @@
 #import "SPDFMacContextPage.h"
 #import "SPDFMacCollectionPathPolicy.h"
 #import "SPDFMacTranslationEnablement.h"
+#import "SPDFMacPermanentDeleteIntegration.h"
 
 #import <objc/runtime.h>
 
@@ -140,6 +141,7 @@
                                       keyEquivalent:@""];
     properties.enabled = [self selectedTab].path.length > 0;
     spdf_apply_system_icons_to_menu(menu);
+    if ([self hasActiveDocument] && _path.length) [self addPermanentDeleteItemToMenu:menu path:_path];
     return menu;
 }
 

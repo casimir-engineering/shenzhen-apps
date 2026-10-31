@@ -83,6 +83,7 @@
 - (void)exportCopy:(id)sender;
 - (void)keep:(id)sender;
 - (void)deleteSelected:(id)sender;
+- (void)removeFromDiskAndCollection:(id)sender;
 - (void)changeEnabled:(id)sender;
 - (void)changeLimit:(id)sender;
 - (void)changeLocation:(id)sender;

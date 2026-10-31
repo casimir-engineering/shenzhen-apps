@@ -28,6 +28,9 @@ NSArray<NSDictionary*>* SPDFMacAILinkableCollectionRows(SPDFMacCollectionStore* 
 // index is built every link counts as available; `changed` runs when a rebuilt index differs, so answers redraw.
 - (BOOL)aiDocumentLinkAvailable:(NSURL*)URL;
 - (void)aiSetDocumentIndexChanged:(void (^)(void))changed;
+// Documents were deleted for good: source cards drop their cached pages and links are checked again at once. IDs
+// already given stay known, so the assistant hears these documents were deleted (aiResultNotingUnavailableDocuments).
+- (void)aiDocumentsWereDeleted;
 // The cited page's thumbnail for a source card, or nil (not a PDF or image, or not found). Main-thread completion.
 - (void)aiSourceThumbnailForLink:(NSURL*)URL page:(NSInteger)page completion:(void (^)(NSImage* image))completion;
 @end

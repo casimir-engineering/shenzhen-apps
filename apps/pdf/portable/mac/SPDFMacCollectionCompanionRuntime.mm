@@ -12,6 +12,7 @@ static SPDFCollectionCompanionRuntime* activeRuntime;
 @property(nonatomic) NSCondition* credentialsReady;
 @property(nonatomic) NSMutableDictionary* credentialReplies;
 @property(nonatomic) NSMutableSet* credentialRequests;
+@property(nonatomic) NSMutableDictionary* deleteRequests; // main thread: request -> the window's done block
 @end
 @implementation SPDFCollectionCompanionRuntime
 + (instancetype)activeRuntime { return activeRuntime; }
@@ -42,6 +43,14 @@ static SPDFCollectionCompanionRuntime* activeRuntime;
         if ([_credentialRequests containsObject:request]) _credentialReplies[request]=message[@"password"] ?: NSNull.null;
         [_credentialsReady broadcast]; [_credentialsReady unlock]; return;
     }
+    if ([message[@"kind"] isEqual:@"deleteDone"]) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            void (^done)(NSArray<NSString*>*) = self.deleteRequests[message[@"request"] ?: @""];
+            [self.deleteRequests removeObjectForKey:message[@"request"] ?: @""];
+            if (done) done([message[@"failures"] isKindOfClass:NSArray.class] ? message[@"failures"] : @[]);
+        });
+        return;
+    }
     if ([message[@"kind"] isEqual:@"refresh"]) {
         dispatch_async(dispatch_get_main_queue(), ^{ [self.manager refreshFromStore]; });
         return;
@@ -66,6 +75,17 @@ static SPDFCollectionCompanionRuntime* activeRuntime;
                 [weakSelf.pipe send:@{@"kind":@"open",@"path":path,@"archived":@(archived)}];
             }];
             self.manager.returnHandler=^{ [weakSelf.pipe send:@{@"kind":@"activateReader"}]; };
+            // The reader deletes: only it can close the documents' tabs, in every window, before their files go.
+            self.manager.deleteHandler=^(NSArray<NSString*>* identifiers, void (^done)(NSArray<NSString*>*)) {
+                SPDFCollectionCompanionRuntime* runtime=weakSelf; if (!runtime) return;
+                NSString* request=NSUUID.UUID.UUIDString;
+                if (!runtime.deleteRequests) runtime.deleteRequests=[NSMutableDictionary dictionary];
+                runtime.deleteRequests[request]=[done copy];
+                if (![runtime.pipe send:@{@"kind":@"deleteDocuments",@"request":request,@"documentIDs":identifiers}]) {
+                    [runtime.deleteRequests removeObjectForKey:request];
+                    done(@[@"ShenzhenPDF didn’t receive the request, so nothing was deleted"]);
+                }
+            };
             self.manager.navigateHandler=^(NSDictionary* document,NSDictionary* version,NSUInteger page,NSString* query,BOOL history) {
                 [weakSelf.pipe send:@{@"kind":@"navigate",@"documentID":document[@"id"] ?: @"",
                     @"versionID":version[@"id"] ?: @"",@"page":@(page),@"query":query ?: @"",@"history":@(history)}];

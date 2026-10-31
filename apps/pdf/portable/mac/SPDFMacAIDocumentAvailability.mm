@@ -111,6 +111,11 @@ NSArray<NSDictionary*>* SPDFMacAILinkableCollectionRows(SPDFMacCollectionStore* 
     }];
 }
 
+- (void)aiDocumentsWereDeleted {
+    [(NSCache*)objc_getAssociatedObject(self, &thumbnailsKey) removeAllObjects];
+    [self aiRefreshDocumentIndex];
+}
+
 - (BOOL)aiDocumentLinkAvailable:(NSURL*)URL {
     NSDictionary* link = SPDFMacAIDocumentLinkArguments(URL);
     NSString* identifier = link[@"path"];

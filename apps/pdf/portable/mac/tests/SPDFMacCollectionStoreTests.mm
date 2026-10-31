@@ -93,6 +93,9 @@ int main(int argc,const char* argv[]) {
         Expect(@"deletion preserves exclusion preference",[[store documentForPath:twin][@"excluded"] boolValue]);
         Expect(@"delete never deletes original",[NSFileManager.defaultManager fileExistsAtPath:twin]);
         Expect(@"shared object survives independent history deletion",[store materializeVersionID:first[@"id"] documentID:docID error:nil]!=nil);
+        Expect(@"purge forgets an excluded document entirely",[store purgeDocumentIDs:@[twinDoc[@"id"]] error:nil] &&
+               ![store documentForPath:twin] && [NSFileManager.defaultManager fileExistsAtPath:twin]);
+        Expect(@"purge keeps other histories",[store materializeVersionID:first[@"id"] documentID:docID error:nil]!=nil);
         [store updateSettings:@{@"storageLimitBytes":@1} error:nil]; Write(path,@"Exceeds storage quota");
         NSError* quotaError; Expect(@"quota blocks edit without deleting history",![store ensureProtectedPath:path reason:@"Edit" continuingDocumentID:docID error:&quotaError] && quotaError);
         Expect(@"failure state is visible",[[store documentForPath:path][@"status"] isEqual:@"Capture failed"]);

@@ -1,6 +1,7 @@
 #import "SPDFMacDocumentOpening.h"
 #import "SPDFMacOpenRouting.h"
 #import "SPDFMacTabGroupIntegration.h"
+#import "SPDFMacPermanentDeleteIntegration.h"
 #import <objc/runtime.h>
 #include <unistd.h>
 
@@ -241,6 +242,7 @@ static char kSPDFShowDocumentObserverKey, kSPDFPendingHandOffsKey;
 
 - (void)listenForDocumentsOpenedInOtherWindows {
     [self activityStartTracking]; // after the first paint, like this listener; idempotent
+    [self listenForPermanentDeletesInOtherWindows]; // the same, for documents removed from disk in another window
     if (objc_getAssociatedObject(self, &kSPDFShowDocumentObserverKey) || spdf_is_sandboxed()) return;
     __weak ShenzhenMacDelegate* weakSelf = self;
     NSDistributedNotificationCenter* center = NSDistributedNotificationCenter.defaultCenter;

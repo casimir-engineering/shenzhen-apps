@@ -3,6 +3,7 @@
 #import "SPDFMacCollectionAvailability.h"
 #import "SPDFMacCollectionStyle.h"
 #import "SPDFMacCollectionWindowPrivate.h"
+#import "SPDFMacCollectionPermanentDelete.h"
 @implementation SPDFMacCollectionWindow (Actions)
 - (void)openOriginal:(id)sender {
     (void)sender; NSString* path = [self selectedDocument][@"path"];
@@ -131,6 +132,27 @@
             }
         }];
     }];
+}
+- (void)removeFromDiskAndCollection:(id)sender {
+    (void)sender;
+    NSMutableOrderedSet* identifiers = [NSMutableOrderedSet orderedSet];
+    NSMutableArray* names = [NSMutableArray array], *files = [NSMutableArray array];
+    for (NSDictionary* row in [self selectedRowsSnapshot]) {
+        NSDictionary* doc = row[@"document"];
+        if (![doc[@"id"] length] || [identifiers containsObject:doc[@"id"]]) continue;
+        [identifiers addObject:doc[@"id"]];
+        [names addObject:[doc[@"path"] lastPathComponent] ?: SPDFCollectionDocumentTitle(doc) ?: @"Document"];
+        if (SPDFCollectionOriginalAvailable(doc)) [files addObject:doc[@"path"]];
+    }
+    if (!identifiers.count || !self.deleteHandler || self.mutationPending) return;
+    SPDFPermanentDeleteAsk(self.window, names, files, ^{
+        self.mutationPending = YES; [self updateDetails];
+        self.deleteHandler(identifiers.array, ^(NSArray<NSString*>* failures) {
+            self.mutationPending = NO;
+            if (failures.count) [SPDFPermanentDeleteFailure(failures) beginSheetModalForWindow:self.window completionHandler:nil];
+            [self reload:nil];
+        });
+    });
 }
 - (void)changeEnabled:(id)sender {
     (void)sender; NSError* error = nil;

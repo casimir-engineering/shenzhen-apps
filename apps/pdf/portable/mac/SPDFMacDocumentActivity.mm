@@ -61,6 +61,7 @@ static double Latest(NSDictionary* entry) {
     os_unfair_lock _lock;
     NSTimeInterval _createdAt;                                // this build has recorded real values since
     NSMutableDictionary<NSString*, NSDictionary*>* _pending; // under _lock: real values not yet written
+    NSMutableSet<NSString*>* _forgotten;                      // under _lock: deleted; a view ending later is not kept
     BOOL _started, _flushScheduled;                          // under _lock
     dispatch_queue_t _queue;                                  // created at -start or the first query
     NSMutableDictionary* _file;                               // on _queue: activity.yaml as last read or written
@@ -113,6 +114,9 @@ static double Latest(NSDictionary* entry) {
     if (!path.length || !isfinite(time) || time <= 0) return;
     NSString* standard = path.stringByStandardizingPath;
     os_unfair_lock_lock(&_lock);
+    // A deleted document's tab stamps its view as it closes; a new open of that path counts again.
+    if ([key isEqual:@"opened"]) [_forgotten removeObject:standard];
+    if ([_forgotten containsObject:standard]) { os_unfair_lock_unlock(&_lock); return; }
     _pending[standard] = SPDFDocumentActivityMerge(_pending[standard], @{key : @(time)});
     BOOL schedule = _started && !_flushScheduled;
     os_unfair_lock_unlock(&_lock);
@@ -120,6 +124,33 @@ static double Latest(NSDictionary* entry) {
 }
 - (void)recordOpenedPath:(NSString*)path at:(NSTimeInterval)time { [self record:@"opened" path:path at:time]; }
 - (void)recordViewedPath:(NSString*)path at:(NSTimeInterval)time { [self record:@"viewed" path:path at:time]; }
+
+- (void)forgetPaths:(NSArray<NSString*>*)paths {
+    NSMutableArray* standard = [NSMutableArray array];
+    for (NSString* path in paths) if (path.length) [standard addObject:path.stringByStandardizingPath];
+    os_unfair_lock_lock(&_lock);
+    [_pending removeObjectsForKeys:standard];
+    if (!_forgotten) _forgotten = [NSMutableSet set];
+    [_forgotten addObjectsFromArray:standard];
+    os_unfair_lock_unlock(&_lock);
+    if (!standard.count || ![NSFileManager.defaultManager fileExistsAtPath:self.path]) return;
+    // Waited for: a window whose last tab this closed ends its process right after.
+    dispatch_sync([self queue], ^{
+        int fd = open([self.directory stringByAppendingPathComponent:@"activity.lock"].fileSystemRepresentation,
+                      O_CREAT | O_RDWR, 0600);
+        if (fd >= 0) flock(fd, LOCK_EX);
+        // Read as it is now, without the first-write backfill: forgetting must not invent anything.
+        NSMutableDictionary* file = [ObjectFromYAMLFile(self.path) mutableCopy];
+        NSMutableDictionary* documents = [file[@"documents"] isKindOfClass:NSDictionary.class] ? [file[@"documents"] mutableCopy] : nil;
+        NSUInteger before = documents.count;
+        [documents removeObjectsForKeys:standard];
+        if (documents && documents.count != before) {
+            file[@"documents"] = documents;
+            if (WriteYAMLFile(file, self.path)) { _file = file; [self rememberFileStamp]; }
+        }
+        if (fd >= 0) { flock(fd, LOCK_UN); close(fd); }
+    });
+}
 
 - (void)scheduleFlush {
     os_unfair_lock_lock(&_lock);

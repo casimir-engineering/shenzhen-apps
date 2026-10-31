@@ -60,6 +60,13 @@
         return YES;
     } error:error];
 }
+- (BOOL)purgeDocumentIDs:(NSArray<NSString*>*)documentIDs error:(NSError**)error {
+    if (!documentIDs.count) return YES;
+    return [self transaction:^BOOL(NSMutableDictionary* m,NSError** e) {
+        (void)e; [m[@"documents"] removeObjectsForKeys:documentIDs];
+        m[@"_collectUnreferencedFiles"]=@YES; return YES;
+    } error:error];
+}
 - (BOOL)deletePreviousBackupsForDocumentID:(NSString*)documentID error:(NSError**)error {
     return [self transaction:^BOOL(NSMutableDictionary* manifest,NSError** failure) {
         NSMutableDictionary* doc=manifest[@"documents"][documentID];

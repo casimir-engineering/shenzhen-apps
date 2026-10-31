@@ -61,6 +61,14 @@
             if (document) self->_navigate(document,version,[message[@"page"] unsignedIntegerValue],
                 [message[@"query"] isKindOfClass:NSString.class] ? message[@"query"] : nil,[message[@"history"] boolValue]);
             [NSRunningApplication.currentApplication activateWithOptions:NSApplicationActivateAllWindows];
+        } else if ([kind isEqual:@"deleteDocuments"] && [message[@"documentIDs"] isKindOfClass:NSArray.class]) {
+            NSMutableArray* identifiers = [NSMutableArray array];
+            for (id identifier in message[@"documentIDs"]) if ([identifier isKindOfClass:NSString.class]) [identifiers addObject:identifier];
+            id request = message[@"request"] ?: @"";
+            void (^done)(NSArray*) = ^(NSArray* failures) {
+                [self->_pipe send:@{@"kind":@"deleteDone",@"request":request,@"failures":failures ?: @[]}];
+            };
+            if (self.deleteHandler && identifiers.count) self.deleteHandler(identifiers, done); else done(@[]);
         } else if ([kind isEqual:@"activateReader"]) {
             [NSRunningApplication.currentApplication activateWithOptions:NSApplicationActivateAllWindows];
         } else if ([kind isEqual:@"settings"]) {

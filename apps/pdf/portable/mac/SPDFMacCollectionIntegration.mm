@@ -7,6 +7,7 @@
 #import "SPDFMacCollectionAvailability.h"
 #import "SPDFMacCollectionWindow.h"
 #import "SPDFMacCollectionCompanion.h"
+#import "SPDFMacPermanentDeleteIntegration.h"
 #import "SPDFMacMarkdownDelegatePrivate.h"
 #import <objc/runtime.h>
 #import "SPDFMacTabGroups.h"
@@ -198,6 +199,9 @@ static char kCollectionCompanion, kCollectionImported, kCollectionSettingsObserv
             navigate:^(NSDictionary* doc,NSDictionary* version,NSUInteger page,NSString* text,BOOL history) {
                 [weakSelf collectionNavigateDocument:doc version:version page:page query:text history:history];
             }];
+        companion.deleteHandler=^(NSArray<NSString*>* identifiers, void (^done)(NSArray<NSString*>*)) {
+            [weakSelf permanentlyDeletePaths:@[] documentIDs:identifiers completion:done];
+        };
         objc_setAssociatedObject(self,&kCollectionCompanion,companion,OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     }
     NSError* error=nil;
