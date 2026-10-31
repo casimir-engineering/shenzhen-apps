@@ -33,6 +33,7 @@ impl State {
             self.expire_requests(now);
         }
         self.enforce_limits(now);
+        self.relay_probe(now);
         self.start_staged_dials(now);
         if self.nearby.reconsider_at.is_some_and(|at| at <= now) {
             self.nearby.reconsider_at = None;
@@ -63,7 +64,7 @@ impl State {
     /// The next moment nearby has something to do.
     pub fn nearby_wakeup(&self) -> Option<f64> {
         let staged = self.nearby.staged.iter().map(|(due, _)| *due).min_by(f64::total_cmp);
-        [self.nearby.reconsider_at, staged, self.nearby.merger.next_expiry()]
+        [self.nearby.reconsider_at, staged, self.nearby.merger.next_expiry(), self.relay_probe_wakeup()]
             .into_iter()
             .flatten()
             .min_by(f64::total_cmp)

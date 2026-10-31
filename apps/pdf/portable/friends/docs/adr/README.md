@@ -121,3 +121,8 @@ and 0007 (search no longer holds mentions' IDs and keys).
   passphrase per boost, and the link's lane binds to that session; a device that would lose its only Internet asks
   first (Go faster, Not now), writes down its network and rejoins it at the end, after a crash at the next launch; the
   lane is dropped when it measures no faster than Bluetooth.
+- [0020 The relay, last resort only](0020-relay-last-resort.md) (Accepted, release-blocking): the relay carries a file
+  only when no direct route works; while it does, a direct Internet connection is tried a second after each try ends,
+  nearby backoffs end and Bluetooth rescans every second, and a route that appears takes the file at once (the relay's
+  blocks go back to it); beside a direct lane that still hears the peer the relay takes nothing.
+  `make friends-relay-rule-check` gates every release.

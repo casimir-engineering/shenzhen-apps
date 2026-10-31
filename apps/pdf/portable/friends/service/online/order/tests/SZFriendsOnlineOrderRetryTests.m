@@ -1,5 +1,6 @@
-// Leaving the relay with a scripted clock (ADR 0011 § The direct phase, step 4): periodic retries from 30 s,
-// doubling to 5 minutes with 20% jitter; a retry at once after a network change; libjuice settling the relay
+// Leaving the relay with a scripted clock (ADR 0011 § The direct phase, step 4; ADR 0020): while relayed a retry a
+// second after each one ends, never backing off; in Standby retries from 30 s, doubling to 5 minutes, with 20% jitter
+// both; direct once more before the relay when Standby's route goes; a retry at once after a network change; libjuice settling the relay
 // connection on a direct pair; probing again only when a NAT class changed; a long sleep.
 
 #import "SZFriendsOrderTestSupport.h"
@@ -20,14 +21,58 @@ static SZFriendsOnlineOrder *Relayed(SZFOrderClock *clock, SZFriendsNATClass loc
     return order;
 }
 
+// ADR 0020: while the relay carries the stream, direct is tried again SZFriendsOnlineRelayedRetryGap (+/-20%) after
+// each try ends, for as long as the relay carries it, never backing off.
 static void TestPeriodicSchedule(void) {
     SZFOrderClock *clock = [SZFOrderClock new];
     SZFriendsOnlineOrder *order = Relayed(clock, Easy, Easy);
     CHECK(order.phase == SZFriendsOnlinePhaseRelayed && clock.now == 5);
-    CHECK(SZFriendsOnlineRetryFirst == 30 && SZFriendsOnlineRetryMax == 300 && SZFriendsOnlineRetryJitter == 0.2);
-    // Retry 1 at 35: no descriptions within the signalling limit, so it ends at 45 and the wait doubles.
-    CHECK(SZFOrderAdvance(order, clock) == SZFriendsOnlineOrderActionOpenDirect && clock.now == 35,
+    CHECK(SZFriendsOnlineRelayedRetryGap == 1 && SZFriendsOnlineRetryJitter == 0.2);
+    // Retry 1 at 6: no descriptions within the signalling limit, so it ends at 16; the next starts at 17.
+    CHECK(SZFOrderAdvance(order, clock) == SZFriendsOnlineOrderActionOpenDirect && clock.now == 6,
           "the first direct connection is gone, so nothing to close");
+    CHECK(SZFOrderAdvance(order, clock) == SZFriendsOnlineOrderActionCloseDirect && clock.now == 16);
+    for (int i = 0; i < 100; i++) {
+        NSTimeInterval ended = clock.now;
+        CHECK(SZFOrderAdvance(order, clock) == SZFriendsOnlineOrderActionOpenDirect);
+        CHECK(fabs(clock.now - ended - SZFriendsOnlineRelayedRetryGap) < 1e-9, "retry %d waited %.2f s", i + 2, clock.now - ended);
+        clock.now += 0.2;
+        [order descriptionsAppliedWithLocalNATClass:Easy remoteNATClass:Easy];
+        CHECK(order.nextDeadline == clock.now + SZFriendsOnlinePlainChecksBudget, "a retry's plain checks");
+        CHECK(SZFOrderAdvance(order, clock) == SZFriendsOnlineOrderActionCloseDirect);
+    }
+    CHECK(order.logEntry.directRetries == 101 && order.phase == SZFriendsOnlinePhaseRelayed);
+    // The next one connects: the relay closes with it.
+    SZFOrderAdvance(order, clock);
+    CHECK([order streamOpenedOnConnection:SZFriendsOnlineConnectionDirect
+                                    route:SZFOrderRoute(SZFriendsOnlineTechniqueServerReflexive)] ==
+              SZFriendsOnlineOrderActionCloseRelay && order.phase == SZFriendsOnlinePhaseDirect);
+
+    // Jitter: each gap is drawn from 80% to 120% of it.
+    clock.random = 0;
+    SZFriendsOnlineOrder *low = Relayed(clock, Easy, Easy);
+    NSTimeInterval relayedAt = clock.now;
+    CHECK(fabs(low.nextDeadline - (relayedAt + 0.8)) < 1e-9, "%.3f", low.nextDeadline - relayedAt);
+    clock.random = 0.999999;
+    SZFriendsOnlineOrder *high = Relayed(clock, Easy, Easy);
+    relayedAt = clock.now;
+    CHECK(high.nextDeadline - relayedAt > 1.19 && high.nextDeadline - relayedAt <= 1.2 + 1e-9);
+    clock.random = 7; // a broken source is clamped, never a wait outside the band
+    SZFriendsOnlineOrder *odd = Relayed(clock, Easy, Easy);
+    CHECK(odd.nextDeadline - clock.now <= 1.2 + 1e-9);
+}
+
+// Standby (another route carries the session): retries from 30 s, doubling to 5 minutes.
+static void TestStandbySchedule(void) {
+    SZFOrderClock *clock = [SZFOrderClock new];
+    SZFriendsOnlineOrder *order = SZFOrderMake(SZFriendsOnlineRoleOfferer, clock);
+    [order otherRouteChanged:SZFriendsRouteMethodBluetooth];
+    [order descriptionsAppliedWithLocalNATClass:Easy remoteNATClass:Easy];
+    SZFOrderAdvance(order, clock);
+    [order connectionFailed:SZFriendsOnlineConnectionDirect];
+    CHECK(order.phase == SZFriendsOnlinePhaseStandby && clock.now == 5);
+    CHECK(SZFriendsOnlineRetryFirst == 30 && SZFriendsOnlineRetryMax == 300);
+    CHECK(SZFOrderAdvance(order, clock) == SZFriendsOnlineOrderActionOpenDirect && clock.now == 35);
     CHECK(SZFOrderAdvance(order, clock) == SZFriendsOnlineOrderActionCloseDirect && clock.now == 45);
     NSTimeInterval expectedWait = 60, waits[6];
     for (int i = 0; i < 6; i++) {
@@ -37,25 +82,21 @@ static void TestPeriodicSchedule(void) {
         CHECK(waits[i] == expectedWait, "retry %d waited %.0f s, expected %.0f", i + 2, waits[i], expectedWait);
         clock.now += 1;
         [order descriptionsAppliedWithLocalNATClass:Easy remoteNATClass:Easy];
-        CHECK(order.nextDeadline == clock.now + SZFriendsOnlinePlainChecksBudget, "a retry's plain checks");
         CHECK(SZFOrderAdvance(order, clock) == SZFriendsOnlineOrderActionCloseDirect);
         expectedWait = MIN(expectedWait * 2, 300);
     }
     CHECK(waits[3] == 300 && waits[5] == 300, "never more than 5 minutes");
-    CHECK(order.logEntry.directRetries == 7 && order.phase == SZFriendsOnlinePhaseRelayed);
-
-    // Jitter: each wait is drawn from 80% to 120% of the step.
-    clock.random = 0;
-    SZFriendsOnlineOrder *low = Relayed(clock, Easy, Easy);
-    NSTimeInterval relayedAt = clock.now;
-    CHECK(fabs(low.nextDeadline - (relayedAt + 24)) < 1e-9, "%.3f", low.nextDeadline - relayedAt);
-    clock.random = 0.999999;
-    SZFriendsOnlineOrder *high = Relayed(clock, Easy, Easy);
-    relayedAt = clock.now;
-    CHECK(high.nextDeadline - relayedAt > 35.99 && high.nextDeadline - relayedAt <= 36);
-    clock.random = 7; // a broken source is clamped, never a wait outside the band
-    SZFriendsOnlineOrder *odd = Relayed(clock, Easy, Easy);
-    CHECK(odd.nextDeadline - clock.now <= 36);
+    CHECK(order.phase == SZFriendsOnlinePhaseStandby && !order.logEntry.relayRequested);
+    // Bluetooth goes, minutes after the last try: direct is tried once more before the relay.
+    clock.now += 100;
+    CHECK([order otherRouteChanged:SZFriendsRouteMethodNone] == SZFriendsOnlineOrderActionOpenDirect &&
+              order.phase == SZFriendsOnlinePhaseStandby,
+          "a direct try first");
+    [order descriptionsAppliedWithLocalNATClass:Easy remoteNATClass:Easy];
+    CHECK(SZFOrderAdvance(order, clock) ==
+              (SZFriendsOnlineOrderActionCloseDirect | SZFriendsOnlineOrderActionOpenRelay) &&
+              order.phase == SZFriendsOnlinePhaseRelay,
+          "it found nothing: now the relay");
 }
 
 // "keep trying direct routes after network changes": at once, and the waits start again from the first step.
@@ -66,13 +107,13 @@ static void TestNetworkChange(void) {
         SZFOrderAdvance(order, clock);
         SZFOrderAdvance(order, clock);
     }
-    CHECK(order.nextDeadline - clock.now == 240, "three failed retries: the fourth waits 240 s");
+    CHECK(fabs(order.nextDeadline - clock.now - SZFriendsOnlineRelayedRetryGap) < 1e-9, "relayed: a second after each try");
     clock.now += 7;
     CHECK([order networkChanged] == SZFriendsOnlineOrderActionOpenDirect, "a direct retry at once");
     CHECK([order networkChanged] == CloseAndOpen, "another change replaces the running retry");
     [order descriptionsAppliedWithLocalNATClass:Easy remoteNATClass:Easy];
     CHECK(SZFOrderAdvance(order, clock) == SZFriendsOnlineOrderActionCloseDirect);
-    CHECK(order.nextDeadline - clock.now == SZFriendsOnlineRetryFirst, "the waits start again from 30 s");
+    CHECK(fabs(order.nextDeadline - clock.now - SZFriendsOnlineRelayedRetryGap) < 1e-9, "and a second after this one");
 
     // While the relay is still connecting a network change retries direct too, but no periodic retry runs.
     SZFriendsOnlineOrder *connecting =
@@ -98,7 +139,8 @@ static void TestRelaySettlesDirect(void) {
     CHECK(order.logEntry.finalTechnique == SZFriendsOnlineTechniqueServerReflexive);
     // Back on the relay pair: relayed again, and retries resume.
     [order routeChangedOnConnection:SZFriendsOnlineConnectionRelay route:SZFOrderRoute(SZFriendsOnlineTechniqueRelay)];
-    CHECK(order.phase == SZFriendsOnlinePhaseRelayed && order.nextDeadline == clock.now + SZFriendsOnlineRetryFirst);
+    CHECK(order.phase == SZFriendsOnlinePhaseRelayed &&
+          order.nextDeadline == clock.now + SZFriendsOnlineRelayedRetryGap);
     // A route change on a connection that carries nothing is ignored.
     CHECK([order routeChangedOnConnection:SZFriendsOnlineConnectionDirect
                                     route:SZFOrderRoute(SZFriendsOnlineTechniqueHostIPv6)] ==
@@ -163,6 +205,7 @@ static void TestStandbyRetries(void) {
 
 void SZFriendsRunOrderRetryTests(void) {
     TestPeriodicSchedule();
+    TestStandbySchedule();
     TestNetworkChange();
     TestRelaySettlesDirect();
     TestProbingAgainOnlyAfterAClassChange();

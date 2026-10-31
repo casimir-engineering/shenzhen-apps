@@ -188,6 +188,7 @@ impl State {
             }
             self.lanes.groups.insert(head, group);
             self.lanes.late_answered.retain(|(lane, _, _)| *lane != id);
+            self.leaves_again(head, id);
             return;
         }
         let Some(head) = self.lanes.head_of.remove(&id) else { return };
@@ -200,6 +201,7 @@ impl State {
             }
         }
         self.lanes.late_answered.retain(|(lane, _, _)| *lane != id);
+        self.leaves_again(head, id);
     }
 
     /// A write completed on a session's link, or bytes arrived from its peer: its group's scheduler hears it.

@@ -437,6 +437,9 @@ extern const NSTimeInterval SZFriendsEndpointBackoffMax;   // 900 s: one window,
 - (void)noteHandshakeSucceededAtEndpoint:(NSString *)endpointID
                                   method:(SZFriendsDiscoveryMethod)method
                           conversationID:(NSString *)conversationID;
+// The relay carries this person's session (ADR 0020): every backoff of theirs ends now, so each endpoint they were
+// sighted on is dialed again on the next pass; a later failure still counts on from where it was.
+- (void)endBackoffsForConversation:(NSString *)conversationID;
 // When the earliest running backoff ends (nil when none runs): look at the candidates again then.
 @property(nonatomic, readonly, nullable) NSDate *nextBackoffEnd;
 // When an attempt's delay has passed: start it only while no session exists or its route ranks before `current`

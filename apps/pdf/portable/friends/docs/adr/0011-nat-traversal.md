@@ -88,10 +88,10 @@ offerer's timer rules; the answerer never starts the relay or probing itself, it
    with one. The direct connection keeps checking until libjuice gives up, the TCP path until its own budget ends,
    and whichever direct path goes live first replaces the relay in the session race.
 4. **Leave the relay.** While relayed, run the plain checks again in a new direct connection after every network
-   change and periodically: 30 s after the relay connects, then doubling to at most every 5 minutes, with 20%
-   jitter (provisional). Probing runs again only if a side's NAT class changed. libjuice also settles a relayed
-   connection on a shorter pair by itself when one answers (seen in the stack spike); the transport reports it as a
-   route change.
+   change and periodically: a second (±20 %) after each try ends, for as long as the relay carries the stream
+   (ADR 0020, the owner's rule; it was 30 s doubling to 5 minutes, which Standby beside Bluetooth keeps). Probing
+   runs again only if a side's NAT class changed. libjuice also settles a relayed connection on a shorter pair by
+   itself when one answers (seen in the stack spike); the transport reports it as a route change.
 
 These timers are provisional values for tests (lead decision 8). The M0 matrix measures what each technique needs
 on real networks, in mainland China and outside it, and this record takes its numbers.

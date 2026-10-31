@@ -82,6 +82,11 @@ impl LaneProfile {
         self
     }
 
+    /// Whether the route is silent at `t`.
+    pub fn silent_at(&self, t: Duration) -> bool {
+        self.silences.iter().any(|&(from, to)| from <= t && t < to)
+    }
+
     fn advance(&self, mut t: Duration, mut d: Duration) -> Duration {
         for &(from, to) in &self.silences {
             if to <= t {
@@ -124,6 +129,9 @@ pub struct LaneOutcome {
     /// When its last part was written.
     pub last_write: Duration,
     pub up: bool,
+    /// When it came up, and when its first part was written (ADR 0020: a new route carries at once).
+    pub up_at: Option<Duration>,
+    pub first_write: Option<Duration>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -141,6 +149,9 @@ pub struct Outcome {
     pub requests: Vec<(Duration, LaneRequest)>,
     /// The route of the lane that completed the last block.
     pub last_route: RouteMethod,
+    /// Bytes the relay wrote while a direct lane worked (up, not silent, not cut): ADR 0020 allows one part in
+    /// crossing at most.
+    pub relay_beside_direct_bytes: u64,
     pub events: u64,
     /// [`run_with_bytes`]: every block arrived through the assembly and the bytes are the file's.
     pub verified: bool,

@@ -123,7 +123,7 @@ static BOOL IsDirectRoute(SZFriendsOnlineRoute route) {
     _carrier = SZFriendsOnlineConnectionRelay;
     if ([self otherRouteWorks]) return [self leaveRelayForOtherRoute];
     _phase = SZFriendsOnlinePhaseRelayed;
-    if (!_retryRunning) [self schedulePeriodicRetryAfter:SZFriendsOnlineRetryFirst];
+    if (!_retryRunning) [self scheduleRelayedRetry];
     return SZFriendsOnlineOrderActionNone;
 }
 
@@ -137,7 +137,7 @@ static BOOL IsDirectRoute(SZFriendsOnlineRoute route) {
     if (!IsDirectRoute(route) && _phase == SZFriendsOnlinePhaseDirect) {
         _phase = SZFriendsOnlinePhaseRelayed;
         _relayOpen = YES;
-        [self schedulePeriodicRetryAfter:SZFriendsOnlineRetryFirst];
+        [self scheduleRelayedRetry];
     }
     return SZFriendsOnlineOrderActionNone;
 }
@@ -185,9 +185,8 @@ static BOOL IsDirectRoute(SZFriendsOnlineRoute route) {
     if (_relayOpen) actions |= SZFriendsOnlineOrderActionCloseRelay;
     _relayOpen = NO;
     if (_carrier == SZFriendsOnlineConnectionRelay) _carrier = 0;
-    BOOL scheduled = _phase == SZFriendsOnlinePhaseRelayed && isfinite(_retryAt);
     _phase = SZFriendsOnlinePhaseStandby;
-    if (!_retryRunning && !scheduled) [self schedulePeriodicRetryAfter:SZFriendsOnlineRetryFirst];
+    if (!_retryRunning) [self schedulePeriodicRetryAfter:SZFriendsOnlineRetryFirst];
     return actions;
 }
 
@@ -203,9 +202,13 @@ static BOOL IsDirectRoute(SZFriendsOnlineRoute route) {
         }
         return SZFriendsOnlineOrderActionNone;
     }
-    // The other route is gone. The offerer turns to the relay if its budget is already spent; the answerer waits
-    // for the offerer's relay offer.
-    if (_phase == SZFriendsOnlinePhaseStandby && _role == SZFriendsOnlineRoleOfferer) return [self budgetSpent];
+    // The other route is gone. The offerer tries direct once more and turns to the relay only when that try fails
+    // (ADR 0020: the relay once every other route failed; the last try may be minutes old); the answerer waits for
+    // the offerer's relay offer.
+    if (_phase == SZFriendsOnlinePhaseStandby && _role == SZFriendsOnlineRoleOfferer) {
+        _relayAfterRetry = YES;
+        return _retryRunning ? SZFriendsOnlineOrderActionNone : [self openRetry];
+    }
     return SZFriendsOnlineOrderActionNone;
 }
 

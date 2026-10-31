@@ -24,6 +24,9 @@ NS_ASSUME_NONNULL_BEGIN
     // Direct retries: the one running (its connection, whether its descriptions arrived, whether its hard-NAT step
     // is due) and when the next periodic one starts.
     BOOL _retryRunning, _retryHasDescriptions, _retryHardNATDue;
+    // The route carrying the session outside this attempt went while in Standby: direct is tried once more, and the
+    // relay opens only when that try fails (ADR 0020).
+    BOOL _relayAfterRetry;
     NSTimeInterval _retryDeadline, _retryAt, _retryInterval;
     NSTimeInterval _firstDescriptionsAt;
     SZFriendsTechniqueLogEntry *_log;
@@ -45,6 +48,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (SZFriendsOnlineOrderActions)retryEnded;
 - (void)retryDescriptionsApplied;
 - (void)schedulePeriodicRetryAfter:(NSTimeInterval)interval;
+- (void)scheduleRelayedRetry;
 @end
 
 NS_ASSUME_NONNULL_END

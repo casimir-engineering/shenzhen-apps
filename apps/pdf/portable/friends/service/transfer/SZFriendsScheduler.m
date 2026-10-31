@@ -52,6 +52,12 @@ const double SZFriendsDirectWiFiHelpsBelow = 25e6;
 - (double)unheardAfter {
     return route == SZFriendsRouteMethodBluetooth ? SZFUnheardAfterBluetooth : SZFUnheardAfter;
 }
+// The route still reaches the peer: open, and something heard from it lately (both ends ping every second while a
+// file moves). A lane that is only slow, or held up behind parts it no longer needs, reaches; one out of range or cut
+// does not. While a direct lane reaches, the relay carries nothing (ADR 0020).
+- (BOOL)reaches:(double)now {
+    return !closing && !unused && now - heardAt < self.unheardAfter;
+}
 static void SZFPrune(NSMutableArray<NSArray<NSNumber *> *> *samples, double now) {
     while (samples.count && now - samples.firstObject[0].doubleValue > SZFSampleWindow) [samples removeObjectAtIndex:0];
 }
@@ -292,7 +298,10 @@ static BOOL SZFRangesFit(NSData *ranges, uint32_t blocks) {
 
 - (void)heard:(SZFriendsLaneID)laneID now:(double)now {
     SZFLane *lane = _lanes[@(laneID)];
-    if (lane) lane->heardAt = now;
+    if (lane) {
+        lane->heardAt = now;
+        lane->unheardNoted = NO;
+    }
 }
 
 - (void)cpuBound:(SZFriendsLaneID)laneID now:(double)now {
@@ -314,6 +323,7 @@ static BOOL SZFRangesFit(NSData *ranges, uint32_t blocks) {
     for (NSNumber *laneID in self.laneIDs) {
         SZFLane *lane = _lanes[laneID];
         BOOL unheard = now - lane->heardAt >= lane.unheardAfter;
+        if (unheard) lane->unheardNoted = YES;
         if (!lane->silent && lane->inFlight > 0 && (now - lane->progressAt >= lane.silentAfter || unheard)) {
             [self goSilent:laneID.unsignedLongLongValue];
         }
@@ -327,8 +337,12 @@ static BOOL SZFRangesFit(NSData *ranges, uint32_t blocks) {
     [self fill:now];
 }
 
+// Beside a relay lane, also when each direct lane would stop reaching the peer unheard: the relay may carry from then
+// on (ADR 0020).
 - (double)nextTimer {
     double next = -1;
+    BOOL relay = NO;
+    for (SZFLane *lane in _lanes.allValues) relay |= lane->route == SZFriendsRouteMethodRelay;
     for (SZFLane *lane in _lanes.allValues) {
         double at = -1;
         if (!lane->silent && lane->inFlight > 0) {
@@ -336,6 +350,10 @@ static BOOL SZFRangesFit(NSData *ranges, uint32_t blocks) {
         }
         else if (lane->silent && !lane->closing && lane->index != 0) at = lane->heardAt + SZFCloseSilentAfter;
         if (at >= 0 && (next < 0 || at < next)) next = at;
+        if (relay && lane->route != SZFriendsRouteMethodRelay && !lane->closing && !lane->unused && !lane->unheardNoted) {
+            double unheard = lane->heardAt + lane.unheardAfter;
+            if (next < 0 || unheard < next) next = unheard;
+        }
     }
     return next;
 }

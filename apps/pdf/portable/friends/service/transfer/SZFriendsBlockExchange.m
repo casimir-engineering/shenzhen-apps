@@ -55,6 +55,41 @@ const SZFriendsLaneID SZFriendsHeadLane = 0;
     return [self sendOn:_control frame:frame];
 }
 
+// The owner's route order (SZFriendsDiscovery.h's SZFriendsRouteRank): LAN, direct Wi-Fi, Internet, Bluetooth, relay.
+static NSInteger SZFLeavesRank(SZFriendsRouteMethod route) {
+    switch (route) {
+    case SZFriendsRouteMethodLAN: return 0;
+    case SZFriendsRouteMethodPeerToPeerWiFi: return 1;
+    case SZFriendsRouteMethodInternet: return 2;
+    case SZFriendsRouteMethodBluetooth: return 3;
+    case SZFriendsRouteMethodRelay: return 4;
+    default: return 5;
+    }
+}
+
+- (SZFriendsLaneID)leavesLane {
+    SZFriendsLaneID best = _control;
+    NSInteger bestRank = _links[@(_control)] ? SZFLeavesRank(_links[@(_control)].route) : NSIntegerMax;
+    uint8_t bestIndex = [_group indexOf:_control];
+    for (NSNumber *lane in _links) {
+        NSInteger rank = SZFLeavesRank(_links[lane].route);
+        uint8_t index = [_group indexOf:lane.unsignedLongLongValue];
+        if (rank < bestRank || (rank == bestRank && index < bestIndex)) {
+            best = lane.unsignedLongLongValue, bestRank = rank, bestIndex = index;
+        }
+    }
+    return best;
+}
+
+- (void)leavesAgainAfter:(SZFriendsLaneID)gone {
+    SZFriendsLaneID lane = self.leavesLane;
+    for (SZFriendsBlockSend *send in _senders.allValues) {
+        if (send.leavesLane != gone || send.lanesOK) continue;
+        send.leavesLane = lane;
+        for (SZFriendsFrame *frame in send.serve.hashesFrames) [self sendOn:lane frame:frame];
+    }
+}
+
 - (SZFriendsLaneID)controlLane {
     return _control;
 }
@@ -121,6 +156,7 @@ const SZFriendsLaneID SZFriendsHeadLane = 0;
     if (ended) return YES;
     // ADR 0018 § 6: the group goes on without its first session; the lowest live lane carries control frames now.
     if (lane == _control) _control = _group.first;
+    [self leavesAgainAfter:lane];
     [self feedScheduler];
     [self pump];
     return NO;
@@ -321,7 +357,7 @@ const SZFriendsLaneID SZFriendsHeadLane = 0;
         for (NSNumber *lane in send.lanes.allKeys) {
             SZFriendsLaneLink *link = _links[lane];
             if (link == nil) continue;
-            if (lane.unsignedLongLongValue != _control && !send.lanesOK) continue;
+            if (lane.unsignedLongLongValue != send.leavesLane && !send.lanesOK) continue;
             NSMutableArray<SZFriendsQueuedPart *> *queue = send.lanes[lane];
             while (queue.count > 0 && (link.queued == nil || link.queued() < SZFriendsBulkDepth)) {
                 SZFriendsQueuedPart *part = queue.firstObject;

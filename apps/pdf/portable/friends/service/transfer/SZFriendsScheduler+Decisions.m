@@ -44,9 +44,9 @@ NS_ASSUME_NONNULL_BEGIN
     return total;
 }
 
-// Lanes that may take blocks now: working ones; the relay only when nothing else works; Bluetooth only alone or while
-// the others measure below 4 MB/s together; none under 3 % of the fastest.
-- (NSArray<NSNumber *> *)eligible {
+// Lanes that may take blocks now: working ones; the relay only when no direct lane reaches the peer (ADR 0020);
+// Bluetooth only alone or while the others measure below 4 MB/s together; none under 3 % of the fastest.
+- (NSArray<NSNumber *> *)eligible:(double)now {
     NSMutableArray<NSNumber *> *working = [NSMutableArray array], *direct = [NSMutableArray array];
     for (NSNumber *laneID in self.laneIDs) {
         SZFLane *lane = _lanes[laneID];
@@ -54,7 +54,7 @@ NS_ASSUME_NONNULL_BEGIN
         [working addObject:laneID];
         if (lane->route != SZFriendsRouteMethodRelay) [direct addObject:laneID];
     }
-    NSArray<NSNumber *> *lanes = direct.count ? direct : working;
+    NSArray<NSNumber *> *lanes = [self directReaches:now] ? direct : working;
     double others = 0, fastest = 0;
     BOOL onlyBluetooth = YES;
     for (NSNumber *laneID in lanes) {
@@ -146,7 +146,8 @@ NS_ASSUME_NONNULL_BEGIN
 }
 
 - (void)fill:(double)now {
-    NSArray<NSNumber *> *eligible = self.eligible;
+    [self relayStepsAside:now];
+    NSArray<NSNumber *> *eligible = [self eligible:now];
     uint64_t unassigned = [self unassignedBytes];
     uint32_t block = 0;
     SZFTransfer *transfer = nil;
@@ -256,9 +257,25 @@ NS_ASSUME_NONNULL_BEGIN
     }
 }
 
+// A lane other than the relay reaches the peer (ADR 0020).
+- (BOOL)directReaches:(double)now {
+    for (SZFLane *lane in _lanes.allValues) {
+        if (lane->route != SZFriendsRouteMethodRelay && [lane reaches:now]) return YES;
+    }
+    return NO;
+}
+
+// The relay carries the transfer: it works and no direct lane reaches the peer (ADR 0020).
+- (BOOL)relayed:(double)now {
+    BOOL relay = NO;
+    for (SZFLane *lane in _lanes.allValues) relay |= lane->route == SZFriendsRouteMethodRelay && lane.working;
+    return relay && ![self directReaches:now];
+}
+
 - (void)request:(SZFriendsRouteMethod)route now:(double)now {
     NSNumber *last = _requested[@(route)];
-    if (last == nil || now - last.doubleValue >= SZFRequestAgainAfter) {
+    double again = [self relayed:now] ? SZFRequestWhileRelayed : SZFRequestAgainAfter;
+    if (last == nil || now - last.doubleValue >= again) {
         _requested[@(route)] = @(now);
         [_actions addObject:[SZFriendsScheduleAction kind:SZFriendsScheduleOpenLane lane:0 transfer:0 block:0
                                                     route:route]];
@@ -288,6 +305,34 @@ NS_ASSUME_NONNULL_BEGIN
     }
     if (_keepsInternet && !hasDirectWiFi && lan < SZFriendsDirectWiFiHelpsBelow && worth) {
         [self request:SZFriendsRouteMethodPeerToPeerWiFi now:now];
+    }
+}
+
+// The owner's relay rule (ADR 0020): while a direct lane works, the relay carries nothing. What it holds goes back at
+// once to be sent on the direct lanes (its parts not yet written are dropped); it keeps its session, for when every
+// direct lane is gone again.
+- (void)relayStepsAside:(double)now {
+    if (![self directReaches:now]) return;
+    for (NSNumber *laneID in self.laneIDs) {
+        SZFLane *lane = _lanes[laneID];
+        if (lane->route != SZFriendsRouteMethodRelay || lane->holds.count == 0) continue;
+        NSArray<NSNumber *> *seqs = lane.holdSeqs;
+        NSDictionary<NSNumber *, NSArray<NSNumber *> *> *holds = lane->holds;
+        lane->holds = [NSMutableDictionary dictionary];
+        lane->inFlight = 0;
+        for (NSNumber *seq in seqs) {
+            NSArray<NSNumber *> *hold = holds[seq];
+            SZFTransfer *transfer = [self transfer:hold[0].unsignedLongLongValue];
+            if (transfer) {
+                NSMutableArray<SZFPlacement *> *placements = transfer->open[hold[1]];
+                for (NSInteger i = (NSInteger)placements.count - 1; i >= 0; i--) {
+                    if (placements[i]->seq == seq.unsignedLongLongValue) [placements removeObjectAtIndex:i];
+                }
+            }
+            [self act:SZFriendsScheduleCancel lane:laneID.unsignedLongLongValue transfer:hold[0].unsignedLongLongValue
+                block:hold[1].unsignedIntValue];
+            if (transfer) [self releaseIfUnplaced:transfer block:hold[1].unsignedIntValue];
+        }
     }
 }
 

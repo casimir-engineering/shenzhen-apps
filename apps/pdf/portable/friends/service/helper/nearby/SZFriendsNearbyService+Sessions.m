@@ -332,6 +332,7 @@
     [self deliverPendingOnLink:link];
     [self startAgainOnLink:link]; // files asked for again (+Again)
     [self onlineRoutesChanged];
+    [self relayProbeIfRelayed];
     [self changed];
 }
 

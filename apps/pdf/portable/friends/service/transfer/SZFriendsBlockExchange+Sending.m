@@ -38,7 +38,8 @@
     // The scheduler works in slices with a peer that has pieces, in whole blocks otherwise (§ 3, § 7).
     send.slices = [[SZFriendsSliceSend alloc] initWithGeometry:geometry pieces:self.pieces];
     send.key = ++_nextKey;
-    for (SZFriendsFrame *frame in send.serve.hashesFrames) [self sendOnHead:frame];
+    send.leavesLane = self.leavesLane;
+    for (SZFriendsFrame *frame in send.serve.hashesFrames) [self sendOn:send.leavesLane frame:frame];
     _senders[transferID] = send;
     SZFriendsBlockGeometry units = send.slices.units;
     [self.scheduler addTransfer:send.key geometry:units];

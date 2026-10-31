@@ -372,6 +372,32 @@ static void TestExplicitRank(void) {
     }
 }
 
+// ADR 0020: while the relay carries Mei's session her backoffs end at each probe, so an endpoint that failed many
+// times is dialed again within a second; a later failure still counts on from where it was. Others' stay.
+static void TestBackoffsEndWhileRelayed(void) {
+    NSData *tag = SZFTestData(@"0101010101010101");
+    __block NSDate *now = SZFTestDate(5000);
+    SZFriendsRouteRacer *racer = [SZFriendsRouteRacer new];
+    racer.clock = ^NSDate * {
+        return now;
+    };
+    SZFriendsCandidate *mei = FriendCandidate(@[
+        SZFTestSighting(SZFriendsDiscoveryMethodNetwork, SZFriendsRouteMethodLAN, @"lan", tag, @[], NO, now),
+    ]);
+    CHECK([racer attemptsForCandidate:mei].count == 1);
+    for (int i = 0; i < 8; i++) {
+        [racer noteHandshakeFailedAtEndpoint:@"lan" method:SZFriendsDiscoveryMethodNetwork conversationID:@"mei"];
+        now = [now dateByAddingTimeInterval:1];
+    }
+    CHECK([racer attemptsForCandidate:mei].count == 0, "minutes of backoff");
+    [racer endBackoffsForConversation:@"kenji"];
+    CHECK([racer attemptsForCandidate:mei].count == 0);
+    [racer endBackoffsForConversation:@"mei"];
+    CHECK([racer attemptsForCandidate:mei].count == 1, "dialed again at once");
+    [racer noteHandshakeFailedAtEndpoint:@"lan" method:SZFriendsDiscoveryMethodNetwork conversationID:@"mei"];
+    CHECK([racer.nextBackoffEnd timeIntervalSinceDate:now] > 60, "the count goes on");
+}
+
 static void TestLaunchDecision(void) {
     CHECK(SZFriendsStartAdapterAtLaunch(SZFriendsPermissionAllowed, NO));
     CHECK(!SZFriendsStartAdapterAtLaunch(SZFriendsPermissionDenied, YES));
@@ -389,6 +415,7 @@ void SZFriendsRunRacerTests(void) {
     TestExplicitRank();
     TestEndpointBackoff();
     TestTagBackoff();
+    TestBackoffsEndWhileRelayed();
     TestLaunchDecision();
 }
 

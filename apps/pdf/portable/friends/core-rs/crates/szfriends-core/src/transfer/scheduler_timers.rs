@@ -8,6 +8,10 @@ impl Scheduler {
     pub fn tick(&mut self, now: Duration) {
         let ids: Vec<LaneId> = self.lanes.keys().copied().collect();
         for id in ids {
+            let lane = self.lanes.get_mut(&id).expect("listed");
+            if now.saturating_sub(lane.heard_at) >= lane.unheard_after() {
+                lane.unheard_noted = true;
+            }
             let lane = &self.lanes[&id];
             let unheard = now.saturating_sub(lane.heard_at) >= lane.unheard_after();
             if !lane.silent
@@ -29,8 +33,15 @@ impl Scheduler {
         self.fill(now);
     }
 
-    /// When [`Scheduler::tick`] has something to do next.
+    /// When [`Scheduler::tick`] has something to do next. Beside a relay lane, also when each direct lane would stop
+    /// reaching the peer unheard: the relay may carry from then on (ADR 0020).
     pub fn next_timer(&self) -> Option<Duration> {
+        let relay = self.lanes.values().any(|l| l.route == RouteMethod::Relay);
+        let unheard = self
+            .lanes
+            .values()
+            .filter(|l| relay && l.route != RouteMethod::Relay && !l.closing && !l.unused && !l.unheard_noted)
+            .map(|l| l.heard_at + l.unheard_after());
         self.lanes
             .values()
             .filter_map(|l| {
@@ -42,6 +53,7 @@ impl Scheduler {
                     None
                 }
             })
+            .chain(unheard)
             .min()
     }
 

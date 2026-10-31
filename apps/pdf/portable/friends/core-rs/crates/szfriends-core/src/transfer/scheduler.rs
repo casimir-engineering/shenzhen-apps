@@ -23,9 +23,14 @@
 //!   fastest lane takes such copies whatever it expects to gain, so it never waits on another lane: a transfer is
 //!   never slower with more lanes than on its fastest lane alone (the owner's rule).
 //! - Bluetooth carries blocks only while the other lanes together measure below 4 MB/s, or alone; the relay only while
-//!   no other lane works. Direct Wi-Fi is asked for (and kept) only where it leaves the device on its Wi-Fi network.
+//!   no direct lane reaches the peer. Direct Wi-Fi is asked for (and kept) only where it leaves the device on its
+//!   Wi-Fi network.
 //!   A lane under 3 % of the fastest's rate carries nothing, and one slower than the fastest holds at most what the
 //!   fastest sends in a second.
+//! - The owner's relay rule (ADR 0020): the moment a direct lane reaches the peer (open, heard from within its
+//!   2.5 s, 3.5 s on Bluetooth: slow or silent for a moment still counts), the relay's blocks go back to be sent on
+//!   the direct lanes (its parts not yet written are dropped) and the relay gets nothing more while one reaches;
+//!   while the relay carries the transfer, Bluetooth and direct Wi-Fi are asked for every [`REQUEST_WHILE_RELAYED`].
 //!
 //! The driver turns [`Action::Send`] into PARTs with the lane's part size, reading the block through
 //! [`BlockServe`](super::BlockServe)'s leaf check, and reports back with [`Scheduler::written`], [`Scheduler::sent`],
@@ -64,6 +69,8 @@ pub const LANE_BYTES_MAX: u64 = 32 << 20;
 pub const LANE_BYTES_MAX_PHONE: u64 = 8 << 20;
 /// The same lane request is not repeated sooner than this.
 pub const REQUEST_AGAIN_AFTER: Duration = Duration::from_secs(10);
+/// ... except while the relay is the only lane working: a direct route is asked for this often (ADR 0020).
+pub const REQUEST_WHILE_RELAYED: Duration = Duration::from_secs(1);
 /// A lane is worth asking for only when the work left would take the current lanes longer than this.
 const WORTH_A_LANE: f64 = 4.0;
 /// A lane slower than the fastest takes blocks only while it measures at least this share of the fastest: below it,
@@ -173,6 +180,8 @@ struct Lane {
     progress_at: Duration,
     heard_at: Duration,
     silent: bool,
+    /// Its `unheard_after` passed and the scheduler looked (so the timer for it is not asked again until it is heard).
+    unheard_noted: bool,
     closing: bool,
     /// Never given blocks (direct Wi-Fi that would cost this device its network).
     unused: bool,
@@ -271,6 +280,7 @@ impl Scheduler {
                         progress_at: now,
                         heard_at: now,
                         silent: false,
+                        unheard_noted: false,
                         closing: unused,
                         unused,
                         holds: BTreeMap::new(),
@@ -430,6 +440,7 @@ impl Scheduler {
     pub fn heard(&mut self, lane: LaneId, now: Duration) {
         if let Some(entry) = self.lanes.get_mut(&lane) {
             entry.heard_at = now;
+            entry.unheard_noted = false;
         }
     }
 

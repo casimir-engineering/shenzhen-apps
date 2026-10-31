@@ -62,6 +62,9 @@ static inline NSUInteger SZFriendsPartBytesFor(SZFriendsRouteMethod route) {
 // The friend's helper has the leaves (a HAVE came back): parts may go on lanes, which could otherwise overtake
 // HASHES on the head. A WANT proves nothing: the receiver sends one as it accepts, before the leaves arrive.
 @property(nonatomic) BOOL lanesOK;
+// The lane the leaves went on, the group's best-ranked live one: until a HAVE, parts go only there, behind them on the
+// same stream. Beside a direct lane that is never the relay (ADR 0020).
+@property(nonatomic) SZFriendsLaneID leavesLane;
 @property(nonatomic, strong) NSMutableDictionary<NSNumber *, NSMutableArray<SZFriendsQueuedPart *> *> *lanes;
 @end
 
@@ -100,6 +103,10 @@ static const double SZFriendsFinishingAfter = 1.0;
 - (void)changed;
 - (BOOL)sendOn:(SZFriendsLaneID)lane frame:(SZFriendsFrame *)frame;
 - (BOOL)sendOnHead:(SZFriendsFrame *)frame;
+// The group's best-ranked live lane, where a transfer's leaves go (ADR 0020: a direct lane before the relay).
+- (SZFriendsLaneID)leavesLane;
+// `gone` carried leaves no HAVE has answered yet: they go again on the best lane left.
+- (void)leavesAgainAfter:(SZFriendsLaneID)gone;
 - (void)feedScheduler;
 - (SZFriendsScheduler *)scheduler;
 - (void)runActions;

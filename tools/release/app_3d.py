@@ -232,11 +232,14 @@ class ThreeDRelease(Release):
         return {"files": files}
 
     SUITES = (("3d/unit", ["npm", "test"]), ("3d/electron", ["npm", "run", "test:electron"]),
-              ("3d/friends", ["npm", "run", "test:friends"]))
+              ("3d/friends", ["npm", "run", "test:friends"]),
+              # The owner's relay rule, release-blocking for every app that embeds the helper (ADR 0020).
+              ("3d/friends-relay-rule", ["make", "-C", "../pdf/portable", "friends-relay-rule-check"]))
     # test:electron and test:friends start Electron copies of their own; while they run, the unified log can show a
     # Gatekeeper rejection ("Terminating process due to Gatekeeper rejection"), which fails any updater test running
     # at the same time (seen twice when the apps were released at once): they never overlap one.
-    suite_locks = {"3d/electron": ("gatekeeper",), "3d/friends": ("gatekeeper",)}
+    suite_locks = {"3d/electron": ("gatekeeper",), "3d/friends": ("gatekeeper", "friends-build"),
+                   "3d/friends-relay-rule": ("friends-build",)}
 
     def tests(self):
         names = [n for n, _ in self.SUITES]

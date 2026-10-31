@@ -1727,3 +1727,31 @@ first one left unreported, as the Mac's does since 6d8924f3: pieces re-sent afte
 and their HAVE then never went. `make friends-transfer-bench`, Rust → Rust, `lan+p2p-cut-p2p` and
 `lan+p2p+bt-cut-lan` in a loop: 210 runs (105 each), 0 stalls, every file intact; medians 8.95 s and 18.73 s, slowest
 10.26 s and 19.09 s.
+
+## The relay, last resort only (ADR 0020, 2026-11-01)
+
+The owner's rule of 2026-10-31, release-blocking: the relay only when nothing else works; a transfer that started on
+it may stay, but a route that appears must carry it at once; one that started direct never brings the relay in while
+a direct route works. Audit of the released helpers (26103101), the code read for both, then the scheduler's
+simulator and `make friends-transfer-bench` with new `BENCH_RELAY` cases (`src/bench_relay.rs`), every pairing.
+
+**What broke the rule** (ADR 0020 § Context has the list): the online order retried direct 30 s after the relay
+connected, doubling to 300 s; nearby kept a relayed friend's dial backoffs (to 900 s) and rescanned Bluetooth every
+30 s; the relay kept the blocks it held when a direct lane came up (simulator: 0.26 to 1.4 MB more over the relay in
+six rows); the relay was allowed whenever no direct lane was *working*, so a Bluetooth lane slow to finish its blocks
+(silent after 2 s, though still hearing the peer) handed them back to it (bench, 1 MiB: 640 to 770 KB over the relay
+beside Bluetooth once the relay's blocks moved there); a transfer offered while the relay was the group's first
+session sent its leaves there and no part on a lane before a HAVE (bench, 16 MiB: 525 to 591 KB over the relay
+beside a LAN lane that worked from the start, then cut and back); Standby opened the relay the moment Bluetooth
+went, without a direct try first.
+
+**What did not:** once up, a new route carried at once. Bench, released code, the new route's first part after it came
+up: a LAN session that won the race 1 to 4 ms; a direct Internet session (20 ms each way) 35 to 39 ms; a LAN, direct
+Wi-Fi or Bluetooth lane 95 to 128 ms. A transfer started on a direct route never opened the relay while that route
+lived (online is asked only while the carrying route ranks after Internet).
+
+**After** (both helpers, every pairing, the gate's sizes): first part on the new route 2 to 5 ms (session, LAN), 37
+to 47 ms (session, Internet), 1 to 2 ms (a LAN lane back after a cut), 96 to 141 ms (a lane that appears); what the
+relay carried once a direct route was up 33 to 246 KB, all of it parts already in its session's queue and socket (49
+to 98 KB passed even with the relay session closed at once); beside a LAN that worked from the start, 166 to 174
+bytes (pings). `make friends-relay-rule-check`: about 45 s once built.

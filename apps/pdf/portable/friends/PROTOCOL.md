@@ -804,7 +804,10 @@ The new computer's side of joining a person's existing profile, with the helper 
   the device stays on its Wi-Fi network at the same time (AWDL on Macs and iPhones). Anywhere else, or when unsure, it
   is skipped and the next route carries the session; friends' files and a profile's own devices alike. The one
   exception is the Wi-Fi Direct boost (§ Fast transfers): the person says Go faster on the transfer, the device leaves
-  its Wi-Fi for that transfer only and rejoins it by itself afterwards.
+  its Wi-Fi for that transfer only and rejoins it by itself afterwards. The relay is the last resort
+  ([ADR 0020](docs/adr/0020-relay-last-resort.md)): it carries a file only when no other route works; while it does,
+  helpers keep trying every other route at most a second apart, and one that appears carries the file at once,
+  `progress` going on from where it was; while another route works the relay carries nothing. Views need no change.
 - **Route, online (M2).** Only a helper that announces `online` says anything about the Internet; an M1 helper's
   words say nearby, whatever happens. With `online`:
   - a session over the Internet is kind `online`, never `local`: method `internet` reads "Online, direct", `relay`

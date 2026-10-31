@@ -256,6 +256,7 @@ impl Sim {
                     return;
                 }
                 self.lanes[i].state = State::Up;
+                self.out.lanes[i].up_at.get_or_insert(self.now);
                 self.group.lane_up(id);
                 self.at(self.now + Duration::from_secs(1), Ev::Ping(i));
                 self.feed_group();
@@ -274,9 +275,16 @@ impl Sim {
                 }
                 let Some(part) = self.lanes[i].current.take() else { return };
                 let id = self.lanes[i].id;
+                let direct_works = self.lanes.iter().any(|l| {
+                    l.profile.route != RouteMethod::Relay && l.state == State::Up && !l.profile.silent_at(self.now)
+                });
+                if self.lanes[i].profile.route == RouteMethod::Relay && direct_works {
+                    self.out.relay_beside_direct_bytes += part.to - part.from;
+                }
                 let o = &mut self.out.lanes[i];
                 o.sent_bytes += part.to - part.from;
                 o.last_write = self.now;
+                o.first_write.get_or_insert(self.now);
                 self.out.sent_bytes += part.to - part.from;
                 let arrive = self.lanes[i].profile.advance(self.now, self.lanes[i].profile.rtt / 2);
                 let (block, from, to, flip) = (part.block, part.from, part.to, part.flip);

@@ -438,3 +438,7 @@ use measure::*;
 #[path = "bench_multi.rs"]
 mod multi;
 pub use multi::{run_multi, MultiCase};
+
+#[path = "bench_relay.rs"]
+mod relay;
+pub use relay::{run_relay, RelayCase, RelayStory, FIRST_PART_MAX, RELAY_BESIDE_DIRECT_MAX};

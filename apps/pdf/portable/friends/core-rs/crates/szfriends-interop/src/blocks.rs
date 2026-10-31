@@ -42,6 +42,9 @@ pub(crate) struct BlockSend {
     pub(crate) lanes: HashMap<u64, VecDeque<(u32, Frame, bool)>>,
     /// The receiver has the leaves (a HAVE came back; a WANT comes before them): parts may go on lanes.
     lanes_ok: bool,
+    /// The lane the leaves went on, the group's best-ranked live one: until a HAVE, parts go only there (ADR 0020:
+    /// beside a direct lane never the relay), as the helper.
+    pub(crate) leaves_lane: u64,
     /// Pieces acknowledged and checked blocks, for slices (ADR 0018 § 3).
     slices: SliceSend,
 }
@@ -86,6 +89,29 @@ impl Blocks {
 impl State {
     pub(crate) fn fast_session(&self, id: u64) -> bool {
         self.sessions.get(&id).is_some_and(|s| s.channel.fast_transfers())
+    }
+
+    /// The group's best-ranked live lane, where a transfer's leaves go (as the helper's `leaves_lane`).
+    pub(crate) fn leaves_lane(&self, head: u64) -> u64 {
+        let rank = |route: szfriends_core::wire::RouteMethod| szfriends_core::wire::route::rank(route as u8) as usize;
+        self.lanes.groups.get(&head).map_or(head, |g| g.lanes.control_lane(rank))
+    }
+
+    /// `gone` carried leaves no HAVE has answered yet: they go again on the best lane left.
+    pub(crate) fn leaves_again(&mut self, head: u64, gone: u64) {
+        let lane = self.leaves_lane(head);
+        let mut frames = Vec::new();
+        if let Some(session) = self.sessions.get_mut(&head) {
+            for send in session.blocks.senders.values_mut() {
+                if send.leaves_lane == gone && !send.lanes_ok {
+                    send.leaves_lane = lane;
+                    frames.extend(send.serve.hashes_frames());
+                }
+            }
+        }
+        for frame in frames {
+            self.send_frame(lane, &frame);
+        }
     }
 
     fn send_frame(&mut self, id: u64, frame: &Frame) {
@@ -195,10 +221,11 @@ impl State {
         if first {
             let _ = group.scheduler.want(key, &[(0, slices.blocks)], monotonic_now());
         }
+        let leaves_lane = self.leaves_lane(id);
         for frame in serve.hashes_frames() {
-            self.send_frame(id, &frame);
+            self.send_frame(leaves_lane, &frame);
         }
-        let send = BlockSend { serve, record, lanes: HashMap::new(), lanes_ok: false, slices: slice_send };
+        let send = BlockSend { serve, record, lanes: HashMap::new(), lanes_ok: false, leaves_lane, slices: slice_send };
         self.sessions.get_mut(&id)?.blocks.senders.insert(offer.to_owned(), send);
         Some(true)
     }
@@ -367,7 +394,7 @@ impl State {
                     let Some(send) = self.sessions.get_mut(&head).and_then(|s| s.blocks.senders.get_mut(offer)) else {
                         break;
                     };
-                    if lane != head && !send.lanes_ok {
+                    if lane != send.leaves_lane && !send.lanes_ok {
                         break;
                     }
                     let Some((block, part, last)) = send.lanes.get_mut(&lane).and_then(VecDeque::pop_front) else {

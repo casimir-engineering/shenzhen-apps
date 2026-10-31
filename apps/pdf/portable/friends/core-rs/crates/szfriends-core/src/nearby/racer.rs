@@ -161,6 +161,17 @@ impl Racer {
         }
     }
 
+    /// The relay carries this person's session (ADR 0020): every backoff of theirs ends now, so each endpoint they
+    /// were sighted on is dialed again on the next pass; a later failure still counts on from where it was.
+    pub fn end_backoffs(&mut self, conversation: &str, now: f64) {
+        let prefix = format!("{conversation}|");
+        for (key, backoff) in self.backoffs.iter_mut() {
+            if key.starts_with(&prefix) {
+                backoff.until = backoff.until.min(now);
+            }
+        }
+    }
+
     /// A session went live there: its backoff ends.
     pub fn note_succeeded(&mut self, endpoint: &str, method: Method, conversation: &str) {
         let key = self.key_for(endpoint, method, conversation);

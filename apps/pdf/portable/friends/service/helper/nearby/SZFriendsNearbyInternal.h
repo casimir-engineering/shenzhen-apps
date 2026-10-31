@@ -58,6 +58,8 @@ extern const NSTimeInterval SZFriendsNearbyConnectingTimeout;
 // Reset Friends is under way (or failed): nothing is advertised and nobody is dialed until it completes.
 @property(nonatomic) BOOL resetting;
 @property(nonatomic) BOOL reconsiderScheduled;
+// While the relay carries a session, a probe of every direct route is due within a second (+Relayed, ADR 0020).
+@property(nonatomic) BOOL relayProbeScheduled;
 @property(nonatomic) CFAbsoluteTime lastProgressChange;
 @property(nonatomic) BOOL progressChangeScheduled;
 // Makes our previews and the local ones of received files (+Thumbnails); created on first use, so a helper that never
@@ -130,6 +132,17 @@ extern const NSTimeInterval SZFriendsNearbyConnectingTimeout;
 // `live`, unless the sighting's route ranks before it. Never the raw route numbers: Bluetooth (3) ranks after
 // Internet (4).
 BOOL SZFriendsNearbyDialIsPointless(SZFriendsRouteMethod live, SZFriendsRouteMethod sighting);
+
+// The relay is the last resort (ADR 0020): while it carries a friend's session, direct routes are tried again every
+// SZFriendsRelayProbeInterval.
+extern const NSTimeInterval SZFriendsRelayProbeInterval;
+
+@interface SZFriendsNearbyService (Relayed)
+// Conversations whose session the relay carries now.
+@property(nonatomic, readonly) NSArray<NSString *> *relayedConversations;
+// A session went live or changed route: probing starts now if the relay carries one.
+- (void)relayProbeIfRelayed;
+@end
 
 @interface SZFriendsNearbyService (Dial)
 // Looks at every candidate and pending entry again on the next turn (coalesced).

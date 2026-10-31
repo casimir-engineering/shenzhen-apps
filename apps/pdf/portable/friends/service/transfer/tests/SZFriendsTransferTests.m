@@ -20,9 +20,13 @@ int SZFriendsDirectWiFiBoostTests(void); // SZFriendsDirectWiFiBoostTests.m
 
 // The best any one of the scenario's lanes does alone, up from the start with everything else it does (silences,
 // flapping, a cut): what "never slower than without the extra lanes" compares with. Negative when none finishes.
+// The relay counts only when no lane is direct: ADR 0020 keeps it unused beside a direct one.
 static double BestAlone(SZFSimScenario *scenario) {
     double best = -1;
+    BOOL anyDirect = NO;
+    for (SZFSimLaneProfile *lane in scenario.lanes) anyDirect |= lane.route != SZFriendsRouteMethodRelay;
     for (SZFSimLaneProfile *lane in scenario.lanes) {
+        if (anyDirect && lane.route == SZFriendsRouteMethodRelay) continue;
         double done = SZFSimRun([scenario copyWithLanes:@[ [lane copyUpFromStart] ]]).doneAt;
         if (done >= 0 && (best < 0 || done < best)) best = done;
     }
@@ -84,6 +88,32 @@ static void TestScenarios(NSString *path) {
         }
         for (NSString *request in expect[@"requests"]) {
             CHECK([out.requests containsObject:request], @"%@: no %@ request (%@)", name, request, out.requests);
+        }
+        for (NSString *route in expect[@"carried"]) {
+            BOOL carried = NO;
+            for (NSUInteger i = 0; i < scenario.lanes.count; i++) {
+                carried |= [SZFSimRouteName(scenario.lanes[i].route) isEqualToString:route] &&
+                           [out.laneSentBytes[i] unsignedLongLongValue] > 0;
+            }
+            CHECK(carried, @"%@: %@ carried nothing", name, route);
+        }
+        // The owner's relay rule (ADR 0020): the relay beside a working direct lane, and how soon a lane that came up
+        // later (a route that appeared) carried its first part.
+        if (expect[@"max_relay_beside_direct_kib"]) {
+            CHECK(out.relayBesideDirectBytes <= [expect[@"max_relay_beside_direct_kib"] unsignedLongLongValue] << 10,
+                  @"%@: the relay wrote %llu bytes beside a working direct lane", name, out.relayBesideDirectBytes);
+        }
+        if (expect[@"max_first_part_ms"]) {
+            for (NSUInteger i = 0; i < scenario.lanes.count; i++) {
+                SZFSimLaneProfile *profile = scenario.lanes[i];
+                double up = [out.laneUpAt[i] doubleValue], first = [out.laneFirstWrite[i] doubleValue];
+                if (profile.route == SZFriendsRouteMethodRelay || profile.upAt == 0 || up < 0) continue;
+                double waited = first < 0 ? INFINITY : (first - up) * 1000;
+                printf("%s: %s up at %.0f ms, its first part %.0f ms later\n", name.UTF8String,
+                       SZFSimRouteName(profile.route).UTF8String, up * 1000, waited);
+                CHECK(waited <= [expect[@"max_first_part_ms"] doubleValue],
+                      @"%@: %@ carried its first part %.0f ms after it came up", name, SZFSimRouteName(profile.route), waited);
+            }
         }
     }
 }

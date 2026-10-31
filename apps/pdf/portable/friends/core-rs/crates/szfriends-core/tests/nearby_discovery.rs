@@ -199,3 +199,24 @@ fn a_failing_tag_backs_off_wherever_it_is_shown() {
     racer.note_succeeded("relay2", Method::Network, "friend");
     assert_eq!(racer.next_backoff_end(later), None);
 }
+
+/// ADR 0020: while the relay carries this person's session, their backoffs end at each probe, so an endpoint that
+/// failed many times is dialed again within a second; a later failure still counts on from where it was.
+#[test]
+fn backoffs_end_while_the_relay_carries_the_session() {
+    let mut merger = Merger::new(matcher());
+    merger.add_sighting(sighting(Method::Network, RouteMethod::Lan, "lan1", Some(tag()), NOW));
+    let mut racer = Racer::default();
+    assert_eq!(racer.attempts(&merger.candidates()[0], merger.matcher(), NOW).len(), 1);
+    for i in 0..8 {
+        racer.note_failed("lan1", Method::Network, "friend", NOW + i as f64);
+    }
+    let soon = NOW + 9.0;
+    assert!(racer.attempts(&merger.candidates()[0], merger.matcher(), soon).is_empty(), "minutes of backoff");
+    racer.end_backoffs("someone else", soon);
+    assert!(racer.attempts(&merger.candidates()[0], merger.matcher(), soon).is_empty());
+    racer.end_backoffs("friend", soon);
+    assert_eq!(racer.attempts(&merger.candidates()[0], merger.matcher(), soon).len(), 1);
+    racer.note_failed("lan1", Method::Network, "friend", soon);
+    assert!(racer.next_backoff_end(soon).unwrap() - soon > 60.0, "the count goes on");
+}

@@ -7,7 +7,9 @@ ADR 0009 to 0011 (online, relay, NAT traversal), ADR 0014 (sync copies), ADR 001
 schema change), the transfer engine in both helpers (Objective-C `service/transfer/`, new; Rust
 `szfriends-core/src/transfer/`, new), discovery and online adapters (lanes), presentation (two strings). Client
 contract: PROTOCOL.md § Fast transfers. Measurements, every idea weighed and the work packages: the journal,
-`portable/docs/journals/shenzhen-friends/2026-10-29-fast-transfers.md`.
+`portable/docs/journals/shenzhen-friends/2026-10-29-fast-transfers.md`. Amended by ADR 0020 (the relay, last resort
+only): the relay takes no block while a direct lane reaches the peer, gives back what it holds when one comes up, and a
+transfer's leaves go on the best-ranked lane.
 
 ## Context
 
@@ -207,7 +209,7 @@ device its Internet connection without its person's word; the one exception, a d
 transfer and left by itself afterwards, is ADR 0019's Wi-Fi Direct boost, whose lane joins the group like any other. Internet: more data channels in the same peer connection, opened in-band, so no new
 signalling and nothing for the host (more TCP connections through a NAT would each need their own punching, which
 would). Relay: one lane at most (a data channel in the existing peer connection), so the relay's 5 Mbit/s cap, its
-cost and what it sees are unchanged.
+cost and what it sees are unchanged; and none of it while a direct lane reaches the peer (ADR 0020).
 Bluetooth: one L2CAP channel at most; more would share the same radio.
 
 **How many on one route.** One per route to start. A second and later lane on the same route only when the first is
@@ -257,6 +259,12 @@ PROGRESS, closes and redials. This fixes the measured 45-second (and longer) sta
 **Bluetooth beside a slow network.** Bluetooth stays last in the route order for sessions and messages. In a group it
 becomes a lane for PARTs when another lane's measured rate is below 4 MB/s, and keeps blocks only while the
 scheduler expects it to finish them before the faster lane; it never carries the last blocks unless it is the only lane.
+
+**The relay, last (ADR 0020).** The relay takes blocks only while no direct lane reaches the peer (open, and heard from
+within 2.5 s, 3.5 s on Bluetooth): a slow or briefly silent direct lane keeps it out. The moment one reaches it, what
+the relay holds goes back to the direct lanes and its parts not yet written are dropped. While the relay carries the
+transfer, Bluetooth and direct Wi-Fi are asked for every second. A transfer's leaves go on the group's best-ranked live
+lane and its parts there until the first HAVE, so one offered beside the relay starts on the direct lane.
 
 ### 8. Security and privacy
 

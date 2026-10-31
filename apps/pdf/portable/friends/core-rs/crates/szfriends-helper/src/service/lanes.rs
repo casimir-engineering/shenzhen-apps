@@ -25,7 +25,8 @@ use super::nearby::{DialPlan, Purpose};
 use super::State;
 use crate::log;
 
-/// A route whose lane failed or closed is dialed again after this long.
+/// A route whose lane failed or closed is dialed again after this long; while the relay carries the group's first
+/// session, after [`RELAY_PROBE_SECONDS`] (ADR 0020).
 const REDIAL_SECONDS: f64 = 10.0;
 
 /// One group's scheduler (or the first session's alone), and the transfers it knows by key.
@@ -266,6 +267,7 @@ impl State {
         if let Some(schedule) = self.sessions.groups.schedules.remove(&id) {
             self.sessions.groups.schedules.insert(head, schedule);
         }
+        self.leaves_again(head, id);
         self.boost_group_moved(id, head);
         self.sessions.groups.late_answered.retain(|(lane, _, _)| *lane != id);
         log!("lane {head} carries the conversation: its first session {id} ended");
@@ -369,7 +371,9 @@ impl State {
         let Some(group) = self.sessions.groups.by_head.get(&head) else { return };
         let identity = *group.lanes.identity();
         let now = unix_now();
-        if group.dialed.get(&route).is_some_and(|at| now - at < REDIAL_SECONDS) {
+        let relayed = session.meta.race_route(&session.channel) == RouteMethod::Relay;
+        let redial = if relayed { super::nearby::RELAY_PROBE_SECONDS } else { REDIAL_SECONDS };
+        if group.dialed.get(&route).is_some_and(|at| now - at < redial) {
             return;
         }
         let sighting = self

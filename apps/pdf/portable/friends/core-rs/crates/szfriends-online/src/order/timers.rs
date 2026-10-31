@@ -3,7 +3,7 @@
 use szfriends_wire::route::{rank, RouteMethod};
 
 use super::{action, hard_nat_worth_trying, EndReason, Order, Phase, HARD_NAT_BUDGET, PLAIN_CHECKS_BUDGET};
-use super::{RETRY_FIRST, RETRY_JITTER, RETRY_MAX, RETRY_SIGNALLING_LIMIT};
+use super::{RELAYED_RETRY_GAP, RETRY_FIRST, RETRY_JITTER, RETRY_MAX, RETRY_SIGNALLING_LIMIT};
 use crate::transport::{Kind, Role, Technique};
 
 impl Order {
@@ -91,6 +91,7 @@ impl Order {
             actions |= action::CLOSE_RELAY;
         }
         self.carrier = Some(kind);
+        self.relay_after_retry = false;
         self.phase = Phase::Direct;
         self.phase_deadline = f64::INFINITY;
         self.retry_at = f64::INFINITY;
@@ -121,10 +122,26 @@ impl Order {
         self.direct_open = false;
         self.retry_running = false;
         self.retry_deadline = f64::INFINITY;
-        if matches!(self.phase, Phase::Relayed | Phase::Standby) {
-            self.schedule_periodic_retry((self.retry_interval * 2.0).min(RETRY_MAX), now, random);
+        if std::mem::take(&mut self.relay_after_retry) && self.phase == Phase::Standby && !self.other_route_works() {
+            return actions | self.budget_spent(now, random);
+        }
+        match self.phase {
+            Phase::Relayed => self.schedule_relayed_retry(now, random),
+            Phase::Standby => self.schedule_periodic_retry((self.retry_interval * 2.0).min(RETRY_MAX), now, random),
+            _ => {}
         }
         actions
+    }
+
+    /// The relay carries the stream: the next direct try a short gap after the last (ADR 0020).
+    pub(super) fn schedule_relayed_retry(&mut self, now: f64, random: f64) {
+        self.retry_interval = RELAYED_RETRY_GAP;
+        if self.role != Role::Offerer {
+            self.retry_at = f64::INFINITY;
+            return;
+        }
+        let r = random.clamp(0.0, 1.0);
+        self.retry_at = now + RELAYED_RETRY_GAP * (1.0 + RETRY_JITTER * (2.0 * r - 1.0));
     }
 
     pub(super) fn schedule_periodic_retry(&mut self, interval: f64, now: f64, random: f64) {

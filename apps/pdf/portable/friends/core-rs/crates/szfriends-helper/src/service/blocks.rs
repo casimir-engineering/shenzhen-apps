@@ -42,8 +42,11 @@ pub struct BlockSend {
     /// Each lane's parts not yet handed to its channel: (block, part, the block's last part).
     pub lanes: HashMap<u64, VecDeque<(u32, Frame, bool)>>,
     /// The receiver has the leaves (a HAVE came back): parts may go on lanes, which could overtake HASHES on the
-    /// first session.
+    /// lane that carried them.
     pub lanes_ok: bool,
+    /// The lane the leaves went on, the group's best-ranked live one: until a HAVE, parts go only there, behind them
+    /// on the same stream. Beside a direct lane that is never the relay (ADR 0020).
+    pub leaves_lane: u64,
     /// Pieces acknowledged, and the checked blocks slices are cut from (ADR 0018 § 3; the scheduler's units are
     /// slices).
     pub slices: SliceSend,
@@ -170,12 +173,13 @@ impl State {
         if first {
             let _ = schedule.scheduler.want(key, &[(0, slices.blocks)], now);
         }
+        let leaves_lane = self.leaves_lane(id);
         for frame in serve.hashes_frames() {
-            self.send_on(id, &frame);
+            self.send_on(leaves_lane, &frame);
         }
         let session = self.sessions.map.get_mut(&id)?;
         session.expecting.insert(hex(&wire), format!("done:{offer}"));
-        let send = BlockSend { serve, record, lanes: HashMap::new(), lanes_ok: false, slices: slice_send };
+        let send = BlockSend { serve, record, lanes: HashMap::new(), lanes_ok: false, leaves_lane, slices: slice_send };
         session.block_senders.insert(offer.to_owned(), send);
         Some(true)
     }
@@ -310,6 +314,30 @@ impl State {
             }
         }
         self.sessions.groups.late_answered.retain(|(l, _, _)| *l != lane);
+        self.leaves_again(head, lane);
+    }
+
+    /// The group's best-ranked live lane, where a transfer's leaves go (ADR 0020: a direct lane before the relay).
+    pub(crate) fn leaves_lane(&self, head: u64) -> u64 {
+        let rank = |route: szfriends_core::wire::RouteMethod| szfriends_core::wire::route::rank(route as u8) as usize;
+        self.sessions.groups.by_head.get(&head).map_or(head, |g| g.lanes.control_lane(rank))
+    }
+
+    /// `gone` carried leaves no HAVE has answered yet: they go again on the best lane left.
+    pub(crate) fn leaves_again(&mut self, head: u64, gone: u64) {
+        let lane = self.leaves_lane(head);
+        let mut frames = Vec::new();
+        if let Some(session) = self.sessions.map.get_mut(&head) {
+            for send in session.block_senders.values_mut() {
+                if send.leaves_lane == gone && !send.lanes_ok {
+                    send.leaves_lane = lane;
+                    frames.extend(send.serve.hashes_frames());
+                }
+            }
+        }
+        for frame in frames {
+            self.send_on(lane, &frame);
+        }
     }
 
     /// Every file this session's group sends by blocks: the scheduler (WP2) hears the lanes, the transfers and the
@@ -366,7 +394,7 @@ impl State {
                     else {
                         break;
                     };
-                    if lane != head && !send.lanes_ok {
+                    if lane != send.leaves_lane && !send.lanes_ok {
                         break;
                     }
                     let Some((block, part, last)) = send.lanes.get_mut(&lane).and_then(VecDeque::pop_front) else {

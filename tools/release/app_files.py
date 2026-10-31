@@ -117,7 +117,11 @@ class FilesRelease(Release):
         return {"files": [dmg]}
 
     SUITES = (("files/friends-adapter", ["tools/test-friends-adapter.sh"]),
-              ("files/friends-shortcut", ["tools/test-macos-friends-shortcut.sh"]))
+              ("files/friends-shortcut", ["tools/test-macos-friends-shortcut.sh"]),
+              # The owner's relay rule, release-blocking for every app that embeds the helper (ADR 0020).
+              ("files/friends-relay-rule", ["make", "-C", "../pdf/portable", "friends-relay-rule-check"]))
+    # Both build Friends under apps/pdf/portable/build: one at a time.
+    suite_locks = {"files/friends-adapter": ("friends-build",), "files/friends-relay-rule": ("friends-build",)}
 
     def tests(self):
         names = [name for name, _ in self.SUITES]

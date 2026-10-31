@@ -11,8 +11,12 @@ use szfriends_core::transfer::sim::{self, route_name, Scenario};
 
 /// The best any one of the scenario's lanes does alone, up from the start with everything else it does (silences,
 /// flapping, a cut): what "never slower than without the extra lanes" compares with.
+/// The relay counts only when no lane is direct: ADR 0020 keeps it unused beside a direct one.
 fn best_alone(scenario: &Scenario) -> Option<f64> {
+    let relay = |i: usize| scenario.lanes[i].route == szfriends_core::wire::RouteMethod::Relay;
+    let any_direct = (0..scenario.lanes.len()).any(|i| !relay(i));
     (0..scenario.lanes.len())
+        .filter(|&i| !(any_direct && relay(i)))
         .filter_map(|i| {
             let mut lane = scenario.lanes[i].clone();
             lane.up_at = Some(Duration::ZERO);
@@ -98,6 +102,42 @@ fn every_scenario_meets_its_expectations() {
             let route = route.as_str().unwrap();
             if out.lanes.iter().any(|l| route_name(l.route) == route && l.sent_bytes > 0) {
                 failures.push(format!("{name}: {route} carried bytes"));
+            }
+        }
+        for route in expect["carried"].as_array().into_iter().flatten() {
+            let route = route.as_str().unwrap();
+            if !out.lanes.iter().any(|l| route_name(l.route) == route && l.sent_bytes > 0) {
+                failures.push(format!("{name}: {route} carried nothing"));
+            }
+        }
+        // The owner's relay rule (ADR 0020): the relay beside a working direct lane, and how soon a lane that came up
+        // later (a route that appeared) carried its first part.
+        if let Some(max) = expect["max_relay_beside_direct_kib"].as_u64() {
+            if out.relay_beside_direct_bytes > max << 10 {
+                failures.push(format!(
+                    "{name}: the relay wrote {} bytes beside a working direct lane",
+                    out.relay_beside_direct_bytes
+                ));
+            }
+        }
+        if let Some(max) = expect["max_first_part_ms"].as_f64() {
+            for (lane, profile) in out.lanes.iter().zip(&scenario.lanes) {
+                if profile.route == szfriends_core::wire::RouteMethod::Relay || profile.up_at == Some(Duration::ZERO) {
+                    continue;
+                }
+                let Some(up) = lane.up_at else { continue };
+                let waited = lane.first_write.map_or(f64::INFINITY, |w| (w - up).as_secs_f64() * 1000.0);
+                println!(
+                    "{name}: {} up at {:.0} ms, its first part {waited:.0} ms later",
+                    route_name(lane.route),
+                    up.as_secs_f64() * 1000.0
+                );
+                if waited > max {
+                    failures.push(format!(
+                        "{name}: {} carried its first part {waited:.0} ms after it came up",
+                        route_name(lane.route)
+                    ));
+                }
             }
         }
         for request in expect["requests"].as_array().into_iter().flatten() {

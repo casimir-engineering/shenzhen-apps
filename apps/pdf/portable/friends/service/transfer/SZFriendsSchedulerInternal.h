@@ -17,8 +17,10 @@ static const double SZFSlowBlockSeconds = 1.0;
 static const double SZFCloseSilentAfter = 10;
 // In flight per lane at most.
 static const uint64_t SZFLaneBytesMax = 32ull << 20, SZFLaneBytesMaxPhone = 8ull << 20;
-// The same lane request is not repeated sooner than this.
+// The same lane request is not repeated sooner than this...
 static const double SZFRequestAgainAfter = 10;
+// ... except while the relay is the only lane working: a direct route is asked for this often (ADR 0020).
+static const double SZFRequestWhileRelayed = 1;
 // A lane is worth asking for only when the work left would take the current lanes longer than this.
 static const double SZFWorthALane = 4.0;
 // A lane slower than the fastest takes blocks only while it measures at least this share of the fastest: below it,
@@ -78,6 +80,8 @@ static inline void SZFTypical(SZFriendsRouteMethod route, double *rate, double *
     uint64_t inFlight, delivered;
     double deliveredAt, progressAt, heardAt;
     BOOL silent, closing, unused;
+    // Its unheardAfter passed and the scheduler looked (so the timer for it is not asked again until it is heard).
+    BOOL unheardNoted;
     // Placements in the order they were assigned: seq -> (transfer, block).
     NSMutableDictionary<NSNumber *, NSArray<NSNumber *> *> *holds;
 }
@@ -85,6 +89,7 @@ static inline void SZFTypical(SZFriendsRouteMethod route, double *rate, double *
 - (double)silentAfter;
 - (BOOL)working;
 - (double)unheardAfter;
+- (BOOL)reaches:(double)now;
 - (void)sampleRate:(double)value now:(double)now;
 - (void)sampleRTT:(double)value now:(double)now;
 - (NSArray<NSNumber *> *)holdSeqs;
@@ -117,7 +122,7 @@ static inline void SZFTypical(SZFriendsRouteMethod route, double *rate, double *
 - (uint64_t)cap:(SZFLane *)lane blockBytes:(uint64_t)blockBytes;
 - (BOOL)room:(SZFLane *)lane bytes:(uint64_t)bytes blockBytes:(uint64_t)blockBytes;
 - (uint64_t)unassignedBytes;
-- (NSArray<NSNumber *> *)eligible;
+- (NSArray<NSNumber *> *)eligible:(double)now;
 - (double)finishTime:(NSArray<NSNumber *> *)lanes bytes:(uint64_t)bytes;
 - (nullable NSNumber *)pick:(NSArray<NSNumber *> *)eligible bytes:(uint64_t)bytes blockBytes:(uint64_t)blockBytes
                  unassigned:(uint64_t)unassigned;
@@ -129,6 +134,9 @@ static inline void SZFTypical(SZFriendsRouteMethod route, double *rate, double *
 - (void)request:(SZFriendsRouteMethod)route now:(double)now;
 - (void)askForLanes:(NSArray<NSNumber *> *)eligible now:(double)now;
 - (void)releaseIfUnplaced:(SZFTransfer *)transfer block:(uint32_t)block;
+- (void)relayStepsAside:(double)now;
+- (BOOL)directReaches:(double)now;
+- (BOOL)relayed:(double)now;
 - (void)goSilent:(SZFriendsLaneID)laneID;
 - (void)recover:(SZFriendsLaneID)laneID;
 @end

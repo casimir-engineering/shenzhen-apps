@@ -386,6 +386,7 @@ impl State {
         let Some(conversation) = session.conversation.clone() else { return };
         self.nearby.failures.remove(&conversation);
         self.nearby.retry_after.remove(&conversation);
+        self.relay_probe_now();
         self.form_group(id);
         self.send_profile(id);
         self.store_comparison_code(id);

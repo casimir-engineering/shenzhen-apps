@@ -172,6 +172,15 @@ static BOOL BackoffIsStale(SZFriendsEndpointBackoff *backoff, NSDate *now) {
     [_backoffs removeObjectForKey:[self backoffKeyForEndpoint:endpointID method:method conversationID:conversationID]];
 }
 
+- (void)endBackoffsForConversation:(NSString *)conversationID {
+    NSDate *now = self.clock();
+    NSString *prefix = [conversationID stringByAppendingString:@"|"];
+    for (NSString *key in _backoffs) {
+        SZFriendsEndpointBackoff *backoff = _backoffs[key];
+        if ([key hasPrefix:prefix] && [backoff.until compare:now] == NSOrderedDescending) backoff.until = now;
+    }
+}
+
 - (BOOL)isBackingOff:(NSString *)key at:(NSDate *)now {
     SZFriendsEndpointBackoff *backoff = _backoffs[key];
     return backoff != nil && [backoff.until compare:now] == NSOrderedDescending;

@@ -8,6 +8,7 @@ const NSTimeInterval SZFriendsOnlineRetryFirst = 30;
 const NSTimeInterval SZFriendsOnlineRetryMax = 300;
 const double SZFriendsOnlineRetryJitter = 0.2;
 const NSTimeInterval SZFriendsOnlineRetrySignallingLimit = 10;
+const NSTimeInterval SZFriendsOnlineRelayedRetryGap = 1;
 
 BOOL SZFriendsOnlineHardNATWorthTrying(SZFriendsNATClass local, SZFriendsNATClass remote) {
     BOOL localHard = local == SZFriendsNATClassPerDestination;
@@ -102,6 +103,7 @@ static NSInteger NATPair(SZFriendsNATClass local, SZFriendsNATClass remote) {
         actions |= SZFriendsOnlineOrderActionCloseRelay;
     }
     _carrier = kind;
+    _relayAfterRetry = NO;
     _phase = SZFriendsOnlinePhaseDirect;
     _phaseDeadline = _retryAt = _retryDeadline = INFINITY;
     _retryRunning = NO;
@@ -121,16 +123,34 @@ static NSInteger NATPair(SZFriendsNATClass local, SZFriendsNATClass remote) {
     return actions | SZFriendsOnlineOrderActionOpenDirect;
 }
 
-// A retry found no direct path in its budget (or its connection failed): close it and wait longer for the next.
+// A retry found no direct path in its budget (or its connection failed): close it. While relayed the next one starts
+// a short gap later (ADR 0020); in Standby each waits twice as long as the last; and when the route carrying the
+// session went meanwhile, the relay opens now.
 - (SZFriendsOnlineOrderActions)retryEnded {
     SZFriendsOnlineOrderActions actions = [self stopProbing];
     if (_directOpen) actions |= SZFriendsOnlineOrderActionCloseDirect;
     _directOpen = NO;
     _retryRunning = NO;
     _retryDeadline = INFINITY;
-    BOOL periodic = _phase == SZFriendsOnlinePhaseRelayed || _phase == SZFriendsOnlinePhaseStandby;
-    if (periodic) [self schedulePeriodicRetryAfter:MIN(_retryInterval * 2, SZFriendsOnlineRetryMax)];
+    BOOL relayNow = _relayAfterRetry && _phase == SZFriendsOnlinePhaseStandby && ![self otherRouteWorks];
+    _relayAfterRetry = NO;
+    if (relayNow) return actions | [self budgetSpent];
+    if (_phase == SZFriendsOnlinePhaseRelayed) [self scheduleRelayedRetry];
+    if (_phase == SZFriendsOnlinePhaseStandby) {
+        [self schedulePeriodicRetryAfter:MIN(_retryInterval * 2, SZFriendsOnlineRetryMax)];
+    }
     return actions;
+}
+
+// The relay carries the stream: the next direct try a short gap (+/-20%) after the last (ADR 0020).
+- (void)scheduleRelayedRetry {
+    _retryInterval = SZFriendsOnlineRelayedRetryGap;
+    if (_role != SZFriendsOnlineRoleOfferer) {
+        _retryAt = INFINITY;
+        return;
+    }
+    double r = MIN(MAX(_random(), 0.0), 1.0);
+    _retryAt = [self now] + SZFriendsOnlineRelayedRetryGap * (1 + SZFriendsOnlineRetryJitter * (2 * r - 1));
 }
 
 // Only the offerer retries (the answerer answers the offerer's new offers); each wait is drawn from +/-20%.

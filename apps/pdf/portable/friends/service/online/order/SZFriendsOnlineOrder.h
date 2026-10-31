@@ -21,11 +21,13 @@
 //   Relay        the budget ran out with no direct path and no other route working: the relay connection opens
 //                (credentials, then a new peer connection). The direct connection keeps checking meanwhile.
 //   Relayed      the relay carries the stream. A new direct connection is tried after every network change and
-//                periodically (SZFriendsOnlineRetryFirst after the relay connected, doubling to
-//                SZFriendsOnlineRetryMax, with SZFriendsOnlineRetryJitter); the first one to connect replaces the
-//                relay, and ADR 0001 resumes transfers from the verified offset on the new session.
+//                again and again, SZFriendsOnlineRelayedRetryGap (+/-SZFriendsOnlineRetryJitter) after each try
+//                ends, never backing off (ADR 0020: the relay is the last resort); the first one to connect replaces
+//                the relay, and ADR 0001 resumes transfers from the verified offset on the new session.
 //   Standby      the budget ran out while another route carries the session (Bluetooth, or another attempt's relay):
-//                no relay of our own; direct is retried as while relayed, since Internet ranks before Bluetooth.
+//                no relay of our own; direct is retried periodically (SZFriendsOnlineRetryFirst, doubling to
+//                SZFriendsOnlineRetryMax), since Internet ranks before Bluetooth. When that route goes, direct is
+//                tried once more, and the relay opens only when that try fails.
 //   Direct       a direct path carries the stream.
 //   Ended        see endReason.
 // The relay is never used while another route works: a working route outside this attempt (-otherRouteChanged:)
@@ -43,10 +45,11 @@ NS_ASSUME_NONNULL_BEGIN
 
 extern const NSTimeInterval SZFriendsOnlinePlainChecksBudget;     // 5 s from both descriptions
 extern const NSTimeInterval SZFriendsOnlineHardNATBudget;         // 12 s more, with exactly one hard side
-extern const NSTimeInterval SZFriendsOnlineRetryFirst;            // 30 s after the relay connected
+extern const NSTimeInterval SZFriendsOnlineRetryFirst;            // 30 s in Standby
 extern const NSTimeInterval SZFriendsOnlineRetryMax;              // 300 s: doubling stops here
 extern const double SZFriendsOnlineRetryJitter;                   // 0.2: each wait is drawn from +/-20%
 extern const NSTimeInterval SZFriendsOnlineRetrySignallingLimit;  // 10 s for a retry's descriptions to arrive
+extern const NSTimeInterval SZFriendsOnlineRelayedRetryGap;       // 1 s between direct tries while relayed (ADR 0020)
 
 // Whether an Internet attempt could still improve on the route carrying the session now: only when that route ranks
 // after Internet (none, Bluetooth, the relay). Never beside a LAN or peer-to-peer Wi-Fi session, nor a second one

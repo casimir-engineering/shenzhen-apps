@@ -58,7 +58,7 @@ static void TestPlainChecksThenRelay(void) {
     CHECK([order streamOpenedOnConnection:SZFriendsOnlineConnectionRelay
                                     route:SZFOrderRoute(SZFriendsOnlineTechniqueRelay)] ==
           SZFriendsOnlineOrderActionNone);
-    CHECK(order.phase == SZFriendsOnlinePhaseRelayed && order.nextDeadline == 108 + SZFriendsOnlineRetryFirst);
+    CHECK(order.phase == SZFriendsOnlinePhaseRelayed && order.nextDeadline == 108 + SZFriendsOnlineRelayedRetryGap);
     SZFriendsTechniqueLogEntry *entry = order.logEntry;
     CHECK(entry.relayRequested && entry.relayNeeded && entry.firstTechnique == SZFriendsOnlineTechniqueRelay &&
           entry.secondsToFirstStream == 7 && !entry.leftRelay);
@@ -66,13 +66,14 @@ static void TestPlainChecksThenRelay(void) {
                        (1u << SZFriendsOnlineTechniqueRelay);
     CHECK(entry.techniquesTried == tried, "tried %lx", (unsigned long)entry.techniquesTried);
 
-    // The first periodic retry: a new direct connection (the first one is closed if it is still checking).
+    // The first retry, a second later (ADR 0020): a new direct connection (the first one is closed if it is still
+    // checking).
     SZFriendsOnlineOrderActions actions = SZFOrderAdvance(order, clock);
     CHECK(actions == (SZFriendsOnlineOrderActionCloseDirect | SZFriendsOnlineOrderActionOpenDirect) &&
-          clock.now == 138);
-    clock.now = 139;
+          clock.now == 109);
+    clock.now = 109.5;
     [order descriptionsAppliedWithLocalNATClass:Easy remoteNATClass:Easy];
-    clock.now = 140;
+    clock.now = 110;
     // It connects: the relay closes, and ADR 0001 resumes the transfer on the direct session.
     actions = [order streamOpenedOnConnection:SZFriendsOnlineConnectionDirect
                                         route:SZFOrderRoute(SZFriendsOnlineTechniqueServerReflexive)];
@@ -178,8 +179,12 @@ static void TestRelayOnlyAsLastResort(void) {
     CHECK(order.nextDeadline == 5 + SZFriendsOnlineRetryFirst, "direct is retried while on Bluetooth");
     CHECK(SZFOrderAdvance(order, clock) ==
           (SZFriendsOnlineOrderActionCloseDirect | SZFriendsOnlineOrderActionOpenDirect));
-    // Bluetooth is lost: now the relay is the last resort.
-    CHECK([order otherRouteChanged:SZFriendsRouteMethodNone] == SZFriendsOnlineOrderActionOpenRelay &&
+    // Bluetooth is lost: the direct try running finishes first (ADR 0020), then the relay is the last resort.
+    CHECK([order otherRouteChanged:SZFriendsRouteMethodNone] == SZFriendsOnlineOrderActionNone &&
+          order.phase == SZFriendsOnlinePhaseStandby);
+    [order descriptionsAppliedWithLocalNATClass:Easy remoteNATClass:Easy];
+    CHECK(SZFOrderAdvance(order, clock) ==
+              (SZFriendsOnlineOrderActionCloseDirect | SZFriendsOnlineOrderActionOpenRelay) &&
           order.phase == SZFriendsOnlinePhaseRelay);
     [order streamOpenedOnConnection:SZFriendsOnlineConnectionRelay route:SZFOrderRoute(SZFriendsOnlineTechniqueRelay)];
     CHECK(order.phase == SZFriendsOnlinePhaseRelayed);

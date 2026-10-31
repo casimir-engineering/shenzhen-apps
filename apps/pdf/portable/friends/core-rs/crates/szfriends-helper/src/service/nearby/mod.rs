@@ -18,6 +18,7 @@
 //! | `chain.rs` | `+Chain.m` | our chain to friends, theirs kept, a chain before a first request |
 //! | `friend_devices.rs` | `+FriendDevices.m` | finding and reaching friends' other computers |
 //! | `removed.rs` | `+Removed.m` | telling a computer we removed that it was removed |
+//! | `relayed.rs` | `+Relayed.m` | while the relay carries a session, every direct route tried each second (ADR 0020) |
 
 mod by_id;
 mod chain;
@@ -32,6 +33,8 @@ mod links;
 mod own;
 mod people;
 pub mod policy;
+mod relayed;
+pub use relayed::RELAY_PROBE_SECONDS;
 mod removed;
 
 use std::collections::{HashMap, HashSet};
@@ -107,6 +110,8 @@ pub struct Nearby {
     states: HashMap<Method, AdapterState>,
     working_since: Option<f64>,
     reconsider_at: Option<f64>,
+    /// While the relay carries a session: when direct routes are tried again next (relayed.rs, ADR 0020).
+    relay_probe_at: Option<f64>,
     expire_at: f64,
     callback_refresh_at: Option<f64>,
     pub shut_down: bool,
@@ -147,6 +152,7 @@ impl Nearby {
             states,
             working_since: None,
             reconsider_at: None,
+            relay_probe_at: None,
             expire_at: 0.0,
             callback_refresh_at: None,
             shut_down: false,

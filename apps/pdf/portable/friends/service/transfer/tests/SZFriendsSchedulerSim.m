@@ -64,6 +64,13 @@ static SZFriendsRouteMethod SZFRouteNamed(NSString *name) {
     return lane;
 }
 
+- (BOOL)silentAt:(double)t {
+    for (NSArray<NSNumber *> *window in _silences) {
+        if (window[0].doubleValue <= t && t < window[1].doubleValue) return YES;
+    }
+    return NO;
+}
+
 // `d` of transmission starting at `t`, stretched over the silences.
 - (double)advance:(double)t by:(double)d {
     for (NSArray<NSNumber *> *window in _silences) {
@@ -430,11 +437,15 @@ SZFSimOutcome *SZFSimRun(SZFSimScenario *scenario) {
     out.laneSentBytes = [NSMutableArray array];
     out.laneLastWrite = [NSMutableArray array];
     out.laneUp = [NSMutableArray array];
+    out.laneUpAt = [NSMutableArray array];
+    out.laneFirstWrite = [NSMutableArray array];
     out.requests = [NSMutableArray array];
     for (NSUInteger i = 0; i < scenario.lanes.count; i++) {
         [out.laneSentBytes addObject:@0];
         [out.laneLastWrite addObject:@0];
         [out.laneUp addObject:@NO];
+        [out.laneUpAt addObject:@-1];
+        [out.laneFirstWrite addObject:@-1];
     }
     sim->_out = out;
     [sim start];

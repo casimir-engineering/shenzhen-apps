@@ -28,6 +28,13 @@ impl Lane {
         !self.silent && !self.closing && !self.unused
     }
 
+    /// The route still reaches the peer: open, and something heard from it lately (both ends ping every second while
+    /// a file moves). A lane that is only slow, or held up behind parts it no longer needs, reaches; one out of range
+    /// or cut does not. While a direct lane reaches, the relay carries nothing (ADR 0020).
+    pub(super) fn reaches(&self, now: Duration) -> bool {
+        !self.closing && !self.unused && now.saturating_sub(self.heard_at) < self.unheard_after()
+    }
+
     pub(super) fn sample_rate(&mut self, now: Duration, rate: f64) {
         self.rates.push_back((now, rate.min(1e11)));
         while self.rates.front().is_some_and(|(t, _)| now.saturating_sub(*t) > SAMPLE_WINDOW) {
@@ -75,12 +82,15 @@ impl Scheduler {
         self.transfers.iter().map(|t| t.unassigned.iter().map(|&b| t.bytes(b)).sum::<u64>()).sum()
     }
 
-    /// Lanes that may take blocks now: working ones; the relay only when nothing else works; Bluetooth only alone or
-    /// while the others measure below 4 MB/s together; none under 3 % of the fastest.
-    pub(super) fn eligible(&self) -> Vec<LaneId> {
+    /// Lanes that may take blocks now: working ones; the relay only when no direct lane reaches the peer (ADR 0020);
+    /// Bluetooth only alone or while the others measure below 4 MB/s together; none under 3 % of the fastest.
+    pub(super) fn eligible(&self, now: Duration) -> Vec<LaneId> {
         let working: Vec<(&LaneId, &Lane)> = self.lanes.iter().filter(|(_, l)| l.working()).collect();
-        let direct: Vec<_> = working.iter().filter(|(_, l)| l.route != RouteMethod::Relay).copied().collect();
-        let lanes = if direct.is_empty() { working } else { direct };
+        let lanes = if self.direct_reaches(now) {
+            working.into_iter().filter(|(_, l)| l.route != RouteMethod::Relay).collect()
+        } else {
+            working
+        };
         let others: f64 = lanes.iter().filter(|(_, l)| l.route != RouteMethod::Bluetooth).map(|(_, l)| l.rate).sum();
         let only_bluetooth = lanes.iter().all(|(_, l)| l.route == RouteMethod::Bluetooth);
         let fastest = lanes.iter().map(|(_, l)| l.rate).fold(0.0, f64::max);
@@ -153,7 +163,8 @@ impl Scheduler {
     }
 
     pub(super) fn fill(&mut self, now: Duration) {
-        let eligible = self.eligible();
+        self.relay_steps_aside(now);
+        let eligible = self.eligible(now);
         let mut unassigned = self.unassigned_bytes();
         while let Some((at, block)) = self.next_block() {
             let (bytes, block_bytes) = (self.transfers[at].bytes(block), self.transfers[at].geometry.block_bytes());
@@ -256,9 +267,20 @@ impl Scheduler {
         }
     }
 
+    /// A lane other than the relay reaches the peer (ADR 0020).
+    pub(super) fn direct_reaches(&self, now: Duration) -> bool {
+        self.lanes.values().any(|l| l.route != RouteMethod::Relay && l.reaches(now))
+    }
+
+    /// The relay carries the transfer: it works and no direct lane reaches the peer (ADR 0020).
+    pub(super) fn relayed(&self, now: Duration) -> bool {
+        self.lanes.values().any(|l| l.route == RouteMethod::Relay && l.working()) && !self.direct_reaches(now)
+    }
+
     pub(super) fn request(&mut self, route: RouteMethod, now: Duration) {
         let last = self.requested.get(&(route as u8));
-        if last.is_none_or(|t| now.saturating_sub(*t) >= REQUEST_AGAIN_AFTER) {
+        let again = if self.relayed(now) { REQUEST_WHILE_RELAYED } else { REQUEST_AGAIN_AFTER };
+        if last.is_none_or(|t| now.saturating_sub(*t) >= again) {
             self.requested.insert(route as u8, now);
             self.actions.push(Action::Lane(LaneRequest::Open { route }));
         }
@@ -287,6 +309,35 @@ impl Scheduler {
         }
         if direct_wifi {
             self.request(RouteMethod::PeerToPeerWifi, now);
+        }
+    }
+
+    /// The owner's relay rule (ADR 0020): while a direct lane works, the relay carries nothing. What it holds goes
+    /// back at once to be sent on the direct lanes (its parts not yet written are dropped); it keeps its session, for
+    /// when every direct lane is gone again.
+    pub(super) fn relay_steps_aside(&mut self, now: Duration) {
+        if !self.direct_reaches(now) {
+            return;
+        }
+        let relays: Vec<LaneId> = self
+            .lanes
+            .iter()
+            .filter(|(_, l)| l.route == RouteMethod::Relay && !l.holds.is_empty())
+            .map(|(id, _)| *id)
+            .collect();
+        for id in relays {
+            let lane = self.lanes.get_mut(&id).expect("listed");
+            let holds = std::mem::take(&mut lane.holds);
+            lane.in_flight = 0;
+            for (seq, (key, block)) in holds {
+                if let Some(transfer) = self.transfers.iter_mut().find(|t| t.key == key) {
+                    if let Some(placements) = transfer.open.get_mut(&block) {
+                        placements.retain(|p| p.seq != seq);
+                    }
+                }
+                self.actions.push(Action::Cancel { lane: id, transfer: key, block });
+                self.release_if_unplaced(key, block);
+            }
         }
     }
 

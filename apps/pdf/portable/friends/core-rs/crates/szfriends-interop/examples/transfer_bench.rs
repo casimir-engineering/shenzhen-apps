@@ -19,6 +19,13 @@
 //!                      lanes. SZFRIENDS_TEST_AES_LANES=0 and SZFRIENDS_TEST_COMPRESSED_PARTS=0 run the Rust peers
 //!                      without AES-GCM lanes or compressed parts (ADR 0018 § 9.2, § 9.4), for before and after;
 //!                      SZFRIENDS_TEST_ZSTD=0 plays a phone that compresses with LZ4 only.
+//!   BENCH_RELAY        the owner's relay rule (ADR 0020): relay-then-lan, relay-then-p2p (a direct route found
+//!                      while the relay carries the file, as a session that wins the race), relay+lan-late,
+//!                      relay+p2p_wifi-late, relay+bt-late (as a lane), lan+relay-cut-lan-back (the relay unused
+//!                      beside the LAN, taking over once it is cut, unused again once it is back); default: all. Each
+//!                      fails when the relay carried more than 512 KiB beside a working direct route (what was
+//!                      already in its socket) or a new route carried its first part more than a second after it
+//!                      came up. `make friends-relay-rule-check` runs them, in the release suites.
 //!   BENCH_CORPUS       a directory whose files, one after another, make up each case's files instead of
 //!                      pseudo-random bytes (which do not compress): for compressed parts (ADR 0018 § 9.4)
 //!   BENCH_MAX_SECONDS  skip a case the route would need longer than this for at its rate (default 120)
@@ -31,7 +38,8 @@ use std::time::Duration;
 
 use serde_json::{json, Value};
 use szfriends_interop::bench::{
-    self, Case, Loss, MultiCase, PeerSpec, RouteProfile, BLUETOOTH, LAN, LAN_SLOW, LOOPBACK, MIB, P2P_WIFI, ROUTES,
+    self, Case, Loss, MultiCase, PeerSpec, RelayCase, RouteProfile, BLUETOOTH, LAN, LAN_SLOW, LOOPBACK, MIB, P2P_WIFI,
+    ROUTES,
 };
 
 fn list(name: &str, default: &str) -> Vec<String> {
@@ -193,6 +201,18 @@ fn main() {
         for (sender, receiver) in &pairs {
             eprintln!("bench: {} {} → {}", case.name, sender.label, receiver.label);
             let mut result = bench::run_multi(&case, sender, receiver);
+            result["payload"] = json!(bench::payload(&case.files));
+            eprintln!("bench: {result}");
+            bench::append(&out, &result);
+            results.push(result);
+        }
+    }
+    // The owner's relay rule (ADR 0020): each case fails when the relay carried a file beside a working direct route
+    // or a new route waited longer than a second for its first part.
+    for case in list("BENCH_RELAY", RelayCase::ALL).iter().filter_map(|name| RelayCase::named(name)) {
+        for (sender, receiver) in &pairs {
+            eprintln!("bench: {} {} → {}", case.name, sender.label, receiver.label);
+            let mut result = bench::run_relay(&case, sender, receiver);
             result["payload"] = json!(bench::payload(&case.files));
             eprintln!("bench: {result}");
             bench::append(&out, &result);

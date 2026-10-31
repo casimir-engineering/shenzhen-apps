@@ -7,9 +7,12 @@
 //! Phases, as the offerer runs them (the answerer never starts the relay or probing itself; it follows the offerer's
 //! signalling and has no timers): Signalling until both descriptions are applied; PlainChecks for 5 s; HardNAT for up
 //! to 12 s more when exactly one side maps per destination; Relay once the budget ran out with no other route working;
-//! Relayed while the relay carries the stream (direct retried after 30 s, doubling to 300 s, ±20%); Standby while
-//! another route carries the session; Direct; Ended.
+//! Relayed while the relay carries the stream (direct retried again and again, RELAYED_RETRY_GAP ±20% after each try
+//! ends: the owner's relay rule, ADR 0020); Standby while another route carries the session (direct retried after
+//! 30 s, doubling to 300 s, ±20%; when that route goes, direct is tried once more before the relay opens); Direct;
+//! Ended.
 
+mod peer;
 #[cfg(test)]
 mod tests;
 mod timers;
@@ -25,6 +28,9 @@ pub const RETRY_FIRST: f64 = 30.0;
 pub const RETRY_MAX: f64 = 300.0;
 pub const RETRY_JITTER: f64 = 0.2;
 pub const RETRY_SIGNALLING_LIMIT: f64 = 10.0;
+/// While the relay carries the stream, the next direct try starts this long (±20%) after the last one ended: the relay
+/// is the last resort, so a direct path that becomes possible takes over within about one try (ADR 0020).
+pub const RELAYED_RETRY_GAP: f64 = 1.0;
 
 fn better(a: RouteMethod, b: RouteMethod) -> bool {
     rank(a as u8) < rank(b as u8)
@@ -126,6 +132,9 @@ pub struct Order {
     retry_deadline: f64,
     retry_at: f64,
     retry_interval: f64,
+    /// The route carrying the session outside this attempt went while in Standby: direct is tried once more, and only
+    /// when that try fails does the relay open (ADR 0020: the relay only once every other route failed).
+    relay_after_retry: bool,
     first_descriptions_at: Option<f64>,
     log: LogEntry,
 }
@@ -149,6 +158,7 @@ impl Order {
             retry_deadline: f64::INFINITY,
             retry_at: f64::INFINITY,
             retry_interval: RETRY_FIRST,
+            relay_after_retry: false,
             first_descriptions_at: None,
             log: LogEntry {
                 purpose,
@@ -283,7 +293,7 @@ impl Order {
         }
         self.phase = Phase::Relayed;
         if !self.retry_running {
-            self.schedule_periodic_retry(RETRY_FIRST, now, random);
+            self.schedule_relayed_retry(now, random);
         }
         0
     }
@@ -303,7 +313,7 @@ impl Order {
         if !direct && self.phase == Phase::Direct {
             self.phase = Phase::Relayed;
             self.relay_open = true;
-            self.schedule_periodic_retry(RETRY_FIRST, now, random);
+            self.schedule_relayed_retry(now, random);
         }
         0
     }
@@ -363,9 +373,8 @@ impl Order {
         if self.carrier == Some(Kind::Relay) {
             self.carrier = None;
         }
-        let scheduled = self.phase == Phase::Relayed && self.retry_at.is_finite();
         self.phase = Phase::Standby;
-        if !self.retry_running && !scheduled {
+        if !self.retry_running {
             self.schedule_periodic_retry(RETRY_FIRST, now, random);
         }
         actions
@@ -387,7 +396,12 @@ impl Order {
             return 0;
         }
         if self.phase == Phase::Standby && self.role == Role::Offerer {
-            return self.budget_spent(now, random);
+            // Direct once more before the relay: the last try may be minutes old (ADR 0020).
+            self.relay_after_retry = true;
+            if self.retry_running {
+                return 0;
+            }
+            return self.open_retry(now);
         }
         0
     }
@@ -439,55 +453,6 @@ impl Order {
             return self.budget_spent(now, random);
         }
         0
-    }
-
-    pub fn peer_started_hard_nat(&mut self) -> u32 {
-        if self.ended() || self.role != Role::Answerer {
-            return 0;
-        }
-        if matches!(self.phase, Phase::PlainChecks | Phase::Signalling) {
-            self.phase = Phase::HardNat;
-        } else if !self.retry_running {
-            return 0;
-        }
-        self.start_hard_nat()
-    }
-
-    pub fn peer_opened_relay(&mut self) -> u32 {
-        if self.ended() || self.role != Role::Answerer || self.relay_open || self.phase == Phase::Direct {
-            return 0;
-        }
-        let actions = self.stop_probing();
-        self.relay_open = true;
-        self.phase = Phase::Relay;
-        self.log.relay_requested = true;
-        self.note_technique_tried(Technique::Relay);
-        actions | action::OPEN_RELAY
-    }
-
-    pub fn peer_opened_direct(&mut self) -> u32 {
-        if self.ended() || self.role != Role::Answerer || self.phase == Phase::Direct {
-            return 0;
-        }
-        let mut actions = self.stop_probing();
-        if self.direct_open {
-            actions |= action::CLOSE_DIRECT;
-        }
-        self.direct_open = true;
-        self.log.direct_retries += 1;
-        if matches!(self.phase, Phase::PlainChecks | Phase::HardNat) {
-            self.phase = Phase::Signalling;
-        } else if self.phase != Phase::Signalling {
-            self.retry_running = true;
-        }
-        actions | action::OPEN_DIRECT
-    }
-
-    pub fn peer_network_changed(&mut self, now: f64) -> u32 {
-        if self.role != Role::Offerer {
-            return 0;
-        }
-        self.network_changed(now)
     }
 
     pub fn close(&mut self) -> u32 {

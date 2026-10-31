@@ -55,6 +55,7 @@ typedef NS_ENUM(int, SZFLaneState) { SZFIdle, SZFDialing, SZFUp, SZFGone };
 
 @interface SZFSimLaneProfile ()
 - (double)advance:(double)t by:(double)d;
+- (BOOL)silentAt:(double)t;
 @end
 
 @interface SZFSim : NSObject

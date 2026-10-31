@@ -51,6 +51,11 @@ NS_ASSUME_NONNULL_BEGIN
 @property(nonatomic) uint64_t maxOpenBytes;
 @property(nonatomic) BOOL laneCapExceeded;
 @property(nonatomic, strong) NSMutableArray<NSString *> *requests; // "open bluetooth", "close"
+// ADR 0020: when each lane came up and wrote its first part (negative: never), and what the relay wrote while a direct
+// lane worked (up, not silent, not cut).
+@property(nonatomic, strong) NSMutableArray<NSNumber *> *laneUpAt;
+@property(nonatomic, strong) NSMutableArray<NSNumber *> *laneFirstWrite;
+@property(nonatomic) uint64_t relayBesideDirectBytes;
 // How long the fastest lane still up at the end sat idle before completion.
 - (double)tailFor:(SZFSimScenario *)scenario;
 @end

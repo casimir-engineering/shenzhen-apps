@@ -14,6 +14,7 @@ NS_ASSUME_NONNULL_BEGIN
     case SZFEvUp:
         if (lane->state == SZFIdle && [_group reserve:lane->lane route:lane->profile.route token:NULL] == 0) return;
         lane->state = SZFUp;
+        if ([_out.laneUpAt[i] doubleValue] < 0) _out.laneUpAt[i] = @(_now);
         [_group laneUp:lane->lane];
         [self at:_now + 1 event:SZFMake(SZFEvPing, i)];
         [self feedGroup];
@@ -30,8 +31,17 @@ NS_ASSUME_NONNULL_BEGIN
         if (lane->epoch != ev.epoch || !lane->busy) return;
         SZFPart part = lane->current;
         lane->busy = NO;
+        BOOL directWorks = NO;
+        for (SZFSimLane *other in _lanes) {
+            directWorks |= other->profile.route != SZFriendsRouteMethodRelay && other->state == SZFUp &&
+                           ![other->profile silentAt:_now];
+        }
+        if (lane->profile.route == SZFriendsRouteMethodRelay && directWorks) {
+            _out.relayBesideDirectBytes += part.to - part.from;
+        }
         _out.laneSentBytes[i] = @([_out.laneSentBytes[i] unsignedLongLongValue] + part.to - part.from);
         _out.laneLastWrite[i] = @(_now);
+        if ([_out.laneFirstWrite[i] doubleValue] < 0) _out.laneFirstWrite[i] = @(_now);
         double arrive = [lane->profile advance:_now by:lane->profile.rtt / 2];
         SZFEvent event = SZFMake(SZFEvArrive, i);
         event.epoch = ev.epoch;

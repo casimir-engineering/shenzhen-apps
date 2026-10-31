@@ -60,9 +60,15 @@ Once an app has a release tag here, its gate finds the previous release by tag a
    The rule and why: [FRIENDS.md](FRIENDS.md#the-helper-build-number). Every release job runs the same check.
    The check fails until the first ShenzhenPDF release prepared in this repository (see above). Prepare it before
    releasing Shenzhen Files or Shenzhen 3D.
-2. Update the app's README "Latest" marker and its release notes, as each app's own guide says. Write the notes by
+2. **The relay, last resort only** ([ADR 0020](../apps/pdf/portable/friends/docs/adr/0020-relay-last-resort.md),
+   the owner's rule; release-blocking). `make -C apps/pdf/portable friends-relay-rule-check` must pass: the relay
+   carries a file only when no direct route works, and a direct route that appears while it does carries the file
+   within about a second. Every app's release runs it (ShenzhenPDF in `friends-tests`, Shenzhen Files and Shenzhen 3D
+   as `files/friends-relay-rule` and `3d/friends-relay-rule`); it needs `cargo`. A breach found after a release
+   needs a fix release.
+3. Update the app's README "Latest" marker and its release notes, as each app's own guide says. Write the notes by
    [RELEASE-NOTES.md](RELEASE-NOTES.md): only what someone on the last published release will notice.
-3. Merge to `main`, with a clean tree.
+4. Merge to `main`, with a clean tree.
 
 ## One command per app
 
@@ -116,7 +122,8 @@ so a rerun waits for that submission instead of uploading again. Network errors 
 
 **Tests.** The suites a release needs: every `*-tests` target of `apps/pdf/portable/Makefile` (the release sweep, the
 Friends suite and the launch performance gate among them); `apps/files/tools/test-friends-adapter.sh` and
-`test-macos-friends-shortcut.sh`; Shenzhen 3D's `npm test`, `test:electron` and `test:friends`. Each one that passes
+`test-macos-friends-shortcut.sh`; Shenzhen 3D's `npm test`, `test:electron` and `test:friends`; and for Files and 3D
+the relay rule's gate, `friends-relay-rule-check` (ShenzhenPDF runs it in `friends-tests`). Each one that passes
 is recorded by `tools/test-stamp.sh` for the commit, and a suite that passed on the same commit is not run again,
 whoever ran it: `make -C apps/pdf/portable friends-tests` and `mac-launch-performance-tests`, `cut-release.sh`'s sweep
 and the Files test scripts record themselves too. A stamp is filed under the sources the app's suites build from
