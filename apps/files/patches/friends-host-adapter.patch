@@ -6969,7 +6969,7 @@ new file mode 100644
 index 0000000..c5b98f3
 --- /dev/null
 +++ b/test/friends/test-nautilus-friends-shortcut.m
-@@ -0,0 +1,933 @@
+@@ -0,0 +1,944 @@
 +/*
 + * test-nautilus-friends-shortcut.m: Cmd+J and Cmd+K pressed on a real, mapped window, through AppKit and GDK.
 + *
@@ -7394,6 +7394,15 @@ index 0000000..c5b98f3
 +    return !palette_open (window);
 +}
 +
++/* The keyboard is in the open palette's field: what is typed now goes there. */
++static gboolean
++palette_field_focused (gpointer window)
++{
++    AdwDialog *palette = nautilus_command_palette_get_open (window);
++
++    return palette != NULL && focus_in (window, nautilus_command_palette_get_entry (palette));
++}
++
 +static gboolean
 +listed (AdwDialog  *palette,
 +        const char *title)
@@ -7426,6 +7435,8 @@ index 0000000..c5b98f3
 +    }
 +    palette = nautilus_command_palette_get_open (window);
 +    entry = nautilus_command_palette_get_entry (palette);
++    /* Under load the field takes the keyboard a moment after the palette opens: a key before that is not its. */
++    pump_until (palette_field_focused, window, 2000);
 +    type_text (window, query);
 +    pump_for (100);
 +    EXPECT (g_strcmp0 (gtk_editable_get_text (GTK_EDITABLE (entry)), query) == 0,
