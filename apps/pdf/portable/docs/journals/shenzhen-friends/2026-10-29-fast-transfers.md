@@ -1755,3 +1755,52 @@ to 47 ms (session, Internet), 1 to 2 ms (a LAN lane back after a cut), 96 to 141
 relay carried once a direct route was up 33 to 246 KB, all of it parts already in its session's queue and socket (49
 to 98 KB passed even with the relay session closed at once); beside a LAN that worked from the start, 166 to 174
 bytes (pings). `make friends-relay-rule-check`: about 45 s once built.
+
+## Transfer progress by route (2026-11-01)
+
+The owner's approved design (option B, "Bar split by route", mockup artifact 1EiPpRFS9Q4TaAh6DtsZLr), for the next
+release, in all three apps, plus his addition the same day: the percentage on the amount line.
+
+Helper build 26103103 (MAC_BUILD 3) carries it.
+
+**Reporting (both helpers).** A route meter per helper (`service/transfer/SZFriendsRouteMeter.m`,
+`szfriends-core/src/transfer/meter.rs`, the same rules) counts the file bytes of every PART and CHUNK a session sends
+or receives, by the transfer (the frame's ID) and the session's own route, a lane's included: on the Mac at the
+channel (`onFrameQueued`, new) and where frames come in, in Rust at the session loop and the three places parts and
+chunks are sent. A snapshot reads it: bytes per route, the routes active now (bytes in the last 1.5 s, and a route
+that began after another's last bytes replaces it at once), a speed smoothed over about 3 s, and a time left that
+counts down from its last value while the estimate stays within 25 % or 2 s of it. Nothing runs between snapshots.
+Also, so the bar is true from both sides: a sender by blocks shows what its receiver acknowledged (both helpers left
+it at 0 % until the end), the Mac's receiver counts every checked block in any order (it showed the durable prefix,
+which stood still behind a Bluetooth block), and a copy pulled from several holders says how many serve it and
+whether they are all the person's own computers.
+
+**Presentation.** Client capability `transfers.progress` (PROTOCOL.md § Fast transfers, Progress by route): `progress`
+gains `routes`, `segments`, `amount_label` ("31.2 MB of 48 MB · 65 % · 12.4 MB/s"), `time_left_label` ("2 s left",
+"Finishing…"), `detail_label` ("Via Same Wi-Fi + Bluetooth · From 2 of your computers", "… · you’ll rejoin
+“HomeWiFi” after") and `finishing`; `route_note` is null unless the boost asks or is connecting or rejoining. Other
+views get exactly what they got before. Presentation suites: one case each (`TestProgressByRoute`,
+`progress_by_route`).
+
+**Views.** ShenzhenPDF (`mac/SZFriendsTransferProgress.m`, the mockup's SVG paths read by a small path reader),
+Shenzhen Files (`gtk/szfriends_gtk_transfer_progress.c`, the same paths through `gsk_path_parse`) and Shenzhen 3D
+(`src/friends/TransferProgress.tsx`, the SVGs as they are): 24-point squares in the route colours with white glyphs,
+an outline once a route is no longer used, tooltips and accessibility labels "Bluetooth · in use"; the 8-point bar in
+segments; tabular digits; Cancel on the detail line (3D keeps its actions under the card). Finishing: a full bar whose
+lighter band slides every 1.4 s, still under reduce motion (`accessibilityDisplayShouldReduceMotion`,
+`gtk-enable-animations`, `prefers-reduced-motion`).
+
+**Checked through the real views, offscreen.** A one-off harness (not committed) ran whole helpers in test homes on
+the bench's emulated routes (`SZFRIENDS_TEST_ROUTE_RATES`, the test air, the loopback network, the local host) and
+attached the three apps' real Friends views to the receiving helper's socket: the AppKit dropdown in a window never
+ordered in, the GTK dropdown never mapped, the Electron shell hidden. 48 screenshots, light and dark, in
+`~/Downloads/Shenzhen transfer progress/`: same Wi-Fi + Bluetooth (Rust, and the Mac's Objective-C helper receiving),
+direct Wi-Fi after Go faster (the sender leaving "HomeWiFi"), Internet P2P only, Internet then the same Wi-Fi coming up
+mid-transfer (the Wi-Fi icon took over and the globe went to an outline within the snapshot after), a copy from two
+holders ("From 2 devices at once": the first computer and the friend), and Finishing (6.4 GB into the Objective-C
+helper; the Rust helper checks 6.4 GB in under the 1 s that shows Finishing). **Not shown: the relay.** No coturn is
+built on this Mac, and building it fetches four archives, so the relay-only case and its switch to a direct route
+were run as Internet then same Wi-Fi; the meter's rule is the same for any route. Suites run: presentation (both),
+`szfriends-core`, `szfriends-helper` lib, service and boost, interop `fast_lanes`, `you_copies`, `pulls`,
+`friends-helper-check`, store, session, transfer, GTK, 3D (vitest, `friends-host.test.cjs`). `friends-views-check`
+fails two Follow assertions (the pill scrolling to the first new message), as it does on main at 6a965165.
