@@ -1,0 +1,128 @@
+{
+  "type": "snapshot",
+  "subscription": "s_4",
+  "view": "conversation",
+  "rev": 12,
+  "data": {
+    "conversation_id": "c_mei",
+    "header": {
+      "title": "Mei Lin",
+      "subtitle": "Nearby, on your network",
+      "route": {
+        "kind": "local",
+        "method": "lan",
+        "label": "Nearby, on your network"
+      },
+      "avatar": {
+        "kind": "animal",
+        "set": 1,
+        "index": 7,
+        "initials": "ML",
+        "color": "#3f6b4f"
+      },
+      "details_available": true,
+      "accessibility_label": "Mei Lin, nearby, on your network, show details"
+    },
+    "back": {
+      "badge_count": 2,
+      "badge_label": "2",
+      "accessibility_label": "Back to Friends, 2 waiting"
+    },
+    "search_placeholder": "Search this conversation",
+    "has_earlier": false,
+    "items": [
+      {
+        "kind": "day",
+        "item_id": "d_20261012",
+        "label": "Today",
+        "highlighted": false,
+        "accessibility_label": "Today"
+      },
+      {
+        "kind": "transfer",
+        "item_id": "t_4d9b7a35",
+        "transfer_id": "t_4d9b7a35",
+        "direction": "in",
+        "file": {
+          "name": "Line 2 layout.pdf",
+          "kind_label": "PDF",
+          "size_label": "58.4 MB",
+          "size_bytes": 58402113,
+          "path": null,
+          "type_identifier": "com.adobe.pdf",
+          "extension": "pdf"
+        },
+        "meta_label": "PDF · 58.4 MB",
+        "state": "fetching",
+        "status_label": "Copying from Raph’s Mac mini · 25%",
+        "route_note": null,
+        "progress": {
+          "fraction": 0.25,
+          "determinate": true,
+          "accessibility_label": "Copying, 25 percent",
+          "routes": [
+            {
+              "method": "lan",
+              "active": true,
+              "label": "Same Wi-Fi · in use"
+            },
+            {
+              "method": "bluetooth",
+              "active": false,
+              "label": "Bluetooth · not in use now"
+            }
+          ],
+          "segments": [
+            {
+              "method": "lan",
+              "fraction": 0.21
+            },
+            {
+              "method": "bluetooth",
+              "fraction": 0.04
+            }
+          ],
+          "amount_label": "14.6 MB of 58.4 MB · 25 % · 4.2 MB/s",
+          "time_left_label": "11 s left",
+          "detail_label": "Via Same Wi-Fi · From 2 of your computers",
+          "finishing": false
+        },
+        "thumbnail": null,
+        "actions": [
+          {
+            "action": "cancel_transfer",
+            "label": "Cancel",
+            "style": "link"
+          }
+        ],
+        "assistant_label": null,
+        "time_label": "10:07",
+        "highlighted": false,
+        "accessibility_label": "Mei Lin sent Line 2 layout.pdf, PDF, 58.4 MB, copying from Raph’s Mac mini, 25 percent"
+      }
+    ],
+    "highlight_item_id": null,
+    "request": null,
+    "composer": {
+      "visible": true,
+      "enabled": true,
+      "placeholder": "Message Mei",
+      "hint": [
+        {
+          "text": "Type "
+        },
+        {
+          "text": "#",
+          "emphasis": true
+        },
+        {
+          "text": " to attach, or drop files here"
+        }
+      ],
+      "send_label": "Send",
+      "note": null,
+      "accepts_drops": true,
+      "max_text_bytes": 32768
+    }
+  }
+}

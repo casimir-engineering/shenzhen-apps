@@ -76,6 +76,11 @@ function hidden(
       Boolean(record.request)
     );
   if (key === "text") return record.kind === "message";
+  // Progress by route (transfers.progress): its lines take the place of the status line (PROTOCOL.md § Fast transfers).
+  if (key === "status_label")
+    return Boolean(
+      (record.progress as { amount_label?: string } | null)?.amount_label,
+    );
   return false;
 }
 const SKIP = new Set([
