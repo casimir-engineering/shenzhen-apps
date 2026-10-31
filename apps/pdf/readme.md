@@ -76,6 +76,8 @@ Message people nearby or by their Friends ID, and send them documents. Friends a
 - Drop files on the Friends button to send them.
 - Each friend's row shows the latest message in your conversation.
 - Files go over every connection you share at once, such as your network and Bluetooth, and pick up where they stopped.
+- See how each file travels: an icon for each way it's using, and a bar showing how much each one carried, with the size, percentage, speed and time left.
+- Friends always tries a direct connection first, and stops using the relay as soon as one works.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/portable/readme-friends-list-dark.png">
@@ -83,6 +85,11 @@ Message people nearby or by their Friends ID, and send them documents. Friends a
 </picture>
 
 ![A Friends chat with the # list open, the document on screen marked Current](docs/images/portable/readme-friends-hash.png)
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/portable/readme-friends-transfer-dark.png">
+  <img src="docs/images/portable/readme-friends-transfer-light.png" alt="A file arriving over the same Wi-Fi after it started through the relay: the Wi-Fi icon in use, the relay's cloud as an outline, and the bar in two colours for what each carried, with the size, percentage, speed and time left" width="400">
+</picture>
 
 ## Tools that run on your Mac
 
