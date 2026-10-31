@@ -26,26 +26,47 @@ NSString* SPDFPermanentDeleteBlockReason(NSString* path) {
     return nil;
 }
 
-NSString* SPDFPermanentDeleteTitle(NSArray<NSString*>* names) {
-    if (names.count == 1) return [NSString stringWithFormat:@"Delete “%@” permanently?", names.firstObject];
-    return [NSString stringWithFormat:@"Delete %lu documents permanently?", (unsigned long)names.count];
+BOOL SPDFPermanentDeleteTrashes(NSString* file) {
+    NSString* state = SPDFMacStateDirectoryPath();
+    if (!file.length) return NO;
+    if (!state.length) return YES;
+    NSString* resolved = [state.stringByResolvingSymlinksInPath stringByAppendingString:@"/"];
+    return ![file hasPrefix:[state stringByAppendingString:@"/"]] && ![file.stringByResolvingSymlinksInPath hasPrefix:resolved];
 }
 
-NSString* SPDFPermanentDeleteMessage(NSUInteger count) {
-    return count == 1 ? @"This will delete permanently the file from your Mac and remove it from your Collection, with "
-                        @"its history and comments. You can’t undo this."
-                      : @"This will delete permanently the files from your Mac and remove them from your Collection, "
-                        @"with their history and comments. You can’t undo this.";
+static NSUInteger TrashCount(NSArray<NSString*>* files) {
+    NSUInteger count = 0;
+    for (NSString* file in files) count += SPDFPermanentDeleteTrashes(file);
+    return count;
 }
 
-NSAlert* SPDFPermanentDeleteConfirmation(NSArray<NSString*>* names) {
+NSString* SPDFPermanentDeleteTitle(NSArray<NSString*>* names, NSUInteger trashed) {
+    BOOL one = names.count == 1;
+    unsigned long count = names.count;
+    if (!trashed) return one ? [NSString stringWithFormat:@"Remove “%@” from your Collection?", names.firstObject]
+                             : [NSString stringWithFormat:@"Remove %lu documents from your Collection?", count];
+    return one ? [NSString stringWithFormat:@"Move “%@” to the Trash?", names.firstObject]
+               : [NSString stringWithFormat:@"Move %lu documents to the Trash?", count];
+}
+
+NSString* SPDFPermanentDeleteMessage(NSUInteger count, NSUInteger trashed) {
+    if (!trashed) return count == 1 ? @"It is removed with its history and comments, and that can’t be undone."
+                                    : @"They are removed with their history and comments, and that can’t be undone.";
+    return count == 1 ? @"The file goes to the Trash, where you can still put it back. It is also removed from your "
+                        @"Collection, with its history and comments, and that can’t be undone."
+                      : @"The files go to the Trash, where you can still put them back. They are also removed from your "
+                        @"Collection, with their history and comments, and that can’t be undone.";
+}
+
+NSAlert* SPDFPermanentDeleteConfirmation(NSArray<NSString*>* names, NSArray<NSString*>* files) {
     NSAlert* alert = [NSAlert new];
+    NSUInteger trashed = TrashCount(files);
     alert.alertStyle = NSAlertStyleWarning;
-    alert.messageText = SPDFPermanentDeleteTitle(names);
-    alert.informativeText = SPDFPermanentDeleteMessage(names.count);
-    // NSAlert puts its first button on the right and makes it the default: here the right one deletes, and Return
+    alert.messageText = SPDFPermanentDeleteTitle(names, trashed);
+    alert.informativeText = SPDFPermanentDeleteMessage(names.count, trashed);
+    // NSAlert puts its first button on the right and makes it the default: here the right one acts, and Return
     // (the default) and Escape both cancel.
-    NSButton* remove = [alert addButtonWithTitle:@"Delete Permanently"];
+    NSButton* remove = [alert addButtonWithTitle:trashed ? @"Move to Trash" : @"Remove"];
     NSButton* cancel = [alert addButtonWithTitle:@"Cancel"];
     remove.hasDestructiveAction = YES;
     remove.keyEquivalent = @"";
@@ -65,12 +86,12 @@ NSAlert* SPDFPermanentDeleteRefusal(NSArray<NSString*>* files) {
     if (!lines.count) return nil;
     NSAlert* alert = [NSAlert new];
     alert.alertStyle = NSAlertStyleWarning;
-    alert.messageText = lines.count == 1 ? [NSString stringWithFormat:@"“%@” can’t be deleted", only]
-                                         : @"Some documents can’t be deleted";
+    alert.messageText = lines.count == 1 ? [NSString stringWithFormat:@"“%@” can’t be moved to the Trash", only]
+                                         : @"Some documents can’t be moved to the Trash";
     // One file: the title names it, so the text only says why.
     NSString* list = lines.count == 1 ? [@"The file " stringByAppendingString:reasonOnly] : [NSString stringWithFormat:@"%@ and %@",
         [[lines subarrayWithRange:NSMakeRange(0, lines.count - 1)] componentsJoinedByString:@", "], lines.lastObject];
-    alert.informativeText = [list stringByAppendingString:@", so nothing was deleted."];
+    alert.informativeText = [list stringByAppendingString:@", so nothing was removed."];
     [alert addButtonWithTitle:@"OK"];
     return alert;
 }
@@ -79,11 +100,12 @@ NSAlert* SPDFPermanentDeleteFailure(NSArray<NSString*>* failures) {
     NSAlert* alert = [NSAlert new];
     alert.alertStyle = NSAlertStyleWarning;
     BOOL one = failures.count == 1;
-    alert.messageText = one ? @"A document wasn’t deleted" : @"Some documents weren’t deleted";
+    alert.messageText = one ? @"A document wasn’t removed" : @"Some documents weren’t removed";
     BOOL files = NO;
     for (NSString* failure in failures) files = files || [failure hasPrefix:@"“"];
     alert.informativeText = [NSString stringWithFormat:@"%@.%@", [failures componentsJoinedByString:@"; "], !files ? @"" :
-        one ? @" It’s still on your Mac and in your Collection." : @" They’re still on your Mac and in your Collection."];
+        one ? @" It’s still in its folder and in your Collection."
+            : @" They’re still in their folders and in your Collection."];
     [alert addButtonWithTitle:@"OK"];
     return alert;
 }
@@ -93,7 +115,7 @@ void SPDFPermanentDeleteAsk(NSWindow* window, NSArray<NSString*>* names, NSArray
     if (!names.count) return;
     NSAlert* refusal = SPDFPermanentDeleteRefusal(files);
     if (refusal) { [refusal beginSheetModalForWindow:window completionHandler:^(NSModalResponse r) { (void)r; }]; return; }
-    [SPDFPermanentDeleteConfirmation(names) beginSheetModalForWindow:window completionHandler:^(NSModalResponse r) {
+    [SPDFPermanentDeleteConfirmation(names, files) beginSheetModalForWindow:window completionHandler:^(NSModalResponse r) {
         if (r == NSAlertFirstButtonReturn) confirmed();
     }];
 }
@@ -209,16 +231,25 @@ NSDictionary* SPDFPermanentDeletePerform(NSDictionary* targets, SPDFMacCollectio
         struct stat info = {};
         if (lstat(file.fileSystemRepresentation, &info) != 0) continue;
         NSString* reason = SPDFPermanentDeleteBlockReason(file);
-        // unlink, never a recursive removal: only the regular file chosen goes. Another app that has it open keeps
-        // reading its open copy until it closes it; nothing here waits for that.
-        if (reason || unlink(file.fileSystemRepresentation) != 0) {
-            [failures addObject:[NSString stringWithFormat:@"“%@” %@", file.lastPathComponent,
-                                 reason ?: [NSString stringWithFormat:@"couldn’t be deleted (%s)", strerror(errno)]]];
+        // The person's own file goes to the Trash, where the Finder can put it back. A file in ShenzhenPDF's own
+        // storage (an Edited Copy) is the app's copy: it is unlinked, never removed recursively. Another app that has
+        // the file open keeps reading it; nothing here waits for that.
+        BOOL trash = SPDFPermanentDeleteTrashes(file);
+        NSError* trashError = nil;
+        if (!reason && trash && ![NSFileManager.defaultManager trashItemAtURL:[NSURL fileURLWithPath:file]
+                                                             resultingItemURL:nil error:&trashError])
+            reason = [NSString stringWithFormat:@"couldn’t be moved to the Trash (%@)",
+                      trashError.localizedDescription ?: @"unknown error"];
+        if (!reason && !trash && unlink(file.fileSystemRepresentation) != 0)
+            reason = [NSString stringWithFormat:@"couldn’t be removed (%s)", strerror(errno)];
+        if (reason) {
+            [failures addObject:[NSString stringWithFormat:@"“%@” %@", file.lastPathComponent, reason]];
             [keptFiles addObject:file];
             for (NSDictionary* doc in documents) if ([doc[@"path"] isEqual:file]) [kept addObject:doc[@"id"]];
             continue;
         }
         // An Edited Copy lives alone in a folder of its own: that folder goes too once empty (rmdir refuses otherwise).
+        if (trash) continue;
         NSString* folder = file.stringByDeletingLastPathComponent;
         if ([folder.stringByDeletingLastPathComponent isEqual:editedCopies]) rmdir(folder.fileSystemRepresentation);
     }
@@ -226,7 +257,7 @@ NSDictionary* SPDFPermanentDeletePerform(NSDictionary* targets, SPDFMacCollectio
     for (NSDictionary* doc in documents) if (![kept containsObject:doc[@"id"]]) [purge addObject:doc[@"id"]];
     NSError* error = nil;
     if (purge.count && ![store purgeDocumentIDs:purge error:&error]) {
-        // The files are gone already; their entries stay in the list, where Collection shows them as missing.
+        // The files are in the Trash already; their entries stay in the list, where Collection shows them as missing.
         [failures addObject:[NSString stringWithFormat:@"Collection couldn’t forget %@ (%@)",
             purge.count == 1 ? @"it" : @"them", error.localizedDescription ?: @"unknown error"]];
         [kept addObjectsFromArray:purge];

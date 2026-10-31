@@ -37,8 +37,8 @@ FOUNDATION_EXPORT NSString* const SPDFDocumentActivityFileName; // "activity.yam
 - (void)start;
 - (void)recordOpenedPath:(NSString*)path at:(NSTimeInterval)unixTime;
 - (void)recordViewedPath:(NSString*)path at:(NSTimeInterval)unixTime;
-// Remove from Disk and Collection: these paths' dates go, those not yet written and those in activity.yaml (written
-// before it returns), and views of them recorded later in this process are dropped until one is opened again.
+// Move to Trash and Remove from Collection: these paths' dates go, those not yet written and those in activity.yaml
+// (written before it returns), and views of them recorded later in this process are dropped until one is opened again.
 - (void)forgetPaths:(NSArray<NSString*>*)paths;
 // Writes what is pending now, on the calling thread (quit).
 - (void)flushNow;

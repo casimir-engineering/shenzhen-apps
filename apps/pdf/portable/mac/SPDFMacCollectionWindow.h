@@ -6,8 +6,8 @@ typedef void (^SPDFCollectionNavigateHandler)(NSDictionary* document, NSDictiona
 @interface SPDFMacCollectionWindow : NSWindowController <NSTableViewDataSource, NSTableViewDelegate>
 @property(nonatomic, copy) SPDFCollectionNavigateHandler navigateHandler;
 @property(nonatomic, copy) void (^returnHandler)(void);
-// Remove from Disk and Collection, confirmed here: the reader deletes and closes the documents' tabs, then `done`
-// (main thread) gets what was not deleted (SPDFPermanentDeleteFailure), empty when all went. Unset: no such item.
+// Move to Trash and Remove from Collection, confirmed here: the reader does it and closes the documents' tabs, then
+// `done` (main thread) gets what was not removed (SPDFPermanentDeleteFailure), empty when all went. Unset: no such item.
 @property(nonatomic, copy) void (^deleteHandler)(NSArray<NSString*>* documentIDs, void (^done)(NSArray<NSString*>* failures));
 - (instancetype)initWithStore:(SPDFMacCollectionStore*)store open:(SPDFCollectionOpenHandler)open;
 - (void)showDocumentID:(NSString*)documentID query:(NSString*)query;
