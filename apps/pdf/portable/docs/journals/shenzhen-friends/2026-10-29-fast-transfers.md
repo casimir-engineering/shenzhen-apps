@@ -1719,3 +1719,11 @@ missing blocks only) and whose last HAVE covers only those leaves the Mac serve,
 until the session ends. A Rust requester pulling from several holders sends a HAVE of every block at the end, so it
 clears the Mac row; a resumed single-holder copy, or the Mac's own requester, may not. The Mac's `servingFraction`
 also stays at 0 for copies by blocks (the Rust row now rises with the acknowledged blocks).
+
+## WP3: the third stall's fix in Rust, proven (2026-10-31)
+
+The Rust receiver (helper and bench peer) now reports pieces under the 256 KiB threshold within half a second of the
+first one left unreported, as the Mac's does since 6d8924f3: pieces re-sent after a cut may never add up to 256 KiB,
+and their HAVE then never went. `make friends-transfer-bench`, Rust → Rust, `lan+p2p-cut-p2p` and
+`lan+p2p+bt-cut-lan` in a loop: 210 runs (105 each), 0 stalls, every file intact; medians 8.95 s and 18.73 s, slowest
+10.26 s and 19.09 s.
