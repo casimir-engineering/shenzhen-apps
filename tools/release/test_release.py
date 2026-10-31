@@ -80,6 +80,8 @@ if args[0] == "api":
     if not release:
         fail("HTTP 404: " + target)
     if method == "PATCH":
+        if release["draft"] and body.get("draft", True) and "tag_name" not in body:
+            release["tag_name"] = "untagged-0123456789abcdef0123"  # as GitHub does to a draft edited without it
         release.update({k: v for k, v in body.items() if k != "make_latest"})
     print(json.dumps(release)); save(); sys.exit(0)
 fail("fake gh: unexpected " + " ".join(args), 2)
@@ -334,6 +336,17 @@ def test_publish():
         check("other bytes for a published release stop the run", False)
     except common.Failure:
         check("other bytes for a published release stop the run", True)
+    # A publish stopped part way leaves a draft holding some of the assets; the next run finishes that draft.
+    state = json.load(open(os.environ["FAKE_GH_STATE"]))
+    state["next"] += 1
+    state["releases"][slug].append({"id": state["next"], "tag_name": "26.10.20-98", "name": "26.10.20-98",
+                                    "body": "", "draft": True, "prerelease": True, "assets": [],
+                                    "html_url": "https://example.invalid/26.10.20-98"})
+    json.dump(state, open(os.environ["FAKE_GH_STATE"], "w"))
+    release = common.publish_release(slug, "26.10.20-98", title="26.10.20-98", notes_file=notes, files=files,
+                                     prerelease=True, latest=False, log=log)
+    check("a draft left by a stopped publish is finished under its tag",
+          release["draft"] is False and release["tag_name"] == "26.10.20-98" and len(release["assets"]) == 2)
 
 
 def fake_asar(path, files):

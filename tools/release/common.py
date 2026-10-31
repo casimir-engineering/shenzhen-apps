@@ -646,8 +646,10 @@ def publish_release(repo, tag, *, title, notes_file, files, prerelease, latest, 
                          data={"tag_name": tag, "name": title, "body": body, "draft": True,
                                "prerelease": prerelease})
     else:
+        # tag_name again: GitHub turns a draft edited without it into "untagged-…", which `gh release upload <tag>`
+        # then cannot find (it stopped the resumed publish of Shenzhen 3D 0.2.5).
         release = gh_api(f"repos/{repo}/releases/{release['id']}", method="PATCH", log=log,
-                         data={"name": title, "body": body, "draft": True, "prerelease": prerelease})
+                         data={"tag_name": tag, "name": title, "body": body, "draft": True, "prerelease": prerelease})
     rid = release["id"]
     _, existing = mismatches(release)
 
@@ -671,7 +673,8 @@ def publish_release(repo, tag, *, title, notes_file, files, prerelease, latest, 
         raise Failure(f"{repo} {tag}: GitHub's digest or size differs from the built file for {', '.join(bad)}")
     say(f"publish: GitHub's sha256 digests match all {len(want)} files on {repo} {tag}")
     release = gh_api(f"repos/{repo}/releases/{rid}", method="PATCH", log=log,
-                     data={"draft": False, "prerelease": prerelease, "make_latest": "true" if latest else "false"})
+                     data={"tag_name": tag, "draft": False, "prerelease": prerelease,
+                           "make_latest": "true" if latest else "false"})
     bad, _ = mismatches(release)
     if release.get("draft") or bad:
         raise Failure(f"{repo} {tag} did not publish with its assets intact")
