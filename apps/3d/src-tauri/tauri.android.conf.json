@@ -2,7 +2,7 @@
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "bundle": {
     "android": {
-      "versionCode": 2017
+      "versionCode": 2018
     }
   }
 }
