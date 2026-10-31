@@ -26,20 +26,6 @@ NSString* SPDFPermanentDeleteBlockReason(NSString* path) {
     return nil;
 }
 
-BOOL SPDFPermanentDeleteTrashes(NSString* file) {
-    NSString* state = SPDFMacStateDirectoryPath();
-    if (!file.length) return NO;
-    if (!state.length) return YES;
-    NSString* resolved = [state.stringByResolvingSymlinksInPath stringByAppendingString:@"/"];
-    return ![file hasPrefix:[state stringByAppendingString:@"/"]] && ![file.stringByResolvingSymlinksInPath hasPrefix:resolved];
-}
-
-static NSUInteger TrashCount(NSArray<NSString*>* files) {
-    NSUInteger count = 0;
-    for (NSString* file in files) count += SPDFPermanentDeleteTrashes(file);
-    return count;
-}
-
 NSString* SPDFPermanentDeleteTitle(NSArray<NSString*>* names, NSUInteger trashed) {
     BOOL one = names.count == 1;
     unsigned long count = names.count;
@@ -60,7 +46,7 @@ NSString* SPDFPermanentDeleteMessage(NSUInteger count, NSUInteger trashed) {
 
 NSAlert* SPDFPermanentDeleteConfirmation(NSArray<NSString*>* names, NSArray<NSString*>* files) {
     NSAlert* alert = [NSAlert new];
-    NSUInteger trashed = TrashCount(files);
+    NSUInteger trashed = files.count;
     alert.alertStyle = NSAlertStyleWarning;
     alert.messageText = SPDFPermanentDeleteTitle(names, trashed);
     alert.informativeText = SPDFPermanentDeleteMessage(names.count, trashed);
@@ -231,25 +217,21 @@ NSDictionary* SPDFPermanentDeletePerform(NSDictionary* targets, SPDFMacCollectio
         struct stat info = {};
         if (lstat(file.fileSystemRepresentation, &info) != 0) continue;
         NSString* reason = SPDFPermanentDeleteBlockReason(file);
-        // The person's own file goes to the Trash, where the Finder can put it back. A file in ShenzhenPDF's own
-        // storage (an Edited Copy) is the app's copy: it is unlinked, never removed recursively. Another app that has
-        // the file open keeps reading it; nothing here waits for that.
-        BOOL trash = SPDFPermanentDeleteTrashes(file);
+        // Every chosen file is the person's document, an Edited Copy included: it goes to the Trash, where the Finder
+        // can put it back. Another app that has it open keeps reading it; nothing here waits for that.
         NSError* trashError = nil;
-        if (!reason && trash && ![NSFileManager.defaultManager trashItemAtURL:[NSURL fileURLWithPath:file]
-                                                             resultingItemURL:nil error:&trashError])
+        if (!reason && ![NSFileManager.defaultManager trashItemAtURL:[NSURL fileURLWithPath:file] resultingItemURL:nil
+                                                                error:&trashError])
             reason = [NSString stringWithFormat:@"couldn’t be moved to the Trash (%@)",
                       trashError.localizedDescription ?: @"unknown error"];
-        if (!reason && !trash && unlink(file.fileSystemRepresentation) != 0)
-            reason = [NSString stringWithFormat:@"couldn’t be removed (%s)", strerror(errno)];
         if (reason) {
             [failures addObject:[NSString stringWithFormat:@"“%@” %@", file.lastPathComponent, reason]];
             [keptFiles addObject:file];
             for (NSDictionary* doc in documents) if ([doc[@"path"] isEqual:file]) [kept addObject:doc[@"id"]];
             continue;
         }
-        // An Edited Copy lives alone in a folder of its own: that folder goes too once empty (rmdir refuses otherwise).
-        if (trash) continue;
+        // An Edited Copy lives alone in a folder of its own in the app's storage: that empty folder goes too (rmdir
+        // refuses a folder that isn't empty).
         NSString* folder = file.stringByDeletingLastPathComponent;
         if ([folder.stringByDeletingLastPathComponent isEqual:editedCopies]) rmdir(folder.fileSystemRepresentation);
     }

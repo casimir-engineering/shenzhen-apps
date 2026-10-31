@@ -1,15 +1,15 @@
 #pragma once
 // "Move to Trash and Remove from Collection…" (the tab menu, the page's menu and the Collection list): the person's
 // files go to the Trash, where the Finder can put them back, and everything ShenzhenPDF kept about them goes for good
-// (Collection entry, History copies, Edited Copies, previews, indexes, viewing dates). Shared by the reader and the
+// (Collection entry, History copies, previews, indexes, viewing dates). Shared by the reader and the
 // Collection window's process; the reader does the work (SPDFMacPermanentDeleteIntegration.mm), because only it can
 // close the documents' tabs first.
 //
 // Targets: what one request removes, as plist values so they can travel to other windows' processes.
 //   documents      Collection rows (snapshots) whose entry, saved versions, editable History copies and previews go
-//   files          each chosen tab's file outside the Collection, and each row's original while it is still that
-//                  document's file (SPDFCollectionOriginalAvailable): to the Trash, or unlinked when it is
-//                  ShenzhenPDF's own copy (SPDFPermanentDeleteTrashes)
+//   files          files that go to the Trash: each chosen tab's file outside the Collection (an Edited Copy
+//                  included), and each row's original while it is still that document's file
+//                  (SPDFCollectionOriginalAvailable)
 //   names          one display name per chosen document, for the confirmation
 //   matchPaths     tabs at these paths close, in every window
 //   matchPrefixes  and tabs inside these Collection folders (that document's History copies and saved versions)
@@ -22,9 +22,7 @@ NS_ASSUME_NONNULL_BEGIN
 // Why a file cannot be moved, as the end of "“Datasheet.pdf” …", or nil when it can (or is already gone). A volume
 // without a Trash only shows when the move fails (SPDFPermanentDeleteFailure).
 NSString* _Nullable SPDFPermanentDeleteBlockReason(NSString* path);
-// NO for a file in ShenzhenPDF's own state folder (an Edited Copy): the app's copy, removed rather than trashed.
-BOOL SPDFPermanentDeleteTrashes(NSString* file);
-// `trashed`: how many of the files go to the Trash; none (only Collection entries go) changes the wording.
+// `trashed`: how many files go to the Trash; none (only Collection entries go) changes the wording.
 NSString* SPDFPermanentDeleteTitle(NSArray<NSString*>* names, NSUInteger trashed);
 NSString* SPDFPermanentDeleteMessage(NSUInteger count, NSUInteger trashed);
 // The confirmation: Move to Trash on the right, Cancel the default, so Return cancels.

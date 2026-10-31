@@ -57,8 +57,7 @@ static char kDeleteObserverKey;
     SPDFMacCollectionStore* store = SPDFMacCollectionStore.defaultStore;
     NSDictionary* targets = SPDFPermanentDeleteTargets(store, paths ?: @[], documentIDs ?: @[]);
     NSArray* names = targets[@"names"];
-    NSUInteger trashed = 0;
-    for (NSString* file in targets[@"files"]) trashed += SPDFPermanentDeleteTrashes(file);
+    NSUInteger trashed = [targets[@"files"] count];
     NSURL* thumbnails = SPDFCollectionThumbnailDirectory();
     _statusLabel.stringValue = trashed ? @"Moving to the Trash…" : @"Removing…";
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
