@@ -210,6 +210,9 @@ impl State {
         if let Some(transfer_id) = item.transfer_id.clone().filter(|_| !item.outgoing) {
             self.again_facts(&mut item, &transfer_id, &row.conversation_id);
         }
+        if let Some(transfer_id) = item.transfer_id.clone() {
+            self.meter_facts(&mut item, &transfer_id);
+        }
         item
     }
 

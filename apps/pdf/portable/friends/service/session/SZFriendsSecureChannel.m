@@ -213,7 +213,9 @@ const char SZFriendsPrologueLabel[18] = "SZFriends session"; // the array's 18th
 #pragma mark - Public entry points implemented by the categories
 
 - (BOOL)sendFrame:(SZFriendsFrame *)frame {
-    return [self queueFrame:frame];
+    BOOL queued = [self queueFrame:frame];
+    if (queued && self.onFrameQueued) self.onFrameQueued(frame);
+    return queued;
 }
 
 - (void)runComparisonCodeExchange:(void (^)(NSString *_Nullable code, NSError *_Nullable error))completion {
@@ -355,6 +357,7 @@ const char SZFriendsPrologueLabel[18] = "SZFriends session"; // the array's 18th
     // Callbacks often capture the object that owns this channel; dropping them breaks the cycle.
     self.onClose = nil;
     self.onFrame = nil;
+    self.onFrameQueued = nil;
     self.onEstablished = nil;
     self.onPublicProfile = nil;
     self.onWritten = nil;

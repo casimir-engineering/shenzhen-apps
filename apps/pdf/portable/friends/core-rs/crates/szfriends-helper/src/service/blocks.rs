@@ -401,6 +401,7 @@ impl State {
                         break;
                     };
                     if let Some(s) = self.sessions.map.get_mut(&lane) {
+                        super::meter::count(&self.meter, &part, s.meta.race_route(&s.channel));
                         s.channel.send_frame(&part, now);
                     }
                     if let (true, Some(key)) = (last, key) {

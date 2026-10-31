@@ -47,8 +47,20 @@ static BOOL SZFriendsCreatesFriendship(SZFriendsFrameType type) {
            type == SZFriendsFrameTypeDecline || type == SZFriendsFrameTypeAck || type == SZFriendsFrameTypeChain;
 }
 
+- (void)link:(SZFriendsPeerLink *)link meterFrame:(SZFriendsFrame *)frame {
+    if (frame.type != SZFriendsFrameTypePart && frame.type != SZFriendsFrameTypeChunk) return;
+    NSData *wire = [frame dataForTag:SZFriendsFieldID], *data = [frame dataForTag:SZFriendsFieldData];
+    if (wire.length == 0 || data.length == 0) return;
+    if (self.routeMeter == nil) self.routeMeter = [SZFriendsRouteMeter new];
+    [self.routeMeter carried:data.length
+                       route:link.raceRoute
+                    transfer:SZFriendsLinkHex(wire)
+                         now:NSProcessInfo.processInfo.systemUptime];
+}
+
 - (void)link:(SZFriendsPeerLink *)link receivedFrame:(SZFriendsFrame *)frame {
     if (link.closed) return;
+    [self link:link meterFrame:frame]; // on the session it came on, a lane's own route included
     if (link.lane) {
         // Any application frame may come on any lane of a group; it counts as the first session's (ADR 0018 § 6),
         // except that block frames keep their lane, so a PART's HAVE goes back where it came from.

@@ -366,6 +366,9 @@ typedef NS_ENUM(NSInteger, SZFriendsBlockPartResult) {
 // Stops treating a download as blocks (a session without fast transfers resumes it by CHUNK from the prefix).
 - (void)dropBlocks:(NSString *)transferID;
 - (BOOL)isReceivingBlocks:(NSString *)transferID;
+// Bytes of the blocks that arrived and checked, in any order (PROTOCOL.md § Fast transfers, Progress), as the Rust
+// core's block_progress; 0 when the file is not coming by blocks.
+- (uint64_t)blockBytesComplete:(NSString *)transferID;
 // Blocks still missing, for WANT (SZFriendsTransferBlocks.h's packed ranges).
 - (NSData *)blocksMissing:(NSString *)transferID;
 // With a peer that has pieces (ADR 0018 § 3): the blocks to WANT besides those partly received, and in `*pieces` the

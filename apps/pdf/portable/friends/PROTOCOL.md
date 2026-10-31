@@ -240,6 +240,7 @@ Lowercase dotted strings. Unknown ones are ignored on both sides.
 | `notifications.focus` | The host sends `set_focus` (§ Notifications) |
 | `notifications.ask` | The host shows the list's `notifications` banner with its `dismiss` action (macOS, iOS) |
 | `background.reachable` | An Android host that can keep Friends running in the background: Settings carries `notifications.background` |
+| `transfers.progress` | The host draws a moving transfer's progress by route (§ Fast transfers): `progress` carries `routes`, `segments`, `amount_label`, `time_left_label`, `detail_label` and `finishing`, and `route_note` is null unless the Wi-Fi Direct boost has something to say |
 | `transfers.boost` | The host shows the Wi-Fi Direct boost's question on a transfer: its `route_note` and the actions Go faster (`boost_transfer`) and Not now (`skip_boost`) (§ Fast transfers). Without it no view of that device asks, and the device never leaves its Wi-Fi network |
 
 | Helper capability | Meaning |
@@ -1470,8 +1471,9 @@ with `unknown_intent`. ADR 0017 gives the request's fields.
 Proposed in [ADR 0018](docs/adr/0018-fast-transfers.md) and not built yet: until a helper ships it, nothing here
 appears. Between two devices whose helpers both have it, files move in checked blocks over several connections and
 routes at once and resume from exactly what arrived; with anyone else, files move as they do today. Views need no
-change for what follows: it adds no intent, view, field or capability, only these rules on fields that exist. The
-Wi-Fi Direct boost (last item) adds two intents and a client capability.
+change for what follows: it adds no intent, view, field or capability, only these rules on fields that exist. Progress
+by route adds fields to `progress` and a client capability; the Wi-Fi Direct boost (last item) adds two intents and a
+client capability.
 
 - **Progress.** A transfer's `progress` counts the blocks that arrived and were checked, so it only ever goes up, and
   it keeps its value through a route change, sleep or a restart of either computer: a transfer that stops and starts
@@ -1480,6 +1482,23 @@ Wi-Fi Direct boost (last item) adds two intents and a client capability.
   the person decide) and names the routes that carry the file. When Bluetooth helps a slow network, "Over your network
   and Bluetooth, about 2 min" (catalog `estimate.network_and_bluetooth`, through `estimate.with_time`). When Bluetooth
   drops out, the words go back to the ones for the network alone and nothing else changes: the file does not pause.
+- **Progress by route.** For a client with the capability `transfers.progress`, a transfer with `progress` (sending,
+  receiving, Finishing, and copies from the person's other computers or from a friend again) also carries what draws
+  it by route. Each helper counts the file bytes every session carries for it, by the session's route, and works out
+  a smoothed speed and a time left that counts down steadily (`service/transfer/SZFriendsRouteMeter.m`,
+  `szfriends-core/src/transfer/meter.rs`), at most as often as progress is published. `routes` lists, in the order
+  same Wi-Fi (`lan`), direct Wi-Fi (`p2p_wifi`), Internet direct, Bluetooth, relay, every route that carried some of
+  it, `active` while it carries the file now (a route another one replaced stops being active at once); views draw
+  each as a small rounded square in the route's colour with a white glyph, an outline when not active, and its
+  `label` ("Bluetooth · in use") as tooltip and accessibility label. `segments` split the bar (`fraction` of the
+  whole file each, adding up to `fraction`) in the routes' colours. `amount_label` ("31.2 MB of 48 MB · 65 % · 12.4 MB/s", the
+  percentage whole, after a no-break space; "22 MB · 100 %" while finishing) and `time_left_label` ("2 s left", null while unknown, "Finishing…") go under the
+  bar, `detail_label` under them: "Via" and the routes in use joined by " + ", then the transfer's notes ("From 2 of
+  your computers" when a copy comes from several of them at once, "From 2 devices at once" when a friend's is one; "you’ll rejoin “HomeWiFi” after" on the Wi-Fi
+  Direct boost's direct leg). While `finishing` is true there are no routes and the bar is full and moves gently
+  (still under reduce motion). Such a transfer has `route_note` null, unless the boost asks or says it is connecting,
+  rejoining or did not get back, and no `route` (the detail line says it). Views show the status line's actions but
+  not `status_label` while `amount_label` is set; `accessibility_label` still says everything.
 - **Finishing.** After the last block, the receiving helper checks the whole file before it is saved. When that takes
   more than a second (large files), the item stays `receiving` with `progress` 1 and `status_label` "Finishing…"
   (catalog `transfer.finishing`); its `accessibility_label` ends ", finishing". Then it is `received` as today.
@@ -2080,6 +2099,25 @@ source: enum(sender,local)   # the sender's picture, or one made on this Mac fro
 fraction: number
 determinate: bool
 accessibility_label: string
+routes?: array               # client capability transfers.progress (§ Fast transfers, Progress by route): its icons
+routes[]: @transfer_route
+segments?: array             # the bar split by what each route carried; fractions of the whole file
+segments[]: @transfer_segment
+amount_label?: string        # "31.2 MB of 48 MB · 65 % · 12.4 MB/s", under the bar on the left
+time_left_label?: string|null # "2 s left", or "Finishing…", on the right
+detail_label?: string|null   # "Via Same Wi-Fi + Bluetooth · From 2 of your computers", the line under them
+finishing?: bool             # the whole file is being checked: a full bar that moves gently
+```
+
+```schema type.transfer_route
+method: enum(lan,p2p_wifi,bluetooth,internet,relay)
+active: bool                 # carrying the file right now; false: carried some of it earlier (drawn as an outline)
+label: string                # "Bluetooth · in use", the icon's tooltip and accessibility label
+```
+
+```schema type.transfer_segment
+method: enum(lan,p2p_wifi,bluetooth,internet,relay)
+fraction: number
 ```
 
 ```schema type.request_card

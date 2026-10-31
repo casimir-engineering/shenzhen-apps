@@ -100,6 +100,9 @@ extern const NSTimeInterval SZFriendsNearbyConnectingTimeout;
 @property(nonatomic) BOOL pullTickScheduled;
 @property(nonatomic) BOOL pullReconsiderScheduled;
 @property(nonatomic, copy, nullable) NSDate *pullCheckedAt;
+// What each route carried for each transfer moving (PROTOCOL.md § Fast transfers, Progress by route), counted as PARTs
+// and CHUNKs go and come (+Facts).
+@property(nonatomic, strong, nullable) SZFriendsRouteMeter *routeMeter;
 
 // Core.
 - (void)changed;

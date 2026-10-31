@@ -12,6 +12,9 @@ NS_ASSUME_NONNULL_BEGIN
 
 // Get again and own-device copies pulled from every holder at once (ADR 0018 § 9.6; SZFriendsNearbyService+Pulls.m).
 @interface SZFriendsNearbyService (Pulls)
+// How many devices serve `transferID` in the pull running now, and in `own` how many of them are the person's own
+// computers ("From 2 of your computers").
+- (NSUInteger)holdersServingTransfer:(NSString *)transferID own:(NSUInteger *)own;
 // Copies on this session are the pull's to make (it negotiated fast transfers).
 - (BOOL)pullsOnLink:(SZFriendsPeerLink *)link;
 // Looks again, soon, at what to pull and who holds it (coalesced to four times a second).

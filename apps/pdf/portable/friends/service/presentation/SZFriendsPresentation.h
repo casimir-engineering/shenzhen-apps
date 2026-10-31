@@ -173,6 +173,15 @@ typedef NS_ENUM(NSInteger, SZFriendsAgainState) {
 @property(nonatomic) BOOL askedBecauseDiskLow;
 @property(nonatomic) SZFriendsRouteMethod transferRoute;
 @property(nonatomic) double bytesPerSecond;                 // measured on the current route; 0 when unknown
+// Progress by route (PROTOCOL.md § Fast transfers): bytes each route carried for this transfer (SZFriendsRouteMethod
+// -> bytes; nil or empty when the helper counted none), the routes carrying it right now, the seconds left at the
+// smoothed speed (counting down steadily; 0 when unknown), and how many devices it comes from at once, of them how
+// many are the person's own computers (under 2 says nothing).
+@property(nonatomic, copy, nullable) NSDictionary<NSNumber *, NSNumber *> *routeBytes;
+@property(nonatomic, copy, nullable) NSArray<NSNumber *> *activeRoutes;
+@property(nonatomic) double secondsLeft;
+@property(nonatomic) NSUInteger holders;
+@property(nonatomic) NSUInteger ownHolders; // of `holders`, the person's own computers
 // Every block arrived and the whole file has been checked for over a second before it is saved (PROTOCOL.md § Fast
 // transfers): "Finishing…".
 @property(nonatomic) BOOL finishing;

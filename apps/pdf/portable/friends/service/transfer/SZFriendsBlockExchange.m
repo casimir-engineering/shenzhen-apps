@@ -401,6 +401,10 @@ static NSInteger SZFLeavesRank(SZFriendsRouteMethod route) {
     [self pump];
 }
 
+- (uint64_t)acknowledgedBytesOfTransfer:(NSString *)transferID {
+    return _senders[transferID].serve.acknowledgedBytes;
+}
+
 - (double)rateOfRoute:(SZFriendsRouteMethod)route {
     return _scheduler ? [_scheduler rateOfRoute:route] : 0;
 }

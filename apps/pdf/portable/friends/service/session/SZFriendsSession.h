@@ -258,6 +258,9 @@ typedef BOOL (^SZFriendsRemoteKeyPolicy)(NSData *_Nullable remoteIdentityKey, SZ
 // close without revealing ourselves. With browseOnly and no handler, the channel closes after message 2.
 @property(nonatomic, copy, nullable) BOOL (^onPublicProfile)(NSDictionary<NSNumber *, NSData *> *profile);
 @property(nonatomic, copy, nullable) void (^onFrame)(SZFriendsFrame *frame);
+// Every frame -sendFrame: queued, as it is queued: the helper counts the file bytes PARTs and CHUNKs carry by route
+// (PROTOCOL.md § Fast transfers, Progress by route).
+@property(nonatomic, copy, nullable) void (^onFrameQueued)(SZFriendsFrame *frame);
 // Once, after the stream is closed. nil when this side closed deliberately (-close, browse-only, onPublicProfile
 // returning NO); an SZFriendsSessionErrorDomain error otherwise. A responder's refusal before its first reply
 // arrives here when the stream closes, SZFriendsRefusalDelay after message 1 (sooner if -close is called).

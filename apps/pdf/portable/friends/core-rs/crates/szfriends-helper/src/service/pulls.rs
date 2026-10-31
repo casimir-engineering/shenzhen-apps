@@ -72,6 +72,17 @@ pub struct PullArea {
     checked_at: Option<std::time::Instant>,
 }
 
+impl PullArea {
+    /// How many devices serve `transfer` in the pull running now, and how many of them are the person's own
+    /// computers ("From 2 of your computers").
+    pub(crate) fn holders(&self, transfer: &str) -> (u32, u32) {
+        self.current.as_ref().filter(|c| c.transfer_id == transfer).map_or((0, 0), |c| {
+            let serving = c.holders.values().filter(|h| h.up && !h.out);
+            serving.fold((0, 0), |(all, own), h| (all + 1, own + u32::from(h.via == Via::Sync)))
+        })
+    }
+}
+
 /// How often a copy running by itself looks for a Get again the person asked for meanwhile.
 const PREEMPT_CHECK: Duration = Duration::from_millis(250);
 

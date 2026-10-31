@@ -211,6 +211,9 @@ impl State {
                 s.link.write(write.bytes);
             }
             let Some(event) = s.channel.poll_event() else { break };
+            if let Event::Frame(frame) = &event {
+                super::meter::count(&self.meter, frame, s.meta.race_route(&s.channel));
+            }
             match event {
                 Event::Established => self.went_live(id),
                 // A lane's frames are its group's first session's (lanes.rs); a PART's HAVE goes back on its lane.

@@ -81,6 +81,20 @@ static uint32_t SZFriendsNthBlock(NSData *ranges, uint32_t n) {
     return self.pullCurrent;
 }
 
+- (NSUInteger)holdersServingTransfer:(NSString *)transferID own:(NSUInteger *)own {
+    SZFriendsPullCopy *current = self.currentPull;
+    NSUInteger serving = 0, ours = 0;
+    if ([current.transferID isEqualToString:transferID]) {
+        for (SZFriendsPullHolder *holder in current.holders) {
+            if (!holder.up || holder.out) continue;
+            serving++;
+            if (holder.sync) ours++;
+        }
+    }
+    if (own) *own = ours;
+    return serving;
+}
+
 - (void)schedulePullReconsider {
     if (self.pullReconsiderScheduled || self.shutDown) return;
     self.pullReconsiderScheduled = YES;

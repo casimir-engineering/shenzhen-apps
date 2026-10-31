@@ -165,6 +165,21 @@ static const NSTimeInterval SZFriendsBlockBatchInterval = 1.0;
     return open;
 }
 
+- (uint64_t)blockBytesComplete:(NSString *)transferID {
+    __block uint64_t bytes = 0;
+    [self.store performOnWriter:^(SZFriendsStoreDB *_Nullable db) {
+        (void)db;
+        SZFriendsBlockDownload *download = self.receiver.blockDownloads[transferID];
+        SZFriendsBlockSet *complete = download.assembly.complete;
+        SZFriendsBlockGeometry geometry = download.assembly.geometry;
+        if (complete == nil || geometry.blocks == 0) return;
+        uint64_t block = 1ull << geometry.shift, last = geometry.size - (uint64_t)(geometry.blocks - 1) * block;
+        bytes = (uint64_t)complete.members * block;
+        if ([complete contains:geometry.blocks - 1]) bytes = bytes - block + last;
+    }];
+    return bytes;
+}
+
 - (NSData *)blocksMissing:(NSString *)transferID {
     __block NSData *missing = [NSData data];
     [self.store performOnWriter:^(SZFriendsStoreDB *_Nullable db) {

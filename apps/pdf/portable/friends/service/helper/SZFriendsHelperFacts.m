@@ -6,6 +6,7 @@
 #import "service/store/SZFriendsStoreSync.h"
 #import "service/sync/SZFriendsSync.h"
 
+#import "service/helper/nearby/SZFriendsNearbyCopies.h"
 #import "service/helper/nearby/SZFriendsNearbyDevices.h"
 #import "service/transfer/SZFriendsDirectWiFiBoost.h"
 #import "service/store/SZFriendsTransferThumbnails.h"
@@ -132,6 +133,30 @@ SZFriendsItemFacts *SZFriendsItemFactsFromRecord(SZFriendsItemRecord *record, SZ
             facts.againConnected = copying || [services.nearby againReachesConversation:record.conversationID];
             facts.againFraction = fraction;
         }
+        // Progress by route: what each route carried, the routes in use, the smoothed speed and the time left.
+        // A file coming by blocks shows every block that checked, in any order, not only the durable prefix.
+        if (!facts.outgoing && facts.transferState == SZFriendsTransferStateReceiving)
+            facts.bytesDone = MAX(facts.bytesDone, [services.transfers blockBytesComplete:record.transferID]);
+        // One of our files going by blocks shows what its receiver acknowledged, not only what the store last recorded.
+        if (facts.outgoing && facts.transferState == SZFriendsTransferStateSending)
+            facts.bytesDone = MAX(facts.bytesDone, [services.nearby acknowledgedBytesOfTransfer:record.transferID]);
+        // A copy pulled here (from our other computers, or Get again) counts what the pull has, not the record's.
+        uint64_t done = facts.bytesDone;
+        double pulled = 0;
+        if ([services.nearby pullFractionOfTransfer:record.transferID fraction:&pulled])
+            done = (uint64_t)(pulled * (double)facts.fileSize);
+        uint64_t remaining = facts.fileSize > done ? facts.fileSize - done : 0;
+        SZFriendsRouteReading *reading = [services.nearby routeReadingForTransfer:record.transferID
+                                                                        remaining:remaining];
+        if (reading != nil) {
+            facts.routeBytes = reading.routeBytes;
+            facts.activeRoutes = reading.activeRoutes;
+            if (reading.bytesPerSecond > 0) facts.bytesPerSecond = reading.bytesPerSecond;
+            facts.secondsLeft = reading.secondsLeft;
+        }
+        NSUInteger own = 0;
+        facts.holders = [services.nearby holdersServingTransfer:record.transferID own:&own];
+        facts.ownHolders = own;
     }
     return facts;
 }

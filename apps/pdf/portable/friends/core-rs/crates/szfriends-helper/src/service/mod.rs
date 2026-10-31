@@ -39,6 +39,7 @@ mod link_open;
 mod link_receive;
 #[cfg(feature = "online")]
 mod links;
+mod meter;
 pub mod nearby;
 mod notifications;
 #[cfg(feature = "online")]
@@ -375,6 +376,8 @@ pub(crate) struct State {
     pub session_capabilities: u32,
     /// Files received by blocks whose check before saving is running, since when (`blocks.rs`).
     pub finishing: HashMap<String, std::time::Instant>,
+    /// What each route carried for each transfer moving, for its bar, routes, speed and time left (`meter.rs`).
+    pub meter: std::cell::RefCell<szfriends_core::transfer::RouteMeter>,
     /// ADR 0019: the Wi-Fi Direct boost (`boost.rs`).
     pub(crate) boost: boost::BoostArea,
     /// Get again and own-device copies asked for by blocks on fast sessions (ADR 0018 § 4), which both helpers

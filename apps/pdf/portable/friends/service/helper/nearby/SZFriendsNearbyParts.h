@@ -15,6 +15,8 @@ NS_ASSUME_NONNULL_BEGIN
 
 @interface SZFriendsNearbyService (Inbound)
 - (void)link:(SZFriendsPeerLink *)link receivedFrame:(SZFriendsFrame *)frame;
+// A PART or CHUNK sent or received on `link`: its file bytes count for its transfer on the link's route (+Facts).
+- (void)link:(SZFriendsPeerLink *)link meterFrame:(SZFriendsFrame *)frame;
 // Our request to this conversation arrived (an answer, or a callback presenting its token): Delivered.
 - (void)acknowledgeRequestEntriesOfConversation:(NSString *)conversationID;
 // An outbox entry with no history item (answers, presence secrets), as the router queues them.

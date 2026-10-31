@@ -231,7 +231,14 @@ typedef NS_ENUM(NSInteger, SZFriendsShownRoute) {
 @end
 
 // Items of a conversation (SZFriendsSnapshotBuilder+Items.m).
+// A moving transfer's progress by route, for views that declared transfers.progress (+TransferRoutes.m).
+@interface SZFriendsSnapshotBuilder (SZFriendsTransferRoutes)
+- (NSDictionary<NSString *, id> *)transfer:(NSDictionary<NSString *, id> *)transfer
+                            withRoutesOfItem:(SZFriendsItemFacts *)item;
+@end
+
 @interface SZFriendsSnapshotBuilder (SZFriendsItems)
+- (BOOL)asksBoost:(SZFriendsItemFacts *)item;
 // Plain text split at the links a person can open (http, https, mailto).
 - (NSArray<NSDictionary *> *)segmentsForText:(NSString *)text;
 - (NSArray<NSDictionary<NSString *, id> *> *)itemsForPerson:(SZFriendsPersonFacts *)person

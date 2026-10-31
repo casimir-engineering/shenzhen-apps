@@ -69,6 +69,7 @@ impl State {
             next_receipt: 0,
             capabilities,
             finishing: HashMap::new(),
+            meter: Default::default(),
             copies_by_blocks: !(test_home && std::env::var_os(ENV_TEST_COPIES_BY_BLOCKS).is_some_and(|v| v == "0")),
             // The settings key `transfers.fast` (on unless it holds 0), read as the helper starts.
             session_capabilities,

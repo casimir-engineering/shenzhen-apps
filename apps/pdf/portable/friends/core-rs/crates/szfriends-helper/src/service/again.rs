@@ -222,6 +222,7 @@ impl State {
                 let Some(Serving { serve, path, sync, .. }) = self.again.serving.get_mut(&key) else { break };
                 let sync = *sync;
                 if let Some(part) = serve.next_part() {
+                    super::meter::count(&self.meter, &part, session.meta.race_route(&session.channel));
                     session.channel.send_frame(&part, szfriends_core::session::monotonic_now());
                     continue;
                 }

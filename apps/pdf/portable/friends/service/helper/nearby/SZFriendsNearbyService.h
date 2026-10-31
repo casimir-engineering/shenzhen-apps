@@ -11,6 +11,7 @@
 
 #import "service/discovery/SZFriendsDiscovery.h"
 #import "service/helper/SZFriendsHelperServices.h"
+#import "service/transfer/SZFriendsRouteMeter.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -131,6 +132,11 @@ typedef struct SZFriendsLiveTransfer {
 - (BOOL)liveTransfer:(NSString *)transferID state:(SZFriendsLiveTransfer *)state;
 // Whether a file received by blocks has been checked for over a second before it is saved ("Finishing…").
 - (BOOL)transferShowsFinishing:(NSString *)transferID;
+// A transfer's routes, speed and time left as the route meter counted them (nil when it counted nothing), and how many
+// of the person's own computers serve it at once in the pull running now ("From 2 of your computers").
+- (nullable SZFriendsRouteReading *)routeReadingForTransfer:(NSString *)transferID remaining:(uint64_t)remaining;
+// One of our files going by blocks: the bytes its receiver acknowledged so far (0 when none is going).
+- (uint64_t)acknowledgedBytesOfTransfer:(NSString *)transferID;
 @end
 
 @class SZFriendsBoostRow;

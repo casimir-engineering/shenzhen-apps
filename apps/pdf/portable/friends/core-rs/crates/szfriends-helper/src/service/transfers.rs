@@ -386,6 +386,7 @@ impl State {
                         return;
                     }
                     let Some(frame) = outgoing.sender.chunk_frame(&outgoing.buffer) else { return };
+                    super::meter::count(&self.meter, &frame, session.meta.race_route(&session.channel));
                     session.channel.send_frame(&frame, now);
                     continue;
                 }

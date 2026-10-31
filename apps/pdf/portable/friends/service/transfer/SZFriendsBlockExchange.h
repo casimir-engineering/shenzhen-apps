@@ -138,6 +138,8 @@ extern const SZFriendsLaneID SZFriendsHeadLane; // 0
 @property(nonatomic, readonly) NSSet<NSString *> *sending;
 // The scheduler's measured rate on `route` (bytes per second; 0 while nothing is measured or nothing is sent).
 - (double)rateOfRoute:(SZFriendsRouteMethod)route;
+// Bytes of one of our files the receiver acknowledged on this group (its row's progress); 0 when not sending it.
+- (uint64_t)acknowledgedBytesOfTransfer:(NSString *)transferID;
 @end
 
 NS_ASSUME_NONNULL_END

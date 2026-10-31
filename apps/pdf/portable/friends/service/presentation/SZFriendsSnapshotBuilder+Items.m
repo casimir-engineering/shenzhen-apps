@@ -437,7 +437,7 @@ static BOOL EndsSentence(NSString *text) {
         @"accessibility_label" : spoken
     };
     // A file on another of the person's computers, one copying to them (+Devices), or one moved or deleted (+Again).
-    return [self transferWhereItIs:transfer item:item person:person];
+    return [self transfer:[self transferWhereItIs:transfer item:item person:person] withRoutesOfItem:item];
 }
 
 - (NSArray<NSDictionary<NSString *, id> *> *)itemsForPerson:(SZFriendsPersonFacts *)person

@@ -196,6 +196,62 @@ fn a_file_being_checked_before_it_is_saved_says_finishing() {
 }
 
 #[test]
+fn progress_by_route() {
+    if presentation::tree_missing() {
+        return;
+    }
+    // PROTOCOL.md § Fast transfers, Progress by route: only for views that declared transfers.progress (the same values
+    // as SZFriendsPresentationOnlineTests.m).
+    let mut sending =
+        transfer("t_p", true, "2026-10-12 09:00", "carrier-next-revision.step", 48_000_000, TransferState::Sending);
+    sending.bytes_done = 31_200_000;
+    sending.bytes_per_second = 12_400_000.0;
+    sending.seconds_left = 1.4;
+    sending.transfer_route = RouteMethod::Lan;
+    sending.route_bytes =
+        vec![(RouteMethod::Lan, 29_000_000), (RouteMethod::Bluetooth, 2_000_000), (RouteMethod::Relay, 200_000)];
+    sending.active_routes = vec![RouteMethod::Lan, RouteMethod::Bluetooth];
+    let mut audience = online_audience();
+    audience.capabilities.insert("transfers.progress".into());
+    let data = conversation(audience.clone(), &people()["c_mei"], &[sending.clone()], "by route");
+    let row = item(&data, "t_p");
+    let progress = &row["progress"];
+    assert_eq!(progress["amount_label"], "31.2 MB of 48 MB · 65\u{a0}% · 12.4 MB/s");
+    assert_eq!(progress["time_left_label"], "2 s left");
+    assert_eq!(progress["detail_label"], "Via Same Wi-Fi + Bluetooth");
+    assert_eq!(progress["finishing"], false);
+    assert_eq!(row["route_note"], Value::Null);
+    let routes = progress["routes"].as_array().unwrap();
+    let methods: Vec<&str> = routes.iter().map(|r| r["method"].as_str().unwrap()).collect();
+    assert_eq!(methods, ["lan", "bluetooth", "relay"]);
+    let active: Vec<bool> = routes.iter().map(|r| r["active"].as_bool().unwrap()).collect();
+    assert_eq!(active, [true, true, false]);
+    assert_eq!(routes[1]["label"], "Bluetooth · in use");
+    assert_eq!(routes[2]["label"], "Internet, via relay · not in use now");
+    let segments = progress["segments"].as_array().unwrap();
+    let sum: f64 = segments.iter().map(|s| s["fraction"].as_f64().unwrap()).sum();
+    assert_eq!(segments.len(), 3);
+    assert_eq!(segments[0]["method"], "lan");
+    assert!((sum - 0.65).abs() < 1e-9, "{segments:?}");
+    let plain = conversation(online_audience(), &people()["c_mei"], &[sending], "plain");
+    let plain = item(&plain, "t_p");
+    assert!(plain["progress"].get("routes").is_none(), "{plain}");
+    assert!(plain["status_label"].as_str().unwrap().starts_with("Sending · 65%"), "{plain}");
+    let mut finishing =
+        transfer("t_q", false, "2026-10-12 09:00", "Mothership ICD.pdf", 22_000_000, TransferState::Receiving);
+    finishing.bytes_done = 22_000_000;
+    finishing.finishing = true;
+    finishing.route_bytes = vec![(RouteMethod::Lan, 22_000_000)];
+    let data = conversation(audience, &people()["c_mei"], &[finishing], "finishing by route");
+    let progress = &item(&data, "t_q")["progress"];
+    assert_eq!(progress["finishing"], true);
+    assert_eq!(progress["routes"].as_array().unwrap().len(), 0);
+    assert_eq!(progress["amount_label"], "22 MB · 100\u{a0}%");
+    assert_eq!(progress["time_left_label"], "Finishing…");
+    assert_eq!(progress["detail_label"], Value::Null);
+}
+
+#[test]
 fn joining_in_every_state() {
     if presentation::tree_missing() {
         return;

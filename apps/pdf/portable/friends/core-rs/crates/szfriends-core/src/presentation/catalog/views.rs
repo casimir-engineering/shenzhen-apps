@@ -37,6 +37,30 @@ pub(super) const TRANSFERS_AND_CONVERSATIONS: &[(&str, &str)] = &[
     // Every block arrived; the whole file is checked before it is saved (PROTOCOL.md § Fast transfers).
     ("transfer.finishing", "Finishing…"),
     ("transfer.progress.finishing", "Finishing"),
+    // Progress by route (PROTOCOL.md § Fast transfers), for views that declared transfers.progress: the routes' names
+    // on their icons and in "Via …", the amount and speed under the bar, the time left beside it, and the notes.
+    ("transfer.route.lan", "Same Wi-Fi"),
+    ("transfer.route.p2p_wifi", "Direct Wi-Fi"),
+    ("transfer.route.internet", "Internet, direct"),
+    ("transfer.route.bluetooth", "Bluetooth"),
+    ("transfer.route.relay", "Internet, via relay"),
+    ("transfer.route.in_use", "{route} · in use"),
+    ("transfer.route.used", "{route} · not in use now"),
+    // The percentage in whole numbers, a no-break space before its sign.
+    ("transfer.amount", "{done} of {size} · {percent} %"),
+    ("transfer.amount.whole", "{size} · {percent} %"),
+    ("transfer.amount.rate", "{amount} · {rate}"),
+    ("transfer.rate", "{size}/s"),
+    ("transfer.left.seconds", "{n} s left"),
+    ("transfer.left.minutes", "{n} min left"),
+    ("transfer.left.hours", "{h} h left"),
+    ("transfer.left.hours_minutes", "{h} h {m} min left"),
+    ("transfer.via", "Via {routes}"),
+    ("transfer.via.separator", " + "),
+    ("transfer.detail.separator", " · "),
+    ("transfer.note.holders", "From {count} of your computers"),
+    ("transfer.note.devices", "From {count} devices at once"),
+    ("transfer.note.rejoin", "you’ll rejoin {network} after"),
     // The Wi-Fi Direct boost (ADR 0019): the question on a device that would lose its only Internet, and the notes after.
     (
         "transfer.boost.ask",

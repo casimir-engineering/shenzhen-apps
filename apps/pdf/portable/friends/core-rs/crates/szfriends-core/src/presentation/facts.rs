@@ -303,8 +303,19 @@ pub struct ItemFacts {
     /// ADR 0019: where the Wi-Fi Direct boost stands for this transfer on this device.
     pub boost: BoostFacts,
     pub transfer_route: RouteMethod,
-    /// Measured on the current route; 0 when unknown.
+    /// Measured on the current route; 0 when unknown. Smoothed while the helper counts the transfer by route.
     pub bytes_per_second: f64,
+    /// Bytes each route carried for this transfer, in the routes' fixed order (`transfer::meter`); empty when the
+    /// helper counted none.
+    pub route_bytes: Vec<(RouteMethod, u64)>,
+    /// The routes carrying it right now.
+    pub active_routes: Vec<RouteMethod>,
+    /// Seconds left at the smoothed speed, counting down steadily; 0 when unknown.
+    pub seconds_left: f64,
+    /// How many devices it comes from at once (a copy pulled from several holders), and how many of them are the
+    /// person's own computers; under 2 says nothing.
+    pub holders: u32,
+    pub own_holders: u32,
     /// A received file, once published.
     pub local_path: Option<String>,
     /// The folder a received file was saved in, for its "Saved to {folder}"; `None` (older files, or kept in the

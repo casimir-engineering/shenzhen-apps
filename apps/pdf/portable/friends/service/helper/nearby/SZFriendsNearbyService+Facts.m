@@ -156,6 +156,17 @@ static NSArray<NSNumber *> *SZFriendsFoundMethods(NSArray<SZFriendsSighting *> *
     return NO;
 }
 
+- (uint64_t)acknowledgedBytesOfTransfer:(NSString *)transferID {
+    uint64_t acknowledged = 0;
+    for (SZFriendsPeerLink *link in self.links)
+        acknowledged = MAX(acknowledged, [link.blocks acknowledgedBytesOfTransfer:transferID]);
+    return acknowledged;
+}
+
+- (nullable SZFriendsRouteReading *)routeReadingForTransfer:(NSString *)transferID remaining:(uint64_t)remaining {
+    return [self.routeMeter readingFor:transferID remaining:remaining now:NSProcessInfo.processInfo.systemUptime];
+}
+
 - (BOOL)liveTransfer:(NSString *)transferID state:(SZFriendsLiveTransfer *)state {
     for (SZFriendsPeerLink *link in self.links) {
         if (link.closed || link.superseded) continue;

@@ -278,6 +278,54 @@ static void TestTheBoostAsksOnlyWhereTheViewKnowsIt(void) {
               @"the way back failed: %@", row[@"route_note"]);
 }
 
+// PROTOCOL.md § Fast transfers, Progress by route: the routes, the split bar and the lines under it, only for views
+// that declared transfers.progress (the same values as the Rust core's presentation_online.rs).
+static void TestProgressByRoute(void) {
+    SZFriendsItemFacts *sending = SZPTransfer(@"t_p", YES, @"2026-10-12 09:00", @"carrier-next-revision.step", 48000000,
+                                              SZFriendsTransferStateSending);
+    sending.bytesDone = 31200000;
+    sending.bytesPerSecond = 12400000;
+    sending.secondsLeft = 1.4;
+    sending.transferRoute = SZFriendsRouteMethodLAN;
+    sending.routeBytes = @{@(SZFriendsRouteMethodLAN) : @29000000, @(SZFriendsRouteMethodBluetooth) : @2000000,
+                           @(SZFriendsRouteMethodRelay) : @200000};
+    sending.activeRoutes = @[ @(SZFriendsRouteMethodLAN), @(SZFriendsRouteMethodBluetooth) ];
+    SZFriendsAudience *audience = OnlineAudience();
+    audience.capabilities = [audience.capabilities setByAddingObject:@"transfers.progress"];
+    NSDictionary *row = Item(Conversation(audience, SZPPeople()[@"c_mei"], @[ sending ], @"by route"), @"t_p");
+    NSDictionary *progress = row[@"progress"];
+    SZPExpect([progress[@"amount_label"] isEqual:@"31.2 MB of 48 MB · 65\u00a0% · 12.4 MB/s"] &&
+                  [progress[@"time_left_label"] isEqual:@"2 s left"] &&
+                  [progress[@"detail_label"] isEqual:@"Via Same Wi-Fi + Bluetooth"] &&
+                  [progress[@"finishing"] isEqual:@NO] && row[@"route_note"] == [NSNull null],
+              @"the lines under the bar: %@", row);
+    NSArray *routes = progress[@"routes"];
+    SZPExpect([[routes valueForKey:@"method"] isEqual:(@[ @"lan", @"bluetooth", @"relay" ])] &&
+                  [[routes valueForKey:@"active"] isEqual:(@[ @YES, @YES, @NO ])] &&
+                  [routes[1][@"label"] isEqual:@"Bluetooth · in use"] &&
+                  [routes[2][@"label"] isEqual:@"Internet, via relay · not in use now"],
+              @"the routes: %@", routes);
+    NSArray *segments = progress[@"segments"];
+    double sum = 0;
+    for (NSDictionary *segment in segments) sum += [segment[@"fraction"] doubleValue];
+    SZPExpect(segments.count == 3 && [segments[0][@"method"] isEqual:@"lan"] && fabs(sum - 0.65) < 1e-9,
+              @"the bar split by route: %@", segments);
+    NSDictionary *plain = Item(Conversation(OnlineAudience(), SZPPeople()[@"c_mei"], @[ sending ], @"plain"), @"t_p");
+    SZPExpect(plain[@"progress"][@"routes"] == nil && [plain[@"status_label"] hasPrefix:@"Sending · 65%"],
+              @"a view without transfers.progress keeps the percentage: %@", plain);
+    SZFriendsItemFacts *finishing = SZPTransfer(@"t_q", NO, @"2026-10-12 09:00", @"Mothership ICD.pdf", 22000000,
+                                                SZFriendsTransferStateReceiving);
+    finishing.bytesDone = 22000000;
+    finishing.finishing = YES;
+    finishing.routeBytes = @{@(SZFriendsRouteMethodLAN) : @22000000};
+    row = Item(Conversation(audience, SZPPeople()[@"c_mei"], @[ finishing ], @"finishing by route"), @"t_q");
+    progress = row[@"progress"];
+    SZPExpect([progress[@"finishing"] isEqual:@YES] && [progress[@"routes"] count] == 0 &&
+                  [progress[@"amount_label"] isEqual:@"22 MB · 100\u00a0%"] && [progress[@"time_left_label"] isEqual:@"Finishing…"] &&
+                  progress[@"detail_label"] == [NSNull null],
+              @"Finishing: %@", progress);
+}
+
 void SZPRunOnlineTests(void) {
     TestFixtures();
     TestNothingOnlineWithoutCapability();
@@ -287,4 +335,5 @@ void SZPRunOnlineTests(void) {
     TestRelayEstimates();
     TestAFileBeingCheckedSaysFinishing();
     TestTheBoostAsksOnlyWhereTheViewKnowsIt();
+    TestProgressByRoute();
 }
