@@ -36,12 +36,8 @@ NSString* SPDFPermanentDeleteTitle(NSArray<NSString*>* names, NSUInteger trashed
 }
 
 NSString* SPDFPermanentDeleteMessage(NSUInteger count, NSUInteger trashed) {
-    if (!trashed) return count == 1 ? @"It is removed with its history and comments, and that can’t be undone."
-                                    : @"They are removed with their history and comments, and that can’t be undone.";
-    return count == 1 ? @"The file goes to the Trash, where you can still put it back. It is also removed from your "
-                        @"Collection, with its history and comments, and that can’t be undone."
-                      : @"The files go to the Trash, where you can still put them back. They are also removed from your "
-                        @"Collection, with their history and comments, and that can’t be undone.";
+    if (!trashed) return count == 1 ? @"Its file is already gone." : @"Their files are already gone.";
+    return count == 1 ? @"It’s also removed from your Collection." : @"They’re also removed from your Collection.";
 }
 
 NSAlert* SPDFPermanentDeleteConfirmation(NSArray<NSString*>* names, NSArray<NSString*>* files) {
@@ -75,9 +71,9 @@ NSAlert* SPDFPermanentDeleteRefusal(NSArray<NSString*>* files) {
     alert.messageText = lines.count == 1 ? [NSString stringWithFormat:@"“%@” can’t be moved to the Trash", only]
                                          : @"Some documents can’t be moved to the Trash";
     // One file: the title names it, so the text only says why.
-    NSString* list = lines.count == 1 ? [@"The file " stringByAppendingString:reasonOnly] : [NSString stringWithFormat:@"%@ and %@",
+    NSString* list = lines.count == 1 ? [@"It " stringByAppendingString:reasonOnly] : [NSString stringWithFormat:@"%@ and %@",
         [[lines subarrayWithRange:NSMakeRange(0, lines.count - 1)] componentsJoinedByString:@", "], lines.lastObject];
-    alert.informativeText = [list stringByAppendingString:@", so nothing was removed."];
+    alert.informativeText = [list stringByAppendingString:@"."];
     [alert addButtonWithTitle:@"OK"];
     return alert;
 }

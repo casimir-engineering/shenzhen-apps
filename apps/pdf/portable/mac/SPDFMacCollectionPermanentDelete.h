@@ -1,5 +1,5 @@
 #pragma once
-// "Move to Trash and Remove from Collection…" (the tab menu, the page's menu and the Collection list): the person's
+// "Move to Trash" (the tab menu, the page's menu and the Collection list): the person's
 // files go to the Trash, where the Finder can put them back, and everything ShenzhenPDF kept about them goes for good
 // (Collection entry, History copies, previews, indexes, viewing dates). Shared by the reader and the
 // Collection window's process; the reader does the work (SPDFMacPermanentDeleteIntegration.mm), because only it can

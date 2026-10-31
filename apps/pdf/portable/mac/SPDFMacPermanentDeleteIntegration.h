@@ -4,7 +4,7 @@
 // The reader's side of SPDFMacCollectionPermanentDelete.h: the menu item, the questions, and the work, which closes
 // the documents' tabs in this window and tells the other windows (each its own process) to close theirs.
 @interface ShenzhenMacDelegate (SPDFMacPermanentDelete)
-// "Move to Trash and Remove from Collection…" at the end of a tab's or the page's menu, for the document at `path`.
+// "Move to Trash" at the end of a tab's or the page's menu, for the document at `path`.
 - (void)addPermanentDeleteItemToMenu:(NSMenu*)menu path:(NSString*)path;
 // The item's action: representedObject is the document's path (the selected tab's when there is none).
 - (void)removeFromDiskAndCollection:(id)sender;

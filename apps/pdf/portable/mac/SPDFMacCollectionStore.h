@@ -95,7 +95,7 @@ FOUNDATION_EXPORT NSNotificationName const SPDFCollectionStoreDidChangeNotificat
 // Caller obtains explicit scope confirmation. Originals/exclusion choices are untouched.
 - (BOOL)deleteDocumentID:(nullable NSString*)documentID versionID:(nullable NSString*)versionID error:(NSError**)error;
 // Forgets whole documents, exclusion choices included: their entries, versions, text indexes, editable History copies
-// and previews. Move to Trash and Remove from Collection, once their files went (SPDFMacCollectionPermanentDelete.h).
+// and previews. Move to Trash, once their files went (SPDFMacCollectionPermanentDelete.h).
 - (BOOL)purgeDocumentIDs:(NSArray<NSString*>*)documentIDs error:(NSError**)error;
 // Removes older snapshots, retaining the latest saved version and source binding.
 - (BOOL)deletePreviousBackupsForDocumentID:(NSString*)documentID error:(NSError**)error;

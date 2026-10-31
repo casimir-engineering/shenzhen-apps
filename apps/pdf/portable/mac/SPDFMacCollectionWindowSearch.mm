@@ -183,7 +183,7 @@ static NSString* DateLabel(NSDictionary* version) {
     }
     if (!self.deleteHandler || [self.destination isEqual:@"History"]) return;
     [menu addItem:NSMenuItem.separatorItem];
-    NSMenuItem* remove = [menu addItemWithTitle:@"Move to Trash and Remove from Collection…"
+    NSMenuItem* remove = [menu addItemWithTitle:@"Move to Trash"
                                          action:@selector(removeFromDiskAndCollection:) keyEquivalent:@""];
     remove.target = self; remove.enabled = self.table.selectedRowIndexes.count > 0 && !self.mutationPending;
 }

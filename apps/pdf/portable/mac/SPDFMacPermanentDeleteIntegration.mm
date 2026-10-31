@@ -1,4 +1,4 @@
-// Move to Trash and Remove from Collection (SPDFMacPermanentDeleteIntegration.h). Order matters: the files go first,
+// Move to Trash (SPDFMacPermanentDeleteIntegration.h). Order matters: the files go first,
 // then the Collection entries, then the tabs. A tab closed first would end this window's process when it was the last
 // one, cutting the work short; and a Collection entry forgotten while its file is still there could be captured again.
 // Until its tab closes, a tab whose file just went may show "File moved or deleted" for a moment, as for any deletion
@@ -29,7 +29,7 @@ static char kDeleteObserverKey;
 
 - (void)addPermanentDeleteItemToMenu:(NSMenu*)menu path:(NSString*)path {
     [menu addItem:NSMenuItem.separatorItem];
-    NSMenuItem* item = [menu addItemWithTitle:@"Move to Trash and Remove from Collection…"
+    NSMenuItem* item = [menu addItemWithTitle:@"Move to Trash"
                                        action:@selector(removeFromDiskAndCollection:) keyEquivalent:@""];
     item.target = self;
     item.representedObject = path;
