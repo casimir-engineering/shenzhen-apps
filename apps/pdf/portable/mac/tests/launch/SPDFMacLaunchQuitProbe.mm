@@ -243,10 +243,10 @@ static void InstallQuitHooks(id reader) {
 }
 
 // ---- quit-appleevent: `quit app` ----------------------------------------------------------------------------------
-// Once the launch settled the probe prints "PROBE_READY <pid>" and takes events until the quit arrives as
-// `osascript -e 'tell application id "<this copy's id>" to quit'` delivers it: an Apple event, handled by AppKit
-// between two events. PROBE_QUIT_SELF=<ms> has osascript send that Apple event to this process id that long
-// after the launch settled. PROBE_OPEN_DURING_QUIT=<path> sends an
+// Once the launch settled the probe prints "PROBE_READY <pid>" and takes events until a Quit Apple event arrives,
+// handled by AppKit's own Quit Apple event handler. PROBE_QUIT_SELF=<ms> sends it that long after the launch settled,
+// addressed to this process id (AESendMessage), from the main thread: an event a process sends itself is handled on
+// the sending thread, and AppKit quits only on the main thread. PROBE_OPEN_DURING_QUIT=<path> sends an
 // open-documents Apple event for <path> the moment applicationShouldTerminate has answered, as a double-click in the
 // Finder on a process that is still finishing does. PROBE_OWN_PASTEBOARD=1: the reader copied something last.
 // PROBE_SECOND_ASK=1: AppKit asks applicationShouldTerminate: a second time during the quit, as it did on a person's
@@ -385,19 +385,9 @@ static void ServeAppleEventQuit(id reader) {
         _exit(3);
     }
     DispatchEvents(0.3);
-    if (getenv("PROBE_QUIT_SELF")) {
-        // From another process, as `quit app` comes: one this process sends itself is handled on the sending thread.
-        // NSRunningApplication -terminate sends the Quit Apple event to this process id, and to nothing else.
-        NSTask* task = [NSTask new];
-        task.executableURL = [NSURL fileURLWithPath:@"/usr/bin/osascript"];
-        task.arguments = @[ @"-l", @"JavaScript", @"-e",
-                            [NSString stringWithFormat:@"ObjC.import('AppKit'); delay(%.3f); "
-                                                       @"$.NSRunningApplication.runningApplicationWithProcessIdentifier(%d)"
-                                                       @".terminate",
-                                                       atof(getenv("PROBE_QUIT_SELF")) / 1000.0, getpid()] ];
-        task.standardOutput = task.standardError = NSFileHandle.fileHandleWithNullDevice;
-        [task launchAndReturnError:nil];
-    }
+    if (getenv("PROBE_QUIT_SELF"))
+        [NSTimer scheduledTimerWithTimeInterval:atof(getenv("PROBE_QUIT_SELF")) / 1000.0 repeats:NO
+                                          block:^(NSTimer*) { SendAppleEvent(kCoreEventClass, kAEQuitApplication, nil); }];
     fprintf(stdout, "PROBE_READY %d\n", getpid());
     fflush(stdout);
     for (;;) DispatchEvents(3600);
