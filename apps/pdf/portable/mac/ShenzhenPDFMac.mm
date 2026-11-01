@@ -250,7 +250,7 @@ static NSString* spdf_menu_symbol_name_for_item(NSMenuItem* item) {
     if (action == @selector(zoomOut:)) return @"minus.magnifyingglass";
     if (action == @selector(actualSize:)) return @"magnifyingglass";
     if (action == @selector(fitPage:) || action == @selector(fitWidth:) || action == @selector(fitHeight:))
-        return @"arrow.up.left.and.arrow.down.right";
+        return action == @selector(fitWidth:) ? @"arrow.left.and.right" : action == @selector(fitHeight:) ? @"arrow.up.and.down" : @"arrow.up.left.and.arrow.down.right";
     if (action == @selector(toggleSidebar:)) return @"sidebar.left";
     if (action == @selector(toggleMinimap:)) return @"map";
     if (action == @selector(togglePresentation:)) return @"play.rectangle";

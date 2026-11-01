@@ -373,6 +373,7 @@ static char kStatesKey, kContextLocationKey;
     item.representedObject = path;
     item.enabled = [self existingCommentsFileForPath:path] != nil;
     if (!item.enabled) item.action = nil;
-    item.image = [NSImage imageWithSystemSymbolName:@"text.bubble" accessibilityDescription:nil];
+    // Not Add Comment's text.bubble, the item above it.
+    item.image = [NSImage imageWithSystemSymbolName:@"bubble.left.and.bubble.right" accessibilityDescription:nil];
 }
 @end

@@ -187,7 +187,7 @@
         [(id<SPDFTabPermanentDeleteMenuProviding>)self.reader addPermanentDeleteItemToMenu:menu path:tabPath];
     spdf_set_menu_item_system_symbol(showInFolder, @"folder");
     spdf_set_menu_item_system_symbol(copy, @"doc.on.doc");
-    spdf_set_menu_item_system_symbol(copyTitle, @"character.cursor.ibeam");
+    spdf_set_menu_item_system_symbol(copyTitle, @"textformat");
     spdf_set_menu_item_system_symbol(copyPath, @"doc.text");
     [comments decorateDocumentMenu:menu];
     return menu;
