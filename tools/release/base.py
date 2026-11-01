@@ -18,6 +18,8 @@ class Release:
     before_notarize = ("build", "sign", "package")
     # {stage: [stages whose output it uses]}, when that is not simply every stage before it in `order` (Stages).
     needs = None
+    # What else, beside the version, commit and platforms, makes a run different (3d: the hand-over's owner).
+    variant = ""
     # The stage after which the test suites start (beside the stages that follow it).
     tests_after = "build"
     # What a stage holds of the machine's pool (jobs.py) while it runs: {stage: (cores, GB)}; the others hold nothing.
@@ -35,7 +37,7 @@ class Release:
         os.makedirs(self.logs, exist_ok=True)
         self.wt = os.path.join(CACHE, "worktrees", self.app)
         self.stages = Stages(os.path.join(self.run_dir, "stamps"), self.order,
-                             f"{self.app} {self.tag} {self.commit} {opts.platforms} {int(opts.private_copy)}",
+                             f"{self.app} {self.tag} {self.commit} {opts.platforms} {self.variant}",
                              needs=self.needs)
         self.test_failures = []
         self.problems = []

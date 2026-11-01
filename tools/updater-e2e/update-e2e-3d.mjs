@@ -3,7 +3,7 @@
 //
 //   node update-e2e-3d.mjs --owner=O --fixture=APP --artifacts=DIR --shape=RELEASES_JSON --notes=MD --work=DIR
 //                          --expect-access=public|private [--expect-owner=O2] [--relaunch-app=HIDDEN_COPY_OF_NEW_APP]
-//                          [--next-app=SIGNED_NEWER_APP] [--live]
+//                          [--next-app=SIGNED_NEWER_APP] [--live] [--screenshots=DIR]
 //
 // --expect-owner: the owner the new build reads from, when the release moves a private channel to the public one
 // (UPDATES.md, "Moving a private channel to the public one"): O's release carries O2's public build. The relaunched
@@ -11,6 +11,7 @@
 // signed copy, prep-3d-fixture.mjs --version), that newer one, which it must then install too.
 // --live: no local copy of GitHub; the released app reads the real releases (published already) and connects with
 // GitHub CLI's login, as a person would. --artifacts is then the published Mac assets, for the hash checks.
+// --screenshots: the Updates dialog of each app at each step, as PNGs in DIR, captured from the hidden window.
 //
 // The fixture is the released app with electron/hidden-hook.cjs loaded first and LSBackgroundOnly (prep-3d-fixture
 // .mjs), signed again with the same Developer ID, so Squirrel's designated-requirement check is the release's. Test
@@ -44,6 +45,7 @@ const owner = opt("owner"), fixtureSrc = opt("fixture"), artifacts = opt("artifa
 const expectAccess = opt("expect-access"), shape = opt("shape"), notes = opt("notes");
 const relaunchPrepared = opt("relaunch-app");
 const expectOwner = opt("expect-owner") ?? owner, nextApp = opt("next-app"), live = process.argv.includes("--live");
+const screenshots = opt("screenshots");
 if (nextApp && (!relaunchPrepared || expectOwner === owner || live)) throw Error("--next-app needs --relaunch-app and another --expect-owner, not --live");
 if (!owner || !fixtureSrc || !artifacts || !work || !expectAccess || !shape || !notes) throw Error("missing options");
 const FAKE_TOKEN = "ghp_" + "x".repeat(36);
@@ -268,6 +270,24 @@ async function overrides(application) {
     };
   }, { ports, cache });
 }
+// The Updates dialog as the person would see it at this step, captured from the hidden window (it keeps painting).
+let shots = 0;
+async function shot(pg, name) {
+  if (!screenshots) return;
+  try {
+    fs.mkdirSync(screenshots, { recursive: true });
+    if (!(await pg.locator("#updates-heading").count())) {
+      await pg.evaluate(() => document.querySelector('button[aria-label="Updates"]')?.click());
+      await pg.locator("#updates-heading").waitFor({ timeout: 10_000 });
+    }
+    await sleep(800);
+    const file = path.join(screenshots, `${String(++shots).padStart(2, "0")}-${name}.png`);
+    await pg.screenshot({ path: file });
+    (result.screenshots ??= []).push(file);
+  } catch (error) {
+    (result.screenshotErrors ??= []).push(`${name}: ${String(error).slice(0, 200)}`);
+  }
+}
 const anyVisible = (application) => application.evaluate(({ BaseWindow }) => BaseWindow.getAllWindows().some((w) => w.isVisible()));
 
 let application, installed = false, installStarted = false;
@@ -301,12 +321,15 @@ try {
       : await page.evaluate((t) => window.shenzhenUpdates.connect(t), FAKE_TOKEN);
     check("it needs GitHub access connected first (by design); connecting succeeds", connected.connected, connected);
   }
+  await shot(page, `${oldVersion}-before-check`);
   const available = await page.evaluate(() => window.shenzhenUpdates.check());
   check(`it offers ${newVersion}`, available.status === "available" && available.availableVersion === newVersion, available);
+  await shot(page, `${oldVersion}-offers-${newVersion}`);
   const apiRequests = result.requests.filter((r) => r.path?.startsWith(`/repos/${owner}/shenzhen-3D/releases`));
   if (!live) check("its release-list requests", apiRequests.length > 0, apiRequests.slice(0, 6));
   const ready = await page.evaluate(() => window.shenzhenUpdates.download());
   check("it downloads the update", ready.status === "ready", ready);
+  await shot(page, `${oldVersion}-downloaded-${newVersion}`);
   const zip = files.find((f) => f.endsWith(".zip"));
   const zipHash = sha(path.join(artifacts, zip), "sha512", "base64");
   const downloaded = [];
@@ -355,6 +378,7 @@ try {
     const state = await p2.evaluate(() => window.shenzhenUpdates.getState());
     check(`the new version runs (${newVersion}) for ${expectOwner}, ${expectAccess}`, state.version === newVersion && state.repository === expectOwner && state.access === expectAccess, state);
     const after = await p2.evaluate(() => window.shenzhenUpdates.check());
+    await shot(p2, `${newVersion}-checks-${expectOwner}`);
     const reqs = result.requests.slice(before).filter((r) => r.path?.includes("/releases"));
     if (expectAccess === "public") {
       const kept = JSON.parse(fs.readFileSync(path.join(profile, "updates.json"), "utf8"));
@@ -367,6 +391,7 @@ try {
         check(`public: it offers ${nextVersion} from ${expectOwner}`, after.status === "available" && after.availableVersion === nextVersion, after);
         const ready2 = await p2.evaluate(() => window.shenzhenUpdates.download());
         check(`public: it downloads ${nextVersion}`, ready2.status === "ready", ready2);
+        await shot(p2, `${newVersion}-downloaded-${nextVersion}`);
         check("ShipIt from the first install has finished", await shipItIdle());
         const closed2 = application.waitForEvent("close", { timeout: 180_000 });
         await p2.evaluate(() => window.shenzhenUpdates.install()).catch(() => {});

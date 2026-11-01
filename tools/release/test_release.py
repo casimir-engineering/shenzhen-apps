@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Tests for tools/release.sh's machinery that a dry run does not reach: stage stamps and resuming, test stamps, the
 source tag on a release repository, publishing a GitHub release (against a stand-in for gh that keeps releases
-in a JSON file), and reading the version each kind of build shows (displayed.py). Nothing leaves the machine.
+in a JSON file), Shenzhen 3D's hand-over release (handover.py), and reading the version each kind of build shows
+(displayed.py). Nothing leaves the machine.
 
     python3 tools/release/test_release.py
 """
@@ -28,6 +29,7 @@ sys.path.insert(0, HERE)
 
 import common  # noqa: E402
 import displayed  # noqa: E402
+import handover  # noqa: E402
 
 FAKE_GH = r'''#!/usr/bin/env python3
 # A stand-in for gh: releases live in $FAKE_GH_STATE; every call is appended to its "calls".
@@ -349,6 +351,51 @@ def test_publish():
           release["draft"] is False and release["tag_name"] == "26.10.20-98" and len(release["assets"]) == 2)
 
 
+def test_handover():
+    """The hand-over release (handover.py): its assets, its notes, and which release on its repository is the last
+    build of that owner's own."""
+    folder = "/r/notarized"
+    built = [os.path.join(folder, n) for n in (
+        "Shenzhen-3D-0.2.7-Apple-Silicon.dmg", "Shenzhen-3D-0.2.7-Apple-Silicon.zip",
+        "Shenzhen-3D-0.2.7-Apple-Silicon.dmg.blockmap", "Shenzhen-3D-0.2.7-Apple-Silicon.zip.blockmap",
+        "latest-mac.yml", "build-info.json")]
+    chosen = sorted(os.path.basename(p) for p in handover.files(built + ["/r/SHA256SUMS.txt", "/r/latest.json"]))
+    check("hand-over: the Mac update files only, not build-info.json, the sums or other platforms' feeds",
+          chosen == sorted(os.path.basename(p) for p in built[:5]), chosen)
+    for missing in ("latest-mac.yml", "Shenzhen-3D-0.2.7-Apple-Silicon.zip"):
+        try:
+            handover.files([p for p in built if os.path.basename(p) != missing])
+            check(f"hand-over: no release without {missing}", False)
+        except ValueError:
+            check(f"hand-over: no release without {missing}", True)
+    notes = handover.notes("0.2.7", "preview-0.2.7")
+    url = "https://github.com/casimir-engineering/shenzhen-3D/releases/tag/preview-0.2.7"
+    check("hand-over notes: link to the public release of the same tag, for Mac and the other systems",
+          notes.count(f"]({url})") == 3 and "**Mac.**" in notes and "**Windows, Linux and Android.**" in notes, notes)
+    check("hand-over notes: nothing left unformatted", "{" not in notes and "}" not in notes)
+
+    def release(tag, digest, draft=False):
+        version = tag.split("-", 1)[1]
+        return {"tag_name": tag, "draft": draft, "assets": [
+            {"name": f"Shenzhen-3D-{version}-Apple-Silicon.dmg", "digest": digest},
+            {"name": "latest-mac.yml", "digest": "sha256:yml"}]}
+    public = [release("preview-0.2.8", "sha256:p8"), release("preview-0.2.7", "sha256:p7"),
+              release("preview-0.2.1", "sha256:p1")]
+    mirror = [release("preview-0.2.9", "sha256:draft", draft=True), release("preview-0.2.8", "sha256:p8"),
+              release("preview-0.2.7", "sha256:p7"), {"tag_name": "preview-0.2.2", "draft": False, "assets": []},
+              release("preview-0.2.1", "sha256:m1"), release("preview-0.2.0", "sha256:m0")]
+    last = handover.last_own_build(mirror, public, "preview-0.2.9")
+    check("hand-over: the earlier hand-overs (the public bytes), drafts and releases without a Mac app are passed over",
+          last and last["tag_name"] == "preview-0.2.1", last)
+    last = handover.last_own_build(mirror, public, "preview-0.2.1")
+    check("hand-over: never the release being made", last and last["tag_name"] == "preview-0.2.0", last)
+    check("hand-over: none when every release there is a hand-over",
+          handover.last_own_build(mirror[:3], public, "preview-0.2.9") is None)
+    undigested = [release("preview-0.2.1", None)]
+    last = handover.last_own_build(undigested, [release("preview-0.2.1", None)], "preview-0.2.9")
+    check("hand-over: an asset without a digest counts as the owner's own build", last is not None)
+
+
 def fake_asar(path, files):
     """An app.asar holding `files` ({name or dir/name: bytes})."""
     tree, blob = {"files": {}}, b""
@@ -550,6 +597,7 @@ def main():
         test_test_stamps(mono)
         test_source_tag(mono, remote, previous)
         test_publish()
+        test_handover()
         test_displayed()
     finally:
         shutil.rmtree(TMP, ignore_errors=True)

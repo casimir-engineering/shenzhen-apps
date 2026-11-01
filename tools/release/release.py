@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""tools/release.sh <pdf|files|3d> <version> [--publish] [--platforms mac|all] [--private-copy]
+"""tools/release.sh <pdf|files|3d> <version> [--publish] [--platforms mac|all]
    tools/release.sh all [--pdf VERSION] [--files VERSION] [--3d VERSION] [--publish] [--platforms mac|all]
 
 One command per app, from build to published release, unattended; `all` runs the three apps' releases at once, in one
@@ -42,15 +42,13 @@ def main(argv):
     parser.add_argument("--publish", action="store_true", help="publish the GitHub release (default: dry run)")
     parser.add_argument("--platforms", choices=("mac", "all"), default="mac",
                         help="3d: also build Windows, Linux, Android, iOS and the web (default: mac)")
-    parser.add_argument("--private-copy", action="store_true",
-                        help="3d: also build and publish the copy for SHENZHEN_3D_MIRROR_OWNER")
     opts = parser.parse_args(argv)
     repo = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     if opts.app != "all":
         if not opts.version:
             parser.error(f"{opts.app} needs a version")
-        if opts.app != "3d" and (opts.platforms != "mac" or opts.private_copy):
-            parser.error("--platforms and --private-copy are for 3d")
+        if opts.app != "3d" and opts.platforms != "mac":
+            parser.error("--platforms is for 3d")
         try:
             release = release_class(opts.app)(repo, opts.version, opts)
         except Failure as error:
@@ -69,7 +67,7 @@ def run_all(repo, opts):
     for app in APPS:
         app_opts = copy.copy(opts)
         if app != "3d":
-            app_opts.platforms, app_opts.private_copy = "mac", False
+            app_opts.platforms = "mac"
         cls = release_class(app)
         version = getattr(opts, f"v_{app}") or committed(cls, repo, commit)
         try:

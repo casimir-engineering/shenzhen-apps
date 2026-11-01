@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
 # One command per app, unattended, from build to published release:
 #
-#   tools/release.sh <pdf|files|3d> <version> [--publish] [--platforms mac|all] [--private-copy]
+#   tools/release.sh <pdf|files|3d> <version> [--publish] [--platforms mac|all]
 #
 #   pdf, files  <version> is YY.M.D-N (26.10.20-1)
 #   3d          <version> is preview-X.Y.Z, vX.Y.Z, or X.Y.Z for a preview
 #   --publish   publish the GitHub release; without it the run stops before anything leaves the machine except the
 #               notarization upload (a dry run)
+#   3d with SHENZHEN_3D_MIRROR_OWNER set: also the hand-over release on that owner's shenzhen-3D (docs/RELEASING.md)
 #
 # Stages: build, sign, package, notarize with the test suites alongside, staple, verify (the updater test), then
 # publish and a live updater check. Each finished stage is stamped for this commit and version: running the same

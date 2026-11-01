@@ -1,7 +1,7 @@
 """Shenzhen 3D: apps/3d, released on <owner>/shenzhen-3D as preview-<version> (or v<version>) with the Electron Mac
 app's DMG, ZIP, their blockmaps and latest-mac.yml, which the updater reads; with --platforms all also the Tauri builds
-for Windows, Linux, Android and iOS and the web build; with --private-copy a second copy for the owner named by
-SHENZHEN_3D_MIRROR_OWNER, built from a derived tree."""
+for Windows, Linux, Android and iOS and the web build; with SHENZHEN_3D_MIRROR_OWNER set, also the hand-over release
+on that owner's shenzhen-3D (handover.py), which moves the earlier builds of that owner onto this public one."""
 import glob
 import hashlib
 import json
@@ -13,6 +13,7 @@ import time
 import zipfile
 
 import displayed
+import handover
 from base import Release
 from common import (CACHE, IDENTITY, PROFILE, TEAM_ID, TEAM_REQUIREMENT, Failure, app_from_dmg, download_asset,
                     end_test_processes, gh_api, git, notarize, prepare_worktree, publish_release,
@@ -52,13 +53,11 @@ class ThreeDRelease(Release):
         self.version = m.group(2)
         self.tag = (m.group(1) or "preview-") + self.version
         self.prerelease = self.tag.startswith("preview-")
-        mirror = os.environ.get("SHENZHEN_3D_MIRROR_OWNER", "").strip()
-        self.owners = [OWNER] + ([mirror] if self.opts.private_copy else [])
-        if self.opts.private_copy:
-            for name in ("SHENZHEN_3D_MIRROR_OWNER", "SHENZHEN_3D_PRIVATE_RULES", "SHENZHEN_3D_MIRROR_AUTHOR"):
-                if not os.environ.get(name):
-                    raise Failure(f"--private-copy needs {name} (docs/RELEASING.md, Shenzhen 3D)")
-        self.mirror = mirror or None
+        # The owner whose earlier builds update from its own shenzhen-3D: each release hands them over to this one.
+        self.mirror = os.environ.get("SHENZHEN_3D_MIRROR_OWNER", "").strip() or None
+        if self.mirror == OWNER:
+            raise Failure(f"SHENZHEN_3D_MIRROR_OWNER names {OWNER} itself")
+        self.variant = f"hand-over={self.mirror or '-'}"
 
     def committed_version(self):
         pkg = json.loads(git(self.repo, "show", f"{self.commit}:apps/3d/package.json"))
@@ -67,63 +66,13 @@ class ThreeDRelease(Release):
     def notes_path(self, tag):
         return os.path.join(self.repo, "apps/3d/docs", f"MAC-{tag.split('-', 1)[-1].lstrip('v')}.md")
 
-    # ---- trees: the public one, and the private copy derived from it ----------------------------------------------
-
-    def tree(self, owner):
-        return self.wt if owner == OWNER else self.wt + "-private"
-
-    def app_dir(self, owner):
-        return os.path.join(self.tree(owner), "apps/3d")
-
-    def derive_private(self, log):
-        """The private copy: the build worktree at this commit with SHENZHEN_3D_PRIVATE_RULES applied to apps/3d's text
-        files (lines `old==>new`, or `regex:pattern==>new`, in order) and PRIVATE_RELEASE_OWNER naming the mirror's
-        owner, committed locally (never pushed) with the source commit's dates, so the same commit derives the same
-        tree and its build counts as clean."""
-        tree = self.tree(self.mirror)
-        prepare_worktree(self.repo, tree, self.commit, log)
-        rules = []
-        for line in open(os.environ["SHENZHEN_3D_PRIVATE_RULES"], "rb").read().splitlines():
-            if not line.strip():
-                continue
-            lhs, _, rhs = line.partition(b"==>")
-            if lhs.startswith(b"regex:"):
-                rules.append((re.compile(lhs[6:]), rhs))
-            else:
-                rules.append((re.compile(re.escape(lhs)), rhs.replace(b"\\", b"\\\\")))
-        root = os.path.join(tree, "apps/3d")
-        for folder, dirs, files in os.walk(root):
-            dirs[:] = [d for d in dirs if d not in ("node_modules", ".git", "artifacts", "dist", "target")]
-            for name in files:
-                path = os.path.join(folder, name)
-                if os.path.islink(path):
-                    continue
-                data = open(path, "rb").read()
-                if b"\0" in data[:8192]:
-                    continue
-                new = data
-                for pattern, replacement in rules:
-                    new = pattern.sub(replacement, new)
-                if new != data:
-                    open(path, "wb").write(new)
-        channel = os.path.join(root, "electron/release-channel.cjs")
-        text = open(channel).read()
-        if "const PRIVATE_RELEASE_OWNER = null;" not in text:
-            raise Failure("electron/release-channel.cjs no longer sets PRIVATE_RELEASE_OWNER = null")
-        open(channel, "w").write(text.replace("const PRIVATE_RELEASE_OWNER = null;",
-                                              f'const PRIVATE_RELEASE_OWNER = "{self.mirror}";'))
-        name, email = re.fullmatch(r"\s*(.*?)\s*<([^>]+)>\s*", os.environ["SHENZHEN_3D_MIRROR_AUTHOR"]).groups()
-        date = git(self.repo, "log", "-1", "--format=%aI", self.commit)
-        env = {"GIT_AUTHOR_NAME": name, "GIT_AUTHOR_EMAIL": email, "GIT_COMMITTER_NAME": name,
-               "GIT_COMMITTER_EMAIL": email, "GIT_AUTHOR_DATE": date, "GIT_COMMITTER_DATE": date}
-        run(["git", "-C", tree, "add", "-A", "apps/3d"], log=log)
-        run(["git", "-C", tree, "commit", "--quiet", "--no-verify", "-m", self.tag], env=env, log=log)
-        return tree
+    def app_dir(self):
+        return os.path.join(self.wt, "apps/3d")
 
     def node_modules(self, owner, log, app_dir=None):
         """node_modules for package-lock.json, cloned (APFS copy-on-write) from the cache when another worktree or run
         installed the same lock already; otherwise npm ci from npm's own cache, and kept for the next."""
-        app_dir = app_dir or self.app_dir(owner)
+        app_dir = app_dir or self.app_dir()
         lock = hashlib.sha256(open(os.path.join(app_dir, "package-lock.json"), "rb").read()).hexdigest()[:16]
         modules = os.path.join(app_dir, "node_modules")
         marker = os.path.join(modules, ".shenzhen-lock")
@@ -143,10 +92,10 @@ class ThreeDRelease(Release):
         run(["cp", "-c", "-R", modules, cached], log=log)
 
     def original(self, owner):
-        return os.path.join(self.app_dir(owner), "artifacts/electron", f"release-{self.tag}-{owner}-{self.short}")
+        return os.path.join(self.app_dir(), "artifacts/electron", f"release-{self.tag}-{owner}-{self.short}")
 
     def notarized(self, owner):
-        return os.path.join(self.app_dir(owner), "artifacts/electron",
+        return os.path.join(self.app_dir(), "artifacts/electron",
                             f"release-{self.tag}-{owner}-notarized-{self.short}")
 
     def final_files(self, owner):
@@ -162,74 +111,62 @@ class ThreeDRelease(Release):
         the frontend (dist/, npm run build, showing this version): packaging and every other platform use this one
         build of it, so nothing rewrites dist/ while they read it."""
         log = self.log("build")
-        files = []
-        for owner in self.owners:
-            if owner != OWNER:
-                self.derive_private(log)
-            self.node_modules(owner, log)
-            run(["scripts/friends/setup-friends.sh"], cwd=self.app_dir(owner), env={"MAKEFLAGS": None}, log=log)
-            run(["npm", "run", "build"], cwd=self.app_dir(owner), env={"SHENZHEN_3D_VERSION": self.version}, log=log)
-            files.append(os.path.join(self.app_dir(owner), "dist", "index.html"))
-        return {"files": files}
+        self.node_modules(OWNER, log)
+        run(["scripts/friends/setup-friends.sh"], cwd=self.app_dir(), env={"MAKEFLAGS": None}, log=log)
+        run(["npm", "run", "build"], cwd=self.app_dir(), env={"SHENZHEN_3D_VERSION": self.version}, log=log)
+        return {"files": [os.path.join(self.app_dir(), "dist", "index.html")]}
 
     def package(self):
-        """electron/package-mac.mjs per owner: the frontend build, the native addons, the signed app (Developer ID,
-        hardened runtime), its ZIP and its DMG (recompressed as LZMA), checked against the feed."""
+        """electron/package-mac.mjs: the frontend build, the native addons, the signed app (Developer ID, hardened
+        runtime), its ZIP and its DMG (recompressed as LZMA), checked against the feed. The hand-over's owner must
+        appear nowhere in the package."""
         log = self.log("package")
-        files = []
-        for owner in self.owners:
-            out = self.original(owner)
-            shutil.rmtree(out, ignore_errors=True)
-            stale = glob.glob(os.path.join(self.app_dir(owner), "artifacts/electron", "*"))
-            for folder in stale:
-                if os.path.basename(folder).startswith("release-") and self.short not in folder:
-                    shutil.rmtree(folder, ignore_errors=True)
-            forbid = [f"--forbid-owner={o}" for o in {OWNER, self.mirror} - {owner, None}]
-            # SZF_PARALLEL_CODESIGN: electron-builder's seven hundred signatures several at once
-            # (electron/codesign-parallel.py): three minutes of waiting on Apple's timestamp server becomes forty
-            # seconds; the same signatures.
-            run(["node", "electron/package-mac.mjs", f"--release-owner={owner}", *forbid, "--frontend-built",
-                 f"--version={self.version}", f"--output={out}"], cwd=self.app_dir(owner),
-                env={"SZF_PARALLEL_CODESIGN": "1"}, log=log, stamp=True)
-            files += [os.path.join(out, file_name(self.version, e)) for e in ("zip", "dmg")]
-        return {"files": files}
+        out = self.original(OWNER)
+        shutil.rmtree(out, ignore_errors=True)
+        stale = glob.glob(os.path.join(self.app_dir(), "artifacts/electron", "*"))
+        for folder in stale:
+            if os.path.basename(folder).startswith("release-") and self.short not in folder:
+                shutil.rmtree(folder, ignore_errors=True)
+        forbid = [f"--forbid-owner={self.mirror}"] if self.mirror else []
+        # SZF_PARALLEL_CODESIGN: electron-builder's seven hundred signatures several at once
+        # (electron/codesign-parallel.py): three minutes of waiting on Apple's timestamp server becomes forty
+        # seconds; the same signatures.
+        run(["node", "electron/package-mac.mjs", f"--release-owner={OWNER}", *forbid, "--frontend-built",
+             f"--version={self.version}", f"--output={out}"], cwd=self.app_dir(),
+            env={"SZF_PARALLEL_CODESIGN": "1"}, log=log, stamp=True)
+        return {"files": [os.path.join(out, file_name(self.version, e)) for e in ("zip", "dmg")]}
 
     def sign(self):
-        """electron-builder signed while packaging; this checks every owner's app and its Friends helper."""
+        """electron-builder signed while packaging; this checks the app and its Friends helper."""
         log = self.log("sign")
-        for owner in self.owners:
-            app = os.path.join(self.original(owner), "mac-arm64", APP)
-            run(["codesign", "--verify", "--deep", "--strict", "--verbose=2", app], log=log)
-            for item in (app, os.path.join(app, "Contents/Helpers/Shenzhen Friends.app")):
-                run(["codesign", "--verify", "--strict", f"-R={TEAM_REQUIREMENT}", item], log=log)
-        return {"files": [os.path.join(self.original(o), file_name(self.version, e))
-                          for o in self.owners for e in ("zip", "dmg")]}
+        app = os.path.join(self.original(OWNER), "mac-arm64", APP)
+        run(["codesign", "--verify", "--deep", "--strict", "--verbose=2", app], log=log)
+        for item in (app, os.path.join(app, "Contents/Helpers/Shenzhen Friends.app")):
+            run(["codesign", "--verify", "--strict", f"-R={TEAM_REQUIREMENT}", item], log=log)
+        return {"files": [os.path.join(self.original(OWNER), file_name(self.version, e)) for e in ("zip", "dmg")]}
 
     def notarize(self):
-        """Every owner's DMG, submitted together. Apple's ticket for a DMG covers the app inside it, so the app staples
-        from it and the ZIP the updater downloads, made again from the stapled app, needs no upload of its own."""
-        paths = [os.path.join(self.original(o), file_name(self.version, "dmg")) for o in self.owners]
+        """The DMG. Apple's ticket for a DMG covers the app inside it, so the app staples from it and the ZIP the updater
+        downloads, made again from the stapled app, needs no upload of its own."""
+        paths = [os.path.join(self.original(OWNER), file_name(self.version, "dmg"))]
         result = notarize(paths, os.path.join(self.run_dir, "notary.json"), self.log("notarize"))
         return {"files": paths, "submissions": {p: r["id"] for p, r in result.items()}}
 
     def staple(self):
-        """electron/notarize-finalize.mjs per owner: the app stapled and zipped again for the updater, the original DMG
-        stapled, blockmaps and latest-mac.yml for the final bytes, every artifact checked."""
+        """electron/notarize-finalize.mjs: the app stapled and zipped again for the updater, the original DMG stapled,
+        blockmaps and latest-mac.yml for the final bytes, every artifact checked."""
         log = self.log("staple")
         submissions = self.stages.cached("notarize")["result"]["submissions"]
-        files = []
-        for owner in self.owners:
-            original, out = self.original(owner), self.notarized(owner)
-            shutil.rmtree(out, ignore_errors=True)
-            os.makedirs(out)
-            common = ["node", "electron/notarize-finalize.mjs", f"--original={original}", f"--output={out}",
-                      f"--profile={PROFILE}"]
-            dmg_id = submissions[os.path.join(original, file_name(self.version, "dmg"))]
-            for phase in (["--phase=package", f"--dmg-submission={dmg_id}", "--dmg-from-original"],
-                          ["--phase=verify-zip"], ["--phase=finalize", f"--dmg-submission={dmg_id}"]):
-                run(common + phase, cwd=self.app_dir(owner), log=log)
-            files += self.final_files(owner)
-        return {"files": files}
+        original, out = self.original(OWNER), self.notarized(OWNER)
+        shutil.rmtree(out, ignore_errors=True)
+        os.makedirs(out)
+        common = ["node", "electron/notarize-finalize.mjs", f"--original={original}", f"--output={out}",
+                  f"--profile={PROFILE}"]
+        dmg_id = submissions[os.path.join(original, file_name(self.version, "dmg"))]
+        for phase in (["--phase=package", f"--dmg-submission={dmg_id}", "--dmg-from-original"],
+                      ["--phase=verify-zip"], ["--phase=finalize", f"--dmg-submission={dmg_id}"]):
+            run(common + phase, cwd=self.app_dir(), log=log)
+        return {"files": self.final_files(OWNER)}
 
     SUITES = (("3d/unit", ["npm", "test"]), ("3d/electron", ["npm", "run", "test:electron"]),
               ("3d/friends", ["npm", "run", "test:friends"]),
@@ -248,14 +185,14 @@ class ThreeDRelease(Release):
             + (f"; running {len(missing)}" if missing else ""))
         folder = os.path.join(self.logs, "tests")
         os.makedirs(folder, exist_ok=True)
-        return self.run_suites([(name, cmd) for name, cmd in self.SUITES if name in missing], self.app_dir(OWNER),
+        return self.run_suites([(name, cmd) for name, cmd in self.SUITES if name in missing], self.app_dir(),
                                {"MAKEFLAGS": None}, folder)
 
     def sign_for_test(self, app, log):
         """Signs a test copy inside out with the Developer ID, as the release is signed: the Friends helper on its own
         without entitlements, then every other Mach-O and bundle deepest first, executables and apps with
         electron-builder's entitlements. Squirrel checks the update against this signature, as it does for people."""
-        entitlements = os.path.join(self.app_dir(OWNER), "node_modules/app-builder-lib/templates/entitlements.mac.plist")
+        entitlements = os.path.join(self.app_dir(), "node_modules/app-builder-lib/templates/entitlements.mac.plist")
         helper = os.path.join(app, "Contents/Helpers/Shenzhen Friends.app")
 
         def macho(path):
@@ -300,8 +237,15 @@ class ThreeDRelease(Release):
         run(["codesign", "--verify", "--deep", "--strict", app], log=log)
 
     def previous(self, owner, log):
+        """The app of the release before this one on `owner`'s shenzhen-3D: on the public repository the newest other
+        release; on the hand-over's, the newest release of a build of its own (handover.last_own_build), since the
+        hand-overs there carry the public build."""
         listing = gh_api(f"repos/{owner}/shenzhen-3D/releases?per_page=30", log=log)
-        previous = next((r for r in listing if not r.get("draft") and r.get("tag_name") != self.tag), None)
+        if owner == OWNER:
+            previous = next((r for r in listing if not r.get("draft") and r.get("tag_name") != self.tag), None)
+        else:
+            public = gh_api(f"repos/{OWNER}/shenzhen-3D/releases?per_page=30", log=log)
+            previous = handover.last_own_build(listing, public, self.tag)
         if not previous:
             raise Failure(f"{owner}/shenzhen-3D has no release before {self.tag}")
         tag = previous["tag_name"]
@@ -312,51 +256,51 @@ class ThreeDRelease(Release):
         return {"tag": tag, "app": app, "listing": listing}
 
     def update_test(self, owner, stage, listing_override=None, live=False):
+        """The previous release on `owner`'s repository updates to this build (tools/updater-e2e/update-e2e-3d.mjs),
+        hidden. On the public repository, from GitHub's copy (--live) or a local one. On the hand-over's, a build of
+        that owner, connected to GitHub as people's are, finds the hand-over there, installs this public build, and
+        the installed app then reads only the public releases, without the access the old one had saved."""
         log = self.log(stage)
         work_root = os.path.join(self.run_dir, "updater-e2e", f"{stage}-{owner}-{time.strftime('%H%M%S')}")
         os.makedirs(work_root)
         old = self.previous(owner, log)
         listing = listing_override or [r for r in old["listing"] if r.get("tag_name") != self.tag]
         shape = write_json(os.path.join(work_root, "releases.json"), listing)
-        app_dir = self.app_dir(owner)
+        app_dir = self.app_dir()
         fixture = run(["node", os.path.join(self.wt, "tools/updater-e2e/prep-3d-fixture.mjs"), old["app"],
                        os.path.join(work_root, "fixture")], cwd=app_dir, log=log, capture=True).strip().splitlines()[-1]
         self.sign_for_test(fixture, log)
-        candidate = os.path.join(self.notarized(owner), "mac-arm64", APP)
+        candidate = os.path.join(self.notarized(OWNER), "mac-arm64", APP)
         relaunch = run(["node", os.path.join(self.wt, "tools/updater-e2e/prep-3d-fixture.mjs"), candidate,
                         os.path.join(work_root, "relaunch")], cwd=app_dir, log=log, capture=True).strip().splitlines()[-1]
         self.sign_for_test(relaunch, log)
-        access = "public" if owner == OWNER else "private"
-        notes = self.notes() if owner == OWNER else self.private_notes()
+        notes = self.notes() if owner == OWNER else self.handover_notes()
         with gatekeeper_window(cpus=4):
             say(f"{stage}: {owner}'s {old['tag']} updates to {self.tag} (tools/updater-e2e)")
             try:
                 code = run(["node", os.path.join(self.wt, "tools/updater-e2e/update-e2e-3d.mjs"), f"--owner={owner}",
-                            f"--fixture={fixture}", f"--artifacts={self.notarized(owner)}", f"--shape={shape}",
+                            f"--fixture={fixture}", f"--artifacts={self.notarized(OWNER)}", f"--shape={shape}",
                             f"--notes={notes}", f"--work={os.path.join(work_root, 'run')}",
-                            f"--expect-access={access}", f"--relaunch-app={relaunch}"] + (["--live"] if live else []),
-                           cwd=app_dir, log=log, check=False)
+                            f"--expect-owner={OWNER}", "--expect-access=public", f"--relaunch-app={relaunch}"]
+                           + (["--live"] if live else []), cwd=app_dir, log=log, check=False)
             finally:
                 end_test_processes(work_root, log)
         if code != 0:
             raise Failure(f"{owner}: updating from {old['tag']} to {self.tag} failed: "
                           f"{os.path.join(work_root, 'run', 'result.json')}")
 
-    def private_notes(self):
-        """The release notes with the private copy's rules applied, as its tree has them."""
-        path = os.path.join(self.run_dir, "notes-private.md")
-        if not os.path.exists(path):
-            derived = self.notes_path(self.tag).replace(self.repo, self.tree(self.mirror))
-            shutil.copyfile(derived if os.path.isfile(derived) else self.notes(), path)
+    def handover_notes(self):
+        path = os.path.join(self.run_dir, "notes-hand-over.md")
+        with open(path, "w") as f:
+            f.write(handover.notes(self.version, self.tag))
         return path
 
     def check_displayed_versions(self):
         """Every build this run made shows self.version, read from the build itself (displayed.py says where): the
-        Mac app per owner, and with --platforms all the web build, the APK, both iOS builds and the Windows and Linux
+        Mac app, and with --platforms all the web build, the APK, both iOS builds and the Windows and Linux
         installers."""
-        for owner in self.owners:
-            app = os.path.join(self.notarized(owner), "mac-arm64", APP)
-            displayed.require(f"{owner}'s Mac app", self.version, displayed.mac_electron_app(app))
+        app = os.path.join(self.notarized(OWNER), "mac-arm64", APP)
+        displayed.require("the Mac app", self.version, displayed.mac_electron_app(app))
         if self.opts.platforms != "all":
             return
         out, v = os.path.join(self.out, "platforms"), self.version
@@ -381,9 +325,10 @@ class ThreeDRelease(Release):
 
     def verify(self):
         self.check_displayed_versions()
-        for owner in self.owners:
-            self.update_test(owner, "verify")
-        return {"files": [f for o in self.owners for f in self.final_files(o)]}
+        self.update_test(OWNER, "verify")
+        if self.mirror:
+            self.update_test(self.mirror, "verify")
+        return {"files": self.final_files(OWNER)}
 
     # The Parallels VMs' settings for scripts/friends/tauri-vm.sh, per VM: the release Mac's own guests, with what
     # each one keeps for building. SZF_VM_LINUX_<NAME> and SZF_VM_WINDOWS_<NAME> in the environment override them
@@ -413,7 +358,7 @@ class ThreeDRelease(Release):
         """The crates the Linux guest builds from (its clock may be off, which fails crates.io's certificate): one
         `cargo vendor` of the app's Friends build, the core and the plugin (host-build.sh vendor), kept in the cache by
         the Friends lock's content."""
-        app_dir = self.app_dir(OWNER)
+        app_dir = self.app_dir()
         lock = os.path.join(app_dir, "src-tauri/friends/Cargo.lock")
         key = hashlib.sha256(open(lock, "rb").read()).hexdigest()[:16]
         out = os.path.join(CACHE, "cargo-vendor", f"3d-{key}")
@@ -520,13 +465,13 @@ class ThreeDRelease(Release):
         self.node_modules(OWNER, log, app_dir=app_dir)
         dist = os.path.join(app_dir, "dist")
         shutil.rmtree(dist, ignore_errors=True)
-        run(["cp", "-c", "-R", os.path.join(self.app_dir(OWNER), "dist"), dist], log=log)
+        run(["cp", "-c", "-R", os.path.join(self.app_dir(), "dist"), dist], log=log)
         return app_dir
 
     def vm_build(self, kind, keep, vendor, log):
         """The Linux or Windows installers in their Parallels VM: one that was suspended is resumed for the build and
         suspended after, one already running stays running."""
-        app_dir = self.app_dir(OWNER)
+        app_dir = self.app_dir()
         platform, vm, mode, _ = self.VMS[kind]
         env = self.vm_env(kind, keep)
         env.setdefault("SZF_VM_PERSIST", os.environ.get(f"SZF_VM_{kind.upper()}_PERSIST", self.VM_PERSIST[kind]))
@@ -555,7 +500,7 @@ class ThreeDRelease(Release):
         shutil.rmtree(out, ignore_errors=True)
         os.makedirs(out)
         v = self.version
-        dist = os.path.join(self.app_dir(OWNER), "dist")
+        dist = os.path.join(self.app_dir(), "dist")
         no_frontend = write_json(os.path.join(self.run_dir, "no-frontend-build.json"),
                                  {"build": {"beforeBuildCommand": ""}})
         # Cargo's output stays in each phone build's own worktree (src-tauri/target), one Rust target each: a target
@@ -606,7 +551,7 @@ class ThreeDRelease(Release):
             say(f"platforms: {name} {'done' if ok else 'FAILED'} in {seconds:.0f} s")
         raise_first(results)
         log = self.log("platforms")
-        app_dir = self.app_dir(OWNER)
+        app_dir = self.app_dir()
         names = {"*_x64-setup.exe": f"Shenzhen-3D-{v}-Windows-x64-Setup.exe",
                  "*_x64_en-US.msi": f"Shenzhen-3D-{v}-Windows-x64.msi",
                  "*_aarch64.AppImage": f"Shenzhen-3D-{v}-Linux-arm64.AppImage",
@@ -655,22 +600,31 @@ class ThreeDRelease(Release):
     def publish(self):
         log = self.log("publish")
         push_monorepo_tag(self, "3d")
-        urls = {}
-        for owner in self.owners:
-            slug = f"{owner}/shenzhen-3D"
-            if owner == OWNER:
-                push_source_tag(self.repo, "apps/3d", self.commit, slug, self.tag, log)
-                notes = self.notes()
-            else:
-                derived = git(self.tree(owner), "rev-parse", "HEAD")
-                push_source_tag(self.tree(owner), "apps/3d", derived, slug, self.tag, log, message=self.tag,
-                                author=os.environ["SHENZHEN_3D_MIRROR_AUTHOR"])
-                notes = self.private_notes()
-            release = publish_release(slug, self.tag, title=f"Shenzhen 3D {self.version}", notes_file=notes,
-                                      files=self.release_files(owner), prerelease=self.prerelease,
-                                      latest=not self.prerelease, log=log)
-            urls[owner] = release.get("html_url")
+        slug = f"{OWNER}/shenzhen-3D"
+        push_source_tag(self.repo, "apps/3d", self.commit, slug, self.tag, log)
+        release = publish_release(slug, self.tag, title=f"Shenzhen 3D {self.version}", notes_file=self.notes(),
+                                  files=self.release_files(OWNER), prerelease=self.prerelease,
+                                  latest=not self.prerelease, log=log)
+        urls = {OWNER: release.get("html_url")}
+        if self.mirror:
+            urls[self.mirror] = self.hand_over(log)
         return {"urls": urls}
+
+    def hand_over(self, log):
+        """The hand-over release (handover.py) on the mirror's shenzhen-3D, under this tag: this release's Mac update
+        files, byte for byte, and notes pointing to the public release. Its tag marks the head of the repository's
+        default branch, as the releases made before the source tags did; nothing else there changes."""
+        slug = f"{self.mirror}/shenzhen-3D"
+        refs = gh_api(f"repos/{slug}/git/matching-refs/tags/{self.tag}", log=log) or []
+        if not any(r.get("ref") == f"refs/tags/{self.tag}" for r in refs):
+            branch = gh_api(f"repos/{slug}", log=log)["default_branch"]
+            head = gh_api(f"repos/{slug}/git/ref/heads/{branch}", log=log)["object"]["sha"]
+            gh_api(f"repos/{slug}/git/refs", method="POST", data={"ref": f"refs/tags/{self.tag}", "sha": head}, log=log)
+        release = publish_release(slug, self.tag, title=f"Shenzhen 3D {self.version}", notes_file=self.handover_notes(),
+                                  files=handover.files(self.final_files(OWNER)), prerelease=self.prerelease,
+                                  latest=not self.prerelease, log=log)
+        say(f"publish: {slug} {self.tag} hands over to {handover.public_release_url(self.tag)}")
+        return release.get("html_url")
 
     def live_check(self):
         """Once: the previous release updates to this one from GitHub itself (update-e2e-3d.mjs --live), hidden."""

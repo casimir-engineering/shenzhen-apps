@@ -11,9 +11,10 @@ releases, and the update feeds installed apps read, stay on the repositories the
 | Friends host | (deployed, not released) | `friends-server/26.10.20-1` | none | |
 
 The GitHub releases are made on `casimir-engineering/shenzhen-pdf`, `casimir-engineering/shenzhen-files` and
-`casimir-engineering/shenzhen-3D`. Shenzhen 3D also publishes a second copy of each release, built for its own
-owner, to the repository named by the `SHENZHEN_3D_MIRROR_OWNER` variable. Release names keep their old form
-(`26.10.20-1`, `preview-0.1.10`): that is what installed apps compare, so they keep updating unchanged.
+`casimir-engineering/shenzhen-3D`. With `SHENZHEN_3D_MIRROR_OWNER` set, a Shenzhen 3D release also publishes a
+hand-over release on that owner's `shenzhen-3D`, which moves the builds made for that owner onto the public one
+([Shenzhen 3D](#shenzhen-3d)). Release names keep their old form (`26.10.20-1`, `preview-0.1.10`): that is what
+installed apps compare, so they keep updating unchanged.
 
 Only the tag in this repository carries the app prefix. `tools/release.sh` gives the old repository the plain tag at a
 commit that holds the app's source as it was built (`apps/<app>` of the released commit, laid out as that repository
@@ -76,7 +77,7 @@ Once an app has a release tag here, its gate finds the previous release by tag a
 ```sh
 tools/release.sh pdf 26.10.21-1 --publish
 tools/release.sh files 26.10.21-1 --publish
-tools/release.sh 3d preview-0.2.2 --publish [--private-copy] [--platforms all]
+[SHENZHEN_3D_MIRROR_OWNER=<owner>] tools/release.sh 3d preview-0.2.2 --publish [--platforms all]
 ```
 
 It releases the commit checked out where it runs (`HEAD`, committed, on `origin/main` for `--publish`) and needs no
@@ -105,10 +106,10 @@ and how long it takes.
 | platforms | | with `--platforms all`, **from the end of the build**, beside the Mac stages: the web build, Android, iOS, Linux and Windows, each in a lane of its own ([below](#shenzhen-3d)) |
 | sign | every bundle inside out with the Developer ID, hardened runtime, secure timestamp, then checked | checked (signed by `package`) |
 | package | the DMG, laid out from `DMG_LAYOUT_DS_STORE`, signed | `electron/package-mac.mjs`: signed app, ZIP and DMG, from the build's `dist/` |
-| notarize | the DMG | every owner's DMG |
+| notarize | the DMG | the same |
 | staple | the DMG; Gatekeeper checks a quarantined copy of the app | the app (zipped again for the updater) and the DMG (`electron/notarize-finalize.mjs`) |
-| verify | the app in the final DMG shows the release in About and the update dialog (`SZFReleaseTag`); then `tools/updater-e2e`: the published release updates itself to the candidate | once the platforms are done: every build shows the version, read from the build itself (`tools/release/displayed.py`: the Mac app's page, `app.asar` and `Info.plist`, and with `--platforms all` the web build, APK, iOS builds, Windows exe and Linux packages); then the updater test, for every owner |
-| publish | tags, source, the GitHub release (below) | the same, for every owner |
+| verify | the app in the final DMG shows the release in About and the update dialog (`SZFReleaseTag`); then `tools/updater-e2e`: the published release updates itself to the candidate | once the platforms are done: every build shows the version, read from the build itself (`tools/release/displayed.py`: the Mac app's page, `app.asar` and `Info.plist`, and with `--platforms all` the web build, APK, iOS builds, Windows exe and Linux packages); then the updater test, and with `SHENZHEN_3D_MIRROR_OWNER` the hand-over's ([below](#shenzhen-3d)) |
+| publish | tags, source, the GitHub release (below) | the same, then the hand-over release ([below](#shenzhen-3d)) |
 | live-check | the previous release updates to the published one, as GitHub now lists it | the same |
 
 At the end it prints when each stage started and how long it took. The output, logs and stamps of a run are in
@@ -215,10 +216,21 @@ the ShenzhenPDF archive of a release from the same commit, or the prefixed tag h
   Shenzhen Files' DMGs always have.
 - The DMG is LZMA-compressed (`ULMO`, macOS 10.15 and later; the app needs 13.0): the same volume, about a fifth
   smaller than electron-builder's zlib image.
-- `--private-copy` also builds and publishes the copy for the owner in `SHENZHEN_3D_MIRROR_OWNER`, from a tree derived
-  from this commit: `SHENZHEN_3D_PRIVATE_RULES` names the file of ordered replacements applied to `apps/3d`
-  (`old==>new`, or `regex:pattern==>new`), and `SHENZHEN_3D_MIRROR_AUTHOR` (`Name <email>`) signs its source commit.
-  Neither lives in this repository.
+- `SHENZHEN_3D_MIRROR_OWNER` names the owner of the other `shenzhen-3D` repository, whose earlier builds update from
+  their own owner's releases (up to 0.2.0; `apps/3d/docs/UPDATES.md`, Moving a private channel to the public one).
+  With it set, each release also publishes there, under the same tag, a hand-over release
+  (`tools/release/handover.py`): this release's Mac update files byte for byte (the ZIP, the DMG, their blockmaps
+  and `latest-mac.yml`, not `build-info.json`), and notes that send people to this release on
+  `casimir-engineering/shenzhen-3D`. A Mac build of that owner finds it with its own updater and installs this public
+  build, which from then on reads only `casimir-engineering`'s releases. The builds of that owner for Windows, Linux
+  and Android (0.2.0 and earlier) have no updater; the notes tell people to install this release's package over
+  them (same identifiers and Android signing key, so their data stays). Nothing else is carried: those builds read
+  nothing there. The tag marks the head of that repository's default branch; no source is pushed there. `verify`
+  runs the updater test for it as well: that owner's newest own build (`handover.last_own_build`, skipping earlier
+  hand-overs, which carry public bytes), connected to GitHub as people's are, finds the hand-over, installs the
+  candidate, and the candidate then reads `casimir-engineering` only, with no credential and none kept. It needs
+  `gh` read access to that repository, and write access to publish. The private copy built from a derived tree
+  (`--private-copy`) is gone: the hand-over replaces it.
 - `--platforms all` also builds here the web ZIP, the Android APK (signed with the debug key every published APK
   carries, which the stage checks with its version) and AAB, and the iOS Simulator app and registered-devices `.ipa`;
   and the Linux and Windows installers in the Parallels VMs with `scripts/friends/tauri-vm.sh` (Linux: `package`, from
@@ -325,10 +337,10 @@ Raise `version` in `apps/3d/package.json` (and `package-lock.json`), write the r
 `apps/3d/docs/MAC-<version>.md`, merge and push, then run `tools/release.sh 3d preview-<version> --publish`
 (`apps/3d/docs/UPDATES.md` explains the feed it publishes). The tag is `3d/preview-<version>` here (or
 `3d/v<version>` for a stable release). The release job (`.github/workflows/release-3d.yml`) runs the unit, Electron
-and Friends tests, packages the signed Electron app once per release owner (`--release-owner=casimir-engineering`,
-then the mirror's owner), notarizes its ZIP and DMG, and uploads each build to its own owner's `shenzhen-3D`, as a
-draft until every asset's digest is verified. Its `prerelease` input publishes the release as a prerelease. It stops
-if the tag does not match `package.json` or the notes file is missing.
+and Friends tests, packages the signed Electron app (`--release-owner=casimir-engineering`), notarizes its ZIP and
+DMG, and uploads it to `casimir-engineering/shenzhen-3D`, as a draft until every asset's digest is verified. It
+publishes no hand-over release; `tools/release.sh` does. Its `prerelease` input publishes the release as a
+prerelease. It stops if the tag does not match `package.json` or the notes file is missing.
 
 The Windows, Linux and iPhone/iPad packages are built outside that job (`apps/3d/docs/PLATFORMS.md`). They take
 their version from `package.json` too: `tauri.conf.json`'s `version` names that file, `tauri.android.conf.json` sets
@@ -372,9 +384,6 @@ Secrets and variables, set on this repository:
 
 - `SHENZHEN_RELEASE_TOKEN` (secret): a fine-grained token, owner `casimir-engineering`, with Contents read and write
   on `shenzhen-pdf`, `shenzhen-files` and `shenzhen-3D` only.
-- `SHENZHEN_3D_MIRROR_TOKEN` (secret): a fine-grained token for the mirror's owner, Contents read and write on its
-  `shenzhen-3D`.
-- `SHENZHEN_3D_MIRROR_OWNER` (variable): the mirror's GitHub owner; leave it unset to skip the second copy.
 - `MAC_CERTIFICATE_P12`, `MAC_CERTIFICATE_PASSWORD` (secrets): the Developer ID Application certificate, base64.
 - `NOTARY_KEY_P8`, `NOTARY_KEY_ID`, `NOTARY_ISSUER_ID` (secrets): an App Store Connect API key for notarytool.
 - `FRIENDS_HOST_SSH_KEY`, `FRIENDS_HOST_KNOWN_HOSTS`, `FRIENDS_HOST_ADDRESS` (secrets of the `friends-host`

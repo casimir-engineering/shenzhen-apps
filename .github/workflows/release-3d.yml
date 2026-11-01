@@ -1,8 +1,8 @@
 name: Release Shenzhen 3D
-# Packages, signs and notarizes the Shenzhen 3D Mac app at a 3d/<release> tag of this repository, once per release
-# owner, and publishes the GitHub release <release> on that owner's shenzhen-3D, where installed apps look for
-# updates: casimir-engineering, and the owner in the SHENZHEN_3D_MIRROR_OWNER variable when it is set.
-# Started by hand only (docs/RELEASING.md).
+# Packages, signs and notarizes the Shenzhen 3D Mac app at a 3d/<release> tag of this repository and publishes the
+# GitHub release <release> on casimir-engineering/shenzhen-3D, where installed apps look for updates. The hand-over
+# release on the other owner's shenzhen-3D is published by tools/release.sh only. Started by hand only
+# (docs/RELEASING.md).
 on:
   workflow_dispatch:
     inputs:
@@ -46,12 +46,7 @@ jobs:
       - name: Friends helper build number
         run: tools/check-friends-number.sh
       - id: owners
-        env:
-          MIRROR: ${{ vars.SHENZHEN_3D_MIRROR_OWNER }}
-        run: |
-          owners='["casimir-engineering"]'
-          if [ -n "$MIRROR" ]; then owners="[\"casimir-engineering\",\"$MIRROR\"]"; fi
-          echo "owners=$owners" >> "$GITHUB_OUTPUT"
+        run: echo 'owners=["casimir-engineering"]' >> "$GITHUB_OUTPUT"
   release:
     needs: plan
     runs-on: macos-15
@@ -117,9 +112,7 @@ jobs:
             --phase=finalize --dmg-submission="$(submit "$dmg")"
       - name: GitHub release on ${{ matrix.owner }}/shenzhen-3D
         env:
-          GH_TOKEN: >-
-            ${{ matrix.owner == 'casimir-engineering' && secrets.SHENZHEN_RELEASE_TOKEN
-            || secrets.SHENZHEN_3D_MIRROR_TOKEN }}
+          GH_TOKEN: ${{ secrets.SHENZHEN_RELEASE_TOKEN }}
           PRERELEASE: ${{ inputs.prerelease }}
         run: |
           repo="$OWNER/shenzhen-3D"
