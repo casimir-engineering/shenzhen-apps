@@ -6966,7 +6966,7 @@ index 0000000..2993b53
 +void       probe_menu (void);
 diff --git a/test/friends/test-nautilus-friends-shortcut.m b/test/friends/test-nautilus-friends-shortcut.m
 new file mode 100644
-index 0000000..c5b98f3
+index 0000000..431869d
 --- /dev/null
 +++ b/test/friends/test-nautilus-friends-shortcut.m
 @@ -0,0 +1,944 @@
