@@ -165,7 +165,7 @@
     SPDFDocumentTab* document=self.tabs[(NSUInteger)tabIndex];
     rename.enabled=!document.missingFile && !document.unsavedPastedImage && !SPDFMacPathIsCollectionArchive(tabPath);
     if (!rename.enabled) rename.action=nil;
-    spdf_set_menu_item_system_symbol(rename,@"pencil");
+    spdf_set_menu_item_system_symbol(rename,@"character.cursor.ibeam"); // the pencil is Open in Editor's
     id<SPDFTabCommentsMenuProviding> comments = [self.reader respondsToSelector:@selector(copyDocumentTitleForPath:)]
         ? (id<SPDFTabCommentsMenuProviding>)self.reader : nil;
     NSMenuItem* copy = [menu addItemWithTitle:comments ? [comments copyDocumentTitleForPath:tabPath] : @"Copy Document"
