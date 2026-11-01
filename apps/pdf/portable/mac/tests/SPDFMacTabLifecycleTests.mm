@@ -178,6 +178,13 @@ static int test_coordinator_source_contract(void) {
     // is the baseline the change handler compares against.
     EXPECT([markdown containsString:@"[strongSelf recordFileAttributes:attributes forTab:tab];"]);
     EXPECT([markdown containsString:@"[strongSelf repointActiveFileWatcher];"]);
+    // A tab whose session is already rendered completes inside -activateInHostView:, so a teardown after that call
+    // left the tab unwatched on every return to it: an agent's later rewrite was never shown.
+    NSRange teardown = [markdown rangeOfString:@"[self teardownActiveFileWatcher];"];
+    NSRange activate = [markdown rangeOfString:@"[session activateInHostView:"];
+    EXPECT(teardown.location != NSNotFound && activate.location != NSNotFound && teardown.location < activate.location);
+    EXPECT([markdown rangeOfString:@"[self teardownActiveFileWatcher];" options:NSBackwardsSearch].location ==
+           teardown.location);
     return 0;
 }
 
