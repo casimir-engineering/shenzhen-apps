@@ -191,6 +191,32 @@ def end_test_processes(path, log):
     if code != 0:
         raise Failure(f"the updater test left processes running from {path}; they were ended (log: {log})")
     forget_registrations(path, log)
+    check_owner_friends(log)
+
+
+def check_owner_friends(log):
+    """No test may serve the person's own Friends. A test copy started with their home (a Developer ID signed one
+    ignores SZFRIENDS_STATE_DIR) takes over ~/Library/Application Support/Shenzhen Friends/ipc/helper.sock with its
+    own helper, and their ShenzhenPDF and Shenzhen Files then wait on "Starting Friends…" until it is ended. Fails the
+    stage when anything but a helper of an app in /Applications holds that socket (tools/updater-e2e/friends-socket.py);
+    ends nothing, since the holder may be a helper the person started."""
+    code = run([sys.executable, "-I", os.path.join(TOOLS, "updater-e2e", "friends-socket.py")], log=log, check=False)
+    if code != 0:
+        raise Failure("a test copy is serving the person's own Shenzhen Friends (it holds their helper.sock); "
+                      f"end it by the PID in {log}")
+
+
+def end_left_running(roots, log, orphans=False):
+    """Ends what still runs from `roots` (by exact path, PIDs from tools/updater-e2e/sweep.py) after a 15 s grace
+    period, the time a Friends helper takes to exit after its last app; returns a message when anything did, else
+    None. With `orphans`, only processes launchd has taken over: what a finished test left, not a stage still
+    running."""
+    roots = [r for r in roots if os.path.isdir(r)]
+    if not roots:
+        return None
+    code = run([sys.executable, "-I", os.path.join(TOOLS, "updater-e2e", "sweep.py"), "--grace=15", "--kill",
+                *(["--orphans"] if orphans else []), *roots], log=log, check=False)
+    return None if code == 0 else f"tests left processes running from {', '.join(roots)}; they were ended (log: {log})"
 
 
 def forget_registrations(path, log):

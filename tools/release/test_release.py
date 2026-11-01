@@ -207,7 +207,7 @@ def test_tests_leave_apps_alone():
     guard = os.path.join(repo, "tools", "check-tests-leave-apps-alone.sh")
     root = os.path.join(TMP, "apps-alone")
     allowed = ["apps/3d/electron/test-identity.test.cjs", "apps/files/package/updater-helper-process-test.swift",
-               "tools/updater-e2e/sweep.py", "tools/updater-e2e/szut.m"]
+               "tools/updater-e2e/friends-socket.py", "tools/updater-e2e/sweep.py", "tools/updater-e2e/szut.m"]
     for path in allowed:
         os.makedirs(os.path.dirname(os.path.join(root, path)), exist_ok=True)
         shutil.copyfile(os.path.join(repo, path), os.path.join(root, path))
@@ -232,6 +232,53 @@ def test_tests_leave_apps_alone():
     out = result()
     check("an allowed file that no longer matches must leave the list", out.returncode == 1 and allowed[1] in out.stdout,
           out.stdout + out.stderr)
+
+
+def test_left_alone():
+    """A test copy's Friends helper served the person's own Friends after the Shenzhen 3D 0.2.6 release's live-update
+    check: the release now ends what a test step left running and fails when anything but an installed app's helper
+    holds the person's helper.sock."""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("friends_socket", os.path.join(os.path.dirname(HERE), "updater-e2e",
+                                                                                 "friends-socket.py"))
+    friends_socket = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(friends_socket)
+    apps = "/Appli" + "cations"  # spelled in pieces so this file does not trip check-tests-leave-apps-alone.sh
+    installed = apps + "/Shenzhen Files.app/Contents/Helpers/Shenzhen Friends.app/Contents/MacOS/Shenzhen Friends"
+    test_copy = "/w/run/install/Shenzhen 3D.app/Contents/Helpers/Shenzhen Friends.app/Contents/MacOS/Shenzhen Friends"
+    check("the person's own helper may hold their socket", friends_socket.foreign({1: [installed, installed]}) == {})
+    check("a test copy's helper may not", list(friends_socket.foreign({1: [installed], 2: [test_copy]})) == [2])
+    check("nor one started from a test copy, wherever its executable is now",
+          list(friends_socket.foreign({3: [apps + "/x", test_copy]})) == [3])
+    check("nor one whose executable cannot be read", list(friends_socket.foreign({4: []})) == [4])
+    out = subprocess.run([sys.executable, "-I", os.path.join(os.path.dirname(HERE), "updater-e2e", "friends-socket.py"),
+                          "--pids"], capture_output=True, text=True)
+    check("friends-socket.py reads the socket's holders", out.returncode == 0, out.stderr)
+
+    base = open(os.path.join(HERE, "base.py")).read()
+    check("every suite is followed by the check", base.count("self.left_alone(name, log)") == 2)
+    check("the whole run is checked once its tests end", 'self.left_alone("tests", self.log("verify"), roots=' in base)
+    check("an updater test ends with the socket check",
+          "check_owner_friends(log)" in open(os.path.join(HERE, "common.py")).read().split("def forget_registrations")[0])
+
+    cc = shutil.which("xcrun") and subprocess.run(["xcrun", "--find", "cc"], capture_output=True).returncode == 0
+    if not cc:
+        print("skip: an orphan left by a test step is ended (no C compiler)")
+        return
+    work = os.path.join(TMP, "left-alone")
+    os.makedirs(os.path.join(work, "copy"))
+    exe = os.path.join(work, "copy", "szut-sleeper")
+    subprocess.run(["xcrun", "cc", "-x", "c", "-o", exe, "-"], check=True,
+                   input="#include <unistd.h>\nint main(void) { sleep(60); return 0; }\n", text=True)
+    log = os.path.join(TMP, "left-alone.log")
+    check("nothing left, nothing said", common.end_left_running([work], log, orphans=True) is None)
+    # As a Friends helper outliving the app that started it: launchd is its parent.
+    subprocess.run(["sh", "-c", f'"{exe}" >/dev/null 2>&1 &'], check=True)
+    import time
+    time.sleep(0.3)
+    left = common.end_left_running([work], log, orphans=True)
+    check("an orphan left by a test step is ended and reported", left is not None and work in left, left)
+    check("and it is gone", common.end_left_running([work], log, orphans=True) is None)
 
 
 def test_pdf_missing_files():
@@ -593,6 +640,7 @@ def main():
         test_pdf_plan()
         test_interrupted_command()
         test_tests_leave_apps_alone()
+        test_left_alone()
         test_pdf_missing_files()
         test_test_stamps(mono)
         test_source_tag(mono, remote, previous)

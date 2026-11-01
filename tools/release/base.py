@@ -4,7 +4,8 @@ import os
 import shutil
 import time
 
-from common import CACHE, Background, Failure, Lock, Stages, git, label, prepare_worktree, run, say
+from common import (CACHE, Background, Failure, Lock, Stages, check_owner_friends, end_left_running, git, label,
+                    prepare_worktree, run, say)
 from jobs import POOL
 
 
@@ -147,6 +148,7 @@ class Release:
             log = os.path.join(folder, name.split("/")[1] + ".log")
             with POOL.take(cpus=2, mem=2, locks=self.suite_locks.get(name, ())):
                 ok = self.stamped(name, cmd, cwd, env=env, log=log)
+            self.left_alone(name, log)
             if not ok:
                 say(f"tests: {name} FAILED ({log}); it runs again at the end")
                 failed.append((name, cmd, log))
@@ -154,6 +156,7 @@ class Release:
         for name, cmd, log in failed:
             with POOL.take(cpus=POOL.cpus // 3, mem=4, locks=self.suite_locks.get(name, ())):
                 ok = self.stamped(name, cmd, cwd, env=env, log=log)
+            self.left_alone(name, log)
             if ok:
                 say(f"tests: {name} passed on its second run, on a quieter machine: it failed beside other work")
                 self.flaky.append(name)
@@ -161,6 +164,19 @@ class Release:
                 say(f"tests: {name} FAILED again ({log})")
                 still.append(name)
         return still
+
+    def left_alone(self, what, log, roots=None):
+        """After a test step: nothing it started still runs from the build worktree (a Friends helper or app copy
+        launchd took over), and the person's own Friends socket is served by an installed app's helper only. Ends
+        what was left, by PID, and stops the release loudly either way."""
+        try:
+            left = end_left_running(roots or [self.wt], log, orphans=roots is None)
+            if left:
+                raise Failure(left)
+            check_owner_friends(log)
+        except Failure as error:
+            say(f"{what}: FAILED: {error}")
+            raise Failure(f"{what}: {error}") from None
 
     def missing(self, suites):
         """The suites that have not passed on this commit (the build worktree holds it, clean)."""
@@ -206,6 +222,17 @@ class Release:
             background.wait()
         finally:
             background.join()
+            # Every test of this run has ended: nothing may run from its folder any more, nor from the worktree
+            # under launchd. Said here even when a stage failed, so a leftover never goes unnoticed.
+            try:
+                self.left_alone("tests", self.log("verify"), roots=[self.run_dir])
+                self.left_alone("tests", self.log("verify"))
+            except Failure as error:
+                left = error
+            else:
+                left = None
+        if left:
+            raise left
         if self.test_failures and self.opts.publish:
             raise Failure(f"test suites failed: {', '.join(self.test_failures)}; nothing was published")
         if not self.opts.publish:

@@ -10,6 +10,15 @@ with the signed and notarized candidate.
 An updater reopens the app it installed, with launchd as its parent and none of the test's arguments. Every test here
 ends, however it ends (a failed check, an error, SIGINT or SIGTERM), by finding what still runs from its work directory
 or test copies by the exact path of the executable (`sweep.py`, never by name) and ending it; the test then fails.
+`sweep.py` also matches the path a process was started from, so it finds a process whose bundle the updater has since
+replaced: the Friends helper the old copy started keeps running after Squirrel moves that copy away.
+
+The test copies never reach the person's Friends. A Developer ID signed copy ignores `SZFRIENDS_STATE_DIR` and keeps
+Friends under `$HOME`, so each one runs with a `HOME` in its work directory (`update-e2e-3d.mjs`, and
+`test-identity.cjs` for a copy reopened without the test's environment); its helper then serves a socket of its own.
+With the person's home, the 0.2.6 release's copy took over their `helper.sock` with its newer helper, which outlived
+the test, and their ShenzhenPDF waited on "Starting Friends…". `tools/release.sh` fails a stage when anything but an
+installed app's helper holds that socket (`friends-socket.py`).
 `tools/release.sh` does the same after each updater test. The Shenzhen 3D test copies (`prep-3d-fixture.mjs`) also run
 under a profile of their own (`apps/3d/electron/test-identity.cjs`): the test's `--user-data-dir`, or `szut-profile`
 beside the `.app` when reopened. Electron keeps the single-instance lock in the profile, so a Shenzhen 3D installed on

@@ -26,6 +26,7 @@ fi
 ALLOWED="$(printf '%s\t%s\n' \
   "apps/3d/electron/test-identity.test.cjs" "asserts the updater tests contain no pkill/killall, and that sweep.py refuses /Applications" \
   "apps/files/package/updater-helper-process-test.swift" "looks up Shenzhen Files only to refuse to run while one is open, and quits only the copy at its exact target path" \
+  "tools/updater-e2e/friends-socket.py" "reads (never ends) who holds the person's Friends socket, to tell an installed app's helper from a test copy's" \
   "tools/updater-e2e/sweep.py" "refuses to sweep under /Applications" \
   "tools/updater-e2e/szut.m" "interposes the bundle-identifier lookup so the app under test cannot reach other copies")"
 

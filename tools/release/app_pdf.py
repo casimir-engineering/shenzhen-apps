@@ -9,8 +9,8 @@ import time
 
 import pdfsuites
 from base import Release
-from common import (CACHE, IDENTITY, JOBS, TEAM_ID, TEAM_REQUIREMENT, Failure, durations, git, notarize,
-                    record_duration, run, say, staple, wait_for_load, with_env)
+from common import (CACHE, IDENTITY, JOBS, TEAM_ID, TEAM_REQUIREMENT, Failure, check_owner_friends, durations, git,
+                    notarize, record_duration, run, say, staple, wait_for_load, with_env)
 from jobs import POOL, Job, graph
 from macshared import (check_displayed_release, gatekeeper_check, latest_release_json, previous_app, publish_common,
                        run_mac_update_e2e, write_json)
@@ -192,6 +192,9 @@ class PdfRelease(Release):
                     ok = run(cmd, cwd=self.portable, env=env, log=log, check=False) == 0
                 if not alone:
                     record_duration("pdf", name, time.time() - start)
+                # Jobs run side by side here, so only the person's Friends socket is checked after each; what a
+                # job left running is ended and fails the run once every test has finished (Release.flow).
+                check_owner_friends(log)
                 passed[name] = ok
                 if not ok:
                     say(f"tests: {name} FAILED{' again' if alone else ''} ({log})")

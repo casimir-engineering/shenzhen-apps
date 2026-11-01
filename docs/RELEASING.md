@@ -133,6 +133,13 @@ and the Files test scripts record themselves too. A stamp is filed under the sou
 release, keeps it; a worktree with uncommitted changes records nothing. The missing suites start as soon as the build
 is done (Shenzhen 3D's once the app is packaged) and run beside the stages that follow.
 
+**Tests leave nothing behind.** After each suite and each updater test, and once every test of the run has ended, the
+release ends what a test left running from the build worktree or the run folder (by PID, found by exact path:
+`tools/updater-e2e/sweep.py`) and stops; it also stops when anything but an installed app's helper holds the person's
+own Friends socket, `~/Library/Application Support/Shenzhen Friends/ipc/helper.sock`
+(`tools/updater-e2e/friends-socket.py`, which ends nothing). A test copy signed with the Developer ID ignores
+`SZFRIENDS_STATE_DIR`, so every test that starts one gives it a `HOME` of its own.
+
 ShenzhenPDF's suites run side by side (`tools/release/pdfsuites.py` plans them from make's own database, so a suite
 added to the Makefile needs nothing here). One `make -j` first builds everything their makes would build; then each
 suite runs in a make of its own, as many at once as the machine allows, longest first (`test-durations.json`).
