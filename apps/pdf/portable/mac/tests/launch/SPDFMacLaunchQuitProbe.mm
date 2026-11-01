@@ -17,6 +17,7 @@
 // finishing does, and no earlier than the finishing step (a timer on a busy machine could fire after the process had
 // gone, a click that never happened while it was finishing): relaunch_requested reports that it asked Launch Services
 // for a fresh launch (never started here).
+// quit-appleevent waits for a Quit Apple event (below).
 
 #import <Cocoa/Cocoa.h>
 #import <objc/message.h>
@@ -209,15 +210,27 @@ static void FinishQuitAfterReopen(id reader, SEL sel) {
     }
     ((void (*)(id, SEL))gFinishQuit)(reader, sel);
 }
+static NSWindow* RestorableWindow(void);
+static NSWindow* InvisibleWindow(Class cls, NSString* identifier);
 static IMP gShouldTerminate;
+static void SendOpenDuringQuit(void);
 static NSApplicationTerminateReply TimedShouldTerminate(id reader, SEL sel, id app) {
-    if (gQuit >= 0 && !gQuitExtra[@"should_terminate_ms"]) gQuitExtra[@"should_terminate_ms"] = @(Now() - gQuit);
-    return ((NSApplicationTerminateReply(*)(id, SEL, id))gShouldTerminate)(reader, sel, app);
+    if (gQuit < 0) { // quit-appleevent: the quit came from outside; said at once, should the process end by _exit
+        gQuit = Now();
+        fprintf(stdout, "PROBE_QUIT_AT %.3f\n", gQuit);
+        fflush(stdout);
+    }
+    if (!gQuitExtra[@"should_terminate_ms"]) gQuitExtra[@"should_terminate_ms"] = @(Now() - gQuit);
+    gQuitExtra[@"should_terminate_calls"] = @([gQuitExtra[@"should_terminate_calls"] integerValue] + 1);
+    // PROBE_SECOND_ASK: window state still to write when the quit starts, as after a person used the window, so
+    // AppKit's terminate: spins the run loop to write it (NSPersistentUIManager).
+    if (getenv("PROBE_SECOND_ASK")) [RestorableWindow() invalidateRestorableState];
+    if (getenv("PROBE_SECOND_ASK")) [InvisibleWindow(NSWindow.class, @"SPDFProbeTransientWindow") close]; // see below
+    NSApplicationTerminateReply reply = ((NSApplicationTerminateReply(*)(id, SEL, id))gShouldTerminate)(reader, sel, app);
+    SendOpenDuringQuit();
+    return reply;
 }
-
-// Runs once the launch settled; returns NO for modes it does not own.
-BOOL SPDFProbeRunQuitMode(const char* mode, id reader) {
-    if (strncmp(mode, "quit-", 5) != 0) return NO;
+static void InstallQuitHooks(id reader) {
     gReader = reader;
     if (!gQuitExtra) gQuitExtra = [NSMutableDictionary dictionary];
     atexit(AtExit);
@@ -227,6 +240,174 @@ BOOL SPDFProbeRunQuitMode(const char* mode, id reader) {
                                  @selector(openURLs:withApplicationAtURL:configuration:completionHandler:)), (IMP)RecordOpen);
     gShouldTerminate = method_setImplementation(
         class_getInstanceMethod(object_getClass(reader), @selector(applicationShouldTerminate:)), (IMP)TimedShouldTerminate);
+}
+
+// ---- quit-appleevent: `quit app` ----------------------------------------------------------------------------------
+// Once the launch settled the probe prints "PROBE_READY <pid>" and takes events until the quit arrives as
+// `osascript -e 'tell application id "<this copy's id>" to quit'` delivers it: an Apple event, handled by AppKit
+// between two events. PROBE_QUIT_SELF=<ms> has osascript send that Apple event to this process id that long
+// after the launch settled. PROBE_OPEN_DURING_QUIT=<path> sends an
+// open-documents Apple event for <path> the moment applicationShouldTerminate has answered, as a double-click in the
+// Finder on a process that is still finishing does. PROBE_OWN_PASTEBOARD=1: the reader copied something last.
+// PROBE_SECOND_ASK=1: AppKit asks applicationShouldTerminate: a second time during the quit, as it did on a person's
+// Mac (below). PROBE_MD_COMMENT=<text>: PROBE_DOCUMENT (a Markdown file) gets a comment through the reader's own Add
+// Comment, its editor answered, right before the quit can arrive.
+static BOOL gOpenSent;
+static void SendAppleEvent(AEEventClass eventClass, AEEventID eventID, NSAppleEventDescriptor* directObject) {
+    NSAppleEventDescriptor* event = [NSAppleEventDescriptor
+        appleEventWithEventClass:eventClass eventID:eventID
+                targetDescriptor:[NSAppleEventDescriptor descriptorWithProcessIdentifier:getpid()]
+                        returnID:kAutoGenerateReturnID transactionID:kAnyTransactionID];
+    if (directObject) [event setParamDescriptor:directObject forKeyword:keyDirectObject];
+    AESendMessage(event.aeDesc, NULL, kAENoReply | kAENeverInteract, kAEDefaultTimeout);
+}
+static void SendOpenDuringQuit(void) {
+    const char* path = getenv("PROBE_OPEN_DURING_QUIT");
+    if (!path || gOpenSent) return;
+    gOpenSent = YES;
+    NSString* file = [NSString stringWithUTF8String:path];
+    gQuitExtra[@"open_sent_ms"] = @(Now() - gQuit);
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INTERACTIVE, 0), ^{
+        NSAppleEventDescriptor* list = [NSAppleEventDescriptor listDescriptor];
+        [list insertDescriptor:[NSAppleEventDescriptor descriptorWithFileURL:[NSURL fileURLWithPath:file]] atIndex:0];
+        SendAppleEvent(kCoreEventClass, kAEOpenDocuments, list);
+    });
+}
+static void AnswerCommentEditor(id, SEL, NSString*, NSString*, NSString*, NSString*, void (^done)(NSString*)) {
+    done([NSString stringWithUTF8String:getenv("PROBE_MD_COMMENT")]);
+}
+static void AnswerCommentEditorWithDraft(id, SEL, NSString*, NSString*, NSString*, NSString*, NSString*,
+                                         void (^done)(NSString*)) {
+    done([NSString stringWithUTF8String:getenv("PROBE_MD_COMMENT")]);
+}
+static BOOL AddMarkdownCommentNow(id reader) {
+    NSString* path = getenv("PROBE_DOCUMENT") ? [NSString stringWithUTF8String:getenv("PROBE_DOCUMENT")] : nil;
+    if (!path) return NO;
+    ((void (*)(id, SEL, id))objc_msgSend)(reader, NSSelectorFromString(@"openPaths:"), @[ path ]);
+    SEL session = NSSelectorFromString(@"activeMarkdownSession");
+    NSDate* until = [NSDate dateWithTimeIntervalSinceNow:15];
+    while (![((id (*)(id, SEL))objc_msgSend)(reader, session) valueForKey:@"renderedDocument"] &&
+           until.timeIntervalSinceNow > 0)
+        [NSRunLoop.currentRunLoop runMode:NSDefaultRunLoopMode beforeDate:[NSDate dateWithTimeIntervalSinceNow:0.02]];
+    // The comment editor, answered at once (its draft-keeping form, and the one before it).
+    Class cls = object_getClass(reader);
+    Method editor = class_getInstanceMethod(cls,
+        NSSelectorFromString(@"openCommentEditorWithTitle:button:author:text:draftKey:completion:"));
+    if (editor) method_setImplementation(editor, (IMP)AnswerCommentEditorWithDraft);
+    else if ((editor = class_getInstanceMethod(cls,
+                  NSSelectorFromString(@"openCommentEditorWithTitle:button:author:text:completion:"))))
+        method_setImplementation(editor, (IMP)AnswerCommentEditor);
+    else return NO;
+    ((void (*)(id, SEL, NSUInteger))objc_msgSend)(reader, NSSelectorFromString(@"noteMarkdownContextMenuAtLocation:"), 2);
+    ((void (*)(id, SEL, id))objc_msgSend)(reader, NSSelectorFromString(@"addMarkdownComment:"), nil);
+    return ((NSInteger (*)(id, SEL))objc_msgSend)(reader, NSSelectorFromString(@"markdownCommentCount")) > 0;
+}
+
+// Windows of the probe's own, which the launch probe lets on screen (SPDFProbe identifiers): borderless, fully
+// transparent, 1 x 1 pt and far outside every screen, so nothing shows.
+static NSWindow* InvisibleWindow(Class cls, NSString* identifier) {
+    NSWindow* window = [[cls alloc] initWithContentRect:NSMakeRect(-30000, -30000, 1, 1)
+                                              styleMask:NSWindowStyleMaskBorderless backing:NSBackingStoreBuffered defer:NO];
+    window.releasedWhenClosed = NO;
+    window.alphaValue = 0;
+    window.ignoresMouseEvents = YES;
+    window.identifier = identifier;
+    [window orderFront:nil];
+    return window;
+}
+// One that state restoration keeps, as it keeps a window a person used; its state takes a moment to write, as a real
+// window's does, so the quit's write of it spins the run loop a while.
+@interface SPDFProbeRestorableWindow : NSWindow
+@end
+@implementation SPDFProbeRestorableWindow
+- (void)encodeRestorableStateWithCoder:(NSCoder*)coder {
+    [super encodeRestorableStateWithCoder:coder];
+    usleep(30000);
+}
+@end
+static NSWindow* RestorableWindow(void) {
+    static NSWindow* window;
+    if (!window) window = InvisibleWindow(SPDFProbeRestorableWindow.class, @"SPDFProbeRestorableWindow");
+    window.restorable = YES;
+    return window;
+}
+// State restoration is off for a process started this way; on, as for an app opened from the Finder.
+__attribute__((constructor)) static void QuitProbeDefaults(void) {
+    if (getenv("PROBE_SECOND_ASK")) [NSUserDefaults.standardUserDefaults registerDefaults:@{@"ApplePersistence" : @YES}];
+}
+
+// PROBE_OWN_PASTEBOARD=1: the reader last wrote the general pasteboard, as after a person copied something from it --
+// without touching the person's clipboard: the reader's general pasteboard is a private one, reported under the
+// general pasteboard's name, and the reader writes it through its own pasteboard-ownership hooks.
+static NSPasteboard* gPrivateGeneral;
+static IMP gPasteboardName;
+static NSPasteboard* PrivateGeneral(id, SEL) { return gPrivateGeneral; }
+static NSPasteboardName PasteboardName(NSPasteboard* pasteboard, SEL sel) {
+    if (pasteboard == gPrivateGeneral) return NSPasteboardNameGeneral;
+    return ((NSPasteboardName(*)(id, SEL))gPasteboardName)(pasteboard, sel);
+}
+static void OwnPrivateGeneralPasteboard(void) {
+    gPrivateGeneral = [NSPasteboard pasteboardWithUniqueName];
+    gPasteboardName = method_setImplementation(class_getInstanceMethod(NSPasteboard.class, @selector(name)),
+                                               (IMP)PasteboardName);
+    method_setImplementation(class_getClassMethod(NSPasteboard.class, @selector(generalPasteboard)), (IMP)PrivateGeneral);
+    [gPrivateGeneral clearContents];
+    [gPrivateGeneral setString:@"copied from the reader" forType:NSPasteboardTypeString];
+}
+// ... and a window closing while the quit is under way, just before the reader answers: AppKit queues a terminate of
+// its own for the last window closed, which runs inside that spin and takes back the answer, so terminate: asks again.
+static IMP gFinishQuitWindowCloses;
+static void FinishQuitWindowCloses(id reader, SEL sel) {
+    [InvisibleWindow(NSWindow.class, @"SPDFProbeTransientWindow") close];
+    ((void (*)(id, SEL))gFinishQuitWindowCloses)(reader, sel);
+}
+// PROBE_QUIT_STALL=finish: the reader's finishing step never runs, as a completion that never comes back would leave
+// it; PROBE_QUIT_STALL=main: it runs with the main thread stuck for 10 s. The quit must end by its deadline anyway.
+static void FinishQuitNever(id, SEL) {}
+static IMP gFinishQuitStuck;
+static void FinishQuitStuck(id reader, SEL sel) {
+    sleep(10);
+    ((void (*)(id, SEL))gFinishQuitStuck)(reader, sel);
+}
+static void ServeAppleEventQuit(id reader) {
+    const char* stall = getenv("PROBE_QUIT_STALL") ?: "";
+    Method finish = class_getInstanceMethod(object_getClass(reader), NSSelectorFromString(@"quitFinishWhenImageCopyWritten"));
+    if (!strcmp(stall, "finish")) method_setImplementation(finish, (IMP)FinishQuitNever);
+    if (!strcmp(stall, "main")) gFinishQuitStuck = method_setImplementation(finish, (IMP)FinishQuitStuck);
+    if (getenv("PROBE_SECOND_ASK"))
+        gFinishQuitWindowCloses = method_setImplementation(
+            class_getInstanceMethod(object_getClass(reader), NSSelectorFromString(@"quitFinishWhenImageCopyWritten")),
+            (IMP)FinishQuitWindowCloses);
+    if (getenv("PROBE_OWN_PASTEBOARD")) OwnPrivateGeneralPasteboard();
+    if (getenv("PROBE_SECOND_ASK")) [RestorableWindow() invalidateRestorableState];
+    if (getenv("PROBE_MD_COMMENT") && !AddMarkdownCommentNow(reader)) {
+        fprintf(stderr, "quit probe: could not add the Markdown comment\n");
+        _exit(3);
+    }
+    DispatchEvents(0.3);
+    if (getenv("PROBE_QUIT_SELF")) {
+        // From another process, as `quit app` comes: one this process sends itself is handled on the sending thread.
+        // NSRunningApplication -terminate sends the Quit Apple event to this process id, and to nothing else.
+        NSTask* task = [NSTask new];
+        task.executableURL = [NSURL fileURLWithPath:@"/usr/bin/osascript"];
+        task.arguments = @[ @"-l", @"JavaScript", @"-e",
+                            [NSString stringWithFormat:@"ObjC.import('AppKit'); delay(%.3f); "
+                                                       @"$.NSRunningApplication.runningApplicationWithProcessIdentifier(%d)"
+                                                       @".terminate",
+                                                       atof(getenv("PROBE_QUIT_SELF")) / 1000.0, getpid()] ];
+        task.standardOutput = task.standardError = NSFileHandle.fileHandleWithNullDevice;
+        [task launchAndReturnError:nil];
+    }
+    fprintf(stdout, "PROBE_READY %d\n", getpid());
+    fflush(stdout);
+    for (;;) DispatchEvents(3600);
+}
+
+// Runs once the launch settled; returns NO for modes it does not own.
+BOOL SPDFProbeRunQuitMode(const char* mode, id reader) {
+    if (strncmp(mode, "quit-", 5) != 0) return NO;
+    InstallQuitHooks(reader);
+    if (!strcmp(mode, "quit-appleevent")) ServeAppleEventQuit(reader); // does not return: the reader quits itself
     if (!strcmp(mode, "quit-lasttab")) {
         // Another window beside this one: closing the last tab closes this window only (closeTabAtIndex:).
         Class cls = object_getClass(reader);

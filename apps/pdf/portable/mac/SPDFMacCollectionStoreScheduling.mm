@@ -1,6 +1,18 @@
 #import "SPDFMacCollectionStorePrivate.h"
 #import <limits.h>
 @implementation SPDFMacCollectionStore (CaptureScheduling)
+- (void)finishCaptureInProgressBefore:(NSDate*)deadline {
+    NSOperationQueue* queue;
+    @synchronized (self) { queue = self.captureQueue; }
+    if (!queue) return;
+    queue.suspended = YES;
+    while (deadline.timeIntervalSinceNow > 0) {
+        BOOL running = NO;
+        for (NSOperation* operation in queue.operations) running = running || operation.executing;
+        if (!running) return;
+        usleep(2000);
+    }
+}
 - (NSNumber*)advanceCaptureGenerationForPath:(NSString*)path {
     @synchronized (self) {
         if (!self.captureGenerations) self.captureGenerations = [NSMutableDictionary dictionary];

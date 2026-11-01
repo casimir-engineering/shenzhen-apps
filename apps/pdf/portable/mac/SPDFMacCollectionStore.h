@@ -73,6 +73,8 @@ FOUNDATION_EXPORT NSNotificationName const SPDFCollectionStoreDidChangeNotificat
 - (void)capturePath:(NSString*)path authorizedCopy:(nullable NSDictionary*)copy reason:(NSString*)reason
         continuingDocumentID:(nullable NSString*)documentID userOpenCount:(NSUInteger)count
         completion:(nullable void (^)(NSDictionary* _Nullable, NSError* _Nullable, BOOL))completion;
+// At quit: starts no further capture and waits, until `deadline` at most, for the one under way to finish writing.
+- (void)finishCaptureInProgressBefore:(NSDate*)deadline;
 - (void)importRecentPaths:(NSArray<NSString*>*)paths;
 - (BOOL)ensureProtectedPath:(NSString*)path reason:(NSString*)reason error:(NSError**)error;
 - (BOOL)ensureProtectedPath:(NSString*)path reason:(NSString*)reason

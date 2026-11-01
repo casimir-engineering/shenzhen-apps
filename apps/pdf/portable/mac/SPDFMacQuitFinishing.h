@@ -3,7 +3,8 @@
 
 // Quitting hides first, then finishes (SPDFMacQuitFinishing.mm). Every change is already saved when it is made, so a
 // quit never asks anything: the windows leave the screen at once, and the last writes, the activity flush, an image
-// copy still being written and the cleanup run after that while the process keeps running, then it exits.
+// copy still being written and the cleanup run after that while the process keeps running, then it exits -- always
+// within 2 s of the windows leaving the screen.
 
 // Posted once, on the main thread, when a quitting process has finished its writes and is about to exit -- also when
 // AppKit's own NSApplicationWillTerminateNotification will not be posted (the quick exit below). Observers flush.
@@ -21,7 +22,8 @@ void spdf_mac_first_paint_done(void); // runs the queued blocks; later blocks ru
 - (BOOL)beginQuit;
 // applicationShouldTerminate's reply once the windows are hidden: writes, then exits (NSTerminateLater).
 - (NSApplicationTerminateReply)finishQuitAfterHiding;
-// The end of applicationWillTerminate: a Dock click or document open that arrived while finishing starts a new launch.
+// The end of applicationWillTerminate: Collection writes under way finish (within the deadline), then a Dock click or
+// document open that arrived while finishing starts a new launch.
 - (void)quitRelaunchIfRequested;
 // Whether applicationWillTerminate's writes and cleanup already ran (they run once).
 - (BOOL)quitClaimFinalWrites;

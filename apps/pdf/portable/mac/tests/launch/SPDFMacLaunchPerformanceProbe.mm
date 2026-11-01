@@ -205,7 +205,7 @@ static void TimedFriendsAfterFirstPaint(id delegate, SEL sel) {
     gFriendsAfterPaintCpuMs = ThreadCpuMs() - c0;
 }
 static void RefuseOrder(id window, SEL sel, NSInteger place, NSInteger other) {
-    if (place != NSWindowOut) return;
+    if (place != NSWindowOut && ![[window identifier] hasPrefix:@"SPDFProbe"]) return; // quit probe's: invisible
     SPDFProbeOrderedOut(window), ((void (*)(id, SEL, NSInteger, NSInteger))gOrderWindow)(window, sel, place, other);
 }
 static void ProhibitedPolicy(id app, SEL sel, NSInteger policy) {

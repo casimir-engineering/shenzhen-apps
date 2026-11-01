@@ -47,6 +47,10 @@ static void Call(id target, NSString* selector, id argument) {
 
 static NSString* gCommentText;
 static NSString* AnswerPrompt(id, SEL, NSString*) { return gCommentText; }
+// The inline comment editor (since 2026-11-01), answered at once as a person typing and pressing Cmd+Return.
+static void AnswerEditor(id, SEL, NSString*, NSString*, NSString*, NSString*, NSString*, void (^done)(NSString*)) {
+    done(gCommentText);
+}
 
 // The test's own folder (documents, state, records) is an ordinary folder, wherever the worktree is: from /tmp every
 // document would count as "in a temporary folder", go to a writable copy that is in a temporary folder too, and no
@@ -156,6 +160,9 @@ void SPDFProbeRunIntegrityRound(id reader) {
         class_getInstanceMethod(cls, NSSelectorFromString(@"pathIsInTemporaryLocation:")), (IMP)TemporaryOutsideTest);
     method_setImplementation(class_getInstanceMethod(cls, NSSelectorFromString(@"promptForCommentTextWithDefault:")),
                              (IMP)AnswerPrompt);
+    method_setImplementation(class_getInstanceMethod(cls, NSSelectorFromString(
+                                 @"openCommentEditorWithTitle:button:author:text:draftKey:completion:")),
+                             (IMP)AnswerEditor);
     NSMutableArray* tabs = Ivar_(reader, "_tabs");
     NSUInteger count = tabs.count;
     // A read-only document (round 3): the file is made read-only before it is commented.

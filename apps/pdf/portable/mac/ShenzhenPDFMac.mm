@@ -880,13 +880,13 @@ static char kSPDFPasswordPromptClosesNewTabKey;
 }
 
 - (BOOL)applicationShouldTerminateAfterLastWindowClosed:(NSApplication*)sender {
-    (void)sender;
-    return YES;
+    return (void)sender, YES;
 }
 
 // Every change is saved as it is made, so a quit asks nothing: hide, then write (SPDFMacQuitFinishing.mm).
 - (NSApplicationTerminateReply)applicationShouldTerminate:(NSApplication*)sender {
-    if (![self beginQuit]) return (void)sender, NSTerminateLater; // already finishing
+    // Asked again in the same quit (AppKit can: SPDFMacQuitFinishing.mm); AppKit goes on to applicationWillTerminate.
+    if (![self beginQuit]) return (void)sender, NSTerminateNow;
     if (!_terminateOnlyThisProcess && !gSPDFTerminatingAllWindows) {
         gSPDFTerminatingAllWindows = YES;
         for (NSRunningApplication* app in [self otherRunningShenzhenApplications]) [app terminate];

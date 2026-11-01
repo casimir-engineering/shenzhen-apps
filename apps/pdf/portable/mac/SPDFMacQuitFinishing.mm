@@ -9,11 +9,29 @@
 //   next run-loop pass           wait for an image copy still being written (Save As of a pasted image), then the
 //                                writes and cleanup of applicationWillTerminate, then SPDFMacQuitWillExitNotification
 //   exit                         at once -- unless this process last wrote the general pasteboard, which may hold
-//                                data AppKit resolves only on its own terminate; then AppKit's path, out of sight
+//                                data AppKit resolves only on its own terminate; then AppKit's path, out of sight,
+//                                with the writes already done
 //
 // A Dock click or a document opened while the process finishes reaches this process, not a new one: Launch Services
-// sees it still running. It is answered with a fresh launch once the writes are done, so the new process reads exactly
-// what this one saved; nothing is reopened halfway through a teardown.
+// sees it still running. It is remembered for the next launch, which this process starts once its writes are done, so
+// the new process reads exactly what this one saved; nothing is reopened halfway through a teardown.
+//
+// AppKit may ask applicationShouldTerminate: twice in one quit, and the second answer is NSTerminateNow. A Quit Apple
+// event (`quit app`, the Dock's Quit, a logout) asks once to answer the event and, once answered yes, calls terminate:,
+// which skips asking -- unless a terminate queued meanwhile took that yes back. A window closing during the quit (a
+// popover, the text cursor's indicator) queues one, for the last window closed; it runs when terminate: spins the run
+// loop to write the windows' restoration state, and terminate: then asks again. Only the pasteboard case above reaches
+// that terminate: (otherwise the process has exited by then). Answered NSTerminateLater, as a quit already finishing
+// once was, that second ask waited forever with the windows gone (2026-11-01, sampled on the owner's Mac).
+//
+// And whatever happens on the way, the process is gone within 2 s of the windows leaving the screen:
+//   1.2 s   an image copy still being written is dropped (it is written to a temporary file and renamed: no half file)
+//   1.4 s   the writes run on the main thread now if they have not started, and the process exits after them
+//   1.6 s   Collection writes still under way are left (each is atomic; queued ones were already left)
+//   1.7 s   the fresh launch for a Dock click or document is not waited for any longer
+//   1.85 s  the process ends (_exit), from another thread, should the main thread itself be stuck; the system takes
+//           about 0.1 s more to tear a large process down
+// Comments and every other edit are written when they are made, so nothing a person did is still unwritten by then.
 #import "SPDFMacQuitFinishing.h"
 #import "SPDFMacImageSaveIntegration.h"
 #import "SPDFMacSupport.h"
@@ -62,6 +80,7 @@ void spdf_mac_first_paint_done(void) {
 // event then goes on to the menu as usual. Only when the Quit item would act: no modal session, no sheet, item enabled.
 @interface ShenzhenMacDelegate (SPDFMacQuitKey)
 - (void)hideWindowsForQuitKey;
+- (void)collectionFinishWritesBefore:(NSDate*)deadline; // SPDFMacCollectionEditableIntegration.mm
 @end
 static void InstallQuitKeyMonitor(void) {
     static id monitor;
@@ -85,12 +104,24 @@ static void InstallQuitKeyMonitor(void) {
 
 // ---- quitting -----------------------------------------------------------------------------------------------------
 @interface SPDFMacQuitState : NSObject
-@property(nonatomic) BOOL hidden, finishing, finalWritesDone, relaunch;
-@property(nonatomic) NSUInteger imageCopyWaits;
+@property(nonatomic) BOOL hidden, finishing, finalWritesDone, finalWritesFinished, relaunch, exitAnnounced, relaunchStarted;
 @end
 @implementation SPDFMacQuitState
 @end
 static char kQuitStateKey;
+
+// ---- the deadline -------------------------------------------------------------------------------------------------
+static const NSTimeInterval kQuitImageCopyBy = 1.2, kQuitWritesBy = 1.4, kQuitCollectionBy = 1.6,
+                            kQuitRelaunchBy = 1.7, kQuitExitBy = 1.85;
+static CFAbsoluteTime gQuitHiddenAt; // when the windows of the quit under way left the screen; 0 before
+// `by` seconds after the windows left the screen (from now when no quit is under way: applicationWillTerminate alone).
+static CFAbsoluteTime QuitTime(NSTimeInterval by) {
+    return (gQuitHiddenAt > 0 ? gQuitHiddenAt : CFAbsoluteTimeGetCurrent()) + by;
+}
+static NSTimeInterval QuitTimeLeft(NSTimeInterval by) { return QuitTime(by) - CFAbsoluteTimeGetCurrent(); }
+static dispatch_time_t QuitDispatchTime(NSTimeInterval by) {
+    return dispatch_time(DISPATCH_TIME_NOW, (int64_t)(MAX(0.0, QuitTimeLeft(by)) * NSEC_PER_SEC));
+}
 
 @implementation ShenzhenMacDelegate (SPDFMacQuitFinishing)
 
@@ -107,6 +138,7 @@ static char kQuitStateKey;
     SPDFMacQuitState* state = [self quitState];
     if (state.hidden) return;
     state.hidden = YES;
+    gQuitHiddenAt = CFAbsoluteTimeGetCurrent();
     SPDF_LIFECYCLE_BEGIN("Quit");
     [self dismissTabHoverPanel];
     // The document window first: it is what the person looks at. Panels, sheets and the AI chat window follow.
@@ -149,7 +181,33 @@ static char kQuitStateKey;
     if (state.finishing) return NO;
     state.finishing = YES;
     [self hideWindowsForQuit];
+    [self armQuitDeadline];
     return YES;
+}
+
+- (void)armQuitDeadline {
+    // A block in the common modes runs wherever the main thread waits for events: the terminate-later loop, AppKit's
+    // terminate:, the image-copy wait below.
+    dispatch_after(QuitDispatchTime(kQuitWritesBy), dispatch_get_global_queue(QOS_CLASS_USER_INTERACTIVE, 0), ^{
+        CFRunLoopPerformBlock(CFRunLoopGetMain(), kCFRunLoopCommonModes, ^{ [self quitFinishByDeadline]; });
+        CFRunLoopWakeUp(CFRunLoopGetMain());
+    });
+    dispatch_after(QuitDispatchTime(kQuitExitBy), dispatch_get_global_queue(QOS_CLASS_USER_INTERACTIVE, 0), ^{
+        fprintf(stderr, "ShenzhenPDF: quit not finished %.2f s after the windows left the screen; ending it\n",
+                kQuitExitBy);
+        _exit(0);
+    });
+}
+
+- (void)quitFinishByDeadline {
+    SPDFMacQuitState* state = [self quitState];
+    // The writes are running further up this stack (an event taken while they finish): let them end, or the last
+    // step above ends the process.
+    if (state.finalWritesDone && !state.finalWritesFinished) return;
+    if (!state.finalWritesDone)
+        [self applicationWillTerminate:[NSNotification notificationWithName:NSApplicationWillTerminateNotification
+                                                                     object:NSApp]];
+    exit(0);
 }
 
 - (NSApplicationTerminateReply)finishQuitAfterHiding {
@@ -163,9 +221,8 @@ static char kQuitStateKey;
 - (void)quitFinishWhenImageCopyWritten {
     // An image copy being written to the place the person chose (Save As of a pasted image) finishes first. Its
     // completion comes back on the main queue, which the terminate-later run loop mode does not serve: let the default
-    // mode run briefly so it can, for up to 30 s.
-    SPDFMacQuitState* state = [self quitState];
-    if ([self waitForPendingImageSave:nil] && state.imageCopyWaits++ < 600) {
+    // mode run briefly so it can, until kQuitImageCopyBy.
+    if ([self waitForPendingImageSave:nil] && QuitTimeLeft(kQuitImageCopyBy) > 0) {
         [NSRunLoop.currentRunLoop runMode:NSDefaultRunLoopMode beforeDate:[NSDate dateWithTimeIntervalSinceNow:0.05]];
         [self performSelector:@selector(quitFinishWhenImageCopyWritten) withObject:nil afterDelay:0
                       inModes:@[ NSModalPanelRunLoopMode, NSDefaultRunLoopMode ]];
@@ -175,13 +232,14 @@ static char kQuitStateKey;
 }
 
 - (void)quitFinish {
+    [self applicationWillTerminate:[NSNotification notificationWithName:NSApplicationWillTerminateNotification
+                                                                 object:NSApp]];
     if (spdf_mac_general_pasteboard_may_hold_our_data()) {
-        // AppKit resolves what this process promised the pasteboard, then calls applicationWillTerminate and exits.
+        // AppKit resolves what this process promised the pasteboard, then calls applicationWillTerminate again (the
+        // writes are done) and exits.
         [NSApp replyToApplicationShouldTerminate:YES];
         return;
     }
-    [self applicationWillTerminate:[NSNotification notificationWithName:NSApplicationWillTerminateNotification
-                                                                 object:NSApp]];
     exit(0);
 }
 
@@ -203,9 +261,16 @@ static char kQuitStateKey;
 
 - (void)quitRelaunchIfRequested {
     SPDFMacQuitState* state = objc_getAssociatedObject(self, &kQuitStateKey);
-    if (!state.finishing) return;
-    [NSNotificationCenter.defaultCenter postNotificationName:SPDFMacQuitWillExitNotification object:self];
-    SPDF_LIFECYCLE_END("Quit");
+    if (state.finalWritesDone && !state.finalWritesFinished) {
+        [self collectionFinishWritesBefore:[NSDate dateWithTimeIntervalSinceReferenceDate:QuitTime(kQuitCollectionBy)]];
+        state.finalWritesFinished = YES;
+    }
+    if (!state.finishing || state.relaunchStarted) return;
+    if (!state.exitAnnounced) {
+        state.exitAnnounced = YES;
+        [NSNotificationCenter.defaultCenter postNotificationName:SPDFMacQuitWillExitNotification object:self];
+        SPDF_LIFECYCLE_END("Quit");
+    }
     // Apple events that arrived during the writes are still queued: take them now, without waiting for more. AppKit
     // handles an Apple event inside -nextEventMatchingMask:; input events for the hidden windows are dropped.
     for (int pass = 0; pass < 16; pass++)
@@ -215,7 +280,9 @@ static char kQuitStateKey;
     NSMutableOrderedSet<NSString*>* paths = [NSMutableOrderedSet orderedSet];
     if (_pendingOpenPath.length) [paths addObject:_pendingOpenPath];
     for (NSString* path in _pendingOpenPaths) if (path.length) [paths addObject:path];
+    // Nothing yet: AppKit's own applicationWillTerminate (the pasteboard case) looks again for what came since.
     if (!state.relaunch && !paths.count) return;
+    state.relaunchStarted = YES;
     NSWorkspaceOpenConfiguration* configuration = [NSWorkspaceOpenConfiguration configuration];
     configuration.createsNewApplicationInstance = YES;
     configuration.activates = YES;
@@ -232,8 +299,9 @@ static char kQuitStateKey;
                             completionHandler:done];
     else
         [NSWorkspace.sharedWorkspace openApplicationAtURL:app configuration:configuration completionHandler:done];
-    // Launch Services answers on its own queue once the new process runs; this one must outlive the request.
-    dispatch_semaphore_wait(launched, dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC));
+    // Launch Services answers on its own queue once the new process runs; this one must outlive the request, within
+    // the deadline.
+    dispatch_semaphore_wait(launched, QuitDispatchTime(kQuitRelaunchBy));
 }
 
 @end

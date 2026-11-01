@@ -16,7 +16,9 @@ before, Collection on and holding all 300 -- session.yaml, documents.yaml and bo
     integrity   20 quit-and-relaunch rounds (QUIT_INTEGRITY_ROUNDS), each editing and quitting at once with no wait
                 (SPDFMacLaunchIntegrityProbe.mm): everything left must come back, no quit or edit may ask anything, and
                 the session a relaunch saves must be the session the quit wrote. Then a Dock click while a quit is
-                finishing must ask for a fresh launch.
+                finishing must ask for a fresh launch, and a Quit Apple event (`quit app`, the Dock's Quit) arriving
+                in the reader's own run loop must end the process within the quit deadline, even when AppKit asks
+                applicationShouldTerminate: twice (QUIT_APPLE_EVENT_ROUNDS rounds).
 
 Exit status 0 when every check passes, 1 when one fails, 2 when the test cannot run.
 """
@@ -27,6 +29,9 @@ import argparse, fcntl, importlib.util, json, os, re, shutil, statistics, subpro
 # whole quit, about 350 ms (the writes, then AppKit's terminate). The process must then exit, quickly.
 HIDDEN_MS = 33.0
 EXIT_MS = 1000.0
+# Whatever happens during a quit, the process is gone this long after the windows left the screen
+# (SPDFMacQuitFinishing.mm); the harness notices a little later than the process ends.
+QUIT_DEADLINE_MS = 2000.0
 # Launch, warm, to the first frame: about 225 ms wall and 175 ms of main-thread CPU now, against 300 and 250 before
 # the launch work of 2026-10-28. The budgets sit about 25% above now, below where that work started.
 FRAME_MS = 285.0
@@ -261,6 +266,28 @@ def integrity(args, work):
     check(result.get("relaunch_requested") is True and result.get("relaunch_app", "").endswith("ShenzhenPDF.app"),
           f"a reopen while finishing did not start a fresh launch: {result}")
     log(f"reopen while finishing: fresh launch requested {result.get('relaunch_ms', -1):.1f} ms into the quit")
+    # A Quit Apple event right after the person copied something from the reader, with a window closing during the
+    # quit: AppKit then asks applicationShouldTerminate: a second time (SPDFMacQuitFinishing.mm). Answered
+    # NSTerminateLater, as it was until 2026-11-01, the process never exited, its windows already gone: about two rounds
+    # in three hung here. Every round must end within the deadline.
+    rounds = int(os.environ.get("QUIT_APPLE_EVENT_ROUNDS", 6))
+    second_asks = ended = 0
+    for r in range(1, rounds + 1):
+        try:
+            result = run(exe, state, {"PROBE_MODE": "quit-appleevent", "PROBE_QUIT_SELF": "0",
+                                      "PROBE_OWN_PASTEBOARD": "1", "PROBE_SECOND_ASK": "1"}, timeout=60)
+        except SystemExit as error:
+            check(False, f"Quit Apple event round {r}: the process did not exit ({error})")
+            continue
+        ended += 1
+        second_asks += result.get("should_terminate_calls", 0) > 1
+        check(result["quit_reaped_ms"] <= QUIT_DEADLINE_MS + 250,
+              f"Quit Apple event round {r}: process gone {result['quit_reaped_ms']:.0f} ms after the quit (deadline "
+              f"{QUIT_DEADLINE_MS:.0f})")
+        check(not result["quit_modals"] and not result["modals"],
+              f"Quit Apple event round {r}: a question was asked: {result.get('modal_texts')}")
+    log(f"Quit Apple event: {ended} of {rounds} rounds ended, AppKit asked twice in {second_asks}"
+        + ("" if second_asks or ended < rounds else " (none: this run did not reach the case that hung)"))
     return failures
 
 

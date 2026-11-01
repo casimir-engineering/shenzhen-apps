@@ -5,7 +5,21 @@
 #import <objc/runtime.h>
 
 static char conversionPathKey, conversionPendingKey;
+static dispatch_queue_t GroupWrites(void) {
+    static dispatch_queue_t queue; static dispatch_once_t once;
+    dispatch_once(&once, ^{ queue=dispatch_queue_create("com.shenzhenpdf.collection-groups",DISPATCH_QUEUE_SERIAL); });
+    return queue;
+}
 @implementation ShenzhenMacDelegate (CollectionEditableIntegration)
+// At quit (SPDFMacQuitFinishing.mm): the tab groups just remembered and the capture under way are written before the
+// process exits, for as long as the deadline allows. Captures not started yet are left for the next launch.
+- (void)collectionFinishWritesBefore:(NSDate*)deadline {
+    dispatch_semaphore_t written=dispatch_semaphore_create(0);
+    dispatch_async(GroupWrites(), ^{ dispatch_semaphore_signal(written); });
+    NSTimeInterval left=MAX(0.0, deadline.timeIntervalSinceNow);
+    dispatch_semaphore_wait(written, dispatch_time(DISPATCH_TIME_NOW,(int64_t)(left*NSEC_PER_SEC)));
+    [SPDFMacCollectionStore.defaultStore finishCaptureInProgressBefore:deadline];
+}
 - (void)collectionRememberGroups {
     NSMutableDictionary* groups=nil;
     for (SPDFDocumentTab* tab in _tabs) {
@@ -16,9 +30,7 @@ static char conversionPathKey, conversionPendingKey;
         groups[identifier]=tab.group.dictionary ?: SPDFTabGroup.generalGroup.dictionary;
     }
     if (!groups.count) return;
-    static dispatch_queue_t groupWrites; static dispatch_once_t once;
-    dispatch_once(&once, ^{ groupWrites=dispatch_queue_create("com.shenzhenpdf.collection-groups",DISPATCH_QUEUE_SERIAL); });
-    dispatch_async(groupWrites, ^{ [SPDFMacCollectionStore.defaultStore rememberGroups:groups]; });
+    dispatch_async(GroupWrites(), ^{ [SPDFMacCollectionStore.defaultStore rememberGroups:groups]; });
 }
 - (BOOL)collectionRestoreMissingTab:(SPDFDocumentTab*)tab path:(NSString*)path {
     // Covers absent, unreadable and damaged sources after a real open fails.
