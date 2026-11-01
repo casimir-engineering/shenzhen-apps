@@ -76,7 +76,7 @@ static NSArray<NSDictionary*>* changeRegions(SPDFCollectionPagePair* pair, PDFPa
 
 // Preparation runs only after an explicit comparison request, on its worker
 // queue. PDF serialization must not block the main thread for large versions.
-static NSDictionary* preparePresentation(SPDFCollectionComparison* result) {
+static NSDictionary* preparePresentation(SPDFCollectionComparison* result, NSString* oldBlank, NSString* newBlank) {
     if (!result) return nil;
     PDFDocument* oldAligned = [PDFDocument new];
     PDFDocument* newAligned = [PDFDocument new];
@@ -90,8 +90,8 @@ static NSDictionary* preparePresentation(SPDFCollectionComparison* result) {
         PDFPage* oldPage = pair.oldIndex < 0 ? nil : [[result.oldDocument pageAtIndex:pair.oldIndex] copy];
         PDFPage* newPage = pair.newIndex < 0 ? nil : [[result.updatedDocument pageAtIndex:pair.newIndex] copy];
         NSRect size = [(oldPage ?: newPage) boundsForBox:kPDFDisplayBoxMediaBox];
-        if (!oldPage) oldPage = blankPage(size,@"No old page\nPage added in the new version");
-        if (!newPage) newPage = blankPage(size,@"No new page\nPage removed from the old version");
+        if (!oldPage) oldPage = blankPage(size,oldBlank);
+        if (!newPage) newPage = blankPage(size,newBlank);
         markPage(oldPage,pair.removedRects,YES);
         markPage(newPage,pair.addedRects,NO);
         [oldAligned insertPage:oldPage atIndex:slot];
@@ -135,20 +135,29 @@ static NSDictionary* preparePresentation(SPDFCollectionComparison* result) {
     NSInteger _changeIndex;
     BOOL _synchronizing;
     id _keepAlive;
+    NSString* _oldBlank;
+    NSString* _newBlank;
 }
-- (instancetype)initWithOldLabel:(NSString*)oldLabel newLabel:(NSString*)newLabel title:(NSString*)title {
+- (instancetype)initWithOldLabel:(NSString*)oldLabel newLabel:(NSString*)newLabel {
+    return [self initWithOldLabel:oldLabel newLabel:newLabel documents:NO];
+}
+- (instancetype)initWithOldLabel:(NSString*)oldLabel newLabel:(NSString*)newLabel documents:(BOOL)documents {
     NSWindow* window = [[NSWindow alloc] initWithContentRect:NSMakeRect(0,0,1200,820)
         styleMask:NSWindowStyleMaskTitled|NSWindowStyleMaskClosable|NSWindowStyleMaskResizable|NSWindowStyleMaskMiniaturizable
         backing:NSBackingStoreBuffered defer:NO];
     if (!(self = [super initWithWindow:window])) return nil;
-    window.title = title;
+    window.title = documents ? @"Document Comparison — Read-only" : @"Version Comparison — Read-only";
     window.minSize = NSMakeSize(980,520);
     window.delegate = self;
     window.releasedWhenClosed = NO;
     [window setFrameAutosaveName:@"CollectionComparisonWindow"];
     _keepAlive = self;
-    _oldPane = [[SPDFCollectionComparePane alloc] initWithLabel:oldLabel removed:YES];
-    _newPane = [[SPDFCollectionComparePane alloc] initWithLabel:newLabel removed:NO];
+    _oldPane = [[SPDFCollectionComparePane alloc] initWithLabel:oldLabel removed:YES otherLabel:documents ? newLabel : nil];
+    _newPane = [[SPDFCollectionComparePane alloc] initWithLabel:newLabel removed:NO otherLabel:documents ? oldLabel : nil];
+    _oldBlank = documents ? [NSString stringWithFormat:@"No matching page\nThis page is only in %@", newLabel]
+                          : @"No old page\nPage added in the new version";
+    _newBlank = documents ? [NSString stringWithFormat:@"No matching page\nThis page is only in %@", oldLabel]
+                          : @"No new page\nPage removed from the old version";
     _linked = [NSButton checkboxWithTitle:@"Link scrolling and zoom" target:self action:@selector(linkChanged:)];
     _linked.state = NSControlStateValueOn;
     NSButton* previous = [NSButton buttonWithTitle:@"Previous change" target:self action:@selector(previousChange:)];
@@ -198,13 +207,14 @@ static NSDictionary* preparePresentation(SPDFCollectionComparison* result) {
     _queue.maxConcurrentOperationCount = 1;
     _queue.qualityOfService = NSQualityOfServiceUserInitiated;
     NSProgress* progress = _progress;
+    NSString* oldBlank = _oldBlank, *newBlank = _newBlank;
     __weak SPDFCollectionCompareController* weakSelf = self;
     [_queue addOperationWithBlock:^{
         @autoreleasepool {
             NSError* error = nil;
             SPDFCollectionComparison* result = SPDFCollectionBuildComparison(oldURL,newURL,progress,&error);
             if (progress.cancelled) return;
-            NSDictionary* presentation = preparePresentation(result);
+            NSDictionary* presentation = preparePresentation(result, oldBlank, newBlank);
             if (result && !presentation) error = [NSError errorWithDomain:@"ShenzhenPDF.CollectionComparison" code:1
                 userInfo:@{NSLocalizedDescriptionKey:@"Could not prepare the comparison readers."}];
             dispatch_async(dispatch_get_main_queue(), ^{
@@ -304,15 +314,23 @@ static NSDictionary* preparePresentation(SPDFCollectionComparison* result) {
 }
 @end
 
+static void SPDFMacShowComparisonWindow(NSURL* oldURL, NSURL* newURL, NSString* oldLabel, NSString* newLabel,
+                                        BOOL documents, NSWindow* parent);
+
 void SPDFMacShowCollectionComparison(NSURL* oldURL, NSURL* newURL, NSString* oldLabel,
                                     NSString* newLabel, NSWindow* parent) {
-    SPDFMacShowComparison(oldURL, newURL, oldLabel, newLabel, @"Version Comparison — Read-only", parent);
+    SPDFMacShowComparisonWindow(oldURL, newURL, oldLabel, newLabel, NO, parent);
 }
 
-void SPDFMacShowComparison(NSURL* oldURL, NSURL* newURL, NSString* oldLabel, NSString* newLabel,
-                           NSString* title, NSWindow* parent) {
+void SPDFMacShowDocumentComparison(NSURL* oldURL, NSURL* newURL, NSString* oldLabel, NSString* newLabel,
+                                   NSWindow* parent) {
+    SPDFMacShowComparisonWindow(oldURL, newURL, oldLabel, newLabel, YES, parent);
+}
+
+static void SPDFMacShowComparisonWindow(NSURL* oldURL, NSURL* newURL, NSString* oldLabel, NSString* newLabel,
+                                        BOOL documents, NSWindow* parent) {
     SPDFCollectionCompareController* controller = [[SPDFCollectionCompareController alloc]
-        initWithOldLabel:oldLabel newLabel:newLabel title:title];
+        initWithOldLabel:oldLabel newLabel:newLabel documents:documents];
     [controller.window center];
     if (parent) [parent addChildWindow:controller.window ordered:NSWindowAbove];
     [controller showWindow:nil];

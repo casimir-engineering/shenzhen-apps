@@ -54,9 +54,9 @@ static BOOL SPDFTabCompareSupportsPath(NSString* path) {
     }];
     if (index == NSNotFound || ![self tabCanCompareToCurrentAtIndex:(NSInteger)index]) { NSBeep(); return; }
     NSInteger current = _selectedTabIndex;
-    SPDFMacShowComparison([NSURL fileURLWithPath:[self tabCompareReadPathAtIndex:(NSInteger)index]],
+    SPDFMacShowDocumentComparison([NSURL fileURLWithPath:[self tabCompareReadPathAtIndex:(NSInteger)index]],
                           [NSURL fileURLWithPath:[self tabCompareReadPathAtIndex:current]],
                           [self tabCompareLabelAtIndex:(NSInteger)index], [self tabCompareLabelAtIndex:current],
-                          @"Document Comparison — Read-only", _window);
+                          _window);
 }
 @end

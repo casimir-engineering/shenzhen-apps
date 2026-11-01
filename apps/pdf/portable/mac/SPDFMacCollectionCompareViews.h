@@ -14,7 +14,9 @@
 @property(nonatomic, copy) void (^navigationChanged)(SPDFCollectionComparePane*);
 @property(nonatomic, copy) void (^zoomChanged)(SPDFCollectionComparePane*);
 @property(nonatomic, copy) NSArray<NSNumber*>* sourcePages;
-- (instancetype)initWithLabel:(NSString*)label removed:(BOOL)removed;
+// otherLabel nil: two versions of one document (OLD / NEW). Otherwise two different documents: neither is older, so
+// each pane says what its marks are against the other document's name.
+- (instancetype)initWithLabel:(NSString*)label removed:(BOOL)removed otherLabel:(NSString*)otherLabel;
 - (void)installDocument:(PDFDocument*)document;
 @property(nonatomic, readonly) NSUInteger currentSlot;
 @property(nonatomic, readonly) PDFDestination* navigationDestination;

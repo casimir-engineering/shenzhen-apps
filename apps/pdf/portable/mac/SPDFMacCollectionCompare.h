@@ -23,7 +23,8 @@ SPDFCollectionComparison* _Nullable SPDFCollectionBuildComparison(NSURL* oldURL,
                                                                 NSProgress* progress, NSError** error);
 void SPDFMacShowCollectionComparison(NSURL* oldURL, NSURL* newURL, NSString* oldLabel,
                                     NSString* newLabel, NSWindow* _Nullable parent);
-// The same window for any two documents, under its own title (Compare to Current Document in the tab menu).
-void SPDFMacShowComparison(NSURL* oldURL, NSURL* newURL, NSString* oldLabel, NSString* newLabel,
-                           NSString* title, NSWindow* _Nullable parent);
+// The same window for two different documents (Compare to Current Document in the tab menu): neither is older, so
+// it says "Document Comparison" and each pane's marks are named for the other document instead of OLD / NEW.
+void SPDFMacShowDocumentComparison(NSURL* oldURL, NSURL* newURL, NSString* oldLabel, NSString* newLabel,
+                                   NSWindow* _Nullable parent);
 NS_ASSUME_NONNULL_END

@@ -54,13 +54,19 @@ static NSButton* button(NSString* title, id target, SEL action) {
     PDFDestination* _explicitDestination;
     id _inputMonitor;
 }
-- (instancetype)initWithLabel:(NSString*)label removed:(BOOL)removed {
+- (instancetype)initWithLabel:(NSString*)label removed:(BOOL)removed otherLabel:(NSString*)otherLabel {
     if (!(self = [super initWithFrame:NSZeroRect])) return nil;
     NSTextField* title = [NSTextField labelWithString:label];
     title.font = [NSFont boldSystemFontOfSize:13];
     title.lineBreakMode = NSLineBreakByTruncatingMiddle;
     title.toolTip = label;
-    NSTextField* badge = [NSTextField labelWithString:removed ? @"OLD · Read-only · − Removed" : @"NEW · Read-only · + Added"];
+    NSString* badgeText = !otherLabel ? (removed ? @"OLD · Read-only · − Removed" : @"NEW · Read-only · + Added")
+        : [NSString stringWithFormat:@"Read-only · %@ Not in %@", removed ? @"−" : @"+", otherLabel];
+    NSTextField* badge = [NSTextField labelWithString:badgeText];
+    badge.lineBreakMode = NSLineBreakByTruncatingMiddle;
+    badge.toolTip = otherLabel ? badgeText : nil;
+    [badge setContentCompressionResistancePriority:NSLayoutPriorityDefaultLow
+                                    forOrientation:NSLayoutConstraintOrientationHorizontal];
     badge.textColor = removed ? [NSColor colorWithSRGBRed:.72 green:.17 blue:.18 alpha:1]
                              : [NSColor colorWithSRGBRed:.08 green:.43 blue:.22 alpha:1];
     _pageField = [NSTextField textFieldWithString:@"1"];
@@ -79,7 +85,7 @@ static NSButton* button(NSString* title, id target, SEL action) {
     navigation.spacing = 4;
     navigation.detachesHiddenViews = NO;
     _search = [NSSearchField new];
-    _search.placeholderString = @"Find in this version";
+    _search.placeholderString = otherLabel ? @"Find in this document" : @"Find in this version";
     _search.target = self; _search.action = @selector(search:);
     _search.sendsSearchStringImmediately = NO;
     _search.sendsWholeSearchString = YES;
