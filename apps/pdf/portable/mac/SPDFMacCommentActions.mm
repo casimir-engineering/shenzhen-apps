@@ -110,20 +110,25 @@ static char kEditorAnchorKey;
         NSBeep();
         return;
     }
-    if (![self ensureActivePDFCanBeModifiedForOperation:@"adding a comment"]) return;
-
+    // Read the selection and the clicked point first: a PDF that cannot be written in place (a temporary or read-only
+    // folder) is reopened from a writable copy by the check below, which clears them.
     BOOL hasSelection = _selectedText.length > 0 && _selectionPageIndex >= 0 && [self currentSelectionRects].count > 0;
     NSInteger pageIndex = hasSelection ? _selectionPageIndex : _contextPageIndex;
+    NSArray<NSValue*>* values = hasSelection ? [self currentSelectionRects] : @[];
+    NSString* selectedText = hasSelection ? [_selectedText copy] : nil;
+    NSPoint point = _contextPagePoint;
     if (pageIndex < 0 || pageIndex >= (NSInteger)_renderedPages.count) {
         NSBeep();
         return;
     }
-
-    NSArray<NSValue*>* values = hasSelection ? [self currentSelectionRects] : @[];
-    NSPoint point = _contextPagePoint;
+    if (![self ensureActivePDFCanBeModifiedForOperation:@"adding a comment"]) return;
+    if (!_doc || pageIndex >= spdf_page_count(_doc)) {
+        NSBeep();
+        return;
+    }
     spdf_document* doc = _doc;
     NSString* draftKey = [NSString stringWithFormat:@"%@#%ld#%@", _path, (long)pageIndex,
-                                                    hasSelection ? _selectedText : NSStringFromPoint(point)];
+                                                    selectedText ?: NSStringFromPoint(point)];
     [self openCommentEditorWithTitle:@"Add Comment"
                               button:@"Add"
                               author:[self currentCommentAuthor]
@@ -237,9 +242,11 @@ static char kEditorAnchorKey;
         return;
     }
     if (!_doc || !_path.length) return;
-    if (![self ensureActivePDFCanBeModifiedForOperation:@"editing a comment"]) return;
-
+    // The index first: moving a PDF from a temporary folder to a writable copy reopens it and clears what was clicked.
     NSInteger commentIndex = [self commentIndexForEditAction:sender];
+    if (![self ensureActivePDFCanBeModifiedForOperation:@"editing a comment"]) return;
+    // The reopened copy has the same comments, loaded in the background: read them now.
+    if (![self commentItemForIndex:commentIndex]) [self reloadCommentsFromActiveDocument];
     spdf_comment_item* item = [self commentItemForIndex:commentIndex];
     if (!item) {
         NSBeep();
@@ -286,9 +293,9 @@ static char kEditorAnchorKey;
         return;
     }
     if (!_doc || !_path.length) return;
-    if (![self ensureActivePDFCanBeModifiedForOperation:@"deleting a comment"]) return;
-
     NSInteger commentIndex = [self commentIndexForEditAction:sender];
+    if (![self ensureActivePDFCanBeModifiedForOperation:@"deleting a comment"]) return;
+    if (![self commentItemForIndex:commentIndex]) [self reloadCommentsFromActiveDocument];
     spdf_comment_item* item = [self commentItemForIndex:commentIndex];
     if (!item) {
         NSBeep();
