@@ -107,4 +107,48 @@ guard let relaunched else {
 }
 print("EXACT_RELAUNCH=observed")
 
+/// The environment a process of ours started with (KERN_PROCARGS2: argc, the executable path, argv, then the
+/// environment), or nil when it cannot be read.
+private func environment(of pid: pid_t) -> [String: String]? {
+    var mib: [Int32] = [CTL_KERN, KERN_PROCARGS2, pid]
+    var size = 0
+    guard sysctl(&mib, 3, nil, &size, nil, 0) == 0, size > MemoryLayout<Int32>.size else { return nil }
+    var buffer = [UInt8](repeating: 0, count: size)
+    guard sysctl(&mib, 3, &buffer, &size, nil, 0) == 0 else { return nil }
+    let argc = buffer.withUnsafeBytes { Int($0.load(as: Int32.self)) }
+    var strings: [String] = []
+    var index = MemoryLayout<Int32>.size
+    while index < size, buffer[index] != 0 { index += 1 }  // the executable path
+    while index < size {
+        while index < size, buffer[index] == 0 { index += 1 }  // its padding
+        guard index < size else { break }
+        let begin = index
+        while index < size, buffer[index] != 0 { index += 1 }
+        strings.append(String(decoding: buffer[begin..<index], as: UTF8.self))
+        if strings.count > argc, strings.last!.isEmpty { break }
+    }
+    var environment: [String: String] = [:]
+    for entry in strings.dropFirst(argc) {
+        guard let equals = entry.firstIndex(of: "=") else { break }
+        environment[String(entry[..<equals])] = String(entry[entry.index(after: equals)...])
+    }
+    return environment
+}
+
+// The test runs the helper with a home of its own; LaunchServices starts the relaunched app with the session's
+// environment unless the helper carries the home over. With the person's home, the test copy would serve their
+// Friends.
+let testHome = ProcessInfo.processInfo.environment["HOME"] ?? ""
+guard let relaunchedEnvironment = environment(of: relaunched.processIdentifier) else {
+    terminateExactTargetApplication()
+    fail("could not read the relaunched app's environment")
+}
+guard relaunchedEnvironment["HOME"] == testHome,
+      relaunchedEnvironment["CFFIXED_USER_HOME"] == ProcessInfo.processInfo.environment["CFFIXED_USER_HOME"]
+else {
+    terminateExactTargetApplication()
+    fail("the relaunched app runs with HOME=\(relaunchedEnvironment["HOME"] ?? "(unset)"), not the test's \(testHome)")
+}
+print("RELAUNCH_HOME=test")
+
 terminateExactTargetApplication()

@@ -82,9 +82,9 @@ expected_executable_sha="$(shasum -a 256 "$staged_app/$helper_rel" | awk '{print
 expected_icon_sha="$(shasum -a 256 "$staged_app/$icon_rel" | awk '{print $1}')"
 
 set +e
-# HOME as well: the helper and anything it starts directly keep Friends under $HOME (a signed build ignores
-# SZFRIENDS_STATE_DIR). The relaunch itself goes through LaunchServices, which starts the app with the session's own
-# environment; cleanup ends whatever that started from the test copies.
+# HOME as well: the helper and anything it starts keep Friends under $HOME (a signed build ignores
+# SZFRIENDS_STATE_DIR). The helper carries this HOME over to the app it relaunches through LaunchServices, and the
+# runner checks the relaunched app has it; cleanup ends whatever still runs from the test copies.
 HOME="$test_root/home" CFFIXED_USER_HOME="$test_root/home" xcrun swift \
   "$script_dir/updater-helper-process-test.swift" \
   "$target_app/$helper_rel" "$staged_app" "$target_app" "$tag" \

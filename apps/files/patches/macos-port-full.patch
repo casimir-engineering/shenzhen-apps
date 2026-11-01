@@ -14174,10 +14174,10 @@ index 0000000..6123f19
 +}
 diff --git a/src/nautilus-macos-updater.m b/src/nautilus-macos-updater.m
 new file mode 100644
-index 0000000..10f368a
+index 0000000..d92044d
 --- /dev/null
 +++ b/src/nautilus-macos-updater.m
-@@ -0,0 +1,2541 @@
+@@ -0,0 +1,2604 @@
 +/*
 + * nautilus-macos-updater.m: GitHub-release self-updater (Shenzhen Files).
 + *
@@ -14231,6 +14231,7 @@ index 0000000..10f368a
 +#include <string.h>
 +#include <unistd.h>
 +#include <signal.h>
++#include <pwd.h>
 +#include <sys/stat.h>
 +
 +/* ---------------------------------------------------------------------------
@@ -14814,6 +14815,60 @@ index 0000000..10f368a
 +    szf_helper_record_update_failure (failure, YES);
 +}
 +
++/* A test runs a copy of the app with a home of its own (HOME, CFFIXED_USER_HOME) and sometimes a Friends home
++ * (SZFRIENDS_STATE_DIR). LaunchServices starts an app with the login session's environment, so a test copy this
++ * helper relaunched would come back with the person's home and could take over their Friends. These are the
++ * variables to carry over to the relaunched app: HOME when it is not the account's own home, and the other two
++ * when set. An app started by LaunchServices has none of that, gets nil, and is relaunched exactly as before.
++ * Only what the app that started this update already had is carried, so the relaunched copy keeps the home it
++ * had; a team-signed build still ignores SZFRIENDS_STATE_DIR. */
++static NSDictionary<NSString *, NSString *> *
++szf_helper_test_environment (void)
++{
++    NSDictionary<NSString *, NSString *> *current = NSProcessInfo.processInfo.environment;
++    NSMutableDictionary<NSString *, NSString *> *carried = [NSMutableDictionary dictionary];
++    NSString *home = current[@"HOME"];
++    if (home.length && [home hasPrefix:@"/"])
++    {
++        char buffer[4096];
++        struct passwd entry;
++        struct passwd *found = NULL;
++        NSString *accountHome = nil;
++        if (getpwuid_r (getuid (), &entry, buffer, sizeof buffer, &found) == 0 && found &&
++            found->pw_dir && found->pw_dir[0] == '/')
++        {
++            accountHome = @(found->pw_dir);
++        }
++        if (!accountHome ||
++            ![home.stringByStandardizingPath.stringByResolvingSymlinksInPath
++                isEqualToString:accountHome.stringByStandardizingPath.stringByResolvingSymlinksInPath])
++        {
++            carried[@"HOME"] = home;
++        }
++    }
++    for (NSString *name in @[ @"CFFIXED_USER_HOME", @"SZFRIENDS_STATE_DIR" ])
++    {
++        if (current[name].length)
++        {
++            carried[name] = current[name];
++        }
++    }
++    return carried.count ? carried : nil;
++}
++
++/* How LaunchServices should open the app: with the test variables above when there are any. */
++static NSWorkspaceOpenConfiguration *
++szf_helper_relaunch_configuration (void)
++{
++    NSWorkspaceOpenConfiguration *config = [NSWorkspaceOpenConfiguration configuration];
++    NSDictionary<NSString *, NSString *> *environment = szf_helper_test_environment ();
++    if (environment)
++    {
++        config.environment = environment;
++    }
++    return config;
++}
++
 +static void
 +szf_helper_relaunch_original (NSString *targetBundlePath)
 +{
@@ -14825,7 +14880,7 @@ index 0000000..10f368a
 +               (int) registrationStatus);
 +    }
 +    [NSWorkspace.sharedWorkspace openApplicationAtURL:originalURL
-+                                        configuration:[NSWorkspaceOpenConfiguration configuration]
++                                        configuration:szf_helper_relaunch_configuration ()
 +                                    completionHandler:^(NSRunningApplication *app, NSError *error) {
 +                                        (void) app;
 +                                        if (error)
@@ -15078,7 +15133,7 @@ index 0000000..10f368a
 +        }
 +        [NSWorkspace.sharedWorkspace noteFileSystemChanged:targetBundlePath];
 +
-+        NSWorkspaceOpenConfiguration *config = [NSWorkspaceOpenConfiguration configuration];
++        NSWorkspaceOpenConfiguration *config = szf_helper_relaunch_configuration ();
 +        config.createsNewApplicationInstance = YES;
 +        dispatch_semaphore_t sem = dispatch_semaphore_create (0);
 +        __block BOOL relaunchedExactBundle = NO;
@@ -15110,7 +15165,15 @@ index 0000000..10f368a
 +            NSLog (@"Shenzhen Files updater: exact-path relaunch not confirmed "
 +                   "(timeout=%d, error=%@); trying open(1)",
 +                   waitResult != 0, relaunchError);
-+            szf_run_tool (@"/usr/bin/open", @[ @"-n", targetBundlePath ], NULL);
++            NSMutableArray<NSString *> *openArguments = [NSMutableArray arrayWithObject:@"-n"];
++            [szf_helper_test_environment ()
++                enumerateKeysAndObjectsUsingBlock:^(NSString *name, NSString *value, BOOL *stop) {
++                    (void) stop;
++                    [openArguments addObjectsFromArray:@[ @"--env",
++                                                          [NSString stringWithFormat:@"%@=%@", name, value] ]];
++                }];
++            [openArguments addObject:targetBundlePath];
++            szf_run_tool (@"/usr/bin/open", openArguments, NULL);
 +            NSTimeInterval retryWaited = 0;
 +            while (!relaunchedExactBundle && retryWaited < 5.0)
 +            {
