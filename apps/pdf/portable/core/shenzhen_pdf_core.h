@@ -278,6 +278,10 @@ int spdf_delete_comment(spdf_document* doc, int comment_index, char* err, size_t
  * spdf_save_document. Nothing is added when it already has that state. */
 int spdf_set_comment_resolved(spdf_document* doc, int comment_index, int resolved, const char* author, char* err,
                               size_t err_len);
+/* Answers comment `comment_index` with a reply (/IRT, as Acrobat writes one; spdf_comment_review.h). Save with
+ * spdf_save_document. */
+int spdf_add_comment_reply(spdf_document* doc, int comment_index, const char* text, const char* author, char* err,
+                           size_t err_len);
 int spdf_rotate_page(spdf_document* doc, int page_index, int degrees, char* err, size_t err_len);
 /* Remove every text-showing operation from every page (keeping images and
  * graphics) and rewrite the file at path (garbage-collected, so the old text

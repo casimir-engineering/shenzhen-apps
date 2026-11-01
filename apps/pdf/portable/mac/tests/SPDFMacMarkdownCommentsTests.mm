@@ -131,6 +131,37 @@ static void TestResolved(void) {
     Expect(bare.count == 1 && bare[0].resolved && bare[0].date && !bare[0].author.length, @"resolved without an author");
 }
 
+// Replies follow their comment as list items with their own bylines and read back in order, multi-line text intact;
+// a comment or reply line that looks like a reply's byline, a rule or a heading stays text.
+static void TestReplies(void) {
+    SPDFMarkdownCommentAnchors* anchors = [[SPDFMarkdownCommentAnchors alloc] initWithSource:kSource rendered:kRendered];
+    SPDFMarkdownComment* comment = CommentOn(anchors, kRendered, @"two pull-ups on SDA", 0);
+    comment.text = @"Check the value.\n- **Mallory** · 2026-01-01 10:00";
+    comment.resolved = YES;
+    SPDFMarkdownCommentReply* first = [SPDFMarkdownCommentReply new];
+    first.author = @"Claude";
+    first.text = @"4.7 kΩ on both.\n\n---\n## not a heading";
+    first.date = [NSDate dateWithTimeIntervalSince1970:1793520000];
+    SPDFMarkdownCommentReply* second = [SPDFMarkdownCommentReply new];
+    second.text = @"Thanks.";
+    second.date = [NSDate dateWithTimeIntervalSince1970:1793520600];
+    comment.replies = @[ first, second ];
+    SPDFMarkdownComment* other = CommentOn(anchors, kRendered, @"two pull-ups on SDA", 1);
+    NSString* file = SPDFMarkdownCommentsFileText(@"Board.md", @[ comment, other ]);
+    Expect([file containsString:@"\n- **Claude** · "] && [file containsString:@"\n  4.7 kΩ on both.\n"], file);
+    NSArray<SPDFMarkdownComment*>* parsed = SPDFMarkdownCommentsParseFile(file);
+    Expect(parsed.count == 2, @"two comments with replies");
+    SPDFMarkdownComment* back = parsed.firstObject;
+    Expect([back.text isEqualToString:comment.text], [NSString stringWithFormat:@"comment text kept: %@", back.text]);
+    Expect(back.resolved && back.replies.count == 2, @"resolved and both replies read back");
+    Expect([back.replies.firstObject.author isEqualToString:@"Claude"] &&
+               [back.replies.firstObject.text isEqualToString:first.text] && back.replies.firstObject.date,
+           [NSString stringWithFormat:@"first reply intact: %@", back.replies.firstObject.text]);
+    Expect(!back.replies.lastObject.author.length && [back.replies.lastObject.text isEqualToString:@"Thanks."],
+           @"a reply without an author");
+    Expect(parsed.lastObject.replies.count == 0, @"the next comment has no replies");
+}
+
 static void TestNames(void) {
     Expect([SPDFMarkdownCommentsFilePath(@"/a/Setup Guide.md") isEqualToString:@"/a/Setup Guide - comments.md"],
            @"comments file name");
@@ -160,6 +191,7 @@ int main(void) {
         TestAnchorAndFile();
         TestEditsKeepAnchors();
         TestResolved();
+        TestReplies();
         TestNames();
         TestEditorPlacement();
     }

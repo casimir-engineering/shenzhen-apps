@@ -9,6 +9,11 @@
 //
 //   Check the value.
 //
+//   - **Agent** · 2026-11-01 16:00
+//
+//     Done: 4.7 kΩ on both.
+//
+// Replies follow the comment as list items, each with its own byline and its text indented under it.
 // The bold words inside the quote are the commented ones; every other "*" in the file is escaped, so the parser
 // finds them without guessing.
 
@@ -19,6 +24,15 @@ static NSString* const kUnplacedHeading = @"## Unplaced";
 static NSString* const kPathSeparator = @" › ";
 static NSString* const kResolvedSuffix = @" · Resolved";
 
+@implementation SPDFMarkdownCommentReply
+- (instancetype)init {
+    if (!(self = [super init])) return nil;
+    _author = @"";
+    _text = @"";
+    return self;
+}
+@end
+
 @implementation SPDFMarkdownComment
 - (instancetype)init {
     if (!(self = [super init])) return nil;
@@ -28,6 +42,7 @@ static NSString* const kResolvedSuffix = @" · Resolved";
     _headingPath = @[];
     _contextBefore = @"";
     _contextAfter = @"";
+    _replies = @[];
     _renderedRange = NSMakeRange(NSNotFound, 0);
     return self;
 }
@@ -93,8 +108,10 @@ static NSString* Trimmed(NSString* text) {
 
 // A body line that would end the comment, or turn into a heading or rule, gets a leading backslash; Markdown shows
 // the line unchanged and the parser drops the backslash again.
+static BOOL ParseReplyByline(NSString* line, SPDFMarkdownCommentReply* reply);
 static BOOL BodyLineNeedsEscape(NSString* line) {
     NSString* t = Trimmed(line);
+    if (ParseReplyByline(line, nil)) return YES; // would start a reply
     if ([t hasPrefix:@"#"]) return YES;
     if (t.length < 3) return NO;
     for (NSString* mark in @[ @"-", @"*", @"_" ]) {
@@ -131,6 +148,14 @@ static void AppendComment(NSMutableString* out, SPDFMarkdownComment* comment) {
     for (NSString* line in [Trimmed(comment.text) componentsSeparatedByString:@"\n"])
         [out appendFormat:@"%@%@\n", BodyLineNeedsEscape(line) ? @"\\" : @"", line];
     [out appendString:@"\n"];
+    for (SPDFMarkdownCommentReply* reply in comment.replies) {
+        NSString* when = [DateFormatter() stringFromDate:reply.date ?: NSDate.date];
+        NSString* by = Trimmed(reply.author);
+        [out appendFormat:@"- %@\n\n", by.length ? [NSString stringWithFormat:@"**%@** · %@", Escape(by), when] : when];
+        for (NSString* line in [Trimmed(reply.text) componentsSeparatedByString:@"\n"])
+            [out appendFormat:@"%@%@%@\n", line.length ? @"  " : @"", BodyLineNeedsEscape(line) ? @"\\" : @"", line];
+        [out appendString:@"\n"];
+    }
 }
 
 NSString* SPDFMarkdownCommentsHeader(NSString* documentName) {
@@ -202,6 +227,31 @@ static BOOL ParseByline(NSString* line, SPDFMarkdownComment* comment) {
     return YES;
 }
 
+// "- **Agent** · 2026-11-01 16:00" or "- 2026-11-01 16:00": a reply's byline. `reply` may be nil (a test only).
+static BOOL ParseReplyByline(NSString* line, SPDFMarkdownCommentReply* reply) {
+    if (![line hasPrefix:@"- "]) return NO;
+    NSString* rest = Trimmed([line substringFromIndex:2]);
+    NSString* author = @"";
+    NSString* date = rest;
+    if ([rest hasPrefix:@"**"]) {
+        NSRange end = [rest rangeOfString:@"** · " options:NSBackwardsSearch];
+        if (end.location == NSNotFound || end.location < 2) return NO;
+        author = Unescape([rest substringWithRange:NSMakeRange(2, end.location - 2)]);
+        date = [rest substringFromIndex:NSMaxRange(end)];
+    }
+    NSDate* parsed = [DateFormatter() dateFromString:Trimmed(date)];
+    if (!parsed) return NO;
+    reply.author = author;
+    reply.date = parsed;
+    return YES;
+}
+
+static NSString* Unescaped(NSString* line) {
+    if ([line hasPrefix:@"\\"] && line.length > 1 && BodyLineNeedsEscape([line substringFromIndex:1]))
+        return [line substringFromIndex:1];
+    return line;
+}
+
 static SPDFMarkdownComment* ParseEntry(NSArray<NSString*>* lines) {
     SPDFMarkdownComment* comment = [SPDFMarkdownComment new];
     NSUInteger i = 0;
@@ -215,12 +265,26 @@ static SPDFMarkdownComment* ParseEntry(NSArray<NSString*>* lines) {
     while (i < lines.count && !Trimmed(lines[i]).length) i++;
     if (i < lines.count && ParseByline(Trimmed(lines[i]), comment)) i++;
     NSMutableArray* body = [NSMutableArray array];
+    NSMutableArray<SPDFMarkdownCommentReply*>* replies = [NSMutableArray array];
+    __block NSMutableArray<NSString*>* replyLines = nil;
+    void (^finishReply)(void) = ^{
+      if (replies.count) replies.lastObject.text = Trimmed([replyLines componentsJoinedByString:@"\n"]);
+    };
     for (; i < lines.count; i++) {
         NSString* line = lines[i];
-        if ([line hasPrefix:@"\\"] && line.length > 1 && BodyLineNeedsEscape([line substringFromIndex:1]))
-            line = [line substringFromIndex:1];
-        [body addObject:line];
+        SPDFMarkdownCommentReply* reply = [SPDFMarkdownCommentReply new];
+        if (ParseReplyByline(line, reply)) {
+            finishReply();
+            [replies addObject:reply];
+            replyLines = [NSMutableArray array];
+        } else if (replyLines) {
+            [replyLines addObject:Unescaped([line hasPrefix:@"  "] ? [line substringFromIndex:2] : line)];
+        } else {
+            [body addObject:Unescaped(line)];
+        }
     }
+    finishReply();
+    comment.replies = replies;
     comment.text = Trimmed([body componentsJoinedByString:@"\n"]);
     if (!comment.quote.length && !comment.text.length) return nil;
     return comment;
