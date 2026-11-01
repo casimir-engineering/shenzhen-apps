@@ -6,6 +6,7 @@
 #import "SPDFMacSidebarModeControl.h"
 #import "SPDFMacCollectionIntegration.h"
 #import "SPDFMacMarkdownDelegatePrivate.h"
+#import "SPDFMacCommentActions.h"
 #import <objc/runtime.h>
 
 static char stateKey, groupsControllerKey, emptySearchKey, saveGenerationKey, tabScrollSaveGenerationKey;
@@ -98,7 +99,7 @@ static char stateKey, groupsControllerKey, emptySearchKey, saveGenerationKey, ta
     BOOL hasSearch = markdown ? [self markdownHasSearchSidebar] : [self hasSearchSidebar];
     [self syncSidebarModeControlSegmentsForSearchAvailability:hasSearch];
     spdf_sidebar_mode_control_set_document_availability(_sidebarModeControl,
-        markdown ? [self markdownHasChapters] : (_outline.count > 0 || [self aiGeneratedChapterRows].count > 0), !markdown && _comments.count > 0);
+        markdown ? [self markdownHasChapters] : (_outline.count > 0 || [self aiGeneratedChapterRows].count > 0), markdown ? [self markdownCommentCount] > 0 : _comments.count > 0);
 }
 - (NSArray<NSDictionary*>*)sidebarGroupSnapshots {
     NSMutableArray* groups = [NSMutableArray array]; NSMutableDictionary* lookup = [NSMutableDictionary dictionary];

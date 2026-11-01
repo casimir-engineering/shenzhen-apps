@@ -241,4 +241,10 @@ FOUNDATION_EXPORT BOOL SPDFMacMarkdownCopyCodeSource(SPDFMarkdownDocumentModel* 
 - (void)invalidateSearchScrollbarMarkers;
 @end
 
+// Implemented in SPDFMacMarkdownSession+Comments.mm: the commented passages the reader draws, kept across rerenders.
+@interface SPDFMacMarkdownSession (Comments)
+// {range, title, text} per comment, in rendered-text coordinates.
+@property(nonatomic, copy, nullable) NSArray<NSDictionary*>* commentHighlights;
+@end
+
 NS_ASSUME_NONNULL_END

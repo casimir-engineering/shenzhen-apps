@@ -123,6 +123,12 @@ NS_ASSUME_NONNULL_BEGIN
 @property(nonatomic, readonly) SPDFMarkdownSearchGeometry* searchGeometry;
 @end
 
+// Implemented in SPDFMacMarkdownPageCanvas+Comments.mm.
+@interface SPDFMacMarkdownPageCanvas (Comments)
+// Commented passages: {range, title, text} each, drawn as a highlight; hovering one shows its comment.
+@property(nonatomic, copy, nullable) NSArray<NSDictionary*>* commentHighlights;
+@end
+
 // Ranges sorted for overlap lookups, so mapping N matches onto F fragments
 // costs F log N instead of F x N. Immutable; usable on any thread.
 @interface SPDFMarkdownRangeIndex : NSObject

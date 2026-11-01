@@ -8,6 +8,10 @@
 @protocol SPDFTabFriendsMenuProviding <NSObject>
 - (void)friendsAddItemsToTabMenu:(NSMenu*)menu path:(NSString*)path;
 @end
+@protocol SPDFTabCommentsMenuProviding <NSObject>
+- (NSString*)copyDocumentTitleForPath:(NSString*)path;
+- (void)addCopyCommentsFileItemToMenu:(NSMenu*)menu path:(NSString*)path;
+@end
 @protocol SPDFTabPermanentDeleteMenuProviding <NSObject>
 - (void)addPermanentDeleteItemToMenu:(NSMenu*)menu path:(NSString*)path;
 @end
@@ -161,8 +165,12 @@
     rename.enabled=!document.missingFile && !document.unsavedPastedImage && !SPDFMacPathIsCollectionArchive(tabPath);
     if (!rename.enabled) rename.action=nil;
     spdf_set_menu_item_system_symbol(rename,@"pencil");
-    NSMenuItem* copy = [menu addItemWithTitle:@"Copy Document" action:@selector(tabContextCopyFile:) keyEquivalent:@""];
+    id<SPDFTabCommentsMenuProviding> comments = [self.reader respondsToSelector:@selector(copyDocumentTitleForPath:)]
+        ? (id<SPDFTabCommentsMenuProviding>)self.reader : nil;
+    NSMenuItem* copy = [menu addItemWithTitle:comments ? [comments copyDocumentTitleForPath:tabPath] : @"Copy Document"
+                                       action:@selector(tabContextCopyFile:) keyEquivalent:@""];
     copy.target = self; copy.representedObject = indexNumber;
+    [comments addCopyCommentsFileItemToMenu:menu path:tabPath];
     NSMenuItem* copyTitle = [menu addItemWithTitle:@"Copy Title" action:@selector(tabContextCopyTitle:) keyEquivalent:@""];
     copyTitle.target = self; copyTitle.representedObject = indexNumber;
     NSMenuItem* copyPath = [menu addItemWithTitle:@"Copy Path" action:@selector(tabContextCopyPath:) keyEquivalent:@""];

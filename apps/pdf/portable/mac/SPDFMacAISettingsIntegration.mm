@@ -1,3 +1,4 @@
+#import "SPDFMacCommentActions.h"
 #import "SPDFMacAIIntegration.h"
 #import "SPDFMacUnifiedSettings.h"
 #import "SPDFMacAISettings.h"
@@ -102,6 +103,7 @@ static NSDictionary* PaletteState(void) {
         @"showShortcutsOnLaunch":@(_showShortcutHelpOnLaunch),@"keepImageColors":@(_darkThemePreservesImagesDefault)}
         mutableCopy];
     [state addEntriesFromDictionary:[self aiCapabilitiesSettingsState:ai]];
+    state[@"commentAuthor"]=_commentAuthor ?: @""; state[@"commentAuthorDefault"]=SPDFDefaultCommentAuthor();
     [state addEntriesFromDictionary:PaletteState()]; state[@"appearanceMode"]=spdf_appearance_mode(); return state;
 }
 - (void)showUnifiedSettings:(id)sender {
@@ -193,6 +195,7 @@ static NSDictionary* PaletteState(void) {
         [SPDFMacCollectionStore.defaultStore updateSettings:storage error:&error];
         [(SPDFMacUnifiedSettingsController*)objc_getAssociatedObject(self,&settingsControllerKey) updateState:[self unifiedSettingsState]];
     }
+    if (changes[@"commentAuthor"]) [self rememberCommentAuthor:changes[@"commentAuthor"]];
     if (changes[@"keepImageColors"]) { _darkThemePreservesImagesDefault=[changes[@"keepImageColors"] boolValue]; [self savePersistentState]; }
     if (changes[@"appearanceMode"] && !spdf_appearance_mode_set(changes[@"appearanceMode"]))
         error=[NSError errorWithDomain:@"ShenzhenPDF.Appearance" code:2 userInfo:@{NSLocalizedDescriptionKey:@"Light or dark could not be saved. ShenzhenPDF will follow the system again when it restarts."}];

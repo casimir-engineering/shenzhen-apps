@@ -133,6 +133,7 @@ $PORTABLE/mac/SPDFMacMarkdownPageCanvas+Decorations.mm
 $PORTABLE/mac/SPDFMacMarkdownPageCanvas+Navigation.mm
 $PORTABLE/mac/SPDFMacMarkdownPageCanvas+Pan.mm
 $PORTABLE/mac/SPDFMacMarkdownPageCanvas+Search.mm
+$PORTABLE/mac/SPDFMacMarkdownPageCanvas+Comments.mm
 $PORTABLE/mac/SPDFMacMarkdownPagedView.mm
 $PORTABLE/mac/SPDFMacMarkdownPagedView+Fit.mm
 $PORTABLE/mac/SPDFMacMarkdownClipView.mm
@@ -153,6 +154,7 @@ $PORTABLE/mac/SPDFMacMarkdownSession+Search.mm
 $PORTABLE/mac/SPDFMacMarkdownSession+SearchResults.mm
 $PORTABLE/mac/SPDFMacProgressiveSearch.mm
 $PORTABLE/mac/SPDFMacMarkdownSession+ViewSwap.mm
+$PORTABLE/mac/SPDFMacMarkdownSession+Comments.mm
 $PORTABLE/mac/SPDFMacMarkdownSessionImageLoader.mm
 "
 

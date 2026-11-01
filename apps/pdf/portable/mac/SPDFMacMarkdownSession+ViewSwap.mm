@@ -73,6 +73,7 @@
     ]];
     _placeholder.hidden = YES;
     if (_searchMatches.count) [self applySearchHighlights];
+    _pagedView.commentHighlights = self.commentHighlights;
     // Every install of an active render is the lazy-load trigger for any
     // remote images the document references (idempotent for known targets).
     [self startRemoteImageFetchesIfNeeded];

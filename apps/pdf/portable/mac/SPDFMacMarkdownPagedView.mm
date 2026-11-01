@@ -137,6 +137,8 @@ static NSColor* SPDFMacMarkdownGutterColor(SPDFMarkdownPaginationPlan* plan) {
 - (void)setSearchRanges:(NSArray<NSValue*>*)searchRanges {
     _canvas.searchRanges = searchRanges;
 }
+- (NSArray<NSDictionary*>*)commentHighlights { return _canvas.commentHighlights; }
+- (void)setCommentHighlights:(NSArray<NSDictionary*>*)highlights { _canvas.commentHighlights = highlights; }
 - (NSRange)activeSearchRange {
     return _canvas.activeSearchRange;
 }

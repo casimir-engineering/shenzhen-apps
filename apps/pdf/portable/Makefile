@@ -106,6 +106,7 @@ MAC_TAB_LIFECYCLE_TEST := $(BUILD)/SPDFMacTabLifecycleTests
 MAC_TAB_STATE_TEST := $(BUILD)/SPDFMacTabStateTests
 MAC_SIDEBAR_OUTLINE_TEST := $(BUILD)/SPDFMacSidebarOutlineTests
 MAC_PAGE_WHEEL_TEST := $(BUILD)/SPDFMacPageWheelTests
+MAC_MARKDOWN_COMMENTS_TEST := $(BUILD)/SPDFMacMarkdownCommentsTests
 MAC_FILE_EXPLORER_TEST := $(BUILD)/SPDFMacFileExplorerPreferenceTests
 MAC_SELECTION_CLICK_TEST := $(BUILD)/SPDFMacSelectionClickTests
 MAC_SELECTION_ADAPTER_TEST := $(BUILD)/SPDFMacSelectionAdapterTests
@@ -151,7 +152,7 @@ endif
 .PHONY: mac
 mac: mac-app
 
-.PHONY: all mac-app core-outline-tests core-link-tests core-password-tests core-recolor-tests core-render-theme-tests core-recolor-probe core-selection-tests icon-tests mac-window-shortcut-tests mac-window-chrome-tests mac-password-tests mac-minimap-window-tests mac-tab-strip-geometry-tests mac-tab-strip-interaction-tests mac-tab-strip-style-tests mac-reading-theme-chrome-tests mac-palette-results-tests mac-find-nearest-tests mac-updater-tests mac-properties-format-tests mac-translation-filter-tests mac-translation-copy-tests mac-cursor-region-tests mac-state-yaml-tests mac-tab-lifecycle-tests mac-tab-state-tests mac-sidebar-outline-tests mac-page-wheel-tests mac-file-explorer-tests mac-selection-click-tests mac-selection-adapter-tests mac-launch-work-policy-tests mac-markdown-tests linux-password-tests file-size-ratchet-tests release-pipeline-tests test-binaries release-notes-preview print-release-config dmg notarize staple release-dmg release-dmg-artifact verify-mac-release verify-mac-unsigned print-mac-signing-identities install clean mupdf-libs linux
+.PHONY: all mac-app core-outline-tests core-link-tests core-password-tests core-recolor-tests core-render-theme-tests core-recolor-probe core-selection-tests icon-tests mac-window-shortcut-tests mac-window-chrome-tests mac-password-tests mac-minimap-window-tests mac-tab-strip-geometry-tests mac-tab-strip-interaction-tests mac-tab-strip-style-tests mac-reading-theme-chrome-tests mac-palette-results-tests mac-find-nearest-tests mac-updater-tests mac-properties-format-tests mac-translation-filter-tests mac-translation-copy-tests mac-cursor-region-tests mac-state-yaml-tests mac-tab-lifecycle-tests mac-tab-state-tests mac-sidebar-outline-tests mac-page-wheel-tests mac-markdown-comments-tests mac-file-explorer-tests mac-selection-click-tests mac-selection-adapter-tests mac-launch-work-policy-tests mac-markdown-tests linux-password-tests file-size-ratchet-tests release-pipeline-tests test-binaries release-notes-preview print-release-config dmg notarize staple release-dmg release-dmg-artifact verify-mac-release verify-mac-unsigned print-mac-signing-identities install clean mupdf-libs linux
 
 all: mac-app
 
@@ -513,6 +514,12 @@ $(MAC_PAGE_WHEEL_TEST): mac/tests/SPDFMacPageWheelTests.mm mac/SPDFMacPageWheel.
 
 mac-page-wheel-tests: $(MAC_PAGE_WHEEL_TEST)
 	"$(MAC_PAGE_WHEEL_TEST)"
+
+$(MAC_MARKDOWN_COMMENTS_TEST): mac/tests/SPDFMacMarkdownCommentsTests.mm mac/SPDFMacMarkdownComments.mm mac/SPDFMacMarkdownCommentAnchors.mm mac/SPDFMacMarkdownComments.h | $(BUILD)
+	clang++ $(MAC_TARGET_FLAGS) -std=c++17 -fobjc-arc -Wall -Wextra -Werror -Imac mac/tests/SPDFMacMarkdownCommentsTests.mm mac/SPDFMacMarkdownComments.mm mac/SPDFMacMarkdownCommentAnchors.mm -framework Foundation -o "$(MAC_MARKDOWN_COMMENTS_TEST)"
+
+mac-markdown-comments-tests: $(MAC_MARKDOWN_COMMENTS_TEST)
+	"$(MAC_MARKDOWN_COMMENTS_TEST)"
 
 $(MAC_FILE_EXPLORER_TEST): mac/tests/SPDFMacFileExplorerPreferenceTests.mm mac/SPDFMacFileExplorerPreference.mm mac/SPDFMacFileExplorerPreference.h | $(BUILD)
 	clang++ $(MAC_TARGET_FLAGS) -std=c++17 -fobjc-arc -Wall -Wextra -Werror -Imac mac/tests/SPDFMacFileExplorerPreferenceTests.mm mac/SPDFMacFileExplorerPreference.mm -framework Cocoa -o "$(MAC_FILE_EXPLORER_TEST)"
@@ -967,7 +974,7 @@ mac-ai-tool-seam-tests: | $(BUILD)
 		-o "$(BUILD)/SPDFMacAIToolSeamTests"
 	"$(BUILD)/SPDFMacAIToolSeamTests"
 # The Settings window as its tests link it: the controller and the pages it builds.
-MAC_SETTINGS_WINDOW_SRCS := mac/SPDFMacUnifiedSettings.mm mac/SPDFMacAppearanceSettings.mm mac/SPDFMacAICapabilitiesSettings.mm \
+MAC_SETTINGS_WINDOW_SRCS := mac/SPDFMacUnifiedSettings.mm mac/SPDFMacAppearanceSettings.mm mac/SPDFMacAICapabilitiesSettings.mm mac/SPDFMacCommentAuthorSettings.mm \
 	mac/SPDFMacSearchablePicker.mm mac/SPDFMacCollectionStyle.mm mac/SPDFMacGroupActionButton.mm \
 	mac/friends/SPDFMacFriendsSettingsPage.mm mac/friends/SPDFMacFriendsSettingsPane.mm
 mac-unified-settings-tests: | $(BUILD)

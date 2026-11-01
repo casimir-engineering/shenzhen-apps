@@ -96,9 +96,11 @@
 
 - (void)mouseMoved:(NSEvent*)event {
     [self updateCursorForPointInWindow:event.locationInWindow];
+    [self updateCommentHoverAtWindowPoint:event.locationInWindow];
 }
 
 - (void)mouseExited:(NSEvent*)event {
+    [self updateCommentHoverAtWindowPoint:NSMakePoint(-1e6, -1e6)];
     if (self.spdf_panController.isPanning || self.isDraggingSelection) return;
     if ((self.window.isKeyWindow || [self spdf_windowIsFrontmostAtWindowPoint:event.locationInWindow]) &&
         !SPDFApplyCursorOverlay(self,event.locationInWindow)) [NSCursor.arrowCursor set];

@@ -199,6 +199,7 @@ static const CGFloat kSPDFMarkdownCanvasInset = 24.0;
                  rounded:YES
                   onPage:page
                pageFrame:pageFrame];
+        [self drawCommentHighlightsOnPage:page pageFrame:pageFrame];
         if (_selectedRange.length)
             [self drawRanges:@[ [NSValue valueWithRange:_selectedRange] ]
                        color:[NSColor.selectedTextBackgroundColor colorWithAlphaComponent:0.42]

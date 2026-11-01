@@ -1,5 +1,6 @@
 #import "SPDFMacDelegatePrivate.h"
 #import "SPDFMacSupport.h"
+#import "SPDFMacCommentActions.h"
 
 @interface ShenzhenMacDelegate (SPDFTabFileActionsPrivate)
 - (void)showPathInFolder:(NSString*)path;
@@ -41,14 +42,17 @@
         return;
     }
 
-    NSURL* fileURL = [NSURL fileURLWithPath:tab.path];
+    // A Markdown document's comments live in a file beside it; the copy takes both, so they stay together.
+    NSMutableArray<NSURL*>* files = [NSMutableArray arrayWithObject:[NSURL fileURLWithPath:tab.path]];
+    NSString* comments = [self existingCommentsFileForPath:tab.path];
+    if (comments) [files addObject:[NSURL fileURLWithPath:comments]];
     NSPasteboard* pasteboard = NSPasteboard.generalPasteboard;
     [pasteboard clearContents];
-    if (![pasteboard writeObjects:@[ fileURL ]]) {
+    if (![pasteboard writeObjects:files]) {
         NSBeep();
         return;
     }
-    _statusLabel.stringValue = @"File copied.";
+    _statusLabel.stringValue = comments ? @"Document and comments copied." : @"File copied.";
 }
 
 - (void)copyTabPathToPasteboardAtIndex:(NSInteger)index {

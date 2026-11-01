@@ -93,3 +93,9 @@
 // PDF-parity animated red outline around the active find match.
 - (void)drawActiveSearchOnPage:(SPDFMarkdownPage*)page pageFrame:(NSRect)pageFrame;
 @end
+
+// Implemented in SPDFMacMarkdownPageCanvas+Comments.mm: commented passages and the comment shown on hover.
+@interface SPDFMacMarkdownPageCanvas (CommentsInternal)
+- (void)drawCommentHighlightsOnPage:(SPDFMarkdownPage*)page pageFrame:(NSRect)pageFrame;
+- (void)updateCommentHoverAtWindowPoint:(NSPoint)windowPoint;
+@end

@@ -394,10 +394,18 @@ fence the renderer cannot draw keeps its ordinary highlighted code box.
   highlighted rectangles.
 - **Text comments** — drop a comment at a point on the page.
 - **Edit and delete** existing comments.
-- **Comment author** — set once (*Set Author for Comments…*) and reused.
+- **Comment author** — your Mac's name unless you set another in Settings ›
+  Reading & access (*Your name on comments*); every comment carries it.
 - **Comments panel** — every comment listed with its page, filterable, click to
   jump.
 - Comments are saved into the PDF immediately, so any other reader sees them.
+- **Markdown comments** — the same commands and Comments panel on a Markdown
+  document. They are kept beside it in *<title> - comments.md*, a plain
+  Markdown file listing each comment in document order with its line, its
+  headings and the quoted passage, so anyone can read them in any viewer.
+  Comments follow their words when the document is edited; one whose words are
+  gone is listed under *Unplaced*. **Copy Comments File** copies that file, and
+  **Copy Document and Comments** copies both.
 
 ## <a id="ocr"></a>OCR — on-device **mac · linux**
 

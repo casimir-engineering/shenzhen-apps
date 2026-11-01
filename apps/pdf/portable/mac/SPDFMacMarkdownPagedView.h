@@ -30,6 +30,7 @@ typedef NS_ENUM(NSInteger, SPDFMacMarkdownPageFitMode) {
 // none). Setting either property repaints only — use centerRange: to scroll.
 @property(nonatomic) NSRange activeSearchRange;
 @property(nonatomic) CGFloat activeSearchAlpha;  // 0..1 outline opacity
+@property(nonatomic, copy, nullable) NSArray<NSDictionary*>* commentHighlights;  // see the canvas
 @property(nonatomic, copy, nullable) void (^viewportChangedHandler)(NSInteger pageIndex, CGFloat zoom);
 @property(nonatomic, copy, nullable) void (^activateDestinationHandler)(NSString* destination, BOOL wikiLink);
 @property(nonatomic, copy, nullable) void (^chooseCodeLanguageHandler)(NSUInteger blockIndex);

@@ -48,6 +48,7 @@ BOOL SPDFUnifiedSettingsShouldPresent(NSDictionary* settings, BOOL primaryLaunch
 }
 @end
 
+@interface SPDFMacUnifiedSettingsController (SPDFMacCommentAuthor) - (void)buildCommentAuthorRow; @end // in SPDFMacCommentAuthorSettings.mm
 @interface SPDFMacUnifiedSettingsController ()
 @property(nonatomic) NSDictionary* state;
 @property(nonatomic) NSStackView* content;
@@ -266,7 +267,7 @@ BOOL SPDFUnifiedSettingsShouldPresent(NSDictionary* settings, BOOL primaryLaunch
 }
 - (void)buildReading {
     [self heading:@"Reading & access" subtitle:@"These choices are optional. Grant only the permissions you need."];
-    [self add:[self toggle:@"keepImageColors" label:@"Keep original image colors by default"]];
+    [self add:[self toggle:@"keepImageColors" label:@"Keep original image colors by default"]]; [self buildCommentAuthorRow];
     [self actionRow:@"Default reader" detail:@"Choose which file types open in ShenzhenPDF from Finder and other apps."
         label:@"Choose file types…" action:@"showDefaults"];
     [self divider];
@@ -418,8 +419,7 @@ BOOL SPDFUnifiedSettingsShouldPresent(NSDictionary* settings, BOOL primaryLaunch
     self.content=pageContent;
 }
 - (void)controlTextDidChange:(NSNotification*)note { if(note.object==self.formatSearch) [self refreshDefaultRows]; }
-- (void)changeSection:(NSButton*)sender { [self selectSection:sender.identifier]; }
-- (void)toggle:(NSButton*)sender {
+- (void)changeSection:(NSButton*)sender { [self selectSection:sender.identifier]; } - (void)toggle:(NSButton*)sender {
     NSDictionary* change=@{sender.identifier:@(sender.state==NSControlStateValueOn)};
     NSMutableDictionary* state=[self.state mutableCopy]; [state addEntriesFromDictionary:change]; self.state=state;
     if (self.settingsChanged) self.settingsChanged(change);

@@ -5,6 +5,7 @@
 #import "SPDFMacCollectionPathPolicy.h"
 #import "SPDFMacTranslationEnablement.h"
 #import "SPDFMacPermanentDeleteIntegration.h"
+#import "SPDFMacCommentActions.h"
 
 #import <objc/runtime.h>
 
@@ -20,7 +21,6 @@
 @end
 
 @interface ShenzhenMacDelegate (SPDFMacContextMenuPrivate)
-- (NSInteger)commentIndexAtPageIndex:(NSInteger)pageIndex pagePoint:(NSPoint)pagePoint;
 - (NSString*)shortSelectedTextForMenuTitle;
 @end
 
@@ -40,6 +40,8 @@
         SPDFMacMarkdownPageCanvas* canvas = (SPDFMacMarkdownPageCanvas*)view;
         NSPoint point = [canvas convertPoint:event.locationInWindow fromView:nil];
         _contextPageIndex = [canvas pageIndexAtPoint:point];
+        [self noteMarkdownContextMenuAtLocation:_contextPageIndex >= 0 ? [canvas attributedLocationNearestToPoint:point]
+                                                                       : NSNotFound];
     }
 
     BOOL markdown = [self isMarkdownActive];
@@ -78,7 +80,7 @@
     copy.target = self;
     copy.enabled =
                    (selectedText.length > 0 || (markdown && [self.activeMarkdownSession selectionContainsImage]));
-    if (!markdown && _contextCommentIndex >= 0) {
+    if (_contextCommentIndex >= 0) {
         NSMenuItem* editComment = [menu addItemWithTitle:@"Edit Comment..."
                                                   action:@selector(editComment:)
                                            keyEquivalent:@""];
@@ -91,7 +93,8 @@
         deleteComment.representedObject = @(_contextCommentIndex);
     }
     NSMenuItem* addComment = [menu addItemWithTitle:@"Add Comment..." action:@selector(addComment:) keyEquivalent:@""];
-    addComment.enabled = !markdown && _doc != NULL && (selectedText.length > 0 || _contextPageIndex >= 0);
+    addComment.enabled = [self canAddCommentNow];
+    if (markdown && [self hasActiveDocument]) [self addCopyCommentsFileItemToMenu:menu path:_path];
     NSMenuItem* favorite = [menu addItemWithTitle:@"Favorite Page"
                                            action:@selector(favoriteCurrentPage:)
                                     keyEquivalent:@""];
@@ -113,7 +116,7 @@
         openInEditor.target = self;
         openInEditor.enabled = _path.length > 0 && !SPDFMacPathIsCollectionArchive(_path);
     }
-    NSMenuItem* copyDocument = [menu addItemWithTitle:@"Copy Document"
+    NSMenuItem* copyDocument = [menu addItemWithTitle:[self copyDocumentTitleForPath:_path]
                                                action:@selector(copyCurrentDocumentFile:)
                                         keyEquivalent:@""];
     copyDocument.enabled = [self hasActiveDocument] && _path.length > 0;

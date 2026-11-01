@@ -225,4 +225,23 @@
     });
 }
 
+- (void)printActiveMarkdown {
+    SPDFMacMarkdownSession* session = self.activeMarkdownSession;
+    // Always the LIGHT rendition, like every other export (see
+    // SPDFMacMarkdownSession.exportPaginationPlan). Free while the reader is
+    // light: these ARE the live plan and string.
+    SPDFMarkdownPaginationPlan* plan = session.exportPaginationPlan;
+    NSAttributedString* text = session.exportAttributedString;
+    if (![self isMarkdownActive] || !text || !plan) {
+        NSBeep();
+        return;
+    }
+    NSPrintOperation* operation =
+        [SPDFMacMarkdownPrintAdapter printOperationForPaginationPlan:plan
+                                                    attributedString:text
+                                                           printInfo:[NSPrintInfo.sharedPrintInfo copy]];
+    operation.jobTitle = _path.lastPathComponent ?: @"Markdown Document";
+    [operation runOperationModalForWindow:_window delegate:nil didRunSelector:NULL contextInfo:NULL];
+}
+
 @end
