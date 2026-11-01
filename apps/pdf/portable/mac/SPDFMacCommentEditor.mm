@@ -121,7 +121,8 @@ NSRect SPDFCommentEditorFrame(NSSize size, NSPoint anchor, NSRect bounds, BOOL f
                                                                   NSEventMaskOtherMouseDown
                                                           handler:^NSEvent*(NSEvent* event) {
                                                             SPDFMacCommentEditorView* editor = weakSelf;
-                                                            if (editor && ![editor containsEvent:event]) [editor cancel];
+                                                            if (editor && ![editor containsEvent:event])
+                                                                [editor closeKeepingDraft];
                                                             return event;
                                                           }];
 }
@@ -144,7 +145,7 @@ NSRect SPDFCommentEditorFrame(NSSize size, NSPoint anchor, NSRect bounds, BOOL f
     return returnKey && (event.modifierFlags & NSEventModifierFlagDeviceIndependentFlagsMask) == NSEventModifierFlagCommand;
 }
 
-- (void)finishWith:(NSString*)text {
+- (void)finishWith:(NSString*)text saved:(BOOL)saved {
     if (_done) return;
     _done = YES;
     if (_clickMonitor) [NSEvent removeMonitor:_clickMonitor];
@@ -152,7 +153,7 @@ NSRect SPDFCommentEditorFrame(NSSize size, NSPoint anchor, NSRect bounds, BOOL f
     NSWindow* window = self.window;
     [self removeFromSuperview];
     if (window.firstResponder == nil || window.firstResponder == window) [window makeFirstResponder:nil];
-    if (self.finished) self.finished(text);
+    if (self.finished) self.finished(text, saved);
     self.finished = nil;
 }
 
@@ -162,11 +163,16 @@ NSRect SPDFCommentEditorFrame(NSSize size, NSPoint anchor, NSRect bounds, BOOL f
         NSBeep();
         return;
     }
-    [self finishWith:text];
+    [self finishWith:text saved:YES];
 }
 
 - (void)cancel {
-    [self finishWith:nil];
+    [self finishWith:nil saved:NO];
+}
+
+- (void)closeKeepingDraft {
+    NSString* text = [_textView.string stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
+    [self finishWith:text.length ? [_textView.string copy] : nil saved:NO];
 }
 @end
 

@@ -71,18 +71,31 @@ static char kEditorAnchorKey;
     return NSMakePoint(NSMidX(host.bounds), NSMidY(host.bounds) + 80);
 }
 
+// Text typed and left by a click outside, per passage (draftKey), until it is saved or discarded with Esc.
+- (NSMutableDictionary<NSString*, NSString*>*)commentDrafts {
+    static char key;
+    NSMutableDictionary* drafts = objc_getAssociatedObject(self, &key);
+    if (!drafts) objc_setAssociatedObject(self, &key, drafts = [NSMutableDictionary dictionary], OBJC_ASSOCIATION_RETAIN);
+    return drafts;
+}
+
 - (void)openCommentEditorWithTitle:(NSString*)title
                             button:(NSString*)button
                             author:(NSString*)author
                               text:(NSString*)text
+                          draftKey:(NSString*)draftKey
                         completion:(void (^)(NSString* text))completion {
     NSView* host = _window.contentView;
     for (NSView* view in [host.subviews copy])
-        if ([view isKindOfClass:SPDFMacCommentEditorView.class]) [(SPDFMacCommentEditorView*)view cancel];
+        if ([view isKindOfClass:SPDFMacCommentEditorView.class]) [(SPDFMacCommentEditorView*)view closeKeepingDraft];
+    NSString* draft = draftKey ? self.commentDrafts[draftKey] : nil;
     SPDFMacCommentEditorView* editor =
-        [[SPDFMacCommentEditorView alloc] initWithTitle:title button:button author:author text:text ?: @""];
-    editor.finished = ^(NSString* saved) {
-      if (saved.length) completion(saved);
+        [[SPDFMacCommentEditorView alloc] initWithTitle:title button:button author:author text:draft ?: text ?: @""];
+    __weak ShenzhenMacDelegate* weakSelf = self;
+    editor.finished = ^(NSString* result, BOOL saved) {
+      ShenzhenMacDelegate* reader = weakSelf;
+      if (draftKey) reader.commentDrafts[draftKey] = saved ? nil : result;
+      if (saved) completion(result);
     };
     [editor showInView:host near:[self commentEditorAnchorInView:host]];
     objc_setAssociatedObject(self, &kEditorAnchorKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
@@ -109,10 +122,13 @@ static char kEditorAnchorKey;
     NSArray<NSValue*>* values = hasSelection ? [self currentSelectionRects] : @[];
     NSPoint point = _contextPagePoint;
     spdf_document* doc = _doc;
+    NSString* draftKey = [NSString stringWithFormat:@"%@#%ld#%@", _path, (long)pageIndex,
+                                                    hasSelection ? _selectedText : NSStringFromPoint(point)];
     [self openCommentEditorWithTitle:@"Add Comment"
                               button:@"Add"
                               author:[self currentCommentAuthor]
                                 text:@""
+                            draftKey:draftKey
                           completion:^(NSString* comment) {
                             if (self->_doc != doc) return;  // the tab changed while the editor was open
                             [self addPDFComment:comment page:pageIndex rects:values point:point];
@@ -238,6 +254,7 @@ static char kEditorAnchorKey;
                               button:@"Save"
                               author:author
                                 text:text
+                            draftKey:[NSString stringWithFormat:@"%@#edit#%ld", _path, (long)commentIndex]
                           completion:^(NSString* edited) {
                             if (self->_doc == doc) [self savePDFComment:commentIndex text:edited author:author];
                           }];

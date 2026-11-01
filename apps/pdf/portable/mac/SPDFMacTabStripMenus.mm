@@ -11,6 +11,7 @@
 @protocol SPDFTabCommentsMenuProviding <NSObject>
 - (NSString*)copyDocumentTitleForPath:(NSString*)path;
 - (void)addCopyCommentsFileItemToMenu:(NSMenu*)menu path:(NSString*)path;
+- (void)decorateDocumentMenu:(NSMenu*)menu;
 @end
 @protocol SPDFTabPermanentDeleteMenuProviding <NSObject>
 - (void)addPermanentDeleteItemToMenu:(NSMenu*)menu path:(NSString*)path;
@@ -188,6 +189,7 @@
     spdf_set_menu_item_system_symbol(copy, @"doc.on.doc");
     spdf_set_menu_item_system_symbol(copyTitle, @"character.cursor.ibeam");
     spdf_set_menu_item_system_symbol(copyPath, @"doc.text");
+    [comments decorateDocumentMenu:menu];
     return menu;
 }
 

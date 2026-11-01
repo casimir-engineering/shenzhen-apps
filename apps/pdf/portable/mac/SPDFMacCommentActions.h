@@ -14,6 +14,7 @@ FOUNDATION_EXPORT NSString* SPDFDefaultCommentAuthor(void);
                             button:(NSString*)button
                             author:(NSString*)author
                               text:(NSString*)text
+                          draftKey:(NSString*)draftKey
                         completion:(void (^)(NSString* text))completion;
 - (void)noteCommentEditorAnchorAtWindowPoint:(NSPoint)point;
 - (NSInteger)commentIndexForEditAction:(id)sender;
@@ -41,6 +42,9 @@ FOUNDATION_EXPORT NSString* SPDFDefaultCommentAuthor(void);
 - (BOOL)validateCopyDocumentItem:(NSMenuItem*)item;
 // After a Markdown document is renamed: its comments file follows, and names the new document.
 - (void)moveCommentsFileFrom:(NSString*)source to:(NSString*)destination;
+// Icons the generic symbol table cannot give: a pencil on Open in Editor, a document with a bubble on Copy Document
+// and Comments. Run after the menu's other icons are set.
+- (void)decorateDocumentMenu:(NSMenu*)menu;
 // "Copy Comments File": the active document, or the path a menu item carries.
 - (void)copyCommentsFile:(id)sender;
 // A "Copy Comments File" item for a document's menu: present for Markdown, disabled while it has no comments.

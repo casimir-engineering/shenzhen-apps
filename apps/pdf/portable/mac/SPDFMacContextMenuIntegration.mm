@@ -145,6 +145,7 @@
                                       keyEquivalent:@""];
     properties.enabled = [self selectedTab].path.length > 0;
     spdf_apply_system_icons_to_menu(menu);
+    [self decorateDocumentMenu:menu];
     if ([self hasActiveDocument] && _path.length) [self addPermanentDeleteItemToMenu:menu path:_path];
     return menu;
 }

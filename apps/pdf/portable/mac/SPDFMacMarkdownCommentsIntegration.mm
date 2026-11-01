@@ -12,6 +12,7 @@
 #import "SPDFMacMarkdownSidebarModel.h"
 #import "SPDFMacMarkdownRouting.h"
 #import "SPDFMacModels.h"
+#import "SPDFMacUIHelpers.h"
 #import "SPDFMacCollectionPathPolicy.h"
 #import "markdown/SPDFMarkdown.h"
 
@@ -29,6 +30,27 @@
 
 static NSDate* ModificationDate(NSString* path) {
     return [NSFileManager.defaultManager attributesOfItemAtPath:path error:nil][NSFileModificationDate];
+}
+
+// No SF Symbol shows a document with a comment: `doc` with a small `bubble.left.fill` at its bottom right, the doc
+// cut away around the badge so the two read apart. A template, so it tints like the menu's other icons.
+static NSImage* DocumentWithCommentsImage(void) {
+    NSImage* doc = [NSImage imageWithSystemSymbolName:@"doc" accessibilityDescription:nil];
+    NSImage* bubble = [NSImage imageWithSystemSymbolName:@"bubble.left.fill" accessibilityDescription:nil];
+    if (!doc || !bubble) return doc;
+    NSSize size = NSMakeSize(doc.size.width + 3, doc.size.height);
+    NSImage* image = [NSImage imageWithSize:size flipped:NO drawingHandler:^BOOL(NSRect rect) {
+      (void)rect;
+      [doc drawInRect:NSMakeRect(0, 0, doc.size.width, doc.size.height)];
+      NSRect badge = NSMakeRect(size.width - 10, 0, 10, 10 * bubble.size.height / bubble.size.width);
+      [[NSColor blackColor] set];
+      NSRectFillUsingOperation(NSInsetRect(badge, -1.2, -1.2), NSCompositingOperationClear);
+      [bubble drawInRect:badge];
+      return YES;
+    }];
+    [image setTemplate:YES];
+    image.accessibilityDescription = @"Document and comments";
+    return image;
 }
 
 static NSString* SidebarTitle(SPDFMarkdownComment* comment) {
@@ -219,6 +241,7 @@ static char kStatesKey, kContextLocationKey;
                               button:@"Add"
                               author:[self currentCommentAuthor]
                                 text:@""
+                            draftKey:[NSString stringWithFormat:@"%@#%@", path, NSStringFromRange(comment.renderedRange)]
                           completion:^(NSString* text) {
                             // The tab changed while the editor was open: the comment belongs to the other document.
                             if (![self->_path.stringByStandardizingPath isEqualToString:path]) return;
@@ -246,6 +269,7 @@ static char kStatesKey, kContextLocationKey;
                               button:@"Save"
                               author:comment.author.length ? comment.author : [self currentCommentAuthor]
                                 text:comment.text
+                            draftKey:[NSString stringWithFormat:@"%@#edit#%@", path, NSStringFromRange(comment.renderedRange)]
                           completion:^(NSString* text) {
                             if (![self->_path.stringByStandardizingPath isEqualToString:path]) return;
                             comment.text = text;
@@ -316,6 +340,13 @@ static char kStatesKey, kContextLocationKey;
                                                             stringByAppendingString:@"\n"]];
     if (text && [text writeToFile:target atomically:YES encoding:NSUTF8StringEncoding error:nil])
         [NSFileManager.defaultManager removeItemAtPath:file error:nil];
+}
+
+- (void)decorateDocumentMenu:(NSMenu*)menu {
+    for (NSMenuItem* item in menu.itemArray) {
+        if (item.action == NSSelectorFromString(@"openMarkdownInEditor:")) spdf_set_menu_item_system_symbol(item, @"pencil");
+        if ([item.title isEqualToString:@"Copy Document and Comments"]) item.image = DocumentWithCommentsImage();
+    }
 }
 
 - (void)copyCommentsFile:(id)sender {
