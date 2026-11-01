@@ -11,6 +11,7 @@
 
 const NSUInteger SZFriendsMaxSubscriptions = 32;
 const NSUInteger SZFriendsConversationWindow = 200;
+const NSUInteger SZFriendsPreviewWindow = 60;
 
 // PROTOCOL.md § Snapshots: at most 10 snapshots per second per subscription.
 static const CFTimeInterval SZFriendsSnapshotInterval = 0.1;
@@ -168,7 +169,7 @@ static const CFTimeInterval SZFriendsSnapshotInterval = 0.1;
     // A window of 200 long messages can exceed the 8 MiB frame cap (each message's text travels twice, as text and
     // as segments). Rather than drop the snapshot and leave the view stale, show fewer items: the view then offers
     // load_earlier for the rest.
-    while ([subscription.view isEqualToString:@"conversation"] && subscription.window > 1 &&
+    while ([subscription.view hasPrefix:@"conversation"] && subscription.window > 1 &&
            ![self dataFits:data subscription:subscription]) {
         subscription.window = MAX((NSUInteger)1, subscription.window / 2);
         data = [self dataForSubscription:subscription state:state pass:pass];

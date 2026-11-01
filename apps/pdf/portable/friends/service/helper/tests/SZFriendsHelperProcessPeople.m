@@ -258,3 +258,49 @@ BOOL SZFHTestListRowsDescribeNewestItem(SZFHHarness *harness) {
     CHECK([kenji[@"subtitle"] isEqual:@"Sent you Site photos.pdf"], "Kenji's offer: %@", kenji);
     return YES;
 }
+
+// A conversation's preview (PROTOCOL.md § Views, conversation_preview): what the views draw the moment a chat is
+// clicked, asked for before the click. It is the conversation's newest 60 items and reads nothing: the list still
+// shows the messages unread, and the store keeps them so.
+BOOL SZFHTestConversationPreview(SZFHHarness *harness) {
+    if (sodium_init() < 0) return NO;
+    NSString *state = [harness makeDirectory];
+    SZFriendsStore *store = [SZFriendsStore storeInDirectory:state error:NULL];
+    CHECK(store != nil, "a store to seed");
+    SZFHSeed(store, @"c_mei", @"jasmine-street", SZFriendsRelationFriend, YES);
+    for (NSUInteger index = 0; index < 70; index++)
+        CHECK(SZFHIncoming(store, @"c_mei", [NSString stringWithFormat:@"Page %lu checked", (unsigned long)index],
+                           700 - index));
+    NSInteger seeded = [store personWithConversationID:@"c_mei"].unreadCount;
+    [store close];
+
+    pid_t pid = [harness spawnHelperWithStateDirectory:state timeScale:1];
+    SZFHClient *client = [SZFHClient connectToSocket:[harness socketPathForStateDirectory:state] timeout:5];
+    NSDictionary *welcome = [client helloWithEmbeddedBuild:0];
+    CHECK([welcome[@"capabilities"] containsObject:@"conversation.preview"], "announced: %@", welcome[@"capabilities"]);
+    NSDictionary *reply = [client intent:@"subscribe" fields:@{@"view" : @"conversation_preview"}];
+    CHECK([reply[@"error"][@"details"][@"field"] isEqual:@"params.conversation_id"], "which one: %@", reply);
+    reply = [client intent:@"subscribe" fields:@{@"view" : @"conversation_preview",
+                                                 @"params" : @{@"conversation_id" : @"c_nobody"}}];
+    CHECK([reply[@"error"][@"code"] isEqual:@"not_found"], "%@", reply);
+    reply = [client intent:@"subscribe" fields:@{@"view" : @"conversation_preview",
+                                                 @"params" : @{@"conversation_id" : @"c_mei"}}];
+    NSDictionary *snapshot = client.snapshots.lastObject; // sent before the reply
+    CHECK([snapshot[@"subscription"] isEqual:reply[@"result"][@"subscription"]], "%@ / %@", reply, snapshot);
+    NSArray *messages = [snapshot[@"data"][@"items"] filteredArrayUsingPredicate:
+                                                         [NSPredicate predicateWithFormat:@"kind == 'message'"]];
+    CHECK([snapshot[@"view"] isEqual:@"conversation_preview"] && messages.count == 60 &&
+              [snapshot[@"data"][@"has_earlier"] boolValue] &&
+              [messages.lastObject[@"text"] isEqual:@"Page 69 checked"],
+          "the newest 60, and more before them: %lu, %@", (unsigned long)messages.count,
+          messages.lastObject[@"text"]);
+    [client intent:@"subscribe" fields:@{@"view" : @"list"}];
+    CHECK([SZFHRowFor(client, @"c_mei")[@"unread"] isEqual:@YES], "still unread: %@", SZFHRowFor(client, @"c_mei"));
+    kill(pid, SIGTERM);
+    CHECK([harness waitForExit:pid timeout:3 status:NULL]);
+    store = [SZFriendsStore storeInDirectory:state error:NULL];
+    NSInteger unread = [store personWithConversationID:@"c_mei"].unreadCount;
+    [store close];
+    CHECK(seeded > 0 && unread == seeded, "and stays unread in the store: %ld of %ld", (long)unread, (long)seeded);
+    return YES;
+}

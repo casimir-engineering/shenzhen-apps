@@ -288,8 +288,11 @@ static const NSUInteger SZFriendsMessageStatusMax = 16;
 - (void)intent_subscribe:(NSDictionary *)intent connection:(SZFriendsIPCConnection *)connection
                    reply:(SZFriendsIntentReply)reply {
     NSString *view = intent[@"view"];
+    // conversation_preview is a conversation's snapshot that marks nothing read and is not "on screen": only the
+    // `conversation` view (open_conversation) counts for that (SZFriendsSubscriptions.m).
     NSMutableSet *views = [NSMutableSet setWithArray:@[ @"badge", @"list", @"nearby", @"details", @"profile",
-                                                        @"settings", @"message_status", @"join" ]];
+                                                        @"settings", @"message_status", @"join",
+                                                        @"conversation_preview" ]];
     if ([SZFriendsHelperCapabilityList(self.services) containsObject:@"received.folder"]) [views addObject:@"received"];
     if (!SZFriendsJSONIsString(view) || ![views containsObject:view]) {
         [self fail:reply code:@"invalid_field" details:@{@"field" : @"view"} connection:connection];
@@ -301,7 +304,8 @@ static const NSUInteger SZFriendsMessageStatusMax = 16;
         return;
     }
     NSString *conversationID = nil;
-    if ([view isEqualToString:@"details"]) {
+    BOOL preview = [view isEqualToString:@"conversation_preview"];
+    if ([view isEqualToString:@"details"] || preview) {
         conversationID = [params isKindOfClass:[NSDictionary class]] ? params[@"conversation_id"] : nil;
         if (!SZFriendsJSONIsString(conversationID) || conversationID.length == 0) {
             [self fail:reply code:@"invalid_field" details:@{@"field" : @"params.conversation_id"}
@@ -318,8 +322,8 @@ static const NSUInteger SZFriendsMessageStatusMax = 16;
         messageIDs = [self messageIDsIn:params reply:reply connection:connection];
         if (messageIDs == nil) return;
     }
-    [self subscribeView:view conversationID:conversationID messageIDs:messageIDs highlight:nil window:0
-             connection:connection reply:reply];
+    [self subscribeView:view conversationID:conversationID messageIDs:messageIDs highlight:nil
+                 window:preview ? SZFriendsPreviewWindow : 0 connection:connection reply:reply];
 }
 
 // message_status's 1 to 16 ids, or nil after replying. Which of them are this person's outgoing messages is the

@@ -190,9 +190,9 @@ NSArray<NSString *> *SZFriendsHelperCapabilityList(SZFriendsHelperServices *serv
     if (services.checkInSetup != nil && services.store != nil && services.identity != nil) {
         [capabilities addObject:@"links"];
     }
-    [capabilities addObject:@"messages.status"];
-    [capabilities addObject:@"messages.cancel"];
-    [capabilities addObject:@"mentions"];
+    // conversation.preview: a conversation's newest items that mark nothing read (PROTOCOL.md § Views).
+    [capabilities
+        addObjectsFromArray:@[ @"messages.status", @"messages.cancel", @"mentions", @"conversation.preview" ]];
     // One profile on several computers: Your computers, joining, You (PROTOCOL.md § Devices).
     if (services.store != nil && services.identity != nil && nearby != nil) [capabilities addObject:@"devices"];
     // Files a friend sent come back from them when none of the person's computers has them (§ Getting a file again).

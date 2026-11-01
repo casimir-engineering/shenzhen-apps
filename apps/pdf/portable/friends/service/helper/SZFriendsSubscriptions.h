@@ -14,10 +14,11 @@ NS_ASSUME_NONNULL_BEGIN
 
 extern const NSUInteger SZFriendsMaxSubscriptions;    // 32 per connection
 extern const NSUInteger SZFriendsConversationWindow;  // 200 items, and load_earlier adds as many
+extern const NSUInteger SZFriendsPreviewWindow;       // 60 items: conversation_preview, about two dropdowns of messages
 
 @interface SZFriendsSubscription : NSObject
 @property(nonatomic, copy) NSString *subscriptionID;
-// badge, list, nearby, details, profile, settings, message_status, conversation
+// badge, list, nearby, details, profile, settings, message_status, conversation, conversation_preview
 @property(nonatomic, copy) NSString *view;
 @property(nonatomic, copy, nullable) NSString *conversationID;
 @property(nonatomic, copy, nullable) NSArray<NSString *> *messageIDs; // message_status only

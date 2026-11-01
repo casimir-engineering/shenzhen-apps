@@ -266,6 +266,7 @@ Lowercase dotted strings. Unknown ones are ignored on both sides.
 | `files.again` | `fetch_from_friend` is implemented, and this helper serves the files it sent to a friend who asks for them again (§ Getting a file again). Without it the intent fails with `unknown_intent` and no item carries Get again |
 | `received.folder` | Received files are published to a folder the person can choose (§ Views, `settings` and `received`): `data.received`'s `value`, `path` and `change`, the intent `set_received_folder` and the `received` view. Without it the intent fails with `unknown_intent`, `subscribe` to `received` with `invalid_field`, and hosts offer no Change… |
 | `online` | Online friends (M2): the helper reaches friends over the Internet, and its words say so (§ Shared objects, Route, online). Absent in M1: no snapshot shows an Online or Connecting state or Internet wording |
+| `conversation.preview` | The `conversation_preview` view is implemented (§ Views): a host can show a conversation the moment the person opens it, from a snapshot taken before, without marking anything read |
 | `notifications` | This helper posts system notifications (§ Notifications): `set_focus`, `set_notifications`, `allow_notifications`, the settings' `notifications` and the list's `notifications` banner. Without it those intents fail with `unknown_intent` |
 
 An M1 helper announces `nearby.network`, `nearby.bluetooth`, `host.checkin`, `messages.status`, `messages.cancel` and
@@ -283,7 +284,7 @@ composer on the reply already shows the sent message. Field types are in § Sche
 |---|---|---|
 | `ping` | — | Liveness check; empty result |
 | `activate` | — | The person opened Friends, or pressed Allow or Try Again: start Nearby (may prompt for permission the first time), restart a failing method, and read an identity that was unavailable again |
-| `subscribe` | `view`, `params?` | Start receiving a view's snapshots; result `subscription`. Views: `badge`, `list`, `nearby`, `details` (`params.conversation_id`), `profile`, `settings`, `message_status` (`params.message_ids`), `join` (§ Joining), `received` (with `received.folder`) |
+| `subscribe` | `view`, `params?` | Start receiving a view's snapshots; result `subscription`. Views: `badge`, `list`, `nearby`, `details` (`params.conversation_id`), `conversation_preview` (`params.conversation_id`, with `conversation.preview`), `profile`, `settings`, `message_status` (`params.message_ids`), `join` (§ Joining), `received` (with `received.folder`) |
 | `unsubscribe` | `subscription` | Stop |
 | `set_filter` | `subscription`, `query` | Filter a `list` or `nearby` subscription by names and IDs; `""` clears. U+2011 in the query matches `-` |
 | `open_conversation` | `conversation_id`, `message_id?` | Subscribe to a conversation; marks it read while subscribed. With `message_id` the window includes that message and `highlight_item_id` names it. Hold only while on screen |
@@ -689,6 +690,15 @@ One friend's history and composer, or the request card for a pending request.
   same sentence. Every string that names the apps does so through the catalog's one list. The same sentence is the
   static string `queued_note`. `mention_note` (clients that declared `mentions`) is the line under the `@` picker,
   `null` while the composer is disabled.
+
+### `conversation_preview`
+
+The `conversation` view's data for a conversation the person may open next, for a helper that announces
+`conversation.preview`: the same fields, with a window of the newest 60 items (`has_earlier` says whether more exist).
+It is not the conversation being open: it marks nothing read, counts for no notification (§ Notifications), and asks
+no session of the friend. A host subscribes while the pointer rests on a row and once for the first rows the list
+shows, keeps the last snapshot, and draws it the moment the person opens that conversation; `open_conversation`'s
+snapshot replaces it as soon as it comes. A host never shows a preview as the conversation in any other way.
 
 ### `details`
 

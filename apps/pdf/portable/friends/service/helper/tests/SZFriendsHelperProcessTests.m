@@ -25,6 +25,7 @@ BOOL SZFHTestForgedHandover(SZFHHarness *harness);
 BOOL SZFHTestAddByIDKeepsKeyedRows(SZFHHarness *harness);
 BOOL SZFHTestAddByIDBroadcastsPastClaims(SZFHHarness *harness);
 BOOL SZFHTestMessageStatus(SZFHHarness *harness);
+BOOL SZFHTestConversationPreview(SZFHHarness *harness);
 BOOL SZFHTestMentionsWritten(SZFHHarness *harness);
 BOOL SZFHTestAddFromMention(SZFHHarness *harness);
 BOOL SZFHTestBlockAndRemoveDropPreviews(SZFHHarness *harness);
@@ -226,6 +227,7 @@ int main(int argc, const char *argv[]) {
             {"add by ID keeps keyed rows", SZFHTestAddByIDKeepsKeyedRows},
             {"add by ID broadcasts past claimed IDs", SZFHTestAddByIDBroadcastsPastClaims},
             {"message status reads nothing", SZFHTestMessageStatus},
+            {"conversation preview reads nothing", SZFHTestConversationPreview},
             {"mentions written by the helper", SZFHTestMentionsWritten},
             {"add from a mention: refusals, then bound to the key", SZFHTestAddFromMention},
             {"block and remove drop their previews", SZFHTestBlockAndRemoveDropPreviews},
