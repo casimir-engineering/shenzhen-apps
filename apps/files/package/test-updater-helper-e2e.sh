@@ -31,14 +31,16 @@ case "$test_root" in
 esac
 # However the test ends: whatever still runs from the test copies (the relaunched app, a Friends helper it started,
 # found by the path it started from even once its bundle is gone) is ended by PID, by exact path and never by name,
-# and the copies are unregistered from LaunchServices, before the folder goes.
+# and the copies are unregistered from LaunchServices, before the folder goes. The relaunched copy's Friends helper,
+# in the test's home, exits by itself 10 s after its app quits, or 30 s after it started when the app quit before
+# reaching it, so the sweep gives it 40 s before it counts as left running.
 sweep="$script_dir/../../../tools/updater-e2e/sweep.py"
 nodialogs="$script_dir/../../../tools/updater-e2e/nodialogs.py"
 cleanup() {
   local status=$?
   case "$test_root" in
     "${TMPDIR%/}"/szf-updater-e2e.*)
-      if ! python3 -I "$sweep" --grace=15 --kill "$test_root"; then
+      if ! python3 -I "$sweep" --grace=40 --kill "$test_root"; then
         printf 'ERROR: the updater-helper test left processes running from %s; they were ended\n' "$test_root" >&2
         status=1
       fi
@@ -58,6 +60,9 @@ helper_log="$test_root/helper.log"
 mkdir -p "$target_parent" "$stage_parent" "$test_root/home"
 ditto "$candidate_app" "$target_app"
 ditto "$candidate_app" "$staged_app"
+# Installed just now: ditto keeps the candidate's date, and once the swap moves this copy to .old, the relaunched app
+# deletes an .old over an hour old as stale, so a candidate built more than an hour ago would lose it.
+touch "$target_app"
 
 # A same-version swap cannot expose stale metadata caches at the final path.
 # Give the disposable source a deliberately older identity while retaining the
