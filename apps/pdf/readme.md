@@ -108,6 +108,23 @@ A website can link straight to a document in ShenzhenPDF, at a page, section or 
 
 [Command line, MCP and Markdown authoring guide](portable/docs/agent-interface.md): open and inspect documents, organize groups while the app is closed, go to and highlight passages, and control Markdown layout.
 
+### szpdf, the command-line tool
+
+`szpdf` drives the ShenzhenPDF that is running, so scripts and AI agents can open documents, see what is open and answer comments without taking over your screen. Opening never brings ShenzhenPDF forward unless you add `--front`, and it starts the app, behind your other windows, when it isn't running.
+
+```sh
+szpdf open report.md --heading "Results" --wait   # or --page 12; prints the window and where it landed
+szpdf state                                      # open windows and documents, page, heading, when each was last read from disk
+szpdf screenshot <windowId> window.png           # a picture of that window, even behind others
+szpdf comments report.md --json                  # id, line or page, quoted text, heading, author, date, open/resolved, replies
+szpdf comment reply report.md <id> "Fixed in v2." --author Claude
+szpdf comment resolve report.md <id>             # --reopen to open it again
+```
+
+Every command prints JSON and exits 1 when something went wrong; a document that could not be shown says so. Install it from **Settings › General › Install Command-Line Tool**, which puts a link in `~/.local/bin` without asking for an administrator password, or run it from the app: `/Applications/ShenzhenPDF.app/Contents/MacOS/szpdf`. It only talks to ShenzhenPDF on this Mac, as you. `open -g` also leaves ShenzhenPDF in the background, for files and for links. Details: [the szpdf reference](portable/docs/agent-interface.md#szpdf).
+
+Links that open ShenzhenPDF: `szpdf://open?url=<address>` or `szpdf://https/<host>/<path>`, with `page=`, `section=` (or `chapter=`), `heading=` or a `#heading-slug` ([details](docs/szpdf-links.md)); `shenzhenpdf://friends/link#…` for a Friends link and `shenzhenpdf://friends/conversation/<id>` for a conversation.
+
 - **macOS:** the download above.
 - **Linux:** a GTK 4 version; some features differ.
 - **Windows:** a native version you can build from source; there is no download yet.

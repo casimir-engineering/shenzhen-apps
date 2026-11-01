@@ -118,6 +118,9 @@ typedef NS_ENUM(NSInteger, SPDFFitMode) {
 @property(nonatomic) spdf_document* cachedDocument;
 @property(nonatomic, strong) NSMutableArray<SPDFRenderedPage*>* cachedRenderedPages;
 @property(nonatomic, strong) NSDate* cachedModificationDate;
+// When the document's content was last read from its file (set with cachedModificationDate): `szpdf state` reports it,
+// so a tool can tell whether the reader shows what it just wrote.
+@property(nonatomic, strong, readonly) NSDate* contentLoadedAt;
 @property(nonatomic) unsigned long long cachedFileSize;
 @property(nonatomic) spdf_outline cachedOutline;
 @property(nonatomic) spdf_comments cachedComments;

@@ -11,6 +11,7 @@
 #import "SPDFMacDocumentVersionsIntegration.h"
 #import "SPDFMacTabGroups.h"
 #import "SPDFMacAppearanceMode.h"
+#import "SPDFMacCommandLineTool.h"
 #import "SPDFMacAppearanceSettings.h"
 #import "SPDFMacCollectionIntegration.h"
 #import <objc/runtime.h>
@@ -105,6 +106,7 @@ static NSDictionary* PaletteState(void) {
         mutableCopy];
     [state addEntriesFromDictionary:[self aiCapabilitiesSettingsState:ai]];
     state[@"keepVersionsWhenChanged"]=@(SPDFDocumentVersionsKeepWhenChanged()); state[@"commentAuthor"]=_commentAuthor ?: @""; state[@"commentAuthorDefault"]=SPDFDefaultCommentAuthor();
+    state[@"commandLineTool"]=SPDFMacCommandLineToolStatus(NSBundle.mainBundle.bundlePath,NSHomeDirectory());
     [state addEntriesFromDictionary:PaletteState()]; state[@"appearanceMode"]=spdf_appearance_mode(); return state;
 }
 - (void)showUnifiedSettings:(id)sender {
@@ -236,6 +238,10 @@ static NSDictionary* PaletteState(void) {
     }
     if([self performAICapabilitiesSettingsAction:action controller:controller]) return;
     if([action isEqual:@"requestModels"]) { [self requestAIModels]; return; }
+    if([action isEqual:@"installCommandLineTool"]) { // the szpdf link in ~/.local/bin (SPDFMacCommandLineTool.h)
+        [controller updateState:@{@"commandLineTool":SPDFMacInstallCommandLineTool(NSBundle.mainBundle.bundlePath,
+            NSHomeDirectory(),NULL)}]; [controller selectSection:@"overview"]; return;
+    }
     if([action isEqual:@"setCollectionLocation"]) {
         NSOpenPanel* panel=[NSOpenPanel openPanel]; panel.canChooseDirectories=YES; panel.canChooseFiles=NO;
         [panel beginSheetModalForWindow:controller.window completionHandler:^(NSModalResponse response) {

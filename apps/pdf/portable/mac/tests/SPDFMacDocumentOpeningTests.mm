@@ -8,6 +8,7 @@
 // recorded instead of performed; no app, window or other process is touched.
 extern "C" BOOL spdf_is_sandboxed(void) { return NO; }
 void spdf_launch_profile_log(NSString* format, ...) { (void)format; }
+void SPDFMacAgentServerStart(void) {} // the szpdf socket (SPDFMacAgentServer.mm), started by the listener below
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wincomplete-implementation"
@@ -25,6 +26,8 @@ void spdf_launch_profile_log(NSString* format, ...) { (void)format; }
 @property(nonatomic) NSMutableArray<NSArray*>* navigations;
 @property(nonatomic) NSArray<NSString*>* opened; // what activityDidOpenPaths: heard (last opened)
 - (void)seed:(NSArray*)tabs selected:(NSInteger)index;
+- (void)setReady:(BOOL)ready;
+- (NSArray<NSString*>*)pending;
 - (NSArray<SPDFDocumentTab*>*)tabs;
 - (NSInteger)selectedIndex;
 @end
@@ -39,6 +42,9 @@ void spdf_launch_profile_log(NSString* format, ...) { (void)format; }
     self.navigations = [NSMutableArray array];
 }
 - (NSArray<SPDFDocumentTab*>*)tabs { return _tabs; }
+- (void)setReady:(BOOL)ready { _uiReady = ready; }
+- (NSArray<NSString*>*)pending { return _pendingOpenPaths; }
+- (void)retargetLaunchPrerenderToOpenedPath:(NSString*)path { (void)path; }
 - (NSInteger)selectedIndex { return _selectedTabIndex; }
 - (void)performWithBatchedPersistentStateSaves:(void (^)(void))block {
     _suspendPersistentStateSaves = YES; block(); _suspendPersistentStateSaves = NO;
@@ -285,9 +291,36 @@ static void CheckSourceContracts(void) {
     Expect(@"view tracking starts with the other-window listener, after the first paint",
            listen.location != NSNotFound && [[opening substringFromIndex:NSMaxRange(listen)]
                hasPrefix:@"    [self activityStartTracking];"]);
+    Expect(@"the szpdf socket starts there too, never on the launch path",
+           [opening containsString:@"[self activityStartTracking]; // after the first paint, like this listener; idempotent\n"
+                                    "    SPDFMacAgentServerStart();"] &&
+               ![coordinator containsString:@"SPDFMacAgentServerStart"]);
     NSString* browsing = read(@"../SPDFMacFileBrowsing.mm");
     Expect(@"Open... and Open Path bring the document's tab forward",
            [browsing componentsSeparatedByString:@"[self showDocumentsAtPaths:"].count == 3);
+}
+
+// Cmd+Q hides the windows before the quit is sure to start (SPDFMacQuitFinishing.mm). A document opened in that moment
+// is noted for the relaunch after the quit; when the quit does not happen after all, it must open once the windows are
+// back, not be dropped without a word. When the quit goes on, it stays noted for the relaunch.
+static void CheckOpenDuringCancelledQuit(void) {
+    SPDFTabGroup *research, *drawings, *archive;
+    OpenProbe* reader = BrowsingProbe(&research, &drawings, &archive);
+    [reader setReady:NO];
+    [reader application:NSApp openFiles:@[@"/docs/arrived-while-hidden.pdf"]];
+    Expect(@"noted while the windows are hidden", [reader.pending containsObject:@"/docs/arrived-while-hidden.pdf"]);
+    [reader setReady:YES]; // the quit did not start: the windows came back
+    [NSRunLoop.currentRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:1.0]];
+    Expect(@"opened once the windows are back",
+           [[reader selectedTab].path isEqualToString:@"/docs/arrived-while-hidden.pdf"] && reader.activations > 0);
+    Expect(@"and no longer waiting for a relaunch", reader.pending.count == 0);
+
+    OpenProbe* quitting = BrowsingProbe(&research, &drawings, &archive);
+    [quitting setReady:NO];
+    [quitting application:NSApp openFiles:@[@"/docs/for-the-relaunch.pdf"]];
+    [NSRunLoop.currentRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:1.0]];
+    Expect(@"a quit that goes on keeps it for the relaunch", [quitting.pending containsObject:@"/docs/for-the-relaunch.pdf"]
+                                                                && quitting.tabs.count == 4);
 }
 
 int main(void) {
@@ -298,6 +331,7 @@ int main(void) {
         CheckHandOffKeepsThePage();
         CheckSessionOwner();
         CheckSourceContracts();
+        CheckOpenDuringCancelledQuit();
     }
     if (!failures) puts("SPDFMacDocumentOpeningTests passed");
     return failures ? 1 : 0;

@@ -10,6 +10,7 @@
 // window is shown and no other process is touched.
 extern "C" BOOL spdf_is_sandboxed(void) { return NO; }
 void spdf_launch_profile_log(NSString* format, ...) { (void)format; }
+void SPDFMacAgentServerStart(void) {} // the szpdf socket (SPDFMacAgentServer.mm)
 static NSMutableArray<ShenzhenMacDelegate*>* gControllers;
 NSArray<ShenzhenMacDelegate*>* SPDFMacAllWindowControllers(void) { return gControllers ?: @[]; }
 

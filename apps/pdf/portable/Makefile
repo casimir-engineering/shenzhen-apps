@@ -374,7 +374,9 @@ mac-reader-action-tests: | $(BUILD)
 	clang++ $(MAC_TARGET_FLAGS) -std=c++17 -fobjc-arc -Wall -Wextra -Werror -Imac mac/tests/SPDFMacMarkdownEditorTests.mm mac/SPDFMacMarkdownEditor.mm mac/SPDFMacMarkdownRouting.mm -framework Cocoa -framework UniformTypeIdentifiers -o "$(BUILD)/SPDFMacMarkdownEditorTests"
 	"$(BUILD)/SPDFMacMarkdownEditorTests"
 
-mac-agent-tests: | $(BUILD)
+mac-agent-tests: $(CORE_OBJS) mupdf-libs | $(BUILD)
+	clang++ $(MAC_TARGET_FLAGS) -std=c++17 -fobjc-arc -Wall -Wextra -Werror -Imac -Icore -I$(MUPDF_DIR)/include mac/tests/SPDFMacAgentChannelTests.mm mac/SPDFMacAgentChannel.mm mac/SPDFMacSzpdfArguments.mm mac/SPDFMacCommandLineTool.mm mac/SPDFMacAgentComments.mm mac/SPDFMacMarkdownComments.mm mac/SPDFMacAIFileTransaction.mm $(CORE_OBJS) $(MUPDF_LIBS) -framework Cocoa -lm -o "$(BUILD)/SPDFMacAgentChannelTests"
+	"$(BUILD)/SPDFMacAgentChannelTests"
 	clang++ $(MAC_TARGET_FLAGS) -std=c++17 -fobjc-arc -Wall -Wextra -Werror -Imac mac/tests/SPDFMacAgentCommandTests.mm mac/SPDFMacAgentValidation.mm -framework Cocoa -o "$(BUILD)/SPDFMacAgentCommandTests"
 	"$(BUILD)/SPDFMacAgentCommandTests"
 	clang++ $(MAC_TARGET_FLAGS) -std=c++17 -fobjc-arc -Wall -Wextra -Werror -Imac -Icore -I$(MUPDF_DIR)/include mac/tests/SPDFMacAgentNavigationTests.mm mac/SPDFMacAgentIntegration.mm mac/SPDFMacAgentValidation.mm -framework Cocoa -o "$(BUILD)/SPDFMacAgentNavigationTests"
@@ -619,6 +621,8 @@ $(MAC_BIN): $(MAC_APP_OBJS) core/spdf_document_export.h $(MAC_COLLECTION_BIN) mu
 		$(MUPDF_LIBS) -framework Cocoa -framework QuartzCore -framework PDFKit -framework \
 		UniformTypeIdentifiers -framework CoreServices -framework Security -framework LocalAuthentication \
 		-framework ImageIO $(MAC_FRIENDS_FRAMEWORKS) -lm -Wl,-dead_strip -Wl,-x -o "$(MAC_BIN)"
+	# szpdf, the command-line tool, is the app's executable under another name (mac/SPDFMacSzpdf.h).
+	ln -sf ShenzhenPDF "$(MAC_APP)/Contents/MacOS/szpdf"
 	@if otool -L "$(MAC_BIN)" | grep -Eq 'libcrypto|/opt/homebrew|/usr/local'; then \
 		echo "unexpected mutable runtime dependency in $(MAC_BIN)" >&2; \
 		otool -L "$(MAC_BIN)" >&2; \
@@ -983,6 +987,7 @@ mac-ai-tool-seam-tests: | $(BUILD)
 	"$(BUILD)/SPDFMacAIToolSeamTests"
 # The Settings window as its tests link it: the controller and the pages it builds.
 MAC_SETTINGS_WINDOW_SRCS := mac/SPDFMacUnifiedSettings.mm mac/SPDFMacAppearanceSettings.mm mac/SPDFMacAICapabilitiesSettings.mm mac/SPDFMacCommentAuthorSettings.mm \
+	mac/SPDFMacSettingsButton.mm mac/SPDFMacCommandLineToolSettings.mm \
 	mac/SPDFMacSearchablePicker.mm mac/SPDFMacCollectionStyle.mm mac/SPDFMacGroupActionButton.mm \
 	mac/friends/SPDFMacFriendsSettingsPage.mm mac/friends/SPDFMacFriendsSettingsPane.mm
 mac-unified-settings-tests: | $(BUILD)

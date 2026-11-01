@@ -185,6 +185,7 @@ does not re-trigger the macOS access prompt.
 - Supported group, reader, comment, rename, metadata and chat-organization actions have guarded Undo/Redo. The assistant can rename any open document: a file it can't rename (read-only, in a folder that can't be changed, larger than 32 MB) keeps its name, the new name shows in its tab, the window title and Collection, and the assistant says so. Requested OCR, translation and PDF jobs create separate outputs, from any open document, read-only ones included. Everything the assistant makes, including charts you save, goes to Downloads under a clear name (never replacing a file) and into Collection as **Made by the assistant**. Stop cancels future work; completed changes remain until undone.
 - Four-step setup covers file access, Collection, OpenRouter and per-format default-reader choices. Keys remain in Keychain; cloud analysis waits for completed setup and a connected account. Usage spends provider credits and can be disabled.
 - The [document assistant guide](../portable/docs/document-assistant.md) specifies privacy routing, model requirements, action limits and local job dependencies. The [CLI/MCP guide](../portable/docs/agent-interface.md) is a separate interface; chat tool names are not external MCP commands.
+- **szpdf, the command-line tool** — opens documents in the running reader at a page or heading without bringing it forward (unless `--front`), lists open windows and documents, takes a picture of a window, and reads and answers comments; every command prints JSON. Installed from Settings › General, or run from `ShenzhenPDF.app/Contents/MacOS/szpdf`. `open -g` leaves ShenzhenPDF in the background too. [Reference](../portable/docs/agent-interface.md#szpdf)
 
 ## <a id="reading"></a>Reading and navigation
 
@@ -418,6 +419,10 @@ fence the renderer cannot draw keeps its ordinary highlighted code box.
 - **Earlier text kept** **mac** — when another app rewrites a document you have
   commented on, the text your comments were made on is kept as the previous
   version with them. Turn it off in Settings › Reading & access.
+- **Comments for scripts and agents** — `szpdf comments` lists a document's
+  comments as JSON (line or page, quoted text, headings, author, date, open or
+  resolved, replies); `szpdf comment reply` and `szpdf comment resolve` answer
+  and close them, in PDFs and Markdown alike.
 
 ## <a id="ocr"></a>OCR — on-device **mac · linux**
 

@@ -7,6 +7,13 @@
 @implementation SPDFDocumentTab
 @synthesize path = _path;
 @synthesize unsavedPastedImage = _unsavedPastedImage;
+@synthesize cachedModificationDate = _cachedModificationDate;
+@synthesize contentLoadedAt = _contentLoadedAt;
+
+- (void)setCachedModificationDate:(NSDate*)date {
+    _cachedModificationDate = date;
+    if (date) _contentLoadedAt = NSDate.date;
+}
 
 - (void)setPath:(NSString*)path {
     if ([_path isEqualToString:path]) return;

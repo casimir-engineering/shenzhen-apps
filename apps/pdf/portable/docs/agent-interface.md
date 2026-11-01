@@ -17,6 +17,7 @@ guide below documents the command-line and stdio MCP interfaces only; their
 commands do not send content to a model. The assistant guide covers its setup,
 privacy, undo behavior and boundaries.
 
+- [szpdf: drive the running app](#szpdf)
 - [Native inspection and layout settings](#native-command)
 - [Author, inspect and refine Markdown output](#author-inspect-and-refine-markdown-output)
 - [Navigate and highlight](#navigate-and-highlight)
@@ -38,6 +39,65 @@ do not edit document contents, export a complete PDF, run OCR or translation,
 or manage Collection. Those operations are available only through the
 separately documented in-reader assistant where explicitly supported; do not
 infer broader capabilities from either interface.
+
+## <a id="szpdf"></a>szpdf: drive the running app
+
+`szpdf` talks to the ShenzhenPDF that is already running (the `--agent-command` mode below works without it). It is
+the app's own executable under another name: `ShenzhenPDF.app/Contents/MacOS/szpdf`. Run it from there, or install
+it with **Settings › General › Install Command-Line Tool**, which links `~/.local/bin/szpdf` to it (no administrator
+password; add `~/.local/bin` to `PATH` if your shell does not find it).
+
+| Command | Prints |
+|---|---|
+| `szpdf open <file> [--page N \| --heading TEXT] [--front] [--wait] [--timeout S]` | `opened`, `windowId`, `page`, `pageCount`, `heading`, `headingPath`, `front`, `pid`, or `error` |
+| `szpdf state` | `processes`, `windows` (id, title, visible, frame, documents) and `documents` (path, page, heading, `reloadedAt`, `loadedFileModified`, `fileModified`, `upToDate`) |
+| `szpdf screenshot <windowId> <out.png>` | `path`, `width`, `height` |
+| `szpdf comments <file> [--json]` | `comments`: `id`, `line` (Markdown) or `page` (PDF), `quote`, `headingPath`, `author`, `date`, `status` (`open`/`resolved`), `text`, `replies` |
+| `szpdf comment reply <file> <id> TEXT [--author NAME]` | the updated `comment`, and how many readers redrew it |
+| `szpdf comment resolve <file> <id> [--reopen] [--author NAME]` | the updated `comment` |
+
+Paths may be relative. Exit status is 0 on success, 1 when the JSON carries `error`, 2 for a usage mistake.
+
+**Opening.** `open` goes to the window already showing the document, else to the one in front. Without `--front`
+nothing comes forward: a new tab opens in place and a window that was not showing opens behind the other apps'
+windows. When ShenzhenPDF is not running, `open` starts it the same way, in the background. `--wait` (implied by
+`--page` and `--heading`) answers once the document has loaded and is at its place; `--heading` matches the text
+exactly, then ignoring case, then by its GitHub slug, as links do. A document that cannot be shown is an error, never
+silence: a missing file, a page past the end, a heading that is not there, a document that failed to load. A
+ShenzhenPDF that is quitting is not handed the document: `open` waits for it to finish (up to 15 seconds) and starts
+it afresh. `open -g` (macOS) also leaves ShenzhenPDF in the background, for documents and for `szpdf:` links.
+
+**Screenshots** are drawn by the window itself, so a window behind others or off screen comes out whole and no Screen
+Recording permission is needed.
+
+**Comments** are read and written where the reader keeps them, whether or not the app runs; a reader showing the
+document redraws them at once. A Markdown document's live in `<title> - comments.md` beside it; a reply is a list item
+under the comment with its own byline, and a resolved comment ends its byline with `· Resolved`:
+
+```markdown
+**Raph** · 2026-11-01 15:20 · Resolved
+
+Check the value.
+
+- **Claude** · 2026-11-01 16:00
+
+  4.7 kΩ on both, per the datasheet.
+```
+
+A PDF's are annotations inside it: a reply is a note answering the comment (`/IRT`), and resolved is the review state
+Acrobat and Preview use (`/StateModel /Review`, `/State /Completed`). A PDF is changed through a copy that replaces the
+file only if nothing else changed it meanwhile. An `id` (`m…` for Markdown, `p…` for PDF) stays the same while the
+comment lives; replying and resolving keep it. Replies are signed `--author`, else `$SZPDF_AUTHOR`, else `Agent`.
+
+**The channel.** Each ShenzhenPDF window process listens, from after its first frame, on its own Unix socket,
+`~/Library/Application Support/ShenzhenPDF/Agent/<pid>.sock` (directory 0700, socket 0600; it also checks the caller
+is the same user). Nothing listens on the network. A launch that no tool talks to costs one idle socket. Requests and
+answers are one JSON line each (`SPDFMacAgentChannel.h`).
+
+**Links.** `szpdf://open?url=<percent-encoded address>[&page=N][&section=…][&heading=…]` and
+`szpdf://https/<host>/<path>[#page=N | #section=… | #heading=… | #<slug>]` open a document from the web
+([details](../../docs/szpdf-links.md)). `shenzhenpdf://friends/link#<payload>` is a Friends or download link,
+`shenzhenpdf://friends` opens Friends and `shenzhenpdf://friends/conversation/<id>` a conversation.
 
 ## Native command
 
