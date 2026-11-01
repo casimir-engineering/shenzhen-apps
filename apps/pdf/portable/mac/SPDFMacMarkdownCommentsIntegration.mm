@@ -173,7 +173,18 @@ static char kStatesKey, kContextLocationKey;
             mutableCopy];
         if (comment.date) item[@"date"] = comment.date;
         if (comment.placed) item[@"range"] = [NSValue valueWithRange:comment.renderedRange];
+        if (comment.resolved) item[@"resolved"] = @YES;
         [_sidebarItems addObject:item];
+        // Its replies, indented under it as a PDF's are. A click on one goes to the comment's passage; a reply has no
+        // Edit or Delete of its own here (no commentIndex), as the comments file keeps replies inside their comment.
+        for (SPDFMarkdownCommentReply* reply in comment.replies) {
+            NSMutableDictionary* row = [@{@"title" : reply.text ?: @"", @"level" : @1, @"kind" : @"comment",
+                                          @"page" : item[@"page"], @"author" : reply.author ?: @"",
+                                          @"body" : reply.text ?: @"", @"replyTo" : @(i)} mutableCopy];
+            if (reply.date) row[@"date"] = reply.date;
+            if (item[@"range"]) row[@"range"] = item[@"range"];
+            [_sidebarItems addObject:row];
+        }
     }
     if (_sidebarItems.count == before) [_sidebarItems addObject:SPDFCommentsEmptyItem(filter)];
 }
@@ -284,6 +295,23 @@ static char kStatesKey, kContextLocationKey;
                             [self applyMarkdownCommentHighlights:state];
                             [self rebuildSidebar];
                           }];
+}
+
+- (void)setMarkdownCommentAtIndex:(NSInteger)index resolved:(BOOL)resolved {
+    SPDFMacMarkdownCommentState* state = [self activeMarkdownCommentState];
+    if (index < 0 || index >= (NSInteger)state.comments.count) {
+        NSBeep();
+        return;
+    }
+    state.comments[(NSUInteger)index].resolved = resolved;
+    if (![self writeMarkdownCommentState:state path:_path.stringByStandardizingPath]) return;
+    _statusLabel.stringValue = resolved ? @"Comment resolved." : @"Comment reopened.";
+    [self rebuildSidebar];
+}
+
+- (BOOL)markdownCommentIsResolvedAtIndex:(NSInteger)index {
+    SPDFMacMarkdownCommentState* state = [self activeMarkdownCommentState];
+    return index >= 0 && index < (NSInteger)state.comments.count && state.comments[(NSUInteger)index].resolved;
 }
 
 - (void)deleteMarkdownCommentAtIndex:(NSInteger)index {
