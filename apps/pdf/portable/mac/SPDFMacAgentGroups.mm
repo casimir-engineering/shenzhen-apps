@@ -42,8 +42,7 @@ static NSDictionary* GroupError(NSString* message) { return @{@"error":message};
         row[@"general"]=@NO; row[@"paths"]=@[]; row[@"position"]=@(groups.count+1); [groups addObject:row];
     }
     return @{@"windowSessionID":_windowSessionID ?: @"",@"groups":groups,@"tabs":tabs,
-             @"colors":spdf_tab_group_colors(),
-             @"newDocumentsInGeneral":@([[self sidebarWorkspaceState][@"newDocumentsInGeneral"] boolValue])};
+             @"colors":spdf_tab_group_colors()};
 }
 - (NSDictionary*)performAgentGroupCommand:(NSDictionary*)command {
     if ([command[@"windowSessionID"] length] && ![command[@"windowSessionID"] isEqual:_windowSessionID])

@@ -168,10 +168,14 @@ static void CheckGroupManagement(void) {
     [reader renameTabGroup:general name:@"Inbox"];
     NSString* promotedID=[general.identifier copy];
     Expect(@"renamed General becomes a real custom group",!general.general && [general.name isEqual:@"Inbox"] &&
-        [spdf_tab_group_colors() containsObject:general.colorName] && [reader.workspace[@"newDocumentsInGeneral"] boolValue]);
+        [spdf_tab_group_colors() containsObject:general.colorName]);
+    SPDFDocumentTab* joined=Tab(@"/joins-renamed.pdf");
+    [reader appendNewTabToActiveGroup:joined];
+    Expect(@"a new document joins the renamed group the window shows",joined.group==general && [general.identifier isEqual:promotedID]);
+    [reader setTabGroup:general hidden:YES];
     SPDFDocumentTab* fresh=Tab(@"/fresh-after-rename.pdf");
     [reader appendNewTabToActiveGroup:fresh];
-    Expect(@"first new document creates fresh General instead of entering promoted group",fresh.group.general &&
+    Expect(@"with no group shown, a new document creates General instead of entering the hidden one",fresh.group.general &&
         fresh.group!=general && [general.identifier isEqual:promotedID] && a.group==general && b.group==general);
     [reader setTabGroup:general hidden:YES]; [reader setTabGroup:fresh.group hidden:YES];
     Expect(@"all groups can hide without changing active document",[reader.activePath isEqual:b.path] && general.hidden && fresh.group.hidden);
@@ -198,7 +202,7 @@ static void CheckGroupManagement(void) {
     Expect(@"closing promoted group then reopening reuses the unique General",restored.tabs.count==3 &&
         reopened.group==currentGeneral && spdf_tab_group_members(restored.tabs,currentGeneral).count==3);
     [restored closeTabGroup:currentGeneral];
-    SPDFDocumentTab* afterEmpty=Tab(@"/after-empty.md"); [restored appendNewTabToActiveGroup:afterEmpty];
+    SPDFDocumentTab* afterEmpty=Tab(@"/after-empty.md"); [restored appendNewTabToActiveGroup:afterEmpty]; [restored normalizeTabGroups];
     Expect(@"opening after every group closes creates one fresh General",restored.tabs.count==1 && afterEmpty.group.general &&
         afterEmpty.group!=currentGeneral && afterEmpty.group.explicitGeneral);
     // Ungrouping before General must retain its persisted hidden state.
@@ -258,7 +262,6 @@ static void CheckEmptyGroups(void) {
     [reader jumpTabGroup:first];
     Expect(@"jump to empty group arms next open without navigating", !first.hidden &&
         [reader pendingNewDocumentGroup]==first && [reader.activePath isEqual:current.path]);
-    reader.workspace[@"newDocumentsInGeneral"]=@YES;
     SPDFDocumentTab* a=Tab(@"/new-a.pdf"), *b=Tab(@"/new-b.md");
     [reader appendNewTabToActiveGroup:a]; [reader normalizeTabGroups];
     [reader appendNewTabToActiveGroup:b]; [reader normalizeTabGroups];
@@ -267,7 +270,7 @@ static void CheckEmptyGroups(void) {
     [reader selectTabAtIndex:[reader.tabs indexOfObjectIdenticalTo:b]];
     Expect(@"activating opened document consumes pending destination", ![reader pendingNewDocumentGroup]);
     SPDFDocumentTab* c=Tab(@"/normal-after-batch.pdf"); [reader appendNewTabToActiveGroup:c];
-    Expect(@"ordinary destination policy resumes after batch", c.group.general);
+    Expect(@"after the batch, new documents join the group the window shows", c.group==first);
     GroupReaderProbe* blank=[GroupReaderProbe new]; [blank seed:@[] selected:-1];
     SPDFTabGroup* blankGroup=[blank createEmptyTabGroup];
     Expect(@"empty window can own a group without fake documents", blank.tabs.count==0 && blank.selectedIndex==-1);
@@ -335,6 +338,8 @@ int main(void) {
         Expect(@"browsing another group never selects one of its tabs",
             !one.group.collapsed && [browsing.activePath isEqual:outside.path] && browsing.selectedIndex == 0);
         Expect(@"browsing a group collapses the previous group without navigation", outside.group.collapsed);
+        SPDFDocumentTab* browsed = Tab(@"/browsed.pdf"); [browsing appendNewTabToActiveGroup:browsed];
+        Expect(@"a new document joins the group being browsed, not the reading document's", browsed.group == one.group);
         Expect(@"manual expansion is persisted", ![browsing.savedTabs[1][@"group"][@"collapsed"] boolValue]);
         [source detachTabGroup:one.group atScreenPoint:NSMakePoint(300, 500)];
         Expect(@"failed handoff write leaves the source tabs open and reports the failure",

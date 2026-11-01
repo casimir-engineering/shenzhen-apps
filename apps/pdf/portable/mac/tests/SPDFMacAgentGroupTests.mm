@@ -127,9 +127,9 @@ int main(void) {
         state=Run(managed,@{@"action":@"update-group",@"groupID":@"general",@"name":@"Inbox",@"color":@"Teal"});
         NSString* promoted=state[@"groupID"];
         Check(![promoted isEqual:@"general"] && ![Group(state,promoted)[@"general"] boolValue] &&
-            [Group(state,promoted)[@"name"] isEqual:@"Inbox"] && [state[@"newDocumentsInGeneral"] boolValue]);
+            [Group(state,promoted)[@"name"] isEqual:@"Inbox"] && !state[@"newDocumentsInGeneral"]);
         SPDFDocumentTab* fresh=Tab(@"/next.md"); [managed appendNewTabToActiveGroup:fresh];
-        Check(fresh.group.general && !fresh.group.hidden && [fresh.group.identifier isEqual:@"general"]);
+        Check([fresh.group.identifier isEqual:promoted] && !fresh.group.hidden); // the renamed group is the one shown
         AgentGroupProbe* batch=[AgentGroupProbe new];
         NSMutableArray* many=[NSMutableArray array]; NSMutableArray* paths=[NSMutableArray array];
         for (NSUInteger i=0;i<256;i++) {

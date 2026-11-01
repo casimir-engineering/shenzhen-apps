@@ -62,7 +62,7 @@ GROUP_TOOLS = [
      {"paths": {"type": "array", "items": PATH, "minItems": 1, "maxItems": 256, "uniqueItems": True},
       "name": {"type": "string", "maxLength": 4096}, "color": COLOR, "beforeGroupID": GROUP_ID}, ("paths",)),
     ("update_tab_group", "Rename, recolor, collapse, expand, show or hide a group; saves session. Empty name restores color name. "
-     "Use colors from list_tab_groups. Renaming General promotes it to a custom group; later opened documents enter a fresh General. Hiding leaves the active document open.",
+     "Use colors from list_tab_groups. Renaming General promotes it to a custom group. Hiding leaves the active document open.",
      {"groupID": GROUP_ID, "name": {"type": "string", "maxLength": 4096}, "color": COLOR,
       "collapsed": {"type": "boolean"}, "hidden": {"type": "boolean"}}, ("groupID",)),
     ("move_tab_to_group", "Move an open document to a group and select it. beforePath inserts before that destination "

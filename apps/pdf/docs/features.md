@@ -141,6 +141,9 @@ does not re-trigger the macOS access prompt.
   the next newly opened document (or batch of documents) goes into it. Its name
   starts selected in the popup. Empty groups and the next-open destination survive
   relaunch in session YAML and remain manageable from the tab strip and Groups panel.
+- **New documents join the group you are in** — however a document is opened (Finder, Open…, a drop, a link,
+  Recent, Collection or the assistant), its tab joins the group the window shows. A document that is already open
+  is brought forward in its own group instead of opening twice.
 - **Group controls** — hover a group name for the hide eye; right-click **Rename Group…**
   opens the name popup anchored to the group. The All Groups
   picker has an eye toggle for showing or hiding each group without closing documents.

@@ -139,14 +139,22 @@ BOOL SPDFSessionHasEmptyTabGroups(id windowState) {
             [[self sidebarWorkspaceState] removeObjectForKey:@"pendingNewGroupID"];
     }
 }
-- (NSInteger)appendNewTabToActiveGroup:(SPDFDocumentTab*)tab {
-    SPDFTabGroup* group = _selectedTabIndex >= 0 && _selectedTabIndex < (NSInteger)_tabs.count
+// The group the strip shows: the open one, which may not hold the document being read (clicking a group's name
+// browses it without leaving that document), else the reading document's group, folded or hidden (General then).
+- (SPDFTabGroup*)shownTabGroup {
+    SPDFTabGroup* reading = _selectedTabIndex >= 0 && _selectedTabIndex < (NSInteger)_tabs.count
         ? _tabs[(NSUInteger)_selectedTabIndex].group : nil;
+    if (reading && !reading.collapsed && !reading.hidden) return reading;
+    for (SPDFDocumentTab* tab in _tabs) if (tab.group && !tab.group.collapsed && !tab.group.hidden) return tab.group;
+    return reading;
+}
+- (NSInteger)appendNewTabToActiveGroup:(SPDFDocumentTab*)tab {
+    // A new document joins the group the window shows, or the empty group the reader just made or jumped to.
     SPDFTabGroup* pending=[self pendingNewDocumentGroup];
-    if (pending) group=pending;
+    SPDFTabGroup* group = pending ?: [self shownTabGroup];
     // Backups is a reserved destination for immutable Collection copies. Opening
     // an original from it must not inherit that group; archived opens route explicitly.
-    if (!pending && ([[self sidebarWorkspaceState][@"newDocumentsInGeneral"] boolValue] || group.hidden || group.collectionBackups)) {
+    if (!pending && (group.hidden || group.collectionBackups)) {
         group=nil;
         for (SPDFDocumentTab* existing in _tabs) if (existing.group.general) { group=existing.group; break; }
         if (!group) group=SPDFTabGroup.generalGroup;
@@ -235,7 +243,6 @@ BOOL SPDFSessionHasEmptyTabGroups(id windowState) {
         }
         group.colorName=spdf_tab_group_unused_color(_tabs);
         group.explicitGeneral=NO;
-        [self sidebarWorkspaceState][@"newDocumentsInGeneral"]=@YES;
     }
     group.name = trimmed;
     [self finishTabGroupChange];

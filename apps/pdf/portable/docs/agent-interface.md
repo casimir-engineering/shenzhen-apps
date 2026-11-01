@@ -247,8 +247,6 @@ They are never represented as placeholder documents.
 
 Listing does not modify the session or create groups. Hidden groups remain in
 these results even though their headers and tabs are absent from the top strip.
-The response also reports `newDocumentsInGeneral`, the persisted window routing
-preference enabled when General is renamed.
 
 Use returned IDs rather than names, which need not be unique. Include
 `windowSessionID` on later group commands to reject accidental routing to a
@@ -284,8 +282,8 @@ An empty `name` restores the default color name. `collapsed` must be a JSON
 Boolean, as must `hidden`. Use a color from the returned palette; General stays
 gray until renamed. Renaming General to a nonempty name other than “General”
 promotes its existing tabs to an ordinary custom group with a **new ID** and a
-pastel color. Subsequent opened documents enter a new or existing General, not
-the renamed group; this routing preference survives session restoration.
+pastel color. A newly opened document joins the group the window shows, or
+General when that group is hidden.
 
 `update-group` with `hidden:true` hides a group without closing its documents or
 changing the active reader. `jump-group` shows a hidden group and selects its
