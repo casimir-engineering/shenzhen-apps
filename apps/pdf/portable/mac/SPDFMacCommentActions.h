@@ -17,6 +17,8 @@ FOUNDATION_EXPORT NSString* SPDFDefaultCommentAuthor(void);
                           draftKey:(NSString*)draftKey
                         completion:(void (^)(NSString* text))completion;
 - (void)noteCommentEditorAnchorAtWindowPoint:(NSPoint)point;
+// Builds the comment box shortly after launch (done by itself), so the first one opens at once too.
+- (void)scheduleCommentEditorWarmUp;
 - (NSInteger)commentIndexForEditAction:(id)sender;
 - (NSInteger)commentIndexAtPageIndex:(NSInteger)pageIndex pagePoint:(NSPoint)pagePoint;
 @end

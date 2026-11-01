@@ -5,6 +5,8 @@
 #import "SPDFMacCommentEditor.h"
 #import "SPDFMacCollectionStyle.h"
 
+#import <QuartzCore/QuartzCore.h>
+
 static const CGFloat kWidth = 320, kHeight = 158, kPad = 10, kMargin = 8;
 
 NSRect SPDFCommentEditorFrame(NSSize size, NSPoint anchor, NSRect bounds, BOOL flipped) {
@@ -25,21 +27,27 @@ NSRect SPDFCommentEditorFrame(NSSize size, NSPoint anchor, NSRect bounds, BOOL f
 @property(nonatomic, weak) SPDFMacCommentEditorView* editor;
 @end
 
-@interface SPDFMacCommentEditorView ()
+@interface SPDFMacCommentEditorView () <NSTextViewDelegate>
 - (BOOL)isSaveKey:(NSEvent*)event;
 @end
 
 @implementation SPDFMacCommentEditorView {
     NSTextView* _textView;
+    NSTextField* _heading;
+    NSTextField* _by;
+    NSButton* _save;
+    NSButton* _cancel;
+    NSUndoManager* _undo;
     id _clickMonitor;
     BOOL _done;
+    BOOL _open;
 }
 
 - (instancetype)initWithTitle:(NSString*)title button:(NSString*)button author:(NSString*)author text:(NSString*)text {
     if (!(self = [super initWithFrame:NSMakeRect(0, 0, kWidth, kHeight)])) return nil;
     self.identifier = @"SPDFCommentEditor";
     NSTextField* heading = SPDFCollectionText(title, 12, NSFontWeightSemibold, NO);
-    NSTextField* by = SPDFCollectionText(author.length ? author : @"", 11, NSFontWeightRegular, YES);
+    NSTextField* by = SPDFCollectionText(@"", 11, NSFontWeightRegular, YES);
     by.alignment = NSTextAlignmentRight;
     by.lineBreakMode = NSLineBreakByTruncatingTail;
     by.maximumNumberOfLines = 1;
@@ -55,7 +63,9 @@ NSRect SPDFCommentEditorFrame(NSSize size, NSPoint anchor, NSRect bounds, BOOL f
     scroll.layer.cornerRadius = 6;
     SPDFCommentEditorTextView* textView = [[SPDFCommentEditorTextView alloc] initWithFrame:scroll.bounds];
     textView.editor = self;
-    textView.string = text ?: @"";
+    // Its own undo history: a reused box never undoes into what an earlier comment held.
+    _undo = [NSUndoManager new];
+    textView.delegate = self;
     textView.font = [NSFont systemFontOfSize:13];
     textView.textColor = SPDFCollectionColor(@"text");
     textView.insertionPointColor = SPDFCollectionColor(@"text");
@@ -71,22 +81,57 @@ NSRect SPDFCommentEditorFrame(NSSize size, NSPoint anchor, NSRect bounds, BOOL f
     scroll.documentView = textView;
     _textView = textView;
 
-    NSButton* save = SPDFCollectionButton([NSString stringWithFormat:@"%@  ⌘↩", button], self, @selector(save), @"normal");
+    NSButton* save = SPDFCollectionButton(@"", self, @selector(save), @"normal");
     NSButton* cancel = SPDFCollectionButton(@"Cancel", self, @selector(cancel), @"normal");
     save.identifier = @"SPDFCommentEditorSave";
     cancel.identifier = @"SPDFCommentEditorCancel";
     save.toolTip = @"Command-Return";
     cancel.toolTip = @"Esc";
-    CGFloat saveWidth = ceil([save.title sizeWithAttributes:@{NSFontAttributeName : save.font}].width) + 22;
-    CGFloat cancelWidth = ceil([cancel.title sizeWithAttributes:@{NSFontAttributeName : cancel.font}].width) + 22;
-    save.frame = NSMakeRect(kWidth - kPad - saveWidth, kPad, saveWidth, 24);
-    cancel.frame = NSMakeRect(NSMinX(save.frame) - 6 - cancelWidth, kPad, cancelWidth, 24);
+    _heading = heading;
+    _by = by;
+    _save = save;
+    _cancel = cancel;
     for (NSView* view in @[ heading, by, scroll, cancel, save ]) [self addSubview:view];
     self.shadow = [NSShadow new];
     self.shadow.shadowBlurRadius = 10;
     self.shadow.shadowOffset = NSMakeSize(0, -2);
     self.shadow.shadowColor = [NSColor colorWithWhite:0 alpha:0.25];
+    [self resetWithTitle:title button:button author:author text:text];
     return self;
+}
+
+- (void)resetWithTitle:(NSString*)title button:(NSString*)button author:(NSString*)author text:(NSString*)text {
+    _heading.stringValue = title ?: @"";
+    _by.stringValue = author.length ? author : @"";
+    NSString* saveTitle = [NSString stringWithFormat:@"%@  ⌘↩", button ?: @""];
+    if (![_save.title isEqualToString:saveTitle] || NSIsEmptyRect(_save.frame)) {
+        _save.title = saveTitle;
+        CGFloat saveWidth = ceil([_save.title sizeWithAttributes:@{NSFontAttributeName : _save.font}].width) + 22;
+        CGFloat cancelWidth = ceil([_cancel.title sizeWithAttributes:@{NSFontAttributeName : _cancel.font}].width) + 22;
+        _save.frame = NSMakeRect(kWidth - kPad - saveWidth, kPad, saveWidth, 24);
+        _cancel.frame = NSMakeRect(NSMinX(_save.frame) - 6 - cancelWidth, kPad, cancelWidth, 24);
+    }
+    _textView.string = text ?: @"";
+    [_undo removeAllActions];
+    NSClipView* clip = (NSClipView*)_textView.superview;
+    if ([clip isKindOfClass:NSClipView.class] && !NSEqualPoints(clip.bounds.origin, NSZeroPoint)) [_textView scrollPoint:NSZeroPoint];
+    _done = NO;
+}
+
+- (NSUndoManager*)undoManagerForTextView:(NSTextView*)view {
+    (void)view;
+    return _undo;
+}
+
+- (void)warmUp {
+    _textView.string = @"Warm up: the quick brown fox";
+    NSBitmapImageRep* rep = [self bitmapImageRepForCachingDisplayInRect:self.bounds];
+    if (rep) [self cacheDisplayInRect:self.bounds toBitmapImageRep:rep];
+    _textView.string = @"";
+}
+
+- (BOOL)isOpen {
+    return _open;
 }
 
 - (NSTextView*)textView {
@@ -112,8 +157,15 @@ NSRect SPDFCommentEditorFrame(NSSize size, NSPoint anchor, NSRect bounds, BOOL f
 }
 
 - (void)showInView:(NSView*)host near:(NSPoint)point {
+    // In the frame being built now, with no implicit animation.
+    [CATransaction begin];
+    [CATransaction setDisableActions:YES];
     self.frame = SPDFCommentEditorFrame(self.frame.size, point, host.bounds, host.isFlipped);
-    [host addSubview:self positioned:NSWindowAbove relativeTo:nil];
+    if (self.superview != host || host.subviews.lastObject != self)
+        [host addSubview:self positioned:NSWindowAbove relativeTo:nil];
+    self.hidden = NO;
+    [CATransaction commit];
+    _open = YES;
     [self.window makeFirstResponder:_textView];
     [_textView setSelectedRange:NSMakeRange(_textView.string.length, 0)];
     __weak SPDFMacCommentEditorView* weakSelf = self;
@@ -133,7 +185,7 @@ NSRect SPDFCommentEditorFrame(NSSize size, NSPoint anchor, NSRect bounds, BOOL f
 }
 
 - (BOOL)performKeyEquivalent:(NSEvent*)event {
-    if (self.window.firstResponder == _textView && [self isSaveKey:event]) {
+    if (_open && self.window.firstResponder == _textView && [self isSaveKey:event]) {
         [self save];
         return YES;
     }
@@ -148,11 +200,18 @@ NSRect SPDFCommentEditorFrame(NSSize size, NSPoint anchor, NSRect bounds, BOOL f
 - (void)finishWith:(NSString*)text saved:(BOOL)saved {
     if (_done) return;
     _done = YES;
+    _open = NO;
     if (_clickMonitor) [NSEvent removeMonitor:_clickMonitor];
     _clickMonitor = nil;
     NSWindow* window = self.window;
-    [self removeFromSuperview];
-    if (window.firstResponder == nil || window.firstResponder == window) [window makeFirstResponder:nil];
+    NSResponder* focus = window.firstResponder;
+    BOOL hadFocus = [focus isKindOfClass:NSView.class] && [(NSView*)focus isDescendantOf:self];
+    // Hidden, not removed: the next comment shows this same box at once.
+    [CATransaction begin];
+    [CATransaction setDisableActions:YES];
+    self.hidden = YES;
+    [CATransaction commit];
+    if (hadFocus || window.firstResponder == nil || window.firstResponder == window) [window makeFirstResponder:nil];
     if (self.finished) self.finished(text, saved);
     self.finished = nil;
 }

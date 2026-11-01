@@ -79,6 +79,45 @@ static char kEditorAnchorKey;
     return drafts;
 }
 
+// The window's one comment box, built once and reused (SPDFMacCommentEditor.h).
+- (SPDFMacCommentEditorView*)commentEditor {
+    static char key;
+    SPDFMacCommentEditorView* editor = objc_getAssociatedObject(self, &key);
+    if (!editor) {
+        editor = [[SPDFMacCommentEditorView alloc] initWithTitle:@"" button:@"" author:@"" text:@""];
+        objc_setAssociatedObject(self, &key, editor, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    }
+    return editor;
+}
+
+// Builds and draws the box once while nothing else happens, and puts it, hidden, in the window, so the first comment
+// of the session opens as fast as the next ones.
+- (void)warmCommentEditor {
+    NSView* host = _window.contentView;
+    SPDFMacCommentEditorView* editor = [self commentEditor];
+    if (!host || editor.superview || editor.isOpen) return;
+    [editor warmUp];
+    editor.hidden = YES;
+    [host addSubview:editor positioned:NSWindowAbove relativeTo:nil];
+}
+
+// Once the app has launched, the box is warmed while nothing else happens.
++ (void)load {
+    [NSNotificationCenter.defaultCenter addObserverForName:NSApplicationDidFinishLaunchingNotification object:nil
+                                                     queue:nil
+                                                usingBlock:^(NSNotification* note) {
+                                                  (void)note;
+                                                  id reader = NSApp.delegate;
+                                                  if ([reader isKindOfClass:ShenzhenMacDelegate.class])
+                                                      [(ShenzhenMacDelegate*)reader scheduleCommentEditorWarmUp];
+                                                }];
+}
+
+- (void)scheduleCommentEditorWarmUp {
+    [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(warmCommentEditor) object:nil];
+    [self performSelector:@selector(warmCommentEditor) withObject:nil afterDelay:1.5];
+}
+
 - (void)openCommentEditorWithTitle:(NSString*)title
                             button:(NSString*)button
                             author:(NSString*)author
@@ -86,11 +125,10 @@ static char kEditorAnchorKey;
                           draftKey:(NSString*)draftKey
                         completion:(void (^)(NSString* text))completion {
     NSView* host = _window.contentView;
-    for (NSView* view in [host.subviews copy])
-        if ([view isKindOfClass:SPDFMacCommentEditorView.class]) [(SPDFMacCommentEditorView*)view closeKeepingDraft];
+    SPDFMacCommentEditorView* editor = [self commentEditor];
+    if (editor.isOpen) [editor closeKeepingDraft];
     NSString* draft = draftKey ? self.commentDrafts[draftKey] : nil;
-    SPDFMacCommentEditorView* editor =
-        [[SPDFMacCommentEditorView alloc] initWithTitle:title button:button author:author text:draft ?: text ?: @""];
+    [editor resetWithTitle:title button:button author:author text:draft ?: text ?: @""];
     __weak ShenzhenMacDelegate* weakSelf = self;
     editor.finished = ^(NSString* result, BOOL saved) {
       ShenzhenMacDelegate* reader = weakSelf;
@@ -110,8 +148,8 @@ static char kEditorAnchorKey;
         NSBeep();
         return;
     }
-    // Read the selection and the clicked point first: a PDF that cannot be written in place (a temporary or read-only
-    // folder) is reopened from a writable copy by the check below, which clears them.
+    // Read the selection and the clicked point now: a PDF that cannot be written in place (a temporary or read-only
+    // folder) is reopened from a writable copy when the comment is added, which clears them.
     BOOL hasSelection = _selectedText.length > 0 && _selectionPageIndex >= 0 && [self currentSelectionRects].count > 0;
     NSInteger pageIndex = hasSelection ? _selectionPageIndex : _contextPageIndex;
     NSArray<NSValue*>* values = hasSelection ? [self currentSelectionRects] : @[];
@@ -121,14 +159,15 @@ static char kEditorAnchorKey;
         NSBeep();
         return;
     }
-    if (![self ensureActivePDFCanBeModifiedForOperation:@"adding a comment"]) return;
-    if (!_doc || pageIndex >= spdf_page_count(_doc)) {
-        NSBeep();
+    if (pageIndex >= spdf_page_count(_doc) || ![self activePDFAllowsCommentChangesFor:@"adding a comment"]) {
+        if (pageIndex >= spdf_page_count(_doc)) NSBeep();
         return;
     }
     spdf_document* doc = _doc;
     NSString* draftKey = [NSString stringWithFormat:@"%@#%ld#%@", _path, (long)pageIndex,
                                                     selectedText ?: NSStringFromPoint(point)];
+    // The box opens before anything touches the file: the Collection's copy of this version, or the move of a PDF
+    // that cannot be written in place, happen when Add is pressed.
     [self openCommentEditorWithTitle:@"Add Comment"
                               button:@"Add"
                               author:[self currentCommentAuthor]
@@ -136,8 +175,24 @@ static char kEditorAnchorKey;
                             draftKey:draftKey
                           completion:^(NSString* comment) {
                             if (self->_doc != doc) return;  // the tab changed while the editor was open
+                            if (![self ensureActivePDFCanBeModifiedForOperation:@"adding a comment"] || !self->_doc ||
+                                pageIndex >= spdf_page_count(self->_doc)) {
+                                self.commentDrafts[draftKey] = comment;  // not added: the words stay for next time
+                                return;
+                            }
                             [self addPDFComment:comment page:pageIndex rects:values point:point];
                           }];
+}
+
+// What -ensureActivePDFCanBeModifiedForOperation: refuses without touching the file: a password-protected PDF whose
+// permissions do not allow comments. Said before the box opens rather than after the comment is typed.
+- (BOOL)activePDFAllowsCommentChangesFor:(NSString*)operation {
+    if (!spdf_is_password_protected(_doc) || spdf_has_permission(_doc, 'n')) return YES;
+    [self showError:@"Operation is not allowed"
+             detail:[NSString stringWithFormat:@"This PDF's user permissions do not allow %@. Open it with the owner "
+                                               @"password to continue.",
+                                               operation]];
+    return NO;
 }
 
 - (void)addPDFComment:(NSString*)comment page:(NSInteger)pageIndex rects:(NSArray<NSValue*>*)values point:(NSPoint)point {
@@ -242,10 +297,10 @@ static char kEditorAnchorKey;
         return;
     }
     if (!_doc || !_path.length) return;
-    // The index first: moving a PDF from a temporary folder to a writable copy reopens it and clears what was clicked.
+    // The index first: moving a PDF from a temporary folder to a writable copy (when the edit is saved) reopens it and
+    // clears what was clicked.
     NSInteger commentIndex = [self commentIndexForEditAction:sender];
-    if (![self ensureActivePDFCanBeModifiedForOperation:@"editing a comment"]) return;
-    // The reopened copy has the same comments, loaded in the background: read them now.
+    if (![self activePDFAllowsCommentChangesFor:@"editing a comment"]) return;
     if (![self commentItemForIndex:commentIndex]) [self reloadCommentsFromActiveDocument];
     spdf_comment_item* item = [self commentItemForIndex:commentIndex];
     if (!item) {
@@ -257,13 +312,26 @@ static char kEditorAnchorKey;
         item->author && *item->author ? [NSString stringWithUTF8String:item->author] : [self currentCommentAuthor];
     NSString* text = item->text && *item->text ? [NSString stringWithUTF8String:item->text] : @"";
     spdf_document* doc = _doc;
+    NSString* draftKey = [NSString stringWithFormat:@"%@#edit#%ld", _path, (long)commentIndex];
+    // As for Add: the box first, the Collection copy or writable copy when Save is pressed.
     [self openCommentEditorWithTitle:@"Edit Comment"
                               button:@"Save"
                               author:author
                                 text:text
-                            draftKey:[NSString stringWithFormat:@"%@#edit#%ld", _path, (long)commentIndex]
+                            draftKey:draftKey
                           completion:^(NSString* edited) {
-                            if (self->_doc == doc) [self savePDFComment:commentIndex text:edited author:author];
+                            if (self->_doc != doc) return;
+                            if (![self ensureActivePDFCanBeModifiedForOperation:@"editing a comment"]) {
+                                self.commentDrafts[draftKey] = edited;
+                                return;
+                            }
+                            // The reopened copy has the same comments, loaded in the background: read them now.
+                            if (![self commentItemForIndex:commentIndex]) [self reloadCommentsFromActiveDocument];
+                            if (![self commentItemForIndex:commentIndex]) {
+                                NSBeep();
+                                return;
+                            }
+                            [self savePDFComment:commentIndex text:edited author:author];
                           }];
 }
 

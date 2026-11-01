@@ -25,6 +25,7 @@
 @property(nonatomic, copy) NSDate* fileStamp;
 @property(nonatomic, weak) id anchoredRender;
 @property(nonatomic) SPDFMarkdownCommentAnchors* anchors;
+@property(nonatomic, weak) id anchorsInFlight;  // the render whose anchors are being built in the background
 @end
 @implementation SPDFMacMarkdownCommentState
 @end
@@ -120,6 +121,30 @@ static char kStatesKey, kContextLocationKey;
     return state.anchors;
 }
 
+// Add Comment… needs the anchors (where each rendered passage is in the source). A document without comments has none
+// yet, and building them reads the source and indexes it: done here, while the page's menu is open, so the comment
+// box opens without that wait. -anchorsForState: still builds them itself if Add comes first.
+- (void)buildMarkdownCommentAnchorsInBackground:(SPDFMacMarkdownCommentState*)state {
+    SPDFMarkdownRenderedDocument* rendered = self.activeMarkdownSession.renderedDocument;
+    if (!state || !rendered || (state.anchoredRender == rendered && state.anchors) || state.anchorsInFlight == rendered) return;
+    state.anchorsInFlight = rendered;
+    NSString* path = [_path copy];
+    NSString* text = [rendered.attributedString.string copy] ?: @"";
+    __weak ShenzhenMacDelegate* weakSelf = self;
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+      NSString* source = [NSString stringWithContentsOfFile:path encoding:NSUTF8StringEncoding error:nil] ?: @"";
+      SPDFMarkdownCommentAnchors* anchors = [[SPDFMarkdownCommentAnchors alloc] initWithSource:source rendered:text];
+      dispatch_async(dispatch_get_main_queue(), ^{
+        ShenzhenMacDelegate* reader = weakSelf;
+        if (state.anchorsInFlight == rendered) state.anchorsInFlight = nil;
+        if (!reader || (state.anchoredRender == rendered && state.anchors)) return;
+        if (reader.activeMarkdownSession.renderedDocument != rendered) return;
+        state.anchors = anchors;
+        state.anchoredRender = rendered;
+      });
+    });
+}
+
 - (void)applyMarkdownCommentHighlights:(SPDFMacMarkdownCommentState*)state {
     NSMutableArray* highlights = [NSMutableArray array];
     for (SPDFMarkdownComment* comment in state.comments) {
@@ -190,6 +215,7 @@ static char kStatesKey, kContextLocationKey;
     objc_setAssociatedObject(self, &kContextLocationKey, @(location), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     _contextCommentIndex = -1;
     SPDFMacMarkdownCommentState* state = [self activeMarkdownCommentState];
+    [self buildMarkdownCommentAnchorsInBackground:state];
     for (NSUInteger i = 0; i < state.comments.count && location != NSNotFound; i++) {
         NSRange range = state.comments[i].renderedRange;
         if (state.comments[i].placed && location >= range.location && location < NSMaxRange(range)) {

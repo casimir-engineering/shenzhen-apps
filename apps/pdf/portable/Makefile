@@ -516,7 +516,7 @@ mac-page-wheel-tests: $(MAC_PAGE_WHEEL_TEST)
 	"$(MAC_PAGE_WHEEL_TEST)"
 
 $(MAC_MARKDOWN_COMMENTS_TEST): mac/tests/SPDFMacMarkdownCommentsTests.mm mac/SPDFMacMarkdownComments.mm mac/SPDFMacMarkdownCommentAnchors.mm mac/SPDFMacMarkdownComments.h mac/SPDFMacCommentEditor.mm | $(BUILD)
-	clang++ $(MAC_TARGET_FLAGS) -std=c++17 -fobjc-arc -Wall -Wextra -Werror -Imac mac/tests/SPDFMacMarkdownCommentsTests.mm mac/SPDFMacMarkdownComments.mm mac/SPDFMacMarkdownCommentAnchors.mm mac/SPDFMacCommentEditor.mm mac/SPDFMacCollectionStyle.mm -framework Cocoa -o "$(MAC_MARKDOWN_COMMENTS_TEST)"
+	clang++ $(MAC_TARGET_FLAGS) -std=c++17 -fobjc-arc -Wall -Wextra -Werror -Imac mac/tests/SPDFMacMarkdownCommentsTests.mm mac/SPDFMacMarkdownComments.mm mac/SPDFMacMarkdownCommentAnchors.mm mac/SPDFMacCommentEditor.mm mac/SPDFMacCollectionStyle.mm -framework Cocoa -framework QuartzCore -o "$(MAC_MARKDOWN_COMMENTS_TEST)"
 
 mac-markdown-comments-tests: $(MAC_MARKDOWN_COMMENTS_TEST)
 	"$(MAC_MARKDOWN_COMMENTS_TEST)"
