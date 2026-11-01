@@ -6,7 +6,7 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 const { spawn, spawnSync } = require("node:child_process");
-const { isolate, testProfile } = require("./test-identity.cjs");
+const { isolate, isolateHome, cliWithAccountHome, testProfile } = require("./test-identity.cjs");
 
 const repo = path.resolve(__dirname, "../../..");
 const read = (file) => fs.readFileSync(path.join(repo, file), "utf8");
@@ -21,12 +21,14 @@ test("a test copy reopened without arguments gets a profile beside its .app, wit
   try {
     const exe = path.join(work, "relaunch/Shenzhen 3D.app/Contents/MacOS/Shenzhen 3D");
     const calls = [];
-    const profile = isolate({ setPath: (...a) => calls.push(a) }, [exe], exe);
+    const env = { HOME: os.userInfo().homedir };
+    const profile = isolate({ setPath: (...a) => calls.push(a) }, [exe], exe, env);
     assert.equal(profile, path.join(work, "relaunch/szut-profile"));
     assert.deepEqual(calls, [["userData", profile]]);
     assert.notEqual(profile, realProfile);
     assert.ok(fs.statSync(profile).isDirectory(), "main.cjs moves to an older profile only when this one is missing");
     assert.deepEqual(JSON.parse(fs.readFileSync(path.join(profile, "friends.json"), "utf8")), { enabled: false });
+    assert.equal(env.HOME, path.join(profile, "home"), "its Friends home is not the person's");
   } finally {
     fs.rmSync(work, { recursive: true, force: true });
   }
@@ -36,6 +38,39 @@ test("a test copy launched by the test keeps the test's --user-data-dir", () => 
   const exe = "/w/install/Shenzhen 3D.app/Contents/MacOS/Shenzhen 3D";
   assert.deepEqual(testProfile([exe, "--user-data-dir=/w/profile"], exe), { profile: "/w/profile", given: true });
   assert.deepEqual(testProfile([exe, "--user-data-dir", "/w/p2"], exe), { profile: "/w/p2", given: true });
+});
+
+// A Developer ID signed copy ignores SZFRIENDS_STATE_DIR and keeps Friends under $HOME: with the person's home its helper
+// took over their helper.sock and outlived the test (Shenzhen 3D 0.2.6 release, live-update check).
+test("a test copy started with the person's home gets a Friends home of its own; an isolated one is kept", () => {
+  const work = fs.mkdtempSync(path.join(os.tmpdir(), "szut-home-"));
+  try {
+    const account = os.userInfo().homedir;
+    for (const given of [account, account + "/", undefined, "relative"]) {
+      const env = given === undefined ? {} : { HOME: given };
+      assert.equal(isolateHome(work, env, account), path.join(work, "home"), String(given));
+      assert.equal(env.HOME, path.join(work, "home"));
+      assert.equal(env.CFFIXED_USER_HOME, path.join(work, "home"));
+    }
+    const env = { HOME: path.join(work, "test-home") };
+    assert.equal(isolateHome(work, env, account), path.join(work, "test-home"));
+  } finally {
+    fs.rmSync(work, { recursive: true, force: true });
+  }
+});
+
+test("in a test copy only GitHub CLI runs with the account's home", () => {
+  const calls = [];
+  const fake = { execFile: (file, ...rest) => calls.push([file, ...rest]) };
+  cliWithAccountHome(fake, "/Users/someone");
+  const done = () => {};
+  fake.execFile("/opt/homebrew/bin/gh", ["auth", "token"], { encoding: "utf8", env: { HOME: "/w/home", X: "1" } }, done);
+  fake.execFile("/usr/local/bin/gh", ["auth", "token"], done);
+  fake.execFile("/usr/bin/codesign", ["-v"], { env: { HOME: "/w/home" } }, done);
+  assert.deepEqual(calls[0][2], { encoding: "utf8", env: { HOME: "/Users/someone", X: "1" } });
+  assert.equal(calls[1][2].env.HOME, "/Users/someone");
+  assert.equal(calls[1][3], done);
+  assert.deepEqual(calls[2][2], { env: { HOME: "/w/home" } });
 });
 
 test("test copies load the test identity before the release main asks for the single-instance lock", () => {
@@ -58,6 +93,7 @@ test("every Mac updater test launches with its own profile and ends what it star
   for (const file of ["tools/updater-e2e/update-e2e-3d.mjs", "apps/3d/electron/update-install-smoke.mjs"]) {
     const source = read(file);
     assert.match(source, /`--user-data-dir=\$\{profile\}`/, file);
+    assert.match(source, /\.HOME = /, `${file}: a Friends home of its own`);
     assert.match(source, /sweep\.py/, file);
     assert.match(source, /process\.on\("exit"/, file);
     assert.match(source, /"SIGTERM"/, file);
@@ -109,6 +145,29 @@ test("sweep.py ends a process left under a test directory, by path, and leaves o
     assert.ok(alive(outside.pid), "a process outside the test directory is untouched");
 
     assert.equal(run("--kill", work).status, 0, "nothing left");
+
+    // As Squirrel replacing the copy that started a Friends helper: the executable moved away, or deleted.
+    const moved = path.join(dir, "szut-moved"), gone = path.join(dir, "szut-gone");
+    fs.copyFileSync(exe, moved);
+    fs.copyFileSync(exe, gone);
+    const replaced = [moved, gone].map((file) => {
+      const child = spawn(file, ["60"], { detached: true, stdio: "ignore" });
+      child.unref();
+      return child.pid;
+    });
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    fs.renameSync(moved, path.join(os.tmpdir(), path.basename(work) + "-moved"));
+    fs.unlinkSync(gone);
+    try {
+      const found = run("--kill", work);
+      assert.equal(found.status, 1, found.stdout + found.stderr);
+      for (const pid of replaced) assert.match(found.stdout, new RegExp(`still running: ${pid} `));
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      for (const pid of replaced) assert.ok(!alive(pid));
+    } finally {
+      for (const pid of replaced) try { process.kill(pid, "SIGKILL"); } catch {}
+      fs.rmSync(path.join(os.tmpdir(), path.basename(work) + "-moved"), { force: true });
+    }
     assert.equal(run("--kill", "/Applications").status, 2, "refuses where installed apps live");
     assert.equal(run("--kill", os.homedir()).status, 2);
   } finally {

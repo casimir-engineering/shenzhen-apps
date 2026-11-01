@@ -233,6 +233,9 @@ if ([...prefsBefore].some((p) => prefKeys(p).length)) throw Error("ShipIt prefer
 const env = { ...process.env };
 for (const k of ["GH_TOKEN", "GITHUB_TOKEN", "SHENZHEN_3D_DEV_URL", "ELECTRON_RUN_AS_NODE", "NODE_OPTIONS"]) delete env[k];
 env.CFFIXED_USER_HOME = home;
+// HOME too: a Developer ID signed copy ignores SZFRIENDS_STATE_DIR and keeps Friends under $HOME, so with the person's
+// home its helper served their Friends, took over their helper.sock and outlived the run (0.2.6's live-update check).
+env.HOME = home;
 const launch = (target) => electron.launch({ executablePath: path.join(target, "Contents/MacOS/Shenzhen 3D"),
   args: [`--user-data-dir=${profile}`, "--use-mock-keychain"], env, timeout: 60_000 });
 

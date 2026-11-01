@@ -3,6 +3,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
 import { checkReviewProject, checkRayTracing } from './smoke-features.mjs';
+import { packagedEnvironment, endPackaged } from './packaged-test-run.mjs';
 
 // Default: compatible with the 0.1.1 packaged checkpoint. Add --review and
 // --ray-tracing for 0.1.2; --development explicitly tests the live local app.
@@ -16,7 +17,7 @@ const lazyStartup = process.argv.includes('--lazy-startup');
 if (development && packaged) throw new Error('Development smoke cannot use a packaged executable');
 if (development) environment.SHENZHEN_3D_DEV_URL = 'http://127.0.0.1:1420/';
 const launchedAt = performance.now();
-const application = await electron.launch({ ...(packaged ? { executablePath: packaged } : {}), args: [...(packaged ? [] : [path.resolve('electron/main.cjs')]), `--user-data-dir=${path.join(directory, 'profile')}`], env: environment });
+const application = await electron.launch({ ...(packaged ? { executablePath: packaged } : {}), args: [...(packaged ? [] : [path.resolve('electron/main.cjs')]), `--user-data-dir=${path.join(directory, 'profile')}`], env: packaged ? packagedEnvironment(environment, directory) : environment });
 const errors = [];
 const serviceWorkerRequests = [];
 const workers = [];
@@ -120,5 +121,6 @@ try {
   console.log(JSON.stringify(report, null, 2));
 } finally {
   await application.close();
+  if (packaged && endPackaged(packaged)) process.exitCode = 1;
   await fs.rm(directory, { recursive: true, force: true });
 }

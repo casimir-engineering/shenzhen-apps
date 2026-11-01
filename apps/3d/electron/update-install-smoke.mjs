@@ -193,6 +193,10 @@ for (const key of [
   "GITHUB_TOKEN",
 ])
   delete environment[key];
+// A Friends home of its own: the signed fixture ignores SZFRIENDS_STATE_DIR and keeps Friends under $HOME, so with the
+// person's home its helper would take over their helper.sock and outlive the test.
+environment.HOME = path.join(output, "home");
+await fs.mkdir(environment.HOME, { recursive: true });
 // Nothing this test starts outlives it: whatever still runs from the fixture or the output directory when it ends,
 // however it was started (Squirrel reopens an app with launchd as its parent), is ended by its exact executable path
 // (tools/updater-e2e/sweep.py), never by name, and the test fails.

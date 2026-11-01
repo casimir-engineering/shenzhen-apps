@@ -2,6 +2,7 @@ import { _electron as electron, expect } from "@playwright/test";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { packagedEnvironment, endPackaged } from "./packaged-test-run.mjs";
 const directory = await fs.mkdtemp(
   path.join(os.tmpdir(), "shenzhen-recent-native-"),
 );
@@ -19,12 +20,13 @@ const triangle =
   "solid part\nfacet normal 0 0 1\nouter loop\nvertex 0 0 0\nvertex 1 0 0\nvertex 0 1 0\nendloop\nendfacet\nendsolid part\n";
 await fs.writeFile(coldModel, triangle);
 await fs.writeFile(warmModel, triangle);
-const env = { ...process.env };
+let env = { ...process.env };
 delete env.SHENZHEN_3D_DEV_URL;
 let application;
 const packaged = process.argv
   .find((arg) => arg.startsWith("--executable="))
   ?.slice(13);
+if (packaged) env = packagedEnvironment(env, directory);
 const errors = [];
 let choosers = 0;
 const launch = async (files = []) => {
@@ -181,5 +183,6 @@ try {
   console.log(JSON.stringify(report));
 } finally {
   await application?.close();
+  if (packaged && endPackaged(packaged)) process.exitCode = 1;
   await fs.rm(directory, { recursive: true, force: true });
 }
