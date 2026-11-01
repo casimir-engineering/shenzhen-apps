@@ -230,6 +230,8 @@ static NSDictionary* preparePresentation(SPDFCollectionComparison* result, NSStr
     if (!result) {
         _status.stringValue = error.localizedDescription ?: @"Could not compare these documents.";
         _status.toolTip = _status.stringValue;
+        [NSNotificationCenter.defaultCenter postNotificationName:SPDFMacComparisonDidFinishLoadingNotification
+                                                          object:self.window userInfo:@{@"error" : _status.stringValue}];
         return;
     }
     PDFDocument* oldAligned = result[@"oldDocument"];
@@ -250,6 +252,8 @@ static NSDictionary* preparePresentation(SPDFCollectionComparison* result, NSStr
     _status.stringValue = changed.count ? [NSString stringWithFormat:@"%lu change regions",changed.count]
                                       : @"No visible changes";
     _status.toolTip = @"Red: removed text or visual regions. Green: added text or visual regions. Scans use visual regions.";
+    [NSNotificationCenter.defaultCenter postNotificationName:SPDFMacComparisonDidFinishLoadingNotification
+                                                      object:self.window userInfo:@{@"changes" : @(changed.count)}];
 }
 - (void)synchronize:(SPDFCollectionComparePane*)source zoom:(BOOL)zoom {
     if (_synchronizing || _linked.state != NSControlStateValueOn) return;
@@ -317,6 +321,10 @@ static NSDictionary* preparePresentation(SPDFCollectionComparison* result, NSStr
 static void SPDFMacShowComparisonWindow(NSURL* oldURL, NSURL* newURL, NSString* oldLabel, NSString* newLabel,
                                         BOOL documents, NSWindow* parent);
 
+static BOOL gOpensInBackground;
+void SPDFMacComparisonSetOpensInBackground(BOOL background) { gOpensInBackground = background; }
+NSNotificationName const SPDFMacComparisonDidFinishLoadingNotification = @"SPDFMacComparisonDidFinishLoading";
+
 void SPDFMacShowCollectionComparison(NSURL* oldURL, NSURL* newURL, NSString* oldLabel,
                                     NSString* newLabel, NSWindow* parent) {
     SPDFMacShowComparisonWindow(oldURL, newURL, oldLabel, newLabel, NO, parent);
@@ -332,8 +340,15 @@ static void SPDFMacShowComparisonWindow(NSURL* oldURL, NSURL* newURL, NSString* 
     SPDFCollectionCompareController* controller = [[SPDFCollectionCompareController alloc]
         initWithOldLabel:oldLabel newLabel:newLabel documents:documents];
     [controller.window center];
-    if (parent) [parent addChildWindow:controller.window ordered:NSWindowAbove];
-    [controller showWindow:nil];
-    [controller.window makeKeyAndOrderFront:nil];
+    if (gOpensInBackground && parent.visible) {
+        [controller.window orderWindow:NSWindowAbove relativeTo:parent.windowNumber];
+        [parent addChildWindow:controller.window ordered:NSWindowAbove];
+    } else if (gOpensInBackground) {
+        [controller.window orderBack:nil];
+    } else {
+        if (parent) [parent addChildWindow:controller.window ordered:NSWindowAbove];
+        [controller showWindow:nil];
+        [controller.window makeKeyAndOrderFront:nil];
+    }
     [controller loadOld:oldURL new:newURL];
 }

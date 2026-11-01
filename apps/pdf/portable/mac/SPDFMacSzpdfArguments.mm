@@ -13,7 +13,7 @@ static NSString* const kUsage =
     @"       szpdf comment resolve <file> <id> [--reopen] [--author NAME]\n"
     @"       szpdf version new <file> [--carry open|all|none]\n"
     @"       szpdf version list <file>\n"
-    @"       szpdf version compare <file> <older> <newer> [--background | --front]";
+    @"       szpdf version compare <file> <older> <newer> [--background | --front] [--wait]";
 
 static NSError* Usage(NSString* problem) {
     NSString* message = problem ? [NSString stringWithFormat:@"%@\n%@", problem, kUsage] : kUsage;
@@ -113,8 +113,9 @@ NSDictionary* SPDFMacSzpdfParseArguments(NSArray<NSString*>* arguments, NSString
         if (![@[ @"open", @"all", @"none" ] containsObject:command[@"carry"]])
             failure = Usage(@"--carry is open, all or none.");
     } else if ([verb isEqualToString:@"version"] && positional.count == 5 && [positional[1] isEqualToString:@"compare"]) {
-        allowed = [NSSet setWithArray:@[ @"--background", @"--front" ]];
+        allowed = [NSSet setWithArray:@[ @"--background", @"--front", @"--wait" ]];
         command[@"command"] = @"version-compare";
+        command[@"wait"] = @([options[@"--wait"] boolValue]);
         command[@"path"] = Absolute(positional[2], directory);
         long long older = 0, newer = 0;
         if (!WholeNumber(positional[3], 1, 100000, &older) || !WholeNumber(positional[4], 1, 100000, &newer) ||

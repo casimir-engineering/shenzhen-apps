@@ -208,8 +208,8 @@ static int Versions(NSDictionary* command) {
         pid_t target = Reader(current, [command[@"front"] boolValue], 30, &failure);
         if (!target) return Finish(@{@"opened" : @NO, @"error" : failure ?: @"ShenzhenPDF did not answer."});
         [request addEntriesFromDictionary:@{@"older" : command[@"older"], @"newer" : command[@"newer"],
-                                            @"front" : command[@"front"]}];
-        return Finish(Send(target, request, 30));
+                                            @"front" : command[@"front"], @"wait" : command[@"wait"]}];
+        return Finish(Send(target, request, 70));
     }
     pid_t target = SPDFMacSzpdfChooseProcess(Readers(), current);
     if (target) {

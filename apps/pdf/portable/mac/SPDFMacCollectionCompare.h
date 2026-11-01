@@ -23,6 +23,13 @@ SPDFCollectionComparison* _Nullable SPDFCollectionBuildComparison(NSURL* oldURL,
                                                                 NSProgress* progress, NSError** error);
 void SPDFMacShowCollectionComparison(NSURL* oldURL, NSURL* newURL, NSString* oldLabel,
                                     NSString* newLabel, NSWindow* _Nullable parent);
+// While YES, a comparison window opens without coming forward: just above `parent` when it shows (so it stays behind
+// whatever is in front of the reader), else behind every window; it is never made key. `szpdf version compare` sets
+// it around its call; every other comparison opens in front as before.
+void SPDFMacComparisonSetOpensInBackground(BOOL background);
+// Posted on the main queue when a comparison window has laid out both documents (or failed to): object the window,
+// userInfo @{"changes": count} or @{"error": message}.
+FOUNDATION_EXPORT NSNotificationName const SPDFMacComparisonDidFinishLoadingNotification;
 // The same window for two different documents (Compare to Current Document in the tab menu): neither is older, so
 // it says "Document Comparison" and each pane's marks are named for the other document instead of OLD / NEW.
 void SPDFMacShowDocumentComparison(NSURL* oldURL, NSURL* newURL, NSString* oldLabel, NSString* newLabel,

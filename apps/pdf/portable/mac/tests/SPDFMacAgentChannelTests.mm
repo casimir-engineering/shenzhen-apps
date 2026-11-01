@@ -38,7 +38,7 @@ static void TestRequests(void) {
     Expect(Check(@{@"command" : @"version", @"action" : @"new", @"path" : @"/a/b.md", @"carry" : @"all"}) != nil,
            @"version new");
     Expect(Check(@{@"command" : @"version", @"action" : @"compare", @"path" : @"/a/b.md", @"older" : @1, @"newer" : @2,
-                   @"front" : @NO}) != nil,
+                   @"front" : @NO, @"wait" : @YES}) != nil,
            @"version compare");
     NSArray* refused = @[
         @{@"command" : @"quit"}, @{@"command" : @"state", @"extra" : @1}, @{@"path" : @"/a.md"},
@@ -164,8 +164,10 @@ static void TestArguments(void) {
     Expect([Parse(@[ @"version", @"new", @"r.md", @"--carry", @"none" ])[@"carry"] isEqualToString:@"none"], @"--carry");
     Expect([Parse(@[ @"version", @"list", @"r.md" ])[@"command"] isEqualToString:@"version-list"], @"version list");
     NSDictionary* compare = Parse(@[ @"version", @"compare", @"r.md", @"1", @"2", @"--background" ]);
-    Expect([compare[@"older"] isEqual:@1] && [compare[@"newer"] isEqual:@2] && ![compare[@"front"] boolValue],
+    Expect([compare[@"older"] isEqual:@1] && [compare[@"newer"] isEqual:@2] && ![compare[@"front"] boolValue] &&
+               ![compare[@"wait"] boolValue],
            @"version compare, in the background");
+    Expect([Parse(@[ @"version", @"compare", @"r.md", @"1", @"2", @"--wait" ])[@"wait"] boolValue], @"compare --wait");
     Expect([Parse(@[ @"comments", @"r.md", @"--version", @"1", @"--json" ])[@"version"] isEqual:@1],
            @"comments --version");
     NSArray* wrong = @[

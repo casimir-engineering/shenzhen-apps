@@ -58,7 +58,7 @@ password; add `~/.local/bin` to `PATH` if your shell does not find it).
 | `szpdf comments <file> --version N [--json]` | the comments of version N |
 | `szpdf version new <file> [--carry open\|all\|none]` | the frozen `version`: `number`, `name`, `path`, `commentsPath`, `date`, `current` |
 | `szpdf version list <file>` | `versions`, oldest first, the current file last |
-| `szpdf version compare <file> <older> <newer> [--background \| --front]` | `opened`, `windowId` of the comparison |
+| `szpdf version compare <file> <older> <newer> [--background \| --front] [--wait]` | `opened`, `windowId` of the comparison; with `--wait`, once both are laid out: `loaded`, `changes` |
 
 Paths may be relative. Exit status is 0 on success, 1 when the JSON carries `error`, 2 for a usage mistake.
 
@@ -99,8 +99,8 @@ along to the file you rewrite (`--carry open`, the default; `all` or `none` othe
 is always the newest version, so nothing else changes for your editor. If you skip `version new`, ShenzhenPDF keeps
 the earlier text of a commented document when it notices the rewrite, but only while the document is open in it.
 `version new` and `list` work through the running app when there is one (its tabs follow) and straight on the files
-otherwise; `version compare` opens the comparison window, behind your other windows unless `--front`, starting the app
-if needed.
+otherwise; `version compare` opens the comparison window behind your other windows (never ordered in front, not for a frame)
+unless `--front`, starting the app if needed; `--wait` answers once both versions are laid out.
 
 **The channel.** Each ShenzhenPDF window process listens, from after its first frame, on its own Unix socket,
 `~/Library/Application Support/ShenzhenPDF/Agent/<pid>.sock` (directory 0700, socket 0600; it also checks the caller

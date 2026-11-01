@@ -68,7 +68,7 @@ NSDictionary* SPDFMacAgentChannelValidateRequest(NSData* line, NSError** error) 
         @"open" : @[ @"command", @"path", @"page", @"heading", @"front", @"wait" ],
         @"screenshot" : @[ @"command", @"windowId", @"output" ],
         @"comments-changed" : @[ @"command", @"path" ],
-        @"version" : @[ @"command", @"action", @"path", @"carry", @"older", @"newer", @"front" ],
+        @"version" : @[ @"command", @"action", @"path", @"carry", @"older", @"newer", @"front", @"wait" ],
     };
     if (!request) failure = ChannelError(@"The request is not a JSON object.");
     else if (!allowed[command ?: @""]) failure = ChannelError(@"Unknown command.");
@@ -99,8 +99,8 @@ NSDictionary* SPDFMacAgentChannelValidateRequest(NSData* line, NSError** error) 
         else if ([action isEqual:@"compare"] && (!IsWholeNumber(request[@"older"], 1, 100000) ||
                                                  !IsWholeNumber(request[@"newer"], 1, 100000)))
             failure = ChannelError(@"compare needs two version numbers.");
-        else if (request[@"front"] && !IsBool(request[@"front"]))
-            failure = ChannelError(@"front must be true or false.");
+        else if ((request[@"front"] && !IsBool(request[@"front"])) || (request[@"wait"] && !IsBool(request[@"wait"])))
+            failure = ChannelError(@"front and wait must be true or false.");
     }
     if (!failure && [command isEqual:@"screenshot"]) {
         if (!IsWholeNumber(request[@"windowId"], 1, INT32_MAX))

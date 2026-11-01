@@ -4,13 +4,13 @@
 #import "SPDFMacAgentServer.h"
 #import "SPDFMacBackgroundOpening.h"
 #import "SPDFMacDocumentVersionsIntegration.h"
+#import "SPDFMacCollectionCompare.h"
 #import "SPDFMacMarkdownDelegatePrivate.h"
 #import "SPDFMacMarkdownSession.h"
 #import "SPDFMacModels.h"
 #import "SPDFMacPaletteActivation.h"
 #import "markdown/SPDFMarkdownRenderer.h"
 #import <PDFKit/PDFKit.h>
-#import <QuartzCore/QuartzCore.h>
 
 #include <vector>
 
@@ -247,32 +247,63 @@ static NSArray<NSString*>* HeadingPath(NSArray<NSString*>* titles, const std::ve
 
 #pragma mark - Versions
 
-// The versions hooks (SPDFMacDocumentVersionsIntegration.h). The comparison window opens behind the other apps'
-// windows, just above this reader's window, unless asked to the front: it is ordered in front as it opens, so it is put
-// back right away, before the window server shows the frame.
-- (NSDictionary*)agentVersion:(NSDictionary*)request {
+// The versions hooks (SPDFMacDocumentVersionsIntegration.h). The comparison window opens without coming forward
+// unless asked to the front (SPDFMacComparisonSetOpensInBackground): never ordered in front of the other apps'
+// windows, not even for a frame. With `wait`, the answer comes once both versions are laid out.
+- (void)agentVersion:(NSDictionary*)request reply:(void (^)(NSDictionary*))reply {
     NSString* path = request[@"path"];
     NSString* action = request[@"action"];
     NSError* error = nil;
-    if ([action isEqual:@"list"]) return @{@"path" : path, @"versions" : [self versionsListForPath:path]};
+    if ([action isEqual:@"list"]) {
+        reply(@{@"path" : path, @"versions" : [self versionsListForPath:path]});
+        return;
+    }
     if ([action isEqual:@"new"]) {
         NSDictionary* version = [self versionsCreateForPath:path carry:request[@"carry"] error:&error];
-        return version ? @{@"path" : path, @"version" : version}
-                       : @{@"error" : error.localizedDescription ?: @"The version could not be made."};
+        reply(version ? @{@"path" : path, @"version" : version}
+                      : @{@"error" : error.localizedDescription ?: @"The version could not be made."});
+        return;
     }
+    BOOL front = [request[@"front"] boolValue];
     NSSet* before = [NSSet setWithArray:NSApp.windows];
-    BOOL shown = [self versionsCompareForPath:path from:[request[@"older"] integerValue] to:[request[@"newer"] integerValue]
-                                        error:&error];
-    if (!shown) return @{@"error" : error.localizedDescription ?: @"The versions could not be compared."};
+    SPDFMacComparisonSetOpensInBackground(!front);
+    BOOL shown = [self versionsCompareForPath:path from:[request[@"older"] integerValue]
+                                           to:[request[@"newer"] integerValue] error:&error];
+    SPDFMacComparisonSetOpensInBackground(NO);
+    if (!shown) {
+        reply(@{@"opened" : @NO, @"error" : error.localizedDescription ?: @"The versions could not be compared."});
+        return;
+    }
     NSWindow* comparison = nil;
     for (NSWindow* window in NSApp.windows)
         if (![before containsObject:window] && window.visible) comparison = window;
-    if ([request[@"front"] boolValue]) spdf_mac_bring_window_to_front(comparison ?: _window);
-    else if (comparison && _window.visible) [comparison orderWindow:NSWindowAbove relativeTo:_window.windowNumber];
-    else if (comparison) [comparison orderBack:nil];
-    [CATransaction flush];
-    return @{@"opened" : @(comparison != nil), @"windowId" : @(comparison.windowNumber), @"older" : request[@"older"],
-             @"newer" : request[@"newer"], @"front" : @(NSApp.isActive && comparison.keyWindow)};
+    if (front) spdf_mac_bring_window_to_front(comparison ?: _window);
+    NSMutableDictionary* answer = [@{@"opened" : @(comparison != nil), @"windowId" : @(comparison.windowNumber),
+                                     @"older" : request[@"older"], @"newer" : request[@"newer"],
+                                     @"front" : @(front), @"loaded" : @NO} mutableCopy];
+    if (![request[@"wait"] boolValue] || !comparison) {
+        reply(answer);
+        return;
+    }
+    __block id observer = nil;
+    __block BOOL done = NO;
+    void (^finish)(NSDictionary*) = ^(NSDictionary* info) {
+      if (done) return;
+      done = YES;
+      if (observer) [NSNotificationCenter.defaultCenter removeObserver:observer];
+      answer[@"loaded"] = @(info != nil);
+      if (info[@"changes"]) answer[@"changes"] = info[@"changes"];
+      if (info[@"error"]) answer[@"error"] = info[@"error"];
+      if (!info) answer[@"error"] = @"The comparison is still being prepared after 60 seconds.";
+      reply(answer);
+    };
+    observer = [NSNotificationCenter.defaultCenter addObserverForName:SPDFMacComparisonDidFinishLoadingNotification
+                                                               object:comparison queue:nil
+                                                           usingBlock:^(NSNotification* note) { finish(note.userInfo); }];
+    CFRunLoopTimerRef timer = CFRunLoopTimerCreateWithHandler(NULL, CFAbsoluteTimeGetCurrent() + 60, 0, 0, 0,
+                                                              ^(CFRunLoopTimerRef t) { (void)t; finish(nil); });
+    CFRunLoopAddTimer(CFRunLoopGetMain(), timer, kCFRunLoopCommonModes);
+    CFRelease(timer);
 }
 
 #pragma mark - Requests
@@ -315,7 +346,7 @@ static NSArray<NSString*>* HeadingPath(NSArray<NSString*>* titles, const std::ve
     for (ShenzhenMacDelegate* reader in readers)
         if (!target && reader->_window.keyWindow) target = reader;
     target = target ?: readers.firstObject;
-    if ([command isEqual:@"version"]) reply([target agentVersion:request]);
+    if ([command isEqual:@"version"]) [target agentVersion:request reply:reply];
     else [target agentOpen:request reply:reply];
 }
 

@@ -121,7 +121,7 @@ szpdf comment reply report.md <id> "Fixed in v2." --author Claude
 szpdf comment resolve report.md <id>             # --reopen to open it again
 szpdf version new report.md                      # keep this text as v1 with its comments; --carry open|all|none
 szpdf version list report.md                     # number, name, path, comments file, date, current
-szpdf version compare report.md 1 2              # the two side by side with their changes, behind your windows
+szpdf version compare report.md 1 2 --wait       # the two side by side with their changes, behind your windows
 szpdf comments report.md --version 1 --json      # the comments made on v1
 ```
 
