@@ -352,6 +352,11 @@ NSString* UIRealComputerShown(NSView* root) {
 
 UIRig* UIStartRig(SZFE2EWorld* world, UIVariant* variant, NSString* name,
                   NSDictionary<NSString*, NSString*>* environment) {
+    return UIStartRigInApp(world, variant, name, environment, nil);
+}
+
+UIRig* UIStartRigInApp(SZFE2EWorld* world, UIVariant* variant, NSString* name,
+                       NSDictionary<NSString*, NSString*>* environment, NSString* app) {
     UIRig* rig = [UIRig new];
     rig.variant = variant;
     rig.snapshotCounts = [NSMutableDictionary dictionary];
@@ -365,7 +370,7 @@ UIRig* UIStartRig(SZFE2EWorld* world, UIVariant* variant, NSString* name,
     env[@"HOME"] = home;
     [env addEntriesFromDictionary:environment ?: @{}];
     rig.helper.extraEnvironment = env;
-    if (![rig.helper start]) {
+    if (!app && ![rig.helper start]) {
         UIFail(nil, __FILE__, __LINE__, "the helper starts", rig.helper.log);
         return nil;
     }
@@ -375,8 +380,9 @@ UIRig* UIStartRig(SZFE2EWorld* world, UIVariant* variant, NSString* name,
     setenv("SPDF_STATE_DIR", home.fileSystemRepresentation, 1);
     rig.bridge = [UIBridge new];
     rig.bridge.dropdownWidth = variant.dropdownWidth;
-    // A bundle with no embedded helper: the link connects to the helper this run started and never spawns one.
-    NSBundle* bundle = [NSBundle bundleWithPath:home] ?: NSBundle.mainBundle;
+    // A bundle with no embedded helper: the link connects to the helper this run started and never spawns one. With
+    // `app`, that app's embedded helper, which the link starts itself.
+    NSBundle* bundle = [NSBundle bundleWithPath:app ?: home] ?: NSBundle.mainBundle;
     rig.host = [[SPDFMacFriendsHost alloc] initWithBridge:rig.bridge bundle:bundle
                                                   formats:[NSSet setWithArray:@[ @"pdf", @"md", @"txt" ]]];
     rig.link = [[SZFriendsHelperLink alloc] initWithHost:rig.host];
@@ -401,6 +407,7 @@ UIRig* UIStartRig(SZFE2EWorld* world, UIVariant* variant, NSString* name,
     rig.window = UIReaderWindow(variant, rig.bridge.installed);
     rig.window.appearance = [NSAppearance appearanceNamed:variant.appearance];
     [rig.window orderFrontRegardless];
+    if (app) return rig;
     SZFriendsHelperLink* link = rig.link;
     if (!UIWait(10, ^BOOL { return link.state == SZFriendsLinkStateReady; })) {
         UIFail(nil, __FILE__, __LINE__, "the reader's link reaches the helper",

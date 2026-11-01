@@ -160,6 +160,10 @@ NSDictionary<NSString*, NSString*>* UIDeviceEnvironment(NSString* person);
 NSString* _Nullable UIRealComputerShown(NSView* root);
 UIRig* _Nullable UIStartRig(SZFE2EWorld* world, UIVariant* variant, NSString* name,
                             NSDictionary<NSString*, NSString*>* _Nullable environment);
+// The same as the app at `app` (a test copy with Contents/Helpers/Shenzhen Friends.app inside) when it opens: no
+// helper is started for it and nothing is waited for, so its link finds whatever holds the socket of `name`'s home.
+UIRig* _Nullable UIStartRigInApp(SZFE2EWorld* world, UIVariant* variant, NSString* name,
+                                 NSDictionary<NSString*, NSString*>* _Nullable environment, NSString* _Nullable app);
 void UIStopRig(UIRig* rig);
 BOOL UIOpenDropdown(UIRig* rig);
 BOOL UICloseDropdown(UIRig* rig);
@@ -179,5 +183,8 @@ BOOL UIFlowTwoPeople(SZFE2EWorld* world, UIVariant* variant);
 BOOL UIFlowFound(SZFE2EWorld* world, UIVariant* variant);
 // The Mac half of a test with a phone, step by step (SPDFMacFriendsUIPhoneFlows.mm); skipped without its FIFOs.
 BOOL UIFlowPhone(SZFE2EWorld* world, UIVariant* variant);
+// Friends that does not start: a frozen helper of another copy on the socket, then one nothing can end
+// (SPDFMacFriendsUIStartFlows.mm).
+BOOL UIFlowStarting(SZFE2EWorld* world, UIVariant* variant);
 
 NS_ASSUME_NONNULL_END
