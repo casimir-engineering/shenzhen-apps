@@ -59,6 +59,8 @@
 #import "SPDFMacTranslationChoice.h"
 #import "SPDFMacTranslatedPDF.h"
 #import "SPDFMacCommentActions.h"
+#import "SPDFMacCommentCards.h"
+#import "SPDFMacCommentPanel.h"
 #import "SPDFMacMarkdownRouting.h"
 #import "SPDFMacPaletteResults.h"
 #import "SPDFMacPaletteActivation.h"
@@ -114,8 +116,6 @@ static const CGFloat kTopChromeResizeCornerSize = 16.0;
 // Comment rows carry the full annotation text, so they wrap to a few lines.
 // Size the row to the wrapped text plus a little vertical breathing room above
 // and below (mirroring the comfortable spacing chapter rows get for free).
-static const NSInteger kSidebarCommentMaxLines = 3;
-static const CGFloat kSidebarCommentVerticalPadding = 5.0;
 static const NSInteger kBackgroundRenderBatchSize = 8;
 static const NSInteger kRecentDocumentLimit = 25;  // menu depth, and what Cmd+K can find
 static const NSInteger kRenderedImageKeepRadius = 12;
@@ -8861,10 +8861,11 @@ static BOOL spdf_page_list_cache_disabled(void) {
 - (void)syncSidebarTableColumnWidth {
     if (!_sidebarTable || _sidebarTable.tableColumns.count == 0) return;
     if (SPDFSidebarFitTableToViewport(_sidebarTable)) {
-        // Comment rows wrap to the column width, so their heights change with it.
+        // Comment cards wrap to the column width, so their heights change with it.
         NSMutableIndexSet* commentRows = [NSMutableIndexSet indexSet];
         for (NSUInteger i = 0; i < _sidebarItems.count; ++i)
-            if ([_sidebarItems[(NSUInteger)i][@"kind"] isEqualToString:@"comment"]) [commentRows addIndex:i];
+            if ([@[ @"comment", @"commentsEmpty" ] containsObject:_sidebarItems[(NSUInteger)i][@"kind"] ?: @""])
+                [commentRows addIndex:i];
         if (commentRows.count > 0) [_sidebarTable noteHeightOfRowsWithIndexesChanged:commentRows];
     }
 }
@@ -8931,31 +8932,7 @@ static BOOL spdf_page_list_cache_disabled(void) {
         if (_sidebarModeControl.spdf_selectedSidebarMode == SPDFSidebarModeSearch && hasSearch) {
             [self rebuildSearchSidebarItems];
         } else if (_sidebarModeControl.spdf_selectedSidebarMode == SPDFSidebarModeComments && hasComments) {
-            for (int i = 0; i < _comments.count; ++i) {
-                spdf_comment_item item = _comments.items[i];
-                NSString* type = item.type && *item.type ? [NSString stringWithUTF8String:item.type] : @"Comment";
-                NSString* author = item.author && *item.author ? [NSString stringWithUTF8String:item.author] : @"";
-                NSString* text = item.text && *item.text ? [NSString stringWithUTF8String:item.text] : @"";
-                NSString* title = text.length ? text : type;
-                if (author.length) title = [NSString stringWithFormat:@"%@: %@", author, title];
-                NSString* haystack = [NSString
-                    stringWithFormat:@"%@ %@ %@ p.%d", title ?: @"", author ?: @"", type ?: @"", item.page_index + 1];
-                if (![self sidebarSearchText:haystack matchesFilter:filter]) continue;
-                CGFloat width = item.bounds.x1 - item.bounds.x0;
-                CGFloat height = item.bounds.y1 - item.bounds.y0;
-                NSMutableDictionary* sidebarItem = [@{
-                    @"title" : title ?: @"Comment",
-                    @"page" : @(item.page_index),
-                    @"level" : @0,
-                    @"kind" : @"comment",
-                    @"commentIndex" : @(item.index)
-                } mutableCopy];
-                if (width > 0 && height > 0) {
-                    sidebarItem[@"bounds"] =
-                        [NSValue valueWithRect:NSMakeRect(item.bounds.x0, item.bounds.y0, width, height)];
-                }
-                [_sidebarItems addObject:sidebarItem];
-            }
+            [self appendPDFCommentSidebarItemsMatchingFilter:filter];
         } else if (hasChapters) {
             [self appendAIGeneratedChaptersMatchingFilter:filter];
             for (int i = 0; i < _outline.count; ++i) {
@@ -9646,6 +9623,18 @@ static const NSTimeInterval kKeyScrollTickInterval = 1.0 / 60.0;
                 match = i;
                 break;
             }
+        }
+    } else if (_sidebarModeControl.spdf_selectedSidebarMode == SPDFSidebarModeComments) {
+        // The card the reader picked stays picked while its page is in view; otherwise the first card on that page.
+        NSInteger page = [self isMarkdownActive] ? [self activeMarkdownSession].currentPageIndex : _pageIndex;
+        NSInteger selected = _sidebarTable.selectedRow;
+        if (selected >= 0 && selected < (NSInteger)_sidebarItems.count &&
+            [_sidebarItems[(NSUInteger)selected][@"kind"] isEqualToString:@"comment"] &&
+            [_sidebarItems[(NSUInteger)selected][@"page"] integerValue] == page)
+            match = selected;
+        for (NSInteger i = 0; match < 0 && i < (NSInteger)_sidebarItems.count; ++i) {
+            NSDictionary* item = _sidebarItems[(NSUInteger)i];
+            if ([item[@"kind"] isEqualToString:@"comment"] && [item[@"page"] integerValue] == page) match = i;
         }
     } else if ([self isMarkdownActive]) {
         NSDictionary* current = [self currentMarkdownChapterItem];
@@ -13757,28 +13746,6 @@ static NSString* SPDFTranslationBatchScope(NSArray<NSDictionary*>* items, NSUInt
     return (NSInteger)_sidebarItems.count;
 }
 
-// Height of a comment sidebar row: the wrapped annotation text (capped at
-// kSidebarCommentMaxLines) plus kSidebarCommentVerticalPadding above and below.
-// Single-line comments fall back to the standard row height so they read just
-// like chapter rows.
-- (CGFloat)sidebarCommentRowHeightForText:(id)text {
-    NSString* string = [text isKindOfClass:NSString.class] ? text : @"";
-    CGFloat columnWidth = _sidebarTable.tableColumns.firstObject.width;
-    if (!isfinite(columnWidth) || columnWidth <= 0.0) columnWidth = NSWidth(_sidebarTable.bounds);
-    // 8pt leading + 6pt trailing inset, matching the SidebarCell text constraints.
-    CGFloat available = MAX(40.0, columnWidth - 14.0);
-    NSFont* font = [NSFont systemFontOfSize:13];
-    NSMutableParagraphStyle* paragraph = [[NSMutableParagraphStyle alloc] init];
-    paragraph.lineBreakMode = NSLineBreakByWordWrapping;
-    NSRect rect =
-        [string boundingRectWithSize:NSMakeSize(available, CGFLOAT_MAX)
-                             options:NSStringDrawingUsesLineFragmentOrigin | NSStringDrawingUsesFontLeading
-                          attributes:@{NSFontAttributeName : font, NSParagraphStyleAttributeName : paragraph}];
-    CGFloat lineHeight = ceil(font.ascender - font.descender + font.leading);
-    CGFloat textHeight = MIN(ceil(NSHeight(rect)), lineHeight * (CGFloat)kSidebarCommentMaxLines);
-    return MAX(_sidebarTable.rowHeight, textHeight + 2.0 * kSidebarCommentVerticalPadding);
-}
-
 - (CGFloat)tableView:(NSTableView*)tableView heightOfRow:(NSInteger)row {
     if (tableView == _shortcutHelpTable) {
         if (row < 0 || row >= (NSInteger)_shortcutHelpRows.count) return 48.0;
@@ -13794,7 +13761,12 @@ static NSString* SPDFTranslationBatchScope(NSArray<NSDictionary*>* items, NSUInt
                 CGFloat visibleHeight = NSHeight(tableView.enclosingScrollView.contentView.bounds);
                 return MAX(36.0, floor(visibleHeight));
             }
-            if ([kind isEqualToString:@"comment"]) return [self sidebarCommentRowHeightForText:item[@"title"]];
+            if ([kind isEqualToString:@"comment"] || [kind isEqualToString:@"commentsEmpty"]) {
+                CGFloat width = _sidebarTable.tableColumns.firstObject.width;
+                if (!isfinite(width) || width <= 0.0) width = NSWidth(_sidebarTable.bounds);
+                return [kind isEqualToString:@"comment"] ? SPDFCommentCardRowHeight(item, width)
+                                                         : SPDFCommentsEmptyRowHeight(item, width);
+            }
         }
         return _sidebarTable.rowHeight;
     }
@@ -13810,7 +13782,9 @@ static NSString* SPDFTranslationBatchScope(NSArray<NSDictionary*>* items, NSUInt
           (void)stop;
           if (idx >= self->_sidebarItems.count) return;
           NSString* kind = self->_sidebarItems[idx][@"kind"];
-          if ([kind isEqualToString:@"findDivider"] || [kind isEqualToString:@"findStatus"]) return;
+          if ([kind isEqualToString:@"findDivider"] || [kind isEqualToString:@"findStatus"] ||
+              [kind isEqualToString:@"commentsEmpty"])
+              return;
           [filtered addIndex:idx];
         }];
         return filtered;
@@ -13844,21 +13818,14 @@ static NSString* SPDFTranslationBatchScope(NSArray<NSDictionary*>* items, NSUInt
         return SPDFSidebarFindCell(tableView,item,matches);
     }
 
+    if ([kind isEqualToString:@"comment"])
+        return SPDFCommentCardCell(tableView, [self isMarkdownActive] ? item : [self pdfCommentCardItemForRow:row], self);
+    if ([kind isEqualToString:@"commentsEmpty"]) return SPDFCommentsEmptyCell(tableView, item);
+
     NSTableCellView* cell = [self sidebarCellForTableView:tableView];
-
-    // Cells are reused across comment and chapter rows, so set the line behavior
-    // every time. Comments wrap to a few lines (the row is sized to match in
-    // -sidebarCommentRowHeightForText:); chapters stay a single truncated line.
-    if ([item[@"kind"] isEqualToString:@"comment"]) {
-        cell.textField.lineBreakMode = NSLineBreakByWordWrapping;
-        cell.textField.maximumNumberOfLines = kSidebarCommentMaxLines;
-        cell.textField.cell.usesSingleLineMode = NO;
-    } else {
-        cell.textField.lineBreakMode = NSLineBreakByTruncatingTail;
-        cell.textField.maximumNumberOfLines = 1;
-        cell.textField.cell.usesSingleLineMode = YES;
-    }
-
+    cell.textField.lineBreakMode = NSLineBreakByTruncatingTail;
+    cell.textField.maximumNumberOfLines = 1;
+    cell.textField.cell.usesSingleLineMode = YES;
     [self styleSidebarCell:cell item:item];
     return cell;
 }

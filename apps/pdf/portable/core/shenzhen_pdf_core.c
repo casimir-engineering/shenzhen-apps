@@ -77,12 +77,6 @@ static int token_canceled(const spdf_render_token* token) {
     return token && token->cookie.abort;
 }
 
-typedef struct comment_builder {
-    spdf_comment_item* items;
-    int count;
-    int capacity;
-} comment_builder;
-
 typedef struct text_line_builder {
     spdf_text_line* items;
     int count;
@@ -1238,44 +1232,7 @@ void spdf_free_text_lines(spdf_text_lines* lines) {
 }
 
 #include "spdf_outline_read.h"
-
-static int append_comment_item(comment_builder* builder, const char* author, const char* text, const char* type,
-                               int comment_index, int page_index, fz_rect bounds) {
-    spdf_comment_item* next_items;
-    char* author_copy;
-    char* text_copy;
-    char* type_copy;
-    int next_capacity;
-
-    if (builder->count == builder->capacity) {
-        next_capacity = builder->capacity ? builder->capacity * 2 : 32;
-        next_items = (spdf_comment_item*)realloc(builder->items, (size_t)next_capacity * sizeof(spdf_comment_item));
-        if (!next_items) return 0;
-        builder->items = next_items;
-        builder->capacity = next_capacity;
-    }
-
-    author_copy = copy_string(author && *author ? author : "");
-    text_copy = copy_string(text && *text ? text : "");
-    type_copy = copy_string(type && *type ? type : "Annotation");
-    if (!author_copy || !text_copy || !type_copy) {
-        free(author_copy);
-        free(text_copy);
-        free(type_copy);
-        return 0;
-    }
-    builder->items[builder->count].author = author_copy;
-    builder->items[builder->count].text = text_copy;
-    builder->items[builder->count].type = type_copy;
-    builder->items[builder->count].index = comment_index;
-    builder->items[builder->count].page_index = page_index;
-    builder->items[builder->count].bounds.x0 = bounds.x0;
-    builder->items[builder->count].bounds.y0 = bounds.y0;
-    builder->items[builder->count].bounds.x1 = bounds.x1;
-    builder->items[builder->count].bounds.y1 = bounds.y1;
-    builder->count++;
-    return 1;
-}
+#include "spdf_comment_read.h"
 
 static int annot_type_should_surface(enum pdf_annot_type type) {
     return type != PDF_ANNOT_LINK && type != PDF_ANNOT_POPUP && type != PDF_ANNOT_WIDGET && type != PDF_ANNOT_SCREEN;
@@ -1410,6 +1367,7 @@ int spdf_load_comments(spdf_document* doc, spdf_comments* out, char* err, size_t
                     bounds = annot_bounds(doc->ctx, annot);
                     if (!append_comment_item(&builder, author, contents, type, builder.count, i, bounds))
                         fz_throw(doc->ctx, FZ_ERROR_SYSTEM, "Out of memory");
+                    note_comment_metadata(doc->ctx, &builder, annot, obj);
                 }
                 pdf_drop_page(doc->ctx, page);
                 page = NULL;
@@ -1419,12 +1377,17 @@ int spdf_load_comments(spdf_document* doc, spdf_comments* out, char* err, size_t
     fz_catch(doc->ctx) {
         set_error(err, err_len, fz_caught_message(doc->ctx));
         if (page) pdf_drop_page(doc->ctx, page);
+        free(builder.object_numbers);
+        free(builder.reply_numbers);
         out->items = builder.items;
         out->count = builder.count;
         spdf_free_comments(out);
         return 0;
     }
 
+    resolve_comment_replies(&builder);
+    free(builder.object_numbers);
+    free(builder.reply_numbers);
     out->items = builder.items;
     out->count = builder.count;
     return 1;

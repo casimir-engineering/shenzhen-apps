@@ -198,6 +198,8 @@ FOUNDATION_EXPORT BOOL SPDFMacMarkdownCopyCodeSource(SPDFMarkdownDocumentModel* 
 - (void)setPresentationMode:(BOOL)presentationMode;
 - (NSUInteger)pageIndexForRange:(NSRange)range;
 - (void)revealRange:(NSRange)range;
+// Centers the range and flashes it as a find match is: where a comment from the Comments panel is.
+- (void)revealAndFlashRange:(NSRange)range;
 - (void)centerAtDocumentPoint:(NSPoint)point;
 - (void)centerOnPageAtIndex:(NSInteger)pageIndex xFraction:(CGFloat)xFraction yFraction:(CGFloat)yFraction;
 - (void)scrollByDocumentDeltaX:(CGFloat)deltaX deltaY:(CGFloat)deltaY;

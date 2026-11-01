@@ -5,6 +5,7 @@
 #import "SPDFMacPaletteAppearance.h"
 #import "SPDFMacPaletteResults.h"
 #import "SPDFMacSidebarPresentation.h"
+#import "SPDFMacCommentCards.h"
 static CGFloat Clamp(CGFloat value, CGFloat low, CGFloat high) { return MIN(MAX(value,low),high); }
 
 @implementation ShenzhenMacDelegate (SPDFMacPalettePresentation)
@@ -232,8 +233,10 @@ static CGFloat Clamp(CGFloat value, CGFloat low, CGFloat high) { return MIN(MAX(
     return SPDFPaletteResultView(result);
 }
 - (NSTableRowView*)tableView:(NSTableView*)tableView rowViewForRow:(NSInteger)row {
-    (void)row;
     if (tableView == _paletteTable) return SPDFPaletteRowView();
-    return tableView == _sidebarTable ? SPDFSidebarRowView() : nil;
+    if (tableView != _sidebarTable) return nil;
+    BOOL card = row >= 0 && row < (NSInteger)_sidebarItems.count &&
+                [@[ @"comment", @"commentsEmpty" ] containsObject:_sidebarItems[(NSUInteger)row][@"kind"] ?: @""];
+    return card ? SPDFCommentCardRowView() : SPDFSidebarRowView();
 }
 @end

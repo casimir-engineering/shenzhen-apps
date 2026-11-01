@@ -423,6 +423,11 @@ static CGFloat SPDFMacMarkdownFindFlashAlpha(NSTimeInterval elapsed, BOOL* finis
     _pagedView.activeSearchAlpha = MAX(0.0, MIN(1.0, alpha));
 }
 
+- (void)revealAndFlashRange:(NSRange)range {
+    if (![_pagedView centerRange:range]) [_pagedView revealRange:range];
+    [self flashMatchRange:range];
+}
+
 - (void)revealCurrentMatch {
     if (_currentMatchIndex < 0 || _currentMatchIndex >= (NSInteger)_searchMatches.count) return;
     NSRange range = _searchMatches[(NSUInteger)_currentMatchIndex].range;

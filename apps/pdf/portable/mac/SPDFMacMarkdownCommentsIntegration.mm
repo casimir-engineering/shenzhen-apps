@@ -6,6 +6,7 @@
 // A document without comments costs one stat of the comments file's path when its sidebar is built.
 
 #import "SPDFMacCommentActions.h"
+#import "SPDFMacCommentCards.h"
 #import "SPDFMacMarkdownComments.h"
 #import "SPDFMacMarkdownDelegatePrivate.h"
 #import "SPDFMacMarkdownSession.h"
@@ -154,6 +155,7 @@ static char kStatesKey, kContextLocationKey;
     SPDFMacMarkdownCommentState* state = [self activeMarkdownCommentState];
     SPDFMacMarkdownSidebarModel* model = self.activeMarkdownSession.sidebarModel;
     BOOL unplacedShown = NO;
+    NSUInteger before = _sidebarItems.count;
     for (NSUInteger i = 0; i < state.comments.count; i++) {
         SPDFMarkdownComment* comment = state.comments[i];
         NSString* title = SidebarTitle(comment);
@@ -165,18 +167,22 @@ static char kStatesKey, kContextLocationKey;
             [_sidebarItems addObject:@{@"kind" : @"findDivider", @"title" : @"Unplaced", @"page" : @(-1)}];
         }
         NSMutableDictionary* item = [@{@"title" : title, @"level" : @0, @"kind" : @"comment", @"commentIndex" : @(i),
-                                       @"page" : @(comment.placed ? [model pageIndexForRange:comment.renderedRange] : -1)}
+                                       @"page" : @(comment.placed ? [model pageIndexForRange:comment.renderedRange] : -1),
+                                       @"author" : comment.author ?: @"", @"body" : comment.text ?: @"",
+                                       @"quote" : comment.quote ?: @"", @"quoteLines" : @2}
             mutableCopy];
+        if (comment.date) item[@"date"] = comment.date;
         if (comment.placed) item[@"range"] = [NSValue valueWithRange:comment.renderedRange];
         [_sidebarItems addObject:item];
     }
+    if (_sidebarItems.count == before) [_sidebarItems addObject:SPDFCommentsEmptyItem(filter)];
 }
 
 - (void)revealMarkdownCommentAtIndex:(NSInteger)index {
     SPDFMacMarkdownCommentState* state = [self activeMarkdownCommentState];
     if (index < 0 || index >= (NSInteger)state.comments.count) return;
     SPDFMarkdownComment* comment = state.comments[(NSUInteger)index];
-    if (comment.placed) [self.activeMarkdownSession revealRange:comment.renderedRange];
+    if (comment.placed) [self.activeMarkdownSession revealAndFlashRange:comment.renderedRange];
     else _statusLabel.stringValue = @"This passage is no longer in the document.";
 }
 

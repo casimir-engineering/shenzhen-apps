@@ -398,8 +398,9 @@ fence the renderer cannot draw keeps its ordinary highlighted code box.
   ⌘↩ adds the comment, Esc or a click elsewhere closes it.
 - **Comment author** — your Mac's name unless you set another in Settings ›
   Reading & access (*Your name on comments*); every comment carries it.
-- **Comments panel** — every comment listed with its page, filterable, click to
-  jump.
+- **Comments panel** — each comment a card: who wrote it and when, the passage
+  it is on, the comment in full, replies indented under it. Click a card to jump
+  to the passage, which flashes; hover it for Edit and Delete. Filterable.
 - Comments are saved into the PDF immediately, so any other reader sees them.
 - **Markdown comments** — the same commands and Comments panel on a Markdown
   document. They are kept beside it in *<title> - comments.md*, a plain

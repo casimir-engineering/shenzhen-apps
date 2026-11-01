@@ -74,6 +74,10 @@ typedef struct spdf_comment_item {
     int index;
     int page_index;
     spdf_rect bounds;
+    /* Seconds since 1970 the annotation was last changed (its M entry, else CreationDate); 0 when unknown. */
+    double modified;
+    /* The index of the comment this one answers (its IRT entry), or -1. */
+    int in_reply_to;
 } spdf_comment_item;
 
 typedef struct spdf_comments {
@@ -234,6 +238,10 @@ void spdf_free_text_selection(spdf_text_selection* selection);
 int spdf_select_page_text(spdf_document* doc, int page_index, float ax, float ay, float bx, float by, spdf_rect* rects,
                           int rect_max, char** text_out, char* err, size_t err_len);
 void spdf_free_string(char* text);
+/* The page's text inside each rectangle (page space), one structured-text pass for all of them: the passages that
+ * highlight comments mark. Each texts_out[i] is owned UTF-8 (free with spdf_free_string). 0 on failure, all NULL. */
+int spdf_page_text_in_rects(spdf_document* doc, int page_index, const spdf_rect* rects, int count, char** texts_out,
+                            char* err, size_t err_len);
 int spdf_extract_page_text_lines(spdf_document* doc, int page_index, spdf_text_lines* out, char* err, size_t err_len);
 void spdf_free_text_lines(spdf_text_lines* lines);
 
