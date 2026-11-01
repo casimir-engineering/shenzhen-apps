@@ -409,6 +409,15 @@ fence the renderer cannot draw keeps its ordinary highlighted code box.
   Comments follow their words when the document is edited; one whose words are
   gone is listed under *Unplaced*. **Copy Comments File** copies that file, and
   **Copy Document and Comments** copies both.
+- **Versions** **mac** — *New Version…* (File menu or the tab's menu) keeps the
+  document as it is now as v1, with its comments, in *<name> v1.md* (or *.pdf*)
+  beside it, and the document itself becomes v2, so editors and agents keep
+  writing to the same file. Its open comments come along to v2 unless you
+  untick them; resolved ones stay on v1. *Versions* opens any version, and
+  *Compare v1 with* shows any two side by side with their changes.
+- **Earlier text kept** **mac** — when another app rewrites a document you have
+  commented on, the text your comments were made on is kept as the previous
+  version with them. Turn it off in Settings › Reading & access.
 
 ## <a id="ocr"></a>OCR — on-device **mac · linux**
 
