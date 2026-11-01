@@ -117,6 +117,8 @@ typedef void (^SZFriendsIconDrawer)(NSRect rect, NSColor *color);
 @property(nonatomic, strong, nullable) NSColor *selectedFillColor; // overrides the selection colour when selected
 @property(nonatomic, strong, nullable) NSColor *selectedStrokeColor; // an outline while selected (the selected tab)
 @property(nonatomic) BOOL hovered;
+// The pointer came onto the button (YES) or left it (NO).
+@property(nonatomic, copy, nullable) void (^onHoverChange)(SZFriendsButton *button, BOOL hovered);
 // Chrome drawn inside the frame by these insets, so a badge can sit outside the chrome yet inside the hit area.
 @property(nonatomic) NSEdgeInsets chromeInsets;
 + (instancetype)buttonWithTitle:(NSString *)title style:(SZFriendsButtonStyle)style

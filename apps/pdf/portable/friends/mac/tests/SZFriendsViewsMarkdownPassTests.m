@@ -55,6 +55,11 @@ static void SZFTestHostilePass(void) {
     NSTimeInterval start = NSProcessInfo.processInfo.systemUptime;
     [page applySnapshot:SZFHostileConversation()];
     [page layoutSubtreeIfNeeded];
+    // The newest first, the older ones a slice per frame after it (SZFriendsHistoryBuild.h), all in one pass.
+    SZFExpect(page.itemViews.count < SZFHostileCount, @"the first frame builds the newest: %lu",
+              (unsigned long)page.itemViews.count);
+    SZFTestWaitUntil(5, ^BOOL { return page.itemViews.count == SZFHostileCount; });
+    [page layoutSubtreeIfNeeded];
     NSTimeInterval elapsed = NSProcessInfo.processInfo.systemUptime - start;
     SZFExpect(host.passBegins >= 1 && host.passBegins == host.passEnds && !host.nestedPass,
               @"each layout is one pass, opened and closed: %lu begins, %lu ends", (unsigned long)host.passBegins,
@@ -109,6 +114,7 @@ static void SZFTestResizeKeepsRenders(void) {
     page.frame = NSMakeRect(0, 0, 400, 640);
     NSWindow *window = SZFTestHostWindow(page, NSMakeSize(400, 640), NSAppearanceNameAqua);
     [page applySnapshot:SZFHostileConversation()];
+    SZFTestWaitUntil(5, ^BOOL { return page.itemViews.count == SZFHostileCount; });
     [page layoutSubtreeIfNeeded];
     NSUInteger asked = host.renders.count, scheduled = clock.blocks.count;
     SZFriendsMessageBody *latest = SZFBodyAt(page, SZFHostileCount - 1);

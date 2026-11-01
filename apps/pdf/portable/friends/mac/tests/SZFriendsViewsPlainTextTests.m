@@ -76,6 +76,7 @@ static void SZFTestFallbackCost(void) {
     [page applySnapshot:SZFConversationOf(items)];
     [page layoutSubtreeIfNeeded];
     (void)SZFTestBitmap(page); // and drawn, as opening shows the newest at once
+    SZFTestWaitUntil(5, ^BOOL { return page.itemViews.count == SZFLongCount; }); // the rest, built behind it
     NSTimeInterval opened = NSProcessInfo.processInfo.systemUptime - start;
     SZFExpect(opened < 3, @"fifty 32 KB plain messages open within 3 s: %.2f s", opened);
     SZFriendsMessageBody *oldest = SZFItemAt(page, 0).body;

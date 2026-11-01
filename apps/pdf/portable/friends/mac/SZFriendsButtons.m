@@ -87,8 +87,10 @@ SZFriendsButtonStyle SZFriendsButtonStyleNamed(NSString *style) {
 }
 
 - (void)setHovered:(BOOL)hovered {
+    BOOL changed = hovered != _hovered;
     _hovered = hovered;
     self.needsDisplay = YES;
+    if (changed && self.onHoverChange) self.onHoverChange(self, hovered);
 }
 
 - (void)setSelectedLook:(BOOL)selectedLook {

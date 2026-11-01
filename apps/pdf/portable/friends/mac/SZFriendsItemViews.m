@@ -39,7 +39,10 @@
 }
 @end
 
-@implementation SZFriendsItemView
+@implementation SZFriendsItemView {
+    CGFloat _measuredWidth, _measuredHeight;
+    BOOL _measured;
+}
 
 + (instancetype)viewForItem:(NSDictionary *)item context:(SZFriendsContext *)context {
     NSString *kind = SZFStr(item, @"kind");
@@ -68,7 +71,18 @@
 }
 
 - (CGFloat)heightForWidth:(CGFloat)width {
-    return [self layoutForWidth:width apply:NO];
+    if (_measured && _measuredWidth == width) return _measuredHeight;
+    CGFloat height = [self layoutForWidth:width apply:NO];
+    // While the width keeps changing, bubbles lay out their last rendering again: not the height to keep.
+    _measured = !self.context.reusesMarkdownRenders;
+    _measuredWidth = width;
+    _measuredHeight = height;
+    return height;
+}
+
+- (void)setNeedsLayout:(BOOL)needsLayout {
+    if (needsLayout) _measured = NO;
+    [super setNeedsLayout:needsLayout];
 }
 
 - (CGFloat)layoutForWidth:(CGFloat)width apply:(BOOL)apply {

@@ -6,6 +6,8 @@
 #import "mac/SZFriendsConversationAttach.h"
 
 #import "mac/SZFriendsArming.h"
+#import "mac/SZFriendsConversationCache.h"
+#import "mac/SZFriendsHistoryBuild.h"
 #import "mac/SZFriendsHistoryFollow.h"
 #import "mac/SZFriendsMentionViews.h"
 #import "mac/SZFriendsPromiseCopies.h"
@@ -13,17 +15,14 @@
 @interface SZFriendsConversationPage () <NSSearchFieldDelegate>
 @end
 
-static NSString *SZFItemKey(NSString *kind, NSString *itemID) {
-    return [NSString stringWithFormat:@"%@:%@", kind ?: @"", itemID ?: @""];
-}
-
 @implementation SZFriendsConversationPage {
     NSString *_messageID;
     NSString *_token;
     NSDictionary *_data;
     SZFriendsFlippedView *_searchBar;
     SZFriendsFlippedView *_itemsView;
-    NSMutableArray<SZFriendsItemView *> *_items;
+    SZFriendsHistoryBuild *_build; // the item views, the newest built first
+    BOOL _growing;                 // laying out a slice of older items the build just added
     NSScrollView *_requestScroll;
     SZFriendsHistoryFollow *_follow; // to the end on sending; the new-messages pill
     NSString *_scrolledHighlight;
@@ -77,7 +76,8 @@ static const NSTimeInterval SZFResizeSettleDelay = 0.3;
                                              object:_messageList.contentView];
     _messageList.onDropItems = ^(NSArray<SZFriendsAttachableItem *> *items) { [weakSelf sendDroppedItems:items]; };
     [self addSubview:_messageList];
-    _items = [NSMutableArray array];
+    _build = [[SZFriendsHistoryBuild alloc] initWithContext:context container:_itemsView];
+    _build.onGrow = ^{ [weakSelf historyGrew]; };
     _follow = [[SZFriendsHistoryFollow alloc] initWithList:_messageList host:self context:context];
     _follow.itemViews = ^NSArray<NSView *> *{ return weakSelf.itemViews; };
     // A visible way to older history besides scrolling to the top, which not everyone discovers (or can do).
@@ -122,7 +122,7 @@ static const NSTimeInterval SZFResizeSettleDelay = 0.3;
 }
 
 - (NSArray<SZFriendsItemView *> *)itemViews {
-    return [_items copy];
+    return _build.views;
 }
 
 - (BOOL)holdsSubscription {
@@ -137,11 +137,17 @@ static const NSTimeInterval SZFResizeSettleDelay = 0.3;
 
 - (void)pageWillAppear {
     [super pageWillAppear];
+    _build.paused = NO;
+    // What this window last saw of the conversation, drawn in the frame the click asked for; the helper's answer to
+    // open_conversation replaces it a moment later. A message asked for (search, a citation) waits for that answer.
+    NSDictionary *kept = _messageID ? nil : [self.context.conversations snapshotFor:_conversationID];
+    if (!_hasRendered && kept) [self applySnapshot:kept];
     [self subscribe];
 }
 
 - (void)pageDidDisappear {
     [super pageDidDisappear];
+    _build.paused = YES;
     if (_token) [self.context.link unsubscribe:_token];
     _token = nil;
     [self closeAttachPicker];
@@ -153,11 +159,15 @@ static const NSTimeInterval SZFResizeSettleDelay = 0.3;
 
 - (void)subscribe {
     if (_token) [self.context.link unsubscribe:_token];
+    [self.context.conversations stopFollowing:_conversationID]; // open_conversation brings the same and more
     __weak SZFriendsConversationPage *weakSelf = self;
     _token = [self.context.link openConversation:_conversationID messageID:_messageID
                                          handler:^(NSDictionary *data, NSInteger rev) {
                                              (void)rev;
-                                             [weakSelf applySnapshot:data];
+                                             SZFriendsConversationPage *page = weakSelf;
+                                             [page.context.conversations remember:data
+                                                                  forConversation:page.conversationID];
+                                             [page applySnapshot:data];
                                          }];
     // The highlight belongs to the moment it was asked for; reopening the dropdown later must not jump again.
     _messageID = nil;
@@ -202,12 +212,12 @@ static const NSTimeInterval SZFResizeSettleDelay = 0.3;
     _messageList.acceptsDrops = SZFBool(composer, @"accepts_drops") && SZFBool(composer, @"enabled");
 
     BOOL sent = request == nil && [_follow noteItems:SZFArr(data, @"items") atBottom:wasAtBottom];
-    [self applyItems:SZFArr(data, @"items")];
+    // Every item for a message or older history asked for; otherwise the newest first (SZFriendsHistoryBuild.h).
+    BOOL everything = _loadingEarlier || SZFStr(data, @"highlight_item_id") != nil;
+    [_build applyItems:SZFArr(data, @"items") everything:everything width:NSWidth(self.bounds) - 28
+                height:MAX(400, NSHeight(self.bounds))];
     [self refreshMentionCard];
-    // Shown only with the helper's words for it (PROTOCOL.md § Static strings: never invent text).
-    NSString *earlierTitle = [self.context string:@"load_earlier"];
-    _loadEarlierButton.hidden = !SZFBool(data, @"has_earlier") || request != nil || earlierTitle.length == 0;
-    _loadEarlierButton.title = earlierTitle;
+    [self updateEarlierButton];
     [self layout];
     if (_loadingEarlier && NSHeight(_itemsView.frame) > previousHeight) {
         // Earlier items were added above: keep the message under the pointer where it was.
@@ -223,7 +233,7 @@ static const NSTimeInterval SZFResizeSettleDelay = 0.3;
     NSString *highlight = SZFStr(data, @"highlight_item_id");
     if (highlight && ![highlight isEqualToString:_scrolledHighlight]) {
         _scrolledHighlight = highlight;
-        for (SZFriendsItemView *view in _items)
+        for (SZFriendsItemView *view in _build.views)
             if ([view.itemID isEqualToString:highlight])
                 [self scrollListTo:NSMidY(view.frame) - NSHeight(_messageList.contentView.bounds) / 2];
     }
@@ -231,25 +241,37 @@ static const NSTimeInterval SZFResizeSettleDelay = 0.3;
     [_follow refresh];
 }
 
-- (void)applyItems:(NSArray *)items {
-    // Reuse views by item id and kind, so a progress tick does not rebuild the whole history.
-    NSMutableDictionary<NSString *, SZFriendsItemView *> *existing = [NSMutableDictionary dictionary];
-    for (SZFriendsItemView *view in _items) existing[SZFItemKey(view.itemKind, view.itemID)] = view;
-    NSMutableArray *next = [NSMutableArray array];
-    for (NSDictionary *item in items) {
-        NSString *key = SZFItemKey(SZFStr(item, @"kind"), SZFStr(item, @"item_id"));
-        SZFriendsItemView *view = existing[key];
-        if (view) {
-            [existing removeObjectForKey:key];
-            [view applyItem:item];
-        } else {
-            view = [SZFriendsItemView viewForItem:item context:self.context];
-            [_itemsView addSubview:view];
-        }
-        [next addObject:view];
-    }
-    for (SZFriendsItemView *gone in existing.allValues) [gone removeFromSuperview];
-    _items = next;
+// Shown only with the helper's words for it (PROTOCOL.md § Static strings: never invent text), and only once the oldest
+// item it shows is built above.
+- (void)updateEarlierButton {
+    NSString *earlierTitle = [self.context string:@"load_earlier"];
+    _loadEarlierButton.hidden = !SZFBool(_data, @"has_earlier") || SZFDict(_data, @"request") != nil ||
+                                earlierTitle.length == 0 || _build.pending > 0;
+    _loadEarlierButton.title = earlierTitle;
+}
+
+// Older items were built above: what the person sees stays where it was, at the end if it was there.
+- (void)historyGrew {
+    BOOL atBottom = [self isScrolledToBottom];
+    CGFloat fromEnd = NSHeight(_itemsView.frame) - _messageList.contentView.bounds.origin.y;
+    _growing = YES;
+    [self updateEarlierButton];
+    [self layout];
+    [self scrollListTo:atBottom ? CGFLOAT_MAX : NSHeight(_itemsView.frame) - fromEnd];
+    _growing = NO;
+    [_follow refresh];
+}
+
+- (void)applySnapshotAhead:(NSDictionary *)data {
+    _build.paused = YES;
+    [self applySnapshot:data];
+}
+
+- (void)reopenAtEnd {
+    _scrolledHighlight = nil;
+    _searchField.stringValue = @"";
+    [self layout];
+    [self scrollListTo:CGFLOAT_MAX];
 }
 
 #pragma mark - Scrolling
@@ -275,9 +297,9 @@ static const NSTimeInterval SZFResizeSettleDelay = 0.3;
 - (void)listScrolled:(NSNotification *)notification {
     (void)notification;
     [_follow refresh];
-    // Near the top with more history on the helper: the same as pressing Show earlier messages.
-    if (_messageList.contentView.bounds.origin.y > 40) return;
-    [self loadEarlier];
+    // Near the top: items still to build, then more history from the helper (as Show earlier messages does).
+    if (_growing || _messageList.contentView.bounds.origin.y > 40) return;
+    if (![_build buildSlice]) [self loadEarlier];
 }
 
 // Asks for the next 200 items once; the button stays disabled until they arrive.
@@ -402,6 +424,8 @@ static const NSTimeInterval SZFResizeSettleDelay = 0.3;
 
 - (void)endResizing {
     if (!_resizing) return;
+    // Heights measured meanwhile laid out the last rendering again; at the settled width the host renders anew.
+    for (SZFriendsItemView *view in _build.views) view.needsLayout = YES;
     _resizing = NO;
     _resizeGeneration++;
     self.context.reusesMarkdownRenders = NO;
@@ -430,9 +454,9 @@ static const NSTimeInterval SZFResizeSettleDelay = 0.3;
     CGFloat itemWidth = width - 28, itemsHeight = 12;
     CGFloat earlierHeight = _loadEarlierButton.hidden ? 0 : 28;
     if (earlierHeight) itemsHeight += earlierHeight + 10;
-    NSMutableArray *heights = [NSMutableArray arrayWithCapacity:_items.count];
-    for (NSUInteger index = 0; index < _items.count; index++) [heights addObject:@0];
-    NSArray<SZFriendsItemView *> *items = _items;
+    NSArray<SZFriendsItemView *> *items = _build.views;
+    NSMutableArray *heights = [NSMutableArray arrayWithCapacity:items.count];
+    for (NSUInteger index = 0; index < items.count; index++) [heights addObject:@0];
     // While the width keeps changing (a live resize, a dropdown growing), each width used to be a whole render pass:
     // about 1.5 s of the main thread per point with a hostile history. Bubbles lay their last rendering out again
     // instead, and the host renders the history once, at the width it settles on.
@@ -453,9 +477,9 @@ static const NSTimeInterval SZFResizeSettleDelay = 0.3;
         _loadEarlierButton.frame = NSMakeRect(floor((width - earlierWidth) / 2), top, earlierWidth, earlierHeight);
         top += earlierHeight + 10;
     }
-    for (NSUInteger index = 0; index < _items.count; index++) {
+    for (NSUInteger index = 0; index < items.count; index++) {
         CGFloat itemHeight = [heights[index] doubleValue];
-        _items[index].frame = NSMakeRect(14, top, itemWidth, itemHeight);
+        items[index].frame = NSMakeRect(14, top, itemWidth, itemHeight);
         top += itemHeight + 10;
     }
     _itemsView.frame = NSMakeRect(0, 0, width, MAX(NSHeight(body), top + 2));

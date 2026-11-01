@@ -2,6 +2,8 @@
 
 #import "mac/SZFriendsPage.h"
 
+#import "mac/SZFriendsConversationCache.h"
+
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 
 @implementation SZFriendsDraft
@@ -110,6 +112,8 @@ SZFriendsPress SZFriendsPressFromEvent(NSEvent *event, NSTimeInterval now) {
 
 @implementation SZFriendsContext {
     BOOL _inMarkdownPass;
+    NSUInteger _heldPasses; // holdMarkdownPass calls not yet released
+    BOOL _heldPassOpen;     // the held pass is the host's open pass (it began outside any other)
 }
 
 - (instancetype)initWithHost:(id<SZFriendsHost>)host link:(SZFriendsHelperLink *)link {
@@ -121,6 +125,7 @@ SZFriendsPress SZFriendsPressFromEvent(NSEvent *event, NSTimeInterval now) {
     _drafts = [NSMutableDictionary new];
     _assistantRuns = [NSMutableDictionary new];
     _assistantProposals = [NSMutableDictionary new];
+    _conversations = [SZFriendsConversationCache cacheForLink:link];
     _pasteboard = NSPasteboard.generalPasteboard;
     _openURL = ^(NSURL *url) { [NSWorkspace.sharedWorkspace openURL:url]; };
     _presentMenu = ^(NSMenu *menu, NSView *view, NSPoint point) {
@@ -166,6 +171,22 @@ SZFriendsPress SZFriendsPressFromEvent(NSEvent *event, NSTimeInterval now) {
 
 - (NSString *)string:(NSString *)key {
     return [self.link staticStringForKey:key] ?: @"";
+}
+
+- (void)holdMarkdownPass {
+    if (_heldPasses++ > 0 || _inMarkdownPass) return;
+    id<SZFriendsHost> host = self.host;
+    if (![host respondsToSelector:@selector(friendsBeginMarkdownPass)] ||
+        ![host respondsToSelector:@selector(friendsEndMarkdownPass)])
+        return;
+    _inMarkdownPass = _heldPassOpen = YES;
+    [host friendsBeginMarkdownPass];
+}
+
+- (void)releaseMarkdownPass {
+    if (_heldPasses == 0 || --_heldPasses > 0 || !_heldPassOpen) return;
+    _inMarkdownPass = _heldPassOpen = NO;
+    [self.host friendsEndMarkdownPass];
 }
 
 - (void)markdownPass:(void (^)(void))layout {
@@ -297,6 +318,9 @@ static NSString *SZFOptionField(NSDictionary *confirm) {
     }
     if (extra) [fields addEntriesFromDictionary:extra];
     if (sending) sending();
+    // What a kept conversation shows may be gone now: no click may show it again, even for a moment.
+    if ([@[ @"delete_history", @"remove_friend", @"block", @"reset_friends" ] containsObject:name])
+        [self.conversations forgetAll];
     [self.link sendIntent:name fields:fields reply:reply];
 }
 

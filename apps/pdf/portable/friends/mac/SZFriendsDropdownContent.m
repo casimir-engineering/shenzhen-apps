@@ -2,6 +2,7 @@
 
 #import "mac/SZFriendsDropdownInternal.h"
 
+#import "mac/SZFriendsConversationCache.h"
 #import "mac/SZFriendsConversationPage.h"
 #import "mac/SZFriendsDetailsPage.h"
 #import "mac/SZFriendsDevices.h"
@@ -108,6 +109,8 @@ CGFloat SZFriendsDropdownHeight(CGFloat spaceBelowButton, CGFloat maxHeight) {
 
 @implementation SZFriendsDropdownContent {
     NSMutableArray<SZFriendsPage *> *_pages;
+    // Conversations left by Back, built and ready to show again at once; least recently left first.
+    NSMutableArray<SZFriendsConversationPage *> *_keptPages;
     NSArray<NSDictionary *> *_sendFiles;
     SZFriendsFlippedView *_statusStrip;
     NSTextField *_statusLabel;
@@ -115,6 +118,8 @@ CGFloat SZFriendsDropdownHeight(CGFloat spaceBelowButton, CGFloat maxHeight) {
 }
 
 static const CGFloat SZFStatusStripHeight = 28;
+// Each holds its history's views (up to 200 items): a few cover going back and forth between the people one talks to.
+static const NSUInteger SZFKeptPages = 4;
 
 - (instancetype)initWithContext:(SZFriendsContext *)context {
     if (!(self = [super initWithFrame:NSMakeRect(0, 0, context.appearance.dropdownWidth,
@@ -130,6 +135,7 @@ static const CGFloat SZFStatusStripHeight = 28;
     self.fillColor = context.appearance.backgroundColor;
     _listPage = [[SZFriendsListPage alloc] initWithContext:context];
     _pages = [NSMutableArray arrayWithObject:_listPage];
+    _keptPages = [NSMutableArray array];
     [self addSubview:_listPage];
     _statusStrip = [SZFriendsFlippedView new];
     _statusStrip.fillColor = context.appearance.fieldBackgroundColor;
@@ -146,12 +152,22 @@ static const CGFloat SZFStatusStripHeight = 28;
     // contract); intents fail at once with not_ready meanwhile, so nothing waits behind the person's back.
     [context.link addObserver:self forKeyPath:@"state" options:NSKeyValueObservingOptionInitial context:NULL];
     [context.link addObserver:self forKeyPath:@"stalled" options:0 context:NULL];
+    // A history deleted, or someone removed or blocked: no kept page may show what went, even for a moment.
+    [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(forgetKeptPages)
+                                               name:SZFriendsConversationCacheDidForgetNotification
+                                             object:context.conversations];
     return self;
 }
 
 - (void)dealloc {
     [_context.link removeObserver:self forKeyPath:@"state"];
     [_context.link removeObserver:self forKeyPath:@"stalled"];
+    [NSNotificationCenter.defaultCenter removeObserver:self];
+}
+
+- (void)forgetKeptPages {
+    for (SZFriendsPage *page in _keptPages) [page removeFromSuperview];
+    [_keptPages removeAllObjects];
 }
 
 - (void)observeValueForKeyPath:(NSString *)keyPath ofObject:(id)object change:(NSDictionary *)change
@@ -238,7 +254,8 @@ static const CGFloat SZFStatusStripHeight = 28;
     [_pages addObject:page];
     page.frame = [self pageFrame];
     page.hidden = !_start.hidden;
-    [self addSubview:page positioned:NSWindowBelow relativeTo:_start];
+    // A kept conversation is still in place, hidden: showing it again draws it, and builds nothing.
+    if (page.superview != self) [self addSubview:page positioned:NSWindowBelow relativeTo:_start];
     if (_presented) {
         [page pageWillAppear];
         [self focusTopPage];
@@ -250,8 +267,9 @@ static const CGFloat SZFStatusStripHeight = 28;
     if (_pages.count < 2) return;
     SZFriendsPage *top = self.topPage;
     if (_presented) [top pageDidDisappear];
-    [top removeFromSuperview];
     [_pages removeLastObject];
+    if ([top isKindOfClass:SZFriendsConversationPage.class]) [self keepPage:(SZFriendsConversationPage *)top];
+    else [top removeFromSuperview];
     self.topPage.hidden = !_start.hidden;
     self.topPage.frame = [self pageFrame];
     if (_presented) {
@@ -265,7 +283,43 @@ static const CGFloat SZFStatusStripHeight = 28;
     while (_pages.count > 1) [self popPage];
 }
 
+// Left hidden in place, its views and their layers kept: removing a history from the window and adding it again costs
+// as much as building it.
+- (void)keepPage:(SZFriendsConversationPage *)page {
+    // Typing must never reach a hidden composer.
+    NSResponder *responder = self.window.firstResponder;
+    if ([responder isKindOfClass:NSView.class] && [(NSView *)responder isDescendantOf:page])
+        [self.window makeFirstResponder:nil];
+    page.hidden = YES;
+    for (SZFriendsConversationPage *kept in [_keptPages copy]) {
+        if (![kept.conversationID isEqualToString:page.conversationID] || kept == page) continue;
+        [kept removeFromSuperview];
+        [_keptPages removeObject:kept];
+    }
+    [_keptPages removeObject:page];
+    [_keptPages addObject:page];
+    if (_keptPages.count <= SZFKeptPages) return;
+    [_keptPages.firstObject removeFromSuperview];
+    [_keptPages removeObjectAtIndex:0];
+}
+
 #pragma mark - Navigator
+
+- (void)prepareConversation:(NSString *)conversationID {
+    if (!_presented || self.topPage != _listPage || _sendFiles || !_start.hidden) return;
+    for (SZFriendsConversationPage *page in _keptPages)
+        if ([page.conversationID isEqualToString:conversationID]) return;
+    NSDictionary *kept = [self.context.conversations snapshotFor:conversationID];
+    if (!kept) return;
+    SZFriendsConversationPage *page = [[SZFriendsConversationPage alloc] initWithContext:self.context
+                                                                         conversationID:conversationID
+                                                                       highlightMessage:nil];
+    page.frame = [self pageFrame];
+    page.hidden = YES;
+    [self addSubview:page positioned:NSWindowBelow relativeTo:_listPage];
+    [page applySnapshotAhead:kept];
+    [self keepPage:page];
+}
 
 - (void)openConversation:(NSString *)conversationID highlightMessage:(NSString *)messageID {
     SZFriendsPage *top = self.topPage;
@@ -275,6 +329,15 @@ static const CGFloat SZFStatusStripHeight = 28;
         return;
     }
     [self popToList];
+    SZFriendsConversationPage *kept = nil;
+    for (SZFriendsConversationPage *page in _keptPages)
+        if (!messageID && [page.conversationID isEqualToString:conversationID]) kept = page;
+    if (kept) {
+        [_keptPages removeObject:kept];
+        [self pushPage:kept];
+        [kept reopenAtEnd];
+        return;
+    }
     [self pushPage:[[SZFriendsConversationPage alloc] initWithContext:self.context conversationID:conversationID
                                                      highlightMessage:messageID]];
 }

@@ -52,6 +52,11 @@ NS_ASSUME_NONNULL_BEGIN
 // (SZFriendsListPageActions.m).
 @interface SZFriendsListPage (Actions)
 - (void)rowPressed:(SZFriendsRowView *)row;
+// The pointer on a row: its conversation's preview follows it, so a click shows the chat at once
+// (SZFriendsConversationCache.h).
+- (void)rowHovered:(SZFriendsRowView *)row inside:(BOOL)inside;
+// The first rows' conversations, fetched once when the list shows them.
+- (void)prefetchFirstRows;
 - (void)sendItems:(NSArray<SZFriendsAttachableItem *> *)items toConversation:(NSString *)conversationID;
 - (void)performRowAction:(NSDictionary *)action onRow:(SZFriendsRowView *)row;
 - (void)performMenuAction:(NSDictionary *)action conversation:(NSString *)conversationID;

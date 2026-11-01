@@ -15,6 +15,8 @@ NS_ASSUME_NONNULL_BEGIN
 @property(nonatomic, copy, readonly) NSArray<SZFriendsButton *> *actionButtons;
 @property(nonatomic, strong, readonly, nullable) NSView *progressView;
 - (void)applyItem:(NSDictionary *)item;
+// Measured once per width: the last height stands until the view needs a layout again (a new item, Show all, an
+// image loaded, another appearance), which every change inside it asks for.
 - (CGFloat)heightForWidth:(CGFloat)width;
 @end
 
@@ -138,6 +140,10 @@ typedef NS_ENUM(NSInteger, SZFriendsCommandState) {
 @property(nonatomic, readonly) BOOL holdsSubscription;
 - (void)highlightMessage:(NSString *)messageID;
 - (void)runSearch;
+// Opened again from the list (the dropdown keeps a few pages): at the end of the history, with no search typed.
+- (void)reopenAtEnd;
+// Built ahead of a click, hidden (the pointer rests on the row): `data` shown, nothing more built until it appears.
+- (void)applySnapshotAhead:(NSDictionary *)data;
 @end
 
 // `#` (SZFriendsConversationAttach.m): what `#` typed in the composer opens.

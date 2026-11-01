@@ -3,6 +3,7 @@
 
 #import "mac/SZFriendsListPageInternal.h"
 
+#import "mac/SZFriendsConversationCache.h"
 #import "mac/SZFriendsPromiseCopies.h"
 
 @implementation SZFriendsListPage (Actions)
@@ -27,6 +28,44 @@
         return;
     }
     [self.context.navigator openConversation:row.conversationID highlightMessage:nil];
+}
+
+- (void)rowHovered:(SZFriendsRowView *)row inside:(BOOL)inside {
+    NSString *conversationID = row.conversationID;
+    if (!conversationID) return;
+    if (inside) [self.context.conversations follow:conversationID];
+    else [self.context.conversations stopFollowing:conversationID];
+    if (inside) [self prepareConversation:conversationID onRow:row attempt:0];
+}
+
+// Once the pointer has rested on the row a moment (not while it crosses the list), and what is kept of the
+// conversation has come, its page is built ahead of the click.
+- (void)prepareConversation:(NSString *)conversationID onRow:(SZFriendsRowView *)row attempt:(NSUInteger)attempt {
+    __weak SZFriendsListPage *weakSelf = self;
+    __weak SZFriendsRowView *weakRow = row;
+    if (!self.context.scheduleAfter || attempt > 10) return;
+    self.context.scheduleAfter(0.05, ^{
+        SZFriendsListPage *page = weakSelf;
+        SZFriendsRowView *rested = weakRow;
+        if (!page || !rested.hovered || ![rested.conversationID isEqualToString:conversationID]) return;
+        id<SZFriendsNavigator> navigator = page.context.navigator;
+        if (![page.context.conversations snapshotFor:conversationID])
+            [page prepareConversation:conversationID onRow:rested attempt:attempt + 1];
+        else if ([navigator respondsToSelector:@selector(prepareConversation:)])
+            [navigator prepareConversation:conversationID];
+    });
+}
+
+// About a dropdown's worth: the people a click most likely goes to.
+static const NSUInteger SZFPrefetchedRows = 6;
+
+- (void)prefetchFirstRows {
+    NSMutableArray<NSString *> *conversationIDs = [NSMutableArray array];
+    for (SZFriendsRowView *row in self.rows) {
+        if (conversationIDs.count >= SZFPrefetchedRows) break;
+        if (row.conversationID) [conversationIDs addObject:row.conversationID];
+    }
+    [self.context.conversations prefetch:conversationIDs];
 }
 
 - (void)sendItems:(NSArray<SZFriendsAttachableItem *> *)items toConversation:(NSString *)conversationID {

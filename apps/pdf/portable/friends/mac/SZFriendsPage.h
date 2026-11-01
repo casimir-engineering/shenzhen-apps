@@ -2,6 +2,7 @@
 
 #import <AppKit/AppKit.h>
 
+#import "mac/SZFriendsConversationCache.h"
 #import "mac/SZFriendsDropdownController.h"
 #import "mac/SZFriendsHelperLink.h"
 #import "mac/SZFriendsHost.h"
@@ -25,6 +26,10 @@ NS_ASSUME_NONNULL_BEGIN
 // The send picker's files, while "Send 2 files to…" is showing; nil otherwise.
 - (nullable NSArray<NSDictionary *> *)pendingSendFiles;
 - (void)finishSendPicker;
+@optional
+// The pointer rests on the conversation's row: its page is built now, hidden, from what is kept of it
+// (SZFriendsConversationCache.h), so the click only shows it.
+- (void)prepareConversation:(NSString *)conversationID;
 @end
 
 // One press of a button: when (the NSEvent timestamp clock, system uptime) and how many clicks in a row.
@@ -63,6 +68,12 @@ SZFriendsPress SZFriendsPressFromEvent(NSEvent *_Nullable event, NSTimeInterval 
 // Runs `layout` as one Markdown render pass of the host (SZFriendsHost.h § Optional Markdown rendering): the host's
 // begin and end around it when it has both, never nested, so a layout inside a layout stays in the outer pass.
 - (void)markdownPass:(void (^)(void))layout;
+// The same pass held open across turns of the run loop, until released as often as held: a conversation built a slice
+// per frame (SZFriendsHistoryBuild.h) spends one allowance on its whole history. Layouts meanwhile render inside it.
+- (void)holdMarkdownPass;
+- (void)releaseMarkdownPass;
+// Conversations' latest snapshots, kept so one opens with its messages at once (SZFriendsConversationCache.h).
+@property(nonatomic, strong, readonly) SZFriendsConversationCache *conversations;
 // YES while the shown conversation's width keeps changing (SZFriendsConversationPage sets and clears it): bubbles lay
 // the host's last answer out again at each new width, and the host is asked again only once the width settles.
 @property(nonatomic) BOOL reusesMarkdownRenders;

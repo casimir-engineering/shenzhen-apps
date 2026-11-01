@@ -181,6 +181,7 @@ int main(int argc, const char *argv[]) {
         SZFTestLinkRouting();
         SZFTestFixtureConstruction();
         SZFTestHistoryFollow();
+        SZFTestChatOpen();
         SZFTestHitTesting();
         SZFTestControls();
         SZFTestRowActions();

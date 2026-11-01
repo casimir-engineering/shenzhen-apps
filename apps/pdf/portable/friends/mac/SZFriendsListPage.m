@@ -220,6 +220,7 @@
     if (_nearbyToken) [self.context.link unsubscribe:_nearbyToken];
     _listToken = _nearbyToken = nil;
     [_footer cancelEditingName];
+    [self.context.conversations stopFollowing:nil];
 }
 
 - (void)subscribeVisibleTab {
@@ -282,6 +283,7 @@
     [self applyDevices:data prompt:prompt];
 
     [self applyRows:SZFArr(data, @"rows")];
+    [self prefetchFirstRows];
     NSDictionary *empty = SZFDict(data, @"empty");
     _emptyTitle.stringValue = SZFStr(empty, @"title") ?: @"";
     _emptyBody.stringValue = SZFStr(empty, @"body") ?: @"";
@@ -316,6 +318,9 @@
     while (_rowViews.count < rows.count) {
         SZFriendsRowView *row = [[SZFriendsRowView alloc] initWithContext:self.context];
         row.onPress = ^(SZFriendsButton *button) { [weakSelf rowPressed:(SZFriendsRowView *)button]; };
+        row.onHoverChange = ^(SZFriendsButton *button, BOOL hovered) {
+            [weakSelf rowHovered:(SZFriendsRowView *)button inside:hovered];
+        };
         row.onDropItems = ^(SZFriendsRowView *target, NSString *conversationID,
                             NSArray<SZFriendsAttachableItem *> *items) {
             (void)target;

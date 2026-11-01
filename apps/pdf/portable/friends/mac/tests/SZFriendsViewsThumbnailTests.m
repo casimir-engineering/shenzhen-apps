@@ -122,7 +122,10 @@ static void SZFTestCardsWithPreviews(void) {
     SZFExpect(local.preview.state == SZFriendsPreviewShown && NSEqualSizes(local.preview.size, NSMakeSize(64, 64)),
               @"a local preview of a page: %@", NSStringFromSize(local.preview.size));
 
-    // Missing: no preview, the type's icon from its identifier, in the icon's narrower slot.
+    // Missing: no preview, the type's icon from its identifier, in the icon's narrower slot. A new snapshot is new
+    // values, as the helper's always are, never the last one's changed in place.
+    item = [item mutableCopy];
+    thumbnail = [thumbnail mutableCopy];
     thumbnail[@"path"] = [SZFTestThumbnailDirectory() stringByAppendingPathComponent:@"gone000000000000000000000.png"];
     item[@"thumbnail"] = thumbnail;
     items[drawing] = item;
