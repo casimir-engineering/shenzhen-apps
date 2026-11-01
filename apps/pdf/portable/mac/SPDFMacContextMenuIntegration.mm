@@ -28,6 +28,7 @@
 
 - (NSMenu*)contextMenuForDocumentView:(NSView*)view event:(NSEvent*)event {
     [self documentViewEndHoverComment];
+    [self noteCommentEditorAnchorAtWindowPoint:event.locationInWindow];
     _contextPageIndex = -1;
     _contextPagePoint = NSZeroPoint;
     _contextCommentIndex = -1;

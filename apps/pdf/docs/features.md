@@ -394,6 +394,8 @@ fence the renderer cannot draw keeps its ordinary highlighted code box.
   highlighted rectangles.
 - **Text comments** — drop a comment at a point on the page.
 - **Edit and delete** existing comments.
+- **Comment box** — opens at once beside the passage; Return starts a new line,
+  ⌘↩ adds the comment, Esc or a click elsewhere closes it.
 - **Comment author** — your Mac's name unless you set another in Settings ›
   Reading & access (*Your name on comments*); every comment carries it.
 - **Comments panel** — every comment listed with its page, filterable, click to

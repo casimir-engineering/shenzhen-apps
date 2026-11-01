@@ -214,17 +214,24 @@ static char kStatesKey, kContextLocationKey;
         NSBeep();
         return;
     }
-    NSString* text = [self promptForCommentTextWithDefault:@""];
-    if (!text.length) return;
-    comment.text = text;
-    comment.author = [self currentCommentAuthor];
-    comment.date = NSDate.date;
-    [state.comments addObject:comment];
-    state.comments = [SPDFMarkdownCommentsSorted(state.comments) mutableCopy];
-    if (![self writeMarkdownCommentState:state path:_path.stringByStandardizingPath]) return;
-    _statusLabel.stringValue = @"Comment added.";
-    [self applyMarkdownCommentHighlights:state];
-    [self rebuildSidebar];
+    NSString* path = _path.stringByStandardizingPath;
+    [self openCommentEditorWithTitle:@"Add Comment"
+                              button:@"Add"
+                              author:[self currentCommentAuthor]
+                                text:@""
+                          completion:^(NSString* text) {
+                            // The tab changed while the editor was open: the comment belongs to the other document.
+                            if (![self->_path.stringByStandardizingPath isEqualToString:path]) return;
+                            comment.text = text;
+                            comment.author = [self currentCommentAuthor];
+                            comment.date = NSDate.date;
+                            [state.comments addObject:comment];
+                            state.comments = [SPDFMarkdownCommentsSorted(state.comments) mutableCopy];
+                            if (![self writeMarkdownCommentState:state path:path]) return;
+                            self->_statusLabel.stringValue = @"Comment added.";
+                            [self applyMarkdownCommentHighlights:state];
+                            [self rebuildSidebar];
+                          }];
 }
 
 - (void)editMarkdownCommentAtIndex:(NSInteger)index {
@@ -234,19 +241,19 @@ static char kStatesKey, kContextLocationKey;
         return;
     }
     SPDFMarkdownComment* comment = state.comments[(NSUInteger)index];
-    NSDictionary* result = [self promptForCommentEditorWithTitle:@"Edit Comment"
-                                                     buttonTitle:@"Save"
-                                                          author:comment.author.length ? comment.author
-                                                                                       : [self currentCommentAuthor]
-                                                            text:comment.text];
-    if (!result) return;
-    [self rememberCommentAuthor:result[@"author"]];
-    comment.author = result[@"author"];
-    comment.text = result[@"text"];
-    if (![self writeMarkdownCommentState:state path:_path.stringByStandardizingPath]) return;
-    _statusLabel.stringValue = @"Comment updated.";
-    [self applyMarkdownCommentHighlights:state];
-    [self rebuildSidebar];
+    NSString* path = _path.stringByStandardizingPath;
+    [self openCommentEditorWithTitle:@"Edit Comment"
+                              button:@"Save"
+                              author:comment.author.length ? comment.author : [self currentCommentAuthor]
+                                text:comment.text
+                          completion:^(NSString* text) {
+                            if (![self->_path.stringByStandardizingPath isEqualToString:path]) return;
+                            comment.text = text;
+                            if (![self writeMarkdownCommentState:state path:path]) return;
+                            self->_statusLabel.stringValue = @"Comment updated.";
+                            [self applyMarkdownCommentHighlights:state];
+                            [self rebuildSidebar];
+                          }];
 }
 
 - (void)deleteMarkdownCommentAtIndex:(NSInteger)index {

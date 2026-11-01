@@ -6,6 +6,19 @@
 #import "SPDFMacCommentActions.h"
 #import "SPDFMacDelegatePrivate.h"
 #import "SPDFMacMarkdownDelegatePrivate.h"
+#import "SPDFMacCommentEditor.h"
+#import "SPDFMacMarkdownPageCanvas.h"
+
+#import <objc/runtime.h>
+
+static NSView* SPDFFindCanvas(NSView* root) {
+    if ([root isKindOfClass:SPDFMacMarkdownPageCanvas.class]) return root;
+    for (NSView* sub in root.subviews) {
+        NSView* found = SPDFFindCanvas(sub);
+        if (found) return found;
+    }
+    return nil;
+}
 
 NSString* SPDFDefaultCommentAuthor(void) {
     NSString* name = NSFullUserName();
@@ -36,64 +49,43 @@ NSString* SPDFDefaultCommentAuthor(void) {
     [self savePersistentState];
 }
 
-- (NSDictionary*)promptForCommentEditorWithTitle:(NSString*)title
-                                     buttonTitle:(NSString*)buttonTitle
-                                          author:(NSString*)author
-                                            text:(NSString*)text {
-    NSAlert* alert = [[NSAlert alloc] init];
-    alert.messageText = title ?: @"Comment";
-    alert.informativeText = @"Edit the comment author and text.";
-    [alert addButtonWithTitle:buttonTitle ?: @"Save"];
-    [alert addButtonWithTitle:@"Cancel"];
+static char kEditorAnchorKey;
 
-    NSView* accessory = [[NSView alloc] initWithFrame:NSMakeRect(0, 0, 420, 188)];
-    NSTextField* authorLabel = [NSTextField labelWithString:@"Author"];
-    authorLabel.frame = NSMakeRect(0, 164, 420, 18);
-    NSTextField* authorField = [[NSTextField alloc] initWithFrame:NSMakeRect(0, 136, 420, 24)];
-    authorField.stringValue = author ?: @"";
-
-    NSTextField* commentLabel = [NSTextField labelWithString:@"Comment"];
-    commentLabel.frame = NSMakeRect(0, 112, 420, 18);
-    NSScrollView* scroll = [[NSScrollView alloc] initWithFrame:NSMakeRect(0, 0, 420, 108)];
-    scroll.hasVerticalScroller = YES;
-    NSTextView* textView = [[NSTextView alloc] initWithFrame:NSMakeRect(0, 0, 420, 108)];
-    textView.string = text ?: @"";
-    textView.font = [NSFont systemFontOfSize:13.0];
-    textView.verticallyResizable = YES;
-    textView.horizontallyResizable = NO;
-    textView.textContainer.widthTracksTextView = YES;
-    scroll.documentView = textView;
-
-    [accessory addSubview:authorLabel];
-    [accessory addSubview:authorField];
-    [accessory addSubview:commentLabel];
-    [accessory addSubview:scroll];
-    alert.accessoryView = accessory;
-    NSRange commentRange = NSMakeRange(0, textView.string.length);
-    [textView setSelectedRange:commentRange];
-    [alert.window setInitialFirstResponder:textView];
-    [alert.window makeFirstResponder:textView];
-    dispatch_async(dispatch_get_main_queue(), ^{
-      [alert.window makeFirstResponder:textView];
-      [textView setSelectedRange:commentRange];
-    });
-    if ([alert runModal] != NSAlertFirstButtonReturn) return nil;
-
-    NSString* trimmedText =
-        [textView.string stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
-    NSString* trimmedAuthor =
-        [authorField.stringValue stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
-    if (trimmedText.length == 0) return nil;
-    return @{@"author" : trimmedAuthor ?: @"", @"text" : trimmedText};
+- (void)noteCommentEditorAnchorAtWindowPoint:(NSPoint)point {
+    objc_setAssociatedObject(self, &kEditorAnchorKey, @[ [NSValue valueWithPoint:point], NSDate.date ],
+                             OBJC_ASSOCIATION_RETAIN_NONATOMIC);
 }
 
-- (NSString*)promptForCommentTextWithDefault:(NSString*)defaultText {
-    NSDictionary* result = [self promptForCommentEditorWithTitle:@"Add Comment"
-                                                     buttonTitle:@"Add"
-                                                          author:[self currentCommentAuthor]
-                                                            text:defaultText ?: @""];
-    if (result[@"author"]) [self rememberCommentAuthor:result[@"author"]];
-    return result[@"text"];
+// Where the editor opens: where the page's menu was just opened, else under the Markdown selection, else mid-page.
+- (NSPoint)commentEditorAnchorInView:(NSView*)host {
+    NSArray* anchor = objc_getAssociatedObject(self, &kEditorAnchorKey);
+    if (anchor && -[anchor[1] timeIntervalSinceNow] < 30)
+        return [host convertPoint:[anchor[0] pointValue] fromView:nil];
+    SPDFMacMarkdownSession* session = [self isMarkdownActive] ? self.activeMarkdownSession : nil;
+    NSView* canvas = session.selectedRange.length ? SPDFFindCanvas(host) : nil;
+    if (canvas) {
+        NSRect rect = [(SPDFMacMarkdownPageCanvas*)canvas firstRectForRange:session.selectedRange];
+        NSRect inHost = [host convertRect:[canvas convertRect:rect toView:nil] fromView:nil];
+        return NSMakePoint(NSMinX(inHost), host.isFlipped ? NSMaxY(inHost) : NSMinY(inHost));
+    }
+    return NSMakePoint(NSMidX(host.bounds), NSMidY(host.bounds) + 80);
+}
+
+- (void)openCommentEditorWithTitle:(NSString*)title
+                            button:(NSString*)button
+                            author:(NSString*)author
+                              text:(NSString*)text
+                        completion:(void (^)(NSString* text))completion {
+    NSView* host = _window.contentView;
+    for (NSView* view in [host.subviews copy])
+        if ([view isKindOfClass:SPDFMacCommentEditorView.class]) [(SPDFMacCommentEditorView*)view cancel];
+    SPDFMacCommentEditorView* editor =
+        [[SPDFMacCommentEditorView alloc] initWithTitle:title button:button author:author text:text ?: @""];
+    editor.finished = ^(NSString* saved) {
+      if (saved.length) completion(saved);
+    };
+    [editor showInView:host near:[self commentEditorAnchorInView:host]];
+    objc_setAssociatedObject(self, &kEditorAnchorKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
 }
 
 - (void)addComment:(id)sender {
@@ -114,18 +106,24 @@ NSString* SPDFDefaultCommentAuthor(void) {
         return;
     }
 
-    NSString* comment = [self promptForCommentTextWithDefault:hasSelection ? _selectedText : @""];
-    if (!comment) return;
-    comment = [comment stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
-    if (comment.length == 0) {
-        NSBeep();
-        return;
-    }
+    NSArray<NSValue*>* values = hasSelection ? [self currentSelectionRects] : @[];
+    NSPoint point = _contextPagePoint;
+    spdf_document* doc = _doc;
+    [self openCommentEditorWithTitle:@"Add Comment"
+                              button:@"Add"
+                              author:[self currentCommentAuthor]
+                                text:@""
+                          completion:^(NSString* comment) {
+                            if (self->_doc != doc) return;  // the tab changed while the editor was open
+                            [self addPDFComment:comment page:pageIndex rects:values point:point];
+                          }];
+}
 
+- (void)addPDFComment:(NSString*)comment page:(NSInteger)pageIndex rects:(NSArray<NSValue*>*)values point:(NSPoint)point {
+    BOOL hasSelection = values.count > 0;
     char err[1024];
     BOOL ok = NO;
     if (hasSelection) {
-        NSArray<NSValue*>* values = [self currentSelectionRects];
         int count = (int)MIN((NSUInteger)256, values.count);
         spdf_rect rects[256];
         for (int i = 0; i < count; ++i) {
@@ -138,7 +136,7 @@ NSString* SPDFDefaultCommentAuthor(void) {
         ok = spdf_add_highlight_comment(_doc, (int)pageIndex, rects, count, comment.UTF8String,
                                         [self currentCommentAuthor].UTF8String, err, sizeof(err));
     } else {
-        ok = spdf_add_text_comment(_doc, (int)pageIndex, (float)_contextPagePoint.x, (float)_contextPagePoint.y,
+        ok = spdf_add_text_comment(_doc, (int)pageIndex, (float)point.x, (float)point.y,
                                    comment.UTF8String, [self currentCommentAuthor].UTF8String, err, sizeof(err));
     }
     if (ok) ok = spdf_save_document(_doc, _path.fileSystemRepresentation, err, sizeof(err));
@@ -235,16 +233,19 @@ NSString* SPDFDefaultCommentAuthor(void) {
     NSString* author =
         item->author && *item->author ? [NSString stringWithUTF8String:item->author] : [self currentCommentAuthor];
     NSString* text = item->text && *item->text ? [NSString stringWithUTF8String:item->text] : @"";
-    NSDictionary* result = [self promptForCommentEditorWithTitle:@"Edit Comment"
-                                                     buttonTitle:@"Save"
-                                                          author:author
-                                                            text:text];
-    if (!result) return;
+    spdf_document* doc = _doc;
+    [self openCommentEditorWithTitle:@"Edit Comment"
+                              button:@"Save"
+                              author:author
+                                text:text
+                          completion:^(NSString* edited) {
+                            if (self->_doc == doc) [self savePDFComment:commentIndex text:edited author:author];
+                          }];
+}
 
-    [self rememberCommentAuthor:result[@"author"]];
+- (void)savePDFComment:(NSInteger)commentIndex text:(NSString*)text author:(NSString*)author {
     char err[1024];
-    BOOL ok = spdf_update_comment(_doc, (int)commentIndex, [result[@"text"] UTF8String], [result[@"author"] UTF8String],
-                                  err, sizeof(err));
+    BOOL ok = spdf_update_comment(_doc, (int)commentIndex, text.UTF8String, author.UTF8String, err, sizeof(err));
     if (ok) ok = spdf_save_document(_doc, _path.fileSystemRepresentation, err, sizeof(err));
     if (ok) [self collectionDidSavePath:_path];
     if (!ok) {

@@ -1,7 +1,9 @@
 // The "<title> - comments.md" file and comment anchoring (SPDFMacMarkdownComments.h): the file must read well and
 // parse back to the same comments, and a comment must find its words again after the document is edited.
 
-#import <Foundation/Foundation.h>
+#import <Cocoa/Cocoa.h>
+
+#import "SPDFMacCommentEditor.h"
 
 #import "SPDFMacMarkdownComments.h"
 
@@ -121,11 +123,26 @@ static void TestNames(void) {
     Expect([[kRendered substringWithRange:block] hasPrefix:@"The board needs"], @"block under a click");
 }
 
+// The editor opens below the passage when it fits, above it near the bottom, and never outside the page area.
+static void TestEditorPlacement(void) {
+    NSSize size = NSMakeSize(320, 158);
+    NSRect bounds = NSMakeRect(0, 0, 1000, 700);
+    NSRect below = SPDFCommentEditorFrame(size, NSMakePoint(400, 500), bounds, NO);
+    Expect(NSMaxY(below) <= 500 && NSMinY(below) >= 8, @"below the point in an unflipped host");
+    NSRect above = SPDFCommentEditorFrame(size, NSMakePoint(400, 60), bounds, NO);
+    Expect(NSMinY(above) >= 60, @"above the point when there is no room below");
+    NSRect flipped = SPDFCommentEditorFrame(size, NSMakePoint(400, 100), bounds, YES);
+    Expect(NSMinY(flipped) >= 100, @"below the point in a flipped host");
+    NSRect corner = SPDFCommentEditorFrame(size, NSMakePoint(990, 690), bounds, NO);
+    Expect(NSContainsRect(NSInsetRect(bounds, 7, 7), corner), @"inside the bounds at a corner");
+}
+
 int main(void) {
     @autoreleasepool {
         TestAnchorAndFile();
         TestEditsKeepAnchors();
         TestNames();
+        TestEditorPlacement();
     }
     if (gFailures) {
         fprintf(stderr, "SPDFMacMarkdownCommentsTests failed: %d\n", gFailures);

@@ -8,11 +8,14 @@ FOUNDATION_EXPORT NSString* SPDFDefaultCommentAuthor(void);
 
 @interface ShenzhenMacDelegate (SPDFMacCommentActions)
 - (void)rememberCommentAuthor:(NSString*)author;
-- (NSDictionary*)promptForCommentEditorWithTitle:(NSString*)title
-                                     buttonTitle:(NSString*)buttonTitle
-                                          author:(NSString*)author
-                                            text:(NSString*)text;
-- (NSString*)promptForCommentTextWithDefault:(NSString*)defaultText;
+// The inline comment editor (SPDFMacCommentEditor.h), opened where the page's menu was, or under the selection.
+// `completion` runs only when the comment is saved, with its non-empty text.
+- (void)openCommentEditorWithTitle:(NSString*)title
+                            button:(NSString*)button
+                            author:(NSString*)author
+                              text:(NSString*)text
+                        completion:(void (^)(NSString* text))completion;
+- (void)noteCommentEditorAnchorAtWindowPoint:(NSPoint)point;
 - (NSInteger)commentIndexForEditAction:(id)sender;
 - (NSInteger)commentIndexAtPageIndex:(NSInteger)pageIndex pagePoint:(NSPoint)pagePoint;
 @end
