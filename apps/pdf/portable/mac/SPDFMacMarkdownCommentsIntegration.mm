@@ -296,6 +296,21 @@ static char kStatesKey, kContextLocationKey;
     return [self hasActiveDocument] && _path.length > 0;
 }
 
+- (void)moveCommentsFileFrom:(NSString*)source to:(NSString*)destination {
+    NSString* file = [self existingCommentsFileForPath:source];
+    NSString* target = SPDFMarkdownCommentsFilePath(destination.stringByStandardizingPath);
+    [self.markdownCommentStates removeObjectForKey:source.stringByStandardizingPath];
+    if (!file || [NSFileManager.defaultManager fileExistsAtPath:target]) return;
+    NSString* text = [NSString stringWithContentsOfFile:file encoding:NSUTF8StringEncoding error:nil];
+    NSRange firstLine = [text lineRangeForRange:NSMakeRange(0, 0)];
+    if ([[text substringWithRange:firstLine] hasPrefix:@"# Comments on "])
+        text = [text stringByReplacingCharactersInRange:firstLine
+                                             withString:[SPDFMarkdownCommentsHeader(destination.lastPathComponent)
+                                                            stringByAppendingString:@"\n"]];
+    if (text && [text writeToFile:target atomically:YES encoding:NSUTF8StringEncoding error:nil])
+        [NSFileManager.defaultManager removeItemAtPath:file error:nil];
+}
+
 - (void)copyCommentsFile:(id)sender {
     id represented = [sender isKindOfClass:NSMenuItem.class] ? ((NSMenuItem*)sender).representedObject : nil;
     NSString* path = [represented isKindOfClass:NSString.class] ? represented : _path;

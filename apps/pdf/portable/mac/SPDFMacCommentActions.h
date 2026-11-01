@@ -36,6 +36,8 @@ FOUNDATION_EXPORT NSString* SPDFDefaultCommentAuthor(void);
 // "Copy Document and Comments" when the document has comments (a PDF's travel inside it), else "Copy Document".
 - (NSString*)copyDocumentTitleForPath:(NSString*)path;
 - (BOOL)validateCopyDocumentItem:(NSMenuItem*)item;
+// After a Markdown document is renamed: its comments file follows, and names the new document.
+- (void)moveCommentsFileFrom:(NSString*)source to:(NSString*)destination;
 // "Copy Comments File": the active document, or the path a menu item carries.
 - (void)copyCommentsFile:(id)sender;
 // A "Copy Comments File" item for a document's menu: present for Markdown, disabled while it has no comments.

@@ -131,8 +131,12 @@ static void AppendComment(NSMutableString* out, SPDFMarkdownComment* comment) {
     [out appendString:@"\n"];
 }
 
+NSString* SPDFMarkdownCommentsHeader(NSString* documentName) {
+    return [NSString stringWithFormat:@"# Comments on %@", Escape(documentName)];
+}
+
 NSString* SPDFMarkdownCommentsFileText(NSString* documentName, NSArray<SPDFMarkdownComment*>* comments) {
-    NSMutableString* out = [NSMutableString stringWithFormat:@"# Comments on %@\n\n", Escape(documentName)];
+    NSMutableString* out = [NSMutableString stringWithFormat:@"%@\n\n", SPDFMarkdownCommentsHeader(documentName)];
     BOOL unplacedStarted = NO;
     for (SPDFMarkdownComment* comment in SPDFMarkdownCommentsSorted(comments)) {
         if (!comment.placed && !unplacedStarted) {

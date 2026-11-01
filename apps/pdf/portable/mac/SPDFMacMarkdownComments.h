@@ -33,6 +33,8 @@ NS_ASSUME_NONNULL_BEGIN
 FOUNDATION_EXPORT NSString* SPDFMarkdownCommentsFilePath(NSString* documentPath);
 // YES for a path that is itself a comments file (so it is never given comments of its own).
 FOUNDATION_EXPORT BOOL SPDFMarkdownIsCommentsFilePath(NSString* path);
+// The file's first line, "# Comments on <document name>".
+FOUNDATION_EXPORT NSString* SPDFMarkdownCommentsHeader(NSString* documentName);
 // Placed comments in document order, then the unplaced ones under "## Unplaced".
 FOUNDATION_EXPORT NSString* SPDFMarkdownCommentsFileText(NSString* documentName,
                                                          NSArray<SPDFMarkdownComment*>* comments);

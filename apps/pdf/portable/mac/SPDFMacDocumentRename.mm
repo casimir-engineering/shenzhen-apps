@@ -1,3 +1,4 @@
+#import "SPDFMacCommentActions.h"
 #import "SPDFMacDocumentRename.h"
 #import "SPDFMacMarkdownDelegatePrivate.h"
 #import "SPDFMacCollectionIntegration.h"
@@ -115,6 +116,7 @@
             else [self showError:@"Could not rename document" detail:error.localizedDescription];
             return;
         }
+        [self moveCommentsFileFrom:source to:destination];
         [self adoptRenamedDocumentFrom:source to:destination replacingReadOnly:NO];
         // Relinking verifies bytes; large documents must not stall the rename UI.
         static dispatch_queue_t relinks; static dispatch_once_t once;
