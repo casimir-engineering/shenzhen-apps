@@ -159,9 +159,9 @@ static void CheckReopenShowsTheRightGroup(void) {
     reader = BrowsingProbe(&research, &drawings, &archive);
     [reader showDocumentsAtPaths:@[@"/docs/new.pdf"]];
     SPDFDocumentTab* added = reader.selectedIndex >= 0 ? reader.tabs[(NSUInteger)reader.selectedIndex] : nil;
-    Expect(@"a new document opens selected in the active document's group, which is expanded",
-           [added.path isEqual:@"/docs/new.pdf"] && added.group == research && !research.collapsed
-           && drawings.collapsed);
+    Expect(@"a new document opens selected in the group the tab bar shows, which stays expanded",
+           [added.path isEqual:@"/docs/new.pdf"] && added.group == drawings && !drawings.collapsed
+           && research.collapsed);
 
     reader = BrowsingProbe(&research, &drawings, &archive);
     NSMenuItem* recent = [NSMenuItem new]; recent.representedObject = @"/docs/d.pdf";
