@@ -49,7 +49,8 @@ FOUNDATION_EXPORT BOOL SPDFDocumentVersionsSupportsPath(NSString* path);
 
 // "New Version": freezes the current content as the next version number, with all its comments, and leaves the
 // current file at its path for the next version to be written into. Returns the frozen version.
-FOUNDATION_EXPORT SPDFDocumentVersion* _Nullable SPDFDocumentVersionsCreate(NSString* path, SPDFDocumentVersionCarry carry,
+FOUNDATION_EXPORT SPDFDocumentVersion* _Nullable SPDFDocumentVersionsCreate(NSString* path,
+                                                                            SPDFDocumentVersionCarry carry,
                                                                             NSError** error);
 // Same, when the file was already overwritten: `previousContent` is a copy of what it held (written `previousDate`),
 // and the comments beside the document are the ones made on that content. A Markdown document's open comments follow

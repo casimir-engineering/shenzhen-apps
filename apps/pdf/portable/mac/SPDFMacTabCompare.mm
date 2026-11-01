@@ -1,5 +1,6 @@
 #import "SPDFMacDelegatePrivate.h"
 #import "SPDFMacCollectionCompare.h"
+#import "SPDFMacDocumentVersionsIntegration.h"
 #import "SPDFMacSupport.h"
 #import "markdown/SPDFTextDocumentFormats.h"
 
@@ -38,6 +39,9 @@ static BOOL SPDFTabCompareSupportsPath(NSString* path) {
 }
 
 - (void)addCompareItemToTabMenu:(NSMenu*)menu tabIndex:(NSInteger)index {
+    // New Version… and Versions sit with the comparison (SPDFMacDocumentVersionsIntegration.h).
+    if (index >= 0 && index < (NSInteger)_tabs.count && !_tabs[(NSUInteger)index].missingFile)
+        [self addVersionItemsToMenu:menu path:_tabs[(NSUInteger)index].path];
     if (![self tabCanCompareToCurrentAtIndex:index]) return;
     NSMenuItem* item = [menu addItemWithTitle:@"Compare to Current Document"
                                        action:@selector(compareTabToCurrentDocument:) keyEquivalent:@""];

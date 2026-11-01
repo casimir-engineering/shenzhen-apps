@@ -52,9 +52,10 @@ static SPDFMarkdownComment* NewComment(SPDFMarkdownCommentAnchors* anchors, NSSt
 static NSString* MakeCommentedMarkdown(NSString* directory) {
     NSString* path = [directory stringByAppendingPathComponent:@"Report.md"];
     Write(kSource, path);
-    [NSFileManager.defaultManager setAttributes:@{NSFileModificationDate : [NSDate dateWithTimeIntervalSince1970:1761900000]}
-                                   ofItemAtPath:path error:nil];
-    SPDFMarkdownCommentAnchors* anchors = [[SPDFMarkdownCommentAnchors alloc] initWithSource:kSource rendered:kRendered];
+    NSDate* written = [NSDate dateWithTimeIntervalSince1970:1761900000];
+    [NSFileManager.defaultManager setAttributes:@{NSFileModificationDate : written} ofItemAtPath:path error:nil];
+    SPDFMarkdownCommentAnchors* anchors =
+        [[SPDFMarkdownCommentAnchors alloc] initWithSource:kSource rendered:kRendered];
     SPDFMarkdownComment* open = NewComment(anchors, @"two pull-ups on SDA", @"Which value?");
     SPDFMarkdownComment* done = NewComment(anchors, @"3.3 V regulator", @"Name the part.");
     done.resolved = YES;
@@ -81,7 +82,8 @@ static void TestNamesAndList(void) {
     Expect([v1.path isEqualToString:v1Path] && v1.number == 1 && !v1.current, v1.path ?: @"v1 path");
     Expect([Read(v1Path) isEqualToString:kSource] && [Read(path) isEqualToString:kSource], @"same content, both files");
     Expect([Modified(v1Path) isEqualToDate:Modified(path)], @"v1 is dated when its content was written");
-    Expect([SPDFDocumentVersionsCurrentPath(v1Path) isEqualToString:path.stringByStandardizingPath], @"v1's current file");
+    Expect([SPDFDocumentVersionsCurrentPath(v1Path) isEqualToString:path.stringByStandardizingPath],
+           @"v1's current file");
     Expect(SPDFDocumentVersionsIsFrozenPath(v1Path) && !SPDFDocumentVersionsIsFrozenPath(path), @"which one is frozen");
 
     versions = SPDFDocumentVersionsList(v1Path);
@@ -116,7 +118,8 @@ static void TestCommentsStayOnTheirVersion(void) {
 
     NSString* now = Read(SPDFMarkdownCommentsFilePath(path));
     Expect([now hasPrefix:@"# Comments on Report.md\n"], now ?: @"current comments file");
-    Expect([now containsString:@"Which value?"] && ![now containsString:@"Name the part."], @"only open comments follow");
+    Expect([now containsString:@"Which value?"] && ![now containsString:@"Name the part."],
+           @"only open comments follow");
     NSRange unplaced = [now rangeOfString:@"## Unplaced"];
     Expect(unplaced.location != NSNotFound && [now rangeOfString:@"Which value?"].location < unplaced.location &&
                [now rangeOfString:@"Old remark."].location > unplaced.location,
@@ -137,13 +140,15 @@ static void TestKeepPreviousAndReanchor(void) {
     NSString* snapshot = [TempDirectory() stringByAppendingPathComponent:@"previous"];
     [NSFileManager.defaultManager copyItemAtPath:path toPath:snapshot error:nil];
     NSDate* previousDate = Modified(path);
-    NSString* rewritten = @"# Board\n\n## Intro\n\nNew opening paragraph.\n\n## Setup\n\nFirst, solder the header.\n\n"
-                          @"The board needs two pull-ups on SDA before power-on.\n\n## Power\n\nUse a buck converter.\n";
+    NSString* rewritten = @"# Board\n\n## Intro\n\nNew opening paragraph.\n\n## Setup\n\n"
+                          @"First, solder the header.\n\n"
+                          @"The board needs two pull-ups on SDA before power-on.\n\n"
+                          @"## Power\n\nUse a buck converter.\n";
     Write(rewritten, path);
 
     NSError* error = nil;
-    SPDFDocumentVersion* v1 = SPDFDocumentVersionsKeepPrevious(path, snapshot, previousDate, SPDFDocumentVersionCarryOpen,
-                                                               &error);
+    SPDFDocumentVersion* v1 =
+        SPDFDocumentVersionsKeepPrevious(path, snapshot, previousDate, SPDFDocumentVersionCarryOpen, &error);
     Expect(v1 != nil, error.localizedDescription ?: @"keep previous");
     Expect([Read(v1.path) isEqualToString:kSource] && [v1.date isEqualToDate:previousDate], @"v1 holds the old text");
     Expect([Read(path) isEqualToString:rewritten], @"the document holds the new text");
@@ -152,7 +157,8 @@ static void TestKeepPreviousAndReanchor(void) {
     // What the reader does after a render: place each carried comment on the new text.
     NSString* rendered = @"Board\nIntro\nNew opening paragraph.\nSetup\nFirst, solder the header.\n"
                          @"The board needs two pull-ups on SDA before power-on.\nPower\nUse a buck converter.\n";
-    SPDFMarkdownCommentAnchors* anchors = [[SPDFMarkdownCommentAnchors alloc] initWithSource:rewritten rendered:rendered];
+    SPDFMarkdownCommentAnchors* anchors =
+        [[SPDFMarkdownCommentAnchors alloc] initWithSource:rewritten rendered:rendered];
     NSArray<SPDFMarkdownComment*>* carried = SPDFMarkdownCommentsParseFile(Read(SPDFMarkdownCommentsFilePath(path)));
     Expect(carried.count == 2, [NSString stringWithFormat:@"%lu carried", (unsigned long)carried.count]);
     for (SPDFMarkdownComment* comment in carried) [anchors placeComment:comment];
@@ -171,7 +177,8 @@ static NSString* MakePDF(NSString* path) {
     NSString* stream = @"BT /F1 18 Tf 72 760 Td (Version one) Tj ET";
     NSArray* objects = @[
         @"<< /Type /Catalog /Pages 2 0 R >>", @"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
-        @"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>",
+        (@"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 4 0 R "
+         @"/Resources << /Font << /F1 5 0 R >> >> >>"),
         [NSString stringWithFormat:@"<< /Length %lu >>\nstream\n%@\nendstream", (unsigned long)stream.length, stream],
         @"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"
     ];
@@ -184,8 +191,8 @@ static NSString* MakePDF(NSString* path) {
     NSUInteger xref = pdf.length;
     [pdf appendFormat:@"xref\n0 %lu\n0000000000 65535 f \n", (unsigned long)objects.count + 1];
     for (NSNumber* offset in offsets) [pdf appendFormat:@"%010lu 00000 n \n", offset.unsignedLongValue];
-    [pdf appendFormat:@"trailer\n<< /Size %lu /Root 1 0 R >>\nstartxref\n%lu\n%%%%EOF\n", (unsigned long)objects.count + 1,
-                      (unsigned long)xref];
+    [pdf appendFormat:@"trailer\n<< /Size %lu /Root 1 0 R >>\nstartxref\n%lu\n%%%%EOF\n",
+                      (unsigned long)objects.count + 1, (unsigned long)xref];
     Write(pdf, path);
     return path;
 }
@@ -205,7 +212,8 @@ static void TestPDF(void) {
 
     NSError* error = nil;
     SPDFDocumentVersion* v1 = SPDFDocumentVersionsCreate(path, SPDFDocumentVersionCarryOpen, &error);
-    Expect(v1 && [v1.path.lastPathComponent isEqualToString:@"Drawing v1.pdf"], error.localizedDescription ?: @"PDF v1");
+    Expect(v1 && [v1.path.lastPathComponent isEqualToString:@"Drawing v1.pdf"],
+           error.localizedDescription ?: @"PDF v1");
     Expect(SPDFDocumentVersionsCommentCount(v1.path, &open) == 2 && open == 1, @"PDF v1 keeps both comments");
     Expect(SPDFDocumentVersionsCommentCount(path, &open) == 1 && open == 1, @"the open one follows to v2");
     SPDFDocumentVersionsCreate(path, SPDFDocumentVersionCarryNone, &error);

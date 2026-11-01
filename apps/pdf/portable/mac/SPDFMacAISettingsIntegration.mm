@@ -8,6 +8,7 @@
 #import "SPDFMacAIModelCatalog.h"
 #import "SPDFMacDefaultFormats.h"
 #import "SPDFMacCollectionStore.h"
+#import "SPDFMacDocumentVersionsIntegration.h"
 #import "SPDFMacTabGroups.h"
 #import "SPDFMacAppearanceMode.h"
 #import "SPDFMacAppearanceSettings.h"
@@ -103,7 +104,7 @@ static NSDictionary* PaletteState(void) {
         @"showShortcutsOnLaunch":@(_showShortcutHelpOnLaunch),@"keepImageColors":@(_darkThemePreservesImagesDefault)}
         mutableCopy];
     [state addEntriesFromDictionary:[self aiCapabilitiesSettingsState:ai]];
-    state[@"commentAuthor"]=_commentAuthor ?: @""; state[@"commentAuthorDefault"]=SPDFDefaultCommentAuthor();
+    state[@"keepVersionsWhenChanged"]=@(SPDFDocumentVersionsKeepWhenChanged()); state[@"commentAuthor"]=_commentAuthor ?: @""; state[@"commentAuthorDefault"]=SPDFDefaultCommentAuthor();
     [state addEntriesFromDictionary:PaletteState()]; state[@"appearanceMode"]=spdf_appearance_mode(); return state;
 }
 - (void)showUnifiedSettings:(id)sender {
@@ -196,6 +197,7 @@ static NSDictionary* PaletteState(void) {
         [(SPDFMacUnifiedSettingsController*)objc_getAssociatedObject(self,&settingsControllerKey) updateState:[self unifiedSettingsState]];
     }
     if (changes[@"commentAuthor"]) [self rememberCommentAuthor:changes[@"commentAuthor"]];
+    if (changes[@"keepVersionsWhenChanged"]) { SPDFDocumentVersionsSetKeepWhenChanged([changes[@"keepVersionsWhenChanged"] boolValue]); [self savePersistentState]; }
     if (changes[@"keepImageColors"]) { _darkThemePreservesImagesDefault=[changes[@"keepImageColors"] boolValue]; [self savePersistentState]; }
     if (changes[@"appearanceMode"] && !spdf_appearance_mode_set(changes[@"appearanceMode"]))
         error=[NSError errorWithDomain:@"ShenzhenPDF.Appearance" code:2 userInfo:@{NSLocalizedDescriptionKey:@"Light or dark could not be saved. ShenzhenPDF will follow the system again when it restarts."}];

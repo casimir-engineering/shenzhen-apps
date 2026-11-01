@@ -72,7 +72,8 @@ NSString* SPDFDocumentVersionsCurrentPath(NSString* path) {
     NSString* standard = path.stringByStandardizingPath;
     NSString* base = SplitVersionStem(standard.lastPathComponent.stringByDeletingPathExtension, NULL);
     if (!base.length) return standard;
-    NSString* name = standard.pathExtension.length ? [base stringByAppendingPathExtension:standard.pathExtension] : base;
+    NSString* extension = standard.pathExtension;
+    NSString* name = extension.length ? [base stringByAppendingPathExtension:extension] : base;
     NSString* current = [standard.stringByDeletingLastPathComponent stringByAppendingPathComponent:name];
     return [NSFileManager.defaultManager fileExistsAtPath:current] ? current : standard;
 }
@@ -102,7 +103,8 @@ NSArray<SPDFDocumentVersion*>* SPDFDocumentVersionsList(NSString* path) {
     NSDictionary<NSNumber*, NSString*>* frozen = FrozenVersions(current);
     NSMutableArray* versions = [NSMutableArray array];
     for (NSNumber* number in [frozen.allKeys sortedArrayUsingSelector:@selector(compare:)])
-        [versions addObject:[[SPDFDocumentVersion alloc] initWithNumber:number.integerValue path:frozen[number] current:NO]];
+        [versions addObject:[[SPDFDocumentVersion alloc] initWithNumber:number.integerValue path:frozen[number]
+                                                                 current:NO]];
     NSInteger next = [[frozen.allKeys valueForKeyPath:@"@max.integerValue"] integerValue] + 1;
     if ([NSFileManager.defaultManager fileExistsAtPath:current])
         [versions addObject:[[SPDFDocumentVersion alloc] initWithNumber:next path:current current:YES]];
@@ -113,8 +115,8 @@ NSArray<SPDFDocumentVersion*>* SPDFDocumentVersionsList(NSString* path) {
 static NSString* CommentsTextNaming(NSString* text, NSString* documentName) {
     NSRange firstLine = [text lineRangeForRange:NSMakeRange(0, 0)];
     if (![[text substringWithRange:firstLine] hasPrefix:@"# Comments on "]) return text;
-    return [text stringByReplacingCharactersInRange:firstLine
-                                         withString:[SPDFMarkdownCommentsHeader(documentName) stringByAppendingString:@"\n"]];
+    NSString* header = [SPDFMarkdownCommentsHeader(documentName) stringByAppendingString:@"\n"];
+    return [text stringByReplacingCharactersInRange:firstLine withString:header];
 }
 
 // Parses a comments file keeping which comments were listed under "Unplaced": parsed comments are not placed yet, so
@@ -173,7 +175,8 @@ static BOOL StripPDFComments(NSString* current, SPDFDocumentVersionCarry carry, 
         for (int i = comments.count - 1; i >= 0 && ok; i--) {
             const spdf_comment_item* item = &comments.items[i];
             int top = item->in_reply_to;
-            while (top >= 0 && top < comments.count && comments.items[top].in_reply_to >= 0) top = comments.items[top].in_reply_to;
+            while (top >= 0 && top < comments.count && comments.items[top].in_reply_to >= 0)
+                top = comments.items[top].in_reply_to;
             const spdf_comment_item* thread = top >= 0 && top < comments.count ? &comments.items[top] : item;
             BOOL keep = carry == SPDFDocumentVersionCarryOpen && !thread->resolved;
             if (keep) continue;
@@ -184,10 +187,12 @@ static BOOL StripPDFComments(NSString* current, SPDFDocumentVersionCarry carry, 
     }
     spdf_free_comments(&comments);
     if (doc) spdf_close(doc);
-    if (ok && changed) ok = [files replaceItemAtURL:[NSURL fileURLWithPath:current] withItemAtURL:[NSURL fileURLWithPath:temp]
-                                     backupItemName:nil options:0 resultingItemURL:nil error:error];
-    else if (!ok && error) *error = VersionError([NSString stringWithFormat:@"The comments could not be removed from %@. %s",
-                                                                            current.lastPathComponent, err]);
+    if (ok && changed)
+        ok = [files replaceItemAtURL:[NSURL fileURLWithPath:current] withItemAtURL:[NSURL fileURLWithPath:temp]
+                      backupItemName:nil options:0 resultingItemURL:nil error:error];
+    else if (!ok && error)
+        *error = VersionError([NSString stringWithFormat:@"The comments could not be removed from %@. %s",
+                                                         current.lastPathComponent, err]);
     [files removeItemAtPath:temp error:nil];
     return ok;
 }
@@ -220,12 +225,13 @@ static SPDFDocumentVersion* FreezeAndCarry(NSString* path, NSString* content, NS
         return nil;
     }
     if (![NSFileManager.defaultManager fileExistsAtPath:current] || !content) {
-        if (error) *error = VersionError([NSString stringWithFormat:@"%@ is no longer there.", current.lastPathComponent]);
+        if (error)
+            *error = VersionError([NSString stringWithFormat:@"%@ is no longer there.", current.lastPathComponent]);
         return nil;
     }
     NSString* commentsFile = IsMarkdown(current) ? SPDFMarkdownCommentsFilePath(current) : nil;
-    NSString* commentsText = commentsFile ? [NSString stringWithContentsOfFile:commentsFile encoding:NSUTF8StringEncoding
-                                                                         error:nil] : nil;
+    NSString* commentsText =
+        commentsFile ? [NSString stringWithContentsOfFile:commentsFile encoding:NSUTF8StringEncoding error:nil] : nil;
     SPDFDocumentVersion* version = Freeze(current, fromCurrentFile ? current : content, date, commentsText, error);
     if (!version) return nil;
     BOOL ok = YES;

@@ -1,4 +1,5 @@
 #import "SPDFMacReaderNavigationMenu.h"
+#import "SPDFMacDocumentVersionsIntegration.h"
 
 void SPDFInstallReaderNavigationMenu(NSMenu* appMenu, NSMenu* goMenu, NSMenu* viewMenu, id reader) {
     NSMenuItem* previous = [goMenu addItemWithTitle:@"Previous Document" action:NSSelectorFromString(@"returnToPreviousTab:") keyEquivalent:@"d"];
@@ -12,4 +13,6 @@ void SPDFInstallReaderNavigationMenu(NSMenu* appMenu, NSMenu* goMenu, NSMenu* vi
     NSMenuItem* hide = [[NSMenuItem alloc] initWithTitle:@"Hide Shenzhen PDF" action:@selector(hide:) keyEquivalent:@""];
     hide.target = NSApp;
     [appMenu insertItem:hide atIndex:MAX(0,appMenu.numberOfItems-1)];
+    NSMenu* fileMenu = [goMenu.supermenu itemWithTitle:@"File"].submenu;
+    if (fileMenu) SPDFInstallDocumentVersionsMenu(fileMenu, reader);
 }

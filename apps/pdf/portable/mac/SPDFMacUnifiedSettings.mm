@@ -268,6 +268,7 @@ BOOL SPDFUnifiedSettingsShouldPresent(NSDictionary* settings, BOOL primaryLaunch
 - (void)buildReading {
     [self heading:@"Reading & access" subtitle:@"These choices are optional. Grant only the permissions you need."];
     [self add:[self toggle:@"keepImageColors" label:@"Keep original image colors by default"]]; [self buildCommentAuthorRow];
+    [self add:[self toggle:@"keepVersionsWhenChanged" label:@"Keep the earlier version, with your comments, when another app rewrites a commented document"]];
     [self actionRow:@"Default reader" detail:@"Choose which file types open in ShenzhenPDF from Finder and other apps."
         label:@"Choose file types…" action:@"showDefaults"];
     [self divider];
@@ -424,7 +425,6 @@ BOOL SPDFUnifiedSettingsShouldPresent(NSDictionary* settings, BOOL primaryLaunch
     NSMutableDictionary* state=[self.state mutableCopy]; [state addEntriesFromDictionary:change]; self.state=state;
     if (self.settingsChanged) self.settingsChanged(change);
 }
-
 - (void)controlTextDidEndEditing:(NSNotification*)note {
     if ([[(NSControl*)note.object identifier] hasPrefix:@"collection"]) [self storageAmountChanged:note.object];
 }

@@ -1131,7 +1131,7 @@ id spdf_state_object_from_yaml_data(NSData* data) {
 
 - (void)loadPersistentState {
     NSDictionary* settings = [self friendsLaunchWithSettings:[self stateObjectFromFile:@"settings.yaml"]];
-    _darkThemePreservesImagesDefault = YES; /* default ON; a stored key overrides below */
+    _darkThemePreservesImagesDefault = YES; SPDFDocumentVersionsLoadSettings(settings); /* default; overridden below */
     if ([settings isKindOfClass:NSDictionary.class]) {
         NSNumber* fit = settings[@"fitMode"];
         /* viewMode is intentionally not read: single-page view mode was removed
@@ -1741,7 +1741,7 @@ id spdf_state_object_from_yaml_data(NSData* data) {
 
     if (!_suppressSessionWriteOnTerminate) [self writeSessionStateForCurrentWindow];
     CGFloat sidebarWidth = spdf_sane_sidebar_width(_sidebarWidth, 0);
-    [self writeStateObject:SPDFMacFriendsSettingsForSaving(@{
+    [self writeStateObject:SPDFMacFriendsSettingsForSaving(SPDFDocumentVersionsSettingsForSaving(@{
         @"version" : @1,
         @"fitMode" : @(_fitMode),
         /* Always continuous now; kept for backward compat (see SPDFMacModels.mm). */
@@ -1769,7 +1769,7 @@ id spdf_state_object_from_yaml_data(NSData* data) {
         @"markdownTheme" : _darkReadingTheme ? @"dark" : @"light",
         @"darkThemePreservesImages" : @(_darkThemePreservesImagesDefault),
         @"recentlyOpened" : _recentlyOpenedPaths ?: @[]
-    })
+    }))
                    toFile:@"settings.yaml"];
     [self writeStateObject:_favorites toFile:@"favorites.yaml"];
     [self writeStateObject:_documentStates ?: @{} toFile:@"documents.yaml"];
