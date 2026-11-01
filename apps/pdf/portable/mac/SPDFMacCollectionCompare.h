@@ -23,4 +23,7 @@ SPDFCollectionComparison* _Nullable SPDFCollectionBuildComparison(NSURL* oldURL,
                                                                 NSProgress* progress, NSError** error);
 void SPDFMacShowCollectionComparison(NSURL* oldURL, NSURL* newURL, NSString* oldLabel,
                                     NSString* newLabel, NSWindow* _Nullable parent);
+// The same window for any two documents, under its own title (Compare to Current Document in the tab menu).
+void SPDFMacShowComparison(NSURL* oldURL, NSURL* newURL, NSString* oldLabel, NSString* newLabel,
+                           NSString* title, NSWindow* _Nullable parent);
 NS_ASSUME_NONNULL_END

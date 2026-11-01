@@ -136,12 +136,12 @@ static NSDictionary* preparePresentation(SPDFCollectionComparison* result) {
     BOOL _synchronizing;
     id _keepAlive;
 }
-- (instancetype)initWithOldLabel:(NSString*)oldLabel newLabel:(NSString*)newLabel {
+- (instancetype)initWithOldLabel:(NSString*)oldLabel newLabel:(NSString*)newLabel title:(NSString*)title {
     NSWindow* window = [[NSWindow alloc] initWithContentRect:NSMakeRect(0,0,1200,820)
         styleMask:NSWindowStyleMaskTitled|NSWindowStyleMaskClosable|NSWindowStyleMaskResizable|NSWindowStyleMaskMiniaturizable
         backing:NSBackingStoreBuffered defer:NO];
     if (!(self = [super initWithWindow:window])) return nil;
-    window.title = @"Version Comparison — Read-only";
+    window.title = title;
     window.minSize = NSMakeSize(980,520);
     window.delegate = self;
     window.releasedWhenClosed = NO;
@@ -306,8 +306,13 @@ static NSDictionary* preparePresentation(SPDFCollectionComparison* result) {
 
 void SPDFMacShowCollectionComparison(NSURL* oldURL, NSURL* newURL, NSString* oldLabel,
                                     NSString* newLabel, NSWindow* parent) {
+    SPDFMacShowComparison(oldURL, newURL, oldLabel, newLabel, @"Version Comparison — Read-only", parent);
+}
+
+void SPDFMacShowComparison(NSURL* oldURL, NSURL* newURL, NSString* oldLabel, NSString* newLabel,
+                           NSString* title, NSWindow* parent) {
     SPDFCollectionCompareController* controller = [[SPDFCollectionCompareController alloc]
-        initWithOldLabel:oldLabel newLabel:newLabel];
+        initWithOldLabel:oldLabel newLabel:newLabel title:title];
     [controller.window center];
     if (parent) [parent addChildWindow:controller.window ordered:NSWindowAbove];
     [controller showWindow:nil];

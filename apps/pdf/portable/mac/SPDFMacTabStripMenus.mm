@@ -11,6 +11,9 @@
 @protocol SPDFTabPermanentDeleteMenuProviding <NSObject>
 - (void)addPermanentDeleteItemToMenu:(NSMenu*)menu path:(NSString*)path;
 @end
+@protocol SPDFTabCompareMenuProviding <NSObject>
+- (void)addCompareItemToTabMenu:(NSMenu*)menu tabIndex:(NSInteger)tabIndex;
+@end
 
 @implementation SPDFTabStripView (Menus)
 - (NSMenu*)newTabOrGroupMenu {
@@ -145,6 +148,8 @@
         editor.target = self.reader; editor.representedObject = tabPath;
         editor.enabled = !SPDFMacPathIsCollectionArchive(tabPath);
     }
+    if ([self.reader respondsToSelector:@selector(addCompareItemToTabMenu:tabIndex:)])
+        [(id<SPDFTabCompareMenuProviding>)self.reader addCompareItemToTabMenu:menu tabIndex:tabIndex];
     [menu addItem:NSMenuItem.separatorItem];
     NSMenuItem* showInFolder = [menu addItemWithTitle:@"Show in Folder" action:@selector(tabContextShowInFolder:)
                                         keyEquivalent:@""];
