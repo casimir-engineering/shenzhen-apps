@@ -1,11 +1,85 @@
 #import "SPDFMacDelegatePrivate.h"
+#import "SPDFMacMarkdownDelegatePrivate.h"
 extern const CGFloat kMinZoom;
 extern const CGFloat kMaxZoom;
 @interface ShenzhenMacDelegate (FitViewportPrivate)
+- (BOOL)renderDocumentKeepingVisibleCenter;
+- (void)applyFitModeKeepingPosition:(SPDFFitMode)fitMode;
 - (NSSize)documentClipSizeForLayout;
 - (CGFloat)zoomForFitMode:(SPDFFitMode)mode pageSize:(NSSize)size clipSize:(NSSize)clip fallbackZoom:(CGFloat)zoom;
 @end
 @implementation ShenzhenMacDelegate (FitViewport)
+- (void)rememberCurrentZoomForCustomReturn {
+    if (_fitMode == SPDFFitModeCustom && _zoom > 0) _rememberedCustomZoom = _zoom;
+}
+
+- (void)actualSize:(id)sender {
+    (void)sender;
+    if ([self isMarkdownActive]) {
+        [self markdownApplyFitMode:SPDFFitModeActual];
+        return;
+    }
+    [self applyFitModeKeepingPosition:SPDFFitModeActual];
+}
+
+- (void)fitWidth:(id)sender {
+    (void)sender;
+    if ([self isMarkdownActive]) {
+        [self markdownApplyFitMode:SPDFFitModeWidth];
+        return;
+    }
+    [self applyFitModeKeepingPosition:SPDFFitModeWidth];
+}
+
+- (void)fitHeight:(id)sender {
+    (void)sender;
+    if ([self isMarkdownActive]) {
+        [self markdownApplyFitMode:SPDFFitModeHeight];
+        return;
+    }
+    [self applyFitModeKeepingPosition:SPDFFitModeHeight];
+}
+
+- (void)fitPage:(id)sender {
+    (void)sender;
+    if ([self isMarkdownActive]) {
+        [self markdownApplyFitMode:SPDFFitModePage];
+        return;
+    }
+    [self applyFitModeKeepingPosition:SPDFFitModePage];
+}
+
+// Every zoom command of the Zoom menu, the toolbar and the fit popup. Fit Width, 100% and a custom zoom keep the
+// reading position: the point of the page under the viewport's centre stays under its centre, as Zoom In and Zoom
+// Out keep it. Fit Page and Fit Height show the whole of the current page. Re-rendering with the old scroll origin
+// (alignTop:NO) read that origin, taken at the old zoom, against the pages laid out at the new one, and then pulled
+// the page's far edge into view: Fit Width from Fit Page or 100% always landed on the bottom of the page.
+- (void)applyFitModeKeepingPosition:(SPDFFitMode)fitMode {
+    if (!_doc) return;
+    if (fitMode == SPDFFitModeCustom)
+        _zoom = MAX(kMinZoom, MIN(kMaxZoom, _rememberedCustomZoom > 0 ? _rememberedCustomZoom : _zoom));
+    else
+        [self rememberCurrentZoomForCustomReturn];
+    _fitMode = fitMode;
+    BOOL wholePage = fitMode == SPDFFitModePage || fitMode == SPDFFitModeHeight;
+    if (wholePage || ![self renderDocumentKeepingVisibleCenter])
+        [self renderDocumentAndScrollToPage:_pageIndex alignTop:wholePage];
+    [self persistActiveState];
+}
+
+- (void)fitModePopupChanged:(id)sender {
+    (void)sender;
+    NSInteger selectedTag = _fitModePopup.selectedItem.tag;
+    SPDFFitMode selected = (SPDFFitMode)MAX(0, MIN(4, selectedTag));
+    if ([self isMarkdownActive]) {
+        [self markdownApplyFitMode:selected];
+    } else if (_doc) {
+        [self applyFitModeKeepingPosition:selected];
+    } else {
+        _fitMode = selected;
+    }
+}
+
 - (CGFloat)zoomForFitMode:(SPDFFitMode)fitMode pageIndex:(NSInteger)pageIndex {
     if (!_doc) return _zoom;
     if (fitMode == SPDFFitModeCustom)

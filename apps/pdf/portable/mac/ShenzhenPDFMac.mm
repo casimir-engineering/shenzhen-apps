@@ -550,6 +550,9 @@ static char kSPDFPasswordPromptClosesNewTabKey;
 @property(nonatomic, strong) NSOperationQueue* inactiveTabPreloadQueue;
 - (void)preloadInactiveTabsWithCompletion:(dispatch_block_t _Nullable)completion;
 @end
+@interface ShenzhenMacDelegate (FitViewport)  // SPDFMacFitViewport.mm
+- (void)rememberCurrentZoomForCustomReturn;
+@end
 @implementation ShenzhenMacDelegate
 
 - (void)applicationDidFinishLaunching:(NSNotification*)notification {
@@ -4843,7 +4846,20 @@ static BOOL spdf_page_list_cache_disabled(void) {
 - (void)renderDocumentAndScrollToPage:(NSInteger)pageIndex
                              alignTop:(BOOL)alignTop
                         restoreOrigin:(NSValue*)restoreOrigin {
+    [self renderDocumentAndScrollToPage:pageIndex alignTop:alignTop restoreOrigin:restoreOrigin keepingAnchor:NULL];
+}
+
+// keepingAnchor: a point of a page, taken from the view before the zoom changed, that goes back to the same place in
+// the viewport once the pages are laid out at the new zoom (Fit Width, 100%, a custom zoom: see
+// applyFitModeKeepingPosition:). Its page is the page the zoom is fitted to.
+- (void)renderDocumentAndScrollToPage:(NSInteger)pageIndex
+                             alignTop:(BOOL)alignTop
+                        restoreOrigin:(NSValue*)restoreOrigin
+                        keepingAnchor:(const SPDFPageAnchor*)keepingAnchor {
     if (!_doc || !_uiReady) return;
+    // The anchor's offset is in the viewport as it is now; the relayout can add or remove a scroller and so resize
+    // it. Keep the offset as a share of the viewport.
+    NSSize anchorViewport = _pageScrollView.contentView.bounds.size;
 
     [self resumeBackgroundRenderQueuesAfterLiveZoomCancelingQueuedWork:YES];
     [_window.contentView layoutSubtreeIfNeeded];
@@ -4926,16 +4942,25 @@ static BOOL spdf_page_list_cache_disabled(void) {
           [self clearLiveZoomSeeds];
           [self applySearchHighlightsToCurrentPage];
           [self resizeDocumentView];
-          if (restoreOrigin)
+          if (restoreOrigin) {
               [self scrollDocumentClipViewToOrigin:[self normalizedDocumentScrollOrigin:restoreOrigin.pointValue
                                                                            forPageIndex:pageIndex]
                                             notify:NO];
-          else
+          } else if (keepingAnchor) {
+              SPDFPageAnchor anchor = *keepingAnchor;
+              NSSize viewport = self->_pageScrollView.contentView.bounds.size;
+              anchor.offsetInViewport.x *= viewport.width / MAX(1.0, anchorViewport.width);
+              anchor.offsetInViewport.y *= viewport.height / MAX(1.0, anchorViewport.height);
+              [self scrollToPageAnchor:anchor notify:NO];
+              [self documentScrollPositionChanged];
+              [self updateMinimap];
+          } else {
               [self scrollToPage:pageIndex alignTop:alignTop];
+          }
         }
         completionHandler:nil];
     NSInteger renderCenterPage = pageIndex;
-    if (restoreOrigin) {
+    if (restoreOrigin || keepingAnchor) {
         renderCenterPage = [_pageView pageIndexForVisibleRect:_pageScrollView.contentView.bounds];
         _pageIndex = renderCenterPage;
         _pageView.currentPageIndex = _pageIndex;
@@ -7494,6 +7519,16 @@ static BOOL spdf_page_list_cache_disabled(void) {
     NSClipView* clipView = _pageScrollView.contentView;
     NSPoint origin = clipView.bounds.origin;
     [self renderDocumentAndScrollToPage:_pageIndex alignTop:NO restoreOrigin:[NSValue valueWithPoint:origin]];
+}
+
+// Re-renders at the zoom the fit mode now gives, keeping the point of the page under the viewport's centre under its
+// centre (applyFitModeKeepingPosition:). NO, and nothing done, in presentation mode or before the pages are laid out.
+- (BOOL)renderDocumentKeepingVisibleCenter {
+    if (!_doc || _presentationMode || _renderedPages.count == 0) return NO;
+    SPDFPageAnchor anchor = [self pageAnchorForWindowPoint:[self visibleCenterWindowPoint]];
+    if (!anchor.valid) return NO;
+    [self renderDocumentAndScrollToPage:anchor.pageIndex alignTop:NO restoreOrigin:nil keepingAnchor:&anchor];
+    return YES;
 }
 
 - (void)finishLiveZoom:(NSTimer*)timer {
@@ -11207,81 +11242,6 @@ static const int kSPDFCursorRegionMaxLinkRects = 512;
         return;
     }
     [self zoomByFactor:1.0 / 1.20 centeredAtWindowPoint:[self visibleCenterWindowPoint]];
-}
-
-- (void)rememberCurrentZoomForCustomReturn {
-    if (_fitMode == SPDFFitModeCustom && _zoom > 0) _rememberedCustomZoom = _zoom;
-}
-
-- (void)actualSize:(id)sender {
-    (void)sender;
-    if ([self isMarkdownActive]) {
-        [self markdownApplyFitMode:SPDFFitModeActual];
-        return;
-    }
-    if (!_doc) return;
-    [self rememberCurrentZoomForCustomReturn];
-    _fitMode = SPDFFitModeActual;
-    [self renderDocumentAndScrollToPage:_pageIndex alignTop:NO];
-    [self persistActiveState];
-}
-
-- (void)fitWidth:(id)sender {
-    (void)sender;
-    if ([self isMarkdownActive]) {
-        [self markdownApplyFitMode:SPDFFitModeWidth];
-        return;
-    }
-    if (!_doc) return;
-    [self rememberCurrentZoomForCustomReturn];
-    _fitMode = SPDFFitModeWidth;
-    [self renderDocumentAndScrollToPage:_pageIndex alignTop:NO];
-    [self persistActiveState];
-}
-
-- (void)fitHeight:(id)sender {
-    (void)sender;
-    if ([self isMarkdownActive]) {
-        [self markdownApplyFitMode:SPDFFitModeHeight];
-        return;
-    }
-    if (!_doc) return;
-    [self rememberCurrentZoomForCustomReturn];
-    _fitMode = SPDFFitModeHeight;
-    [self renderDocumentAndScrollToPage:_pageIndex alignTop:YES];
-    [self persistActiveState];
-}
-
-- (void)fitPage:(id)sender {
-    (void)sender;
-    if ([self isMarkdownActive]) {
-        [self markdownApplyFitMode:SPDFFitModePage];
-        return;
-    }
-    if (!_doc) return;
-    [self rememberCurrentZoomForCustomReturn];
-    _fitMode = SPDFFitModePage;
-    [self renderDocumentAndScrollToPage:_pageIndex alignTop:YES];
-    [self persistActiveState];
-}
-
-- (void)fitModePopupChanged:(id)sender {
-    (void)sender;
-    NSInteger selectedTag = _fitModePopup.selectedItem.tag;
-    SPDFFitMode selected = (SPDFFitMode)MAX(0, MIN(4, selectedTag));
-    if ([self isMarkdownActive]) {
-        [self markdownApplyFitMode:selected];
-    } else if (_doc) {
-        if (selected == SPDFFitModeCustom)
-            _zoom = MAX(kMinZoom, MIN(kMaxZoom, _rememberedCustomZoom > 0 ? _rememberedCustomZoom : _zoom));
-        else
-            [self rememberCurrentZoomForCustomReturn];
-        _fitMode = selected;
-        [self renderDocumentAndScrollToPage:_pageIndex alignTop:NO];
-        [self persistActiveState];
-    } else {
-        _fitMode = selected;
-    }
 }
 
 - (void)toggleSidebar:(id)sender {

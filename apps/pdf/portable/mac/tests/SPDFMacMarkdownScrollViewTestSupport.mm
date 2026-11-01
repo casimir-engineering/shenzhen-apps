@@ -182,11 +182,17 @@ void spdf_assert_markdown_exact_fit_and_vertical_centering(SPDFMacMarkdownPagedV
     page2 = [multiCanvas frameForPageAtIndex:2];
     assert(fabs(NSMinY(multiPageView.documentVisibleRect) - NSMinY(page2)) <= 0.5);
     assert(fabs(NSHeight(page2) * multiPageView.magnification - multiPageView.contentSize.height) <= 0.5);
-    // Fit Width: the page is taller than the viewport, so it starts at its top.
+    // Fit Width keeps the reading position: the point of the page under the
+    // viewport's centre stays under its centre, as Zoom In/Out keep it. It used
+    // to jump to the page's top (and the PDF view to its bottom).
     [multiPageView scrollByDocumentDeltaX:0.0 deltaY:120.0];
+    page2 = [multiCanvas frameForPageAtIndex:2];
+    CGFloat centreShare = (NSMidY(multiPageView.documentVisibleRect) - NSMinY(page2)) / NSHeight(page2);
+    assert(centreShare > 0.05 && centreShare < 0.95);
     [multiPageView applyFitMode:SPDFMacMarkdownPageFitWidth];
     page2 = [multiCanvas frameForPageAtIndex:2];
-    assert(fabs(NSMinY(multiPageView.documentVisibleRect) - NSMinY(page2)) <= 0.5);
+    assert(fabs((NSMidY(multiPageView.documentVisibleRect) - NSMinY(page2)) / NSHeight(page2) - centreShare) < 0.005);
+    assert(NSMinY(multiPageView.documentVisibleRect) > NSMinY(page2) + 1.0);  // not snapped to the top
     assert(fabs(NSWidth(page2) * multiPageView.magnification - multiPageView.contentSize.width) <= 0.5);
 
     // --- The PDF path's fitted scroll origin, shared pure geometry ---
