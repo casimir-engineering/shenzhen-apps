@@ -35,6 +35,11 @@ static void TestRequests(void) {
     Expect(Check(@{@"command" : @"open", @"path" : @"/a/b.md", @"heading" : @"Setup"}) != nil, @"open at a heading");
     Expect(Check(@{@"command" : @"screenshot", @"windowId" : @42, @"output" : @"/tmp/w.PNG"}) != nil, @"screenshot");
     Expect(Check(@{@"command" : @"comments-changed", @"path" : @"/a/b.md"}) != nil, @"comments-changed");
+    Expect(Check(@{@"command" : @"version", @"action" : @"new", @"path" : @"/a/b.md", @"carry" : @"all"}) != nil,
+           @"version new");
+    Expect(Check(@{@"command" : @"version", @"action" : @"compare", @"path" : @"/a/b.md", @"older" : @1, @"newer" : @2,
+                   @"front" : @NO}) != nil,
+           @"version compare");
     NSArray* refused = @[
         @{@"command" : @"quit"}, @{@"command" : @"state", @"extra" : @1}, @{@"path" : @"/a.md"},
         @{@"command" : @"open", @"path" : @"b.md"}, @{@"command" : @"open"},
@@ -48,6 +53,10 @@ static void TestRequests(void) {
         @{@"command" : @"screenshot", @"windowId" : @"42", @"output" : @"/tmp/w.png"},
         @{@"command" : @"screenshot", @"windowId" : @42, @"output" : @"/tmp/w.jpg"},
         @{@"command" : @"screenshot", @"windowId" : @42, @"output" : @"w.png"},
+        @{@"command" : @"version", @"action" : @"delete", @"path" : @"/a.md"},
+        @{@"command" : @"version", @"action" : @"new", @"path" : @"/a.md", @"carry" : @"some"},
+        @{@"command" : @"version", @"action" : @"compare", @"path" : @"/a.md", @"older" : @1},
+        @{@"command" : @"version", @"action" : @"list", @"path" : @"a.md"},
     ];
     for (NSDictionary* request in refused)
         Expect(Check(request) == nil, [NSString stringWithFormat:@"refused: %@", request]);
@@ -148,6 +157,17 @@ static void TestArguments(void) {
     NSDictionary* reopen = Parse(@[ @"comment", @"resolve", @"a.md", @"m1", @"--reopen" ]);
     Expect([reopen[@"command"] isEqualToString:@"comment-resolve"] && ![reopen[@"resolved"] boolValue], @"reopen");
     Expect([Parse(@[ @"comment", @"resolve", @"a.md", @"m1" ])[@"resolved"] boolValue], @"resolve");
+    NSDictionary* fresh = Parse(@[ @"version", @"new", @"r.md" ]);
+    Expect([fresh[@"command"] isEqualToString:@"version-new"] && [fresh[@"carry"] isEqualToString:@"open"] &&
+               [fresh[@"path"] isEqualToString:@"/work/r.md"],
+           @"version new carries the open comments by default");
+    Expect([Parse(@[ @"version", @"new", @"r.md", @"--carry", @"none" ])[@"carry"] isEqualToString:@"none"], @"--carry");
+    Expect([Parse(@[ @"version", @"list", @"r.md" ])[@"command"] isEqualToString:@"version-list"], @"version list");
+    NSDictionary* compare = Parse(@[ @"version", @"compare", @"r.md", @"1", @"2", @"--background" ]);
+    Expect([compare[@"older"] isEqual:@1] && [compare[@"newer"] isEqual:@2] && ![compare[@"front"] boolValue],
+           @"version compare, in the background");
+    Expect([Parse(@[ @"comments", @"r.md", @"--version", @"1", @"--json" ])[@"version"] isEqual:@1],
+           @"comments --version");
     NSArray* wrong = @[
         @[], @[ @"open" ], @[ @"open", @"a.md", @"--page", @"0" ], @[ @"open", @"a.md", @"--page", @"two" ],
         @[ @"open", @"a.md", @"--page", @"2", @"--heading", @"Setup" ], @[ @"open", @"a.md", @"--front", @"--background" ],
@@ -155,6 +175,10 @@ static void TestArguments(void) {
         @[ @"state", @"--wait" ], @[ @"screenshot", @"x", @"a.png" ], @[ @"screenshot", @"4", @"a.jpg" ],
         @[ @"comment", @"reply", @"a.md", @"m1" ], @[ @"comment", @"reply", @"a.md", @"m1", @"  " ],
         @[ @"comment", @"delete", @"a.md", @"m1" ], @[ @"comments", @"a.md", @"--author", @"x" ], @[ @"--version" ],
+        @[ @"version", @"new", @"r.md", @"--carry", @"some" ], @[ @"version", @"list", @"r.md", @"--carry", @"all" ],
+        @[ @"version", @"compare", @"r.md", @"2", @"2" ], @[ @"version", @"compare", @"r.md", @"1" ],
+        @[ @"version", @"compare", @"r.md", @"1", @"2", @"--front", @"--background" ], @[ @"version", @"r.md" ],
+        @[ @"comments", @"r.md", @"--version", @"0" ],
     ];
     for (NSArray* arguments in wrong)
         Expect(Parse(arguments) == nil, [NSString stringWithFormat:@"refused: %@", arguments]);

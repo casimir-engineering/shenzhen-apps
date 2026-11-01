@@ -8,9 +8,12 @@ static NSString* const kUsage =
     @"usage: szpdf open <file> [--page N | --heading TEXT] [--front] [--wait] [--timeout SECONDS]\n"
     @"       szpdf state\n"
     @"       szpdf screenshot <windowId> <out.png>\n"
-    @"       szpdf comments <file> [--json]\n"
+    @"       szpdf comments <file> [--json] [--version N]\n"
     @"       szpdf comment reply <file> <id> TEXT [--author NAME]\n"
-    @"       szpdf comment resolve <file> <id> [--reopen] [--author NAME]";
+    @"       szpdf comment resolve <file> <id> [--reopen] [--author NAME]\n"
+    @"       szpdf version new <file> [--carry open|all|none]\n"
+    @"       szpdf version list <file>\n"
+    @"       szpdf version compare <file> <older> <newer> [--background | --front]";
 
 static NSError* Usage(NSString* problem) {
     NSString* message = problem ? [NSString stringWithFormat:@"%@\n%@", problem, kUsage] : kUsage;
@@ -44,7 +47,7 @@ NSDictionary* SPDFMacSzpdfParseArguments(NSArray<NSString*>* arguments, NSString
     NSMutableArray<NSString*>* positional = [NSMutableArray array];
     NSMutableDictionary* options = [NSMutableDictionary dictionary];
     NSSet* flags = [NSSet setWithArray:@[ @"--front", @"--background", @"--wait", @"--json", @"--reopen" ]];
-    NSSet* valued = [NSSet setWithArray:@[ @"--page", @"--heading", @"--timeout", @"--author" ]];
+    NSSet* valued = [NSSet setWithArray:@[ @"--page", @"--heading", @"--timeout", @"--author", @"--carry", @"--version" ]];
     NSError* failure = nil;
     for (NSUInteger i = 0; i < arguments.count && !failure; i++) {
         NSString* argument = arguments[i];
@@ -93,10 +96,34 @@ NSDictionary* SPDFMacSzpdfParseArguments(NSArray<NSString*>* arguments, NSString
         command[@"windowId"] = @(number);
         command[@"output"] = output;
     } else if ([verb isEqualToString:@"comments"] && positional.count == 2) {
-        allowed = [NSSet setWithObject:@"--json"];
+        allowed = [NSSet setWithArray:@[ @"--json", @"--version" ]];
         command[@"command"] = @"comments";
         command[@"path"] = Absolute(positional[1], directory);
         command[@"json"] = @([options[@"--json"] boolValue]);
+        long long number = 0;
+        if (options[@"--version"] && !WholeNumber(options[@"--version"], 1, 100000, &number))
+            failure = Usage(@"--version takes a version number, as `szpdf version list` shows it.");
+        else if (options[@"--version"]) command[@"version"] = @(number);
+    } else if ([verb isEqualToString:@"version"] && positional.count == 3 &&
+               [@[ @"new", @"list" ] containsObject:positional[1]]) {
+        allowed = [positional[1] isEqualToString:@"new"] ? [NSSet setWithObject:@"--carry"] : [NSSet set];
+        command[@"command"] = [@"version-" stringByAppendingString:positional[1]];
+        command[@"path"] = Absolute(positional[2], directory);
+        command[@"carry"] = options[@"--carry"] ?: @"open";
+        if (![@[ @"open", @"all", @"none" ] containsObject:command[@"carry"]])
+            failure = Usage(@"--carry is open, all or none.");
+    } else if ([verb isEqualToString:@"version"] && positional.count == 5 && [positional[1] isEqualToString:@"compare"]) {
+        allowed = [NSSet setWithArray:@[ @"--background", @"--front" ]];
+        command[@"command"] = @"version-compare";
+        command[@"path"] = Absolute(positional[2], directory);
+        long long older = 0, newer = 0;
+        if (!WholeNumber(positional[3], 1, 100000, &older) || !WholeNumber(positional[4], 1, 100000, &newer) ||
+            older == newer)
+            failure = Usage(@"Name two different version numbers, as `szpdf version list` shows them.");
+        if (options[@"--front"] && options[@"--background"]) failure = Usage(@"Give --front or --background, not both.");
+        command[@"older"] = @(older);
+        command[@"newer"] = @(newer);
+        command[@"front"] = @([options[@"--front"] boolValue]);
     } else if ([verb isEqualToString:@"comment"] && positional.count == 5 && [positional[1] isEqualToString:@"reply"]) {
         allowed = [NSSet setWithObject:@"--author"];
         command[@"command"] = @"comment-reply";

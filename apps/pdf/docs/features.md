@@ -422,7 +422,9 @@ fence the renderer cannot draw keeps its ordinary highlighted code box.
 - **Comments for scripts and agents** — `szpdf comments` lists a document's
   comments as JSON (line or page, quoted text, headings, author, date, open or
   resolved, replies); `szpdf comment reply` and `szpdf comment resolve` answer
-  and close them, in PDFs and Markdown alike.
+  and close them, in PDFs and Markdown alike; `--version N` reads an earlier
+  version's. `szpdf version new`, `list` and `compare` do what New Version…
+  and Versions do.
 
 ## <a id="ocr"></a>OCR — on-device **mac · linux**
 

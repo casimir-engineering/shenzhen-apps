@@ -3,11 +3,14 @@
 // document's comments changed on disk.
 #import "SPDFMacAgentServer.h"
 #import "SPDFMacBackgroundOpening.h"
+#import "SPDFMacDocumentVersionsIntegration.h"
 #import "SPDFMacMarkdownDelegatePrivate.h"
 #import "SPDFMacMarkdownSession.h"
 #import "SPDFMacModels.h"
 #import "SPDFMacPaletteActivation.h"
 #import "markdown/SPDFMarkdownRenderer.h"
+#import <PDFKit/PDFKit.h>
+#import <QuartzCore/QuartzCore.h>
 
 #include <vector>
 
@@ -242,6 +245,36 @@ static NSArray<NSString*>* HeadingPath(NSArray<NSString*>* titles, const std::ve
     return nil;
 }
 
+#pragma mark - Versions
+
+// The versions hooks (SPDFMacDocumentVersionsIntegration.h). The comparison window opens behind the other apps'
+// windows, just above this reader's window, unless asked to the front: it is ordered in front as it opens, so it is put
+// back right away, before the window server shows the frame.
+- (NSDictionary*)agentVersion:(NSDictionary*)request {
+    NSString* path = request[@"path"];
+    NSString* action = request[@"action"];
+    NSError* error = nil;
+    if ([action isEqual:@"list"]) return @{@"path" : path, @"versions" : [self versionsListForPath:path]};
+    if ([action isEqual:@"new"]) {
+        NSDictionary* version = [self versionsCreateForPath:path carry:request[@"carry"] error:&error];
+        return version ? @{@"path" : path, @"version" : version}
+                       : @{@"error" : error.localizedDescription ?: @"The version could not be made."};
+    }
+    NSSet* before = [NSSet setWithArray:NSApp.windows];
+    BOOL shown = [self versionsCompareForPath:path from:[request[@"older"] integerValue] to:[request[@"newer"] integerValue]
+                                        error:&error];
+    if (!shown) return @{@"error" : error.localizedDescription ?: @"The versions could not be compared."};
+    NSWindow* comparison = nil;
+    for (NSWindow* window in NSApp.windows)
+        if (![before containsObject:window] && window.visible) comparison = window;
+    if ([request[@"front"] boolValue]) spdf_mac_bring_window_to_front(comparison ?: _window);
+    else if (comparison && _window.visible) [comparison orderWindow:NSWindowAbove relativeTo:_window.windowNumber];
+    else if (comparison) [comparison orderBack:nil];
+    [CATransaction flush];
+    return @{@"opened" : @(comparison != nil), @"windowId" : @(comparison.windowNumber), @"older" : request[@"older"],
+             @"newer" : request[@"newer"], @"front" : @(NSApp.isActive && comparison.keyWindow)};
+}
+
 #pragma mark - Requests
 
 + (void)agentServerHandleRequest:(NSDictionary*)request reply:(void (^)(NSDictionary*))reply {
@@ -275,13 +308,42 @@ static NSArray<NSString*>* HeadingPath(NSArray<NSString*>* titles, const std::ve
         reply(@{@"refreshed" : @(refreshed)});
         return;
     }
-    // open: the window already showing the document, else the one in front, else the first.
+    // open and version: the window already showing the document, else the one in front, else the first.
     ShenzhenMacDelegate* target = nil;
     for (ShenzhenMacDelegate* reader in readers)
         if (!target && [reader indexOfTabForPath:request[@"path"]] >= 0) target = reader;
     for (ShenzhenMacDelegate* reader in readers)
         if (!target && reader->_window.keyWindow) target = reader;
-    [target ?: readers.firstObject agentOpen:request reply:reply];
+    target = target ?: readers.firstObject;
+    if ([command isEqual:@"version"]) reply([target agentVersion:request]);
+    else [target agentOpen:request reply:reply];
+}
+
+// PDFKit views (the version comparison) draw their pages in tiled layers that a view's own drawing leaves out: their
+// visible pages are drawn into the picture where the view shows them.
+static void DrawPDFViews(NSView* view, NSView* root) {
+    if ([view isKindOfClass:PDFView.class]) {
+        PDFView* pdf = (PDFView*)view;
+        NSRect visible = [root convertRect:pdf.visibleRect fromView:pdf];
+        for (PDFPage* page in pdf.visiblePages) {
+            NSRect box = [page boundsForBox:pdf.displayBox];
+            NSRect onScreen = [root convertRect:[pdf convertRect:box fromPage:page] fromView:pdf];
+            if (NSIsEmptyRect(onScreen) || NSIsEmptyRect(box)) continue;
+            CGContextRef context = NSGraphicsContext.currentContext.CGContext;
+            CGContextSaveGState(context);
+            CGContextClipToRect(context, NSIntersectionRect(onScreen, visible));
+            CGContextSetRGBFillColor(context, 1, 1, 1, 1);
+            CGContextFillRect(context, onScreen);
+            CGContextTranslateCTM(context, NSMinX(onScreen), NSMinY(onScreen));
+            CGContextScaleCTM(context, NSWidth(onScreen) / NSWidth(box), NSHeight(onScreen) / NSHeight(box));
+            CGContextTranslateCTM(context, -NSMinX(box), -NSMinY(box));
+            [page drawWithBox:pdf.displayBox toContext:context];
+            CGContextRestoreGState(context);
+        }
+        return;
+    }
+    for (NSView* child in view.subviews)
+        if (!child.hidden) DrawPDFViews(child, root);
 }
 
 // The window draws itself into a picture: nothing is captured from the screen, so it works for a window behind
@@ -297,6 +359,10 @@ static NSArray<NSString*>* HeadingPath(NSArray<NSString*>* titles, const std::ve
     NSBitmapImageRep* picture = [view bitmapImageRepForCachingDisplayInRect:bounds];
     if (!picture) return @{@"error" : @"The window has nothing to draw."};
     [view cacheDisplayInRect:bounds toBitmapImageRep:picture];
+    [NSGraphicsContext saveGraphicsState];
+    NSGraphicsContext.currentContext = [NSGraphicsContext graphicsContextWithBitmapImageRep:picture];
+    DrawPDFViews(view, view);
+    [NSGraphicsContext restoreGraphicsState];
     NSData* png = [picture representationUsingType:NSBitmapImageFileTypePNG properties:@{}];
     NSError* error = nil;
     if (![png writeToFile:request[@"output"] options:NSDataWritingAtomic error:&error])

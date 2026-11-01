@@ -55,6 +55,10 @@ password; add `~/.local/bin` to `PATH` if your shell does not find it).
 | `szpdf comments <file> [--json]` | `comments`: `id`, `line` (Markdown) or `page` (PDF), `quote`, `headingPath`, `author`, `date`, `status` (`open`/`resolved`), `text`, `replies` |
 | `szpdf comment reply <file> <id> TEXT [--author NAME]` | the updated `comment`, and how many readers redrew it |
 | `szpdf comment resolve <file> <id> [--reopen] [--author NAME]` | the updated `comment` |
+| `szpdf comments <file> --version N [--json]` | the comments of version N |
+| `szpdf version new <file> [--carry open\|all\|none]` | the frozen `version`: `number`, `name`, `path`, `commentsPath`, `date`, `current` |
+| `szpdf version list <file>` | `versions`, oldest first, the current file last |
+| `szpdf version compare <file> <older> <newer> [--background \| --front]` | `opened`, `windowId` of the comparison |
 
 Paths may be relative. Exit status is 0 on success, 1 when the JSON carries `error`, 2 for a usage mistake.
 
@@ -88,6 +92,15 @@ A PDF's are annotations inside it: a reply is a note answering the comment (`/IR
 Acrobat and Preview use (`/StateModel /Review`, `/State /Completed`). A PDF is changed through a copy that replaces the
 file only if nothing else changed it meanwhile. An `id` (`m…` for Markdown, `p…` for PDF) stays the same while the
 comment lives; replying and resolving keep it. Replies are signed `--author`, else `$SZPDF_AUTHOR`, else `Agent`.
+
+**Versions.** Before rewriting a reviewed document, run `szpdf version new <file>`, then write the new text to the same
+path: the current text is kept as `<name> v1.md` (or `.pdf`) beside it with all its comments, and the open ones come
+along to the file you rewrite (`--carry open`, the default; `all` or `none` otherwise). The file at the original path
+is always the newest version, so nothing else changes for your editor. If you skip `version new`, ShenzhenPDF keeps
+the earlier text of a commented document when it notices the rewrite, but only while the document is open in it.
+`version new` and `list` work through the running app when there is one (its tabs follow) and straight on the files
+otherwise; `version compare` opens the comparison window, behind your other windows unless `--front`, starting the app
+if needed.
 
 **The channel.** Each ShenzhenPDF window process listens, from after its first frame, on its own Unix socket,
 `~/Library/Application Support/ShenzhenPDF/Agent/<pid>.sock` (directory 0700, socket 0600; it also checks the caller

@@ -68,13 +68,15 @@ NSDictionary* SPDFMacAgentChannelValidateRequest(NSData* line, NSError** error) 
         @"open" : @[ @"command", @"path", @"page", @"heading", @"front", @"wait" ],
         @"screenshot" : @[ @"command", @"windowId", @"output" ],
         @"comments-changed" : @[ @"command", @"path" ],
+        @"version" : @[ @"command", @"action", @"path", @"carry", @"older", @"newer", @"front" ],
     };
     if (!request) failure = ChannelError(@"The request is not a JSON object.");
     else if (!allowed[command ?: @""]) failure = ChannelError(@"Unknown command.");
     for (NSString* key in failure ? @[] : request.allKeys)
-        if (![allowed[command] containsObject:key]) failure = ChannelError([NSString stringWithFormat:@"Unknown field %@.", key]);
-    if (!failure && ([command isEqual:@"open"] || [command isEqual:@"comments-changed"]) &&
-        !IsAbsolutePath(request[@"path"]))
+        if (![allowed[command] containsObject:key])
+            failure = ChannelError([NSString stringWithFormat:@"Unknown field %@.", key]);
+    BOOL takesPath = [@[ @"open", @"comments-changed", @"version" ] containsObject:command ?: @""];
+    if (!failure && takesPath && !IsAbsolutePath(request[@"path"]))
         failure = ChannelError(@"An absolute document path is required.");
     if (!failure && [command isEqual:@"open"]) {
         if (request[@"page"] && !IsWholeNumber(request[@"page"], 1, 1000000))
@@ -88,9 +90,23 @@ NSDictionary* SPDFMacAgentChannelValidateRequest(NSData* line, NSError** error) 
         else if ((request[@"front"] && !IsBool(request[@"front"])) || (request[@"wait"] && !IsBool(request[@"wait"])))
             failure = ChannelError(@"front and wait must be true or false.");
     }
+    if (!failure && [command isEqual:@"version"]) {
+        NSString* action = request[@"action"];
+        if (![@[ @"new", @"list", @"compare" ] containsObject:action ?: @""])
+            failure = ChannelError(@"action must be new, list or compare.");
+        else if (request[@"carry"] && ![@[ @"open", @"all", @"none" ] containsObject:request[@"carry"]])
+            failure = ChannelError(@"carry must be open, all or none.");
+        else if ([action isEqual:@"compare"] && (!IsWholeNumber(request[@"older"], 1, 100000) ||
+                                                 !IsWholeNumber(request[@"newer"], 1, 100000)))
+            failure = ChannelError(@"compare needs two version numbers.");
+        else if (request[@"front"] && !IsBool(request[@"front"]))
+            failure = ChannelError(@"front must be true or false.");
+    }
     if (!failure && [command isEqual:@"screenshot"]) {
-        if (!IsWholeNumber(request[@"windowId"], 1, INT32_MAX)) failure = ChannelError(@"windowId must be a window number.");
-        else if (!IsAbsolutePath(request[@"output"]) || ![[request[@"output"] pathExtension].lowercaseString isEqual:@"png"])
+        if (!IsWholeNumber(request[@"windowId"], 1, INT32_MAX))
+            failure = ChannelError(@"windowId must be a window number.");
+        else if (!IsAbsolutePath(request[@"output"]) ||
+                 ![[request[@"output"] pathExtension].lowercaseString isEqual:@"png"])
             failure = ChannelError(@"The picture's path must be absolute and end in .png.");
     }
     if (failure) {

@@ -119,7 +119,13 @@ szpdf screenshot <windowId> window.png           # a picture of that window, eve
 szpdf comments report.md --json                  # id, line or page, quoted text, heading, author, date, open/resolved, replies
 szpdf comment reply report.md <id> "Fixed in v2." --author Claude
 szpdf comment resolve report.md <id>             # --reopen to open it again
+szpdf version new report.md                      # keep this text as v1 with its comments; --carry open|all|none
+szpdf version list report.md                     # number, name, path, comments file, date, current
+szpdf version compare report.md 1 2              # the two side by side with their changes, behind your windows
+szpdf comments report.md --version 1 --json      # the comments made on v1
 ```
+
+**Rewriting a reviewed document:** run `szpdf version new report.md` first, then write the new text to the same path. The reviewed text and its comments stay as `report v1.md` (open comments come along to the new text unless `--carry none`), and `version compare` shows what changed. If you skip it, ShenzhenPDF keeps the earlier text for you, but only while the document is open in it.
 
 Every command prints JSON and exits 1 when something went wrong; a document that could not be shown says so. Install it from **Settings › General › Install Command-Line Tool**, which puts a link in `~/.local/bin` without asking for an administrator password, or run it from the app: `/Applications/ShenzhenPDF.app/Contents/MacOS/szpdf`. It only talks to ShenzhenPDF on this Mac, as you. `open -g` also leaves ShenzhenPDF in the background, for files and for links. Details: [the szpdf reference](portable/docs/agent-interface.md#szpdf).
 

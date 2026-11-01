@@ -3,6 +3,7 @@
 #import "SPDFMacSzpdf.h"
 #import "SPDFMacAgentChannel.h"
 #import "SPDFMacAgentComments.h"
+#import "SPDFMacDocumentVersions.h"
 #import "SPDFMacStateDirectory.h"
 
 #import <AppKit/AppKit.h>
@@ -93,10 +94,9 @@ static NSString* Launch(NSString* document, BOOL front) {
     return failure;
 }
 
-static int Open(NSDictionary* command) {
-    NSString* path = command[@"path"];
-    BOOL front = [command[@"front"] boolValue];
-    NSTimeInterval timeout = [command[@"timeout"] doubleValue];
+// The reader a request about `path` goes to, starting ShenzhenPDF on `path` when none runs (behind, unless `front`).
+// 0 and `failure` when there is none.
+static pid_t Reader(NSString* path, BOOL front, NSTimeInterval timeout, NSString** failure) {
     __block NSDictionary<NSNumber*, NSDictionary*>* readers = Readers();
     pid_t target = SPDFMacSzpdfChooseProcess(readers, path);
     if (!target && readers.count) {
@@ -108,24 +108,33 @@ static int Open(NSDictionary* command) {
               if (Alive(pid.intValue)) return NO;
           return YES;
         });
-        if (!gone)
-            return Finish(@{@"opened" : @NO, @"error" : @"ShenzhenPDF is quitting and has not finished. Try again "
-                                                        @"once it has closed."});
+        if (!gone) {
+            *failure = @"ShenzhenPDF is quitting and has not finished. Try again once it has closed.";
+            return 0;
+        }
         readers = @{};
     }
-    if (!target) {
-        NSString* failure = Launch(path, front);
-        if (failure) return Finish(@{@"opened" : @NO, @"error" : failure});
-        BOOL answered = WaitUntil(timeout, ^BOOL {
-          readers = Readers();
-          return SPDFMacSzpdfChooseProcess(readers, path) != 0;
-        });
-        if (!answered)
-            return Finish(@{@"opened" : @NO, @"error" : [NSString stringWithFormat:@"ShenzhenPDF started but did not "
-                                                                                    @"answer within %.0f seconds.",
-                                                                                    timeout]});
-        target = SPDFMacSzpdfChooseProcess(readers, path);
+    if (target) return target;
+    *failure = Launch(path, front);
+    if (*failure) return 0;
+    BOOL answered = WaitUntil(timeout, ^BOOL {
+      readers = Readers();
+      return SPDFMacSzpdfChooseProcess(readers, path) != 0;
+    });
+    if (!answered) {
+        *failure = [NSString stringWithFormat:@"ShenzhenPDF started but did not answer within %.0f seconds.", timeout];
+        return 0;
     }
+    return SPDFMacSzpdfChooseProcess(readers, path);
+}
+
+static int Open(NSDictionary* command) {
+    NSString* path = command[@"path"];
+    BOOL front = [command[@"front"] boolValue];
+    NSTimeInterval timeout = [command[@"timeout"] doubleValue];
+    NSString* failure = nil;
+    pid_t target = Reader(path, front, timeout, &failure);
+    if (!target) return Finish(@{@"opened" : @NO, @"error" : failure ?: @"ShenzhenPDF did not answer."});
     NSMutableDictionary* request = [@{@"command" : @"open", @"path" : path, @"front" : @(front),
                                       @"wait" : command[@"wait"]} mutableCopy];
     if (command[@"page"]) request[@"page"] = command[@"page"];
@@ -167,8 +176,62 @@ static int Screenshot(NSDictionary* command) {
                 return Finish(Send(pid.intValue, @{@"command" : @"screenshot", @"windowId" : command[@"windowId"],
                                                    @"output" : command[@"output"]},
                                    30));
+    // Not a document window: a comparison or another of the app's windows, which only its own process knows.
+    NSDictionary* request = @{@"command" : @"screenshot", @"windowId" : command[@"windowId"], @"output" : command[@"output"]};
+    for (NSNumber* pid in readers) {
+        NSDictionary* answer = Send(pid.intValue, request, 30);
+        if (!answer[@"error"]) return Finish(answer);
+    }
     return Finish(@{@"error" : readers.count ? @"No ShenzhenPDF window has that id; see `szpdf state`."
                                              : @"ShenzhenPDF is not running."});
+}
+
+static SPDFDocumentVersionCarry CarryNamed(NSString* name) {
+    return [name isEqual:@"all"] ? SPDFDocumentVersionCarryAll
+           : [name isEqual:@"none"] ? SPDFDocumentVersionCarryNone : SPDFDocumentVersionCarryOpen;
+}
+
+// version new and list go through the reader when one runs (it updates the tabs showing the document), else straight to
+// the files; compare needs the reader, and starts it.
+static int Versions(NSDictionary* command) {
+    NSString* path = command[@"path"];
+    NSString* verb = command[@"command"];
+    BOOL exists = [NSFileManager.defaultManager fileExistsAtPath:path];
+    if (!exists || !SPDFDocumentVersionsSupportsPath(path))
+        return Finish(@{@"error" : exists ? @"Versions are kept for Markdown documents and PDFs."
+                                          : [NSString stringWithFormat:@"No document at %@.", path]});
+    NSString* current = SPDFDocumentVersionsCurrentPath(path);
+    NSString* action = [verb substringFromIndex:8];
+    NSMutableDictionary* request = [@{@"command" : @"version", @"action" : action, @"path" : current} mutableCopy];
+    if ([action isEqual:@"compare"]) {
+        NSString* failure = nil;
+        pid_t target = Reader(current, [command[@"front"] boolValue], 30, &failure);
+        if (!target) return Finish(@{@"opened" : @NO, @"error" : failure ?: @"ShenzhenPDF did not answer."});
+        [request addEntriesFromDictionary:@{@"older" : command[@"older"], @"newer" : command[@"newer"],
+                                            @"front" : command[@"front"]}];
+        return Finish(Send(target, request, 30));
+    }
+    pid_t target = SPDFMacSzpdfChooseProcess(Readers(), current);
+    if (target) {
+        if ([action isEqual:@"new"]) request[@"carry"] = command[@"carry"];
+        NSMutableDictionary* answer = [Send(target, request, 30) mutableCopy];
+        answer[@"via"] = @"app";
+        return Finish(answer);
+    }
+    if ([action isEqual:@"list"])
+        return Finish(@{@"path" : current, @"via" : @"files",
+                        @"versions" : [SPDFDocumentVersionsList(current) valueForKey:@"dictionaryRepresentation"]});
+    NSError* error = nil;
+    SPDFDocumentVersion* version = SPDFDocumentVersionsCreate(current, CarryNamed(command[@"carry"]), &error);
+    if (!version) return Finish(@{@"error" : error.localizedDescription ?: @"The version could not be made."});
+    return Finish(@{@"path" : current, @"via" : @"files", @"version" : version.dictionaryRepresentation});
+}
+
+// The file holding version `number` of the document `path` belongs to, or nil.
+static NSString* VersionPath(NSString* path, NSInteger number) {
+    for (SPDFDocumentVersion* version in SPDFDocumentVersionsList(path))
+        if (version.number == number) return version.path;
+    return nil;
 }
 
 static void PrintCommentsText(NSDictionary* listing) {
@@ -194,7 +257,19 @@ static int Comments(NSDictionary* command) {
     NSString* author = command[@"author"] ?: NSProcessInfo.processInfo.environment[@"SZPDF_AUTHOR"] ?: @"Agent";
     NSDictionary* result = nil;
     if ([command[@"command"] isEqual:@"comments"]) {
+        if (command[@"version"]) {
+            NSString* versionPath = VersionPath(path, [command[@"version"] integerValue]);
+            if (!versionPath)
+                return Finish(@{@"error" : [NSString stringWithFormat:@"There is no v%@ of this document; see `szpdf "
+                                                                      @"version list`.", command[@"version"]]});
+            path = versionPath;
+        }
         result = SPDFMacAgentListComments(path, &error);
+        if (result && command[@"version"]) {
+            NSMutableDictionary* stamped = [result mutableCopy];
+            stamped[@"version"] = command[@"version"];
+            result = stamped;
+        }
         if (result && ![command[@"json"] boolValue]) {
             PrintCommentsText(result);
             return 0;
@@ -230,6 +305,7 @@ int SPDFMacRunSzpdf(int argc, const char* argv[]) {
         if ([verb isEqual:@"open"]) return Open(command);
         if ([verb isEqual:@"state"]) return State();
         if ([verb isEqual:@"screenshot"]) return Screenshot(command);
+        if ([verb hasPrefix:@"version-"]) return Versions(command);
         return Comments(command);
     }
 }

@@ -6,9 +6,12 @@
 //   szpdf open <file> [--page N | --heading TEXT] [--front] [--wait] [--timeout SECONDS]
 //   szpdf state
 //   szpdf screenshot <windowId> <out.png>
-//   szpdf comments <file> [--json]
+//   szpdf comments <file> [--json] [--version N]
 //   szpdf comment reply <file> <id> TEXT [--author NAME]
 //   szpdf comment resolve <file> <id> [--reopen] [--author NAME]
+//   szpdf version new <file> [--carry open|all|none]
+//   szpdf version list <file>
+//   szpdf version compare <file> <older> <newer> [--background | --front]
 //
 // It talks to running readers over their private sockets (SPDFMacAgentChannel.h) and starts the app when none runs.
 // Opening never brings ShenzhenPDF forward unless --front is given. Every command prints one JSON object (comments
