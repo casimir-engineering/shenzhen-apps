@@ -17,6 +17,7 @@
 static NSString* const kSeparator = @"---";
 static NSString* const kUnplacedHeading = @"## Unplaced";
 static NSString* const kPathSeparator = @" › ";
+static NSString* const kResolvedSuffix = @" · Resolved";
 
 @implementation SPDFMarkdownComment
 - (instancetype)init {
@@ -125,7 +126,8 @@ static void AppendComment(NSMutableString* out, SPDFMarkdownComment* comment) {
                       Escape(comment.contextAfter)];
     NSString* date = [DateFormatter() stringFromDate:comment.date ?: NSDate.date];
     NSString* author = Trimmed(comment.author);
-    [out appendFormat:@"%@\n\n", author.length ? [NSString stringWithFormat:@"**%@** · %@", Escape(author), date] : date];
+    NSString* byline = author.length ? [NSString stringWithFormat:@"**%@** · %@", Escape(author), date] : date;
+    [out appendFormat:@"%@%@\n\n", byline, comment.resolved ? kResolvedSuffix : @""];
     for (NSString* line in [Trimmed(comment.text) componentsSeparatedByString:@"\n"])
         [out appendFormat:@"%@%@\n", BodyLineNeedsEscape(line) ? @"\\" : @"", line];
     [out appendString:@"\n"];
@@ -182,6 +184,8 @@ static void ParseLocation(NSString* line, SPDFMarkdownComment* comment) {
 }
 
 static BOOL ParseByline(NSString* line, SPDFMarkdownComment* comment) {
+    BOOL resolved = [line hasSuffix:kResolvedSuffix];
+    if (resolved) line = [line substringToIndex:line.length - kResolvedSuffix.length];
     NSString* author = @"";
     NSString* date = line;
     if ([line hasPrefix:@"**"]) {
@@ -194,6 +198,7 @@ static BOOL ParseByline(NSString* line, SPDFMarkdownComment* comment) {
     if (!parsed) return NO;
     comment.author = author;
     comment.date = parsed;
+    comment.resolved = resolved;
     return YES;
 }
 

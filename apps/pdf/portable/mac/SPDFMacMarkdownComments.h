@@ -24,6 +24,9 @@ NS_ASSUME_NONNULL_BEGIN
 // The rest of the passage around the quote, as written to the file ("…" marks a cut).
 @property(nonatomic, copy) NSString* contextBefore;
 @property(nonatomic, copy) NSString* contextAfter;
+// Marked done. Written as " · Resolved" at the end of the comment's own byline ("**Raph** · 2026-11-01 15:20 ·
+// Resolved"), never on a reply's.
+@property(nonatomic) BOOL resolved;
 // Range in the rendered document; location NSNotFound while the passage is not found.
 @property(nonatomic) NSRange renderedRange;
 @property(nonatomic, readonly, getter=isPlaced) BOOL placed;

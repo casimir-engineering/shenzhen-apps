@@ -1233,14 +1233,7 @@ void spdf_free_text_lines(spdf_text_lines* lines) {
 
 #include "spdf_outline_read.h"
 #include "spdf_comment_read.h"
-
-static int annot_type_should_surface(enum pdf_annot_type type) {
-    return type != PDF_ANNOT_LINK && type != PDF_ANNOT_POPUP && type != PDF_ANNOT_WIDGET && type != PDF_ANNOT_SCREEN;
-}
-
-static int comment_annotation_should_surface(const char* contents, const char* author, enum pdf_annot_type annot_type) {
-    return (contents && *contents) || (author && *author) || annot_type_should_surface(annot_type);
-}
+#include "spdf_comment_review.h"
 
 static const char* dict_text_or_empty(fz_context* ctx, pdf_obj* obj, pdf_obj* key) {
     const char* text;
@@ -1363,11 +1356,12 @@ int spdf_load_comments(spdf_document* doc, spdf_comments* out, char* err, size_t
                     if (!popup) popup = popup_for_parent(doc->ctx, annots, obj);
                     if (!contents || !*contents) contents = dict_text_or_empty(doc->ctx, popup, PDF_NAME(Contents));
                     author = comment_author_or_empty(doc->ctx, obj, popup);
-                    if (!comment_annotation_should_surface(contents, author, annot_type)) continue;
+                    if (!comment_annotation_should_surface(doc->ctx, obj, contents, author, annot_type)) continue;
                     bounds = annot_bounds(doc->ctx, annot);
                     if (!append_comment_item(&builder, author, contents, type, builder.count, i, bounds))
                         fz_throw(doc->ctx, FZ_ERROR_SYSTEM, "Out of memory");
                     note_comment_metadata(doc->ctx, &builder, annot, obj);
+                    builder.items[builder.count - 1].resolved = comment_is_resolved(doc->ctx, annots, obj);
                 }
                 pdf_drop_page(doc->ctx, page);
                 page = NULL;
@@ -1840,7 +1834,7 @@ int spdf_update_comment(spdf_document* doc, int comment_index, const char* text,
                 if (!popup) popup = popup_for_parent(doc->ctx, annots, obj);
                 if (!contents || !*contents) contents = dict_text_or_empty(doc->ctx, popup, PDF_NAME(Contents));
                 current_author = comment_author_or_empty(doc->ctx, obj, popup);
-                if (!comment_annotation_should_surface(contents, current_author, annot_type)) continue;
+                if (!comment_annotation_should_surface(doc->ctx, obj, contents, current_author, annot_type)) continue;
 
                 if (visible_index == comment_index) {
                     set_comment_text_and_author(doc->ctx, annot, popup, text, author);
@@ -1895,7 +1889,7 @@ int spdf_delete_comment(spdf_document* doc, int comment_index, char* err, size_t
                 if (!popup) popup = popup_for_parent(doc->ctx, annots, obj);
                 if (!contents || !*contents) contents = dict_text_or_empty(doc->ctx, popup, PDF_NAME(Contents));
                 current_author = comment_author_or_empty(doc->ctx, obj, popup);
-                if (!comment_annotation_should_surface(contents, current_author, annot_type)) continue;
+                if (!comment_annotation_should_surface(doc->ctx, obj, contents, current_author, annot_type)) continue;
 
                 if (visible_index == comment_index) {
                     remove_popups_for_parent(doc->ctx, annots, obj);
@@ -2518,7 +2512,7 @@ static void apply_comment_text_updates(fz_context* ctx, pdf_document* pdf, int p
                 if (!popup) popup = popup_for_parent(ctx, annots, obj);
                 if (!contents || !*contents) contents = dict_text_or_empty(ctx, popup, PDF_NAME(Contents));
                 author = comment_author_or_empty(ctx, obj, popup);
-                if (!comment_annotation_should_surface(contents, author, annot_type)) continue;
+                if (!comment_annotation_should_surface(ctx, obj, contents, author, annot_type)) continue;
                 if (visible_index == updates[next_update].index) {
                     const char* text = updates[next_update].text ? updates[next_update].text : "";
                     pdf_dict_put_text_string(ctx, obj, PDF_NAME(Contents), text);

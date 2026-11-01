@@ -113,6 +113,24 @@ static void TestEditsKeepAnchors(void) {
     Expect(parsed.count == 2 && [[parsed[1] quote] isEqualToString:@"two pull-ups on SDA"], @"unplaced parse back");
 }
 
+// A resolved comment says so at the end of its byline, with or without an author, and reads back resolved.
+static void TestResolved(void) {
+    SPDFMarkdownCommentAnchors* anchors = [[SPDFMarkdownCommentAnchors alloc] initWithSource:kSource rendered:kRendered];
+    SPDFMarkdownComment* done = CommentOn(anchors, kRendered, @"two pull-ups on SDA", 0);
+    SPDFMarkdownComment* open = CommentOn(anchors, kRendered, @"two pull-ups on SDA", 1);
+    done.resolved = YES;
+    open.author = @"";
+    NSString* file = SPDFMarkdownCommentsFileText(@"Board.md", @[ done, open ]);
+    Expect([file containsString:@"**Raph \\*R\\* Casimir** · "] && [file containsString:@" · Resolved\n"], file);
+    Expect([file componentsSeparatedByString:@"Resolved"].count == 2, @"only the resolved comment says so");
+    NSArray<SPDFMarkdownComment*>* parsed = SPDFMarkdownCommentsParseFile(file);
+    Expect(parsed.count == 2 && parsed[0].resolved && !parsed[1].resolved, @"resolved reads back");
+    Expect(parsed.count == 2 && [parsed[0].author isEqualToString:@"Raph *R* Casimir"] && parsed[0].date, @"byline intact");
+    done.author = @"";
+    NSArray<SPDFMarkdownComment*>* bare = SPDFMarkdownCommentsParseFile(SPDFMarkdownCommentsFileText(@"Board.md", @[ done ]));
+    Expect(bare.count == 1 && bare[0].resolved && bare[0].date && !bare[0].author.length, @"resolved without an author");
+}
+
 static void TestNames(void) {
     Expect([SPDFMarkdownCommentsFilePath(@"/a/Setup Guide.md") isEqualToString:@"/a/Setup Guide - comments.md"],
            @"comments file name");
@@ -141,6 +159,7 @@ int main(void) {
     @autoreleasepool {
         TestAnchorAndFile();
         TestEditsKeepAnchors();
+        TestResolved();
         TestNames();
         TestEditorPlacement();
     }
