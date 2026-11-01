@@ -9,6 +9,7 @@
 #include "client/szfriends_client_internal.h"
 
 #include <errno.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -171,6 +172,7 @@ static void observe_host_clock(szfriends_client *client, uint64_t now_ms) {
         if (client->handshake_deadline) client->handshake_deadline += (uint64_t)shift;
         if (client->handover_wait_until) client->handover_wait_until += (uint64_t)shift;
         if (client->spawned_before) client->last_spawn_at += (uint64_t)shift;
+        if (client->ending_pid) client->ending_at += (uint64_t)shift;
     }
     client->host_base = now_ms;
     client->mono_base = szfriends_monotonic_ms();
@@ -217,10 +219,50 @@ static void maybe_spawn(szfriends_client *client) {
     }
 }
 
+/* A helper that holds the socket but never works for us: it never answers hello (`refused` false), or it closes
+ * on us unanswered, or we refuse it (`refused` true). Waiting for it would show "Starting Friends…" for as long as
+ * it runs, so where szfriends_helper_may_be_ended() allows, it is asked to leave and ours starts in its place. */
+static void end_stuck_helper(szfriends_client *client, pid_t pid, bool refused) {
+    if (pid <= 0 || !client->helper_path || client->ending_pid == pid) return;
+    if (!szfriends_helper_may_be_ended(client->helper_path, pid, refused)) return;
+    szfriends_end_helper(pid, false);
+    client->ending_pid = pid;
+    client->ending_refused = refused;
+    client->ending_at = szfriends_client_now(client);
+    client->spawn_now = true; /* ours next, whatever handover it was waiting for */
+    client->handover_wait_until = 0;
+    client->backoff_ms = SZFRIENDS_RETRY_FIRST_MS;
+}
+
+static void note_refusal(szfriends_client *client, pid_t pid) {
+    if (pid <= 0) return;
+    if (client->refused_by == pid) {
+        client->refusals++;
+    } else {
+        client->refused_by = pid;
+        client->refusals = 1;
+    }
+    if (client->refusals >= SZFRIENDS_REFUSALS_BEFORE_END) end_stuck_helper(client, pid, true);
+}
+
+void szfriends_client_note_unanswered_close(szfriends_client *client) {
+    if (client->handshaking && !client->frame_seen) note_refusal(client, client->peer_pid);
+}
+
+/* A helper asked to leave that is still there after the grace (stopped, or its queue stuck) is stopped outright. */
+static void finish_ending(szfriends_client *client, uint64_t now_ms) {
+    pid_t pid = client->ending_pid;
+    if (!pid || now_ms < client->ending_at + SZFRIENDS_END_GRACE_MS) return;
+    client->ending_pid = 0;
+    if (kill(pid, 0) == 0 && szfriends_helper_may_be_ended(client->helper_path, pid, client->ending_refused))
+        szfriends_end_helper(pid, true);
+}
+
 /* One connection attempt. Returns a status worth logging; reschedules itself on failure. */
 static szfriends_status attempt_connect(szfriends_client *client) {
     struct sockaddr_un address;
     szfriends_status status;
+    pid_t peer;
     int fd;
 
     client->retry_scheduled = false;
@@ -246,8 +288,10 @@ static szfriends_status attempt_connect(szfriends_client *client) {
                                                               : SZFRIENDS_CONNECTION_CONNECTING);
     status = szfriends_socket_directory_check(client->socket_path, false);
     fd = -1;
-    if (status == SZFRIENDS_OK) fd = szfriends_socket_open_connected(client->socket_path, &address, &status);
+    peer = 0;
+    if (status == SZFRIENDS_OK) fd = szfriends_socket_open_connected(client->socket_path, &address, &status, &peer);
     if (fd < 0) {
+        if (status == SZFRIENDS_ERR_PEER_SIGNATURE) note_refusal(client, peer);
         if (status == SZFRIENDS_ERR_NO_HELPER) {
             /* The newer helper we were incompatible with is gone: start ours, visibly. */
             if (client->incompatible) {
@@ -262,6 +306,8 @@ static szfriends_status attempt_connect(szfriends_client *client) {
         return status == SZFRIENDS_ERR_NO_HELPER ? SZFRIENDS_OK : status;
     }
     client->fd = fd;
+    client->peer_pid = peer;
+    client->frame_seen = false;
     client->generation++;
     client->handshaking = true;
     client->unsupported_seen = false;
@@ -341,6 +387,9 @@ szfriends_status szfriends_client_stop(szfriends_client *client, bool friends_di
     client->handover_wait_until = 0;
     client->incompatible = false;
     client->ever_ready = false;
+    client->refused_by = 0;
+    client->refusals = 0;
+    client->ending_pid = 0;
     if (client->fd >= 0) szfriends_client_disconnect(client, false);
     szfriends_client_fail_pending(client, false);
     szfriends_client_set_state(client, SZFRIENDS_CONNECTION_IDLE);
@@ -372,13 +421,16 @@ void szfriends_client_tick(szfriends_client *client, uint64_t now_ms) {
     if (!client) return;
     observe_host_clock(client, now_ms);
     if (!client->started) return;
+    finish_ending(client, now_ms);
     if (client->fd >= 0) {
         if (client->out_offset < client->out_length && szfriends_client_flush(client) != SZFRIENDS_OK) {
             szfriends_client_disconnect(client, true);
             return;
         }
-        if (client->handshaking && client->handshake_deadline && now_ms >= client->handshake_deadline)
+        if (client->handshaking && client->handshake_deadline && now_ms >= client->handshake_deadline) {
+            end_stuck_helper(client, client->peer_pid, false);
             szfriends_client_disconnect(client, true);
+        }
         return;
     }
     if (client->retry_scheduled && now_ms >= client->retry_at) attempt_connect(client);
@@ -393,6 +445,7 @@ int64_t szfriends_client_next_tick_ms(const szfriends_client *client, uint64_t n
         if (wait > SZFRIENDS_INCOMPATIBLE_RETRY_MS) wait = SZFRIENDS_INCOMPATIBLE_RETRY_MS; \
         if (best < 0 || wait < best) best = wait;                                    \
     } while (0)
+    if (client->ending_pid) SZF_CONSIDER(client->ending_at + SZFRIENDS_END_GRACE_MS);
     if (client->fd >= 0) {
         if (client->out_offset < client->out_length) SZF_CONSIDER(now_ms + SZFRIENDS_FLUSH_TICK_MS);
         if (client->handshaking && client->handshake_deadline) SZF_CONSIDER(client->handshake_deadline);

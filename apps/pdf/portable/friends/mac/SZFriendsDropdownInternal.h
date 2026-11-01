@@ -24,6 +24,18 @@ NSString *_Nullable SZFriendsSendPickerTitle(SZFriendsContext *context, NSArray<
 @property(nonatomic, copy, nullable) void (^onFinish)(void);
 @end
 
+// What the dropdown shows instead of its pages until Friends answers for the first time (a spinner and "Starting
+// Friends…", never a search field or tabs without labels), or when it did not start ("Friends couldn’t start." and
+// Try Again). The link's stalled state decides which (SZFriendsHelperLink.h).
+@interface SZFriendsStartView : SZFriendsFlippedView
+- (instancetype)initWithContext:(SZFriendsContext *)context;
+- (void)showLink:(SZFriendsHelperLink *)link;
+@property(nonatomic, strong, readonly) NSTextField *textLabel;
+@property(nonatomic, strong, readonly) SZFriendsButton *tryAgainButton; // hidden unless it did not start
+@property(nonatomic, readonly) BOOL failed;
+@property(nonatomic, copy, nullable) void (^onTryAgain)(void);
+@end
+
 // The dropdown's root view: the stack of pages (list -> conversation -> details, or list -> profile), the
 // confirmation overlay, Escape and Cmd+[.
 @interface SZFriendsDropdownContent : SZFriendsFlippedView <SZFriendsNavigator, SZFriendsEscapeHandling>
@@ -42,6 +54,8 @@ NSString *_Nullable SZFriendsSendPickerTitle(SZFriendsContext *context, NSArray<
 @property(nonatomic, copy, readonly, nullable) NSString *shownConversationID;
 // The client library's line while the helper is not answering ("Starting Friends…"); nil when connected.
 @property(nonatomic, copy, readonly, nullable) NSString *statusText;
+// Over the pages while no page has anything to show yet, or while Friends did not start; nil when it is not shown.
+@property(nonatomic, strong, readonly, nullable) SZFriendsStartView *startView;
 - (void)popToList;
 - (void)beginSendPickerWithFiles:(NSArray<NSDictionary *> *)files;
 // The link page on top of the list (SZFriendsLinkPage.h).

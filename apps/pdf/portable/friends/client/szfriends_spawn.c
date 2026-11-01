@@ -13,6 +13,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <pthread.h>
+#include <pwd.h>
 #include <signal.h>
 #include <spawn.h>
 #include <stdio.h>
@@ -22,6 +23,12 @@
 #include <sys/un.h>
 #include <sys/wait.h>
 #include <unistd.h>
+
+#if defined(__APPLE__)
+#include <libproc.h>
+#include <sys/proc_info.h>
+#include <sys/sysctl.h>
+#endif
 
 extern char **environ;
 
@@ -144,7 +151,7 @@ szfriends_status szfriends_probe_socket(const char *socket_path) {
     int fd;
     szfriends_status status = szfriends_socket_directory_check(socket_path, false);
     if (status != SZFRIENDS_OK) return status;
-    fd = szfriends_socket_open_connected(socket_path, &address, &status);
+    fd = szfriends_socket_open_connected(socket_path, &address, &status, NULL);
     if (fd < 0) return status;
     close(fd);
     return SZFRIENDS_OK;
@@ -236,4 +243,72 @@ szfriends_status szfriends_spawn_detached(const char *helper_path, const char *s
         return SZFRIENDS_ERR_IO;
     }
     return SZFRIENDS_OK;
+}
+
+#if defined(__APPLE__)
+static const char *last_component(const char *path) {
+    const char *slash = strrchr(path, '/');
+    return slash ? slash + 1 : path;
+}
+
+/* The path `pid` was started from (KERN_PROCARGS2: argc, then the exec path). proc_pidpath() fails for a process
+ * whose bundle was since moved or deleted, as an updater test's replaced copy is; that path still says what it is. */
+static bool started_from(pid_t pid, char *path, size_t size) {
+    int mib[3] = {CTL_KERN, KERN_PROCARGS2, (int)pid}, argmax_mib[2] = {CTL_KERN, KERN_ARGMAX}, argmax = 0;
+    size_t length = sizeof argmax, used;
+    char *buffer;
+    bool found = false;
+    if (sysctl(argmax_mib, 2, &argmax, &length, NULL, 0) != 0 || argmax <= (int)sizeof(int)) return false;
+    buffer = (char *)malloc((size_t)argmax);
+    if (!buffer) return false;
+    length = (size_t)argmax;
+    if (sysctl(mib, 3, buffer, &length, NULL, 0) == 0 && length > sizeof(int)) {
+        used = strnlen(buffer + sizeof(int), length - sizeof(int));
+        if (used > 0 && used < size && sizeof(int) + used < length && buffer[sizeof(int)] == '/') {
+            memcpy(path, buffer + sizeof(int), used);
+            path[used] = '\0';
+            found = true;
+        }
+    }
+    free(buffer);
+    return found;
+}
+
+/* In /Applications or ~/Applications: where an app the person installed runs from. A test copy, a build in its
+ * folder or an app opened from a disk image runs from anywhere else. */
+static bool runs_installed(const char *path) {
+    struct passwd *user;
+    size_t length;
+    if (strncmp(path, "/Applications/", 14) == 0) return true;
+    user = getpwuid(geteuid());
+    if (!user || !user->pw_dir || !user->pw_dir[0]) return false;
+    length = strlen(user->pw_dir);
+    return strncmp(path, user->pw_dir, length) == 0 && strncmp(path + length, "/Applications/", 14) == 0;
+}
+#endif
+
+bool szfriends_helper_may_be_ended(const char *own_helper_path, pid_t pid, bool refused) {
+#if defined(__APPLE__)
+    char path[PROC_PIDPATHINFO_MAXSIZE];
+    struct proc_bsdshortinfo info;
+    bool own_installed, peer_installed;
+    if (!own_helper_path || !own_helper_path[0] || pid <= 1 || pid == getpid()) return false;
+    if (proc_pidinfo(pid, PROC_PIDT_SHORTBSDINFO, 0, &info, (int)sizeof info) != (int)sizeof info ||
+        info.pbsi_uid != geteuid())
+        return false;
+    if (proc_pidpath(pid, path, sizeof path) <= 0 && !started_from(pid, path, sizeof path)) return false;
+    if (strcmp(last_component(path), last_component(own_helper_path)) != 0) return false;
+    own_installed = runs_installed(own_helper_path);
+    peer_installed = runs_installed(path);
+    return refused ? own_installed && !peer_installed : own_installed || !peer_installed;
+#else
+    (void)own_helper_path;
+    (void)pid;
+    (void)refused;
+    return false;
+#endif
+}
+
+void szfriends_end_helper(pid_t pid, bool now) {
+    if (pid > 1 && pid != getpid()) kill(pid, now ? SIGKILL : SIGTERM);
 }

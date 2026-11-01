@@ -165,6 +165,15 @@ the client then starts its own helper. `szfriends-contract::pipe` and `szfriends
   - Any other client waits up to 10 seconds for the successor to appear, then spawns its own, so Friends keeps
     working if the newer app quit meanwhile. The newest helper wins whenever its app is running, so this
     converges.
+- **A helper that does not work.** A helper that takes the connection but does not answer `hello` within 6 seconds,
+  or that closes it unanswered (or that the client refuses) twice in a row, holds the socket without serving. The
+  client library asks it to leave (SIGTERM, then SIGKILL 2 seconds later) and spawns its own, but only when it is a
+  Friends helper of the same user and never this process, and never when it runs from an installed app
+  (`/Applications`, `~/Applications`) while the client's app does not, so a test copy or a build cannot end the
+  person's Friends. One that refuses the client is ended only by an installed app and only when it does not run from
+  one, so two installed apps never take turns ending each other's helper. The AppKit views show a spinner while
+  Friends starts and, past 15 seconds without it, "Friends couldn’t start." with Try Again, which connects (and
+  spawns) at once.
 - **Reconnect.** After any disconnect the client library reconnects by itself and reports `READY` again.
   Subscriptions never survive a reconnect: subscription ids from the previous connection are void, and the host
   (the Objective-C link does this for the AppKit views) subscribes again.

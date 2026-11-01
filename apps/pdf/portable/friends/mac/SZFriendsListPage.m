@@ -119,6 +119,10 @@
     return self.showingNearby ? SZFriendsDropdownViewNearby : SZFriendsDropdownViewList;
 }
 
+- (BOOL)hasSnapshot {
+    return _listData != nil;
+}
+
 - (NSArray<SZFriendsRowView *> *)rows {
     return [_rowViews copy];
 }

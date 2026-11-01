@@ -1,6 +1,6 @@
 /* Shenzhen Friends client library: Unix socket helpers and version negotiation shared with the fake helper. */
 
-#define _DARWIN_C_SOURCE 1 /* SO_NOSIGPIPE, getpeereid */
+#define _DARWIN_C_SOURCE 1 /* SO_NOSIGPIPE, getpeereid, LOCAL_PEERPID */
 
 #include "client/szfriends_client_internal.h"
 
@@ -44,10 +44,29 @@ bool szfriends_socket_peer_is_us(int fd) {
 #endif
 }
 
-int szfriends_socket_open_connected(const char *path, struct sockaddr_un *address, szfriends_status *status) {
+pid_t szfriends_socket_peer_pid(int fd) {
+#if defined(__APPLE__) && defined(LOCAL_PEERPID)
+    pid_t pid = 0;
+    socklen_t length = (socklen_t)sizeof pid;
+    if (getsockopt(fd, SOL_LOCAL, LOCAL_PEERPID, &pid, &length) != 0 || length != (socklen_t)sizeof pid) return 0;
+    return pid;
+#elif defined(SO_PEERCRED)
+    struct ucred credentials;
+    socklen_t length = sizeof credentials;
+    if (getsockopt(fd, SOL_SOCKET, SO_PEERCRED, &credentials, &length) != 0) return 0;
+    return credentials.pid;
+#else
+    (void)fd;
+    return 0;
+#endif
+}
+
+int szfriends_socket_open_connected(const char *path, struct sockaddr_un *address, szfriends_status *status,
+                                   pid_t *peer_pid) {
     int fd;
     size_t length = strlen(path);
     *status = SZFRIENDS_OK;
+    if (peer_pid) *peer_pid = 0;
     if (length >= sizeof address->sun_path) {
         *status = SZFRIENDS_ERR_PATH_TOO_LONG;
         return -1;
@@ -82,6 +101,8 @@ int szfriends_socket_open_connected(const char *path, struct sockaddr_un *addres
         *status = SZFRIENDS_ERR_PEER_UID;
         return -1;
     }
+    /* Whose listener this is, for a helper that refuses us or never answers (szfriends_helper_may_be_ended). */
+    if (peer_pid) *peer_pid = szfriends_socket_peer_pid(fd);
     /* Before a single byte goes out: hello already names the app, and intents carry messages and file paths. */
     if (!szfriends_peer_signature_allowed(fd)) {
         close(fd);

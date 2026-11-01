@@ -111,6 +111,7 @@ CGFloat SZFriendsDropdownHeight(CGFloat spaceBelowButton, CGFloat maxHeight) {
     NSArray<NSDictionary *> *_sendFiles;
     SZFriendsFlippedView *_statusStrip;
     NSTextField *_statusLabel;
+    SZFriendsStartView *_start;
 }
 
 static const CGFloat SZFStatusStripHeight = 28;
@@ -137,14 +138,20 @@ static const CGFloat SZFStatusStripHeight = 28;
     _statusLabel.maximumNumberOfLines = 1;
     [_statusStrip addSubview:_statusLabel];
     [self addSubview:_statusStrip];
+    _start = [[SZFriendsStartView alloc] initWithContext:context];
+    _start.hidden = YES;
+    _start.onTryAgain = ^{ [weakSelf.context.link retry]; };
+    [self addSubview:_start];
     // Not Ready: every page keeps its last snapshot, and this one line says why nothing changes (the link's
     // contract); intents fail at once with not_ready meanwhile, so nothing waits behind the person's back.
     [context.link addObserver:self forKeyPath:@"state" options:NSKeyValueObservingOptionInitial context:NULL];
+    [context.link addObserver:self forKeyPath:@"stalled" options:0 context:NULL];
     return self;
 }
 
 - (void)dealloc {
     [_context.link removeObserver:self forKeyPath:@"state"];
+    [_context.link removeObserver:self forKeyPath:@"stalled"];
 }
 
 - (void)observeValueForKeyPath:(NSString *)keyPath ofObject:(id)object change:(NSDictionary *)change
@@ -153,9 +160,36 @@ static const CGFloat SZFStatusStripHeight = 28;
     SZFriendsHelperLink *link = self.context.link;
     NSString *text = link.state == SZFriendsLinkStateReady ? nil : link.statusText;
     _statusText = text.length ? [text copy] : nil;
+    // Pages with something to show keep it under the one status line; before the first snapshot they would show
+    // only a search field and tabs without labels, so the start view stands in for them, as it does whenever
+    // Friends did not start.
+    BOOL ready = link.state == SZFriendsLinkStateReady;
+    BOOL showStart = !ready && (link.stalled || !self.listPage.hasSnapshot);
     _statusLabel.stringValue = _statusText ?: @"";
-    _statusStrip.hidden = _statusText == nil;
+    _statusStrip.hidden = _statusText == nil || showStart;
+    if (showStart) [_start showLink:link];
+    [self showStart:showStart];
     [self setNeedsLayout:YES];
+}
+
+- (SZFriendsStartView *)startView {
+    return _start.hidden ? nil : _start;
+}
+
+- (void)showStart:(BOOL)show {
+    BOOL wasShown = !_start.hidden;
+    _start.hidden = !show;
+    // Hidden too, so nothing under it can be typed into or found by VoiceOver.
+    for (SZFriendsPage *page in _pages) page.hidden = show || page != self.topPage;
+    if (show == wasShown) return;
+    NSWindow *window = self.window;
+    if (show) {
+        NSResponder *responder = window.firstResponder;
+        if ([responder isKindOfClass:NSView.class] && [(NSView *)responder isDescendantOf:self])
+            [window makeFirstResponder:self];
+    } else if (_presented) {
+        [self focusTopPage];
+    }
 }
 
 - (NSArray<SZFriendsPage *> *)stack {
@@ -188,6 +222,10 @@ static const CGFloat SZFStatusStripHeight = 28;
 }
 
 - (void)focusTopPage {
+    if (!_start.hidden) {
+        if (self.window) [self.window makeFirstResponder:self]; // Escape still closes; nothing hidden takes typing
+        return;
+    }
     NSView *responder = [self.topPage preferredFirstResponder];
     if (responder && self.window) [self.window makeFirstResponder:responder];
 }
@@ -199,8 +237,8 @@ static const CGFloat SZFStatusStripHeight = 28;
     self.topPage.hidden = YES;
     [_pages addObject:page];
     page.frame = [self pageFrame];
-    if (self.confirmation) [self addSubview:page positioned:NSWindowBelow relativeTo:self.confirmation];
-    else [self addSubview:page];
+    page.hidden = !_start.hidden;
+    [self addSubview:page positioned:NSWindowBelow relativeTo:_start];
     if (_presented) {
         [page pageWillAppear];
         [self focusTopPage];
@@ -214,7 +252,7 @@ static const CGFloat SZFStatusStripHeight = 28;
     if (_presented) [top pageDidDisappear];
     [top removeFromSuperview];
     [_pages removeLastObject];
-    self.topPage.hidden = NO;
+    self.topPage.hidden = !_start.hidden;
     self.topPage.frame = [self pageFrame];
     if (_presented) {
         [self.topPage pageWillAppear];
@@ -386,6 +424,7 @@ NSString *SZFriendsSendPickerTitle(SZFriendsContext *context, NSArray<NSString *
     _statusStrip.frame = NSMakeRect(0, 0, NSWidth(self.bounds), SZFStatusStripHeight);
     _statusLabel.frame = NSMakeRect(12, 6, NSWidth(self.bounds) - 24, 16);
     for (SZFriendsPage *page in _pages) page.frame = [self pageFrame];
+    _start.frame = self.bounds;
     _confirmation.frame = self.bounds;
 }
 

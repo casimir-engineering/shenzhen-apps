@@ -11,4 +11,10 @@ published release will notice; never a fix for a bug that was never released.
 
 ## Next release
 
-Nothing yet.
+- Friends no longer stays on "Starting Friends…": it starts by itself, or says it couldn’t start with Try Again.
+
+### Friends (Beta)
+
+- When Friends couldn’t start, it no longer shows "Starting Friends…" above an empty search field and list for as
+  long as the app is open. It shows that it is starting, starts by itself in most cases, and otherwise says
+  "Friends couldn’t start." with a Try Again button.

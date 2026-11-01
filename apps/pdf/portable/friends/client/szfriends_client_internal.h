@@ -16,8 +16,15 @@
  * quarter of the base as jitter so a crowd of windows does not reconnect in lockstep; never above the cap. */
 #define SZFRIENDS_RETRY_FIRST_MS 50
 #define SZFRIENDS_RETRY_CAP_MS 2000
-/* A helper that accepted but never answers hello is stuck; drop it and retry rather than wait forever. */
-#define SZFRIENDS_HANDSHAKE_TIMEOUT_MS 10000
+/* A helper that accepted but never answers hello is stuck: drop it, end it where that is safe
+ * (szfriends_helper_may_be_ended) and start ours, rather than wait forever. A working helper answers in
+ * milliseconds, a busy one well within this. */
+#define SZFRIENDS_HANDSHAKE_TIMEOUT_MS 6000
+/* A helper asked to end (SIGTERM) gets this long to say goodbye and leave before it is stopped outright. */
+#define SZFRIENDS_END_GRACE_MS 2000
+/* A helper that closes our connection before answering, or that we refuse, this many times in a row is refusing
+ * us, not restarting. */
+#define SZFRIENDS_REFUSALS_BEFORE_END 2
 /* PROTOCOL.md § Lifecycle, handover: a client whose helper is older than the successor waits this long for the
  * successor to appear before spawning its own. */
 #define SZFRIENDS_HANDOVER_WAIT_MS 10000
@@ -78,6 +85,15 @@ struct szfriends_client {
     bool spawned_before;
     uint64_t last_spawn_at;
 
+    /* A running helper that does not work for us (PROTOCOL.md § Lifecycle, a helper that does not answer). */
+    pid_t peer_pid;            /* the helper on this connection, 0 when unknown */
+    bool frame_seen;           /* it sent something on this connection */
+    pid_t refused_by;          /* the helper that last closed on us unanswered, or that we refused */
+    unsigned refusals;         /* how many times in a row */
+    pid_t ending_pid;          /* asked to end at ending_at; stopped outright after SZFRIENDS_END_GRACE_MS */
+    bool ending_refused;       /* it refused us (rather than never answering) */
+    uint64_t ending_at;
+
     /* Host clock estimate: host_base was the host's now_ms when mono_base was CLOCK_MONOTONIC. */
     uint64_t host_base, mono_base;
     /* Bumped whenever the connection is opened or closed, so code after a callback can tell the callback
@@ -88,7 +104,10 @@ struct szfriends_client {
 
 /* Socket helpers (szfriends_socket.c). */
 int szfriends_socket_prepare(int fd);                /* non-blocking, close-on-exec, no SIGPIPE; 0 on success */
-int szfriends_socket_open_connected(const char *path, struct sockaddr_un *address, szfriends_status *status);
+/* `peer_pid` (may be NULL): the listener's process, also when it is refused for its signature; 0 when unknown. */
+int szfriends_socket_open_connected(const char *path, struct sockaddr_un *address, szfriends_status *status,
+                                   pid_t *peer_pid);
+pid_t szfriends_socket_peer_pid(int fd);
 bool szfriends_socket_peer_is_us(int fd);
 ssize_t szfriends_socket_write(int fd, const void *bytes, size_t length); /* never raises SIGPIPE */
 szfriends_status szfriends_probe_socket(const char *socket_path);
@@ -100,6 +119,16 @@ bool szfriends_peer_signature_allowed(int fd);
 /* Spawning (szfriends_spawn.c). */
 szfriends_status szfriends_spawn_process(const char *helper_path, const char *state_dir, pid_t *pid_out);
 szfriends_status szfriends_spawn_detached(const char *helper_path, const char *state_dir);
+/* Whether this app may end the helper `pid`, which holds its socket but never answers (`refused` false) or refuses
+ * it (`refused` true), so it can start its own. Only a process of this user running a Friends helper (the same
+ * executable name as `own_helper_path`), never this process. An app never ends a helper of an installed app unless
+ * it is installed itself, so a test copy or a build run from its folder cannot end the person's own Friends; and it
+ * ends one that refuses it only when it is installed and the refusing helper is not (a leftover of a test or of a
+ * build), so two installed apps that refuse each other never take turns ending each other's helper. Apple only;
+ * false elsewhere. */
+bool szfriends_helper_may_be_ended(const char *own_helper_path, pid_t pid, bool refused);
+/* SIGTERM (`now` false: it says goodbye and leaves), or SIGKILL. */
+void szfriends_end_helper(pid_t pid, bool now);
 
 /* Client internals split across szfriends_client.c and szfriends_client_io.c. */
 uint64_t szfriends_client_now(const szfriends_client *client);
@@ -111,6 +140,8 @@ szfriends_status szfriends_client_flush(szfriends_client *client);
 szfriends_status szfriends_client_enqueue(szfriends_client *client, const char *frame, size_t length);
 void szfriends_client_fail_pending(szfriends_client *client, bool deliver);
 void szfriends_client_handle_frame(szfriends_client *client, const char *line, size_t length);
+/* The helper closed this connection: counts as a refusal when it never sent a word during the handshake. */
+void szfriends_client_note_unanswered_close(szfriends_client *client);
 uint32_t szfriends_client_random(szfriends_client *client);
 
 /* Version negotiation (PROTOCOL.md § Version negotiation), shared with the fake helper so both apply the same

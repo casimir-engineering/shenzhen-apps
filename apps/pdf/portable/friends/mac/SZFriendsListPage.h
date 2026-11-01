@@ -102,6 +102,8 @@ static const NSTimeInterval SZFriendsNameSavedSeconds = 2.5;
 @property(nonatomic, strong, readonly) SZFriendsButton *nearbyTab;
 @property(nonatomic, readonly) BOOL showingNearby;
 - (void)showNearby:(BOOL)nearby;
+// A list snapshot has arrived: until then the page has nothing to show but empty controls.
+@property(nonatomic, readonly) BOOL hasSnapshot;
 @property(nonatomic, strong, readonly) SZFriendsFooterView *footer;
 @property(nonatomic, strong, readonly) SZFriendsNearbyPane *nearbyPane;
 @property(nonatomic, copy, readonly) NSArray<SZFriendsRowView *> *rows;

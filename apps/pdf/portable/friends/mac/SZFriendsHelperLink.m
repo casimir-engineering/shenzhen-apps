@@ -36,6 +36,8 @@ void SZFriendsSpawnHelperInBackground(id<SZFriendsHost> host); // SZFriendsClien
 @property(nonatomic, readwrite) SZFriendsLinkState state;
 @property(nonatomic, readwrite, copy) NSString *statusText;
 @property(nonatomic, readwrite, copy) NSSet<NSString *> *helperCapabilities;
+@property(nonatomic, readwrite) BOOL stalled;
+@property(nonatomic, readwrite) BOOL wasReady;
 @end
 
 @implementation SZFriendsHelperLink {
@@ -48,6 +50,7 @@ void SZFriendsSpawnHelperInBackground(id<SZFriendsHost> host); // SZFriendsClien
     NSMutableDictionary<NSString *, NSMutableArray *> *_earlySnapshots;       // helper id -> snapshots
     NSDictionary<NSString *, NSString *> *_strings;
     NSUInteger _nextToken;
+    NSTimer *_stallTimer;
 }
 
 + (void)spawnHelperInBackgroundForHost:(id<SZFriendsHost>)host {
@@ -79,6 +82,11 @@ void SZFriendsSpawnHelperInBackground(id<SZFriendsHost> host); // SZFriendsClien
     _strings = @{};
     _helperCapabilities = [NSSet set];
     _state = SZFriendsLinkStateIdle;
+    _stallSeconds = 15;
+}
+
+- (void)dealloc {
+    [_stallTimer invalidate];
 }
 
 - (void)start {
@@ -87,6 +95,43 @@ void SZFriendsSpawnHelperInBackground(id<SZFriendsHost> host); // SZFriendsClien
 
 - (void)stopDisablingFriends:(BOOL)disabling {
     [_transport stopDisablingFriends:disabling];
+}
+
+- (void)retry {
+    [_stallTimer invalidate];
+    _stallTimer = nil;
+    self.stalled = NO;
+    self.wasReady = NO;
+    // A new client: its first attempt is now, not at the end of a backoff, and it spawns this app's helper when the
+    // socket is free.
+    [_transport stopDisablingFriends:NO];
+    [_transport start];
+}
+
+#pragma mark - Stall
+
+// Bounded from the moment the link stops being Ready (or starts): moving between Connecting and Waiting keeps the
+// clock running, so a helper that keeps dropping the connection still ends in the stalled state.
+- (void)followStall {
+    SZFriendsLinkState state = self.state;
+    if (state != SZFriendsLinkStateConnecting && state != SZFriendsLinkStateWaiting) {
+        [_stallTimer invalidate];
+        _stallTimer = nil;
+        if (self.stalled) self.stalled = NO;
+        return;
+    }
+    if (_stallTimer || self.stalled) return;
+    __weak SZFriendsHelperLink *weakSelf = self;
+    _stallTimer = [NSTimer timerWithTimeInterval:MAX(self.stallSeconds, 0.1) repeats:NO block:^(NSTimer *timer) {
+        (void)timer;
+        [weakSelf stallTimerFired];
+    }];
+    [NSRunLoop.mainRunLoop addTimer:_stallTimer forMode:NSRunLoopCommonModes];
+}
+
+- (void)stallTimerFired {
+    _stallTimer = nil;
+    if (self.state == SZFriendsLinkStateConnecting || self.state == SZFriendsLinkStateWaiting) self.stalled = YES;
 }
 
 - (NSString *)staticStringForKey:(NSString *)key {
@@ -197,7 +242,9 @@ void SZFriendsSpawnHelperInBackground(id<SZFriendsHost> host); // SZFriendsClien
 - (void)transportDidChangeState:(SZFriendsLinkState)state statusText:(NSString *)statusText {
     SZFriendsLinkState previous = self.state;
     self.statusText = state == SZFriendsLinkStateReady ? nil : statusText;
+    if (state == SZFriendsLinkStateReady) self.wasReady = YES;
     self.state = state;
+    [self followStall];
     if (previous == SZFriendsLinkStateReady && state != SZFriendsLinkStateReady) {
         // The intent may or may not have reached the helper; sends carry a client_token, so a retry is safe.
         NSDictionary *pending = [_replies copy];

@@ -271,6 +271,8 @@ static szfriends_status dispatch(szfriends_client *client, const char *text, siz
         client->handshaking = false;
         client->handshake_deadline = 0;
         client->ever_ready = true;
+        client->refused_by = 0;
+        client->refusals = 0;
         client->backoff_ms = SZFRIENDS_RETRY_FIRST_MS;
         client->spawn_now = false;
         client->handover_wait_until = 0;
@@ -332,7 +334,8 @@ szfriends_status szfriends_client_on_readable(szfriends_client *client) {
         szfriends_status status;
         const char *line;
         size_t length;
-        if (n == 0) { /* EOF: a crash, or the close after a goodbye already handled */
+        if (n == 0) { /* EOF: a crash, a refusal, or the close after a goodbye already handled */
+            szfriends_client_note_unanswered_close(client);
             szfriends_client_disconnect(client, true);
             return SZFRIENDS_OK;
         }
@@ -361,6 +364,7 @@ szfriends_status szfriends_client_on_readable(szfriends_client *client) {
                                   start[length - 1] == '\r'))
                 length--;
             if (length == 0) continue;
+            client->frame_seen = true;
             status = dispatch(client, start, length);
             if (generation != client->generation || status != SZFRIENDS_OK) return status;
         }

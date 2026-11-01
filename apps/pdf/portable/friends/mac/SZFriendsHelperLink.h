@@ -49,6 +49,17 @@ typedef void (^SZFriendsReplyHandler)(NSDictionary<NSString *, id> *_Nullable re
 @property(nonatomic, readonly) SZFriendsLinkState state;
 // The status line for non-Ready states, from szfriends_connection_state_text(); nil when Ready.
 @property(nonatomic, readonly, copy, nullable) NSString *statusText;
+// Connecting or Waiting for longer than stallSeconds without once being Ready: Friends did not start (or stopped
+// working), and the views say so with Try Again (-retry) instead of "Starting Friends…" without end. The client
+// library keeps trying meanwhile, so Friends appears by itself if the cause goes away. Never while Incompatible,
+// which has its own line. KVO-observable; NO again once Ready, stopped or retried.
+@property(nonatomic, readonly) BOOL stalled;
+@property(nonatomic) NSTimeInterval stallSeconds; // 15 s: well past a first start's few seconds; tests shorten it
+// Ready at least once since -start or the last -retry, so a stall means Friends stopped working rather than that
+// it never started.
+@property(nonatomic, readonly) BOOL wasReady;
+// Try Again: connects at once, starting this app's own helper when none answers, and waits stallSeconds again.
+- (void)retry;
 @property(nonatomic, copy, nullable) void (^onStateChange)(SZFriendsLinkState state);
 
 // welcome.strings: the static labels (PROTOCOL.md § Static strings). Empty before the first welcome; views show
