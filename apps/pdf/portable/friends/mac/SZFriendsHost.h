@@ -332,6 +332,13 @@ typedef void (^SZFriendsScopeReadCompletion)(NSDictionary<NSString *, id> *_Null
 // <scheme>://friends/conversation/<id> in this app (PROTOCOL.md § Notifications). Absent or empty: not sent, and the
 // helper opens its default app instead.
 @property(nonatomic, readonly, copy) NSString *friendsURLScheme;
+// The files a send or a download link carries, as PROTOCOL.md file objects, asked on the main thread as the intent
+// goes (send_files, send_message's attachments, make_download_link's file), whatever made it: a drop, the composer,
+// the send picker, Copy link instead, the host's assistant. The host may answer other files in their place, so a
+// document goes with what belongs to it: ShenzhenPDF sends a Markdown document that has comments or pictures beside
+// it as one .zip of them all. It never fails a send: anything it cannot do leaves the files as they were. Absent:
+// the files as they are.
+- (NSArray<NSDictionary *> *)friendsFilesForSending:(NSArray<NSDictionary *> *)files;
 @end
 
 NS_ASSUME_NONNULL_END

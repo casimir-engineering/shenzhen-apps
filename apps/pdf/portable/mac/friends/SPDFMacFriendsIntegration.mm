@@ -5,6 +5,7 @@
 #import "SPDFMacCollectionStore.h"
 #import "SPDFMacDocumentFormats.h"
 #import "SPDFMacFriendsAppearance.h"
+#import "SPDFMacFriendsMarkdownBundle.h"
 #import "SPDFMacLaunchPrerenderPrivate.h"
 #import <objc/runtime.h>
 #include <unistd.h>
@@ -63,7 +64,10 @@ static void* kSearchHiddenContext = &kSearchHiddenContext;
                                                     formats:[NSSet setWithArray:SPDFReadableDocumentExtensions()]];
     state.link = [[SZFriendsHelperLink alloc] initWithHost:state.host];
     state.received = [[SPDFMacFriendsReceivedFiles alloc] initWithStore:SPDFMacCollectionStore.defaultStore
-        isDocument:^BOOL(NSString* path) { return SPDFReadableDocumentPath(path); }];
+        isDocument:^BOOL(NSString* path) {
+            // A Markdown document sent with its comments comes as a .zip; it goes to Collection once it is opened.
+            return SPDFReadableDocumentPath(path) && !SPDFMacFriendsIsMarkdownBundle(path);
+        }];
     __weak ShenzhenMacDelegate* weakSelf = self;
     __weak SZFriendsHelperLink* weakLink = state.link;
     state.link.onStateChange = ^(SZFriendsLinkState linkState) {
@@ -225,5 +229,14 @@ static void* kSearchHiddenContext = &kSearchHiddenContext;
 }
 
 - (SZFriendsAppearance*)friendsBridgeAppearance { return SPDFMacFriendsReaderAppearance(); }
+
+- (NSArray<NSDictionary*>*)friendsBridgeFilesForSending:(NSArray<NSDictionary*>*)files {
+    NSString* scratch = [NSTemporaryDirectory() stringByAppendingPathComponent:@"ShenzhenPDF Friends sends"];
+    return SPDFMacFriendsFilesWithMarkdownBundles(files, [self friendsState].collection, scratch);
+}
+
+- (NSString*)friendsBridgeMarkdownInReceivedArchive:(NSURL*)archiveURL {
+    return archiveURL.isFileURL ? SPDFMacFriendsOpenableMarkdownInBundle(archiveURL.path) : nil;
+}
 
 @end

@@ -126,7 +126,19 @@
         [_bridge friendsBridgeRevealFiles:@[fileURL]];
         return;
     }
-    [_bridge friendsBridgeOpenPaths:@[fileURL.path]];
+    // A Markdown document a friend sent with its comments and pictures comes as a .zip: Open opens the document.
+    NSString* path = fileURL.path;
+    id<SPDFMacFriendsReaderBridge> bridge = _bridge;
+    if ([fileURL.pathExtension.lowercaseString isEqual:@"zip"] &&
+        [bridge respondsToSelector:@selector(friendsBridgeMarkdownInReceivedArchive:)])
+        path = [bridge friendsBridgeMarkdownInReceivedArchive:fileURL] ?: path;
+    [bridge friendsBridgeOpenPaths:@[path]];
+}
+
+- (NSArray<NSDictionary*>*)friendsFilesForSending:(NSArray<NSDictionary*>*)files {
+    id<SPDFMacFriendsReaderBridge> bridge = _bridge;
+    return [bridge respondsToSelector:@selector(friendsBridgeFilesForSending:)] ? [bridge friendsBridgeFilesForSending:files]
+                                                                               : files;
 }
 
 - (void)friendsRevealFileAtURL:(NSURL*)fileURL {

@@ -1,5 +1,6 @@
 // SZFriendsHelperLink: subscriptions that survive reconnects, replies matched to intents, the static strings.
 
+#import "mac/SZFriendsHost.h"
 #import "mac/SZFriendsLinkTransport.h"
 
 void SZFriendsSpawnHelperInBackground(id<SZFriendsHost> host); // SZFriendsClientTransport.m
@@ -51,6 +52,7 @@ void SZFriendsSpawnHelperInBackground(id<SZFriendsHost> host); // SZFriendsClien
     NSDictionary<NSString *, NSString *> *_strings;
     NSUInteger _nextToken;
     NSTimer *_stallTimer;
+    __weak id<SZFriendsHost> _host;
 }
 
 + (void)spawnHelperInBackgroundForHost:(id<SZFriendsHost>)host {
@@ -59,13 +61,14 @@ void SZFriendsSpawnHelperInBackground(id<SZFriendsHost> host); // SZFriendsClien
 
 - (instancetype)initWithHost:(id<SZFriendsHost>)host {
     if (!(self = [super init])) return nil;
+    _host = host;
     [self setUpWithTransport:[[SZFriendsClientTransport alloc] initWithHost:host]];
     return self;
 }
 
 - (instancetype)initWithHost:(id<SZFriendsHost>)host transport:(id<SZFriendsLinkTransport>)transport {
-    (void)host;
     if (!(self = [super init])) return nil;
+    _host = host;
     [self setUpWithTransport:transport];
     return self;
 }
@@ -229,12 +232,32 @@ void SZFriendsSpawnHelperInBackground(id<SZFriendsHost> host); // SZFriendsClien
         return;
     }
     NSString *errorCode = nil;
+    fields = [self fieldsWithHostFiles:fields forIntent:type];
     NSString *frameID = [_transport sendIntent:type fields:fields ?: @{} errorCode:&errorCode];
     if (!frameID) {
         [self failReply:reply code:errorCode ?: @"internal"];
         return;
     }
     if (reply) _replies[frameID] = [reply copy];
+}
+
+// Every route that sends files ends here, so the host sees them all (SZFriendsHost -friendsFilesForSending:).
+- (nullable NSDictionary *)fieldsWithHostFiles:(nullable NSDictionary *)fields forIntent:(NSString *)type {
+    id<SZFriendsHost> host = _host;
+    if (!fields || ![host respondsToSelector:@selector(friendsFilesForSending:)]) return fields;
+    NSString *key = [type isEqualToString:@"send_files"]           ? @"files"
+                    : [type isEqualToString:@"send_message"]       ? @"attachments"
+                    : [type isEqualToString:@"make_download_link"] ? @"file"
+                                                                   : nil;
+    id value = key ? fields[key] : nil;
+    BOOL single = [value isKindOfClass:[NSDictionary class]];
+    NSArray *files = single ? @[ value ] : [value isKindOfClass:[NSArray class]] ? value : nil;
+    if (!files.count) return fields;
+    NSArray *sent = [host friendsFilesForSending:files];
+    if (![sent isKindOfClass:[NSArray class]] || !sent.count || (single && sent.count != 1)) return fields;
+    NSMutableDictionary *changed = [fields mutableCopy];
+    changed[key] = single ? sent.firstObject : sent;
+    return changed;
 }
 
 #pragma mark - Transport delegate
