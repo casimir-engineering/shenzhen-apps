@@ -18,6 +18,14 @@ FOUNDATION_EXPORT NSString* _Nullable SPDFMarkdownRemoteImageKeyForTarget(NSStri
 typedef NSImage* _Nullable (*SPDFMarkdownSVGDecoder)(NSData* data);
 FOUNDATION_EXPORT void SPDFMarkdownSetSVGDecoder(SPDFMarkdownSVGDecoder _Nullable decoder);
 FOUNDATION_EXPORT BOOL SPDFMarkdownDataLooksLikeSVG(NSData* data);
+// A vector picture (an SVG as the decoder above makes it, or a PDF) is drawn
+// from its page at every draw, so it stays sharp at any zoom. The dark theme
+// draws it from a copy whose colours went through the dark theme's remap,
+// made by the recolourer the reader installs (core/spdf_svg_image.h): PDF
+// bytes in, the recoloured PDF's bytes out, nil when it cannot.
+typedef NSData* _Nullable (*SPDFMarkdownVectorRecolorer)(NSData* pdf);
+FOUNDATION_EXPORT void SPDFMarkdownSetVectorRecolorer(SPDFMarkdownVectorRecolorer _Nullable recolorer);
+FOUNDATION_EXPORT SPDFMarkdownVectorRecolorer _Nullable SPDFMarkdownInstalledVectorRecolorer(void);
 // Image bytes ImageIO did not identify: SVG through the installed decoder, the
 // rest through NSImage.
 FOUNDATION_EXPORT NSImage* _Nullable SPDFMarkdownImageFromData(NSData* data);

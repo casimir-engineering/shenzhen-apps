@@ -398,6 +398,14 @@ static std::atomic<SPDFMarkdownSVGDecoder> SPDFMarkdownInstalledSVGDecoder{nullp
 
 void SPDFMarkdownSetSVGDecoder(SPDFMarkdownSVGDecoder decoder) { SPDFMarkdownInstalledSVGDecoder.store(decoder); }
 
+static std::atomic<SPDFMarkdownVectorRecolorer> SPDFMarkdownVectorRecolorerInstalled{nullptr};
+
+void SPDFMarkdownSetVectorRecolorer(SPDFMarkdownVectorRecolorer recolorer) {
+    SPDFMarkdownVectorRecolorerInstalled.store(recolorer);
+}
+
+SPDFMarkdownVectorRecolorer SPDFMarkdownInstalledVectorRecolorer(void) { return SPDFMarkdownVectorRecolorerInstalled.load(); }
+
 BOOL SPDFMarkdownDataLooksLikeSVG(NSData* data) {
     // XML whose first element is <svg>: past a BOM, whitespace, the XML declaration, comments and a doctype.
     NSUInteger length = MIN(data.length, (NSUInteger)4096);

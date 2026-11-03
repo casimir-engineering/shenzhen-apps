@@ -1,6 +1,7 @@
 #import "SPDFMarkdownPaginator.h"
 #import "SPDFMarkdownImageRecolor.h"
 #import "SPDFMarkdownPicture.h"
+#import "SPDFMarkdownVectorPicture.h"
 
 #import <CoreText/CoreText.h>
 
@@ -91,6 +92,7 @@ static void SPDFDrawAttachments(NSAttributedString* lineString, CTLineRef line, 
                           CGFloat attachmentBottom = MIN(MAX(desiredBottom, fragmentBottom), fragmentTop - drawHeight);
                           CGRect destination =
                               CGRectMake(lineX + offset + bounds.origin.x, attachmentBottom, drawWidth, drawHeight);
+                          if (SPDFMarkdownDrawVectorPicture(image, context, destination, recolorsImages)) return;
                           // A document's pictures decode for the pixels this
                           // destination covers in this context, the dark
                           // recolor cached with that decode.

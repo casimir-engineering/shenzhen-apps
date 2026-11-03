@@ -1,6 +1,7 @@
 // SVG images in the reader's Markdown, drawn by MuPDF's SVG renderer (core/spdf_svg_image.h) rather than AppKit's,
 // which reads neither matplotlib's `font:` shorthand nor its glyphs placed with <use>. The picture stays vector: the
-// SVG becomes a one-page PDF, which NSImage draws crisply at any zoom and prints and exports as vectors.
+// SVG becomes a one-page PDF, whose page a Markdown page draws at every draw (markdown/SPDFMarkdownVectorPicture.h), so
+// it is crisp at any zoom and prints and exports as vectors. The dark theme draws a recoloured copy of that PDF.
 #import "markdown/SPDFMarkdownResources.h"
 
 #include "spdf_svg_image.h"
@@ -18,17 +19,25 @@ static NSImage* SPDFMacSVGImageFromData(NSData* data) {
     NSSize size = NSMakeSize(width, height);
     if (!rep || size.width <= 0 || size.height <= 0) return nil;
     NSImage* image = [[NSImage alloc] initWithSize:size];
+    image.cacheMode = NSImageCacheNever;  // drawn from the page at every size, never from a bitmap made at another
     rep.size = size;
     [image addRepresentation:rep];
     return image;
+}
+
+static NSData* SPDFMacSVGImageDarkPDF(NSData* pdf) {
+    size_t length = 0;
+    unsigned char* dark = spdf_svg_image_pdf_dark((const unsigned char*)pdf.bytes, pdf.length, &length);
+    return dark ? [NSData dataWithBytesNoCopy:dark length:length freeWhenDone:YES] : nil;
 }
 
 @interface SPDFMacSVGImage : NSObject
 @end
 
 @implementation SPDFMacSVGImage
-// Installing the decoder only stores a function pointer; nothing is decoded until a document shows an SVG.
+// Installing these only stores function pointers; nothing is decoded until a document shows an SVG.
 + (void)load {
     SPDFMarkdownSetSVGDecoder(SPDFMacSVGImageFromData);
+    SPDFMarkdownSetVectorRecolorer(SPDFMacSVGImageDarkPDF);
 }
 @end

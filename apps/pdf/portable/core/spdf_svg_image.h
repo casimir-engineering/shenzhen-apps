@@ -1,7 +1,8 @@
 #pragma once
 /* An SVG picture as a one-page vector PDF, drawn by MuPDF's SVG renderer (mupdf/source/svg). The Mac reader shows
  * SVG images in Markdown this way (mac/SPDFMacSVGImage.mm) so that it draws them as the Windows reader does, whose
- * HTML engine uses the same renderer. Each call works in a MuPDF context of its own, so it may run on any thread. */
+ * HTML engine uses the same renderer, and draws the page itself at every draw, so it stays sharp at any zoom. Each
+ * call works in a MuPDF context of its own, so it may run on any thread. */
 #include <stddef.h>
 
 #ifdef __cplusplus
@@ -13,6 +14,12 @@ extern "C" {
  * may be NULL) receive it exactly. External files the SVG refers to are not read. */
 unsigned char* spdf_svg_image_pdf(const unsigned char* svg, size_t svg_len, size_t* pdf_len, float* width,
                                   float* height);
+
+/* A vector picture for the dark reading theme: the first page of `pdf` (as spdf_svg_image_pdf makes, or a PDF a
+ * document shows as a picture) with its colours, images and shadings put through the dark theme's luma remap
+ * (spdf_recolor.h), the same remap the reader applies to a picture's pixels, so it looks as a recoloured bitmap
+ * would and stays vector. Returned as spdf_svg_image_pdf returns, NULL on failure. */
+unsigned char* spdf_svg_image_pdf_dark(const unsigned char* pdf, size_t pdf_len, size_t* out_len);
 
 #ifdef __cplusplus
 }

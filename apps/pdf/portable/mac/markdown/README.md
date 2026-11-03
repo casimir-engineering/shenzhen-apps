@@ -156,6 +156,18 @@ their descendants, preventing repeated subtree strings and quadratic indexes.
   one-page vector PDF; anything else, or SVG in a process without the decoder
   (the Collection companion, the engine's test binaries), to one NSImage
   decode attempt. Where that fails too, the text placeholder stands.
+- Vector pictures (an SVG made into a PDF page, or a PDF) are never decoded
+  to pixels: each draw draws the page itself into the destination
+  (`SPDFMarkdownVectorPicture.h`), so a chart is as sharp at 5x zoom, in
+  presentation mode, in print and in an exported PDF (as vectors) as at 1x.
+  The dark theme, when it recolours pictures, draws a copy of the PDF whose
+  colours, images and shadings went through the same LUMA_REMAP
+  (`spdf_svg_image_pdf_dark`, installed by `mac/SPDFMacSVGImage.mm`), so it
+  looks as a recoloured bitmap did and stays vector. A page whose vector draw
+  takes over 12 ms (a 60,000-point scatter made each redraw take half a second) is drawn
+  on screen from a bitmap of the page at the pixels it covers (1.25x
+  headroom, at most 8192 px a side, in a 256 MB cache), made again when a zoom
+  needs more; print and export still get its vectors.
 - Display SIZE is budgeted by the destination page. When the render carries a
   page (`SPDFMarkdownRenderOptions.pageContentSize` — see the Diagrams section
   for the page-box policy), an image's display size caps at that page's

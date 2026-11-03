@@ -80,6 +80,7 @@ $PORTABLE/mac/markdown/SPDFMarkdownImageRowBand.mm
 $PORTABLE/mac/markdown/SPDFMarkdownPaginator.mm
 $PORTABLE/mac/markdown/SPDFMarkdownPlanLocationIndex.mm
 $PORTABLE/mac/markdown/SPDFMarkdownPaginatorDrawing.mm
+$PORTABLE/mac/markdown/SPDFMarkdownVectorPicture.mm
 $PORTABLE/mac/markdown/SPDFMarkdownImageRecolor.mm
 $PORTABLE/mac/markdown/SPDFMarkdownAsync.mm
 $PORTABLE/mac/markdown/SPDFMarkdownDocument.mm

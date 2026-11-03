@@ -194,7 +194,7 @@ $(CORE_PROGRESSIVE_OBJ): core/spdf_progressive.c core/spdf_progressive.h core/sp
 $(CORE_DESTINATION_OBJ): core/spdf_destination.c core/spdf_destination.h core/spdf_core_document.h Makefile | $(BUILD)
 	clang $(PORTABLE_OPTFLAGS) $(MAC_TARGET_FLAGS) -Wall -Wextra -Werror -Icore -I$(MUPDF_DIR)/include -c $< -o "$@"
 
-$(CORE_SVG_IMAGE_OBJ): core/spdf_svg_image.c core/spdf_svg_image.h Makefile | $(BUILD)
+$(CORE_SVG_IMAGE_OBJ): core/spdf_svg_image.c core/spdf_svg_image.h $(CORE_RECOLOR_HDR) Makefile | $(BUILD)
 	clang $(PORTABLE_OPTFLAGS) $(MAC_TARGET_FLAGS) -Wall -Wextra -Werror -Icore -I$(MUPDF_DIR)/include -c $< -o "$@"
 
 $(CORE_LINK_TEST): core/tests/SPDFCoreLinkTests.c $(CORE_LINK_OBJ) | $(BUILD)
