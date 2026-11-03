@@ -6,6 +6,7 @@
 // The hover label: a 26 pt title bubble 5 pt under the tab, and for a document
 // its page thumbnail in a card 6 pt under that.
 static const CGFloat kHoverTitleHeight = 26.0;
+static const CGFloat kHoverTitleInset = 8.0; // the label's edges inside the title bubble
 static const CGFloat kHoverTitleGap = 5.0;
 static const CGFloat kHoverCardGap = 6.0;
 static const CGFloat kHoverCardInset = 6.0;
@@ -263,10 +264,12 @@ static NSView* SPDFHoverMaterialView(NSRect frame) {
     _hoverLabel.lineBreakMode = NSLineBreakByTruncatingMiddle;
     _hoverLabel.font = [NSFont systemFontOfSize:12 weight:NSFontWeightMedium];
     _hoverLabel.textColor = SPDFCollectionColor(@"text");
+    _hoverLabel.alignment = NSTextAlignmentCenter;
     [_hoverBubble addSubview:_hoverLabel];
+    // The label's cell keeps 2 pt each side of its text: 8 more make the 10 pt the bubble shows around the name.
     [NSLayoutConstraint activateConstraints:@[
-        [_hoverLabel.leadingAnchor constraintEqualToAnchor:_hoverBubble.leadingAnchor constant:10],
-        [_hoverLabel.trailingAnchor constraintEqualToAnchor:_hoverBubble.trailingAnchor constant:-10],
+        [_hoverLabel.leadingAnchor constraintEqualToAnchor:_hoverBubble.leadingAnchor constant:kHoverTitleInset],
+        [_hoverLabel.trailingAnchor constraintEqualToAnchor:_hoverBubble.trailingAnchor constant:-kHoverTitleInset],
         [_hoverLabel.centerYAnchor constraintEqualToAnchor:_hoverBubble.centerYAnchor]
     ]];
 }
@@ -297,11 +300,13 @@ static NSView* SPDFHoverMaterialView(NSRect frame) {
 
     _hoverPanel.appearance = self.window.effectiveAppearance;
     _hoverLabel.stringValue = title;
-    // Wide enough for the whole name: it is what the label is for. A 75-character group or file name needs about
-    // 470 pt; past the window's width it truncates in the middle.
+    // The bubble hugs the whole name, 10 pt each side (a short group name such as General had 96 pt around it, the
+    // owner's report of 2026-11-03). A 75-character group or file name needs about 470 pt; past the window's width
+    // it truncates in the middle.
     CGFloat widest = MAX(96.0, MIN(720.0, NSWidth(self.window.frame) - 24.0));
-    CGFloat titleWidth =
-        MIN(widest, MAX(96.0, ceil([title sizeWithAttributes:@{NSFontAttributeName : _hoverLabel.font}].width) + 24));
+    NSSize cell = [_hoverLabel.cell cellSizeForBounds:NSMakeRect(0, 0, CGFLOAT_MAX, CGFLOAT_MAX)];
+    CGFloat fitted = ceil(cell.width) + 2 * kHoverTitleInset;
+    CGFloat titleWidth = MIN(widest, MAX(kHoverTitleHeight, fitted));
     NSSize card = preview ? NSMakeSize(preview.pointSize.width + 2 * kHoverCardInset,
                                        preview.pointSize.height + 2 * kHoverCardInset) : NSZeroSize;
     CGFloat width = MAX(titleWidth, card.width);
