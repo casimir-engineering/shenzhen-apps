@@ -22,6 +22,12 @@ NS_ASSUME_NONNULL_BEGIN
 // draft to keep after a click outside, or nil after Esc, Cancel or an empty box.
 @property(nonatomic, copy, nullable) void (^finished)(NSString* _Nullable text, BOOL saved);
 @property(nonatomic, readonly) NSTextView* textView;
+// Set after a reset for a new comment: its byline is your name, and changing it there calls this
+// (SPDFMacCommentAuthorName.h). Nil (every reset) leaves the byline as plain text.
+@property(nonatomic, copy, nullable) void (^changeAuthor)(NSString* name);
+// The byline's name, when another place changed it while the box is open; not while it is being edited.
+- (void)showAuthor:(NSString*)author;
+@property(nonatomic, readonly) NSView* authorByline;
 // Shows the box in `host` near `point` (host coordinates), inside its bounds, and focuses the text.
 - (void)showInView:(NSView*)host near:(NSPoint)point;
 - (void)save;

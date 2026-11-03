@@ -17,6 +17,9 @@
 #import <fcntl.h>
 #import <unistd.h>
 #import <math.h>
+@interface SPDFMacUnifiedSettingsController (SPDFMacCommentAuthorShown)
+- (void)showCommentAuthor:(NSString*)stored; // SPDFMacCommentAuthorSettings.mm
+@end
 @interface ShenzhenMacDelegate (AISettingsHost)
 - (void)makeDefaultPDFReader:(id)sender;
 - (BOOL)hasActiveDocument;
@@ -105,6 +108,10 @@ static NSDictionary* PaletteState(void) {
     [state addEntriesFromDictionary:[self aiCapabilitiesSettingsState:ai]];
     state[@"commentAuthor"]=_commentAuthor ?: @""; state[@"commentAuthorDefault"]=SPDFDefaultCommentAuthor();
     [state addEntriesFromDictionary:PaletteState()]; state[@"appearanceMode"]=spdf_appearance_mode(); return state;
+}
+// Your name on comments changed elsewhere (a byline, another window): an open Settings shows it.
+- (void)refreshCommentAuthorInSettings {
+    [(SPDFMacUnifiedSettingsController*)objc_getAssociatedObject(self,&settingsControllerKey) showCommentAuthor:_commentAuthor ?: @""];
 }
 - (void)showUnifiedSettings:(id)sender {
     (void)sender; [self showUnifiedSettingsMode:NO];
@@ -195,7 +202,7 @@ static NSDictionary* PaletteState(void) {
         [SPDFMacCollectionStore.defaultStore updateSettings:storage error:&error];
         [(SPDFMacUnifiedSettingsController*)objc_getAssociatedObject(self,&settingsControllerKey) updateState:[self unifiedSettingsState]];
     }
-    if (changes[@"commentAuthor"]) [self rememberCommentAuthor:changes[@"commentAuthor"]];
+    if (changes[@"commentAuthor"]) { [self rememberCommentAuthor:changes[@"commentAuthor"]]; [self commentAuthorChanged]; }
     if (changes[@"keepImageColors"]) { _darkThemePreservesImagesDefault=[changes[@"keepImageColors"] boolValue]; [self savePersistentState]; }
     if (changes[@"appearanceMode"] && !spdf_appearance_mode_set(changes[@"appearanceMode"]))
         error=[NSError errorWithDomain:@"ShenzhenPDF.Appearance" code:2 userInfo:@{NSLocalizedDescriptionKey:@"Light or dark could not be saved. ShenzhenPDF will follow the system again when it restarts."}];

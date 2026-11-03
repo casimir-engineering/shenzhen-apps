@@ -398,6 +398,11 @@ fence the renderer cannot draw keeps its ordinary highlighted code box.
 - **Edit and delete** existing comments.
 - **Comment box** — opens at once beside the passage; Return starts a new line,
   ⌘↩ adds the comment, Esc or a click elsewhere closes it.
+- **Your name on comments** — point at your name in a new comment's box, or on
+  one of your comments in the Comments panel, and click it (or its pencil) to
+  change it: Return or a click elsewhere keeps the new name, Esc the old one.
+  It is the name in Settings › Reading & access; comments already written keep
+  the name they were written under.
 - **Comment author** — your Mac's name unless you set another in Settings ›
   Reading & access (*Your name on comments*); every comment carries it.
 - **Comments panel** — each comment a card: who wrote it and when, the passage

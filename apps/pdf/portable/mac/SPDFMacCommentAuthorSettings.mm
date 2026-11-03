@@ -28,6 +28,12 @@
         control:field];
 }
 
+- (void)showCommentAuthor:(NSString*)stored {
+    [self updateState:@{@"commentAuthor" : stored ?: @""}];
+    NSTextField* field = (NSTextField*)self.controls[@"commentAuthor"];
+    if (field && !field.currentEditor) field.stringValue = stored ?: @"";
+}
+
 - (void)commentAuthorChanged:(NSTextField*)sender {
     NSString* name = [sender.stringValue stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
     if ([name isEqualToString:self.state[@"commentAuthor"] ?: @""]) return;

@@ -4,6 +4,7 @@
 
 #import "SPDFMacCommentEditor.h"
 #import "SPDFMacCollectionStyle.h"
+#import "SPDFMacCommentAuthorName.h"
 
 #import <QuartzCore/QuartzCore.h>
 
@@ -34,7 +35,7 @@ NSRect SPDFCommentEditorFrame(NSSize size, NSPoint anchor, NSRect bounds, BOOL f
 @implementation SPDFMacCommentEditorView {
     NSTextView* _textView;
     NSTextField* _heading;
-    NSTextField* _by;
+    SPDFMacCommentAuthorByline* _by;
     NSButton* _save;
     NSButton* _cancel;
     NSUndoManager* _undo;
@@ -47,11 +48,7 @@ NSRect SPDFCommentEditorFrame(NSSize size, NSPoint anchor, NSRect bounds, BOOL f
     if (!(self = [super initWithFrame:NSMakeRect(0, 0, kWidth, kHeight)])) return nil;
     self.identifier = @"SPDFCommentEditor";
     NSTextField* heading = SPDFCollectionText(title, 12, NSFontWeightSemibold, NO);
-    NSTextField* by = SPDFCollectionText(@"", 11, NSFontWeightRegular, YES);
-    by.alignment = NSTextAlignmentRight;
-    by.lineBreakMode = NSLineBreakByTruncatingTail;
-    by.maximumNumberOfLines = 1;
-    by.toolTip = @"Your name on comments. Change it in Settings › Reading & access.";
+    SPDFMacCommentAuthorByline* by = [[SPDFMacCommentAuthorByline alloc] initWithFrame:NSZeroRect];
     heading.frame = NSMakeRect(kPad, kHeight - kPad - 16, 150, 16);
     by.frame = NSMakeRect(kPad + 150, kHeight - kPad - 16, kWidth - 2 * kPad - 150, 16);
 
@@ -80,6 +77,7 @@ NSRect SPDFCommentEditorFrame(NSSize size, NSPoint anchor, NSRect bounds, BOOL f
     textView.accessibilityLabel = @"Comment";
     scroll.documentView = textView;
     _textView = textView;
+    by.keyboardHome = textView;
 
     NSButton* save = SPDFCollectionButton(@"", self, @selector(save), @"normal");
     NSButton* cancel = SPDFCollectionButton(@"Cancel", self, @selector(cancel), @"normal");
@@ -102,7 +100,8 @@ NSRect SPDFCommentEditorFrame(NSSize size, NSPoint anchor, NSRect bounds, BOOL f
 
 - (void)resetWithTitle:(NSString*)title button:(NSString*)button author:(NSString*)author text:(NSString*)text {
     _heading.stringValue = title ?: @"";
-    _by.stringValue = author.length ? author : @"";
+    self.changeAuthor = nil;
+    _by.name = author.length ? author : @"";
     NSString* saveTitle = [NSString stringWithFormat:@"%@  ⌘↩", button ?: @""];
     if (![_save.title isEqualToString:saveTitle] || NSIsEmptyRect(_save.frame)) {
         _save.title = saveTitle;
@@ -132,6 +131,20 @@ NSRect SPDFCommentEditorFrame(NSSize size, NSPoint anchor, NSRect bounds, BOOL f
 
 - (BOOL)isOpen {
     return _open;
+}
+
+- (void)setChangeAuthor:(void (^)(NSString*))changeAuthor {
+    _changeAuthor = [changeAuthor copy];
+    _by.editable = changeAuthor != nil;
+    _by.changed = changeAuthor;
+}
+
+- (void)showAuthor:(NSString*)author {
+    _by.name = author;
+}
+
+- (NSView*)authorByline {
+    return _by;
 }
 
 - (NSTextView*)textView {
@@ -185,7 +198,9 @@ NSRect SPDFCommentEditorFrame(NSSize size, NSPoint anchor, NSRect bounds, BOOL f
 }
 
 - (BOOL)performKeyEquivalent:(NSEvent*)event {
-    if (_open && self.window.firstResponder == _textView && [self isSaveKey:event]) {
+    // ⌘↩ adds the comment from the name field too, with the name typed there.
+    if (_open && (self.window.firstResponder == _textView || _by.editing) && [self isSaveKey:event]) {
+        [_by commitEditing];
         [self save];
         return YES;
     }

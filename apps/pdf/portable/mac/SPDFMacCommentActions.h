@@ -28,6 +28,17 @@ FOUNDATION_EXPORT NSDictionary* SPDFMacPageMenuCommentContext(NSInteger pageInde
 - (NSInteger)commentIndexAtPageIndex:(NSInteger)pageIndex pagePoint:(NSPoint)pagePoint;
 @end
 
+@class SPDFMacCommentEditorView;
+
+// Your name on comments, changed where it is shown (SPDFMacCommentAuthorIntegration.mm).
+@interface ShenzhenMacDelegate (SPDFMacCommentAuthor)
+// Stores `name` as Settings does and shows it everywhere; NO (nothing changes) when it is empty or the same.
+- (BOOL)changeCommentAuthorTo:(NSString*)name;
+// After the name was stored here (Settings): shows it everywhere, in this window and the others.
+- (void)commentAuthorChanged;
+- (void)letCommentEditorChangeAuthor:(SPDFMacCommentEditorView*)editor;
+@end
+
 @interface ShenzhenMacDelegate (SPDFMacMarkdownComments)
 // Comments of the active Markdown document, loading its comments file and re-anchoring after a render as needed.
 - (NSInteger)markdownCommentCount;

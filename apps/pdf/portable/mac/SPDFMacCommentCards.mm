@@ -1,5 +1,6 @@
 #import "SPDFMacCommentCards.h"
 #import "SPDFMacCollectionStyle.h"
+#import "SPDFMacCommentAuthorName.h"
 #import "SPDFMacGroupActionButton.h"
 #import "SPDFMacIconGeometry.h"
 
@@ -144,10 +145,65 @@ NSString* SPDFCommentDateText(NSDate* date, NSDate* now) {
 
 #pragma mark - The card
 
-// The comment commands' host (SPDFMacCommentActions.h): where the comment editor should open.
+// The comment commands' host (SPDFMacCommentActions.h): where the comment editor should open, and your name on
+// comments (a card whose author it is lets you change it).
 @protocol SPDFCommentCardTarget <NSObject>
 - (void)noteCommentEditorAnchorAtWindowPoint:(NSPoint)point;
+@optional
+- (NSString*)currentCommentAuthor;
+- (BOOL)changeCommentAuthorTo:(NSString*)name;
 @end
+
+static const CGFloat kPencilPoint = 11, kPencilGap = 3;
+
+// The header line: the author's name, the pencil's place after it on your own cards, then the date and page.
+typedef struct {
+    NSRect name, pencil;
+    NSRect metaRect;
+} SPDFCommentCardHeader;
+
+static NSDictionary* NameStyle(void) {
+    NSMutableParagraphStyle* truncate = [NSMutableParagraphStyle new];
+    truncate.lineBreakMode = NSLineBreakByTruncatingTail;
+    return @{NSFontAttributeName : [NSFont systemFontOfSize:12 weight:NSFontWeightSemibold],
+             NSForegroundColorAttributeName : SPDFCollectionColor(@"text"), NSParagraphStyleAttributeName : truncate};
+}
+static NSDictionary* MetaStyle(void) {
+    NSMutableParagraphStyle* truncate = [NSMutableParagraphStyle new];
+    truncate.lineBreakMode = NSLineBreakByTruncatingTail;
+    return @{NSFontAttributeName : [NSFont systemFontOfSize:11], NSForegroundColorAttributeName : SPDFCollectionColor(@"secondary"),
+             NSParagraphStyleAttributeName : truncate};
+}
+
+// The date and page whole, else the date alone, else nothing: never a date cut in the middle. A long name gives way to
+// the date down to 48 points. Space for the hover buttons is kept while they show, and for the pencil on your cards.
+static SPDFCommentCardHeader LayoutHeader(NSDictionary* item, SPDFCommentCardLayout l, BOOL hovered, BOOL yours,
+                                          NSString* __strong* metaText) {
+    SPDFCommentCardHeader h = {};
+    CGFloat slot = yours ? ceil(SPDFCommentAuthorPencil(kPencilPoint).size.width) + kPencilGap : 0;
+    CGFloat available = NSWidth(l.header) - (hovered ? 2 * kActionSize + kActionGap + 2 : 0) - slot;
+    NSString* name = Author(item);
+    NSMutableArray* meta = [NSMutableArray array];
+    NSString* date = SPDFCommentDateText(item[@"date"], NSDate.date);
+    if (date.length) [meta addObject:date];
+    if (Text(item, @"meta").length) [meta addObject:Text(item, @"meta")];
+    CGFloat natural = ceil([name sizeWithAttributes:NameStyle()].width), nameW = MIN(natural, MAX(0.0, available));
+    while (meta.count) {
+        CGFloat metaNeed = ceil([[meta componentsJoinedByString:@" · "] sizeWithAttributes:MetaStyle()].width) + 6;
+        if (natural + metaNeed <= available) break;
+        if (meta.count == 1 && available - metaNeed >= 48) {
+            nameW = available - metaNeed;
+            break;
+        }
+        [meta removeLastObject];
+    }
+    h.name = NSMakeRect(NSMinX(l.header), NSMidY(l.header) - 8, nameW, 16);
+    if (yours) h.pencil = NSMakeRect(NSMaxX(h.name) + kPencilGap, NSMinY(l.header), slot - kPencilGap, kHeader);
+    CGFloat metaX = NSMaxX(h.name) + slot + 6, metaW = NSMinX(l.header) + available + slot - metaX;
+    *metaText = meta.count ? [meta componentsJoinedByString:@" · "] : nil;
+    h.metaRect = NSMakeRect(metaX, NSMidY(l.header) - 7.5, metaW, 15);
+    return h;
+}
 
 @interface SPDFCommentCardView : NSTableCellView
 @property(nonatomic, copy) NSDictionary* item;
@@ -159,7 +215,9 @@ NSString* SPDFCommentDateText(NSDate* date, NSDate* now) {
 
 @implementation SPDFCommentCardView {
     NSTrackingArea* _tracking;
-    BOOL _hovered;
+    BOOL _hovered, _yours, _nameHovered;
+    SPDFCommentAuthorNameEdit* _nameEdit;
+    SPDFCommentAuthorHotspot* _nameSpot;
     NSButton *_edit, *_delete;
     NSAttributedString *_quote, *_body;
 }
@@ -184,6 +242,12 @@ static NSButton* ActionButton(NSString* symbol, NSString* label, id target, SEL 
     self.identifier = @"CommentCard";
     _edit = ActionButton(@"pencil", @"Edit Comment", self, @selector(editPressed:));
     _delete = ActionButton(@"trash", @"Delete Comment", self, @selector(deletePressed:));
+    _nameSpot = [[SPDFCommentAuthorHotspot alloc] initWithFrame:NSZeroRect];
+    _nameSpot.hidden = YES;
+    __weak SPDFCommentCardView* weakSelf = self;
+    _nameSpot.pressed = ^{ [weakSelf beginNameEdit]; };
+    _nameSpot.hovered = ^(BOOL over) { [weakSelf setNameHovered:over]; };
+    [self addSubview:_nameSpot];
     [self addSubview:_edit];
     [self addSubview:_delete];
     return self;
@@ -197,6 +261,10 @@ static NSButton* ActionButton(NSString* symbol, NSString* label, id target, SEL 
     _body = BodyText(_item);
     BOOL hasIndex = [_item[@"commentIndex"] isKindOfClass:NSNumber.class];
     _edit.enabled = _delete.enabled = hasIndex;
+    [_nameEdit cancel];
+    _yours = [self authorIsYou];
+    _nameHovered = NO;
+    [self refreshNameArea];
     self.needsLayout = YES;
     self.needsDisplay = YES;
 }
@@ -204,6 +272,75 @@ static NSButton* ActionButton(NSString* symbol, NSString* label, id target, SEL 
 - (BOOL)selected {
     NSView* row = self.superview;
     return [row isKindOfClass:NSTableRowView.class] && ((NSTableRowView*)row).isSelected;
+}
+
+// Your comment: written under the name new comments carry now. Agents' and other people's are not.
+- (BOOL)authorIsYou {
+    NSString* author = Text(_item, @"author");
+    if (!author.length || ![_target respondsToSelector:@selector(currentCommentAuthor)] ||
+        ![_target respondsToSelector:@selector(changeCommentAuthorTo:)])
+        return NO;
+    return [author isEqualToString:[(id<SPDFCommentCardTarget>)_target currentCommentAuthor]];
+}
+
+- (NSRect)nameArea {
+    if (!_yours || !_item) return NSZeroRect;
+    NSString* meta = nil;
+    SPDFCommentCardHeader h = LayoutHeader(_item, LayoutCard(_item, NSWidth(self.bounds), _quote, _body), _hovered, YES, &meta);
+    NSRect name = NSMakeRect(NSMinX(h.name), NSMinY(h.pencil), NSMaxX(h.pencil) - NSMinX(h.name), NSHeight(h.pencil));
+    return name;
+}
+
+// The name's hotspot follows the name; the card draws the name and, while the pointer is on it, the pencil.
+- (void)refreshNameArea {
+    NSRect area = _nameEdit ? NSZeroRect : self.nameArea;
+    _nameSpot.frame = area;
+    _nameSpot.hidden = NSIsEmptyRect(area);
+    if (_nameSpot.hidden) _nameHovered = NO;
+    self.needsDisplay = YES;
+}
+
+- (void)setNameHovered:(BOOL)over {
+    if (over == _nameHovered) return;
+    _nameHovered = over && !_nameEdit;
+    self.needsDisplay = YES;
+}
+
+- (void)setFrameSize:(NSSize)size {
+    [super setFrameSize:size];
+    [self refreshNameArea];
+}
+
+// The name becomes a field over the header, left of the hover buttons.
+- (void)beginNameEdit {
+    if (!_yours || _nameEdit) return;
+    SPDFCommentCardLayout l = LayoutCard(_item, NSWidth(self.bounds), _quote, _body);
+    CGFloat right = NSMaxX(l.header) - 2 * kActionSize - kActionGap - 4;
+    NSRect frame = NSMakeRect(NSMinX(l.header) - 2, NSMidY(l.header) - 9, MAX(60.0, right - NSMinX(l.header) + 2), 18);
+    __weak SPDFCommentCardView* weakSelf = self;
+    _nameHovered = NO;
+    _nameEdit = [SPDFCommentAuthorNameEdit editName:Author(_item)
+                                             inView:self
+                                              frame:frame
+                                               font:[NSFont systemFontOfSize:12 weight:NSFontWeightSemibold]
+                                          alignment:NSTextAlignmentLeft
+                                               done:^(NSString* name, BOOL byKey) {
+                                                 [weakSelf nameEditEndedWith:name byKey:byKey];
+                                               }];
+    [self refreshNameArea];
+}
+
+- (void)nameEditEndedWith:(NSString*)name byKey:(BOOL)byKey {
+    _nameEdit = nil;
+    NSTableView* table = (NSTableView*)self.superview.superview;
+    if (byKey) [self.window makeFirstResponder:[table isKindOfClass:NSTableView.class] ? table : nil];
+    [self refreshNameArea];
+    // The panel is rebuilt with the new name: this card stays the old comment's, under the name it was written with.
+    if (name) [(id<SPDFCommentCardTarget>)_target changeCommentAuthorTo:name];
+}
+
+- (BOOL)isEditingName {
+    return _nameEdit != nil;
 }
 
 - (void)layout {
@@ -228,13 +365,15 @@ static NSButton* ActionButton(NSString* symbol, NSString* label, id target, SEL 
     if (_hovered == hovered) return;
     _hovered = hovered;
     _edit.hidden = _delete.hidden = !hovered;
-    self.needsDisplay = YES;
+    [self refreshNameArea];
 }
 - (void)mouseEntered:(NSEvent*)event { (void)event; [self setHovered:YES]; }
-- (void)mouseExited:(NSEvent*)event { (void)event; [self setHovered:NO]; }
+- (void)mouseExited:(NSEvent*)event { (void)event; [self setHovered:NO]; [self setNameHovered:NO]; }
 - (void)prepareForReuse {
     [super prepareForReuse];
+    [_nameEdit cancel];
     [self setHovered:NO];
+    [self setNameHovered:NO];
 }
 - (void)viewDidChangeEffectiveAppearance {
     [super viewDidChangeEffectiveAppearance];
@@ -285,41 +424,20 @@ static NSButton* ActionButton(NSString* symbol, NSString* label, id target, SEL 
     [initials drawAtPoint:NSMakePoint(NSMidX(l.avatar) - initialsSize.width / 2, NSMidY(l.avatar) - initialsSize.height / 2)
            withAttributes:initialsStyle];
 
-    // Header: the author, then the date and page, muted. Space for the hover buttons is kept while they show.
-    NSMutableParagraphStyle* truncate = [NSMutableParagraphStyle new];
-    truncate.lineBreakMode = NSLineBreakByTruncatingTail;
-    NSDictionary* nameStyle = @{NSFontAttributeName : [NSFont systemFontOfSize:12 weight:NSFontWeightSemibold],
-                                NSForegroundColorAttributeName : SPDFCollectionColor(@"text"),
-                                NSParagraphStyleAttributeName : truncate};
-    NSDictionary* metaStyle = @{NSFontAttributeName : [NSFont systemFontOfSize:11],
-                                NSForegroundColorAttributeName : SPDFCollectionColor(@"secondary"),
-                                NSParagraphStyleAttributeName : truncate};
-    CGFloat available = NSWidth(l.header) - (_hovered ? 2 * kActionSize + kActionGap + 2 : 0);
-    NSString* name = Author(_item);
-    NSMutableArray* meta = [NSMutableArray array];
-    NSString* date = SPDFCommentDateText(_item[@"date"], NSDate.date);
-    if (date.length) [meta addObject:date];
-    if (Text(_item, @"meta").length) [meta addObject:Text(_item, @"meta")];
-    // The date and page whole, else the date alone, else nothing: never a date cut in the middle. A long name gives
-    // way to the date down to 48 points.
-    CGFloat natural = ceil([name sizeWithAttributes:nameStyle].width), nameW = MIN(natural, MAX(0.0, available));
-    while (meta.count) {
-        CGFloat metaNeed = ceil([[meta componentsJoinedByString:@" · "] sizeWithAttributes:metaStyle].width) + 6;
-        if (natural + metaNeed <= available) break;
-        if (meta.count == 1 && available - metaNeed >= 48) {
-            nameW = available - metaNeed;
-            break;
-        }
-        [meta removeLastObject];
+    // Header: the author (with the pencil on your own card while the pointer is on the name), then the date and page.
+    NSString* meta = nil;
+    SPDFCommentCardHeader h = LayoutHeader(_item, l, _hovered, _yours, &meta);
+    if (!_nameEdit)
+        [Author(_item) drawWithRect:h.name
+                            options:NSStringDrawingUsesLineFragmentOrigin | NSStringDrawingTruncatesLastVisibleLine
+                         attributes:NameStyle()];
+    if (_nameHovered && _yours && !_nameEdit) {
+        NSImage* pencil = SPDFCommentAuthorPencil(kPencilPoint);
+        NSSize size = pencil.size;
+        [pencil drawInRect:NSMakeRect(NSMinX(h.pencil), NSMidY(h.pencil) - size.height / 2, size.width, size.height)];
     }
-    [name drawWithRect:NSMakeRect(NSMinX(l.header), NSMidY(l.header) - 8, nameW, 16)
-               options:NSStringDrawingUsesLineFragmentOrigin | NSStringDrawingTruncatesLastVisibleLine
-            attributes:nameStyle];
-    CGFloat metaX = NSMinX(l.header) + nameW + 6, metaW = NSMinX(l.header) + available - metaX;
-    if (meta.count)
-        [[meta componentsJoinedByString:@" · "] drawWithRect:NSMakeRect(metaX, NSMidY(l.header) - 7.5, metaW, 15)
-                                                     options:NSStringDrawingUsesLineFragmentOrigin
-                                                  attributes:metaStyle];
+    if (meta.length && (!_nameEdit))
+        [meta drawWithRect:h.metaRect options:NSStringDrawingUsesLineFragmentOrigin attributes:MetaStyle()];
 
     if (NSHeight(l.quoteBar) > 0) {
         [[SPDFCollectionColor(@"accent") colorWithAlphaComponent:.55] setFill];
@@ -363,52 +481,3 @@ NSView* SPDFCommentCardCell(NSTableView* table, NSDictionary* item, id target) {
 }
 
 NSTableRowView* SPDFCommentCardRowView(void) { return [SPDFCommentCardRow new]; }
-
-#pragma mark - Empty state
-
-NSDictionary* SPDFCommentsEmptyItem(NSString* filter) {
-    NSString* title = filter.length ? [NSString stringWithFormat:@"No comments match “%@”.", filter]
-                                    : @"No comments yet. Select text and choose Add Comment.";
-    return @{@"kind" : @"commentsEmpty", @"title" : title, @"page" : @(-1)};
-}
-
-static NSAttributedString* EmptyText(NSDictionary* item) {
-    NSMutableParagraphStyle* style = [NSMutableParagraphStyle new];
-    style.alignment = NSTextAlignmentCenter;
-    style.lineBreakMode = NSLineBreakByWordWrapping;
-    style.minimumLineHeight = style.maximumLineHeight = 17;
-    return [[NSAttributedString alloc] initWithString:Text(item, @"title") attributes:@{
-        NSFontAttributeName : [NSFont systemFontOfSize:12], NSForegroundColorAttributeName : SPDFCollectionColor(@"secondary"),
-        NSParagraphStyleAttributeName : style}];
-}
-
-CGFloat SPDFCommentsEmptyRowHeight(NSDictionary* item, CGFloat width) {
-    return Measure(EmptyText(item), MAX(40.0, width - 48)) + 48;
-}
-
-@interface SPDFCommentsEmptyView : NSView
-@property(nonatomic, copy) NSDictionary* item;
-@end
-@implementation SPDFCommentsEmptyView
-- (BOOL)isFlipped { return YES; }
-- (void)drawRect:(NSRect)dirty {
-    (void)dirty;
-    [EmptyText(_item) drawWithRect:NSMakeRect(24, 24, MAX(40.0, NSWidth(self.bounds) - 48), NSHeight(self.bounds) - 48)
-                           options:NSStringDrawingUsesLineFragmentOrigin];
-}
-- (void)viewDidChangeEffectiveAppearance { [super viewDidChangeEffectiveAppearance]; self.needsDisplay = YES; }
-- (BOOL)isAccessibilityElement { return YES; }
-- (NSAccessibilityRole)accessibilityRole { return NSAccessibilityStaticTextRole; }
-- (NSString*)accessibilityValue { return Text(_item, @"title"); }
-@end
-
-NSView* SPDFCommentsEmptyCell(NSTableView* table, NSDictionary* item) {
-    SPDFCommentsEmptyView* view = [table makeViewWithIdentifier:@"CommentsEmpty" owner:nil];
-    if (!view) {
-        view = [[SPDFCommentsEmptyView alloc] initWithFrame:NSMakeRect(0, 0, 240, 80)];
-        view.identifier = @"CommentsEmpty";
-    }
-    view.item = item;
-    view.needsDisplay = YES;
-    return view;
-}

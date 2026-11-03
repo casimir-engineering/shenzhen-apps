@@ -176,6 +176,7 @@ static char kEditorAnchorKey;
     if (editor.isOpen) [editor closeKeepingDraft];
     NSString* draft = draftKey ? self.commentDrafts[draftKey] : nil;
     [editor resetWithTitle:title button:button author:author text:draft ?: text ?: @""];
+    if ([title isEqualToString:@"Add Comment"]) [self letCommentEditorChangeAuthor:editor];
     __weak ShenzhenMacDelegate* weakSelf = self;
     editor.finished = ^(NSString* result, BOOL saved) {
       ShenzhenMacDelegate* reader = weakSelf;
