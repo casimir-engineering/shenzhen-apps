@@ -1,4 +1,4 @@
-# Cmd+J and Cmd+K for Friends on the real reader (mac/tests/SPDFMacFriendsShortcutProbe.mm).
+# Cmd+; and Cmd+K for Friends on the real reader (mac/tests/SPDFMacFriendsShortcutProbe.mm).
 # Run from portable with: make -f Makefile -f mac/tests/friends-shortcut-probe.mk mac-friends-shortcut-probe
 # Links the workspace probe's reader objects (every reader source, the host adapter, the Friends views, client
 # library and cJSON) with the protocol area's in-process fake helper. The probe sets SPDF_STATE_DIR and

@@ -1,12 +1,14 @@
-// Cmd+J and Cmd+K for Friends on the real reader: the reader's own delegate, main menu and window (no document open),
+// Cmd+; and Cmd+K for Friends on the real reader: the reader's own delegate, main menu and window (no document open),
 // the real Friends views and client library, and the protocol area's in-process fake helper in a temporary
 // SZFRIENDS_STATE_DIR (never the real helper, its state or the Keychain).
 //
-//   Friends off: no Friends items in the menu or in Cmd+K, and Cmd+J does nothing.
-//   Friends attached: Cmd+J (a key event through -[NSApplication sendEvent:], so the main menu's key equivalents
+//   Friends off: no Friends items in the menu or in Cmd+K, and Cmd+; does nothing.
+//   Friends attached: Cmd+; (a key event through -[NSApplication sendEvent:], so the main menu's key equivalents
 //   run as for a key press) opens the dropdown with its search field focused and closes it again, also while that
 //   field has focus; Cmd+K, typing "friends" and Return opens it; "friend", "nearby", "add by id" and "chat" list
-//   Open Friends; Add by ID… and Make Myself Visible land where they say; the button's tooltip shows ⌘J.
+//   Open Friends; Add by ID… and Make Myself Visible land where they say; the button's tooltip shows ⌘;. Cmd+;
+//   also opens Friends from the comment box's text (no text view takes it for spelling), and Cmd+J, Add Comment…'s,
+//   neither opens nor closes it.
 //   Detached again: everything is gone. And the palette's rows, with their menu paths, fit inside it.
 //
 // No window is ever seen: every window AppKit orders in is made fully transparent and click-through first, and the
@@ -14,12 +16,13 @@
 // app has no key window, NSApp hands key equivalents straight to the main menu; the probe therefore first asks the
 // window that would be key (the reader's, or the dropdown's while its field has focus) to perform the key
 // equivalent, as AppKit does, and checks that it passes it on. Letters typed into Cmd+K go to the palette's window
-// (-[NSWindow sendEvent:]), which is where AppKit sends them; Return goes through NSApp like Cmd+J.
+// (-[NSWindow sendEvent:]), which is where AppKit sends them; Return goes through NSApp like Cmd+;.
 //
 // Run from portable/: make -f Makefile -f mac/tests/friends-shortcut-probe.mk mac-friends-shortcut-probe
 
 #import "SPDFMacDelegatePrivate.h"
 #import "SPDFMacPalettePresentation.h"
+#import "SPDFMacCommentActions.h"
 #import "SPDFMacFriendsReaderState.h"
 #import "SPDFMacFriendsMenu.h"
 #import "mac/SZFriendsDropdownInternal.h"
@@ -86,6 +89,7 @@ static unsigned short KeyCode(unichar c) {
     switch (c) {
         case 'o': return 31; case 'u': return 32; case 'i': return 34; case 'p': return 35; case 'l': return 37;
         case 'j': return 38; case 'k': return 40; case 'n': return 45; case 'm': return 46; case ' ': return 49;
+        case ';': return 41;
         default: return 0;
     }
 }
@@ -114,6 +118,8 @@ static BOOL PressShortcut(NSString* key, NSWindow* keyWindow) {
 - (void)friendsAttach;
 - (void)friendsDetachDisabling:(BOOL)disabling;
 - (void)closePalette:(id)sender;
+- (void)installAddCommentMenuItem;
+- (NSView*)commentEditor;
 @end
 
 @interface FriendsShortcutReader : ShenzhenMacDelegate
@@ -221,8 +227,8 @@ static void CheckFriendsOff(FriendsShortcutReader* reader, NSString* when) {
                                SPDFMacFriendsVisibleTitle, SPDFMacFriendsSettingsTitle ])
         Check(![titles containsObject:title], [NSString stringWithFormat:@"%@: Cmd+K has no %@", when, title]);
     Check(!FriendsItem(SPDFMacFriendsMenuItemIdentifier), [NSString stringWithFormat:@"%@: no View ▸ Friends", when]);
-    Check(PressShortcut(@"j", reader.window) && ![reader friendsState].dropdown.shown,
-          [NSString stringWithFormat:@"%@: Cmd+J does nothing", when]);
+    Check(PressShortcut(@";", reader.window) && ![reader friendsState].dropdown.shown,
+          [NSString stringWithFormat:@"%@: Cmd+; does nothing", when]);
 }
 
 static void CheckCommandJ(FriendsShortcutReader* reader) {
@@ -231,22 +237,34 @@ static void CheckCommandJ(FriendsShortcutReader* reader) {
     Check(button.window == reader.window, @"the Friends button is in the reader window's title bar");
     Check(!dropdown.shown, @"the dropdown starts closed");
     NSMenuItem* open = FriendsItem(SPDFMacFriendsOpenItemIdentifier);
-    Check([open.keyEquivalent isEqualToString:@"j"] && open.keyEquivalentModifierMask == NSEventModifierFlagCommand,
-          @"View ▸ Friends ▸ Open Friends shows ⌘J");
+    Check([open.keyEquivalent isEqualToString:@";"] && open.keyEquivalentModifierMask == NSEventModifierFlagCommand,
+          @"View ▸ Friends ▸ Open Friends shows ⌘;");
     NSUInteger holders = 0;
     for (NSMenuItem* top in NSApp.mainMenu.itemArray)
         for (NSMenuItem* item in top.submenu.itemArray) {
-            if ([item.keyEquivalent isEqualToString:@"j"] && item.keyEquivalentModifierMask == NSEventModifierFlagCommand)
+            if ([item.keyEquivalent isEqualToString:@";"] && item.keyEquivalentModifierMask == NSEventModifierFlagCommand)
                 holders++;
             for (NSMenuItem* inner in item.submenu.itemArray)
-                if ([inner.keyEquivalent isEqualToString:@"j"] &&
+                if ([inner.keyEquivalent isEqualToString:@";"] &&
                     inner.keyEquivalentModifierMask == NSEventModifierFlagCommand)
                     holders++;
         }
-    Check(holders == 1, [NSString stringWithFormat:@"exactly one menu item owns ⌘J (%lu)", (unsigned long)holders]);
+    Check(holders == 1, [NSString stringWithFormat:@"exactly one menu item owns ⌘; (%lu)", (unsigned long)holders]);
 
-    Check(PressShortcut(@"j", reader.window), @"the reader window passes Cmd+J on to the menu");
-    Check(RunUntil(2, ^BOOL { return dropdown.shown; }), @"Cmd+J opens Friends");
+    // Cmd+J is Edit ▸ Add Comment…, which the reader adds once it has launched: it never opens or closes Friends.
+    [reader installAddCommentMenuItem];
+    NSMutableArray* commandJ = [NSMutableArray array];
+    for (NSMenuItem* top in NSApp.mainMenu.itemArray)
+        for (NSMenuItem* item in top.submenu.itemArray)
+            if ([item.keyEquivalent isEqualToString:@"j"] && item.keyEquivalentModifierMask == NSEventModifierFlagCommand)
+                [commandJ addObject:item];
+    Check(commandJ.count == 1 && [commandJ.firstObject action] == NSSelectorFromString(@"addComment:"),
+          [NSString stringWithFormat:@"only Add Comment… owns ⌘J (%@)", [commandJ valueForKey:@"title"]]);
+    Check(PressShortcut(@"j", reader.window) && !RunUntil(0.5, ^BOOL { return dropdown.shown; }),
+          @"Cmd+J does not open Friends");
+
+    Check(PressShortcut(@";", reader.window), @"the reader window passes Cmd+; on to the menu");
+    Check(RunUntil(2, ^BOOL { return dropdown.shown; }), @"Cmd+; opens Friends");
     Check(RunUntil(2, ^BOOL { return SearchFieldHasFocus(dropdown); }),
           [NSString stringWithFormat:@"the search field has focus when Friends opens (first responder %@)",
                                      dropdown.content.window.firstResponder]);
@@ -254,16 +272,30 @@ static void CheckCommandJ(FriendsShortcutReader* reader) {
     Check([open.title isEqualToString:SPDFMacFriendsCloseTitle], @"the item reads Close Friends while it is open");
 
     NSWindow* popover = dropdown.content.window;
-    Check(PressShortcut(@"j", popover), @"the dropdown's search field passes Cmd+J on to the menu");
-    Check(RunUntil(2, ^BOOL { return !dropdown.shown; }), @"Cmd+J closes Friends while its search field has focus");
+    Check(PressShortcut(@";", popover), @"the dropdown's search field passes Cmd+; on to the menu");
+    Check(RunUntil(2, ^BOOL { return !dropdown.shown; }), @"Cmd+; closes Friends while its search field has focus");
     [open.menu update];
     Check([open.title isEqualToString:SPDFMacFriendsOpenTitle], @"the item reads Open Friends again");
 
-    Check(PressShortcut(@"j", reader.window) && RunUntil(2, ^BOOL { return dropdown.shown; }) &&
+    Check(PressShortcut(@";", reader.window) && RunUntil(2, ^BOOL { return dropdown.shown; }) &&
               RunUntil(2, ^BOOL { return SearchFieldHasFocus(dropdown); }),
-          @"Cmd+J opens Friends again, on the search field");
-    Check(PressShortcut(@"j", reader.window) && RunUntil(2, ^BOOL { return !dropdown.shown; }),
-          @"Cmd+J from the reader window closes it");
+          @"Cmd+; opens Friends again, on the search field");
+    Check(PressShortcut(@";", reader.window) && RunUntil(2, ^BOOL { return !dropdown.shown; }),
+          @"Cmd+; from the reader window closes it");
+
+    // From the comment box's text: Cmd+; still reaches Friends (no text view checks spelling with it).
+    [reader openCommentEditorWithTitle:@"Add Comment" button:@"Add" author:@"Probe" text:@"" draftKey:nil
+                            completion:^(NSString* text) { (void)text; }];
+    NSTextView* text = [[reader commentEditor] valueForKey:@"textView"];
+    Check(reader.window.firstResponder == text, @"the comment box's text has the keyboard");
+    Check(PressShortcut(@";", reader.window) && RunUntil(2, ^BOOL { return dropdown.shown; }),
+          @"Cmd+; opens Friends from the comment box's text");
+    Check(PressShortcut(@"j", dropdown.content.window), @"the dropdown passes Cmd+J on to the menu");
+    Settle(0.5);
+    Check(dropdown.shown, @"Cmd+J does not close Friends");
+    Check(PressShortcut(@";", dropdown.content.window) && RunUntil(2, ^BOOL { return !dropdown.shown; }),
+          @"Cmd+; closes it again");
+    [[reader commentEditor] performSelector:@selector(cancel)];
 }
 
 static void CheckPalette(FriendsShortcutReader* reader) {
@@ -284,8 +316,8 @@ static void CheckPalette(FriendsShortcutReader* reader) {
     // Open Friends, not a message row: the list with its search field, not a conversation.
     Check(RunUntil(2, ^BOOL { return SearchFieldHasFocus(dropdown); }), @"Return ran Open Friends: the list, searching");
     Check(!reader.palette.visible, @"the palette closed");
-    Check(PressShortcut(@"j", dropdown.content.window) && RunUntil(2, ^BOOL { return !dropdown.shown; }),
-          @"Cmd+J closes what the palette opened");
+    Check(PressShortcut(@";", dropdown.content.window) && RunUntil(2, ^BOOL { return !dropdown.shown; }),
+          @"Cmd+; closes what the palette opened");
 
     for (NSString* query in @[ @"friend", @"nearby", @"add by id", @"chat" ]) {
         rows = TypeInPalette(reader, query);
@@ -380,10 +412,10 @@ static void CheckOtherItems(FriendsShortcutReader* reader, szfriends_fake_helper
 static void CheckToolTip(FriendsShortcutReader* reader) {
     NSButton* button = [reader friendsState].dropdown.button;
     // The button's label is the helper's ("Friends (Beta)" while Friends is a beta), then the key.
-    Check(RunUntil(5, ^BOOL { return [button.toolTip isEqualToString:@"Friends (Beta) · ⌘J"]; }),
+    Check(RunUntil(5, ^BOOL { return [button.toolTip isEqualToString:@"Friends (Beta) · ⌘;"]; }),
           [NSString stringWithFormat:@"the Friends button's tooltip shows the shortcut (%@)", button.toolTip]);
     button.toolTip = @"Friends (Beta)"; // what the views set again on every badge update
-    Check([button.toolTip isEqualToString:@"Friends (Beta) · ⌘J"],
+    Check([button.toolTip isEqualToString:@"Friends (Beta) · ⌘;"],
           @"the shortcut comes back after the views reset it");
 }
 

@@ -10,8 +10,8 @@ NSString* const SPDFMacFriendsAddByIDTitle = @"Add by ID…";
 // How long it lasts is the helper's to say; the Nearby tab shows the countdown.
 NSString* const SPDFMacFriendsVisibleTitle = @"Make Myself Visible";
 NSString* const SPDFMacFriendsSettingsTitle = @"Friends Settings…";
-NSString* const SPDFMacFriendsShortcutKey = @"j";
-NSString* const SPDFMacFriendsShortcutToolTipSuffix = @" · ⌘J";
+NSString* const SPDFMacFriendsShortcutKey = @";";
+NSString* const SPDFMacFriendsShortcutToolTipSuffix = @" · ⌘;";
 
 NSString* const SPDFMacFriendsMenuItemIdentifier = @"szfriends.menu";
 NSString* const SPDFMacFriendsMenuSeparatorIdentifier = @"szfriends.menu-separator";

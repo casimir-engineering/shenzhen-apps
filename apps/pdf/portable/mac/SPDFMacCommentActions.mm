@@ -149,7 +149,7 @@ static char kEditorAnchorKey;
                   inModes:@[ NSEventTrackingRunLoopMode, NSDefaultRunLoopMode ]];
 }
 
-// Edit ▸ Add Comment… (⌥⌘M): the box for the selection, with no menu in between. Put just above Set Author.
+// Edit ▸ Add Comment… (⌘J): the box for the selection, with no menu in between. Put just above Set Author.
 - (void)installAddCommentMenuItem {
     NSMenu* edit = nil;
     NSInteger index = -1;
@@ -159,8 +159,8 @@ static char kEditorAnchorKey;
             if (item.action == @selector(setCommentAuthor:)) edit = top.submenu, index = [edit indexOfItem:item];
         }
     if (!edit) return;
-    NSMenuItem* add = [[NSMenuItem alloc] initWithTitle:@"Add Comment..." action:@selector(addComment:) keyEquivalent:@"m"];
-    add.keyEquivalentModifierMask = NSEventModifierFlagCommand | NSEventModifierFlagOption;
+    NSMenuItem* add = [[NSMenuItem alloc] initWithTitle:@"Add Comment..." action:@selector(addComment:) keyEquivalent:@"j"];
+    add.keyEquivalentModifierMask = NSEventModifierFlagCommand;
     spdf_set_menu_item_system_symbol(add, @"text.bubble");
     [edit insertItem:add atIndex:index];
 }
@@ -187,7 +187,7 @@ static char kEditorAnchorKey;
 }
 
 - (void)addComment:(id)sender {
-    // Not from a page's menu (the Edit menu, ⌥⌘M): the box goes under the selection, not where a menu was last opened.
+    // Not from a page's menu (the Edit menu, ⌘J): the box goes under the selection, not where a menu was last opened.
     if (!SPDFPageMenuContextOfSender(sender) && _contextPageIndex < 0)
         objc_setAssociatedObject(self, &kEditorAnchorKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     if ([self isMarkdownActive]) {
@@ -200,7 +200,7 @@ static char kEditorAnchorKey;
     }
     // Read the selection and the clicked point now: a PDF that cannot be written in place (a temporary or read-only
     // folder) is reopened from a writable copy when the comment is added, which clears them. The page's menu hands
-    // its point over with the item (else the point of a menu still open); from the Edit menu or ⌥⌘M there is no point,
+    // its point over with the item (else the point of a menu still open); from the Edit menu or ⌘J there is no point,
     // only the selection.
     NSDictionary* menuContext = SPDFPageMenuContextOfSender(sender);
     BOOL hasSelection = _selectedText.length > 0 && _selectionPageIndex >= 0 && [self currentSelectionRects].count > 0;

@@ -42,8 +42,13 @@ int main(void) { @autoreleasepool {
     Check([newActions[@"Groups"] isEqual:@[@"Cmd",@"G"]],"Groups owns Command G");
     Check([newActions[@"Version history"] isEqual:@[@"Cmd",@"H"]],"History is discoverable in New!");
     Check([newActions[@"Previous document"] isEqual:@[@"Cmd",@"D"]],"Previous document is discoverable in New!");
-    Check([newActions[@"Open or close Friends"] isEqual:@[@"Cmd",@"J"]],"Friends owns Command J in New!");
+    Check([newActions[@"Comment on the selection"] isEqual:@[@"Cmd",@"J"]],"Add Comment owns Command J in New!");
+    NSUInteger commandJ = 0;
+    for (NSDictionary* row in rows) if ([row[@"keys"] isEqual:@[@"Cmd",@"J"]]) commandJ++;
+    Check(commandJ == 1,"only one shortcut row uses Command J");
+    Check([newActions[@"Open or close Friends"] isEqual:@[@"Cmd",@";"]],"Friends owns Command ; in New!");
     Check(SPDFShortcutHelpRows(@"friends").count > 1,"searching for Friends finds its shortcut");
+    Check([SPDFShortcutHelpRows(@"comment").lastObject[@"keys"] isEqual:@[@"Cmd",@"J"]],"searching for comment finds Command J");
     Check(SPDFShortcutHelpRows(@"document chat").count > 1,"new chat path is discoverable");
     NSArray* previous = SPDFShortcutHelpRows(@"Previous result");
     Check([previous.lastObject[@"keys"] isEqual:@[@"Cmd",@"Enter"]],"previous result advertises Command Return");

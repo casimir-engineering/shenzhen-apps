@@ -1,7 +1,7 @@
-// Cmd+J and View ▸ Friends in the reader (SPDFMacFriendsMenu.h): installed by -friendsAttach, removed by
+// Cmd+; and View ▸ Friends in the reader (SPDFMacFriendsMenu.h): installed by -friendsAttach, removed by
 // -friendsDetachDisabling:, so nothing here runs at launch or while Friends is off.
 //
-// Cmd+J is the Open Friends item's key equivalent, so it reaches -toggleFriends: the way every menu shortcut does:
+// Cmd+; is the Open Friends item's key equivalent, so it reaches -toggleFriends: the way every menu shortcut does:
 // the key window's views pass it on (the reader's, or the dropdown's own search field while it has focus) and the
 // main menu runs the item. The items have a target of their own because the reader's -validateMenuItem: disables
 // actions it does not know while no document is open, and Cmd+K lists only enabled items.

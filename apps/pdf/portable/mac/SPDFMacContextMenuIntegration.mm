@@ -95,10 +95,10 @@
         deleteComment.target = self;
         deleteComment.representedObject = @(_contextCommentIndex);
     }
-    // Opens the comment box as the button comes up (no blink, no fade), carrying the click it was chosen for. ⌥⌘M is
+    // Opens the comment box as the button comes up (no blink, no fade), carrying the click it was chosen for. ⌘J is
     // shown here and answered by the Edit menu's Add Comment… (SPDFMacCommentActions.mm).
-    NSMenuItem* addComment = [menu addItemWithTitle:@"Add Comment..." action:@selector(addComment:) keyEquivalent:@"m"];
-    addComment.keyEquivalentModifierMask = NSEventModifierFlagCommand | NSEventModifierFlagOption;
+    NSMenuItem* addComment = [menu addItemWithTitle:@"Add Comment..." action:@selector(addComment:) keyEquivalent:@"j"];
+    addComment.keyEquivalentModifierMask = NSEventModifierFlagCommand;
     addComment.enabled = [self canAddCommentNow];
     addComment.representedObject = SPDFMacPageMenuCommentContext(_contextPageIndex, _contextPagePoint);
     SPDFMacMakeMenuItemInstant(addComment);

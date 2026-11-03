@@ -5,13 +5,13 @@
 NSArray<NSDictionary*>* SPDFShortcutHelpCatalog(void) {
     return @[
         @{@"category":@"New!", @"highlighted":@YES, @"items":@[
-            @{@"title":@"Comment on the selection", @"keys":@[@"Opt",@"Cmd",@"M"]},
+            @{@"title":@"Comment on the selection", @"keys":@[@"Cmd",@"J"]},
             @{@"title":@"New document chat", @"subtitle":@"Press Command-K, then Return with the search field empty"},
             @{@"title":@"Send a chat message", @"subtitle":@"Shift-Return adds a new line", @"keys":@[@"Enter"]},
             @{@"title":@"Groups", @"subtitle":@"See your groups and their documents", @"keys":@[@"Cmd",@"G"]},
             @{@"title":@"Version history", @"keys":@[@"Cmd",@"H"]},
             @{@"title":@"Previous document", @"subtitle":@"Press again to return to this document", @"keys":@[@"Cmd",@"D"]},
-            @{@"title":@"Open or close Friends", @"keys":@[@"Cmd",@"J"]}]},
+            @{@"title":@"Open or close Friends", @"keys":@[@"Cmd",@";"]}]},
         @{@"category":@"Search", @"items":@[
             @{@"title":@"Search this document", @"keys":@[@"Cmd",@"F"]},
             @{@"title":@"Search documents, groups and Collection", @"subtitle":@"Start with col: to search only Collection", @"keys":@[@"Cmd",@"K"]},

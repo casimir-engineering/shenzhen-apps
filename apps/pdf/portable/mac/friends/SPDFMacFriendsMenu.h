@@ -1,9 +1,12 @@
-// View ▸ Friends: the menu that carries Cmd+J and the commands Cmd+K finds for Friends.
+// View ▸ Friends: the menu that carries Cmd+; and the commands Cmd+K finds for Friends.
 //
 // Added when Friends attaches (after the first paint) and removed when it detaches, like File ▸ Share, so nothing
-// about Friends is in the menu bar or the palette while it is off. Cmd+J was unused in the reader's menus before; the
-// Windows and Linux readers have no Friends yet and so no Cmd+J / Ctrl+J. The palette lists these items as it lists
-// every menu item, and finds them by the words in spdf_palette_menu_command_keywords() (SPDFMacPaletteResults.h) too.
+// about Friends is in the menu bar or the palette while it is off. Cmd+; is free in the reader: its menus have no
+// Spelling and Grammar items, and its text views bind nothing to it (Cmd+J, which Friends had first, is Add Comment…).
+// The key equivalent is the character, so AppKit's automatic shortcut localization finds the key for it on layouts
+// where ";" is elsewhere. The Windows and Linux readers have no Friends yet and so no Cmd+; / Ctrl+;. The palette
+// lists these items as it lists every menu item, and finds them by the words in spdf_palette_menu_command_keywords()
+// (SPDFMacPaletteResults.h) too.
 
 #import <AppKit/AppKit.h>
 
@@ -15,8 +18,8 @@ FOUNDATION_EXPORT NSString* const SPDFMacFriendsCloseTitle;          // "Close F
 FOUNDATION_EXPORT NSString* const SPDFMacFriendsAddByIDTitle;        // "Add by ID…"
 FOUNDATION_EXPORT NSString* const SPDFMacFriendsVisibleTitle;        // "Make Myself Visible"
 FOUNDATION_EXPORT NSString* const SPDFMacFriendsSettingsTitle;       // "Friends Settings…"
-// The key equivalent of Open Friends, and the tooltip suffix the title-bar button gets (" · ⌘J").
-FOUNDATION_EXPORT NSString* const SPDFMacFriendsShortcutKey;         // "j"
+// The key equivalent of Open Friends, and the tooltip suffix the title-bar button gets (" · ⌘;").
+FOUNDATION_EXPORT NSString* const SPDFMacFriendsShortcutKey;         // ";"
 FOUNDATION_EXPORT NSString* const SPDFMacFriendsShortcutToolTipSuffix;
 
 // Item identifiers; the palette's keyword table is keyed by them.

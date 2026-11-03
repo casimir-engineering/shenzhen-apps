@@ -392,7 +392,7 @@ fence the renderer cannot draw keeps its ordinary highlighted code box.
 
 - **Highlight comments** — select text, add a comment anchored to the
   highlighted rectangles.
-- **Add Comment** — ⌥⌘M comments on the selection (Edit › Add Comment…);
+- **Add Comment** — ⌘J comments on the selection (Edit › Add Comment…);
   right-click the page to comment where you clicked.
 - **Text comments** — drop a comment at a point on the page.
 - **Edit and delete** existing comments.
