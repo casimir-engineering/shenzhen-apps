@@ -62,7 +62,7 @@ unsigned char* spdf_svg_image_pdf(const unsigned char* svg, size_t svg_len, size
         pdf = pdf_create_document(ctx);
         dev = pdf_page_write(ctx, pdf, bounds, &resources, &contents);
         fz_try(ctx) {
-            fz_run_page(ctx, page, dev, fz_identity, NULL);
+            spdf_svg_run_page(ctx, page, dev);
             fz_close_device(ctx, dev);
         }
         fz_always(ctx) fz_drop_device(ctx, dev);

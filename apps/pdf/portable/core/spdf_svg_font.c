@@ -127,11 +127,9 @@ static void spdf_sfnt_name_record(fz_context* ctx, spdf_sfnt_buf* records, spdf_
     spdf_sfnt_u16(ctx, records, (unsigned)at);
 }
 
-/* The OpenType font around `cff`, whose glyph `g` has Unicode `unicode[g]` (0: none) and an advance of
- * `advance[g]` thousandths of an em. */
-static fz_buffer* spdf_sfnt_from_cff(fz_context* ctx, const unsigned char* cff, size_t cff_len, int glyphs,
-                                     const unsigned* unicode, const int* advance, const char* name, fz_rect bbox,
-                                     float ascender, float descender, int bold, int italic, int mono) {
+fz_buffer* spdf_sfnt_from_cff(fz_context* ctx, const unsigned char* cff, size_t cff_len, int glyphs, const unsigned* unicode,
+                              const int* advance, const char* name, fz_rect bbox, float ascender, float descender,
+                              int bold, int italic, int mono) {
     enum { CFF, OS2, CMAP, HEAD, HHEA, HMTX, MAXP, NAME, POST, TABLES };
     static const char tags[TABLES][5] = {"CFF ", "OS/2", "cmap", "head", "hhea", "hmtx", "maxp", "name", "post"};
     spdf_sfnt_buf t[TABLES];
@@ -293,6 +291,35 @@ static fz_buffer* spdf_sfnt_from_cff(fz_context* ctx, const unsigned char* cff, 
     }
     fz_catch(ctx) fz_rethrow(ctx);
     return result;
+}
+
+static unsigned spdf_sfnt_get16(const unsigned char* p) { return (unsigned)p[0] << 8 | p[1]; }
+
+static size_t spdf_sfnt_get32(const unsigned char* p) {
+    return (size_t)p[0] << 24 | (size_t)p[1] << 16 | (size_t)p[2] << 8 | p[3];
+}
+
+const unsigned char* spdf_sfnt_cff_table(const unsigned char* f, size_t len, int index, size_t* table_len) {
+    size_t dir = 0;
+    unsigned tables, t;
+    if (len < 12 || index < 0) return NULL;
+    if (!memcmp(f, "ttcf", 4)) {
+        if ((size_t)index >= spdf_sfnt_get32(f + 8) || 12 + 4 * ((size_t)index + 1) > len) return NULL;
+        dir = spdf_sfnt_get32(f + 12 + 4 * (size_t)index);
+    } else if (index != 0)
+        return NULL;
+    if (dir > len || len - dir < 12 || memcmp(f + dir, "OTTO", 4)) return NULL;
+    tables = spdf_sfnt_get16(f + dir + 4);
+    if (dir + 12 + 16 * (size_t)tables > len) return NULL;
+    for (t = 0; t < tables; t++) {
+        const unsigned char* rec = f + dir + 12 + 16 * (size_t)t;
+        size_t off = spdf_sfnt_get32(rec + 8), n = spdf_sfnt_get32(rec + 12);
+        if (memcmp(rec, "CFF ", 4)) continue;
+        if (off > len || n > len - off) return NULL;
+        *table_len = n;
+        return f + off;
+    }
+    return NULL;
 }
 
 /* Wraps the bare CFF font program of the Type0 font `font` in OpenType, as the note above says. A font that is not a
