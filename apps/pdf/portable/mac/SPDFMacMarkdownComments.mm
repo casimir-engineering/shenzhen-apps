@@ -9,9 +9,15 @@
 //
 //   Check the value.
 //
-// A viewer shows the byline to the minute; the HTML comment after it, which no viewer shows, keeps the exact time with
+//   - **Agent** · 2026-11-01 16:00 <!-- at: 2026-11-01T16:00:05+08:00 -->
+//
+//     Done: 4.7 kΩ on both.
+//
+// Replies follow the comment as list items, each with its own byline and its text indented under it.
+// A viewer shows a byline to the minute; the HTML comment after it, which no viewer shows, keeps the exact time with
 // its seconds and time zone, so rewriting the file (a reply, a resolve) never rounds a time down. Files without it
-// still read, to the minute. The bold words inside the quote are the commented ones; every other "*" in the file is escaped, so the parser
+// still read, to the minute. The bold words inside the quote are the commented ones; every other "*" in the file is
+// escaped, so the parser
 // finds them without guessing.
 
 #import "SPDFMacMarkdownComments.h"
@@ -19,6 +25,16 @@
 static NSString* const kSeparator = @"---";
 static NSString* const kUnplacedHeading = @"## Unplaced";
 static NSString* const kPathSeparator = @" › ";
+static NSString* const kResolvedSuffix = @" · Resolved";
+
+@implementation SPDFMarkdownCommentReply
+- (instancetype)init {
+    if (!(self = [super init])) return nil;
+    _author = @"";
+    _text = @"";
+    return self;
+}
+@end
 
 @implementation SPDFMarkdownComment
 - (instancetype)init {
@@ -29,6 +45,7 @@ static NSString* const kPathSeparator = @" › ";
     _headingPath = @[];
     _contextBefore = @"";
     _contextAfter = @"";
+    _replies = @[];
     _renderedRange = NSMakeRange(NSNotFound, 0);
     return self;
 }
@@ -73,13 +90,14 @@ static NSISO8601DateFormatter* ExactFormatter(void) {
 static NSString* const kExactTimeOpen = @"<!-- at: ";
 static NSString* const kExactTimeClose = @" -->";
 
-// "**Raph** · 2026-11-01 15:20 <!-- at: 2026-11-01T15:20:28+08:00 -->", or the date alone when there is no author.
-static NSString* BylineText(NSString* author, NSString* escapedAuthor, NSDate* date) {
+// "**Raph** · 2026-11-01 15:20[ · Resolved] <!-- at: 2026-11-01T15:20:28+08:00 -->", or the date alone when there is
+// no author.
+static NSString* BylineText(NSString* author, NSString* escapedAuthor, NSDate* date, NSString* suffix) {
     NSString* when = [DateFormatter() stringFromDate:date];
     NSString* exact = [NSString stringWithFormat:@"%@%@%@", kExactTimeOpen, [ExactFormatter() stringFromDate:date],
                                                  kExactTimeClose];
-    return author.length ? [NSString stringWithFormat:@"**%@** · %@ %@", escapedAuthor, when, exact]
-                         : [NSString stringWithFormat:@"%@ %@", when, exact];
+    return author.length ? [NSString stringWithFormat:@"**%@** · %@%@ %@", escapedAuthor, when, suffix, exact]
+                         : [NSString stringWithFormat:@"%@%@ %@", when, suffix, exact];
 }
 
 // Takes the exact time off the end of a byline: the line without it, and the time (nil when there is none).
@@ -132,8 +150,10 @@ static NSString* Trimmed(NSString* text) {
 
 // A body line that would end the comment, or turn into a heading or rule, gets a leading backslash; Markdown shows
 // the line unchanged and the parser drops the backslash again.
+static BOOL ParseReplyByline(NSString* line, SPDFMarkdownCommentReply* reply);
 static BOOL BodyLineNeedsEscape(NSString* line) {
     NSString* t = Trimmed(line);
+    if (ParseReplyByline(line, nil)) return YES; // would start a reply
     if ([t hasPrefix:@"#"]) return YES;
     if (t.length < 3) return NO;
     for (NSString* mark in @[ @"-", @"*", @"_" ]) {
@@ -164,10 +184,18 @@ static void AppendComment(NSMutableString* out, SPDFMarkdownComment* comment) {
     [out appendFormat:@"> %@**%@**%@\n\n", Escape(comment.contextBefore), Escape(comment.quote),
                       Escape(comment.contextAfter)];
     NSString* author = Trimmed(comment.author);
-    [out appendFormat:@"%@\n\n", BylineText(author, Escape(author), comment.date ?: NSDate.date)];
+    [out appendFormat:@"%@\n\n", BylineText(author, Escape(author), comment.date ?: NSDate.date,
+                                            comment.resolved ? kResolvedSuffix : @"")];
     for (NSString* line in [Trimmed(comment.text) componentsSeparatedByString:@"\n"])
         [out appendFormat:@"%@%@\n", BodyLineNeedsEscape(line) ? @"\\" : @"", line];
     [out appendString:@"\n"];
+    for (SPDFMarkdownCommentReply* reply in comment.replies) {
+        NSString* by = Trimmed(reply.author);
+        [out appendFormat:@"- %@\n\n", BylineText(by, Escape(by), reply.date ?: NSDate.date, @"")];
+        for (NSString* line in [Trimmed(reply.text) componentsSeparatedByString:@"\n"])
+            [out appendFormat:@"%@%@%@\n", line.length ? @"  " : @"", BodyLineNeedsEscape(line) ? @"\\" : @"", line];
+        [out appendString:@"\n"];
+    }
 }
 
 NSString* SPDFMarkdownCommentsHeader(NSString* documentName) {
@@ -222,6 +250,8 @@ static void ParseLocation(NSString* line, SPDFMarkdownComment* comment) {
 
 static BOOL ParseByline(NSString* line, SPDFMarkdownComment* comment) {
     NSDate* exact = TakeExactTime(&line);
+    BOOL resolved = [line hasSuffix:kResolvedSuffix];
+    if (resolved) line = [line substringToIndex:line.length - kResolvedSuffix.length];
     NSString* author = @"";
     NSString* date = line;
     if ([line hasPrefix:@"**"]) {
@@ -234,7 +264,34 @@ static BOOL ParseByline(NSString* line, SPDFMarkdownComment* comment) {
     if (!parsed) return NO;
     comment.author = author;
     comment.date = exact ?: parsed;
+    comment.resolved = resolved;
     return YES;
+}
+
+// "- **Agent** · 2026-11-01 16:00" or "- 2026-11-01 16:00": a reply's byline. `reply` may be nil (a test only).
+static BOOL ParseReplyByline(NSString* line, SPDFMarkdownCommentReply* reply) {
+    if (![line hasPrefix:@"- "]) return NO;
+    NSString* rest = Trimmed([line substringFromIndex:2]);
+    NSDate* exact = TakeExactTime(&rest);
+    NSString* author = @"";
+    NSString* date = rest;
+    if ([rest hasPrefix:@"**"]) {
+        NSRange end = [rest rangeOfString:@"** · " options:NSBackwardsSearch];
+        if (end.location == NSNotFound || end.location < 2) return NO;
+        author = Unescape([rest substringWithRange:NSMakeRange(2, end.location - 2)]);
+        date = [rest substringFromIndex:NSMaxRange(end)];
+    }
+    NSDate* parsed = [DateFormatter() dateFromString:Trimmed(date)];
+    if (!parsed) return NO;
+    reply.author = author;
+    reply.date = exact ?: parsed;
+    return YES;
+}
+
+static NSString* Unescaped(NSString* line) {
+    if ([line hasPrefix:@"\\"] && line.length > 1 && BodyLineNeedsEscape([line substringFromIndex:1]))
+        return [line substringFromIndex:1];
+    return line;
 }
 
 static SPDFMarkdownComment* ParseEntry(NSArray<NSString*>* lines) {
@@ -250,12 +307,26 @@ static SPDFMarkdownComment* ParseEntry(NSArray<NSString*>* lines) {
     while (i < lines.count && !Trimmed(lines[i]).length) i++;
     if (i < lines.count && ParseByline(Trimmed(lines[i]), comment)) i++;
     NSMutableArray* body = [NSMutableArray array];
+    NSMutableArray<SPDFMarkdownCommentReply*>* replies = [NSMutableArray array];
+    __block NSMutableArray<NSString*>* replyLines = nil;
+    void (^finishReply)(void) = ^{
+      if (replies.count) replies.lastObject.text = Trimmed([replyLines componentsJoinedByString:@"\n"]);
+    };
     for (; i < lines.count; i++) {
         NSString* line = lines[i];
-        if ([line hasPrefix:@"\\"] && line.length > 1 && BodyLineNeedsEscape([line substringFromIndex:1]))
-            line = [line substringFromIndex:1];
-        [body addObject:line];
+        SPDFMarkdownCommentReply* reply = [SPDFMarkdownCommentReply new];
+        if (ParseReplyByline(line, reply)) {
+            finishReply();
+            [replies addObject:reply];
+            replyLines = [NSMutableArray array];
+        } else if (replyLines) {
+            [replyLines addObject:Unescaped([line hasPrefix:@"  "] ? [line substringFromIndex:2] : line)];
+        } else {
+            [body addObject:Unescaped(line)];
+        }
     }
+    finishReply();
+    comment.replies = replies;
     comment.text = Trimmed([body componentsJoinedByString:@"\n"]);
     if (!comment.quote.length && !comment.text.length) return nil;
     return comment;

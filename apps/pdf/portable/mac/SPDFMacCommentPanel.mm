@@ -55,6 +55,7 @@ static char kQuotesKey, kQuotesStampKey;
         @"commentIndex" : @(item->index)
     } mutableCopy];
     if (item->modified > 0) row[@"date"] = [NSDate dateWithTimeIntervalSince1970:item->modified];
+    if (item->resolved && level == 0) row[@"resolved"] = @YES;
     CGFloat width = item->bounds.x1 - item->bounds.x0, height = item->bounds.y1 - item->bounds.y0;
     if (width > 0 && height > 0)
         row[@"bounds"] = [NSValue valueWithRect:NSMakeRect(item->bounds.x0, item->bounds.y0, width, height)];

@@ -11,6 +11,13 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
+// An answer to a comment, written under it in the comments file as a list item with its own byline.
+@interface SPDFMarkdownCommentReply : NSObject
+@property(nonatomic, copy) NSString* author;
+@property(nonatomic, copy) NSString* text;
+@property(nonatomic, copy, nullable) NSDate* date;
+@end
+
 @interface SPDFMarkdownComment : NSObject
 @property(nonatomic, copy) NSString* author;
 @property(nonatomic, copy) NSString* text;
@@ -24,6 +31,11 @@ NS_ASSUME_NONNULL_BEGIN
 // The rest of the passage around the quote, as written to the file ("…" marks a cut).
 @property(nonatomic, copy) NSString* contextBefore;
 @property(nonatomic, copy) NSString* contextAfter;
+// Marked done. Written as " · Resolved" at the end of the comment's own byline ("**Raph** · 2026-11-01 15:20 ·
+// Resolved"), never on a reply's.
+@property(nonatomic) BOOL resolved;
+// Answers, oldest first.
+@property(nonatomic, copy) NSArray<SPDFMarkdownCommentReply*>* replies;
 // Range in the rendered document; location NSNotFound while the passage is not found.
 @property(nonatomic) NSRange renderedRange;
 @property(nonatomic, readonly, getter=isPlaced) BOOL placed;

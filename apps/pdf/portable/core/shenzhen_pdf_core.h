@@ -78,6 +78,8 @@ typedef struct spdf_comment_item {
     double modified;
     /* The index of the comment this one answers (its IRT entry), or -1. */
     int in_reply_to;
+    /* 1 when marked done: the last review state replying to it is Completed (spdf_set_comment_resolved). */
+    int resolved;
 } spdf_comment_item;
 
 typedef struct spdf_comments {
@@ -271,6 +273,15 @@ int spdf_add_text_comment(spdf_document* doc, int page_index, float x, float y, 
 int spdf_update_comment(spdf_document* doc, int comment_index, const char* text, const char* author, char* err,
                         size_t err_len);
 int spdf_delete_comment(spdf_document* doc, int comment_index, char* err, size_t err_len);
+/* Marks comment `comment_index` (spdf_load_comments' numbering) resolved or open again, as Acrobat does: a hidden
+ * reply with /StateModel /Review and /State /Completed or /None (spdf_comment_review.h). Save with
+ * spdf_save_document. Nothing is added when it already has that state. */
+int spdf_set_comment_resolved(spdf_document* doc, int comment_index, int resolved, const char* author, char* err,
+                              size_t err_len);
+/* Answers comment `comment_index` with a reply (/IRT, as Acrobat writes one; spdf_comment_review.h). Save with
+ * spdf_save_document. */
+int spdf_add_comment_reply(spdf_document* doc, int comment_index, const char* text, const char* author, char* err,
+                           size_t err_len);
 int spdf_rotate_page(spdf_document* doc, int page_index, int degrees, char* err, size_t err_len);
 /* Remove every text-showing operation from every page (keeping images and
  * graphics) and rewrite the file at path (garbage-collected, so the old text

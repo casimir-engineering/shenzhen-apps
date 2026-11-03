@@ -33,6 +33,7 @@ static char kCollectionCompanion, kCollectionImported, kCollectionSettingsObserv
     objc_setAssociatedObject(self, &kCollectionSettingsObserver, observer, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
 }
 - (void)collectionRecordObservedChangeAtPath:(NSString*)path {
+    [self versionsDocumentWillReloadAfterChange:path];  // keeps a commented document's earlier text as a version
     SPDFMacCollectionStore* store = SPDFMacCollectionStore.defaultStore;
     if (!store.isEnabled) return;
     NSString* identifier = [store documentForPath:path][@"id"]; if (!identifier) return;
@@ -64,6 +65,7 @@ static char kCollectionCompanion, kCollectionImported, kCollectionSettingsObserv
 - (void)collectionDidOpenPath:(NSString*)path {
     // A linked document still downloading is captured when it completes and its tab reopens (SPDFMacRemoteLinks.h).
     if (!path.length || spdf_progressive_path_is_active(path.fileSystemRepresentation)) return;
+    [self versionsDocumentDidOpen:path];
     [self collectionObserveSettings];
     // Only called after a document has opened. Neither main nor empty launch instantiates the store.
     NSString* source = [path copy];

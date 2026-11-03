@@ -293,6 +293,8 @@ static CGFloat spdf_mac_clamped_markdown_font_scale(CGFloat scale) {
 
     NSString* anchor = tab.markdownAnchor;
     tab.markdownAnchor = nil;
+    // Before activating: a session already rendered completes at once, and its completion re-points the watcher.
+    [self teardownActiveFileWatcher];
     __weak ShenzhenMacDelegate* weakSelf = self;
     __weak SPDFMacMarkdownSession* weakSession = session;
     [session activateInHostView:state.hostView
@@ -337,7 +339,6 @@ static CGFloat spdf_mac_clamped_markdown_font_scale(CGFloat scale) {
                        [strongSelf savePersistentState];
                      }];
     [self rebuildSidebar];
-    [self teardownActiveFileWatcher]; // re-pointed by the completion above
     [self rememberRecentlyOpenedPath:path];
     [self savePersistentState];
 }

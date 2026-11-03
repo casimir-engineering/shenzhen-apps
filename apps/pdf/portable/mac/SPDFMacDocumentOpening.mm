@@ -2,6 +2,7 @@
 #import "SPDFMacOpenRouting.h"
 #import "SPDFMacTabGroupIntegration.h"
 #import "SPDFMacPermanentDeleteIntegration.h"
+#import "SPDFMacAgentServer.h"
 #import <objc/runtime.h>
 #include <unistd.h>
 
@@ -40,6 +41,7 @@ static char kSPDFShowDocumentObserverKey, kSPDFPendingHandOffsKey;
         if (!_pendingOpenPath.length) _pendingOpenPath = [filename copy];
         if (filename.length && ![_pendingOpenPaths containsObject:filename]) [_pendingOpenPaths addObject:filename];
         [self retargetLaunchPrerenderToOpenedPath:_pendingOpenPath];
+        [self openPendingIfQuitIsCancelled];
         return YES;
     }
     if ([self canOpenDocumentAtPath:filename showError:YES]) [self showDocumentsAtPaths:@[ filename ]];
@@ -59,6 +61,7 @@ static char kSPDFShowDocumentObserverKey, kSPDFPendingHandOffsKey;
             // document until now. -performStartupDocumentWork opens
             // _pendingOpenPath first, so that is the one to prewarm.
             [self retargetLaunchPrerenderToOpenedPath:_pendingOpenPath];
+            [self openPendingIfQuitIsCancelled];
         } else {
             NSArray<NSString*>* pathsToOpen = [self openableDocumentPathsFromPaths:filenames showErrors:YES];
             if (pathsToOpen.count) [self showDocumentsAtPaths:pathsToOpen];
@@ -66,6 +69,26 @@ static char kSPDFShowDocumentObserverKey, kSPDFPendingHandOffsKey;
         }
     }
     [NSApp replyToOpenOrPrint:NSApplicationDelegateReplySuccess];
+}
+
+// A document opened while the windows are hidden for a quit is noted for the fresh launch that follows the quit
+// (SPDFMacQuitFinishing.mm). Cmd+Q hides them before the quit is sure to start, and gives them back when it does not
+// (a sheet took the key): a document noted in that half second was then never opened, and no window said so. When the
+// windows are back, it opens now. During a launch (no window yet) the startup work opens it, as before.
+- (void)openPendingIfQuitIsCancelled {
+    if (!_window) return;
+    __weak ShenzhenMacDelegate* weakSelf = self;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.75 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+      ShenzhenMacDelegate* reader = weakSelf;
+      if (!reader || !reader->_uiReady) return; // still quitting: the relaunch takes them
+      NSMutableOrderedSet<NSString*>* paths = [NSMutableOrderedSet orderedSet];
+      if (reader->_pendingOpenPath.length) [paths addObject:reader->_pendingOpenPath];
+      [paths addObjectsFromArray:reader->_pendingOpenPaths];
+      reader->_pendingOpenPath = nil;
+      [reader->_pendingOpenPaths removeAllObjects];
+      NSArray* openable = [reader openableDocumentPathsFromPaths:paths.array showErrors:YES];
+      if (openable.count) [reader showDocumentsAtPaths:openable];
+    });
 }
 
 - (void)openPaths:(NSArray<NSString*>*)paths {
@@ -242,6 +265,7 @@ static char kSPDFShowDocumentObserverKey, kSPDFPendingHandOffsKey;
 
 - (void)listenForDocumentsOpenedInOtherWindows {
     [self activityStartTracking]; // after the first paint, like this listener; idempotent
+    SPDFMacAgentServerStart(); // the szpdf tool's socket, once per process (SPDFMacAgentServer.h)
     [self listenForPermanentDeletesInOtherWindows]; // the same, for documents removed from disk in another window
     if (objc_getAssociatedObject(self, &kSPDFShowDocumentObserverKey) || spdf_is_sandboxed()) return;
     __weak ShenzhenMacDelegate* weakSelf = self;

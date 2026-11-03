@@ -3,6 +3,8 @@
 #import "SPDFMacMenuText.h"
 #import "SPDFMacClipboardIntegration.h"
 #import "SPDFMacQuitFinishing.h"
+#import "SPDFMacBackgroundOpening.h"
+#import "SPDFMacSzpdf.h"
 #import "SPDFMacStatePrefetch.h"
 #import "SPDFMacWritableCopy.h"
 #import "SPDFMacShortcutHelpStyle.h"
@@ -777,10 +779,8 @@ static char kSPDFPasswordPromptClosesNewTabKey;
 
     {
         SPDFScopedLaunchPhaseLog launchPhase("makeKeyAndOrderFront");
-        [_window makeKeyAndOrderFront:nil];
+        spdf_mac_show_launch_window(_window, self.restoreWindowID.length == 0); // behind, for `szpdf open`
     }
-    if (self.restoreWindowID.length == 0 && !spdf_launch_activation_suppressed())
-        [NSApp activateIgnoringOtherApps:YES];
     // Post-first-paint launch tail. The async hop reaches the next runloop
     // pass, displayIfNeeded forces the (already fully laid out) first frame
     // onto screen if it has not drawn yet, and only then does the timer for
@@ -1134,7 +1134,7 @@ id spdf_state_object_from_yaml_data(NSData* data) {
 
 - (void)loadPersistentState {
     NSDictionary* settings = [self friendsLaunchWithSettings:[self stateObjectFromFile:@"settings.yaml"]];
-    _darkThemePreservesImagesDefault = YES; /* default ON; a stored key overrides below */
+    _darkThemePreservesImagesDefault = YES; SPDFDocumentVersionsLoadSettings(settings); /* default; overridden below */
     if ([settings isKindOfClass:NSDictionary.class]) {
         NSNumber* fit = settings[@"fitMode"];
         /* viewMode is intentionally not read: single-page view mode was removed
@@ -1676,13 +1676,8 @@ id spdf_state_object_from_yaml_data(NSData* data) {
     return [self otherRunningShenzhenApplications].count > 0;
 }
 
-- (void)activateWindowForExternalOpen {
-    if (!_window) return;
-    [NSApp activateIgnoringOtherApps:YES];
-    [_window orderFrontRegardless];
-    [_window makeKeyAndOrderFront:nil];
-    [_window makeMainWindow];
-}
+// Forward when whoever opened the document gave its turn away; `open -g` stays behind (SPDFMacBackgroundOpening.h).
+- (void)activateWindowForExternalOpen { spdf_mac_show_window_for_external_open(_window); }
 
 - (void)dismissTabHoverPanel {
     [_tabStrip dismissHoverPanel];
@@ -1744,7 +1739,7 @@ id spdf_state_object_from_yaml_data(NSData* data) {
 
     if (!_suppressSessionWriteOnTerminate) [self writeSessionStateForCurrentWindow];
     CGFloat sidebarWidth = spdf_sane_sidebar_width(_sidebarWidth, 0);
-    [self writeStateObject:SPDFMacFriendsSettingsForSaving(@{
+    [self writeStateObject:SPDFMacFriendsSettingsForSaving(SPDFDocumentVersionsSettingsForSaving(@{
         @"version" : @1,
         @"fitMode" : @(_fitMode),
         /* Always continuous now; kept for backward compat (see SPDFMacModels.mm). */
@@ -1772,7 +1767,7 @@ id spdf_state_object_from_yaml_data(NSData* data) {
         @"markdownTheme" : _darkReadingTheme ? @"dark" : @"light",
         @"darkThemePreservesImages" : @(_darkThemePreservesImagesDefault),
         @"recentlyOpened" : _recentlyOpenedPaths ?: @[]
-    })
+    }))
                    toFile:@"settings.yaml"];
     [self writeStateObject:_favorites toFile:@"favorites.yaml"];
     [self writeStateObject:_documentStates ?: @{} toFile:@"documents.yaml"];
@@ -2588,7 +2583,7 @@ id spdf_state_object_from_yaml_data(NSData* data) {
     // cycles. SPDF_NO_WINDOW_FIRST=1 restores the single-frame launch.
     if (!getenv("SPDF_NO_WINDOW_FIRST")) {
         SPDFScopedLaunchPhaseLog launchPhase("orderFront(bare)");
-        [_window makeKeyAndOrderFront:nil];
+        spdf_mac_order_launch_window(_window); // in front, or behind for `szpdf open` (SPDFMacBackgroundOpening.h)
     }
 
     _tabStrip = [[SPDFTabStripView alloc] initWithFrame:NSMakeRect(0, 0, NSWidth(frame), kTabStripHeight)];
@@ -13988,6 +13983,7 @@ int main(int argc, const char* argv[]) {
         // harness having to record the spawn itself.
         spdf_launch_profile_log(@"main enter (spawn @%.1f, +%.1fms)", spdf_process_spawn_time_ms(),
                                 spdf_zoom_profile_now_ms() - spdf_process_spawn_time_ms());
+        if (SPDFMacIsSzpdfInvocation(argv[0])) return SPDFMacRunSzpdf(argc, argv); // the szpdf tool (SPDFMacSzpdf.h)
         for (int i = 1; i < argc; ++i) {
             if (strcmp(argv[i], "--collection-companion") == 0) return SPDFRunCollectionCompanion();
             if (strcmp(argv[i], "--agent-command") == 0)

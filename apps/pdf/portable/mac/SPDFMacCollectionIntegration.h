@@ -1,4 +1,5 @@
 #import "SPDFMacDelegatePrivate.h"
+#import "SPDFMacDocumentVersionsIntegration.h"
 @interface ShenzhenMacDelegate (SPDFMacCollectionHost)
 - (void)loadSelectedTab;
 - (void)discardCachedRuntimeForTab:(SPDFDocumentTab*)tab;

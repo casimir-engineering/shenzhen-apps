@@ -410,6 +410,36 @@ static char kEditorAnchorKey;
                           restoreOrigin:[NSValue valueWithPoint:_pageScrollView.contentView.bounds.origin]];
 }
 
+- (void)resolveComment:(id)sender {
+    NSInteger commentIndex = [self commentIndexForEditAction:sender];
+    if ([self isMarkdownActive]) {
+        [self setMarkdownCommentAtIndex:commentIndex resolved:![self markdownCommentIsResolvedAtIndex:commentIndex]];
+        return;
+    }
+    if (!_doc || !_path.length) return;
+    if (![self ensureActivePDFCanBeModifiedForOperation:@"resolving a comment"]) return;
+    if (![self commentItemForIndex:commentIndex]) [self reloadCommentsFromActiveDocument];
+    spdf_comment_item* item = [self commentItemForIndex:commentIndex];
+    if (!item) {
+        NSBeep();
+        return;
+    }
+    BOOL resolve = !item->resolved;
+    char err[1024];
+    BOOL ok = spdf_set_comment_resolved(_doc, (int)commentIndex, resolve, [self currentCommentAuthor].UTF8String, err,
+                                        sizeof(err));
+    if (ok) ok = spdf_save_document(_doc, _path.fileSystemRepresentation, err, sizeof(err));
+    if (ok) [self collectionDidSavePath:_path];
+    if (!ok) {
+        [self showError:resolve ? @"Could not resolve comment" : @"Could not reopen comment"
+                 detail:[NSString stringWithUTF8String:err[0] ? err : "Unknown error"]];
+        return;
+    }
+    [self refreshActiveTabCachedFileAttributesAfterSelfSave];
+    _statusLabel.stringValue = resolve ? @"Comment resolved." : @"Comment reopened.";
+    [self reloadCommentsFromActiveDocument];
+}
+
 - (void)deleteComment:(id)sender {
     if ([self isMarkdownActive]) {
         [self deleteMarkdownCommentAtIndex:[self commentIndexForEditAction:sender]];

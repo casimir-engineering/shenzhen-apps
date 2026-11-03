@@ -1,7 +1,7 @@
 #import "SPDFMacUnifiedSettings.h"
 #import "SPDFMacAILanguagePicker.h"
 #import "SPDFMacCollectionStyle.h"
-#import "SPDFMacGroupActionButton.h"
+#import "SPDFMacSettingsButton.h"
 #import "SPDFMacSearchablePicker.h"
 #import <math.h>
 #import "friends/SPDFMacFriendsSettingsPage.h"
@@ -20,35 +20,8 @@ BOOL SPDFUnifiedSettingsShouldPresent(NSDictionary* settings, BOOL primaryLaunch
 - (BOOL)isFlipped { return YES; }
 @end
 
-// Reuse the reader's full-bounds, first-click tracking. Native cell drawing is
-// intentionally replaced only for appearance, not by another tracking mechanism.
-@interface SPDFSettingsButton : SPDFGroupActionButton
-@end
-@implementation SPDFSettingsButton
-- (NSSize)intrinsicContentSize {
-    return NSMakeSize(ceil([self.title sizeWithAttributes:@{NSFontAttributeName:self.font}].width)+24,28);
-}
-- (void)drawRect:(NSRect)dirty {
-    (void)dirty;
-    NSBezierPath* shape=[NSBezierPath bezierPathWithRoundedRect:NSInsetRect(self.bounds,.5,.5) xRadius:5 yRadius:5];
-    BOOL alternative=[@[@"revealKey",@"hideKey"] containsObject:self.identifier];
-    BOOL chosen=self.state==NSControlStateValueOn, accent=self.enabled && [@[@"done",@"connect"] containsObject:self.identifier];
-    [SPDFCollectionColor(chosen ? @"text" : accent ? @"accentFill" : self.highlighted ? @"lineStrong" : @"control") setFill];
-    if(!alternative || self.highlighted) [shape fill];
-    NSMutableParagraphStyle* style=[NSMutableParagraphStyle new]; style.alignment=NSTextAlignmentCenter;
-    NSDictionary* attributes=@{NSFontAttributeName:self.font,NSForegroundColorAttributeName:SPDFCollectionColor(!self.enabled ?
-        @"secondary" : chosen ? @"window" : accent ? @"onAccent" : alternative ? @"accent" : @"text"),NSParagraphStyleAttributeName:style};
-    CGFloat h=[self.title sizeWithAttributes:attributes].height;
-    [self.title drawInRect:NSMakeRect(8,floor((self.bounds.size.height-h)/2),self.bounds.size.width-16,h)
-        withAttributes:attributes];
-    if (self.window.firstResponder==self) {
-        [NSGraphicsContext saveGraphicsState]; NSSetFocusRingStyle(NSFocusRingOnly); [shape fill];
-        [NSGraphicsContext restoreGraphicsState];
-    }
-}
-@end
-
 @interface SPDFMacUnifiedSettingsController (SPDFMacCommentAuthor) - (void)buildCommentAuthorRow; @end // in SPDFMacCommentAuthorSettings.mm
+@interface SPDFMacUnifiedSettingsController (SPDFMacCommandLineTool) - (void)buildCommandLineToolRow; @end // its own file
 @interface SPDFMacUnifiedSettingsController ()
 @property(nonatomic) NSDictionary* state;
 @property(nonatomic) NSStackView* content;
@@ -200,6 +173,7 @@ BOOL SPDFUnifiedSettingsShouldPresent(NSDictionary* settings, BOOL primaryLaunch
         control:[self toggle:@"collectionEnabled" label:@"Keep enabled"]];
     [self actionRow:@"Default reader" detail:@"PDFs, Markdown, text, code, images, EPUB and more. Open files here by default if you prefer."
         label:@"Choose file types…" action:@"showDefaults"];
+    [self buildCommandLineToolRow];
     [self divider];
     [self text:@"⌘O  Open a document     ⌘K  Find or ask     ⌘G  Your groups" size:13 bold:NO secondary:NO];
     [self text:@"You can always return here with Settings… in the ShenzhenPDF menu." size:12 bold:NO secondary:YES];
@@ -268,6 +242,7 @@ BOOL SPDFUnifiedSettingsShouldPresent(NSDictionary* settings, BOOL primaryLaunch
 - (void)buildReading {
     [self heading:@"Reading & access" subtitle:@"These choices are optional. Grant only the permissions you need."];
     [self add:[self toggle:@"keepImageColors" label:@"Keep original image colors by default"]]; [self buildCommentAuthorRow];
+    [self add:[self toggle:@"keepVersionsWhenChanged" label:@"Keep the earlier version, with your comments, when another app rewrites a commented document"]];
     [self actionRow:@"Default reader" detail:@"Choose which file types open in ShenzhenPDF from Finder and other apps."
         label:@"Choose file types…" action:@"showDefaults"];
     [self divider];
@@ -424,7 +399,6 @@ BOOL SPDFUnifiedSettingsShouldPresent(NSDictionary* settings, BOOL primaryLaunch
     NSMutableDictionary* state=[self.state mutableCopy]; [state addEntriesFromDictionary:change]; self.state=state;
     if (self.settingsChanged) self.settingsChanged(change);
 }
-
 - (void)controlTextDidEndEditing:(NSNotification*)note {
     if ([[(NSControl*)note.object identifier] hasPrefix:@"collection"]) [self storageAmountChanged:note.object];
 }

@@ -19,6 +19,10 @@ static NSInteger QuoteLines(NSDictionary* item) {
     NSInteger lines = [item[@"quoteLines"] respondsToSelector:@selector(integerValue)] ? [item[@"quoteLines"] integerValue] : 2;
     return MAX(1, MIN(2, lines));
 }
+static BOOL Resolved(NSDictionary* item) { return [item[@"resolved"] boolValue]; }
+static BOOL HasIndex(NSDictionary* item) { return [item[@"commentIndex"] isKindOfClass:NSNumber.class]; }
+// A resolved comment's card is drawn at this opacity, its "Resolved" label excepted.
+static const CGFloat kResolvedAlpha = 0.5;
 static NSString* Author(NSDictionary* item) {
     NSString* author = Text(item, @"author");
     return author.length ? author : @"Anonymous";
@@ -158,8 +162,7 @@ static const CGFloat kPencilPoint = 11, kPencilGap = 3;
 
 // The header line: the author's name, the pencil's place after it on your own cards, then the date and page.
 typedef struct {
-    NSRect name, pencil;
-    NSRect metaRect;
+    NSRect name, pencil, metaRect;
 } SPDFCommentCardHeader;
 
 static NSDictionary* NameStyle(void) {
@@ -175,13 +178,13 @@ static NSDictionary* MetaStyle(void) {
              NSParagraphStyleAttributeName : truncate};
 }
 
-// The date and page whole, else the date alone, else nothing: never a date cut in the middle. A long name gives way to
-// the date down to 48 points. Space for the hover buttons is kept while they show, and for the pencil on your cards.
-static SPDFCommentCardHeader LayoutHeader(NSDictionary* item, SPDFCommentCardLayout l, BOOL hovered, BOOL yours,
+// In `available` points of `header`: the date and page whole, else the date alone, else nothing (never a date cut in
+// the middle); a long name gives way to the date down to 48 points. Your cards keep the pencil's place after the name.
+static SPDFCommentCardHeader LayoutHeader(NSDictionary* item, NSRect header, CGFloat available, BOOL yours,
                                           NSString* __strong* metaText) {
     SPDFCommentCardHeader h = {};
     CGFloat slot = yours ? ceil(SPDFCommentAuthorPencil(kPencilPoint).size.width) + kPencilGap : 0;
-    CGFloat available = NSWidth(l.header) - (hovered ? 2 * kActionSize + kActionGap + 2 : 0) - slot;
+    available -= slot;
     NSString* name = Author(item);
     NSMutableArray* meta = [NSMutableArray array];
     NSString* date = SPDFCommentDateText(item[@"date"], NSDate.date);
@@ -197,11 +200,11 @@ static SPDFCommentCardHeader LayoutHeader(NSDictionary* item, SPDFCommentCardLay
         }
         [meta removeLastObject];
     }
-    h.name = NSMakeRect(NSMinX(l.header), NSMidY(l.header) - 8, nameW, 16);
-    if (yours) h.pencil = NSMakeRect(NSMaxX(h.name) + kPencilGap, NSMinY(l.header), slot - kPencilGap, kHeader);
-    CGFloat metaX = NSMaxX(h.name) + slot + 6, metaW = NSMinX(l.header) + available + slot - metaX;
+    h.name = NSMakeRect(NSMinX(header), NSMidY(header) - 8, nameW, 16);
+    if (yours) h.pencil = NSMakeRect(NSMaxX(h.name) + kPencilGap, NSMinY(header), slot - kPencilGap, NSHeight(header));
+    CGFloat metaX = NSMaxX(h.name) + slot + 6;
     *metaText = meta.count ? [meta componentsJoinedByString:@" · "] : nil;
-    h.metaRect = NSMakeRect(metaX, NSMidY(l.header) - 7.5, metaW, 15);
+    h.metaRect = NSMakeRect(metaX, NSMidY(header) - 7.5, NSMinX(header) + available + slot - metaX, 15);
     return h;
 }
 
@@ -218,7 +221,7 @@ static SPDFCommentCardHeader LayoutHeader(NSDictionary* item, SPDFCommentCardLay
     BOOL _hovered, _yours, _nameHovered;
     SPDFCommentAuthorNameEdit* _nameEdit;
     SPDFCommentAuthorHotspot* _nameSpot;
-    NSButton *_edit, *_delete;
+    NSButton *_resolve, *_edit, *_delete;
     NSAttributedString *_quote, *_body;
 }
 
@@ -248,6 +251,8 @@ static NSButton* ActionButton(NSString* symbol, NSString* label, id target, SEL 
     _nameSpot.pressed = ^{ [weakSelf beginNameEdit]; };
     _nameSpot.hovered = ^(BOOL over) { [weakSelf setNameHovered:over]; };
     [self addSubview:_nameSpot];
+    _resolve = ActionButton(@"checkmark.circle", @"Resolve", self, @selector(resolvePressed:));
+    [self addSubview:_resolve];
     [self addSubview:_edit];
     [self addSubview:_delete];
     return self;
@@ -259,8 +264,12 @@ static NSButton* ActionButton(NSString* symbol, NSString* label, id target, SEL 
     _item = [item copy];
     _quote = QuoteText(_item);
     _body = BodyText(_item);
-    BOOL hasIndex = [_item[@"commentIndex"] isKindOfClass:NSNumber.class];
-    _edit.enabled = _delete.enabled = hasIndex;
+    BOOL resolved = Resolved(_item);
+    _resolve.image = [[NSImage imageWithSystemSymbolName:resolved ? @"arrow.uturn.backward.circle" : @"checkmark.circle"
+                                accessibilityDescription:resolved ? @"Reopen" : @"Resolve"]
+        imageWithSymbolConfiguration:[NSImageSymbolConfiguration configurationWithPointSize:11 weight:NSFontWeightRegular]];
+    _resolve.toolTip = resolved ? @"Reopen" : @"Resolve";
+    [self updateActions];
     [_nameEdit cancel];
     _yours = [self authorIsYou];
     _nameHovered = NO;
@@ -283,12 +292,36 @@ static NSButton* ActionButton(NSString* symbol, NSString* label, id target, SEL 
     return [author isEqualToString:[(id<SPDFCommentCardTarget>)_target currentCommentAuthor]];
 }
 
+// The header's width left of the hover buttons and of the "Resolved" label, which is put in `pill` (zero without one).
+- (CGFloat)headerSpace:(SPDFCommentCardLayout)l pill:(NSRect*)pill labelSize:(NSSize)labelSize {
+    NSInteger actions = [self visibleActions];
+    CGFloat available = NSWidth(l.header) - (actions ? actions * kActionSize + (actions - 1) * kActionGap + 2 : 0);
+    *pill = NSZeroRect;
+    // It stays while the hover buttons show: the date and page give way first, then the name down to 36 points.
+    if (Resolved(_item) && available >= ceil(labelSize.width) + 12 + 6 + 36) {
+        *pill = NSMakeRect(NSMinX(l.header) + available - ceil(labelSize.width) - 12, NSMidY(l.header) - 8,
+                           ceil(labelSize.width) + 12, 16);
+        available = NSMinX(*pill) - NSMinX(l.header) - 6;
+    }
+    return available;
+}
+
+static NSDictionary* LabelStyle(void) {
+    return @{NSFontAttributeName : [NSFont systemFontOfSize:10 weight:NSFontWeightMedium],
+             NSForegroundColorAttributeName : SPDFCollectionColor(@"secondary")};
+}
+
+- (SPDFCommentCardHeader)header:(SPDFCommentCardLayout)l meta:(NSString* __strong*)meta pill:(NSRect*)pill {
+    CGFloat available = [self headerSpace:l pill:pill labelSize:[@"Resolved" sizeWithAttributes:LabelStyle()]];
+    return LayoutHeader(_item, l.header, available, _yours, meta);
+}
+
 - (NSRect)nameArea {
     if (!_yours || !_item) return NSZeroRect;
     NSString* meta = nil;
-    SPDFCommentCardHeader h = LayoutHeader(_item, LayoutCard(_item, NSWidth(self.bounds), _quote, _body), _hovered, YES, &meta);
-    NSRect name = NSMakeRect(NSMinX(h.name), NSMinY(h.pencil), NSMaxX(h.pencil) - NSMinX(h.name), NSHeight(h.pencil));
-    return name;
+    NSRect pill;
+    SPDFCommentCardHeader h = [self header:LayoutCard(_item, NSWidth(self.bounds), _quote, _body) meta:&meta pill:&pill];
+    return NSMakeRect(NSMinX(h.name), NSMinY(h.pencil), NSMaxX(h.pencil) - NSMinX(h.name), NSHeight(h.pencil));
 }
 
 // The name's hotspot follows the name; the card draws the name and, while the pointer is on it, the pencil.
@@ -315,7 +348,7 @@ static NSButton* ActionButton(NSString* symbol, NSString* label, id target, SEL 
 - (void)beginNameEdit {
     if (!_yours || _nameEdit) return;
     SPDFCommentCardLayout l = LayoutCard(_item, NSWidth(self.bounds), _quote, _body);
-    CGFloat right = NSMaxX(l.header) - 2 * kActionSize - kActionGap - 4;
+    CGFloat right = NSMaxX(l.header) - 3 * kActionSize - 2 * kActionGap - 4;
     NSRect frame = NSMakeRect(NSMinX(l.header) - 2, NSMidY(l.header) - 9, MAX(60.0, right - NSMinX(l.header) + 2), 18);
     __weak SPDFCommentCardView* weakSelf = self;
     _nameHovered = NO;
@@ -349,6 +382,18 @@ static NSButton* ActionButton(NSString* symbol, NSString* label, id target, SEL 
     CGFloat y = NSMinY(l.header) + (kHeader - kActionSize) / 2;
     _delete.frame = NSMakeRect(NSMaxX(l.card) - kPad - kActionSize + 4, y, kActionSize, kActionSize);
     _edit.frame = NSOffsetRect(_delete.frame, -(kActionSize + kActionGap), 0);
+    _resolve.frame = NSOffsetRect(_edit.frame, -(kActionSize + kActionGap), 0);
+}
+
+// Edit and Delete for every comment that has its own entry (a Markdown reply lives inside its comment and has none);
+// Resolve / Reopen for a comment, not a reply.
+- (void)updateActions {
+    BOOL actions = _hovered && HasIndex(_item);
+    _edit.hidden = _delete.hidden = !actions;
+    _resolve.hidden = !actions || Level(_item) > 0;
+}
+- (NSInteger)visibleActions {
+    return !_edit.hidden + !_delete.hidden + !_resolve.hidden;
 }
 
 - (void)updateTrackingAreas {
@@ -364,7 +409,7 @@ static NSButton* ActionButton(NSString* symbol, NSString* label, id target, SEL 
 - (void)setHovered:(BOOL)hovered {
     if (_hovered == hovered) return;
     _hovered = hovered;
-    _edit.hidden = _delete.hidden = !hovered;
+    [self updateActions];
     [self refreshNameArea];
 }
 - (void)mouseEntered:(NSEvent*)event { (void)event; [self setHovered:YES]; }
@@ -398,6 +443,7 @@ static NSButton* ActionButton(NSString* symbol, NSString* label, id target, SEL 
     [self sendCommand:NSSelectorFromString(@"editComment:")];
 }
 - (void)deletePressed:(id)sender { (void)sender; [self sendCommand:NSSelectorFromString(@"deleteComment:")]; }
+- (void)resolvePressed:(id)sender { (void)sender; [self sendCommand:NSSelectorFromString(@"resolveComment:")]; }
 
 - (void)drawRect:(NSRect)dirty {
     (void)dirty;
@@ -412,6 +458,10 @@ static NSButton* ActionButton(NSString* symbol, NSString* label, id target, SEL 
                : SPDFCollectionColor(_hovered ? @"lineStrong" : @"line")) setStroke];
     card.lineWidth = 1;
     [card stroke];
+    BOOL resolved = Resolved(_item);
+    CGContextRef context = NSGraphicsContext.currentContext.CGContext;
+    CGContextSaveGState(context);
+    if (resolved) CGContextSetAlpha(context, kResolvedAlpha);
 
     // Avatar: initials on a soft accent disc (solid accent on a selected card, whose fill is the soft accent).
     [SPDFCollectionColor(selected ? @"accentFill" : @"accentSoft") setFill];
@@ -424,20 +474,25 @@ static NSButton* ActionButton(NSString* symbol, NSString* label, id target, SEL 
     [initials drawAtPoint:NSMakePoint(NSMidX(l.avatar) - initialsSize.width / 2, NSMidY(l.avatar) - initialsSize.height / 2)
            withAttributes:initialsStyle];
 
-    // Header: the author (with the pencil on your own card while the pointer is on the name), then the date and page.
+    // Header: the author (with the pencil on your own card while the pointer is on the name), then the date and page;
+    // "Resolved", small, at its end (left of the hover buttons). Space for the hover buttons is kept while they show.
+    NSDictionary* labelStyle = LabelStyle();
+    NSString* label = @"Resolved";
+    NSSize labelSize = [label sizeWithAttributes:labelStyle];
     NSString* meta = nil;
-    SPDFCommentCardHeader h = LayoutHeader(_item, l, _hovered, _yours, &meta);
-    if (!_nameEdit)
+    NSRect labelPill;
+    SPDFCommentCardHeader h = [self header:l meta:&meta pill:&labelPill];
+    if (!_nameEdit) {
         [Author(_item) drawWithRect:h.name
                             options:NSStringDrawingUsesLineFragmentOrigin | NSStringDrawingTruncatesLastVisibleLine
                          attributes:NameStyle()];
+        if (meta.length) [meta drawWithRect:h.metaRect options:NSStringDrawingUsesLineFragmentOrigin attributes:MetaStyle()];
+    }
     if (_nameHovered && _yours && !_nameEdit) {
         NSImage* pencil = SPDFCommentAuthorPencil(kPencilPoint);
         NSSize size = pencil.size;
         [pencil drawInRect:NSMakeRect(NSMinX(h.pencil), NSMidY(h.pencil) - size.height / 2, size.width, size.height)];
     }
-    if (meta.length && (!_nameEdit))
-        [meta drawWithRect:h.metaRect options:NSStringDrawingUsesLineFragmentOrigin attributes:MetaStyle()];
 
     if (NSHeight(l.quoteBar) > 0) {
         [[SPDFCollectionColor(@"accent") colorWithAlphaComponent:.55] setFill];
@@ -446,6 +501,13 @@ static NSButton* ActionButton(NSString* symbol, NSString* label, id target, SEL 
                      options:NSStringDrawingUsesLineFragmentOrigin | NSStringDrawingTruncatesLastVisibleLine];
     }
     if (_body.length) [_body drawWithRect:l.body options:NSStringDrawingUsesLineFragmentOrigin];
+    CGContextRestoreGState(context);
+    if (!NSIsEmptyRect(labelPill)) {
+        [SPDFCollectionColor(@"control") setFill];
+        [[NSBezierPath bezierPathWithRoundedRect:labelPill xRadius:8 yRadius:8] fill];
+        [label drawAtPoint:NSMakePoint(NSMidX(labelPill) - labelSize.width / 2, NSMidY(labelPill) - labelSize.height / 2)
+            withAttributes:labelStyle];
+    }
 }
 
 - (BOOL)isAccessibilityElement { return YES; }
@@ -454,6 +516,7 @@ static NSButton* ActionButton(NSString* symbol, NSString* label, id target, SEL 
     NSMutableArray* parts = [NSMutableArray arrayWithObject:Author(_item)];
     NSString* date = SPDFCommentDateText(_item[@"date"], NSDate.date);
     if (date.length) [parts addObject:date];
+    if (Resolved(_item)) [parts addObject:@"resolved"];
     if (_quote.length) [parts addObject:[NSString stringWithFormat:@"on “%@”", _quote.string]];
     if (_body.length) [parts addObject:_body.string];
     return [parts componentsJoinedByString:@", "];

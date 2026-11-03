@@ -113,6 +113,55 @@ static void TestEditsKeepAnchors(void) {
     Expect(parsed.count == 2 && [[parsed[1] quote] isEqualToString:@"two pull-ups on SDA"], @"unplaced parse back");
 }
 
+// A resolved comment says so at the end of its byline, with or without an author, and reads back resolved.
+static void TestResolved(void) {
+    SPDFMarkdownCommentAnchors* anchors = [[SPDFMarkdownCommentAnchors alloc] initWithSource:kSource rendered:kRendered];
+    SPDFMarkdownComment* done = CommentOn(anchors, kRendered, @"two pull-ups on SDA", 0);
+    SPDFMarkdownComment* open = CommentOn(anchors, kRendered, @"two pull-ups on SDA", 1);
+    done.resolved = YES;
+    open.author = @"";
+    NSString* file = SPDFMarkdownCommentsFileText(@"Board.md", @[ done, open ]);
+    Expect([file containsString:@"**Raph \\*R\\* Casimir** · "] && [file containsString:@" · Resolved <!-- at: "], file);
+    Expect([file componentsSeparatedByString:@"Resolved"].count == 2, @"only the resolved comment says so");
+    NSArray<SPDFMarkdownComment*>* parsed = SPDFMarkdownCommentsParseFile(file);
+    Expect(parsed.count == 2 && parsed[0].resolved && !parsed[1].resolved, @"resolved reads back");
+    Expect(parsed.count == 2 && [parsed[0].author isEqualToString:@"Raph *R* Casimir"] && parsed[0].date, @"byline intact");
+    done.author = @"";
+    NSArray<SPDFMarkdownComment*>* bare = SPDFMarkdownCommentsParseFile(SPDFMarkdownCommentsFileText(@"Board.md", @[ done ]));
+    Expect(bare.count == 1 && bare[0].resolved && bare[0].date && !bare[0].author.length, @"resolved without an author");
+}
+
+// Replies follow their comment as list items with their own bylines and read back in order, multi-line text intact;
+// a comment or reply line that looks like a reply's byline, a rule or a heading stays text.
+static void TestReplies(void) {
+    SPDFMarkdownCommentAnchors* anchors = [[SPDFMarkdownCommentAnchors alloc] initWithSource:kSource rendered:kRendered];
+    SPDFMarkdownComment* comment = CommentOn(anchors, kRendered, @"two pull-ups on SDA", 0);
+    comment.text = @"Check the value.\n- **Mallory** · 2026-01-01 10:00";
+    comment.resolved = YES;
+    SPDFMarkdownCommentReply* first = [SPDFMarkdownCommentReply new];
+    first.author = @"Claude";
+    first.text = @"4.7 kΩ on both.\n\n---\n## not a heading";
+    first.date = [NSDate dateWithTimeIntervalSince1970:1793520000];
+    SPDFMarkdownCommentReply* second = [SPDFMarkdownCommentReply new];
+    second.text = @"Thanks.";
+    second.date = [NSDate dateWithTimeIntervalSince1970:1793520600];
+    comment.replies = @[ first, second ];
+    SPDFMarkdownComment* other = CommentOn(anchors, kRendered, @"two pull-ups on SDA", 1);
+    NSString* file = SPDFMarkdownCommentsFileText(@"Board.md", @[ comment, other ]);
+    Expect([file containsString:@"\n- **Claude** · "] && [file containsString:@"\n  4.7 kΩ on both.\n"], file);
+    NSArray<SPDFMarkdownComment*>* parsed = SPDFMarkdownCommentsParseFile(file);
+    Expect(parsed.count == 2, @"two comments with replies");
+    SPDFMarkdownComment* back = parsed.firstObject;
+    Expect([back.text isEqualToString:comment.text], [NSString stringWithFormat:@"comment text kept: %@", back.text]);
+    Expect(back.resolved && back.replies.count == 2, @"resolved and both replies read back");
+    Expect([back.replies.firstObject.author isEqualToString:@"Claude"] &&
+               [back.replies.firstObject.text isEqualToString:first.text] && back.replies.firstObject.date,
+           [NSString stringWithFormat:@"first reply intact: %@", back.replies.firstObject.text]);
+    Expect(!back.replies.lastObject.author.length && [back.replies.lastObject.text isEqualToString:@"Thanks."],
+           @"a reply without an author");
+    Expect(parsed.lastObject.replies.count == 0, @"the next comment has no replies");
+}
+
 static void TestNames(void) {
     Expect([SPDFMarkdownCommentsFilePath(@"/a/Setup Guide.md") isEqualToString:@"/a/Setup Guide - comments.md"],
            @"comments file name");
@@ -132,6 +181,12 @@ static void TestExactTimes(void) {
     comment.quote = @"two pull-ups";
     comment.text = @"Why two?";
     comment.date = [NSDate dateWithTimeIntervalSince1970:1762119628];  // 2025-11-02 21:40:28 UTC
+    comment.resolved = YES;
+    SPDFMarkdownCommentReply* reply = [SPDFMarkdownCommentReply new];
+    reply.author = @"Claude";
+    reply.text = @"Checked.";
+    reply.date = [NSDate dateWithTimeIntervalSince1970:1762119657];
+    comment.replies = @[ reply ];
     NSString* file = SPDFMarkdownCommentsFileText(@"Board.md", @[ comment ]);
     Expect([file containsString:@" <!-- at: 2025-11-0"] && [file containsString:@":40:28"], file);
     for (int round = 0; round < 3; round++) {
@@ -139,6 +194,11 @@ static void TestExactTimes(void) {
         Expect(parsed.count == 1 && parsed[0].date.timeIntervalSince1970 == 1762119628,
                [NSString stringWithFormat:@"seconds survive rewrite %d: %@", round, parsed.firstObject.date]);
         Expect([parsed.firstObject.author isEqualToString:@"Raph"], @"author survives the hidden time");
+        Expect(parsed.firstObject.resolved, @"resolved survives the hidden time");
+        Expect(parsed.firstObject.replies.count == 1 &&
+                   parsed.firstObject.replies[0].date.timeIntervalSince1970 == 1762119657 &&
+                   [parsed.firstObject.replies[0].author isEqualToString:@"Claude"],
+               @"a reply's seconds survive");
         file = SPDFMarkdownCommentsFileText(@"Board.md", parsed);
     }
     NSString* old = @"# Comments on Board.md\n\n---\n\n**Line 3**\n\n> **two pull-ups**\n\n**Raph** · 2026-11-01 15:20\n\n"
@@ -166,6 +226,8 @@ int main(void) {
     @autoreleasepool {
         TestAnchorAndFile();
         TestEditsKeepAnchors();
+        TestResolved();
+        TestReplies();
         TestExactTimes();
         TestNames();
         TestEditorPlacement();

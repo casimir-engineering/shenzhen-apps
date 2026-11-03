@@ -25,6 +25,8 @@ FOUNDATION_EXPORT NSDictionary* SPDFMacPageMenuCommentContext(NSInteger pageInde
 // For a page's menu opened before that: builds the box while the menu is on screen.
 - (void)warmCommentEditorWhileMenuIsOpen;
 - (NSInteger)commentIndexForEditAction:(id)sender;
+// The card's Resolve / Reopen button: marks the comment resolved, or open again, in the PDF or the comments file.
+- (void)resolveComment:(id)sender;
 - (NSInteger)commentIndexAtPageIndex:(NSInteger)pageIndex pagePoint:(NSPoint)pagePoint;
 @end
 
@@ -50,6 +52,9 @@ FOUNDATION_EXPORT NSDictionary* SPDFMacPageMenuCommentContext(NSInteger pageInde
 - (void)addMarkdownComment:(id)sender;
 - (void)editMarkdownCommentAtIndex:(NSInteger)index;
 - (void)deleteMarkdownCommentAtIndex:(NSInteger)index;
+// Resolve / Reopen on a comment card (the shared "resolved" state, SPDFMacMarkdownComments.h).
+- (void)setMarkdownCommentAtIndex:(NSInteger)index resolved:(BOOL)resolved;
+- (BOOL)markdownCommentIsResolvedAtIndex:(NSInteger)index;
 // Validation shared by the Edit menu and the context menus, for PDFs and Markdown alike.
 - (BOOL)canAddCommentNow;
 - (BOOL)canEditCommentForSender:(id)sender;
