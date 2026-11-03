@@ -35,6 +35,7 @@ Reads PDF, EPUB, Markdown, plain text, code and images.
 - **Long tasks.** Ask it to sort dozens of documents into groups, rename them or close the ones you haven't looked at for a week. If a task is long, **Continue** picks up where it stopped. Undo puts things back.
 - **Measures and makes files.** The assistant can work on your documents' pages and pictures to measure and calculate, and save tables, charts and reports to your Downloads folder and to Collection.
 - **Drop files or folders into a chat** to ask about them. Only that chat can read them.
+- **Speak your question.** On macOS 26 the microphone beside Send types what you say, turned into text on your Mac. It never sends by itself.
 - **Summaries, tags and chapters** in your language, and chats you can save in folders, search and pick up again.
 
 ![The assistant answering a question about a desk lamp guide, beside a search for “hinge”](docs/images/portable/readme-assistant.png)

@@ -161,7 +161,7 @@
         _stopTrailing,
         [_stop.centerYAnchor constraintEqualToAnchor:_send.centerYAnchor]
     ]];
-    [self setUpAttachments]; [self setUpFollowing];
+    [self setUpAttachments]; [self setUpFollowing]; [self setUpVoice];
     return self;
 }
 // The field grows with what is typed, a line at a time, up to its maximum; past that the text scrolls in it.
@@ -174,7 +174,7 @@
 - (void)submit {
     NSString* text=[_composer.string stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
     if (!text.length || !_send.enabled) return;
-    if (self.sendText && self.sendText(text)) _composer.string=@"";
+    [self endVoiceInput]; if (self.sendText && self.sendText(text)) _composer.string=@"";
 }
 - (void)clicked:(NSButton*)sender {
     if ([sender.identifier isEqual:@"send"]) [self submit];
@@ -291,10 +291,10 @@
     _prompt.toolTip=latest; _prompt.accessibilityLabel=_prompt.stringValue;
     _status.accessibilityLabel=_status.stringValue;
     _send.enabled=!session.running && !_history; _stop.enabled=session.running; _composer.editable=!_history;
-    _input.hidden=_history; _send.hidden=_history; _inputHeight.constant=0; [self fitComposer];
+    _input.hidden=_history; _send.hidden=_history; [self updateVoiceButton]; _inputHeight.constant=0; [self fitComposer];
     _stopTrailing.active=NO; _stopHistoryTrailing.active=NO;
     (_history ? _stopHistoryTrailing : _stopTrailing).active=YES;
-    _inputHelp.stringValue=_history ? @"Select a chat above, or start a new one." : @"↵ Send · ⇧↵ New line";
+    _inputHelp.stringValue=_history ? @"Select a chat above, or start a new one." : [self voiceHint] ?: @"↵ Send · ⇧↵ New line";
     _redo.enabled=[session respondsToSelector:@selector(canRedo)] && session.canRedo && !session.running;
     _undo.enabled=!session.running && [session respondsToSelector:@selector(canUndo)] && [[session valueForKey:@"canUndo"] boolValue];
     _status.textColor=SPDFCollectionColor(@"text"); [self showAttachments:_history || ![session respondsToSelector:@selector(grants)] ? @[] : session.grants];
@@ -411,7 +411,7 @@ static BOOL StepRow(NSView* view) {
     BOOL editorFocused=_editor && self.window.firstResponder==_editor;
     _editor=nil; [self validateEditForMessages:messages];
     _displayedMessages=[[NSArray alloc] initWithArray:messages ?: @[] copyItems:YES]; [self clearRows];
-    _displayedActivity=activity; if(differentChat)[_expandedActivity removeAllObjects];
+    _displayedActivity=activity; if(differentChat){[_expandedActivity removeAllObjects];[self endVoiceInput];}
     if (!messages.count) {
         NSTextField* empty=SPDFCollectionText(@"Ask about this document, find an answer across groups, or organize your tabs.",13,NSFontWeightRegular,YES);
         empty.maximumNumberOfLines=0; empty.identifier=@"chatEmptyState";
@@ -480,7 +480,7 @@ static BOOL StepRow(NSView* view) {
     [self clearEdit];
     _history=YES; _send.enabled=NO; _stop.enabled=_running; _composer.editable=NO; [self clearRows]; _status.stringValue=@"Chats are saved on this Mac";
     if(_displayedSession) [self refreshActivityFromSession:_displayedSession];
-    [self showAttachments:@[]];
+    [self showAttachments:@[]]; [self updateVoiceButton];
     [_messages addArrangedSubview:[self button:@"Return to current chat" action:@"current"]];
     NSButton* deleteAll=[self button:@"Delete all chats…" action:@"deleteAll"]; deleteAll.enabled=chats.count>0;
     [_messages addArrangedSubview:deleteAll];

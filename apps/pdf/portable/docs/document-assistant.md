@@ -73,6 +73,19 @@ hides it without ending the conversation or discarding its draft. Chat width is
 remembered in the window's YAML sidebar state. At narrow widths, navigation and
 the map temporarily yield space to the reader; their preferences are retained.
 
+### Speaking instead of typing
+
+On macOS 26, the microphone beside **Send** (or **⌥⌘V**) listens and types what
+you say into the message box as you speak, at the cursor or over selected text;
+what is already there stays. It never sends: click the microphone again, or press
+**⌥⌘V**, **Return** or **Escape**, to stop, then check the text and press Return
+to send. One **Undo** takes back everything heard. It listens in your keyboard's
+language (Pinyin: Chinese; U.S.: English); right-click the microphone to choose
+another, which is remembered. The first time, macOS asks to use the microphone,
+and a language's speech model may download once. Speech is turned into text on
+your Mac; only the message you send goes to the assistant. On earlier macOS
+versions the microphone isn't shown.
+
 The sidebar searches saved chats by title or user/assistant message text. Message
 matches include a highlighted excerpt. The separate **Search this chat** field
 filters and highlights messages within the open conversation, including older

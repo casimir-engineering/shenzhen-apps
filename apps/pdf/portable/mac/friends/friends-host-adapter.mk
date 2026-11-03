@@ -94,7 +94,8 @@ HOST_ADAPTER_CARD_VIEW_SRCS = $(sort $(HOST_ADAPTER_SEND_SRCS) $(HOST_ADAPTER_SC
 	$(filter-out $(HOST_ADAPTER_CHAT_VIEW_CATEGORIES),$(AI_CHAT_VIEW_SRCS)) mac/SPDFMacAIChatMarkdown.mm \
 	mac/SPDFMacCollectionStyle.mm mac/SPDFMacGroupActionButton.mm)
 # Categories of the assistant's chat view, which the card tests don't link: they need the view itself.
-HOST_ADAPTER_CHAT_VIEW_CATEGORIES := mac/SPDFMacAIChatAttachments.mm mac/SPDFMacAIChatViewFollow.mm
+HOST_ADAPTER_CHAT_VIEW_CATEGORIES := mac/SPDFMacAIChatAttachments.mm mac/SPDFMacAIChatViewFollow.mm \
+	mac/SPDFMacAIChatVoice.mm
 mac-friends-send-card-tests: $$(MAC_CHAT_MARKDOWN_ENGINE)
 	$(call HOST_ADAPTER_RUN,SPDFMacFriendsSendCardTests,$(HOST_ADAPTER_DIR)/tests/SPDFMacFriendsSendCardTests.mm \
 		$(HOST_ADAPTER_CARD_VIEW_SRCS) $(MAC_CHAT_MARKDOWN_ENGINE) -framework Cocoa -framework ImageIO \

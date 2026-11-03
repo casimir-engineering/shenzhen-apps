@@ -40,6 +40,10 @@
     // and its row), and whether a scroll is the view's own rather than the person's.
     BOOL _followNewest; NSButton* _newMessagesPill; NSUInteger _unseenMessages; NSUInteger _firstUnseenIndex;
     __weak NSView* _firstUnseenRow; BOOL _scrollingItself; NSUInteger _jumps;
+    // Voice input (SPDFMacAIChatVoice.mm): the microphone, its session, and the note under the composer when it can't
+    // listen, with the composer's bottom constraints for either case.
+    NSButton* _mic; id _voiceInput; NSStackView* _voiceNote; NSTextField* _voiceNoteText; NSButton* _voiceNoteButton;
+    NSLayoutConstraint* _inputAboveButtons; NSLayoutConstraint* _inputAboveNote;
 }
 - (NSButton*)button:(NSString*)title action:(NSString*)action;
 @end
@@ -52,6 +56,19 @@
 - (void)noteUnseenMessages:(NSArray*)messages from:(NSUInteger)first;
 - (void)noteRowsFrom:(NSUInteger)rows forMessage:(NSUInteger)index;
 - (void)updateNewMessagesPill;
+@end
+
+@interface SPDFMacAIChatView (Voice)
+- (void)setUpVoice;
+// Shows or hides the microphone with the composer (hidden with the chat list, and where macOS can't do it).
+- (void)updateVoiceButton;
+// The line under the composer while listening or getting ready, else nil.
+- (NSString*)voiceHint;
+- (void)toggleVoiceInput:(id)sender;
+// Stops listening and lets the last words settle into the composer.
+- (void)stopVoiceInput;
+// Stops listening at once, leaving the composer as it is.
+- (void)endVoiceInput;
 @end
 
 @interface SPDFMacAIChatView (Messages)

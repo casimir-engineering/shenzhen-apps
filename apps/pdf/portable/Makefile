@@ -138,6 +138,13 @@ MAC_APP_OBJ_DIR := $(BUILD)/mac-app
 MAC_APP_OBJS := $(patsubst %.mm,$(MAC_APP_OBJ_DIR)/%.o,$(MAC_SRCS))
 MAC_APP_COMPILE_FLAGS = $(PORTABLE_OPTFLAGS) $(MAC_TARGET_FLAGS) -std=c++17 -fobjc-arc -Imac -Icore -I$(MUPDF_DIR)/include
 MAC_APP_FLAGS_FILE := $(MAC_APP_OBJ_DIR)/compile-flags
+# Voice input in the assistant's composer (mac/SPDFMacVoiceTranscriber.swift): Apple's speech recognition is a Swift
+# API, so this one file is Swift. Its newer-than-macOS-12 symbols link weakly; on older macOS the button stays hidden.
+MAC_SWIFT_SRC := mac/SPDFMacVoiceTranscriber.swift
+MAC_SWIFT_OBJ := $(MAC_APP_OBJ_DIR)/mac/SPDFMacVoiceTranscriber.swift.o
+MAC_SWIFT_LIB_DIRS = -L"$$(xcrun --show-sdk-path)/usr/lib/swift" \
+	-L"$$(dirname "$$(xcrun --find swiftc)")/../lib/swift/macosx"
+MAC_SWIFT_LINK = $(MAC_SWIFT_OBJ) $(MAC_SWIFT_LIB_DIRS) -Wl,-rpath,/usr/lib/swift -weak_framework Speech
 MAC_VERSION ?= 26.11.3
 MAC_BUILD ?= 1
 # The release this app is, as people see it and the updater compares it (mac/Info.plist SZFReleaseTag, which
@@ -147,11 +154,15 @@ MAC_SIGN_IDENTITY ?= -
 NOTARY_PROFILE ?=
 NOTARY_RESULT ?= $(DIST)/notarytool-$(MAC_VERSION)-$(MAC_BUILD).json
 
+# The reader itself is signed with mac/ShenzhenPDF.entitlements (the microphone, for voice input); its helpers are not.
 ifeq ($(MAC_SIGN_IDENTITY),-)
 MAC_CODESIGN_APP = codesign --force --sign - "$(MAC_APP)"
+MAC_CODESIGN_READER = codesign --force --sign - --entitlements mac/ShenzhenPDF.entitlements "$(MAC_APP)"
 MAC_CODESIGN_DMG = true
 else
 MAC_CODESIGN_APP = codesign --force --timestamp --options runtime --sign "$(MAC_SIGN_IDENTITY)" "$(MAC_APP)"
+MAC_CODESIGN_READER = codesign --force --timestamp --options runtime --entitlements mac/ShenzhenPDF.entitlements \
+	--sign "$(MAC_SIGN_IDENTITY)" "$(MAC_APP)"
 MAC_CODESIGN_DMG = codesign --force --timestamp --sign "$(MAC_SIGN_IDENTITY)" "$(MAC_DMG)"
 endif
 
@@ -624,7 +635,12 @@ $(MAC_APP_OBJ_DIR)/%.o: %.mm $(MAC_APP_FLAGS_FILE) Makefile
 	@mkdir -p "$(@D)"
 	clang++ $(MAC_APP_COMPILE_FLAGS) -MMD -MP -c "$<" -o "$@"
 
-$(MAC_BIN): $(MAC_APP_OBJS) core/spdf_document_export.h $(MAC_COLLECTION_BIN) mupdf-libs $(CORE_OBJS) $(YAML_OBJ) $(MAC_MD4C_OBJ) $(MAC_GUMBO_OBJS) $(MAC_SRCS) $(MAC_HDRS) $(MAC_ICON_SRCS) $(MAC_COLLECTION_SRCS) mac/companion/main.mm mac/companion/sources.mk mac/Info.plist mac/CollectionCompanion-Info.plist mac/Assets.xcassets/Contents.json mac/Assets.xcassets/AppIcon.appiconset/Contents.json
+$(MAC_SWIFT_OBJ): $(MAC_SWIFT_SRC) $(MAC_APP_FLAGS_FILE) Makefile
+	@mkdir -p "$(@D)"
+	xcrun swiftc -swift-version 5 -O -target $(MAC_ARCH)-apple-macos$(MACOSX_DEPLOYMENT_TARGET) -parse-as-library \
+		-module-name ShenzhenPDFVoice -c "$(MAC_SWIFT_SRC)" -o "$@"
+
+$(MAC_BIN): $(MAC_APP_OBJS) $(MAC_SWIFT_OBJ) mac/ShenzhenPDF.entitlements core/spdf_document_export.h $(MAC_COLLECTION_BIN) mupdf-libs $(CORE_OBJS) $(YAML_OBJ) $(MAC_MD4C_OBJ) $(MAC_GUMBO_OBJS) $(MAC_SRCS) $(MAC_HDRS) $(MAC_ICON_SRCS) $(MAC_COLLECTION_SRCS) mac/companion/main.mm mac/companion/sources.mk mac/Info.plist mac/CollectionCompanion-Info.plist mac/Assets.xcassets/Contents.json mac/Assets.xcassets/AppIcon.appiconset/Contents.json
 	rm -rf "$(MAC_APP)"
 	mkdir -p "$(MAC_APP)/Contents/MacOS" "$(MAC_APP)/Contents/Resources" "$(DIST)"
 	cp "mac/Info.plist" "$(MAC_APP)/Contents/Info.plist"
@@ -659,7 +675,7 @@ $(MAC_BIN): $(MAC_APP_OBJS) core/spdf_document_export.h $(MAC_COLLECTION_BIN) mu
 	fi
 	iconutil -c icns "$(BUILD)/ShenzhenPDF.iconset" -o "$(MAC_APP)/Contents/Resources/AppIcon.icns"
 	clang++ $(PORTABLE_OPTFLAGS) $(MAC_TARGET_FLAGS) -std=c++17 -fobjc-arc \
-		$(MAC_APP_OBJS) $(CORE_OBJS) "$(YAML_OBJ)" $(MAC_MD4C_OBJ) $(MAC_GUMBO_OBJS) $(MAC_FRIENDS_LINK) \
+		$(MAC_APP_OBJS) $(MAC_SWIFT_LINK) $(CORE_OBJS) "$(YAML_OBJ)" $(MAC_MD4C_OBJ) $(MAC_GUMBO_OBJS) $(MAC_FRIENDS_LINK) \
 		$(MUPDF_LIBS) -framework Cocoa -framework QuartzCore -framework PDFKit -framework \
 		UniformTypeIdentifiers -framework CoreServices -framework Security -framework LocalAuthentication \
 		-framework ImageIO $(MAC_FRIENDS_FRAMEWORKS) -lm -Wl,-dead_strip -Wl,-x -o "$(MAC_BIN)"
@@ -683,7 +699,7 @@ $(MAC_BIN): $(MAC_APP_OBJS) core/spdf_document_export.h $(MAC_COLLECTION_BIN) mu
 	$(subst $(MAC_APP),$(MAC_COLLECTION_APP),$(MAC_CODESIGN_APP))
 	$(subst $(MAC_APP),$(MAC_FRIENDS_HELPER_APP),$(MAC_CODESIGN_APP))
 	$(subst $(MAC_APP),$(MAC_PYTHON_SANDBOX_HELPER),$(MAC_CODESIGN_APP))
-	$(MAC_CODESIGN_APP)
+	$(MAC_CODESIGN_READER)
 	$(MAC_FRIENDS_BUNDLE_CHECK)
 	$(MAC_PYTHON_SANDBOX_CHECK)
 

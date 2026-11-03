@@ -249,6 +249,8 @@
 	<true/>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>Friends uses your local network to find people near you and to send them messages and files directly.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>So you can speak your message to the assistant instead of typing it. What you say is turned into text on this Mac.</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
 	<key>SZFReleaseTag</key>

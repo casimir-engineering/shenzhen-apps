@@ -27,7 +27,7 @@ $(AI_ANALYSIS_TEST): $(AI_READER_BASE_OBJS) $(BUILD)/workspace-probe/mac/tests/S
 		Security -framework LocalAuthentication -lm -Wl,-dead_strip -o "$@"
 AI_CHAT_VIEW_SRCS := mac/SPDFMacAIChatViewParts.mm mac/SPDFMacAIChatActivityView.mm mac/SPDFMacAIChatActivity.mm \
 	mac/SPDFMacAIChatBudget.mm mac/SPDFMacAIChatAttachments.mm mac/SPDFMacAIChatViewFollow.mm \
-	$(MAC_CHAT_MARKDOWN_SRCS)
+	mac/SPDFMacAIChatVoice.mm $(MAC_CHAT_MARKDOWN_SRCS)
 $(AI_CHAT_VIEW_TEST): mac/tests/SPDFMacAIChatActivityViewChecks.h mac/tests/SPDFMacAIChatActivityStepChecks.h \
 		mac/friends/SPDFMacFriendsEmojiTables.h $(AI_CHAT_VIEW_SRCS) mac/tests/SPDFMacAIChatBlankRowsChecks.h \
 		mac/tests/SPDFMacAIAnswerCardViewChecks.h mac/tests/SPDFMacAIChatOrderChecks.h \
