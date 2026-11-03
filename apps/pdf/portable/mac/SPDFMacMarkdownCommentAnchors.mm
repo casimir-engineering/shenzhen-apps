@@ -314,6 +314,49 @@ NSString* CleanHeading(NSString* title) {
     return changed;
 }
 
+- (NSArray<NSDictionary*>*)sourceHeadings {
+    NSMutableArray* headings = [NSMutableArray array];
+    for (size_t i = 0; i < _headingLines.size(); i++) {
+        NSString* title = _headingTitles[i];
+        NSRange space = [title rangeOfString:@" "];
+        [headings addObject:@{@"level" : @(_headingLevels[i]), @"line" : @(_headingLines[i]),
+                              @"title" : space.location == NSNotFound ? title : [title substringFromIndex:NSMaxRange(space)]}];
+    }
+    return headings;
+}
+
+- (NSRange)renderedRangeForSourceLine:(NSInteger)line {
+    NSRange none = NSMakeRange(NSNotFound, 0);
+    if (line < 1 || (size_t)line > _lineStarts.size()) return none;
+    NSUInteger start = _lineStarts[(size_t)line - 1];
+    NSUInteger end = (size_t)line < _lineStarts.size() ? _lineStarts[(size_t)line] : NSUIntegerMax;
+    size_t first = SIZE_MAX, last = 0;
+    for (size_t i = 0; i < _sourceNormal.map.size(); i++) {
+        NSUInteger at = _sourceNormal.map[i];
+        if (at >= end) break;
+        if (at < start || [_sourceNormal.text characterAtIndex:i] == ' ') continue;
+        if (first == SIZE_MAX) first = i;
+        last = i;
+    }
+    if (first == SIZE_MAX) return none;
+    NSString* words = [_sourceNormal.text substringWithRange:NSMakeRange(first, last + 1 - first)];
+    std::vector<NSUInteger> rendered = Occurrences(_renderedNormal.text, words);
+    std::vector<NSUInteger> source = Occurrences(_sourceNormal.text, words);
+    if (rendered.empty() || source.empty()) return none;
+    size_t k = 0;
+    while (k < source.size() && source[k] != first) k++;
+    if (k == source.size()) return none;
+    size_t pick = k;
+    if (source.size() != rendered.size()) {
+        double fraction = (double)first / MAX((NSUInteger)1, _sourceNormal.text.length), best = DBL_MAX;
+        for (size_t i = 0; i < rendered.size(); i++) {
+            double distance = fabs((double)rendered[i] / MAX((NSUInteger)1, _renderedNormal.text.length) - fraction);
+            if (distance < best) { best = distance; pick = i; }
+        }
+    }
+    return [self renderedRangeForNormalStart:rendered[pick] length:words.length];
+}
+
 - (NSRange)blockRangeAtRenderedLocation:(NSUInteger)location {
     NSString* text = _rendered;
     if (location > text.length) return NSMakeRange(NSNotFound, 0);

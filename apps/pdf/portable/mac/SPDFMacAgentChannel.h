@@ -25,8 +25,10 @@ FOUNDATION_EXPORT pid_t SPDFMacAgentChannelPIDFromName(NSString* name);
 FOUNDATION_EXPORT BOOL SPDFMacAgentChannelPathFits(NSString* path);
 
 // A request line checked before anything acts on it: an object with a known "command" and fields of the right types.
-// Commands: "state", "open" {path, page?, heading?, front?, wait?}, "screenshot" {windowId, output},
-// "comments-changed" {path}, "version" {action (new, list, compare), path, carry?, older?, newer?, front?}.
+// Commands: "state", "open" {path, page?, heading?, front?, wait?, reload?, timeout?}, "reload" {path, timeout?},
+// "close" {path | windowId}, "screenshot" {windowId, output}, "comments-changed" {path},
+// "watch-comments" {path, since?, timeout?}, "version" {action (new, list, compare), path, carry?, older?, newer?,
+// front?}.
 // nil with `error` set for anything else.
 FOUNDATION_EXPORT NSDictionary* _Nullable SPDFMacAgentChannelValidateRequest(NSData* line, NSError** error);
 // One line of JSON (sorted keys) ending in "\n".

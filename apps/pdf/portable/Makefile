@@ -165,7 +165,7 @@ $(BUILD):
 	mkdir -p "$(BUILD)"
 
 $(CORE_OBJ): $(CORE_SRC) $(CORE_HDR) core/spdf_search_regex.h core/spdf_render_bitmap.h core/spdf_document_info.h core/spdf_translate_redact.h core/spdf_translate_write.h core/spdf_outline_write.h \
-		core/spdf_outline_read.h core/spdf_outline.h core/spdf_comment_read.h core/spdf_comment_review.h \
+		core/spdf_outline_read.h core/spdf_outline.h core/spdf_comment_read.h core/spdf_comment_review.h core/spdf_comment_dates.h \
 		core/spdf_core_document.h Makefile | $(BUILD)
 	clang $(PORTABLE_OPTFLAGS) $(MAC_TARGET_FLAGS) -Icore -I$(MUPDF_DIR)/include -c "$(CORE_SRC)" -o "$(CORE_OBJ)"
 
@@ -367,15 +367,26 @@ mac-agent-pdf-inspection-tests: $(CORE_OBJ) $(CORE_RECOLOR_OBJ) mupdf-libs | $(B
 	"$(BUILD)/SPDFMacAgentPDFInspectionTests"
 
 # Focused reader-action and on-demand agent contracts; no app launch.
-.PHONY: mac-reader-action-tests mac-agent-tests
+.PHONY: mac-reader-action-tests mac-agent-tests mac-szpdf-tests
 mac-reader-action-tests: | $(BUILD)
 	clang++ $(MAC_TARGET_FLAGS) -std=c++17 -fobjc-arc -Wall -Wextra -Werror -Imac mac/tests/SPDFMacContextPageTests.mm -framework Cocoa -o "$(BUILD)/SPDFMacContextPageTests"
 	"$(BUILD)/SPDFMacContextPageTests"
 	clang++ $(MAC_TARGET_FLAGS) -std=c++17 -fobjc-arc -Wall -Wextra -Werror -Imac mac/tests/SPDFMacMarkdownEditorTests.mm mac/SPDFMacMarkdownEditor.mm mac/SPDFMacMarkdownRouting.mm -framework Cocoa -framework UniformTypeIdentifiers -o "$(BUILD)/SPDFMacMarkdownEditorTests"
 	"$(BUILD)/SPDFMacMarkdownEditorTests"
 
+# szpdf's commands that need no window (mac/SPDFMacSzpdfInternal.h), headless, with the Markdown engine they lay out
+# documents with.
+MAC_SZPDF_TEST_SRCS := mac/tests/SPDFMacSzpdfTests.mm mac/SPDFMacSzpdfHelp.mm mac/SPDFMacSzpdfArguments.mm \
+	mac/SPDFMacSzpdfHeadingMatch.mm mac/SPDFMacSzpdfDocument.mm mac/SPDFMacSzpdfCheck.mm mac/SPDFMacSzpdfFeatures.mm \
+	mac/SPDFMacSzpdfChanges.mm mac/SPDFMacAgentComments.mm mac/SPDFMacMarkdownComments.mm \
+	mac/SPDFMacMarkdownCommentAnchors.mm mac/SPDFMacMarkdownPrinting.mm mac/SPDFMacMarkdownRouting.mm \
+	mac/SPDFMacAIFileTransaction.mm $(MAC_MARKDOWN_SRCS)
+mac-szpdf-tests: $(CORE_OBJS) $(MAC_MD4C_OBJ) $(MAC_GUMBO_OBJS) mupdf-libs | $(BUILD)
+	clang++ $(MAC_TARGET_FLAGS) -std=c++17 -fobjc-arc -Wall -Wextra -Werror -Imac -Icore -I$(MUPDF_DIR)/include $(MAC_SZPDF_TEST_SRCS) $(CORE_OBJS) $(MAC_MD4C_OBJ) $(MAC_GUMBO_OBJS) $(MUPDF_LIBS) -framework Cocoa -framework QuartzCore -framework ImageIO -framework UniformTypeIdentifiers -lm -o "$(BUILD)/SPDFMacSzpdfTests"
+	SPDF_DIAGRAM_LAYOUT_DEADLINE=5 "$(BUILD)/SPDFMacSzpdfTests"
+
 mac-agent-tests: $(CORE_OBJS) mupdf-libs | $(BUILD)
-	clang++ $(MAC_TARGET_FLAGS) -std=c++17 -fobjc-arc -Wall -Wextra -Werror -Imac -Icore -I$(MUPDF_DIR)/include mac/tests/SPDFMacAgentChannelTests.mm mac/SPDFMacAgentChannel.mm mac/SPDFMacSzpdfArguments.mm mac/SPDFMacCommandLineTool.mm mac/SPDFMacAgentComments.mm mac/SPDFMacMarkdownComments.mm mac/SPDFMacAIFileTransaction.mm $(CORE_OBJS) $(MUPDF_LIBS) -framework Cocoa -lm -o "$(BUILD)/SPDFMacAgentChannelTests"
+	clang++ $(MAC_TARGET_FLAGS) -std=c++17 -fobjc-arc -Wall -Wextra -Werror -Imac -Icore -I$(MUPDF_DIR)/include mac/tests/SPDFMacAgentChannelTests.mm mac/SPDFMacAgentChannel.mm mac/SPDFMacSzpdfArguments.mm mac/SPDFMacSzpdfHelp.mm mac/SPDFMacCommandLineTool.mm mac/SPDFMacAgentComments.mm mac/SPDFMacMarkdownComments.mm mac/SPDFMacAIFileTransaction.mm $(CORE_OBJS) $(MUPDF_LIBS) -framework Cocoa -lm -o "$(BUILD)/SPDFMacAgentChannelTests"
 	"$(BUILD)/SPDFMacAgentChannelTests"
 	clang++ $(MAC_TARGET_FLAGS) -std=c++17 -fobjc-arc -Wall -Wextra -Werror -Imac mac/tests/SPDFMacAgentCommandTests.mm mac/SPDFMacAgentValidation.mm -framework Cocoa -o "$(BUILD)/SPDFMacAgentCommandTests"
 	"$(BUILD)/SPDFMacAgentCommandTests"

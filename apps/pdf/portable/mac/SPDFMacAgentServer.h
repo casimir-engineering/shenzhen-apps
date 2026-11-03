@@ -11,3 +11,19 @@ void SPDFMacAgentServerStart(void);
 // Called on the main queue with a checked request; `reply` takes the answer, once, on any queue.
 + (void)agentServerHandleRequest:(NSDictionary*)request reply:(void (^)(NSDictionary* answer))reply;
 @end
+
+// The commands' parts (SPDFMacAgentServerCommands.mm, SPDFMacAgentServerTabs.mm).
+@interface ShenzhenMacDelegate (SPDFMacAgentServerParts)
+// page, pageCount, heading, headingPath of the selected document.
+- (NSDictionary*)agentWhereIs;
+// The window and its tabs, for `szpdf state`.
+- (NSDictionary*)agentWindowState;
+- (void)agentReload:(NSDictionary*)request reply:(void (^)(NSDictionary* answer))reply;
+- (id)agentReloadSelected;
+- (void)agentFinishOpen:(NSDictionary*)request reply:(void (^)(NSDictionary* answer))reply deadline:(NSDate*)deadline
+              navigated:(BOOL)navigated;
+- (NSDictionary*)agentOpenResult:(NSString*)path error:(NSDictionary*)error;
++ (void)agentClose:(NSDictionary*)request readers:(NSArray<ShenzhenMacDelegate*>*)readers
+             reply:(void (^)(NSDictionary* answer))reply;
++ (void)agentWatchComments:(NSDictionary*)request reply:(void (^)(NSDictionary* answer))reply;
+@end

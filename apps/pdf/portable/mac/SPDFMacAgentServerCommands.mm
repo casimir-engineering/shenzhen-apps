@@ -9,13 +9,13 @@
 #import "SPDFMacMarkdownSession.h"
 #import "SPDFMacModels.h"
 #import "SPDFMacPaletteActivation.h"
+#import "SPDFMacSzpdfHeadingMatch.h"
 #import "markdown/SPDFMarkdownRenderer.h"
 #import <PDFKit/PDFKit.h>
 
 #include <vector>
 
 #include "spdf_destination.h"
-#include "spdf_link.h"
 #include "spdf_outline.h"
 
 @interface ShenzhenMacDelegate (SPDFMacAgentServerHost)
@@ -26,7 +26,10 @@
 
 static NSString* ISODate(NSDate* date) {
     static NSISO8601DateFormatter* formatter;
-    if (!formatter) formatter = [NSISO8601DateFormatter new];
+    if (!formatter) {
+        formatter = [NSISO8601DateFormatter new];
+        formatter.timeZone = NSTimeZone.localTimeZone;
+    }
     return date ? [formatter stringFromDate:date] : nil;
 }
 
@@ -108,122 +111,142 @@ static NSArray<NSString*>* HeadingPath(NSArray<NSString*>* titles, const std::ve
     return where;
 }
 
-- (NSDictionary*)agentWindowState {
-    NSMutableArray* documents = [NSMutableArray array];
-    SPDFDocumentTab* selected = [self selectedTab];
-    for (SPDFDocumentTab* tab in _tabs) {
-        if (!tab.path.length) continue;
-        NSDate* disk = [NSFileManager.defaultManager attributesOfItemAtPath:tab.path error:nil][NSFileModificationDate];
-        NSMutableDictionary* document = [@{@"path" : tab.path, @"selected" : @(tab == selected)} mutableCopy];
-        if (tab == selected) [document addEntriesFromDictionary:[self agentWhereIs]];
-        else document[@"page"] = @(tab.pageIndex + 1);
-        if (tab.contentLoadedAt) document[@"reloadedAt"] = ISODate(tab.contentLoadedAt);
-        if (tab.cachedModificationDate) document[@"loadedFileModified"] = ISODate(tab.cachedModificationDate);
-        if (disk) document[@"fileModified"] = ISODate(disk);
-        if (disk && tab.cachedModificationDate)
-            document[@"upToDate"] = @([disk isEqualToDate:tab.cachedModificationDate]);
-        [documents addObject:document];
-    }
-    NSRect frame = _window.frame;
-    return @{
-        @"windowId" : @(_window.windowNumber),
-        @"title" : _window.title ?: @"",
-        @"visible" : @(_window.visible),
-        @"onScreen" : @((_window.occlusionState & NSWindowOcclusionStateVisible) != 0),
-        @"minimized" : @(_window.miniaturized),
-        @"key" : @(_window.keyWindow),
-        @"frame" : @[ @(frame.origin.x), @(frame.origin.y), @(frame.size.width), @(frame.size.height) ],
-        @"documents" : documents,
-    };
-}
-
 #pragma mark - Opening
 
 - (void)agentOpen:(NSDictionary*)request reply:(void (^)(NSDictionary*))reply {
     NSString* path = request[@"path"];
     BOOL directory = NO;
     if (![NSFileManager.defaultManager fileExistsAtPath:path isDirectory:&directory] || directory) {
-        reply(@{@"opened" : @NO, @"error" : [NSString stringWithFormat:@"No document at %@.", path]});
+        reply(@{@"opened" : @NO, @"errorCode" : @"not-found", @"error" : [NSString stringWithFormat:@"No document at %@.", path]});
         return;
     }
+    BOOL wasShowing = [Standard([self selectedTab].path) isEqualToString:Standard(path)];
     [self openPaths:@[ path ]];
     if ([request[@"front"] boolValue]) spdf_mac_bring_window_to_front(_window);
     else spdf_mac_show_window_in_background(_window);
     if (!_window || (!_window.visible && !_window.miniaturized)) {
-        reply(@{@"opened" : @NO, @"error" : @"ShenzhenPDF could not show a window for this document."});
+        reply(@{@"opened" : @NO, @"errorCode" : @"failed",
+                @"error" : @"ShenzhenPDF could not show a window for this document."});
         return;
     }
     if (![Standard([self selectedTab].path) isEqualToString:Standard(path)]) {
-        reply(@{@"opened" : @NO, @"windowId" : @(_window.windowNumber), @"error" : @"The document did not open."});
+        reply(@{@"opened" : @NO, @"windowId" : @(_window.windowNumber), @"errorCode" : @"load-failed",
+                @"error" : @"The document did not open."});
         return;
     }
-    BOOL wait = [request[@"wait"] boolValue] || request[@"page"] || request[@"heading"];
+    id previous = nil;
+    if ([request[@"reload"] boolValue] && wasShowing) previous = [self agentReloadSelected];
+    BOOL wait = [request[@"wait"] boolValue] || [request[@"reload"] boolValue] || request[@"page"] || request[@"heading"];
     if (!wait) {
         reply([self agentOpenResult:path error:nil]);
         return;
     }
-    [self agentFinishOpen:request reply:reply deadline:[NSDate dateWithTimeIntervalSinceNow:20] navigated:NO];
+    NSMutableDictionary* pending = [request mutableCopy];
+    if (previous) pending[@"previousRender"] = previous;
+    if ([request[@"reload"] boolValue]) pending[@"reloaded"] = @YES;
+    NSTimeInterval timeout = request[@"timeout"] ? [request[@"timeout"] doubleValue] : 20;
+    [self agentFinishOpen:pending reply:reply deadline:[NSDate dateWithTimeIntervalSinceNow:timeout] navigated:NO];
 }
 
-- (NSDictionary*)agentOpenResult:(NSString*)path error:(NSString*)error {
+// Reads the selected tab's file again; answers what the wait must see replaced (a Markdown document's render; a PDF
+// reloads at once).
+- (id)agentReloadSelected {
+    SPDFMacMarkdownSession* session = [self isMarkdownActive] ? [self activeMarkdownSession] : nil;
+    id previous = session.renderedDocument ?: NSNull.null;
+    [self reloadSelectedTabFromDiskChange];
+    return session ? previous : nil;
+}
+
+// The layout is final and the first visible page is drawn: a Markdown session laid out (after the reload asked for,
+// if any) and drawn once, or a PDF's page in view rendered.
+- (BOOL)agentRendered:(NSDictionary*)request {
+    SPDFMacMarkdownSession* session = [self isMarkdownActive] ? [self activeMarkdownSession] : nil;
+    if (session) {
+        id previous = request[@"previousRender"];
+        if (session.state != SPDFMacMarkdownSessionReady || !session.isNavigationReady || !session.paginationPlan ||
+            (previous && (id)session.renderedDocument == previous))
+            return NO;
+        [_window displayIfNeeded];
+        return YES;
+    }
+    return _doc && _pageIndex >= 0 && _pageIndex < (NSInteger)_renderedPages.count &&
+           _renderedPages[(NSUInteger)_pageIndex].image != nil;
+}
+
+- (NSDictionary*)agentOpenResult:(NSString*)path error:(NSDictionary*)error {
     NSMutableDictionary* result = [@{@"opened" : @YES, @"path" : path, @"windowId" : @(_window.windowNumber),
                                      @"front" : @(NSApp.isActive && _window.keyWindow),
                                      @"minimized" : @(_window.miniaturized)} mutableCopy];
     [result addEntriesFromDictionary:[self agentWhereIs]];
-    if (error) result[@"error"] = error;
+    NSDate* disk = [NSFileManager.defaultManager attributesOfItemAtPath:path error:nil][NSFileModificationDate];
+    if (disk) result[@"fileModified"] = ISODate(disk);
+    if (error) [result addEntriesFromDictionary:error];
     return result;
 }
 
-// Waits (in the run loop's common modes, so a modal panel does not stall it) until the document is ready, then goes
-// to the page or heading asked for and answers from where the reader then is.
+// Waits (in the run loop's common modes, so a modal panel does not stall it) until the document is laid out, then
+// goes to the page or heading asked for, and answers once that is drawn.
 - (void)agentFinishOpen:(NSDictionary*)request reply:(void (^)(NSDictionary*))reply deadline:(NSDate*)deadline
               navigated:(BOOL)navigated {
     NSString* path = request[@"path"];
     if (![Standard([self selectedTab].path) isEqualToString:Standard(path)]) {
-        reply(@{@"opened" : @NO, @"error" : @"Another document was shown before this one finished opening."});
+        reply(@{@"opened" : @NO, @"errorCode" : @"failed",
+                @"error" : @"Another document was shown before this one finished opening."});
         return;
     }
     SPDFMacMarkdownSession* session = [self isMarkdownActive] ? [self activeMarkdownSession] : nil;
     if (session.state == SPDFMacMarkdownSessionFailed) {
-        reply(@{@"opened" : @NO, @"windowId" : @(_window.windowNumber), @"error" : @"The document could not be read."});
+        reply(@{@"opened" : @NO, @"windowId" : @(_window.windowNumber), @"errorCode" : @"load-failed",
+                @"error" : @"The document could not be read."});
         return;
     }
-    BOOL ready = session ? session.isNavigationReady : _doc != NULL;
-    if (ready && navigated) {
-        reply([self agentOpenResult:path error:nil]);
-        return;
-    }
-    if (ready) {
-        NSString* missing = [self agentGoTo:request];
+    BOOL laidOut = session ? session.isNavigationReady && (!request[@"previousRender"] ||
+                                                           (id)session.renderedDocument != request[@"previousRender"])
+                           : _doc != NULL;
+    if (laidOut && !navigated) {
+        NSDictionary* missing = [self agentGoTo:request];
         if (missing) {
             reply([self agentOpenResult:path error:missing]);
             return;
         }
         navigated = YES;
-    } else if (deadline.timeIntervalSinceNow <= 0) {
-        reply(@{@"opened" : @YES, @"windowId" : @(_window.windowNumber),
-                @"error" : @"The document is still loading after 20 seconds."});
+    }
+    if (navigated && [self agentRendered:request]) {
+        NSMutableDictionary* result = [[self agentOpenResult:path error:nil] mutableCopy];
+        result[@"rendered"] = @YES;
+        if (request[@"reloaded"]) result[@"reloaded"] = @YES;
+        reply(result);
+        return;
+    }
+    if (deadline.timeIntervalSinceNow <= 0) {
+        NSMutableDictionary* result = [[self agentOpenResult:path error:@{
+            @"errorCode" : @"timeout", @"error" : @"The document is still loading."}] mutableCopy];
+        result[@"rendered"] = @NO;
+        reply(result);
         return;
     }
     __weak ShenzhenMacDelegate* weakSelf = self;
     CFRunLoopTimerRef timer = CFRunLoopTimerCreateWithHandler(
-        NULL, CFAbsoluteTimeGetCurrent() + (navigated ? 0.15 : 0.05), 0, 0, 0, ^(CFRunLoopTimerRef t) {
+        NULL, CFAbsoluteTimeGetCurrent() + (navigated ? 0.1 : 0.05), 0, 0, 0, ^(CFRunLoopTimerRef t) {
           (void)t;
           ShenzhenMacDelegate* reader = weakSelf;
-          if (!reader) reply(@{@"opened" : @NO, @"error" : @"The window closed."});
+          if (!reader) reply(@{@"opened" : @NO, @"errorCode" : @"failed", @"error" : @"The window closed."});
           else [reader agentFinishOpen:request reply:reply deadline:deadline navigated:navigated];
         });
     CFRunLoopAddTimer(CFRunLoopGetMain(), timer, kCFRunLoopCommonModes);
     CFRelease(timer);
 }
 
-// Goes to the page or heading asked for. A message when it is not in the document, else nil.
-- (NSString*)agentGoTo:(NSDictionary*)request {
+// Goes to the page or heading asked for. An error (errorCode, error, and the headings it could mean) when it is not in
+// the document, else nil.
+- (NSDictionary*)agentGoTo:(NSDictionary*)request {
     SPDFMacMarkdownSession* session = [self isMarkdownActive] ? [self activeMarkdownSession] : nil;
     if (request[@"page"]) {
         NSInteger page = [request[@"page"] integerValue] - 1;
         NSInteger count = session ? (NSInteger)session.pageCount : spdf_page_count(_doc);
-        if (page >= count) return [NSString stringWithFormat:@"The document has %ld pages.", (long)count];
+        if (page >= count)
+            return @{@"errorCode" : @"page-out-of-range",
+                     @"error" : [NSString stringWithFormat:@"The document has %ld pages.", (long)count]};
         if (session) [self markdownGoToPage:page];
         else [self goToPage:page preserveSinglePagePosition:NO];
         return nil;
@@ -234,15 +257,27 @@ static NSArray<NSString*>* HeadingPath(NSArray<NSString*>* titles, const std::ve
     NSMutableArray<NSValue*>* ranges = [NSMutableArray array];
     std::vector<NSInteger> levels, pages;
     [self agentHeadings:titles levels:levels pages:pages ranges:ranges];
-    std::vector<const char*> utf8;
-    for (NSString* title in titles) utf8.push_back(title.UTF8String);
-    int found = spdf_link_match_title(wanted.UTF8String, utf8.data(), (int)utf8.size());
-    if (found >= 0 && session) [session revealRange:ranges[(NSUInteger)found].rangeValue];
-    else if (found >= 0 && pages[(size_t)found] >= 0) [self goToPage:pages[(size_t)found] preserveSinglePagePosition:NO];
-    else if (!session && _doc && spdf_named_destination_page(_doc, wanted.UTF8String) >= 0)
+    NSMutableArray* levelNumbers = [NSMutableArray array];
+    for (NSInteger level : levels) [levelNumbers addObject:@(level)];
+    NSMutableArray* rows = [NSMutableArray array];
+    NSArray* base = SPDFMacSzpdfHeadingRows(titles, levelNumbers);
+    for (NSUInteger i = 0; i < base.count; i++) {
+        NSMutableDictionary* row = [base[i] mutableCopy];
+        row[@"page"] = @(pages[i] + 1);
+        [rows addObject:row];
+    }
+    NSDictionary* match = SPDFMacSzpdfMatchHeading(rows, wanted);
+    if (match[@"index"]) {
+        NSUInteger found = [match[@"index"] unsignedIntegerValue];
+        if (session) [session revealRange:ranges[found].rangeValue];
+        else if (pages[found] >= 0) [self goToPage:pages[found] preserveSinglePagePosition:NO];
+        return nil;
+    }
+    if (!session && _doc && spdf_named_destination_page(_doc, wanted.UTF8String) >= 0) {
         [self goToPage:spdf_named_destination_page(_doc, wanted.UTF8String) preserveSinglePagePosition:NO];
-    else return [NSString stringWithFormat:@"No heading matches “%@”.", wanted];
-    return nil;
+        return nil;
+    }
+    return match;
 }
 
 #pragma mark - Versions
@@ -325,7 +360,15 @@ static NSArray<NSString*>* HeadingPath(NSArray<NSString*>* titles, const std::ve
         return;
     }
     if (quitting) {
-        reply(@{@"opened" : @NO, @"quitting" : @YES, @"error" : @"ShenzhenPDF is quitting."});
+        reply(@{@"opened" : @NO, @"quitting" : @YES, @"errorCode" : @"quitting", @"error" : @"ShenzhenPDF is quitting."});
+        return;
+    }
+    if ([command isEqual:@"close"]) {
+        [self agentClose:request readers:readers reply:reply];
+        return;
+    }
+    if ([command isEqual:@"watch-comments"]) {
+        [self agentWatchComments:request reply:reply];
         return;
     }
     if ([command isEqual:@"comments-changed"]) {
@@ -347,6 +390,7 @@ static NSArray<NSString*>* HeadingPath(NSArray<NSString*>* titles, const std::ve
         if (!target && reader->_window.keyWindow) target = reader;
     target = target ?: readers.firstObject;
     if ([command isEqual:@"version"]) [target agentVersion:request reply:reply];
+    else if ([command isEqual:@"reload"]) [target agentReload:request reply:reply];
     else [target agentOpen:request reply:reply];
 }
 

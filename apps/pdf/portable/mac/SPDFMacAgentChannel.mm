@@ -65,7 +65,10 @@ NSDictionary* SPDFMacAgentChannelValidateRequest(NSData* line, NSError** error) 
     NSString* command = [request[@"command"] isKindOfClass:NSString.class] ? request[@"command"] : nil;
     NSDictionary<NSString*, NSArray<NSString*>*>* allowed = @{
         @"state" : @[ @"command" ],
-        @"open" : @[ @"command", @"path", @"page", @"heading", @"front", @"wait" ],
+        @"open" : @[ @"command", @"path", @"page", @"heading", @"front", @"wait", @"reload", @"timeout" ],
+        @"reload" : @[ @"command", @"path", @"timeout" ],
+        @"close" : @[ @"command", @"path", @"windowId" ],
+        @"watch-comments" : @[ @"command", @"path", @"since", @"timeout" ],
         @"screenshot" : @[ @"command", @"windowId", @"output" ],
         @"comments-changed" : @[ @"command", @"path" ],
         @"version" : @[ @"command", @"action", @"path", @"carry", @"older", @"newer", @"front", @"wait" ],
@@ -75,9 +78,19 @@ NSDictionary* SPDFMacAgentChannelValidateRequest(NSData* line, NSError** error) 
     for (NSString* key in failure ? @[] : request.allKeys)
         if (![allowed[command] containsObject:key])
             failure = ChannelError([NSString stringWithFormat:@"Unknown field %@.", key]);
-    BOOL takesPath = [@[ @"open", @"comments-changed", @"version" ] containsObject:command ?: @""];
+    BOOL takesPath = [@[ @"open", @"reload", @"comments-changed", @"version", @"watch-comments" ]
+        containsObject:command ?: @""];
     if (!failure && takesPath && !IsAbsolutePath(request[@"path"]))
         failure = ChannelError(@"An absolute document path is required.");
+    if (!failure && request[@"timeout"] && !IsWholeNumber(request[@"timeout"], 1, 86400))
+        failure = ChannelError(@"timeout must be whole seconds.");
+    if (!failure && [command isEqual:@"close"] &&
+        !((IsAbsolutePath(request[@"path"]) && !request[@"windowId"]) ||
+          (IsWholeNumber(request[@"windowId"], 1, INT32_MAX) && !request[@"path"])))
+        failure = ChannelError(@"close takes an absolute path or a window number.");
+    if (!failure && [command isEqual:@"watch-comments"] && request[@"since"] &&
+        (![request[@"since"] isKindOfClass:NSString.class] || [request[@"since"] length] > 64))
+        failure = ChannelError(@"since must be an ISO 8601 time.");
     if (!failure && [command isEqual:@"open"]) {
         if (request[@"page"] && !IsWholeNumber(request[@"page"], 1, 1000000))
             failure = ChannelError(@"page must be a whole number from 1.");
@@ -87,8 +100,9 @@ NSDictionary* SPDFMacAgentChannelValidateRequest(NSData* line, NSError** error) 
             failure = ChannelError(@"heading must be text of at most 512 characters.");
         else if (request[@"page"] && request[@"heading"])
             failure = ChannelError(@"Give a page or a heading, not both.");
-        else if ((request[@"front"] && !IsBool(request[@"front"])) || (request[@"wait"] && !IsBool(request[@"wait"])))
-            failure = ChannelError(@"front and wait must be true or false.");
+        else if ((request[@"front"] && !IsBool(request[@"front"])) || (request[@"wait"] && !IsBool(request[@"wait"])) ||
+                 (request[@"reload"] && !IsBool(request[@"reload"])))
+            failure = ChannelError(@"front, wait and reload must be true or false.");
     }
     if (!failure && [command isEqual:@"version"]) {
         NSString* action = request[@"action"];

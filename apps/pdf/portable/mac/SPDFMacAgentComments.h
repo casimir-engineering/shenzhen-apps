@@ -30,4 +30,16 @@ FOUNDATION_EXPORT NSDictionary* _Nullable SPDFMacAgentResolveComment(NSString* p
                                                                      BOOL resolved, NSString* author,
                                                                      NSError** error);
 
+// Errors from these functions carry a stable szpdf error code (szpdf help errors) under this key.
+FOUNDATION_EXPORT NSString* const SPDFMacAgentCommentsErrorCodeKey;
+
+// A new Markdown comment, already anchored (quote, line, heading path, context; SPDFMacMarkdownComments.h), written into
+// the comments file in line order; answers it with its id.
+FOUNDATION_EXPORT NSDictionary* _Nullable SPDFMacAgentAddMarkdownComment(NSString* path, SPDFMarkdownComment* comment,
+                                                                         NSError** error);
+// A new PDF comment: a highlight on `where[@"quote"]` (which must occur once) or a note at the top of
+// `where[@"page"]`; answers it with its id.
+FOUNDATION_EXPORT NSDictionary* _Nullable SPDFMacAgentAddPDFComment(NSString* path, NSDictionary* where, NSString* text,
+                                                                    NSString* author, NSError** error);
+
 NS_ASSUME_NONNULL_END

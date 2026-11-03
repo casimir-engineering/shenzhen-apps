@@ -3,20 +3,13 @@
 // It is the app's own executable under another name: Contents/MacOS/szpdf is a link to ShenzhenPDF, and main()
 // hands over here, before any AppKit start-up, when it was run by that name.
 //
-//   szpdf open <file> [--page N | --heading TEXT] [--front] [--wait] [--timeout SECONDS]
-//   szpdf state
-//   szpdf screenshot <windowId> <out.png>
-//   szpdf comments <file> [--json] [--version N]
-//   szpdf comment reply <file> <id> TEXT [--author NAME]
-//   szpdf comment resolve <file> <id> [--reopen] [--author NAME]
-//   szpdf version new <file> [--carry open|all|none]
-//   szpdf version list <file>
-//   szpdf version compare <file> <older> <newer> [--background | --front] [--wait]
+//   szpdf help [command]: every command, with its options, an example and its JSON fields (SPDFMacSzpdfHelp.mm).
 //
 // It talks to running readers over their private sockets (SPDFMacAgentChannel.h) and starts the app when none runs.
-// Opening never brings ShenzhenPDF forward unless --front is given. Every command prints one JSON object (comments
-// without --json prints a readable list) and exits 0 on success, 1 when the answer carries an error, 2 for a usage
-// mistake.
+// Nothing it does brings ShenzhenPDF forward unless --front is given. Every command prints one JSON object with "ok"
+// (comments without --json prints a readable list) and exits 0 on success, 1 when "ok" is false, 2 for a usage
+// mistake. The commands that need no window (headings, find, check, features, export-pdf, page pictures) run in the
+// tool's own process.
 #import <Foundation/Foundation.h>
 
 NS_ASSUME_NONNULL_BEGIN
@@ -24,6 +17,9 @@ NS_ASSUME_NONNULL_BEGIN
 // YES when the process was started as "szpdf" (any directory, through any link).
 BOOL SPDFMacIsSzpdfInvocation(const char* _Nullable argv0);
 int SPDFMacRunSzpdf(int argc, const char* _Nonnull argv[_Nonnull]);
+
+// The key of a usage mistake's NSError userInfo naming the command it was for ("comment add"), when known.
+FOUNDATION_EXPORT NSString* const SPDFMacSzpdfUsageCommandKey;
 
 // The command line, checked: {command, ...fields} with paths made absolute against `directory`, or nil and `error`
 // (whose message is the usage line to print). Pure; tested in mac/tests/SPDFMacAgentChannelTests.mm.

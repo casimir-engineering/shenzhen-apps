@@ -40,7 +40,18 @@ static void TestRequests(void) {
     Expect(Check(@{@"command" : @"version", @"action" : @"compare", @"path" : @"/a/b.md", @"older" : @1, @"newer" : @2,
                    @"front" : @NO, @"wait" : @YES}) != nil,
            @"version compare");
+    Expect(Check(@{@"command" : @"reload", @"path" : @"/a/b.md", @"timeout" : @30}) != nil, @"reload");
+    Expect(Check(@{@"command" : @"close", @"windowId" : @7}) != nil && Check(@{@"command" : @"close", @"path" : @"/a.md"}),
+           @"close a window or a document");
+    Expect(Check(@{@"command" : @"watch-comments", @"path" : @"/a.md", @"since" : @"2026-11-03T05:40:28+08:00",
+                   @"timeout" : @60}) != nil,
+           @"watch-comments");
+    Expect(Check(@{@"command" : @"open", @"path" : @"/a.md", @"reload" : @YES, @"timeout" : @5}) != nil, @"open --reload");
     NSArray* refused = @[
+        @{@"command" : @"close"}, @{@"command" : @"close", @"path" : @"/a.md", @"windowId" : @7},
+        @{@"command" : @"close", @"path" : @"a.md"}, @{@"command" : @"reload", @"path" : @"/a.md", @"timeout" : @0},
+        @{@"command" : @"watch-comments", @"path" : @"/a.md", @"since" : @5},
+        @{@"command" : @"open", @"path" : @"/a.md", @"reload" : @"yes"},
         @{@"command" : @"quit"}, @{@"command" : @"state", @"extra" : @1}, @{@"path" : @"/a.md"},
         @{@"command" : @"open", @"path" : @"b.md"}, @{@"command" : @"open"},
         @{@"command" : @"open", @"path" : @"/a.md", @"page" : @0},
@@ -173,10 +184,10 @@ static void TestArguments(void) {
     NSArray* wrong = @[
         @[], @[ @"open" ], @[ @"open", @"a.md", @"--page", @"0" ], @[ @"open", @"a.md", @"--page", @"two" ],
         @[ @"open", @"a.md", @"--page", @"2", @"--heading", @"Setup" ], @[ @"open", @"a.md", @"--front", @"--background" ],
-        @[ @"open", @"a.md", @"--json" ], @[ @"open", @"a.md", @"--page" ], @[ @"open", @"a.md", @"--timeout", @"0" ],
+        @[ @"open", @"a.md", @"--page" ], @[ @"open", @"a.md", @"--timeout", @"0" ],
         @[ @"state", @"--wait" ], @[ @"screenshot", @"x", @"a.png" ], @[ @"screenshot", @"4", @"a.jpg" ],
         @[ @"comment", @"reply", @"a.md", @"m1" ], @[ @"comment", @"reply", @"a.md", @"m1", @"  " ],
-        @[ @"comment", @"delete", @"a.md", @"m1" ], @[ @"comments", @"a.md", @"--author", @"x" ], @[ @"--version" ],
+        @[ @"comment", @"delete", @"a.md", @"m1" ], @[ @"comments", @"a.md", @"--author", @"x" ], @[ @"--version", @"x" ],
         @[ @"version", @"new", @"r.md", @"--carry", @"some" ], @[ @"version", @"list", @"r.md", @"--carry", @"all" ],
         @[ @"version", @"compare", @"r.md", @"2", @"2" ], @[ @"version", @"compare", @"r.md", @"1" ],
         @[ @"version", @"compare", @"r.md", @"1", @"2", @"--front", @"--background" ], @[ @"version", @"r.md" ],
@@ -186,7 +197,11 @@ static void TestArguments(void) {
         Expect(Parse(arguments) == nil, [NSString stringWithFormat:@"refused: %@", arguments]);
     NSError* error = nil;
     SPDFMacSzpdfParseArguments(@[ @"open", @"a.md", @"--nope" ], @"/", &error);
-    Expect([error.localizedDescription hasPrefix:@"Unknown option --nope.\nusage: szpdf open"], @"usage follows the error");
+    Expect([error.localizedDescription isEqualToString:@"--nope does not apply to szpdf open."] &&
+               [error.userInfo[SPDFMacSzpdfUsageCommandKey] isEqualToString:@"open open"] == NO &&
+               [error.userInfo[SPDFMacSzpdfUsageCommandKey] isEqualToString:@"open"],
+           @"the mistake names its command, for its usage");
+    Expect([Parse(@[ @"open", @"a.md", @"--json" ])[@"command"] isEqualToString:@"open"], @"--json is accepted everywhere");
     Expect(SPDFMacIsSzpdfInvocation("/usr/local/bin/szpdf") && SPDFMacIsSzpdfInvocation("szpdf") &&
                !SPDFMacIsSzpdfInvocation("/Applications/ShenzhenPDF.app/Contents/MacOS/ShenzhenPDF") &&
                !SPDFMacIsSzpdfInvocation(NULL),
@@ -218,7 +233,8 @@ static void TestCommentJSON(void) {
     Expect(identifier.length == 9 && [identifier hasPrefix:@"m"], identifier);
     NSDictionary* json = SPDFMacAgentMarkdownCommentJSON(comment, identifier);
     Expect([json[@"headingPath"] isEqual:(@[ @"Setup", @"Wiring" ])] && [json[@"line"] isEqual:@12] &&
-               [json[@"status"] isEqualToString:@"open"] && [json[@"date"] isEqualToString:@"2026-11-01T07:20:00Z"] &&
+               [json[@"status"] isEqualToString:@"open"] && [[NSISO8601DateFormatter new] dateFromString:json[@"date"]].timeIntervalSince1970 == 1793517600 &&
+               [json[@"date"] length] == 25 &&
                [json[@"replies"] isEqual:@[]],
            [NSString stringWithFormat:@"comment JSON: %@", json]);
     SPDFMarkdownCommentReply* reply = [SPDFMarkdownCommentReply new];

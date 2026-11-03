@@ -17,7 +17,7 @@ guide below documents the command-line and stdio MCP interfaces only; their
 commands do not send content to a model. The assistant guide covers its setup,
 privacy, undo behavior and boundaries.
 
-- [szpdf: drive the running app](#szpdf)
+- [szpdf for agents](#szpdf)
 - [Native inspection and layout settings](#native-command)
 - [Author, inspect and refine Markdown output](#author-inspect-and-refine-markdown-output)
 - [Navigate and highlight](#navigate-and-highlight)
@@ -40,77 +40,273 @@ or manage Collection. Those operations are available only through the
 separately documented in-reader assistant where explicitly supported; do not
 infer broader capabilities from either interface.
 
-## <a id="szpdf"></a>szpdf: drive the running app
+## <a id="szpdf"></a>szpdf for agents
 
-`szpdf` talks to the ShenzhenPDF that is already running (the `--agent-command` mode below works without it). It is
-the app's own executable under another name: `ShenzhenPDF.app/Contents/MacOS/szpdf`. Run it from there, or install
-it with **Settings › General › Install Command-Line Tool**, which links `~/.local/bin/szpdf` to it (no administrator
-password; add `~/.local/bin` to `PATH` if your shell does not find it).
+`szpdf` is ShenzhenPDF's command-line tool for scripts and agents: open a document at a page or heading, see what the
+reader shows, take pictures of pages, read and write comments, keep versions, and learn what a Markdown file will look
+like before anyone opens it. It is the app's own executable under another name,
+`ShenzhenPDF.app/Contents/MacOS/szpdf`; **Settings › General › Install Command-Line Tool** links `~/.local/bin/szpdf`
+to it (add `~/.local/bin` to `PATH` if your shell does not find it).
 
-| Command | Prints |
-|---|---|
-| `szpdf open <file> [--page N \| --heading TEXT] [--front] [--wait] [--timeout S]` | `opened`, `windowId`, `page`, `pageCount`, `heading`, `headingPath`, `front`, `pid`, or `error` |
-| `szpdf state` | `processes`, `windows` (id, title, visible, frame, documents) and `documents` (path, page, heading, `reloadedAt`, `loadedFileModified`, `fileModified`, `upToDate`) |
-| `szpdf screenshot <windowId> <out.png>` | `path`, `width`, `height` |
-| `szpdf comments <file> [--json]` | `comments`: `id`, `line` (Markdown) or `page` (PDF), `quote`, `headingPath`, `author`, `date`, `status` (`open`/`resolved`), `text`, `replies` |
-| `szpdf comment reply <file> <id> TEXT [--author NAME]` | the updated `comment`, and how many readers redrew it |
-| `szpdf comment resolve <file> <id> [--reopen] [--author NAME]` | the updated `comment` |
-| `szpdf comments <file> --version N [--json]` | the comments of version N |
-| `szpdf version new <file> [--carry open\|all\|none]` | the frozen `version`: `number`, `name`, `path`, `commentsPath`, `date`, `current` |
-| `szpdf version list <file>` | `versions`, oldest first, the current file last |
-| `szpdf version compare <file> <older> <newer> [--background \| --front] [--wait]` | `opened`, `windowId` of the comparison; with `--wait`, once both are laid out: `loaded`, `changes` |
-
-Paths may be relative. Exit status is 0 on success, 1 when the JSON carries `error`, 2 for a usage mistake.
-
-**Opening.** `open` goes to the window already showing the document, else to the one in front. Without `--front`
-nothing comes forward: a new tab opens in place and a window that was not showing opens behind the other apps'
-windows. When ShenzhenPDF is not running, `open` starts it the same way, in the background. `--wait` (implied by
-`--page` and `--heading`) answers once the document has loaded and is at its place; `--heading` matches the text
-exactly, then ignoring case, then by its GitHub slug, as links do. A document that cannot be shown is an error, never
-silence: a missing file, a page past the end, a heading that is not there, a document that failed to load. A
-ShenzhenPDF that is quitting is not handed the document: `open` waits for it to finish (up to 15 seconds) and starts
-it afresh. `open -g` (macOS) also leaves ShenzhenPDF in the background, for documents and for `szpdf:` links.
-
-**Screenshots** are drawn by the window itself, so a window behind others or off screen comes out whole and no Screen
-Recording permission is needed.
-
-**Comments** are read and written where the reader keeps them, whether or not the app runs; a reader showing the
-document redraws them at once. A Markdown document's live in `<title> - comments.md` beside it; a reply is a list item
-under the comment with its own byline, and a resolved comment ends its byline with `· Resolved`:
-
-```markdown
-**Raph** · 2026-11-01 15:20 · Resolved
-
-Check the value.
-
-- **Claude** · 2026-11-01 16:00
-
-  4.7 kΩ on both, per the datasheet.
+```sh
+szpdf help                      # every command, one line each
+szpdf help comment add          # one command: usage, options, an example, the JSON fields
+szpdf schema                    # all of that, and the error codes, as JSON
+szpdf features --format md      # what the Markdown reader renders
+szpdf check report.md           # what it will do with this file
+szpdf open report.md --heading "Power › Rails" --wait
+szpdf comments report.md --wait-new --timeout 1800
 ```
 
-A PDF's are annotations inside it: a reply is a note answering the comment (`/IRT`), and resolved is the review state
-Acrobat and Preview use (`/StateModel /Review`, `/State /Completed`). A PDF is changed through a copy that replaces the
-file only if nothing else changed it meanwhile. An `id` (`m…` for Markdown, `p…` for PDF) stays the same while the
-comment lives; replying and resolving keep it. Replies are signed `--author`, else `$SZPDF_AUTHOR`, else `Agent`.
+### How it behaves
 
-**Versions.** Before rewriting a reviewed document, run `szpdf version new <file>`, then write the new text to the same
-path: the current text is kept as `<name> v1.md` (or `.pdf`) beside it with all its comments, and the open ones come
-along to the file you rewrite (`--carry open`, the default; `all` or `none` otherwise). The file at the original path
-is always the newest version, so nothing else changes for your editor. If you skip `version new`, ShenzhenPDF keeps
-the earlier text of a commented document when it notices the rewrite, but only while the document is open in it.
-`version new` and `list` work through the running app when there is one (its tabs follow) and straight on the files
-otherwise; `version compare` opens the comparison window behind your other windows (never ordered in front, not for a frame)
-unless `--front`, starting the app if needed; `--wait` answers once both versions are laid out.
+- **It never takes the focus.** Nothing szpdf does brings ShenzhenPDF to the front or makes it the active app, except
+  `open --front` and `version compare --front`. A window that was not showing opens behind the other apps' windows; a
+  new tab opens in place. When ShenzhenPDF is not running, `open` (and `version compare`) start it the same way, with
+  no document handed through Launch Services (that would make macOS bring it forward); the document goes over the
+  tool's private socket once the app answers. A ShenzhenPDF that runs but does not answer yet is waited for (up to
+  `--timeout`), never started a second time.
+- **One JSON object per command**, on standard output, with `"ok": true` or `"ok": false`. A failure is
+  `{"ok": false, "error": {"code": "…", "message": "…"}}`, sometimes with more fields (`closest`, `matches`). The codes
+  are stable; see [Error codes](#szpdf-errors). `--json` is accepted by every command; only `comments` (a readable list)
+  prints anything else without it.
+- **Exit status**: 0 when `ok` is true, 1 when it is false, 2 for a usage mistake. A usage mistake prints the
+  command's usage line and `Run "szpdf help <command>"` on standard error, and `{"ok": false, "error": {"code":
+  "usage", …}, "usage": "…"}` on standard output.
+- **Paths** may be relative; answers give real paths (`/private/tmp`, not `/tmp`). Times are ISO 8601 with seconds and
+  the local offset: `2026-11-03T05:40:28+08:00`.
+- **Without the app.** `headings`, `find`, `check`, `features`, `export-pdf`, `export-page` and a `screenshot` of a
+  document's page lay the document out in the tool's own process, exactly as the reader does at the document's own
+  paper settings (A4 portrait unless its front matter says otherwise); the comment and version commands work on the
+  files. Nothing needs a window. `open`, `reload`, `close`, `state` and a window `screenshot` need the app.
 
-**The channel.** Each ShenzhenPDF window process listens, from after its first frame, on its own Unix socket,
+### Commands
+
+| Command | What it does |
+|---|---|
+| `open <file> [--page N \| --heading H] [--front] [--wait] [--reload] [--timeout S]` | shows the document (behind, unless `--front`) |
+| `reload <file>` | reads a rewritten file again and re-renders it; answers once it is drawn |
+| `close <file\|windowId>` | closes the tabs showing a document, or every tab of a window |
+| `state` | processes, windows and every open document |
+| `headings <file>` (or `outline`) | the heading tree: level, title, path, page, Markdown line |
+| `find <file> TEXT [--case] [--limit N]` | each match's page, line, heading path and the words around it |
+| `screenshot <windowId> <out.png>` | the window as it is, drawn by the window (no Screen Recording permission) |
+| `screenshot <windowId\|file> <out.png> --page N [--region x,y,w,h] [--scale S]` | one page, drawn from the document: the window does not move |
+| `export-page <file> <N> <out.png> [--scale S] [--region …]` | the same as `screenshot <file> … --page N` |
+| `export-pdf <file.md> <out.pdf>` | a Markdown document as the PDF ShenzhenPDF would print |
+| `comments <file> [--version N] [--json]` | the comments, with replies |
+| `comments <file> --wait-new [--since ISO] [--timeout S]` | waits for a comment or reply to be added, edited, resolved or removed |
+| `comment add <file> (--line N \| --quote T \| --heading H \| --page N) TEXT [--author A]` | a new comment |
+| `comment reply <file> <id> TEXT [--author A]` | answers a comment |
+| `comment resolve <file> <id> [--reopen] [--author A]` | marks it resolved (or open again) |
+| `version new <file> [--carry open\|all\|none]` | freezes the current text before you rewrite the file |
+| `version list <file>` | the versions, oldest first, the file itself last |
+| `version compare <file> <older> <newer> [--front] [--wait]` | the changed blocks, and a comparison window behind your windows |
+| `check <file.md>` | what the reader will do with a Markdown file |
+| `features [--format md\|pdf\|all]` | what the reader renders, as data |
+| `schema [command]`, `help [command]`, `--version` | the commands themselves |
+
+### Opening, waiting and headings
+
+`open` goes to the window already showing the document, else to the one in front. Without `--wait` it answers as soon
+as the document is in a tab. With `--wait` (implied by `--page`, `--heading` and `--reload`) it answers once the layout
+is final (`pageCount` will not change), the page or heading asked for is in view and the first visible page has been
+drawn: `"rendered": true`. So a `screenshot` right after never catches a half-drawn page. `--timeout` (default 30 s)
+bounds the start of the app and the load; past it the answer is `timeout`, with `rendered: false`.
+
+`--heading` takes the first of these that matches anything, ignoring Markdown marks and runs of spaces:
+
+1. the heading exactly;
+2. the heading in any case;
+3. the start of a heading, in any case: `--heading "4. DisplayPort AUX"` finds `4. DisplayPort AUX (nets "SBU1"/"SBU2")`;
+4. any part of a heading, in any case;
+5. the heading's link slug (`pull-ups`, `usage-1` for the second "Usage"), as `#` links name it.
+
+Two or more matches in the deciding step are the error `heading-ambiguous`, with `matches` (title, path, page, line).
+Name one by its path: `--heading "Wiring › Pull-ups"` (or `>` for `›`). No match is `heading-not-found`, with the five
+`closest` headings. A PDF's headings are its outline; its named destinations also work. `szpdf headings` lists them
+with their pages, Markdown lines and a `duplicate` flag.
+
+`reload <file>` (or `open <file> --reload`) reads the file again, re-lays it out and answers with `fileModified`,
+`pageCount` and `rendered: true` once it is drawn. ShenzhenPDF also reloads by itself when it notices the change; use
+`reload` when you need to know it is done. A tab that is not in front is marked to read the file again when shown
+(`rendered: false`).
+
+`close` closes only what you name: the tabs showing that document (in every window), or every tab of the window with
+that id. It never asks and never brings anything forward. A tab holding something not saved (a pasted image) makes it
+refuse with `unsaved-changes` and close nothing. A window whose last tab closes goes away.
+
+### What `state` says
+
+`processes` (pid, active, quitting); `windows` (`windowId`, title, visible, onScreen, minimized, key, frame
+`[x, y, width, height]`, documents); `documents`, one per tab: `path`, `windowId`, `selected` (the tab in front),
+`loaded` (its document has been read; a restored tab is not read until it is shown), `page`, `pageCount`, `heading` and
+`headingPath` at that page, `reloadedAt` (when the file was last read), `loadedFileModified` (the file's time then),
+`fileModified` (its time now) and `upToDate` (the two agree). For a tab that is not loaded every one of these but
+`path`, `page` and `fileModified` is `null`.
+
+### Pictures of pages
+
+`screenshot <windowId> <out.png>` draws the whole window as it is, sidebar included, even behind other windows or off
+screen. With `--page N` it instead draws page N of the document the window shows, from the document itself, at
+`--scale` pixels per point (default 2, at most 8); `--region x,y,w,h` keeps only that rectangle, in page points from
+the page's top left (72 points per inch; A4 is 595 × 842). Pages are drawn the way print and export draw them, in the
+light theme at the document's own paper settings. `screenshot <file> …` and `export-page` do the same for any
+document, open or not.
+
+### <a id="szpdf-comments"></a>Comments
+
+Comments live where the reader keeps them, so the app need not run.
+
+- **Markdown**: in `<name> - comments.md` beside `<name>.md`, a Markdown file anyone can read. One block per comment
+  between `---` rules: where it is (`**Line 57** · ## Wiring › ### Pull-ups`), the passage as a quote with the commented
+  words in bold, the byline, the text, then replies as list items. The byline shows the time to the minute; the exact
+  time, with seconds and time zone, is in an HTML comment after it that no viewer shows. ` · Resolved` ends a resolved
+  comment's byline. Comments whose words are no longer in the document are listed last, under `## Unplaced`.
+
+  ```markdown
+  ---
+
+  **Line 57** · # Bring-up › ## Wiring
+
+  > The board needs **two pull-ups on SDA** before power-on.
+
+  **Raph** · 2026-11-03 05:40 · Resolved <!-- at: 2026-11-03T05:40:28+08:00 -->
+
+  Why two?
+
+  - **Claude** · 2026-11-03 05:52 <!-- at: 2026-11-03T05:52:10+08:00 -->
+
+    One per bus; the datasheet asks for 4.7 kΩ.
+  ```
+
+- **PDF**: annotations inside the file, as Acrobat and Preview write them: a reply is a note answering the comment
+  (`/IRT`); resolved is the review state `/StateModel /Review`, `/State /Completed`. Dates (`/M`) keep their seconds.
+  The PDF is changed through a copy that replaces it only if nothing else changed it meanwhile.
+
+**Ids.** Every comment has an `id`, `m…` (Markdown) or `p…` (PDF), that stays the same while it lives: replying and
+resolving keep it. `comment add` answers the new comment with its id, which `reply` and `resolve` take.
+
+**Adding.** `comment add` takes exactly one place:
+
+- `--line N` (Markdown): the block (paragraph, list item, table row, heading) at source line N; a line with no words
+  of its own (blank, inside a code fence, a table rule, front matter) is `line-out-of-range`;
+- `--quote "words"`: those words as the reader shows them (without Markdown marks); they must occur once, else
+  `quote-not-found` or `quote-ambiguous` with `matches` (line, page, heading path, context);
+- `--heading H`: the heading, matched as `open --heading` matches;
+- `--page N` (PDF): a note at the top of page N. On a PDF `--quote` makes a highlight.
+
+The comment is anchored the way the reader anchors one made with the mouse: quote, line, heading path and the words
+around it, so it follows its words when the document is edited. It is signed `--author`, else `$SZPDF_AUTHOR`, else
+the name ShenzhenPDF signs your comments with (Settings › Reading & access, or the pencil on a comment; else the
+Mac's name). `reply` and `resolve` are signed `--author`, else `$SZPDF_AUTHOR`, else `Agent`. A reader showing the
+document redraws its comments at once (`readersRefreshed`).
+
+**Waiting for review.** `comments <file> --wait-new` returns when someone adds a comment or a reply, edits one,
+resolves or reopens one, or removes one: `changes` lists each with its `kind` (`added`, `reply`, `edited`, `resolved`,
+`reopened`, `removed`), the comment's `id`, `author`, `date`, `text`, `quote`, place, and `reply` for a reply. It waits
+on file system events (in the running app, else in the tool), never polling. `--since <ISO time>` also counts comments
+and replies dated after that time as new, so nothing made between two waits is missed. `--timeout S` (default 600)
+ends the wait with `"timedOut": true`, `changes: []` and exit status 0.
+
+### <a id="szpdf-versions"></a>Versions
+
+Before rewriting a reviewed document, run `szpdf version new <file>`, then write the new text to the same path:
+
+- the current text is frozen as `<name> v1.md` (or `.pdf`; then `v2`, `v3`…) beside it, with all its comments
+  (`<name> v1 - comments.md`);
+- the file at the original path becomes the next version and stays the newest, so editors and links do not change;
+- `--carry` says which comments come along to the file you rewrite: `open` (the default, the unresolved ones), `all`
+  or `none`. The frozen copy keeps all of them.
+
+`version list` gives `versions` (number, name, path, commentsPath, date, current), oldest first, the current file last.
+`comments <file> --version N` lists the comments of version N. `version new` and `list` go through the running app
+when there is one (its tabs follow) and straight to the files otherwise (`via`). If you skip `version new`, ShenzhenPDF
+keeps the earlier text of a commented document itself when it notices the rewrite, while the document is open in it.
+
+`version compare <file> <older> <newer>` answers `blocks`, the changes between the two texts: each has `kind`
+(`added`, `removed`, `changed`), `old` and `new` (`from`, `to`, `count`: lines from 1; a side with `count` 0 has no
+lines and `from` is the line the other side's lines come before), and `before` and `after` (the text). Markdown and
+text compare by source line; PDFs by the text lines of their pages, with `oldPages` and `newPages` too. It also opens
+the comparison window behind your windows (`--front` to bring it forward); with `--wait` it answers once the window has
+compared them, and `changes` is then the window's count of changed regions (else the number of blocks).
+
+### Writing Markdown that displays as you mean
+
+`szpdf features --format md` lists what the reader renders, read from the renderer itself where it keeps tables (code
+languages, the HTML tag policy, the image and diagram budgets): each entry has `area` (syntax, html, images, diagrams,
+code, page, comments), `name`, `support` (`yes`, `partial`, `no`), `notes` and an `example`; `limits` gives the
+numbers. In short: GitHub-flavoured Markdown (tables, task lists, strikethrough, autolinks) and callouts, `$…$` math,
+Mermaid flowchart, sequence, pie, state, class and gantt diagrams; no footnotes or `:emoji:` shortcodes; a sanitized
+HTML subset (`<img src width height>`, `<br>`, `<b>`, `<kbd>`, `<sub>`, `<details>`, `<table>` without merged cells,
+`<div align="center">`; `style`, `class` and `valign` are ignored; `<script>`, `<iframe>`, `<svg>` are removed with
+their content); local images inside the document's folder and https images; at most 33,554,432 decoded pixels of
+pictures per document, after which pictures show as `[Image: alt]`.
+
+`szpdf check <file.md>` reports, as `issues` (`severity` error, warning or info, `line`, `code`, `message`), what the
+reader will do with one file: missing images and images past the pixel budget (`image-missing`,
+`image-over-budget`, `image-not-allowed`), HTML it removes or ignores (`html-dropped`, `html-ignored`,
+`html-attribute-ignored`, `html-table-span`), broken `#anchors` and links (`broken-anchor`, `broken-link`,
+`link-blocked`), headings that make `--heading` ambiguous (`duplicate-heading`), footnotes, diagrams that will show
+as code (`diagram-as-code`), comments whose words are gone (`comment-unplaced`), and tables too wide or too long for
+the page (`wide-table`, `large-table`, `scaled-block`, `overflow`). It also gives `pageCount`.
+
+### <a id="szpdf-links"></a>Links into documents
+
+The app opens two kinds of link (from a web page, `open`, or another app):
+
+- `szpdf:` opens a document from the web ([details](../../docs/szpdf-links.md)). The document must be `https` (plain
+  `http` only for `localhost`, `127.0.0.1` and `[::1]`); no user name or password in the address.
+  - `szpdf://open?url=<percent-encoded address>` or `szpdf://https/<host>/<path>[?query]` (also `http/…`, and
+    `szpdf:https://…`). The `//` is optional.
+  - Where it opens, as query parameters (`&page=12`) or a fragment (`#page=12`; the fragment fills in only what the
+    query did not set): `page=N`; `section=` or `chapter=` (a PDF outline entry or named destination, an EPUB chapter;
+    `#nameddest=` too); `heading=` (a Markdown heading); or a bare `#slug` (a Markdown heading by its slug). Titles
+    and headings match exactly, then in any case, then by slug (a repeated heading is `usage-1`, `usage-2`…).
+  - Example: `szpdf://https/example.com/docs/spec.pdf#page=12`,
+    `szpdf://open?url=https%3A%2F%2Fexample.com%2Fhandbook%2FREADME.md&heading=Getting%20started`.
+  - The document is downloaded (a PDF shows page by page as it arrives), kept, and opened; unlike `szpdf open`, a
+    link brings ShenzhenPDF forward unless opened with `open -g`.
+- `shenzhenpdf:` is for Shenzhen Friends, not documents: `shenzhenpdf://friends` opens Friends,
+  `shenzhenpdf://friends/conversation/<id>` a conversation, and `shenzhenpdf://friends/link#<payload>` a Friends or
+  download link someone shared.
+
+To open a local file at a place, use `szpdf open <file> --page N` or `--heading H`; there is no `file:` link.
+
+### <a id="szpdf-errors"></a>Error codes
+
+| Code | Meaning |
+|---|---|
+| `usage` | the command line is wrong (exit status 2) |
+| `not-found` | no document (or folder for the output) at that path |
+| `unsupported` | the command does not apply to this kind of document (`--line` on a PDF, `check` on a PDF…) |
+| `not-running` | ShenzhenPDF is not running and this command does not start it (`reload`, `close`, a window screenshot) |
+| `not-open` | the document is not open in ShenzhenPDF |
+| `not-responding` | ShenzhenPDF runs but did not answer in time |
+| `launch-failed` | ShenzhenPDF could not be started |
+| `quitting` | ShenzhenPDF is quitting and did not finish in time |
+| `no-window` | no window has that id |
+| `load-failed` | the document could not be read or laid out |
+| `timeout` | the document did not finish loading in time |
+| `page-out-of-range` | the document has fewer pages |
+| `line-out-of-range` | the document has fewer lines, or no words to comment on at that line |
+| `heading-not-found` | no heading matches; `closest` lists the five nearest |
+| `heading-ambiguous` | several headings match; `matches` lists them |
+| `quote-not-found` | those words are not in the document |
+| `quote-ambiguous` | those words occur more than once; `matches` lists where |
+| `comment-not-found` | no comment has that id |
+| `version-not-found` | no such version |
+| `unsaved-changes` | `close` refused: a tab holds something not saved |
+| `write-failed` | a file could not be written |
+| `failed` | anything else; the message says what |
+
+### The channel
+
+Each ShenzhenPDF window process listens, from after its first frame, on its own Unix socket,
 `~/Library/Application Support/ShenzhenPDF/Agent/<pid>.sock` (directory 0700, socket 0600; it also checks the caller
 is the same user). Nothing listens on the network. A launch that no tool talks to costs one idle socket. Requests and
-answers are one JSON line each (`SPDFMacAgentChannel.h`).
-
-**Links.** `szpdf://open?url=<percent-encoded address>[&page=N][&section=…][&heading=…]` and
-`szpdf://https/<host>/<path>[#page=N | #section=… | #heading=… | #<slug>]` open a document from the web
-([details](../../docs/szpdf-links.md)). `shenzhenpdf://friends/link#<payload>` is a Friends or download link,
-`shenzhenpdf://friends` opens Friends and `shenzhenpdf://friends/conversation/<id>` a conversation.
+answers are one JSON line each (`SPDFMacAgentChannel.h`). `SPDF_STATE_DIR` moves the whole state folder, sockets
+included, which is how the tests run their own copy of the app without touching yours.
 
 ## Native command
 

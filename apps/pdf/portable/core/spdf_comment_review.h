@@ -181,3 +181,38 @@ int spdf_add_comment_reply(spdf_document* doc, int comment_index, const char* te
     spdf_drop_page_list_cache(doc, -1);
     return 1;
 }
+
+#include "spdf_comment_dates.h"
+
+int spdf_date_newest_comment(spdf_document* doc, int page_index, char* err, size_t err_len) {
+    pdf_document* pdf = NULL;
+    pdf_page* page = NULL;
+
+    set_error(err, err_len, "");
+    if (!doc || page_index < 0 || page_index >= doc->page_count) {
+        set_error(err, err_len, "Page index is out of range.");
+        return 0;
+    }
+    fz_try(doc->ctx) {
+        pdf_annot* annot;
+        pdf_annot* newest = NULL;
+        pdf_obj* obj;
+        pdf = pdf_specifics(doc->ctx, doc->doc);
+        if (!pdf) fz_throw(doc->ctx, FZ_ERROR_FORMAT, "Only PDF files hold comment dates.");
+        page = pdf_load_page(doc->ctx, pdf, page_index);
+        for (annot = pdf_first_annot(doc->ctx, page); annot; annot = pdf_next_annot(doc->ctx, annot)) newest = annot;
+        obj = newest ? pdf_annot_obj(doc->ctx, newest) : NULL;
+        if (obj && !pdf_dict_get(doc->ctx, obj, PDF_NAME(M)) && !pdf_dict_get(doc->ctx, obj, PDF_NAME(CreationDate))) {
+            pdf_dict_put_date(doc->ctx, obj, PDF_NAME(CreationDate), (int64_t)time(NULL));
+            pdf_dict_put_date(doc->ctx, obj, PDF_NAME(M), (int64_t)time(NULL));
+        }
+        pdf_drop_page(doc->ctx, page);
+        page = NULL;
+    }
+    fz_catch(doc->ctx) {
+        set_error(err, err_len, fz_caught_message(doc->ctx));
+        if (page) pdf_drop_page(doc->ctx, page);
+        return 0;
+    }
+    return 1;
+}

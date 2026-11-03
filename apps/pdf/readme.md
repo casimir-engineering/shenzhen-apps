@@ -110,7 +110,7 @@ A website can link straight to a document in ShenzhenPDF, at a page, section or 
 
 ### szpdf, the command-line tool
 
-`szpdf` drives the ShenzhenPDF that is running, so scripts and AI agents can open documents, see what is open and answer comments without taking over your screen. Opening never brings ShenzhenPDF forward unless you add `--front`, and it starts the app, behind your other windows, when it isn't running.
+`szpdf` lets scripts and AI agents open documents, see what is open, take pictures of pages, comment and answer comments, keep versions, and check how a Markdown file will look, without taking over your screen. Nothing it does brings ShenzhenPDF forward unless you add `--front`, and it starts the app, behind your other windows, when it isn't running. `szpdf help` lists the commands; `szpdf help <command>` shows each one's options, an example and its JSON fields.
 
 ```sh
 szpdf open report.md --heading "Results" --wait   # or --page 12; prints the window and where it landed
@@ -123,11 +123,19 @@ szpdf version new report.md                      # keep this text as v1 with its
 szpdf version list report.md                     # number, name, path, comments file, date, current
 szpdf version compare report.md 1 2 --wait       # the two side by side with their changes, behind your windows
 szpdf comments report.md --version 1 --json      # the comments made on v1
+szpdf comment add report.md --quote "4.7 kΩ" "Is this right at 1 MHz?"   # or --line N, --heading H, --page N (PDF)
+szpdf comments report.md --wait-new              # returns when someone comments, answers or resolves
+szpdf reload report.md                           # after rewriting it: read again, answers once it is drawn
+szpdf headings report.md                         # the heading tree, with pages and source lines
+szpdf screenshot report.md p3.png --page 3       # one page as a picture, drawn from the document
+szpdf check report.md                            # missing or oversized images, ignored HTML, broken links...
+szpdf features --format md                       # what the Markdown reader renders
+szpdf close report.md                            # close the tabs you opened
 ```
 
 **Rewriting a reviewed document:** run `szpdf version new report.md` first, then write the new text to the same path. The reviewed text and its comments stay as `report v1.md` (open comments come along to the new text unless `--carry none`), and `version compare` shows what changed. If you skip it, ShenzhenPDF keeps the earlier text for you, but only while the document is open in it.
 
-Every command prints JSON and exits 1 when something went wrong; a document that could not be shown says so. Install it from **Settings › General › Install Command-Line Tool**, which puts a link in `~/.local/bin` without asking for an administrator password, or run it from the app: `/Applications/ShenzhenPDF.app/Contents/MacOS/szpdf`. It only talks to ShenzhenPDF on this Mac, as you. `open -g` also leaves ShenzhenPDF in the background, for files and for links. Details: [the szpdf reference](portable/docs/agent-interface.md#szpdf).
+Every command prints JSON with `"ok"`, and exits 1 with `"error": {"code", "message"}` when something went wrong; a document that could not be shown says so. Install it from **Settings › General › Install Command-Line Tool**, which puts a link in `~/.local/bin` without asking for an administrator password, or run it from the app: `/Applications/ShenzhenPDF.app/Contents/MacOS/szpdf`. It only talks to ShenzhenPDF on this Mac, as you. `open -g` also leaves ShenzhenPDF in the background, for files and for links. Details: [the szpdf reference](portable/docs/agent-interface.md#szpdf).
 
 Links that open ShenzhenPDF: `szpdf://open?url=<address>` or `szpdf://https/<host>/<path>`, with `page=`, `section=` (or `chapter=`), `heading=` or a `#heading-slug` ([details](docs/szpdf-links.md)); `shenzhenpdf://friends/link#…` for a Friends link and `shenzhenpdf://friends/conversation/<id>` for a conversation.
 

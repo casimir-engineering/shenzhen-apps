@@ -65,6 +65,11 @@ FOUNDATION_EXPORT NSArray<SPDFMarkdownComment*>* SPDFMarkdownCommentsSorted(NSAr
 - (BOOL)placeComment:(SPDFMarkdownComment*)comment;
 // The rendered block (paragraph, list item, table row) around `location`, for a comment made without a selection.
 - (NSRange)blockRangeAtRenderedLocation:(NSUInteger)location;
+// The source's headings in order (ATX and setext, outside fences): {level, title without its markup, line}.
+- (NSArray<NSDictionary*>*)sourceHeadings;
+// Where the words of source line `line` (from 1) are in the rendered text; location NSNotFound when the line shows
+// no words of its own there (blank, a fence, front matter, a table rule).
+- (NSRange)renderedRangeForSourceLine:(NSInteger)line;
 @end
 
 NS_ASSUME_NONNULL_END

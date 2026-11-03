@@ -9,12 +9,17 @@
 #include <vector>
 
 #include "shenzhen_pdf_core.h"
+#include "spdf_comment_dates.h"
 #include "spdf_outline.h"
 
-static NSError* CommentsError(NSString* message) {
+NSString* const SPDFMacAgentCommentsErrorCodeKey = @"szpdfCode";
+
+static NSError* CodedError(NSString* code, NSString* message) {
     return [NSError errorWithDomain:@"ShenzhenPDF.AgentComments" code:1
-                           userInfo:@{NSLocalizedDescriptionKey : message}];
+                           userInfo:@{NSLocalizedDescriptionKey : message, SPDFMacAgentCommentsErrorCodeKey : code}];
 }
+
+static NSError* CommentsError(NSString* message) { return CodedError(@"failed", message); }
 
 static NSString* ShortHash(NSString* prefix, NSString* text) {
     NSData* data = [text dataUsingEncoding:NSUTF8StringEncoding];
@@ -30,9 +35,15 @@ static NSString* Unique(NSString* identifier, NSMutableDictionary<NSString*, NSN
     return count == 1 ? identifier : [NSString stringWithFormat:@"%@-%ld", identifier, (long)count];
 }
 
+// "2026-11-03T05:40:28+08:00": seconds and the local offset, as the comments file keeps them.
 static NSString* ISODate(NSDate* date) {
     static NSISO8601DateFormatter* formatter;
-    if (!formatter) formatter = [NSISO8601DateFormatter new];
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+      formatter = [NSISO8601DateFormatter new];
+      formatter.timeZone = NSTimeZone.localTimeZone;
+      formatter.formatOptions = NSISO8601DateFormatWithInternetDateTime;
+    });
     return date ? [formatter stringFromDate:date] : nil;
 }
 
@@ -101,7 +112,8 @@ static NSDictionary* ChangeMarkdownComment(NSString* path, NSString* identifier,
     NSMutableArray<SPDFMarkdownComment*>* comments = ReadMarkdownComments(file);
     NSUInteger index = [MarkdownIDs(comments) indexOfObject:identifier];
     if (index == NSNotFound) {
-        if (error) *error = CommentsError([NSString stringWithFormat:@"No comment %@ on this document.", identifier]);
+        if (error) *error = CodedError(@"comment-not-found", [NSString stringWithFormat:@"No comment %@ on this document; "
+                                                                                       @"szpdf comments lists them.", identifier]);
         return nil;
     }
     change(comments[index]);
@@ -192,7 +204,7 @@ static spdf_document* OpenPDF(NSString* path, NSError** error) {
         doc = NULL;
         snprintf(message, sizeof(message), "This PDF is protected by a password; open it in ShenzhenPDF instead.");
     }
-    if (!doc && error) *error = CommentsError(message[0] ? @(message) : @"The PDF could not be opened.");
+    if (!doc && error) *error = CodedError(@"load-failed", message[0] ? @(message) : @"The PDF could not be opened.");
     return doc;
 }
 
@@ -236,7 +248,10 @@ static NSDictionary* ChangePDFComment(NSString* path, NSString* identifier, NSEr
       if (!found) snprintf(message, length, "No comment %s on this document.", identifier.UTF8String);
       return found && change(doc, index, message, length);
     }, error);
-    if (!receipt) return nil;
+    if (!receipt) {
+        if (!found && error) *error = CodedError(@"comment-not-found", (*error).localizedDescription ?: @"No such comment.");
+        return nil;
+    }
     NSDictionary* listing = ListPDF(path, identifier, error);
     return [listing[@"comments"] firstObject] ?: @{@"id" : identifier};
 }
@@ -248,11 +263,11 @@ static BOOL IsPDF(NSString* path) { return [path.pathExtension.lowercaseString i
 static BOOL Check(NSString* path, NSError** error) {
     BOOL directory = NO;
     if (![NSFileManager.defaultManager fileExistsAtPath:path isDirectory:&directory] || directory) {
-        if (error) *error = CommentsError([NSString stringWithFormat:@"No document at %@.", path]);
+        if (error) *error = CodedError(@"not-found", [NSString stringWithFormat:@"No document at %@.", path]);
         return NO;
     }
     if (!IsPDF(path) && SPDFMarkdownIsCommentsFilePath(path)) {
-        if (error) *error = CommentsError(@"This is a comments file; name the document it belongs to.");
+        if (error) *error = CodedError(@"unsupported", @"This is a comments file; name the document it belongs to.");
         return NO;
     }
     return YES;
@@ -299,4 +314,90 @@ NSDictionary* SPDFMacAgentResolveComment(NSString* path, NSString* identifier, B
     return ChangeMarkdownComment(path, identifier, error, ^(SPDFMarkdownComment* comment) {
       comment.resolved = resolved;
     });
+}
+
+#pragma mark - New comments
+
+NSDictionary* SPDFMacAgentAddMarkdownComment(NSString* path, SPDFMarkdownComment* comment, NSError** error) {
+    if (!Check(path, error)) return nil;
+    NSString* file = SPDFMarkdownCommentsFilePath(path);
+    NSMutableArray<SPDFMarkdownComment*>* comments = ReadMarkdownComments(file);
+    // Placed among the others by its line: the reader puts it exactly where it belongs when it next lays it out.
+    NSUInteger at = 0;
+    while (at < comments.count && comments[at].placed && comments[at].line <= comment.line) at++;
+    [comments insertObject:comment atIndex:at];
+    for (NSUInteger i = 0; i < comments.count; i++)
+        if (comments[i].placed || comments[i] == comment) comments[i].renderedRange = NSMakeRange(i, 0);
+    NSString* text = SPDFMarkdownCommentsFileText(path.lastPathComponent, comments);
+    if (![text writeToFile:file atomically:YES encoding:NSUTF8StringEncoding error:nil]) {
+        if (error) *error = CodedError(@"write-failed", [NSString stringWithFormat:@"Could not write %@.", file.lastPathComponent]);
+        return nil;
+    }
+    NSArray<NSString*>* ids = MarkdownIDs(ReadMarkdownComments(file));
+    NSUInteger index = [ReadMarkdownComments(file) indexOfObjectPassingTest:^BOOL(SPDFMarkdownComment* c, NSUInteger i, BOOL* stop) {
+      (void)i; (void)stop;
+      return [c.quote isEqualToString:comment.quote] && [c.text isEqualToString:comment.text] &&
+             [c.author isEqualToString:comment.author] && fabs([c.date timeIntervalSinceDate:comment.date]) < 1;
+    }];
+    return SPDFMacAgentMarkdownCommentJSON(comment, index != NSNotFound ? ids[index] : SPDFMacAgentMarkdownCommentID(comment));
+}
+
+NSDictionary* SPDFMacAgentAddPDFComment(NSString* path, NSDictionary* where, NSString* text, NSString* author,
+                                        NSError** error) {
+    if (!Check(path, error)) return nil;
+    __block int page = -1;
+    NSString* revision = SPDFSearchFileStamp(path);
+    __block NSString* code = @"failed";
+    NSDictionary* receipt = SPDFAIMutatePDF(path, revision, nil, ^BOOL(spdf_document* doc, char* message, size_t length) {
+      int pages = spdf_page_count(doc);
+      if (where[@"quote"]) {
+          NSString* quote = where[@"quote"];
+          spdf_rect rects[256], hit[256];
+          int found = 0, count = 0;
+          NSMutableArray* places = [NSMutableArray array];
+          for (int p = 0; p < pages; p++) {
+              int n = spdf_search_page_rects(doc, p, quote.UTF8String, rects, 256, message, length);
+              if (n <= 0) continue;
+              [places addObject:@(p + 1)];
+              found += n;
+              if (page < 0) {
+                  page = p, count = n;
+                  memcpy(hit, rects, sizeof(spdf_rect) * (size_t)n);
+              }
+          }
+          // A match across lines comes as one rectangle per line, each below the last.
+          BOOL oneHit = places.count == 1;
+          for (int i = 1; oneHit && i < count; i++)
+              oneHit = hit[i].y0 > hit[i - 1].y0 && hit[i].y0 - hit[i - 1].y1 < 2 * (hit[i - 1].y1 - hit[i - 1].y0);
+          if (found == 0) {
+              code = @"quote-not-found";
+              snprintf(message, length, "\"%s\" is not in the PDF's text.", quote.UTF8String);
+              return NO;
+          }
+          if (!oneHit) {
+              code = @"quote-ambiguous";
+              snprintf(message, length, "\"%s\" occurs more than once (pages %s); quote more words.", quote.UTF8String,
+                       [places componentsJoinedByString:@", "].UTF8String);
+              return NO;
+          }
+          return spdf_add_highlight_comment(doc, page, hit, count, text.UTF8String, author.UTF8String, message, length) &&
+                 spdf_date_newest_comment(doc, page, message, length);
+      }
+      page = (int)[where[@"page"] integerValue] - 1;
+      if (page < 0 || page >= pages) {
+          code = @"page-out-of-range";
+          snprintf(message, length, "The document has %d pages.", pages);
+          return NO;
+      }
+      return spdf_add_text_comment(doc, page, 24, 24, text.UTF8String, author.UTF8String, message, length) &&
+             spdf_date_newest_comment(doc, page, message, length);
+    }, error);
+    if (!receipt) {
+        if (error) *error = CodedError(code, (*error).localizedDescription ?: @"The comment could not be added.");
+        return nil;
+    }
+    NSDictionary* listing = ListPDF(path, nil, error);
+    for (NSDictionary* comment in [listing[@"comments"] reverseObjectEnumerator])
+        if ([comment[@"page"] intValue] == page + 1 && [comment[@"text"] isEqualToString:text]) return comment;
+    return @{@"page" : @(page + 1), @"text" : text};
 }
