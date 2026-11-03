@@ -67,8 +67,8 @@
     if (!count) return -1;
     NSRect bounds = self.contentView.bounds;
     NSPoint center = NSMakePoint(NSMidX(bounds), NSMidY(bounds));
-    NSUInteger best = 0;
-    CGFloat bestDistance = CGFLOAT_MAX;
+    NSUInteger best = self.presentationMode ? (NSUInteger)MAX(0, MIN(_currentPageIndex, (NSInteger)count - 1)) : 0;
+    CGFloat bestDistance = self.presentationMode ? 0.0 : CGFLOAT_MAX;  // presenting: the presented page
     for (NSUInteger i = 0; i < count && bestDistance > 0.0; ++i) {
         NSRect page = [_canvas frameForPageAtIndex:i];
         CGFloat distance = MAX(0.0, MAX(NSMinY(page) - center.y, center.y - NSMaxY(page)));

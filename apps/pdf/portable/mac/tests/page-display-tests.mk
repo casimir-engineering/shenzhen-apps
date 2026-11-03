@@ -5,7 +5,8 @@ SPDF_PAGE_DISPLAY_TESTS_INCLUDED := 1
 # window is shown and no state outside a temporary directory is touched.
 include mac/tests/workspace-probe.mk
 PAGE_DISPLAY_BASE_OBJS := $(filter-out $(BUILD)/workspace-probe/mac/tests/SPDFMacWorkspaceProbe.o,$(MAC_WORKSPACE_PROBE_OBJS))
-PAGE_DISPLAY_TEST_SRCS := mac/tests/SPDFMacPageDisplayTests.mm mac/tests/SPDFMacPageDisplaySidebarTests.mm
+PAGE_DISPLAY_TEST_SRCS := mac/tests/SPDFMacPageDisplayTests.mm mac/tests/SPDFMacPageDisplaySidebarTests.mm \
+	mac/tests/SPDFMacPresentationZoomTests.mm
 PAGE_DISPLAY_TEST_OBJS := $(patsubst %.mm,$(BUILD)/workspace-probe/%.o,$(PAGE_DISPLAY_TEST_SRCS))
 PAGE_DISPLAY_TEST := $(BUILD)/SPDFMacPageDisplayTests
 -include $(PAGE_DISPLAY_TEST_OBJS:.o=.d)

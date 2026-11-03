@@ -1,6 +1,7 @@
 #import "SPDFMacTabViewState.h"
 
 #import "SPDFMacMarkdownDelegatePrivate.h"
+#import "SPDFMacPresentationViewport.h"
 #import "SPDFMacMarkdownCache.h"
 #import "SPDFMacMarkdownRouting.h"
 #import "SPDFMacSupport.h"
@@ -108,6 +109,7 @@
     tab.showSidebar = _sidebarPreferredVisible;
     tab.showMinimap = _minimapPreferredVisible;
     tab.markdownLandscape = session.pageOrientation == SPDFMarkdownPageOrientationLandscape;
+    [self keepNormalViewInPresentedTab:tab];
 }
 
 - (void)reloadSelectedTabFromDiskChange {

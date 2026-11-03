@@ -319,10 +319,14 @@ static void spdf_launch_log_first_document_paint(NSUInteger pageCount, double st
 
     if (self.pages.count == 0) return NSMakeSize(MAX(clipSize.width, 1), MAX(clipSize.height, 1));
 
-    // Presentation mode shows exactly one page (the current one) fit to and
-    // centered in the viewport, with no scrolling — the document view is a
-    // single viewport and page changes just swap which page is drawn.
-    if (self.presentationMode) return NSMakeSize(clipSize.width, clipSize.height);
+    // Presentation mode shows exactly one page (the current one), centered in the
+    // viewport. On an axis where it is zoomed past the viewport the document view
+    // is exactly as large as the page, so scrolling pans within it and never
+    // reaches another. Page changes just swap which page is drawn.
+    if (self.presentationMode) {
+        NSSize page = [self presentationRectForPageAtIndex:[self boundedPageIndex:self.currentPageIndex]].size;
+        return NSMakeSize(MAX(clipSize.width, page.width), MAX(clipSize.height, page.height));
+    }
 
     height = [self continuousDocumentHeight];
     return NSMakeSize(width, MAX(height, clipSize.height));

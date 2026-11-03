@@ -34,3 +34,11 @@ static const CGFloat kSPDFMarkdownMaximumZoom = 5.00;
 - (void)updateHorizontalScrollLock;
 
 @end
+
+// Presentation mode (SPDFMacMarkdownPagedView+Presentation.mm): only the
+// presented page is drawn, and the viewport is held to it.
+@interface SPDFMacMarkdownPagedView (Presentation)
+- (void)updatePresentationScrollLock;
+- (void)presentationZoom:(CGFloat)zoom keepingPoint:(NSPoint)point;
+- (void)presentPageAtIndex:(NSInteger)pageIndex;
+@end

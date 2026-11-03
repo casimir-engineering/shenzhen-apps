@@ -1,6 +1,7 @@
 #import "SPDFMacCommentActions.h"
 #import "SPDFMacAIIntegration.h"
 #import "SPDFMacMarkdownDelegatePrivate.h"
+#import "SPDFMacPresentationViewport.h"
 #import "SPDFMacSidebarChapters.h"
 #import "SPDFMacTranslationEnablement.h"
 
@@ -214,6 +215,7 @@ static CGFloat spdf_mac_clamped_markdown_font_scale(CGFloat scale) {
       tab.zoom = zoom;
       tab.customZoom = fitMode == SPDFMacMarkdownPageFitCustom ? zoom : tab.customZoom;
       tab.fitMode = (SPDFFitMode)fitMode;
+      [strongSelf keepNormalViewInPresentedTab:tab];
       // Its hover thumbnail follows the page shown, once the page settles.
       [strongSelf spdf_noteTabHoverPreviewSourcesChanged];
       // Capture the live scroll origin and checkpoint session.yaml after

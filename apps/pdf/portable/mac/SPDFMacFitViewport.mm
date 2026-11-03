@@ -104,8 +104,9 @@ extern const CGFloat kMaxZoom;
         NSSize page = NSMakeSize(pageWidth,pageHeight);
         NSSize clip = [self documentClipSizeForLayout];
         CGFloat fitted = [self zoomForFitMode:fitMode pageSize:page clipSize:clip fallbackZoom:_zoom];
-        BOOL needsScroller = heightFit ? pageWidth*fitted > clip.width+.5 :
-            (!_presentationMode && pageHeight*fitted > clip.height+.5);
+        // Presentation mode never shows a scroller, even on a page that pans.
+        BOOL needsScroller = !_presentationMode && (heightFit ? pageWidth*fitted > clip.width+.5 :
+            pageHeight*fitted > clip.height+.5);
         if (needsScroller) {
             if (heightFit) _pageScrollView.hasHorizontalScroller = YES;
             else _pageScrollView.hasVerticalScroller = YES;

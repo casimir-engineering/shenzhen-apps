@@ -45,6 +45,10 @@
     // out and scrollable while it is invisible.
     _pagedView.alphaValue = 0.0;
     _pagedView.reader = _reader;
+    // A rerender while presenting (a rotate, a reload) stays presented.
+    BOOL presenting = [outgoingPagedView isKindOfClass:SPDFMacMarkdownPagedView.class] &&
+                      ((SPDFMacMarkdownPagedView*)outgoingPagedView).presentationMode;
+    _pagedView.presentationMode = presenting;
     _minimapModel = [[SPDFMacMarkdownMinimapModel alloc] initWithPaginationPlan:plan attributedString:interactive];
     _sidebarModel = [[SPDFMacMarkdownSidebarModel alloc] initWithRenderedDocument:rendered paginationPlan:plan];
     _pagedView.translatesAutoresizingMaskIntoConstraints = NO;
@@ -90,6 +94,7 @@
           [self->_pagedView setZoom:zoom centeredAtPoint:NSZeroPoint];
       else
           [self->_pagedView applyFitMode:fit];
+      if (presenting) [self->_pagedView goToPageAtIndex:page alignTop:YES];  // the page presented, at its top
       if (self->_pendingAnchor.length) {
           [self scrollToHeadingAnchor:self->_pendingAnchor];
           self->_pendingAnchor = nil;

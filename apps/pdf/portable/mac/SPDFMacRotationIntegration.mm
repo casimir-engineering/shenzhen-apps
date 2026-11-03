@@ -8,6 +8,7 @@
 - (void)clearPageFieldFocus;
 - (void)cancelCacheRenderOperations;
 - (void)showError:(NSString*)message detail:(NSString*)detail;
+- (void)refitPresentedPage:(SPDFFitMode)fitMode zoom:(CGFloat)zoom;  // SPDFMacPresentationViewport.mm
 @end
 @implementation ShenzhenMacDelegate (Rotation)
 - (void)rotateCurrentPageByDegrees:(int)degrees {
@@ -16,6 +17,15 @@
         if (![self rotateMarkdownPaperByDegrees:degrees]) NSBeep();
         return;
     }
+    // Presenting, the fit in force (or the zoom) is applied again to the turned
+    // page: the reload below brings back the tab's, which is the reader's.
+    SPDFFitMode presentedFit = _fitMode;
+    CGFloat presentedZoom = _zoom;
+    [self rotatePDFPageByDegrees:degrees];
+    if (_presentationMode && _doc) [self refitPresentedPage:presentedFit zoom:presentedZoom];
+}
+
+- (void)rotatePDFPageByDegrees:(int)degrees {
     if (![self ensureActivePDFCanBeModifiedForOperation:@"rotating the page"]) return;
 
     [self cancelDocumentTransientInteraction];

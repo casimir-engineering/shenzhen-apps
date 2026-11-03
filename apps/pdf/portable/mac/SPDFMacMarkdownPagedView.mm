@@ -212,7 +212,11 @@ static NSColor* SPDFMacMarkdownGutterColor(SPDFMarkdownPaginationPlan* plan) {
     if (_updatingScrollLock) return;
     if (![self.contentView isKindOfClass:SPDFDocumentClipView.class]) return;
     SPDFDocumentClipView* clip = (SPDFDocumentClipView*)self.contentView;
-    if (_presentationMode || _liveMagnifying || !self.pageCount) {
+    if (_presentationMode && self.pageCount) {
+        [self updatePresentationScrollLock];  // held to the presented page (+Presentation)
+        return;
+    }
+    if (_liveMagnifying || !self.pageCount) {
         clip.horizontalLockMinX = NAN;
         clip.horizontalLockMaxX = NAN;
         clip.verticalLockMinY = NAN;
@@ -253,7 +257,8 @@ static NSColor* SPDFMacMarkdownGutterColor(SPDFMarkdownPaginationPlan* plan) {
 - (void)viewportDidChange:(NSNotification*)notification {
     (void)notification;
     if (_updatingGeometry) return;
-    NSInteger page = [_canvas pageIndexForVisibleRect:_canvas.visibleRect];
+    // Presenting, the page is the one presented, wherever a zoomed page is panned.
+    NSInteger page = _presentationMode ? -1 : [_canvas pageIndexForVisibleRect:_canvas.visibleRect];
     if (page >= 0) _currentPageIndex = page;
     [self updateHorizontalScrollLock];
     // Content moved under a stationary pointer (scroll wheel, zoom, reveal):
@@ -305,8 +310,13 @@ static NSColor* SPDFMacMarkdownGutterColor(SPDFMarkdownPaginationPlan* plan) {
 
 - (void)setZoom:(CGFloat)zoom centeredAtPoint:(NSPoint)point {
     _fitMode = fabs(zoom - 1.0) < 0.0001 ? SPDFMacMarkdownPageFitActual : SPDFMacMarkdownPageFitCustom;
-    [self setMagnification:MAX(kSPDFMarkdownMinimumZoom, MIN(kSPDFMarkdownMaximumZoom, zoom)) centeredAtPoint:point];
-    [self updateCanvasGeometryPreservingCenter:YES];
+    zoom = MAX(kSPDFMarkdownMinimumZoom, MIN(kSPDFMarkdownMaximumZoom, zoom));
+    if (_presentationMode) {
+        [self presentationZoom:zoom keepingPoint:point];  // the page point under the pointer stays put
+    } else {
+        [self setMagnification:zoom centeredAtPoint:point];
+        [self updateCanvasGeometryPreservingCenter:YES];
+    }
     [self viewportDidChange:nil];
 }
 
@@ -331,6 +341,10 @@ static NSColor* SPDFMacMarkdownGutterColor(SPDFMarkdownPaginationPlan* plan) {
 - (void)goToPageAtIndex:(NSInteger)pageIndex alignTop:(BOOL)alignTop {
     (void)alignTop;
     if (!self.pageCount) return;
+    if (_presentationMode) {
+        [self presentPageAtIndex:pageIndex];
+        return;
+    }
     pageIndex = MAX(0, MIN(pageIndex, (NSInteger)self.pageCount - 1));
     NSRect page = [_canvas frameForPageAtIndex:(NSUInteger)pageIndex];
     NSRect visible = self.documentVisibleRect;
@@ -378,7 +392,7 @@ static NSColor* SPDFMacMarkdownGutterColor(SPDFMarkdownPaginationPlan* plan) {
     NSSize canvas = self.documentCanvasSize;
     if (self.pageCount) {
         NSRect proposed = NSMakeRect(origin.x, origin.y, NSWidth(visible), NSHeight(visible));
-        NSInteger pageIndex = [_canvas pageIndexForVisibleRect:proposed];
+        NSInteger pageIndex = _presentationMode ? _currentPageIndex : [_canvas pageIndexForVisibleRect:proposed];
         NSRect page = [_canvas frameForPageAtIndex:(NSUInteger)MAX(pageIndex, 0)];
         if (!NSIsEmptyRect(page)) {
             if (NSWidth(page) <= NSWidth(visible) + 0.5)

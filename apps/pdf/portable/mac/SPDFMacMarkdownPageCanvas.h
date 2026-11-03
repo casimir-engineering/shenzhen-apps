@@ -14,6 +14,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property(nonatomic, weak, nullable) id<SPDFMacUIReader> reader;
 @property(nonatomic, readonly) NSUInteger pageCount;
 @property(nonatomic) BOOL presentationMode;
+@property(nonatomic) NSInteger presentationPageIndex;  // the only page drawn in presentation mode
 @property(nonatomic) NSRange selectedRange;
 @property(nonatomic, copy) NSArray<NSValue*>* searchRanges;
 // Current find match, drawn as the PDF view's animated red outline. {0,0}

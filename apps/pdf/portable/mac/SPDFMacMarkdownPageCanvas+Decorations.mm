@@ -60,7 +60,7 @@ static NSDictionary<NSAttributedStringKey, id>* SPDFCodeControlTitleAttributes(S
 
 - (void)drawPaperBackgroundInFrame:(NSRect)pageFrame {
     [NSGraphicsContext saveGraphicsState];
-    if (self.drawsPaperShadow) {
+    if (self.drawsPaperShadow && !self.presentationMode) {  // a presented page sits alone on black
         NSShadow* shadow = [NSShadow new];
         shadow.shadowColor = [NSColor.blackColor colorWithAlphaComponent:0.22];
         shadow.shadowBlurRadius = 4.0;
@@ -74,7 +74,7 @@ static NSDictionary<NSAttributedStringKey, id>* SPDFCodeControlTitleAttributes(S
 
 // Drawn after the page content so the hairline stays crisp at the page edge.
 - (void)drawPaperBorderInFrame:(NSRect)pageFrame {
-    if (self.drawsPaperShadow) return;
+    if (self.drawsPaperShadow || self.presentationMode) return;
     [self.pageTheme.paperBorderColor setStroke];
     NSBezierPath* border = [NSBezierPath bezierPathWithRect:NSInsetRect(pageFrame, 0.5, 0.5)];
     border.lineWidth = 1.0;

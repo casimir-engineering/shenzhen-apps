@@ -1,6 +1,7 @@
 #import "SPDFMacMarkdownDelegatePrivate.h"
 
 #import "SPDFMacMarkdownKeyboardPolicy.h"
+#import "SPDFMacPresentationViewport.h"
 #import "SPDFMacMarkdownMinimapModel.h"
 #import "SPDFMacMarkdownSidebarModel.h"
 #import "SPDFMacMinimapView.h"
@@ -14,6 +15,7 @@
 }
 
 - (BOOL)markdownArrowKeyDown:(NSEvent*)event {
+    if ([self presentationArrowKeyDown:event]) return YES;  // pans a page zoomed past the screen
     SPDFMacMarkdownSession* session = self.activeMarkdownSession;
     // Gate horizontal arrow-key scrolling on the current PAGE width, not the
     // canvas width: a page that fits the viewport is center-locked, so left and

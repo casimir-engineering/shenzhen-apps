@@ -9,6 +9,7 @@
 //    the replacement's entry by page number, so the next scroll tick queued the
 //    page again and it rendered twice.
 // 2. Sidebar rebuilds after an open: SPDFMacPageDisplaySidebarTests.mm.
+// 3. Zoom and pan in presentation mode: SPDFMacPresentationZoomTests.mm.
 #import "SPDFMacDelegatePrivate.h"
 #import "SPDFMacTabGroupIntegration.h"
 #import "SPDFUpdater.h"
@@ -290,6 +291,7 @@ int main(void) {
 
         RenderQueueEntryScenario(reader, longSet);
         PageDisplaySidebarChecks(reader, root);
+        PageDisplayPresentationChecks(reader, root);
 
         [NSFileManager.defaultManager removeItemAtPath:root error:nil];
     }

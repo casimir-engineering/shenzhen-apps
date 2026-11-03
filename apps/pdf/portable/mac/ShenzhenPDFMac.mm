@@ -57,6 +57,7 @@
 #import "SPDFMacMinimapView.h"
 #import "SPDFMacMinimapWindow.h"
 #import "SPDFMacMarkdownDelegatePrivate.h"
+#import "SPDFMacPresentationViewport.h"
 #import "SPDFMacTranslationEnablement.h"
 #import "SPDFMacTranslationChoice.h"
 #import "SPDFMacTranslatedPDF.h"
@@ -554,6 +555,10 @@ static char kSPDFPasswordPromptClosesNewTabKey;
 @end
 @interface ShenzhenMacDelegate (FitViewport)  // SPDFMacFitViewport.mm
 - (void)rememberCurrentZoomForCustomReturn;
+@end
+@interface ShenzhenMacDelegate (SPDFMacPresentationIntegration)  // SPDFMacPresentationIntegration.mm
+- (void)beginPresentationSleepActivityIfNeeded;
+- (void)endPresentationSleepActivity;
 @end
 @implementation ShenzhenMacDelegate
 
@@ -5019,9 +5024,10 @@ static BOOL spdf_page_list_cache_disabled(void) {
     NSSize size = [_pageView documentSizeForClipSize:clipSize];
     // Both scrollers show only when there is something to scroll on their axis:
     // a document that fits the viewport at the current zoom (e.g. a single page
-    // at Fit Page) shows no vertical scroller at all.
+    // at Fit Page) shows no vertical scroller at all. Presentation mode shows
+    // none even when a zoomed page pans.
     BOOL needsVerticalScroller = !_presentationMode && size.height > clipSize.height + 0.5;
-    BOOL needsHorizontalScroller = size.width > clipSize.width + 0.5;
+    BOOL needsHorizontalScroller = !_presentationMode && size.width > clipSize.width + 0.5;
     if (_pageScrollView.hasHorizontalScroller != needsHorizontalScroller ||
         _pageScrollView.hasVerticalScroller != needsVerticalScroller) {
         _pageScrollView.hasHorizontalScroller = needsHorizontalScroller;
@@ -5031,13 +5037,14 @@ static BOOL spdf_page_list_cache_disabled(void) {
         _pageView.viewportWidthHint = MAX(1.0, clipSize.width);
         _pageView.viewportHeightHint = MAX(1.0, clipSize.height);
         size = [_pageView documentSizeForClipSize:clipSize];
-        needsHorizontalScroller = size.width > clipSize.width + 0.5;
+        needsHorizontalScroller = !_presentationMode && size.width > clipSize.width + 0.5;
         _pageScrollView.hasHorizontalScroller = needsHorizontalScroller;
         _pageScrollView.hasVerticalScroller = !_presentationMode && size.height > clipSize.height + 0.5;
     }
-    if (!needsHorizontalScroller) size.width = MAX(size.width, clipSize.width);
+    BOOL scrollsHorizontally = size.width > clipSize.width + 0.5;
+    if (!scrollsHorizontally) size.width = MAX(size.width, clipSize.width);
     [_pageView setFrame:NSMakeRect(0.0, 0.0, size.width, size.height)];
-    if (!needsHorizontalScroller && fabs(NSMinX(clipView.bounds)) > 0.01) {
+    if (!scrollsHorizontally && fabs(NSMinX(clipView.bounds)) > 0.01) {
         NSPoint origin = clipView.bounds.origin;
         origin.x = 0.0;
         [clipView setBoundsOrigin:origin];
@@ -5078,18 +5085,19 @@ static BOOL spdf_page_list_cache_disabled(void) {
     _pageView.backingScale = [self backingScale];
 
     NSSize size = [_pageView documentSizeForClipSize:clipSize];
-    BOOL needsHorizontalScroller = size.width > clipSize.width + 0.5;
+    BOOL scrollsHorizontally = size.width > clipSize.width + 0.5;
+    BOOL needsHorizontalScroller = !_presentationMode && scrollsHorizontally;
     BOOL needsVerticalScroller = !_presentationMode && size.height > clipSize.height + 0.5;
     if (_pageScrollView.hasHorizontalScroller != needsHorizontalScroller ||
         _pageScrollView.hasVerticalScroller != needsVerticalScroller) {
         [self resizeDocumentView];
         return NO;
     }
-    if (!needsHorizontalScroller) size.width = MAX(size.width, clipSize.width);
+    if (!scrollsHorizontally) size.width = MAX(size.width, clipSize.width);
 
     NSRect frame = NSMakeRect(0.0, 0.0, size.width, size.height);
     if (!NSEqualRects(_pageView.frame, frame)) [_pageView setFrame:frame];
-    if (!needsHorizontalScroller && fabs(NSMinX(clipView.bounds)) > 0.01) {
+    if (!scrollsHorizontally && fabs(NSMinX(clipView.bounds)) > 0.01) {
         NSPoint origin = clipView.bounds.origin;
         origin.x = 0.0;
         BOOL previousSuppressScrollCallbacks = _suppressScrollCallbacks;
@@ -5368,16 +5376,18 @@ static BOOL spdf_page_list_cache_disabled(void) {
     return [self clampedDocumentScrollOrigin:origin forPageIndex:pageIndex];
 }
 
-/* Vertically centers a page in the viewport. Used only in presentation mode,
- * where the document view lays out one page at a time. */
+/* Presentation mode, where the document view lays out one page at a time: the
+ * page vertically centered in the viewport, or its top when it is zoomed taller
+ * than the viewport. */
 - (CGFloat)presentationCenteredScrollOriginYForPageIndex:(NSInteger)pageIndex {
     if (_renderedPages.count == 0) return 0.0;
     pageIndex = MAX(0, MIN(pageIndex, (NSInteger)_renderedPages.count - 1));
     NSClipView* clipView = _pageScrollView.contentView;
-    NSRect pageRect = [self continuousDocumentRectForPageAtIndex:pageIndex];
+    NSRect pageRect = [_pageView rectForPageAtIndex:pageIndex];
     if (NSIsEmptyRect(pageRect)) return 0.0;
     CGFloat maxY = MAX(0.0, NSHeight(_pageView.bounds) - NSHeight(clipView.bounds));
-    CGFloat y = NSMidY(pageRect) - NSHeight(clipView.bounds) * 0.5;
+    CGFloat y = NSHeight(pageRect) <= NSHeight(clipView.bounds) + 0.5 ? NSMidY(pageRect) - NSHeight(clipView.bounds) * 0.5
+                                                                      : NSMinY(pageRect);
     return spdf_clamp_cg(y, 0.0, maxY);
 }
 
@@ -5455,7 +5465,6 @@ static BOOL spdf_page_list_cache_disabled(void) {
         NSClipView* clipView = _pageScrollView.contentView;
         NSRect visible = clipView.bounds;
         NSPoint origin = visible.origin;
-        if (_presentationMode) origin.y = [self presentationCenteredScrollOriginYForPageIndex:pageIndex];
         // A page larger than the viewport on an axis has the viewport sitting
         // INSIDE it, so both "page extends past the start" and "page extends
         // past the end" are true at once; the nudges below would then toggle the
@@ -5564,7 +5573,6 @@ static BOOL spdf_page_list_cache_disabled(void) {
                                  NSMinY(pageRect) + relativeY * maxInPageY);
     if (NSWidth(pageRect) <= NSWidth(clipView.bounds) + 0.5)
         origin.x = [self centeredHorizontalScrollOriginXForPageRect:pageRect];
-    if (_presentationMode) origin.y = [self presentationCenteredScrollOriginYForPageIndex:pageIndex];
     origin.x = spdf_clamp_cg(origin.x, 0.0, maxDocumentX);
     origin.y = spdf_clamp_cg(origin.y, 0.0, maxDocumentY);
 
@@ -5739,10 +5747,7 @@ static BOOL spdf_page_list_cache_disabled(void) {
     else
         origin.x = spdf_clamp_cg(origin.x, NSMinX(pageRect), NSMinX(pageRect) + maxInPageX);
     origin.x = spdf_clamp_cg(origin.x, 0.0, maxDocumentX);
-    if (_presentationMode)
-        origin.y = [self presentationCenteredScrollOriginYForPageIndex:pageIndex];
-    else
-        origin.y = spdf_clamp_cg(origin.y, NSMinY(pageRect), NSMinY(pageRect) + maxInPageY);
+    origin.y = spdf_clamp_cg(origin.y, NSMinY(pageRect), NSMinY(pageRect) + maxInPageY);
     origin.y = spdf_clamp_cg(origin.y, 0.0, maxDocumentY);
 
     [self scrollDocumentClipViewToOrigin:origin notify:YES];
@@ -6103,6 +6108,7 @@ static BOOL spdf_page_list_cache_disabled(void) {
     tab.scrollOrigin = [self normalizedDocumentScrollOrigin:_pageScrollView.contentView.bounds.origin
                                                forPageIndex:_pageIndex];
     tab.hasScrollOrigin = YES;
+    [self keepNormalViewInPresentedTab:tab];
     [self rememberActiveTabFindState];
     [self saveDocumentStateForTab:tab];
 }
@@ -7517,9 +7523,10 @@ static BOOL spdf_page_list_cache_disabled(void) {
 }
 
 // Re-renders at the zoom the fit mode now gives, keeping the point of the page under the viewport's centre under its
-// centre (applyFitModeKeepingPosition:). NO, and nothing done, in presentation mode or before the pages are laid out.
+// centre (applyFitModeKeepingPosition:), in presentation mode too. NO, and nothing done, before the pages are laid
+// out.
 - (BOOL)renderDocumentKeepingVisibleCenter {
-    if (!_doc || _presentationMode || _renderedPages.count == 0) return NO;
+    if (!_doc || _renderedPages.count == 0) return NO;
     SPDFPageAnchor anchor = [self pageAnchorForWindowPoint:[self visibleCenterWindowPoint]];
     if (!anchor.valid) return NO;
     [self renderDocumentAndScrollToPage:anchor.pageIndex alignTop:NO restoreOrigin:nil keepingAnchor:&anchor];
@@ -8830,6 +8837,12 @@ static BOOL spdf_page_list_cache_disabled(void) {
     return proposedMaximumPosition;
 }
 
+// Presenting, the sidebar pane is hidden outright (SPDFMacPresentationIntegration.mm) and so is its divider: the
+// document fills the screen edge to edge, with no hairline beside a zoomed page.
+- (BOOL)splitView:(NSSplitView*)splitView shouldHideDividerAtIndex:(NSInteger)dividerIndex {
+    return splitView == _splitView && dividerIndex == 0 && _presentationMode;
+}
+
 - (BOOL)splitView:(NSSplitView*)splitView shouldAdjustSizeOfSubview:(NSView*)view {
     if (splitView == _splitView) return view == _documentContainer || [_documentContainer isDescendantOf:view];
     return YES;
@@ -9060,7 +9073,10 @@ static BOOL spdf_page_list_cache_disabled(void) {
         return;
     }
     if (_presentationMode) {
+        // The page shown is the one presented, wherever a zoomed page is panned;
+        // only keep the panned-to part of it sharp.
         [self updateMinimap];
+        [self scheduleScrollViewportMaintenance];
         return;
     }
     if (!_updatingFromScroll) {
@@ -9236,6 +9252,7 @@ static BOOL spdf_page_list_cache_disabled(void) {
     if (flags & (NSEventModifierFlagCommand | NSEventModifierFlagControl | NSEventModifierFlagOption)) {
         return NO;
     }
+    if ([self presentationArrowKeyDown:event]) return YES;  // pans a page zoomed past the screen
 
     if (_presentationMode && home) {
         [self firstPage:nil];
@@ -9496,11 +9513,7 @@ static const NSTimeInterval kKeyScrollTickInterval = 1.0 / 60.0;
 }
 
 - (BOOL)scrollViewShouldTurnWheelIntoPageChange:(NSEvent*)event {
-    if ([self isMarkdownActive]) return NO;
-    if (!_doc) return NO;
-    NSEventModifierFlags flags = event.modifierFlags & NSEventModifierFlagDeviceIndependentFlagsMask;
-    if (flags & (NSEventModifierFlagCommand | NSEventModifierFlagControl | NSEventModifierFlagOption)) return NO;
-    return _presentationMode;
+    return [self presentationWheelTurnsPage:event];  // SPDFMacPresentationViewport.mm
 }
 
 - (BOOL)isAutoFitMode:(SPDFFitMode)fitMode {
@@ -11294,102 +11307,6 @@ static const int kSPDFCursorRegionMaxLinkRects = 512;
     return (_window.styleMask & NSWindowStyleMaskFullScreen) != 0;
 }
 
-- (NSRect)presentationScreenFrame {
-    NSScreen* screen = _window.screen ?: NSScreen.mainScreen;
-    return screen ? screen.frame : _window.frame;
-}
-
-- (void)enterPresentationWindowChrome {
-    if (_presentationUsingBorderlessWindow || !_window) return;
-    if ([self windowIsFullScreen]) {
-        [_window makeKeyAndOrderFront:nil];
-        [_window makeMainWindow];
-        [NSApp activateIgnoringOtherApps:YES];
-        return;
-    }
-
-    _presentationPreviousWindowFrame = _window.frame;
-    _presentationPreviousWindowStyleMask = _window.styleMask;
-    _presentationPreviousWindowLevel = _window.level;
-    _presentationPreviousCollectionBehavior = _window.collectionBehavior;
-    _presentationPreviousTitleVisibility = _window.titleVisibility;
-    _presentationPreviousTitlebarAppearsTransparent = _window.titlebarAppearsTransparent;
-    _presentationPreviousMovable = _window.movable;
-    _presentationPreviousMovableByWindowBackground = _window.movableByWindowBackground;
-    _presentationPreviousHasShadow = _window.hasShadow;
-
-    [NSAnimationContext runAnimationGroup:^(NSAnimationContext* context) {
-      context.duration = 0.0;
-      _window.styleMask = NSWindowStyleMaskBorderless;
-      _window.titleVisibility = NSWindowTitleHidden;
-      _window.titlebarAppearsTransparent = YES;
-      _window.movable = NO;
-      _window.movableByWindowBackground = NO;
-      _window.hasShadow = NO;
-      _window.level = NSPopUpMenuWindowLevel;
-      _window.collectionBehavior = NSWindowCollectionBehaviorCanJoinAllSpaces |
-                                   NSWindowCollectionBehaviorFullScreenAuxiliary | NSWindowCollectionBehaviorStationary;
-      [_window setFrame:[self presentationScreenFrame] display:YES animate:NO];
-    }];
-    [_window makeKeyAndOrderFront:nil];
-    [_window makeMainWindow];
-    [NSApp activateIgnoringOtherApps:YES];
-    _presentationUsingBorderlessWindow = YES;
-}
-
-- (void)restorePresentationWindowChrome {
-    if (!_presentationUsingBorderlessWindow || !_window) return;
-
-    [NSAnimationContext runAnimationGroup:^(NSAnimationContext* context) {
-      context.duration = 0.0;
-      _window.level = _presentationPreviousWindowLevel;
-      _window.collectionBehavior = _presentationPreviousCollectionBehavior;
-      _window.styleMask = _presentationPreviousWindowStyleMask;
-      _window.titleVisibility = _presentationPreviousTitleVisibility;
-      _window.titlebarAppearsTransparent = _presentationPreviousTitlebarAppearsTransparent;
-      _window.movable = _presentationPreviousMovable;
-      _window.movableByWindowBackground = _presentationPreviousMovableByWindowBackground;
-      _window.hasShadow = _presentationPreviousHasShadow;
-      [_window setFrame:_presentationPreviousWindowFrame display:YES animate:NO];
-    }];
-    _presentationUsingBorderlessWindow = NO;
-    [_window makeKeyAndOrderFront:nil];
-    [_window makeMainWindow];
-}
-
-- (void)installPresentationEventMonitor {
-    if (_presentationEventMonitor) return;
-    __weak ShenzhenMacDelegate* weakSelf = self;
-    NSEventMask mask = NSEventMaskKeyDown;
-    if (!_presentationEventMonitor) {
-        _presentationEventMonitor =
-            [NSEvent addLocalMonitorForEventsMatchingMask:mask
-                                                  handler:^NSEvent*(NSEvent* event) {
-                                                    ShenzhenMacDelegate* strongSelf = weakSelf;
-                                                    if (!strongSelf || !strongSelf->_presentationMode ||
-                                                        ![strongSelf hasActiveDocument])
-                                                        return event;
-                                                    if (event.window && event.window != strongSelf->_window)
-                                                        return event;
-
-                                                    if ([strongSelf handlePresentationEvent:event]) return nil;
-
-                                                    return event;
-                                                  }];
-    }
-}
-
-- (void)removePresentationEventMonitor {
-    if (_presentationEventMonitor) {
-        [NSEvent removeMonitor:_presentationEventMonitor];
-        _presentationEventMonitor = nil;
-    }
-    if (_presentationGlobalEventMonitor) {
-        [NSEvent removeMonitor:_presentationGlobalEventMonitor];
-        _presentationGlobalEventMonitor = nil;
-    }
-}
-
 - (void)applyPresentationChrome {
     BOOL presentation = _presentationMode;
     [self dismissTabHoverPanel];
@@ -11434,92 +11351,6 @@ static const int kSPDFCursorRegionMaxLinkRects = 512;
     }
     [_window.contentView layoutSubtreeIfNeeded];
     if (presentation && _presentationOverlayView) [_window makeFirstResponder:_presentationOverlayView];
-}
-
-- (void)beginPresentationSleepActivityIfNeeded {
-    if (_presentationSleepActivityToken) return;
-    NSActivityOptions options =
-        NSActivityIdleSystemSleepDisabled | NSActivityIdleDisplaySleepDisabled | NSActivityUserInitiated;
-    _presentationSleepActivityToken =
-        [[NSProcessInfo processInfo] beginActivityWithOptions:options reason:@"ShenzhenPDF presentation mode"];
-}
-
-- (void)endPresentationSleepActivity {
-    if (!_presentationSleepActivityToken) return;
-    [[NSProcessInfo processInfo] endActivity:_presentationSleepActivityToken];
-    _presentationSleepActivityToken = nil;
-}
-
-- (void)enterPresentationMode:(id)sender {
-    if (![self hasActiveDocument] || _presentationMode) return;
-
-    BOOL markdown = [self isMarkdownActive];
-    [self stopKeyboardScrollAnimation];
-    [self rememberCurrentZoomForCustomReturn];
-    _presentationPreviousFitMode = _fitMode;
-    _presentationPreviousSidebarPreferredVisible = _sidebarPreferredVisible;
-    _presentationPreviousMinimapPreferredVisible = _minimapPreferredVisible;
-    _presentationEnteredFullScreen = NO;
-    _presentationMode = YES;
-    _lastPresentationEventTimestamp = 0;
-    _lastPresentationEventType = (NSEventType)0;
-    _lastPresentationEventKeyCode = -1;
-    _lastPresentationEventButtonNumber = -1;
-
-    [self enterPresentationWindowChrome];
-    _sidebarPreferredVisible = NO;
-    _minimapPreferredVisible = NO;
-    _fitMode = SPDFFitModePage;
-    if (!markdown) _pageView.currentPageIndex = _pageIndex;
-    [self applyPresentationChrome];
-    if (markdown) [self.activeMarkdownSession applyFitMode:SPDFMacMarkdownPageFitPage];
-    [self rebuildSidebar];
-    [self setMinimapActuallyVisible:NO];
-    [self installPresentationEventMonitor];
-    [NSApp activateIgnoringOtherApps:YES];
-    [_window orderFrontRegardless];
-    [_window makeKeyWindow];
-    [_window makeMainWindow];
-    [_window
-        makeFirstResponder:_presentationOverlayView ?: (markdown ? self.activeMarkdownSession.rootView : _pageView)];
-    if (markdown)
-        [self.activeMarkdownSession goToPageAtIndex:_pageIndex];
-    else
-        [self renderDocumentAndScrollToPage:_pageIndex alignTop:YES];
-    if (_preventSleepInPresentation) [self beginPresentationSleepActivityIfNeeded];
-}
-
-- (void)leavePresentationModeAndExitFullScreen:(BOOL)exitFullScreen sender:(id)sender {
-    if (!_presentationMode) return;
-    [self endPresentationSleepActivity];
-
-    BOOL markdown = [self isMarkdownActive];
-    BOOL shouldExitFullScreen = exitFullScreen && _presentationEnteredFullScreen && [self windowIsFullScreen];
-    _presentationMode = NO;
-    _presentationEnteredFullScreen = NO;
-    [self removePresentationEventMonitor];
-    _sidebarPreferredVisible = _presentationPreviousSidebarPreferredVisible;
-    _minimapPreferredVisible = _presentationPreviousMinimapPreferredVisible;
-    _fitMode = _presentationPreviousFitMode;
-    if (!markdown) _pageView.currentPageIndex = _pageIndex;
-    [self applyPresentationChrome];
-    [self restorePresentationWindowChrome];
-    [self rebuildSidebar];
-    [self setMinimapActuallyVisible:_minimapPreferredVisible];
-    if (markdown) {
-        [self markdownApplyFitMode:_presentationPreviousFitMode];
-        [self.activeMarkdownSession goToPageAtIndex:_pageIndex];
-    } else if (_doc)
-        [self renderDocumentAndScrollToPage:_pageIndex alignTop:NO];
-    [self persistActiveState];
-    if (shouldExitFullScreen) [_window toggleFullScreen:sender];
-}
-
-- (void)togglePresentation:(id)sender {
-    if (_presentationMode)
-        [self leavePresentationModeAndExitFullScreen:YES sender:sender];
-    else
-        [self enterPresentationMode:sender];
 }
 
 - (void)toggleFullScreen:(id)sender {

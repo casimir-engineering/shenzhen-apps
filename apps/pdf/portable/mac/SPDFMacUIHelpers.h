@@ -115,6 +115,9 @@ BOOL spdf_inactive_magnify_tap_authorized(void);
 - (void)deleteComment:(id)sender;
 @optional
 - (BOOL)documentFindReturnKeyDown:(NSEvent*)event;
+// The scroll view showing the presented document, which takes the wheel and
+// pinch events the presentation overlay receives (SPDFMacPresentationOverlay.mm).
+- (NSScrollView*)presentationEventTargetView;
 @end
 
 @interface SPDFPaletteSearchField : NSSearchField

@@ -45,3 +45,4 @@ BOOL PageDisplayRunUntil(NSTimeInterval timeout, BOOL (^done)(void));
 NSString* PageDisplayWriteDrawingSet(NSString* dir, NSString* name, NSInteger pages, NSInteger curves);
 NSInteger PageDisplayAddTab(PageDisplayReader* reader, NSString* path, NSInteger page);
 void PageDisplaySidebarChecks(PageDisplayReader* reader, NSString* root);
+void PageDisplayPresentationChecks(PageDisplayReader* reader, NSString* root);

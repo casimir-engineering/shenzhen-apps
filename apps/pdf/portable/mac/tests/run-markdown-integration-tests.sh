@@ -136,6 +136,7 @@ $PORTABLE/mac/SPDFMacMarkdownPageCanvas+Search.mm
 $PORTABLE/mac/SPDFMacMarkdownPageCanvas+Comments.mm
 $PORTABLE/mac/SPDFMacMarkdownPagedView.mm
 $PORTABLE/mac/SPDFMacMarkdownPagedView+Fit.mm
+$PORTABLE/mac/SPDFMacMarkdownPagedView+Presentation.mm
 $PORTABLE/mac/SPDFMacMarkdownClipView.mm
 $PORTABLE/mac/SPDFMacMarkdownCopyText.mm
 $PORTABLE/mac/SPDFMacRenderedPage.mm
