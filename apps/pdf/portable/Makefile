@@ -39,6 +39,10 @@ CPU := $(shell sysctl -n hw.ncpu 2>/dev/null || nproc 2>/dev/null || echo 4)
 # nothing.
 SPDF_TEST_STAMP_TOOL := $(wildcard $(CURDIR)/../../../tools/test-stamp.sh)
 spdf_test_stamp = $(if $(SPDF_TEST_STAMP_TOOL),@"$(SPDF_TEST_STAMP_TOOL)" record pdf/$(1),@:)
+# Checks the release does not run (README.md § Opt-in checks, not run by the release). Off by default;
+# make <suite> SPDF_OPT_IN_CHECKS=1 runs a suite's opt-in cases too. Exported so the test binaries see it.
+SPDF_OPT_IN_CHECKS ?=
+export SPDF_OPT_IN_CHECKS
 
 CORE_SRC := core/shenzhen_pdf_core.c
 CORE_HDR := core/shenzhen_pdf_core.h
@@ -155,7 +159,7 @@ endif
 .PHONY: mac
 mac: mac-app
 
-.PHONY: all mac-app core-outline-tests core-link-tests core-password-tests core-recolor-tests core-render-theme-tests core-recolor-probe core-selection-tests icon-tests mac-window-shortcut-tests mac-window-chrome-tests mac-password-tests mac-minimap-window-tests mac-tab-strip-geometry-tests mac-tab-strip-interaction-tests mac-tab-strip-style-tests mac-reading-theme-chrome-tests mac-palette-results-tests mac-find-nearest-tests mac-updater-tests mac-properties-format-tests mac-translation-filter-tests mac-translation-copy-tests mac-cursor-region-tests mac-state-yaml-tests mac-tab-lifecycle-tests mac-tab-state-tests mac-sidebar-outline-tests mac-page-wheel-tests mac-markdown-comments-tests mac-document-versions-tests mac-file-explorer-tests mac-selection-click-tests mac-selection-adapter-tests mac-launch-work-policy-tests mac-markdown-tests linux-password-tests file-size-ratchet-tests release-pipeline-tests test-binaries release-notes-preview print-release-config dmg notarize staple release-dmg release-dmg-artifact verify-mac-release verify-mac-unsigned print-mac-signing-identities install clean mupdf-libs linux
+.PHONY: all mac-app core-outline-tests core-link-tests core-password-tests core-recolor-tests core-render-theme-tests core-recolor-probe core-selection-tests icon-tests mac-window-shortcut-tests mac-window-chrome-tests mac-password-tests mac-minimap-window-tests mac-tab-strip-geometry-tests mac-tab-strip-interaction-tests mac-tab-strip-style-tests mac-reading-theme-chrome-tests mac-palette-results-tests mac-find-nearest-tests mac-updater-tests mac-properties-format-tests mac-translation-filter-tests mac-translation-copy-tests mac-cursor-region-tests mac-state-yaml-tests mac-tab-lifecycle-tests mac-tab-state-tests mac-sidebar-outline-tests mac-page-wheel-tests mac-markdown-comments-check mac-document-versions-check mac-file-explorer-tests mac-selection-click-tests mac-selection-adapter-tests mac-launch-work-policy-tests mac-markdown-tests linux-password-tests file-size-ratchet-tests release-pipeline-tests test-binaries release-notes-preview print-release-config dmg notarize staple release-dmg release-dmg-artifact verify-mac-release verify-mac-unsigned print-mac-signing-identities install clean mupdf-libs linux
 
 all: mac-app
 
@@ -376,7 +380,7 @@ mac-agent-pdf-inspection-tests: $(CORE_OBJ) $(CORE_RECOLOR_OBJ) mupdf-libs | $(B
 	"$(BUILD)/SPDFMacAgentPDFInspectionTests"
 
 # Focused reader-action and on-demand agent contracts; no app launch.
-.PHONY: mac-reader-action-tests mac-agent-tests mac-szpdf-tests
+.PHONY: mac-reader-action-tests mac-agent-tests mac-agent-channel-check mac-szpdf-check
 mac-reader-action-tests: | $(BUILD)
 	clang++ $(MAC_TARGET_FLAGS) -std=c++17 -fobjc-arc -Wall -Wextra -Werror -Imac mac/tests/SPDFMacContextPageTests.mm -framework Cocoa -o "$(BUILD)/SPDFMacContextPageTests"
 	"$(BUILD)/SPDFMacContextPageTests"
@@ -384,19 +388,23 @@ mac-reader-action-tests: | $(BUILD)
 	"$(BUILD)/SPDFMacMarkdownEditorTests"
 
 # szpdf's commands that need no window (mac/SPDFMacSzpdfInternal.h), headless, with the Markdown engine they lay out
-# documents with.
+# documents with. Opt-in, not run by the release (README.md § Opt-in checks).
 MAC_SZPDF_TEST_SRCS := mac/tests/SPDFMacSzpdfTests.mm mac/SPDFMacSzpdfHelp.mm mac/SPDFMacSzpdfArguments.mm \
 	mac/SPDFMacSzpdfHeadingMatch.mm mac/SPDFMacSzpdfDocument.mm mac/SPDFMacSzpdfCheck.mm mac/SPDFMacSzpdfFeatures.mm \
 	mac/SPDFMacSzpdfChanges.mm mac/SPDFMacAgentComments.mm mac/SPDFMacMarkdownComments.mm \
 	mac/SPDFMacMarkdownCommentAnchors.mm mac/SPDFMacMarkdownPrinting.mm mac/SPDFMacMarkdownRouting.mm \
 	mac/SPDFMacAIFileTransaction.mm $(MAC_MARKDOWN_SRCS)
-mac-szpdf-tests: $(CORE_OBJS) $(MAC_MD4C_OBJ) $(MAC_GUMBO_OBJS) mupdf-libs | $(BUILD)
+mac-szpdf-check: $(CORE_OBJS) $(MAC_MD4C_OBJ) $(MAC_GUMBO_OBJS) mupdf-libs | $(BUILD)
 	clang++ $(MAC_TARGET_FLAGS) -std=c++17 -fobjc-arc -Wall -Wextra -Werror -Imac -Icore -I$(MUPDF_DIR)/include $(MAC_SZPDF_TEST_SRCS) $(CORE_OBJS) $(MAC_MD4C_OBJ) $(MAC_GUMBO_OBJS) $(MUPDF_LIBS) -framework Cocoa -framework QuartzCore -framework ImageIO -framework UniformTypeIdentifiers -lm -o "$(BUILD)/SPDFMacSzpdfTests"
 	SPDF_DIAGRAM_LAYOUT_DEADLINE=5 "$(BUILD)/SPDFMacSzpdfTests"
 
-mac-agent-tests: $(CORE_OBJS) mupdf-libs | $(BUILD)
+# szpdf's channel to the running app (mac/SPDFMacAgentChannel.h). Opt-in, not run by the release (README.md § Opt-in
+# checks).
+mac-agent-channel-check: $(CORE_OBJS) mupdf-libs | $(BUILD)
 	clang++ $(MAC_TARGET_FLAGS) -std=c++17 -fobjc-arc -Wall -Wextra -Werror -Imac -Icore -I$(MUPDF_DIR)/include mac/tests/SPDFMacAgentChannelTests.mm mac/SPDFMacAgentChannel.mm mac/SPDFMacSzpdfArguments.mm mac/SPDFMacSzpdfHelp.mm mac/SPDFMacCommandLineTool.mm mac/SPDFMacAgentComments.mm mac/SPDFMacMarkdownComments.mm mac/SPDFMacAIFileTransaction.mm $(CORE_OBJS) $(MUPDF_LIBS) -framework Cocoa -lm -o "$(BUILD)/SPDFMacAgentChannelTests"
 	"$(BUILD)/SPDFMacAgentChannelTests"
+
+mac-agent-tests: | $(BUILD)
 	clang++ $(MAC_TARGET_FLAGS) -std=c++17 -fobjc-arc -Wall -Wextra -Werror -Imac mac/tests/SPDFMacAgentCommandTests.mm mac/SPDFMacAgentValidation.mm -framework Cocoa -o "$(BUILD)/SPDFMacAgentCommandTests"
 	"$(BUILD)/SPDFMacAgentCommandTests"
 	clang++ $(MAC_TARGET_FLAGS) -std=c++17 -fobjc-arc -Wall -Wextra -Werror -Imac -Icore -I$(MUPDF_DIR)/include mac/tests/SPDFMacAgentNavigationTests.mm mac/SPDFMacAgentIntegration.mm mac/SPDFMacAgentValidation.mm -framework Cocoa -o "$(BUILD)/SPDFMacAgentNavigationTests"
@@ -541,14 +549,15 @@ mac-page-wheel-tests: $(MAC_PAGE_WHEEL_TEST)
 $(MAC_MARKDOWN_COMMENTS_TEST): mac/tests/SPDFMacMarkdownCommentsTests.mm mac/SPDFMacMarkdownComments.mm mac/SPDFMacMarkdownCommentAnchors.mm mac/SPDFMacMarkdownComments.h mac/SPDFMacCommentEditor.mm mac/SPDFMacCommentAuthorName.mm | $(BUILD)
 	clang++ $(MAC_TARGET_FLAGS) -std=c++17 -fobjc-arc -Wall -Wextra -Werror -Imac mac/tests/SPDFMacMarkdownCommentsTests.mm mac/SPDFMacMarkdownComments.mm mac/SPDFMacMarkdownCommentAnchors.mm mac/SPDFMacCommentEditor.mm mac/SPDFMacCommentAuthorName.mm mac/SPDFMacCollectionStyle.mm -framework Cocoa -framework QuartzCore -o "$(MAC_MARKDOWN_COMMENTS_TEST)"
 
-mac-markdown-comments-tests: $(MAC_MARKDOWN_COMMENTS_TEST)
+# Comments on Markdown documents and versions of a document: opt-in, not run by the release (README.md § Opt-in checks).
+mac-markdown-comments-check: $(MAC_MARKDOWN_COMMENTS_TEST)
 	"$(MAC_MARKDOWN_COMMENTS_TEST)"
 
 MAC_DOCUMENT_VERSIONS_SRCS := mac/SPDFMacDocumentVersions.mm mac/SPDFMacMarkdownComments.mm mac/SPDFMacMarkdownCommentAnchors.mm
 $(MAC_DOCUMENT_VERSIONS_TEST): mac/tests/SPDFMacDocumentVersionsTests.mm $(MAC_DOCUMENT_VERSIONS_SRCS) mac/SPDFMacDocumentVersions.h $(CORE_OBJ) $(CORE_RECOLOR_OBJ) mupdf-libs | $(BUILD)
 	clang++ $(MAC_TARGET_FLAGS) -std=c++17 -fobjc-arc -Wall -Wextra -Werror -Imac -Icore mac/tests/SPDFMacDocumentVersionsTests.mm $(MAC_DOCUMENT_VERSIONS_SRCS) "$(CORE_OBJ)" "$(CORE_RECOLOR_OBJ)" $(MUPDF_LIBS) -framework Foundation -lm -o "$@"
 
-mac-document-versions-tests: $(MAC_DOCUMENT_VERSIONS_TEST)
+mac-document-versions-check: $(MAC_DOCUMENT_VERSIONS_TEST)
 	"$(MAC_DOCUMENT_VERSIONS_TEST)"
 
 $(MAC_FILE_EXPLORER_TEST): mac/tests/SPDFMacFileExplorerPreferenceTests.mm mac/SPDFMacFileExplorerPreference.mm mac/SPDFMacFileExplorerPreference.h | $(BUILD)

@@ -186,5 +186,8 @@ BOOL UIFlowPhone(SZFE2EWorld* world, UIVariant* variant);
 // Friends that does not start: a frozen helper of another copy on the socket, then one nothing can end
 // (SPDFMacFriendsUIStartFlows.mm).
 BOOL UIFlowStarting(SZFE2EWorld* world, UIVariant* variant);
+// SPDF_OPT_IN_CHECKS=1: the flows and steps the release does not run run too (apps/pdf/portable/README.md § Opt-in
+// checks): the keyboard step of "pair" and the "starting" group.
+BOOL UIOptIn(void);
 
 NS_ASSUME_NONNULL_END

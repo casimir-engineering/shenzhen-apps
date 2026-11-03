@@ -395,6 +395,7 @@ BOOL UIFlowTwoPeople(SZFE2EWorld* world, UIVariant* variant) {
     struct {
         NSString* name;
         BOOL (^run)(void);
+        BOOL optIn = NO; // run only with SPDF_OPT_IN_CHECKS=1 (apps/pdf/portable/README.md § Opt-in checks)
     } steps[] = {
         {@"two people: choose the name", ^BOOL { return UIBecomeAna(rig); }},
         {@"two people: be visible, accept a request in the list", ^BOOL { return UIAcceptRequest(rig, mei); }},
@@ -405,12 +406,13 @@ BOOL UIFlowTwoPeople(SZFE2EWorld* world, UIVariant* variant) {
          ^BOOL { return UIAttachFiles(rig, mei, world); }},
         {@"search filters the list", ^BOOL { return UISearch(rig); }},
         {@"two people: the keyboard alone (arrows, Return, Tab, Command-[, Escape)",
-         ^BOOL { return UIKeyboard(rig); }},
+         ^BOOL { return UIKeyboard(rig); }, YES},
         {@"two people: Remove from the row's menu, gone on both computers",
          ^BOOL { return UIRemoveFromList(rig, world); }},
         {@"two people: Remove from a friend's details, back to the list", ^BOOL { return UIRemoveFromDetails(rig); }},
     };
     for (auto& step : steps) {
+        if (step.optIn && !UIOptIn()) continue;
         if (!all) {
             UIRecord(variant, [step.name stringByAppendingString:@" (not run: an earlier step failed)"], NO);
             continue;

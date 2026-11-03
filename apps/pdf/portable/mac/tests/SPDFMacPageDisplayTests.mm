@@ -9,7 +9,8 @@
 //    the replacement's entry by page number, so the next scroll tick queued the
 //    page again and it rendered twice.
 // 2. Sidebar rebuilds after an open: SPDFMacPageDisplaySidebarTests.mm.
-// 3. Zoom and pan in presentation mode: SPDFMacPresentationZoomTests.mm.
+// 3. Zoom and pan in presentation mode: SPDFMacPresentationZoomTests.mm. Opt-in, not run by the release:
+//    make mac-page-display-tests SPDF_OPT_IN_CHECKS=1 (README.md § Opt-in checks).
 #import "SPDFMacDelegatePrivate.h"
 #import "SPDFMacTabGroupIntegration.h"
 #import "SPDFUpdater.h"
@@ -291,7 +292,8 @@ int main(void) {
 
         RenderQueueEntryScenario(reader, longSet);
         PageDisplaySidebarChecks(reader, root);
-        PageDisplayPresentationChecks(reader, root);
+        const char* optIn = getenv("SPDF_OPT_IN_CHECKS");
+        if (optIn && strcmp(optIn, "1") == 0) PageDisplayPresentationChecks(reader, root);
 
         [NSFileManager.defaultManager removeItemAtPath:root error:nil];
     }

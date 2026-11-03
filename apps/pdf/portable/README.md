@@ -189,6 +189,30 @@ explicitly and add no service to normal reader startup.
 - Treat macOS-only polish as macOS-only in docs until the GTK frontend has the
   same behavior implemented and validated.
 
+### Opt-in checks, not run by the release
+
+The release runs every `*-tests` target in `portable/Makefile`. These checks
+are kept out of it so releases stay fast; run them by hand when you work on
+what they cover.
+
+| Check | Command |
+| --- | --- |
+| szpdf's commands that need no window | `make -C portable mac-szpdf-check` |
+| szpdf's channel to the running app | `make -C portable mac-agent-channel-check` |
+| Comments on Markdown documents | `make -C portable mac-markdown-comments-check` |
+| Versions of a document | `make -C portable mac-document-versions-check` |
+| Zoom, pan, fit and rotate in presentation mode | `make -C portable mac-page-display-tests SPDF_OPT_IN_CHECKS=1` |
+| A short group name's hover bubble | `make -C portable mac-tab-group-interaction-tests SPDF_OPT_IN_CHECKS=1` |
+| A Markdown tab is watched again on every return to it | `make -C portable mac-tab-lifecycle-tests SPDF_OPT_IN_CHECKS=1` |
+| Markdown pictures fit the box they sit in | `make -C portable mac-markdown-tests SPDF_OPT_IN_CHECKS=1` |
+| Friends: a chat shows at once; the panel by keyboard | `make -C portable friends-views-check SPDF_OPT_IN_CHECKS=1` |
+| Friends helper: a conversation's preview | `make -C portable friends-helper-check SPDF_OPT_IN_CHECKS=1` |
+| Friends dropdown end to end: the keyboard step, and Friends that does not start | `make -C portable friends-ui-e2e FRIENDS_UI_E2E_FLOWS=pair,starting SPDF_OPT_IN_CHECKS=1` |
+
+`SPDF_OPT_IN_CHECKS=1` runs the whole suite plus its opt-in cases. To add an
+opt-in check, give a new suite a name that does not end in `-tests`, or put a
+new case in an existing suite behind `SPDF_OPT_IN_CHECKS`.
+
 ### Refresh the public README images
 
 The image fixtures use actual native reader and Collection components with fictional

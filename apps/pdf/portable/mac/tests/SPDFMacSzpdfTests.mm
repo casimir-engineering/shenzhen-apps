@@ -1,7 +1,7 @@
 // szpdf's parts that need no window (SPDFMacSzpdfInternal.h): the command table against the parser and the help, the
 // heading matcher, the documents laid out in the tool's process (headings, find, pictures, PDF export, new comments),
 // check, features held to the renderer, version blocks, comment changes and the event-driven wait. Headless; runs in
-// about a second (make mac-szpdf-tests).
+// about a second (make mac-szpdf-check).
 #import "SPDFMacAgentComments.h"
 #import "SPDFMacMarkdownComments.h"
 #import "SPDFMacSzpdf.h"

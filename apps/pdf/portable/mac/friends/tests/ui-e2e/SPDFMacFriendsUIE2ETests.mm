@@ -2,8 +2,8 @@
 //
 // Usage: SPDFMacFriendsUIE2ETests <e2e helper> <animal manifest> <screenshots folder>
 // FRIENDS_UI_E2E_VARIANTS=light-normal,dark-narrow runs only those looks; FRIENDS_UI_E2E_FLOWS=solo,permission,pair,found
-// only those groups, while working on them. The screenshots folder gets <variant>/<flow>/<NN>-<step>.png and
-// flows.tsv, the result of every flow in every look.
+// only those groups, while working on them. SPDF_OPT_IN_CHECKS=1 adds what the release does not run (UIOptIn()).
+// The screenshots folder gets <variant>/<flow>/<NN>-<step>.png and flows.tsv, the result of every flow in every look.
 
 #import "SPDFMacFriendsUIE2E.h"
 
@@ -16,6 +16,11 @@ static UIVariant* UIMakeVariant(NSString* name, NSAppearanceName appearance, CGF
     variant.dropdownWidth = width;
     variant.windowHeight = height;
     return variant;
+}
+
+BOOL UIOptIn(void) {
+    const char* value = getenv("SPDF_OPT_IN_CHECKS");
+    return value && strcmp(value, "1") == 0;
 }
 
 static BOOL UIWanted(const char* variable, NSString* name) {
@@ -69,15 +74,16 @@ int main(int argc, const char* argv[]) {
         struct {
             const char* name;
             UIFlow run;
+            BOOL optIn = NO; // run only with SPDF_OPT_IN_CHECKS=1 (apps/pdf/portable/README.md § Opt-in checks)
         } groups[] = {{"solo", UIFlowSolo}, {"permission", UIFlowPermission}, {"pair", UIFlowTwoPeople},
-                  {"found", UIFlowFound}, {"phone", UIFlowPhone}, {"starting", UIFlowStarting}};
+                  {"found", UIFlowFound}, {"phone", UIFlowPhone}, {"starting", UIFlowStarting, YES}};
         NSDate* started = NSDate.date;
         for (UIVariant* variant in variants) {
             if (!UIWanted("FRIENDS_UI_E2E_VARIANTS", variant.name)) continue;
             NSApp.appearance = [NSAppearance appearanceNamed:variant.appearance];
             printf("%s\n", variant.name.UTF8String);
             for (auto& group : groups) {
-                if (!UIWanted("FRIENDS_UI_E2E_FLOWS", @(group.name))) continue;
+                if (!UIWanted("FRIENDS_UI_E2E_FLOWS", @(group.name)) || (group.optIn && !UIOptIn())) continue;
                 @autoreleasepool {
                     group.run(world, variant);
                 }

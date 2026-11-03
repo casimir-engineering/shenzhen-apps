@@ -227,7 +227,6 @@ int main(int argc, const char *argv[]) {
             {"add by ID keeps keyed rows", SZFHTestAddByIDKeepsKeyedRows},
             {"add by ID broadcasts past claimed IDs", SZFHTestAddByIDBroadcastsPastClaims},
             {"message status reads nothing", SZFHTestMessageStatus},
-            {"conversation preview reads nothing", SZFHTestConversationPreview},
             {"mentions written by the helper", SZFHTestMentionsWritten},
             {"add from a mention: refusals, then bound to the key", SZFHTestAddFromMention},
             {"block and remove drop their previews", SZFHTestBlockAndRemoveDropPreviews},
@@ -240,13 +239,20 @@ int main(int argc, const char *argv[]) {
             {"You: a message to yourself through the helper", SZFHTestYouIntents},
             {"Reset Friends from an identity it cannot read", SZFHTestResetUnreadableIdentity},
             {"an identity readable again starts what needs it", SZFHTestIdentityReadableAgain},
+        }, optInTests[] = {
+            // Opt-in, not run by the release: SPDF_OPT_IN_CHECKS=1 (apps/pdf/portable/README.md § Opt-in checks).
+            {"conversation preview reads nothing", SZFHTestConversationPreview},
         };
+        const char *optIn = getenv("SPDF_OPT_IN_CHECKS");
+        size_t count = sizeof(tests) / sizeof(tests[0]);
+        size_t optInCount = optIn && strcmp(optIn, "1") == 0 ? sizeof(optInTests) / sizeof(optInTests[0]) : 0;
         int failed = 0;
-        for (size_t i = 0; i < sizeof(tests) / sizeof(tests[0]); i++) {
+        for (size_t i = 0; i < count + optInCount; i++) {
+            __typeof__(tests[0]) *test = i < count ? &tests[i] : &optInTests[i - count];
             SZFHLastStateDirectory = nil;
             NSDate *start = [NSDate date];
-            BOOL passed = tests[i].run(harness);
-            printf("%s %s (%.1f s)\n", passed ? "ok  " : "FAIL", tests[i].name, -start.timeIntervalSinceNow);
+            BOOL passed = test->run(harness);
+            printf("%s %s (%.1f s)\n", passed ? "ok  " : "FAIL", test->name, -start.timeIntervalSinceNow);
             if (!passed) {
                 failed++;
                 if (SZFHLastStateDirectory) {

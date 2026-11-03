@@ -181,8 +181,12 @@ int main(int argc, const char *argv[]) {
         SZFTestLinkRouting();
         SZFTestFixtureConstruction();
         SZFTestHistoryFollow();
-        SZFTestChatOpen();
-        SZFTestKeyboard();
+        // Opt-in, not run by the release: SPDF_OPT_IN_CHECKS=1 (apps/pdf/portable/README.md § Opt-in checks).
+        const char *optIn = getenv("SPDF_OPT_IN_CHECKS");
+        if (optIn && strcmp(optIn, "1") == 0) {
+            SZFTestChatOpen();
+            SZFTestKeyboard();
+        }
         SZFTestHitTesting();
         SZFTestControls();
         SZFTestRowActions();

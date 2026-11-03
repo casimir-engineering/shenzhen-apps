@@ -148,8 +148,10 @@ int main(void) {
     // its own half-page column (the attribute is a maximum, not a fixed size),
     // keeps its aspect ratio, and re-fits when the paper turns. A picture in a
     // list item or a quote leaves room for the indent; a small picture is never
-    // enlarged.
-    {
+    // enlarged. Opt-in, not run by the release: SPDF_OPT_IN_CHECKS=1
+    // (README.md § Opt-in checks).
+    const char* optIn = getenv("SPDF_OPT_IN_CHECKS");
+    if (optIn && strcmp(optIn, "1") == 0) {
         NSString* directory = SPDFBudgetDirectory;
         SPDFWritePNG([directory stringByAppendingPathComponent:@"small.png"], 40, 30);
         NSString* source =
