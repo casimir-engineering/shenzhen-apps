@@ -1,5 +1,6 @@
 #import "SPDFMarkdownPaginator.h"
 #import "SPDFMarkdownImageRecolor.h"
+#import "SPDFMarkdownPicture.h"
 
 #import <CoreText/CoreText.h>
 
@@ -81,17 +82,6 @@ static void SPDFDrawAttachments(NSAttributedString* lineString, CTLineRef line, 
                               bounds.size = image.size;
                           }
                           if (bounds.size.width <= 0 || bounds.size.height <= 0) return;
-                          NSRect proposed = NSMakeRect(0, 0, bounds.size.width, bounds.size.height);
-                          CGImageRef CGImage = [image CGImageForProposedRect:&proposed context:nil hints:nil];
-                          if (!CGImage) return;
-                          if (recolorsImages) {
-                              // A Markdown page never passes through the core's
-                              // render tail, where a PDF's images are recolored,
-                              // so the same luma remap is applied here.
-                              CGImageRef darkened =
-                                  SPDFMarkdownDarkRecoloredImageForAttachment(attachment, CGImage);
-                              if (darkened) CGImage = darkened;
-                          }
                           CGFloat offset = CTLineGetOffsetForStringIndex(line, (CFIndex)range.location, NULL);
                           CGFloat fragmentBottom = baselineY + baselineOffset - lineHeight;
                           CGFloat fragmentTop = baselineY + baselineOffset;
@@ -101,10 +91,38 @@ static void SPDFDrawAttachments(NSAttributedString* lineString, CTLineRef line, 
                           CGFloat attachmentBottom = MIN(MAX(desiredBottom, fragmentBottom), fragmentTop - drawHeight);
                           CGRect destination =
                               CGRectMake(lineX + offset + bounds.origin.x, attachmentBottom, drawWidth, drawHeight);
+                          // A document's pictures decode for the pixels this
+                          // destination covers in this context, the dark
+                          // recolor cached with that decode.
+                          SPDFMarkdownPictureRep* picture = SPDFMarkdownPictureRepForImage(image);
+                          CGImageRef CGImage = NULL;
+                          if (picture) {
+                              CGImage = [picture copyImageForContext:context
+                                                                size:destination.size
+                                                             variant:recolorsImages ? SPDFMarkdownCreateDarkRecoloredImage
+                                                                                    : NULL];
+                          } else {
+                              NSRect proposed = NSMakeRect(0, 0, bounds.size.width, bounds.size.height);
+                              CGImage = CGImageRetain([image CGImageForProposedRect:&proposed context:nil hints:nil]);
+                              if (CGImage && recolorsImages) {
+                                  // A Markdown page never passes through the
+                                  // core's render tail, where a PDF's images
+                                  // are recolored, so the same luma remap is
+                                  // applied here.
+                                  CGImageRef darkened =
+                                      SPDFMarkdownDarkRecoloredImageForAttachment(attachment, CGImage);
+                                  if (darkened) {
+                                      CGImageRelease(CGImage);
+                                      CGImage = CGImageRetain(darkened);
+                                  }
+                              }
+                          }
+                          if (!CGImage) return;
                           CGContextSaveGState(context);
                           CGContextSetInterpolationQuality(context, kCGInterpolationHigh);
                           CGContextDrawImage(context, destination, CGImage);
                           CGContextRestoreGState(context);
+                          CGImageRelease(CGImage);
                         }];
 }
 

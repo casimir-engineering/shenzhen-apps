@@ -49,7 +49,6 @@ SPDFMarkdownRenderOptions* SPDFMacChatRenderOptions(SPDFMacChatMarkdownOptions* 
     // engine: no remote bytes are drawn, and a local or data image has no budget to load in.
     render.remoteImagesWithheld = YES;
     render.maximumResourceBytes = 0;
-    render.maximumDecodedImagePixels = 0;
     return render;
 }
 

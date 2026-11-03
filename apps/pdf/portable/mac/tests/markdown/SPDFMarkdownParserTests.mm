@@ -131,19 +131,18 @@ static void SPDFTestPinnedRootAndBudgets(NSURL* fixture, NSString* temporaryRoot
     [red writeToFile:[movedDirectory stringByAppendingPathComponent:@"red.png"] atomically:YES];
     [blue writeToFile:[movedDirectory stringByAppendingPathComponent:@"blue.png"] atomically:YES];
     NSURL* movedDocument = [NSURL fileURLWithPath:[movedDirectory stringByAppendingPathComponent:@"document.md"]];
-    SPDFMarkdownResourceStore* pixels = [[SPDFMarkdownResourceStore alloc]
-        initWithDocumentURL:movedDocument maximumResourceBytes:red.length + blue.length
-        maximumDecodedImagePixels:8];
-    NSImage* first = [pixels imageForTarget:@"red.png" resolvedURL:nil];
-    NSImage* repeated = [pixels imageForTarget:@"red.png#again" resolvedURL:nil];
-    NSImage* overPixelBudget = [pixels imageForTarget:@"blue.png" resolvedURL:nil];
-    SPDFExpect(first && first == repeated && !overPixelBudget && pixels.cachedResourceCount == 2 &&
-                   pixels.decodedImagePixels == 8,
-               @"image cache charges repeated references once and enforces the aggregate decoded-pixel budget");
+    NSUInteger largest = MAX(red.length, blue.length);
+    SPDFMarkdownResourceStore* pictures = [[SPDFMarkdownResourceStore alloc] initWithDocumentURL:movedDocument
+                                                                           maximumResourceBytes:largest];
+    NSImage* first = [pictures imageForTarget:@"red.png" resolvedURL:nil];
+    NSImage* repeated = [pictures imageForTarget:@"red.png#again" resolvedURL:nil];
+    NSImage* second = [pictures imageForTarget:@"blue.png" resolvedURL:nil];
+    SPDFExpect(first && first == repeated && second && pictures.cachedResourceCount == 2 &&
+                   pictures.loadedResourceBytes == 0,
+               @"pictures are shared across references, keep no bytes and do not add up to a budget");
 
-    SPDFMarkdownResourceStore* bytes = [[SPDFMarkdownResourceStore alloc]
-        initWithDocumentURL:movedDocument maximumResourceBytes:red.length
-        maximumDecodedImagePixels:100];
+    SPDFMarkdownResourceStore* bytes = [[SPDFMarkdownResourceStore alloc] initWithDocumentURL:movedDocument
+                                                                        maximumResourceBytes:red.length];
     SPDFExpect([bytes dataForTarget:@"red.png" resolvedURL:nil] != nil &&
                    [bytes dataForTarget:@"blue.png" resolvedURL:nil] == nil &&
                    bytes.loadedResourceBytes == red.length,

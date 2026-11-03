@@ -281,18 +281,15 @@ int main(void) {
                    @"remote bytes over the resource budget render the stable text placeholder");
         options.maximumResourceBytes = 64 * 1024 * 1024;
 
-        // The decoded-pixel budget is shared with local images: a second remote
-        // image beyond the remaining pixel budget degrades gracefully.
+        // Remote pictures do not add up to a budget either: both draw.
         options.remoteImageData = @{
             @"https://example.test/images/minion.png": PNG,
             @"https://example.test/images/dojocat.jpg": SPDFMakePNG(8, 8),
         };
-        options.maximumDecodedImagePixels = 10;  // fits the 4x2, not the 8x8
-        SPDFMarkdownRenderedDocument* pixelBudget = [renderer renderModel:model options:options languageOverrides:nil];
-        SPDFExpect(SPDFAttachmentForTarget(pixelBudget.attributedString,
-                                           @"https://example.test/images/minion.png") != nil &&
-                       [pixelBudget.attributedString.string containsString:@"[Image: Dojo]"],
-                   @"remote decodes share the aggregate pixel budget with graceful placeholders");
+        SPDFMarkdownRenderedDocument* both = [renderer renderModel:model options:options languageOverrides:nil];
+        SPDFExpect(SPDFAttachmentForTarget(both.attributedString, @"https://example.test/images/minion.png") != nil &&
+                       SPDFAttachmentForTarget(both.attributedString, @"https://example.test/images/dojocat.jpg") != nil,
+                   @"every fetched remote picture draws");
 
         // The engine never invents bytes for non-https keys even if a caller
         // tries to feed them through the seam.

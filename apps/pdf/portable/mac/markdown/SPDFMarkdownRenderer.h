@@ -50,8 +50,9 @@ FOUNDATION_EXPORT NSAttributedStringKey const SPDFMarkdownCodeLanguageAttribute;
 // pageContentSize is NSZeroSize.
 @property(nonatomic) CGFloat maximumImageWidth;
 @property(nonatomic) CGFloat maximumImageHeight;
+// The most bytes one picture file may have (pictures are decoded at the size
+// they are drawn, so how many a document shows has no limit).
 @property(nonatomic) NSUInteger maximumResourceBytes;
-@property(nonatomic) NSUInteger maximumDecodedImagePixels;
 // Raw bytes for remote (https-only) images, keyed by
 // SPDFMarkdownRemoteImageKeyForTarget output. The session layer downloads
 // asynchronously and feeds completed bytes in here; the render consults the

@@ -208,7 +208,7 @@ NSArray<NSDictionary*>* SPDFMacSzpdfCommandTable(void) {
             @"options" : @[ @[ @"--format md|pdf|all", @"which document kind (default all)" ] ],
             @"example" : @"szpdf features --format md",
             @"fields" : @[ @[ @"features[]", @"format, area, name, support (yes, partial, no), notes, example" ],
-                           @[ @"limits", @"the numbers behind them (image pixels, bytes, ...)" ] ]},
+                           @[ @"limits", @"the numbers behind them (picture file bytes, diagram sizes, ...)" ] ]},
           @{@"name" : @"schema", @"args" : @[ @"command?" ], @"usage" : @"szpdf schema [command]",
             @"summary" : @"Every command's options and JSON fields, and the error codes, as JSON.",
             @"options" : @[], @"example" : @"szpdf schema open", @"fields" : @[]},

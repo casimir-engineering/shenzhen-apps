@@ -90,7 +90,7 @@ static NSURL* SPDFCreateImageDocument(void) {
     for (NSUInteger index = 0; index < 200; ++index)
         [source appendString:@"![Local pixels](local.png)\n\n"];
     [source appendString:@"![AltOnly](local.png \"Titled figure caption\")\n\n"];
-    [source appendString:@"![Budgeted out](second.png)\n\n"];
+    [source appendString:@"![Second picture](second.png)\n\n"];
     [source appendString:@"![Badge one](local.png)\n![Badge two](local.png)\n\n"];
     [source appendString:@"Inline sentence with ![Inline art](local.png) image continues.\n"];
     [source writeToFile:[directory stringByAppendingPathComponent:@"image.md"]
@@ -102,13 +102,11 @@ int main(void) {
     @autoreleasepool {
         NSError* error = nil;
         SPDFMarkdownRenderOptions* imageOptions = SPDFMarkdownRenderOptions.defaultOptions;
-        imageOptions.maximumDecodedImagePixels = 8;
         SPDFMarkdownDocument* imageDocument = [SPDFMarkdownDocument documentWithURL:SPDFCreateImageDocument()
                                                                              options:imageOptions error:&error];
         SPDFExpect(imageDocument != nil && error == nil, @"local-image document loads and renders");
-        __block NSImage* sharedImage = nil;
+        NSMutableSet<NSImage*>* distinctImages = [NSMutableSet set];
         __block NSUInteger attachmentCount = 0;
-        __block BOOL allAttachmentsShared = YES;
         [imageDocument.renderedDocument.attributedString enumerateAttribute:NSAttachmentAttributeName
                                                                      inRange:NSMakeRange(0, imageDocument.renderedDocument.attributedString.length)
                                                                      options:0
@@ -117,18 +115,17 @@ int main(void) {
             NSTextAttachment* attachment = value;
             if (attachment && range.length == 1) {
                 ++attachmentCount;
-                if (!sharedImage) sharedImage = attachment.image;
-                else if (sharedImage != attachment.image) allAttachmentsShared = NO;
+                if (attachment.image) [distinctImages addObject:attachment.image];
                 SPDFExpect(attachment.bounds.size.width <= 440 && attachment.bounds.size.height <= 320,
                            @"each cached image remains constrained to render bounds");
             }
         }];
         // 200 repeated figures + the titled figure + the two row images + the
         // inline image all reference local.png and share one decoded NSImage.
-        SPDFExpect(attachmentCount == 204 && allAttachmentsShared,
-                   @"repeated image references reuse one decoded image rather than multiplying memory");
-        SPDFExpect([imageDocument.renderedDocument.attributedString.string containsString:@"[Image: Budgeted out]"],
-                   @"an image beyond the aggregate pixel budget becomes a graceful placeholder");
+        SPDFExpect(attachmentCount == 205 && distinctImages.count == 2,
+                   @"repeated image references reuse one image rather than multiplying memory");
+        SPDFExpect(![imageDocument.renderedDocument.attributedString.string containsString:@"[Image:"],
+                   @"204 references to one picture leave room for another: pictures never run out");
         SPDFExpectSearchCorrespondence(imageDocument, @"Local pixels");
 
         // Standalone images render as GitHub-style figures: the alt text is a

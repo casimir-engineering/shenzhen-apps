@@ -758,7 +758,7 @@ test-binaries: $(TEST_BINARIES)
 clean:
 	rm -rf "$(BUILD)" "$(MAC_APP)" "$(MAC_DMG)"
 
-MAC_COLLECTION_PARSER_SRCS := mac/markdown/SPDFMarkdownParser.mm mac/markdown/SPDFMarkdownModel.mm mac/markdown/SPDFMarkdownHTML.mm mac/markdown/SPDFMarkdownHTMLBlocks.mm mac/markdown/SPDFMarkdownResources.mm
+MAC_COLLECTION_PARSER_SRCS := mac/markdown/SPDFMarkdownParser.mm mac/markdown/SPDFMarkdownModel.mm mac/markdown/SPDFMarkdownHTML.mm mac/markdown/SPDFMarkdownHTMLBlocks.mm mac/markdown/SPDFMarkdownResources.mm mac/markdown/SPDFMarkdownPicture.mm
 MAC_COLLECTION_PARSER_LIBS := $(MAC_MD4C_OBJ) $(MAC_GUMBO_OBJS)
 .PHONY: mac-collection-store-tests mac-collection-asset-tests mac-collection-compare-tests mac-previous-tab-tests mac-viewport-checkpoint-tests
 mac-collection-store-tests: $(MAC_COLLECTION_PARSER_LIBS) | $(BUILD)

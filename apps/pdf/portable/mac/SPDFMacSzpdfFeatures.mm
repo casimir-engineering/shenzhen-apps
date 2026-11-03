@@ -8,6 +8,7 @@
 #import "markdown/SPDFMarkdownDiagram.h"
 #import "markdown/SPDFMarkdownHTMLInternal.h"
 #import "markdown/SPDFMarkdownLanguage.h"
+#import "markdown/SPDFMarkdownPicture.h"
 #import "markdown/SPDFMarkdownRenderer.h"
 
 static NSDictionary* F(NSString* format, NSString* area, NSString* name, NSString* support, NSString* notes,
@@ -117,18 +118,20 @@ static NSArray* Images(SPDFMarkdownRenderOptions* options) {
         F(@"md", @"images", @"sizing", @"yes", @"never enlarged; shrunk to the column width and the page height; images "
                                             @"side by side share one factor, at least 0.45; a lone image is a centred "
                                             @"figure captioned with its title or alt", @""),
-        F(@"md", @"images", @"decoded-pixel budget", @"partial",
-          [NSString stringWithFormat:@"%lu pixels (width x height, added up) per document, in order; images past it, "
-                                     @"missing or unreadable show as \"[Image: alt]\" (szpdf check lists them)",
-                                     (unsigned long)options.maximumDecodedImagePixels],
+        F(@"md", @"images", @"how many, how large", @"yes",
+          [NSString stringWithFormat:@"any number of pictures of any pixel size: each is decoded at the size it is "
+                                     @"drawn (again, sharper, when zoomed in; for 300 dpi in print and PDF export; "
+                                     @"at most %lu px a side, larger ones drawn from a smaller copy)",
+                                     (unsigned long)SPDFMarkdownPictureMaximumDecodedSide],
           @""),
-        F(@"md", @"images", @"file budget",
-          @"partial", [NSString stringWithFormat:@"%lu bytes of local image files per document",
-                                                 (unsigned long)options.maximumResourceBytes],
+        F(@"md", @"images", @"file size", @"partial",
+          [NSString stringWithFormat:@"at most %lu bytes per picture file; a bigger file, a missing one or one that "
+                                     @"isn't a picture shows as \"[Image: alt]\" (szpdf check lists them)",
+                                     (unsigned long)options.maximumResourceBytes],
           @""),
-        F(@"md", @"images", @"dark theme", @"yes", @"the reader's dark theme remaps every image's lightness (pictures "
-                                                @"over 8192 px a side are left alone) unless the tab keeps image "
-                                                @"colours; print, export and szpdf pictures stay light", @""),
+        F(@"md", @"images", @"dark theme", @"yes", @"the reader's dark theme remaps every image's lightness unless the "
+                                                @"tab keeps image colours; print, export and szpdf pictures stay "
+                                                @"light", @""),
     ];
 }
 
@@ -197,8 +200,8 @@ NSDictionary* SPDFMacSzpdfFeatures(NSString* format) {
         @"format" : format,
         @"features" : chosen,
         @"limits" : @{
-            @"decodedImagePixels" : @(options.maximumDecodedImagePixels),
-            @"imageBytes" : @(options.maximumResourceBytes),
+            @"imageFileBytes" : @(options.maximumResourceBytes),
+            @"imageDecodedSide" : @(SPDFMarkdownPictureMaximumDecodedSide),
             @"diagramNodes" : @(SPDFMarkdownDiagramMaximumNodes),
             @"diagramEdges" : @(SPDFMarkdownDiagramMaximumEdges),
             @"diagramPoints" : @(SPDFMarkdownDiagramMaximumDimension),

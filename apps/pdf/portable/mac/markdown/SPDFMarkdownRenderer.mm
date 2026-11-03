@@ -46,7 +46,6 @@ NSAttributedStringKey const SPDFMarkdownCodeLanguageAttribute = @"SPDFMarkdownCo
     options.maximumImageWidth = 440;
     options.maximumImageHeight = 320;
     options.maximumResourceBytes = 64 * 1024 * 1024;
-    options.maximumDecodedImagePixels = 32 * 1024 * 1024;
     options.remoteImagePlaceholderHeight = 150;
     options.themeVariant = SPDFMarkdownThemeVariantLight;  // derives the palette roles
     return options;
@@ -77,7 +76,6 @@ NSAttributedStringKey const SPDFMarkdownCodeLanguageAttribute = @"SPDFMarkdownCo
     copy.maximumImageWidth = self.maximumImageWidth;
     copy.maximumImageHeight = self.maximumImageHeight;
     copy.maximumResourceBytes = self.maximumResourceBytes;
-    copy.maximumDecodedImagePixels = self.maximumDecodedImagePixels;
     copy.remoteImageData = self.remoteImageData;
     copy.failedRemoteImageTargets = self.failedRemoteImageTargets;
     copy.remoteImagesWithheld = self.remoteImagesWithheld;
@@ -432,11 +430,8 @@ NSAttributedStringKey const SPDFMarkdownCodeLanguageAttribute = @"SPDFMarkdownCo
     context.overrides = languageOverrides ?: @{};
     context.sourceURL = model.sourceURL;
     context.resourceStore = model.resourceStore
-        ? [model.resourceStore storeWithMaximumResourceBytes:options.maximumResourceBytes
-                                   maximumDecodedImagePixels:options.maximumDecodedImagePixels]
-        : [SPDFMarkdownResourceStore
-              remoteOnlyStoreWithMaximumResourceBytes:options.maximumResourceBytes
-                            maximumDecodedImagePixels:options.maximumDecodedImagePixels];
+        ? [model.resourceStore storeWithMaximumResourceBytes:options.maximumResourceBytes]
+        : [SPDFMarkdownResourceStore remoteOnlyStoreWithMaximumResourceBytes:options.maximumResourceBytes];
     context.resourceStore.remoteImageData = options.remoteImageData;
     CGFloat fontScale = options.fontScale > 0 ? options.fontScale : 1;
     context.bodyFont = [NSFont systemFontOfSize:options.textSize * fontScale];

@@ -46,6 +46,7 @@ $PORTABLE/mac/markdown/SPDFMarkdownParser.mm
 $PORTABLE/mac/markdown/SPDFMarkdownHTML.mm
 $PORTABLE/mac/markdown/SPDFMarkdownHTMLBlocks.mm
 $PORTABLE/mac/markdown/SPDFMarkdownResources.mm
+$PORTABLE/mac/markdown/SPDFMarkdownPicture.mm
 $PORTABLE/mac/markdown/SPDFMarkdownLanguage.mm
 $PORTABLE/mac/markdown/SPDFMarkdownHighlighter.mm
 $PORTABLE/mac/markdown/SPDFMarkdownLexerSupport.mm

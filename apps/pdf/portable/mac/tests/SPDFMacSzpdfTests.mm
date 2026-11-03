@@ -11,6 +11,7 @@
 #import "markdown/SPDFMarkdownHTMLInternal.h"
 #import "markdown/SPDFMarkdownLanguage.h"
 #import "markdown/SPDFMarkdownParser.h"
+#import "markdown/SPDFMarkdownRenderer.h"
 
 #import <AppKit/AppKit.h>
 #import <ImageIO/ImageIO.h>
@@ -222,7 +223,7 @@ static void TestDocument(void) {
     NSDictionary* report = SPDFMacSzpdfCheck([SPDFMacSzpdfDocument documentAtPath:path failure:nil]);
     NSMutableDictionary* lines = [NSMutableDictionary dictionary];
     for (NSDictionary* issue in report[@"issues"]) lines[issue[@"code"]] = issue[@"line"];
-    NSDictionary* expected = @{@"image-over-budget" : @11, @"image-missing" : @13, @"html-dropped" : @15,
+    NSDictionary* expected = @{@"image-missing" : @13, @"html-dropped" : @15,
                                @"html-ignored" : @17, @"broken-anchor" : @19, @"broken-link" : @19, @"footnote" : @19,
                                @"diagram-as-code" : @25, @"duplicate-heading" : @30, @"comment-unplaced" : @21};
     for (NSString* code in expected)
@@ -275,7 +276,9 @@ static void TestFeatures(void) {
         }
     }
     Expect(md > 80 && pdf >= 4 && [SPDFMacSzpdfFeatures(@"pdf")[@"features"] count] == pdf, @"both formats, and the filter");
-    Expect([all[@"limits"][@"decodedImagePixels"] isEqual:@(32 * 1024 * 1024)], @"the pixel budget is the renderer's");
+    Expect([all[@"limits"][@"imageFileBytes"] isEqual:@(SPDFMarkdownRenderOptions.defaultOptions.maximumResourceBytes)] &&
+               all[@"limits"][@"decodedImagePixels"] == nil,
+           @"the picture limit is the renderer's, and there is no pixel budget");
     Expect([Shown(@"Text[^1]\n")containsString:@"[^1]"], @"footnotes show as written, as listed");
 }
 

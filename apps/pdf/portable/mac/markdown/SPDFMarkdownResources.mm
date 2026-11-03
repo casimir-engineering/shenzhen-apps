@@ -1,8 +1,8 @@
 #import "SPDFMarkdownResources.h"
 
 #import "SPDFMarkdownParser.h"
+#import "SPDFMarkdownPicture.h"
 
-#import <ImageIO/ImageIO.h>
 
 #include <errno.h>
 #include <fcntl.h>
@@ -114,11 +114,44 @@ static NSData* SPDFReadDescriptor(int fileDescriptor, NSUInteger maximumBytes) {
     }
 }
 
+// Opens `components` below `root` without following links and reads the file,
+// up to `maximumBytes`.
+static NSData* SPDFReadBelowRoot(int root, NSArray<NSString*>* components, NSUInteger maximumBytes) {
+    int descriptor = root >= 0 ? dup(root) : -1;
+    if (descriptor < 0) return nil;
+    for (NSUInteger index = 0; index < components.count; ++index) {
+        BOOL final = index + 1 == components.count;
+        int flags = O_RDONLY | O_CLOEXEC | O_NOFOLLOW | (final ? O_NONBLOCK : O_DIRECTORY);
+        int next = openat(descriptor, components[index].fileSystemRepresentation, flags);
+        close(descriptor);
+        descriptor = next;
+        if (descriptor < 0) return nil;
+    }
+    NSData* data = SPDFReadDescriptor(descriptor, maximumBytes);
+    close(descriptor);
+    return data;
+}
+
+// A duplicate of the verified root that pictures keep, so a page drawn after
+// the render has finished can read a picture again (SPDFMarkdownPictureRep
+// keeps no bytes) from the very directory it was laid out from.
+@interface SPDFMarkdownPinnedRoot : NSObject
+@property(nonatomic, readonly) int descriptor;
+@end
+@implementation SPDFMarkdownPinnedRoot
+- (instancetype)initWithDuplicateOf:(int)root {
+    if ((self = [super init])) _descriptor = root >= 0 ? dup(root) : -1;
+    return self;
+}
+- (void)dealloc {
+    if (_descriptor >= 0) close(_descriptor);
+}
+@end
+
 @interface SPDFMarkdownCachedResource : NSObject
 @property(nonatomic, nullable) NSData* data;
 @property(nonatomic, nullable) NSImage* image;
 @property(nonatomic, nullable) NSURL* resolvedURL;
-@property(nonatomic) BOOL imageLoaded;
 @end
 @implementation SPDFMarkdownCachedResource
 @end
@@ -126,8 +159,7 @@ static NSData* SPDFReadDescriptor(int fileDescriptor, NSUInteger maximumBytes) {
 @interface SPDFMarkdownResourceStore ()
 - (instancetype)initWithRootDescriptor:(int)rootDescriptor
                                rootPath:(NSString*)rootPath
-                   maximumResourceBytes:(NSUInteger)maximumResourceBytes
-              maximumDecodedImagePixels:(NSUInteger)maximumDecodedImagePixels NS_DESIGNATED_INITIALIZER;
+                   maximumResourceBytes:(NSUInteger)maximumResourceBytes NS_DESIGNATED_INITIALIZER;
 @end
 
 @implementation SPDFMarkdownResourceStore {
@@ -146,14 +178,14 @@ static NSData* SPDFReadDescriptor(int fileDescriptor, NSUInteger maximumBytes) {
     struct stat _documentInfo;
     BOOL _rootOpenAttempted;
     NSUInteger _maximumResourceBytes;
-    NSUInteger _maximumDecodedImagePixels;
     NSMutableDictionary<NSString*, SPDFMarkdownCachedResource*>* _cache;
+    NSMutableDictionary<NSString*, SPDFMarkdownCachedResource*>* _pictures;
+    SPDFMarkdownPinnedRoot* _pinnedRoot;
 }
 
 - (instancetype)initWithRootDescriptor:(int)rootDescriptor
                                rootPath:(NSString*)rootPath
-                   maximumResourceBytes:(NSUInteger)maximumResourceBytes
-              maximumDecodedImagePixels:(NSUInteger)maximumDecodedImagePixels {
+                   maximumResourceBytes:(NSUInteger)maximumResourceBytes {
     self = [super init];
     if (!self) {
         close(rootDescriptor);
@@ -163,35 +195,24 @@ static NSData* SPDFReadDescriptor(int fileDescriptor, NSUInteger maximumBytes) {
     _rootPath = [rootPath copy];
     _documentDescriptor = -1;
     _maximumResourceBytes = maximumResourceBytes;
-    _maximumDecodedImagePixels = maximumDecodedImagePixels;
     _cache = [NSMutableDictionary dictionary];
+    _pictures = [NSMutableDictionary dictionary];
     return self;
 }
 
 - (instancetype)initWithDocumentURL:(NSURL*)documentURL {
-    return [self initWithDocumentURL:documentURL
-                maximumResourceBytes:64 * 1024 * 1024
-           maximumDecodedImagePixels:32 * 1024 * 1024];
+    return [self initWithDocumentURL:documentURL maximumResourceBytes:64 * 1024 * 1024];
 }
 
-+ (instancetype)remoteOnlyStoreWithMaximumResourceBytes:(NSUInteger)maximumResourceBytes
-                              maximumDecodedImagePixels:(NSUInteger)maximumDecodedImagePixels {
-    return [[self alloc] initWithRootDescriptor:-1
-                                       rootPath:@""
-                           maximumResourceBytes:maximumResourceBytes
-                      maximumDecodedImagePixels:maximumDecodedImagePixels];
++ (instancetype)remoteOnlyStoreWithMaximumResourceBytes:(NSUInteger)maximumResourceBytes {
+    return [[self alloc] initWithRootDescriptor:-1 rootPath:@"" maximumResourceBytes:maximumResourceBytes];
 }
 
-- (instancetype)initWithDocumentURL:(NSURL*)documentURL
-                maximumResourceBytes:(NSUInteger)maximumResourceBytes
-           maximumDecodedImagePixels:(NSUInteger)maximumDecodedImagePixels {
+- (instancetype)initWithDocumentURL:(NSURL*)documentURL maximumResourceBytes:(NSUInteger)maximumResourceBytes {
     struct stat documentInfo = {};
     int document = SPDFOpenPinnedDocumentDescriptor(documentURL, &documentInfo);
     if (document < 0) return nil;
-    self = [self initWithRootDescriptor:-1
-                               rootPath:@""
-                   maximumResourceBytes:maximumResourceBytes
-              maximumDecodedImagePixels:maximumDecodedImagePixels];
+    self = [self initWithRootDescriptor:-1 rootPath:@"" maximumResourceBytes:maximumResourceBytes];
     if (!self) {
         close(document);
         return nil;
@@ -221,10 +242,9 @@ static NSData* SPDFReadDescriptor(int fileDescriptor, NSUInteger maximumBytes) {
     if (_documentDescriptor >= 0) close(_documentDescriptor);
 }
 
-- (NSUInteger)cachedResourceCount { return _cache.count; }
+- (NSUInteger)cachedResourceCount { return _cache.count + _pictures.count; }
 
-- (SPDFMarkdownResourceStore*)storeWithMaximumResourceBytes:(NSUInteger)maximumResourceBytes
-                                  maximumDecodedImagePixels:(NSUInteger)maximumDecodedImagePixels {
+- (SPDFMarkdownResourceStore*)storeWithMaximumResourceBytes:(NSUInteger)maximumResourceBytes {
     int descriptor = -1;
     int document = -1;
     if (_rootDescriptor >= 0) {
@@ -239,8 +259,7 @@ static NSData* SPDFReadDescriptor(int fileDescriptor, NSUInteger maximumBytes) {
     SPDFMarkdownResourceStore* store =
         [[SPDFMarkdownResourceStore alloc] initWithRootDescriptor:descriptor
                                                          rootPath:_rootPath
-                                             maximumResourceBytes:maximumResourceBytes
-                                        maximumDecodedImagePixels:maximumDecodedImagePixels];
+                                             maximumResourceBytes:maximumResourceBytes];
     if (!store) {
         if (document >= 0) close(document);
         return nil;
@@ -288,27 +307,20 @@ static NSData* SPDFReadDescriptor(int fileDescriptor, NSUInteger maximumBytes) {
 
     cached = [SPDFMarkdownCachedResource new];
     _cache[key] = cached;  // Failed resources are cached too.
-    int descriptor = dup([self verifiedRootDescriptor]);
-    if (descriptor < 0) return cached;
-    for (NSUInteger index = 0; index < components.count; ++index) {
-        BOOL final = index + 1 == components.count;
-        int flags = O_RDONLY | O_CLOEXEC | O_NOFOLLOW | (final ? O_NONBLOCK : O_DIRECTORY);
-        int next = openat(descriptor, components[index].fileSystemRepresentation, flags);
-        close(descriptor);
-        descriptor = next;
-        if (descriptor < 0) return cached;
-    }
     NSUInteger remaining = _loadedResourceBytes < _maximumResourceBytes
         ? _maximumResourceBytes - _loadedResourceBytes : 0;
-    NSData* data = SPDFReadDescriptor(descriptor, remaining);
-    close(descriptor);
+    NSData* data = SPDFReadBelowRoot([self verifiedRootDescriptor], components, remaining);
     if (!data) return cached;
     cached.data = data;
     _loadedResourceBytes += data.length;
+    cached.resolvedURL = [self resolvedURLForComponents:components];
+    return cached;
+}
+
+- (NSURL*)resolvedURLForComponents:(NSArray<NSString*>*)components {
     NSURL* URL = [NSURL fileURLWithPath:self.currentRootPath isDirectory:YES];
     for (NSString* component in components) URL = [URL URLByAppendingPathComponent:component];
-    cached.resolvedURL = URL;
-    return cached;
+    return URL;
 }
 
 - (NSData*)dataForTarget:(NSString*)target resolvedURL:(NSURL**)resolvedURL {
@@ -318,53 +330,55 @@ static NSData* SPDFReadDescriptor(int fileDescriptor, NSUInteger maximumBytes) {
     return resource.data;
 }
 
+// Pictures are laid out from their pixel size and decoded only when drawn, at
+// the size drawn (SPDFMarkdownPictureRep), so they do not add up: the only
+// limit is maximumResourceBytes for each picture file. Their bytes are not
+// kept; a local picture is read again through the pinned root when a page
+// needs it decoded, and a remote one stays in the session's byte map.
 - (NSImage*)imageForTarget:(NSString*)target resolvedURL:(NSURL**)resolvedURL {
     if (resolvedURL) *resolvedURL = nil;
-    SPDFMarkdownCachedResource* resource = [self loadTarget:target];
-    if (resolvedURL) *resolvedURL = resource.resolvedURL;
-    if (!resource || resource.imageLoaded) return resource.image;
-    resource.imageLoaded = YES;
-    if (!resource.data) return nil;
+    NSString* remoteKey = SPDFMarkdownRemoteImageKeyForTarget(target);
+    NSArray<NSString*>* components = remoteKey ? nil : SPDFLocalPathComponents(target);
+    NSString* key = remoteKey ?: [components componentsJoinedByString:@"/"];
+    if (!key.length) return nil;
+    SPDFMarkdownCachedResource* picture = _pictures[key];
+    if (!picture) {
+        picture = [self loadPictureForRemoteKey:remoteKey components:components];
+        _pictures[key] = picture;  // Failed pictures are cached too.
+    }
+    if (resolvedURL) *resolvedURL = picture.resolvedURL;
+    return picture.image;
+}
 
-    CGImageSourceRef source = CGImageSourceCreateWithData((__bridge CFDataRef)resource.data, NULL);
-    CFDictionaryRef rawProperties = source ? CGImageSourceCopyPropertiesAtIndex(source, 0, NULL) : NULL;
-    NSDictionary* properties = CFBridgingRelease(rawProperties);
-    uint64_t width = [properties[(NSString*)kCGImagePropertyPixelWidth] unsignedLongLongValue];
-    uint64_t height = [properties[(NSString*)kCGImagePropertyPixelHeight] unsignedLongLongValue];
-    uint64_t pixels = width && height <= UINT64_MAX / width ? width * height : UINT64_MAX;
-    NSUInteger remaining = _decodedImagePixels < _maximumDecodedImagePixels
-        ? _maximumDecodedImagePixels - _decodedImagePixels : 0;
-    if (!source || !width || !height) {
-        if (source) CFRelease(source);
+- (SPDFMarkdownCachedResource*)loadPictureForRemoteKey:(NSString*)remoteKey components:(NSArray<NSString*>*)components {
+    SPDFMarkdownCachedResource* picture = [SPDFMarkdownCachedResource new];
+    NSUInteger limit = MIN(_maximumResourceBytes, SPDFMarkdownMaximumSingleResourceBytes);
+    NSData* bytes = nil;
+    NSData* _Nullable (^reload)(void) = nil;
+    if (remoteKey) {
+        NSData* remote = _remoteImageData[remoteKey];
+        if (!remote.length || remote.length > limit) return picture;
+        bytes = remote;
+        reload = ^NSData* { return remote; };
+        picture.resolvedURL = [NSURL URLWithString:remoteKey];
+    } else {
+        int root = [self verifiedRootDescriptor];
+        bytes = SPDFReadBelowRoot(root, components, limit);
+        if (!bytes) return picture;
+        if (!_pinnedRoot) _pinnedRoot = [[SPDFMarkdownPinnedRoot alloc] initWithDuplicateOf:root];
+        SPDFMarkdownPinnedRoot* pinned = _pinnedRoot;
+        reload = ^NSData* { return SPDFReadBelowRoot(pinned.descriptor, components, limit); };
+        picture.resolvedURL = [self resolvedURLForComponents:components];
+    }
+    picture.image = [SPDFMarkdownPictureRep imageWithBytes:bytes reload:reload];
+    if (!picture.image) {
         // ImageIO cannot identify this data — notably SVG (shields.io badges).
         // Try NSImage, which rasterizes SVG data on modern macOS; where that
-        // fails too, the caller keeps the stable text placeholder. The decoded
-        // size counts against the same pixel budget.
-        NSImage* fallback = [[NSImage alloc] initWithData:resource.data];
-        NSSize fallbackSize = fallback.size;
-        uint64_t fallbackPixels = fallbackSize.width >= 1 && fallbackSize.height >= 1
-            ? (uint64_t)ceil(fallbackSize.width) * (uint64_t)ceil(fallbackSize.height) : 0;
-        if (fallbackPixels > 0 && fallbackPixels <= remaining) {
-            resource.image = fallback;
-            _decodedImagePixels += (NSUInteger)fallbackPixels;
-        }
-        resource.data = nil;
-        return resource.image;
+        // fails too, the caller keeps the stable text placeholder.
+        NSImage* fallback = [[NSImage alloc] initWithData:bytes];
+        if (fallback.size.width >= 1 && fallback.size.height >= 1) picture.image = fallback;
     }
-    if (pixels > remaining) {
-        CFRelease(source);
-        resource.data = nil;
-        return nil;
-    }
-    CGImageRef image = CGImageSourceCreateImageAtIndex(source, 0, NULL);
-    CFRelease(source);
-    if (image) {
-        resource.image = [[NSImage alloc] initWithCGImage:image size:NSMakeSize(width, height)];
-        CGImageRelease(image);
-        _decodedImagePixels += (NSUInteger)pixels;
-    }
-    resource.data = nil;
-    return resource.image;
+    return picture;
 }
 
 @end

@@ -60,6 +60,7 @@ $ROOT/portable/mac/markdown/SPDFMarkdownParser.mm
 $ROOT/portable/mac/markdown/SPDFMarkdownHTML.mm
 $ROOT/portable/mac/markdown/SPDFMarkdownHTMLBlocks.mm
 $ROOT/portable/mac/markdown/SPDFMarkdownResources.mm
+$ROOT/portable/mac/markdown/SPDFMarkdownPicture.mm
 $ROOT/portable/mac/markdown/SPDFMarkdownLanguage.mm
 $ROOT/portable/mac/markdown/SPDFMarkdownHighlighter.mm
 $ROOT/portable/mac/markdown/SPDFMarkdownLexerSupport.mm

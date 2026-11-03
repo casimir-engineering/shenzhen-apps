@@ -1,5 +1,5 @@
 // `szpdf check` (SPDFMacSzpdfInternal.h): what the reader will do with a Markdown file, from the reader's own code
-// where it can be asked (the image store and its budgets, the HTML tag policy, the diagram renderer, the layout's
+// where it can be asked (the image store and its decoder, the HTML tag policy, the diagram renderer, the layout's
 // diagnostics, comment anchoring) and from the source text for the rest (links, attributes, footnotes).
 #import "SPDFMacSzpdfInternal.h"
 #import "SPDFMacMarkdownComments.h"
@@ -9,10 +9,10 @@
 #import "markdown/SPDFMarkdownHTMLInternal.h"
 #import "markdown/SPDFMarkdownPaginator.h"
 #import "markdown/SPDFMarkdownParser.h"
+#import "markdown/SPDFMarkdownPicture.h"
 #import "markdown/SPDFMarkdownRenderer.h"
 #import "markdown/SPDFMarkdownResources.h"
 
-#import <ImageIO/ImageIO.h>
 
 @interface SPDFMacSzpdfChecker : NSObject
 @property(nonatomic) SPDFMacSzpdfDocument* document;
@@ -76,19 +76,30 @@ static NSUInteger CountRows(SPDFMarkdownBlock* block) {
     return rows;
 }
 
+// Whether the reader can draw `image`: a picture is decoded here the way a page
+// decodes it, small.
+static BOOL Decodes(NSImage* image) {
+    SPDFMarkdownPictureRep* picture = SPDFMarkdownPictureRepForImage(image);
+    if (!picture) return image != nil;
+    CGColorSpaceRef space = CGColorSpaceCreateWithName(kCGColorSpaceSRGB);
+    CGContextRef context = CGBitmapContextCreate(NULL, 8, 8, 8, 0, space, kCGImageAlphaPremultipliedLast);
+    CGColorSpaceRelease(space);
+    CGImageRef decoded = context ? [picture copyImageForContext:context size:CGSizeMake(8, 8) variant:NULL] : NULL;
+    if (context) CGContextRelease(context);
+    if (decoded) CGImageRelease(decoded);
+    return decoded != NULL;
+}
+
 - (void)checkImages {
     SPDFMarkdownDocumentModel* model = self.document.model;
     SPDFMarkdownRenderOptions* options = [SPDFMarkdownRenderOptions defaultOptions];
     SPDFMarkdownResourceStore* store =
         [[SPDFMarkdownResourceStore alloc] initWithDocumentURL:[NSURL fileURLWithPath:self.document.path]
-                                          maximumResourceBytes:options.maximumResourceBytes
-                                     maximumDecodedImagePixels:options.maximumDecodedImagePixels];
+                                          maximumResourceBytes:options.maximumResourceBytes];
     NSMutableArray<SPDFMarkdownInlineRun*>* images = [NSMutableArray array];
     CollectImages(model.blocks, images);
     NSString* folder = self.document.path.stringByDeletingLastPathComponent;
     NSMutableDictionary<NSString*, NSNumber*>* searchFrom = [NSMutableDictionary dictionary];
-    unsigned long long pixels = 0;
-    NSMutableSet* counted = [NSMutableSet set];  // the store decodes a picture once, however often it is shown
     for (SPDFMarkdownInlineRun* run in images) {
         NSString* target = run.destination;
         NSInteger line = [self lineOf:target from:searchFrom[target].integerValue];
@@ -114,29 +125,13 @@ static NSUInteger CountRows(SPDFMarkdownBlock* block) {
                 message:[NSString stringWithFormat:@"%@ does not exist; it shows as %@.", target, shown]];
             continue;
         }
-        CGImageSourceRef source = CGImageSourceCreateWithURL((__bridge CFURLRef)[NSURL fileURLWithPath:file], NULL);
-        NSDictionary* properties = source ? CFBridgingRelease(CGImageSourceCopyPropertiesAtIndex(source, 0, NULL)) : nil;
-        if (source) CFRelease(source);
-        unsigned long long width = [properties[(NSString*)kCGImagePropertyPixelWidth] unsignedLongLongValue];
-        unsigned long long height = [properties[(NSString*)kCGImagePropertyPixelHeight] unsignedLongLongValue];
-        BOOL drawn = [store imageForTarget:target resolvedURL:NULL] != nil;
-        if (drawn) {
-            if (![counted containsObject:target]) pixels += width * height;
-            [counted addObject:target];
-            continue;
-        }
-        if (width && height && pixels + width * height > options.maximumDecodedImagePixels)
-            [self add:@"error" line:line code:@"image-over-budget"
-                message:[NSString stringWithFormat:@"%@ (%llu x %llu) is past the reader's budget of %lu decoded pixels "
-                                                   @"per document (%llu used before it); it shows as %@. Make the "
-                                                   @"pictures smaller (a 2000 px wide picture is plenty for a page).",
-                                                   target, width, height, (unsigned long)options.maximumDecodedImagePixels,
-                                                   pixels, shown]];
-        else
-            [self add:@"error" line:line code:@"image-unreadable"
-                message:[NSString stringWithFormat:@"%@ could not be read as a picture (or the %lu bytes of pictures "
-                                                   @"per document ran out); it shows as %@.", target,
-                                                   (unsigned long)options.maximumResourceBytes, shown]];
+        NSImage* image = [store imageForTarget:target resolvedURL:NULL];
+        if (Decodes(image)) continue;
+        [self add:@"error" line:line code:@"image-unreadable"
+            message:[NSString stringWithFormat:@"%@ could not be read as a picture (or the file is over %lu bytes); "
+                                               @"it shows as %@.", target,
+                                               (unsigned long)options.maximumResourceBytes,
+                                               image ? @"an empty space" : shown]];
     }
 }
 

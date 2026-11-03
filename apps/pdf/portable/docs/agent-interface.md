@@ -240,12 +240,12 @@ numbers. In short: GitHub-flavoured Markdown (tables, task lists, strikethrough,
 Mermaid flowchart, sequence, pie, state, class and gantt diagrams; no footnotes or `:emoji:` shortcodes; a sanitized
 HTML subset (`<img src width height>`, `<br>`, `<b>`, `<kbd>`, `<sub>`, `<details>`, `<table>` without merged cells,
 `<div align="center">`; `style`, `class` and `valign` are ignored; `<script>`, `<iframe>`, `<svg>` are removed with
-their content); local images inside the document's folder and https images; at most 33,554,432 decoded pixels of
-pictures per document, after which pictures show as `[Image: alt]`.
+their content); local images inside the document's folder and https images, any number of them at any pixel size (each
+is decoded at the size it is drawn), up to 64 MB per picture file.
 
 `szpdf check <file.md>` reports, as `issues` (`severity` error, warning or info, `line`, `code`, `message`), what the
-reader will do with one file: missing images and images past the pixel budget (`image-missing`,
-`image-over-budget`, `image-not-allowed`), HTML it removes or ignores (`html-dropped`, `html-ignored`,
+reader will do with one file: missing, unreadable and disallowed images (`image-missing`, `image-unreadable`,
+`image-not-allowed`), HTML it removes or ignores (`html-dropped`, `html-ignored`,
 `html-attribute-ignored`, `html-table-span`), broken `#anchors` and links (`broken-anchor`, `broken-link`,
 `link-blocked`), headings that make `--heading` ambiguous (`duplicate-heading`), footnotes, diagrams that will show
 as code (`diagram-as-code`), comments whose words are gone (`comment-unplaced`), and tables too wide or too long for
