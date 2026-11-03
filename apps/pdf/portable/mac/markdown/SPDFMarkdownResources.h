@@ -10,6 +10,18 @@ NS_ASSUME_NONNULL_BEGIN
 // scheme keep rendering the text placeholder.
 FOUNDATION_EXPORT NSString* _Nullable SPDFMarkdownRemoteImageKeyForTarget(NSString* target);
 
+// SVG bytes to an image, or nil. ImageIO cannot read SVG and AppKit's own SVG
+// support draws common charts wrongly (matplotlib's `font:` shorthand, glyphs
+// placed with <use>), so the reader installs a decoder built on its SVG
+// renderer (mac/SPDFMacSVGImage.mm). A process without one -- the Collection
+// companion, the engine's own test binaries -- falls back to NSImage.
+typedef NSImage* _Nullable (*SPDFMarkdownSVGDecoder)(NSData* data);
+FOUNDATION_EXPORT void SPDFMarkdownSetSVGDecoder(SPDFMarkdownSVGDecoder _Nullable decoder);
+FOUNDATION_EXPORT BOOL SPDFMarkdownDataLooksLikeSVG(NSData* data);
+// Image bytes ImageIO did not identify: SVG through the installed decoder, the
+// rest through NSImage.
+FOUNDATION_EXPORT NSImage* _Nullable SPDFMarkdownImageFromData(NSData* data);
+
 // Holds a verified directory descriptor for one Markdown document and shares
 // each picture across every reference in a render. Remote https images are
 // served purely from `remoteImageData` — bytes the session layer fetched ahead

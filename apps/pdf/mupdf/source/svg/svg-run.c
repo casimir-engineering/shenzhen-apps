@@ -33,6 +33,14 @@
 
 #define MAX_USE_DEPTH 100
 
+/* ShenzhenPDF: what matplotlib and hand-written charts need, which upstream
+   lacked -- the CSS `font` shorthand and font properties that inherit from
+   any ancestor (svg_parse_font_attributes), a family list mapped to the sans,
+   serif or mono face (svg_font_class), style declarations matched by exact
+   name and ranked above presentation attributes (svg_prop, svg_style_lookup),
+   opacity, fill-opacity, stroke-opacity and stroke-dasharray from either,
+   dominant-baseline, per-character x/y lists, and clip-path to one shape. */
+
 typedef struct svg_state
 {
 	fz_matrix transform;
@@ -54,10 +62,13 @@ typedef struct svg_state
 	float stroke_color[3];
 	float stroke_opacity;
 
-	const char *font_family;
+	/* Inherited font properties. The family is the CSS family list as
+	   written ("'DejaVu Sans', Arial, sans-serif"); svg_load_font picks. */
+	char font_family[128];
 	int is_bold;
 	int is_italic;
 	int text_anchor;
+	int dominant_baseline;
 } svg_state;
 
 static void svg_parse_common(fz_context *ctx, svg_document *doc, fz_xml *node, svg_state *state);
@@ -1035,226 +1046,359 @@ svg_parse_viewbox(fz_context *ctx, svg_document *doc, fz_xml *node, svg_state *s
 	}
 }
 
-static const char *linecap_table[] = { "butt", "round", "square" };
-static const char *linejoin_table[] = { "miter", "round", "bevel" };
+
+/*
+	A presentation property of one element. A declaration in the style
+	attribute wins over the attribute of the same name, as CSS ranks them.
+	NULL when neither sets it, or when the value is "inherit" (the state
+	already holds the inherited value).
+*/
+static const char *
+svg_prop(fz_xml *node, const char *style, const char *name, char *buf, int buf_size)
+{
+	const char *value;
+	if (svg_style_lookup(style, name, buf, buf_size))
+		value = buf;
+	else
+		value = fz_xml_att(node, name);
+	if (value && !strcmp(value, "inherit"))
+		return NULL;
+	return value;
+}
+
+/* CSS absolute size keywords, in px, as browsers resolve them. */
+static const struct { const char *name; float size; } svg_font_size_keywords[] = {
+	{ "xx-small", 9 }, { "x-small", 10 }, { "small", 13 }, { "medium", 16 },
+	{ "large", 18 }, { "x-large", 24 }, { "xx-large", 32 }, { "xxx-large", 48 },
+};
+
+/* Returns 0 when str is not a font size. */
+static float
+svg_parse_font_size(const char *str, float parent)
+{
+	char *end;
+	size_t i;
+	float size;
+
+	for (i = 0; i < nelem(svg_font_size_keywords); ++i)
+		if (!strcmp(str, svg_font_size_keywords[i].name))
+			return svg_font_size_keywords[i].size;
+	if (!strcmp(str, "smaller"))
+		return parent / 1.2f;
+	if (!strcmp(str, "larger"))
+		return parent * 1.2f;
+
+	size = fz_strtof(str, &end);
+	if (end == str || size <= 0)
+		return 0;
+	/* em and % are relative to the parent's size */
+	return svg_parse_length(str, parent, parent);
+}
+
+/* Returns -1 when str is not a font weight. */
+static int
+svg_parse_font_weight(const char *str, int parent_is_bold)
+{
+	char *end;
+	float weight;
+	if (!strcmp(str, "normal") || !strcmp(str, "lighter"))
+		return 0;
+	if (!strcmp(str, "bold") || !strcmp(str, "bolder"))
+		return 1;
+	weight = fz_strtof(str, &end);
+	if (end == str || *end || weight < 1 || weight > 1000)
+		return -1;
+	/* With one regular and one bold face, CSS font matching takes the
+	   regular face up to 500 and the bold one from 600. */
+	return weight >= 600;
+}
+
+static int
+svg_is_font_style_keyword(const char *str)
+{
+	static const char *keywords[] = {
+		"normal", "small-caps", "ultra-condensed", "extra-condensed", "condensed",
+		"semi-condensed", "semi-expanded", "expanded", "extra-expanded", "ultra-expanded",
+	};
+	size_t i;
+	for (i = 0; i < nelem(keywords); ++i)
+		if (!strcmp(str, keywords[i]))
+			return 1;
+	return 0;
+}
+
+/*
+	The CSS font shorthand:
+	[style] [variant] [weight] [stretch] size[/line-height] family-list,
+	which matplotlib writes as `font: 600 10px 'DejaVu Sans', sans-serif`.
+	Style and weight it leaves out reset to normal. An invalid shorthand is
+	ignored, as CSS ignores an invalid declaration.
+*/
+static void
+svg_parse_font_shorthand(svg_state *state, const char *str)
+{
+	const char *p = str;
+	int italic = 0, bold = 0;
+	float size = 0;
+
+	while (*p)
+	{
+		char token[64];
+		int n = 0, weight;
+		char *slash;
+
+		while (svg_is_whitespace(*p))
+			++p;
+		if (!*p || *p == '\'' || *p == '"' || *p == ',')
+			return; /* family before size: invalid */
+		while (*p && !svg_is_whitespace(*p) && *p != ',' && n < (int)sizeof token - 1)
+			token[n++] = *p++;
+		token[n] = 0;
+
+		/* the line height may follow the size after spaces too: "10px / 1.2" */
+		slash = strchr(token, '/');
+		if (slash)
+			*slash = 0;
+
+		if (!strcmp(token, "italic") || !strcmp(token, "oblique"))
+			italic = 1;
+		else if (svg_is_font_style_keyword(token))
+			;
+		else if ((weight = svg_parse_font_weight(token, 0)) >= 0)
+			bold = weight;
+		else if ((size = svg_parse_font_size(token, state->fontsize)) > 0)
+			break;
+		else
+			return;
+	}
+	if (size <= 0)
+		return;
+
+	/* skip the line height */
+	while (svg_is_whitespace(*p))
+		++p;
+	if (*p == '/')
+	{
+		++p;
+		while (svg_is_whitespace(*p))
+			++p;
+		while (*p && !svg_is_whitespace(*p))
+			++p;
+	}
+	while (svg_is_whitespace(*p))
+		++p;
+	if (!*p)
+		return; /* the family is required */
+
+	state->fontsize = size;
+	state->is_bold = bold;
+	state->is_italic = italic;
+	fz_strlcpy(state->font_family, p, sizeof state->font_family);
+}
+
+enum { SVG_BASELINE_AUTO, SVG_BASELINE_MIDDLE, SVG_BASELINE_CENTRAL, SVG_BASELINE_HANGING,
+	SVG_BASELINE_TOP, SVG_BASELINE_BOTTOM, SVG_BASELINE_MATHEMATICAL };
+
+static void
+svg_apply_font_property(svg_state *state, const char *name, const char *value)
+{
+	float size;
+	int weight;
+
+	if (!value || !strcmp(value, "inherit"))
+		return;
+
+	if (!strcmp(name, "font"))
+		svg_parse_font_shorthand(state, value);
+	else if (!strcmp(name, "font-size"))
+	{
+		size = svg_parse_font_size(value, state->fontsize);
+		if (size > 0)
+			state->fontsize = size;
+	}
+	else if (!strcmp(name, "font-family"))
+		fz_strlcpy(state->font_family, value, sizeof state->font_family);
+	else if (!strcmp(name, "font-weight"))
+	{
+		weight = svg_parse_font_weight(value, state->is_bold);
+		if (weight >= 0)
+			state->is_bold = weight;
+	}
+	else if (!strcmp(name, "font-style"))
+		state->is_italic = !strcmp(value, "italic") || !strncmp(value, "oblique", 7);
+	else if (!strcmp(name, "text-anchor"))
+	{
+		if (!strcmp(value, "start")) state->text_anchor = 0;
+		if (!strcmp(value, "middle")) state->text_anchor = 1;
+		if (!strcmp(value, "end")) state->text_anchor = 2;
+	}
+	else if (!strcmp(name, "dominant-baseline") || !strcmp(name, "alignment-baseline"))
+	{
+		if (!strcmp(value, "auto") || !strcmp(value, "alphabetic") || !strcmp(value, "baseline"))
+			state->dominant_baseline = SVG_BASELINE_AUTO;
+		else if (!strcmp(value, "middle"))
+			state->dominant_baseline = SVG_BASELINE_MIDDLE;
+		else if (!strcmp(value, "central"))
+			state->dominant_baseline = SVG_BASELINE_CENTRAL;
+		else if (!strcmp(value, "hanging"))
+			state->dominant_baseline = SVG_BASELINE_HANGING;
+		else if (!strcmp(value, "text-before-edge") || !strcmp(value, "text-top") || !strcmp(value, "before-edge"))
+			state->dominant_baseline = SVG_BASELINE_TOP;
+		else if (!strcmp(value, "text-after-edge") || !strcmp(value, "text-bottom") ||
+			!strcmp(value, "after-edge") || !strcmp(value, "ideographic"))
+			state->dominant_baseline = SVG_BASELINE_BOTTOM;
+		else if (!strcmp(value, "mathematical"))
+			state->dominant_baseline = SVG_BASELINE_MATHEMATICAL;
+	}
+}
+
+/*
+	Font properties inherit, so every element parses them. Presentation
+	attributes first, then the style attribute's declarations, which win; in
+	each, the shorthand before the longhands that refine it.
+*/
+static void
+svg_parse_font_attributes(fz_context *ctx, svg_document *doc, fz_xml *node, const char *style, svg_state *state)
+{
+	static const char *names[] = {
+		"font", "font-size", "font-family", "font-weight", "font-style",
+		"text-anchor", "dominant-baseline", "alignment-baseline",
+	};
+	char buf[256];
+	size_t i;
+
+	for (i = 0; i < nelem(names); ++i)
+		svg_apply_font_property(state, names[i], fz_xml_att(node, names[i]));
+	if (style)
+		for (i = 0; i < nelem(names); ++i)
+			if (svg_style_lookup(style, names[i], buf, sizeof buf))
+				svg_apply_font_property(state, names[i], buf);
+}
+
+static void
+svg_parse_dash_array(fz_context *ctx, const char *str, svg_state *state)
+{
+	float dashes[32];
+	int i, n = 0, nonzero = 0;
+	const char *p = str;
+
+	if (strcmp(str, "none"))
+	{
+		while (*p && n < (int)nelem(dashes) / 2)
+		{
+			char token[32];
+			int k = 0;
+			while (svg_is_whitespace_or_comma(*p))
+				++p;
+			while (*p && !svg_is_whitespace_or_comma(*p) && k < (int)sizeof token - 1)
+				token[k++] = *p++;
+			token[k] = 0;
+			if (!k)
+				break;
+			dashes[n] = svg_parse_length(token, state->viewbox_size, state->fontsize);
+			if (dashes[n] < 0)
+				return; /* invalid: ignored */
+			nonzero |= dashes[n] > 0;
+			++n;
+		}
+	}
+	/* An odd list repeats to make it even; an all-zero list draws solid. */
+	if (n & 1)
+	{
+		for (i = 0; i < n; ++i)
+			dashes[n + i] = dashes[i];
+		n *= 2;
+	}
+	if (!nonzero)
+		n = 0;
+
+	state->stroke = fz_unshare_stroke_state_with_dash_len(ctx, state->stroke, n);
+	for (i = 0; i < n; ++i)
+		state->stroke->dash_list[i] = dashes[i];
+}
 
 /* parse transform and presentation attributes */
 static void
 svg_parse_common(fz_context *ctx, svg_document *doc, fz_xml *node, svg_state *state)
 {
-	fz_stroke_state *stroke = state->stroke = fz_unshare_stroke_state(ctx, state->stroke);
-
+	fz_stroke_state *stroke;
 	char *transform_att = fz_xml_att(node, "transform");
-
-	char *font_size_att = fz_xml_att(node, "font-size");
-
 	char *style_att = fz_xml_att(node, "style");
+	char buf[256];
+	const char *v;
 
-	// TODO: clip, clip-path, clip-rule
-
-	char *opacity_att = fz_xml_att(node, "opacity");
-
-	char *fill_att = fz_xml_att(node, "fill");
-	char *fill_rule_att = fz_xml_att(node, "fill-rule");
-	char *fill_opacity_att = fz_xml_att(node, "fill-opacity");
-
-	char *stroke_att = fz_xml_att(node, "stroke");
-	char *stroke_opacity_att = fz_xml_att(node, "stroke-opacity");
-	char *stroke_width_att = fz_xml_att(node, "stroke-width");
-	char *stroke_linecap_att = fz_xml_att(node, "stroke-linecap");
-	char *stroke_linejoin_att = fz_xml_att(node, "stroke-linejoin");
-	char *stroke_miterlimit_att = fz_xml_att(node, "stroke-miterlimit");
-	// TODO: stroke-dasharray, stroke-dashoffset
-
-	// TODO: marker, marker-start, marker-mid, marker-end
-
-	// TODO: overflow
-	// TODO: mask
-
-	/* Dirty hack scans of CSS style */
-	if (style_att)
-	{
-		svg_parse_color_from_style(ctx, doc, style_att,
-			&state->fill_is_set, state->fill_color,
-			&state->stroke_is_set, state->stroke_color);
-	}
+	// TODO: clip-rule, marker, overflow, mask
 
 	if (transform_att)
-	{
 		state->transform = svg_parse_transform(ctx, doc, transform_att, state->transform);
-	}
 
-	if (font_size_att)
-	{
-		state->fontsize = svg_parse_length(font_size_att, state->fontsize, state->fontsize);
-	}
-	else
-	{
-		state->fontsize = svg_parse_number_from_style(ctx, doc, style_att, "font-size", state->fontsize);
-	}
+	/* Fonts first: the lengths below may be in em. */
+	svg_parse_font_attributes(ctx, doc, node, style_att, state);
 
-	if (opacity_att)
+	/* Group opacity, approximated by multiplying into what is drawn. */
+	if ((v = svg_prop(node, style_att, "opacity", buf, sizeof buf)))
+		state->opacity *= svg_parse_number(v, 0, 1, 1);
+
+	if ((v = svg_prop(node, style_att, "fill", buf, sizeof buf)))
 	{
-		state->opacity = svg_parse_number(opacity_att, 0, 1, state->opacity);
+		state->fill_is_set = !!strcmp(v, "none");
+		if (state->fill_is_set)
+			svg_parse_color(ctx, doc, v, state->fill_color);
 	}
-
-	if (fill_att)
+	if ((v = svg_prop(node, style_att, "fill-opacity", buf, sizeof buf)))
+		state->fill_opacity = svg_parse_number(v, 0, 1, state->fill_opacity);
+	if ((v = svg_prop(node, style_att, "fill-rule", buf, sizeof buf)))
 	{
-		if (!strcmp(fill_att, "none"))
-		{
-			state->fill_is_set = 0;
-		}
-		else
-		{
-			state->fill_is_set = 1;
-			svg_parse_color(ctx, doc, fill_att, state->fill_color);
-		}
-	}
-
-	if (fill_opacity_att)
-		state->fill_opacity = svg_parse_number(fill_opacity_att, 0, 1, state->fill_opacity);
-
-	if (fill_rule_att)
-	{
-		if (!strcmp(fill_rule_att, "nonzero"))
+		if (!strcmp(v, "nonzero"))
 			state->fill_rule = 0;
-		if (!strcmp(fill_rule_att, "evenodd"))
+		if (!strcmp(v, "evenodd"))
 			state->fill_rule = 1;
 	}
 
-	if (stroke_att)
+	if ((v = svg_prop(node, style_att, "stroke", buf, sizeof buf)))
 	{
-		if (!strcmp(stroke_att, "none"))
-		{
-			state->stroke_is_set = 0;
-		}
-		else
-		{
-			state->stroke_is_set = 1;
-			svg_parse_color(ctx, doc, stroke_att, state->stroke_color);
-		}
+		state->stroke_is_set = !!strcmp(v, "none");
+		if (state->stroke_is_set)
+			svg_parse_color(ctx, doc, v, state->stroke_color);
 	}
+	if ((v = svg_prop(node, style_att, "stroke-opacity", buf, sizeof buf)))
+		state->stroke_opacity = svg_parse_number(v, 0, 1, state->stroke_opacity);
 
-	if (stroke_opacity_att)
-		state->stroke_opacity = svg_parse_number(stroke_opacity_att, 0, 1, state->stroke_opacity);
+	if ((v = svg_prop(node, style_att, "stroke-dasharray", buf, sizeof buf)))
+		svg_parse_dash_array(ctx, v, state);
 
-	if (stroke_width_att)
-	{
-		if (!strcmp(stroke_width_att, "inherit"))
-			;
-		else
-			stroke->linewidth = svg_parse_length(stroke_width_att, state->viewbox_size, state->fontsize);
-	}
-	else
-	{
-		stroke->linewidth = svg_parse_number_from_style(ctx, doc, style_att, "stroke-width", state->stroke->linewidth);
-	}
+	stroke = state->stroke = fz_unshare_stroke_state(ctx, state->stroke);
 
-	if (stroke_linecap_att)
+	if ((v = svg_prop(node, style_att, "stroke-dashoffset", buf, sizeof buf)))
+		stroke->dash_phase = svg_parse_length(v, state->viewbox_size, state->fontsize);
+
+	if ((v = svg_prop(node, style_att, "stroke-width", buf, sizeof buf)))
+		stroke->linewidth = svg_parse_length(v, state->viewbox_size, state->fontsize);
+
+	if ((v = svg_prop(node, style_att, "stroke-linecap", buf, sizeof buf)))
 	{
-		if (!strcmp(stroke_linecap_att, "butt"))
+		if (!strcmp(v, "butt"))
 			stroke->start_cap = FZ_LINECAP_BUTT;
-		if (!strcmp(stroke_linecap_att, "round"))
+		if (!strcmp(v, "round"))
 			stroke->start_cap = FZ_LINECAP_ROUND;
-		if (!strcmp(stroke_linecap_att, "square"))
+		if (!strcmp(v, "square"))
 			stroke->start_cap = FZ_LINECAP_SQUARE;
 	}
-	else
-	{
-		stroke->start_cap = svg_parse_enum_from_style(ctx, doc, style_att, "stroke-linecap",
-			nelem(linecap_table), linecap_table, stroke->start_cap);
-	}
-
 	stroke->dash_cap = stroke->start_cap;
 	stroke->end_cap = stroke->start_cap;
 
-	if (stroke_linejoin_att)
+	if ((v = svg_prop(node, style_att, "stroke-linejoin", buf, sizeof buf)))
 	{
-		if (!strcmp(stroke_linejoin_att, "miter"))
+		if (!strcmp(v, "miter"))
 			stroke->linejoin = FZ_LINEJOIN_MITER;
-		if (!strcmp(stroke_linejoin_att, "round"))
+		if (!strcmp(v, "round"))
 			stroke->linejoin = FZ_LINEJOIN_ROUND;
-		if (!strcmp(stroke_linejoin_att, "bevel"))
+		if (!strcmp(v, "bevel"))
 			stroke->linejoin = FZ_LINEJOIN_BEVEL;
 	}
-	else
-	{
-		stroke->linejoin = svg_parse_enum_from_style(ctx, doc, style_att, "stroke-linejoin",
-			nelem(linejoin_table), linejoin_table, stroke->linejoin);
-	}
 
-	if (stroke_miterlimit_att)
-	{
-		if (!strcmp(stroke_miterlimit_att, "inherit"))
-			;
-		else
-			stroke->miterlimit = svg_parse_length(stroke_miterlimit_att, state->viewbox_size, state->fontsize);
-	}
-	else
-	{
-		stroke->miterlimit = svg_parse_number_from_style(ctx, doc, style_att, "stroke-miterlimit", state->stroke->miterlimit);
-	}
-}
-
-static void
-svg_parse_font_attributes(fz_context *ctx, svg_document *doc, fz_xml *node, svg_state *state, char *buf, int buf_size)
-{
-	char *style_att = fz_xml_att(node, "style");
-	char *font_family_att = fz_xml_att(node, "font-family");
-	char *font_weight_att = fz_xml_att(node, "font-weight");
-	char *font_style_att = fz_xml_att(node, "font-style");
-	char *text_anchor_att = fz_xml_att(node, "text-anchor");
-
-	if (font_family_att)
-		fz_strlcpy(buf, font_family_att, buf_size);
-	else
-		svg_parse_string_from_style(ctx, doc, style_att, "font-family", buf, buf_size, state->font_family);
-	state->font_family = buf;
-
-	if (font_weight_att)
-	{
-		state->is_bold = atoi(font_weight_att) > 400;
-		if (!strcmp(font_weight_att, "bold")) state->is_bold = 1;
-		if (!strcmp(font_weight_att, "bolder")) state->is_bold = 1;
-	}
-	else
-	{
-		static const char *is_bold_table[] = {
-			"normal", "100", "200", "300", "400", "bold", "bolder", "500", "600", "700", "800", "900"
-		};
-		state->is_bold = svg_parse_enum_from_style(ctx, doc, style_att, "font-weight",
-			nelem(is_bold_table), is_bold_table, state->is_bold ? 5 : 0) >= 5;
-	}
-
-	if (font_style_att)
-	{
-		state->is_italic = 0;
-		if (!strcmp(font_style_att, "italic")) state->is_italic = 1;
-		if (!strcmp(font_style_att, "oblique")) state->is_italic = 1;
-	}
-	else
-	{
-		static const char *is_italic_table[] = {
-			"normal", "italic", "oblique"
-		};
-		state->is_italic = svg_parse_enum_from_style(ctx, doc, style_att, "font-style",
-			nelem(is_italic_table), is_italic_table, state->is_italic) >= 1;
-	}
-
-	if (text_anchor_att)
-	{
-		state->text_anchor = 0;
-		if (!strcmp(text_anchor_att, "middle")) state->text_anchor = 1;
-		if (!strcmp(text_anchor_att, "end")) state->text_anchor = 2;
-	}
-	else
-	{
-		static const char *text_anchor_table[] = {
-			"start", "middle", "end"
-		};
-		state->text_anchor = svg_parse_enum_from_style(ctx, doc, style_att, "text-anchor",
-			nelem(text_anchor_table), text_anchor_table, state->text_anchor);
-	}
+	if ((v = svg_prop(node, style_att, "stroke-miterlimit", buf, sizeof buf)))
+		stroke->miterlimit = svg_parse_number(v, 1, 1000, stroke->miterlimit);
 }
 
 static void
@@ -1518,47 +1662,117 @@ svg_run_image(fz_context *ctx, fz_device *dev, svg_document *doc, fz_xml *root, 
 		fz_rethrow(ctx);
 }
 
+enum { SVG_FONT_SERIF, SVG_FONT_SANS, SVG_FONT_MONO };
+
+/*
+	Which of the built-in faces stands in for a family list. The first family
+	we recognise wins, as CSS takes the first installed one: the names that
+	plotting libraries, design tools and stylesheets commonly write map to
+	the sans (Helvetica-metric), serif or monospace face. Unknown names whose
+	words give them away ("Noto Sans CJK", "Fira Mono") follow those words;
+	other unknown names are skipped. With nothing recognised the face is
+	serif, the CSS default.
+*/
+static int
+svg_font_class(const char *list)
+{
+	static const char *sans[] = {
+		"sans-serif", "sans", "sans serif", "ui-sans-serif", "system-ui", "-apple-system",
+		"blinkmacsystemfont", "helvetica", "helvetica neue", "arial", "arial unicode ms",
+		"dejavu sans", "bitstream vera sans", "liberation sans", "nimbus sans", "nimbus sans l",
+		"freesans", "verdana", "geneva", "tahoma", "trebuchet ms", "segoe ui", "lucida grande",
+		"lucida sans", "lucida sans unicode", "lucid", "calibri", "candara", "roboto", "open sans",
+		"inter", "ubuntu", "cantarell", "avenir", "avenir next", "futura", "gill sans", "optima",
+		"avant garde", "frutiger", "myriad pro", "source sans pro", "sf pro", "sf pro text",
+		"sf pro display", "computer modern sans serif", "cmss10",
+	};
+	static const char *mono[] = {
+		"monospace", "ui-monospace", "courier", "courier new", "menlo", "monaco", "consolas",
+		"andale mono", "lucida console", "cmtt10", "computer modern typewriter",
+	};
+	static const char *serif[] = {
+		"serif", "ui-serif", "times", "times new roman", "georgia", "palatino", "palatino linotype",
+		"book antiqua", "garamond", "cambria", "baskerville", "charter", "bitstream charter",
+		"new century schoolbook", "century schoolbook l", "utopia", "cmr10", "computer modern roman",
+		"stixgeneral", "stix", "nimbus roman", "liberation serif", "dejavu serif",
+	};
+	const char *p = list;
+
+	while (p && *p)
+	{
+		char name[64];
+		int n = 0;
+		size_t i;
+		char quote = 0;
+
+		while (svg_is_whitespace_or_comma(*p))
+			++p;
+		if (*p == '\'' || *p == '"')
+			quote = *p++;
+		while (*p && (quote ? *p != quote : *p != ','))
+		{
+			if (n < (int)sizeof name - 1)
+				name[n++] = (*p >= 'A' && *p <= 'Z') ? *p + 32 : *p;
+			++p;
+		}
+		if (quote && *p == quote)
+			++p;
+		while (n > 0 && svg_is_whitespace(name[n - 1]))
+			--n;
+		name[n] = 0;
+		if (!n)
+			continue;
+
+		for (i = 0; i < nelem(mono); ++i)
+			if (!strcmp(name, mono[i]))
+				return SVG_FONT_MONO;
+		for (i = 0; i < nelem(sans); ++i)
+			if (!strcmp(name, sans[i]))
+				return SVG_FONT_SANS;
+		for (i = 0; i < nelem(serif); ++i)
+			if (!strcmp(name, serif[i]))
+				return SVG_FONT_SERIF;
+		if (strstr(name, "mono") || strstr(name, "code") || strstr(name, "courier"))
+			return SVG_FONT_MONO;
+		if (strstr(name, "sans") || strstr(name, "grotesk") || strstr(name, "gothic"))
+			return SVG_FONT_SANS;
+		if (strstr(name, "serif") || strstr(name, "roman") || strstr(name, "times"))
+			return SVG_FONT_SERIF;
+	}
+	return SVG_FONT_SERIF;
+}
+
 static fz_font *
 svg_load_font(fz_context *ctx, const svg_state *state)
 {
-	int bold = state->is_bold;
-	int italic = state->is_italic;
-	int mono = 0;
-	int serif = 1;
+	static const char *faces[3][4] = {
+		{ "Times-Roman", "Times-Italic", "Times-Bold", "Times-BoldItalic" },
+		{ "Helvetica", "Helvetica-Oblique", "Helvetica-Bold", "Helvetica-BoldOblique" },
+		{ "Courier", "Courier-Oblique", "Courier-Bold", "Courier-BoldOblique" },
+	};
+	int style = (state->is_bold ? 2 : 0) + (state->is_italic ? 1 : 0);
+	return fz_new_base14_font(ctx, faces[svg_font_class(state->font_family)][style]);
+}
 
-	/* scan font-family property for common fallback names */
-
-	if (!mono && strstr(state->font_family, "monospace")) mono = 1;
-	if (!mono && strstr(state->font_family, "Courier")) mono = 1;
-
-	if (serif && strstr(state->font_family, "sans-serif")) serif = 0;
-	if (serif && strstr(state->font_family, "Arial")) serif = 0;
-	if (serif && strstr(state->font_family, "Helvetica")) serif = 0;
-
-	if (mono) {
-		if (bold) {
-			if (italic) return fz_new_base14_font(ctx, "Courier-BoldOblique");
-			else return fz_new_base14_font(ctx, "Courier-Bold");
-		} else {
-			if (italic) return fz_new_base14_font(ctx, "Courier-Oblique");
-			else return fz_new_base14_font(ctx, "Courier");
-		}
-	} else if (serif) {
-		if (bold) {
-			if (italic) return fz_new_base14_font(ctx, "Times-BoldItalic");
-			else return fz_new_base14_font(ctx, "Times-Bold");
-		} else {
-			if (italic) return fz_new_base14_font(ctx, "Times-Italic");
-			else return fz_new_base14_font(ctx, "Times-Roman");
-		}
-	} else {
-		if (bold) {
-			if (italic) return fz_new_base14_font(ctx, "Helvetica-BoldOblique");
-			else return fz_new_base14_font(ctx, "Helvetica-Bold");
-		} else {
-			if (italic) return fz_new_base14_font(ctx, "Helvetica-Oblique");
-			else return fz_new_base14_font(ctx, "Helvetica");
-		}
+/*
+	How far below the alphabetic baseline the dominant baseline sits, in em,
+	from the face's ascent and descent the way browsers derive it.
+*/
+static float
+svg_baseline_shift(fz_context *ctx, fz_font *font, int baseline)
+{
+	float ascent = fz_font_ascender(ctx, font);
+	float descent = fz_font_descender(ctx, font); /* negative */
+	switch (baseline)
+	{
+	default:
+	case SVG_BASELINE_AUTO: return 0;
+	case SVG_BASELINE_MIDDLE: return 0.26f; /* half the x-height of the stand-in faces */
+	case SVG_BASELINE_CENTRAL: return (ascent + descent) / 2;
+	case SVG_BASELINE_HANGING: return ascent * 0.8f;
+	case SVG_BASELINE_TOP: return ascent;
+	case SVG_BASELINE_BOTTOM: return descent;
+	case SVG_BASELINE_MATHEMATICAL: return ascent * 0.5f;
 	}
 }
 
@@ -1573,6 +1787,8 @@ svg_run_text_string(fz_context *ctx, fz_device *dev, fz_matrix trm, const char *
 
 	fz_try(ctx)
 	{
+		float shift;
+
 		font = svg_load_font(ctx, state);
 		text = fz_new_text(ctx);
 
@@ -1585,7 +1801,11 @@ svg_run_text_string(fz_context *ctx, fz_device *dev, fz_matrix trm, const char *
 				trm.e -= (adv.e - trm.e);
 		}
 
+		/* The baseline shift moves these glyphs, not the next string's pen. */
+		shift = svg_baseline_shift(ctx, font, state->dominant_baseline) * state->fontsize;
+		trm.f += shift;
 		trm = fz_show_string(ctx, text, font, trm, s, 0, 0, FZ_BIDI_LTR, FZ_LANG_UNSET);
+		trm.f -= shift;
 
 		if (state->fill_is_set)
 			fz_fill_text(ctx, dev, text,
@@ -1637,16 +1857,44 @@ svg_collapse_whitespace(char *start, int is_first, int is_last)
 	*p = 0;
 }
 
+#define SVG_MAX_GLYPH_POSITIONS 256
+
+/*
+	An x or y attribute: one length, or a list that places the element's
+	characters one by one (matplotlib's mathtext writes x="0 6.1 12.3").
+	Returns how many lengths it holds, at most SVG_MAX_GLYPH_POSITIONS.
+*/
+static int
+svg_parse_position_list(const char *str, float *out, float percent, float font_size)
+{
+	int n = 0;
+	while (str && *str && n < SVG_MAX_GLYPH_POSITIONS)
+	{
+		char token[64];
+		int k = 0;
+		while (svg_is_whitespace_or_comma(*str))
+			++str;
+		while (*str && !svg_is_whitespace_or_comma(*str) && k < (int)sizeof token - 1)
+			token[k++] = *str++;
+		token[k] = 0;
+		if (!k)
+			break;
+		out[n++] = svg_parse_length(token, percent, font_size);
+	}
+	return n;
+}
+
 static fz_matrix
 svg_run_text(fz_context *ctx, fz_device *dev, svg_document *doc, fz_xml *root, const svg_state *inherit_state,
 	float x, float y, int is_first, int is_last)
 {
 	svg_state local_state;
-	char font_family[100];
 	fz_xml *node;
 	fz_matrix trm;
 	int cif, cil;
 	char *text;
+	float xs[SVG_MAX_GLYPH_POSITIONS], ys[SVG_MAX_GLYPH_POSITIONS];
+	int nx = 0, ny = 0, glyph = 0;
 
 	char *x_att = fz_xml_att(root, "x");
 	char *y_att = fz_xml_att(root, "y");
@@ -1657,14 +1905,15 @@ svg_run_text(fz_context *ctx, fz_device *dev, svg_document *doc, fz_xml *root, c
 	fz_try(ctx)
 	{
 		svg_parse_common(ctx, doc, root, &local_state);
-		svg_parse_font_attributes(ctx, doc, root, &local_state, font_family, sizeof font_family);
 
 		trm = fz_scale(local_state.fontsize, -local_state.fontsize);
 		trm.e = x;
 		trm.f = y;
 
-		if (x_att) trm.e = svg_parse_length(x_att, local_state.viewbox_w, local_state.fontsize);
-		if (y_att) trm.f = svg_parse_length(y_att, local_state.viewbox_h, local_state.fontsize);
+		if (x_att) nx = svg_parse_position_list(x_att, xs, local_state.viewbox_w, local_state.fontsize);
+		if (y_att) ny = svg_parse_position_list(y_att, ys, local_state.viewbox_h, local_state.fontsize);
+		if (nx > 0) trm.e = xs[0];
+		if (ny > 0) trm.f = ys[0];
 
 		if (dx_att) trm.e += svg_parse_length(dx_att, local_state.viewbox_w, local_state.fontsize);
 		if (dy_att) trm.f += svg_parse_length(dy_att, local_state.viewbox_h, local_state.fontsize);
@@ -1677,7 +1926,24 @@ svg_run_text(fz_context *ctx, fz_device *dev, svg_document *doc, fz_xml *root, c
 			if (text)
 			{
 				svg_collapse_whitespace(text, cif, cil);
-				trm = svg_run_text_string(ctx, dev, trm, text, &local_state);
+				/* With a list of positions, each character that has one
+				   starts there; the rest follow on from the one before. */
+				while (*text && (nx > 1 || ny > 1) && (glyph < nx || glyph < ny))
+				{
+					char one[8];
+					int rune, len = fz_chartorune(&rune, text);
+					if (glyph < nx) trm.e = xs[glyph];
+					if (glyph < ny) trm.f = ys[glyph];
+					if (glyph == 0 && dx_att) trm.e += svg_parse_length(dx_att, local_state.viewbox_w, local_state.fontsize);
+					if (glyph == 0 && dy_att) trm.f += svg_parse_length(dy_att, local_state.viewbox_h, local_state.fontsize);
+					memcpy(one, text, len);
+					one[len] = 0;
+					trm = svg_run_text_string(ctx, dev, trm, one, &local_state);
+					text += len;
+					++glyph;
+				}
+				if (*text)
+					trm = svg_run_text_string(ctx, dev, trm, text, &local_state);
 			}
 			else if (fz_xml_is_tag(node, "tspan"))
 				trm = svg_run_text(ctx, dev, doc, node, &local_state, trm.e, trm.f, cif, cil);
@@ -1694,8 +1960,145 @@ svg_run_text(fz_context *ctx, fz_device *dev, svg_document *doc, fz_xml *root, c
 	return trm;
 }
 
+/*
+	clip-path="url(#id)" naming a <clipPath>: clip to its first shape (a
+	path, rect, circle, ellipse or polygon). That covers what plotting
+	libraries write -- matplotlib clips each axes' lines and bars to one
+	rectangle -- though not a union of several shapes. The shape is in the
+	user space of the clipped element, the element's own transform included.
+	Returns 1 when a clip was pushed.
+*/
+static int
+svg_push_clip(fz_context *ctx, fz_device *dev, svg_document *doc, fz_xml *node, const svg_state *state)
+{
+	char buf[256], id[200];
+	const char *style = fz_xml_att(node, "style");
+	const char *value = svg_prop(node, style, "clip-path", buf, sizeof buf);
+	const char *units, *rule, *end;
+	fz_xml *clip, *shape;
+	fz_matrix ctm;
+	fz_path *path = NULL;
+	int even_odd;
+
+	if (!value || strncmp(value, "url(", 4))
+		return 0;
+	value += 4;
+	while (svg_is_whitespace(*value) || *value == '\'' || *value == '"')
+		++value;
+	if (*value != '#')
+		return 0;
+	++value;
+	end = value;
+	while (*end && *end != ')' && *end != '\'' && *end != '"' && !svg_is_whitespace(*end))
+		++end;
+	if (end == value || end - value >= (int)sizeof id)
+		return 0;
+	memcpy(id, value, end - value);
+	id[end - value] = 0;
+
+	clip = fz_tree_lookup(ctx, doc->idmap, id);
+	if (!clip || !fz_xml_is_tag(clip, "clipPath"))
+		return 0;
+	units = fz_xml_att(clip, "clipPathUnits");
+	if (units && !strcmp(units, "objectBoundingBox"))
+		return 0; /* would need the element's bounds */
+
+	ctm = state->transform;
+	if (fz_xml_att(node, "transform"))
+		ctm = svg_parse_transform(ctx, doc, fz_xml_att(node, "transform"), ctm);
+	if (fz_xml_att(clip, "transform"))
+		ctm = svg_parse_transform(ctx, doc, fz_xml_att(clip, "transform"), ctm);
+
+	for (shape = fz_xml_down(clip); shape; shape = fz_xml_next(shape))
+	{
+		if (fz_xml_is_tag(shape, "path") && fz_xml_att(shape, "d"))
+		{
+			path = fz_new_path(ctx);
+			fz_try(ctx)
+				svg_parse_path_data(ctx, path, fz_xml_att(shape, "d"));
+			fz_catch(ctx)
+			{
+				fz_drop_path(ctx, path);
+				fz_rethrow(ctx);
+			}
+		}
+		else if (fz_xml_is_tag(shape, "rect"))
+		{
+			const char *a;
+			float x = 0, y = 0, w = 0, h = 0;
+			if ((a = fz_xml_att(shape, "x"))) x = svg_parse_length(a, state->viewbox_w, state->fontsize);
+			if ((a = fz_xml_att(shape, "y"))) y = svg_parse_length(a, state->viewbox_h, state->fontsize);
+			if ((a = fz_xml_att(shape, "width"))) w = svg_parse_length(a, state->viewbox_w, state->fontsize);
+			if ((a = fz_xml_att(shape, "height"))) h = svg_parse_length(a, state->viewbox_h, state->fontsize);
+			path = fz_new_path(ctx);
+			fz_try(ctx)
+				fz_rectto(ctx, path, x, y, x + w, y + h);
+			fz_catch(ctx)
+			{
+				fz_drop_path(ctx, path);
+				fz_rethrow(ctx);
+			}
+		}
+		else if (fz_xml_is_tag(shape, "circle") || fz_xml_is_tag(shape, "ellipse"))
+		{
+			const char *a;
+			float cx = 0, cy = 0, rx = 0, ry = 0;
+			if ((a = fz_xml_att(shape, "cx"))) cx = svg_parse_length(a, state->viewbox_w, state->fontsize);
+			if ((a = fz_xml_att(shape, "cy"))) cy = svg_parse_length(a, state->viewbox_h, state->fontsize);
+			if ((a = fz_xml_att(shape, "r"))) rx = ry = svg_parse_length(a, state->viewbox_size, state->fontsize);
+			if ((a = fz_xml_att(shape, "rx"))) rx = svg_parse_length(a, state->viewbox_w, state->fontsize);
+			if ((a = fz_xml_att(shape, "ry"))) ry = svg_parse_length(a, state->viewbox_h, state->fontsize);
+			path = fz_new_path(ctx);
+			fz_try(ctx)
+				approx_circle(ctx, path, cx, cy, rx, ry);
+			fz_catch(ctx)
+			{
+				fz_drop_path(ctx, path);
+				fz_rethrow(ctx);
+			}
+		}
+		else if (fz_xml_is_tag(shape, "polygon"))
+			path = svg_parse_polygon_imp(ctx, doc, shape, 1);
+		if (path)
+			break;
+	}
+	if (!path)
+		return 0;
+
+	rule = fz_xml_att(shape, "clip-rule");
+	if (!rule)
+		rule = fz_xml_att(clip, "clip-rule");
+	even_odd = rule && !strcmp(rule, "evenodd");
+	if (fz_xml_att(shape, "transform"))
+		ctm = svg_parse_transform(ctx, doc, fz_xml_att(shape, "transform"), ctm);
+
+	fz_try(ctx)
+		fz_clip_path(ctx, dev, path, even_odd, ctm, fz_infinite_rect);
+	fz_always(ctx)
+		fz_drop_path(ctx, path);
+	fz_catch(ctx)
+		fz_rethrow(ctx);
+	return 1;
+}
+
+static void
+svg_run_element_imp(fz_context *ctx, fz_device *dev, svg_document *doc, fz_xml *root, const svg_state *state);
+
 static void
 svg_run_element(fz_context *ctx, fz_device *dev, svg_document *doc, fz_xml *root, const svg_state *state)
+{
+	int clipped = svg_push_clip(ctx, dev, doc, root, state);
+	fz_try(ctx)
+		svg_run_element_imp(ctx, dev, doc, root, state);
+	fz_always(ctx)
+		if (clipped)
+			fz_pop_clip(ctx, dev);
+	fz_catch(ctx)
+		fz_rethrow(ctx);
+}
+
+static void
+svg_run_element_imp(fz_context *ctx, fz_device *dev, svg_document *doc, fz_xml *root, const svg_state *state)
 {
 	if (fz_xml_is_tag(root, "svg"))
 		svg_run_svg(ctx, dev, doc, root, state);
@@ -1824,10 +2227,11 @@ svg_run_document(fz_context *ctx, svg_document *doc, fz_xml *root, fz_device *de
 	state.stroke_color[2] = 0;
 	state.stroke_opacity = 1;
 
-	state.font_family = "serif";
+	fz_strlcpy(state.font_family, "serif", sizeof state.font_family);
 	state.is_bold = 0;
 	state.is_italic = 0;
 	state.text_anchor = 0;
+	state.dominant_baseline = 0;
 
 	fz_try(ctx)
 	{

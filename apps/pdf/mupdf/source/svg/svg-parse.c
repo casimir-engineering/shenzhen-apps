@@ -262,27 +262,108 @@ svg_parse_transform(fz_context *ctx, svg_document *doc, const char *str, fz_matr
 	return transform;
 }
 
+/*
+	ShenzhenPDF: replaces strstr scans that matched "fill" inside
+	"fill-opacity" and never saw the `font` shorthand.
+
+	Find one declaration in a CSS style attribute ("fill: #fff; font: 10px 'Helvetica'").
+
+	The property name must match exactly (case-insensitively), so "fill" never
+	matches "fill-opacity" and "font" never matches "font-size". Values may hold
+	quoted strings and parentheses, whose ';' do not end the declaration. The
+	value is copied into buf with surrounding whitespace and any "!important"
+	removed. Returns 1 when the property is present. When it occurs more than
+	once, the last occurrence wins, as in CSS.
+*/
+int
+svg_style_lookup(const char *style, const char *name, char *buf, int buf_size)
+{
+	size_t name_len = strlen(name);
+	int found = 0;
+	const char *p = style;
+
+	if (!style || buf_size <= 0)
+		return 0;
+
+	while (*p)
+	{
+		const char *prop, *prop_end, *val, *val_end;
+		char quote = 0;
+		int depth = 0;
+
+		while (*p && (svg_is_whitespace(*p) || *p == ';'))
+			++p;
+		if (!*p)
+			break;
+
+		prop = p;
+		while (*p && *p != ':' && *p != ';')
+			++p;
+		prop_end = p;
+		while (prop_end > prop && svg_is_whitespace(prop_end[-1]))
+			--prop_end;
+		if (*p != ':')
+			continue;
+		++p;
+
+		while (*p && svg_is_whitespace(*p))
+			++p;
+		val = p;
+		while (*p)
+		{
+			if (quote)
+			{
+				if (*p == quote)
+					quote = 0;
+			}
+			else if (*p == '\'' || *p == '"')
+				quote = *p;
+			else if (*p == '(')
+				++depth;
+			else if (*p == ')' && depth > 0)
+				--depth;
+			else if (*p == ';' && depth == 0)
+				break;
+			++p;
+		}
+		val_end = p;
+		while (val_end > val && svg_is_whitespace(val_end[-1]))
+			--val_end;
+		if (val_end - val >= 10 && !fz_strncasecmp(val_end - 10, "!important", 10))
+		{
+			val_end -= 10;
+			while (val_end > val && svg_is_whitespace(val_end[-1]))
+				--val_end;
+		}
+
+		if ((size_t)(prop_end - prop) == name_len && !fz_strncasecmp(prop, name, name_len))
+		{
+			size_t n = val_end - val;
+			if (n > (size_t)buf_size - 1)
+				n = buf_size - 1;
+			memcpy(buf, val, n);
+			buf[n] = 0;
+			found = 1;
+		}
+	}
+	return found;
+}
+
 float
 svg_parse_number_from_style(fz_context *ctx, svg_document *doc, const char *style, const char *att, float number)
 {
-	if (style)
+	char buf[100], *end;
+	float value;
+	if (svg_style_lookup(style, att, buf, sizeof buf))
 	{
-		char *end, *p = strstr(style, att);
-		if (p)
-		{
-			size_t n = strlen(att);
-			if (p[n] == ':')
-			{
-				p += n + 1;
-				while (*p && svg_is_whitespace(*p))
-					++p;
-				number = fz_strtof(p, &end);
-				if (end[0] == 'i' && end[1] == 'n') return number * 72;
-				if (end[0] == 'c' && end[1] == 'm') return number * 7200 / 254;
-				if (end[0] == 'm' && end[1] == 'm') return number * 720 / 254;
-				if (end[0] == 'p' && end[1] == 'c') return number * 12;
-			}
-		}
+		value = fz_strtof(buf, &end);
+		if (end == buf)
+			return number;
+		if (end[0] == 'i' && end[1] == 'n') return value * 72;
+		if (end[0] == 'c' && end[1] == 'm') return value * 7200 / 254;
+		if (end[0] == 'm' && end[1] == 'm') return value * 720 / 254;
+		if (end[0] == 'p' && end[1] == 'c') return value * 12;
+		return value;
 	}
 	return number;
 }
@@ -291,28 +372,13 @@ int
 svg_parse_enum_from_style(fz_context *ctx, svg_document *doc, const char *style, const char *att,
 	int ecount, const char *etable[], int value)
 {
-	char buf[100], *end, *p;
+	char buf[100];
 	int i;
-	if (style)
+	if (svg_style_lookup(style, att, buf, sizeof buf))
 	{
-		p = strstr(style, att);
-		if (p)
-		{
-			size_t n = strlen(att);
-			if (p[n] == ':')
-			{
-				p += n + 1;
-				while (*p && svg_is_whitespace(*p))
-					++p;
-				fz_strlcpy(buf, p, sizeof buf);
-				end = strchr(buf, ';');
-				if (end)
-					*end = 0;
-				for (i = 0; i < ecount; ++i)
-					if (!strcmp(etable[i], buf))
-						return i;
-			}
-		}
+		for (i = 0; i < ecount; ++i)
+			if (!strcmp(etable[i], buf))
+				return i;
 	}
 	return value;
 }
@@ -321,35 +387,8 @@ char *
 svg_parse_string_from_style(fz_context *ctx, svg_document *doc, const char *style, const char *att,
 	char *buf, int buf_size, const char *value)
 {
-	char *end, *p, quote;
-	if (style)
-	{
-		p = strstr(style, att);
-		if (p)
-		{
-			size_t n = strlen(att);
-			if (p[n] == ':')
-			{
-				p += n + 1;
-				while (*p && svg_is_whitespace(*p))
-					++p;
-				quote = *p;
-				if (quote == '\'' || quote == '"')
-				{
-					fz_strlcpy(buf, p+1, buf_size);
-					end = strchr(buf, quote);
-				}
-				else
-				{
-					fz_strlcpy(buf, p, buf_size);
-					end = strchr(buf, ';');
-				}
-				if (end)
-					*end = 0;
-				return buf;
-			}
-		}
-	}
+	if (svg_style_lookup(style, att, buf, buf_size))
+		return buf;
 	fz_strlcpy(buf, value, buf_size);
 	return buf;
 }

@@ -2,6 +2,7 @@ Project         Version    Date
 ----------------------------------
 ../mupdf        1.27.2
   https://github.com/ArtifexSoftware/mupdf/releases/tag/1.27.2
+  with ShenzhenPDF changes to source/svg (marked "ShenzhenPDF:")
 
 libarchive     3.8.6
   https://github.com/libarchive/libarchive

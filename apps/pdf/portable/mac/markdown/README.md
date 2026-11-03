@@ -150,9 +150,12 @@ their descendants, preventing repeated subtree strings and quadratic indexes.
   verified root descriptor. So pictures never run out: the only limit is
   `maximumResourceBytes` (64 MiB) per picture file; missing, oversized or
   unreadable pictures become stable text placeholders. Bytes that ImageIO
-  cannot identify — notably SVG badges (shields.io) — get one NSImage decode
-  attempt (macOS rasterizes SVG data natively on modern systems); where that
-  fails too, the text placeholder stands. No SVG library is vendored.
+  cannot identify go to `SPDFMarkdownImageFromData`: SVG (charts, shields.io
+  badges) to the decoder the reader installs (`mac/SPDFMacSVGImage.mm`), which
+  draws it with MuPDF's SVG renderer, as the Windows reader does, into a
+  one-page vector PDF; anything else, or SVG in a process without the decoder
+  (the Collection companion, the engine's test binaries), to one NSImage
+  decode attempt. Where that fails too, the text placeholder stands.
 - Display SIZE is budgeted by the destination page. When the render carries a
   page (`SPDFMarkdownRenderOptions.pageContentSize` — see the Diagrams section
   for the page-box policy), an image's display size caps at that page's

@@ -55,7 +55,7 @@ void SPDFMacChatForgetLoadedImages(void) {
 }
 
 static NSImage* DecodedImage(NSData* data) {
-    NSImage* image = data.length ? [[NSImage alloc] initWithData:data] : nil;
+    NSImage* image = SPDFMarkdownImageFromData(data);  // SVG through the reader's SVG renderer
     NSImageRep* rep = image.representations.firstObject;
     double pixels = (double)MAX(rep.pixelsWide, 1) * (double)MAX(rep.pixelsHigh, 1);
     if (!image || image.size.width <= 0 || image.size.height <= 0 || pixels > kImageMaximumPixels) return nil;

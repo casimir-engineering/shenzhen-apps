@@ -57,8 +57,10 @@ CORE_PAGE_IMAGES_OBJ := $(BUILD)/spdf_page_images.o
 CORE_LINK_OBJ := $(BUILD)/spdf_link.o
 CORE_PROGRESSIVE_OBJ := $(BUILD)/spdf_progressive.o
 CORE_DESTINATION_OBJ := $(BUILD)/spdf_destination.o
+# SVG images in Markdown, drawn by MuPDF (core/spdf_svg_image.h, used by mac/SPDFMacSVGImage.mm).
+CORE_SVG_IMAGE_OBJ := $(BUILD)/spdf_svg_image.o
 CORE_OBJS := $(CORE_OBJ) $(CORE_SELECTION_OBJ) $(CORE_SELECTION_SUPPORT_OBJ) $(CORE_RECOLOR_OBJ) $(CORE_IMAGE_PROPERTIES_OBJ) \
-	$(CORE_PAGE_IMAGES_OBJ) $(CORE_LINK_OBJ) $(CORE_PROGRESSIVE_OBJ) $(CORE_DESTINATION_OBJ)
+	$(CORE_PAGE_IMAGES_OBJ) $(CORE_LINK_OBJ) $(CORE_PROGRESSIVE_OBJ) $(CORE_DESTINATION_OBJ) $(CORE_SVG_IMAGE_OBJ)
 YAML_SRC := core/spdf_yaml.c
 YAML_HDR := core/spdf_yaml.h
 YAML_OBJ := $(BUILD)/spdf_yaml.o
@@ -157,8 +159,12 @@ mac: mac-app
 
 all: mac-app
 
+# Built once, and again when a MuPDF source is newer than the library: the tree carries its own changes to MuPDF
+# (mupdf/source/svg, for one), which a library built before them must not hide.
 mupdf-libs:
-	@test -f "$(MUPDF_BUILD)/libmupdf.a" -a -f "$(MUPDF_BUILD)/libmupdf-third.a" || $(MAKE) -C "$(MUPDF_DIR)" -j$(CPU) build=release OUT="$(MUPDF_OUT)" $(MUPDF_MAC_ARGS) USE_SYSTEM_GLUT=yes brotli=no libs "$(MUPDF_OUT)/libmupdf-third.a"
+	@test -f "$(MUPDF_BUILD)/libmupdf.a" -a -f "$(MUPDF_BUILD)/libmupdf-third.a" -a \
+		-z "$$(find "$(MUPDF_DIR)/source" -path "$(MUPDF_DIR)/source/tools" -prune -o \
+			-newer "$(MUPDF_BUILD)/libmupdf.a" \( -name '*.c' -o -name '*.h' \) -print 2>/dev/null | head -1)" || $(MAKE) -C "$(MUPDF_DIR)" -j$(CPU) build=release OUT="$(MUPDF_OUT)" $(MUPDF_MAC_ARGS) USE_SYSTEM_GLUT=yes brotli=no libs "$(MUPDF_OUT)/libmupdf-third.a"
 	@test -f "$(MUPDF_BUILD)/libmupdf-pkcs7.a" || $(MAKE) -C "$(MUPDF_DIR)" -j$(CPU) build=release OUT="$(MUPDF_OUT)" $(MUPDF_MAC_ARGS) USE_SYSTEM_GLUT=yes brotli=no "$(MUPDF_OUT)/libmupdf-pkcs7.a"
 
 $(BUILD):
@@ -182,6 +188,9 @@ $(CORE_PROGRESSIVE_OBJ): core/spdf_progressive.c core/spdf_progressive.h core/sp
 	clang $(PORTABLE_OPTFLAGS) $(MAC_TARGET_FLAGS) -Wall -Wextra -Werror -Icore -I$(MUPDF_DIR)/include -c $< -o "$@"
 
 $(CORE_DESTINATION_OBJ): core/spdf_destination.c core/spdf_destination.h core/spdf_core_document.h Makefile | $(BUILD)
+	clang $(PORTABLE_OPTFLAGS) $(MAC_TARGET_FLAGS) -Wall -Wextra -Werror -Icore -I$(MUPDF_DIR)/include -c $< -o "$@"
+
+$(CORE_SVG_IMAGE_OBJ): core/spdf_svg_image.c core/spdf_svg_image.h Makefile | $(BUILD)
 	clang $(PORTABLE_OPTFLAGS) $(MAC_TARGET_FLAGS) -Wall -Wextra -Werror -Icore -I$(MUPDF_DIR)/include -c $< -o "$@"
 
 $(CORE_LINK_TEST): core/tests/SPDFCoreLinkTests.c $(CORE_LINK_OBJ) | $(BUILD)

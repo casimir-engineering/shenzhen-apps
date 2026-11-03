@@ -4,6 +4,7 @@
 #import "SPDFMarkdownPicture.h"
 
 
+#include <atomic>
 #include <errno.h>
 #include <fcntl.h>
 #include <limits.h>
@@ -372,10 +373,11 @@ static NSData* SPDFReadBelowRoot(int root, NSArray<NSString*>* components, NSUIn
     }
     picture.image = [SPDFMarkdownPictureRep imageWithBytes:bytes reload:reload];
     if (!picture.image) {
-        // ImageIO cannot identify this data — notably SVG (shields.io badges).
-        // Try NSImage, which rasterizes SVG data on modern macOS; where that
-        // fails too, the caller keeps the stable text placeholder.
-        NSImage* fallback = [[NSImage alloc] initWithData:bytes];
+        // ImageIO cannot identify this data — notably SVG (charts, shields.io
+        // badges), which goes to the installed SVG decoder; anything else to
+        // NSImage. Where that fails too, the caller keeps the stable text
+        // placeholder.
+        NSImage* fallback = SPDFMarkdownImageFromData(bytes);
         if (fallback.size.width >= 1 && fallback.size.height >= 1) picture.image = fallback;
     }
     return picture;
@@ -391,3 +393,27 @@ static NSData* SPDFReadBelowRoot(int root, NSArray<NSString*>* components, NSUIn
     return [store dataForTarget:target resolvedURL:resolvedURL];
 }
 @end
+
+static std::atomic<SPDFMarkdownSVGDecoder> SPDFMarkdownInstalledSVGDecoder{nullptr};
+
+void SPDFMarkdownSetSVGDecoder(SPDFMarkdownSVGDecoder decoder) { SPDFMarkdownInstalledSVGDecoder.store(decoder); }
+
+BOOL SPDFMarkdownDataLooksLikeSVG(NSData* data) {
+    // XML whose first element is <svg>: past a BOM, whitespace, the XML declaration, comments and a doctype.
+    NSUInteger length = MIN(data.length, (NSUInteger)4096);
+    const unsigned char* bytes = (const unsigned char*)data.bytes;
+    NSUInteger start = length >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF ? 3 : 0;
+    NSString* head = [[NSString alloc] initWithBytes:bytes + start length:length - start encoding:NSISOLatin1StringEncoding];
+    NSRange svg = [head rangeOfString:@"<svg"];
+    if (svg.location == NSNotFound) return NO;
+    NSString* prefix = [[head substringToIndex:svg.location]
+        stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
+    return prefix.length == 0 || [prefix hasPrefix:@"<?xml"] || [prefix hasPrefix:@"<!--"] || [prefix hasPrefix:@"<!DOCTYPE"];
+}
+
+NSImage* SPDFMarkdownImageFromData(NSData* data) {
+    if (!data.length) return nil;
+    SPDFMarkdownSVGDecoder decoder = SPDFMarkdownInstalledSVGDecoder.load();
+    NSImage* image = decoder && SPDFMarkdownDataLooksLikeSVG(data) ? decoder(data) : nil;
+    return image ?: [[NSImage alloc] initWithData:data];
+}

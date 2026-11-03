@@ -312,34 +312,24 @@ svg_parse_color(fz_context *ctx, svg_document *doc, const char *str, float *rgb)
 	}
 }
 
-static int
-svg_parse_color_from_style_string(fz_context *ctx, svg_document *doc, const char *p, float color[3])
-{
-	char buf[100], *e;
-	while (*p && svg_is_whitespace(*p))
-		++p;
-	fz_strlcpy(buf, p, sizeof buf);
-	e = strchr(buf, ';');
-	if (e)
-		*e = 0;
-	if (!strcmp(buf, "none"))
-		return 0;
-	svg_parse_color(ctx, doc, buf, color);
-	return 1;
-}
-
 void
 svg_parse_color_from_style(fz_context *ctx, svg_document *doc, const char *str,
 	int *fill_is_set, float fill[3],
 	int *stroke_is_set, float stroke[3])
 {
-	const char *p;
+	char buf[100];
 
-	p = strstr(str, "fill:");
-	if (p)
-		*fill_is_set = svg_parse_color_from_style_string(ctx, doc, p+5, fill);
+	if (svg_style_lookup(str, "fill", buf, sizeof buf) && strcmp(buf, "inherit"))
+	{
+		*fill_is_set = !!strcmp(buf, "none");
+		if (*fill_is_set)
+			svg_parse_color(ctx, doc, buf, fill);
+	}
 
-	p = strstr(str, "stroke:");
-	if (p)
-		*stroke_is_set = svg_parse_color_from_style_string(ctx, doc, p+7, stroke);
+	if (svg_style_lookup(str, "stroke", buf, sizeof buf) && strcmp(buf, "inherit"))
+	{
+		*stroke_is_set = !!strcmp(buf, "none");
+		if (*stroke_is_set)
+			svg_parse_color(ctx, doc, buf, stroke);
+	}
 }
