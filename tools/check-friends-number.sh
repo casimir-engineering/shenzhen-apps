@@ -6,7 +6,8 @@
 # The helper build number is YYMMDDBB from MAC_VERSION and MAC_BUILD in apps/pdf/portable/Makefile. Every app embeds
 # the same helper and a running helper hands over only to a higher number, so two different Friends builds must never
 # carry the same one (docs/FRIENDS.md). This finds the last commit that changed MAC_VERSION or MAC_BUILD and lists the
-# commits after it that changed Friends code: apps/pdf/portable/friends, apart from its docs, tests and Markdown.
+# commits after it that changed Friends code: apps/pdf/portable/friends, apart from its docs, tests (friends/tests and
+# every tests folder inside it, such as mac/tests) and Markdown.
 # Release jobs run it before they build.
 #
 # This repository starts from one commit that holds the apps as they were; their history is in the original
@@ -39,7 +40,7 @@ if ! git -C "$root" rev-parse -q --verify "$raised^" >/dev/null; then
 fi
 
 changes=$(git -C "$root" log --format='  %h %s' "$raised..$commit" -- "$friends" \
-  ":(exclude)$friends/docs" ":(exclude)$friends/tests" ":(exclude)$friends/*.md" ":(exclude)$friends/**/*.md")
+  ":(exclude)$friends/docs" ":(exclude)$friends/tests" ":(exclude)$friends/*/tests/*" ":(exclude)$friends/*.md" ":(exclude)$friends/**/*.md")
 if [ -n "$changes" ]; then
   echo "Friends changed after its helper build number was last raised to $number" \
     "($(git -C "$root" log -1 --format='%h %s' "$raised")):"
