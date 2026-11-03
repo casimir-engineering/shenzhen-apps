@@ -8,6 +8,8 @@
 #import "SPDFMacMarkdownDelegatePrivate.h"
 #import "SPDFMacCommentEditor.h"
 #import "SPDFMacMarkdownPageCanvas.h"
+#import "SPDFMacPageRendering.h"
+#import "SPDFMacUIHelpers.h"
 
 #import <objc/runtime.h>
 
@@ -18,6 +20,15 @@ static NSView* SPDFFindCanvas(NSView* root) {
         if (found) return found;
     }
     return nil;
+}
+
+NSDictionary* SPDFMacPageMenuCommentContext(NSInteger pageIndex, NSPoint pagePoint) {
+    return @{@"commentContextPage" : @(pageIndex), @"commentContextPoint" : [NSValue valueWithPoint:pagePoint]};
+}
+
+static NSDictionary* SPDFPageMenuContextOfSender(id sender) {
+    id context = [sender respondsToSelector:@selector(representedObject)] ? [sender representedObject] : nil;
+    return [context isKindOfClass:NSDictionary.class] && context[@"commentContextPage"] ? context : nil;
 }
 
 NSString* SPDFDefaultCommentAuthor(void) {
@@ -56,16 +67,28 @@ static char kEditorAnchorKey;
                              OBJC_ASSOCIATION_RETAIN_NONATOMIC);
 }
 
-// Where the editor opens: where the page's menu was just opened, else under the Markdown selection, else mid-page.
+// Where the editor opens: where the page's menu was just opened, else under the selection, else mid-page.
 - (NSPoint)commentEditorAnchorInView:(NSView*)host {
     NSArray* anchor = objc_getAssociatedObject(self, &kEditorAnchorKey);
     if (anchor && -[anchor[1] timeIntervalSinceNow] < 30)
         return [host convertPoint:[anchor[0] pointValue] fromView:nil];
     SPDFMacMarkdownSession* session = [self isMarkdownActive] ? self.activeMarkdownSession : nil;
     NSView* canvas = session.selectedRange.length ? SPDFFindCanvas(host) : nil;
+    NSRect inWindow = NSZeroRect;
     if (canvas) {
         NSRect rect = [(SPDFMacMarkdownPageCanvas*)canvas firstRectForRange:session.selectedRange];
-        NSRect inHost = [host convertRect:[canvas convertRect:rect toView:nil] fromView:nil];
+        inWindow = [canvas convertRect:rect toView:nil];
+    } else if (!session && _pageView && _selectedText.length && _selectionPageIndex >= 0 &&
+               _selectionPageIndex < (NSInteger)_renderedPages.count) {
+        NSRect pageRect = [_pageView rectForPageAtIndex:_selectionPageIndex];
+        for (NSValue* value in [self currentSelectionRects]) {
+            NSRect rect = spdf_mac_page_rect_to_view_rect(value.rectValue, pageRect, _renderedPages[(NSUInteger)_selectionPageIndex]);
+            inWindow = NSIsEmptyRect(inWindow) ? rect : NSUnionRect(inWindow, rect);
+        }
+        if (!NSIsEmptyRect(inWindow)) inWindow = [_pageView convertRect:inWindow toView:nil];
+    }
+    if (!NSIsEmptyRect(inWindow)) {
+        NSRect inHost = [host convertRect:inWindow fromView:nil];
         return NSMakePoint(NSMinX(inHost), host.isFlipped ? NSMaxY(inHost) : NSMinY(inHost));
     }
     return NSMakePoint(NSMidX(host.bounds), NSMidY(host.bounds) + 80);
@@ -116,6 +139,30 @@ static char kEditorAnchorKey;
 - (void)scheduleCommentEditorWarmUp {
     [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(warmCommentEditor) object:nil];
     [self performSelector:@selector(warmCommentEditor) withObject:nil afterDelay:1.5];
+    dispatch_async(dispatch_get_main_queue(), ^{ [self installAddCommentMenuItem]; });
+}
+
+- (void)warmCommentEditorWhileMenuIsOpen {
+    if ([self commentEditor].superview) return;
+    [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(warmCommentEditor) object:nil];
+    [self performSelector:@selector(warmCommentEditor) withObject:nil afterDelay:0
+                  inModes:@[ NSEventTrackingRunLoopMode, NSDefaultRunLoopMode ]];
+}
+
+// Edit ▸ Add Comment… (⌥⌘M): the box for the selection, with no menu in between. Put just above Set Author.
+- (void)installAddCommentMenuItem {
+    NSMenu* edit = nil;
+    NSInteger index = -1;
+    for (NSMenuItem* top in NSApp.mainMenu.itemArray)
+        for (NSMenuItem* item in top.submenu.itemArray) {
+            if (item.action == @selector(addComment:)) return;
+            if (item.action == @selector(setCommentAuthor:)) edit = top.submenu, index = [edit indexOfItem:item];
+        }
+    if (!edit) return;
+    NSMenuItem* add = [[NSMenuItem alloc] initWithTitle:@"Add Comment..." action:@selector(addComment:) keyEquivalent:@"m"];
+    add.keyEquivalentModifierMask = NSEventModifierFlagCommand | NSEventModifierFlagOption;
+    spdf_set_menu_item_system_symbol(add, @"text.bubble");
+    [edit insertItem:add atIndex:index];
 }
 
 - (void)openCommentEditorWithTitle:(NSString*)title
@@ -140,6 +187,8 @@ static char kEditorAnchorKey;
 }
 
 - (void)addComment:(id)sender {
+    // Not chosen in a page's menu: the box goes under the selection, not where a menu was last opened.
+    if (!SPDFPageMenuContextOfSender(sender)) objc_setAssociatedObject(self, &kEditorAnchorKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     if ([self isMarkdownActive]) {
         [self addMarkdownComment:sender];
         return;
@@ -149,12 +198,15 @@ static char kEditorAnchorKey;
         return;
     }
     // Read the selection and the clicked point now: a PDF that cannot be written in place (a temporary or read-only
-    // folder) is reopened from a writable copy when the comment is added, which clears them.
+    // folder) is reopened from a writable copy when the comment is added, which clears them. The page's menu hands
+    // its point over with the item; from the Edit menu or ⌥⌘M there is no point, only the selection.
+    NSDictionary* menuContext = SPDFPageMenuContextOfSender(sender);
     BOOL hasSelection = _selectedText.length > 0 && _selectionPageIndex >= 0 && [self currentSelectionRects].count > 0;
-    NSInteger pageIndex = hasSelection ? _selectionPageIndex : _contextPageIndex;
+    NSInteger contextPage = menuContext ? [menuContext[@"commentContextPage"] integerValue] : -1;
+    NSInteger pageIndex = hasSelection ? _selectionPageIndex : contextPage;
     NSArray<NSValue*>* values = hasSelection ? [self currentSelectionRects] : @[];
     NSString* selectedText = hasSelection ? [_selectedText copy] : nil;
-    NSPoint point = _contextPagePoint;
+    NSPoint point = menuContext ? [menuContext[@"commentContextPoint"] pointValue] : NSZeroPoint;
     if (pageIndex < 0 || pageIndex >= (NSInteger)_renderedPages.count) {
         NSBeep();
         return;

@@ -6,6 +6,7 @@
 #import "SPDFMacTranslationEnablement.h"
 #import "SPDFMacPermanentDeleteIntegration.h"
 #import "SPDFMacCommentActions.h"
+#import "SPDFMacInstantMenuItem.h"
 
 #import <objc/runtime.h>
 
@@ -87,14 +88,21 @@
                                            keyEquivalent:@""];
         editComment.target = self;
         editComment.representedObject = @(_contextCommentIndex);
+        SPDFMacMakeMenuItemInstant(editComment);
         NSMenuItem* deleteComment = [menu addItemWithTitle:@"Delete Comment..."
                                                     action:@selector(deleteComment:)
                                              keyEquivalent:@""];
         deleteComment.target = self;
         deleteComment.representedObject = @(_contextCommentIndex);
     }
-    NSMenuItem* addComment = [menu addItemWithTitle:@"Add Comment..." action:@selector(addComment:) keyEquivalent:@""];
+    // Opens the comment box as the button comes up (no blink, no fade), carrying the click it was chosen for. ⌥⌘M is
+    // shown here and answered by the Edit menu's Add Comment… (SPDFMacCommentActions.mm).
+    NSMenuItem* addComment = [menu addItemWithTitle:@"Add Comment..." action:@selector(addComment:) keyEquivalent:@"m"];
+    addComment.keyEquivalentModifierMask = NSEventModifierFlagCommand | NSEventModifierFlagOption;
     addComment.enabled = [self canAddCommentNow];
+    addComment.representedObject = SPDFMacPageMenuCommentContext(_contextPageIndex, _contextPagePoint);
+    SPDFMacMakeMenuItemInstant(addComment);
+    [self warmCommentEditorWhileMenuIsOpen];
     if (markdown && [self hasActiveDocument]) [self addCopyCommentsFileItemToMenu:menu path:_path];
     NSMenuItem* favorite = [menu addItemWithTitle:@"Favorite Page"
                                            action:@selector(favoriteCurrentPage:)

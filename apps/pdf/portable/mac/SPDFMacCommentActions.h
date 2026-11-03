@@ -5,6 +5,9 @@
 
 // The name new comments carry when none is set: the Mac account's full name, else its short name.
 FOUNDATION_EXPORT NSString* SPDFDefaultCommentAuthor(void);
+// What Add Comment… in a page's menu carries: the page and the point on it where the menu was opened (page -1 when
+// the menu was not over a page), so the comment goes there whenever the action arrives.
+FOUNDATION_EXPORT NSDictionary* SPDFMacPageMenuCommentContext(NSInteger pageIndex, NSPoint pagePoint);
 
 @interface ShenzhenMacDelegate (SPDFMacCommentActions)
 - (void)rememberCommentAuthor:(NSString*)author;
@@ -19,6 +22,8 @@ FOUNDATION_EXPORT NSString* SPDFDefaultCommentAuthor(void);
 - (void)noteCommentEditorAnchorAtWindowPoint:(NSPoint)point;
 // Builds the comment box shortly after launch (done by itself), so the first one opens at once too.
 - (void)scheduleCommentEditorWarmUp;
+// For a page's menu opened before that: builds the box while the menu is on screen.
+- (void)warmCommentEditorWhileMenuIsOpen;
 - (NSInteger)commentIndexForEditAction:(id)sender;
 - (NSInteger)commentIndexAtPageIndex:(NSInteger)pageIndex pagePoint:(NSPoint)pagePoint;
 @end
