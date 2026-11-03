@@ -124,6 +124,31 @@ static void TestNames(void) {
 }
 
 // The editor opens below the passage when it fits, above it near the bottom, and never outside the page area.
+// The byline shows the minute; the hidden time beside it keeps the seconds through any number of rewrites, and a
+// file written before it existed still reads.
+static void TestExactTimes(void) {
+    SPDFMarkdownComment* comment = [SPDFMarkdownComment new];
+    comment.author = @"Raph";
+    comment.quote = @"two pull-ups";
+    comment.text = @"Why two?";
+    comment.date = [NSDate dateWithTimeIntervalSince1970:1762119628];  // 2025-11-02 21:40:28 UTC
+    NSString* file = SPDFMarkdownCommentsFileText(@"Board.md", @[ comment ]);
+    Expect([file containsString:@" <!-- at: 2025-11-0"] && [file containsString:@":40:28"], file);
+    for (int round = 0; round < 3; round++) {
+        NSArray<SPDFMarkdownComment*>* parsed = SPDFMarkdownCommentsParseFile(file);
+        Expect(parsed.count == 1 && parsed[0].date.timeIntervalSince1970 == 1762119628,
+               [NSString stringWithFormat:@"seconds survive rewrite %d: %@", round, parsed.firstObject.date]);
+        Expect([parsed.firstObject.author isEqualToString:@"Raph"], @"author survives the hidden time");
+        file = SPDFMarkdownCommentsFileText(@"Board.md", parsed);
+    }
+    NSString* old = @"# Comments on Board.md\n\n---\n\n**Line 3**\n\n> **two pull-ups**\n\n**Raph** · 2026-11-01 15:20\n\n"
+                    @"Why two?\n";
+    NSArray<SPDFMarkdownComment*>* parsed = SPDFMarkdownCommentsParseFile(old);
+    Expect(parsed.count == 1 && parsed[0].date && [parsed[0].author isEqualToString:@"Raph"] &&
+               [parsed[0].text isEqualToString:@"Why two?"],
+           @"a file without hidden times still parses");
+}
+
 static void TestEditorPlacement(void) {
     NSSize size = NSMakeSize(320, 158);
     NSRect bounds = NSMakeRect(0, 0, 1000, 700);
@@ -141,6 +166,7 @@ int main(void) {
     @autoreleasepool {
         TestAnchorAndFile();
         TestEditsKeepAnchors();
+        TestExactTimes();
         TestNames();
         TestEditorPlacement();
     }

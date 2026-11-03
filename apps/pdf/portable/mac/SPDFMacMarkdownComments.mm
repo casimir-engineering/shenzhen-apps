@@ -5,11 +5,13 @@
 //
 //   > The board needs **two pull-ups on SDA** before power-on.
 //
-//   **Raph** · 2026-11-01 15:20
+//   **Raph** · 2026-11-01 15:20 <!-- at: 2026-11-01T15:20:28+08:00 -->
 //
 //   Check the value.
 //
-// The bold words inside the quote are the commented ones; every other "*" in the file is escaped, so the parser
+// A viewer shows the byline to the minute; the HTML comment after it, which no viewer shows, keeps the exact time with
+// its seconds and time zone, so rewriting the file (a reply, a resolve) never rounds a time down. Files without it
+// still read, to the minute. The bold words inside the quote are the commented ones; every other "*" in the file is escaped, so the parser
 // finds them without guessing.
 
 #import "SPDFMacMarkdownComments.h"
@@ -54,6 +56,44 @@ static NSDateFormatter* DateFormatter(void) {
       formatter.dateFormat = @"yyyy-MM-dd HH:mm";
     });
     return formatter;
+}
+
+// The exact time kept beside a byline: "2026-11-01T15:20:28+08:00", local time with its offset.
+static NSISO8601DateFormatter* ExactFormatter(void) {
+    static NSISO8601DateFormatter* formatter;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+      formatter = [NSISO8601DateFormatter new];
+      formatter.timeZone = NSTimeZone.localTimeZone;
+      formatter.formatOptions = NSISO8601DateFormatWithInternetDateTime;
+    });
+    return formatter;
+}
+
+static NSString* const kExactTimeOpen = @"<!-- at: ";
+static NSString* const kExactTimeClose = @" -->";
+
+// "**Raph** · 2026-11-01 15:20 <!-- at: 2026-11-01T15:20:28+08:00 -->", or the date alone when there is no author.
+static NSString* BylineText(NSString* author, NSString* escapedAuthor, NSDate* date) {
+    NSString* when = [DateFormatter() stringFromDate:date];
+    NSString* exact = [NSString stringWithFormat:@"%@%@%@", kExactTimeOpen, [ExactFormatter() stringFromDate:date],
+                                                 kExactTimeClose];
+    return author.length ? [NSString stringWithFormat:@"**%@** · %@ %@", escapedAuthor, when, exact]
+                         : [NSString stringWithFormat:@"%@ %@", when, exact];
+}
+
+// Takes the exact time off the end of a byline: the line without it, and the time (nil when there is none).
+static NSDate* TakeExactTime(NSString** line) {
+    NSString* text = *line;
+    if (![text hasSuffix:kExactTimeClose]) return nil;
+    NSRange open = [text rangeOfString:kExactTimeOpen options:NSBackwardsSearch];
+    if (open.location == NSNotFound) return nil;
+    NSUInteger start = NSMaxRange(open), end = text.length - kExactTimeClose.length;
+    if (end < start) return nil;
+    NSDate* date = [ExactFormatter() dateFromString:[text substringWithRange:NSMakeRange(start, end - start)]];
+    if (date) *line = [[text substringToIndex:open.location]
+                          stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceCharacterSet];
+    return date;
 }
 
 // Backslash-escapes what Markdown would otherwise turn into formatting, so the reader sees the text as written and
@@ -123,9 +163,8 @@ static void AppendComment(NSMutableString* out, SPDFMarkdownComment* comment) {
     [out appendFormat:@"%@\n\n", where];
     [out appendFormat:@"> %@**%@**%@\n\n", Escape(comment.contextBefore), Escape(comment.quote),
                       Escape(comment.contextAfter)];
-    NSString* date = [DateFormatter() stringFromDate:comment.date ?: NSDate.date];
     NSString* author = Trimmed(comment.author);
-    [out appendFormat:@"%@\n\n", author.length ? [NSString stringWithFormat:@"**%@** · %@", Escape(author), date] : date];
+    [out appendFormat:@"%@\n\n", BylineText(author, Escape(author), comment.date ?: NSDate.date)];
     for (NSString* line in [Trimmed(comment.text) componentsSeparatedByString:@"\n"])
         [out appendFormat:@"%@%@\n", BodyLineNeedsEscape(line) ? @"\\" : @"", line];
     [out appendString:@"\n"];
@@ -182,6 +221,7 @@ static void ParseLocation(NSString* line, SPDFMarkdownComment* comment) {
 }
 
 static BOOL ParseByline(NSString* line, SPDFMarkdownComment* comment) {
+    NSDate* exact = TakeExactTime(&line);
     NSString* author = @"";
     NSString* date = line;
     if ([line hasPrefix:@"**"]) {
@@ -193,7 +233,7 @@ static BOOL ParseByline(NSString* line, SPDFMarkdownComment* comment) {
     NSDate* parsed = [DateFormatter() dateFromString:Trimmed(date)];
     if (!parsed) return NO;
     comment.author = author;
-    comment.date = parsed;
+    comment.date = exact ?: parsed;
     return YES;
 }
 

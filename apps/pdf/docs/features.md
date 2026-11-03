@@ -413,6 +413,8 @@ fence the renderer cannot draw keeps its ordinary highlighted code box.
   document. They are kept beside it in *<title> - comments.md*, a plain
   Markdown file listing each comment in document order with its line, its
   headings and the quoted passage, so anyone can read them in any viewer.
+  Each byline shows the time to the minute; the exact time, with seconds and
+  time zone, is kept in a hidden note beside it, so it survives every rewrite.
   Comments follow their words when the document is edited; one whose words are
   gone is listed under *Unplaced*. **Copy Comments File** copies that file, and
   **Copy Document and Comments** copies both.
