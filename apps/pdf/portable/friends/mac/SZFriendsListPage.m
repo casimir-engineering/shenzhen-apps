@@ -99,6 +99,7 @@
     _footer = [[SZFriendsFooterView alloc] initWithContext:context];
     _footer.onAddByID = ^{ [weakSelf.context.navigator openProfile]; };
     [self addSubview:_footer];
+    [self setUpKeyboard];
     [self applyStaticStrings];
     return self;
 }
@@ -212,6 +213,7 @@
 - (void)pageWillAppear {
     [super pageWillAppear];
     [self subscribeVisibleTab];
+    [self restoreKeyRow];
 }
 
 - (void)pageDidDisappear {
@@ -259,6 +261,7 @@
     [self subscribeVisibleTab];
     NSDictionary *visible = nearby ? _nearbyData : _listData;
     [_footer applyFooter:SZFDict(visible ?: (_listData ?: _nearbyData), @"footer")];
+    [self keyRowsChanged];
     [self setNeedsLayout:YES];
 }
 
@@ -341,6 +344,7 @@
         [self->_rowViews[index] configureWithListRow:row];
     }];
     [self dimRowsThatRefuseFiles];
+    [self keyRowsChanged];
     [self setNeedsLayout:YES];
 }
 
@@ -353,6 +357,7 @@
     [self applyStaticStrings];
     [_nearbyPane applyNearby:data];
     if (_showingNearby) [_footer applyFooter:SZFDict(data, @"footer")];
+    [self keyRowsChanged];
     [self setNeedsLayout:YES];
 }
 
@@ -409,31 +414,14 @@
 #pragma mark - Actions
 
 // Escape turns an armed "Block?" back first: it is the innermost thing open, and closing the dropdown under it
-// would leave the person unsure whether they blocked someone.
+// would leave the person unsure whether they blocked someone. Last, it empties the search before it closes anything.
 - (BOOL)dismissInnermostPicker {
     for (SZFriendsRowView *row in _rowViews)
         if ([row.actionsView disarm]) return YES;
     if (SZFriendsDisarmActionButtons(_devicesView)) return YES; // a join row's "Deny?"
     if ([_footer cancelEditingName]) return YES;
-    return !_namePrompt.hidden && !_namePromptSaved && [_namePrompt.nameEditor cancelTyping];
-}
-
-#pragma mark - Text fields
-
-- (void)controlTextDidChange:(NSNotification *)notification {
-    if (notification.object != _searchField) return;
-    for (NSString *token in @[ _listToken ?: @"", _nearbyToken ?: @"" ])
-        if (token.length) [self.context.link setFilter:_searchField.stringValue forSubscription:token];
-}
-
-- (BOOL)control:(NSControl *)control textView:(NSTextView *)textView doCommandBySelector:(SEL)command {
-    (void)textView;
-    if (command == @selector(cancelOperation:)) {
-        SZFriendsForwardEscape(self);
-        return YES;
-    }
-    (void)control;
-    return NO;
+    if (!_namePrompt.hidden && !_namePromptSaved && [_namePrompt.nameEditor cancelTyping]) return YES;
+    return [self clearSearch];
 }
 
 #pragma mark - Layout
@@ -474,6 +462,7 @@
     NSRect scrollFrame = NSMakeRect(0, y, width, MAX(0, height - footerHeight - y));
     _scrollView.frame = scrollFrame;
     _nearbyScroll.frame = scrollFrame;
+    [self layOutKeyList:scrollFrame];
 
     CGFloat rowsY = 0;
     for (SZFriendsRowView *row in _rowViews) {

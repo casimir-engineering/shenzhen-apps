@@ -213,7 +213,8 @@ static NSString *SZFPrefixFittingBytes(NSString *text, NSUInteger maxBytes) {
 }
 
 - (BOOL)control:(NSControl *)control textView:(NSTextView *)textView doCommandBySelector:(SEL)command {
-    (void)control, (void)textView;
+    (void)textView;
+    if (SZFriendsFocusCommand(control, command)) return YES;
     if (command == @selector(cancelOperation:)) {
         if (![self cancelRenaming]) SZFriendsForwardEscape(self);
         return YES;

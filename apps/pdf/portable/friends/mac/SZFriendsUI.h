@@ -121,6 +121,13 @@ typedef void (^SZFriendsIconDrawer)(NSRect rect, NSColor *color);
 @property(nonatomic, copy, nullable) void (^onHoverChange)(SZFriendsButton *button, BOOL hovered);
 // Chrome drawn inside the frame by these insets, so a badge can sit outside the chrome yet inside the hit area.
 @property(nonatomic) NSEdgeInsets chromeInsets;
+// The focus from the keyboard (SZFriendsKeyFocus.h): with Full Keyboard Access off AppKit gives a button none, so
+// Tab asks the button itself, and a mouse press still never takes it. YES when the button has the focus. Focused, it
+// draws the keyboard's ring (SZFriendsStrokeKeyRing), presses on Return or Space, and passes Tab, Shift-Tab and
+// Escape on.
+- (BOOL)takeKeyFocus;
+// The focus ring without the focus: the list's highlighted row while the list has it (SZFriendsFillHover).
+@property(nonatomic) BOOL showsKeyFocus;
 + (instancetype)buttonWithTitle:(NSString *)title style:(SZFriendsButtonStyle)style
                      appearance:(SZFriendsAppearance *)appearance;
 // The width the title needs plus padding, at the button's height.
@@ -128,6 +135,11 @@ typedef void (^SZFriendsIconDrawer)(NSRect rect, NSColor *color);
 // The color the icon is drawn in for the button's current style and state.
 - (NSColor *)iconColor;
 @end
+
+// The keyboard's ring, inside `rect` (corners of `radius`), in the system's focus colour: a focused button draws it,
+// and so does the hover fill (SZFriendsFillHover) while the button showsKeyFocus.
+void SZFriendsStrokeKeyRing(SZFriendsButton *button, NSRect rect, CGFloat radius);
+void SZFriendsFillHover(SZFriendsButton *button, NSBezierPath *shape, CGFloat radius);
 
 #pragma mark - Icons (vector, drawn in a 16-unit box scaled to `rect`)
 

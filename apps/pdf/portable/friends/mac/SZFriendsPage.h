@@ -181,6 +181,13 @@ extern const CGFloat SZFriendsHeaderHeight;
 @end
 void SZFriendsForwardEscape(NSView *from);
 
+// Tab and Shift-Tab (SZFriendsKeyFocus.h): the focus goes to the stop after (or before) the one holding `from`, in
+// the dropdown's confirmation while it shows, else its top page; YES when the key was taken. A field delegate's
+// -control:textView:doCommandBySelector: asks SZFriendsFocusCommand first: insertTab: and insertBacktab: move the
+// focus (YES), anything else is the delegate's (NO).
+BOOL SZFriendsMoveFocus(NSView *from, BOOL backward);
+BOOL SZFriendsFocusCommand(NSView *from, SEL command);
+
 // Draws a PROTOCOL.md avatar object in the circle inscribed in `rect` (rows draw it inline so the whole row stays
 // one hit target; SZFriendsAvatarView wraps it as a view).
 void SZFriendsDrawAvatar(NSDictionary *_Nullable avatar, NSRect rect);

@@ -182,6 +182,7 @@ int main(int argc, const char *argv[]) {
         SZFTestFixtureConstruction();
         SZFTestHistoryFollow();
         SZFTestChatOpen();
+        SZFTestKeyboard();
         SZFTestHitTesting();
         SZFTestControls();
         SZFTestRowActions();

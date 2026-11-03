@@ -25,6 +25,10 @@
         SZFriendsForwardEscape(self);
         return;
     }
+    // Tab moves on to the chat's buttons, as in every Friends field; Option-Tab still types a tab.
+    NSEventModifierFlags held = event.modifierFlags & (NSEventModifierFlagCommand | NSEventModifierFlagOption |
+                                                       NSEventModifierFlagControl);
+    if (event.keyCode == 48 && !self.hasMarkedText && !held && SZFriendsMoveFocus(self, shift)) return;
     NSRange selection = self.selectedRange;
     if (event.keyCode == 51 && !self.hasMarkedText && selection.location == 0 && selection.length == 0 &&
         self.onDeleteAtStart && self.onDeleteAtStart())

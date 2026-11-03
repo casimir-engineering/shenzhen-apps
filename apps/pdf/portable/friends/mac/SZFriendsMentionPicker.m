@@ -185,7 +185,8 @@ static const CGFloat SZFMentionRowHeight = 34;
 }
 
 - (BOOL)control:(NSControl *)control textView:(NSTextView *)textView doCommandBySelector:(SEL)command {
-    (void)control, (void)textView;
+    (void)textView;
+    if (SZFriendsFocusCommand(control, command)) return YES;
     if (command == @selector(moveDown:)) self.selectedIndex += 1;
     else if (command == @selector(moveUp:)) self.selectedIndex -= 1;
     else if (command == @selector(insertNewline:)) [self chooseSelected];

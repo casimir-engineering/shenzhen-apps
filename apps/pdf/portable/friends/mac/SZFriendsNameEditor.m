@@ -175,7 +175,8 @@ static const CGFloat SZFriendsNameEditorRowHeight = 26;
 }
 
 - (BOOL)control:(NSControl *)control textView:(NSTextView *)textView doCommandBySelector:(SEL)command {
-    (void)control, (void)textView;
+    (void)textView;
+    if (SZFriendsFocusCommand(control, command)) return YES;
     if (command == @selector(insertNewline:)) {
         [self save];
         return YES;

@@ -194,6 +194,7 @@ void SZFTestLinkRouting(void);
 void SZFTestFixtureConstruction(void);
 void SZFTestHistoryFollow(void);
 void SZFTestChatOpen(void);
+void SZFTestKeyboard(void);
 void SZFTestHitTesting(void);
 void SZFTestDropdownSession(NSString *stateDirectory);
 void SZFTestDrops(NSString *stateDirectory);

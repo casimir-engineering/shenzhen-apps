@@ -6,6 +6,7 @@
 #import "mac/SZFriendsConversationPage.h"
 #import "mac/SZFriendsDetailsPage.h"
 #import "mac/SZFriendsDevices.h"
+#import "mac/SZFriendsKeyFocus.h"
 #import "mac/SZFriendsLinkPage.h"
 
 CGFloat SZFriendsDropdownHeight(CGFloat spaceBelowButton, CGFloat maxHeight) {
@@ -242,8 +243,9 @@ static const NSUInteger SZFKeptPages = 4;
         if (self.window) [self.window makeFirstResponder:self]; // Escape still closes; nothing hidden takes typing
         return;
     }
+    // A page with nowhere to type keeps the focus here (Tab enters it), never in a page now hidden.
     NSView *responder = [self.topPage preferredFirstResponder];
-    if (responder && self.window) [self.window makeFirstResponder:responder];
+    if (self.window && !(responder && SZFriendsFocus(responder))) [self.window makeFirstResponder:self];
 }
 
 #pragma mark - Stack
@@ -427,7 +429,7 @@ NSString *SZFriendsSendPickerTitle(SZFriendsContext *context, NSArray<NSString *
     view.frame = self.bounds;
     _confirmation = view;
     [self addSubview:view positioned:NSWindowAbove relativeTo:nil];
-    if (self.window) [self.window makeFirstResponder:view.cancelButton];
+    if (self.window) SZFriendsFocus(view.cancelButton);
 }
 
 - (void)dismissConfirmation {
@@ -458,7 +460,7 @@ NSString *SZFriendsSendPickerTitle(SZFriendsContext *context, NSArray<NSString *
 
 - (void)keyDown:(NSEvent *)event {
     if (event.keyCode == 53) [self friendsHandleEscape];
-    else [super keyDown:event];
+    else if (!SZFriendsHandleUnfocusedKey((id)_confirmation ?: self.topPage, event)) [super keyDown:event];
 }
 
 - (BOOL)acceptsFirstResponder {

@@ -1,6 +1,7 @@
 // Shenzhen Friends list page: what its implementation files share (internal): the page's state, and the methods
-// SZFriendsListPageNotices.m and SZFriendsListPageActions.m add to it.
+// SZFriendsListPageNotices.m, SZFriendsListPageActions.m and SZFriendsListPageKeyboard.m add to it.
 
+#import "mac/SZFriendsKeyFocus.h"
 #import "mac/SZFriendsListPage.h"
 
 NS_ASSUME_NONNULL_BEGIN
@@ -35,6 +36,15 @@ NS_ASSUME_NONNULL_BEGIN
     NSMutableSet<NSString *> *_leaving;
     NSMutableSet<NSString *> *_leavingSeenGone;
     NSMutableSet<NSString *> *_left;
+    // The keyboard (SZFriendsListPageKeyboard.m): the list's own stop, and the highlighted row, which is the row the
+    // pointer hovers or the one Up and Down moved to (-1: none), with whom it shows. From the keyboard, the highlight
+    // stays with that person when the rows change; from the pointer, with the place under it.
+    SZFriendsListKeyView *_keyList;
+    NSInteger _keyRow;
+    NSString *_keyRowID;
+    BOOL _keyRowByKeyboard;
+    BOOL _settingKeyRow;
+    NSString *_openedRowID; // opened with Return: highlighted again when the list comes back
 }
 - (void)applyRows:(NSArray *)snapshotRows; // the snapshot's rows, less anyone just removed here
 @end
@@ -60,6 +70,16 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)sendItems:(NSArray<SZFriendsAttachableItem *> *)items toConversation:(NSString *)conversationID;
 - (void)performRowAction:(NSDictionary *)action onRow:(SZFriendsRowView *)row;
 - (void)performMenuAction:(NSDictionary *)action conversation:(NSString *)conversationID;
+@end
+
+// Up, Down, Return, Tab and typing in the list (SZFriendsListPageKeyboard.m).
+@interface SZFriendsListPage (Keyboard)
+- (void)setUpKeyboard;
+- (void)layOutKeyList:(NSRect)frame;
+- (void)keyRowsChanged;      // after new rows: the highlight follows its person, or the first match
+- (void)restoreKeyRow;       // the list shows again: the row opened with Return is highlighted
+- (void)noteRowHovered:(SZFriendsRowView *)row inside:(BOOL)inside;
+- (BOOL)clearSearch;         // Escape: YES when the search had text, now gone
 @end
 
 NS_ASSUME_NONNULL_END

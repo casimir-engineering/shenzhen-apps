@@ -300,8 +300,7 @@ static CGFloat SZFPill(NSString *text, CGFloat right, CGFloat y, NSFont *font, N
     } else if (self.enabled && !self.dimmed && (self.hovered || self.cell.isHighlighted)) {
         // The host's hover colour, never the selection colour: in ShenzhenPDF that marks the selected chapter or
         // chat, and a waiting row tinted with it looked selected while every hovered row looked like it was waiting.
-        [appearance.hoverColor setFill];
-        [shape fill];
+        SZFriendsFillHover(self, shape, 8); // with the keyboard's ring while the list has the focus
     }
 
     NSFont *refusalFont = [NSFont systemFontOfSize:12 weight:NSFontWeightBold];

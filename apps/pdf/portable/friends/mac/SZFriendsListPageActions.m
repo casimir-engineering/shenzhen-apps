@@ -31,6 +31,7 @@
 }
 
 - (void)rowHovered:(SZFriendsRowView *)row inside:(BOOL)inside {
+    [self noteRowHovered:row inside:inside];
     NSString *conversationID = row.conversationID;
     if (!conversationID) return;
     if (inside) [self.context.conversations follow:conversationID];

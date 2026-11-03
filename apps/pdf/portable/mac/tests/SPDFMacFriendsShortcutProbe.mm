@@ -268,10 +268,18 @@ static void CheckCommandJ(FriendsShortcutReader* reader) {
     Check(RunUntil(2, ^BOOL { return SearchFieldHasFocus(dropdown); }),
           [NSString stringWithFormat:@"the search field has focus when Friends opens (first responder %@)",
                                      dropdown.content.window.firstResponder]);
+    // Tab and Down are the dropdown's, not the reader menu's: Tab leaves the search field, Shift-Tab comes back.
+    NSWindow* popover = dropdown.content.window;
+    Check(![NSApp.mainMenu performKeyEquivalent:KeyDown(@"\t", 48, 0, popover)] &&
+              ![NSApp.mainMenu performKeyEquivalent:KeyDown(@"\uF701", 125, NSEventModifierFlagFunction, popover)],
+          @"no menu item takes Tab or Down");
+    [popover sendEvent:KeyDown(@"\t", 48, 0, popover)];
+    Check(!SearchFieldHasFocus(dropdown), @"Tab leaves the search field");
+    [popover sendEvent:KeyDown(@"\x19", 48, NSEventModifierFlagShift, popover)];
+    Check(SearchFieldHasFocus(dropdown), @"Shift-Tab comes back to it");
     [open.menu update];
     Check([open.title isEqualToString:SPDFMacFriendsCloseTitle], @"the item reads Close Friends while it is open");
 
-    NSWindow* popover = dropdown.content.window;
     Check(PressShortcut(@";", popover), @"the dropdown's search field passes Cmd+; on to the menu");
     Check(RunUntil(2, ^BOOL { return !dropdown.shown; }), @"Cmd+; closes Friends while its search field has focus");
     [open.menu update];

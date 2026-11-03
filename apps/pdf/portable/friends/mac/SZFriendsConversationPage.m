@@ -386,7 +386,8 @@ static const NSTimeInterval SZFResizeSettleDelay = 0.3;
 }
 
 - (BOOL)control:(NSControl *)control textView:(NSTextView *)textView doCommandBySelector:(SEL)command {
-    (void)control, (void)textView;
+    (void)textView;
+    if (SZFriendsFocusCommand(control, command)) return YES;
     if (command == @selector(insertNewline:)) {
         [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(runSearch) object:nil];
         [self runSearch];

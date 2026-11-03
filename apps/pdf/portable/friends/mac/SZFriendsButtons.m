@@ -1,5 +1,6 @@
 // SZFriendsButton: one button class for every Friends action, drawn by style so the whole frame is the hit area.
 
+#import "mac/SZFriendsKeyFocus.h"
 #import "mac/SZFriendsUI.h"
 
 SZFriendsButtonStyle SZFriendsButtonStyleNamed(NSString *style) {
@@ -12,6 +13,7 @@ SZFriendsButtonStyle SZFriendsButtonStyleNamed(NSString *style) {
 @implementation SZFriendsButton {
     NSTrackingArea *_hoverArea;
     id _pressedSubject; // pressSubject when the mouse went down, NSNull for nil; nil outside a mouse press
+    BOOL _takingKeyFocus;
 }
 
 + (instancetype)buttonWithTitle:(NSString *)title style:(SZFriendsButtonStyle)style
@@ -31,7 +33,8 @@ SZFriendsButtonStyle SZFriendsButtonStyleNamed(NSString *style) {
     self.action = @selector(pressed:);
     self.font = [NSFont systemFontOfSize:12 weight:NSFontWeightSemibold];
     self.alignment = NSTextAlignmentCenter;
-    self.focusRingType = NSFocusRingTypeDefault;
+    // The keyboard's ring is drawn here (SZFriendsStrokeKeyRing), the same with or without Full Keyboard Access.
+    self.focusRingType = NSFocusRingTypeNone;
     _iconSize = NSMakeSize(15, 15);
     _theme = [SZFriendsAppearance new];
     return self;
@@ -55,6 +58,67 @@ SZFriendsButtonStyle SZFriendsButtonStyleNamed(NSString *style) {
 
 - (BOOL)isFlipped {
     return YES;
+}
+
+#pragma mark - Keyboard focus
+
+- (BOOL)takeKeyFocus {
+    NSWindow *window = self.window;
+    if (!window || self.isHiddenOrHasHiddenAncestor || !self.enabled) return NO;
+    _takingKeyFocus = YES;
+    BOOL taken = [window makeFirstResponder:self];
+    _takingKeyFocus = NO;
+    return taken && window.firstResponder == self;
+}
+
+- (BOOL)acceptsFirstResponder {
+    return _takingKeyFocus || [super acceptsFirstResponder];
+}
+
+- (BOOL)becomeFirstResponder {
+    BOOL became = [super becomeFirstResponder];
+    if (became) self.needsDisplay = YES;
+    return became;
+}
+
+- (BOOL)resignFirstResponder {
+    BOOL resigned = [super resignFirstResponder];
+    if (resigned) self.needsDisplay = YES;
+    return resigned;
+}
+
+- (void)setShowsKeyFocus:(BOOL)showsKeyFocus {
+    if (showsKeyFocus == _showsKeyFocus) return;
+    _showsKeyFocus = showsKeyFocus;
+    self.needsDisplay = YES;
+}
+
+// Inside the dropdown only: elsewhere (the title-bar button, Settings) the window's own keyboard handling stays.
+- (void)keyDown:(NSEvent *)event {
+    if (!SZFriendsInFocusScope(self)) {
+        [super keyDown:event];
+    } else if (SZFriendsIsTabKey(event)) {
+        SZFriendsMoveFocus(self, (event.modifierFlags & NSEventModifierFlagShift) != 0);
+    } else if (SZFriendsIsReturnKey(event) || (event.keyCode == 49 && !(event.modifierFlags &
+                                                                         NSEventModifierFlagCommand))) {
+        if (self.enabled) [self performClick:self];
+    } else if (event.keyCode == 53) {
+        SZFriendsForwardEscape(self);
+    } else {
+        [super keyDown:event];
+    }
+}
+
+- (NSRect)chromeBounds {
+    NSEdgeInsets insets = self.chromeInsets;
+    return NSMakeRect(insets.left, insets.top, NSWidth(self.bounds) - insets.left - insets.right,
+                      NSHeight(self.bounds) - insets.top - insets.bottom);
+}
+
+- (NSBezierPath *)chromeShape {
+    NSRect bounds = [self chromeBounds];
+    CGFloat radius = MIN(self.theme.cornerRadius, NSHeight(bounds) / 2);
+    return [NSBezierPath bezierPathWithRoundedRect:NSInsetRect(bounds, 0.5, 0.5) xRadius:radius yRadius:radius];
 }
 
 // The tokens are the colours meant: inside the popover's material a borderless button is drawn with vibrancy, which
@@ -155,12 +219,9 @@ SZFriendsButtonStyle SZFriendsButtonStyleNamed(NSString *style) {
     (void)dirtyRect;
     SZFriendsAppearance *appearance = self.theme;
     BOOL pressed = self.cell.isHighlighted;
-    NSEdgeInsets insets = self.chromeInsets;
-    NSRect bounds = NSMakeRect(insets.left, insets.top, NSWidth(self.bounds) - insets.left - insets.right,
-                               NSHeight(self.bounds) - insets.top - insets.bottom);
+    NSRect bounds = [self chromeBounds];
     CGFloat radius = MIN(appearance.cornerRadius, NSHeight(bounds) / 2);
-    NSBezierPath *shape = [NSBezierPath bezierPathWithRoundedRect:NSInsetRect(bounds, 0.5, 0.5) xRadius:radius
-                                                          yRadius:radius];
+    NSBezierPath *shape = [self chromeShape];
     NSColor *fill = nil;
     // A disabled primary button fades as a whole; grey text on full blue read as broken, not unavailable.
     if (self.style == SZFriendsButtonStylePrimary)
@@ -210,12 +271,25 @@ SZFriendsButtonStyle SZFriendsButtonStyleNamed(NSString *style) {
         NSRect badge = SZFriendsBadgeRect(self.badgeLabel, NSMakePoint(NSMaxX(self.bounds), 0), badgeFont);
         SZFriendsDrawBadge(self.badgeLabel, badge, badgeFont, appearance);
     }
-    if (self.window.firstResponder == self && self.window.isKeyWindow) {
-        [NSGraphicsContext saveGraphicsState];
-        NSSetFocusRingStyle(NSFocusRingOnly);
-        [shape fill];
-        [NSGraphicsContext restoreGraphicsState];
-    }
+    if (self.window.firstResponder == self) SZFriendsStrokeKeyRing(self, shape.bounds, radius);
 }
 
 @end
+
+void SZFriendsStrokeKeyRing(SZFriendsButton *button, NSRect rect, CGFloat radius) {
+    // Inside the shape: a row fills the list's width, so a ring outside it would be cut. On a primary button's
+    // accent fill, the button's own text colour.
+    NSBezierPath *ring = [NSBezierPath bezierPathWithRoundedRect:NSInsetRect(rect, 1.25, 1.25)
+                                                         xRadius:MAX(0, radius - 1) yRadius:MAX(0, radius - 1)];
+    ring.lineWidth = 2.5;
+    NSColor *color = button.style == SZFriendsButtonStylePrimary ? button.theme.primaryButtonTextColor
+                                                                 : NSColor.keyboardFocusIndicatorColor;
+    [[color colorWithAlphaComponent:0.85] setStroke]; // the system's 50 % is faint on dark rows
+    [ring stroke];
+}
+
+void SZFriendsFillHover(SZFriendsButton *button, NSBezierPath *shape, CGFloat radius) {
+    [button.theme.hoverColor setFill];
+    [shape fill];
+    if (button.showsKeyFocus) SZFriendsStrokeKeyRing(button, shape.bounds, radius);
+}

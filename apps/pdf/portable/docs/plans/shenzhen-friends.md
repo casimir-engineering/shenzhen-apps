@@ -228,8 +228,16 @@ chat and the map are unaffected.
   the top left** that goes up one level, with the friend's name or the view's
   title centered in the header; Cmd+[ does the same. When rows are
   waiting elsewhere, the back arrow carries their count.
-- It closes on Escape, on a click on the Friends button, or on a click in the
-  window. It stays open while you work in another app, so files can be dragged
+- Everything works from the keyboard, with or without macOS Keyboard navigation.
+  In the list, Up and Down move a highlight through the rows while typing stays in
+  the search field (the same highlight the pointer's hover draws), and Return opens
+  the highlighted row, or the first match. Tab goes search field, list, then every
+  other control top to bottom; Shift-Tab goes back. With the list focused, a
+  letter typed goes back into the search. In a chat, Tab moves between the
+  composer and the chat's buttons; on any view a focused button presses on Return
+  or Space.
+- It closes on Escape (which first empties a search), on a click on the Friends
+  button, or on a click in the window. It stays open while you work in another app, so files can be dragged
   in from Finder or Shenzhen Files (AppKit's semi-transient popover behaviour).
 - Reopening returns to the view you left, with drafts and scroll position kept.
   The back arrow always leads to the list.
