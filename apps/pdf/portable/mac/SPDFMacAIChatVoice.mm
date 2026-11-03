@@ -375,7 +375,10 @@ static BOOL SPDFVoiceLanguageUsesSpaces(NSString* identifier) {
         ![NSCharacterSet.punctuationCharacterSet characterIsMember:[piece characterAtIndex:0]])
         piece = [@" " stringByAppendingString:piece];
     if ([piece isEqual:voice.shown]) return;
-    [_composer.textStorage replaceCharactersInRange:range withString:piece];
+    // In the composer's own font and colour: a bare string at the start of an empty box would come out black.
+    [_composer.textStorage replaceCharactersInRange:range
+                               withAttributedString:[[NSAttributedString alloc] initWithString:piece
+                                                                                    attributes:_composer.typingAttributes]];
     [_composer didChangeText];
     voice.shown = piece;
     _composer.selectedRange = NSMakeRange(range.location + piece.length, 0);
