@@ -240,10 +240,10 @@ int main(int argc, const char *argv[]) {
             {"Reset Friends from an identity it cannot read", SZFHTestResetUnreadableIdentity},
             {"an identity readable again starts what needs it", SZFHTestIdentityReadableAgain},
         }, optInTests[] = {
-            // Opt-in, not run by the release: SPDF_OPT_IN_CHECKS=1 (apps/pdf/portable/README.md § Opt-in checks).
+            // Opt-in, not run by the release: SZFRIENDS_OPT_IN_CHECKS=1 (the host's make sets it with its own opt-in switch).
             {"conversation preview reads nothing", SZFHTestConversationPreview},
         };
-        const char *optIn = getenv("SPDF_OPT_IN_CHECKS");
+        const char *optIn = getenv("SZFRIENDS_OPT_IN_CHECKS");
         size_t count = sizeof(tests) / sizeof(tests[0]);
         size_t optInCount = optIn && strcmp(optIn, "1") == 0 ? sizeof(optInTests) / sizeof(optInTests[0]) : 0;
         int failed = 0;

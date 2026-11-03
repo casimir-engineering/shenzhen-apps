@@ -43,6 +43,9 @@ spdf_test_stamp = $(if $(SPDF_TEST_STAMP_TOOL),@"$(SPDF_TEST_STAMP_TOOL)" record
 # make <suite> SPDF_OPT_IN_CHECKS=1 runs a suite's opt-in cases too. Exported so the test binaries see it.
 SPDF_OPT_IN_CHECKS ?=
 export SPDF_OPT_IN_CHECKS
+# Friends' own tests read it under Friends' name: nothing under friends/ may name the reader (containment-check.sh).
+SZFRIENDS_OPT_IN_CHECKS ?= $(SPDF_OPT_IN_CHECKS)
+export SZFRIENDS_OPT_IN_CHECKS
 
 CORE_SRC := core/shenzhen_pdf_core.c
 CORE_HDR := core/shenzhen_pdf_core.h

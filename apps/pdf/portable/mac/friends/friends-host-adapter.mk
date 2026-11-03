@@ -152,7 +152,8 @@ mac-friends-settings-tests:
 	$(call HOST_ADAPTER_RUN,SPDFMacFriendsSettingsTests,$(HOST_ADAPTER_DIR)/tests/SPDFMacFriendsSettingsTests.mm \
 		$(addprefix $(HOST_ADAPTER_DIR)/,SPDFMacFriendsSettings.mm SPDFMacFriendsSettingsPane.mm SPDFMacFriendsPalette.mm \
 		SPDFMacFriendsChatScope.mm SPDFMacFriendsSettingsPage.mm) mac/SPDFMacCollectionStyle.mm \
-		mac/SPDFMacUnifiedSettings.mm mac/SPDFMacSearchablePicker.mm mac/SPDFMacGroupActionButton.mm \
+		mac/SPDFMacUnifiedSettings.mm mac/SPDFMacSettingsButton.mm mac/SPDFMacSearchablePicker.mm \
+		mac/SPDFMacGroupActionButton.mm mac/SPDFMacCommandLineToolSettings.mm mac/SPDFMacCommentAuthorSettings.mm \
 		$(HOST_ADAPTER_FAKES) -framework Cocoa)
 
 # The reader-facing categories need the whole coordinator to link, so they are compiled -fsyntax-only against the
