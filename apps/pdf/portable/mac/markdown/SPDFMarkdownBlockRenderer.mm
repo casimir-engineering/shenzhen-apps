@@ -78,9 +78,14 @@ static void SPDFRenderList(SPDFMarkdownRenderContext* context, SPDFMarkdownBlock
             NSParagraphStyleAttributeName: SPDFStyle(context, depth),
         } mutableCopy];
         SPDFMarkdownAppend(context, marker, markerAttributes);
+        // The item's content starts on the marker's line, so its images leave
+        // room for the marker as well as the indent.
+        CGFloat markerWidth = ceil([marker sizeWithAttributes:@{NSFontAttributeName: context.bodyFont}].width);
+        CGFloat outerAllowance = context.listMarkerAllowance;
 
         BOOL recordedFirstContent = NO;
         if (item.runs.count) {
+            context.imageLeadIndent = depth * 22 + markerWidth;
             SPDFMarkdownRenderInlineRuns(context, item);
             SPDFMarkdownAppend(context, @"\n", @{});
             if (record) SPDFRecord(context, item, NSMakeRange(itemStart, context.output.length - itemStart), depth);
@@ -95,7 +100,9 @@ static void SPDFRenderList(SPDFMarkdownRenderContext* context, SPDFMarkdownBlock
                 continue;
             }
             NSUInteger childStart = context.output.length;
+            context.listMarkerAllowance = markerWidth;
             SPDFRenderBlock(context, child, depth + 1, record && recordedFirstContent);
+            context.listMarkerAllowance = outerAllowance;
             if (!recordedFirstContent) {
                 if (record) {
                     SPDFRecord(context, item, NSMakeRange(itemStart, context.output.length - itemStart), depth);
@@ -175,6 +182,7 @@ static void SPDFRenderTable(SPDFMarkdownRenderContext* context, SPDFMarkdownBloc
                 SPDFMarkdownAppend(context, @"\t", @{});
                 NSUInteger cellStart = context.output.length;
                 SPDFMarkdownBlock* cell = row.children[i];
+                context.imageLeadIndent = depthIndent;
                 SPDFMarkdownRenderInlineRuns(context, cell);
                 NSRange cellRange = NSMakeRange(cellStart, context.output.length - cellStart);
                 if (cell.kind == SPDFMarkdownBlockKindTableHeaderCell) {
@@ -207,6 +215,19 @@ static void SPDFRenderTable(SPDFMarkdownRenderContext* context, SPDFMarkdownBloc
             SPDFMarkdownContentWidthBudget(context, depthIndent, context.options.maximumImageWidth));
     NSArray<NSNumber*>* widths = SPDFMarkdownTableColumnWidths(naturalWidths, available);
     NSArray<NSNumber*>* boundaries = SPDFMarkdownTableColumnBoundaries(widths, depthIndent);
+
+    // Cell images were sized against the whole page so a picture claims its
+    // column's share while the natural widths are measured. Now that the
+    // columns are known, each picture fits its own column (net of the cell
+    // insets): an author's width="440" in a half-page column is a maximum,
+    // not a fixed size. The natural widths stay as measured, so the paginator
+    // re-distributes the same columns at the same printable width.
+    for (NSArray<NSValue*>* cellRanges in rowCellRanges) {
+        for (NSUInteger i = 0; i < cellRanges.count && i < widths.count; ++i) {
+            CGFloat cellContentWidth = floor(widths[i].doubleValue - 2 * SPDFMarkdownTableCellInset);
+            SPDFMarkdownFitImagesToWidth(context, cellRanges[i].rangeValue, MAX(1.0, cellContentWidth));
+        }
+    }
 
     NSUInteger bodyRowIndex = 0;
     for (NSUInteger rowIndex = 0; rowIndex < rowBlocks.count; ++rowIndex) {
@@ -273,6 +294,7 @@ static void SPDFRenderLeaf(SPDFMarkdownRenderContext* context, SPDFMarkdownBlock
                                NSForegroundColorAttributeName: context.options.secondaryTextColor,
                            });
     } else {
+        context.imageLeadIndent = depth * 22 + context.listMarkerAllowance;
         SPDFMarkdownRenderInlineRuns(context, block);
         if (![context.output.string hasSuffix:@"\n"]) SPDFMarkdownAppend(context, @"\n", @{});
     }

@@ -17,6 +17,17 @@ NS_ASSUME_NONNULL_BEGIN
 @property(nonatomic, nullable) SPDFMarkdownResourceStore* resourceStore;
 @property(nonatomic) NSFont* bodyFont;
 @property(nonatomic) NSFont* codeFont;
+// Horizontal space at the start of the line the inline runs being rendered
+// sit on that images cannot use: the block's nesting indent plus, inside a
+// list item, the item marker. Image display sizes, the pending placeholder box
+// and image-row fitting budget against the page width net of it, so a
+// page-wide picture in a list or a quote still ends at the right margin. Set
+// by the block renderer around every SPDFMarkdownRenderInlineRuns call.
+@property(nonatomic) CGFloat imageLeadIndent;
+// The marker width of the list item whose content is being rendered (0
+// outside lists): its first block shares the marker's line, so its images
+// leave room for the marker too.
+@property(nonatomic) CGFloat listMarkerAllowance;
 @end
 
 void SPDFRenderMarkdownBlocks(SPDFMarkdownRenderContext* context, NSArray<SPDFMarkdownBlock*>* blocks);
@@ -41,6 +52,14 @@ CGFloat SPDFMarkdownRenderScale(SPDFMarkdownRenderContext* context);
 CGFloat SPDFMarkdownContentWidthBudget(SPDFMarkdownRenderContext* context, CGFloat depthIndent,
                                        CGFloat pagelessFallback);
 CGFloat SPDFMarkdownContentHeightBudget(SPDFMarkdownRenderContext* context, CGFloat pagelessFallback);
+
+// Shrinks every image attachment in range that is wider than width to that
+// width, keeping its aspect ratio; narrower images are left exactly as they
+// are (never enlarged). Table cells use it once their columns are known: an
+// image is sized against the page while the columns are measured, then fitted
+// into its own column, so a picture in a cell never runs past the cell (and so
+// never past the page).
+void SPDFMarkdownFitImagesToWidth(SPDFMarkdownRenderContext* context, NSRange range, CGFloat width);
 
 // Renders a block's inline runs, including image attachments and their
 // alt-text captions (SPDFMarkdownInlineRenderer.mm).

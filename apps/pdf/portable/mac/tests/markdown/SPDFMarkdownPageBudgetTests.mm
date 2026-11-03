@@ -3,6 +3,7 @@
 #import "../../markdown/SPDFMarkdownDiagram.h"
 #import "../../markdown/SPDFMarkdownDocument.h"
 #import "../../markdown/SPDFMarkdownTableDecorations.h"
+#import "../../markdown/SPDFMarkdownTableLayout.h"
 
 // The page-budget contract: when a render carries the destination page's
 // printable box (SPDFMarkdownRenderOptions.pageContentSize), image display
@@ -141,6 +142,53 @@ int main(void) {
         }
         SPDFExpect(fabs(SPDFLastTableBoundary(pageless) - 440) < 0.01,
                    @"a page-less table keeps the constant provisional width budget");
+    }
+    // --- Pictures fit the box they sit in ----------------------------------
+    // A side-by-side HTML table of two width="440" pictures: each picture fits
+    // its own half-page column (the attribute is a maximum, not a fixed size),
+    // keeps its aspect ratio, and re-fits when the paper turns. A picture in a
+    // list item or a quote leaves room for the indent; a small picture is never
+    // enlarged.
+    {
+        NSString* directory = SPDFBudgetDirectory;
+        SPDFWritePNG([directory stringByAppendingPathComponent:@"small.png"], 40, 30);
+        NSString* source =
+            @"<table>\n"
+             "<tr><td width=\"50%\"><img src=\"wide.png\" width=\"440\"><br><b>Left</b></td>"
+             "<td width=\"50%\"><img src=\"wide.png\" width=\"440\"><br><b>Right</b></td></tr>\n"
+             "</table>\n\n"
+             "- Item ![w](wide.png)\n\n"
+             "> ![q](wide.png)\n\n"
+             "![s](small.png)\n";
+        NSString* path = [directory stringByAppendingPathComponent:@"fit.md"];
+        [source writeToFile:path atomically:YES encoding:NSUTF8StringEncoding error:nil];
+        for (NSValue* box in @[[NSValue valueWithSize:NSMakeSize(473, 720)], [NSValue valueWithSize:NSMakeSize(720, 473)]]) {
+            CGFloat pageWidth = box.sizeValue.width;
+            SPDFMarkdownRenderOptions* options = SPDFMarkdownRenderOptions.defaultOptions;
+            options.pageContentSize = box.sizeValue;
+            NSError* fitError = nil;
+            SPDFMarkdownDocument* fit = [SPDFMarkdownDocument documentWithURL:[NSURL fileURLWithPath:path]
+                                                                      options:options error:&fitError];
+            NSArray<NSTextAttachment*>* images = SPDFAttachments(fit);
+            NSArray<NSNumber*>* columns = nil;
+            for (SPDFMarkdownRenderedBlock* block in fit.renderedDocument.renderedBlocks)
+                if (block.tableRowInfo.columnBoundaries.count == 3) columns = block.tableRowInfo.columnBoundaries;
+            SPDFExpect(images.count == 5 && columns != nil, @"the fit document renders its five pictures and table");
+            if (images.count != 5 || !columns) continue;
+            for (NSUInteger i = 0; i < 2; ++i) {
+                NSSize size = images[i].bounds.size;
+                CGFloat cell = columns[i + 1].doubleValue - columns[i].doubleValue - 2 * SPDFMarkdownTableCellInset;
+                SPDFExpect(size.width <= cell + 0.01 && size.width > cell - 1.01,
+                           @"a width=440 picture in a half-page cell fills its column and no more");
+                SPDFExpect(fabs(size.height / size.width - 600.0 / 1600.0) < 0.01, @"a fitted cell picture keeps its aspect");
+            }
+            SPDFExpect(columns.lastObject.doubleValue <= pageWidth + 0.01, @"the picture table stays on the page");
+            SPDFExpect(images[2].bounds.size.width < pageWidth - 5 && images[2].bounds.size.width > pageWidth - 40,
+                       @"a picture in a list item leaves room for the marker");
+            SPDFExpect(fabs(images[3].bounds.size.width - (pageWidth - 22)) < 0.01,
+                       @"a picture in a quote leaves room for the quote indent");
+            SPDFExpect(NSEqualSizes(images[4].bounds.size, NSMakeSize(40, 30)), @"a small picture is never enlarged");
+        }
     }
     // --- A chart figure uses the page it is given ------------------------
     // Diagram geometry is fitted to the page box, but the fit factor only ever

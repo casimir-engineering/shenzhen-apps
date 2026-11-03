@@ -45,6 +45,24 @@ CGFloat SPDFMarkdownContentHeightBudget(SPDFMarkdownRenderContext* context, CGFl
     return MAX(64.0, pageHeight - 2 * margin);
 }
 
+void SPDFMarkdownFitImagesToWidth(SPDFMarkdownRenderContext* context, NSRange range, CGFloat width) {
+    if (width <= 0 || !range.length) return;
+    [context.output enumerateAttribute:NSAttachmentAttributeName
+                               inRange:range
+                               options:0
+                            usingBlock:^(NSTextAttachment* attachment, NSRange attachmentRange, BOOL* stop) {
+                              (void)stop;
+                              // Images only: math and other attachments draw at their own metrics.
+                              if (!attachment || ![context.output attribute:SPDFMarkdownImageTargetAttribute
+                                                                    atIndex:attachmentRange.location
+                                                             effectiveRange:NULL])
+                                  return;
+                              NSSize size = attachment.bounds.size;
+                              if (size.width <= width || size.width <= 0) return;
+                              attachment.bounds = NSMakeRect(0, 0, width, size.height * width / size.width);
+                            }];
+}
+
 static NSDictionary* SPDFRunAttributes(SPDFMarkdownRenderContext* context, SPDFMarkdownInlineRun* run) {
     BOOL mono = (run.traits & (SPDFMarkdownInlineTraitCode | SPDFMarkdownInlineTraitKeyboard)) != 0;
     NSFont* font = mono ? context.codeFont : context.bodyFont;
@@ -99,7 +117,8 @@ static NSDictionary* SPDFRunAttributes(SPDFMarkdownRenderContext* context, SPDFM
 // (like print decoration colors) via a deferred drawing handler; the concrete
 // NSColors are captured up front, keeping render passes thread-safe.
 static NSTextAttachment* SPDFPendingRemoteImageAttachment(SPDFMarkdownRenderContext* context, NSString* altText) {
-    CGFloat width = MAX(64.0, SPDFMarkdownContentWidthBudget(context, 0, context.options.maximumImageWidth));
+    CGFloat width =
+        MAX(64.0, SPDFMarkdownContentWidthBudget(context, context.imageLeadIndent, context.options.maximumImageWidth));
     CGFloat height = MAX(48.0, context.options.remoteImagePlaceholderHeight);
     NSString* caption = altText.length ? altText : @"Loading image";
     NSFont* font = context.bodyFont;
@@ -274,7 +293,8 @@ static void SPDFRenderImageRun(SPDFMarkdownRenderContext* context, SPDFMarkdownI
         displayWidth *= run.preferredImageHeight / displayHeight;
         displayHeight = run.preferredImageHeight;
     }
-    CGFloat widthBudget = SPDFMarkdownContentWidthBudget(context, 0, context.options.maximumImageWidth);
+    CGFloat widthBudget =
+        SPDFMarkdownContentWidthBudget(context, context.imageLeadIndent, context.options.maximumImageWidth);
     CGFloat heightBudget = SPDFMarkdownContentHeightBudget(context, context.options.maximumImageHeight);
     CGFloat scale = MIN(1.0, MIN(widthBudget / displayWidth, heightBudget / displayHeight));
     NSTextAttachment* attachment = [NSTextAttachment new];
@@ -302,7 +322,8 @@ static void SPDFRenderImageRun(SPDFMarkdownRenderContext* context, SPDFMarkdownI
 static const CGFloat SPDFImageRowMinimumFitFactor = 0.45;
 
 static void SPDFFitImageRowToBudget(SPDFMarkdownRenderContext* context, NSRange range) {
-    CGFloat budget = SPDFMarkdownContentWidthBudget(context, 0, context.options.maximumImageWidth);
+    CGFloat budget =
+        SPDFMarkdownContentWidthBudget(context, context.imageLeadIndent, context.options.maximumImageWidth);
     if (budget <= 0 || range.length == 0) return;
     NSMutableArray<NSTextAttachment*>* attachments = [NSMutableArray array];
     __block CGFloat imagesWidth = 0;

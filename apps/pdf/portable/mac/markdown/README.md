@@ -148,9 +148,14 @@ their descendants, preventing repeated subtree strings and quadratic indexes.
   placeholder box and image-row fitting use the same printable width, and the
   table renderer's provisional column distribution uses the very formula the
   paginator rebinds with. Turning the paper therefore re-fits images and
-  tables exactly like diagrams. A page-less render (`NSZeroSize`, the default)
-  keeps the constant `maximumImageWidth` x `maximumImageHeight` caps (440 x
-  320 by default) everywhere, unchanged.
+  tables exactly like diagrams. The width an image may use is what is left of
+  its line: the page width net of the list or quote indent and, in a list
+  item, the marker. An image in a table cell is measured against the page
+  first (so it claims its column's share), then fitted into its own column
+  once the columns are known, so an HTML `width="440"` in a half-page cell is
+  a maximum, not a fixed size. Fitting only ever shrinks. A page-less render
+  (`NSZeroSize`, the default) keeps the constant `maximumImageWidth` x
+  `maximumImageHeight` caps (440 x 320 by default) everywhere, unchanged.
 
 Tables retain column count and per-cell left/center/right alignment in the
 model, and lay out content-aware columns (GFM's `| --- |` separator line is
