@@ -8,4 +8,6 @@
 - (void)beginRenamingItem:(NSString*)identifier folder:(BOOL)folder;
 - (void)displayFolders:(NSArray<NSDictionary*>*)folders;
 - (void)displayChats:(NSArray<NSDictionary*>*)chats selectedID:(NSString*)identifier;
+// Chats whose assistant is working now: their date line ends "· working" until it is done.
+@property(nonatomic,copy) NSSet<NSString*>* workingChatIDs;
 @end

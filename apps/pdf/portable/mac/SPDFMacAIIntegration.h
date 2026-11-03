@@ -19,6 +19,23 @@
 // or setup is missing, which the chat says, with the request left in the composer.
 - (BOOL)aiSendRequestInNewChat:(NSString*)text;
 @end
+// Chats that keep working while another one is shown (SPDFMacAIChatBackground.mm).
+@class SPDFMacAIChatSession;
+@interface ShenzhenMacDelegate (SPDFMacAIChatBackground)
+// A chat session for this reader, wired to the panel, the chat list and Friends; nothing loaded in it yet.
+- (SPDFMacAIChatSession*)aiMakeChatSession;
+// A request of this reader is running, in the chat shown or in one shown before it.
+- (BOOL)aiChatRequestRunning;
+// YES, after the composer says which chat is still working, while a request runs in a chat that isn't shown: the
+// reader runs one request at a time.
+- (BOOL)aiRefuseWhileAnotherChatWorks;
+// Shows a saved chat, or a new one for nil. A request running in the chat shown keeps going.
+- (void)aiShowChat:(NSDictionary*)chat;
+// The chat shown has been seen: its dot goes (when the panel is open and the app in front).
+- (void)aiNoteChatViewed;
+// The chats whose request is running now, for the chat list's "working".
+- (NSSet<NSString*>*)aiWorkingChatIDs;
+@end
 @interface ShenzhenMacDelegate (SPDFMacAISettingsIntegration)
 - (void)showUnifiedSettings:(id)sender;
 - (void)showAIConnectionSettingsWithReason:(NSString*)reason;

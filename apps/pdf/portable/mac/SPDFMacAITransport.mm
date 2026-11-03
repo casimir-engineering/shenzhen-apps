@@ -125,6 +125,8 @@ static NSError* ContextLengthError(void) {
         NSString* text=self.status==401 ? @"OpenRouter authorization expired. Connect again in Settings." :
             self.status==402 ? @"Your OpenRouter account needs credits." :
             self.status==429 ? @"OpenRouter is busy or your account limit was reached. Try again shortly." :
+            // A timeout or a server error is passing (SPDFMacAITransientError): the session asks again.
+            self.status==408 || self.status>=500 ? @"OpenRouter or the model's provider had a passing problem." :
             @"OpenRouter could not complete the request with the required privacy settings. Try another model.";
         if (self.hasImages && (self.status==400 || self.status==404 || self.status==422))
             text=@"The selected model/provider could not accept page images with the required privacy settings. Choose an image-capable model in AI Settings and retry. Your selected model has not been changed.";

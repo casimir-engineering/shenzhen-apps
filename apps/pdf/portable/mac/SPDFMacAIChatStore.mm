@@ -9,8 +9,18 @@ NSString* const SPDFMacAIChatTitleSearchOnlyKey=@"titleSearchOnly";
 static const NSUInteger ChatFileLimit=32*1024*1024, ChatMessageLimit=16384;
 const NSUInteger SPDFMacAIMaximumCallsPerReply=256;
 static BOOL ValidID(NSString* value) { return [value isKindOfClass:NSString.class] && [[NSUUID alloc] initWithUUIDString:value]; }
+// Unread marks come and go as answers arrive and are read; they are not organizing.
+static NSDictionary* WithoutUnread(NSDictionary* org) {
+    NSMutableDictionary* copy=[org mutableCopy]; NSMutableDictionary* chats=[NSMutableDictionary dictionary];
+    for (NSString* identifier in org[@"chats"]) {
+        NSMutableDictionary* metadata=[org[@"chats"][identifier] mutableCopy]; [metadata removeObjectForKey:@"unread"];
+        chats[identifier]=metadata;
+    }
+    if (org[@"chats"]) copy[@"chats"]=chats;
+    return copy;
+}
 static NSString* OrganizationRevision(NSDictionary* org) {
-    NSData* data=org ? [NSJSONSerialization dataWithJSONObject:org options:NSJSONWritingSortedKeys error:nil] : nil;
+    NSData* data=org ? [NSJSONSerialization dataWithJSONObject:WithoutUnread(org) options:NSJSONWritingSortedKeys error:nil] : nil;
     if(!data)return nil;unsigned char bytes[CC_SHA256_DIGEST_LENGTH];CC_SHA256(data.bytes,(CC_LONG)data.length,bytes);
     NSMutableString* hash=[NSMutableString string];for(unsigned char byte:bytes)[hash appendFormat:@"%02x",byte];return hash;
 }
@@ -116,7 +126,8 @@ static NSString* OrganizationRevision(NSDictionary* org) {
             if (!snippet.length) continue;
         }
         [chats addObject:@{@"id":chat[@"id"],@"title":chat[@"title"] ?: @"New chat",@"updated":chat[@"updated"] ?: @0,
-            @"folder":chat[@"folder"] ?: @"",@"snippet":snippet,@"query":query ?: @""}];
+            @"folder":chat[@"folder"] ?: @"",@"snippet":snippet,@"query":query ?: @"",
+            @"unread":@([metadata[@"unread"] boolValue])}];
     }
     return [chats sortedArrayUsingComparator:^NSComparisonResult(NSDictionary* a, NSDictionary* b) { return [b[@"updated"] compare:a[@"updated"]]; }];
 }
@@ -183,7 +194,7 @@ static NSString* OrganizationRevision(NSDictionary* org) {
         id metadata=value[@"chats"][identifier];
         if(!ValidID(identifier) || ![metadata isKindOfClass:NSDictionary.class])return nil;
         for(NSString* key in @[@"title",@"folder"])if(metadata[key] && ![metadata[key] isKindOfClass:NSString.class])return nil;
-        for(NSString* key in @[@"customTitle",@"titleSuggested"])if(metadata[key] && ![metadata[key] isKindOfClass:NSNumber.class])return nil;
+        for(NSString* key in @[@"customTitle",@"titleSuggested",@"unread"])if(metadata[key] && ![metadata[key] isKindOfClass:NSNumber.class])return nil;
     }
     return value;
 }
@@ -271,6 +282,18 @@ static NSString* OrganizationRevision(NSDictionary* org) {
         NSMutableDictionary* metadata=org[@"chats"][identifier] ?: [NSMutableDictionary dictionary];
         metadata[@"title"]=title;metadata[@"customTitle"]=@YES;org[@"chats"][identifier]=metadata;return YES;
     } error:error];
+}
+- (BOOL)setChat:(NSString*)identifier unread:(BOOL)unread error:(NSError**)error {
+    if(!ValidID(identifier) || [self chatIsUnread:identifier]==unread)return YES;
+    return [self editOrganization:^BOOL(NSMutableDictionary* org){
+        if(![self organizationChatExists:identifier])return NO;
+        NSMutableDictionary* metadata=org[@"chats"][identifier] ?: [NSMutableDictionary dictionary];
+        if(unread)metadata[@"unread"]=@YES; else [metadata removeObjectForKey:@"unread"];
+        org[@"chats"][identifier]=metadata;return YES;
+    } error:error];
+}
+- (BOOL)chatIsUnread:(NSString*)identifier {
+    return ValidID(identifier) && [[self organization][@"chats"][identifier][@"unread"] boolValue];
 }
 - (BOOL)shouldSuggestTitleForChatID:(NSString*)identifier {
     if(!ValidID(identifier))return NO;NSDictionary* organization=[self organization];if(!organization)return NO;
@@ -460,7 +483,12 @@ static NSString* OrganizationRevision(NSDictionary* org) {
     BOOL ok=[self editOrganization:^BOOL(NSMutableDictionary* org){
         if(progress.cancelled || ![OrganizationRevision(org) isEqual:receipt[@"after"]] || ![receipt[@"before"] isKindOfClass:NSDictionary.class])return NO;
         NSDictionary* current=[NSJSONSerialization JSONObjectWithData:[NSJSONSerialization dataWithJSONObject:org options:0 error:nil] options:0 error:nil];
-        [org setDictionary:receipt[@"before"]];reverse=@{@"before":current,@"after":OrganizationRevision(org)};return !progress.cancelled;
+        [org setDictionary:[NSJSONSerialization JSONObjectWithData:[NSJSONSerialization dataWithJSONObject:receipt[@"before"] options:0 error:nil] options:NSJSONReadingMutableContainers error:nil]];
+        // Undoing organizing keeps which answers are still unread now.
+        for(NSString* identifier in current[@"chats"])if([current[@"chats"][identifier][@"unread"] boolValue])
+            {NSMutableDictionary* metadata=org[@"chats"][identifier] ?: [NSMutableDictionary dictionary];metadata[@"unread"]=@YES;org[@"chats"][identifier]=metadata;}
+        for(NSString* identifier in org[@"chats"])if(![current[@"chats"][identifier][@"unread"] boolValue])[org[@"chats"][identifier] removeObjectForKey:@"unread"];
+        reverse=@{@"before":current,@"after":OrganizationRevision(org)};return !progress.cancelled;
     } error:error];return ok ? reverse : nil;
 }
 @end

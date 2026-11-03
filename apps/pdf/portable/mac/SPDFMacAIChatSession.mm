@@ -151,7 +151,7 @@ static NSUInteger EstimatedTokens(id value) {
     _mutableChat=[snapshot mutableCopy]; _messages=[snapshot[@"messages"] mutableCopy] ?: [NSMutableArray array];
     _requestOnlyCalls=[NSMutableSet set]; // a saved chat's request-only calls are stubs already
     [_activity loadEntries:snapshot[@"activity"]]; [_mutableChat removeObjectForKey:@"activity"];
-    _mutableChat[@"messages"]=_messages; _status=@""; _activityState=SPDFMacAIChatActivityIdle; [self notify];
+    _mutableChat[@"messages"]=_messages; [self offerContinueIfUnfinished]; [self notify];
 }
 - (void)send:(NSString*)text model:(NSString*)model apiKey:(NSString*)key {
     if (![text isKindOfClass:NSString.class]) return;
@@ -308,15 +308,15 @@ static NSUInteger EstimatedTokens(id value) {
         [budget consumeTokens:reported ? [total unsignedIntegerValue] : estimate+EstimatedTokens(reply)];
         if (error) {
             // Codes from SPDFMacAITransport.mm: 4 too large, 5 not reached, 6 unreadable, 7 cut off, 8 empty,
-            // 10 provider failure, 429 busy. None of them ran anything: ask again, or wait and ask again.
+            // 10 provider failure, 429 busy, 408 and 5xx passing. None ran anything: ask again, or wait and ask again.
             NSDictionary* problems=@{@4:@"it was too large; send fewer actions at once, or shorter content",
                 @5:@"",@10:@"",@429:@"",@6:@"it could not be read",@8:@"it was empty",
                 @7:@"it was cut off before it ended; send a shorter reply, with fewer actions at once and long code "
                     "split into several calls"};
-            NSString* problem=[error.domain isEqual:@"SPDFMacAI"] ? problems[@(error.code)] : nil;
+            NSString* problem=[error.domain isEqual:@"SPDFMacAI"] ? problems[@(error.code)] ?: (SPDFMacAITransientError(error) ? @"" : nil) : nil;
             if (problem) [owner recoverFromUnusableReply:error problem:problem generation:generation];
             else if (wrappingUp) [owner pauseWithLocalSummary:owner.pausedStatus];
-            else [owner finish:error.localizedDescription retryable:NO];
+            else [owner endAfterError:error];
             return;
         }
         id content=[reply isKindOfClass:NSDictionary.class] ? reply[@"content"] : nil;

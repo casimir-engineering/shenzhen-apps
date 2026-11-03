@@ -41,8 +41,11 @@ NS_ASSUME_NONNULL_BEGIN
 // The AI chat session's transport and tools, wrapped so Friends tools exist only for a request with an `@` scope.
 - (SPDFMacAITransport*)friendsChatTransport:(SPDFMacAITransport*)transport;
 - (id<SPDFMacAIChatTools>)friendsChatTools:(id<SPDFMacAIChatTools>)tools;
-// Wraps the chat view's sendText and the session's changed (both already set) and adds the `@` picker and note.
+// Wraps the chat view's sendText (already set) and adds the `@` picker and note.
 - (void)friendsAttachChatView:(SPDFMacAIChatView*)view session:(SPDFMacAIChatSession*)session;
+// Wraps a chat session's changed (already set): the request's scope and the send cards follow it. Every session the
+// chat makes, the first included (SPDFMacAIChatBackground.mm -aiMakeChatSession).
+- (void)friendsAttachChatSession:(SPDFMacAIChatSession*)session;
 // Sends the composer's draft through `send` the way the chat view's own sendText does, chips and all: for the reader's
 // other send paths (the Keychain "Authorize & send" retry), so a chip there opens its scope too.
 - (BOOL)friendsSendDraft:(NSString*)draft using:(BOOL (^)(NSString* text))send;

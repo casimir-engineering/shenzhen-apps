@@ -34,6 +34,10 @@ FOUNDATION_EXPORT const NSUInteger SPDFMacAIMaximumCallsPerReply;
 - (BOOL)setFolder:(NSString*)folderID collapsed:(BOOL)collapsed error:(NSError**)error;
 - (BOOL)moveChat:(NSString*)identifier toFolder:(NSString*)folderID error:(NSError**)error;
 - (BOOL)renameChat:(NSString*)identifier title:(NSString*)title error:(NSError**)error;
+// A new answer the person hasn't seen yet (the chat list's dot). Kept with the chat's organization, so it lasts
+// across launches; it never changes the organization's revision, so the assistant's own organizing isn't refused.
+- (BOOL)setChat:(NSString*)identifier unread:(BOOL)unread error:(NSError**)error;
+- (BOOL)chatIsUnread:(NSString*)identifier;
 - (BOOL)shouldSuggestTitleForChatID:(NSString*)identifier;
 - (BOOL)setSuggestedTitle:(NSString*)title forChatID:(NSString*)identifier error:(NSError**)error;
 - (NSDictionary*)organizationSnapshot;

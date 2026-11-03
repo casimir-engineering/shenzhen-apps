@@ -2,6 +2,7 @@
 // note in the composer, and Friends citations opening the dropdown at the cited message.
 
 #import "SPDFMacFriendsReaderState.h"
+#import "SPDFMacAIIntegration.h"
 #import "SPDFMacAIChatView.h"
 #import "SPDFMacFriendsAttachItems.h"
 #import "SPDFMacFriendsChatTools.h"
@@ -77,22 +78,17 @@ static const NSTimeInterval kChoicesWait = 1.0;
     SPDFMacFriendsReaderState* state = [self friendsState];
     __weak SPDFMacAIChatSession* weakSession = session;
     __weak SPDFMacAIChatView* weakView = view;
+    __weak ShenzhenMacDelegate* weakSelf = self;
+    // The reader's request may run in a chat that is no longer shown (SPDFMacAIChatBackground.mm): while it runs, a
+    // send elsewhere is refused and must not touch that request's scope.
     SPDFMacFriendsChatRequestScoper* scoper = [[SPDFMacFriendsChatRequestScoper alloc] initWithGate:[self friendsGate]
-        running:^BOOL { return weakSession.running; }
+        running:^BOOL {
+            ShenzhenMacDelegate* reader = weakSelf;
+            return reader ? [reader aiChatRequestRunning] : weakSession.running;
+        }
         composerText:^NSAttributedString* { return weakView.composer.textStorage; }];
     state.scoper = scoper;
     if (view.sendText) view.sendText = [scoper sendTextWrapping:view.sendText];
-    void (^changed)(void) = session.changed;
-    // Discovered with the chat's tool providers a moment ago (SPDFMacFriendsSendIntegration.mm).
-    SPDFMacFriendsSendProvider* sendProvider = state.chatSendProvider;
-    session.changed = ^{
-        if (changed) changed();
-        [scoper sessionDidChange];
-        // Opening a chat drops every card's buttons (SPDFMacAIChatActivity.h); a message still waiting for Send, or
-        // on its way, gets them back here, and the open chat's queued messages are watched for delivery.
-        [sendProvider restoreCardsInActivity:weakSession.activity];
-    };
-    __weak ShenzhenMacDelegate* weakSelf = self;
     [state.composerScope uninstall];
     state.composerScope = [[SPDFMacFriendsComposerScope alloc] initWithComposer:view.composer
         choices:^(SPDFMacFriendsChoicesDelivery deliver) {
@@ -119,6 +115,22 @@ static const NSTimeInterval kChoicesWait = 1.0;
         }];
     };
     [self friendsAssistantAvailabilityDidChange];
+}
+
+- (void)friendsAttachChatSession:(SPDFMacAIChatSession*)session {
+    SPDFMacFriendsReaderState* state = [self friendsState];
+    __weak SPDFMacAIChatSession* weakSession = session;
+    __weak ShenzhenMacDelegate* weakSelf = self;
+    void (^changed)(void) = session.changed;
+    // Discovered with the chat's tool providers a moment ago (SPDFMacFriendsSendIntegration.mm).
+    SPDFMacFriendsSendProvider* sendProvider = state.chatSendProvider;
+    session.changed = ^{
+        if (changed) changed();
+        [[weakSelf friendsState].scoper sessionDidChange];
+        // Opening a chat drops every card's buttons (SPDFMacAIChatActivity.h); a message still waiting for Send, or
+        // on its way, gets them back here, and the open chat's queued messages are watched for delivery.
+        [sendProvider restoreCardsInActivity:weakSession.activity];
+    };
 }
 
 - (BOOL)friendsSendDraft:(NSString*)draft using:(BOOL (^)(NSString* text))send {

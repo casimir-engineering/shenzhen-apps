@@ -49,6 +49,9 @@
 - (void)finish:(NSString*)status state:(SPDFMacAIChatActivityState)state;
 @end
 
+// The transport's failures that pass by themselves: not reached (5), the provider failed (10), busy (429), timed
+// out (408) or a server error (5xx). The request waits and asks again.
+BOOL SPDFMacAITransientError(NSError* error);
 @interface SPDFMacAIChatSession (RecoveryInternal)
 // The most calls of one reply that run; the rest are answered "send again".
 FOUNDATION_EXPORT const NSUInteger SPDFMacAICallsRunPerReply;
@@ -65,6 +68,11 @@ FOUNDATION_EXPORT const NSUInteger SPDFMacAICallsRunPerReply;
 - (void)pauseAfterWindUp;
 // What the person reads beside Continue.
 @property(nonatomic, readonly) NSString* pausedStatus;
+// A request that failed in a way asking again won't fix (no credits, signed out, refused): when it had already done
+// work, the chat says what stopped it and offers Continue; otherwise it ends with the error.
+- (void)endAfterError:(NSError*)error;
+// A chat opened with work it never finished (the app quit, or an older version stopped the request) offers Continue.
+- (void)offerContinueIfUnfinished;
 // Answers every call that has no result yet with `content`, so the history stays a valid conversation.
 - (void)completeOpenCallsWith:(NSString*)content;
 // A finished step's calls, for the progress guard; its verdict may nudge the model or wind the request up.

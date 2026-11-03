@@ -23,6 +23,7 @@
 #import "SPDFMacCollectionStore.h"
 #import "SPDFMacPalettePresentation.h"
 #import "SPDFMacUnifiedSettings.h"
+#import "SPDFMacAIReaderAIState.h"
 #import <objc/runtime.h>
 @interface ShenzhenMacDelegate (AISetupHost)
 - (void)showUnifiedSettingsMode:(BOOL)wizard;
@@ -30,24 +31,8 @@
 - (void)rebuildSidebar;
 - (void)requestAIModels;
 @end
-@interface SPDFReaderAIState : NSObject
-@property SPDFMacAIChatSession* session;
-@property SPDFMacAIChatStore* store;
-@property SPDFMacAITools* tools;
-@property SPDFMacAIToolRegistry* registry;
-@property SPDFMacAIChatView* view;
-@property SPDFMacAIChatDock* dock;
-@property SPDFMacAIChatHistoryView* historyView;
-@property NSUInteger searchGeneration;
-@property NSUInteger widthSaveGeneration;
-@property NSMutableDictionary* drafts;
-@property BOOL history;
-@property NSString* submissionIssue;
-@property BOOL setupRequired;
-@property NSDictionary* pendingEdit; // An edit waiting for the user to authorize the saved key.
-@end
 @implementation SPDFReaderAIState
-- (void)dealloc { [_session cancel]; }
+- (void)dealloc { [_session cancel]; [_background cancel]; }
 @end
 static char stateKey;
 @implementation ShenzhenMacDelegate (SPDFMacAIIntegration)
@@ -76,16 +61,13 @@ static char stateKey;
             readOnlyTools:SPDFMacAIReaderReadOnlyToolNames()] error:nil];
         for(id<SPDFMacAIToolProvider> provider in SPDFMacAIDiscoverToolProviders(self))
             [registry registerProvider:provider error:nil];
-        state.session=[[SPDFMacAIChatSession alloc] initWithTransport:[self aiChatTransport] registry:registry
-            store:state.store];
+        state.session=[self aiMakeChatSession]; // the panel, the chat list and Friends follow each chat session
         state.view=[[SPDFMacAIChatView alloc] initWithFrame:NSMakeRect(0,0,650,520)];
         objc_setAssociatedObject(self,&stateKey,state,OBJC_ASSOCIATION_RETAIN_NONATOMIC);
         __weak ShenzhenMacDelegate* owner=self; __weak SPDFReaderAIState* weakState=state;
-        state.session.changed=^{
-            [owner searchAIChats:weakState.historyView.search.stringValue ?: @""];
-            [weakState.view refreshActivityFromSession:weakState.session];
-            [weakState.view displaySession:weakState.session];
-        };
+        // Back in ShenzhenPDF with the chat in view: its answer has been seen.
+        [NSNotificationCenter.defaultCenter addObserverForName:NSApplicationDidBecomeActiveNotification object:NSApp
+            queue:NSOperationQueue.mainQueue usingBlock:^(NSNotification* note) { (void)note; [owner aiNoteChatViewed]; }];
         state.view.sendText=^BOOL(NSString* text) { return [owner aiSendText:text]; };
         state.view.editMessage=^BOOL(NSUInteger index,NSString* text) {
             return [owner aiResendMessageAtIndex:index text:text authorizedKey:nil];
@@ -133,10 +115,10 @@ static char stateKey;
     }
     if(query.length) {
         state.drafts[state.session.chat[@"id"]]=[state.view.composer.string copy] ?: @"";
-        [state.session newChat];state.view.composer.string=query;
+        [self aiShowChat:nil];state.view.composer.string=query;
     }
     [state.dock setVisible:YES];[self applyWorkspacePanelPolicy];[state.view displaySession:state.session];
-    [self relayoutDocumentForViewportChange];[_window makeFirstResponder:state.view.composer];
+    [self relayoutDocumentForViewportChange];[_window makeFirstResponder:state.view.composer];[self aiNoteChatViewed];
 }
 - (void)rememberAIChatWidth:(CGFloat)width {
     SPDFReaderAIState* state=objc_getAssociatedObject(self,&stateKey);
@@ -193,7 +175,7 @@ static char stateKey;
         if(generation!=state.searchGeneration || state.historyView.hidden || !self->_sidebarPreferredVisible)return;
         dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY,0),^{
             NSArray* chats=[state.store chatsMatchingQuery:query];NSArray* folders=[state.store folders];
-            dispatch_async(dispatch_get_main_queue(),^{if(generation==state.searchGeneration){[state.historyView displayFolders:folders];[state.historyView displayChats:chats selectedID:state.session.chat[@"id"]];}});
+            dispatch_async(dispatch_get_main_queue(),^{if(generation==state.searchGeneration){state.historyView.workingChatIDs=[self aiWorkingChatIDs];[state.historyView displayFolders:folders];[state.historyView displayChats:chats selectedID:state.session.chat[@"id"]];}});
         });
     });
 }
@@ -258,7 +240,7 @@ static char stateKey;
 - (BOOL)aiSendText:(NSString*)text authorizedKey:(NSString*)authorizedKey {
     if(![text stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet].length)return NO;
     SPDFReaderAIState* state=[self readerAIState];
-    if(state.session.running)return NO;
+    if(state.session.running || [self aiRefuseWhileAnotherChatWorks])return NO;
     state.pendingEdit=nil; // Authorizing now sends this draft, not an earlier edit.
     SPDFMacAISettings* settings=nil;
     NSString* key=[self aiKeyForRequest:authorizedKey summarizing:NO settings:&settings];
@@ -276,7 +258,7 @@ static char stateKey;
 }
 - (BOOL)aiSendRequestInNewChat:(NSString*)text {
     SPDFReaderAIState* state=[self readerAIState]; NSResponder* reading=_window.firstResponder;
-    if(state.session.running) { [self showAIChatForQuery:nil]; [_window makeFirstResponder:reading]; NSBeep(); return NO; }
+    if([self aiChatRequestRunning]) { [self showAIChatForQuery:nil]; [_window makeFirstResponder:reading]; NSBeep(); return NO; }
     if([state.session.chat[@"messages"] count] || state.view.composer.string.length) [self aiChatAction:@"new"];
     else [self showAIChatForQuery:nil];
     BOOL sent=[self aiSendText:text];
@@ -286,6 +268,7 @@ static char stateKey;
 }
 - (BOOL)aiResendMessageAtIndex:(NSUInteger)index text:(NSString*)text authorizedKey:(NSString*)authorizedKey {
     SPDFReaderAIState* state=[self readerAIState];
+    if([self aiRefuseWhileAnotherChatWorks])return NO;
     state.pendingEdit=@{@"index":@(index),@"text":[text copy] ?: @""};
     SPDFMacAISettings* settings=nil;
     NSString* key=[self aiKeyForRequest:authorizedKey summarizing:NO settings:&settings];
@@ -298,7 +281,7 @@ static char stateKey;
 }
 - (void)aiCompactChat {
     SPDFReaderAIState* state=[self readerAIState];
-    if(state.session.running || !state.session.canCompact) return;
+    if(state.session.running || !state.session.canCompact || [self aiRefuseWhileAnotherChatWorks]) return;
     SPDFMacAISettings* settings=nil; NSString* key=[self aiKeyForRequest:nil summarizing:YES settings:&settings];
     if(key) [state.session compactWithModel:settings.model apiKey:key];
 }
@@ -309,6 +292,7 @@ static char stateKey;
     if ([action isEqual:@"compact"]) { [self aiCompactChat]; return; }
     if ([action isEqual:@"continue"]) { // the same work carried on, with this chat's files as any request has them
         SPDFMacAIChatSession* session=state.session; SPDFMacAISettings* settings=nil;
+        if (session.canContinue && [self aiRefuseWhileAnotherChatWorks]) return;
         NSString* key=session.canContinue ? [self aiKeyForRequest:nil summarizing:NO settings:&settings] : nil;
         if (key) [session continueWithContext:[[SPDFMacAIRequestContext alloc] initWithText:@"Continue"
             chips:[session grantChips] origin:SPDFMacAIRequestOriginChat friendConversation:nil
@@ -356,16 +340,18 @@ static char stateKey;
         return;
     }
     if ([action isEqual:@"current"]) { [self showAIChatForQuery:nil]; return; }
-    if ([action isEqual:@"new"]) { state.drafts[state.session.chat[@"id"]]=[state.view.composer.string copy] ?: @"";[state.session newChat];state.view.composer.string=@"";[self showAIChatForQuery:nil]; return; }
+    if ([action isEqual:@"new"]) { state.drafts[state.session.chat[@"id"]]=[state.view.composer.string copy] ?: @"";[self aiShowChat:nil];state.view.composer.string=@"";[self showAIChatForQuery:nil]; return; }
     if ([action isEqual:@"stop"]) { [state.session cancel]; return; }
-    if ([action isEqual:@"undo"] || [action isEqual:@"redo"]) { [state.session performHistoryAction:[action isEqual:@"redo"]]; return; }
+    if ([action isEqual:@"undo"] || [action isEqual:@"redo"]) { if(![self aiRefuseWhileAnotherChatWorks])[state.session performHistoryAction:[action isEqual:@"redo"]]; return; }
     if ([action isEqual:@"history"]) { [self showAIChats:nil]; return; }
     if ([action hasPrefix:@"load:"]) {
-        NSDictionary* chat=[state.store chatWithID:[action substringFromIndex:5]];
+        // The chat already shown stays as it is: loading it again would stop the answer it's waiting for.
+        BOOL shown=[[action substringFromIndex:5] isEqual:state.session.chat[@"id"]];
+        NSDictionary* chat=shown ? state.session.chat : [state.store chatWithID:[action substringFromIndex:5]];
         if (chat) {
             NSString* query=[state.historyView.search.stringValue copy];
-            state.drafts[state.session.chat[@"id"]]=[state.view.composer.string copy] ?: @"";
-            [state.session loadChat:chat];state.view.composer.string=state.drafts[chat[@"id"]] ?: @"";
+            if (!shown) state.drafts[state.session.chat[@"id"]]=[state.view.composer.string copy] ?: @"";
+            if (!shown) { [self aiShowChat:chat];state.view.composer.string=state.drafts[chat[@"id"]] ?: @""; }
             [self showAIChatForQuery:nil];
             // A history content match should land at its evidence, not at the
             // newest reply. Title-only matches still open the full conversation.
@@ -381,6 +367,7 @@ static char stateKey;
             NSString* identifier=[action hasPrefix:@"delete:"] ? [action substringFromIndex:7] : nil;
             BOOL current=!identifier || [state.session.chat[@"id"] isEqual:identifier];
             if (current) [state.session cancel];
+            if (!identifier || [state.background.chat[@"id"] isEqual:identifier]) { [state.background cancel]; state.background=nil; }
             NSError* error=nil; BOOL ok=identifier ? [state.store deleteChatWithID:identifier error:&error] : [state.store deleteAll:&error];
             if (ok && current) [state.session newChat];
             if (error) [self->_window presentError:error];

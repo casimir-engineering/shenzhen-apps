@@ -233,7 +233,7 @@
 - (void)showSubmissionError:(NSString*)message recoveryAction:(NSString*)action {
     _submissionError=[message copy]; _issueText.stringValue=message ?: @"";
     _recovery.identifier=action ?: @"settings";
-    _recovery.title=[action isEqual:@"authorize"] ? @"Authorize & send…" : @"AI settings…";
+    _recovery.title=[action isEqual:@"authorize"] ? @"Authorize & send…" : [action hasPrefix:@"load:"] ? @"Show that chat" : @"AI settings…";
     _recovery.accessibilityLabel=_recovery.title; _recovery.toolTip=_recovery.title;
     [_recovery invalidateIntrinsicContentSize]; [self refreshActivityFromSession:_displayedSession];
     if(message.length)NSAccessibilityPostNotification(_issueText,NSAccessibilityValueChangedNotification);

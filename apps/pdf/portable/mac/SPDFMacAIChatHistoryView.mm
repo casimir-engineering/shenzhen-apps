@@ -43,6 +43,13 @@ static NSString* HistorySnippet(NSString* text,NSString* query,CGFloat width,NSF
     }
     return start ? [@"…" stringByAppendingString:[text substringFromIndex:start]] : text;
 }
+// A new answer not seen yet, as Mail and Messages mark one: a small dot in the system blue, before the title.
+@interface SPDFChatUnreadDot : NSView
+@end
+@implementation SPDFChatUnreadDot
+- (void)drawRect:(NSRect)dirty {(void)dirty;[NSColor.systemBlueColor setFill];[[NSBezierPath bezierPathWithOvalInRect:self.bounds] fill];}
+- (BOOL)isAccessibilityElement {return NO;}
+@end
 @interface SPDFChatHistoryRow : NSTableRowView
 @end
 @implementation SPDFChatHistoryRow
@@ -129,6 +136,10 @@ static NSString* HistorySnippet(NSString* text,NSString* query,CGFloat width,NSF
 }
 - (void)displayFolders:(NSArray*)folders {_folders=[folders copy] ?: @[];[self rebuildRows];}
 - (void)displayChats:(NSArray*)chats selectedID:(NSString*)identifier {_chats=[chats copy] ?: @[];_selectedID=[identifier copy];[self rebuildRows];}
+- (void)setWorkingChatIDs:(NSSet*)identifiers {
+    identifiers=[identifiers copy] ?: [NSSet set];if([identifiers isEqualToSet:_workingChatIDs ?: [NSSet set]])return;
+    _workingChatIDs=identifiers;[self rebuildRows];
+}
 - (NSInteger)numberOfRowsInTableView:(NSTableView*)table {(void)table;return _rows.count;}
 - (CGFloat)tableView:(NSTableView*)table heightOfRow:(NSInteger)row {
     (void)table;NSDictionary* item=_rows[(NSUInteger)row];return [item[@"folderHeader"] boolValue] ? 32 : ([item[@"snippet"] length] ? 88 : 50);
@@ -162,8 +173,15 @@ static NSString* HistorySnippet(NSString* text,NSString* query,CGFloat width,NSF
     NSTextField* title=[self label:item[@"title"] ?: @"New chat" size:13 weight:NSFontWeightMedium secondary:NO in:cell];
     title.attributedStringValue=HistoryText(title.stringValue,query,title.font,title.textColor);title.toolTip=title.stringValue;cell.textField=title;
     NSTimeInterval updated=[item[@"updated"] doubleValue];
-    NSTextField* date=[self label:updated>0 ? [_dateFormatter stringFromDate:[NSDate dateWithTimeIntervalSince1970:updated]] : @"Not saved yet" size:11 weight:NSFontWeightRegular secondary:YES in:cell];
-    CGFloat inset=22;
+    NSString* when=updated>0 ? [_dateFormatter stringFromDate:[NSDate dateWithTimeIntervalSince1970:updated]] : @"Not saved yet";
+    if([_workingChatIDs containsObject:item[@"id"]])when=[when stringByAppendingString:@" · working"];
+    NSTextField* date=[self label:when size:11 weight:NSFontWeightRegular secondary:YES in:cell];
+    CGFloat inset=22;BOOL unread=[item[@"unread"] boolValue];
+    if(unread) {
+        SPDFChatUnreadDot* dot=[SPDFChatUnreadDot new];dot.translatesAutoresizingMaskIntoConstraints=NO;[cell addSubview:dot];
+        [NSLayoutConstraint activateConstraints:@[[dot.centerXAnchor constraintEqualToAnchor:cell.leadingAnchor constant:inset/2+1],
+            [dot.centerYAnchor constraintEqualToAnchor:title.centerYAnchor],[dot.widthAnchor constraintEqualToConstant:9],[dot.heightAnchor constraintEqualToConstant:9]]];
+    }
     [NSLayoutConstraint activateConstraints:@[[title.leadingAnchor constraintEqualToAnchor:cell.leadingAnchor constant:inset],[title.trailingAnchor constraintEqualToAnchor:cell.trailingAnchor constant:-8],[title.topAnchor constraintEqualToAnchor:cell.topAnchor constant:6],[title.heightAnchor constraintEqualToConstant:16],
         [date.leadingAnchor constraintEqualToAnchor:title.leadingAnchor],[date.trailingAnchor constraintEqualToAnchor:title.trailingAnchor],[date.topAnchor constraintEqualToAnchor:title.bottomAnchor constant:3],[date.heightAnchor constraintEqualToConstant:14]]];
     if([item[@"snippet"] length]) {
@@ -174,7 +192,7 @@ static NSString* HistorySnippet(NSString* text,NSString* query,CGFloat width,NSF
         [excerpt addAttribute:NSParagraphStyleAttributeName value:wrapping range:NSMakeRange(0,excerpt.length)];snippet.attributedStringValue=excerpt;
         [NSLayoutConstraint activateConstraints:@[[snippet.leadingAnchor constraintEqualToAnchor:title.leadingAnchor],[snippet.trailingAnchor constraintEqualToAnchor:title.trailingAnchor],[snippet.topAnchor constraintEqualToAnchor:date.bottomAnchor constant:4],[snippet.heightAnchor constraintEqualToConstant:30]]];
     }
-    cell.accessibilityLabel=[NSString stringWithFormat:@"%@, %@%@",title.stringValue,date.stringValue,[item[@"snippet"] length] ? [@", " stringByAppendingString:item[@"snippet"]] : @""];return cell;
+    cell.accessibilityLabel=[NSString stringWithFormat:@"%@%@, %@%@",title.stringValue,unread ? @", unread" : @"",date.stringValue,[item[@"snippet"] length] ? [@", " stringByAppendingString:item[@"snippet"]] : @""];return cell;
 }
 - (void)addMenuItem:(NSMenu*)menu title:(NSString*)title command:(NSString*)command {
     NSMenuItem* item=[menu addItemWithTitle:title action:@selector(menuAction:) keyEquivalent:@""];item.target=self;item.representedObject=command;

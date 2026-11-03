@@ -8,6 +8,23 @@
 const NSUInteger SPDFMacAICallsRunPerReply=64;
 static const NSUInteger kReplyRetries=3, kConnectionRetries=3;
 static NSString* const kNotRun=@"{\"error\":\"Not run: the request paused before this call.\"}";
+BOOL SPDFMacAITransientError(NSError* error) {
+    if (![error.domain isEqual:@"SPDFMacAI"]) return NO;
+    NSInteger code=error.code;
+    return code==5 || code==10 || code==429 || code==408 || (code>=500 && code<600);
+}
+// The latest request's work is unfinished: the chat ends on a tool's result or on calls, or on a question with no
+// answer. A local message (a page picture) says nothing either way.
+static BOOL EndsUnfinished(NSArray<NSDictionary*>* messages) {
+    for (NSDictionary* message in messages.reverseObjectEnumerator) {
+        if ([message[@"local"] boolValue]) continue;
+        NSString* role=message[@"role"];
+        if ([role isEqual:@"tool"] || [role isEqual:@"user"]) return YES;
+        return [role isEqual:@"assistant"] && [message[@"tool_calls"] isKindOfClass:NSArray.class] &&
+            [message[@"tool_calls"] count];
+    }
+    return NO;
+}
 
 
 @implementation SPDFMacAIChatSession (Recovery)
@@ -16,6 +33,18 @@ static NSString* const kNotRun=@"{\"error\":\"Not run: the request paused before
         @"Not finished yet. Continue picks up where it stopped.";
 }
 - (BOOL)canContinue { return _canContinue && !_running && !self.depth; }
+- (void)endAfterError:(NSError*)error {
+    if (self.depth || !(_progress.succeededCalls+_progress.failedCalls)) {
+        [self finish:error.localizedDescription retryable:NO]; return;
+    }
+    [self pauseWithLocalSummary:[NSString stringWithFormat:@"The assistant stopped before finishing. %@ Continue "
+        "picks up where it stopped.",error.localizedDescription]];
+}
+- (void)offerContinueIfUnfinished {
+    _canContinue=!self.depth && EndsUnfinished(_messages);
+    _status=_canContinue ? @"The assistant stopped before finishing. Continue picks up where it stopped." : @"";
+    _activityState=_canContinue ? SPDFMacAIChatActivityPaused : SPDFMacAIChatActivityIdle;
+}
 - (BOOL)continueWithContext:(SPDFMacAIRequestContext*)context model:(NSString*)model apiKey:(NSString*)key {
     if (!self.canContinue || !context) return NO;
     NSUInteger before=_messages.count; _continuing=YES;
@@ -38,11 +67,10 @@ static NSString* const kNotRun=@"{\"error\":\"Not run: the request paused before
     _request=nil;
     if (_wrapUpSent) { [self pauseWithLocalSummary:self.pausedStatus]; return; }
     [_context.budget returnStep]; // the reply did no work
-    BOOL connection=[error.domain isEqual:@"SPDFMacAI"] && [@[@5,@10,@429] containsObject:@(error.code)];
-    if (connection) {
+    if (SPDFMacAITransientError(error)) {
         if (_connectionRetries>=kConnectionRetries) {
             NSString* status=error.code==429 ? @"OpenRouter is busy or your account limit was reached. Your chat is "
-                "saved; press Continue in a moment." : error.code==10 ? @"The model's provider stopped answering. "
+                "saved; press Continue in a moment." : error.code!=5 ? @"The model's provider stopped answering. "
                 "Your chat is saved; press Continue, or choose another model first." :
                 @"OpenRouter can't be reached. Your chat is saved; check your connection, then press Continue.";
             [self pauseWithLocalSummary:status]; return;
