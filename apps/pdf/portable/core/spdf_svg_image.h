@@ -11,7 +11,8 @@ extern "C" {
 
 /* The PDF's bytes, malloc'd and owned by the caller (free()), or NULL when `svg` is not an SVG MuPDF can draw. The
  * page is the SVG's own size in points, as its width, height and viewBox give it, and `width` and `height` (either
- * may be NULL) receive it exactly. External files the SVG refers to are not read. */
+ * may be NULL) receive it exactly. External files the SVG refers to are not read. Its text extracts as the SVG's
+ * text, also from a PDF that Quartz writes with the page drawn into it (spdf_svg_font.h). */
 unsigned char* spdf_svg_image_pdf(const unsigned char* svg, size_t svg_len, size_t* pdf_len, float* width,
                                   float* height);
 

@@ -167,7 +167,10 @@ their descendants, preventing repeated subtree strings and quadratic indexes.
   takes over 12 ms (a 60,000-point scatter made each redraw take half a second) is drawn
   on screen from a bitmap of the page at the pixels it covers (1.25x
   headroom, at most 8192 px a side, in a 256 MB cache), made again when a zoom
-  needs more; print and export still get its vectors.
+  needs more; print and export still get its vectors. A chart's text stays
+  text that copies right in an exported PDF: Quartz drops the ToUnicode map of
+  MuPDF's bare CFF fonts when it writes the page again, so the SVG's PDF wraps
+  them in OpenType with a cmap (`core/spdf_svg_font.h`).
 - Display SIZE is budgeted by the destination page. When the render carries a
   page (`SPDFMarkdownRenderOptions.pageContentSize` — see the Diagrams section
   for the page-box policy), an image's display size caps at that page's

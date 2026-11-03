@@ -2,6 +2,7 @@
 #include "spdf_svg_image.h"
 
 #include "spdf_recolor.h"
+#include "spdf_svg_font.h"
 
 #include "mupdf/fitz.h"
 #include "mupdf/pdf.h"
@@ -17,7 +18,10 @@ unsigned char* spdf_svg_image_pdf(const unsigned char* svg, size_t svg_len, size
     fz_output* out = NULL;
     fz_document* doc = NULL;
     fz_page* page = NULL;
-    fz_document_writer* writer = NULL;
+    pdf_document* pdf = NULL;
+    pdf_obj* resources = NULL;
+    pdf_obj* page_obj = NULL;
+    fz_buffer* contents = NULL;
     unsigned char* result = NULL;
     volatile size_t result_len = 0;
     fz_rect bounds = fz_empty_rect;
@@ -33,12 +37,16 @@ unsigned char* spdf_svg_image_pdf(const unsigned char* svg, size_t svg_len, size
     fz_var(out);
     fz_var(doc);
     fz_var(page);
-    fz_var(writer);
+    fz_var(pdf);
+    fz_var(resources);
+    fz_var(page_obj);
+    fz_var(contents);
     fz_var(result);
     fz_var(bounds);
 
     fz_try(ctx) {
         fz_device* dev;
+        pdf_write_options write = pdf_default_write_options;
         unsigned char* data;
         size_t len;
 
@@ -50,14 +58,24 @@ unsigned char* spdf_svg_image_pdf(const unsigned char* svg, size_t svg_len, size
         bounds = fz_bound_page(ctx, page);
         if (fz_is_empty_rect(bounds)) fz_throw(ctx, FZ_ERROR_FORMAT, "empty SVG");
 
+        /* As fz_new_pdf_writer would, but with the document in hand to fix its fonts before it is written. */
+        pdf = pdf_create_document(ctx);
+        dev = pdf_page_write(ctx, pdf, bounds, &resources, &contents);
+        fz_try(ctx) {
+            fz_run_page(ctx, page, dev, fz_identity, NULL);
+            fz_close_device(ctx, dev);
+        }
+        fz_always(ctx) fz_drop_device(ctx, dev);
+        fz_catch(ctx) fz_rethrow(ctx);
+        page_obj = pdf_add_page(ctx, pdf, bounds, 0, resources, contents);
+        pdf_insert_page(ctx, pdf, -1, page_obj);
+        spdf_svg_fonts_to_opentype(ctx, pdf);
+
         output = fz_new_buffer(ctx, 16 * 1024);
         out = fz_new_output_with_buffer(ctx, output);
-        writer = fz_new_pdf_writer_with_output(ctx, out, "compress");
-        out = NULL; /* the writer owns it now */
-        dev = fz_begin_page(ctx, writer, bounds);
-        fz_run_page(ctx, page, dev, fz_identity, NULL);
-        fz_end_page(ctx, writer);
-        fz_close_document_writer(ctx, writer);
+        pdf_parse_write_options(ctx, &write, "compress");
+        pdf_write_document(ctx, pdf, out, &write);
+        fz_close_output(ctx, out);
 
         len = fz_buffer_storage(ctx, output, &data);
         result = (unsigned char*)malloc(len ? len : 1);
@@ -66,7 +84,10 @@ unsigned char* spdf_svg_image_pdf(const unsigned char* svg, size_t svg_len, size
         result_len = len;
     }
     fz_always(ctx) {
-        fz_drop_document_writer(ctx, writer);
+        pdf_drop_obj(ctx, page_obj);
+        pdf_drop_obj(ctx, resources);
+        fz_drop_buffer(ctx, contents);
+        pdf_drop_document(ctx, pdf);
         fz_drop_output(ctx, out);
         fz_drop_buffer(ctx, output);
         fz_drop_page(ctx, page);

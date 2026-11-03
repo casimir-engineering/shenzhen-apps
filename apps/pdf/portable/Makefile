@@ -62,7 +62,7 @@ CORE_LINK_OBJ := $(BUILD)/spdf_link.o
 CORE_PROGRESSIVE_OBJ := $(BUILD)/spdf_progressive.o
 CORE_DESTINATION_OBJ := $(BUILD)/spdf_destination.o
 # SVG images in Markdown, drawn by MuPDF (core/spdf_svg_image.h, used by mac/SPDFMacSVGImage.mm).
-CORE_SVG_IMAGE_OBJ := $(BUILD)/spdf_svg_image.o
+CORE_SVG_IMAGE_OBJ := $(BUILD)/spdf_svg_image.o $(BUILD)/spdf_svg_font.o
 CORE_OBJS := $(CORE_OBJ) $(CORE_SELECTION_OBJ) $(CORE_SELECTION_SUPPORT_OBJ) $(CORE_RECOLOR_OBJ) $(CORE_IMAGE_PROPERTIES_OBJ) \
 	$(CORE_PAGE_IMAGES_OBJ) $(CORE_LINK_OBJ) $(CORE_PROGRESSIVE_OBJ) $(CORE_DESTINATION_OBJ) $(CORE_SVG_IMAGE_OBJ)
 YAML_SRC := core/spdf_yaml.c
@@ -194,7 +194,10 @@ $(CORE_PROGRESSIVE_OBJ): core/spdf_progressive.c core/spdf_progressive.h core/sp
 $(CORE_DESTINATION_OBJ): core/spdf_destination.c core/spdf_destination.h core/spdf_core_document.h Makefile | $(BUILD)
 	clang $(PORTABLE_OPTFLAGS) $(MAC_TARGET_FLAGS) -Wall -Wextra -Werror -Icore -I$(MUPDF_DIR)/include -c $< -o "$@"
 
-$(CORE_SVG_IMAGE_OBJ): core/spdf_svg_image.c core/spdf_svg_image.h $(CORE_RECOLOR_HDR) Makefile | $(BUILD)
+$(BUILD)/spdf_svg_image.o: core/spdf_svg_image.c core/spdf_svg_image.h core/spdf_svg_font.h $(CORE_RECOLOR_HDR) Makefile | $(BUILD)
+	clang $(PORTABLE_OPTFLAGS) $(MAC_TARGET_FLAGS) -Wall -Wextra -Werror -Icore -I$(MUPDF_DIR)/include -c $< -o "$@"
+
+$(BUILD)/spdf_svg_font.o: core/spdf_svg_font.c core/spdf_svg_font.h Makefile | $(BUILD)
 	clang $(PORTABLE_OPTFLAGS) $(MAC_TARGET_FLAGS) -Wall -Wextra -Werror -Icore -I$(MUPDF_DIR)/include -c $< -o "$@"
 
 $(CORE_LINK_TEST): core/tests/SPDFCoreLinkTests.c $(CORE_LINK_OBJ) | $(BUILD)
