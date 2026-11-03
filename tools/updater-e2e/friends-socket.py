@@ -20,7 +20,7 @@ INSTALLED = "/Applications/"
 
 
 def holders():
-    """{pid: [executable, exec path, argv[0]]} for every process with the socket open."""
+    """{pid: the paths it is judged by (judged_paths)} for every process with the socket open."""
     out = subprocess.run(["lsof", "-n", "-P", "-U", "-F", "pn"], capture_output=True, text=True).stdout
     pids, pid = set(), None
     for line in out.splitlines():
@@ -29,7 +29,15 @@ def holders():
         elif line.startswith("n") and line[1:] == SOCKET and pid:
             pids.add(pid)
     exes = executables()
-    return {pid: [p for p in [exes.get(pid, ""), *started_from(pid)] if p] for pid in sorted(pids)}
+    return {pid: judged_paths(exes.get(pid, ""), started_from(pid)) for pid in sorted(pids)}
+
+
+def judged_paths(executable, started):
+    """The paths a holder is judged by: where it was started from (exec path and argv[0]) when that can be read, else
+    its executable. Installing a new build moves the running app's bundle aside, so the person's own helper, started
+    from /Applications, then has its executable wherever the old bundle went; where it was started from still says
+    /Applications. A test copy's helper is started from the test copy, wherever its executable is now."""
+    return [p for p in started if p] or ([executable] if executable else [])
 
 
 def foreign(found):

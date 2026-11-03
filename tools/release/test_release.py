@@ -251,6 +251,13 @@ def test_left_alone():
     check("nor one started from a test copy, wherever its executable is now",
           list(friends_socket.foreign({3: [apps + "/x", test_copy]})) == [3])
     check("nor one whose executable cannot be read", list(friends_socket.foreign({4: []})) == [4])
+    moved = "/tmp/old/ShenzhenPDF.app.old/Contents/Helpers/Shenzhen Friends.app/Contents/MacOS/Shenzhen Friends"
+    check("the person's own helper still may after an install moved its app aside",
+          friends_socket.foreign({5: friends_socket.judged_paths(moved, [installed, installed])}) == {})
+    check("a test copy's helper may not, wherever its executable is now",
+          list(friends_socket.foreign({6: friends_socket.judged_paths(installed, [test_copy])})) == [6])
+    check("one whose start cannot be read is judged by its executable",
+          list(friends_socket.foreign({7: friends_socket.judged_paths(test_copy, [])})) == [7])
     out = subprocess.run([sys.executable, "-I", os.path.join(os.path.dirname(HERE), "updater-e2e", "friends-socket.py"),
                           "--pids"], capture_output=True, text=True)
     check("friends-socket.py reads the socket's holders", out.returncode == 0, out.stderr)
