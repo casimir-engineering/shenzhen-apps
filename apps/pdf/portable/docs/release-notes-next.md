@@ -14,6 +14,8 @@ published release will notice; never a fix for a bug that was never released.
 - Translate on this Mac asks which language a document is in when it can't tell from the text, instead of guessing.
 - Scrolling no longer leaves faint horizontal lines on the pages or on the dark background beside them, most often
   seen in Markdown documents at zooms such as Fit Page.
+- When ShenzhenPDF reopens (after quitting, an update or an install), each window comes back on the display and at the
+  place you left it. A window that had to leave a disconnected display goes back once that display returns.
 
 ### Translate
 

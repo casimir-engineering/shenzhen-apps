@@ -6,12 +6,22 @@ NSRect spdf_window_content_rect_for_saved_frame(NSRect frame) {
     return [NSWindow contentRectForFrameRect:frame styleMask:mask];
 }
 
-// The frame the reader left, and whether the window is currently sitting
-// somewhere else because that frame's display was missing at launch. One
-// document window per process, so this state belongs here.
+// The frame the reader left, and whether the window is sitting somewhere else
+// for a reason that is not theirs (see the header). One document window per
+// process, so this state belongs here.
 static NSRect gSPDFDesiredFrame;
 static BOOL gSPDFHasDesiredFrame;
-static BOOL gSPDFShowingFallbackFrame;
+static BOOL gSPDFDisplaced;
+// Until when a move nobody asked for during the launch is undone, and how many
+// times it may be: macOS settles a new window after it is shown, and once the
+// app is activated.
+static CFAbsoluteTime gSPDFLaunchGuardUntil;
+static NSUInteger gSPDFLaunchPutBacks;
+static const NSUInteger kSPDFMaximumLaunchPutBacks = 4;
+// The frame before native full screen: a full-screen window's frame is its
+// display's, which is not where the reader left the window.
+static NSRect gSPDFFrameBeforeFullScreen;
+static BOOL gSPDFFullScreenTransition;
 
 // The smallest overlap worth calling "on screen": a sliver is not reachable.
 static const CGFloat kSPDFMinimumVisibleArea = 80.0 * 80.0;
@@ -42,28 +52,115 @@ static NSArray<NSValue*>* spdf_window_screen_visible_frames(void) {
     return frames;
 }
 
-// The reader moved or resized the window, so what is on screen is now their
-// choice and supersedes whatever was remembered.
-static void spdf_window_note_user_placed(NSNotification* note) {
-    (void)note;
-    gSPDFShowingFallbackFrame = NO;
+static BOOL spdf_window_desired_frame_is_reachable(void) {
+    return gSPDFHasDesiredFrame &&
+           spdf_window_frame_is_usable_on_screens(gSPDFDesiredFrame, spdf_window_screen_visible_frames());
 }
 
-// A display arrived (or the arrangement changed). If the window is still parked
-// at a fallback and the remembered frame is reachable again, put it back.
-static void spdf_window_screens_changed(NSNotification* note) {
-    NSWindow* window = (NSWindow*)note.object;
-    if (![window isKindOfClass:NSWindow.class]) return;
-    if (!gSPDFHasDesiredFrame || !gSPDFShowingFallbackFrame) return;
-    if (!spdf_window_frame_is_usable_on_screens(gSPDFDesiredFrame, spdf_window_screen_visible_frames())) return;
+BOOL spdf_window_event_is_the_readers(NSEvent* event, BOOL mouseButtonDown) {
+    if (mouseButtonDown) return YES; // a drag of the title bar or an edge, wherever the event stream is
+    static const NSEventMask readerInput =
+        NSEventMaskLeftMouseDown | NSEventMaskLeftMouseUp | NSEventMaskLeftMouseDragged | NSEventMaskRightMouseDown |
+        NSEventMaskRightMouseUp | NSEventMaskOtherMouseDown | NSEventMaskOtherMouseUp | NSEventMaskKeyDown |
+        NSEventMaskKeyUp | NSEventMaskFlagsChanged | NSEventMaskMagnify | NSEventMaskSwipe | NSEventMaskRotate |
+        NSEventMaskSmartMagnify;
+    return event && (NSEventMaskFromType(event.type) & readerInput) != 0;
+}
+
+static void spdf_window_put_back(NSWindow* window) {
+    gSPDFDisplaced = NO;
     [window setFrame:gSPDFDesiredFrame display:YES];
-    gSPDFShowingFallbackFrame = NO;
+}
+
+// When the displays last changed, and when a move nobody asked for was last
+// taken as the frame to remember (with the frame it replaced): a window moved
+// off a vanishing display can be reported before the screen list says so.
+static CFAbsoluteTime gSPDFScreensChangedAt, gSPDFSystemFrameTakenAt;
+static NSRect gSPDFFrameBeforeSystemMove;
+
+static void spdf_window_remember(NSRect frame, id reader) {
+    gSPDFDesiredFrame = frame;
+    gSPDFHasDesiredFrame = YES;
+    gSPDFDisplaced = NO;
+    SEL write = @selector(writeSessionStateForCurrentWindow);
+    if (![reader respondsToSelector:write]) return;
+    [NSObject cancelPreviousPerformRequestsWithTarget:reader selector:write object:nil];
+    [reader performSelector:write withObject:nil afterDelay:0.5];
+}
+
+// The window moved or changed size. The reader's own change (a drag, an edge,
+// a menu command or shortcut) becomes the frame to remember, and is written
+// soon, so no later quit, crash or update can lose it. A change nobody asked
+// for is the system's: macOS settling a window it has just shown or activated
+// (put back), or moving it off a display that went away (shown there,
+// remembered here). A move by a window manager while the remembered frame is
+// still reachable and the displays did not change is taken as the reader's.
+static void spdf_window_frame_changed(NSWindow* window, id reader) {
+    if (gSPDFFullScreenTransition || (window.styleMask & NSWindowStyleMaskFullScreen)) return;
+    NSRect frame = window.frame;
+    if (gSPDFHasDesiredFrame && NSEqualRects(frame, gSPDFDesiredFrame)) {
+        gSPDFDisplaced = NO;
+        return;
+    }
+    if (window.inLiveResize || spdf_window_event_is_the_readers(NSApp.currentEvent, NSEvent.pressedMouseButtons != 0)) {
+        gSPDFLaunchGuardUntil = 0;
+        spdf_window_remember(frame, reader);
+        return;
+    }
+    CFAbsoluteTime now = CFAbsoluteTimeGetCurrent();
+    BOOL reachable = spdf_window_desired_frame_is_reachable();
+    if (reachable && now < gSPDFLaunchGuardUntil && gSPDFLaunchPutBacks < kSPDFMaximumLaunchPutBacks) {
+        gSPDFLaunchPutBacks++;
+        gSPDFDisplaced = YES;
+        // After AppKit has finished the move it is reporting.
+        dispatch_async(dispatch_get_main_queue(), ^{
+          if (gSPDFDisplaced && !NSEqualRects(window.frame, gSPDFDesiredFrame)) spdf_window_put_back(window);
+        });
+        return;
+    }
+    if (!gSPDFHasDesiredFrame || (reachable && !gSPDFDisplaced && now - gSPDFScreensChangedAt > 2.0)) {
+        gSPDFFrameBeforeSystemMove = gSPDFHasDesiredFrame ? gSPDFDesiredFrame : frame;
+        gSPDFSystemFrameTakenAt = now;
+        spdf_window_remember(frame, reader);
+        return;
+    }
+    gSPDFDisplaced = YES; // its display is gone, or the displays are changing: show it here, remember it there
+}
+
+// The displays' frames: the Dock or the menu bar changing size changes visible
+// frames only, which is not a display coming or going.
+static NSString* spdf_window_display_arrangement(void) {
+    NSMutableArray<NSString*>* frames = [NSMutableArray array];
+    for (NSScreen* screen in NSScreen.screens) [frames addObject:NSStringFromRect(screen.frame)];
+    return [frames componentsJoinedByString:@";"];
+}
+
+// The screens changed. If displays came or went just after a move nobody asked
+// for was taken as the reader's, that move was this change arriving early:
+// undo it. Then, if the window is away from the frame the reader left and that
+// frame is reachable again, put it back.
+static void spdf_window_screens_changed(NSWindow* window) {
+    static NSString* arrangement;
+    NSString* current = spdf_window_display_arrangement();
+    BOOL displaysChanged = arrangement && ![arrangement isEqualToString:current];
+    arrangement = current;
+    CFAbsoluteTime now = CFAbsoluteTimeGetCurrent();
+    if (displaysChanged) gSPDFScreensChangedAt = now;
+    if (displaysChanged && now - gSPDFSystemFrameTakenAt < 1.5) {
+        gSPDFDesiredFrame = gSPDFFrameBeforeSystemMove;
+        gSPDFSystemFrameTakenAt = 0;
+        gSPDFDisplaced = !NSEqualRects(window.frame, gSPDFDesiredFrame);
+    }
+    if (!gSPDFHasDesiredFrame || !gSPDFDisplaced || !spdf_window_desired_frame_is_reachable()) return;
+    spdf_window_put_back(window);
 }
 
 NSRect spdf_window_frame_to_persist(NSWindow* window, NSRect liveFrame) {
-    (void)window;
-    // Still parked at a fallback: keep the reader's frame, not our stand-in.
-    if (gSPDFHasDesiredFrame && gSPDFShowingFallbackFrame) return gSPDFDesiredFrame;
+    // In native full screen: the frame it will come back to.
+    if (window && (window.styleMask & NSWindowStyleMaskFullScreen) && !NSIsEmptyRect(gSPDFFrameBeforeFullScreen))
+        return gSPDFDisplaced && gSPDFHasDesiredFrame ? gSPDFDesiredFrame : gSPDFFrameBeforeFullScreen;
+    // Away from where the reader left it, not by their doing: keep their frame.
+    if (gSPDFHasDesiredFrame && gSPDFDisplaced) return gSPDFDesiredFrame;
     return liveFrame;
 }
 
@@ -77,33 +174,67 @@ void spdf_window_configure_document_window(NSWindow* window, id reader, NSSize m
     window.delegate = reader;
     window.title = @"Shenzhen PDF";
     window.minSize = minimumSize;
-    if (!hasSavedFrame) return;
-    gSPDFDesiredFrame = savedFrame;
+    gSPDFDesiredFrame = hasSavedFrame ? savedFrame : window.frame;
     gSPDFHasDesiredFrame = YES;
-    // Usable where it is? Then it is not a fallback, whatever screen it is on.
-    NSRect display = savedFrame;
-    if (!spdf_window_frame_is_usable_on_screens(savedFrame, spdf_window_screen_visible_frames())) {
-        display = spdf_window_fallback_frame(savedFrame);
-        gSPDFShowingFallbackFrame = !NSEqualRects(display, savedFrame);
+    gSPDFDisplaced = NO;
+    gSPDFLaunchPutBacks = 0;
+    gSPDFLaunchGuardUntil = CFAbsoluteTimeGetCurrent() + 5.0;
+    spdf_window_screens_changed(window); // records the displays as they are now
+    if (hasSavedFrame) {
+        // Usable where it is? Then it is not a fallback, whatever screen it is on.
+        NSRect display = savedFrame;
+        if (!spdf_window_frame_is_usable_on_screens(savedFrame, spdf_window_screen_visible_frames())) {
+            display = spdf_window_fallback_frame(savedFrame);
+            gSPDFDisplaced = !NSEqualRects(display, savedFrame);
+        }
+        [window setFrame:display display:NO];
     }
-    [window setFrame:display display:NO];
-    // Recover the remembered frame if its display shows up later, and stop
-    // treating the frame as a fallback the moment the reader places the window.
     NSNotificationCenter* center = NSNotificationCenter.defaultCenter;
-    [center addObserverForName:NSApplicationDidChangeScreenParametersNotification
-                        object:nil
-                         queue:nil
+    __weak NSWindow* weakWindow = window;
+    __weak id weakReader = reader;
+    void (^changed)(NSNotification*) = ^(NSNotification* note) {
+      (void)note;
+      if (weakWindow) spdf_window_frame_changed(weakWindow, weakReader);
+    };
+    [center addObserverForName:NSWindowDidMoveNotification object:window queue:nil usingBlock:changed];
+    [center addObserverForName:NSWindowDidResizeNotification object:window queue:nil usingBlock:changed];
+    [center addObserverForName:NSApplicationDidChangeScreenParametersNotification object:nil queue:nil
                     usingBlock:^(NSNotification* note) {
                       (void)note;
-                      spdf_window_screens_changed(
-                          [NSNotification notificationWithName:@"screens" object:window]);
+                      if (weakWindow) spdf_window_screens_changed(weakWindow);
                     }];
-    [center addObserverForName:NSWindowDidMoveNotification object:window queue:nil usingBlock:^(NSNotification* n) {
-      spdf_window_note_user_placed(n);
-    }];
-    [center addObserverForName:NSWindowDidResizeNotification object:window queue:nil usingBlock:^(NSNotification* n) {
-      spdf_window_note_user_placed(n);
-    }];
+    // The first activation is when macOS may still move a just-launched window:
+    // the guard covers it when it comes late (a launch behind, brought forward).
+    __block BOOL activated = NO;
+    [center addObserverForName:NSApplicationDidBecomeActiveNotification object:nil queue:nil
+                    usingBlock:^(NSNotification* note) {
+                      (void)note;
+                      if (activated) return;
+                      activated = YES;
+                      if (gSPDFLaunchGuardUntil > 0)
+                          gSPDFLaunchGuardUntil = MAX(gSPDFLaunchGuardUntil, CFAbsoluteTimeGetCurrent() + 2.0);
+                    }];
+    [center addObserverForName:NSWindowWillEnterFullScreenNotification object:window queue:nil
+                    usingBlock:^(NSNotification* note) {
+                      gSPDFFullScreenTransition = YES;
+                      gSPDFFrameBeforeFullScreen = ((NSWindow*)note.object).frame;
+                    }];
+    [center addObserverForName:NSWindowDidEnterFullScreenNotification object:window queue:nil
+                    usingBlock:^(NSNotification* note) {
+                      (void)note;
+                      gSPDFFullScreenTransition = NO;
+                    }];
+    [center addObserverForName:NSWindowWillExitFullScreenNotification object:window queue:nil
+                    usingBlock:^(NSNotification* note) {
+                      (void)note;
+                      gSPDFFullScreenTransition = YES;
+                    }];
+    [center addObserverForName:NSWindowDidExitFullScreenNotification object:window queue:nil
+                    usingBlock:^(NSNotification* note) {
+                      (void)note;
+                      gSPDFFullScreenTransition = NO;
+                      gSPDFFrameBeforeFullScreen = NSZeroRect;
+                    }];
 }
 
 void spdf_spawn_restored_window_processes(NSArray<NSString*>* windowIDs, NSString* skipWindowID) {

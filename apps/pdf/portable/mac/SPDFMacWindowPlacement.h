@@ -23,16 +23,29 @@ NSRect spdf_window_content_rect_for_saved_frame(NSRect frame);
 void spdf_window_configure_document_window(NSWindow* window, id reader, NSSize minimumSize, NSRect savedFrame,
                                            BOOL hasSavedFrame);
 
-// Which frame to write to the session.
+// Which frame to write to the session: the one the reader left, exactly.
 //
-// A saved frame whose display is not attached at launch has to be put SOMEWHERE
-// visible, and that fallback must never be persisted over the reader's real
-// choice: a window remembered on an external display, launched once while only
-// the built-in screen was attached, came back clamped to the built-in screen's
-// visible frame -- and saving that clamp destroyed the remembered position for
-// good. So the fallback is display-only. Until the reader actually moves or
-// resizes the window, the frame they left is what gets saved.
+// The window is not always where the reader left it, and the system's moves
+// must never be saved over their choice:
+// - a saved frame whose display is not attached at launch is shown somewhere
+//   visible (a window remembered on an external display, launched once while
+//   only the built-in screen was attached, came back clamped to the built-in
+//   screen -- and saving that clamp destroyed the remembered position for good);
+// - macOS may move a window it has just shown or activated, onto the display in
+//   use, and the next quit saved that as if the reader had put it there;
+// - a display that goes away (unplugged, asleep) takes its windows with it.
+// Only the reader's own changes (a drag, an edge, a menu command or shortcut;
+// a window manager while the displays stay as they are) replace the frame to
+// remember, and they are written within half a second, so no quit path, crash
+// or update can lose them. A move nobody asked for during the first seconds of
+// a launch is undone; a window moved off a display is put back when the display
+// returns. A full-screen window is remembered by its frame before full screen.
 NSRect spdf_window_frame_to_persist(NSWindow* window, NSRect liveFrame);
+
+// Whether a frame change comes from the reader: the event being handled is
+// their input, or a mouse button is down (dragging the title bar or an edge).
+// Pure, for the test.
+BOOL spdf_window_event_is_the_readers(NSEvent* event, BOOL mouseButtonDown);
 
 // Whether `frame` overlaps any of `visibleFrames` by enough to be usable. Pure,
 // so the fallback rule can be tested without displays to plug in.
