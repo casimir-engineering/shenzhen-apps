@@ -12,6 +12,8 @@ published release will notice; never a fix for a bug that was never released.
 ## Next release
 
 - Translate on this Mac asks which language a document is in when it can't tell from the text, instead of guessing.
+- Scrolling no longer leaves faint horizontal lines on the pages or on the dark background beside them, most often
+  seen in Markdown documents at zooms such as Fit Page.
 
 ### Translate
 

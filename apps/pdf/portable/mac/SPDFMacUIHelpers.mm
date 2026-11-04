@@ -1,5 +1,6 @@
 #import "SPDFMacUIHelpers.h"
 #import "SPDFMacPageWheel.h"
+#import "SPDFMacScrollPixels.h"
 #import "SPDFMacSupport.h"
 #import "SPDFMacInactiveZoom.h"
 #import "SPDFMacWindowChrome.h"
@@ -281,6 +282,7 @@ static const CGFloat kSPDFMouseWheelPointsPerLine = 32.0;
     NSInteger _wheelAccumulatorDirection;
     BOOL _wheelGestureActive;
     BOOL _wheelPageTurnedInGesture;
+    spdf_scroll_step_state _scrollStep;
 }
 
 - (BOOL)eventPhase:(NSEventPhase)phase contains:(NSEventPhase)flag {
@@ -349,11 +351,8 @@ static const CGFloat kSPDFMouseWheelPointsPerLine = 32.0;
     NSClipView* clipView = self.contentView;
     NSRect visible = clipView.bounds;
     NSSize documentSize = self.documentView.bounds.size;
-    CGFloat maxX = MAX(0.0, documentSize.width - NSWidth(visible));
-    CGFloat maxY = MAX(0.0, documentSize.height - NSHeight(visible));
-    NSPoint origin = visible.origin;
-    origin.x = spdf_ui_clamp_cg(origin.x - deltaX, 0.0, maxX);
-    origin.y = spdf_ui_clamp_cg(origin.y - deltaY, 0.0, maxY);
+    NSPoint lo = NSZeroPoint, hi = NSMakePoint(MAX(0.0, documentSize.width - NSWidth(visible)),
+                                               MAX(0.0, documentSize.height - NSHeight(visible)));
     // scrollToPoint: bypasses constrainBoundsRect:, so honor the lock ranges
     // here: a viewport-fit page is pinned centered (min==max); a page wider
     // than the viewport pans only within its own bounds (min<max), not across
@@ -361,12 +360,13 @@ static const CGFloat kSPDFMouseWheelPointsPerLine = 32.0;
     if ([clipView isKindOfClass:[SPDFDocumentClipView class]]) {
         SPDFDocumentClipView* docClip = (SPDFDocumentClipView*)clipView;
         if (isfinite(docClip.horizontalLockMinX))
-            origin.x = spdf_ui_clamp_cg(origin.x, docClip.horizontalLockMinX,
-                                        MAX(docClip.horizontalLockMinX, docClip.horizontalLockMaxX));
+            lo.x = docClip.horizontalLockMinX, hi.x = MAX(docClip.horizontalLockMinX, docClip.horizontalLockMaxX);
         if (isfinite(docClip.verticalLockMinY))
-            origin.y = spdf_ui_clamp_cg(origin.y, docClip.verticalLockMinY,
-                                        MAX(docClip.verticalLockMinY, docClip.verticalLockMaxY));
+            lo.y = docClip.verticalLockMinY, hi.y = MAX(docClip.verticalLockMinY, docClip.verticalLockMaxY);
     }
+    // On whole device pixels, or the uncovered strip leaves streaks (SPDFMacScrollPixels.h).
+    CGFloat pixels = MAX(0.0001, self.magnification) * (self.window ? self.window.backingScaleFactor : 2.0);
+    NSPoint origin = spdf_scroll_step(&_scrollStep, visible.origin, NSMakePoint(deltaX, deltaY), lo, hi, pixels);
     if (fabs(origin.x - NSMinX(visible)) < 0.0001 && fabs(origin.y - NSMinY(visible)) < 0.0001) return YES;
 
     // scrollToPoint: posts a bounds-change notification that re-enters
