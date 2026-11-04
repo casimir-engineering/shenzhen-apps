@@ -270,3 +270,9 @@ Recorded on 2026-10-13 from the wave-4 security re-check and the assistant work.
 9. **ViaAssistant.** MSG and OFFER may carry tag 29, one byte, 1 when the sender's assistant sent the message or
    file for them (PROTOCOL.md `via_assistant`), so the recipient's app can say so. Absent means the person sent it;
    any value but 0 or 1 fails the frame, and an older peer ignores the unknown tag and shows nothing.
+10. **Documents.** An OFFER of a document's archive (PROTOCOL.md § Intents, Documents) carries Document (tag 54,
+    1 to 1,024 bytes of UTF-8: the document's own name, "Report.md") and DocumentParts (tag 55, 12 bytes: u32be
+    counts of comments, pictures and other files the archive holds besides it), while Name stays the archive's
+    ("Report.zip"). A helper that knows them shows the document and places its folder on receipt; an older peer ignores
+    both tags and keeps the archive whole under its Name. A Document that is not a plain name with an extension, or an
+    archive that is not that document's, is kept as the archive it is.

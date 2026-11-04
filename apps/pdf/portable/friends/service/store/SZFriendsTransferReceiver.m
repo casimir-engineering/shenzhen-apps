@@ -205,13 +205,36 @@ NS_ASSUME_NONNULL_BEGIN
 - (BOOL)publish:(SZFriendsTransferRecord *)record from:(NSString *)partial db:(SZFriendsStoreDB *)db
           error:(NSError **)error {
     NSString *transferID = record.transferID;
-    NSString *final = SZFriendsPublishReceivedFile(partial, record.fileName, _stateDirectory,
-                                                   ^BOOL(NSString *candidate, NSError **inner) {
+    BOOL (^willPublish)(NSString *, NSError **) = ^BOOL(NSString *candidate, NSError **inner) {
         return [db transaction:^BOOL(NSError **innermost) {
             NSDictionary *values = @{@"final_path" : candidate, @"publishing" : @1};
             return SZFriendsTransferRowUpdate(db, transferID, values, innermost);
         } error:inner];
-    }, error);
+    };
+    NSString *final = nil;
+    if (record.document) {
+        // A document's archive becomes the document's folder (PROTOCOL.md § Intents, Documents).
+        BOOL notADocument = NO;
+        final = SZFriendsPublishReceivedDocument(partial, record.fileName, _stateDirectory, willPublish,
+                                                 &notADocument, error);
+        if (final == nil && !notADocument) return NO;
+        if (final == nil) {
+            // Not what it claimed to be: kept whole as the archive it is, under the archive's name, as an older
+            // helper would keep it, and shown as that.
+            NSString *archive = SZFriendsSanitizedFileName(SZFriendsDocumentArchiveName(record.fileName));
+            BOOL demoted = [db transaction:^BOOL(NSError **inner) {
+                NSDictionary *values = @{@"document" : [NSNull null], @"file_name" : archive};
+                return SZFriendsTransferRowUpdate(db, transferID, values, inner);
+            } error:error];
+            if (!demoted) return NO;
+            record = [record copy];
+            record.document = nil;
+            record.fileName = archive;
+        }
+    }
+    if (final == nil) {
+        final = SZFriendsPublishReceivedFile(partial, record.fileName, _stateDirectory, willPublish, error);
+    }
     if (final == nil) return NO;
     SZFriendsStoreTestPoint("transfer.after_rename");
     return [self markReceived:transferID at:final size:record.size db:db error:error];

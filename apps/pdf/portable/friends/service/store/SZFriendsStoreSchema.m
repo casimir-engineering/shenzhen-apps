@@ -9,7 +9,7 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-const NSInteger SZFriendsStoreSchemaVersion = 12;
+const NSInteger SZFriendsStoreSchemaVersion = 13;
 
 // Pictures are columns rather than an archived object so a later Linux helper reads them with plain SQL.
 // Times are Unix seconds (REAL). Keys and secrets are BLOBs with their lengths checked by the schema itself, so a
@@ -268,6 +268,12 @@ static NSString *const SZFriendsSchemaV11 = @"ALTER TABLE friends ADD COLUMN lef
 static NSString *const SZFriendsSchemaV12 = @"ALTER TABLE transfers ADD COLUMN source_path TEXT;\n"
                                              "ALTER TABLE transfers ADD COLUMN source_mtime_ns INTEGER;\n";
 
+// v13, documents sent with what belongs to them (PROTOCOL.md § Intents, Documents): transfers.document, what the file
+// is when it is a document's archive, as JSON ({"comments":3,"pictures":2,"files":1}); NULL for every other file. The
+// file is then the archive, file_name the document's own name, and the receiving helper places the document's folder
+// where received files go. Never synced. Additive, so min_reader_version stays 2: a v12 helper ignores the column.
+static NSString *const SZFriendsSchemaV13 = @"ALTER TABLE transfers ADD COLUMN document TEXT;\n";
+
 @implementation SZFriendsStoreMigration
 
 + (instancetype)migrationToVersion:(NSInteger)version
@@ -358,7 +364,13 @@ NSArray<SZFriendsStoreMigration *> *SZFriendsStoreShippedMigrations(void) {
                      apply:^BOOL(SZFriendsStoreDB *db, NSError **error) {
                          return [db exec:SZFriendsSchemaV12 error:error];
                      }];
-    return @[ v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12 ];
+    SZFriendsStoreMigration *v13 = [SZFriendsStoreMigration
+        migrationToVersion:13
+          minReaderVersion:0
+                     apply:^BOOL(SZFriendsStoreDB *db, NSError **error) {
+                         return [db exec:SZFriendsSchemaV13 error:error];
+                     }];
+    return @[ v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13 ];
 }
 
 BOOL SZFriendsStoreReadVersions(SZFriendsStoreDB *db, NSInteger *userVersion, NSInteger *minReaderVersion,

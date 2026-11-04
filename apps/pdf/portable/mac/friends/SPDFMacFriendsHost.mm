@@ -126,7 +126,8 @@
         [_bridge friendsBridgeRevealFiles:@[fileURL]];
         return;
     }
-    // A Markdown document a friend sent with its comments and pictures comes as a .zip: Open opens the document.
+    // A friend's document arrives as its folder and opens as it is; from ShenzhenPDF 26.11.3-2 it came as a .zip of
+    // that folder, and Open opens the document in it.
     NSString* path = fileURL.path;
     id<SPDFMacFriendsReaderBridge> bridge = _bridge;
     if ([fileURL.pathExtension.lowercaseString isEqual:@"zip"] &&

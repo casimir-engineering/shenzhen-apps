@@ -3,6 +3,16 @@
 pub(super) const TRANSFERS_AND_CONVERSATIONS: &[(&str, &str)] = &[
     // Transfers
     ("transfer.meta", "{kind} · {size}"),
+    // A document sent with what belongs to it (PROTOCOL.md § Intents, Documents): "With comments and 3 pictures".
+    ("transfer.meta.document", "With {parts} · {size}"),
+    ("transfer.kind.document", "{kind} with {parts}"),
+    ("document.part.comments", "comments"),
+    ("document.part.pictures.one", "1 picture"),
+    ("document.part.pictures.other", "{count} pictures"),
+    ("document.part.files.one", "1 linked file"),
+    ("document.part.files.other", "{count} linked files"),
+    ("document.parts.two", "{first} and {second}"),
+    ("document.parts.three", "{first}, {second} and {third}"),
     ("transfer.left.spoken", "{duration} left"),
     ("transfer.disk_low.spoken", "There wasn’t enough free space to accept it automatically."),
     ("transfer.status.queued", "Sends when {first} is nearby"),

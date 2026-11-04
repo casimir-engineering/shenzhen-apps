@@ -80,21 +80,28 @@ static const NSUInteger SZFriendsAttachmentsMax = 20;
         NSString *path = [file isKindOfClass:[NSDictionary class]] ? file[@"path"] : nil;
         id name = [file isKindOfClass:[NSDictionary class]] ? file[@"display_name"] : nil;
         SZFriendsRevision *revision = nil;
+        // A document's archive (PROTOCOL.md § Intents, Documents): its counts, and display_name is the document's.
+        id documentObject = [file isKindOfClass:[NSDictionary class]] ? file[@"document"] : nil;
+        BOOL marked = documentObject != nil && documentObject != [NSNull null];
+        NSDictionary *document = marked ? SZFriendsDocumentCounts(documentObject) : nil;
         if (!SZFriendsJSONIsString(path) || ![path hasPrefix:@"/"] || (name != nil && !SZFriendsJSONIsString(name)) ||
-            ![self parseRevision:file[@"revision"] into:&revision]) {
+            ![self parseRevision:file[@"revision"] into:&revision] ||
+            (marked && (document == nil || !SZFriendsJSONIsString(name)))) {
             NSString *where = [NSString stringWithFormat:@"%@[%lu]", field, (unsigned long)i];
             [self fail:reply code:@"invalid_field" details:@{@"field" : where} connection:connection];
             return nil;
         }
-        [checked addObject:@{@"path" : path, @"name" : name ?: [NSNull null], @"revision" : revision ?: [NSNull null]}];
+        [checked addObject:@{@"path" : path, @"name" : name ?: [NSNull null], @"revision" : revision ?: [NSNull null],
+                             @"document" : document ?: [NSNull null]}];
     }
     NSMutableArray<SZFriendsTransferRecord *> *staged = [NSMutableArray array];
     for (NSDictionary *file in checked) {
         NSError *error = nil;
-        id name = file[@"name"], revision = file[@"revision"];
+        id name = file[@"name"], revision = file[@"revision"], document = file[@"document"];
         SZFriendsTransferRecord *record =
             [self.services.transfers stageOutgoingFileAtPath:file[@"path"]
                                                  displayName:name == [NSNull null] ? nil : name
+                                                    document:document == [NSNull null] ? nil : document
                                                     revision:revision == [NSNull null] ? nil : revision
                                               conversationID:conversationID
                                                        error:&error];

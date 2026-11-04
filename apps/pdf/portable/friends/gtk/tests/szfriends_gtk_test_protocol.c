@@ -252,8 +252,9 @@ void szfg_run_protocol_coverage_tests(const char *protocol_path) {
     /* Every view, shared object and helper frame a view reads has a table; what only the client library or the
      * assistant's tool layer reads is listed here, so a new block cannot slip past unread. */
     static const char *const not_for_views[] = {"frame.hello", "frame.intent", "type.file", "type.revision",
-                                                "result.assistant_open_scope", "result.assistant_search",
-                                                "result.assistant_read", "result.subscribe", "result.send_files",
+                                                "type.document", "result.assistant_open_scope",
+                                                "result.assistant_search", "result.assistant_read",
+                                                "result.subscribe", "result.send_files",
                                                 "result.add_from_mention", "result.add_from_link",
                                                 "result.receive_link", NULL};
     GHashTableIter iter;

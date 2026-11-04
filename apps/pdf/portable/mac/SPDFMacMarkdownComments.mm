@@ -54,6 +54,8 @@ static NSString* const kResolvedSuffix = @" · Resolved";
 }
 @end
 
+NSNotificationName const SPDFMarkdownCommentsDidChangeNotification = @"SPDFMarkdownCommentsDidChange";
+
 NSString* SPDFMarkdownCommentsFilePath(NSString* documentPath) {
     NSString* title = documentPath.lastPathComponent.stringByDeletingPathExtension;
     NSString* name = [NSString stringWithFormat:@"%@ - comments.md", title.length ? title : @"Document"];

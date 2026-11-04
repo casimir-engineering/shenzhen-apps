@@ -45,7 +45,9 @@ static NSArray<NSString*>* LocalComponents(NSString* target) {
     NSMutableArray* components = [NSMutableArray array];
     for (NSString* component in path.pathComponents) {
         if ([component isEqualToString:@"."] || !component.length) continue;
-        if ([component isEqualToString:@".."] || [component isEqualToString:@"~"] || [component containsString:@"/"] ||
+        // Hidden names and ":" stay out: the friend's helper takes no archive holding them.
+        if ([component hasPrefix:@"."] || [component isEqualToString:@"~"] || [component containsString:@"/"] ||
+            [component containsString:@":"] || [component containsString:@"\\"] ||
             [component rangeOfString:@"\0"].location != NSNotFound)
             return nil;
         [components addObject:component];
@@ -53,13 +55,18 @@ static NSArray<NSString*>* LocalComponents(NSString* target) {
     return components.count ? components : nil;
 }
 
-// Pictures and links, wherever they are in the document (lists, quotes, tables), in reading order.
-static void CollectTargets(NSArray<SPDFMarkdownBlock*>* blocks, NSMutableOrderedSet<NSString*>* targets) {
+// Pictures and links, wherever they are in the document (lists, quotes, tables), in reading order; `pictures` gets
+// the ones shown as pictures.
+static void CollectTargets(NSArray<SPDFMarkdownBlock*>* blocks, NSMutableOrderedSet<NSString*>* targets,
+                           NSMutableSet<NSString*>* pictures) {
     for (SPDFMarkdownBlock* block in blocks) {
-        for (SPDFMarkdownInlineRun* run in block.runs)
-            if ((run.traits & (SPDFMarkdownInlineTraitImage | SPDFMarkdownInlineTraitLink)) && run.destination.length)
-                [targets addObject:run.destination];
-        CollectTargets(block.children, targets);
+        for (SPDFMarkdownInlineRun* run in block.runs) {
+            if (!(run.traits & (SPDFMarkdownInlineTraitImage | SPDFMarkdownInlineTraitLink)) || !run.destination.length)
+                continue;
+            [targets addObject:run.destination];
+            if (run.traits & SPDFMarkdownInlineTraitImage) [pictures addObject:run.destination];
+        }
+        CollectTargets(block.children, targets, pictures);
     }
 }
 
@@ -160,7 +167,8 @@ static NSDictionary* BundleFor(NSDictionary* file, id<SPDFMacFriendsCollectionLo
     NSData* commentsData = ReadPlainFile(comments, kDocumentLimit);
     NSString* commentsText = commentsData ? [[NSString alloc] initWithData:commentsData encoding:NSUTF8StringEncoding]
                                           : nil;
-    BOOL hasComments = commentsText && SPDFMarkdownCommentsParseFile(commentsText).count > 0;
+    NSUInteger commentCount = commentsText ? SPDFMarkdownCommentsParseFile(commentsText).count : 0;
+    BOOL hasComments = commentCount > 0;
     if (hasComments) {
         NSString* commentsName = SPDFMarkdownCommentsFilePath(mainName);
         [entries addObject:[SPDFMacFriendsZipSource file:[NSString stringWithFormat:@"%@/%@", stem, commentsName]
@@ -172,7 +180,9 @@ static NSDictionary* BundleFor(NSDictionary* file, id<SPDFMacFriendsCollectionLo
     NSUInteger beforeFiles = entries.count;
     SPDFMarkdownDocumentModel* model = [[SPDFMarkdownParser new] parseData:document sourceURL:nil error:nil];
     NSMutableOrderedSet<NSString*>* targets = [NSMutableOrderedSet orderedSet];
-    CollectTargets(model.blocks ?: @[], targets);
+    NSMutableSet<NSString*>* pictureTargets = [NSMutableSet set];
+    CollectTargets(model.blocks ?: @[], targets, pictureTargets);
+    NSUInteger pictures = 0, linkedFiles = 0;
     for (NSString* target in targets) {
         NSArray<NSString*>* components = LocalComponents(target);
         NSString* relative = [components componentsJoinedByString:@"/"];
@@ -193,19 +203,21 @@ static NSDictionary* BundleFor(NSDictionary* file, id<SPDFMacFriendsCollectionLo
         [entries addObject:[SPDFMacFriendsZipSource file:[NSString stringWithFormat:@"%@/%@", stem, relative]
                                                     path:sourceFile]];
         total += size;
+        if ([pictureTargets containsObject:target]) pictures++;
+        else linkedFiles++;
     }
     if (!hasComments && entries.count == beforeFiles) return nil; // nothing goes with it: the document as it is
 
+    // The archive only carries them: the friend's helper places its folder, and both chats show the document.
     NSString* scratchFolder = NewScratchFolder(scratch);
-    NSString* zipName = hasComments ? [NSString stringWithFormat:@"%@ (with comments).zip", stem]
-                                    : [stem stringByAppendingPathExtension:@"zip"];
-    NSString* zipPath = [scratchFolder stringByAppendingPathComponent:zipName];
+    NSString* zipPath = [scratchFolder stringByAppendingPathComponent:[stem stringByAppendingPathExtension:@"zip"]];
     if (!scratchFolder || !SPDFMacFriendsZipWrite(zipPath, entries)) {
         if (scratchFolder) rmdir(scratchFolder.fileSystemRepresentation);
         return nil;
     }
     if (hasComments) *bundledComments = comments.stringByStandardizingPath;
-    return @{@"path" : zipPath, @"display_name" : zipName, @"revision" : NSNull.null};
+    return @{@"path" : zipPath, @"display_name" : mainName, @"revision" : NSNull.null,
+             @"document" : @{@"comments" : @(commentCount), @"pictures" : @(pictures), @"files" : @(linkedFiles)}};
 }
 
 NSArray<NSDictionary*>* SPDFMacFriendsFilesWithMarkdownBundles(NSArray<NSDictionary*>* files,

@@ -26,6 +26,13 @@ NS_ASSUME_NONNULL_BEGIN
         BOOL staged = partial && lstat(partial.fileSystemRepresentation, &info) == 0;
         BOOL published = final && lstat(final.fileSystemRepresentation, &info) == 0;
         SZFriendsTransferRecord *record = staged ? SZFriendsTransferRowLoad(db, transferID) : nil;
+        // A document's folder takes its place whole, in one rename (SZFriendsPublishReceivedDocument): once its
+        // document is there, it is the folder, and the archive it came from goes.
+        if (record.document && published) {
+            unlink(partial.fileSystemRepresentation);
+            if (![self markReceived:transferID at:final size:size db:db error:error]) return NO;
+            continue;
+        }
         // A copy across volumes renamed before the crash, its staged file not yet removed: the published file is it.
         if (record && published && SZFriendsStagedFileMatchesAtPath(final, record)) {
             unlink(partial.fileSystemRepresentation);

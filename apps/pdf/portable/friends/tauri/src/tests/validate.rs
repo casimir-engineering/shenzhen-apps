@@ -25,7 +25,11 @@ fn rejects(kind: &str, fields: Value, field: &str) {
 fn every_protocol_intent_example_the_panel_sends_passes_unchanged() {
     let uses_revision = |intent: &Value| {
         let text = intent.to_string();
-        text.contains("\"revision\":{") || intent.get("via_assistant").is_some() || intent["view"] == "message_status"
+        // Plain files only: no revisions and no documents' archives (PROTOCOL.md § Intents, Documents).
+        text.contains("\"revision\":{")
+            || text.contains("\"document\":{")
+            || intent.get("via_assistant").is_some()
+            || intent["view"] == "message_status"
     };
     let mut checked = 0;
     for intent in intents() {

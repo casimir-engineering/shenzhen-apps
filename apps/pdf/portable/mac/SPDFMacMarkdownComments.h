@@ -43,6 +43,9 @@ NS_ASSUME_NONNULL_BEGIN
 
 // "<dir>/<title> - comments.md" for "<dir>/<title>.md".
 FOUNDATION_EXPORT NSString* SPDFMarkdownCommentsFilePath(NSString* documentPath);
+// Posted (object: the document's path) whenever ShenzhenPDF writes or removes a document's comments file: the reader,
+// the assistant, szpdf. Collection then keeps the document with its comments (SPDFMacCollectionIntegration.h).
+FOUNDATION_EXPORT NSNotificationName const SPDFMarkdownCommentsDidChangeNotification;
 // YES for a path that is itself a comments file (so it is never given comments of its own).
 FOUNDATION_EXPORT BOOL SPDFMarkdownIsCommentsFilePath(NSString* path);
 // The file's first line, "# Comments on <document name>".

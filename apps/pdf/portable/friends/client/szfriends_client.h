@@ -308,10 +308,15 @@ typedef struct szfriends_revision { /* PROTOCOL.md file.revision */
     uint64_t size;
 } szfriends_revision;
 
+typedef struct szfriends_document { /* PROTOCOL.md file.document: what a document's archive holds besides it */
+    uint32_t comments, pictures, files;
+} szfriends_document;
+
 typedef struct szfriends_file { /* PROTOCOL.md file object, one per attachment or dropped file */
     const char *path;
     const char *display_name;           /* NULL: omitted (the helper uses the file name) */
     const szfriends_revision *revision; /* NULL: "revision":null, a plain file whose current bytes are meant */
+    const szfriends_document *document; /* NULL: omitted; else the file is this document's archive (files.documents) */
 } szfriends_file;
 
 typedef struct szfriends_crop { /* a square in source pixels */

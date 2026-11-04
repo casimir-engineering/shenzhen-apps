@@ -65,7 +65,7 @@ static void* kSearchHiddenContext = &kSearchHiddenContext;
     state.link = [[SZFriendsHelperLink alloc] initWithHost:state.host];
     state.received = [[SPDFMacFriendsReceivedFiles alloc] initWithStore:SPDFMacCollectionStore.defaultStore
         isDocument:^BOOL(NSString* path) {
-            // A Markdown document sent with its comments comes as a .zip; it goes to Collection once it is opened.
+            // A Markdown document ShenzhenPDF 26.11.3-2 sent as a .zip goes to Collection once it is opened.
             return SPDFReadableDocumentPath(path) && !SPDFMacFriendsIsMarkdownBundle(path);
         }];
     __weak ShenzhenMacDelegate* weakSelf = self;

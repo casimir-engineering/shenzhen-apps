@@ -194,6 +194,10 @@ typedef NS_ENUM(NSInteger, SZFriendsAgainState) {
 @property(nonatomic) double boostBluetoothSeconds;
 @property(nonatomic) double boostDirectSeconds;
 @property(nonatomic, copy, nullable) NSString *localPath;   // received file, once published
+// A document sent with what belongs to it (PROTOCOL.md § Intents, Documents): what its archive holds besides it
+// ({"comments", "pictures", "files"} counts), so its meta line says so; nil for any other file. Received, localPath is
+// the document inside its folder, which Show in Finder reveals.
+@property(nonatomic, copy, nullable) NSDictionary<NSString *, NSNumber *> *document;
 // Where a received file was saved, for its "Saved to {folder}": the default Downloads, else the name of the folder it
 // is in; neither (older files, or kept in the helper's own folder) keeps "Received".
 @property(nonatomic) BOOL savedToDownloads;

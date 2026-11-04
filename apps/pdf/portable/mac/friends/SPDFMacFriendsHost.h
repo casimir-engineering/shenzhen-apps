@@ -33,8 +33,9 @@ NS_ASSUME_NONNULL_BEGIN
 // What a send carries in place of `files` (SZFriendsHost -friendsFilesForSending:): Markdown documents with their
 // comments and pictures (SPDFMacFriendsMarkdownBundle.h). Absent: the files as they are.
 - (NSArray<NSDictionary*>*)friendsBridgeFilesForSending:(NSArray<NSDictionary*>*)files;
-// Open on a received .zip that is such a document: the Markdown file to open instead, unpacked beside it; nil for
-// any other archive, which opens as it always has.
+// Open on a received .zip that ShenzhenPDF 26.11.3-2 sent for such a document: the Markdown file to open instead,
+// unpacked beside it; nil for any other archive, which opens as it always has. (Documents sent now arrive as their
+// folder, and Open opens the document itself.)
 - (nullable NSString*)friendsBridgeMarkdownInReceivedArchive:(NSURL*)archiveURL;
 @end
 

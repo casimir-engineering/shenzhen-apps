@@ -151,9 +151,21 @@ static NSString *SZFriendsAgainKey(NSString *transferID) {
     }
     NSError *error = nil;
     NSString *stateDirectory = self.services.transfers.receivedDirectory.stringByDeletingLastPathComponent;
-    NSString *destination = transfer ? SZFriendsPublishReceivedFile(path, SZFriendsSanitizedFileName(transfer.fileName),
-                                                                    stateDirectory, nil, &error)
-                                     : nil;
+    NSString *destination = nil;
+    if (transfer.document) {
+        // A document's archive, got again: its folder again (PROTOCOL.md § Intents, Documents).
+        BOOL notADocument = NO;
+        destination = SZFriendsPublishReceivedDocument(path, transfer.fileName, stateDirectory, nil, &notADocument,
+                                                       &error);
+        if (notADocument) {
+            transfer.document = nil;
+            transfer.fileName = SZFriendsDocumentArchiveName(transfer.fileName);
+        }
+    }
+    if (destination == nil && transfer != nil && transfer.document == nil) {
+        destination = SZFriendsPublishReceivedFile(path, SZFriendsSanitizedFileName(transfer.fileName), stateDirectory,
+                                                   nil, &error);
+    }
     if (destination == nil ||
         ![store insertCopiedTransfer:transfer path:destination source:SZFriendsReceivedSourceFriend error:&error]) {
         SZFriendsHelperLog(@"could not keep a file got again: %@", error.localizedDescription ?: @"no record");

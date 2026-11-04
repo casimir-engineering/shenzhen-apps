@@ -223,9 +223,14 @@ static SZFriendsOutboxEntry *SZFriendsSyncEntryFromRow(sqlite3_stmt *s) {
         if (held.integerValue > 0) {
             // Here before, its bytes moved or deleted (the caller copies only what is not here): the copy replaces
             // the path that is gone.
+            // A document's archive that came back as an archive after all is that now (PROTOCOL.md § Intents,
+            // Documents).
             return SZFriendsTransferRowUpdate(db, row.transferID, @{@"received_path" : path,
                                                                     @"received_at" : [NSDate date],
-                                                                    @"received_via" : @(source)},
+                                                                    @"received_via" : @(source),
+                                                                    @"file_name" : row.fileName,
+                                                                    @"document" : SZFriendsSQL(
+                                                                        SZFriendsDocumentJSON(row.document))},
                                               inner);
         }
         // A copy from another of the person's computers, received here now (PROTOCOL.md § Views, received).

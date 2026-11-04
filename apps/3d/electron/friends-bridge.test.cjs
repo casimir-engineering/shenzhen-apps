@@ -37,9 +37,11 @@ const rejects = (type, fields, field) =>
   );
 
 test("every PROTOCOL intent example the panel sends passes, as the same JSON", () => {
-  // Shenzhen 3D sends plain files only, and has no assistant: those examples are refused, below.
+  // Shenzhen 3D sends plain files only (no revisions, no documents' archives), and has no assistant: those examples
+  // are refused, below.
   const usesRevision = (fields) =>
     JSON.stringify(fields).includes('"revision":{') ||
+    JSON.stringify(fields).includes('"document":{') ||
     "via_assistant" in fields ||
     fields.view === "message_status";
   let checked = 0;

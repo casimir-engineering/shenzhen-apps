@@ -133,6 +133,11 @@
         [self fail:reply code:@"invalid_field" details:@{@"field" : @"expires_days"} connection:connection];
         return;
     }
+    // A document's archive goes as the archive it is: a browser keeps a .zip, not a folder (PROTOCOL.md § Intents,
+    // Documents).
+    if (file[@"document"] != nil && file[@"document"] != [NSNull null] && SZFriendsJSONIsString(name)) {
+        name = SZFriendsDocumentArchiveName(name);
+    }
     SZFriendsLinkService *links = [self.services linkService];
     if (links == nil || links.linkOrigin == nil || links.linkOrigin() == nil) {
         [self fail:reply code:@"not_allowed" details:nil connection:connection];

@@ -119,6 +119,7 @@ static NSDictionary* ChangeMarkdownComment(NSString* path, NSString* identifier,
     change(comments[index]);
     NSString* text = SPDFMarkdownCommentsFileText(path.lastPathComponent, comments);
     if (![text writeToFile:file atomically:YES encoding:NSUTF8StringEncoding error:error]) return nil;
+    [NSNotificationCenter.defaultCenter postNotificationName:SPDFMarkdownCommentsDidChangeNotification object:path];
     return SPDFMacAgentMarkdownCommentJSON(comments[index], identifier);
 }
 
@@ -333,6 +334,7 @@ NSDictionary* SPDFMacAgentAddMarkdownComment(NSString* path, SPDFMarkdownComment
         if (error) *error = CodedError(@"write-failed", [NSString stringWithFormat:@"Could not write %@.", file.lastPathComponent]);
         return nil;
     }
+    [NSNotificationCenter.defaultCenter postNotificationName:SPDFMarkdownCommentsDidChangeNotification object:path];
     NSArray<NSString*>* ids = MarkdownIDs(ReadMarkdownComments(file));
     NSUInteger index = [ReadMarkdownComments(file) indexOfObjectPassingTest:^BOOL(SPDFMarkdownComment* c, NSUInteger i, BOOL* stop) {
       (void)i; (void)stop;

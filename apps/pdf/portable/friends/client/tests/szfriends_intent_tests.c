@@ -19,10 +19,12 @@ static int64_t num(const cJSON *object, const char *key, int64_t fallback) {
 
 /* Converts the fixture's file objects; strings point into `array`, which outlives the call. */
 static size_t files_from(const cJSON *array, szfriends_file *files, szfriends_revision *revisions, size_t cap) {
+    static szfriends_document documents[8];
     const cJSON *item;
     size_t count = 0;
     cJSON_ArrayForEach(item, array) {
         const cJSON *revision = cJSON_GetObjectItemCaseSensitive(item, "revision");
+        const cJSON *document = cJSON_GetObjectItemCaseSensitive(item, "document");
         if (count == cap) break;
         memset(&files[count], 0, sizeof files[count]);
         files[count].path = str(item, "path");
@@ -35,6 +37,12 @@ static size_t files_from(const cJSON *array, szfriends_file *files, szfriends_re
             revisions[count].sha256 = str(revision, "sha256");
             revisions[count].size = (uint64_t)num(revision, "size", 0);
             files[count].revision = &revisions[count];
+        }
+        if (cJSON_IsObject(document) && count < 8) {
+            documents[count].comments = (uint32_t)num(document, "comments", 0);
+            documents[count].pictures = (uint32_t)num(document, "pictures", 0);
+            documents[count].files = (uint32_t)num(document, "files", 0);
+            files[count].document = &documents[count];
         }
         count++;
     }

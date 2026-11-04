@@ -9,6 +9,7 @@
 #import "SPDFMacCollectionCompanion.h"
 #import "SPDFMacPermanentDeleteIntegration.h"
 #import "SPDFMacMarkdownDelegatePrivate.h"
+#import "SPDFMacMarkdownComments.h"
 #import <objc/runtime.h>
 #import "SPDFMacTabGroups.h"
 #include "spdf_progressive.h"
@@ -139,6 +140,21 @@ static char kCollectionCompanion, kCollectionImported, kCollectionSettingsObserv
         }];
     });
 }
+- (void)collectionCommentsDidChangeForPath:(NSString*)path {
+    if (!path.length) return;
+    SPDFMacCollectionStore* store = SPDFMacCollectionStore.defaultStore;
+    // Only a document Collection keeps (its original, or a working copy opened from it), never one it does not know.
+    if (!store.isEnabled || [store isArchivePath:path] || (![store documentForPath:path] && ![store editableInfoForPath:path]))
+        return;
+    NSString* source = [path copy];
+    [store capturePath:source reason:@"Comments changed" completion:^(NSDictionary* doc, NSError* error) {
+        (void)error;
+        dispatch_async(dispatch_get_main_queue(), ^{
+            if (doc) [self collectionRefreshVersionInfoForDocument:doc];
+            if ([self->_path isEqual:source]) [self collectionRefreshHistory];
+        });
+    }];
+}
 - (BOOL)collectionProtectPath:(NSString*)path operation:(NSString*)operation {
     SPDFMacCollectionStore* store = [SPDFMacCollectionStore defaultStore];
     if ([store isArchivePath:path]) {
@@ -165,6 +181,16 @@ static char kCollectionCompanion, kCollectionImported, kCollectionSettingsObserv
 - (void)installCollectionSettingsMenu:(NSMenu*)menu {
     NSMenuItem* item = [menu addItemWithTitle:@"Collection…" action:@selector(showCollectionManager:) keyEquivalent:@""];
     item.target = self;
+    // Comments written by the reader, the assistant or szpdf: the document is kept with them. Observing touches no store.
+    static char kCommentsObserver;
+    if (!objc_getAssociatedObject(self, &kCommentsObserver)) {
+        __weak ShenzhenMacDelegate* weakSelf = self;
+        id observer = [NSNotificationCenter.defaultCenter addObserverForName:SPDFMarkdownCommentsDidChangeNotification
+            object:nil queue:NSOperationQueue.mainQueue usingBlock:^(NSNotification* note) {
+                if ([note.object isKindOfClass:NSString.class]) [weakSelf collectionCommentsDidChangeForPath:note.object];
+            }];
+        objc_setAssociatedObject(self, &kCommentsObserver, observer, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    }
 }
 - (void)addCollectionItemsToTabMenu:(NSMenu*)menu path:(NSString*)path {
     [menu addItem:NSMenuItem.separatorItem];

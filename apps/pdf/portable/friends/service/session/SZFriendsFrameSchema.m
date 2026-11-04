@@ -61,6 +61,8 @@ static const SZFriendsFieldRule kOffer[] = {
     RULE(SZFriendsFieldViaAssistant, 1, 1, SZFriendsFieldRuleBoolean),
     RULE(SZFriendsFieldTreeRoot, 32, 32, 0),
     RULE(SZFriendsFieldBlockShift, 1, 1, 0),
+    RULE(SZFriendsFieldDocument, 1, kNameMax, 0),
+    RULE(SZFriendsFieldDocumentParts, 12, 12, 0),
 };
 static const SZFriendsFieldRule kOfferReply[] = {
     ID_RULE,

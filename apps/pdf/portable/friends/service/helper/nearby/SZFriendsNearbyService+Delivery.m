@@ -199,9 +199,27 @@ static BOOL SZFriendsIsRequestAnswer(SZFriendsOutboxEntry *entry) {
     }
     *wireID = transfer.transferID;
     NSString *type = transfer.uniformType.length ? transfer.uniformType : transfer.fileName.pathExtension;
+    NSString *name = transfer.fileName;
     NSMutableDictionary *fields = [NSMutableDictionary dictionary];
+    if (transfer.document) {
+        // A document's archive (PROTOCOL.md § Intents, Documents): Name and FileType are the archive's, so a helper
+        // that does not know documents keeps a whole .zip; Document and DocumentParts say what it is.
+        name = SZFriendsDocumentArchiveName(transfer.fileName);
+        type = @"public.zip-archive";
+        fields[@(SZFriendsFieldDocument)] = [transfer.fileName dataUsingEncoding:NSUTF8StringEncoding];
+        uint8_t parts[12];
+        NSArray<NSString *> *keys = @[ @"comments", @"pictures", @"files" ];
+        for (NSUInteger i = 0; i < keys.count; i++) {
+            uint32_t count = (uint32_t)[transfer.document[keys[i]] unsignedIntValue];
+            parts[i * 4] = (uint8_t)(count >> 24);
+            parts[i * 4 + 1] = (uint8_t)(count >> 16);
+            parts[i * 4 + 2] = (uint8_t)(count >> 8);
+            parts[i * 4 + 3] = (uint8_t)count;
+        }
+        fields[@(SZFriendsFieldDocumentParts)] = [NSData dataWithBytes:parts length:sizeof parts];
+    }
     fields[@(SZFriendsFieldID)] = wire;
-    fields[@(SZFriendsFieldName)] = [transfer.fileName dataUsingEncoding:NSUTF8StringEncoding];
+    fields[@(SZFriendsFieldName)] = [name dataUsingEncoding:NSUTF8StringEncoding];
     if (type.length > 0) fields[@(SZFriendsFieldFileType)] = [type dataUsingEncoding:NSUTF8StringEncoding];
     fields[@(SZFriendsFieldSize)] = [SZFriendsFrame fieldWithUInt64:transfer.size tag:SZFriendsFieldSize];
     fields[@(SZFriendsFieldDigest)] = transfer.contentDigest;

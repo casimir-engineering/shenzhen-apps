@@ -4,7 +4,7 @@
 //! never edited; a change appends one, here and in the helper.
 
 /// The schema version this build writes (`SZFriendsStoreSchemaVersion`).
-pub const SCHEMA_VERSION: i64 = 12;
+pub const SCHEMA_VERSION: i64 = 13;
 
 /// One forward-only step: its version, the oldest schema that can still read the store after it (0 leaves
 /// `min_reader_version` alone, as additive steps do), and its statements.
@@ -16,7 +16,7 @@ pub struct Migration {
 }
 
 /// Every migration ever shipped, oldest first.
-pub const SHIPPED: [Migration; 12] = [
+pub const SHIPPED: [Migration; 13] = [
     Migration { version: 1, min_reader_version: 1, sql: V1 },
     Migration { version: 2, min_reader_version: 2, sql: V2 },
     Migration { version: 3, min_reader_version: 0, sql: V3 },
@@ -29,6 +29,7 @@ pub const SHIPPED: [Migration; 12] = [
     Migration { version: 10, min_reader_version: 0, sql: V10 },
     Migration { version: 11, min_reader_version: 0, sql: V11 },
     Migration { version: 12, min_reader_version: 0, sql: V12 },
+    Migration { version: 13, min_reader_version: 0, sql: V13 },
 ];
 
 /// Schema v1 (ADR 0003 § Schema v1). Times are Unix seconds (REAL); keys and secrets are BLOBs whose lengths the
@@ -233,4 +234,11 @@ const V11: &str = r#"ALTER TABLE friends ADD COLUMN left_list_at REAL;
 /// give it again to the friend it went to. Never synced. Additive: a v11 helper ignores both columns.
 const V12: &str = r#"ALTER TABLE transfers ADD COLUMN source_path TEXT;
 ALTER TABLE transfers ADD COLUMN source_mtime_ns INTEGER;
+"#;
+
+/// v13, documents sent with what belongs to them (PROTOCOL.md § Intents, Documents): transfers.document, what a
+/// document's archive holds besides it, as JSON; NULL for every other file. The Mac's helper fills it; this core keeps
+/// the column so the two stores stay alike, and takes such an archive as the .zip it is. Additive: a v12 helper
+/// ignores it.
+const V13: &str = r#"ALTER TABLE transfers ADD COLUMN document TEXT;
 "#;

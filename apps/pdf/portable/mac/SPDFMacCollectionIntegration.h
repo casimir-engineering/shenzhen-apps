@@ -14,6 +14,9 @@
 - (void)collectionDidSavePath:(NSString*)path;
 - (void)collectionClearObservedChangeAtPath:(NSString*)path;
 - (void)collectionDidOpenPath:(NSString*)path;
+// A Markdown document's comments file was written or removed (SPDFMarkdownCommentsDidChangeNotification): Collection
+// keeps the document with its comments now, if it keeps that document.
+- (void)collectionCommentsDidChangeForPath:(NSString*)path;
 - (void)collectionRememberPasswordForPath:(NSString*)path;
 - (void)collectionWillOpenPaths:(NSArray<NSString*>*)paths;
 - (void)collectionRecordUserOpenForPath:(NSString*)path document:(NSDictionary*)document;

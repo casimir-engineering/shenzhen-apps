@@ -100,6 +100,17 @@ static NSError *SZFriendsTransferError(SZFriendsStoreError code, NSString *why) 
                                                      revision:(nullable SZFriendsRevision *)revision
                                                conversationID:(NSString *)conversationID
                                                         error:(NSError **)error {
+    return [self stageOutgoingFileAtPath:path displayName:displayName document:nil revision:revision
+                          conversationID:conversationID error:error];
+}
+
+- (nullable SZFriendsTransferRecord *)stageOutgoingFileAtPath:(NSString *)path
+                                                  displayName:(nullable NSString *)displayName
+                                                     document:(nullable NSDictionary<NSString *, NSNumber *> *)
+                                                                  document
+                                                     revision:(nullable SZFriendsRevision *)revision
+                                               conversationID:(NSString *)conversationID
+                                                        error:(NSError **)error {
     if (!SZFriendsStoreIsValidIdentifier(conversationID)) {
         SZFriendsFail(error, SZFriendsTransferError(SZFriendsStoreErrorInvalid, @"bad conversation id"));
         return nil;
@@ -132,6 +143,14 @@ static NSError *SZFriendsTransferError(SZFriendsStoreError code, NSString *why) 
     record.state = SZFriendsTransferStateQueued;
     record.fileName = SZFriendsSanitizedFileName(displayName.length ? displayName : path.lastPathComponent);
     record.uniformType = SZFriendsUniformTypeForName(record.fileName);
+    // A document's archive must be one, of that document, for the friend's helper to place it; one that is not goes
+    // as the archive it is, under the archive's name, rather than not at all.
+    if (document && !SZFriendsDocumentArchiveIsValid(snapshot, record.fileName)) {
+        record.fileName = SZFriendsSanitizedFileName(SZFriendsDocumentArchiveName(record.fileName));
+        record.uniformType = SZFriendsUniformTypeForName(record.fileName);
+        document = nil;
+    }
+    record.document = document;
     record.size = size;
     record.contentDigest = digest;
     record.stagedPath = snapshot;
@@ -181,6 +200,27 @@ static NSError *SZFriendsTransferError(SZFriendsStoreError code, NSString *why) 
                                                   contentDigest:(NSData *)contentDigest
                                                          sentAt:(NSDate *)sentAt
                                                           error:(NSError **)error {
+    return [self recordIncomingOfferWithID:transferID conversationID:conversationID fileName:proposedName
+                              documentName:nil document:nil uniformType:uniformType size:size
+                             contentDigest:contentDigest sentAt:sentAt error:error];
+}
+
+- (nullable SZFriendsTransferRecord *)recordIncomingOfferWithID:(NSString *)transferID
+                                                 conversationID:(NSString *)conversationID
+                                                       fileName:(NSString *)proposedName
+                                                   documentName:(nullable NSString *)documentName
+                                                       document:(nullable NSDictionary<NSString *, NSNumber *> *)document
+                                                    uniformType:(nullable NSString *)uniformType
+                                                           size:(uint64_t)size
+                                                  contentDigest:(NSData *)contentDigest
+                                                         sentAt:(NSDate *)sentAt
+                                                          error:(NSError **)error {
+    // A document's own name must be a plain one with an extension, the name it has inside its archive: anything else
+    // is an ordinary file, as an older helper would take it.
+    BOOL isDocument = documentName.length && document &&
+                      [SZFriendsSanitizedFileName(documentName) isEqualToString:documentName] &&
+                      documentName.pathExtension.length && documentName.stringByDeletingPathExtension.length;
+    if (isDocument) uniformType = SZFriendsUniformTypeForName(documentName);
     __block SZFriendsTransferRecord *result = nil;
     BOOL ok = [_store performWrite:^BOOL(SZFriendsStoreDB *db, NSError **inner) {
         if (!SZFriendsStoreIsValidIdentifier(transferID) || uniformType.length > 255) {
@@ -220,7 +260,8 @@ static NSError *SZFriendsTransferError(SZFriendsStoreError code, NSString *why) 
         record.transferID = transferID;
         record.conversationID = conversationID;
         record.state = SZFriendsTransferStateWaitingForYou;
-        record.fileName = SZFriendsSanitizedFileName(proposedName);
+        record.fileName = SZFriendsSanitizedFileName(isDocument ? documentName : proposedName);
+        record.document = isDocument ? document : nil;
         record.uniformType = uniformType;
         record.size = size;
         record.contentDigest = contentDigest;

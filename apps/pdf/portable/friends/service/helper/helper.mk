@@ -42,7 +42,8 @@ FRIENDS_HELPER_RESOURCE_SOURCES = $(foreach r,$(FRIENDS_HELPER_BUNDLE_RESOURCES)
 FRIENDS_HELPER_CORE_NAMES := SZFriendsStatePaths SZFriendsInstanceLock SZFriendsHelperPolicy SZFriendsPeerCheck \
 	SZFriendsHelperSupport SZFriendsClientContext SZFriendsIPCConnection SZFriendsIPCServer SZFriendsHelperLifecycle
 # The dispatch layer and startup, which reach every other area through its header.
-FRIENDS_HELPER_DISPATCH_NAMES := SZFriendsHelperServices SZFriendsHelperFacts SZFriendsSubscriptions \
+FRIENDS_HELPER_DISPATCH_NAMES := SZFriendsHelperServices SZFriendsHelperFacts SZFriendsHelperCapabilities \
+	SZFriendsSubscriptions \
 	SZFriendsIntentRouter SZFriendsIntentRouter+Profile SZFriendsIntentRouter+People SZFriendsIntentRouter+Content \
 	SZFriendsIntentRouter+History \
 	SZFriendsIntentRouter+Cancel SZFriendsIntentRouter+Mentions SZFriendsIntentRouter+Links SZFriendsHelperLinks \

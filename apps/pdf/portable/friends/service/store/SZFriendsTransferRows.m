@@ -10,7 +10,7 @@ static NSString *const SZFriendsTransferColumns =
     @"transfer_id, conversation_id, outgoing, state, file_name, uniform_type, size, digest, verified_bytes, "
     @"accepted_automatically, asked_low_disk, staged_path, received_path, revision_source, revision_document_id, "
     @"revision_id, revision_label, revision_sha256, revision_size, bytes_per_second, failure_reason, created_at, "
-    @"source_path, source_mtime_ns";
+    @"source_path, source_mtime_ns, document";
 
 static SZFriendsTransferRecord *SZFriendsTransferFromRow(sqlite3_stmt *s) {
     SZFriendsTransferRecord *record = [[SZFriendsTransferRecord alloc] init];
@@ -43,6 +43,7 @@ static SZFriendsTransferRecord *SZFriendsTransferFromRow(sqlite3_stmt *s) {
     record.createdAt = SZFriendsColumnDate(s, 21);
     record.sourcePath = SZFriendsColumnText(s, 22);
     record.sourceModifiedNs = SZFriendsColumnInt(s, 23);
+    record.document = SZFriendsDocumentFromJSON(SZFriendsColumnText(s, 24));
     return record;
 }
 
@@ -82,7 +83,7 @@ BOOL SZFriendsTransferRowInsert(SZFriendsStoreDB *db, SZFriendsTransferRecord *r
     SZFriendsRevision *revision = record.revision;
     NSDate *now = [NSDate date];
     NSString *sql = [NSString stringWithFormat:@"INSERT INTO transfers (%@, partial_path, updated_at) VALUES "
-                                               @"(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                                               @"(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                                                SZFriendsTransferColumns];
     NSArray *binds = @[
         record.transferID, record.conversationID, @(record.outgoing), @(record.state), record.fileName,
@@ -92,7 +93,8 @@ BOOL SZFriendsTransferRowInsert(SZFriendsStoreDB *db, SZFriendsTransferRecord *r
         SZFriendsSQL(revision.revisionID), SZFriendsSQL(revision.label), SZFriendsSQL(revision.sha256),
         revision ? @(revision.size) : [NSNull null], @(record.measuredBytesPerSecond),
         SZFriendsSQL(record.failureReason), record.createdAt ?: now, SZFriendsSQL(record.sourcePath),
-        record.sourcePath ? @(record.sourceModifiedNs) : [NSNull null], SZFriendsSQL(partialPath), now
+        record.sourcePath ? @(record.sourceModifiedNs) : [NSNull null], SZFriendsSQL(SZFriendsDocumentJSON(record.document)),
+        SZFriendsSQL(partialPath), now
     ];
     return [db run:sql binds:binds row:nil error:error];
 }
@@ -126,7 +128,7 @@ BOOL SZFriendsTransferRowUpdate(SZFriendsStoreDB *db, NSString *transferID, NSDi
         allowed = [NSSet setWithArray:@[
             @"verified_bytes", @"accepted_automatically", @"asked_low_disk", @"staged_path", @"partial_path",
             @"final_path", @"publishing", @"received_path", @"bytes_per_second", @"failure_reason", @"received_at",
-            @"received_via"
+            @"received_via", @"file_name", @"document"
         ]];
     });
     NSMutableArray *assignments = [NSMutableArray array];

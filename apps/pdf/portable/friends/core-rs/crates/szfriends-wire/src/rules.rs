@@ -95,6 +95,8 @@ const OFFER: &[FieldRule] = &[
     rule(tag::VIA_ASSISTANT, 1, 1, BOOLEAN),
     rule(tag::TREE_ROOT, 32, 32, 0),
     rule(tag::BLOCK_SHIFT, 1, 1, 0),
+    rule(tag::DOCUMENT, 1, NAME_MAX, 0),
+    rule(tag::DOCUMENT_PARTS, 12, 12, 0),
 ];
 const OFFER_REPLY: &[FieldRule] =
     &[ID, rule(tag::ACCEPT, 1, 1, REQUIRED | BOOLEAN), rule(tag::OFFSET, 8, 8, 0), rule(tag::BLOCKS, 1, 1, BOOLEAN)];

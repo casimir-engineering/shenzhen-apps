@@ -19,6 +19,7 @@
 #import <Foundation/Foundation.h>
 
 #import "service/transfer/SZFriendsTransferBlocks.h"
+#import "service/store/SZFriendsReceivedDocument.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -91,6 +92,11 @@ SZFriendsTransferState SZFriendsTransferNextState(BOOL outgoing, SZFriendsTransf
 // it is unchanged this computer still holds the file's bytes after the snapshot is gone (ADR 0016). Never synced.
 @property(nonatomic, copy, nullable) NSString *sourcePath;
 @property(nonatomic) int64_t sourceModifiedNs;
+// A document sent with what belongs to it (PROTOCOL.md § Intents, Documents): what its archive holds besides it,
+// {"comments", "pictures", "files"} counts; nil for any other file. The file is then that archive, fileName is the
+// document's own name ("Report.md"), and a receiving helper places the document's folder ("Report/") where received
+// files go, so receivedPath is the document inside it.
+@property(nonatomic, copy, nullable) NSDictionary<NSString *, NSNumber *> *document;
 @end
 
 // A file's modification time in nanoseconds since 1970, or 0 when it cannot be read.
@@ -252,6 +258,15 @@ typedef NS_ENUM(NSInteger, SZFriendsReceivedSource) {
                                                      revision:(nullable SZFriendsRevision *)revision
                                                conversationID:(NSString *)conversationID
                                                         error:(NSError **)error;
+// The same for a document's archive (PROTOCOL.md § Intents, Documents): `document` holds its counts and
+// `displayName` is the document's name. A snapshot that is not that document's archive goes as an ordinary file under
+// the archive's name ("Report.zip").
+- (nullable SZFriendsTransferRecord *)stageOutgoingFileAtPath:(NSString *)path
+                                                  displayName:(nullable NSString *)displayName
+                                                     document:(nullable NSDictionary<NSString *, NSNumber *> *)document
+                                                     revision:(nullable SZFriendsRevision *)revision
+                                               conversationID:(NSString *)conversationID
+                                                        error:(NSError **)error;
 // Drops a staged transfer that was never offered (no history item refers to it) with its snapshot: one bad file in
 // an intent sends none (PROTOCOL.md § Intents, Files). Stale once offered; then Cancel applies.
 - (BOOL)discardStagedTransfer:(NSString *)transferID error:(NSError **)error;
@@ -264,6 +279,19 @@ typedef NS_ENUM(NSInteger, SZFriendsReceivedSource) {
 - (nullable SZFriendsTransferRecord *)recordIncomingOfferWithID:(NSString *)transferID
                                                  conversationID:(NSString *)conversationID
                                                        fileName:(NSString *)proposedName
+                                                    uniformType:(nullable NSString *)uniformType
+                                                           size:(uint64_t)size
+                                                  contentDigest:(NSData *)contentDigest
+                                                         sentAt:(NSDate *)sentAt
+                                                          error:(NSError **)error;
+// The same for an OFFER that marks a document's archive (PROTOCOL.md § Intents, Documents): `documentName` from its
+// Document field, `document` its counts. The record shows the document's name; a name that is not a plain one
+// ("../x", "", no extension) records the archive as an ordinary file under `proposedName`, as an older helper would.
+- (nullable SZFriendsTransferRecord *)recordIncomingOfferWithID:(NSString *)transferID
+                                                 conversationID:(NSString *)conversationID
+                                                       fileName:(NSString *)proposedName
+                                                   documentName:(nullable NSString *)documentName
+                                                       document:(nullable NSDictionary<NSString *, NSNumber *> *)document
                                                     uniformType:(nullable NSString *)uniformType
                                                            size:(uint64_t)size
                                                   contentDigest:(NSData *)contentDigest

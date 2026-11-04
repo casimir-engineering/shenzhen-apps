@@ -328,8 +328,9 @@ SZFriendsSyncFileRecord *SZFriendsSyncFileFromTransfer(SZFriendsTransferRecord *
     file.itemID = itemID;
     file.outgoing = transfer.outgoing;
     file.state = transfer.state;
-    file.fileName = transfer.fileName;
-    file.uniformType = transfer.uniformType;
+    // A document's archive is the archive to the person's other computers, whose copy is its bytes as they are.
+    file.fileName = transfer.document ? SZFriendsDocumentArchiveName(transfer.fileName) : transfer.fileName;
+    file.uniformType = transfer.document ? @"public.zip-archive" : transfer.uniformType;
     file.size = transfer.size;
     file.contentDigest = transfer.contentDigest;
     file.createdAt = transfer.createdAt ?: [NSDate dateWithTimeIntervalSince1970:0];

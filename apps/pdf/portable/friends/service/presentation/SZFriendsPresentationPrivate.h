@@ -207,6 +207,12 @@ typedef NS_ENUM(NSInteger, SZFriendsShownRoute) {
 @interface SZFriendsStrings (SZFriendsMessages)
 - (nullable NSString *)errorMessageForCode:(NSString *)code details:(NSDictionary<NSString *, id> *)details;
 - (NSString *)addByIDMessageForID:(NSString *)friendsID;
+// A document sent with what belongs to it (PROTOCOL.md § Intents, Documents): what its archive holds besides it, as
+// a phrase ("comments and 3 pictures", nil when nothing); its transfer's meta line ("With comments and 3 pictures ·
+// 24 KB", else "{kind} · {size}"); and its kind as said aloud ("Markdown with comments and 3 pictures").
+- (nullable NSString *)partsOfDocument:(nullable NSDictionary<NSString *, NSNumber *> *)document;
+- (NSString *)metaLabelForKind:(NSString *)kind size:(NSString *)size document:(nullable NSDictionary *)document;
+- (NSString *)spokenKind:(NSString *)kind document:(nullable NSDictionary *)document;
 @end
 
 // A message's text as one person sees it, its mentions resolved against the builder's directory

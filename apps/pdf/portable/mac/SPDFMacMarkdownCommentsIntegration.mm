@@ -169,6 +169,7 @@ static char kStatesKey, kContextLocationKey;
     }
     state.fileStamp = ModificationDate(file);
     if (!ok) [self showError:@"Could not save comments" detail:error.localizedDescription ?: file];
+    if (ok) [NSNotificationCenter.defaultCenter postNotificationName:SPDFMarkdownCommentsDidChangeNotification object:path];
     return ok;
 }
 

@@ -52,19 +52,22 @@ int main(void) {
             @[@"inline code", @"`![Example](private.txt)` and `<img src='private.txt'>`\n"],
             @[@"HTML comment block", @"<!--\n![Example](private.txt)\n<img src='private.txt'>\n-->\n"],
             @[@"inline HTML comment", @"Before <!-- <img src='private.txt'> --> after\n"],
-            @[@"escaped image syntax", @"\\![Example](private.txt)\n\\![Example][target]\n\n[target]: private.txt\n"],
             @[@"unused definition", @"[unused]: private.txt\n\nOrdinary prose.\n"],
             @[@"literal reference syntax", @"`![secret]`\n\n[secret]: private.txt\n"],
             @[@"fenced reference definition", @"![secret]\n\n```\n[secret]: private.txt\n```\n"],
             @[@"undefined image references", @"![secret][missing]\n![missing][]\n![missing]\n"],
             @[@"front matter", @"---\nexample: '![Example](private.txt)'\n---\nBody\n"],
-            @[@"ordinary links", @"[Document](private.txt) and <a href='private.txt'>Document</a>\n"],
             @[@"arbitrary HTML attributes", @"<div src='private.txt'>Text</div>\n"],
             @[@"suppressed HTML", @"<script><img src='private.txt'></script>\n"],
             @[@"HTML preformatted code", @"<pre><code>&lt;img src='private.txt'&gt;</code></pre>\n"]
         ];
         for (NSArray<NSString*>* fixture in literals)
             ExpectReferences(fixture[0], path, fixture[1], @[]);
+        // A local file the document links to is kept with it, as its pictures are (an escaped "!" is a plain link).
+        ExpectReferences(@"escaped image syntax", path,
+            @"\\![Example](private.txt)\n\\![Example][target]\n\n[target]: private.txt\n", @[@"private.txt"]);
+        ExpectReferences(@"ordinary links", path,
+            @"[Document](private.txt) and <a href='private.txt'>Document</a>\n", @[@"private.txt"]);
 
         ExpectReferences(@"all real image reference forms", path,
             @"![Direct](direct.svg)\n![Full][full]\n![collapsed][]\n![shortcut]\n\n"

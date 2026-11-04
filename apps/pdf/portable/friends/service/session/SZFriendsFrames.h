@@ -136,6 +136,10 @@ typedef NS_ENUM(uint8_t, SZFriendsFieldTag) {
     SZFriendsFieldPassphrase = 51, // 8 to 63 bytes: its one-time passphrase
     SZFriendsFieldAddress = 52,    // 4 or 16 bytes: the host's address on the link
     SZFriendsFieldPort = 53,       // u16be: its lane listener
+    // OFFER of a document's archive (PROTOCOL.md § Intents, Documents). Document marks it: the document's own name
+    // ("Report.md"), while Name stays the archive's ("Report.zip") for a helper that does not know documents.
+    SZFriendsFieldDocument = 54,      // UTF-8, the document's name
+    SZFriendsFieldDocumentParts = 55, // 12 bytes: u32be comments, pictures and other files the archive holds
 };
 
 // One decoded frame: its type and raw field values. Typed accessors return nil / NO for an absent or

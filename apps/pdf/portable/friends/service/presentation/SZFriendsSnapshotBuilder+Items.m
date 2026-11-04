@@ -211,7 +211,7 @@ static BOOL EndsSentence(NSString *text) {
     NSMutableDictionary *show = [self action:@"show_file"
                                        label:[s text:@"action.show_in" values:@{@"app" : self.audience.revealIn}]
                                        style:@"link"];
-    show[@"path"] = item.localPath;
+    show[@"path"] = item.document && !item.outgoing ? item.localPath.stringByDeletingLastPathComponent : item.localPath;
     [actions addObject:show];
     return actions;
 }
@@ -341,7 +341,7 @@ static BOOL EndsSentence(NSString *text) {
         @"first" : [self firstNameForPerson:person],
         @"sender" : [self titleForPerson:person],
         @"file" : name,
-        @"kind" : kindLabel,
+        @"kind" : [s spokenKind:kindLabel document:item.document],
         @"size" : size,
         @"percent" : [NSString stringWithFormat:@"%ld", percent],
         @"auto" : automatic ? [@", " stringByAppendingString:[s text:@"transfer.auto"]] : @"",
@@ -392,7 +392,7 @@ static BOOL EndsSentence(NSString *text) {
     if (assistant) said[@"size"] = [NSString stringWithFormat:@"%@, %@", size, [s spokenFragment:assistant]];
     NSString *spoken = [s text:spokenKey values:said];
 
-    NSString *meta = [s text:@"transfer.meta" values:@{@"kind" : kindLabel, @"size" : size}];
+    NSString *meta = [s metaLabelForKind:kindLabel size:size document:item.document];
     if (automatic)
         meta = [s text:@"preview.with_status" values:@{@"text" : meta, @"status" : [s text:@"transfer.auto"]}];
     id progress = [NSNull null];

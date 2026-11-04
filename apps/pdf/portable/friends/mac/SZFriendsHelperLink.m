@@ -241,10 +241,14 @@ void SZFriendsSpawnHelperInBackground(id<SZFriendsHost> host); // SZFriendsClien
     if (reply) _replies[frameID] = [reply copy];
 }
 
-// Every route that sends files ends here, so the host sees them all (SZFriendsHost -friendsFilesForSending:).
+// Every route that sends files ends here, so the host sees them all (SZFriendsHost -friendsFilesForSending:). Only a
+// helper that takes documents (files.documents) is handed what the host makes of them; any other gets the files.
 - (nullable NSDictionary *)fieldsWithHostFiles:(nullable NSDictionary *)fields forIntent:(NSString *)type {
     id<SZFriendsHost> host = _host;
-    if (!fields || ![host respondsToSelector:@selector(friendsFilesForSending:)]) return fields;
+    if (!fields || ![host respondsToSelector:@selector(friendsFilesForSending:)] ||
+        ![self.helperCapabilities containsObject:@"files.documents"]) {
+        return fields;
+    }
     NSString *key = [type isEqualToString:@"send_files"]           ? @"files"
                     : [type isEqualToString:@"send_message"]       ? @"attachments"
                     : [type isEqualToString:@"make_download_link"] ? @"file"

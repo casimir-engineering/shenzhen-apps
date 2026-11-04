@@ -76,6 +76,12 @@ static inline cJSON *file_object(const szfriends_file *file) {
     } else {
         cJSON_AddNullToObject(object, "revision");
     }
+    if (file->document) {
+        cJSON *document = cJSON_AddObjectToObject(object, "document");
+        cJSON_AddNumberToObject(document, "comments", file->document->comments);
+        cJSON_AddNumberToObject(document, "pictures", file->document->pictures);
+        cJSON_AddNumberToObject(document, "files", file->document->files);
+    }
     return object;
 }
 

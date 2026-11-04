@@ -90,17 +90,17 @@ fn the_store_records_its_identity_and_refuses_another() {
 fn a_newer_schema_is_left_alone_and_a_failed_migration_keeps_the_backup() {
     let scratch = Scratch::new("versions");
     drop(Store::open(scratch.state()).unwrap());
-    let newer = SHIPPED.iter().copied().chain([Migration { version: 13, min_reader_version: 13, sql: "SELECT 1" }]);
+    let newer = SHIPPED.iter().copied().chain([Migration { version: 14, min_reader_version: 14, sql: "SELECT 1" }]);
     let options = StoreOptions { migrations: Some(newer.collect()), ..StoreOptions::default() };
     drop(Store::open_with(scratch.state(), options).unwrap());
-    assert!(matches!(Store::open(scratch.state()), Err(StoreError::NewerSchema { needs: 13, reads: 12 })));
+    assert!(matches!(Store::open(scratch.state()), Err(StoreError::NewerSchema { needs: 14, reads: 13 })));
     let other = Scratch::new("failing");
     drop(Store::open(other.state()).unwrap());
-    let broken = SHIPPED.iter().copied().chain([Migration { version: 13, min_reader_version: 0, sql: "NOT SQL" }]);
+    let broken = SHIPPED.iter().copied().chain([Migration { version: 14, min_reader_version: 0, sql: "NOT SQL" }]);
     let options = StoreOptions { migrations: Some(broken.collect()), ..StoreOptions::default() };
     assert!(matches!(Store::open_with(other.state(), options), Err(StoreError::MigrationFailed(_))));
-    assert!(other.state().join("friends.sqlite.before-v13").exists());
-    assert_eq!(Store::open(other.state()).unwrap().schema_version(), 12);
+    assert!(other.state().join("friends.sqlite.before-v14").exists());
+    assert_eq!(Store::open(other.state()).unwrap().schema_version(), 13);
 }
 
 #[test]

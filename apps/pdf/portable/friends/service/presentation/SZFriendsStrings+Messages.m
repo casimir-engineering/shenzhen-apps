@@ -90,4 +90,30 @@
     return [self text:@"add_by_id.sent" values:@{@"id" : [self displayID:friendsID]}];
 }
 
+- (nullable NSString *)partsOfDocument:(nullable NSDictionary<NSString *, NSNumber *> *)document {
+    NSMutableArray<NSString *> *parts = [NSMutableArray array];
+    if ([document[@"comments"] integerValue] > 0) [parts addObject:[self text:@"document.part.comments"]];
+    NSInteger pictures = [document[@"pictures"] integerValue], files = [document[@"files"] integerValue];
+    if (pictures > 0) [parts addObject:[self text:@"document.part.pictures" count:pictures values:nil]];
+    if (files > 0) [parts addObject:[self text:@"document.part.files" count:files values:nil]];
+    switch (parts.count) {
+    case 0: return nil;
+    case 1: return parts[0];
+    case 2: return [self text:@"document.parts.two" values:@{@"first" : parts[0], @"second" : parts[1]}];
+    default:
+        return [self text:@"document.parts.three" values:@{@"first" : parts[0], @"second" : parts[1], @"third" : parts[2]}];
+    }
+}
+
+- (NSString *)metaLabelForKind:(NSString *)kind size:(NSString *)size document:(nullable NSDictionary *)document {
+    NSString *parts = [self partsOfDocument:document];
+    return parts ? [self text:@"transfer.meta.document" values:@{@"parts" : parts, @"size" : size}]
+                 : [self text:@"transfer.meta" values:@{@"kind" : kind, @"size" : size}];
+}
+
+- (NSString *)spokenKind:(NSString *)kind document:(nullable NSDictionary *)document {
+    NSString *parts = [self partsOfDocument:document];
+    return parts ? [self text:@"transfer.kind.document" values:@{@"kind" : kind, @"parts" : parts}] : kind;
+}
+
 @end

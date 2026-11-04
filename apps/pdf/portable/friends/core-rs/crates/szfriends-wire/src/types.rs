@@ -218,6 +218,11 @@ pub mod tag {
     pub const PASSPHRASE: u8 = 51;
     pub const ADDRESS: u8 = 52;
     pub const PORT: u8 = 53;
+    /// OFFER of a document's archive (PROTOCOL.md § Intents, Documents): the document's own name, and what the
+    /// archive holds besides it (u32be comments, pictures, other files). This core takes such an archive as the .zip
+    /// its Name says, as a helper that does not know documents does.
+    pub const DOCUMENT: u8 = 54;
+    pub const DOCUMENT_PARTS: u8 = 55;
 
     /// The tags only a fast-transfers session carries: never sent to a peer that did not negotiate them.
     pub fn is_fast_transfers(tag: u8) -> bool {

@@ -165,6 +165,12 @@ static BOOL InstallTextIndex(NSDictionary* index, NSMutableDictionary* version, 
             if (![SPDFCollectionHashURL([self blobURL:asset[@"hash"]],error) isEqual:asset[@"hash"]]) {
                 if(error && !*error)*error=SPDFCollectionError(3,@"A retained asset failed its integrity check."); return nil;
             }
+        // Kept by these rules now, though nothing more came with it (SPDFCollectionAssetsProfile).
+        if (SPDFCollectionIsMarkdownPath(path) && ![last[@"assetsProfile"] isEqual:SPDFCollectionAssetsProfile]) {
+            NSMutableDictionary* updated=[last mutableCopy]; updated[@"assetsProfile"]=SPDFCollectionAssetsProfile;
+            NSMutableArray* versions=[doc[@"versions"] mutableCopy];
+            versions[versions.count-1]=updated; doc[@"versions"]=versions; last=updated;
+        }
         if (NeedsSourceIndex(doc,path)) {
             NSDictionary* index=TextIndex(bytes,path,dependencies[@"entries"],self.rootURL);
             struct stat current={};
@@ -210,6 +216,7 @@ static BOOL InstallTextIndex(NSDictionary* index, NSMutableDictionary* version, 
         @"filename":path.lastPathComponent,@"capturedAt":now,@"modifiedAt":@((double)after.st_mtimespec.tv_sec+after.st_mtimespec.tv_nsec/1e9),
         @"reason":reason ?: @"Opened",@"keep":@NO,@"assets":assets,@"assetWarnings":dependencies[@"warnings"]} mutableCopy];
     version[@"encrypted"]=index[@"encrypted"];
+    if (SPDFCollectionIsMarkdownPath(path)) version[@"assetsProfile"]=SPDFCollectionAssetsProfile;
     if (!InstallTextIndex(index,version,path,self.rootURL,error)) return nil;
     if (!RelinkSourceStillLost(relinkedSource,error)) return nil;
     if (!doc) {

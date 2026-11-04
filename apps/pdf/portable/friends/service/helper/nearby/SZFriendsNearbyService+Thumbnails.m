@@ -27,10 +27,23 @@ NSString *const SZFriendsThumbnailAckPrefix = @"thumb:";
         if (transfer == nil || !transfer.outgoing || transfer.stagedPath.length == 0) continue;
         // The snapshot is stored without an extension; the name the friend sees says what it is.
         NSString *type = transfer.uniformType ?: SZFriendsTypeIdentifierForFileName(transfer.fileName);
-        [[self thumbnails] makeThumbnailOfFileAtPath:transfer.stagedPath
+        // A document's archive shows the document (PROTOCOL.md § Intents, Documents), taken out of it for the preview.
+        NSString *source = transfer.stagedPath, *copy = nil;
+        if (transfer.document) {
+            copy = SZFriendsDocumentCopyOut(transfer.stagedPath, transfer.fileName,
+                                            self.services.transfers.thumbnailDirectory);
+            if (copy == nil) continue;
+            source = copy;
+        }
+        [[self thumbnails] makeThumbnailOfFileAtPath:source
                                       typeIdentifier:type
                                                queue:self.queue
                                           completion:^(SZFriendsThumbnail *thumbnail) {
+                                              if (copy) {
+                                                  [NSFileManager.defaultManager
+                                                      removeItemAtPath:copy.stringByDeletingLastPathComponent
+                                                                 error:NULL];
+                                              }
                                               [weakSelf keepOutgoingThumbnail:thumbnail forTransfer:transferID];
                                           }];
     }

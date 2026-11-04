@@ -268,6 +268,7 @@ Lowercase dotted strings. Unknown ones are ignored on both sides.
 | `online` | Online friends (M2): the helper reaches friends over the Internet, and its words say so (§ Shared objects, Route, online). Absent in M1: no snapshot shows an Online or Connecting state or Internet wording |
 | `conversation.preview` | The `conversation_preview` view is implemented (§ Views): a host can show a conversation the moment the person opens it, from a snapshot taken before, without marking anything read |
 | `notifications` | This helper posts system notifications (§ Notifications): `set_focus`, `set_notifications`, `allow_notifications`, the settings' `notifications` and the list's `notifications` banner. Without it those intents fail with `unknown_intent` |
+| `files.documents` | A file object may carry `document` (§ Intents, Documents): a document sent as its archive shows as the document on both sides, and arrives as the document's folder. Without it a host sends its documents' files as they are |
 
 An M1 helper announces `nearby.network`, `nearby.bluetooth`, `host.checkin`, `messages.status`, `messages.cancel` and
 `mentions`, and `received.folder` once it publishes received files to the chosen folder (`fixtures/frames/welcome.json`).
@@ -365,6 +366,27 @@ that moment are what the person meant. Folders fail with `folder_not_supported`;
 dragging, before any intent. All files of one intent are checked before any is offered: one bad file sends none.
 `send_message` with an empty `text` and attachments offers only the files, as `send_files` does: no message item is
 written or sent, so the friend sees no empty message above them, and `result.message_id` is `""`.
+
+**Documents.** With the helper capability `files.documents`, a host may send a document together with what belongs to
+it (ShenzhenPDF: a Markdown document, its comments file and the pictures and files it uses) as one archive: a file
+object whose `path` is the archive, whose `display_name` is the document's own name ("Report.md") and which carries
+`document`, the counts of what the archive holds besides the document (`comments`, `pictures`, `files`, whole numbers
+from 0 to 10,000, absent meaning 0). The archive is a stored .zip (no compression, no encryption, no links) whose
+every entry is in one folder named after the document ("Report/"), holding the document ("Report/Report.md") and the
+rest at the relative paths the document uses; no name is absolute, hidden or has "." or ".." components. The helper
+checks the snapshot is such an archive of that document; one that is not goes as an ordinary file under the archive's
+name ("Report.zip") rather than failing the send. `make_download_link` takes such a file as the archive it is ("Report.zip"):
+a browser keeps a file, not a folder.
+
+Both conversations show the document: the transfer's `file.name` is "Report.md", its `kind_label` the document's, and
+its `meta_label` says what comes with it ("With comments and 3 pictures · 24 KB"). The friend's helper, once the bytes
+are verified, places the document's folder where received files go, "Report" or "Report (2)" when that name is taken,
+never replacing anything: unpacked out of sight beside its final place, every file and folder quarantined, then renamed
+into place whole. The received item's `file.path` and Open (`open_file`) are the document inside that folder, Show in
+Finder (`show_file`) the folder itself, and the `received` view lists the document. An archive that turns out not to
+be one is kept whole under the archive's name, and the item then shows that name. On the wire Name stays the archive's
+and Document says what it is (ADR 0001, amendment 10): a helper without `files.documents` keeps "Report.zip", whole,
+and shows that name; so do the person's other computers, which copy the archive's bytes (§ Devices).
 
 **Idempotency.** `client_token` (16 to 64 characters, random per press of Send) makes `send_message` and
 `send_files` safe to retry after a reconnect: the helper returns the earlier result instead of sending twice.
@@ -2364,6 +2386,13 @@ data.messages[].status: @message_status
 path: string
 display_name?: string
 revision?: @revision|null
+document?: @document|null      # with files.documents: the file is this document's archive (§ Intents, Documents)
+```
+
+```schema type.document
+comments?: integer
+pictures?: integer
+files?: integer
 ```
 
 ```schema type.revision

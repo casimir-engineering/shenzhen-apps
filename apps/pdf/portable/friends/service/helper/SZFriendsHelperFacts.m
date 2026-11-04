@@ -58,12 +58,16 @@ SZFriendsItemFacts *SZFriendsItemFactsFromRecord(SZFriendsItemRecord *record, SZ
             facts.askedBecauseDiskLow = transfer.askedBecauseDiskLow;
             facts.bytesPerSecond = transfer.measuredBytesPerSecond;
             facts.localPath = transfer.receivedPath;
+            facts.document = transfer.document;
+            // A received document is in its own folder: where it was saved is where that folder is.
+            NSString *saved = transfer.document && !facts.outgoing
+                                  ? transfer.receivedPath.stringByDeletingLastPathComponent
+                                  : transfer.receivedPath;
             if (transfer.receivedPath.length && !facts.outgoing) {
-                switch (SZFriendsSavedPlaceOfFile(services.paths.stateDirectory, transfer.receivedPath)) {
+                switch (SZFriendsSavedPlaceOfFile(services.paths.stateDirectory, saved)) {
                     case SZFriendsSavedPlaceDownloads: facts.savedToDownloads = YES; break;
                     case SZFriendsSavedPlaceFolder:
-                        facts.savedFolderName =
-                            transfer.receivedPath.stringByDeletingLastPathComponent.lastPathComponent;
+                        facts.savedFolderName = saved.stringByDeletingLastPathComponent.lastPathComponent;
                         break;
                     case SZFriendsSavedPlaceKept: break;
                 }
@@ -71,7 +75,10 @@ SZFriendsItemFacts *SZFriendsItemFactsFromRecord(SZFriendsItemRecord *record, SZ
             // Moved or deleted by the person (ADR 0016): no path; the item says where the file still is.
             BOOL copyHere = transfer.receivedPath.length > 0 &&
                             (transfer.outgoing || transfer.state == SZFriendsTransferStateReceived);
-            if (copyHere && SZFriendsSyncLocalPathOfTransfer(transfer) == nil) {
+            // A received document is its folder now, no longer the archive's bytes: here while its document is.
+            BOOL documentHere = transfer.document && !transfer.outgoing &&
+                                SZFriendsReceivedDocumentIsHere(transfer.receivedPath);
+            if (copyHere && !documentHere && SZFriendsSyncLocalPathOfTransfer(transfer) == nil) {
                 facts.fileMissing = YES;
                 facts.localPath = nil;
                 facts.savedToDownloads = NO;
@@ -176,33 +183,6 @@ NSDictionary<NSString *, id> *SZFriendsHelperReceivedSnapshot(SZFriendsHelperSer
         }];
     }
     return @{@"files" : files};
-}
-
-NSArray<NSString *> *SZFriendsHelperCapabilityList(SZFriendsHelperServices *services) {
-    // Only what this helper really does: a view must not offer a search that cannot find anyone. A helper under
-    // SZFRIENDS_STATE_DIR runs only the adapters a test asked for and checks in only with a loopback host.
-    NSMutableArray<NSString *> *capabilities = [NSMutableArray array];
-    SZFriendsNearbyService *nearby = services.nearby;
-    if ([nearby hasAdapterForMethod:SZFriendsDiscoveryMethodNetwork]) [capabilities addObject:@"nearby.network"];
-    if ([nearby hasAdapterForMethod:SZFriendsDiscoveryMethodBluetooth]) [capabilities addObject:@"nearby.bluetooth"];
-    if (services.checkInSetup != nil) [capabilities addObject:@"host.checkin"];
-    // Links are made for the Friends host's pages, so only a helper that checks in offers them (PROTOCOL.md § Links).
-    if (services.checkInSetup != nil && services.store != nil && services.identity != nil) {
-        [capabilities addObject:@"links"];
-    }
-    // conversation.preview: a conversation's newest items that mark nothing read (PROTOCOL.md § Views).
-    [capabilities
-        addObjectsFromArray:@[ @"messages.status", @"messages.cancel", @"mentions", @"conversation.preview" ]];
-    // One profile on several computers: Your computers, joining, You (PROTOCOL.md § Devices).
-    if (services.store != nil && services.identity != nil && nearby != nil) [capabilities addObject:@"devices"];
-    // Files a friend sent come back from them when none of the person's computers has them (§ Getting a file again).
-    if (services.store != nil && services.identity != nil && nearby != nil) [capabilities addObject:@"files.again"];
-    // Received files go to Downloads or the folder the person chose (PROTOCOL.md § Views, settings and received).
-    if (services.transfers != nil) [capabilities addObject:@"received.folder"];
-    if (nearby.reachesFriendsOnline) [capabilities addObject:@"online"];
-    // This helper posts system notifications (PROTOCOL.md § Notifications).
-    if (services.notifier != nil) [capabilities addObject:@"notifications"];
-    return capabilities;
 }
 
 @implementation SZFriendsFactsPass {

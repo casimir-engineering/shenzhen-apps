@@ -73,12 +73,28 @@ static NSString *_Nullable SZFriendsCleanName(NSData *_Nullable bytes) {
     if (wire == nil || ![frame getUInt64:&size forTag:SZFriendsFieldSize]) return;
     NSString *transferID = SZFriendsLinkHex(wire);
     NSString *name = [frame stringForTag:SZFriendsFieldName] ?: @"";
+    // A document's archive (PROTOCOL.md § Intents, Documents): its name and what it holds besides it.
+    NSString *documentName = [frame stringForTag:SZFriendsFieldDocument];
+    NSDictionary<NSString *, NSNumber *> *document = nil;
+    if (documentName.length) {
+        NSData *parts = [frame dataForTag:SZFriendsFieldDocumentParts];
+        const uint8_t *bytes = parts.length == 12 ? parts.bytes : NULL;
+        uint32_t counts[3] = {0, 0, 0};
+        for (int i = 0; bytes && i < 3; i++) {
+            counts[i] = ((uint32_t)bytes[i * 4] << 24) | ((uint32_t)bytes[i * 4 + 1] << 16) |
+                        ((uint32_t)bytes[i * 4 + 2] << 8) | bytes[i * 4 + 3];
+        }
+        document = SZFriendsDocumentCounts(@{@"comments" : @(counts[0]), @"pictures" : @(counts[1]),
+                                             @"files" : @(counts[2])});
+    }
     NSError *error = nil;
     BOOL known = [self.services.transfers transferWithID:transferID inConversation:person.conversationID] != nil;
     SZFriendsTransferRecord *record =
         [self.services.transfers recordIncomingOfferWithID:transferID
                                             conversationID:person.conversationID
                                                   fileName:name
+                                              documentName:documentName
+                                                  document:document
                                                uniformType:[frame stringForTag:SZFriendsFieldFileType]
                                                       size:size
                                              contentDigest:[frame dataForTag:SZFriendsFieldDigest] ?: [NSData data]

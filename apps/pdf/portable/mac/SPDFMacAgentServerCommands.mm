@@ -5,6 +5,7 @@
 #import "SPDFMacBackgroundOpening.h"
 #import "SPDFMacDocumentVersionsIntegration.h"
 #import "SPDFMacCollectionCompare.h"
+#import "SPDFMacMarkdownComments.h"
 #import "SPDFMacMarkdownDelegatePrivate.h"
 #import "SPDFMacMarkdownSession.h"
 #import "SPDFMacModels.h"
@@ -372,6 +373,9 @@ static NSArray<NSString*>* HeadingPath(NSArray<NSString*>* titles, const std::ve
         return;
     }
     if ([command isEqual:@"comments-changed"]) {
+        // szpdf wrote them in its own process: Collection keeps the document with them (SPDFMacMarkdownComments.h).
+        [NSNotificationCenter.defaultCenter postNotificationName:SPDFMarkdownCommentsDidChangeNotification
+                                                          object:Standard(request[@"path"])];
         NSUInteger refreshed = 0;
         for (ShenzhenMacDelegate* reader in readers) {
             if (![Standard([reader selectedTab].path) isEqualToString:Standard(request[@"path"])]) continue;

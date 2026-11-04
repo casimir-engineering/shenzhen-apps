@@ -17,7 +17,15 @@ FOUNDATION_EXPORT NSString* _Nullable SPDFCollectionHashURL(NSURL* URL, NSError*
 FOUNDATION_EXPORT BOOL SPDFCollectionAtomicData(NSData* data, NSURL* URL, mode_t mode, NSError** error);
 FOUNDATION_EXPORT BOOL SPDFCollectionMakeDirectory(NSURL* URL, NSError** error);
 FOUNDATION_EXPORT NSArray* SPDFCollectionMarkdownTextPages(NSData* bytes, NSString* path, NSArray* assets, NSURL* root);
+// What a Markdown document keeps with it (entries {relativePath, hash, size, data, captureFingerprint}, warnings):
+// its pictures, the local files it links to, and its comments file ("<title> - comments.md"), each below its folder.
 FOUNDATION_EXPORT NSDictionary* SPDFCollectionAssets(NSString* sourcePath, NSData* bytes);
+// The rules SPDFCollectionAssets keeps by, recorded on each Markdown version as "assetsProfile": a version kept by
+// older rules (pictures only) is captured again the next time its document is opened or saved.
+FOUNDATION_EXPORT NSString* const SPDFCollectionAssetsProfile;
+FOUNDATION_EXPORT BOOL SPDFCollectionIsMarkdownPath(NSString* path);
+// The comments file's name beside a Markdown document, as the reader names it (SPDFMacMarkdownComments.h).
+FOUNDATION_EXPORT NSString* SPDFCollectionCommentsFileName(NSString* documentPath);
 @interface SPDFMacCollectionStore ()
 @property(nonatomic, readwrite) NSURL* rootURL;
 @property(nonatomic) NSRecursiveLock* localLock;
