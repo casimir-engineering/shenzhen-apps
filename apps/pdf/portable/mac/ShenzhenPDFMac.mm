@@ -12366,12 +12366,8 @@ static NSString* SPDFTranslationBatchScope(NSArray<NSDictionary*>* items, NSUInt
     NSDictionary* options = nil;
     if (request) {
         NSString* target = request[@"target"];
-        NSString* source = [self localTranslationSourceForText:sourceText target:target];
-        if (!source) {
-            [self showError:@"Nothing to translate"
-                     detail:[NSString stringWithFormat:@"This document already seems to be in %@.", request[@"language"]]];
-            return;
-        }
+        NSString* source = [self localTranslationSourceForText:sourceText request:request];
+        if (!source) return;
         _translationSourceLanguage = source;
         _translationTargetLanguage = target;
         [self savePersistentState];

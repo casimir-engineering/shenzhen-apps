@@ -464,7 +464,7 @@ fence the renderer cannot draw keeps its ordinary highlighted code box.
   chooses the first match and Return again translates. Arrows move through the list and Escape cancels.
 - **On this Mac**, Argos Translate translates the whole document offline (~19 languages, including Chinese); the text
   never leaves the Mac, and the list shows only the languages it has. The language the document is in is found from
-  its text. A PDF stays a PDF with each line translated in its place; a Markdown, text or EPUB document is translated
+  its text; when it can't be recognised, you're asked which it is (the last one chosen selected). A PDF stays a PDF with each line translated in its place; a Markdown, text or EPUB document is translated
   as the PDF it prints to. The result, **“<name> (<Language>).pdf”**, is saved beside the original (in Downloads when
   that folder can't take it) and opens in a new tab right after it.
 - **AI**: the assistant translates the whole document with your OpenRouter model, into any language (type one that

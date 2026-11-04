@@ -16,6 +16,7 @@ static char localRequestKey;
 - (NSInteger)indexOfTabForPath:(NSString*)path;
 - (void)openPath:(NSString*)path;
 - (BOOL)pathIsInTemporaryLocation:(NSString*)path;
+- (void)showError:(NSString*)message detail:(NSString*)detail;
 @end
 
 @implementation ShenzhenMacDelegate (SPDFMacTranslationChoice)
@@ -64,7 +65,8 @@ static NSString* GuessLanguage(NSString* text) {
                                                                                CFRangeMake(0,(CFIndex)sample.length)));
     return [guess componentsSeparatedByString:@"-"].firstObject.lowercaseString;
 }
-- (NSString*)localTranslationSourceForText:(NSString*)text target:(NSString*)target {
+- (NSString*)localTranslationSourceForText:(NSString*)text target:(NSString*)target alreadyInTarget:(BOOL*)inTarget {
+    if (inTarget) *inTarget=NO;
     NSMutableSet* codes=[NSMutableSet set];
     for (NSDictionary* language in spdf_translation_languages()) if (language[@"code"]) [codes addObject:language[@"code"]];
     NSString* guess=GuessLanguage(text);
@@ -79,11 +81,44 @@ static NSString* GuessLanguage(NSString* text) {
         }
     NSString* second=GuessLanguage(others);
     if ([codes containsObject:second] && ![second isEqual:target]) return second;
-    if ([guess isEqual:target] && !others.length) return nil;
-    // Nothing recognisable: the language translated from last time, as the dialog this replaced remembered it.
-    NSString* last=_translationSourceLanguage.length ? _translationSourceLanguage : @"zh";
-    if (![last isEqual:target]) return last;
-    return [target isEqual:@"en"] ? @"zh" : @"en";
+    if ([guess isEqual:target] && !others.length && inTarget) *inTarget=YES;
+    return nil;
+}
+// The From/To dialog the picker replaced, with only From: the languages Argos translates from (installed or installed
+// when it runs), the last one chosen preselected.
+- (NSString*)askLocalTranslationSourceInto:(NSString*)target language:(NSString*)language {
+    NSAlert* alert=[[NSAlert alloc] init];
+    alert.messageText=@"Which language is this document in?";
+    alert.informativeText=[NSString stringWithFormat:@"Its language couldn't be recognised from its text. Choose it to "
+                                                     @"translate the document into %@.",language ?: target];
+    [alert addButtonWithTitle:@"Translate"];
+    [alert addButtonWithTitle:@"Cancel"];
+    NSView* accessory=[[NSView alloc] initWithFrame:NSMakeRect(0,0,390,34)];
+    NSTextField* label=[NSTextField labelWithString:@"From"];
+    label.frame=NSMakeRect(0,4,72,22);
+    NSPopUpButton* popup=[[NSPopUpButton alloc] initWithFrame:NSMakeRect(84,4,250,26) pullsDown:NO];
+    NSString* last=_translationSourceLanguage.length && ![_translationSourceLanguage isEqual:target] ?
+        _translationSourceLanguage : [target isEqual:@"en"] ? @"zh" : @"en";
+    for (NSDictionary* item in spdf_translation_languages()) {
+        if (!item[@"code"] || [item[@"code"] isEqual:target]) continue;
+        [popup addItemWithTitle:[NSString stringWithFormat:@"%@ (%@)",item[@"name"] ?: item[@"code"],item[@"code"]]];
+        popup.lastItem.representedObject=item[@"code"];
+        if ([item[@"code"] isEqual:last]) [popup selectItem:popup.lastItem];
+    }
+    for (NSView* view in @[label,popup]) [accessory addSubview:view];
+    alert.accessoryView=accessory;
+    if ([alert runModal]!=NSAlertFirstButtonReturn) return nil;
+    return popup.selectedItem.representedObject;
+}
+- (NSString*)localTranslationSourceForText:(NSString*)text request:(NSDictionary*)request {
+    BOOL inTarget=NO;
+    NSString* source=[self localTranslationSourceForText:text target:request[@"target"] alreadyInTarget:&inTarget];
+    if (inTarget) {
+        [self showError:@"Nothing to translate"
+                 detail:[NSString stringWithFormat:@"This document already seems to be in %@.",request[@"language"]]];
+        return nil;
+    }
+    return source ?: [self askLocalTranslationSourceInto:request[@"target"] language:request[@"language"]];
 }
 - (NSString*)localTranslationDirectory {
     NSString* directory=_path.stringByDeletingLastPathComponent;

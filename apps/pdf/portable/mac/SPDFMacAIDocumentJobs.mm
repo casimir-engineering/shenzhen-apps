@@ -76,6 +76,7 @@ static BOOL Translate(spdf_document* doc, NSString* output, NSString* executable
     // The model's translator when the assistant asks (SPDFMacAIJobTranslator.h); otherwise Argos, as the suites run it.
     SPDFMacAIJobTranslator* model=[options[@"translator"] respondsToSelector:@selector(translateLines:progress:error:)] ?
         options[@"translator"] : nil;
+    if (!model && !source.length) { Fail(error,@"The document's language wasn't given. Pass sourceLanguage, such as zh or en."); return NO; }
     spdf_translation_script from=spdf_translation_script_for_language(source.UTF8String);
     spdf_translation_script to=spdf_translation_script_for_language(target.UTF8String);
     // The model reads any language, so every line with words in it goes; Argos needs the script filter.

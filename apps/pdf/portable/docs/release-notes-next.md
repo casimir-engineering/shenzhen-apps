@@ -11,4 +11,10 @@ published release will notice; never a fix for a bug that was never released.
 
 ## Next release
 
-Nothing yet.
+- Translate on this Mac asks which language a document is in when it can't tell from the text, instead of guessing.
+
+### Translate
+
+When you translate on this Mac and the document's language can't be recognised (it is mostly numbers or part codes, or
+very short), ShenzhenPDF asks which language it is in, with the one you chose last time selected. Cancel stops the
+translation.
