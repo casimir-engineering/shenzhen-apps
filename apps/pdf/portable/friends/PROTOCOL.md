@@ -89,7 +89,8 @@ check before connecting and reports `SZFRIENDS_ERR_UNSAFE_DIRECTORY` instead of 
 
 **Peer checks, both ways.** On accept the helper reads the peer's uid with `getpeereid()` (`SO_PEERCRED` on
 Linux) and closes the connection without a word unless it equals its own; signed builds also check the peer's
-code signature through its audit token. On connect the client checks the helper's uid the same way and refuses
+code signature through its audit token, without network access, off the helper's queue: a check still running
+after 1 second refuses only that connection, and two such checks in a row make the helper step aside (§ Lifecycle). On connect the client checks the helper's uid the same way and refuses
 another user's helper (`SZFRIENDS_ERR_PEER_UID`). A team-signed app also reads the helper's audit token
 (`LOCAL_PEERTOKEN`) and sends nothing to a helper its team did not sign (`SZFRIENDS_ERR_PEER_SIGNATURE`): the app
 supplies its Team ID and a code-signature check through `szfriends_set_signing_policy()`, and the library applies
@@ -97,7 +98,8 @@ the requirement the helper applies to its clients.
 
 **Single instance.** The helper takes an exclusive non-blocking `flock` on `<state dir>/helper.lock` before it
 binds. A second helper fails to take it and exits with status 0. Only the lock holder may remove a stale socket
-file before binding.
+file before binding. The holder writes `<pid> <build number>` and a line feed into the lock file (helpers before
+26110402 leave it empty), which tells an app the build of a helper whose bundle is gone (§ Lifecycle).
 
 **Other systems.** The same framing, handshake and frames run everywhere; only the state directory and the way
 in differ (ADR 0015 § 3, § 8). Phones run the core inside the app and carry the frames over an in-memory channel.
@@ -165,13 +167,21 @@ the client then starts its own helper. `szfriends-contract::pipe` and `szfriends
   - Any other client waits up to 10 seconds for the successor to appear, then spawns its own, so Friends keeps
     working if the newer app quit meanwhile. The newest helper wins whenever its app is running, so this
     converges.
+- **Stepping aside.** A helper whose own executable was deleted, or whose starting path now holds another file (an
+  update or an install replaced its app), checks every 2 seconds and then goes the way of a handover without a
+  successor: it stops accepting, waits for work in flight (at most 5 seconds), sends `goodbye` with reason
+  `shutdown`, and exits; the apps then start their own helper. It also exits cleanly on SIGTERM, which ShenzhenPDF's
+  updater sends it before replacing the app that embeds it.
 - **A helper that does not work.** A helper that takes the connection but does not answer `hello` within 6 seconds,
   or that closes it unanswered (or that the client refuses) twice in a row, holds the socket without serving. The
   client library asks it to leave (SIGTERM, then SIGKILL 2 seconds later) and spawns its own, but only when it is a
   Friends helper of the same user and never this process, and never when it runs from an installed app
   (`/Applications`, `~/Applications`) while the client's app does not, so a test copy or a build cannot end the
   person's Friends. One that refuses the client is ended only by an installed app and only when it does not run from
-  one, so two installed apps never take turns ending each other's helper. The AppKit views show a spinner while
+  one, so two installed apps never take turns ending each other's helper. Either kind is also ended, wherever it
+  runs from, when its executable was deleted or replaced on disk, unless `helper.lock` records a build newer than the
+  client's own (that one steps aside by itself): no app carries it any more, and a team-signed app cannot check its
+  signature. The AppKit views show a spinner while
   Friends starts and, past 15 seconds without it, "Friends couldn’t start." with Try Again, which connects (and
   spawns) at once.
 - **Reconnect.** After any disconnect the client library reconnects by itself and reports `READY` again.

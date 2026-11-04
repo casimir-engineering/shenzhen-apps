@@ -2,6 +2,7 @@
 #import "SPDFUpdaterDownloadBounds.h"
 #import "SPDFMacFileExplorerPreference.h"
 #import "SPDFUpdaterRelease.h"
+#import "SPDFUpdaterProcesses.h"
 #import "SPDFMacSupport.h"
 
 #import <AppKit/AppKit.h>
@@ -200,15 +201,6 @@ static NSDictionary* spdf_bundle_version_fields(NSString* appPath) {
 // Foundation-only post-update swap/relaunch helper (--post-update path)
 // ---------------------------------------------------------------------------
 
-static NSUInteger spdf_running_instance_count(void) {
-    NSUInteger count = 0;
-    for (NSRunningApplication* app in
-         [NSRunningApplication runningApplicationsWithBundleIdentifier:kSPDFAppBundleID]) {
-        if (app.processIdentifier != getpid()) ++count;
-    }
-    return count;
-}
-
 // Clear updateInProgress and pendingTag from update.json on a helper abort so
 // the next launch isn't left with a half-set lifecycle. Foundation-only flock
 // read-modify-write mirroring -withLockedUpdateStore:.
@@ -275,11 +267,11 @@ int spdf_run_post_update_helper(NSString* stagedAppPath, NSString* targetBundleP
     // 1. Bounded poll until all old-bundle instances exit; escalate to
     //    forceTerminate on timeout; then a short settle.
     NSTimeInterval waited = 0;
-    while (spdf_running_instance_count() > 0 && waited < kSPDFSiblingQuitTimeoutSeconds) {
+    while (spdf_running_instance_count(kSPDFAppBundleID) > 0 && waited < kSPDFSiblingQuitTimeoutSeconds) {
         [NSThread sleepForTimeInterval:0.5];
         waited += 0.5;
     }
-    if (spdf_running_instance_count() > 0) {
+    if (spdf_running_instance_count(kSPDFAppBundleID) > 0) {
         // Escalate: force-terminate any wedged siblings, then poll a second
         // bounded window before giving up.
         for (NSRunningApplication* app in
@@ -287,12 +279,12 @@ int spdf_run_post_update_helper(NSString* stagedAppPath, NSString* targetBundleP
             if (app.processIdentifier != getpid()) [app forceTerminate];
         }
         NSTimeInterval forced = 0;
-        while (spdf_running_instance_count() > 0 && forced < 5.0) {
+        while (spdf_running_instance_count(kSPDFAppBundleID) > 0 && forced < 5.0) {
             [NSThread sleepForTimeInterval:0.5];
             forced += 0.5;
         }
     }
-    if (spdf_running_instance_count() > 0) {
+    if (spdf_running_instance_count(kSPDFAppBundleID) > 0) {
         // Siblings still wedged: abort the swap, leave the bundle untouched,
         // clear the lifecycle state, and relaunch the original.
         [fm removeItemAtPath:stagedAppPath error:nil];
@@ -300,6 +292,7 @@ int spdf_run_post_update_helper(NSString* stagedAppPath, NSString* targetBundleP
         spdf_helper_relaunch_original(targetBundlePath);
         return 1;
     }
+    spdf_helper_stop_embedded_friends(targetBundlePath);
     [NSThread sleepForTimeInterval:0.5];  // kernel map release after last exit
 
     NSString* oldPath = [targetBundlePath stringByAppendingString:@".old"];

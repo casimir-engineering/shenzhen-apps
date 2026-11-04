@@ -68,6 +68,9 @@ NSString *_Nullable SZFriendsOwnTeamIdentifier(void) {
 }
 
 SZFriendsRequirementChecker SZFriendsSecurityRequirementChecker(void) {
+    // The peer's code as the kernel knows it, checked against the requirement with no network access (no OCSP or
+    // revocation fetch). Still a code-signing check that asks trustd, so the server runs it off its queue with a
+    // time limit (SZFriendsIPCServer).
     return ^BOOL(audit_token_t token, NSString *requirementText) {
         NSData *tokenData = [NSData dataWithBytes:&token length:sizeof(token)];
         NSDictionary *attributes = @{(__bridge NSString *)kSecGuestAttributeAudit : tokenData};
@@ -82,7 +85,7 @@ SZFriendsRequirementChecker SZFriendsSecurityRequirementChecker(void) {
             SecRequirementCreateWithString((__bridge CFStringRef)requirementText, kSecCSDefaultFlags, &requirement);
         BOOL valid = NO;
         if (status == errSecSuccess && requirement != NULL) {
-            valid = SecCodeCheckValidity(code, kSecCSDefaultFlags, requirement) == errSecSuccess;
+            valid = SecCodeCheckValidity(code, kSecCSNoNetworkAccess, requirement) == errSecSuccess;
             CFRelease(requirement);
         }
         CFRelease(code);

@@ -20,6 +20,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
 #include <sys/un.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -285,9 +286,61 @@ static bool runs_installed(const char *path) {
     length = strlen(user->pw_dir);
     return strncmp(path, user->pw_dir, length) == 0 && strncmp(path + length, "/Applications/", 14) == 0;
 }
+
+/* Whether `pid` runs code that is no longer on disk where it runs from: the file was deleted (an updater moved the
+ * old app aside and then removed it) or another file now has its name. No installed app carries that helper any
+ * more, and a team-signed app's signature check of it fails (the Security framework reads the code from that path),
+ * so it can never serve that app again. */
+static bool runs_vanished_code(pid_t pid) {
+    char path[PROC_PIDPATHINFO_MAXSIZE];
+    struct proc_regionwithpathinfo region;
+    struct stat now;
+    uint64_t address = 0;
+    int i;
+    errno = 0;
+    /* The kernel follows the file through renames and fails with ENOENT once it has no name left. */
+    if (proc_pidpath(pid, path, sizeof path) <= 0) return errno == ENOENT;
+    if (stat(path, &now) != 0) return errno == ENOENT;
+    /* The mapping of the main executable carries the file it was loaded from; the first regions are its own. */
+    for (i = 0; i < 16; i++) {
+        memset(&region, 0, sizeof region);
+        if (proc_pidinfo(pid, PROC_PIDREGIONPATHINFO, address, &region, (int)sizeof region) <= 0) return false;
+        if (strcmp(region.prp_vip.vip_path, path) == 0)
+            return (uint64_t)region.prp_vip.vip_vi.vi_stat.vst_ino != (uint64_t)now.st_ino ||
+                   (dev_t)region.prp_vip.vip_vi.vi_stat.vst_dev != now.st_dev;
+        if (region.prp_prinfo.pri_size == 0) return false;
+        address = region.prp_prinfo.pri_address + region.prp_prinfo.pri_size;
+    }
+    return false;
+}
+
+/* The build `pid` recorded in <state dir>/helper.lock when it took the lock ("<pid> <build>\n"), or 0: helpers
+ * before 26110402 record nothing, and a record of another process says nothing about this one. */
+static uint64_t recorded_build(const char *state_dir, pid_t pid) {
+    char state[SZFRIENDS_PATH_CAP], path[SZFRIENDS_PATH_CAP + 16], text[64];
+    unsigned long long build = 0;
+    int fd, owner = 0;
+    ssize_t length;
+    if (state_dir && state_dir[0]) {
+        if (strlen(state_dir) >= sizeof state) return 0;
+        memcpy(state, state_dir, strlen(state_dir) + 1);
+    } else if (szfriends_default_state_dir(state, sizeof state) != SZFRIENDS_OK) {
+        return 0;
+    }
+    snprintf(path, sizeof path, "%s/helper.lock", state);
+    fd = open(path, O_RDONLY | O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC);
+    if (fd < 0) return 0;
+    length = read(fd, text, sizeof text - 1);
+    close(fd);
+    if (length <= 0) return 0;
+    text[length] = '\0';
+    if (sscanf(text, "%d %llu", &owner, &build) != 2 || owner != pid) return 0;
+    return (uint64_t)build;
+}
 #endif
 
-bool szfriends_helper_may_be_ended(const char *own_helper_path, pid_t pid, bool refused) {
+bool szfriends_helper_may_be_ended(const char *own_helper_path, const char *state_dir, uint64_t own_build, pid_t pid,
+                                   bool refused) {
 #if defined(__APPLE__)
     char path[PROC_PIDPATHINFO_MAXSIZE];
     struct proc_bsdshortinfo info;
@@ -298,11 +351,21 @@ bool szfriends_helper_may_be_ended(const char *own_helper_path, pid_t pid, bool 
         return false;
     if (proc_pidpath(pid, path, sizeof path) <= 0 && !started_from(pid, path, sizeof path)) return false;
     if (strcmp(last_component(path), last_component(own_helper_path)) != 0) return false;
+    /* A helper whose app an update deleted or replaced. Where it started from (/Applications, say) no longer says
+     * anything about it, so the installed-app rule below would protect it for as long as it runs and Friends would
+     * wait on "Starting Friends…" forever. Ended unless it recorded a build newer than ours: a newer one steps aside
+     * by itself (it watches its own executable), and we wait for that instead. */
+    if (runs_vanished_code(pid)) {
+        uint64_t build = recorded_build(state_dir, pid);
+        if (build == 0 || (own_build != 0 && build <= own_build)) return true;
+    }
     own_installed = runs_installed(own_helper_path);
     peer_installed = runs_installed(path);
     return refused ? own_installed && !peer_installed : own_installed || !peer_installed;
 #else
     (void)own_helper_path;
+    (void)state_dir;
+    (void)own_build;
     (void)pid;
     (void)refused;
     return false;

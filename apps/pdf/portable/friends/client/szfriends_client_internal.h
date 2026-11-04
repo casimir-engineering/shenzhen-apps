@@ -121,12 +121,15 @@ szfriends_status szfriends_spawn_process(const char *helper_path, const char *st
 szfriends_status szfriends_spawn_detached(const char *helper_path, const char *state_dir);
 /* Whether this app may end the helper `pid`, which holds its socket but never answers (`refused` false) or refuses
  * it (`refused` true), so it can start its own. Only a process of this user running a Friends helper (the same
- * executable name as `own_helper_path`), never this process. An app never ends a helper of an installed app unless
- * it is installed itself, so a test copy or a build run from its folder cannot end the person's own Friends; and it
- * ends one that refuses it only when it is installed and the refusing helper is not (a leftover of a test or of a
- * build), so two installed apps that refuse each other never take turns ending each other's helper. Apple only;
- * false elsewhere. */
-bool szfriends_helper_may_be_ended(const char *own_helper_path, pid_t pid, bool refused);
+ * executable name as `own_helper_path`), never this process. A helper whose executable was deleted or replaced on
+ * disk (its app updated) is ended unless the build it recorded in `state_dir`'s helper.lock is newer than
+ * `own_build`. Otherwise an app never ends a helper of an installed app unless it is installed itself, so a test copy
+ * or a build run from its folder cannot end the person's own Friends; and it ends one that refuses it only when it is
+ * installed and the refusing helper is not (a leftover of a test or of a build), so two installed apps that refuse
+ * each other never take turns ending each other's helper. `state_dir` NULL: the default. Apple only; false
+ * elsewhere. */
+bool szfriends_helper_may_be_ended(const char *own_helper_path, const char *state_dir, uint64_t own_build, pid_t pid,
+                                   bool refused);
 /* SIGTERM (`now` false: it says goodbye and leaves), or SIGKILL. */
 void szfriends_end_helper(pid_t pid, bool now);
 

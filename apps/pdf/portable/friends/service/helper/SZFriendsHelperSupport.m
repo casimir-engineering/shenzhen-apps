@@ -1,7 +1,11 @@
-// Small shared pieces of the helper: its log line, its build identity, test time scaling and JSON type checks.
+// Small shared pieces of the helper: its log line, its build identity, whether its executable is still the one it
+// started from, test time scaling and JSON type checks.
 
 #import "service/helper/SZFriendsHelperInternal.h"
 
+#import <errno.h>
+#import <libproc.h>
+#import <sys/stat.h>
 #import <unistd.h>
 
 #import "client/szfriends_client.h"
@@ -22,6 +26,31 @@ void SZFriendsHelperLog(NSString *format, ...) {
     NSData *bytes = [line dataUsingEncoding:NSUTF8StringEncoding];
     // write(2) rather than stdio: one atomic append per line even when several helpers share the log.
     if (bytes.length > 0) (void)write(STDERR_FILENO, bytes.bytes, bytes.length);
+}
+
+SZFriendsExecutableIdentity SZFriendsOwnExecutableIdentity(void) {
+    SZFriendsExecutableIdentity identity;
+    memset(&identity, 0, sizeof identity);
+    struct stat info;
+    if (proc_pidpath(getpid(), identity.path, sizeof identity.path) > 0 && stat(identity.path, &info) == 0) {
+        identity.known = YES;
+        identity.device = info.st_dev;
+        identity.inode = info.st_ino;
+    }
+    return identity;
+}
+
+NSString *_Nullable SZFriendsOwnExecutableChange(const SZFriendsExecutableIdentity *identity) {
+    if (identity == NULL || !identity->known) return nil;
+    char now[sizeof identity->path];
+    errno = 0;
+    // The kernel follows the file through renames and fails with ENOENT once no name is left: deleted.
+    if (proc_pidpath(getpid(), now, sizeof now) <= 0) return errno == ENOENT ? @"its executable was deleted" : nil;
+    struct stat info;
+    if (stat(identity->path, &info) == 0 && (info.st_dev != identity->device || info.st_ino != identity->inode)) {
+        return @"another app was put where it started from";
+    }
+    return nil;
 }
 
 NSString *SZFriendsHelperVersionString(void) {

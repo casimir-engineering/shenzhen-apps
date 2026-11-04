@@ -38,6 +38,14 @@
     return lock;
 }
 
+- (void)recordOwnerBuild:(uint64_t)build {
+    if (_fd < 0) return;
+    char line[64];
+    int length = snprintf(line, sizeof line, "%d %llu\n", getpid(), (unsigned long long)build);
+    if (length <= 0 || ftruncate(_fd, 0) != 0) return;
+    (void)pwrite(_fd, line, (size_t)length, 0);
+}
+
 - (void)releaseLock {
     if (_fd >= 0) {
         flock(_fd, LOCK_UN);

@@ -37,7 +37,8 @@ bool SPDFMacFriendsVerifyPeer(void* context, const void* auditToken, size_t leng
         CFRelease(code);
         return false;
     }
-    status = SecCodeCheckValidity(code, kSecCSDefaultFlags, required);
+    // No network access: this runs on the app's main thread, and the helper's signature is local.
+    status = SecCodeCheckValidity(code, kSecCSNoNetworkAccess, required);
     CFRelease(required);
     CFRelease(code);
     return status == errSecSuccess;

@@ -146,7 +146,7 @@ MAC_SWIFT_LIB_DIRS = -L"$$(xcrun --show-sdk-path)/usr/lib/swift" \
 	-L"$$(dirname "$$(xcrun --find swiftc)")/../lib/swift/macosx"
 MAC_SWIFT_LINK = $(MAC_SWIFT_OBJ) $(MAC_SWIFT_LIB_DIRS) -Wl,-rpath,/usr/lib/swift -weak_framework Speech
 MAC_VERSION ?= 26.11.4
-MAC_BUILD ?= 1
+MAC_BUILD ?= 2
 # The release this app is, as people see it and the updater compares it (mac/Info.plist SZFReleaseTag, which
 # cut-release.sh sets). MAC_BUILD alone is not it: Friends changes raise MAC_BUILD between releases.
 MAC_RELEASE_TAG ?=
@@ -491,8 +491,8 @@ $(MAC_FIND_NEAREST_TEST): mac/tests/SPDFMacFindNearestTests.mm mac/SPDFMacFindNe
 mac-find-nearest-tests: $(MAC_FIND_NEAREST_TEST)
 	"$(MAC_FIND_NEAREST_TEST)"
 
-$(MAC_UPDATER_TEST): mac/SPDFUpdaterTests.mm mac/SPDFUpdater.mm mac/SPDFUpdaterDownloadBounds.mm mac/SPDFUpdaterRelease.mm mac/SPDFMacFileExplorerPreference.mm mac/SPDFMacSupport.mm mac/SPDFMacToolbarSegments.mm mac/SPDFUpdater.h mac/SPDFUpdaterDownloadBounds.h mac/SPDFUpdaterRelease.h mac/SPDFMacFileExplorerPreference.h mac/SPDFMacSupport.h | $(BUILD)
-	clang++ $(MAC_TARGET_FLAGS) -std=c++17 -fobjc-arc -Imac mac/SPDFUpdaterTests.mm mac/SPDFUpdater.mm mac/SPDFUpdaterDownloadBounds.mm mac/SPDFUpdaterRelease.mm mac/SPDFMacFileExplorerPreference.mm mac/SPDFMacSupport.mm mac/SPDFMacToolbarSegments.mm mac/SPDFMacCollectionStyle.mm -framework Cocoa -framework Security -framework UniformTypeIdentifiers -o "$(MAC_UPDATER_TEST)"
+$(MAC_UPDATER_TEST): mac/SPDFUpdaterTests.mm mac/SPDFUpdater.mm mac/SPDFUpdaterDownloadBounds.mm mac/SPDFUpdaterProcesses.mm mac/SPDFUpdaterRelease.mm mac/SPDFMacFileExplorerPreference.mm mac/SPDFMacSupport.mm mac/SPDFMacToolbarSegments.mm mac/SPDFUpdater.h mac/SPDFUpdaterDownloadBounds.h mac/SPDFUpdaterRelease.h mac/SPDFUpdaterProcesses.h mac/SPDFMacFileExplorerPreference.h mac/SPDFMacSupport.h | $(BUILD)
+	clang++ $(MAC_TARGET_FLAGS) -std=c++17 -fobjc-arc -Imac mac/SPDFUpdaterTests.mm mac/SPDFUpdater.mm mac/SPDFUpdaterDownloadBounds.mm mac/SPDFUpdaterProcesses.mm mac/SPDFUpdaterRelease.mm mac/SPDFMacFileExplorerPreference.mm mac/SPDFMacSupport.mm mac/SPDFMacToolbarSegments.mm mac/SPDFMacCollectionStyle.mm -framework Cocoa -framework Security -framework UniformTypeIdentifiers -o "$(MAC_UPDATER_TEST)"
 
 mac-updater-tests: $(MAC_UPDATER_TEST)
 	"$(MAC_UPDATER_TEST)"

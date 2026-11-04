@@ -224,7 +224,9 @@ static void maybe_spawn(szfriends_client *client) {
  * it runs, so where szfriends_helper_may_be_ended() allows, it is asked to leave and ours starts in its place. */
 static void end_stuck_helper(szfriends_client *client, pid_t pid, bool refused) {
     if (pid <= 0 || !client->helper_path || client->ending_pid == pid) return;
-    if (!szfriends_helper_may_be_ended(client->helper_path, pid, refused)) return;
+    if (!szfriends_helper_may_be_ended(client->helper_path, client->state_dir, client->helper_build_number, pid,
+                                       refused))
+        return;
     szfriends_end_helper(pid, false);
     client->ending_pid = pid;
     client->ending_refused = refused;
@@ -254,7 +256,8 @@ static void finish_ending(szfriends_client *client, uint64_t now_ms) {
     pid_t pid = client->ending_pid;
     if (!pid || now_ms < client->ending_at + SZFRIENDS_END_GRACE_MS) return;
     client->ending_pid = 0;
-    if (kill(pid, 0) == 0 && szfriends_helper_may_be_ended(client->helper_path, pid, client->ending_refused))
+    if (kill(pid, 0) == 0 && szfriends_helper_may_be_ended(client->helper_path, client->state_dir,
+                                                           client->helper_build_number, pid, client->ending_refused))
         szfriends_end_helper(pid, true);
 }
 

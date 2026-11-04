@@ -11,4 +11,4 @@ published release will notice; never a fix for a bug that was never released.
 
 ## Next release
 
-Nothing yet.
+- Friends (Beta): Friends no longer gets stuck on "Starting Friends…" after an update.

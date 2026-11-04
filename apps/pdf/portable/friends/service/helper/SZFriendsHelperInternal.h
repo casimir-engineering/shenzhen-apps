@@ -86,6 +86,19 @@ SZFriendsRequirementChecker SZFriendsSecurityRequirementChecker(void);
 BOOL SZFriendsPeerAllowed(const SZFriendsPeerCredentials *credentials, uid_t ownUID, NSString *_Nullable team,
                           SZFriendsRequirementChecker _Nullable checker);
 
+// The helper's own executable as it was at launch, to tell later whether an update deleted or replaced it.
+typedef struct SZFriendsExecutableIdentity {
+    BOOL known;
+    dev_t device;
+    ino_t inode;
+    char path[4096]; // PROC_PIDPATHINFO_MAXSIZE
+} SZFriendsExecutableIdentity;
+SZFriendsExecutableIdentity SZFriendsOwnExecutableIdentity(void);
+// nil while this process still runs the file it started from, where it started from or moved with its bundle (an
+// updater moving the old app aside). Otherwise why not: the file was deleted, or another file now sits where it
+// started (an update or an install put another app there). No app carries this helper any more then.
+NSString *_Nullable SZFriendsOwnExecutableChange(const SZFriendsExecutableIdentity *identity);
+
 #pragma mark - Handover claims
 
 // Whether a claimed successor build is one this helper could plausibly be replaced by: no more than one year of
@@ -126,6 +139,8 @@ NSSet<NSNumber *> *SZFriendsEmbeddedHelperBuildsOfApp(NSString *_Nullable execut
 @property(nonatomic, copy, nullable) void (^onConnectionsChanged)(SZFriendsIPCConnection *_Nullable closedConnection);
 // Overrides for tests of the peer decision; production uses getpeereid and the Security checker.
 @property(nonatomic, copy, nullable) NSString *teamIdentifier;
+// Signature checks of clients went over their time limit twice in a row: this helper can no longer let anyone in.
+@property(nonatomic, copy, nullable) void (^onPeerChecksStalled)(void);
 // Stops accepting new clients (handover) while existing connections keep their sessions until the goodbye.
 - (void)stopAccepting;
 @end
@@ -147,6 +162,14 @@ NSSet<NSNumber *> *SZFriendsEmbeddedHelperBuildsOfApp(NSString *_Nullable execut
 - (void)connectionSentDisable:(SZFriendsIPCConnection *)connection;
 // A newer embedded helper asked to take over; the newest successor named so far is announced in the goodbye.
 - (void)requestHandoverWithSuccessor:(NSDictionary<NSString *, id> *)embeddedHelper;
+// Why this helper should give way now (its app was deleted or replaced, it cannot check clients), or nil; asked every
+// 2 s once started. Production: SZFriendsOwnExecutableChange.
+@property(nonatomic, copy, nullable) NSString *_Nullable (^shouldStepAside)(void);
+// Called once when the helper starts stepping aside, before its goodbye: work in flight drains as in a handover.
+@property(nonatomic, copy, nullable) void (^onStepAside)(void);
+// Gives way without a named successor: stops accepting, waits for work in flight like a handover (at most its
+// deadline), says goodbye `shutdown` so every client reconnects and starts its own app's helper, and exits.
+- (void)stepAsideBecause:(NSString *)reason;
 - (void)shutdownForSignal:(int)signalNumber;
 @end
 

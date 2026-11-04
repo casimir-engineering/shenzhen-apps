@@ -10,12 +10,15 @@
 static const NSTimeInterval SZFriendsLifecycleWorkPoll = 0.1;
 // How long goodbyes get to reach clients before the process exits anyway.
 static const NSTimeInterval SZFriendsLifecycleGoodbyeFlush = 1.0;
+// How often to ask whether this helper should step aside (its app deleted or replaced by an update).
+static const int64_t SZFriendsLifecycleStepAsideCheckSeconds = 2;
 
 @implementation SZFriendsHelperLifecycle {
     SZFriendsLifecyclePolicy *_policy;
     __weak SZFriendsIPCServer *_server;
     dispatch_queue_t _queue;
     dispatch_source_t _timer;
+    dispatch_source_t _stepAsideTimer;
     NSDate *_startedAt;
     BOOL _everHadClient;
     NSUInteger _lastActiveCount;
@@ -45,6 +48,18 @@ static const NSTimeInterval SZFriendsLifecycleGoodbyeFlush = 1.0;
     dispatch_source_set_event_handler(_timer, ^{ [weakSelf evaluate]; });
     dispatch_source_set_timer(_timer, DISPATCH_TIME_FOREVER, DISPATCH_TIME_FOREVER, 0);
     dispatch_resume(_timer);
+    if (self.shouldStepAside != nil) {
+        _stepAsideTimer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, _queue);
+        dispatch_source_set_event_handler(_stepAsideTimer, ^{
+            SZFriendsHelperLifecycle *strongSelf = weakSelf;
+            NSString *reason = strongSelf.shouldStepAside ? strongSelf.shouldStepAside() : nil;
+            if (reason != nil) [strongSelf stepAsideBecause:reason];
+        });
+        uint64_t interval = (uint64_t)SZFriendsLifecycleStepAsideCheckSeconds * NSEC_PER_SEC;
+        dispatch_source_set_timer(_stepAsideTimer, dispatch_time(DISPATCH_TIME_NOW, (int64_t)interval), interval,
+                                  NSEC_PER_SEC / 2);
+        dispatch_resume(_stepAsideTimer);
+    }
     [self evaluate];
 }
 
@@ -87,6 +102,20 @@ static const NSTimeInterval SZFriendsLifecycleGoodbyeFlush = 1.0;
     dispatch_async(_queue, ^{ [weakSelf evaluate]; });
 }
 
+// The updater deleted or replaced the app this helper came from: no app carries it any more, and the apps' own
+// signature check of it fails, so nobody would ever ask it for a handover. It goes the way a handover goes, minus
+// the successor; the apps start their own helper as soon as the socket is gone.
+- (void)stepAsideBecause:(NSString *)reason {
+    if (_exiting || _handoverRequestedAt != nil) return;
+    SZFriendsHelperLog(@"stepping aside: %@", reason);
+    if (_stepAsideTimer != nil) dispatch_source_cancel(_stepAsideTimer);
+    _handoverRequestedAt = [NSDate date];
+    [_server stopAccepting];
+    if (self.onStepAside) self.onStepAside();
+    __weak SZFriendsHelperLifecycle *weakSelf = self;
+    dispatch_async(_queue, ^{ [weakSelf evaluate]; });
+}
+
 - (void)shutdownForSignal:(int)signalNumber {
     if (_exiting) return;
     SZFriendsHelperLog(@"shutting down on signal %d", signalNumber);
@@ -120,7 +149,8 @@ static const NSTimeInterval SZFriendsLifecycleGoodbyeFlush = 1.0;
             [self scheduleNextEvaluationFrom:now busy:busy];
             return;
         case SZFriendsExitReasonHandover:
-            [self exitWithReason:reason goodbye:@"handover"];
+            // Stepping aside names no successor, and `handover` always carries one (PROTOCOL.md § Replies and errors).
+            [self exitWithReason:reason goodbye:_successor != nil ? @"handover" : @"shutdown"];
             return;
         case SZFriendsExitReasonDisabled:
             // The connections left are the ones that turned Friends off; they are on their way out anyway.
@@ -158,6 +188,7 @@ static const NSTimeInterval SZFriendsLifecycleGoodbyeFlush = 1.0;
 - (void)exitWithReason:(SZFriendsExitReason)reason goodbye:(nullable NSString *)goodbye {
     _exiting = YES;
     dispatch_source_cancel(_timer);
+    if (_stepAsideTimer != nil) dispatch_source_cancel(_stepAsideTimer);
     SZFriendsIPCServer *server = _server;
     [server stopAccepting];
     if (goodbye != nil) {

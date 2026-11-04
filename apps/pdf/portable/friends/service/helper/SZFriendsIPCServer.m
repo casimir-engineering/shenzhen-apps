@@ -17,6 +17,15 @@
 
 static const NSUInteger SZFriendsIPCMaxConnections = 64; // PROTOCOL.md § Limits
 static const NSUInteger SZFriendsIPCMaxOutstandingIntents = 64;
+// A peer's code-signing check normally takes a few milliseconds. One still running after this long is abandoned and
+// only that connection is refused, so a stalled check never holds up the helper or the clients behind it.
+static const int64_t SZFriendsIPCPeerCheckLimitMs = 1000;
+// Checks still running in the background (each may hold a thread while it waits on trustd); past this, a new
+// connection is refused at once rather than adding another.
+static const NSUInteger SZFriendsIPCMaxRunningPeerChecks = 8;
+// This many checks in a row over the limit: this process cannot check its clients any more, so it steps aside and a
+// fresh helper takes over.
+static const NSUInteger SZFriendsIPCStalledChecksBeforeStepAside = 2;
 static char SZFriendsIPCQueueKey;
 
 static NSDictionary<NSString *, id> *SZFriendsErrorObject(NSString *code, id _Nullable message,
@@ -61,6 +70,9 @@ static BOOL SZFriendsParseVersion(id object, BOOL withMinMajor, SZFriendsProtoco
     BOOL _bound;
     BOOL _teamResolved;
     BOOL _handoverScheduled;
+    dispatch_queue_t _peerCheckQueue;
+    NSUInteger _runningPeerChecks;      // checks not yet returned, abandoned ones included (helper queue)
+    NSUInteger _stalledPeerChecksInRow; // checks over the limit since the last one that finished in time
 }
 
 - (instancetype)initWithPaths:(SZFriendsStatePaths *)paths queue:(dispatch_queue_t)queue {
@@ -69,6 +81,7 @@ static BOOL SZFriendsParseVersion(id object, BOOL withMinMajor, SZFriendsProtoco
         _queue = queue;
         _listenFD = -1;
         _connections = [NSMutableArray array];
+        _peerCheckQueue = dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0);
         // Lets a reply tell whether it already runs on the helper queue.
         dispatch_queue_set_specific(queue, &SZFriendsIPCQueueKey, &SZFriendsIPCQueueKey, NULL);
     }
@@ -115,6 +128,9 @@ static BOOL SZFriendsParseVersion(id object, BOOL withMinMajor, SZFriendsProtoco
     }
     _listenFD = fd;
     _bound = YES;
+    // Read now, while the bundle is surely in place: an updater may delete it later, and a team-signed helper that
+    // could no longer read its own team would fall back to the uid check.
+    [self resolvedTeam];
     __weak SZFriendsIPCServer *weakSelf = self;
     _acceptSource = dispatch_source_create(DISPATCH_SOURCE_TYPE_READ, (uintptr_t)fd, 0, _queue);
     dispatch_source_set_event_handler(_acceptSource, ^{ [weakSelf acceptPending]; });
@@ -161,29 +177,96 @@ static BOOL SZFriendsParseVersion(id object, BOOL withMinMajor, SZFriendsProtoco
         SZFriendsPeerCredentials credentials;
         SZFriendsReadPeerCredentials(fd, &credentials);
         NSString *team = [self resolvedTeam];
-        SZFriendsRequirementChecker checker = team != nil ? SZFriendsSecurityRequirementChecker() : nil;
-        if (!SZFriendsPeerAllowed(&credentials, geteuid(), team, checker)) {
-            // Closed without a word (PROTOCOL.md § Peer checks): a refused peer learns nothing about Friends.
-            SZFriendsHelperLog(@"refused a connection from pid %d", credentials.pid);
-            close(fd);
+        if (team == nil || !SZFriendsPeerUIDAllowed(&credentials, geteuid())) {
+            // Ad-hoc and test builds check the uid only, which costs nothing: decided here.
+            if (SZFriendsPeerAllowed(&credentials, geteuid(), team, nil)) {
+                [self admitDescriptor:fd credentials:credentials];
+            } else {
+                [self refuseDescriptor:fd pid:credentials.pid];
+            }
             continue;
         }
-        NSString *identifier = [NSString stringWithFormat:@"c%llu", ++_nextConnection];
-        SZFriendsIPCConnection *connection = [[SZFriendsIPCConnection alloc] initWithDescriptor:fd
-                                                                                   connectionID:identifier
-                                                                                        peerPID:credentials.pid
-                                                                                         server:self
-                                                                                          queue:_queue];
-        connection.peerCredentials = credentials;
-        if (_connections.count >= SZFriendsIPCMaxConnections) {
-            [connection start];
-            [connection sendGoodbyeWithReason:@"too_many_clients" successor:nil error:nil];
-            continue;
-        }
-        [_connections addObject:connection];
-        [connection start];
-        if (self.onConnectionsChanged) self.onConnectionsChanged(nil);
+        [self checkSignatureOfDescriptor:fd credentials:credentials team:team];
     }
+}
+
+// Closed without a word (PROTOCOL.md § Peer checks): a refused peer learns nothing about Friends.
+- (void)refuseDescriptor:(int)fd pid:(pid_t)pid {
+    SZFriendsHelperLog(@"refused a connection from pid %d", pid);
+    close(fd);
+}
+
+// The code-signing check runs on a background queue, never on the helper queue: it waits on trustd, and while it
+// waited here no other client could connect, no intent was answered and no signal was handled. The verdict comes
+// back to the helper queue; a check over the time limit refuses only its own connection.
+- (void)checkSignatureOfDescriptor:(int)fd credentials:(SZFriendsPeerCredentials)credentials team:(NSString *)team {
+    if (_runningPeerChecks >= SZFriendsIPCMaxRunningPeerChecks) {
+        SZFriendsHelperLog(@"%lu peer checks still running; refused pid %d", (unsigned long)_runningPeerChecks,
+                           credentials.pid);
+        close(fd);
+        return;
+    }
+    _runningPeerChecks++;
+    // Settled once, on the helper queue, by whichever comes first: the verdict or the time limit.
+    __block BOOL settled = NO;
+    __weak SZFriendsIPCServer *weakSelf = self;
+    dispatch_queue_t queue = _queue;
+    uid_t uid = geteuid();
+    SZFriendsRequirementChecker checker = SZFriendsSecurityRequirementChecker();
+    dispatch_async(_peerCheckQueue, ^{
+        SZFriendsPeerCredentials peer = credentials;
+        BOOL allowed = SZFriendsPeerAllowed(&peer, uid, team, checker);
+        dispatch_async(queue, ^{
+            SZFriendsIPCServer *strongSelf = weakSelf;
+            if (strongSelf != nil) strongSelf->_runningPeerChecks--;
+            if (settled) return;
+            settled = YES;
+            if (strongSelf == nil) {
+                close(fd);
+                return;
+            }
+            strongSelf->_stalledPeerChecksInRow = 0;
+            if (!allowed) {
+                [strongSelf refuseDescriptor:fd pid:credentials.pid];
+            } else if (!strongSelf->_bound) {
+                close(fd); // stepping aside meanwhile: the client reconnects to the successor
+            } else {
+                [strongSelf admitDescriptor:fd credentials:credentials];
+            }
+        });
+    });
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, SZFriendsIPCPeerCheckLimitMs * (int64_t)NSEC_PER_MSEC), queue, ^{
+        if (settled) return;
+        settled = YES;
+        SZFriendsIPCServer *strongSelf = weakSelf;
+        close(fd);
+        if (strongSelf == nil) return;
+        strongSelf->_stalledPeerChecksInRow++;
+        SZFriendsHelperLog(@"the signature check of pid %d took over %lld ms; refused that connection", credentials.pid,
+                           SZFriendsIPCPeerCheckLimitMs);
+        if (strongSelf->_stalledPeerChecksInRow == SZFriendsIPCStalledChecksBeforeStepAside &&
+            strongSelf.onPeerChecksStalled) {
+            strongSelf.onPeerChecksStalled();
+        }
+    });
+}
+
+- (void)admitDescriptor:(int)fd credentials:(SZFriendsPeerCredentials)credentials {
+    NSString *identifier = [NSString stringWithFormat:@"c%llu", ++_nextConnection];
+    SZFriendsIPCConnection *connection = [[SZFriendsIPCConnection alloc] initWithDescriptor:fd
+                                                                               connectionID:identifier
+                                                                                    peerPID:credentials.pid
+                                                                                     server:self
+                                                                                      queue:_queue];
+    connection.peerCredentials = credentials;
+    if (_connections.count >= SZFriendsIPCMaxConnections) {
+        [connection start];
+        [connection sendGoodbyeWithReason:@"too_many_clients" successor:nil error:nil];
+        return;
+    }
+    [_connections addObject:connection];
+    [connection start];
+    if (self.onConnectionsChanged) self.onConnectionsChanged(nil);
 }
 
 - (void)connectionDidClose:(SZFriendsIPCConnection *)connection {

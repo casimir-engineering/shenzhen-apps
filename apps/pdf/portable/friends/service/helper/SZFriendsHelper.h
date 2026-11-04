@@ -43,6 +43,9 @@ NS_ASSUME_NONNULL_BEGIN
 @interface SZFriendsInstanceLock : NSObject
 + (nullable instancetype)acquireAtPath:(NSString *)path error:(NSError **)error; // nil when already held
 - (void)releaseLock; // also released by process exit
+// Writes "<pid> <build>\n" into the lock file, so an app that finds this helper's bundle gone can tell whether it is
+// older than its own before ending it (szfriends_helper_may_be_ended). Best effort.
+- (void)recordOwnerBuild:(uint64_t)build;
 @end
 
 #pragma mark - Protocol versions (pure)

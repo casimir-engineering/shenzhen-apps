@@ -99,6 +99,9 @@ int SZFriendsHelperMain(int argc, const char *_Nonnull argv[_Nonnull]) {
         }
 
         SZFriendsOpenHelperLog(paths);
+        // Before anything else can delete the bundle: what this helper runs, to notice when an update removes it.
+        SZFriendsExecutableIdentity executable = SZFriendsOwnExecutableIdentity();
+        [lock recordOwnerBuild:SZFriendsHelperBuildNumber()];
         if (ignored.count > 0) {
             SZFriendsHelperLog(@"signed build: ignoring %@", [ignored componentsJoinedByString:@", "]);
         }
@@ -182,6 +185,10 @@ int SZFriendsHelperMain(int argc, const char *_Nonnull argv[_Nonnull]) {
             [services.nearby startAtLaunch];
             [services.checkIn start];
         };
+        // An update deleted or replaced this helper's app, or it can no longer check its clients: it gives way.
+        lifecycle.shouldStepAside = ^NSString * { return SZFriendsOwnExecutableChange(&executable); };
+        lifecycle.onStepAside = ^{ [services.nearby beginHandover]; };
+        server.onPeerChecksStalled = ^{ [weakLifecycle stepAsideBecause:@"its clients' signature checks stall"]; };
         server.onHandoverRequested = ^(NSDictionary *embedded) {
             // No new chunk starts; what is in flight drains, and the successor resumes from the durable offsets.
             [services.nearby beginHandover];
