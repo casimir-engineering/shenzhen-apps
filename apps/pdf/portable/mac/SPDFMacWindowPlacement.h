@@ -9,9 +9,25 @@
 // repositioned by AppKit, which is how a window left on a second display came
 // back on the main one (measured: saved y 1319, restored y 487).
 //
-// The style mask here must match the one buildWindow creates the window with;
-// it is the mask that decides how much taller a frame is than its content.
+// The style mask is the one spdf_window_create_document_window creates the
+// window with; it is the mask that decides how much taller a frame is than its
+// content.
 NSRect spdf_window_content_rect_for_saved_frame(NSRect frame);
+
+// The document window, created at `frame` on the display that frame is on.
+//
+// Created without a screen (-initWithContentRect:styleMask:backing:defer:), a
+// titled window is marked as wanting the main screen, and the first time it is
+// ordered in AppKit moves it there: during a launch's open event that is the
+// display the launch came from (the Dock clicked on the built-in display, or
+// the app that ran `open`). A window left on the display above the laptop
+// first appeared on the laptop, and only then went back where it was left.
+// Given its screen, the window is shown where it is put, from the first frame.
+NSWindow* spdf_window_create_document_window(Class windowClass, NSRect frame);
+
+// The display a window at `frame` is on: the one it overlaps most, else the
+// main one.
+NSScreen* spdf_window_screen_for_frame(NSRect frame);
 
 // Everything the document window needs once it exists: the reader it routes
 // events to, its delegate, title and minimum size, and the saved frame applied
@@ -31,15 +47,18 @@ void spdf_window_configure_document_window(NSWindow* window, id reader, NSSize m
 //   visible (a window remembered on an external display, launched once while
 //   only the built-in screen was attached, came back clamped to the built-in
 //   screen -- and saving that clamp destroyed the remembered position for good);
-// - macOS may move a window it has just shown or activated, onto the display in
-//   use, and the next quit saved that as if the reader had put it there;
+// - AppKit moved a window it showed during a launch onto the display the launch
+//   came from (see spdf_window_create_document_window), and the next quit saved
+//   that as if the reader had put it there;
 // - a display that goes away (unplugged, asleep) takes its windows with it.
 // Only the reader's own changes (a drag, an edge, a menu command or shortcut;
 // a window manager while the displays stay as they are) replace the frame to
 // remember, and they are written within half a second, so no quit path, crash
-// or update can lose them. A move nobody asked for during the first seconds of
-// a launch is undone; a window moved off a display is put back when the display
-// returns. A full-screen window is remembered by its frame before full screen.
+// or update can lose them. The window is created where it belongs, so nothing
+// should move it at launch; if something still does in the first seconds, the
+// move is undone rather than saved. A window moved off a display is put back
+// when the display returns. A full-screen window is remembered by its frame
+// before full screen.
 NSRect spdf_window_frame_to_persist(NSWindow* window, NSRect liveFrame);
 
 // Whether a frame change comes from the reader: the event being handled is

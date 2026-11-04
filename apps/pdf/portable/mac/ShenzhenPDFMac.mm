@@ -2562,11 +2562,7 @@ id spdf_state_object_from_yaml_data(NSData* data) {
                                     floor(NSMidY(screen.visibleFrame) - contentSize.height / 2.0),
                                     contentSize.width, contentSize.height);
     double launchWindowStart = spdf_launch_profile_enabled() ? spdf_zoom_profile_now_ms() : 0.0;
-    _window = [[SPDFWindow alloc] initWithContentRect:spdf_window_content_rect_for_saved_frame(frame)
-                                            styleMask:NSWindowStyleMaskTitled | NSWindowStyleMaskClosable |
-                                                      NSWindowStyleMaskMiniaturizable | NSWindowStyleMaskResizable
-                                              backing:NSBackingStoreBuffered
-                                                defer:NO];
+    _window = spdf_window_create_document_window(SPDFWindow.class, frame); // on its own display at once
     if (launchWindowStart > 0.0)
         spdf_launch_profile_log(@"buildWindow.windowInit %.1fms", spdf_zoom_profile_now_ms() - launchWindowStart);
     _window.titleVisibility = NSWindowTitleHidden;

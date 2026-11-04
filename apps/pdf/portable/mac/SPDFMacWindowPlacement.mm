@@ -1,9 +1,36 @@
 #import "SPDFMacWindowPlacement.h"
 
+static const NSWindowStyleMask kSPDFDocumentWindowStyle = NSWindowStyleMaskTitled | NSWindowStyleMaskClosable |
+                                                          NSWindowStyleMaskMiniaturizable |
+                                                          NSWindowStyleMaskResizable;
+
 NSRect spdf_window_content_rect_for_saved_frame(NSRect frame) {
-    static const NSWindowStyleMask mask = NSWindowStyleMaskTitled | NSWindowStyleMaskClosable |
-                                          NSWindowStyleMaskMiniaturizable | NSWindowStyleMaskResizable;
-    return [NSWindow contentRectForFrameRect:frame styleMask:mask];
+    return [NSWindow contentRectForFrameRect:frame styleMask:kSPDFDocumentWindowStyle];
+}
+
+NSScreen* spdf_window_screen_for_frame(NSRect frame) {
+    NSScreen* best = nil;
+    CGFloat bestArea = 0.0;
+    for (NSScreen* screen in NSScreen.screens) {
+        NSRect overlap = NSIntersectionRect(frame, screen.frame);
+        if (NSWidth(overlap) * NSHeight(overlap) > bestArea) {
+            bestArea = NSWidth(overlap) * NSHeight(overlap);
+            best = screen;
+        }
+    }
+    return best ?: NSScreen.mainScreen ?: NSScreen.screens.firstObject;
+}
+
+NSWindow* spdf_window_create_document_window(Class windowClass, NSRect frame) {
+    NSScreen* screen = spdf_window_screen_for_frame(frame);
+    NSRect content = spdf_window_content_rect_for_saved_frame(frame);
+    // With a screen, the content rect is given from that screen's origin.
+    if (screen) content = NSOffsetRect(content, -NSMinX(screen.frame), -NSMinY(screen.frame));
+    return [[windowClass alloc] initWithContentRect:content
+                                          styleMask:kSPDFDocumentWindowStyle
+                                            backing:NSBackingStoreBuffered
+                                              defer:NO
+                                             screen:screen];
 }
 
 // The frame the reader left, and whether the window is sitting somewhere else
@@ -13,8 +40,8 @@ static NSRect gSPDFDesiredFrame;
 static BOOL gSPDFHasDesiredFrame;
 static BOOL gSPDFDisplaced;
 // Until when a move nobody asked for during the launch is undone, and how many
-// times it may be: macOS settles a new window after it is shown, and once the
-// app is activated.
+// times it may be: a safety net only, the window is created on its own display
+// (spdf_window_create_document_window) and the launch does not move it.
 static CFAbsoluteTime gSPDFLaunchGuardUntil;
 static NSUInteger gSPDFLaunchPutBacks;
 static const NSUInteger kSPDFMaximumLaunchPutBacks = 4;
@@ -91,10 +118,10 @@ static void spdf_window_remember(NSRect frame, id reader) {
 // The window moved or changed size. The reader's own change (a drag, an edge,
 // a menu command or shortcut) becomes the frame to remember, and is written
 // soon, so no later quit, crash or update can lose it. A change nobody asked
-// for is the system's: macOS settling a window it has just shown or activated
-// (put back), or moving it off a display that went away (shown there,
-// remembered here). A move by a window manager while the remembered frame is
-// still reachable and the displays did not change is taken as the reader's.
+// for is the system's: a move in the first seconds of a launch (put back), or
+// a move off a display that went away (shown there, remembered here). A move
+// by a window manager while the remembered frame is still reachable and the
+// displays did not change is taken as the reader's.
 static void spdf_window_frame_changed(NSWindow* window, id reader) {
     if (gSPDFFullScreenTransition || (window.styleMask & NSWindowStyleMaskFullScreen)) return;
     NSRect frame = window.frame;
@@ -186,6 +213,14 @@ void spdf_window_configure_document_window(NSWindow* window, id reader, NSSize m
         if (!spdf_window_frame_is_usable_on_screens(savedFrame, spdf_window_screen_visible_frames())) {
             display = spdf_window_fallback_frame(savedFrame);
             gSPDFDisplaced = !NSEqualRects(display, savedFrame);
+        } else {
+            // Where AppKit lets it be: shown, a window whose top is above its display's menu bar (left across two
+            // displays, mostly on the lower one) is moved down under it. Put there before it is shown, and taken as
+            // the frame to remember: put back, it was moved down again, four times in a row. Asked as AppKit asks
+            // when it shows the window: at that frame, with no screen named.
+            [window setFrame:savedFrame display:NO];
+            display = [window constrainFrameRect:savedFrame toScreen:nil];
+            gSPDFDesiredFrame = display;
         }
         [window setFrame:display display:NO];
     }
