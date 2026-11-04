@@ -1,6 +1,6 @@
 # Release notes
 
-User-facing notes for changes merged since the last release (26.11.4 build 1).
+User-facing notes for changes merged since the last release (26.11.4 build 2).
 
 Release notes are tracked in `portable/docs/releases/`. Prepare the next release
 with `./portable/cut-release.sh --prepare-only ["summary"]`; publish the
@@ -11,4 +11,4 @@ published release will notice; never a fix for a bug that was never released.
 
 ## Next release
 
-- Friends (Beta): Friends no longer gets stuck on "Starting Friends…" after an update.
+Nothing yet.

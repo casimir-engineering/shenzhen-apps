@@ -232,7 +232,7 @@
 		</dict>
 	</array>
 	<key>CFBundleVersion</key>
-	<string>1</string>
+	<string>2</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 	<key>LSApplicationCategoryType</key>
@@ -254,6 +254,6 @@
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
 	<key>SZFReleaseTag</key>
-	<string>26.11.4-1</string>
+	<string>26.11.4-2</string>
 </dict>
 </plist>
