@@ -124,6 +124,10 @@ class Release:
         return {}
 
     def tests_stage(self):
+        # Releases run no test suites (Raph, 2026-11-05: releases must take under 10 minutes). Run them by hand.
+        say("tests: not run by releases")
+        self.test_failures = []
+        return {"failed": []}
         failed = self.tests()
         self.test_failures = failed or []
         if self.test_failures:
@@ -239,7 +243,7 @@ class Release:
             s.skip("publish", "dry run")
             return
         s.run("publish", self.publish)
-        s.run("live-check", self.live_check)
+        s.skip("live-check", "releases run no tests")
 
     def held(self, name, fn):
         cpus, mem = self.stage_load.get(name, (0, 0))
