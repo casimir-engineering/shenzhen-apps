@@ -77,3 +77,4 @@
 {"type":"test_notification_response","id":"78","key":"message:i_81f2","action":"reply","text":"On it"}
 {"type":"boost_transfer","id":"79","transfer_id":"t_5a90c3e1"}
 {"type":"skip_boost","id":"80","transfer_id":"t_5a90c3e1"}
+{"type":"send_files","id":"81","conversation_id":"c_mei","client_token":"5f4e3d2c1b0a9f8e7d6c5b4a","files":[{"path":"/var/folders/zw/T/ShenzhenPDF Friends sends/6F1C2A9E/Report.zip","display_name":"Report.md","revision":null,"document":{"comments":3,"pictures":2,"files":1}}]}
