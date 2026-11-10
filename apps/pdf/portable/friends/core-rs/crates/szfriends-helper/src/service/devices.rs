@@ -242,6 +242,7 @@ impl State {
             this_computer: true,
             connected: true,
             last_seen_at: None,
+            route: Default::default(), // this computer is connected by no route
         };
         let mut others = Vec::new();
         for record in &records {
@@ -256,13 +257,23 @@ impl State {
             a.added_at.total_cmp(&b.added_at).then(a.device_key.cmp(&b.device_key))
         });
         let mut computers = vec![this];
-        computers.extend(others.iter().map(|d| DeviceFacts {
-            device_id: device_id(&d.device_key),
-            name: d.name.clone(),
-            system: d.system.clone(),
-            this_computer: false,
-            connected: self.own_device_live_link(&d.device_key).is_some(),
-            last_seen_at: d.last_seen_at,
+        computers.extend(others.iter().map(|d| {
+            DeviceFacts {
+                device_id: device_id(&d.device_key),
+                name: d.name.clone(),
+                system: d.system.clone(),
+                this_computer: false,
+                connected: self.own_device_live_link(&d.device_key).is_some(),
+                last_seen_at: d.last_seen_at,
+                // The session it is connected by, as the You row and Your computers show it.
+                route: self
+                    .own_device_live_link(&d.device_key)
+                    .map(|id| {
+                        let s = &self.sessions.map[&id];
+                        super::nearby::view_route(s.meta.race_route(&s.channel))
+                    })
+                    .unwrap_or_default(),
+            }
         }));
         let removed = self.removed_computer();
         // Files another of our computers holds: its bytes are there, its name says where (device_files.rs).

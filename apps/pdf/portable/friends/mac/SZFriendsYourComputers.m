@@ -34,6 +34,10 @@ static NSString *SZFPrefixFittingBytes(NSString *text, NSUInteger maxBytes) {
     NSMutableArray<NSTextField *> *_names;
     NSMutableArray<NSTextField *> *_details;
     NSMutableArray<NSView *> *_dots;
+    // How each computer is connected now, under its detail: the route's icon and words, as a friend's details page
+    // shows them; hidden on rows whose route has no words (this computer, one not connected).
+    NSMutableArray<SZFriendsFlippedView *> *_routeIcons;
+    NSMutableArray<NSTextField *> *_routeLabels;
     NSMutableArray<SZFriendsActionButton *> *_removes;
 }
 
@@ -66,6 +70,8 @@ static NSString *SZFPrefixFittingBytes(NSString *text, NSUInteger maxBytes) {
     _names = [NSMutableArray array];
     _details = [NSMutableArray array];
     _dots = [NSMutableArray array];
+    _routeIcons = [NSMutableArray array];
+    _routeLabels = [NSMutableArray array];
     _removes = [NSMutableArray array];
     self.hidden = YES;
     return self;
@@ -77,6 +83,10 @@ static NSString *SZFPrefixFittingBytes(NSString *text, NSUInteger maxBytes) {
 
 - (NSArray<NSTextField *> *)detailLabels {
     return [_details copy];
+}
+
+- (NSArray<NSTextField *> *)routeLabels {
+    return [_routeLabels copy];
 }
 
 - (NSTextField *)addTitleLabel {
@@ -103,11 +113,11 @@ static NSString *SZFPrefixFittingBytes(NSString *text, NSUInteger maxBytes) {
             [steps addObject:[NSString stringWithFormat:@"%lu. %@", (unsigned long)steps.count + 1, step]];
     _addSteps.stringValue = [steps componentsJoinedByString:@"\n"];
     _rename = nil;
-    for (NSArray *views in @[ _names, _details, _dots ])
+    NSArray<NSMutableArray *> *rowViews = @[ _names, _details, _dots, _routeIcons, _routeLabels ];
+    for (NSMutableArray *views in rowViews) {
         for (NSView *view in views) [view removeFromSuperview];
-    [_names removeAllObjects];
-    [_details removeAllObjects];
-    [_dots removeAllObjects];
+        [views removeAllObjects];
+    }
     NSMutableArray *removes = [NSMutableArray array];
     SZFriendsAppearance *appearance = _context.appearance;
     for (id row in SZFArr(devices, @"rows")) {
@@ -124,10 +134,22 @@ static NSString *SZFPrefixFittingBytes(NSString *text, NSUInteger maxBytes) {
         BOOL connected = [SZFStr(row, @"state") isEqualToString:@"connected"];
         dot.fillColor = connected ? appearance.successColor : nil;
         dot.strokeColor = connected ? nil : appearance.secondaryTextColor;
-        for (NSView *view in @[ dot, name, detail ]) [self addSubview:view];
+        NSDictionary *route = SZFDict(row, @"route");
+        NSColor *routeColor = SZFriendsRouteColor(appearance, SZFStr(route, @"kind"));
+        NSTextField *routeLabel = SZFriendsLabel(SZFStr(route, @"label") ?: @"", appearance.secondaryFont, routeColor);
+        SZFriendsFlippedView *routeIcon = [[SZFriendsFlippedView alloc] initWithFrame:NSMakeRect(0, 0, 11, 11)];
+        NSString *glyph = SZFriendsRouteGlyph(route);
+        routeIcon.drawContents = ^(SZFriendsFlippedView *view) {
+            SZFriendsDrawRouteIcon(glyph, view.bounds, routeColor);
+        };
+        routeLabel.hidden = routeLabel.stringValue.length == 0;
+        routeIcon.hidden = routeLabel.hidden || glyph == nil;
+        for (NSView *view in @[ dot, name, detail, routeIcon, routeLabel ]) [self addSubview:view];
         [_names addObject:name];
         [_details addObject:detail];
         [_dots addObject:dot];
+        [_routeIcons addObject:routeIcon];
+        [_routeLabels addObject:routeLabel];
         if (here) {
             _rename = SZFDict(row, @"rename");
             _thisName = SZFStr(row, @"name");
@@ -245,6 +267,11 @@ static NSString *SZFPrefixFittingBytes(NSString *text, NSUInteger maxBytes) {
         _dots[i].frame = NSMakeRect(2, y + 5, 8, 8);
         CGFloat bottom = SZFriendsPlace(_names[i], textX, y, textWidth);
         bottom = SZFriendsPlace(_details[i], textX, bottom + 1, textWidth);
+        if (!_routeLabels[i].hidden) {
+            CGFloat icon = _routeIcons[i].hidden ? 0 : 15;
+            _routeIcons[i].frame = NSMakeRect(textX, bottom + 3, 11, 11);
+            bottom = SZFriendsPlace(_routeLabels[i], textX + icon, bottom + 1, textWidth - icon);
+        }
         if (trailing) {
             CGFloat height = trailing.style == SZFriendsButtonStyleLink ? 20 : 24;
             trailing.frame = NSMakeRect(width - trailingWidth, y + floor((bottom - y - height) / 2), trailingWidth,

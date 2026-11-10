@@ -146,7 +146,7 @@ MAC_SWIFT_LIB_DIRS = -L"$$(xcrun --show-sdk-path)/usr/lib/swift" \
 	-L"$$(dirname "$$(xcrun --find swiftc)")/../lib/swift/macosx"
 MAC_SWIFT_LINK = $(MAC_SWIFT_OBJ) $(MAC_SWIFT_LIB_DIRS) -Wl,-rpath,/usr/lib/swift -weak_framework Speech
 MAC_VERSION ?= 26.11.5
-MAC_BUILD ?= 1
+MAC_BUILD ?= 2
 # The release this app is, as people see it and the updater compares it (mac/Info.plist SZFReleaseTag, which
 # cut-release.sh sets). MAC_BUILD alone is not it: Friends changes raise MAC_BUILD between releases.
 MAC_RELEASE_TAG ?=

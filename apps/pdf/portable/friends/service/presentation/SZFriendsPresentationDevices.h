@@ -17,6 +17,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property(nonatomic, copy) NSString *system;       // "macOS 26.1"
 @property(nonatomic) BOOL thisComputer;
 @property(nonatomic) BOOL connected;               // a session with it is live now
+@property(nonatomic) SZFriendsRouteMethod routeMethod; // that session's route; None without one
 @property(nonatomic, copy, nullable) NSDate *lastSeenAt; // the last session with it; nil: never reached from here
 @end
 

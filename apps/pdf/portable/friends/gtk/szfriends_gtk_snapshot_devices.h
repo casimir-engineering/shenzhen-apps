@@ -32,6 +32,7 @@ typedef struct {
     char *device_id, *name, *system, *last_connected, *detail;
     gboolean this_computer;
     SZFriendsGtkDeviceState state;
+    SZFriendsGtkRoute *route; /* how it is connected now; kind none here and on one not connected */
     char *accessibility_label;
     SZFriendsGtkDeviceRename *rename; /* this computer's row only */
     SZFriendsGtkAction *remove;       /* revoke_device with its confirm; NULL on this computer's row */

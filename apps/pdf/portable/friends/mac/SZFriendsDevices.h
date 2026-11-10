@@ -66,6 +66,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (CGFloat)layoutForWidth:(CGFloat)width; // lays out the subviews and returns the height used
 @property(nonatomic, copy, readonly) NSArray<NSTextField *> *nameLabels;
 @property(nonatomic, copy, readonly) NSArray<NSTextField *> *detailLabels;
+@property(nonatomic, copy, readonly) NSArray<NSTextField *> *routeLabels; // one per row, hidden without a route
 @property(nonatomic, copy, readonly) NSArray<SZFriendsActionButton *> *removeButtons;
 @property(nonatomic, strong, readonly) NSTextField *addTitleLabel; // "Add a computer or phone"
 @property(nonatomic, strong, readonly) NSTextField *addStepsLabel; // its steps, numbered

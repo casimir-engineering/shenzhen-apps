@@ -266,6 +266,10 @@ NSString *SZFriendsDeviceIDForKey(NSData *deviceKey) {
         facts.name = device.name;
         facts.system = device.system;
         facts.connected = [self ownDeviceConnected:device.deviceKey];
+        // The session it is connected by, as the You row and Your computers show it.
+        SZFriendsPeerLink *link =
+            facts.connected ? [self liveSyncLinkForDeviceHex:SZFriendsLinkHex(device.deviceKey)] : nil;
+        facts.routeMethod = link != nil ? link.raceRoute : SZFriendsRouteMethodNone;
         facts.lastSeenAt = device.lastSeenAt;
         [computers addObject:facts];
     }

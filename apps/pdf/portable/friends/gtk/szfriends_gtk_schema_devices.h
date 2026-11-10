@@ -9,8 +9,8 @@ TYPE(static, device_rename, "type.device_rename", SZFriendsGtkDeviceRename);
 #define T SZFriendsGtkDeviceRow
 static const SZFriendsGtkField device_row_fields[] = {
     STR(T, device_id), STR(T, name), STR(T, system), STR(T, last_connected), STR(T, detail), BOOL(T, this_computer),
-    ENUM(T, state, device_states), STR(T, accessibility_label), OBJN(T, rename, device_rename),
-    OBJN(T, remove, action)};
+    ENUM(T, state, device_states), OBJN(T, route, route), STR(T, accessibility_label),
+    OBJN(T, rename, device_rename), OBJN(T, remove, action)};
 #undef T
 TYPE(static, device_row, "type.device_row", SZFriendsGtkDeviceRow);
 #define T SZFriendsGtkDeviceAdd

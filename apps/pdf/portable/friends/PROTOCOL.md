@@ -1207,6 +1207,7 @@ this computer shows."), and `friends_id` is that ID, ASCII, for a view that offe
 | `detail` | string | The line under the name: `system` and `last_connected` joined, "macOS 15.7 · Now" |
 | `this_computer` | bool | The row of the computer showing it |
 | `state` | enum | `connected` (this computer, or a session with it is live), `not_connected`, `never_connected`; views may draw a dot by it |
+| `route` | route, optional | How another computer is connected now (§ Shared objects, Route): the live session's route, as a friend's conversation header shows it ("Nearby, on your network"), so views draw its icon and `label` with the row; kind `none` on this computer's row and on one not connected. Older helpers send none |
 | `accessibility_label` | string | The row read aloud: "Raph’s Mac mini, macOS 15.7, connected now" |
 | `rename` | object or null | This computer's row only: a field (`label` "Rename", `placeholder`, `button_label`, `max_bytes` 64) that sends `rename_device` |
 | `remove` | action or null | `revoke_device` with its `device_id` and `confirm`; null on this computer's row, which leaves the profile only through Reset Friends |
@@ -1241,8 +1242,14 @@ away.
 **You.** A conversation with yourself (`conversation_id` `you`), whose messages and files reach every computer of the
 profile (`fixtures/snapshots/devices-list.json`, `devices-conversation-you.json`). Its list row has `kind` `you` (every
 other row `person`), the person's own avatar, title "You", the last item as its subtitle or "Send yourself messages and
-files" while it is empty, route kind `none`, and `drop_label` "Send to all your computers". The row shows while the
-profile has two or more computers, or once You holds anything. Its conversation has header "You" with subtitle "On all
+files" while it is empty, a `route`, and `drop_label` "Send to all your computers". The row shows while the
+profile has two or more computers, or once You holds anything. Its `route` is the worst route among the person's other
+computers connected now, in the route order (§ Shared objects, Route order: a computer through the relay makes it the
+relay, then Bluetooth, Internet, direct Wi-Fi, the network), drawn like a friend's; its `label`, the tooltip, names
+each connected computer and its route, one per line in Your computers' order ("Raph’s Mac mini · Nearby, on your
+network", "Raph’s iPhone · Online, through the Friends relay"), and `accessibility_label` ends with the same read
+aloud. While none is connected the route is kind `none` and the row draws no icon (Your computers says when each last
+connected). Its conversation has header "You" with subtitle "On all
 your computers" and `details_available` false, no `request`, and a composer whose placeholder is "Message yourself" and
 whose `note` is null unless something here has not reached every computer yet: "What you send here reaches your other
 computers when ShenzhenPDF, Shenzhen Files or Shenzhen 3D is open on them." `send_message` and `send_files` to `you`
@@ -2297,6 +2304,7 @@ last_connected: string       # "This computer", "Now", "5 min ago", "Yesterday",
 detail: string               # system and last_connected as one line: "macOS 15.7 · Now"
 this_computer: bool
 state: enum(connected,not_connected,never_connected)
+route?: @route               # the live session's route; kind none on this computer's row and one not connected
 accessibility_label: string
 rename: @device_rename|null  # this computer's row only
 remove: @action|null         # revoke_device with confirm; null on this computer's row

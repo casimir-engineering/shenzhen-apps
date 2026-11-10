@@ -18,14 +18,8 @@ use szfriends_core::presentation::{
 use szfriends_core::store::PhoneFolder;
 
 fn computer(id: &str, name: &str, system: &str, this: bool, connected: bool, seen: Option<&str>) -> DeviceFacts {
-    DeviceFacts {
-        device_id: id.into(),
-        name: name.into(),
-        system: system.into(),
-        this_computer: this,
-        connected,
-        last_seen_at: seen.map(hk),
-    }
+    let (device_id, name, system, last_seen_at) = (id.into(), name.into(), system.into(), seen.map(hk));
+    DeviceFacts { device_id, name, system, this_computer: this, connected, last_seen_at, ..Default::default() }
 }
 
 fn four_computers() -> DevicesFacts {

@@ -28,6 +28,8 @@ pub struct DeviceFacts {
     pub connected: bool,
     /// The last session with it; None: never reached from here.
     pub last_seen_at: Option<f64>,
+    /// The live session's route; None without one.
+    pub route: RouteMethod,
 }
 
 /// A file one of the person's other computers holds and this one does not have yet.
@@ -74,6 +76,41 @@ impl SnapshotBuilder {
     /// Whether Delete history speaks of every computer (two or more).
     pub(crate) fn deletes_on_every_computer(&self) -> bool {
         self.devices.as_ref().is_some_and(|d| d.computers.len() >= 2)
+    }
+
+    /// How another computer is connected now, as a friend's route shows it; nothing for this computer or one that is
+    /// not.
+    fn route_for_device(&self, device: &DeviceFacts) -> Value {
+        let live =
+            if device.this_computer || !device.connected { None } else { self.route_for_live_method(device.route) };
+        live.unwrap_or_else(|| self.route_for_kind(RouteKind::None, RouteMethod::None))
+    }
+
+    /// The You row's route: the worst way any of the person's other computers is connected now (the route order, the
+    /// relay last), with every connected computer and its route in the tooltip, one per line, so a slow one is never
+    /// hidden behind a fast one. Nothing while none is connected. Also returns the same read aloud.
+    fn you_route(&self, facts: &DevicesFacts) -> (Value, Option<String>) {
+        let s = &self.strings;
+        let mut worst = RouteMethod::None;
+        let (mut lines, mut said) = (Vec::new(), Vec::new());
+        for device in &facts.computers {
+            let route = self.route_for_device(device);
+            let Some(label) = route["label"].as_str().filter(|l| !l.is_empty()) else { continue };
+            if worst == RouteMethod::None || route_rank(worst) < route_rank(device.route) {
+                worst = device.route;
+            }
+            lines.push(s.text_with("you.route.device", &[("device", &device.name), ("route", label)]));
+            let spoken = s.spoken_fragment(label);
+            said.push(s.text_with("you.route.spoken", &[("device", &device.name), ("route", &spoken)]));
+        }
+        let spoken = (!said.is_empty()).then(|| said.join("; "));
+        match self.route_for_live_method(worst) {
+            Some(Value::Object(mut route)) => {
+                route.insert("label".into(), json!(lines.join("\n")));
+                (Value::Object(route), spoken)
+            }
+            _ => (self.route_for_kind(RouteKind::None, RouteMethod::None), None),
+        }
     }
 
     fn device_row(&self, device: &DeviceFacts, removed: bool, now: f64) -> Value {
@@ -137,6 +174,7 @@ impl SnapshotBuilder {
             "detail": s.text_with("devices.detail", &values),
             "this_computer": device.this_computer,
             "state": state,
+            "route": self.route_for_device(device),
             "accessibility_label": s.text_with(&spoken_key, &said),
             "rename": rename,
             "remove": remove,
@@ -203,13 +241,17 @@ impl SnapshotBuilder {
     fn you_row(&self, facts: &DevicesFacts, you: &PersonFacts, now: f64, mentions: bool) -> Value {
         let s = &self.strings;
         let preview = self.you_preview_text(facts.you_preview.as_ref());
-        let spoken = match &preview {
+        let mut spoken = match &preview {
             Some(preview) => {
                 let time = s.time_accessibility_label(you.last_interaction_at, now);
                 s.text_with("you.row.accessibility", &[("preview", preview), ("time", &time)])
             }
             None => s.text("you.row.accessibility.empty"),
         };
+        let (route, spoken_route) = self.you_route(facts);
+        if let Some(said) = spoken_route {
+            spoken = format!("{spoken}, {said}");
+        }
         let drops = self.rows_take_files();
         let mut row = Map::new();
         row.insert("conversation_id".into(), json!(YOU_ID));
@@ -218,7 +260,7 @@ impl SnapshotBuilder {
         row.insert("title".into(), json!(s.text("you.title")));
         row.insert("subtitle".into(), json!(preview.unwrap_or_else(|| s.text("you.subtitle.empty"))));
         row.insert("time_label".into(), json!(s.time_label(you.last_interaction_at, now)));
-        row.insert("route".into(), self.route_for_kind(RouteKind::None, RouteMethod::None));
+        row.insert("route".into(), route);
         row.insert("unread".into(), json!(you.unread_count > 0));
         row.insert("waiting".into(), Value::Null);
         row.insert("blocked".into(), json!(false));
@@ -289,5 +331,18 @@ impl SnapshotBuilder {
         let name_prompt = result.get("name_prompt").is_some_and(Value::is_object);
         result.insert("join".into(), self.list_join(name_prompt));
         Value::Object(result)
+    }
+}
+
+/// The route order every comparison uses (PROTOCOL.md § Shared objects, Route order): LAN, peer-to-peer Wi-Fi,
+/// Internet, Bluetooth, the relay; lower is better.
+fn route_rank(route: RouteMethod) -> u8 {
+    match route {
+        RouteMethod::Lan => 0,
+        RouteMethod::PeerToPeerWifi => 1,
+        RouteMethod::Internet => 2,
+        RouteMethod::Bluetooth => 3,
+        RouteMethod::Relay => 4,
+        RouteMethod::None => 5,
     }
 }
