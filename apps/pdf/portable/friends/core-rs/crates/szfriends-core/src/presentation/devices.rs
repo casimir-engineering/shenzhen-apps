@@ -88,7 +88,8 @@ impl SnapshotBuilder {
 
     /// The You row's route: the worst way any of the person's other computers is connected now (the route order, the
     /// relay last), with every connected computer and its route in the tooltip, one per line, so a slow one is never
-    /// hidden behind a fast one. Nothing while none is connected. Also returns the same read aloud.
+    /// hidden behind a fast one. While none is connected, the crossed-out icon of a route that is not up, saying
+    /// whether there is no other computer yet or none is connected now. Also returns the same read aloud.
     fn you_route(&self, facts: &DevicesFacts) -> (Value, Option<String>) {
         let s = &self.strings;
         let mut worst = RouteMethod::None;
@@ -109,7 +110,12 @@ impl SnapshotBuilder {
                 route.insert("label".into(), json!(lines.join("\n")));
                 (Value::Object(route), spoken)
             }
-            _ => (self.route_for_kind(RouteKind::None, RouteMethod::None), None),
+            _ => {
+                let others = facts.computers.iter().any(|d| !d.this_computer);
+                let label = s.text(if others { "you.route.none_connected" } else { "you.route.alone" });
+                let spoken = s.spoken_fragment(&label);
+                (json!({ "kind": "offline", "method": Value::Null, "label": label }), Some(spoken))
+            }
         }
     }
 

@@ -27,7 +27,7 @@
     "removed": null,
     "rows": [
       {
-        "accessibility_label": "You, Bracket drawing rev C.pdf, 15:02",
+        "accessibility_label": "You, Bracket drawing rev C.pdf, 15:02, your other computers aren’t connected right now",
         "actions": [],
         "avatar": {
           "kind": "animal",
@@ -44,8 +44,8 @@
         "id_confirmed_label": null,
         "kind": "you",
         "route": {
-          "kind": "none",
-          "label": null,
+          "kind": "offline",
+          "label": "Your other computers aren’t connected right now",
           "method": null
         },
         "style": "normal",

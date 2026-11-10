@@ -116,8 +116,10 @@ static void TestYou(void) {
     Same(row[@"conversation_id"], @"you", @"the You row");
     Same(row[@"title"], T(@"you.title", nil), @"the You row");
     Same(row[@"drop_label"], T(@"you.drop_label", nil), @"the You row");
-    Same(row[@"accessibility_label"], T(@"you.row.accessibility", (@{@"preview" : row[@"subtitle"],
-                                                                     @"time" : row[@"time_label"]})), @"You read");
+    NSString *read = T(@"you.row.accessibility", (@{@"preview" : row[@"subtitle"], @"time" : row[@"time_label"]}));
+    NSString *route = [Strings spokenFragment:T(@"you.route.none_connected", nil)];
+    Same(row[@"accessibility_label"], [NSString stringWithFormat:@"%@, %@", read, route], @"You read");
+    Same(row[@"route"][@"label"], T(@"you.route.none_connected", nil), @"You route");
     NSDictionary *you = Data(@"devices-conversation-you.json");
     Same(you[@"header"][@"title"], T(@"you.title", nil), @"You header");
     Same(you[@"header"][@"subtitle"], T(@"you.header.subtitle", nil), @"You header");

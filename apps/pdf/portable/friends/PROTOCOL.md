@@ -1248,8 +1248,9 @@ computers connected now, in the route order (§ Shared objects, Route order: a c
 relay, then Bluetooth, Internet, direct Wi-Fi, the network), drawn like a friend's; its `label`, the tooltip, names
 each connected computer and its route, one per line in Your computers' order ("Raph’s Mac mini · Nearby, on your
 network", "Raph’s iPhone · Online, through the Friends relay"), and `accessibility_label` ends with the same read
-aloud. While none is connected the route is kind `none` and the row draws no icon (Your computers says when each last
-connected). Its conversation has header "You" with subtitle "On all
+aloud. While none is connected the route is kind `offline`, the crossed-out icon, and its `label` says why: "No other
+computers yet" while the profile has only this computer, otherwise "Your other computers aren’t connected right now"
+(Your computers says when each last connected); `accessibility_label` ends with the same. Its conversation has header "You" with subtitle "On all
 your computers" and `details_available` false, no `request`, and a composer whose placeholder is "Message yourself" and
 whose `note` is null unless something here has not reached every computer yet: "What you send here reaches your other
 computers when ShenzhenPDF, Shenzhen Files or Shenzhen 3D is open on them." `send_message` and `send_files` to `you`

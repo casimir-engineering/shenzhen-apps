@@ -26,5 +26,6 @@ document again from that app.
 ### Friends (Beta)
 
 The You row now shows how your other computers are connected, as a friend's row does. If any of them goes through the
-Friends relay, it shows the relay; point at the icon to see each computer and how it's connected. Your computers, in
-your profile, shows the same under each computer.
+Friends relay, it shows the relay; point at the icon to see each computer and how it's connected. When none of them
+is connected, or you have no other computer yet, it shows the crossed-out icon. Your computers, in your profile, shows
+the same under each computer.

@@ -27,7 +27,7 @@
     "removed": null,
     "rows": [
       {
-        "accessibility_label": "You, Bracket drawing rev C.pdf, 15:02",
+        "accessibility_label": "You, Bracket drawing rev C.pdf, 15:02, no other computers yet",
         "actions": [],
         "avatar": {
           "color": "#5a4a7a",
@@ -45,8 +45,8 @@
         "kind": "you",
         "menu": [],
         "route": {
-          "kind": "none",
-          "label": null,
+          "kind": "offline",
+          "label": "No other computers yet",
           "method": null
         },
         "style": "normal",

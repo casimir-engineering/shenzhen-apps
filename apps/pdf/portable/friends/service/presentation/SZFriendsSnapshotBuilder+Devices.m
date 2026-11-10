@@ -79,7 +79,8 @@ static const NSUInteger SZFriendsDeviceNameMaxBytes = 64;
 
 // The You row's route: the worst way any of the person's other computers is connected now (SZFriendsRouteRank, the
 // relay last), with every connected computer and its route in the tooltip, one per line, so a slow one is never
-// hidden behind a fast one. Nothing while none is connected. `spoken` gets the same, read aloud.
+// hidden behind a fast one. While none is connected, the crossed-out icon of a route that is not up, saying whether
+// there is no other computer yet or none is connected now. `spoken` gets the same, read aloud.
 - (NSDictionary<NSString *, id> *)youRouteSpoken:(NSString *_Nullable *_Nonnull)spoken {
     SZFriendsStrings *s = self.strings;
     SZFriendsRouteMethod worst = SZFriendsRouteMethodNone;
@@ -96,7 +97,13 @@ static const NSUInteger SZFriendsDeviceNameMaxBytes = 64;
     }
     *spoken = said.count ? [said componentsJoinedByString:@"; "] : nil;
     NSDictionary *route = [self routeForLiveMethod:worst];
-    if (route == nil) return [self routeForKind:SZFriendsRouteKindNone method:SZFriendsRouteMethodNone];
+    if (route == nil) {
+        BOOL others = NO;
+        for (SZFriendsDeviceFacts *device in self.devices.computers) others = others || !device.thisComputer;
+        NSString *label = [s text:others ? @"you.route.none_connected" : @"you.route.alone"];
+        *spoken = [s spokenFragment:label];
+        return @{@"kind" : @"offline", @"method" : [NSNull null], @"label" : label};
+    }
     NSMutableDictionary *result = [route mutableCopy];
     result[@"label"] = [lines componentsJoinedByString:@"\n"];
     return result;
