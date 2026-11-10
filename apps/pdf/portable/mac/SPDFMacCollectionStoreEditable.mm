@@ -1,4 +1,5 @@
 #import "SPDFMacCollectionStorePrivate.h"
+#import "SPDFMacOtherAppFiles.h"
 
 static BOOL ValidComponent(NSString* value) {
     return value.length && [value isEqual:value.lastPathComponent] &&
@@ -17,7 +18,8 @@ static NSURL* CopyURL(NSURL* root, NSString* documentID, NSString* copyID, NSStr
         (void)error; NSMutableDictionary* doc=manifest[@"documents"][documentID];
         if (![doc[@"path"] isEqual:path]) return NO;
         doc[@"originalUnavailable"]=@YES;
-        doc[@"status"]=[NSFileManager.defaultManager fileExistsAtPath:path] ? @"Original unavailable" : @"Original missing";
+        doc[@"status"]=SPDFOtherAppContainerOfPathSpelling(path) || [NSFileManager.defaultManager fileExistsAtPath:path]
+            ? @"Original unavailable" : @"Original missing";
         return YES;
     } error:nil];
 }

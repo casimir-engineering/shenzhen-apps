@@ -11,4 +11,13 @@ published release will notice; never a fix for a bug that was never released.
 
 ## Next release
 
-Nothing yet.
+- macOS no longer asks, each time ShenzhenPDF starts, whether it may "access data from other apps". A document you
+  open from WeChat, Mail or another app is kept as ShenzhenPDF's own copy.
+
+### Documents from other apps
+
+A document opened from WeChat, Mail, Messages or Safari is copied into ShenzhenPDF when you open it, under the same
+name, and its tab, recent items and Collection use that copy. macOS can still ask about the other app's files while
+you are looking at such a document, when ShenzhenPDF checks whether the app has a newer version of it; if you don't
+allow it, you keep reading the copy. If a tab has no copy and the document can't be read, it tells you to open the
+document again from that app.

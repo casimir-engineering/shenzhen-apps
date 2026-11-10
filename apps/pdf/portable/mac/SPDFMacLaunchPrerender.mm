@@ -1,6 +1,7 @@
 #import <Cocoa/Cocoa.h>
 
 #import "SPDFMacLaunchPrerenderPrivate.h"
+#import "SPDFMacOtherAppFiles.h"
 #import "SPDFMacMarkdownRouting.h"
 #import "SPDFMacModels.h"
 #import "SPDFMacSupport.h"
@@ -248,7 +249,10 @@ void spdf_discard_launch_prerender(void) {
       // cloud open (loadSelectedTab); do not race a second synchronous open
       // against it. Same predicate as that deferral (CloudStorage file
       // providers plus any non-apfs/hfs mount).
-      if (path.length == 0 || SPDFIsRenderedTextDocumentPath(path) || [self pathIsOnCloudStorage:path]) {
+      // A document in another app's folder is never touched before it is shown: its tab moves to ShenzhenPDF's own
+      // copy when the session is restored (SPDFMacOtherAppFiles.h).
+      if (path.length == 0 || SPDFOtherAppContainerOfPathSpelling(path) || SPDFIsRenderedTextDocumentPath(path) ||
+          [self pathIsOnCloudStorage:path]) {
           [result.ownership workerDidFinish];
           return;
       }

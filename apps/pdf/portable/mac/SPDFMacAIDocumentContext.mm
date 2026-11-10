@@ -1,4 +1,5 @@
 #import "SPDFMacAIDocumentContext.h"
+#import "SPDFMacOtherAppFiles.h"
 #import "SPDFMacSearchFileCache.h"
 #import "markdown/SPDFTextDocumentFormats.h"
 #import "markdown/SPDFMarkdownDocument.h"
@@ -38,7 +39,8 @@ static NSDictionary* ExtractContext(NSString* path, BOOL landscape, NSUInteger f
         return ContextError(error,@"Request 1–100 pages beginning at a positive page number.");
     if (progress.cancelled) return ContextError(error,@"Cancelled.");
     struct stat info={};
-    if (stat(path.fileSystemRepresentation,&info) || !S_ISREG(info.st_mode) || info.st_size>256LL*1024*1024)
+    if (SPDFOtherAppContainerOfPathSpelling(path) || // another app's files: only its copy in a tab is read
+        stat(path.fileSystemRepresentation,&info) || !S_ISREG(info.st_mode) || info.st_size>256LL*1024*1024)
         return ContextError(error,@"Document is unavailable or exceeds the 256 MiB analysis budget.");
     NSString* stamp=SPDFSearchFileStamp(path);
     NSMutableArray* pages=[NSMutableArray array]; NSMutableArray* outline=[NSMutableArray array];

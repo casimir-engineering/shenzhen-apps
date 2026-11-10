@@ -102,10 +102,13 @@ void SPDFShowEmptyDocumentView(NSView* owner, NSString* message, id target) {
     view.openButton.title=missing ? @"Locate document" : @"Open document";
     view.openButton.accessibilityLabel=view.openButton.title;
     view.openButton.action=missing ? NSSelectorFromString(@"showCollectionRecovery:") : @selector(newTabRequested:);
-    view.formats.hidden=missing; view.shortcut.hidden=missing;
+    // A message of two lines is a title and what to do about it (a document still in another app's files).
+    NSArray<NSString*>* lines=[message ?: @"" componentsSeparatedByString:@"\n"];
+    view.formats.hidden=missing || lines.count>1; view.shortcut.hidden=missing || lines.count>1;
     BOOL welcome=!message.length || [message isEqual:@"Open a document"];
-    view.titleLabel.stringValue=welcome ? @"Your next document" : message;
-    view.hint.stringValue=missing ? @"Find it automatically or choose its new location" : welcome ? @"Drop a file here to start reading" : @"You can open another document";
+    view.titleLabel.stringValue=welcome ? @"Your next document" : lines.firstObject;
+    view.hint.stringValue=missing ? @"Find it automatically or choose its new location" : welcome ? @"Drop a file here to start reading" :
+        lines.count>1 ? lines[1] : @"You can open another document";
     // Center in what the reader can actually see, never in a stale page canvas.
     view.frame=NSIsEmptyRect(owner.visibleRect) ? owner.bounds : owner.visibleRect;
     [view setNeedsLayout:YES]; [view layoutSubtreeIfNeeded];

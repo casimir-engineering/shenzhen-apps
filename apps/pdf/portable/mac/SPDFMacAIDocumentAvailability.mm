@@ -1,4 +1,5 @@
 #import "SPDFMacAIDocumentAvailability.h"
+#import "SPDFMacOtherAppFiles.h"
 #import "SPDFMacAICitations.h"
 #import "SPDFMacAITools.h"
 #import "SPDFMacCollectionStore.h"
@@ -50,7 +51,7 @@ NSArray<NSDictionary*>* SPDFMacAILinkableCollectionRows(SPDFMacCollectionStore* 
 - (NSString*)aiClosedDocumentMessage:(NSString*)identifier {
     NSString* path = [identifier isKindOfClass:NSString.class] ? [self aiIssuedDocuments][identifier] : nil;
     if (!path) return @"Use an opaque document ID from list_workspace.";
-    if (![NSFileManager.defaultManager fileExistsAtPath:path])
+    if (!SPDFOtherAppContainerOfPathSpelling(path) && ![NSFileManager.defaultManager fileExistsAtPath:path])
         return @"This document was deleted or moved and can no longer be opened. Do not cite it.";
     return @"This document is no longer open, so it cannot be read now; citations you already gave still open it. "
            @"To read it again, find it with list_collection and open_collection, or ask the user to open it.";
@@ -64,7 +65,7 @@ NSArray<NSDictionary*>* SPDFMacAILinkableCollectionRows(SPDFMacCollectionStore* 
     NSDictionary* issued = [self aiIssuedDocuments];
     for (NSString* identifier in issued) {
         NSString* path = issued[identifier];
-        if ([reported containsObject:identifier] || [open containsObject:path] ||
+        if ([reported containsObject:identifier] || [open containsObject:path] || SPDFOtherAppContainerOfPathSpelling(path) ||
             [NSFileManager.defaultManager fileExistsAtPath:path]) continue;
         [gone addObject:identifier];
     }
@@ -84,7 +85,8 @@ NSArray<NSDictionary*>* SPDFMacAILinkableCollectionRows(SPDFMacCollectionStore* 
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
       NSMutableArray* existing = [NSMutableArray array];
       for (NSString* path in known)
-          if ([NSFileManager.defaultManager fileExistsAtPath:path]) [existing addObject:path];
+          if (!SPDFOtherAppContainerOfPathSpelling(path) && [NSFileManager.defaultManager fileExistsAtPath:path])
+              [existing addObject:path]; // another app's files are left alone
       NSArray* rows = SPDFMacAILinkableCollectionRows(SPDFMacCollectionStore.defaultStore);
       NSDictionary* index = SPDFMacAIDocumentIndex(open, existing, rows, Identify);
       dispatch_async(dispatch_get_main_queue(), ^{ completion(index); });

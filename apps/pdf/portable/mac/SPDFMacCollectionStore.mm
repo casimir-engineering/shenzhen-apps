@@ -1,4 +1,5 @@
 #import "SPDFMacCollectionStorePrivate.h"
+#import "SPDFMacOtherAppFiles.h"
 #import "SPDFMacSearchFileCache.h"
 
 NSNotificationName const SPDFCollectionStoreDidChangeNotification = @"SPDFCollectionStoreDidChange";
@@ -181,7 +182,7 @@ NSString* SPDFCollectionHashURL(NSURL* URL, NSError** error) {
     NSArray* rows=[self documents];
     for (NSDictionary* row in rows)
         if (![row[@"sourceReplaced"] boolValue] && [row[@"path"] isEqual:path]) return row;
-    if (![NSFileManager.defaultManager fileExistsAtPath:path])
+    if (SPDFOtherAppContainerOfPathSpelling(path) || ![NSFileManager.defaultManager fileExistsAtPath:path])
         for (NSDictionary* row in rows)
             if (![row[@"sourceReplaced"] boolValue] && [row[@"aliases"] containsObject:path]) return row;
     return nil;

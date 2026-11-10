@@ -3,6 +3,7 @@
 #import "SPDFMacTabGroupIntegration.h"
 #import "SPDFMacPermanentDeleteIntegration.h"
 #import "SPDFMacAgentServer.h"
+#import "SPDFMacOtherAppFilesIntegration.h"
 #import <objc/runtime.h>
 #include <unistd.h>
 
@@ -33,10 +34,19 @@ void spdf_launch_profile_log(NSString* format, ...) NS_FORMAT_FUNCTION(1, 2);
 
 static char kSPDFShowDocumentObserverKey, kSPDFPendingHandOffsKey;
 
+// A document in another app's folder (WeChat, Mail...) opens from ShenzhenPDF's own copy, made now while the open gives
+// access, so nothing later reaches into that app's data (SPDFMacOtherAppFilesIntegration.mm). Absent from the tests
+// that build this file alone; there the paths open as given.
+static NSArray<NSString*>* ReaderPaths(ShenzhenMacDelegate* reader, NSArray<NSString*>* paths) {
+    SEL copies = @selector(otherAppReaderPathsForPaths:);
+    return paths.count && [reader respondsToSelector:copies] ? [reader otherAppReaderPathsForPaths:paths] : paths;
+}
+
 @implementation ShenzhenMacDelegate (SPDFMacDocumentOpening)
 
 - (BOOL)application:(NSApplication*)sender openFile:(NSString*)filename {
     (void)sender;
+    filename = ReaderPaths(self, filename ? @[ filename ] : @[]).firstObject;
     if (!_uiReady) {
         if (!_pendingOpenPath.length) _pendingOpenPath = [filename copy];
         if (filename.length && ![_pendingOpenPaths containsObject:filename]) [_pendingOpenPaths addObject:filename];
@@ -52,6 +62,7 @@ static char kSPDFShowDocumentObserverKey, kSPDFPendingHandOffsKey;
 - (void)application:(NSApplication*)application openFiles:(NSArray<NSString*>*)filenames {
     (void)application;
     spdf_launch_profile_log(@"application:openFiles: uiReady=%d n=%lu", (int)_uiReady, (unsigned long)filenames.count);
+    filenames = ReaderPaths(self, filenames);
     if (filenames.count > 0) {
         if (!_uiReady) {
             _pendingOpenPath = [filenames.firstObject copy];
@@ -92,6 +103,7 @@ static char kSPDFShowDocumentObserverKey, kSPDFPendingHandOffsKey;
 }
 
 - (void)openPaths:(NSArray<NSString*>*)paths {
+    paths = ReaderPaths(self, paths);
     if (!_uiReady || !_window) {
         if (paths.count > 0) _pendingOpenPath = [paths.firstObject copy];
         for (NSString* path in paths) {
@@ -165,7 +177,7 @@ static char kSPDFShowDocumentObserverKey, kSPDFPendingHandOffsKey;
 
 - (void)showDocumentsAtPaths:(NSArray<NSString*>*)paths {
     NSMutableArray<NSString*>* here = [NSMutableArray array];
-    for (NSString* path in paths) {
+    for (NSString* path in ReaderPaths(self, paths)) {
         if (![path isKindOfClass:NSString.class] || !path.length) continue;
         pid_t owner = [self indexOfTabForPath:path] >= 0 ? 0 : [self otherWindowProcessShowingPath:path];
         if (owner > 0 && [self handOffDocumentAtPath:path page:nil toProcess:owner]) continue;
@@ -180,6 +192,7 @@ static char kSPDFShowDocumentObserverKey, kSPDFPendingHandOffsKey;
 
 - (void)showDocumentAtPath:(NSString*)path page:(NSNumber*)page {
     if (![path isKindOfClass:NSString.class] || !path.length) return;
+    path = ReaderPaths(self, @[ path ]).firstObject;
     pid_t owner = [self indexOfTabForPath:path] >= 0 ? 0 : [self otherWindowProcessShowingPath:path];
     if (owner > 0 && [self handOffDocumentAtPath:path page:page toProcess:owner]) return;
     [self openDocumentHereAtPath:path page:page];

@@ -1,4 +1,5 @@
 #import "SPDFMacFriendsAttachItems.h"
+#import "SPDFMacOtherAppFiles.h"
 #import "SPDFMacFriendsTabPasteboard.h"
 #import "mac/SZFriendsHost.h"
 #include <sys/stat.h>
@@ -94,7 +95,8 @@ static NSString* FileHoldingVersion(NSDictionary* document, NSDictionary* versio
                                     id<SPDFMacFriendsCollectionLookup> lookup) {
     NSString* original = String(document[@"path"]);
     struct stat st = {};
-    BOOL replaced = [document[@"sourceReplaced"] boolValue] || [document[@"originalUnavailable"] boolValue];
+    BOOL replaced = [document[@"sourceReplaced"] boolValue] || [document[@"originalUnavailable"] boolValue] ||
+        SPDFOtherAppContainerOfPathSpelling(original); // another app's files: the archive copy goes instead
     if (original.length && !replaced && IsRegularFile(original, &st) &&
         (unsigned long long)st.st_size == [version[@"size"] unsignedLongLongValue]) {
         NSString* digest = SPDFMacFriendsFileSHA256(original, SPDFMacFriendsBackgroundHashLimit, NULL);

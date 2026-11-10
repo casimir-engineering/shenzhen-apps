@@ -1,4 +1,5 @@
 #import "markdown/SPDFTextDocumentFormats.h"
+#import "SPDFMacOtherAppFiles.h"
 #import "SPDFMacCollectionStorePrivate.h"
 #import <PDFKit/PDFKit.h>
 
@@ -135,6 +136,7 @@ static BOOL InstallTextIndex(NSDictionary* index, NSMutableDictionary* version, 
     // A verified move retains its identity; same bytes at two existing paths remain separate entries.
     if (!doc) for (NSMutableDictionary* row in rows.allValues) {
         if (![row[@"sourceReplaced"] boolValue] && [row[@"fileIdentity"] isEqual:identity] &&
+            !SPDFOtherAppContainerOfPathSpelling(row[@"path"]) && // another app's files are not looked at
             ![NSFileManager.defaultManager fileExistsAtPath:row[@"path"]]) { doc=row; break; }
     }
     if ([doc[@"excluded"] boolValue]) return nil;

@@ -1,5 +1,6 @@
 // activity.yaml: the store half of SPDFMacDocumentActivity.h.
 #import "SPDFMacDocumentActivity.h"
+#import "SPDFMacOtherAppFiles.h"
 #import "SPDFMacStateDirectory.h"
 #import <CoreServices/CoreServices.h>
 #include "spdf_yaml.h"
@@ -38,6 +39,7 @@ static BOOL WriteYAMLFile(id object, NSString* path) {
 }
 
 static NSTimeInterval SpotlightLastUsed(NSString* path) {
+    if (SPDFOtherAppContainerOfPathSpelling(path)) return 0; // never asked about another app's files
     MDItemRef item = MDItemCreate(kCFAllocatorDefault, (__bridge CFStringRef)path);
     if (!item) return 0;
     CFTypeRef value = MDItemCopyAttribute(item, kMDItemLastUsedDate);

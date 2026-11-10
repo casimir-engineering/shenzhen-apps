@@ -26,7 +26,7 @@
 #import <os/log.h>
 #include <CommonCrypto/CommonDigest.h>
 #include <sys/stat.h>
-
+#import "SPDFMacOtherAppFilesIntegration.h"
 #import "SPDFMacDefaultReader.h"
 #import "SPDFMacDelegatePrivate.h"
 #import "SPDFMacCollectionReaderNavigation.h"
@@ -1313,7 +1313,7 @@ id spdf_state_object_from_yaml_data(NSData* data) {
     [self.tabLifecycle reset];
     [_tabs removeAllObjects];
     for (NSDictionary* item in tabs) {
-        SPDFDocumentTab* tab = spdf_tab_from_dictionary(item);
+        SPDFDocumentTab* tab = [self otherAppMigrateTab:spdf_tab_from_dictionary(item)];
         if (item[@"preservesImageColors"] == nil) [self seedKeepImageColorsForNewTab:tab];
         if (!tab) continue;
         if (!tab.title.length) tab.title = spdf_display_name_for_path(tab.path);
@@ -7690,7 +7690,7 @@ static BOOL spdf_page_list_cache_disabled(void) {
     NSString* standardized = path.stringByStandardizingPath.stringByResolvingSymlinksInPath;
     NSMutableArray<NSString*>* roots = [NSMutableArray arrayWithArray:@[
         NSTemporaryDirectory() ?: @"", @"/tmp", @"/private/tmp", @"/var/tmp", @"/private/var/tmp", @"/var/folders",
-        @"/private/var/folders"
+        @"/private/var/folders", SPDFOtherAppCopiesFolder() // copies of documents from other apps, like a download
     ]];
     for (NSString* root in roots) {
         if (root.length == 0) continue;
@@ -8198,7 +8198,7 @@ static BOOL spdf_page_list_cache_disabled(void) {
 - (void)loadSelectedTab {
     if (_selectedTabIndex < 0 || _selectedTabIndex >= (NSInteger)_tabs.count) return;
     SPDFDocumentTab* tab = _tabs[(NSUInteger)_selectedTabIndex];
-    if (!tab.path.length) return;
+    if (!tab.path.length || ![self otherAppMigrateTab:tab]) return; // never into another app's folder
     NSString* path = [tab.path copy];
     [self collectionPrepareForTabPath:path];
     NSString* standardizedPath = path.stringByStandardizingPath;
@@ -8224,7 +8224,7 @@ static BOOL spdf_page_list_cache_disabled(void) {
 
     [self deactivateActiveMarkdownView];
     [self closeActiveDocumentIfUnowned];
-
+    if ([self otherAppShowsMessageForSelectedTab:tab]) return; // its copy is being made, or cannot be
     if (SPDFIsRenderedTextDocumentPath(path)) {
         [self loadSelectedMarkdownTab:tab];
         return;
