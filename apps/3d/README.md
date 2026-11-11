@@ -2,7 +2,9 @@
 
 A free viewer for CAD models, meshes and drawings: open an assembly, find a part, and take measurements you can trust. It runs on Mac, Windows, Linux, Android, iPhone and iPad, and in a browser. Your files stay on your device.
 
-[0.2.8 release notes](docs/MAC-0.2.8.md) · [Download from Releases](https://github.com/casimir-engineering/shenzhen-3D/releases) · [Platform delivery and validation](docs/DELIVERY.md)
+<a href="https://github.com/casimir-engineering/shenzhen-3D/releases"><img src="https://img.shields.io/badge/Download%20for%20macOS-Apple%20Silicon-2ea44f?style=for-the-badge&logo=apple&logoColor=white" alt="Download for macOS (Apple Silicon), newest release first" height="46"></a>
+
+[0.2.8 release notes](docs/MAC-0.2.8.md) · [Platform delivery and validation](docs/DELIVERY.md)
 
 ![Shenzhen 3D measuring between the arm and the base of a desk lamp model](docs/images/readme-measure-dark.png)
 

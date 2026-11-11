@@ -2,6 +2,10 @@
 
 The source of the Shenzhen apps and of Shenzhen Friends, in one repository.
 
+<a href="https://github.com/casimir-engineering/shenzhen-pdf/releases/latest/download/ShenzhenPDF-mac-arm64.dmg"><img src="https://img.shields.io/badge/ShenzhenPDF-Download%20for%20macOS-2ea44f?style=for-the-badge&logo=apple&logoColor=white" alt="Download ShenzhenPDF for macOS (Apple Silicon)" height="36"></a>
+<a href="https://github.com/casimir-engineering/shenzhen-files/releases/latest/download/ShenzhenFiles-mac-arm64.dmg"><img src="https://img.shields.io/badge/Shenzhen%20Files-Download%20for%20macOS-2ea44f?style=for-the-badge&logo=apple&logoColor=white" alt="Download Shenzhen Files for macOS (Apple Silicon)" height="36"></a>
+<a href="https://github.com/casimir-engineering/shenzhen-3D/releases"><img src="https://img.shields.io/badge/Shenzhen%203D-Download%20for%20macOS-2ea44f?style=for-the-badge&logo=apple&logoColor=white" alt="Download Shenzhen 3D for macOS (Apple Silicon)" height="36"></a>
+
 | Path | What it is | Released from |
 | --- | --- | --- |
 | `apps/pdf` | ShenzhenPDF | `casimir-engineering/shenzhen-pdf` |
