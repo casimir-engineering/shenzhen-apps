@@ -133,7 +133,7 @@ index 54e9687..983d6cd 100644
 +  description: 'Build for macOS: replaces glycin, gnome-desktop thumbnailing and the XDG portals with native fallbacks',
 +)
 diff --git a/src/meson.build b/src/meson.build
-index c15e6ce..b3242cc 100644
+index c15e6ce..536d6f8 100644
 --- a/src/meson.build
 +++ b/src/meson.build
 @@ -46,12 +46,6 @@ libnautilus_sources = [
@@ -168,7 +168,7 @@ index c15e6ce..b3242cc 100644
    'nautilus-thumbnails.h',
    'nautilus-toolbar.c',
    'nautilus-toolbar.h',
-@@ -289,37 +278,151 @@ libnautilus_sources = [
+@@ -289,37 +278,153 @@ libnautilus_sources = [
    'nautilus-x-content-bar.h',
  ]
 
@@ -177,6 +177,8 @@ index c15e6ce..b3242cc 100644
 +if macos_port
 +  libnautilus_sources += [
 +    'nautilus-thumbnails-macos.c',
++    'nautilus-macos-session.c',
++    'nautilus-macos-session.h',
 +    'nautilus-macos-window-shortcuts.c',
 +    'nautilus-macos-window-shortcuts.h',
 +  ]
@@ -1237,7 +1239,7 @@ index 0abe9f1..a8864c4 100644
 
  static void
 diff --git a/src/nautilus-application.c b/src/nautilus-application.c
-index 397cbf3..d1f1f9b 100644
+index 397cbf3..a54308f 100644
 --- a/src/nautilus-application.c
 +++ b/src/nautilus-application.c
 @@ -35,9 +35,12 @@
@@ -1253,7 +1255,7 @@ index 397cbf3..d1f1f9b 100644
  #include <sys/stat.h>
  #include <sys/types.h>
 
-@@ -51,12 +54,20 @@
+@@ -51,12 +54,21 @@
  #include "nautilus-file-operations.h"
  #include "nautilus-file-undo-manager.h"
  #include "nautilus-file-utilities.h"
@@ -1264,6 +1266,7 @@ index 397cbf3..d1f1f9b 100644
  #include "nautilus-icon-info.h"
 +#ifdef __APPLE__
 +#include "nautilus-macos-bridge.h"
++#include "nautilus-macos-session.h"
 +#include "nautilus-macos-window-shortcuts.h"
 +#include "nautilus-view-info.h"
 +#endif
@@ -1274,7 +1277,7 @@ index 397cbf3..d1f1f9b 100644
  #include "nautilus-preferences-dialog.h"
  #include "nautilus-previewer.h"
  #include "nautilus-progress-persistence-handler.h"
-@@ -68,6 +79,7 @@
+@@ -68,6 +80,7 @@
  #include "nautilus-trash-monitor.h"
  #include "nautilus-ui-utilities.h"
  #include "nautilus-window.h"
@@ -1282,7 +1285,7 @@ index 397cbf3..d1f1f9b 100644
 
  struct _NautilusApplication
  {
-@@ -76,7 +88,9 @@ struct _NautilusApplication
+@@ -76,7 +89,9 @@ struct _NautilusApplication
      NautilusProgressPersistenceHandler *progress_handler;
      NautilusDBusManager *dbus_manager;
      NautilusFreedesktopDBus *fdb_manager;
@@ -1292,7 +1295,7 @@ index 397cbf3..d1f1f9b 100644
 
      NautilusBookmarkList *bookmark_list;
 
-@@ -101,6 +115,66 @@ struct _NautilusApplication
+@@ -101,6 +116,66 @@ struct _NautilusApplication
 
  G_DEFINE_FINAL_TYPE (NautilusApplication, nautilus_application, ADW_TYPE_APPLICATION)
 
@@ -1359,7 +1362,7 @@ index 397cbf3..d1f1f9b 100644
  void
  nautilus_application_set_accelerator (GApplication *app,
                                        const gchar  *action_name,
-@@ -112,7 +186,7 @@ nautilus_application_set_accelerator (GApplication *app,
+@@ -112,7 +187,7 @@ nautilus_application_set_accelerator (GApplication *app,
          NULL
      };
 
@@ -1368,7 +1371,7 @@ index 397cbf3..d1f1f9b 100644
  }
 
  void
-@@ -120,6 +194,26 @@ nautilus_application_set_accelerators (GApplication  *app,
+@@ -120,6 +195,26 @@ nautilus_application_set_accelerators (GApplication  *app,
                                         const gchar   *action_name,
                                         const gchar  **accels)
  {
@@ -1395,7 +1398,7 @@ index 397cbf3..d1f1f9b 100644
      gtk_application_set_accels_for_action (GTK_APPLICATION (app), action_name, accels);
  }
 
-@@ -129,6 +223,125 @@ nautilus_application_get_windows (NautilusApplication *self)
+@@ -129,6 +224,125 @@ nautilus_application_get_windows (NautilusApplication *self)
      return self->windows;
  }
 
@@ -1521,7 +1524,7 @@ index 397cbf3..d1f1f9b 100644
  NautilusBookmarkList *
  nautilus_application_get_bookmarks (NautilusApplication *self)
  {
-@@ -256,6 +469,14 @@ nautilus_application_create_window (NautilusApplication *self)
+@@ -256,6 +470,14 @@ nautilus_application_create_window (NautilusApplication *self)
          gtk_widget_add_css_class (GTK_WIDGET (window), "devel");
      }
 
@@ -1536,7 +1539,7 @@ index 397cbf3..d1f1f9b 100644
      g_debug ("Creating a new navigation window");
 
      return window;
-@@ -508,18 +729,43 @@ nautilus_application_select (NautilusApplication  *self,
+@@ -508,18 +730,43 @@ nautilus_application_select (NautilusApplication  *self,
      }
  }
 
@@ -1583,7 +1586,7 @@ index 397cbf3..d1f1f9b 100644
                                               NAUTILUS_OPEN_FLAG_NEW_WINDOW,
                                               NULL, NULL);
  }
-@@ -547,6 +793,41 @@ action_clone_window (GSimpleAction *action,
+@@ -547,6 +794,41 @@ action_clone_window (GSimpleAction *action,
                                               NAUTILUS_OPEN_FLAG_NEW_WINDOW, NULL, NULL);
  }
 
@@ -1625,7 +1628,7 @@ index 397cbf3..d1f1f9b 100644
  static void
  action_preferences (GSimpleAction *action,
                      GVariant      *parameter,
-@@ -606,6 +887,49 @@ action_help (GSimpleAction *action,
+@@ -606,6 +888,49 @@ action_help (GSimpleAction *action,
      }
  }
 
@@ -1675,7 +1678,7 @@ index 397cbf3..d1f1f9b 100644
  static void
  action_kill (GSimpleAction *action,
               GVariant      *parameter,
-@@ -625,6 +949,17 @@ action_quit (GSimpleAction *action,
+@@ -625,6 +950,19 @@ action_quit (GSimpleAction *action,
      NautilusApplication *self = NAUTILUS_APPLICATION (user_data);
      GList *windows, *l;
 
@@ -1688,12 +1691,14 @@ index 397cbf3..d1f1f9b 100644
 +     * as soon as the last window is destroyed, while still letting any
 +     * outstanding holds (in-flight file operations) finish first. */
 +    macos_lifecycle_release_hold (self);
++    /* Before the windows close: what is open now is what an update brings back. */
++    nautilus_macos_session_quitting (self);
 +#endif
 +
      windows = nautilus_application_get_windows (self);
      /* make a copy, since the original list will be modified when destroying
       * a window, making this list invalid */
-@@ -637,10 +972,41 @@ action_quit (GSimpleAction *action,
+@@ -637,10 +975,41 @@ action_quit (GSimpleAction *action,
      g_list_free (windows);
  }
 
@@ -1735,7 +1740,7 @@ index 397cbf3..d1f1f9b 100644
      { .name = "preferences", .activate = action_preferences },
      { .name = "search-settings", .activate = action_search_settings },
      { .name = "about", .activate = action_about },
-@@ -659,12 +1025,37 @@ nautilus_init_application_actions (NautilusApplication *app)
+@@ -659,12 +1028,37 @@ nautilus_init_application_actions (NautilusApplication *app)
 
      nautilus_application_set_accelerator (G_APPLICATION (app),
                                            "app.clone-window", "<Primary>n");
@@ -1773,16 +1778,26 @@ index 397cbf3..d1f1f9b 100644
  }
 
  static void
-@@ -680,7 +1071,7 @@ nautilus_application_activate (GApplication *app)
+@@ -679,8 +1073,17 @@ nautilus_application_activate (GApplication *app)
+         return;
      }
 
++#ifdef __APPLE__
++    /* The first launch after an update opens the windows and tabs the last
++     * version had open, instead of the usual window. */
++    if (nautilus_macos_session_restore_after_update (NAUTILUS_APPLICATION (app)))
++    {
++        return;
++    }
++#endif
++
      files = g_malloc0 (2 * sizeof (GFile *));
 -    files[0] = g_file_new_for_path (g_get_home_dir ());
 +    files[0] = nautilus_application_get_starting_location ();
      nautilus_application_open (app, files, 1, NULL);
 
      g_object_unref (files[0]);
-@@ -736,7 +1127,7 @@ nautilus_application_handle_file_args (NautilusApplication *self,
+@@ -736,7 +1139,7 @@ nautilus_application_handle_file_args (NautilusApplication *self,
      }
      else if (g_variant_dict_contains (options, "new-window"))
      {
@@ -1791,7 +1806,7 @@ index 397cbf3..d1f1f9b 100644
          g_ptr_array_add (file_array, file);
      }
      else
-@@ -994,11 +1385,600 @@ nautilus_application_identify_to_portal (GApplication *app)
+@@ -994,11 +1397,600 @@ nautilus_application_identify_to_portal (GApplication *app)
                              NULL, NULL, NULL);
  }
 
@@ -2392,7 +2407,7 @@ index 397cbf3..d1f1f9b 100644
      g_application_set_resource_base_path (G_APPLICATION (self), "/org/gnome/nautilus");
 
      /* Register the app with the host app registry in XDG Desktop Portal before
-@@ -1011,6 +1991,7 @@ nautilus_application_startup (GApplication *app)
+@@ -1011,6 +2003,7 @@ nautilus_application_startup (GApplication *app)
          nautilus_application_identify_to_portal (app);
      }
 
@@ -2400,7 +2415,7 @@ index 397cbf3..d1f1f9b 100644
      /* Initialize GDK display (for wayland-x11-interop protocol) before GTK does
       * it during the chain-up. */
      g_autoptr (GError) error = NULL;
-@@ -1027,6 +2008,7 @@ nautilus_application_startup (GApplication *app)
+@@ -1027,6 +2020,7 @@ nautilus_application_startup (GApplication *app)
          g_message ("Failed to initialize display server connection: %s",
                     error->message);
      }
@@ -2408,7 +2423,7 @@ index 397cbf3..d1f1f9b 100644
 
      /* Chain up to the GtkApplication implementation early, so that gtk_init()
       * is called for us.
-@@ -1057,6 +2039,65 @@ nautilus_application_startup (GApplication *app)
+@@ -1057,6 +2051,65 @@ nautilus_application_startup (GApplication *app)
 
      nautilus_init_application_actions (self);
 
@@ -2474,7 +2489,7 @@ index 397cbf3..d1f1f9b 100644
      if (!g_test_initialized ())
      {
          maybe_migrate_gtk_filechooser_preferences ();
-@@ -1090,11 +2131,13 @@ nautilus_application_dbus_register (GApplication     *app,
+@@ -1090,11 +2143,13 @@ nautilus_application_dbus_register (GApplication     *app,
          return FALSE;
      }
 
@@ -2488,7 +2503,7 @@ index 397cbf3..d1f1f9b 100644
 
      self->search_provider = nautilus_shell_search_provider_new ();
      if (!nautilus_shell_search_provider_register (self->search_provider, connection, error))
-@@ -1126,11 +2169,13 @@ nautilus_application_dbus_unregister (GApplication    *app,
+@@ -1126,11 +2181,13 @@ nautilus_application_dbus_unregister (GApplication    *app,
          g_clear_object (&self->fdb_manager);
      }
 
@@ -2502,7 +2517,7 @@ index 397cbf3..d1f1f9b 100644
 
      if (self->search_provider)
      {
-@@ -1146,6 +2191,14 @@ update_dbus_opened_locations (NautilusApplication *self)
+@@ -1146,6 +2203,14 @@ update_dbus_opened_locations (NautilusApplication *self)
  {
      self->dbus_location_update_timeout_id = 0;
 
@@ -2517,7 +2532,7 @@ index 397cbf3..d1f1f9b 100644
      g_autoptr (GHashTable) hashed_locations = g_hash_table_new_full (g_str_hash, g_str_equal,
                                                                       g_free, NULL);
      const gchar *dbus_object_path = g_application_get_dbus_object_path (G_APPLICATION (self));
-@@ -1207,6 +2260,95 @@ schedule_dbus_location_update (NautilusApplication *self)
+@@ -1207,6 +2272,95 @@ schedule_dbus_location_update (NautilusApplication *self)
      }
  }
 
@@ -2613,7 +2628,7 @@ index 397cbf3..d1f1f9b 100644
  static void
  nautilus_application_window_added (GtkApplication *app,
                                     GtkWindow      *window)
-@@ -1217,11 +2359,22 @@ nautilus_application_window_added (GtkApplication *app,
+@@ -1217,11 +2371,23 @@ nautilus_application_window_added (GtkApplication *app,
 
      GTK_APPLICATION_CLASS (nautilus_application_parent_class)->window_added (app, window);
 
@@ -2630,13 +2645,24 @@ index 397cbf3..d1f1f9b 100644
                                    G_CALLBACK (schedule_dbus_location_update), app);
 +#ifdef __APPLE__
 +        macos_setup_window (NAUTILUS_WINDOW (window));
++        nautilus_macos_session_watch_window (self, NAUTILUS_WINDOW (window));
 +        macos_maybe_show_fda_first_launch_prompt (window);
 +        macos_maybe_show_integration_first_run_dialog (window);
 +#endif
      }
  }
 
-@@ -1317,6 +2470,10 @@ nautilus_application_search (NautilusApplication *self,
+@@ -1239,6 +2405,9 @@ nautilus_application_window_removed (GtkApplication *app,
+     {
+         self->windows = g_list_remove_all (self->windows, window);
+         g_signal_handlers_disconnect_by_func (window, schedule_dbus_location_update, app);
++#ifdef __APPLE__
++        nautilus_macos_session_window_closed (self);
++#endif
+     }
+
+     /* if this was the last window, close the previewer */
+@@ -1317,6 +2486,10 @@ nautilus_application_search (NautilusApplication *self,
  gboolean
  nautilus_application_is_sandboxed (void)
  {
@@ -2647,7 +2673,7 @@ index 397cbf3..d1f1f9b 100644
      static gboolean ret;
 
      static gsize init = 0;
-@@ -1328,4 +2485,5 @@ nautilus_application_is_sandboxed (void)
+@@ -1328,4 +2501,5 @@ nautilus_application_is_sandboxed (void)
      }
 
      return ret;
@@ -12944,6 +12970,273 @@ index 0000000..2ad48b7
 +        handoff_arm ();
 +    }
 +}
+diff --git a/src/nautilus-macos-session.c b/src/nautilus-macos-session.c
+new file mode 100644
+index 0000000..24ed9d2
+--- /dev/null
++++ b/src/nautilus-macos-session.c
+@@ -0,0 +1,225 @@
++/* Shenzhen Files: the windows and tabs that were open, kept so that an update brings them back.
++ * See nautilus-macos-session.h. */
++
++#include "nautilus-macos-session.h"
++
++#include <CoreFoundation/CoreFoundation.h>
++#include <gio/gio.h>
++
++#include "nautilus-scheme.h"
++
++#define SESSION_GROUP "session"
++#define SESSION_KEY_RELEASE "release"
++#define SESSION_KEY_WINDOWS "windows"
++#define SESSION_KEY_TABS "tabs"
++#define SESSION_KEY_ACTIVE "active"
++#define SESSION_SAVE_DELAY_MS 400
++
++static guint save_source;
++static gboolean quitting;
++static gboolean launched;
++
++/* The release this app is (Info.plist SZFReleaseTag, such as 26.11.13-1); NULL outside the app bundle. */
++static char *
++session_release (void)
++{
++    CFBundleRef bundle = CFBundleGetMainBundle ();
++    CFTypeRef tag = bundle != NULL ? CFBundleGetValueForInfoDictionaryKey (bundle, CFSTR ("SZFReleaseTag")) : NULL;
++    char text[64];
++
++    if (tag != NULL && CFGetTypeID (tag) == CFStringGetTypeID () &&
++        CFStringGetCString ((CFStringRef) tag, text, sizeof text, kCFStringEncodingUTF8) && text[0] != '\0')
++    {
++        return g_strdup (text);
++    }
++
++    return NULL;
++}
++
++static char *
++session_path (void)
++{
++    return g_build_filename (g_get_user_config_dir (), "nautilus", "macos-session.ini", NULL);
++}
++
++/* A tab worth bringing back: a folder on this Mac that is still there, or Starred. Search results, the Trash
++ * and places that are gone (a disk since ejected) are left out. */
++static gboolean
++location_can_come_back (GFile *location)
++{
++    if (g_file_has_uri_scheme (location, SCHEME_STARRED))
++    {
++        return TRUE;
++    }
++
++    return g_file_is_native (location) &&
++           g_file_query_file_type (location, G_FILE_QUERY_INFO_NONE, NULL) == G_FILE_TYPE_DIRECTORY;
++}
++
++static void
++save_now (NautilusApplication *application)
++{
++    g_autofree char *release = session_release ();
++
++    if (quitting || release == NULL)
++    {
++        return;
++    }
++
++    g_autoptr (GKeyFile) file = g_key_file_new ();
++    /* The application lists its windows newest first. */
++    g_autoptr (GList) windows = g_list_reverse (g_list_copy (nautilus_application_get_windows (application)));
++    int count = 0;
++
++    for (GList *l = windows; l != NULL; l = l->next)
++    {
++        int active = 0;
++        g_autoptr (GStrvBuilder) builder = g_strv_builder_new ();
++        g_autolist (GFile) locations = nautilus_window_get_tab_locations (l->data, &active);
++
++        for (GList *tab = locations; tab != NULL; tab = tab->next)
++        {
++            g_strv_builder_take (builder, g_file_get_uri (tab->data));
++        }
++
++        g_auto (GStrv) uris = g_strv_builder_end (builder);
++        if (uris[0] == NULL)
++        {
++            continue;
++        }
++
++        g_autofree char *group = g_strdup_printf ("window-%d", count++);
++        g_key_file_set_string_list (file, group, SESSION_KEY_TABS, (const char * const *) uris, g_strv_length (uris));
++        g_key_file_set_integer (file, group, SESSION_KEY_ACTIVE, active);
++    }
++
++    g_key_file_set_string (file, SESSION_GROUP, SESSION_KEY_RELEASE, release);
++    g_key_file_set_integer (file, SESSION_GROUP, SESSION_KEY_WINDOWS, count);
++
++    g_autofree char *path = session_path ();
++    g_autofree char *directory = g_path_get_dirname (path);
++    g_autoptr (GError) error = NULL;
++
++    g_mkdir_with_parents (directory, 0700);
++    if (!g_key_file_save_to_file (file, path, &error))
++    {
++        g_warning ("Could not write the open tabs to %s: %s", path, error->message);
++    }
++}
++
++static void
++save_later_cb (gpointer user_data)
++{
++    save_source = 0;
++    save_now (NAUTILUS_APPLICATION (user_data));
++}
++
++static void
++save_later (NautilusApplication *application)
++{
++    if (quitting || save_source != 0)
++    {
++        return;
++    }
++
++    save_source = g_timeout_add_once (SESSION_SAVE_DELAY_MS, save_later_cb, application);
++}
++
++void
++nautilus_macos_session_watch_window (NautilusApplication *application,
++                                     NautilusWindow      *window)
++{
++    launched = TRUE;
++    /* A window opened after Quit (the app was kept open by a copy still running): it is in use again. */
++    quitting = FALSE;
++    /* Emitted when a tab opens, closes, moves or shows another folder, and for each tab of a closing window. */
++    g_signal_connect_object (window, "locations-changed", G_CALLBACK (save_later), application, G_CONNECT_SWAPPED);
++    /* Another tab chosen: the current tab is written too. */
++    g_signal_connect_object (window, "notify::active-slot", G_CALLBACK (save_later), application, G_CONNECT_SWAPPED);
++    save_later (application);
++}
++
++void
++nautilus_macos_session_window_closed (NautilusApplication *application)
++{
++    save_later (application);
++}
++
++void
++nautilus_macos_session_quitting (NautilusApplication *application)
++{
++    g_clear_handle_id (&save_source, g_source_remove);
++    save_now (application);
++    quitting = TRUE;
++}
++
++gboolean
++nautilus_macos_session_restore_after_update (NautilusApplication *application)
++{
++    /* Only the launch itself: once a window has been open, Dock clicks and new windows are the person's own. */
++    if (launched)
++    {
++        return FALSE;
++    }
++    launched = TRUE;
++
++    g_autofree char *release = session_release ();
++    g_autofree char *path = session_path ();
++    g_autoptr (GKeyFile) file = g_key_file_new ();
++
++    if (release == NULL || !g_key_file_load_from_file (file, path, G_KEY_FILE_NONE, NULL))
++    {
++        return FALSE;
++    }
++
++    g_autofree char *written_by = g_key_file_get_string (file, SESSION_GROUP, SESSION_KEY_RELEASE, NULL);
++    if (written_by == NULL || g_str_equal (written_by, release))
++    {
++        return FALSE;
++    }
++
++    int count = g_key_file_get_integer (file, SESSION_GROUP, SESSION_KEY_WINDOWS, NULL);
++    gboolean opened = FALSE;
++
++    for (int i = 0; i < count; i++)
++    {
++        g_autofree char *group = g_strdup_printf ("window-%d", i);
++        g_auto (GStrv) uris = g_key_file_get_string_list (file, group, SESSION_KEY_TABS, NULL, NULL);
++        int active = g_key_file_get_integer (file, group, SESSION_KEY_ACTIVE, NULL);
++        NautilusWindow *window = NULL;
++        int tabs = 0, select = 0;
++
++        for (int tab = 0; uris != NULL && uris[tab] != NULL; tab++)
++        {
++            g_autoptr (GFile) location = g_file_new_for_uri (uris[tab]);
++
++            if (!location_can_come_back (location))
++            {
++                continue;
++            }
++            if (tab == active)
++            {
++                select = tabs;
++            }
++            if (window == NULL)
++            {
++                window = nautilus_application_open_location_full (application, location,
++                                                                  NAUTILUS_OPEN_FLAG_NEW_WINDOW, NULL, NULL);
++            }
++            else
++            {
++                /* Each new tab becomes the current one, so the next opens after it: the order is kept. */
++                nautilus_window_open_location_full (window, location, NAUTILUS_OPEN_FLAG_NEW_TAB, NULL);
++            }
++            tabs++;
++        }
++
++        if (window != NULL)
++        {
++            nautilus_window_select_tab (window, select);
++            opened = TRUE;
++        }
++    }
++
++    return opened;
++}
+diff --git a/src/nautilus-macos-session.h b/src/nautilus-macos-session.h
+new file mode 100644
+index 0000000..a709e47
+--- /dev/null
++++ b/src/nautilus-macos-session.h
+@@ -0,0 +1,30 @@
++/* Shenzhen Files: the windows and tabs that were open, kept so that an update brings them back.
++ *
++ * Shenzhen Files updates itself by quitting and starting again as the new version. The folders open in each
++ * window's tabs are written to <config>/nautilus/macos-session.ini, with the release that wrote them, as they
++ * change and once more when the app quits. A launch that finds them written by another release is the first
++ * one after an update: it opens those windows and tabs instead of the usual window. Any other launch opens
++ * the usual window, as before. Nothing here is part of the updater, and the updater knows nothing of it.
++ *
++ * Outside the app bundle (a development run) there is no release, and nothing is written or brought back.
++ */
++
++#pragma once
++
++#include "nautilus-application.h"
++#include "nautilus-window.h"
++
++G_BEGIN_DECLS
++
++/* A window opened: its tabs are written from now on. */
++void nautilus_macos_session_watch_window (NautilusApplication *application,
++                                          NautilusWindow      *window);
++/* A window closed: what is open is written again. */
++void nautilus_macos_session_window_closed (NautilusApplication *application);
++/* The app is quitting: writes what is open now, then stops, so the windows closing on the way out change nothing. */
++void nautilus_macos_session_quitting (NautilusApplication *application);
++/* The first launch after an update: opens the windows and tabs the last version had open. TRUE if it opened
++ * any; FALSE on any other launch, or when nothing was open. */
++gboolean nautilus_macos_session_restore_after_update (NautilusApplication *application);
++
++G_END_DECLS
 diff --git a/src/nautilus-macos-spotlight.m b/src/nautilus-macos-spotlight.m
 new file mode 100644
 index 0000000..0d65766
@@ -19681,7 +19974,7 @@ index 555b0f4..f577deb 100644
 
      G_OBJECT_CLASS (nautilus_search_engine_parent_class)->finalize (object);
 diff --git a/src/nautilus-sidebar.c b/src/nautilus-sidebar.c
-index c9bd4a6..8160a4e 100644
+index c9bd4a6..20cb5b1 100644
 --- a/src/nautilus-sidebar.c
 +++ b/src/nautilus-sidebar.c
 @@ -32,6 +32,7 @@
@@ -19707,7 +20000,19 @@ index c9bd4a6..8160a4e 100644
  #ifdef GDK_WINDOWING_X11
  #include <gdk/x11/gdkx.h>
  #endif
-@@ -455,6 +464,60 @@ recent_files_setting_is_enabled (NautilusSidebar *sidebar)
+@@ -195,6 +204,11 @@ enum
+ /* Names for themed icons */
+ #define ICON_NAME_HOME     "user-home-symbolic"
+ #define ICON_NAME_DESKTOP  "user-desktop-symbolic"
++#ifdef __APPLE__
++/* Shenzhen Files: the Applications folder, a built-in place under Desktop as in Finder's sidebar. */
++#define ICON_NAME_APPLICATIONS  "applications-folder-symbolic"
++#define APPLICATIONS_FOLDER_PATH  "/Applications"
++#endif
+ #define ICON_NAME_NETWORK_VIEW  "network-computer-symbolic"
+
+ static guint places_sidebar_signals[LAST_SIGNAL] = { 0 };
+@@ -455,6 +469,60 @@ recent_files_setting_is_enabled (NautilusSidebar *sidebar)
      return enabled;
  }
 
@@ -19768,15 +20073,31 @@ index c9bd4a6..8160a4e 100644
  static gboolean
  recent_scheme_is_supported (void)
  {
-@@ -737,6 +800,7 @@ update_places (NautilusSidebar *sidebar)
+@@ -737,6 +805,23 @@ update_places (NautilusSidebar *sidebar)
          }
      }
 
++#ifdef __APPLE__
++    /* Applications */
++    if (g_file_test (APPLICATIONS_FOLDER_PATH, G_FILE_TEST_IS_DIR))
++    {
++        g_autofree char *applications_uri = g_filename_to_uri (APPLICATIONS_FOLDER_PATH, NULL, NULL);
++
++        start_icon = g_themed_icon_new (ICON_NAME_APPLICATIONS);
++        add_place (sidebar, NAUTILUS_SIDEBAR_ROW_BUILT_IN,
++                   NAUTILUS_SIDEBAR_SECTION_DEFAULT_LOCATIONS,
++                   _("Applications"), start_icon, NULL, applications_uri,
++                   NULL, NULL, NULL, NULL, 0,
++                   _("Open Applications"));
++        g_object_unref (start_icon);
++    }
++#endif
++
 +#ifndef __APPLE__
      /* Network view */
      start_icon = g_themed_icon_new_with_default_fallbacks (ICON_NAME_NETWORK_VIEW);
      add_place (sidebar, NAUTILUS_SIDEBAR_ROW_BUILT_IN,
-@@ -745,6 +809,10 @@ update_places (NautilusSidebar *sidebar)
+@@ -745,6 +830,10 @@ update_places (NautilusSidebar *sidebar)
                 NULL, NULL, NULL, NULL, 0,
                 _("Open Network Locations"));
      g_object_unref (start_icon);
@@ -19787,7 +20108,27 @@ index c9bd4a6..8160a4e 100644
 
      /* Trash */
      if (sidebar->show_trash)
-@@ -1098,6 +1166,12 @@ update_places (NautilusSidebar *sidebar)
+@@ -1024,6 +1113,19 @@ update_places (NautilusSidebar *sidebar)
+         GFile *location = nautilus_bookmark_get_location (l->data);
+         g_autofree char *mount_uri = nautilus_bookmark_get_uri (l->data);
+
++#ifdef __APPLE__
++        /* Applications is a built-in place above: a bookmark of it (Finder's
++         * favorites have one) would list it twice. It keeps its place in the
++         * order, so the rows after it keep the indexes reordering reads. */
++        g_autofree char *bookmark_path = g_file_get_path (location);
++        if (g_strcmp0 (bookmark_path, APPLICATIONS_FOLDER_PATH) == 0 &&
++            g_file_test (APPLICATIONS_FOLDER_PATH, G_FILE_TEST_IS_DIR))
++        {
++            index++;
++            continue;
++        }
++#endif
++
+         gboolean is_native = g_file_is_native (location);
+         tooltip = is_native ? g_file_get_path (location) : g_uri_unescape_string (mount_uri, NULL);
+
+@@ -1098,6 +1200,12 @@ update_places (NautilusSidebar *sidebar)
          g_free (tooltip);
      }
 
@@ -19800,7 +20141,7 @@ index c9bd4a6..8160a4e 100644
 
      g_list_free_full (network_volumes, g_object_unref);
      g_list_free_full (network_mounts, g_object_unref);
-@@ -1163,6 +1237,19 @@ hover_timer (gpointer user_data)
+@@ -1163,6 +1271,19 @@ hover_timer (gpointer user_data)
          if (uri != NULL && !g_strv_contains (drag_open_exlusion_list, uri))
          {
              location = g_file_new_for_uri (uri);
@@ -19820,7 +20161,7 @@ index c9bd4a6..8160a4e 100644
              call_open_location (sidebar, location, NULL, 0);
          }
      }
-@@ -1300,6 +1387,9 @@ static void
+@@ -1300,6 +1421,9 @@ static void
  stop_drop_feedback (NautilusSidebar *sidebar)
  {
      update_possible_drop_targets (sidebar, NULL);
@@ -19830,7 +20171,7 @@ index c9bd4a6..8160a4e 100644
 
      if (sidebar->drop_state != DROP_STATE_NEW_BOOKMARK_ARMED_PERMANENT &&
          sidebar->new_bookmark_row != NULL)
-@@ -1680,6 +1770,9 @@ drag_leave_callback (GtkDropTarget *dest,
+@@ -1680,6 +1804,9 @@ drag_leave_callback (GtkDropTarget *dest,
 
      g_clear_handle_id (&sidebar->hover_timer_id, g_source_remove);
      sidebar->dragging_over = FALSE;
@@ -19840,7 +20181,7 @@ index c9bd4a6..8160a4e 100644
  }
 
  static void
-@@ -1845,7 +1938,36 @@ open_row (NautilusSidebarRow *self,
+@@ -1845,7 +1972,36 @@ open_row (NautilusSidebarRow *self,
 
      if (uri != NULL)
      {
@@ -19877,7 +20218,7 @@ index c9bd4a6..8160a4e 100644
          call_open_location (sidebar, location, NULL, open_flags);
      }
      else if (volume != NULL)
-@@ -2294,6 +2416,88 @@ do_unmount (GMount          *mount,
+@@ -2294,6 +2450,88 @@ do_unmount (GMount          *mount,
      }
  }
 
@@ -19966,7 +20307,7 @@ index c9bd4a6..8160a4e 100644
  static void
  unmount_shortcut_cb (GSimpleAction *action,
                       GVariant      *parameter,
-@@ -2302,6 +2506,14 @@ unmount_shortcut_cb (GSimpleAction *action,
+@@ -2302,6 +2540,14 @@ unmount_shortcut_cb (GSimpleAction *action,
      NautilusSidebar *sidebar = data;
      GMount *mount;
 
@@ -19981,7 +20322,7 @@ index c9bd4a6..8160a4e 100644
      g_object_get (sidebar->context_row,
                    "mount", &mount,
                    NULL);
-@@ -2457,6 +2669,14 @@ eject_shortcut_cb (GSimpleAction *action,
+@@ -2457,6 +2703,14 @@ eject_shortcut_cb (GSimpleAction *action,
      GVolume *volume;
      GDrive *drive;
 
@@ -19996,7 +20337,7 @@ index c9bd4a6..8160a4e 100644
      g_object_get (sidebar->context_row,
                    "mount", &mount,
                    "volume", &volume,
-@@ -2489,6 +2709,16 @@ eject_or_unmount_bookmark (NautilusSidebarRow *row)
+@@ -2489,6 +2743,16 @@ eject_or_unmount_bookmark (NautilusSidebarRow *row)
      gboolean ret;
      NautilusSidebar *sidebar;
 
@@ -20013,7 +20354,7 @@ index c9bd4a6..8160a4e 100644
      g_object_get (row,
                    "sidebar", &sidebar,
                    "mount", &mount,
-@@ -2915,6 +3145,15 @@ create_row_popover (NautilusSidebar    *sidebar,
+@@ -2915,6 +3179,15 @@ create_row_popover (NautilusSidebar    *sidebar,
                    NULL);
 
      check_unmount_and_eject (mount, volume, drive, &show_unmount, &show_eject);
@@ -20029,7 +20370,7 @@ index c9bd4a6..8160a4e 100644
      if (uri != NULL)
      {
          file = g_file_new_for_uri (uri);
-@@ -3529,6 +3768,16 @@ create_volume_monitor (NautilusSidebar *sidebar)
+@@ -3529,6 +3802,16 @@ create_volume_monitor (NautilusSidebar *sidebar)
                               G_CALLBACK (update_places), sidebar, G_CONNECT_SWAPPED);
      g_signal_connect_object (sidebar->volume_monitor, "drive_changed",
                               G_CALLBACK (update_places), sidebar, G_CONNECT_SWAPPED);
@@ -20046,7 +20387,7 @@ index c9bd4a6..8160a4e 100644
  }
 
  static void
-@@ -3798,6 +4047,11 @@ nautilus_sidebar_dispose (GObject *object)
+@@ -3798,6 +4081,11 @@ nautilus_sidebar_dispose (GObject *object)
          g_clear_object (&sidebar->volume_monitor);
      }
 
@@ -21103,7 +21444,7 @@ index 216989d..a7c91b2 100644
  void nautilus_window_slot_restore_navigation_state (NautilusWindowSlot      *self,
                                                      NautilusNavigationState *data);
 diff --git a/src/nautilus-window.c b/src/nautilus-window.c
-index 91e5f48..8d17e03 100644
+index 91e5f48..613aee5 100644
 --- a/src/nautilus-window.c
 +++ b/src/nautilus-window.c
 @@ -103,6 +103,8 @@ struct _NautilusWindow
@@ -21283,10 +21624,62 @@ index 91e5f48..8d17e03 100644
  }
 
  void
-@@ -1430,6 +1556,44 @@ nautilus_window_get_locations (NautilusWindow *self)
+@@ -1430,6 +1556,96 @@ nautilus_window_get_locations (NautilusWindow *self)
      return locations;
  }
 
++GList *
++nautilus_window_get_tab_locations (NautilusWindow *self,
++                                   int            *active)
++{
++    g_return_val_if_fail (NAUTILUS_IS_WINDOW (self), NULL);
++
++    GFileList *locations = NULL;
++    int count = 0;
++
++    if (active != NULL)
++    {
++        *active = 0;
++    }
++    if (self->tab_view == NULL)
++    {
++        return NULL;
++    }
++
++    AdwTabPage *selected = adw_tab_view_get_selected_page (self->tab_view);
++
++    for (int i = 0; i < adw_tab_view_get_n_pages (self->tab_view); i++)
++    {
++        AdwTabPage *page = adw_tab_view_get_nth_page (self->tab_view, i);
++        GFile *location = nautilus_window_slot_get_location (NAUTILUS_WINDOW_SLOT (adw_tab_page_get_child (page)));
++
++        if (location == NULL)
++        {
++            continue;
++        }
++        if (page == selected && active != NULL)
++        {
++            *active = count;
++        }
++        locations = g_list_prepend (locations, g_object_ref (location));
++        count++;
++    }
++
++    return g_list_reverse (locations);
++}
++
++void
++nautilus_window_select_tab (NautilusWindow *self,
++                            int             index)
++{
++    g_return_if_fail (NAUTILUS_IS_WINDOW (self));
++
++    if (self->tab_view != NULL && index >= 0 && index < adw_tab_view_get_n_pages (self->tab_view))
++    {
++        adw_tab_view_set_selected_page (self->tab_view, adw_tab_view_get_nth_page (self->tab_view, index));
++    }
++}
++
 +static gboolean
 +location_is_within (GFile *location,
 +                    GFile *root)
@@ -21328,7 +21721,7 @@ index 91e5f48..8d17e03 100644
  static void
  on_is_maximized_changed (GObject    *object,
                           GParamSpec *pspec,
-@@ -1669,6 +1833,7 @@ nautilus_window_class_init (NautilusWindowClass *class)
+@@ -1669,6 +1885,7 @@ nautilus_window_class_init (NautilusWindowClass *class)
      gtk_widget_class_bind_template_child (wclass, NautilusWindow, undo_redo_section);
      gtk_widget_class_bind_template_child (wclass, NautilusWindow, toolbar);
      gtk_widget_class_bind_template_child (wclass, NautilusWindow, split_view);
@@ -21337,13 +21730,23 @@ index 91e5f48..8d17e03 100644
      gtk_widget_class_bind_template_child (wclass, NautilusWindow, toast_overlay);
      gtk_widget_class_bind_template_child (wclass, NautilusWindow, tab_view);
 diff --git a/src/nautilus-window.h b/src/nautilus-window.h
-index 610ff8f..541fb2d 100644
+index 610ff8f..762acc5 100644
 --- a/src/nautilus-window.h
 +++ b/src/nautilus-window.h
-@@ -66,6 +66,15 @@ nautilus_window_get_active_location (NautilusWindow *self);
+@@ -65,6 +65,24 @@ GFile *
+ nautilus_window_get_active_location (NautilusWindow *self);
  GList *
  nautilus_window_get_locations (NautilusWindow *self);
-
++/* Shenzhen Files: the folders the tabs show, in the order of the tabs (a tab still loading its first folder
++ * has none and is left out), each with a reference; @active gets the current tab's place in that list. */
++GList *
++nautilus_window_get_tab_locations (NautilusWindow *self,
++                                   int            *active);
++/* Shenzhen Files: makes the tab at @index (0 is the first) the current one. */
++void
++nautilus_window_select_tab (NautilusWindow *self,
++                            int             index);
++
 +/* Redirect every tab whose current or pending location is @source_root or a
 + * descendant of it. Returns a list of referenced NautilusWindowSlot objects
 + * that were redirected; free it with g_list_free_full (slots,
@@ -21352,10 +21755,24 @@ index 610ff8f..541fb2d 100644
 +nautilus_window_redirect_slots_from_location (NautilusWindow *self,
 +                                              GFile          *source_root,
 +                                              GFile          *destination);
-+
+
  void     nautilus_window_show_about_dialog    (NautilusWindow *window);
 
- void nautilus_window_show_operation_notification (NautilusWindow *window,
+diff --git a/src/resources/icons/scalable/actions/applications-folder-symbolic.svg b/src/resources/icons/scalable/actions/applications-folder-symbolic.svg
+new file mode 100644
+index 0000000..228a7ff
+--- /dev/null
++++ b/src/resources/icons/scalable/actions/applications-folder-symbolic.svg
+@@ -0,0 +1,9 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<svg height="16px" viewBox="0 0 16 16" width="16px" xmlns="http://www.w3.org/2000/svg">
++    <g fill="#222222">
++        <path d="m 4.5 1 c -1.921875 0 -3.5 1.578125 -3.5 3.5 v 7 c 0 1.921875 1.578125 3.5 3.5 3.5 h 7 c 1.921875 0 3.5 -1.578125 3.5 -3.5 v -7 c 0 -1.921875 -1.578125 -3.5 -3.5 -3.5 z m 0 2 h 7 c 0.847656 0 1.5 0.652344 1.5 1.5 v 7 c 0 0.847656 -0.652344 1.5 -1.5 1.5 h -7 c -0.847656 0 -1.5 -0.652344 -1.5 -1.5 v -7 c 0 -0.847656 0.652344 -1.5 1.5 -1.5 z m 0 0"/>
++        <path d="M 6.039 11.507 A 0.8 0.8 0 0 1 4.561 10.893 L 7.261 4.393 A 0.8 0.8 0 0 1 8.739 5.007 Z"/>
++        <path d="M 7.261 5.007 A 0.8 0.8 0 0 1 8.739 4.393 L 11.439 10.893 A 0.8 0.8 0 0 1 9.961 11.507 Z"/>
++        <path d="M 6.152 9.85 A 0.7 0.7 0 0 1 6.152 8.45 L 9.848 8.45 A 0.7 0.7 0 0 1 9.848 9.85 Z"/>
++    </g>
++</svg>
 diff --git a/src/resources/menu/nautilus-pathbar-context-menu.ui b/src/resources/menu/nautilus-pathbar-context-menu.ui
 index b6edceb..c975cbb 100644
 --- a/src/resources/menu/nautilus-pathbar-context-menu.ui
@@ -21426,6 +21843,18 @@ index 1669dce..c6b7a82 100644
 
  gresource_file = configure_file(
    input: 'nautilus.gresource.xml.in',
+diff --git a/src/resources/nautilus.gresource.xml.in b/src/resources/nautilus.gresource.xml.in
+index 1e52a1e..11d453e 100644
+--- a/src/resources/nautilus.gresource.xml.in
++++ b/src/resources/nautilus.gresource.xml.in
+@@ -51,6 +51,7 @@
+
+     <!-- Icons -->
+     <file preprocess="xml-stripblanks">icons/scalable/actions/arrow-next-symbolic-rtl.svg</file>
++    <file preprocess="xml-stripblanks">icons/scalable/actions/applications-folder-symbolic.svg</file>
+     <file preprocess="xml-stripblanks">icons/scalable/actions/arrow-next-symbolic.svg</file>
+     <file preprocess="xml-stripblanks">icons/scalable/actions/cancel-operation-symbolic.svg</file>
+     <file preprocess="xml-stripblanks">icons/scalable/actions/cut-large-symbolic.svg</file>
 diff --git a/src/resources/ui/meson.build b/src/resources/ui/meson.build
 new file mode 100644
 index 0000000..bb12822

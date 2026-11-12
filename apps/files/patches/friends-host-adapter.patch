@@ -72,7 +72,7 @@ index 983d6cd..a81cad0 100644
 +  description: 'Absolute path of a shenzhen-pdf checkout with built Friends GTK views; empty leaves Friends out',
 +)
 diff --git a/src/meson.build b/src/meson.build
-index b3242cc..b3ffab9 100644
+index 536d6f8..e8dde16 100644
 --- a/src/meson.build
 +++ b/src/meson.build
 @@ -68,6 +68,8 @@ libnautilus_sources = [
@@ -84,7 +84,7 @@ index b3242cc..b3ffab9 100644
    'nautilus-compress-dialog.c',
    'nautilus-compress-dialog.h',
    'nautilus-date-entry-row.c',
-@@ -367,9 +369,28 @@ else
+@@ -369,9 +371,28 @@ else
    ]
  endif
 
@@ -113,7 +113,7 @@ index b3242cc..b3ffab9 100644
    gio_unix,
    gmodule,
    gnome_autoar,
-@@ -439,6 +460,7 @@ nautilus = executable(
+@@ -441,6 +462,7 @@ nautilus = executable(
    'nautilus',
    'nautilus-main.c',
    dependencies: libnautilus_dep,
@@ -122,7 +122,7 @@ index b3242cc..b3ffab9 100644
  )
 
 diff --git a/src/nautilus-application.c b/src/nautilus-application.c
-index d1f1f9b..148904a 100644
+index a54308f..5877239 100644
 --- a/src/nautilus-application.c
 +++ b/src/nautilus-application.c
 @@ -57,6 +57,7 @@
@@ -133,7 +133,7 @@ index d1f1f9b..148904a 100644
  #include "nautilus-global-preferences.h"
  #include "nautilus-icon-info.h"
  #ifdef __APPLE__
-@@ -614,6 +615,8 @@ nautilus_application_open_location (NautilusApplication *self,
+@@ -615,6 +616,8 @@ nautilus_application_open_location (NautilusApplication *self,
                                               sel_list, startup_id);
  }
 
@@ -142,7 +142,7 @@ index d1f1f9b..148904a 100644
  /* Note: when launched from command line we do not reach this method
   * since we manually handle the command line parameters in order to
   * parse --version, etc.
-@@ -635,6 +638,8 @@ nautilus_application_open (GApplication  *app,
+@@ -636,6 +639,8 @@ nautilus_application_open (GApplication  *app,
 
      g_debug ("Open called on the GApplication instance; %d files", n_files);
 
@@ -151,7 +151,7 @@ index d1f1f9b..148904a 100644
      /* Open windows at each requested location. */
      for (int idx = 0; idx < n_files; idx++)
      {
-@@ -642,7 +647,20 @@ nautilus_application_open (GApplication  *app,
+@@ -643,7 +648,20 @@ nautilus_application_open (GApplication  *app,
 
          g_return_if_fail (file != NULL);
 
@@ -172,7 +172,7 @@ index d1f1f9b..148904a 100644
      }
  }
 
-@@ -1309,6 +1327,9 @@ on_application_shutdown (GApplication *application,
+@@ -1321,6 +1339,9 @@ on_application_shutdown (GApplication *application,
 
      g_list_free (notification_ids);
 
@@ -182,7 +182,7 @@ index d1f1f9b..148904a 100644
      nautilus_icon_info_clear_caches ();
  }
 
-@@ -1573,6 +1594,8 @@ macos_build_view_menu (void)
+@@ -1585,6 +1606,8 @@ macos_build_view_menu (void)
      macos_menu_append (reload_section, _("Stop"), "slot.stop", NULL);
 
      macos_menu_append (sidebar_section, _("Show Sidebar"), "win.toggle-sidebar", "F9");
@@ -191,7 +191,7 @@ index d1f1f9b..148904a 100644
 
      g_menu_append_section (menu, NULL, G_MENU_MODEL (mode_section));
      g_menu_append_section (menu, NULL, G_MENU_MODEL (sort_section));
-@@ -1659,6 +1682,8 @@ macos_build_help_menu (void)
+@@ -1671,6 +1694,8 @@ macos_build_help_menu (void)
 
      /* app.shortcuts is registered automatically by AdwApplication from
       * the bundled shortcuts-dialog.ui resource. */
@@ -200,7 +200,7 @@ index d1f1f9b..148904a 100644
      macos_menu_append (help_section, _("Keyboard Shortcuts"), "app.shortcuts", NULL);
      macos_menu_append (help_section, _("Files Help"), "app.help", "F1");
 
-@@ -1901,8 +1926,8 @@ macos_setup_font_rendering (void)
+@@ -1913,8 +1938,8 @@ macos_setup_font_rendering (void)
   * hidden — so the fallback needs no extra code.
   * ========================================================================== */
 
@@ -211,7 +211,7 @@ index d1f1f9b..148904a 100644
  {
      GtkSettings *settings = gtk_settings_get_default ();
      g_autoptr (GtkCssProvider) provider = gtk_css_provider_new ();
-@@ -2085,7 +2110,7 @@ nautilus_application_startup (GApplication *app)
+@@ -2097,7 +2122,7 @@ nautilus_application_startup (GApplication *app)
 
      /* Finder-style window chrome: traffic-light window buttons on the
       * left, hosted by the sidebar header (see the CSS block above). */
@@ -220,7 +220,7 @@ index d1f1f9b..148904a 100644
 
      /* Passive NSServices provider backing the "Open in Nautilus" service in
       * Info.plist (W12). Registration changes nothing system-wide and applies
-@@ -2098,6 +2123,10 @@ nautilus_application_startup (GApplication *app)
+@@ -2110,6 +2135,10 @@ nautilus_application_startup (GApplication *app)
      nautilus_macos_savepanel_handoff_init ();
  #endif
 
@@ -231,7 +231,7 @@ index d1f1f9b..148904a 100644
      if (!g_test_initialized ())
      {
          maybe_migrate_gtk_filechooser_preferences ();
-@@ -2375,6 +2404,7 @@ nautilus_application_window_added (GtkApplication *app,
+@@ -2388,6 +2417,7 @@ nautilus_application_window_added (GtkApplication *app,
          macos_maybe_show_fda_first_launch_prompt (window);
          macos_maybe_show_integration_first_run_dialog (window);
  #endif
@@ -4215,7 +4215,7 @@ index 1c72224..c9f85fb 100644
 +GtkWidget *nautilus_toolbar_get_friends_button (NautilusToolbar *self);
  G_END_DECLS
 diff --git a/src/nautilus-window.c b/src/nautilus-window.c
-index 8d17e03..8fd44cf 100644
+index 613aee5..76e2909 100644
 --- a/src/nautilus-window.c
 +++ b/src/nautilus-window.c
 @@ -43,6 +43,10 @@
@@ -4256,7 +4256,7 @@ index 8d17e03..8fd44cf 100644
      nautilus_window_on_undo_changed (nautilus_file_undo_manager_get (), window);
 
  #undef ACCELS
-@@ -1833,6 +1843,7 @@ nautilus_window_class_init (NautilusWindowClass *class)
+@@ -1885,6 +1895,7 @@ nautilus_window_class_init (NautilusWindowClass *class)
      gtk_widget_class_bind_template_child (wclass, NautilusWindow, undo_redo_section);
      gtk_widget_class_bind_template_child (wclass, NautilusWindow, toolbar);
      gtk_widget_class_bind_template_child (wclass, NautilusWindow, split_view);
@@ -4264,7 +4264,7 @@ index 8d17e03..8fd44cf 100644
      gtk_widget_class_bind_template_child (wclass, NautilusWindow, sidebar_resize_handle);
      gtk_widget_class_bind_template_child (wclass, NautilusWindow, places_sidebar);
      gtk_widget_class_bind_template_child (wclass, NautilusWindow, toast_overlay);
-@@ -1857,6 +1868,23 @@ nautilus_window_class_init (NautilusWindowClass *class)
+@@ -1909,6 +1920,23 @@ nautilus_window_class_init (NautilusWindowClass *class)
                        G_TYPE_NONE, 0);
  }
 
@@ -4288,7 +4288,7 @@ index 8d17e03..8fd44cf 100644
  NautilusWindow *
  nautilus_window_new (void)
  {
-@@ -1865,6 +1893,26 @@ nautilus_window_new (void)
+@@ -1917,6 +1945,26 @@ nautilus_window_new (void)
                           NULL);
  }
 
@@ -4315,7 +4315,7 @@ index 8d17e03..8fd44cf 100644
  void
  nautilus_window_show_about_dialog (NautilusWindow *window)
  {
-@@ -1903,7 +1951,9 @@ nautilus_window_show_about_dialog (NautilusWindow *window)
+@@ -1955,7 +2003,9 @@ nautilus_window_show_about_dialog (NautilusWindow *window)
 
      dialog = adw_about_dialog_new_from_appdata ("/org/gnome/nautilus/appdata", NULL);
 
@@ -4327,10 +4327,10 @@ index 8d17e03..8fd44cf 100644
      adw_about_dialog_set_copyright (ADW_ABOUT_DIALOG (dialog), "© 1999 The Files Authors");
      adw_about_dialog_set_developers (ADW_ABOUT_DIALOG (dialog), developers);
 diff --git a/src/nautilus-window.h b/src/nautilus-window.h
-index 541fb2d..274fb4b 100644
+index 762acc5..9a58f14 100644
 --- a/src/nautilus-window.h
 +++ b/src/nautilus-window.h
-@@ -88,4 +88,12 @@ void nautilus_window_search (NautilusWindow *window,
+@@ -97,4 +97,12 @@ void nautilus_window_search (NautilusWindow *window,
  void nautilus_window_back_or_forward_in_new_tab (NautilusWindow              *window,
                                                   NautilusNavigationDirection  back);
 

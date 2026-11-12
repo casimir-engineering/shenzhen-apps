@@ -2944,3 +2944,36 @@ in the Trash, as before.
 | `build-tests/src/nautilus` with real clicks and keys on a hidden window: Cmd-Delete, then Edit ▸ Undo, then Cmd-Delete and Cmd-Z | — | the file went to `~/.Trash` and came back both times |
 | `tools/test-macos-window-shortcuts.sh` | 0 | 5/5 |
 | `patches/macos-port-full.patch` regenerated from a tree with the port patch alone (the recipe reproduces the previous patch byte for byte), `tools/setup-nautilus-tree.sh --check`, and a fresh `--tree-only` setup | 0, 0 | 115 patched paths; the fresh tree equals the working one |
+
+## Applications in the sidebar; an update brings back the open tabs (2026-11-13)
+
+Two requests from the owner, for 26.11.13-1.
+
+**Applications.** The sidebar's built-in places gain Applications (`/Applications`) under Desktop, with its own
+symbolic icon, `applications-folder-symbolic` (an app tile with an A; `src/resources/icons/scalable/actions/`). A
+bookmark of `/Applications`, which Finder's favorites carry, is not listed a second time; it keeps its place in the
+bookmark order, so the rows after it keep the indexes reordering reads.
+
+**Tabs after an update.** Shenzhen Files updates itself by quitting and starting again as the new version, which
+opened one Home window. `nautilus-macos-session.c` now writes the folders open in each window's tabs, in tab order,
+with the current tab and the release that wrote them (`SZFReleaseTag`), to `<config>/nautilus/macos-session.ini`:
+400 ms after a tab opens, closes, moves, shows another folder or is chosen, and once more at Quit before the windows
+close (the quit action, which `[NSApp terminate:]` reaches, as the updater calls it). The first `activate` of a
+launch that finds the file written by another release opens those windows and tabs instead of the usual window;
+every other launch opens the usual window, as before. Folders that are gone, search results and the Trash are left
+out; Starred comes back. The updater is not changed and knows nothing of this: the launch after an update is told
+apart by the release in the file alone. A build from before this one writes no file, so the update that installs
+26.11.13-1 still opens the usual window; updates from it onwards bring the tabs back. Outside the app bundle there is
+no release, and nothing is written.
+
+Both `nautilus-application.c`, `nautilus-window.c`, `nautilus-window.h` and `src/meson.build` are also touched by the
+adapter patch, so both patches were regenerated: the port patch from a tree with the port patch and these edits
+alone, the adapter patch against it, as `docs/friends-integration.md` § 3.3 describes.
+
+| Check (2026-11-13, macOS 26.5.1 arm64), on an ad hoc copy of the built app with a home and Friends state of its own, real clicks and keys posted to its event queue | Result |
+|---|---|
+| Applications row under Desktop, clicked | opens `/Applications`; the icon follows the sidebar's colour |
+| three tabs (Applications, Desktop, Starred) and a second window, then `[NSApp terminate:nil]` | the file holds both windows, the tabs in order and the current tab |
+| launched again as the same release | one Home window |
+| launched again with the bundle's `SZFReleaseTag` raised | both windows, the tabs in order, the current tab chosen, no Home window beside them; the file now names the new release |
+| `tools/setup-nautilus-tree.sh --check` | the tree matches the regenerated patches; only the entries of the files above differ from the previous patches |
