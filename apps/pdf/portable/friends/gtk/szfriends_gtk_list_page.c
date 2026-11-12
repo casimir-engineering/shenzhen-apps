@@ -215,7 +215,7 @@ static void removal_answered(JsonObject *result, const SZFriendsGtkError *error,
                            removal->conversation_id))
                 row = g_ptr_array_index(list->parts.rows, i);
         if (row && error && error->message && *error->message)
-            gtk_accessible_announce(GTK_ACCESSIBLE(row), error->message, GTK_ACCESSIBLE_ANNOUNCEMENT_PRIORITY_HIGH);
+            szfriends_gtk_announce(row, error->message, GTK_ACCESSIBLE_ANNOUNCEMENT_PRIORITY_HIGH);
     }
     if (held) g_object_unref(held);
     g_weak_ref_clear(&removal->page);

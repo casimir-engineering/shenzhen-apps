@@ -60,7 +60,7 @@ static void show_armed(SZFriendsGtkActionButton *state) {
         gtk_accessible_update_property(GTK_ACCESSIBLE(button), GTK_ACCESSIBLE_PROPERTY_LABEL,
                                        state->arm.accessibility_label, -1);
         if (*state->arm.accessibility_label)
-            gtk_accessible_announce(GTK_ACCESSIBLE(button), state->arm.accessibility_label,
+            szfriends_gtk_announce(button, state->arm.accessibility_label,
                                     GTK_ACCESSIBLE_ANNOUNCEMENT_PRIORITY_MEDIUM);
         g_ptr_array_add(state->conversation->armed, button);
     } else {
@@ -87,7 +87,7 @@ static void replied(JsonObject *result, const SZFriendsGtkError *error, gpointer
     if (state->button) gtk_widget_set_sensitive(state->button, TRUE);
     /* The helper's words say what happened from the person's side; the next snapshot shows the new state. */
     if (error && error->message && *error->message && state->button)
-        gtk_accessible_announce(GTK_ACCESSIBLE(state->button), error->message,
+        szfriends_gtk_announce(state->button, error->message,
                                 GTK_ACCESSIBLE_ANNOUNCEMENT_PRIORITY_MEDIUM);
     /* `done` speaks to what holds the button (a card): gone with the button, it hears nothing. */
     if (state->done && state->button && state->conversation->page)

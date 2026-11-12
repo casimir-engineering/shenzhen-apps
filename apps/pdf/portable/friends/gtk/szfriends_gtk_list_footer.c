@@ -102,7 +102,7 @@ static void copy_clicked(GtkButton *button, gpointer data) {
     gtk_widget_set_visible(footer->copy_glyph, FALSE);
     gtk_accessible_update_property(GTK_ACCESSIBLE(footer->parts.copy_button), GTK_ACCESSIBLE_PROPERTY_LABEL, copied,
                                    -1);
-    gtk_accessible_announce(GTK_ACCESSIBLE(footer->parts.copy_button), copied,
+    szfriends_gtk_announce(footer->parts.copy_button, copied,
                             GTK_ACCESSIBLE_ANNOUNCEMENT_PRIORITY_MEDIUM);
     szfriends_gtk_clock_cancel(footer->copied_source);
     footer->copied_source = szfriends_gtk_clock_schedule(1500, copied_over, footer);
@@ -179,7 +179,7 @@ static void refuse(SZFriendsGtkListFooter *footer, const char *message) {
     if (!message || !*message) return;
     replace(&footer->error, message);
     show_note(footer);
-    gtk_accessible_announce(GTK_ACCESSIBLE(footer->parts.note), message, GTK_ACCESSIBLE_ANNOUNCEMENT_PRIORITY_HIGH);
+    szfriends_gtk_announce(footer->parts.note, message, GTK_ACCESSIBLE_ANNOUNCEMENT_PRIORITY_HIGH);
 }
 
 static gboolean saved_over(gpointer data) {
@@ -219,7 +219,7 @@ static void name_replied(JsonObject *result, const SZFriendsGtkError *error, gpo
             g_free(footer->saved);
             footer->saved = g_string_free(text, FALSE);
             show_note(footer);
-            gtk_accessible_announce(GTK_ACCESSIBLE(footer->parts.note), footer->saved,
+            szfriends_gtk_announce(footer->parts.note, footer->saved,
                                     GTK_ACCESSIBLE_ANNOUNCEMENT_PRIORITY_MEDIUM);
             szfriends_gtk_clock_cancel(footer->saved_source);
             footer->saved_source = szfriends_gtk_clock_schedule(2500, saved_over, footer);

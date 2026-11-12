@@ -206,7 +206,7 @@ static void clicked(GtkButton *button, gpointer data) {
         show_labels(entry, TRUE);
         /* Says what the next click does, in the helper's words ("Click again to block Lena Weber"). */
         if (entry->arm_accessibility_label && *entry->arm_accessibility_label)
-            gtk_accessible_announce(GTK_ACCESSIBLE(entry->button), entry->arm_accessibility_label,
+            szfriends_gtk_announce(entry->button, entry->arm_accessibility_label,
                                     GTK_ACCESSIBLE_ANNOUNCEMENT_PRIORITY_HIGH);
         return;
     }

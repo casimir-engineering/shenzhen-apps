@@ -35,6 +35,9 @@ The core:
   active window's open dropdown shows, sent on change and again after a reconnect, and `szfriends_gtk_show_conversation`
   for the host's `<scheme>://friends/conversation/<id>` route. The list's ask banner (Turn On, Not Now) is in
   `szfriends_gtk_list_notices.c`, Settings' Notifications block in `szfriends_gtk_settings_notifications.c`.
+- `szfriends_gtk_announce.c`: `szfriends_gtk_announce`, the one way the views say text aloud through assistive
+  technology. `gtk_accessible_announce` called directly crashes where GTK has no accessibility backend (macOS with
+  Homebrew's GTK), so nothing else calls it.
 - `szfriends_gtk_style.c`, `szfriends_gtk.css`, `szfriends_gtk.gresource.xml`, `icons/`: the resource, the two-people
   symbolic icon and the `@szfriends_*` colour tokens.
 - `gtk.mk`: `friends-gtk-lib` (`libszfriends_gtk.a`: views, client library, cJSON) and the four suites below.

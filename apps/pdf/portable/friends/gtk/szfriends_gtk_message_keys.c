@@ -85,7 +85,7 @@ static void mark(SZFriendsGtkLinkKeys *keys, GtkWidget *label, gssize segment) {
                                        about ? about : "", -1);
         const char *words = keys->item->segments[segment].text;
         if (words && *words)
-            gtk_accessible_announce(GTK_ACCESSIBLE(label), words, GTK_ACCESSIBLE_ANNOUNCEMENT_PRIORITY_MEDIUM);
+            szfriends_gtk_announce(label, words, GTK_ACCESSIBLE_ANNOUNCEMENT_PRIORITY_MEDIUM);
     } else {
         gtk_accessible_reset_property(GTK_ACCESSIBLE(label), GTK_ACCESSIBLE_PROPERTY_DESCRIPTION);
     }

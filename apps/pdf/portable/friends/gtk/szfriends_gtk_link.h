@@ -82,6 +82,11 @@ void szfriends_gtk_link_remove_badge_watch(SZFriendsGtkLink *link, guint watch);
 int szfriends_gtk_link_watched_fd(SZFriendsGtkLink *link);
 int szfriends_gtk_link_client_fd(SZFriendsGtkLink *link);
 
+/* szfriends_gtk_announce.c: says `text` aloud through assistive technology. Nothing happens without a widget or
+ * text, or where GTK has no way to say it. Use it for every announcement: gtk_accessible_announce called directly
+ * crashes the app where GTK has no way to say it. */
+void szfriends_gtk_announce(GtkWidget *widget, const char *text, GtkAccessibleAnnouncementPriority priority);
+
 G_END_DECLS
 
 #endif /* SZFRIENDS_GTK_LINK_H */

@@ -42,7 +42,7 @@ gpointer szfriends_gtk_details_held_value(SZFriendsGtkDetailsHeld *held) {
 
 void szfriends_gtk_details_announce(GtkWidget *widget, const char *text) {
     if (widget && text && *text)
-        gtk_accessible_announce(GTK_ACCESSIBLE(widget), text, GTK_ACCESSIBLE_ANNOUNCEMENT_PRIORITY_MEDIUM);
+        szfriends_gtk_announce(widget, text, GTK_ACCESSIBLE_ANNOUNCEMENT_PRIORITY_MEDIUM);
 }
 
 typedef struct {

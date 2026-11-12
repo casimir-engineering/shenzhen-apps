@@ -48,7 +48,7 @@ static void sent(JsonObject *result, const SZFriendsGtkError *error, gpointer da
         /* The draft stays; the helper's message says what happened from the person's side. */
         szfriends_gtk_composer_set_error(composer, error->message);
         if (error->message && *error->message)
-            gtk_accessible_announce(GTK_ACCESSIBLE(composer->text_view), error->message,
+            szfriends_gtk_announce(composer->text_view, error->message,
                                     GTK_ACCESSIBLE_ANNOUNCEMENT_PRIORITY_MEDIUM);
         return;
     }

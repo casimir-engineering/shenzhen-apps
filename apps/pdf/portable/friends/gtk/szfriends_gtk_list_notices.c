@@ -107,7 +107,7 @@ static void prompt_refuse(GtkWidget *note, const char *message) {
     if (!message || !*message) return;
     g_object_set_data_full(G_OBJECT(note), SZFRIENDS_GTK_PROMPT_ERROR, g_strdup(message), g_free);
     szfriends_gtk_list_label_set(note, message);
-    gtk_accessible_announce(GTK_ACCESSIBLE(note), message, GTK_ACCESSIBLE_ANNOUNCEMENT_PRIORITY_HIGH);
+    szfriends_gtk_announce(note, message, GTK_ACCESSIBLE_ANNOUNCEMENT_PRIORITY_HIGH);
 }
 
 static void name_replied(JsonObject *result, const SZFriendsGtkError *error, gpointer data) {
