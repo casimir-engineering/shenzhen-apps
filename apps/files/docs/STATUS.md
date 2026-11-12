@@ -2977,3 +2977,19 @@ alone, the adapter patch against it, as `docs/friends-integration.md` § 3.3 des
 | launched again as the same release | one Home window |
 | launched again with the bundle's `SZFReleaseTag` raised | both windows, the tabs in order, the current tab chosen, no Home window beside them; the file now names the new release |
 | `tools/setup-nautilus-tree.sh --check` | the tree matches the regenerated patches; only the entries of the files above differ from the previous patches |
+
+## Starring a file no longer crashes (2026-11-13)
+
+Found right after 26.11.13-1 by looking for the Copy ID crash's cause elsewhere: clicking a file's star crashed
+Shenzhen Files the same way, in every release so far. `nautilus_tag_manager_announce_starred_cb` and
+`_unstarred_cb` call `gtk_accessible_announce()`, which calls the accessibility backend's announce function without
+checking that it has one; GTK's fallback backend, which every widget gets on macOS with Homebrew's GTK, has none
+(SIGSEGV at address 0 under `on_update_callback`). The name cell's snippet popover had the same call.
+`nautilus_ui_announce()` (`nautilus-ui-utilities.c`) skips the call for that backend and announces as before
+elsewhere; the three calls go through it. The Friends views have their own, `szfriends_gtk_announce`.
+
+| Check (2026-11-13), on an ad hoc copy with a home of its own, real clicks posted to its event queue | Result |
+|---|---|
+| the build of 26.11.13-1: click a folder's star | the app is gone; the crash report names `gtk_accessible_announce` under `on_update_callback` |
+| this build: the same click | the star fills, the folder is listed in Starred, the app stays open |
+| `tools/setup-nautilus-tree.sh --check` | the tree matches the regenerated port patch; the adapter patch is unchanged |

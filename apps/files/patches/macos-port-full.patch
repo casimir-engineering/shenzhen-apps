@@ -18493,7 +18493,7 @@ index e553d17..2d5595a 100644
  									   NautilusWindowSlot *slot,
  									   GList              *files,
 diff --git a/src/nautilus-name-cell.c b/src/nautilus-name-cell.c
-index 8e01f47..b98e199 100644
+index 8e01f47..f2db3f8 100644
 --- a/src/nautilus-name-cell.c
 +++ b/src/nautilus-name-cell.c
 @@ -14,6 +14,10 @@
@@ -18515,6 +18515,19 @@ index 8e01f47..b98e199 100644
      GtkWidget *snippet_button;
      GtkLabel *snippet;
      GtkWidget *path;
+@@ -316,9 +321,9 @@ popover_show_cb (NautilusNameCell *self)
+ {
+     const char *label = gtk_label_get_label (self->snippet);
+
+-    gtk_accessible_announce (GTK_ACCESSIBLE (self),
+-                             label,
+-                             GTK_ACCESSIBLE_ANNOUNCEMENT_PRIORITY_MEDIUM);
++    nautilus_ui_announce (GTK_ACCESSIBLE (self),
++                          label,
++                          GTK_ACCESSIBLE_ANNOUNCEMENT_PRIORITY_MEDIUM);
+ }
+
+ static gboolean
 @@ -367,6 +372,11 @@ nautilus_name_cell_init (NautilusNameCell *self)
      g_object_bind_property (self, "item",
                              self->item_signal_group, "target",
@@ -20400,10 +20413,17 @@ index c9bd4a6..20cb5b1 100644
      {
          g_cancellable_cancel (sidebar->hostnamed_cancellable);
 diff --git a/src/nautilus-tag-manager.c b/src/nautilus-tag-manager.c
-index c34a17c..58e9ea6 100644
+index c34a17c..76d3488 100644
 --- a/src/nautilus-tag-manager.c
 +++ b/src/nautilus-tag-manager.c
-@@ -29,6 +29,10 @@
+@@ -23,12 +23,17 @@
+ #include "nautilus-file-undo-operations.h"
+ #include "nautilus-file-undo-manager.h"
+ #include "nautilus-localsearch-utilities.h"
++#include "nautilus-ui-utilities.h"
+
+ #include <glib/gi18n.h>
+ #include <tinysparql.h>
 
  #include "config.h"
 
@@ -20414,7 +20434,29 @@ index c34a17c..58e9ea6 100644
  struct _NautilusTagManager
  {
      GObject object;
-@@ -658,12 +662,71 @@ nautilus_tag_manager_get (void)
+@@ -215,8 +220,8 @@ nautilus_tag_manager_announce_starred_cb (GObject      *object,
+                                           gpointer      user_data)
+ {
+     GtkAccessible *accessible = user_data;
+-    gtk_accessible_announce (accessible, _("starred"),
+-                             GTK_ACCESSIBLE_ANNOUNCEMENT_PRIORITY_MEDIUM);
++    nautilus_ui_announce (accessible, _("starred"),
++                          GTK_ACCESSIBLE_ANNOUNCEMENT_PRIORITY_MEDIUM);
+ }
+
+ void
+@@ -225,8 +230,8 @@ nautilus_tag_manager_announce_unstarred_cb (GObject      *object,
+                                             gpointer      user_data)
+ {
+     GtkAccessible *accessible = user_data;
+-    gtk_accessible_announce (accessible, _("unstarred"),
+-                             GTK_ACCESSIBLE_ANNOUNCEMENT_PRIORITY_MEDIUM);
++    nautilus_ui_announce (accessible, _("unstarred"),
++                          GTK_ACCESSIBLE_ANNOUNCEMENT_PRIORITY_MEDIUM);
+ }
+
+ static void
+@@ -658,12 +663,71 @@ nautilus_tag_manager_get (void)
      return tag_manager;
  }
 
@@ -20486,7 +20528,7 @@ index c34a17c..58e9ea6 100644
      g_autofree gchar *store_path = NULL;
      g_autofree gchar *ontology_path = NULL;
      g_autoptr (GFile) store = NULL;
-@@ -672,6 +735,21 @@ setup_database (NautilusTagManager  *self,
+@@ -672,6 +736,21 @@ setup_database (NautilusTagManager  *self,
      /* Open private database to store nautilus:starred property. */
 
      datadir = NAUTILUS_DATADIR;
@@ -21227,6 +21269,56 @@ index a20b99d..c6f32bc 100644
 
      gtk_widget_class_bind_template_callback (widget_class, nautilus_toolbar_close_location_entry);
 
+diff --git a/src/nautilus-ui-utilities.c b/src/nautilus-ui-utilities.c
+index 5c0ab85..de58559 100644
+--- a/src/nautilus-ui-utilities.c
++++ b/src/nautilus-ui-utilities.c
+@@ -1087,3 +1087,25 @@ nautilus_ui_draw_stacked_icons (GQueue    *icons,
+
+     return draw_drag_count_badge (gtk_snapshot_to_paintable (snapshot, NULL), widget, n_items);
+ }
++
++void
++nautilus_ui_announce (GtkAccessible                     *accessible,
++                      const char                        *message,
++                      GtkAccessibleAnnouncementPriority  priority)
++{
++    if (accessible == NULL || message == NULL || *message == '\0')
++    {
++        return;
++    }
++
++    g_autoptr (GtkATContext) context = gtk_accessible_get_at_context (accessible);
++
++    /* GtkTestATContext is what GTK gives a widget when it has no backend for
++     * the platform; it has no announce function, and GTK calls it unchecked. */
++    if (context == NULL || g_strcmp0 (G_OBJECT_TYPE_NAME (context), "GtkTestATContext") == 0)
++    {
++        return;
++    }
++
++    gtk_accessible_announce (accessible, message, priority);
++}
+diff --git a/src/nautilus-ui-utilities.h b/src/nautilus-ui-utilities.h
+index 58c7c77..239de30 100644
+--- a/src/nautilus-ui-utilities.h
++++ b/src/nautilus-ui-utilities.h
+@@ -91,6 +91,15 @@ void        nautilus_ui_timed_wait_start_full       (int                      du
+ void        nautilus_ui_timed_wait_stop             (TimedWaitCancelCallback  cancel_callback,
+                                                      gpointer                 callback_data);
+
++/* Shenzhen Files: says @message aloud through assistive technology, where GTK can.
++ * Use it instead of gtk_accessible_announce(), which calls the accessibility
++ * backend's announce function without checking that it has one: GTK's fallback
++ * backend (every widget on macOS with Homebrew's GTK) has none, and the call
++ * crashed the app when a file was starred. */
++void        nautilus_ui_announce                    (GtkAccessible                     *accessible,
++                                                     const char                        *message,
++                                                     GtkAccessibleAnnouncementPriority  priority);
++
+ void        show_unmount_progress_cb                (GMountOperation   *op,
+                                                      const gchar       *message,
+                                                      gint64             time_left,
 diff --git a/src/nautilus-vfs-file.c b/src/nautilus-vfs-file.c
 index de42f6c..17d2909 100644
 --- a/src/nautilus-vfs-file.c
