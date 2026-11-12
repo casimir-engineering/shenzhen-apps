@@ -44,8 +44,8 @@ APP="${1:-$repo_root/dist/Shenzhen Files.app}"
 # cache semantics, and an explicit YY.M.DD-BUILD release tag for GitHub.
 BUNDLE_ID="com.intuition.shenzhenfiles"
 SHORT_VERSION="26.11.13"
-RELEASE_BUILD="1"
-BUNDLE_VERSION="26111301"
+RELEASE_BUILD="2"
+BUNDLE_VERSION="26111302"
 # tools/release.sh builds a candidate of another version (a dry run of a throwaway one) with
 # SZF_RELEASE_VERSION=<YY.M.D>-<N>; publishing refuses a version other than the one written above.
 if [[ -n "${SZF_RELEASE_VERSION:-}" ]]; then
