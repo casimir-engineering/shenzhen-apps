@@ -27,6 +27,12 @@ struct _SZFriendsGtkHistory {
     char *newest_id;       /* the newest item of the last snapshot */
     char *first_unseen;    /* the first of the friend's items that arrived below while scrolled up */
     guint unseen;
+    /* While a mouse button or a finger is down on the history, a changed item keeps its row: rebuilding it under the
+     * press (a transfer's progress ticks several times a second) took the button away before the release, so Cancel
+     * was lost. The rows held back are brought up to date from the latest items as soon as the press ends. */
+    gboolean pressed;
+    JsonObject *held_data; /* the latest snapshot's data while rows are held back */
+    guint held_flush, press_limit;
 };
 
 static const SZFriendsGtkType *item_type(void) {
@@ -234,6 +240,8 @@ static void pill_clicked(GtkButton *button, gpointer data) {
 
 void szfriends_gtk_history_apply(SZFriendsGtkHistory *history, JsonObject *data,
                                  const SZFriendsGtkConversationSnapshot *snapshot, guint subscription) {
+    g_clear_pointer(&history->held_data, json_object_unref);
+    if (history->pressed && data) history->held_data = json_object_ref(data);
     gboolean first = g_list_model_get_n_items(G_LIST_MODEL(history->store)) == 0, follow = first || at_bottom(history);
     JsonArray *arrived = data && json_object_has_member(data, "items") &&
                                  JSON_NODE_HOLDS_ARRAY(json_object_get_member(data, "items"))
@@ -266,8 +274,8 @@ void szfriends_gtk_history_apply(SZFriendsGtkHistory *history, JsonObject *data,
         if (!JSON_NODE_HOLDS_OBJECT(node)) continue;
         GObject *fresh = szfriends_gtk_history_holder_new(json_node_get_object(node));
         GObject *kept = g_hash_table_lookup(old, g_object_get_data(fresh, "szfriends-key"));
-        gboolean same = kept && strcmp(g_object_get_data(kept, "szfriends-fingerprint"),
-                                       g_object_get_data(fresh, "szfriends-fingerprint")) == 0;
+        gboolean same = kept && (history->pressed || strcmp(g_object_get_data(kept, "szfriends-fingerprint"),
+                                                            g_object_get_data(fresh, "szfriends-fingerprint")) == 0);
         added += !kept;
         g_ptr_array_add(next, same ? g_object_ref(kept) : g_object_ref(fresh));
         g_object_unref(fresh);
@@ -391,6 +399,77 @@ static gboolean dropped(GtkDropTarget *target, const GValue *value, double x, do
 
 /* ---- Building ------------------------------------------------------------------------------------------- */
 
+/* ---- Presses ------------------------------------------------------------------------------------------- */
+
+/* After the release has reached the row's button (its click runs first), each row held back takes its latest item. */
+static gboolean flush_held(gpointer data) {
+    SZFriendsGtkHistory *history = data;
+    history->held_flush = 0;
+    JsonObject *held = history->held_data;
+    history->held_data = NULL;
+    if (history->pressed || !held) {
+        if (held) json_object_unref(held);
+        return G_SOURCE_REMOVE;
+    }
+    JsonArray *items = json_object_has_member(held, "items") &&
+                               JSON_NODE_HOLDS_ARRAY(json_object_get_member(held, "items"))
+                           ? json_object_get_array_member(held, "items") : NULL;
+    GHashTable *latest = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, g_object_unref);
+    for (guint i = 0; items && i < json_array_get_length(items); i++) {
+        JsonNode *node = json_array_get_element(items, i);
+        if (!JSON_NODE_HOLDS_OBJECT(node)) continue;
+        GObject *fresh = szfriends_gtk_history_holder_new(json_node_get_object(node));
+        g_hash_table_replace(latest, g_object_get_data(fresh, "szfriends-key"), fresh);
+    }
+    for (guint i = 0; i < g_list_model_get_n_items(G_LIST_MODEL(history->store)); i++) {
+        GObject *kept = store_item(history, i);
+        const char *key = g_object_get_data(kept, "szfriends-key");
+        GObject *fresh = key ? g_hash_table_lookup(latest, key) : NULL;
+        if (fresh && strcmp(g_object_get_data(kept, "szfriends-fingerprint"),
+                            g_object_get_data(fresh, "szfriends-fingerprint")) != 0)
+            g_list_store_splice(history->store, i, 1, (gpointer *)&fresh, 1);
+    }
+    g_hash_table_unref(latest);
+    json_object_unref(held);
+    return G_SOURCE_REMOVE;
+}
+
+static void press_ended(SZFriendsGtkHistory *history) {
+    history->pressed = FALSE;
+    if (history->press_limit) g_source_remove(history->press_limit);
+    history->press_limit = 0;
+    if (!history->held_flush) history->held_flush = g_idle_add(flush_held, history);
+}
+
+/* A press whose release never comes (a grab taken elsewhere) holds the rows 10 seconds at most. */
+static gboolean press_too_long(gpointer data) {
+    SZFriendsGtkHistory *history = data;
+    history->press_limit = 0;
+    press_ended(history);
+    return G_SOURCE_REMOVE;
+}
+
+static gboolean pointer_event(GtkEventControllerLegacy *controller, GdkEvent *event, gpointer data) {
+    (void)controller;
+    SZFriendsGtkHistory *history = data;
+    switch (gdk_event_get_event_type(event)) {
+    case GDK_BUTTON_PRESS:
+    case GDK_TOUCH_BEGIN:
+        history->pressed = TRUE;
+        if (history->press_limit) g_source_remove(history->press_limit);
+        history->press_limit = g_timeout_add_seconds(10, press_too_long, history);
+        break;
+    case GDK_BUTTON_RELEASE:
+    case GDK_TOUCH_END:
+    case GDK_TOUCH_CANCEL:
+        if (history->pressed) press_ended(history);
+        break;
+    default:
+        break;
+    }
+    return GDK_EVENT_PROPAGATE;
+}
+
 SZFriendsGtkHistory *szfriends_gtk_history_new(SZFriendsGtkConversation *conversation) {
     SZFriendsGtkHistory *history = g_new0(SZFriendsGtkHistory, 1);
     history->conversation = szfriends_gtk_conversation_ref(conversation);
@@ -402,6 +481,11 @@ SZFriendsGtkHistory *szfriends_gtk_history_new(SZFriendsGtkConversation *convers
     history->list_view = gtk_list_view_new(GTK_SELECTION_MODEL(gtk_no_selection_new(
                                                G_LIST_MODEL(g_object_ref(history->store)))), factory);
     gtk_widget_add_css_class(history->list_view, "szfriends-history");
+    /* Sees every press and release on the rows before their buttons do, and lets them through. */
+    GtkEventController *presses = gtk_event_controller_legacy_new();
+    gtk_event_controller_set_propagation_phase(presses, GTK_PHASE_CAPTURE);
+    g_signal_connect(presses, "event", G_CALLBACK(pointer_event), history);
+    gtk_widget_add_controller(history->list_view, presses);
     history->scroller = gtk_scrolled_window_new();
     gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(history->scroller), GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC);
     /* Short histories sit at the bottom, next to the composer, as chat histories do. */
@@ -476,6 +560,9 @@ void szfriends_gtk_history_free(SZFriendsGtkHistory *history) {
     if (!history) return;
     g_signal_handlers_disconnect_by_data(gtk_scrolled_window_get_vadjustment(GTK_SCROLLED_WINDOW(history->scroller)),
                                          history);
+    if (history->held_flush) g_source_remove(history->held_flush);
+    if (history->press_limit) g_source_remove(history->press_limit);
+    g_clear_pointer(&history->held_data, json_object_unref);
     g_list_store_remove_all(history->store);
     g_object_unref(history->root);
     g_object_unref(history->store);

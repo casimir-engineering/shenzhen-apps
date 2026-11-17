@@ -84,6 +84,7 @@ static void SZFriendsUpdateLiveness(SZFriendsPeerLink *link) {
     [link.doneSent removeObject:transferID];
     [link.rateStart removeObjectForKey:transferID];
     [link.endedTransfers addObject:transferID];
+    [link forgetFileAckForID:transferID]; // no file ACK is awaited now; one for our CANCEL may come
     [link.blocks endTransfer:transferID];
     SZFriendsUpdateLiveness(link);
 }

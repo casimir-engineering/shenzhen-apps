@@ -112,6 +112,10 @@ NSData *_Nullable SZFriendsLinkBytesFromHex(NSString *_Nullable hex); // nil unl
 // The ACKs of files sent by blocks this link awaits ("done:" tokens), handed to the lane that carries its group on
 // (ADR 0018 § 6): the friend acknowledges them there.
 - (void)moveFileAcksTo:(SZFriendsPeerLink *)other;
+// Drops the "done:" token of a file this link no longer carries (cancelled, declined, failed, acknowledged). A file
+// sent by blocks expects its ACK from the moment it starts, so without this a later frame with the same wire ID (our
+// CANCEL of it) would have its ACK taken as the file's, and stay unacknowledged for good.
+- (void)forgetFileAckForID:(NSString *)transferID;
 - (nullable NSString *)takeAckForID:(NSString *)wireID;
 // Whether an ACK for this wire ID would acknowledge something this link sent (without taking it).
 - (BOOL)expectsAckForID:(NSString *)wireID;

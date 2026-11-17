@@ -83,6 +83,12 @@ NSData *SZFriendsLinkBytesFromHex(NSString *hex) {
     }
 }
 
+- (void)forgetFileAckForID:(NSString *)transferID {
+    NSMutableArray<NSString *> *queue = _acks[transferID];
+    [queue removeObject:[@"done:" stringByAppendingString:transferID]];
+    if (queue != nil && queue.count == 0) [_acks removeObjectForKey:transferID];
+}
+
 - (nullable NSString *)takeAckForID:(NSString *)wireID {
     NSMutableArray<NSString *> *queue = _acks[wireID];
     if (queue.count == 0) return nil;
