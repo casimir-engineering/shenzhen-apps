@@ -82,6 +82,25 @@ static GtkAdjustment *adjustment_of(SZFGConv *conv) {
     return gtk_scrolled_window_get_vadjustment(GTK_SCROLLED_WINDOW(scroller));
 }
 
+/* The person scrolling up to `value`: a wheel move up reaches the history's own scroll controller (the one watching
+ * in the capture phase), then the view moves. A move without one is the list view's, and a history at its end puts
+ * it back. */
+static void person_scrolls_to(SZFGConv *conv, double value) {
+    GtkWidget *scroller = gtk_widget_get_ancestor(szfriends_gtk_history_list_view(history_of(conv)),
+                                                  GTK_TYPE_SCROLLED_WINDOW);
+    GListModel *controllers = gtk_widget_observe_controllers(scroller);
+    for (guint i = 0; i < g_list_model_get_n_items(controllers); i++) {
+        GtkEventController *controller = g_list_model_get_item(controllers, i);
+        gboolean handled = FALSE;
+        if (GTK_IS_EVENT_CONTROLLER_SCROLL(controller) &&
+            gtk_event_controller_get_propagation_phase(controller) == GTK_PHASE_CAPTURE)
+            g_signal_emit_by_name(controller, "scroll", 0.0, -1.0, &handled);
+        g_object_unref(controller);
+    }
+    g_object_unref(controllers);
+    gtk_adjustment_set_value(adjustment_of(conv), value);
+}
+
 static gboolean at_end(SZFGConv *conv) {
     GtkAdjustment *a = adjustment_of(conv);
     return gtk_adjustment_get_value(a) + gtk_adjustment_get_page_size(a) >= gtk_adjustment_get_upper(a) - 4;
@@ -107,7 +126,7 @@ static void test_follow(SZFGHarness *harness, gboolean dark) {
     GtkWidget *pill = szfriends_gtk_history_pill(history_of(conv));
     EXPECT(at_end(conv) && !gtk_widget_get_visible(pill), "a long conversation opens at its end, no pill");
 
-    gtk_adjustment_set_value(adjustment_of(conv), 0);
+    person_scrolls_to(conv, 0);
     szfg_conv_layout(conv);
     serve(conv, harness, 24, "[{\"id\":\"m_new_1\",\"direction\":\"in\",\"text\":\"First new message from Mei.\"}]",
           base + 1);
@@ -126,7 +145,7 @@ static void test_follow(SZFGHarness *harness, gboolean dark) {
     EXPECT(!gtk_widget_get_visible(pill) && gtk_adjustment_get_value(adjustment_of(conv)) > 4,
            "the pill scrolls to the first new message and goes");
 
-    gtk_adjustment_set_value(adjustment_of(conv), 0);
+    person_scrolls_to(conv, 0);
     szfg_conv_layout(conv);
     serve(conv, harness, 24, "[{\"id\":\"m_new_1\",\"direction\":\"in\",\"text\":\"First new message from Mei.\"},"
                              "{\"id\":\"m_new_2\",\"direction\":\"in\",\"text\":\"Second.\"},"

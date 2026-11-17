@@ -5,7 +5,9 @@
  * conversation):
  *   - szfriends_gtk_conversation_page.c: the page, its header (name and route centred, a click opens details) and the
  *     search under it; szfriends_gtk_conversation_history.c: the history in a GtkListView (oldest to newest, Show
- *     earlier messages) and drops on it; szfriends_gtk_conversation_state.c: shared state, popovers, the stylesheet;
+ *     earlier messages, following its end), with szfriends_gtk_conversation_history_input.c for presses on its rows,
+ *     the person's own scrolling and drops on it; szfriends_gtk_conversation_state.c: shared state, popovers, the
+ *     stylesheet;
  *   - szfriends_gtk_message.c, szfriends_gtk_message_links.c, szfriends_gtk_message_keys.c: day separators, events
  *     and bubbles drawn from the segments as text with a PangoAttrList; links open only through a menu that shows
  *     where they go, a mention acts by its kind (§ Mentions), and both are reached by keyboard too;
