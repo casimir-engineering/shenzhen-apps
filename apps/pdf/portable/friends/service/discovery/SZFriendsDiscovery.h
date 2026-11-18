@@ -134,8 +134,23 @@ BOOL SZFriendsStartAdapterAtLaunch(SZFriendsPermission permission, BOOL nearbyPe
 @property(nonatomic, readonly) NSArray<NSData *> *callbackTags;
 @property(nonatomic, readonly) BOOL isPublic;
 @property(nonatomic, readonly) NSDate *seenAt;
+// Every route class the entry was seen on, best first; always holds `route`. One Bonjour entry is often seen on Wi-Fi
+// and on awdl at once: it stays one sighting, so Nearby, the merger and the session race see one device whose best
+// route is `route`, while a lane the scheduler asks for on another of these routes is dialed there (ADR 0018 § 6).
+@property(nonatomic, readonly) NSArray<NSNumber *> *routes;
+// The interfaces it was seen on, for the helper's log only ("en0 lo0, awdl0"); nil when the method has none.
+@property(nonatomic, readonly, copy, nullable) NSString *interfaces;
+- (BOOL)seenOnRoute:(SZFriendsRouteMethod)route;
 - (instancetype)initWithMethod:(SZFriendsDiscoveryMethod)method
                          route:(SZFriendsRouteMethod)route
+                    endpointID:(NSString *)endpointID
+                   presenceTag:(nullable NSData *)presenceTag
+                  callbackTags:(NSArray<NSData *> *)callbackTags
+                      isPublic:(BOOL)isPublic
+                        seenAt:(NSDate *)seenAt;
+- (instancetype)initWithMethod:(SZFriendsDiscoveryMethod)method
+                        routes:(NSArray<NSNumber *> *)routes
+                    interfaces:(nullable NSString *)interfaces
                     endpointID:(NSString *)endpointID
                    presenceTag:(nullable NSData *)presenceTag
                   callbackTags:(NSArray<NSData *> *)callbackTags
@@ -210,10 +225,15 @@ extern const NSTimeInterval SZFriendsFirstMessageTimeout; // 2 s
 - (void)advertisePresenceTag:(nullable NSData *)tag
                 callbackTags:(NSArray<NSData *> *)callbackTags
                  publicEntry:(BOOL)publicEntry;
-// Opens a byte stream to a sighted endpoint. The completion runs once, with a stream or an error.
+// Opens a byte stream to a sighted endpoint, on its best route. The completion runs once, with a stream or an error.
 - (void)openStreamToEndpoint:(NSString *)endpointID
                   completion:(void (^)(id<SZFriendsByteStream> _Nullable stream, NSError *_Nullable error))completion;
 @optional
+// The same on one of the routes the sighting lists (SZFriendsSighting.routes): the network adapter pins a
+// peer-to-peer Wi-Fi dial to the awdl interface the entry was seen on. Adapters with one route per sighting omit it.
+- (void)openStreamToEndpoint:(NSString *)endpointID
+                       route:(SZFriendsRouteMethod)route
+                  completion:(void (^)(id<SZFriendsByteStream> _Nullable stream, NSError *_Nullable error))completion;
 // Looks again now instead of waiting for the next change (a Bluetooth sighting of a friend asks the network
 // adapter for a fresh browse, ADR 0004 § Route racing).
 - (void)refreshDiscovery;

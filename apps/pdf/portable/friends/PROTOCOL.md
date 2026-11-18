@@ -853,8 +853,9 @@ The new computer's side of joining a person's existing profile, with the helper 
   `none` or a kind they do not know, with `label` as its tooltip; both views draw the same shapes.
 - **Route order.** Helpers dial and keep routes in one order: `lan`, `p2p_wifi`, `internet`, `bluetooth`, `relay`.
   A transfer never costs the device its Internet connection without the person's word: `p2p_wifi` is used only where
-  the device stays on its Wi-Fi network at the same time (AWDL on Macs and iPhones). Anywhere else, or when unsure, it
-  is skipped and the next route carries the session; friends' files and a profile's own devices alike. The one
+  the device stays on its Wi-Fi network at the same time (AWDL on Macs and iPhones; a Mac wakes AWDL only while it is
+  on no network or a transfer wants a direct Wi-Fi lane, [ADR 0021](docs/adr/0021-peer-to-peer-wifi-on-demand.md)).
+  Anywhere else, or when unsure, it is skipped and the next route carries the session; friends' files and a profile's own devices alike. The one
   exception is the Wi-Fi Direct boost (§ Fast transfers): the person says Go faster on the transfer, the device leaves
   its Wi-Fi for that transfer only and rejoins it by itself afterwards. The relay is the last resort
   ([ADR 0020](docs/adr/0020-relay-last-resort.md)): it carries a file only when no other route works; while it does,

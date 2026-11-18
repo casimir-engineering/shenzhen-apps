@@ -354,7 +354,8 @@ Each with its cost and benefit; the journal keeps the full list, including those
 7. **Apple's peer-to-peer Wi-Fi (kept, tuned in WP3).** AWDL is already used where available. It shares the radio with
    the infrastructure network by time-slicing, so a lane on each rarely beats one: the scheduler measures, and an AWDL
    lane is opened beside a LAN lane only when the LAN lane is below 25 MB/s. Wi-Fi Aware on iPhone and Android is noted
-   for later.
+   for later. On the Mac this lane never opened until ADR 0021, which also keeps AWDL itself off unless a transfer
+   wants the lane (or there is no network), and closes the lane when it does not raise the group's rate by 10 %.
 8. **Larger Bluetooth packets (adopted, WP3).** Parts of 16 KiB instead of 4 KiB chunks, a 64 KiB write budget,
    Android's high connection priority and LE 2M PHY requested while a transfer runs, BlueZ the same; CoreBluetooth picks
    its own connection interval. Overhead falls from about 1 % to 0.25 % and writes from 256 to 64 per MiB. The window no

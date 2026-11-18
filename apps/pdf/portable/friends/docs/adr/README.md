@@ -126,3 +126,7 @@ and 0007 (search no longer holds mentions' IDs and keys).
   nearby backoffs end and Bluetooth rescans every second, and a route that appears takes the file at once (the relay's
   blocks go back to it); beside a direct lane that still hears the peer the relay takes nothing.
   `make friends-relay-rule-check` gates every release.
+- [0021 Peer-to-peer Wi-Fi on demand](0021-peer-to-peer-wifi-on-demand.md) (Proposed): a sighting lists every route
+  its Bonjour entry was seen on and a direct Wi-Fi lane is pinned to awdl, so the lane beside a slow LAN opens at last;
+  AWDL is on only without a network, or while a transfer wants that lane and it raises the rate by 10 %, since awake
+  AWDL took the Mac's Wi-Fi off its channel 72 ms in every 524 ms.
