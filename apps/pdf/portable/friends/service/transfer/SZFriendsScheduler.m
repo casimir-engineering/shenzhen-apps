@@ -384,6 +384,25 @@ static BOOL SZFRangesFit(NSData *ranges, uint32_t blocks) {
     return lane ? lane->inFlight : 0;
 }
 
+- (BOOL)describeLane:(SZFriendsLaneID)laneID
+                rate:(double *)rate
+                 rtt:(double *)rtt
+            measured:(BOOL *)measured
+            inFlight:(uint64_t *)inFlight
+              silent:(BOOL *)silent
+             reaches:(BOOL *)reaches
+                 now:(double)now {
+    SZFLane *lane = _lanes[@(laneID)];
+    if (lane == nil) return NO;
+    *rate = lane->rate;
+    *rtt = lane->rtt;
+    *measured = lane->measured;
+    *inFlight = lane->inFlight;
+    *silent = lane->silent;
+    *reaches = [lane reaches:now];
+    return YES;
+}
+
 - (uint64_t)capOfLane:(SZFriendsLaneID)laneID blockBytes:(uint64_t)blockBytes {
     SZFLane *lane = _lanes[@(laneID)];
     return lane ? [self cap:lane blockBytes:blockBytes] : 0;

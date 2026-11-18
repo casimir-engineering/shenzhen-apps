@@ -290,14 +290,29 @@ BOOL SZFriendsNearbyDialIsPointless(SZFriendsRouteMethod live, SZFriendsRouteMet
         BOOL pointless = plan.laneHead == nil && live != nil &&
                          SZFriendsNearbyDialIsPointless(live.raceRoute, sighting.route);
         if (strongSelf.shutDown || pointless || (plan.laneHead != nil && plan.laneHead.closed)) {
+            if (pointless) {
+                [strongSelf traceDial:plan
+                                 what:[NSString stringWithFormat:@"not dialled: session #%llu on %@ is as good",
+                                                                 (unsigned long long)live.traceID,
+                                                                 SZFriendsTraceRouteName(live.raceRoute)]];
+            }
             [strongSelf.dialing removeObject:key];
             if (plan.laneHead != nil) [plan.laneHead.blocks laneDown:plan.laneSerial];
             return;
         }
+        [strongSelf traceDial:plan what:@"opening"];
+        CFAbsoluteTime opened = CFAbsoluteTimeGetCurrent();
         [adapter openStreamToEndpoint:sighting.endpointID
                            completion:^(id<SZFriendsByteStream> stream, NSError *error) {
-                               (void)error;
                                dispatch_async(strongSelf.queue, ^{
+                                   if (stream == nil) {
+                                       [strongSelf traceDial:plan
+                                                        what:[NSString stringWithFormat:
+                                                                           @"no stream after %.1f s (%@ %ld)",
+                                                                           CFAbsoluteTimeGetCurrent() - opened,
+                                                                           error.domain ?: @"no error",
+                                                                           (long)error.code]];
+                                   }
                                    [strongSelf dialed:plan stream:stream key:key];
                                });
                            }];

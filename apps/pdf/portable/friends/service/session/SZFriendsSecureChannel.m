@@ -21,6 +21,7 @@ const char SZFriendsPrologueLabel[18] = "SZFriends session"; // the array's 18th
         _identity = identity;
         _queue = queue;
         _inbound = [NSMutableData data];
+        _localCloseReason = -1;
         _controlQueue = [NSMutableArray array];
         _bulkQueue = [NSMutableArray array];
         _rekeyAfterBytes = SZFriendsRekeyAfterBytes;
@@ -264,6 +265,7 @@ const char SZFriendsPrologueLabel[18] = "SZFriends session"; // the array's 18th
     if (_state == SZFriendsChannelStateClosed || _state == SZFriendsChannelStateClosing) {
         return;
     }
+    if (_localCloseReason < 0) _localCloseReason = reason;
     if (_state != SZFriendsChannelStateEstablished) {
         // No live session to say goodbye in: before HELLO nothing has been revealed beyond the handshake.
         [self terminateWithError:error closeReason:-1];

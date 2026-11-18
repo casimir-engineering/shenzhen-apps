@@ -38,7 +38,8 @@ static inline CBUUID *SZFriendsBluetoothUUID(NSString *string) {
 @property(nonatomic) BOOL publicEntry;
 @property(nonatomic) BOOL publishAsked;
 @property(nonatomic) uint16_t psm;                // 0 until published
-@property(nonatomic) BOOL unpublished;            // withdrawn; kept only while a channel it accepted is open
+@property(nonatomic) BOOL unpublished;            // withdrawn: no new channel; kept only while one it accepted is open
+@property(nonatomic) BOOL systemUnpublished;      // unpublishL2CAPChannel: done, which also ends the channels it accepted
 @property(nonatomic) NSHashTable *streams;        // the channels it accepted, weakly held
 @end
 

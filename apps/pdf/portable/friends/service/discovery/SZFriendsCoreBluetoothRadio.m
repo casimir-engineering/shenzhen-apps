@@ -238,8 +238,9 @@ static SZFriendsRadioPower PowerFromState(CBManagerState state) {
 }
 
 - (void)releaseChannelHost:(SZFriendsChannelHost *)host {
-    if (host.psm && !host.unpublished && host.manager.state == CBManagerStatePoweredOn) {
+    if (host.psm && !host.systemUnpublished && host.manager.state == CBManagerStatePoweredOn) {
         [host.manager unpublishL2CAPChannel:host.psm];
+        host.systemUnpublished = YES;
     }
     host.manager.delegate = nil;
     [_channelHosts removeObject:host];
@@ -259,8 +260,8 @@ static SZFriendsRadioPower PowerFromState(CBManagerState state) {
     }
 }
 
-// A withdrawn channel's manager goes once the channels it accepted have closed: releasing it ends its session, and
-// with it, perhaps, a conversation still running on that channel.
+// A withdrawn channel's manager goes once the channels it accepted have closed: releasing it (or unpublishing its
+// PSM) ends them, and with them, perhaps, a conversation or a transfer still running there.
 - (void)pruneChannelHosts {
     for (SZFriendsChannelHost *host in [_channelHosts copy]) {
         if (host.unpublished && host.streams.allObjects.count == 0) [self releaseChannelHost:host];
@@ -314,11 +315,13 @@ static SZFriendsRadioPower PowerFromState(CBManagerState state) {
     }
 }
 
+// Withdrawn at once for anyone new (an open on it is dropped in didOpenL2CAPChannel:), but the PSM stays published
+// with the system while a channel it accepted is open: unpublishL2CAPChannel: ends those channels too, and every
+// session on the old window's channel died 30 s after each quarter-hour rotation, mid-transfer, without a CLOSE.
 - (void)unpublishChannelWithPSM:(uint16_t)psm {
     [_published removeObjectForKey:@(psm)];
     for (SZFriendsChannelHost *host in _channelHosts) {
         if (host.psm != psm || host.unpublished) continue;
-        if (host.manager.state == CBManagerStatePoweredOn) [host.manager unpublishL2CAPChannel:psm];
         host.unpublished = YES;
     }
     [self pruneChannelHosts];

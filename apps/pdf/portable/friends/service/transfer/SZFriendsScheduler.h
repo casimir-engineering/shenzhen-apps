@@ -66,6 +66,16 @@ extern const double SZFriendsDirectWiFiHelpsBelow; // 25 MB/s
 - (double)rateOfRoute:(SZFriendsRouteMethod)route;
 - (uint64_t)capOfLane:(SZFriendsLaneID)lane blockBytes:(uint64_t)blockBytes;
 - (BOOL)hasLane:(SZFriendsLaneID)lane;
+// For the helper's log: what the scheduler believes of a lane (rate and round trip measured or assumed, whether it was
+// measured, bytes in flight, silent, still reaching the peer). NO for a lane it does not know.
+- (BOOL)describeLane:(SZFriendsLaneID)lane
+                rate:(double *)rate
+                 rtt:(double *)rtt
+            measured:(BOOL *)measured
+            inFlight:(uint64_t *)inFlight
+              silent:(BOOL *)silent
+             reaches:(BOOL *)reaches
+                 now:(double)now;
 @end
 
 NS_ASSUME_NONNULL_END

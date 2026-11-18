@@ -53,6 +53,15 @@ extern const SZFriendsLaneID SZFriendsHeadLane; // 0
 // The scheduler asks for one more lane on `route` (dial the friend's device there with -reserveLane:) or gives one up.
 @property(nonatomic, copy, nullable) void (^onOpenLane)(SZFriendsRouteMethod route);
 @property(nonatomic, copy, nullable) void (^onCloseLane)(SZFriendsLaneID lane);
+// For the helper's log: a PART went out on `lane` (outgoing), or arrived on it; `late` for one that arrived after its
+// block was complete (a copy sent on two lanes, or sent again after its lane went silent), which is wasted.
+@property(nonatomic, copy, nullable) void (^onPartBytes)
+    (NSString *transferID, SZFriendsLaneID lane, SZFriendsRouteMethod route, NSUInteger bytes, BOOL outgoing, BOOL late);
+// For the helper's log: the group's lanes as the scheduler sees them, lowest id first: lane, route, and when the
+// scheduler knows the lane, rate (B/s), rtt (s), measured, in_flight (bytes), silent, reaches, queued (frames).
+- (NSArray<NSDictionary<NSString *, NSNumber *> *> *)laneSnapshot;
+// Our files going by blocks here and the bytes the friend acknowledged of each.
+- (NSDictionary<NSString *, NSNumber *> *)sendingProgress;
 // Monotonic seconds (tests replace it).
 @property(nonatomic, copy) double (^clock)(void);
 // Both sides set capability bit 3 (SZFriendsSecureChannel.pieces, ADR 0018 § 3): WANT and HAVE carry Pieces, and

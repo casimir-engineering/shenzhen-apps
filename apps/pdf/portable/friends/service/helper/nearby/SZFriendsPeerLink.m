@@ -41,6 +41,8 @@ NSData *SZFriendsLinkBytesFromHex(NSString *hex) {
         _channel = channel;
         _purpose = purpose;
         _dialedRoute = route;
+        static uint64_t lastTraceID = 0; // created on the helper queue only
+        _traceID = ++lastTraceID;
         _createdAt = [NSDate date];
         _inFlightEntries = [NSMutableSet set];
         _acks = [NSMutableDictionary dictionary];

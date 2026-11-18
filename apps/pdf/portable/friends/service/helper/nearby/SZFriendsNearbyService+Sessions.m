@@ -292,13 +292,16 @@
     if (newRemote != nil && oldRemote != nil && ![newRemote isEqualToData:oldRemote]) return;
     switch ([self raceOfLink:link against:current]) {
     case SZFriendsRaceKeepsNew:
+        [self traceRaceOfLink:link against:current outcome:@"keeps the new one, the transfers move to it"];
         [self supersedeLink:current];
         [self adoptLink:link];
         return;
     case SZFriendsRaceKeepsCurrent:
+        [self traceRaceOfLink:link against:current outcome:@"keeps the current one"];
         [self supersedeLink:link];
         return;
     case SZFriendsRaceWaits:
+        [self traceRaceOfLink:link against:current outcome:@"waits for their CLOSE (double dial)"];
         return; // the responder's copy of a double dial waits for the initiator's CLOSE
     }
 }
@@ -322,6 +325,9 @@
 
 - (void)adoptLink:(SZFriendsPeerLink *)link {
     NSString *conversationID = link.conversationID;
+    [self traceUpOfLink:link
+                   what:link.channel.fastTransfers ? @"carries the conversation, fast transfers"
+                                                   : @"carries the conversation"];
     self.activeLinks[conversationID] = link;
     link.adopted = YES;
     [self noteSuccessForConversation:conversationID];
@@ -385,6 +391,7 @@ static BOOL SZFriendsEndWasSupersededByPeer(NSError *error) {
     [link cancelTimers];
     [self.links removeObject:link];
     [self pullLinkClosed:link]; // a holder of the file being pulled leaves (+Pulls)
+    [self traceEndOfLink:link error:error];
     if (link.lane || link.laneHead != nil) {
         // A lane ends alone: the group goes on with its first session (ADR 0018 § 6).
         [link.laneHead.lanes removeObject:link];
@@ -403,16 +410,7 @@ static BOOL SZFriendsEndWasSupersededByPeer(NSError *error) {
     }
     [self syncLinkClosed:link];
     [link.againExchange stop];
-    // Faults only, and never a key, name or address: which kind of session ended, on which route, and why.
-    if (error != nil && !link.probe) {
-        // The peer's reason when it closed (SZFriendsCloseReason): superseded, shutting down, or a refusal.
-        NSNumber *reason = error.userInfo[SZFriendsSessionCloseReasonKey];
-        SZFriendsHelperLog(@"session ended (purpose %ld, route %ld, %@): %@ %ld%@", (long)link.purpose,
-                           (long)link.raceRoute, link.live ? @"live" : @"handshaking", error.domain, (long)error.code,
-                           [reason isKindOfClass:[NSNumber class]]
-                               ? [NSString stringWithFormat:@" reason %ld", (long)reason.integerValue]
-                               : @"");
-    }
+    [self traceGroupEnded:link];
     if (link.dialKey != nil) [self.dialing removeObject:link.dialKey];
     if (wasActive) [self.activeLinks removeObjectForKey:conversationID];
     // Every received byte durable before anything resumes elsewhere (ADR 0003 § Durable progress; ADR 0018 § 4).

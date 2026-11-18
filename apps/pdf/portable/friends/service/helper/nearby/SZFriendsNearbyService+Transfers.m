@@ -40,6 +40,8 @@ static void SZFriendsUpdateLiveness(SZFriendsPeerLink *link) {
         BOOL answered = [link.answeredByBlocks containsObject:record.transferID];
         if (answered ? [blocks beginIncoming:record] : [blocks resumeIncoming:record]) {
             [link.endedTransfers removeObject:record.transferID];
+            [self traceTransferStarted:record.transferID onLink:link outgoing:NO from:record.verifiedBytes
+                                   how:@"by blocks"];
             continue;
         }
         if (blocks == nil && [self.services.transfers hasOfferedTree:record.transferID]) {
@@ -62,6 +64,8 @@ static void SZFriendsUpdateLiveness(SZFriendsPeerLink *link) {
         link.receivers[record.transferID] = receiver;
         [link.endedTransfers removeObject:record.transferID];
         link.rateStart[record.transferID] = @[ @(record.verifiedBytes), [NSDate date] ];
+        [self traceTransferStarted:record.transferID onLink:link outgoing:NO from:record.verifiedBytes
+                               how:@"by chunks"];
         [link.channel sendFrame:[receiver resumeProgressFrame]];
     }
     SZFriendsUpdateLiveness(link);
@@ -119,6 +123,7 @@ static void SZFriendsUpdateLiveness(SZFriendsPeerLink *link) {
         [self changed];
         return;
     }
+    [self traceTransferBytes:transferID route:link.raceRoute bytes:data.length late:NO];
     [self reportProgressOnLink:link transfer:transferID];
     [self armProgressFlushOnLink:link];
     SZFriendsUpdateLiveness(link);
@@ -185,6 +190,7 @@ static void SZFriendsUpdateLiveness(SZFriendsPeerLink *link) {
     if ([self.services.transfers finishTransfer:transferID finalDigest:digest fromConversation:link.conversationID
                                           error:&error]) {
         [self sendAckForID:wire onLink:link];
+        [self traceTransferEnded:transferID];
         // The file is what it claimed to be: our own preview of it now replaces the sender's (+Thumbnails).
         [self makeLocalThumbnailForReceivedTransfer:transferID];
         [self.services.notifier noteTransferReceived:transferID]; // a file accepted automatically, now here
@@ -245,6 +251,7 @@ static void SZFriendsUpdateLiveness(SZFriendsPeerLink *link) {
     link.senders[transferID] = sender;
     link.sources[transferID] = source;
     link.rateStart[transferID] = @[ @(offset), [NSDate date] ];
+    [self traceTransferStarted:transferID onLink:link outgoing:YES from:offset how:@"by chunks"];
     if (offset > 0) {
         SZFriendsHelperLog(@"transfer %@ resumes at byte %llu", [transferID substringToIndex:8],
                            (unsigned long long)offset);
@@ -278,6 +285,7 @@ static void SZFriendsUpdateLiveness(SZFriendsPeerLink *link) {
             }
             SZFriendsFrame *chunk = [sender chunkFrameWithData:data];
             if (chunk == nil || ![link.channel sendFrame:chunk]) break;
+            [self traceTransferBytes:transferID route:link.raceRoute bytes:length late:NO];
             link.paceBytes += length;
         }
         if (sender.allSent && link.senders[transferID] != nil && ![link.doneSent containsObject:transferID]) {
@@ -319,6 +327,7 @@ static void SZFriendsUpdateLiveness(SZFriendsPeerLink *link) {
     if (link.conversationID != nil) {
         [self.services.transfers peerVerifiedTransfer:transferID fromConversation:link.conversationID error:NULL];
     }
+    [self traceTransferEnded:transferID];
     [self endTransfer:transferID onLink:link];
     [self changed];
 }
@@ -326,6 +335,7 @@ static void SZFriendsUpdateLiveness(SZFriendsPeerLink *link) {
 #pragma mark - Stopping and state
 
 - (void)stopTransfer:(NSString *)transferID {
+    [self traceTransferEnded:transferID]; // cancelled, declined or deleted: said with what moved before
     for (SZFriendsPeerLink *link in self.links) [self endTransfer:transferID onLink:link];
     [self changed];
 }

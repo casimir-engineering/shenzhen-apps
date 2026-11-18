@@ -38,6 +38,8 @@ NSData *_Nullable SZFriendsLinkBytesFromHex(NSString *_Nullable hex); // nil unl
 
 @property(nonatomic, readonly) SZFriendsSecureChannel *channel;
 @property(nonatomic, readonly) SZFriendsLinkPurpose purpose;
+// The helper log's name for this session ("#12"): one counter for the helper's life, never reused.
+@property(nonatomic, readonly) uint64_t traceID;
 // The route the stream runs over as this side knows it before the handshake (the dialed sighting, or the
 // listener's classification). Once live, the race uses the channel's initiatorRoute, which both sides share.
 @property(nonatomic, readonly) SZFriendsRouteMethod dialedRoute;
