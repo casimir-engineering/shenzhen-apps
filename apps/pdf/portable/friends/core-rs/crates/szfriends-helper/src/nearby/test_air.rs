@@ -27,6 +27,9 @@ use super::stream::{LinkStream, PlatformStream};
 pub const ENV_TEST_BLUETOOTH: &str = "SZFRIENDS_TEST_BLUETOOTH";
 /// The radio as the test wants it: `off`, `denied`, `unsupported`, or (permission only) `ask`; unset: on, allowed.
 pub const ENV_TEST_BLUETOOTH_POWER: &str = "SZFRIENDS_TEST_BLUETOOTH_POWER";
+/// A file whose presence blocks this helper's scans, as Android blocks a backgrounded app's (it still advertises,
+/// serves its values and accepts channels): while the file exists the scan reports nobody.
+pub const ENV_TEST_BLUETOOTH_SCAN_BLOCKED: &str = "SZFRIENDS_TEST_BLUETOOTH_SCAN_BLOCKED";
 
 const SUFFIX: &str = ".air";
 const POLL: Duration = Duration::from_millis(150);
@@ -51,6 +54,8 @@ pub struct TestAir {
     scanning: Option<Arc<AtomicBool>>,
     channels: HashMap<u16, Arc<AtomicBool>>,
     next_psm: u16,
+    /// `$SZFRIENDS_TEST_BLUETOOTH_SCAN_BLOCKED` as the helper started.
+    scan_blocked: Option<PathBuf>,
 }
 
 fn setting() -> String {
@@ -115,6 +120,7 @@ impl TestAir {
             scanning: None,
             channels: HashMap::new(),
             next_psm: FIRST_PSM,
+            scan_blocked: std::env::var_os(ENV_TEST_BLUETOOTH_SCAN_BLOCKED).map(PathBuf::from),
         }
     }
 
@@ -137,9 +143,14 @@ impl TestAir {
     }
 }
 
-fn scan(directory: PathBuf, own: String, stop: Arc<AtomicBool>, reports: RadioReports) {
+fn scan(directory: PathBuf, own: String, blocked: Option<PathBuf>, stop: Arc<AtomicBool>, reports: RadioReports) {
     let mut reported: HashMap<String, bool> = HashMap::new();
     while !stop.load(Ordering::SeqCst) {
+        if blocked.as_ref().is_some_and(|path| path.exists()) {
+            reported.clear(); // a scan that starts again reports everyone afresh
+            std::thread::sleep(POLL);
+            continue;
+        }
         let ids: Vec<String> = std::fs::read_dir(&directory)
             .map(|entries| {
                 let names = entries.flatten().filter_map(|e| e.file_name().into_string().ok());
@@ -215,10 +226,10 @@ impl Radio for TestAir {
         let (Some(own), Some(reports)) = (self.id.clone(), self.reports.clone()) else { return };
         self.stop_scanning();
         let stop = Arc::new(AtomicBool::new(false));
-        let (directory, thread_stop) = (self.directory.clone(), stop.clone());
+        let (directory, thread_stop, blocked) = (self.directory.clone(), stop.clone(), self.scan_blocked.clone());
         let spawned = std::thread::Builder::new()
             .name("szfriends-air-scan".into())
-            .spawn(move || scan(directory, own, thread_stop, reports));
+            .spawn(move || scan(directory, own, blocked, thread_stop, reports));
         if spawned.is_ok() {
             self.scanning = Some(stop);
         }

@@ -121,20 +121,47 @@ impl State {
             let s = &self.sessions.map[&id];
             s.meta.race_route(&s.channel)
         });
-        if live.is_none() && self.devices.dial_after.get(&device).is_some_and(|t| *t > now) {
-            return true;
+        let name = candidate.conversation_id.clone().unwrap_or_default();
+        let who = format!("own device {}", &hex(&device)[..8]);
+        if live.is_none() {
+            if let Some(wait) = self.devices.dial_after.get(&device).map(|t| t - now).filter(|w| *w > 0.0) {
+                let since = OWN_DEVICE_REDIAL - wait;
+                let line = format!("not dialing for {wait:.0} s: the last dial started {since:.0} s ago");
+                self.trace_routes_of(&who, &name, &line);
+                return true;
+            }
         }
         let attempts = self.nearby.racer.attempts(candidate, self.nearby.merger.matcher(), now);
+        let mut sighted: Vec<RouteMethod> = Vec::new();
+        for sighting in candidate.sightings.iter().filter(|s| !s.public) {
+            if !sighted.contains(&sighting.route) {
+                sighted.push(sighting.route);
+            }
+        }
+        let mut notes: Vec<String> = sighted
+            .iter()
+            .filter(|r| !attempts.iter().any(|a| a.sighting.route == **r))
+            .map(|r| format!("{r:?} skipped (backing off, or not usable here)"))
+            .collect();
         let mut started = false;
         for attempt in attempts.iter().filter(|a| !a.sighting.public) {
+            let route = attempt.sighting.route;
             if !should_start(attempt, current) {
+                notes.push(format!("{route:?} not dialed (no better than the live {current:?})"));
                 continue;
             }
-            let Some(options) = self.own_device_options(&device, attempt.sighting.route) else { return true };
+            let Some(options) = self.own_device_options(&device, route) else { return true };
             let mut plan = self.plan(&attempt.sighting, Purpose::OwnDevice, options);
             plan.conversation = candidate.conversation_id.clone();
-            started = self.dial(plan, attempt.delay) || started;
+            let dialing = self.dial(plan, attempt.delay);
+            notes.push(match dialing {
+                true => format!("{route:?} dialing in {:.1} s", attempt.delay),
+                false => format!("{route:?} already being dialed"),
+            });
+            started = dialing || started;
         }
+        let line = format!("seen on {sighted:?}, live {current:?}; {}", notes.join("; "));
+        self.trace_routes_of(&who, &name, &line);
         if started && live.is_none() {
             // Not again for a while, however it ends: a session that goes live clears this.
             self.devices.dial_after.insert(device, now + OWN_DEVICE_REDIAL);

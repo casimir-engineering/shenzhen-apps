@@ -154,20 +154,68 @@ BOOL SZFriendsNearbyDialIsPointless(SZFriendsRouteMethod live, SZFriendsRouteMet
     case SZFriendsRelationFriend:
         break;
     }
-    if (person.staticKey == nil || person.identityKey == nil || ![self mayDialConversation:conversationID]) return;
+    NSString *who = [@"friend " stringByAppendingString:SZFriendsTraceShort(conversationID)];
     SZFriendsRouteMethod current = live != nil ? live.raceRoute : SZFriendsRouteMethodNone;
-    BOOL started = NO;
-    for (SZFriendsDialAttempt *attempt in [self.coordinator.racer attemptsForCandidate:candidate]) {
-        if (![self.coordinator.racer shouldStartAttempt:attempt currentRoute:current]) continue;
-        SZFriendsHandshakeOptions *options = [self ikOptionsForPerson:person route:attempt.sighting.route];
-        SZFriendsDialPlan *plan = [SZFriendsDialPlan planWithSighting:attempt.sighting
-                                                              purpose:SZFriendsLinkPurposeFriend
-                                                              options:options];
-        plan.conversationID = conversationID;
-        plan.delay = attempt.delay;
-        started = [self dial:plan] || started;
+    if (person.staticKey == nil || person.identityKey == nil) {
+        NSArray<NSString *> *notes = @[ @"no keys to dial with yet" ];
+        [self traceRoutesOf:who key:conversationID candidate:candidate live:current notes:notes];
+        return;
     }
+    if (![self mayDialConversation:conversationID]) {
+        NSString *why = self.keptElsewhere[conversationID] != nil ? @"they keep a session with another of our devices"
+                                                                  : @"backing off after failed or short sessions";
+        NSString *note = [NSString stringWithFormat:@"not dialing for %.0f s: %@",
+                                                    MAX(0, self.retryAfter[conversationID].timeIntervalSinceNow), why];
+        [self traceRoutesOf:who key:conversationID candidate:candidate live:current notes:@[ note ]];
+        return;
+    }
+    NSMutableArray<NSString *> *notes = [NSMutableArray array];
+    BOOL started = [self dialCandidate:candidate current:current notes:notes
+                                  make:^SZFriendsDialPlan *(SZFriendsDialAttempt *attempt) {
+                                      SZFriendsSighting *sighting = attempt.sighting;
+                                      SZFriendsDialPlan *plan = [SZFriendsDialPlan
+                                          planWithSighting:sighting
+                                                   purpose:SZFriendsLinkPurposeFriend
+                                                   options:[self ikOptionsForPerson:person route:sighting.route]];
+                                      plan.conversationID = conversationID;
+                                      return plan;
+                                  }];
+    [self traceRoutesOf:who key:conversationID candidate:candidate live:current notes:notes];
     if (started && live == nil && deliverable) [self markConnectingForConversation:conversationID];
+}
+
+// Whichever side sees the other dials: a phone in the background cannot scan, so a Mac that reads its presence over
+// Bluetooth is the only one that can (ADR 0004, Corrections, 2026-11-18).
+- (BOOL)dialCandidate:(SZFriendsCandidate *)candidate
+              current:(SZFriendsRouteMethod)current
+                notes:(NSMutableArray<NSString *> *)notes
+                 make:(SZFriendsDialPlan *_Nullable (^)(SZFriendsDialAttempt *attempt))make {
+    SZFriendsRouteRacer *racer = self.coordinator.racer;
+    NSArray<SZFriendsDialAttempt *> *attempts = [racer attemptsForCandidate:candidate];
+    NSMutableSet<NSNumber *> *tried = [NSMutableSet set];
+    for (SZFriendsDialAttempt *attempt in attempts) [tried addObject:@(attempt.sighting.route)];
+    for (SZFriendsSighting *sighting in candidate.sightings) {
+        NSString *note = [NSString stringWithFormat:@"%@ skipped (backing off, or not usable here)",
+                                                    SZFriendsTraceRouteName(sighting.route)];
+        if (![tried containsObject:@(sighting.route)] && ![notes containsObject:note]) [notes addObject:note];
+    }
+    BOOL started = NO;
+    for (SZFriendsDialAttempt *attempt in attempts) {
+        NSString *route = SZFriendsTraceRouteName(attempt.sighting.route);
+        if (![racer shouldStartAttempt:attempt currentRoute:current]) {
+            [notes addObject:[NSString stringWithFormat:@"%@ not dialed (no better than the live %@)", route,
+                                                        SZFriendsTraceRouteName(current)]];
+            continue;
+        }
+        SZFriendsDialPlan *plan = make(attempt);
+        if (plan == nil) continue;
+        plan.delay = attempt.delay;
+        BOOL dialing = [self dial:plan];
+        [notes addObject:dialing ? [NSString stringWithFormat:@"%@ dialing in %.1f s", route, attempt.delay]
+                                 : [NSString stringWithFormat:@"%@ already being dialed", route]];
+        started = dialing || started;
+    }
+    return started;
 }
 
 // A person with something to deliver whose tags we cannot match (we lack their presence secret, or they are a
@@ -309,7 +357,14 @@ BOOL SZFriendsNearbyDialIsPointless(SZFriendsRouteMethod live, SZFriendsRouteMet
             if (plan.laneHead != nil) [plan.laneHead.blocks laneDown:plan.laneSerial];
             return;
         }
-        [strongSelf traceDial:plan what:@"opening"];
+        // Why we dial: a lane, a faster route than the live session, or no session (they may not see us).
+        NSString *why = plan.laneHead != nil ? @"opening a lane"
+                        : live != nil
+                            ? [NSString stringWithFormat:@"opening: faster than session #%llu on %@",
+                                                         (unsigned long long)live.traceID,
+                                                         SZFriendsTraceRouteName(live.raceRoute)]
+                            : @"opening: no session with them, so we dial";
+        [strongSelf traceDial:plan what:why];
         CFAbsoluteTime opened = CFAbsoluteTimeGetCurrent();
         void (^whenOpen)(id<SZFriendsByteStream>, NSError *) = ^(id<SZFriendsByteStream> stream, NSError *error) {
             dispatch_async(strongSelf.queue, ^{

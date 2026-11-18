@@ -86,23 +86,39 @@ NSString *_Nullable SZFriendsNearbyFriendDeviceConversation(NSString *_Nullable 
     if (conversationID == nil) return NO;
     SZFriendsPersonRecord *person = [self.services.store personWithConversationID:conversationID];
     // One session per conversation: a friend's other device is dialed while none of theirs carries one.
-    if (person == nil || [self liveLinkForConversation:conversationID] != nil ||
-        ![self mayDialConversation:conversationID]) {
+    if (person == nil) return YES;
+    NSString *who = [NSString stringWithFormat:@"friend %@ (device %@)", SZFriendsTraceShort(conversationID),
+                                               SZFriendsTraceShort(SZFriendsLinkHex(device))];
+    SZFriendsPeerLink *live = [self liveLinkForConversation:conversationID];
+    if (live != nil || ![self mayDialConversation:conversationID]) {
+        NSString *note = live != nil
+                             ? [NSString stringWithFormat:@"not dialed: session #%llu with another of their devices",
+                                                          (unsigned long long)live.traceID]
+                             : @"not dialing: backing off";
+        [self traceRoutesOf:who key:candidate.conversationID candidate:candidate
+                       live:live.raceRoute notes:@[ note ]];
         return YES;
     }
-    BOOL started = NO;
-    for (SZFriendsDialAttempt *attempt in [self.coordinator.racer attemptsForCandidate:candidate]) {
-        if (![self.coordinator.racer shouldStartAttempt:attempt currentRoute:SZFriendsRouteMethodNone]) continue;
-        SZFriendsHandshakeOptions *options = [self ikOptionsForPerson:person device:device
-                                                                route:attempt.sighting.route];
-        if (options == nil) return YES;
-        SZFriendsDialPlan *plan = [SZFriendsDialPlan planWithSighting:attempt.sighting
-                                                              purpose:SZFriendsLinkPurposeFriend
-                                                              options:options];
-        plan.conversationID = conversationID;
-        plan.delay = attempt.delay;
-        started = [self dial:plan] || started;
-    }
+    __block BOOL noKeys = NO;
+    NSMutableArray<NSString *> *notes = [NSMutableArray array];
+    BOOL started = [self dialCandidate:candidate current:SZFriendsRouteMethodNone notes:notes
+                                  make:^SZFriendsDialPlan *(SZFriendsDialAttempt *attempt) {
+                                      SZFriendsHandshakeOptions *options =
+                                          noKeys ? nil : [self ikOptionsForPerson:person device:device
+                                                                            route:attempt.sighting.route];
+                                      if (options == nil) {
+                                          noKeys = YES;
+                                          return nil;
+                                      }
+                                      SZFriendsDialPlan *plan =
+                                          [SZFriendsDialPlan planWithSighting:attempt.sighting
+                                                                      purpose:SZFriendsLinkPurposeFriend
+                                                                      options:options];
+                                      plan.conversationID = conversationID;
+                                      return plan;
+                                  }];
+    if (noKeys) [notes addObject:@"no keys for this device yet"];
+    [self traceRoutesOf:who key:candidate.conversationID candidate:candidate live:SZFriendsRouteMethodNone notes:notes];
     if (started && [self hasDeliverableEntriesForPerson:person]) [self markConnectingForConversation:conversationID];
     return YES;
 }

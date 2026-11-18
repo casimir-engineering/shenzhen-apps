@@ -161,6 +161,7 @@ extern const NSTimeInterval SZFriendsRelayProbeInterval;
 NSString *SZFriendsTraceRouteName(SZFriendsRouteMethod route);
 NSString *SZFriendsTraceBytes(uint64_t bytes);
 NSString *SZFriendsTraceRate(double bytesPerSecond);
+NSString *SZFriendsTraceShort(NSString *_Nullable hex); // a conversation or transfer ID as the log names it
 @interface SZFriendsNearbyService (Trace)
 - (void)traceKey:(NSString *)key line:(NSString *)line;
 - (NSString *)traceWhoOfLink:(SZFriendsPeerLink *)link;
@@ -169,6 +170,11 @@ NSString *SZFriendsTraceRate(double bytesPerSecond);
 - (void)traceEndOfLink:(SZFriendsPeerLink *)link error:(nullable NSError *)error;
 - (void)traceRaceOfLink:(SZFriendsPeerLink *)link against:(SZFriendsPeerLink *)current outcome:(NSString *)outcome;
 - (void)traceLaneWanted:(SZFriendsPeerLink *)head route:(SZFriendsRouteMethod)route what:(NSString *)what;
+// Which routes a friend or one of our devices was seen on nearby, which were dialled and why the others were not, in
+// the Rust core's words ("routes friend 1a2b3c4d: seen on [Bluetooth], live None; Bluetooth dialing in 0.5 s"): the
+// line that says whether we dial them or wait for them (a phone in the background cannot scan, so it never dials).
+- (void)traceRoutesOf:(NSString *)who key:(NSString *)key candidate:(SZFriendsCandidate *)candidate
+                 live:(SZFriendsRouteMethod)live notes:(NSArray<NSString *> *)notes;
 - (void)traceTransferStarted:(NSString *)transferID
                       onLink:(SZFriendsPeerLink *)link
                     outgoing:(BOOL)outgoing
@@ -214,6 +220,12 @@ NSString *SZFriendsTraceRate(double bytesPerSecond);
 - (void)reconsider;
 // NO when an attempt at that endpoint for that purpose is already running, or no adapter has it.
 - (BOOL)dial:(SZFriendsDialPlan *)plan;
+// Dials every attempt the racer allows at `candidate` beside a session on `current`, as `make` plans each (nil skips
+// it); `notes` gets what came of each route seen, for -traceRoutesOf:. YES when one started.
+- (BOOL)dialCandidate:(SZFriendsCandidate *)candidate
+              current:(SZFriendsRouteMethod)current
+                notes:(NSMutableArray<NSString *> *)notes
+                 make:(SZFriendsDialPlan *_Nullable (^)(SZFriendsDialAttempt *attempt))make;
 - (void)browseOfEndpointFailed:(NSString *)endpointID;
 // An NN request that did not reach its device: tried again after a while rather than the next day.
 - (void)byIDAttemptFailed:(NSString *)attemptKey;

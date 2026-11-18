@@ -140,6 +140,10 @@ static NSString *SZFTraceShort(NSString *_Nullable hex) {
     return hex.length > 8 ? [hex substringToIndex:8] : hex;
 }
 
+NSString *SZFriendsTraceShort(NSString *_Nullable hex) {
+    return SZFTraceShort(hex);
+}
+
 static NSString *SZFTraceByRoute(NSDictionary<NSNumber *, NSNumber *> *byRoute) {
     if (byRoute.count == 0) return @"no parts";
     NSMutableArray *parts = [NSMutableArray array];
@@ -283,6 +287,19 @@ static NSString *SZFTraceByRoute(NSDictionary<NSNumber *, NSNumber *> *byRoute) 
     NSString *line = [NSString stringWithFormat:@"lane wanted %@ via %@ beside #%llu: %@", [self traceWhoOfLink:head],
                                                 SZFriendsTraceRouteName(route), (unsigned long long)head.traceID, what];
     [self traceKey:[NSString stringWithFormat:@"lane|%@|%ld", head.conversationID, (long)route] line:line];
+}
+
+- (void)traceRoutesOf:(NSString *)who key:(NSString *)key candidate:(SZFriendsCandidate *)candidate
+                 live:(SZFriendsRouteMethod)live notes:(NSArray<NSString *> *)notes {
+    NSMutableArray<NSString *> *seen = [NSMutableArray array];
+    for (SZFriendsSighting *sighting in candidate.sightings) {
+        NSString *name = SZFriendsTraceRouteName(sighting.route);
+        if (![seen containsObject:name]) [seen addObject:name];
+    }
+    NSString *line = [NSString stringWithFormat:@"routes %@: seen on [%@], live %@%@%@", who,
+                                                [seen componentsJoinedByString:@", "], SZFriendsTraceRouteName(live),
+                                                notes.count ? @"; " : @"", [notes componentsJoinedByString:@"; "]];
+    [self traceKey:[@"routes|" stringByAppendingString:key] line:line];
 }
 
 #pragma mark - Transfers

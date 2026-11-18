@@ -15,7 +15,7 @@ use szfriends_core::wire::{CloseReason, RouteMethod};
 
 use super::{DialPlan, LinkMeta, Purpose};
 use crate::log;
-use crate::service::State;
+use crate::service::{hex, State};
 
 /// The same line under one key goes out again only after this long.
 const REPEAT_SECONDS: f64 = 60.0;
@@ -166,7 +166,21 @@ impl State {
     pub(crate) fn trace_up(&mut self, id: u64) {
         let Some(s) = self.sessions.map.get(&id) else { return };
         let meta = &s.meta;
-        let who = who(meta.purpose, s.conversation.as_deref().or(meta.race_name.as_deref()));
+        let mut who = who(meta.purpose, s.conversation.as_deref().or(meta.race_name.as_deref()));
+        if !s.channel.is_initiator() && s.conversation.is_none() && meta.race_name.is_none() {
+            // Someone dialed us: who they are is known once their handshake is, before the session is attached. A
+            // phone in the background, which cannot scan, is reached only this way.
+            who = match s.channel.remote_identity().copied() {
+                Some(key) if self.is_own_device(&key) => format!("own device {}", &hex(&key)[..8]),
+                Some(key) => match self.store.person_with_identity_key(&key).ok().flatten() {
+                    Some(person) => format!("friend {}", short(&person.conversation_id)),
+                    None => "someone not in the list".to_owned(),
+                },
+                None => who,
+            };
+        }
+        let Some(s) = self.sessions.map.get(&id) else { return };
+        let meta = &s.meta;
         let side = if s.channel.is_initiator() { "we dialed" } else { "they dialed" };
         let line = format!("session up #{id} ({:?}, {:?}, {side}) {who}", meta.purpose, meta.race_route(&s.channel));
         self.nearby.trace.say(&format!("up|{who}"), line);
@@ -213,6 +227,11 @@ impl State {
         self.nearby
             .trace
             .say(&format!("routes|{conversation}"), format!("routes friend {}: {line}", short(conversation)));
+    }
+
+    /// The same for another of our devices (`who`), under the name the racer knows it by.
+    pub(crate) fn trace_routes_of(&mut self, who: &str, name: &str, line: &str) {
+        self.nearby.trace.say(&format!("routes|{name}"), format!("routes {who}: {line}"));
     }
 
     /// Transfers that started or ended on this session since it was last looked at: route, size, average rate.

@@ -166,6 +166,20 @@ left open (`service/helper/nearby/`).
   while the Mac is on no network or a transfer wants a direct Wi-Fi lane; an always-on AWDL browse and advertise kept
   the Wi-Fi radio off its network's channel about a fifth of the time. A sighting lists every route its entry was seen
   on, and a LAN dial never includes peer-to-peer Wi-Fi.
+- **A phone in the background is dialed, never dialing (2026-11-18).** Android blocks a backgrounded app's Bluetooth
+  scans (HyperOS 2 on a POCO F7, whatever the foreground service type; `dumpsys bluetooth_manager` lists the app as a
+  "Controlled Background Scanner"), while it keeps advertising, serving its presence value and accepting on its L2CAP
+  channel. Such a phone cannot find anyone, so it is reached only by a device that reads its presence: the rule
+  stays "whichever side finds the other dials" (ADR 0015 § 15, Outbound first), with no side waiting for the other. A
+  Mac that reads a friend's, a friend's other device's or one of its own devices' presence and has no session with
+  them, or only one on a slower route, dials the PSM that value carries after the Bluetooth stagger, as for any route;
+  the session race (ADR 0001), the double-dial rule and the backoffs are unchanged. Checked in the Rust core and Mac
+  helper pair with the phone's scans blocked (friend and own device; the Mac dials, messages, a file and the sync
+  flow) and on the hardware with the screen off and the app in the background (the Mac's production radio opens the
+  phone's channel in 0.06 s and the core takes the handshake). Both helpers' logs now say who dialed whom and why:
+  `routes friend|own device …: seen on [...], live …; Bluetooth dialing in 0.5 s` or why not (no better than the
+  live route, backing off, a dial under way), `dial … opening: no session with them, so we dial`, and
+  `session up … (they dialed) own device …` on the phone.
 
 ## Review amendments
 

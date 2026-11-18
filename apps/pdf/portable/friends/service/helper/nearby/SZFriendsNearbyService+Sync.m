@@ -154,6 +154,7 @@ static NSData *_Nullable SZFriendsKeyFromHex(NSString *hex) {
 // The sync with the device `key` runs on `link` from now on.
 - (void)startSyncOnLink:(SZFriendsPeerLink *)link engine:(SZFriendsSyncEngine *)engine key:(NSData *)key {
     NSString *hex = SZFriendsKeyHex(key);
+    [self traceUpOfLink:link what:[NSString stringWithFormat:@"carries the sync with %@", SZFriendsTraceShort(hex)]];
     self.syncLinks[hex] = link;
     [self.syncDialAfter removeObjectForKey:hex];
     // Our chain first, so a device that missed an addition or a revocation hears it before any event.
@@ -344,25 +345,34 @@ static NSData *_Nullable SZFriendsKeyFromHex(NSString *hex) {
     if (live.closed) live = nil;
     SZFriendsRouteMethod current = live != nil ? live.raceRoute : SZFriendsRouteMethodNone;
     NSDate *after = self.syncDialAfter[hex];
-    if (live == nil && after != nil && [after timeIntervalSinceNow] > 0) return YES;
-    BOOL started = NO;
-    SZFriendsRouteRacer *racer = self.coordinator.racer;
-    for (SZFriendsDialAttempt *attempt in [racer attemptsForCandidate:candidate]) {
-        SZFriendsSighting *sighting = attempt.sighting;
-        if (sighting.isPublic || ![racer shouldStartAttempt:attempt currentRoute:current]) continue;
-        SZFriendsHandshakeOptions *options = [[SZFriendsHandshakeOptions alloc] init];
-        options.pattern = SZFriendsHandshakeIK;
-        options.route = sighting.route;
-        options.remoteStaticKey = staticKey;
-        options.expectedIdentityKey = device;
-        SZFriendsDialPlan *plan = [SZFriendsDialPlan planWithSighting:sighting
-                                                              purpose:SZFriendsLinkPurposeOwnDevice
-                                                              options:options];
-        plan.ownDeviceHex = hex;
-        plan.conversationID = name; // what the racer knows this device by; an own-device link joins no conversation
-        plan.delay = attempt.delay;
-        started = [self dial:plan] || started;
+    NSString *who = [@"own device " stringByAppendingString:SZFriendsTraceShort(hex)];
+    if (live == nil && after != nil && [after timeIntervalSinceNow] > 0) {
+        NSString *note = [NSString stringWithFormat:@"not dialing for %.0f s: the last dial started %.0f s ago",
+                                                    after.timeIntervalSinceNow,
+                                                    SZFriendsOwnDeviceRedial - after.timeIntervalSinceNow];
+        [self traceRoutesOf:who key:name candidate:candidate live:current notes:@[ note ]];
+        return YES;
     }
+    NSMutableArray<NSString *> *notes = [NSMutableArray array];
+    BOOL started = [self dialCandidate:candidate current:current notes:notes
+                                  make:^SZFriendsDialPlan *(SZFriendsDialAttempt *attempt) {
+                                      SZFriendsSighting *sighting = attempt.sighting;
+                                      if (sighting.isPublic) return nil;
+                                      SZFriendsHandshakeOptions *options = [[SZFriendsHandshakeOptions alloc] init];
+                                      options.pattern = SZFriendsHandshakeIK;
+                                      options.route = sighting.route;
+                                      options.remoteStaticKey = staticKey;
+                                      options.expectedIdentityKey = device;
+                                      SZFriendsDialPlan *plan =
+                                          [SZFriendsDialPlan planWithSighting:sighting
+                                                                      purpose:SZFriendsLinkPurposeOwnDevice
+                                                                      options:options];
+                                      plan.ownDeviceHex = hex;
+                                      // What the racer knows this device by; an own-device link joins no conversation.
+                                      plan.conversationID = name;
+                                      return plan;
+                                  }];
+    [self traceRoutesOf:who key:name candidate:candidate live:current notes:notes];
     // Not again for a while, however it ends: a session that goes live clears this (-startSyncOnLink:).
     if (started && live == nil) self.syncDialAfter[hex] = [NSDate dateWithTimeIntervalSinceNow:SZFriendsOwnDeviceRedial];
     return YES;
