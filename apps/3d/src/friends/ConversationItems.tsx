@@ -5,7 +5,12 @@ import type { Item, Mention } from "./protocol";
 import { fill } from "./actions";
 import { Actions, RichText, linkHost, shownHost, usePanel } from "./parts";
 import { RouteIcon } from "./glyphs";
-import { ProgressLines, RouteIcons, SplitBar } from "./TransferProgress";
+import {
+  ProgressLines,
+  RouteBar,
+  RouteIcons,
+  SplitBar,
+} from "./TransferProgress";
 
 // A message longer than this shows cut short with Show all, so a conversation stays quick to open.
 const SHORT_TEXT = 3000;
@@ -108,6 +113,9 @@ function TransferView({ item }: { item: Item }) {
   // Progress by route: the route icons beside the name, the split bar and its lines inside the card, in place of
   // the status line and the plain bar.
   const byRoute = item.progress?.amount_label ? item.progress : null;
+  // A file no longer moving: how it went through, as a thin split bar where the moving one was.
+  const wentThrough =
+    !item.progress && item.route_segments?.length ? item.route_segments : null;
   const label =
     route?.label && !item.accessibility_label.includes(route.label)
       ? `${item.accessibility_label}, ${route.label}`
@@ -118,7 +126,9 @@ function TransferView({ item }: { item: Item }) {
       data-item={item.item_id}
       aria-label={label}
     >
-      <div className={`szf-transfer-body${byRoute ? " by-route" : ""}`}>
+      <div
+        className={`szf-transfer-body${byRoute || wentThrough ? " by-route" : ""}`}
+      >
         {byRoute ? (
           <>
             <div className="szf-transfer-top">
@@ -134,27 +144,18 @@ function TransferView({ item }: { item: Item }) {
             <SplitBar progress={byRoute} />
             <ProgressLines progress={byRoute} />
           </>
+        ) : wentThrough ? (
+          <>
+            <div className="szf-transfer-top">
+              <Preview item={item} />
+              <TransferText item={item} route={route} />
+            </div>
+            <RouteBar segments={wentThrough} />
+          </>
         ) : (
           <>
             <Preview item={item} />
-            <div className="szf-transfer-text">
-              <strong>{item.file?.name}</strong>
-              <small>{item.meta_label}</small>
-              <span className="szf-status">
-                {item.status_label}
-                {route?.label && (
-                  <>
-                    {" · "}
-                    <span className="szf-header-subtitle" title={route.label}>
-                      <RouteIcon route={route} size={11} />
-                      {route.label}
-                    </span>
-                  </>
-                )}
-              </span>
-              {item.route_note && <small>{item.route_note}</small>}
-              {item.assistant_label && <small>{item.assistant_label}</small>}
-            </div>
+            <TransferText item={item} route={route} />
           </>
         )}
       </div>
@@ -171,6 +172,30 @@ function TransferView({ item }: { item: Item }) {
         context={{ transfer_id: item.transfer_id, item_id: item.item_id }}
       />
       {item.time_label && <small className="szf-meta">{item.time_label}</small>}
+    </div>
+  );
+}
+
+/** The name, size and status of a transfer that isn't drawn with progress by route. */
+function TransferText({ item, route }: { item: Item; route: Item["route"] }) {
+  return (
+    <div className="szf-transfer-text">
+      <strong>{item.file?.name}</strong>
+      <small>{item.meta_label}</small>
+      <span className="szf-status">
+        {item.status_label}
+        {route?.label && (
+          <>
+            {" · "}
+            <span className="szf-header-subtitle" title={route.label}>
+              <RouteIcon route={route} size={11} />
+              {route.label}
+            </span>
+          </>
+        )}
+      </span>
+      {item.route_note && <small>{item.route_note}</small>}
+      {item.assistant_label && <small>{item.assistant_label}</small>}
     </div>
   );
 }

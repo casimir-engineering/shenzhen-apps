@@ -212,12 +212,14 @@ export type Mention = {
   } | null;
 };
 /** PROTOCOL.md type.progress; the fields after the first three come with the capability transfers.progress. */
+/** One route's share of a split bar: PROTOCOL.md type.transfer_segment. */
+export type RouteSegment = { method: string; fraction: number };
 export type TransferProgress = {
   fraction: number;
   determinate: boolean;
   accessibility_label: string;
   routes?: { method: string; active: boolean; label: string }[];
-  segments?: { method: string; fraction: number }[];
+  segments?: RouteSegment[];
   amount_label?: string;
   time_left_label?: string | null;
   detail_label?: string | null;
@@ -243,6 +245,9 @@ export type Item = {
   /** a transfer copying here from another of the person's computers: the route it comes by */
   route?: Route | null;
   progress?: TransferProgress | null;
+  /** capability transfers.progress: how a delivered, received, cancelled or failed file went through, each fraction of
+   * the whole file; absent or empty when the helper kept none, and then no bar is drawn */
+  route_segments?: RouteSegment[];
   thumbnail?: Thumbnail | null;
   actions?: Action[];
   mentions?: Mention[];

@@ -1,7 +1,7 @@
 // A moving transfer's progress by route (PROTOCOL.md § Fast transfers, Progress by route): its route icons, the bar
 // split by what each route carried, and the lines under it. The glyphs and colours are the approved mockup's, as the
 // AppKit (mac/SZFriendsTransferProgress.m) and GTK (gtk/szfriends_gtk_transfer_progress.c) views draw them.
-import type { TransferProgress as Progress } from "./protocol";
+import type { TransferProgress as Progress, RouteSegment } from "./protocol";
 
 // Each a 16-unit SVG drawn in currentColor: white on the route's colour while in use, the muted colour once not.
 const ICON: Record<string, string> = {
@@ -62,19 +62,37 @@ export function SplitBar({ progress }: { progress: Progress }) {
       {progress.finishing ? (
         <span className="szf-finishing" style={{ width: "100%" }} />
       ) : segments.length ? (
-        segments.map((segment) => (
-          <span
-            key={segment.method}
-            style={{
-              width: `${Math.max(0, Math.min(1, segment.fraction)) * 100}%`,
-              background: ROUTE_COLOR[segment.method] ?? ROUTE_COLOR.relay,
-            }}
-          />
-        ))
+        <Segments segments={segments} />
       ) : (
         <span style={{ width: `${percent}%`, background: ROUTE_COLOR.relay }} />
       )}
     </div>
+  );
+}
+
+/** How a file that is no longer moving went through: the split bar's last segments, thin and with no words of its
+ * own, since the card's label and status already say what happened. The rest of the width is the empty track. */
+export function RouteBar({ segments }: { segments: RouteSegment[] }) {
+  return (
+    <div className="szf-split-bar thin" aria-hidden="true">
+      <Segments segments={segments} />
+    </div>
+  );
+}
+
+function Segments({ segments }: { segments: RouteSegment[] }) {
+  return (
+    <>
+      {segments.map((segment) => (
+        <span
+          key={segment.method}
+          style={{
+            width: `${Math.max(0, Math.min(1, segment.fraction)) * 100}%`,
+            background: ROUTE_COLOR[segment.method] ?? ROUTE_COLOR.relay,
+          }}
+        />
+      ))}
+    </>
   );
 }
 
