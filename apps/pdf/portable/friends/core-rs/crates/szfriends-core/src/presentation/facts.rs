@@ -316,6 +316,9 @@ pub struct ItemFacts {
     /// person's own computers; under 2 says nothing.
     pub holders: u32,
     pub own_holders: u32,
+    /// How the file went through, kept with the transfer (transfers.route_bytes): the bytes each route carried for
+    /// it, by the protocol's route names; empty when none was kept. Drawn as the thin bar of a transfer that ended.
+    pub kept_route_bytes: Vec<(String, u64)>,
     /// A received file, once published.
     pub local_path: Option<String>,
     /// The folder a received file was saved in, for its "Saved to {folder}"; `None` (older files, or kept in the

@@ -6,7 +6,7 @@
 use std::collections::HashSet;
 use std::path::PathBuf;
 
-use rusqlite::{params, Connection, Row};
+use rusqlite::{params, Connection, OptionalExtension, Row};
 
 use super::people::{insert_item, person_where, Direction, Item, ItemKind, Relation};
 use super::transfer_files::{create_staging_file, file_digest, sanitized_file_name, snapshot};
@@ -179,6 +179,46 @@ pub(super) fn owned(
         }
         _ => Err(StoreError::Invalid("not this friend's transfer")),
     }
+}
+
+/// The routes transfers.route_bytes names, in the routes' fixed order (same Wi-Fi, direct Wi-Fi, Internet, Bluetooth,
+/// relay), as the helper's `SZFriendsRouteBytesJSON`.
+const ROUTE_NAMES: [&str; 5] = ["lan", "p2p_wifi", "internet", "bluetooth", "relay"];
+
+fn route_bytes_clean(route_bytes: impl IntoIterator<Item = (String, u64)>) -> Vec<(String, u64)> {
+    let mut clean: Vec<(String, u64)> = Vec::new();
+    for (name, bytes) in route_bytes {
+        if bytes == 0 || !ROUTE_NAMES.contains(&name.as_str()) {
+            continue;
+        }
+        match clean.iter_mut().find(|(n, _)| *n == name) {
+            Some((_, total)) => *total = total.saturating_add(bytes),
+            None => clean.push((name, bytes)),
+        }
+    }
+    clean.sort_by_key(|(name, _)| ROUTE_NAMES.iter().position(|n| n == name));
+    clean
+}
+
+/// `{"bluetooth":212992,"lan":17825792}`, keys sorted as the helper writes them; None when nothing is left.
+fn route_bytes_json(route_bytes: &[(String, u64)]) -> Option<String> {
+    let clean = route_bytes_clean(route_bytes.iter().cloned());
+    if clean.is_empty() {
+        return None;
+    }
+    let map: std::collections::BTreeMap<String, u64> = clean.into_iter().collect();
+    serde_json::to_string(&map).ok()
+}
+
+fn route_bytes_from_json(json: &str) -> Vec<(String, u64)> {
+    if json.len() >= 1024 {
+        return Vec::new();
+    }
+    let Ok(serde_json::Value::Object(map)) = serde_json::from_str::<serde_json::Value>(json) else { return Vec::new() };
+    route_bytes_clean(map.into_iter().filter_map(|(name, value)| {
+        let bytes = value.as_u64().or_else(|| value.as_f64().filter(|b| *b >= 1.0).map(|b| b as u64))?;
+        Some((name, bytes))
+    }))
 }
 
 impl Store {
@@ -416,6 +456,30 @@ impl Store {
         })?;
         self.receiving.forget(transfer_id);
         Ok(())
+    }
+
+    /// How the file went through (transfers.route_bytes, PROTOCOL.md § Fast transfers, Progress by route): the bytes
+    /// each route carried for it, by the protocol's route names in the routes' fixed order; empty when none was kept
+    /// (transfers that ended before schema v14).
+    pub fn transfer_route_bytes(&self, transfer_id: &str) -> Result<Vec<(String, u64)>> {
+        let json: Option<String> = self
+            .conn
+            .query_row("SELECT route_bytes FROM transfers WHERE transfer_id = ?1", [transfer_id], |r| r.get(0))
+            .optional()?
+            .flatten();
+        Ok(json.map(|j| route_bytes_from_json(&j)).unwrap_or_default())
+    }
+
+    /// Replaces what each route carried for the transfer; unknown routes and empty counts are left out.
+    pub fn set_transfer_route_bytes(&mut self, transfer_id: &str, route_bytes: &[(String, u64)]) -> Result<()> {
+        let json = route_bytes_json(route_bytes);
+        self.write(|conn| {
+            conn.execute(
+                "UPDATE transfers SET route_bytes = ?1, updated_at = ?2 WHERE transfer_id = ?3",
+                params![json, unix_now(), transfer_id],
+            )?;
+            Ok(())
+        })
     }
 
     /// An outgoing transfer's snapshot, opened once for all its chunks.

@@ -26,6 +26,9 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)carried:(uint64_t)bytes route:(SZFriendsRouteMethod)route transfer:(NSString *)transferID now:(double)now;
 // The counts of `transferID` with `remaining` bytes still to go; nil when nothing was counted for it.
 - (nullable SZFriendsRouteReading *)readingFor:(NSString *)transferID remaining:(uint64_t)remaining now:(double)now;
+// Bytes each route carried for `transferID` in this run of the helper (SZFriendsRouteMethod -> bytes), without touching
+// its speed; nil when nothing was counted for it.
+- (nullable NSDictionary<NSNumber *, NSNumber *> *)routeBytesOf:(NSString *)transferID;
 - (void)forget:(NSString *)transferID;
 @end
 

@@ -101,6 +101,21 @@ struct Run {
 pub struct Trace {
     said: HashMap<String, Said>,
     runs: HashMap<(u64, String), Run>,
+    /// What the store held for a transfer's routes before this helper run first wrote them: the route meter counts
+    /// this run only, so each write is this plus the meter's counts.
+    route_bases: HashMap<String, Vec<(String, u64)>>,
+}
+
+/// The protocol's name for a route, as transfers.route_bytes and the views' segments name it.
+fn route_key(route: RouteMethod) -> Option<&'static str> {
+    match route {
+        RouteMethod::Lan => Some("lan"),
+        RouteMethod::PeerToPeerWifi => Some("p2p_wifi"),
+        RouteMethod::Internet => Some("internet"),
+        RouteMethod::Bluetooth => Some("bluetooth"),
+        RouteMethod::Relay => Some("relay"),
+        _ => None,
+    }
 }
 
 impl Trace {
@@ -247,6 +262,9 @@ impl State {
                 rate(moved, seconds)
             );
             self.nearby.trace.say(&format!("transfer|{transfer}"), line);
+            if record.is_some() {
+                self.keep_routes(&transfer);
+            }
         }
         let Some(s) = self.sessions.map.get(&id) else { return };
         let (route, conversation) = (s.meta.race_route(&s.channel), s.conversation.clone().unwrap_or_default());
@@ -266,6 +284,38 @@ impl State {
             self.nearby.trace.say(&format!("transfer|{transfer}"), line);
             let run = Run { conversation: conversation.clone(), outgoing, route, started: unix_now(), from, size };
             self.nearby.trace.runs.insert((id, transfer), run);
+        }
+    }
+}
+
+impl State {
+    /// How the file went through, kept with the transfer when a run of it ends, so its card can still show it once the
+    /// file is delivered, received, cancelled or failed, after a restart too (PROTOCOL.md § Fast transfers, Progress
+    /// by route): what earlier runs of the helper recorded plus what the route meter counted in this one, the same
+    /// counts the moving bar was split by.
+    fn keep_routes(&mut self, transfer: &str) {
+        let counted = self.meter.borrow().route_bytes(transfer);
+        if counted.is_empty() {
+            return;
+        }
+        let base = match self.nearby.trace.route_bases.get(transfer) {
+            Some(base) => base.clone(),
+            None => {
+                let base = self.store.transfer_route_bytes(transfer).unwrap_or_default();
+                self.nearby.trace.route_bases.insert(transfer.to_owned(), base.clone());
+                base
+            }
+        };
+        let mut total = base;
+        for (route, bytes) in counted {
+            let Some(key) = route_key(route) else { continue };
+            match total.iter_mut().find(|(name, _)| name == key) {
+                Some((_, sum)) => *sum = sum.saturating_add(bytes),
+                None => total.push((key.to_owned(), bytes)),
+            }
+        }
+        if let Err(error) = self.store.set_transfer_route_bytes(transfer, &total) {
+            log!("transfer {}: could not keep its routes: {error}", short(transfer));
         }
     }
 }

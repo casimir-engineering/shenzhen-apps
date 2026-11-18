@@ -147,4 +147,34 @@ impl SnapshotBuilder {
         }
         transfer.remove("route");
     }
+
+    /// How a file that is no longer moving went through: `route_segments`, the thin bar its card keeps once it was
+    /// delivered or received (the whole bar) or cancelled or failed (what had moved), split as the moving bar was, by
+    /// what each route carried. Only from the counts kept with the transfer: one that ended before they were kept
+    /// shows none.
+    pub(crate) fn kept_routes(&self, transfer: &mut Map<String, Value>, item: &ItemFacts) {
+        if !self.audience().has("transfers.progress") || matches!(transfer.get("progress"), Some(Value::Object(_))) {
+            return;
+        }
+        let state = transfer.get("state").and_then(Value::as_str).unwrap_or("");
+        let whole = matches!(state, "delivered" | "received");
+        if !whole && !matches!(state, "cancelled" | "failed") {
+            return;
+        }
+        let kept = &item.kept_route_bytes;
+        let total: f64 = kept.iter().map(|(_, b)| *b as f64).sum();
+        if total <= 0.0 || item.file_size == 0 {
+            return;
+        }
+        let fraction = if whole { 1.0 } else { (total / item.file_size as f64).min(1.0) };
+        let segments: Vec<Value> = ORDER
+            .iter()
+            .filter_map(|r| {
+                let name = route_method_name(*r);
+                let bytes = kept.iter().find(|(n, _)| Some(n.as_str()) == name.as_str())?.1;
+                (bytes > 0).then(|| json!({"method": name, "fraction": fraction * bytes as f64 / total}))
+            })
+            .collect();
+        transfer.insert("route_segments".into(), Value::Array(segments));
+    }
 }

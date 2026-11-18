@@ -44,7 +44,47 @@ static SZFriendsTransferRecord *SZFriendsTransferFromRow(sqlite3_stmt *s) {
     record.sourcePath = SZFriendsColumnText(s, 22);
     record.sourceModifiedNs = SZFriendsColumnInt(s, 23);
     record.document = SZFriendsDocumentFromJSON(SZFriendsColumnText(s, 24));
+    record.routeBytes = SZFriendsRouteBytesFromJSON(SZFriendsColumnText(s, 25));
     return record;
+}
+
+// transfers.route_bytes (schema v14): {"bluetooth":212992,"lan":17825792}, only the protocol's route names, whole
+// positive byte counts.
+static NSSet<NSString *> *SZFriendsRouteNames(void) {
+    static NSSet<NSString *> *names;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        names = [NSSet setWithArray:@[ @"lan", @"p2p_wifi", @"internet", @"bluetooth", @"relay" ]];
+    });
+    return names;
+}
+
+static NSDictionary<NSString *, NSNumber *> *_Nullable SZFriendsRouteBytesClean(id _Nullable object) {
+    if (![object isKindOfClass:NSDictionary.class]) return nil;
+    NSMutableDictionary<NSString *, NSNumber *> *clean = [NSMutableDictionary dictionary];
+    for (id key in object) {
+        id value = object[key];
+        if (![key isKindOfClass:NSString.class] || ![SZFriendsRouteNames() containsObject:key] ||
+            ![value isKindOfClass:NSNumber.class] || [value doubleValue] < 1) {
+            continue;
+        }
+        clean[key] = @([value unsignedLongLongValue]);
+    }
+    return clean.count ? clean : nil;
+}
+
+NSString *_Nullable SZFriendsRouteBytesJSON(NSDictionary<NSString *, NSNumber *> *_Nullable routeBytes) {
+    NSDictionary *clean = SZFriendsRouteBytesClean(routeBytes);
+    if (clean == nil) return nil;
+    NSData *data = [NSJSONSerialization dataWithJSONObject:clean options:NSJSONWritingSortedKeys error:NULL];
+    return data ? [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding] : nil;
+}
+
+NSDictionary<NSString *, NSNumber *> *_Nullable SZFriendsRouteBytesFromJSON(NSString *_Nullable json) {
+    NSData *data = [json dataUsingEncoding:NSUTF8StringEncoding];
+    id object = data.length && data.length < 1024 ? [NSJSONSerialization JSONObjectWithData:data options:0 error:NULL]
+                                                  : nil;
+    return SZFriendsRouteBytesClean(object);
 }
 
 int64_t SZFriendsFileModifiedNs(NSString *path) {
@@ -55,7 +95,8 @@ int64_t SZFriendsFileModifiedNs(NSString *path) {
 
 NSArray<SZFriendsTransferRecord *> *SZFriendsTransferRows(SZFriendsStoreDB *db, NSString *whereClause,
                                                           NSArray *binds) {
-    NSString *sql = [NSString stringWithFormat:@"SELECT %@ FROM transfers %@", SZFriendsTransferColumns, whereClause];
+    NSString *sql = [NSString stringWithFormat:@"SELECT %@, route_bytes FROM transfers %@", SZFriendsTransferColumns,
+                                               whereClause];
     NSMutableArray *records = [NSMutableArray array];
     NSError *error = nil;
     if (![db run:sql binds:binds row:^(sqlite3_stmt *s) { [records addObject:SZFriendsTransferFromRow(s)]; }
@@ -128,7 +169,7 @@ BOOL SZFriendsTransferRowUpdate(SZFriendsStoreDB *db, NSString *transferID, NSDi
         allowed = [NSSet setWithArray:@[
             @"verified_bytes", @"accepted_automatically", @"asked_low_disk", @"staged_path", @"partial_path",
             @"final_path", @"publishing", @"received_path", @"bytes_per_second", @"failure_reason", @"received_at",
-            @"received_via", @"file_name", @"document"
+            @"received_via", @"file_name", @"document", @"route_bytes"
         ]];
     });
     NSMutableArray *assignments = [NSMutableArray array];

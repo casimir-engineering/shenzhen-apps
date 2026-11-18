@@ -473,6 +473,14 @@ static BOOL (^SZFriendsFrom(NSString *conversationID, int outgoing))(SZFriendsTr
     } error:error];
 }
 
+- (BOOL)setRouteBytes:(NSDictionary<NSString *, NSNumber *> *)routeBytes forTransfer:(NSString *)transferID
+                error:(NSError **)error {
+    NSString *json = SZFriendsRouteBytesJSON(routeBytes);
+    return [_store performWrite:^BOOL(SZFriendsStoreDB *db, NSError **inner) {
+        return SZFriendsTransferRowUpdate(db, transferID, @{@"route_bytes" : SZFriendsSQL(json)}, inner);
+    } error:error];
+}
+
 #pragma mark - Receiving
 
 - (BOOL)appendChunk:(NSData *)bytes atOffset:(uint64_t)offset toTransfer:(NSString *)transferID

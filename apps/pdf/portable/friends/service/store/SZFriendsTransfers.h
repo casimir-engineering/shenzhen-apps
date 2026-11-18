@@ -97,6 +97,10 @@ SZFriendsTransferState SZFriendsTransferNextState(BOOL outgoing, SZFriendsTransf
 // document's own name ("Report.md"), and a receiving helper places the document's folder ("Report/") where received
 // files go, so receivedPath is the document inside it.
 @property(nonatomic, copy, nullable) NSDictionary<NSString *, NSNumber *> *document;
+// How the file went through (PROTOCOL.md § Fast transfers, Progress by route): the bytes each route carried for it,
+// keyed by the protocol's route names ("lan", "p2p_wifi", "internet", "bluetooth", "relay"), added up over every run of
+// the helper that moved it; nil when none was recorded (transfers that ended before schema v14). Never synced.
+@property(nonatomic, copy, nullable) NSDictionary<NSString *, NSNumber *> *routeBytes;
 @end
 
 // A file's modification time in nanoseconds since 1970, or 0 when it cannot be read.
@@ -341,6 +345,9 @@ typedef NS_ENUM(NSInteger, SZFriendsReceivedSource) {
                        error:(NSError **)error;
 - (BOOL)setMeasuredBytesPerSecond:(double)bytesPerSecond forTransfer:(NSString *)transferID
                             error:(NSError **)error;
+// Replaces what each route carried for the transfer (route name -> bytes; routes with 0 bytes are left out).
+- (BOOL)setRouteBytes:(NSDictionary<NSString *, NSNumber *> *)routeBytes forTransfer:(NSString *)transferID
+                error:(NSError **)error;
 
 // Receiving side of a chunk stream, from the conversation that owns the transfer (a chunk or DONE for another
 // friend's transfer, or with no conversation, is refused as unsolicited: Invalid). Appends to the private temporary

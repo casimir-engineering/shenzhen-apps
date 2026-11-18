@@ -63,6 +63,15 @@ static NSInteger SZFriendsMeterSlot(SZFriendsRouteMethod route) {
     m->touched = now;
 }
 
+- (NSDictionary<NSNumber *, NSNumber *> *)routeBytesOf:(NSString *)transferID {
+    SZFriendsTransferMeter *m = _transfers[transferID];
+    if (m == nil) return nil;
+    NSMutableDictionary<NSNumber *, NSNumber *> *carried = [NSMutableDictionary dictionary];
+    for (NSInteger i = 0; i < 5; i++)
+        if (m->bytes[i] > 0) carried[@(SZFriendsMeterRoutes[i])] = @(m->bytes[i]);
+    return carried.count ? carried : nil;
+}
+
 - (void)forget:(NSString *)transferID {
     [_transfers removeObjectForKey:transferID];
 }

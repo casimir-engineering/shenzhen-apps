@@ -93,6 +93,13 @@ impl RouteMeter {
         m.touched = now;
     }
 
+    /// Bytes each route carried for `transfer` in this run of the helper, in the routes' fixed order, without touching
+    /// its speed; empty when nothing was counted for it.
+    pub fn route_bytes(&self, transfer: &str) -> Vec<(RouteMethod, u64)> {
+        let Some(m) = self.transfers.get(transfer) else { return Vec::new() };
+        ROUTES.iter().zip(m.bytes).filter(|(_, b)| *b > 0).map(|(r, b)| (*r, b)).collect()
+    }
+
     /// The transfer is over (saved, cancelled, failed): its counts go.
     pub fn forget(&mut self, transfer: &str) {
         self.transfers.remove(transfer);

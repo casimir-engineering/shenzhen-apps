@@ -326,6 +326,7 @@ impl SnapshotBuilder {
         // A file on another of the person's computers, one copying to them, or one moved or deleted (again.rs).
         let mut transfer = self.transfer_where_it_is(transfer, item, person);
         self.progress_by_route(&mut transfer, item);
+        self.kept_routes(&mut transfer, item);
         transfer
     }
 }

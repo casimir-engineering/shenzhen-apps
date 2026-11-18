@@ -50,6 +50,9 @@ static const double SZFTraceThroughputEvery = 10;
 @property(nonatomic, strong) NSMutableDictionary<NSString *, SZFTraceRun *> *runs;
 @property(nonatomic, strong) NSMutableDictionary<NSString *, SZFTraceLane *> *lanes; // "group:lane"
 @property(nonatomic, strong) NSMutableDictionary<NSNumber *, NSNumber *> *reportedAt; // group -> time
+// What the store held for a transfer's routes before this helper run first wrote them (transfer -> route name ->
+// bytes): the route meter counts this run only, so each write is this plus the meter's counts.
+@property(nonatomic, strong) NSMutableDictionary<NSString *, NSDictionary<NSString *, NSNumber *> *> *routeBases;
 @end
 @implementation SZFTraceState
 @end
@@ -157,6 +160,7 @@ static NSString *SZFTraceByRoute(NSDictionary<NSNumber *, NSNumber *> *byRoute) 
         state.runs = [NSMutableDictionary dictionary];
         state.lanes = [NSMutableDictionary dictionary];
         state.reportedAt = [NSMutableDictionary dictionary];
+        state.routeBases = [NSMutableDictionary dictionary];
         self.traceStore = state;
     }
     return state;
@@ -353,6 +357,46 @@ static NSString *SZFTraceByRoute(NSDictionary<NSNumber *, NSNumber *> *byRoute) 
                                                 SZFriendsTraceBytes(moved), SZFriendsTraceBytes(run.size),
                                                 SZFriendsTraceRate(moved / seconds), SZFTraceByRoute(run.byRoute), late];
     [self traceKey:[@"transfer-end|" stringByAppendingString:transferID] line:line];
+    if (record != nil) [self keepRoutesOfTransfer:transferID];
+}
+
+// The protocol's name for a route, as transfers.route_bytes and the views' segments name it.
+static NSString *_Nullable SZFTraceRouteKey(SZFriendsRouteMethod route) {
+    switch (route) {
+    case SZFriendsRouteMethodLAN: return @"lan";
+    case SZFriendsRouteMethodPeerToPeerWiFi: return @"p2p_wifi";
+    case SZFriendsRouteMethodInternet: return @"internet";
+    case SZFriendsRouteMethodBluetooth: return @"bluetooth";
+    case SZFriendsRouteMethodRelay: return @"relay";
+    case SZFriendsRouteMethodNone: return nil;
+    }
+    return nil;
+}
+
+// How the file went through, kept with the transfer when a run of it ends, so its card can still show it once the
+// file is delivered, received, cancelled or failed, after a restart too (PROTOCOL.md § Fast transfers, Progress by
+// route): what earlier runs of the helper recorded plus what the route meter counted in this one, the same counts the
+// moving bar was split by.
+- (void)keepRoutesOfTransfer:(NSString *)transferID {
+    NSDictionary<NSNumber *, NSNumber *> *counted = [self.routeMeter routeBytesOf:transferID];
+    if (counted.count == 0) return;
+    SZFTraceState *state = [self traceState];
+    NSDictionary<NSString *, NSNumber *> *base = state.routeBases[transferID];
+    if (base == nil) {
+        base = [self.services.transfers transferWithID:transferID].routeBytes ?: @{};
+        state.routeBases[transferID] = base;
+    }
+    NSMutableDictionary<NSString *, NSNumber *> *total = [base mutableCopy];
+    for (NSNumber *route in counted) {
+        NSString *key = SZFTraceRouteKey(route.integerValue);
+        if (key == nil) continue;
+        total[key] = @(total[key].unsignedLongLongValue + counted[route].unsignedLongLongValue);
+    }
+    NSError *error = nil;
+    if (![self.services.transfers setRouteBytes:total forTransfer:transferID error:&error]) {
+        SZFriendsHelperLog(@"transfer %@: could not keep its routes: %@", SZFTraceShort(transferID),
+                           error.localizedDescription);
+    }
 }
 
 #pragma mark - Lanes while a file moves

@@ -175,6 +175,9 @@ BOOL SZFriendsTransferRowApplyEvent(SZFriendsStoreDB *db, NSString *transferID, 
 BOOL SZFriendsTransferRowUpdate(SZFriendsStoreDB *db, NSString *transferID, NSDictionary<NSString *, id> *values,
                                 NSError **error);
 NSString *_Nullable SZFriendsTransferRowPartialPath(SZFriendsStoreDB *db, NSString *transferID);
+// transfers.route_bytes as stored and read back: unknown routes, and counts under one byte, are left out; nil when none.
+NSString *_Nullable SZFriendsRouteBytesJSON(NSDictionary<NSString *, NSNumber *> *_Nullable routeBytes);
+NSDictionary<NSString *, NSNumber *> *_Nullable SZFriendsRouteBytesFromJSON(NSString *_Nullable json);
 
 // The receiving side's in-memory state (open staging files, running digests, unflushed byte counts). Owned by
 // SZFriendsTransfers and used only on the store queue. Every chunk and DONE names the sending conversation, which

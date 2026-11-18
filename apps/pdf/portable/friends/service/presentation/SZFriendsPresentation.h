@@ -182,6 +182,9 @@ typedef NS_ENUM(NSInteger, SZFriendsAgainState) {
 @property(nonatomic) double secondsLeft;
 @property(nonatomic) NSUInteger holders;
 @property(nonatomic) NSUInteger ownHolders; // of `holders`, the person's own computers
+// How the file went through, kept with the transfer (transfers.route_bytes): the bytes each route carried for it,
+// keyed by the protocol's route names; nil when none was kept. Drawn as the thin bar of a transfer that ended.
+@property(nonatomic, copy, nullable) NSDictionary<NSString *, NSNumber *> *keptRouteBytes;
 // Every block arrived and the whole file has been checked for over a second before it is saved (PROTOCOL.md § Fast
 // transfers): "Finishing…".
 @property(nonatomic) BOOL finishing;

@@ -129,4 +129,30 @@ static NSString *SZFriendsTransferRouteName(SZFriendsRouteMethod route) {
     return result;
 }
 
+// How a file that is no longer moving went through: `route_segments`, the thin bar its card keeps once it was
+// delivered or received (the whole bar) or cancelled or failed (what had moved), split as the moving bar was, by what
+// each route carried. Only from the counts kept with the transfer: one that ended before they were kept shows none.
+- (NSDictionary<NSString *, id> *)transfer:(NSDictionary<NSString *, id> *)transfer
+                        withKeptRoutesOfItem:(SZFriendsItemFacts *)item {
+    if (![self.audience.capabilities containsObject:@"transfers.progress"]) return transfer;
+    if ([transfer[@"progress"] isKindOfClass:NSDictionary.class]) return transfer;
+    NSString *state = transfer[@"state"];
+    BOOL whole = [state isEqual:@"delivered"] || [state isEqual:@"received"];
+    if (!whole && ![state isEqual:@"cancelled"] && ![state isEqual:@"failed"]) return transfer;
+    NSDictionary<NSString *, NSNumber *> *kept = item.keptRouteBytes;
+    double total = 0;
+    for (NSNumber *bytes in kept.allValues) total += bytes.doubleValue;
+    if (total <= 0 || item.fileSize == 0) return transfer;
+    double fraction = whole ? 1.0 : MIN(1.0, total / (double)item.fileSize);
+    NSMutableArray *segments = [NSMutableArray array];
+    for (int i = 0; i < 5; i++) {
+        NSString *method = SZFriendsTransferRouteName(SZFriendsTransferRouteOrder[i]);
+        double bytes = kept[method].doubleValue;
+        if (bytes > 0) [segments addObject:@{@"method" : method, @"fraction" : @(fraction * bytes / total)}];
+    }
+    NSMutableDictionary *result = [transfer mutableCopy];
+    result[@"route_segments"] = segments;
+    return result;
+}
+
 @end

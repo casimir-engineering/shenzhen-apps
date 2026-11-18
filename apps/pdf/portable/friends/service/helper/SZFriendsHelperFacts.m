@@ -59,6 +59,7 @@ SZFriendsItemFacts *SZFriendsItemFactsFromRecord(SZFriendsItemRecord *record, SZ
             facts.bytesPerSecond = transfer.measuredBytesPerSecond;
             facts.localPath = transfer.receivedPath;
             facts.document = transfer.document;
+            facts.keptRouteBytes = transfer.routeBytes;
             // A received document is in its own folder: where it was saved is where that folder is.
             NSString *saved = transfer.document && !facts.outgoing
                                   ? transfer.receivedPath.stringByDeletingLastPathComponent

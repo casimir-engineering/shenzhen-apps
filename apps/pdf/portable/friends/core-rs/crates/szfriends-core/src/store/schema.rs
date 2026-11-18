@@ -4,7 +4,7 @@
 //! never edited; a change appends one, here and in the helper.
 
 /// The schema version this build writes (`SZFriendsStoreSchemaVersion`).
-pub const SCHEMA_VERSION: i64 = 13;
+pub const SCHEMA_VERSION: i64 = 14;
 
 /// One forward-only step: its version, the oldest schema that can still read the store after it (0 leaves
 /// `min_reader_version` alone, as additive steps do), and its statements.
@@ -16,7 +16,7 @@ pub struct Migration {
 }
 
 /// Every migration ever shipped, oldest first.
-pub const SHIPPED: [Migration; 13] = [
+pub const SHIPPED: [Migration; 14] = [
     Migration { version: 1, min_reader_version: 1, sql: V1 },
     Migration { version: 2, min_reader_version: 2, sql: V2 },
     Migration { version: 3, min_reader_version: 0, sql: V3 },
@@ -30,6 +30,7 @@ pub const SHIPPED: [Migration; 13] = [
     Migration { version: 11, min_reader_version: 0, sql: V11 },
     Migration { version: 12, min_reader_version: 0, sql: V12 },
     Migration { version: 13, min_reader_version: 0, sql: V13 },
+    Migration { version: 14, min_reader_version: 0, sql: V14 },
 ];
 
 /// Schema v1 (ADR 0003 § Schema v1). Times are Unix seconds (REAL); keys and secrets are BLOBs whose lengths the
@@ -241,4 +242,11 @@ ALTER TABLE transfers ADD COLUMN source_mtime_ns INTEGER;
 /// the column so the two stores stay alike, and takes such an archive as the .zip it is. Additive: a v12 helper
 /// ignores it.
 const V13: &str = r#"ALTER TABLE transfers ADD COLUMN document TEXT;
+"#;
+
+/// v14, how a file went through (PROTOCOL.md § Fast transfers, Progress by route): transfers.route_bytes, the bytes
+/// each route carried for it, as JSON keyed by the protocol's route names (`{"bluetooth":212992,"lan":17825792}`),
+/// added up over every run of the helper that moved it. Written when a run of the transfer ends; NULL for transfers
+/// that ended before, which then show no breakdown. Never synced. Additive: a v13 helper ignores it.
+const V14: &str = r#"ALTER TABLE transfers ADD COLUMN route_bytes TEXT;
 "#;

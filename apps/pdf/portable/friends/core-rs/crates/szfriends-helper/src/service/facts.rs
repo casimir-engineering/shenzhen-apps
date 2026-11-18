@@ -173,6 +173,12 @@ impl State {
             item.boost = self.boost_facts(&transfer.transfer_id);
             item.transfer_state = Some(transfer.state);
             item.failure_reason = transfer.failure_reason.clone();
+            if matches!(
+                transfer.state,
+                TransferState::Delivered | TransferState::Received | TransferState::Cancelled | TransferState::Failed
+            ) {
+                item.kept_route_bytes = self.store.transfer_route_bytes(&transfer.transfer_id).unwrap_or_default();
+            }
             item.local_path = transfer.received_path.as_ref().map(|p| p.to_string_lossy().into_owned());
             if !item.outgoing {
                 item.saved_in = transfer.received_path.as_deref().and_then(|p| self.store.saved_place(p));

@@ -241,6 +241,9 @@ typedef NS_ENUM(NSInteger, SZFriendsShownRoute) {
 @interface SZFriendsSnapshotBuilder (SZFriendsTransferRoutes)
 - (NSDictionary<NSString *, id> *)transfer:(NSDictionary<NSString *, id> *)transfer
                             withRoutesOfItem:(SZFriendsItemFacts *)item;
+// How a delivered, received, cancelled or failed file went through: its `route_segments`, from the counts kept with it.
+- (NSDictionary<NSString *, id> *)transfer:(NSDictionary<NSString *, id> *)transfer
+                        withKeptRoutesOfItem:(SZFriendsItemFacts *)item;
 @end
 
 @interface SZFriendsSnapshotBuilder (SZFriendsItems)

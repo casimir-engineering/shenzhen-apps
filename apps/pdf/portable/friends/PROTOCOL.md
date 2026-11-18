@@ -259,7 +259,7 @@ Lowercase dotted strings. Unknown ones are ignored on both sides.
 | `notifications.focus` | The host sends `set_focus` (§ Notifications) |
 | `notifications.ask` | The host shows the list's `notifications` banner with its `dismiss` action (macOS, iOS) |
 | `background.reachable` | An Android host that can keep Friends running in the background: Settings carries `notifications.background` |
-| `transfers.progress` | The host draws a moving transfer's progress by route (§ Fast transfers): `progress` carries `routes`, `segments`, `amount_label`, `time_left_label`, `detail_label` and `finishing`, and `route_note` is null unless the Wi-Fi Direct boost has something to say |
+| `transfers.progress` | The host draws a moving transfer's progress by route (§ Fast transfers): `progress` carries `routes`, `segments`, `amount_label`, `time_left_label`, `detail_label` and `finishing`, and `route_note` is null unless the Wi-Fi Direct boost has something to say. A transfer that ended carries `route_segments`, a thin bar of how it went through, when the helper kept it |
 | `transfers.boost` | The host shows the Wi-Fi Direct boost's question on a transfer: its `route_note` and the actions Go faster (`boost_transfer`) and Not now (`skip_boost`) (§ Fast transfers). Without it no view of that device asks, and the device never leaves its Wi-Fi network |
 
 | Helper capability | Meaning |
@@ -1558,6 +1558,16 @@ client capability.
   (still under reduce motion). Such a transfer has `route_note` null, unless the boost asks or says it is connecting,
   rejoining or did not get back, and no `route` (the detail line says it). Views show the status line's actions but
   not `status_label` while `amount_label` is set; `accessibility_label` still says everything.
+- **How it went through.** For the same clients, a transfer that is no longer moving (`delivered`, `received`,
+  `cancelled`, `failed`) carries `route_segments` when its helper kept what each route carried: the moving bar's last
+  `segments`, in the same order and colours, each `fraction` of the whole file, adding up to 1 once the file was
+  delivered or received, and to the share that had moved when it was cancelled or failed. Views draw it as a thin bar
+  (about a third of the moving bar's height) where the moving bar was, with no text of its own: the card's
+  `accessibility_label` and status line say what happened. A file that went over one route has one segment. Each
+  helper adds up what its route meter counted for the transfer, over every run of the helper that moved it, when a
+  run ends, and keeps it with the transfer (store schema v14, `transfers.route_bytes`), so it survives a restart;
+  a transfer that ended before then, or that nothing was counted for (a copy from another of the person's computers),
+  has none, and views draw no bar for it, never a guessed one. Older views ignore the field.
 - **Finishing.** After the last block, the receiving helper checks the whole file before it is saved. When that takes
   more than a second (large files), the item stays `receiving` with `progress` 1 and `status_label` "Finishing…"
   (catalog `transfer.finishing`); its `accessibility_label` ends ", finishing". Then it is `received` as today.
@@ -2105,6 +2115,8 @@ status_label: string when kind=transfer
 route_note: string|null when kind=transfer
 route?: @route when kind=transfer   # present while a file copies here from another of the person's computers (§ Devices)
 progress: @progress|null when kind=transfer
+route_segments?: array when kind=transfer   # client capability transfers.progress: how a delivered, received, cancelled or failed file went through (§ Fast transfers, How it went through)
+route_segments[]: @transfer_segment when kind=transfer
 thumbnail: @thumbnail|null when kind=transfer   # the file's preview (§ Thumbnails); null: draw the type's icon
 actions: array when kind=message,transfer
 actions[]: @action when kind=message,transfer
