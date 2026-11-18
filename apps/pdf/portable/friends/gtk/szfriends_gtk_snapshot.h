@@ -327,9 +327,9 @@ typedef struct {
     char *status_label, *route_note;
     SZFriendsGtkRoute *route;         /* transfer: while it copies here from another of the person's computers */
     SZFriendsGtkProgress *progress;
+    SZFriendsGtkTransferSegment *route_segments; gsize n_route_segments; /* transfer: how a finished one went */
     SZFriendsGtkThumbnail *thumbnail; /* transfer: NULL draws the type's icon */
-    SZFriendsGtkAction *actions;
-    gsize n_actions;
+    SZFriendsGtkAction *actions; gsize n_actions;
     SZFriendsGtkMention *mentions;    /* message: the mention links in `text`, by index */
     gsize n_mentions;
     gboolean highlighted;

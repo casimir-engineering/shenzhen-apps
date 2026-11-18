@@ -443,6 +443,9 @@ GtkWidget *szfriends_gtk_transfer_row_new(SZFriendsGtkConversation *conversation
             gtk_accessible_update_property(GTK_ACCESSIBLE(bar), GTK_ACCESSIBLE_PROPERTY_LABEL,
                                            item->progress->accessibility_label, -1);
         gtk_box_append(GTK_BOX(card), bar);
+    } else if (item->n_route_segments > 0) {
+        /* No longer moving: a thin bar of how it went through, where the moving bar was. */
+        gtk_box_append(GTK_BOX(card), szfriends_gtk_route_bar_new(item->route_segments, item->n_route_segments));
     }
 
     /* Link actions (Cancel, Show in Shenzhen Files) share the status line, right-aligned; buttons get their own row. */

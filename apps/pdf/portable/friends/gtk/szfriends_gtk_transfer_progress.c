@@ -2,7 +2,8 @@
  * route), the route icons beside its card's name and the 8 px bar split by what each route carried. The glyphs are
  * the approved mockup's 16-unit SVG paths, read by GSK, and its colours, so the AppKit views
  * (mac/SZFriendsTransferProgress.m) and Shenzhen 3D (apps/3d/src/friends/TransferProgress.tsx) draw the same ones.
- * Route colours are the same in light and dark and never grey or red, which say "not working". */
+ * Route colours are the same in light and dark and never grey or red, which say "not working". A file that is no
+ * longer moving keeps a thin bar of the same segments (How it went through). */
 
 #include "gtk/szfriends_gtk_conversation.h"
 
@@ -267,5 +268,22 @@ GtkWidget *szfriends_gtk_split_bar_new(const SZFriendsGtkProgress *progress) {
                                        GTK_ACCESSIBLE_PROPERTY_VALUE_MAX, 1.0, GTK_ACCESSIBLE_PROPERTY_VALUE_NOW,
                                        CLAMP(progress->fraction, 0, 1), -1);
     if (bar->finishing) gtk_widget_add_tick_callback(area, split_bar_tick, NULL, NULL);
+    return area;
+}
+
+/* How a delivered, received, cancelled or failed file went through (PROTOCOL.md § Fast transfers, How it went through):
+ * the moving bar's segments at a third of its height, the rest of the width the same empty track. Decorative: the
+ * card's accessibility label and status line say what happened. */
+GtkWidget *szfriends_gtk_route_bar_new(const SZFriendsGtkTransferSegment *segments, gsize n_segments) {
+    SZFriendsGtkSplitBar *bar = g_new0(SZFriendsGtkSplitBar, 1);
+    bar->determinate = TRUE;
+    bar->n_segments = n_segments;
+    bar->segments = g_memdup2(segments, sizeof *segments * n_segments);
+    for (gsize i = 0; i < bar->n_segments; i++) bar->segments[i].present = 0;
+    GtkWidget *area = g_object_new(GTK_TYPE_DRAWING_AREA, "accessible-role", GTK_ACCESSIBLE_ROLE_PRESENTATION, NULL);
+    gtk_widget_set_name(area, "szfriends.transfer.route_bar");
+    gtk_drawing_area_set_content_height(GTK_DRAWING_AREA(area), 3);
+    gtk_widget_set_hexpand(area, TRUE);
+    gtk_drawing_area_set_draw_func(GTK_DRAWING_AREA(area), draw_split_bar, bar, split_bar_free);
     return area;
 }
