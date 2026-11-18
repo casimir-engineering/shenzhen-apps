@@ -431,11 +431,26 @@ static NSString *const kPublicSuffix = @"/public";
         });
         return;
     }
+    __weak SZFriendsBluetoothAdapter *weakSelf = self;
     [_radio openChannelToPeripheral:peripheralID
                                 psm:psm
                          completion:^(id<SZFriendsByteStream> stream, NSError *failure) {
+                             if (stream == nil) [weakSelf readAgainAfterFailedOpen:peripheralID psm:psm];
                              done(stream, stream ? nil : failure);
                          }];
+}
+
+// The channel we read is gone (the friend's helper restarted, or its window turned): the reading is read again now,
+// rather than dialled again until it expires (presenceCacheLife, minutes). Called on the adapter's queue.
+- (void)readAgainAfterFailedOpen:(NSString *)peripheralID psm:(uint16_t)psm {
+    SZFriendsPeripheralRecord *record = _peripherals[peripheralID];
+    if (!_running || record == nil) return;
+    BOOL stale = record.presence.hiddenPSM == psm || record.publicPSM == psm;
+    if (!stale) return; // read again meanwhile
+    record.readAt = nil;
+    if (record.reading || [_readQueue containsObject:peripheralID]) return;
+    [_readQueue addObject:peripheralID];
+    [self pumpReads];
 }
 
 - (void)radioDidAcceptChannel:(id<SZFriendsByteStream>)stream publicEntry:(BOOL)publicEntry peerID:(NSString *)peerID {
