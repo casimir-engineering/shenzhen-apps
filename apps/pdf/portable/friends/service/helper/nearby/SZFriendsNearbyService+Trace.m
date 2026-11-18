@@ -226,10 +226,10 @@ static NSString *SZFTraceByRoute(NSDictionary<NSNumber *, NSNumber *> *byRoute) 
                          ? [NSString stringWithFormat:@", lane of #%llu", (unsigned long long)plan.laneHead.traceID]
                          : @"";
     NSString *line = [NSString stringWithFormat:@"dial %@ via %@ (%@%@%@): %@", who,
-                                                SZFriendsTraceRouteName(plan.sighting.route),
+                                                SZFriendsTraceRouteName(plan.dialRoute),
                                                 SZFTracePurposeName(plan.purpose), plan.probe ? @", probe" : @"", lane,
                                                 what];
-    [self traceKey:[NSString stringWithFormat:@"dial|%@|%ld|%ld", who, (long)plan.sighting.route, (long)plan.purpose]
+    [self traceKey:[NSString stringWithFormat:@"dial|%@|%ld|%ld", who, (long)plan.dialRoute, (long)plan.purpose]
               line:line];
 }
 

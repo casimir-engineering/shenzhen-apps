@@ -162,6 +162,11 @@ left open (`service/helper/nearby/`).
   also dropped after the uniform RECEIVED of an NN request, and refused before message 3 when we browse its
   public entry.
 
+- **Peer-to-peer Wi-Fi on demand (2026-11-18, ADR 0021).** The browser and listeners include peer-to-peer Wi-Fi only
+  while the Mac is on no network or a transfer wants a direct Wi-Fi lane; an always-on AWDL browse and advertise kept
+  the Wi-Fi radio off its network's channel about a fifth of the time. A sighting lists every route its entry was seen
+  on, and a LAN dial never includes peer-to-peer Wi-Fi.
+
 ## Review amendments
 
 Recorded on 2026-10-12 from the independent security review of the M1 build. Each amends the decision above and

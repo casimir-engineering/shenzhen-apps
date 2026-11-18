@@ -105,6 +105,8 @@ extern const NSTimeInterval SZFriendsNearbyConnectingTimeout;
 @property(nonatomic, strong, nullable) SZFriendsRouteMeter *routeMeter;
 // What helper.log has said, and transfers and lanes being measured for it (+Trace).
 @property(nonatomic, strong, nullable) id traceStore;
+// Peer-to-peer Wi-Fi on demand: whether it is on, why, and each lane group's part in it (+PeerToPeer, ADR 0021).
+@property(nonatomic, strong, nullable) id peerToPeerStore;
 
 // Core.
 - (void)changed;
@@ -131,6 +133,11 @@ extern const NSTimeInterval SZFriendsNearbyConnectingTimeout;
 // A lane of `laneHead`'s group (ADR 0018 § 6), reserved in its exchange as `laneSerial` (+Blocks).
 @property(nonatomic, weak, nullable) SZFriendsPeerLink *laneHead;
 @property(nonatomic) uint64_t laneSerial;
+// A lane on another of the sighting's routes than its best (SZFriendsSighting.routes): peer-to-peer Wi-Fi beside the
+// LAN. None dials the sighting's best route.
+@property(nonatomic) SZFriendsRouteMethod laneRoute;
+// The route this attempt dials: laneRoute when set, the sighting's best otherwise.
+@property(nonatomic, readonly) SZFriendsRouteMethod dialRoute;
 @end
 
 // Explicit rank (ADR 0011 § Route rank): dialing a friend at `sighting` is pointless while a live session runs on
@@ -178,6 +185,26 @@ NSString *SZFriendsTraceRate(double bytesPerSecond);
                     late:(BOOL)late;
 - (void)traceGroupOfLink:(SZFriendsPeerLink *)head;
 - (void)traceGroupEnded:(SZFriendsPeerLink *)head;
+@end
+
+// Peer-to-peer Wi-Fi (AWDL) on demand (ADR 0021): off while the Mac is on a network and nothing asks for it, since
+// AWDL takes the Wi-Fi radio off the network's channel for about a fifth of the time; on without a network, and for
+// a transfer whose LAN is missing or slow, for as long as a direct Wi-Fi lane measurably helps it.
+@interface SZFriendsNearbyService (PeerToPeer)
+// At start: the network adapters' setting follows the policy, and a change of network is heard.
+- (void)startPeerToPeerPolicy;
+// The scheduler asked for a direct Wi-Fi lane beside `head` (sender): YES when one may be dialed now (on, and this
+// group has not given up on it); otherwise peer-to-peer Wi-Fi is turned on when it may help and the lane is dialed
+// once the friend is sighted there (-peerToPeerSightingsChanged).
+- (BOOL)peerToPeerLaneWantedBeside:(SZFriendsPeerLink *)head;
+// Why a direct Wi-Fi lane beside `head` is not dialled now, for the lane line of helper.log; nil when it may be.
+- (nullable NSString *)peerToPeerLaneRefusalBeside:(SZFriendsPeerLink *)head;
+// Parts arrived in `head`'s group (receiver): a slow LAN asks for peer-to-peer Wi-Fi so the sender can open a lane.
+- (void)peerToPeerNoteReceived:(NSUInteger)bytes onGroup:(SZFriendsPeerLink *)head;
+// The merger's candidates changed: a lane waiting for a friend to show up on peer-to-peer Wi-Fi is dialed now.
+- (void)peerToPeerSightingsChanged;
+// helper.log: the routes and interfaces a friend is sighted on, when they change.
+- (void)traceSightingsOfCandidate:(SZFriendsCandidate *)candidate conversationID:(NSString *)conversationID;
 @end
 
 @interface SZFriendsNearbyService (Dial)
@@ -423,6 +450,8 @@ void SZFriendsNearbyRecordEvent(SZFriendsStore *store, NSString *eventKind, NSSt
 - (void)admitLane:(SZFriendsPeerLink *)link;
 // One of our lanes went live: it joins its head's group.
 - (void)joinLane:(SZFriendsPeerLink *)link toHead:(SZFriendsPeerLink *)head;
+// The scheduler asks for a lane on `route` beside `head`: dialed when the friend is sighted there (+Blocks).
+- (void)openLaneOfLink:(SZFriendsPeerLink *)head route:(SZFriendsRouteMethod)route;
 // The head is closing while lanes live (ADR 0018 § 6: the group goes on): its lowest live lane takes the group, as the
 // link to adopt in its place; nil when none can (the caller ends the group as before).
 - (nullable SZFriendsPeerLink *)handOverGroupOfLink:(SZFriendsPeerLink *)head;

@@ -75,6 +75,9 @@ static NSString *AdmissionKey(nw_connection_t connection) {
         _slots = [SZFriendsCallbackSlots new];
         _ownNames = [NSMutableArray array];
         _endpoints = [NSMutableDictionary dictionary];
+        _peerToPeerInterfaces = [NSMutableDictionary dictionary];
+        _seenOnLAN = [NSMutableSet set];
+        _hasNetwork = YES; // until the path monitor says otherwise
         _connecting = [NSMutableSet set];
         _retiringListeners = [NSMutableArray array];
         _admission = [[SZFriendsAdmissionController alloc] initWithClock:nil];
@@ -96,6 +99,19 @@ static NSString *AdmissionKey(nw_connection_t connection) {
 }
 
 - (nw_parameters_t)parameters {
+    return [self parametersIncludingPeerToPeer:_peerToPeer];
+}
+
+- (nw_parameters_t)parametersForRoute:(SZFriendsRouteMethod)route interface:(nw_interface_t)interface {
+    BOOL peerToPeer = route == SZFriendsRouteMethodPeerToPeerWiFi;
+    nw_parameters_t parameters = [self parametersIncludingPeerToPeer:peerToPeer];
+    if (peerToPeer && interface != nil && !_options.loopbackOnly) nw_parameters_require_interface(parameters, interface);
+    return parameters;
+}
+
+// Peer-to-peer Wi-Fi in a browser, listener or connection keeps AWDL awake, and AWDL takes the Wi-Fi radio off the
+// network's channel for about a fifth of the time (ADR 0021), so it is asked for only where it is meant.
+- (nw_parameters_t)parametersIncludingPeerToPeer:(BOOL)peerToPeer {
     nw_parameters_t parameters =
         nw_parameters_create_secure_tcp(NW_PARAMETERS_DISABLE_PROTOCOL, ^(nw_protocol_options_t tcp) {
             nw_tcp_options_set_no_delay(tcp, true);
@@ -112,9 +128,27 @@ static NSString *AdmissionKey(nw_connection_t connection) {
         nw_parameters_prohibit_interface_type(parameters, nw_interface_type_other);
         nw_parameters_set_include_peer_to_peer(parameters, false);
     } else {
-        nw_parameters_set_include_peer_to_peer(parameters, true);
+        nw_parameters_set_include_peer_to_peer(parameters, peerToPeer);
     }
     return parameters;
+}
+
+// Peer-to-peer Wi-Fi on or off: the browser and every listener carry the setting from their creation, so they are
+// made again. The hidden entry moves to a fresh listener and name as at a new window (its tag stays), and the old one
+// keeps accepting for the overlap; sessions already up are not touched here.
+- (void)setPeerToPeer:(BOOL)peerToPeer {
+    if (_options.loopbackOnly || peerToPeer == _peerToPeer) return;
+    _peerToPeer = peerToPeer;
+    if (!_running) return;
+    if (_hiddenListener) [self retireHiddenListener];
+    [self updateHiddenAdvertisement];
+    if (_publicListener) {
+        nw_listener_cancel(_publicListener);
+        _publicListener = nil;
+        _publicName = nil;
+    }
+    [self updatePublicListener];
+    [self refreshDiscovery];
 }
 
 #pragma mark - Lifecycle
@@ -158,6 +192,8 @@ static NSString *AdmissionKey(nw_connection_t connection) {
     // Said out loud rather than dropped, so whoever holds these endpoints starts their grace now.
     for (NSString *endpointID in _endpoints.allKeys) [self.delegate adapter:self didLoseEndpoint:endpointID];
     [_endpoints removeAllObjects];
+    [_peerToPeerInterfaces removeAllObjects];
+    [_seenOnLAN removeAllObjects];
     for (SZFriendsNetworkStream *stream in _connecting) [stream cancel];
 }
 
@@ -366,7 +402,9 @@ static NSString *AdmissionKey(nw_connection_t connection) {
         });
         return;
     }
-    nw_connection_t connection = nw_connection_create(endpoint, [self parameters]);
+    // A host on a joined network (the Wi-Fi Direct boost's link): never AWDL.
+    nw_connection_t connection =
+        nw_connection_create(endpoint, [self parametersForRoute:SZFriendsRouteMethodLAN interface:nil]);
     SZFriendsNetworkStream *stream = [[SZFriendsNetworkStream alloc] initWithConnection:connection
                                                                         connectionQueue:_queue];
     [_connecting addObject:stream];
@@ -379,19 +417,35 @@ static NSString *AdmissionKey(nw_connection_t connection) {
                          }];
 }
 
+// The best route the entry was seen on: the LAN when it was seen there, else peer-to-peer Wi-Fi.
 - (void)openStreamToEndpoint:(NSString *)endpointID
+                  completion:(void (^)(id<SZFriendsByteStream> _Nullable, NSError *_Nullable))completion {
+    BOOL lan = [_seenOnLAN containsObject:endpointID] || _peerToPeerInterfaces[endpointID] == nil;
+    [self openStreamToEndpoint:endpointID
+                         route:lan ? SZFriendsRouteMethodLAN : SZFriendsRouteMethodPeerToPeerWiFi
+                    completion:completion];
+}
+
+// A LAN dial leaves AWDL out, so it never sets up an AWDL data path beside the Wi-Fi one; a peer-to-peer one is
+// pinned to the awdl interface the entry was seen on, and only while peer-to-peer Wi-Fi is on.
+- (void)openStreamToEndpoint:(NSString *)endpointID
+                       route:(SZFriendsRouteMethod)route
                   completion:(void (^)(id<SZFriendsByteStream> _Nullable, NSError *_Nullable))completion {
     void (^done)(id<SZFriendsByteStream>, NSError *) = [completion copy];
     nw_endpoint_t endpoint = _endpoints[endpointID];
-    if (!_running || !endpoint) {
-        NSError *error = _running ? SZFriendsDiscoveryMakeError(SZFriendsDiscoveryErrorUnknownEndpoint, endpointID)
-                                  : SZFriendsDiscoveryMakeError(SZFriendsDiscoveryErrorNotRunning, @"stopped");
+    BOOL peerToPeer = route == SZFriendsRouteMethodPeerToPeerWiFi;
+    nw_interface_t interface = peerToPeer ? _peerToPeerInterfaces[endpointID] : nil;
+    if (!_running || !endpoint || (peerToPeer && (interface == nil || !_peerToPeer))) {
+        NSError *error = !_running   ? SZFriendsDiscoveryMakeError(SZFriendsDiscoveryErrorNotRunning, @"stopped")
+                         : !endpoint ? SZFriendsDiscoveryMakeError(SZFriendsDiscoveryErrorUnknownEndpoint, endpointID)
+                                     : SZFriendsDiscoveryMakeError(SZFriendsDiscoveryErrorUnknownEndpoint,
+                                                                   @"not seen on peer-to-peer Wi-Fi now");
         dispatch_async(_queue, ^{
             done(nil, error);
         });
         return;
     }
-    nw_connection_t connection = nw_connection_create(endpoint, [self parameters]);
+    nw_connection_t connection = nw_connection_create(endpoint, [self parametersForRoute:route interface:interface]);
     SZFriendsNetworkStream *stream = [[SZFriendsNetworkStream alloc] initWithConnection:connection
                                                                         connectionQueue:_queue];
     [_connecting addObject:stream];

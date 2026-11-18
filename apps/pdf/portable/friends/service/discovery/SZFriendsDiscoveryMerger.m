@@ -22,9 +22,34 @@ static NSString *HexString(NSData *data) {
                   callbackTags:(NSArray<NSData *> *)callbackTags
                       isPublic:(BOOL)isPublic
                         seenAt:(NSDate *)seenAt {
+    return [self initWithMethod:method
+                         routes:@[ @(route) ]
+                     interfaces:nil
+                     endpointID:endpointID
+                    presenceTag:presenceTag
+                   callbackTags:callbackTags
+                       isPublic:isPublic
+                         seenAt:seenAt];
+}
+
+- (instancetype)initWithMethod:(SZFriendsDiscoveryMethod)method
+                        routes:(NSArray<NSNumber *> *)routes
+                    interfaces:(NSString *)interfaces
+                    endpointID:(NSString *)endpointID
+                   presenceTag:(NSData *)presenceTag
+                  callbackTags:(NSArray<NSData *> *)callbackTags
+                      isPublic:(BOOL)isPublic
+                        seenAt:(NSDate *)seenAt {
     if ((self = [super init])) {
         _method = method;
-        _route = route;
+        // Best first by rank, never by number (Internet before Bluetooth); an empty list is the LAN, as before.
+        NSArray<NSNumber *> *sorted = [routes sortedArrayUsingComparator:^NSComparisonResult(NSNumber *a, NSNumber *b) {
+            NSInteger rankA = SZFriendsRouteRank(a.integerValue), rankB = SZFriendsRouteRank(b.integerValue);
+            return rankA < rankB ? NSOrderedAscending : rankA > rankB ? NSOrderedDescending : NSOrderedSame;
+        }];
+        _routes = sorted.count ? [[NSOrderedSet orderedSetWithArray:sorted].array copy] : @[ @(SZFriendsRouteMethodLAN) ];
+        _route = _routes.firstObject.integerValue;
+        _interfaces = [interfaces copy];
         _endpointID = [endpointID copy];
         _presenceTag = [presenceTag copy];
         _callbackTags = [[NSArray alloc] initWithArray:callbackTags copyItems:YES];
@@ -34,9 +59,20 @@ static NSString *HexString(NSData *data) {
     return self;
 }
 
+- (BOOL)seenOnRoute:(SZFriendsRouteMethod)route {
+    return [self.routes containsObject:@(route)];
+}
+
 - (NSString *)description {
-    return [NSString stringWithFormat:@"<sighting %ld %@ route %ld tag %@%@>", (long)self.method, self.endpointID,
-                                      (long)self.route, self.presenceTag ? HexString(self.presenceTag) : @"-",
+    return [NSString stringWithFormat:@"<sighting %ld %@ route %ld%@ tag %@%@>", (long)self.method, self.endpointID,
+                                      (long)self.route,
+                                      self.routes.count > 1
+                                          ? [NSString stringWithFormat:@" (also %@)",
+                                                                       [[self.routes subarrayWithRange:NSMakeRange(
+                                                                             1, self.routes.count - 1)]
+                                                                           componentsJoinedByString:@","]]
+                                          : @"",
+                                      self.presenceTag ? HexString(self.presenceTag) : @"-",
                                       self.isPublic ? @" public" : @""];
 }
 
@@ -324,7 +360,9 @@ static NSComparisonResult CompareSightings(SZFriendsMergerEntry *a, SZFriendsMer
         [(hidden ? unmatched : candidates) addObject:candidate];
         [signature appendFormat:@"%@=%@%@[", group, candidateID, identityKey ? HexString(identityKey) : @""];
         for (SZFriendsSighting *s in sightings) {
-            [signature appendFormat:@"%ld/%@/%ld/%@/%d/", (long)s.method, s.endpointID, (long)s.route,
+            // Every route, so an entry that shows up on awdl beside Wi-Fi is news (a lane may be waiting for it).
+            [signature appendFormat:@"%ld/%@/%@/%@/%d/", (long)s.method, s.endpointID,
+                                    [s.routes componentsJoinedByString:@","],
                                     s.presenceTag ? HexString(s.presenceTag) : @"", s.isPublic];
             for (NSData *tag in s.callbackTags) [signature appendString:HexString(tag)];
         }

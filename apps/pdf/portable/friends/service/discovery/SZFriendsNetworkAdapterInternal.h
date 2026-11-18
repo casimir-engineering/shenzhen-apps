@@ -19,9 +19,23 @@ NS_ASSUME_NONNULL_BEGIN
     nw_path_monitor_t _Nullable _monitor;
     NSMutableArray<NSString *> *_ownNames; // our recent instance names, so the browser never sights this Mac
     NSMutableDictionary<NSString *, nw_endpoint_t> *_endpoints;
+    // Per endpoint, the peer-to-peer interface (awdl, llw) it was last seen on, and whether it was also seen on the
+    // LAN: a lane on peer-to-peer Wi-Fi is pinned to that interface, a LAN dial never wakes it.
+    NSMutableDictionary<NSString *, nw_interface_t> *_peerToPeerInterfaces;
+    NSMutableSet<NSString *> *_seenOnLAN;
+    // Peer-to-peer Wi-Fi (AWDL) in the browser and listeners: off unless the helper asks (ADR 0021). Never in
+    // loopback mode.
+    BOOL _peerToPeer;
+    // The path monitor's last word: some interface other than awdl/llw (Wi-Fi joined, Ethernet) is usable.
+    BOOL _hasNetwork;
+    void (^_Nullable _onNetworkChange)(BOOL hasNetwork);
 }
 - (instancetype)initWithQueue:(dispatch_queue_t)queue options:(SZFriendsNetworkAdapterOptions *)options;
+// The browser's and listeners' parameters: peer-to-peer Wi-Fi included only while _peerToPeer is on.
 - (nw_parameters_t)parameters;
+// An outgoing connection's: peer-to-peer Wi-Fi only on that route, pinned to `interface` when given.
+- (nw_parameters_t)parametersForRoute:(SZFriendsRouteMethod)route interface:(nullable nw_interface_t)interface;
+- (void)setPeerToPeer:(BOOL)peerToPeer;
 - (void)updateState;
 // Shared by the browser and both listeners: a refusal is Denied, any other failure retries the whole adapter.
 - (void)noteError:(nullable nw_error_t)error failed:(BOOL)failed;
@@ -30,6 +44,8 @@ NS_ASSUME_NONNULL_BEGIN
 @interface SZFriendsNetworkAdapter (Browse)
 - (void)startBrowser;
 - (void)startPathMonitor;
+- (void)refreshDiscovery;
+- (void)forgetEndpoint:(NSString *)endpointID;
 @end
 
 // What the browser reads from a result, safely (+Browse; pure, so tests build their own endpoints and records).

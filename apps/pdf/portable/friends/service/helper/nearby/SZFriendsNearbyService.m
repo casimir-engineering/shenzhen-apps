@@ -76,6 +76,7 @@ static const NSTimeInterval SZFriendsShutdownFlush = 1.0;
     [self refreshAdvertisement];
     // ADR 0004 § Permissions at launch: only adapters that cannot prompt start before the person opens Friends.
     [self.coordinator startAtLaunchWithNearbyPermissionsRequested:self.services.store.nearbyPermissionsRequested];
+    [self startPeerToPeerPolicy]; // AWDL only when it is needed (ADR 0021)
     [self armWindowTimer];
     [self armVisibilityTimer];
     __weak SZFriendsNearbyService *weakSelf = self;

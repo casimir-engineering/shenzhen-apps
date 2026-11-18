@@ -84,6 +84,8 @@ static uint64_t SZFriendsNextLaneSerial = 0;
                            BOOL outgoing, BOOL late) {
         [weakSelf tracePartOnGroup:weakLink transfer:transferID lane:lane route:route bytes:bytes outgoing:outgoing
                               late:late];
+        SZFriendsPeerLink *strongLink = weakLink;
+        if (!outgoing && !late && strongLink != nil) [weakSelf peerToPeerNoteReceived:bytes onGroup:strongLink];
     };
     blocks.onWanted = ^(NSString *transferID, uint64_t offset, BOOL resumed) {
         if (resumed) {
@@ -235,24 +237,44 @@ static uint64_t SZFriendsNextLaneSerial = 0;
             }];
 }
 
-// The scheduler asks for a lane on `route`: the friend's device is dialed there, with the next index's token.
+// The scheduler asks for a lane on `route`: the friend's device is dialed there, with the next index's token. A Bonjour
+// entry seen on Wi-Fi and on awdl is one sighting listing both routes; a lane on peer-to-peer Wi-Fi is pinned to awdl.
+// Peer-to-peer Wi-Fi is on demand (ADR 0021): asking for such a lane turns it on, and the lane is dialed once the
+// friend shows up there.
 - (void)openLaneOfLink:(SZFriendsPeerLink *)head route:(SZFriendsRouteMethod)route {
     SZFriendsPersonRecord *person = [self.services.store personWithConversationID:head.conversationID];
     if (head.closed || person.staticKey == nil || person.identityKey == nil) return;
+    BOOL peerToPeer = route == SZFriendsRouteMethodPeerToPeerWiFi;
+    if (peerToPeer) {
+        NSString *refusal = [self peerToPeerLaneRefusalBeside:head];
+        if (refusal != nil) {
+            [self traceLaneWanted:head route:route what:[@"not dialled: " stringByAppendingString:refusal]];
+            return;
+        }
+        if (![self peerToPeerLaneWantedBeside:head]) {
+            [self traceLaneWanted:head route:route
+                             what:@"not dialled yet: direct Wi-Fi turned on for this transfer; dialled once the friend "
+                                  @"is sighted there"];
+            return;
+        }
+    }
     NSMutableOrderedSet<NSString *> *seen = [NSMutableOrderedSet orderedSet];
     for (SZFriendsCandidate *candidate in self.coordinator.merger.candidates) {
         if (![candidate.conversationID isEqualToString:head.conversationID]) continue;
         for (SZFriendsSighting *sighting in candidate.sightings) {
-            if (!sighting.isPublic) [seen addObject:SZFriendsTraceRouteName(sighting.route)];
-            if (sighting.route != route || sighting.isPublic) continue;
+            if (sighting.isPublic) continue;
+            for (NSNumber *seenRoute in sighting.routes) [seen addObject:SZFriendsTraceRouteName(seenRoute.integerValue)];
+            if (![sighting seenOnRoute:route]) continue;
             uint64_t serial = ++SZFriendsNextLaneSerial;
             NSData *token = nil;
             if ([head.blocks reserveLane:serial route:route token:&token] == 0) {
                 [self traceLaneWanted:head route:route what:@"not dialled: no free lane index on that route"];
                 return;
             }
+            NSString *where = sighting.interfaces.length ? [NSString stringWithFormat:@" (seen on %@)", sighting.interfaces]
+                                                         : @"";
             [self traceLaneWanted:head route:route
-                             what:[NSString stringWithFormat:@"dialling lane %llu", (unsigned long long)serial]];
+                             what:[NSString stringWithFormat:@"dialling lane %llu%@", (unsigned long long)serial, where]];
             SZFriendsHandshakeOptions *options = [self ikOptionsForPerson:person route:route];
             options.requestToken = nil; // a lane never carries an Add by ID callback
             options.lane = token;
@@ -261,14 +283,19 @@ static uint64_t SZFriendsNextLaneSerial = 0;
                                                                   options:options];
             plan.laneHead = head;
             plan.laneSerial = serial;
+            // Pinned when it is not the sighting's best route (peer-to-peer Wi-Fi beside the LAN).
+            if (route != sighting.route) plan.laneRoute = route;
             if (![self dial:plan]) [head.blocks laneDown:serial];
             return;
         }
     }
+    NSString *sighted = seen.count ? [seen.array componentsJoinedByString:@", "] : @"nowhere";
     [self traceLaneWanted:head route:route
-                     what:[NSString stringWithFormat:@"not dialled: the friend is not sighted on that route (sighted: %@)",
-                                                     seen.count ? [seen.array componentsJoinedByString:@", "]
-                                                                : @"nowhere"]];
+                     what:[NSString stringWithFormat:peerToPeer ? @"not dialled yet: the friend is not sighted on that "
+                                                                  @"route (sighted: %@); dialled once they are"
+                                                                : @"not dialled: the friend is not sighted on that "
+                                                                  @"route (sighted: %@)",
+                                                     sighted]];
 }
 
 - (void)link:(SZFriendsPeerLink *)link receivedBlockFrame:(SZFriendsFrame *)frame {

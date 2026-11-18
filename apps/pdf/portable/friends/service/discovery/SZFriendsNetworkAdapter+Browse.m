@@ -89,6 +89,8 @@ NSDictionary<NSString *, NSData *> *SZFriendsNetworkTXTRecordFields(nw_txt_recor
     // the gap, so nothing flips in Nearby for endpoints that are still there.
     for (NSString *endpointID in _endpoints.allKeys) [self.delegate adapter:self didLoseEndpoint:endpointID];
     [_endpoints removeAllObjects];
+    [_peerToPeerInterfaces removeAllObjects];
+    [_seenOnLAN removeAllObjects];
     nw_browser_cancel(_browser);
     _browser = nil;
     [self startBrowser];
@@ -100,7 +102,7 @@ NSDictionary<NSString *, NSData *> *SZFriendsNetworkTXTRecordFields(nw_txt_recor
         NSString *removedName = SZFriendsBonjourServiceName(nw_browse_result_copy_endpoint(old));
         NSString *endpointID = removedName ? EndpointIDForName(removedName) : nil;
         if (endpointID && _endpoints[endpointID]) {
-            [_endpoints removeObjectForKey:endpointID];
+            [self forgetEndpoint:endpointID];
             [self.delegate adapter:self didLoseEndpoint:endpointID];
         }
         return;
@@ -119,29 +121,53 @@ NSDictionary<NSString *, NSData *> *SZFriendsNetworkTXTRecordFields(nw_txt_recor
     if (!SZFriendsNetworkParseTXT(fields, &tag, &callbackTags, &isPublic)) {
         // Not (or no longer) a Friends v1 entry: forget it rather than dial something we cannot speak to.
         if (_endpoints[endpointID]) {
-            [_endpoints removeObjectForKey:endpointID];
+            [self forgetEndpoint:endpointID];
             [self.delegate adapter:self didLoseEndpoint:endpointID];
         }
         return;
     }
-    // Seen on several interfaces (Wi-Fi and awdl): the LAN ranks first, and the racer dials by rank.
-    __block SZFriendsRouteMethod route = SZFriendsRouteMethodNone;
+    // Seen on several interfaces (Wi-Fi and awdl): one sighting listing both routes, best first. The session race
+    // dials its best (the LAN); a lane the scheduler asks for on peer-to-peer Wi-Fi is pinned to the awdl interface
+    // kept here (ADR 0021).
+    __block nw_interface_t peerToPeerInterface = nil;
+    NSMutableArray<NSString *> *lanNames = [NSMutableArray array], *peerToPeerNames = [NSMutableArray array];
     nw_browse_result_enumerate_interfaces(new, ^bool(nw_interface_t interface) {
-        NSString *interfaceName = SZFriendsStringFromLANBytes(nw_interface_get_name(interface));
-        SZFriendsRouteMethod method = SZFriendsRouteForInterfaceName(interfaceName ?: @"");
-        if (route == SZFriendsRouteMethodNone || SZFriendsRouteIsBetter(method, route)) route = method;
+        NSString *interfaceName = SZFriendsStringFromLANBytes(nw_interface_get_name(interface)) ?: @"?";
+        if (SZFriendsRouteForInterfaceName(interfaceName) == SZFriendsRouteMethodPeerToPeerWiFi) {
+            if (peerToPeerInterface == nil) peerToPeerInterface = interface;
+            [peerToPeerNames addObject:interfaceName];
+        } else {
+            [lanNames addObject:interfaceName];
+        }
         return true;
     });
-    if (route == SZFriendsRouteMethodNone) route = SZFriendsRouteMethodLAN;
+    NSMutableArray<NSNumber *> *routes = [NSMutableArray array];
+    // No interface at all (never seen so far) reads as the LAN, as before.
+    if (lanNames.count > 0 || peerToPeerInterface == nil) [routes addObject:@(SZFriendsRouteMethodLAN)];
+    if (peerToPeerInterface != nil) [routes addObject:@(SZFriendsRouteMethodPeerToPeerWiFi)];
+    NSMutableArray<NSString *> *groups = [NSMutableArray array];
+    if (lanNames.count) [groups addObject:[lanNames componentsJoinedByString:@" "]];
+    if (peerToPeerNames.count) [groups addObject:[peerToPeerNames componentsJoinedByString:@" "]];
     _endpoints[endpointID] = endpoint;
+    if (peerToPeerInterface != nil) _peerToPeerInterfaces[endpointID] = peerToPeerInterface;
+    else [_peerToPeerInterfaces removeObjectForKey:endpointID];
+    if (lanNames.count > 0) [_seenOnLAN addObject:endpointID];
+    else [_seenOnLAN removeObject:endpointID];
     SZFriendsSighting *sighting = [[SZFriendsSighting alloc] initWithMethod:SZFriendsDiscoveryMethodNetwork
-                                                                      route:route
+                                                                     routes:routes
+                                                                 interfaces:[groups componentsJoinedByString:@", "]
                                                                  endpointID:endpointID
                                                                 presenceTag:tag
                                                                callbackTags:callbackTags
                                                                    isPublic:isPublic
                                                                      seenAt:_options.clock()];
     [self.delegate adapter:self didSight:sighting];
+}
+
+- (void)forgetEndpoint:(NSString *)endpointID {
+    [_endpoints removeObjectForKey:endpointID];
+    [_peerToPeerInterfaces removeObjectForKey:endpointID];
+    [_seenOnLAN removeObject:endpointID];
 }
 
 #pragma mark - Path
@@ -158,8 +184,35 @@ NSDictionary<NSString *, NSData *> *SZFriendsNetworkTXTRecordFields(nw_txt_recor
         BOOL usable = nw_path_get_status(path) == nw_path_status_satisfied;
         strongSelf->_radioOff = !usable && !PeerToPeerInterfaceUp();
         [strongSelf updateState];
+        // The default path never runs over awdl or llw, so satisfied means a network of the Mac's own.
+        if (usable != strongSelf->_hasNetwork) {
+            strongSelf->_hasNetwork = usable;
+            if (strongSelf->_onNetworkChange) strongSelf->_onNetworkChange(usable);
+        }
     });
     nw_path_monitor_start(_monitor);
 }
 
 @end
+
+#pragma mark - Peer-to-peer Wi-Fi on demand (ADR 0021)
+
+void SZFriendsNetworkAdapterSetPeerToPeer(id<SZFriendsDiscoveryAdapter> adapter, BOOL peerToPeer) {
+    if ([adapter isKindOfClass:[SZFriendsNetworkAdapter class]]) [(SZFriendsNetworkAdapter *)adapter setPeerToPeer:peerToPeer];
+}
+
+BOOL SZFriendsNetworkAdapterPeerToPeer(id<SZFriendsDiscoveryAdapter> adapter) {
+    return [adapter isKindOfClass:[SZFriendsNetworkAdapter class]] && ((SZFriendsNetworkAdapter *)adapter)->_peerToPeer;
+}
+
+BOOL SZFriendsNetworkAdapterHasNetwork(id<SZFriendsDiscoveryAdapter> adapter) {
+    if (![adapter isKindOfClass:[SZFriendsNetworkAdapter class]]) return YES;
+    SZFriendsNetworkAdapter *network = (SZFriendsNetworkAdapter *)adapter;
+    return network->_options.loopbackOnly || network->_hasNetwork;
+}
+
+void SZFriendsNetworkAdapterOnNetworkChange(id<SZFriendsDiscoveryAdapter> adapter, void (^changed)(BOOL hasNetwork)) {
+    if ([adapter isKindOfClass:[SZFriendsNetworkAdapter class]]) {
+        ((SZFriendsNetworkAdapter *)adapter)->_onNetworkChange = [changed copy];
+    }
+}

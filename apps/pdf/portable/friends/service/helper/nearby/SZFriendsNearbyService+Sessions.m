@@ -51,7 +51,7 @@
     }
     SZFriendsPeerLink *link = [[SZFriendsPeerLink alloc] initWithChannel:channel
                                                                  purpose:plan.purpose
-                                                                   route:plan.sighting.route];
+                                                                   route:plan.dialRoute];
     link.endpointID = plan.sighting.endpointID;
     link.discoveryMethod = plan.sighting.method;
     link.probe = plan.probe;

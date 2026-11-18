@@ -40,6 +40,10 @@ BOOL SZFriendsNearbyDialIsPointless(SZFriendsRouteMethod live, SZFriendsRouteMet
     return plan;
 }
 
+- (SZFriendsRouteMethod)dialRoute {
+    return self.laneRoute != SZFriendsRouteMethodNone ? self.laneRoute : self.sighting.route;
+}
+
 @end
 
 @implementation SZFriendsNearbyService (Dial)
@@ -61,6 +65,7 @@ BOOL SZFriendsNearbyDialIsPointless(SZFriendsRouteMethod live, SZFriendsRouteMet
     if (self.coordinator == nil || store == nil || self.services.identity == nil || self.shutDown || self.resetting) {
         return;
     }
+    [self peerToPeerSightingsChanged]; // a lane waiting for a friend to show up on direct Wi-Fi (ADR 0021)
     NSMutableSet<NSString *> *seen = [NSMutableSet set];
     for (SZFriendsCandidate *candidate in self.coordinator.merger.candidates.copy) {
         if ([self reachOwnDeviceCandidate:candidate]) continue; // another device of ours (+Sync)
@@ -87,6 +92,8 @@ BOOL SZFriendsNearbyDialIsPointless(SZFriendsRouteMethod live, SZFriendsRouteMet
         SZFriendsPersonRecord *person = [store personWithConversationID:conversationID];
         if (person == nil) continue;
         [seen addObject:person.conversationID];
+        if (person.relation == SZFriendsRelationFriend) [self traceSightingsOfCandidate:candidate
+                                                                         conversationID:conversationID];
         [self reachPerson:person candidate:candidate];
     }
     [self probeForPeopleNotSeen:seen];
@@ -267,6 +274,8 @@ BOOL SZFriendsNearbyDialIsPointless(SZFriendsRouteMethod live, SZFriendsRouteMet
 - (BOOL)dial:(SZFriendsDialPlan *)plan {
     SZFriendsSighting *sighting = plan.sighting;
     NSString *key = SZFriendsDialKey(plan.purpose, sighting);
+    // A pinned lane is its own attempt: it may run beside a dial of the same entry on its best route.
+    if (plan.laneRoute != SZFriendsRouteMethodNone) key = [key stringByAppendingFormat:@"|%ld", (long)plan.laneRoute];
     if ([self.dialing containsObject:key]) return NO;
     id<SZFriendsDiscoveryAdapter> adapter = nil;
     for (id<SZFriendsDiscoveryAdapter> candidate in self.adapters) {
@@ -288,7 +297,7 @@ BOOL SZFriendsNearbyDialIsPointless(SZFriendsRouteMethod live, SZFriendsRouteMet
         }
         // A lane goes beside the live session, never instead of it: the race does not apply.
         BOOL pointless = plan.laneHead == nil && live != nil &&
-                         SZFriendsNearbyDialIsPointless(live.raceRoute, sighting.route);
+                         SZFriendsNearbyDialIsPointless(live.raceRoute, plan.dialRoute);
         if (strongSelf.shutDown || pointless || (plan.laneHead != nil && plan.laneHead.closed)) {
             if (pointless) {
                 [strongSelf traceDial:plan
@@ -302,20 +311,24 @@ BOOL SZFriendsNearbyDialIsPointless(SZFriendsRouteMethod live, SZFriendsRouteMet
         }
         [strongSelf traceDial:plan what:@"opening"];
         CFAbsoluteTime opened = CFAbsoluteTimeGetCurrent();
-        [adapter openStreamToEndpoint:sighting.endpointID
-                           completion:^(id<SZFriendsByteStream> stream, NSError *error) {
-                               dispatch_async(strongSelf.queue, ^{
-                                   if (stream == nil) {
-                                       [strongSelf traceDial:plan
-                                                        what:[NSString stringWithFormat:
-                                                                           @"no stream after %.1f s (%@ %ld)",
-                                                                           CFAbsoluteTimeGetCurrent() - opened,
-                                                                           error.domain ?: @"no error",
-                                                                           (long)error.code]];
-                                   }
-                                   [strongSelf dialed:plan stream:stream key:key];
-                               });
-                           }];
+        void (^whenOpen)(id<SZFriendsByteStream>, NSError *) = ^(id<SZFriendsByteStream> stream, NSError *error) {
+            dispatch_async(strongSelf.queue, ^{
+                if (stream == nil) {
+                    [strongSelf traceDial:plan
+                                     what:[NSString stringWithFormat:@"no stream after %.1f s (%@ %ld)",
+                                                                     CFAbsoluteTimeGetCurrent() - opened,
+                                                                     error.domain ?: @"no error", (long)error.code]];
+                }
+                [strongSelf dialed:plan stream:stream key:key];
+            });
+        };
+        // A lane on another route than the sighting's best is pinned there (peer-to-peer Wi-Fi beside the LAN).
+        if (plan.laneRoute != SZFriendsRouteMethodNone &&
+            [adapter respondsToSelector:@selector(openStreamToEndpoint:route:completion:)]) {
+            [adapter openStreamToEndpoint:sighting.endpointID route:plan.laneRoute completion:whenOpen];
+        } else {
+            [adapter openStreamToEndpoint:sighting.endpointID completion:whenOpen];
+        }
     });
     return YES;
 }
@@ -326,7 +339,7 @@ BOOL SZFriendsNearbyDialIsPointless(SZFriendsRouteMethod live, SZFriendsRouteMet
         [stream close];
         if (plan.laneHead != nil) {
             [plan.laneHead.blocks laneDown:plan.laneSerial]; // the scheduler asks again later if it still wants one
-            [self boostLaneDialFailedOnLink:plan.laneHead route:plan.sighting.route]; // the network's chances (§ 1)
+            [self boostLaneDialFailedOnLink:plan.laneHead route:plan.dialRoute]; // the network's chances (§ 1)
             return;
         }
         // Unreachable endpoints are normal (a device that just left); only a person's own attempts back off.

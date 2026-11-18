@@ -53,6 +53,18 @@ NSArray<NSNumber *> *SZFriendsNetworkAdapterHiddenPorts(id<SZFriendsDiscoveryAda
 void SZFriendsNetworkAdapterOpenStreamToHost(id<SZFriendsDiscoveryAdapter> adapter, NSString *host, uint16_t port,
                                              void (^done)(id<SZFriendsByteStream> _Nullable stream));
 
+// Peer-to-peer Wi-Fi on demand (ADR 0021), on the adapter's queue. Turning it on or off rebuilds the browser and the
+// listeners with or without AWDL (the hidden entry moves to a fresh listener, as at a new window); nothing for an
+// adapter that is not a network adapter, or in loopback mode.
+void SZFriendsNetworkAdapterSetPeerToPeer(id<SZFriendsDiscoveryAdapter> adapter, BOOL peerToPeer);
+BOOL SZFriendsNetworkAdapterPeerToPeer(id<SZFriendsDiscoveryAdapter> adapter);
+// Whether the Mac is on a network other than peer-to-peer Wi-Fi (Wi-Fi joined, Ethernet), as the path monitor last
+// said; YES for anything that is not a network adapter, and in loopback mode. `changed` runs on the adapter's queue
+// whenever that changes.
+BOOL SZFriendsNetworkAdapterHasNetwork(id<SZFriendsDiscoveryAdapter> adapter);
+void SZFriendsNetworkAdapterOnNetworkChange(id<SZFriendsDiscoveryAdapter> adapter,
+                                            void (^_Nullable changed)(BOOL hasNetwork));
+
 // TXT record of the hidden entry (v=1, t=<hex tag>, c=<hex tags concatenated>) or the public one (v=1, p=1, and
 // nothing else: a public entry carries no tag). Hex because TXT values are shown verbatim by Bonjour tools and
 // '=' or NUL bytes in a raw tag would confuse them.
