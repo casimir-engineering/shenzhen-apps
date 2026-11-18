@@ -144,6 +144,9 @@ impl State {
         let Some(plan) = self.nearby.dials.remove(&dial) else { return };
         let Some(stream) = stream.filter(|_| !self.nearby.shut_down) else {
             self.nearby.dialing.remove(&plan.dial_key);
+            if let Some(adapter) = self.nearby.adapters.iter_mut().find(|a| a.method() == plan.method) {
+                adapter.dial_failed(&plan.endpoint);
+            }
             self.dial_failed(&plan);
             return;
         };

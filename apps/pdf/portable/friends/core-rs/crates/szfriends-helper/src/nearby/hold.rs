@@ -122,6 +122,10 @@ impl Adapter for Held {
         !self.held && self.inner.dial(endpoint, dial)
     }
 
+    fn dial_failed(&mut self, endpoint: &str) {
+        self.inner.dial_failed(endpoint);
+    }
+
     fn refresh(&mut self) {
         self.follow();
         if !self.held {

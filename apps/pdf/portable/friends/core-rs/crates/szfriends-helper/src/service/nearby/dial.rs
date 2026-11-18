@@ -363,11 +363,24 @@ impl State {
         let now = unix_now();
         if live_at.is_some_and(|at| now - at >= HEALTHY_SESSION_SECONDS) {
             self.nearby.failures.remove(conversation);
+            self.nearby.kept_elsewhere.remove(conversation);
         }
         let count = self.nearby.failures.entry(conversation.to_owned()).or_insert(0);
         *count += 1;
         let delay = backoff(*count);
         self.nearby.retry_after.insert(conversation.to_owned(), now + delay);
+        self.schedule_reconsider_after(delay);
+    }
+
+    /// A friend whose helper keeps one session per person (before ADR 0016) let one with another of our devices win
+    /// the race: dialing again at once would only be closed again, every few seconds. Wait instead, longer each time
+    /// in a row, while the device they kept delivers for ours (ADR 0014); a session that lasted starts afresh.
+    /// `noteSessionKeptElsewhereForConversation:` in the Mac helper.
+    pub(crate) fn note_session_kept_elsewhere(&mut self, conversation: &str) {
+        let count = self.nearby.kept_elsewhere.entry(conversation.to_owned()).or_insert(0);
+        *count += 1;
+        let delay = backoff(*count);
+        self.nearby.retry_after.insert(conversation.to_owned(), unix_now() + delay);
         self.schedule_reconsider_after(delay);
     }
 

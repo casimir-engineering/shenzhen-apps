@@ -94,6 +94,8 @@ pub struct Nearby {
     pub dialing: HashSet<String>,
     pub retry_after: HashMap<String, f64>,
     pub failures: HashMap<String, u32>,
+    /// Sessions in a row a friend closed as superseded while keeping one with another of our devices (dial.rs).
+    pub kept_elsewhere: HashMap<String, u32>,
     pub by_id_senders: HashMap<[u8; 32], f64>,
     /// When REQUEST_BY_ID last went to a device, by token: its callback tags are on the air for hours after.
     pub callback_broadcasts: HashMap<[u8; 16], f64>,
@@ -140,6 +142,7 @@ impl Nearby {
             dialing: HashSet::new(),
             retry_after: HashMap::new(),
             failures: HashMap::new(),
+            kept_elsewhere: HashMap::new(),
             by_id_senders: HashMap::new(),
             callback_broadcasts: HashMap::new(),
             staged: Vec::new(),

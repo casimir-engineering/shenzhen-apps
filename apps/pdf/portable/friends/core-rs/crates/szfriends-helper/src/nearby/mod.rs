@@ -121,6 +121,11 @@ pub trait Adapter: Send {
     }
     /// Opens a stream to a sighted endpoint; the result arrives as [`Event::Dialed`] with this `dial`.
     fn dial(&mut self, endpoint: &str, dial: u64) -> bool;
+    /// A dial to this endpoint got no stream: what was read about it may be out of date (a peer whose helper started
+    /// again listens elsewhere now).
+    fn dial_failed(&mut self, endpoint: &str) {
+        let _ = endpoint;
+    }
     /// Looks again now.
     fn refresh(&mut self) {}
     /// Our own devices changed (a computer joined the profile or left it): what each device nearby said about itself

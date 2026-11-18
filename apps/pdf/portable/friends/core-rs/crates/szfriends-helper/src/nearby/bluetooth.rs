@@ -440,6 +440,16 @@ impl super::Adapter for BluetoothAdapter {
         true
     }
 
+    /// A channel that would not open: the PSM read may be from before the peer's helper started again (each start
+    /// publishes new channels), so the next sighting reads the device again instead of dialing the cached PSM until
+    /// the read expires.
+    fn dial_failed(&mut self, endpoint: &str) {
+        let Some((peripheral, _)) = bt::parse_endpoint(endpoint) else { return };
+        if let Some(record) = self.peripherals.get_mut(peripheral) {
+            record.read_at = None;
+        }
+    }
+
     fn reread(&mut self) {
         for record in self.peripherals.values_mut() {
             record.read_at = None;
