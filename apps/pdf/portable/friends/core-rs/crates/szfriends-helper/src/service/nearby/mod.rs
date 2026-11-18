@@ -19,6 +19,7 @@
 //! | `friend_devices.rs` | `+FriendDevices.m` | finding and reaching friends' other computers |
 //! | `removed.rs` | `+Removed.m` | telling a computer we removed that it was removed |
 //! | `relayed.rs` | `+Relayed.m` | while the relay carries a session, every direct route tried each second (ADR 0020) |
+//! | `trace.rs` | | the log of dials, sessions, the race, routes tried and transfers |
 
 mod by_id;
 mod chain;
@@ -36,6 +37,7 @@ pub mod policy;
 mod relayed;
 pub use relayed::RELAY_PROBE_SECONDS;
 mod removed;
+mod trace;
 
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
@@ -96,6 +98,8 @@ pub struct Nearby {
     pub failures: HashMap<String, u32>,
     /// Sessions in a row a friend closed as superseded while keeping one with another of our devices (dial.rs).
     pub kept_elsewhere: HashMap<String, u32>,
+    /// What the log said lately and the transfers it follows (trace.rs).
+    pub trace: trace::Trace,
     pub by_id_senders: HashMap<[u8; 32], f64>,
     /// When REQUEST_BY_ID last went to a device, by token: its callback tags are on the air for hours after.
     pub callback_broadcasts: HashMap<[u8; 16], f64>,
@@ -143,6 +147,7 @@ impl Nearby {
             retry_after: HashMap::new(),
             failures: HashMap::new(),
             kept_elsewhere: HashMap::new(),
+            trace: trace::Trace::default(),
             by_id_senders: HashMap::new(),
             callback_broadcasts: HashMap::new(),
             staged: Vec::new(),
@@ -278,7 +283,9 @@ impl State {
         }
         match event {
             Event::State(method, state) => {
-                self.nearby.states.insert(method, state);
+                if self.nearby.states.insert(method, state) != Some(state) {
+                    crate::log!("nearby: {method:?} adapter {state:?}");
+                }
                 let working = self.nearby.states.values().any(|s| *s == AdapterState::Working);
                 if working && self.nearby.working_since.is_none() {
                     self.nearby.working_since = Some(unix_now());

@@ -227,6 +227,7 @@ impl BluetoothAdapter {
         if !self.running {
             return;
         }
+        trace::published(psm, public);
         let now = (self.clock)();
         let overlap = now + bt::CHANNEL_OVERLAP_SECONDS;
         if public {
@@ -307,6 +308,7 @@ impl BluetoothAdapter {
                 self.reads_in_flight = self.reads_in_flight.saturating_sub(1);
             }
             if let Some(presence) = value.as_deref().and_then(Presence::from_value) {
+                trace::read(&peripheral, record.presence.as_ref().map(|p| p.hidden_psm), presence.hidden_psm);
                 record.presence = Some(presence);
                 // Each field from the characteristic that owns it: a public PSM in the hidden value is not one.
                 record.public_psm = public_value.as_deref().and_then(Presence::from_value).map_or(0, |p| p.public_psm);
@@ -436,16 +438,17 @@ impl super::Adapter for BluetoothAdapter {
         if !self.running || self.power != Power::On || psm == 0 {
             return false;
         }
+        trace::opening(peripheral, psm, record.read_at.map(|at| (self.clock)() - at));
         self.radio.open_channel(peripheral, psm, dial);
         true
     }
 
-    /// A channel that would not open: the PSM read may be from before the peer's helper started again (each start
-    /// publishes new channels), so the next sighting reads the device again instead of dialing the cached PSM until
-    /// the read expires.
+    /// A channel that would not open: the PSM read may predate the peer's helper starting again (with new channels),
+    /// so the next sighting reads the device again instead of dialing the cached PSM until the read expires.
     fn dial_failed(&mut self, endpoint: &str) {
         let Some((peripheral, _)) = bt::parse_endpoint(endpoint) else { return };
         if let Some(record) = self.peripherals.get_mut(peripheral) {
+            trace::reread(peripheral);
             record.read_at = None;
         }
     }
@@ -491,3 +494,5 @@ impl super::Adapter for BluetoothAdapter {
 #[cfg(test)]
 #[path = "bluetooth_tests.rs"]
 mod tests;
+#[path = "bluetooth_log.rs"]
+mod trace;

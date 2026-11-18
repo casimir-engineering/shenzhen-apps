@@ -242,6 +242,7 @@ impl State {
         if batched {
             self.end_store_batch();
         }
+        self.trace_transfers(id);
         let Some(s) = self.sessions.map.get_mut(&id) else { return };
         while let Some(write) = s.channel.poll_transmit() {
             s.link.write(write.bytes);
@@ -294,6 +295,7 @@ impl State {
 
     pub fn close(&mut self, id: u64, reason: CloseReason) {
         if let Some(s) = self.sessions.map.get_mut(&id) {
+            s.meta.our_close.get_or_insert(reason as u8);
             s.channel.close_with_reason(reason, monotonic_now());
         }
     }

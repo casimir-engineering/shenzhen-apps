@@ -78,6 +78,8 @@ pub struct LinkMeta {
     pub pending_chain: Option<szfriends_core::identity::chain::DeviceChain>,
     /// The name the racer knows the dialed peer by when it is not a conversation: "dev-" and one of our devices' keys.
     pub race_name: Option<String>,
+    /// The reason we closed it with, if we did (for the log).
+    pub our_close: Option<u8>,
 }
 
 impl LinkMeta {
@@ -147,6 +149,7 @@ impl State {
             if let Some(adapter) = self.nearby.adapters.iter_mut().find(|a| a.method() == plan.method) {
                 adapter.dial_failed(&plan.endpoint);
             }
+            self.trace_dial(&plan, Some(dial), "no connection");
             self.dial_failed(&plan);
             return;
         };
@@ -201,6 +204,7 @@ impl State {
         if let Some(key) = session.meta.dial_key.take() {
             self.nearby.dialing.remove(&key);
         }
+        self.trace_up(id);
         let session = self.sessions.map.get(&id).expect("looked up");
         let (initiator, pattern) = (session.channel.is_initiator(), session.channel.pattern());
         let meta = session.meta.clone();
@@ -348,17 +352,29 @@ impl State {
             s.conversation = Some(conversation.to_owned());
         }
         let current = match self.sessions.rival(conversation, id) {
-            Rival::None => return self.adopt(id),
-            Rival::OtherDevice => return, // both stay: this one stands by (ADR 0016)
+            Rival::None => {
+                self.trace_race(id, None, "carries the conversation (no other session)");
+                return self.adopt(id);
+            }
+            Rival::OtherDevice => {
+                // both stay: this one stands by (ADR 0016)
+                let current = self.sessions.live_for(conversation);
+                return self.trace_race(id, current, "both stay (another of their devices)");
+            }
             Rival::Same(current) => current,
         };
         match self.race(id, current) {
             Some(true) => {
+                self.trace_race(id, Some(current), "new one wins, the other is superseded");
                 self.supersede(current);
                 self.adopt(id);
             }
-            Some(false) => self.supersede(id),
-            None => {} // the responder's copy of a double dial waits for the initiator's CLOSE
+            Some(false) => {
+                self.trace_race(id, Some(current), "new one loses, superseded");
+                self.supersede(id);
+            }
+            // the responder's copy of a double dial waits for the initiator's CLOSE
+            None => self.trace_race(id, Some(current), "waits for the initiator's close (double dial)"),
         }
     }
 
@@ -412,16 +428,6 @@ impl State {
         self.store.blocks_session_ended(&receiving);
         self.close(id, CloseReason::Superseded);
     }
-}
-
-fn log_end(meta: &LinkMeta, error: &SessionError) {
-    crate::log!(
-        "session ended (purpose {:?}, route {:?}, {}): {}",
-        meta.purpose,
-        meta.dialed_route,
-        if meta.live { "live" } else { "handshaking" },
-        error.code()
-    );
 }
 
 #[path = "links_end.rs"]

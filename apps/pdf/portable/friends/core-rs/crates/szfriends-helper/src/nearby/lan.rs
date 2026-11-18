@@ -392,7 +392,14 @@ impl Adapter for LanAdapter {
         }
         let sink = self.sink.clone();
         let spawned = std::thread::Builder::new().name("szfriends-dial".into()).spawn(move || {
-            let stream = super::connect_any(&addresses, CONNECT_TIMEOUT).map(Into::into);
+            let stream = super::connect_first(&addresses, CONNECT_TIMEOUT)
+                .inspect_err(|error| {
+                    // Which kind of failure, never the address: a VPN that takes the local network shows as timeouts.
+                    let v6 = addresses.iter().filter(|a| a.is_ipv6()).count();
+                    crate::log!("lan dial #{dial}: {} address(es), {v6} IPv6, none answered: {error}", addresses.len());
+                })
+                .ok()
+                .map(Into::into);
             sink(Event::Dialed { dial, stream });
         });
         spawned.is_ok()

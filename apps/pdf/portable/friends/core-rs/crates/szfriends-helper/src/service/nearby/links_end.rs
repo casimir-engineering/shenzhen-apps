@@ -27,8 +27,9 @@ impl State {
         if let Some(key) = &meta.dial_key {
             self.nearby.dialing.remove(key);
         }
-        if let (Some(error), false) = (&error, meta.probe) {
-            log_end(&meta, error);
+        if !meta.probe {
+            self.trace_transfers(id);
+            self.trace_end(id, &meta, conversation.as_deref(), error.as_ref());
         }
         if meta.purpose == Purpose::Browse {
             let fields = self.nearby.browsed.lock().unwrap_or_else(|e| e.into_inner()).remove(&id);

@@ -341,6 +341,7 @@ impl State {
             online.set_membership(&self.store, &me);
             online.refresh(&self.store, own_devices, routes, &wanted);
         }
+        self.trace_online_wanted();
     }
 
     /// Add by ID online: our pending request `token` to whoever holds its Friends ID, signed over that NN session.
@@ -374,6 +375,10 @@ impl State {
     pub(crate) fn online_event(&mut self, event: OnlineEvent) {
         match event {
             OnlineEvent::Available(available) => {
+                self.nearby.trace.say(
+                    "online|host",
+                    format!("online: the host connection is {}", ["down", "up"][available as usize]),
+                );
                 if let Some(online) = self.online.as_mut() {
                     online.available = available;
                 }
@@ -408,7 +413,8 @@ impl State {
             OnlineEvent::ById(IdEvent::Sent { received, .. }) => {
                 log!("online: an Add by ID request {}", if received { "reached its holder" } else { "found nobody" });
             }
-            OnlineEvent::AttemptEnded { .. } | OnlineEvent::ReachChanged(_) | OnlineEvent::Link(_) => {}
+            OnlineEvent::AttemptEnded { friend, entry } => self.trace_online_attempt(&friend, &entry),
+            OnlineEvent::ReachChanged(_) | OnlineEvent::Link(_) => {}
         }
     }
 
@@ -455,6 +461,7 @@ impl State {
             }
             (true, None) => return stream.writer.close(),
         };
+        self.trace_online_stream(&friend, route.method(), initiator);
         let own = self.is_own_device(&friend);
         let meta = LinkMeta {
             purpose: match (initiator, own) {
