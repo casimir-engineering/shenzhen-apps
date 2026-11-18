@@ -278,6 +278,8 @@ typedef BOOL (^SZFriendsRemoteKeyPolicy)(NSData *_Nullable remoteIdentityKey, SZ
 // the stream.
 - (void)close;
 - (void)closeWithReason:(SZFriendsCloseReason)reason;
+// The reason this side closed with (SZFriendsCloseReason), -1 until it does: for the helper's log, beside the peer's.
+@property(nonatomic, readonly) NSInteger localCloseReason;
 
 // Liveness while a transfer runs (ADR 0018 § 7). `keepalive`: a transfer runs on this session, so PING whenever this
 // side sent nothing for SZFriendsKeepaliveInterval, and the peer always hears something. `watch`: something from the

@@ -103,6 +103,8 @@ extern const NSTimeInterval SZFriendsNearbyConnectingTimeout;
 // What each route carried for each transfer moving (PROTOCOL.md § Fast transfers, Progress by route), counted as PARTs
 // and CHUNKs go and come (+Facts).
 @property(nonatomic, strong, nullable) SZFriendsRouteMeter *routeMeter;
+// What helper.log has said, and transfers and lanes being measured for it (+Trace).
+@property(nonatomic, strong, nullable) id traceStore;
 
 // Core.
 - (void)changed;
@@ -145,6 +147,37 @@ extern const NSTimeInterval SZFriendsRelayProbeInterval;
 @property(nonatomic, readonly) NSArray<NSString *> *relayedConversations;
 // A session went live or changed route: probing starts now if the relay carries one.
 - (void)relayProbeIfRelayed;
+@end
+
+// helper.log's account of reaching friends and moving files (+Trace): friends by conversation ID prefix, never a
+// name, file name, key or address; held back per key when it repeats.
+NSString *SZFriendsTraceRouteName(SZFriendsRouteMethod route);
+NSString *SZFriendsTraceBytes(uint64_t bytes);
+NSString *SZFriendsTraceRate(double bytesPerSecond);
+@interface SZFriendsNearbyService (Trace)
+- (void)traceKey:(NSString *)key line:(NSString *)line;
+- (NSString *)traceWhoOfLink:(SZFriendsPeerLink *)link;
+- (void)traceDial:(SZFriendsDialPlan *)plan what:(NSString *)what;
+- (void)traceUpOfLink:(SZFriendsPeerLink *)link what:(NSString *)what;
+- (void)traceEndOfLink:(SZFriendsPeerLink *)link error:(nullable NSError *)error;
+- (void)traceRaceOfLink:(SZFriendsPeerLink *)link against:(SZFriendsPeerLink *)current outcome:(NSString *)outcome;
+- (void)traceLaneWanted:(SZFriendsPeerLink *)head route:(SZFriendsRouteMethod)route what:(NSString *)what;
+- (void)traceTransferStarted:(NSString *)transferID
+                      onLink:(SZFriendsPeerLink *)link
+                    outgoing:(BOOL)outgoing
+                        from:(uint64_t)from
+                         how:(NSString *)how;
+- (void)traceTransferBytes:(NSString *)transferID route:(SZFriendsRouteMethod)route bytes:(uint64_t)bytes late:(BOOL)late;
+- (void)traceTransferEnded:(NSString *)transferID;
+- (void)tracePartOnGroup:(nullable SZFriendsPeerLink *)head
+                transfer:(NSString *)transferID
+                    lane:(SZFriendsLaneID)lane
+                   route:(SZFriendsRouteMethod)route
+                   bytes:(NSUInteger)bytes
+                outgoing:(BOOL)outgoing
+                    late:(BOOL)late;
+- (void)traceGroupOfLink:(SZFriendsPeerLink *)head;
+- (void)traceGroupEnded:(SZFriendsPeerLink *)head;
 @end
 
 @interface SZFriendsNearbyService (Dial)

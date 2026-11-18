@@ -53,6 +53,11 @@ static uint64_t SZFriendsNextLaneSerial = 0;
     };
     blocks.onSending = ^(NSString *transferID) {
         SZFriendsPeerLink *strongLink = weakLink;
+        if (strongLink != nil) {
+            [weakSelf traceTransferStarted:transferID onLink:strongLink outgoing:YES
+                                      from:[strongLink.blocks acknowledgedBytesOfTransfer:transferID]
+                                       how:@"by blocks"];
+        }
         [strongLink.endedTransfers removeObject:transferID];
         [strongLink expectAckForID:transferID token:[@"done:" stringByAppendingString:transferID]];
         [weakSelf scheduleBlockTickOnLink:strongLink];
@@ -70,9 +75,15 @@ static uint64_t SZFriendsNextLaneSerial = 0;
                                                                fields:@{@(SZFriendsFieldID) : wire}]];
             }
         }
+        [strongSelf traceTransferEnded:transferID];
         // The file is what it claimed to be: our own preview of it now replaces the sender's (+Thumbnails).
         [strongSelf makeLocalThumbnailForReceivedTransfer:transferID];
         [strongSelf.services.notifier noteTransferReceived:transferID];
+    };
+    blocks.onPartBytes = ^(NSString *transferID, SZFriendsLaneID lane, SZFriendsRouteMethod route, NSUInteger bytes,
+                           BOOL outgoing, BOOL late) {
+        [weakSelf tracePartOnGroup:weakLink transfer:transferID lane:lane route:route bytes:bytes outgoing:outgoing
+                              late:late];
     };
     blocks.onWanted = ^(NSString *transferID, uint64_t offset, BOOL resumed) {
         if (resumed) {
@@ -127,8 +138,12 @@ static uint64_t SZFriendsNextLaneSerial = 0;
     [head moveFileAcksTo:heir]; // the files' ACKs come on the heir now
     [self wireBlocks:blocks toLink:heir];
     [self scheduleBlockTickOnLink:heir];
-    SZFriendsHelperLog(@"the first session of a group ended: a lane on route %ld carries it on",
-                       (long)heir.raceRoute);
+    [self traceKey:[@"heir|" stringByAppendingString:heir.conversationID ?: @""]
+              line:[NSString stringWithFormat:@"the first session #%llu of %@'s group ended: lane #%llu on %@ "
+                                              @"carries it on",
+                                              (unsigned long long)head.traceID, [self traceWhoOfLink:heir],
+                                              (unsigned long long)heir.traceID,
+                                              SZFriendsTraceRouteName(heir.raceRoute)]];
     return heir;
 }
 
@@ -146,6 +161,7 @@ static uint64_t SZFriendsNextLaneSerial = 0;
                        strongLink.blockTickScheduled = NO;
                        if (strongLink.closed) return;
                        [strongLink.blocks tick];
+                       [self traceGroupOfLink:strongLink];
                        [self boostTickOnLink:strongLink];
                        [self scheduleBlockTickOnLink:strongLink];
                    });
@@ -160,6 +176,7 @@ static uint64_t SZFriendsNextLaneSerial = 0;
         if (strongLink == nil) return;
         strongLink.blockFlushScheduled = NO;
         if (!strongLink.closed) [strongLink.blocks flushDue];
+        if (!strongLink.closed) [self traceGroupOfLink:strongLink];
         [self progressChanged];
     });
 }
@@ -197,6 +214,9 @@ static uint64_t SZFriendsNextLaneSerial = 0;
     link.laneHead = head;
     link.conversationID = head.conversationID;
     [head.lanes addObject:link];
+    [self traceUpOfLink:link
+                   what:[NSString stringWithFormat:@"lane %llu of #%llu", (unsigned long long)link.laneSerial,
+                                                   (unsigned long long)head.traceID]];
     // The lane's peer always hears something from it while the group lasts, so it never takes it for silent.
     [link.channel setLivenessKeepalive:YES watch:NO];
     __weak SZFriendsPeerLink *weakLink = link;
@@ -219,13 +239,20 @@ static uint64_t SZFriendsNextLaneSerial = 0;
 - (void)openLaneOfLink:(SZFriendsPeerLink *)head route:(SZFriendsRouteMethod)route {
     SZFriendsPersonRecord *person = [self.services.store personWithConversationID:head.conversationID];
     if (head.closed || person.staticKey == nil || person.identityKey == nil) return;
+    NSMutableOrderedSet<NSString *> *seen = [NSMutableOrderedSet orderedSet];
     for (SZFriendsCandidate *candidate in self.coordinator.merger.candidates) {
         if (![candidate.conversationID isEqualToString:head.conversationID]) continue;
         for (SZFriendsSighting *sighting in candidate.sightings) {
+            if (!sighting.isPublic) [seen addObject:SZFriendsTraceRouteName(sighting.route)];
             if (sighting.route != route || sighting.isPublic) continue;
             uint64_t serial = ++SZFriendsNextLaneSerial;
             NSData *token = nil;
-            if ([head.blocks reserveLane:serial route:route token:&token] == 0) return;
+            if ([head.blocks reserveLane:serial route:route token:&token] == 0) {
+                [self traceLaneWanted:head route:route what:@"not dialled: no free lane index on that route"];
+                return;
+            }
+            [self traceLaneWanted:head route:route
+                             what:[NSString stringWithFormat:@"dialling lane %llu", (unsigned long long)serial]];
             SZFriendsHandshakeOptions *options = [self ikOptionsForPerson:person route:route];
             options.requestToken = nil; // a lane never carries an Add by ID callback
             options.lane = token;
@@ -238,6 +265,10 @@ static uint64_t SZFriendsNextLaneSerial = 0;
             return;
         }
     }
+    [self traceLaneWanted:head route:route
+                     what:[NSString stringWithFormat:@"not dialled: the friend is not sighted on that route (sighted: %@)",
+                                                     seen.count ? [seen.array componentsJoinedByString:@", "]
+                                                                : @"nowhere"]];
 }
 
 - (void)link:(SZFriendsPeerLink *)link receivedBlockFrame:(SZFriendsFrame *)frame {

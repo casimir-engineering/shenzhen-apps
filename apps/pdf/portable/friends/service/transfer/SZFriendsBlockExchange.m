@@ -364,6 +364,9 @@ static NSInteger SZFLeavesRank(SZFriendsRouteMethod route) {
                 NSData *data = [part.frame dataForTag:SZFriendsFieldData];
                 if (self.pace && self.pace(data.length)) return;
                 if (!link.send(part.frame)) break;
+                if (self.onPartBytes) {
+                    self.onPartBytes(transferID, lane.unsignedLongLongValue, link.route, data.length, YES, NO);
+                }
                 [queue removeObjectAtIndex:0];
                 if (part.last) [_scheduler sent:lane.unsignedLongLongValue transfer:send.key block:part.block now:now];
             }
@@ -399,6 +402,33 @@ static NSInteger SZFLeavesRank(SZFriendsRouteMethod route) {
     [_scheduler tick:self.clock()];
     [self runActions];
     [self pump];
+}
+
+- (NSArray<NSDictionary<NSString *, NSNumber *> *> *)laneSnapshot {
+    NSMutableArray *lanes = [NSMutableArray array];
+    double now = self.clock();
+    for (NSNumber *lane in [_links.allKeys sortedArrayUsingSelector:@selector(compare:)]) {
+        SZFriendsLaneLink *link = _links[lane];
+        NSMutableDictionary *entry = [@{@"lane" : lane, @"route" : @(link.route),
+                                        @"queued" : @(link.queued ? link.queued() : 0)} mutableCopy];
+        double rate = 0, rtt = 0;
+        uint64_t inFlight = 0;
+        BOOL measured = NO, silent = NO, reaches = NO;
+        if ([_scheduler describeLane:lane.unsignedLongLongValue rate:&rate rtt:&rtt measured:&measured
+                            inFlight:&inFlight silent:&silent reaches:&reaches now:now]) {
+            [entry addEntriesFromDictionary:@{@"rate" : @(rate), @"rtt" : @(rtt), @"measured" : @(measured),
+                                              @"in_flight" : @(inFlight), @"silent" : @(silent),
+                                              @"reaches" : @(reaches)}];
+        }
+        [lanes addObject:entry];
+    }
+    return lanes;
+}
+
+- (NSDictionary<NSString *, NSNumber *> *)sendingProgress {
+    NSMutableDictionary *progress = [NSMutableDictionary dictionary];
+    for (NSString *transferID in _senders) progress[transferID] = @(_senders[transferID].serve.acknowledgedBytes);
+    return progress;
 }
 
 - (uint64_t)acknowledgedBytesOfTransfer:(NSString *)transferID {

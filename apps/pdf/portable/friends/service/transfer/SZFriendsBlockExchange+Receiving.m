@@ -134,8 +134,12 @@
                                                   error.localizedDescription ?: @"?",
                                                   (unsigned long)[_transfers blocksPartlyReceived:transferID]];
         return NO;
-    case SZFriendsBlockPartPending: [self piecesArrived:transferID lane:lane bytes:data.length]; return YES;
+    case SZFriendsBlockPartPending:
+        if (self.onPartBytes) self.onPartBytes(transferID, lane, _links[@(lane)].route, data.length, NO, NO);
+        [self piecesArrived:transferID lane:lane bytes:data.length];
+        return YES;
     case SZFriendsBlockPartLate: {
+        if (self.onPartBytes) self.onPartBytes(transferID, lane, _links[@(lane)].route, data.length, NO, YES);
         // The first late part of a block on each lane is answered with a HAVE naming it, on that lane (§ 3): when the
         // lane that completed it went silent with its HAVE, the copy sent again elsewhere would otherwise wait forever.
         NSString *answered = [NSString stringWithFormat:@"%llu:%@:%u", lane, transferID, block];
@@ -165,6 +169,7 @@
         return YES;
     }
     case SZFriendsBlockPartWritten:
+        if (self.onPartBytes) self.onPartBytes(transferID, lane, _links[@(lane)].route, data.length, NO, NO);
         [self progressed:transferID lane:lane];
         if (_transfers.blocksPending && self.onFlushNeeded) self.onFlushNeeded();
         return YES;
