@@ -188,6 +188,8 @@
     SZFriendsSplitProgressBar *_split;
     NSMutableArray<SZFriendsTransferRouteIcon *> *_routeIcons;
     NSTextField *_amount, *_left, *_detail;
+    // Once it is no longer moving: how it went through, the same bar drawn thin (`route_segments`).
+    SZFriendsRouteSummaryBar *_routesUsed;
 }
 - (NSTextField *)timeLabel {
     return _time;
@@ -235,6 +237,10 @@
     _split = [SZFriendsSplitProgressBar new];
     _split.theme = appearance;
     [_card addSubview:_split];
+    _routesUsed = [SZFriendsRouteSummaryBar new];
+    _routesUsed.theme = appearance;
+    _routesUsed.determinate = YES;
+    [_card addSubview:_routesUsed];
     _routeIcons = [NSMutableArray array];
     // Tabular digits, so the figures do not shuffle the line as they change.
     NSFont *digits = [NSFont monospacedDigitSystemFontOfSize:appearance.secondaryFont.pointSize weight:NSFontWeightRegular];
@@ -299,6 +305,10 @@
     _split.accessibilityLabel = SZFStr(progress, @"accessibility_label");
     _split.needsDisplay = YES;
     self.progressView = progress ? (_byRoute ? _split : _progress) : nil;
+    NSArray *used = progress ? nil : SZFArr(item, @"route_segments");
+    _routesUsed.hidden = used.count == 0;
+    _routesUsed.segments = used;
+    _routesUsed.needsDisplay = YES;
     _amount.stringValue = _byRoute ? SZFStr(progress, @"amount_label") : @"";
     _left.stringValue = _byRoute ? SZFStr(progress, @"time_left_label") ?: @"" : @"";
     _detail.stringValue = _byRoute ? SZFStr(progress, @"detail_label") ?: @"" : @"";
@@ -364,6 +374,12 @@
         y += 8;
         if (apply) _progress.frame = NSMakeRect(12, y, inner, 5);
         y += 5;
+    }
+    if (!_routesUsed.hidden) {
+        // Finished: the moving bar's segments, a third of its height, where it was.
+        y += 8;
+        if (apply) _routesUsed.frame = NSMakeRect(12, y, inner, 3);
+        y += 3;
     }
     if (_byRoute) {
         // The split bar, then the amount on the left and the time left on the right, as the approved design.

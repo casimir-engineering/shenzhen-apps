@@ -307,3 +307,9 @@ static void SZFDrawRouteGlyph(NSString *method, NSColor *color) {
     [NSGraphicsContext restoreGraphicsState];
 }
 @end
+
+@implementation SZFriendsRouteSummaryBar
+- (BOOL)isAccessibilityElement {
+    return NO;
+}
+@end

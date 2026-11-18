@@ -31,4 +31,9 @@ NSColor *SZFriendsTransferRouteColor(NSString *_Nullable method);
 @property(nonatomic, strong) SZFriendsAppearance *theme;
 @end
 
+// How a file that is no longer moving went through (an item's `route_segments`): the same bar, drawn thin under the
+// finished card's name. Decorative: the card's own label already says what happened.
+@interface SZFriendsRouteSummaryBar : SZFriendsSplitProgressBar
+@end
+
 NS_ASSUME_NONNULL_END
