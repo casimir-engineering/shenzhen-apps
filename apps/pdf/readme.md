@@ -8,7 +8,7 @@ Reads PDF, EPUB, Markdown, plain text, code and images.
 
 Apple Silicon · macOS 12+ · Signed and notarized
 
-<sub>Latest <b>26.11.18-1</b></sub> · [Release notes](https://github.com/casimir-engineering/shenzhen-pdf/releases/latest) · [Website](https://casimir-engineering.github.io/shenzhen-pdf/) · [中文](https://casimir-engineering.github.io/shenzhen-pdf/zh/)
+<sub>Latest <b>26.11.19-1</b></sub> · [Release notes](https://github.com/casimir-engineering/shenzhen-pdf/releases/latest) · [Website](https://casimir-engineering.github.io/shenzhen-pdf/) · [中文](https://casimir-engineering.github.io/shenzhen-pdf/zh/)
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/portable/readme-reader-dark.png">
