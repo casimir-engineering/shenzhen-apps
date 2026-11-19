@@ -4,7 +4,7 @@ A free viewer for CAD models, meshes and drawings: open an assembly, find a part
 
 <a href="https://github.com/casimir-engineering/shenzhen-3D/releases"><img src="https://img.shields.io/badge/Download%20for%20macOS-Apple%20Silicon-2ea44f?style=for-the-badge&logo=apple&logoColor=white" alt="Download for macOS (Apple Silicon), newest release first" height="46"></a>
 
-[0.2.9 release notes](docs/MAC-0.2.9.md) · [Platform delivery and validation](docs/DELIVERY.md)
+[0.2.10 release notes](docs/MAC-0.2.10.md) · [Platform delivery and validation](docs/DELIVERY.md)
 
 ![Shenzhen 3D measuring between the arm and the base of a desk lamp model](docs/images/readme-measure-dark.png)
 
