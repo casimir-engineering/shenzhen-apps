@@ -162,7 +162,8 @@ int spdf_recolor_path_is_picture(const char* path) {
                                                      "jpg", "jpeg", "jpe", "jfif", "gif", "bmp", "tif",
                                                      "tiff", "pnm", "pam", "pgm",  "ppm", "pbm", "jxr",
                                                      "hdp", "wdp",  "jpx", "jp2",  "j2k", "psd", "webp",
-                                                     "svg", "svgz", "jb2", "jbig2", "pfm", "jfif-tbnl"};
+                                                     "svg", "svgz", "jb2", "jbig2", "pfm", "jfif-tbnl",
+                                                     "raw", "raw10"};
     const char* dot = NULL;
     const char* p;
     size_t i;

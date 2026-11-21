@@ -12,7 +12,9 @@ static inline NSArray<NSString*>* SPDFNativeDocumentExtensions(void) {
         extensions = @[@"pdf", @"md", @"markdown", @"mdown", @"xps", @"oxps", @"epub", @"mobi", @"prc", @"pdb",
             @"fb2", @"docx", @"xlsx", @"pptx", @"hwpx", @"cbz", @"cbt", @"zip", @"tar", @"svg", @"svgz",
             @"png", @"jpg", @"jpeg", @"jpe", @"jfif-tbnl", @"jfif", @"bmp", @"gif", @"tif", @"tiff",
-            @"jp2", @"jpx", @"j2k", @"jb2", @"jbig2", @"pnm", @"pam", @"pbm", @"pgm", @"ppm", @"pfm", @"psd"];
+            @"jp2", @"jpx", @"j2k", @"jb2", @"jbig2", @"pnm", @"pam", @"pbm", @"pgm", @"ppm", @"pfm", @"psd",
+            // Raw camera sensor frames, decoded by core/spdf_sensor_raw.c rather than MuPDF.
+            @"raw", @"raw10"];
     });
     return extensions;
 }

@@ -25,8 +25,7 @@
 /* struct spdf_document and its page caches live in spdf_core_document.h. */
 #include "spdf_core_document.h"
 
-static spdf_core_progressive_hooks progressive_hooks; /* zero unless a frontend downloads documents */
-void spdf_core_set_progressive_hooks(const spdf_core_progressive_hooks* hooks) { progressive_hooks = *hooks; }
+#include "spdf_core_open_hooks.h"
 
 /* Which rendition a render draws, and what colour its paper is cleared to.
  * doc->dark_doc is NULL for every format but Markdown (see the header). */
@@ -140,8 +139,8 @@ spdf_document* spdf_open_with_password(const char* path, const char* password, s
     fz_try(ctx) {
         fz_register_document_handlers(ctx);
         doc = progressive_hooks.open ? progressive_hooks.open(ctx, path) : NULL; /* a path still downloading */
-        if (!doc) doc = fz_open_document(ctx, path);
-        else opened_progressive = 1;
+        if (doc) opened_progressive = 1;
+        else if (!sensor_open_hook || !(doc = sensor_open_hook(ctx, path))) doc = fz_open_document(ctx, path);
         password_protected = fz_needs_password(ctx, doc) != 0;
         if (password_protected && !password) {
             open_status = SPDF_OPEN_PASSWORD_REQUIRED;

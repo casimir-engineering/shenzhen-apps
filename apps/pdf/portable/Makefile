@@ -67,8 +67,11 @@ CORE_DESTINATION_OBJ := $(BUILD)/spdf_destination.o
 # SVG images in Markdown, drawn by MuPDF (core/spdf_svg_image.h, used by mac/SPDFMacSVGImage.mm).
 CORE_SVG_IMAGE_OBJ := $(BUILD)/spdf_svg_image.o $(BUILD)/spdf_svg_font.o $(BUILD)/spdf_svg_font_subset.o \
 	$(BUILD)/spdf_cff_subset.o
+# Raw camera sensor frames shown as pictures (core/spdf_sensor_raw.h, installed by mac/SPDFMacSensorFrames.mm).
+CORE_SENSOR_RAW_OBJ := $(BUILD)/spdf_sensor_raw.o
 CORE_OBJS := $(CORE_OBJ) $(CORE_SELECTION_OBJ) $(CORE_SELECTION_SUPPORT_OBJ) $(CORE_RECOLOR_OBJ) $(CORE_IMAGE_PROPERTIES_OBJ) \
-	$(CORE_PAGE_IMAGES_OBJ) $(CORE_LINK_OBJ) $(CORE_PROGRESSIVE_OBJ) $(CORE_DESTINATION_OBJ) $(CORE_SVG_IMAGE_OBJ)
+	$(CORE_PAGE_IMAGES_OBJ) $(CORE_LINK_OBJ) $(CORE_PROGRESSIVE_OBJ) $(CORE_DESTINATION_OBJ) $(CORE_SVG_IMAGE_OBJ) \
+	$(CORE_SENSOR_RAW_OBJ)
 YAML_SRC := core/spdf_yaml.c
 YAML_HDR := core/spdf_yaml.h
 YAML_OBJ := $(BUILD)/spdf_yaml.o
@@ -191,7 +194,7 @@ $(BUILD):
 
 $(CORE_OBJ): $(CORE_SRC) $(CORE_HDR) core/spdf_search_regex.h core/spdf_render_bitmap.h core/spdf_document_info.h core/spdf_translate_redact.h core/spdf_translate_write.h core/spdf_outline_write.h \
 		core/spdf_outline_read.h core/spdf_outline.h core/spdf_comment_read.h core/spdf_comment_review.h core/spdf_comment_dates.h \
-		core/spdf_core_document.h Makefile | $(BUILD)
+		core/spdf_core_document.h core/spdf_core_open_hooks.h Makefile | $(BUILD)
 	clang $(PORTABLE_OPTFLAGS) $(MAC_TARGET_FLAGS) -Icore -I$(MUPDF_DIR)/include -c "$(CORE_SRC)" -o "$(CORE_OBJ)"
 
 $(CORE_IMAGE_PROPERTIES_OBJ): core/spdf_image_properties.c core/spdf_image_properties.h Makefile | $(BUILD)
@@ -207,6 +210,9 @@ $(CORE_PROGRESSIVE_OBJ): core/spdf_progressive.c core/spdf_progressive.h core/sp
 	clang $(PORTABLE_OPTFLAGS) $(MAC_TARGET_FLAGS) -Wall -Wextra -Werror -Icore -I$(MUPDF_DIR)/include -c $< -o "$@"
 
 $(CORE_DESTINATION_OBJ): core/spdf_destination.c core/spdf_destination.h core/spdf_core_document.h Makefile | $(BUILD)
+	clang $(PORTABLE_OPTFLAGS) $(MAC_TARGET_FLAGS) -Wall -Wextra -Werror -Icore -I$(MUPDF_DIR)/include -c $< -o "$@"
+
+$(CORE_SENSOR_RAW_OBJ): core/spdf_sensor_raw.c core/spdf_sensor_raw.h core/spdf_sensor_raw_stats.h core/spdf_core_document.h Makefile | $(BUILD)
 	clang $(PORTABLE_OPTFLAGS) $(MAC_TARGET_FLAGS) -Wall -Wextra -Werror -Icore -I$(MUPDF_DIR)/include -c $< -o "$@"
 
 $(BUILD)/spdf_svg_image.o: core/spdf_svg_image.c core/spdf_svg_image.h core/spdf_svg_font.h $(CORE_RECOLOR_HDR) Makefile | $(BUILD)

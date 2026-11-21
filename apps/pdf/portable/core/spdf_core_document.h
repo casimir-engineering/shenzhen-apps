@@ -82,6 +82,10 @@ typedef struct spdf_core_progressive_hooks {
     void (*set_quiet)(int on);
 } spdf_core_progressive_hooks;
 void spdf_core_set_progressive_hooks(const spdf_core_progressive_hooks* hooks);
+/* Formats MuPDF does not read, turned into a document it does (spdf_sensor_raw.c installs one for camera frames).
+ * Returns NULL for a path it does not handle; throws when it handles the path but cannot show it. */
+typedef fz_document* (*spdf_core_open_hook)(fz_context* ctx, const char* path);
+void spdf_core_set_sensor_open_hook(spdf_core_open_hook hook);
 #define SPDF_NOT_DOWNLOADED "This page has not downloaded yet."
 
 #endif /* SPDF_CORE_DOCUMENT_H */

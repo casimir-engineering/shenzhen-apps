@@ -7,6 +7,7 @@
 #import "SPDFMacPermanentDeleteIntegration.h"
 #import "SPDFMacCommentActions.h"
 #import "SPDFMacInstantMenuItem.h"
+#import "SPDFMacSensorFrames.h"
 
 #import <objc/runtime.h>
 
@@ -113,6 +114,7 @@
     [menu addItemWithTitle:@"Zoom Out" action:@selector(zoomOut:) keyEquivalent:@""];
     [menu addItemWithTitle:@"Fit Width" action:@selector(fitWidth:) keyEquivalent:@""];
     [menu addItemWithTitle:@"Fit Page" action:@selector(fitPage:) keyEquivalent:@""];
+    [self addBayerOrderItemsToMenu:menu];
     [menu addItem:[NSMenuItem separatorItem]];
     NSMenuItem* showInFolder = [menu addItemWithTitle:@"Show in Folder"
                                                action:@selector(showInFolder:)
