@@ -104,9 +104,9 @@ typedef struct spdf_snap_target {
     float probe_y;
 } spdf_snap_target;
 
-/* Targets for Tab and Shift-Tab on a page without fields: drawn boxes, small squares, character boxes and lines to
- * write on, in reading order (rows whose centres are within 4 pt, then left to right). Cells of ruled tables are not
- * listed. Writes up to max (out may be NULL to count), returns the total count. Pure. */
+/* Targets for Tab and Shift-Tab on a page without fields: drawn boxes, small squares, character boxes, lines to write
+ * on and the empty cells of ruled tables, in reading order (rows whose centres are within 4 pt, then left to right).
+ * Writes up to max (out may be NULL to count), returns the total count. Pure. */
 int spdf_snap_targets_in_order(const spdf_snap_geometry* geometry, spdf_snap_target* out, int max);
 
 #ifdef __cplusplus

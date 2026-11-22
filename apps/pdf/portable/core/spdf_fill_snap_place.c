@@ -279,14 +279,73 @@ static int rule_meets_vertical(const spdf_snap_geometry* g, spdf_snap_hline l) {
     return 0;
 }
 
+static int cmp_float(const void* a, const void* b) {
+    float p = *(const float*)a, q = *(const float*)b;
+    return p < q ? -1 : p > q;
+}
+
+/* Sorted positions with near duplicates (within 1 pt) dropped; returns how many remain. */
+static int distinct_positions(float* v, int n) {
+    int i, k = 0;
+    qsort(v, (size_t)n, sizeof(*v), cmp_float);
+    for (i = 0; i < n; ++i)
+        if (k == 0 || v[i] - v[k - 1] > 1) v[k++] = v[i];
+    return k;
+}
+
+static int same_rect(spdf_rect a, spdf_rect b) {
+    return fabsf(a.x0 - b.x0) <= 1 && fabsf(a.y0 - b.y0) <= 1 && fabsf(a.x1 - b.x1) <= 1 && fabsf(a.y1 - b.y1) <= 1;
+}
+
+/* Empty cells of ruled tables, once each (a merged cell too), leaving out cells that are drawn boxes or hold one.
+ * Pages with very many rules (drawings, schematics) list none: Tab would take too long. Returns the count, -1 when
+ * out of memory. */
+static int collect_cells(const spdf_snap_geometry* g, spdf_snap_target** out) {
+    float *xs, *ys;
+    int nx, ny, i, j, k, n = 0;
+    *out = NULL;
+    if (g->vline_count < 2 || g->hline_count < 2 || g->vline_count + g->hline_count > 2000) return 0;
+    xs = (float*)malloc(sizeof(float) * (size_t)g->vline_count);
+    ys = (float*)malloc(sizeof(float) * (size_t)g->hline_count);
+    if (!xs || !ys) return free(xs), free(ys), -1;
+    for (i = 0; i < g->vline_count; ++i) xs[i] = g->vlines[i].x;
+    for (i = 0; i < g->hline_count; ++i) ys[i] = g->hlines[i].y;
+    nx = distinct_positions(xs, g->vline_count), ny = distinct_positions(ys, g->hline_count);
+    if (nx >= 2 && ny >= 2 && (nx - 1) * (ny - 1) <= 2000)
+        *out = (spdf_snap_target*)calloc((size_t)((nx - 1) * (ny - 1)), sizeof(**out));
+    for (j = 0; *out && j + 1 < ny; ++j)
+        for (i = 0; i + 1 < nx; ++i) {
+            spdf_rect r;
+            int keep = 1;
+            if (!find_cell(g, (xs[i] + xs[i + 1]) * 0.5f, (ys[j] + ys[j + 1]) * 0.5f, &r)) continue;
+            for (k = 0; keep && k < n; ++k) keep = !same_rect((*out)[k].rect, r);
+            for (k = 0; keep && k < g->box_count; ++k)
+                keep = !same_rect(g->boxes[k], r) &&
+                       !inside(r, (g->boxes[k].x0 + g->boxes[k].x1) * 0.5f, (g->boxes[k].y0 + g->boxes[k].y1) * 0.5f, 0);
+            for (k = 0; keep && k < g->comb_count; ++k)
+                keep = !inside(r, (g->combs[k].cells[0].x0 + g->combs[k].cells[0].x1) * 0.5f,
+                               (g->combs[k].cells[0].y0 + g->combs[k].cells[0].y1) * 0.5f, 0);
+            if (!keep) continue;
+            (*out)[n].kind = SPDF_SNAP_CELL;
+            (*out)[n].rect = r;
+            (*out)[n].probe_x = (r.x0 + r.x1) * 0.5f, (*out)[n++].probe_y = (r.y0 + r.y1) * 0.5f;
+        }
+    free(xs), free(ys);
+    return n;
+}
+
 int spdf_snap_targets_in_order(const spdf_snap_geometry* g, spdf_snap_target* out, int max) {
-    spdf_snap_target* all;
-    int i, n = 0, total, start;
+    spdf_snap_target *all, *cells;
+    int i, n = 0, total, start, cell_count;
     if (!g) return 0;
-    total = g->box_count + g->comb_count + g->hline_count;
-    if (total == 0) return 0;
+    cell_count = collect_cells(g, &cells);
+    if (cell_count < 0) return 0;
+    total = g->box_count + g->comb_count + g->hline_count + cell_count;
+    if (total == 0) return free(cells), 0;
     all = (spdf_snap_target*)calloc((size_t)total, sizeof(*all));
-    if (!all) return 0;
+    if (!all) return free(cells), 0;
+    for (i = 0; i < cell_count; ++i) all[n++] = cells[i];
+    free(cells);
     for (i = 0; i < g->box_count; ++i) {
         spdf_rect b = g->boxes[i];
         if (rh(b) < 5 || rh(b) > 80 || rw(b) < 5) continue;

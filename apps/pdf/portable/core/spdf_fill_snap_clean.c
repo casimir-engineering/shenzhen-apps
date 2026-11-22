@@ -1,5 +1,6 @@
 /* spdf_fill_snap_clean.c -- tidies the rules and boxes spdf_fill_snap.c read from a page: joins dashed rules, drops
- * link underlines, page frames and real fields, and finds rows of character boxes (spdf_fill_snap.h). */
+ * link underlines, page frames and real fields, turns small squares drawn as four rules into boxes, and finds rows of
+ * character boxes (spdf_fill_snap.h). */
 #include "spdf_fill_snap_internal.h"
 
 #include <math.h>
@@ -146,6 +147,44 @@ static void find_tick_combs(fz_context* ctx, spdf_snap_geometry* g) {
     }
 }
 
+/* A vertical rule at x running from y0 to y1 (within 1 pt), shortened to nothing once used. */
+static spdf_snap_vline* rule_down(spdf_snap_geometry* g, float x, float y0, float y1) {
+    int i;
+    for (i = 0; i < g->vline_count; ++i) {
+        spdf_snap_vline* v = &g->vlines[i];
+        if (fabsf(v->x - x) <= 1 && v->y0 <= y0 + 1 && v->y1 >= y1 - 1 && v->y1 - v->y0 <= y1 - y0 + 2) return v;
+    }
+    return NULL;
+}
+
+/* A small square drawn as four separate rules (as some programs draw checkboxes) is a box; its rules go. */
+static void find_ruled_squares(fz_context* ctx, spdf_snap_geometry* g) {
+    int i, j;
+    for (i = 0; i < g->hline_count; ++i) { /* hlines are sorted by y */
+        spdf_snap_hline* top = &g->hlines[i];
+        float w = top->x1 - top->x0;
+        if (w < 5 || w > 24) continue;
+        for (j = i + 1; j < g->hline_count && g->hlines[j].y - top->y <= 24; ++j) {
+            spdf_snap_hline* bottom = &g->hlines[j];
+            spdf_snap_vline *left, *right;
+            spdf_rect* boxes;
+            float h = bottom->y - top->y;
+            if (h < 5 || w / h < 0.75f || w / h > 1.33f || fabsf(bottom->x0 - top->x0) > 1 ||
+                fabsf(bottom->x1 - top->x1) > 1)
+                continue;
+            left = rule_down(g, top->x0, top->y, bottom->y), right = rule_down(g, top->x1, top->y, bottom->y);
+            if (!left || !right) continue;
+            boxes = (spdf_rect*)realloc(g->boxes, (size_t)(g->box_count + 1) * sizeof(*boxes));
+            if (!boxes) fz_throw(ctx, FZ_ERROR_SYSTEM, "Out of memory");
+            g->boxes = boxes;
+            g->boxes[g->box_count++] = make_rect(top->x0, top->y, top->x1, bottom->y);
+            top->x1 = top->x0, bottom->x1 = bottom->x0; /* dropped by the length filter */
+            left->y1 = left->y0, right->y1 = right->y0;
+            break;
+        }
+    }
+}
+
 /* Four or more equal boxes side by side are character boxes. */
 static void find_box_combs(fz_context* ctx, spdf_snap_geometry* g) {
     int i = 0, out = 0;
@@ -178,6 +217,7 @@ void spdf_snap_finish_geometry(fz_context* ctx, spdf_snap_geometry* g) {
     merge_hlines(g);
     merge_vlines(g);
     find_tick_combs(ctx, g);
+    find_ruled_squares(ctx, g);
     for (i = out = 0; i < g->hline_count; ++i) {
         spdf_snap_hline l = g->hlines[i];
         if (l.x1 - l.x0 < 8 || rule_is_under_text(g, l) || on_widget(g, make_rect(l.x0, l.y, l.x1, l.y))) continue;
