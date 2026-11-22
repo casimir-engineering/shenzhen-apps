@@ -1,6 +1,7 @@
 #import "markdown/SPDFTextDocumentFormats.h"
 #import "SPDFMacOtherAppFiles.h"
 #import "SPDFMacCollectionStorePrivate.h"
+#import "SPDFMacPictureText.h"
 #import <PDFKit/PDFKit.h>
 
 static BOOL SameSource(struct stat a, struct stat b) {
@@ -246,6 +247,8 @@ static BOOL InstallTextIndex(NSDictionary* index, NSMutableDictionary* version, 
 - (NSDictionary*)capturePath:(NSString*)path reason:(NSString*)reason
        continuingDocumentID:(NSString*)documentID error:(NSError**)error {
     path = SPDFCollectionPath(path);
+    // Camera sensor frames are never kept, however they arrive (opened, imported, received).
+    if (SPDFMacSensorFramePath(path)) return nil;
     if (![self captureRequestIsCurrentForPath:path]) return nil;
     if (![self isEnabled] || [self isArchivePath:path] || [[self documentForPath:path][@"excluded"] boolValue]) return nil;
     if ([self editableInfoForPath:path]) return [self captureEditablePath:path reason:reason error:error];

@@ -441,10 +441,20 @@ fence the renderer cannot draw keeps its ordinary highlighted code box.
 
 ## <a id="ocr"></a>OCR — on-device **mac · linux**
 
-- **Make a scanned PDF searchable** with OCRmyPDF + Tesseract, entirely on your
-  machine. Nothing is uploaded.
-- **Images to searchable PDFs (macOS)** — run OCR on any image format the reader opens,
-  including multipage TIFF. A separate PDF is created; the source image stays unchanged.
+- **Two ways to read the text, asked like Translate's** **mac** — the OCR button opens **Open source | macOS**
+  (Tab, ⌘1, ⌘2; the choice is kept, macOS the first time). Open source is OCRmyPDF + Tesseract with the language
+  chosen there; macOS is Apple's text recognition, which finds the language itself. Both stay on the Mac.
+- **Make a scanned PDF searchable** with either, entirely on your machine. Nothing is uploaded. With macOS, only
+  the pages without text are read; their text is written into the PDF as an invisible layer.
+- **Pictures are read for text in the background (macOS)** — a photo, screenshot or scan opened as a picture (JPEG,
+  PNG, HEIC, TIFF, camera RAW…) is read by macOS (or Tesseract, when open source is chosen and installed) without
+  holding up opening or scrolling. Its text then selects, copies and finds in place, and Collection keeps the picture
+  with that text and where each line and word is, so Collection search finds it and reopening shows the text at once.
+  A picture without text is not kept in Collection. Pictures Collection kept before are read once, a while after
+  launch, by the same rule. Camera sensor frames (`.raw`, `.raw10`) are never kept in Collection.
+- **Images to searchable PDFs (macOS)** — open-source OCR on any image format the reader opens,
+  including multipage TIFF, creates a separate PDF; the source image stays unchanged. macOS OCR on a picture lays its
+  text over the picture instead.
 - **Language choice up front** — Simplified or Traditional Chinese alone or with
   English, plus ~20 more; missing language data is fetched on demand.
 - **One job per core**, deskews scans, backs up the original, and swaps in only
@@ -452,7 +462,8 @@ fence the renderer cannot draw keeps its ordinary highlighted code box.
 - **One-click toolchain install** — missing OCRmyPDF, Tesseract or a language
   pack is installed for you (Homebrew on macOS; apt/dnf/pacman/zypper on Linux)
   and the job resumes, with a live copyable log.
-- **Delete All Text** — strip a bad OCR layer back out.
+- **Delete All Text** — strip a bad OCR layer back out; on a picture, the text found in it goes (and the picture
+  leaves Collection).
 
 ## <a id="translation"></a>Translation **mac · linux**
 

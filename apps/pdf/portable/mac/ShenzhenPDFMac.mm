@@ -12647,7 +12647,7 @@ static NSString* SPDFTranslationBatchScope(NSArray<NSDictionary*>* items, NSUInt
 // Strip the entire text layer (e.g. a wrong OCR layer) so the document can be
 // re-OCR'd. Backs the original up, asks for confirmation first.
 - (void)deleteAllTextFromDocument:(id)sender {
-    (void)sender;
+    if ([self deleteTextFromPicture:sender]) return;  // a picture's recognised text (SPDFMacPictureTextIntegration.h)
     if (!_doc || !_path.length || ![_path.pathExtension.lowercaseString isEqualToString:@"pdf"]) {
         NSBeep();
         return;
@@ -13763,7 +13763,7 @@ static NSString* SPDFTranslationBatchScope(NSArray<NSDictionary*>* items, NSUInt
         return [self canRotateActivePage];
     if (action == @selector(ocrDocument:)) return hasDoc && SPDFOCRPathSupported(_path);
     if (action == @selector(deleteAllTextFromDocument:))
-        return hasDoc && [_path.pathExtension.lowercaseString isEqualToString:@"pdf"];
+        return hasDoc && ([_path.pathExtension.lowercaseString isEqualToString:@"pdf"] || [self shownPictureHasText]);
     if (action == @selector(translateDocument:)) {
         spdf_translation_context context = [self translationContext];
         return spdf_translation_command_enabled(context);

@@ -1,21 +1,31 @@
 #import "SPDFMacTranslationChoice.h"
 #import "SPDFMacDocumentToolInputIntegration.h"
+#import "SPDFMacOCRChoicePopover.h"
+#import "SPDFMacPictureText.h"
+#import "SPDFMacPictureTextIntegration.h"
+#import "SPDFMacSupport.h"
 #import <objc/runtime.h>
 #import "SPDFMacCollectionPathPolicy.h"
 
 @interface ShenzhenMacDelegate (SPDFMacDocumentToolInputPrivate)
-- (NSDictionary*)promptForOCRLanguage;
 - (void)showError:(NSString*)message detail:(NSString*)detail;
 - (void)runOCRWithLanguage:(NSString*)language displayName:(NSString*)displayName;
 @end
 
 @implementation ShenzhenMacDelegate (SPDFMacDocumentToolInput)
 
+// Asks who reads the text, open source or macOS, as Translate asks who translates (SPDFMacOCRChoicePopover.h).
 - (void)ocrDocument:(id)sender {
-    (void)sender;
     if (!_doc || !SPDFOCRPathSupported(_path)) { NSBeep(); return; }
-    NSDictionary* language = [self promptForOCRLanguage];
-    if (language) [self runOCRWithLanguage:language[@"code"] displayName:language[@"name"]];
+    // Under the button when it is in the toolbar; from the File or overflow menu, under the toolbar's right end.
+    NSView* anchor = _ocrButton.window && !_ocrButton.hidden && _ocrButton.superview ? _ocrButton :
+        ([sender isKindOfClass:NSView.class] ? sender : _toolbar);
+    __weak ShenzhenMacDelegate* weakSelf = self;
+    [SPDFMacOCRChoicePopover showRelativeToView:anchor languages:spdf_ocr_languages()
+                                            run:^(NSString* engine, NSDictionary<NSString*, NSString*>* language) {
+        if ([engine isEqualToString:SPDFMacOCREngineMacOS]) [weakSelf recognizeShownDocumentTextOnThisMac];
+        else [weakSelf runOCRWithLanguage:language[@"code"] displayName:language[@"name"]];
+    }];
 }
 
 - (void)prepareDocumentToolPDFWithSuffix:(NSString*)suffix completion:(void (^)(void))completion {

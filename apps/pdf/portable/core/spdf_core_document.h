@@ -87,6 +87,10 @@ void spdf_core_set_progressive_hooks(const spdf_core_progressive_hooks* hooks);
  * but cannot show it. Hooks claim disjoint extensions, so their order does not matter. */
 typedef fz_document* (*spdf_core_open_hook)(fz_context* ctx, const char* path);
 void spdf_core_add_open_hook(spdf_core_open_hook hook);
+/* Called with every document opened from a path (spdf_picture_text.c installs one that lays a picture's recognised
+ * text over it). Returns `doc` itself or a document that took it over; never throws. */
+typedef fz_document* (*spdf_core_wrap_hook)(fz_context* ctx, const char* path, fz_document* doc);
+void spdf_core_set_picture_text_hook(spdf_core_wrap_hook hook);
 #define SPDF_NOT_DOWNLOADED "This page has not downloaded yet."
 
 #endif /* SPDF_CORE_DOCUMENT_H */

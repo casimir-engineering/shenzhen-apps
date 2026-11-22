@@ -1,6 +1,8 @@
 #import "SPDFMacAIIntegration.h"
 #import "SPDFMacCollectionImportIntegration.h"
 #import "SPDFMacCollectionIntegration.h"
+#import "SPDFMacPictureText.h"
+#import "SPDFMacPictureTextIntegration.h"
 #import "SPDFMacCollectionReaderNavigation.h"
 #import "SPDFMacCollectionStore.h"
 #import "SPDFMacQuitFinishing.h"
@@ -110,34 +112,43 @@ static char kCollectionCompanion, kCollectionImported, kCollectionSettingsObserv
         if (unboundCopy) {
             [self collectionRecordUserOpenForPath:source document:[store documentForPath:source]]; return;
         }
-        NSUInteger userOpenCount = [self collectionConsumeUserOpenForPath:source];
-        [store capturePath:source authorizedCopy:authorizedCopy reason:continuingID ? @"Observed save" : @"Opened"
-            continuingDocumentID:continuingID userOpenCount:userOpenCount
-            completion:^(NSDictionary* doc, NSError* error, BOOL userOpenCountRecorded) {
-            // Reading succeeded even when capture was excluded or could not save a new version.
-            if (!userOpenCountRecorded)
-                [self collectionRecordUserOpenCount:userOpenCount document:doc ?: [store documentForPath:source]];
-            NSDictionary* editable = [store editableInfoForPath:source];
-            dispatch_async(dispatch_get_main_queue(), ^{
-                if (editable && [openedTab.path isEqual:source]) {
-                    openedTab.readOnly = NO; openedTab.collectionVersionLabel = nil;
-                    [self collectionSetVersionInfo:editable forTab:openedTab];
-                }
-                if (doc) {
-                    if ([openedTab.path isEqual:source]) openedTab.collectionHistoryDocumentID=doc[@"id"];
-                    // A name given in ShenzhenPDF to a file that keeps its own comes back with the document.
-                    NSString* given=[doc[@"displayName"] isKindOfClass:NSString.class] ? doc[@"displayName"] : nil;
-                    if (given.length && [openedTab.path isEqual:source] && !openedTab.displayName.length)
-                        [self showDisplayName:given forTabsAtPath:source];
-                    [self collectionRememberGroups];
-                    [self collectionRememberPasswordForPath:source];
-                }
-                [self collectionRefreshVersionInfoForDocument:doc];
-                if (![self->_path isEqual:source]) return;
-                [self collectionRefreshHistory];
-                if (error) self->_statusLabel.stringValue = [NSString stringWithFormat:@"Collection: copy failed — %@", error.localizedDescription];
-            });
-        }];
+        // A camera sensor frame is never kept; a picture is kept only once text is found in it.
+        if (SPDFMacSensorFramePath(source)) {
+            [self collectionRecordUserOpenForPath:source document:[store documentForPath:source]]; return;
+        }
+        [self pictureTextScheduleCollectionCheck];
+        void (^capture)(void (^)(NSDictionary*)) = ^(void (^kept)(NSDictionary*)) {
+            NSUInteger userOpenCount = [self collectionConsumeUserOpenForPath:source];
+            [store capturePath:source authorizedCopy:authorizedCopy reason:continuingID ? @"Observed save" : @"Opened"
+                continuingDocumentID:continuingID userOpenCount:userOpenCount
+                completion:^(NSDictionary* doc, NSError* error, BOOL userOpenCountRecorded) {
+                // Reading succeeded even when capture was excluded or could not save a new version.
+                if (!userOpenCountRecorded)
+                    [self collectionRecordUserOpenCount:userOpenCount document:doc ?: [store documentForPath:source]];
+                NSDictionary* editable = [store editableInfoForPath:source];
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    if (editable && [openedTab.path isEqual:source]) {
+                        openedTab.readOnly = NO; openedTab.collectionVersionLabel = nil;
+                        [self collectionSetVersionInfo:editable forTab:openedTab];
+                    }
+                    if (doc) {
+                        if ([openedTab.path isEqual:source]) openedTab.collectionHistoryDocumentID=doc[@"id"];
+                        // A name given in ShenzhenPDF to a file that keeps its own comes back with the document.
+                        NSString* given=[doc[@"displayName"] isKindOfClass:NSString.class] ? doc[@"displayName"] : nil;
+                        if (given.length && [openedTab.path isEqual:source] && !openedTab.displayName.length)
+                            [self showDisplayName:given forTabsAtPath:source];
+                        [self collectionRememberGroups];
+                        [self collectionRememberPasswordForPath:source];
+                    }
+                    [self collectionRefreshVersionInfoForDocument:doc];
+                    if (kept) kept(doc);
+                    if (![self->_path isEqual:source]) return;
+                    [self collectionRefreshHistory];
+                    if (error) self->_statusLabel.stringValue = [NSString stringWithFormat:@"Collection: copy failed — %@", error.localizedDescription];
+                });
+            }];
+        };
+        if (![self pictureTextOpenedPath:source capture:capture]) capture(nil);
     });
 }
 - (void)collectionCommentsDidChangeForPath:(NSString*)path {

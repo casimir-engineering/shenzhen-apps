@@ -71,9 +71,11 @@ CORE_SVG_IMAGE_OBJ := $(BUILD)/spdf_svg_image.o $(BUILD)/spdf_svg_font.o $(BUILD
 CORE_SENSOR_RAW_OBJ := $(BUILD)/spdf_sensor_raw.o
 # Camera RAW photos shown as pictures (core/spdf_camera_raw.h; mac/SPDFMacCameraRaw.mm adds Core Image's decoder).
 CORE_CAMERA_RAW_OBJ := $(BUILD)/spdf_camera_raw.o
+# Text recognised in pictures and PDFs on macOS (core/spdf_picture_text.h, core/spdf_ocr_layer.h; mac/SPDFMacPictureText.mm).
+CORE_RECOGNIZED_TEXT_OBJ := $(BUILD)/spdf_picture_text.o $(BUILD)/spdf_ocr_layer.o
 CORE_OBJS := $(CORE_OBJ) $(CORE_SELECTION_OBJ) $(CORE_SELECTION_SUPPORT_OBJ) $(CORE_RECOLOR_OBJ) $(CORE_IMAGE_PROPERTIES_OBJ) \
 	$(CORE_PAGE_IMAGES_OBJ) $(CORE_LINK_OBJ) $(CORE_PROGRESSIVE_OBJ) $(CORE_DESTINATION_OBJ) $(CORE_SVG_IMAGE_OBJ) \
-	$(CORE_SENSOR_RAW_OBJ) $(CORE_CAMERA_RAW_OBJ)
+	$(CORE_SENSOR_RAW_OBJ) $(CORE_CAMERA_RAW_OBJ) $(CORE_RECOGNIZED_TEXT_OBJ)
 YAML_SRC := core/spdf_yaml.c
 YAML_HDR := core/spdf_yaml.h
 YAML_OBJ := $(BUILD)/spdf_yaml.o
@@ -212,6 +214,12 @@ $(CORE_PROGRESSIVE_OBJ): core/spdf_progressive.c core/spdf_progressive.h core/sp
 	clang $(PORTABLE_OPTFLAGS) $(MAC_TARGET_FLAGS) -Wall -Wextra -Werror -Icore -I$(MUPDF_DIR)/include -c $< -o "$@"
 
 $(CORE_DESTINATION_OBJ): core/spdf_destination.c core/spdf_destination.h core/spdf_core_document.h Makefile | $(BUILD)
+	clang $(PORTABLE_OPTFLAGS) $(MAC_TARGET_FLAGS) -Wall -Wextra -Werror -Icore -I$(MUPDF_DIR)/include -c $< -o "$@"
+
+$(BUILD)/spdf_picture_text.o: core/spdf_picture_text.c core/spdf_picture_text.h core/spdf_core_document.h Makefile | $(BUILD)
+	clang $(PORTABLE_OPTFLAGS) $(MAC_TARGET_FLAGS) -Wall -Wextra -Werror -Icore -I$(MUPDF_DIR)/include -c $< -o "$@"
+
+$(BUILD)/spdf_ocr_layer.o: core/spdf_ocr_layer.c core/spdf_ocr_layer.h Makefile | $(BUILD)
 	clang $(PORTABLE_OPTFLAGS) $(MAC_TARGET_FLAGS) -Wall -Wextra -Werror -Icore -I$(MUPDF_DIR)/include -c $< -o "$@"
 
 $(CORE_SENSOR_RAW_OBJ): core/spdf_sensor_raw.c core/spdf_sensor_raw.h core/spdf_sensor_raw_stats.h core/spdf_core_document.h Makefile | $(BUILD)
@@ -689,7 +697,7 @@ $(MAC_BIN): $(MAC_APP_OBJS) $(MAC_SWIFT_OBJ) mac/ShenzhenPDF.entitlements core/s
 		$(MAC_APP_OBJS) $(MAC_SWIFT_LINK) $(CORE_OBJS) "$(YAML_OBJ)" $(MAC_MD4C_OBJ) $(MAC_GUMBO_OBJS) $(MAC_FRIENDS_LINK) \
 		$(MUPDF_LIBS) -framework Cocoa -framework QuartzCore -framework PDFKit -framework \
 		UniformTypeIdentifiers -framework CoreServices -framework Security -framework LocalAuthentication \
-		-framework ImageIO $(MAC_FRIENDS_FRAMEWORKS) -lm -Wl,-dead_strip -Wl,-x -o "$(MAC_BIN)"
+		-framework ImageIO -framework Vision $(MAC_FRIENDS_FRAMEWORKS) -lm -Wl,-dead_strip -Wl,-x -o "$(MAC_BIN)"
 	# szpdf, the command-line tool, is the app's executable under another name (mac/SPDFMacSzpdf.h).
 	ln -sf ShenzhenPDF "$(MAC_APP)/Contents/MacOS/szpdf"
 	@if otool -L "$(MAC_BIN)" | grep -Eq 'libcrypto|/opt/homebrew|/usr/local'; then \
