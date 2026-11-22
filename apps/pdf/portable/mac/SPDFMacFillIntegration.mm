@@ -1,6 +1,7 @@
 #import "SPDFMacFillIntegration.h"
 
 #import "SPDFMacCollectionPathPolicy.h"
+#import "SPDFMacEditedPageThumbnails.h"
 #import "SPDFMacFillController.h"
 #import "SPDFMacFillOverlayView.h"
 #import "SPDFMacFillPalette.h"
@@ -31,7 +32,6 @@ static char kSPDFFillControllerKey, kSPDFFillMenuTargetKey, kSPDFFillFormStampKe
 - (BOOL)moveActivePDFToWritableCopyForOperation:(NSString*)operation;
 - (BOOL)activePDFNeedsSaveAsBeforeModificationWithReason:(NSString**)reasonOut;
 - (void)cacheActiveRenderedPagesForSelectedTab;
-- (void)copyMinimapThumbnailFromPage:(SPDFRenderedPage*)source toPage:(SPDFRenderedPage*)destination;
 - (void)resizeDocumentView;
 - (NSString*)pathForStateFile:(NSString*)name;
 @end
@@ -393,10 +393,10 @@ void SPDFFillInstallMenuItems(NSMenu* editMenu, NSMenu* fileMenu, ShenzhenMacDel
       [self->_pageView refreshRenderedPages:self->_renderedPages changedPageIndex:(NSInteger)index];
     }];
     if (needsFullRender) {
-        [self renderDocumentAndScrollToPage:_pageIndex
-                                   alignTop:NO
-                              restoreOrigin:[NSValue valueWithPoint:_pageScrollView.contentView.bounds.origin]];
+        [self rerenderDocumentAfterEditOfPages:pages
+                                 restoreOrigin:[NSValue valueWithPoint:_pageScrollView.contentView.bounds.origin]];
     } else {
+        [self refreshMinimapThumbnailsOfEditedPages:pages];
         [self cacheActiveRenderedPagesForSelectedTab];
         [self renderVisiblePageCropsForCurrentViewportIfNeeded];
     }

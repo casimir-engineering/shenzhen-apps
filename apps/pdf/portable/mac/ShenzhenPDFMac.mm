@@ -20,6 +20,7 @@
 #import "SPDFMacCollectionCompanion.h"
 #import "SPDFMacSidebarWorkspace.h"
 #import "SPDFMacFillIntegration.h"
+#import "SPDFMacEditedPageThumbnails.h"
 #import <Cocoa/Cocoa.h>
 #import <PDFKit/PDFKit.h>
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
@@ -3285,23 +3286,6 @@ static BOOL spdf_page_list_cache_disabled(void) {
     return fabs(page.minimapImageZoom - zoom) <= 0.01 && fabs(page.minimapImageScale - displayScale) <= 0.01;
 }
 
-- (void)copyMinimapThumbnailFromPage:(SPDFRenderedPage*)source toPage:(SPDFRenderedPage*)destination {
-    if (!source || !destination) return;
-    destination.minimapImage = source.minimapImage;
-    destination.minimapImageZoom = source.minimapImageZoom;
-    destination.minimapImageScale = source.minimapImageScale;
-    destination.baseImage = source.baseImage;
-    destination.baseImagePointWidth = source.baseImagePointWidth;
-    destination.baseImagePointHeight = source.baseImagePointHeight;
-    destination.baseImageZoom = source.baseImageZoom;
-    destination.baseImageScale = source.baseImageScale;
-    destination.highQualityImage = source.highQualityImage;
-    destination.highQualityImagePointWidth = source.highQualityImagePointWidth;
-    destination.highQualityImagePointHeight = source.highQualityImagePointHeight;
-    destination.highQualityImageZoom = source.highQualityImageZoom;
-    destination.highQualityImageScale = source.highQualityImageScale;
-}
-
 - (NSArray<NSNumber*>*)pageNeighborhoodIndexesAroundPage:(NSInteger)pageIndex {
     return [self pageNeighborhoodIndexesAroundPage:pageIndex radius:1];
 }
@@ -3963,6 +3947,7 @@ static BOOL spdf_page_list_cache_disabled(void) {
         if ([self minimapThumbnailImage:existing matchesZoom:thumbnailZoom displayScale:displayScale]) continue;
         if ([_queuedMinimapThumbnailPages containsObject:number]) continue;
         [_queuedMinimapThumbnailPages addObject:number];
+        NSUInteger editStamp = [self minimapThumbnailEditStampForPage:index]; // an edit after this: drawn again
         if (_minimapInitialPopulationPending) {
             boostInitialBand = YES;
             _minimapInitialPopulationPending = NO;
@@ -3997,6 +3982,7 @@ static BOOL spdf_page_list_cache_disabled(void) {
               if (!thumbnailPage && spdf_render_was_canceled(err) && spdf_zoom_profile_enabled())
                   spdf_zoom_profile_log(@"renderCanceled page=%ld site=minimapThumbnail", (long)index);
               [[NSOperationQueue mainQueue] addOperationWithBlock:^{
+                if (editStamp != [self minimapThumbnailEditStampForPage:index]) return; // the edit queued its own
                 [self->_queuedMinimapThumbnailPages removeObject:number];
                 if (generation != self->_renderGeneration || !self->_doc || ![self->_path isEqualToString:path] ||
                     index >= (NSInteger)self->_renderedPages.count || !thumbnailPage.image)

@@ -5,6 +5,7 @@
 
 #import "SPDFMacCommentActions.h"
 #import "SPDFMacDelegatePrivate.h"
+#import "SPDFMacEditedPageThumbnails.h"
 #import "SPDFMacMarkdownDelegatePrivate.h"
 #import "SPDFMacCommentEditor.h"
 #import "SPDFMacMarkdownPageCanvas.h"
@@ -282,9 +283,8 @@ static char kEditorAnchorKey;
 
     _statusLabel.stringValue = @"Comment added.";
     [self reloadCommentsFromActiveDocument];
-    [self renderDocumentAndScrollToPage:_pageIndex
-                               alignTop:NO
-                          restoreOrigin:[NSValue valueWithPoint:_pageScrollView.contentView.bounds.origin]];
+    [self rerenderDocumentAfterEditOfPages:[NSIndexSet indexSetWithIndex:(NSUInteger)pageIndex]
+                             restoreOrigin:[NSValue valueWithPoint:_pageScrollView.contentView.bounds.origin]];
 }
 
 - (void)setCommentAuthor:(id)sender {
@@ -391,6 +391,8 @@ static char kEditorAnchorKey;
 }
 
 - (void)savePDFComment:(NSInteger)commentIndex text:(NSString*)text author:(NSString*)author {
+    spdf_comment_item* item = [self commentItemForIndex:commentIndex];
+    NSIndexSet* changed = item ? [NSIndexSet indexSetWithIndex:(NSUInteger)MAX(0, item->page_index)] : [NSIndexSet indexSet];
     char err[1024];
     BOOL ok = spdf_update_comment(_doc, (int)commentIndex, text.UTF8String, author.UTF8String, err, sizeof(err));
     if (ok) ok = spdf_save_document(_doc, _path.fileSystemRepresentation, err, sizeof(err));
@@ -405,9 +407,8 @@ static char kEditorAnchorKey;
     [self savePersistentState];
     _statusLabel.stringValue = @"Comment updated.";
     [self reloadCommentsFromActiveDocument];
-    [self renderDocumentAndScrollToPage:_pageIndex
-                               alignTop:NO
-                          restoreOrigin:[NSValue valueWithPoint:_pageScrollView.contentView.bounds.origin]];
+    [self rerenderDocumentAfterEditOfPages:changed
+                             restoreOrigin:[NSValue valueWithPoint:_pageScrollView.contentView.bounds.origin]];
 }
 
 - (void)resolveComment:(id)sender {
@@ -456,6 +457,7 @@ static char kEditorAnchorKey;
     }
 
     NSString* text = item->text && *item->text ? [NSString stringWithUTF8String:item->text] : @"";
+    NSIndexSet* changed = [NSIndexSet indexSetWithIndex:(NSUInteger)MAX(0, item->page_index)];
     NSString* detail = @"This will permanently remove the comment from the PDF.";
     if (text.length > 0) {
         NSString* preview = text.length > 180 ? [[text substringToIndex:180] stringByAppendingString:@"..."] : text;
@@ -485,7 +487,7 @@ static char kEditorAnchorKey;
 
     _statusLabel.stringValue = @"Comment deleted.";
     [self reloadCommentsFromActiveDocument];
-    [self renderDocumentAndScrollToPage:_pageIndex alignTop:NO restoreOrigin:restoreOrigin];
+    [self rerenderDocumentAfterEditOfPages:changed restoreOrigin:restoreOrigin];
 }
 
 @end
