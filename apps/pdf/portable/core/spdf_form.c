@@ -308,6 +308,33 @@ int spdf_form_load_page_widgets(spdf_document* doc, int page_index, spdf_form_wi
 
 /* -- setters ------------------------------------------------------------------------------------------------- */
 
+/* Each widget under `node` shows `value` when it has an appearance by that name, else Off. */
+static void put_button_states(fz_context* ctx, pdf_obj* node, pdf_obj* value, int depth) {
+    pdf_obj* kids = pdf_dict_get(ctx, node, PDF_NAME(Kids));
+    int i, n = pdf_array_len(ctx, kids);
+    if (depth > FORM_DEPTH_CAP) return;
+    if (pdf_dict_get(ctx, node, PDF_NAME(Subtype)) == PDF_NAME(Widget)) {
+        int has = value != PDF_NAME(Off) && pdf_dict_get(ctx, pdf_dict_getp(ctx, node, "AP/N"), value);
+        pdf_dict_put(ctx, node, PDF_NAME(AS), has ? value : PDF_NAME(Off));
+    }
+    for (i = 0; i < n; ++i) put_button_states(ctx, pdf_array_get(ctx, kids, i), value, depth + 1);
+}
+
+/* A checkbox or radio button on or off. MuPDF's own toggle gives every widget of the field the clicked one's state
+ * name, so all buttons of a radio group showed as chosen; this keeps each widget to the states it has. A widget
+ * without appearances of its own is left to MuPDF, which draws them. */
+static void set_button(fz_context* ctx, pdf_annot* widget, int on) {
+    pdf_obj* obj = pdf_annot_obj(ctx, widget);
+    pdf_obj* field = field_of_widget(ctx, obj);
+    pdf_obj* value = on ? pdf_button_field_on_state(ctx, obj) : PDF_NAME(Off);
+    if (!pdf_is_dict(ctx, pdf_dict_getp(ctx, obj, "AP/N")) || !pdf_is_name(ctx, value)) {
+        pdf_toggle_widget(ctx, widget);
+        return;
+    }
+    pdf_dict_put(ctx, field, PDF_NAME(V), value);
+    put_button_states(ctx, field, value, 0);
+}
+
 typedef enum { SET_TEXT, SET_ON, SET_CHOICE } form_set_mode;
 
 typedef struct {
@@ -391,8 +418,7 @@ static int form_set(spdf_document* doc, int page_index, int object_number, form_
             fz_throw(ctx, FZ_ERROR_ARGUMENT, "This field doesn't accept that value.");
         if (mode == SET_CHOICE && !pdf_set_choice_field_value(ctx, widget, text ? text : ""))
             fz_throw(ctx, FZ_ERROR_ARGUMENT, "This field doesn't accept that value.");
-        if (mode == SET_ON && widget_is_on(ctx, pdf_annot_obj(ctx, widget)) != (on != 0))
-            pdf_toggle_widget(ctx, widget);
+        if (mode == SET_ON && widget_is_on(ctx, pdf_annot_obj(ctx, widget)) != (on != 0)) set_button(ctx, widget, on);
 
         /* Regenerate the appearance on every page holding a widget of this field. */
         for (i = 0; i < set.count; ++i) {
