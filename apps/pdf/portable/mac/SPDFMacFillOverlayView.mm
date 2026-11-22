@@ -190,6 +190,9 @@ NSBezierPath* SPDFFillMarkPath(NSRect r, BOOL cross) {
     if (!view) return;
     NSRect inDocument = spdf_mac_page_rect_to_view_rect(NSInsetRect(rect, -24, -40), [view rectForPageAtIndex:index],
                                                         [self renderedPage:index]);
+    // The palette covers the top of the viewport: what is revealed lands below it.
+    inDocument.origin.y -= view.topReserve;
+    inDocument.size.height += view.topReserve;
     [view scrollRectToVisible:inDocument];
 }
 
@@ -296,7 +299,10 @@ NSBezierPath* SPDFFillMarkPath(NSRect r, BOOL cross) {
         [NSBezierPath strokeRect:NSInsetRect(r, 0.5, 0.5)];
         return;
     }
-    if (_hoverSnapValid && !self.hoverItem && !_hoverField && !self.controller.editor) [self drawHoverTarget:session];
+    // Nothing is offered where nothing can be added (a PDF that only allows filling in its own fields).
+    BOOL placing = !session.hasSummary || session.summary.can_add_items;
+    if (placing && _hoverSnapValid && !self.hoverItem && !_hoverField && !self.controller.editor)
+        [self drawHoverTarget:session];
 }
 
 - (NSRect)resizeHandleForViewRect:(NSRect)r {

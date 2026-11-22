@@ -256,7 +256,7 @@
         NSMutableString* derived = [NSMutableString string];
         for (NSString* word in [name componentsSeparatedByCharactersInSet:NSCharacterSet.whitespaceCharacterSet])
             if (word.length) [derived appendString:[[word substringToIndex:1] uppercaseString]];
-        initials = derived.length >= 2 ? derived : nil;
+        initials = derived.length ? derived : nil;  // one word ("Raph") gives one letter
     }
     NSDateFormatter* formatter = [NSDateFormatter new];
     formatter.dateFormat = [NSDateFormatter dateFormatFromTemplate:@"yyyyMMMd" options:0 locale:NSLocale.currentLocale];

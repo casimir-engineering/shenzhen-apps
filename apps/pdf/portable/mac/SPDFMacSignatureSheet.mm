@@ -293,6 +293,7 @@ static NSMutableSet* SPDFOpenSheets(void) {
                 attributes:@{NSFontAttributeName : font, NSForegroundColorAttributeName : SPDFSheetInk(self.inkControl.selectedSegment),
                              NSParagraphStyleAttributeName : centred}];
         button.state = button.tag == self.chosenFont ? NSControlStateValueOn : NSControlStateValueOff;
+        button.accessibilityLabel = [NSString stringWithFormat:@"%@ in %@", text, font.familyName ?: font.fontName];
         button.layer.borderWidth = button.state ? 3 : 1;
         button.layer.borderColor = (button.state ? NSColor.controlAccentColor : NSColor.separatorColor).CGColor;
     }

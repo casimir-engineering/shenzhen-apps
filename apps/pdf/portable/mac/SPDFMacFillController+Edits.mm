@@ -40,7 +40,7 @@ typedef BOOL (^SPDFFillWrite)(spdf_document* doc, NSMutableIndexSet* pages, char
     self.busy = NO;
     if (ok) {
         [self.overlay refresh];
-        [self.palette updateFromSession:[self session] progress:[self progressText]];
+        [self.palette updateFromSession:[self session] progress:[self progressText] note:[self paletteNote]];
     }
     return ok;
 }

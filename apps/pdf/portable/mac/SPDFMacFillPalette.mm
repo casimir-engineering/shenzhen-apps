@@ -67,11 +67,14 @@ static NSImage* SPDFPaletteSymbol(NSString* name, NSString* description) {
 - (void)build {
     _progress = SPDFCollectionText(@"", 11, NSFontWeightRegular, YES);
     _progress.translatesAutoresizingMaskIntoConstraints = NO;
+    _progress.maximumNumberOfLines = 1;  // "3 of 12 filled" stays on one line; the note under the tools wraps instead
+    [_progress setContentCompressionResistancePriority:NSLayoutPriorityRequired
+                                        forOrientation:NSLayoutConstraintOrientationHorizontal];
     _text = [self tool:@"Text" symbol:nil label:@"Text" action:@selector(chooseText:)];
     _check = [self tool:@"" symbol:@"checkmark" label:@"Check" action:@selector(chooseCheck:)];
     _cross = [self tool:@"" symbol:@"xmark" label:@"Cross" action:@selector(chooseCross:)];
     _signature = [self tool:@"Signature" symbol:@"signature" label:@"Signature" action:@selector(chooseSignature:)];
-    _signatureMenu = [self tool:@"" symbol:@"chevron.down" label:@"Signature" action:@selector(showSignatureMenu:)];
+    _signatureMenu = [self tool:@"" symbol:@"chevron.down" label:@"Signatures and initials" action:@selector(showSignatureMenu:)];
     for (NSLayoutConstraint* c in _signatureMenu.constraints)
         if (c.firstAttribute == NSLayoutAttributeWidth) c.constant = 24;
     _done = SPDFCollectionButton(@"Done", self, @selector(done:), @"normal");
@@ -137,14 +140,18 @@ static NSImage* SPDFPaletteSymbol(NSString* name, NSString* description) {
     if (hidden) self.alphaValue = 0;
 }
 
-- (void)updateFromSession:(SPDFFillSession*)session progress:(NSString*)progress {
+- (void)updateFromSession:(SPDFFillSession*)session progress:(NSString*)progress note:(NSString*)note {
     _progress.stringValue = progress ?: @"";
     _progress.hidden = progress.length == 0;
     _text.state = session.tool == SPDFFillToolText ? NSControlStateValueOn : NSControlStateValueOff;
     _check.state = session.tool == SPDFFillToolMark && !session.markCross ? NSControlStateValueOn : NSControlStateValueOff;
     _cross.state = session.tool == SPDFFillToolMark && session.markCross ? NSControlStateValueOn : NSControlStateValueOff;
     _signature.state = session.tool == SPDFFillToolSignature ? NSControlStateValueOn : NSControlStateValueOff;
-    _hint.hidden = !session.isForm || [SPDFMacSignatureStore sharedStore].formHintSeen;
+    _signatureMenu.state = _done.state = NSControlStateValueOff;  // a click turns them on; they are never "chosen"
+    _hint.stringValue = note.length ? note : @"Click a highlighted field to type. What you enter is saved as you go.";
+    _hint.hidden = !note.length && (!session.isForm || [SPDFMacSignatureStore sharedStore].formHintSeen);
+    // A longer note wraps at the width of the tools (or of the first-form hint) instead of widening the palette.
+    _hint.preferredMaxLayoutWidth = MAX(ceil(_row.fittingSize.width) - 8, 370);
     if (_hint.hidden) {
         _hintBottom.active = NO;
         _plainBottom.active = YES;
@@ -206,6 +213,7 @@ static NSImage* SPDFPaletteSymbol(NSString* name, NSString* description) {
 }
 
 - (void)showSignatureMenu:(NSButton*)sender {
+    sender.state = NSControlStateValueOff;  // not left looking chosen once the menu closes
     SPDFMacSignatureStore* store = [SPDFMacSignatureStore sharedStore];
     NSArray* signatures = [store signaturesForInitials:NO];
     NSArray* initials = [store signaturesForInitials:YES];

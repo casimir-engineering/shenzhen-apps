@@ -147,6 +147,15 @@ static void spdf_launch_log_first_document_paint(NSUInteger pageCount, double st
     [self invalidateLayoutCache];
 }
 
+@synthesize topReserve = _topReserve;
+- (CGFloat)topReserve { return self.presentationMode ? 0.0 : MAX(0.0, _topReserve); }
+
+- (void)setTopReserve:(CGFloat)topReserve {
+    if (_topReserve == topReserve) return;
+    _topReserve = topReserve;
+    [self invalidateLayoutCache];
+}
+
 - (void)setBackingScale:(CGFloat)backingScale {
     if (_backingScale == backingScale) return;
     _backingScale = backingScale;
@@ -246,9 +255,12 @@ static void spdf_launch_log_first_document_paint(NSUInteger pageCount, double st
     // tallest page reaches the viewport height (a fit page's top sits at the
     // viewport top), and a single page shorter than the viewport is centered
     // vertically. See SPDFMacFitGeometry.h.
-    CGFloat verticalInset =
-        spdf_mac_vertical_canvas_inset(self.pages.count, tallestPage, viewportHeight, pageMargin / 2.0);
-    CGFloat continuousY = verticalInset;
+    // A strip kept clear above the first page (Fill & Sign's palette) is taken out of the viewport it centres in.
+    CGFloat reserve = self.topReserve;
+    CGFloat verticalInset = spdf_mac_vertical_canvas_inset(self.pages.count, tallestPage,
+                                                           viewportHeight > 1.0 ? MAX(1.0, viewportHeight - reserve) : 0.0,
+                                                           pageMargin / 2.0);
+    CGFloat continuousY = verticalInset + reserve;
     for (NSUInteger i = 0; i < self.pages.count; ++i) {
         NSSize pageSize = [pageSizes[i] sizeValue];
         CGFloat x = floor((layoutWidth - pageSize.width) / 2.0);

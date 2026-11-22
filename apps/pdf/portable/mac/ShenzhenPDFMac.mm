@@ -5455,7 +5455,8 @@ static BOOL spdf_page_list_cache_disabled(void) {
         CGFloat x = NSWidth(pageRect) <= NSWidth(clipView.bounds) + 0.5
                         ? [self centeredHorizontalScrollOriginXForPageRect:pageRect]
                         : MAX(0, pageRect.origin.x - 12.0);
-        CGFloat y = spdf_mac_fit_scroll_origin_y(NSMinY(pageRect), NSHeight(pageRect), NSHeight(clipView.bounds), 12);
+        CGFloat y = spdf_mac_fit_scroll_origin_y(NSMinY(pageRect) - _pageView.topReserve, NSHeight(pageRect),
+                                                 NSHeight(clipView.bounds) - _pageView.topReserve, 12);
         if (_presentationMode) y = [self presentationCenteredScrollOriginYForPageIndex:pageIndex];
         NSPoint point = NSMakePoint(x, y);
         [self scrollDocumentClipViewToOrigin:point notify:NO];
@@ -5528,6 +5529,7 @@ static BOOL spdf_page_list_cache_disabled(void) {
     pageIndex = MAX(0, MIN(pageIndex, (NSInteger)_renderedPages.count - 1));
     NSRect pageRect = [_pageView rectForPageAtIndex:pageIndex];
     if (NSIsEmptyRect(pageRect)) return NSZeroPoint;
+    visibleRect.origin.y += _pageView.topReserve, visibleRect.size.height -= _pageView.topReserve; // under the palette
 
     CGFloat maxX = MAX(1.0, NSWidth(pageRect) - NSWidth(visibleRect));
     CGFloat maxY = MAX(1.0, NSHeight(pageRect) - NSHeight(visibleRect));
@@ -5557,7 +5559,8 @@ static BOOL spdf_page_list_cache_disabled(void) {
 
     NSClipView* clipView = _pageScrollView.contentView;
     CGFloat maxInPageX = MAX(0.0, NSWidth(pageRect) - NSWidth(clipView.bounds));
-    CGFloat maxInPageY = MAX(0.0, NSHeight(pageRect) - NSHeight(clipView.bounds));
+    CGFloat reserve = _pageView.topReserve;  // the strip under Fill & Sign's palette is not part of the viewport
+    CGFloat maxInPageY = MAX(0.0, NSHeight(pageRect) - NSHeight(clipView.bounds) + reserve);
     CGFloat maxDocumentX = MAX(0.0, NSWidth(_pageView.bounds) - NSWidth(clipView.bounds));
     CGFloat maxDocumentY = MAX(0.0, NSHeight(_pageView.bounds) - NSHeight(clipView.bounds));
     // relativePosition.y is a 0..1 fraction of the *source* page. Mapping it onto a
@@ -5568,7 +5571,7 @@ static BOOL spdf_page_list_cache_disabled(void) {
     BOOL targetMuchTaller = fromPageHeight > 0.5 && NSHeight(pageRect) > fromPageHeight * 2.0;
     CGFloat relativeY = targetMuchTaller ? 0.0 : spdf_clamp_cg(relativePosition.y, 0.0, 1.0);
     NSPoint origin = NSMakePoint(NSMinX(pageRect) + spdf_clamp_cg(relativePosition.x, 0.0, 1.0) * maxInPageX,
-                                 NSMinY(pageRect) + relativeY * maxInPageY);
+                                 NSMinY(pageRect) - reserve + relativeY * maxInPageY);
     if (NSWidth(pageRect) <= NSWidth(clipView.bounds) + 0.5)
         origin.x = [self centeredHorizontalScrollOriginXForPageRect:pageRect];
     origin.x = spdf_clamp_cg(origin.x, 0.0, maxDocumentX);

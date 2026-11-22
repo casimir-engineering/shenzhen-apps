@@ -31,6 +31,10 @@
 - (void)fillShowError:(NSString*)title detail:(NSString*)detail;
 - (spdf_document*)fillOpenReadDocumentAtPath:(NSString*)path error:(char*)err length:(size_t)len;
 - (void)fillStateDidChange;
+// The document is the app's own copy of a file that couldn't be changed where it is.
+- (BOOL)fillIsEditedCopy;
+// Keeps this much room above the first page, so the palette can be scrolled clear of it (0: none).
+- (void)fillSetPageTopReserve:(CGFloat)reserve;
 @end
 
 @interface SPDFMacFillController : NSObject

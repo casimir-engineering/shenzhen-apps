@@ -23,6 +23,7 @@ static char kSPDFFillSessionKey;
     NSString* _workerPath;           // idem
     NSMutableSet<NSValue*>* _tokens;  // render tokens of geometry loads in flight
     NSMutableDictionary<NSString*, SPDFMacSignature*>* _usedSignatures;
+    CGFloat _topReserve;  // room kept above the first page while the palette shows
 }
 
 @synthesize usedSignatures = _usedSignatures;
@@ -111,7 +112,16 @@ static char kSPDFFillSessionKey;
     self.overlay.hidden = !showing;
     self.palette.hidden = !showing;
     if (showing) {
-        [self.palette updateFromSession:[self session] progress:[self progressText]];
+        [self.palette updateFromSession:[self session] progress:[self progressText] note:[self paletteNote]];
+        // Room above the first page for the palette, so the top of the page can be seen. It only grows while the
+        // palette shows, so the pages don't jump when its one-line hint goes away.
+        [self.palette layoutSubtreeIfNeeded];
+        _topReserve = MAX(_topReserve, ceil(self.palette.fittingSize.height) + 18);
+    } else {
+        _topReserve = 0;
+    }
+    [_host fillSetPageTopReserve:_topReserve];
+    if (showing) {
         [self.overlay refresh];
         [self.overlay takeKeysFromPages];
     } else {
@@ -120,12 +130,20 @@ static char kSPDFFillSessionKey;
     [_host fillStateDidChange];
 }
 
+- (NSString*)paletteNote {
+    // No-break spaces keep "File ▸ Save As…" on one line.
+    return [_host fillIsEditedCopy] ? @"You're filling in a copy, because the original can't be changed. Choose "
+                                      @"File\u00a0▸\u00a0Save\u00a0As… to put it where you want."
+                                    : nil;
+}
+
 - (void)activeDocumentChanged {
     NSString* key = [self currentDocKey];
     if (![key isEqual:_docKey]) {
         [self dropInteraction];  // what was typed went into the file before the document was left
         [self dropCaches];
         _docKey = key;
+        _topReserve = 0;  // the room above the pages fits this document's palette
     }
     [self refreshChrome];
 }

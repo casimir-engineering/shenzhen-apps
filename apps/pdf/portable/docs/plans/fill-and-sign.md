@@ -67,7 +67,8 @@ when the PDF has a real form, no cost at launch (ideally a gain), testing only a
    click places a mark (snapped into a box when there is one). Option-click places the other mark.
 4. Clicking one of our marks removes it, like a checkbox. On a selected or hovered mark: X makes a cross, V a check,
    Space toggles. Right-click: Check, Cross, Remove.
-5. Tab and ⇧Tab move through detected lines and boxes in reading order, so flat forms fill from the keyboard.
+5. Tab and ⇧Tab move through detected lines, boxes and empty table cells in reading order, so flat forms fill from
+   the keyboard.
 
 ### C. Signing
 
@@ -326,6 +327,15 @@ Where the Mac front end differs from the sketches below:
   pages synchronously from `_doc` in the same turn; there is no debounce and no unsaved state. What is being typed is
   written before the document is left (`rememberActiveTabState` hook). Collection gets `collectionDidSavePath:` 5 s
   after the last change of a burst, and the "before edit" protection runs once per burst.
+- **Palette room:** while the palette shows, the document view keeps room above the first page (`topReserve`, the
+  palette's height plus 18 pt, grown but not shrunk while it shows), so the top of a page is never stuck under it;
+  page steps and reading positions count the viewport from below it, and Tab scrolls a target clear of it. When the
+  document is the app's own copy of a file that couldn't be changed, the palette's second line says so and points to
+  File ▸ Save As….
+- **Snapping additions:** a small square drawn as four separate rules counts as a box (`find_ruled_squares`), and
+  Tab lists the empty cells of ruled tables. MuPDF's "auto" size for one-line fields (text and combo) is capped at
+  0.65 × the field height and 12 pt, as the editor shows it (`mupdf/source/pdf/pdf-appearance.c`, marked
+  "ShenzhenPDF:").
 - **Permissions:** Fill & Sign checks `can_fill_fields` / `can_add_items` from the summary itself, then runs the same
   writable-copy / Collection steps as `ensureActivePDFCanBeModifiedForOperation:` without its 'e'/'n' check, so a
   fill-only PDF can be filled.

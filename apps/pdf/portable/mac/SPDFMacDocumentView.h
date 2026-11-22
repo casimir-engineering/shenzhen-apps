@@ -41,6 +41,10 @@
 @property(nonatomic) NSRect activeFindRect;
 @property(nonatomic) CGFloat activeFindAlpha;
 @property(nonatomic) BOOL presentationMode;
+// Height kept free above the first page, for chrome floating over the top of the pages (Fill & Sign's palette), so
+// the top of the document can be scrolled out from under it; page steps and reading positions count the viewport
+// from below it. 0 normally, and reads 0 in presentation mode.
+@property(nonatomic) CGFloat topReserve;
 // The active reading theme, threaded in from the delegate exactly like the
 // Markdown canvas's plan variant. It decides the gutter fill and how a page is
 // separated from it: light keeps the drop shadow, dark draws a 1px border

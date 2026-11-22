@@ -29,6 +29,8 @@ static char kSPDFFillControllerKey, kSPDFFillMenuTargetKey, kSPDFFillFormStampKe
 - (BOOL)activePDFNeedsSaveAsBeforeModificationWithReason:(NSString**)reasonOut;
 - (void)cacheActiveRenderedPagesForSelectedTab;
 - (void)copyMinimapThumbnailFromPage:(SPDFRenderedPage*)source toPage:(SPDFRenderedPage*)destination;
+- (void)resizeDocumentView;
+- (NSString*)pathForStateFile:(NSString*)name;
 @end
 
 @interface ShenzhenMacDelegate (SPDFMacFillHost) <SPDFMacFillHost>
@@ -227,6 +229,26 @@ void SPDFFillInstallMenuItems(NSMenu* editMenu, NSMenu* fileMenu, ShenzhenMacDel
 - (void)fillShowError:(NSString*)title detail:(NSString*)detail { [self showError:title detail:detail]; }
 - (void)fillStateDidChange { [self syncWorkspaceChrome]; }
 
+- (BOOL)fillIsEditedCopy {
+    NSString* copies = [[self pathForStateFile:@"Edited Copies"] stringByAppendingString:@"/"];
+    return _path.length && [_path.stringByStandardizingPath hasPrefix:copies.stringByStandardizingPath];
+}
+
+- (void)fillSetPageTopReserve:(CGFloat)reserve {
+    if (!_pageView || fabs(_pageView.topReserve - reserve) < 0.5) return;
+    NSClipView* clip = _pageScrollView.contentView;
+    NSPoint origin = clip.bounds.origin;
+    CGFloat delta = reserve - _pageView.topReserve;
+    _pageView.topReserve = reserve;
+    [self resizeDocumentView];
+    // At the top of the document the first page moves down clear of the palette (or back up after it); further down,
+    // what is on screen stays where it is.
+    if (origin.y <= 0.5) return;
+    origin.y = MAX(0.0, MIN(origin.y + delta, NSHeight(_pageView.bounds) - NSHeight(clip.bounds)));
+    [clip scrollToPoint:origin];
+    [_pageScrollView reflectScrolledClipView:clip];
+}
+
 - (spdf_document*)fillOpenReadDocumentAtPath:(NSString*)path error:(char*)err length:(size_t)len {
     return [self openSpdfDocumentAtPath:path sourcePath:_path status:NULL error:err errorLength:len];
 }
@@ -240,7 +262,7 @@ void SPDFFillInstallMenuItems(NSMenu* editMenu, NSMenu* fileMenu, ShenzhenMacDel
         [self showError:@"This PDF can't be filled in" detail:@"Whoever certified it locked it against any change."];
         return NO;
     }
-    if (!fieldsOnly && summary.docmdp == 2) {
+    if (!fieldsOnly && (summary.docmdp == 2 || (!summary.can_add_items && summary.can_fill_fields))) {
         [self showError:@"This PDF can't take added text or marks" detail:@"This PDF only allows filling in its own fields."];
         return NO;
     }
