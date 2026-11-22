@@ -33,6 +33,8 @@
 - (void)fillStateDidChange;
 // The document is the app's own copy of a file that couldn't be changed where it is.
 - (BOOL)fillIsEditedCopy;
+// The file can't be changed where it is: the first change moves the tab to the app's own copy.
+- (BOOL)fillWillFillACopy;
 // Keeps this much room above the first page, so the palette can be scrolled clear of it (0: none).
 - (void)fillSetPageTopReserve:(CGFloat)reserve;
 @end
@@ -107,6 +109,7 @@
 // Lines just drawn: written together once the pointer has rested a moment, or sooner (flushPendingChanges).
 - (void)addDrawnStrokes:(NSArray<SPDFFillItem*>*)strokes;
 - (NSArray<SPDFFillItem*>*)pendingStrokesOnPage:(NSInteger)page;
+- (BOOL)hasPendingStrokes;
 - (void)postponePendingStrokes;
 - (void)writePendingStrokes;
 - (void)discardPendingStrokes;
@@ -116,6 +119,10 @@
 - (NSArray<SPDFFillItem*>*)selectedItems;
 - (void)selectItems:(NSArray<SPDFFillItem*>*)items page:(NSInteger)page;
 - (BOOL)selectionHasDrawings;
+// The colour and width the selection's lines and arrows share (indexes of SPDFMacFillDrawingStyle), -1 when they
+// differ or there are none.
+- (NSInteger)selectionColorIndex;
+- (NSInteger)selectionWidthIndex;
 - (BOOL)removeItems:(NSArray<SPDFFillItem*>*)items;
 // The eraser cutting lines: the originals go, the pieces left are written, as one change.
 - (BOOL)replaceItems:(NSArray<SPDFFillItem*>*)removed withStrokes:(NSArray<SPDFFillItem*>*)strokes;

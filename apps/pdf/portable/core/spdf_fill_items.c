@@ -310,6 +310,7 @@ static int edit_item(spdf_document* doc, int page_index, const char* nm, fill_ed
                 if (rect) pdf_set_annot_rect(ctx, annot, spdf_fill_to_fz(*rect)); /* a Stamp keeps its drawing */
             }
             if (annot) pdf_update_annot(ctx, annot);
+            if (annot && rect) spdf_fill_fit_stamp_appearance(ctx, annot);
         }
     }
     fz_always(doc->ctx) pdf_drop_page(doc->ctx, page);

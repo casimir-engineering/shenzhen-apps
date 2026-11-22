@@ -131,8 +131,17 @@ static NSInteger SPDFClampIndex(NSInteger index, NSInteger count, NSInteger fall
 
 @end
 
-NSColor* SPDFFillScreenColor(SPDFFillRGB color, BOOL darkPages) {
-    if (!darkPages) return [NSColor colorWithSRGBRed:color.r green:color.g blue:color.b alpha:1];
+// The page images are NSDeviceRGBColorSpace bitmaps (ShenzhenPDFMac.mm), and the screen shows their pixels as they
+// are, unconverted: in the display's own colour space. A colour given in that space shows the same pixels; an sRGB
+// one (and even a "device" NSColor, which is sRGB) is converted and looks different on most displays.
+NSColor* SPDFFillDeviceColor(SPDFFillRGB color, CGFloat alpha, NSColorSpace* display) {
+    CGFloat components[4] = {color.r, color.g, color.b, alpha};
+    if (!display || display.colorSpaceModel != NSColorSpaceModelRGB) display = NSColorSpace.sRGBColorSpace;
+    return [NSColor colorWithColorSpace:display components:components count:4];
+}
+
+NSColor* SPDFFillScreenColor(SPDFFillRGB color, BOOL darkPages, NSColorSpace* display) {
+    if (!darkPages) return SPDFFillDeviceColor(color, 1, display);
     static spdf_recolor_table table;
     static dispatch_once_t once;
     dispatch_once(&once, ^{
@@ -141,5 +150,5 @@ NSColor* SPDFFillScreenColor(SPDFFillRGB color, BOOL darkPages) {
     unsigned char pixel[4] = {(unsigned char)lroundf(color.r * 255), (unsigned char)lroundf(color.g * 255),
                               (unsigned char)lroundf(color.b * 255), 255};
     spdf_recolor_rgba_span(pixel, 0, 1, &table);
-    return [NSColor colorWithSRGBRed:pixel[0] / 255.0 green:pixel[1] / 255.0 blue:pixel[2] / 255.0 alpha:1];
+    return SPDFFillDeviceColor((SPDFFillRGB){pixel[0] / 255.0f, pixel[1] / 255.0f, pixel[2] / 255.0f}, 1, display);
 }

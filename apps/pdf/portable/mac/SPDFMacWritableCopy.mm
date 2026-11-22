@@ -40,7 +40,13 @@
     [self adoptRenamedDocumentFrom:source to:destination replacingReadOnly:YES];
     [self discardCachedRuntimeForTab:tab];
     [self loadSelectedTab];
-    if (![_path isEqual:destination] || [self activePDFNeedsSaveAsBeforeModificationWithReason:NULL]) return NO;
+    if (![_path isEqual:destination] || [self activePDFNeedsSaveAsBeforeModificationWithReason:NULL]) {
+        [self showError:@"Could not keep this change"
+                 detail:@"The copy made for your changes can't be changed either. Choose "
+                        @"File\u00a0▸\u00a0Save\u00a0As… to put a copy where you can change it, then make the change "
+                        @"there."];
+        return NO;
+    }
     return [self collectionProtectPath:_path operation:operation];
 }
 

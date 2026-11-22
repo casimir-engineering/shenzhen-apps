@@ -115,8 +115,7 @@ static char kSPDFFillSessionKey;
         [self.palette updateFromSession:[self session] progress:[self progressText] note:[self paletteNote]];
         // Room above the first page for the palette, so the top of the page can be seen. It only grows while the
         // palette shows, so the pages don't jump when its one-line hint goes away.
-        [self.palette layoutSubtreeIfNeeded];
-        _topReserve = MAX(_topReserve, ceil(self.palette.fittingSize.height) + 18);
+        _topReserve = MAX(_topReserve, [self.palette reservedHeight] + 18);
     } else {
         _topReserve = 0;
     }
@@ -132,9 +131,11 @@ static char kSPDFFillSessionKey;
 
 - (NSString*)paletteNote {
     // No-break spaces keep "File ▸ Save As…" on one line.
-    return [_host fillIsEditedCopy] ? @"You're filling in a copy, because the original can't be changed. Choose "
-                                      @"File\u00a0▸\u00a0Save\u00a0As… to put it where you want."
-                                    : nil;
+    // Shown from the start when the original can't be changed, so the line doesn't appear (and move the pages)
+    // with the first change.
+    if (![_host fillIsEditedCopy] && ![_host fillWillFillACopy]) return nil;
+    return @"You're filling in a copy, because the original can't be changed. Choose "
+           @"File\u00a0▸\u00a0Save\u00a0As… to put it where you want.";
 }
 
 - (void)activeDocumentChanged {

@@ -12,4 +12,7 @@
 - (void)attachToContainer:(NSView*)container aboveView:(NSView*)view;
 // note: a line shown under the tools in place of the first-form hint (nil: none).
 - (void)updateFromSession:(SPDFFillSession*)session progress:(NSString*)progress note:(NSString*)note;
+// The height to keep clear above the first page: as tall as the palette gets with any tool chosen, so choosing one
+// never moves the pages.
+- (CGFloat)reservedHeight;
 @end

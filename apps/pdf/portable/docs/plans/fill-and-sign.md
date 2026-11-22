@@ -475,9 +475,27 @@ As built, where it differs from the design below:
   moving a mixed selection and the two Remove commands are one core call per page.
 - **Pending lines and undo:** a line still waiting to be written is written first when ⌘Z is pressed, then undone
   like any change (not taken back unwritten). Each line of a batch is still its own undo step.
-- **No wrong frame:** a written line (or the wash over a removed one) is held until the page's image object has been
-  replaced and holds an image, then 0.3 s more for a viewport tile asked for before the write; at most 3 s. No render
-  generation is passed through the render seam.
+- **No wrong frame:** a written line (or the wash over a removed one) is held until the page image on screen was made
+  after the write, at most 3 s. A run-loop observer checks just before each screen update, so the overlay lets go in
+  the same update that shows the new page image (the change's own redraw, in the same turn as the write): the line is
+  never drawn twice, which made it look bolder for 0.4 s. A page render begun before the write is never installed
+  over a newer image of the same page (`ShenzhenPDFMac.mm`, the page render's install), and a changed page in view
+  that has no image yet is drawn in the same turn too. No render generation is passed through the render seam.
+- **Colours on screen:** the page images are device RGB bitmaps that reach the screen unconverted, so the overlay
+  draws lines in the window's display colour space (`SPDFFillDeviceColor`); in sRGB they looked lighter and thinner
+  than the same line in the page image on most displays. The palette's colour dots use the same colours.
+- **Room above the pages:** `topReserve` always counts the options row (and the copy note), so choosing a tool never
+  moves the pages. The note ("You're filling in a copy…") shows from the start when the file can't be changed where
+  it is, not from the first change. Page steps put the top of a page that fits the viewport just below the palette.
+- **Narrow windows:** measured against the page area (not the area beside the minimap): first Text and Signature
+  show icons, then the progress hides and the buttons tighten. Done always keeps its name.
+- **Select's style:** the palette and the right-click menu mark the selection's own colour and width (none when the
+  selection mixes them), not the remembered pen style.
+- **Signatures in Finder's previews:** a signature's appearance gets a /Matrix that maps its /BBox onto its /Rect
+  size, after it is placed, moved or resized (`spdf_fill_fit_stamp_appearance`); Quick Look draws appearances at
+  their BBox size and showed signatures 2.7x too big.
+- **A copy that can't take the change:** when the writable copy itself can't be changed, an alert says so (the line
+  was dropped silently).
 - **Restyling** from the palette or the right-click menu works on the Select tool's selection; the Eraser's
   right-click menu offers the same Remove and colours.
 - **Text box keys:** the Edit menu has no Undo item, so ⌘Z, ⇧⌘Z and ⌘Y reach the typing's own undo from
@@ -630,8 +648,9 @@ Windows can reuse it later.
 - **Edit ▸ Remove Everything Added with Fill & Sign**: every annotation whose `/NM` starts with `spdf-fill-`: typed
   text, checks, crosses, signatures, initials, pen lines, arrows. The PDF's own form fields keep their values ("added"
   vs "filled", as the palette's "3 of 12 filled" already says; see Risks).
-- Both sit under Edit ▸ Fill & Sign, target `SPDFFillMenuTarget` and are enabled when `fillSignAvailable` and the PDF
-  allows added items. No confirmation: each is one undo step, and Collection keeps the version before the burst.
+- Both sit under Edit ▸ Fill & Sign, target `SPDFFillMenuTarget` and are enabled when `fillSignAvailable`, the PDF
+  allows added items and there is something to remove (lines still waiting count). No confirmation: each is one
+  undo step, and Collection keeps the version before the burst.
 - Pages are found without loading them (`/Annots` read through `pdf_lookup_page_obj`, as the comment loader's skip
   does); the specs of what is removed are read first (for undo), then one batch delete per page, one save, and the
   visible changed pages redrawn in that turn (the others render when shown, as today).

@@ -34,8 +34,14 @@ static NSImage* SPDFPaletteSymbol(NSString* name, NSString* description) {
     SPDFMacFillDrawingOptions* _options;
     NSLayoutConstraint* _textIconWidth;
     NSLayoutConstraint* _signatureIconWidth;
-    CGFloat _fullWidth;  // the tools with their names, measured while they show them
-    BOOL _compact;       // too narrow: Text and Signature show icons only
+    // Narrow page area: 1, Text and Signature show icons only; 2, the progress hides too and the buttons tighten.
+    NSInteger _level;
+    CGFloat _levelWidth[3];  // the tools' width at each level, measured while it shows
+    NSMutableArray<NSArray*>* _widths;  // [constraint, full width] of every fixed-width button
+    NSString* _progressText;
+    __weak NSView* _area;  // the page area the palette sits over (narrower than its superview beside the minimap)
+    BOOL _note;          // the second line holds a note
+    BOOL _placing;       // the drawing tools can be chosen
 }
 
 - (instancetype)initWithController:(SPDFMacFillController*)controller {
@@ -64,6 +70,11 @@ static NSImage* SPDFPaletteSymbol(NSString* name, NSString* description) {
     [shape fill];
     [SPDFCollectionColor(@"lineStrong") setStroke];
     [shape stroke];
+}
+
+- (void)keepWidth:(NSLayoutConstraint*)width {
+    if (!_widths) _widths = [NSMutableArray array];
+    [_widths addObject:@[ width, @(width.constant) ]];
 }
 
 - (NSButton*)tool:(NSString*)title symbol:(NSString*)symbol label:(NSString*)label action:(SEL)action {
@@ -104,8 +115,16 @@ static NSImage* SPDFPaletteSymbol(NSString* name, NSString* description) {
     }
     _textIconWidth = [_text.widthAnchor constraintEqualToConstant:34];
     _signatureIconWidth = [_signature.widthAnchor constraintEqualToConstant:34];
+    for (NSButton* button in @[ _check, _cross, _signatureMenu, _pen, _arrow, _eraser, _select ])
+        for (NSLayoutConstraint* c in button.constraints)
+            if (c.firstAttribute == NSLayoutAttributeWidth) [self keepWidth:c];
+    [self keepWidth:_textIconWidth];
+    [self keepWidth:_signatureIconWidth];
     _done = SPDFCollectionButton(@"Done", self, @selector(done:), @"normal");
     _done.refusesFirstResponder = YES;
+    // Done keeps its name whatever the width: it is how the mode is left.
+    [_done setContentCompressionResistancePriority:NSLayoutPriorityRequired
+                                    forOrientation:NSLayoutConstraintOrientationHorizontal];
     _done.translatesAutoresizingMaskIntoConstraints = NO;
     [_done.heightAnchor constraintEqualToConstant:28].active = YES;
     NSView* gap1 = SPDFCollectionSurface(@"line");
@@ -156,30 +175,57 @@ static NSImage* SPDFPaletteSymbol(NSString* name, NSString* description) {
     ]];
 }
 
-// On a narrow window Text and Signature drop their names before anything else is squeezed.
+// On a narrow window Text and Signature drop their names before anything else is squeezed; narrower still, the
+// progress hides and the buttons sit closer. Done always keeps its name.
 - (void)layout {
     [super layout];
-    if (!_compact) _fullWidth = MAX(_fullWidth, ceil(_row.fittingSize.width) + 16);
-    BOOL compact = self.superview && NSWidth(self.superview.bounds) - 16 < _fullWidth;
-    if (compact == _compact) return;
-    _compact = compact;
-    dispatch_async(dispatch_get_main_queue(), ^{ [self applyCompact]; });
+    NSView* area = _area ?: self.superview;
+    if (!area) return;
+    CGFloat available = NSWidth(area.bounds) - 16;
+    CGFloat width = ceil(_row.fittingSize.width) + 16;
+    _levelWidth[_level] = _level == 0 ? MAX(_levelWidth[0], width) : width;
+    NSInteger level = _level;
+    if (width > available + 0.5 && level < 2) level += 1;
+    else if (level > 0 && _levelWidth[level - 1] > 0 && _levelWidth[level - 1] <= available) level -= 1;
+    if (level == _level) return;
+    _level = level;
+    dispatch_async(dispatch_get_main_queue(), ^{ [self applyLevel]; });
 }
 
-- (void)applyCompact {
-    _text.title = _compact ? @"" : @"Text";
-    _text.image = _compact ? SPDFPaletteSymbol(@"textformat", @"Text") : nil;
-    _signature.title = _compact ? @"" : @"Signature";
-    _signature.imagePosition = _compact ? NSImageOnly : NSImageLeading;
-    _textIconWidth.active = _compact && _text.image;
-    _signatureIconWidth.active = _compact;
-    if (_compact && !_text.image) _text.title = @"Text";
+- (void)areaChanged:(NSNotification*)note {
+    (void)note;
+    self.needsLayout = YES;
+}
+
+- (void)applyLevel {
+    BOOL compact = _level >= 1, tight = _level >= 2;
+    _text.title = compact ? @"" : @"Text";
+    _text.image = compact ? SPDFPaletteSymbol(@"textformat", @"Text") : nil;
+    _signature.title = compact ? @"" : @"Signature";
+    _signature.imagePosition = compact ? NSImageOnly : NSImageLeading;
+    _textIconWidth.active = compact && _text.image;
+    _signatureIconWidth.active = compact;
+    if (compact && !_text.image) _text.title = @"Text";
+    for (NSArray* kept in _widths) {
+        NSLayoutConstraint* c = kept[0];
+        c.constant = tight ? MAX(18.0, [kept[1] doubleValue] - 6) : [kept[1] doubleValue];
+    }
+    _row.spacing = tight ? 1 : 2;
+    _progress.hidden = tight || !_progressText.length;
+    self.needsLayout = YES;  // measure again: one level may not be enough
 }
 
 - (void)attachToContainer:(NSView*)container aboveView:(NSView*)view {
     [self removeFromSuperview];
     if (!container) return;
     [container addSubview:self positioned:NSWindowAbove relativeTo:nil];
+    // The page area narrows when the side panels open: measure again then, even if the palette keeps its size.
+    if (_area)
+        [NSNotificationCenter.defaultCenter removeObserver:self name:NSViewFrameDidChangeNotification object:_area];
+    _area = view;
+    view.postsFrameChangedNotifications = YES;
+    [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(areaChanged:)
+                                               name:NSViewFrameDidChangeNotification object:view];
     [NSLayoutConstraint activateConstraints:@[
         [self.topAnchor constraintEqualToAnchor:view.topAnchor constant:10],
         [self.centerXAnchor constraintEqualToAnchor:view.centerXAnchor],
@@ -200,8 +246,9 @@ static NSImage* SPDFPaletteSymbol(NSString* name, NSString* description) {
 }
 
 - (void)updateFromSession:(SPDFFillSession*)session progress:(NSString*)progress note:(NSString*)note {
+    _progressText = progress;
     _progress.stringValue = progress ?: @"";
-    _progress.hidden = progress.length == 0;
+    _progress.hidden = progress.length == 0 || _level >= 2;
     _text.state = session.tool == SPDFFillToolText ? NSControlStateValueOn : NSControlStateValueOff;
     _check.state = session.tool == SPDFFillToolMark && !session.markCross ? NSControlStateValueOn : NSControlStateValueOff;
     _cross.state = session.tool == SPDFFillToolMark && session.markCross ? NSControlStateValueOn : NSControlStateValueOff;
@@ -213,18 +260,35 @@ static NSImage* SPDFPaletteSymbol(NSString* name, NSString* description) {
         [drawingTools[tool] setState:session.tool == tool.integerValue ? NSControlStateValueOn : NSControlStateValueOff];
     BOOL drawing = SPDFFillToolDraws(session.tool);
     _options.hidden = !drawing;
-    if (drawing) [_options showTool:session.tool styleable:[_controller selectionHasDrawings]];
+    if (drawing)
+        [_options showTool:session.tool selectionColor:[_controller selectionColorIndex]
+                     width:[_controller selectionWidthIndex] styleable:[_controller selectionHasDrawings]];
     _hint.stringValue = note.length ? note : @"Click a highlighted field to type. What you enter is saved as you go.";
     _hint.hidden = !note.length && (drawing || !session.isForm || [SPDFMacSignatureStore sharedStore].formHintSeen);
     // A longer note wraps at the width of the tools (or of the first-form hint) instead of widening the palette.
-    _hint.preferredMaxLayoutWidth = MAX(ceil(_row.fittingSize.width) - 8, 370);
+    CGFloat wrap = MAX(ceil(_row.fittingSize.width) - 8, 370);
+    if (_area && NSWidth(_area.bounds) > 100) wrap = MIN(wrap, NSWidth(_area.bounds) - 40);  // within the pages
+    _hint.preferredMaxLayoutWidth = wrap;
     BOOL placing = !session.hasSummary || session.summary.can_add_items;
+    _note = note.length > 0;
+    _placing = placing;
     for (NSButton* button in @[ _text, _check, _cross, _signature, _signatureMenu, _pen, _arrow, _eraser, _select ])
         button.enabled = placing;
 }
 
 - (void)refresh {
     [_controller refreshChrome];
+}
+
+- (CGFloat)reservedHeight {
+    [self layoutSubtreeIfNeeded];
+    CGFloat height = ceil(self.fittingSize.height);
+    if (!_placing) return height;
+    // The tools, the drawing options under them, then the note if there is one (the first-form hint is shorter
+    // than the options and gives way to them).
+    CGFloat withOptions = 10 + ceil(_row.fittingSize.height) + 3 + ceil(_options.fittingSize.height);
+    if (_note) withOptions += 3 + ceil(_hint.fittingSize.height);
+    return MAX(height, withOptions);
 }
 
 #pragma mark - Actions

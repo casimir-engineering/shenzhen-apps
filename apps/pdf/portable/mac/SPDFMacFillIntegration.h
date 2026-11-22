@@ -14,6 +14,8 @@
 - (BOOL)fillSignAvailable;
 - (BOOL)fillSignShowing;
 - (BOOL)fillSignCanAddItems;
+// The document holds pen lines and arrows (drawingsOnly) or anything Fill & Sign added, written or waiting.
+- (BOOL)fillSignHasAddedItemsDrawingsOnly:(BOOL)drawingsOnly;
 // Edit menu: every pen line and arrow, or everything Fill & Sign added, in the document; each one undo step.
 - (void)removeAllPenLinesAndArrows:(id)sender;
 - (void)removeEverythingAddedWithFillSign:(id)sender;

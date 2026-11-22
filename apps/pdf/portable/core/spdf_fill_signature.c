@@ -46,6 +46,21 @@ static void parse_outline(fz_context* ctx, fz_path* path, const char* s, float s
     }
 }
 
+void spdf_fill_fit_stamp_appearance(fz_context* ctx, pdf_annot* annot) {
+    pdf_obj* ap;
+    fz_rect box, rect;
+    float sx, sy;
+    if (pdf_annot_type(ctx, annot) != PDF_ANNOT_STAMP) return;
+    ap = pdf_dict_getp(ctx, pdf_annot_obj(ctx, annot), "AP/N");
+    if (!pdf_is_stream(ctx, ap)) return;
+    box = pdf_dict_get_rect(ctx, ap, PDF_NAME(BBox));
+    rect = pdf_annot_rect(ctx, annot);
+    if (!(box.x1 - box.x0 > 0.001f && box.y1 - box.y0 > 0.001f && rect.x1 > rect.x0 && rect.y1 > rect.y0)) return;
+    sx = (rect.x1 - rect.x0) / (box.x1 - box.x0);
+    sy = (rect.y1 - rect.y0) / (box.y1 - box.y0);
+    pdf_dict_put_matrix(ctx, ap, PDF_NAME(Matrix), fz_make_matrix(sx, 0, 0, sy, -box.x0 * sx, -box.y0 * sy));
+}
+
 /* A Stamp keeps our drawing when moved: MuPDF only redraws stamps with a standard /Name. */
 static pdf_annot* new_signature_annot(fz_context* ctx, pdf_page* page, spdf_rect rect) {
     pdf_annot* annot = pdf_create_annot(ctx, page, PDF_ANNOT_STAMP);
@@ -84,6 +99,7 @@ int spdf_fill_add_signature_paths(spdf_document* doc, int page_index, spdf_rect 
         annot = new_signature_annot(ctx, page, rect);
         pdf_set_annot_appearance_from_display_list(ctx, annot, "N", NULL, fz_identity, list);
         spdf_fill_finish_item(ctx, annot, nm, NULL);
+        spdf_fill_fit_stamp_appearance(ctx, annot);
     }
     fz_always(doc->ctx) {
         fz_drop_device(doc->ctx, dev);
@@ -154,6 +170,7 @@ int spdf_fill_add_signature_png(spdf_document* doc, int page_index, spdf_rect re
             pdf_set_annot_stamp_image(ctx, annot, image);
         }
         spdf_fill_finish_item(ctx, annot, nm, NULL);
+        spdf_fill_fit_stamp_appearance(ctx, annot);
     }
     fz_always(doc->ctx) {
         fz_drop_image(doc->ctx, image);

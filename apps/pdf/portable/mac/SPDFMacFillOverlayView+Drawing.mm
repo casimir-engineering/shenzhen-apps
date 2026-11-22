@@ -420,11 +420,13 @@ static std::vector<spdf_fill_point> SPDFFillHitPoints(SPDFFillItem* item) {
     [menu addItemWithTitle:@"Remove" action:@selector(removeSelection:) keyEquivalent:@""].target = self;
     if ([self.controller selectionHasDrawings]) {
         [menu addItem:[NSMenuItem separatorItem]];
+        NSInteger current = [self.controller selectionColorIndex];
         for (NSInteger i = 0; i < [SPDFMacFillDrawingStyle colorCount]; ++i) {
             NSMenuItem* item = [menu addItemWithTitle:[SPDFMacFillDrawingStyle colorNameAtIndex:i]
                                                action:@selector(recolorSelection:) keyEquivalent:@""];
             item.tag = i;
             item.target = self;
+            item.state = i == current ? NSControlStateValueOn : NSControlStateValueOff;
         }
     }
     [NSMenu popUpContextMenu:menu withEvent:event forView:self];

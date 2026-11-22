@@ -41,7 +41,8 @@ int spdf_fill_restyle_strokes(spdf_document* doc, int page_index, const char* co
 int spdf_fill_set_arrow_ends(spdf_document* doc, int page_index, const char* nm, spdf_fill_point tail,
                              spdf_fill_point tip, char* err, size_t err_len);
 /* The pages holding at least one annotation whose /NM starts with prefix, in order, read from each page's /Annots
- * without loading the page. Writes at most max; returns how many pages hold one (may exceed max), or -1. */
+ * without loading the page. Writes at most max; returns how many pages hold one (may exceed max), or -1. With pages
+ * NULL it stops at the first one found (returns 0 or 1): whether there is any. */
 int spdf_fill_pages_with_items(spdf_document* doc, const char* prefix, int* pages, int max, char* err, size_t err_len);
 
 #ifdef __cplusplus

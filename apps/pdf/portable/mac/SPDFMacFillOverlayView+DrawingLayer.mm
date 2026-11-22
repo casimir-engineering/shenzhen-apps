@@ -13,10 +13,13 @@
 #import <objc/runtime.h>
 
 static char kSPDFFillDrawingStateKey;
-static const NSTimeInterval kSPDFFillHoldGrace = 0.3;  // a viewport tile asked for before the write may still land
-static const NSTimeInterval kSPDFFillHoldLimit = 3.0;
+static const NSTimeInterval kSPDFFillHoldLimit = 3.0;  // a page that takes longer shows the change itself
 
 @implementation SPDFFillHold
+@end
+
+@interface SPDFMacFillOverlayView (DrawingHolds)
+- (BOOL)holdIsDone:(SPDFFillHold*)hold now:(NSTimeInterval)now;
 @end
 
 // NSBezierPath.CGPath needs macOS 14; the app runs on 12.
@@ -104,7 +107,7 @@ static CGPathRef SPDFFillCreateCGPath(NSBezierPath* path) {
 }
 
 - (NSColor*)inkColorForItem:(SPDFFillItem*)item {
-    return SPDFFillScreenColor(item.color, [self.controller.host fillDarkPages]);
+    return SPDFFillScreenColor(item.color, [self.controller.host fillDarkPages], self.window.colorSpace);
 }
 
 - (NSCursor*)cursorNamed:(NSString*)name size:(CGFloat)size draw:(void (^)(NSRect dot))draw {
@@ -127,7 +130,7 @@ static CGPathRef SPDFFillCreateCGPath(NSBezierPath* path) {
         // A dot of the line's own width and colour, in a white ring so it shows on any page.
         CGFloat size = MAX(3.0, round(style.width * [self zoom]));
         SPDFFillRGB c = style.color;
-        NSColor* ink = SPDFFillScreenColor(c, [self.controller.host fillDarkPages]);
+        NSColor* ink = SPDFFillScreenColor(c, [self.controller.host fillDarkPages], self.window.colorSpace);
         NSString* name = [NSString stringWithFormat:@"pen %.0f %.2f %.2f %.2f %d", size, c.r, c.g, c.b,
                                                     [self.controller.host fillDarkPages]];
         return [self cursorNamed:name size:size draw:^(NSRect dot) {
@@ -159,6 +162,25 @@ static CGPathRef SPDFFillCreateCGPath(NSBezierPath* path) {
 
 #pragma mark - Holding lines until the page image shows the change
 
+// A held line lets go as soon as the page image on screen was made after the write: the change's own redraw, in the
+// same turn as the write, or the first render after it (a render begun before the write is never installed over a
+// newer image of the same page, and a full re-render starts a new generation). Checked just before each screen
+// update, so the line and the page image that contains it are never drawn together.
+- (BOOL)holdIsDone:(SPDFFillHold*)hold now:(NSTimeInterval)now {
+    if (now >= hold.deadline) return YES;
+    SPDFRenderedPage* current = [self renderedPage:hold.item.page];
+    BOOL newer = !hold.hadBefore || !hold.before || current != hold.before;
+    return newer && (current.image || current.viewportImage);
+}
+
+- (void)stopWatchingDrawingHolds {
+    SPDFFillDrawingState* state = [self drawingState];
+    if (state.holdObserver) CFRunLoopObserverInvalidate((__bridge CFRunLoopObserverRef)state.holdObserver);
+    state.holdObserver = nil;
+    [state.holdTimer invalidate];
+    state.holdTimer = nil;
+}
+
 - (void)holdInk:(NSArray<SPDFFillItem*>*)ink washes:(NSArray<SPDFFillItem*>*)washes {
     SPDFFillDrawingState* state = [self drawingState];
     NSTimeInterval now = NSDate.timeIntervalSinceReferenceDate;
@@ -180,9 +202,19 @@ static CGPathRef SPDFFillCreateCGPath(NSBezierPath* path) {
             hold.deadline = now + kSPDFFillHoldLimit;
             [state.holds addObject:hold];
         }
-    if (state.holds.count && !state.holdTimer) {
-        state.holdTimer = [NSTimer timerWithTimeInterval:0.1 target:self selector:@selector(checkDrawingHolds:)
-                                                userInfo:nil repeats:YES];
+    if (state.holds.count && !state.holdObserver) {
+        __weak SPDFMacFillOverlayView* weakSelf = self;
+        CFRunLoopObserverRef observer = CFRunLoopObserverCreateWithHandler(
+            kCFAllocatorDefault, kCFRunLoopBeforeWaiting, true, 0,  // before AppKit draws and Core Animation commits
+            ^(CFRunLoopObserverRef o, CFRunLoopActivity activity) {
+              (void)o;
+              (void)activity;
+              [weakSelf checkDrawingHolds:nil];
+            });
+        CFRunLoopAddObserver(CFRunLoopGetMain(), observer, kCFRunLoopCommonModes);
+        state.holdObserver = CFBridgingRelease(observer);
+        state.holdTimer = [NSTimer timerWithTimeInterval:kSPDFFillHoldLimit + 0.05 target:self
+                                                selector:@selector(checkDrawingHolds:) userInfo:nil repeats:NO];
         [NSRunLoop.mainRunLoop addTimer:state.holdTimer forMode:NSRunLoopCommonModes];
     }
     self.needsDisplay = YES;
@@ -191,31 +223,24 @@ static CGPathRef SPDFFillCreateCGPath(NSBezierPath* path) {
 - (void)checkDrawingHolds:(NSTimer*)timer {
     (void)timer;
     SPDFFillDrawingState* state = [self drawingState];
+    if (!state.holds.count) {
+        [self stopWatchingDrawingHolds];
+        return;
+    }
     NSTimeInterval now = NSDate.timeIntervalSinceReferenceDate;
     NSUInteger before = state.holds.count;
     NSMutableArray* kept = [NSMutableArray array];
-    for (SPDFFillHold* hold in state.holds) {
-        if (!hold.releaseAt) {
-            SPDFRenderedPage* current = [self renderedPage:hold.item.page];
-            BOOL newer = !hold.hadBefore || !hold.before || current != hold.before;
-            if (newer && (current.image || current.viewportImage)) hold.releaseAt = now + kSPDFFillHoldGrace;
-        }
-        if ((hold.releaseAt && now >= hold.releaseAt) || now >= hold.deadline) continue;
-        [kept addObject:hold];
-    }
+    for (SPDFFillHold* hold in state.holds)
+        if (![self holdIsDone:hold now:now]) [kept addObject:hold];
     state.holds = kept;
     if (kept.count != before) self.needsDisplay = YES;
-    if (!kept.count) {
-        [state.holdTimer invalidate];
-        state.holdTimer = nil;
-    }
+    if (!kept.count) [self stopWatchingDrawingHolds];
 }
 
 - (void)dropDrawingHolds {
     SPDFFillDrawingState* state = [self drawingState];
     [state.holds removeAllObjects];
-    [state.holdTimer invalidate];
-    state.holdTimer = nil;
+    [self stopWatchingDrawingHolds];
     self.needsDisplay = YES;
 }
 
@@ -297,10 +322,13 @@ static CGPathRef SPDFFillCreateCGPath(NSBezierPath* path) {
     SPDFFillSession* session = [self.controller session];
     NSColor* accent = NSColor.controlAccentColor;
     NSSet<NSNumber*>* visible = [NSSet setWithArray:[self visiblePages]];
+    NSTimeInterval now = NSDate.timeIntervalSinceReferenceDate;
     for (SPDFFillHold* hold in state.holds)
-        if (hold.wash && [visible containsObject:@(hold.item.page)]) [self washItem:hold.item alpha:1];
+        if (hold.wash && [visible containsObject:@(hold.item.page)] && ![self holdIsDone:hold now:now])
+            [self washItem:hold.item alpha:1];
     for (SPDFFillHold* hold in state.holds)
-        if (!hold.wash && [visible containsObject:@(hold.item.page)]) [self inkItem:hold.item];
+        if (!hold.wash && [visible containsObject:@(hold.item.page)] && ![self holdIsDone:hold now:now])
+            [self inkItem:hold.item];
     for (NSNumber* page in visible)
         for (SPDFFillItem* stroke in [self.controller pendingStrokesOnPage:page.integerValue]) [self inkItem:stroke];
     for (SPDFFillItem* item in state.erasing) [self washItem:item alpha:0.85];

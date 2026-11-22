@@ -5,7 +5,10 @@
 #import "SPDFMacFillOverlayView.h"
 #import "SPDFMacFillPalette.h"
 #import "SPDFMacPageRendering.h"
+#import "SPDFMacViewportRenderPriority.h"
 #import "SPDFMacWorkspaceChrome.h"
+
+#include "spdf_fill_ink.h"
 
 #import <objc/runtime.h>
 
@@ -49,8 +52,11 @@ static char kSPDFFillControllerKey, kSPDFFillMenuTargetKey, kSPDFFillFormStampKe
     BOOL available = [self.reader fillSignAvailable];
     if (item.action == @selector(toggleFillAndSign:))
         item.state = [self.reader fillSignShowing] ? NSControlStateValueOn : NSControlStateValueOff;
-    if (item.action == @selector(removeAllPenLinesAndArrows:) || item.action == @selector(removeEverythingAddedWithFillSign:))
-        return available && [self.reader fillSignCanAddItems];
+    // Enabled only when there is something to remove.
+    if (item.action == @selector(removeAllPenLinesAndArrows:))
+        return available && [self.reader fillSignCanAddItems] && [self.reader fillSignHasAddedItemsDrawingsOnly:YES];
+    if (item.action == @selector(removeEverythingAddedWithFillSign:))
+        return available && [self.reader fillSignCanAddItems] && [self.reader fillSignHasAddedItemsDrawingsOnly:NO];
     return available;
 }
 @end
@@ -103,6 +109,17 @@ void SPDFFillInstallMenuItems(NSMenu* editMenu, NSMenu* fileMenu, ShenzhenMacDel
 - (BOOL)fillSignCanAddItems {
     SPDFFillSession* session = [[self existingFillController] session];
     return !session.hasSummary || session.summary.can_add_items;
+}
+
+// Lines still waiting to be written count: the Remove commands write them first.
+- (BOOL)fillSignHasAddedItemsDrawingsOnly:(BOOL)drawingsOnly {
+    if (!_doc) return NO;
+    SPDFMacFillController* controller = [self existingFillController];
+    if (controller && [controller hasPendingStrokes]) return YES;
+    char err[128];
+    if (!drawingsOnly) return spdf_fill_pages_with_items(_doc, SPDF_FILL_NM_PREFIX, NULL, 0, err, sizeof(err)) > 0;
+    return spdf_fill_pages_with_items(_doc, SPDF_FILL_PEN_NM_PREFIX, NULL, 0, err, sizeof(err)) > 0 ||
+           spdf_fill_pages_with_items(_doc, SPDF_FILL_ARROW_NM_PREFIX, NULL, 0, err, sizeof(err)) > 0;
 }
 
 - (NSString*)fillFormStampForTab:(SPDFDocumentTab*)tab {
@@ -265,6 +282,11 @@ void SPDFFillInstallMenuItems(NSMenu* editMenu, NSMenu* fileMenu, ShenzhenMacDel
     return _path.length && [_path.stringByStandardizingPath hasPrefix:copies.stringByStandardizingPath];
 }
 
+- (BOOL)fillWillFillACopy {
+    if (!_doc || !_path.length || [self isMarkdownActive]) return NO;
+    return SPDFMacPathIsCollectionArchive(_path) || [self activePDFNeedsSaveAsBeforeModificationWithReason:NULL];
+}
+
 - (void)fillSetPageTopReserve:(CGFloat)reserve {
     if (!_pageView || fabs(_pageView.topReserve - reserve) < 0.5) return;
     NSClipView* clip = _pageScrollView.contentView;
@@ -338,11 +360,14 @@ void SPDFFillInstallMenuItems(NSMenu* editMenu, NSMenu* fileMenu, ShenzhenMacDel
     // value; the sharper viewport tiles follow from the saved file.
     __block BOOL needsFullRender = NO;
     CGFloat scale = [self backingScale];
+    NSInteger preferred = -1;
+    NSArray<NSNumber*>* visible = [self visibleDocumentPageIndexesWithExtraRadius:0 preferredPage:&preferred];
     [pages enumerateIndexesUsingBlock:^(NSUInteger index, BOOL* stop) {
       (void)stop;
       if (index >= self->_renderedPages.count) return;
       SPDFRenderedPage* old = self->_renderedPages[index];
-      if (!old.image && !old.viewportImage) return;  // not drawn yet: it renders from the saved file when shown
+      // A page not drawn yet and not in view renders from the saved file when shown.
+      if (!old.image && !old.viewportImage && ![visible containsObject:@(index)]) return;
       if (![self fullPageRenderAllowedForPage:old zoom:self->_zoom displayScale:scale]) {
           needsFullRender = YES;
           return;

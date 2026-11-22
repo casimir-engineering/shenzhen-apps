@@ -16,7 +16,9 @@
 
 @interface SPDFMacFillDrawingOptions : NSView
 - (instancetype)initWithTarget:(id<SPDFMacFillDrawingOptionsTarget>)target;
-// Shows what belongs to this tool, with the remembered choice marked. styleable: the Select tool's selection holds
-// lines or arrows, so its colours and widths can be used.
-- (void)showTool:(SPDFFillTool)tool styleable:(BOOL)styleable;
+// Shows what belongs to this tool, with the remembered choice marked. With the Select tool the colours and widths
+// are usable only while the selection holds lines or arrows, and mark the selection's own colour and width
+// (-1: they differ, nothing is marked).
+- (void)showTool:(SPDFFillTool)tool selectionColor:(NSInteger)colorIndex width:(NSInteger)widthIndex
+       styleable:(BOOL)styleable;
 @end

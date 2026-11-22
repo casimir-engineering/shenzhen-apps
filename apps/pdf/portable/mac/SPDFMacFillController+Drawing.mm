@@ -118,6 +118,10 @@ static NSArray<SPDFFillItem*>* SPDFFillDrawingsIn(NSArray* entriesOrItems) {
     return found;
 }
 
+- (BOOL)hasPendingStrokes {
+    return [self existingPending].strokes.count > 0;
+}
+
 - (void)postponePendingStrokes {
     SPDFFillPendingStrokes* pending = [self existingPending];
     if (!pending.strokes.count) return;
@@ -197,6 +201,26 @@ static NSArray<SPDFFillItem*>* SPDFFillDrawingsIn(NSArray* entriesOrItems) {
 
 - (BOOL)selectionHasDrawings {
     return SPDFFillDrawingsIn([self selectedItems]).count > 0;
+}
+
+- (NSInteger)selectionColorIndex {
+    NSInteger shared = -1;
+    for (SPDFFillItem* item in SPDFFillDrawingsIn([self selectedItems])) {
+        NSInteger index = [SPDFMacFillDrawingStyle indexOfColor:item.color];
+        if (index < 0 || (shared >= 0 && index != shared)) return -1;
+        shared = index;
+    }
+    return shared;
+}
+
+- (NSInteger)selectionWidthIndex {
+    NSInteger shared = -1;
+    for (SPDFFillItem* item in SPDFFillDrawingsIn([self selectedItems])) {
+        NSInteger index = [SPDFMacFillDrawingStyle indexOfWidth:item.lineWidth];
+        if (index < 0 || (shared >= 0 && index != shared)) return -1;
+        shared = index;
+    }
+    return shared;
 }
 
 #pragma mark - Removing and putting back

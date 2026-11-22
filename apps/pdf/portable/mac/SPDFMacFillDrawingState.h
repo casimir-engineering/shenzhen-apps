@@ -12,7 +12,6 @@
 @property(nonatomic) BOOL wash;
 @property(nonatomic, weak) SPDFRenderedPage* before;  // the page image when the change was written
 @property(nonatomic) BOOL hadBefore;
-@property(nonatomic) NSTimeInterval releaseAt;        // 0 until a newer page image is on screen
 @property(nonatomic) NSTimeInterval deadline;
 @end
 
@@ -32,7 +31,8 @@
 @property(nonatomic, strong) SPDFFillItem* endArrow;       // an arrow whose end is being dragged
 @property(nonatomic, strong) SPDFFillItem* endPreview;
 @property(nonatomic, strong) NSMutableArray<SPDFFillHold*>* holds;
-@property(nonatomic, strong) NSTimer* holdTimer;
+@property(nonatomic, strong) id holdObserver;  // checks the holds before each screen update while there are any
+@property(nonatomic, strong) NSTimer* holdTimer;  // the deadline
 @property(nonatomic, strong) NSMutableDictionary<NSString*, NSCursor*>* cursors;
 @end
 

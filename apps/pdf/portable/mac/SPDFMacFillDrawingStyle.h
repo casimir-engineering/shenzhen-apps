@@ -30,6 +30,9 @@
 + (NSString*)eraserSizeNameAtIndex:(NSInteger)index;
 @end
 
+// A colour as the page images show it on the display whose colour space is `display` (the window's): their pixels go
+// to the screen unconverted.
+NSColor* SPDFFillDeviceColor(SPDFFillRGB color, CGFloat alpha, NSColorSpace* display);
 // The colour a line shows on screen: as written, or recoloured the way the dark reading theme recolours the page's
 // own pixels, so a line drawn over the page and the same line in the page image match.
-NSColor* SPDFFillScreenColor(SPDFFillRGB color, BOOL darkPages);
+NSColor* SPDFFillScreenColor(SPDFFillRGB color, BOOL darkPages, NSColorSpace* display);

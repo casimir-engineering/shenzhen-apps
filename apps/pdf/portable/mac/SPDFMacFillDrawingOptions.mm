@@ -29,7 +29,7 @@ typedef NS_ENUM(NSInteger, SPDFFillSwatchKind) { SPDFFillSwatchColor, SPDFFillSw
     if (self.kind == SPDFFillSwatchColor) {
         SPDFFillRGB c = [SPDFMacFillDrawingStyle colorAtIndex:self.index];
         NSRect dot = NSInsetRect(NSMakeRect(NSMidX(bounds) - 8, NSMidY(bounds) - 8, 16, 16), 0, 0);
-        [[NSColor colorWithSRGBRed:c.r green:c.g blue:c.b alpha:alpha] setFill];
+        [SPDFFillDeviceColor(c, alpha, self.window.colorSpace) setFill];
         [[NSBezierPath bezierPathWithOvalInRect:dot] fill];
         if (self.chosen) {
             NSBezierPath* ring = [NSBezierPath bezierPathWithOvalInRect:NSInsetRect(dot, -3, -3)];
@@ -50,7 +50,7 @@ typedef NS_ENUM(NSInteger, SPDFFillSwatchKind) { SPDFFillSwatchColor, SPDFFillSw
         line.lineWidth = [SPDFMacFillDrawingStyle widthAtIndex:self.index] * 1.25;
         line.lineCapStyle = NSLineCapStyleRound;
         SPDFFillRGB c = self.ink;
-        [[NSColor colorWithSRGBRed:c.r green:c.g blue:c.b alpha:alpha] setStroke];
+        [SPDFFillDeviceColor(c, alpha, self.window.colorSpace) setStroke];
         [line stroke];
     } else {
         CGFloat side = 6 + 4 * self.index;
@@ -162,22 +162,29 @@ typedef NS_ENUM(NSInteger, SPDFFillSwatchKind) { SPDFFillSwatchColor, SPDFFillSw
     ]];
 }
 
-- (void)showTool:(SPDFFillTool)tool styleable:(BOOL)styleable {
+- (void)showTool:(SPDFFillTool)tool selectionColor:(NSInteger)colorIndex width:(NSInteger)widthIndex
+       styleable:(BOOL)styleable {
     SPDFMacFillDrawingStyle* style = [SPDFMacFillDrawingStyle sharedStyle];
     BOOL eraser = tool == SPDFFillToolEraser;
-    BOOL styles = tool == SPDFFillToolPen || tool == SPDFFillToolArrow || tool == SPDFFillToolSelect;
-    BOOL usable = tool != SPDFFillToolSelect || styleable;
+    BOOL selecting = tool == SPDFFillToolSelect;
+    BOOL styles = tool == SPDFFillToolPen || tool == SPDFFillToolArrow || selecting;
+    BOOL usable = !selecting || styleable;
+    // Select shows the selection's own style; Pen and Arrow the one they draw with.
+    NSInteger color = selecting ? (styleable ? colorIndex : -1) : style.colorIndex;
+    NSInteger width = selecting ? (styleable ? widthIndex : -1) : style.widthIndex;
+    SPDFFillRGB ink = color >= 0 ? [SPDFMacFillDrawingStyle colorAtIndex:color] : style.color;
+    if (selecting && color < 0) ink = (SPDFFillRGB){0.45f, 0.45f, 0.45f};  // mixed colours: samples in grey
     for (SPDFFillSwatch* swatch in _colors) {
         swatch.hidden = !styles;
         swatch.enabled = usable;
-        swatch.chosen = swatch.index == style.colorIndex;
+        swatch.chosen = swatch.index == color;
         swatch.needsDisplay = YES;
     }
     for (SPDFFillSwatch* swatch in _widths) {
         swatch.hidden = !styles;
         swatch.enabled = usable;
-        swatch.chosen = swatch.index == style.widthIndex;
-        swatch.ink = style.color;
+        swatch.chosen = swatch.index == width;
+        swatch.ink = ink;
         swatch.needsDisplay = YES;
     }
     _eraserKind.hidden = !eraser;

@@ -3821,8 +3821,8 @@ static BOOL spdf_page_list_cache_disabled(void) {
                 double adoptT0 = spdf_zoom_profile_enabled() ? spdf_zoom_profile_now_ms() : 0.0;
                 [self spdf_forgetQueuedRenderOperation:weakOperation page:number];
                 if (generation != self->_renderGeneration || !self->_doc ||
-                    index >= (NSInteger)self->_renderedPages.count || fabs(zoom - self->_zoom) > 0.001 ||
-                    fabs(displayScale - [self backingScale]) > 0.001)
+                    index >= (NSInteger)self->_renderedPages.count || fabs(zoom - self->_zoom) > 0.001 || fabs(displayScale - [self backingScale]) > 0.001 ||
+                    [self renderedPageImage:self->_renderedPages[(NSUInteger)index] matchesZoom:zoom displayScale:displayScale]) // never over a newer image (an edit's own redraw)
                     return;
                 SPDFRenderedPage* old = self->_renderedPages[(NSUInteger)index];
                 page.highlights = self->_findHighlights[@(index)] ?: old.highlights ?: @[];
@@ -5570,8 +5570,8 @@ static BOOL spdf_page_list_cache_disabled(void) {
     // that is many viewports tall) yanks the viewport deep into / past the page
     // instead of landing just at its top boundary. When the target is >2x the
     // source height, align its top so navigation lands predictably "just above" it.
-    BOOL targetMuchTaller = fromPageHeight > 0.5 && NSHeight(pageRect) > fromPageHeight * 2.0;
-    CGFloat relativeY = targetMuchTaller ? 0.0 : spdf_clamp_cg(relativePosition.y, 0.0, 1.0);
+    BOOL targetMuchTaller = fromPageHeight > 0.5 && NSHeight(pageRect) > fromPageHeight * 2.0, fitsBelowPalette = reserve > 0.0 && maxInPageY <= reserve + 0.5; // Fill & Sign: a page that fits the viewport shows its top below the palette
+    CGFloat relativeY = targetMuchTaller || fitsBelowPalette ? 0.0 : spdf_clamp_cg(relativePosition.y, 0.0, 1.0);
     NSPoint origin = NSMakePoint(NSMinX(pageRect) + spdf_clamp_cg(relativePosition.x, 0.0, 1.0) * maxInPageX,
                                  NSMinY(pageRect) - reserve + relativeY * maxInPageY);
     if (NSWidth(pageRect) <= NSWidth(clipView.bounds) + 0.5)

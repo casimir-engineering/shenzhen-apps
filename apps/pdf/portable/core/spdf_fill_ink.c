@@ -194,6 +194,7 @@ static void move_items(fz_context* ctx, pdf_page* page, const edit_args* args) {
             pdf_set_annot_rect(ctx, annot, r); /* a Stamp keeps its drawing (spdf_fill_items.h) */
         }
         pdf_update_annot(ctx, annot);
+        spdf_fill_fit_stamp_appearance(ctx, annot);
     }
 }
 
@@ -299,6 +300,7 @@ int spdf_fill_pages_with_items(spdf_document* doc, const char* prefix, int* page
                 found = found + 1;
                 break;
             }
+            if (!pages && found) break;
         }
     }
     fz_catch(doc->ctx) {
