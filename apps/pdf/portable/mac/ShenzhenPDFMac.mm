@@ -2572,8 +2572,10 @@ id spdf_state_object_from_yaml_data(NSData* data) {
     _window.styleMask |= NSWindowStyleMaskFullSizeContentView;
     _window.movable = NO;
     _window.movableByWindowBackground = NO;
+    // A frame worked out from the saved size is applied as a restored one is: making the content full size above
+    // keeps the content's height, so the window would lose a title bar's height at every such launch.
     spdf_window_configure_document_window(_window, self, NSMakeSize(kMinWindowWidth, kMinWindowHeight),
-                                          _restoredWindowFrame, _hasRestoredWindowFrame);
+                                          _hasRestoredWindowFrame ? _restoredWindowFrame : frame, YES);
 
     SPDFDropView* content = [[SPDFDropView alloc] initWithFrame:frame];
     content.reader = self;
