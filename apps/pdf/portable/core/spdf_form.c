@@ -11,6 +11,7 @@
 enum {
     FORM_NODE_CAP = 4096,
     FORM_DEPTH_CAP = 32,
+    FORM_PAGE_SCAN_CAP = 5000,
     ANNOT_FLAG_HIDDEN = 1 << 1,
     ANNOT_FLAG_NO_VIEW = 1 << 5,
     FORM_PAGE_SET_CAP = 256
@@ -358,10 +359,21 @@ static void visit_field_widgets(fz_context* ctx, pdf_document* pdf, pdf_obj* nod
     if (depth > FORM_DEPTH_CAP) return;
     if (pdf_dict_get(ctx, node, PDF_NAME(Subtype)) == PDF_NAME(Widget)) {
         pdf_obj* page_obj = pdf_dict_get(ctx, node, PDF_NAME(P));
-        if (page_obj) {
-            fz_try(ctx) page_set_add(set, pdf_lookup_page_number(ctx, pdf, page_obj));
-            fz_catch(ctx) fz_ignore_error(ctx);
+        fz_try(ctx) {
+            if (page_obj) {
+                page_set_add(set, pdf_lookup_page_number(ctx, pdf, page_obj));
+            } else {
+                /* /P is optional: the page whose annotations list the widget (a radio button on another page). */
+                int p, count = pdf_count_pages(ctx, pdf);
+                for (p = 0; p < count && p < FORM_PAGE_SCAN_CAP; ++p)
+                    if (pdf_array_contains(ctx, pdf_dict_get(ctx, pdf_lookup_page_obj(ctx, pdf, p), PDF_NAME(Annots)),
+                                           node)) {
+                        page_set_add(set, p);
+                        break;
+                    }
+            }
         }
+        fz_catch(ctx) fz_ignore_error(ctx);
         if (han) pdf_dict_put_text_string(ctx, node, PDF_NAME(Lang), "zh-Hans");
     }
     for (i = 0; i < n; ++i) visit_field_widgets(ctx, pdf, pdf_array_get(ctx, kids, i), depth + 1, han, set);
