@@ -460,3 +460,324 @@ One-off scripts in the scratchpad only.
   command is an easy follow-up.
 - **agents.md vs Raph's rule**: agents.md asks for a laziness test; Raph's rule wins, laziness is shown by the
   one-off static and profile checks above. Say so in the commit.
+
+## Pen and arrow
+
+Status: designed 2026-11-22 on `feat/pdf-fill-sign` (off origin/main 450d1d89, Fill & Sign as built). No code yet.
+
+Raph's request: "Also in fill and sign add an annotation tool with a pen and a few colors (red by default). You should
+be able to CMD z, erase by line (default), erase by eraser, select tool width, select and move lines and group of lines
+via box sélection, delete all pen annotations, remove all fill and sign annotations, arrow tool that is treated like
+pens lines (you can move them afterwards etc...)" and "Of course CMD shift z, and CMD y redo". Standing: intuitive,
+nothing new before the first frame, test only at the end.
+
+### Decisions
+
+| Topic | Decision | Why |
+|---|---|---|
+| Tools | Four icon buttons in the palette, one group after ✓ ✗: **Pen**, **Arrow**, **Eraser**, **Select** | Each is one click away, like Text and the marks; no hidden modes |
+| Options | A second palette row, shown only while one of the four is chosen: colours, widths, eraser kind and size, and a bin | The first row stays as short as today plus four icons; nothing appears for people who only fill forms |
+| Colours | Red (default), Blue, Green, Black; one choice shared by Pen and Arrow | "A few colours, red by default"; one choice is one thing to remember |
+| Width | Thin 1 pt, Medium 2 pt (default), Thick 4 pt, in page points (lines scale with the page like the page's own lines) | Three visible samples beat a slider; page points keep a line the same on paper at any zoom |
+| Remembered | Colour, width, eraser kind and size in `<state>/FillSign/drawing.json`, read the first time a drawing tool is chosen, written on change | Survives relaunch; nothing read at launch; same folder and 0600 rules as the rest of Fill & Sign |
+| Pen in the PDF | One `Ink` annotation per line (pen down to pen up): `/InkList` with one dense polyline, `/C` RGB, `/BS /W` width, round caps and joins (MuPDF writes `1 J 1 j`), Print flag | Ink is what Preview, Acrobat and pdf.js draw identically, and what the check and cross marks already use |
+| Arrow in the PDF | Also `Ink`, not `Line`: `/InkList [[tail tip] [barbL tip barbR]]` (shaft plus an open head), same colour, width, flags | Moves, erases, selects, recolours and undoes through exactly the same code as pen lines; every reader draws Ink from the same points, while a `Line` with `/LE` is redrawn by each reader with its own head size |
+| Identity | `/NM (spdf-fill-pen-<uuid>)` and `/NM (spdf-fill-arrow-<uuid>)`; each piece the true eraser leaves gets a new uuid | Same `spdf-fill-` prefix as every fill item: found again after saves and in other editors, no private keys |
+| Comments | Nothing to change: `spdf_annot_obj_is_fill_item` already hides every `spdf-fill-` annotation from the Comments panel, AI tools and szpdf | Pen lines are Fill & Sign marks, not comments; verify in the final check |
+| Save Final Copy | Pen lines and arrows are baked like every other fill item (`hold_comments` keeps `spdf-fill-` items on the page) | No change needed; verify |
+| Smoothing | Centripetal Catmull-Rom through the de-duplicated pointer samples, flattened as the line is drawn; stored as that flattened polyline, then thinned by 0.05 pt Douglas-Peucker | What is drawn live is what is stored, so the line never shifts when the page redraws; readers draw a polyline, so the curve must be in the points |
+| Undo | The tab's existing `NSUndoManager` (one per tab session) gets every drawing change too: one stack for all of Fill & Sign. ⌘Z undo; ⇧⌘Z and ⌘Y redo | Raph's keys; ⌘Y is free (no menu item or key handler uses it, checked in `mac/`) |
+| Saving | Same commit cycle as every fill: write to `_doc`, `fillSaveAndRedrawPages:` (incremental save, the changed page redrawn in the same turn). Pen lines and arrows drawn in quick succession are written together once the pointer has rested 0.35 s | As built there is no debounced save (every commit saves at once, only Collection waits 5 s); the short batch keeps handwriting from paying one page render per line |
+| No wrong frame | Every gesture is drawn live by the overlay; the overlay keeps drawing a line until a page image that contains it is on screen; lines being erased or moved are covered with a wash of the paper colour clipped to the line's own outline until the page image without them is on screen | The page image and the overlay are never out of step in a way a person can see |
+| Launch | Nothing new before the first frame: new code lives in Fill & Sign files created on first use; `drawing.json` is read on first use of a drawing tool | Raph's standing rule |
+
+### Palette
+
+```
+[3 of 12 filled]  Text  ✓  ✗  |  ✎  ↗  ⌫  ⬚  |  Signature ˅  |  Done
+                  ● ● ● ●   ─ ━ ▬   [bin]                    <- options row, only while Pen or Arrow is chosen
+```
+
+- First row: the four icons sit between the marks and Signature (symbols `pencil.tip`, `arrow.up.right`, `eraser`,
+  `rectangle.dashed`), 30 pt wide each, so the palette grows by about 130 pt to ~545 pt. They are disabled where
+  Text and the marks are (`can_add_items` = 0).
+- When the page area is narrower than the palette, Text and Signature show icons only (`textformat`, `signature`)
+  before anything else is squeezed; the progress text hides last.
+- Options row (in place of the first-form hint, which hides while a drawing tool is chosen; the edited-copy note
+  stays under it):
+  - **Pen / Arrow:** four colour dots (16 pt, the chosen one ringed), three width samples drawn in the chosen colour,
+    then the bin.
+  - **Eraser:** a two-part control [Whole lines | Parts] (Whole lines chosen by default), three size circles shown only
+    for Parts (8, 16, 32 screen points across), then the bin.
+  - **Select:** colour dots and width samples, enabled when the selection holds lines or arrows: a click restyles
+    them (one undo step) and becomes the remembered choice; then the bin.
+- The palette's height grows by the options row; `topReserve` already grows with it while it shows.
+- Palette buttons never take keyboard focus (`refusesFirstResponder`); after any palette click the overlay takes the
+  keys back (`takeKeysFromPages`), so ⌘Z, Delete and the tool keys keep working.
+- Opening the palette selects Text, as today. The chosen tool is kept per tab while the palette shows.
+
+### Tools
+
+**Pen.** Press, drag, release draws one line. A click without moving leaves a dot. Shift held: a straight line from
+where the press began. The line starts on the page under the press; points beyond the page edge are clamped to it.
+Fields of a real form do not react while Pen is chosen (the person chose to draw). Cursor: a dot of the line's width and
+colour (at least 3 px), in a white ring.
+
+**Arrow.** Press at the tail, release at the tip; Shift snaps the angle to 15° steps. Shorter than 4 screen points:
+nothing is drawn. Head: an open chevron, each arm `clamp(4 + 3 x width, 6, 24)` pt at ±28° from the shaft, computed in
+the core from tail, tip and width, so it is the same after a move or restyle. Cursor: crosshair.
+
+**Eraser, whole lines (default).** Every pen line or arrow the eraser touches goes. "Touches" = the pointer's path
+passes within `6 px / zoom + width/2` of the line. Touched lines fade at once (paper-colour wash at 85% clipped to
+the line's outline) and are written as removed on release, as one change.
+
+**Eraser, parts.** Rubs out only where it passes, splitting lines (§ True eraser). The cursor is a circle the size of the
+eraser. Arrows: the part holding the tip stays an arrow; the cut-off tail part becomes a plain pen line; rubbing the
+head itself removes the head and leaves a pen line.
+
+**Select.**
+- Click a line, arrow, typed text, mark or signature: selects it. Shift-click adds or removes. Double-click on typed text
+  opens it for editing (a single click selects, unlike the Text tool).
+- Drag on empty page: a box (1 pt accent outline, 8% fill). Everything the box touches is selected (forgiving for
+  scribbles); with Option held, only what lies wholly inside. Shift adds to the selection. The box stays on the page
+  where it started; a selection is on one page.
+- Drag anything selected: moves the whole selection; drag something unselected: selects it alone and moves it.
+  Nothing snaps while the Select tool moves things (the group keeps its layout). Comb text cells cannot be moved, as
+  today, and are left out of box selections.
+- One arrow selected on its own shows two round handles, at tail and tip; dragging one moves that end (head redrawn).
+- Arrow keys move the selection 1 pt, Shift-arrows 10 pt; a run of key presses is one change, written when the keys
+  are released.
+- Delete or Backspace removes the selection; right-click shows "Remove", and for lines and arrows the colours.
+- ⌘A (Edit ▸ Select All, which reaches the overlay as first responder) selects everything ours on the page in view.
+- Selection is drawn as a 2 px accent halo along each line or around each item, plus a dashed box around the group.
+- Escape: first ends a gesture in progress (nothing written), then clears the selection, then goes back to Text.
+
+**Other tools and drawings.** With Text, ✓ ✗ or Signature chosen, pen lines and arrows ignore the pointer (hit tests
+skip them), so text can be typed inside a circled area and marks placed on top of a scribble. The Eraser touches
+only pen lines and arrows. Hit testing of lines is by distance to the polyline (bounding box first), never by the
+bounding box alone, so a large circle does not capture clicks inside it.
+
+### Keyboard
+
+| Key | When | Action |
+|---|---|---|
+| P, A, E, S, T | Fill & Sign shows, the overlay has the keys, no text box open, no field or target focused by Tab | Pen, Arrow, Eraser (pressed again: switches Whole lines / Parts), Select, Text |
+| ⌘Z | Overlay has the keys | Undo the last Fill & Sign change of this tab |
+| ⇧⌘Z, ⌘Y | Overlay has the keys | Redo |
+| ⌘Z / ⇧⌘Z / ⌘Y | Text box open | Undo / redo typing (the text view's own undo; ⌘Y added in `fillTextViewKeyEquivalent:`) |
+| Delete, Backspace | Selection | Remove it |
+| Arrows, ⇧arrows | Selection | Move 1 pt / 10 pt |
+| ⌘A | Select tool | Select everything ours on the page in view |
+| Escape | Drawing tools | End gesture → clear selection → back to Text |
+| Shift while drawing | Pen / Arrow | Straight line / 15° steps |
+| Option while boxing | Select | Only what lies wholly inside |
+
+Checked for collisions: P, A, E, S, T are not used by Fill & Sign (X and V act only on a mark under the pointer or
+selected, Space toggles); `handlesTypedKey:` claims these five only under the conditions above, so type-to-search and
+typing into a Tab-focused field are untouched. ⌘Y: no `keyEquivalent:@"y"` in `mac/`, no key handler for it.
+⌘P, ⌘A, ⌘S stay with the menus. The Edit menu has no Undo/Redo items today; adding app-wide ones would change every
+other text view, so the keys stay in the overlay and the text box.
+
+### Smoothing, in numbers
+
+1. Each drag event gives a point in page space (`locateViewPoint:`); points closer than 0.75 screen px to the last kept
+   one are dropped (coalesced trackpad events are fine: the curve fills the gaps).
+2. Centripetal Catmull-Rom (alpha 0.5) through the kept points; each segment is flattened when the point after it
+   arrives, into pieces whose chord deviates < 0.1 screen px (at least one piece per 1.5 pt). Live drawing = finished
+   segments + a straight piece to the pointer; on release the last segment is finished the same way.
+3. Stored: that polyline, thinned by Douglas-Peucker at 0.05 pt (invisible), at most 4000 points per line (a longer
+   line continues as a new line, same style, same undo step).
+4. Arrows are two points; no smoothing.
+
+The pure geometry (smoothing, thinning, distance, box touch, erase split, arrow head) is plain C in the core so GTK and
+Windows can reuse it later.
+
+### True eraser: how lines split
+
+- The eraser's path is the polyline of pointer samples (page space), radius `R = size/2 / zoom`.
+- For each pen line or arrow shaft whose bounding box meets the swath: walk its polyline (already dense, ≤ 1.5 pt
+  steps); a point is erased when its distance to the swath is ≤ `R + width/2` (so the round end cap stops at the
+  edge of the swath). Each in/out change is refined by three bisections on that segment.
+- Kept runs become new lines (new `/NM`, same colour and width); runs shorter than the line width are dropped. The
+  original is removed. Arrows: the run ending at the tip keeps the head (new `spdf-fill-arrow-` name) unless the head
+  itself was rubbed; other runs become `spdf-fill-pen-` lines.
+- Live: the swath is shown as a paper-colour wash clipped to the outlines of the lines it crosses (page text under the
+  ink is not washed). On release: one change removes the originals and adds the pieces, one undo step.
+
+### Remove all
+
+- **Edit ▸ Remove All Pen Lines and Arrows**, and the bin in the options row: every `spdf-fill-pen-` and
+  `spdf-fill-arrow-` annotation on every page.
+- **Edit ▸ Remove Everything Added with Fill & Sign**: every annotation whose `/NM` starts with `spdf-fill-`: typed
+  text, checks, crosses, signatures, initials, pen lines, arrows. The PDF's own form fields keep their values ("added"
+  vs "filled", as the palette's "3 of 12 filled" already says; see Risks).
+- Both sit under Edit ▸ Fill & Sign, target `SPDFFillMenuTarget` and are enabled when `fillSignAvailable` and the PDF
+  allows added items. No confirmation: each is one undo step, and Collection keeps the version before the burst.
+- Pages are found without loading them (`/Annots` read through `pdf_lookup_page_obj`, as the comment loader's skip
+  does); the specs of what is removed are read first (for undo), then one batch delete per page, one save, and the
+  visible changed pages redrawn in that turn (the others render when shown, as today).
+
+### Undo, one stack per tab
+
+The session's `NSUndoManager` (`SPDFFillSession.undoManager`, one per tab) records every change, as it already does for
+fields and placed items. Inverses replay the same engine calls through the same commit cycle, so an undo is saved and
+redrawn like any change and survives a move to a writable copy (specs and `/NM`, not object numbers or held objects).
+
+| Change | One undo step | Inverse |
+|---|---|---|
+| Pen line, arrow | per line | remove by `/NM` |
+| Eraser drag (either kind) | per drag | remove the pieces, re-add the originals from their specs (same `/NM`) |
+| Move by drag, arrow-key run, arrow end drag | per gesture | move back by −dx, −dy (or the old end) |
+| Restyle selection | per click | old colour and width per line |
+| Remove selection / Remove All Pen Lines and Arrows / Remove Everything Added | per command | re-add from specs (signatures through `usedSignatures`, as `deleteItem:` does) |
+
+- A line still waiting for its batch to be written is taken back by ⌘Z without being written (its undo handler sees it
+  is still pending and drops it); redo puts it back in the batch.
+- Any undo or redo first writes what is pending, then acts.
+- Explicit `beginUndoGrouping`/`endUndoGrouping` around each multi-call change (eraser, move of a mixed selection,
+  remove all); the tracking loops already run inside one event, so `groupsByEvent` alone would also group them, but
+  arrow-key runs span several events and need the explicit group.
+- The stack is cleared when the tab closes or its file changes from outside, as today.
+
+### Commit cycle for drawings (no wrong frame)
+
+1. During a gesture only the overlay changes: the live line, the washes, the moved copies. Nothing is written.
+2. On release (or key-up for nudges) the change goes into `_doc` through the core calls below and its undo is
+   registered. Pen lines and arrows wait in a pending batch until the pointer has rested 0.35 s; every other change
+   (and any of the triggers in 4) writes the batch first.
+3. Writing = `change:write:` as today → `fillSaveAndRedrawPages:` → incremental save, the changed visible pages
+   rendered from `_doc` in the same turn. In that same turn the overlay drops its live lines and washes for those pages.
+4. The pending batch is also written before anything else can read the file: a tool change, Done, any ⌘ key reaching
+   the overlay (`performKeyEquivalent:` writes, then lets the menu act: ⌘P, ⌘W, ⌘S…), the pointer leaving the pages
+   (toolbar, sidebar), the window resigning key, and the existing `fillSignFlushEdits` (tab switch, close, quit,
+   sessions), which now calls `flushPendingChanges` (editor + batch).
+5. A stroke drawn by the overlay over a page image that already contains it is invisible (opaque, same width and
+   colour), so the overlay keeps drawing a written line until a page image made after the write is installed, closing
+   the race with a viewport tile requested before the write. The render seam passes the save generation.
+6. The overlay's colours go through the same mapping as the page pixels: under the dark reading theme lines are
+   recoloured as the page image will be, and the wash uses the theme's paper colour.
+7. Live zoom hides the overlay today: a gesture cannot be in progress then; a pending batch is written when live zoom
+   starts.
+
+### CORE additions (plain C)
+
+`spdf_fill_items.h` (contract):
+
+```c
+#define SPDF_FILL_PEN_NM_PREFIX   "spdf-fill-pen-"
+#define SPDF_FILL_ARROW_NM_PREFIX "spdf-fill-arrow-"
+typedef struct spdf_fill_point { float x, y; } spdf_fill_point;
+/* spdf_fill_kind gains SPDF_FILL_PEN = 5, SPDF_FILL_ARROW = 6. spdf_fill_item gains, for those two:
+   float rgb[3]; float width; spdf_fill_point* points; int point_count;   (arrow: points = {tail, tip}; rect = bounds
+   including width and head) */
+```
+
+New `core/spdf_fill_ink.h` + `spdf_fill_ink.c` (~350 lines), writes on the main-thread document like the rest:
+
+```c
+typedef struct spdf_fill_stroke { spdf_fill_kind kind; const char* nm; float rgb[3]; float width;
+                                  const spdf_fill_point* points; int point_count; } spdf_fill_stroke;
+int spdf_fill_add_strokes(spdf_document*, int page, const spdf_fill_stroke*, int count, char* err, size_t);
+int spdf_fill_delete_items(spdf_document*, int page, const char* const* nms, int count, char* err, size_t);
+int spdf_fill_move_items(spdf_document*, int page, const char* const* nms, int count, float dx, float dy,
+                         char* err, size_t);  /* Ink: every /InkList point; text and stamps: /Rect only */
+int spdf_fill_restyle_strokes(spdf_document*, int page, const char* const* nms, int count, const float rgb[3],
+                              float width, char* err, size_t);
+int spdf_fill_set_arrow_ends(spdf_document*, int page, const char* nm, spdf_fill_point tail, spdf_fill_point tip,
+                             char* err, size_t);
+/* Pages holding items whose /NM starts with prefix, from /Annots without loading pages. */
+int spdf_fill_pages_with_items(spdf_document*, const char* prefix, int* pages, int max, char* err, size_t);
+```
+
+New `core/spdf_fill_ink_geometry.h` + `.c` (~280 lines, pure, no MuPDF): Catmull-Rom flattening step,
+Douglas-Peucker, point-to-polyline distance, polyline-touches-rect, polyline-inside-rect, erase split (returns runs),
+arrow head points.
+
+Edits:
+- `spdf_fill_items.c`: `read_item` checks the pen and arrow prefixes before treating an Ink as a mark (today every
+  `spdf-fill-` Ink is read as a check or cross) and fills points, colour, width; `spdf_free_fill_items` frees points;
+  `spdf_fill_load_items` keeps reading Ink. About +25 lines (418 → ~445).
+- `spdf_fill_update` with a rect on a pen line or arrow refuses (moves go through `spdf_fill_move_items`), so the mark
+  path never redraws a line as a check.
+- Makefile: the two objects added to `CORE_FILL_OBJS`. `shenzhen_pdf_core.c` and `spdf_comment_review.h` unchanged.
+
+### Mac files
+
+| File | Change |
+|---|---|
+| `SPDFMacFillModel.{h,mm}` | `SPDFFillTool` gains Pen, Arrow, Eraser, Select; `SPDFFillItem` gains colour, width, points, `isDrawing`; session gains the selection (set of `/NM`s and its page), eraser kind; `SPDFFillStroke` value object (+~45) |
+| new `SPDFMacFillDrawingStyle.{h,mm}` (~150) | The four colours (sRGB: red 0.89 0.16 0.13, blue 0.11 0.37 0.86, green 0.14 0.58 0.27, black 0 0 0), three widths, three eraser sizes; reads and writes `<state>/FillSign/drawing.json` (temp-then-rename, 0600) through the signature store's folder |
+| new `SPDFMacFillDrawingOptions.{h,mm}` (~260) | The options row: colour dots, width samples, eraser kind and sizes, bin; accessibility labels |
+| new `SPDFMacFillController+Drawing.mm` (~450) | Drawing edits with undo (add, remove, erase split, move, restyle, arrow ends, remove all, remove everything), the pending batch and its 0.35 s timer, `flushPendingChanges`, selection model |
+| new `SPDFMacFillOverlayView+Drawing.mm` (~480) | Pen, Arrow, Eraser and Select gestures (tracking loops), live smoothing, washes, rubber band, selection halos and arrow handles, cursors, nudges with key-up commit, ⌘A |
+| `SPDFMacFillOverlayView.mm` (441) | Hooks only: `drawRect:` calls the drawing layer, `mouseDown:` hands drawing tools to the category, `itemAt:` skips drawings unless Select or Eraser, `performKeyEquivalent:` writes the batch; ≤ ~460 |
+| `SPDFMacFillOverlayView+Interaction.mm` (206) | ⌘Y redo, tool letters, Escape tiers, Delete and arrows on a multi-item selection, `handlesTypedKey:` for P A E S T (+~40) |
+| `SPDFMacFillPalette.mm` (263) | Four tool buttons, the options row host, narrow-width icon-only mode, `refusesFirstResponder` (+~70) |
+| `SPDFMacFillController.{h,mm}` | Declares the Drawing category; `flushEditor` → `flushPendingChanges`; `activeDocumentChanged` writes the batch before dropping caches; render-generation hand-off to the overlay (+~25) |
+| `SPDFMacFillEditor.mm` | ⌘Y → redo typing (+3) |
+| `SPDFMacFillIntegration.mm` (353) | Two Edit menu items under Fill & Sign and their validation; `fillSignFlushEdits` calls `flushPendingChanges`; save generation passed after each save (+~30) |
+
+`SPDFMacFillController+Edits.mm` (419) is not grown: the drawing edits live in their own category. No file in
+`apps/pdf/tools/file-size-limits.tsv` changes; `ShenzhenPDFMac.mm`, `SPDFMacDocumentView.mm`, `shenzhen_pdf_core.c`
+are not touched. Every file stays ≤ 500 lines.
+
+### UI text (all of it)
+
+| Where | Text |
+|---|---|
+| Tool tooltips | "Pen (P)", "Arrow (A)", "Eraser (E)", "Select (S)" |
+| Tool accessibility labels | "Pen", "Arrow", "Eraser", "Select" |
+| Colours | "Red", "Blue", "Green", "Black" |
+| Widths | "Thin", "Medium", "Thick" |
+| Eraser kind | "Whole lines" (tooltip "Erases every line you touch"), "Parts" (tooltip "Erases only where you rub") |
+| Eraser sizes | "Small", "Medium", "Large" |
+| Bin tooltip / label | "Remove all pen lines and arrows in this document" |
+| Edit menu | "Remove All Pen Lines and Arrows", "Remove Everything Added with Fill & Sign" |
+| Right-click on a selection | "Remove", and for lines and arrows the four colours |
+
+No hint line, no success messages. Errors reuse "Couldn't save what you filled in".
+
+### Final check additions (once, at the end, nothing added to the repo)
+
+Same rig as before: a test copy with its own bundle id, `HOME=/tmp/szfs`, `SPDF_STATE_DIR=/tmp/szfs/state`, Friends
+off, windows behind the desktop, the injected event driver, stopped by PID; throwaway PDFs in the scratchpad.
+
+1. **Real use:** draw with each colour and width (real drags), Shift lines, arrows with Shift angles, dots; whole-line
+   and parts erasing across several lines and an arrow (head kept, head rubbed); box selection (touch and Option
+   inside), Shift-click, drag move, arrow-key runs, an arrow's end handles, Delete, restyle; P A E S T and Escape;
+   ⌘Z through all of it, then ⇧⌘Z and ⌘Y back; both remove-all commands and their undo; quit within 0.35 s of a line
+   and reopen (the line is there); a scan, a rotated page, the dark reading theme, a schematic page, a read-only
+   location (writable copy, then undo still works).
+2. **Frames:** capture the window during each gesture and through each release from the first frame on; pass only if
+   no frame shows a line vanish, double, jump or change colour, nor an erased line come back.
+3. **Files:** `mutool show` (`/Subtype /Ink`, `/NM` prefixes, `/InkList`, `/C`, `/BS`), the Comments panel stays
+   empty, rendered through PDFKit (one-off Swift script) and `qlmanage -t`, and Save Final Copy.
+4. **Launch:** the static checks of § Final check 1 again (no new initialisers; launch paths reference no new symbol).
+
+### Orchestration
+
+| Wave | Agent | Work |
+|---|---|---|
+| 0 | Lead | Commit the header contracts above (`spdf_fill_items.h` additions, `spdf_fill_ink.h`, `spdf_fill_ink_geometry.h`, the Drawing category declarations) |
+| 1 | CORE | `spdf_fill_ink.c`, `spdf_fill_ink_geometry.c`, `read_item`, Makefile |
+| 1 | UI-P | Palette, options row, drawing style store, tool keys |
+| 2 | UI-D | Controller+Drawing and Overlay+Drawing: gestures, batch, undo, removal commands, menus, flush hooks |
+| 3 | One verifier (Opus) | Build, `apps/pdf/tools/check-file-sizes.sh`, then the final check above |
+
+Every brief carries the usual rules (no pkill/killall/sudo, no `rm -rf` with variables, globs or `$(...)`, no
+filesystem-wide searches, never touch Raph's running app, settings, Collection, keychain or Friends, no tests added to
+the repo, files ≤ 500 lines, no push, no release) and the UI text above verbatim.
+
+### Risks and open questions for Raph
+
+- **"Remove all Fill & Sign"** removes everything Fill & Sign added on top of the pages but leaves the form's own
+  fields as filled. Should it also empty the fields? (They may hold what the sender pre-filled.)
+- **Arrows are Ink, not Line annotations.** They look the same everywhere, but Acrobat lists them as pencil marks,
+  not arrows, and its arrow properties don't apply.
+- **One annotation per line.** A page of handwriting is hundreds of annotations; other readers' comment lists (Acrobat,
+  Preview's sidebar) show each one. Merging a burst into one Ink with several strokes would shorten those lists but
+  make erasing and moving single lines harder; kept per line.
+- **Constant width.** Ink has one width per annotation, so trackpad pressure is ignored.
+- **Overlay over a page that contains the same line** darkens antialiased edges very slightly until the overlay lets
+  go; judged invisible, checked in the frame capture.
+- **0.35 s batch:** a crash in that window loses the last lines; every way of leaving the page writes them first.
