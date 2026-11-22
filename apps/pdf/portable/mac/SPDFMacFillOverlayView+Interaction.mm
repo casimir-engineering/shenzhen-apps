@@ -182,3 +182,18 @@
 }
 
 @end
+
+@implementation SPDFMacFillOverlayView (Keys)
+
+- (BOOL)handlesTypedKey:(NSEvent*)event {
+    if (self.hidden || (event.modifierFlags & NSEventModifierFlagDeviceIndependentFlagsMask &
+                        (NSEventModifierFlagCommand | NSEventModifierFlagControl | NSEventModifierFlagOption)))
+        return NO;
+    NSString* chars = event.charactersIgnoringModifiers.lowercaseString ?: @"";
+    unichar key = chars.length == 1 ? [chars characterAtIndex:0] : 0;
+    BOOL mark = self.selectedItem.isMark || self.hoverItem.isMark;
+    if (key == ' ') return mark || self.focusedField || !NSIsEmptyRect(self.focusedTargetRect);
+    return (key == 'x' || key == 'v') && mark;
+}
+
+@end

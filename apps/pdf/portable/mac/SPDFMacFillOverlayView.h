@@ -31,5 +31,10 @@
                       aspect:(CGFloat)aspect snapping:(BOOL)snapping result:(spdf_snap_result*)result;
 @end
 
+@interface SPDFMacFillOverlayView (Keys)
+// A typed key this layer acts on (Space toggles, X and V switch a mark): the window's type-to-search leaves it alone.
+- (BOOL)handlesTypedKey:(NSEvent*)event;
+@end
+
 // Shared drawing of a check or a cross inside rect (y down).
 NSBezierPath* SPDFFillMarkPath(NSRect rect, BOOL cross);
