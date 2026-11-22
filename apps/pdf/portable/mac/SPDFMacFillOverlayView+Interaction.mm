@@ -17,6 +17,7 @@
     }
     self.selectedItem = item;
     self.needsDisplay = YES;
+    [self.window makeFirstResponder:self];
     NSMenu* menu = [[NSMenu alloc] initWithTitle:@""];
     if (item.isMark) {
         NSMenuItem* check = [menu addItemWithTitle:@"Check" action:@selector(menuCheck:) keyEquivalent:@""];
@@ -194,6 +195,12 @@
     BOOL mark = self.selectedItem.isMark || self.hoverItem.isMark;
     if (key == ' ') return mark || self.focusedField || !NSIsEmptyRect(self.focusedTargetRect);
     return (key == 'x' || key == 'v') && mark;
+}
+
+- (void)takeKeysFromPages {
+    NSResponder* current = self.window.firstResponder;
+    if (!self.hidden && self.window && (current == self.window || current == [self documentView]))
+        [self.window makeFirstResponder:self];
 }
 
 @end

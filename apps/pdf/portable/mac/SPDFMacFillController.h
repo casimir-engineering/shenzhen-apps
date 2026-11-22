@@ -91,9 +91,13 @@
 - (void)placeSignatureInField:(SPDFFillField*)field;
 - (void)pickUpSignature:(SPDFMacSignature*)signature;
 - (void)addSignatureWithInitials:(BOOL)initials;
+- (void)showChoiceMenuForField:(SPDFFillField*)field;
+- (void)editMyDetails;
+@end
+
+// Keyboard focus and Tab (SPDFMacFillController+Focus.mm).
+@interface SPDFMacFillController (Focus)
 - (void)moveFocusForward:(BOOL)forward;
 - (BOOL)isFieldFocused:(SPDFFillField*)field;
 - (void)toggleFocusedField;
-- (void)showChoiceMenuForField:(SPDFFillField*)field;
-- (void)editMyDetails;
 @end

@@ -113,6 +113,7 @@ static char kSPDFFillSessionKey;
     if (showing) {
         [self.palette updateFromSession:[self session] progress:[self progressText]];
         [self.overlay refresh];
+        [self.overlay takeKeysFromPages];
     } else {
         [self.overlay clearTransientState];
     }
