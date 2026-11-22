@@ -4,11 +4,11 @@
 #import "SPDFMacSupport.h"
 #import "SPDFMacViewportRenderPriority.h"
 #import "SPDFMacTabHoverPreviewIntegration.h"
+#import "SPDFMacFillIntegration.h"
 
 @interface ShenzhenMacDelegate (SPDFMacLaunchWorkIntegrationPrivate)
 @property(nonatomic, readonly) SPDFMacLaunchWorkCoordinator* launchWorkCoordinator;
-- (void)loadOutlineForCurrentDocumentAsync;
-- (void)loadCommentsForCurrentDocumentAsync;
+- (void)loadDocumentMetadataAsyncOutline:(BOOL)outline comments:(BOOL)comments;
 - (void)preloadInactiveTabsWithCompletion:(dispatch_block_t)completion;
 @end
 
@@ -75,12 +75,13 @@
         // sidebar when it lands.
         SPDFDocumentTab* tab = [self selectedTab];
         BOOL adopted = tab && _activeMetadataTab == tab;
-        if (!adopted || !tab.cachedOutlineLoaded || _outline.items != tab.cachedOutline.items ||
-            _outline.count != tab.cachedOutline.count)
-            [self loadOutlineForCurrentDocumentAsync];
-        if (!adopted || !tab.cachedCommentsLoaded || _comments.items != tab.cachedComments.items ||
-            _comments.count != tab.cachedComments.count)
-            [self loadCommentsForCurrentDocumentAsync];
+        BOOL outline = !adopted || !tab.cachedOutlineLoaded || _outline.items != tab.cachedOutline.items ||
+                       _outline.count != tab.cachedOutline.count;
+        BOOL comments = !adopted || !tab.cachedCommentsLoaded || _comments.items != tab.cachedComments.items ||
+                        _comments.count != tab.cachedComments.count;
+        // Both lists from one document open (SPDFMacDocumentMetadataLoading.mm).
+        if (outline || comments) [self loadDocumentMetadataAsyncOutline:outline comments:comments];
+        [self fillSignDocumentDidSettle]; // a PDF with its own form opens ready to fill (SPDFMacFillIntegration.mm)
         return;
     }
     if ([context[@"generation"] unsignedIntegerValue] != _renderGeneration) {

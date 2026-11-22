@@ -1,4 +1,5 @@
 #import "SPDFMacTabViewState.h"
+#import "SPDFMacFillIntegration.h"
 
 #import "SPDFMacMarkdownDelegatePrivate.h"
 #import "SPDFMacPresentationViewport.h"
@@ -87,6 +88,7 @@
     _pageScrollView.documentView = _pageView;
     clipView.postsBoundsChangedNotifications = previousPostsBoundsChangedNotifications;
     [self clearToolbarFieldFocusForTabSwitch];
+    [self fillSignActiveDocumentChanged];
 }
 
 // The Markdown counterpart of capturing a tab's view state: the live session

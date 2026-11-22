@@ -19,6 +19,7 @@
 #import "SPDFMacWorkspacePanels.h"
 #import "SPDFMacCollectionCompanion.h"
 #import "SPDFMacSidebarWorkspace.h"
+#import "SPDFMacFillIntegration.h"
 #import <Cocoa/Cocoa.h>
 #import <PDFKit/PDFKit.h>
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
@@ -2050,6 +2051,7 @@ id spdf_state_object_from_yaml_data(NSData* data) {
     [editMenu addItemWithTitle:@"Regex Multiline" action:@selector(toggleFindRegexMultiline:) keyEquivalent:@""];
     [editMenu addItem:[NSMenuItem separatorItem]];
     [editMenu addItemWithTitle:@"Set Author for Comments..." action:@selector(setCommentAuthor:) keyEquivalent:@""];
+    SPDFFillInstallMenuItems(editMenu, fileMenu, self); // Fill & Sign, Save Final Copy (SPDFMacFillIntegration.mm)
     editItem.submenu = editMenu;
 
     NSMenuItem* favoritesItem = [[NSMenuItem alloc] initWithTitle:@"Favorites" action:nil keyEquivalent:@""];
@@ -6089,6 +6091,7 @@ static BOOL spdf_page_list_cache_disabled(void) {
         return;
     }
     if (!_doc || !_path.length) return;
+    [self fillSignFlushEdits]; // what is being typed in Fill & Sign goes into the file before the document is left
     SPDFDocumentTab* tab = _tabs[(NSUInteger)_selectedTabIndex];
     tab.path = _path;
     tab.title = spdf_display_name_for_path(_path) ?: tab.title;
@@ -7170,102 +7173,6 @@ static BOOL spdf_page_list_cache_disabled(void) {
     // so the cursor-region caches rebuild lazily from the updated document.
     [self invalidateCursorRegionCache];
     [_pageView setNeedsDisplay:YES];
-}
-
-- (void)loadCommentsForCurrentDocumentAsync {
-    if (!_doc || !_path.length) return;
-    SPDFDocumentTab* tab = [self selectedTab];
-    if (tab.cachedCommentsLoaded) {
-        [self adoptCachedMetadataForTab:tab];
-        [self rebuildSidebar];
-        [_pageView setNeedsDisplay:YES];
-        return;
-    }
-
-    NSString* workingPath = [self activeWorkingPath]; // temp copy for read-only source
-    NSString* standardizedPath = [_path.stringByStandardizingPath copy];
-    NSUInteger generation = _renderGeneration;
-    [_preloadQueue addOperationWithBlock:^{
-      @autoreleasepool {
-          __block spdf_comments comments;
-          memset(&comments, 0, sizeof(comments));
-          char err[1024];
-          spdf_document* doc = [self openSpdfDocumentAtPath:workingPath
-                                                 sourcePath:standardizedPath
-                                                     status:NULL
-                                                      error:err
-                                                errorLength:sizeof(err)];
-          BOOL ok = doc && spdf_load_comments(doc, &comments, err, sizeof(err));
-          if (doc) spdf_close(doc);
-
-          [[NSOperationQueue mainQueue] addOperationWithBlock:^{
-            SPDFDocumentTab* currentTab = [self selectedTab];
-            if (generation != self->_renderGeneration || !self->_doc ||
-                ![self->_path.stringByStandardizingPath isEqualToString:standardizedPath] || currentTab != tab) {
-                spdf_free_comments(&comments);
-                return;
-            }
-            if (ok) {
-                [tab replaceCachedComments:comments loaded:YES];
-            } else {
-                spdf_free_comments(&comments);
-                spdf_comments emptyComments;
-                memset(&emptyComments, 0, sizeof(emptyComments));
-                [tab replaceCachedComments:emptyComments loaded:YES];
-            }
-            [self adoptCachedMetadataForTab:tab];
-            [self rebuildSidebar];
-            [self->_pageView setNeedsDisplay:YES];
-          }];
-      }
-    }];
-}
-
-- (void)loadOutlineForCurrentDocumentAsync {
-    if (!_doc || !_path.length) return;
-    SPDFDocumentTab* tab = [self selectedTab];
-    if (tab.cachedOutlineLoaded) {
-        [self adoptCachedMetadataForTab:tab];
-        [self rebuildSidebar];
-        return;
-    }
-
-    NSString* workingPath = [self activeWorkingPath]; // temp copy for read-only source
-    NSString* standardizedPath = [_path.stringByStandardizingPath copy];
-    NSUInteger generation = _renderGeneration;
-    [_preloadQueue addOperationWithBlock:^{
-      @autoreleasepool {
-          __block spdf_outline outline;
-          memset(&outline, 0, sizeof(outline));
-          char err[1024];
-          spdf_document* doc = [self openSpdfDocumentAtPath:workingPath
-                                                 sourcePath:standardizedPath
-                                                     status:NULL
-                                                      error:err
-                                                errorLength:sizeof(err)];
-          BOOL ok = doc && spdf_load_outline(doc, &outline, err, sizeof(err));
-          if (doc) spdf_close(doc);
-
-          [[NSOperationQueue mainQueue] addOperationWithBlock:^{
-            SPDFDocumentTab* currentTab = [self selectedTab];
-            if (generation != self->_renderGeneration || !self->_doc ||
-                ![self->_path.stringByStandardizingPath isEqualToString:standardizedPath] || currentTab != tab) {
-                spdf_free_outline(&outline);
-                return;
-            }
-            if (ok) {
-                [tab replaceCachedOutline:outline loaded:YES];
-            } else {
-                spdf_free_outline(&outline);
-                spdf_outline emptyOutline;
-                memset(&emptyOutline, 0, sizeof(emptyOutline));
-                [tab replaceCachedOutline:emptyOutline loaded:YES];
-            }
-            [self adoptCachedMetadataForTab:tab];
-            [self rebuildSidebar];
-          }];
-      }
-    }];
 }
 
 - (void)schedulePostFirstPaintWorkForGeneration:(NSUInteger)generation

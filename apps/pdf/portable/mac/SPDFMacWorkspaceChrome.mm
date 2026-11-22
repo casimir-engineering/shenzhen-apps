@@ -13,6 +13,7 @@
 #import "SPDFMacCollectionReaderNavigation.h"
 #import "SPDFMacWorkspacePanels.h"
 #import "SPDFMacCollectionStyle.h"
+#import "SPDFMacFillIntegration.h"
 #import <objc/runtime.h>
 
 // One compact header per column. The renderer and real minimap retain their
@@ -25,6 +26,7 @@ static char chromeKey;
 @property NSButton* collection;
 @property NSButton* print;
 @property NSButton* imageColors;
+@property NSButton* fillSign;
 @property NSButton* previous;
 @property NSButton* next;
 @property NSLayoutConstraint* toolbarRight;
@@ -56,7 +58,8 @@ static char chromeKey;
 }
 - (void)drawWithFrame:(NSRect)frame inView:(NSView*)view {
     NSBezierPath* shape = [NSBezierPath bezierPathWithRoundedRect:NSInsetRect(frame,1,1) xRadius:6 yRadius:6];
-    if (self.highlighted) { [SPDFCollectionColor(@"selected") setFill]; [shape fill]; }
+    // Highlighted while pressed; on while its mode is (Fill & Sign).
+    if (self.highlighted || self.state == NSControlStateValueOn) { [SPDFCollectionColor(@"selected") setFill]; [shape fill]; }
     NSImage* image = SPDFChromeSymbolImage(self.image,SPDFToolbarSymbolPointSize,NSFontWeightRegular,SPDFChromeIconColor(self.enabled));
     SPDFDrawVectorIcon(image,NSInsetRect(frame,1,1),view.isFlipped);
     if (view.window.firstResponder == view) {
@@ -193,7 +196,9 @@ static NSButton* Icon(NSString* symbol, NSString* title, id target, SEL action) 
     state.statusSpace=[_toolbarSpacer.widthAnchor constraintGreaterThanOrEqualToConstant:0];
     state.statusSpace.active=YES;
     state.imageColors=Icon(@"photo",@"Invert image colors · ⇧⌘I",self,@selector(toggleDarkThemePreservesImages:));
-    state.tools = @[state.collection,_readingThemeButton,state.imageColors,_ocrButton,_translateButton,state.print];
+    state.fillSign=Icon(@"signature",@"Fill in and sign · ⌥⌘F",self,@selector(toggleFillAndSign:));
+    state.fillSign.accessibilityLabel=@"Fill & Sign";
+    state.tools = @[state.collection,_readingThemeButton,state.imageColors,_ocrButton,_translateButton,state.fillSign,state.print];
     state.toolsRow = [NSStackView stackViewWithViews:state.tools];
     for (NSStackView* row in @[state.primaryRow,state.toolsRow]) {
         row.orientation = NSUserInterfaceLayoutOrientationHorizontal; row.alignment = NSLayoutAttributeCenterY;
@@ -311,7 +316,7 @@ static NSButton* Icon(NSString* symbol, NSString* title, id target, SEL action) 
     _markdownFontSizeSegments.hidden = ![self isMarkdownActive];
     state.headerWidth.constant = _minimapVisible ? -16 : -48;
     state.statusSpace.constant=saved ? 154 : 0;
-    BOOL wrapped = NSWidth(_toolbar.bounds) > 0 && NSWidth(_toolbar.bounds)-(_minimapVisible ? 0 : 32) < ([self isMarkdownActive] ? 632 : 564)+(saved ? 154 : 0);
+    BOOL wrapped = NSWidth(_toolbar.bounds) > 0 && NSWidth(_toolbar.bounds)-(_minimapVisible ? 0 : 32) < ([self isMarkdownActive] ? 660 : 592)+(saved ? 154 : 0);
     if (state.wrapped != wrapped) {
         [NSLayoutConstraint deactivateConstraints:state.wrappedWidths];
         NSStackView* oldHost=state.wrapped ? state.toolsRow : state.primaryRow;
@@ -342,6 +347,9 @@ static NSButton* Icon(NSString* symbol, NSString* title, id target, SEL action) 
     state.imageColors.accessibilityLabel=state.imageColors.toolTip;
     _findCountLabel.hidden = !_searchField.stringValue.length;
     _findSegments.hidden = !_searchField.stringValue.length;
+    state.fillSign.enabled=[self fillSignAvailable];
+    state.fillSign.state=[self fillSignShowing] ? NSControlStateValueOn : NSControlStateValueOff;
+    [self fillSignChromeDidSync];
 }
 - (void)showGroupsSidebar:(id)sender {
     [self prioritizeWorkspaceSidebar];

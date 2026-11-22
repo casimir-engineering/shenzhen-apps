@@ -309,6 +309,41 @@ field, checkbox, box/cell, underline):
 
 ## UI (Mac AppKit)
 
+### UI as built (2026-11-22)
+
+Where the Mac front end differs from the sketches below:
+- **Toolbar:** the reader's toolbar is rebuilt by `SPDFMacWorkspaceChrome.mm`, so the Fill & Sign button is one more icon
+  in its tools row (between Translate and Print, `signature` symbol), drawn "on" while the mode shows. The old
+  overflow menu is no longer shown, so it gets no entry. Edit ▸ Fill & Sign (⌥⌘F) and File ▸ Save Final Copy… target
+  a small object in `SPDFMacFillIntegration.mm` that validates them itself.
+- **Overlay:** a subview of the reader's scroll view above its clip view (the size of the viewport, not of the
+  document), so it never needs a huge layer; it maps page rects through the current `SPDFDocumentView` on every draw
+  and forwards scroll, magnify and swipe gestures to it. It claims clicks only on pages while the mode shows.
+- **Reads on the main-thread document:** a page's fields and our items are read from `_doc` (cheap, no render) and
+  cached per page until a change on that page, so what is drawn always matches what was just written. Only snap
+  geometry is read on a worker document (serial utility queue, cancellable, visible pages ±1).
+- **Saving:** every commit saves at once (incremental when the file allows, as comments do) and redraws the changed
+  pages synchronously from `_doc` in the same turn; there is no debounce and no unsaved state. What is being typed is
+  written before the document is left (`rememberActiveTabState` hook). Collection gets `collectionDidSavePath:` 5 s
+  after the last change of a burst, and the "before edit" protection runs once per burst.
+- **Permissions:** Fill & Sign checks `can_fill_fields` / `can_add_items` from the summary itself, then runs the same
+  writable-copy / Collection steps as `ensureActivePDFCanBeModifiedForOperation:` without its 'e'/'n' check, so a
+  fill-only PDF can be filled.
+- **Storage:** signatures, My Details, saved texts and "hint seen" live in `<state>/FillSign/` (index.json, `<id>.json`,
+  `<id>.png`, details.json), not in the settings file.
+- **Metadata loader:** the outline and comment loaders moved to `SPDFMacDocumentMetadataLoading.mm` and read both from one
+  open; the form summary is read on the main-thread `_doc` at the same metadata stage (no extra open, no page load).
+- **Not built yet:** dragging the palette, the right-edge width handle and corner font scaling of placed text
+  (⌘+ / ⌘− while typing changes the size), the "Use the whole trackpad" drawing mode, date-style choice in My Details,
+  the red outline on a failed save (an alert says it instead), and turning the mode back on by clicking a field after
+  Done.
+
+Files: `SPDFMacFillIntegration.{h,mm}` (reader category, host, menus, Save Final Copy), `SPDFMacFillController.{h,mm}`
+(+ `+Edits.mm` changes and undo, `+Interaction.mm` clicks, editor, Tab, signatures, suggestions,
+`SPDFMacFillControllerPrivate.h`), `SPDFMacFillOverlayView.{h,mm}` (+ `+Interaction.mm`, `SPDFMacFillOverlayViewPrivate.h`),
+`SPDFMacFillEditor.{h,mm}`, `SPDFMacFillPalette.{h,mm}`, `SPDFMacFillModel.{h,mm}`, `SPDFMacSignatureStore.{h,mm}`,
+`SPDFMacSignatureSheet.{h,mm}`, `SPDFMacSignatureOutlines.{h,mm}`, `SPDFMacDocumentMetadataLoading.mm`.
+
 Size caps: `ShenzhenPDFMac.mm` (13861), `SPDFMacDocumentView.mm` (940), `SPDFMacDelegatePrivate.h` (637) and
 `shenzhen_pdf_core.c` (2730) are at their caps. `SPDFMacDocumentView.mm` and `SPDFMacDelegatePrivate.h` do not
 change: per-tab and per-window state lives in associated objects set from category files. Every line added to
