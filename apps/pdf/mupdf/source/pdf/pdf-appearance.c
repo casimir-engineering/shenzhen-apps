@@ -2119,9 +2119,14 @@ write_variable_text(fz_context *ctx, pdf_annot *annot, fz_buffer *buf, pdf_obj *
 				size = 12;
 			else
 			{
+				/* ShenzhenPDF: "auto" size fits the width, but no taller than the field allows with room
+				 * around the text and never above 12 pt (as the reader's editor shows it), instead of the
+				 * full field height. */
 				size = w / measure_string(ctx, lang, font, text);
-				if (size > h)
-					size = h;
+				if (size > 0.65f * (h + padding * 2))
+					size = 0.65f * (h + padding * 2);
+				if (size > 12)
+					size = 12;
 			}
 		}
 
@@ -2190,9 +2195,14 @@ layout_variable_text(fz_context *ctx, fz_layout_block *out,
 				size = 12;
 			else
 			{
+				/* ShenzhenPDF: "auto" size fits the width, but no taller than the field allows with room
+				 * around the text and never above 12 pt (as the reader's editor shows it), instead of the
+				 * full field height. */
 				size = w / measure_string(ctx, lang, font, text);
-				if (size > h)
-					size = h;
+				if (size > 0.65f * (h + padding * 2))
+					size = 0.65f * (h + padding * 2);
+				if (size > 12)
+					size = 12;
 			}
 		}
 
