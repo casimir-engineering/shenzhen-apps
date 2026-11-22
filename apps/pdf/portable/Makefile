@@ -76,6 +76,11 @@ CORE_RECOGNIZED_TEXT_OBJ := $(BUILD)/spdf_picture_text.o $(BUILD)/spdf_ocr_layer
 CORE_OBJS := $(CORE_OBJ) $(CORE_SELECTION_OBJ) $(CORE_SELECTION_SUPPORT_OBJ) $(CORE_RECOLOR_OBJ) $(CORE_IMAGE_PROPERTIES_OBJ) \
 	$(CORE_PAGE_IMAGES_OBJ) $(CORE_LINK_OBJ) $(CORE_PROGRESSIVE_OBJ) $(CORE_DESTINATION_OBJ) $(CORE_SVG_IMAGE_OBJ) \
 	$(CORE_SENSOR_RAW_OBJ) $(CORE_CAMERA_RAW_OBJ) $(CORE_RECOGNIZED_TEXT_OBJ)
+# Fill & Sign: form fields, placed text, marks and signatures, snapping (core/spdf_form.h, core/spdf_fill_items.h,
+# core/spdf_fill_snap.h; docs/plans/fill-and-sign.md). Nothing here runs until a tab fills something in.
+CORE_FILL_OBJS := $(BUILD)/spdf_form.o $(BUILD)/spdf_fill_items.o $(BUILD)/spdf_fill_signature.o \
+	$(BUILD)/spdf_fill_snap.o $(BUILD)/spdf_fill_snap_clean.o $(BUILD)/spdf_fill_snap_place.o
+CORE_OBJS += $(CORE_FILL_OBJS)
 YAML_SRC := core/spdf_yaml.c
 YAML_HDR := core/spdf_yaml.h
 YAML_OBJ := $(BUILD)/spdf_yaml.o
@@ -220,6 +225,17 @@ $(BUILD)/spdf_picture_text.o: core/spdf_picture_text.c core/spdf_picture_text.h 
 	clang $(PORTABLE_OPTFLAGS) $(MAC_TARGET_FLAGS) -Wall -Wextra -Werror -Icore -I$(MUPDF_DIR)/include -c $< -o "$@"
 
 $(BUILD)/spdf_ocr_layer.o: core/spdf_ocr_layer.c core/spdf_ocr_layer.h Makefile | $(BUILD)
+	clang $(PORTABLE_OPTFLAGS) $(MAC_TARGET_FLAGS) -Wall -Wextra -Werror -Icore -I$(MUPDF_DIR)/include -c $< -o "$@"
+
+$(BUILD)/spdf_form.o: core/spdf_form.c core/spdf_form.h core/spdf_core_document.h Makefile | $(BUILD)
+	clang $(PORTABLE_OPTFLAGS) $(MAC_TARGET_FLAGS) -Wall -Wextra -Werror -Icore -I$(MUPDF_DIR)/include -c $< -o "$@"
+
+$(BUILD)/spdf_fill_items.o $(BUILD)/spdf_fill_signature.o: $(BUILD)/%.o: core/%.c core/spdf_fill_items.h \
+		core/spdf_fill_internal.h core/spdf_fill_identity.h core/spdf_core_document.h Makefile | $(BUILD)
+	clang $(PORTABLE_OPTFLAGS) $(MAC_TARGET_FLAGS) -Wall -Wextra -Werror -Icore -I$(MUPDF_DIR)/include -c $< -o "$@"
+
+$(BUILD)/spdf_fill_snap.o $(BUILD)/spdf_fill_snap_clean.o $(BUILD)/spdf_fill_snap_place.o: $(BUILD)/%.o: core/%.c \
+		core/spdf_fill_snap.h core/spdf_fill_snap_internal.h core/spdf_fill_items.h core/spdf_core_document.h Makefile | $(BUILD)
 	clang $(PORTABLE_OPTFLAGS) $(MAC_TARGET_FLAGS) -Wall -Wextra -Werror -Icore -I$(MUPDF_DIR)/include -c $< -o "$@"
 
 $(CORE_SENSOR_RAW_OBJ): core/spdf_sensor_raw.c core/spdf_sensor_raw.h core/spdf_sensor_raw_stats.h core/spdf_core_document.h Makefile | $(BUILD)
