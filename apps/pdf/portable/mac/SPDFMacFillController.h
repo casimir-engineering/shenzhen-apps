@@ -130,8 +130,13 @@
 // -1 keeps an item's own colour or width.
 - (void)restyleSelectionWithColor:(NSInteger)colorIndex width:(NSInteger)widthIndex;
 - (BOOL)setArrow:(SPDFFillItem*)arrow tail:(NSPoint)tail tip:(NSPoint)tip;
-// Edit menu: every pen line and arrow, or everything Fill & Sign added, on every page.
+// Edit menu: every pen line and arrow on every page.
 - (void)removeAllDrawings;
+@end
+
+// Edit menu: everything Fill & Sign added on every page, and every field it filled in put back to what it held
+// before (SPDFMacFillController+RemoveEverything.mm). One undo step.
+@interface SPDFMacFillController (RemoveEverything)
 - (void)removeEverythingAdded;
 @end
 

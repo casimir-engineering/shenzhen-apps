@@ -79,8 +79,8 @@ CORE_OBJS := $(CORE_OBJ) $(CORE_SELECTION_OBJ) $(CORE_SELECTION_SUPPORT_OBJ) $(C
 # Fill & Sign: form fields, placed text, marks and signatures, pen lines and arrows, snapping (core/spdf_form.h,
 # core/spdf_fill_items.h, core/spdf_fill_ink.h, core/spdf_fill_snap.h; docs/plans/fill-and-sign.md). Nothing here runs
 # until a tab fills something in.
-CORE_FILL_OBJS := $(BUILD)/spdf_form.o $(BUILD)/spdf_fill_items.o $(BUILD)/spdf_fill_signature.o \
-	$(BUILD)/spdf_fill_snap.o $(BUILD)/spdf_fill_snap_clean.o $(BUILD)/spdf_fill_snap_place.o \
+CORE_FILL_OBJS := $(BUILD)/spdf_form.o $(BUILD)/spdf_form_original.o $(BUILD)/spdf_fill_items.o \
+	$(BUILD)/spdf_fill_signature.o $(BUILD)/spdf_fill_snap.o $(BUILD)/spdf_fill_snap_clean.o $(BUILD)/spdf_fill_snap_place.o \
 	$(BUILD)/spdf_fill_ink.o $(BUILD)/spdf_fill_ink_geometry.o
 CORE_OBJS += $(CORE_FILL_OBJS)
 YAML_SRC := core/spdf_yaml.c
@@ -229,7 +229,8 @@ $(BUILD)/spdf_picture_text.o: core/spdf_picture_text.c core/spdf_picture_text.h 
 $(BUILD)/spdf_ocr_layer.o: core/spdf_ocr_layer.c core/spdf_ocr_layer.h Makefile | $(BUILD)
 	clang $(PORTABLE_OPTFLAGS) $(MAC_TARGET_FLAGS) -Wall -Wextra -Werror -Icore -I$(MUPDF_DIR)/include -c $< -o "$@"
 
-$(BUILD)/spdf_form.o: core/spdf_form.c core/spdf_form.h core/spdf_core_document.h Makefile | $(BUILD)
+$(BUILD)/spdf_form.o $(BUILD)/spdf_form_original.o: $(BUILD)/%.o: core/%.c core/spdf_form.h core/spdf_form_internal.h \
+		core/spdf_core_document.h Makefile | $(BUILD)
 	clang $(PORTABLE_OPTFLAGS) $(MAC_TARGET_FLAGS) -Wall -Wextra -Werror -Icore -I$(MUPDF_DIR)/include -c $< -o "$@"
 
 $(BUILD)/spdf_fill_items.o $(BUILD)/spdf_fill_signature.o $(BUILD)/spdf_fill_ink.o: $(BUILD)/%.o: core/%.c \

@@ -56,7 +56,8 @@ static char kSPDFFillControllerKey, kSPDFFillMenuTargetKey, kSPDFFillFormStampKe
     if (item.action == @selector(removeAllPenLinesAndArrows:))
         return available && [self.reader fillSignCanAddItems] && [self.reader fillSignHasAddedItemsDrawingsOnly:YES];
     if (item.action == @selector(removeEverythingAddedWithFillSign:))
-        return available && [self.reader fillSignCanAddItems] && [self.reader fillSignHasAddedItemsDrawingsOnly:NO];
+        return available && ([self.reader fillSignHasFilledFields] ||
+                             ([self.reader fillSignCanAddItems] && [self.reader fillSignHasAddedItemsDrawingsOnly:NO]));
     return available;
 }
 @end
@@ -120,6 +121,12 @@ void SPDFFillInstallMenuItems(NSMenu* editMenu, NSMenu* fileMenu, ShenzhenMacDel
     if (!drawingsOnly) return spdf_fill_pages_with_items(_doc, SPDF_FILL_NM_PREFIX, NULL, 0, err, sizeof(err)) > 0;
     return spdf_fill_pages_with_items(_doc, SPDF_FILL_PEN_NM_PREFIX, NULL, 0, err, sizeof(err)) > 0 ||
            spdf_fill_pages_with_items(_doc, SPDF_FILL_ARROW_NM_PREFIX, NULL, 0, err, sizeof(err)) > 0;
+}
+
+// A field of the PDF's own form holds something Fill & Sign put there (spdf_form_filled_count).
+- (BOOL)fillSignHasFilledFields {
+    char err[128];
+    return _doc && spdf_form_filled_count(_doc, err, sizeof(err)) > 0;
 }
 
 - (NSString*)fillFormStampForTab:(SPDFDocumentTab*)tab {

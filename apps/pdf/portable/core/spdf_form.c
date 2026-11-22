@@ -1,6 +1,7 @@
 /* spdf_form.c -- a PDF's own form fields for Fill & Sign (spdf_form.h). */
 #include "spdf_form.h"
 #include "spdf_core_document.h"
+#include "spdf_form_internal.h"
 
 #include "mupdf/pdf.h"
 
@@ -13,8 +14,7 @@ enum {
     FORM_DEPTH_CAP = 32,
     FORM_PAGE_SCAN_CAP = 5000,
     ANNOT_FLAG_HIDDEN = 1 << 1,
-    ANNOT_FLAG_NO_VIEW = 1 << 5,
-    FORM_PAGE_SET_CAP = 256
+    ANNOT_FLAG_NO_VIEW = 1 << 5
 };
 
 static void form_error(char* err, size_t err_len, const char* message) {
@@ -135,7 +135,7 @@ int spdf_form_summary_read(spdf_document* doc, spdf_form_summary* out, char* err
 }
 
 /* The field a widget belongs to: itself when it carries /T, else the nearest ancestor that does. */
-static pdf_obj* field_of_widget(fz_context* ctx, pdf_obj* widget) {
+pdf_obj* spdf_form_field_of_widget(fz_context* ctx, pdf_obj* widget) {
     pdf_obj* node = widget;
     int depth = 0;
     while (node && !pdf_dict_get(ctx, node, PDF_NAME(T)) && depth++ < FORM_DEPTH_CAP) {
@@ -186,7 +186,7 @@ static void read_options(fz_context* ctx, pdf_annot* widget, spdf_form_widget* i
  * frees whatever was set. */
 static int read_widget(fz_context* ctx, pdf_annot* widget, int page_index, int order, spdf_form_widget* item) {
     pdf_obj* obj = pdf_annot_obj(ctx, widget);
-    pdf_obj* field = field_of_widget(ctx, obj);
+    pdf_obj* field = spdf_form_field_of_widget(ctx, obj);
     spdf_field_type type;
     int ff;
     char* name;
@@ -326,7 +326,7 @@ static void put_button_states(fz_context* ctx, pdf_obj* node, pdf_obj* value, in
  * without appearances of its own is left to MuPDF, which draws them. */
 static void set_button(fz_context* ctx, pdf_annot* widget, int on) {
     pdf_obj* obj = pdf_annot_obj(ctx, widget);
-    pdf_obj* field = field_of_widget(ctx, obj);
+    pdf_obj* field = spdf_form_field_of_widget(ctx, obj);
     pdf_obj* value = on ? pdf_button_field_on_state(ctx, obj) : PDF_NAME(Off);
     if (!pdf_is_dict(ctx, pdf_dict_getp(ctx, obj, "AP/N")) || !pdf_is_name(ctx, value)) {
         pdf_toggle_widget(ctx, widget);
@@ -338,22 +338,18 @@ static void set_button(fz_context* ctx, pdf_annot* widget, int on) {
 
 typedef enum { SET_TEXT, SET_ON, SET_CHOICE } form_set_mode;
 
-typedef struct {
-    int pages[FORM_PAGE_SET_CAP];
-    int count;
-} page_set;
-
-static void page_set_add(page_set* set, int page) {
+void spdf_form_page_set_add(spdf_form_page_set* set, int page) {
     int i;
     if (page < 0) return;
     for (i = 0; i < set->count; ++i)
         if (set->pages[i] == page) return;
-    if (set->count < FORM_PAGE_SET_CAP) set->pages[set->count++] = page;
+    if (set->count < SPDF_FORM_PAGE_SET_CAP) set->pages[set->count++] = page;
 }
 
 /* Every widget under `node` (the field itself, its widget kids, or child fields): its page joins `set`, and text
  * with Chinese characters tags it zh-Hans so the regenerated appearance gets a Chinese font. */
-static void visit_field_widgets(fz_context* ctx, pdf_document* pdf, pdf_obj* node, int depth, int han, page_set* set) {
+void spdf_form_visit_field_widgets(fz_context* ctx, pdf_document* pdf, pdf_obj* node, int depth, int han,
+                                   spdf_form_page_set* set) {
     pdf_obj* kids = pdf_dict_get(ctx, node, PDF_NAME(Kids));
     int i, n = pdf_array_len(ctx, kids);
     if (depth > FORM_DEPTH_CAP) return;
@@ -361,14 +357,14 @@ static void visit_field_widgets(fz_context* ctx, pdf_document* pdf, pdf_obj* nod
         pdf_obj* page_obj = pdf_dict_get(ctx, node, PDF_NAME(P));
         fz_try(ctx) {
             if (page_obj) {
-                page_set_add(set, pdf_lookup_page_number(ctx, pdf, page_obj));
+                spdf_form_page_set_add(set, pdf_lookup_page_number(ctx, pdf, page_obj));
             } else {
                 /* /P is optional: the page whose annotations list the widget (a radio button on another page). */
                 int p, count = pdf_count_pages(ctx, pdf);
                 for (p = 0; p < count && p < FORM_PAGE_SCAN_CAP; ++p)
                     if (pdf_array_contains(ctx, pdf_dict_get(ctx, pdf_lookup_page_obj(ctx, pdf, p), PDF_NAME(Annots)),
                                            node)) {
-                        page_set_add(set, p);
+                        spdf_form_page_set_add(set, p);
                         break;
                     }
             }
@@ -376,7 +372,7 @@ static void visit_field_widgets(fz_context* ctx, pdf_document* pdf, pdf_obj* nod
         fz_catch(ctx) fz_ignore_error(ctx);
         if (han) pdf_dict_put_text_string(ctx, node, PDF_NAME(Lang), "zh-Hans");
     }
-    for (i = 0; i < n; ++i) visit_field_widgets(ctx, pdf, pdf_array_get(ctx, kids, i), depth + 1, han, set);
+    for (i = 0; i < n; ++i) spdf_form_visit_field_widgets(ctx, pdf, pdf_array_get(ctx, kids, i), depth + 1, han, set);
 }
 
 static int form_set(spdf_document* doc, int page_index, int object_number, form_set_mode mode, const char* text,
@@ -384,7 +380,7 @@ static int form_set(spdf_document* doc, int page_index, int object_number, form_
     pdf_document* pdf;
     pdf_page* volatile page = NULL;
     pdf_page* volatile other = NULL;
-    page_set set;
+    spdf_form_page_set set;
     int i;
 
     form_error(err, err_len, "");
@@ -401,7 +397,7 @@ static int form_set(spdf_document* doc, int page_index, int object_number, form_
     fz_try(doc->ctx) {
         fz_context* ctx = doc->ctx;
         pdf_annot* widget;
-        pdf_obj* form;
+        pdf_obj *form, *field;
         enum pdf_widget_type type;
         int han = text && spdf_text_contains_han(text);
         if (!pdf_has_permission(ctx, pdf, FZ_PERMISSION_FORM) && !pdf_has_permission(ctx, pdf, FZ_PERMISSION_ANNOTATE))
@@ -423,9 +419,10 @@ static int form_set(spdf_document* doc, int page_index, int object_number, form_
         /* Other readers keep showing XFA data over the fields until it goes (as Preview and pdf.js do). */
         form = pdf_dict_getp(ctx, pdf_trailer(ctx, pdf), "Root/AcroForm");
         if (pdf_dict_get(ctx, form, PDF_NAME(XFA))) pdf_dict_del(ctx, form, PDF_NAME(XFA));
-        page_set_add(&set, page_index);
-        visit_field_widgets(ctx, pdf, field_of_widget(ctx, pdf_annot_obj(ctx, widget)), 0, han && mode != SET_ON,
-                            &set);
+        field = spdf_form_field_of_widget(ctx, pdf_annot_obj(ctx, widget));
+        spdf_form_note_original(ctx, pdf, field); /* what it held before Fill & Sign first changed it */
+        spdf_form_page_set_add(&set, page_index);
+        spdf_form_visit_field_widgets(ctx, pdf, field, 0, han && mode != SET_ON, &set);
         if (mode == SET_TEXT && !pdf_set_text_field_value(ctx, widget, text ? text : ""))
             fz_throw(ctx, FZ_ERROR_ARGUMENT, "This field doesn't accept that value.");
         if (mode == SET_CHOICE && !pdf_set_choice_field_value(ctx, widget, text ? text : ""))

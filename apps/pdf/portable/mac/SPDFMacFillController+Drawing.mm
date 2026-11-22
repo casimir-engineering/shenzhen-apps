@@ -50,7 +50,7 @@ typedef BOOL (^SPDFFillDrawingWrite)(spdf_document* doc, NSMutableIndexSet* page
 static char kSPDFFillPendingKey;
 static const NSTimeInterval kSPDFFillPendingRest = 0.35;
 
-static NSArray<SPDFFillItem*>* SPDFFillDrawingsIn(NSArray* entriesOrItems) {
+NSArray<SPDFFillItem*>* SPDFFillDrawingsIn(NSArray* entriesOrItems) {
     NSMutableArray* drawings = [NSMutableArray array];
     for (id object in entriesOrItems) {
         SPDFFillItem* item = [object isKindOfClass:SPDFFillEntry.class] ? [(SPDFFillEntry*)object item] : object;
@@ -257,11 +257,17 @@ static NSArray<SPDFFillItem*>* SPDFFillDrawingsIn(NSArray* entriesOrItems) {
     return entries;
 }
 
-// One change: removes `removed`, then writes `added`.
 - (BOOL)applyRemoving:(NSArray<SPDFFillEntry*>*)removed adding:(NSArray<SPDFFillEntry*>*)added {
+    return [self applyRemoving:removed adding:added fields:nil];
+}
+
+// One change: removes `removed`, writes `added`, then changes the form's own fields with `fields` (when given).
+- (BOOL)applyRemoving:(NSArray<SPDFFillEntry*>*)removed adding:(NSArray<SPDFFillEntry*>*)added
+               fields:(SPDFFillDrawingWrite)fields {
     for (SPDFFillEntry* entry in added)
         if (entry.signature) self.usedSignatures[entry.signature.identifier] = entry.signature;
-    return [self change:NO write:^BOOL(spdf_document* doc, NSMutableIndexSet* pages, char* err, size_t len) {
+    BOOL fieldsOnly = !removed.count && !added.count;
+    return [self change:fieldsOnly write:^BOOL(spdf_document* doc, NSMutableIndexSet* pages, char* err, size_t len) {
       NSMutableDictionary<NSNumber*, NSMutableArray<NSString*>*>* names = [NSMutableDictionary dictionary];
       for (SPDFFillEntry* entry in removed) {
           NSNumber* page = @(entry.item.page);
@@ -300,7 +306,7 @@ static NSArray<SPDFFillItem*>* SPDFFillDrawingsIn(NSArray* entriesOrItems) {
           }
           if (!spdf_fill_add_strokes(doc, page.intValue, list.data(), (int)list.size(), err, len)) return NO;
       }
-      return YES;
+      return !fields || fields(doc, pages, err, len);
     }];
 }
 
@@ -350,13 +356,6 @@ static NSArray<SPDFFillItem*>* SPDFFillDrawingsIn(NSArray* entriesOrItems) {
     [self flushPendingChanges];
     NSArray* items = [self itemsOnPagesWithPrefix:SPDF_FILL_NM_PREFIX drawingsOnly:YES];
     if (!items.count || ![self removeItems:items]) NSBeep();
-}
-
-- (void)removeEverythingAdded {
-    [self flushPendingChanges];
-    NSArray* items = [self itemsOnPagesWithPrefix:SPDF_FILL_NM_PREFIX drawingsOnly:NO];
-    if (!items.count || ![self removeItems:items]) NSBeep();
-    self.overlay.selectedItem = nil;
 }
 
 #pragma mark - Moving and restyling

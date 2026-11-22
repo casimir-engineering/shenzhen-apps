@@ -16,7 +16,10 @@
 - (BOOL)fillSignCanAddItems;
 // The document holds pen lines and arrows (drawingsOnly) or anything Fill & Sign added, written or waiting.
 - (BOOL)fillSignHasAddedItemsDrawingsOnly:(BOOL)drawingsOnly;
-// Edit menu: every pen line and arrow, or everything Fill & Sign added, in the document; each one undo step.
+// A field of the PDF's own form holds a value Fill & Sign put there.
+- (BOOL)fillSignHasFilledFields;
+// Edit menu: every pen line and arrow, or everything Fill & Sign added (the values it put in the form's own fields
+// included, which go back to what they held before), in the document; each one undo step.
 - (void)removeAllPenLinesAndArrows:(id)sender;
 - (void)removeEverythingAddedWithFillSign:(id)sender;
 // After first paint of a document (the metadata stage): reads whether the PDF has a form and turns Fill & Sign on.

@@ -107,6 +107,25 @@ int spdf_form_set_on(spdf_document* doc, int page_index, int object_number, int 
 int spdf_form_set_choice(spdf_document* doc, int page_index, int object_number, const char* utf8, int* pages_changed,
                          int max, char* err, size_t err_len);
 
+/* What Fill & Sign changed in the PDF's own fields (Edit > Remove Everything Added with Fill & Sign).
+ *
+ * The first time a setter above changes a field, it keeps the value the field held until then in the file itself:
+ * the document information dictionary's /ShenzhenPDFFillOriginals array, one << /T (full name) /N (object number)
+ * /V (value) >> per field, /V absent when the field had none. A value the PDF came with (a form sent pre-filled) is
+ * therefore known after quitting, in copies and through incremental and full saves. /Info is also the one place a
+ * signature check accepts any change (pdf_validate_changes), so a signed PDF only gains field values, as filling does.
+ *
+ * spdf_form_filled_count: how many recorded fields now hold something else than before (0 = nothing to put back).
+ * spdf_form_reset_filled: every recorded field back to the value it held before Fill & Sign, and the record emptied.
+ *   Signature fields are never recorded; read-only fields and fields a signature locks are left alone and stay
+ *   recorded. *undo receives what spdf_form_restore_filled needs to undo the reset (malloc'd: free() it; NULL when
+ *   nothing was recorded). Returns how many pages changed (>= 0, ascending in pages_changed), or -1 with err.
+ * spdf_form_restore_filled: undoes one reset: each field gets back what it held, and the record its entry. */
+int spdf_form_filled_count(spdf_document* doc, char* err, size_t err_len);
+int spdf_form_reset_filled(spdf_document* doc, char** undo, int* pages_changed, int max, char* err, size_t err_len);
+int spdf_form_restore_filled(spdf_document* doc, const char* undo, int* pages_changed, int max, char* err,
+                             size_t err_len);
+
 #ifdef __cplusplus
 }
 #endif

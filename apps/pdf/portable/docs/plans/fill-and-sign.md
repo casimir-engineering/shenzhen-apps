@@ -199,7 +199,8 @@ The headers are the contract; where they differ from the sketches below, the hea
   point is on a real field; `spdf_snap_targets_in_order` writes `spdf_snap_target` (kind, rect, probe point).
 - Signatures keep their drawing on move because the Stamp's `/Name` is `/Signature`, which MuPDF treats as non-standard
   and never redraws (`pdf_update_appearance`, MuPDF 1.27.2); picture signatures are redrawn from their image.
-- Files: `spdf_form.c`, `spdf_fill_items.c` + `spdf_fill_signature.c` (signatures, Save Final Copy),
+- Files: `spdf_form.c` (+ `spdf_form_original.c`, the values fields held before Fill & Sign, with
+  `spdf_form_internal.h`), `spdf_fill_items.c` + `spdf_fill_signature.c` (signatures, Save Final Copy),
   `spdf_fill_snap.c` (reading the page) + `spdf_fill_snap_clean.c` + `spdf_fill_snap_place.c`; internal headers
   `spdf_fill_identity.h` (the comment filter, header-only so GTK and Windows link nothing new), `spdf_fill_internal.h`,
   `spdf_fill_snap_internal.h`. The render token's body moved to `spdf_core_document.h` so the snap pass can be
@@ -646,11 +647,39 @@ Windows can reuse it later.
 - **Edit ▸ Remove All Pen Lines and Arrows**, and the bin in the options row: every `spdf-fill-pen-` and
   `spdf-fill-arrow-` annotation on every page.
 - **Edit ▸ Remove Everything Added with Fill & Sign**: every annotation whose `/NM` starts with `spdf-fill-`: typed
-  text, checks, crosses, signatures, initials, pen lines, arrows. The PDF's own form fields keep their values ("added"
-  vs "filled", as the palette's "3 of 12 filled" already says; see Risks).
-- Both sit under Edit ▸ Fill & Sign, target `SPDFFillMenuTarget` and are enabled when `fillSignAvailable`, the PDF
-  allows added items and there is something to remove (lines still waiting count). No confirmation: each is one
-  undo step, and Collection keeps the version before the burst.
+  text, checks, crosses, signatures, initials, pen lines, arrows; and every field of the PDF's own form that Fill &
+  Sign filled in (text, comb, checkbox, radio, choice, on any page) goes back to the value it held before Fill & Sign
+  first changed it, so a form that came pre-filled keeps what it came with (Raph, 2026-11-23: "anything added by
+  fill and sign"). The title stays: from the person's side, what they typed into the fields was added with Fill & Sign.
+- Both sit under Edit ▸ Fill & Sign, target `SPDFFillMenuTarget`. Remove All Pen Lines and Arrows is enabled when
+  `fillSignAvailable`, the PDF allows added items and there is a line (lines still waiting count); Remove Everything
+  when `fillSignAvailable` and there is an added item the PDF allows, or a field holding something other than its
+  value from before (`spdf_form_filled_count`), so filled fields alone enable it. No confirmation: each is one undo
+  step, and Collection keeps the version before the burst.
+
+**Remove Everything as built (2026-11-23).** How the value from before is known:
+- `spdf_form_set_*` (every field change Fill & Sign makes, undo and redo included) first records the field, once: an
+  entry `<< /T (full name) /N (object number) /V (value) >>` in `/Info /ShenzhenPDFFillOriginals` (`/V` absent when
+  the field had none; rich text kept as its plain text). Because it is written in the same change as the first new
+  value, the entry always holds what the PDF had before Fill & Sign, never something Fill & Sign typed. It lives in the
+  file, so it survives quitting and reopening, the writable copy, Collection versions and incremental or full saves.
+- Why `/Info` and not the field: MuPDF's signature check (`pdf_validate_changes`) accepts any change to `/Info` but
+  flags any key added to a field dictionary, so a certified PDF that allows filling would read as changed beyond
+  filling. The file's earlier revision was rejected as the source: nothing marks which revisions are Fill & Sign's,
+  comments save into the same file, and saves are full rewrites when a file can't be saved incrementally.
+- `spdf_form_reset_filled` (`core/spdf_form_original.c`) puts each recorded field back (text and choices redrawn by
+  MuPDF, checkbox and radio widgets back to their own states, a radio group across pages included), removes the
+  entries, and returns a snapshot (the values before the reset, as PDF syntax) and the changed pages, all redrawn in
+  the same turn. Signature fields are never recorded; read-only fields and fields a signature locks
+  (`pdf_find_locked_fields`) are left alone and stay recorded. Saving is unchanged: appended when the file allows,
+  so a signed PDF's signed bytes stay as they were.
+- One undo step (`SPDFMacFillController+RemoveEverything.mm`): items and fields go in one `change:write:` (a fields-only
+  change when there are no items, so a fill-only PDF works); ⌘Z re-adds the items and `spdf_form_restore_filled` gives
+  the fields their values and the record its entries back; ⇧⌘Z / ⌘Y does it again.
+- When there is no way to know: a field filled before this build (no entry) is treated as part of the PDF and kept.
+  The /DV fallback is not needed: every field Fill & Sign changes from now on has an entry. An app that rewrites the
+  file and drops unknown `/Info` keys loses the record; those fields are then kept as they are. A value edited in
+  another app after Fill & Sign filled the field is replaced by the value from before Fill & Sign.
 - Pages are found without loading them (`/Annots` read through `pdf_lookup_page_obj`, as the comment loader's skip
   does); the specs of what is removed are read first (for undo), then one batch delete per page, one save, and the
   visible changed pages redrawn in that turn (the others render when shown, as today).
@@ -667,7 +696,7 @@ redrawn like any change and survives a move to a writable copy (specs and `/NM`,
 | Eraser drag (either kind) | per drag | remove the pieces, re-add the originals from their specs (same `/NM`) |
 | Move by drag, arrow-key run, arrow end drag | per gesture | move back by −dx, −dy (or the old end) |
 | Restyle selection | per click | old colour and width per line |
-| Remove selection / Remove All Pen Lines and Arrows / Remove Everything Added | per command | re-add from specs (signatures through `usedSignatures`, as `deleteItem:` does) |
+| Remove selection / Remove All Pen Lines and Arrows / Remove Everything Added | per command | re-add from specs (signatures through `usedSignatures`, as `deleteItem:` does); Remove Everything also gives the fields back their values (`spdf_form_restore_filled`) |
 
 - A line still waiting for its batch to be written is taken back by ⌘Z without being written (its undo handler sees it
   is still pending and drops it); redo puts it back in the batch.
@@ -808,8 +837,8 @@ the repo, files ≤ 500 lines, no push, no release) and the UI text above verbat
 
 ### Risks and open questions for Raph
 
-- **"Remove all Fill & Sign"** removes everything Fill & Sign added on top of the pages but leaves the form's own
-  fields as filled. Should it also empty the fields? (They may hold what the sender pre-filled.)
+- **"Remove all Fill & Sign"**: answered 2026-11-23, it also puts the form's own fields back to the values they had
+  before Fill & Sign (pre-filled values stay); see Remove all.
 - **Arrows are Ink, not Line annotations.** They look the same everywhere, but Acrobat lists them as pencil marks,
   not arrows, and its arrow properties don't apply.
 - **One annotation per line.** A page of handwriting is hundreds of annotations; other readers' comment lists (Acrobat,
