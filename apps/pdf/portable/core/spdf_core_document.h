@@ -18,6 +18,7 @@
 #include "spdf_recolor.h"
 
 #include "mupdf/fitz.h"
+#include "mupdf/pdf.h"
 
 #include <stdint.h>
 
@@ -100,5 +101,14 @@ void spdf_core_add_open_hook(spdf_core_open_hook hook);
 typedef fz_document* (*spdf_core_wrap_hook)(fz_context* ctx, const char* path, fz_document* doc);
 void spdf_core_set_picture_text_hook(spdf_core_wrap_hook hook);
 #define SPDF_NOT_DOWNLOADED "This page has not downloaded yet."
+
+/* After an incremental save. MuPDF remembers the size the file had when it was opened and cuts the file back to it
+ * before the next incremental save, so a second save dropped the first one while its cross-reference still pointed
+ * there (a damaged file, the first change lost). When the save grew the very file the document reads, it ends there. */
+static inline void spdf_follow_incremental_save(fz_context* ctx, pdf_document* pdf) {
+    if (!pdf || !pdf->file) return;
+    fz_seek(ctx, pdf->file, 0, SEEK_END);
+    if (fz_tell(ctx, pdf->file) > pdf->file_size) pdf->file_size = fz_tell(ctx, pdf->file);
+}
 
 #endif /* SPDF_CORE_DOCUMENT_H */

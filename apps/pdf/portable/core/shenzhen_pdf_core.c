@@ -2036,9 +2036,7 @@ int spdf_delete_all_text(spdf_document* doc, const char* path, char* err, size_t
          * file rather than left behind as orphans. */
         options = pdf_default_write_options;
         options.do_garbage = 2;
-        options.do_compress = 1;
-        options.do_compress_images = 1;
-        options.do_compress_fonts = 1;
+        options.do_compress = options.do_compress_images = options.do_compress_fonts = 1;
         temp_path = create_temp_save_path(doc->ctx, path);
         pdf_save_document(doc->ctx, pdf, temp_path, &options);
         spdf_drop_page_list_cache(doc, -1);
@@ -2130,14 +2128,7 @@ int spdf_save_document(spdf_document* doc, const char* path, char* err, size_t e
             save_path = temp_path;
         }
         pdf_save_document(doc->ctx, pdf, save_path, &options);
-        /* MuPDF remembers the size the file had when it was opened and cuts the file back to it before the next
-         * incremental save, so a second save dropped the first one while its cross-reference still pointed there (a
-         * damaged file, and the first change lost). When this save grew the very file the document reads, it ends
-         * there now. */
-        if (incremental && pdf->file) {
-            fz_seek(doc->ctx, pdf->file, 0, SEEK_END);
-            if (fz_tell(doc->ctx, pdf->file) > pdf->file_size) pdf->file_size = fz_tell(doc->ctx, pdf->file);
-        }
+        if (incremental) spdf_follow_incremental_save(doc->ctx, pdf);
     }
     fz_catch(doc->ctx) {
         set_error(err, err_len, fz_caught_message(doc->ctx));
