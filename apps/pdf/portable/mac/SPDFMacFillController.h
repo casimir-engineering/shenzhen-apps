@@ -99,6 +99,35 @@
 - (void)editMyDetails;
 @end
 
+// Pen lines, arrows, the eraser and the Select tool (SPDFMacFillController+Drawing.mm). Each change is one undo step.
+@interface SPDFMacFillController (Drawing)
+// Picks a tool from the palette or a key: writes what is pending, closes the text box. The Eraser chosen again
+// switches between whole lines and parts.
+- (void)chooseTool:(SPDFFillTool)tool;
+// Lines just drawn: written together once the pointer has rested a moment, or sooner (flushPendingChanges).
+- (void)addDrawnStrokes:(NSArray<SPDFFillItem*>*)strokes;
+- (NSArray<SPDFFillItem*>*)pendingStrokesOnPage:(NSInteger)page;
+- (void)postponePendingStrokes;
+- (void)writePendingStrokes;
+- (void)discardPendingStrokes;
+// The text box and the lines waiting: written now (before the document is left, a tool change, a Command key).
+- (void)flushPendingChanges;
+// The Select tool's selection, on one page.
+- (NSArray<SPDFFillItem*>*)selectedItems;
+- (void)selectItems:(NSArray<SPDFFillItem*>*)items page:(NSInteger)page;
+- (BOOL)selectionHasDrawings;
+- (BOOL)removeItems:(NSArray<SPDFFillItem*>*)items;
+// The eraser cutting lines: the originals go, the pieces left are written, as one change.
+- (BOOL)replaceItems:(NSArray<SPDFFillItem*>*)removed withStrokes:(NSArray<SPDFFillItem*>*)strokes;
+- (BOOL)moveItems:(NSArray<SPDFFillItem*>*)items by:(NSSize)delta;
+// -1 keeps an item's own colour or width.
+- (void)restyleSelectionWithColor:(NSInteger)colorIndex width:(NSInteger)widthIndex;
+- (BOOL)setArrow:(SPDFFillItem*)arrow tail:(NSPoint)tail tip:(NSPoint)tip;
+// Edit menu: every pen line and arrow, or everything Fill & Sign added, on every page.
+- (void)removeAllDrawings;
+- (void)removeEverythingAdded;
+@end
+
 // Keyboard focus and Tab (SPDFMacFillController+Focus.mm).
 @interface SPDFMacFillController (Focus)
 - (void)moveFocusForward:(BOOL)forward;

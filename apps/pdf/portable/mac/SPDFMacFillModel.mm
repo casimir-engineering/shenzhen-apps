@@ -1,6 +1,8 @@
 #import "SPDFMacFillModel.h"
 #import "SPDFMacSignatureStore.h"
 
+#include "spdf_fill_ink_geometry.h"
+
 static NSString* SPDFFillString(const char* utf8) {
     return utf8 && *utf8 ? ([NSString stringWithUTF8String:utf8] ?: @"") : @"";
 }
@@ -55,6 +57,63 @@ static NSString* SPDFFillString(const char* utf8) {
 - (BOOL)isSignature {
     return self.kind == SPDF_FILL_SIGNATURE || self.kind == SPDF_FILL_INITIALS;
 }
+- (BOOL)isDrawing {
+    return self.kind == SPDF_FILL_PEN || self.kind == SPDF_FILL_ARROW;
+}
+- (const spdf_fill_point*)pointBytes {
+    return (const spdf_fill_point*)self.points.bytes;
+}
+- (int)pointCount {
+    return (int)(self.points.length / sizeof(spdf_fill_point));
+}
++ (SPDFFillItem*)strokeOfKind:(spdf_fill_kind)kind page:(NSInteger)page points:(const spdf_fill_point*)points
+                        count:(int)count color:(SPDFFillRGB)color width:(CGFloat)width {
+    SPDFFillItem* item = [SPDFFillItem new];
+    item.kind = kind;
+    item.page = page;
+    item.color = color;
+    item.lineWidth = width;
+    item.points = [NSData dataWithBytes:points length:sizeof(spdf_fill_point) * (size_t)MAX(0, count)];
+    NSString* prefix = kind == SPDF_FILL_ARROW ? @SPDF_FILL_ARROW_NM_PREFIX : @SPDF_FILL_PEN_NM_PREFIX;
+    item.nm = [prefix stringByAppendingString:SPDFFillNewIdentifier()];
+    item.group = item.nm;
+    item.cell = -1;
+    [item updateDrawingBounds];
+    return item;
+}
+- (void)updateDrawingBounds {
+    int count = self.pointCount;
+    if (!count) return;
+    float half = (float)self.lineWidth / 2;
+    spdf_rect r = spdf_ink_bounds(self.pointBytes, count, half);
+    if (self.kind == SPDF_FILL_ARROW && count >= 2) {
+        spdf_fill_point head[3];
+        spdf_ink_arrow_head(self.pointBytes[0], self.pointBytes[1], (float)self.lineWidth, head);
+        spdf_rect h = spdf_ink_bounds(head, 3, half);
+        r.x0 = MIN(r.x0, h.x0), r.y0 = MIN(r.y0, h.y0), r.x1 = MAX(r.x1, h.x1), r.y1 = MAX(r.y1, h.y1);
+    }
+    self.rect = SPDFFillRectFromCore(r);
+}
+- (SPDFFillItem*)itemMovedBy:(NSSize)delta {
+    SPDFFillItem* moved = [SPDFFillItem new];
+    moved.kind = self.kind;
+    moved.page = self.page;
+    moved.rect = NSOffsetRect(self.rect, delta.width, delta.height);
+    moved.fontSize = self.fontSize;
+    moved.nm = self.nm;
+    moved.group = self.group;
+    moved.cell = self.cell;
+    moved.text = self.text;
+    moved.color = self.color;
+    moved.lineWidth = self.lineWidth;
+    if (self.points.length) {
+        NSMutableData* points = [self.points mutableCopy];
+        spdf_fill_point* p = (spdf_fill_point*)points.mutableBytes;
+        for (int i = 0; i < self.pointCount; ++i) p[i].x += (float)delta.width, p[i].y += (float)delta.height;
+        moved.points = points;
+    }
+    return moved;
+}
 + (NSArray<SPDFFillItem*>*)itemsFromCore:(const spdf_fill_items*)items {
     NSMutableArray* out = [NSMutableArray arrayWithCapacity:(NSUInteger)MAX(0, items ? items->count : 0)];
     for (int i = 0; items && i < items->count; ++i) {
@@ -68,6 +127,11 @@ static NSString* SPDFFillString(const char* utf8) {
         item.group = it->group ? SPDFFillString(it->group) : item.nm;
         item.cell = it->cell;
         item.text = it->text ? SPDFFillString(it->text) : nil;
+        SPDFFillRGB color = {it->rgb[0], it->rgb[1], it->rgb[2]};
+        item.color = color;
+        item.lineWidth = it->width;
+        if (it->points && it->point_count > 0)
+            item.points = [NSData dataWithBytes:it->points length:sizeof(spdf_fill_point) * (size_t)it->point_count];
         [out addObject:item];
     }
     return out;
@@ -93,7 +157,10 @@ static NSString* SPDFFillString(const char* utf8) {
     NSUndoManager* _undoManager;
 }
 - (instancetype)init {
-    if ((self = [super init])) _tool = SPDFFillToolText;
+    if ((self = [super init])) {
+        _tool = SPDFFillToolText;
+        _selection = @[];
+    }
     return self;
 }
 - (NSUndoManager*)undoManager {

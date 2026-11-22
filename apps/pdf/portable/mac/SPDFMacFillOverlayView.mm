@@ -88,7 +88,15 @@ NSBezierPath* SPDFFillMarkPath(NSRect r, BOOL cross) {
 
 // Scrolling and zooming over the overlay behave as over the pages themselves.
 - (void)scrollWheel:(NSEvent*)event { [[self documentView] scrollWheel:event]; }
-- (void)magnifyWithEvent:(NSEvent*)event { [[self documentView] magnifyWithEvent:event]; }
+- (void)magnifyWithEvent:(NSEvent*)event {
+    [self.controller writePendingStrokes];  // lines waiting are written before the pages are zoomed
+    [[self documentView] magnifyWithEvent:event];
+}
+// Any Command key (print, close, save, zoom...) may read the file: lines waiting are written first.
+- (BOOL)performKeyEquivalent:(NSEvent*)event {
+    if (!self.hidden && (event.modifierFlags & NSEventModifierFlagCommand)) [self.controller writePendingStrokes];
+    return [super performKeyEquivalent:event];
+}
 - (void)smartMagnifyWithEvent:(NSEvent*)event { [[self documentView] smartMagnifyWithEvent:event]; }
 - (void)swipeWithEvent:(NSEvent*)event { [[self documentView] swipeWithEvent:event]; }
 
@@ -122,7 +130,7 @@ NSBezierPath* SPDFFillMarkPath(NSRect r, BOOL cross) {
     self.selectedItem = nil;
     self.focusedField = nil;
     self.focusedTargetRect = NSZeroRect;
-    self.needsDisplay = YES;
+    [self cancelDrawingGesture];
 }
 
 - (void)updateTrackingAreas {
@@ -224,8 +232,14 @@ NSBezierPath* SPDFFillMarkPath(NSRect r, BOOL cross) {
 
 - (SPDFFillItem*)itemAt:(NSPoint)p page:(NSInteger)index {
     CGFloat slop = 3.0 / [self zoom];
-    for (SPDFFillItem* item in [[self.controller itemsOnPage:index] reverseObjectEnumerator])
-        if (NSPointInRect(p, NSInsetRect(item.rect, -slop, -slop))) return item;
+    BOOL drawings = [self drawingsAnswerPointer];  // with Text, marks or Signature, lines let clicks through
+    for (SPDFFillItem* item in [[self.controller itemsOnPage:index] reverseObjectEnumerator]) {
+        if (item.isDrawing) {
+            if (drawings && [self drawing:item isNear:p]) return item;
+        } else if (NSPointInRect(p, NSInsetRect(item.rect, -slop, -slop))) {
+            return item;
+        }
+    }
     return nil;
 }
 
@@ -267,6 +281,7 @@ NSBezierPath* SPDFFillMarkPath(NSRect r, BOOL cross) {
             [outline stroke];
         }
         for (SPDFFillItem* item in [self.controller itemsOnPage:index]) {
+            if (item.isDrawing) continue;  // lines show their selection in the drawing layer
             BOOL selected = [item.nm isEqual:self.selectedItem.nm];
             if (!selected && ![item.nm isEqual:self.hoverItem.nm]) continue;
             NSRect r = NSInsetRect([self viewRectForPageRect:item.rect page:index], -2, -2);
@@ -291,6 +306,7 @@ NSBezierPath* SPDFFillMarkPath(NSRect r, BOOL cross) {
             [ring stroke];
         }
     }
+    [self drawDrawingLayer];
     if (self.dragItem) {
         NSRect r = [self viewRectForPageRect:self.dragRect page:self.dragItem.page];
         [[accent colorWithAlphaComponent:0.12] setFill];
@@ -301,7 +317,8 @@ NSBezierPath* SPDFFillMarkPath(NSRect r, BOOL cross) {
     }
     // Nothing is offered where nothing can be added (a PDF that only allows filling in its own fields).
     BOOL placing = !session.hasSummary || session.summary.can_add_items;
-    if (placing && _hoverSnapValid && !self.hoverItem && !_hoverField && !self.controller.editor)
+    if (placing && _hoverSnapValid && !self.hoverItem && !_hoverField && !self.controller.editor &&
+        !SPDFFillToolDraws(session.tool))
         [self drawHoverTarget:session];
 }
 
@@ -365,6 +382,7 @@ NSBezierPath* SPDFFillMarkPath(NSRect r, BOOL cross) {
     _hoverField = nil;
     _hoverSnapValid = NO;
     self.needsDisplay = YES;
+    [self.controller writePendingStrokes];  // the pointer left the pages
 }
 
 - (void)flagsChanged:(NSEvent*)event {
@@ -373,6 +391,11 @@ NSBezierPath* SPDFFillMarkPath(NSRect r, BOOL cross) {
 }
 
 - (void)updateHover:(NSPoint)point modifiers:(NSEventModifierFlags)modifiers {
+    if ([self drawingHover:point]) {
+        _hoverField = nil;
+        _hoverSnapValid = NO;
+        return;
+    }
     NSInteger index = -1;
     NSPoint p = NSZeroPoint;
     SPDFFillItem* item = nil;
@@ -424,7 +447,7 @@ NSBezierPath* SPDFFillMarkPath(NSRect r, BOOL cross) {
     NSPoint point = [self convertPoint:event.locationInWindow fromView:nil];
     NSInteger index;
     NSPoint p;
-    if (![self locateViewPoint:point page:&index pagePoint:&p]) return;
+    if (![self locateViewPoint:point page:&index pagePoint:&p] || [self drawingMouseDown:event]) return;
     [self.controller.editor commitAndClose];
     [self.window makeFirstResponder:self];
     SPDFFillItem* item = [self itemAt:p page:index];

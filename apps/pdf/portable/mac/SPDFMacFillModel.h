@@ -12,10 +12,21 @@
 @class SPDFMacSignature;
 
 typedef NS_ENUM(NSInteger, SPDFFillTool) {
-    SPDFFillToolText = 0,      // the smart default: fields, lines, boxes, small squares
-    SPDFFillToolMark = 1,      // every click places a check or a cross
-    SPDFFillToolSignature = 2  // a picked-up signature follows the pointer
+    SPDFFillToolText = 0,       // the smart default: fields, lines, boxes, small squares
+    SPDFFillToolMark = 1,       // every click places a check or a cross
+    SPDFFillToolSignature = 2,  // a picked-up signature follows the pointer
+    SPDFFillToolPen = 3,        // the drawing tools ("Pen and arrow" in docs/plans/fill-and-sign.md)
+    SPDFFillToolArrow = 4,
+    SPDFFillToolEraser = 5,
+    SPDFFillToolSelect = 6
 };
+
+static inline BOOL SPDFFillToolDraws(SPDFFillTool tool) { return tool >= SPDFFillToolPen; }
+
+// A pen line's or arrow's colour, 0-1 sRGB.
+typedef struct SPDFFillRGB {
+    float r, g, b;
+} SPDFFillRGB;
 
 static inline NSRect SPDFFillRectFromCore(spdf_rect r) { return NSMakeRect(r.x0, r.y0, r.x1 - r.x0, r.y1 - r.y0); }
 static inline spdf_rect SPDFFillRectToCore(NSRect r) {
@@ -44,7 +55,7 @@ static inline spdf_rect SPDFFillRectToCore(NSRect r) {
 + (NSArray<SPDFFillField*>*)fieldsFromWidgets:(const spdf_form_widgets*)widgets;
 @end
 
-// One thing we placed: typed text, a mark, a signature or initials.
+// One thing we placed: typed text, a mark, a signature or initials, a pen line or an arrow.
 @interface SPDFFillItem : NSObject
 @property(nonatomic) spdf_fill_kind kind;
 @property(nonatomic) NSInteger page;
@@ -54,9 +65,22 @@ static inline spdf_rect SPDFFillRectToCore(NSRect r) {
 @property(nonatomic, copy) NSString* group;  // comb cells share it; otherwise equal to nm
 @property(nonatomic) NSInteger cell;         // comb cell number, or -1
 @property(nonatomic, copy) NSString* text;
+@property(nonatomic) SPDFFillRGB color;       // pen lines and arrows
+@property(nonatomic) CGFloat lineWidth;        // idem, page points
+@property(nonatomic, copy) NSData* points;     // idem, spdf_fill_point; an arrow: tail, tip
 @property(nonatomic, readonly) BOOL isMark;
 @property(nonatomic, readonly) BOOL isSignature;
+@property(nonatomic, readonly) BOOL isDrawing;  // a pen line or an arrow
+@property(nonatomic, readonly) const spdf_fill_point* pointBytes;
+@property(nonatomic, readonly) int pointCount;
 + (NSArray<SPDFFillItem*>*)itemsFromCore:(const spdf_fill_items*)items;
+// A pen line or arrow with these points (rect: their bounds, width and head included), under a new name.
++ (SPDFFillItem*)strokeOfKind:(spdf_fill_kind)kind page:(NSInteger)page points:(const spdf_fill_point*)points
+                        count:(int)count color:(SPDFFillRGB)color width:(CGFloat)width;
+// A copy moved by delta (points and box), same name.
+- (SPDFFillItem*)itemMovedBy:(NSSize)delta;
+// A pen line's or arrow's box again, after its points, width or kind changed.
+- (void)updateDrawingBounds;
 @end
 
 // Owns one page's snap geometry (freed with the object).
@@ -80,6 +104,9 @@ static inline spdf_rect SPDFFillRectToCore(NSRect r) {
 @property(nonatomic) BOOL protectedForEdits;   // Collection/writable copy checks done for this burst of edits
 @property(nonatomic, copy) NSString* protectedPath;
 @property(nonatomic, readonly) BOOL isForm;    // the PDF has fields to fill
+// The Select tool's choice: names of our items, all on selectionPage.
+@property(nonatomic, copy) NSArray<NSString*>* selection;
+@property(nonatomic) NSInteger selectionPage;
 @end
 
 // A uuid without dashes, lower case: the /NM suffix and signature ids.

@@ -174,6 +174,8 @@ static BOOL SPDFAddPages(NSMutableIndexSet* pages, const int* changed, int count
             return spdf_fill_add_signature_paths(doc, page, rect, (float)signature.aspect, paths.data(),
                                                  (int)paths.size(), rgb, nm, err, len);
         }
+        case SPDF_FILL_PEN:
+        case SPDF_FILL_ARROW: break;  // written with spdf_fill_add_strokes (+Drawing.mm)
     }
     return NO;
 }

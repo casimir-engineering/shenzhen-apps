@@ -463,7 +463,23 @@ One-off scripts in the scratchpad only.
 
 ## Pen and arrow
 
-Status: designed 2026-11-22 on `feat/pdf-fill-sign` (off origin/main 450d1d89, Fill & Sign as built). No code yet.
+Status: designed 2026-11-22 on `feat/pdf-fill-sign` (off origin/main 450d1d89, Fill & Sign as built). Built the same
+day; not tested yet (the final check below is still to run).
+
+As built, where it differs from the design below:
+- **Files:** the overlay's drawing code is split in three to stay under 500 lines: `SPDFMacFillOverlayView+Drawing.mm`
+  (gestures, pointer, menu), `+DrawingLayer.mm` (painting, held lines and washes, cursors) and the keys in
+  `+Interaction.mm` (`DrawingKeys` category); their shared state is `SPDFMacFillDrawingState.h`. There is no
+  `SPDFFillStroke` class: a pen line or arrow is an `SPDFFillItem` with `color`, `lineWidth` and `points`.
+- **Core:** `spdf_fill_move_items` and `spdf_fill_delete_items` act on any placed item (comb groups included), so
+  moving a mixed selection and the two Remove commands are one core call per page.
+- **Pending lines and undo:** a line still waiting to be written is written first when ⌘Z is pressed, then undone
+  like any change (not taken back unwritten). Each line of a batch is still its own undo step.
+- **No wrong frame:** a written line (or the wash over a removed one) is held until the page's image object has been
+  replaced and holds an image, then 0.3 s more for a viewport tile asked for before the write; at most 3 s. No render
+  generation is passed through the render seam.
+- **Restyling** from the palette or the right-click menu works on the Select tool's selection; the Eraser's
+  right-click menu offers the same Remove and colours.
 
 Raph's request: "Also in fill and sign add an annotation tool with a pen and a few colors (red by default). You should
 be able to CMD z, erase by line (default), erase by eraser, select tool width, select and move lines and group of lines

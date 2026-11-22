@@ -350,6 +350,10 @@ static CGFloat SPDFFirstBaseline(NSDictionary* attrs) {
         [self.delegate fillEditor:self commitMoving:0];
         return YES;
     }
+    if ([key.lowercaseString isEqual:@"y"] && _textView.undoManager.canRedo) {  // Command-Y redoes typing too
+        [_textView.undoManager redo];
+        return YES;
+    }
     if ([self placedText] && ([key isEqual:@"+"] || [key isEqual:@"="] || [key isEqual:@"-"])) {
         self.fontSize = MAX(6.0, MIN(72.0, self.fontSize + ([key isEqual:@"-"] ? -1 : 1)));
         self.dirty = YES;

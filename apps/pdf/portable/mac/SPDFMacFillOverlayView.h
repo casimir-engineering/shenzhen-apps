@@ -38,5 +38,13 @@
 - (void)takeKeysFromPages;
 @end
 
+// Pen lines and arrows on the overlay (SPDFMacFillOverlayView+Drawing.mm).
+@interface SPDFMacFillOverlayView (Drawing)
+// Before a change is written: keep drawing `ink` and cover `washes` with the paper colour until a page image made
+// after the write is on screen.
+- (void)holdInk:(NSArray<SPDFFillItem*>*)ink washes:(NSArray<SPDFFillItem*>*)washes;
+- (void)dropDrawingHolds;
+@end
+
 // Shared drawing of a check or a cross inside rect (y down).
 NSBezierPath* SPDFFillMarkPath(NSRect rect, BOOL cross);

@@ -1,5 +1,6 @@
-// The overlay's drags, its menu on placed items and its keys (Tab, Space, X and V, Delete, arrows, Escape, Command-Z).
-#import "SPDFMacFillOverlayViewPrivate.h"
+// The overlay's drags, its menu on placed items and its keys (Tab, Space, X and V, Delete, arrows, Escape, Command-Z,
+// Shift-Command-Z and Command-Y; the drawing tools' keys are in +Drawing.mm).
+#import "SPDFMacFillDrawingState.h"
 
 #import "SPDFMacDocumentView.h"
 #import "SPDFMacFillController.h"
@@ -7,6 +8,7 @@
 @implementation SPDFMacFillOverlayView (Interaction)
 
 - (void)rightMouseDown:(NSEvent*)event {
+    if ([self drawingRightMouseDown:event]) return;
     NSInteger index;
     NSPoint p;
     NSPoint point = [self convertPoint:event.locationInWindow fromView:nil];
@@ -114,8 +116,10 @@
     unichar key = chars.length ? [chars characterAtIndex:0] : 0;
     NSEventModifierFlags mods = event.modifierFlags & NSEventModifierFlagDeviceIndependentFlagsMask;
     SPDFFillItem* markTarget = self.selectedItem.isMark ? self.selectedItem : self.hoverItem.isMark ? self.hoverItem : nil;
-    if ((mods & NSEventModifierFlagCommand) && key == 'z') {
-        if (mods & NSEventModifierFlagShift) [self.controller redo];
+    if ((mods & NSEventModifierFlagCommand) && (key == 'z' || key == 'y')) {
+        [self.controller flushPendingChanges];  // lines still waiting are written, then undone like any change
+        [self cancelDrawingGesture];
+        if (key == 'y' || (mods & NSEventModifierFlagShift)) [self.controller redo];
         else [self.controller undo];
         return;
     }
@@ -123,6 +127,7 @@
         [super keyDown:event];
         return;
     }
+    if ([self drawingKeyDown:event]) return;
     switch (key) {
         case '\t':
         case 25:  // back tab
@@ -193,6 +198,8 @@
     NSString* chars = event.charactersIgnoringModifiers.lowercaseString ?: @"";
     unichar key = chars.length == 1 ? [chars characterAtIndex:0] : 0;
     BOOL mark = self.selectedItem.isMark || self.hoverItem.isMark;
+    BOOL typing = self.controller.editor || self.focusedField || !NSIsEmptyRect(self.focusedTargetRect);
+    if (!typing && (key == 'p' || key == 'a' || key == 'e' || key == 's' || key == 't')) return YES;  // tool keys
     if (key == ' ') return mark || self.focusedField || !NSIsEmptyRect(self.focusedTargetRect);
     return (key == 'x' || key == 'v') && mark;
 }
@@ -201,6 +208,93 @@
     NSResponder* current = self.window.firstResponder;
     if (!self.hidden && self.window && (current == self.window || current == [self documentView]))
         [self.window makeFirstResponder:self];
+}
+
+@end
+
+// The drawing tools' keys: tool letters, Escape, Delete, nudges with the arrow keys, Command-A.
+@implementation SPDFMacFillOverlayView (DrawingKeys)
+
+- (void)selectAll:(id)sender {
+    if ([self.controller session].tool != SPDFFillToolSelect) {
+        [self.nextResponder tryToPerform:@selector(selectAll:) with:sender];
+        return;
+    }
+    NSInteger page = [self documentView].currentPageIndex;
+    NSMutableArray* all = [NSMutableArray array];
+    for (SPDFFillItem* item in [self.controller itemsOnPage:page])
+        if (item.cell < 0) [all addObject:item];
+    [self.controller selectItems:all page:page];
+}
+
+- (void)commitNudge {
+    SPDFFillDrawingState* state = [self drawingState];
+    if (!state.nudging) return;
+    NSArray* items = state.moving;
+    NSSize delta = state.delta;
+    state.nudging = NO;
+    state.moving = nil;
+    state.delta = NSZeroSize;
+    [self.controller moveItems:items by:delta];
+}
+
+- (void)keyUp:(NSEvent*)event {
+    unichar key = event.charactersIgnoringModifiers.length ? [event.charactersIgnoringModifiers characterAtIndex:0] : 0;
+    if (key == NSLeftArrowFunctionKey || key == NSRightArrowFunctionKey || key == NSUpArrowFunctionKey ||
+        key == NSDownArrowFunctionKey)
+        [self commitNudge];
+    [super keyUp:event];
+}
+
+// P, A, E, S and T pick a tool, but only while nothing is being typed into and no field is focused with Tab.
+- (SPDFFillTool)toolForKey:(NSEvent*)event {
+    if (self.controller.editor || self.focusedField || !NSIsEmptyRect(self.focusedTargetRect)) return (SPDFFillTool)-1;
+    if (event.modifierFlags & NSEventModifierFlagDeviceIndependentFlagsMask &
+        (NSEventModifierFlagCommand | NSEventModifierFlagControl | NSEventModifierFlagOption))
+        return (SPDFFillTool)-1;
+    NSString* chars = event.charactersIgnoringModifiers.lowercaseString ?: @"";
+    NSDictionary* tools = @{@"p" : @(SPDFFillToolPen), @"a" : @(SPDFFillToolArrow), @"e" : @(SPDFFillToolEraser),
+                            @"s" : @(SPDFFillToolSelect), @"t" : @(SPDFFillToolText)};
+    NSNumber* tool = chars.length == 1 ? tools[chars] : nil;
+    return tool ? (SPDFFillTool)tool.integerValue : (SPDFFillTool)-1;
+}
+
+- (BOOL)drawingKeyDown:(NSEvent*)event {
+    SPDFFillTool letter = [self toolForKey:event];
+    if (letter >= 0) {
+        [self.controller chooseTool:letter];
+        return YES;
+    }
+    SPDFFillTool tool = [self.controller session].tool;
+    if (!SPDFFillToolDraws(tool)) return NO;
+    unichar key = event.charactersIgnoringModifiers.length ? [event.charactersIgnoringModifiers characterAtIndex:0] : 0;
+    NSArray* selected = tool == SPDFFillToolSelect ? [self.controller selectedItems] : @[];
+    if (key == 27) {  // Escape: the selection first, then back to Text
+        if (selected.count) [self.controller selectItems:@[] page:[self.controller session].selectionPage];
+        else [self.controller chooseTool:SPDFFillToolText];
+        return YES;
+    }
+    if (!selected.count) return NO;
+    if (key == 127 || key == NSDeleteFunctionKey) {
+        [self commitNudge];
+        [self.controller removeItems:selected];
+        return YES;
+    }
+    if (key == NSLeftArrowFunctionKey || key == NSRightArrowFunctionKey || key == NSUpArrowFunctionKey ||
+        key == NSDownArrowFunctionKey) {
+        // A run of presses moves the drawing at once and is written as one change when the key comes up.
+        SPDFFillDrawingState* state = [self drawingState];
+        CGFloat step = (event.modifierFlags & NSEventModifierFlagShift) ? 10 : 1;
+        NSSize delta = state.nudging ? state.delta : NSZeroSize;
+        delta.width += key == NSLeftArrowFunctionKey ? -step : key == NSRightArrowFunctionKey ? step : 0;
+        delta.height += key == NSUpArrowFunctionKey ? -step : key == NSDownArrowFunctionKey ? step : 0;
+        if (!state.nudging) state.moving = selected;
+        state.nudging = YES;
+        state.delta = delta;
+        self.needsDisplay = YES;
+        return YES;
+    }
+    return NO;
 }
 
 @end

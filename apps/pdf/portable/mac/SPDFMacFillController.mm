@@ -140,7 +140,9 @@ static char kSPDFFillSessionKey;
 - (void)activeDocumentChanged {
     NSString* key = [self currentDocKey];
     if (![key isEqual:_docKey]) {
-        [self dropInteraction];  // what was typed went into the file before the document was left
+        [self dropInteraction];  // what was typed or drawn went into the file before the document was left
+        [self discardPendingStrokes];
+        [self.overlay dropDrawingHolds];
         [self dropCaches];
         _docKey = key;
         _topReserve = 0;  // the room above the pages fits this document's palette
@@ -150,6 +152,7 @@ static char kSPDFFillSessionKey;
 
 - (void)endInteraction {
     [self.editor commitAndClose];
+    [self writePendingStrokes];
     [self dropInteraction];
 }
 

@@ -43,10 +43,14 @@ static char kSPDFFillControllerKey, kSPDFFillMenuTargetKey, kSPDFFillFormStampKe
 @implementation SPDFFillMenuTarget
 - (void)toggleFillAndSign:(id)sender { [self.reader toggleFillAndSign:sender]; }
 - (void)saveFinalCopy:(id)sender { [self.reader saveFinalCopy:sender]; }
+- (void)removeAllPenLinesAndArrows:(id)sender { [self.reader removeAllPenLinesAndArrows:sender]; }
+- (void)removeEverythingAddedWithFillSign:(id)sender { [self.reader removeEverythingAddedWithFillSign:sender]; }
 - (BOOL)validateMenuItem:(NSMenuItem*)item {
     BOOL available = [self.reader fillSignAvailable];
     if (item.action == @selector(toggleFillAndSign:))
         item.state = [self.reader fillSignShowing] ? NSControlStateValueOn : NSControlStateValueOff;
+    if (item.action == @selector(removeAllPenLinesAndArrows:) || item.action == @selector(removeEverythingAddedWithFillSign:))
+        return available && [self.reader fillSignCanAddItems];
     return available;
 }
 @end
@@ -59,6 +63,10 @@ void SPDFFillInstallMenuItems(NSMenu* editMenu, NSMenu* fileMenu, ShenzhenMacDel
     NSMenuItem* fill = [editMenu addItemWithTitle:@"Fill & Sign" action:@selector(toggleFillAndSign:) keyEquivalent:@"f"];
     fill.keyEquivalentModifierMask = NSEventModifierFlagCommand | NSEventModifierFlagOption;
     fill.target = target;
+    [editMenu addItemWithTitle:@"Remove All Pen Lines and Arrows" action:@selector(removeAllPenLinesAndArrows:)
+                 keyEquivalent:@""].target = target;
+    [editMenu addItemWithTitle:@"Remove Everything Added with Fill & Sign"
+                        action:@selector(removeEverythingAddedWithFillSign:) keyEquivalent:@""].target = target;
     NSInteger saveAs = [fileMenu indexOfItemWithTarget:nil andAction:@selector(saveDocumentAs:)];
     NSMenuItem* finalCopy = [[NSMenuItem alloc] initWithTitle:@"Save Final Copy…" action:@selector(saveFinalCopy:)
                                                 keyEquivalent:@""];
@@ -89,6 +97,12 @@ void SPDFFillInstallMenuItems(NSMenu* editMenu, NSMenu* fileMenu, ShenzhenMacDel
 
 - (BOOL)fillSignShowing {
     return [[self existingFillController] isShowing];
+}
+
+// The PDF takes added items (a fill-only PDF does not); unknown until its form was read, which happens on first use.
+- (BOOL)fillSignCanAddItems {
+    SPDFFillSession* session = [[self existingFillController] session];
+    return !session.hasSummary || session.summary.can_add_items;
 }
 
 - (NSString*)fillFormStampForTab:(SPDFDocumentTab*)tab {
@@ -132,7 +146,17 @@ void SPDFFillInstallMenuItems(NSMenu* editMenu, NSMenu* fileMenu, ShenzhenMacDel
 }
 
 - (void)fillSignFlushEdits {
-    [[self existingFillController] flushEditor];
+    [[self existingFillController] flushPendingChanges];  // what is being typed, and lines drawn a moment ago
+}
+
+- (void)removeAllPenLinesAndArrows:(id)sender {
+    (void)sender;
+    if ([self fillSignAvailable]) [[self fillController] removeAllDrawings];
+}
+
+- (void)removeEverythingAddedWithFillSign:(id)sender {
+    (void)sender;
+    if ([self fillSignAvailable]) [[self fillController] removeEverythingAdded];
 }
 
 - (void)fillSignChromeDidSync {

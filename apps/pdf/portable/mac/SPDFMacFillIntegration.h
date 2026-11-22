@@ -13,6 +13,10 @@
 - (void)saveFinalCopy:(id)sender;
 - (BOOL)fillSignAvailable;
 - (BOOL)fillSignShowing;
+- (BOOL)fillSignCanAddItems;
+// Edit menu: every pen line and arrow, or everything Fill & Sign added, in the document; each one undo step.
+- (void)removeAllPenLinesAndArrows:(id)sender;
+- (void)removeEverythingAddedWithFillSign:(id)sender;
 // After first paint of a document (the metadata stage): reads whether the PDF has a form and turns Fill & Sign on.
 - (void)fillSignDocumentDidSettle;
 // The document view was replaced for another tab.
