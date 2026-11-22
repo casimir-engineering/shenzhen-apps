@@ -149,14 +149,21 @@ void SPDFFillInstallMenuItems(NSMenu* editMenu, NSMenu* fileMenu, ShenzhenMacDel
     [[self existingFillController] flushPendingChanges];  // what is being typed, and lines drawn a moment ago
 }
 
+// Fill & Sign shows first, so what goes is seen going and Command-Z brings it back at once.
+- (BOOL)fillShowForRemoval {
+    if (![self fillSignAvailable]) return NO;
+    if (![self fillSignShowing]) [self toggleFillAndSign:nil];
+    return [self fillSignShowing];
+}
+
 - (void)removeAllPenLinesAndArrows:(id)sender {
     (void)sender;
-    if ([self fillSignAvailable]) [[self fillController] removeAllDrawings];
+    if ([self fillShowForRemoval]) [[self fillController] removeAllDrawings];
 }
 
 - (void)removeEverythingAddedWithFillSign:(id)sender {
     (void)sender;
-    if ([self fillSignAvailable]) [[self fillController] removeEverythingAdded];
+    if ([self fillShowForRemoval]) [[self fillController] removeEverythingAdded];
 }
 
 - (void)fillSignChromeDidSync {

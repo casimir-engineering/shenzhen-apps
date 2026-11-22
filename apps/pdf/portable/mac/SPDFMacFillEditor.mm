@@ -350,8 +350,16 @@ static CGFloat SPDFFirstBaseline(NSDictionary* attrs) {
         [self.delegate fillEditor:self commitMoving:0];
         return YES;
     }
-    if ([key.lowercaseString isEqual:@"y"] && _textView.undoManager.canRedo) {  // Command-Y redoes typing too
-        [_textView.undoManager redo];
+    // The Edit menu has no Undo item, so the typing's own undo is reached from here: Command-Z, and Shift-Command-Z
+    // or Command-Y to redo.
+    BOOL shift = (mods & NSEventModifierFlagShift) != 0;
+    NSUndoManager* undo = _textView.undoManager;
+    if ([key.lowercaseString isEqual:@"z"] && !shift && undo.canUndo) {
+        [undo undo];
+        return YES;
+    }
+    if ((([key.lowercaseString isEqual:@"z"] && shift) || [key.lowercaseString isEqual:@"y"]) && undo.canRedo) {
+        [undo redo];
         return YES;
     }
     if ([self placedText] && ([key isEqual:@"+"] || [key isEqual:@"="] || [key isEqual:@"-"])) {

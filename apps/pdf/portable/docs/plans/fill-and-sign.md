@@ -480,6 +480,9 @@ As built, where it differs from the design below:
   generation is passed through the render seam.
 - **Restyling** from the palette or the right-click menu works on the Select tool's selection; the Eraser's
   right-click menu offers the same Remove and colours.
+- **Text box keys:** the Edit menu has no Undo item, so ⌘Z, ⇧⌘Z and ⌘Y reach the typing's own undo from
+  `fillTextViewKeyEquivalent:`. The two Remove commands show Fill & Sign first when it is hidden, so ⌘Z can bring
+  back what they removed.
 
 Raph's request: "Also in fill and sign add an annotation tool with a pen and a few colors (red by default). You should
 be able to CMD z, erase by line (default), erase by eraser, select tool width, select and move lines and group of lines
