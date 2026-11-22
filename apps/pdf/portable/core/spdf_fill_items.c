@@ -2,6 +2,7 @@
 #include "spdf_fill_items.h"
 #include "spdf_core_document.h"
 #include "spdf_fill_identity.h"
+#include "spdf_fill_ink_geometry.h"
 #include "spdf_fill_internal.h"
 
 #include "mupdf/pdf.h"
@@ -260,6 +261,13 @@ static size_t comb_group_length(const char* nm, int* cell) {
     return len - digits - 2;
 }
 
+/* SPDF_FILL_PEN or SPDF_FILL_ARROW for a pen line's or arrow's name, else -1. */
+static int drawing_kind(const char* nm) {
+    if (strncmp(nm, SPDF_FILL_PEN_NM_PREFIX, sizeof(SPDF_FILL_PEN_NM_PREFIX) - 1) == 0) return SPDF_FILL_PEN;
+    if (strncmp(nm, SPDF_FILL_ARROW_NM_PREFIX, sizeof(SPDF_FILL_ARROW_NM_PREFIX) - 1) == 0) return SPDF_FILL_ARROW;
+    return -1;
+}
+
 typedef enum { EDIT_UPDATE, EDIT_MARK_KIND, EDIT_DELETE } fill_edit;
 
 static int edit_item(spdf_document* doc, int page_index, const char* nm, fill_edit what, const spdf_rect* rect,
@@ -288,6 +296,7 @@ static int edit_item(spdf_document* doc, int page_index, const char* nm, fill_ed
             enum pdf_annot_type type;
             annot = find_item(ctx, page, nm);
             type = pdf_annot_type(ctx, annot);
+            if (drawing_kind(nm) >= 0) fz_throw(ctx, FZ_ERROR_ARGUMENT, "Pen lines and arrows move as a group.");
             if (what == EDIT_MARK_KIND || (type == PDF_ANNOT_INK && rect)) {
                 int was_cross;
                 fz_rect box = mark_box(ctx, annot, &was_cross);
@@ -334,6 +343,34 @@ static char* dup_text(fz_context* ctx, const char* text) {
     return copy;
 }
 
+/* A pen line's points (its first stroke) or an arrow's tail and tip (its shaft), colour and width. */
+static void read_drawing(fz_context* ctx, pdf_annot* annot, spdf_fill_kind kind, spdf_fill_item* item) {
+    float color[4] = {0, 0, 0, 0}, half;
+    int i, n = 0, count = pdf_annot_ink_list_count(ctx, annot) > 0 ? pdf_annot_ink_list_stroke_count(ctx, annot, 0) : 0;
+    item->kind = kind;
+    if (kind == SPDF_FILL_ARROW && count > 2) count = 2;
+    item->points = (spdf_fill_point*)calloc((size_t)(count > 0 ? count : 1), sizeof(spdf_fill_point));
+    if (!item->points) fz_throw(ctx, FZ_ERROR_SYSTEM, "Out of memory");
+    for (i = 0; i < count; ++i) {
+        fz_point p = pdf_annot_ink_list_stroke_vertex(ctx, annot, 0, i);
+        item->points[i].x = p.x, item->points[i].y = p.y;
+    }
+    item->point_count = count;
+    pdf_annot_color(ctx, annot, &n, color);
+    for (i = 0; i < 3; ++i) item->rgb[i] = n == 3 ? color[i] : n == 1 ? color[0] : 0;
+    item->width = pdf_annot_border_width(ctx, annot);
+    half = 0.5f * item->width;
+    item->rect = spdf_ink_bounds(item->points, count, half);
+    if (kind == SPDF_FILL_ARROW && count == 2) {
+        spdf_fill_point head[3];
+        spdf_rect r;
+        spdf_ink_arrow_head(item->points[0], item->points[1], item->width, head);
+        r = spdf_ink_bounds(head, 3, half);
+        item->rect.x0 = fminf(item->rect.x0, r.x0), item->rect.y0 = fminf(item->rect.y0, r.y0);
+        item->rect.x1 = fmaxf(item->rect.x1, r.x1), item->rect.y1 = fmaxf(item->rect.y1, r.y1);
+    }
+}
+
 static void read_item(fz_context* ctx, pdf_annot* annot, int page_index, spdf_fill_item* item) {
     enum pdf_annot_type type = pdf_annot_type(ctx, annot);
     const char* nm = annot_nm(ctx, annot);
@@ -345,6 +382,10 @@ static void read_item(fz_context* ctx, pdf_annot* annot, int page_index, spdf_fi
     item->group = dup_text(ctx, nm);
     if (group_len) item->group[group_len] = 0;
     else item->cell = -1;
+    if (type == PDF_ANNOT_INK && drawing_kind(nm) >= 0) {
+        read_drawing(ctx, annot, (spdf_fill_kind)drawing_kind(nm), item);
+        return;
+    }
     if (type == PDF_ANNOT_INK) {
         int cross;
         item->rect = from_fz(mark_box(ctx, annot, &cross));
@@ -412,6 +453,7 @@ void spdf_free_fill_items(spdf_fill_items* items) {
         free(items->items[i].nm);
         free(items->items[i].group);
         free(items->items[i].text);
+        free(items->items[i].points);
     }
     free(items->items);
     memset(items, 0, sizeof(*items));

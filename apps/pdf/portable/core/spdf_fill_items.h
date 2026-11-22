@@ -1,17 +1,21 @@
 #pragma once
-/* Things placed on any page by Fill & Sign: typed text, check and cross marks, signatures and initials
- * (docs/plans/fill-and-sign.md, CORE 2).
+/* Things placed on any page by Fill & Sign: typed text, check and cross marks, signatures and initials, pen lines
+ * and arrows (docs/plans/fill-and-sign.md, CORE 2 and "Pen and arrow").
  *
  * What goes into the PDF, so every reader shows it the same way:
  * - text: a FreeText annotation with /IT /FreeTextTypeWriter (what Acrobat's Fill & Sign writes), no border, no fill,
  *   /DA "/Helv <size> Tf 0 g"; comb text is one such annotation per cell;
  * - check and cross: an Ink annotation (one three-point stroke for a check, two diagonals for a cross), round caps;
- * - signature and initials: a Stamp drawn from filled vector outlines, or from a PNG for a picture.
+ * - signature and initials: a Stamp drawn from filled vector outlines, or from a PNG for a picture;
+ * - pen line: an Ink annotation with one dense polyline, its colour and width, round caps (spdf_fill_ink.h);
+ * - arrow: an Ink annotation with two strokes, the shaft (tail, tip) and an open head through the tip.
  * Each carries /NM, which is how we find our own items again (no private keys):
  *   text and marks   spdf-fill-<uuid>
  *   comb text cells  <group nm>-c00, -c01, ...
  *   signatures       spdf-fill-sig-<signature id>-<uuid>
  *   initials         spdf-fill-ini-<signature id>-<uuid>
+ *   pen lines        spdf-fill-pen-<uuid>
+ *   arrows           spdf-fill-arrow-<uuid>
  * The caller makes the uuid; a signature id never contains '-' (it ends at the first one). Comments (spdf_load_comments and everything numbered by it) never list these items.
  *
  * Coordinates are page space (points, top-left origin, y down, rotation applied). Writes go to the main-thread
@@ -28,25 +32,38 @@ extern "C" {
 #define SPDF_FILL_NM_PREFIX "spdf-fill-"
 #define SPDF_FILL_SIGNATURE_NM_PREFIX "spdf-fill-sig-"
 #define SPDF_FILL_INITIALS_NM_PREFIX "spdf-fill-ini-"
+#define SPDF_FILL_PEN_NM_PREFIX "spdf-fill-pen-"
+#define SPDF_FILL_ARROW_NM_PREFIX "spdf-fill-arrow-"
+
+typedef struct spdf_fill_point {
+    float x, y;
+} spdf_fill_point;
 
 typedef enum spdf_fill_kind {
     SPDF_FILL_TEXT = 0,
     SPDF_FILL_CHECK = 1,
     SPDF_FILL_CROSS = 2,
     SPDF_FILL_SIGNATURE = 3,
-    SPDF_FILL_INITIALS = 4
+    SPDF_FILL_INITIALS = 4,
+    SPDF_FILL_PEN = 5,
+    SPDF_FILL_ARROW = 6
 } spdf_fill_kind;
 
 typedef struct spdf_fill_item {
     spdf_fill_kind kind;
     int page_index;
     spdf_rect rect;  /* text: the text box (see spdf_fill_text_rect); marks: the square they were drawn in; signatures:
-                        the stamp */
+                        the stamp; pen lines and arrows: their bounds, width and head included */
     float font_size; /* text only */
     char* nm;        /* full /NM */
     char* group;     /* comb cells: the nm without "-cNN" (shared by all cells of one entry); otherwise equal to nm */
     int cell;        /* comb cells: NN; otherwise -1 */
     char* text;      /* text only: /Contents (UTF-8); NULL otherwise */
+    /* Pen lines and arrows only: colour (0-1), width in points, and the line (an arrow: tail then tip). */
+    float rgb[3];
+    float width;
+    spdf_fill_point* points;
+    int point_count;
 } spdf_fill_item;
 
 typedef struct spdf_fill_items {
@@ -86,7 +103,7 @@ int spdf_fill_add_signature_png(spdf_document* doc, int page_index, spdf_rect re
 
 /* Changes one placed item, found by its /NM on page_index. rect_or_null moves or resizes it (marks are redrawn in the
  * new square; signatures keep their drawing); size > 0 changes the text size; utf8_or_null replaces the text (an
- * empty string deletes a text item). */
+ * empty string deletes a text item). Pen lines and arrows are refused: they move with spdf_fill_move_items. */
 int spdf_fill_update(spdf_document* doc, int page_index, const char* nm, const spdf_rect* rect_or_null, float size,
                      const char* utf8_or_null, char* err, size_t err_len);
 /* Turns a mark into a check (cross = 0) or a cross (cross = 1), keeping its square. */
