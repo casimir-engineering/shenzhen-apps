@@ -90,6 +90,9 @@
     }
     NSInteger preferredPage = [context[@"page"] integerValue];
     if (stage == SPDFMacLaunchWarmStageActiveDocument) {
+        // A cycle started by the nearby-page renders after first paint begins here and replaces one still waiting at
+        // the metadata stage, so the form check runs here too (read once per file; a second call costs nothing).
+        [self fillSignDocumentDidSettle];
         [self enqueueZoomSeedCachesForGeneration:_renderGeneration preferredPage:preferredPage includeWholeBase:YES];
         [self enqueueNearbyPageRendersForGeneration:_renderGeneration preferredPage:preferredPage];
         NSString* capturedSearch = context[@"search"];
