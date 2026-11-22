@@ -74,6 +74,14 @@ struct spdf_document {
     int rendering; /* inside a render: its page-size lookup asks for the bytes it waits on (see spdf_page_size) */
 };
 
+/* Body of the public cancellation token (shenzhen_pdf_core.h): just an fz_cookie, here so sibling units that run a
+ * page themselves (spdf_fill_snap.c) can honour it. cancel() writes cookie.abort from any thread while a run on
+ * another thread polls it; abort is a plain int flag that MuPDF only ever reads during a run, so the unsynchronized
+ * write is benign (worst case the run aborts at the next poll point). */
+struct spdf_render_token {
+    fz_cookie cookie;
+};
+
 /* Documents read while they download. spdf_progressive.c installs these on its first registration; a frontend that
  * never downloads a document never links it, and every open then goes straight to fz_open_document. `open` returns
  * NULL for a path that is not downloading; `set_quiet` stops this thread's page-size lookups asking for bytes. */

@@ -198,7 +198,7 @@ $(BUILD):
 
 $(CORE_OBJ): $(CORE_SRC) $(CORE_HDR) core/spdf_search_regex.h core/spdf_render_bitmap.h core/spdf_document_info.h core/spdf_translate_redact.h core/spdf_translate_write.h core/spdf_outline_write.h \
 		core/spdf_outline_read.h core/spdf_outline.h core/spdf_comment_read.h core/spdf_comment_review.h core/spdf_comment_dates.h \
-		core/spdf_core_document.h core/spdf_core_open_hooks.h Makefile | $(BUILD)
+		core/spdf_core_document.h core/spdf_core_open_hooks.h core/spdf_fill_identity.h core/spdf_fill_items.h Makefile | $(BUILD)
 	clang $(PORTABLE_OPTFLAGS) $(MAC_TARGET_FLAGS) -Icore -I$(MUPDF_DIR)/include -c "$(CORE_SRC)" -o "$(CORE_OBJ)"
 
 $(CORE_IMAGE_PROPERTIES_OBJ): core/spdf_image_properties.c core/spdf_image_properties.h Makefile | $(BUILD)

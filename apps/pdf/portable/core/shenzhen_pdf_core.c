@@ -38,15 +38,6 @@ static int render_paper_value(const spdf_document* doc, unsigned flags) {
     return render_document(doc, flags) == doc->doc ? 0xFF : (int)(spdf_recolor_default_dark_theme().paper_rgb & 0xFF);
 }
 
-/* Core-private body of the public cancellation token: just an fz_cookie.
- * cancel() writes cookie.abort from any thread while a render on another
- * thread polls it; abort is a plain int flag that mupdf only ever reads
- * during a run, so the unsynchronized write is benign (worst case the
- * render aborts at the next poll point). */
-struct spdf_render_token {
-    fz_cookie cookie;
-};
-
 spdf_render_token* spdf_render_token_new(void) {
     return (spdf_render_token*)calloc(1, sizeof(spdf_render_token));
 }
@@ -1341,9 +1332,9 @@ int spdf_load_comments(spdf_document* doc, spdf_comments* out, char* err, size_t
         if (pdf) {
             for (i = 0; i < doc->page_count; ++i) {
                 pdf_annot* annot;
-                pdf_obj* annots;
+                pdf_obj* annots = pdf_dict_get(doc->ctx, pdf_lookup_page_obj(doc->ctx, pdf, i), PDF_NAME(Annots));
+                if (pdf_array_len(doc->ctx, annots) == 0) continue; /* most pages: no page load at all */
                 page = pdf_load_page(doc->ctx, pdf, i);
-                annots = pdf_dict_get(doc->ctx, page->obj, PDF_NAME(Annots));
                 for (annot = pdf_first_annot(doc->ctx, page); annot; annot = pdf_next_annot(doc->ctx, annot)) {
                     pdf_obj* obj = pdf_annot_obj(doc->ctx, annot);
                     pdf_obj* popup = pdf_dict_get(doc->ctx, obj, PDF_NAME(Popup));

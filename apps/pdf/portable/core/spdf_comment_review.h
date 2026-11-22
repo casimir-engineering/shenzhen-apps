@@ -6,7 +6,11 @@
  *
  * A resolved comment is marked the way Acrobat and Preview mark one, so they show it too: a hidden Text annotation
  * replying to it (/IRT) with /StateModel /Review and /State /Completed. Reopening adds one with /State /None; the
- * last one in the page's annotation order wins. These state annotations are never comments themselves. */
+ * last one in the page's annotation order wins. These state annotations are never comments themselves.
+ *
+ * Neither is anything Fill & Sign placed (spdf_fill_identity.h): typed text, marks and signatures are part of filling
+ * in the page, so the Comments panel, szpdf and the assistant never list them, and the numbering skips them. */
+#include "spdf_fill_identity.h"
 
 static int annot_type_should_surface(enum pdf_annot_type type) {
     return type != PDF_ANNOT_LINK && type != PDF_ANNOT_POPUP && type != PDF_ANNOT_WIDGET && type != PDF_ANNOT_SCREEN;
@@ -18,7 +22,7 @@ static int comment_is_review_state(fz_context* ctx, pdf_obj* obj) {
 
 static int comment_annotation_should_surface(fz_context* ctx, pdf_obj* obj, const char* contents, const char* author,
                                              enum pdf_annot_type annot_type) {
-    if (comment_is_review_state(ctx, obj)) return 0;
+    if (comment_is_review_state(ctx, obj) || spdf_annot_obj_is_fill_item(ctx, obj)) return 0;
     return (contents && *contents) || (author && *author) || annot_type_should_surface(annot_type);
 }
 

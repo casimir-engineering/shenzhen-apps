@@ -184,6 +184,26 @@ Windows source lists are left alone until a front end uses these files.
 Threading: writes run on the main-thread `_doc`, as comments do. All reads (summary, page fields, our items, snap
 geometry) run on a worker document: the metadata loader's for the summary, the fill queue's own document otherwise.
 
+### Core as built (2026-11-22)
+
+The headers are the contract; where they differ from the sketches below, the headers win:
+- `spdf_form_set_*` return how many pages changed (>= 1, written ascending into `pages_changed`) or -1 with err.
+  Widgets also carry `export_values` and the flags `SPDF_FIELD_HIDDEN` and `SPDF_FIELD_MULTI_SELECT`; the summary
+  also carries `can_fill_fields`, `can_add_items` and `truncated`.
+- `spdf_fill_add_text` takes the text box from `spdf_fill_text_rect(x, baseline, width, size, lines)` (MuPDF draws the
+  first baseline 0.8 x size under the box top, 1.2 x size leading) and an `author`; comb text is
+  `spdf_fill_add_comb_text(cells, …, group_nm, author)`; `spdf_fill_add_signature_paths` takes the drawing's `aspect`.
+  A signature id never contains `-`. Items carry `group` and `cell` for comb cells.
+- `spdf_snap_resolve(…, purpose, aspect, out)` also takes the signature aspect and reports `SPDF_SNAP_FIELD` when the
+  point is on a real field; `spdf_snap_targets_in_order` writes `spdf_snap_target` (kind, rect, probe point).
+- Signatures keep their drawing on move because the Stamp's `/Name` is `/Signature`, which MuPDF treats as non-standard
+  and never redraws (`pdf_update_appearance`, MuPDF 1.27.2); picture signatures are redrawn from their image.
+- Files: `spdf_form.c`, `spdf_fill_items.c` + `spdf_fill_signature.c` (signatures, Save Final Copy),
+  `spdf_fill_snap.c` (reading the page) + `spdf_fill_snap_clean.c` + `spdf_fill_snap_place.c`; internal headers
+  `spdf_fill_identity.h` (the comment filter, header-only so GTK and Windows link nothing new), `spdf_fill_internal.h`,
+  `spdf_fill_snap_internal.h`. The render token's body moved to `spdf_core_document.h` so the snap pass can be
+  cancelled with it.
+
 ### 1. Form detection and fields: `core/spdf_form.{h,c}` (~400 lines)
 
 ```c
