@@ -190,8 +190,11 @@ static NSMutableSet* SPDFOpenSheets(void) {
     NSArray* fonts = [SPDFMacSignatureSheet scriptFontNames];
     for (NSUInteger i = 0; i < fonts.count; ++i) {
         NSButton* button = [NSButton buttonWithTitle:@"" target:self action:@selector(fontChosen:)];
-        button.bezelStyle = NSBezelStyleRegularSquare;
+        button.bordered = NO;  // white paper like the drawing pad, so both inks read; the chosen one is ringed
         button.buttonType = NSButtonTypeOnOff;
+        button.wantsLayer = YES;
+        button.layer.backgroundColor = NSColor.whiteColor.CGColor;
+        button.layer.cornerRadius = 8;
         button.tag = (NSInteger)i;
         button.frame = NSMakeRect((i % 2) * 244, 36 + (1 - (CGFloat)(i / 2)) * 78, 236, 72);
         [buttons addObject:button];
@@ -227,7 +230,7 @@ static NSMutableSet* SPDFOpenSheets(void) {
     self.keepBox.state = NSControlStateValueOn;
     self.keepBox.frame = NSMakeRect(20, 20, 150, 22);
     [content addSubview:self.keepBox];
-    self.keepNote = [self label:@"Saved on this Mac only." size:11 weight:NSFontWeightRegular frame:NSMakeRect(172, 22, 150, 18)];
+    self.keepNote = [self label:@"Saved on this Mac only." size:11 weight:NSFontWeightRegular frame:NSMakeRect(172, 22, 136, 18)];
     [content addSubview:self.keepNote];
     NSButton* cancel = [NSButton buttonWithTitle:@"Cancel" target:self action:@selector(cancel:)];
     cancel.keyEquivalent = @"\033";
@@ -290,6 +293,8 @@ static NSMutableSet* SPDFOpenSheets(void) {
                 attributes:@{NSFontAttributeName : font, NSForegroundColorAttributeName : SPDFSheetInk(self.inkControl.selectedSegment),
                              NSParagraphStyleAttributeName : centred}];
         button.state = button.tag == self.chosenFont ? NSControlStateValueOn : NSControlStateValueOff;
+        button.layer.borderWidth = button.state ? 3 : 1;
+        button.layer.borderColor = (button.state ? NSColor.controlAccentColor : NSColor.separatorColor).CGColor;
     }
     [self updateUseButton];
 }
