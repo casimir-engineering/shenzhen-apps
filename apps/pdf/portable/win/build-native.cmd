@@ -108,7 +108,7 @@ rem   LNK2019: unresolved external symbol spdf_compat_*
 rem rather than an error at the file that wanted it, so it belongs in EVERY
 rem Windows source list. (run-tests.sh's header comment puts it in
 rem portable/win/src; that is wrong.)
-for %%F in (shenzhen_pdf_core.c spdf_selection.c spdf_selection_support.c spdf_recolor.c spdf_yaml.c spdf_win_compat.c spdf_markdown.c spdf_markdown_support.c spdf_markdown_html.c spdf_markdown_lang.c spdf_markdown_lex.c spdf_markdown_math.c spdf_markdown_fences.c spdf_markdown_open.c) do call :add_source "portable\core\%%F"
+for %%F in (shenzhen_pdf_core.c spdf_selection.c spdf_selection_support.c spdf_recolor.c spdf_yaml.c spdf_win_compat.c spdf_markdown.c spdf_markdown_support.c spdf_markdown_html.c spdf_markdown_lang.c spdf_markdown_lex.c spdf_markdown_math.c spdf_markdown_fences.c spdf_markdown_open.c spdf_camera_raw.c) do call :add_source "portable\core\%%F"
 call :add_source "ext\md4c\md4c.c"
 if errorlevel 1 exit /b 65
 

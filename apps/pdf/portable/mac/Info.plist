@@ -66,6 +66,25 @@
 				<string>png</string>
 				<string>raw</string>
 				<string>raw10</string>
+				<string>cr2</string>
+				<string>cr3</string>
+				<string>crw</string>
+				<string>nef</string>
+				<string>nrw</string>
+				<string>arw</string>
+				<string>sr2</string>
+				<string>srf</string>
+				<string>orf</string>
+				<string>raf</string>
+				<string>rw2</string>
+				<string>rwl</string>
+				<string>pef</string>
+				<string>dng</string>
+				<string>srw</string>
+				<string>3fr</string>
+				<string>fff</string>
+				<string>iiq</string>
+				<string>x3f</string>
 				<string>jpg</string>
 				<string>jpeg</string>
 				<string>jpe</string>

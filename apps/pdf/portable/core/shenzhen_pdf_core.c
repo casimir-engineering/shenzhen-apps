@@ -140,7 +140,7 @@ spdf_document* spdf_open_with_password(const char* path, const char* password, s
         fz_register_document_handlers(ctx);
         doc = progressive_hooks.open ? progressive_hooks.open(ctx, path) : NULL; /* a path still downloading */
         if (doc) opened_progressive = 1;
-        else if (!sensor_open_hook || !(doc = sensor_open_hook(ctx, path))) doc = fz_open_document(ctx, path);
+        else if (!(doc = open_with_hooks(ctx, path))) doc = fz_open_document(ctx, path);
         password_protected = fz_needs_password(ctx, doc) != 0;
         if (password_protected && !password) {
             open_status = SPDF_OPEN_PASSWORD_REQUIRED;

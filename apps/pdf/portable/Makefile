@@ -69,9 +69,11 @@ CORE_SVG_IMAGE_OBJ := $(BUILD)/spdf_svg_image.o $(BUILD)/spdf_svg_font.o $(BUILD
 	$(BUILD)/spdf_cff_subset.o
 # Raw camera sensor frames shown as pictures (core/spdf_sensor_raw.h, installed by mac/SPDFMacSensorFrames.mm).
 CORE_SENSOR_RAW_OBJ := $(BUILD)/spdf_sensor_raw.o
+# Camera RAW photos shown as pictures (core/spdf_camera_raw.h; mac/SPDFMacCameraRaw.mm adds Core Image's decoder).
+CORE_CAMERA_RAW_OBJ := $(BUILD)/spdf_camera_raw.o
 CORE_OBJS := $(CORE_OBJ) $(CORE_SELECTION_OBJ) $(CORE_SELECTION_SUPPORT_OBJ) $(CORE_RECOLOR_OBJ) $(CORE_IMAGE_PROPERTIES_OBJ) \
 	$(CORE_PAGE_IMAGES_OBJ) $(CORE_LINK_OBJ) $(CORE_PROGRESSIVE_OBJ) $(CORE_DESTINATION_OBJ) $(CORE_SVG_IMAGE_OBJ) \
-	$(CORE_SENSOR_RAW_OBJ)
+	$(CORE_SENSOR_RAW_OBJ) $(CORE_CAMERA_RAW_OBJ)
 YAML_SRC := core/spdf_yaml.c
 YAML_HDR := core/spdf_yaml.h
 YAML_OBJ := $(BUILD)/spdf_yaml.o
@@ -213,6 +215,9 @@ $(CORE_DESTINATION_OBJ): core/spdf_destination.c core/spdf_destination.h core/sp
 	clang $(PORTABLE_OPTFLAGS) $(MAC_TARGET_FLAGS) -Wall -Wextra -Werror -Icore -I$(MUPDF_DIR)/include -c $< -o "$@"
 
 $(CORE_SENSOR_RAW_OBJ): core/spdf_sensor_raw.c core/spdf_sensor_raw.h core/spdf_sensor_raw_stats.h core/spdf_core_document.h Makefile | $(BUILD)
+	clang $(PORTABLE_OPTFLAGS) $(MAC_TARGET_FLAGS) -Wall -Wextra -Werror -Icore -I$(MUPDF_DIR)/include -c $< -o "$@"
+
+$(CORE_CAMERA_RAW_OBJ): core/spdf_camera_raw.c core/spdf_camera_raw.h core/spdf_core_document.h Makefile | $(BUILD)
 	clang $(PORTABLE_OPTFLAGS) $(MAC_TARGET_FLAGS) -Wall -Wextra -Werror -Icore -I$(MUPDF_DIR)/include -c $< -o "$@"
 
 $(BUILD)/spdf_svg_image.o: core/spdf_svg_image.c core/spdf_svg_image.h core/spdf_svg_font.h $(CORE_RECOLOR_HDR) Makefile | $(BUILD)
@@ -786,7 +791,7 @@ install: mac-app
 LINUX_GTK4_SRCS := $(sort $(wildcard linux/gtk4/*.c))
 
 linux-gtk4: mupdf-libs | $(BUILD)
-	$(CC) $(PORTABLE_OPTFLAGS) -Wall -Icore -Ilinux/gtk4 -I$(MUPDF_DIR)/include $$(pkg-config --cflags gtk4 libadwaita-1) "$(CORE_SRC)" "$(CORE_SELECTION_SRC)" "$(CORE_SELECTION_SUPPORT_SRC)" "$(CORE_RECOLOR_SRC)" "$(YAML_SRC)" core/spdf_link.c $(LINUX_GTK4_SRCS) $(MUPDF_LIBS) $$(pkg-config --libs gtk4 libadwaita-1 openssl) -lm -o "$(BUILD)/ShenzhenPDF-gtk4"
+	$(CC) $(PORTABLE_OPTFLAGS) -Wall -Icore -Ilinux/gtk4 -I$(MUPDF_DIR)/include $$(pkg-config --cflags gtk4 libadwaita-1) "$(CORE_SRC)" "$(CORE_SELECTION_SRC)" "$(CORE_SELECTION_SUPPORT_SRC)" "$(CORE_RECOLOR_SRC)" "$(YAML_SRC)" core/spdf_link.c core/spdf_camera_raw.c $(LINUX_GTK4_SRCS) $(MUPDF_LIBS) $$(pkg-config --libs gtk4 libadwaita-1 openssl) -lm -o "$(BUILD)/ShenzhenPDF-gtk4"
 
 LINUX_GTK4_TEST_SRCS := $(sort $(wildcard linux/gtk4/tests/*_test.c))
 LINUX_GTK4_TEST_BINS := $(patsubst linux/gtk4/tests/%.c,$(BUILD)/%,$(LINUX_GTK4_TEST_SRCS))

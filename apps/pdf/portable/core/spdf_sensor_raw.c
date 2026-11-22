@@ -398,4 +398,4 @@ static fz_document* open_hook(fz_context* ctx, const char* path) {
     return spdf_sensor_raw_open_document(ctx, path, order);
 }
 
-void spdf_sensor_raw_install(void) { spdf_core_set_sensor_open_hook(open_hook); }
+void spdf_sensor_raw_install(void) { spdf_core_add_open_hook(open_hook); }

@@ -4,6 +4,7 @@
 // non-essential is deferred behind the first window map (see spdf_app.c).
 
 #include "spdf_app.h"
+#include "spdf_camera_raw.h"
 #include "spdf_updater.h"
 
 int main(int argc, char** argv) {
@@ -28,6 +29,9 @@ int main(int argc, char** argv) {
     // Fedora 42 / GTK 4.18.6 during rpm smoke tests); 4.20 renamed "ngl" to
     // "gl". Pick per the GTK actually linked at runtime.
     g_setenv("GSK_RENDERER", gtk_get_minor_version() >= 20 ? "gl" : "ngl", FALSE);
+
+    // Camera RAW photos open as their embedded JPEG preview (core/spdf_camera_raw.h): no RAW decoder is linked.
+    spdf_camera_raw_install(NULL);
 
     spdf_launch_mark("main");
     app = spdf_app_new();

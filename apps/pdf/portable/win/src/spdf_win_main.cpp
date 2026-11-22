@@ -35,6 +35,7 @@
 #include "spdf_win_health_log.h"
 #include "spdf_win_layout_print.h"
 #include "spdf_win_layout.h" /* SPDF_WIN_PAGE_MARGIN_* for the initial window size */
+#include "spdf_camera_raw.h"  /* camera RAW photos, shown from the preview the camera stored in them */
 #include "spdf_win_open_app.h" /* the process opener every by-path open goes through, and its seam */
 #include "spdf_win_paths.h"    /* spdf_win_paths_set_state_dir_override, for --state-dir */
 #include "spdf_win_settings.h" /* settings.yaml: theme, panels, print, window size */
@@ -126,6 +127,8 @@ int main(void) {
      * opens everything else exactly as before. Before the flag parse, because
      * --render-png and --render-window-png open too. */
     spdf_win_open_set_hook(spdf_win_open_app_document);
+    /* Camera RAW photos open as their embedded JPEG preview (core/spdf_camera_raw.h): no RAW decoder is linked. */
+    spdf_camera_raw_install(NULL);
 
     /* THE EXE IS ITS OWN INSTALLER (spdf_win_setup.h), so --install and
      * --uninstall are answered HERE -- before the option loop, before Direct2D,
