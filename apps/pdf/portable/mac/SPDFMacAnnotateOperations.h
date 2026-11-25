@@ -23,8 +23,6 @@ FOUNDATION_EXPORT void SPDFAnnotateUpdateStatusBar(SPDFMacFillController* contro
 @interface SPDFMacFillController (AnnotateShared)
 - (void)annotateApplyFrontendOperation:(NSDictionary*)op info:(const spdf_paint_op_info*)info
                                    tab:(nullable SPDFDocumentTab*)tab completion:(SPDFAnnotateCompletion)completion;
-- (void)annotateApplyFillOperation:(NSDictionary*)op info:(const spdf_paint_op_info*)info
-                               tab:(nullable SPDFDocumentTab*)tab completion:(SPDFAnnotateCompletion)completion;
 - (SPDFMacAnnotateCanvasView*)annotateEnsureCanvasView;
 // Hooks in SPDFMacFillController.mm: the end of -refreshChrome, and -setOn: before the mode changes.
 - (void)annotateChromeDidRefresh:(BOOL)showing;
