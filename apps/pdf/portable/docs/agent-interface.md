@@ -249,8 +249,11 @@ sentence each, and `szpdf annotate schema shape.add` gives one operation's argum
 (`szpdf annotate schema` gives all of them).
 
 - **The target** is a document's path or a tab id. A document that is not open is opened behind your windows first;
-  Annotate is turned on for its tab if it is off; nothing comes to the front. A canvas never saved has no path, so
-  `szpdf canvas new` answers its id (`"tab": "tab-<pid>-<n>"`), and every `annotate` answer repeats the tab's id.
+  Annotate is turned on for its tab if it is off; nothing comes to the front. A PDF is changed (and its form read)
+  through the tab its window shows, so a PDF tab that is not in front is shown in its window first, as are the tabs
+  of `view.*` and `doc.save_as_pdf`; the window stays where it is. A `.szpaint` is targeted by its own path. A
+  canvas never saved has no path, so `szpdf canvas new` answers its id (`"tab": "tab-<pid>-<n>"`), and every
+  `annotate` answer repeats the tab's id.
 - **Arguments** are flags named after them: `--keep-ratio` and `--keepRatio` both give `keepRatio`. Values are typed by
   the schema: numbers, `true`/`false` (`--bold` alone is true, `--no-bold` false), a point as `x,y`, points as
   `"x,y x,y …"` (a third number is the pen pressure), a rect as `x,y,w,h`, ids as `3,4`, and anything else as JSON
@@ -312,7 +315,7 @@ A Markdown (or plain text, EPUB…) file is annotated as a PDF: every operation 
 `needs_pdf`. Save it as a PDF, then annotate that; the original is not changed.
 
 ```sh
-szpdf annotate notes.md doc.save_as_pdf                   # notes.pdf beside it, opened in a new tab
+szpdf annotate notes.md doc.save_as_pdf                   # notes.pdf beside it (notes 2.pdf if taken), in a new tab
 szpdf annotate notes.pdf pen.add --page 1 --points "72,700 200,690 320,705" --color '#E02020' --width 2
 ```
 
