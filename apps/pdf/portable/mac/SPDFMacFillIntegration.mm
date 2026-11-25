@@ -336,6 +336,11 @@ void SPDFFillInstallMenuItems(NSMenu* editMenu, NSMenu* fileMenu, ShenzhenMacDel
         [self showError:@"This PDF can't be changed" detail:@"Whoever certified it locked it against any change."];
         return NO;
     }
+    if (!fieldsOnly && summary.docmdp != 2 && !summary.can_add_items && summary.fillable_count == 0) {
+        [self showError:@"This PDF can't take annotations"
+                 detail:@"This PDF's owner doesn't allow annotations. Open it with the owner password to continue."];
+        return NO;
+    }
     if (!fieldsOnly && (summary.docmdp == 2 || (!summary.can_add_items && summary.can_fill_fields))) {
         [self showError:@"This PDF can't take annotations" detail:@"This PDF only allows filling in its own fields."];
         return NO;

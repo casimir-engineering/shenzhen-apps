@@ -428,7 +428,7 @@ spdf_paint_status spdf_paint_pdf_write_back(spdf_paint_doc* doc, int* pages_chan
                 continue;
             }
             free(model);
-            if (!pdf_has_permission(ctx, page->doc, FZ_PERMISSION_ANNOTATE))
+            if (!spdf_owner_allows(doc->pdf, FZ_PERMISSION_ANNOTATE))
                 fz_throw(ctx, FZ_ERROR_ARGUMENT, "This PDF's owner doesn't allow adding to it.");
             changed = 1;
             if (fill) {

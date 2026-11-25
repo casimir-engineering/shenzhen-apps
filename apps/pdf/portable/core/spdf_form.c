@@ -119,8 +119,8 @@ int spdf_form_summary_read(spdf_document* doc, spdf_form_summary* out, char* err
         walk_fields(doc->ctx, pdf, pdf_dict_get(doc->ctx, form, PDF_NAME(Fields)), 0, &nodes, out);
         out->incremental_ok = pdf_can_be_saved_incrementally(doc->ctx, pdf);
         out->docmdp = read_docmdp(doc->ctx, pdf);
-        out->can_add_items = pdf_has_permission(doc->ctx, pdf, FZ_PERMISSION_ANNOTATE);
-        out->can_fill_fields = out->can_add_items || pdf_has_permission(doc->ctx, pdf, FZ_PERMISSION_FORM);
+        out->can_add_items = spdf_owner_allows(doc, FZ_PERMISSION_ANNOTATE);
+        out->can_fill_fields = out->can_add_items || spdf_owner_allows(doc, FZ_PERMISSION_FORM);
     }
     fz_catch(doc->ctx) {
         form_error(err, err_len, fz_caught_message(doc->ctx));
@@ -400,7 +400,7 @@ static int form_set(spdf_document* doc, int page_index, int object_number, form_
         pdf_obj *form, *field;
         enum pdf_widget_type type;
         int han = text && spdf_text_contains_han(text);
-        if (!pdf_has_permission(ctx, pdf, FZ_PERMISSION_FORM) && !pdf_has_permission(ctx, pdf, FZ_PERMISSION_ANNOTATE))
+        if (!spdf_owner_allows(doc, FZ_PERMISSION_FORM) && !spdf_owner_allows(doc, FZ_PERMISSION_ANNOTATE))
             fz_throw(ctx, FZ_ERROR_ARGUMENT, "This PDF's owner doesn't allow filling it in.");
         page = pdf_load_page(ctx, pdf, page_index);
         for (widget = pdf_first_widget(ctx, page); widget; widget = pdf_next_widget(ctx, widget))

@@ -75,6 +75,14 @@ struct spdf_document {
     int rendering; /* inside a render: its page-size lookup asks for the bytes it waits on (see spdf_page_size) */
 };
 
+/* Whether the person may annotate or fill in this PDF. The owner's restrictions only bind a PDF that needed a password
+ * to open (until the owner password is given): on one that opens without a password they are advisory, as the
+ * reader's comments have always treated them (activePDFAllowsCommentChangesFor:). Fill & Sign and Annotate ask here. */
+static inline int spdf_owner_allows(spdf_document* doc, fz_permission permission) {
+    if (!doc || !doc->doc) return 0;
+    return !doc->password_protected || fz_has_permission(doc->ctx, doc->doc, permission);
+}
+
 /* Body of the public cancellation token (shenzhen_pdf_core.h): just an fz_cookie, here so sibling units that run a
  * page themselves (spdf_fill_snap.c) can honour it. cancel() writes cookie.abort from any thread while a run on
  * another thread polls it; abort is a plain int flag that MuPDF only ever reads during a run, so the unsynchronized

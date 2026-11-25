@@ -62,7 +62,7 @@ void spdf_fill_finish_item(fz_context* ctx, pdf_annot* annot, const char* nm, co
 pdf_page* spdf_fill_load_page(spdf_document* doc, int page_index) {
     pdf_document* pdf = pdf_specifics(doc->ctx, doc->doc);
     if (!pdf) fz_throw(doc->ctx, FZ_ERROR_FORMAT, "Only PDF documents can be filled in.");
-    if (!pdf_has_permission(doc->ctx, pdf, FZ_PERMISSION_ANNOTATE))
+    if (!spdf_owner_allows(doc, FZ_PERMISSION_ANNOTATE))
         fz_throw(doc->ctx, FZ_ERROR_ARGUMENT, "This PDF's owner doesn't allow filling it in.");
     return pdf_load_page(doc->ctx, pdf, page_index);
 }

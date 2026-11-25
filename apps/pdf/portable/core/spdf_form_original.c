@@ -207,8 +207,7 @@ static pdf_document* writable_form(spdf_document* doc, char* err, size_t err_len
     pdf_document* pdf = doc && doc->doc ? pdf_specifics(doc->ctx, doc->doc) : NULL;
     original_error(err, err_len, "");
     if (!pdf) original_error(err, err_len, "Only PDF forms can be filled in.");
-    else if (!pdf_has_permission(doc->ctx, pdf, FZ_PERMISSION_FORM) &&
-             !pdf_has_permission(doc->ctx, pdf, FZ_PERMISSION_ANNOTATE)) {
+    else if (!spdf_owner_allows(doc, FZ_PERMISSION_FORM) && !spdf_owner_allows(doc, FZ_PERMISSION_ANNOTATE)) {
         original_error(err, err_len, "This PDF's owner doesn't allow filling it in.");
         return NULL;
     }
