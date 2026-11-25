@@ -69,9 +69,19 @@ static NSPasteboardType const kSPDFLayerRowType = @"com.intuition.shenzhenpdf.an
         self.layer.shadowOpacity = 0.18;
         self.layer.shadowRadius = 8;
         [self build];
+        // The rows follow every change (a stroke, a shape, edited text, undo, the selection), not only the palette.
+        [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(sessionChanged:)
+                                                   name:SPDFAnnotateSessionDidChangeNotification object:nil];
     }
     return self;
 }
+
+- (void)sessionChanged:(NSNotification*)note {
+    if (!self.superview || !_session || note.object != _session) return;
+    [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(reloadSoon) object:nil];
+    [self performSelector:@selector(reloadSoon) withObject:nil afterDelay:0];  // once this turn's operation is done
+}
+- (void)reloadSoon { if (self.superview && _session) [self reloadFromSession:_session]; }
 
 - (BOOL)isFlipped { return YES; }
 - (BOOL)mouseDownCanMoveWindow { return NO; }
