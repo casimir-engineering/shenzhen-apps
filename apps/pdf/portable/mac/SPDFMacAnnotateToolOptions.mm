@@ -90,7 +90,7 @@
     [_eraserKind setToolTip:@"Removes every pen line and arrow you touch" forSegment:0];
     [_eraserKind setToolTip:@"Erases what you rub, pixels and pen lines alike" forSegment:1];
     _contiguous = [NSButton checkboxWithTitle:@"Contiguous" target:self action:@selector(contiguousChanged:)];
-    _contiguous.toolTip = @"Off: replaces that colour everywhere";
+    _contiguous.toolTip = @"Off: replaces that color everywhere";
     _transparent = [NSButton checkboxWithTitle:@"Transparent selection" target:self action:@selector(transparentChanged:)];
     _transparent.toolTip = @"Pixels in Color 2 stay behind when you move the selection";
     _pickFrom = [self popUp:@[ @"Pick from all layers", @"Pick from the active layer" ] tip:@"Where the color is read"
@@ -122,11 +122,11 @@
     for (NSInteger i = 0; i < 4; ++i) [_styles setToolTip:styleTips[i] forSegment:i];
     _align = [NSSegmentedControl segmentedControlWithImages:@[
         SPDFAnnotateSymbol(@"text.alignleft", @"Align left") ?: [NSImage new],
-        SPDFAnnotateSymbol(@"text.aligncenter", @"Centre") ?: [NSImage new],
+        SPDFAnnotateSymbol(@"text.aligncenter", @"Center") ?: [NSImage new],
         SPDFAnnotateSymbol(@"text.alignright", @"Align right") ?: [NSImage new]
     ] trackingMode:NSSegmentSwitchTrackingSelectOne target:self action:@selector(alignChosen:)];
     [_align setToolTip:@"Align left" forSegment:0];
-    [_align setToolTip:@"Centre" forSegment:1];
+    [_align setToolTip:@"Center" forSegment:1];
     [_align setToolTip:@"Align right" forSegment:2];
     _background = [self popUp:@[ @"Transparent background", @"Opaque background (Color 2)" ] tip:@"Behind the text"
                        action:@selector(backgroundChosen:)];
