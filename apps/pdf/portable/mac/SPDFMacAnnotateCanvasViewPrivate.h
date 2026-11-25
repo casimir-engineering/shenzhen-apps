@@ -5,6 +5,8 @@
 
 #import "SPDFMacFillController+Annotate.h"
 
+@class SPDFDocumentView;
+
 typedef NS_ENUM(NSInteger, SPDFAnnotateGesture) {
     SPDFAnnotateGestureNone = 0,
     SPDFAnnotateGesturePendingRight,  // right button down, not moved yet: a menu on release, a Color 2 drag if it moves
@@ -62,6 +64,7 @@ typedef NS_ENUM(NSInteger, SPDFAnnotateCanvasHandle) {
 @property(nonatomic) NSInteger textPage;
 @property(nonatomic, strong) NSNumber* textObject;  // the text object being edited again, or nil for a new one
 
+@property(nonatomic, strong) SPDFDocumentView* zoomWatched;  // whose zoom is observed (SPDFMacAnnotateCanvasView.mm)
 @property(nonatomic) CGFloat antsPhase;
 @property(nonatomic, strong) NSTimer* antsTimer;
 
@@ -69,6 +72,7 @@ typedef NS_ENUM(NSInteger, SPDFAnnotateCanvasHandle) {
 - (spdf_paint_doc*)docForPage:(NSInteger)page;
 - (NSRect)canvasRectForPage:(NSInteger)page;  // the whole canvas in view points
 - (CGFloat)scaleForPage:(NSInteger)page;      // view points per canvas unit
+- (SPDFDocumentView*)documentView;           // the reader's page view under the canvas view
 - (NSArray<NSNumber*>*)pagesInView;            // -1 for a picture
 - (NSRect)viewRectForCanvasRect:(NSRect)rect page:(NSInteger)page;
 - (NSPoint)viewPointForCanvasPoint:(NSPoint)point page:(NSInteger)page;

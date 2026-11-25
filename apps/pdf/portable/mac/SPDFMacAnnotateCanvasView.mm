@@ -48,8 +48,11 @@ static const NSUInteger kMaxTiles = 600;  // ~150 MB at most
     return self;
 }
 
+static char kSPDFAnnotateZoomContext;
+
 - (void)dealloc {
     [NSNotificationCenter.defaultCenter removeObserver:self];
+    [_zoomWatched removeObserver:self forKeyPath:@"zoom" context:&kSPDFAnnotateZoomContext];
     [_antsTimer invalidate];
 }
 
@@ -79,7 +82,23 @@ static const NSUInteger kMaxTiles = 600;  // ~150 MB at most
         [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(viewportChanged:)
                                                    name:NSViewFrameDidChangeNotification object:clip];
     }
+    // A zoom that keeps the pages inside the window (a picture zoomed out from 100 %) neither scrolls nor resizes: the
+    // canvas and the status bar followed only the others, and showed the old size and percentage.
+    SPDFDocumentView* pages = [self documentView];
+    if (pages != self.zoomWatched) {
+        [self.zoomWatched removeObserver:self forKeyPath:@"zoom" context:&kSPDFAnnotateZoomContext];
+        [pages addObserver:self forKeyPath:@"zoom" options:0 context:&kSPDFAnnotateZoomContext];
+        self.zoomWatched = pages;
+    }
     self.needsDisplay = YES;
+}
+
+- (void)observeValueForKeyPath:(NSString*)keyPath ofObject:(id)object change:(NSDictionary*)change
+                       context:(void*)context {
+    if (context != &kSPDFAnnotateZoomContext) return [super observeValueForKeyPath:keyPath ofObject:object
+                                                                            change:change context:context];
+    __weak SPDFMacAnnotateCanvasView* weakSelf = self;  // once the reader has laid the pages out at the new zoom
+    dispatch_async(dispatch_get_main_queue(), ^{ [weakSelf viewportChanged:nil]; });
 }
 
 - (void)viewportChanged:(NSNotification*)note {
