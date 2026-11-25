@@ -162,10 +162,11 @@ static void render_pixel_line(const spdf_brush_job* job, spdf_brush_mask* m) {
         int x0 = (int)floorf(a.x), y0 = (int)floorf(a.y), x1 = (int)floorf(b.x), y1 = (int)floorf(b.y);
         int dx = abs(x1 - x0), dy = -abs(y1 - y0), sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1, err = dx + dy;
         for (;;) {
+            int e2 = 2 * err;  /* both steps test the error from before either is taken, or the line can miss its end */
             put_max(m, x0, y0, 1.0f);
             if (x0 == x1 && y0 == y1) break;
-            if (2 * err >= dy) err += dy, x0 += sx;
-            if (2 * err <= dx) err += dx, y0 += sy;
+            if (e2 >= dy) err += dy, x0 += sx;
+            if (e2 <= dx) err += dx, y0 += sy;
         }
         if (job->count > 1 && i + 2 >= job->count) break;
     }
