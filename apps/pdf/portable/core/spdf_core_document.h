@@ -100,6 +100,9 @@ void spdf_core_add_open_hook(spdf_core_open_hook hook);
  * text over it). Returns `doc` itself or a document that took it over; never throws. */
 typedef fz_document* (*spdf_core_wrap_hook)(fz_context* ctx, const char* path, fz_document* doc);
 void spdf_core_set_picture_text_hook(spdf_core_wrap_hook hook);
+/* Called by spdf_close, on the closing thread, while the document and its context are still whole. */
+typedef void (*spdf_core_close_hook)(spdf_document* doc);
+void spdf_core_set_close_hook(spdf_core_close_hook hook);
 #define SPDF_NOT_DOWNLOADED "This page has not downloaded yet."
 
 /* After an incremental save. MuPDF remembers the size the file had when it was opened and cuts the file back to it

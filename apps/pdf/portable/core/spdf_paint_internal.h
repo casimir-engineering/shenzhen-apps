@@ -312,6 +312,11 @@ void spdf_paint_set_error(char* err, size_t err_len, const char* message);
 /* ---- Implemented by spdf_paint_doc.c (Core A), used by every unit ---- */
 
 spdf_paint_doc* spdf_paint_doc_new(fz_context* ctx, int owns_ctx, spdf_paint_doc_kind kind, int width, int height);
+/* Frees what the canvas made with its context and leaves it without one (see spdf_paint_doc.c). */
+void spdf_paint_doc_release(spdf_paint_doc* doc);
+/* spdf_paint_pdf_live.c: the open PDF page canvases, let go of when their document closes. */
+void spdf_paint_pdf_live_add(spdf_paint_doc* doc);
+void spdf_paint_pdf_live_remove(spdf_paint_doc* doc);
 /* A new layer above `above` (0: on top) with a fresh id; raster layers get no pixels until first painted. */
 spdf_paint_layer* spdf_paint_layer_new(spdf_paint_doc* doc, spdf_paint_layer_kind kind, const char* name,
                                        spdf_paint_id above);

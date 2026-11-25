@@ -266,7 +266,10 @@ static void apply_matte(fz_pixmap* pix, spdf_paint_color matte) {
 
 spdf_paint_status spdf_paint_render(spdf_paint_doc* doc, const spdf_paint_render_options* options, spdf_bitmap* out,
                                     char* err, size_t err_len) {
-    if (!doc || !out) { spdf_paint_set_error(err, err_len, "Nothing to draw."); return SPDF_PAINT_ERR_FAILED; }
+    if (!doc || !doc->ctx || !out) {
+        spdf_paint_set_error(err, err_len, "Nothing to draw.");
+        return SPDF_PAINT_ERR_FAILED;
+    }
     memset(out, 0, sizeof(*out));
     fz_context* ctx = doc->ctx;
     spdf_rect region = spdf_paint_canvas_rect(doc);

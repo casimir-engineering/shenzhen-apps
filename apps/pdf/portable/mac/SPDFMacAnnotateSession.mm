@@ -274,7 +274,7 @@ NSString* SPDFAnnotateProjectForBackingPath(NSString* path) {
 - (spdf_paint_doc*)canvasForPage:(NSInteger)page document:(spdf_document*)pdf create:(BOOL)create {
     if (self.kind != SPDFAnnotateDocumentPDF) return page < 0 ? _canvas : NULL;
     if (page < 0) return NULL;
-    spdf_paint_doc* doc = (spdf_paint_doc*)_pageCanvases[@(page)].pointerValue;
+    spdf_paint_doc* doc = [self livePageCanvas:page];
     if (doc && pdf && spdf_paint_pdf_document(doc) != pdf) {  // the tab moved to its writable copy: reopen on it
         spdf_paint_close(doc);
         [_pageCanvases removeObjectForKey:@(page)];
@@ -287,14 +287,25 @@ NSString* SPDFAnnotateProjectForBackingPath(NSString* path) {
     return doc;
 }
 
+// A page canvas whose PDF has closed (the tab closed, or its document was let go) was emptied by the core; it is
+// freed here and the page counts as not open.
+- (spdf_paint_doc*)livePageCanvas:(NSInteger)page {
+    spdf_paint_doc* doc = (spdf_paint_doc*)_pageCanvases[@(page)].pointerValue;
+    if (!doc || spdf_paint_pdf_document(doc)) return doc;
+    spdf_paint_close(doc);
+    [_pageCanvases removeObjectForKey:@(page)];
+    return NULL;
+}
+
 - (NSIndexSet*)openPages {
     NSMutableIndexSet* pages = [NSMutableIndexSet indexSet];
-    for (NSNumber* page in _pageCanvases) [pages addIndex:page.unsignedIntegerValue];
+    for (NSNumber* page in _pageCanvases.allKeys)
+        if ([self livePageCanvas:page.integerValue]) [pages addIndex:page.unsignedIntegerValue];
     return pages;
 }
 
 - (spdf_paint_doc*)docForPage:(NSInteger)page {
-    return page < 0 ? _canvas : (spdf_paint_doc*)_pageCanvases[@(page)].pointerValue;
+    return page < 0 ? _canvas : [self livePageCanvas:page];
 }
 
 #pragma mark Operations
@@ -468,8 +479,8 @@ static NSString* ActionName(const char* op) {
 
 - (BOOL)dirty {
     if (self.kind == SPDFAnnotateDocumentPDF) {
-        for (NSValue* value in _pageCanvases.allValues)
-            if (spdf_paint_is_dirty((spdf_paint_doc*)value.pointerValue)) return YES;
+        for (NSNumber* page in _pageCanvases.allKeys)
+            if (spdf_paint_is_dirty([self livePageCanvas:page.integerValue])) return YES;
         return NO;
     }
     return _canvas && (spdf_paint_is_dirty(_canvas) || self.lastWriteFailed);

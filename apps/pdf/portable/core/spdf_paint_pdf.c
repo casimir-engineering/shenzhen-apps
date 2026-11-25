@@ -435,6 +435,7 @@ spdf_paint_doc* spdf_paint_open_pdf_page(spdf_document* pdf, int page_index, cha
         set_layer_name(background, name);
         if (doc->active == background->id) doc->active = 0;
         spdf_paint_pdf_read(doc, 0);
+        spdf_paint_pdf_live_add(doc);
     }
     fz_always(ctx) pdf_drop_page(ctx, page);
     fz_catch(ctx) {

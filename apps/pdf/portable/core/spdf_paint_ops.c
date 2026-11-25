@@ -178,7 +178,7 @@ spdf_paint_status spdf_paint_apply_ex(spdf_paint_doc* doc, const char* json, con
     memset(&call, 0, sizeof(call));
     cJSON* root = NULL;
     spdf_paint_status status = SPDF_PAINT_ERR_FAILED;
-    if (!doc) snprintf(call.message, sizeof(call.message), "There is no canvas to change.");
+    if (!doc || !doc->ctx) snprintf(call.message, sizeof(call.message), "There is no canvas to change.");
     else status = prepare(json, doc->kind, &root, &call.op, call.message, sizeof(call.message));
     if (status == SPDF_PAINT_OK && doc->kind == SPDF_PAINT_DOC_PDF && (call.op->flags & SPDF_PAINT_OP_NEEDS_PAGE)) {
         double page = cJSON_GetNumberValue(cJSON_GetObjectItemCaseSensitive(root, "page"));

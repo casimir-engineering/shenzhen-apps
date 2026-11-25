@@ -121,19 +121,28 @@ spdf_paint_doc* spdf_paint_open_picture(const spdf_paint_pixels* pixels, float d
     return doc;
 }
 
-void spdf_paint_close(spdf_paint_doc* doc) {
-    if (!doc) return;
+/* Everything the canvas made with its context; the struct itself stays. A PDF page canvas whose document closes
+ * first is left like this (spdf_paint_pdf_live.c): no context, no PDF, no layers, only freed by spdf_paint_close. */
+void spdf_paint_doc_release(spdf_paint_doc* doc) {
     fz_context* ctx = doc->ctx;
+    if (!ctx) return;
     spdf_paint_pdf_close(doc);       /* the PDF bridge's state (harmless on other canvases) */
     spdf_paint_history_free(doc);
     for (int i = 0; i < doc->layer_count; i++) spdf_paint_layer_free(ctx, doc->layers[i]);
     free(doc->layers);
+    doc->layers = NULL, doc->layer_count = doc->layer_cap = 0;
     spdf_paint_selection_free(ctx, &doc->selection);
     spdf_paint_tiles_free(doc);
     spdf_paint_text_cache_drop(doc); /* fonts of text objects, before the context goes */
-    int owns = doc->owns_ctx;
+    if (doc->owns_ctx) fz_drop_context(ctx);
+    doc->ctx = NULL, doc->pdf = NULL;
+}
+
+void spdf_paint_close(spdf_paint_doc* doc) {
+    if (!doc) return;
+    if (doc->kind == SPDF_PAINT_DOC_PDF) spdf_paint_pdf_live_remove(doc);
+    spdf_paint_doc_release(doc);
     free(doc);
-    if (owns) fz_drop_context(ctx);
 }
 
 spdf_paint_doc_kind spdf_paint_kind(const spdf_paint_doc* doc) { return doc ? doc->kind : SPDF_PAINT_DOC_CANVAS; }

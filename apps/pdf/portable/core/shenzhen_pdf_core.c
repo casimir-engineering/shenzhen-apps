@@ -199,17 +199,6 @@ spdf_document* spdf_open(const char* path, char* err, size_t err_len) {
     return spdf_open_with_password(path, NULL, NULL, NULL, err, err_len);
 }
 
-void spdf_close(spdf_document* doc) {
-    if (!doc) return;
-    spdf_drop_page_list_cache(doc, -1);
-    if (doc->dark_doc) fz_drop_document(doc->ctx, doc->dark_doc);
-    if (doc->doc) fz_drop_document(doc->ctx, doc->doc);
-    if (doc->ctx) fz_drop_context(doc->ctx);
-    free(doc->title);
-    free(doc->page_sizes);
-    free(doc);
-}
-
 int spdf_page_count(spdf_document* doc) {
     return doc ? doc->page_count : 0;
 }
