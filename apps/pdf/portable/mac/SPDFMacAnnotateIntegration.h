@@ -41,6 +41,10 @@ FOUNDATION_EXPORT NSImage* SPDFAnnotateIcon(void);
 
 #pragma mark - The reader's side
 
+// What File > Recently Opened keeps for a tab's path: the .szpaint a project tab shows, nothing for a canvas never
+// saved (its picture is Annotate's own), the path itself otherwise.
+FOUNDATION_EXPORT NSString* _Nullable SPDFAnnotateRecentPath(NSString* _Nullable path);
+
 @interface ShenzhenMacDelegate (SPDFMacAnnotate)
 
 // The toolbar button and Option-Cmd-F: Annotate on or off for the active tab. On a text document it asks first

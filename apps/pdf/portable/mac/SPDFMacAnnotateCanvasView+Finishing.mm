@@ -78,11 +78,15 @@
         NSString* from = [[self toolOptions][@"from"] isEqual:@"layer"] ? @"layer" : @"visible";
         NSDictionary* picked = [session readOperation:@{@"op": @"color.pick", @"x": @(point.x), @"y": @(point.y),
                                                         @"from": from} page:page];
-        if ([picked[@"ok"] boolValue] && [picked[@"color"] isKindOfClass:NSString.class])
+        // Nothing there (a fully transparent pixel): the colour stays, so the next stroke isn't invisible ink.
+        BOOL clear = [picked[@"color"] isKindOfClass:NSString.class] && [picked[@"color"] length] == 9 &&
+                     [[picked[@"color"] substringFromIndex:7] isEqualToString:@"00"];
+        if ([picked[@"ok"] boolValue] && [picked[@"color"] isKindOfClass:NSString.class] && !clear)
             [self operation:@{@"op": @"colors.set", (right ? @"color2" : @"color1"): picked[@"color"]} page:page done:nil];
         session.tool = session.toolBeforePicker;  // one pick, then back (Paint)
         [self toolDidChange];
         [session noteChange];
+        [self.controller refreshChrome];  // the palette shows the tool it went back to
     } else if (tool == SPDFAnnotateToolMagnifier) {
         CGFloat level = [self zoomLevel];
         BOOL out = right || (event.modifierFlags & NSEventModifierFlagOption);

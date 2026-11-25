@@ -61,6 +61,7 @@ static NSMutableSet* SPDFOpenSheets;  // keeps each sheet alive while it shows
     NSNumberFormatter* format = [NSNumberFormatter new];
     format.numberStyle = NSNumberFormatterDecimalStyle;
     format.maximumFractionDigits = 2;
+    format.usesGroupingSeparator = NO;  // 1000, as typed, in every field alike
     field.formatter = format;
     field.alignment = NSTextAlignmentRight;
     field.delegate = self;

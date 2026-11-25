@@ -1806,7 +1806,7 @@ id spdf_state_object_from_yaml_data(NSData* data) {
 }
 
 - (void)rememberRecentlyOpenedPath:(NSString*)path {
-    if (path.length == 0 || SPDFMacPathIsCollectionArchive(path)) return;
+    if ((path = SPDFAnnotateRecentPath(path)).length == 0 || SPDFMacPathIsCollectionArchive(path)) return;
     NSString* standardized = path.stringByStandardizingPath;
     for (NSInteger i = (NSInteger)_recentlyOpenedPaths.count - 1; i >= 0; --i) {
         NSString* existingPath = _recentlyOpenedPaths[(NSUInteger)i];

@@ -10,6 +10,14 @@
 #import "SPDFMacAnnotateSessionPrivate.h"
 #import "SPDFMacFillController.h"
 #import "SPDFMacFillOverlayView.h"
+#import "SPDFMacFillPalette.h"
+#import "SPDFMacAnnotatePaletteGroups.h"
+
+// The font the text bar shows (SPDFMacAnnotateToolOptions.mm): the one picked, else Helvetica Neue.
+static NSString* SPDFAnnotateTextBoxFont(NSDictionary* options) {
+    NSString* font = [options[@"font"] isKindOfClass:NSString.class] ? options[@"font"] : nil;
+    return font.length ? font : @"Helvetica Neue";
+}
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wobjc-protocol-method-implementation"
@@ -48,12 +56,25 @@
     NSDictionary* options = [SPDFAnnotateSettings.shared optionsForTool:@"text_box"];
     CGFloat scale = [self scaleForPage:self.textPage];
     CGFloat size = ([options[@"size"] doubleValue] ?: 24) * scale;
-    NSFont* font = [options[@"font"] isKindOfClass:NSString.class] ? [NSFont fontWithName:options[@"font"] size:size] : nil;
+    NSFont* font = [NSFont fontWithName:SPDFAnnotateTextBoxFont(options) size:size];
     font = font ?: [NSFont systemFontOfSize:size];
     NSFontTraitMask traits = ([options[@"bold"] boolValue] ? NSBoldFontMask : 0) |
                              ([options[@"italic"] boolValue] ? NSItalicFontMask : 0);
     if (traits) font = [NSFontManager.sharedFontManager convertFont:font toHaveTrait:traits];
     editor.font = font;
+    // As it will be drawn: Color 1 (seen even while it is transparent) and the underline and strikethrough.
+    NSColor* ink = [SPDFAnnotateColor(self.session.color1) colorWithAlphaComponent:1];
+    editor.textColor = ink;
+    NSMutableDictionary* typing = [editor.typingAttributes mutableCopy];
+    typing[NSForegroundColorAttributeName] = ink;
+    typing[NSUnderlineStyleAttributeName] = @([options[@"underline"] boolValue] ? NSUnderlineStyleSingle : 0);
+    typing[NSStrikethroughStyleAttributeName] = @([options[@"strikethrough"] boolValue] ? NSUnderlineStyleSingle : 0);
+    editor.typingAttributes = typing;
+    if (editor.string.length)
+        [editor.textStorage addAttributes:@{NSForegroundColorAttributeName: ink,
+                                            NSUnderlineStyleAttributeName: typing[NSUnderlineStyleAttributeName],
+                                            NSStrikethroughStyleAttributeName: typing[NSStrikethroughStyleAttributeName]}
+                                    range:NSMakeRange(0, editor.string.length)];
     editor.frame = [self viewRectForCanvasRect:self.textRect page:self.textPage];
     editor.wantsLayer = YES;
     editor.layer.borderWidth = 1;
@@ -91,6 +112,7 @@
     for (NSString* key in @[@"font", @"size", @"bold", @"italic", @"underline", @"strikethrough", @"align",
                             @"background"])
         if (options[key]) op[key] = options[key];
+    op[@"font"] = SPDFAnnotateTextBoxFont(options);  // the text bar's font, also before one is picked
     op[@"text"] = text;
     if (object) {
         op[@"op"] = @"object.update";
@@ -128,6 +150,7 @@
         BOOL on = ![[SPDFAnnotateSettings.shared optionsForTool:@"text_box"][style] boolValue];
         [self.controller applyOperation:@{@"op": @"tool.choose", @"tool": @"text_box", @"options": @{style: @(on)}}
                                     tab:nil completion:nil];
+        [self.controller.palette.annotateGroups row2ForSession:self.session];  // the text bar shows B, I, U as set
         [self layoutTextEditor];
         return YES;
     }

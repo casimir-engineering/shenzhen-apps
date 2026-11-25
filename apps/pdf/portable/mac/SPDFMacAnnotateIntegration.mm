@@ -99,6 +99,11 @@ static BOOL WriteBacking(spdf_paint_doc* doc, NSString* backing, NSString* proje
            SPDFAnnotateWriteFileAtomically(png, backing, error);
 }
 
+NSString* SPDFAnnotateRecentPath(NSString* path) {
+    if (!SPDFAnnotateIsBackingPath(path)) return path;
+    return SPDFAnnotateProjectForBackingPath(path);
+}
+
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wincomplete-implementation"
 @implementation ShenzhenMacDelegate (SPDFMacAnnotate)

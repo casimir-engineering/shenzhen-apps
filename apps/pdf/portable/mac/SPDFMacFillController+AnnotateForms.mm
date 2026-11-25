@@ -131,6 +131,12 @@ static NSString* SPDFAnnotateItemKind(spdf_fill_kind kind) {
 - (NSDictionary*)annotateFormState {
     NSMutableArray* fields = [NSMutableArray array];
     NSMutableArray* items = [NSMutableArray array];
+    // A checkbox's or a radio group's value as the file holds it (/V): the option that is on, else "Off".
+    NSMutableDictionary<NSString*, NSString*>* chosen = [NSMutableDictionary dictionary];
+    for (NSInteger page = 0; page < [self pageCount]; ++page)
+        for (SPDFFillField* f in [self fieldsOnPage:page])
+            if ((f.type == SPDF_FIELD_CHECKBOX || f.type == SPDF_FIELD_RADIO) && f.isOn && f.name)
+                chosen[f.name] = f.value.length ? f.value : @"Yes";
     for (NSInteger page = 0; page < [self pageCount]; ++page) {
         for (SPDFFillField* f in [self fieldsOnPage:page]) {
             NSMutableDictionary* field = [@{@"name": f.name ?: @"", @"kind": SPDFAnnotateFieldKind(f.type),
@@ -141,6 +147,7 @@ static NSString* SPDFAnnotateItemKind(spdf_fill_kind kind) {
             if (f.type == SPDF_FIELD_CHECKBOX || f.type == SPDF_FIELD_RADIO) {
                 field[@"on"] = @(f.isOn);
                 field[@"option"] = f.value ?: @"";
+                field[@"value"] = (f.name ? chosen[f.name] : nil) ?: @"Off";
             } else {
                 field[@"value"] = f.value ?: @"";
             }

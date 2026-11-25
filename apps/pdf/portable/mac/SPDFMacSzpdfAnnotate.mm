@@ -177,6 +177,8 @@ int SPDFMacSzpdfCanvas(NSDictionary* command) {
         if (info && !(info->flags & (SPDF_PAINT_OP_READ_ONLY | SPDF_PAINT_OP_UI_STATE)) && ![op[@"op"] isEqual:@"mode.set"])
             changes = YES;
         if (info && ([@(info->name) hasPrefix:@"view."] || [@(info->name) isEqual:@"doc.save_as_pdf"])) view = YES;
+        if (info && info->route == SPDF_PAINT_ROUTE_FILL_ON_PDF && SPDFAnnotateKindForTab(tab) == SPDFAnnotateDocumentPDF)
+            view = YES;  // Fill & Sign reads its form from the document its window shows (form.state too)
     }
     SPDFAnnotateDocumentKind kind = SPDFAnnotateKindForTab(tab);
     // A PDF is changed through Fill & Sign's commit cycle, which works on the tab its window shows, and the view

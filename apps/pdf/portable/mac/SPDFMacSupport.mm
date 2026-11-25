@@ -147,6 +147,14 @@ static NSArray<NSString*>* spdf_disambiguated_display_names_for_distinct_paths(N
             }
         }
 
+        if (!resolved) {  // the same name in the same folder (notes.md and notes.pdf): the names with their extension
+            NSMutableArray<NSString*>* named = [NSMutableArray arrayWithCapacity:indexes.count];
+            for (NSNumber* number in indexes) [named addObject:paths[number.unsignedIntegerValue].lastPathComponent ?: @""];
+            if (spdf_candidates_are_unique(named)) {
+                for (NSUInteger i = 0; i < indexes.count; ++i) result[indexes[i].unsignedIntegerValue] = named[i];
+                resolved = YES;
+            }
+        }
         if (!resolved) {
             for (NSNumber* number in indexes) {
                 NSString* fullPath = spdf_display_path_without_extension(paths[number.unsignedIntegerValue]);

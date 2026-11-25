@@ -97,6 +97,7 @@ static const NSUInteger kMaxTiles = 600;  // ~150 MB at most
     if (_session) [self commitTextEditor];
     [self cancelGesture];
     _session = session;
+    self.hasPointer = NO;  // the pointer position of another document means nothing here
     [_tiles removeAllObjects];
     [_generations removeAllObjects];
     [self updateAntsTimer];
