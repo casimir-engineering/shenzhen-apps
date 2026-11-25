@@ -7,6 +7,10 @@
 
 #import <objc/runtime.h>
 
+#import "SPDFMacAnnotateLayersPanel.h"
+#import "SPDFMacAnnotatePaletteSupport.h"
+#import "SPDFMacFillPalette.h"
+
 #import "SPDFMacFillController+AnnotatePDF.h"
 
 #import "SPDFMacAnnotateCanvasView.h"
@@ -30,6 +34,11 @@ static char kSPDFAnnotateCanvasViewKey;
     };
     if (![op isKindOfClass:NSDictionary.class] || ![op[@"op"] isKindOfClass:NSString.class]) {
         finish(SPDFAnnotateErrorAnswer(@"invalid_json", @"An operation is an object with an \"op\" name."));
+        return;
+    }
+    NSDictionary* palette = SPDFAnnotateApplyPaletteOperation(self, op, tab);  // tool.choose; colours' side (UI B)
+    if (palette) {
+        finish(palette);
         return;
     }
     tab = tab ?: [self.host fillTab];
@@ -192,11 +201,11 @@ static char kSPDFAnnotateCanvasViewKey;
 }
 
 - (SPDFMacAnnotateLayersPanel*)annotateLayersPanel {
-    return nil;
+    return SPDFAnnotateLayersPanelFor(self, NO);
 }
 
 - (SPDFMacAnnotatePaletteGroups*)annotatePaletteGroups {
-    return nil;
+    return self.palette.annotateGroups;
 }
 
 // -refreshChrome's hook: the canvas view and the status bar follow the mode and the tab.

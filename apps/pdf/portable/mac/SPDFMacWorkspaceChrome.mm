@@ -15,6 +15,8 @@
 #import "SPDFMacWorkspacePanels.h"
 #import "SPDFMacCollectionStyle.h"
 #import "SPDFMacFillIntegration.h"
+#import "SPDFMacAnnotateIntegration.h"
+#import "SPDFMacAnnotateMenus.h"
 #import <objc/runtime.h>
 
 // One compact header per column. The renderer and real minimap retain their

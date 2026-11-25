@@ -1,5 +1,6 @@
 #import "SPDFMacFillIntegration.h"
 
+#import "SPDFMacAnnotateIntegration.h"
 #import "SPDFMacCollectionPathPolicy.h"
 #import "SPDFMacEditedPageThumbnails.h"
 #import "SPDFMacAnnotateIntegration.h"
@@ -71,18 +72,20 @@ void SPDFFillInstallMenuItems(NSMenu* editMenu, NSMenu* fileMenu, ShenzhenMacDel
     target.reader = reader;
     objc_setAssociatedObject(reader, &kSPDFFillMenuTargetKey, target, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     [editMenu addItem:[NSMenuItem separatorItem]];
-    NSMenuItem* fill = [editMenu addItemWithTitle:@"Fill & Sign" action:@selector(toggleFillAndSign:) keyEquivalent:@"f"];
+    NSMenuItem* fill = [editMenu addItemWithTitle:SPDFAnnotateTitle action:@selector(toggleFillAndSign:) keyEquivalent:@"f"];
     fill.keyEquivalentModifierMask = NSEventModifierFlagCommand | NSEventModifierFlagOption;
     fill.target = target;
     [editMenu addItemWithTitle:@"Remove All Pen Lines and Arrows" action:@selector(removeAllPenLinesAndArrows:)
                  keyEquivalent:@""].target = target;
-    [editMenu addItemWithTitle:@"Remove Everything Added with Fill & Sign"
+    [editMenu addItemWithTitle:SPDFAnnotateRemoveEverythingTitle
                         action:@selector(removeEverythingAddedWithFillSign:) keyEquivalent:@""].target = target;
     NSInteger saveAs = [fileMenu indexOfItemWithTarget:nil andAction:@selector(saveDocumentAs:)];
     NSMenuItem* finalCopy = [[NSMenuItem alloc] initWithTitle:@"Save Final Copy…" action:@selector(saveFinalCopy:)
                                                 keyEquivalent:@""];
     finalCopy.target = target;
     [fileMenu insertItem:finalCopy atIndex:saveAs >= 0 ? saveAs + 1 : fileMenu.numberOfItems];
+    NSMenu* viewMenu = [fileMenu.supermenu itemWithTitle:@"View"].submenu ?: [NSMenu new];
+    SPDFAnnotateInstallMenuItems(fileMenu, editMenu, viewMenu, reader);  // Annotate's items and keys (SPDFMacAnnotateMenus.mm)
 }
 
 @implementation ShenzhenMacDelegate (SPDFMacFill)
@@ -225,7 +228,7 @@ void SPDFFillInstallMenuItems(NSMenu* editMenu, NSMenu* fileMenu, ShenzhenMacDel
         return;
     }
     if (session.hasSummary && session.summary.docmdp == 1) {
-        [self showError:@"This PDF can't be filled in" detail:@"Whoever certified it locked it against any change."];
+        [self showError:@"This PDF can't be changed" detail:@"Whoever certified it locked it against any change."];
         return;
     }
     if (![self fillConfirmSignedPDF:session]) return;
@@ -237,9 +240,9 @@ void SPDFFillInstallMenuItems(NSMenu* editMenu, NSMenu* fileMenu, ShenzhenMacDel
     if (!session.hasSummary || session.summary.signed_count == 0 || session.signedNoticeAccepted) return YES;
     NSAlert* alert = [NSAlert new];
     alert.messageText = @"This PDF was signed digitally";
-    alert.informativeText = @"If you fill it in, anyone who checks that signature will see the document changed after it "
-                            @"was signed.";
-    [alert addButtonWithTitle:@"Fill In Anyway"];
+    alert.informativeText = @"If you fill it in or annotate it, anyone who checks that signature will see the document "
+                            @"changed after it was signed.";
+    [alert addButtonWithTitle:@"Change It Anyway"];
     [alert addButtonWithTitle:@"Cancel"];
     if ([alert runModal] != NSAlertFirstButtonReturn) return NO;
     session.signedNoticeAccepted = YES;
@@ -253,7 +256,7 @@ void SPDFFillInstallMenuItems(NSMenu* editMenu, NSMenu* fileMenu, ShenzhenMacDel
     NSString* source = [[self activeWorkingPath] copy];
     NSSavePanel* panel = [NSSavePanel savePanel];
     panel.title = @"Save Final Copy";
-    panel.message = @"What you filled in becomes part of the pages, so it can no longer be changed.";
+    panel.message = @"What you added becomes part of the pages, so it can no longer be changed.";
     panel.nameFieldStringValue = [NSString stringWithFormat:@"%@ (final).pdf",
                                                             _path.lastPathComponent.stringByDeletingPathExtension ?: @"Document"];
     panel.directoryURL = [NSURL fileURLWithPath:_path.stringByDeletingLastPathComponent];
@@ -262,7 +265,7 @@ void SPDFFillInstallMenuItems(NSMenu* editMenu, NSMenu* fileMenu, ShenzhenMacDel
       NSString* destination = panel.URL.path;
       if ([destination.stringByStandardizingPath isEqual:source.stringByStandardizingPath]) {
           [self showError:@"Couldn't save the final copy" detail:@"Choose another name: the final copy can't replace the "
-                                                                 @"document you are filling in."];
+                                                                 @"document you are annotating."];
           return;
       }
       dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
@@ -330,11 +333,11 @@ void SPDFFillInstallMenuItems(NSMenu* editMenu, NSMenu* fileMenu, ShenzhenMacDel
     if (!session) return NO;
     spdf_form_summary summary = session.summary;
     if (summary.docmdp == 1) {
-        [self showError:@"This PDF can't be filled in" detail:@"Whoever certified it locked it against any change."];
+        [self showError:@"This PDF can't be changed" detail:@"Whoever certified it locked it against any change."];
         return NO;
     }
     if (!fieldsOnly && (summary.docmdp == 2 || (!summary.can_add_items && summary.can_fill_fields))) {
-        [self showError:@"This PDF can't take added text or marks" detail:@"This PDF only allows filling in its own fields."];
+        [self showError:@"This PDF can't take annotations" detail:@"This PDF only allows filling in its own fields."];
         return NO;
     }
     if (fieldsOnly ? !summary.can_fill_fields : !summary.can_add_items) {

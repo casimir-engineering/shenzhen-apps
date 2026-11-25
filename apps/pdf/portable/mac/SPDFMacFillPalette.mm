@@ -1,5 +1,7 @@
 #import "SPDFMacFillPalette.h"
 
+#import "SPDFMacAnnotatePaletteGroups.h"
+#import "SPDFMacAnnotatePaletteSupport.h"
 #import "SPDFMacCollectionStyle.h"
 #import "SPDFMacFillController.h"
 #import "SPDFMacFillDrawingOptions.h"
@@ -26,17 +28,18 @@ static NSImage* SPDFPaletteSymbol(NSString* name, NSString* description) {
     NSButton* _signature;
     NSButton* _signatureMenu;
     NSButton* _done;
-    NSButton* _pen;
-    NSButton* _arrow;
-    NSButton* _eraser;
-    NSButton* _select;
+    SPDFMacAnnotatePaletteGroups* _groups;  // Annotate's groups, after the Fill & Sign group
+    NSStackView* _row2;         // the chosen tool's options: Fill & Sign's colours and widths, Annotate's options
+    NSView* _annotateOptions;
+    SPDFAnnotateDocumentKind _kind;
     NSStackView* _column;
     SPDFMacFillDrawingOptions* _options;
     NSLayoutConstraint* _textIconWidth;
     NSLayoutConstraint* _signatureIconWidth;
-    // Narrow page area: 1, Text and Signature show icons only; 2, the progress hides too and the buttons tighten.
+    // Narrow page area: Annotate's groups collapse first (SPDFMacAnnotatePaletteGroups); then 1, Text and Signature
+    // show icons only; 2, the progress hides too and the buttons tighten.
     NSInteger _level;
-    CGFloat _levelWidth[3];  // the tools' width at each level, measured while it shows
+    CGFloat _labelsExtra;    // what "Text" and "Signature" take beyond their icons
     NSMutableArray<NSArray*>* _widths;  // [constraint, full width] of every fixed-width button
     NSString* _progressText;
     __weak NSView* _area;  // the page area the palette sits over (narrower than its superview beside the minimap)
@@ -103,19 +106,10 @@ static NSImage* SPDFPaletteSymbol(NSString* name, NSString* description) {
     _signatureMenu = [self tool:@"" symbol:@"chevron.down" label:@"Signatures and initials" action:@selector(showSignatureMenu:)];
     for (NSLayoutConstraint* c in _signatureMenu.constraints)
         if (c.firstAttribute == NSLayoutAttributeWidth) c.constant = 24;
-    _pen = [self tool:@"" symbol:@"pencil.tip" label:@"Pen" action:@selector(choosePen:)];
-    _arrow = [self tool:@"" symbol:@"arrow.up.right" label:@"Arrow" action:@selector(chooseArrow:)];
-    _eraser = [self tool:@"" symbol:@"eraser" label:@"Eraser" action:@selector(chooseEraser:)];
-    _select = [self tool:@"" symbol:@"rectangle.dashed" label:@"Select" action:@selector(chooseSelect:)];
-    NSDictionary* keys = @{@"Pen" : @"P", @"Arrow" : @"A", @"Eraser" : @"E", @"Select" : @"S"};
-    for (NSButton* button in @[ _pen, _arrow, _eraser, _select ]) {
-        button.toolTip = [NSString stringWithFormat:@"%@ (%@)", button.accessibilityLabel, keys[button.accessibilityLabel]];
-        for (NSLayoutConstraint* c in button.constraints)
-            if (c.firstAttribute == NSLayoutAttributeWidth) c.constant = 30;
-    }
+    _text.toolTip = @"Text (T)";
     _textIconWidth = [_text.widthAnchor constraintEqualToConstant:34];
     _signatureIconWidth = [_signature.widthAnchor constraintEqualToConstant:34];
-    for (NSButton* button in @[ _check, _cross, _signatureMenu, _pen, _arrow, _eraser, _select ])
+    for (NSButton* button in @[ _check, _cross, _signatureMenu ])
         for (NSLayoutConstraint* c in button.constraints)
             if (c.firstAttribute == NSLayoutAttributeWidth) [self keepWidth:c];
     [self keepWidth:_textIconWidth];
@@ -127,39 +121,43 @@ static NSImage* SPDFPaletteSymbol(NSString* name, NSString* description) {
                                     forOrientation:NSLayoutConstraintOrientationHorizontal];
     _done.translatesAutoresizingMaskIntoConstraints = NO;
     [_done.heightAnchor constraintEqualToConstant:28].active = YES;
-    NSView* gap1 = SPDFCollectionSurface(@"line");
     NSView* gap2 = SPDFCollectionSurface(@"line");
-    NSView* gap3 = SPDFCollectionSurface(@"line");
-    for (NSView* gap in @[ gap1, gap2, gap3 ]) {
-        gap.translatesAutoresizingMaskIntoConstraints = NO;
-        [gap.widthAnchor constraintEqualToConstant:1].active = YES;
-        [gap.heightAnchor constraintEqualToConstant:18].active = YES;
-    }
-    _row = [NSStackView stackViewWithViews:@[
-        _progress, _text, _check, _cross, gap1, _pen, _arrow, _eraser, _select, gap3, _signature, _signatureMenu, gap2,
-        _done
-    ]];
+    gap2.translatesAutoresizingMaskIntoConstraints = NO;
+    [gap2.widthAnchor constraintEqualToConstant:1].active = YES;
+    [gap2.heightAnchor constraintEqualToConstant:18].active = YES;
+    // On a PDF the Fill & Sign group first, then on every document Annotate's groups, then Done.
+    _groups = [[SPDFMacAnnotatePaletteGroups alloc] initWithController:_controller];
+    NSMutableArray* views = [@[ _progress, _text, _check, _cross, _signature, _signatureMenu ] mutableCopy];
+    [views addObjectsFromArray:[_groups row1ForKind:SPDFAnnotateDocumentPDF]];
+    [views addObjectsFromArray:@[ gap2, _done ]];
+    _row = [NSStackView stackViewWithViews:views];
     _row.orientation = NSUserInterfaceLayoutOrientationHorizontal;
     _row.alignment = NSLayoutAttributeCenterY;
     _row.spacing = 2;
+    _row.detachesHiddenViews = YES;
     [_row setCustomSpacing:10 afterView:_progress];
-    [_row setCustomSpacing:6 afterView:gap1];
     [_row setCustomSpacing:6 afterView:_cross];
     [_row setCustomSpacing:6 afterView:_signatureMenu];
     [_row setCustomSpacing:6 afterView:gap2];
-    [_row setCustomSpacing:6 afterView:_select];
-    [_row setCustomSpacing:6 afterView:gap3];
     [_row setCustomSpacing:0 afterView:_signature];
     _row.translatesAutoresizingMaskIntoConstraints = NO;
     _options = [[SPDFMacFillDrawingOptions alloc] initWithTarget:self];
     _options.hidden = YES;
+    NSLayoutConstraint* snug = [_options.widthAnchor constraintEqualToConstant:0];  // as wide as its swatches
+    snug.priority = NSLayoutPriorityDefaultLow;
+    snug.active = YES;
+    _annotateOptions = [_groups row2ForSession:nil];
+    _row2 = [NSStackView stackViewWithViews:@[ _options, _annotateOptions ]];
+    _row2.spacing = 12;
+    _row2.detachesHiddenViews = YES;
+    _row2.translatesAutoresizingMaskIntoConstraints = NO;
     _hint = SPDFCollectionText(@"Click a highlighted field to type. What you enter is saved as you go.", 11,
                                NSFontWeightRegular, YES);
     _hint.translatesAutoresizingMaskIntoConstraints = NO;
     _hint.alignment = NSTextAlignmentCenter;
     // The tools, then the drawing options while a drawing tool is chosen, then the hint or note; hidden rows take
     // no room.
-    _column = [NSStackView stackViewWithViews:@[ _row, _options, _hint ]];
+    _column = [NSStackView stackViewWithViews:@[ _row, _row2, _hint ]];
     _column.orientation = NSUserInterfaceLayoutOrientationVertical;
     _column.alignment = NSLayoutAttributeCenterX;
     _column.spacing = 3;
@@ -171,7 +169,6 @@ static NSImage* SPDFPaletteSymbol(NSString* name, NSString* description) {
         [_column.leadingAnchor constraintEqualToAnchor:self.leadingAnchor constant:10],
         [_column.trailingAnchor constraintEqualToAnchor:self.trailingAnchor constant:-6],
         [self.bottomAnchor constraintEqualToAnchor:_column.bottomAnchor constant:5],
-        [_options.widthAnchor constraintEqualToAnchor:_column.widthAnchor],
     ]];
 }
 
@@ -182,11 +179,20 @@ static NSImage* SPDFPaletteSymbol(NSString* name, NSString* description) {
     NSView* area = _area ?: self.superview;
     if (!area) return;
     CGFloat available = NSWidth(area.bounds) - 16;
-    CGFloat width = ceil(_row.fittingSize.width) + 16;
-    _levelWidth[_level] = _level == 0 ? MAX(_levelWidth[0], width) : width;
-    NSInteger level = _level;
-    if (width > available + 0.5 && level < 2) level += 1;
-    else if (level > 0 && _levelWidth[level - 1] > 0 && _levelWidth[level - 1] <= available) level -= 1;
+    // Annotate's groups get what the Fill & Sign group and Done leave. Text and Signature drop their names before
+    // the Tools group folds into its icon (level 1); level 2 only once every group is in More and it still is too wide.
+    CGFloat groups = _groups.currentWidth;
+    CGFloat fixed = ceil(_row.fittingSize.width) + 16 - groups;
+    if (_level == 0 && !_text.hidden)
+        _labelsExtra = MAX(0, ceil(_text.fittingSize.width) + ceil(_signature.fittingSize.width) - 68);
+    CGFloat named = fixed + (_level >= 1 ? _labelsExtra : 0);
+    [_groups layoutRow1InWidth:available - named];
+    NSInteger level = _groups.collapseStep >= 3 ? 1 : 0;
+    if (level >= 1) {
+        [_groups layoutRow1InWidth:available - (named - _labelsExtra)];
+        if (_groups.collapseStep >= 10 && named - _labelsExtra + _groups.currentWidth > available + 0.5) level = 2;
+    }
+    if (fabs(_groups.currentWidth - groups) > 0.5) self.needsLayout = YES;
     if (level == _level) return;
     _level = level;
     dispatch_async(dispatch_get_main_queue(), ^{ [self applyLevel]; });
@@ -245,35 +251,72 @@ static NSImage* SPDFPaletteSymbol(NSString* name, NSString* description) {
     if (hidden) self.alphaValue = 0;
 }
 
+// The Fill & Sign tool a PDF's session holds, as tool.choose names it.
+static NSString* SPDFPaletteFillToolName(SPDFFillSession* session) {
+    switch (session.tool) {
+        case SPDFFillToolText: return @"form_text";
+        case SPDFFillToolMark: return @"form_mark";
+        case SPDFFillToolSignature: return @"form_signature";
+        case SPDFFillToolPen: return @"pen";
+        case SPDFFillToolArrow: return @"arrow";
+        case SPDFFillToolEraser: return @"eraser";
+        case SPDFFillToolSelect: return @"select";
+    }
+    return @"form_text";
+}
+
 - (void)updateFromSession:(SPDFFillSession*)session progress:(NSString*)progress note:(NSString*)note {
-    _progressText = progress;
-    _progress.stringValue = progress ?: @"";
-    _progress.hidden = progress.length == 0 || _level >= 2;
-    _text.state = session.tool == SPDFFillToolText ? NSControlStateValueOn : NSControlStateValueOff;
-    _check.state = session.tool == SPDFFillToolMark && !session.markCross ? NSControlStateValueOn : NSControlStateValueOff;
-    _cross.state = session.tool == SPDFFillToolMark && session.markCross ? NSControlStateValueOn : NSControlStateValueOff;
-    _signature.state = session.tool == SPDFFillToolSignature ? NSControlStateValueOn : NSControlStateValueOff;
+    _kind = SPDFAnnotateCurrentKind(_controller);
+    BOOL pdf = _kind == SPDFAnnotateDocumentPDF;
+    SPDFMacAnnotateSession* annotate = SPDFAnnotateCurrentSession(_controller, _kind != SPDFAnnotateDocumentNone);
+    // On a PDF, Fill & Sign's own tools change inside Fill & Sign too (a signature placed goes back to Text): the
+    // Annotate session follows it while one of them is chosen.
+    NSString* tool = SPDFAnnotateChosenToolName(annotate);
+    NSSet* fillTools = [NSSet setWithArray:@[ @"form_text", @"form_mark", @"form_signature", @"pen", @"arrow", @"select", @"" ]];
+    if (pdf && session && [fillTools containsObject:tool]) {
+        tool = SPDFPaletteFillToolName(session);
+        if (annotate) annotate.tool = (SPDFAnnotateTool)[@{@"form_text" : @(SPDFAnnotateToolFormText),
+            @"form_mark" : @(SPDFAnnotateToolFormMark), @"form_signature" : @(SPDFAnnotateToolFormSignature),
+            @"pen" : @(SPDFAnnotateToolPen), @"arrow" : @(SPDFAnnotateToolArrow), @"eraser" : @(SPDFAnnotateToolEraser),
+            @"select" : @(SPDFAnnotateToolSelect)}[tool] integerValue];
+    }
+    _progressText = pdf ? progress : nil;
+    _progress.stringValue = _progressText ?: @"";
+    _progress.hidden = _progressText.length == 0 || _level >= 2;
+    for (NSView* v in @[ _text, _check, _cross, _signature, _signatureMenu ]) v.hidden = !pdf;
+    _text.state = [tool isEqual:@"form_text"] ? NSControlStateValueOn : NSControlStateValueOff;
+    BOOL mark = [tool isEqual:@"form_mark"];
+    _check.state = mark && !session.markCross ? NSControlStateValueOn : NSControlStateValueOff;
+    _cross.state = mark && session.markCross ? NSControlStateValueOn : NSControlStateValueOff;
+    _signature.state = [tool isEqual:@"form_signature"] ? NSControlStateValueOn : NSControlStateValueOff;
     _signatureMenu.state = _done.state = NSControlStateValueOff;  // a click turns them on; they are never "chosen"
-    NSDictionary* drawingTools = @{@(SPDFFillToolPen) : _pen, @(SPDFFillToolArrow) : _arrow,
-                                   @(SPDFFillToolEraser) : _eraser, @(SPDFFillToolSelect) : _select};
-    for (NSNumber* tool in drawingTools)
-        [drawingTools[tool] setState:session.tool == tool.integerValue ? NSControlStateValueOn : NSControlStateValueOff];
-    BOOL drawing = SPDFFillToolDraws(session.tool);
-    _options.hidden = !drawing;
-    if (drawing)
-        [_options showTool:session.tool selectionColor:[_controller selectionColorIndex]
+    // Fill & Sign's colours and widths: Pen and Arrow everywhere, Select on a PDF (restyles the selected lines).
+    BOOL lines = [tool isEqual:@"pen"] || [tool isEqual:@"arrow"] || (pdf && [tool isEqual:@"select"]);
+    _options.hidden = !lines;
+    if (lines) {
+        SPDFFillTool fillTool = [tool isEqual:@"pen"] ? SPDFFillToolPen : [tool isEqual:@"arrow"] ? SPDFFillToolArrow : SPDFFillToolSelect;
+        [_options showTool:fillTool selectionColor:[_controller selectionColorIndex]
                      width:[_controller selectionWidthIndex] styleable:[_controller selectionHasDrawings]];
+    }
+    BOOL placing = !pdf || !session.hasSummary || session.summary.can_add_items;
+    _groups.enabled = placing;
+    [_groups updateFromSession:annotate progress:_progressText];
+    _annotateOptions.hidden = !_groups.showsRow2;
+    BOOL drawing = !_options.hidden || _groups.showsRow2;
+    _row2.hidden = !drawing;
     _hint.stringValue = note.length ? note : @"Click a highlighted field to type. What you enter is saved as you go.";
-    _hint.hidden = !note.length && (drawing || !session.isForm || [SPDFMacSignatureStore sharedStore].formHintSeen);
+    _hint.hidden = !note.length && (drawing || !pdf || !session.isForm || [SPDFMacSignatureStore sharedStore].formHintSeen);
     // A longer note wraps at the width of the tools (or of the first-form hint) instead of widening the palette.
     CGFloat wrap = MAX(ceil(_row.fittingSize.width) - 8, 370);
     if (_area && NSWidth(_area.bounds) > 100) wrap = MIN(wrap, NSWidth(_area.bounds) - 40);  // within the pages
     _hint.preferredMaxLayoutWidth = wrap;
-    BOOL placing = !session.hasSummary || session.summary.can_add_items;
     _note = note.length > 0;
     _placing = placing;
-    for (NSButton* button in @[ _text, _check, _cross, _signature, _signatureMenu, _pen, _arrow, _eraser, _select ])
-        button.enabled = placing;
+    for (NSButton* button in @[ _text, _check, _cross, _signature, _signatureMenu ]) button.enabled = placing;
+}
+
+- (SPDFMacAnnotatePaletteGroups*)annotateGroups {
+    return _groups;
 }
 
 - (void)refresh {
@@ -286,38 +329,48 @@ static NSImage* SPDFPaletteSymbol(NSString* name, NSString* description) {
     if (!_placing) return height;
     // The tools, the drawing options under them, then the note if there is one (the first-form hint is shorter
     // than the options and gives way to them).
-    CGFloat withOptions = 10 + ceil(_row.fittingSize.height) + 3 + ceil(_options.fittingSize.height);
+    CGFloat withOptions = 10 + ceil(_row.fittingSize.height) + 3 +
+                          MAX(ceil(_options.fittingSize.height), _groups.tallestRow2Height);
     if (_note) withOptions += 3 + ceil(_hint.fittingSize.height);
     return MAX(height, withOptions);
 }
 
 #pragma mark - Actions
 
+// The Fill & Sign group's tools are operations like every other tool (tool.choose), so keys and agents agree.
 - (void)chooseText:(id)sender {
     (void)sender;
-    [_controller chooseTool:SPDFFillToolText];
+    SPDFAnnotateChooseTool(_controller, @"form_text", nil);
 }
 
 - (void)chooseMark:(BOOL)cross {
-    [_controller session].markCross = cross;
-    [_controller chooseTool:SPDFFillToolMark];
+    SPDFAnnotateChooseTool(_controller, @"form_mark", @{@"kind" : cross ? @"cross" : @"check"});
 }
-
-- (void)choosePen:(id)sender { (void)sender; [_controller chooseTool:SPDFFillToolPen]; }
-- (void)chooseArrow:(id)sender { (void)sender; [_controller chooseTool:SPDFFillToolArrow]; }
-- (void)chooseEraser:(id)sender { (void)sender; [_controller chooseTool:SPDFFillToolEraser]; }
-- (void)chooseSelect:(id)sender { (void)sender; [_controller chooseTool:SPDFFillToolSelect]; }
 
 #pragma mark - Drawing options
 
+- (NSString*)hexForFillColor:(NSInteger)index {
+    SPDFFillRGB c = [SPDFMacFillDrawingStyle colorAtIndex:index];
+    return SPDFAnnotateHex(((spdf_paint_color)lround(c.r * 255) << 24) | ((spdf_paint_color)lround(c.g * 255) << 16) |
+                           ((spdf_paint_color)lround(c.b * 255) << 8) | 0xFFu);
+}
+
+// Pen and Arrow remember the colour and width chosen here (tool.choose options) as well as Fill & Sign's style.
+- (void)chooseLineOptions:(NSDictionary*)options {
+    NSString* tool = SPDFAnnotateChosenToolName(SPDFAnnotateCurrentSession(_controller, NO));
+    if ([tool isEqual:@"pen"] || [tool isEqual:@"arrow"]) SPDFAnnotateChooseTool(_controller, tool, options);
+}
+
 - (void)drawingOptionsChoseColor:(NSInteger)index {
     [SPDFMacFillDrawingStyle sharedStyle].colorIndex = index;
+    [self chooseLineOptions:@{@"color" : [self hexForFillColor:index]}];
     if ([_controller session].tool == SPDFFillToolSelect) [_controller restyleSelectionWithColor:index width:-1];
     [self refresh];
 }
 
 - (void)drawingOptionsChoseWidth:(NSInteger)index {
     [SPDFMacFillDrawingStyle sharedStyle].widthIndex = index;
+    [self chooseLineOptions:@{@"width" : @([SPDFMacFillDrawingStyle widthAtIndex:index])}];
     if ([_controller session].tool == SPDFFillToolSelect) [_controller restyleSelectionWithColor:-1 width:index];
     [self refresh];
 }
@@ -341,14 +394,12 @@ static NSImage* SPDFPaletteSymbol(NSString* name, NSString* description) {
 
 - (void)chooseSignature:(id)sender {
     (void)sender;
-    SPDFMacSignature* last = [[SPDFMacSignatureStore sharedStore] lastUsedForInitials:NO];
-    if (last) [_controller pickUpSignature:last];
-    else [_controller addSignatureWithInitials:NO];
+    SPDFAnnotateChooseTool(_controller, @"form_signature", nil);  // the last signature used, or a new one
 }
 
 - (void)done:(id)sender {
     (void)sender;
-    [_controller setOn:NO];
+    SPDFAnnotateSend(_controller, @{@"op" : @"mode.set", @"on" : @NO}, nil);
 }
 
 - (NSMenuItem*)itemForSignature:(SPDFMacSignature*)signature action:(SEL)action {
