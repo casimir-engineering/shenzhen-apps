@@ -295,7 +295,7 @@ NSSet<NSString*>* SPDFMacAIReaderReadOnlyToolNames(void) {
     dispatch_once(&once, ^{
         names = [NSSet setWithArray:@[@"list_workspace", @"document_metadata", @"read_pages", @"search_documents",
                                       @"render_page", @"list_collection", @"current_view", @"reader_state",
-                                      @"list_chats"]];
+                                      @"list_chats", @"annotate_state", @"annotate_look"]];
     });
     return names;
 }

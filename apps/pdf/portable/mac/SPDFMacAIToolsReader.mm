@@ -124,7 +124,7 @@ static NSString* WorkspaceLabel(NSString* text, NSUInteger limit) {
         if (!isnan(cutoff)) result[@"notViewedSince"]=@{@"since":SPDFDocumentActivityISO(cutoff,zone),
             @"noViewRecord":@{@"count":@(unrecordedCount),@"paths":unrecorded}};
     }
-    result[@"capabilities"]=@{@"available":@[@"document_metadata",@"read_pages",@"search_documents",@"render_page",@"show_document",@"organize_groups",@"list_chats",@"organize_chats",@"read_comments",@"edit_comment",@"reader_state",@"reader_control",@"list_collection",@"open_collection",@"close_document",@"reopen_document",@"rename_document",@"document_job",@"undo_action"],
+    result[@"capabilities"]=@{@"available":@[@"document_metadata",@"read_pages",@"search_documents",@"render_page",@"show_document",@"organize_groups",@"list_chats",@"organize_chats",@"read_comments",@"edit_comment",@"reader_state",@"reader_control",@"list_collection",@"open_collection",@"close_document",@"reopen_document",@"rename_document",@"document_job",@"annotate_apply",@"annotate_state",@"annotate_look",@"canvas_new",@"undo_action"],
         @"documentJobs":@{@"kinds":@[@"ocr",@"translate",@"export-pdf"],@"requires":@"OCR and translation need installed local tools; no silent installation."},
         @"unavailable":@{@"delete_files":@"No reversible file deletion adapter."}};
     return result;

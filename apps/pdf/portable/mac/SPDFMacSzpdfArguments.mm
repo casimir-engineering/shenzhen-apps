@@ -64,6 +64,7 @@ static NSArray* const kTwoWord = @[ @"comment", @"version" ];
 
 NSDictionary* SPDFMacSzpdfParseArguments(NSArray<NSString*>* arguments, NSString* directory, NSError** error) {
     if ([arguments.firstObject isEqualToString:@"--version"] && arguments.count == 1) return @{@"command" : @"version-info"};
+    if (SPDFMacSzpdfIsAnnotateCommand(arguments)) return SPDFMacSzpdfParseAnnotateArguments(arguments, directory, error);
     BOOL help = NO;
     NSMutableArray<NSString*>* words = [NSMutableArray array];
     for (NSString* argument in arguments) {

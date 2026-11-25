@@ -72,6 +72,8 @@ NSDictionary* SPDFMacAgentChannelValidateRequest(NSData* line, NSError** error) 
         @"screenshot" : @[ @"command", @"windowId", @"output" ],
         @"comments-changed" : @[ @"command", @"path" ],
         @"version" : @[ @"command", @"action", @"path", @"carry", @"older", @"newer", @"front", @"wait" ],
+        @"annotate" : @[ @"command", @"target", @"ops", @"timeout" ],
+        @"canvas-new" : @[ @"command", @"width", @"height", @"background", @"front" ],
     };
     if (!request) failure = ChannelError(@"The request is not a JSON object.");
     else if (!allowed[command ?: @""]) failure = ChannelError(@"Unknown command.");
@@ -122,6 +124,25 @@ NSDictionary* SPDFMacAgentChannelValidateRequest(NSData* line, NSError** error) 
         else if (!IsAbsolutePath(request[@"output"]) ||
                  ![[request[@"output"] pathExtension].lowercaseString isEqual:@"png"])
             failure = ChannelError(@"The picture's path must be absolute and end in .png.");
+    }
+    if (!failure && [command isEqual:@"annotate"]) {
+        id target = request[@"target"], ops = request[@"ops"];
+        BOOL tab = [target isKindOfClass:NSString.class] && [target hasPrefix:@"tab-"] && [target length] < 40;
+        if (!tab && !IsAbsolutePath(target)) failure = ChannelError(@"target is an absolute path or a tab id.");
+        else if (![ops isKindOfClass:NSArray.class] || ![ops count] || [ops count] > 1000)
+            failure = ChannelError(@"ops is a list of 1 to 1000 operations.");
+        for (id op in failure ? @[] : ops)
+            if (![op isKindOfClass:NSDictionary.class] || ![op[@"op"] isKindOfClass:NSString.class])
+                failure = ChannelError(@"Each operation is an object with \"op\".");
+    }
+    if (!failure && [command isEqual:@"canvas-new"]) {
+        for (NSString* key in @[ @"width", @"height" ])
+            if (request[key] && !IsWholeNumber(request[key], 1, 16384))
+                failure = ChannelError(@"width and height are whole pixels from 1 to 16384.");
+        if (request[@"background"] && (![request[@"background"] isKindOfClass:NSString.class] ||
+                                       [request[@"background"] length] > 16))
+            failure = ChannelError(@"background is transparent or a colour.");
+        if (request[@"front"] && !IsBool(request[@"front"])) failure = ChannelError(@"front must be true or false.");
     }
     if (failure) {
         if (error) *error = failure;

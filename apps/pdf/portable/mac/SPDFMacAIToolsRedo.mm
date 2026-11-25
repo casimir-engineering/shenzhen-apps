@@ -1,4 +1,5 @@
 #import "SPDFMacAIToolsPrivate.h"
+#import "SPDFMacAnnotateAgents.h"
 #import "SPDFMacAIChatOrganizationTools.h"
 #import "SPDFMacAIToolsReader.h"
 #import "SPDFMacAIReaderControls.h"
@@ -43,6 +44,7 @@
 - (void)undoWithCompletion:(void (^)(NSDictionary*))completion {
     NSDictionary* action=self.actions.lastObject;
     if(action[@"chatOrganization"]){[self swapChatOrganizationAction:NO completion:completion];return;}
+    if(action[@"annotate"]){[self swapAnnotateAction:NO completion:completion];return;}
     if(!action[@"metadata"]) {NSError* error=nil;BOOL ok=[self undoLastAction:&error];completion(ok ? @{@"undone":@YES} : @{@"error":error.localizedDescription ?: @"Nothing to undo"});return;}
     self.progress=[NSProgress progressWithTotalUnitCount:1];
     [self.reader aiSwapMetadataReceipt:action[@"metadata"] progress:self.progress completion:^(NSDictionary* result){
@@ -66,6 +68,7 @@
 - (void)redoWithCompletion:(void (^)(NSDictionary*))completion {
     NSDictionary* action=self.redoActions.lastObject;
     if(action[@"chatOrganization"]){[self swapChatOrganizationAction:YES completion:completion];return;}
+    if(action[@"annotate"]){[self swapAnnotateAction:YES completion:completion];return;}
     if(!action || ![action[@"guard"] isEqual:[self redoGuardForAction:action]]) {completion(@{@"error":@"Nothing to redo, or the document/workspace changed since Undo."});return;}
     self.progress=[NSProgress progressWithTotalUnitCount:1];
     void (^finished)(NSDictionary*)=^(NSDictionary* result){

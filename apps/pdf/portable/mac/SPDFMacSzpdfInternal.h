@@ -111,4 +111,33 @@ FOUNDATION_EXPORT NSArray<NSDictionary*>* SPDFMacSzpdfCommentChanges(NSArray<NSD
 FOUNDATION_EXPORT void SPDFMacSzpdfWatchComments(NSString* path, NSDate* _Nullable since, NSTimeInterval timeout,
                                                  dispatch_queue_t queue, void (^done)(NSDictionary* answer));
 
+#pragma mark - Annotate's commands and operation schema (SPDFMacSzpdfAnnotateCommands.mm)
+
+// `szpdf annotate ...` and `szpdf canvas ...` read their own command lines: an operation's flags are its arguments,
+// typed by the operation's schema (spdf_paint_schema()), so the general parser never sees them.
+FOUNDATION_EXPORT BOOL SPDFMacSzpdfIsAnnotateCommand(NSArray<NSString*>* arguments);
+// {"command": "annotate", target (a real path or a tab id), ops [...], script?, state?, timeout},
+// {"command": "annotate-schema", op?}, {"command": "canvas-new", width?, height?, background?, front, timeout} or
+// {"command": "help", topic}; nil and a usage `error` (userInfo "command") otherwise.
+FOUNDATION_EXPORT NSDictionary* _Nullable SPDFMacSzpdfParseAnnotateArguments(NSArray<NSString*>* arguments,
+                                                                            NSString* directory, NSError** error);
+// The two commands' rows for SPDFMacSzpdfCommandTable (also declared in SPDFMacAnnotateAgents.h). A row's "more" is
+// text help prints after the options (the operation list).
+FOUNDATION_EXPORT NSArray<NSDictionary*>* SPDFMacSzpdfAnnotateCommandRows(void);
+// `szpdf annotate schema [op]`: the whole schema, or one operation's with the shared $defs.
+FOUNDATION_EXPORT NSDictionary* SPDFMacSzpdfAnnotateSchemaAnswer(NSString* _Nullable op);
+
+// spdf_paint_schema() as Foundation objects, parsed once; the operation names in § 6 order; one operation's schema
+// (nil when unknown); a property with its "$ref" resolved against "$defs".
+FOUNDATION_EXPORT NSDictionary* SPDFAnnotateSchemaObject(void);
+FOUNDATION_EXPORT NSArray<NSString*>* SPDFAnnotateOperationNames(void);
+FOUNDATION_EXPORT NSDictionary* _Nullable SPDFAnnotateOperationSchema(NSString* _Nullable name);
+FOUNDATION_EXPORT NSDictionary* SPDFAnnotateResolvedProperty(NSDictionary* property);
+// Every operation on one line, "name {argument*: type, ...} summary", and the shared types: the assistant's reference.
+FOUNDATION_EXPORT NSString* SPDFAnnotateOperationReference(void);
+// "tab-<pid>-<n>" (SPDFAnnotateTabIdentifier in SPDFMacAnnotateAgents.h).
+FOUNDATION_EXPORT BOOL SPDFAnnotateIsTabIdentifier(NSString* _Nullable text);
+// "path" and "out" made absolute against `directory`.
+FOUNDATION_EXPORT NSDictionary* SPDFAnnotateAbsoluteArguments(NSDictionary* op, NSString* directory);
+
 NS_ASSUME_NONNULL_END

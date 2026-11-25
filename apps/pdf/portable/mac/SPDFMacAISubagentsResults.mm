@@ -221,7 +221,8 @@ NSString* SPDFMacAISubagentStepText(NSString* tool) {
                   @"document_metadata" : @"Checking a document…", @"list_collection" : @"Searching the Collection…",
                   @"current_view" : @"Checking what’s on screen…", @"reader_state" : @"Checking what’s on screen…",
                   @"list_chats" : @"Looking through chats…", @"web_search" : @"Searching the web…",
-                  @"open_page" : @"Reading a web page…", @"run_python" : @"Running Python…"};
+                  @"open_page" : @"Reading a web page…", @"run_python" : @"Running Python…",
+                  @"annotate_state" : @"Checking a document…", @"annotate_look" : @"Looking at a page…"};
     });
     return [tool isKindOfClass:NSString.class] && steps[tool] ? steps[tool] : @"Working…";
 }

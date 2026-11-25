@@ -480,6 +480,7 @@ mac-reader-action-tests: | $(BUILD)
 # szpdf's commands that need no window (mac/SPDFMacSzpdfInternal.h), headless, with the Markdown engine they lay out
 # documents with. Opt-in, not run by the release (README.md § Opt-in checks).
 MAC_SZPDF_TEST_SRCS := mac/tests/SPDFMacSzpdfTests.mm mac/SPDFMacSzpdfHelp.mm mac/SPDFMacSzpdfArguments.mm \
+	mac/SPDFMacSzpdfAnnotateCommands.mm \
 	mac/SPDFMacSzpdfHeadingMatch.mm mac/SPDFMacSzpdfDocument.mm mac/SPDFMacSzpdfCheck.mm mac/SPDFMacSzpdfFeatures.mm \
 	mac/SPDFMacSzpdfChanges.mm mac/SPDFMacAgentComments.mm mac/SPDFMacMarkdownComments.mm \
 	mac/SPDFMacMarkdownCommentAnchors.mm mac/SPDFMacMarkdownPrinting.mm mac/SPDFMacMarkdownRouting.mm \
@@ -491,7 +492,7 @@ mac-szpdf-check: $(CORE_OBJS) $(MAC_MD4C_OBJ) $(MAC_GUMBO_OBJS) mupdf-libs | $(B
 # szpdf's channel to the running app (mac/SPDFMacAgentChannel.h). Opt-in, not run by the release (README.md § Opt-in
 # checks).
 mac-agent-channel-check: $(CORE_OBJS) mupdf-libs | $(BUILD)
-	clang++ $(MAC_TARGET_FLAGS) -std=c++17 -fobjc-arc -Wall -Wextra -Werror -Imac -Icore -I$(MUPDF_DIR)/include mac/tests/SPDFMacAgentChannelTests.mm mac/SPDFMacAgentChannel.mm mac/SPDFMacSzpdfArguments.mm mac/SPDFMacSzpdfHelp.mm mac/SPDFMacCommandLineTool.mm mac/SPDFMacAgentComments.mm mac/SPDFMacMarkdownComments.mm mac/SPDFMacAIFileTransaction.mm $(CORE_OBJS) $(MUPDF_LIBS) -framework Cocoa -lm -o "$(BUILD)/SPDFMacAgentChannelTests"
+	clang++ $(MAC_TARGET_FLAGS) -std=c++17 -fobjc-arc -Wall -Wextra -Werror -Imac -Icore -I$(MUPDF_DIR)/include mac/tests/SPDFMacAgentChannelTests.mm mac/SPDFMacAgentChannel.mm mac/SPDFMacSzpdfArguments.mm mac/SPDFMacSzpdfHelp.mm mac/SPDFMacSzpdfAnnotateCommands.mm mac/SPDFMacCommandLineTool.mm mac/SPDFMacAgentComments.mm mac/SPDFMacMarkdownComments.mm mac/SPDFMacAIFileTransaction.mm $(CORE_OBJS) $(MUPDF_LIBS) -framework Cocoa -lm -o "$(BUILD)/SPDFMacAgentChannelTests"
 	"$(BUILD)/SPDFMacAgentChannelTests"
 
 mac-agent-tests: | $(BUILD)

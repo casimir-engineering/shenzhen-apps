@@ -1,5 +1,6 @@
 #import "SPDFMacAITools.h"
 #import "SPDFMacAICurrentView.h"
+#import "SPDFMacAnnotateAgents.h"
 #import "SPDFMacAIToolsReader.h"
 #import "SPDFMacAIToolsComments.h"
 #import "SPDFMacAIReaderControls.h"
@@ -62,9 +63,7 @@ static NSString* Citation(NSString* path, NSNumber* page, NSString* revision, NS
     return link.URL.absoluteString ?: @"";
 }
 static NSDictionary* ToolError(NSString* message) { return @{@"error":message.length ? message : @"The assistant action could not be completed."}; }
-static NSDictionary* Field(NSString* type, NSString* description) {
-    return @{@"type":type,@"description":description};
-}
+static NSDictionary* Field(NSString* type, NSString* description) { return @{@"type":type,@"description":description}; }
 static NSDictionary* Definition(NSString* name, NSString* description, NSDictionary* properties, NSArray* required) {
     return @{@"type":@"function",@"function":@{@"name":name,@"description":description,
         @"parameters":@{@"type":@"object",@"properties":properties,@"required":required,@"additionalProperties":@NO}}};
@@ -140,7 +139,7 @@ static NSDictionary* Definition(NSString* name, NSString* description, NSDiction
             @{@"path":path,@"revision":Field(@"string",@"Current source revision"),@"metadata":Field(@"object",@"Only fields to change")},@[@"path",@"revision",@"metadata"]),
         Definition(@"redo_action",@"Redo the last undone assistant action if the document and workspace are unchanged.",@{},@[]),
         Definition(@"undo_action",@"Undo the most recent assistant action if its result is still unchanged. Never overwrites intervening human edits.",@{},@[])
-    ] arrayByAddingObjectsFromArray:SPDFChatOrganizationToolDefinitions()];
+    ] arrayByAddingObjectsFromArray:[SPDFChatOrganizationToolDefinitions() arrayByAddingObjectsFromArray:SPDFMacAIAnnotateToolDefinitions()]];
 }
 - (NSDictionary*)conversationContext {
     __weak ShenzhenMacDelegate* reader=self.reader;
@@ -269,6 +268,7 @@ static NSDictionary* Definition(NSString* name, NSString* description, NSDiction
     NSDictionary* invalid=[self validatedArguments:arguments forTool:name];
     if (invalid) { completion(invalid); return; }
     if (!self.reader) { completion(ToolError(@"Reader window is closed.")); return; }
+    if ([self performAnnotateTool:name arguments:arguments completion:completion]) return; // SPDFMacAIToolsAnnotate.mm
     if ([name isEqual:@"list_workspace"]) { [self.reader aiWorkspaceContextWithArguments:arguments completion:completion]; return; }
     if ([name isEqual:@"document_metadata"]) {
         NSMutableDictionary* metadata=[[self.reader aiDocumentMetadataForPath:arguments[@"path"]] mutableCopy];

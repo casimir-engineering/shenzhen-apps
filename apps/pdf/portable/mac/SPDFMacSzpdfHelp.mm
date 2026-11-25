@@ -216,6 +216,11 @@ NSArray<NSDictionary*>* SPDFMacSzpdfCommandTable(void) {
             @"summary" : @"This help; `szpdf help <command>` (or `szpdf <command> --help`) for one command.",
             @"options" : @[], @"example" : @"szpdf help comment add", @"fields" : @[]},
       ];
+      // Annotate's two commands (SPDFMacSzpdfAnnotateCommands.mm) go before schema and help.
+      NSMutableArray* rows = [table mutableCopy];
+      [rows insertObjects:SPDFMacSzpdfAnnotateCommandRows()
+                atIndexes:[NSIndexSet indexSetWithIndexesInRange:NSMakeRange(rows.count - 2, 2)]];
+      table = rows;
     });
     return table;
 }
@@ -284,6 +289,7 @@ NSString* SPDFMacSzpdfHelpText(NSString* name) {
     }
     NSMutableString* out = [NSMutableString stringWithFormat:@"szpdf %@: %@\n\nUsage: %@\n", entry[@"name"], entry[@"summary"], entry[@"usage"]];
     if ([entry[@"options"] count]) [out appendFormat:@"\nOptions:\n%@", Columns(entry[@"options"], 2)];
+    if (entry[@"more"]) [out appendString:entry[@"more"]];
     [out appendFormat:@"\nExample:\n  %@\n", entry[@"example"]];
     NSArray* fields = [entry[@"fields"] count] ? [CommonFields() arrayByAddingObjectsFromArray:entry[@"fields"]] : nil;
     if (fields) [out appendFormat:@"\nJSON fields:\n%@", Columns(fields, 2)];

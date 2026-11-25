@@ -32,6 +32,31 @@ FOUNDATION_EXPORT int SPDFMacSzpdfCanvas(NSDictionary* command);
 // The two commands' rows for the command table behind help and `szpdf schema` (SPDFMacSzpdfCommandTable).
 FOUNDATION_EXPORT NSArray<NSDictionary*>* SPDFMacSzpdfAnnotateCommandRows(void);
 
+// Annotate's answer ({"ok":false,"error":code,"message":...}) in szpdf's shape ({"error":{"code","message"}}).
+FOUNDATION_EXPORT NSDictionary* SPDFAnnotateAgentAnswer(NSDictionary* answer);
+// What applyOperations answered, as `szpdf annotate --script` and annotate_apply print it: {"ok", "results" (each
+// reshaped), "applied" (how many succeeded), and at the first failure "error" and "failedAt", "tab", "windowId"}.
+FOUNDATION_EXPORT NSDictionary* SPDFAnnotateScriptAnswer(NSDictionary* answer);
+
+#pragma mark - Tabs for agents (SPDFMacSzpdfAnnotate.mm)
+
+// The tab's id for agents, "tab-<pid>-<n>": given the first time it is asked for, kept for the tab's life, never
+// reused in the process. A never-saved canvas has no path, so this is how agents name it.
+FOUNDATION_EXPORT NSString* _Nullable SPDFAnnotateTabIdentifier(SPDFDocumentTab* _Nullable tab);
+
+@interface ShenzhenMacDelegate (SPDFMacAnnotateAgentTabs)
+// This window's tab showing a document path, or with that tab id; nil when there is none.
+- (nullable SPDFDocumentTab*)annotateAgentTabForTarget:(NSString*)target;
+// ops through the window's controller (applyOperations:tab:completion:); the answer, once, with "tab", "windowId" and
+// "path" added.
+- (void)annotateAgentApply:(NSArray<NSDictionary*>*)ops tab:(SPDFDocumentTab*)tab
+                     reply:(void (^)(NSDictionary* answer))reply;
+// canvas.new {width?, height?, background?} through the controller; the answer with the new tab's "tab" and
+// "windowId". front: the window comes forward; otherwise it is only shown, behind, when it was not visible.
+- (void)annotateAgentNewCanvas:(NSDictionary*)arguments front:(BOOL)front
+                         reply:(void (^)(NSDictionary* answer))reply;
+@end
+
 #pragma mark - The reader's side of the szpdf channel (SPDFMacSzpdfAnnotate.mm)
 
 @interface ShenzhenMacDelegate (SPDFMacAnnotateAgentServer)
@@ -53,6 +78,9 @@ FOUNDATION_EXPORT NSArray<NSDictionary*>* SPDFMacAIAnnotateToolDefinitions(void)
 // other tools.
 - (BOOL)performAnnotateTool:(NSString*)name arguments:(NSDictionary*)arguments
                  completion:(void (^)(NSDictionary* result))completion;
+// undo_action / redo_action on an annotate_apply action ({"annotate": ...} in actions): history.undo or history.redo
+// of its steps on its tab, refused when the document changed since (SPDFMacAIToolsRedo.mm calls it).
+- (void)swapAnnotateAction:(BOOL)redo completion:(void (^)(NSDictionary* result))completion;
 @end
 
 NS_ASSUME_NONNULL_END
