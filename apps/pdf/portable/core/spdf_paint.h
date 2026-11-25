@@ -322,6 +322,15 @@ int spdf_paint_pdf_page_has_items(spdf_document* pdf, int page_index, char* err,
 /* Removes everything Annotate wrote on every page (Edit > Remove Everything Added with Annotate, with Fill & Sign's
  * own removal); the caller saves. */
 spdf_paint_status spdf_paint_pdf_remove_all(spdf_document* pdf, char* err, size_t err_len);
+/* The same with undo: *removed (may be NULL when nothing was there) keeps what was removed, independent of `pdf`
+ * (it survives a move to a writable copy); pages (0-based, at most max_pages) and *page_count say which pages
+ * changed. spdf_paint_pdf_restore_removed puts it all back at its depth; the caller saves. */
+typedef struct spdf_paint_pdf_removed spdf_paint_pdf_removed;
+spdf_paint_status spdf_paint_pdf_remove_all_ex(spdf_document* pdf, spdf_paint_pdf_removed** removed, int* pages,
+                                               int max_pages, int* page_count, char* err, size_t err_len);
+spdf_paint_status spdf_paint_pdf_restore_removed(spdf_document* pdf, const spdf_paint_pdf_removed* removed, int* pages,
+                                                 int max_pages, int* page_count, char* err, size_t err_len);
+void spdf_paint_pdf_free_removed(spdf_paint_pdf_removed* removed);
 
 #ifdef __cplusplus
 }

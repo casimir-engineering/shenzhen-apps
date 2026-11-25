@@ -300,6 +300,7 @@ struct spdf_paint_doc {
     int page_index;           /* -1 otherwise */
     int page_rotation;        /* 0, 90, 180, 270 */
     float page_width, page_height; /* points, as displayed */
+    struct spdf_paint_pdf_state* pdf_state; /* spdf_paint_pdf.c's own; freed by spdf_paint_pdf_close */
 };
 
 /* A frontend's error buffer, filled by the units on failure. */
@@ -430,6 +431,8 @@ int spdf_paint_pdf_draw_annotation(spdf_paint_doc* doc, const spdf_paint_object*
  * page canvas, including undo and redo). */
 void spdf_paint_pdf_note_change(spdf_paint_doc* doc, spdf_paint_layer* layer);
 void spdf_paint_pdf_note_order(spdf_paint_doc* doc);
+/* Frees what the bridge keeps for a PDF page canvas (spdf_paint_close calls it first; harmless on other canvases). */
+void spdf_paint_pdf_close(spdf_paint_doc* doc);
 
 #ifdef __cplusplus
 }
