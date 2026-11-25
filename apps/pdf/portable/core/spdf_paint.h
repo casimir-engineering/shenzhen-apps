@@ -234,6 +234,9 @@ spdf_paint_status spdf_paint_layer_thumbnail(spdf_paint_doc* doc, spdf_paint_id 
 /* Where the canvas changed since the last call (canvas units), so a view redraws only those tiles: 1 and *changed
  * set, or 0 when nothing changed. A change of size or of every layer reports the whole canvas. */
 int spdf_paint_take_damage(spdf_paint_doc* doc, spdf_rect* changed);
+/* The topmost visible object under (x, y) in canvas units, within slop units of its line or box; 0 when none (Core A,
+ * for the Select tool's clicks and right-click menus). */
+spdf_paint_id spdf_paint_object_at(spdf_paint_doc* doc, float x, float y, float slop);
 /* Bumped by every change (operations, undo, redo, a load). */
 uint64_t spdf_paint_generation(const spdf_paint_doc* doc);
 
