@@ -16,5 +16,6 @@ void spdf_fill_finish_item(fz_context* ctx, pdf_annot* annot, const char* nm, co
 fz_rect spdf_fill_to_fz(spdf_rect rect);
 /* After a stamp (a signature) is written or its /Rect changes, and after pdf_update_annot: its appearance's /Matrix
  * maps the /BBox onto the /Rect's size, so readers that draw the appearance at its BBox size without fitting it to
- * the Rect (Finder's previews) show it at the size it was placed. Other annotations are left alone. */
+ * the Rect (Finder's previews) show it at the size it was placed; on a page with /Rotate it also turns, so the
+ * signature stands upright as the page is shown. Other annotations are left alone. */
 void spdf_fill_fit_stamp_appearance(fz_context* ctx, pdf_annot* annot);

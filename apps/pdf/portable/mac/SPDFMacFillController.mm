@@ -224,6 +224,11 @@ static char kSPDFFillSessionKey;
     if (spdf_form_load_page_widgets([_host fillDocument], (int)page, &widgets, err, sizeof(err)))
         fields = [SPDFFillField fieldsFromWidgets:&widgets];
     spdf_free_form_widgets(&widgets);
+    // A signature goes in as an added picture: where the PDF allows filling in its fields only, its signature fields
+    // can't take one, so they show and answer as fields that can't be changed (not as an offer that then fails).
+    if (session.hasSummary && !session.summary.can_add_items)
+        for (SPDFFillField* field in fields)
+            if (field.type == SPDF_FIELD_SIGNATURE) field.flags |= SPDF_FIELD_READ_ONLY;
     _fields[@(page)] = fields;
     return fields;
 }

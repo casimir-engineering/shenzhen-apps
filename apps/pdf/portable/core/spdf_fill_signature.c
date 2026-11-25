@@ -48,17 +48,28 @@ static void parse_outline(fz_context* ctx, fz_path* path, const char* s, float s
 
 void spdf_fill_fit_stamp_appearance(fz_context* ctx, pdf_annot* annot) {
     pdf_obj* ap;
-    fz_rect box, rect;
-    float sx, sy;
+    pdf_page* page;
+    fz_rect box, rect, turned;
+    fz_matrix m;
+    float w, h;
+    int rotate = 0;
     if (pdf_annot_type(ctx, annot) != PDF_ANNOT_STAMP) return;
     ap = pdf_dict_getp(ctx, pdf_annot_obj(ctx, annot), "AP/N");
     if (!pdf_is_stream(ctx, ap)) return;
     box = pdf_dict_get_rect(ctx, ap, PDF_NAME(BBox));
     rect = pdf_annot_rect(ctx, annot);
     if (!(box.x1 - box.x0 > 0.001f && box.y1 - box.y0 > 0.001f && rect.x1 > rect.x0 && rect.y1 > rect.y0)) return;
-    sx = (rect.x1 - rect.x0) / (box.x1 - box.x0);
-    sy = (rect.y1 - rect.y0) / (box.y1 - box.y0);
-    pdf_dict_put_matrix(ctx, ap, PDF_NAME(Matrix), fz_make_matrix(sx, 0, 0, sy, -box.x0 * sx, -box.y0 * sy));
+    /* On a page shown turned (/Rotate), the drawing turns too, to stand upright as the page is shown, as typed text
+     * does. pdf_annot_rect gives the Rect as the page is shown, so its width and height are the drawing's. */
+    page = pdf_annot_page(ctx, annot);
+    if (page) rotate = pdf_dict_get_inheritable_int(ctx, page->obj, PDF_NAME(Rotate));
+    rotate = ((rotate % 360) + 360) % 360 / 90 * 90;
+    w = rect.x1 - rect.x0, h = rect.y1 - rect.y0;
+    m = fz_concat(fz_translate(-box.x0, -box.y0), fz_scale(w / (box.x1 - box.x0), h / (box.y1 - box.y0)));
+    m = fz_concat(m, fz_rotate((float)rotate));
+    turned = fz_transform_rect(box, m);
+    m = fz_concat(m, fz_translate(-turned.x0, -turned.y0));
+    pdf_dict_put_matrix(ctx, ap, PDF_NAME(Matrix), m);
 }
 
 /* A Stamp keeps our drawing when moved: MuPDF only redraws stamps with a standard /Name. */

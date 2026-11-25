@@ -2684,6 +2684,38 @@ pdf_write_free_text_appearance(fz_context *ctx, pdf_annot *annot, fz_buffer *buf
 	*bbox = *rect;
 }
 
+/* ShenzhenPDF: a list box shows its chosen items on a highlight, as Acrobat draws them; without it a choice made in
+ * any reader that draws the appearance (Preview, Quick Look, this one) did not show at all. Rows follow the lines
+ * write_variable_text lays out from /TI: baseline i at the top less (i + 1) x 1.116 x size. */
+static void
+write_list_selection(fz_context *ctx, pdf_annot *annot, fz_buffer *buf, float size, float w, float h, float padding)
+{
+	pdf_obj *opt = pdf_dict_get_inheritable(ctx, annot->obj, PDF_NAME(Opt));
+	pdf_obj *v = pdf_dict_get_inheritable(ctx, annot->obj, PDF_NAME(V));
+	int i = pdf_dict_get_int(ctx, annot->obj, PDF_NAME(TI)), n = pdf_array_len(ctx, opt), row, k;
+	float lh = size * 1.116f;
+	if (i < 0)
+		i = 0;
+	for (row = 0; i < n; ++i, ++row)
+	{
+		pdf_obj *item = pdf_array_get(ctx, opt, i);
+		const char *value = pdf_is_array(ctx, item) ? pdf_array_get_text_string(ctx, item, 0) : pdf_to_text_string(ctx, item);
+		float y = h - padding - (row + 1) * lh - 0.25f * size;
+		int chosen = 0;
+		if (pdf_is_array(ctx, v))
+		{
+			for (k = 0; k < pdf_array_len(ctx, v) && !chosen; ++k)
+				chosen = !strcmp(value, pdf_array_get_text_string(ctx, v, k));
+		}
+		else if (v)
+			chosen = !strcmp(value, pdf_to_text_string(ctx, v));
+		if (y + lh < padding)
+			break;
+		if (chosen)
+			fz_append_printf(ctx, buf, "0.6 0.757 0.855 rg %g %g %g %g re f\n", padding, y, w - 2 * padding, lh);
+	}
+}
+
 static void
 pdf_write_tx_widget_appearance(fz_context *ctx, pdf_annot *annot, fz_buffer *buf,
 	const fz_rect *rect, fz_rect *bbox, fz_matrix *matrix, pdf_obj **res,
@@ -2762,6 +2794,8 @@ pdf_write_tx_widget_appearance(fz_context *ctx, pdf_annot *annot, fz_buffer *buf
 
 	if (ff & PDF_TX_FIELD_IS_MULTILINE)
 	{
+		if (pdf_field_type(ctx, annot->obj) == PDF_WIDGET_TYPE_LISTBOX)
+			write_list_selection(ctx, annot, buf, size ? size : 12, w, h, b*2);
 		write_variable_text(ctx, annot, buf, res, lang, text, font, size, n, color, q, w, h, b*2,
 			1.116f, 1.116f, 1, 0, 1);
 	}

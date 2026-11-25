@@ -36,6 +36,7 @@
 - (BOOL)handlesTypedKey:(NSEvent*)event;
 // Takes the keys when the pages had them, so Tab, Space, X and V work without a click first.
 - (void)takeKeysFromPages;
+- (SPDFFillItem*)focusedMark;  // our mark in the box Tab moved to, if any
 @end
 
 // Pen lines and arrows on the overlay (SPDFMacFillOverlayView+Drawing.mm).
