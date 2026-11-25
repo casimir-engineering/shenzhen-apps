@@ -11,5 +11,6 @@
 static inline int spdf_annot_obj_is_fill_item(fz_context* ctx, pdf_obj* annot) {
     const char* nm = pdf_to_text_string(ctx, pdf_dict_gets(ctx, annot, "NM")); /* not in MuPDF's name table */
     if (strncmp(nm, SPDF_FILL_NM_PREFIX, sizeof(SPDF_FILL_NM_PREFIX) - 1) == 0) return 1;
+    if (strncmp(nm, "spdf-annotate-", 14) == 0) return 1; /* Annotate's (SPDF_PAINT_NM_PREFIX): not comments either */
     return pdf_name_eq(ctx, pdf_dict_get(ctx, annot, PDF_NAME(IT)), PDF_NAME(FreeTextTypeWriter));
 }

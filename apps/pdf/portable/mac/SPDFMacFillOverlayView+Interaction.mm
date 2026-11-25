@@ -8,7 +8,7 @@
 @implementation SPDFMacFillOverlayView (Interaction)
 
 - (void)rightMouseDown:(NSEvent*)event {
-    if ([self drawingRightMouseDown:event]) return;
+    if ([self annotateTakeMouseDown:event] || [self drawingRightMouseDown:event]) return;
     NSInteger index;
     NSPoint p;
     NSPoint point = [self convertPoint:event.locationInWindow fromView:nil];

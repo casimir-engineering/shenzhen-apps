@@ -4,6 +4,8 @@
 // the core's check, whose stub answers not_implemented, so callers can already be wired to it.
 #import "SPDFMacFillController+Annotate.h"
 
+#import "SPDFMacFillController+AnnotatePDF.h"
+
 #include "spdf_paint.h"
 
 static NSDictionary* SPDFAnnotateNotBuiltAnswer(void) {
@@ -17,7 +19,10 @@ static NSDictionary* SPDFAnnotateNotBuiltAnswer(void) {
     NSData* json = op ? [NSJSONSerialization dataWithJSONObject:op options:0 error:NULL] : nil;
     NSString* text = json ? [[NSString alloc] initWithData:json encoding:NSUTF8StringEncoding] : @"";
     char* answer = NULL;
-    spdf_paint_check_op(text.UTF8String, SPDF_PAINT_DOC_PDF, NULL, &answer);
+    const spdf_paint_op_info* info = NULL;
+    spdf_paint_check_op(text.UTF8String, SPDF_PAINT_DOC_PDF, &info, &answer);
+    // PDF agent's route: pen.add, arrow.add, erase.lines and form.* on a PDF go to Fill & Sign's own code.
+    if (!answer && [self annotateApplyFillOperation:op info:info tab:tab completion:completion]) return;
     NSDictionary* result = nil;
     if (answer) {
         NSData* data = [NSData dataWithBytes:answer length:strlen(answer)];

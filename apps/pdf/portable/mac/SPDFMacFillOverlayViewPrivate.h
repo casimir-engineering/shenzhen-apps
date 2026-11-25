@@ -34,6 +34,13 @@
 - (void)drawDrawingLayer;  // SPDFMacFillOverlayView+DrawingLayer.mm
 @end
 
+// Annotate's tools on the pages (SPDFMacFillOverlayView+Annotate.mm): events handed to the canvas view under the overlay.
+@interface SPDFMacFillOverlayView (Annotate)
+- (BOOL)annotateTakeMouseDown:(NSEvent*)event;  // YES: the canvas view took it and the gesture it starts
+- (BOOL)annotateMouseMoved:(NSEvent*)event;
+- (void)annotateAttachCanvasView;
+@end
+
 @interface SPDFMacFillOverlayView (Interaction)
 - (void)trackItem:(SPDFFillItem*)item page:(NSInteger)index from:(NSPoint)start event:(NSEvent*)event;
 @end

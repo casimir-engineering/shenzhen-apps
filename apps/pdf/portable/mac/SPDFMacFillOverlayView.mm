@@ -57,6 +57,7 @@ NSBezierPath* SPDFFillMarkPath(NSRect r, BOOL cross) {
     [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(viewportChanged:)
                                                name:NSViewFrameDidChangeNotification object:clip];
     [self observeDocumentView];
+    [self annotateAttachCanvasView];
 }
 
 - (void)dealloc {
@@ -373,6 +374,7 @@ NSBezierPath* SPDFFillMarkPath(NSRect r, BOOL cross) {
 #pragma mark - Hover
 
 - (void)mouseMoved:(NSEvent*)event {
+    if ([self annotateMouseMoved:event]) return;
     [self updateHover:[self convertPoint:event.locationInWindow fromView:nil] modifiers:event.modifierFlags];
 }
 
@@ -447,6 +449,7 @@ NSBezierPath* SPDFFillMarkPath(NSRect r, BOOL cross) {
     NSPoint point = [self convertPoint:event.locationInWindow fromView:nil];
     NSInteger index;
     NSPoint p;
+    if ([self annotateTakeMouseDown:event]) return;
     if (![self locateViewPoint:point page:&index pagePoint:&p] || [self drawingMouseDown:event]) return;
     [self.controller.editor commitAndClose];
     [self.window makeFirstResponder:self];

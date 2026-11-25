@@ -89,10 +89,11 @@ CORE_OBJS += $(CORE_FILL_OBJS)
 # Friends' cJSON.o, and ld64 loads every object before it searches an archive, so the archive's copy is pulled only
 # by binaries without Friends (a duplicate cJSON.o on one link line fails). Nothing here runs until Annotate is used.
 CORE_PAINT_NAMES := doc ops schema schema_build history brush brush_tex brush_op fill shapes shapes_draw text transform \
-	file pdf composite select layers objects objjson validate transform_ops doc_util history_apply canvas_ops
+	file pdf pdf_pixels pdf_params pdf_write pdf_fill pdf_remove \
+	composite select layers objects objjson validate transform_ops doc_util history_apply canvas_ops
 CORE_PAINT_OBJS := $(patsubst %,$(BUILD)/spdf_paint_%.o,$(CORE_PAINT_NAMES))
 CORE_PAINT_HDRS := core/spdf_paint.h core/spdf_paint_internal.h core/spdf_paint_handlers.h core/spdf_paint_model.h \
-	core/spdf_paint_brush_engine.h
+	core/spdf_paint_brush_engine.h core/spdf_paint_pdf_internal.h
 CORE_PAINT_LIB := $(BUILD)/libspdf-paint.a
 CORE_OBJS += $(CORE_PAINT_LIB)
 YAML_SRC := core/spdf_yaml.c

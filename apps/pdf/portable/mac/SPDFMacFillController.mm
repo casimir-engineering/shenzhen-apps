@@ -1,5 +1,7 @@
 #import "SPDFMacFillControllerPrivate.h"
 
+#import "SPDFMacFillController+AnnotatePDF.h"
+
 #import "SPDFMacFillEditor.h"
 #import "SPDFMacFillOverlayView.h"
 #import "SPDFMacFillPalette.h"
@@ -203,6 +205,7 @@ static char kSPDFFillSessionKey;
 - (void)invalidatePage:(NSInteger)page {
     [_fields removeObjectForKey:@(page)];
     [_items removeObjectForKey:@(page)];
+    [self annotatePDFPageDidChange:page];  // Annotate's canvas of this page reads it again
 }
 
 - (NSInteger)pageCount {
