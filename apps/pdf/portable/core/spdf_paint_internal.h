@@ -300,6 +300,8 @@ struct spdf_paint_doc {
     int page_index;           /* -1 otherwise */
     int page_rotation;        /* 0, 90, 180, 270 */
     float page_width, page_height; /* points, as displayed */
+
+    void* text_cache;         /* Core B: fonts loaded for text objects; spdf_paint_text_cache_drop frees them */
 };
 
 /* A frontend's error buffer, filled by the units on failure. */
@@ -400,6 +402,10 @@ int spdf_paint_shape_draw(spdf_paint_doc* doc, const spdf_paint_placement* place
 spdf_rect spdf_paint_shape_bounds(const spdf_paint_placement* place, const spdf_paint_shape_params* shape);
 spdf_paint_shape spdf_paint_shape_from_name(const char* name); /* SPDF_PAINT_SHAPE_COUNT when unknown */
 const char* spdf_paint_shape_name(spdf_paint_shape shape);
+/* Moves and scales a shape's own points (line, arrow line, curve, polygon) and a callout's tail, all kept in canvas
+ * units, from one placement rect to another: object.move and object.transform call it with the old and new rect
+ * before setting the new one. Rotation and flips need nothing: they apply about the rect's centre when drawn. */
+void spdf_paint_shape_fit(spdf_paint_shape_params* shape, spdf_rect from, spdf_rect to);
 
 /* ---- Implemented by spdf_paint_text.c (Core B) ---- */
 
@@ -411,6 +417,8 @@ int spdf_paint_text_measure(spdf_paint_doc* doc, const spdf_paint_text_params* t
 /* The face for (family, bold, italic): through the frontend's resolver, else a built-in substitute. Records the
  * choice in text->resolved_font. Dropped by the caller. */
 fz_font* spdf_paint_text_font(spdf_paint_doc* doc, spdf_paint_text_params* text);
+/* Frees doc->text_cache (the fonts loaded for this canvas's text objects): spdf_paint_close calls it first. */
+void spdf_paint_text_cache_drop(spdf_paint_doc* doc);
 
 /* ---- Implemented by spdf_paint_transform.c (Core A), used by handlers and the bridge ---- */
 

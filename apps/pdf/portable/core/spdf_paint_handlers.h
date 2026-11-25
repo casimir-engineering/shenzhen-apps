@@ -100,6 +100,13 @@ spdf_paint_status spdf_paint_op_color_pick(spdf_paint_call* call);   /* {x, y, f
 
 /* ---- Objects (spdf_paint_shapes.c, spdf_paint_text.c, spdf_paint_doc.c) ---- */
 spdf_paint_status spdf_paint_op_shape_add(spdf_paint_call* call);   /* -> {"id"} */
+/* The shape.add / text.add arguments (shapeProps, textProps) read into an object of that kind, defaults from the
+ * canvas (Color 1, Color 2) and the schema (Core B, spdf_paint_shapes_draw.c / spdf_paint_text.c). update 0: a new
+ * object, every argument or its default; update 1 (object.update): only the arguments present change. Sets the
+ * placement rect (a line's or polygon's rect is its points' bounds; a text box grows to fit its text) and the
+ * bounds. On failure the object is unchanged and the call's message says why. */
+spdf_paint_status spdf_paint_shape_read_args(spdf_paint_call* call, spdf_paint_object* object, int update);
+spdf_paint_status spdf_paint_text_read_args(spdf_paint_call* call, spdf_paint_object* object, int update);
 spdf_paint_status spdf_paint_op_text_add(spdf_paint_call* call);    /* -> {"id"} */
 spdf_paint_status spdf_paint_op_picture_add(spdf_paint_call* call); /* input->picture or png_base64 -> {"id"} */
 spdf_paint_status spdf_paint_op_object_update(spdf_paint_call* call);
