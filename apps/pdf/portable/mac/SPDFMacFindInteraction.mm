@@ -86,10 +86,9 @@ static char previousPanelKey;
                                NSEventModifierFlagFunction)) return NO;
     id firstResponder = _window.firstResponder;
     if ([firstResponder isKindOfClass:NSText.class] || [firstResponder isKindOfClass:NSTextField.class]) return NO;
-    // Fill & Sign: Space ticks the focused box, X and V switch a mark.
-    // Looked up by name, so Find links without Fill & Sign.
-    Class fill = NSClassFromString(@"SPDFMacFillOverlayView");
-    if (fill && [firstResponder isKindOfClass:fill] && [firstResponder handlesTypedKey:event]) return NO;
+    // Fill & Sign and Annotate (overlay, canvas view): tool letters, Space on a focused box, X and V on a mark.
+    // Asked by selector, so Find links without them.
+    if ([firstResponder respondsToSelector:@selector(handlesTypedKey:)] && [firstResponder handlesTypedKey:event]) return NO;
     NSString* typed = event.characters ?: @"";
     if (typed.length == 0 || [typed rangeOfCharacterFromSet:NSCharacterSet.controlCharacterSet].location != NSNotFound)
         return NO;

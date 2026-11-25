@@ -77,6 +77,16 @@ static char kSPDFFillSessionKey;
     return tab ? objc_getAssociatedObject(tab, &kSPDFFillSessionKey) : nil;
 }
 
++ (void)turnOnForTab:(SPDFDocumentTab*)tab {
+    if (!tab) return;
+    SPDFFillSession* session = objc_getAssociatedObject(tab, &kSPDFFillSessionKey);
+    if (!session) {
+        session = [SPDFFillSession new];
+        objc_setAssociatedObject(tab, &kSPDFFillSessionKey, session, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    }
+    session.on = YES;
+}
+
 - (BOOL)isShowing {
     SPDFDocumentTab* tab = [_host fillTab];
     SPDFFillSession* session = tab ? objc_getAssociatedObject(tab, &kSPDFFillSessionKey) : nil;

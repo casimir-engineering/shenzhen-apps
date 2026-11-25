@@ -6,6 +6,7 @@
 #import "SPDFMacAnnotateAgents.h"
 
 #import "SPDFMacBackgroundOpening.h"
+#import "SPDFMacAnnotateOperations.h"
 #import "SPDFMacFillController+Annotate.h"
 #import "SPDFMacModels.h"
 #import "SPDFMacSzpdfInternal.h"
@@ -159,6 +160,22 @@ int SPDFMacSzpdfCanvas(NSDictionary* command) {
                      reply:(void (^)(NSDictionary*))reply {
     __block BOOL answered = NO;
     NSString* identifier = SPDFAnnotateTabIdentifier(tab);
+    // Annotate is turned on for the tab if it is off (agent-interface.md), so what changed shows when it is chosen.
+    BOOL changes = NO;
+    for (NSDictionary* op in ops) {
+        const spdf_paint_op_info* info = [op isKindOfClass:NSDictionary.class] && [op[@"op"] isKindOfClass:NSString.class]
+                                             ? spdf_paint_op_find([op[@"op"] UTF8String]) : NULL;
+        if (info && !(info->flags & (SPDF_PAINT_OP_READ_ONLY | SPDF_PAINT_OP_UI_STATE)) && ![op[@"op"] isEqual:@"mode.set"])
+            changes = YES;
+    }
+    SPDFAnnotateDocumentKind kind = SPDFAnnotateKindForTab(tab);
+    if (changes && kind != SPDFAnnotateDocumentNone && kind != SPDFAnnotateDocumentText) {
+        if (tab == [self selectedTab]) {
+            if (![[self fillController] isShowing]) [[self fillController] setOn:YES];
+        } else {
+            [SPDFMacFillController turnOnForTab:tab];
+        }
+    }
     NSNumber* window = @(_window.windowNumber);
     [[self fillController] applyOperations:ops tab:tab completion:^(NSDictionary* result) {
       if (answered) return;

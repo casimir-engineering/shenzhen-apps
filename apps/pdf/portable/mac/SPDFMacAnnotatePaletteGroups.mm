@@ -290,6 +290,7 @@ typedef NSButton SPDFAnnotateButton;
 
 - (void)updateFromSession:(SPDFMacAnnotateSession*)session progress:(NSString*)progress {
     (void)progress;  // "3 of 12 filled" is the Fill & Sign group's, in the palette
+    if (session) _kind = session.kind;  // one palette per window: px on pictures and canvases, pt on PDFs
     NSString* chosen = SPDFAnnotateChosenToolName(session);
     BOOL on = session != nil && _enabled;
     for (NSString* name in _toolButtons) {

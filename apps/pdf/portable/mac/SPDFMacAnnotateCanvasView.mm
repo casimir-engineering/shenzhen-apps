@@ -372,11 +372,28 @@ static void DrawImage(CGContextRef context, CGImageRef image, NSRect rect) {
     CGContextRestoreGState(context);
 }
 
+// A canvas made smaller shows the reader's picture of the file under it until the file is written again: what lies
+// outside the canvas is painted as the page area's background, so only the canvas shows.
+- (void)coverStalePageOutsideCanvas:(NSRect)dirty {
+    NSRect canvas = [self canvasRectForPage:-1];
+    NSScrollView* scroll = self.overlay.enclosingScrollView;
+    NSColor* background = scroll.drawsBackground ? scroll.backgroundColor : NSColor.windowBackgroundColor;
+    [background setFill];
+    NSRect area = NSIntersectionRect(dirty, self.visibleRect);
+    NSRect parts[4] = {
+        NSMakeRect(NSMinX(area), NSMinY(area), NSWidth(area), MAX(0, NSMinY(canvas) - NSMinY(area))),
+        NSMakeRect(NSMinX(area), NSMaxY(canvas), NSWidth(area), MAX(0, NSMaxY(area) - NSMaxY(canvas))),
+        NSMakeRect(NSMinX(area), NSMinY(canvas), MAX(0, NSMinX(canvas) - NSMinX(area)), NSHeight(canvas)),
+        NSMakeRect(NSMaxX(canvas), NSMinY(canvas), MAX(0, NSMaxX(area) - NSMaxX(canvas)), NSHeight(canvas))};
+    for (int i = 0; i < 4; i++) NSRectFill(NSIntersectionRect(parts[i], area));
+}
+
 - (void)drawRect:(NSRect)dirty {
     if (!self.session) return;
     CGContextRef context = NSGraphicsContext.currentContext.CGContext;
     // A PDF page's added layers are in the file and the reader's page image already shows them (every change is
     // written back in the same turn): drawing them here too would draw them twice. Only decorations go over pages.
+    if (self.session.kind != SPDFAnnotateDocumentPDF) [self coverStalePageOutsideCanvas:dirty];
     for (NSNumber* page in [self pagesInView])
         if (page.integerValue < 0) [self drawCanvasOfPage:page.integerValue inRect:dirty context:context];
     if (!self.holdsLastFrame) [self drawDecorationsInRect:dirty];

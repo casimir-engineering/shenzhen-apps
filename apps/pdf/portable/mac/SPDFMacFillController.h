@@ -51,6 +51,8 @@
 - (SPDFFillSession*)session;
 - (BOOL)isShowing;
 - (void)setOn:(BOOL)on;
+// Annotate on for a tab that is not in front (an agent's operations on it): it shows when the tab is chosen.
++ (void)turnOnForTab:(SPDFDocumentTab*)tab;
 // The active tab or its document changed: drop caches, close the editor, show or hide for the new tab.
 - (void)activeDocumentChanged;
 // Writes what the open editor holds into the document now (before the document is left), keeping the editor open.

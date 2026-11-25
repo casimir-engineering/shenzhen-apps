@@ -41,6 +41,10 @@ static BOOL IsPixelOrShapeTool(SPDFAnnotateTool tool) {
 }
 
 - (NSString*)colorFor:(BOOL)second {
+    // Pen and Arrow draw in the colour chosen in their own row (Fill & Sign's four, or Color 1 picked there).
+    SPDFAnnotateTool tool = self.session.tool;
+    id own = !second && (tool == SPDFAnnotateToolPen || tool == SPDFAnnotateToolArrow) ? [self toolOptions][@"color"] : nil;
+    if ([own isKindOfClass:NSString.class] && [own length]) return own;
     return SPDFAnnotateColorString(second ? self.session.color2 : self.session.color1);
 }
 
@@ -328,9 +332,17 @@ static BOOL IsPixelOrShapeTool(SPDFAnnotateTool tool) {
         if ([result[@"ok"] boolValue] && result[@"id"]) weakSelf.session.selectedObjects = @[result[@"id"]];
     };
     switch (gesture) {
-        case SPDFAnnotateGestureStroke:
+        case SPDFAnnotateGestureStroke: {
+            // The release point ends the stroke (a quick flick can release away from the last drag).
+            NSPoint last = self.points.lastObject.pointValue;
+            if (self.points.count && hypot(point.x - last.x, point.y - last.y) * scale >= 0.5 &&
+                !(event.modifierFlags & NSEventModifierFlagShift)) {
+                [self.points addObject:@(point)];
+                [self.pressures addObject:self.pressures.lastObject ?: @1];
+            }
             [self finishStrokeOnPage:page right:right];
             break;
+        }
         case SPDFAnnotateGestureShape: {
             if (!moved) {  // a click with a shape tool selects the object under it (§ 3)
                 NSDictionary* hit = [self objectAt:point page:page];

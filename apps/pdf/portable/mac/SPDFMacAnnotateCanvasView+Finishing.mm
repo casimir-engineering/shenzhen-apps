@@ -5,6 +5,7 @@
 
 #import "SPDFMacAnnotateImageIO.h"
 #import "SPDFMacAnnotateIntegration.h"
+#import "SPDFMacAnnotateMenus.h"
 #import "SPDFMacAnnotateSessionPrivate.h"
 #import "SPDFMacFillController.h"
 #import "SPDFMacFillOverlayView.h"
@@ -161,6 +162,11 @@
     [self.pressures removeAllObjects];
     if (had) self.needsDisplay = YES;
     return had;
+}
+
+// Type-to-search asks first (SPDFMacFindInteraction.mm): Annotate's letters stay on the canvas.
+- (BOOL)handlesTypedKey:(NSEvent*)event {
+    return self.session && !self.hidden && SPDFAnnotateClaimsKey(event, self.controller);
 }
 
 - (void)keyDown:(NSEvent*)event {
