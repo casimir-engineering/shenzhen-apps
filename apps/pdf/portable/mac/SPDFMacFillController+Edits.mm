@@ -117,18 +117,30 @@ static BOOL SPDFAddPages(NSMutableIndexSet* pages, const int* changed, int count
     NSInteger page = field.page;
     int object = field.objectNumber;
     // A radio button turned on turns its sibling off: undo turns that sibling back on.
-    int previousSibling = 0;
-    if (field.type == SPDF_FIELD_RADIO && on)
+    __block int previousSibling = 0;
+    __block NSInteger siblingPage = page;
+    int groupID = field.groupID;
+    BOOL radioOn = field.type == SPDF_FIELD_RADIO && on;
+    if (radioOn)
         for (SPDFFillField* other in [self fieldsOnPage:page])
-            if (other.groupID == field.groupID && other.isOn && other.objectNumber != object) previousSibling = other.objectNumber;
+            if (other.groupID == groupID && other.isOn && other.objectNumber != object) previousSibling = other.objectNumber;
     BOOL ok = [self change:YES write:^BOOL(spdf_document* doc, NSMutableIndexSet* pages, char* err, size_t len) {
       int changed[64];
+      if (radioOn && !previousSibling) {
+          // The group's chosen button may be on another page. Setting this button to the state it already has (off)
+          // changes nothing and lists the pages that hold the group.
+          int found = spdf_form_set_on(doc, (int)page, object, 0, changed, 64, err, len);
+          for (int i = 0; i < found && !previousSibling; ++i)
+              if (changed[i] != page)
+                  for (SPDFFillField* other in [self fieldsOnPage:changed[i]])
+                      if (other.groupID == groupID && other.isOn) previousSibling = other.objectNumber, siblingPage = changed[i];
+      }
       int count = spdf_form_set_on(doc, (int)page, object, on ? 1 : 0, changed, 64, err, len);
       return count > 0 && SPDFAddPages(pages, changed, count);
     }];
     if (ok)
         [self.undoManager registerUndoWithTarget:self handler:^(SPDFMacFillController* target) {
-          SPDFFillField* sibling = previousSibling ? [target fieldOnPage:page object:previousSibling] : nil;
+          SPDFFillField* sibling = previousSibling ? [target fieldOnPage:siblingPage object:previousSibling] : nil;
           SPDFFillField* current = [target fieldOnPage:page object:object];
           if (sibling) [target setOn:YES forField:sibling];
           else if (current) [target setOn:!on forField:current];
