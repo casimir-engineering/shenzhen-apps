@@ -223,6 +223,9 @@ static char kSPDFAnnotateCanvasViewKey;
 
 // -refreshChrome's hook: the canvas view and the status bar follow the mode and the tab.
 - (void)annotateChromeDidRefresh:(BOOL)showing {
+    // The palette shows or hides the Layers panel as it refreshes, but it is not refreshed while hidden: a tab without
+    // Annotate on kept the other tab's panel over its page.
+    if (!showing) SPDFAnnotateSyncLayersPanel(self);
     SPDFMacAnnotateSession* session = showing ? [self annotateSessionForTab:nil create:NO] : nil;
     if (session && ![session loadIfNeeded:NULL]) session = nil;
     if (!session && !self.annotateCanvasView) return;
