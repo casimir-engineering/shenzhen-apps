@@ -54,6 +54,7 @@ static NSPasteboardType const kSPDFLayerRowType = @"com.intuition.shenzhenpdf.an
     NSButton* _delete;
     NSLayoutConstraint* _height;
     NSLayoutConstraint* _top;
+    BOOL _inSlot;  // in the minimap's place (the palette is not above it)
     BOOL _syncing;
 }
 
@@ -145,13 +146,27 @@ static NSPasteboardType const kSPDFLayerRowType = @"com.intuition.shenzhenpdf.an
 }
 
 - (void)attachToContainer:(NSView*)container {
-    if (self.superview == container) return;
+    if (self.superview && self.superview == (_inSlot ? container.window.contentView : container)) return;
     [self removeFromSuperview];
     if (!container) return;
     [container addSubview:self positioned:NSWindowAbove relativeTo:nil];
     NSView* area = [_controller.host fillScrollView] ?: container;
     NSView* palette = _controller.palette.superview == container ? _controller.palette : nil;
-    (void)palette;
+    // In the minimap's place beside the pages (the reader gives it the slot), else floating over their right side.
+    id host = _controller.host;
+    NSView* slot = [host respondsToSelector:@selector(annotateLayersSlot)] ? [host annotateLayersSlot] : nil;
+    if (slot.window == container.window && slot) {
+        [container.window.contentView addSubview:self positioned:NSWindowAbove relativeTo:nil];
+        [NSLayoutConstraint activateConstraints:@[
+            [self.trailingAnchor constraintEqualToAnchor:slot.trailingAnchor constant:-8],
+            _top = [self.topAnchor constraintEqualToAnchor:slot.topAnchor constant:8],
+            [self.bottomAnchor constraintLessThanOrEqualToAnchor:slot.bottomAnchor constant:-8],
+        ]];
+        _inSlot = YES;
+        _height.priority = NSLayoutPriorityDefaultHigh;
+        return;
+    }
+    _inSlot = NO;
     NSLayoutConstraint* fits = [self.bottomAnchor constraintLessThanOrEqualToAnchor:area.bottomAnchor constant:-10];
     [NSLayoutConstraint activateConstraints:@[
         [self.trailingAnchor constraintEqualToAnchor:area.trailingAnchor constant:-10],
@@ -184,7 +199,7 @@ static NSDictionary* SPDFLayerRowFrom(NSDictionary* layer) {
 
 - (void)reloadFromSession:(SPDFMacAnnotateSession*)session {
     _session = session;
-    if (_controller.palette.superview) _top.constant = 10 + [_controller.palette reservedHeight] + 8;
+    if (_controller.palette.superview && !_inSlot) _top.constant = 10 + [_controller.palette reservedHeight] + 8;
     NSDictionary* state = session ? SPDFAnnotateDocState(_controller) : nil;
     NSMutableArray* rows = [NSMutableArray array];
     for (id layer in [[state[@"layers"] isKindOfClass:[NSArray class]] ? state[@"layers"] : @[] reverseObjectEnumerator]) {

@@ -75,7 +75,14 @@ static NSString* SPDFAnnotateTextBoxFont(NSDictionary* options) {
                                             NSUnderlineStyleAttributeName: typing[NSUnderlineStyleAttributeName],
                                             NSStrikethroughStyleAttributeName: typing[NSStrikethroughStyleAttributeName]}
                                     range:NSMakeRange(0, editor.string.length)];
-    editor.frame = [self viewRectForCanvasRect:self.textRect page:self.textPage];
+    // The box as dragged from the first key on (a text view shrinks to its lines otherwise); longer text grows it.
+    NSRect box = [self viewRectForCanvasRect:self.textRect page:self.textPage];
+    editor.minSize = box.size;
+    editor.maxSize = NSMakeSize(NSWidth(box), CGFLOAT_MAX);
+    editor.verticallyResizable = YES;
+    editor.horizontallyResizable = NO;
+    editor.textContainer.widthTracksTextView = YES;
+    editor.frame = box;
     editor.wantsLayer = YES;
     editor.layer.borderWidth = 1;
     editor.layer.borderColor = NSColor.controlAccentColor.CGColor;

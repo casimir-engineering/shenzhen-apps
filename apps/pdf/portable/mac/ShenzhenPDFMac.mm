@@ -1753,7 +1753,7 @@ id spdf_state_object_from_yaml_data(NSData* data) {
         /* Always continuous now; kept for backward compat (see SPDFMacModels.mm). */
         @"viewMode" : @1,
         @"sidebarWidth" : @(sidebarWidth),
-        @"minimapWidth" : @(_minimapWidth),
+        @"minimapWidth" : @([self persistedMinimapWidth]),
         @"defaultSidebarVisibleForNewDocuments" : @(_defaultSidebarVisibleForNewDocuments),
         @"defaultMinimapVisibleForNewDocuments" : @(_defaultMinimapVisibleForNewDocuments),
         @"collapseWhitespaceWhenCopyingText" : @(_collapseWhitespaceWhenCopyingText),
@@ -9441,8 +9441,8 @@ static const NSTimeInterval kKeyScrollTickInterval = 1.0 / 60.0;
     SPDFScopedProfileLog spdfScopedProfile("syncToolbarState", 4.0);
     CGFloat customZoom =
         _fitMode == SPDFFitModeCustom ? _zoom : (_rememberedCustomZoom > 0 ? _rememberedCustomZoom : _zoom);
-    NSString* zoomTitle = [NSString stringWithFormat:@"%.0f%%", customZoom * 100.0];
-    BOOL showCustomZoom = fabs(customZoom - 1.0) > 0.0049;
+    NSString* zoomTitle = [NSString stringWithFormat:@"%.0f%%", customZoom / [self actualZoom] * 100.0];
+    BOOL showCustomZoom = fabs(customZoom / [self actualZoom] - 1.0) > 0.0049;
     NSMenuItem* actualItem = [self fitModePopupItemForMode:SPDFFitModeActual];
     if (actualItem) actualItem.title = @"100%";
     NSMenuItem* customItem = [self fitModePopupItemForMode:SPDFFitModeCustom];

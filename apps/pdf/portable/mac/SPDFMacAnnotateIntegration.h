@@ -107,8 +107,17 @@ FOUNDATION_EXPORT NSString* _Nullable SPDFAnnotateRecentPath(NSString* _Nullable
 // Zoom for the status bar, the Magnifier and view.zoom: level in view points per canvas unit (1 = 100 %, 0.125-8),
 // or "fit" / "actual"; point (canvas units, NSValue) stays under the pointer, nil keeps the viewport's centre.
 - (void)annotateZoomTo:(id)level atCanvasPoint:(nullable NSValue*)point;
+// The reader zoom that 100% means (SPDFMacFitViewport.mm): 1, or with Annotate on a picture or canvas the one that
+// shows one picture pixel per screen point. The toolbar, Zoom > 100% and the status bar all count from it.
+- (CGFloat)actualZoom;
+// The Layers panel sits in the minimap's place while it shows (SPDFMacAnnotateIntegrationFiles.mm): the slot it sits
+// in (nil while it doesn't show), and the minimap's own width, which is what is kept in the settings meanwhile.
+- (nullable NSView*)annotateLayersSlot;
+- (CGFloat)persistedMinimapWidth;
 // After Done's write: the reader shows the written file, then the canvas stops covering the page.
 - (void)annotateShowWrittenPictureOfSession:(SPDFMacAnnotateSession*)session;
+// The Save panel (PNG chosen for a canvas or a picture that can't be written in its own format); saved: it was.
+- (void)annotateAskWhereToSaveSession:(SPDFMacAnnotateSession*)session completion:(nullable void (^)(BOOL saved))completion;
 
 @end
 
@@ -139,9 +148,10 @@ FOUNDATION_EXPORT void SPDFAnnotateShowCanvasPropertiesSheet(NSWindow* window, S
 FOUNDATION_EXPORT void SPDFAnnotateShowRotateBySheet(NSWindow* window, SPDFMacFillController* controller);
 // "To annotate this document, save it as a PDF." [Save as PDF…] [Cancel]. save YES: Save as PDF was chosen.
 FOUNDATION_EXPORT void SPDFAnnotateAskToSaveAsPDF(NSWindow* window, void (^answer)(BOOL save));
-// Closing a never-saved canvas: Save / Don't Save / Cancel (the only question Annotate asks on close).
-// NSAlertFirstButtonReturn = Save, Second = Don't Save, Third = Cancel.
-FOUNDATION_EXPORT void SPDFAnnotateAskToSaveCanvas(NSWindow* window, NSString* name,
+// Closing a never-saved canvas, or a WebP or RAW drawn on (its changes go into a PNG copy): Save / Don't Save / Cancel.
+// copy: the picture's own format can't take the changes. NSAlertFirstButtonReturn = Save, Second = Don't Save, Third =
+// Cancel.
+FOUNDATION_EXPORT void SPDFAnnotateAskToSaveCanvas(NSWindow* window, NSString* name, BOOL copy,
                                                    void (^answer)(NSModalResponse choice));
 // "Make the canvas bigger to fit?" (Yes / No) for a pasted picture larger than the canvas.
 FOUNDATION_EXPORT void SPDFAnnotateAskToGrowCanvas(NSWindow* window, void (^answer)(BOOL grow));

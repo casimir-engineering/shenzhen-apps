@@ -230,11 +230,6 @@ static BOOL IsPixelOrShapeTool(SPDFAnnotateTool tool) {
         case SPDFAnnotateToolEraser:
         case SPDFAnnotateToolPen:
             self.gesture = SPDFAnnotateGestureStroke;
-            if ((event.modifierFlags & NSEventModifierFlagShift) && self.hasLastStrokeEnd &&
-                session.tool != SPDFAnnotateToolPen) {
-                [self.points addObject:@(self.lastStrokeEnd)];
-                [self.pressures addObject:@1];
-            }
             [self.points addObject:@(point)];
             [self.pressures addObject:@(event.pressure > 0 ? event.pressure : 1)];
             break;
@@ -272,9 +267,11 @@ static BOOL IsPixelOrShapeTool(SPDFAnnotateTool tool) {
         case SPDFAnnotateGestureLasso: {
             NSPoint last = self.points.lastObject.pointValue;
             if (hypot(point.x - last.x, point.y - last.y) * scale < 0.5) return;
-            if (self.gesture == SPDFAnnotateGestureStroke && (event.modifierFlags & NSEventModifierFlagShift) &&
-                self.points.count > 1)
-                [self.points removeObjectsInRange:NSMakeRange(1, self.points.count - 1)];  // Shift: one straight line
+            if (self.gesture == SPDFAnnotateGestureStroke && [self shiftStraightensStroke:event]) {
+                [self straightenStrokeTo:point];  // Shift: one straight line from the press, at 45 degree steps
+                self.needsDisplay = YES;
+                break;
+            }
             [self.points addObject:@(point)];
             [self.pressures addObject:@(event.pressure > 0 ? event.pressure : 1)];
             NSRect segment = NSUnionRect(NSMakeRect(last.x, last.y, 0, 0), NSMakeRect(point.x, point.y, 0, 0));
@@ -346,8 +343,9 @@ static BOOL IsPixelOrShapeTool(SPDFAnnotateTool tool) {
         case SPDFAnnotateGestureStroke: {
             // The release point ends the stroke (a quick flick can release away from the last drag).
             NSPoint last = self.points.lastObject.pointValue;
-            if (self.points.count && hypot(point.x - last.x, point.y - last.y) * scale >= 0.5 &&
-                !(event.modifierFlags & NSEventModifierFlagShift)) {
+            if (self.points.count && [self shiftStraightensStroke:event]) {
+                [self straightenStrokeTo:point];
+            } else if (self.points.count && hypot(point.x - last.x, point.y - last.y) * scale >= 0.5) {
                 [self.points addObject:@(point)];
                 [self.pressures addObject:self.pressures.lastObject ?: @1];
             }

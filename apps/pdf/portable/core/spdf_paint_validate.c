@@ -126,8 +126,8 @@ static int check_object(check* c, const cJSON* v, const cJSON* schema, const cha
 static int validate(check* c, const cJSON* v, const cJSON* schema, const char* path) {
     schema = resolve(c, schema);
     if (!schema) return 1;
+    /* anyOf ("rect" or "points") is checked last: a wrong value is named before a missing alternative. */
     const cJSON* any = cJSON_GetObjectItemCaseSensitive(schema, "anyOf");
-    if (any && !check_any_of(c, v, any, path)) return 0;
     const cJSON* constant = cJSON_GetObjectItemCaseSensitive(schema, "const");
     if (constant && !same(v, constant)) {
         char* text = cJSON_PrintUnformatted(constant);
@@ -197,9 +197,10 @@ static int validate(check* c, const cJSON* v, const cJSON* schema, const char* p
         }
     }
     if (cJSON_IsObject(v) && (cJSON_GetObjectItemCaseSensitive(schema, "properties") ||
-                              cJSON_GetObjectItemCaseSensitive(schema, "required")))
-        return check_object(c, v, schema, path);
-    return 1;
+                              cJSON_GetObjectItemCaseSensitive(schema, "required")) &&
+        !check_object(c, v, schema, path))
+        return 0;
+    return !any || check_any_of(c, v, any, path);
 }
 
 int spdf_paint_validate(const cJSON* value, const cJSON* schema, const cJSON* defs, char* msg, size_t msg_cap) {

@@ -2,9 +2,8 @@
 #import "SPDFMacMarkdownDelegatePrivate.h"
 #import "SPDFMacAnnotateIntegration.h"
 #import "SPDFMacAnnotateIntegrationPrivate.h"
-#import "SPDFMacAnnotateLayersPanel.h"
 #import "SPDFMacAnnotateOperations.h"
-#import "SPDFMacAnnotateSession.h"
+#import "SPDFMacAnnotateSessionPrivate.h"
 extern const CGFloat kMinZoom;
 extern const CGFloat kMaxZoom;
 @interface ShenzhenMacDelegate (FitViewportPrivate)
@@ -16,6 +15,18 @@ extern const CGFloat kMaxZoom;
 @implementation ShenzhenMacDelegate (FitViewport)
 - (void)rememberCurrentZoomForCustomReturn {
     if (_fitMode == SPDFFitModeCustom && _zoom > 0) _rememberedCustomZoom = _zoom;
+}
+
+// The zoom that 100% means: 1 for a PDF page point per screen point; a picture or canvas with Annotate on, one picture
+// pixel per screen point (Paint's actual size), where the reader lays a picture out at 96 pixels to the inch.
+- (CGFloat)actualZoom {
+    SPDFAnnotateDocumentKind kind = [self annotateShowing] ? [self annotateActiveDocumentKind] : SPDFAnnotateDocumentNone;
+    if (!_doc || (kind != SPDFAnnotateDocumentPicture && kind != SPDFAnnotateDocumentCanvas)) return 1.0;
+    float width = 0, height = 0;
+    char err[256];
+    NSSize pixels = [self annotateActiveSession].readerPixelSize;
+    if (!spdf_page_size(_doc, 0, &width, &height, err, sizeof(err)) || width <= 0 || pixels.width <= 0) return 1.0;
+    return pixels.width / width;
 }
 
 - (void)actualSize:(id)sender {
@@ -94,11 +105,8 @@ extern const CGFloat kMaxZoom;
     CGFloat below = SPDFAnnotateSettings.shared.showsStatusBar ? SPDFAnnotateStatusBarHeight : 0;
     // The page is centred below the palette, so the bar's room is kept on both sides: 12 pt clear of it.
     size.height = MAX(1, size.height - _pageView.topReserve - 2 * below - 24);
-    // The Layers panel floats at the right: the centred picture keeps clear of it on both sides.
-    SPDFMacFillController* controller = [self existingFillController];
-    CGFloat panel = SPDFAnnotateLayersPanelShown(controller)
-                        ? NSWidth(SPDFAnnotateLayersPanelFor(controller, NO).frame) + 20 : 0;
-    size.width = MAX(1, size.width - 32 - 2 * panel);
+    // The Layers panel is in the minimap's place, beside the page area, not over it.
+    size.width = MAX(1, size.width - 32);
     return size;
 }
 
@@ -114,7 +122,7 @@ extern const CGFloat kMaxZoom;
     if (!_doc) return _zoom;
     if (fitMode == SPDFFitModeCustom)
         return MAX(kMinZoom, MIN(kMaxZoom, _rememberedCustomZoom > 0 ? _rememberedCustomZoom : _zoom));
-    if (fitMode == SPDFFitModeActual) return 1.0;
+    if (fitMode == SPDFFitModeActual) return [self actualZoom];
 
     char err[1024];
     float pageWidth = 0;
@@ -166,14 +174,17 @@ extern const CGFloat kMaxZoom;
              fallbackZoom:(CGFloat)fallbackZoom {
     fallbackZoom = fallbackZoom > 0 ? fallbackZoom : 1.0;
     if (fitMode == SPDFFitModeCustom) return MAX(kMinZoom, MIN(kMaxZoom, fallbackZoom));
-    if (fitMode == SPDFFitModeActual) return 1.0;
+    if (fitMode == SPDFFitModeActual) return [self actualZoom];
     if (pageSize.width <= 0.0 || pageSize.height <= 0.0 || clipSize.width <= 0.0 || clipSize.height <= 0.0)
         return MAX(kMinZoom, MIN(kMaxZoom, fallbackZoom));
 
     CGFloat widthZoom = clipSize.width / pageSize.width;
     CGFloat heightZoom = clipSize.height / pageSize.height;
-    if (fitMode == SPDFFitModeWidth) return MAX(kMinZoom, MIN(kMaxZoom, widthZoom));
-    if (fitMode == SPDFFitModeHeight) return MAX(kMinZoom, MIN(kMaxZoom, heightZoom));
-    return MAX(kMinZoom, MIN(kMaxZoom, MIN(widthZoom, heightZoom)));
+    // A very large picture in Annotate still fits whole, edges and canvas handles in view, below the reader's 10 %.
+    SPDFAnnotateDocumentKind kind = [self annotateShowing] ? [self annotateActiveDocumentKind] : SPDFAnnotateDocumentNone;
+    CGFloat low = kind == SPDFAnnotateDocumentPicture || kind == SPDFAnnotateDocumentCanvas ? 0.01 : kMinZoom;
+    if (fitMode == SPDFFitModeWidth) return MAX(low, MIN(kMaxZoom, widthZoom));
+    if (fitMode == SPDFFitModeHeight) return MAX(low, MIN(kMaxZoom, heightZoom));
+    return MAX(low, MIN(kMaxZoom, MIN(widthZoom, heightZoom)));
 }
 @end

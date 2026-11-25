@@ -362,12 +362,28 @@ static void AddPath(CGContextRef context, NSBezierPath* path) {
     }
 }
 
-- (NSPoint)constrainedEnd {
-    NSPoint a = self.startPoint, b = self.currentPoint;
-    if (!(self.gestureModifiers & NSEventModifierFlagShift)) return b;
+static NSPoint SPDFAnnotateAt45(NSPoint a, NSPoint b) {
     CGFloat angle = round(atan2(b.y - a.y, b.x - a.x) / (M_PI / 4)) * (M_PI / 4);
     CGFloat length = hypot(b.x - a.x, b.y - a.y);
     return NSMakePoint(a.x + cos(angle) * length, a.y + sin(angle) * length);
+}
+
+- (NSPoint)constrainedEnd {
+    if (!(self.gestureModifiers & NSEventModifierFlagShift)) return self.currentPoint;
+    return SPDFAnnotateAt45(self.startPoint, self.currentPoint);
+}
+
+- (BOOL)shiftStraightensStroke:(NSEvent*)event {
+    return (event.modifierFlags & NSEventModifierFlagShift) != 0;
+}
+
+// Pencil and brushes as in Paint (0, 45 and 90 degrees); the Pen as Fill & Sign's, straight in any direction.
+- (void)straightenStrokeTo:(NSPoint)point {
+    NSValue* start = self.points.firstObject ?: @(self.startPoint);
+    NSNumber* pressure = self.pressures.firstObject ?: @1;
+    NSPoint end = self.session.tool == SPDFAnnotateToolPen ? point : SPDFAnnotateAt45(start.pointValue, point);
+    [self.points setArray:@[ start, @(end) ]];
+    [self.pressures setArray:@[ pressure, pressure ]];
 }
 
 // What erasing leaves, before the stroke is applied: the checkerboard along the path.

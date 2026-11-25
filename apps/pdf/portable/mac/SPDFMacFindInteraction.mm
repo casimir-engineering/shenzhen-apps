@@ -15,6 +15,7 @@ static char previousPanelKey;
 - (void)startFindForCurrentQuery;
 - (void)setSidebarFilterTextForCurrentMode:(NSString*)filter;
 - (void)startFindForCurrentQueryResetSavedIndex:(BOOL)reset revealMatch:(BOOL)reveal;
+- (BOOL)annotateTakeTypedKey:(NSEvent*)event;  // SPDFMacAnnotateMenus.mm, when linked
 @end
 
 @implementation ShenzhenMacDelegate (SPDFMacFindInteraction)
@@ -89,6 +90,7 @@ static char previousPanelKey;
     // Fill & Sign and Annotate (overlay, canvas view): tool letters, Space on a focused box, X and V on a mark.
     // Asked by selector, so Find links without them.
     if ([firstResponder respondsToSelector:@selector(handlesTypedKey:)] && [firstResponder handlesTypedKey:event]) return NO;
+    if ([self respondsToSelector:@selector(annotateTakeTypedKey:)] && [self annotateTakeTypedKey:event]) return YES;
     NSString* typed = event.characters ?: @"";
     if (typed.length == 0 || [typed rangeOfCharacterFromSet:NSCharacterSet.controlCharacterSet].location != NSNotFound)
         return NO;

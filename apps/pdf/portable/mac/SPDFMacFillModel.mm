@@ -153,6 +153,58 @@ static NSString* SPDFFillString(const char* utf8) {
 }
 @end
 
+// The tab's Fill & Sign undo manager. What one click, key or menu command registers is one step, as grouping by event
+// gives, but the step is closed by this manager itself on the next turn of the main queue, so it always posts
+// NSUndoManagerDidCloseUndoGroupNotification: Annotate puts every step on the tab's one undo stack from it
+// (SPDFMacFillController+AnnotatePDF.mm). A menu command or a click whose group AppKit closed silently was missing
+// from that stack, so Cmd-Z skipped it (Remove Everything Added with Annotate).
+@interface SPDFFillUndoManager : NSUndoManager
+@end
+
+@implementation SPDFFillUndoManager {
+    BOOL _turnGroupOpen;
+}
+- (instancetype)init {
+    if ((self = [super init])) self.groupsByEvent = NO;
+    return self;
+}
+- (void)closeTurnGroup {
+    if (_turnGroupOpen && self.groupingLevel == 1) [self endUndoGrouping];
+    _turnGroupOpen = NO;
+}
+- (void)openTurnGroup {
+    if (self.groupingLevel > 0 || self.isUndoing || self.isRedoing) return;
+    [self beginUndoGrouping];
+    _turnGroupOpen = YES;
+    __weak SPDFFillUndoManager* weakSelf = self;
+    dispatch_async(dispatch_get_main_queue(), ^{ [weakSelf closeTurnGroup]; });
+}
+- (void)registerUndoWithTarget:(id)target handler:(void (^)(id))handler {
+    [self openTurnGroup];
+    [super registerUndoWithTarget:target handler:handler];
+}
+- (void)registerUndoWithTarget:(id)target selector:(SEL)selector object:(id)object {
+    [self openTurnGroup];
+    [super registerUndoWithTarget:target selector:selector object:object];
+}
+- (BOOL)canUndo {
+    [self closeTurnGroup];
+    return [super canUndo];
+}
+- (BOOL)canRedo {
+    [self closeTurnGroup];
+    return [super canRedo];
+}
+- (void)undo {
+    [self closeTurnGroup];
+    [super undo];
+}
+- (void)redo {
+    [self closeTurnGroup];
+    [super redo];
+}
+@end
+
 @implementation SPDFFillSession {
     NSUndoManager* _undoManager;
 }
@@ -164,7 +216,7 @@ static NSString* SPDFFillString(const char* utf8) {
     return self;
 }
 - (NSUndoManager*)undoManager {
-    if (!_undoManager) _undoManager = [NSUndoManager new];
+    if (!_undoManager) _undoManager = [SPDFFillUndoManager new];
     return _undoManager;
 }
 - (BOOL)isForm {

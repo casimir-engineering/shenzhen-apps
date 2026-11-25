@@ -81,6 +81,7 @@ void spdf_paint_pdf_close(spdf_paint_doc* doc) {
     if (!st) return;
     for (i = 0; i < st->count; ++i) free(st->entries[i].nm), free(st->entries[i].model), free(st->entries[i].file);
     free(st->entries);
+    spdf_paint_pdf_retired_free(st);
     fz_drop_display_list(doc->ctx, st->page_list);
     free(st);
     doc->pdf_state = NULL;
@@ -362,6 +363,7 @@ void spdf_paint_pdf_read(spdf_paint_doc* doc, int reload) {
             else if (origin == SPDF_PAINT_PDF_FILL) read_fill(doc, item, bounds, &layer);
             else read_foreign(doc, annot, page_ctm, &layer);
             read_visibility(ctx, annot, layer);
+            if (!e) spdf_paint_pdf_revive(doc, nm, origin == SPDF_PAINT_PDF_FOREIGN ? num : 0, layer);
             if (!e) e = spdf_paint_pdf_entry_add(doc, layer->id, origin, nm, origin == SPDF_PAINT_PDF_FOREIGN ? num : 0);
             model = spdf_paint_pdf_layer_state(doc, layer);
             spdf_paint_pdf_entry_set(doc, e, model, fp);
@@ -377,7 +379,7 @@ void spdf_paint_pdf_read(spdf_paint_doc* doc, int reload) {
             int index;
             if (e->seen) continue;
             index = spdf_paint_layer_index(doc, e->layer);
-            if (index > 0) drop_layer(doc, index);
+            if (index > 0) spdf_paint_pdf_retire(doc, e), drop_layer(doc, index);
             if (doc->active == e->layer) doc->active = 0;
             spdf_paint_pdf_entry_remove(doc, e);
             changed = 1;

@@ -17,6 +17,7 @@
 @property(nonatomic, copy, readwrite) NSString* projectPath;
 @property(nonatomic, copy) NSDictionary* pictureProperties;  // the picture's metadata, written back on save
 @property(nonatomic) BOOL lastWriteFailed;                    // dirty even though the core was marked saved
+@property(nonatomic) BOOL keptCopyChanges;                    // a WebP or RAW came back with unsaved drawing (dirty)
 @property(nonatomic) NSInteger pendingWrites;                 // encodes and writes in flight
 @property(nonatomic, strong) NSTimer* autosaveTimer;
 // The picture's size in pixels when the reader last read its file: the page the reader lays out is that size, so the
@@ -32,6 +33,8 @@
 // The kept layers, when `path` is unchanged since they were written; NULL otherwise.
 + (spdf_paint_doc*)openSidecarForPath:(NSString*)path;
 - (void)writeSidecarNow:(BOOL)synchronously;
+- (void)discardKeptChanges;  // Don't Save on a WebP or RAW drawn on: what was kept for it goes
+- (void)discardKeptChangesForPath:(NSString*)path;
 // The file as Annotate last read or wrote it (size, modification time); YES when something else changed it since.
 - (void)rememberFileStamp;
 - (BOOL)fileChangedElsewhere;

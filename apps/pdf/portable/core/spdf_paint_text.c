@@ -345,21 +345,6 @@ spdf_paint_status spdf_paint_text_read_args(spdf_paint_call* call, spdf_paint_ob
     return SPDF_PAINT_OK;
 }
 
-/* "Text: Hello" for the Layers panel: the first line, cut at a word near 24 characters. */
-static void name_text_layer(spdf_paint_layer* layer, const char* utf8) {
-    char first[64];
-    size_t n = 0;
-    int chars = 0;
-    while (utf8 && utf8[n] && utf8[n] != '\n' && n < sizeof(first) - 4 && chars < 24) {
-        int ucs, len = fz_chartorune(&ucs, utf8 + n);
-        if (n + (size_t)len >= sizeof(first) - 4) break;
-        memcpy(first + n, utf8 + n, (size_t)len), n += (size_t)len, ++chars;
-    }
-    first[n] = 0;
-    if (utf8 && (utf8[n] && utf8[n] != '\n')) snprintf(first + n, sizeof(first) - n, "...");
-    snprintf(layer->name, sizeof(layer->name), n ? "Text: %s" : "Text", first);
-}
-
 spdf_paint_status spdf_paint_op_text_add(spdf_paint_call* call) {
     spdf_paint_doc* doc = call->doc;
     spdf_paint_object scratch, *object;
@@ -380,7 +365,8 @@ spdf_paint_status spdf_paint_op_text_add(spdf_paint_call* call) {
     object->place = scratch.place;
     object->u.text = scratch.u.text;
     spdf_paint_object_update_bounds(object);
-    if ((layer = spdf_paint_layer_find(doc, id))) name_text_layer(layer, object->u.text.utf8);
+    /* Not named here: the Layers row reads "Text: <first line>" from the text, so it follows every edit. */
+    layer = spdf_paint_layer_find(doc, id);
     spdf_paint_damage(doc, object->bounds);
     if (doc->kind == SPDF_PAINT_DOC_PDF) spdf_paint_pdf_note_change(doc, layer);
     cJSON_AddNumberToObject(call->reply, "id", id);

@@ -393,11 +393,28 @@ NSString* SPDFAnnotateRecentPath(NSString* path) {
         session.host = self;
         NSString* name = spdf_tab_display_name(tab) ?: SPDFAnnotateUntitledCanvasTitle;
         __weak ShenzhenMacDelegate* weakSelf = self;
-        SPDFAnnotateAskToSaveCanvas(_window, name, ^(NSModalResponse choice) {
+        SPDFAnnotateAskToSaveCanvas(_window, name, NO, ^(NSModalResponse choice) {
             ShenzhenMacDelegate* me = weakSelf;
             if (!me || choice == NSAlertThirdButtonReturn) return;
             if (choice == NSAlertSecondButtonReturn) {
                 [session discardNeverSavedCanvas];
+                [me annotateCloseTabNow:tab];
+                return;
+            }
+            [me annotateAskWhereToSaveSession:session completion:^(BOOL saved) {
+                if (saved) [weakSelf annotateCloseTabNow:tab];
+            }];
+        });
+        return NO;
+    }
+    if (session.loaded && session.kind == SPDFAnnotateDocumentPicture && !session.writesInPlace && session.dirty) {
+        // A WebP, RAW or animation drawn on: its changes can only go into a PNG copy, so closing asks, as a canvas does.
+        __weak ShenzhenMacDelegate* weakSelf = self;
+        SPDFAnnotateAskToSaveCanvas(_window, tab.title ?: tab.path.lastPathComponent, YES, ^(NSModalResponse choice) {
+            ShenzhenMacDelegate* me = weakSelf;
+            if (!me || choice == NSAlertThirdButtonReturn) return;
+            if (choice == NSAlertSecondButtonReturn) {
+                [session discardKeptChanges];
                 [me annotateCloseTabNow:tab];
                 return;
             }
@@ -412,6 +429,9 @@ NSString* SPDFAnnotateRecentPath(NSString* path) {
         if (![session flushForClose:NO error:&error] && error.code != NSUserCancelledError)
             [self showError:@"Couldn't save the picture" detail:error.localizedDescription ?: @""];
     }
+    // Written: the picture's layers and its undo history let go of their memory with the tab (a closed tab stays
+    // listed for Reopen Last Closed, which reads the file again).
+    if (session && session.kind != SPDFAnnotateDocumentPDF) [SPDFMacAnnotateSession discardSessionForTab:tab];
     return YES;
 }
 

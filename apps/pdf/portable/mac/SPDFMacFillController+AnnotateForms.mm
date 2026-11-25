@@ -13,6 +13,10 @@
 #include <vector>
 
 // SPDFMacFillController+Drawing.mm.
+@interface NSObject (SPDFAnnotateFormSummary)
+- (id)fillReadSummaryCreatingSession:(BOOL)create;  // the reader (SPDFMacFillIntegration.mm)
+@end
+
 @interface SPDFMacFillController (AnnotateFormsDrawingShared)
 - (NSArray<SPDFFillItem*>*)itemsOnPagesWithPrefix:(const char*)prefix drawingsOnly:(BOOL)drawingsOnly;
 @end
@@ -129,6 +133,10 @@ static NSString* SPDFAnnotateItemKind(spdf_fill_kind kind) {
 #pragma mark - The form
 
 - (NSDictionary*)annotateFormState {
+    // A PDF just opened may not have had its form read yet: read now, so the answer is the same at any moment.
+    id host = self.host;
+    if (![self session].hasSummary && [host respondsToSelector:@selector(fillReadSummaryCreatingSession:)])
+        [host fillReadSummaryCreatingSession:YES];
     NSMutableArray* fields = [NSMutableArray array];
     NSMutableArray* items = [NSMutableArray array];
     // A checkbox's or a radio group's value as the file holds it (/V): the option that is on, else "Off".
@@ -215,6 +223,7 @@ static NSString* SPDFAnnotateItemKind(spdf_fill_kind kind) {
         return [self setText:text forField:field] ? SPDFAnnotateOK(@{@"field": field.name ?: @""})
                                                   : SPDFAnnotateFail(@"failed", @"The field couldn't be filled in.");
     }
+    [self geometryForPageNow:page];  // the same place whether the page was read already or not
     [self.overlay resolveAt:p page:page purpose:SPDF_SNAP_FOR_TEXT aspect:1 snapping:YES result:&snap];
     CGFloat size = op[@"size"] ? [op[@"size"] doubleValue] : (snap.font_size > 0 ? snap.font_size : 11);
     NSSet* before = [self annotateItemNamesOnPage:page];
@@ -241,6 +250,7 @@ static NSString* SPDFAnnotateItemKind(spdf_fill_kind kind) {
                                                : SPDFAnnotateFail(@"failed", @"The box couldn't be ticked.");
     }
     spdf_snap_result snap;
+    [self geometryForPageNow:page];
     [self.overlay resolveAt:p page:page purpose:SPDF_SNAP_FOR_MARK aspect:1 snapping:YES result:&snap];
     NSSet* before = [self annotateItemNamesOnPage:page];
     if (![self addMarkOnPage:page box:SPDFFillRectFromCore(snap.place) cross:cross])

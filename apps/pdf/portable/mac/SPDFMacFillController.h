@@ -66,6 +66,8 @@
 - (NSArray<SPDFFillItem*>*)itemsOnPage:(NSInteger)page;
 // Snap geometry: NULL while it loads in the background (the overlay redraws when it arrives).
 - (const spdf_snap_geometry*)geometryForPage:(NSInteger)page;
+// The same, read now when it isn't there yet: an agent's text or mark lands where a click would put it at once.
+- (const spdf_snap_geometry*)geometryForPageNow:(NSInteger)page;
 - (void)invalidatePage:(NSInteger)page;
 - (NSInteger)pageCount;
 // "3 of 12 filled", or nil for a PDF without its own fields.

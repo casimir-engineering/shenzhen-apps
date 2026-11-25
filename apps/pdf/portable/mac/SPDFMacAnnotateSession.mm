@@ -189,6 +189,7 @@ NSString* SPDFAnnotateProjectForBackingPath(NSString* path) {
         self.writesInPlace = YES;
     } else {
         doc = [SPDFMacAnnotateSession openSidecarForPath:path];
+        BOOL kept = doc != NULL;
         SPDFAnnotatePicture* picture = nil;
         NSError* decodeError = nil;
         if (!doc) {
@@ -201,6 +202,7 @@ NSString* SPDFAnnotateProjectForBackingPath(NSString* path) {
             }
         }
         [self readPictureInfo:picture path:path];
+        self.keptCopyChanges = kept && !self.writesInPlace;
     }
     if (!doc) {
         if (error)
@@ -470,7 +472,7 @@ static NSString* ActionName(const char* op) {
             if (spdf_paint_is_dirty([self livePageCanvas:page.integerValue])) return YES;
         return NO;
     }
-    return _canvas && (spdf_paint_is_dirty(_canvas) || self.lastWriteFailed);
+    return _canvas && (spdf_paint_is_dirty(_canvas) || self.lastWriteFailed || self.keptCopyChanges);
 }
 
 @end

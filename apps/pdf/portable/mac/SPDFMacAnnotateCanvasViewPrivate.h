@@ -54,8 +54,6 @@ typedef NS_ENUM(NSInteger, SPDFAnnotateCanvasHandle) {
 @property(nonatomic) NSRect originalRect;   // the object's box when the drag began
 @property(nonatomic) CGFloat originalRotation;
 @property(nonatomic, copy) NSArray<NSNumber*>* dragObjects;
-@property(nonatomic) NSPoint lastStrokeEnd;  // Shift-click draws a straight line from here
-@property(nonatomic) BOOL hasLastStrokeEnd;
 @property(nonatomic) NSEventModifierFlags gestureModifiers;
 
 // The text box being typed in.
@@ -94,6 +92,8 @@ typedef NS_ENUM(NSInteger, SPDFAnnotateCanvasHandle) {
 - (CGFloat)rotationDelta;      // degrees, from the rotation handle being dragged
 - (NSRect)gestureCanvasRect;   // the box from startPoint to currentPoint (Shift: square)
 - (NSPoint)constrainedEnd;     // currentPoint, at 45 degree steps with Shift
+- (BOOL)shiftStraightensStroke:(NSEvent*)event;  // Shift held: the stroke is one straight line from the press
+- (void)straightenStrokeTo:(NSPoint)point;       // press point -> point (Pencil and brushes at 45 degree steps)
 @end
 
 @interface SPDFMacAnnotateCanvasView (Rulers)

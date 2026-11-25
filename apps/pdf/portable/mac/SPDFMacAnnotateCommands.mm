@@ -111,11 +111,8 @@ static void SPDFAnnotateRunCommand(SPDFMacFillController* c, NSString* command) 
         panel.nameFieldStringValue = @"Selection.png";
         [panel beginSheetModalForWindow:window completionHandler:^(NSModalResponse response) {
           if (response != NSModalResponseOK) return;
-          NSMutableDictionary* op = [@{@"op" : @"doc.render", @"out" : panel.URL.path} mutableCopy];
-          NSDictionary* box = SPDFAnnotateDocState(c)[@"selection"];
-          if ([box isKindOfClass:[NSDictionary class]] && [box[@"bounds"] isKindOfClass:[NSDictionary class]])
-              op[@"region"] = box[@"bounds"];
-          SPDFAnnotateSend(c, SPDFAnnotateOnCurrentPage(c, op), nil);
+          // The selection's own pixels (or the selected object), as Copy puts them on the clipboard.
+          SPDFAnnotateSend(c, SPDFAnnotateOnCurrentPage(c, @{@"op" : @"doc.copy", @"scope" : @"auto", @"out" : panel.URL.path}), nil);
         }];
     } else if ([command isEqual:SPDFAnnotateCommandPasteFromFile]) {
         NSOpenPanel* panel = [NSOpenPanel openPanel];
@@ -268,9 +265,16 @@ static BOOL SPDFAnnotatePayloadChosen(SPDFMacFillController* controller, NSDicti
     id payload = item.representedObject;
     ShenzhenMacDelegate* reader = self.reader ?: SPDFAnnotateReaderFor(self.controller);
     if ([payload isEqual:SPDFAnnotateCommandNewCanvas]) return YES;
-    if ([payload isEqual:SPDFAnnotateCommandSave] || [payload isEqual:SPDFAnnotateCommandSaveAs])
+    if ([payload isEqual:SPDFAnnotateCommandSave] || [payload isEqual:SPDFAnnotateCommandSaveAs]) {
+        // A picture or canvas Annotate opened is always saved by Annotate (a WebP or RAW as a PNG copy).
+        SPDFAnnotateDocumentKind kind = [reader annotateActiveDocumentKind];
+        if ([reader annotateActiveSession].loaded && (kind == SPDFAnnotateDocumentPicture || kind == SPDFAnnotateDocumentCanvas))
+            return YES;
         return [reader validateMenuItem:[[NSMenuItem alloc] initWithTitle:@"" action:@selector(saveDocumentAs:)
                                                              keyEquivalent:@""]];
+    }
+    // While a sheet is up (Resize and skew, Canvas size, a Save panel), the canvas commands wait for it to close.
+    if ([[(self.controller ?: [reader existingFillController]).host fillWindow] attachedSheet]) return NO;
     if ([payload isEqual:SPDFAnnotateCommandDesktopPicture])
         return [reader annotateActiveDocumentKind] == SPDFAnnotateDocumentPicture ||
                [reader annotateActiveDocumentKind] == SPDFAnnotateDocumentCanvas;

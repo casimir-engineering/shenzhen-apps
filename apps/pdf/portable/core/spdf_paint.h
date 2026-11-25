@@ -210,7 +210,8 @@ typedef enum spdf_paint_render_flags {
                                                           already draws (the overlay case) */
     SPDF_PAINT_RENDER_NEAREST = 1 << 1,      /* scale > 1: sharp pixels (nearest neighbour), the canvas above 100 % */
     SPDF_PAINT_RENDER_HIDE_SELECTION = 1 << 2,/* leave out a lifted selection being dragged (the view draws it live) */
-    SPDF_PAINT_RENDER_DARK_PAGE = 1 << 3     /* a PDF page's Background drawn in the reading theme (screen only) */
+    SPDF_PAINT_RENDER_DARK_PAGE = 1 << 3,    /* a PDF page's Background drawn in the reading theme (screen only) */
+    SPDF_PAINT_RENDER_SELECTED_ONLY = 1 << 4 /* only what the pixel selection covers (a lasso's shape): Copy */
 } spdf_paint_render_flags;
 
 typedef struct spdf_paint_render_options {

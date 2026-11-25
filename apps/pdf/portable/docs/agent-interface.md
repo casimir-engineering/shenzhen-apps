@@ -150,8 +150,10 @@ refuse with `unsaved-changes` and close nothing. A window whose last tab closes 
 `[x, y, width, height]`, documents); `documents`, one per tab: `path`, `windowId`, `selected` (the tab in front),
 `loaded` (its document has been read; a restored tab is not read until it is shown), `page`, `pageCount`, `heading` and
 `headingPath` at that page, `reloadedAt` (when the file was last read), `loadedFileModified` (the file's time then),
-`fileModified` (its time now) and `upToDate` (the two agree). For a tab that is not loaded every one of these but
-`path`, `page` and `fileModified` is `null`.
+`fileModified` (its time now) and `upToDate` (the two agree), and `tab`, the tab's id for `szpdf annotate`. For a tab
+that is not loaded every one of these but `path`, `page`, `fileModified` and `tab` is `null`. A tab of Annotate's own
+also has `kind` and `title`: `"canvas"` for a canvas never saved ("Untitled canvas"; its `path` is the picture the app
+keeps for it, target it by `tab`), `"paint_project"` for a `.szpaint` (`project` is its file, `title` its name).
 
 ### Pictures of pages
 

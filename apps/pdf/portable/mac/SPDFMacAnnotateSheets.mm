@@ -284,10 +284,12 @@ void SPDFAnnotateAskToSaveAsPDF(NSWindow* window, void (^answer)(BOOL save)) {
     SPDFAnnotateAsk(alert, window, ^(NSModalResponse r) { if (answer) answer(r == NSAlertFirstButtonReturn); });
 }
 
-void SPDFAnnotateAskToSaveCanvas(NSWindow* window, NSString* name, void (^answer)(NSModalResponse choice)) {
+void SPDFAnnotateAskToSaveCanvas(NSWindow* window, NSString* name, BOOL copy, void (^answer)(NSModalResponse choice)) {
     NSAlert* alert = [NSAlert new];
     alert.messageText = [NSString stringWithFormat:@"Do you want to save “%@”?", name.length ? name : SPDFAnnotateUntitledCanvasTitle];
-    alert.informativeText = @"It has never been saved. If you don't save it, what you drew is lost.";
+    alert.informativeText = copy ? @"This kind of picture can't keep what you drew, so it is saved as a new PNG picture. "
+                                    "If you don't save it, what you drew is lost."
+                                 : @"It has never been saved. If you don't save it, what you drew is lost.";
     [alert addButtonWithTitle:@"Save"];
     NSButton* discard = [alert addButtonWithTitle:@"Don't Save"];
     discard.hasDestructiveAction = YES;

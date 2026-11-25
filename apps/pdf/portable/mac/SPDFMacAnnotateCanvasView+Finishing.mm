@@ -23,8 +23,6 @@
         [points addObject:pressure < 0.999 ? @[@(p.x), @(p.y), @(pressure)] : SPDFAnnotatePointArray(p)];
     }
     if (!points.count) return;
-    self.lastStrokeEnd = self.points.lastObject.pointValue;
-    self.hasLastStrokeEnd = YES;
     NSDictionary* options = [self toolOptions];
     NSDictionary* op;
     if (session.tool == SPDFAnnotateToolPen) {

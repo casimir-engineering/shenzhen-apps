@@ -107,7 +107,14 @@ static NSImageView* Glyph(NSString* symbol) {
                                                name:SPDFAnnotateCanvasPointerDidMoveNotification object:nil];
     [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(refresh)
                                                name:SPDFAnnotateSessionDidChangeNotification object:nil];
+    // Every zoom (the Magnifier, the zoom keys, the toolbar) resizes the page view: the percentage follows.
+    [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(pagesResized:)
+                                               name:NSViewFrameDidChangeNotification object:nil];
     return self;
+}
+
+- (void)pagesResized:(NSNotification*)note {
+    if (!self.hidden && note.object == [self.controller.host fillScrollView].documentView) [self refresh];
 }
 
 - (void)dealloc {

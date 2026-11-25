@@ -184,8 +184,11 @@ static const NSUInteger kMaxTiles = 600;  // ~150 MB at most
     return width > 0 && NSWidth(rect) > 0 ? NSWidth(rect) / width : 1;
 }
 
-// The reader's own zoom, so the status bar, the toolbar and the zoom keys always say the same number.
+// The zoom the status bar shows: on a PDF the reader's own, on a picture or canvas the canvas scale; the toolbar counts
+// from -actualZoom, so both say the same number.
 - (CGFloat)zoomLevel {
+    // A picture's or canvas's 100% is one picture pixel per screen point (-actualZoom in SPDFMacFitViewport.mm).
+    if (self.session && self.session.kind != SPDFAnnotateDocumentPDF) return [self scaleForPage:-1];
     CGFloat zoom = [self.controller.host fillZoom];
     if (zoom > 0) return zoom;
     NSInteger page = self.session.kind == SPDFAnnotateDocumentPDF ? MAX(0, self.session.currentPage) : -1;

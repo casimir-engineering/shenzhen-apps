@@ -45,6 +45,8 @@ typedef struct spdf_paint_pdf_state {
     fz_display_list* page_list; /* the page itself (contents and form widgets), for the locked Background */
     unsigned rev;               /* /SPDFAnnotate /Rev counter of this canvas */
     int writing;                /* inside write_back: reload requests from the Fill & Sign calls are ignored */
+    spdf_paint_pdf_entry* retired; /* layers a reload dropped (their annotation left the file), by identity */
+    int retired_count, retired_cap;
 } spdf_paint_pdf_state;
 
 /* ---- spdf_paint_pdf.c ---- */
@@ -56,6 +58,13 @@ void spdf_paint_pdf_entry_remove(spdf_paint_doc* doc, spdf_paint_pdf_entry* entr
 void spdf_paint_pdf_entry_set(spdf_paint_doc* doc, spdf_paint_pdf_entry* entry, char* model, char* file); /* takes */
 /* The page to read or write; throws. */
 pdf_page* spdf_paint_pdf_load_page(spdf_paint_doc* doc);
+/* ---- spdf_paint_pdf_remove.c: ids kept across a removal ---- */
+/* A reload drops the layer of an annotation that left the file (Remove Everything, another writer) and remembers its
+ * id by the annotation's identity; when the annotation comes back (that removal undone), the layer read for it takes
+ * the id again, so the canvas's own undo steps, which name layers by id, still find it. */
+void spdf_paint_pdf_retire(spdf_paint_doc* doc, const spdf_paint_pdf_entry* entry);
+void spdf_paint_pdf_revive(spdf_paint_doc* doc, const char* nm, int object_number, spdf_paint_layer* layer);
+void spdf_paint_pdf_retired_free(spdf_paint_pdf_state* st);
 /* /NM of an annotation dictionary ("" when none). */
 const char* spdf_paint_pdf_nm(fz_context* ctx, pdf_obj* annot);
 int spdf_paint_pdf_has_prefix(const char* text, const char* prefix);

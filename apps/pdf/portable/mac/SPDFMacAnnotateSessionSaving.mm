@@ -95,7 +95,9 @@ static NSString* UTIForFormat(NSString* format) {
     unsigned char* bytes = NULL;
     size_t length = 0;
     char err[256];
-    BOOL keep = [self hasLayersToKeep] &&
+    // A WebP or RAW drawn on keeps its pixels here too until they are saved as a PNG: nothing is lost on quit.
+    BOOL copyChanges = self.kind == SPDFAnnotateDocumentPicture && !self.writesInPlace && self.dirty;
+    BOOL keep = ([self hasLayersToKeep] || copyChanges) &&
                 spdf_paint_project_bytes(_canvas, &bytes, &length, err, sizeof(err)) == SPDF_PAINT_OK;
     NSData* project = keep ? [NSData dataWithBytes:bytes length:length] : nil;
     spdf_paint_free(bytes);
@@ -257,6 +259,7 @@ static NSString* UTIForFormat(NSString* format) {
     NSString* uti = UTIForFormat(format.length ? format : (SPDFAnnotateFormatForPath(path) ?: @"png"));
     NSString* previous = [self.path copy];
     BOOL wasNeverSaved = self.neverSaved;
+    BOOL wasCopy = self.kind == SPDFAnnotateDocumentPicture && !self.writesInPlace && !self.projectPath;
     BOOL project = [uti isEqual:@"com.intuition.shenzhenpdf.szpaint"];
     __weak SPDFMacAnnotateSession* weakSelf = self;
     [self writeTo:path uti:uti quality:quality > 0 ? quality : 0.92 protect:YES synchronously:NO
@@ -283,10 +286,13 @@ static NSString* UTIForFormat(NSString* format) {
              session.path = path;
              session.format = uti;
              session.writesInPlace = YES;
+             session.keptCopyChanges = NO;
              spdf_paint_mark_saved(session->_canvas);
              [session writeSidecarNow:NO];
          }
          if (wasNeverSaved && ![previous isEqual:shown]) [session removeBackingFiles:previous];
+         // The WebP's or RAW's changes now live in the PNG: the original opens as it is again.
+         if (wasCopy && ![previous isEqual:shown]) [session discardKeptChangesForPath:previous];
          [session.host annotateSession:session didSaveAsPath:shown];
          if (completion) completion(nil);
        }];
@@ -300,6 +306,22 @@ static NSString* UTIForFormat(NSString* format) {
     NSString* sidecar = [SPDFMacAnnotateSession sidecarPathForPath:backing];
     [files removeItemAtPath:sidecar error:nil];
     [files removeItemAtPath:[sidecar.stringByDeletingPathExtension stringByAppendingPathExtension:@"json"] error:nil];
+}
+
+- (void)discardKeptChanges {
+    [self.autosaveTimer invalidate];
+    self.autosaveTimer = nil;
+    self.keptCopyChanges = NO;
+    [self discardKeptChangesForPath:self.path];
+}
+
+- (void)discardKeptChangesForPath:(NSString*)path {
+    NSString* sidecar = [SPDFMacAnnotateSession sidecarPathForPath:path];
+    dispatch_sync(WriteQueue(), ^{
+        [NSFileManager.defaultManager removeItemAtPath:sidecar error:nil];
+        [NSFileManager.defaultManager removeItemAtPath:[sidecar.stringByDeletingPathExtension
+                                                           stringByAppendingPathExtension:@"json"] error:nil];
+    });
 }
 
 - (void)discardNeverSavedCanvas {

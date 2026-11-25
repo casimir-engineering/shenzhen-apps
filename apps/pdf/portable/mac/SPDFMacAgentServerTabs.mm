@@ -2,6 +2,8 @@
 // closing tabs an agent opened, and waiting for the next change to a document's comments. None of them orders a
 // window in or asks to activate the app.
 #import "SPDFMacAgentServer.h"
+#import "SPDFMacAnnotateAgents.h"
+#import "SPDFMacAnnotateIntegration.h"
 #import "SPDFMacMarkdownDelegatePrivate.h"
 #import "SPDFMacMarkdownSession.h"
 #import "SPDFMacModels.h"
@@ -84,6 +86,14 @@ static NSDictionary* HeadingAt(NSArray<NSString*>* titles, NSArray<NSNumber*>* l
                                            @"reloadedAt" : NSNull.null, @"loadedFileModified" : NSNull.null,
                                            @"upToDate" : NSNull.null, @"pageCount" : NSNull.null,
                                            @"heading" : NSNull.null, @"headingPath" : NSNull.null} mutableCopy];
+        // Its id, and what a tab of Annotate's own (a never-saved canvas, a .szpaint shown through its picture) is.
+        document[@"tab"] = SPDFAnnotateTabIdentifier(tab) ?: NSNull.null;
+        if (SPDFAnnotateIsBackingPath(tab.path)) {
+            NSString* project = SPDFAnnotateProjectForBackingPath(tab.path);
+            document[@"title"] = project ? project.lastPathComponent : SPDFAnnotateUntitledCanvasTitle;
+            document[@"kind"] = project ? @"paint_project" : @"canvas";
+            if (project) document[@"project"] = project;
+        }
         if (loaded) {
             [document addEntriesFromDictionary:tab == selected ? [self agentWhereIs] : [self agentWhereIsTab:tab]];
             if (!document[@"heading"]) document[@"heading"] = NSNull.null;

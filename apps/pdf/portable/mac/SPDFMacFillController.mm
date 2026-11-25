@@ -315,6 +315,23 @@ static char kSPDFFillSessionKey;
     return NULL;
 }
 
+- (const spdf_snap_geometry*)geometryForPageNow:(NSInteger)page {
+    const spdf_snap_geometry* ready = [self geometryForPage:page];  // also starts the background read
+    if (ready || ![self checkDocKey]) return ready;
+    char err[512];
+    spdf_document* doc = [_host fillOpenReadDocumentAtPath:[_host fillWorkingPath] error:err length:sizeof(err)];
+    spdf_snap_geometry geometry;
+    memset(&geometry, 0, sizeof(geometry));
+    if (!doc || spdf_snap_geometry_load(doc, (int)page, 50000, NULL, &geometry, err, sizeof(err)) != 1) {
+        spdf_snap_geometry_free(&geometry);
+        memset(&geometry, 0, sizeof(geometry));
+    }
+    if (doc) spdf_close(doc);
+    SPDFFillSnapPage* holder = [[SPDFFillSnapPage alloc] initTakingGeometry:geometry];
+    _geometry[@(page)] = holder;
+    return holder.geometry;
+}
+
 - (void)cancelGeometryLoads {
     @synchronized(_tokens) {
         for (NSValue* value in _tokens) spdf_render_token_cancel((spdf_render_token*)value.pointerValue);

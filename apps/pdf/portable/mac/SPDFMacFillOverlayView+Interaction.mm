@@ -7,6 +7,13 @@
 #import "SPDFMacAnnotateIntegration.h"
 #import "SPDFMacAnnotateMenus.h"
 
+// Letters are typed only into a field or a placed text being edited. A field, box or place focused by a click or Tab
+// takes Space and Return (Return opens a text field), so the tool letters still choose tools there and never start a
+// search.
+static BOOL SPDFFillTakesTypedLetters(SPDFMacFillOverlayView* overlay) {
+    return overlay.controller.editor != nil;
+}
+
 @implementation SPDFMacFillOverlayView (Interaction)
 
 - (void)rightMouseDown:(NSEvent*)event {
@@ -129,7 +136,7 @@
         [super keyDown:event];
         return;
     }
-    BOOL typing = self.controller.editor || self.focusedField || !NSIsEmptyRect(self.focusedTargetRect);
+    BOOL typing = SPDFFillTakesTypedLetters(self);
     if (!typing && !(markTarget && (key == 'x' || key == 'v')) && SPDFAnnotateHandleKey(event, self.controller)) return;
     if ([self drawingKeyDown:event]) return;
     switch (key) {
@@ -211,7 +218,7 @@
     NSString* chars = event.charactersIgnoringModifiers.lowercaseString ?: @"";
     unichar key = chars.length == 1 ? [chars characterAtIndex:0] : 0;
     BOOL mark = self.selectedItem.isMark || self.hoverItem.isMark;
-    BOOL typing = self.controller.editor || self.focusedField || !NSIsEmptyRect(self.focusedTargetRect);
+    BOOL typing = SPDFFillTakesTypedLetters(self);
     if (!typing && (key == 'p' || key == 'a' || key == 'e' || key == 's' || key == 't')) return YES;  // tool keys
     if (!typing && !((key == 'x' || key == 'v') && mark) && SPDFAnnotateClaimsKey(event, self.controller)) return YES;
     if (key == ' ') return mark || self.focusedField || !NSIsEmptyRect(self.focusedTargetRect);

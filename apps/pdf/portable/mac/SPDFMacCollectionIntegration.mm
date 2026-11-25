@@ -14,6 +14,7 @@
 #import "SPDFMacMarkdownComments.h"
 #import <objc/runtime.h>
 #import "SPDFMacTabGroups.h"
+#import "SPDFMacAnnotateIntegration.h"
 #include "spdf_progressive.h"
 @interface ShenzhenMacDelegate (CollectionDisplayNameHost)
 - (void)showDisplayName:(NSString*)name forTabsAtPath:(NSString*)path;  // SPDFMacDocumentRename.mm
@@ -68,6 +69,7 @@ static char kCollectionCompanion, kCollectionImported, kCollectionSettingsObserv
 - (void)collectionDidOpenPath:(NSString*)path {
     // A linked document still downloading is captured when it completes and its tab reopens (SPDFMacRemoteLinks.h).
     if (!path.length || spdf_progressive_path_is_active(path.fileSystemRepresentation)) return;
+    if (SPDFAnnotateIsBackingPath(path)) return;  // Annotate's own canvas and project pictures are not documents
     [self versionsDocumentDidOpen:path];
     [self collectionObserveSettings];
     // Only called after a document has opened. Neither main nor empty launch instantiates the store.

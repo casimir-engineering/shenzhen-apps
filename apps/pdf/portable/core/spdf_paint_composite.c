@@ -55,18 +55,40 @@ void spdf_paint_draw_raster(spdf_paint_doc* doc, fz_pixmap* src, fz_pixmap* dest
     }
     fz_device* dev = NULL;
     fz_image* image = NULL;
+    fz_pixmap* part = NULL;
     fz_var(dev);
     fz_var(image);
+    fz_var(part);
     fz_try(ctx) {
         dev = fz_new_draw_device_with_bbox(ctx, fz_identity, dest, &clip);
         if (nearest) fz_enable_device_hints(ctx, dev, FZ_DONT_INTERPOLATE_IMAGES);
-        image = fz_new_image_from_pixmap(ctx, src, NULL);
         float k = scale / (float)doc->raster_scale;
-        fz_fill_image(ctx, dev, image, fz_scale(src->w * k, src->h * k), opacity, fz_default_color_params);
+        /* Shrinking by a whole factor (the view's tiles: 1/2, 1/4, ...): only the source pixels under the clip, cut on
+         * that factor's grid with two output pixels' margin, so every output pixel averages the same pixels as from
+         * the whole layer. A tile of an 8000 px picture at a low zoom is drawn from its own part instead of scaling
+         * the whole layer for every tile. Any other scale draws from the whole layer. */
+        fz_irect need = fz_pixmap_bbox(ctx, src);
+        int factor = (int)lroundf(1.0f / k);
+        if (k < 1 && factor > 1 && fabsf(factor * k - 1.0f) < 1e-4f) {
+            fz_irect cut = {(clip.x0 - 2) * factor, (clip.y0 - 2) * factor, (clip.x1 + 2) * factor,
+                            (clip.y1 + 2) * factor};
+            need = fz_intersect_irect(cut, need);
+        }
+        if (!fz_is_empty_irect(need)) {
+            /* A view of those pixels, not a copy (fz_new_pixmap_from_pixmap misplaces a sub-area's columns). */
+            part = fz_new_pixmap_with_data(ctx, src->colorspace, need.x1 - need.x0, need.y1 - need.y0, NULL, src->alpha,
+                                           src->stride, src->samples + (size_t)(need.y0 - src->y) * src->stride +
+                                                            (size_t)(need.x0 - src->x) * src->n);
+            image = fz_new_image_from_pixmap(ctx, part, NULL);
+            fz_matrix place = fz_scale((need.x1 - need.x0) * k, (need.y1 - need.y0) * k);
+            place.e = need.x0 * k, place.f = need.y0 * k;
+            fz_fill_image(ctx, dev, image, place, opacity, fz_default_color_params);
+        }
         fz_close_device(ctx, dev);
     }
     fz_always(ctx) {
         fz_drop_image(ctx, image);
+        fz_drop_pixmap(ctx, part);
         fz_drop_device(ctx, dev);
     }
     fz_catch(ctx) fz_ignore_error(ctx);
@@ -251,6 +273,21 @@ static int composite_from_tiles(spdf_paint_doc* doc, fz_pixmap* dest) {
     return 1;
 }
 
+/* SPDF_PAINT_RENDER_SELECTED_ONLY: everything outside the selection mask becomes transparent (premultiplied). */
+static void keep_selected(spdf_paint_doc* doc, fz_pixmap* pix, float scale) {
+    const fz_pixmap* mask = doc->selection.mask;
+    float rs = (float)(doc->raster_scale > 0 ? doc->raster_scale : 1);
+    for (int y = 0; y < pix->h; y++) {
+        int my = (int)floorf((pix->y + y + 0.5f) / scale * rs) - (mask ? mask->y : 0);
+        unsigned char* p = pix->samples + (size_t)y * pix->stride;
+        for (int x = 0; x < pix->w; x++, p += 4) {
+            int mx = (int)floorf((pix->x + x + 0.5f) / scale * rs) - (mask ? mask->x : 0);
+            int m = mask && mx >= 0 && my >= 0 && mx < mask->w && my < mask->h ? mask->samples[my * mask->stride + mx] : 0;
+            for (int c = 0; c < 4; c++) p[c] = (unsigned char)((p[c] * m + 127) / 255);
+        }
+    }
+}
+
 static void apply_matte(fz_pixmap* pix, spdf_paint_color matte) {
     unsigned char m[4];
     spdf_paint_color_bytes(matte | 0xFF, m);
@@ -309,6 +346,7 @@ spdf_paint_status spdf_paint_render(spdf_paint_doc* doc, const spdf_paint_render
                  !filter_count && !(flags & SPDF_PAINT_RENDER_HIDE_SELECTION);
     if (!cached || !composite_from_tiles(doc, dest))
         spdf_paint_composite_into(doc, dest, box, scale, flags, filter, filter_count);
+    if (flags & SPDF_PAINT_RENDER_SELECTED_ONLY) keep_selected(doc, dest, scale);
     if (matte) apply_matte(dest, matte);
     out->width = dest->w;
     out->height = dest->h;

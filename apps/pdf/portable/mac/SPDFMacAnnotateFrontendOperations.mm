@@ -8,6 +8,7 @@
 #import <Vision/Vision.h>
 
 #import "SPDFMacAnnotateCanvasView.h"
+#import "SPDFMacAnnotateColors.h"
 #import "SPDFMacAnnotateImageIO.h"
 #import "SPDFMacAnnotateIntegration.h"
 #import "SPDFMacAnnotateSessionPrivate.h"
@@ -56,6 +57,8 @@ static BOOL RenderScope(SPDFMacAnnotateSession* session, NSInteger page, NSStrin
     spdf_paint_render_options options;
     memset(&options, 0, sizeof(options));
     options.region = ScopeRegion(session, page, scope ?: @"auto", &object);
+    // A pixel selection gives its own pixels (a lasso's shape), not the whole box around it.
+    if (!object && options.region.x1 > options.region.x0) options.flags |= SPDF_PAINT_RENDER_SELECTED_ONLY;
     if (object) {
         options.layers = &object;
         options.layer_count = 1;
@@ -180,7 +183,8 @@ void SPDFAnnotatePrepareInput(NSDictionary* op, SPDFMacAnnotateSession* session,
         NSInteger height = op[@"height"] ? [op[@"height"] integerValue] : SPDF_PAINT_DEFAULT_SIZE;
         SPDFDocumentTab* made = [reader annotateNewCanvasWidth:width height:height background:background
                                                          front:[op[@"front"] boolValue]];
-        completion(made ? OK(@{@"path": made.path ?: @"", @"title": SPDFAnnotateUntitledCanvasTitle})
+        // The new tab's id is its name for agents: a never-saved canvas has no file of its own to name.
+        completion(made ? OK(@{@"tab": SPDFAnnotateTabIdentifier(made) ?: @"", @"title": SPDFAnnotateUntitledCanvasTitle})
                         : SPDFAnnotateErrorAnswer(@"failed", @"The canvas couldn't be made."));
         return;
     }
@@ -249,15 +253,22 @@ void SPDFAnnotatePrepareInput(NSDictionary* op, SPDFMacAnnotateSession* session,
                  completion:^(NSError* e) { completion(e ? Failure(e, @"io_error") : OK(@{@"path": path})); }];
         return;
     }
+    if ([name isEqual:@"palette.save"] || [name isEqual:@"palette.load"]) {
+        completion(SPDFAnnotatePaletteFileOperation(self, op[@"path"], [name isEqual:@"palette.save"]));
+        return;
+    }
     if ([name isEqual:@"doc.copy"]) {
         spdf_bitmap bitmap = {0, 0, 0, NULL};
         NSInteger page = session.kind == SPDFAnnotateDocumentPDF
                              ? ([op[@"page"] integerValue] > 0 ? [op[@"page"] integerValue] - 1 : session.currentPage)
                              : -1;
+        NSString* out = [op[@"out"] stringByExpandingTildeInPath];  // Copy to file: the same pixels, as a PNG file
         BOOL ok = RenderScope(session, page, op[@"scope"], 0, &bitmap) &&
-                  SPDFAnnotateWriteToPasteboard(&bitmap, NSPasteboard.generalPasteboard);
+                  (out ? [SPDFAnnotateEncodePicture(&bitmap, @"png", nil, 0, NULL) writeToFile:out atomically:YES]
+                       : SPDFAnnotateWriteToPasteboard(&bitmap, NSPasteboard.generalPasteboard));
         spdf_free_bitmap(&bitmap);
-        completion(ok ? OK(nil) : SPDFAnnotateErrorAnswer(@"failed", @"Nothing could be copied."));
+        completion(ok ? OK(out ? @{@"path": out} : nil)
+                      : SPDFAnnotateErrorAnswer(@"failed", out ? @"The PNG file couldn't be written." : @"Nothing could be copied."));
         return;
     }
     if ([name isEqual:@"mode.set"]) {
@@ -327,9 +338,22 @@ void SPDFAnnotatePrepareInput(NSDictionary* op, SPDFMacAnnotateSession* session,
     if (view.session == session) [view holdLastFrameUntilReload];
     __weak SPDFMacFillController* weakSelf = self;
     if (session.neverSaved || !session.writesInPlace) {
-        // A never-saved canvas keeps its pixels in <state>/Annotate; a WebP or RAW keeps its layers there.
+        // A never-saved canvas keeps its pixels in <state>/Annotate; a WebP or RAW keeps its changes there.
+        BOOL ask = !session.neverSaved && session.dirty;
         [session flushForClose:YES error:NULL];
-        [[self annotateReader] annotateShowWrittenPictureOfSession:session];
+        ShenzhenMacDelegate* reader = [self annotateReader];
+        if (!ask) {
+            [reader annotateShowWrittenPictureOfSession:session];
+            return;
+        }
+        // Done saves: a WebP or RAW drawn on asks where its PNG copy goes, once the palette has gone; the drawing stays
+        // in view until the panel closes.
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [reader annotateAskWhereToSaveSession:session completion:^(BOOL saved) {
+                (void)saved;
+                [reader annotateShowWrittenPictureOfSession:session];
+            }];
+        });
         return;
     }
     [session saveWithCompletion:^(NSError* error) {

@@ -354,31 +354,72 @@ static NSArray<UTType*>* SPDFAnnotateColorFileTypes(void) {
     return @[ UTTypeJSON, pal ];
 }
 
+// palette.save {path} and palette.load {path} (§ 2 Colors > Save Colors… / Get Colors…, and agents): a .json file
+// ({"version", "palette", "custom"}) or Paint's RIFF .pal, chosen by the extension.
+NSDictionary* SPDFAnnotatePaletteFileOperation(SPDFMacFillController* controller, NSString* path, BOOL save) {
+    path = path.stringByExpandingTildeInPath;
+    SPDFAnnotateSettings* settings = [SPDFAnnotateSettings shared];
+    BOOL pal = [path.pathExtension.lowercaseString isEqual:@"pal"];
+    if (save) {
+        NSArray<NSString*>* custom = settings.customColors ?: @[];
+        NSMutableArray* palette = [NSMutableArray array];
+        NSMutableArray* numbers = [NSMutableArray array];
+        for (NSInteger i = 0; i < 20; ++i) {
+            [palette addObject:SPDFAnnotateHex(SPDFAnnotatePaletteColors[i])];
+            [numbers addObject:@(SPDFAnnotatePaletteColors[i])];
+        }
+        for (NSString* hex in custom) {
+            spdf_paint_color c;
+            if (SPDFAnnotateParseHex(hex, &c)) [numbers addObject:@(c)];
+        }
+        NSData* data = pal ? SPDFAnnotatePalData(numbers)
+                           : [NSJSONSerialization dataWithJSONObject:@{@"version" : @1, @"palette" : palette, @"custom" : custom}
+                                                             options:NSJSONWritingPrettyPrinted error:NULL];
+        if (![data writeToFile:path options:NSDataWritingAtomic error:NULL])
+            return @{@"ok" : @NO, @"error" : @"io_error", @"message" : @"The colors couldn't be written there."};
+        return @{@"ok" : @YES, @"path" : path};
+    }
+    NSData* data = [NSData dataWithContentsOfFile:path];
+    if (!data) return @{@"ok" : @NO, @"error" : @"io_error", @"message" : @"That colors file can't be read."};
+    NSMutableArray<NSNumber*>* colors = [NSMutableArray array];
+    NSDictionary* json = [NSJSONSerialization JSONObjectWithData:data options:0 error:NULL];
+    if ([json isKindOfClass:[NSDictionary class]]) {
+        for (NSString* key in @[ @"custom", @"palette", @"colors" ])
+            for (id hex in [json[key] isKindOfClass:[NSArray class]] ? json[key] : @[]) {
+                spdf_paint_color c;
+                if (SPDFAnnotateParseHex(hex, &c)) [colors addObject:@(c)];
+            }
+    } else {
+        [colors addObjectsFromArray:SPDFAnnotatePalColors(data) ?: @[]];
+    }
+    // Paint's own 20 are always there: the others become the custom colours, in the file's order.
+    NSMutableOrderedSet* custom = [NSMutableOrderedSet orderedSet];
+    for (NSNumber* c in colors) {
+        BOOL fixed = NO;
+        for (NSInteger i = 0; i < 20; ++i) fixed = fixed || SPDFAnnotatePaletteColors[i] == c.unsignedIntValue;
+        if (!fixed) [custom addObject:c];
+    }
+    NSMutableArray* slots = [settings.customColors mutableCopy] ?: [NSMutableArray array];
+    for (NSUInteger i = 0; i < MIN(custom.count, 10u); ++i) {
+        while (slots.count <= i) [slots addObject:@""];
+        slots[i] = SPDFAnnotateHex([custom[i] unsignedIntValue]);
+    }
+    settings.customColors = slots;
+    [controller refreshChrome];  // the palette shows them
+    return @{@"ok" : @YES, @"added" : @(MIN(custom.count, 10u))};
+}
+
 void SPDFAnnotateSaveColorsFile(SPDFMacFillController* controller) {
     NSSavePanel* panel = [NSSavePanel savePanel];
     panel.title = @"Save Colors";
     panel.allowedContentTypes = SPDFAnnotateColorFileTypes();
     panel.allowsOtherFileTypes = NO;
     panel.nameFieldStringValue = @"Colors.json";
-    NSArray<NSString*>* custom = [SPDFAnnotateSettings shared].customColors ?: @[];
     [panel beginSheetModalForWindow:[controller.host fillWindow] completionHandler:^(NSModalResponse response) {
       if (response != NSModalResponseOK) return;
-      NSMutableArray* palette = [NSMutableArray array];
-      NSMutableArray* numbers = [NSMutableArray array];
-      for (NSInteger i = 0; i < 20; ++i) {
-          [palette addObject:SPDFAnnotateHex(SPDFAnnotatePaletteColors[i])];
-          [numbers addObject:@(SPDFAnnotatePaletteColors[i])];
-      }
-      for (NSString* hex in custom) {
-          spdf_paint_color c;
-          if (SPDFAnnotateParseHex(hex, &c)) [numbers addObject:@(c)];
-      }
-      NSData* data = [panel.URL.pathExtension.lowercaseString isEqual:@"pal"]
-                         ? SPDFAnnotatePalData(numbers)
-                         : [NSJSONSerialization dataWithJSONObject:@{@"version" : @1, @"palette" : palette, @"custom" : custom}
-                                                           options:NSJSONWritingPrettyPrinted error:NULL];
-      NSError* error = nil;
-      if (![data writeToURL:panel.URL options:NSDataWritingAtomic error:&error]) [NSApp presentError:error];
+      SPDFAnnotateSend(controller, @{@"op" : @"palette.save", @"path" : panel.URL.path}, ^(NSDictionary* result) {
+        if (![result[@"ok"] boolValue]) NSBeep();
+      });
     }];
 }
 
@@ -388,34 +429,12 @@ void SPDFAnnotateGetColorsFile(SPDFMacFillController* controller) {
     panel.allowedContentTypes = SPDFAnnotateColorFileTypes();
     [panel beginSheetModalForWindow:[controller.host fillWindow] completionHandler:^(NSModalResponse response) {
       if (response != NSModalResponseOK) return;
-      NSData* data = [NSData dataWithContentsOfURL:panel.URL];
-      NSMutableArray<NSNumber*>* colors = [NSMutableArray array];
-      NSDictionary* json = data ? [NSJSONSerialization JSONObjectWithData:data options:0 error:NULL] : nil;
-      if ([json isKindOfClass:[NSDictionary class]]) {
-          for (NSString* key in @[ @"custom", @"palette", @"colors" ])
-              for (id hex in [json[key] isKindOfClass:[NSArray class]] ? json[key] : @[]) {
-                  spdf_paint_color c;
-                  if (SPDFAnnotateParseHex(hex, &c)) [colors addObject:@(c)];
-              }
-      } else if (data) {
-          [colors addObjectsFromArray:SPDFAnnotatePalColors(data) ?: @[]];
-      }
-      // Paint's own 20 are always there: the others become the custom colours, in the file's order.
-      NSMutableOrderedSet* custom = [NSMutableOrderedSet orderedSet];
-      for (NSNumber* c in colors) {
-          BOOL fixed = NO;
-          for (NSInteger i = 0; i < 20; ++i) fixed = fixed || SPDFAnnotatePaletteColors[i] == c.unsignedIntValue;
-          if (!fixed) [custom addObject:c];
-      }
-      if (!custom.count) {
-          NSAlert* alert = [NSAlert new];
-          alert.messageText = @"No new colors in this file";
-          alert.informativeText = @"Its colors are all in the palette already.";
-          [alert beginSheetModalForWindow:[controller.host fillWindow] completionHandler:nil];
-          return;
-      }
-      for (NSUInteger i = 0; i < MIN(custom.count, 10u); ++i)
-          SPDFAnnotateSend(controller, @{@"op" : @"palette.set_custom", @"index" : @(i),
-                                         @"color" : SPDFAnnotateHex([custom[i] unsignedIntValue])}, nil);
+      SPDFAnnotateSend(controller, @{@"op" : @"palette.load", @"path" : panel.URL.path}, ^(NSDictionary* result) {
+        if (![result[@"ok"] boolValue] || [result[@"added"] integerValue] > 0) return;
+        NSAlert* alert = [NSAlert new];
+        alert.messageText = @"No new colors in this file";
+        alert.informativeText = @"Its colors are all in the palette already.";
+        [alert beginSheetModalForWindow:[controller.host fillWindow] completionHandler:nil];
+      });
     }];
 }

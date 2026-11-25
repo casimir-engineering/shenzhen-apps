@@ -24,6 +24,10 @@
 
 static char kSPDFAnnotateCanvasViewKey;
 
+@interface NSObject (SPDFAnnotateToolbarSync)
+- (void)syncToolbarState;  // the reader's toolbar (ShenzhenPDFMac.mm)
+@end
+
 @implementation SPDFMacFillController (Annotate)
 
 #pragma mark - The entry point
@@ -226,6 +230,8 @@ static char kSPDFAnnotateCanvasViewKey;
     if (session && self.overlay) {
         [view attachBelowOverlay:self.overlay];
         view.session = session;
+        view.showsRulers = SPDFAnnotateSettings.shared.showsRulers;  // as View > Rulers and Gridlines were left
+        view.showsGridlines = SPDFAnnotateSettings.shared.showsGridlines;
         view.hidden = NO;
         [view toolDidChange];
         if (session.kind != SPDFAnnotateDocumentPDF) [view takeKeys];
@@ -234,6 +240,10 @@ static char kSPDFAnnotateCanvasViewKey;
         view.hidden = YES;
     }
     SPDFAnnotateUpdateStatusBar(self, showing ? session : nil);
+    // The toolbar's zoom counts from Annotate's 100 % on a picture (-actualZoom): it says it again now.
+    id host = self.host;
+    if (session.kind != SPDFAnnotateDocumentPDF && [host respondsToSelector:@selector(syncToolbarState)])
+        [host syncToolbarState];
 }
 
 @end

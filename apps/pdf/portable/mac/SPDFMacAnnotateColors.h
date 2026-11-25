@@ -23,6 +23,8 @@ NS_ASSUME_NONNULL_BEGIN
 FOUNDATION_EXPORT void SPDFAnnotateOpenColorPanel(SPDFMacFillController* controller);
 FOUNDATION_EXPORT void SPDFAnnotateSaveColorsFile(SPDFMacFillController* controller);
 FOUNDATION_EXPORT void SPDFAnnotateGetColorsFile(SPDFMacFillController* controller);
+// palette.save / palette.load {path}: the answer ({"ok", "path"} or {"ok", "added"}, or an error).
+FOUNDATION_EXPORT NSDictionary* SPDFAnnotatePaletteFileOperation(SPDFMacFillController* controller, NSString* path, BOOL save);
 // The palette's colours as a menu (the narrow palette's Colors button and the More menu): each item sets Color 1.
 FOUNDATION_EXPORT NSMenu* SPDFAnnotateColorsMenu(SPDFMacFillController* controller);
 

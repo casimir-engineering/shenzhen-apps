@@ -5,6 +5,7 @@
 #import "SPDFMacAnnotateIntegrationPrivate.h"
 
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
+#import <objc/runtime.h>
 
 #import "SPDFMacAnnotateCanvasView.h"
 #import "SPDFMacAnnotateImageIO.h"
@@ -264,9 +265,32 @@
     if (controller) SPDFAnnotateUpdateStatusBar(controller, [self annotateShowing] ? [self annotateActiveSession] : nil);
 }
 
+// The Layers panel takes the minimap's place (§ 1): the minimap's slot shows, as wide as the panel, with the panel in
+// it instead of the minimap; on Done the minimap comes back at its own width, as the person left it.
+static char kSPDFAnnotateKeptMinimapWidthKey;
+static const CGFloat kSPDFAnnotateLayersSlotWidth = 252;
+
 - (void)annotateLayersPanelDidShow:(BOOL)shown {
-    [self setMinimapActuallyVisible:shown ? NO : _minimapPreferredVisible];
+    NSNumber* kept = objc_getAssociatedObject(self, &kSPDFAnnotateKeptMinimapWidthKey);
+    if (shown && !kept) {
+        objc_setAssociatedObject(self, &kSPDFAnnotateKeptMinimapWidthKey, @(_minimapWidth), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        _minimapWidth = kSPDFAnnotateLayersSlotWidth;
+    } else if (!shown && kept) {
+        _minimapWidth = kept.doubleValue;
+        objc_setAssociatedObject(self, &kSPDFAnnotateKeptMinimapWidthKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    }
+    [self setMinimapActuallyVisible:shown ? YES : _minimapPreferredVisible];
+    _minimapView.alphaValue = shown ? 0 : 1;  // the panel is what shows in the slot
     dispatch_async(dispatch_get_main_queue(), ^{ [self annotateRefit]; });  // once the panel has its size
+}
+
+- (NSView*)annotateLayersSlot {
+    return objc_getAssociatedObject(self, &kSPDFAnnotateKeptMinimapWidthKey) ? _minimapView : nil;
+}
+
+- (CGFloat)persistedMinimapWidth {
+    NSNumber* kept = objc_getAssociatedObject(self, &kSPDFAnnotateKeptMinimapWidthKey);
+    return kept ? kept.doubleValue : _minimapWidth;
 }
 
 - (void)toggleAnnotateLayers:(id)sender {

@@ -9,8 +9,10 @@
 
 #import <objc/runtime.h>
 
+#import "SPDFMacAnnotateCanvasView.h"
 #import "SPDFMacAnnotatePaletteSupport.h"
-#import "SPDFMacFillController.h"
+#import "SPDFMacFillController+Annotate.h"
+#import "SPDFMacFillOverlayView.h"
 
 @interface ShenzhenMacDelegate (SPDFAnnotateMenusReader)
 - (SPDFMacFillController*)existingFillController;
@@ -36,8 +38,12 @@ static SEL SPDFAnnotateEditAction(NSMenuItem* item) {
 
 static BOOL SPDFAnnotateTakesEdits(SPDFMacFillController* controller, SEL action) {
     if (!controller || ![controller isShowing]) return NO;
-    if ([controller.host fillWindow].firstResponder.class && [[controller.host fillWindow].firstResponder isKindOfClass:[NSText class]])
-        return NO;  // a text box or field being typed in keeps its own Cut, Copy, Paste and Undo
+    // A sheet (Resize and skew, Canvas size, a Save panel) or another window in front keeps its own Edit keys, and so
+    // does a text box or field being typed in: they act on what is typed, not on the canvas.
+    NSWindow* document = [controller.host fillWindow];
+    NSWindow* key = NSApp.keyWindow;
+    if (document.attachedSheet || (key && key != document)) return NO;
+    if ([document.firstResponder isKindOfClass:[NSText class]]) return NO;
     SPDFAnnotateDocumentKind kind = SPDFAnnotateCurrentKind(controller);
     if (kind == SPDFAnnotateDocumentNone || kind == SPDFAnnotateDocumentText) return NO;
     if (action == @selector(undo:) || action == @selector(redo:)) return YES;  // one undo stack per tab
@@ -324,3 +330,22 @@ BOOL SPDFAnnotateHandleKey(NSEvent* event, SPDFMacFillController* controller) {
     SPDFAnnotateChooseTool(controller, next, options);
     return YES;
 }
+
+// Type-to-search asks here first (SPDFMacFindInteraction.mm): while Annotate shows, its letters reach the overlay (a
+// PDF) or the canvas even when the page itself has the keyboard, after a click on the page or on a radio button.
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wobjc-protocol-method-implementation"
+@implementation ShenzhenMacDelegate (SPDFAnnotateTypedKeys)
+- (BOOL)annotateTakeTypedKey:(NSEvent*)event {
+    SPDFMacFillController* controller = [self existingFillController];
+    if (![controller isShowing]) return NO;
+    SPDFMacAnnotateCanvasView* canvas = controller.annotateCanvasView;
+    BOOL onCanvas = canvas.session && !canvas.hidden && SPDFAnnotateCurrentKind(controller) != SPDFAnnotateDocumentPDF;
+    NSView* target = onCanvas ? (NSView*)canvas : (NSView*)controller.overlay;
+    if (!target.window || target.hiddenOrHasHiddenAncestor || ![(id)target handlesTypedKey:event]) return NO;
+    [target.window makeFirstResponder:target];
+    [target keyDown:event];
+    return YES;
+}
+@end
+#pragma clang diagnostic pop

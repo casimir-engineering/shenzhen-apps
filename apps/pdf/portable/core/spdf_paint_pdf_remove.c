@@ -201,3 +201,68 @@ void spdf_paint_pdf_free_removed(spdf_paint_pdf_removed* removed) {
     free(removed->bytes);
     free(removed);
 }
+
+/* ---- Ids kept across a removal (spdf_paint_pdf_internal.h) ---- */
+
+#define SPDF_PAINT_PDF_RETIRED_MAX 4096 /* the oldest are forgotten first */
+
+static int same_identity(const spdf_paint_pdf_entry* e, const char* nm, int object_number) {
+    if (nm) return e->nm && strcmp(e->nm, nm) == 0;
+    return object_number && e->object_number == object_number;
+}
+
+static void forget_retired(spdf_paint_pdf_state* st, int i) {
+    free(st->retired[i].nm);
+    memmove(&st->retired[i], &st->retired[i + 1], (size_t)(st->retired_count - i - 1) * sizeof(*st->retired));
+    --st->retired_count;
+}
+
+void spdf_paint_pdf_retire(spdf_paint_doc* doc, const spdf_paint_pdf_entry* entry) {
+    spdf_paint_pdf_state* st = spdf_paint_pdf_state_of(doc);
+    spdf_paint_pdf_entry* r;
+    int i;
+    if (!st || !entry) return;
+    for (i = st->retired_count - 1; i >= 0; --i) /* one id per identity: the latest */
+        if (same_identity(&st->retired[i], entry->nm, entry->nm ? 0 : entry->object_number)) forget_retired(st, i);
+    if (st->retired_count >= SPDF_PAINT_PDF_RETIRED_MAX) forget_retired(st, 0);
+    if (st->retired_count == st->retired_cap) {
+        int cap = st->retired_cap ? st->retired_cap * 2 : 16;
+        spdf_paint_pdf_entry* grown = (spdf_paint_pdf_entry*)realloc(st->retired, (size_t)cap * sizeof(*grown));
+        if (!grown) return; /* only the id is lost: the layer still comes back, under a new one */
+        st->retired = grown, st->retired_cap = cap;
+    }
+    r = &st->retired[st->retired_count];
+    memset(r, 0, sizeof(*r));
+    r->layer = entry->layer, r->origin = entry->origin, r->object_number = entry->object_number;
+    r->nm = entry->nm ? spdf_paint_pdf_strdup(entry->nm) : NULL;
+    if (entry->nm && !r->nm) return;
+    ++st->retired_count;
+}
+
+void spdf_paint_pdf_revive(spdf_paint_doc* doc, const char* nm, int object_number, spdf_paint_layer* layer) {
+    spdf_paint_pdf_state* st = spdf_paint_pdf_state_of(doc);
+    int i;
+    if (!st || !layer) return;
+    for (i = st->retired_count - 1; i >= 0; --i) {
+        spdf_paint_pdf_entry* r = &st->retired[i];
+        if (!same_identity(r, nm, object_number)) continue;
+        if (!spdf_paint_layer_find(doc, r->layer)) {
+            spdf_paint_selection* s = &doc->selection;
+            int k;
+            for (k = 0; k < s->object_count; ++k) /* the new id, if anything picked it up, follows */
+                if (s->objects[k] == layer->id) s->objects[k] = r->layer;
+            if (doc->active == layer->id) doc->active = r->layer;
+            layer->id = r->layer;
+        }
+        forget_retired(st, i);
+        return;
+    }
+}
+
+void spdf_paint_pdf_retired_free(spdf_paint_pdf_state* st) {
+    int i;
+    if (!st) return;
+    for (i = 0; i < st->retired_count; ++i) free(st->retired[i].nm);
+    free(st->retired);
+    st->retired = NULL, st->retired_count = st->retired_cap = 0;
+}

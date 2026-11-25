@@ -81,7 +81,7 @@ NSArray<SPDFAnnotateEntry*>* SPDFAnnotateBrushes(void) {
     if (!brushes)
         brushes = SPDFAnnotateTable(@[
             @[ @"brush", @"Brush", @"paintbrush.pointed" ], @[ @"calligraphy1", @"Calligraphy brush 1", @"pencil.line" ],
-            @[ @"calligraphy2", @"Calligraphy brush 2", @"pencil.line" ], @[ @"airbrush", @"Airbrush", @"rays" ],
+            @[ @"calligraphy2", @"Calligraphy brush 2", @"pencil.and.outline" ], @[ @"airbrush", @"Airbrush", @"rays" ],
             @[ @"oil", @"Oil brush", @"paintbrush" ], @[ @"crayon", @"Crayon", @"scribble" ],
             @[ @"marker", @"Marker", @"highlighter" ], @[ @"natural_pencil", @"Natural pencil", @"pencil.and.scribble" ],
             @[ @"watercolor", @"Watercolor brush", @"drop.halffull" ]
