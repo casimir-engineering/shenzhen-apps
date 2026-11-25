@@ -14,6 +14,8 @@
 #import "SPDFMacWorkspacePanels.h"
 #import "SPDFMacCollectionStyle.h"
 #import "SPDFMacFillIntegration.h"
+#import "SPDFMacAnnotateIntegration.h"
+#import "SPDFMacAnnotateMenus.h"
 #import <objc/runtime.h>
 
 // One compact header per column. The renderer and real minimap retain their
@@ -196,8 +198,8 @@ static NSButton* Icon(NSString* symbol, NSString* title, id target, SEL action) 
     state.statusSpace=[_toolbarSpacer.widthAnchor constraintGreaterThanOrEqualToConstant:0];
     state.statusSpace.active=YES;
     state.imageColors=Icon(@"photo",@"Invert image colors · ⇧⌘I",self,@selector(toggleDarkThemePreservesImages:));
-    state.fillSign=Icon(@"signature",@"Fill in and sign · ⌥⌘F",self,@selector(toggleFillAndSign:));
-    state.fillSign.accessibilityLabel=@"Fill & Sign";
+    state.fillSign=Icon(@"pencil.tip",@"Annotate · ⌥⌘F",self,@selector(toggleFillAndSign:));
+    state.fillSign.image=SPDFAnnotateButtonImage(); state.fillSign.accessibilityLabel=SPDFAnnotateTitle;
     state.tools = @[state.collection,_readingThemeButton,state.imageColors,_ocrButton,_translateButton,state.fillSign,state.print];
     state.toolsRow = [NSStackView stackViewWithViews:state.tools];
     for (NSStackView* row in @[state.primaryRow,state.toolsRow]) {

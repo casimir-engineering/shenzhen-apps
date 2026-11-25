@@ -33,11 +33,21 @@ FOUNDATION_EXPORT const spdf_paint_color SPDFAnnotatePaletteColors[20];
 // Row 1's groups for a document kind, left to right (Done last), and row 2 for the session's tool. The palette lays
 // them out, collapsing to icons and then "More" as the width shrinks (-layoutRow1InWidth:).
 - (NSArray<NSView*>*)row1ForKind:(SPDFAnnotateDocumentKind)kind;
-- (NSView*)row2ForSession:(SPDFMacAnnotateSession*)session;
+- (NSView*)row2ForSession:(nullable SPDFMacAnnotateSession*)session;
 - (void)layoutRow1InWidth:(CGFloat)width;
+// The narrowest row 1 can get (every group in More): the palette shrinks its own Fill & Sign group past this.
+@property(nonatomic, readonly) CGFloat narrowestWidth;
+// How far row 1 had to shrink: 0 none; 1-3 Image, Colors, Tools to icons; 4-10 groups into More.
+@property(nonatomic, readonly) NSInteger collapseStep;
+// Row 1's width as it is now laid out.
+@property(nonatomic, readonly) CGFloat currentWidth;
 
 // The session's tool, colours or options changed (from a key, a menu, an agent): controls follow.
 - (void)updateFromSession:(nullable SPDFMacAnnotateSession*)session progress:(nullable NSString*)progress;
+// NO greys every group (a PDF that takes no added items, Annotate not ready).
+@property(nonatomic) BOOL enabled;
+// Row 2 has something to show for the session's tool (Fill & Sign's own drawing options aside).
+@property(nonatomic, readonly) BOOL showsRow2;
 
 // The tallest row 2 any tool has, so choosing a tool never moves the pages (SPDFMacFillPalette -reservedHeight).
 @property(nonatomic, readonly) CGFloat tallestRow2Height;

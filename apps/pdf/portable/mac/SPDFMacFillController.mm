@@ -1,5 +1,7 @@
 #import "SPDFMacFillControllerPrivate.h"
 
+#import "SPDFMacAnnotateIntegration.h"
+#import "SPDFMacAnnotatePaletteSupport.h"
 #import "SPDFMacFillEditor.h"
 #import "SPDFMacFillOverlayView.h"
 #import "SPDFMacFillPalette.h"
@@ -130,12 +132,14 @@ static char kSPDFFillSessionKey;
 }
 
 - (NSString*)paletteNote {
+    // A picture Annotate can't write back in place (WebP, camera RAW, an animation) is saved as a PNG copy.
+    SPDFMacAnnotateSession* picture = SPDFAnnotateCurrentSession(self, NO);
+    if (picture.paletteCopyNote.length) return picture.paletteCopyNote;
     // No-break spaces keep "File ▸ Save As…" on one line.
     // Shown from the start when the original can't be changed, so the line doesn't appear (and move the pages)
     // with the first change.
     if (![_host fillIsEditedCopy] && ![_host fillWillFillACopy]) return nil;
-    return @"You're filling in a copy, because the original can't be changed. Choose "
-           @"File\u00a0▸\u00a0Save\u00a0As… to put it where you want.";
+    return SPDFAnnotateWritableCopyNote;
 }
 
 - (void)activeDocumentChanged {

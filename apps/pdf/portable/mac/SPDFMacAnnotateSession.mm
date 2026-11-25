@@ -24,25 +24,7 @@ BOOL SPDFAnnotateToolFromName(NSString* name, SPDFAnnotateTool* tool, NSInteger*
     return NO;
 }
 
-@implementation SPDFAnnotateSettings
-
-+ (instancetype)shared {
-    static SPDFAnnotateSettings* shared;
-    static dispatch_once_t once;
-    dispatch_once(&once, ^{ shared = [SPDFAnnotateSettings new]; });
-    return shared;
-}
-
-- (NSDictionary*)optionsForTool:(NSString*)toolName {
-    (void)toolName;
-    return @{};
-}
-
-- (void)setOptions:(NSDictionary*)options forTool:(NSString*)toolName {
-    (void)options; (void)toolName;
-}
-
-@end
+// SPDFAnnotateSettings is implemented in SPDFMacAnnotateSettings.mm (Mac UI B).
 
 @interface SPDFMacAnnotateSession ()
 @property(nonatomic, weak, readwrite) SPDFDocumentTab* tab;

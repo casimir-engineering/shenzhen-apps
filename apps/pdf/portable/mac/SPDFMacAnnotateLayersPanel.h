@@ -9,8 +9,12 @@
 // object on the canvas. Buttons under the list: New Layer, Duplicate, Merge Down, Delete.
 //
 // Every change it makes is an operation (layer.add, layer.duplicate, layer.merge_down, layer.delete, layer.set,
-// layer.order, layer.activate, object.order) sent through -[SPDFMacFillController applyOperation:tab:completion:]. It
-// reads what it shows from doc.state's answer, never from the core directly.
+// layer.order, layer.activate, object.order, object.merge_down, object.delete) sent through
+// -[SPDFMacFillController applyOperation:tab:completion:]. Clicking an object's row sends layer.activate with the
+// object's id, which selects that object. It reads what it shows from doc.state's answer, never from the core
+// directly (thumbnails aside):
+//   {"layers": [{"id", "kind": "background" | "raster" | "object", "name", "visible", "opacity" (0-100), "locked",
+//                "object": {"kind": ...}}, ... bottom to top], "active": id, "selection": {"objects": [ids]}}
 #import <Cocoa/Cocoa.h>
 
 @class SPDFMacFillController, SPDFMacAnnotateSession;
@@ -33,5 +37,15 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)selectionDidChange;
 
 @end
+
+// The controller's panel (made on first use), and showing it: the palette's Layers button, View > Layers
+// (Shift-Cmd-L) and -[ShenzhenMacDelegate toggleAnnotateLayers:] all call SPDFAnnotateToggleLayersPanel. Shown or
+// not is remembered (SPDFAnnotateSettings.showsLayers); SPDFAnnotateSyncLayersPanel puts it back when Annotate
+// shows and takes it away on Done.
+FOUNDATION_EXPORT SPDFMacAnnotateLayersPanel* _Nullable SPDFAnnotateLayersPanelFor(SPDFMacFillController* controller,
+                                                                                   BOOL create);
+FOUNDATION_EXPORT BOOL SPDFAnnotateLayersPanelShown(SPDFMacFillController* _Nullable controller);
+FOUNDATION_EXPORT void SPDFAnnotateToggleLayersPanel(SPDFMacFillController* controller);
+FOUNDATION_EXPORT void SPDFAnnotateSyncLayersPanel(SPDFMacFillController* controller);
 
 NS_ASSUME_NONNULL_END

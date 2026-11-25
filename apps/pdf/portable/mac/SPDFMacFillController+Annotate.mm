@@ -4,6 +4,10 @@
 // the core's check, whose stub answers not_implemented, so callers can already be wired to it.
 #import "SPDFMacFillController+Annotate.h"
 
+#import "SPDFMacAnnotateLayersPanel.h"
+#import "SPDFMacAnnotatePaletteSupport.h"
+#import "SPDFMacFillPalette.h"
+
 #include "spdf_paint.h"
 
 static NSDictionary* SPDFAnnotateNotBuiltAnswer(void) {
@@ -13,6 +17,11 @@ static NSDictionary* SPDFAnnotateNotBuiltAnswer(void) {
 @implementation SPDFMacFillController (Annotate)
 
 - (void)applyOperation:(NSDictionary*)op tab:(SPDFDocumentTab*)tab completion:(SPDFAnnotateCompletion)completion {
+    NSDictionary* palette = SPDFAnnotateApplyPaletteOperation(self, op, tab);  // tool.choose; colours' side (UI B)
+    if (palette) {
+        if (completion) completion(palette);
+        return;
+    }
     (void)tab;
     NSData* json = op ? [NSJSONSerialization dataWithJSONObject:op options:0 error:NULL] : nil;
     NSString* text = json ? [[NSString alloc] initWithData:json encoding:NSUTF8StringEncoding] : @"";
@@ -43,11 +52,11 @@ static NSDictionary* SPDFAnnotateNotBuiltAnswer(void) {
 }
 
 - (SPDFMacAnnotateLayersPanel*)annotateLayersPanel {
-    return nil;
+    return SPDFAnnotateLayersPanelFor(self, NO);
 }
 
 - (SPDFMacAnnotatePaletteGroups*)annotatePaletteGroups {
-    return nil;
+    return self.palette.annotateGroups;
 }
 
 @end
