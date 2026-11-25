@@ -2,6 +2,7 @@
 // what they answer. The commands that need no window run here, in the tool's own process (SPDFMacSzpdfInternal.h).
 #import "SPDFMacSzpdf.h"
 #import "SPDFMacAgentChannel.h"
+#import "SPDFMacAnnotateAgents.h"
 #import "SPDFMacAgentComments.h"
 #import "SPDFMacCommentActions.h"
 #import "SPDFMacDocumentVersions.h"
@@ -348,6 +349,8 @@ int SPDFMacRunSzpdf(int argc, const char* argv[]) {
         if ([verb isEqual:@"schema"]) return Finish(SPDFMacSzpdfSchema(command[@"topic"]));
         if ([verb isEqual:@"features"]) return Finish(SPDFMacSzpdfFeatures(command[@"format"]));
         if ([@[ @"headings", @"find", @"export-pdf", @"check" ] containsObject:verb]) return Headless(command);
+        if ([verb hasPrefix:@"annotate"]) return SPDFMacSzpdfAnnotate(command);
+        if ([verb isEqual:@"canvas-new"]) return SPDFMacSzpdfCanvas(command);
         if ([verb isEqual:@"open"]) return Open(command);
         if ([verb isEqual:@"reload"]) return Reload(command);
         if ([verb isEqual:@"close"]) return Close(command);

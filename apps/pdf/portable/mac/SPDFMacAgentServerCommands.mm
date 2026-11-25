@@ -2,6 +2,7 @@
 // document (in the background unless asked to the front), a picture of one of its windows, and a nudge that a
 // document's comments changed on disk.
 #import "SPDFMacAgentServer.h"
+#import "SPDFMacAnnotateAgents.h"
 #import "SPDFMacBackgroundOpening.h"
 #import "SPDFMacDocumentVersionsIntegration.h"
 #import "SPDFMacCollectionCompare.h"
@@ -366,6 +367,11 @@ static NSArray<NSString*>* HeadingPath(NSArray<NSString*>* titles, const std::ve
     }
     if ([command isEqual:@"close"]) {
         [self agentClose:request readers:readers reply:reply];
+        return;
+    }
+    if ([command isEqual:@"annotate"] || [command isEqual:@"canvas-new"]) {
+        if ([command isEqual:@"annotate"]) [self agentAnnotate:request readers:readers reply:reply];
+        else [self agentCanvasNew:request readers:readers reply:reply];
         return;
     }
     if ([command isEqual:@"watch-comments"]) {

@@ -28,7 +28,8 @@ FOUNDATION_EXPORT BOOL SPDFMacAgentChannelPathFits(NSString* path);
 // Commands: "state", "open" {path, page?, heading?, front?, wait?, reload?, timeout?}, "reload" {path, timeout?},
 // "close" {path | windowId}, "screenshot" {windowId, output}, "comments-changed" {path},
 // "watch-comments" {path, since?, timeout?}, "version" {action (new, list, compare), path, carry?, older?, newer?,
-// front?}.
+// front?}, "annotate" {target (absolute path or tab id), ops [{op, ...}], timeout?},
+// "canvas-new" {width?, height?, background?, front?} (SPDFMacAnnotateAgents.h).
 // nil with `error` set for anything else.
 FOUNDATION_EXPORT NSDictionary* _Nullable SPDFMacAgentChannelValidateRequest(NSData* line, NSError** error);
 // One line of JSON (sorted keys) ending in "\n".

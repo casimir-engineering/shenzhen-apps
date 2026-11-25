@@ -474,7 +474,9 @@ NSString* SPDFChatRunningToolText(NSString* tool) {
                   @"rename_document" : @"Renaming a document…", @"show_document" : @"Showing a page…",
                   @"open_collection" : @"Opening a document…", @"document_job" : @"Making a new document…",
                   @"organize_groups" : @"Organizing your tabs…", @"reader_control" : @"Changing the view…",
-                  @"app_controls" : @"Using the app’s controls…", @"undo_action" : @"Undoing…"};
+                  @"app_controls" : @"Using the app’s controls…", @"undo_action" : @"Undoing…",
+                  @"annotate_apply" : @"Annotating your document…", @"annotate_state" : @"Looking at your documents…",
+                  @"annotate_look" : @"Looking at your document…", @"canvas_new" : @"Opening a new canvas…"};
     });
     return [tool isKindOfClass:NSString.class] ? words[tool] : nil;
 }

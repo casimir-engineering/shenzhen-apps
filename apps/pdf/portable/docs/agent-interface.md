@@ -31,12 +31,15 @@ privacy, undo behavior and boundaries.
 | Set Markdown paper and pagination | Document front matter and `<!-- pagebreak -->` |
 | Open a document at a page or passage | `open` / `open_document` |
 | Create, name, recolor, order, hide or expand groups | Group actions / MCP group tools below |
+| Draw on a picture, canvas or PDF page; fill in a PDF form | `szpdf annotate` / `annotate_apply` |
 | Persist group organization | Normal reader session YAML, shared with the UI |
 
 For this command-line/MCP interface, author or edit Markdown using your normal
-file-writing tools, then inspect it or open it in ShenzhenPDF. These commands
-do not edit document contents, export a complete PDF, run OCR or translation,
-or manage Collection. Those operations are available only through the
+file-writing tools, then inspect it or open it in ShenzhenPDF. Apart from
+[Annotate](#szpdf-annotate) (`szpdf annotate`, `szpdf canvas new` and the MCP
+`annotate_*` tools, which draw on pictures, canvases and PDF pages and fill in
+PDF forms), these commands do not edit document contents, export a complete PDF,
+run OCR or translation, or manage Collection. Those operations are available only through the
 separately documented in-reader assistant where explicitly supported; do not
 infer broader capabilities from either interface.
 
@@ -61,7 +64,7 @@ szpdf comments report.md --wait-new --timeout 1800
 ### How it behaves
 
 - **It never takes the focus.** Nothing szpdf does brings ShenzhenPDF to the front or makes it the active app, except
-  `open --front` and `version compare --front`. A window that was not showing opens behind the other apps' windows; a
+  `open --front`, `version compare --front` and `canvas new --front`. A window that was not showing opens behind the other apps' windows; a
   new tab opens in place. When ShenzhenPDF is not running, `open` (and `version compare`) start it the same way, with
   no document handed through Launch Services (that would make macOS bring it forward); the document goes over the
   tool's private socket once the app answers. A ShenzhenPDF that runs but does not answer yet is waited for (up to
@@ -104,6 +107,11 @@ szpdf comments report.md --wait-new --timeout 1800
 | `version compare <file> <older> <newer> [--front] [--wait]` | the changed blocks, and a comparison window behind your windows |
 | `check <file.md>` | what the reader will do with a Markdown file |
 | `features [--format md\|pdf\|all]` | what the reader renders, as data |
+| `annotate <file\|tab> <op> [--name value …] [--json '{…}']` | one Annotate operation on a picture, canvas or PDF page (see [Annotate](#szpdf-annotate)) |
+| `annotate <file\|tab> --script ops.json` | operations in order, stopping at the first error |
+| `annotate <file\|tab> state [--page N]` | layers and objects with their ids; on a PDF also its form |
+| `annotate schema [op]` | every operation's arguments as JSON Schema |
+| `canvas new [--width W] [--height H] [--background C] [--front]` | a blank canvas in a new tab; answers its tab id |
 | `schema [command]`, `help [command]`, `--version` | the commands themselves |
 
 ### Opening, waiting and headings
@@ -230,6 +238,90 @@ lines and `from` is the line the other side's lines come before), and `before` a
 text compare by source line; PDFs by the text lines of their pages, with `oldPages` and `newPages` too. It also opens
 the comparison window behind your windows (`--front` to bring it forward); with `--wait` it answers once the window has
 compared them, and `changes` is then the window's count of changed regions (else the number of blocks).
+
+### <a id="szpdf-annotate"></a>Annotate
+
+`szpdf annotate` does what Annotate's tools do in the window, one **operation** at a time: draw and paint, fill,
+shapes, text boxes, pictures, objects and their depth, layers, crop, resize and rotate, and on a PDF its form. Every
+operation is one JSON object, `{"op": "<name>", …arguments}`; the palette, the menus, the keys, the assistant and MCP
+all send the same operations, so anything the person can do, an agent can do. `szpdf help annotate` lists them with a
+sentence each, and `szpdf annotate schema shape.add` gives one operation's arguments as JSON Schema
+(`szpdf annotate schema` gives all of them).
+
+- **The target** is a document's path or a tab id. A document that is not open is opened behind your windows first;
+  Annotate is turned on for its tab if it is off; nothing comes to the front. A canvas never saved has no path, so
+  `szpdf canvas new` answers its id (`"tab": "tab-<pid>-<n>"`), and every `annotate` answer repeats the tab's id.
+- **Arguments** are flags named after them: `--keep-ratio` and `--keepRatio` both give `keepRatio`. Values are typed by
+  the schema: numbers, `true`/`false` (`--bold` alone is true, `--no-bold` false), a point as `x,y`, points as
+  `"x,y x,y …"` (a third number is the pen pressure), a rect as `x,y,w,h`, ids as `3,4`, and anything else as JSON
+  (`--outline '{"color":"#E02020","width":4}'`). `--json '{…}'` gives the arguments whole; with `"op"` inside, the op
+  word may be left out. Paths (`path`, `out`) may be relative to where you run szpdf.
+- **Units.** A picture or canvas is measured in its pixels, a PDF page in points from its top-left corner as shown
+  (rotation applied), y down. On a PDF, operations that act on a page take `--page N` (from 1). Colours are `#RRGGBB`
+  or `#RRGGBBAA`.
+- **Answers.** One operation prints its own answer (a new object's id, a picked colour…) plus `tab` and `windowId`.
+  `--script` prints `results` (each operation's answer), `applied` (how many succeeded) and, at the first failure,
+  `error` and `failedAt`; nothing after a failure is applied. `state` prints `doc.state` (size, layers and objects
+  with ids, kinds, bounds and settings, selection, colours, unsaved changes, file and format) and, on a PDF, `form`
+  (its fields with names, kinds, values, pages and boxes, what was placed, and "3 of 12 filled").
+- **Undo.** Each operation is one step on the tab's own undo stack: the person undoes an agent's change with ⌘Z like
+  their own, and `history.undo` / `history.redo` undo and redo from a script.
+- **Saving** is the app's: a PDF's changes are written into it as annotations after a short pause (into a writable
+  copy when the original can't be changed); a picture is written on `doc.save`, Done, closing or quitting; a canvas
+  needs `doc.save_as` once (PNG by default).
+
+A picture: a red frame, a word in it and a marker stroke under it, a look at the result, then the save.
+
+```sh
+szpdf annotate photo.jpg shape.add --shape rectangle --rect 40,40,320,180 \
+  --outline '{"style":"solid","color":"#E02020","width":6}'
+szpdf annotate photo.jpg text.add --rect 60,60,280,60 --text "Here" --size 36 --bold --color '#E02020'
+szpdf annotate photo.jpg paint.stroke --tool marker --points "40,260 200,270 360,255" --size 20 --opacity 40
+szpdf annotate photo.jpg doc.render --out look.png
+szpdf annotate photo.jpg doc.save
+```
+
+A canvas, from nothing to a PNG, as one script:
+
+```sh
+szpdf canvas new --width 800 --height 600            # {"ok": true, "tab": "tab-4211-3", ...}
+cat > sketch.json <<'JSON'
+[{"op": "paint.fill", "x": 10, "y": 10, "color": "#FFF6E0"},
+ {"op": "shape.add", "shape": "star5", "rect": {"x": 300, "y": 180, "w": 200, "h": 200},
+  "outline": {"style": "solid", "color": "#B07000", "width": 4}, "fill": {"style": "solid", "color": "#FFD040"}},
+ {"op": "text.add", "rect": {"x": 250, "y": 420, "w": 300, "h": 60}, "text": "Well done", "size": 40,
+  "align": "center"},
+ {"op": "doc.save_as", "path": "star.png"}]
+JSON
+szpdf annotate tab-4211-3 --script sketch.json
+```
+
+A PDF page: the page itself is locked (`page_locked`), everything added is an annotation every PDF reader shows.
+
+```sh
+szpdf annotate form.pdf state --page 1                    # fields, their names and boxes
+szpdf annotate form.pdf form.field_set --name full_name --value "Ada Lovelace"
+szpdf annotate form.pdf form.mark_add --page 1 --x 208 --y 241 --kind check
+szpdf annotate form.pdf arrow.add --page 1 --tail 420,520 --tip 330,470 --color '#2060E0'
+szpdf annotate form.pdf shape.add --page 2 --shape oval --rect 100,200,180,60 \
+  --outline '{"color":"#E02020","width":2}'
+szpdf annotate form.pdf form.signature_place --page 2 --rect 120,640,160,48   # the person's saved signature only
+```
+
+A Markdown (or plain text, EPUB…) file is annotated as a PDF: every operation but `doc.save_as_pdf` answers
+`needs_pdf`. Save it as a PDF, then annotate that; the original is not changed.
+
+```sh
+szpdf annotate notes.md doc.save_as_pdf                   # notes.pdf beside it, opened in a new tab
+szpdf annotate notes.pdf pen.add --page 1 --points "72,700 200,690 320,705" --color '#E02020' --width 2
+```
+
+Annotate's own error codes (beside those of [Error codes](#szpdf-errors)): `unknown_op`, `invalid_argument` (the
+arguments do not fit the schema; the message names the argument), `invalid_json`, `page_locked` ("The page itself
+can't be changed."), `needs_pdf` ("Save this document as a PDF to annotate it."), `pdf_only` (a `form.*` operation
+on a picture or canvas), `not_found` (no layer, object or field with that id or name), `locked` (another reader's
+annotation: shown, not editable), `too_large` (over 16384 x 16384 or 268 M pixels), `nothing_selected`,
+`nothing_to_undo`, `no_signature` (no signature saved: agents never draw one), `io_error`, `no_memory`, `failed`.
 
 ### Writing Markdown that displays as you mean
 
@@ -603,7 +695,13 @@ start this command, substituting absolute paths for your checkout and app:
 The adapter implements the MCP 2025-11-25 stdio protocol with
 `initialize`, `ping`, `tools/list`, and `tools/call`. Its tools are
 `inspect_document`, `open_document`, `list_tab_groups`, `create_tab_group`,
-`update_tab_group`, `jump_to_tab_group`, `move_tab_to_group`, `move_tab_group`, and `ungroup_tabs`.
+`update_tab_group`, `jump_to_tab_group`, `move_tab_to_group`, `move_tab_group`, and `ungroup_tabs`, and for
+[Annotate](#szpdf-annotate) `annotate_apply` (`target`, `ops`: a list of operations), `annotate_state` (`target`,
+`page`), `annotate_render` (`target`, `page`, `region`, `scale`, `layers`, `out`: answers the picture as an MCP
+image, and keeps it at `out` when given) and `canvas_new` (`width`, `height`, `background`, `front`). A target is an
+absolute path or a canvas's tab id. Their argument schemas come from `szpdf annotate schema` the first time the tools
+are listed, so they always match the app; the four tools run `szpdf` with argument arrays (the operations of
+`annotate_apply` on its standard input), answer exactly what it prints, and need ShenzhenPDF running or startable.
 The group tools use the fields documented above, without the native `action`
 field. Discovery does not launch the reader.
 Each call invokes the native command with argument arrays, never a shell.
