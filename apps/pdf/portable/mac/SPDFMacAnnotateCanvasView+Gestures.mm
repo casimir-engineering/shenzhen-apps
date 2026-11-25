@@ -2,6 +2,7 @@
 // and sent on release as ONE operation through -applyOperation:tab:completion:. The right button: no movement (4 pt)
 // or Control-click opens the context menu of what is under the pointer; a right-drag with a pixel or shape tool draws
 // with Color 2. Escape drops the gesture in progress.
+#import "SPDFMacFillDrawingStyle.h"
 #import "SPDFMacAnnotateCanvasViewPrivate.h"
 
 #import "SPDFMacAnnotateImageIO.h"
@@ -41,10 +42,13 @@ static BOOL IsPixelOrShapeTool(SPDFAnnotateTool tool) {
 }
 
 - (NSString*)colorFor:(BOOL)second {
-    // Pen and Arrow draw in the colour chosen in their own row (Fill & Sign's four, or Color 1 picked there).
+    // Pen and Arrow draw in the colour chosen in their own row (Fill & Sign's four), as Fill & Sign's pen does.
     SPDFAnnotateTool tool = self.session.tool;
-    id own = !second && (tool == SPDFAnnotateToolPen || tool == SPDFAnnotateToolArrow) ? [self toolOptions][@"color"] : nil;
-    if ([own isKindOfClass:NSString.class] && [own length]) return own;
+    if (!second && (tool == SPDFAnnotateToolPen || tool == SPDFAnnotateToolArrow)) {
+        SPDFFillRGB c = [SPDFMacFillDrawingStyle colorAtIndex:[SPDFMacFillDrawingStyle sharedStyle].colorIndex];
+        return [NSString stringWithFormat:@"#%02X%02X%02X", (int)lround(c.r * 255), (int)lround(c.g * 255),
+                                          (int)lround(c.b * 255)];
+    }
     return SPDFAnnotateColorString(second ? self.session.color2 : self.session.color1);
 }
 

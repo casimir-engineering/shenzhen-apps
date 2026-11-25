@@ -200,32 +200,6 @@ void SPDFAnnotateInstallMenuItems(NSMenu* fileMenu, NSMenu* editMenu, NSMenu* vi
 #undef BAR
 }
 
-#pragma mark - The toolbar button's picture
-
-// A pencil and a brush crossed: the brush's tip down to the left, the pencil's (mirrored) down to the right.
-NSImage* SPDFAnnotateButtonImage(void) {
-    static NSImage* image;
-    if (image) return image;
-    NSImageSymbolConfiguration* config = [NSImageSymbolConfiguration configurationWithPointSize:12 weight:NSFontWeightRegular];
-    NSImage* brush = [[NSImage imageWithSystemSymbolName:@"paintbrush.pointed" accessibilityDescription:nil]
-        imageWithSymbolConfiguration:config];
-    NSImage* pencil = [[NSImage imageWithSystemSymbolName:@"pencil" accessibilityDescription:nil] imageWithSymbolConfiguration:config];
-    if (!brush || !pencil) return image = [NSImage imageWithSystemSymbolName:@"pencil.tip" accessibilityDescription:SPDFAnnotateTitle];
-    image = [NSImage imageWithSize:NSMakeSize(18, 16) flipped:NO drawingHandler:^BOOL(NSRect rect) {
-      NSSize b = brush.size, p = pencil.size;
-      [brush drawInRect:NSMakeRect(0, (NSHeight(rect) - b.height) / 2, b.width, b.height)];
-      NSAffineTransform* mirror = [NSAffineTransform transform];
-      [mirror translateXBy:NSWidth(rect) yBy:0];
-      [mirror scaleXBy:-1 yBy:1];
-      [mirror concat];
-      [pencil drawInRect:NSMakeRect(0, (NSHeight(rect) - p.height) / 2, p.width, p.height)];
-      return YES;
-    }];
-    [image setTemplate:YES];
-    image.accessibilityDescription = SPDFAnnotateTitle;
-    return image;
-}
-
 #pragma mark - Keys (§ 2, § 3, § 4)
 
 static NSString* SPDFAnnotateKeyLetter(NSEvent* event, BOOL* shift) {

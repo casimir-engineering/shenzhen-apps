@@ -14,7 +14,5 @@ FOUNDATION_EXPORT BOOL SPDFAnnotateClaimsKey(NSEvent* event, SPDFMacFillControll
 // cut:, copy:, paste:, selectAll:, undo:, redo: while Annotate shows: YES when it became an operation (Annotate has a
 // selection or a canvas tool is chosen); NO leaves the action to the reader as before.
 FOUNDATION_EXPORT BOOL SPDFAnnotatePerformEditAction(SEL action, SPDFMacFillController* controller);
-// The toolbar button's pencil-and-brush picture (a template image).
-FOUNDATION_EXPORT NSImage* SPDFAnnotateButtonImage(void);
 
 NS_ASSUME_NONNULL_END
