@@ -110,7 +110,8 @@ const char spdf_paint_schema_image_text[] = SPDF_JSON(
   "select.invert": {"properties": {}},
   "select.delete": {"properties": {}},
   "select.lift": {"properties": {}},
-  "select.transparent": {"required": ["on"], "properties": {"on": {"type": "boolean"}}}
+  "select.transparent": {"required": ["on"], "properties": {"on": {"type": "boolean"}}},
+  "select.objects": {"required": ["ids"], "properties": {"ids": {"type": "array", "items": {"$ref": "#/$defs/id"}}}}
 );
 
 const char spdf_paint_schema_drawing_text[] = SPDF_JSON(
@@ -276,6 +277,8 @@ static const spdf_paint_op_info k_ops[] = {
      "Lifts the selected pixels out of the active layer into a new Picture object and answers its id."},
     {"select.transparent", "Selection", S, ANYC, CANVAS,
      "When on, pixels of Color 2 are left behind when a selection is lifted."},
+    {"select.objects", "Selection", S | P, ANYC, CANVAS, "Selects these objects (an empty list selects none), so "
+     "the image operations and Delete act on them."},
     {"pen.add", "Pen and arrow", U | P, ANYC, FILL,
      "Adds a pen line: a smooth vector line through the points that stays an object you can move and restyle."},
     {"arrow.add", "Pen and arrow", U | P, ANYC, FILL, "Adds an arrow from tail to tip; both ends can be moved later."},
