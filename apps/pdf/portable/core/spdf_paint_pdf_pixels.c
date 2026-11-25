@@ -144,3 +144,43 @@ int spdf_paint_pdf_draw_annotation(spdf_paint_doc* doc, const spdf_paint_object*
     return ok;
 }
 
+
+/* ---- Questions the frontend asks ---- */
+
+spdf_document* spdf_paint_pdf_document(const spdf_paint_doc* doc) {
+    return doc && doc->kind == SPDF_PAINT_DOC_PDF ? doc->pdf : NULL;
+}
+
+spdf_paint_id spdf_paint_pdf_object_for_name(const spdf_paint_doc* doc, const char* nm) {
+    int i;
+    if (!doc || !nm || doc->kind != SPDF_PAINT_DOC_PDF) return 0;
+    for (i = 0; i < doc->layer_count; ++i) {
+        const spdf_paint_layer* l = doc->layers[i];
+        const char* name = l->object ? l->object->pdf_nm : l->pdf_nm;
+        if (name && strcmp(name, nm) == 0) return l->id;
+    }
+    return 0;
+}
+
+int spdf_paint_pdf_op_locked(const spdf_paint_doc* doc, const char* op) {
+    int i, added = 0, raster = 0;
+    const spdf_paint_layer* active = NULL;
+    if (!op || (doc && doc->kind != SPDF_PAINT_DOC_PDF)) return 0;
+    if (!strcmp(op, "canvas.resize") || !strcmp(op, "canvas.properties") || !strcmp(op, "image.crop")) return 1;
+    for (i = 1; doc && i < doc->layer_count; ++i) {
+        const spdf_paint_layer* l = doc->layers[i];
+        if (l->locked) continue;
+        ++added;
+        if (l->kind == SPDF_PAINT_LAYER_RASTER) ++raster;
+        if (l->id == doc->active) active = l;
+    }
+    if (!strcmp(op, "image.clear")) return !active || active->kind != SPDF_PAINT_LAYER_RASTER;
+    if (!strcmp(op, "image.resize") || !strcmp(op, "image.skew") || !strcmp(op, "image.rotate") ||
+        !strcmp(op, "image.flip") || !strcmp(op, "image.invert"))
+        return added == 0;
+    if (!strcmp(op, "select.lift") || !strcmp(op, "select.delete"))
+        return !doc || (!raster && doc->selection.object_count == 0);
+    if (!strcmp(op, "image.remove_background"))
+        return !doc || (doc->selection.object_count == 0 && !(active && active->kind == SPDF_PAINT_LAYER_RASTER));
+    return 0;
+}

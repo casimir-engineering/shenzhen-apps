@@ -316,6 +316,17 @@ spdf_paint_status spdf_paint_pdf_write_back(spdf_paint_doc* doc, int* pages_chan
 /* The page's annotations changed under the canvas (Fill & Sign wrote or undid an item, the file was reloaded): reads
  * them again, keeping ids of the objects still there and the drawing layers' pixels. */
 spdf_paint_status spdf_paint_pdf_reload(spdf_paint_doc* doc, char* err, size_t err_len);
+/* The document a PDF page canvas reads (NULL for other canvases): after a move to a writable copy the tab's document
+ * is another one, and its canvases must be opened again on it. */
+spdf_document* spdf_paint_pdf_document(const spdf_paint_doc* doc);
+/* The id of the object written as /NM `nm` (a Fill & Sign item's name or comb group, or one of ours), 0 when none:
+ * the answer of an operation the Fill & Sign code carried out (pen.add -> its new pen line's id). */
+spdf_paint_id spdf_paint_pdf_object_for_name(const spdf_paint_doc* doc, const char* nm);
+/* On a PDF page canvas: 1 when operation `op` (a § 6 name) has nothing to act on but the page itself here (canvas.resize,
+ * canvas.properties, image.crop always; image.clear with no drawing layer active; the whole-picture image commands
+ * with nothing added; select.lift, select.delete and image.remove_background with nothing to take them), so the UI
+ * greys the command with "The page itself can't be changed." and the core answers page_locked. 0 elsewhere. */
+int spdf_paint_pdf_op_locked(const spdf_paint_doc* doc, const char* op);
 /* Whether the page holds anything Annotate wrote (an /NM starting SPDF_PAINT_NM_PREFIX), without loading it; for the
  * reader's "has added items" checks. 1, 0, or -1 with err. */
 int spdf_paint_pdf_page_has_items(spdf_document* pdf, int page_index, char* err, size_t err_len);

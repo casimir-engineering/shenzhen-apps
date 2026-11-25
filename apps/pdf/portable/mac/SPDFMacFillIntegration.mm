@@ -118,7 +118,8 @@ void SPDFFillInstallMenuItems(NSMenu* editMenu, NSMenu* fileMenu, ShenzhenMacDel
     SPDFMacFillController* controller = [self existingFillController];
     if (controller && [controller hasPendingStrokes]) return YES;
     char err[128];
-    if (!drawingsOnly) return spdf_fill_pages_with_items(_doc, SPDF_FILL_NM_PREFIX, NULL, 0, err, sizeof(err)) > 0;
+    if (!drawingsOnly) return spdf_fill_pages_with_items(_doc, SPDF_FILL_NM_PREFIX, NULL, 0, err, sizeof(err)) > 0 ||
+                              spdf_fill_pages_with_items(_doc, "spdf-annotate-", NULL, 0, err, sizeof(err)) > 0;
     return spdf_fill_pages_with_items(_doc, SPDF_FILL_PEN_NM_PREFIX, NULL, 0, err, sizeof(err)) > 0 ||
            spdf_fill_pages_with_items(_doc, SPDF_FILL_ARROW_NM_PREFIX, NULL, 0, err, sizeof(err)) > 0;
 }
