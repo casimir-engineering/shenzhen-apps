@@ -37,7 +37,7 @@ void SPDFAnnotateSyncLayersPanel(SPDFMacFillController* controller) {
         if (wasShown) [reader annotateLayersPanelDidShow:NO];
         return;
     }
-    if (!wasShown) [reader annotateLayersPanelDidShow:YES];  // first: the minimap's place is made for it
+    [reader annotateLayersPanelDidShow:YES];  // first, and after a document reset the minimap: its place is made
     [panel attachToContainer:[controller.host fillContainer]];
     [panel reloadFromSession:SPDFAnnotateCurrentSession(controller, YES)];
 }

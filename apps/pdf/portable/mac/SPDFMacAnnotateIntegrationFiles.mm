@@ -272,6 +272,9 @@ static const CGFloat kSPDFAnnotateLayersSlotWidth = 252;
 
 - (void)annotateLayersPanelDidShow:(BOOL)shown {
     NSNumber* kept = objc_getAssociatedObject(self, &kSPDFAnnotateKeptMinimapWidthKey);
+    // Asked again on every refresh while shown: opening a document puts the minimap back as the person left it (often
+    // hidden), and the panel then floated over the page. Nothing to do while the slot is there.
+    if (shown && kept && _minimapVisible && _minimapView.alphaValue == 0) return;
     if (shown && !kept) {
         objc_setAssociatedObject(self, &kSPDFAnnotateKeptMinimapWidthKey, @(_minimapWidth), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
         _minimapWidth = kSPDFAnnotateLayersSlotWidth;
