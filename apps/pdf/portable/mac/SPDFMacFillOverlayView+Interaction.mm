@@ -140,6 +140,7 @@
             return;
         case 'x':
         case 'v':
+            if (!markTarget) markTarget = [self focusedMark];  // Space keeps putting a Tab-focused box's mark on and off
             if (!markTarget) break;
             [self.controller setItem:markTarget cross:key == 'x'];
             return;
@@ -191,6 +192,14 @@
 
 @implementation SPDFMacFillOverlayView (Keys)
 
+// X, V and Space act on our mark in the box Tab moved to as on a selected one.
+- (SPDFFillItem*)focusedMark {
+    if (NSIsEmptyRect(self.focusedTargetRect)) return nil;
+    for (SPDFFillItem* item in [self.controller itemsOnPage:self.focusedTargetPage])
+        if (item.isMark && NSIntersectsRect(NSInsetRect(item.rect, 1, 1), self.focusedTargetRect)) return item;
+    return nil;
+}
+
 - (BOOL)handlesTypedKey:(NSEvent*)event {
     if (self.hidden || (event.modifierFlags & NSEventModifierFlagDeviceIndependentFlagsMask &
                         (NSEventModifierFlagCommand | NSEventModifierFlagControl | NSEventModifierFlagOption)))
@@ -201,7 +210,7 @@
     BOOL typing = self.controller.editor || self.focusedField || !NSIsEmptyRect(self.focusedTargetRect);
     if (!typing && (key == 'p' || key == 'a' || key == 'e' || key == 's' || key == 't')) return YES;  // tool keys
     if (key == ' ') return mark || self.focusedField || !NSIsEmptyRect(self.focusedTargetRect);
-    return (key == 'x' || key == 'v') && mark;
+    return (key == 'x' || key == 'v') && (mark || [self focusedMark]);
 }
 
 - (void)takeKeysFromPages {
