@@ -4,7 +4,7 @@
 
 // The decoders linked by portable/Makefile, not every format advertised by an
 // arbitrary MuPDF build. JPEG XR needs HAVE_JPEGXR; RAR needs HAVE_LIBARCHIVE.
-// Neither is linked here. Do not claim generic image/data UTIs (HEIC/WebP etc.).
+// Neither is linked here. Do not claim generic image/data UTIs without a decoder here.
 static inline NSArray<NSString*>* SPDFNativeDocumentExtensions(void) {
     static NSArray<NSString*>* extensions;
     static dispatch_once_t once;
@@ -17,7 +17,9 @@ static inline NSArray<NSString*>* SPDFNativeDocumentExtensions(void) {
             @"raw", @"raw10",
             // Camera RAW photos, developed by mac/SPDFMacCameraRaw.mm (core/spdf_camera_raw.h).
             @"cr2", @"cr3", @"crw", @"nef", @"nrw", @"arw", @"sr2", @"srf", @"orf", @"raf", @"rw2", @"rwl", @"pef",
-            @"dng", @"srw", @"3fr", @"fff", @"iiq", @"x3f"];
+            @"dng", @"srw", @"3fr", @"fff", @"iiq", @"x3f",
+            // HEIC, HEIF and WebP pictures, decoded by ImageIO in mac/SPDFMacImageIOPictures.mm.
+            @"heic", @"heif", @"webp"];
     });
     return extensions;
 }

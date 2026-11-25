@@ -236,9 +236,8 @@ static NSDictionary* SPDFLayerRowFrom(NSDictionary* layer) {
     SPDFMacAnnotateSession* session = _session;
     if (!session) return NULL;
     if (session.kind != SPDFAnnotateDocumentPDF) return session.canvas;
-    return session.currentPage >= 0 ? [session canvasForPage:session.currentPage document:[_controller.host fillDocument]
-                                                      create:NO]
-                                    : NULL;
+    // The page the rows were read from (SPDFAnnotateOnCurrentPage): the page last touched, else the first.
+    return [session canvasForPage:MAX(0, session.currentPage) document:[_controller.host fillDocument] create:YES];
 }
 
 - (void)scheduleThumbnails {

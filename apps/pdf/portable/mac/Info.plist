@@ -106,6 +106,9 @@
 				<string>ppm</string>
 				<string>pfm</string>
 				<string>psd</string>
+				<string>heic</string>
+				<string>heif</string>
+				<string>webp</string>
 			</array>
 			<key>CFBundleTypeName</key>
 			<string>Document</string>

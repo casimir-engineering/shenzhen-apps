@@ -1,5 +1,6 @@
 #import "SPDFMacCollectionReaderNavigation.h"
 #import "SPDFMacCollectionStore.h"
+#import "SPDFMacAnnotateSession.h"
 #import "SPDFMacTabGroups.h"
 #import "SPDFMacMarkdownDelegatePrivate.h"
 #import <objc/runtime.h>
@@ -33,7 +34,9 @@ static dispatch_queue_t GroupWrites(void) {
     dispatch_async(GroupWrites(), ^{ [SPDFMacCollectionStore.defaultStore rememberGroups:groups]; });
 }
 - (BOOL)collectionRestoreMissingTab:(SPDFDocumentTab*)tab path:(NSString*)path {
-    // Covers absent, unreadable and damaged sources after a real open fails.
+    // Covers absent, unreadable and damaged sources after a real open fails. Annotate's own canvas and project
+    // pictures (<state>/Annotate/Tabs) are never Collection documents, whatever file they happen to resemble.
+    if (SPDFAnnotateIsBackingPath(path)) return NO;
     if ([objc_getAssociatedObject(tab,&conversionPathKey) isEqual:path])
         return [objc_getAssociatedObject(tab,&conversionPendingKey) boolValue];
     NSDictionary* doc=[SPDFMacCollectionStore.defaultStore documentForPath:path];

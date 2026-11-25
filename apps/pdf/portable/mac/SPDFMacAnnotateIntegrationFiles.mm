@@ -266,6 +266,7 @@
 
 - (void)annotateLayersPanelDidShow:(BOOL)shown {
     [self setMinimapActuallyVisible:shown ? NO : _minimapPreferredVisible];
+    dispatch_async(dispatch_get_main_queue(), ^{ [self annotateRefit]; });  // once the panel has its size
 }
 
 - (void)toggleAnnotateLayers:(id)sender {

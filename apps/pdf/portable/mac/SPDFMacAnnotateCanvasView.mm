@@ -183,7 +183,10 @@ static const NSUInteger kMaxTiles = 600;  // ~150 MB at most
     return width > 0 && NSWidth(rect) > 0 ? NSWidth(rect) / width : 1;
 }
 
+// The reader's own zoom, so the status bar, the toolbar and the zoom keys always say the same number.
 - (CGFloat)zoomLevel {
+    CGFloat zoom = [self.controller.host fillZoom];
+    if (zoom > 0) return zoom;
     NSInteger page = self.session.kind == SPDFAnnotateDocumentPDF ? MAX(0, self.session.currentPage) : -1;
     return [self scaleForPage:page];
 }
@@ -263,6 +266,11 @@ static const NSUInteger kMaxTiles = 600;  // ~150 MB at most
 }
 
 - (void)toolDidChange {
+    // A polygon or curve being clicked out ends unfinished when another tool is chosen.
+    NSString* shape = self.gesture == SPDFAnnotateGesturePolygon ? @"polygon" : @"curve";
+    if ((self.gesture == SPDFAnnotateGesturePolygon || self.gesture == SPDFAnnotateGestureCurve) &&
+        !(self.session.tool == SPDFAnnotateToolShape && [self.session.shape isEqual:shape]))
+        [self cancelGesture];
     [self.window invalidateCursorRectsForView:self];
     self.needsDisplay = YES;
 }

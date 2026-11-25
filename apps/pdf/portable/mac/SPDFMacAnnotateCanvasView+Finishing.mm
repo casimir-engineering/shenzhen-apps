@@ -185,6 +185,10 @@
         [self finishPolygonOnPage:self.gesturePage];
         return;
     }
+    if ((c == '\r' || c == 3) && self.gesture == SPDFAnnotateGestureCurve) {  // Return: the curve as bent so far
+        [self finishCurveOnPage:self.gesturePage];
+        return;
+    }
     if (!command && (c == NSDeleteCharacter || c == NSBackspaceCharacter || c == NSDeleteFunctionKey)) {
         if (session.selectedObjects.count)
             [self operation:@{@"op": @"object.delete", @"ids": session.selectedObjects} page:page done:nil];

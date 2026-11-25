@@ -118,6 +118,13 @@ typedef NS_ENUM(NSInteger, SPDFAnnotateCanvasHandle) {
 - (void)notePointer:(NSPoint)point page:(NSInteger)page inside:(BOOL)inside;
 @end
 
+// +Curve.mm: the Curve, drawn as a line and then bent twice (classic Paint).
+@interface SPDFMacAnnotateCanvasView (Curve)
+- (void)curveReleasedAt:(NSPoint)point page:(NSInteger)page moved:(BOOL)moved;
+- (void)finishCurveOnPage:(NSInteger)page;  // also Return, with fewer bends
+- (NSBezierPath*)curvePreviewOnPage:(NSInteger)page;
+@end
+
 // +TextBox.mm: the text box being typed in.
 @interface SPDFMacAnnotateCanvasView (TextBox)
 - (void)openTextEditorAt:(NSRect)rect page:(NSInteger)page object:(NSNumber*)object text:(NSString*)text;

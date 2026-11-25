@@ -326,16 +326,46 @@ spdf_paint_status spdf_paint_render(spdf_paint_doc* doc, const spdf_paint_render
     return SPDF_PAINT_OK;
 }
 
+/* What a layer's thumbnail shows: an object's own box, a raster layer's painted pixels (the canvas while it is
+ * empty), the whole canvas for the Background, so small things stay visible in the Layers panel. */
+static spdf_rect thumbnail_region(spdf_paint_doc* doc, spdf_paint_layer* layer) {
+    spdf_rect all = spdf_paint_canvas_rect(doc);
+    if (layer->object) {
+        spdf_paint_object_update_bounds(layer->object);
+        spdf_rect b = layer->object->bounds;
+        float pad = fmaxf(2.0f, 0.05f * fmaxf(b.x1 - b.x0, b.y1 - b.y0));
+        return b.x1 > b.x0 && b.y1 > b.y0 ? (spdf_rect){b.x0 - pad, b.y0 - pad, b.x1 + pad, b.y1 + pad} : all;
+    }
+    if (layer->kind == SPDF_PAINT_LAYER_BACKGROUND || !layer->pixels) return all;
+    const fz_pixmap* p = layer->pixels;
+    int x0 = p->w, y0 = p->h, x1 = -1, y1 = -1;
+    for (int y = 0; y < p->h; y++) {
+        const unsigned char* row = p->samples + (size_t)y * p->stride;
+        for (int x = 0; x < p->w; x++)
+            if (row[x * 4 + 3]) {
+                if (x < x0) x0 = x;
+                if (x > x1) x1 = x;
+                if (y < y0) y0 = y;
+                y1 = y;
+            }
+    }
+    if (x1 < 0) return all;
+    float rs = (float)doc->raster_scale, pad = 2.0f;
+    return (spdf_rect){x0 / rs - pad, y0 / rs - pad, (x1 + 1) / rs + pad, (y1 + 1) / rs + pad};
+}
+
 spdf_paint_status spdf_paint_layer_thumbnail(spdf_paint_doc* doc, spdf_paint_id layer, int max_side, spdf_bitmap* out,
                                              char* err, size_t err_len) {
-    if (!doc || !spdf_paint_layer_find(doc, layer)) {
+    spdf_paint_layer* found = doc && doc->ctx ? spdf_paint_layer_find(doc, layer) : NULL;
+    if (!found) {
         spdf_paint_set_error(err, err_len, "There is no such layer.");
         return SPDF_PAINT_ERR_NOT_FOUND;
     }
-    int side = doc->width > doc->height ? doc->width : doc->height;
     spdf_paint_render_options options;
     memset(&options, 0, sizeof(options));
-    options.scale = side > 0 && max_side > 0 ? (float)max_side / side : 1.0f;
+    options.region = thumbnail_region(doc, found);
+    float side = fmaxf(options.region.x1 - options.region.x0, options.region.y1 - options.region.y0);
+    options.scale = side > 0 && max_side > 0 ? fminf((float)max_side / side, 4.0f) : 1.0f;
     options.layers = &layer;
     options.layer_count = 1;
     return spdf_paint_render(doc, &options, out, err, err_len);

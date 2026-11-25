@@ -17,6 +17,8 @@ FOUNDATION_EXPORT void SPDFAnnotatePrepareInput(NSDictionary* op, SPDFMacAnnotat
                                                               const spdf_paint_apply_input* _Nullable input));
 
 // The status bar under the page area while Annotate shows (SPDFMacAnnotateStatusBar.mm); session nil hides it.
+// Height of the status bar over the bottom of the page area (fits leave room for it).
+FOUNDATION_EXPORT const CGFloat SPDFAnnotateStatusBarHeight;
 FOUNDATION_EXPORT void SPDFAnnotateUpdateStatusBar(SPDFMacFillController* controller,
                                                    SPDFMacAnnotateSession* _Nullable session);
 

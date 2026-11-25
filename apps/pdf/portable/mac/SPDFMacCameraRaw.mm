@@ -146,5 +146,13 @@ static fz_document* DevelopWithCoreImage(fz_context* ctx, const char* path) {
     return doc;
 }
 
+// HEIC, HEIF and WebP pictures (SPDFMacImageIOPictures.mm), installed beside the RAW decoder through the core's open
+// hooks (core/spdf_core_document.h, which frontends don't include: its one entry declared here).
+fz_document* SPDFMacOpenImageIOPicture(fz_context* ctx, const char* path);
+extern "C" void spdf_core_add_open_hook(fz_document* (*hook)(fz_context* ctx, const char* path));
+
 // Before main(): the launch prerender, the szpdf tool and every window open documents through spdf_open.
-__attribute__((constructor)) static void InstallAtLoad(void) { spdf_camera_raw_install(DevelopWithCoreImage); }
+__attribute__((constructor)) static void InstallAtLoad(void) {
+    spdf_camera_raw_install(DevelopWithCoreImage);
+    spdf_core_add_open_hook(SPDFMacOpenImageIOPicture);
+}

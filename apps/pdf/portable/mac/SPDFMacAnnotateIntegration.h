@@ -49,6 +49,8 @@ FOUNDATION_EXPORT NSImage* SPDFAnnotateIcon(void);
 - (BOOL)annotateAvailable;  // a document Annotate can open (not presentation mode, not a missing file)
 - (BOOL)annotateShowing;
 - (SPDFAnnotateDocumentKind)annotateActiveDocumentKind;
+// A fitted picture or canvas fitted again to the room Annotate leaves it (SPDFMacFitViewport.mm).
+- (void)annotateRefit;
 // The active tab's Annotate session (nil until Annotate is used on it).
 - (nullable SPDFMacAnnotateSession*)annotateActiveSession;
 // The Layers panel takes the minimap's place while it shows; the minimap comes back when it goes.

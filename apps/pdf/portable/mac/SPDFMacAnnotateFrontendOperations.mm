@@ -2,6 +2,7 @@
 // history across the tab, saving, the clipboard, the mode, the view and the tool; and the inputs the core can't work
 // out itself (a picture to decode, Vision's subject mask). Mac UI A.
 #import "SPDFMacAnnotateOperations.h"
+#import "SPDFMacAnnotateAgents.h"
 #import "SPDFMacFillController+AnnotatePDF.h"
 
 #import <Vision/Vision.h>
@@ -184,8 +185,18 @@ void SPDFAnnotatePrepareInput(NSDictionary* op, SPDFMacAnnotateSession* session,
         return;
     }
     if ([name isEqual:@"doc.save_as_pdf"]) {
-        [reader annotateSaveTextDocumentAsPDF:op[@"path"] completion:^(SPDFDocumentTab* made, NSError* error) {
-            completion(made ? OK(@{@"path": made.path ?: @""}) : Failure(error, error ? @"io_error" : @"cancelled"));
+        // Without a path it asks no one: notes.md becomes notes.pdf beside it (notes 2.pdf if that is taken).
+        NSString* path = [op[@"path"] isKindOfClass:NSString.class] ? op[@"path"] : nil;
+        if (!path.length && tab.path.length) {
+            NSString* base = tab.path.stringByDeletingPathExtension;
+            path = [base stringByAppendingPathExtension:@"pdf"];
+            for (int n = 2; [NSFileManager.defaultManager fileExistsAtPath:path] && n < 1000; n++)
+                path = [[base stringByAppendingFormat:@" %d", n] stringByAppendingPathExtension:@"pdf"];
+        }
+        [reader annotateSaveTextDocumentAsPDF:path completion:^(SPDFDocumentTab* made, NSError* error) {
+            completion(made ? OK(@{@"path": made.path ?: @"", @"tab": SPDFAnnotateTabIdentifier(made) ?: @""})
+                            : error ? Failure(error, @"io_error")
+                                    : SPDFAnnotateErrorAnswer(@"cancelled", @"Nothing was saved."));
         }];
         return;
     }

@@ -37,43 +37,6 @@ NSDictionary* SPDFAnnotateParseAnswer(char* answer) {
     return result ?: SPDFAnnotateErrorAnswer(@"failed", @"The canvas gave no answer.");
 }
 
-#pragma mark - Tool names
-
-static NSArray<NSString*>* BrushNames(void) {
-    // spdf_paint_brush order (core/spdf_paint_internal.h), which is the schema's.
-    return @[@"pencil", @"brush", @"calligraphy1", @"calligraphy2", @"airbrush", @"oil", @"crayon", @"marker",
-             @"natural_pencil", @"watercolor", @"eraser", @"color_eraser"];
-}
-
-static NSArray<NSString*>* ToolNames(void) {
-    return @[@"form_text", @"form_mark", @"form_signature", @"select", @"rect_select", @"freeform_select", @"pen",
-             @"arrow", @"pencil", @"fill", @"text_box", @"eraser", @"color_picker", @"magnifier", @"brush", @"shape"];
-}
-
-NSString* SPDFAnnotateToolName(SPDFAnnotateTool tool, NSInteger brush) {
-    if (tool == SPDFAnnotateToolBrush) {
-        NSArray* brushes = BrushNames();
-        return brush >= 1 && brush <= 9 ? brushes[(NSUInteger)brush] : @"brush";
-    }
-    NSArray* names = ToolNames();
-    return tool >= 0 && tool < (NSInteger)names.count ? names[(NSUInteger)tool] : @"";
-}
-
-BOOL SPDFAnnotateToolFromName(NSString* name, SPDFAnnotateTool* tool, NSInteger* brush) {
-    if (![name isKindOfClass:NSString.class]) return NO;
-    NSUInteger brushIndex = [BrushNames() indexOfObject:name];
-    if (brushIndex != NSNotFound && brushIndex >= 1 && brushIndex <= 9) {
-        if (tool) *tool = SPDFAnnotateToolBrush;
-        if (brush) *brush = (NSInteger)brushIndex;
-        return YES;
-    }
-    NSUInteger index = [ToolNames() indexOfObject:name];
-    if (index == NSNotFound) return NO;
-    if (tool) *tool = (SPDFAnnotateTool)index;
-    if (brush && index == SPDFAnnotateToolBrush) *brush = 1;
-    return YES;
-}
-
 #pragma mark - Backing files of canvas and project tabs
 
 NSString* SPDFAnnotateTabsFolder(void) {
@@ -117,6 +80,7 @@ NSString* SPDFAnnotateProjectForBackingPath(NSString* path) {
     session.tab = tab;
     session.kind = kind;
     session.path = path;
+    SPDFAnnotateAdoptRememberedChoices(session);
     objc_setAssociatedObject(tab, &kSPDFAnnotateSessionKey, session, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     return session;
 }
@@ -152,6 +116,29 @@ NSString* SPDFAnnotateProjectForBackingPath(NSString* path) {
 
 - (spdf_paint_doc*)canvas {
     return _canvas;
+}
+
+// The person's choices carry to the next tab (SPDFMacAnnotateSessionTools.mm).
+- (void)setTool:(SPDFAnnotateTool)tool {
+    // The Color picker goes back to the tool before it after one pick, however it was chosen (I, the palette, agents).
+    if (tool == SPDFAnnotateToolColorPicker && _tool != SPDFAnnotateToolColorPicker) _toolBeforePicker = _tool;
+    _tool = tool;
+    SPDFAnnotateRememberTool(tool, _brush);
+}
+
+- (void)setBrush:(NSInteger)brush {
+    _brush = brush;
+    SPDFAnnotateRememberTool(_tool, brush);
+}
+
+- (void)setColor1:(spdf_paint_color)color1 {
+    _color1 = color1;
+    SPDFAnnotateRememberColors(_color1, _color2);
+}
+
+- (void)setColor2:(spdf_paint_color)color2 {
+    _color2 = color2;
+    SPDFAnnotateRememberColors(_color1, _color2);
 }
 
 - (BOOL)neverSaved {
@@ -332,8 +319,8 @@ NSString* SPDFAnnotateProjectForBackingPath(NSString* path) {
     }
     if ([op[@"op"] isEqual:@"colors.set"]) {
         spdf_paint_color color;
-        if (SPDFAnnotateParseColor(op[@"color1"], &color)) _color1 = color;
-        if (SPDFAnnotateParseColor(op[@"color2"], &color)) _color2 = color;
+        if (SPDFAnnotateParseColor(op[@"color1"], &color)) self.color1 = color;
+        if (SPDFAnnotateParseColor(op[@"color2"], &color)) self.color2 = color;
     }
     if (page >= 0) self.currentPage = page;
     [self pruneSelectedObjects:doc page:page];

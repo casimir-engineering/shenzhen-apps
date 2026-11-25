@@ -11,6 +11,7 @@
 
 static char kSPDFAnnotateStatusBarKey;
 static const CGFloat kBarHeight = 24;
+const CGFloat SPDFAnnotateStatusBarHeight = kBarHeight;
 
 @interface SPDFAnnotateStatusBarView : NSVisualEffectView
 @property(nonatomic, weak) SPDFMacFillController* controller;

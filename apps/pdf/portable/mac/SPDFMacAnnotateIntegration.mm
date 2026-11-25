@@ -176,6 +176,7 @@ static BOOL WriteBacking(spdf_paint_doc* doc, NSString* backing, NSString* proje
     }
     [controller session].dismissed = NO;
     [controller setOn:YES];
+    [self annotateRefit];  // the palette and status bar now take room: a fitted picture fits below and above them
     return YES;
 }
 
@@ -254,6 +255,10 @@ static BOOL WriteBacking(spdf_paint_doc* doc, NSString* backing, NSString* proje
 }
 
 - (NSString*)annotateBackingForProject:(NSString*)project {
+    for (SPDFDocumentTab* tab in _tabs)  // already open: its tab is shown as it is, unsaved changes and all
+        if (SPDFAnnotateIsBackingPath(tab.path) &&
+            [SPDFAnnotateProjectForBackingPath(tab.path).stringByStandardizingPath isEqual:project.stringByStandardizingPath])
+            return tab.path;
     char err[512] = {0};
     spdf_paint_doc* doc = spdf_paint_read_project(project.stringByStandardizingPath.fileSystemRepresentation, err,
                                                   sizeof(err));

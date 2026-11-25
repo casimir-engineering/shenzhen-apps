@@ -327,8 +327,15 @@ static void AddPath(CGContextRef context, NSBezierPath* path) {
             [path stroke];
             break;
         }
+        case SPDFAnnotateGestureCurve: {
+            NSBezierPath* path = [self curvePreviewOnPage:page];
+            NSDictionary* options = [SPDFAnnotateSettings.shared optionsForTool:@"shape"];
+            path.lineWidth = MAX(1, ([options[@"outline"][@"width"] doubleValue] ?: 3) * scale);
+            [color setStroke];
+            [path stroke];
+            break;
+        }
         case SPDFAnnotateGesturePolygon:
-        case SPDFAnnotateGestureCurve:
         case SPDFAnnotateGestureLasso: {
             NSMutableArray* points = [self.points mutableCopy];
             if (self.gesture != SPDFAnnotateGestureLasso) [points addObject:@(self.currentPoint)];

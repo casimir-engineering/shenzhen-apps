@@ -7,6 +7,7 @@
 
 #import "SPDFMacBackgroundOpening.h"
 #import "SPDFMacAnnotateOperations.h"
+#import "SPDFMacAnnotateSession.h"
 #import "SPDFMacFillController+Annotate.h"
 #import "SPDFMacModels.h"
 #import "SPDFMacSzpdfInternal.h"
@@ -152,6 +153,14 @@ int SPDFMacSzpdfCanvas(NSDictionary* command) {
             if ([objc_getAssociatedObject(tab, &kTabIdentifierKey) isEqual:target]) return tab;
         return nil;
     }
+    if ([target.pathExtension.lowercaseString isEqualToString:@"szpaint"]) {  // shown as the picture kept for it
+        NSString* wanted = target.stringByResolvingSymlinksInPath.stringByStandardizingPath;
+        for (SPDFDocumentTab* tab in _tabs) {
+            NSString* project = SPDFAnnotateIsBackingPath(tab.path) ? SPDFAnnotateProjectForBackingPath(tab.path) : nil;
+            if ([project.stringByResolvingSymlinksInPath.stringByStandardizingPath isEqualToString:wanted]) return tab;
+        }
+        return nil;
+    }
     NSInteger index = [self indexOfTabForPath:target];
     return index >= 0 && (NSUInteger)index < _tabs.count ? _tabs[(NSUInteger)index] : nil;
 }
@@ -161,14 +170,21 @@ int SPDFMacSzpdfCanvas(NSDictionary* command) {
     __block BOOL answered = NO;
     NSString* identifier = SPDFAnnotateTabIdentifier(tab);
     // Annotate is turned on for the tab if it is off (agent-interface.md), so what changed shows when it is chosen.
-    BOOL changes = NO;
+    BOOL changes = NO, view = NO;
     for (NSDictionary* op in ops) {
         const spdf_paint_op_info* info = [op isKindOfClass:NSDictionary.class] && [op[@"op"] isKindOfClass:NSString.class]
                                              ? spdf_paint_op_find([op[@"op"] UTF8String]) : NULL;
         if (info && !(info->flags & (SPDF_PAINT_OP_READ_ONLY | SPDF_PAINT_OP_UI_STATE)) && ![op[@"op"] isEqual:@"mode.set"])
             changes = YES;
+        if (info && ([@(info->name) hasPrefix:@"view."] || [@(info->name) isEqual:@"doc.save_as_pdf"])) view = YES;
     }
     SPDFAnnotateDocumentKind kind = SPDFAnnotateKindForTab(tab);
+    // A PDF is changed through Fill & Sign's commit cycle, which works on the tab its window shows, and the view
+    // operations change what the window shows: such a tab is shown first, in its window, which stays where it is (as
+    // a document szpdf opens). Pictures and canvases change where they are.
+    NSInteger index = [_tabs indexOfObjectIdenticalTo:tab];
+    if (tab != [self selectedTab] && index != NSNotFound && ((changes && kind == SPDFAnnotateDocumentPDF) || view))
+        [self selectTabAtIndex:index];
     if (changes && kind != SPDFAnnotateDocumentNone && kind != SPDFAnnotateDocumentText) {
         if (tab == [self selectedTab]) {
             if (![[self fillController] isShowing]) [[self fillController] setOn:YES];

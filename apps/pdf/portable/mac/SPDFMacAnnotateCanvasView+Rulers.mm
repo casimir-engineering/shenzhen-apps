@@ -21,6 +21,16 @@ static CGFloat RulerStep(CGFloat scale) {
     NSRect canvas = [self canvasRectForPage:page];
     CGFloat scale = [self scaleForPage:page];
     if (NSIsEmptyRect(canvas) || scale <= 0) return;
+    // The palette floats over the top of the page area: the top ruler sits just below it.
+    NSView* palette = (NSView*)self.controller.palette;
+    if (palette.window == self.window && !palette.hiddenOrHasHiddenAncestor) {
+        NSRect over = [self convertRect:palette.bounds fromView:palette];
+        if (NSMinY(over) <= NSMinY(visible) + 40 && NSMaxY(over) > NSMinY(visible) &&
+            NSIntersectsRect(over, visible)) {
+            CGFloat below = NSMaxY(over) + 4 - NSMinY(visible);
+            visible.origin.y += below, visible.size.height -= below;
+        }
+    }
     NSRect top = NSMakeRect(NSMinX(visible), NSMinY(visible), NSWidth(visible), kRuler);
     NSRect left = NSMakeRect(NSMinX(visible), NSMinY(visible), kRuler, NSHeight(visible));
     [[NSColor.windowBackgroundColor colorWithAlphaComponent:0.95] setFill];

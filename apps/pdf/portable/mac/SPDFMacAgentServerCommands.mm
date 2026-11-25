@@ -3,6 +3,7 @@
 // document's comments changed on disk.
 #import "SPDFMacAgentServer.h"
 #import "SPDFMacAnnotateAgents.h"
+#import "SPDFMacAnnotateSession.h"
 #import "SPDFMacBackgroundOpening.h"
 #import "SPDFMacDocumentVersionsIntegration.h"
 #import "SPDFMacCollectionCompare.h"
@@ -131,7 +132,11 @@ static NSArray<NSString*>* HeadingPath(NSArray<NSString*>* titles, const std::ve
                 @"error" : @"ShenzhenPDF could not show a window for this document."});
         return;
     }
-    if (![Standard([self selectedTab].path) isEqualToString:Standard(path)]) {
+    // A .szpaint shows as the picture kept for it (SPDFAnnotateProjectForBackingPath).
+    NSString* shown = [self selectedTab].path;
+    if (SPDFAnnotateIsBackingPath(shown) && SPDFAnnotateProjectForBackingPath(shown))
+        shown = SPDFAnnotateProjectForBackingPath(shown);
+    if (![Standard(shown) isEqualToString:Standard(path)]) {
         reply(@{@"opened" : @NO, @"windowId" : @(_window.windowNumber), @"errorCode" : @"load-failed",
                 @"error" : @"The document did not open."});
         return;
@@ -191,7 +196,11 @@ static NSArray<NSString*>* HeadingPath(NSArray<NSString*>* titles, const std::ve
 - (void)agentFinishOpen:(NSDictionary*)request reply:(void (^)(NSDictionary*))reply deadline:(NSDate*)deadline
               navigated:(BOOL)navigated {
     NSString* path = request[@"path"];
-    if (![Standard([self selectedTab].path) isEqualToString:Standard(path)]) {
+    // A .szpaint shows as the picture kept for it (SPDFAnnotateProjectForBackingPath).
+    NSString* shown = [self selectedTab].path;
+    if (SPDFAnnotateIsBackingPath(shown) && SPDFAnnotateProjectForBackingPath(shown))
+        shown = SPDFAnnotateProjectForBackingPath(shown);
+    if (![Standard(shown) isEqualToString:Standard(path)]) {
         reply(@{@"opened" : @NO, @"errorCode" : @"failed",
                 @"error" : @"Another document was shown before this one finished opening."});
         return;

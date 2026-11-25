@@ -1,5 +1,10 @@
 #import "SPDFMacDelegatePrivate.h"
 #import "SPDFMacMarkdownDelegatePrivate.h"
+#import "SPDFMacAnnotateIntegration.h"
+#import "SPDFMacAnnotateIntegrationPrivate.h"
+#import "SPDFMacAnnotateLayersPanel.h"
+#import "SPDFMacAnnotateOperations.h"
+#import "SPDFMacAnnotateSession.h"
 extern const CGFloat kMinZoom;
 extern const CGFloat kMaxZoom;
 @interface ShenzhenMacDelegate (FitViewportPrivate)
@@ -80,6 +85,31 @@ extern const CGFloat kMaxZoom;
     }
 }
 
+// The room a fit fills: a picture or canvas with Annotate on keeps clear of the palette above (topReserve) and the
+// status bar below, with a small margin, so its edges and canvas handles stay in view.
+- (NSSize)fitClipSizeForLayout {
+    NSSize size = [self documentClipSizeForLayout];
+    SPDFAnnotateDocumentKind kind = [self annotateShowing] ? [self annotateActiveDocumentKind] : SPDFAnnotateDocumentNone;
+    if (kind != SPDFAnnotateDocumentPicture && kind != SPDFAnnotateDocumentCanvas) return size;
+    CGFloat below = SPDFAnnotateSettings.shared.showsStatusBar ? SPDFAnnotateStatusBarHeight : 0;
+    // The page is centred below the palette, so the bar's room is kept on both sides: 12 pt clear of it.
+    size.height = MAX(1, size.height - _pageView.topReserve - 2 * below - 24);
+    // The Layers panel floats at the right: the centred picture keeps clear of it on both sides.
+    SPDFMacFillController* controller = [self existingFillController];
+    CGFloat panel = SPDFAnnotateLayersPanelShown(controller)
+                        ? NSWidth(SPDFAnnotateLayersPanelFor(controller, NO).frame) + 20 : 0;
+    size.width = MAX(1, size.width - 32 - 2 * panel);
+    return size;
+}
+
+// Annotate came on or went off: a fitted picture fits the room it has now.
+- (void)annotateRefit {
+    SPDFAnnotateDocumentKind kind = [self annotateActiveDocumentKind];
+    if (kind != SPDFAnnotateDocumentPicture && kind != SPDFAnnotateDocumentCanvas) return;
+    if (_fitMode == SPDFFitModePage || _fitMode == SPDFFitModeWidth || _fitMode == SPDFFitModeHeight)
+        [self applyFitModeKeepingPosition:_fitMode];
+}
+
 - (CGFloat)zoomForFitMode:(SPDFFitMode)fitMode pageIndex:(NSInteger)pageIndex {
     if (!_doc) return _zoom;
     if (fitMode == SPDFFitModeCustom)
@@ -102,7 +132,7 @@ extern const CGFloat kMaxZoom;
     if (fitMode == SPDFFitModeHeight || fitMode == SPDFFitModeWidth) {
         BOOL heightFit = fitMode == SPDFFitModeHeight;
         NSSize page = NSMakeSize(pageWidth,pageHeight);
-        NSSize clip = [self documentClipSizeForLayout];
+        NSSize clip = [self fitClipSizeForLayout];
         CGFloat fitted = [self zoomForFitMode:fitMode pageSize:page clipSize:clip fallbackZoom:_zoom];
         // Presentation mode never shows a scroller, even on a page that pans.
         BOOL needsScroller = !_presentationMode && (heightFit ? pageWidth*fitted > clip.width+.5 :
@@ -111,7 +141,7 @@ extern const CGFloat kMaxZoom;
             if (heightFit) _pageScrollView.hasHorizontalScroller = YES;
             else _pageScrollView.hasVerticalScroller = YES;
             [_pageScrollView tile];
-            NSSize reduced = [self documentClipSizeForLayout];
+            NSSize reduced = [self fitClipSizeForLayout];
             fitted = [self zoomForFitMode:fitMode pageSize:page clipSize:reduced fallbackZoom:_zoom];
             BOOL stillNeeds = heightFit ? pageWidth*fitted > reduced.width+.5 : pageHeight*fitted > reduced.height+.5;
             if (!stillNeeds && spdf_page_count(_doc)==1) {
@@ -120,13 +150,13 @@ extern const CGFloat kMaxZoom;
                 _pageScrollView.hasHorizontalScroller = NO;
                 _pageScrollView.hasVerticalScroller = NO; [_pageScrollView tile];
                 return [self zoomForFitMode:SPDFFitModePage pageSize:page
-                                  clipSize:[self documentClipSizeForLayout] fallbackZoom:_zoom];
+                                  clipSize:[self fitClipSizeForLayout] fallbackZoom:_zoom];
             }
         }
     }
     return [self zoomForFitMode:fitMode
                        pageSize:NSMakeSize(pageWidth, pageHeight)
-                       clipSize:[self documentClipSizeForLayout]
+                       clipSize:[self fitClipSizeForLayout]
                    fallbackZoom:_zoom];
 }
 

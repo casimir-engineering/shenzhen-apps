@@ -160,9 +160,14 @@ static BOOL IsPixelOrShapeTool(SPDFAnnotateTool tool) {
     self.startView = view;
     self.startPoint = self.currentPoint = point;
     self.gestureModifiers = event.modifierFlags;
-    [self.points removeAllObjects];
-    [self.pressures removeAllObjects];
-    if (!right) {
+    // A polygon's next corner and a curve's bends add to the gesture already there.
+    BOOL continuing = session.tool == SPDFAnnotateToolShape && self.points.count &&
+                      (self.gesture == SPDFAnnotateGesturePolygon || self.gesture == SPDFAnnotateGestureCurve);
+    if (!continuing) {
+        [self.points removeAllObjects];
+        [self.pressures removeAllObjects];
+    }
+    if (!right && !continuing) {
         SPDFAnnotateCanvasHandle canvasHandle = [self canvasHandleAt:view];
         if (canvasHandle != SPDFAnnotateCanvasHandleNone) {
             int width = 0, height = 0;
@@ -238,8 +243,9 @@ static BOOL IsPixelOrShapeTool(SPDFAnnotateTool tool) {
             break;
         case SPDFAnnotateToolShape:
             if ([session.shape isEqual:@"polygon"]) {
-                if (self.gesture != SPDFAnnotateGesturePolygon) [self.points removeAllObjects];
                 self.gesture = SPDFAnnotateGesturePolygon;
+            } else if ([session.shape isEqual:@"curve"]) {
+                self.gesture = SPDFAnnotateGestureCurve;
             } else {
                 self.gesture = SPDFAnnotateGestureShape;
             }
@@ -330,7 +336,8 @@ static BOOL IsPixelOrShapeTool(SPDFAnnotateTool tool) {
     BOOL moved = hypot(point.x - self.startPoint.x, point.y - self.startPoint.y) * scale >= kClickSlop;
     SPDFMacAnnotateSession* session = self.session;
     BOOL right = self.rightButton;
-    if (gesture != SPDFAnnotateGesturePolygon) self.gesture = SPDFAnnotateGestureNone;
+    if (gesture != SPDFAnnotateGesturePolygon && gesture != SPDFAnnotateGestureCurve)
+        self.gesture = SPDFAnnotateGestureNone;
     __weak SPDFMacAnnotateCanvasView* weakSelf = self;
     void (^selectAnswer)(NSDictionary*) = ^(NSDictionary* result) {
         if ([result[@"ok"] boolValue] && result[@"id"]) weakSelf.session.selectedObjects = @[result[@"id"]];
@@ -388,6 +395,9 @@ static BOOL IsPixelOrShapeTool(SPDFAnnotateTool tool) {
             [self finishPolygonOnPage:page];
             break;
         }
+        case SPDFAnnotateGestureCurve:
+            [self curveReleasedAt:point page:page moved:moved];
+            break;
         case SPDFAnnotateGestureRectSelect:
             if (moved) {
                 NSRect r = [self gestureCanvasRect];

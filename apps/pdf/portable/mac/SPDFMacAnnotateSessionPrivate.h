@@ -41,3 +41,9 @@
 NSString* SPDFAnnotateJSONString(id object);
 NSDictionary* SPDFAnnotateParseAnswer(char* answer);  // frees answer
 NSDictionary* SPDFAnnotateErrorAnswer(NSString* code, NSString* message);
+
+// SPDFMacAnnotateSessionTools.mm: the tool and colours the person chose last, kept in settings.json for the next tab.
+// A PDF starts on Fill & Sign's Text (a form is filled by clicking its fields); a picture or canvas on the last tool.
+void SPDFAnnotateRememberTool(SPDFAnnotateTool tool, NSInteger brush);
+void SPDFAnnotateRememberColors(spdf_paint_color color1, spdf_paint_color color2);
+void SPDFAnnotateAdoptRememberedChoices(SPDFMacAnnotateSession* session);

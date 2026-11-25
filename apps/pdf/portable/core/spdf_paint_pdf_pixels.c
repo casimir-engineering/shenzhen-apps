@@ -97,7 +97,9 @@ int spdf_paint_pdf_draw_page(spdf_paint_doc* doc, fz_matrix ctm, fz_pixmap* dest
         }
         fz_clear_pixmap_rect_with_value(ctx, dest, 255, clip); /* white paper */
         dev = fz_new_draw_device_with_bbox(ctx, ctm, dest, &clip);
-        fz_run_display_list(ctx, st->page_list, dev, fz_identity, fz_rect_from_irect(clip), NULL);
+        /* the list is in page space (the device carries ctm): its cull rect too, or a small scale drops content */
+        fz_run_display_list(ctx, st->page_list, dev, fz_identity,
+                            fz_transform_rect(fz_rect_from_irect(clip), fz_invert_matrix(ctm)), NULL);
         fz_close_device(ctx, dev);
     }
     fz_always(ctx) {
