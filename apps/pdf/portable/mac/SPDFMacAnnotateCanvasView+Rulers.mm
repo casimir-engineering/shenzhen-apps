@@ -1,6 +1,9 @@
 // The canvas view's rulers (px, top and left), gridlines (1 px from 400 %) and the thumbnail of the whole picture while
 // zoomed in (docs/plans/annotate.md § 1 View). Screen only.
 #import "SPDFMacAnnotateCanvasViewPrivate.h"
+#import "SPDFMacAnnotateSession.h"
+#import "SPDFMacDocumentView.h"
+#import "SPDFMacFillOverlayView.h"
 
 #import <objc/runtime.h>
 
@@ -20,6 +23,15 @@ static CGFloat RulerStep(CGFloat scale) {
     NSRect visible = self.visibleRect;
     NSRect canvas = [self canvasRectForPage:page];
     CGFloat scale = [self scaleForPage:page];
+    if (self.session.kind == SPDFAnnotateDocumentPDF) {
+        // A PDF's rulers (pt) follow the page in view, drawn on or not: before anything is drawn there is no canvas
+        // and no current page yet, and the rulers did not show at all.
+        SPDFDocumentView* view = [self documentView];
+        if (page < 0) page = [self.overlay visiblePages].firstObject.integerValue;
+        if (!view || page < 0 || page >= (NSInteger)view.pages.count) return;
+        canvas = [self convertRect:[view rectForPageAtIndex:page] fromView:view];
+        scale = [self zoomLevel];
+    }
     if (NSIsEmptyRect(canvas) || scale <= 0) return;
     // The palette floats over the top of the page area (which itself starts under the toolbar): the top ruler sits
     // just below the palette, where it is seen.
