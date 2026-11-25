@@ -83,6 +83,16 @@ CORE_FILL_OBJS := $(BUILD)/spdf_form.o $(BUILD)/spdf_form_original.o $(BUILD)/sp
 	$(BUILD)/spdf_fill_signature.o $(BUILD)/spdf_fill_snap.o $(BUILD)/spdf_fill_snap_clean.o $(BUILD)/spdf_fill_snap_place.o \
 	$(BUILD)/spdf_fill_ink.o $(BUILD)/spdf_fill_ink_geometry.o
 CORE_OBJS += $(CORE_FILL_OBJS)
+# Annotate: the canvas model, its operations and their schema, pixels, shapes, text, files and the PDF page bridge
+# (core/spdf_paint.h; docs/plans/annotate.md). An archive, so a binary that never calls it links none of it. It reads
+# operations with cJSON, which goes in the archive too: the app and the probes that link Friends already load
+# Friends' cJSON.o, and ld64 loads every object before it searches an archive, so the archive's copy is pulled only
+# by binaries without Friends (a duplicate cJSON.o on one link line fails). Nothing here runs until Annotate is used.
+CORE_PAINT_NAMES := doc ops schema schema_build history brush fill shapes text transform file pdf
+CORE_PAINT_OBJS := $(patsubst %,$(BUILD)/spdf_paint_%.o,$(CORE_PAINT_NAMES))
+CORE_PAINT_HDRS := core/spdf_paint.h core/spdf_paint_internal.h core/spdf_paint_handlers.h
+CORE_PAINT_LIB := $(BUILD)/libspdf-paint.a
+CORE_OBJS += $(CORE_PAINT_LIB)
 YAML_SRC := core/spdf_yaml.c
 YAML_HDR := core/spdf_yaml.h
 YAML_OBJ := $(BUILD)/spdf_yaml.o
@@ -245,6 +255,19 @@ $(BUILD)/spdf_fill_ink_geometry.o: core/spdf_fill_ink_geometry.c core/spdf_fill_
 $(BUILD)/spdf_fill_snap.o $(BUILD)/spdf_fill_snap_clean.o $(BUILD)/spdf_fill_snap_place.o: $(BUILD)/%.o: core/%.c \
 		core/spdf_fill_snap.h core/spdf_fill_snap_internal.h core/spdf_fill_items.h core/spdf_core_document.h Makefile | $(BUILD)
 	clang $(PORTABLE_OPTFLAGS) $(MAC_TARGET_FLAGS) -Wall -Wextra -Werror -Icore -I$(MUPDF_DIR)/include -c $< -o "$@"
+
+$(CORE_PAINT_OBJS): $(BUILD)/%.o: core/%.c $(CORE_PAINT_HDRS) core/spdf_fill_items.h core/spdf_fill_ink.h \
+		core/spdf_core_document.h ../ext/cjson/cJSON.h Makefile | $(BUILD)
+	clang $(PORTABLE_OPTFLAGS) $(MAC_TARGET_FLAGS) -Wall -Wextra -Werror -Icore -I$(MUPDF_DIR)/include -I../ext/cjson \
+		-c $< -o "$@"
+
+# Compiled as Friends compiles it (friends/deps/deps.mk), under its own name so the two never collide.
+$(BUILD)/spdf_paint_cjson.o: ../ext/cjson/cJSON.c ../ext/cjson/cJSON.h Makefile | $(BUILD)
+	clang $(PORTABLE_OPTFLAGS) $(MAC_TARGET_FLAGS) -std=c99 -fvisibility=hidden -Wall -Wextra -I../ext/cjson -c $< -o "$@"
+
+$(CORE_PAINT_LIB): $(CORE_PAINT_OBJS) $(BUILD)/spdf_paint_cjson.o
+	rm -f "$@"
+	ar rcs "$@" $^
 
 $(CORE_SENSOR_RAW_OBJ): core/spdf_sensor_raw.c core/spdf_sensor_raw.h core/spdf_sensor_raw_stats.h core/spdf_core_document.h Makefile | $(BUILD)
 	clang $(PORTABLE_OPTFLAGS) $(MAC_TARGET_FLAGS) -Wall -Wextra -Werror -Icore -I$(MUPDF_DIR)/include -c $< -o "$@"
