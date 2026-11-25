@@ -1,5 +1,6 @@
 #import "SPDFMacDocumentOpening.h"
 #import "SPDFMacOpenRouting.h"
+#import "SPDFMacAnnotateIntegration.h"
 #import "SPDFMacTabGroupIntegration.h"
 #import "SPDFMacPermanentDeleteIntegration.h"
 #import "SPDFMacAgentServer.h"
@@ -103,7 +104,7 @@ static NSArray<NSString*>* ReaderPaths(ShenzhenMacDelegate* reader, NSArray<NSSt
 }
 
 - (void)openPaths:(NSArray<NSString*>*)paths {
-    paths = ReaderPaths(self, paths);
+    paths = [self annotateReaderPathsForPaths:ReaderPaths(self, paths)];  // a .szpaint opens as its picture
     if (!_uiReady || !_window) {
         if (paths.count > 0) _pendingOpenPath = [paths.firstObject copy];
         for (NSString* path in paths) {

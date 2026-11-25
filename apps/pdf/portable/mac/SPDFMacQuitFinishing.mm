@@ -34,6 +34,7 @@
 // Comments and every other edit are written when they are made, so nothing a person did is still unwritten by then.
 #import "SPDFMacQuitFinishing.h"
 #import "SPDFMacImageSaveIntegration.h"
+#import "SPDFMacAnnotateIntegration.h"
 #import "SPDFMacSupport.h"
 #import "SPDFMacLifecycleSignposts.h"
 #import "SPDFMacPasteboardOwnership.h"
@@ -248,6 +249,7 @@ static dispatch_time_t QuitDispatchTime(NSTimeInterval by) {
     if (state.finalWritesDone) return NO;
     state.finalWritesDone = YES;
     SPDF_LIFECYCLE_EVENT("QuitWrites");
+    [self annotateFlushForQuit];  // pictures and canvases written now, never asking (SPDFMacAnnotateIntegration.mm)
     return YES;
 }
 
