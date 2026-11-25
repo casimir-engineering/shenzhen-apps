@@ -334,6 +334,7 @@ spdf_paint_status spdf_paint_op_doc_state(spdf_paint_call* call) {
     else cJSON_AddNullToObject(r, "active");
     const spdf_paint_selection* s = &doc->selection;
     cJSON* sel = cJSON_AddObjectToObject(r, "selection");
+    cJSON_AddBoolToObject(sel, "active", s->mask != NULL); /* a pixel selection is there */
     float rs = (float)doc->raster_scale;
     if (s->mask)
         cJSON_AddItemToObject(sel, "bounds", spdf_paint_rect_json((spdf_rect){s->bounds.x0 / rs, s->bounds.y0 / rs,

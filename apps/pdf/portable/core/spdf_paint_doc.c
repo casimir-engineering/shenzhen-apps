@@ -124,11 +124,13 @@ spdf_paint_doc* spdf_paint_open_picture(const spdf_paint_pixels* pixels, float d
 void spdf_paint_close(spdf_paint_doc* doc) {
     if (!doc) return;
     fz_context* ctx = doc->ctx;
+    spdf_paint_pdf_close(doc);       /* the PDF bridge's state (harmless on other canvases) */
     spdf_paint_history_free(doc);
     for (int i = 0; i < doc->layer_count; i++) spdf_paint_layer_free(ctx, doc->layers[i]);
     free(doc->layers);
     spdf_paint_selection_free(ctx, &doc->selection);
     spdf_paint_tiles_free(doc);
+    spdf_paint_text_cache_drop(doc); /* fonts of text objects, before the context goes */
     int owns = doc->owns_ctx;
     free(doc);
     if (owns) fz_drop_context(ctx);

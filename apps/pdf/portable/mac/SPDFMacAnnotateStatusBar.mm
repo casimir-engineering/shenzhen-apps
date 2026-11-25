@@ -46,6 +46,9 @@ static NSImageView* Glyph(NSString* symbol) {
 
 @implementation SPDFAnnotateStatusBarView
 
+- (BOOL)mouseDownCanMoveWindow { return NO; }
+- (void)mouseDown:(NSEvent*)event { (void)event; }  // clicks between controls stay on the bar (as the palette's)
+
 - (instancetype)initWithController:(SPDFMacFillController*)controller {
     if (!(self = [super initWithFrame:NSMakeRect(0, 0, 600, kBarHeight)])) return nil;
     _controller = controller;

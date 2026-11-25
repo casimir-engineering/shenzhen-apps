@@ -3,6 +3,7 @@
  * /Annots order (back to front): ours from /SPDFAnnotate, Fill & Sign's from their /NM names (spdf_fill_load_items),
  * other readers' shown but locked. Writing back is spdf_paint_pdf_write.c; the sync model is described in
  * spdf_paint_pdf_internal.h. Never rewrites the page itself. */
+#include "spdf_paint_model.h"
 #include "spdf_paint_pdf_internal.h"
 
 #include "spdf_core_document.h"
@@ -95,10 +96,7 @@ pdf_page* spdf_paint_pdf_load_page(spdf_paint_doc* doc) {
 
 static void drop_layer(spdf_paint_doc* doc, int index) {
     spdf_paint_layer* layer = doc->layers[index];
-    fz_drop_pixmap(doc->ctx, layer->pixels);
-    spdf_paint_object_free(doc->ctx, layer->object);
-    fz_free(doc->ctx, layer->pdf_nm);
-    fz_free(doc->ctx, layer);
+    spdf_paint_layer_free(doc->ctx, layer); /* Core A's: structs with free, strings and pixels with fz */
     memmove(&doc->layers[index], &doc->layers[index + 1], (size_t)(doc->layer_count - index - 1) * sizeof(*doc->layers));
     --doc->layer_count;
 }
@@ -115,7 +113,8 @@ static spdf_paint_object* object_for(spdf_paint_doc* doc, spdf_paint_layer** lay
     spdf_paint_object* object;
     if (*layer) {
         spdf_paint_object_free(doc->ctx, (*layer)->object);
-        object = fz_malloc_struct(doc->ctx, spdf_paint_object);
+        object = (spdf_paint_object*)calloc(1, sizeof(*object)); /* freed with free(), as Core A's */
+        if (!object) fz_throw(doc->ctx, FZ_ERROR_SYSTEM, "Out of memory");
         object->kind = kind;
         (*layer)->object = object;
         return object;

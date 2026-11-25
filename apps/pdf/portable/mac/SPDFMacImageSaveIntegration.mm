@@ -40,7 +40,7 @@ static char pendingImageSaveKey;
 #pragma clang diagnostic ignored "-Wobjc-protocol-method-implementation"
 @implementation ShenzhenMacDelegate (SPDFMacImageSave)
 - (void)saveDocumentAs:(id)sender {
-    if ([self annotateHandlesSave:sender]) return;  // a picture or canvas in Annotate (SPDFMacAnnotateIntegrationFiles.mm)
+    if ([self annotateHandlesSave:sender]) return;  // a picture or canvas in Annotate: its own Save panel
     if ([self saveActiveImageAs]) return;
     if (SPDFMacPathIsCollectionArchive(_path)) { [self collectionSaveArchiveCopy:sender]; return; }
     if ([self isMarkdownActive]) {

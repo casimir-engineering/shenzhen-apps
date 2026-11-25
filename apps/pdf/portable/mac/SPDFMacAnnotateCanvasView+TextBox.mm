@@ -5,6 +5,8 @@
 
 #import "SPDFMacAnnotateImageIO.h"
 #import "SPDFMacAnnotateIntegration.h"
+#import "SPDFMacAnnotatePaletteSupport.h"
+#import "SPDFMacFillController+Annotate.h"
 #import "SPDFMacAnnotateSessionPrivate.h"
 #import "SPDFMacFillController.h"
 #import "SPDFMacFillOverlayView.h"
@@ -102,6 +104,34 @@
     [self operation:op page:self.textPage done:^(NSDictionary* result) {
         if ([result[@"ok"] boolValue] && result[@"id"]) weakSelf.session.selectedObjects = @[result[@"id"]];
     }];
+}
+
+// The context menu's Edit Text (SPDFAnnotateEditTextNotification): the selected text object is typed in again.
+- (void)editTextRequested:(NSNotification*)note {
+    if (note.object != self.controller || !self.session) return;
+    NSInteger page = self.session.kind == SPDFAnnotateDocumentPDF ? self.session.currentPage : -1;
+    NSNumber* selected = self.session.selectedObjects.firstObject;
+    for (NSDictionary* object in [self objectsOnPage:page])
+        if ([object[@"id"] isEqual:selected] && [object[@"kind"] isEqual:@"text"]) {
+            [self editTextObject:object page:page];
+            return;
+        }
+}
+
+// Cmd-B, Cmd-I and Cmd-U while typing in a text box are the text bar's Bold, Italic and Underline (the menu bar's
+// Cmd-B and Cmd-I keep the app's meaning everywhere else).
+- (BOOL)performKeyEquivalent:(NSEvent*)event {
+    NSEventModifierFlags mods = event.modifierFlags & NSEventModifierFlagDeviceIndependentFlagsMask &
+                                ~(NSEventModifierFlagCapsLock | NSEventModifierFlagNumericPad | NSEventModifierFlagFunction);
+    NSString* style = @{@"b": @"bold", @"i": @"italic", @"u": @"underline"}[event.charactersIgnoringModifiers.lowercaseString];
+    if (self.textEditor && self.window.firstResponder == self.textEditor && mods == NSEventModifierFlagCommand && style) {
+        BOOL on = ![[SPDFAnnotateSettings.shared optionsForTool:@"text_box"][style] boolValue];
+        [self.controller applyOperation:@{@"op": @"tool.choose", @"tool": @"text_box", @"options": @{style: @(on)}}
+                                    tab:nil completion:nil];
+        [self layoutTextEditor];
+        return YES;
+    }
+    return [super performKeyEquivalent:event];
 }
 
 @end

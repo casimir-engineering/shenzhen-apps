@@ -248,6 +248,11 @@ spdf_paint_status spdf_paint_op_layer_activate(spdf_paint_call* call) {
     if (find_layer(call, &layer) != SPDF_PAINT_OK) return call->status;
     if (spdf_paint_layer_is_page(call->doc, layer))
         return spdf_paint_call_fail(call, SPDF_PAINT_ERR_PAGE_LOCKED, k_page_locked);
+    if (layer->object) { /* an object's row (Layers panel, context menus): selects that object */
+        spdf_paint_select_objects(call->doc, &layer->id, 1);
+        call->doc->generation++;
+        return SPDF_PAINT_OK;
+    }
     if (!spdf_paint_layer_paintable(call->doc, layer))
         return spdf_paint_call_fail(call, SPDF_PAINT_ERR_INVALID_ARGUMENT,
                                     "Objects aren't painted into; choose a layer of pixels.");

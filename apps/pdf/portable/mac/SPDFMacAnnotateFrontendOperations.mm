@@ -2,6 +2,7 @@
 // history across the tab, saving, the clipboard, the mode, the view and the tool; and the inputs the core can't work
 // out itself (a picture to decode, Vision's subject mask). Mac UI A.
 #import "SPDFMacAnnotateOperations.h"
+#import "SPDFMacFillController+AnnotatePDF.h"
 
 #import <Vision/Vision.h>
 
@@ -197,7 +198,24 @@ void SPDFAnnotatePrepareInput(NSDictionary* op, SPDFMacAnnotateSession* session,
     SPDFMacAnnotateCanvasView* view = self.annotateCanvasView.session == session ? self.annotateCanvasView : nil;
     if ([name isEqual:@"history.undo"] || [name isEqual:@"history.redo"]) {
         NSInteger steps = op[@"steps"] ? [op[@"steps"] integerValue] : 1;
-        NSDictionary* result = [name isEqual:@"history.undo"] ? [session undo:steps] : [session redo:steps];
+        BOOL undo = [name isEqual:@"history.undo"], pdf = session.kind == SPDFAnnotateDocumentPDF && active;
+        // Fill & Sign's steps from before Annotate's stack existed stay on its own undo manager.
+        if (pdf && !(undo ? session.canUndo : session.canRedo) && (undo ? [self canUndo] : [self canRedo])) {
+            undo ? [self undo] : [self redo];
+            completion(undo ? @{@"ok": @YES, @"undone": @1} : @{@"ok": @YES, @"redone": @1});
+            return;
+        }
+        if (pdf && ![self annotatePrepareForPDFChange]) {
+            completion(SPDFAnnotateErrorAnswer(@"cancelled", @"This document can't be changed right now."));
+            return;
+        }
+        NSDictionary* result = undo ? [session undo:steps] : [session redo:steps];
+        if (pdf)  // the pages undone are written back as annotations, as every other change on a PDF page
+            [session.openPages enumerateIndexesUsingBlock:^(NSUInteger page, BOOL* stop) {
+                (void)stop;
+                spdf_paint_doc* canvas = [session canvasForPage:(NSInteger)page document:NULL create:NO];
+                [self annotateWritePDFPage:(NSInteger)page canvas:canvas error:NULL];
+            }];
         [view canvasSizeDidChange];
         [view canvasDidChangeOnPage:session.kind == SPDFAnnotateDocumentPDF ? session.currentPage : -1];
         if (active) [self.host fillStateDidChange];

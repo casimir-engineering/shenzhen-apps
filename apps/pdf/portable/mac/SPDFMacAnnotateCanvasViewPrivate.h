@@ -122,6 +122,7 @@ typedef NS_ENUM(NSInteger, SPDFAnnotateCanvasHandle) {
 @interface SPDFMacAnnotateCanvasView (TextBox)
 - (void)openTextEditorAt:(NSRect)rect page:(NSInteger)page object:(NSNumber*)object text:(NSString*)text;
 - (void)editTextObject:(NSDictionary*)object page:(NSInteger)page;
+- (void)editTextRequested:(NSNotification*)note;
 - (void)layoutTextEditor;
 @end
 

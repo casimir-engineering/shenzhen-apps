@@ -184,6 +184,15 @@ static char kSPDFAnnotateCanvasViewKey;
     id host = self.host;
     // The reader's category implements the host methods (its protocol is declared on an interface only).
     if ([host respondsToSelector:@selector(annotateSessionProtectPath:)]) session.host = host;
+    if (kind == SPDFAnnotateDocumentPDF) {  // Fill & Sign's steps share the tab's one undo stack from now on
+        __weak SPDFMacFillController* weakSelf = self;
+        session.fillStepHandler = ^(BOOL redo) {
+            SPDFMacFillController* me = weakSelf;
+            if (redo) [me redo];
+            else [me undo];
+        };
+        [self annotateTrackFillUndoSteps];
+    }
     return session;
 }
 

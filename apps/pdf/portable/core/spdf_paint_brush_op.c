@@ -5,6 +5,7 @@
  * depth, an arrow keeps its head on the piece that still ends at its tip. */
 #include "spdf_paint_brush_engine.h"
 #include "spdf_paint_handlers.h"
+#include "spdf_paint_model.h"
 #include "spdf_fill_ink_geometry.h"
 
 #include <math.h>
@@ -49,17 +50,8 @@ static void set_line_points(fz_context* ctx, spdf_paint_object* o, const spdf_fi
     spdf_paint_object_update_bounds(o);
 }
 
-/* Takes `layer` out of the stack. The history record made just before keeps it (history_removing_layer). */
-static void unlink_layer(spdf_paint_doc* doc, spdf_paint_layer* layer) {
-    int at = spdf_paint_layer_index(doc, layer->id), i, k = 0;
-    if (at < 0) return;
-    spdf_paint_history_removing_layer(doc, layer);
-    memmove(&doc->layers[at], &doc->layers[at + 1], (size_t)(doc->layer_count - at - 1) * sizeof(doc->layers[0]));
-    doc->layer_count--;
-    for (i = 0; i < doc->selection.object_count; ++i)
-        if (doc->selection.objects[i] != layer->id) doc->selection.objects[k++] = doc->selection.objects[i];
-    doc->selection.object_count = k;
-}
+/* Takes `layer` out of the stack and frees it; the history record made first keeps a copy for undo. */
+static void unlink_layer(spdf_paint_doc* doc, spdf_paint_layer* layer) { spdf_paint_layer_delete(doc, layer); }
 
 /* Moves the layer `id` to sit at index `to` (bottom = 0). */
 static void place_layer(spdf_paint_doc* doc, spdf_paint_id id, int to) {

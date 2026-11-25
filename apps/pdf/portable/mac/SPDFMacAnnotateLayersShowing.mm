@@ -4,6 +4,7 @@
 
 #import <objc/runtime.h>
 
+#import "SPDFMacAnnotateIntegration.h"
 #import "SPDFMacAnnotatePaletteSupport.h"
 #import "SPDFMacFillController.h"
 
@@ -28,11 +29,16 @@ void SPDFAnnotateSyncLayersPanel(SPDFMacFillController* controller) {
     BOOL show = [controller isShowing] && [SPDFAnnotateSettings shared].showsLayers && kind != SPDFAnnotateDocumentNone &&
                 kind != SPDFAnnotateDocumentText;
     SPDFMacAnnotateLayersPanel* panel = SPDFAnnotateLayersPanelFor(controller, show);
+    BOOL wasShown = panel.superview != nil;
+    id host = controller.host;
+    ShenzhenMacDelegate* reader = [host isKindOfClass:[ShenzhenMacDelegate class]] ? host : nil;
     if (!show) {
         [panel detach];
+        if (wasShown) [reader annotateLayersPanelDidShow:NO];
         return;
     }
     [panel attachToContainer:[controller.host fillContainer]];
+    if (!wasShown) [reader annotateLayersPanelDidShow:YES];
     [panel reloadFromSession:SPDFAnnotateCurrentSession(controller, YES)];
 }
 

@@ -51,6 +51,8 @@ FOUNDATION_EXPORT NSImage* SPDFAnnotateIcon(void);
 - (SPDFAnnotateDocumentKind)annotateActiveDocumentKind;
 // The active tab's Annotate session (nil until Annotate is used on it).
 - (nullable SPDFMacAnnotateSession*)annotateActiveSession;
+// The Layers panel takes the minimap's place while it shows; the minimap comes back when it goes.
+- (void)annotateLayersPanelDidShow:(BOOL)shown;
 
 // File > New Canvas (Cmd-N; Option-Cmd-N if Cmd-N is taken): a tab "Untitled canvas", 1000 x 1000 px, transparent,
 // Annotate on. Also canvas.new from the agents (width, height, background; front NO keeps the window behind).

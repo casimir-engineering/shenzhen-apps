@@ -165,6 +165,17 @@ NSString* SPDFAnnotateProjectForBackingPath(NSString* path) {
 
 - (void)setSelectedObjects:(NSArray<NSNumber*>*)selectedObjects {
     _selectedObjects = [selectedObjects copy] ?: @[];
+    // The core keeps the object selection too: scope "auto"/"object" operations and doc.copy act on it.
+    NSInteger page = self.kind == SPDFAnnotateDocumentPDF ? self.currentPage : -1;
+    spdf_paint_doc* doc = [self docForPage:page];
+    if (doc) {
+        NSMutableDictionary* select = [@{@"op": @"select.objects", @"ids": _selectedObjects} mutableCopy];
+        if (page >= 0) select[@"page"] = @(page + 1);
+        char* answer = NULL;
+        spdf_paint_apply(doc, SPDFAnnotateJSONString(select).UTF8String, &answer);
+        spdf_paint_free(answer);
+        [_states removeObjectForKey:@(page)];
+    }
     [NSNotificationCenter.defaultCenter postNotificationName:SPDFAnnotateSessionDidChangeNotification object:self];
 }
 
@@ -293,11 +304,13 @@ NSString* SPDFAnnotateProjectForBackingPath(NSString* path) {
     spdf_paint_doc* doc = [self docForPage:page];
     if (!doc) return SPDFAnnotateErrorAnswer(@"not_found", @"That page isn't open in Annotate.");
     NSMutableDictionary* args = [op mutableCopy];
-    [args removeObjectForKey:@"page"];  // the page picked the canvas; page canvases take their own coordinates
+    const spdf_paint_op_info* info = spdf_paint_op_find([op[@"op"] description].UTF8String);
+    // The page picked the canvas; the core checks it again on the operations that take one.
+    if (page >= 0 && info && (info->flags & SPDF_PAINT_OP_NEEDS_PAGE)) args[@"page"] = @(page + 1);
+    else [args removeObjectForKey:@"page"];
     char* answer = NULL;
     spdf_paint_status status = spdf_paint_apply_ex(doc, SPDFAnnotateJSONString(args).UTF8String, input, &answer);
     NSDictionary* result = SPDFAnnotateParseAnswer(answer);
-    const spdf_paint_op_info* info = spdf_paint_op_find([op[@"op"] description].UTF8String);
     if (status != SPDF_PAINT_OK || !info) return result;
     if (info->flags & SPDF_PAINT_OP_READ_ONLY) return result;
     // The selection and colours change without a new picture: the kept doc.state is read again whatever the generation.
@@ -341,6 +354,13 @@ NSString* SPDFAnnotateProjectForBackingPath(NSString* path) {
 // An undo or a delete can take a selected object away: the selection keeps only what is still there.
 - (void)pruneSelectedObjects:(spdf_paint_doc*)doc page:(NSInteger)page {
     (void)doc;
+    // The core's object selection wins (a pasted or lifted picture, a Layers row, a duplicate select themselves).
+    id picked = [self stateForPage:page][@"selection"];
+    picked = [picked isKindOfClass:NSDictionary.class] ? picked[@"objects"] : nil;
+    if ([picked isKindOfClass:NSArray.class]) {
+        if (![picked isEqual:_selectedObjects]) _selectedObjects = [picked copy];
+        return;
+    }
     if (!_selectedObjects.count) return;
     NSMutableSet* ids = [NSMutableSet set];
     for (NSDictionary* layer in [self stateForPage:page][@"layers"])

@@ -5,6 +5,7 @@
 // (canvas pixels) for a picture at 100 % and above, where the tiles are drawn with nearest neighbour so pixels stay
 // sharp; a power of two below 1 when zoomed out, never less than the screen needs. A change only drops the tiles under
 // its damage (spdf_paint_take_damage), so an 8000 x 8000 picture redraws what one stroke touched, not the picture.
+#import "SPDFMacAnnotatePaletteSupport.h"
 #import "SPDFMacAnnotateCanvasViewPrivate.h"
 
 #import "SPDFMacAnnotateOperations.h"
@@ -41,6 +42,8 @@ static const NSUInteger kMaxTiles = 600;  // ~150 MB at most
         self.wantsLayer = NO;
         [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(sessionChanged:)
                                                    name:SPDFAnnotateSessionDidChangeNotification object:nil];
+        [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(editTextRequested:)
+                                                   name:SPDFAnnotateEditTextNotification object:controller];
     }
     return self;
 }
@@ -372,7 +375,10 @@ static void DrawImage(CGContextRef context, CGImageRef image, NSRect rect) {
 - (void)drawRect:(NSRect)dirty {
     if (!self.session) return;
     CGContextRef context = NSGraphicsContext.currentContext.CGContext;
-    for (NSNumber* page in [self pagesInView]) [self drawCanvasOfPage:page.integerValue inRect:dirty context:context];
+    // A PDF page's added layers are in the file and the reader's page image already shows them (every change is
+    // written back in the same turn): drawing them here too would draw them twice. Only decorations go over pages.
+    for (NSNumber* page in [self pagesInView])
+        if (page.integerValue < 0) [self drawCanvasOfPage:page.integerValue inRect:dirty context:context];
     if (!self.holdsLastFrame) [self drawDecorationsInRect:dirty];
 }
 

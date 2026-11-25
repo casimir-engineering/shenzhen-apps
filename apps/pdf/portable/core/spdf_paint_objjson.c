@@ -92,6 +92,7 @@ cJSON* spdf_paint_object_json(const spdf_paint_doc* doc, const spdf_paint_object
     g_exact = exact;
     cJSON* o = cJSON_CreateObject();
     cJSON_AddStringToObject(o, "type", spdf_paint_object_kind_name(ob->kind));
+    if (!exact) cJSON_AddStringToObject(o, "kind", spdf_paint_object_kind_name(ob->kind)); /* doc.state readers */
     cJSON_AddItemToObject(o, "rect", spdf_paint_rect_json(ob->place.rect));
     cJSON_AddNumberToObject(o, "rotation", tidy(ob->place.rotation));
     if (ob->place.flip_h) cJSON_AddTrueToObject(o, "flipHorizontal");
@@ -247,10 +248,12 @@ static spdf_paint_status apply_one(spdf_paint_doc* doc, spdf_paint_object* o, co
         spdf_paint_point* pts = is_line(o) ? o->u.line.points : shape ? o->u.shape.points : NULL;
         int n = is_line(o) ? o->u.line.point_count : shape ? o->u.shape.point_count : 0;
         float fw = from.x1 - from.x0, fh = from.y1 - from.y0;
-        for (int i = 0; i < n; i++) {
-            pts[i].x = fw > 1e-4f ? rect.x0 + (pts[i].x - from.x0) * (rect.x1 - rect.x0) / fw : pts[i].x + rect.x0 - from.x0;
-            pts[i].y = fh > 1e-4f ? rect.y0 + (pts[i].y - from.y0) * (rect.y1 - rect.y0) / fh : pts[i].y + rect.y0 - from.y0;
-        }
+        if (shape) spdf_paint_shape_fit(&o->u.shape, from, rect); /* points and a callout's tail */
+        else
+            for (int i = 0; i < n; i++) {
+                pts[i].x = fw > 1e-4f ? rect.x0 + (pts[i].x - from.x0) * (rect.x1 - rect.x0) / fw : pts[i].x + rect.x0 - from.x0;
+                pts[i].y = fh > 1e-4f ? rect.y0 + (pts[i].y - from.y0) * (rect.y1 - rect.y0) / fh : pts[i].y + rect.y0 - from.y0;
+            }
         o->place.rect = rect;
     } else if (!strcmp(key, "rotation") && cJSON_IsNumber(item)) {
         if (!is_line(o)) o->place.rotation = (float)num;

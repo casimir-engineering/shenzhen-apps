@@ -1,6 +1,7 @@
 // Annotate's files in the reader (SPDFMacAnnotateIntegration.h): Cmd-S, Save As with its formats, Set as Desktop
 // Picture, the session host (Collection before and after a write, the tab following the file), the zoom and the
 // View toggles.
+#import "SPDFMacAnnotateLayersPanel.h"
 #import "SPDFMacAnnotateIntegrationPrivate.h"
 
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
@@ -42,7 +43,7 @@
 - (BOOL)annotateHandlesSave:(id)sender {
     SPDFMacAnnotateSession* session = [self annotateActiveSession];
     if (!session.loaded || session.kind == SPDFAnnotateDocumentPDF) return NO;
-    [self annotateSaveDocument:sender];
+    [self annotateSaveDocumentAs:sender];  // File > Save As... (Shift-Cmd-S); Save (Cmd-S) is its own item
     return YES;
 }
 
@@ -263,10 +264,14 @@
     if (controller) SPDFAnnotateUpdateStatusBar(controller, [self annotateShowing] ? [self annotateActiveSession] : nil);
 }
 
+- (void)annotateLayersPanelDidShow:(BOOL)shown {
+    [self setMinimapActuallyVisible:shown ? NO : _minimapPreferredVisible];
+}
+
 - (void)toggleAnnotateLayers:(id)sender {
     (void)sender;
-    SPDFAnnotateSettings.shared.showsLayers = !SPDFAnnotateSettings.shared.showsLayers;
-    [[self existingFillController] refreshChrome];
+    SPDFMacFillController* controller = [self existingFillController];
+    if (controller) SPDFAnnotateToggleLayersPanel(controller);
 }
 
 - (void)toggleAnnotateStatusBar:(id)sender {

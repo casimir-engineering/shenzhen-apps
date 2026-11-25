@@ -34,6 +34,8 @@ NS_ASSUME_NONNULL_BEGIN
 - (BOOL)annotateWritePDFPage:(NSInteger)page canvas:(spdf_paint_doc*)canvas error:(NSString* _Nullable* _Nullable)error;
 // Fill & Sign changed this page (0-based): its open canvas reads the page's annotations again and redraws.
 - (void)annotatePDFPageDidChange:(NSInteger)page;
+// From now on every Fill & Sign undo step is also recorded on the tab's Annotate stack (once per controller).
+- (void)annotateTrackFillUndoSteps;
 
 @end
 
