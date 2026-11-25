@@ -159,9 +159,10 @@ void SPDFFillInstallMenuItems(NSMenu* editMenu, NSMenu* fileMenu, ShenzhenMacDel
 
 - (void)fillSignDocumentDidSettle {
     SPDFFillSession* session = [self fillReadSummaryCreatingSession:NO];
+    // A PDF with its own form opens ready to fill, unless its owner forbids filling it in.
     if (session && session.isForm && !session.on && !session.dismissed && session.summary.signed_count == 0 &&
-        session.summary.docmdp != 1)
-        session.on = YES;  // a PDF with its own form opens ready to fill
+        session.summary.docmdp != 1 && session.summary.can_fill_fields)
+        session.on = YES;
     [[self existingFillController] activeDocumentChanged];
 }
 
