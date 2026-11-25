@@ -47,6 +47,7 @@ static NSPasteboardType const kSPDFLayerRowType = @"com.intuition.shenzhenpdf.an
     NSArray<NSDictionary*>* _rows;  // front first
     NSMutableDictionary<NSNumber*, NSImage*>* _thumbs;
     uint64_t _thumbGeneration;
+    spdf_paint_doc* _thumbDoc;  // generations count per document: another tab's can be the same number
     NSNumber* _activeId;
     NSButton* _add;
     NSButton* _duplicate;
@@ -287,8 +288,8 @@ static NSImage* SPDFImageFromBitmap(const spdf_bitmap* b) {
     spdf_paint_doc* doc = [self canvas];
     if (!doc || !self.superview) return;
     uint64_t generation = spdf_paint_generation(doc);
-    if (generation == _thumbGeneration && _thumbs.count) return;
-    _thumbGeneration = generation;
+    if (doc == _thumbDoc && generation == _thumbGeneration && _thumbs.count) return;
+    _thumbDoc = doc, _thumbGeneration = generation;
     [_thumbs removeAllObjects];
     for (NSDictionary* row in _rows) {
         spdf_bitmap bitmap = {0};
