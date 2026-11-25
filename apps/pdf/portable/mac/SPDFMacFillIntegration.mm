@@ -2,6 +2,8 @@
 
 #import "SPDFMacCollectionPathPolicy.h"
 #import "SPDFMacEditedPageThumbnails.h"
+#import "SPDFMacAnnotateIntegration.h"
+#import "SPDFMacAnnotateOperations.h"
 #import "SPDFMacFillController.h"
 #import "SPDFMacFillOverlayView.h"
 #import "SPDFMacFillPalette.h"
@@ -50,8 +52,10 @@ static char kSPDFFillControllerKey, kSPDFFillMenuTargetKey, kSPDFFillFormStampKe
 - (void)removeEverythingAddedWithFillSign:(id)sender { [self.reader removeEverythingAddedWithFillSign:sender]; }
 - (BOOL)validateMenuItem:(NSMenuItem*)item {
     BOOL available = [self.reader fillSignAvailable];
-    if (item.action == @selector(toggleFillAndSign:))
-        item.state = [self.reader fillSignShowing] ? NSControlStateValueOn : NSControlStateValueOff;
+    if (item.action == @selector(toggleFillAndSign:)) {  // Annotate, on every document (SPDFMacAnnotateIntegration.mm)
+        item.state = [self.reader annotateShowing] ? NSControlStateValueOn : NSControlStateValueOff;
+        return [self.reader annotateAvailable];
+    }
     // Enabled only when there is something to remove.
     if (item.action == @selector(removeAllPenLinesAndArrows:))
         return available && [self.reader fillSignCanAddItems] && [self.reader fillSignHasAddedItemsDrawingsOnly:YES];
@@ -165,14 +169,17 @@ void SPDFFillInstallMenuItems(NSMenu* editMenu, NSMenu* fileMenu, ShenzhenMacDel
         session.summary.docmdp != 1 && session.summary.can_fill_fields)
         session.on = YES;
     [[self existingFillController] activeDocumentChanged];
+    [self annotateDocumentDidSettle];  // a canvas tab comes back with Annotate on
 }
 
 - (void)fillSignActiveDocumentChanged {
     [[self existingFillController] activeDocumentChanged];
+    [self annotateActiveDocumentChanged];  // a picture left is written into its file
 }
 
 - (void)fillSignFlushEdits {
     [[self existingFillController] flushPendingChanges];  // what is being typed, and lines drawn a moment ago
+    [self annotateFlushEdits];
 }
 
 // Fill & Sign shows first, so what goes is seen going and Command-Z brings it back at once.
@@ -201,10 +208,12 @@ void SPDFFillInstallMenuItems(NSMenu* editMenu, NSMenu* fileMenu, ShenzhenMacDel
     controller.overlay.hidden = !showing;
     controller.palette.hidden = !showing;
     if (showing) [controller.overlay refresh];
+    [controller annotateChromeDidRefresh:showing];
 }
 
 - (void)toggleFillAndSign:(id)sender {
     (void)sender;
+    if ([self annotateToggleIfNotPDF]) return;  // pictures, canvases, text documents: Annotate's own
     if (![self fillSignAvailable]) {
         NSBeep();
         return;

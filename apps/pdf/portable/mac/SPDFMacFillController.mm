@@ -5,6 +5,7 @@
 #import "SPDFMacFillEditor.h"
 #import "SPDFMacFillOverlayView.h"
 #import "SPDFMacFillPalette.h"
+#import "SPDFMacAnnotateOperations.h"
 #import "SPDFMacModels.h"
 
 #import <objc/runtime.h>
@@ -83,6 +84,7 @@ static char kSPDFFillSessionKey;
 - (void)setOn:(BOOL)on {
     SPDFFillSession* session = [self session];
     if (!session) return;
+    [self annotateModeWillChange:on];  // Done writes a picture into its file (SPDFMacAnnotateFrontendOperations.mm)
     if (!on) {
         [self endInteraction];
         session.dismissed = YES;
@@ -128,6 +130,7 @@ static char kSPDFFillSessionKey;
     } else {
         [self.overlay clearTransientState];
     }
+    [self annotateChromeDidRefresh:showing];  // the canvas view and status bar (SPDFMacFillController+Annotate.mm)
     [_host fillStateDidChange];
 }
 

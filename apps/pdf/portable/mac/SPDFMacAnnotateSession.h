@@ -69,6 +69,24 @@ FOUNDATION_EXPORT BOOL SPDFAnnotateToolFromName(NSString* name, SPDFAnnotateTool
 @property(nonatomic, copy) NSArray<NSString*>* customColors;  // 10 "#RRGGBBAA" or "" (empty slot)
 @end
 
+@class SPDFMacAnnotateSession;
+
+// What a session needs from the reader around it (ShenzhenMacDelegate, SPDFMacAnnotateIntegration.mm): Collection
+// before and after a write into a file the person owns, and the tab following a write or a Save As.
+@protocol SPDFMacAnnotateSessionHost <NSObject>
+// Before the first write into an existing file: Collection keeps the version as it was. NO: nothing may be written.
+- (BOOL)annotateSessionProtectPath:(NSString*)path;
+// After a write: Collection keeps the new version; the reader shows the file again when its tab is in front and
+// Annotate is off (or the canvas size changed), so the page under the canvas is never stale.
+- (void)annotateSession:(SPDFMacAnnotateSession*)session didWritePath:(NSString*)path;
+// After Save As: the tab now shows `path` (a picture, or a .szpaint's flattened picture).
+- (void)annotateSession:(SPDFMacAnnotateSession*)session didSaveAsPath:(NSString*)path;
+@end
+
+// Posted on the main thread after every change of a session's canvas, selection or tool (object: the session), so the
+// canvas view, the palette, the Layers panel and the status bar follow without each knowing the others.
+FOUNDATION_EXPORT NSNotificationName const SPDFAnnotateSessionDidChangeNotification;
+
 @interface SPDFMacAnnotateSession : NSObject
 
 + (nullable instancetype)existingSessionForTab:(SPDFDocumentTab*)tab;
@@ -79,6 +97,7 @@ FOUNDATION_EXPORT BOOL SPDFAnnotateToolFromName(NSString* name, SPDFAnnotateTool
 + (void)discardSessionForTab:(SPDFDocumentTab*)tab;
 
 @property(nonatomic, weak, readonly) SPDFDocumentTab* tab;
+@property(nonatomic, weak, nullable) id<SPDFMacAnnotateSessionHost> host;
 @property(nonatomic, readonly) SPDFAnnotateDocumentKind kind;
 @property(nonatomic, copy, nullable) NSString* path;  // changes after Save As
 // The picture's format (a UTI, "public.png"), and whether it can be written back in place. NO for WebP, camera RAW
@@ -97,6 +116,13 @@ FOUNDATION_EXPORT BOOL SPDFAnnotateToolFromName(NSString* name, SPDFAnnotateTool
 @property(nonatomic) spdf_paint_color color1;  // black
 @property(nonatomic) spdf_paint_color color2;  // white
 @property(nonatomic) SPDFAnnotateTool toolBeforePicker;  // the Color picker returns to it after one pick
+// The objects the Selection tool (or a Layers row) selected, front to back; UI state, like the tool.
+@property(nonatomic, copy) NSArray<NSNumber*>* selectedObjects;
+// The canvas's doc.state answer (or the page's), parsed, read again only after a change: layers bottom to top with
+// "id", "kind", "name", "visible", "opacity", "bounds" {x,y,w,h} for objects, "active", "selection".
+- (nullable NSDictionary*)stateForPage:(NSInteger)page;
+// The answers of read-only operations a gesture needs at once (color.pick), applied straight to the canvas.
+- (nullable NSDictionary*)readOperation:(NSDictionary*)op page:(NSInteger)page;
 
 // Loads the picture into its canvas the first time Annotate turns on (or at once for a .szpaint or a canvas tab):
 // decodes with ImageIO, and takes the layers kept beside the picture when the file is unchanged (size and
@@ -122,6 +148,8 @@ FOUNDATION_EXPORT BOOL SPDFAnnotateToolFromName(NSString* name, SPDFAnnotateTool
 // The tab's one undo stack: core canvas steps (with their page) and Fill & Sign's steps (recorded by the controller
 // with -recordFillStep, undone through its NSUndoManager), in the order they were made.
 - (void)recordFillStep;
+// Undoes (redo NO) or redoes one of those Fill & Sign steps; set by the controller that records them.
+@property(nonatomic, copy, nullable) void (^fillStepHandler)(BOOL redo);
 @property(nonatomic, readonly) BOOL canUndo;
 @property(nonatomic, readonly) BOOL canRedo;
 @property(nonatomic, readonly, copy, nullable) NSString* undoActionName;  // for Edit > Undo <name>
@@ -136,21 +164,36 @@ FOUNDATION_EXPORT BOOL SPDFAnnotateToolFromName(NSString* name, SPDFAnnotateTool
 @property(nonatomic, readonly) BOOL dirty;
 // A canvas with no file yet: closing it asks Save / Don't Save / Cancel.
 @property(nonatomic, readonly) BOOL neverSaved;
+// The .szpaint a project tab saves into (nil for pictures and never-saved canvases). Its tab shows a flattened copy
+// kept in <state>/Annotate/Tabs, as a never-saved canvas does (SPDFAnnotateBackingPath).
+@property(nonatomic, copy, readonly, nullable) NSString* projectPath;
+// The flattened picture's file was written since the reader last read it: the tab must be shown again when Annotate
+// turns off.
+@property(nonatomic) BOOL pageStale;
 // Writes the flattened picture into its file in its own format, with its metadata (Collection told before and after),
 // encoding off the main thread; or, for a PDF, writes the changed pages back as annotations and saves through the
 // Fill & Sign commit cycle. completion on the main thread with nil or the error. A never-saved canvas or a picture
 // that can't be written in place answers an error asking for doc.save_as.
-- (void)saveWithCompletion:(void (^)(NSError* _Nullable error))completion;
+- (void)saveWithCompletion:(nullable void (^)(NSError* _Nullable error))completion;
 // Save As: PNG, JPEG, HEIC, TIFF, BMP, GIF or a Shenzhen Paint project (format as doc.save_as names it); the tab then
 // shows the new file. quality 0-1 for JPEG and HEIC (0.92 by default).
 - (void)saveAsPath:(NSString*)path format:(NSString*)format quality:(CGFloat)quality
-        completion:(void (^)(NSError* _Nullable error))completion;
+        completion:(nullable void (^)(NSError* _Nullable error))completion;
 // The .szpaint kept beside a picture (<state>/Annotate/<hash of path>.szpaint), written 2 s after the last change.
 - (void)scheduleProjectAutosave;
+// Don't Save on a never-saved canvas: its pixels and layers in <state>/Annotate are removed.
+- (void)discardNeverSavedCanvas;
 // Before the tab closes, the document is left, or the app quits: writes what is pending now, on this thread, so
 // nothing is lost and no frame shows a wrong state. A never-saved canvas is kept for next launch (quit) instead.
 - (BOOL)flushForClose:(BOOL)quitting error:(NSError* _Nullable* _Nullable)error;
 
 @end
+
+// <state>/Annotate/Tabs: the files a canvas tab or a .szpaint tab shows (a flattened PNG) and what they stand for.
+// A new canvas: "Untitled canvas" (a never-saved canvas); a project: the .szpaint's path. Pure path checks.
+FOUNDATION_EXPORT NSString* SPDFAnnotateTabsFolder(void);
+FOUNDATION_EXPORT BOOL SPDFAnnotateIsBackingPath(NSString* _Nullable path);
+// The project a backing file shows, or nil for a never-saved canvas (reads its small .json beside it).
+FOUNDATION_EXPORT NSString* _Nullable SPDFAnnotateProjectForBackingPath(NSString* path);
 
 NS_ASSUME_NONNULL_END

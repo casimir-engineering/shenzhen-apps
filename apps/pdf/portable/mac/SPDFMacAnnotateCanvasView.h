@@ -1,8 +1,9 @@
 #pragma once
 // What Annotate draws over a picture or each PDF page, and the gestures that become operations (docs/plans/annotate.md
-// § 1 The window, § 8 Mac). A transparent view the Fill & Sign overlay (SPDFMacFillOverlayView) owns and keeps just
-// under itself, over the reader's page viewport, the same size; it scrolls nothing and hands scroll and zoom gestures
-// on to the scroll view, as the overlay does. Page geometry comes from the overlay on every draw
+// § 1 The window, § 8 Mac). A transparent view kept just above the Fill & Sign overlay (SPDFMacFillOverlayView) while
+// a canvas tool is chosen (its hitTest: lets every event through to the overlay for the PDF form tools), over the
+// reader's page viewport, the same size; it scrolls nothing and hands scroll and zoom gestures on to the scroll view,
+// as the overlay does. Page geometry comes from the overlay on every draw
 // (-viewRectForPageRect:page:, -locateViewPoint:page:pagePoint:), so zoom, scrolling and tab switches need no
 // bookkeeping.
 //
@@ -28,20 +29,22 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
+FOUNDATION_EXPORT NSNotificationName const SPDFAnnotateCanvasPointerDidMoveNotification;
+
 @interface SPDFMacAnnotateCanvasView : NSView
 
 - (instancetype)initWithController:(SPDFMacFillController*)controller;
 @property(nonatomic, weak, readonly) SPDFMacFillController* controller;
 
-// Placed by the overlay just below itself in its superview, same frame; removed with it.
+// Placed just above the overlay in its superview (the scroll view), same frame; removed with it.
 - (void)attachBelowOverlay:(SPDFMacFillOverlayView*)overlay;
 @property(nonatomic, weak, readonly, nullable) SPDFMacFillOverlayView* overlay;
 
 // The tab's session; nil hides everything (Annotate off, a text document).
 @property(nonatomic, weak, nullable) SPDFMacAnnotateSession* session;
 
-// The overlay asks before handling an event itself: YES when the session's tool is one this view draws with (every
-// tool but the PDF form group), so the event is forwarded here.
+// YES when the session's tool is one this view draws with (every tool but the PDF form group, and on a PDF Fill &
+// Sign's own pen, arrow, whole-line eraser and Select): the view takes the events, else they reach the overlay.
 - (BOOL)takesEventsForTool:(SPDFAnnotateTool)tool;
 
 // A canvas changed (an operation, undo, redo, a reload): reads its damage (spdf_paint_take_damage) and redraws only
@@ -62,8 +65,29 @@ NS_ASSUME_NONNULL_BEGIN
 @property(nonatomic) BOOL showsGridlines;
 @property(nonatomic) BOOL showsThumbnail;  // View > Thumbnail: the whole picture, small, floating, while zoomed in
 
+// The text box being typed in is closed and its text sent (one text.add or object.update), before anything reads the
+// canvas (tab switch, save, Done).
+- (void)commitTextEditor;
 // Escape: drops the gesture in progress (nothing is sent). YES when there was one.
 - (BOOL)cancelGesture;
+
+// View points per canvas unit on the picture (or the page under the pointer): 1 = 100 %.
+- (CGFloat)zoomLevel;
+// Becomes the window's first responder, so Escape, Delete, arrows and the tool letters reach Annotate.
+- (void)takeKeys;
+// Done: the canvas stays drawn over the page until the reader shows the written file (-releaseHeldFrame).
+- (void)holdLastFrameUntilReload;
+- (void)releaseHeldFrame;
+@property(nonatomic, readonly) BOOL holdsLastFrame;
+
+// For the status bar: the pointer in canvas units (hasPointer NO when it is off the canvas), and the size a canvas
+// handle being dragged would give (NSZeroSize when none is). Posted as SPDFAnnotateCanvasPointerDidMoveNotification.
+@property(nonatomic, readonly) BOOL hasPointer;
+@property(nonatomic, readonly) NSPoint pointerPoint;
+@property(nonatomic, readonly) NSInteger pointerPage;
+@property(nonatomic, readonly) NSSize liveResizeSize;
+// The size of what is selected (objects' box or the pixel selection's), NSZeroSize when nothing is.
+- (NSSize)selectionSize;
 
 @end
 

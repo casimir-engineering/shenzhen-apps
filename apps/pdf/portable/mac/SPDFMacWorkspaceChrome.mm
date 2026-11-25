@@ -1,6 +1,7 @@
 #import "SPDFMacIconGeometry.h"
 #import "SPDFMacChromeColors.h"
 #import "SPDFMacPastedImageState.h"
+#import "SPDFMacAnnotateIntegration.h"
 #import "SPDFMacHeaderDragView.h"
 #import "SPDFMacWorkspaceChrome.h"
 #import "SPDFMacPanelSearchField.h"
@@ -196,8 +197,9 @@ static NSButton* Icon(NSString* symbol, NSString* title, id target, SEL action) 
     state.statusSpace=[_toolbarSpacer.widthAnchor constraintGreaterThanOrEqualToConstant:0];
     state.statusSpace.active=YES;
     state.imageColors=Icon(@"photo",@"Invert image colors · ⇧⌘I",self,@selector(toggleDarkThemePreservesImages:));
-    state.fillSign=Icon(@"signature",@"Fill in and sign · ⌥⌘F",self,@selector(toggleFillAndSign:));
-    state.fillSign.accessibilityLabel=@"Fill & Sign";
+    state.fillSign=Icon(@"pencil",@"Annotate · ⌥⌘F",self,@selector(toggleAnnotate:));
+    state.fillSign.image=SPDFAnnotateIcon();
+    state.fillSign.accessibilityLabel=SPDFAnnotateTitle;
     state.tools = @[state.collection,_readingThemeButton,state.imageColors,_ocrButton,_translateButton,state.fillSign,state.print];
     state.toolsRow = [NSStackView stackViewWithViews:state.tools];
     for (NSStackView* row in @[state.primaryRow,state.toolsRow]) {
@@ -347,8 +349,8 @@ static NSButton* Icon(NSString* symbol, NSString* title, id target, SEL action) 
     state.imageColors.accessibilityLabel=state.imageColors.toolTip;
     _findCountLabel.hidden = !_searchField.stringValue.length;
     _findSegments.hidden = !_searchField.stringValue.length;
-    state.fillSign.enabled=[self fillSignAvailable];
-    state.fillSign.state=[self fillSignShowing] ? NSControlStateValueOn : NSControlStateValueOff;
+    state.fillSign.enabled=[self annotateAvailable];
+    state.fillSign.state=[self annotateShowing] ? NSControlStateValueOn : NSControlStateValueOff;
     [self fillSignChromeDidSync];
 }
 - (void)showGroupsSidebar:(id)sender {

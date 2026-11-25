@@ -70,5 +70,8 @@ FOUNDATION_EXPORT NSArray<NSString*>* SPDFAnnotateFontFamilies(void);
 // spdf_paint_color <-> NSColor (sRGB, alpha kept), for the swatches.
 FOUNDATION_EXPORT NSColor* SPDFAnnotateColor(spdf_paint_color color);
 FOUNDATION_EXPORT spdf_paint_color SPDFAnnotatePaintColor(NSColor* color);
+// spdf_paint_color <-> the operations' "#RRGGBB" / "#RRGGBBAA" (alpha written only when not opaque).
+FOUNDATION_EXPORT NSString* SPDFAnnotateColorString(spdf_paint_color color);
+FOUNDATION_EXPORT BOOL SPDFAnnotateParseColor(id _Nullable value, spdf_paint_color* _Nullable out);
 
 NS_ASSUME_NONNULL_END

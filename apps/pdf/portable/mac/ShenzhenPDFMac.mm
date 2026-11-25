@@ -20,6 +20,7 @@
 #import "SPDFMacCollectionCompanion.h"
 #import "SPDFMacSidebarWorkspace.h"
 #import "SPDFMacFillIntegration.h"
+#import "SPDFMacAnnotateIntegration.h"
 #import "SPDFMacEditedPageThumbnails.h"
 #import <Cocoa/Cocoa.h>
 #import <PDFKit/PDFKit.h>
@@ -8396,12 +8397,8 @@ static BOOL spdf_page_list_cache_disabled(void) {
     [self focusActiveDocumentViewAfterTabSelection]; [_tabStrip revealSelectedTab];
 }
 
-- (void)closeTabAtIndex:(NSInteger)index {
-    [self closeTabAtIndex:index preferMostRecentActive:NO];
-}
-
 - (void)closeTabAtIndex:(NSInteger)index preferMostRecentActive:(BOOL)preferMostRecentActive {
-    if (index < 0 || index >= (NSInteger)_tabs.count) return;
+    if (index < 0 || index >= (NSInteger)_tabs.count || ![self annotateTabShouldClose:_tabs[(NSUInteger)index]]) return;
     BOOL closingActive = index == _selectedTabIndex;
     if (closingActive) [self cancelDocumentTransientInteraction];
     SPDFDocumentTab* closingTab = _tabs[(NSUInteger)index];

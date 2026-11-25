@@ -35,6 +35,10 @@ FOUNDATION_EXPORT NSString* const SPDFAnnotateGrowCanvasQuestion;   // "Make the
 FOUNDATION_EXPORT NSString* const SPDFAnnotateRemoveEverythingTitle;// "Remove Everything Added with Annotate"
 FOUNDATION_EXPORT NSString* const SPDFAnnotateProjectFormatTitle;   // "Shenzhen Paint project"
 
+// The toolbar button's pencil-and-brush picture (a template image, tinted like the other toolbar icons): SF Symbols
+// has no such symbol, so a pencil and a mirrored paintbrush are drawn crossed.
+FOUNDATION_EXPORT NSImage* SPDFAnnotateIcon(void);
+
 #pragma mark - The reader's side
 
 @interface ShenzhenMacDelegate (SPDFMacAnnotate)
@@ -84,6 +88,19 @@ FOUNDATION_EXPORT NSString* const SPDFAnnotateProjectFormatTitle;   // "Shenzhen
 - (void)annotateActiveDocumentChanged;
 - (BOOL)annotateTabShouldClose:(SPDFDocumentTab*)tab;
 - (void)annotateFlushForQuit;
+// More one-line hooks: Fill & Sign's -toggleFillAndSign: (YES: not a PDF, Annotate handled it), its settle hook after
+// first paint (a canvas or project tab comes back with Annotate on), -openPaths: (a .szpaint opens as its picture),
+// and Save As (Cmd-S today; YES: a picture or canvas in Annotate was saved).
+- (BOOL)annotateToggleIfNotPDF;
+- (void)annotateDocumentDidSettle;
+- (NSArray<NSString*>*)annotateReaderPathsForPaths:(NSArray<NSString*>*)paths;
+- (BOOL)annotateHandlesSave:(id _Nullable)sender;
+
+// Zoom for the status bar, the Magnifier and view.zoom: level in view points per canvas unit (1 = 100 %, 0.125-8),
+// or "fit" / "actual"; point (canvas units, NSValue) stays under the pointer, nil keeps the viewport's centre.
+- (void)annotateZoomTo:(id)level atCanvasPoint:(nullable NSValue*)point;
+// After Done's write: the reader shows the written file, then the canvas stops covering the page.
+- (void)annotateShowWrittenPictureOfSession:(SPDFMacAnnotateSession*)session;
 
 @end
 
