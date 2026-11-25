@@ -233,7 +233,8 @@ static NSString* SPDFAnnotateKeyLetter(NSEvent* event, BOOL* shift) {
     if (mods & (kCmd | kCtrl | kOpt)) return nil;
     if (shift) *shift = (mods & kShift) != 0;
     NSString* chars = event.charactersIgnoringModifiers.lowercaseString ?: @"";
-    return chars.length == 1 ? chars : nil;
+    unichar c = chars.length == 1 ? [chars characterAtIndex:0] : 0;
+    return c > 0x20 && c < 0x7f ? chars : nil;  // a printable key: not Delete, Escape, the arrows or Tab
 }
 
 BOOL SPDFAnnotateClaimsKey(NSEvent* event, SPDFMacFillController* controller) {

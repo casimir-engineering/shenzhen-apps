@@ -389,7 +389,40 @@ with Annotate".
 
 ### Annotate keys
 
-(Filled in by the UI agent from the app's real key table: each shortcut above, the one used, and why if it differs.)
+From the app's real key table (menus dumped from a running copy, 2026-11-25). Where the app already used a key it
+keeps it, and Annotate takes the fallback with ⌥ added. Letters work while the page or canvas has the keyboard and
+nothing is being typed (they are claimed before type-to-search starts); ⌘ keys are menu items.
+
+| What | Spec | Used | Why it differs |
+|---|---|---|---|
+| Annotate on / off | ⌥⌘F | ⌥⌘F | Fill & Sign's item, renamed |
+| File > New Canvas | ⌘N | ⌘N | free |
+| File > Save | ⌘S | ⌘S | saves a picture or canvas Annotate changed; on every other document ⌘S keeps the app's meaning (Save As…) |
+| File > Save As… | ⇧⌘S | ⇧⌘S | was ⌘S; ⌘S still reaches it everywhere but on pictures and canvases |
+| Edit > Undo / Redo | ⌘Z / ⇧⌘Z, ⌘Y | ⌘Z / ⇧⌘Z, ⌘Y | free (Fill & Sign took them in its overlay; now menu items, history.undo / history.redo); text being typed keeps its own undo |
+| Edit > Repeat | F4 | F4 | free |
+| Cut / Copy / Paste / Select All | ⌘X / ⌘C / ⌘V / ⌘A | the same | the Edit menu's own items: they become doc.copy, select.delete, picture.add, select.all while a canvas tool is chosen, and keep their meaning otherwise |
+| Paste from file… | ⇧⌥⌘V | ⇧⌥⌘V | free |
+| Invert selection | ⇧⌘I | ⌥⇧⌘I | ⇧⌘I is View > Invert Image Colors in Dark Theme |
+| Crop to selection | ⇧⌘X | ⇧⌘X | free |
+| Resize and skew… | ⌥⌘I | ⌥⌘I | free |
+| Invert colors | ⌃⌘I | ⌃⌘I | free |
+| Canvas size and properties… | ⌥⌘C | ⌥⌘C | free |
+| Clear image | ⇧⌘⌫ | ⇧⌘⌫ | free |
+| Bring to Front / Bring Forward / Send Backward / Send to Back | ⌥⌘] / ⌘] / ⌘[ / ⌥⌘[ | the same (Edit > Arrange) | free |
+| Duplicate | ⌘D | ⌥⌘D | ⌘D is Go To > Previous Document |
+| View > Layers | ⇧⌘L | ⇧⌘L | free |
+| View > Rulers | ⇧⌘R | ⌥⇧⌘R | ⇧⌘R is View > Rotate Anticlockwise |
+| View > Gridlines | ⌘' | ⌘' | free |
+| Zoom: actual size / fit | ⌘0 / ⌘9 | ⌘4 / ⌘1 | the spec asks for "the app's existing zoom keys": Zoom > 100 % is ⌘4 and Fit Page ⌘1 (⌘0 and ⌘9 were a mistake in the spec) |
+| Text bar Bold / Italic / Underline | ⌘B / ⌘I / ⌘U | the same, inside the text box being typed in only | ⌘B is Favorite Current Page and ⌘I the reading theme: the text box takes them first (the key window's views see key equivalents before the menu bar), the app keeps them elsewhere |
+| Pen, Arrow, Eraser, Select | P, A, E, S | the same | Fill & Sign's; E again: Whole lines / Pixels; S again: Rectangular, then Free-form selection |
+| Fill & Sign Text (PDF) / Text box | T / ⇧T | T on a PDF is Fill & Sign's Text; ⇧T the Text box; T is the Text box on pictures and canvases | as the spec |
+| Pencil, Brush, Fill, Color picker, Magnifier | N, B, F, I, Z | the same | B again cycles the brushes |
+| Shapes, Line | U, L | the same | U again cycles Rectangle, Oval, Line, Arrow line |
+| Swap colours / default colours | X / D | the same | X turns a focused or hovered mark into a cross, as in Fill & Sign; elsewhere it swaps |
+| Size down / up | [ / ] | the same | one step (1 px or pt) within the tool's range |
+| Delete, Escape, arrows | ⌫, Esc, ←↑→↓ | the same | act on Annotate's selection (Shift: 10) before the page scrolls; with Fill & Sign's tools they stay Fill & Sign's |
 
 ## 9. Orchestration
 
