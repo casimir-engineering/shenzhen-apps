@@ -225,7 +225,8 @@ static CGSize StateSize(NSDictionary* state) {
     if (!tab) { completion(Refusal(@"The document was closed after this action.")); return; }
     [self annotateFingerprint:tab pages:record[@"pages"] completion:^(NSString* now) {
       if (![now isEqual:record[@"fingerprint"]]) {
-          completion(Refusal(@"The document changed after this action. Undo would overwrite your changes."));
+          completion(Refusal(redo ? @"The document changed since this action was undone. Redo would overwrite your changes."
+                                  : @"The document changed after this action. Undo would overwrite your changes."));
           return;
       }
       NSDictionary* op = @{@"op" : redo ? @"history.redo" : @"history.undo", @"steps" : record[@"steps"]};
