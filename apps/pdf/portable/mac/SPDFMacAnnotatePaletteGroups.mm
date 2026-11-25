@@ -5,6 +5,7 @@
 
 #import "SPDFMacAnnotateColors.h"
 #import "SPDFMacAnnotateLayersPanel.h"
+#import "SPDFMacAnnotatePaletteButton.h"
 #import "SPDFMacAnnotatePaletteSupport.h"
 #import "SPDFMacAnnotateToolOptions.h"
 #import "SPDFMacCollectionStyle.h"
@@ -19,7 +20,7 @@ const spdf_paint_color SPDFAnnotatePaletteColors[20] = {
                                                                      // blue-grey, lavender
 };
 
-// A palette button (Fill & Sign's look, SPDFCollectionButton): what it does (an op or a command, SPDFAnnotatePerform),
+// A palette button (SPDFMacAnnotatePaletteButton.h): what it does (an op or a command, SPDFAnnotatePerform),
 // or the menu it opens.
 @interface NSButton (SPDFAnnotatePalette)
 @property(nonatomic, strong) id annotatePayload;
@@ -32,12 +33,13 @@ static char kSPDFPayloadKey, kSPDFMenuKey;
 - (NSMenu* (^)(void))annotateMenu { return objc_getAssociatedObject(self, &kSPDFMenuKey); }
 - (void)setAnnotateMenu:(NSMenu* (^)(void))menu { objc_setAssociatedObject(self, &kSPDFMenuKey, menu, OBJC_ASSOCIATION_COPY_NONATOMIC); }
 @end
-typedef NSButton SPDFAnnotateButton;
+typedef SPDFPaletteButton SPDFAnnotateButton;
 
 // One group of row 1: its full and compact forms in one container, a line before it, and its menu for "More".
 @interface SPDFAnnotateGroup : NSObject
 @property(nonatomic, copy) NSString* title;
 @property(nonatomic, strong) NSStackView* container;
+@property(nonatomic, strong) NSView* line;
 @property(nonatomic, strong) NSView* full;
 @property(nonatomic, strong, nullable) NSView* compact;
 @property(nonatomic, copy) NSMenu* (^menu)(void);
@@ -58,6 +60,10 @@ typedef NSButton SPDFAnnotateButton;
     SPDFAnnotateGroup* _layers;
     NSArray<SPDFAnnotateGroup*>* _groups;
     SPDFAnnotateButton* _more;
+    NSView* _moreLine;
+    SPDFAnnotateGroup* _chosenGroup;  // the group holding the chosen tool (More shows it while it is in there)
+    NSString* _chosenSymbol;
+    NSString* _chosenLabel;
     SPDFAnnotateButton* _selectButton;
     SPDFAnnotateButton* _toolsCompact;
     SPDFAnnotateButton* _brushButton;
@@ -89,33 +95,30 @@ typedef NSButton SPDFAnnotateButton;
 #pragma mark - Building
 
 - (SPDFAnnotateButton*)button:(NSString*)symbol label:(NSString*)label payload:(id)payload {
-    SPDFAnnotateButton* button = SPDFCollectionButton(@"", self, @selector(buttonClicked:), @"quiet");
-    button.image = SPDFAnnotateSymbol(symbol, label);
-    if (!button.image) button.title = label;  // a symbol this macOS lacks
-    button.imagePosition = NSImageOnly;
+    SPDFAnnotateButton* button = SPDFPaletteIconButton(symbol, label, self, @selector(buttonClicked:));
     button.annotatePayload = payload;
-    button.toolTip = label;
-    button.accessibilityLabel = label;
-    button.refusesFirstResponder = YES;  // the pages keep the keys
-    button.translatesAutoresizingMaskIntoConstraints = NO;
-    [button.heightAnchor constraintEqualToConstant:28].active = YES;
-    [button.widthAnchor constraintEqualToConstant:30].active = YES;
     return button;
 }
 
+// A button that opens a menu: an icon (Rotate, Flip) or, with no symbol, the ▾ half of a split button.
 - (SPDFAnnotateButton*)menuButton:(NSString*)symbol label:(NSString*)label menu:(NSMenu* (^)(void))menu {
-    SPDFAnnotateButton* button = [self button:symbol label:label payload:nil];
+    SPDFAnnotateButton* button = symbol.length ? [self button:symbol label:label payload:nil]
+                                               : SPDFPaletteMenuButton(label, self, @selector(buttonClicked:));
     button.annotateMenu = menu;
-    for (NSLayoutConstraint* c in button.constraints)
-        if (c.firstAttribute == NSLayoutAttributeWidth) c.constant = symbol.length && ![symbol hasPrefix:@"chevron"] ? 30 : 16;
     return button;
+}
+
+// A tool (or the group's icon) and its ▾, joined into one split button.
+- (NSStackView*)split:(SPDFAnnotateButton*)main label:(NSString*)label menu:(NSMenu* (^)(void))menu {
+    return SPDFPaletteSplit(main, [self menuButton:@"" label:label menu:menu]);
 }
 
 - (NSStackView*)stack:(NSArray<NSView*>*)views {
     NSStackView* stack = [NSStackView stackViewWithViews:views];
-    stack.spacing = 1;
+    stack.spacing = SPDFPaletteSpacing;
     stack.alignment = NSLayoutAttributeCenterY;
     stack.detachesHiddenViews = YES;
+    [stack setHuggingPriority:NSLayoutPriorityRequired - 1 forOrientation:NSLayoutConstraintOrientationHorizontal];
     return stack;
 }
 
@@ -125,12 +128,8 @@ typedef NSButton SPDFAnnotateButton;
     group.full = full;
     group.compact = compact;
     group.menu = menu;
-    NSView* line = SPDFCollectionSurface(@"line");
-    line.translatesAutoresizingMaskIntoConstraints = NO;
-    [line.widthAnchor constraintEqualToConstant:1].active = YES;
-    [line.heightAnchor constraintEqualToConstant:18].active = YES;
-    group.container = [self stack:compact ? @[ line, full, compact ] : @[ line, full ]];
-    group.container.spacing = 5;
+    group.line = SPDFPaletteSeparator();
+    group.container = [self stack:compact ? @[ group.line, full, compact ] : @[ group.line, full ]];
     compact.hidden = YES;
     return group;
 }
@@ -140,8 +139,8 @@ typedef NSButton SPDFAnnotateButton;
     __weak SPDFMacFillController* c = _controller;
     // Selection: the Select tool (pressed again: rectangular, then free-form) and its menu.
     _selectButton = [self button:@"cursorarrow" label:@"Select (S)" payload:nil];
-    NSView* selection = [self stack:@[ _selectButton, [self menuButton:@"chevron.down" label:@"Selection"
-                                                                  menu:^NSMenu* { return SPDFAnnotateSelectionMenu(c, nil); }] ]];
+    NSView* selection = [self split:_selectButton label:@"Selection"
+                               menu:^NSMenu* { return SPDFAnnotateSelectionMenu(c, nil); }];
     _selection = [self group:@"Selection" full:selection compact:nil menu:^NSMenu* { return SPDFAnnotateSelectionMenu(c, nil); }];
     // Image: Crop, Resize and skew, Rotate, Flip, and the rest in its menu.
     _imageButtons = @[
@@ -149,12 +148,13 @@ typedef NSButton SPDFAnnotateButton;
         [self button:@"arrow.up.left.and.arrow.down.right" label:@"Resize and skew… (⌥⌘I)" payload:SPDFAnnotateCommandResizeSheet],
         [self menuButton:@"rotate.right" label:@"Rotate" menu:^NSMenu* { return SPDFAnnotateRotateMenu(c, nil, @"auto"); }],
         [self menuButton:@"flip.horizontal" label:@"Flip" menu:^NSMenu* { return SPDFAnnotateFlipMenu(c, nil, @"auto"); }],
-        [self menuButton:@"chevron.down" label:@"Image" menu:^NSMenu* { return SPDFAnnotateImageMenu(c, nil); }],
     ];
     NSMenu* (^imageMenu)(void) = ^NSMenu* { return SPDFAnnotateImageMenu(c, nil); };
+    // The rest of the Image menu behind "…": a ▾ after Flip would read as Flip's own.
+    _imageButtons = [_imageButtons arrayByAddingObject:[self menuButton:@"ellipsis.circle" label:@"More image commands"
+                                                                   menu:imageMenu]];
     _image = [self group:@"Image" full:[self stack:_imageButtons]
-                 compact:[self stack:@[ [self menuButton:@"photo" label:@"Image" menu:imageMenu],
-                                        [self menuButton:@"chevron.down" label:@"Image" menu:imageMenu] ]]
+                 compact:[self split:[self menuButton:@"photo" label:@"Image" menu:imageMenu] label:@"Image" menu:imageMenu]
                     menu:imageMenu];
     // Tools: Pen, Arrow, Pencil, Fill, Text box, Eraser, Color picker, Magnifier.
     NSMutableDictionary* tools = [NSMutableDictionary dictionary];
@@ -170,22 +170,24 @@ typedef NSButton SPDFAnnotateButton;
     NSMenu* (^toolsMenu)(void) = ^NSMenu* { return SPDFAnnotateToolsMenu(c, nil); };
     _toolsCompact = [self menuButton:@"pencil.tip" label:@"Tools" menu:toolsMenu];
     _tools = [self group:@"Tools" full:[self stack:toolViews]
-                 compact:[self stack:@[ _toolsCompact, [self menuButton:@"chevron.down" label:@"Tools" menu:toolsMenu] ]]
+                 compact:[self split:_toolsCompact label:@"Tools" menu:toolsMenu]
                     menu:toolsMenu];
     // Brushes and Shapes: the last one used, and the menu of all of them.
     _brushButton = [self button:@"paintbrush.pointed" label:@"Brush (B)" payload:nil];
-    _brushes = [self group:@"Brushes" full:[self stack:@[ _brushButton, [self menuButton:@"chevron.down" label:@"Brushes"
-                                                                                     menu:^NSMenu* { return SPDFAnnotateBrushMenu(c, nil); }] ]]
+    _brushes = [self group:@"Brushes" full:[self split:_brushButton label:@"Brushes"
+                                                   menu:^NSMenu* { return SPDFAnnotateBrushMenu(c, nil); }]
                    compact:nil menu:^NSMenu* { return SPDFAnnotateBrushMenu(c, nil); }];
     _shapeButton = [self button:@"rectangle" label:@"Shapes (U)" payload:nil];
-    _shapes = [self group:@"Shapes" full:[self stack:@[ _shapeButton, [self menuButton:@"chevron.down" label:@"Shapes"
-                                                                                   menu:^NSMenu* { return SPDFAnnotateShapeMenu(c, nil); }] ]]
+    _shapes = [self group:@"Shapes" full:[self split:_shapeButton label:@"Shapes"
+                                                 menu:^NSMenu* { return SPDFAnnotateShapeMenu(c, nil); }]
                   compact:nil menu:^NSMenu* { return SPDFAnnotateShapeMenu(c, nil); }];
     // Colors: Color 1 / Color 2, the palette and the custom colours; narrow, the swatches and a menu.
     _colorsView = [[SPDFMacAnnotateColorsView alloc] initWithController:_controller];
-    _colorsMenu = [self menuButton:@"chevron.down" label:@"Colors" menu:^NSMenu* { return SPDFAnnotateColorsMenu(c); }];
+    _colorsMenu = [self menuButton:@"" label:@"Colors" menu:^NSMenu* { return SPDFAnnotateColorsMenu(c); }];
     _colorsMenu.hidden = YES;
-    _colors = [self group:@"Colors" full:[self stack:@[ _colorsView, _colorsMenu ]] compact:nil
+    NSStackView* colors = [self stack:@[ _colorsView, _colorsMenu ]];
+    colors.spacing = 0;  // narrow, the ▾ belongs to the swatches
+    _colors = [self group:@"Colors" full:colors compact:nil
                      menu:^NSMenu* { return SPDFAnnotateColorsMenu(c); }];
     _layersButton = [self button:@"square.3.layers.3d" label:@"Layers (⇧⌘L)" payload:SPDFAnnotateCommandLayers];
     _layers = [self group:@"Layers" full:_layersButton compact:nil menu:^NSMenu* {
@@ -194,12 +196,13 @@ typedef NSButton SPDFAnnotateButton;
       return menu;
     }];
     _groups = @[ _selection, _image, _tools, _brushes, _shapes, _colors, _layers ];
-    _more = [self menuButton:@"" label:@"More" menu:^NSMenu* { return [weakSelf moreMenu]; }];
-    _more.title = @"More";
-    _more.imagePosition = NSNoImage;
-    for (NSLayoutConstraint* constraint in _more.constraints)
-        if (constraint.firstAttribute == NSLayoutAttributeWidth) constraint.active = NO;
+    // More: the groups that do not fit. While the chosen tool is in there, it shows that tool's icon, chosen.
+    _more = SPDFPaletteTitleButton(@"More", nil, @"More", self, @selector(buttonClicked:));
+    _more.annotateMenu = ^NSMenu* { return [weakSelf moreMenu]; };
+    _more.trailingChevron = YES;
     _more.hidden = YES;
+    _moreLine = SPDFPaletteSeparator();
+    _moreLine.hidden = YES;
     _options = [[SPDFMacAnnotateToolOptions alloc] initWithController:_controller];
 }
 
@@ -207,7 +210,7 @@ typedef NSButton SPDFAnnotateButton;
     _kind = kind;
     NSMutableArray* views = [NSMutableArray array];
     for (SPDFAnnotateGroup* group in _groups) [views addObject:group.container];
-    [views addObject:_more];
+    [views addObjectsFromArray:@[ _moreLine, _more ]];
     return views;
 }
 
@@ -221,24 +224,41 @@ typedef NSButton SPDFAnnotateButton;
 
 #pragma mark - Narrow windows
 
+// What a group takes in row 1: the spacing before it, its line, the spacing after the line, then its buttons.
+static CGFloat SPDFGroupWidth(CGFloat buttons) {
+    return SPDFPaletteSpacing + SPDFPaletteSeparatorWidth + SPDFPaletteSpacing + buttons;
+}
+
 - (void)measure {
     if (_tools.fullWidth > 0) return;
     for (SPDFAnnotateGroup* group in _groups) {
-        group.fullWidth = ceil(group.full.fittingSize.width) + 6 + 5;  // the line before it and the spacing
-        group.compactWidth = group.compact ? ceil(group.compact.fittingSize.width) + 6 + 5 : group.fullWidth;
+        group.fullWidth = SPDFGroupWidth(ceil(group.full.fittingSize.width));
+        group.compactWidth = group.compact ? SPDFGroupWidth(ceil(group.compact.fittingSize.width)) : group.fullWidth;
     }
-    _colors.compactWidth = 2 + 20 + 6 + 20 + 2 + 16 + 6 + 5;
+    _colors.compactWidth = SPDFGroupWidth(SPDFMacAnnotateColorsCompactWidth + SPDFPaletteChevronWidth);
 }
+
+// The first thing in row 1 has no line before it (on a PDF the Fill & Sign group comes first and keeps them all).
+- (BOOL)leadingLineShows { return _kind == SPDFAnnotateDocumentPDF; }
 
 - (CGFloat)widthWithForms:(NSArray<NSNumber*>*)forms {
     CGFloat width = 0;
-    BOOL more = NO;
+    BOOL more = NO, first = YES;
     for (NSUInteger i = 0; i < _groups.count; ++i) {
         NSInteger form = [forms[i] integerValue];
-        if (form == 2) more = YES;
-        else width += form == 1 ? _groups[i].compactWidth : _groups[i].fullWidth;
+        if (form == 2) {
+            more = YES;
+            continue;
+        }
+        width += form == 1 ? _groups[i].compactWidth : _groups[i].fullWidth;
+        if (first && !self.leadingLineShows) width -= SPDFPaletteSeparatorWidth + SPDFPaletteSpacing;
+        first = NO;
     }
-    return width + (more ? 60 : 0);
+    // More is as wide as it will be: with the chosen tool's icon when that tool's group is among those in it.
+    BOOL chosenInMore = _chosenGroup && [forms[[_groups indexOfObject:_chosenGroup]] integerValue] == 2;
+    if (more) width += SPDFGroupWidth([_more contentWidthWithImage:chosenInMore ? SPDFAnnotateSymbol(_chosenSymbol, @"") : nil]) -
+                       (first && !self.leadingLineShows ? SPDFPaletteSeparatorWidth + SPDFPaletteSpacing : 0);
+    return width;
 }
 
 // The groups shrink in this order: Image, Colors and Tools to their icons; then into More: Image, Layers, Shapes,
@@ -273,6 +293,24 @@ typedef NSButton SPDFAnnotateButton;
         }
     }
     _more.hidden = !more;
+    // No line before the first thing shown (a picture has no Fill & Sign group before it).
+    BOOL first = !self.leadingLineShows;
+    for (SPDFAnnotateGroup* group in _groups) {
+        if (group.form == 2) continue;
+        group.line.hidden = first;
+        first = NO;
+    }
+    _moreLine.hidden = !more || first;
+    [self showChosenInMore];
+}
+
+// While the chosen tool's group is in More, More wears that tool's icon and the chosen look, so the tool in use is
+// always visible as chosen.
+- (void)showChosenInMore {
+    BOOL inMore = _chosenGroup && _chosenGroup.form == 2;
+    _more.image = inMore ? SPDFAnnotateSymbol(_chosenSymbol, @"") : nil;
+    _more.state = inMore ? NSControlStateValueOn : NSControlStateValueOff;
+    _more.toolTip = inMore ? [NSString stringWithFormat:@"More (%@ in use)", _chosenLabel] : @"More";
 }
 
 - (CGFloat)narrowestWidth { return 60; }
@@ -319,6 +357,14 @@ typedef NSButton SPDFAnnotateButton;
     _shapeButton.toolTip = [NSString stringWithFormat:@"%@ (U)", shape.label ?: @"Shapes"];
     _shapeButton.state = [chosen isEqual:@"shape"] ? NSControlStateValueOn : NSControlStateValueOff;
     _layersButton.state = SPDFAnnotateLayersPanelShown(_controller) ? NSControlStateValueOn : NSControlStateValueOff;
+    // The group the chosen tool is in, for More.
+    _chosenGroup = selecting ? _selection : current ? _tools : SPDFAnnotateBrushIndex(chosen) > 0 ? _brushes
+                 : [chosen isEqual:@"shape"] ? _shapes : nil;
+    _chosenSymbol = selecting ? ([chosen isEqual:@"rect_select"] ? @"rectangle.dashed" : [chosen isEqual:@"freeform_select"] ? @"lasso" : @"cursorarrow")
+                  : current ? current.symbol : SPDFAnnotateBrushIndex(chosen) > 0 ? brush.symbol : shape.symbol ?: @"rectangle";
+    _chosenLabel = selecting ? @"Select" : current ? current.label : SPDFAnnotateBrushIndex(chosen) > 0 ? brush.label
+                 : shape.label ?: @"Shapes";
+    [self showChosenInMore];
     for (SPDFAnnotateButton* b in @[ _selectButton, _brushButton, _shapeButton, _layersButton, _toolsCompact ]) b.enabled = on;
     for (SPDFAnnotateButton* b in _imageButtons) {
         NSString* tip = nil;

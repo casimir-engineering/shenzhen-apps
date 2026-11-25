@@ -1,5 +1,6 @@
 #import "SPDFMacFillPalette.h"
 
+#import "SPDFMacAnnotatePaletteButton.h"
 #import "SPDFMacAnnotatePaletteGroups.h"
 #import "SPDFMacAnnotatePaletteSupport.h"
 #import "SPDFMacCollectionStyle.h"
@@ -80,17 +81,11 @@ static NSImage* SPDFPaletteSymbol(NSString* name, NSString* description) {
     [_widths addObject:@[ width, @(width.constant) ]];
 }
 
+// The Fill & Sign group's buttons: the Annotate palette's (SPDFMacAnnotatePaletteButton.h), so both groups share one
+// size and spacing. A titled one ("Text", "Signature") shows only its icon once the palette is narrow.
 - (NSButton*)tool:(NSString*)title symbol:(NSString*)symbol label:(NSString*)label action:(SEL)action {
-    NSButton* button = SPDFCollectionButton(title, self, action, @"quiet");
-    if (symbol) button.image = SPDFPaletteSymbol(symbol, label);
-    if (symbol && !button.image) button.title = label;  // a symbol this macOS lacks
-    button.toolTip = label;
-    button.accessibilityLabel = label;
-    button.refusesFirstResponder = YES;  // the pages keep the keys: Command-Z, Delete, the tool letters
-    button.translatesAutoresizingMaskIntoConstraints = NO;
-    [button.heightAnchor constraintEqualToConstant:28].active = YES;
-    if (!title.length) [button.widthAnchor constraintEqualToConstant:34].active = YES;
-    return button;
+    if (title.length) return SPDFPaletteTitleButton(title, symbol, label, self, action);
+    return symbol ? SPDFPaletteIconButton(symbol, label, self, action) : SPDFPaletteMenuButton(label, self, action);
 }
 
 - (void)build {
@@ -103,15 +98,13 @@ static NSImage* SPDFPaletteSymbol(NSString* name, NSString* description) {
     _check = [self tool:@"" symbol:@"checkmark" label:@"Check" action:@selector(chooseCheck:)];
     _cross = [self tool:@"" symbol:@"xmark" label:@"Cross" action:@selector(chooseCross:)];
     _signature = [self tool:@"Signature" symbol:@"signature" label:@"Signature" action:@selector(chooseSignature:)];
-    _signatureMenu = [self tool:@"" symbol:@"chevron.down" label:@"Signatures and initials" action:@selector(showSignatureMenu:)];
-    for (NSLayoutConstraint* c in _signatureMenu.constraints)
-        if (c.firstAttribute == NSLayoutAttributeWidth) c.constant = 24;
+    _signatureMenu = [self tool:@"" symbol:nil label:@"Signatures and initials" action:@selector(showSignatureMenu:)];
+    NSStackView* signature = SPDFPaletteSplit((SPDFPaletteButton*)_signature, (SPDFPaletteButton*)_signatureMenu);
     _text.toolTip = @"Text (T)";
-    _textIconWidth = [_text.widthAnchor constraintEqualToConstant:34];
-    _signatureIconWidth = [_signature.widthAnchor constraintEqualToConstant:34];
+    _textIconWidth = [_text.widthAnchor constraintEqualToConstant:SPDFPaletteButtonSize];
+    _signatureIconWidth = [_signature.widthAnchor constraintEqualToConstant:SPDFPaletteButtonSize];
     for (NSButton* button in @[ _check, _cross, _signatureMenu ])
-        for (NSLayoutConstraint* c in button.constraints)
-            if (c.firstAttribute == NSLayoutAttributeWidth) [self keepWidth:c];
+        if (SPDFPaletteWidthConstraint(button)) [self keepWidth:SPDFPaletteWidthConstraint(button)];
     [self keepWidth:_textIconWidth];
     [self keepWidth:_signatureIconWidth];
     _done = SPDFCollectionButton(@"Done", self, @selector(done:), @"normal");
@@ -120,26 +113,21 @@ static NSImage* SPDFPaletteSymbol(NSString* name, NSString* description) {
     [_done setContentCompressionResistancePriority:NSLayoutPriorityRequired
                                     forOrientation:NSLayoutConstraintOrientationHorizontal];
     _done.translatesAutoresizingMaskIntoConstraints = NO;
-    [_done.heightAnchor constraintEqualToConstant:28].active = YES;
-    NSView* gap2 = SPDFCollectionSurface(@"line");
-    gap2.translatesAutoresizingMaskIntoConstraints = NO;
-    [gap2.widthAnchor constraintEqualToConstant:1].active = YES;
-    [gap2.heightAnchor constraintEqualToConstant:18].active = YES;
+    [_done.heightAnchor constraintEqualToConstant:SPDFPaletteButtonSize].active = YES;
+    NSView* gap2 = SPDFPaletteSeparator();
     // On a PDF the Fill & Sign group first, then on every document Annotate's groups, then Done.
     _groups = [[SPDFMacAnnotatePaletteGroups alloc] initWithController:_controller];
-    NSMutableArray* views = [@[ _progress, _text, _check, _cross, _signature, _signatureMenu ] mutableCopy];
+    NSMutableArray* views = [@[ _progress, _text, _check, _cross, signature ] mutableCopy];
     [views addObjectsFromArray:[_groups row1ForKind:SPDFAnnotateDocumentPDF]];
     [views addObjectsFromArray:@[ gap2, _done ]];
     _row = [NSStackView stackViewWithViews:views];
     _row.orientation = NSUserInterfaceLayoutOrientationHorizontal;
     _row.alignment = NSLayoutAttributeCenterY;
-    _row.spacing = 2;
+    _row.spacing = SPDFPaletteSpacing;  // every unit and separator the same distance apart
     _row.detachesHiddenViews = YES;
     [_row setCustomSpacing:10 afterView:_progress];
-    [_row setCustomSpacing:6 afterView:_cross];
-    [_row setCustomSpacing:6 afterView:_signatureMenu];
-    [_row setCustomSpacing:6 afterView:gap2];
-    [_row setCustomSpacing:0 afterView:_signature];
+    // Row 1 keeps its own width when row 2 is wider: its buttons never spread apart.
+    [_row setHuggingPriority:NSLayoutPriorityRequired - 1 forOrientation:NSLayoutConstraintOrientationHorizontal];
     _row.translatesAutoresizingMaskIntoConstraints = NO;
     _options = [[SPDFMacFillDrawingOptions alloc] initWithTarget:self];
     _options.hidden = YES;
@@ -151,6 +139,7 @@ static NSImage* SPDFPaletteSymbol(NSString* name, NSString* description) {
     _row2.spacing = 12;
     _row2.detachesHiddenViews = YES;
     _row2.translatesAutoresizingMaskIntoConstraints = NO;
+    [_row2 setHuggingPriority:NSLayoutPriorityRequired - 1 forOrientation:NSLayoutConstraintOrientationHorizontal];
     _hint = SPDFCollectionText(@"Click a highlighted field to type. What you enter is saved as you go.", 11,
                                NSFontWeightRegular, YES);
     _hint.translatesAutoresizingMaskIntoConstraints = NO;
@@ -159,14 +148,14 @@ static NSImage* SPDFPaletteSymbol(NSString* name, NSString* description) {
     // no room.
     _column = [NSStackView stackViewWithViews:@[ _row, _row2, _hint ]];
     _column.orientation = NSUserInterfaceLayoutOrientationVertical;
-    _column.alignment = NSLayoutAttributeCenterX;
+    _column.alignment = NSLayoutAttributeLeading;  // the options start under the first tool: one grid for both rows
     _column.spacing = 3;
     _column.detachesHiddenViews = YES;
     _column.translatesAutoresizingMaskIntoConstraints = NO;
     [self addSubview:_column];
     [NSLayoutConstraint activateConstraints:@[
         [_column.topAnchor constraintEqualToAnchor:self.topAnchor constant:5],
-        [_column.leadingAnchor constraintEqualToAnchor:self.leadingAnchor constant:10],
+        [_column.leadingAnchor constraintEqualToAnchor:self.leadingAnchor constant:6],
         [_column.trailingAnchor constraintEqualToAnchor:self.trailingAnchor constant:-6],
         [self.bottomAnchor constraintEqualToAnchor:_column.bottomAnchor constant:5],
     ]];
@@ -184,7 +173,7 @@ static NSImage* SPDFPaletteSymbol(NSString* name, NSString* description) {
     CGFloat groups = _groups.currentWidth;
     CGFloat fixed = ceil(_row.fittingSize.width) + 16 - groups;
     if (_level == 0 && !_text.hidden)
-        _labelsExtra = MAX(0, ceil(_text.fittingSize.width) + ceil(_signature.fittingSize.width) - 68);
+        _labelsExtra = MAX(0, ceil(_text.fittingSize.width) + ceil(_signature.fittingSize.width) - 2 * SPDFPaletteButtonSize);
     CGFloat named = fixed + (_level >= 1 ? _labelsExtra : 0);
     [_groups layoutRow1InWidth:available - named];
     NSInteger level = _groups.collapseStep >= 3 ? 1 : 0;
@@ -208,15 +197,14 @@ static NSImage* SPDFPaletteSymbol(NSString* name, NSString* description) {
     _text.title = compact ? @"" : @"Text";
     _text.image = compact ? SPDFPaletteSymbol(@"textformat", @"Text") : nil;
     _signature.title = compact ? @"" : @"Signature";
-    _signature.imagePosition = compact ? NSImageOnly : NSImageLeading;
     _textIconWidth.active = compact && _text.image;
     _signatureIconWidth.active = compact;
     if (compact && !_text.image) _text.title = @"Text";
     for (NSArray* kept in _widths) {
         NSLayoutConstraint* c = kept[0];
-        c.constant = tight ? MAX(18.0, [kept[1] doubleValue] - 6) : [kept[1] doubleValue];
+        c.constant = tight ? [kept[1] doubleValue] - 4 : [kept[1] doubleValue];
     }
-    _row.spacing = tight ? 1 : 2;
+    _row.spacing = tight ? 1 : SPDFPaletteSpacing;
     _progress.hidden = tight || !_progressText.length;
     self.needsLayout = YES;  // measure again: one level may not be enough
 }
@@ -283,7 +271,7 @@ static NSString* SPDFPaletteFillToolName(SPDFFillSession* session) {
     _progressText = pdf ? progress : nil;
     _progress.stringValue = _progressText ?: @"";
     _progress.hidden = _progressText.length == 0 || _level >= 2;
-    for (NSView* v in @[ _text, _check, _cross, _signature, _signatureMenu ]) v.hidden = !pdf;
+    for (NSView* v in @[ _text, _check, _cross, _signature.superview ]) v.hidden = !pdf;
     _text.state = [tool isEqual:@"form_text"] ? NSControlStateValueOn : NSControlStateValueOff;
     BOOL mark = [tool isEqual:@"form_mark"];
     _check.state = mark && !session.markCross ? NSControlStateValueOn : NSControlStateValueOff;

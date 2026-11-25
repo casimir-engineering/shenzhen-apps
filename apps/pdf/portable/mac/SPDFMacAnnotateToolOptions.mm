@@ -51,17 +51,23 @@
     SPDFAnnotateValueSlider* s = [[SPDFAnnotateValueSlider alloc] initWithFrame:NSZeroRect];
     s.key = key;
     NSTextField* name = SPDFCollectionText(label, 11, NSFontWeightRegular, YES);
+    [name setContentCompressionResistancePriority:NSLayoutPriorityRequired forOrientation:NSLayoutConstraintOrientationHorizontal];
     s.slider = [NSSlider sliderWithValue:1 minValue:1 maxValue:100 target:self action:@selector(sliderMoved:)];
     s.slider.controlSize = NSControlSizeSmall;
     s.slider.refusesFirstResponder = YES;
     s.slider.toolTip = label;
     s.slider.translatesAutoresizingMaskIntoConstraints = NO;
-    [s.slider.widthAnchor constraintEqualToConstant:110].active = YES;
+    // On a narrow window the sliders give up width first (down to 64), then the pop-ups (SPDFOptionsSqueeze).
+    NSLayoutConstraint* preferred = [s.slider.widthAnchor constraintEqualToConstant:110];
+    preferred.priority = 600;
+    preferred.active = YES;
+    [s.slider.widthAnchor constraintGreaterThanOrEqualToConstant:64].active = YES;
     s.value = SPDFCollectionText(@"", 11, NSFontWeightRegular, NO);
     s.value.translatesAutoresizingMaskIntoConstraints = NO;
     [s.value.widthAnchor constraintEqualToConstant:44].active = YES;
     [s setViews:@[ name, s.slider, s.value ] inGravity:NSStackViewGravityLeading];
     s.spacing = 6;
+    [s setHuggingPriority:NSLayoutPriorityRequired - 1 forOrientation:NSLayoutConstraintOrientationHorizontal];
     return s;
 }
 
@@ -74,6 +80,10 @@
     popup.action = action;
     popup.toolTip = tip;
     popup.refusesFirstResponder = YES;
+    // Narrow, its title is shortened ("Outline: Sol…") rather than anything overlapping or leaving the palette.
+    popup.translatesAutoresizingMaskIntoConstraints = NO;
+    [popup setContentCompressionResistancePriority:550 forOrientation:NSLayoutConstraintOrientationHorizontal];
+    [popup.widthAnchor constraintGreaterThanOrEqualToConstant:48].active = YES;
     return popup;
 }
 
@@ -112,7 +122,7 @@
     _fontSize.action = @selector(fontSizeChosen:);
     _fontSize.toolTip = @"Text size (8–400 pt)";
     _fontSize.translatesAutoresizingMaskIntoConstraints = NO;
-    [_fontSize.widthAnchor constraintEqualToConstant:58].active = YES;
+    [_fontSize.widthAnchor constraintEqualToConstant:52].active = YES;
     _styles = [NSSegmentedControl segmentedControlWithImages:@[
         SPDFAnnotateSymbol(@"bold", @"Bold") ?: [NSImage new], SPDFAnnotateSymbol(@"italic", @"Italic") ?: [NSImage new],
         SPDFAnnotateSymbol(@"underline", @"Underline") ?: [NSImage new],
@@ -130,18 +140,24 @@
     [_align setToolTip:@"Align right" forSegment:2];
     _background = [self popUp:@[ @"Transparent background", @"Opaque background (Color 2)" ] tip:@"Behind the text"
                        action:@selector(backgroundChosen:)];
+    // Narrow, the background's long title gives way before the font's name does.
+    [_background setContentCompressionResistancePriority:500 forOrientation:NSLayoutConstraintOrientationHorizontal];
     for (NSControl* c in @[ _eraserKind, _contiguous, _transparent, _styles, _align ]) {
         c.controlSize = NSControlSizeSmall;
         c.font = [NSFont systemFontOfSize:11];
         c.refusesFirstResponder = YES;
+        // Buttons and segments keep their size; the pop-ups and sliders are what narrows.
+        [c setContentCompressionResistancePriority:NSLayoutPriorityRequired forOrientation:NSLayoutConstraintOrientationHorizontal];
     }
     _all = @[ _eraserKind, _size, _opacity, _tolerance, _contiguous, _pickFrom, _outline, _fill, _font, _fontSize, _styles,
               _align, _background, _transparent ];
     _row = [NSStackView stackViewWithViews:_all];
-    _row.spacing = 10;
+    _row.spacing = 8;  // the text bar fits the narrowest window beside the sidebar
     _row.detachesHiddenViews = YES;
     _row.alignment = NSLayoutAttributeCenterY;
     _row.translatesAutoresizingMaskIntoConstraints = NO;
+    // As wide as the options it shows, starting under the first tool, never spread across a wider palette.
+    [_row setHuggingPriority:NSLayoutPriorityRequired - 1 forOrientation:NSLayoutConstraintOrientationHorizontal];
     [self addSubview:_row];
     [NSLayoutConstraint activateConstraints:@[
         [_row.leadingAnchor constraintEqualToAnchor:self.leadingAnchor], [_row.trailingAnchor constraintEqualToAnchor:self.trailingAnchor],
@@ -211,7 +227,6 @@ static NSArray* SPDFSizeRange(NSString* tool) {
         NSArray* families = [NSFontManager.sharedFontManager.availableFontFamilies
             sortedArrayUsingSelector:@selector(localizedCaseInsensitiveCompare:)];
         [_font addItemsWithTitles:families];
-        _font.translatesAutoresizingMaskIntoConstraints = NO;
         [_font.widthAnchor constraintLessThanOrEqualToConstant:150].active = YES;
     }
     if (![_font itemWithTitle:o[@"font"]]) [_font addItemWithTitle:o[@"font"] ?: @"Helvetica Neue"];

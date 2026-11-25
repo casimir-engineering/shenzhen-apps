@@ -19,6 +19,9 @@ NS_ASSUME_NONNULL_BEGIN
 @property(nonatomic) BOOL compact;
 @end
 
+// The compact form's width: the two swatches.
+FOUNDATION_EXPORT const CGFloat SPDFMacAnnotateColorsCompactWidth;
+
 // Edit colors: the colour panel, its colour going to the chosen swatch (Color 1 unless Color 2 was chosen).
 FOUNDATION_EXPORT void SPDFAnnotateOpenColorPanel(SPDFMacFillController* controller);
 FOUNDATION_EXPORT void SPDFAnnotateSaveColorsFile(SPDFMacFillController* controller);

@@ -4,11 +4,16 @@
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 #import <objc/runtime.h>
 
+#import "SPDFMacAnnotatePaletteButton.h"
 #import "SPDFMacAnnotatePaletteGroups.h"
 #import "SPDFMacAnnotatePaletteSupport.h"
 #import "SPDFMacFillController.h"
 
 static const CGFloat kSPDFSwatch = 12, kSPDFSwatchGap = 2;
+// Color 1 / Color 2: a button as tall as the palette's, the colour square centred in it and the ring of the chosen one
+// inside it, so what is drawn is what a click hits.
+static const CGFloat kSPDFBigSwatch = 18, kSPDFBigWidth = 26;
+const CGFloat SPDFMacAnnotateColorsCompactWidth = 2 * kSPDFBigWidth;
 
 // One square: a palette colour, a custom slot (empty slots are drawn as an outline), or Color 1 / Color 2.
 @interface SPDFAnnotateSwatch : NSButton
@@ -22,11 +27,17 @@ static const CGFloat kSPDFSwatch = 12, kSPDFSwatchGap = 2;
 @implementation SPDFAnnotateSwatch
 
 - (BOOL)acceptsFirstResponder { return NO; }
-- (NSSize)intrinsicContentSize { return self.big ? NSMakeSize(20, 20) : NSMakeSize(kSPDFSwatch, kSPDFSwatch); }
+- (NSSize)intrinsicContentSize { return self.big ? NSMakeSize(kSPDFBigWidth, 28) : NSMakeSize(kSPDFSwatch, kSPDFSwatch); }
+
+- (NSRect)square {
+    if (!self.big) return self.bounds;
+    return NSMakeRect(round(NSMidX(self.bounds) - kSPDFBigSwatch / 2), round(NSMidY(self.bounds) - kSPDFBigSwatch / 2),
+                      kSPDFBigSwatch, kSPDFBigSwatch);
+}
 
 - (void)drawRect:(NSRect)dirty {
     (void)dirty;
-    NSRect box = NSInsetRect(self.bounds, 0.5, 0.5);
+    NSRect box = NSInsetRect(self.square, 0.5, 0.5);
     NSBezierPath* shape = [NSBezierPath bezierPathWithRoundedRect:box xRadius:self.big ? 4 : 2 yRadius:self.big ? 4 : 2];
     if (!self.empty) {
         // Transparency shows over a small checkerboard, as on the canvas.
@@ -48,7 +59,7 @@ static const CGFloat kSPDFSwatch = 12, kSPDFSwatchGap = 2;
     shape.lineWidth = 1;
     [shape stroke];
     if (self.chosen) {
-        NSBezierPath* ring = [NSBezierPath bezierPathWithRoundedRect:NSInsetRect(self.bounds, -2, -2) xRadius:6 yRadius:6];
+        NSBezierPath* ring = [NSBezierPath bezierPathWithRoundedRect:NSInsetRect(self.square, -3, -3) xRadius:6 yRadius:6];
         ring.lineWidth = 2;
         [NSColor.controlAccentColor setStroke];
         [ring stroke];
@@ -109,8 +120,8 @@ static char kSPDFAnnotateColorsViewKey;
     swatch.target = self;
     swatch.action = @selector(swatchClicked:);
     swatch.translatesAutoresizingMaskIntoConstraints = NO;
-    [swatch.widthAnchor constraintEqualToConstant:big ? 20 : kSPDFSwatch].active = YES;
-    [swatch.heightAnchor constraintEqualToConstant:big ? 20 : kSPDFSwatch].active = YES;
+    [swatch.widthAnchor constraintEqualToConstant:big ? kSPDFBigWidth : kSPDFSwatch].active = YES;
+    [swatch.heightAnchor constraintEqualToConstant:big ? 28 : kSPDFSwatch].active = YES;
     return swatch;
 }
 
@@ -135,15 +146,7 @@ static char kSPDFAnnotateColorsViewKey;
         [custom addObject:swatch];
     }
     _custom = custom;
-    _edit = [NSButton buttonWithImage:SPDFAnnotateSymbol(@"paintpalette", @"Edit colors") ?: [NSImage new]
-                               target:self action:@selector(editColors:)];
-    if (!_edit.image.isValid) _edit.title = @"Edit colors";
-    _edit.bordered = NO;
-    _edit.toolTip = @"Edit colors";
-    _edit.accessibilityLabel = @"Edit colors";
-    _edit.refusesFirstResponder = YES;
-    _edit.translatesAutoresizingMaskIntoConstraints = NO;
-    [_edit.widthAnchor constraintEqualToConstant:26].active = YES;
+    _edit = SPDFPaletteIconButton(@"paintpalette", @"Edit colors", self, @selector(editColors:));
     // Two rows: the 20 colours (10 a row), a gap, then the custom slots (5 a row).
     _grid = [[NSView alloc] initWithFrame:NSZeroRect];
     _grid.translatesAutoresizingMaskIntoConstraints = NO;
@@ -159,18 +162,18 @@ static char kSPDFAnnotateColorsViewKey;
     [_grid.heightAnchor constraintEqualToConstant:2 * step - kSPDFSwatchGap].active = YES;
     for (NSView* v in @[ _color1, _color2, _grid, _edit ]) [self addSubview:v];
     [NSLayoutConstraint activateConstraints:@[
-        [_color1.leadingAnchor constraintEqualToAnchor:self.leadingAnchor constant:2],
+        [_color1.leadingAnchor constraintEqualToAnchor:self.leadingAnchor],
         [_color1.centerYAnchor constraintEqualToAnchor:self.centerYAnchor],
-        [_color2.leadingAnchor constraintEqualToAnchor:_color1.trailingAnchor constant:6],
+        [_color2.leadingAnchor constraintEqualToAnchor:_color1.trailingAnchor],
         [_color2.centerYAnchor constraintEqualToAnchor:self.centerYAnchor],
-        [_grid.leadingAnchor constraintEqualToAnchor:_color2.trailingAnchor constant:10],
+        [_grid.leadingAnchor constraintEqualToAnchor:_color2.trailingAnchor constant:8],
         [_grid.centerYAnchor constraintEqualToAnchor:self.centerYAnchor],
-        [_edit.leadingAnchor constraintEqualToAnchor:_grid.trailingAnchor constant:4],
+        [_edit.leadingAnchor constraintEqualToAnchor:_grid.trailingAnchor constant:SPDFPaletteSpacing + 2],
         [_edit.centerYAnchor constraintEqualToAnchor:self.centerYAnchor],
         [self.heightAnchor constraintEqualToConstant:28],
     ]];
     _fullTrailing = [self.trailingAnchor constraintEqualToAnchor:_edit.trailingAnchor];
-    _compactTrailing = [self.trailingAnchor constraintEqualToAnchor:_color2.trailingAnchor constant:2];
+    _compactTrailing = [self.trailingAnchor constraintEqualToAnchor:_color2.trailingAnchor];
     _fullTrailing.active = YES;
 }
 
@@ -185,7 +188,7 @@ static char kSPDFAnnotateColorsViewKey;
 }
 
 - (NSSize)intrinsicContentSize {
-    return NSMakeSize(_compact ? 2 + 20 + 6 + 20 + 2 : NSViewNoIntrinsicMetric, 28);
+    return NSMakeSize(_compact ? SPDFMacAnnotateColorsCompactWidth : NSViewNoIntrinsicMetric, 28);
 }
 
 - (void)updateFromSession:(SPDFMacAnnotateSession*)session {
