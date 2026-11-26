@@ -160,7 +160,13 @@ static NSCursor* SPDFAnnotateResizeCursor(NSInteger handle) {
     if (session.selectedObjects.count && [self objectHandleAt:viewPoint] >= 0) return YES;
     NSInteger page = -1;
     NSPoint point;
-    if (![self canvasPointForViewPoint:viewPoint page:&page canvasPoint:&point] || ![self docForPage:page]) return NO;
+    if (![self canvasPointForViewPoint:viewPoint page:&page canvasPoint:&point]) return NO;
+    // A page nobody touched yet has no canvas, so its objects can't be found: a press opens it, so the first click
+    // selects (hovering opens nothing).
+    NSEventType type = NSApp.currentEvent.type;
+    if (![self docForPage:page] && (type == NSEventTypeLeftMouseDown || type == NSEventTypeRightMouseDown))
+        [session canvasForPage:page document:[self.controller.host fillDocument] create:YES];
+    if (![self docForPage:page]) return NO;
     NSString* kind = [self objectAt:point page:page][@"kind"];
     return [@[@"shape", @"text", @"picture", @"pen"] containsObject:kind ?: @""];
 }
