@@ -293,6 +293,8 @@ struct spdf_paint_doc {
     spdf_paint_history history;
     spdf_rect damage;         /* union since the last spdf_paint_take_damage */
     int has_damage;
+    spdf_rect written_damage; /* union since the last spdf_paint_take_written_damage (a PDF page's write back) */
+    int has_written_damage;
     uint64_t generation;
 
     /* PDF page canvases (spdf_paint_pdf.c). */
@@ -338,6 +340,8 @@ int spdf_paint_object_draw(spdf_paint_doc* doc, const spdf_paint_object* object,
 /* Adds to the pending damage (canvas units) and invalidates the tiles under it. */
 void spdf_paint_damage(spdf_paint_doc* doc, spdf_rect rect);
 void spdf_paint_damage_all(spdf_paint_doc* doc);
+/* rect added to *into (spdf_paint_preview.c). */
+void spdf_paint_union_damage(spdf_rect* into, int* has, spdf_rect rect);
 /* Raster pixel box of a canvas-unit rect, clamped to the canvas. */
 fz_irect spdf_paint_raster_box(const spdf_paint_doc* doc, spdf_rect rect);
 /* "#RRGGBB" / "#RRGGBBAA" <-> spdf_paint_color. Parse returns 0 on a malformed string. */

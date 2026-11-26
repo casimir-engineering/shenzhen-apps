@@ -16,12 +16,14 @@ typedef BOOL (^SPDFFillWrite)(spdf_document* doc, NSMutableIndexSet* pages, char
 #pragma mark - The change cycle
 
 - (BOOL)change:(BOOL)fieldsOnly write:(SPDFFillWrite)write {
-    return [self change:fieldsOnly write:write emptySaves:YES shown:nil];
+    return [self change:fieldsOnly write:write emptySaves:YES areas:nil shown:nil];
 }
 
 // emptySaves NO: a write that changed no page (Annotate's write back of a page it left as it was) saves nothing.
+// areas: filled by write with a page's changed part, when known (Annotate's canvas damage): only that is drawn again.
 // shown: brings what is drawn over the pages up to date (Annotate's canvas) before the change goes on screen.
-- (BOOL)change:(BOOL)fieldsOnly write:(SPDFFillWrite)write emptySaves:(BOOL)emptySaves shown:(void (^)(NSIndexSet*))shown {
+- (BOOL)change:(BOOL)fieldsOnly write:(SPDFFillWrite)write emptySaves:(BOOL)emptySaves
+         areas:(NSDictionary<NSNumber*, NSValue*>*)areas shown:(void (^)(NSIndexSet*))shown {
     if (self.busy) return NO;
     self.busy = YES;
     BOOL ok = [self.host fillPrepareForChangeOfFieldsOnly:fieldsOnly];
@@ -40,7 +42,7 @@ typedef BOOL (^SPDFFillWrite)(spdf_document* doc, NSMutableIndexSet* pages, char
           [self invalidatePage:(NSInteger)page];
         }];
         // On screen in the next frame, from the document in memory; the save and the sharper redraw follow.
-        [self.host fillShowPagesNow:pages];
+        [self.host fillShowPagesNow:pages areas:areas];
         [self.overlay refresh];
         if (shown) shown(pages);
         [self.host fillDisplayNow];

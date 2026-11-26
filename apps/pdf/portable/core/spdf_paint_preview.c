@@ -1,6 +1,6 @@
 /* What a resize or a move looks like while the handle is still held (spdf_paint.h, "Live placement"): the composite
  * of a region with some objects drawn where the gesture would put them, nothing in the canvas changed. Also the
- * pending damage, read without taking it, for the PDF reader's redraw of only what changed.
+ * damage counted for a PDF page's write back, for the reader's redraw of only what changed.
  *
  * On a PDF page the region covers the reader's own picture of the page, so it is drawn as the reader draws it: the
  * objects that stay where they are, and an object only moved, from their annotations in the document (the reader's
@@ -125,8 +125,20 @@ spdf_paint_status spdf_paint_render_placed(spdf_paint_doc* doc, const spdf_paint
     return SPDF_PAINT_OK;
 }
 
-int spdf_paint_peek_damage(const spdf_paint_doc* doc, spdf_rect* changed) {
-    if (!doc || !doc->has_damage) return 0;
-    if (changed) *changed = doc->damage;
+void spdf_paint_union_damage(spdf_rect* into, int* has, spdf_rect rect) {
+    if (!*has) *into = rect;
+    else {
+        into->x0 = fminf(into->x0, rect.x0);
+        into->y0 = fminf(into->y0, rect.y0);
+        into->x1 = fmaxf(into->x1, rect.x1);
+        into->y1 = fmaxf(into->y1, rect.y1);
+    }
+    *has = 1;
+}
+
+int spdf_paint_take_written_damage(spdf_paint_doc* doc, spdf_rect* changed) {
+    if (!doc || !doc->has_written_damage) return 0;
+    if (changed) *changed = doc->written_damage;
+    doc->has_written_damage = 0;
     return 1;
 }

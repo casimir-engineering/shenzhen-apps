@@ -28,7 +28,8 @@
 - (BOOL)fillPrepareForChangeOfFieldsOnly:(BOOL)fieldValuesOnly;
 // After a change in the document, first: these pages drawn again from the document in memory, then (once the
 // overlay is up to date) the window shown, so the change is on screen in the next frame.
-- (void)fillShowPagesNow:(NSIndexSet*)pages;
+// areas: for some pages the part that changed (page points from the top-left corner): only that part is drawn again.
+- (void)fillShowPagesNow:(NSIndexSet*)pages areas:(NSDictionary<NSNumber*, NSValue*>*)areas;
 - (void)fillDisplayNow;
 // Then: the file is saved once the changes rest, and these pages drawn again at full quality (SPDFMacFillSaving.h).
 - (void)fillScheduleSaveOfPages:(NSIndexSet*)pages;

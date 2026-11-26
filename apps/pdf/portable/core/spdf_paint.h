@@ -256,8 +256,9 @@ spdf_paint_status spdf_paint_layer_thumbnail(spdf_paint_doc* doc, spdf_paint_id 
 /* Where the canvas changed since the last call (canvas units), so a view redraws only those tiles: 1 and *changed
  * set, or 0 when nothing changed. A change of size or of every layer reports the whole canvas. */
 int spdf_paint_take_damage(spdf_paint_doc* doc, spdf_rect* changed);
-/* The same, left pending (the canvas view still takes it): the PDF reader redraws only that part of the page. */
-int spdf_paint_peek_damage(const spdf_paint_doc* doc, spdf_rect* changed);
+/* The same, counted apart since the last call (the canvas view takes the other as the change happens): what a PDF
+ * page's write back changes, so the reader draws only that part of the page again. */
+int spdf_paint_take_written_damage(spdf_paint_doc* doc, spdf_rect* changed);
 /* Live placement (spdf_paint_preview.c): a region (options->region, ->scale and ->flags; layers ignored) drawn as
  * spdf_paint_render does, with each listed object at a new box (rect, canvas units, as object.transform's) instead of
  * its own, nothing changed: a resize or a move while the handle is held. On a PDF page what the document already

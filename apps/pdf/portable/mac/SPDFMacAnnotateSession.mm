@@ -278,6 +278,7 @@ NSString* SPDFAnnotateProjectForBackingPath(NSString* path) {
     spdf_paint_apply(doc, SPDFAnnotateJSONString(@{@"op": @"colors.set", @"color1": SPDFAnnotateColorString(self.color1),
                                                    @"color2": SPDFAnnotateColorString(self.color2)}).UTF8String, &answer);
     spdf_paint_free(answer);
+    spdf_paint_take_written_damage(doc, NULL);  // the page as opened is what the reader shows
     return doc;
 }
 

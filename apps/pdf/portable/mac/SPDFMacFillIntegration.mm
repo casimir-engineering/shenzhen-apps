@@ -380,7 +380,7 @@ void SPDFFillInstallMenuItems(NSMenu* editMenu, NSMenu* fileMenu, ShenzhenMacDel
     return YES;
 }
 
-- (void)fillShowPagesNow:(NSIndexSet*)pages { [self fillRedrawFromMemoryPages:pages]; }
+- (void)fillShowPagesNow:(NSIndexSet*)pages areas:(NSDictionary*)areas { [self fillRedrawFromMemoryPages:pages areas:areas]; }
 - (void)fillDisplayNow { [self fillCommitDisplay]; }
 
 - (void)fillCollectionCatchUp:(NSString*)path {

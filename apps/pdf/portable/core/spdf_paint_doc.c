@@ -224,6 +224,7 @@ void spdf_paint_damage(spdf_paint_doc* doc, spdf_rect rect) {
         doc->damage.y1 = fmaxf(doc->damage.y1, rect.y1);
     }
     doc->has_damage = 1;
+    spdf_paint_union_damage(&doc->written_damage, &doc->has_written_damage, rect);
     spdf_paint_tile_cache* cache = &doc->tiles;
     if (!cache->tiles) return;
     fz_irect box = spdf_paint_raster_box(doc, rect);

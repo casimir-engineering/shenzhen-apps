@@ -14,7 +14,7 @@ typedef BOOL (^SPDFAnnotatePDFWrite)(spdf_document* doc, NSMutableIndexSet* page
 // SPDFMacFillController+Edits.mm: check, write into the main-thread document, save, redraw the pages in this turn.
 @interface SPDFMacFillController (AnnotatePDFEditsShared)
 - (BOOL)change:(BOOL)fieldsOnly write:(SPDFAnnotatePDFWrite)write emptySaves:(BOOL)emptySaves
-         shown:(void (^)(NSIndexSet*))shown;
+         areas:(NSDictionary<NSNumber*, NSValue*>*)areas shown:(void (^)(NSIndexSet*))shown;
 @end
 
 // Removes a block observer when the controller goes.
@@ -58,6 +58,7 @@ BOOL SPDFAnnotatePDFCommandIsLocked(NSString* op, spdf_paint_doc* canvas) {
         return YES;
     }
     __block NSString* problem = nil;
+    NSMutableDictionary<NSNumber*, NSValue*>* areas = [NSMutableDictionary dictionary];  // what changed on each page
     BOOL ok = [self change:NO write:^BOOL(spdf_document* doc, NSMutableIndexSet* pages, char* err, size_t len) {
       for (NSNumber* page in [canvases.allKeys sortedArrayUsingSelector:@selector(compare:)]) {
           spdf_paint_doc* canvas = (spdf_paint_doc*)canvases[page].pointerValue;
@@ -72,10 +73,14 @@ BOOL SPDFAnnotatePDFCommandIsLocked(NSString* op, spdf_paint_doc* canvas) {
               problem = err[0] ? @(err) : @"The change couldn't be written.";
               return NO;
           }
+          spdf_rect damage;
+          BOOL damaged = spdf_paint_take_written_damage(canvas, &damage);
           if (changed) [pages addIndex:page.unsignedIntegerValue];
+          if (changed && damaged)
+              areas[page] = [NSValue valueWithRect:NSMakeRect(damage.x0, damage.y0, damage.x1 - damage.x0, damage.y1 - damage.y0)];
       }
       return YES;
-    } emptySaves:NO shown:^(NSIndexSet* pages) {  // the box and handles of a deleted object go in the same frame
+    } emptySaves:NO areas:areas shown:^(NSIndexSet* pages) {  // the box and handles of a deleted object go in the same frame
       (void)pages;
       for (NSNumber* page in canvases) [self.annotateCanvasView canvasDidChangeOnPage:page.integerValue];
     }];
@@ -131,7 +136,9 @@ BOOL SPDFAnnotatePDFCommandIsLocked(NSString* op, spdf_paint_doc* canvas) {
     spdf_paint_doc* canvas = [session canvasForPage:page document:[self.host fillDocument] create:NO];
     if (!canvas || spdf_paint_pdf_document(canvas) != [self.host fillDocument]) return;
     char err[256];
-    if (spdf_paint_pdf_reload(canvas, err, sizeof err) == SPDF_PAINT_OK) [self.annotateCanvasView canvasDidChangeOnPage:page];
+    if (spdf_paint_pdf_reload(canvas, err, sizeof err) != SPDF_PAINT_OK) return;
+    spdf_paint_take_written_damage(canvas, NULL);  // Fill & Sign's change, which the reader has drawn
+    [self.annotateCanvasView canvasDidChangeOnPage:page];
 }
 
 // Every Fill & Sign undo step (a line, a signature, a field, a Remove command) also goes on the tab's one undo stack,
