@@ -79,7 +79,9 @@ Sign ("You're filling in a copy…") stays, worded for annotations where it appl
 because the original can't be changed. Choose File > Save As... to put it where you want."
 
 **Row 2 (options of the chosen tool):** size slider with its value (px on pictures, pt on PDFs), opacity slider (Pencil
-and brushes), and the tool's own options (below). Shapes add Outline ▾ and Fill ▾. Text box adds the text bar. Pen and
+and brushes), and the tool's own options (below). Each slider's value can be typed: a click on it shows the number
+selected in its place, Return or a click elsewhere applies it (kept within the slider's range, its unit kept), Escape
+leaves it as it was, ↑/↓ step it by 1 (Shift: 10) with the slider following. Shapes add Outline ▾ and Fill ▾. Text box adds the text bar. Pen and
 Arrow keep their colours and widths of today, and also take Color 1 and the size slider.
 
 **Layers panel:** a sidebar on the right of the canvas (the minimap's place while Annotate is on; the minimap comes
@@ -95,7 +97,10 @@ page size (px on pictures, pt on PDFs, with the page number), Fit, zoom percenta
 Status Bar.
 
 **View:** zoom 12.5 %–800 % (⌘+ / ⌘- / ⌘0 actual size / ⌘9 fit, the app's existing zoom keys), pinch, ⌥-scroll;
-pixels are drawn sharp (nearest neighbour) above 100 %. View > Rulers (⇧⌘R) shows px rulers on top and left. View >
+pixels are drawn sharp (nearest neighbour) above 100 %. On a picture or canvas the view pans past the edges, as in
+Paint and Photoshop: the wheel, the trackpad and the scroll bars reach far enough for every edge and corner to come
+to the middle of the view (the middle of the room under the palette), at any zoom. Fit and 100 % still centre the
+canvas where they did; the room only adds to how far it can be moved. PDF pages scroll as in the reader. View > Rulers (⇧⌘R) shows px rulers on top and left. View >
 Gridlines (⌘') draws a 1 px grid from 400 %. View > Full Screen (the app's). View > Thumbnail shows a small floating
 view of the whole picture while zoomed in.
 

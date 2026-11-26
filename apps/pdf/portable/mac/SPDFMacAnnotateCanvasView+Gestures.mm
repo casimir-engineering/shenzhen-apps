@@ -286,8 +286,11 @@ static BOOL IsPixelOrShapeTool(SPDFAnnotateTool tool) {
             }
             [self.points addObject:@(point)];
             [self.pressures addObject:@(event.pressure > 0 ? event.pressure : 1)];
-            NSRect segment = NSUnionRect(NSMakeRect(last.x, last.y, 0, 0), NSMakeRect(point.x, point.y, 0, 0));
-            if (event.modifierFlags & NSEventModifierFlagShift) segment = NSZeroRect, self.needsDisplay = YES;
+            // Not NSUnionRect: it drops zero-size rects, so the segment came out as the canvas's corner and the line
+            // only showed once the stroke was released.
+            NSRect segment = NSMakeRect(MIN(last.x, point.x), MIN(last.y, point.y), fabs(point.x - last.x),
+                                        fabs(point.y - last.y));
+            if (event.modifierFlags & NSEventModifierFlagShift) self.needsDisplay = YES;
             else [self redrawCanvasRect:segment page:self.gesturePage inflate:[self toolSize] * scale + 4];
             break;
         }

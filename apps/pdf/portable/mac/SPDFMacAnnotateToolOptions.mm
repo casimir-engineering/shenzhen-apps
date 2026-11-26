@@ -4,15 +4,47 @@
 #import "SPDFMacAnnotatePaletteSupport.h"
 #import "SPDFMacCollectionStyle.h"
 #import "SPDFMacFillController.h"
+#import "SPDFMacFillController+Annotate.h"
 
 // A slider with its name and value ("Size  [----]  5 px").
+@class SPDFAnnotateValueField;
 @interface SPDFAnnotateValueSlider : NSStackView
 @property(nonatomic, strong) NSSlider* slider;
-@property(nonatomic, strong) NSTextField* value;
+@property(nonatomic, strong) SPDFAnnotateValueField* value;
 @property(nonatomic, copy) NSString* key;
 @property(nonatomic, copy) NSString* unit;
 @end
 @implementation SPDFAnnotateValueSlider
+@end
+
+// The value beside a slider, a field once clicked: the number shows selected, ready to type over.
+@interface SPDFAnnotateValueField : NSTextField
+@property(nonatomic) BOOL cancelled;  // Escape: the end of editing leaves the value as it was
+@property(nonatomic) BOOL focusing;   // the click that started editing: it doesn't place a caret over the selection
+@property(nonatomic) double original;  // what Escape goes back to
+@end
+@implementation SPDFAnnotateValueField
+- (BOOL)acceptsFirstMouse:(NSEvent*)event { (void)event; return YES; }
+- (BOOL)becomeFirstResponder {
+    if (![super becomeFirstResponder]) return NO;
+    self.cancelled = NO;
+    self.focusing = NSApp.currentEvent.type == NSEventTypeLeftMouseDown;
+    NSText* editor = self.currentEditor;
+    editor.string = [self.stringValue componentsSeparatedByString:@" "].firstObject ?: @"";
+    self.original = editor.string.doubleValue;
+    [editor selectAll:nil];
+    return YES;
+}
+- (void)mouseDown:(NSEvent*)event {
+    if (self.focusing) {
+        self.focusing = NO;
+        return;
+    }
+    [super mouseDown:event];
+}
+@end
+
+@interface SPDFMacAnnotateToolOptions () <NSTextFieldDelegate>
 @end
 
 @implementation SPDFMacAnnotateToolOptions {
@@ -62,7 +94,15 @@
     preferred.priority = 600;
     preferred.active = YES;
     [s.slider.widthAnchor constraintGreaterThanOrEqualToConstant:64].active = YES;
-    s.value = SPDFCollectionText(@"", 11, NSFontWeightRegular, NO);
+    s.value = [SPDFAnnotateValueField labelWithString:@""];
+    s.value.font = [NSFont systemFontOfSize:11];
+    s.value.textColor = SPDFCollectionColor(@"text");
+    s.value.editable = YES;  // looks like the label it was until clicked
+    s.value.bezeled = NO;
+    s.value.drawsBackground = NO;
+    s.value.focusRingType = NSFocusRingTypeNone;
+    s.value.delegate = self;
+    s.value.toolTip = [label stringByAppendingString:@": click to type a value"];
     s.value.translatesAutoresizingMaskIntoConstraints = NO;
     [s.value.widthAnchor constraintEqualToConstant:44].active = YES;
     [s setViews:@[ name, s.slider, s.value ] inGravity:NSStackViewGravityLeading];
@@ -264,14 +304,28 @@ static NSArray* SPDFSizeRange(NSString* tool) {
     SPDFAnnotateSend(controller, SPDFAnnotateOnCurrentPage(controller, update), nil);
 }
 
+static SPDFAnnotateValueSlider* SPDFSliderOf(NSView* view) {
+    while (view && ![view isKindOfClass:[SPDFAnnotateValueSlider class]]) view = view.superview;
+    return (SPDFAnnotateValueSlider*)view;
+}
+
 - (void)sliderMoved:(NSSlider*)sender {
-    SPDFAnnotateValueSlider* s = (SPDFAnnotateValueSlider*)sender.superview;
-    while (s && ![s isKindOfClass:[SPDFAnnotateValueSlider class]]) s = (SPDFAnnotateValueSlider*)s.superview;
-    double value = sender.doubleValue;
-    value = value < 2 && [_tool isEqual:@"pen"] ? round(value * 2) / 2 : round(value);
+    if (NSApp.currentEvent.type == NSEventTypeLeftMouseDragged) {  // the value follows; the tool gets it once let go
+        [self setSlider:SPDFSliderOf(sender) value:[self roundedValue:sender.doubleValue]];
+        return;
+    }
+    [self apply:sender.doubleValue to:SPDFSliderOf(sender)];
+}
+
+- (double)roundedValue:(double)value {
+    return value < 2 && [_tool isEqual:@"pen"] ? round(value * 2) / 2 : round(value);
+}
+
+// A value typed or stepped in a slider's field: kept within the slider's range, then shown and used as a slid one.
+- (void)apply:(double)value to:(SPDFAnnotateValueSlider*)s {
+    if (!s) return;
+    value = [self roundedValue:MAX(s.slider.minValue, MIN(s.slider.maxValue, value))];
     [self setSlider:s value:value];
-    NSEventType type = NSApp.currentEvent.type;
-    if (type == NSEventTypeLeftMouseDragged) return;  // sent once, when the slider is let go
     if (s == _size && [_tool isEqual:@"shape"]) [self setOptions:@{@"outline" : @{@"width" : @(value)}}];
     else if (s == _size && ([_tool isEqual:@"pen"] || [_tool isEqual:@"arrow"])) [self setOptions:@{@"width" : @(value)}];
     else [self setOptions:@{s.key : @(value)}];
@@ -326,6 +380,38 @@ static NSArray* SPDFSizeRange(NSString* tool) {
     NSString* background = sender.indexOfSelectedItem == 1 ? SPDFAnnotateHex(session ? session.color2 : 0xFFFFFFFFu)
                                                            : @"transparent";
     [self setOptions:@{@"background" : background}];
+}
+
+#pragma mark - Typing a value
+
+- (BOOL)control:(NSControl*)control textView:(NSTextView*)textView doCommandBySelector:(SEL)command {
+    SPDFAnnotateValueSlider* s = SPDFSliderOf(control);
+    if (!s || control != s.value) return NO;
+    double step = command == @selector(moveUp:) ? 1 : command == @selector(moveDown:) ? -1
+                : command == @selector(moveUpAndModifySelection:) ? 10 : command == @selector(moveDownAndModifySelection:) ? -10 : 0;
+    if (step) {  // the slider follows at once; the tool gets the value when the editing ends (using it ends the editing)
+        [self setSlider:s value:[self roundedValue:MAX(s.slider.minValue, MIN(s.slider.maxValue, textView.string.doubleValue + step))]];
+        textView.string = [s.value.stringValue componentsSeparatedByString:@" "].firstObject ?: @"";
+        [textView selectAll:nil];
+        return YES;
+    }
+    if (command == @selector(cancelOperation:)) s.value.cancelled = YES;
+    if (command != @selector(cancelOperation:) && command != @selector(insertNewline:)) return NO;
+    // Return or Escape: back to the canvas, so the tools' keys work again; ending the editing applies or restores.
+    NSView* canvas = (NSView*)_controller.annotateCanvasView;
+    [control.window makeFirstResponder:canvas.window == control.window ? canvas : nil];
+    return YES;
+}
+
+- (void)controlTextDidEndEditing:(NSNotification*)note {
+    SPDFAnnotateValueField* field = note.object;
+    SPDFAnnotateValueSlider* s = SPDFSliderOf(field);
+    if (!s || field != s.value) return;
+    NSScanner* scanner = [NSScanner scannerWithString:field.stringValue];
+    double typed = 0;
+    if (field.cancelled || ![scanner scanDouble:&typed]) [self setSlider:s value:field.original];
+    else [self apply:typed to:s];
+    field.cancelled = NO;
 }
 
 @end

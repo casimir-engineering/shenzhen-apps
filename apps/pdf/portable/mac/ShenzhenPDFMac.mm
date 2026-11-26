@@ -5248,8 +5248,8 @@ static BOOL spdf_page_list_cache_disabled(void) {
 // wide page back to narrow pages eases the viewport back to center.
 - (void)updateHorizontalScrollLockAnimated:(BOOL)animated {
     if (![_pageScrollView.contentView isKindOfClass:[SPDFDocumentClipView class]]) return;
-    if (!_doc || _renderedPages.count == 0 || _presentationMode || _liveZooming ||
-        _minimapPrecisionViewportDragActive) {
+    if ([self annotateUpdatePanMargin] || !_doc || _renderedPages.count == 0 || _presentationMode || _liveZooming ||
+        _minimapPrecisionViewportDragActive) {  // Annotate's room past a canvas's edges pans freely
         [self setHorizontalScrollLockX:NAN animated:NO];
         return;
     }
@@ -5288,7 +5288,7 @@ static BOOL spdf_page_list_cache_disabled(void) {
     if (![_pageScrollView.contentView isKindOfClass:[SPDFDocumentClipView class]]) return;
     SPDFDocumentClipView* clip = (SPDFDocumentClipView*)_pageScrollView.contentView;
     BOOL fitsVertically = _doc && _renderedPages.count > 0 && !_presentationMode && !_liveZooming &&
-                          NSHeight(_pageView.bounds) <= NSHeight(clip.bounds) + 0.5;
+                          NSHeight(_pageView.bounds) <= NSHeight(clip.bounds) + 0.5 && ![self annotatePansPastEdges];
     _pageScrollView.verticalScrollElasticity = fitsVertically ? NSScrollElasticityNone : NSScrollElasticityAllowed;
     clip.verticalLockMinY = fitsVertically ? 0.0 : NAN;
     clip.verticalLockMaxY = fitsVertically ? 0.0 : NAN;
@@ -5303,7 +5303,7 @@ static BOOL spdf_page_list_cache_disabled(void) {
 
 - (NSPoint)clampedDocumentScrollOrigin:(NSPoint)origin forPageIndex:(NSInteger)pageIndex {
     NSClipView* clipView = _pageScrollView.contentView;
-    if (_renderedPages.count > 0) {
+    if (_renderedPages.count > 0 && ![self annotatePansPastEdges]) {  // else Annotate pans past the edges
         pageIndex = MAX(0, MIN(pageIndex, (NSInteger)_renderedPages.count - 1));
         NSRect pageRect = [_pageView rectForPageAtIndex:pageIndex];
         if (!NSIsEmptyRect(pageRect)) {
@@ -5314,9 +5314,7 @@ static BOOL spdf_page_list_cache_disabled(void) {
                 origin.x = spdf_clamp_cg(origin.x, NSMinX(pageRect), NSMaxX(pageRect) - visibleWidth);
         }
     }
-    origin.x = spdf_clamp_cg(origin.x, 0.0, MAX(0.0, NSWidth(_pageView.bounds) - NSWidth(clipView.bounds)));
-    origin.y = spdf_clamp_cg(origin.y, 0.0, MAX(0.0, NSHeight(_pageView.bounds) - NSHeight(clipView.bounds)));
-    return origin;
+    return [self documentScrollOriginWithinPanRange:origin];
 }
 
 - (NSPoint)clampedDocumentScrollOrigin:(NSPoint)origin {

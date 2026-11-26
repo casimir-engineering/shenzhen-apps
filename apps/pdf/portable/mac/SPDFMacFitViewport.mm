@@ -4,6 +4,8 @@
 #import "SPDFMacAnnotateIntegrationPrivate.h"
 #import "SPDFMacAnnotateOperations.h"
 #import "SPDFMacAnnotateSessionPrivate.h"
+#import "SPDFMacAnnotateCanvasView.h"
+#import "SPDFMacFillController.h"
 extern const CGFloat kMinZoom;
 extern const CGFloat kMaxZoom;
 @interface ShenzhenMacDelegate (FitViewportPrivate)
@@ -186,5 +188,59 @@ extern const CGFloat kMaxZoom;
     if (fitMode == SPDFFitModeWidth) return MAX(low, MIN(kMaxZoom, widthZoom));
     if (fitMode == SPDFFitModeHeight) return MAX(low, MIN(kMaxZoom, heightZoom));
     return MAX(low, MIN(kMaxZoom, MIN(widthZoom, heightZoom)));
+}
+
+// Annotate on a picture or a canvas pans past its edges, as Paint and Photoshop do: there is room for every edge and
+// corner to come to the middle of the view at any zoom (about half the view on each side). The room is the clip view's
+// content insets, which the clip view's own constraint, the scroll bars and the wheel honour; the reader's positions
+// (fit, 100 %, a zoom kept around a point) are unchanged, so the canvas shows where it did. The middle is the middle of
+// the room under the palette, where a fit centres the canvas.
+- (BOOL)annotatePansPastEdges {
+    SPDFAnnotateDocumentKind kind = [self annotateShowing] ? [self annotateActiveDocumentKind] : SPDFAnnotateDocumentNone;
+    return _doc && !_presentationMode && _renderedPages.count > 0 &&
+           (kind == SPDFAnnotateDocumentPicture || kind == SPDFAnnotateDocumentCanvas);
+}
+
+- (NSEdgeInsets)annotatePanMargin {
+    if (![self annotatePansPastEdges]) return NSEdgeInsetsZero;
+    NSSize view = _pageScrollView.contentView.frame.size, document = _pageView.frame.size;
+    NSRect page = [_pageView rectForPageAtIndex:0];
+    // A canvas resized and not yet saved is larger or smaller than the page the reader lays out: its own edges count.
+    SPDFMacAnnotateCanvasView* canvasView = [self existingFillController].annotateCanvasView;
+    int width = 0, height = 0;
+    if (canvasView.session) spdf_paint_size(canvasView.session.canvas, &width, &height);
+    if (width > 0 && height > 0)
+        page = [_pageView convertRect:[canvasView viewRectForCanvasRect:NSMakeRect(0, 0, width, height) page:-1]
+                             fromView:canvasView];
+    CGFloat midX = floor(view.width / 2), midY = floor(_pageView.topReserve + MAX(0.0, view.height - _pageView.topReserve) / 2);
+    return NSEdgeInsetsMake(MAX(0.0, midY - NSMinY(page)), MAX(0.0, midX - NSMinX(page)),
+                            MAX(0.0, ceil(NSMaxY(page) - midY - document.height + view.height)),
+                            MAX(0.0, ceil(NSMaxX(page) - midX - document.width + view.width)));
+}
+
+- (BOOL)annotateUpdatePanMargin {
+    NSClipView* clip = _pageScrollView.contentView;
+    NSEdgeInsets margin = [self annotatePanMargin];
+    BOOL on = [self annotatePansPastEdges];
+    // Left alone unless Annotate set it: off, the clip view goes back to the insets AppKit gives it.
+    if (on ? !clip.automaticallyAdjustsContentInsets && NSEdgeInsetsEqual(margin, clip.contentInsets)
+           : clip.automaticallyAdjustsContentInsets)
+        return on;
+    NSPoint origin = clip.bounds.origin;  // setting the insets would move the view to their top left
+    clip.automaticallyAdjustsContentInsets = !on;
+    if (on) clip.contentInsets = margin;
+    else clip.contentInsets = NSEdgeInsetsZero;
+    [clip setBoundsOrigin:[self documentScrollOriginWithinPanRange:origin]];
+    [_pageScrollView reflectScrolledClipView:clip];
+    return on;
+}
+
+// The farthest the view may scroll: the document, and with Annotate on a picture or canvas the room past its edges.
+- (NSPoint)documentScrollOriginWithinPanRange:(NSPoint)origin {
+    NSClipView* clip = _pageScrollView.contentView;
+    NSEdgeInsets m = [self annotatePanMargin];
+    CGFloat maxX = MAX(0.0, NSWidth(_pageView.bounds) - NSWidth(clip.bounds)) + m.right;
+    CGFloat maxY = MAX(0.0, NSHeight(_pageView.bounds) - NSHeight(clip.bounds)) + m.bottom;
+    return NSMakePoint(MAX(-m.left, MIN(origin.x, maxX)), MAX(-m.top, MIN(origin.y, maxY)));
 }
 @end

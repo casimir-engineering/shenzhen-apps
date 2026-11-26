@@ -351,12 +351,12 @@ static const CGFloat kSPDFMouseWheelPointsPerLine = 32.0;
     NSClipView* clipView = self.contentView;
     NSRect visible = clipView.bounds;
     NSSize documentSize = self.documentView.bounds.size;
-    NSPoint lo = NSZeroPoint, hi = NSMakePoint(MAX(0.0, documentSize.width - NSWidth(visible)),
-                                               MAX(0.0, documentSize.height - NSHeight(visible)));
-    // scrollToPoint: bypasses constrainBoundsRect:, so honor the lock ranges
-    // here: a viewport-fit page is pinned centered (min==max); a page wider
-    // than the viewport pans only within its own bounds (min<max), not across
-    // the whole canvas; a document that fits vertically is pinned on y too.
+    // Insets the reader set itself: Annotate's room past a picture's or canvas's edges (SPDFMacFitViewport.mm).
+    NSEdgeInsets room = clipView.automaticallyAdjustsContentInsets ? NSEdgeInsetsZero : clipView.contentInsets;
+    NSPoint lo = NSMakePoint(-room.left, -room.top), hi = NSMakePoint(MAX(0.0, documentSize.width - NSWidth(visible)) + room.right,
+                                                                      MAX(0.0, documentSize.height - NSHeight(visible)) + room.bottom);
+    // scrollToPoint: bypasses constrainBoundsRect:, so honor the locks: a viewport-fit page pinned centered (min==max),
+    // a wider page panning within itself (min<max), not the whole canvas; a document that fits vertically pinned on y.
     if ([clipView isKindOfClass:[SPDFDocumentClipView class]]) {
         SPDFDocumentClipView* docClip = (SPDFDocumentClipView*)clipView;
         if (isfinite(docClip.horizontalLockMinX))

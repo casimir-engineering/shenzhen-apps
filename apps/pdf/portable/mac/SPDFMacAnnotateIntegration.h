@@ -110,6 +110,12 @@ FOUNDATION_EXPORT NSString* _Nullable SPDFAnnotateRecentPath(NSString* _Nullable
 // The reader zoom that 100% means (SPDFMacFitViewport.mm): 1, or with Annotate on a picture or canvas the one that
 // shows one picture pixel per screen point. The toolbar, Zoom > 100% and the status bar all count from it.
 - (CGFloat)actualZoom;
+// Room to pan past a picture's or canvas's edges with Annotate on (SPDFMacFitViewport.mm): whether there is, the
+// margin (zero elsewhere), applied to the clip view on each layout (YES: on), and a scroll origin held within it.
+- (BOOL)annotatePansPastEdges;
+- (NSEdgeInsets)annotatePanMargin;
+- (BOOL)annotateUpdatePanMargin;
+- (NSPoint)documentScrollOriginWithinPanRange:(NSPoint)origin;
 // The Layers panel sits in the minimap's place while it shows (SPDFMacAnnotateIntegrationFiles.mm): the slot it sits
 // in (nil while it doesn't show), and the minimap's own width, which is what is kept in the settings meanwhile.
 - (nullable NSView*)annotateLayersSlot;
