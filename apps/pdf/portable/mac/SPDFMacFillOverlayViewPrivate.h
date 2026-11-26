@@ -6,6 +6,7 @@
 
 @interface SPDFMacFillOverlayView ()
 @property(nonatomic, strong) SPDFFillItem* hoverItem;
+@property(nonatomic, strong) NSCursor* hoverCursor;  // what the last hover chose (SPDFApplyCursorOverlay asks for it)
 @property(nonatomic, strong) SPDFFillItem* dragItem;  // being dragged or resized
 @property(nonatomic) NSRect dragRect;
 - (SPDFDocumentView*)documentView;

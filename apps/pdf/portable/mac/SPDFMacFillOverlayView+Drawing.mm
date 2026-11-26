@@ -402,6 +402,7 @@ static std::vector<spdf_fill_point> SPDFFillHitPoints(SPDFFillItem* item) {
     NSCursor* cursor = onPage ? [self drawingCursorForTool:tool] : NSCursor.arrowCursor;
     NSArray* selected = onPage && tool == SPDFFillToolSelect ? [self selectionOnPage:page] : @[];
     if (selected.count == 1 && [self arrowEndAt:point of:selected.firstObject] >= 0) cursor = NSCursor.crosshairCursor;
+    self.hoverCursor = cursor;
     dispatch_async(dispatch_get_main_queue(), ^{ if (!self.hidden) [cursor set]; });
     return YES;
 }

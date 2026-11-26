@@ -86,6 +86,14 @@ static char kSPDFAnnotateForwardingKey;  // the gesture in progress went to the 
     [[self annotateCanvas] rightMouseUp:event];
 }
 
+// The page view under the overlay asks the topmost view for its cursor before setting one (SPDFApplyCursorOverlay): an
+// Annotate tool's cursor comes from the canvas view, Fill & Sign's from its last hover, so neither fights the I-beam.
+- (NSCursor*)spdf_cursorForTrackingOverlayAt:(NSPoint)windowPoint {
+    SPDFMacAnnotateCanvasView* view = [self annotateCanvas];
+    if (view && [view takesEventsForTool:view.session.tool]) return [view cursorAtWindowPoint:windowPoint];
+    return self.hoverCursor;
+}
+
 // The pointer over a page with an Annotate tool: the canvas view sets the cursor and the live preview. YES: handled.
 - (BOOL)annotateMouseMoved:(NSEvent*)event {
     SPDFMacAnnotateCanvasView* view = [self annotateCanvas];

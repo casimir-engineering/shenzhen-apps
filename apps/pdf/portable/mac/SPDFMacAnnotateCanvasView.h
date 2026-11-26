@@ -55,6 +55,10 @@ FOUNDATION_EXPORT NSNotificationName const SPDFAnnotateCanvasPointerDidMoveNotif
 // Tool, colours or options changed: cursor and live preview follow.
 - (void)toolDidChange;
 
+// The cursor for the pointer at this window point (the tool's, or a handle's). The overlay and the page view under the
+// canvas use it too, so every tracking area over the page agrees.
+- (NSCursor*)cursorAtWindowPoint:(NSPoint)windowPoint;
+
 // Conversions for the status bar and the agents' coordinates: canvas units (px on pictures, pt on PDF pages from the
 // page's top-left as displayed) for a point in this view, and back. NO when the point is on no page.
 - (BOOL)canvasPointForViewPoint:(NSPoint)point page:(NSInteger* _Nullable)page canvasPoint:(NSPoint*)canvasPoint;

@@ -430,6 +430,7 @@ NSBezierPath* SPDFFillMarkPath(NSRect r, BOOL cross) {
     } else if (field && !field.readOnly) {
         cursor = field.type == SPDF_FIELD_TEXT ? NSCursor.IBeamCursor : NSCursor.pointingHandCursor;
     }
+    self.hoverCursor = cursor;
     // After the page view's own cursor update for this move.
     dispatch_async(dispatch_get_main_queue(), ^{ if (!self.hidden) [cursor set]; });
 }

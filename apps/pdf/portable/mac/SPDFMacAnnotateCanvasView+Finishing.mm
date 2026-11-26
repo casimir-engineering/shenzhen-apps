@@ -10,6 +10,13 @@
 #import "SPDFMacFillController.h"
 #import "SPDFMacFillOverlayView.h"
 
+// A box's handles 0-7 clockwise from the top-left corner: the edges' own arrows, a crosshair on the corners.
+static NSCursor* SPDFAnnotateResizeCursor(NSInteger handle) {
+    if (handle == 1 || handle == 5) return NSCursor.resizeUpDownCursor;
+    if (handle == 3 || handle == 7) return NSCursor.resizeLeftRightCursor;
+    return NSCursor.crosshairCursor;
+}
+
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wobjc-protocol-method-implementation"
 @implementation SPDFMacAnnotateCanvasView (Finishing)
@@ -119,6 +126,10 @@
 }
 
 - (void)mouseMoved:(NSEvent*)event {
+    // Its own tracking area and the overlay's forwarding both hand it the same move: once is enough.
+    static NSTimeInterval handled = -1;
+    if (event.timestamp == handled) return;
+    handled = event.timestamp;
     NSPoint view = [self convertPoint:event.locationInWindow fromView:nil];
     NSInteger page = -1;
     NSPoint point = NSZeroPoint;
@@ -136,16 +147,28 @@
     [self notePointer:NSZeroPoint page:-1 inside:NO];
 }
 
+// The page view under the canvas asks the topmost view first (SPDFApplyCursorOverlay, SPDFMacCursorOverlay.h).
+- (NSCursor*)spdf_cursorForTrackingOverlayAt:(NSPoint)windowPoint {
+    return [self cursorAtWindowPoint:windowPoint];
+}
+
 - (void)cursorUpdate:(NSEvent*)event {
-    NSPoint view = [self convertPoint:event.locationInWindow fromView:nil];
+    [[self cursorAtWindowPoint:event.locationInWindow] set];
+}
+
+// The one answer for the pointer over the canvas: the page view under it and the Fill & Sign overlay over it ask here
+// too (SPDFApplyCursorOverlay), so the three tracking areas set the same cursor on every move instead of taking turns.
+- (NSCursor*)cursorAtWindowPoint:(NSPoint)windowPoint {
+    NSPoint view = [self convertPoint:windowPoint fromView:nil];
     SPDFAnnotateCanvasHandle canvas = [self canvasHandleAt:view];
     NSInteger handle = [self objectHandleAt:view];
-    if (canvas == SPDFAnnotateCanvasHandleRight) [NSCursor.resizeLeftRightCursor set];
-    else if (canvas == SPDFAnnotateCanvasHandleBottom) [NSCursor.resizeUpDownCursor set];
-    else if (canvas == SPDFAnnotateCanvasHandleCorner || (handle >= 0 && handle < 8)) [NSCursor.crosshairCursor set];
-    else if (self.session.tool == SPDFAnnotateToolSelect) [NSCursor.arrowCursor set];
-    else if (self.session.tool == SPDFAnnotateToolTextBox) [NSCursor.IBeamCursor set];
-    else [NSCursor.crosshairCursor set];
+    if (canvas == SPDFAnnotateCanvasHandleRight) return NSCursor.resizeLeftRightCursor;
+    if (canvas == SPDFAnnotateCanvasHandleBottom) return NSCursor.resizeUpDownCursor;
+    if (canvas == SPDFAnnotateCanvasHandleCorner || (handle >= 0 && handle < 8)) return SPDFAnnotateResizeCursor(handle);
+    if (handle == 8) return NSCursor.openHandCursor;
+    if (self.session.tool == SPDFAnnotateToolSelect) return NSCursor.arrowCursor;
+    if (self.session.tool == SPDFAnnotateToolTextBox) return NSCursor.IBeamCursor;
+    return NSCursor.crosshairCursor;
 }
 
 // Scrolling and zooming over the canvas behave as over the pages.
