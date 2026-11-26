@@ -181,7 +181,22 @@ void SPDFAnnotatePrepareInput(NSDictionary* op, SPDFMacAnnotateSession* session,
             SPDFAnnotateParseColor(op[@"background"], &background);
         NSInteger width = op[@"width"] ? [op[@"width"] integerValue] : SPDF_PAINT_DEFAULT_SIZE;
         NSInteger height = op[@"height"] ? [op[@"height"] integerValue] : SPDF_PAINT_DEFAULT_SIZE;
-        SPDFDocumentTab* made = [reader annotateNewCanvasWidth:width height:height background:background
+        double ppi = [op[@"ppi"] doubleValue];
+        const spdf_paint_canvas_preset* preset = [op[@"preset"] isKindOfClass:NSString.class]
+                                                     ? spdf_paint_canvas_preset_named([op[@"preset"] UTF8String]) : NULL;
+        if (op[@"preset"] && !preset) {
+            completion(SPDFAnnotateErrorAnswer(@"invalid_argument", @"There is no canvas size by that name; the schema lists them."));
+            return;
+        }
+        if (preset) {  // a preset sets both sides; paper at ppi (300 unless given), the others in pixels
+            int w = 0, h = 0;
+            NSString* turn = op[@"orientation"];
+            spdf_paint_canvas_preset_pixels(preset, ppi, [turn isEqual:@"landscape"] ? SPDF_PAINT_LANDSCAPE
+                                                          : [turn isEqual:@"portrait"] ? SPDF_PAINT_PORTRAIT : SPDF_PAINT_AS_LISTED, &w, &h);
+            width = w, height = h;
+            if (ppi <= 0) ppi = preset->paper ? SPDF_PAINT_DEFAULT_PPI : 72;
+        }
+        SPDFDocumentTab* made = [reader annotateNewCanvasWidth:width height:height ppi:ppi background:background
                                                          front:[op[@"front"] boolValue]];
         // The new tab's id is its name for agents: a never-saved canvas has no file of its own to name.
         completion(made ? OK(@{@"tab": SPDFAnnotateTabIdentifier(made) ?: @"", @"title": SPDFAnnotateUntitledCanvasTitle})

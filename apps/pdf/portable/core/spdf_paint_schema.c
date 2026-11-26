@@ -79,12 +79,17 @@ const char spdf_paint_schema_shared_text[] = SPDF_JSON(
 const char spdf_paint_schema_image_text[] = SPDF_JSON(
   "canvas.new": {"properties": {"width": {"type": "integer", "minimum": 1, "maximum": 16384, "default": 1000},
     "height": {"type": "integer", "minimum": 1, "maximum": 16384, "default": 1000},
+    "preset": {"type": "string", "description": "a size by name instead of width and height: paper (a0-a6, b4, b5, letter, legal, tabloid, half-letter) in pixels at ppi, screens, social and icons in pixels",
+      "enum": ["default", "a0", "a1", "a2", "a3", "a4", "a5", "a6", "b4", "b5", "letter", "legal", "tabloid", "half-letter", "hd", "full-hd", "qhd", "4k", "5k", "macbook-air", "macbook-pro", "iphone", "iphone-max", "ipad", "ipad-air", "instagram-square", "instagram-portrait", "story", "youtube-thumbnail", "x-header", "icon-16", "icon-32", "icon-64", "icon-128", "icon-256", "icon-512", "app-icon"]},
+    "ppi": {"type": "number", "minimum": 1, "maximum": 2400, "description": "the canvas's resolution, saved with it; paper presets are sized at it (default 300)"},
+    "orientation": {"type": "string", "enum": ["portrait", "landscape"], "description": "turns a preset so its long side is the height or the width"},
     "background": {"$ref": "#/$defs/colorOrTransparent", "default": "transparent"}}},
   "canvas.resize": {"required": ["width", "height"],
     "properties": {"width": {"type": "integer", "minimum": 1, "maximum": 16384},
       "height": {"type": "integer", "minimum": 1, "maximum": 16384}, "anchor": {"$ref": "#/$defs/anchor"},
       "fill": {"$ref": "#/$defs/colorOrTransparent", "default": "transparent"}}},
-  "canvas.properties": {"properties": {"dpi": {"type": "number", "exclusiveMinimum": 0},
+  "canvas.properties": {"properties": {"ppi": {"type": "number", "exclusiveMinimum": 0, "description": "resolution in pixels per inch (dpi is the same)"},
+    "dpi": {"type": "number", "exclusiveMinimum": 0},
     "blackAndWhite": {"type": "boolean"}}},
   "image.resize": {"anyOf": [{"required": ["width"]}, {"required": ["height"]}, {"required": ["percent"]}],
     "properties": {"width": {"type": "integer", "minimum": 1}, "height": {"type": "integer", "minimum": 1},
@@ -248,10 +253,11 @@ const char spdf_paint_schema_document_text[] = SPDF_JSON(
 
 static const spdf_paint_op_info k_ops[] = {
     {"canvas.new", "Canvas", N, ANYC | TEXT, FRONT, "Opens a new blank canvas in a new tab with Annotate on (1000 x "
-     "1000 px, transparent unless a background is given) and answers its tab."},
+     "1000 px, a preset such as a4 or full-hd, or width and height; transparent unless a background is given) and "
+     "answers its tab."},
     {"canvas.resize", "Canvas", U, RASTER, CANVAS,
      "Changes the canvas size, keeping the picture at the anchor; the new area is transparent or the given colour."},
-    {"canvas.properties", "Canvas", U, RASTER, CANVAS, "Sets the picture's resolution, or turns it black and white."},
+    {"canvas.properties", "Canvas", U, RASTER, CANVAS, "Sets the picture's resolution (ppi), or turns it black and white."},
     {"image.resize", "Image", U | P, ANYC, CANVAS,
      "Resizes the selection, the selected object or the whole picture, by pixels or by percent."},
     {"image.skew", "Image", U | P, ANYC, CANVAS, "Slants the selection, the selected object or the whole picture."},

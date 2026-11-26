@@ -111,7 +111,7 @@ szpdf comments report.md --wait-new --timeout 1800
 | `annotate <file\|tab> --script ops.json` | operations in order, stopping at the first error |
 | `annotate <file\|tab> state [--page N]` | layers and objects with their ids; on a PDF also its form |
 | `annotate schema [op]` | every operation's arguments as JSON Schema |
-| `canvas new [--width W] [--height H] [--background C] [--front]` | a blank canvas in a new tab; answers its tab id |
+| `canvas new [--width W --height H \| --preset NAME [--portrait\|--landscape]] [--ppi N] [--background C] [--front]` | a blank canvas in a new tab (presets: `szpdf help canvas new`); answers its tab id |
 | `schema [command]`, `help [command]`, `--version` | the commands themselves |
 
 ### Opening, waiting and headings
@@ -290,6 +290,7 @@ A canvas, from nothing to a PNG, as one script:
 
 ```sh
 szpdf canvas new --width 800 --height 600            # {"ok": true, "tab": "tab-4211-3", ...}
+szpdf canvas new --preset a4 --ppi 150 --landscape   # 1754 x 1240 px, saved at 150 ppi
 cat > sketch.json <<'JSON'
 [{"op": "paint.fill", "x": 10, "y": 10, "color": "#FFF6E0"},
  {"op": "shape.add", "shape": "star5", "rect": {"x": 300, "y": 180, "w": 200, "h": 200},

@@ -90,7 +90,7 @@ CORE_OBJS += $(CORE_FILL_OBJS)
 # by binaries without Friends (a duplicate cJSON.o on one link line fails). Nothing here runs until Annotate is used.
 CORE_PAINT_NAMES := doc ops schema schema_build history brush brush_tex brush_op fill shapes shapes_draw text transform \
 	file pdf pdf_pixels pdf_params pdf_write pdf_fill pdf_remove \
-	composite select layers objects objjson validate transform_ops doc_util history_apply canvas_ops pdf_live
+	composite select layers objects objjson validate transform_ops doc_util history_apply canvas_ops pdf_live presets
 CORE_PAINT_OBJS := $(patsubst %,$(BUILD)/spdf_paint_%.o,$(CORE_PAINT_NAMES))
 CORE_PAINT_HDRS := core/spdf_paint.h core/spdf_paint_internal.h core/spdf_paint_handlers.h core/spdf_paint_model.h \
 	core/spdf_paint_brush_engine.h core/spdf_paint_pdf_internal.h

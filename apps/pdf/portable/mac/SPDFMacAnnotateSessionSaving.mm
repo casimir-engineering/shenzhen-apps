@@ -7,6 +7,7 @@
 #import <CommonCrypto/CommonDigest.h>
 
 #import "SPDFMacAnnotateImageIO.h"
+#import "SPDFMacAnnotateIntegration.h"
 #import "SPDFMacStateDirectory.h"
 #import "SPDFMacSupport.h"
 
@@ -176,7 +177,7 @@ static NSString* UTIForFormat(NSString* format) {
         if (completion) completion(SaveError(err[0] ? @(err) : @"The picture couldn't be prepared for saving."));
         return;
     }
-    NSDictionary* properties = isProject ? nil : [self.pictureProperties copy];
+    NSDictionary* properties = isProject ? nil : SPDFAnnotateResolutionProperties(self.pictureProperties, spdf_paint_dpi(_canvas));
     self.pendingWrites++;
     __weak SPDFMacAnnotateSession* weakSelf = self;
     __block NSError* failure = nil;

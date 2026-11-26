@@ -156,7 +156,8 @@ def annotate_tools(binary):
                                                 "description": "Absolute path of a PNG to keep"}}},
          "annotations": {**flags, "readOnlyHint": True}},
         {"name": "canvas_new", "description":
-         "Open a new blank canvas in a tab with Annotate on (1000 x 1000 px, transparent unless given), behind the "
+         "Open a new blank canvas in a tab with Annotate on (1000 x 1000 px, a preset size such as a4 or full-hd, or "
+         "width and height; transparent unless given), behind the "
          "person's windows unless front. Answers its tab id, the target for the other annotate tools.",
          "inputSchema": {"type": "object", "$defs": defs, "required": [], "additionalProperties": False,
                          "properties": {**canvas, "front": {"type": "boolean"}}},
@@ -216,9 +217,13 @@ def call_annotate_tool(binary, name, arguments):
                 shutil.rmtree(folder, ignore_errors=True)
     else:
         command = ["canvas", "new"]
-        for key in ("width", "height", "background"):
+        for key in ("width", "height", "preset", "background"):
             if key in arguments:
                 command += [f"--{key}", str(arguments[key])]
+        if "ppi" in arguments:
+            command += ["--ppi", str(round(float(arguments["ppi"])))]
+        if arguments.get("orientation") in ("portrait", "landscape"):
+            command.append(f"--{arguments['orientation']}")
         if arguments.get("front"):
             command.append("--front")
         result, status = szpdf(binary, command)

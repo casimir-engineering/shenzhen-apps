@@ -88,7 +88,7 @@ spdf_paint_status spdf_paint_op_canvas_properties(spdf_paint_call* call) {
     if (is_pdf(doc)) return spdf_paint_call_fail(call, SPDF_PAINT_ERR_PAGE_LOCKED, k_page_locked);
     double dpi = doc->dpi;
     int bw = 0;
-    if (spdf_paint_arg_number(call, "dpi", &dpi)) {
+    if (spdf_paint_arg_number(call, "ppi", &dpi) || spdf_paint_arg_number(call, "dpi", &dpi)) {
         spdf_paint_history_save_dpi(doc);
         doc->dpi = (float)dpi;
     }

@@ -26,6 +26,9 @@
     NSMenuItem* tab = [menu addItemWithTitle:@"New Tab" action:@selector(newTabRequested:) keyEquivalent:@""];
     tab.target = self.reader;
     spdf_set_menu_item_system_symbol(tab, @"doc.badge.plus");
+    NSMenuItem* canvas = [menu addItemWithTitle:@"New Canvas…" action:NSSelectorFromString(@"newCanvas:") keyEquivalent:@""];
+    canvas.target = self.reader;  // File > New Canvas's sheet
+    spdf_set_menu_item_system_symbol(canvas, @"paintbrush");
     NSMenuItem* group = [menu addItemWithTitle:@"New Group…"
         action:NSSelectorFromString(@"createEmptyTabGroupFromPlus:") keyEquivalent:@""];
     group.target = self.reader;

@@ -49,7 +49,20 @@ Everything in those lists is in this spec except what § Not included names, wit
 | Pictures | PNG, JPEG, GIF, BMP, TIFF, HEIC, WebP, camera RAW: the Background layer is the picture's own pixels and every tool can change it (erase, fill, crop, resize, rotate) | Paint |
 | PDFs | Each page is a canvas. Its **Background is the page itself, locked**: nothing erases, fills, crops, lifts or recolours it. Pixel tools paint into a drawing layer above the page (made on the first stroke), the Eraser erases only what was added, Fill floods inside the edges you see but paints into the drawing layer, the colour picker reads what you see. Crop, resize, rotate, flip, invert, skew and clear apply to a selection, objects or added layers, never to the page. Canvas size is the page size and can't be dragged | "you can't erase the base pdf of course" |
 | Text documents | Markdown, plain text and every other format that is not a picture or a PDF (EPUB, XPS, CBZ, FB2, SVG): turning Annotate on asks first: "To annotate this document, save it as a PDF." [Save as PDF…] [Cancel]. Save as PDF uses the app's existing PDF export (what printing would make), the Save panel defaults to the same folder and name with .pdf, the PDF opens in a new tab beside it with Annotate on. The original is never changed | Raph: "text based docs will first ask to save as pdf" |
-| Blank canvas | **File > New Canvas** (⌘N; ⌥⌘N if ⌘N is taken) opens a tab "Untitled canvas": 1000 x 1000 px, transparent, Annotate on. A checkerboard shows where it is transparent. Its right edge, bottom edge and corner drag to resize it | Raph's defaults |
+| Blank canvas | **File > New Canvas…** (⌘N; ⌥⌘N if ⌘N is taken), also in the tab strip's + menu, opens the New Canvas sheet, then a tab "Untitled canvas", transparent, Annotate on. A checkerboard shows where it is transparent. Its right edge, bottom edge and corner drag to resize it | Raph's defaults |
+
+**New Canvas sheet.** A search field (focused) over a list of sizes, as the app's other searchable lists work: typing
+narrows the list by name, alias ("a4", "letter", "us", "hd", "story", "icon") or number ("1920"); ↑/↓ move; Return
+creates (Escape clears the search, then closes). Below: Width × Height in px, mm, cm or in, a ⇄ button that swaps them
+(portrait / landscape), and Resolution in ppi (editable, with 72 / 96 / 150 / 300 / 600). Sizes: Default 1000 x 1000
+px; paper A0–A6, B4, B5, US Letter, Legal, Tabloid / Ledger, Half Letter (in millimetres, drawn in pixels at the
+resolution: A4 at 300 ppi is 2480 x 3508, at 150 ppi 1240 x 1754); screens HD, Full HD, QHD, 4K, 5K, MacBook Air and
+Pro wallpapers, iPhone 16 Pro / Pro Max, iPad Pro 13" / Air 11"; social Instagram square / portrait, Story / Reel, YouTube
+thumbnail, X header; icons 16–512 and App icon 1024; and Custom (what is typed). Changing the resolution redraws
+paper at it, keeps a size typed in mm, cm or in at its length, and leaves pixel sizes alone. The size, unit,
+orientation and resolution chosen are offered next time; the first time it is Default at 300 ppi. The canvas keeps the
+resolution, and every PNG, JPEG or TIFF saved from it carries it. The table of sizes is `core/spdf_paint_presets.c`,
+shared with `canvas.new {preset}` and `szpdf canvas new --preset`.
 | Layers and depth | Every canvas is a stack: the **Background** at the bottom, raster layers, and **objects** on top. An object is a shape, line, curve, arrow, pen line, text box, picture (pasted, inserted, or a selection that was moved) or, on a PDF, a placed text, mark or signature. Each object is its own layer, so it keeps its depth and stays editable: right-click it for Bring to Front, Bring Forward, Send Backward, Send to Back, Merge Down, Duplicate, Delete | Windows 11 Paint has layers but turns shapes into pixels as soon as you click away; Raph asked for depth you can change later, by right-click |
 | Pen and pixel tools | Fill & Sign's **Pen** and **Arrow** stay: vector lines, each an object, sharp at any zoom and on paper (Tools group). Paint's **Pencil**, nine **brushes**, **Airbrush**, **Eraser**, **Color Eraser** and **Fill** paint pixels into the **active raster layer** and never into an object | Both are useful: a pen line you can move, a brush stroke with texture |
 | Right button | Right-click without moving, or Control-click: the context menu of what is under the pointer (an object, the selection, or the canvas). Right-drag with a pixel tool or a shape tool: draws with Color 2, as in Paint | Both of Paint's uses of the right button, told apart by movement (4 pt) |
@@ -150,7 +163,7 @@ take the arrow keys (1 px, Shift 10 px).
 | Flip ▾ | Flip vertical, Flip horizontal. Same scope rule |
 | Invert colors (⇧⌘⌥I is taken? use ⌃⌘I) | Inverts RGB of the selection, the selected object or the active layer |
 | Remove background | macOS Vision's subject mask (macOS 14+) on the active layer or selected picture: makes everything outside the main subject transparent. Hidden on older macOS. Runs on this Mac, nothing leaves it |
-| Canvas size and properties… (⌥⌘C) | Sheet: Width, Height (px; also cm and inches at the picture's dpi), Anchor (9-way), Resolution (dpi), "Transparent" (on: new area transparent; off: Color 2), Black and white (converts on OK). The classic Attributes dialog |
+| Canvas size and properties… (⌥⌘C) | Sheet: Width, Height (px; also inches, cm and mm at the picture's resolution), Anchor (9-way), Resolution (ppi, editable, with 72 / 96 / 150 / 300 / 600: in pixels it only changes the resolution stored and saved; in inches, cm or mm the size keeps its length and the pixels follow, as in Paint), "Transparent" (on: new area transparent; off: Color 2), Black and white (converts on OK). The classic Attributes dialog |
 | Clear image (⇧⌘⌫) | Active layer to transparent (Background to Color 2 if the format has no alpha) |
 
 ### Tools group
@@ -304,7 +317,7 @@ generated from it, so a new operation appears everywhere at once.
 
 | Family | Operations |
 |---|---|
-| Canvas | `canvas.new {width=1000, height=1000, background="transparent"\|"#RRGGBB"}`, `canvas.resize {width, height, anchor="top-left"…"bottom-right", fill="transparent"\|color}`, `canvas.properties {dpi, blackAndWhite}` |
+| Canvas | `canvas.new {width=1000, height=1000 \| preset ("a4", "full-hd", "story"…), orientation?, ppi?, background="transparent"\|"#RRGGBB"}`, `canvas.resize {width, height, anchor="top-left"…"bottom-right", fill="transparent"\|color}`, `canvas.properties {ppi (or dpi), blackAndWhite}` |
 | Image | `image.resize {width, height \| percent, keepRatio=true, scope="auto"\|"image"\|"selection"\|"object"}`, `image.skew {horizontal, vertical, scope}`, `image.rotate {degrees, scope}`, `image.flip {axis:"horizontal"\|"vertical", scope}`, `image.crop {rect?}`, `image.invert {scope}`, `image.clear`, `image.remove_background {scope}` |
 | Selection | `select.rect {x,y,w,h}`, `select.freeform {points}`, `select.all`, `select.none`, `select.invert`, `select.delete`, `select.lift` (→ object id), `select.transparent {on}` |
 | Pen and arrow | `pen.add {points, color, width}`, `arrow.add {tail, tip, color, width}` (Fill & Sign's vector items; edited, moved, erased and restyled with the object operations; `erase.lines {points, size}` removes whole pen lines and arrows it touches) |
@@ -328,13 +341,13 @@ undo stack per tab, as Fill & Sign has today.
 
 ### Agent surfaces
 
-- **szpdf** (agent-interface.md): `szpdf canvas new [--width W] [--height H] [--background C] [--front]` → the new
+- **szpdf** (agent-interface.md): `szpdf canvas new [--width W --height H | --preset NAME [--portrait|--landscape]] [--ppi N] [--background C] [--front]` → the new
   tab's id; `szpdf annotate <file|tab> <op> [--key value …]` (flags map to the operation's arguments, `--json '{…}'`
   takes them whole); `szpdf annotate <file|tab> --script ops.json` applies an array in order and stops at the first
   error, answering each result; `szpdf annotate <file|tab> state [--page N]`; `szpdf annotate schema [op]`. Annotate
   is turned on for the tab if it is off; the window does not come forward.
 - **AI assistant** (SPDFMacAITools): `annotate_apply {target, ops:[…]}`, `annotate_state {target, page?}`,
-  `annotate_look {target, page?, region?}` (returns the picture to the model), `canvas_new {width, height,
+  `annotate_look {target, page?, region?}` (returns the picture to the model), `canvas_new {width, height, preset, orientation, ppi,
   background}`. Edits are undoable by the person with ⌘Z like their own, and listed in the chat.
 - **MCP** (`shenzhen-pdf-mcp.py`): `annotate_apply`, `annotate_state`, `annotate_render`, `canvas_new`, all through the
   szpdf channel.

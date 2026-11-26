@@ -70,10 +70,14 @@ NSArray<NSDictionary*>* SPDFMacAIAnnotateToolDefinitions(void) {
                      @"region" : Plain(rect, @"Optional part to see: pixels on pictures and canvases, points on PDF "
                                              @"pages, from the top-left corner.")},
                    @[ @"target" ]),
-        Definition(@"canvas_new", @"Open a new blank canvas in a tab with Annotate on (1000 x 1000 pixels and "
-                                  @"transparent unless given). Answers its tab id for the other annotate tools.",
+        Definition(@"canvas_new", @"Open a new blank canvas in a tab with Annotate on (1000 x 1000 pixels, a preset "
+                                  @"size such as a4 or full-hd, or width and height; transparent unless given). Answers "
+                                  @"its tab id for the other annotate tools.",
                    @{@"width" : Plain(canvas[@"width"], @"Pixels, 1 to 16384; default 1000."),
                      @"height" : Plain(canvas[@"height"], @"Pixels, 1 to 16384; default 1000."),
+                     @"preset" : Plain(canvas[@"preset"], @"A size by name instead of width and height."),
+                     @"ppi" : Plain(canvas[@"ppi"], @"Resolution saved with it; paper presets are sized at it (300)."),
+                     @"orientation" : Plain(canvas[@"orientation"], @"Turns a preset: portrait or landscape."),
                      @"background" : Plain(canvas[@"background"], @"transparent (default) or a colour, #RRGGBB.")},
                    @[]),
     ];

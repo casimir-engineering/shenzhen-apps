@@ -97,6 +97,27 @@ typedef struct spdf_paint_pixels {
 /* File > New Canvas (canvas.new): width x height, filled with `background` (0x00000000 = transparent). One raster
  * layer, "Background". NULL on failure with err. */
 spdf_paint_doc* spdf_paint_new_canvas(int width, int height, spdf_paint_color background, char* err, size_t err_len);
+
+/* New Canvas's sizes (spdf_paint_presets.c): name (canvas.new's `preset`), label, group ("Paper", "Screen", ...),
+ * words a search also matches, and the size, in millimetres for paper (pixels at the canvas's resolution) or pixels. */
+typedef struct spdf_paint_canvas_preset {
+    const char* name;
+    const char* label;
+    const char* group;
+    const char* aliases;
+    double width, height;
+    int paper;
+} spdf_paint_canvas_preset;
+#define SPDF_PAINT_DEFAULT_PPI 300.0 /* paper's resolution when none is given */
+enum { SPDF_PAINT_AS_LISTED = 0, SPDF_PAINT_PORTRAIT = 1, SPDF_PAINT_LANDSCAPE = 2 };
+const spdf_paint_canvas_preset* spdf_paint_canvas_presets(size_t* count);
+/* Their names, comma-separated, for help texts. */
+const char* spdf_paint_canvas_preset_names(void);
+/* By name or label, ignoring case, spaces and underscores ("A4", "full_hd"); NULL if none. */
+const spdf_paint_canvas_preset* spdf_paint_canvas_preset_named(const char* name);
+/* Its pixels at `ppi` (paper only; <= 0: SPDF_PAINT_DEFAULT_PPI), turned for `orientation` and held to the limits. */
+void spdf_paint_canvas_preset_pixels(const spdf_paint_canvas_preset* preset, double ppi, int orientation, int* width,
+                                     int* height);
 /* A picture as decoded by the frontend (SPDFMacAnnotateImageIO on the Mac): its pixels become the "Background" layer,
  * which every tool may change. dpi 0 means 72. has_alpha 0 tells the core the format has no alpha, so erasing and
  * lifting there leave Color 2 (§ 2 Eraser, Rectangular selection). */

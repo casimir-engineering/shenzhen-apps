@@ -7,7 +7,7 @@
 #import "SPDFMacFillController.h"
 
 // A small sheet: a title, a grid of rows, OK and Cancel. OK runs `done` before the sheet closes.
-@interface SPDFAnnotateSheet : NSObject <NSTextFieldDelegate>
+@interface SPDFAnnotateSheet : NSObject <NSComboBoxDelegate>
 @property(nonatomic, strong) NSPanel* panel;
 @property(nonatomic, strong) NSGridView* grid;
 @property(nonatomic, copy) void (^done)(void);
@@ -193,10 +193,15 @@ void SPDFAnnotateShowCanvasPropertiesSheet(NSWindow* window, SPDFMacFillControll
     NSTextField* width = [sheet number:width0];
     NSTextField* height = [sheet number:height0];
     NSPopUpButton* units = [[NSPopUpButton alloc] initWithFrame:NSZeroRect pullsDown:NO];
-    [units addItemsWithTitles:@[ @"pixels", @"inches", @"cm" ]];
+    [units addItemsWithTitles:@[ @"pixels", @"inches", @"cm", @"mm" ]];
     units.target = sheet;
     units.action = @selector(control:);
-    NSTextField* dpi = [sheet number:dpi0];
+    NSComboBox* dpi = [NSComboBox new];  // pixels per inch; in inches, cm or mm the pixels follow it, as in Paint
+    [dpi addItemsWithObjectValues:@[ @72, @96, @150, @300, @600 ]];
+    dpi.stringValue = [NSString stringWithFormat:@"%g", dpi0];
+    dpi.delegate = sheet;
+    dpi.translatesAutoresizingMaskIntoConstraints = NO;
+    [dpi.widthAnchor constraintEqualToConstant:80].active = YES;
     NSButton* transparent = [NSButton checkboxWithTitle:@"Transparent" target:sheet action:@selector(control:)];
     transparent.state = NSControlStateValueOn;
     transparent.toolTip = @"Off: new area is filled with Color 2";
@@ -217,13 +222,15 @@ void SPDFAnnotateShowCanvasPropertiesSheet(NSWindow* window, SPDFMacFillControll
     }
     [sheet row:@"Width:" views:@[ width, units ]];
     [sheet row:@"Height:" views:@[ height ]];
-    [sheet row:@"Resolution:" views:@[ dpi, [NSTextField labelWithString:@"dpi"] ]];
+    [sheet row:@"Resolution:" views:@[ dpi, [NSTextField labelWithString:@"ppi"] ]];
     [sheet row:@"Anchor:" views:@[ anchorGrid ]];
     [sheet row:nil views:@[ transparent ]];
     [sheet row:nil views:@[ mono ]];
     __block NSInteger unit = 0;
     __block NSInteger anchor = 0;
-    double (^perUnit)(NSInteger) = ^double(NSInteger u) { return u == 0 ? 1 : u == 1 ? dpi.doubleValue : dpi.doubleValue / 2.54; };
+    double (^perUnit)(NSInteger) = ^double(NSInteger u) {
+      return u == 0 ? 1 : u == 1 ? dpi.doubleValue : u == 2 ? dpi.doubleValue / 2.54 : dpi.doubleValue / 25.4;
+    };
     sheet.changed = ^(NSControl* control) {
       if (control == units && units.indexOfSelectedItem != unit) {
           double from = perUnit(unit), to = perUnit(units.indexOfSelectedItem);

@@ -73,7 +73,7 @@ NSDictionary* SPDFMacAgentChannelValidateRequest(NSData* line, NSError** error) 
         @"comments-changed" : @[ @"command", @"path" ],
         @"version" : @[ @"command", @"action", @"path", @"carry", @"older", @"newer", @"front", @"wait" ],
         @"annotate" : @[ @"command", @"target", @"ops", @"timeout" ],
-        @"canvas-new" : @[ @"command", @"width", @"height", @"background", @"front" ],
+        @"canvas-new" : @[ @"command", @"width", @"height", @"preset", @"ppi", @"orientation", @"background", @"front" ],
     };
     if (!request) failure = ChannelError(@"The request is not a JSON object.");
     else if (!allowed[command ?: @""]) failure = ChannelError(@"Unknown command.");

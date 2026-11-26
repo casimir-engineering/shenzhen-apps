@@ -155,15 +155,18 @@ NSArray<NSDictionary*>* SPDFMacSzpdfAnnotateCommandRows(void) {
               @[ @"tab", @"the tab's id, for later commands" ], @[ @"windowId", @"the window showing it" ],
               @[ @"form", @"state on a PDF: its form fields and what was placed (form.state)" ],
           ]},
-        @{@"name" : @"canvas new", @"flags" : @[ @"--front" ], @"valued" : @[ @"--width", @"--height", @"--background", @"--timeout" ],
-          @"usage" : @"szpdf canvas new [--width W] [--height H] [--background C] [--front]",
+        @{@"name" : @"canvas new", @"flags" : @[ @"--front", @"--portrait", @"--landscape" ],
+          @"valued" : @[ @"--width", @"--height", @"--preset", @"--ppi", @"--background", @"--timeout" ],
+          @"usage" : @"szpdf canvas new [--width W --height H | --preset NAME [--portrait|--landscape]] [--ppi N] [--background C] [--front]",
           @"summary" : @"Open a new blank canvas in a tab with Annotate on, behind your windows unless --front.",
           @"options" : @[
               @[ @"--width W, --height H", @"pixels, 1 to 16384 (default 1000 x 1000)" ],
+              @[ @"--preset NAME", [@"a size by name, turned by --portrait or --landscape: " stringByAppendingString:@(spdf_paint_canvas_preset_names())] ],
+              @[ @"--ppi N", @"resolution saved with it, 1 to 2400; paper presets are sized at it (default 300)" ],
               @[ @"--background C", @"transparent (the default) or #RRGGBB" ],
               @[ @"--front", @"bring the window to the front" ],
           ],
-          @"example" : @"szpdf canvas new --width 1200 --height 800 --background '#FFFFFF'",
+          @"example" : @"szpdf canvas new --preset a4 --ppi 150 --landscape --background '#FFFFFF'",
           @"fields" : @[ @[ @"tab", @"the new tab's id, for szpdf annotate" ], @[ @"windowId", @"the window showing it" ] ]},
     ];
 }
@@ -384,13 +387,15 @@ static NSDictionary* ParseCanvas(NSArray<NSString*>* arguments, NSError** error)
         NSString* flag = arguments[i];
         if ([flag isEqual:@"--help"] || [flag isEqual:@"-h"]) return @{@"command" : @"help", @"topic" : name};
         if ([flag isEqual:@"--front"]) { command[@"front"] = @YES; continue; }
+        if ([flag isEqual:@"--portrait"] || [flag isEqual:@"--landscape"]) { command[@"orientation"] = [flag substringFromIndex:2]; continue; }
         if ([flag isEqual:@"--json"]) continue;
-        if (![@[ @"--width", @"--height", @"--background", @"--timeout" ] containsObject:flag]) {
+        if (![@[ @"--width", @"--height", @"--preset", @"--ppi", @"--background", @"--timeout" ] containsObject:flag]) {
             problem = [NSString stringWithFormat:@"%@ does not apply to szpdf canvas new.", flag];
             break;
         }
         if (i + 1 >= arguments.count) { problem = [NSString stringWithFormat:@"%@ needs a value.", flag]; break; }
         NSString* value = arguments[++i];
+        if ([flag isEqual:@"--preset"]) { if (!spdf_paint_canvas_preset_named(value.UTF8String)) problem = [@"--preset is one of: " stringByAppendingString:@(spdf_paint_canvas_preset_names())]; command[@"preset"] = value; continue; }
         if ([flag isEqual:@"--background"]) {
             if (![value isEqual:@"transparent"] && !Convert(value, @{@"$ref" : @"#/$defs/color"}))
                 problem = @"--background is transparent or a colour as #RRGGBB.";
@@ -398,9 +403,9 @@ static NSDictionary* ParseCanvas(NSArray<NSString*>* arguments, NSError** error)
             continue;
         }
         NSNumber* number = Number(value, YES);
-        long long high = [flag isEqual:@"--timeout"] ? 86400 : SPDF_PAINT_MAX_SIDE;
+        long long high = [flag isEqual:@"--timeout"] ? 86400 : [flag isEqual:@"--ppi"] ? 2400 : SPDF_PAINT_MAX_SIDE;
         if (!number || number.longLongValue < 1 || number.longLongValue > high)
-            problem = [flag isEqual:@"--timeout"] ? @"--timeout takes whole seconds."
+            problem = [flag isEqual:@"--timeout"] ? @"--timeout takes whole seconds." : [flag isEqual:@"--ppi"] ? @"--ppi is from 1 to 2400."
                                                   : [NSString stringWithFormat:@"%@ is a number of pixels from 1 to 16384.", flag];
         command[[flag substringFromIndex:2]] = number ?: @0;
     }

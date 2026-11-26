@@ -21,7 +21,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 FOUNDATION_EXPORT NSString* const SPDFAnnotateTitle;                // "Annotate" (button, mode, menu items)
 FOUNDATION_EXPORT NSString* const SPDFAnnotateFormGroupTitle;       // "Fill & Sign" (the PDF form group's own label)
-FOUNDATION_EXPORT NSString* const SPDFAnnotateNewCanvasTitle;       // "New Canvas" (File menu)
+FOUNDATION_EXPORT NSString* const SPDFAnnotateNewCanvasTitle;       // "New Canvas…" (File menu; it opens a sheet)
 FOUNDATION_EXPORT NSString* const SPDFAnnotateUntitledCanvasTitle;  // "Untitled canvas" (the tab)
 FOUNDATION_EXPORT NSString* const SPDFAnnotateSaveAsPDFQuestion;    // "To annotate this document, save it as a PDF."
 FOUNDATION_EXPORT NSString* const SPDFAnnotateSaveAsPDFButton;      // "Save as PDF…"
@@ -60,10 +60,11 @@ FOUNDATION_EXPORT NSString* _Nullable SPDFAnnotateRecentPath(NSString* _Nullable
 // The Layers panel takes the minimap's place while it shows; the minimap comes back when it goes.
 - (void)annotateLayersPanelDidShow:(BOOL)shown;
 
-// File > New Canvas (Cmd-N; Option-Cmd-N if Cmd-N is taken): a tab "Untitled canvas", 1000 x 1000 px, transparent,
-// Annotate on. Also canvas.new from the agents (width, height, background; front NO keeps the window behind).
+// File > New Canvas (Cmd-N) and the tab strip's + menu: the New Canvas sheet (a searchable list of sizes, width and
+// height, resolution; SPDFMacAnnotateNewCanvas.mm), then a tab "Untitled canvas", transparent, Annotate on. Also
+// canvas.new from the agents (width, height, ppi, background; front NO keeps the window behind).
 - (void)newCanvas:(id _Nullable)sender;
-- (nullable SPDFDocumentTab*)annotateNewCanvasWidth:(NSInteger)width height:(NSInteger)height
+- (nullable SPDFDocumentTab*)annotateNewCanvasWidth:(NSInteger)width height:(NSInteger)height ppi:(double)ppi
                                          background:(spdf_paint_color)background front:(BOOL)front;
 // A restored tab that was a never-saved canvas: its pixels come back from <state>/Annotate. Called only for such tabs.
 - (void)annotateRestoreCanvasTab:(SPDFDocumentTab*)tab;
@@ -151,6 +152,13 @@ FOUNDATION_EXPORT BOOL SPDFAnnotateHandleKey(NSEvent* event, SPDFMacFillControll
 // sends its operation on OK.
 FOUNDATION_EXPORT void SPDFAnnotateShowResizeSheet(NSWindow* window, SPDFMacFillController* controller);
 FOUNDATION_EXPORT void SPDFAnnotateShowCanvasPropertiesSheet(NSWindow* window, SPDFMacFillController* controller);
+// File > New Canvas's sheet (SPDFMacAnnotateNewCanvas.mm): `create` gets the size and resolution chosen; Cancel calls
+// nothing. The last size and resolution are offered next time.
+// (SPDFMacAnnotateNewCanvas.mm) `properties` (nil: none) with the resolution set to ppi (<= 0: left as it is), in every form ImageIO writes it: PNG's
+// pHYs, JPEG's JFIF density and TIFF's resolution, so the saved file carries the canvas's resolution.
+FOUNDATION_EXPORT NSDictionary* SPDFAnnotateResolutionProperties(NSDictionary* _Nullable properties, double ppi);
+FOUNDATION_EXPORT void SPDFAnnotateShowNewCanvasSheet(NSWindow* _Nullable window,
+                                                      void (^create)(NSInteger width, NSInteger height, double ppi));
 FOUNDATION_EXPORT void SPDFAnnotateShowRotateBySheet(NSWindow* window, SPDFMacFillController* controller);
 // "To annotate this document, save it as a PDF." [Save as PDF…] [Cancel]. save YES: Save as PDF was chosen.
 FOUNDATION_EXPORT void SPDFAnnotateAskToSaveAsPDF(NSWindow* window, void (^answer)(BOOL save));

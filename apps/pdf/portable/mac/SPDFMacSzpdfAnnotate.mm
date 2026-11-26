@@ -137,7 +137,7 @@ int SPDFMacSzpdfCanvas(NSDictionary* command) {
     pid_t pid = SPDFMacSzpdfReader(@"", front, timeout, &failure);
     if (!pid) return SPDFMacSzpdfFinish(failure ?: SPDFMacSzpdfFailure(@"not-responding", @"ShenzhenPDF did not answer.", nil));
     NSMutableDictionary* request = [@{@"command" : @"canvas-new", @"front" : @(front)} mutableCopy];
-    for (NSString* key in @[ @"width", @"height", @"background" ])
+    for (NSString* key in @[ @"width", @"height", @"preset", @"ppi", @"orientation", @"background" ])
         if (command[key]) request[key] = command[key];
     return SPDFMacSzpdfFinish(SPDFAnnotateAgentAnswer(SPDFMacSzpdfSend(pid, request, timeout + 10)));
 }
@@ -210,7 +210,7 @@ int SPDFMacSzpdfCanvas(NSDictionary* command) {
 - (void)annotateAgentNewCanvas:(NSDictionary*)arguments front:(BOOL)front reply:(void (^)(NSDictionary*))reply {
     NSArray* before = [_tabs copy];
     NSMutableDictionary* op = [@{@"op" : @"canvas.new"} mutableCopy];
-    for (NSString* key in @[ @"width", @"height", @"background" ])
+    for (NSString* key in @[ @"width", @"height", @"preset", @"ppi", @"orientation", @"background" ])
         if (arguments[key]) op[key] = arguments[key];
     __block BOOL answered = NO;
     [[self fillController] applyOperation:op tab:nil completion:^(NSDictionary* result) {

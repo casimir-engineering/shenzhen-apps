@@ -25,7 +25,7 @@
 
 NSString* const SPDFAnnotateTitle = @"Annotate";
 NSString* const SPDFAnnotateFormGroupTitle = @"Fill & Sign";
-NSString* const SPDFAnnotateNewCanvasTitle = @"New Canvas";
+NSString* const SPDFAnnotateNewCanvasTitle = @"New Canvas…";
 NSString* const SPDFAnnotateUntitledCanvasTitle = @"Untitled canvas";
 NSString* const SPDFAnnotateSaveAsPDFQuestion = @"To annotate this document, save it as a PDF.";
 NSString* const SPDFAnnotateSaveAsPDFButton = @"Save as PDF…";
@@ -78,7 +78,7 @@ static NSString* BackingFolder(void) {
 }
 
 // Writes the flattened canvas as a backing PNG and, for a project, the record of which .szpaint it shows.
-static BOOL WriteBacking(spdf_paint_doc* doc, NSString* backing, NSString* project, NSError** error) {
+static BOOL WriteBacking(spdf_paint_doc* doc, NSString* backing, NSString* project, double ppi, NSError** error) {
     spdf_bitmap bitmap = {0, 0, 0, NULL};
     char err[256] = {0};
     if (spdf_paint_flatten(doc, 0, &bitmap, err, sizeof(err)) != SPDF_PAINT_OK) {
@@ -86,7 +86,7 @@ static BOOL WriteBacking(spdf_paint_doc* doc, NSString* backing, NSString* proje
                                             userInfo:@{NSLocalizedDescriptionKey: err[0] ? @(err) : @"The canvas couldn't be drawn."}];
         return NO;
     }
-    NSData* png = SPDFAnnotateEncodePicture(&bitmap, @"png", nil, 0, error);
+    NSData* png = SPDFAnnotateEncodePicture(&bitmap, @"png", SPDFAnnotateResolutionProperties(nil, ppi), 0, error);
     spdf_free_bitmap(&bitmap);
     if (!png) return NO;
     spdf_mac_support_directory();
@@ -189,10 +189,13 @@ NSString* SPDFAnnotateRecentPath(NSString* path) {
 
 - (void)newCanvas:(id)sender {
     (void)sender;
-    [self annotateNewCanvasWidth:SPDF_PAINT_DEFAULT_SIZE height:SPDF_PAINT_DEFAULT_SIZE background:0 front:YES];
+    __weak ShenzhenMacDelegate* weakSelf = self;
+    SPDFAnnotateShowNewCanvasSheet(_window, ^(NSInteger width, NSInteger height, double ppi) {
+      [weakSelf annotateNewCanvasWidth:width height:height ppi:ppi background:0 front:YES];
+    });
 }
 
-- (SPDFDocumentTab*)annotateNewCanvasWidth:(NSInteger)width height:(NSInteger)height
+- (SPDFDocumentTab*)annotateNewCanvasWidth:(NSInteger)width height:(NSInteger)height ppi:(double)ppi
                                 background:(spdf_paint_color)background front:(BOOL)front {
     char err[256] = {0};
     spdf_paint_doc* doc = spdf_paint_new_canvas((int)MAX(1, MIN(SPDF_PAINT_MAX_SIDE, width)),
@@ -206,7 +209,7 @@ NSString* SPDFAnnotateRecentPath(NSString* path) {
                                              [NSString stringWithFormat:@"%@ %@.png", SPDFAnnotateUntitledCanvasTitle,
                                                                         NSUUID.UUID.UUIDString]];
     NSError* error = nil;
-    BOOL written = WriteBacking(doc, backing, nil, &error);
+    BOOL written = WriteBacking(doc, backing, nil, ppi > 0 ? ppi : 72, &error);
     spdf_paint_close(doc);
     if (!written) {
         [self showError:@"Couldn't make a new canvas" detail:error.localizedDescription ?: @""];
@@ -275,7 +278,7 @@ NSString* SPDFAnnotateRecentPath(NSString* path) {
         stringByAppendingPathExtension:@"png"];
     NSString* backing = [BackingFolder() stringByAppendingPathComponent:name];
     NSError* error = nil;
-    BOOL written = WriteBacking(doc, backing, project.stringByStandardizingPath, &error);
+    BOOL written = WriteBacking(doc, backing, project.stringByStandardizingPath, spdf_paint_dpi(doc), &error);
     spdf_paint_close(doc);
     if (!written) {
         [self showError:@"Couldn't open this Shenzhen Paint project" detail:error.localizedDescription ?: @""];
