@@ -1,5 +1,5 @@
 // Every change Fill & Sign makes to a PDF: the check before it, the core call on the main-thread document, the save
-// and redraw, and the step that undoes it. Undo replays the same calls, so an undone fill is saved like any other.
+// owed (written once the changes rest, SPDFMacFillSaving.h), and the step that undoes it. Undo replays the same calls, so an undone fill is saved like any other.
 #import "SPDFMacFillControllerPrivate.h"
 
 #import "SPDFMacFillEditor.h"
@@ -44,7 +44,7 @@ typedef BOOL (^SPDFFillWrite)(spdf_document* doc, NSMutableIndexSet* pages, char
         [self.overlay refresh];
         if (shown) shown(pages);
         [self.host fillDisplayNow];
-        ok = [self.host fillSaveAndRedrawPages:pages];
+        [self.host fillScheduleSaveOfPages:pages];
         SPDFMacSignatureStore* store = [SPDFMacSignatureStore sharedStore];
         if ([self session].isForm && !store.formHintSeen) store.formHintSeen = YES;
     }

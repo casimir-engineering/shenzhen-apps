@@ -6,6 +6,7 @@
 #import "SPDFMacAnnotateSession.h"
 #import "SPDFMacBackgroundOpening.h"
 #import "SPDFMacDocumentVersionsIntegration.h"
+#import "SPDFMacFillSaving.h"
 #import "SPDFMacCollectionCompare.h"
 #import "SPDFMacMarkdownComments.h"
 #import "SPDFMacMarkdownDelegatePrivate.h"
@@ -354,9 +355,19 @@ static NSArray<NSString*>* HeadingPath(NSArray<NSString*>* titles, const std::ve
 
 #pragma mark - Requests
 
-+ (void)agentServerHandleRequest:(NSDictionary*)request reply:(void (^)(NSDictionary*))reply {
++ (void)agentServerHandleRequest:(NSDictionary*)request reply:(void (^)(NSDictionary*))answer {
     NSString* command = request[@"command"];
     NSArray<ShenzhenMacDelegate*>* readers = SPDFMacAllWindowControllers();
+    // An edit saved a moment later (SPDFMacFillSaving.h) is in the file before an agent reads it, and before it hears
+    // back about an edit of its own.
+    for (ShenzhenMacDelegate* reader in readers) [reader fillWritePendingSave];
+    void (^reply)(NSDictionary*) = ^(NSDictionary* result) {
+      dispatch_block_t send = ^{
+        for (ShenzhenMacDelegate* reader in SPDFMacAllWindowControllers()) [reader fillWritePendingSave];
+        answer(result);
+      };
+      NSThread.isMainThread ? send() : dispatch_async(dispatch_get_main_queue(), send);
+    };
     BOOL quitting = !readers.count;
     for (ShenzhenMacDelegate* reader in readers) quitting |= !reader->_uiReady || !reader->_window;
     if ([command isEqual:@"state"]) {

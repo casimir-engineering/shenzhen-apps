@@ -8,8 +8,8 @@
 - (void)fillRedrawFromMemoryPages:(NSIndexSet*)pages;
 // The window drawn and handed to the screen now, before the save.
 - (void)fillCommitDisplay;
-// For the save's redraw: the page was drawn whole, or only its part in view, from memory in this change.
+// For the save's redraw: the page was drawn whole, or only its part in view, from memory since the last save.
 - (BOOL)fillPageShownWhole:(NSUInteger)index;
 - (BOOL)fillPageShownInView:(NSUInteger)index;
-- (void)fillForgetShownPages;
+- (void)fillForgetShownPages:(NSIndexSet*)pages;  // nil: every page
 @end

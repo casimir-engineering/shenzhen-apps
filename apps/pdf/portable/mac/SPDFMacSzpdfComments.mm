@@ -163,6 +163,7 @@ static int AddComment(NSDictionary* command) {
     NSDictionary* result = nil;
     if ([path.pathExtension.lowercaseString isEqualToString:@"pdf"]) {
         if (command[@"line"]) return Finish(Failure(@"unsupported", @"A PDF has no source lines: use --page, --quote or --heading."));
+        (void)Readers();  // a reader with an edit to save writes it first, so the comment goes after it
         NSMutableDictionary* where = [NSMutableDictionary dictionary];
         if (command[@"quote"]) where[@"quote"] = command[@"quote"];
         else if (command[@"page"]) where[@"page"] = command[@"page"];

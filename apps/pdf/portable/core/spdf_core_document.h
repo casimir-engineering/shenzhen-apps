@@ -73,6 +73,8 @@ struct spdf_document {
      * without some of its bytes fails with SPDF_NOT_DOWNLOADED instead of showing a wrong page. */
     int progressive;
     int rendering; /* inside a render: its page-size lookup asks for the bytes it waits on (see spdf_page_size) */
+    char* deferred_save_path; /* a save owed to this path (spdf_deferred_save.h), written by spdf_close at the latest */
+    int save_prepared_next;   /* the next object spdf_prepare_save_step reads */
 };
 
 /* Whether the person may annotate or fill in this PDF. The owner's restrictions only bind a PDF that needed a password

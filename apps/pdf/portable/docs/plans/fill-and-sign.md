@@ -19,7 +19,7 @@ when the PDF has a real form, no cost at launch (ideally a gain), testing only a
 | Signature | `Stamp` with our own appearance: filled vector outlines for drawn and typed signatures (`pdf_set_annot_appearance_from_display_list`), `pdf_set_annot_stamp_image` for a picture | Crisp, small, colour can change; pictures keep their transparency |
 | Identity | `/NM (spdf-fill-<uuid>)`; signatures `spdf-fill-sig-<sigid>-<uuid>`; comb cells `-c<NN>`. No private keys | `/NM` survives saves, renumbering and other editors |
 | Comments | `spdf_comment_review.h` skips the `spdf-fill-` prefix and `FreeTextTypeWriter` | Fills never show as comments, in AI tools or szpdf |
-| Saving | Like comments: each change goes into `_doc` at once, an incremental save follows 300 ms after the last change, flushed at once on Done, tab switch, close, quit, print, export, share and Copy Page. No Save button, no unsaved state | Matches the rest of the app |
+| Saving | Each change goes into `_doc` and on screen at once; one incremental save follows 0.35 s after the last change ("UI as built", Saving), written at once before anything reads the file or the document is left (Done, tab switch, close, quit, a menu command, an agent request). No Save button, no unsaved state | Matches the rest of the app; quick runs of changes never wait for the file |
 | Collection | `collectionDidSavePath:` only on flush points (Done, tab switch, close, quit) and after 5 s of no edits | 30 Tab presses must not start 30 captures |
 | Sending a clean copy | File ▸ Save Final Copy… writes a separate PDF where fills become part of the pages | For sending to someone; the working file stays editable |
 | JavaScript | Never enabled | Safety and launch time; computed totals stay stale (risk) |
@@ -324,10 +324,22 @@ Where the Mac front end differs from the sketches below:
 - **Reads on the main-thread document:** a page's fields and our items are read from `_doc` (cheap, no render) and
   cached per page until a change on that page, so what is drawn always matches what was just written. Only snap
   geometry is read on a worker document (serial utility queue, cancellable, visible pages ±1).
-- **Saving:** every commit saves at once (incremental when the file allows, as comments do) and redraws the changed
-  pages synchronously from `_doc` in the same turn; there is no debounce and no unsaved state. What is being typed is
-  written before the document is left (`rememberActiveTabState` hook). Collection gets `collectionDidSavePath:` 5 s
-  after the last change of a burst, and the "before edit" protection runs once per burst.
+- **Saving** (`mac/SPDFMacFillSaving.mm`, `core/spdf_deferred_save.h`): every commit writes `_doc` and shows the
+  changed pages from memory in the next frame (`SPDFMacFillShowFirst.h`); the file then owes a save, written once the
+  changes rest: 0.35 s after the last one, 1 s after the first at most, put off while a mouse button is down or a key
+  or click waits (2 s at the very latest). One incremental save then covers the whole burst, so five quick Backspaces
+  or a run of nudges never wait for a save (an 11 MB datasheet: 6–85 ms each before, up to 270 ms for the first).
+  While the palette shows, the file's objects are read ahead in 3 ms idle steps (`spdf_prepare_save_step`), so the
+  first save no longer stops to read them all (MuPDF's `pdf_check_document`). Nothing ever reads the file without an
+  owed change: `-activeWorkingPath` (every worker render, crop, search, cursor map, export) writes it first; leaving
+  the document (`rememberActiveTabState`: tab switch, close, quit, rename) writes it; every agent-channel request
+  writes it before it is handled and before it is answered, and szpdf's own readings ask the running readers first;
+  every menu command but Annotate's own edits writes it; and `spdf_close` writes whatever is still owed. A scroll or
+  zoom before the save redraws, from memory, the small picture a page at a high zoom shows past its sharp part, so a
+  deleted object never shows there. A kill -9 loses the last ~0.35 s at most, never part of a change (each save is
+  atomic). What is being typed is written before the document is left. Collection gets `collectionDidSavePath:` 5 s
+  after the last save of a burst (one version per burst; the old selector cancel with a nil object cancelled nothing),
+  and the "before edit" protection runs once per burst.
 - **Palette room:** while the palette shows, the document view keeps room above the first page (`topReserve`, the
   palette's height plus 18 pt, grown but not shrunk while it shows), so the top of a page is never stuck under it;
   page steps and reading positions count the viewport from below it, and Tab scrolls a target clear of it. When the

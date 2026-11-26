@@ -5,8 +5,7 @@
 // the redraw of a whole page at a high zoom tens more, so a deleted object stayed on screen for several frames. Now
 // the changed pages are drawn again from the document in memory first (only the part in view when the whole page
 // would cost much more), the window is displayed and committed to the screen, and only then is the file saved and the
-// rest of the page drawn at full quality. Everything still happens in the same turn: nothing waits for later, so a
-// close or quit right after the change finds the file saved, as before.
+// rest of the page drawn at full quality, once the changes rest (SPDFMacFillSaving.h).
 #import "SPDFMacFillShowFirst.h"
 
 #import "SPDFMacEditedPageThumbnails.h"
@@ -55,8 +54,9 @@ static char kSPDFFillShownWholeKey, kSPDFFillShownInViewKey;
 - (void)fillRedrawFromMemoryPages:(NSIndexSet*)pages {
     NSMutableIndexSet* whole = [self fillShownPages:&kSPDFFillShownWholeKey];
     NSMutableIndexSet* inView = [self fillShownPages:&kSPDFFillShownInViewKey];
-    [whole removeAllIndexes];
-    [inView removeAllIndexes];
+    // Pages changed earlier and not saved yet keep how they were shown; these are shown again now.
+    [whole removeIndexes:pages];
+    [inView removeIndexes:pages];
     if (!_doc || !_pageView || !pages.count) return;
     _visibleCropRenderSequence++;  // a crop of the page as it was, still rendering, is never shown
     CGFloat scale = [self backingScale];
@@ -122,9 +122,9 @@ static char kSPDFFillShownWholeKey, kSPDFFillShownInViewKey;
     return [[self fillShownPages:&kSPDFFillShownInViewKey] containsIndex:index];
 }
 
-- (void)fillForgetShownPages {
-    [[self fillShownPages:&kSPDFFillShownWholeKey] removeAllIndexes];
-    [[self fillShownPages:&kSPDFFillShownInViewKey] removeAllIndexes];
+- (void)fillForgetShownPages:(NSIndexSet*)pages {
+    for (NSMutableIndexSet* set in @[[self fillShownPages:&kSPDFFillShownWholeKey], [self fillShownPages:&kSPDFFillShownInViewKey]])
+        pages ? [set removeIndexes:pages] : [set removeAllIndexes];
 }
 
 @end

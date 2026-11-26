@@ -8,6 +8,7 @@
 #import "SPDFMacFillController.h"
 #import "SPDFMacFillOverlayView.h"
 #import "SPDFMacFillPalette.h"
+#import "SPDFMacFillSaving.h"
 #import "SPDFMacFillShowFirst.h"
 #import "SPDFMacPageRendering.h"
 #import "SPDFMacViewportRenderPriority.h"
@@ -184,6 +185,7 @@ void SPDFFillInstallMenuItems(NSMenu* editMenu, NSMenu* fileMenu, ShenzhenMacDel
 - (void)fillSignFlushEdits {
     [[self existingFillController] flushPendingChanges];  // what is being typed, and lines drawn a moment ago
     [self annotateFlushEdits];
+    [self fillWritePendingSave];  // the save owed by the changes of the last moment (SPDFMacFillSaving.h)
 }
 
 // Fill & Sign shows first, so what goes is seen going and Command-Z brings it back at once.
@@ -297,7 +299,10 @@ void SPDFFillInstallMenuItems(NSMenu* editMenu, NSMenu* fileMenu, ShenzhenMacDel
 - (NSString*)fillAuthor { return [self currentCommentAuthor]; }
 - (BOOL)fillDarkPages { return _darkReadingTheme; }
 - (void)fillShowError:(NSString*)title detail:(NSString*)detail { [self showError:title detail:detail]; }
-- (void)fillStateDidChange { [self syncWorkspaceChrome]; }
+- (void)fillStateDidChange {
+    [self syncWorkspaceChrome];
+    [self fillPrepareSaveWhenIdle];
+}
 
 - (BOOL)fillIsEditedCopy {
     NSString* copies = [[self pathForStateFile:@"Edited Copies"] stringByAppendingString:@"/"];
@@ -377,62 +382,6 @@ void SPDFFillInstallMenuItems(NSMenu* editMenu, NSMenu* fileMenu, ShenzhenMacDel
 
 - (void)fillShowPagesNow:(NSIndexSet*)pages { [self fillRedrawFromMemoryPages:pages]; }
 - (void)fillDisplayNow { [self fillCommitDisplay]; }
-
-- (BOOL)fillSaveAndRedrawPages:(NSIndexSet*)pages {
-    char err[1024] = {0};
-    if (!spdf_save_document(_doc, _path.fileSystemRepresentation, err, sizeof(err))) {
-        [self fillForgetShownPages];
-        [self showError:@"Couldn't save what you filled in" detail:@(err)];
-        return NO;
-    }
-    [self refreshActiveTabCachedFileAttributesAfterSelfSave];
-    [self invalidateCursorRegionCache];
-    // The changed pages in view were drawn from the document in memory and shown before the save
-    // (SPDFMacFillShowFirst.h); the others are drawn again now, in this turn, and the sharper viewport tiles follow
-    // from the saved file.
-    __block BOOL needsFullRender = NO;
-    CGFloat scale = [self backingScale];
-    NSInteger preferred = -1;
-    NSArray<NSNumber*>* visible = [self visibleDocumentPageIndexesWithExtraRadius:0 preferredPage:&preferred];
-    [pages enumerateIndexesUsingBlock:^(NSUInteger index, BOOL* stop) {
-      (void)stop;
-      if (index >= self->_renderedPages.count) return;
-      SPDFRenderedPage* old = self->_renderedPages[index];
-      if ([self fillPageShownWhole:index]) return;  // drawn whole from memory before the save (SPDFMacFillShowFirst.h)
-      // A page not drawn yet and not in view renders from the saved file when shown.
-      if (!old.image && !old.viewportImage && ![visible containsObject:@(index)]) return;
-      if (![self fullPageRenderAllowedForPage:old zoom:self->_zoom displayScale:scale]) {
-          if ([self fillPageShownInView:index]) return;  // its part in view is drawn; the sharper crops follow below
-          needsFullRender = YES;
-          return;
-      }
-      char renderErr[512];
-      SPDFRenderedPage* page = [self renderedPageAtIndex:(NSInteger)index document:self->_doc zoom:self->_zoom
-                                            displayScale:scale error:renderErr errorLength:sizeof(renderErr)];
-      if (!page) {
-          needsFullRender = YES;
-          return;
-      }
-      page.highlights = old.highlights ?: @[];
-      page.selectionRects = old.selectionRects ?: @[];
-      [self copyMinimapThumbnailFromPage:old toPage:page];
-      [self->_renderedPages replaceObjectAtIndex:index withObject:page];
-      [self->_pageView refreshRenderedPages:self->_renderedPages changedPageIndex:(NSInteger)index];
-    }];
-    [self fillForgetShownPages];
-    if (needsFullRender) {
-        [self rerenderDocumentAfterEditOfPages:pages
-                                 restoreOrigin:[NSValue valueWithPoint:_pageScrollView.contentView.bounds.origin]];
-    } else {
-        [self refreshMinimapThumbnailsOfEditedPages:pages];
-        [self cacheActiveRenderedPagesForSelectedTab];
-        [self renderVisiblePageCropsForCurrentViewportIfNeeded];
-    }
-    // Collection keeps one version per burst of filling, not one per field.
-    [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(fillCollectionCatchUp:) object:nil];
-    [self performSelector:@selector(fillCollectionCatchUp:) withObject:[_path copy] afterDelay:5.0];
-    return YES;
-}
 
 - (void)fillCollectionCatchUp:(NSString*)path {
     if (!path.length) return;

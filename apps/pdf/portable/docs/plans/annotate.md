@@ -293,8 +293,9 @@ are objects of this model as they are, with no rewrite of files already filled.
 
 Layer visibility on a PDF is the annotation's Hidden flag; layer opacity is `/CA`. Merge Down of an object into the
 drawing layer rasterises it into that layer's image. The page itself is never rewritten. Writing follows Fill & Sign's
-commit cycle (pending batch, 0.35 s rest, written before any other reader of the file, no wrong frame, writable copy
-when the original can't be changed, Collection). Save Final Copy (flatten) keeps working and bakes these too.
+commit cycle (shown from memory in the next frame, one save 0.35 s after the last change and before any other reader
+of the file, no wrong frame, writable copy when the original can't be changed, Collection; fill-and-sign.md "UI as built",
+Saving). Save Final Copy (flatten) keeps working and bakes these too.
 
 ### Text documents
 

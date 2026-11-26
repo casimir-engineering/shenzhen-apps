@@ -7,6 +7,7 @@
 // Fill & Sign is used or a form PDF settles. A PDF without a form costs one bounded read of its form dictionary on the
 // main-thread document after first paint (no page is loaded) and nothing else.
 #import "SPDFMacDelegatePrivate.h"
+#import "SPDFMacFillSaving.h"
 
 @interface ShenzhenMacDelegate (SPDFMacFill)
 - (void)toggleFillAndSign:(id)sender;

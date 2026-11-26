@@ -30,8 +30,8 @@
 // overlay is up to date) the window shown, so the change is on screen in the next frame.
 - (void)fillShowPagesNow:(NSIndexSet*)pages;
 - (void)fillDisplayNow;
-// Then: saves it and redraws these pages at full quality.
-- (BOOL)fillSaveAndRedrawPages:(NSIndexSet*)pages;
+// Then: the file is saved once the changes rest, and these pages drawn again at full quality (SPDFMacFillSaving.h).
+- (void)fillScheduleSaveOfPages:(NSIndexSet*)pages;
 - (void)fillShowError:(NSString*)title detail:(NSString*)detail;
 - (spdf_document*)fillOpenReadDocumentAtPath:(NSString*)path error:(char*)err length:(size_t)len;
 - (void)fillStateDidChange;

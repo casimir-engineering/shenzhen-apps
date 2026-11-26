@@ -6300,8 +6300,8 @@ static BOOL spdf_page_list_cache_disabled(void) {
 
 // Render/read path for the ACTIVE document: the temp copy when the active source
 // is read-only, else the source. Consumed only by document-open/render workers.
-- (NSString*)activeWorkingPath {
-    return _workingPath.length ? _workingPath : _path;
+- (NSString*)activeWorkingPath {  // the file read: a change saved later is written first (SPDFMacFillSaving.h)
+    return [self fillPathAfterPendingSave:(_workingPath.length ? _workingPath : _path)];
 }
 
 // Launch-time sweep: delete any file in ReadOnlyCopies not referenced by a

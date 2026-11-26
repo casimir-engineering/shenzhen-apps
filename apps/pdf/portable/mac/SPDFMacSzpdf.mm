@@ -272,6 +272,7 @@ static int Screenshot(NSDictionary* command) {
     }
     if (path) {
         NSDictionary* failure = nil;
+        if (!readers) (void)Readers();  // a reader with an edit to save writes it first (it does on every request)
         SPDFMacSzpdfDocument* document = [SPDFMacSzpdfDocument documentAtPath:path failure:&failure];
         if (!document) return Finish(failure);
         NSMutableDictionary* answer = [[document writePage:[command[@"page"] unsignedIntegerValue] toPNG:command[@"output"]
@@ -299,6 +300,7 @@ static int Screenshot(NSDictionary* command) {
 static int Headless(NSDictionary* command) {
     NSString* verb = command[@"command"];
     NSDictionary* failure = nil;
+    (void)Readers();  // a reader with an edit to save writes it first (it does on every request)
     SPDFMacSzpdfDocument* document = [SPDFMacSzpdfDocument documentAtPath:command[@"path"] failure:&failure];
     if (!document) return Finish(failure);
     if ([verb isEqual:@"headings"])
