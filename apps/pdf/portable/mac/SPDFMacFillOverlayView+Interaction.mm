@@ -124,7 +124,9 @@ static BOOL SPDFFillTakesTypedLetters(SPDFMacFillOverlayView* overlay) {
     NSString* chars = event.charactersIgnoringModifiers.lowercaseString ?: @"";
     unichar key = chars.length ? [chars characterAtIndex:0] : 0;
     NSEventModifierFlags mods = event.modifierFlags & NSEventModifierFlagDeviceIndependentFlagsMask;
-    SPDFFillItem* markTarget = self.selectedItem.isMark ? self.selectedItem : self.hoverItem.isMark ? self.hoverItem : nil;
+    NSArray<SPDFFillItem*>* picked = [self.controller selectedItems];  // Select's selection: one mark is a target too
+    SPDFFillItem* markTarget = self.selectedItem.isMark ? self.selectedItem : self.hoverItem.isMark ? self.hoverItem
+                             : picked.count == 1 && picked.firstObject.isMark ? picked.firstObject : [self focusedMark];
     if ((mods & NSEventModifierFlagCommand) && (key == 'z' || key == 'y')) {
         [self.controller flushPendingChanges];  // lines still waiting are written, then undone like any change
         [self cancelDrawingGesture];
@@ -218,7 +220,8 @@ static BOOL SPDFFillTakesTypedLetters(SPDFMacFillOverlayView* overlay) {
         return NO;
     NSString* chars = event.charactersIgnoringModifiers.lowercaseString ?: @"";
     unichar key = chars.length == 1 ? [chars characterAtIndex:0] : 0;
-    BOOL mark = self.selectedItem.isMark || self.hoverItem.isMark;
+    NSArray<SPDFFillItem*>* picked = [self.controller selectedItems];
+    BOOL mark = self.selectedItem.isMark || self.hoverItem.isMark || (picked.count == 1 && picked.firstObject.isMark);
     BOOL typing = SPDFFillTakesTypedLetters(self);
     if (!typing && (key == 'p' || key == 'a' || key == 'e' || key == 's' || key == 't')) return YES;  // tool keys
     if (!typing && !((key == 'x' || key == 'v') && mark) && SPDFAnnotateClaimsKey(event, self.controller)) return YES;

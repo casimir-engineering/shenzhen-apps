@@ -272,7 +272,12 @@ NSString* SPDFAnnotateProjectForBackingPath(NSString* path) {
     if (doc || !create || !pdf) return doc;
     char err[256];
     doc = spdf_paint_open_pdf_page(pdf, (int)page, err, sizeof(err));
-    if (doc) _pageCanvases[@(page)] = [NSValue valueWithPointer:doc];
+    if (!doc) return NULL;
+    _pageCanvases[@(page)] = [NSValue valueWithPointer:doc];
+    char* answer = NULL;  // the tab's colours, as on a picture (doc.state answers what the tools draw with)
+    spdf_paint_apply(doc, SPDFAnnotateJSONString(@{@"op": @"colors.set", @"color1": SPDFAnnotateColorString(self.color1),
+                                                   @"color2": SPDFAnnotateColorString(self.color2)}).UTF8String, &answer);
+    spdf_paint_free(answer);
     return doc;
 }
 

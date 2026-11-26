@@ -257,6 +257,12 @@ static NSCursor* SPDFAnnotateResizeCursor(NSInteger handle) {
     NSString* key = event.charactersIgnoringModifiers;
     unichar c = key.length ? [key characterAtIndex:0] : 0;
     BOOL command = (event.modifierFlags & NSEventModifierFlagCommand) != 0;
+    // Fill & Sign's Select chose items on the page (a pen line, a mark, its text): Delete, the arrows, Escape, X, V and
+    // Space are theirs, as if the overlay had the keyboard.
+    if (!command && !session.selectedObjects.count && [self.controller selectedItems].count && self.overlay) {
+        [self.overlay keyDown:event];
+        return;
+    }
     if (c == 27) {  // Escape: the gesture, else the selection (a lifted selection stays an object)
         if ([self cancelGesture]) return;
         session.selectedObjects = @[];

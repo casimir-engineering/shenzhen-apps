@@ -52,6 +52,7 @@ static char kSPDFAnnotateForwardingKey;  // the gesture in progress went to the 
                  (event.type == NSEventTypeLeftMouseDown && (event.modifierFlags & NSEventModifierFlagControl));
     NSPoint point = [self convertPoint:event.locationInWindow fromView:nil];
     NSInteger page;
+    [self.controller.annotateCanvasView commitTextEditor];  // a click anywhere else closes the text box, as on the canvas
     if (!view || ![self locateViewPoint:point page:&page pagePoint:NULL]) return NO;
     // Select pressed where none of Annotate's objects is (those go to the canvas view): Annotate's selection ends too.
     if (!right && session.tool == SPDFAnnotateToolSelect && session.selectedObjects.count) session.selectedObjects = @[];
