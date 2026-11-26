@@ -298,6 +298,7 @@ void SPDFFillInstallMenuItems(NSMenu* editMenu, NSMenu* fileMenu, ShenzhenMacDel
 - (CGFloat)fillZoom { return _zoom; }
 - (NSString*)fillAuthor { return [self currentCommentAuthor]; }
 - (BOOL)fillDarkPages { return _darkReadingTheme; }
+- (BOOL)fillDarkPagesKeepImages { return _darkReadingTheme && _darkThemePreservesImages; }  // as readingThemeRenderFlags
 - (void)fillShowError:(NSString*)title detail:(NSString*)detail { [self showError:title detail:detail]; }
 - (void)fillStateDidChange {
     [self syncWorkspaceChrome];

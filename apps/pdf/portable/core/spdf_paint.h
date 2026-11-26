@@ -232,7 +232,8 @@ typedef enum spdf_paint_render_flags {
     SPDF_PAINT_RENDER_NEAREST = 1 << 1,      /* scale > 1: sharp pixels (nearest neighbour), the canvas above 100 % */
     SPDF_PAINT_RENDER_HIDE_SELECTION = 1 << 2,/* leave out a lifted selection being dragged (the view draws it live) */
     SPDF_PAINT_RENDER_DARK_PAGE = 1 << 3,    /* a PDF page's Background drawn in the reading theme (screen only) */
-    SPDF_PAINT_RENDER_SELECTED_ONLY = 1 << 4 /* only what the pixel selection covers (a lasso's shape): Copy */
+    SPDF_PAINT_RENDER_SELECTED_ONLY = 1 << 4,/* only what the pixel selection covers (a lasso's shape): Copy */
+    SPDF_PAINT_RENDER_DARK_KEEP_IMAGES = 1 << 5 /* spdf_paint_render_placed, dark: pictures keep their colours */
 } spdf_paint_render_flags;
 
 typedef struct spdf_paint_render_options {
@@ -261,9 +262,11 @@ int spdf_paint_take_damage(spdf_paint_doc* doc, spdf_rect* changed);
 int spdf_paint_take_written_damage(spdf_paint_doc* doc, spdf_rect* changed);
 /* Live placement (spdf_paint_preview.c): a region (options->region, ->scale and ->flags; layers ignored) drawn as
  * spdf_paint_render does, with each listed object at a new box (rect, canvas units, as object.transform's) instead of
- * its own, nothing changed: a resize or a move while the handle is held. On a PDF page what the document already
- * holds is drawn from its annotations, as the reader draws the page. */
-typedef struct spdf_paint_placed { spdf_paint_id id; spdf_rect rect; } spdf_paint_placed;
+ * its own, and turned when `turns` is set (rotation: object.transform's), nothing changed: a resize, a move or a
+ * rotation while the handle is held. On a PDF page what the document already holds is drawn from its annotations, as
+ * the reader draws the page; with SPDF_PAINT_RENDER_DARK_PAGE the whole region is recoloured as the reader's dark
+ * theme recolours a page, its pictures kept as they are with SPDF_PAINT_RENDER_DARK_KEEP_IMAGES. */
+typedef struct spdf_paint_placed { spdf_paint_id id; spdf_rect rect; int turns; double rotation; } spdf_paint_placed;
 spdf_paint_status spdf_paint_render_placed(spdf_paint_doc* doc, const spdf_paint_render_options* options,
                                            const spdf_paint_placed* placed, int count, spdf_bitmap* out, char* err,
                                            size_t err_len);

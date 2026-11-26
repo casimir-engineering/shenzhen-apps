@@ -13,4 +13,8 @@
 - (BOOL)fillPageShownWhole:(NSUInteger)index;
 - (BOOL)fillPageShownInView:(NSUInteger)index;
 - (void)fillForgetShownPages:(NSIndexSet*)pages;  // nil: every page
+// The picture of the page the document view draws now, as SPDFMacDocumentView's drawing picks it: its size in pixels,
+// the part of the page it covers (page points, top-left origin) and where it is drawn (window coordinates);
+// NSZeroSize when none is current.
+- (NSSize)fillShownPictureOfPage:(NSInteger)index covering:(NSRect*)covering drawnAt:(NSRect*)drawn;
 @end

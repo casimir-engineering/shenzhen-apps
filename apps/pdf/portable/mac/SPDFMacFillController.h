@@ -23,6 +23,9 @@
 - (CGFloat)fillZoom;
 - (NSString*)fillAuthor;
 - (BOOL)fillDarkPages;  // the reading theme shows pages dark
+- (BOOL)fillDarkPagesKeepImages;  // and leaves their pictures in their own colours
+// The picture of a page shown now: pixels, the part of the page it covers, where (SPDFMacFillShowFirst.h).
+- (NSSize)fillShownPictureOfPage:(NSInteger)page covering:(NSRect*)covering drawnAt:(NSRect*)drawn;
 // Before the first change of a burst: the owner's permissions, a signed or certified PDF, then a Collection version
 // or a writable copy. fieldValuesOnly: only the PDF's own fields change (no placed items). NO: nothing may change.
 - (BOOL)fillPrepareForChangeOfFieldsOnly:(BOOL)fieldValuesOnly;

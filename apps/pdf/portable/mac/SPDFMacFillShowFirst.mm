@@ -10,6 +10,7 @@
 #import "SPDFMacFillShowFirst.h"
 
 #import "SPDFMacEditedPageThumbnails.h"
+#import "SPDFMacPageRendering.h"
 #import "SPDFMacMarkdownDelegatePrivate.h"
 #import "SPDFMacViewportRenderPriority.h"
 
@@ -192,6 +193,29 @@ static char kSPDFFillPixelsOwnerKey;  // a picture sharing another's pixels keep
       [self->_pageView refreshRenderedPages:self->_renderedPages changedPageIndex:(NSInteger)index];
       [(wholePage ? whole : inView) addIndex:index];
     }];
+}
+
+- (NSSize)fillShownPictureOfPage:(NSInteger)index covering:(NSRect*)covering drawnAt:(NSRect*)drawn {
+    if (index < 0 || index >= (NSInteger)_renderedPages.count) return NSZeroSize;
+    SPDFRenderedPage* page = _renderedPages[(NSUInteger)index];
+    CGFloat scale = [self backingScale];
+    NSImage* image = nil;
+    NSRect part = NSZeroRect;
+    if (page.image && fabs(page.imageZoom - _zoom) <= 0.001 && fabs(page.imageScale - scale) <= 0.001) {
+        image = page.image;
+        part = NSMakeRect(0, 0, page.pageWidth, page.pageHeight);
+    } else if (page.viewportImage && !NSIsEmptyRect(page.viewportImagePageRect) &&
+               fabs(page.viewportImageZoom - _zoom) <= 0.001 && fabs(page.viewportImageScale - scale) <= 0.001) {
+        image = page.viewportImage;
+        part = page.viewportImagePageRect;
+    }
+    NSImageRep* rep = image.representations.firstObject;
+    if (!rep || rep.pixelsWide <= 0 || rep.pixelsHigh <= 0) return NSZeroSize;
+    if (covering) *covering = part;
+    if (drawn)  // as spdf_mac_draw_page_image places it
+        *drawn = [_pageView convertRect:spdf_mac_page_rect_to_view_rect(part, [_pageView rectForPageAtIndex:index], page)
+                                 toView:nil];
+    return NSMakeSize(rep.pixelsWide, rep.pixelsHigh);
 }
 
 - (void)fillCommitDisplay {

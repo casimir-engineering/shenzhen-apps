@@ -83,6 +83,7 @@ void spdf_paint_pdf_close(spdf_paint_doc* doc) {
     free(st->entries);
     spdf_paint_pdf_retired_free(st);
     fz_drop_display_list(doc->ctx, st->page_list);
+    fz_drop_display_list(doc->ctx, st->images_of);
     free(st);
     doc->pdf_state = NULL;
 }

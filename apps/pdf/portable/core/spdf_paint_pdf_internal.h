@@ -15,6 +15,7 @@
 
 #include "cJSON.h"
 #include "mupdf/pdf.h"
+#include "spdf_recolor.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -47,6 +48,8 @@ typedef struct spdf_paint_pdf_state {
     int writing;                /* inside write_back: reload requests from the Fill & Sign calls are ignored */
     spdf_paint_pdf_entry* retired; /* layers a reload dropped (their annotation left the file), by identity */
     int retired_count, retired_cap;
+    fz_display_list* images_of;    /* the page_list page_images were read with (kept), NULL before */
+    spdf_recolor_page_entry page_images; /* the page's own pictures, for a dark preview that keeps them */
 } spdf_paint_pdf_state;
 
 /* ---- spdf_paint_pdf.c ---- */
@@ -99,6 +102,11 @@ char* spdf_paint_pdf_strdup(const char* text); /* malloc */
 void spdf_paint_pdf_set_appearance(fz_context* ctx, pdf_annot* annot, fz_display_list* list, fz_rect r);
 /* A new uuid-like suffix (32 hex digits). */
 void spdf_paint_pdf_uuid(char out[33]);
+
+/* ---- spdf_paint_preview_dark.c: a live placement in the dark reading theme ---- */
+/* dest (its bbox is box, at scale pixels per canvas unit) recoloured as the reader's dark theme recolours the page;
+ * keep_images: the page's own pictures left as they are, as with SPDF_RENDER_PRESERVE_IMAGES. */
+void spdf_paint_dark_recolor(spdf_paint_doc* doc, fz_pixmap* dest, fz_irect box, float scale, int keep_images);
 
 /* ---- spdf_paint_pdf_fill.c ---- */
 /* A hidden annotation's drawing kept in /SPDFAnnotate /AP and an empty one in its place (hide), or put back: Quick
