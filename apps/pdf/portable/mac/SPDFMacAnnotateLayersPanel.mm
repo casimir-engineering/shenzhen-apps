@@ -289,13 +289,13 @@ static NSDictionary* SPDFLayerRowFrom(NSDictionary* layer) {
     __weak SPDFMacFillController* controller = _controller;
     cell.percent.stepped = ^double(double proposed) {  // the slider follows; the layer changes once, at the end
       double value = round(MAX(0, MIN(100, proposed)));
-      [weakCell showOpacity:value];
+      [weakCell showOpacity:value visible:YES];
       return value;
     };
     cell.percent.ended = ^(double value, BOOL ok) {
       SPDFAnnotateLayerRow* row = weakCell;
       value = round(MAX(0, MIN(100, value)));
-      [row showOpacity:value];
+      [row showOpacity:value visible:YES];
       if (ok) [weakSelf opacityChanged:row.opacity];
     };
     cell.percent.keysView = ^NSView* { return (NSView*)controller.annotateCanvasView; };
@@ -318,8 +318,7 @@ static NSDictionary* SPDFLayerRowFrom(NSDictionary* layer) {
     cell.eye.image = SPDFAnnotateSymbol(visible ? @"eye" : @"eye.slash", visible ? @"Hide" : @"Show");
     cell.eye.toolTip = visible ? @"Hide" : @"Show";
     cell.eye.tag = row;
-    cell.opacity.hidden = cell.percent.hidden = locked || !selected;
-    [cell showOpacity:[r[@"opacity"] doubleValue]];
+    [cell showOpacity:[r[@"opacity"] doubleValue] visible:!locked && selected];
     cell.opacity.tag = row;
     cell.needsDisplay = YES;
 }

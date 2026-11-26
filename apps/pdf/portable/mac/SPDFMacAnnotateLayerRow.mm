@@ -4,7 +4,10 @@
 #import "SPDFMacAnnotatePaletteSupport.h"
 #import "SPDFMacCollectionStyle.h"
 
-@implementation SPDFAnnotateLayerRow
+@implementation SPDFAnnotateLayerRow {
+    __weak id _target;
+    SEL _opacityAction;
+}
 
 - (void)drawRect:(NSRect)dirty {
     (void)dirty;
@@ -32,13 +35,12 @@
                                   action:eyeAction];
     cell.eye.bordered = NO;
     cell.eye.refusesFirstResponder = YES;
-    cell.opacity = [NSSlider sliderWithValue:100 minValue:0 maxValue:100 target:target action:opacityAction];
-    cell.opacity.continuous = NO;  // one change, written when the slider is let go
-    cell.opacity.controlSize = NSControlSizeSmall;
-    cell.opacity.toolTip = @"Opacity";
+    cell->_target = target;
+    cell->_opacityAction = opacityAction;
     cell.percent = [SPDFAnnotateValueField valueFieldWithFontSize:10 tip:@"Opacity: click to type a value"];
     cell.percent.alignment = NSTextAlignmentRight;
-    for (NSView* v in @[ cell.thumb, cell.name, cell.badge, cell.eye, cell.opacity, cell.percent ]) {
+    cell.percent.hidden = YES;
+    for (NSView* v in @[ cell.thumb, cell.name, cell.badge, cell.eye, cell.percent ]) {
         v.translatesAutoresizingMaskIntoConstraints = NO;
         [cell addSubview:v];
     }
@@ -55,11 +57,7 @@
         [cell.eye.trailingAnchor constraintEqualToAnchor:cell.trailingAnchor constant:-6],
         [cell.eye.centerYAnchor constraintEqualToAnchor:cell.thumb.centerYAnchor],
         [cell.eye.widthAnchor constraintEqualToConstant:24],
-        [cell.opacity.leadingAnchor constraintEqualToAnchor:cell.name.leadingAnchor],
-        [cell.opacity.topAnchor constraintEqualToAnchor:cell.thumb.bottomAnchor constant:2],
-        [cell.percent.leadingAnchor constraintEqualToAnchor:cell.opacity.trailingAnchor constant:6],
         [cell.percent.trailingAnchor constraintEqualToAnchor:cell.trailingAnchor constant:-8],
-        [cell.percent.centerYAnchor constraintEqualToAnchor:cell.opacity.centerYAnchor],
         [cell.percent.widthAnchor constraintEqualToConstant:38],
     ]];
     [cell.name setContentCompressionResistancePriority:NSLayoutPriorityDefaultLow
@@ -67,7 +65,24 @@
     return cell;
 }
 
-- (void)showOpacity:(double)percent {
+// Only a selected row shows a slider, and a slider is costly to make (a few milliseconds each on macOS 26): every
+// row had one, and a change that reloads the list made them all again.
+- (void)showOpacity:(double)percent visible:(BOOL)visible {
+    if (visible && !self.opacity) {
+        self.opacity = [NSSlider sliderWithValue:100 minValue:0 maxValue:100 target:_target action:_opacityAction];
+        self.opacity.continuous = NO;  // one change, written when the slider is let go
+        self.opacity.controlSize = NSControlSizeSmall;
+        self.opacity.toolTip = @"Opacity";
+        self.opacity.translatesAutoresizingMaskIntoConstraints = NO;
+        [self addSubview:self.opacity];
+        [NSLayoutConstraint activateConstraints:@[
+            [self.opacity.leadingAnchor constraintEqualToAnchor:self.name.leadingAnchor],
+            [self.opacity.topAnchor constraintEqualToAnchor:self.thumb.bottomAnchor constant:2],
+            [self.percent.leadingAnchor constraintEqualToAnchor:self.opacity.trailingAnchor constant:6],
+            [self.percent.centerYAnchor constraintEqualToAnchor:self.opacity.centerYAnchor],
+        ]];
+    }
+    self.opacity.hidden = self.percent.hidden = !visible;
     self.opacity.doubleValue = percent;
     // Being typed in: left alone (the editing ends with the value used, shown again then).
     if (!self.percent.editing) self.percent.stringValue = [NSString stringWithFormat:@"%.0f %%", percent];
