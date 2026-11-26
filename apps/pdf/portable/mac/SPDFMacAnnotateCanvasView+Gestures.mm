@@ -74,7 +74,13 @@ static BOOL IsPixelOrShapeTool(SPDFAnnotateTool tool) {
     NSPoint view = [self convertPoint:event.locationInWindow fromView:nil];
     NSInteger found = self.gesture != SPDFAnnotateGestureNone ? self.gesturePage : -1;
     NSPoint point = NSZeroPoint;
-    if (self.gesture == SPDFAnnotateGestureNone) [self canvasPointForViewPoint:view page:&found canvasPoint:&point];
+    if (self.gesture == SPDFAnnotateGestureNone) {
+        [self canvasPointForViewPoint:view page:&found canvasPoint:&point];
+        // A press or click on a page nothing was added to yet: its canvas opens now, so the gesture has one to preview
+        // on and the operation names that page.
+        if (found >= 0 && self.session.kind == SPDFAnnotateDocumentPDF && ![self docForPage:found])
+            [self.session canvasForPage:found document:[self.controller.host fillDocument] create:YES];
+    }
     NSRect canvas = [self canvasRectForPage:found];
     CGFloat scale = [self scaleForPage:found];
     point = NSMakePoint((view.x - NSMinX(canvas)) / scale, (view.y - NSMinY(canvas)) / scale);

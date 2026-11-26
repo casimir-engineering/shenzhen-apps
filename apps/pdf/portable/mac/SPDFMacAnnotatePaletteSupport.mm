@@ -246,7 +246,8 @@ NSString* SPDFAnnotateUnit(SPDFAnnotateDocumentKind kind) {
 void SPDFAnnotateSend(SPDFMacFillController* controller, NSDictionary* op, void (^completion)(NSDictionary*)) {
     if (!controller || !op) return;
     __weak SPDFMacFillController* weak = controller;
-    [controller applyOperation:op tab:nil completion:^(NSDictionary* result) {
+    // On a PDF every operation that acts on a page names the page in view (Repeat, menus, panels alike).
+    [controller applyOperation:SPDFAnnotateOnCurrentPage(controller, op) tab:nil completion:^(NSDictionary* result) {
       if (completion) completion(result);
       [weak refreshChrome];
     }];

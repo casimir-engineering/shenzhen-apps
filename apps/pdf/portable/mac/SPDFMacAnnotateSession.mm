@@ -333,6 +333,13 @@ NSString* SPDFAnnotateProjectForBackingPath(NSString* path) {
 - (NSDictionary*)readOperation:(NSDictionary*)op page:(NSInteger)page {
     spdf_paint_doc* doc = [self docForPage:page];
     if (!doc) return nil;
+    // The page picked the canvas; the operations that take one name it too (color.pick, doc.render on a PDF page).
+    const spdf_paint_op_info* info = spdf_paint_op_find([op[@"op"] description].UTF8String);
+    if (page >= 0 && info && (info->flags & SPDF_PAINT_OP_NEEDS_PAGE) && !op[@"page"]) {
+        NSMutableDictionary* named = [op mutableCopy];
+        named[@"page"] = @(page + 1);
+        op = named;
+    }
     char* answer = NULL;
     spdf_paint_apply(doc, SPDFAnnotateJSONString(op).UTF8String, &answer);
     return SPDFAnnotateParseAnswer(answer);

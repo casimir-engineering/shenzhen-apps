@@ -183,10 +183,12 @@ static char kSPDFAnnotateZoomContext;
 - (NSRect)canvasRectForPage:(NSInteger)page {
     SPDFDocumentView* view = [self documentView];
     spdf_paint_doc* doc = [self docForPage:page];
-    if (!view || !doc) return NSZeroRect;
+    // A PDF page is its own canvas, in points, before anything opened it (its canvas opens with the first gesture).
+    if (!view || (!doc && page < 0)) return NSZeroRect;
     NSInteger index = page < 0 ? 0 : page;
     if (index >= (NSInteger)view.pages.count) return NSZeroRect;
     NSRect pageRect = [self convertRect:[view rectForPageAtIndex:index] fromView:view];
+    if (!doc) return pageRect;
     int width = 0, height = 0;
     spdf_paint_size(doc, &width, &height);
     if (page >= 0) return pageRect;  // a PDF page canvas is the page, in points
@@ -200,6 +202,8 @@ static char kSPDFAnnotateZoomContext;
     int width = 0, height = 0;
     spdf_paint_size(doc, &width, &height);
     NSRect rect = [self canvasRectForPage:page];
+    SPDFRenderedPage* shown = !doc && page >= 0 && page < (NSInteger)self.documentView.pages.count ? self.documentView.pages[page] : nil;
+    if (shown) width = (int)lround(NSWidth(rect) > NSHeight(rect) != shown.pageWidth > shown.pageHeight ? shown.pageHeight : shown.pageWidth);
     return width > 0 && NSWidth(rect) > 0 ? NSWidth(rect) / width : 1;
 }
 
