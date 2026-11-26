@@ -26,7 +26,11 @@
 // Before the first change of a burst: the owner's permissions, a signed or certified PDF, then a Collection version
 // or a writable copy. fieldValuesOnly: only the PDF's own fields change (no placed items). NO: nothing may change.
 - (BOOL)fillPrepareForChangeOfFieldsOnly:(BOOL)fieldValuesOnly;
-// After a change in the document: saves it and redraws these pages.
+// After a change in the document, first: these pages drawn again from the document in memory, then (once the
+// overlay is up to date) the window shown, so the change is on screen in the next frame.
+- (void)fillShowPagesNow:(NSIndexSet*)pages;
+- (void)fillDisplayNow;
+// Then: saves it and redraws these pages at full quality.
 - (BOOL)fillSaveAndRedrawPages:(NSIndexSet*)pages;
 - (void)fillShowError:(NSString*)title detail:(NSString*)detail;
 - (spdf_document*)fillOpenReadDocumentAtPath:(NSString*)path error:(char*)err length:(size_t)len;

@@ -16,11 +16,12 @@ typedef BOOL (^SPDFFillWrite)(spdf_document* doc, NSMutableIndexSet* pages, char
 #pragma mark - The change cycle
 
 - (BOOL)change:(BOOL)fieldsOnly write:(SPDFFillWrite)write {
-    return [self change:fieldsOnly write:write emptySaves:YES];
+    return [self change:fieldsOnly write:write emptySaves:YES shown:nil];
 }
 
 // emptySaves NO: a write that changed no page (Annotate's write back of a page it left as it was) saves nothing.
-- (BOOL)change:(BOOL)fieldsOnly write:(SPDFFillWrite)write emptySaves:(BOOL)emptySaves {
+// shown: brings what is drawn over the pages up to date (Annotate's canvas) before the change goes on screen.
+- (BOOL)change:(BOOL)fieldsOnly write:(SPDFFillWrite)write emptySaves:(BOOL)emptySaves shown:(void (^)(NSIndexSet*))shown {
     if (self.busy) return NO;
     self.busy = YES;
     BOOL ok = [self.host fillPrepareForChangeOfFieldsOnly:fieldsOnly];
@@ -38,6 +39,11 @@ typedef BOOL (^SPDFFillWrite)(spdf_document* doc, NSMutableIndexSet* pages, char
           (void)stop;
           [self invalidatePage:(NSInteger)page];
         }];
+        // On screen in the next frame, from the document in memory; the save and the sharper redraw follow.
+        [self.host fillShowPagesNow:pages];
+        [self.overlay refresh];
+        if (shown) shown(pages);
+        [self.host fillDisplayNow];
         ok = [self.host fillSaveAndRedrawPages:pages];
         SPDFMacSignatureStore* store = [SPDFMacSignatureStore sharedStore];
         if ([self session].isForm && !store.formHintSeen) store.formHintSeen = YES;

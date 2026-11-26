@@ -390,15 +390,7 @@ BOOL SPDFAnnotateWriteFileAtomically(NSData* data, NSString* path, NSError** err
     return YES;
 }
 
-BOOL SPDFAnnotateWriteToPasteboard(const spdf_bitmap* bitmap, NSPasteboard* pasteboard) {
-    NSData* png = SPDFAnnotateEncodePicture(bitmap, @"png", nil, 0, NULL);
-    NSData* tiff = png ? SPDFAnnotateEncodePicture(bitmap, @"tiff", nil, 0, NULL) : nil;
-    if (!png) return NO;
-    [pasteboard clearContents];
-    [pasteboard setData:png forType:NSPasteboardTypePNG];
-    if (tiff) [pasteboard setData:tiff forType:NSPasteboardTypeTIFF];
-    return YES;
-}
+// SPDFAnnotateWriteToPasteboard: SPDFMacAnnotatePasteboard.mm (a promise, encoded when pasted).
 
 #pragma mark - Fonts
 

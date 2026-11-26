@@ -13,7 +13,8 @@ typedef BOOL (^SPDFAnnotatePDFWrite)(spdf_document* doc, NSMutableIndexSet* page
 
 // SPDFMacFillController+Edits.mm: check, write into the main-thread document, save, redraw the pages in this turn.
 @interface SPDFMacFillController (AnnotatePDFEditsShared)
-- (BOOL)change:(BOOL)fieldsOnly write:(SPDFAnnotatePDFWrite)write emptySaves:(BOOL)emptySaves;
+- (BOOL)change:(BOOL)fieldsOnly write:(SPDFAnnotatePDFWrite)write emptySaves:(BOOL)emptySaves
+         shown:(void (^)(NSIndexSet*))shown;
 @end
 
 // Removes a block observer when the controller goes.
@@ -74,7 +75,10 @@ BOOL SPDFAnnotatePDFCommandIsLocked(NSString* op, spdf_paint_doc* canvas) {
           if (changed) [pages addIndex:page.unsignedIntegerValue];
       }
       return YES;
-    } emptySaves:NO];
+    } emptySaves:NO shown:^(NSIndexSet* pages) {  // the box and handles of a deleted object go in the same frame
+      (void)pages;
+      for (NSNumber* page in canvases) [self.annotateCanvasView canvasDidChangeOnPage:page.integerValue];
+    }];
     if (!ok && error) *error = problem ?: @"The change couldn't be saved.";
     if (ok) for (NSNumber* page in canvases) [self.annotateCanvasView canvasDidChangeOnPage:page.integerValue];
     return ok;

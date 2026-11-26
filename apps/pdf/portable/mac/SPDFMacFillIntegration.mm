@@ -8,6 +8,7 @@
 #import "SPDFMacFillController.h"
 #import "SPDFMacFillOverlayView.h"
 #import "SPDFMacFillPalette.h"
+#import "SPDFMacFillShowFirst.h"
 #import "SPDFMacPageRendering.h"
 #import "SPDFMacViewportRenderPriority.h"
 #import "SPDFMacWorkspaceChrome.h"
@@ -374,16 +375,21 @@ void SPDFFillInstallMenuItems(NSMenu* editMenu, NSMenu* fileMenu, ShenzhenMacDel
     return YES;
 }
 
+- (void)fillShowPagesNow:(NSIndexSet*)pages { [self fillRedrawFromMemoryPages:pages]; }
+- (void)fillDisplayNow { [self fillCommitDisplay]; }
+
 - (BOOL)fillSaveAndRedrawPages:(NSIndexSet*)pages {
     char err[1024] = {0};
     if (!spdf_save_document(_doc, _path.fileSystemRepresentation, err, sizeof(err))) {
+        [self fillForgetShownPages];
         [self showError:@"Couldn't save what you filled in" detail:@(err)];
         return NO;
     }
     [self refreshActiveTabCachedFileAttributesAfterSelfSave];
     [self invalidateCursorRegionCache];
-    // The changed pages are drawn again from the document in memory now, in this turn, so no frame shows the old
-    // value; the sharper viewport tiles follow from the saved file.
+    // The changed pages in view were drawn from the document in memory and shown before the save
+    // (SPDFMacFillShowFirst.h); the others are drawn again now, in this turn, and the sharper viewport tiles follow
+    // from the saved file.
     __block BOOL needsFullRender = NO;
     CGFloat scale = [self backingScale];
     NSInteger preferred = -1;
@@ -392,9 +398,11 @@ void SPDFFillInstallMenuItems(NSMenu* editMenu, NSMenu* fileMenu, ShenzhenMacDel
       (void)stop;
       if (index >= self->_renderedPages.count) return;
       SPDFRenderedPage* old = self->_renderedPages[index];
+      if ([self fillPageShownWhole:index]) return;  // drawn whole from memory before the save (SPDFMacFillShowFirst.h)
       // A page not drawn yet and not in view renders from the saved file when shown.
       if (!old.image && !old.viewportImage && ![visible containsObject:@(index)]) return;
       if (![self fullPageRenderAllowedForPage:old zoom:self->_zoom displayScale:scale]) {
+          if ([self fillPageShownInView:index]) return;  // its part in view is drawn; the sharper crops follow below
           needsFullRender = YES;
           return;
       }
@@ -411,6 +419,7 @@ void SPDFFillInstallMenuItems(NSMenu* editMenu, NSMenu* fileMenu, ShenzhenMacDel
       [self->_renderedPages replaceObjectAtIndex:index withObject:page];
       [self->_pageView refreshRenderedPages:self->_renderedPages changedPageIndex:(NSInteger)index];
     }];
+    [self fillForgetShownPages];
     if (needsFullRender) {
         [self rerenderDocumentAfterEditOfPages:pages
                                  restoreOrigin:[NSValue valueWithPoint:_pageScrollView.contentView.bounds.origin]];

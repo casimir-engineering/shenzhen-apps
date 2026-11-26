@@ -54,7 +54,7 @@ FOUNDATION_EXPORT NSData* _Nullable SPDFAnnotateEncodePicture(const spdf_bitmap*
 // Writes data to a temporary file in path's folder and swaps it in (as SPDFRotateImageAtPath does), keeping the
 // file's permissions; NO with error, the original untouched.
 FOUNDATION_EXPORT BOOL SPDFAnnotateWriteFileAtomically(NSData* data, NSString* path, NSError** error);
-// Copy, cut and Copy to file: PNG and TIFF of the bitmap on the pasteboard.
+// Copy and Cut: PNG and TIFF of the bitmap on the pasteboard, encoded when pasted (SPDFMacAnnotatePasteboard.mm).
 FOUNDATION_EXPORT BOOL SPDFAnnotateWriteToPasteboard(const spdf_bitmap* bitmap, NSPasteboard* pasteboard);
 
 // Save As choices, in the order the Save panel lists them: {"format": "png", "title": "PNG", "extension": "png",

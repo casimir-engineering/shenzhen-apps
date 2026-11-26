@@ -239,11 +239,15 @@ void SPDFAnnotatePrepareInput(NSDictionary* op, SPDFMacAnnotateSession* session,
             completion(SPDFAnnotateErrorAnswer(@"cancelled", @"This document can't be changed right now."));
             return;
         }
+        NSInteger page = session.kind == SPDFAnnotateDocumentPDF ? session.currentPage : -1;
+        int width = 0, height = 0, newWidth = 0, newHeight = 0;  // only a size undone redraws every tile
+        spdf_paint_size([session canvasForPage:page document:NULL create:NO], &width, &height);
         NSDictionary* result = undo ? [session undo:steps] : [session redo:steps];
         if (pdf)  // the pages undone are written back as annotations, in one save (pages left as they were: none)
             [self annotateWritePDFPages:[self annotateCanvasesOfPages:session.openPages] error:NULL];
-        [view canvasSizeDidChange];
-        [view canvasDidChangeOnPage:session.kind == SPDFAnnotateDocumentPDF ? session.currentPage : -1];
+        spdf_paint_size([session canvasForPage:page document:NULL create:NO], &newWidth, &newHeight);
+        if (newWidth != width || newHeight != height) [view canvasSizeDidChange];
+        [view canvasDidChangeOnPage:page];
         if (active) [self.host fillStateDidChange];
         completion(result);
         return;

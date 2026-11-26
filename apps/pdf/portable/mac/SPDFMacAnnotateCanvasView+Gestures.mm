@@ -350,6 +350,7 @@ static BOOL IsPixelOrShapeTool(SPDFAnnotateTool tool) {
     BOOL right = self.rightButton;
     if (gesture != SPDFAnnotateGesturePolygon && gesture != SPDFAnnotateGestureCurve)
         self.gesture = SPDFAnnotateGestureNone;
+    self.needsDisplay = YES;  // a change on a PDF page shows before this returns: the gesture's preview goes with it
     __weak SPDFMacAnnotateCanvasView* weakSelf = self;
     void (^selectAnswer)(NSDictionary*) = ^(NSDictionary* result) {
         if ([result[@"ok"] boolValue] && result[@"id"]) weakSelf.session.selectedObjects = @[result[@"id"]];
