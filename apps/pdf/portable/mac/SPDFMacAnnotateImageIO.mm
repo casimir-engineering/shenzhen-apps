@@ -203,20 +203,33 @@ SPDFAnnotatePicture* SPDFAnnotateDecodePictureData(NSData* data, NSError** error
     return picture;
 }
 
+// A picture file copied in Finder comes first: Finder also puts the file's icon on the pasteboard as TIFF.
+static NSArray<NSURL*>* PictureFiles(NSPasteboard* pasteboard) {
+    NSMutableArray* files = [NSMutableArray array];
+    for (NSURL* url in [pasteboard readObjectsForClasses:@[NSURL.class] options:@{NSPasteboardURLReadingFileURLsOnlyKey: @YES}])
+        if (SPDFAnnotateDocumentKindForPath(url.path) == SPDFAnnotateDocumentPicture) [files addObject:url];
+    return files;
+}
+
+static NSArray<NSPasteboardType>* PictureTypes(void) {
+    return @[NSPasteboardTypePNG, NSPasteboardTypeTIFF, @"public.jpeg", @"public.heic"];
+}
+
 SPDFAnnotatePicture* SPDFAnnotatePictureFromPasteboard(NSPasteboard* pasteboard) {
-    for (NSPasteboardType type in @[NSPasteboardTypePNG, NSPasteboardTypeTIFF, @"public.jpeg", @"public.heic"]) {
+    for (NSURL* url in PictureFiles(pasteboard)) {
+        SPDFAnnotatePicture* picture = SPDFAnnotateDecodePicture(url.path, NULL);
+        if (picture) return picture;
+    }
+    for (NSPasteboardType type in PictureTypes()) {
         NSData* data = [pasteboard dataForType:type];
         SPDFAnnotatePicture* picture = data ? SPDFAnnotateDecodePictureData(data, NULL) : nil;
         if (picture) return picture;
     }
-    NSArray<NSURL*>* urls = [pasteboard readObjectsForClasses:@[NSURL.class]
-                                                      options:@{NSPasteboardURLReadingFileURLsOnlyKey: @YES}];
-    for (NSURL* url in urls)
-        if (SPDFAnnotateDocumentKindForPath(url.path) == SPDFAnnotateDocumentPicture) {
-            SPDFAnnotatePicture* picture = SPDFAnnotateDecodePicture(url.path, NULL);
-            if (picture) return picture;
-        }
     return nil;
+}
+
+BOOL SPDFAnnotatePasteboardHasPicture(NSPasteboard* pasteboard) {
+    return [pasteboard availableTypeFromArray:PictureTypes()] != nil || PictureFiles(pasteboard).count > 0;
 }
 
 #pragma mark - Encoding

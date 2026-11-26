@@ -102,7 +102,7 @@ static NSMenu* SPDFAnnotateSelectionContextMenu(SPDFMacFillController* c) {
 
 static NSMenu* SPDFAnnotateCanvasMenu(SPDFMacFillController* c) {
     NSMenu* menu = [[NSMenu alloc] initWithTitle:@"Canvas"];
-    ITEM(@"Paste", @"", 0, (@{@"op" : @"picture.add", @"clipboard" : @YES}));
+    ITEM(@"Paste", @"", 0, SPDFAnnotatePastePayload());
     ITEM(@"Select All", @"", 0, @{@"op" : @"select.all"});
     ITEM(@"New Layer", @"", 0, @{@"op" : @"layer.add"});
     [menu addItem:[NSMenuItem separatorItem]];

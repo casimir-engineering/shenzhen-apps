@@ -124,6 +124,8 @@ FOUNDATION_EXPORT NSMenuItem* SPDFAnnotateItem(NSString* title, NSString* key, N
                                                ShenzhenMacDelegate* _Nullable reader);
 // Carries out a payload as an item would (palette buttons, keys).
 FOUNDATION_EXPORT void SPDFAnnotatePerform(SPDFMacFillController* controller, id payload);
+// Paste: the clipboard's picture as a Picture object, then the Select tool, so it can be moved and resized (Paint).
+FOUNDATION_EXPORT NSArray* SPDFAnnotatePastePayload(void);
 // Whether an item's payload can run now; *tooltip gets "The page itself can't be changed." when the reason is the page.
 FOUNDATION_EXPORT BOOL SPDFAnnotatePayloadEnabled(SPDFMacFillController* _Nullable controller, id payload,
                                                   NSString* _Nullable* _Nullable tooltip);

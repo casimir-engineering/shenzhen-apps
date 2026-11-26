@@ -151,6 +151,10 @@ NSImage* SPDFAnnotateSymbol(NSString* symbol, NSString* label) {
     return SPDFAnnotateSymbolImage(symbol, label);
 }
 
+NSArray* SPDFAnnotatePastePayload(void) {
+    return @[ @{@"op" : @"picture.add", @"clipboard" : @YES}, @{@"op" : @"tool.choose", @"tool" : @"select"} ];
+}
+
 NSString* SPDFAnnotateToolTip(SPDFAnnotateEntry* tool, NSString* key) {
     NSString* name = key.length ? [NSString stringWithFormat:@"%@ (%@)", tool.label, key] : tool.label ?: @"";
     return tool.hint.length ? [NSString stringWithFormat:@"%@\n%@", name, tool.hint] : name;

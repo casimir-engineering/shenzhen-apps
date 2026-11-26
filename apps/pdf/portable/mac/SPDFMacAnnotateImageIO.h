@@ -42,6 +42,8 @@ FOUNDATION_EXPORT SPDFAnnotatePicture* _Nullable SPDFAnnotateDecodePicture(NSStr
 FOUNDATION_EXPORT SPDFAnnotatePicture* _Nullable SPDFAnnotateDecodePictureData(NSData* data, NSError** error);
 // The first picture on a pasteboard, or nil.
 FOUNDATION_EXPORT SPDFAnnotatePicture* _Nullable SPDFAnnotatePictureFromPasteboard(NSPasteboard* pasteboard);
+// A picture (data, or a picture file copied in Finder) is on the pasteboard: Paste can make a Picture object.
+FOUNDATION_EXPORT BOOL SPDFAnnotatePasteboardHasPicture(NSPasteboard* pasteboard);
 
 // Encodes premultiplied RGBA (spdf_paint_flatten's bitmap) as `format` (a UTI, or doc.save_as's name: "png", "jpeg",
 // "heic", "tiff", "bmp", "gif"), with `properties` (metadata, orientation reset to up) and the colour profile. JPEG

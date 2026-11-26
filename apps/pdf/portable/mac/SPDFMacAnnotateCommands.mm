@@ -119,7 +119,7 @@ static void SPDFAnnotateRunCommand(SPDFMacFillController* c, NSString* command) 
         panel.allowedContentTypes = @[ UTTypeImage ];
         [panel beginSheetModalForWindow:window completionHandler:^(NSModalResponse response) {
           if (response != NSModalResponseOK) return;
-          SPDFAnnotateSend(c, SPDFAnnotateOnCurrentPage(c, @{@"op" : @"picture.add", @"path" : panel.URL.path}), nil);
+          SPDFAnnotatePerform(c, @[ @{@"op" : @"picture.add", @"path" : panel.URL.path}, @{@"op" : @"tool.choose", @"tool" : @"select"} ]);
         }];
     } else {
         SPDFAnnotateFileCommand(SPDFAnnotateReaderFor(c), command);
@@ -347,7 +347,7 @@ NSMenu* SPDFAnnotateSelectionMenu(SPDFMacFillController* controller, ShenzhenMac
     [menu addItem:[NSMenuItem separatorItem]];
     ITEM(@"Cut", @"x", kCmd, SPDFAnnotateCommandCut);
     ITEM(@"Copy", @"c", kCmd, (@{@"op" : @"doc.copy", @"scope" : @"auto"}));
-    ITEM(@"Paste", @"v", kCmd, (@{@"op" : @"picture.add", @"clipboard" : @YES}));
+    ITEM(@"Paste", @"v", kCmd, SPDFAnnotatePastePayload());
     ITEM(@"Paste from file…", @"V", kCmd | kShift | kOpt, SPDFAnnotateCommandPasteFromFile);
     ITEM(@"Copy to file…", @"", 0, SPDFAnnotateCommandCopyToFile);
     return menu;

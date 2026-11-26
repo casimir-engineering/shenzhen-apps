@@ -128,8 +128,8 @@ are greyed out, with a tooltip "The page itself can't be changed."
 | Transparent selection (toggle) | When on, pixels equal to Color 2 are left behind when a selection is lifted (classic "Draw Opaque" off) |
 | Crop to selection (⇧⌘X) | Canvas becomes the selection's bounding box; objects keep their place relative to it |
 | Esc | Deselect; a lifted selection stays an object |
-| Copy / Cut / Paste (⌘C / ⌘X / ⌘V) | Copy puts the selection (or the selected object, flattened) on the clipboard as PNG and TIFF. Paste makes a Picture object at the top-left of the visible area, selected, ready to drag. A pasted picture larger than the canvas asks "Make the canvas bigger to fit?" (Yes / No), as Paint |
-| Paste from file… (⇧⌥⌘V) / drop a picture file | A Picture object |
+| Copy / Cut / Paste (⌘C / ⌘X / ⌘V) | Copy puts the selection (or the selected object, flattened) on the clipboard as PNG and TIFF. Paste makes a Picture object centred in the part of the page or picture in view, shrunk to fit 90 % of it (never enlarged), selected with its handles, and chooses the Select tool so it can be dragged and resized (Paint). It works whatever tool is chosen, on a PDF too, whenever the clipboard holds a picture: PNG, TIFF, JPEG or HEIC data, or a picture file copied in Finder (its contents, not its icon). A picture added with no box by any route (picture.add without `rect`, from the app) is placed the same way. A pasted picture larger than the canvas asks "Make the canvas bigger to fit?" (Yes / No), as Paint |
+| Paste from file… (⇧⌥⌘V) / drop a picture file | A Picture object; a dropped one centred where it was dropped (other files dropped on the page still open as documents) |
 | Copy to file… | Saves the selection as PNG |
 
 Selection handles resize the selection's pixels once lifted (it is an object then). A selection and an object both

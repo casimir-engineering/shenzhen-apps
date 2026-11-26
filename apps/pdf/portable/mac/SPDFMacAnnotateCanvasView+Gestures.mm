@@ -76,6 +76,9 @@ static BOOL IsPixelOrShapeTool(SPDFAnnotateTool tool) {
     NSPoint point = NSZeroPoint;
     if (self.gesture == SPDFAnnotateGestureNone) {
         [self canvasPointForViewPoint:view page:&found canvasPoint:&point];
+        // A handle of an object hanging over the page's edge, pressed off the page: the selection's page.
+        if (found < 0 && self.session.selectedObjects.count && [self objectHandleAt:view] >= 0)
+            found = self.session.kind == SPDFAnnotateDocumentPDF ? [self pageInView] : -1;
         // A press or click on a page nothing was added to yet: its canvas opens now, so the gesture has one to preview
         // on and the operation names that page.
         if (found >= 0 && self.session.kind == SPDFAnnotateDocumentPDF && ![self docForPage:found])

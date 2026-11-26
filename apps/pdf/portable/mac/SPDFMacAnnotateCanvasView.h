@@ -59,6 +59,10 @@ FOUNDATION_EXPORT NSNotificationName const SPDFAnnotateCanvasPointerDidMoveNotif
 // canvas use it too, so every tracking area over the page agrees.
 - (NSCursor*)cursorAtWindowPoint:(NSPoint)windowPoint;
 
+// Where a picture of this natural size (canvas units) goes when added with no box: centred in the part of the page or
+// picture in view, scaled down (never up) to fit 90 % of it. NSZeroRect when the page isn't in view.
+- (NSRect)placementForSize:(NSSize)size page:(NSInteger)page;
+
 // On a PDF: the page last touched if it shows, else the one showing most (what a key or a menu acts on).
 - (NSInteger)pageInView;
 

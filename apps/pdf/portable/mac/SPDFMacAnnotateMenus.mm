@@ -10,6 +10,7 @@
 #import <objc/runtime.h>
 
 #import "SPDFMacAnnotateCanvasView.h"
+#import "SPDFMacAnnotateImageIO.h"
 #import "SPDFMacAnnotatePaletteSupport.h"
 #import "SPDFMacFillController+Annotate.h"
 #import "SPDFMacFillOverlayView.h"
@@ -47,7 +48,12 @@ static BOOL SPDFAnnotateTakesEdits(SPDFMacFillController* controller, SEL action
     SPDFAnnotateDocumentKind kind = SPDFAnnotateCurrentKind(controller);
     if (kind == SPDFAnnotateDocumentNone || kind == SPDFAnnotateDocumentText) return NO;
     if (action == @selector(undo:) || action == @selector(redo:)) return YES;  // one undo stack per tab
-    NSString* tool = SPDFAnnotateChosenToolName(SPDFAnnotateCurrentSession(controller, NO));
+    SPDFMacAnnotateSession* session = SPDFAnnotateCurrentSession(controller, NO);
+    // Whatever tool is chosen: a picture on the clipboard is pasted as a Picture object, and Annotate's selected
+    // objects are what Copy and Cut take (the page's text is copied with nothing of Annotate's selected).
+    if (action == @selector(paste:) && SPDFAnnotatePasteboardHasPicture(NSPasteboard.generalPasteboard)) return YES;
+    if ((action == @selector(copy:) || action == @selector(cut:)) && session.selectedObjects.count) return YES;
+    NSString* tool = SPDFAnnotateChosenToolName(session);
     NSSet* fillTools = [NSSet setWithArray:@[ @"form_text", @"form_mark", @"form_signature", @"pen", @"arrow", @"select", @"" ]];
     return kind != SPDFAnnotateDocumentPDF || ![fillTools containsObject:tool];
 }
@@ -55,7 +61,7 @@ static BOOL SPDFAnnotateTakesEdits(SPDFMacFillController* controller, SEL action
 static id SPDFAnnotateEditPayload(SEL action) {
     if (action == @selector(copy:)) return @{@"op" : @"doc.copy", @"scope" : @"auto"};
     if (action == @selector(cut:)) return SPDFAnnotateCommandCut;
-    if (action == @selector(paste:)) return @{@"op" : @"picture.add", @"clipboard" : @YES};
+    if (action == @selector(paste:)) return SPDFAnnotatePastePayload();
     if (action == @selector(selectAll:)) return @{@"op" : @"select.all"};
     if (action == @selector(undo:)) return @{@"op" : @"history.undo"};
     if (action == @selector(redo:)) return @{@"op" : @"history.redo"};
@@ -82,7 +88,7 @@ BOOL SPDFAnnotatePerformEditAction(SEL action, SPDFMacFillController* controller
     SPDFMacFillController* controller = [self.reader existingFillController];
     if (action && SPDFAnnotateTakesEdits(controller, action)) {
         if (action == @selector(paste:))
-            return [NSPasteboard.generalPasteboard canReadObjectForClasses:@[ NSImage.class ] options:nil];
+            return SPDFAnnotatePasteboardHasPicture(NSPasteboard.generalPasteboard);
         return SPDFAnnotatePayloadEnabled(controller, SPDFAnnotateEditPayload(action), NULL);
     }
     if (!action) return NO;

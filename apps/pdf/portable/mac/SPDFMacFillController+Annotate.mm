@@ -146,7 +146,23 @@ static char kSPDFAnnotateCanvasViewKey;
     }
     __weak SPDFMacFillController* weakSelf = self;
     void (^apply)(const spdf_paint_apply_input*) = ^(const spdf_paint_apply_input* input) {
-        NSDictionary* result = [session applyCanvasOperation:op page:page input:input];
+        SPDFMacFillController* placing = weakSelf;
+        NSDictionary* sent = op;
+        // A picture given no box: centred in the part of the page or picture in view, shrunk to fit it.
+        if ([op[@"op"] isEqual:@"picture.add"] && !op[@"rect"] && input && input->picture && placing &&
+            placing.annotateCanvasView.session == session) {
+            CGFloat perUnit = session.kind == SPDFAnnotateDocumentPDF ? 2 : 1;  // a page's added pixels: 2 per point
+            NSSize natural = NSMakeSize(input->picture->width / perUnit, input->picture->height / perUnit);
+            NSRect box = [placing.annotateCanvasView placementForSize:natural page:page];
+            if (!NSIsEmptyRect(box)) {
+                NSMutableDictionary* placed = [op mutableCopy];
+                placed[@"rect"] = @{@"x": @(NSMinX(box)), @"y": @(NSMinY(box)), @"w": @(NSWidth(box)), @"h": @(NSHeight(box))};
+                sent = placed;
+            }
+        }
+        NSDictionary* result = [session applyCanvasOperation:sent page:page input:input];
+        if ([op[@"op"] isEqual:@"picture.add"] && [result[@"ok"] boolValue] && result[@"id"])
+            session.selectedObjects = @[result[@"id"]];  // selected, its handles showing
         SPDFMacFillController* me = weakSelf;
         if (pdfChange && [result[@"ok"] boolValue] && me) {
             NSString* problem = nil;

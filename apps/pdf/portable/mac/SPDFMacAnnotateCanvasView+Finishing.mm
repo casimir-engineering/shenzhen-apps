@@ -139,6 +139,19 @@ static NSCursor* SPDFAnnotateResizeCursor(NSInteger handle) {
     return best;
 }
 
+- (NSRect)placementForSize:(NSSize)size page:(NSInteger)page {
+    NSRect canvas = [self canvasRectForPage:page];
+    CGFloat scale = [self scaleForPage:page];
+    NSRect seen = NSIntersectionRect(canvas, self.visibleRect);
+    if (NSIsEmptyRect(seen) || scale <= 0 || size.width <= 0 || size.height <= 0) return NSZeroRect;
+    NSRect area = NSMakeRect((NSMinX(seen) - NSMinX(canvas)) / scale, (NSMinY(seen) - NSMinY(canvas)) / scale,
+                             NSWidth(seen) / scale, NSHeight(seen) / scale);
+    CGFloat fit = MIN(1, MIN(NSWidth(area) * 0.9 / size.width, NSHeight(area) * 0.9 / size.height));
+    NSSize placed = NSMakeSize(MAX(1, size.width * fit), MAX(1, size.height * fit));
+    return NSMakeRect(round((NSMidX(area) - placed.width / 2) * 100) / 100, round((NSMidY(area) - placed.height / 2) * 100) / 100,
+                      placed.width, placed.height);
+}
+
 #pragma mark - Pointer
 
 - (BOOL)takesSelectPressAt:(NSPoint)viewPoint {
