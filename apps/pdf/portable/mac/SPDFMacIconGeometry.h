@@ -13,14 +13,25 @@ static const CGFloat SPDFToolbarSymbolPointSize = 13;
 
 // A symbol with one configuration: point size, weight, medium scale and a single colour. Each call to
 // -imageWithSymbolConfiguration: replaces the previous configuration, so applying a size and then a colour separately
-// silently drops the size; everything goes in at once here. A non-symbol image (a drawing handler) comes back as is.
+// silently drops the size; everything goes in at once here. A non-symbol image (a drawing handler) keeps its size and
+// is painted in the same colour, so it matches the symbols beside it in light and dark.
 static inline NSImage* SPDFChromeSymbolImage(NSImage* source, CGFloat pointSize, NSFontWeight weight, NSColor* color) {
     if (!source) return nil;
     NSImageSymbolConfiguration* configuration = [NSImageSymbolConfiguration configurationWithPointSize:pointSize
         weight:weight scale:NSImageSymbolScaleMedium];
     if (color) configuration = [configuration configurationByApplyingConfiguration:
         [NSImageSymbolConfiguration configurationWithPaletteColors:@[color]]];
-    return [source imageWithSymbolConfiguration:configuration] ?: source;
+    NSImage* symbol = [source imageWithSymbolConfiguration:configuration];
+    // A drawn image is handed back unchanged (the same object), never recoloured.
+    if ((symbol && symbol != source) || !color) return symbol ?: source;
+    NSImage* tinted = [NSImage imageWithSize:source.size flipped:NO drawingHandler:^BOOL(NSRect rect) {
+        [source drawInRect:rect];
+        [color set];
+        NSRectFillUsingOperation(rect, NSCompositingOperationSourceAtop);
+        return YES;
+    }];
+    tinted.accessibilityDescription = source.accessibilityDescription;
+    return tinted;
 }
 
 static inline NSImage* SPDFChromeSymbol(NSString* name, CGFloat pointSize, NSFontWeight weight, NSColor* color) {
