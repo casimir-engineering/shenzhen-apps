@@ -53,6 +53,8 @@ static char kSPDFAnnotateForwardingKey;  // the gesture in progress went to the 
     NSPoint point = [self convertPoint:event.locationInWindow fromView:nil];
     NSInteger page;
     if (!view || ![self locateViewPoint:point page:&page pagePoint:NULL]) return NO;
+    // Select pressed where none of Annotate's objects is (those go to the canvas view): Annotate's selection ends too.
+    if (!right && session.tool == SPDFAnnotateToolSelect && session.selectedObjects.count) session.selectedObjects = @[];
     if (!right && ![view takesEventsForTool:session.tool]) return NO;
     if (right && (session.tool == SPDFAnnotateToolFormText || session.tool == SPDFAnnotateToolFormMark ||
                   session.tool == SPDFAnnotateToolFormSignature))

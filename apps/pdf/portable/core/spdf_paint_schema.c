@@ -157,7 +157,7 @@ const char spdf_paint_schema_drawing_text[] = SPDF_JSON(
     "properties": {"id": {"$ref": "#/$defs/id"}, "ids": {"$ref": "#/$defs/ids"},
       "dx": {"type": "number"}, "dy": {"type": "number"}}},
   "object.transform": {"required": ["id"],
-    "properties": {"id": {"$ref": "#/$defs/id"}, "rect": {"$ref": "#/$defs/rect"},
+    "properties": {"id": {"$ref": "#/$defs/id"}, "rect": {"$ref": "#/$defs/rect", "description": "the new box: moves and resizes it, lines and points scaled into it, a text box's text reflowed; w and h in the old box's proportions keep its shape"},
       "rotation": {"type": "number", "description": "degrees, clockwise"},
       "flip": {"enum": ["horizontal", "vertical"]}}},
   "object.order": {"x-anyOf": "idOrIds", "required": ["to"],

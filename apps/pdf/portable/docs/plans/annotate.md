@@ -208,9 +208,14 @@ Colors… write and read a palette (`.json` and Paint/RIFF `.pal`). Every colour
 ## 3. Objects and depth
 
 - An object is selected by clicking it with the Selection tool (or any shape tool, or by its Layers row). A selected
-  object shows its box, eight handles and a rotation handle; drag to move, handles to resize (Shift keeps ratio),
-  rotation handle to rotate (Shift: 15° steps). Double-click edits a text box, a curve's points or a polygon's
-  corners.
+  object shows its box, eight handles and a rotation handle; drag to move, handles to resize, rotation handle to rotate
+  (Shift: 15° steps). Resizing keeps the proportions unless Shift is held (a corner keeps the opposite corner in place,
+  an edge the opposite edge, centred across; a line flat in one direction has no proportions to keep). Every object
+  resizes: shapes, text boxes (the text reflows in the new box), pictures (pasted, inserted or lifted), pen lines and
+  arrows, on pictures, canvases and PDF pages; several selected objects resize together, keeping their places in the
+  box around them. One resize is one `object.transform` with the new `rect`, undone in one step, and agents resize the
+  same way. On a PDF, Select is Fill & Sign's for its own items and Annotate's for shapes, text boxes, pictures and pen
+  lines. Double-click edits a text box, a curve's points or a polygon's corners.
 - Right-click an object: **Bring to Front** (⌥⌘]), **Bring Forward** (⌘]), **Send Backward** (⌘[), **Send to Back**
   (⌥⌘[), Merge Down (into the layer below it; becomes pixels), Duplicate (⌘D), Delete, Flip Horizontal, Flip Vertical,
   Rotate Right, Rotate Left, Outline ▸ / Fill ▸ / Size ▸ (shapes), Edit Text (text), Copy, Cut.

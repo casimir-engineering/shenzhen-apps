@@ -126,8 +126,8 @@ static char kSPDFAnnotateZoomContext;
 // Events go to the overlay below whenever the tool is one of Fill & Sign's own on a PDF.
 - (NSView*)hitTest:(NSPoint)point {
     if (self.hidden || !self.session || self.holdsLastFrame) return nil;
-    if (![self takesEventsForTool:self.session.tool]) return nil;
-    return [super hitTest:point];
+    BOOL takes = [self takesEventsForTool:self.session.tool] || [self takesSelectPressAt:[self convertPoint:point fromView:self.superview]];
+    return takes ? [super hitTest:point] : nil;
 }
 
 - (BOOL)takesEventsForTool:(SPDFAnnotateTool)tool {
@@ -284,8 +284,7 @@ static char kSPDFAnnotateZoomContext;
         [self dropTilesOnPage:page inRect:NSZeroRect];
         self.needsDisplay = YES;
     }
-    // The box and handles where they were (a deleted object's too) and where they are now.
-    [self setNeedsDisplayInRect:self.shownSelectionRect];
+    [self setNeedsDisplayInRect:self.shownSelectionRect];  // the box and handles where they were, and are now
     self.shownSelectionRect = NSInsetRect([self selectedObjectsViewRect], -24, -36);
     [self setNeedsDisplayInRect:self.shownSelectionRect];
 }
@@ -301,6 +300,7 @@ static char kSPDFAnnotateZoomContext;
     if ((self.gesture == SPDFAnnotateGesturePolygon || self.gesture == SPDFAnnotateGestureCurve) &&
         !(self.session.tool == SPDFAnnotateToolShape && [self.session.shape isEqual:shape]))
         [self cancelGesture];
+    if (self.textEditor && self.session.tool != SPDFAnnotateToolTextBox) [self commitTextEditor];  // as Paint
     [self.window invalidateCursorRectsForView:self];
     self.needsDisplay = YES;
 }
@@ -487,6 +487,7 @@ static void DrawImage(CGContextRef context, CGImageRef image, NSRect rect) {
 
 - (void)operation:(NSDictionary*)op page:(NSInteger)page done:(void (^)(NSDictionary*))done {
     NSMutableDictionary* sent = [op mutableCopy];
+    if (page < 0 && self.session.kind == SPDFAnnotateDocumentPDF) page = [self pageInView];  // a key before any click
     if (page >= 0) sent[@"page"] = @(page + 1);
     [self.controller applyOperation:sent tab:self.session.tab completion:^(NSDictionary* result) {
         if (![result[@"ok"] boolValue] && result[@"message"] && ![result[@"error"] isEqual:@"nothing_selected"])

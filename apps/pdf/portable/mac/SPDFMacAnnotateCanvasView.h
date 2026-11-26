@@ -59,6 +59,9 @@ FOUNDATION_EXPORT NSNotificationName const SPDFAnnotateCanvasPointerDidMoveNotif
 // canvas use it too, so every tracking area over the page agrees.
 - (NSCursor*)cursorAtWindowPoint:(NSPoint)windowPoint;
 
+// On a PDF: the page last touched if it shows, else the one showing most (what a key or a menu acts on).
+- (NSInteger)pageInView;
+
 // Conversions for the status bar and the agents' coordinates: canvas units (px on pictures, pt on PDF pages from the
 // page's top-left as displayed) for a point in this view, and back. NO when the point is on no page.
 - (BOOL)canvasPointForViewPoint:(NSPoint)point page:(NSInteger* _Nullable)page canvasPoint:(NSPoint*)canvasPoint;

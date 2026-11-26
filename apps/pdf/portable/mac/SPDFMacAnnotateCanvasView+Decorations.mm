@@ -156,7 +156,15 @@ static void AddPath(CGContextRef context, NSBezierPath* path) {
 - (NSRect)selectedObjectsViewRect {
     if (!self.session.selectedObjects.count) return NSZeroRect;
     NSInteger page = [self currentPageForDecorations];
-    NSRect bounds = [self boundsOfObjects:self.session.selectedObjects page:page];
+    // The objects' own boxes, so the handles sit on them (what they paint reaches further: a thick outline, a brush's
+    // texture); a turned object's painted bounds, which hold it whole.
+    NSRect bounds = NSZeroRect;
+    for (NSDictionary* object in [self objectsOnPage:page]) {
+        if (![self.session.selectedObjects containsObject:object[@"id"]]) continue;
+        NSRect own = [object[@"rect"] rectValue];
+        BOOL turned = fmod(fabs([object[@"rotation"] doubleValue]), 360) > 0.01;
+        bounds = NSUnionRect(bounds, turned || NSIsEmptyRect(own) ? [object[@"bounds"] rectValue] : own);
+    }
     return NSIsEmptyRect(bounds) ? NSZeroRect : [self viewRectForCanvasRect:bounds page:page];
 }
 
@@ -234,8 +242,18 @@ static void AddPath(CGContextRef context, NSBezierPath* path) {
     if (h == 0 || h == 1 || h == 2) minY += dy;
     if (h == 4 || h == 5 || h == 6) maxY += dy;
     NSRect out = NSMakeRect(MIN(minX, maxX), MIN(minY, maxY), MAX(1, fabs(maxX - minX)), MAX(1, fabs(maxY - minY)));
-    if ((self.gestureModifiers & NSEventModifierFlagShift) && NSWidth(r) > 0 && NSHeight(r) > 0 && h % 2 == 0) {
-        CGFloat ratio = NSWidth(r) / NSHeight(r);
+    // Proportions kept unless Shift is held (a line, flat in one direction, has none to keep). A corner keeps the
+    // opposite corner in place, an edge the opposite edge, centred across.
+    BOOL keep = !(self.gestureModifiers & NSEventModifierFlagShift) && NSWidth(r) >= 2 && NSHeight(r) >= 2;
+    if (!keep) return out;
+    CGFloat ratio = NSWidth(r) / NSHeight(r);
+    if (h == 1 || h == 5) {
+        out.size.width = NSHeight(out) * ratio;
+        out.origin.x = NSMidX(r) - NSWidth(out) / 2;
+    } else if (h == 3 || h == 7) {
+        out.size.height = NSWidth(out) / ratio;
+        out.origin.y = NSMidY(r) - NSHeight(out) / 2;
+    } else {
         if (NSWidth(out) / NSHeight(out) > ratio) out.size.height = NSWidth(out) / ratio;
         else out.size.width = NSHeight(out) * ratio;
         if (h == 0 || h == 6) out.origin.x = maxX - NSWidth(out);

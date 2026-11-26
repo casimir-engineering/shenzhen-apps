@@ -2,6 +2,7 @@
 // The command items and the menus built from them are in SPDFMacAnnotateCommands.mm.
 #import "SPDFMacAnnotatePaletteSupport.h"
 
+#import "SPDFMacAnnotateCanvasView.h"
 #import "SPDFMacAnnotateSymbols.h"
 
 #import "SPDFMacAnnotateIntegration.h"
@@ -274,7 +275,8 @@ NSDictionary* SPDFAnnotateOnCurrentPage(SPDFMacFillController* controller, NSDic
     if (!info || !(info->flags & SPDF_PAINT_OP_NEEDS_PAGE) || op[@"page"]) return op;
     if (SPDFAnnotateCurrentKind(controller) != SPDFAnnotateDocumentPDF) return op;
     SPDFMacAnnotateSession* session = SPDFAnnotateCurrentSession(controller, NO);
-    NSInteger page = session && session.currentPage >= 0 ? session.currentPage : 0;
+    SPDFMacAnnotateCanvasView* view = controller.annotateCanvasView;
+    NSInteger page = view.session == session && session ? [view pageInView] : MAX(0, session.currentPage);
     NSMutableDictionary* paged = [op mutableCopy];
     paged[@"page"] = @(page + 1);
     return paged;

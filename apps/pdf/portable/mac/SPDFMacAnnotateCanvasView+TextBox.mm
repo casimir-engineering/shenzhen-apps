@@ -127,7 +127,7 @@ static NSString* SPDFAnnotateTextBoxFont(NSDictionary* options) {
     } else {
         op[@"op"] = @"text.add";
         op[@"rect"] = SPDFAnnotateRectObject(self.textRect);
-        op[@"color"] = [self colorFor:NO];
+        op[@"color"] = SPDFAnnotateColorString(self.session.color1);  // Color 1, whatever tool closed the box
     }
     __weak SPDFMacAnnotateCanvasView* weakSelf = self;
     [self operation:op page:self.textPage done:^(NSDictionary* result) {

@@ -116,6 +116,10 @@ typedef NS_ENUM(NSInteger, SPDFAnnotateCanvasHandle) {
 
 // +Finishing.mm: the operations a finished gesture or a click sends, the pointer, the keys.
 @interface SPDFMacAnnotateCanvasView (Finishing)
+// Select on a PDF is Fill & Sign's, except on Annotate's own objects (shapes, text boxes, pictures, pen lines) and the
+// handles of what Annotate selected: YES there, so the canvas takes the press.
+- (BOOL)takesSelectPressAt:(NSPoint)viewPoint;
+- (void)resizeSelectionTo:(NSRect)rect page:(NSInteger)page;  // object.transform of each selected object
 - (void)finishStrokeOnPage:(NSInteger)page right:(BOOL)right;
 - (void)finishPolygonOnPage:(NSInteger)page;
 - (void)clickWithTool:(SPDFAnnotateTool)tool at:(NSPoint)point page:(NSInteger)page right:(BOOL)right

@@ -190,6 +190,9 @@ static BOOL IsPixelOrShapeTool(SPDFAnnotateTool tool) {
                 if ([candidate[@"id"] isEqual:session.selectedObjects.firstObject]) object = candidate;
             self.handle = handle;
             NSRect rect = [object[@"rect"] rectValue];
+            if (session.selectedObjects.count > 1)  // the box around their own boxes, which the new one maps onto
+                for (NSDictionary* other in [self objectsOnPage:page])
+                    if ([session.selectedObjects containsObject:other[@"id"]]) rect = NSUnionRect(rect, [other[@"rect"] rectValue]);
             self.originalRect = NSIsEmptyRect(rect) ? [self boundsOfObjects:session.selectedObjects page:page] : rect;
             self.originalRotation = [object[@"rotation"] doubleValue];
             self.gesture = handle == 8 ? SPDFAnnotateGestureRotate : SPDFAnnotateGestureResize;
@@ -437,9 +440,7 @@ static BOOL IsPixelOrShapeTool(SPDFAnnotateTool tool) {
                            page:page done:nil];
             break;
         case SPDFAnnotateGestureResize:
-            if (moved)
-                [self operation:@{@"op": @"object.transform", @"id": session.selectedObjects.firstObject,
-                                  @"rect": SPDFAnnotateRectObject([self resizedRect])} page:page done:nil];
+            if (moved) [self resizeSelectionTo:[self resizedRect] page:page];
             break;
         case SPDFAnnotateGestureRotate:
             if (moved)
