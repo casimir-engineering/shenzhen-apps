@@ -33,6 +33,7 @@ FOUNDATION_EXPORT NSString* SPDFAnnotatePaletteColorName(NSInteger index);  // "
 @property(nonatomic, copy) NSString* label;
 @property(nonatomic, copy) NSString* symbol;
 @property(nonatomic, copy) NSString* key;
+@property(nonatomic, copy) NSString* hint;  // what the tool does, under its name in the tooltip ("" when the name says it)
 @end
 
 FOUNDATION_EXPORT NSArray<SPDFAnnotateEntry*>* SPDFAnnotateTools(void);    // the Tools group, left to right
@@ -45,6 +46,8 @@ FOUNDATION_EXPORT SPDFAnnotateEntry* _Nullable SPDFAnnotateEntryNamed(NSArray<SP
 FOUNDATION_EXPORT NSInteger SPDFAnnotateBrushIndex(NSString* name);
 FOUNDATION_EXPORT NSString* SPDFAnnotateBrushName(NSInteger index);
 FOUNDATION_EXPORT NSImage* _Nullable SPDFAnnotateSymbol(NSString* symbol, NSString* label);
+// "Fill (F)" and, on the next line, what the tool does.
+FOUNDATION_EXPORT NSString* SPDFAnnotateToolTip(SPDFAnnotateEntry* _Nullable tool, NSString* key);
 
 #pragma mark - The document and its session
 

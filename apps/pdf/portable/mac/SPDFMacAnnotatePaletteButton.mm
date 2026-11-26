@@ -1,5 +1,6 @@
 // The Annotate palette's buttons (SPDFMacAnnotatePaletteButton.h).
 #import "SPDFMacAnnotatePaletteButton.h"
+#import "SPDFMacAnnotateSymbols.h"
 
 #import "SPDFMacChromeColors.h"
 #import "SPDFMacCollectionStyle.h"
@@ -170,8 +171,7 @@ static SPDFPaletteButton* SPDFPaletteBaseButton(NSString* label, id target, SEL 
 
 SPDFPaletteButton* SPDFPaletteIconButton(NSString* symbol, NSString* label, id target, SEL action) {
     SPDFPaletteButton* button = SPDFPaletteBaseButton(label, target, action);
-    NSImage* image = [NSImage imageWithSystemSymbolName:symbol accessibilityDescription:label];
-    [image setTemplate:YES];
+    NSImage* image = SPDFAnnotateSymbolImage(symbol, label);
     button.image = image;
     button.imagePosition = NSImageOnly;
     if (!image) button.title = label;  // a symbol this macOS lacks
@@ -188,9 +188,7 @@ SPDFPaletteButton* SPDFPaletteMenuButton(NSString* label, id target, SEL action)
 SPDFPaletteButton* SPDFPaletteTitleButton(NSString* title, NSString* symbol, NSString* label, id target, SEL action) {
     SPDFPaletteButton* button = SPDFPaletteBaseButton(label, target, action);
     if (symbol.length) {
-        NSImage* image = [NSImage imageWithSystemSymbolName:symbol accessibilityDescription:label];
-        [image setTemplate:YES];
-        button.image = image;
+        button.image = SPDFAnnotateSymbolImage(symbol, label);
     }
     button.title = title;
     [button setContentHuggingPriority:NSLayoutPriorityRequired forOrientation:NSLayoutConstraintOrientationHorizontal];

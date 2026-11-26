@@ -2,6 +2,8 @@
 // The command items and the menus built from them are in SPDFMacAnnotateCommands.mm.
 #import "SPDFMacAnnotatePaletteSupport.h"
 
+#import "SPDFMacAnnotateSymbols.h"
+
 #import "SPDFMacAnnotateIntegration.h"
 #import "SPDFMacFillController+Annotate.h"
 #import "SPDFMacModels.h"
@@ -58,6 +60,7 @@ static NSArray<SPDFAnnotateEntry*>* SPDFAnnotateTable(NSArray<NSArray<NSString*>
         entry.label = row[1];
         entry.symbol = row.count > 2 ? row[2] : @"";
         entry.key = row.count > 3 ? row[3] : @"";
+        entry.hint = row.count > 4 ? row[4] : @"";
         [table addObject:entry];
     }
     return table;
@@ -67,11 +70,15 @@ NSArray<SPDFAnnotateEntry*>* SPDFAnnotateTools(void) {
     static NSArray* tools;
     if (!tools)
         tools = SPDFAnnotateTable(@[
-            @[ @"pen", @"Pen", @"pencil.tip", @"P" ], @[ @"arrow", @"Arrow", @"arrow.up.right", @"A" ],
-            @[ @"pencil", @"Pencil", @"pencil", @"N" ], @[ @"fill", @"Fill", @"drop.fill", @"F" ],
-            @[ @"text_box", @"Text box", @"character.textbox", @"⇧T" ], @[ @"eraser", @"Eraser", @"eraser", @"E" ],
-            @[ @"color_picker", @"Color picker", @"eyedropper", @"I" ],
-            @[ @"magnifier", @"Magnifier", @"magnifyingglass", @"Z" ]
+            @[ @"pen", @"Pen", @"pencil.tip", @"P", @"Draws a line you can move or change later." ],
+            @[ @"arrow", @"Arrow", @"arrow.up.right", @"A", @"Drag from the tail to the tip." ],
+            @[ @"pencil", @"Pencil", @"pencil", @"N", @"Draws thin, hard-edged lines." ],
+            @[ @"fill", @"Fill", @"spdf.paintbucket", @"F", @"Click an area to fill it with Color 1, or a shape to fill the shape. "
+                                                             @"Right-click: Color 2." ],
+            @[ @"text_box", @"Text box", @"character.textbox", @"⇧T", @"Click or drag a box, then type." ],
+            @[ @"eraser", @"Eraser", @"eraser", @"E", @"Drag over what you want to remove." ],
+            @[ @"color_picker", @"Color picker", @"eyedropper", @"I", @"Click to take a color as Color 1 (right-click: Color 2)." ],
+            @[ @"magnifier", @"Magnifier", @"magnifyingglass", @"Z", @"Click to zoom in, Option-click to zoom out." ]
         ]);
     return tools;
 }
@@ -140,9 +147,12 @@ NSString* SPDFAnnotateBrushName(NSInteger index) {
 
 NSImage* SPDFAnnotateSymbol(NSString* symbol, NSString* label) {
     if (!symbol.length) return nil;
-    NSImage* image = [NSImage imageWithSystemSymbolName:symbol accessibilityDescription:label];
-    [image setTemplate:YES];
-    return image;
+    return SPDFAnnotateSymbolImage(symbol, label);
+}
+
+NSString* SPDFAnnotateToolTip(SPDFAnnotateEntry* tool, NSString* key) {
+    NSString* name = key.length ? [NSString stringWithFormat:@"%@ (%@)", tool.label, key] : tool.label ?: @"";
+    return tool.hint.length ? [NSString stringWithFormat:@"%@\n%@", name, tool.hint] : name;
 }
 
 #pragma mark - The document and its session

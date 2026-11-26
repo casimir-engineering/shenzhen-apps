@@ -139,7 +139,7 @@ typedef SPDFPaletteButton SPDFAnnotateButton;
     __weak SPDFMacFillController* c = _controller;
     // Selection: the Select tool (pressed again: rectangular, then free-form) and its menu.
     _selectButton = [self button:@"cursorarrow" label:@"Select (S)" payload:nil];
-    NSView* selection = [self split:_selectButton label:@"Selection"
+    NSView* selection = [self split:_selectButton label:@"Selection tools and commands"
                                menu:^NSMenu* { return SPDFAnnotateSelectionMenu(c, nil); }];
     _selection = [self group:@"Selection" full:selection compact:nil menu:^NSMenu* { return SPDFAnnotateSelectionMenu(c, nil); }];
     // Image: Crop, Resize and skew, Rotate, Flip, and the rest in its menu.
@@ -154,13 +154,13 @@ typedef SPDFPaletteButton SPDFAnnotateButton;
     _imageButtons = [_imageButtons arrayByAddingObject:[self menuButton:@"ellipsis.circle" label:@"More image commands"
                                                                    menu:imageMenu]];
     _image = [self group:@"Image" full:[self stack:_imageButtons]
-                 compact:[self split:[self menuButton:@"photo" label:@"Image" menu:imageMenu] label:@"Image" menu:imageMenu]
+                 compact:[self split:[self menuButton:@"photo" label:@"Image commands" menu:imageMenu] label:@"Image commands" menu:imageMenu]
                     menu:imageMenu];
     // Tools: Pen, Arrow, Pencil, Fill, Text box, Eraser, Color picker, Magnifier.
     NSMutableDictionary* tools = [NSMutableDictionary dictionary];
     NSMutableArray* toolViews = [NSMutableArray array];
     for (SPDFAnnotateEntry* tool in SPDFAnnotateTools()) {
-        NSString* tip = [NSString stringWithFormat:@"%@ (%@)", tool.label, tool.key];
+        NSString* tip = SPDFAnnotateToolTip(tool, tool.key);
         SPDFAnnotateButton* b = [self button:tool.symbol label:tip payload:@{@"op" : @"tool.choose", @"tool" : tool.name}];
         b.accessibilityLabel = tool.label;
         tools[tool.name] = b;
@@ -170,15 +170,15 @@ typedef SPDFPaletteButton SPDFAnnotateButton;
     NSMenu* (^toolsMenu)(void) = ^NSMenu* { return SPDFAnnotateToolsMenu(c, nil); };
     _toolsCompact = [self menuButton:@"pencil.tip" label:@"Tools" menu:toolsMenu];
     _tools = [self group:@"Tools" full:[self stack:toolViews]
-                 compact:[self split:_toolsCompact label:@"Tools" menu:toolsMenu]
+                 compact:[self split:_toolsCompact label:@"All tools" menu:toolsMenu]
                     menu:toolsMenu];
     // Brushes and Shapes: the last one used, and the menu of all of them.
     _brushButton = [self button:@"paintbrush.pointed" label:@"Brush (B)" payload:nil];
-    _brushes = [self group:@"Brushes" full:[self split:_brushButton label:@"Brushes"
+    _brushes = [self group:@"Brushes" full:[self split:_brushButton label:@"All brushes"
                                                    menu:^NSMenu* { return SPDFAnnotateBrushMenu(c, nil); }]
                    compact:nil menu:^NSMenu* { return SPDFAnnotateBrushMenu(c, nil); }];
     _shapeButton = [self button:@"rectangle" label:@"Shapes (U)" payload:nil];
-    _shapes = [self group:@"Shapes" full:[self split:_shapeButton label:@"Shapes"
+    _shapes = [self group:@"Shapes" full:[self split:_shapeButton label:@"All shapes"
                                                  menu:^NSMenu* { return SPDFAnnotateShapeMenu(c, nil); }]
                   compact:nil menu:^NSMenu* { return SPDFAnnotateShapeMenu(c, nil); }];
     // Colors: Color 1 / Color 2, the palette and the custom colours; narrow, the swatches and a menu.
@@ -337,7 +337,8 @@ static CGFloat SPDFGroupWidth(CGFloat buttons) {
         b.enabled = on;
     }
     SPDFAnnotateButton* textBox = _toolButtons[@"text_box"];
-    textBox.toolTip = _kind == SPDFAnnotateDocumentPDF ? @"Text box (⇧T)" : @"Text box (T)";
+    textBox.toolTip = SPDFAnnotateToolTip(SPDFAnnotateEntryNamed(SPDFAnnotateTools(), @"text_box"),
+                                          _kind == SPDFAnnotateDocumentPDF ? @"⇧T" : @"T");
     SPDFAnnotateEntry* current = SPDFAnnotateEntryNamed(SPDFAnnotateTools(), chosen);
     _toolsCompact.image = SPDFAnnotateSymbol(current.symbol ?: @"pencil.tip", @"Tools");
     _toolsCompact.state = current ? NSControlStateValueOn : NSControlStateValueOff;
