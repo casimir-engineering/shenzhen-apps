@@ -16,6 +16,11 @@ typedef BOOL (^SPDFFillWrite)(spdf_document* doc, NSMutableIndexSet* pages, char
 #pragma mark - The change cycle
 
 - (BOOL)change:(BOOL)fieldsOnly write:(SPDFFillWrite)write {
+    return [self change:fieldsOnly write:write emptySaves:YES];
+}
+
+// emptySaves NO: a write that changed no page (Annotate's write back of a page it left as it was) saves nothing.
+- (BOOL)change:(BOOL)fieldsOnly write:(SPDFFillWrite)write emptySaves:(BOOL)emptySaves {
     if (self.busy) return NO;
     self.busy = YES;
     BOOL ok = [self.host fillPrepareForChangeOfFieldsOnly:fieldsOnly];
@@ -28,7 +33,7 @@ typedef BOOL (^SPDFFillWrite)(spdf_document* doc, NSMutableIndexSet* pages, char
     } else {
         ok = NO;
     }
-    if (ok) {
+    if (ok && (pages.count || emptySaves)) {
         [pages enumerateIndexesUsingBlock:^(NSUInteger page, BOOL* stop) {
           (void)stop;
           [self invalidatePage:(NSInteger)page];

@@ -139,6 +139,7 @@ static BOOL SPDFFillTakesTypedLetters(SPDFMacFillOverlayView* overlay) {
     BOOL typing = SPDFFillTakesTypedLetters(self);
     if (!typing && !(markTarget && (key == 'x' || key == 'v')) && SPDFAnnotateHandleKey(event, self.controller)) return;
     if ([self drawingKeyDown:event]) return;
+    if (!self.selectedItem && [self annotateKeyDown:event]) return;
     switch (key) {
         case '\t':
         case 25:  // back tab

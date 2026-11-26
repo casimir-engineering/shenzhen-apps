@@ -39,6 +39,7 @@
 @interface SPDFMacFillOverlayView (Annotate)
 - (BOOL)annotateTakeMouseDown:(NSEvent*)event;  // YES: the canvas view took it and the gesture it starts
 - (BOOL)annotateMouseMoved:(NSEvent*)event;
+- (BOOL)annotateKeyDown:(NSEvent*)event;  // Delete and the arrows on Annotate's selected objects; YES: handled
 - (void)annotateAttachCanvasView;
 @end
 

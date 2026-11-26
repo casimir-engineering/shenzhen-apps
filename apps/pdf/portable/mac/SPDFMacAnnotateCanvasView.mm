@@ -284,7 +284,10 @@ static char kSPDFAnnotateZoomContext;
         [self dropTilesOnPage:page inRect:NSZeroRect];
         self.needsDisplay = YES;
     }
-    [self setNeedsDisplayInRect:NSInsetRect([self selectedObjectsViewRect], -24, -36)];
+    // The box and handles where they were (a deleted object's too) and where they are now.
+    [self setNeedsDisplayInRect:self.shownSelectionRect];
+    self.shownSelectionRect = NSInsetRect([self selectedObjectsViewRect], -24, -36);
+    [self setNeedsDisplayInRect:self.shownSelectionRect];
 }
 
 - (void)canvasSizeDidChange {

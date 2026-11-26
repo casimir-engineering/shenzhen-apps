@@ -86,6 +86,19 @@ static char kSPDFAnnotateForwardingKey;  // the gesture in progress went to the 
     [[self annotateCanvas] rightMouseUp:event];
 }
 
+// Delete and the arrows act on Annotate's selected objects straight away, not after the page view, the window and
+// every menu's key equivalents had their turn.
+- (BOOL)annotateKeyDown:(NSEvent*)event {
+    SPDFMacAnnotateCanvasView* view = [self annotateCanvas];
+    if (!view.session.selectedObjects.count) return NO;
+    unichar c = event.charactersIgnoringModifiers.length ? [event.charactersIgnoringModifiers characterAtIndex:0] : 0;
+    if (c != NSDeleteCharacter && c != NSBackspaceCharacter && c != NSDeleteFunctionKey && c != NSLeftArrowFunctionKey &&
+        c != NSRightArrowFunctionKey && c != NSUpArrowFunctionKey && c != NSDownArrowFunctionKey)
+        return NO;
+    [view keyDown:event];
+    return YES;
+}
+
 // The page view under the overlay asks the topmost view for its cursor before setting one (SPDFApplyCursorOverlay): an
 // Annotate tool's cursor comes from the canvas view, Fill & Sign's from its last hover, so neither fights the I-beam.
 - (NSCursor*)spdf_cursorForTrackingOverlayAt:(NSPoint)windowPoint {

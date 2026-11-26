@@ -225,12 +225,8 @@ void SPDFAnnotatePrepareInput(NSDictionary* op, SPDFMacAnnotateSession* session,
             return;
         }
         NSDictionary* result = undo ? [session undo:steps] : [session redo:steps];
-        if (pdf)  // the pages undone are written back as annotations, as every other change on a PDF page
-            [session.openPages enumerateIndexesUsingBlock:^(NSUInteger page, BOOL* stop) {
-                (void)stop;
-                spdf_paint_doc* canvas = [session canvasForPage:(NSInteger)page document:NULL create:NO];
-                [self annotateWritePDFPage:(NSInteger)page canvas:canvas error:NULL];
-            }];
+        if (pdf)  // the pages undone are written back as annotations, in one save (pages left as they were: none)
+            [self annotateWritePDFPages:[self annotateCanvasesOfPages:session.openPages] error:NULL];
         [view canvasSizeDidChange];
         [view canvasDidChangeOnPage:session.kind == SPDFAnnotateDocumentPDF ? session.currentPage : -1];
         if (active) [self.host fillStateDidChange];

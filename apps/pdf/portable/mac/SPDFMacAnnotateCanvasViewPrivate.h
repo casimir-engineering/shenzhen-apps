@@ -66,6 +66,7 @@ typedef NS_ENUM(NSInteger, SPDFAnnotateCanvasHandle) {
 
 @property(nonatomic, strong) SPDFDocumentView* zoomWatched;  // whose zoom is observed (SPDFMacAnnotateCanvasView.mm)
 @property(nonatomic) CGFloat antsPhase;
+@property(nonatomic) NSRect shownSelectionRect;  // the selection box and its handles as last asked to be drawn
 @property(nonatomic, strong) NSTimer* antsTimer;
 
 // Geometry (SPDFMacAnnotateCanvasView.mm).

@@ -13,7 +13,7 @@ typedef BOOL (^SPDFAnnotatePDFWrite)(spdf_document* doc, NSMutableIndexSet* page
 
 // SPDFMacFillController+Edits.mm: check, write into the main-thread document, save, redraw the pages in this turn.
 @interface SPDFMacFillController (AnnotatePDFEditsShared)
-- (BOOL)change:(BOOL)fieldsOnly write:(SPDFAnnotatePDFWrite)write;
+- (BOOL)change:(BOOL)fieldsOnly write:(SPDFAnnotatePDFWrite)write emptySaves:(BOOL)emptySaves;
 @end
 
 // Removes a block observer when the controller goes.
@@ -46,25 +46,37 @@ BOOL SPDFAnnotatePDFCommandIsLocked(NSString* op, spdf_paint_doc* canvas) {
 
 - (BOOL)annotateWritePDFPage:(NSInteger)page canvas:(spdf_paint_doc*)canvas error:(NSString**)error {
     if (!canvas) return YES;
-    if (self.busy) {  // a Fill & Sign change is being written: this page follows it
-        [self annotateWriteLater:page];
+    return [self annotateWritePDFPages:@{@(page): [NSValue valueWithPointer:canvas]} error:error];
+}
+
+// Every page given written back in one change: one save and one redraw, and none when no page changed.
+- (BOOL)annotateWritePDFPages:(NSDictionary<NSNumber*, NSValue*>*)canvases error:(NSString**)error {
+    if (!canvases.count) return YES;
+    if (self.busy) {  // a Fill & Sign change is being written: these pages follow it
+        for (NSNumber* page in canvases) [self annotateWriteLater:page.integerValue];
         return YES;
     }
     __block NSString* problem = nil;
     BOOL ok = [self change:NO write:^BOOL(spdf_document* doc, NSMutableIndexSet* pages, char* err, size_t len) {
-      int changed = 0;
-      if (doc != spdf_paint_pdf_document(canvas)) {  // moved to a writable copy since the canvas opened
-          snprintf(err, len, "The document was replaced by its copy. Try again.");
-          problem = @(err);
-          return NO;
+      for (NSNumber* page in [canvases.allKeys sortedArrayUsingSelector:@selector(compare:)]) {
+          spdf_paint_doc* canvas = (spdf_paint_doc*)canvases[page].pointerValue;
+          int changed = 0;
+          if (doc != spdf_paint_pdf_document(canvas)) {  // moved to a writable copy since the canvas opened
+              snprintf(err, len, "The document was replaced by its copy. Try again.");
+              problem = @(err);
+              return NO;
+          }
+          spdf_paint_status status = spdf_paint_pdf_write_back(canvas, &changed, err, len);
+          if (status != SPDF_PAINT_OK) {
+              problem = err[0] ? @(err) : @"The change couldn't be written.";
+              return NO;
+          }
+          if (changed) [pages addIndex:page.unsignedIntegerValue];
       }
-      spdf_paint_status status = spdf_paint_pdf_write_back(canvas, &changed, err, len);
-      if (status != SPDF_PAINT_OK) problem = err[0] ? @(err) : @"The change couldn't be written.";
-      if (changed) [pages addIndex:(NSUInteger)page];
-      return status == SPDF_PAINT_OK;
-    }];
+      return YES;
+    } emptySaves:NO];
     if (!ok && error) *error = problem ?: @"The change couldn't be saved.";
-    if (ok) [self.annotateCanvasView canvasDidChangeOnPage:page];
+    if (ok) for (NSNumber* page in canvases) [self.annotateCanvasView canvasDidChangeOnPage:page.integerValue];
     return ok;
 }
 
@@ -91,13 +103,19 @@ BOOL SPDFAnnotatePDFCommandIsLocked(NSString* op, spdf_paint_doc* canvas) {
       }
       NSIndexSet* now = [pages copy];
       [pages removeAllIndexes];
-      SPDFMacAnnotateSession* session = [me annotatePDFSession];
-      [now enumerateIndexesUsingBlock:^(NSUInteger page, BOOL* stop) {
-        (void)stop;
-        spdf_paint_doc* canvas = [session canvasForPage:(NSInteger)page document:[me.host fillDocument] create:NO];
-        [me annotateWritePDFPage:(NSInteger)page canvas:canvas error:NULL];
-      }];
+      [me annotateWritePDFPages:[me annotateCanvasesOfPages:now] error:NULL];
     });
+}
+
+- (NSDictionary<NSNumber*, NSValue*>*)annotateCanvasesOfPages:(NSIndexSet*)pages {
+    SPDFMacAnnotateSession* session = [self annotatePDFSession];
+    NSMutableDictionary* canvases = [NSMutableDictionary dictionary];
+    [pages enumerateIndexesUsingBlock:^(NSUInteger page, BOOL* stop) {
+      (void)stop;
+      spdf_paint_doc* canvas = [session canvasForPage:(NSInteger)page document:NULL create:NO];
+      if (canvas) canvases[@(page)] = [NSValue valueWithPointer:canvas];
+    }];
+    return canvases;
 }
 
 #pragma mark - Fill & Sign changed a page
