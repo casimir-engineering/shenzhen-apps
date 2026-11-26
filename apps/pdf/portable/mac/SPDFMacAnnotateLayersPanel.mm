@@ -4,37 +4,14 @@
 #import <objc/runtime.h>
 
 #import "SPDFMacAnnotateIntegration.h"
+#import "SPDFMacAnnotateLayerRow.h"
 #import "SPDFMacAnnotatePaletteSupport.h"
 #import "SPDFMacCollectionStyle.h"
 #import "SPDFMacFillController.h"
+#import "SPDFMacFillController+Annotate.h"
 #import "SPDFMacFillPalette.h"
 
 static NSPasteboardType const kSPDFLayerRowType = @"com.intuition.shenzhenpdf.annotate.layer-row";
-
-// One row: thumbnail over a checkerboard, name, brush badge or lock, eye, and the opacity slider while selected.
-@interface SPDFAnnotateLayerRow : NSTableCellView
-@property(nonatomic, strong) NSImageView* thumb;
-@property(nonatomic, strong) NSTextField* name;
-@property(nonatomic, strong) NSImageView* badge;
-@property(nonatomic, strong) NSButton* eye;
-@property(nonatomic, strong) NSSlider* opacity;
-@property(nonatomic, strong) NSTextField* percent;
-@end
-
-@implementation SPDFAnnotateLayerRow
-- (void)drawRect:(NSRect)dirty {
-    (void)dirty;
-    NSRect box = self.thumb.frame;  // the checkerboard shows where the thumbnail is transparent
-    for (CGFloat y = 0; y < NSHeight(box); y += 6)
-        for (CGFloat x = 0; x < NSWidth(box); x += 6) {
-            BOOL dark = ((NSInteger)(x / 6) + (NSInteger)(y / 6)) % 2;
-            [[NSColor colorWithWhite:dark ? 0.91 : 1 alpha:1] setFill];
-            NSRectFill(NSIntersectionRect(box, NSMakeRect(NSMinX(box) + x, NSMinY(box) + y, 6, 6)));
-        }
-    [[NSColor.labelColor colorWithAlphaComponent:0.2] setStroke];
-    NSFrameRect(box);
-}
-@end
 
 @interface SPDFMacAnnotateLayersPanel () <NSTableViewDataSource, NSTableViewDelegate>
 @end
@@ -113,7 +90,7 @@ static NSPasteboardType const kSPDFLayerRowType = @"com.intuition.shenzhenpdf.an
 
 - (void)build {
     NSTextField* title = SPDFCollectionText(@"Layers", 12, NSFontWeightSemibold, NO);
-    _table = [[NSTableView alloc] initWithFrame:NSZeroRect];
+    _table = [[SPDFAnnotateLayerTable alloc] initWithFrame:NSZeroRect];
     NSTableColumn* column = [[NSTableColumn alloc] initWithIdentifier:@"layer"];
     column.resizingMask = NSTableColumnAutoresizingMask;
     [_table addTableColumn:column];
@@ -271,19 +248,6 @@ static NSDictionary* SPDFLayerRowFrom(NSDictionary* layer) {
     [self performSelector:@selector(drawThumbnails) withObject:nil afterDelay:0.3];
 }
 
-static NSImage* SPDFImageFromBitmap(const spdf_bitmap* b) {
-    if (!b->rgba || b->width <= 0 || b->height <= 0) return nil;
-    CGColorSpaceRef space = CGColorSpaceCreateWithName(kCGColorSpaceSRGB);
-    CGContextRef cg = CGBitmapContextCreate(b->rgba, (size_t)b->width, (size_t)b->height, 8, (size_t)b->stride, space,
-                                            kCGImageAlphaPremultipliedLast | kCGBitmapByteOrder32Big);
-    CGImageRef image = cg ? CGBitmapContextCreateImage(cg) : NULL;
-    NSImage* result = image ? [[NSImage alloc] initWithCGImage:image size:NSMakeSize(b->width / 2.0, b->height / 2.0)] : nil;
-    if (image) CGImageRelease(image);
-    if (cg) CGContextRelease(cg);
-    CGColorSpaceRelease(space);
-    return result;
-}
-
 - (void)drawThumbnails {
     spdf_paint_doc* doc = [self canvas];
     if (!doc || !self.superview) return;
@@ -296,7 +260,7 @@ static NSImage* SPDFImageFromBitmap(const spdf_bitmap* b) {
         char err[128];
         if (spdf_paint_layer_thumbnail(doc, (spdf_paint_id)[row[@"id"] unsignedIntValue], 72, &bitmap, err, sizeof(err)) ==
             SPDF_PAINT_OK) {
-            NSImage* image = SPDFImageFromBitmap(&bitmap);
+            NSImage* image = SPDFAnnotateThumbnailImage(&bitmap);
             if (image) _thumbs[row[@"id"]] = image;
         }
         spdf_free_bitmap(&bitmap);
@@ -318,49 +282,23 @@ static NSImage* SPDFImageFromBitmap(const spdf_bitmap* b) {
 }
 
 - (SPDFAnnotateLayerRow*)makeRow {
-    SPDFAnnotateLayerRow* cell = [[SPDFAnnotateLayerRow alloc] initWithFrame:NSZeroRect];
-    cell.identifier = @"layer";
-    cell.thumb = [NSImageView imageViewWithImage:[NSImage new]];
-    cell.thumb.imageScaling = NSImageScaleProportionallyDown;
-    cell.name = SPDFCollectionText(@"", 12, NSFontWeightRegular, NO);
-    cell.name.lineBreakMode = NSLineBreakByTruncatingTail;
-    cell.badge = [NSImageView imageViewWithImage:[NSImage new]];
-    cell.badge.contentTintColor = NSColor.secondaryLabelColor;
-    cell.eye = [NSButton buttonWithImage:SPDFAnnotateSymbol(@"eye", @"Hide") ?: [NSImage new] target:self
-                                  action:@selector(toggleVisible:)];
-    cell.eye.bordered = NO;
-    cell.eye.refusesFirstResponder = YES;
-    cell.opacity = [NSSlider sliderWithValue:100 minValue:0 maxValue:100 target:self action:@selector(opacityChanged:)];
-    cell.opacity.continuous = NO;  // one change, written when the slider is let go
-    cell.opacity.controlSize = NSControlSizeSmall;
-    cell.opacity.toolTip = @"Opacity";
-    cell.percent = SPDFCollectionText(@"", 10, NSFontWeightRegular, YES);
-    for (NSView* v in @[ cell.thumb, cell.name, cell.badge, cell.eye, cell.opacity, cell.percent ]) {
-        v.translatesAutoresizingMaskIntoConstraints = NO;
-        [cell addSubview:v];
-    }
-    [NSLayoutConstraint activateConstraints:@[
-        [cell.thumb.leadingAnchor constraintEqualToAnchor:cell.leadingAnchor constant:6],
-        [cell.thumb.topAnchor constraintEqualToAnchor:cell.topAnchor constant:4],
-        [cell.thumb.widthAnchor constraintEqualToConstant:36], [cell.thumb.heightAnchor constraintEqualToConstant:36],
-        [cell.name.leadingAnchor constraintEqualToAnchor:cell.thumb.trailingAnchor constant:8],
-        [cell.name.centerYAnchor constraintEqualToAnchor:cell.thumb.centerYAnchor],
-        [cell.badge.leadingAnchor constraintEqualToAnchor:cell.name.trailingAnchor constant:4],
-        [cell.badge.centerYAnchor constraintEqualToAnchor:cell.thumb.centerYAnchor],
-        [cell.badge.widthAnchor constraintEqualToConstant:14],
-        [cell.eye.leadingAnchor constraintGreaterThanOrEqualToAnchor:cell.badge.trailingAnchor constant:4],
-        [cell.eye.trailingAnchor constraintEqualToAnchor:cell.trailingAnchor constant:-6],
-        [cell.eye.centerYAnchor constraintEqualToAnchor:cell.thumb.centerYAnchor],
-        [cell.eye.widthAnchor constraintEqualToConstant:24],
-        [cell.opacity.leadingAnchor constraintEqualToAnchor:cell.name.leadingAnchor],
-        [cell.opacity.topAnchor constraintEqualToAnchor:cell.thumb.bottomAnchor constant:2],
-        [cell.percent.leadingAnchor constraintEqualToAnchor:cell.opacity.trailingAnchor constant:6],
-        [cell.percent.trailingAnchor constraintEqualToAnchor:cell.trailingAnchor constant:-8],
-        [cell.percent.centerYAnchor constraintEqualToAnchor:cell.opacity.centerYAnchor],
-        [cell.percent.widthAnchor constraintEqualToConstant:34],
-    ]];
-    [cell.name setContentCompressionResistancePriority:NSLayoutPriorityDefaultLow
-                                        forOrientation:NSLayoutConstraintOrientationHorizontal];
+    SPDFAnnotateLayerRow* cell = [SPDFAnnotateLayerRow rowWithTarget:self eyeAction:@selector(toggleVisible:)
+                                                       opacityAction:@selector(opacityChanged:)];
+    __weak SPDFAnnotateLayerRow* weakCell = cell;
+    __weak SPDFMacAnnotateLayersPanel* weakSelf = self;
+    __weak SPDFMacFillController* controller = _controller;
+    cell.percent.stepped = ^double(double proposed) {  // the slider follows; the layer changes once, at the end
+      double value = round(MAX(0, MIN(100, proposed)));
+      [weakCell showOpacity:value];
+      return value;
+    };
+    cell.percent.ended = ^(double value, BOOL ok) {
+      SPDFAnnotateLayerRow* row = weakCell;
+      value = round(MAX(0, MIN(100, value)));
+      [row showOpacity:value];
+      if (ok) [weakSelf opacityChanged:row.opacity];
+    };
+    cell.percent.keysView = ^NSView* { return (NSView*)controller.annotateCanvasView; };
     return cell;
 }
 
@@ -381,9 +319,8 @@ static NSImage* SPDFImageFromBitmap(const spdf_bitmap* b) {
     cell.eye.toolTip = visible ? @"Hide" : @"Show";
     cell.eye.tag = row;
     cell.opacity.hidden = cell.percent.hidden = locked || !selected;
-    cell.opacity.doubleValue = [r[@"opacity"] doubleValue];
+    [cell showOpacity:[r[@"opacity"] doubleValue]];
     cell.opacity.tag = row;
-    cell.percent.stringValue = [NSString stringWithFormat:@"%.0f %%", [r[@"opacity"] doubleValue]];
     cell.needsDisplay = YES;
 }
 
@@ -434,7 +371,8 @@ static NSImage* SPDFImageFromBitmap(const spdf_bitmap* b) {
 }
 
 - (void)opacityChanged:(NSSlider*)sender {
-    if (sender.tag >= (NSInteger)_rows.count) return;
+    if (sender.tag >= (NSInteger)_rows.count || lround(sender.doubleValue) == lround([_rows[sender.tag][@"opacity"] doubleValue]))
+        return;  // as it was (a value typed again, or Return without a change)
     [self send:@{@"op" : @"layer.set", @"id" : _rows[sender.tag][@"id"], @"opacity" : @(lround(sender.doubleValue))}];
 }
 

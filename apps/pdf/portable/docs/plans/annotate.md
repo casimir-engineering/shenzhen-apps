@@ -100,7 +100,7 @@ Arrow keep their colours and widths of today, and also take Color 1 and the size
 **Layers panel:** a sidebar on the right of the canvas (the minimap's place while Annotate is on; the minimap comes
 back on Done), shown by the Layers button or ⇧⌘L. Top of the list is front. Each row: thumbnail, name ("Background",
 "Page 3" on a PDF, "Drawing", "Layer 2", "Rectangle", "Text: Hello", "Picture", "Pen line", "Signature"), eye
-(hide/show), and while selected an opacity slider. A PDF page's Background row shows a lock and has no eye, opacity or
+(hide/show), and while selected an opacity slider whose percentage can be typed, as the palette's values. A PDF page's Background row shows a lock and has no eye, opacity or
 delete. Drag rows to
 reorder (= depth). Buttons under the list: New Layer, Duplicate, Merge Down, Delete. The active raster layer is marked
 with a brush badge; selecting an object row selects that object on the canvas.
