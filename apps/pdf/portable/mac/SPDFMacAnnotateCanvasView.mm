@@ -18,8 +18,7 @@
 
 NSNotificationName const SPDFAnnotateCanvasPointerDidMoveNotification = @"SPDFAnnotateCanvasPointerDidMove";
 
-static const int kTileSide = 256;      // device pixels
-static const NSUInteger kMaxTiles = 600;  // ~150 MB at most
+static const int kTileSide = 256;  static const NSUInteger kMaxTiles = 600;  // device pixels; ~150 MB at most
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wincomplete-implementation"
@@ -434,6 +433,7 @@ static void DrawImage(CGContextRef context, CGImageRef image, NSRect rect) {
     if (self.session.kind != SPDFAnnotateDocumentPDF) [self coverStalePageOutsideCanvas:dirty];
     for (NSNumber* page in [self pagesInView])
         if (page.integerValue < 0) [self drawCanvasOfPage:page.integerValue inRect:dirty context:context];
+    [self drawLiveTransformInRect:dirty];  // objects following a resize or a move (+Live.mm)
     if (!self.holdsLastFrame) [self drawDecorationsInRect:dirty];
 }
 

@@ -256,6 +256,16 @@ spdf_paint_status spdf_paint_layer_thumbnail(spdf_paint_doc* doc, spdf_paint_id 
 /* Where the canvas changed since the last call (canvas units), so a view redraws only those tiles: 1 and *changed
  * set, or 0 when nothing changed. A change of size or of every layer reports the whole canvas. */
 int spdf_paint_take_damage(spdf_paint_doc* doc, spdf_rect* changed);
+/* The same, left pending (the canvas view still takes it): the PDF reader redraws only that part of the page. */
+int spdf_paint_peek_damage(const spdf_paint_doc* doc, spdf_rect* changed);
+/* Live placement (spdf_paint_preview.c): a region (options->region, ->scale and ->flags; layers ignored) drawn as
+ * spdf_paint_render does, with each listed object at a new box (rect, canvas units, as object.transform's) instead of
+ * its own, nothing changed: a resize or a move while the handle is held. On a PDF page what the document already
+ * holds is drawn from its annotations, as the reader draws the page. */
+typedef struct spdf_paint_placed { spdf_paint_id id; spdf_rect rect; } spdf_paint_placed;
+spdf_paint_status spdf_paint_render_placed(spdf_paint_doc* doc, const spdf_paint_render_options* options,
+                                           const spdf_paint_placed* placed, int count, spdf_bitmap* out, char* err,
+                                           size_t err_len);
 /* The topmost visible object under (x, y) in canvas units, within slop units of its line or box; 0 when none (Core A,
  * for the Select tool's clicks and right-click menus). */
 spdf_paint_id spdf_paint_object_at(spdf_paint_doc* doc, float x, float y, float slop);

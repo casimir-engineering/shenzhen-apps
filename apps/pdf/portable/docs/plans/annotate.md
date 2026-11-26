@@ -231,9 +231,11 @@ Colors… write and read a palette (`.json` and Paint/RIFF `.pal`). Every colour
   an edge the opposite edge, centred across; a line flat in one direction has no proportions to keep). Every object
   resizes: shapes, text boxes (the text reflows in the new box), pictures (pasted, inserted or lifted), pen lines and
   arrows, on pictures, canvases and PDF pages; several selected objects resize together, keeping their places in the
-  box around them. One resize is one `object.transform` with the new `rect`, undone in one step, and agents resize the
-  same way. On a PDF, Select is Fill & Sign's for its own items and Annotate's for shapes, text boxes, pictures and pen
-  lines. Double-click edits a text box, a curve's points or a polygon's corners.
+  box around them. While a handle or a move is held, the objects themselves follow the pointer every frame (on a PDF
+  page drawn over the page as the reader draws it), and the release shows them in place in the next frame. One resize
+  is one `object.transform` with the new `rect`, undone in one step, and agents resize the same way. On a PDF, Select is
+  Fill & Sign's for its own items and Annotate's for shapes, text boxes, pictures, pen lines and arrows (box handles, as
+  everywhere; an arrow's direction follows its box or the rotation handle). Double-click edits a text box, a curve's points or a polygon's corners.
 - Right-click an object: **Bring to Front** (⌥⌘]), **Bring Forward** (⌘]), **Send Backward** (⌘[), **Send to Back**
   (⌥⌘[), Merge Down (into the layer below it; becomes pixels), Duplicate (⌘D), Delete, Flip Horizontal, Flip Vertical,
   Rotate Right, Rotate Left, Outline ▸ / Fill ▸ / Size ▸ (shapes), Edit Text (text), Copy, Cut.

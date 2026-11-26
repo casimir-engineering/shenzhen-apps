@@ -110,20 +110,10 @@ static NSCursor* SPDFAnnotateResizeCursor(NSInteger handle) {
 
 // One object takes the new box; several keep their places and sizes relative to the box around them.
 - (void)resizeSelectionTo:(NSRect)to page:(NSInteger)page {
-    NSArray<NSNumber*>* ids = self.session.selectedObjects;
-    NSRect from = self.originalRect;
-    if (ids.count == 1 || NSWidth(from) <= 0 || NSHeight(from) <= 0) {
-        [self operation:@{@"op": @"object.transform", @"id": ids.firstObject, @"rect": SPDFAnnotateRectObject(to)} page:page done:nil];
-        return;
-    }
-    CGFloat sx = NSWidth(to) / NSWidth(from), sy = NSHeight(to) / NSHeight(from);
-    for (NSDictionary* object in [self objectsOnPage:page]) {
-        if (![ids containsObject:object[@"id"]]) continue;
-        NSRect r = [object[@"rect"] rectValue];
-        NSRect mapped = NSMakeRect(NSMinX(to) + (NSMinX(r) - NSMinX(from)) * sx, NSMinY(to) + (NSMinY(r) - NSMinY(from)) * sy,
-                                   NSWidth(r) * sx, NSHeight(r) * sy);
-        [self operation:@{@"op": @"object.transform", @"id": object[@"id"], @"rect": SPDFAnnotateRectObject(mapped)} page:page done:nil];
-    }
+    NSDictionary<NSNumber*, NSValue*>* rects = [self rectsForResizeTo:to page:page];  // as shown while dragging
+    for (NSNumber* id in rects)
+        [self operation:@{@"op": @"object.transform", @"id": id, @"rect": SPDFAnnotateRectObject(rects[id].rectValue)}
+                   page:page done:nil];
 }
 
 - (NSInteger)pageInView {
@@ -168,7 +158,7 @@ static NSCursor* SPDFAnnotateResizeCursor(NSInteger handle) {
         [session canvasForPage:page document:[self.controller.host fillDocument] create:YES];
     if (![self docForPage:page]) return NO;
     NSString* kind = [self objectAt:point page:page][@"kind"];
-    return [@[@"shape", @"text", @"picture", @"pen"] containsObject:kind ?: @""];
+    return [@[@"shape", @"text", @"picture", @"pen", @"arrow"] containsObject:kind ?: @""];
 }
 
 - (void)updateTrackingAreas {

@@ -116,7 +116,7 @@ typedef NS_ENUM(NSInteger, SPDFAnnotateCanvasHandle) {
 
 // +Finishing.mm: the operations a finished gesture or a click sends, the pointer, the keys.
 @interface SPDFMacAnnotateCanvasView (Finishing)
-// Select on a PDF is Fill & Sign's, except on Annotate's own objects (shapes, text boxes, pictures, pen lines) and the
+// Select on a PDF is Fill & Sign's, except on Annotate's own objects (shapes, text boxes, pictures, pen lines, arrows) and the
 // handles of what Annotate selected: YES there, so the canvas takes the press.
 - (BOOL)takesSelectPressAt:(NSPoint)viewPoint;
 - (void)resizeSelectionTo:(NSRect)rect page:(NSInteger)page;  // object.transform of each selected object
@@ -125,6 +125,12 @@ typedef NS_ENUM(NSInteger, SPDFAnnotateCanvasHandle) {
 - (void)clickWithTool:(SPDFAnnotateTool)tool at:(NSPoint)point page:(NSInteger)page right:(BOOL)right
                 event:(NSEvent*)event;
 - (void)notePointer:(NSPoint)point page:(NSInteger)page inside:(BOOL)inside;
+@end
+
+// +Live.mm: the selected objects drawn where a resize or a move puts them, while the button is held.
+@interface SPDFMacAnnotateCanvasView (Live)
+- (NSDictionary<NSNumber*, NSValue*>*)rectsForResizeTo:(NSRect)to page:(NSInteger)page;
+- (void)drawLiveTransformInRect:(NSRect)dirty;
 @end
 
 // +Curve.mm: the Curve, drawn as a line and then bent twice (classic Paint).
