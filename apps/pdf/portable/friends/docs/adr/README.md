@@ -129,4 +129,9 @@ and 0007 (search no longer holds mentions' IDs and keys).
 - [0021 Peer-to-peer Wi-Fi on demand](0021-peer-to-peer-wifi-on-demand.md) (Proposed): a sighting lists every route
   its Bonjour entry was seen on and a direct Wi-Fi lane is pinned to awdl, so the lane beside a slow LAN opens at last;
   AWDL is on only without a network, or while a transfer wants that lane and it raises the rate by 10 %, since awake
-  AWDL took the Mac's Wi-Fi off its channel 72 ms in every 524 ms.
+  AWDL took the Mac's Wi-Fi off its channel 72 ms in every 524 ms. § 2 superseded by 0022.
+- [0022 Direct Wi-Fi only off Wi-Fi](0022-direct-wifi-only-off-wifi.md) (Accepted, the owner's rule): AWDL and the
+  Wi-Fi Direct boost only when neither device is on a Wi-Fi network, or the one that is is a phone on mobile data;
+  each side says so in its handshake (capability bit 6) and in BOOST's Abilities (bit 4), and older helpers never get
+  direct Wi-Fi; a Mac wakes AWDL exactly while off Wi-Fi, never beside a LAN for speed (both 25 MB/s triggers gone);
+  no device leaves its network silently.

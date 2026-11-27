@@ -1,6 +1,10 @@
 # ADR 0019: Wi-Fi Direct boost
 
-Status: Proposed. Date: 2026-10-29.
+Status: Proposed; amended by [ADR 0022](0022-direct-wifi-only-off-wifi.md) (the owner's rule, 2026-11-27): a boost
+happens only when each device is on no Wi-Fi network or is a phone on mobile data, both saying so in BOOST's Abilities
+(bit 4); staying on the Wi-Fi beside the link (Android's station plus Wi-Fi Direct) no longer qualifies a device; any
+device that would leave its Wi-Fi is asked; a Mac boosts only off Wi-Fi. Where this record says otherwise, ADR 0022
+wins. Date: 2026-10-29.
 Builds on ADR 0004 (nearby routes), ADR 0011 § Route rank (the peer-to-peer Wi-Fi rule, amended here), ADR 0015 § 9
 (phones' discovery), ADR 0017 (what the person sees) and ADR 0018 (lanes, the scheduler, capability bits). Areas:
 session (frame 32, fields 48 to 53, capability bit 5), the transfer core (`szfriends-core/src/transfer/boost.rs`), both
