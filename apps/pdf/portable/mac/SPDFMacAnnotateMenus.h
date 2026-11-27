@@ -14,5 +14,7 @@ FOUNDATION_EXPORT BOOL SPDFAnnotateClaimsKey(NSEvent* event, SPDFMacFillControll
 // cut:, copy:, paste:, selectAll:, undo:, redo: while Annotate shows: YES when it became an operation (Annotate has a
 // selection or a canvas tool is chosen); NO leaves the action to the reader as before.
 FOUNDATION_EXPORT BOOL SPDFAnnotatePerformEditAction(SEL action, SPDFMacFillController* controller);
+// Shift-Command-Z, sent as "Z" or as "z" with Shift: Annotate's Redo when Annotate takes the Edit keys (YES).
+FOUNDATION_EXPORT BOOL SPDFAnnotateRedoForShiftZ(NSEvent* event, SPDFMacFillController* controller);
 
 NS_ASSUME_NONNULL_END

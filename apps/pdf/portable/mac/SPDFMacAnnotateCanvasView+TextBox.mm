@@ -2,6 +2,7 @@
 // in place with the text bar's font, size and styles, and sent as one text.add when it closes; a text object
 // double-clicked with Select is typed in again and sent as one object.update.
 #import "SPDFMacAnnotateCanvasViewPrivate.h"
+#import "SPDFMacAnnotateMenus.h"
 
 #import "SPDFMacAnnotateImageIO.h"
 #import "SPDFMacAnnotateIntegration.h"
@@ -161,6 +162,7 @@ static NSString* SPDFAnnotateTextBoxFont(NSDictionary* options) {
         [self layoutTextEditor];
         return YES;
     }
+    if (SPDFAnnotateRedoForShiftZ(event, self.controller)) return YES;
     return [super performKeyEquivalent:event];
 }
 

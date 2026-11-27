@@ -1,5 +1,6 @@
 #import "SPDFMacFillOverlayViewPrivate.h"
 
+#import "SPDFMacAnnotateMenus.h"
 #import "SPDFMacDocumentView.h"
 #import "SPDFMacFillController.h"
 #import "SPDFMacFillEditor.h"
@@ -96,6 +97,7 @@ NSBezierPath* SPDFFillMarkPath(NSRect r, BOOL cross) {
 // Any Command key (print, close, save, zoom...) may read the file: lines waiting are written first.
 - (BOOL)performKeyEquivalent:(NSEvent*)event {
     if (!self.hidden && (event.modifierFlags & NSEventModifierFlagCommand)) [self.controller writePendingStrokes];
+    if (!self.hidden && SPDFAnnotateRedoForShiftZ(event, self.controller)) return YES;  // SPDFMacAnnotateMenus.h
     return [super performKeyEquivalent:event];
 }
 - (void)smartMagnifyWithEvent:(NSEvent*)event { [[self documentView] smartMagnifyWithEvent:event]; }

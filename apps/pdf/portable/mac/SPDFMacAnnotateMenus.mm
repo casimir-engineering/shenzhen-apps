@@ -68,6 +68,18 @@ static id SPDFAnnotateEditPayload(SEL action) {
     return nil;
 }
 
+// Shift-Command-Z is Redo however the key comes. A keyboard sends "Z"; an event made by a program (a remote control,
+// an automation tool) may send "z" with Shift held, which the menu bar matches to Undo's "z" (and a hidden "z" row
+// with Shift would take plain Command-Z too). Asked by the views Annotate draws in, before the menu bar.
+BOOL SPDFAnnotateRedoForShiftZ(NSEvent* event, SPDFMacFillController* controller) {
+    NSEventModifierFlags mods = event.modifierFlags & (NSEventModifierFlagCommand | NSEventModifierFlagShift |
+                                                       NSEventModifierFlagOption | NSEventModifierFlagControl);
+    if (mods != (NSEventModifierFlagCommand | NSEventModifierFlagShift) ||
+        ![event.charactersIgnoringModifiers.lowercaseString isEqualToString:@"z"])
+        return NO;
+    return SPDFAnnotatePerformEditAction(@selector(redo:), controller);
+}
+
 BOOL SPDFAnnotatePerformEditAction(SEL action, SPDFMacFillController* controller) {
     id payload = SPDFAnnotateEditPayload(action);
     if (!payload || !SPDFAnnotateTakesEdits(controller, action)) return NO;
