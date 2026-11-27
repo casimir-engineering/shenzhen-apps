@@ -146,56 +146,78 @@ pub fn write_all_at(file: &File, data: &[u8], offset: u64) -> io::Result<()> {
     }
 }
 
+/// The leaves of the `count` blocks from `index` in `data`, on every core when there are several.
+fn batch_leaves(data: &[u8], block_bytes: usize, index: u32, count: usize) -> Vec<Leaf> {
+    if count == 1 {
+        // One block (every small file): no thread is worth starting.
+        return vec![leaf(index, data)];
+    }
+    let length = data.len();
+    let blocks: Vec<&[u8]> =
+        (0..count).map(|i| &data[(i * block_bytes).min(length)..((i + 1) * block_bytes).min(length)]).collect();
+    leaves_parallel(&blocks, index)
+}
+
 /// Hashes the first `geometry.size` bytes of `file`: every leaf on every core and, with `digest`, the BLAKE2b-256 of
-/// the same bytes on one more thread, in a single read pass.
+/// the same bytes on one more thread, in a single read pass. Two buffers of half [`BATCH_BYTES`]: the digest, the
+/// slowest part (one thread), takes one batch while the next is read and its leaves hashed, so it never waits for
+/// the disk or for the leaves.
 pub fn hash_file(file: &File, geometry: &Geometry, digest: bool) -> io::Result<FileHash> {
     let block_bytes = geometry.block_bytes() as usize;
-    let per_batch = (BATCH_BYTES / block_bytes).max(1);
-    let mut buffer = vec![0u8; (per_batch * block_bytes).min(geometry.size as usize)];
-    let mut hasher = digest.then(|| blake2::Blake2bVar::new(32).expect("32-byte output"));
+    let per_batch = (BATCH_BYTES / 2 / block_bytes).max(1);
+    let capacity = (per_batch * block_bytes).min(geometry.size as usize);
     let mut leaves = Vec::with_capacity(geometry.blocks as usize);
-    let mut index = 0u32;
-    while index < geometry.blocks {
-        let count = per_batch.min((geometry.blocks - index) as usize);
-        let (offset, _) = geometry.span(index);
-        let (last_offset, last_length) = geometry.span(index + count as u32 - 1);
-        let length = (last_offset + last_length as u64 - offset) as usize;
-        if buffer.len() < length {
-            buffer.resize(length, 0);
-        }
-        read_exact_at(file, &mut buffer[..length], offset)?;
-        let data = &buffer[..length];
-        let blocks: Vec<&[u8]> = (0..count)
-            .map(|i| {
-                let start = i * block_bytes;
-                &data[start.min(length)..(start + block_bytes).min(length)]
-            })
-            .collect();
-        if count == 1 {
-            // One block (every small file): no thread is worth starting.
-            if let Some(h) = hasher.as_mut() {
-                h.update(data);
-            }
-            leaves.push(leaf(index, data));
-            index += 1;
-            continue;
-        }
-        let batch = std::thread::scope(|scope| {
-            let streamed = hasher.as_mut().map(|h| scope.spawn(move || h.update(data)));
-            let batch = leaves_parallel(&blocks, index);
-            if let Some(handle) = streamed {
-                handle.join().expect("digest thread");
-            }
-            batch
+    let digest = std::thread::scope(|scope| -> io::Result<Option<[u8; 32]>> {
+        let (to_digest, batches) = std::sync::mpsc::channel::<(Vec<u8>, usize)>();
+        let (give_back, returned) = std::sync::mpsc::channel::<Vec<u8>>();
+        let several = geometry.blocks as usize > per_batch;
+        let worker = digest.then(|| {
+            let work = move || {
+                let mut hasher = blake2::Blake2bVar::new(32).expect("32-byte output");
+                for (buffer, length) in batches {
+                    hasher.update(&buffer[..length]);
+                    let _ = give_back.send(buffer);
+                }
+                let mut out = [0u8; 32];
+                hasher.finalize_variable(&mut out).expect("length matches");
+                out
+            };
+            scope.spawn(work)
         });
-        leaves.extend(batch);
-        index += count as u32;
-    }
-    let digest = hasher.map(|h| {
-        let mut out = [0u8; 32];
-        h.finalize_variable(&mut out).expect("length matches");
-        out
-    });
+        let mut spare = vec![vec![0u8; capacity]];
+        if worker.is_some() && several {
+            spare.push(vec![0u8; capacity]);
+        }
+        let mut index = 0u32;
+        let mut read = Ok(());
+        while index < geometry.blocks {
+            let count = per_batch.min((geometry.blocks - index) as usize);
+            let (offset, _) = geometry.span(index);
+            let (last_offset, last_length) = geometry.span(index + count as u32 - 1);
+            let length = (last_offset + last_length as u64 - offset) as usize;
+            let mut buffer = match spare.pop() {
+                Some(buffer) => buffer,
+                None => returned.recv().expect("the digest thread gives each buffer back"),
+            };
+            if buffer.len() < length {
+                buffer.resize(length, 0);
+            }
+            if let Err(error) = read_exact_at(file, &mut buffer[..length], offset) {
+                read = Err(error);
+                break;
+            }
+            leaves.extend(batch_leaves(&buffer[..length], block_bytes, index, count));
+            if worker.is_some() {
+                let _ = to_digest.send((buffer, length));
+            } else {
+                spare.push(buffer);
+            }
+            index += count as u32;
+        }
+        drop(to_digest);
+        let out = worker.map(|w| w.join().expect("digest thread"));
+        read.map(|()| out)
+    })?;
     let root = root_of(geometry, &leaves).expect("one leaf per block");
     Ok(FileHash { leaves, root, digest })
 }
