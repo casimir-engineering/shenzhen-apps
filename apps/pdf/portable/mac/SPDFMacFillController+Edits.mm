@@ -45,6 +45,7 @@ typedef BOOL (^SPDFFillWrite)(spdf_document* doc, NSMutableIndexSet* pages, char
         [self.host fillShowPagesNow:pages areas:areas];
         [self.overlay refresh];
         if (shown) shown(pages);
+        [self.overlay checkDrawingHolds:nil];  // the frame that shows the new picture shows no held line over it
         [self.host fillDisplayNow];
         [self.host fillScheduleSaveOfPages:pages];
         SPDFMacSignatureStore* store = [SPDFMacSignatureStore sharedStore];
