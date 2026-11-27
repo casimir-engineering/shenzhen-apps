@@ -15,6 +15,20 @@ fn home_wifi() -> Connectivity {
     Connectivity { on_wifi: true, wifi_name: Some("HomeWiFi".into()), ..Connectivity::default() }
 }
 
+/// A phone on its Wi-Fi with mobile data: the one device the owner's rule lets leave its Wi-Fi.
+fn phone_on_wifi() -> Connectivity {
+    Connectivity { mobile: true, phone: true, ..home_wifi() }
+}
+
+/// On no Wi-Fi network (a cable, or nothing).
+fn off_wifi() -> Connectivity {
+    Connectivity::default()
+}
+
+fn allowed(abilities: Abilities) -> Abilities {
+    Abilities { direct_wifi_allowed: true, ..abilities }
+}
+
 fn gateway() -> IpAddr {
     IpAddr::V4(Ipv4Addr::new(192, 168, 49, 1))
 }
@@ -57,9 +71,12 @@ fn only_when_bluetooth_alone_and_the_network_had_its_chances() {
 #[test]
 fn abilities_round_trip_and_ignore_unknown_bits() {
     for a in [Abilities::android(true), Abilities::android(false), Abilities::joins_only(), Abilities::default()] {
-        assert_eq!(Abilities::from_byte(a.byte()), a);
-        assert_eq!(Abilities::from_byte(a.byte() | 0xf0), a);
+        for a in [a, allowed(a)] {
+            assert_eq!(Abilities::from_byte(a.byte()), a);
+            assert_eq!(Abilities::from_byte(a.byte() | 0xe0), a);
+        }
     }
+    assert_eq!(allowed(Abilities::default()).byte(), 0x10, "bit 4");
 }
 
 #[test]
@@ -87,26 +104,53 @@ fn the_pairing_that_keeps_more_devices_online_hosts() {
 }
 
 #[test]
-fn only_a_device_losing_its_only_internet_is_asked() {
-    let mac = Abilities::joins_only();
-    assert_eq!(Cost::of(Role::Join, mac, &home_wifi()), Cost::LeavesInternet { network: Some("HomeWiFi".into()) });
-    assert!(Cost::of(Role::Join, mac, &home_wifi()).asks());
-    let wired = Connectivity { wired: true, ..home_wifi() };
-    assert_eq!(
-        Cost::of(Role::Join, mac, &wired),
-        Cost::LeavesWifi { network: Some("HomeWiFi".into()), over_mobile: false }
-    );
-    let phone = Connectivity { mobile: true, ..home_wifi() };
-    let cost = Cost::of(Role::Join, mac, &phone);
+fn the_owners_rule_decides_who_may_boost() {
+    // On no Wi-Fi network, or a phone on mobile data: yes. Any other device on a Wi-Fi network: no, whatever else
+    // keeps it online and whether it could stay on its Wi-Fi beside the link.
+    assert!(off_wifi().allows_direct_wifi());
+    assert!(Connectivity { wired: true, ..off_wifi() }.allows_direct_wifi());
+    assert!(phone_on_wifi().allows_direct_wifi());
+    assert!(!home_wifi().allows_direct_wifi(), "a computer on its Wi-Fi");
+    assert!(!Connectivity { wired: true, ..home_wifi() }.allows_direct_wifi(), "Wi-Fi and a cable: still on Wi-Fi");
+    assert!(!Connectivity { mobile: true, ..home_wifi() }.allows_direct_wifi(), "mobile data counts on phones only");
+    assert!(!Connectivity { phone: true, ..home_wifi() }.allows_direct_wifi(), "a phone without mobile data");
+    // The bit goes out with the abilities, from the connectivity, whatever the platform reported.
+    let mut on = Boost::propose(T, Abilities::joins_only(), home_wifi(), true);
+    assert_eq!(on.take_effects(), vec![Effect::Send(Message::Propose { abilities: Abilities::joins_only() })]);
+    let mut off = Boost::propose(T, Abilities::joins_only(), off_wifi(), true);
+    let sent = vec![Effect::Send(Message::Propose { abilities: allowed(Abilities::joins_only()) })];
+    assert_eq!(off.take_effects(), sent);
+}
+
+#[test]
+fn a_side_that_does_not_allow_it_is_declined() {
+    // A Mac on its Wi-Fi proposes (an older helper would): the phone, off Wi-Fi, declines.
+    let phone = Boost::proposed(T, Abilities::android(false), Abilities::joins_only(), off_wifi(), false, s(0));
+    assert_eq!(phone.end_reason(), Some(boost_reason::UNSUPPORTED));
+    // The phone is on a different Wi-Fi network with no mobile data: the Mac, off Wi-Fi, is declined.
+    let mac = Boost::proposed(T, Abilities::joins_only(), Abilities::android(false), off_wifi(), true, s(0));
+    assert_eq!(mac.end_reason(), Some(boost_reason::UNSUPPORTED), "the peer never set bit 4");
+    let mut ok =
+        Boost::proposed(T, Abilities::joins_only(), allowed(Abilities::android(false)), off_wifi(), true, s(0));
+    assert_eq!(ok.end_reason(), None);
+    assert!(ok.take_effects().contains(&Effect::Send(Message::Ready { abilities: allowed(Abilities::joins_only()) })));
+}
+
+#[test]
+fn a_device_that_would_leave_its_wifi_is_asked() {
+    let iphone = Abilities::joins_only();
+    let cost = Cost::of(Role::Join, iphone, &phone_on_wifi());
     assert_eq!(cost, Cost::LeavesWifi { network: Some("HomeWiFi".into()), over_mobile: true });
-    assert!(!cost.asks() && cost.leaves_wifi());
+    assert!(cost.asks() && cost.leaves_wifi(), "never silently");
+    let mac = iphone;
+    assert!(Cost::of(Role::Join, mac, &home_wifi()).asks());
     // Not on Wi-Fi at all, or a role that keeps it: nothing.
     assert_eq!(Cost::of(Role::Join, mac, &Connectivity { mobile: true, ..Connectivity::default() }), Cost::Nothing);
-    assert_eq!(Cost::of(Role::Host, Abilities::android(true), &home_wifi()), Cost::Nothing);
-    assert!(Cost::of(Role::Host, Abilities::android(false), &home_wifi()).asks());
+    assert_eq!(Cost::of(Role::Host, Abilities::android(true), &phone_on_wifi()), Cost::Nothing);
+    assert!(Cost::of(Role::Host, Abilities::android(false), &phone_on_wifi()).asks());
     // An unnamed network still asks; the question then says "your Wi-Fi".
-    let unnamed = Connectivity { wifi_name: None, ..home_wifi() };
-    assert_eq!(Cost::of(Role::Join, mac, &unnamed), Cost::LeavesInternet { network: None });
+    let unnamed = Connectivity { wifi_name: None, ..phone_on_wifi() };
+    assert_eq!(Cost::of(Role::Join, iphone, &unnamed), Cost::LeavesWifi { network: None, over_mobile: true });
 }
 
 // ----- link and frames -----
@@ -195,9 +239,9 @@ impl Pair {
     }
 }
 
-/// The Mac (A, joins only, on its only Wi-Fi) proposes to an Android phone (B, concurrent).
-fn mac_and_phone() -> Pair {
-    let a = Boost::propose(T, Abilities::joins_only(), home_wifi(), true);
+/// An iPhone (A, joins only, on its Wi-Fi with mobile data) proposes to an Android phone (B) on no Wi-Fi network.
+fn iphone_and_phone() -> Pair {
+    let a = Boost::propose(T, Abilities::joins_only(), phone_on_wifi(), true);
     let mut pair = Pair {
         a,
         b: Boost::propose(T, Abilities::default(), Connectivity::default(), false),
@@ -206,20 +250,21 @@ fn mac_and_phone() -> Pair {
     };
     // B starts from A's PROPOSE.
     let propose = pair.a.take_effects();
-    assert_eq!(propose, vec![Effect::Send(Message::Propose { abilities: Abilities::joins_only() })]);
-    pair.b = Boost::proposed(T, Abilities::android(true), Abilities::joins_only(), home_wifi(), false, s(0));
+    assert_eq!(propose, vec![Effect::Send(Message::Propose { abilities: allowed(Abilities::joins_only()) })]);
+    pair.b = Boost::proposed(T, Abilities::android(false), allowed(Abilities::joins_only()), off_wifi(), false, s(0));
     pair
 }
 
 #[test]
-fn mac_joins_a_phone_after_its_person_says_go_faster() {
-    let mut pair = mac_and_phone();
+fn a_phone_joins_after_its_person_says_go_faster() {
+    let mut pair = iphone_and_phone();
     pair.pump(s(0));
-    // The phone keeps its Wi-Fi as host: no question there, READY at once. The Mac asks.
-    assert!(pair.b_effects.contains(&Effect::Send(Message::Ready { abilities: Abilities::android(true) })));
+    // The host is on no Wi-Fi: no question there, READY at once. The iPhone would leave its Wi-Fi: it asks.
+    assert!(pair.b_effects.contains(&Effect::Send(Message::Ready { abilities: allowed(Abilities::android(false)) })));
     assert_eq!(pair.a.phase(), Phase::Asking);
-    assert!(pair.a_effects.contains(&Effect::Ask(Cost::LeavesInternet { network: Some("HomeWiFi".into()) })));
-    assert!(!pair.b_effects.iter().any(|e| matches!(e, Effect::Host(_))), "nothing hosted before the Mac agrees");
+    let leaves = Cost::LeavesWifi { network: Some("HomeWiFi".into()), over_mobile: true };
+    assert!(pair.a_effects.contains(&Effect::Ask(leaves)));
+    assert!(!pair.b_effects.iter().any(|e| matches!(e, Effect::Host(_))), "nothing hosted before the iPhone agrees");
 
     pair.a.answer(true, s(5));
     pair.pump(s(5));
@@ -251,7 +296,7 @@ fn mac_joins_a_phone_after_its_person_says_go_faster() {
 
 #[test]
 fn not_now_declines_and_is_never_asked_again() {
-    let mut pair = mac_and_phone();
+    let mut pair = iphone_and_phone();
     pair.pump(s(0));
     pair.a.answer(false, s(3));
     pair.pump(s(3));
@@ -268,7 +313,7 @@ fn not_now_declines_and_is_never_asked_again() {
 
 #[test]
 fn a_slower_direct_lane_ends_the_boost() {
-    let mut pair = mac_and_phone();
+    let mut pair = iphone_and_phone();
     pair.pump(s(0));
     pair.a.answer(true, s(1));
     pair.pump(s(1));
@@ -290,7 +335,7 @@ fn a_slower_direct_lane_ends_the_boost() {
 
 #[test]
 fn a_link_that_never_comes_up_ends_and_comes_back() {
-    let mut pair = mac_and_phone();
+    let mut pair = iphone_and_phone();
     pair.pump(s(0));
     pair.a.answer(true, s(1));
     pair.pump(s(1));
@@ -308,7 +353,7 @@ fn a_link_that_never_comes_up_ends_and_comes_back() {
 
 #[test]
 fn failures_and_lost_sessions_come_back_too() {
-    let mut pair = mac_and_phone();
+    let mut pair = iphone_and_phone();
     pair.pump(s(0));
     pair.a.answer(true, s(1));
     pair.pump(s(1));
@@ -318,7 +363,7 @@ fn failures_and_lost_sessions_come_back_too() {
     assert!(pair.b_effects.contains(&Effect::StopHosting));
     assert!(!pair.a_effects.contains(&Effect::LeaveJoined), "it never left");
 
-    let mut pair = mac_and_phone();
+    let mut pair = iphone_and_phone();
     pair.pump(s(0));
     pair.a.answer(true, s(1));
     pair.pump(s(1));
@@ -334,7 +379,7 @@ fn failures_and_lost_sessions_come_back_too() {
 
 #[test]
 fn a_question_left_open_goes_when_the_transfer_ends() {
-    let mut pair = mac_and_phone();
+    let mut pair = iphone_and_phone();
     pair.pump(s(0));
     pair.a.transfer_ended(s(30));
     let effects = pair.a.take_effects();
@@ -345,10 +390,11 @@ fn a_question_left_open_goes_when_the_transfer_ends() {
 
 #[test]
 fn proposals_that_cross_still_meet() {
-    // Two Android phones on the same kind of hardware propose at once; the key order decides who hosts.
+    // Two Android phones on mobile data and the same kind of hardware propose at once; the key order decides who
+    // hosts.
     let mut pair = Pair {
-        a: Boost::propose(T, Abilities::android(true), home_wifi(), true),
-        b: Boost::propose(T, Abilities::android(true), home_wifi(), false),
+        a: Boost::propose(T, Abilities::android(true), phone_on_wifi(), true),
+        b: Boost::propose(T, Abilities::android(true), phone_on_wifi(), false),
         a_effects: vec![],
         b_effects: vec![],
     };
@@ -361,10 +407,10 @@ fn proposals_that_cross_still_meet() {
 
 #[test]
 fn two_devices_that_cannot_pair_decline() {
-    let a = Boost::propose(T, Abilities::joins_only(), home_wifi(), true);
+    let a = Boost::propose(T, Abilities::joins_only(), off_wifi(), true);
     let mut pair = Pair {
         a,
-        b: Boost::proposed(T, Abilities::joins_only(), Abilities::joins_only(), home_wifi(), false, s(0)),
+        b: Boost::proposed(T, Abilities::joins_only(), allowed(Abilities::joins_only()), off_wifi(), false, s(0)),
         a_effects: vec![],
         b_effects: vec![],
     };
@@ -376,7 +422,7 @@ fn two_devices_that_cannot_pair_decline() {
 
 #[test]
 fn host_from_a_side_that_did_not_agree_is_ignored() {
-    let mut pair = mac_and_phone();
+    let mut pair = iphone_and_phone();
     pair.pump(s(0));
     // Still asking: a HOST arriving now (a confused or hostile peer) changes nothing.
     pair.a.message(Message::Host { link: Link::new(), address: gateway(), port: 1 }, s(1));

@@ -205,6 +205,9 @@ impl State {
             self.nearby.dialing.remove(&key);
         }
         self.trace_up(id);
+        if self.direct_wifi_refuses(id) {
+            return self.close(id, CloseReason::Normal); // the owner's rule (direct_wifi.rs)
+        }
         let session = self.sessions.map.get(&id).expect("looked up");
         let (initiator, pattern) = (session.channel.is_initiator(), session.channel.pattern());
         let meta = session.meta.clone();

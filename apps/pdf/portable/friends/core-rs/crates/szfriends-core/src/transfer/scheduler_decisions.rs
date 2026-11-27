@@ -286,7 +286,8 @@ impl Scheduler {
         }
     }
 
-    /// Bluetooth beside slow lanes; direct Wi-Fi beside a LAN below 25 MB/s, where it keeps the device online.
+    /// Bluetooth beside slow lanes; direct Wi-Fi where the group has no LAN lane and the owner's rule allows it (ADR
+    /// 0022). Never beside a LAN for speed: direct Wi-Fi beside a Wi-Fi network takes airtime from it (ADR 0021).
     pub(super) fn ask_for_lanes(&mut self, eligible: &[LaneId], now: Duration) {
         let left = self.unassigned_bytes();
         if left == 0 {
@@ -297,13 +298,10 @@ impl Scheduler {
         };
         let has = |route: RouteMethod| self.lanes.values().any(|l| l.route == route);
         let direct = rate_of(&|r| !matches!(r, RouteMethod::Bluetooth | RouteMethod::Relay));
-        let lan = rate_of(&|r| r == RouteMethod::Lan);
         let worth = left as f64 > WORTH_A_LANE * direct;
         let bluetooth = !has(RouteMethod::Bluetooth) && direct < BLUETOOTH_HELPS_BELOW && worth;
-        let direct_wifi = self.config.direct_wifi_keeps_internet
-            && !has(RouteMethod::PeerToPeerWifi)
-            && lan < DIRECT_WIFI_HELPS_BELOW
-            && worth;
+        let direct_wifi =
+            self.config.direct_wifi && !has(RouteMethod::PeerToPeerWifi) && !has(RouteMethod::Lan) && worth;
         if bluetooth {
             self.request(RouteMethod::Bluetooth, now);
         }

@@ -1,7 +1,8 @@
 //! ADR 0019's Wi-Fi Direct boost between two Rust helpers' services in test homes: friends on the test Bluetooth air
 //! only (no network at all), Bluetooth shaped to 150 kB/s, and each side's pretend radio (`TestDirectWifi`), which
-//! "hosts" on loopback and only writes down what it was asked. Ada is a device that can only join and is on her one
-//! Wi-Fi network, "HomeWiFi"; Bo hosts and keeps his Wi-Fi. No real network is touched.
+//! "hosts" on loopback and only writes down what it was asked. Under the owner's rule (ADR 0022) Ada is a phone that
+//! can only join, on her Wi-Fi network "HomeWiFi" with mobile data; Bo hosts and is on no Wi-Fi network. No real
+//! network is touched.
 //!
 //! - Go faster: Ada's row asks (Bo's never does), Bo hosts, Ada joins, the link's lane carries the rest, and Ada goes
 //!   back to "HomeWiFi" at the end, record deleted.
@@ -17,7 +18,7 @@ use std::time::{Duration, Instant};
 
 use clients::{texts, Client, Temp};
 use serde_json::{json, Value};
-use szfriends_helper::nearby::direct_wifi::{ENV_TEST_DIRECT_WIFI, ENV_TEST_WIFI, TEST_LOG};
+use szfriends_helper::nearby::direct_wifi::{ENV_TEST_DIRECT_WIFI, ENV_TEST_ONLINE_ALSO, ENV_TEST_WIFI, TEST_LOG};
 use szfriends_helper::nearby::test_air::ENV_TEST_BLUETOOTH;
 use szfriends_helper::service::{seed, ENV_TEST_ROUTE_RATES};
 use szfriends_helper::state::ENV_STATE_DIR;
@@ -43,15 +44,17 @@ fn start(label: &str) -> Pair {
     std::env::set_var(ENV_STATE_DIR, &homes.0 .0);
     std::env::set_var(ENV_TEST_BLUETOOTH, &homes.2 .0);
     std::env::set_var(ENV_TEST_ROUTE_RATES, "bluetooth=150000");
-    // Ada: joins only, on her one Wi-Fi network.
-    std::env::set_var(ENV_TEST_DIRECT_WIFI, "join");
+    // Ada: a phone that joins only, on her Wi-Fi network with mobile data.
+    std::env::set_var(ENV_TEST_DIRECT_WIFI, "join,phone");
     std::env::set_var(ENV_TEST_WIFI, "HomeWiFi");
+    std::env::set_var(ENV_TEST_ONLINE_ALSO, "mobile");
     let mut ada = Client::connect_with(&homes.0 .0, CAPABILITIES);
-    // Bo: hosts, and keeps his Wi-Fi while he does.
-    std::env::set_var(ENV_TEST_DIRECT_WIFI, "host,join,keeps");
-    std::env::set_var(ENV_TEST_WIFI, "Bo's network");
+    // Bo: hosts, on no Wi-Fi network.
+    std::env::set_var(ENV_TEST_DIRECT_WIFI, "host,join");
+    std::env::remove_var(ENV_TEST_WIFI);
+    std::env::remove_var(ENV_TEST_ONLINE_ALSO);
     let mut bo = Client::connect_with(&homes.1 .0, CAPABILITIES);
-    for variable in [ENV_TEST_DIRECT_WIFI, ENV_TEST_WIFI, ENV_TEST_ROUTE_RATES] {
+    for variable in [ENV_TEST_DIRECT_WIFI, ENV_TEST_WIFI, ENV_TEST_ONLINE_ALSO, ENV_TEST_ROUTE_RATES] {
         std::env::remove_var(variable);
     }
     ada.send("activate", json!({}));
@@ -111,17 +114,20 @@ fn go_faster_moves_the_rest_over_the_link_and_comes_back() {
     let (transfer, content) = offer(&mut pair, 10 << 20);
     let (bo_in_a, ada_in_b) = (pair.bo_in_a.clone(), pair.ada_in_b.clone());
 
-    // After 10 s on Bluetooth alone the file is still minutes from done: Ada, who would lose her only Internet, is
-    // asked, in words about her Wi-Fi and Bo.
+    // After 10 s on Bluetooth alone the file is still minutes from done: Ada, who would leave her Wi-Fi, is asked,
+    // in words about her Wi-Fi, her mobile data and Bo.
     let asked =
         sees(&mut pair.ada, &bo_in_a, &transfer, "the question at Ada", |i| texts(i).contains("boost_transfer"));
     let note = asked["route_note"].as_str().unwrap_or_default().to_owned();
     assert!(note.starts_with("Go faster? Bo isn’t on your Wi-Fi, so this is going over Bluetooth (about "), "{note}");
     assert!(note.contains("Leave “HomeWiFi” for about "), "{note}");
-    assert!(note.ends_with("Your computer rejoins it by itself when it’s done."), "{note}");
+    assert!(
+        note.ends_with("Your phone stays online over mobile data and rejoins it by itself when it’s done."),
+        "{note}"
+    );
     assert!(texts(&asked).contains("skip_boost"), "{asked}");
     assert!(!log_of(&pair.homes.1 .0).contains("host"), "nothing is hosted before Ada agrees");
-    // Bo keeps his Wi-Fi: his row never asks.
+    // Bo is on no Wi-Fi network: his row never asks.
     let at_bo = sees(&mut pair.bo, &ada_in_b, &transfer, "Bo's row", |i| i["state"] == "receiving");
     assert!(!texts(&at_bo).contains("boost_transfer"), "{at_bo}");
 

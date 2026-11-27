@@ -28,6 +28,7 @@ mod blocks;
 mod boost;
 mod device_files;
 mod devices;
+mod direct_wifi;
 mod facts;
 mod friend_links;
 mod intents;

@@ -1,9 +1,11 @@
 // The Wi-Fi Direct boost on Android (ADR 0019; the core's side is szfriends-helper's nearby/direct_wifi.rs, bridged
 // in tauri/src/nearby.rs). The phone hosts a Wi-Fi Direct group under the name and passphrase the core made for this
 // one boost (a Mac or an iPhone joins it as an ordinary WPA2 network; the group owner is 192.168.49.1), or joins
-// another phone's group as a Wi-Fi Direct client. Both run beside the phone's own Wi-Fi connection on hardware that
-// runs station and Wi-Fi Direct at once; where that is not known, the core counts the phone's Wi-Fi as lost, so a
-// phone with no mobile data asks first.
+// another phone's group as a Wi-Fi Direct client. Only under the owner's rule (ADR 0022, decided in the core): the
+// phone is on no Wi-Fi network, or it is on mobile data too, and the friend's device says the same. Staying on its
+// Wi-Fi beside the group (station and Wi-Fi Direct at once, keepsWifi) is never a reason to use it; it only means the
+// phone does not actually leave its Wi-Fi, so it is not asked. Where that is not known, the core counts the phone's
+// Wi-Fi as left and asks first.
 //
 // Android 13 and later only: NEARBY_WIFI_DEVICES, which belongs to the same "Nearby devices" permission as
 // Bluetooth's and is asked with them. Android 10 to 12 would need precise location for Wi-Fi Direct, which Friends
@@ -72,7 +74,10 @@ class DirectWifi(private val context: Context) {
         }
     }
 
-    /** On Wi-Fi, on mobile data, on a cable: any network that reaches the Internet. */
+    /**
+     * On a Wi-Fi network (any, with or without Internet: the owner's rule is about the radio), on mobile data, on a
+     * cable (these two only when they reach the Internet).
+     */
     fun connectivity(): Triple<Boolean, Boolean, Boolean> {
         val manager = connectivity ?: return Triple(false, false, false)
         var onWifi = false
@@ -81,8 +86,8 @@ class DirectWifi(private val context: Context) {
         @Suppress("DEPRECATION")
         for (network in manager.allNetworks) {
             val caps = manager.getNetworkCapabilities(network) ?: continue
-            if (!caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)) continue
             if (caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) onWifi = true
+            if (!caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)) continue
             if (caps.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR)) mobile = true
             if (caps.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET)) wired = true
         }

@@ -52,8 +52,6 @@ pub type TransferKey = u64;
 pub const SAMPLE_WINDOW: Duration = Duration::from_secs(10);
 /// Bluetooth adds to the other lanes only while they measure less than this together.
 pub const BLUETOOTH_HELPS_BELOW: f64 = 4e6;
-/// A direct Wi-Fi lane is asked for beside the LAN only while the LAN lanes measure less than this together.
-pub const DIRECT_WIFI_HELPS_BELOW: f64 = 25e6;
 /// A silent lane: no block completed and no write finished for this long, or 3 round trips if longer.
 pub const SILENT_AFTER: Duration = Duration::from_secs(1);
 pub const SILENT_AFTER_BLUETOOTH: Duration = Duration::from_secs(2);
@@ -84,10 +82,12 @@ const SLOWER_LANE_SECONDS: f64 = 1.0;
 pub struct Config {
     /// Phones keep at most 8 MiB in flight per lane.
     pub phone: bool,
-    /// Direct Wi-Fi leaves this device on its Wi-Fi network (AWDL on Macs and iPhones). Without it, direct Wi-Fi is
-    /// never asked for and a direct Wi-Fi lane that comes up anyway is closed unused: a transfer never costs a device
-    /// its Internet connection without its person's word ([`Scheduler::allow_direct_wifi`], ADR 0019's boost).
-    pub direct_wifi_keeps_internet: bool,
+    /// Direct Wi-Fi is allowed for this group under the owner's rule (ADR 0022, `nearby::p2p_wifi`): neither device
+    /// is on a Wi-Fi network, or the one that is is a phone on mobile data; both said so. Then a direct Wi-Fi lane is
+    /// asked for where the group has no LAN lane. Without it, direct Wi-Fi is never asked for and a direct Wi-Fi lane
+    /// that comes up anyway is closed unused, except a boost's ([`Scheduler::allow_direct_wifi`], ADR 0019). It
+    /// changes as the devices move ([`Scheduler::set_direct_wifi`]).
+    pub direct_wifi: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -217,11 +217,22 @@ impl Scheduler {
         }
     }
 
-    /// ADR 0019's boost: while `allowed`, a direct Wi-Fi lane is kept where [`Config::direct_wifi_keeps_internet`]
-    /// would close it; when the boost ends, such lanes close at once (their blocks go back to the others).
+    /// ADR 0019's boost: while `allowed`, a direct Wi-Fi lane is kept where [`Config::direct_wifi`] would close it;
+    /// when the boost ends, such lanes close at once (their blocks go back to the others).
     pub fn allow_direct_wifi(&mut self, allowed: bool) {
         self.direct_wifi_allowed = allowed;
-        if allowed || self.config.direct_wifi_keeps_internet {
+        self.close_direct_wifi_unless_allowed();
+    }
+
+    /// The owner's rule's answer for this group changed (a device joined or left a Wi-Fi network): while it says no,
+    /// direct Wi-Fi lanes other than a boost's close at once.
+    pub fn set_direct_wifi(&mut self, allowed: bool) {
+        self.config.direct_wifi = allowed;
+        self.close_direct_wifi_unless_allowed();
+    }
+
+    fn close_direct_wifi_unless_allowed(&mut self) {
+        if self.direct_wifi_allowed || self.config.direct_wifi {
             return;
         }
         let closing: Vec<LaneId> = self
@@ -258,7 +269,7 @@ impl Scheduler {
                 let (rate, rtt) = typical(route);
                 // The first session is wherever the route racer put it; only a lane can be refused.
                 let unused = route == RouteMethod::PeerToPeerWifi
-                    && !self.config.direct_wifi_keeps_internet
+                    && !self.config.direct_wifi
                     && !self.direct_wifi_allowed
                     && index != 0;
                 if unused {

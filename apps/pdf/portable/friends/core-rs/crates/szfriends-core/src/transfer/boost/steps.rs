@@ -7,7 +7,10 @@ impl Boost {
     /// The peer's abilities arrived (its PROPOSE, or its READY to this side's PROPOSE): roles, cost, and the
     /// question or READY.
     pub(super) fn peer_said(&mut self, peer: Abilities, now: Duration) {
-        let Some(role) = role(self.local, peer, self.local_sorts_first).filter(|_| self.local.any()) else {
+        // The owner's rule (ADR 0022): both devices allow direct Wi-Fi now, or there is no boost.
+        let allowed = crate::nearby::direct_wifi_allowed(self.local.direct_wifi_allowed, peer.direct_wifi_allowed);
+        let paired = role(self.local, peer, self.local_sorts_first).filter(|_| self.local.any() && allowed);
+        let Some(role) = paired else {
             self.end(boost_reason::UNSUPPORTED, true, now);
             return;
         };

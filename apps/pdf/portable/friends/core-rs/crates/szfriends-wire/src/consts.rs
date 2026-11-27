@@ -26,6 +26,12 @@ pub const CAPABILITY_LZ4_PARTS: u32 = 1 << 4;
 /// Bit 5: the Wi-Fi Direct boost (ADR 0019): this side understands BOOST (frame 32) and may host or join a direct
 /// Wi-Fi link for a transfer that would otherwise crawl over Bluetooth. BOOST is sent only to a peer that sets it.
 pub const CAPABILITY_DIRECT_WIFI_BOOST: u32 = 1 << 5;
+/// Bit 6: direct Wi-Fi allowed here, under the owner's rule (ADR 0022): when this handshake was made, this device was
+/// on no Wi-Fi network, or it is a phone that stays online over mobile data. A session or lane on the peer-to-peer
+/// Wi-Fi route stays open only when both handshakes set it (a boost's lane is judged by BOOST's Abilities instead).
+/// Unlike the bits above it says how the device is now, so each handshake reads it afresh; a peer that never sets it
+/// (any helper before ADR 0022) never gets direct Wi-Fi.
+pub const CAPABILITY_DIRECT_WIFI_ALLOWED: u32 = 1 << 6;
 
 /// Every Noise message, handshake or transport, including the 16-byte tag.
 pub const NOISE_MESSAGE_MAX: usize = 65_535;
@@ -120,6 +126,10 @@ pub mod boost_ability {
     pub const HOST_KEEPS_WIFI: u8 = 1 << 2;
     /// Joining leaves this device on its own Wi-Fi network (a Wi-Fi Direct client beside the station).
     pub const JOIN_KEEPS_WIFI: u8 = 1 << 3;
+    /// Direct Wi-Fi allowed on this device now, under the owner's rule (ADR 0022): on no Wi-Fi network, or a phone
+    /// that stays online over mobile data. A boost goes ahead only when both sides set it; a side that does not (any
+    /// helper before ADR 0022) is declined as unsupported.
+    pub const DIRECT_WIFI_ALLOWED: u8 = 1 << 4;
 }
 /// BOOST's Reason values for END and DECLINE (logs, and whether to ask again).
 pub mod boost_reason {

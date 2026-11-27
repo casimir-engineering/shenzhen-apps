@@ -124,7 +124,7 @@ impl State {
         meta: LinkMeta,
     ) -> Option<u64> {
         let mut channel = channel;
-        let capabilities = self.session_capabilities;
+        let capabilities = self.session_capabilities | self.direct_wifi_capability();
         channel.set_config(szfriends_core::session::ChannelConfig { capabilities, ..Default::default() });
         let rate = self.route_rates.get(&meta.dialed_route).copied();
         let silence = self.route_silence.clone().map(|path| (path, super::route_name(meta.dialed_route).to_owned()));
@@ -382,6 +382,7 @@ impl State {
     pub fn tick(&mut self) {
         self.nearby_tick();
         self.boost_tick();
+        self.direct_wifi_tick();
         self.reconsider_pulls();
         self.serving_tick();
         self.join_tick(unix_now());

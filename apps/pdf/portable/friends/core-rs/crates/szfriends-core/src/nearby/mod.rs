@@ -59,8 +59,9 @@ pub fn is_better(route: RouteMethod, other: RouteMethod) -> bool {
     rank(route) < rank(other)
 }
 
-/// Peer-to-peer Wi-Fi only where it keeps the device's Wi-Fi connection: the racer's check ([`p2p_wifi`]).
-pub use p2p_wifi::{p2p_wifi_usable, P2pWifi};
+/// Direct Wi-Fi only under the owner's rule (ADR 0022, [`p2p_wifi`]): neither device on a Wi-Fi network, or a phone on
+/// mobile data.
+pub use p2p_wifi::{direct_wifi_allowed, p2p_wifi_usable, P2pWifi, WifiStanding};
 
 /// Bonjour's service type. Tests use a type of their own ([`is_test_service_type`]), never this one.
 pub const SERVICE_TYPE: &str = "_szfriends._tcp";

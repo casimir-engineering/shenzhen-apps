@@ -71,7 +71,7 @@ pub(super) const TRANSFERS_AND_CONVERSATIONS: &[(&str, &str)] = &[
     ("transfer.note.holders", "From {count} of your computers"),
     ("transfer.note.devices", "From {count} devices at once"),
     ("transfer.note.rejoin", "you’ll rejoin {network} after"),
-    // The Wi-Fi Direct boost (ADR 0019): the question on a device that would lose its only Internet, and the notes after.
+    // The Wi-Fi Direct boost (ADR 0019, 0022): the question on a device that would leave its Wi-Fi, and the notes after.
     (
         "transfer.boost.ask",
         "Go faster? {first} isn’t on your Wi-Fi, so this is going over Bluetooth ({slow}). Leave {network} for {fast} \
@@ -97,6 +97,12 @@ pub(super) const TRANSFERS_AND_CONVERSATIONS: &[(&str, &str)] = &[
     // Phones only (the core in the app): no Mac says these.
     ("transfer.boost.device.phone", "phone"),
     ("transfer.boost.ask.join", "{text} Then choose Join."),
+    (
+        "transfer.boost.ask.mobile",
+        "Go faster? {first} isn’t on your Wi-Fi, so this is going over Bluetooth ({slow}). Leave {network} for {fast} \
+         to connect to {first} directly. Your phone stays online over mobile data and rejoins it by itself when it’s \
+         done.",
+    ),
     (
         "transfer.boost.direct.mobile",
         "Going directly over Wi-Fi. Your phone stays online over mobile data meanwhile, and rejoins {network} when \

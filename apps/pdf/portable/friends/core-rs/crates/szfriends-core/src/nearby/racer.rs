@@ -1,13 +1,13 @@
 //! Route racing (`SZFriendsRouteRacer.m`, ADR 0004 § Route racing): every sighted endpoint of a friend dialed at once
 //! with IK, staggered toward the better routes, and a backoff per person, method and tag after a failed handshake, so
 //! a device re-advertising someone's captured tag draws each friend's dial rarely. Pure; the clock is an argument.
-//! Peer-to-peer Wi-Fi is dialed only where it keeps the device's Wi-Fi connection ([`super::p2p_wifi`]).
+//! Peer-to-peer Wi-Fi is dialed only while this device allows direct Wi-Fi under the owner's rule ([`super::p2p_wifi`]).
 
 use std::collections::HashMap;
 
 use super::callbacks::TagMatcher;
 use super::merger::{matched_tag, Candidate};
-use super::p2p_wifi::{p2p_wifi_usable, P2pWifi};
+use super::p2p_wifi::{p2p_wifi_usable, P2pWifi, WifiStanding};
 use super::{is_better, Method, RouteMethod, Sighting, Tag};
 
 pub const DIAL_DELAY_LAN: f64 = 0.0;
@@ -68,8 +68,10 @@ pub struct Racer {
     backoffs: HashMap<String, Backoff>,
     /// method/endpoint → the tag it showed when last handed out, for the failure report naming only the endpoint.
     endpoint_tags: HashMap<String, Tag>,
-    /// The platform's answer unless a probe or a test sets another.
+    /// The platform's answer unless a test sets another.
     p2p_wifi: P2pWifi,
+    /// This device's side of the owner's rule; unknown (not allowed) until the helper says.
+    standing: Option<WifiStanding>,
 }
 
 fn endpoint_key(method: Method, endpoint: &str) -> String {
@@ -85,10 +87,20 @@ fn backoff_key(conversation: &str, method: Method, endpoint: &str, tag: Option<&
 }
 
 impl Racer {
-    /// What peer-to-peer Wi-Fi does to this device's Wi-Fi connection; unless it keeps it, those sightings are not
-    /// dialed and the next route in the owner's order carries the session.
+    /// Whether this platform has a peer-to-peer Wi-Fi route; without one, those sightings are not dialed.
     pub fn set_p2p_wifi(&mut self, capability: P2pWifi) {
         self.p2p_wifi = capability;
+    }
+
+    /// This device's side of the owner's rule (ADR 0022): while it does not allow direct Wi-Fi, peer-to-peer Wi-Fi
+    /// sightings are not dialed and the next route in the owner's order carries the session.
+    pub fn set_wifi_standing(&mut self, standing: WifiStanding) {
+        self.standing = Some(standing);
+    }
+
+    /// This device's side of the owner's rule as last set; `None` before the helper said.
+    pub fn wifi_standing(&self) -> Option<WifiStanding> {
+        self.standing
     }
 
     pub fn p2p_wifi(&self) -> P2pWifi {
@@ -109,7 +121,7 @@ impl Racer {
     pub fn attempts(&mut self, candidate: &Candidate, matcher: &TagMatcher, now: f64) -> Vec<Attempt> {
         let has_hidden = candidate.sightings.iter().any(|s| !s.public);
         let skip_public = candidate.conversation_id.is_some() && has_hidden;
-        let skip_p2p = !p2p_wifi_usable(self.p2p_wifi);
+        let skip_p2p = !self.standing.is_some_and(|here| p2p_wifi_usable(self.p2p_wifi, here));
         let mut seen = Vec::new();
         let mut attempts = Vec::new();
         for sighting in &candidate.sightings {

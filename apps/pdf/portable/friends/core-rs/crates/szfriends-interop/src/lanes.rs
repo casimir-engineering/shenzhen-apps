@@ -147,8 +147,9 @@ impl State {
         if fast {
             let route = channel.initiator_route();
             let lanes = LaneGroup::new(id, identity, initiator, route, |i| lane_token(&h, i));
-            let config =
-                Config { phone: false, direct_wifi_keeps_internet: cfg!(any(target_os = "macos", target_os = "ios")) };
+            // The test peer plays two devices that both allow direct Wi-Fi (ADR 0022), so the bench's peer-to-peer
+            // Wi-Fi cases keep their lanes.
+            let config = Config { phone: false, direct_wifi: true };
             let group = Group { lanes, scheduler: Scheduler::new(config), keys: HashMap::new(), next: 0 };
             self.lanes.groups.insert(id, group);
         }
